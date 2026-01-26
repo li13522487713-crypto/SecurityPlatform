@@ -11,5 +11,12 @@ public sealed class Asset : TenantEntity
         Name = name;
     }
 
+    public Asset(TenantId tenantId, string name, long id)
+        : base(tenantId)
+    {
+        Id = id;
+        Name = name;
+    }
+
     public string Name { get; private set; }
 }

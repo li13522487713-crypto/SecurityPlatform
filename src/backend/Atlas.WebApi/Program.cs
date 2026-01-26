@@ -1,4 +1,7 @@
-﻿using Atlas.Application;
+﻿using AutoMapper;
+using FluentValidation;
+using FluentValidation.AspNetCore;
+using Atlas.Application;
 using Atlas.Application.Options;
 using Atlas.Infrastructure;
 using Atlas.WebApi.Middlewares;
@@ -46,6 +49,9 @@ builder.Services.AddHttpLogging(options =>
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<Atlas.Core.Tenancy.ITenantProvider, HttpContextTenantProvider>();
 
+builder.Services.AddFluentValidationAutoValidation();
+builder.Services.AddValidatorsFromAssemblies(AppDomain.CurrentDomain.GetAssemblies());
+
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("Jwt"));
 
 builder.Services.AddAuthentication()
@@ -82,6 +88,12 @@ builder.Services.AddAtlasApplication();
 builder.Services.AddAtlasInfrastructure(builder.Configuration);
 
 var app = builder.Build();
+
+using (var scope = app.Services.CreateScope())
+{
+    var mapper = scope.ServiceProvider.GetRequiredService<IMapper>();
+    mapper.ConfigurationProvider.AssertConfigurationIsValid();
+}
 
 app.UseHttpLogging();
 app.UseMiddleware<ExceptionHandlingMiddleware>();

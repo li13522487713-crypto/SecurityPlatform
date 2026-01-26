@@ -14,6 +14,17 @@ Design must follow Clean Architecture. Separate domain, application, infrastruct
 
 The system consists of an infrastructure support platform and a security support platform. Design both as cohesive bounded contexts with explicit integration points and shared contracts documented under `docs/`. Treat security as a first-class capability across both platforms.
 
+## Current Architecture Summary
+
+- Solution: `Atlas.SecurityPlatform.slnx` with clean architecture layering under `src/backend`.
+- Core: `Atlas.Core` holds shared models (API response, pagination), tenancy context, base entities.
+- Domain: `Atlas.Domain` + module domains (`Assets`, `Audit`, `Alert`) with tenant-scoped entities.
+- Application: module-specific DTOs, validators, and mapping profiles; AutoMapper configured via DI.
+- Infrastructure: SqlSugar + SQLite, Snowflake ID generator (IdGen), NLog integration, module query services.
+- Web API: ASP.NET Core controllers, JWT + certificate auth, CORS whitelist, HTTP logging, tenant middleware.
+- Frontend: Vue 3 + Vite + Ant Design Vue + Router in `src/frontend/Atlas.WebApp`, dev proxy to backend.
+- Contracts: `docs/contracts.md` defines unified response and pagination models for frontend/backend.
+
 ## Build, Test, and Development Commands
 
 No build/test commands are defined yet. Once code is added, document the exact commands. Examples only:
