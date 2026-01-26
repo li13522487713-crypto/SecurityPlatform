@@ -49,6 +49,10 @@ Emphasize secure coding practices and object-oriented design. Prefer clear, test
 
 Asynchronous coding is mandatory. Define async interfaces and implementations for Controllers and Services, and always use async/await for I/O. Database access must use the repository pattern; direct data access from Controllers is not allowed.
 
+## API Testing Artifacts
+
+Standardize HTTP test files. On every new or modified API endpoint, create or update a `*.http` file where `*` is the controller name (for example `Bosch.http`). The `.http` file must include requests that cover the affected endpoints.
+
 ## Testing Guidelines
 
 No test framework is configured. When tests are added, document:
