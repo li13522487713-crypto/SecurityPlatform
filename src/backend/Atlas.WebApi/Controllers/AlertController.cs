@@ -22,10 +22,12 @@ public sealed class AlertController : ControllerBase
 
     [HttpGet]
     [Authorize]
-    public ActionResult<ApiResponse<PagedResult<AlertListItem>>> Get([FromQuery] PagedRequest request)
+    public async Task<ActionResult<ApiResponse<PagedResult<AlertListItem>>>> Get(
+        [FromQuery] PagedRequest request,
+        CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
-        var result = _alertQueryService.QueryAlerts(request, tenantId);
+        var result = await _alertQueryService.QueryAlertsAsync(request, tenantId, cancellationToken);
         var payload = ApiResponse<PagedResult<AlertListItem>>.Ok(result, HttpContext.TraceIdentifier);
         return Ok(payload);
     }

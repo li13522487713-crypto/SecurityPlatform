@@ -1,11 +1,13 @@
 ﻿using Atlas.Application.Abstractions;
 using Atlas.Application.Alert.Abstractions;
 using Atlas.Application.Assets.Abstractions;
+using Atlas.Application.Assets.Repositories;
 using Atlas.Application.Audit.Abstractions;
 using Atlas.Core.Abstractions;
 using Atlas.Core.Tenancy;
 using Atlas.Infrastructure.IdGen;
 using Atlas.Infrastructure.Options;
+using Atlas.Infrastructure.Repositories;
 using Atlas.Infrastructure.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -23,7 +25,9 @@ public static class ServiceCollectionExtensions
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<IIdGenerator, SnowflakeIdGenerator>();
         services.AddScoped<IAuthTokenService, JwtAuthTokenService>();
+        services.AddScoped<IAssetRepository, AssetRepository>();
         services.AddScoped<IAssetQueryService, AssetQueryService>();
+        services.AddScoped<IAssetCommandService, AssetCommandService>();
         services.AddScoped<IAuditQueryService, AuditQueryService>();
         services.AddScoped<IAlertQueryService, AlertQueryService>();
 
@@ -44,7 +48,7 @@ public static class ServiceCollectionExtensions
             if (!tenantId.IsEmpty)
             {
                 db.QueryFilter.AddTableFilter<Atlas.Core.Abstractions.TenantEntity>(
-                    it => it.TenantId.Value == tenantId.Value);
+                    it => it.TenantIdValue == tenantId.Value);
             }
 
             return db;

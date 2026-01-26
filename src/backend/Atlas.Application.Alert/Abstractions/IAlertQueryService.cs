@@ -6,5 +6,8 @@ namespace Atlas.Application.Alert.Abstractions;
 
 public interface IAlertQueryService
 {
-    PagedResult<AlertListItem> QueryAlerts(PagedRequest request, TenantId tenantId);
+    Task<PagedResult<AlertListItem>> QueryAlertsAsync(
+        PagedRequest request,
+        TenantId tenantId,
+        CancellationToken cancellationToken);
 }

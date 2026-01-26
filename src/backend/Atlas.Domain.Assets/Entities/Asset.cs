@@ -5,6 +5,12 @@ namespace Atlas.Domain.Assets.Entities;
 
 public sealed class Asset : TenantEntity
 {
+    public Asset()
+        : base(TenantId.Empty)
+    {
+        Name = string.Empty;
+    }
+
     public Asset(TenantId tenantId, string name)
         : base(tenantId)
     {

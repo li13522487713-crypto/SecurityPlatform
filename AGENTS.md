@@ -47,6 +47,8 @@ For .NET 10: 4-space indentation, PascalCase for types/public members, camelCase
 
 Emphasize secure coding practices and object-oriented design. Prefer clear, testable abstractions; avoid unnecessary patterns, layers, or generalized frameworks.
 
+Asynchronous coding is mandatory. Define async interfaces and implementations for Controllers and Services, and always use async/await for I/O. Database access must use the repository pattern; direct data access from Controllers is not allowed.
+
 ## Testing Guidelines
 
 No test framework is configured. When tests are added, document:

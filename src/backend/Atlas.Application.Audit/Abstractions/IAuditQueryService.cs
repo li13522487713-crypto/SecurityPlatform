@@ -6,5 +6,8 @@ namespace Atlas.Application.Audit.Abstractions;
 
 public interface IAuditQueryService
 {
-    PagedResult<AuditListItem> QueryAudits(PagedRequest request, TenantId tenantId);
+    Task<PagedResult<AuditListItem>> QueryAuditsAsync(
+        PagedRequest request,
+        TenantId tenantId,
+        CancellationToken cancellationToken);
 }

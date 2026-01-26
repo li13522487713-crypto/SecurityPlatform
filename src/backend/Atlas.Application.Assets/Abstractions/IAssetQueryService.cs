@@ -6,5 +6,8 @@ namespace Atlas.Application.Assets.Abstractions;
 
 public interface IAssetQueryService
 {
-    PagedResult<AssetListItem> QueryAssets(PagedRequest request, TenantId tenantId);
+    Task<PagedResult<AssetListItem>> QueryAssetsAsync(
+        PagedRequest request,
+        TenantId tenantId,
+        CancellationToken cancellationToken);
 }

@@ -1,42 +1,38 @@
-﻿using AutoMapper;
+﻿using Atlas.Application.Assets.Repositories;
 using Atlas.Application.Assets.Abstractions;
 using Atlas.Application.Assets.Models;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
-using Atlas.Domain.Assets.Entities;
-using SqlSugar;
+using AutoMapper;
 
 namespace Atlas.Infrastructure.Services;
 
 public sealed class AssetQueryService : IAssetQueryService
 {
-    private readonly ISqlSugarClient _db;
+    private readonly IAssetRepository _repository;
     private readonly IMapper _mapper;
 
-    public AssetQueryService(ISqlSugarClient db, IMapper mapper)
+    public AssetQueryService(IAssetRepository repository, IMapper mapper)
     {
-        _db = db;
+        _repository = repository;
         _mapper = mapper;
     }
 
-    public PagedResult<AssetListItem> QueryAssets(PagedRequest request, TenantId tenantId)
+    public async Task<PagedResult<AssetListItem>> QueryAssetsAsync(
+        PagedRequest request,
+        TenantId tenantId,
+        CancellationToken cancellationToken)
     {
         var pageIndex = request.PageIndex < 1 ? 1 : request.PageIndex;
         var pageSize = request.PageSize < 1 ? 10 : request.PageSize;
-        var total = 0;
 
-        var query = _db.Queryable<Asset>();
-        if (!string.IsNullOrWhiteSpace(request.Keyword))
-        {
-            query = query.Where(x => x.Name.Contains(request.Keyword));
-        }
+        var (items, total) = await _repository.QueryPageAsync(
+            pageIndex,
+            pageSize,
+            request.Keyword,
+            cancellationToken);
 
-        var items = query
-            .OrderBy(x => x.Id, OrderByType.Desc)
-            .ToPageList(pageIndex, pageSize, ref total)
-            .Select(x => _mapper.Map<AssetListItem>(x))
-            .ToArray();
-
-        return new PagedResult<AssetListItem>(items, total, pageIndex, pageSize);
+        var resultItems = items.Select(x => _mapper.Map<AssetListItem>(x)).ToArray();
+        return new PagedResult<AssetListItem>(resultItems, total, pageIndex, pageSize);
     }
 }

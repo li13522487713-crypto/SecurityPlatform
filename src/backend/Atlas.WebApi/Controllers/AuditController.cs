@@ -22,10 +22,12 @@ public sealed class AuditController : ControllerBase
 
     [HttpGet]
     [Authorize]
-    public ActionResult<ApiResponse<PagedResult<AuditListItem>>> Get([FromQuery] PagedRequest request)
+    public async Task<ActionResult<ApiResponse<PagedResult<AuditListItem>>>> Get(
+        [FromQuery] PagedRequest request,
+        CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
-        var result = _auditQueryService.QueryAudits(request, tenantId);
+        var result = await _auditQueryService.QueryAuditsAsync(request, tenantId, cancellationToken);
         var payload = ApiResponse<PagedResult<AuditListItem>>.Ok(result, HttpContext.TraceIdentifier);
         return Ok(payload);
     }

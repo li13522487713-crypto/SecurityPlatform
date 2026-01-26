@@ -1,4 +1,4 @@
-﻿using Atlas.Core.Exceptions;
+﻿using FluentValidation;
 using Atlas.Core.Models;
 using Microsoft.AspNetCore.Mvc;
 using System.Net;
@@ -21,9 +21,10 @@ public sealed class ExceptionHandlingMiddleware
         {
             await _next(context);
         }
-        catch (BusinessException ex)
+        catch (ValidationException ex)
         {
-            await WriteErrorAsync(context, HttpStatusCode.BadRequest, ex.Code, ex.Message);
+            var message = string.Join("; ", ex.Errors.Select(e => e.ErrorMessage));
+            await WriteErrorAsync(context, HttpStatusCode.BadRequest, ErrorCodes.ValidationError, message);
         }
         catch (Exception)
         {

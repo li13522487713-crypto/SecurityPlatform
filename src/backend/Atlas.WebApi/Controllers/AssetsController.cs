@@ -15,6 +15,7 @@ namespace Atlas.WebApi.Controllers;
 public sealed class AssetsController : ControllerBase
 {
     private readonly IAssetQueryService _assetQueryService;
+    private readonly IAssetCommandService _assetCommandService;
     private readonly ITenantProvider _tenantProvider;
     private readonly IMapper _mapper;
     private readonly IValidator<Asset> _entityValidator;
@@ -22,12 +23,14 @@ public sealed class AssetsController : ControllerBase
 
     public AssetsController(
         IAssetQueryService assetQueryService,
+        IAssetCommandService assetCommandService,
         ITenantProvider tenantProvider,
         IMapper mapper,
         IValidator<Asset> entityValidator,
         Atlas.Core.Abstractions.IIdGenerator idGenerator)
     {
         _assetQueryService = assetQueryService;
+        _assetCommandService = assetCommandService;
         _tenantProvider = tenantProvider;
         _mapper = mapper;
         _entityValidator = entityValidator;
@@ -36,17 +39,21 @@ public sealed class AssetsController : ControllerBase
 
     [HttpGet]
     [Authorize]
-    public ActionResult<ApiResponse<PagedResult<AssetListItem>>> Get([FromQuery] PagedRequest request)
+    public async Task<ActionResult<ApiResponse<PagedResult<AssetListItem>>>> Get(
+        [FromQuery] PagedRequest request,
+        CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
-        var result = _assetQueryService.QueryAssets(request, tenantId);
+        var result = await _assetQueryService.QueryAssetsAsync(request, tenantId, cancellationToken);
         var payload = ApiResponse<PagedResult<AssetListItem>>.Ok(result, HttpContext.TraceIdentifier);
         return Ok(payload);
     }
 
     [HttpPost]
     [Authorize]
-    public ActionResult<ApiResponse<object>> Create([FromBody] AssetCreateRequest request)
+    public async Task<ActionResult<ApiResponse<object>>> Create(
+        [FromBody] AssetCreateRequest request,
+        CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
         var asset = _mapper.Map<Asset>(request, opt =>
@@ -57,7 +64,8 @@ public sealed class AssetsController : ControllerBase
 
         _entityValidator.ValidateAndThrow(asset);
 
-        var payload = ApiResponse<object>.Ok(new { Id = asset.Id.ToString() }, HttpContext.TraceIdentifier);
+        var id = await _assetCommandService.CreateAsync(asset, cancellationToken);
+        var payload = ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier);
         return Ok(payload);
     }
 }
