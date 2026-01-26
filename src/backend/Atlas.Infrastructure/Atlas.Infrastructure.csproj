@@ -18,6 +18,8 @@
   <ItemGroup>
     <ProjectReference Include="..\Atlas.Application\Atlas.Application.csproj" />
     <ProjectReference Include="..\Atlas.Application.Assets\Atlas.Application.Assets.csproj" />
+    <ProjectReference Include="..\Atlas.Application.Audit\Atlas.Application.Audit.csproj" />
+    <ProjectReference Include="..\Atlas.Application.Alert\Atlas.Application.Alert.csproj" />
     <ProjectReference Include="..\Atlas.Domain\Atlas.Domain.csproj" />
     <ProjectReference Include="..\Atlas.Core\Atlas.Core.csproj" />
   </ItemGroup>

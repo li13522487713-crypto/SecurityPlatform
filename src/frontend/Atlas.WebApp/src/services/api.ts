@@ -12,6 +12,18 @@ export interface AssetListItem {
   name: string;
 }
 
+export interface AuditListItem {
+  id: string;
+  action: string;
+  occurredAt: string;
+}
+
+export interface AlertListItem {
+  id: string;
+  title: string;
+  createdAt: string;
+}
+
 export async function createToken(tenantId: string, username: string, password: string) {
   const response = await request<ApiResponse<TokenResult>>("/auth/token", {
     method: "POST",
@@ -30,6 +42,36 @@ export async function createToken(tenantId: string, username: string, password: 
 }
 
 export async function getAssetsPaged(request: PagedRequest) {
+  const query = toQuery(request);
+  const response = await request<ApiResponse<PagedResult<AssetListItem>>>(`/assets?${query}`);
+  if (!response.data) {
+    throw new Error(response.message || "查询失败");
+  }
+
+  return response.data;
+}
+
+export async function getAuditsPaged(request: PagedRequest) {
+  const query = toQuery(request);
+  const response = await request<ApiResponse<PagedResult<AuditListItem>>>(`/audit?${query}`);
+  if (!response.data) {
+    throw new Error(response.message || "查询失败");
+  }
+
+  return response.data;
+}
+
+export async function getAlertsPaged(request: PagedRequest) {
+  const query = toQuery(request);
+  const response = await request<ApiResponse<PagedResult<AlertListItem>>>(`/alert?${query}`);
+  if (!response.data) {
+    throw new Error(response.message || "查询失败");
+  }
+
+  return response.data;
+}
+
+function toQuery(request: PagedRequest) {
   const query = new URLSearchParams({
     pageIndex: request.pageIndex.toString(),
     pageSize: request.pageSize.toString(),
@@ -38,12 +80,7 @@ export async function getAssetsPaged(request: PagedRequest) {
     sortDesc: request.sortDesc ? "true" : "false"
   });
 
-  const response = await request<ApiResponse<PagedResult<AssetListItem>>>(`/assets?${query.toString()}`);
-  if (!response.data) {
-    throw new Error(response.message || "查询失败");
-  }
-
-  return response.data;
+  return query.toString();
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {

@@ -58,6 +58,7 @@ builder.Services.AddAtlasInfrastructure(builder.Configuration);
 
 var app = builder.Build();
 
+app.UseMiddleware<HttpLoggingMiddleware>();
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseMiddleware<TenantContextMiddleware>();
 

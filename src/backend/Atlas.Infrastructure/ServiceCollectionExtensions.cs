@@ -1,5 +1,7 @@
 ﻿using Atlas.Application.Abstractions;
+using Atlas.Application.Alert.Abstractions;
 using Atlas.Application.Assets.Abstractions;
+using Atlas.Application.Audit.Abstractions;
 using Atlas.Core.Tenancy;
 using Atlas.Infrastructure.Options;
 using Atlas.Infrastructure.Services;
@@ -18,10 +20,15 @@ public static class ServiceCollectionExtensions
         services.AddSingleton(TimeProvider.System);
         services.AddScoped<IAuthTokenService, JwtAuthTokenService>();
         services.AddScoped<IAssetQueryService, AssetQueryService>();
+        services.AddScoped<IAuditQueryService, AuditQueryService>();
+        services.AddScoped<IAlertQueryService, AlertQueryService>();
 
         services.AddScoped<ISqlSugarClient>(sp =>
         {
             var options = sp.GetRequiredService<IOptions<DatabaseOptions>>().Value;
+            var tenantProvider = sp.GetRequiredService<ITenantProvider>();
+            var tenantId = tenantProvider.GetTenantId();
+
             var config = new ConnectionConfig
             {
                 ConnectionString = options.ConnectionString,
@@ -29,7 +36,14 @@ public static class ServiceCollectionExtensions
                 IsAutoCloseConnection = true
             };
 
-            return new SqlSugarScope(config);
+            var db = new SqlSugarScope(config);
+            if (!tenantId.IsEmpty)
+            {
+                db.QueryFilter.AddTableFilter<Atlas.Core.Abstractions.TenantEntity>(
+                    it => it.TenantId.Value == tenantId.Value);
+            }
+
+            return db;
         });
 
         return services;
