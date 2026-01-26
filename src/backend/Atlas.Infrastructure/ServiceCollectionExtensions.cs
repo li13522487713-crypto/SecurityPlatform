@@ -1,4 +1,5 @@
 ﻿using Atlas.Application.Abstractions;
+using Atlas.Application.Assets.Abstractions;
 using Atlas.Core.Tenancy;
 using Atlas.Infrastructure.Options;
 using Atlas.Infrastructure.Services;
@@ -16,6 +17,7 @@ public static class ServiceCollectionExtensions
         services.Configure<DatabaseOptions>(configuration.GetSection("Database"));
         services.AddSingleton(TimeProvider.System);
         services.AddScoped<IAuthTokenService, JwtAuthTokenService>();
+        services.AddScoped<IAssetQueryService, AssetQueryService>();
 
         services.AddScoped<ISqlSugarClient>(sp =>
         {

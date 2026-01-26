@@ -15,6 +15,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Atlas.Application\Atlas.Application.csproj" />
+    <ProjectReference Include="..\Atlas.Application.Assets\Atlas.Application.Assets.csproj" />
     <ProjectReference Include="..\Atlas.Infrastructure\Atlas.Infrastructure.csproj" />
     <ProjectReference Include="..\Atlas.Core\Atlas.Core.csproj" />
   </ItemGroup>

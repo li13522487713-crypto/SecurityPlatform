@@ -361,3 +361,30 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# .NET Core / .NET 5+ / .NET 6+ / .NET 7+ / .NET 8+
+.dotnet/
+*.swp
+*.swo
+*~
+
+# Rider (JetBrains IDE)
+.idea/
+*.sln.iml
+
+# VS Code
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# macOS
+.DS_Store
+
+# Linux
+*~
+
+# JetBrains Rider
+.idea/
+*.sln.iml
