@@ -1,6 +1,21 @@
 @baseUrl = http://localhost:5000
 @tenantId = 00000000-0000-0000-0000-000000000001
-@accessToken = {{token}}
+@username = admin
+@password = P@ssw0rd!
+
+### Login to get token (Execute this first)
+# @name login
+POST {{baseUrl}}/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+###
+@accessToken = {{login.response.body.$.data.accessToken}}
 
 ### Get Permissions (Paged)
 GET {{baseUrl}}/permissions?pageIndex=1&pageSize=10

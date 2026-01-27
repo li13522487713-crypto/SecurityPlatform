@@ -25,11 +25,11 @@ public sealed class TenantContextMiddleware
         var endpoint = context.GetEndpoint();
         var allowAnonymous = endpoint?.Metadata.GetMetadata<IAllowAnonymous>() is not null;
         var path = context.Request.Path.Value ?? string.Empty;
-        var allowWithoutTenant = allowAnonymous
+        var skipTenantCheck = allowAnonymous
             && (path.StartsWith("/health", StringComparison.OrdinalIgnoreCase)
                 || path.StartsWith("/openapi", StringComparison.OrdinalIgnoreCase));
 
-        if (allowWithoutTenant)
+        if (skipTenantCheck)
         {
             await _next(context);
             return;

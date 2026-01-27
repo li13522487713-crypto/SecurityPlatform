@@ -5,6 +5,9 @@ namespace Atlas.Domain.Audit.Entities;
 
 public sealed class AuditRecord : TenantEntity
 {
+#pragma warning disable CS8618
+    // SqlSugar requires a parameterless constructor for deserialization
+    // The parameterized constructor should always be used for creating new audit records
     public AuditRecord()
         : base(TenantId.Empty)
     {
@@ -14,6 +17,7 @@ public sealed class AuditRecord : TenantEntity
         Target = string.Empty;
         OccurredAt = DateTimeOffset.UtcNow;
     }
+#pragma warning restore CS8618
 
     public AuditRecord(
         TenantId tenantId,

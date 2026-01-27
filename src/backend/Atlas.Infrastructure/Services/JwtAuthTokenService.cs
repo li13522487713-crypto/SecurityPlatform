@@ -209,6 +209,12 @@ public sealed class JwtAuthTokenService : IAuthTokenService
         AuthRequestContext context,
         CancellationToken cancellationToken)
     {
+        if (tenantId.IsEmpty)
+        {
+            // Skip audit if tenant ID is empty
+            return Task.CompletedTask;
+        }
+
         var record = new AuditRecord(tenantId, actor, action, result, target, context.IpAddress, context.UserAgent);
         return _auditWriter.WriteAsync(record, cancellationToken);
     }
