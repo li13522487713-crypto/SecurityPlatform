@@ -23,7 +23,9 @@ public sealed class FlowEngine
     private readonly IApprovalUserQueryService _userQueryService;
     private readonly DeduplicationService _deduplicationService;
     private readonly IApprovalNotificationService? _notificationService;
+    private readonly IApprovalTimeoutReminderRepository? _timeoutReminderRepository;
     private readonly IIdGenerator _idGenerator;
+    private readonly TimeProvider _timeProvider;
 
     public FlowEngine(
         IApprovalTaskRepository taskRepository,
@@ -35,7 +37,9 @@ public sealed class FlowEngine
         IApprovalUserQueryService userQueryService,
         DeduplicationService deduplicationService,
         IIdGenerator idGenerator,
-        IApprovalNotificationService? notificationService = null)
+        IApprovalNotificationService? notificationService = null,
+        IApprovalTimeoutReminderRepository? timeoutReminderRepository = null,
+        TimeProvider? timeProvider = null)
     {
         _taskRepository = taskRepository;
         _nodeExecutionRepository = nodeExecutionRepository;
@@ -46,7 +50,9 @@ public sealed class FlowEngine
         _userQueryService = userQueryService;
         _deduplicationService = deduplicationService;
         _notificationService = notificationService;
+        _timeoutReminderRepository = timeoutReminderRepository;
         _idGenerator = idGenerator;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <summary>
@@ -357,6 +363,12 @@ public sealed class FlowEngine
         {
             await _taskRepository.AddRangeAsync(tasks, cancellationToken);
 
+            // 创建超时提醒记录（如果节点启用了超时配置）
+            if (node.TimeoutEnabled && _timeoutReminderRepository != null)
+            {
+                await CreateTimeoutRemindersAsync(tenantId, instance, node, tasks, cancellationToken);
+            }
+
             // 发送任务创建通知（异步，失败不影响主流程）
             if (_notificationService != null)
             {
@@ -382,6 +394,57 @@ public sealed class FlowEngine
                     }, cancellationToken);
                 }
             }
+        }
+    }
+
+    /// <summary>
+    /// 创建超时提醒记录
+    /// </summary>
+    private async Task CreateTimeoutRemindersAsync(
+        TenantId tenantId,
+        ApprovalProcessInstance instance,
+        FlowNode node,
+        List<ApprovalTask> tasks,
+        CancellationToken cancellationToken)
+    {
+        if (!node.TimeoutEnabled || (node.TimeoutHours == null && node.TimeoutMinutes == null))
+        {
+            return;
+        }
+
+        var now = _timeProvider.GetUtcNow();
+        var timeoutHours = node.TimeoutHours ?? 0;
+        var timeoutMinutes = node.TimeoutMinutes ?? 0;
+        var expectedCompleteTime = now.AddHours(timeoutHours).AddMinutes(timeoutMinutes);
+
+        foreach (var task in tasks)
+        {
+            // 检查是否已存在提醒记录（幂等性保护）
+            var existingReminder = await _timeoutReminderRepository!.GetByInstanceAndTaskAsync(
+                tenantId, instance.Id, task.Id, node.Id, cancellationToken);
+
+            if (existingReminder != null)
+            {
+                continue; // 已存在，跳过
+            }
+
+            var recipientUserId = ExtractAssigneeUserId(task.AssigneeValue);
+            if (!recipientUserId.HasValue)
+            {
+                continue;
+            }
+
+            var reminder = new ApprovalTimeoutReminder(
+                tenantId,
+                instance.Id,
+                task.Id,
+                node.Id,
+                Domain.Approval.Enums.ReminderType.NodeTimeout,
+                recipientUserId.Value,
+                expectedCompleteTime,
+                _idGenerator.NextId());
+
+            await _timeoutReminderRepository.AddAsync(reminder, cancellationToken);
         }
     }
 

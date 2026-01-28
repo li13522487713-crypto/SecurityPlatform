@@ -73,6 +73,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<Atlas.Application.Approval.Repositories.IApprovalCopyRecordRepository, ApprovalCopyRecordRepository>();
         services.AddScoped<Atlas.Application.Approval.Repositories.IApprovalNotificationTemplateRepository, ApprovalNotificationTemplateRepository>();
         services.AddScoped<Atlas.Application.Approval.Repositories.IApprovalInboxMessageRepository, ApprovalInboxMessageRepository>();
+        services.AddScoped<Atlas.Application.Approval.Repositories.IApprovalTimeoutReminderRepository, ApprovalTimeoutReminderRepository>();
+        services.AddScoped<Atlas.Application.Approval.Repositories.IApprovalReminderRecordRepository, ApprovalReminderRecordRepository>();
         
         // Approval Notification Senders
         services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalNotificationSender, Atlas.Infrastructure.Services.ApprovalFlow.NotificationSenders.EmailNotificationSender>();
@@ -81,6 +83,12 @@ public static class ServiceCollectionExtensions
         
         // Approval Notification Service
         services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalNotificationService, Atlas.Infrastructure.Services.ApprovalFlow.ApprovalNotificationService>();
+        
+        // Approval Reminder Service
+        services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalReminderService, Atlas.Infrastructure.Services.ApprovalFlow.ApprovalReminderService>();
+        
+        // Approval Timeout Reminder Hosted Service
+        services.AddHostedService<ApprovalTimeoutReminderHostedService>();
         
         // Approval Flow Operation Handlers
         services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalOperationHandler, Atlas.Infrastructure.Services.ApprovalFlow.Operations.ProcessDrawBackOperationHandler>();

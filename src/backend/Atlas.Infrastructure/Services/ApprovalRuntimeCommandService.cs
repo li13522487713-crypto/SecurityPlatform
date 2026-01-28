@@ -27,6 +27,7 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
     private readonly IApprovalCopyRecordRepository _copyRecordRepository;
     private readonly IApprovalProcessVariableRepository _processVariableRepository;
     private readonly IApprovalNotificationService? _notificationService;
+    private readonly IApprovalTimeoutReminderRepository? _timeoutReminderRepository;
     private readonly IIdGenerator _idGenerator;
     private readonly IMapper _mapper;
     private readonly FlowEngine _flowEngine;
@@ -44,7 +45,8 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
         IApprovalUserQueryService userQueryService,
         IIdGenerator idGenerator,
         IMapper mapper,
-        IApprovalNotificationService? notificationService = null)
+        IApprovalNotificationService? notificationService = null,
+        IApprovalTimeoutReminderRepository? timeoutReminderRepository = null)
     {
         _flowRepository = flowRepository;
         _instanceRepository = instanceRepository;
@@ -56,11 +58,12 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
         _copyRecordRepository = copyRecordRepository;
         _processVariableRepository = processVariableRepository;
         _notificationService = notificationService;
+        _timeoutReminderRepository = timeoutReminderRepository;
         _idGenerator = idGenerator;
         _mapper = mapper;
         var conditionEvaluator = new ConditionEvaluator(processVariableRepository);
         var deduplicationService = new DeduplicationService(taskRepository, userQueryService);
-        _flowEngine = new FlowEngine(taskRepository, nodeExecutionRepository, deptLeaderRepository, parallelTokenRepository, copyRecordRepository, conditionEvaluator, userQueryService, deduplicationService, idGenerator, notificationService);
+        _flowEngine = new FlowEngine(taskRepository, nodeExecutionRepository, deptLeaderRepository, parallelTokenRepository, copyRecordRepository, conditionEvaluator, userQueryService, deduplicationService, idGenerator, notificationService, timeoutReminderRepository);
     }
 
     public async Task<ApprovalInstanceResponse> StartAsync(

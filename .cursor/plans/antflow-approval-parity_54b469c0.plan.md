@@ -58,10 +58,10 @@ todos:
     status: completed
   - id: notification-system-parity
     content: 消息通知体系对齐（P1）：对齐 AntFlow 的消息发送适配器（Email/SMS/AppPush）与模板（InformationTemplate/BpmnConfNoticeTemplate*），并在关键操作事件（MsgProcessEventEnum/MsgNoticeTypeEnum）触发发送与站内信落库
-    status: pending
+    status: completed
   - id: overtime-remind-parity
     content: 催办/超时提醒（P1）：对齐 BpmnApproveRemind、BpmProcessNodeOvertime、变量级提醒配置（BpmnTimeoutReminder*），实现定时扫描/发送（HostedService/后台任务）并保证幂等
-    status: pending
+    status: completed
   - id: outside-process-callback
     content: 外部系统流程/回调能力补齐（P1）：对齐 OutSideBpmCallbackUrlConf + OutSideCallBackRecord（记录回调类型、重试次数、状态），实现回调分发(ThirdPartyCallbackFactory)与失败重试；同时补齐安全校验与幂等
     status: pending

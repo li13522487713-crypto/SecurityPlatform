@@ -132,6 +132,44 @@ public sealed class FlowDefinitionParser
             {
                 node.ExcludeRoleCodes = excludeRoleCodesProp.GetRawText();
             }
+
+            // 解析超时配置
+            if (dataElement.TryGetProperty("timeoutEnabled", out var timeoutEnabledProp))
+            {
+                node.TimeoutEnabled = timeoutEnabledProp.GetBoolean();
+            }
+
+            if (dataElement.TryGetProperty("timeoutHours", out var timeoutHoursProp))
+            {
+                if (timeoutHoursProp.ValueKind == JsonValueKind.Number)
+                {
+                    node.TimeoutHours = timeoutHoursProp.GetInt32();
+                }
+            }
+
+            if (dataElement.TryGetProperty("timeoutMinutes", out var timeoutMinutesProp))
+            {
+                if (timeoutMinutesProp.ValueKind == JsonValueKind.Number)
+                {
+                    node.TimeoutMinutes = timeoutMinutesProp.GetInt32();
+                }
+            }
+
+            if (dataElement.TryGetProperty("reminderIntervalHours", out var reminderIntervalProp))
+            {
+                if (reminderIntervalProp.ValueKind == JsonValueKind.Number)
+                {
+                    node.ReminderIntervalHours = reminderIntervalProp.GetInt32();
+                }
+            }
+
+            if (dataElement.TryGetProperty("maxReminderCount", out var maxReminderCountProp))
+            {
+                if (maxReminderCountProp.ValueKind == JsonValueKind.Number)
+                {
+                    node.MaxReminderCount = maxReminderCountProp.GetInt32();
+                }
+            }
         }
 
         return node;
@@ -264,6 +302,13 @@ public sealed class FlowNode
     public DeduplicationType DeduplicationType { get; set; } = DeduplicationType.None;
     public string? ExcludeUserIds { get; set; } // 排除的用户ID列表（逗号分隔或JSON数组）
     public string? ExcludeRoleCodes { get; set; } // 排除的角色代码列表（逗号分隔或JSON数组）
+    
+    // 超时配置
+    public bool TimeoutEnabled { get; set; } = false;
+    public int? TimeoutHours { get; set; }
+    public int? TimeoutMinutes { get; set; }
+    public int? ReminderIntervalHours { get; set; }
+    public int? MaxReminderCount { get; set; }
 }
 
 /// <summary>
