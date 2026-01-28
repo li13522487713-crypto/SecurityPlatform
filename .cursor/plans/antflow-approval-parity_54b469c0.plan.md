@@ -34,13 +34,13 @@ todos:
     status: completed
   - id: flow-node-types-parity
     content: 补齐 AntFlow 节点类型能力差异（P0）：网关/条件/并行网关、抄送节点、接入方条件节点；并把 DefinitionJson 解析器/引擎推进逻辑扩展到可正确“分支/并行/汇聚/抄送”
-    status: pending
+    status: completed
   - id: condition-evaluator-parity
     content: 落地条件规则评估器（P0）：支持 AntFlow 的条件组关系/操作符（参考 ConditionRelationShipEnum、JudgeOperatorEnum、ConditionTypeEnum 等），并从流程变量/表单字段中取值进行路由判断（替换当前 EvaluateNextNodesAsync 的“直接通过”占位实现）
-    status: pending
+    status: completed
   - id: sequential-approval-order
     content: 顺序会签按“前端传入顺序/人员列表顺序”严格推进（P0）：当前仅等价于 All，会导致与 AntFlow SIGN_TYPE_SIGN_IN_ORDER 不一致；需支持逐个激活/逐个完成
-    status: pending
+    status: completed
   - id: assignee-strategies-parity
     content: 补齐 AntFlow 节点属性/审批人规则（P0）：层层审批(Loop)、指定层级(Level)、直属领导(DirectLeader)、发起人(StartUser)、HRBP、自选模块(Customize)、关联业务表(BusinessTable)、外部传入人员(OutSideAccess)；并与 MissingAssigneeProcessStrategyEnum（不允许/跳过/转管理员）完全对齐
     status: pending

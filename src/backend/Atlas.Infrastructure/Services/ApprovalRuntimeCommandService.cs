@@ -23,6 +23,9 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
     private readonly IApprovalHistoryRepository _historyRepository;
     private readonly IApprovalDepartmentLeaderRepository _deptLeaderRepository;
     private readonly IApprovalNodeExecutionRepository _nodeExecutionRepository;
+    private readonly IApprovalParallelTokenRepository _parallelTokenRepository;
+    private readonly IApprovalCopyRecordRepository _copyRecordRepository;
+    private readonly IApprovalProcessVariableRepository _processVariableRepository;
     private readonly IIdGenerator _idGenerator;
     private readonly IMapper _mapper;
     private readonly FlowEngine _flowEngine;
@@ -34,6 +37,9 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
         IApprovalHistoryRepository historyRepository,
         IApprovalDepartmentLeaderRepository deptLeaderRepository,
         IApprovalNodeExecutionRepository nodeExecutionRepository,
+        IApprovalParallelTokenRepository parallelTokenRepository,
+        IApprovalCopyRecordRepository copyRecordRepository,
+        IApprovalProcessVariableRepository processVariableRepository,
         IIdGenerator idGenerator,
         IMapper mapper)
     {
@@ -43,9 +49,13 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
         _historyRepository = historyRepository;
         _deptLeaderRepository = deptLeaderRepository;
         _nodeExecutionRepository = nodeExecutionRepository;
+        _parallelTokenRepository = parallelTokenRepository;
+        _copyRecordRepository = copyRecordRepository;
+        _processVariableRepository = processVariableRepository;
         _idGenerator = idGenerator;
         _mapper = mapper;
-        _flowEngine = new FlowEngine(taskRepository, nodeExecutionRepository, deptLeaderRepository, idGenerator);
+        var conditionEvaluator = new ConditionEvaluator(processVariableRepository);
+        _flowEngine = new FlowEngine(taskRepository, nodeExecutionRepository, deptLeaderRepository, parallelTokenRepository, copyRecordRepository, conditionEvaluator, idGenerator);
     }
 
     public async Task<ApprovalInstanceResponse> StartAsync(

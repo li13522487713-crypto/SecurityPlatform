@@ -174,11 +174,49 @@ public sealed class FlowDefinition
     }
 
     /// <summary>
+    /// 获取指定节点的所有入边
+    /// </summary>
+    public IReadOnlyList<FlowEdge> GetIncomingEdges(string nodeId)
+    {
+        return Edges.Where(e => e.Target == nodeId).ToList();
+    }
+
+    /// <summary>
     /// 根据 ID 获取节点
     /// </summary>
     public FlowNode? GetNodeById(string nodeId)
     {
         return Nodes.FirstOrDefault(n => n.Id == nodeId);
+    }
+
+    /// <summary>
+    /// 判断节点是否为并行网关的汇聚节点（有多个入边）
+    /// </summary>
+    public bool IsParallelJoinGateway(string nodeId)
+    {
+        var node = GetNodeById(nodeId);
+        if (node == null || node.Type != "parallelGateway")
+        {
+            return false;
+        }
+
+        var incomingEdges = GetIncomingEdges(nodeId);
+        return incomingEdges.Count > 1;
+    }
+
+    /// <summary>
+    /// 判断节点是否为并行网关的分支节点（有多个出边）
+    /// </summary>
+    public bool IsParallelSplitGateway(string nodeId)
+    {
+        var node = GetNodeById(nodeId);
+        if (node == null || node.Type != "parallelGateway")
+        {
+            return false;
+        }
+
+        var outgoingEdges = GetOutgoingEdges(nodeId);
+        return outgoingEdges.Count > 1;
     }
 }
 

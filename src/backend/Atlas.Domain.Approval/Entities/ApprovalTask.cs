@@ -74,6 +74,35 @@ public sealed class ApprovalTask : TenantEntity
     /// <summary>原处理人值（转办前）</summary>
     public string? OriginalAssigneeValue { get; private set; }
 
+    /// <summary>顺序号（用于顺序会签，从1开始）</summary>
+    public int Order { get; private set; }
+
+    public ApprovalTask(
+        TenantId tenantId,
+        long instanceId,
+        string nodeId,
+        string title,
+        AssigneeType assigneeType,
+        string assigneeValue,
+        long id,
+        int order = 0,
+        ApprovalTaskStatus initialStatus = ApprovalTaskStatus.Pending)
+        : base(tenantId)
+    {
+        Id = id;
+        InstanceId = instanceId;
+        NodeId = nodeId;
+        Title = title;
+        AssigneeType = assigneeType;
+        AssigneeValue = assigneeValue;
+        Status = initialStatus;
+        DecisionByUserId = null;
+        DecisionAt = null;
+        Comment = null;
+        CreatedAt = DateTimeOffset.UtcNow;
+        Order = order;
+    }
+
     public void Approve(long decisionByUserId, string? comment, DateTimeOffset now)
     {
         Status = ApprovalTaskStatus.Approved;
@@ -99,5 +128,16 @@ public sealed class ApprovalTask : TenantEntity
     {
         OriginalAssigneeValue = AssigneeValue;
         AssigneeValue = newAssigneeValue;
+    }
+
+    /// <summary>
+    /// 激活任务（顺序会签中使用）
+    /// </summary>
+    public void Activate()
+    {
+        if (Status == ApprovalTaskStatus.Waiting)
+        {
+            Status = ApprovalTaskStatus.Pending;
+        }
     }
 }
