@@ -55,7 +55,7 @@ todos:
     status: pending
   - id: copy-node-runtime
     content: 抄送节点落地（P1）：生成抄送记录/收件人列表、与待办/已办列表的展现隔离、抄送“已读/未读”持久化（AntFlow 有专门的 remove-copy format 与消息体系）
-    status: pending
+    status: completed
   - id: notification-system-parity
     content: 消息通知体系对齐（P1）：对齐 AntFlow 的消息发送适配器（Email/SMS/AppPush）与模板（InformationTemplate/BpmnConfNoticeTemplate*），并在关键操作事件（MsgProcessEventEnum/MsgNoticeTypeEnum）触发发送与站内信落库
     status: pending

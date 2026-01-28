@@ -17,6 +17,7 @@ public sealed class ApprovalRuntimeQueryService : IApprovalRuntimeQueryService
     private readonly IApprovalFlowRepository _flowRepository;
     private readonly IApprovalTaskRepository _taskRepository;
     private readonly IApprovalHistoryRepository _historyRepository;
+    private readonly IApprovalCopyRecordRepository _copyRecordRepository;
     private readonly IMapper _mapper;
 
     public ApprovalRuntimeQueryService(
@@ -24,12 +25,14 @@ public sealed class ApprovalRuntimeQueryService : IApprovalRuntimeQueryService
         IApprovalFlowRepository flowRepository,
         IApprovalTaskRepository taskRepository,
         IApprovalHistoryRepository historyRepository,
+        IApprovalCopyRecordRepository copyRecordRepository,
         IMapper mapper)
     {
         _instanceRepository = instanceRepository;
         _flowRepository = flowRepository;
         _taskRepository = taskRepository;
         _historyRepository = historyRepository;
+        _copyRecordRepository = copyRecordRepository;
         _mapper = mapper;
     }
 
@@ -149,6 +152,39 @@ public sealed class ApprovalRuntimeQueryService : IApprovalRuntimeQueryService
 
         return new PagedResult<ApprovalHistoryEventResponse>(
             historyItems,
+            totalCount,
+            request.PageIndex,
+            request.PageSize);
+    }
+
+    public async Task<PagedResult<ApprovalCopyRecordResponse>> GetMyCopyRecordsAsync(
+        TenantId tenantId,
+        long userId,
+        PagedRequest request,
+        bool? isRead = null,
+        CancellationToken cancellationToken = default)
+    {
+        var (items, totalCount) = await _copyRecordRepository.GetPagedByRecipientAsync(
+            tenantId,
+            userId,
+            request.PageIndex,
+            request.PageSize,
+            isRead,
+            cancellationToken);
+
+        var responseItems = items.Select(x => new ApprovalCopyRecordResponse
+        {
+            Id = x.Id,
+            InstanceId = x.InstanceId,
+            NodeId = x.NodeId,
+            RecipientUserId = x.RecipientUserId,
+            IsRead = x.IsRead,
+            CreatedAt = x.CreatedAt,
+            ReadAt = x.ReadAt
+        }).ToList();
+
+        return new PagedResult<ApprovalCopyRecordResponse>(
+            responseItems,
             totalCount,
             request.PageIndex,
             request.PageSize);

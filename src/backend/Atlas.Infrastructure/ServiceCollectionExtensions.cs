@@ -71,6 +71,16 @@ public static class ServiceCollectionExtensions
         services.AddScoped<Atlas.Application.Approval.Repositories.IApprovalParallelTokenRepository, ApprovalParallelTokenRepository>();
         services.AddScoped<Atlas.Application.Approval.Repositories.IApprovalParallelTokenRepository, ApprovalParallelTokenRepository>();
         services.AddScoped<Atlas.Application.Approval.Repositories.IApprovalCopyRecordRepository, ApprovalCopyRecordRepository>();
+        services.AddScoped<Atlas.Application.Approval.Repositories.IApprovalNotificationTemplateRepository, ApprovalNotificationTemplateRepository>();
+        services.AddScoped<Atlas.Application.Approval.Repositories.IApprovalInboxMessageRepository, ApprovalInboxMessageRepository>();
+        
+        // Approval Notification Senders
+        services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalNotificationSender, Atlas.Infrastructure.Services.ApprovalFlow.NotificationSenders.EmailNotificationSender>();
+        services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalNotificationSender, Atlas.Infrastructure.Services.ApprovalFlow.NotificationSenders.SmsNotificationSender>();
+        services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalNotificationSender, Atlas.Infrastructure.Services.ApprovalFlow.NotificationSenders.AppPushNotificationSender>();
+        
+        // Approval Notification Service
+        services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalNotificationService, Atlas.Infrastructure.Services.ApprovalFlow.ApprovalNotificationService>();
         
         // Approval Flow Operation Handlers
         services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalOperationHandler, Atlas.Infrastructure.Services.ApprovalFlow.Operations.ProcessDrawBackOperationHandler>();

@@ -22,6 +22,7 @@ public sealed class FlowEngine
     private readonly ConditionEvaluator _conditionEvaluator;
     private readonly IApprovalUserQueryService _userQueryService;
     private readonly DeduplicationService _deduplicationService;
+    private readonly IApprovalNotificationService? _notificationService;
     private readonly IIdGenerator _idGenerator;
 
     public FlowEngine(
@@ -33,7 +34,8 @@ public sealed class FlowEngine
         ConditionEvaluator conditionEvaluator,
         IApprovalUserQueryService userQueryService,
         DeduplicationService deduplicationService,
-        IIdGenerator idGenerator)
+        IIdGenerator idGenerator,
+        IApprovalNotificationService? notificationService = null)
     {
         _taskRepository = taskRepository;
         _nodeExecutionRepository = nodeExecutionRepository;
@@ -43,6 +45,7 @@ public sealed class FlowEngine
         _conditionEvaluator = conditionEvaluator;
         _userQueryService = userQueryService;
         _deduplicationService = deduplicationService;
+        _notificationService = notificationService;
         _idGenerator = idGenerator;
     }
 
@@ -353,7 +356,59 @@ public sealed class FlowEngine
         if (tasks.Count > 0)
         {
             await _taskRepository.AddRangeAsync(tasks, cancellationToken);
+
+            // 发送任务创建通知（异步，失败不影响主流程）
+            if (_notificationService != null)
+            {
+                var recipientUserIds = tasks.Select(t => ExtractAssigneeUserId(t.AssigneeValue)).Where(id => id.HasValue).Select(id => id!.Value).Distinct().ToList();
+                if (recipientUserIds.Count > 0)
+                {
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await _notificationService.NotifyAsync(
+                                tenantId,
+                                ApprovalNotificationEventType.TaskCreated,
+                                instance,
+                                tasks.FirstOrDefault(),
+                                recipientUserIds,
+                                CancellationToken.None);
+                        }
+                        catch
+                        {
+                            // 通知失败不影响主流程
+                        }
+                    }, cancellationToken);
+                }
+            }
         }
+    }
+
+    /// <summary>
+    /// 从 AssigneeValue 中提取用户ID（简化实现）
+    /// </summary>
+    private static long? ExtractAssigneeUserId(string assigneeValue)
+    {
+        if (string.IsNullOrEmpty(assigneeValue))
+        {
+            return null;
+        }
+
+        // 尝试解析为单个用户ID
+        if (long.TryParse(assigneeValue, out var userId))
+        {
+            return userId;
+        }
+
+        // 尝试解析为逗号分隔的用户ID列表
+        var parts = assigneeValue.Split(',', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length > 0 && long.TryParse(parts[0].Trim(), out var firstUserId))
+        {
+            return firstUserId;
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -754,7 +809,7 @@ public sealed class FlowEngine
     }
 
     /// <summary>
-    /// 为抄送节点生成抄送记录
+    /// 为抄送节点生成抄送记录（支持所有审批人策略类型）
     /// </summary>
     private async Task GenerateCopyRecordsForNodeAsync(
         TenantId tenantId,
@@ -762,43 +817,104 @@ public sealed class FlowEngine
         FlowNode node,
         CancellationToken cancellationToken)
     {
-        if (string.IsNullOrEmpty(node.AssigneeValue))
+        var recipientIds = new List<long>();
+        var assigneeType = node.AssigneeType;
+        var assigneeValue = node.AssigneeValue ?? string.Empty;
+
+        // 根据分配策略获取收件人列表（与审批节点逻辑一致）
+        switch (assigneeType)
         {
-            return;
+            case AssigneeType.User:
+                // 指定用户（可能是多个用户，逗号分隔或JSON数组）
+                var userIdStrings = ParseUserIds(assigneeValue);
+                recipientIds = userIdStrings.Select(x => long.TryParse(x, out var id) ? id : (long?)null)
+                    .Where(x => x.HasValue)
+                    .Select(x => x!.Value)
+                    .ToList();
+                break;
+
+            case AssigneeType.Role:
+                // 按角色：根据角色代码查询用户
+                if (!string.IsNullOrEmpty(assigneeValue))
+                {
+                    var roleUserIds = await _userQueryService.GetUserIdsByRoleCodeAsync(tenantId, assigneeValue, cancellationToken);
+                    recipientIds.AddRange(roleUserIds);
+                }
+                break;
+
+            case AssigneeType.DepartmentLeader:
+                // 部门负责人
+                if (long.TryParse(assigneeValue, out var deptId))
+                {
+                    var leaderId = await _deptLeaderRepository.GetLeaderUserIdAsync(tenantId, deptId, cancellationToken);
+                    if (leaderId.HasValue)
+                    {
+                        recipientIds.Add(leaderId.Value);
+                    }
+                }
+                break;
+
+            case AssigneeType.Loop:
+                // 层层审批：向上逐级查找审批人
+                var loopUserIds = await _userQueryService.GetLoopApproversAsync(tenantId, instance.InitiatorUserId, cancellationToken: cancellationToken);
+                recipientIds.AddRange(loopUserIds);
+                break;
+
+            case AssigneeType.Level:
+                // 指定层级：向上查找指定层级的审批人
+                if (int.TryParse(assigneeValue, out var targetLevel) && targetLevel > 0)
+                {
+                    var levelUserId = await _userQueryService.GetLevelApproverAsync(tenantId, instance.InitiatorUserId, targetLevel, cancellationToken);
+                    if (levelUserId.HasValue)
+                    {
+                        recipientIds.Add(levelUserId.Value);
+                    }
+                }
+                break;
+
+            case AssigneeType.DirectLeader:
+                // 直属领导
+                var directLeaderId = await _userQueryService.GetDirectLeaderUserIdAsync(tenantId, instance.InitiatorUserId, cancellationToken);
+                if (directLeaderId.HasValue)
+                {
+                    recipientIds.Add(directLeaderId.Value);
+                }
+                break;
+
+            case AssigneeType.StartUser:
+                // 发起人
+                recipientIds.Add(instance.InitiatorUserId);
+                break;
+
+            case AssigneeType.Hrbp:
+                // HRBP
+                var hrbpUserId = await _userQueryService.GetHrbpUserIdAsync(tenantId, instance.InitiatorUserId, cancellationToken);
+                if (hrbpUserId.HasValue)
+                {
+                    recipientIds.Add(hrbpUserId.Value);
+                }
+                break;
+
+            case AssigneeType.Customize:
+                // 自选模块：从实例数据中获取（发起时由前端传入）
+                recipientIds = ParseUserIdsFromInstanceData(instance.DataJson, assigneeValue);
+                break;
+
+            case AssigneeType.BusinessTable:
+                // 关联业务表：从实例数据中获取（根据字段名从DataJson中提取）
+                recipientIds = ParseUserIdsFromInstanceData(instance.DataJson, assigneeValue);
+                break;
+
+            case AssigneeType.OutSideAccess:
+                // 外部传入人员：从实例数据中获取（发起时由外部系统传入）
+                recipientIds = ParseUserIdsFromInstanceData(instance.DataJson, assigneeValue);
+                break;
         }
 
-        // 解析收件人列表（支持JSON数组或逗号分隔的用户ID）
-        var recipientIds = new List<long>();
-        try
+        // 验证用户ID有效性
+        if (recipientIds.Count > 0)
         {
-            // 尝试解析为JSON数组
-            using var doc = System.Text.Json.JsonDocument.Parse(node.AssigneeValue);
-            if (doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Array)
-            {
-                foreach (var element in doc.RootElement.EnumerateArray())
-                {
-                    if (element.ValueKind == System.Text.Json.JsonValueKind.Number)
-                    {
-                        recipientIds.Add(element.GetInt64());
-                    }
-                    else if (element.ValueKind == System.Text.Json.JsonValueKind.String && long.TryParse(element.GetString(), out var userId))
-                    {
-                        recipientIds.Add(userId);
-                    }
-                }
-            }
-        }
-        catch
-        {
-            // 如果不是JSON，尝试逗号分隔
-            var parts = node.AssigneeValue.Split(',', StringSplitOptions.RemoveEmptyEntries);
-            foreach (var part in parts)
-            {
-                if (long.TryParse(part.Trim(), out var userId))
-                {
-                    recipientIds.Add(userId);
-                }
-            }
+            recipientIds = (await _userQueryService.ValidateUserIdsAsync(tenantId, recipientIds, cancellationToken)).ToList();
         }
 
         // 创建抄送记录

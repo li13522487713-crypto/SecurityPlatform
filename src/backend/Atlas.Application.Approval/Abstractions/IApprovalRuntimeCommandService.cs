@@ -33,4 +33,10 @@ public interface IApprovalRuntimeCommandService
         long instanceId,
         long cancelledByUserId,
         CancellationToken cancellationToken);
+
+    Task MarkCopyRecordAsReadAsync(
+        TenantId tenantId,
+        long copyRecordId,
+        long userId,
+        CancellationToken cancellationToken);
 }

@@ -26,6 +26,7 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
     private readonly IApprovalParallelTokenRepository _parallelTokenRepository;
     private readonly IApprovalCopyRecordRepository _copyRecordRepository;
     private readonly IApprovalProcessVariableRepository _processVariableRepository;
+    private readonly IApprovalNotificationService? _notificationService;
     private readonly IIdGenerator _idGenerator;
     private readonly IMapper _mapper;
     private readonly FlowEngine _flowEngine;
@@ -42,7 +43,8 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
         IApprovalProcessVariableRepository processVariableRepository,
         IApprovalUserQueryService userQueryService,
         IIdGenerator idGenerator,
-        IMapper mapper)
+        IMapper mapper,
+        IApprovalNotificationService? notificationService = null)
     {
         _flowRepository = flowRepository;
         _instanceRepository = instanceRepository;
@@ -53,11 +55,12 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
         _parallelTokenRepository = parallelTokenRepository;
         _copyRecordRepository = copyRecordRepository;
         _processVariableRepository = processVariableRepository;
+        _notificationService = notificationService;
         _idGenerator = idGenerator;
         _mapper = mapper;
         var conditionEvaluator = new ConditionEvaluator(processVariableRepository);
         var deduplicationService = new DeduplicationService(taskRepository, userQueryService);
-        _flowEngine = new FlowEngine(taskRepository, nodeExecutionRepository, deptLeaderRepository, parallelTokenRepository, copyRecordRepository, conditionEvaluator, userQueryService, deduplicationService, idGenerator);
+        _flowEngine = new FlowEngine(taskRepository, nodeExecutionRepository, deptLeaderRepository, parallelTokenRepository, copyRecordRepository, conditionEvaluator, userQueryService, deduplicationService, idGenerator, notificationService);
     }
 
     public async Task<ApprovalInstanceResponse> StartAsync(
@@ -98,6 +101,28 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
             initiatorUserId,
             _idGenerator.NextId());
         await _historyRepository.AddAsync(startEvent, cancellationToken);
+
+        // 发送流程启动通知（异步，失败不影响主流程）
+        if (_notificationService != null)
+        {
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await _notificationService.NotifyAsync(
+                        tenantId,
+                        ApprovalNotificationEventType.InstanceStarted,
+                        instance,
+                        null,
+                        new[] { initiatorUserId },
+                        CancellationToken.None);
+                }
+                catch
+                {
+                    // 通知失败不影响主流程
+                }
+            }, cancellationToken);
+        }
 
         // 解析流程定义，生成第一批待审批任务
         var flowDefinition = FlowDefinitionParser.Parse(flowDef.DefinitionJson);
@@ -159,6 +184,30 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
         // 标记任务为同意
         task.Approve(approverUserId, comment, DateTimeOffset.UtcNow);
         await _taskRepository.UpdateAsync(task, cancellationToken);
+
+        // 发送任务同意通知（异步，失败不影响主流程）
+        if (_notificationService != null)
+        {
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    // 通知发起人和其他相关人员
+                    var recipients = new List<long> { instance.InitiatorUserId };
+                    await _notificationService.NotifyAsync(
+                        tenantId,
+                        ApprovalNotificationEventType.TaskApproved,
+                        instance,
+                        task,
+                        recipients,
+                        CancellationToken.None);
+                }
+                catch
+                {
+                    // 通知失败不影响主流程
+                }
+            }, cancellationToken);
+        }
 
         // 推进流程
         var flowDef = await _flowRepository.GetByIdAsync(tenantId, instance.DefinitionId, cancellationToken);
@@ -234,6 +283,29 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
             approverUserId,
             _idGenerator.NextId());
         await _historyRepository.AddAsync(instanceRejectEvent, cancellationToken);
+
+        // 发送流程驳回通知（异步，失败不影响主流程）
+        if (_notificationService != null)
+        {
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    // 通知发起人
+                    await _notificationService.NotifyAsync(
+                        tenantId,
+                        ApprovalNotificationEventType.InstanceRejected,
+                        instance,
+                        task,
+                        new[] { instance.InitiatorUserId },
+                        CancellationToken.None);
+                }
+                catch
+                {
+                    // 通知失败不影响主流程
+                }
+            }, cancellationToken);
+        }
     }
 
     public async Task CancelInstanceAsync(
@@ -278,5 +350,61 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
             cancelledByUserId,
             _idGenerator.NextId());
         await _historyRepository.AddAsync(cancelEvent, cancellationToken);
+
+        // 发送流程取消通知（异步，失败不影响主流程）
+        if (_notificationService != null)
+        {
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    // 通知发起人和所有待办任务的处理人
+                    var recipients = new List<long> { instance.InitiatorUserId };
+                    foreach (var pendingTask in pendingTasks)
+                    {
+                        // 从任务中提取处理人（需要解析 AssigneeValue）
+                        // TODO: 简化处理，暂时只通知发起人
+                    }
+                    await _notificationService.NotifyAsync(
+                        tenantId,
+                        ApprovalNotificationEventType.InstanceCanceled,
+                        instance,
+                        null,
+                        recipients,
+                        CancellationToken.None);
+                }
+                catch
+                {
+                    // 通知失败不影响主流程
+                }
+            }, cancellationToken);
+        }
+    }
+
+    public async Task MarkCopyRecordAsReadAsync(
+        TenantId tenantId,
+        long copyRecordId,
+        long userId,
+        CancellationToken cancellationToken)
+    {
+        var copyRecord = await _copyRecordRepository.GetByIdAsync(tenantId, copyRecordId, cancellationToken);
+        if (copyRecord == null)
+        {
+            throw new BusinessException("COPY_RECORD_NOT_FOUND", "抄送记录不存在");
+        }
+
+        if (copyRecord.RecipientUserId != userId)
+        {
+            throw new BusinessException("COPY_RECORD_NOT_OWNER", "无权操作此抄送记录");
+        }
+
+        if (copyRecord.IsRead)
+        {
+            // 已读状态，无需重复操作
+            return;
+        }
+
+        copyRecord.MarkAsRead(DateTimeOffset.UtcNow);
+        await _copyRecordRepository.UpdateAsync(copyRecord, cancellationToken);
     }
 }

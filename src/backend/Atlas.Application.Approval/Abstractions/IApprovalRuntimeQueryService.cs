@@ -40,6 +40,13 @@ public interface IApprovalRuntimeQueryService
         long instanceId,
         PagedRequest request,
         CancellationToken cancellationToken = default);
+
+    Task<PagedResult<ApprovalCopyRecordResponse>> GetMyCopyRecordsAsync(
+        TenantId tenantId,
+        long userId,
+        PagedRequest request,
+        bool? isRead = null,
+        CancellationToken cancellationToken = default);
 }
 
 /// <summary>
