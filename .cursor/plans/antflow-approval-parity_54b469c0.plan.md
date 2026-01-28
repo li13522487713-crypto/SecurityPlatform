@@ -67,7 +67,7 @@ todos:
     status: completed
   - id: user-role-integration-contracts
     content: “接入自有用户/角色系统”扩展点（P1）：对齐 AntFlow 文档的 UserService/RoleService 替换思路，抽成 Atlas 的接口契约（按用户/角色/部门/直属领导/HRBP 查询最小能力），避免审批规则被 demo 表绑死
-    status: pending
+    status: completed
   - id: process-mgmt-extras
     content: 流程管理附加能力差异清单（P2）：流程类型/分类、快捷入口、流程权限/可见范围、版本信息(SysVersion)等（先对比是否需要纳入 Atlas 范围，必要时再实现）
     status: completed

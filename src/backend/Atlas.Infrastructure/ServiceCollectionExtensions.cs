@@ -155,6 +155,13 @@ public static class ServiceCollectionExtensions
         });
         services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalDepartmentLeaderService, ApprovalDepartmentLeaderService>();
         services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalOperationService, ApprovalOperationService>();
+        
+        // 审批模块用户/角色/部门查询服务接口契约（可替换实现）
+        services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalUserService, Atlas.Infrastructure.Services.ApprovalFlow.ApprovalUserService>();
+        services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalRoleService, Atlas.Infrastructure.Services.ApprovalFlow.ApprovalRoleService>();
+        services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalDepartmentService, Atlas.Infrastructure.Services.ApprovalFlow.ApprovalDepartmentService>();
+        
+        // 审批模块用户查询服务（组合式实现，依赖上述接口契约）
         services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalUserQueryService, Atlas.Infrastructure.Services.ApprovalFlow.ApprovalUserQueryService>();
         services.AddScoped<ApprovalSeedDataService>();
         services.AddScoped<ApprovalIndexInitializer>();

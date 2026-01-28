@@ -2,7 +2,32 @@
 
 ## 概述
 
-`IApprovalUserQueryService` 接口抽象了审批流程所需的最小用户/角色/部门查询能力，允许开发者替换默认实现以接入自有用户系统。
+审批模块通过**接口契约**的方式抽象了用户/角色/部门查询能力，允许开发者替换默认实现以接入自有用户系统，避免审批规则被 demo 表绑死。
+
+## 接口架构
+
+审批模块采用**分层接口契约**设计，提供了三个细粒度的接口契约和一个组合接口：
+
+### 核心接口契约（可替换）
+
+1. **`IApprovalUserService`** - 用户查询服务接口契约
+   - 验证用户ID有效性
+   - 查询直属领导
+   - 层层审批（Loop）
+   - 指定层级审批（Level）
+   - 查询HRBP
+
+2. **`IApprovalRoleService`** - 角色查询服务接口契约
+   - 按角色代码查询用户ID列表
+
+3. **`IApprovalDepartmentService`** - 部门查询服务接口契约
+   - 查询部门负责人用户ID
+
+### 组合接口（统一入口）
+
+**`IApprovalUserQueryService`** - 审批模块用户查询服务接口（组合式）
+- 组合上述三个接口契约，提供完整的审批人查询能力
+- 当前实现 `ApprovalUserQueryService` 通过依赖注入组合三个接口契约
 
 ## 接口能力
 
@@ -40,17 +65,30 @@
 
 ## 默认实现
 
-当前默认实现 `ApprovalUserQueryService` 基于以下仓储：
-- `IRoleRepository` - 角色查询
-- `IUserRoleRepository` - 用户角色关联查询
-- `IUserDepartmentRepository` - 用户部门关联查询
-- `IDepartmentRepository` - 部门查询
-- `IApprovalDepartmentLeaderRepository` - 部门负责人查询
-- `IUserAccountRepository` - 用户账户查询
+### 接口契约实现
 
-## 替换实现步骤
+当前默认实现基于仓储模式：
 
-### 步骤1：创建自定义实现类
+- **`ApprovalUserService`** (实现 `IApprovalUserService`)
+  - 基于 `IUserAccountRepository`、`IUserDepartmentRepository`、`IApprovalDepartmentLeaderRepository`、`IRoleRepository`
+
+- **`ApprovalRoleService`** (实现 `IApprovalRoleService`)
+  - 基于 `IRoleRepository`、`IUserRoleRepository`
+
+- **`ApprovalDepartmentService`** (实现 `IApprovalDepartmentService`)
+  - 基于 `IApprovalDepartmentLeaderRepository`
+
+### 组合实现
+
+- **`ApprovalUserQueryService`** (实现 `IApprovalUserQueryService`)
+  - 通过依赖注入组合 `IApprovalUserService`、`IApprovalRoleService`、`IApprovalDepartmentService`
+  - 实现了接口契约与具体实现的解耦
+
+## 替换实现方式
+
+### 方式1：替换单个接口契约（推荐）
+
+如果只需要替换部分能力（如只替换用户查询），可以实现对应的接口契约：
 
 ```csharp
 using Atlas.Application.Approval.Abstractions;
@@ -60,6 +98,73 @@ namespace YourCompany.YourModule.Services;
 
 /// <summary>
 /// 自定义用户查询服务实现（接入自有用户系统）
+/// </summary>
+public sealed class CustomUserService : IApprovalUserService
+{
+    private readonly IYourUserService _yourUserService;
+
+    public CustomUserService(IYourUserService yourUserService)
+    {
+        _yourUserService = yourUserService;
+    }
+
+    public async Task<IReadOnlyList<long>> ValidateUserIdsAsync(
+        TenantId tenantId,
+        IReadOnlyList<long> userIds,
+        CancellationToken cancellationToken)
+    {
+        // 调用自有系统验证用户
+        return await _yourUserService.ValidateUserIdsAsync(tenantId, userIds, cancellationToken);
+    }
+
+    public async Task<long?> GetDirectLeaderUserIdAsync(
+        TenantId tenantId,
+        long userId,
+        CancellationToken cancellationToken)
+    {
+        // 调用自有系统查询直属领导
+        return await _yourUserService.GetDirectLeaderAsync(tenantId, userId, cancellationToken);
+    }
+
+    // ... 实现其他方法
+}
+```
+
+然后在 DI 容器中注册：
+
+```csharp
+// 替换用户服务接口契约
+services.AddScoped<IApprovalUserService, CustomUserService>();
+
+// 角色和部门服务保持默认实现
+// ApprovalUserQueryService 会自动使用新的用户服务实现
+```
+
+### 方式2：替换所有接口契约
+
+如果需要完全替换所有查询能力：
+
+```csharp
+// 替换所有接口契约
+services.AddScoped<IApprovalUserService, CustomUserService>();
+services.AddScoped<IApprovalRoleService, CustomRoleService>();
+services.AddScoped<IApprovalDepartmentService, CustomDepartmentService>();
+
+// ApprovalUserQueryService 会自动使用新的实现
+```
+
+### 方式3：替换组合接口（完全自定义）
+
+如果需要完全自定义实现逻辑：
+
+```csharp
+using Atlas.Application.Approval.Abstractions;
+using Atlas.Core.Tenancy;
+
+namespace YourCompany.YourModule.Services;
+
+/// <summary>
+/// 完全自定义的用户查询服务实现
 /// </summary>
 public sealed class CustomUserQueryService : IApprovalUserQueryService
 {
@@ -87,37 +192,15 @@ public sealed class CustomUserQueryService : IApprovalUserQueryService
         return users.Select(u => u.Id).ToList();
     }
 
-    public async Task<long?> GetDirectLeaderUserIdAsync(
-        TenantId tenantId,
-        long userId,
-        CancellationToken cancellationToken)
-    {
-        // 调用自有系统的用户服务查询直属领导
-        var leader = await _yourUserService.GetDirectLeaderAsync(tenantId, userId, cancellationToken);
-        return leader?.Id;
-    }
-
     // ... 实现其他方法
 }
 ```
 
-### 步骤2：注册自定义实现
-
-在 `ServiceCollectionExtensions.cs` 或 `Program.cs` 中：
+注册：
 
 ```csharp
-// 替换默认实现
+// 替换组合接口
 services.AddScoped<IApprovalUserQueryService, CustomUserQueryService>();
-
-// 或者使用条件注册
-if (configuration.GetValue<bool>("UseCustomUserService"))
-{
-    services.AddScoped<IApprovalUserQueryService, CustomUserQueryService>();
-}
-else
-{
-    services.AddScoped<IApprovalUserQueryService, ApprovalUserQueryService>();
-}
 ```
 
 ## 实现注意事项
@@ -166,8 +249,26 @@ else
 3. 边界情况处理（如用户不存在、角色不存在、组织架构不完整等）
 4. 性能测试（大量并发查询）
 
+## 接口契约设计优势
+
+1. **解耦**：审批模块不直接依赖具体的仓储实现，而是依赖抽象的接口契约
+2. **可替换**：可以按需替换单个或多个接口契约，无需替换整个实现
+3. **可测试**：接口契约便于单元测试和模拟
+4. **可扩展**：未来可以轻松添加新的查询能力（如新的接口契约）
+
 ## 相关文件
 
-- 接口定义：`src/backend/Atlas.Application.Approval/Abstractions/IApprovalUserQueryService.cs`
-- 默认实现：`src/backend/Atlas.Infrastructure/Services/ApprovalFlow/ApprovalUserQueryService.cs`
-- 使用位置：`src/backend/Atlas.Infrastructure/Services/ApprovalFlow/FlowEngine.cs`
+### 接口契约定义
+- `IApprovalUserService`：`src/backend/Atlas.Application.Approval/Abstractions/IApprovalUserService.cs`
+- `IApprovalRoleService`：`src/backend/Atlas.Application.Approval/Abstractions/IApprovalRoleService.cs`
+- `IApprovalDepartmentService`：`src/backend/Atlas.Application.Approval/Abstractions/IApprovalDepartmentService.cs`
+- `IApprovalUserQueryService`：`src/backend/Atlas.Application.Approval/Abstractions/IApprovalUserQueryService.cs`
+
+### 默认实现
+- `ApprovalUserService`：`src/backend/Atlas.Infrastructure/Services/ApprovalFlow/ApprovalUserService.cs`
+- `ApprovalRoleService`：`src/backend/Atlas.Infrastructure/Services/ApprovalFlow/ApprovalRoleService.cs`
+- `ApprovalDepartmentService`：`src/backend/Atlas.Infrastructure/Services/ApprovalFlow/ApprovalDepartmentService.cs`
+- `ApprovalUserQueryService`：`src/backend/Atlas.Infrastructure/Services/ApprovalFlow/ApprovalUserQueryService.cs`
+
+### 使用位置
+- `FlowEngine.cs`：`src/backend/Atlas.Infrastructure/Services/ApprovalFlow/FlowEngine.cs`
