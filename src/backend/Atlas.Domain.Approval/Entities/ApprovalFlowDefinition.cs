@@ -46,15 +46,53 @@ public sealed class ApprovalFlowDefinition : TenantEntity
     /// <summary>发布人 ID</summary>
     public long? PublishedByUserId { get; private set; }
 
-    public void Update(string name, string definitionJson)
+    /// <summary>可见范围配置 JSON（控制哪些用户/角色/部门可以看到该流程）</summary>
+    /// <remarks>
+    /// JSON格式示例：
+    /// {
+    ///   "scopeType": "All|Department|Role|User",
+    ///   "departmentIds": [1, 2],
+    ///   "roleCodes": ["Manager", "Admin"],
+    ///   "userIds": [100, 200]
+    /// }
+    /// </remarks>
+    public string? VisibilityScopeJson { get; private set; }
+
+    /// <summary>流程分类（如：人事类、财务类、采购类等）</summary>
+    public string? Category { get; private set; }
+
+    /// <summary>流程描述/说明</summary>
+    public string? Description { get; private set; }
+
+    /// <summary>是否为快捷入口（系统推荐流程）</summary>
+    public bool IsQuickEntry { get; private set; }
+
+    public void Update(string name, string definitionJson, string? description = null, string? category = null, string? visibilityScopeJson = null)
     {
         Name = name;
         DefinitionJson = definitionJson;
+        if (description != null)
+        {
+            Description = description;
+        }
+        if (category != null)
+        {
+            Category = category;
+        }
+        if (visibilityScopeJson != null)
+        {
+            VisibilityScopeJson = visibilityScopeJson;
+        }
         Version += 1;
         if (Status != ApprovalFlowStatus.Draft)
         {
             Status = ApprovalFlowStatus.Draft;
         }
+    }
+
+    public void SetQuickEntry(bool isQuickEntry)
+    {
+        IsQuickEntry = isQuickEntry;
     }
 
     public void Publish(long publishedByUserId, DateTimeOffset now)

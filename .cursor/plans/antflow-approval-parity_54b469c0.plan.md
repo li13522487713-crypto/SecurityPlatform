@@ -70,7 +70,7 @@ todos:
     status: pending
   - id: process-mgmt-extras
     content: 流程管理附加能力差异清单（P2）：流程类型/分类、快捷入口、流程权限/可见范围、版本信息(SysVersion)等（先对比是否需要纳入 Atlas 范围，必要时再实现）
-    status: pending
+    status: completed
 isProject: false
 ---
 
