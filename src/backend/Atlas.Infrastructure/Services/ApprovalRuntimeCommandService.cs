@@ -28,6 +28,7 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
     private readonly IApprovalProcessVariableRepository _processVariableRepository;
     private readonly IApprovalNotificationService? _notificationService;
     private readonly IApprovalTimeoutReminderRepository? _timeoutReminderRepository;
+    private readonly ExternalCallbackService? _callbackService;
     private readonly IIdGenerator _idGenerator;
     private readonly IMapper _mapper;
     private readonly FlowEngine _flowEngine;
@@ -46,7 +47,8 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
         IIdGenerator idGenerator,
         IMapper mapper,
         IApprovalNotificationService? notificationService = null,
-        IApprovalTimeoutReminderRepository? timeoutReminderRepository = null)
+        IApprovalTimeoutReminderRepository? timeoutReminderRepository = null,
+        ExternalCallbackService? callbackService = null)
     {
         _flowRepository = flowRepository;
         _instanceRepository = instanceRepository;
@@ -59,11 +61,12 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
         _processVariableRepository = processVariableRepository;
         _notificationService = notificationService;
         _timeoutReminderRepository = timeoutReminderRepository;
+        _callbackService = callbackService;
         _idGenerator = idGenerator;
         _mapper = mapper;
         var conditionEvaluator = new ConditionEvaluator(processVariableRepository);
         var deduplicationService = new DeduplicationService(taskRepository, userQueryService);
-        _flowEngine = new FlowEngine(taskRepository, nodeExecutionRepository, deptLeaderRepository, parallelTokenRepository, copyRecordRepository, conditionEvaluator, userQueryService, deduplicationService, idGenerator, notificationService, timeoutReminderRepository);
+        _flowEngine = new FlowEngine(taskRepository, nodeExecutionRepository, deptLeaderRepository, parallelTokenRepository, copyRecordRepository, conditionEvaluator, userQueryService, deduplicationService, idGenerator, notificationService, timeoutReminderRepository, callbackService);
     }
 
     public async Task<ApprovalInstanceResponse> StartAsync(
@@ -123,6 +126,28 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
                 catch
                 {
                     // 通知失败不影响主流程
+                }
+            }, cancellationToken);
+        }
+
+        // 触发流程启动回调（异步，失败不影响主流程）
+        if (_callbackService != null)
+        {
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await _callbackService.TriggerCallbackAsync(
+                        tenantId,
+                        Domain.Approval.Enums.CallbackEventType.InstanceStarted,
+                        instance,
+                        null,
+                        null,
+                        CancellationToken.None);
+                }
+                catch
+                {
+                    // 回调失败不影响主流程
                 }
             }, cancellationToken);
         }
@@ -208,6 +233,28 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
                 catch
                 {
                     // 通知失败不影响主流程
+                }
+            }, cancellationToken);
+        }
+
+        // 触发任务同意回调（异步，失败不影响主流程）
+        if (_callbackService != null)
+        {
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await _callbackService.TriggerCallbackAsync(
+                        tenantId,
+                        Domain.Approval.Enums.CallbackEventType.TaskApproved,
+                        instance,
+                        task,
+                        task.NodeId,
+                        CancellationToken.None);
+                }
+                catch
+                {
+                    // 回调失败不影响主流程
                 }
             }, cancellationToken);
         }
@@ -309,6 +356,28 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
                 }
             }, cancellationToken);
         }
+
+        // 触发流程驳回回调（异步，失败不影响主流程）
+        if (_callbackService != null)
+        {
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await _callbackService.TriggerCallbackAsync(
+                        tenantId,
+                        Domain.Approval.Enums.CallbackEventType.InstanceRejected,
+                        instance,
+                        task,
+                        task.NodeId,
+                        CancellationToken.None);
+                }
+                catch
+                {
+                    // 回调失败不影响主流程
+                }
+            }, cancellationToken);
+        }
     }
 
     public async Task CancelInstanceAsync(
@@ -379,6 +448,28 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
                 catch
                 {
                     // 通知失败不影响主流程
+                }
+            }, cancellationToken);
+        }
+
+        // 触发流程取消回调（异步，失败不影响主流程）
+        if (_callbackService != null)
+        {
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await _callbackService.TriggerCallbackAsync(
+                        tenantId,
+                        Domain.Approval.Enums.CallbackEventType.InstanceCanceled,
+                        instance,
+                        null,
+                        null,
+                        CancellationToken.None);
+                }
+                catch
+                {
+                    // 回调失败不影响主流程
                 }
             }, cancellationToken);
         }

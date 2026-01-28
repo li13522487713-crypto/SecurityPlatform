@@ -24,6 +24,7 @@ public sealed class FlowEngine
     private readonly DeduplicationService _deduplicationService;
     private readonly IApprovalNotificationService? _notificationService;
     private readonly IApprovalTimeoutReminderRepository? _timeoutReminderRepository;
+    private readonly ExternalCallbackService? _callbackService;
     private readonly IIdGenerator _idGenerator;
     private readonly TimeProvider _timeProvider;
 
@@ -39,6 +40,7 @@ public sealed class FlowEngine
         IIdGenerator idGenerator,
         IApprovalNotificationService? notificationService = null,
         IApprovalTimeoutReminderRepository? timeoutReminderRepository = null,
+        ExternalCallbackService? callbackService = null,
         TimeProvider? timeProvider = null)
     {
         _taskRepository = taskRepository;
@@ -51,6 +53,7 @@ public sealed class FlowEngine
         _deduplicationService = deduplicationService;
         _notificationService = notificationService;
         _timeoutReminderRepository = timeoutReminderRepository;
+        _callbackService = callbackService;
         _idGenerator = idGenerator;
         _timeProvider = timeProvider ?? TimeProvider.System;
     }
@@ -125,6 +128,29 @@ public sealed class FlowEngine
             // 没有出边，流程结束
             instance.MarkCompleted(DateTimeOffset.UtcNow);
             instance.SetCurrentNode(null);
+            
+            // 触发流程完成回调（异步，失败不影响主流程）
+            if (_callbackService != null)
+            {
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await _callbackService.TriggerCallbackAsync(
+                            tenantId,
+                            Domain.Approval.Enums.CallbackEventType.InstanceCompleted,
+                            instance,
+                            null,
+                            currentNodeId,
+                            CancellationToken.None);
+                    }
+                    catch
+                    {
+                        // 回调失败不影响主流程
+                    }
+                }, cancellationToken);
+            }
+            
             return;
         }
 
@@ -136,6 +162,29 @@ public sealed class FlowEngine
             // 没有符合条件的下一个节点，流程结束
             instance.MarkCompleted(DateTimeOffset.UtcNow);
             instance.SetCurrentNode(null);
+            
+            // 触发流程完成回调（异步，失败不影响主流程）
+            if (_callbackService != null)
+            {
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await _callbackService.TriggerCallbackAsync(
+                            tenantId,
+                            Domain.Approval.Enums.CallbackEventType.InstanceCompleted,
+                            instance,
+                            null,
+                            currentNodeId,
+                            CancellationToken.None);
+                    }
+                    catch
+                    {
+                        // 回调失败不影响主流程
+                    }
+                }, cancellationToken);
+            }
+            
             return;
         }
 
@@ -174,6 +223,29 @@ public sealed class FlowEngine
             // 结束节点，流程完成
             instance.MarkCompleted(DateTimeOffset.UtcNow);
             instance.SetCurrentNode(null);
+            
+            // 触发流程完成回调（异步，失败不影响主流程）
+            if (_callbackService != null)
+            {
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await _callbackService.TriggerCallbackAsync(
+                            tenantId,
+                            Domain.Approval.Enums.CallbackEventType.InstanceCompleted,
+                            instance,
+                            null,
+                            nextNodeId,
+                            CancellationToken.None);
+                    }
+                    catch
+                    {
+                        // 回调失败不影响主流程
+                    }
+                }, cancellationToken);
+            }
+            
             return;
         }
 

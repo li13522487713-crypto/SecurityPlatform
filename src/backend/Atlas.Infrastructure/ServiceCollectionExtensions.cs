@@ -75,6 +75,22 @@ public static class ServiceCollectionExtensions
         services.AddScoped<Atlas.Application.Approval.Repositories.IApprovalInboxMessageRepository, ApprovalInboxMessageRepository>();
         services.AddScoped<Atlas.Application.Approval.Repositories.IApprovalTimeoutReminderRepository, ApprovalTimeoutReminderRepository>();
         services.AddScoped<Atlas.Application.Approval.Repositories.IApprovalReminderRecordRepository, ApprovalReminderRecordRepository>();
+        services.AddScoped<Atlas.Application.Approval.Repositories.IApprovalExternalCallbackConfigRepository, ApprovalExternalCallbackConfigRepository>();
+        services.AddScoped<Atlas.Application.Approval.Repositories.IApprovalExternalCallbackRecordRepository, ApprovalExternalCallbackRecordRepository>();
+        
+        // External Callback Handler
+        services.AddScoped<Atlas.Application.Approval.Abstractions.IExternalCallbackHandler>(sp =>
+        {
+            var httpClient = new System.Net.Http.HttpClient();
+            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<Atlas.Infrastructure.Services.ApprovalFlow.CallbackHandlers.HttpCallbackHandler>>();
+            return new Atlas.Infrastructure.Services.ApprovalFlow.CallbackHandlers.HttpCallbackHandler(httpClient, logger);
+        });
+        
+        // External Callback Service
+        services.AddScoped<Atlas.Infrastructure.Services.ApprovalFlow.ExternalCallbackService>();
+        
+        // External Callback Retry Hosted Service
+        services.AddHostedService<ApprovalExternalCallbackRetryHostedService>();
         
         // Approval Notification Senders
         services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalNotificationSender, Atlas.Infrastructure.Services.ApprovalFlow.NotificationSenders.EmailNotificationSender>();
@@ -113,7 +129,30 @@ public static class ServiceCollectionExtensions
         services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalFlowQueryService, ApprovalFlowQueryService>();
         services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalFlowCommandService, ApprovalFlowCommandService>();
         services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalRuntimeQueryService, ApprovalRuntimeQueryService>();
-        services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalRuntimeCommandService, ApprovalRuntimeCommandService>();
+        // ApprovalRuntimeCommandService 需要手动注册以注入 ExternalCallbackService
+        services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalRuntimeCommandService>(sp =>
+        {
+            var flowRepository = sp.GetRequiredService<Atlas.Application.Approval.Repositories.IApprovalFlowRepository>();
+            var instanceRepository = sp.GetRequiredService<Atlas.Application.Approval.Repositories.IApprovalInstanceRepository>();
+            var taskRepository = sp.GetRequiredService<Atlas.Application.Approval.Repositories.IApprovalTaskRepository>();
+            var historyRepository = sp.GetRequiredService<Atlas.Application.Approval.Repositories.IApprovalHistoryRepository>();
+            var deptLeaderRepository = sp.GetRequiredService<Atlas.Application.Approval.Repositories.IApprovalDepartmentLeaderRepository>();
+            var nodeExecutionRepository = sp.GetRequiredService<Atlas.Application.Approval.Repositories.IApprovalNodeExecutionRepository>();
+            var parallelTokenRepository = sp.GetRequiredService<Atlas.Application.Approval.Repositories.IApprovalParallelTokenRepository>();
+            var copyRecordRepository = sp.GetRequiredService<Atlas.Application.Approval.Repositories.IApprovalCopyRecordRepository>();
+            var processVariableRepository = sp.GetRequiredService<Atlas.Application.Approval.Repositories.IApprovalProcessVariableRepository>();
+            var userQueryService = sp.GetRequiredService<Atlas.Application.Approval.Abstractions.IApprovalUserQueryService>();
+            var idGenerator = sp.GetRequiredService<Atlas.Core.Abstractions.IIdGenerator>();
+            var mapper = sp.GetRequiredService<AutoMapper.IMapper>();
+            var notificationService = sp.GetService<Atlas.Application.Approval.Abstractions.IApprovalNotificationService>();
+            var timeoutReminderRepository = sp.GetService<Atlas.Application.Approval.Repositories.IApprovalTimeoutReminderRepository>();
+            var callbackService = sp.GetService<Atlas.Infrastructure.Services.ApprovalFlow.ExternalCallbackService>();
+            return new ApprovalRuntimeCommandService(
+                flowRepository, instanceRepository, taskRepository, historyRepository,
+                deptLeaderRepository, nodeExecutionRepository, parallelTokenRepository,
+                copyRecordRepository, processVariableRepository, userQueryService,
+                idGenerator, mapper, notificationService, timeoutReminderRepository, callbackService);
+        });
         services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalDepartmentLeaderService, ApprovalDepartmentLeaderService>();
         services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalOperationService, ApprovalOperationService>();
         services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalUserQueryService, Atlas.Infrastructure.Services.ApprovalFlow.ApprovalUserQueryService>();

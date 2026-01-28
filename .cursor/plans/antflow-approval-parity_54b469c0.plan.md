@@ -64,7 +64,7 @@ todos:
     status: completed
   - id: outside-process-callback
     content: 外部系统流程/回调能力补齐（P1）：对齐 OutSideBpmCallbackUrlConf + OutSideCallBackRecord（记录回调类型、重试次数、状态），实现回调分发(ThirdPartyCallbackFactory)与失败重试；同时补齐安全校验与幂等
-    status: pending
+    status: completed
   - id: user-role-integration-contracts
     content: “接入自有用户/角色系统”扩展点（P1）：对齐 AntFlow 文档的 UserService/RoleService 替换思路，抽成 Atlas 的接口契约（按用户/角色/部门/直属领导/HRBP 查询最小能力），避免审批规则被 demo 表绑死
     status: pending
