@@ -63,7 +63,10 @@ public sealed class AddAssigneeOperationHandler : IApprovalOperationHandler
         var nodeTasks = await _taskRepository.GetByInstanceAndNodeAsync(tenantId, instanceId, task.NodeId, cancellationToken);
         var existingAssigneeValues = nodeTasks.Select(t => t.AssigneeValue).ToHashSet();
 
-        // 为每个新审批人创建任务
+        // 为每个新审批人创建任务（批量操作）
+        var newTasks = new List<ApprovalTask>();
+        var changes = new List<ApprovalTaskAssigneeChange>();
+
         foreach (var assigneeValue in request.AdditionalAssigneeValues)
         {
             if (existingAssigneeValues.Contains(assigneeValue))
@@ -79,7 +82,7 @@ public sealed class AddAssigneeOperationHandler : IApprovalOperationHandler
                 AssigneeType.User,
                 assigneeValue,
                 _idGenerator.NextId());
-            await _taskRepository.AddAsync(newTask, cancellationToken);
+            newTasks.Add(newTask);
 
             // 记录加签操作
             var change = new ApprovalTaskAssigneeChange(
@@ -92,7 +95,14 @@ public sealed class AddAssigneeOperationHandler : IApprovalOperationHandler
                 _idGenerator.NextId(),
                 newTask.Id,
                 request.Comment);
-            await _assigneeChangeRepository.AddAsync(change, cancellationToken);
+            changes.Add(change);
+        }
+
+        // 批量添加任务和变更记录
+        if (newTasks.Count > 0)
+        {
+            await _taskRepository.AddRangeAsync(newTasks, cancellationToken);
+            await _assigneeChangeRepository.AddRangeAsync(changes, cancellationToken);
         }
 
         // 记录历史事件

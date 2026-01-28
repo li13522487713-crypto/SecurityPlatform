@@ -15,6 +15,8 @@ public interface IApprovalTaskRepository
 
     Task UpdateAsync(ApprovalTask entity, CancellationToken cancellationToken);
 
+    Task UpdateRangeAsync(IEnumerable<ApprovalTask> entities, CancellationToken cancellationToken);
+
     Task<ApprovalTask?> GetByIdAsync(TenantId tenantId, long id, CancellationToken cancellationToken);
 
     Task<(IReadOnlyList<ApprovalTask> Items, int TotalCount)> GetPagedByInstanceAsync(

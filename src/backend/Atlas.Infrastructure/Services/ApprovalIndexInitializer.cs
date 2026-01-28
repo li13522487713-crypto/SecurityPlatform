@@ -49,6 +49,13 @@ public sealed class ApprovalIndexInitializer
                 $"{nameof(ApprovalTask.TenantIdValue)}, {nameof(ApprovalTask.InstanceId)}, {nameof(ApprovalTask.NodeId)}",
                 cancellationToken);
 
+            // 索引3a: TenantId + InstanceId + Status（按状态查询任务）
+            await CreateIndexIfNotExistsAsync(
+                nameof(ApprovalTask),
+                "IX_ApprovalTask_TenantId_InstanceId_Status",
+                $"{nameof(ApprovalTask.TenantIdValue)}, {nameof(ApprovalTask.InstanceId)}, {nameof(ApprovalTask.Status)}",
+                cancellationToken);
+
             // ApprovalHistoryEvent 索引
             // 索引4: TenantId + InstanceId（历史查询）
             await CreateIndexIfNotExistsAsync(
@@ -94,6 +101,14 @@ public sealed class ApprovalIndexInitializer
                 nameof(ApprovalFlowButtonConfig),
                 "IX_ApprovalFlowButtonConfig_TenantId_DefinitionId_ViewType",
                 $"{nameof(ApprovalFlowButtonConfig.TenantIdValue)}, {nameof(ApprovalFlowButtonConfig.DefinitionId)}, {nameof(ApprovalFlowButtonConfig.ViewType)}",
+                cancellationToken);
+
+            // ApprovalParallelToken 索引
+            // 索引10: TenantId + InstanceId + GatewayNodeId（并行token查询）
+            await CreateIndexIfNotExistsAsync(
+                nameof(ApprovalParallelToken),
+                "IX_ApprovalParallelToken_TenantId_InstanceId_GatewayNodeId",
+                $"{nameof(ApprovalParallelToken.TenantIdValue)}, {nameof(ApprovalParallelToken.InstanceId)}, {nameof(ApprovalParallelToken.GatewayNodeId)}",
                 cancellationToken);
 
             _logger.LogInformation("审批模块数据库索引初始化完成");

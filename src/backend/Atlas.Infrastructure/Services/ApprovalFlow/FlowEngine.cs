@@ -5,6 +5,7 @@ using Atlas.Core.Tenancy;
 using Atlas.Domain.Approval.Entities;
 using Atlas.Domain.Approval.Enums;
 using Atlas.Infrastructure.Services.ApprovalFlow;
+using Microsoft.Extensions.Logging;
 using ParallelTokenStatus = Atlas.Domain.Approval.Entities.ParallelTokenStatus;
 
 namespace Atlas.Infrastructure.Services.ApprovalFlow;
@@ -27,6 +28,7 @@ public sealed class FlowEngine
     private readonly ExternalCallbackService? _callbackService;
     private readonly IIdGenerator _idGenerator;
     private readonly TimeProvider _timeProvider;
+    private readonly ILogger<FlowEngine>? _logger;
 
     public FlowEngine(
         IApprovalTaskRepository taskRepository,
@@ -41,7 +43,8 @@ public sealed class FlowEngine
         IApprovalNotificationService? notificationService = null,
         IApprovalTimeoutReminderRepository? timeoutReminderRepository = null,
         ExternalCallbackService? callbackService = null,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        ILogger<FlowEngine>? logger = null)
     {
         _taskRepository = taskRepository;
         _nodeExecutionRepository = nodeExecutionRepository;
@@ -56,6 +59,7 @@ public sealed class FlowEngine
         _callbackService = callbackService;
         _idGenerator = idGenerator;
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _logger = logger;
     }
 
     /// <summary>
@@ -144,9 +148,10 @@ public sealed class FlowEngine
                             currentNodeId,
                             CancellationToken.None);
                     }
-                    catch
+                    catch (Exception ex)
                     {
-                        // 回调失败不影响主流程
+                        // 回调失败不影响主流程，但记录日志
+                        _logger?.LogError(ex, "流程完成回调失败：租户={TenantId}, 实例={InstanceId}, 节点={NodeId}", tenantId, instance.Id, currentNodeId);
                     }
                 }, cancellationToken);
             }
@@ -178,9 +183,10 @@ public sealed class FlowEngine
                             currentNodeId,
                             CancellationToken.None);
                     }
-                    catch
+                    catch (Exception ex)
                     {
-                        // 回调失败不影响主流程
+                        // 回调失败不影响主流程，但记录日志
+                        _logger?.LogError(ex, "流程完成回调失败：租户={TenantId}, 实例={InstanceId}, 节点={NodeId}", tenantId, instance.Id, currentNodeId);
                     }
                 }, cancellationToken);
             }
@@ -489,13 +495,17 @@ public sealed class FlowEngine
         var timeoutMinutes = node.TimeoutMinutes ?? 0;
         var expectedCompleteTime = now.AddHours(timeoutHours).AddMinutes(timeoutMinutes);
 
+        // 批量查询已存在的提醒记录（避免N+1查询）
+        var existingReminders = await _timeoutReminderRepository!.GetByInstanceAndNodeAsync(
+            tenantId, instance.Id, node.Id, cancellationToken);
+        var existingReminderTaskIds = existingReminders.Select(r => r.TaskId).ToHashSet();
+
+        // 批量创建提醒记录
+        var reminders = new List<ApprovalTimeoutReminder>();
         foreach (var task in tasks)
         {
             // 检查是否已存在提醒记录（幂等性保护）
-            var existingReminder = await _timeoutReminderRepository!.GetByInstanceAndTaskAsync(
-                tenantId, instance.Id, task.Id, node.Id, cancellationToken);
-
-            if (existingReminder != null)
+            if (existingReminderTaskIds.Contains(task.Id))
             {
                 continue; // 已存在，跳过
             }
@@ -516,7 +526,13 @@ public sealed class FlowEngine
                 expectedCompleteTime,
                 _idGenerator.NextId());
 
-            await _timeoutReminderRepository.AddAsync(reminder, cancellationToken);
+            reminders.Add(reminder);
+        }
+
+        // 批量添加提醒记录
+        if (reminders.Count > 0)
+        {
+            await _timeoutReminderRepository.AddRangeAsync(reminders, cancellationToken);
         }
     }
 
@@ -869,16 +885,27 @@ public sealed class FlowEngine
     {
         // 找到当前到达汇聚网关的分支（通过入边找到来源节点）
         var incomingEdges = definition.GetIncomingEdges(gatewayNodeId);
+        
+        // 一次性查询所有tokens，避免重复查询
+        var tokens = await _parallelTokenRepository.GetByInstanceAndGatewayAsync(tenantId, instanceId, gatewayNodeId, cancellationToken);
+        var tokensByBranch = tokens.Where(t => t.Status == ParallelTokenStatus.Active).ToDictionary(t => t.BranchNodeId);
+
+        var tokensToUpdate = new List<ApprovalParallelToken>();
         foreach (var edge in incomingEdges)
         {
-            // 检查该分支的token是否存在且未完成
-            var tokens = await _parallelTokenRepository.GetByInstanceAndGatewayAsync(tenantId, instanceId, gatewayNodeId, cancellationToken);
-            var branchToken = tokens.FirstOrDefault(t => t.BranchNodeId == edge.Source && t.Status == ParallelTokenStatus.Active);
-
-            if (branchToken != null)
+            if (tokensByBranch.TryGetValue(edge.Source, out var branchToken))
             {
                 branchToken.MarkCompleted(DateTimeOffset.UtcNow);
-                await _parallelTokenRepository.UpdateAsync(branchToken, cancellationToken);
+                tokensToUpdate.Add(branchToken);
+            }
+        }
+
+        // 批量更新tokens
+        if (tokensToUpdate.Count > 0)
+        {
+            foreach (var token in tokensToUpdate)
+            {
+                await _parallelTokenRepository.UpdateAsync(token, cancellationToken);
             }
         }
     }

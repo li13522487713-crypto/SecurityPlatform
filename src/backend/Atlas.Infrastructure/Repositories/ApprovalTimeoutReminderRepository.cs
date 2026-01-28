@@ -22,6 +22,11 @@ public sealed class ApprovalTimeoutReminderRepository : IApprovalTimeoutReminder
         await _db.Insertable(entity).ExecuteCommandAsync(cancellationToken);
     }
 
+    public async Task AddRangeAsync(IEnumerable<ApprovalTimeoutReminder> entities, CancellationToken cancellationToken)
+    {
+        await _db.Insertable(entities.ToList()).ExecuteCommandAsync(cancellationToken);
+    }
+
     public async Task UpdateAsync(ApprovalTimeoutReminder entity, CancellationToken cancellationToken)
     {
         await _db.Updateable(entity).ExecuteCommandAsync(cancellationToken);
@@ -81,6 +86,20 @@ public sealed class ApprovalTimeoutReminderRepository : IApprovalTimeoutReminder
     {
         return await _db.Queryable<ApprovalTimeoutReminder>()
             .Where(x => x.TenantIdValue == tenantId.Value && x.InstanceId == instanceId)
+            .OrderBy(x => x.CreatedAt)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<ApprovalTimeoutReminder>> GetByInstanceAndNodeAsync(
+        TenantId tenantId,
+        long instanceId,
+        string nodeId,
+        CancellationToken cancellationToken)
+    {
+        return await _db.Queryable<ApprovalTimeoutReminder>()
+            .Where(x => x.TenantIdValue == tenantId.Value
+                && x.InstanceId == instanceId
+                && x.NodeId == nodeId)
             .OrderBy(x => x.CreatedAt)
             .ToListAsync(cancellationToken);
     }

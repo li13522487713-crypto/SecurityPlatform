@@ -11,6 +11,8 @@ public interface IApprovalTimeoutReminderRepository
 {
     Task AddAsync(ApprovalTimeoutReminder entity, CancellationToken cancellationToken);
 
+    Task AddRangeAsync(IEnumerable<ApprovalTimeoutReminder> entities, CancellationToken cancellationToken);
+
     Task UpdateAsync(ApprovalTimeoutReminder entity, CancellationToken cancellationToken);
 
     Task<ApprovalTimeoutReminder?> GetByIdAsync(
@@ -33,5 +35,11 @@ public interface IApprovalTimeoutReminderRepository
     Task<IReadOnlyList<ApprovalTimeoutReminder>> GetByInstanceAsync(
         TenantId tenantId,
         long instanceId,
+        CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<ApprovalTimeoutReminder>> GetByInstanceAndNodeAsync(
+        TenantId tenantId,
+        long instanceId,
+        string nodeId,
         CancellationToken cancellationToken);
 }

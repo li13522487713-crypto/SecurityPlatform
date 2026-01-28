@@ -22,6 +22,11 @@ public sealed class ApprovalTaskAssigneeChangeRepository : IApprovalTaskAssignee
         await _db.Insertable(entity).ExecuteCommandAsync(cancellationToken);
     }
 
+    public async Task AddRangeAsync(IEnumerable<ApprovalTaskAssigneeChange> entities, CancellationToken cancellationToken)
+    {
+        await _db.Insertable(entities.ToList()).ExecuteCommandAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<ApprovalTaskAssigneeChange>> GetByInstanceAndNodeAsync(
         TenantId tenantId,
         long instanceId,

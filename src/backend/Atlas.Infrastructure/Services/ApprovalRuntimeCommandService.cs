@@ -9,6 +9,7 @@ using Atlas.Core.Tenancy;
 using Atlas.Domain.Approval.Entities;
 using Atlas.Domain.Approval.Enums;
 using Atlas.Infrastructure.Services.ApprovalFlow;
+using Microsoft.Extensions.Logging;
 
 namespace Atlas.Infrastructure.Services;
 
@@ -32,6 +33,7 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
     private readonly IIdGenerator _idGenerator;
     private readonly IMapper _mapper;
     private readonly FlowEngine _flowEngine;
+    private readonly ILogger<ApprovalRuntimeCommandService>? _logger;
 
     public ApprovalRuntimeCommandService(
         IApprovalFlowRepository flowRepository,
@@ -48,7 +50,8 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
         IMapper mapper,
         IApprovalNotificationService? notificationService = null,
         IApprovalTimeoutReminderRepository? timeoutReminderRepository = null,
-        ExternalCallbackService? callbackService = null)
+        ExternalCallbackService? callbackService = null,
+        ILogger<ApprovalRuntimeCommandService>? logger = null)
     {
         _flowRepository = flowRepository;
         _instanceRepository = instanceRepository;
@@ -64,6 +67,7 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
         _callbackService = callbackService;
         _idGenerator = idGenerator;
         _mapper = mapper;
+        _logger = logger;
         var conditionEvaluator = new ConditionEvaluator(processVariableRepository);
         var deduplicationService = new DeduplicationService(taskRepository, userQueryService);
         _flowEngine = new FlowEngine(taskRepository, nodeExecutionRepository, deptLeaderRepository, parallelTokenRepository, copyRecordRepository, conditionEvaluator, userQueryService, deduplicationService, idGenerator, notificationService, timeoutReminderRepository, callbackService);
@@ -123,9 +127,10 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
                         new[] { initiatorUserId },
                         CancellationToken.None);
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // 通知失败不影响主流程
+                    // 通知失败不影响主流程，但记录日志
+                    _logger?.LogError(ex, "流程启动通知失败：租户={TenantId}, 实例={InstanceId}", tenantId, instance.Id);
                 }
             }, cancellationToken);
         }
@@ -145,9 +150,10 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
                         null,
                         CancellationToken.None);
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // 回调失败不影响主流程
+                    // 回调失败不影响主流程，但记录日志
+                    _logger?.LogError(ex, "流程启动回调失败：租户={TenantId}, 实例={InstanceId}", tenantId, instance.Id);
                 }
             }, cancellationToken);
         }
@@ -192,6 +198,12 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
             throw new BusinessException("TASK_NOT_PENDING", "任务不是待审批状态");
         }
 
+        // 权限校验：检查审批人是否为任务分配人
+        if (task.AssigneeType != AssigneeType.User || task.AssigneeValue != approverUserId.ToString())
+        {
+            throw new BusinessException("FORBIDDEN", "您无权审批此任务");
+        }
+
         var instance = await _instanceRepository.GetByIdAsync(tenantId, task.InstanceId, cancellationToken);
         if (instance == null || instance.Status != ApprovalInstanceStatus.Running)
         {
@@ -230,9 +242,10 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
                         recipients,
                         CancellationToken.None);
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // 通知失败不影响主流程
+                    // 通知失败不影响主流程，但记录日志
+                    _logger?.LogError(ex, "任务同意通知失败：租户={TenantId}, 实例={InstanceId}, 任务={TaskId}", tenantId, instance.Id, task.Id);
                 }
             }, cancellationToken);
         }
@@ -252,9 +265,10 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
                         task.NodeId,
                         CancellationToken.None);
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // 回调失败不影响主流程
+                    // 回调失败不影响主流程，但记录日志
+                    _logger?.LogError(ex, "任务同意回调失败：租户={TenantId}, 实例={InstanceId}, 任务={TaskId}", tenantId, instance.Id, task.Id);
                 }
             }, cancellationToken);
         }
@@ -287,6 +301,12 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
             throw new BusinessException("TASK_NOT_PENDING", "任务不是待审批状态");
         }
 
+        // 权限校验：检查审批人是否为任务分配人
+        if (task.AssigneeType != AssigneeType.User || task.AssigneeValue != approverUserId.ToString())
+        {
+            throw new BusinessException("FORBIDDEN", "您无权审批此任务");
+        }
+
         var instance = await _instanceRepository.GetByIdAsync(tenantId, task.InstanceId, cancellationToken);
         if (instance == null || instance.Status != ApprovalInstanceStatus.Running)
         {
@@ -317,10 +337,15 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
             instance.Id,
             ApprovalTaskStatus.Pending,
             cancellationToken);
-        foreach (var pendingTask in pendingTasks)
+        
+        // 批量更新任务状态
+        if (pendingTasks.Count > 0)
         {
-            pendingTask.Cancel();
-            await _taskRepository.UpdateAsync(pendingTask, cancellationToken);
+            foreach (var pendingTask in pendingTasks)
+            {
+                pendingTask.Cancel();
+            }
+            await _taskRepository.UpdateRangeAsync(pendingTasks, cancellationToken);
         }
 
         // 记录流程驳回事件
@@ -350,9 +375,10 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
                         new[] { instance.InitiatorUserId },
                         CancellationToken.None);
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // 通知失败不影响主流程
+                    // 通知失败不影响主流程，但记录日志
+                    _logger?.LogError(ex, "流程驳回通知失败：租户={TenantId}, 实例={InstanceId}", tenantId, instance.Id);
                 }
             }, cancellationToken);
         }
@@ -372,9 +398,10 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
                         task.NodeId,
                         CancellationToken.None);
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // 回调失败不影响主流程
+                    // 回调失败不影响主流程，但记录日志
+                    _logger?.LogError(ex, "流程驳回回调失败：租户={TenantId}, 实例={InstanceId}", tenantId, instance.Id);
                 }
             }, cancellationToken);
         }
@@ -406,10 +433,15 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
             instance.Id,
             ApprovalTaskStatus.Pending,
             cancellationToken);
-        foreach (var task in pendingTasks)
+        
+        // 批量更新任务状态
+        if (pendingTasks.Count > 0)
         {
-            task.Cancel();
-            await _taskRepository.UpdateAsync(task, cancellationToken);
+            foreach (var task in pendingTasks)
+            {
+                task.Cancel();
+            }
+            await _taskRepository.UpdateRangeAsync(pendingTasks, cancellationToken);
         }
 
         // 记录流程取消事件
@@ -445,9 +477,10 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
                         recipients,
                         CancellationToken.None);
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // 通知失败不影响主流程
+                    // 通知失败不影响主流程，但记录日志
+                    _logger?.LogError(ex, "流程取消通知失败：租户={TenantId}, 实例={InstanceId}", tenantId, instance.Id);
                 }
             }, cancellationToken);
         }
@@ -467,9 +500,10 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
                         null,
                         CancellationToken.None);
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // 回调失败不影响主流程
+                    // 回调失败不影响主流程，但记录日志
+                    _logger?.LogError(ex, "流程取消回调失败：租户={TenantId}, 实例={InstanceId}", tenantId, instance.Id);
                 }
             }, cancellationToken);
         }

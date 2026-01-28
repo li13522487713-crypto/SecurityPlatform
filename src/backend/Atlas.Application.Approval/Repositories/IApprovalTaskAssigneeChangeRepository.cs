@@ -10,6 +10,8 @@ public interface IApprovalTaskAssigneeChangeRepository
 {
     Task AddAsync(ApprovalTaskAssigneeChange entity, CancellationToken cancellationToken);
 
+    Task AddRangeAsync(IEnumerable<ApprovalTaskAssigneeChange> entities, CancellationToken cancellationToken);
+
     Task<IReadOnlyList<ApprovalTaskAssigneeChange>> GetByInstanceAndNodeAsync(
         TenantId tenantId,
         long instanceId,

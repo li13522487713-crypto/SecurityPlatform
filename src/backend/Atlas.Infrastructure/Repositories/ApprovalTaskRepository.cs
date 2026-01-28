@@ -33,6 +33,11 @@ public sealed class ApprovalTaskRepository : IApprovalTaskRepository
         await _db.Updateable(entity).ExecuteCommandAsync(cancellationToken);
     }
 
+    public async Task UpdateRangeAsync(IEnumerable<ApprovalTask> entities, CancellationToken cancellationToken)
+    {
+        await _db.Updateable(entities.ToList()).ExecuteCommandAsync(cancellationToken);
+    }
+
     public async Task<ApprovalTask?> GetByIdAsync(TenantId tenantId, long id, CancellationToken cancellationToken)
     {
         return await _db.Queryable<ApprovalTask>()

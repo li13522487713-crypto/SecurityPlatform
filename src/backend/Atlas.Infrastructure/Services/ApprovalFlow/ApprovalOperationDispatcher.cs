@@ -100,13 +100,41 @@ public sealed class ApprovalOperationDispatcher
         }
         else
         {
-            // 未提供幂等键，直接执行（不记录）
-            if (!_handlers.TryGetValue(request.OperationType, out var handler))
-            {
-                throw new InvalidOperationException($"不支持的操作类型: {request.OperationType}");
-            }
+            // 未提供幂等键，生成一个并记录操作（确保审计完整性）
+            var generatedIdempotencyKey = $"auto-{request.OperationType}-{instanceId}-{taskId}-{operatorUserId}-{DateTimeOffset.UtcNow:yyyyMMddHHmmss}";
+            
+            var operationRecord = new ApprovalOperationRecord(
+                tenantId,
+                instanceId,
+                request.OperationType,
+                generatedIdempotencyKey,
+                operatorUserId,
+                _idGenerator.NextId(),
+                taskId,
+                JsonSerializer.Serialize(request));
 
-            await handler.ExecuteAsync(tenantId, instanceId, taskId, operatorUserId, request, cancellationToken);
+            await _operationRecordRepository.AddAsync(operationRecord, cancellationToken);
+
+            try
+            {
+                if (!_handlers.TryGetValue(request.OperationType, out var handler))
+                {
+                    throw new InvalidOperationException($"不支持的操作类型: {request.OperationType}");
+                }
+
+                await handler.ExecuteAsync(tenantId, instanceId, taskId, operatorUserId, request, cancellationToken);
+
+                // 标记操作完成
+                operationRecord.MarkCompleted(DateTimeOffset.UtcNow);
+                await _operationRecordRepository.UpdateAsync(operationRecord, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                // 标记操作失败
+                operationRecord.MarkFailed(ex.Message, DateTimeOffset.UtcNow);
+                await _operationRecordRepository.UpdateAsync(operationRecord, cancellationToken);
+                throw;
+            }
         }
     }
 }

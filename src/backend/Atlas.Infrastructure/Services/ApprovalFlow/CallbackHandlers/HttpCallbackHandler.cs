@@ -51,14 +51,22 @@ public sealed class HttpCallbackHandler : IExternalCallbackHandler
 
             if (!response.IsSuccessStatusCode)
             {
+                _logger?.LogWarning("回调失败：URL={CallbackUrl}, HTTP={StatusCode}, 响应={ResponseBody}", callbackUrl, (int)response.StatusCode, responseBody);
                 throw new HttpRequestException($"回调失败：HTTP {(int)response.StatusCode} {response.StatusCode}，响应：{responseBody}");
             }
 
+            _logger?.LogInformation("回调成功：URL={CallbackUrl}, HTTP={StatusCode}", callbackUrl, (int)response.StatusCode);
             return responseBody;
         }
         catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
         {
+            _logger?.LogError(ex, "回调超时：URL={CallbackUrl}, 超时={TimeoutSeconds}秒", callbackUrl, timeoutSeconds);
             throw new TimeoutException($"回调超时：{timeoutSeconds}秒", ex);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "回调异常：URL={CallbackUrl}", callbackUrl);
+            throw;
         }
     }
 }

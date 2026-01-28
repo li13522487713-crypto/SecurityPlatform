@@ -2,10 +2,13 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Atlas.Application.Approval.Abstractions;
 using Atlas.Application.Approval.Models;
+using Atlas.Application.Audit.Abstractions;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Approval.Enums;
+using Atlas.Domain.Audit.Entities;
 using FluentValidation;
+using Atlas.WebApi.Helpers;
 
 namespace Atlas.WebApi.Controllers;
 
@@ -21,17 +24,20 @@ public sealed class ApprovalTasksController : ControllerBase
     private readonly IApprovalRuntimeCommandService _commandService;
     private readonly ITenantProvider _tenantProvider;
     private readonly IValidator<ApprovalTaskDecideRequest> _decideValidator;
+    private readonly IAuditWriter _auditWriter;
 
     public ApprovalTasksController(
         IApprovalRuntimeQueryService queryService,
         IApprovalRuntimeCommandService commandService,
         ITenantProvider tenantProvider,
-        IValidator<ApprovalTaskDecideRequest> decideValidator)
+        IValidator<ApprovalTaskDecideRequest> decideValidator,
+        IAuditWriter auditWriter)
     {
         _queryService = queryService;
         _commandService = commandService;
         _tenantProvider = tenantProvider;
         _decideValidator = decideValidator;
+        _auditWriter = auditWriter;
     }
 
     /// <summary>
@@ -45,7 +51,7 @@ public sealed class ApprovalTasksController : ControllerBase
         CancellationToken cancellationToken = default)
     {
         var tenantId = _tenantProvider.GetTenantId();
-        var userId = long.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "0");
+        var userId = ControllerHelper.GetUserIdOrThrow(User);
 
         var request = new PagedRequest(pageIndex, pageSize, null, null, false);
         var result = await _queryService.GetMyTasksAsync(tenantId, userId, request, status, cancellationToken);
@@ -81,9 +87,21 @@ public sealed class ApprovalTasksController : ControllerBase
         await _decideValidator.ValidateAndThrowAsync(request, cancellationToken);
 
         var tenantId = _tenantProvider.GetTenantId();
-        var userId = long.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "0");
+        var userId = ControllerHelper.GetUserIdOrThrow(User);
 
         await _commandService.ApproveTaskAsync(tenantId, taskId, userId, request.Comment, cancellationToken);
+
+        // 记录审计日志
+        var auditRecord = new AuditRecord(
+            tenantId,
+            userId.ToString(),
+            "审批任务-同意",
+            "成功",
+            $"任务ID: {taskId}",
+            ControllerHelper.GetIpAddress(HttpContext),
+            ControllerHelper.GetUserAgent(HttpContext));
+        await _auditWriter.WriteAsync(auditRecord, cancellationToken);
+
         return ApiResponse<string>.Ok("已同意", HttpContext.TraceIdentifier);
     }
 
@@ -100,9 +118,21 @@ public sealed class ApprovalTasksController : ControllerBase
         await _decideValidator.ValidateAndThrowAsync(request, cancellationToken);
 
         var tenantId = _tenantProvider.GetTenantId();
-        var userId = long.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "0");
+        var userId = ControllerHelper.GetUserIdOrThrow(User);
 
         await _commandService.RejectTaskAsync(tenantId, taskId, userId, request.Comment, cancellationToken);
+
+        // 记录审计日志
+        var auditRecord = new AuditRecord(
+            tenantId,
+            userId.ToString(),
+            "审批任务-驳回",
+            "成功",
+            $"任务ID: {taskId}",
+            ControllerHelper.GetIpAddress(HttpContext),
+            ControllerHelper.GetUserAgent(HttpContext));
+        await _auditWriter.WriteAsync(auditRecord, cancellationToken);
+
         return ApiResponse<string>.Ok("已驳回", HttpContext.TraceIdentifier);
     }
 }

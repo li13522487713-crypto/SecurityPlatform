@@ -125,7 +125,7 @@ public sealed class ApprovalFlowsController : ControllerBase
         CancellationToken cancellationToken = default)
     {
         var tenantId = _tenantProvider.GetTenantId();
-        var userId = long.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "0");
+        var userId = Atlas.WebApi.Helpers.ControllerHelper.GetUserIdOrThrow(User);
 
         await _commandService.PublishAsync(tenantId, id, userId, cancellationToken);
         return ApiResponse<string>.Ok("已发布", HttpContext.TraceIdentifier);

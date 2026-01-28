@@ -7,6 +7,10 @@ using Atlas.Core.Abstractions;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Approval.Entities;
 using Atlas.Domain.Approval.Enums;
+using Atlas.Infrastructure.Options;
+using Atlas.Infrastructure.Security;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Atlas.Infrastructure.Services.ApprovalFlow;
 
@@ -22,6 +26,9 @@ public sealed class ExternalCallbackService
     private readonly IExternalCallbackHandler _callbackHandler;
     private readonly IIdGenerator _idGenerator;
     private readonly TimeProvider _timeProvider;
+    private readonly CallbackSecurityOptions _securityOptions;
+    private readonly DataProtectionService? _dataProtectionService;
+    private readonly ILogger<ExternalCallbackService>? _logger;
 
     public ExternalCallbackService(
         IApprovalExternalCallbackConfigRepository configRepository,
@@ -30,6 +37,9 @@ public sealed class ExternalCallbackService
         IApprovalTaskRepository? taskRepository,
         IExternalCallbackHandler callbackHandler,
         IIdGenerator idGenerator,
+        IOptions<CallbackSecurityOptions>? securityOptions = null,
+        DataProtectionService? dataProtectionService = null,
+        ILogger<ExternalCallbackService>? logger = null,
         TimeProvider? timeProvider = null)
     {
         _configRepository = configRepository;
@@ -39,6 +49,9 @@ public sealed class ExternalCallbackService
         _callbackHandler = callbackHandler;
         _idGenerator = idGenerator;
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _securityOptions = securityOptions?.Value ?? new CallbackSecurityOptions();
+        _dataProtectionService = dataProtectionService;
+        _logger = logger;
     }
 
     /// <summary>
@@ -74,10 +87,10 @@ public sealed class ExternalCallbackService
                 await SendCallbackAsync(tenantId, config, instance, task, nodeId, eventType, cancellationToken);
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // 回调失败不影响主流程，记录日志即可
-            // TODO: 记录错误日志
+            // 回调失败不影响主流程，记录日志
+            _logger?.LogError(ex, "触发回调失败：租户={TenantId}, 实例={InstanceId}, 事件={EventType}", tenantId, instance.Id, eventType);
         }
     }
 
@@ -93,8 +106,15 @@ public sealed class ExternalCallbackService
         CallbackEventType eventType,
         CancellationToken cancellationToken)
     {
-        // 构建请求体
-        var requestBody = BuildRequestBody(instance, task, nodeId, eventType);
+        // URL白名单校验
+        if (!ValidateCallbackUrl(config.CallbackUrl))
+        {
+            _logger?.LogWarning("回调URL不在白名单中：{CallbackUrl}", config.CallbackUrl);
+            throw new InvalidOperationException($"回调URL不在白名单中：{config.CallbackUrl}");
+        }
+
+        // 构建请求体（脱敏处理）
+        var requestBody = BuildRequestBody(instance, task, nodeId, eventType, sanitize: true);
 
         // 生成幂等键
         var idempotencyKey = GenerateIdempotencyKey(instance.Id, task?.Id, nodeId, eventType, config.Id);
@@ -134,8 +154,11 @@ public sealed class ExternalCallbackService
             record.MarkSending(_timeProvider.GetUtcNow());
             await _recordRepository.UpdateAsync(record, cancellationToken);
 
+            // 解密SecretKey（如果已加密）
+            var secretKey = DecryptSecretKey(config.SecretKey);
+
             // 生成签名
-            var headers = GenerateHeaders(requestBody, config.SecretKey, _timeProvider.GetUtcNow());
+            var headers = GenerateHeaders(requestBody, secretKey, _timeProvider.GetUtcNow());
 
             // 发送 HTTP 回调
             var responseBody = await _callbackHandler.SendCallbackAsync(
@@ -193,7 +216,10 @@ public sealed class ExternalCallbackService
                 record.MarkSending(_timeProvider.GetUtcNow());
                 await _recordRepository.UpdateAsync(record, cancellationToken);
 
-                var headers = GenerateHeaders(record.RequestBody, config.SecretKey, _timeProvider.GetUtcNow());
+                // 解密SecretKey（如果已加密）
+                var secretKey = DecryptSecretKey(config.SecretKey);
+
+                var headers = GenerateHeaders(record.RequestBody, secretKey, _timeProvider.GetUtcNow());
 
                 var responseBody = await _callbackHandler.SendCallbackAsync(
                     record.CallbackUrl,
@@ -221,8 +247,13 @@ public sealed class ExternalCallbackService
         ApprovalProcessInstance instance,
         ApprovalTask? task,
         string? nodeId,
-        CallbackEventType eventType)
+        CallbackEventType eventType,
+        bool sanitize = false)
     {
+        // 如果启用脱敏，则不包含完整的DataJson（可能包含敏感信息）
+        // 只包含必要的业务标识
+        object? dataJsonValue = sanitize ? null : instance.DataJson;
+
         var payload = new
         {
             eventType = eventType.ToString(),
@@ -233,10 +264,72 @@ public sealed class ExternalCallbackService
             taskId = task?.Id,
             nodeId = nodeId,
             timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
-            dataJson = instance.DataJson
+            dataJson = dataJsonValue
         };
 
         return JsonSerializer.Serialize(payload);
+    }
+
+    /// <summary>
+    /// 验证回调URL是否在白名单中
+    /// </summary>
+    private bool ValidateCallbackUrl(string callbackUrl)
+    {
+        if (_securityOptions.AllowedCallbackDomains.Count == 0)
+        {
+            // 未配置白名单，允许所有URL（生产环境应配置白名单）
+            return true;
+        }
+
+        if (!Uri.TryCreate(callbackUrl, UriKind.Absolute, out var uri))
+        {
+            return false;
+        }
+
+        var host = uri.Host;
+        return _securityOptions.AllowedCallbackDomains.Any(domain =>
+        {
+            if (string.Equals(host, domain, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            // 支持通配符域名（如 *.example.com）
+            if (domain.StartsWith("*."))
+            {
+                var domainSuffix = domain.Substring(2);
+                return host.EndsWith("." + domainSuffix, StringComparison.OrdinalIgnoreCase);
+            }
+
+            return false;
+        });
+    }
+
+    /// <summary>
+    /// 解密SecretKey（如果已加密）
+    /// </summary>
+    private string DecryptSecretKey(string secretKey)
+    {
+        if (string.IsNullOrEmpty(secretKey))
+        {
+            return secretKey;
+        }
+
+        // 如果配置了数据保护服务，尝试解密
+        if (_dataProtectionService != null && !string.IsNullOrEmpty(_securityOptions.DataProtectionKey))
+        {
+            try
+            {
+                return _dataProtectionService.Decrypt(secretKey);
+            }
+            catch
+            {
+                // 解密失败，可能是未加密的旧数据，返回原值
+                return secretKey;
+            }
+        }
+
+        return secretKey;
     }
 
     /// <summary>

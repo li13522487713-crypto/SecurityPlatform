@@ -43,17 +43,13 @@ public sealed class ApprovalUserService : IApprovalUserService
             return Array.Empty<long>();
         }
 
-        var validUserIds = new List<long>();
-        foreach (var userId in userIds)
-        {
-            var user = await _userRepository.FindByIdAsync(tenantId, userId, cancellationToken);
-            if (user != null && user.IsActive)
-            {
-                validUserIds.Add(userId);
-            }
-        }
+        // 批量查询用户，避免N+1查询
+        var users = await _db.Queryable<UserAccount>()
+            .Where(x => x.TenantIdValue == tenantId.Value && userIds.Contains(x.Id) && x.IsActive)
+            .Select(x => x.Id)
+            .ToListAsync(cancellationToken);
 
-        return validUserIds;
+        return users;
     }
 
     public async Task<long?> GetDirectLeaderUserIdAsync(
