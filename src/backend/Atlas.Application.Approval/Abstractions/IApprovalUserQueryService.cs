@@ -4,7 +4,27 @@ namespace Atlas.Application.Approval.Abstractions;
 
 /// <summary>
 /// 审批模块用户查询服务接口（用于审批人策略查询）
-/// 此接口抽象了用户/角色/部门查询能力，便于未来接入自有用户系统（任务12）
+/// 
+/// 此接口抽象了审批流程所需的最小用户/角色/部门查询能力，便于未来接入自有用户系统。
+/// 
+/// **替换实现方式：**
+/// 1. 实现此接口，提供自定义的用户/角色/部门查询逻辑
+/// 2. 在 DI 容器中注册自定义实现，替换默认的 `ApprovalUserQueryService`
+/// 3. 例如：services.AddScoped&lt;IApprovalUserQueryService, CustomUserQueryService&gt;();
+/// 
+/// **最小能力要求：**
+/// - 按角色代码查询用户ID列表（支持 Role 审批人策略）
+/// - 查询用户的直属领导（支持 DirectLeader 审批人策略）
+/// - 向上逐级查找审批人（支持 Loop 层层审批策略）
+/// - 查询指定层级的审批人（支持 Level 指定层级策略）
+/// - 查询用户的HRBP（支持 HRBP 审批人策略）
+/// - 验证用户ID有效性（用于所有审批人策略的最终校验）
+/// 
+/// **注意事项：**
+/// - 所有方法必须支持多租户隔离（通过 TenantId 参数）
+/// - 方法应异步执行，避免阻塞
+/// - 如果查询不到结果，返回空列表或 null（不要抛出异常）
+/// - 实现应保证性能，避免 N+1 查询问题
 /// </summary>
 public interface IApprovalUserQueryService
 {

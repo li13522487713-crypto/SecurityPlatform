@@ -35,8 +35,11 @@ public enum ApprovalOperationType
     /// <summary>转发</summary>
     Forward = 15,
 
-    /// <summary>打回修改</summary>
+    /// <summary>打回修改（打回给发起人）</summary>
     BackToModify = 18,
+
+    /// <summary>打回上节点修改（打回给上一个审批节点）</summary>
+    BackToPrevModify = 17,
 
     /// <summary>加批</summary>
     AddApproval = 19,
@@ -78,5 +81,11 @@ public enum ApprovalOperationType
     DrawBackAgree = 32,
 
     /// <summary>流程推进</summary>
-    ProcessMoveAhead = 33
+    ProcessMoveAhead = 33,
+
+    /// <summary>预览流程/表单（仅UI操作，需要权限校验和审计记录）</summary>
+    Preview = 34,
+
+    /// <summary>打印流程/表单（仅UI操作，需要权限校验和审计记录）</summary>
+    Print = 35
 }

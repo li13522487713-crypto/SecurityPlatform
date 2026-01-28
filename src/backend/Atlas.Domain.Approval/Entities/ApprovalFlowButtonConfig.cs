@@ -90,8 +90,11 @@ public enum ApprovalButtonType
     /// <summary>不同意</summary>
     Disagree = 4,
 
-    /// <summary>打回修改</summary>
+    /// <summary>打回修改（打回给发起人）</summary>
     BackToModify = 18,
+
+    /// <summary>打回上节点修改（打回给上一个审批节点）</summary>
+    BackToPrevModify = 17,
 
     /// <summary>转办</summary>
     Transfer = 21,
@@ -109,5 +112,11 @@ public enum ApprovalButtonType
     ProcessDrawBack = 29,
 
     /// <summary>撤销同意</summary>
-    DrawBackAgree = 32
+    DrawBackAgree = 32,
+
+    /// <summary>预览（仅UI操作，需要权限校验和审计记录）</summary>
+    Preview = 34,
+
+    /// <summary>打印（仅UI操作，需要权限校验和审计记录）</summary>
+    Print = 35
 }

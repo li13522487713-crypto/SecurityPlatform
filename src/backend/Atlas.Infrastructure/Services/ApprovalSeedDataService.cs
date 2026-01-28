@@ -69,16 +69,21 @@ public sealed class ApprovalSeedDataService
             (ApprovalViewType.Initiator, ApprovalButtonType.Submit, "提交"),
             (ApprovalViewType.Initiator, ApprovalButtonType.Resubmit, "重新提交"),
             (ApprovalViewType.Initiator, ApprovalButtonType.ProcessDrawBack, "撤回"),
+            (ApprovalViewType.Initiator, ApprovalButtonType.Preview, "预览"),
+            (ApprovalViewType.Initiator, ApprovalButtonType.Print, "打印"),
 
             // 审批人视图按钮
             (ApprovalViewType.Approver, ApprovalButtonType.Agree, "同意"),
             (ApprovalViewType.Approver, ApprovalButtonType.Disagree, "不同意"),
             (ApprovalViewType.Approver, ApprovalButtonType.BackToModify, "打回修改"),
+            (ApprovalViewType.Approver, ApprovalButtonType.BackToPrevModify, "打回上节点修改"),
             (ApprovalViewType.Approver, ApprovalButtonType.BackToAnyNode, "退回任意节点"),
             (ApprovalViewType.Approver, ApprovalButtonType.Transfer, "转办"),
             (ApprovalViewType.Approver, ApprovalButtonType.AddAssignee, "加签"),
             (ApprovalViewType.Approver, ApprovalButtonType.RemoveAssignee, "减签"),
-            (ApprovalViewType.Approver, ApprovalButtonType.DrawBackAgree, "撤销同意")
+            (ApprovalViewType.Approver, ApprovalButtonType.DrawBackAgree, "撤销同意"),
+            (ApprovalViewType.Approver, ApprovalButtonType.Preview, "预览"),
+            (ApprovalViewType.Approver, ApprovalButtonType.Print, "打印")
         };
 
         // 使用 DefinitionId = 0 表示全局默认配置（不绑定到特定流程）

@@ -52,7 +52,7 @@ todos:
     status: completed
   - id: button-type-gap
     content: 补齐 ButtonTypeEnum 与操作语义差异（P2）：打回上节点修改(BUTTON_TYPE_BACK_TO_PREV_MODIFY)、预览/打印等按钮（前端能力+后端权限校验/审计记录），明确哪些仅 UI 按钮无需后端操作、哪些需要落库/回调
-    status: pending
+    status: completed
   - id: copy-node-runtime
     content: 抄送节点落地（P1）：生成抄送记录/收件人列表、与待办/已办列表的展现隔离、抄送“已读/未读”持久化（AntFlow 有专门的 remove-copy format 与消息体系）
     status: completed

@@ -151,4 +151,126 @@ public sealed class ApprovalRuntimeController : ControllerBase
 
         return ApiResponse<string>.Ok($"{operationName}成功", HttpContext.TraceIdentifier);
     }
+
+    /// <summary>
+    /// 预览流程实例（需要权限校验和审计记录）
+    /// </summary>
+    [HttpGet("instances/{id}/preview")]
+    public async Task<ApiResponse<ApprovalInstanceResponse>> PreviewInstanceAsync(
+        long id,
+        CancellationToken cancellationToken = default)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var userId = long.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "0");
+
+        // 获取实例详情（包含权限校验）
+        var instance = await _queryService.GetInstanceByIdAsync(tenantId, id, cancellationToken);
+        if (instance == null)
+        {
+            return ApiResponse<ApprovalInstanceResponse>.Fail(
+                "NOT_FOUND",
+                "流程实例不存在",
+                HttpContext.TraceIdentifier);
+        }
+
+        // 权限校验：检查用户是否有权限查看该实例
+        // 1. 发起人
+        // 2. 审批人（有任务）
+        // 3. 抄送人
+        // 4. 管理员（TODO: 需要实现管理员权限检查）
+        var hasPermission = instance.InitiatorUserId == userId;
+        if (!hasPermission)
+        {
+            // 检查是否是审批人（AssigneeType为User时，AssigneeValue是用户ID字符串）
+            var tasks = await _queryService.GetTasksByInstanceAsync(tenantId, id, new PagedRequest(1, 100, null, null, false), cancellationToken);
+            hasPermission = tasks.Items.Any(t => 
+                t.AssigneeType == Atlas.Domain.Approval.Enums.AssigneeType.User && 
+                t.AssigneeValue == userId.ToString());
+
+            // 检查是否是抄送人
+            if (!hasPermission)
+            {
+                var copyRecords = await _queryService.GetMyCopyRecordsAsync(tenantId, userId, new PagedRequest(1, 100, null, null, false), null, cancellationToken);
+                hasPermission = copyRecords.Items.Any(c => c.InstanceId == id);
+            }
+        }
+
+        if (!hasPermission)
+        {
+            return ApiResponse<ApprovalInstanceResponse>.Fail(
+                "FORBIDDEN",
+                "您没有权限查看该流程实例",
+                HttpContext.TraceIdentifier);
+        }
+
+        // 记录审计日志
+        var operationService = HttpContext.RequestServices.GetRequiredService<Atlas.Application.Approval.Abstractions.IApprovalOperationService>();
+        await operationService.RecordUiOperationAsync(
+            tenantId,
+            id,
+            null,
+            userId,
+            Atlas.Domain.Approval.Enums.ApprovalOperationType.Preview,
+            cancellationToken);
+
+        return ApiResponse<ApprovalInstanceResponse>.Ok(instance, HttpContext.TraceIdentifier);
+    }
+
+    /// <summary>
+    /// 打印流程实例（需要权限校验和审计记录）
+    /// </summary>
+    [HttpGet("instances/{id}/print")]
+    public async Task<ApiResponse<ApprovalInstanceResponse>> PrintInstanceAsync(
+        long id,
+        CancellationToken cancellationToken = default)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var userId = long.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "0");
+
+        // 获取实例详情（包含权限校验）
+        var instance = await _queryService.GetInstanceByIdAsync(tenantId, id, cancellationToken);
+        if (instance == null)
+        {
+            return ApiResponse<ApprovalInstanceResponse>.Fail(
+                "NOT_FOUND",
+                "流程实例不存在",
+                HttpContext.TraceIdentifier);
+        }
+
+        // 权限校验：检查用户是否有权限查看该实例（与预览相同）
+        var hasPermission = instance.InitiatorUserId == userId;
+        if (!hasPermission)
+        {
+            var tasks = await _queryService.GetTasksByInstanceAsync(tenantId, id, new PagedRequest(1, 100, null, null, false), cancellationToken);
+            hasPermission = tasks.Items.Any(t => 
+                t.AssigneeType == Atlas.Domain.Approval.Enums.AssigneeType.User && 
+                t.AssigneeValue == userId.ToString());
+
+            if (!hasPermission)
+            {
+                var copyRecords = await _queryService.GetMyCopyRecordsAsync(tenantId, userId, new PagedRequest(1, 100, null, null, false), null, cancellationToken);
+                hasPermission = copyRecords.Items.Any(c => c.InstanceId == id);
+            }
+        }
+
+        if (!hasPermission)
+        {
+            return ApiResponse<ApprovalInstanceResponse>.Fail(
+                "FORBIDDEN",
+                "您没有权限打印该流程实例",
+                HttpContext.TraceIdentifier);
+        }
+
+        // 记录审计日志
+        var operationService = HttpContext.RequestServices.GetRequiredService<Atlas.Application.Approval.Abstractions.IApprovalOperationService>();
+        await operationService.RecordUiOperationAsync(
+            tenantId,
+            id,
+            null,
+            userId,
+            Atlas.Domain.Approval.Enums.ApprovalOperationType.Print,
+            cancellationToken);
+
+        return ApiResponse<ApprovalInstanceResponse>.Ok(instance, HttpContext.TraceIdentifier);
+    }
 }
