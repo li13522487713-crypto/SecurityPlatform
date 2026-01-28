@@ -267,16 +267,4 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
             _idGenerator.NextId());
         await _historyRepository.AddAsync(cancelEvent, cancellationToken);
     }
-
-    public async Task ExecuteOperationAsync(
-        TenantId tenantId,
-        long instanceId,
-        long? taskId,
-        long operatorUserId,
-        Application.Approval.Models.ApprovalOperationRequest request,
-        CancellationToken cancellationToken)
-    {
-        // 此方法已移至 IApprovalOperationService
-        throw new NotImplementedException("请使用 IApprovalOperationService.ExecuteOperationAsync");
-    }
 }
