@@ -1,0 +1,396 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Project Overview
+
+**Atlas Security Platform** - A comprehensive security support platform compliant with Chinese 等保2.0 (GB/T 22239-2019) standards. The system consists of an infrastructure support component and a security support component built with Clean Architecture principles, multi-tenant isolation, and strict security controls.
+
+**Language Requirement:** All assistant responses must be in Chinese (per AGENTS.md).
+
+## Technology Stack
+
+### Backend
+- **.NET 10.0** with ASP.NET Core
+- **SqlSugar ORM 5.1.4.169** with SQLite database
+- **Authentication:** JWT Bearer + Client Certificate
+- **Authorization:** Role-based access control (RBAC)
+- **Validation:** FluentValidation 11.4.0
+- **Mapping:** AutoMapper 12.0.1
+- **ID Generation:** Snowflake (IdGen 3.0.1)
+- **Logging:** NLog 5.3.4 with file rotation
+
+### Frontend
+- **Vue 3.5.27** with Composition API
+- **Vite 7.2.4** build tool
+- **TypeScript 5.9.3** with strict mode
+- **Ant Design Vue 4.2.6** UI library
+- **Vue Router 4.6.4** for routing
+
+## Build and Development Commands
+
+### Backend (.NET)
+```bash
+# Build the solution (must have 0 errors, 0 warnings)
+dotnet build
+
+# Run the Web API (starts on http://localhost:5000)
+dotnet run --project src/backend/Atlas.WebApi
+
+# Restore dependencies
+dotnet restore
+```
+
+### Frontend (Vue)
+```bash
+# Navigate to frontend directory
+cd src/frontend/Atlas.WebApp
+
+# Install dependencies
+npm install
+
+# Start dev server (runs on http://localhost:5173 with hot reload)
+npm run dev
+
+# Build for production (includes TypeScript type checking)
+npm run build
+
+# Preview production build
+npm run preview
+
+# Run ESLint
+npm run lint
+
+# Format code with Prettier
+npm run format
+```
+
+### API Testing
+- Use `.http` files in `src/backend/Atlas.WebApi/Bosch.http/` for testing endpoints
+- Format: REST Client syntax with variable extraction and request chaining
+- **Required:** Create or update `.http` files for every new/modified endpoint
+
+## Architecture Overview
+
+### Clean Architecture Layers
+
+```
+Atlas.Core (Foundation)
+  ↑
+Atlas.Domain + Module.Domain (Entities)
+  ↑
+Atlas.Application + Module.Application (DTOs, Validators, Mappings)
+  ↑
+Atlas.Infrastructure (Service Implementations, Repositories, SqlSugar)
+  ↑
+Atlas.WebApi (Controllers, Middleware, API Layer)
+```
+
+**Dependency Rule:** Dependencies flow inward toward Core. Outer layers depend on inner layers, never vice versa.
+
+### Bounded Contexts
+
+Each major feature is organized as a separate bounded context with:
+- **Domain Layer:** `Atlas.Domain.{Context}` - Entities inheriting from `TenantEntity`
+- **Application Layer:** `Atlas.Application.{Context}` - DTOs, validators, AutoMapper profiles, service interfaces
+- **Infrastructure:** Service implementations in `Atlas.Infrastructure/Services/{Context}*Service.cs`
+- **Presentation:** Controllers in `Atlas.WebApi/Controllers/{Context}Controller.cs`
+
+**Current Contexts:** Assets, Audit, Alert, plus cross-cutting concerns (Auth, Users, Roles, Permissions, Departments, Menus)
+
+### Multi-Tenancy Architecture
+
+- **Header-based:** Tenant ID passed via `X-Tenant-Id` header (configurable in appsettings.json)
+- **TenantEntity:** Base class for all tenant-scoped entities with automatic `TenantId` filtering
+- **TenantContextMiddleware:** Extracts tenant ID from headers and provides it to services
+- **QueryFilter:** SqlSugar automatically filters queries by `TenantId` for data isolation
+- **Validation:** JWT claims and header `X-Tenant-Id` must match for authenticated requests
+
+### Key Patterns
+
+**Query/Command Separation:**
+- `I{Context}QueryService` - Read operations (queries, searches, paging)
+- `I{Context}CommandService` - Write operations (create, update, delete)
+
+**Repository Pattern:**
+- Abstractions in Application layer: `I{Context}Repository`
+- Implementations in Infrastructure layer using SqlSugar
+
+**Dependency Injection:**
+- All services registered in `ServiceCollectionExtensions.cs` within each layer
+- Options pattern for configuration binding (Jwt, Security, Database, Tenancy, etc.)
+
+**Error Handling:**
+- `ExceptionHandlingMiddleware` catches exceptions globally
+- Returns standardized `ApiResponse<T>` envelope
+- FluentValidation throws `ValidationException` for input errors
+- Business logic throws `BusinessException` with error codes
+
+## Project Structure
+
+```
+src/
+├── backend/
+│   ├── Atlas.Core/                      # Shared abstractions, base entities, models
+│   │   ├── Abstractions/                # EntityBase, TenantEntity, AggregateRoot
+│   │   ├── Models/                      # ApiResponse, PagedResult, ErrorCodes
+│   │   ├── Tenancy/                     # TenantContext, TenantProvider
+│   │   └── Exceptions/                  # BusinessException
+│   │
+│   ├── Atlas.Domain/                    # Domain layer base
+│   ├── Atlas.Domain.{Context}/          # Context-specific entities (Assets, Audit, Alert)
+│   │
+│   ├── Atlas.Application/               # Application base with AutoMapper setup
+│   ├── Atlas.Application.{Context}/     # Context-specific application logic
+│   │   ├── Abstractions/                # Query/Command service interfaces
+│   │   ├── Models/                      # DTOs (Request/Response/ListItem)
+│   │   ├── Validators/                  # FluentValidation validators
+│   │   ├── Repositories/                # Repository abstractions
+│   │   └── Mappings/                    # AutoMapper profiles
+│   │
+│   ├── Atlas.Infrastructure/            # Infrastructure implementations
+│   │   ├── Services/                    # *QueryService, *CommandService
+│   │   ├── Repositories/                # SqlSugar repository implementations
+│   │   ├── IdGen/                       # SnowflakeIdGenerator
+│   │   ├── Security/                    # Pbkdf2PasswordHasher
+│   │   └── Options/                     # Configuration classes
+│   │
+│   └── Atlas.WebApi/                    # Presentation layer
+│       ├── Controllers/                 # API endpoints
+│       ├── Middlewares/                 # ExceptionHandling, TenantContext
+│       ├── Models/                      # API-specific view models
+│       ├── Mappings/                    # API response mappings
+│       ├── appsettings.json             # Configuration
+│       ├── nlog.config                  # Logging setup
+│       └── Bosch.http/                  # REST Client test files
+│
+└── frontend/
+    └── Atlas.WebApp/
+        ├── src/
+        │   ├── main.ts                  # Vue app entry
+        │   ├── App.vue                  # Root component
+        │   ├── layouts/                 # Layout components
+        │   ├── pages/                   # Feature pages
+        │   ├── router/                  # Route configuration
+        │   ├── services/                # API client (api.ts)
+        │   ├── types/                   # TypeScript interfaces
+        │   └── styles/                  # CSS
+        ├── vite.config.ts               # Vite config with dev proxy
+        └── package.json                 # npm scripts
+```
+
+## Coding Standards
+
+### General Rules
+- **Zero-warning policy:** Build must complete with 0 errors and 0 warnings (enforced by `Directory.Build.props`)
+- **Async/await mandatory:** All I/O operations must be asynchronous
+- **Repository pattern required:** No direct database access from controllers
+- **Nullable reference types:** Enabled for all C# projects
+
+### .NET Conventions
+- **Indentation:** 4 spaces
+- **Naming:** PascalCase for types/public members, camelCase for locals/fields
+- **Target Framework:** net10.0
+- **Implicit Usings:** Enabled
+- **File-scoped Namespaces:** Preferred
+
+### Vue/TypeScript Conventions
+- **Indentation:** 2 spaces
+- **Component Files:** kebab-case (e.g., `login-page.vue`)
+- **Component Names:** PascalCase in code (e.g., `LoginPage`)
+- **TypeScript:** Strict mode enabled, no unused variables
+
+## Security and Compliance (等保2.0)
+
+This project must comply with GB/T 22239-2019 (等保2.0) Level 3 requirements. See `等保2.0要求清单.md` for full checklist.
+
+### Implemented Security Controls
+
+**Authentication:**
+- JWT Bearer tokens with configurable expiration (default: 60 minutes)
+- Client certificate authentication support
+- Token validation: issuer, audience, signature, lifetime
+
+**Authorization:**
+- Role-based access control (RBAC)
+- Controller action-level `[Authorize(Roles = "...")]` attributes
+- Default policy requires authentication
+
+**Password Security:**
+- PBKDF2 hashing with salt (`Pbkdf2PasswordHasher`)
+- Complexity requirements: min 8 chars, uppercase, lowercase, digit, special char
+- 90-day expiration policy
+- Lockout after 5 failed attempts (15-min lockout, 30-min auto-unlock)
+
+**Data Protection:**
+- Multi-tenant row-level isolation via `TenantEntity` + QueryFilter
+- SQLite database encryption option (configurable)
+- Automated database backups (default: daily, 30-day retention)
+
+**Audit Logging:**
+- `IAuditWriter` service captures: actor, action, target, IP, user agent, timestamp
+- Separate Audit bounded context
+- Logs retained for 180 days (configurable)
+
+**HTTP Security:**
+- HTTPS enforcement (production)
+- CORS whitelist validation
+- HTTP request/response logging
+
+### Configuration Security
+- **Secrets:** Never commit secrets to repository
+- Use environment variables or secure secret stores in production
+- JWT `SigningKey` must be 32+ characters in production
+- Default `appsettings.json` contains placeholders only
+
+## API Contract
+
+### Standardized Response Envelope
+```json
+{
+  "success": true,
+  "code": "SUCCESS",
+  "message": "OK",
+  "traceId": "00-...",
+  "data": { ... }
+}
+```
+
+**Error Codes:** `SUCCESS`, `VALIDATION_ERROR`, `UNAUTHORIZED`, `FORBIDDEN`, `ACCOUNT_LOCKED`, `PASSWORD_EXPIRED`, `NOT_FOUND`, `SERVER_ERROR`
+
+### Pagination
+```json
+{
+  "pageIndex": 1,
+  "pageSize": 10,
+  "total": 100,
+  "items": [...]
+}
+```
+
+### Headers
+- `Authorization: Bearer <token>` - Required for authenticated endpoints
+- `X-Tenant-Id: <guid>` - Required for all requests (matches JWT claim)
+
+### Frontend Integration
+- API client in `src/frontend/Atlas.WebApp/src/services/api.ts`
+- Token stored in `localStorage`
+- Vite dev proxy forwards `/api/*` to `http://localhost:5000`
+
+## Development Workflow
+
+### Adding a New Feature (Clean Architecture)
+
+1. **Define Entity** in `Atlas.Domain.{Context}/Entities/{Entity}.cs`
+   - Inherit from `TenantEntity` for tenant isolation
+   - Add domain properties and methods
+
+2. **Create DTOs** in `Atlas.Application.{Context}/Models/`
+   - `{Entity}CreateRequest`, `{Entity}UpdateRequest`, `{Entity}Response`, `{Entity}ListItem`
+
+3. **Add Validators** in `Atlas.Application.{Context}/Validators/`
+   - Use FluentValidation for input validation
+   - Example: `{Entity}CreateRequestValidator : AbstractValidator<{Entity}CreateRequest>`
+
+4. **Define Repository Interface** in `Atlas.Application.{Context}/Repositories/`
+   - `I{Entity}Repository` with CRUD methods
+
+5. **Create Mapping Profile** in `Atlas.Application.{Context}/Mappings/`
+   - AutoMapper profile: `{Entity}MappingProfile : Profile`
+
+6. **Implement Repository** in `Atlas.Infrastructure/Repositories/`
+   - SqlSugar-based implementation of `I{Entity}Repository`
+
+7. **Create Services** in `Atlas.Infrastructure/Services/`
+   - `{Entity}QueryService` for read operations
+   - `{Entity}CommandService` for write operations
+
+8. **Register Services** in `Atlas.Infrastructure/ServiceCollectionExtensions.cs`
+   - Add repository and service DI registrations
+
+9. **Add Controller** in `Atlas.WebApi/Controllers/`
+   - `{Entity}Controller : ControllerBase`
+   - Use `[Authorize]` attributes for access control
+   - Inject query/command services via constructor
+
+10. **Create Test File** in `Atlas.WebApi/Bosch.http/`
+    - `{Entity}.http` with sample requests for all endpoints
+
+11. **Update Frontend** (if needed)
+    - Add API functions in `src/frontend/Atlas.WebApp/src/services/api.ts`
+    - Create page component in `src/pages/`
+    - Add route in `src/router/`
+    - Update types in `src/types/api.ts`
+
+### Modifying Existing Code
+
+1. **Read the file first** - NEVER propose changes to code you haven't read
+2. **Understand existing patterns** - Follow established conventions
+3. **Minimal changes** - Don't refactor unrelated code or add unnecessary features
+4. **Update tests** - Modify corresponding `.http` file if API changes
+5. **Run validation** - Ensure `dotnet build` passes with 0 warnings
+
+## Configuration Files
+
+### appsettings.json
+```json
+{
+  "Jwt": {
+    "Issuer": "...",
+    "Audience": "...",
+    "SigningKey": "32+ character secret",
+    "ExpiresMinutes": 60
+  },
+  "Security": {
+    "EnforceHttps": true,
+    "PasswordPolicy": { "MinLength": 8, ... },
+    "LockoutPolicy": { "MaxFailedAttempts": 5, ... },
+    "BootstrapAdmin": { "Enabled": true, "TenantId": "...", ... }
+  },
+  "Database": {
+    "ConnectionString": "Data Source=atlas.db",
+    "Encryption": { "Enabled": false },
+    "Backup": { "Enabled": true, "IntervalHours": 24, "RetentionDays": 30 }
+  },
+  "Tenancy": {
+    "HeaderName": "X-Tenant-Id"
+  },
+  "Cors": {
+    "AllowedOrigins": ["http://localhost:5173"]
+  }
+}
+```
+
+### nlog.config
+- Console + 4 rolling file logs (all.log, info.log, warn.log, error.log)
+- Daily rotation with configurable retention
+- Format: `timestamp|level|logger|message`
+
+### vite.config.ts
+- Dev server: `http://0.0.0.0:5173`
+- Proxy: `/api/*` → `http://localhost:5000`
+- Path alias: `@` → `src/`
+
+## Important Notes
+
+### Testing
+- **No unit test framework configured yet**
+- Current testing: REST Client `.http` files
+- When adding tests: document framework (xUnit/NUnit for .NET, Vitest for Vue) and commands
+
+### File Operations
+- **Always prefer editing existing files over creating new ones**
+- Don't create documentation files unless explicitly requested
+- Update `AGENTS.md` and `docs/contracts.md` if architecture changes
+
+### Database Operations
+- Database file: `atlas.db` in WebApi directory
+- Backups: `backups/` directory (daily, 30-day retention)
+- Schema initialization: `DatabaseInitializerHostedService` runs on startup
+- Migrations: Not using EF Core migrations (SqlSugar code-first)
+
+### Avoid Over-Engineering
+- Don't add features beyond what was requested
+- Don't add unnecessary abstractions, error handling for impossible scenarios, or hypothetical future requirements
+- Three similar lines of code is better than a premature abstraction
+- If something is unused, delete it completely (no backwards-compatibility hacks)
