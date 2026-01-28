@@ -1,0 +1,82 @@
+namespace Atlas.Domain.Approval.Enums;
+
+/// <summary>
+/// 审批流运行时操作类型（对应 AntFlow.net 的 ProcessOperationEnum）
+/// </summary>
+public enum ApprovalOperationType
+{
+    /// <summary>流程提交</summary>
+    Submit = 1,
+
+    /// <summary>重新提交</summary>
+    Resubmit = 2,
+
+    /// <summary>同意</summary>
+    Agree = 3,
+
+    /// <summary>不同意</summary>
+    Disagree = 4,
+
+    /// <summary>查看流程详情</summary>
+    ViewBusinessProcess = 5,
+
+    /// <summary>作废</summary>
+    Abandon = 7,
+
+    /// <summary>承办</summary>
+    Undertake = 10,
+
+    /// <summary>变更处理人</summary>
+    ChangeAssignee = 11,
+
+    /// <summary>终止</summary>
+    Stop = 12,
+
+    /// <summary>转发</summary>
+    Forward = 15,
+
+    /// <summary>打回修改</summary>
+    BackToModify = 18,
+
+    /// <summary>加批</summary>
+    AddApproval = 19,
+
+    /// <summary>转办</summary>
+    Transfer = 21,
+
+    /// <summary>自选审批人</summary>
+    ChooseAssignee = 22,
+
+    /// <summary>退回任意节点</summary>
+    BackToAnyNode = 23,
+
+    /// <summary>减签</summary>
+    RemoveAssignee = 24,
+
+    /// <summary>加签</summary>
+    AddAssignee = 25,
+
+    /// <summary>变更未来节点处理人</summary>
+    ChangeFutureAssignee = 26,
+
+    /// <summary>未来节点减签</summary>
+    RemoveFutureAssignee = 27,
+
+    /// <summary>未来节点加签</summary>
+    AddFutureAssignee = 28,
+
+    /// <summary>流程撤回</summary>
+    ProcessDrawBack = 29,
+
+    /// <summary>保存草稿</summary>
+    SaveDraft = 30,
+
+    /// <summary>恢复已结束流程</summary>
+    RecoverToHistory = 31,
+
+    /// <summary>撤销同意</summary>
+    DrawBackAgree = 32,
+
+    /// <summary>流程推进</summary>
+    ProcessMoveAhead = 33
+}

@@ -102,6 +102,75 @@ Content-Type: application/json
 
 {}
 
+### 2.6 撤回流程（发起人撤回）
+POST {{baseUrl}}/approval/runtime/instances/{instanceId}/operations?taskId={taskId}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "operationType": 29,
+  "comment": "撤回流程"
+}
+
+### 2.7 转办任务
+POST {{baseUrl}}/approval/runtime/instances/{instanceId}/operations?taskId={taskId}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "operationType": 21,
+  "targetAssigneeValue": "200",
+  "comment": "转办给其他处理人"
+}
+
+### 2.8 加签
+POST {{baseUrl}}/approval/runtime/instances/{instanceId}/operations?taskId={taskId}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "operationType": 25,
+  "additionalAssigneeValues": ["300", "301"],
+  "comment": "加签审批人"
+}
+
+### 2.9 打回修改
+POST {{baseUrl}}/approval/runtime/instances/{instanceId}/operations?taskId={taskId}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "operationType": 18,
+  "comment": "打回修改，请补充材料"
+}
+
+### 2.10 退回任意节点
+POST {{baseUrl}}/approval/runtime/instances/{instanceId}/operations?taskId={taskId}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "operationType": 23,
+  "targetNodeId": "approve1",
+  "comment": "退回至第一个审批节点"
+}
+
+### 2.11 撤销同意
+POST {{baseUrl}}/approval/runtime/instances/{instanceId}/operations?taskId={taskId}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "operationType": 32,
+  "comment": "撤销之前的同意"
+}
+
 ### ============================================
 ### 3. APPROVAL TASKS - 审批任务管理
 ### ============================================

@@ -6,6 +6,7 @@ using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Approval.Enums;
 using FluentValidation;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Atlas.WebApi.Controllers;
 
@@ -119,5 +120,35 @@ public sealed class ApprovalRuntimeController : ControllerBase
 
         await _commandService.CancelInstanceAsync(tenantId, id, userId, cancellationToken);
         return ApiResponse<string>.Ok("已取消", HttpContext.TraceIdentifier);
+    }
+
+    /// <summary>
+    /// 执行运行时操作（撤回、转办、加签、打回修改、退回任意节点、撤销同意等）
+    /// </summary>
+    [HttpPost("instances/{instanceId}/operations")]
+    public async Task<ApiResponse<string>> ExecuteOperationAsync(
+        long instanceId,
+        [FromBody] Atlas.Application.Approval.Models.ApprovalOperationRequest request,
+        [FromQuery] long? taskId = null,
+        CancellationToken cancellationToken = default)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var userId = long.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "0");
+
+        var operationService = HttpContext.RequestServices.GetRequiredService<Atlas.Application.Approval.Abstractions.IApprovalOperationService>();
+        await operationService.ExecuteOperationAsync(tenantId, instanceId, taskId, userId, request, cancellationToken);
+
+        var operationName = request.OperationType switch
+        {
+            Atlas.Domain.Approval.Enums.ApprovalOperationType.ProcessDrawBack => "撤回",
+            Atlas.Domain.Approval.Enums.ApprovalOperationType.Transfer => "转办",
+            Atlas.Domain.Approval.Enums.ApprovalOperationType.AddAssignee => "加签",
+            Atlas.Domain.Approval.Enums.ApprovalOperationType.BackToModify => "打回修改",
+            Atlas.Domain.Approval.Enums.ApprovalOperationType.BackToAnyNode => "退回任意节点",
+            Atlas.Domain.Approval.Enums.ApprovalOperationType.DrawBackAgree => "撤销同意",
+            _ => "操作"
+        };
+
+        return ApiResponse<string>.Ok($"{operationName}成功", HttpContext.TraceIdentifier);
     }
 }

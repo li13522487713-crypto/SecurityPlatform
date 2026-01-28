@@ -69,7 +69,11 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             typeof(ApprovalProcessInstance),
             typeof(ApprovalTask),
             typeof(ApprovalHistoryEvent),
-            typeof(ApprovalDepartmentLeader));
+            typeof(ApprovalDepartmentLeader),
+            typeof(ApprovalProcessVariable),
+            typeof(ApprovalTaskTransfer),
+            typeof(ApprovalTaskAssigneeChange),
+            typeof(ApprovalNodeExecution));
 
         if (!_bootstrapOptions.Enabled)
         {

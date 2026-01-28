@@ -71,6 +71,9 @@ public sealed class ApprovalTask : TenantEntity
     /// <summary>创建时间</summary>
     public DateTimeOffset CreatedAt { get; private set; }
 
+    /// <summary>原处理人值（转办前）</summary>
+    public string? OriginalAssigneeValue { get; private set; }
+
     public void Approve(long decisionByUserId, string? comment, DateTimeOffset now)
     {
         Status = ApprovalTaskStatus.Approved;
@@ -90,5 +93,11 @@ public sealed class ApprovalTask : TenantEntity
     public void Cancel()
     {
         Status = ApprovalTaskStatus.Canceled;
+    }
+
+    public void Transfer(string newAssigneeValue)
+    {
+        OriginalAssigneeValue = AssigneeValue;
+        AssigneeValue = newAssigneeValue;
     }
 }

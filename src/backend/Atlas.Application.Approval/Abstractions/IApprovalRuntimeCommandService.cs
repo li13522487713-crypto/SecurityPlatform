@@ -33,4 +33,12 @@ public interface IApprovalRuntimeCommandService
         long instanceId,
         long cancelledByUserId,
         CancellationToken cancellationToken);
+
+    Task ExecuteOperationAsync(
+        TenantId tenantId,
+        long instanceId,
+        long? taskId,
+        long operatorUserId,
+        Models.ApprovalOperationRequest request,
+        CancellationToken cancellationToken);
 }

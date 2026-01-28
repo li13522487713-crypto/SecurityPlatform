@@ -56,6 +56,9 @@ public sealed class ApprovalProcessInstance : TenantEntity
     /// <summary>结束时间</summary>
     public DateTimeOffset? EndedAt { get; private set; }
 
+    /// <summary>当前节点 ID</summary>
+    public string? CurrentNodeId { get; private set; }
+
     public void MarkCompleted(DateTimeOffset now)
     {
         Status = ApprovalInstanceStatus.Completed;
@@ -77,5 +80,10 @@ public sealed class ApprovalProcessInstance : TenantEntity
     public void UpdateData(string? dataJson)
     {
         DataJson = dataJson;
+    }
+
+    public void SetCurrentNode(string? nodeId)
+    {
+        CurrentNodeId = nodeId;
     }
 }

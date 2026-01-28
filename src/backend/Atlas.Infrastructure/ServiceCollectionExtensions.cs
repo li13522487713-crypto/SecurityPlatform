@@ -63,11 +63,26 @@ public static class ServiceCollectionExtensions
         services.AddScoped<Atlas.Application.Approval.Repositories.IApprovalTaskRepository, ApprovalTaskRepository>();
         services.AddScoped<Atlas.Application.Approval.Repositories.IApprovalHistoryRepository, ApprovalHistoryRepository>();
         services.AddScoped<Atlas.Application.Approval.Repositories.IApprovalDepartmentLeaderRepository, ApprovalDepartmentLeaderRepository>();
+        services.AddScoped<Atlas.Application.Approval.Repositories.IApprovalProcessVariableRepository, ApprovalProcessVariableRepository>();
+        services.AddScoped<Atlas.Application.Approval.Repositories.IApprovalTaskTransferRepository, ApprovalTaskTransferRepository>();
+        services.AddScoped<Atlas.Application.Approval.Repositories.IApprovalTaskAssigneeChangeRepository, ApprovalTaskAssigneeChangeRepository>();
+        services.AddScoped<Atlas.Application.Approval.Repositories.IApprovalNodeExecutionRepository, ApprovalNodeExecutionRepository>();
+        
+        // Approval Flow Operation Handlers
+        services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalOperationHandler, Atlas.Infrastructure.Services.ApprovalFlow.Operations.ProcessDrawBackOperationHandler>();
+        services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalOperationHandler, Atlas.Infrastructure.Services.ApprovalFlow.Operations.TransferOperationHandler>();
+        services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalOperationHandler, Atlas.Infrastructure.Services.ApprovalFlow.Operations.AddAssigneeOperationHandler>();
+        services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalOperationHandler, Atlas.Infrastructure.Services.ApprovalFlow.Operations.BackToModifyOperationHandler>();
+        services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalOperationHandler, Atlas.Infrastructure.Services.ApprovalFlow.Operations.BackToAnyNodeOperationHandler>();
+        services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalOperationHandler, Atlas.Infrastructure.Services.ApprovalFlow.Operations.DrawBackAgreeOperationHandler>();
+        services.AddScoped<Atlas.Infrastructure.Services.ApprovalFlow.ApprovalOperationDispatcher>();
+        
         services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalFlowQueryService, ApprovalFlowQueryService>();
         services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalFlowCommandService, ApprovalFlowCommandService>();
         services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalRuntimeQueryService, ApprovalRuntimeQueryService>();
         services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalRuntimeCommandService, ApprovalRuntimeCommandService>();
         services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalDepartmentLeaderService, ApprovalDepartmentLeaderService>();
+        services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalOperationService, ApprovalOperationService>();
         services.AddHostedService<DatabaseInitializerHostedService>();
         services.AddHostedService<DatabaseBackupHostedService>();
 

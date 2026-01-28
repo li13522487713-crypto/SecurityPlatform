@@ -8,6 +8,7 @@ using Atlas.Core.Exceptions;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Approval.Entities;
 using Atlas.Domain.Approval.Enums;
+using Atlas.Infrastructure.Services.ApprovalFlow;
 
 namespace Atlas.Infrastructure.Services;
 
@@ -21,8 +22,10 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
     private readonly IApprovalTaskRepository _taskRepository;
     private readonly IApprovalHistoryRepository _historyRepository;
     private readonly IApprovalDepartmentLeaderRepository _deptLeaderRepository;
+    private readonly IApprovalNodeExecutionRepository _nodeExecutionRepository;
     private readonly IIdGenerator _idGenerator;
     private readonly IMapper _mapper;
+    private readonly FlowEngine _flowEngine;
 
     public ApprovalRuntimeCommandService(
         IApprovalFlowRepository flowRepository,
@@ -30,6 +33,7 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
         IApprovalTaskRepository taskRepository,
         IApprovalHistoryRepository historyRepository,
         IApprovalDepartmentLeaderRepository deptLeaderRepository,
+        IApprovalNodeExecutionRepository nodeExecutionRepository,
         IIdGenerator idGenerator,
         IMapper mapper)
     {
@@ -38,8 +42,10 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
         _taskRepository = taskRepository;
         _historyRepository = historyRepository;
         _deptLeaderRepository = deptLeaderRepository;
+        _nodeExecutionRepository = nodeExecutionRepository;
         _idGenerator = idGenerator;
         _mapper = mapper;
+        _flowEngine = new FlowEngine(taskRepository, nodeExecutionRepository, deptLeaderRepository, idGenerator);
     }
 
     public async Task<ApprovalInstanceResponse> StartAsync(
@@ -82,7 +88,23 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
         await _historyRepository.AddAsync(startEvent, cancellationToken);
 
         // 解析流程定义，生成第一批待审批任务
-        await GenerateInitialTasks(tenantId, instance, flowDef, cancellationToken);
+        var flowDefinition = FlowDefinitionParser.Parse(flowDef.DefinitionJson);
+        var startNode = flowDefinition.GetStartNode();
+        if (startNode != null)
+        {
+            // 创建开始节点执行记录
+            var startExecution = new ApprovalNodeExecution(
+                tenantId,
+                instance.Id,
+                startNode.Id,
+                ApprovalNodeExecutionStatus.Completed,
+                _idGenerator.NextId());
+            await _nodeExecutionRepository.AddAsync(startExecution, cancellationToken);
+
+            // 推进到第一个审批节点
+            await _flowEngine.AdvanceFlowAsync(tenantId, instance, flowDefinition, startNode.Id, cancellationToken);
+            await _instanceRepository.UpdateAsync(instance, cancellationToken);
+        }
 
         return _mapper.Map<ApprovalInstanceResponse>(instance);
     }
@@ -126,8 +148,14 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
         task.Approve(approverUserId, comment, DateTimeOffset.UtcNow);
         await _taskRepository.UpdateAsync(task, cancellationToken);
 
-        // 推进流程（简化版：如果所有任务都同意，则进入下一节点或完成）
-        await AdvanceFlow(tenantId, instance, task, cancellationToken);
+        // 推进流程
+        var flowDef = await _flowRepository.GetByIdAsync(tenantId, instance.DefinitionId, cancellationToken);
+        if (flowDef != null)
+        {
+            var flowDefinition = FlowDefinitionParser.Parse(flowDef.DefinitionJson);
+            await _flowEngine.AdvanceFlowAsync(tenantId, instance, flowDefinition, task.NodeId, cancellationToken);
+            await _instanceRepository.UpdateAsync(instance, cancellationToken);
+        }
     }
 
     public async Task RejectTaskAsync(
@@ -240,210 +268,15 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
         await _historyRepository.AddAsync(cancelEvent, cancellationToken);
     }
 
-    /// <summary>
-    /// 生成初始待审批任务（从流程定义的第一个审批节点开始）
-    /// </summary>
-    private async Task GenerateInitialTasks(
-        TenantId tenantId,
-        ApprovalProcessInstance instance,
-        ApprovalFlowDefinition flowDef,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            using var doc = JsonDocument.Parse(flowDef.DefinitionJson);
-            var root = doc.RootElement;
-
-            if (!root.TryGetProperty("nodes", out var nodesElement))
-                return;
-
-            // 找到第一个 approve 或 condition 节点
-            var firstApprovalNode = nodesElement.EnumerateArray()
-                .FirstOrDefault(n =>
-                {
-                    if (n.TryGetProperty("type", out var typeProp))
-                    {
-                        var nodeType = typeProp.GetString();
-                        return nodeType == "approve" || nodeType == "condition";
-                    }
-                    return false;
-                });
-
-            if (firstApprovalNode.ValueKind == JsonValueKind.Undefined)
-                return;
-
-            if (!firstApprovalNode.TryGetProperty("id", out var nodeIdProp))
-                return;
-
-            var nodeId = nodeIdProp.GetString();
-            if (string.IsNullOrEmpty(nodeId))
-                return;
-
-            // 提取节点配置
-            var assigneeType = AssigneeType.User;
-            var assigneeValue = string.Empty;
-            var nodeTitle = "审批";
-
-            if (firstApprovalNode.TryGetProperty("data", out var dataElement))
-            {
-                if (dataElement.TryGetProperty("assigneeType", out var assigneeProp))
-                    Enum.TryParse<AssigneeType>(assigneeProp.GetString(), out assigneeType);
-
-                if (dataElement.TryGetProperty("assigneeValue", out var valueProp))
-                    assigneeValue = valueProp.GetString() ?? string.Empty;
-
-                if (dataElement.TryGetProperty("label", out var labelProp))
-                    nodeTitle = labelProp.GetString() ?? "审批";
-            }
-
-            // 根据分配策略扩展任务
-            var tasks = await ExpandTasksByAssigneeType(
-                tenantId,
-                instance.Id,
-                nodeId,
-                nodeTitle,
-                assigneeType,
-                assigneeValue,
-                cancellationToken);
-
-            if (tasks.Count > 0)
-            {
-                await _taskRepository.AddRangeAsync(tasks, cancellationToken);
-                foreach (var task in tasks)
-                {
-                    var taskCreatedEvent = new ApprovalHistoryEvent(
-                        tenantId,
-                        instance.Id,
-                        ApprovalHistoryEventType.TaskCreated,
-                        null,
-                        nodeId,
-                        null,
-                        _idGenerator.NextId());
-                    await _historyRepository.AddAsync(taskCreatedEvent, cancellationToken);
-                }
-            }
-        }
-        catch (JsonException)
-        {
-            // 如果 JSON 解析失败，直接返回
-        }
-    }
-
-    /// <summary>
-    /// 根据分配策略扩展任务（一个策略可能对应多个审批人）
-    /// </summary>
-    private async Task<List<ApprovalTask>> ExpandTasksByAssigneeType(
+    public async Task ExecuteOperationAsync(
         TenantId tenantId,
         long instanceId,
-        string nodeId,
-        string nodeTitle,
-        AssigneeType assigneeType,
-        string assigneeValue,
+        long? taskId,
+        long operatorUserId,
+        Application.Approval.Models.ApprovalOperationRequest request,
         CancellationToken cancellationToken)
     {
-        var tasks = new List<ApprovalTask>();
-
-        switch (assigneeType)
-        {
-            case AssigneeType.User:
-                // 指定用户
-                tasks.Add(new ApprovalTask(
-                    tenantId,
-                    instanceId,
-                    nodeId,
-                    nodeTitle,
-                    AssigneeType.User,
-                    assigneeValue,
-                    _idGenerator.NextId()));
-                break;
-
-            case AssigneeType.Role:
-                // 按角色（简化版：保存角色码，前端或后续处理时展开）
-                tasks.Add(new ApprovalTask(
-                    tenantId,
-                    instanceId,
-                    nodeId,
-                    nodeTitle,
-                    AssigneeType.Role,
-                    assigneeValue,
-                    _idGenerator.NextId()));
-                break;
-
-            case AssigneeType.DepartmentLeader:
-                // 部门负责人
-                if (long.TryParse(assigneeValue, out var deptId))
-                {
-                    var leaderId = await _deptLeaderRepository.GetLeaderUserIdAsync(tenantId, deptId, cancellationToken);
-                    if (leaderId.HasValue)
-                    {
-                        tasks.Add(new ApprovalTask(
-                            tenantId,
-                            instanceId,
-                            nodeId,
-                            nodeTitle,
-                            AssigneeType.User,
-                            leaderId.Value.ToString(),
-                            _idGenerator.NextId()));
-                    }
-                }
-                break;
-        }
-
-        return tasks;
-    }
-
-    /// <summary>
-    /// 推进流程（简化版：所有任务同意则完成）
-    /// </summary>
-    private async Task AdvanceFlow(
-        TenantId tenantId,
-        ApprovalProcessInstance instance,
-        ApprovalTask currentTask,
-        CancellationToken cancellationToken)
-    {
-        // 检查同节点是否所有任务都已决策
-        var nodeTasksWithoutDecision = await _taskRepository.GetByInstanceAndStatusAsync(
-            tenantId,
-            instance.Id,
-            ApprovalTaskStatus.Pending,
-            cancellationToken);
-
-        if (nodeTasksWithoutDecision.Count == 0)
-        {
-            // 所有任务都已完成（同意或驳回）
-            // 对于 MVP，简化为：所有任务同意 → 流程完成
-            var allApproved = true;
-            var allInstanceTasks = (await _taskRepository.GetPagedByInstanceAsync(
-                tenantId,
-                instance.Id,
-                1,
-                1000,
-                cancellationToken: cancellationToken)).Items;
-
-            foreach (var task in allInstanceTasks)
-            {
-                if (task.Status != ApprovalTaskStatus.Approved)
-                {
-                    allApproved = false;
-                    break;
-                }
-            }
-
-            if (allApproved)
-            {
-                instance.MarkCompleted(DateTimeOffset.UtcNow);
-                await _instanceRepository.UpdateAsync(instance, cancellationToken);
-
-                var completedEvent = new ApprovalHistoryEvent(
-                    tenantId,
-                    instance.Id,
-                    ApprovalHistoryEventType.InstanceCompleted,
-                    null,
-                    null,
-                    null,
-                    _idGenerator.NextId());
-                await _historyRepository.AddAsync(completedEvent, cancellationToken);
-            }
-        }
+        // 此方法已移至 IApprovalOperationService
+        throw new NotImplementedException("请使用 IApprovalOperationService.ExecuteOperationAsync");
     }
 }
