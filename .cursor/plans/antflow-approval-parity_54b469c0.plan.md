@@ -46,10 +46,10 @@ todos:
     status: completed
   - id: deduplication-parity
     content: 实现审批人去重策略（P1）：对齐 AntFlow 的前向/后向去重与排除规则（BpmnDeduplicationFormatService），含并行网关场景下递归遍历，避免重复生成任务/重复审批
-    status: in_progress
+    status: completed
   - id: runtime-ops-missing-batch
     content: 补齐仍未实现的运行时操作（P0，对照 ProcessOperationEnum/ButtonTypeEnum）：承办(Undertake)、转发(Forward)、变更处理人(ChangeAssignee)、变更未来节点处理人(ChangeFutureAssignee)、未来节点加签/减签(Add/RemoveFutureAssignee)、保存草稿(SaveDraft)、恢复已结束流程(RecoverToHistory)、流程推进(ProcessMoveAhead/管理员跳过)、减签(RemoveAssignee)、加批(AddApproval/生成新节点语义)
-    status: pending
+    status: completed
   - id: button-type-gap
     content: 补齐 ButtonTypeEnum 与操作语义差异（P2）：打回上节点修改(BUTTON_TYPE_BACK_TO_PREV_MODIFY)、预览/打印等按钮（前端能力+后端权限校验/审计记录），明确哪些仅 UI 按钮无需后端操作、哪些需要落库/回调
     status: pending

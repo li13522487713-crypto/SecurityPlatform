@@ -80,5 +80,8 @@ public enum AssigneeChangeType
     AddFuture = 2,
 
     /// <summary>未来节点减签</summary>
-    RemoveFuture = 3
+    RemoveFuture = 3,
+
+    /// <summary>变更处理人</summary>
+    Change = 4
 }

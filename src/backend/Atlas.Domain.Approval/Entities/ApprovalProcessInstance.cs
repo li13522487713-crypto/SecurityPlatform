@@ -86,4 +86,18 @@ public sealed class ApprovalProcessInstance : TenantEntity
     {
         CurrentNodeId = nodeId;
     }
+
+    /// <summary>
+    /// 恢复已结束的流程到运行状态
+    /// </summary>
+    public void Recover(DateTimeOffset now)
+    {
+        if (Status == ApprovalInstanceStatus.Completed ||
+            Status == ApprovalInstanceStatus.Rejected ||
+            Status == ApprovalInstanceStatus.Canceled)
+        {
+            Status = ApprovalInstanceStatus.Running;
+            EndedAt = null;
+        }
+    }
 }

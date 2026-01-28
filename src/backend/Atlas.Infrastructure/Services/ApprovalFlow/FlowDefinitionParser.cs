@@ -113,6 +113,25 @@ public sealed class FlowDefinitionParser
                     node.MissingAssigneeStrategy = missingStrategy;
                 }
             }
+
+            if (dataElement.TryGetProperty("deduplicationType", out var deduplicationTypeProp))
+            {
+                var deduplicationTypeStr = deduplicationTypeProp.GetString();
+                if (Enum.TryParse<DeduplicationType>(deduplicationTypeStr, out var deduplicationType))
+                {
+                    node.DeduplicationType = deduplicationType;
+                }
+            }
+
+            if (dataElement.TryGetProperty("excludeUserIds", out var excludeUserIdsProp))
+            {
+                node.ExcludeUserIds = excludeUserIdsProp.GetRawText();
+            }
+
+            if (dataElement.TryGetProperty("excludeRoleCodes", out var excludeRoleCodesProp))
+            {
+                node.ExcludeRoleCodes = excludeRoleCodesProp.GetRawText();
+            }
         }
 
         return node;
@@ -242,6 +261,9 @@ public sealed class FlowNode
     public ApprovalMode ApprovalMode { get; set; } = ApprovalMode.All;
     public string? ConditionRule { get; set; }
     public MissingAssigneeStrategy MissingAssigneeStrategy { get; set; } = MissingAssigneeStrategy.NotAllowed;
+    public DeduplicationType DeduplicationType { get; set; } = DeduplicationType.None;
+    public string? ExcludeUserIds { get; set; } // 排除的用户ID列表（逗号分隔或JSON数组）
+    public string? ExcludeRoleCodes { get; set; } // 排除的角色代码列表（逗号分隔或JSON数组）
 }
 
 /// <summary>

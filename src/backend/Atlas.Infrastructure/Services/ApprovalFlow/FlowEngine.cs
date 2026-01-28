@@ -21,6 +21,7 @@ public sealed class FlowEngine
     private readonly IApprovalCopyRecordRepository _copyRecordRepository;
     private readonly ConditionEvaluator _conditionEvaluator;
     private readonly IApprovalUserQueryService _userQueryService;
+    private readonly DeduplicationService _deduplicationService;
     private readonly IIdGenerator _idGenerator;
 
     public FlowEngine(
@@ -31,6 +32,7 @@ public sealed class FlowEngine
         IApprovalCopyRecordRepository copyRecordRepository,
         ConditionEvaluator conditionEvaluator,
         IApprovalUserQueryService userQueryService,
+        DeduplicationService deduplicationService,
         IIdGenerator idGenerator)
     {
         _taskRepository = taskRepository;
@@ -40,6 +42,7 @@ public sealed class FlowEngine
         _copyRecordRepository = copyRecordRepository;
         _conditionEvaluator = conditionEvaluator;
         _userQueryService = userQueryService;
+        _deduplicationService = deduplicationService;
         _idGenerator = idGenerator;
     }
 
@@ -168,7 +171,7 @@ public sealed class FlowEngine
         if (nextNode.Type == "approve")
         {
             // 审批节点，生成任务
-            await GenerateTasksForNodeAsync(tenantId, instance, nextNode, cancellationToken);
+            await GenerateTasksForNodeAsync(tenantId, instance, definition, nextNode, cancellationToken);
 
             // 创建节点执行记录
             var execution = new ApprovalNodeExecution(
@@ -336,18 +339,15 @@ public sealed class FlowEngine
     private async Task GenerateTasksForNodeAsync(
         TenantId tenantId,
         ApprovalProcessInstance instance,
+        FlowDefinition definition,
         FlowNode node,
         CancellationToken cancellationToken)
     {
         var tasks = await ExpandTasksByAssigneeTypeAsync(
             tenantId,
             instance,
-            node.Id,
-            node.Label ?? "审批",
-            node.AssigneeType,
-            node.AssigneeValue ?? string.Empty,
-            node.ApprovalMode,
-            node.MissingAssigneeStrategy,
+            definition,
+            node,
             cancellationToken);
 
         if (tasks.Count > 0)
@@ -362,16 +362,17 @@ public sealed class FlowEngine
     private async Task<List<ApprovalTask>> ExpandTasksByAssigneeTypeAsync(
         TenantId tenantId,
         ApprovalProcessInstance instance,
-        string nodeId,
-        string nodeTitle,
-        AssigneeType assigneeType,
-        string assigneeValue,
-        ApprovalMode approvalMode,
-        MissingAssigneeStrategy missingAssigneeStrategy,
+        FlowDefinition definition,
+        FlowNode node,
         CancellationToken cancellationToken)
     {
         var tasks = new List<ApprovalTask>();
         var userIds = new List<long>();
+
+        var assigneeType = node.AssigneeType;
+        var assigneeValue = node.AssigneeValue ?? string.Empty;
+        var approvalMode = node.ApprovalMode;
+        var missingAssigneeStrategy = node.MissingAssigneeStrategy;
 
         switch (assigneeType)
         {
@@ -468,6 +469,18 @@ public sealed class FlowEngine
             userIds = (await _userQueryService.ValidateUserIdsAsync(tenantId, userIds, cancellationToken)).ToList();
         }
 
+        // 应用去重策略
+        if (userIds.Count > 0)
+        {
+            userIds = (await _deduplicationService.ApplyDeduplicationAsync(
+                tenantId,
+                instance.Id,
+                userIds,
+                definition,
+                node,
+                cancellationToken)).ToList();
+        }
+
         // 处理缺失审批人策略
         if (userIds.Count == 0)
         {
@@ -475,7 +488,7 @@ public sealed class FlowEngine
             {
                 case MissingAssigneeStrategy.NotAllowed:
                     // 不允许发起：抛出异常
-                    throw new Core.Exceptions.BusinessException("MISSING_ASSIGNEE", $"节点 {nodeId} 无法找到审批人，不允许发起流程");
+                    throw new Core.Exceptions.BusinessException("MISSING_ASSIGNEE", $"节点 {node.Id} 无法找到审批人，不允许发起流程");
 
                 case MissingAssigneeStrategy.Skip:
                     // 跳过：不生成任务，直接返回空列表
@@ -509,8 +522,8 @@ public sealed class FlowEngine
             var task = new ApprovalTask(
                 tenantId,
                 instance.Id,
-                nodeId,
-                nodeTitle,
+                node.Id,
+                node.Label ?? "审批",
                 AssigneeType.User,
                 userId.ToString(),
                 _idGenerator.NextId(),

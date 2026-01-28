@@ -56,7 +56,8 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
         _idGenerator = idGenerator;
         _mapper = mapper;
         var conditionEvaluator = new ConditionEvaluator(processVariableRepository);
-        _flowEngine = new FlowEngine(taskRepository, nodeExecutionRepository, deptLeaderRepository, parallelTokenRepository, copyRecordRepository, conditionEvaluator, userQueryService, idGenerator);
+        var deduplicationService = new DeduplicationService(taskRepository, userQueryService);
+        _flowEngine = new FlowEngine(taskRepository, nodeExecutionRepository, deptLeaderRepository, parallelTokenRepository, copyRecordRepository, conditionEvaluator, userQueryService, deduplicationService, idGenerator);
     }
 
     public async Task<ApprovalInstanceResponse> StartAsync(
