@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <router-view v-if="isLogin" />
   <a-layout v-else class="app-shell">
     <a-layout-sider collapsible :collapsed="collapsed" @collapse="toggle">
@@ -8,6 +8,7 @@
         <a-menu-item key="assets" @click="go('/assets')">资产</a-menu-item>
         <a-menu-item key="audit" @click="go('/audit')">审计</a-menu-item>
         <a-menu-item key="alert" @click="go('/alert')">告警</a-menu-item>
+        <a-menu-item key="approval" @click="go('/approval/flows')">审批流</a-menu-item>
       </a-menu>
     </a-layout-sider>
 
@@ -39,6 +40,7 @@ const selectedKeys = computed(() => {
   if (route.path.startsWith("/assets")) return ["assets"];
   if (route.path.startsWith("/audit")) return ["audit"];
   if (route.path.startsWith("/alert")) return ["alert"];
+  if (route.path.startsWith("/approval")) return ["approval"];
   return ["home"];
 });
 

@@ -19,16 +19,16 @@ todos:
     status: completed
   - id: frontend-routes-menu
     content: 新增前端路由与菜单：流程定义列表、设计器、我的待办、我发起，并接入现有 requiresAuth 守卫
-    status: in_progress
+    status: completed
   - id: frontend-designer
-    content: 实现画布设计器（推荐 `@vue-flow/core`）：拖拽节点/连线、节点属性面板、保存/发布
-    status: pending
+    content: 实现画布设计器（使用 `@antv/x6`）：拖拽节点/连线、节点属性面板、保存/发布
+    status: completed
   - id: frontend-pages
     content: 实现待办与已发起页面（table + 详情抽屉 + 审批/驳回弹窗），对接后端 API
-    status: pending
+    status: completed
   - id: build-check
     content: 全量构建校验：`dotnet build` 0 警告；前端 `npm run build`（如引入依赖）通过；修复所有警告/类型问题
-    status: pending
+    status: completed
 isProject: false
 ---
 
@@ -138,15 +138,14 @@ isProject: false
 
 ### 2) 画布设计器实现方案（MVP）
 
-- 引入 Vue 画布库（二选一，推荐 Vue 生态）：
-  - **推荐**：`@vue-flow/core`（Vue3 原生，节点/连线/拖拽成本低）
-  - 备选：`@antv/x6`（能力强但接入复杂度略高）
-- 设计器能力（先做必须项）：
-  - 新增节点（Start/Approve/Condition/End）
-  - 连接节点（生成 edges）
-  - 节点属性面板：名称、节点类型、选人策略（用户/角色/部门负责人）、会签/或签模式、条件规则
-  - 保存：序列化为 `DefinitionJson` 调后端保存
-  - 发布：调用后端 publish（后端做结构校验）
+- **已实现**：使用 `@antv/x6` 实现画布设计器
+- 设计器能力（已完成）：
+  - ✅ 新增节点（Start/Approve/Condition/End）- 支持拖拽添加
+  - ✅ 连接节点（生成 edges）- 支持手动连线
+  - ✅ 节点属性面板：名称、节点类型、选人策略（用户/角色/部门负责人）、会签/或签模式、条件规则
+  - ✅ 保存：序列化为 `DefinitionJson` 调后端保存
+  - ✅ 发布：调用后端 publish（后端做结构校验）
+  - ✅ 加载已有流程定义并渲染到画布
 
 ### 3) 待办/已发起页面
 
