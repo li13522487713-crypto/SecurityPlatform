@@ -32,7 +32,8 @@ public sealed class ApprovalOperationService : IApprovalOperationService
             Comment = request.Comment,
             TargetNodeId = request.TargetNodeId,
             TargetAssigneeValue = request.TargetAssigneeValue,
-            AdditionalAssigneeValues = request.AdditionalAssigneeValues
+            AdditionalAssigneeValues = request.AdditionalAssigneeValues,
+            IdempotencyKey = request.IdempotencyKey
         };
 
         await _dispatcher.DispatchAsync(tenantId, instanceId, taskId, operatorUserId, operationRequest, cancellationToken);

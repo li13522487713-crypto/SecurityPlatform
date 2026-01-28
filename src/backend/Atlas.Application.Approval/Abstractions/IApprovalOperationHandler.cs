@@ -36,4 +36,5 @@ public sealed class ApprovalOperationRequest
     public string? TargetAssigneeValue { get; set; }
     public List<string>? AdditionalAssigneeValues { get; set; }
     public Dictionary<string, object>? Variables { get; set; }
+    public string? IdempotencyKey { get; set; }
 }

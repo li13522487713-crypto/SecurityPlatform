@@ -34,6 +34,7 @@ builder.Services.Configure<SecurityOptions>(builder.Configuration.GetSection("Se
 builder.Services.Configure<PasswordPolicyOptions>(builder.Configuration.GetSection("Security:PasswordPolicy"));
 builder.Services.Configure<LockoutPolicyOptions>(builder.Configuration.GetSection("Security:LockoutPolicy"));
 builder.Services.Configure<BootstrapAdminOptions>(builder.Configuration.GetSection("Security:BootstrapAdmin"));
+builder.Services.Configure<ApprovalSeedDataOptions>(builder.Configuration.GetSection("Approval:SeedData"));
 builder.Services.Configure<TenancyOptions>(builder.Configuration.GetSection("Tenancy"));
 
 builder.Services.AddCors(options =>

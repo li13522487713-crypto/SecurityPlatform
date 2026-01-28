@@ -21,4 +21,7 @@ public sealed class ApprovalOperationRequest
 
     /// <summary>额外审批人列表（用于加签）</summary>
     public List<string>? AdditionalAssigneeValues { get; set; }
+
+    /// <summary>幂等键（用于防止重复提交，由客户端生成）</summary>
+    public string? IdempotencyKey { get; set; }
 }

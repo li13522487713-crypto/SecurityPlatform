@@ -73,7 +73,21 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             typeof(ApprovalProcessVariable),
             typeof(ApprovalTaskTransfer),
             typeof(ApprovalTaskAssigneeChange),
-            typeof(ApprovalNodeExecution));
+            typeof(ApprovalNodeExecution),
+            typeof(ApprovalOperationRecord),
+            typeof(ApprovalFlowButtonConfig));
+
+        // 创建审批模块数据库索引
+        var indexInitializer = scope.ServiceProvider.GetRequiredService<ApprovalIndexInitializer>();
+        await indexInitializer.CreateIndexesAsync(cancellationToken);
+
+        // 初始化审批模块种子数据（使用 BootstrapAdmin 的 TenantId）
+        if (Guid.TryParse(_bootstrapOptions.TenantId, out var seedTenantGuid))
+        {
+            var approvalSeedService = scope.ServiceProvider.GetRequiredService<ApprovalSeedDataService>();
+            var seedTenantId = new TenantId(seedTenantGuid);
+            await approvalSeedService.InitializeSeedDataAsync(seedTenantId, cancellationToken);
+        }
 
         if (!_bootstrapOptions.Enabled)
         {

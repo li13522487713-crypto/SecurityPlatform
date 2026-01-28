@@ -20,6 +20,57 @@ todos:
   - id: quality-gate
     content: 全量 `dotnet build` 0 warnings；修复所有新增警告/问题
     status: completed
+  - id: persistence-parity-audit
+    content: 再次对照 AntFlow 的持久化模型（FreeSql CodeFirst 映射 + `bpm_init_db_*.sql`），梳理 Atlas 审批模块仍缺失/未覆盖的“落库配置/运行态表”（例如：按钮配置、变量配置、通知模板、外部系统回调记录/重试队列、版本信息等），并决定哪些放入 `DefinitionJson`、哪些必须结构化落库
+    status: completed
+  - id: approval-seed-codefirst
+    content: 增加“审批模块种子数据（Code First + 幂等）”机制（可开关）：默认按钮能力/操作集合映射、默认流程分类/模板（如需要）、示例流程定义（可选），避免依赖 AntFlow 的 SQL 脚本初始化方式
+    status: completed
+  - id: approval-runtime-restart-persistence
+    content: 审查并补齐“重启可恢复”的运行时状态持久化：节点执行记录/并行标记、关键操作的幂等键与重复提交保护，确保服务重启后审批实例可继续流转且不依赖内存状态
+    status: completed
+  - id: approval-db-indexing
+    content: 为审批高频查询表补齐必要索引/约束（例如按 TenantId+Assignee+Status 的任务查询、按 InstanceId 的历史/节点记录查询等），并验证 CodeFirst 会生成（或以 SqlSugar 特性声明）
+    status: completed
+  - id: flow-node-types-parity
+    content: 补齐 AntFlow 节点类型能力差异（P0）：网关/条件/并行网关、抄送节点、接入方条件节点；并把 DefinitionJson 解析器/引擎推进逻辑扩展到可正确“分支/并行/汇聚/抄送”
+    status: pending
+  - id: condition-evaluator-parity
+    content: 落地条件规则评估器（P0）：支持 AntFlow 的条件组关系/操作符（参考 ConditionRelationShipEnum、JudgeOperatorEnum、ConditionTypeEnum 等），并从流程变量/表单字段中取值进行路由判断（替换当前 EvaluateNextNodesAsync 的“直接通过”占位实现）
+    status: pending
+  - id: sequential-approval-order
+    content: 顺序会签按“前端传入顺序/人员列表顺序”严格推进（P0）：当前仅等价于 All，会导致与 AntFlow SIGN_TYPE_SIGN_IN_ORDER 不一致；需支持逐个激活/逐个完成
+    status: pending
+  - id: assignee-strategies-parity
+    content: 补齐 AntFlow 节点属性/审批人规则（P0）：层层审批(Loop)、指定层级(Level)、直属领导(DirectLeader)、发起人(StartUser)、HRBP、自选模块(Customize)、关联业务表(BusinessTable)、外部传入人员(OutSideAccess)；并与 MissingAssigneeProcessStrategyEnum（不允许/跳过/转管理员）完全对齐
+    status: pending
+  - id: deduplication-parity
+    content: 实现审批人去重策略（P1）：对齐 AntFlow 的前向/后向去重与排除规则（BpmnDeduplicationFormatService），含并行网关场景下递归遍历，避免重复生成任务/重复审批
+    status: pending
+  - id: runtime-ops-missing-batch
+    content: 补齐仍未实现的运行时操作（P0，对照 ProcessOperationEnum/ButtonTypeEnum）：承办(Undertake)、转发(Forward)、变更处理人(ChangeAssignee)、变更未来节点处理人(ChangeFutureAssignee)、未来节点加签/减签(Add/RemoveFutureAssignee)、保存草稿(SaveDraft)、恢复已结束流程(RecoverToHistory)、流程推进(ProcessMoveAhead/管理员跳过)、减签(RemoveAssignee)、加批(AddApproval/生成新节点语义)
+    status: pending
+  - id: button-type-gap
+    content: 补齐 ButtonTypeEnum 与操作语义差异（P2）：打回上节点修改(BUTTON_TYPE_BACK_TO_PREV_MODIFY)、预览/打印等按钮（前端能力+后端权限校验/审计记录），明确哪些仅 UI 按钮无需后端操作、哪些需要落库/回调
+    status: pending
+  - id: copy-node-runtime
+    content: 抄送节点落地（P1）：生成抄送记录/收件人列表、与待办/已办列表的展现隔离、抄送“已读/未读”持久化（AntFlow 有专门的 remove-copy format 与消息体系）
+    status: pending
+  - id: notification-system-parity
+    content: 消息通知体系对齐（P1）：对齐 AntFlow 的消息发送适配器（Email/SMS/AppPush）与模板（InformationTemplate/BpmnConfNoticeTemplate*），并在关键操作事件（MsgProcessEventEnum/MsgNoticeTypeEnum）触发发送与站内信落库
+    status: pending
+  - id: overtime-remind-parity
+    content: 催办/超时提醒（P1）：对齐 BpmnApproveRemind、BpmProcessNodeOvertime、变量级提醒配置（BpmnTimeoutReminder*），实现定时扫描/发送（HostedService/后台任务）并保证幂等
+    status: pending
+  - id: outside-process-callback
+    content: 外部系统流程/回调能力补齐（P1）：对齐 OutSideBpmCallbackUrlConf + OutSideCallBackRecord（记录回调类型、重试次数、状态），实现回调分发(ThirdPartyCallbackFactory)与失败重试；同时补齐安全校验与幂等
+    status: pending
+  - id: user-role-integration-contracts
+    content: “接入自有用户/角色系统”扩展点（P1）：对齐 AntFlow 文档的 UserService/RoleService 替换思路，抽成 Atlas 的接口契约（按用户/角色/部门/直属领导/HRBP 查询最小能力），避免审批规则被 demo 表绑死
+    status: pending
+  - id: process-mgmt-extras
+    content: 流程管理附加能力差异清单（P2）：流程类型/分类、快捷入口、流程权限/可见范围、版本信息(SysVersion)等（先对比是否需要纳入 Atlas 范围，必要时再实现）
+    status: pending
 isProject: false
 ---
 

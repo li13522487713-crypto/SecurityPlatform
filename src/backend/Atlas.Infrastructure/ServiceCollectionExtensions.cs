@@ -67,6 +67,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<Atlas.Application.Approval.Repositories.IApprovalTaskTransferRepository, ApprovalTaskTransferRepository>();
         services.AddScoped<Atlas.Application.Approval.Repositories.IApprovalTaskAssigneeChangeRepository, ApprovalTaskAssigneeChangeRepository>();
         services.AddScoped<Atlas.Application.Approval.Repositories.IApprovalNodeExecutionRepository, ApprovalNodeExecutionRepository>();
+        services.AddScoped<Atlas.Application.Approval.Repositories.IApprovalOperationRecordRepository, ApprovalOperationRecordRepository>();
         
         // Approval Flow Operation Handlers
         services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalOperationHandler, Atlas.Infrastructure.Services.ApprovalFlow.Operations.ProcessDrawBackOperationHandler>();
@@ -83,6 +84,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalRuntimeCommandService, ApprovalRuntimeCommandService>();
         services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalDepartmentLeaderService, ApprovalDepartmentLeaderService>();
         services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalOperationService, ApprovalOperationService>();
+        services.AddScoped<ApprovalSeedDataService>();
+        services.AddScoped<ApprovalIndexInitializer>();
         services.AddHostedService<DatabaseInitializerHostedService>();
         services.AddHostedService<DatabaseBackupHostedService>();
 
