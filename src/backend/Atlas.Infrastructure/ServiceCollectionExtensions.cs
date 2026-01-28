@@ -87,6 +87,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalRuntimeCommandService, ApprovalRuntimeCommandService>();
         services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalDepartmentLeaderService, ApprovalDepartmentLeaderService>();
         services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalOperationService, ApprovalOperationService>();
+        services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalUserQueryService, Atlas.Infrastructure.Services.ApprovalFlow.ApprovalUserQueryService>();
         services.AddScoped<ApprovalSeedDataService>();
         services.AddScoped<ApprovalIndexInitializer>();
         services.AddHostedService<DatabaseInitializerHostedService>();

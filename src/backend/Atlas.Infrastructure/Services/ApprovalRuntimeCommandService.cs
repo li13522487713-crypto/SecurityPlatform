@@ -40,6 +40,7 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
         IApprovalParallelTokenRepository parallelTokenRepository,
         IApprovalCopyRecordRepository copyRecordRepository,
         IApprovalProcessVariableRepository processVariableRepository,
+        IApprovalUserQueryService userQueryService,
         IIdGenerator idGenerator,
         IMapper mapper)
     {
@@ -55,7 +56,7 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
         _idGenerator = idGenerator;
         _mapper = mapper;
         var conditionEvaluator = new ConditionEvaluator(processVariableRepository);
-        _flowEngine = new FlowEngine(taskRepository, nodeExecutionRepository, deptLeaderRepository, parallelTokenRepository, copyRecordRepository, conditionEvaluator, idGenerator);
+        _flowEngine = new FlowEngine(taskRepository, nodeExecutionRepository, deptLeaderRepository, parallelTokenRepository, copyRecordRepository, conditionEvaluator, userQueryService, idGenerator);
     }
 
     public async Task<ApprovalInstanceResponse> StartAsync(

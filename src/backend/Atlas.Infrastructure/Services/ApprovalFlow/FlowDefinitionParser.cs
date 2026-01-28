@@ -104,6 +104,15 @@ public sealed class FlowDefinitionParser
             {
                 node.ConditionRule = conditionRuleProp.GetRawText();
             }
+
+            if (dataElement.TryGetProperty("missingAssigneeStrategy", out var missingStrategyProp))
+            {
+                var missingStrategyStr = missingStrategyProp.GetString();
+                if (Enum.TryParse<MissingAssigneeStrategy>(missingStrategyStr, out var missingStrategy))
+                {
+                    node.MissingAssigneeStrategy = missingStrategy;
+                }
+            }
         }
 
         return node;
@@ -232,6 +241,7 @@ public sealed class FlowNode
     public string? AssigneeValue { get; set; }
     public ApprovalMode ApprovalMode { get; set; } = ApprovalMode.All;
     public string? ConditionRule { get; set; }
+    public MissingAssigneeStrategy MissingAssigneeStrategy { get; set; } = MissingAssigneeStrategy.NotAllowed;
 }
 
 /// <summary>

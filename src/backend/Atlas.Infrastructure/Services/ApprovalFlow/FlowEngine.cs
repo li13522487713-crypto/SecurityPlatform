@@ -1,3 +1,4 @@
+using Atlas.Application.Approval.Abstractions;
 using Atlas.Application.Approval.Repositories;
 using Atlas.Core.Abstractions;
 using Atlas.Core.Tenancy;
@@ -19,6 +20,7 @@ public sealed class FlowEngine
     private readonly IApprovalParallelTokenRepository _parallelTokenRepository;
     private readonly IApprovalCopyRecordRepository _copyRecordRepository;
     private readonly ConditionEvaluator _conditionEvaluator;
+    private readonly IApprovalUserQueryService _userQueryService;
     private readonly IIdGenerator _idGenerator;
 
     public FlowEngine(
@@ -28,6 +30,7 @@ public sealed class FlowEngine
         IApprovalParallelTokenRepository parallelTokenRepository,
         IApprovalCopyRecordRepository copyRecordRepository,
         ConditionEvaluator conditionEvaluator,
+        IApprovalUserQueryService userQueryService,
         IIdGenerator idGenerator)
     {
         _taskRepository = taskRepository;
@@ -36,6 +39,7 @@ public sealed class FlowEngine
         _parallelTokenRepository = parallelTokenRepository;
         _copyRecordRepository = copyRecordRepository;
         _conditionEvaluator = conditionEvaluator;
+        _userQueryService = userQueryService;
         _idGenerator = idGenerator;
     }
 
@@ -337,12 +341,13 @@ public sealed class FlowEngine
     {
         var tasks = await ExpandTasksByAssigneeTypeAsync(
             tenantId,
-            instance.Id,
+            instance,
             node.Id,
             node.Label ?? "审批",
             node.AssigneeType,
             node.AssigneeValue ?? string.Empty,
             node.ApprovalMode,
+            node.MissingAssigneeStrategy,
             cancellationToken);
 
         if (tasks.Count > 0)
@@ -356,36 +361,36 @@ public sealed class FlowEngine
     /// </summary>
     private async Task<List<ApprovalTask>> ExpandTasksByAssigneeTypeAsync(
         TenantId tenantId,
-        long instanceId,
+        ApprovalProcessInstance instance,
         string nodeId,
         string nodeTitle,
         AssigneeType assigneeType,
         string assigneeValue,
         ApprovalMode approvalMode,
+        MissingAssigneeStrategy missingAssigneeStrategy,
         CancellationToken cancellationToken)
     {
         var tasks = new List<ApprovalTask>();
-        var userIds = new List<string>();
+        var userIds = new List<long>();
 
         switch (assigneeType)
         {
             case AssigneeType.User:
                 // 指定用户（可能是多个用户，逗号分隔或JSON数组）
-                userIds = ParseUserIds(assigneeValue);
+                var userIdStrings = ParseUserIds(assigneeValue);
+                userIds = userIdStrings.Select(x => long.TryParse(x, out var id) ? id : (long?)null)
+                    .Where(x => x.HasValue)
+                    .Select(x => x!.Value)
+                    .ToList();
                 break;
 
             case AssigneeType.Role:
-                // 按角色（简化版：保存角色码，后续处理时展开）
-                tasks.Add(new ApprovalTask(
-                    tenantId,
-                    instanceId,
-                    nodeId,
-                    nodeTitle,
-                    AssigneeType.Role,
-                    assigneeValue,
-                    _idGenerator.NextId(),
-                    order: 0,
-                    initialStatus: ApprovalTaskStatus.Pending));
+                // 按角色：根据角色代码查询用户
+                if (!string.IsNullOrEmpty(assigneeValue))
+                {
+                    var roleUserIds = await _userQueryService.GetUserIdsByRoleCodeAsync(tenantId, assigneeValue, cancellationToken);
+                    userIds.AddRange(roleUserIds);
+                }
                 break;
 
             case AssigneeType.DepartmentLeader:
@@ -395,15 +400,106 @@ public sealed class FlowEngine
                     var leaderId = await _deptLeaderRepository.GetLeaderUserIdAsync(tenantId, deptId, cancellationToken);
                     if (leaderId.HasValue)
                     {
-                        userIds.Add(leaderId.Value.ToString());
+                        userIds.Add(leaderId.Value);
                     }
                 }
                 break;
+
+            case AssigneeType.Loop:
+                // 层层审批：向上逐级查找审批人
+                var loopUserIds = await _userQueryService.GetLoopApproversAsync(tenantId, instance.InitiatorUserId, cancellationToken: cancellationToken);
+                userIds.AddRange(loopUserIds);
+                break;
+
+            case AssigneeType.Level:
+                // 指定层级：向上查找指定层级的审批人
+                if (int.TryParse(assigneeValue, out var targetLevel) && targetLevel > 0)
+                {
+                    var levelUserId = await _userQueryService.GetLevelApproverAsync(tenantId, instance.InitiatorUserId, targetLevel, cancellationToken);
+                    if (levelUserId.HasValue)
+                    {
+                        userIds.Add(levelUserId.Value);
+                    }
+                }
+                break;
+
+            case AssigneeType.DirectLeader:
+                // 直属领导
+                var directLeaderId = await _userQueryService.GetDirectLeaderUserIdAsync(tenantId, instance.InitiatorUserId, cancellationToken);
+                if (directLeaderId.HasValue)
+                {
+                    userIds.Add(directLeaderId.Value);
+                }
+                break;
+
+            case AssigneeType.StartUser:
+                // 发起人
+                userIds.Add(instance.InitiatorUserId);
+                break;
+
+            case AssigneeType.Hrbp:
+                // HRBP
+                var hrbpUserId = await _userQueryService.GetHrbpUserIdAsync(tenantId, instance.InitiatorUserId, cancellationToken);
+                if (hrbpUserId.HasValue)
+                {
+                    userIds.Add(hrbpUserId.Value);
+                }
+                break;
+
+            case AssigneeType.Customize:
+                // 自选模块：从实例数据中获取（发起时由前端传入）
+                userIds = ParseUserIdsFromInstanceData(instance.DataJson, assigneeValue);
+                break;
+
+            case AssigneeType.BusinessTable:
+                // 关联业务表：从实例数据中获取（根据字段名从DataJson中提取）
+                userIds = ParseUserIdsFromInstanceData(instance.DataJson, assigneeValue);
+                break;
+
+            case AssigneeType.OutSideAccess:
+                // 外部传入人员：从实例数据中获取（发起时由外部系统传入）
+                userIds = ParseUserIdsFromInstanceData(instance.DataJson, assigneeValue);
+                break;
+        }
+
+        // 验证用户ID有效性
+        if (userIds.Count > 0)
+        {
+            userIds = (await _userQueryService.ValidateUserIdsAsync(tenantId, userIds, cancellationToken)).ToList();
+        }
+
+        // 处理缺失审批人策略
+        if (userIds.Count == 0)
+        {
+            switch (missingAssigneeStrategy)
+            {
+                case MissingAssigneeStrategy.NotAllowed:
+                    // 不允许发起：抛出异常
+                    throw new Core.Exceptions.BusinessException("MISSING_ASSIGNEE", $"节点 {nodeId} 无法找到审批人，不允许发起流程");
+
+                case MissingAssigneeStrategy.Skip:
+                    // 跳过：不生成任务，直接返回空列表
+                    return tasks;
+
+                case MissingAssigneeStrategy.TransferToAdmin:
+                    // 转办给管理员：查找管理员用户
+                    var adminUserIds = await _userQueryService.GetUserIdsByRoleCodeAsync(tenantId, "Admin", cancellationToken);
+                    if (adminUserIds.Count > 0)
+                    {
+                        userIds.AddRange(adminUserIds);
+                    }
+                    else
+                    {
+                        // 如果没有管理员角色，跳过
+                        return tasks;
+                    }
+                    break;
+            }
         }
 
         // 为每个用户创建任务
         int order = 1;
-        foreach (var userId in userIds)
+        foreach (var userId in userIds.Distinct())
         {
             // 顺序会签：第一个任务为Pending，其他为Waiting
             var initialStatus = approvalMode == ApprovalMode.Sequential && order > 1
@@ -412,11 +508,11 @@ public sealed class FlowEngine
 
             var task = new ApprovalTask(
                 tenantId,
-                instanceId,
+                instance.Id,
                 nodeId,
                 nodeTitle,
                 AssigneeType.User,
-                userId,
+                userId.ToString(),
                 _idGenerator.NextId(),
                 order: order,
                 initialStatus: initialStatus);
@@ -426,6 +522,57 @@ public sealed class FlowEngine
         }
 
         return tasks;
+    }
+
+    /// <summary>
+    /// 从实例数据JSON中解析用户ID列表
+    /// </summary>
+    private static List<long> ParseUserIdsFromInstanceData(string? dataJson, string fieldName)
+    {
+        var userIds = new List<long>();
+        if (string.IsNullOrEmpty(dataJson) || string.IsNullOrEmpty(fieldName))
+        {
+            return userIds;
+        }
+
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(dataJson);
+            if (doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object)
+            {
+                if (doc.RootElement.TryGetProperty(fieldName, out var fieldElement))
+                {
+                    if (fieldElement.ValueKind == System.Text.Json.JsonValueKind.Array)
+                    {
+                        foreach (var element in fieldElement.EnumerateArray())
+                        {
+                            if (element.ValueKind == System.Text.Json.JsonValueKind.Number && element.TryGetInt64(out var userId))
+                            {
+                                userIds.Add(userId);
+                            }
+                            else if (element.ValueKind == System.Text.Json.JsonValueKind.String && long.TryParse(element.GetString(), out var userIdStr))
+                            {
+                                userIds.Add(userIdStr);
+                            }
+                        }
+                    }
+                    else if (fieldElement.ValueKind == System.Text.Json.JsonValueKind.Number && fieldElement.TryGetInt64(out var singleUserId))
+                    {
+                        userIds.Add(singleUserId);
+                    }
+                    else if (fieldElement.ValueKind == System.Text.Json.JsonValueKind.String && long.TryParse(fieldElement.GetString(), out var singleUserIdStr))
+                    {
+                        userIds.Add(singleUserIdStr);
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // 解析失败，返回空列表
+        }
+
+        return userIds;
     }
 
     /// <summary>

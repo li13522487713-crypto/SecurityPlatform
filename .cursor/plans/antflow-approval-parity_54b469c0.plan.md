@@ -43,10 +43,10 @@ todos:
     status: completed
   - id: assignee-strategies-parity
     content: 补齐 AntFlow 节点属性/审批人规则（P0）：层层审批(Loop)、指定层级(Level)、直属领导(DirectLeader)、发起人(StartUser)、HRBP、自选模块(Customize)、关联业务表(BusinessTable)、外部传入人员(OutSideAccess)；并与 MissingAssigneeProcessStrategyEnum（不允许/跳过/转管理员）完全对齐
-    status: pending
+    status: completed
   - id: deduplication-parity
     content: 实现审批人去重策略（P1）：对齐 AntFlow 的前向/后向去重与排除规则（BpmnDeduplicationFormatService），含并行网关场景下递归遍历，避免重复生成任务/重复审批
-    status: pending
+    status: in_progress
   - id: runtime-ops-missing-batch
     content: 补齐仍未实现的运行时操作（P0，对照 ProcessOperationEnum/ButtonTypeEnum）：承办(Undertake)、转发(Forward)、变更处理人(ChangeAssignee)、变更未来节点处理人(ChangeFutureAssignee)、未来节点加签/减签(Add/RemoveFutureAssignee)、保存草稿(SaveDraft)、恢复已结束流程(RecoverToHistory)、流程推进(ProcessMoveAhead/管理员跳过)、减签(RemoveAssignee)、加批(AddApproval/生成新节点语义)
     status: pending
