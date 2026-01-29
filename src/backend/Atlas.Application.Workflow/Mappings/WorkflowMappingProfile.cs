@@ -13,7 +13,8 @@ public sealed class WorkflowMappingProfile : Profile
     {
         // WorkflowDefinition 映射
         CreateMap<WorkflowDefinition, WorkflowDefinitionResponse>()
-            .ForMember(dest => dest.StepsCount, opt => opt.MapFrom(src => src.Steps.Count));
+            .ForMember(dest => dest.StepsCount, opt => opt.MapFrom(src => src.Steps.Count))
+            .ForMember(dest => dest.DataType, opt => opt.MapFrom(src => src.DataType != null ? src.DataType.FullName : null));
 
         // WorkflowInstance 映射
         CreateMap<WorkflowInstance, WorkflowInstanceResponse>()

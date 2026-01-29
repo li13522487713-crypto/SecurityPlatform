@@ -77,6 +77,9 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             typeof(ApprovalNodeExecution),
             typeof(ApprovalOperationRecord),
             typeof(ApprovalFlowButtonConfig),
+            typeof(ApprovalTimeoutReminder),
+            typeof(ApprovalExternalCallbackRecord),
+            typeof(ApprovalParallelToken),
             // Workflow entities
             typeof(PersistedWorkflow),
             typeof(PersistedExecutionPointer),

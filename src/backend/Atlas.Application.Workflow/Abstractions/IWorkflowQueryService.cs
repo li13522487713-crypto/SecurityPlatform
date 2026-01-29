@@ -39,4 +39,12 @@ public interface IWorkflowQueryService
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>工作流定义</returns>
     Task<WorkflowDefinitionResponse?> GetDefinitionAsync(string workflowId, int? version = null, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 获取工作流执行指针详情（步骤级监控）
+    /// </summary>
+    /// <param name="instanceId">实例ID</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>执行指针列表</returns>
+    Task<IEnumerable<ExecutionPointerResponse>> GetExecutionPointersAsync(string instanceId, CancellationToken cancellationToken = default);
 }

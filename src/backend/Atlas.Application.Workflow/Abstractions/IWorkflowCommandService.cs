@@ -45,4 +45,11 @@ public interface IWorkflowCommandService
     /// <param name="request">事件请求</param>
     /// <param name="cancellationToken">取消令牌</param>
     Task PublishEventAsync(PublishEventRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 从 JSON 定义注册动态工作流
+    /// </summary>
+    /// <param name="request">注册请求</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    Task RegisterWorkflowFromJsonAsync(RegisterWorkflowDefinitionRequest request, CancellationToken cancellationToken = default);
 }

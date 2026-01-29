@@ -80,4 +80,62 @@ public class WorkflowQueryService : IWorkflowQueryService
         var response = _mapper.Map<WorkflowDefinitionResponse>(definition);
         return Task.FromResult<WorkflowDefinitionResponse?>(response);
     }
+
+    public async Task<IEnumerable<ExecutionPointerResponse>> GetExecutionPointersAsync(string instanceId, CancellationToken cancellationToken = default)
+    {
+        var instance = await _persistenceProvider.GetWorkflowAsync(instanceId, cancellationToken);
+        if (instance == null)
+        {
+            _logger.LogWarning("工作流实例不存在: {InstanceId}", instanceId);
+            return Enumerable.Empty<ExecutionPointerResponse>();
+        }
+
+        var definition = _registry.GetDefinition(instance.WorkflowDefinitionId, instance.Version);
+        
+        var pointers = instance.ExecutionPointers.Select(pointer =>
+        {
+            var step = definition?.Steps.FirstOrDefault(s => s.Id == pointer.StepId);
+            var stepName = step?.Name ?? $"步骤{pointer.StepId}";
+
+            // 确定状态
+            string status;
+            if (!pointer.EndTime.HasValue)
+            {
+                if (pointer.SleepUntil.HasValue)
+                    status = "Sleeping";
+                else if (!string.IsNullOrEmpty(pointer.EventName))
+                    status = "WaitingForEvent";
+                else if (pointer.Active)
+                    status = "Running";
+                else
+                    status = "Pending";
+            }
+            else if (!string.IsNullOrEmpty(pointer.EventName) && pointer.EventPublished == false)
+            {
+                status = "WaitingForEvent";
+            }
+            else
+            {
+                status = "Complete";
+            }
+
+            return new ExecutionPointerResponse
+            {
+                Id = pointer.Id,
+                StepId = pointer.StepId,
+                StepName = stepName,
+                Active = pointer.Active,
+                StartTime = pointer.StartTime,
+                EndTime = pointer.EndTime,
+                Status = status,
+                RetryCount = pointer.RetryCount,
+                ErrorMessage = null, // ExecutionPointer 没有直接存储错误消息
+                SleepUntil = pointer.SleepUntil,
+                EventName = pointer.EventName,
+                EventKey = pointer.EventKey
+            };
+        }).ToList();
+
+        return pointers;
+    }
 }

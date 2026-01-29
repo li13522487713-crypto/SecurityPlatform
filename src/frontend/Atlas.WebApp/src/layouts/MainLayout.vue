@@ -9,6 +9,14 @@
         <a-menu-item key="audit" @click="go('/audit')">审计</a-menu-item>
         <a-menu-item key="alert" @click="go('/alert')">告警</a-menu-item>
         <a-menu-item key="approval" @click="go('/approval/flows')">审批流</a-menu-item>
+        <a-sub-menu key="workflow" title="工作流引擎">
+          <a-menu-item key="workflow-designer" @click="go('/workflow/designer')">
+            工作流设计器
+          </a-menu-item>
+          <a-menu-item key="workflow-instances" @click="go('/workflow/instances')">
+            实例监控
+          </a-menu-item>
+        </a-sub-menu>
       </a-menu>
     </a-layout-sider>
 
@@ -41,6 +49,8 @@ const selectedKeys = computed(() => {
   if (route.path.startsWith("/audit")) return ["audit"];
   if (route.path.startsWith("/alert")) return ["alert"];
   if (route.path.startsWith("/approval")) return ["approval"];
+  if (route.path === "/workflow/designer") return ["workflow-designer"];
+  if (route.path === "/workflow/instances") return ["workflow-instances"];
   return ["home"];
 });
 

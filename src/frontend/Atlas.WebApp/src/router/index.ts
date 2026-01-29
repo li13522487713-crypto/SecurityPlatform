@@ -8,6 +8,8 @@ import ApprovalFlowsPage from "@/pages/ApprovalFlowsPage.vue";
 import ApprovalDesignerPage from "@/pages/ApprovalDesignerPage.vue";
 import ApprovalTasksPage from "@/pages/ApprovalTasksPage.vue";
 import ApprovalInstancesPage from "@/pages/ApprovalInstancesPage.vue";
+import WorkflowDesignerPage from "@/pages/WorkflowDesignerPage.vue";
+import WorkflowInstancesPage from "@/pages/WorkflowInstancesPage.vue";
 
 const router = createRouter({
   history: createWebHistory(),
@@ -20,17 +22,23 @@ const router = createRouter({
     { path: "/approval/flows", name: "approval-flows", component: ApprovalFlowsPage, meta: { requiresAuth: true } },
     { path: "/approval/designer/:id?", name: "approval-designer", component: ApprovalDesignerPage, meta: { requiresAuth: true } },
     { path: "/approval/tasks", name: "approval-tasks", component: ApprovalTasksPage, meta: { requiresAuth: true } },
-    { path: "/approval/instances", name: "approval-instances", component: ApprovalInstancesPage, meta: { requiresAuth: true } }
+    { path: "/approval/instances", name: "approval-instances", component: ApprovalInstancesPage, meta: { requiresAuth: true } },
+    { path: "/workflow/designer", name: "workflow-designer", component: WorkflowDesignerPage, meta: { requiresAuth: false, requiresTenant: true } },
+    { path: "/workflow/instances", name: "workflow-instances", component: WorkflowInstancesPage, meta: { requiresAuth: false, requiresTenant: true } }
   ]
 });
 
 router.beforeEach((to) => {
-  if (!to.meta.requiresAuth) {
-    return true;
+  const token = localStorage.getItem("access_token");
+  const tenantId = localStorage.getItem("tenant_id");
+
+  // 只要求租户：没有 tenantId 也不允许进入（否则 API 会返回“无效或缺失租户标识”）
+  if (to.meta.requiresTenant && !tenantId) {
+    return { name: "login" };
   }
 
-  const token = localStorage.getItem("access_token");
-  if (!token) {
+  // 要求登录：必须同时有 token + tenantId
+  if (to.meta.requiresAuth && (!token || !tenantId)) {
     return { name: "login" };
   }
 

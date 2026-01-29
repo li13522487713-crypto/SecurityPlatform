@@ -17,7 +17,9 @@ export default defineConfig({
       "/api": {
         target: "http://localhost:5000",
         changeOrigin: true,
-        secure: false
+        secure: false,
+        // 后端 Controller 路由不带 /api 前缀，这里需要重写去掉 /api
+        rewrite: (path) => path.replace(/^\/api/, "")
       }
     }
   },

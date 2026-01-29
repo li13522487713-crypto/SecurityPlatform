@@ -29,6 +29,7 @@
     <ProjectReference Include="..\Atlas.Domain\Atlas.Domain.csproj" />
     <ProjectReference Include="..\Atlas.Domain.Workflow\Atlas.Domain.Workflow.csproj" />
     <ProjectReference Include="..\Atlas.WorkflowCore\Atlas.WorkflowCore.csproj" />
+    <ProjectReference Include="..\Atlas.WorkflowCore.DSL\Atlas.WorkflowCore.DSL.csproj" />
     <ProjectReference Include="..\Atlas.Core\Atlas.Core.csproj" />
   </ItemGroup>
 

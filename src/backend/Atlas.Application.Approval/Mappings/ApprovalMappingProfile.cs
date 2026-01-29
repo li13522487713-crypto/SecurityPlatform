@@ -19,7 +19,17 @@ public sealed class ApprovalMappingProfile : Profile
                 var tenantId = (Atlas.Core.Tenancy.TenantId)ctx.Items["TenantId"];
                 var idGenerator = (IIdGenerator)ctx.Items["IdGenerator"];
                 return new ApprovalFlowDefinition(tenantId, src.Name, src.DefinitionJson, idGenerator.NextId());
-            });
+            })
+            .ForMember(dest => dest.Id, opt => opt.Ignore())
+            .ForMember(dest => dest.TenantIdValue, opt => opt.Ignore())
+            .ForMember(dest => dest.Version, opt => opt.Ignore())
+            .ForMember(dest => dest.Status, opt => opt.Ignore())
+            .ForMember(dest => dest.PublishedAt, opt => opt.Ignore())
+            .ForMember(dest => dest.PublishedByUserId, opt => opt.Ignore())
+            .ForMember(dest => dest.VisibilityScopeJson, opt => opt.Ignore())
+            .ForMember(dest => dest.Category, opt => opt.Ignore())
+            .ForMember(dest => dest.Description, opt => opt.Ignore())
+            .ForMember(dest => dest.IsQuickEntry, opt => opt.Ignore());
 
         CreateMap<ApprovalFlowDefinition, ApprovalFlowDefinitionResponse>();
 
@@ -39,7 +49,14 @@ public sealed class ApprovalMappingProfile : Profile
                     initiatorUserId,
                     idGenerator.NextId(),
                     src.DataJson);
-            });
+            })
+            .ForMember(dest => dest.Id, opt => opt.Ignore())
+            .ForMember(dest => dest.TenantIdValue, opt => opt.Ignore())
+            .ForMember(dest => dest.InitiatorUserId, opt => opt.Ignore())
+            .ForMember(dest => dest.Status, opt => opt.Ignore())
+            .ForMember(dest => dest.StartedAt, opt => opt.Ignore())
+            .ForMember(dest => dest.EndedAt, opt => opt.Ignore())
+            .ForMember(dest => dest.CurrentNodeId, opt => opt.Ignore());
 
         CreateMap<ApprovalProcessInstance, ApprovalInstanceResponse>();
 
@@ -53,6 +70,8 @@ public sealed class ApprovalMappingProfile : Profile
                 var tenantId = (Atlas.Core.Tenancy.TenantId)ctx.Items["TenantId"];
                 var idGenerator = (IIdGenerator)ctx.Items["IdGenerator"];
                 return new ApprovalDepartmentLeader(tenantId, src.DepartmentId, src.LeaderUserId, idGenerator.NextId());
-            });
+            })
+            .ForMember(dest => dest.Id, opt => opt.Ignore())
+            .ForMember(dest => dest.TenantIdValue, opt => opt.Ignore());
     }
 }

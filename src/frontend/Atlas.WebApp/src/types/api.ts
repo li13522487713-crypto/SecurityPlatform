@@ -141,3 +141,63 @@ export interface ApprovalHistoryEventResponse {
   actorUserId?: string;
   occurredAt: string;
 }
+
+// WorkflowCore 相关类型
+export interface StepParameter {
+  name: string;
+  type: string;
+  required: boolean;
+  defaultValue?: string;
+  description: string;
+}
+
+export interface StepTypeMetadata {
+  type: string;
+  label: string;
+  category: string;
+  color: string;
+  icon: string;
+  parameters: StepParameter[];
+}
+
+export interface RegisterWorkflowDefinitionRequest {
+  workflowId: string;
+  version: number;
+  definitionJson: string;
+  dataType?: string;
+}
+
+export interface ExecutionPointerResponse {
+  id: string;
+  stepId: number;
+  stepName: string;
+  active: boolean;
+  startTime?: string;
+  endTime?: string;
+  status: string;
+  retryCount: number;
+  errorMessage?: string;
+  sleepUntil?: string;
+  eventName?: string;
+  eventKey?: string;
+}
+
+export interface WorkflowInstanceResponse {
+  id: string;
+  workflowDefinitionId: string;
+  version: number;
+  status: string;
+  data?: any;
+  createTime: string;
+  completeTime?: string;
+  reference?: string;
+}
+
+export interface WorkflowInstanceListItem {
+  id: string;
+  workflowDefinitionId: string;
+  version: number;
+  status: string;
+  createTime: string;
+  completeTime?: string;
+}

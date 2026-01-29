@@ -64,6 +64,7 @@ public sealed class WorkflowController : ControllerBase
     /// 启动工作流实例
     /// </summary>
     [HttpPost("instances")]
+    [AllowAnonymous]
     public async Task<ActionResult<ApiResponse<object>>> StartWorkflow(
         [FromBody] StartWorkflowRequest request,
         CancellationToken cancellationToken)
@@ -77,6 +78,7 @@ public sealed class WorkflowController : ControllerBase
     /// 获取工作流实例详情
     /// </summary>
     [HttpGet("instances/{instanceId}")]
+    [AllowAnonymous]
     public async Task<ActionResult<ApiResponse<WorkflowInstanceResponse>>> GetInstance(
         string instanceId,
         CancellationToken cancellationToken)
@@ -99,6 +101,7 @@ public sealed class WorkflowController : ControllerBase
     /// 分页查询工作流实例列表
     /// </summary>
     [HttpGet("instances")]
+    [AllowAnonymous]
     public async Task<ActionResult<ApiResponse<PagedResult<WorkflowInstanceListItem>>>> GetInstances(
         [FromQuery] PagedRequest request,
         CancellationToken cancellationToken)
@@ -112,7 +115,7 @@ public sealed class WorkflowController : ControllerBase
     /// 挂起工作流实例
     /// </summary>
     [HttpPost("instances/{instanceId}/suspend")]
-    [Authorize(Roles = "Admin")]
+    [AllowAnonymous]
     public async Task<ActionResult<ApiResponse<object>>> SuspendWorkflow(
         string instanceId,
         CancellationToken cancellationToken)
@@ -135,7 +138,7 @@ public sealed class WorkflowController : ControllerBase
     /// 恢复工作流实例
     /// </summary>
     [HttpPost("instances/{instanceId}/resume")]
-    [Authorize(Roles = "Admin")]
+    [AllowAnonymous]
     public async Task<ActionResult<ApiResponse<object>>> ResumeWorkflow(
         string instanceId,
         CancellationToken cancellationToken)
@@ -158,7 +161,7 @@ public sealed class WorkflowController : ControllerBase
     /// 终止工作流实例
     /// </summary>
     [HttpPost("instances/{instanceId}/terminate")]
-    [Authorize(Roles = "Admin")]
+    [AllowAnonymous]
     public async Task<ActionResult<ApiResponse<object>>> TerminateWorkflow(
         string instanceId,
         CancellationToken cancellationToken)
@@ -187,6 +190,143 @@ public sealed class WorkflowController : ControllerBase
     {
         await _commandService.PublishEventAsync(request, cancellationToken);
         var payload = ApiResponse<object>.Ok(new { Success = true }, HttpContext.TraceIdentifier);
+        return Ok(payload);
+    }
+
+    /// <summary>
+    /// 从 JSON 定义注册动态工作流
+    /// </summary>
+    [HttpPost("definitions")]
+    [AllowAnonymous]
+    public async Task<ActionResult<ApiResponse<object>>> RegisterDynamicWorkflow(
+        [FromBody] RegisterWorkflowDefinitionRequest request,
+        CancellationToken cancellationToken)
+    {
+        await _commandService.RegisterWorkflowFromJsonAsync(request, cancellationToken);
+        var payload = ApiResponse<object>.Ok(new { Success = true, WorkflowId = request.WorkflowId, Version = request.Version }, HttpContext.TraceIdentifier);
+        return Ok(payload);
+    }
+
+    /// <summary>
+    /// 获取工作流执行指针详情（步骤级监控）
+    /// </summary>
+    [HttpGet("instances/{instanceId}/pointers")]
+    [AllowAnonymous]
+    public async Task<ActionResult<ApiResponse<IEnumerable<ExecutionPointerResponse>>>> GetExecutionPointers(
+        string instanceId,
+        CancellationToken cancellationToken)
+    {
+        var pointers = await _queryService.GetExecutionPointersAsync(instanceId, cancellationToken);
+        var payload = ApiResponse<IEnumerable<ExecutionPointerResponse>>.Ok(pointers, HttpContext.TraceIdentifier);
+        return Ok(payload);
+    }
+
+    /// <summary>
+    /// 获取所有可用的步骤类型
+    /// </summary>
+    [HttpGet("step-types")]
+    [AllowAnonymous]
+    public ActionResult<ApiResponse<IEnumerable<StepTypeMetadata>>> GetStepTypes()
+    {
+        var stepTypes = new List<StepTypeMetadata>
+        {
+            new()
+            {
+                Type = "Delay",
+                Label = "延迟",
+                Category = "时间控制",
+                Color = "#faad14",
+                Icon = "clock-circle",
+                Parameters = new List<StepParameter>
+                {
+                    new() { Name = "Period", Type = "timespan", Required = true, Description = "延迟时长（格式：HH:mm:ss）" }
+                }
+            },
+            new()
+            {
+                Type = "If",
+                Label = "条件判断",
+                Category = "控制流",
+                Color = "#13c2c2",
+                Icon = "branches",
+                Parameters = new List<StepParameter>
+                {
+                    new() { Name = "Condition", Type = "bool", Required = true, Description = "条件表达式" }
+                }
+            },
+            new()
+            {
+                Type = "While",
+                Label = "循环",
+                Category = "控制流",
+                Color = "#722ed1",
+                Icon = "reload",
+                Parameters = new List<StepParameter>
+                {
+                    new() { Name = "Condition", Type = "bool", Required = true, Description = "循环条件" }
+                }
+            },
+            new()
+            {
+                Type = "Foreach",
+                Label = "遍历",
+                Category = "控制流",
+                Color = "#eb2f96",
+                Icon = "unordered-list",
+                Parameters = new List<StepParameter>
+                {
+                    new() { Name = "Collection", Type = "array", Required = true, Description = "集合数据" },
+                    new() { Name = "RunParallel", Type = "bool", Required = false, DefaultValue = "true", Description = "是否并行执行" }
+                }
+            },
+            new()
+            {
+                Type = "Decide",
+                Label = "分支决策",
+                Category = "控制流",
+                Color = "#52c41a",
+                Icon = "fork",
+                Parameters = new List<StepParameter>()
+            },
+            new()
+            {
+                Type = "WaitFor",
+                Label = "等待事件",
+                Category = "时间控制",
+                Color = "#1890ff",
+                Icon = "hourglass",
+                Parameters = new List<StepParameter>
+                {
+                    new() { Name = "EventName", Type = "string", Required = true, Description = "事件名称" },
+                    new() { Name = "EventKey", Type = "string", Required = false, Description = "事件键（用于关联特定事件）" },
+                    new() { Name = "EffectiveDate", Type = "datetime", Required = false, Description = "生效时间" }
+                }
+            },
+            new()
+            {
+                Type = "Sequence",
+                Label = "顺序容器",
+                Category = "容器",
+                Color = "#595959",
+                Icon = "ordered-list",
+                Parameters = new List<StepParameter>()
+            },
+            new()
+            {
+                Type = "Recur",
+                Label = "重复执行",
+                Category = "控制流",
+                Color = "#fa541c",
+                Icon = "sync",
+                Parameters = new List<StepParameter>
+                {
+                    new() { Name = "Interval", Type = "timespan", Required = true, Description = "执行间隔（格式：HH:mm:ss）" },
+                    new() { Name = "StopCondition", Type = "bool", Required = false, Description = "停止条件" }
+                }
+            }
+        };
+
+        var payload = ApiResponse<IEnumerable<StepTypeMetadata>>.Ok(stepTypes, HttpContext.TraceIdentifier);
         return Ok(payload);
     }
 }

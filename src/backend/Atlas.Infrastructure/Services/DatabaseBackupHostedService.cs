@@ -44,24 +44,21 @@ public sealed class DatabaseBackupHostedService : BackgroundService
         {
             BackupDatabase(dbPath, backupDirectory);
             CleanupOldBackups(backupDirectory);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "数据库备份失败");
-        }
 
-        using var timer = new PeriodicTimer(TimeSpan.FromHours(Math.Max(1, _backupOptions.IntervalHours)));
-        while (await timer.WaitForNextTickAsync(stoppingToken))
-        {
-            try
+            using var timer = new PeriodicTimer(TimeSpan.FromHours(Math.Max(1, _backupOptions.IntervalHours)));
+            while (await timer.WaitForNextTickAsync(stoppingToken))
             {
                 BackupDatabase(dbPath, backupDirectory);
                 CleanupOldBackups(backupDirectory);
             }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "数据库备份失败");
-            }
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            // 宿主正在停止（如停止调试/应用关闭/热重载重启）属于正常路径；无需记录为错误。
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "数据库备份失败");
         }
     }
 

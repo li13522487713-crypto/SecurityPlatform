@@ -131,14 +131,17 @@ public sealed class ApprovalIndexInitializer
             // SQLite 创建索引语法（注意：SQLite 不支持 IF NOT EXISTS，需要先检查）
             // 使用 SqlSugar 的 CreateIndex 方法
             // 检查索引是否已存在
+            cancellationToken.ThrowIfCancellationRequested();
+
             var exists = await _db.Ado.GetDataTableAsync(
-                $"SELECT name FROM sqlite_master WHERE type='index' AND name='{indexName}'",
-                cancellationToken);
+                "SELECT name FROM sqlite_master WHERE type='index' AND name=@indexName",
+                new { indexName });
 
             if (exists.Rows.Count == 0)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 var sql = $"CREATE INDEX {indexName} ON {tableName} ({columns})";
-                await _db.Ado.ExecuteCommandAsync(sql, cancellationToken);
+                await _db.Ado.ExecuteCommandAsync(sql);
                 _logger.LogDebug("已创建索引：{IndexName} on {TableName}", indexName, tableName);
             }
             else

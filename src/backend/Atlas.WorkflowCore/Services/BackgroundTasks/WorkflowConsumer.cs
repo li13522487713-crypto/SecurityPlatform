@@ -1,6 +1,7 @@
 using Atlas.WorkflowCore.Abstractions;
 using Atlas.WorkflowCore.Abstractions.Persistence;
 using Atlas.WorkflowCore.Models;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -12,7 +13,7 @@ namespace Atlas.WorkflowCore.Services.BackgroundTasks;
 public class WorkflowConsumer : QueueConsumer
 {
     private readonly IPersistenceProvider _persistenceProvider;
-    private readonly IWorkflowExecutor _executor;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly IDistributedLockProvider _lockProvider;
     private readonly ILifeCycleEventPublisher _eventPublisher;
     private readonly IGreyList _greyList;
@@ -22,7 +23,7 @@ public class WorkflowConsumer : QueueConsumer
     public WorkflowConsumer(
         IQueueProvider queueProvider,
         IPersistenceProvider persistenceProvider,
-        IWorkflowExecutor executor,
+        IServiceScopeFactory scopeFactory,
         IDistributedLockProvider lockProvider,
         ILifeCycleEventPublisher eventPublisher,
         IGreyList greyList,
@@ -32,7 +33,7 @@ public class WorkflowConsumer : QueueConsumer
         : base(queueProvider, options.Value, logger)
     {
         _persistenceProvider = persistenceProvider;
-        _executor = executor;
+        _scopeFactory = scopeFactory;
         _lockProvider = lockProvider;
         _eventPublisher = eventPublisher;
         _greyList = greyList;
@@ -84,7 +85,9 @@ public class WorkflowConsumer : QueueConsumer
             try
             {
                 Logger.LogDebug("开始执行工作流 {WorkflowId}", itemId);
-                result = await _executor.Execute(workflow, cancellationToken);
+                using var scope = _scopeFactory.CreateScope();
+                var executor = scope.ServiceProvider.GetRequiredService<IWorkflowExecutor>();
+                result = await executor.Execute(workflow, cancellationToken);
             }
             finally
             {

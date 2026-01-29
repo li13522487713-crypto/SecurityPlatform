@@ -18,7 +18,7 @@ public class WorkflowController : IWorkflowController
     private readonly ILifeCycleEventPublisher _eventPublisher;
     private readonly IDistributedLockProvider _lockProvider;
     private readonly IQueueProvider _queueProvider;
-    private readonly IWorkflowMiddlewareRunner _middlewareRunner;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly IExecutionPointerFactory _pointerFactory;
     private readonly IServiceProvider _serviceProvider;
     private readonly IDateTimeProvider _dateTimeProvider;
@@ -30,7 +30,7 @@ public class WorkflowController : IWorkflowController
         ILifeCycleEventPublisher eventPublisher,
         IDistributedLockProvider lockProvider,
         IQueueProvider queueProvider,
-        IWorkflowMiddlewareRunner middlewareRunner,
+        IServiceScopeFactory scopeFactory,
         IExecutionPointerFactory pointerFactory,
         IServiceProvider serviceProvider,
         IDateTimeProvider dateTimeProvider,
@@ -41,7 +41,7 @@ public class WorkflowController : IWorkflowController
         _eventPublisher = eventPublisher;
         _lockProvider = lockProvider;
         _queueProvider = queueProvider;
-        _middlewareRunner = middlewareRunner;
+        _scopeFactory = scopeFactory;
         _pointerFactory = pointerFactory;
         _serviceProvider = serviceProvider;
         _dateTimeProvider = dateTimeProvider;
@@ -82,7 +82,9 @@ public class WorkflowController : IWorkflowController
         // 运行 PreWorkflow 中间件
         try
         {
-            await _middlewareRunner.RunPreMiddleware(instance, definition);
+            using var scope = _scopeFactory.CreateScope();
+            var middlewareRunner = scope.ServiceProvider.GetRequiredService<IWorkflowMiddlewareRunner>();
+            await middlewareRunner.RunPreMiddleware(instance, definition);
         }
         catch (Exception ex)
         {

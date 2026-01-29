@@ -32,6 +32,12 @@ public static class ServiceCollectionExtensions
         services.Configure<SnowflakeOptions>(configuration.GetSection("Snowflake"));
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<IIdGenerator, SnowflakeIdGenerator>();
+
+        // 注意：HostedService 启动按注册顺序执行。数据库初始化必须最先完成（建表/建索引/种子数据），
+        // 否则其它后台服务（超时提醒、外部回调重试等）可能会在表尚未创建时就开始查询，导致 no such table。
+        services.AddHostedService<DatabaseInitializerHostedService>();
+        services.AddHostedService<DatabaseBackupHostedService>();
+
         services.AddScoped<IAuthTokenService, JwtAuthTokenService>();
         services.AddScoped<IPasswordHasher, Pbkdf2PasswordHasher>();
         services.AddScoped<IUserAccountRepository, UserAccountRepository>();
@@ -168,8 +174,6 @@ public static class ServiceCollectionExtensions
         services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalUserQueryService, Atlas.Infrastructure.Services.ApprovalFlow.ApprovalUserQueryService>();
         services.AddScoped<ApprovalSeedDataService>();
         services.AddScoped<ApprovalIndexInitializer>();
-        services.AddHostedService<DatabaseInitializerHostedService>();
-        services.AddHostedService<DatabaseBackupHostedService>();
         
         // Workflow Persistence
         services.AddScoped<IPersistenceProvider, SqlSugarPersistenceProvider>();

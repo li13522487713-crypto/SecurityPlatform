@@ -89,3 +89,43 @@ X-Tenant-Id: {{tenantId}}
     "status": "approved"
   }
 }
+
+### Get available step types
+GET {{baseUrl}}/workflows/step-types
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### Register dynamic workflow from JSON (DSL v1 format)
+# @name registerDynamic
+POST {{baseUrl}}/workflows/definitions
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "workflowId": "test-dynamic-workflow",
+  "version": 1,
+  "definitionJson": "{ \"Id\": \"test-dynamic-workflow\", \"Version\": 1, \"Steps\": [ { \"Id\": \"step1\", \"Name\": \"延迟5秒\", \"StepType\": \"Delay\", \"Inputs\": { \"Period\": \"00:00:05\" }, \"NextStepId\": \"step2\" }, { \"Id\": \"step2\", \"Name\": \"完成\" } ] }"
+}
+
+### Start the dynamic workflow
+# @name startDynamic
+POST {{baseUrl}}/workflows/instances
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "workflowId": "test-dynamic-workflow",
+  "version": 1,
+  "data": {},
+  "reference": "dynamic-test-001"
+}
+
+###
+@dynamicInstanceId = {{startDynamic.response.body.$.data.instanceId}}
+
+### Get execution pointers for the dynamic workflow
+GET {{baseUrl}}/workflows/instances/{{dynamicInstanceId}}/pointers
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}

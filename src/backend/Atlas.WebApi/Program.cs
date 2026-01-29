@@ -6,6 +6,8 @@ using Atlas.Application.Options;
 using Atlas.Infrastructure;
 using Atlas.WebApi.Middlewares;
 using Atlas.WebApi.Tenancy;
+using Atlas.WorkflowCore;
+using Atlas.WorkflowCore.DSL;
 using Microsoft.AspNetCore.Authentication.Certificate;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
@@ -111,12 +113,33 @@ builder.Services.AddAuthorization(options =>
 builder.Services.AddAtlasApplication();
 builder.Services.AddAtlasInfrastructure(builder.Configuration);
 
+// 添加 WorkflowCore 工作流引擎
+builder.Services.AddWorkflowCore();
+builder.Services.AddWorkflowCoreDsl(options =>
+{
+    options.AddNamespace("Atlas.WorkflowCore.Primitives");
+});
+builder.Services.AddHostedService<Atlas.Infrastructure.Services.WorkflowHostedService>();
+
 var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
 {
     var mapper = scope.ServiceProvider.GetRequiredService<IMapper>();
-    mapper.ConfigurationProvider.AssertConfigurationIsValid();
+    try
+    {
+        mapper.ConfigurationProvider.AssertConfigurationIsValid();
+    }
+    catch (AutoMapper.AutoMapperConfigurationException ex)
+    {
+        Console.WriteLine("=== AutoMapper 配置错误详情 ===");
+        Console.WriteLine(ex.Message);
+        if (ex.InnerException != null)
+        {
+            Console.WriteLine("内部异常: " + ex.InnerException.Message);
+        }
+        throw;
+    }
 }
 
 if (securityOptions.EnforceHttps)
