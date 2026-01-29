@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Linq.Expressions;
 using Atlas.WorkflowCore.Abstractions;
 using Atlas.WorkflowCore.Models;
@@ -156,5 +157,220 @@ public class StepBuilder<TData> : IStepBuilder<TData>
         (WorkflowBuilder as WorkflowBuilder<TData>)!.AddStep(endStep);
         Step.Outcomes.Add(new ValueOutcome { NextStep = endStep.Id });
         return WorkflowBuilder;
+    }
+
+    // 控制流方法实现
+    public IStepBuilder<TData> WaitFor(string eventName, Expression<Func<TData, string>> eventKey,
+        Expression<Func<TData, DateTime>>? effectiveDate = null)
+    {
+        var newStep = new WorkflowStep<WaitFor>();
+        (WorkflowBuilder as WorkflowBuilder<TData>)!.AddStep(newStep);
+        
+        var stepBuilder = new StepBuilder<TData>(WorkflowBuilder, newStep);
+        
+        // 添加输入映射
+        newStep.Inputs.Add(new FuncStepParameter<TData, string>("EventName", data => eventName));
+        newStep.Inputs.Add(new ExpressionStepParameter<TData, string>(eventKey));
+        
+        if (effectiveDate != null)
+        {
+            newStep.Inputs.Add(new ExpressionStepParameter<TData, DateTime>(effectiveDate));
+        }
+
+        newStep.Name = $"Wait for {eventName}";
+        Step.Outcomes.Add(new ValueOutcome { NextStep = newStep.Id });
+
+        return stepBuilder;
+    }
+
+    public IStepBuilder<TData> Delay(Expression<Func<TData, TimeSpan>> period)
+    {
+        var newStep = new WorkflowStep<Delay>();
+        (WorkflowBuilder as WorkflowBuilder<TData>)!.AddStep(newStep);
+
+        var stepBuilder = new StepBuilder<TData>(WorkflowBuilder, newStep);
+        
+        // 添加输入映射
+        newStep.Inputs.Add(new ExpressionStepParameter<TData, TimeSpan>(period));
+
+        newStep.Name = "Delay";
+        Step.Outcomes.Add(new ValueOutcome { NextStep = newStep.Id });
+
+        return stepBuilder;
+    }
+
+    public IContainerStepBuilder<TData, IStepBuilder<TData>> Decide(Expression<Func<TData, object>> expression)
+    {
+        var newStep = new WorkflowStep<Decide>();
+        (WorkflowBuilder as WorkflowBuilder<TData>)!.AddStep(newStep);
+
+        // 添加输入映射
+        newStep.Inputs.Add(new ExpressionStepParameter<TData, object>(expression));
+
+        newStep.Name = "Decide";
+        Step.Outcomes.Add(new ValueOutcome { NextStep = newStep.Id });
+
+        var stepBuilder = new StepBuilder<TData>(WorkflowBuilder, newStep);
+        var containerBuilder = new ContainerStepBuilder<TData, IStepBuilder<TData>>(WorkflowBuilder, newStep, stepBuilder);
+
+        return containerBuilder;
+    }
+
+    public IContainerStepBuilder<TData, IStepBuilder<TData>> ForEach(Expression<Func<TData, IEnumerable>> collection)
+    {
+        var newStep = new WorkflowStep<Foreach>();
+        (WorkflowBuilder as WorkflowBuilder<TData>)!.AddStep(newStep);
+
+        // 添加输入映射
+        newStep.Inputs.Add(new ExpressionStepParameter<TData, IEnumerable>(collection));
+
+        newStep.Name = "ForEach";
+        Step.Outcomes.Add(new ValueOutcome { NextStep = newStep.Id });
+
+        var stepBuilder = new StepBuilder<TData>(WorkflowBuilder, newStep);
+        var containerBuilder = new ContainerStepBuilder<TData, IStepBuilder<TData>>(WorkflowBuilder, newStep, stepBuilder);
+
+        return containerBuilder;
+    }
+
+    public IContainerStepBuilder<TData, IStepBuilder<TData>> While(Expression<Func<TData, bool>> condition)
+    {
+        var newStep = new WorkflowStep<While>();
+        (WorkflowBuilder as WorkflowBuilder<TData>)!.AddStep(newStep);
+
+        // 添加输入映射
+        newStep.Inputs.Add(new ExpressionStepParameter<TData, bool>(condition));
+
+        newStep.Name = "While";
+        Step.Outcomes.Add(new ValueOutcome { NextStep = newStep.Id });
+
+        var stepBuilder = new StepBuilder<TData>(WorkflowBuilder, newStep);
+        var containerBuilder = new ContainerStepBuilder<TData, IStepBuilder<TData>>(WorkflowBuilder, newStep, stepBuilder);
+
+        return containerBuilder;
+    }
+
+    public IContainerStepBuilder<TData, IStepBuilder<TData>> If(Expression<Func<TData, bool>> condition)
+    {
+        var newStep = new WorkflowStep<If>();
+        (WorkflowBuilder as WorkflowBuilder<TData>)!.AddStep(newStep);
+
+        // 添加输入映射
+        newStep.Inputs.Add(new ExpressionStepParameter<TData, bool>(condition));
+
+        newStep.Name = "If";
+        Step.Outcomes.Add(new ValueOutcome { NextStep = newStep.Id });
+
+        var stepBuilder = new StepBuilder<TData>(WorkflowBuilder, newStep);
+        var containerBuilder = new ContainerStepBuilder<TData, IStepBuilder<TData>>(WorkflowBuilder, newStep, stepBuilder);
+
+        return containerBuilder;
+    }
+
+    public IStepBuilder<TData> When(object outcomeValue, string? label = null)
+    {
+        var newStep = new WorkflowStep<When>();
+        (WorkflowBuilder as WorkflowBuilder<TData>)!.AddStep(newStep);
+
+        var stepBuilder = new StepBuilder<TData>(WorkflowBuilder, newStep);
+        newStep.Name = label ?? $"When {outcomeValue}";
+        Step.Outcomes.Add(new ValueOutcome { Value = outcomeValue, NextStep = newStep.Id, Label = label });
+
+        return stepBuilder;
+    }
+
+    public IContainerStepBuilder<TData, IStepBuilder<TData>> Parallel()
+    {
+        var newStep = new WorkflowStep<Sequence>();
+        (WorkflowBuilder as WorkflowBuilder<TData>)!.AddStep(newStep);
+
+        newStep.Name = "Parallel";
+        Step.Outcomes.Add(new ValueOutcome { NextStep = newStep.Id });
+
+        var stepBuilder = new StepBuilder<TData>(WorkflowBuilder, newStep);
+        var containerBuilder = new ContainerStepBuilder<TData, IStepBuilder<TData>>(WorkflowBuilder, newStep, stepBuilder);
+
+        return containerBuilder;
+    }
+
+    public IContainerStepBuilder<TData, IStepBuilder<TData>> Saga()
+    {
+        var newStep = new WorkflowStep<SagaContainer>();
+        (WorkflowBuilder as WorkflowBuilder<TData>)!.AddStep(newStep);
+
+        newStep.Name = "Saga";
+        Step.Outcomes.Add(new ValueOutcome { NextStep = newStep.Id });
+
+        var stepBuilder = new StepBuilder<TData>(WorkflowBuilder, newStep);
+        var containerBuilder = new ContainerStepBuilder<TData, IStepBuilder<TData>>(WorkflowBuilder, newStep, stepBuilder);
+
+        return containerBuilder;
+    }
+
+    public IContainerStepBuilder<TData, IStepBuilder<TData>> Schedule(Expression<Func<TData, TimeSpan>> time)
+    {
+        var newStep = new WorkflowStep<Schedule>();
+        (WorkflowBuilder as WorkflowBuilder<TData>)!.AddStep(newStep);
+
+        // 添加输入映射
+        newStep.Inputs.Add(new ExpressionStepParameter<TData, TimeSpan>(time));
+
+        newStep.Name = "Schedule";
+        Step.Outcomes.Add(new ValueOutcome { NextStep = newStep.Id });
+
+        var stepBuilder = new StepBuilder<TData>(WorkflowBuilder, newStep);
+        var containerBuilder = new ContainerStepBuilder<TData, IStepBuilder<TData>>(WorkflowBuilder, newStep, stepBuilder);
+
+        return containerBuilder;
+    }
+
+    public IContainerStepBuilder<TData, IStepBuilder<TData>> Recur(Expression<Func<TData, TimeSpan>> interval,
+        Expression<Func<TData, bool>>? until = null)
+    {
+        var newStep = new WorkflowStep<Recur>();
+        (WorkflowBuilder as WorkflowBuilder<TData>)!.AddStep(newStep);
+
+        // 添加输入映射
+        newStep.Inputs.Add(new ExpressionStepParameter<TData, TimeSpan>(interval));
+
+        if (until != null)
+        {
+            newStep.Inputs.Add(new ExpressionStepParameter<TData, bool>(until));
+        }
+
+        newStep.Name = "Recur";
+        Step.Outcomes.Add(new ValueOutcome { NextStep = newStep.Id });
+
+        var stepBuilder = new StepBuilder<TData>(WorkflowBuilder, newStep);
+        var containerBuilder = new ContainerStepBuilder<TData, IStepBuilder<TData>>(WorkflowBuilder, newStep, stepBuilder);
+
+        return containerBuilder;
+    }
+
+    public IStepBuilder<TData> Activity(string activityName, Expression<Func<TData, object>>? parameters = null,
+        Expression<Func<TData, DateTime>>? effectiveDate = null)
+    {
+        var newStep = new WorkflowStep<Activity>();
+        (WorkflowBuilder as WorkflowBuilder<TData>)!.AddStep(newStep);
+
+        var stepBuilder = new StepBuilder<TData>(WorkflowBuilder, newStep);
+        
+        // 添加输入映射
+        newStep.Inputs.Add(new FuncStepParameter<TData, string>("ActivityName", data => activityName));
+
+        if (parameters != null)
+        {
+            newStep.Inputs.Add(new ExpressionStepParameter<TData, object>(parameters));
+        }
+
+        if (effectiveDate != null)
+        {
+            newStep.Inputs.Add(new ExpressionStepParameter<TData, DateTime>(effectiveDate));
+        }
+
+        newStep.Name = $"Activity {activityName}";
+        Step.Outcomes.Add(new ValueOutcome { NextStep = newStep.Id });
+
+        return stepBuilder;
     }
 }

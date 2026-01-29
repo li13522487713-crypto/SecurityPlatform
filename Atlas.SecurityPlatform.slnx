@@ -15,6 +15,7 @@
     <Project Path="src/backend/Atlas.Domain/Atlas.Domain.csproj" />
     <Project Path="src/backend/Atlas.Infrastructure/Atlas.Infrastructure.csproj" />
     <Project Path="src/backend/Atlas.WebApi/Atlas.WebApi.csproj" />
+    <Project Path="src/backend/Atlas.WorkflowCore.DSL/Atlas.WorkflowCore.DSL.csproj" />
     <Project Path="src/backend/Atlas.WorkflowCore/Atlas.WorkflowCore.csproj" />
   </Folder>
 </Solution>

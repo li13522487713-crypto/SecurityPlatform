@@ -55,7 +55,7 @@ todos:
     status: completed
   - id: builder-api-control-flow
     content: 补全IStepBuilder控制流方法 - WaitFor、Delay、Decide、ForEach、While、If、When、Parallel、Saga、Schedule、Recur、Activity
-    status: pending
+    status: completed
   - id: container-step-builder
     content: 实现容器步骤构建器 - IContainerStepBuilder、ContainerStepBuilder
     status: completed
@@ -76,16 +76,16 @@ todos:
     status: completed
   - id: primitives-activity-enhance
     content: 增强Activity原语 - 支持effectiveDate、cancelCondition、token管理
-    status: pending
+    status: completed
   - id: scheduled-commands
     content: 实现计划命令支持 - IScheduledCommandRepository、ScheduledCommand、SchedulePersistenceData、更新IPersistenceProvider
     status: completed
   - id: search-index
     content: 实现搜索索引 - ISearchIndex、NullSearchIndex、搜索模型（WorkflowSearchResult、SearchFilter、StepInfo、Page）
-    status: pending
+    status: completed
   - id: model-collections
     content: 实现模型集合 - ExecutionPointerCollection、WorkflowStepCollection
-    status: pending
+    status: completed
   - id: model-options
     content: 实现工作流选项 - WorkflowOptions、WorkflowExecutorResult
     status: completed
@@ -97,7 +97,7 @@ todos:
     status: completed
   - id: dsl-project
     content: 创建DSL项目 - Atlas.WorkflowCore.DSL.csproj、添加依赖（Newtonsoft.Json、YamlDotNet、System.Linq.Dynamic.Core）
-    status: pending
+    status: completed
   - id: dsl-models
     content: 实现DSL模型 - DefinitionSource、Envelope、DefinitionSourceV1、StepSourceV1、MappingSourceV1
     status: pending
@@ -127,7 +127,7 @@ todos:
     status: completed
   - id: sync-workflow-runner
     content: 实现同步运行器 - ISyncWorkflowRunner、SyncWorkflowRunner（同步等待工作流完成）
-    status: in_progress
+    status: completed
   - id: unit-tests
     content: 创建单元测试 - Atlas.WorkflowCore.Tests项目、测试ExecutionPointerFactory、ExecutionResultProcessor、CancellationProcessor、ErrorHandlers、Primitives
     status: pending

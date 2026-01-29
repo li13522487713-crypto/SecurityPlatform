@@ -1,5 +1,6 @@
 using Atlas.WorkflowCore.Abstractions;
 using Atlas.WorkflowCore.Models;
+using Atlas.WorkflowCore.Models.Search;
 
 namespace Atlas.WorkflowCore.Services.DefaultProviders;
 
@@ -12,5 +13,17 @@ public class NullSearchIndex : ISearchIndex
     {
         // 不执行任何操作
         return Task.CompletedTask;
+    }
+
+    public Task<Page<WorkflowSearchResult>> Search(SearchFilter filter, int skip, int take, CancellationToken cancellationToken = default)
+    {
+        // 返回空结果
+        return Task.FromResult(new Page<WorkflowSearchResult>
+        {
+            Data = new List<WorkflowSearchResult>(),
+            Total = 0,
+            Skip = skip,
+            Take = take
+        });
     }
 }

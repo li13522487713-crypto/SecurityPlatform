@@ -1,5 +1,7 @@
+using System.Collections;
 using System.Linq.Expressions;
 using Atlas.WorkflowCore.Models;
+using Atlas.WorkflowCore.Primitives;
 
 namespace Atlas.WorkflowCore.Abstractions;
 
@@ -31,6 +33,34 @@ public interface IStepBuilder<TData>
 
     // 取消条件
     IStepBuilder<TData> CancelCondition(Expression<Func<TData, bool>> cancelCondition, bool proceedAfterCancel = false);
+
+    // 控制流方法
+    IStepBuilder<TData> WaitFor(string eventName, Expression<Func<TData, string>> eventKey, 
+        Expression<Func<TData, DateTime>>? effectiveDate = null);
+    
+    IStepBuilder<TData> Delay(Expression<Func<TData, TimeSpan>> period);
+    
+    IContainerStepBuilder<TData, IStepBuilder<TData>> Decide(Expression<Func<TData, object>> expression);
+    
+    IContainerStepBuilder<TData, IStepBuilder<TData>> ForEach(Expression<Func<TData, IEnumerable>> collection);
+    
+    IContainerStepBuilder<TData, IStepBuilder<TData>> While(Expression<Func<TData, bool>> condition);
+    
+    IContainerStepBuilder<TData, IStepBuilder<TData>> If(Expression<Func<TData, bool>> condition);
+    
+    IStepBuilder<TData> When(object outcomeValue, string? label = null);
+    
+    IContainerStepBuilder<TData, IStepBuilder<TData>> Parallel();
+    
+    IContainerStepBuilder<TData, IStepBuilder<TData>> Saga();
+    
+    IContainerStepBuilder<TData, IStepBuilder<TData>> Schedule(Expression<Func<TData, TimeSpan>> time);
+    
+    IContainerStepBuilder<TData, IStepBuilder<TData>> Recur(Expression<Func<TData, TimeSpan>> interval, 
+        Expression<Func<TData, bool>>? until = null);
+    
+    IStepBuilder<TData> Activity(string activityName, Expression<Func<TData, object>>? parameters = null,
+        Expression<Func<TData, DateTime>>? effectiveDate = null);
 
     IWorkflowBuilder<TData> End(string? name = null);
 }
