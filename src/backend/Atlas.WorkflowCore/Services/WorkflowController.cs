@@ -21,6 +21,7 @@ public class WorkflowController : IWorkflowController
     private readonly IWorkflowMiddlewareRunner _middlewareRunner;
     private readonly IExecutionPointerFactory _pointerFactory;
     private readonly IServiceProvider _serviceProvider;
+    private readonly IDateTimeProvider _dateTimeProvider;
     private readonly ILogger<WorkflowController> _logger;
 
     public WorkflowController(
@@ -32,6 +33,7 @@ public class WorkflowController : IWorkflowController
         IWorkflowMiddlewareRunner middlewareRunner,
         IExecutionPointerFactory pointerFactory,
         IServiceProvider serviceProvider,
+        IDateTimeProvider dateTimeProvider,
         ILogger<WorkflowController> logger)
     {
         _registry = registry;
@@ -42,6 +44,7 @@ public class WorkflowController : IWorkflowController
         _middlewareRunner = middlewareRunner;
         _pointerFactory = pointerFactory;
         _serviceProvider = serviceProvider;
+        _dateTimeProvider = dateTimeProvider;
         _logger = logger;
     }
 
@@ -53,6 +56,12 @@ public class WorkflowController : IWorkflowController
             throw new InvalidOperationException($"工作流定义不存在: {workflowId} v{version}");
         }
 
+        // 如果 data 为 null 但工作流定义了 DataType，则自动创建实例
+        if (data == null && definition.DataType != null)
+        {
+            data = Activator.CreateInstance(definition.DataType);
+        }
+
         // 创建工作流实例
         var instance = new WorkflowInstance
         {
@@ -62,8 +71,8 @@ public class WorkflowController : IWorkflowController
             Status = WorkflowStatus.Runnable,
             Data = data != null ? JsonSerializer.Serialize(data) : null,
             Reference = reference,
-            CreateTime = DateTime.UtcNow,
-            NextExecution = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+            CreateTime = _dateTimeProvider.UtcNow,
+            NextExecution = new DateTimeOffset(_dateTimeProvider.UtcNow).ToUnixTimeMilliseconds()
         };
 
         // 初始化执行指针
@@ -86,11 +95,12 @@ public class WorkflowController : IWorkflowController
 
         // 将实例加入可运行队列
         await _queueProvider.QueueWork(instanceId, QueueType.Workflow);
+        await _queueProvider.QueueWork(instanceId, QueueType.Index);
 
         // 发布启动事件
         _eventPublisher.PublishNotification(new WorkflowStarted
         {
-            EventTimeUtc = DateTime.UtcNow,
+            EventTimeUtc = _dateTimeProvider.UtcNow,
             WorkflowInstanceId = instanceId,
             WorkflowDefinitionId = definition.Id,
             Version = definition.Version,
@@ -104,7 +114,24 @@ public class WorkflowController : IWorkflowController
 
     public async Task<string> StartWorkflowAsync<TData>(string workflowId, int? version, TData? data, string? reference = null, CancellationToken cancellationToken = default) where TData : class
     {
-        return await StartWorkflowAsync(workflowId, version, (object?)data, reference, cancellationToken);
+        var definition = _registry.GetDefinition(workflowId, version);
+        if (definition == null)
+        {
+            throw new InvalidOperationException($"工作流定义不存在: {workflowId} v{version}");
+        }
+
+        object? workflowData = data;
+        
+        // 如果 data 为 null 但工作流定义了 DataType，则自动创建实例
+        if (workflowData == null && definition.DataType != null)
+        {
+            if (typeof(TData) == definition.DataType)
+                workflowData = Activator.CreateInstance<TData>();
+            else
+                workflowData = Activator.CreateInstance(definition.DataType);
+        }
+
+        return await StartWorkflowAsync(workflowId, version, workflowData, reference, cancellationToken);
     }
 
     public async Task<bool> SuspendWorkflowAsync(string workflowInstanceId, CancellationToken cancellationToken = default)
@@ -134,11 +161,12 @@ public class WorkflowController : IWorkflowController
 
             instance.Status = WorkflowStatus.Suspended;
             await _persistenceProvider.PersistWorkflowAsync(instance, cancellationToken);
+            await _queueProvider.QueueWork(workflowInstanceId, QueueType.Index);
 
             // 发布挂起事件
             _eventPublisher.PublishNotification(new WorkflowSuspended
             {
-                EventTimeUtc = DateTime.UtcNow,
+                EventTimeUtc = _dateTimeProvider.UtcNow,
                 WorkflowInstanceId = instance.Id,
                 WorkflowDefinitionId = instance.WorkflowDefinitionId,
                 Version = instance.Version,
@@ -180,16 +208,17 @@ public class WorkflowController : IWorkflowController
             }
 
             instance.Status = WorkflowStatus.Runnable;
-            instance.NextExecution = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            instance.NextExecution = new DateTimeOffset(_dateTimeProvider.UtcNow).ToUnixTimeMilliseconds();
             await _persistenceProvider.PersistWorkflowAsync(instance, cancellationToken);
 
             // 重新加入可运行队列
             await _queueProvider.QueueWork(workflowInstanceId, QueueType.Workflow);
+            await _queueProvider.QueueWork(workflowInstanceId, QueueType.Index);
 
             // 发布恢复事件
             _eventPublisher.PublishNotification(new WorkflowResumed
             {
-                EventTimeUtc = DateTime.UtcNow,
+                EventTimeUtc = _dateTimeProvider.UtcNow,
                 WorkflowInstanceId = instance.Id,
                 WorkflowDefinitionId = instance.WorkflowDefinitionId,
                 Version = instance.Version,
@@ -231,11 +260,12 @@ public class WorkflowController : IWorkflowController
             }
 
             await _persistenceProvider.TerminateWorkflowAsync(workflowInstanceId, cancellationToken);
+            await _queueProvider.QueueWork(workflowInstanceId, QueueType.Index);
 
             // 发布终止事件
             _eventPublisher.PublishNotification(new WorkflowTerminated
             {
-                EventTimeUtc = DateTime.UtcNow,
+                EventTimeUtc = _dateTimeProvider.UtcNow,
                 WorkflowInstanceId = instance.Id,
                 WorkflowDefinitionId = instance.WorkflowDefinitionId,
                 Version = instance.Version,
@@ -251,7 +281,7 @@ public class WorkflowController : IWorkflowController
         }
     }
 
-    public async Task PublishEventAsync(string eventName, string eventKey, object? eventData = null, CancellationToken cancellationToken = default)
+    public async Task PublishEventAsync(string eventName, string eventKey, object? eventData = null, DateTime? effectiveDate = null, CancellationToken cancellationToken = default)
     {
         var evt = new Event
         {
@@ -259,7 +289,7 @@ public class WorkflowController : IWorkflowController
             EventName = eventName,
             EventKey = eventKey,
             EventData = eventData,
-            EventTime = DateTime.UtcNow,
+            EventTime = effectiveDate.HasValue ? effectiveDate.Value.ToUniversalTime() : _dateTimeProvider.UtcNow,
             IsProcessed = false
         };
 

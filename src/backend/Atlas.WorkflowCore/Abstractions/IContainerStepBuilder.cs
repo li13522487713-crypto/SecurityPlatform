@@ -9,7 +9,6 @@ namespace Atlas.WorkflowCore.Abstractions;
 /// <typeparam name="TStepBody">步骤体类型</typeparam>
 /// <typeparam name="TReturnStep">返回的步骤构建器类型</typeparam>
 public interface IContainerStepBuilder<TData, TStepBody, TReturnStep>
-    where TData : new()
     where TStepBody : IStepBody
     where TReturnStep : IStepBody
 {

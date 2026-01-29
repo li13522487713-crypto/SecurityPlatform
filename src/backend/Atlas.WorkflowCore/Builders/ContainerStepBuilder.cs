@@ -11,7 +11,6 @@ namespace Atlas.WorkflowCore.Builders;
 /// <typeparam name="TStepBody">步骤体类型</typeparam>
 /// <typeparam name="TReturnStep">返回步骤类型</typeparam>
 public class ContainerStepBuilder<TData, TStepBody, TReturnStep> : IContainerStepBuilder<TData, TStepBody, TReturnStep>
-    where TData : new()
     where TStepBody : IStepBody
     where TReturnStep : IStepBody
 {

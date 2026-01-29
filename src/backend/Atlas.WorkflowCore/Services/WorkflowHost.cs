@@ -204,8 +204,8 @@ public class WorkflowHost : IWorkflowHost, IDisposable
     public Task<bool> TerminateWorkflowAsync(string workflowInstanceId, CancellationToken cancellationToken = default)
         => _workflowController.TerminateWorkflowAsync(workflowInstanceId, cancellationToken);
 
-    public Task PublishEventAsync(string eventName, string eventKey, object? eventData = null, CancellationToken cancellationToken = default)
-        => _workflowController.PublishEventAsync(eventName, eventKey, eventData, cancellationToken);
+    public Task PublishEventAsync(string eventName, string eventKey, object? eventData = null, DateTime? effectiveDate = null, CancellationToken cancellationToken = default)
+        => _workflowController.PublishEventAsync(eventName, eventKey, eventData, effectiveDate, cancellationToken);
 
     public Task<PendingActivity?> GetPendingActivity(string activityName, string workerId, TimeSpan? timeout = null)
     {

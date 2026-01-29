@@ -55,6 +55,7 @@ public interface IWorkflowController
     /// <param name="eventName">事件名称</param>
     /// <param name="eventKey">事件键</param>
     /// <param name="eventData">事件数据</param>
+    /// <param name="effectiveDate">生效日期（可选，默认为当前时间）</param>
     /// <param name="cancellationToken">取消令牌</param>
-    Task PublishEventAsync(string eventName, string eventKey, object? eventData = null, CancellationToken cancellationToken = default);
+    Task PublishEventAsync(string eventName, string eventKey, object? eventData = null, DateTime? effectiveDate = null, CancellationToken cancellationToken = default);
 }

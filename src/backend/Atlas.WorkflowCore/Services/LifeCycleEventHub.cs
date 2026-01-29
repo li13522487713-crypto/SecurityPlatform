@@ -89,7 +89,7 @@ public class LifeCycleEventHub : ILifeCycleEventHub, ILifeCycleEventPublisher
     }
 
     /// <summary>
-    /// 发布事件（同步）
+    /// 发布事件（异步分发，不阻塞调用者）
     /// </summary>
     public void PublishNotification(LifeCycleEvent evt)
     {
@@ -110,25 +110,28 @@ public class LifeCycleEventHub : ILifeCycleEventHub, ILifeCycleEventPublisher
             handlers = new List<Delegate>(handlersForType);
         }
 
-        foreach (var handler in handlers)
+        // 使用 Task.Run 异步分发事件，避免阻塞调用者
+        Task.Run(() =>
         {
-            try
+            foreach (var handler in handlers)
             {
-                // 仅支持同步处理器，因为PublishNotification是同步的
-                if (handler is Action<LifeCycleEvent> syncHandler)
+                try
                 {
-                    syncHandler(evt);
+                    if (handler is Action<LifeCycleEvent> syncHandler)
+                    {
+                        syncHandler(evt);
+                    }
+                    else
+                    {
+                        // 使用反射调用泛型处理器
+                        handler.DynamicInvoke(evt);
+                    }
                 }
-                else
+                catch (Exception ex)
                 {
-                    // 使用反射调用泛型处理器
-                    handler.DynamicInvoke(evt);
+                    _logger.LogError(ex, "生命周期事件处理器执行失败: {EventType}", evt.GetType().Name);
                 }
             }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "生命周期事件处理器执行失败: {EventType}", evt.GetType().Name);
-            }
-        }
+        });
     }
 }

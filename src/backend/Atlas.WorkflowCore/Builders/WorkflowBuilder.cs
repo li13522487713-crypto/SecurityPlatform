@@ -24,7 +24,7 @@ public class WorkflowBuilder : IWorkflowBuilder
 
     public int LastStep => Steps.Count > 0 ? Steps.Max(x => x.Id) : -1;
 
-    public IWorkflowBuilder<T> UseData<T>() where T : new()
+    public IWorkflowBuilder<T> UseData<T>()
     {
         IWorkflowBuilder<T> result = new WorkflowBuilder<T>(Steps);
         return result;
@@ -68,7 +68,7 @@ public class WorkflowBuilder : IWorkflowBuilder
         if (Branches.Contains(branch))
             return;
 
-        var branchStart = LastStep + 1;
+        var branchStart = LastStep + branch.LastStep + 1;
 
         foreach (var step in branch.Steps)
         {
@@ -109,7 +109,6 @@ public class WorkflowBuilder : IWorkflowBuilder
 /// </summary>
 /// <typeparam name="TData">工作流数据类型</typeparam>
 public class WorkflowBuilder<TData> : WorkflowBuilder, IWorkflowBuilder<TData>
-    where TData : new()
 {
     public WorkflowBuilder()
     {

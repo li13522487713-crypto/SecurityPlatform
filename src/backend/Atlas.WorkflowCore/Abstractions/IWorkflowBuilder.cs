@@ -23,7 +23,7 @@ public interface IWorkflowBuilder
     /// <summary>
     /// 使用指定的数据类型
     /// </summary>
-    IWorkflowBuilder<T> UseData<T>() where T : new();
+    IWorkflowBuilder<T> UseData<T>();
 
     /// <summary>
     /// 构建工作流定义
@@ -46,7 +46,6 @@ public interface IWorkflowBuilder
 /// </summary>
 /// <typeparam name="TData">工作流数据类型</typeparam>
 public interface IWorkflowBuilder<TData> : IWorkflowBuilder, IWorkflowModifier<TData, InlineStepBody>
-    where TData : new()
 {
     /// <summary>
     /// 使用步骤开始工作流

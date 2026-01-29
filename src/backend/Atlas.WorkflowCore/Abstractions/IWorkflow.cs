@@ -1,7 +1,6 @@
 namespace Atlas.WorkflowCore.Abstractions;
 
 public interface IWorkflow<TData>
-    where TData : new()
 {
     string Id { get; }
     int Version { get; }

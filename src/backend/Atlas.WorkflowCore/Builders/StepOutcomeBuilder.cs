@@ -10,7 +10,6 @@ namespace Atlas.WorkflowCore.Builders;
 /// </summary>
 /// <typeparam name="TData">工作流数据类型</typeparam>
 public class StepOutcomeBuilder<TData> : IStepOutcomeBuilder<TData>
-    where TData : new()
 {
     public IWorkflowBuilder<TData> WorkflowBuilder { get; private set; }
     

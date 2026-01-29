@@ -81,6 +81,7 @@ public class WorkflowCommandService : IWorkflowCommandService
             request.EventName,
             request.EventKey,
             request.EventData,
+            null,
             cancellationToken);
 
         _logger.LogInformation("外部事件已发布: {EventName}#{EventKey}", request.EventName, request.EventKey);

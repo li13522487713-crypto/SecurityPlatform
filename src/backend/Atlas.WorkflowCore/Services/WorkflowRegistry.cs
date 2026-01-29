@@ -23,7 +23,7 @@ public class WorkflowRegistry : IWorkflowRegistry
         _workflows[definition.Id][definition.Version] = definition;
     }
 
-    public void RegisterWorkflow<TData>(IWorkflow<TData> workflow) where TData : new()
+    public void RegisterWorkflow<TData>(IWorkflow<TData> workflow)
     {
         var builder = new WorkflowBuilder<TData>();
         workflow.Build(builder);

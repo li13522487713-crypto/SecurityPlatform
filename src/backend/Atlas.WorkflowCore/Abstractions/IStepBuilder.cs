@@ -12,7 +12,6 @@ namespace Atlas.WorkflowCore.Abstractions;
 /// <typeparam name="TData">工作流数据类型</typeparam>
 /// <typeparam name="TStepBody">步骤体类型</typeparam>
 public interface IStepBuilder<TData, TStepBody> : IWorkflowModifier<TData, TStepBody>
-    where TData : new()
     where TStepBody : IStepBody
 {
     /// <summary>

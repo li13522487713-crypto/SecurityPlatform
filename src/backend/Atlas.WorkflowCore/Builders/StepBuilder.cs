@@ -14,7 +14,6 @@ namespace Atlas.WorkflowCore.Builders;
 /// <typeparam name="TData">工作流数据类型</typeparam>
 /// <typeparam name="TStepBody">步骤体类型</typeparam>
 public class StepBuilder<TData, TStepBody> : IStepBuilder<TData, TStepBody>, IContainerStepBuilder<TData, TStepBody, TStepBody>
-    where TData : new()
     where TStepBody : IStepBody
 {
     public IWorkflowBuilder<TData> WorkflowBuilder { get; private set; }

@@ -9,7 +9,6 @@ namespace Atlas.WorkflowCore.Abstractions;
 /// </summary>
 /// <typeparam name="TData">工作流数据类型</typeparam>
 public interface IStepOutcomeBuilder<TData>
-    where TData : new()
 {
     /// <summary>
     /// 工作流构建器

@@ -11,7 +11,6 @@ namespace Atlas.WorkflowCore.Builders;
 /// <typeparam name="TData">工作流数据类型</typeparam>
 /// <typeparam name="TStepBody">步骤体类型</typeparam>
 public class ParallelStepBuilder<TData, TStepBody> : IParallelStepBuilder<TData, TStepBody>
-    where TData : new()
     where TStepBody : IStepBody
 {
     private readonly IStepBuilder<TData, Sequence> _referenceBuilder;
