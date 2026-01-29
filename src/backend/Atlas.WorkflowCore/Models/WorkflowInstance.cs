@@ -26,6 +26,8 @@ public class WorkflowInstance
 
     public DateTime? CompleteTime { get; set; }
 
+    public List<ExecutionError> ExecutionErrors { get; set; } = new();
+
     public bool IsBranchComplete(string parentId)
     {
         return ExecutionPointers

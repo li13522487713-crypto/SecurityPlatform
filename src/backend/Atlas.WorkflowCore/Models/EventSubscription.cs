@@ -8,6 +8,8 @@ public class EventSubscription
 
     public int StepId { get; set; }
 
+    public string ExecutionPointerId { get; set; } = string.Empty;
+
     public string EventName { get; set; } = string.Empty;
 
     public string EventKey { get; set; } = string.Empty;
