@@ -1,6 +1,7 @@
+using System;
+using System.Collections.Generic;
 using Atlas.WorkflowCore.Abstractions;
 using Atlas.WorkflowCore.Models;
-using Microsoft.Extensions.Logging;
 
 namespace Atlas.WorkflowCore.Services.ErrorHandlers;
 
@@ -9,35 +10,27 @@ namespace Atlas.WorkflowCore.Services.ErrorHandlers;
 /// </summary>
 public class RetryHandler : IWorkflowErrorHandler
 {
-    private readonly ILogger<RetryHandler> _logger;
-
-    public RetryHandler(ILogger<RetryHandler> logger)
-    {
-        _logger = logger;
-    }
-
+    private readonly IDateTimeProvider _datetimeProvider;
+    private readonly WorkflowOptions _options;
+    
     public WorkflowErrorHandling Type => WorkflowErrorHandling.Retry;
 
-    public Task HandleAsync(
+    public RetryHandler(IDateTimeProvider datetimeProvider, WorkflowOptions options)
+    {
+        _datetimeProvider = datetimeProvider;
+        _options = options;
+    }
+
+    public void Handle(
         WorkflowInstance workflow,
-        WorkflowDefinition definition,
+        WorkflowDefinition def,
         ExecutionPointer pointer,
         WorkflowStep step,
         Exception exception,
-        CancellationToken cancellationToken)
+        Queue<ExecutionPointer> bubbleUpQueue)
     {
         pointer.RetryCount++;
-        pointer.Status = PointerStatus.Pending;
-        pointer.Active = true;
-
-        // 设置重试延迟（指数退避）
-        var retryDelay = TimeSpan.FromSeconds(Math.Pow(2, pointer.RetryCount));
-        pointer.SleepUntil = DateTime.UtcNow.Add(retryDelay);
-
-        _logger.LogWarning(exception,
-            "步骤 {StepName} 执行失败，将在 {RetryDelay} 后重试 (重试次数: {RetryCount})",
-            step.Name, retryDelay, pointer.RetryCount);
-
-        return Task.CompletedTask;
+        pointer.SleepUntil = _datetimeProvider.UtcNow.Add(step.RetryInterval ?? def.DefaultErrorRetryInterval ?? _options.ErrorRetryInterval);
+        step.PrimeForRetry(pointer);
     }
 }

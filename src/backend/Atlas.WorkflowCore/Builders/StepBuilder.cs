@@ -92,7 +92,6 @@ public class StepBuilder<TData, TStepBody> : IStepBuilder<TData, TStepBody>, ICo
         return this;
     }
 
-    [Obsolete("Use Branch method instead")]
     public IStepOutcomeBuilder<TData> When(object outcomeValue, string? label = null)
     {
         Expression<Func<object, object>> expr = x => outcomeValue;

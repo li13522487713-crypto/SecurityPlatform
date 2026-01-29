@@ -110,4 +110,12 @@ public class ExecutionPointerCollection : List<ExecutionPointer>
     {
         return this.Any(p => p.Status == status);
     }
+
+    /// <summary>
+    /// 根据状态查找执行指针
+    /// </summary>
+    public IEnumerable<ExecutionPointer> FindByStatus(PointerStatus status)
+    {
+        return this.Where(x => x.Status == status);
+    }
 }

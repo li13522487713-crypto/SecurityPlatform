@@ -44,11 +44,10 @@ public interface IStepBuilder<TData, TStepBody> : IWorkflowModifier<TData, TStep
     IStepBuilder<TData, TStepBody> Attach(string id);
 
     /// <summary>
-    /// 配置此步骤的结果分支（已过时，使用Branch代替）
+    /// 配置此步骤的结果分支（用于简单的值分支）
     /// </summary>
     /// <param name="outcomeValue">结果值</param>
     /// <param name="label">结果标签</param>
-    [Obsolete("Use Branch method instead")]
     IStepOutcomeBuilder<TData> When(object outcomeValue, string? label = null);
 
     /// <summary>

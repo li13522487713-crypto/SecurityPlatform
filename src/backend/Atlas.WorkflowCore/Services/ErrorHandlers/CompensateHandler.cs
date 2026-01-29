@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using Atlas.WorkflowCore.Abstractions;
 using Atlas.WorkflowCore.Models;
 using Microsoft.Extensions.Logging;
@@ -10,31 +13,25 @@ namespace Atlas.WorkflowCore.Services.ErrorHandlers;
 public class CompensateHandler : IWorkflowErrorHandler
 {
     private readonly IExecutionPointerFactory _pointerFactory;
-    private readonly IDateTimeProvider _dateTimeProvider;
-    private readonly WorkflowOptions _options;
     private readonly ILogger<CompensateHandler> _logger;
 
     public CompensateHandler(
         IExecutionPointerFactory pointerFactory,
-        IDateTimeProvider dateTimeProvider,
-        WorkflowOptions options,
         ILogger<CompensateHandler> logger)
     {
         _pointerFactory = pointerFactory;
-        _dateTimeProvider = dateTimeProvider;
-        _options = options;
         _logger = logger;
     }
 
     public WorkflowErrorHandling Type => WorkflowErrorHandling.Compensate;
 
-    public Task HandleAsync(
+    public void Handle(
         WorkflowInstance workflow,
-        WorkflowDefinition definition,
+        WorkflowDefinition def,
         ExecutionPointer exceptionPointer,
         WorkflowStep exceptionStep,
         Exception exception,
-        CancellationToken cancellationToken)
+        Queue<ExecutionPointer> bubbleUpQueue)
     {
         var scope = new Stack<string>(exceptionPointer.Scope.Reverse());
         scope.Push(exceptionPointer.Id);
@@ -50,7 +47,7 @@ public class CompensateHandler : IWorkflowErrorHandler
                 continue;
             }
 
-            var scopeStep = definition.Steps.FindById(scopePointer.StepId);
+            var scopeStep = def.Steps.FindById(scopePointer.StepId);
             if (scopeStep == null)
             {
                 _logger.LogWarning("步骤 {StepId} 未找到", scopePointer.StepId);
@@ -69,7 +66,7 @@ public class CompensateHandler : IWorkflowErrorHandler
                 if (parentPointer == null)
                     continue;
 
-                var parentStep = definition.Steps.FindById(parentPointer.StepId);
+                var parentStep = def.Steps.FindById(parentPointer.StepId);
                 if (parentStep == null)
                     continue;
 
@@ -82,7 +79,7 @@ public class CompensateHandler : IWorkflowErrorHandler
             }
 
             // 如果步骤的错误处理策略不是 Compensate，则向上冒泡
-            var errorBehavior = scopeStep.ErrorBehavior ?? definition.DefaultErrorBehavior;
+            var errorBehavior = scopeStep.ErrorBehavior ?? def.DefaultErrorBehavior;
             if (errorBehavior != WorkflowErrorHandling.Compensate)
             {
                 _logger.LogDebug("步骤 {StepName} 的错误处理策略不是 Compensate，跳过", scopeStep.Name);
@@ -91,7 +88,7 @@ public class CompensateHandler : IWorkflowErrorHandler
 
             // 标记作用域指针为失败
             scopePointer.Active = false;
-            scopePointer.EndTime = _dateTimeProvider.UtcNow;
+            scopePointer.EndTime = DateTime.UtcNow;
             scopePointer.Status = PointerStatus.Failed;
 
             // 如果步骤有补偿步骤配置，创建补偿指针
@@ -100,7 +97,7 @@ public class CompensateHandler : IWorkflowErrorHandler
                 scopePointer.Status = PointerStatus.Compensated;
 
                 var nextCompensationPointer = _pointerFactory.BuildCompensationPointer(
-                    definition,
+                    def,
                     scopePointer,
                     exceptionPointer,
                     scopeStep.CompensationStepId.Value);
@@ -126,9 +123,14 @@ public class CompensateHandler : IWorkflowErrorHandler
                     {
                         if (MatchesOutcome(outcome, workflow.Data))
                         {
-                            var nextPointer = _pointerFactory.BuildNextPointer(
-                                definition.Steps.FindById(outcome.NextStep) ?? throw new InvalidOperationException($"Next step {outcome.NextStep} not found"),
-                                scopePointer);
+                            var nextStep = def.Steps.FindById(outcome.NextStep);
+                            if (nextStep == null)
+                            {
+                                _logger.LogWarning("后续步骤 {NextStepId} 未找到", outcome.NextStep);
+                                continue;
+                            }
+
+                            var nextPointer = _pointerFactory.BuildNextPointer(def, scopePointer, outcome);
                             workflow.ExecutionPointers.Add(nextPointer);
                             _logger.LogDebug("补偿后继续执行后续步骤: {NextStepId}", outcome.NextStep);
                         }
@@ -148,14 +150,14 @@ public class CompensateHandler : IWorkflowErrorHandler
 
                 foreach (var siblingPointer in prevSiblings)
                 {
-                    var siblingStep = definition.Steps.FindById(siblingPointer.StepId);
+                    var siblingStep = def.Steps.FindById(siblingPointer.StepId);
                     if (siblingStep == null)
                         continue;
 
                     if (siblingStep.CompensationStepId.HasValue)
                     {
                         var nextCompensationPointer = _pointerFactory.BuildCompensationPointer(
-                            definition,
+                            def,
                             siblingPointer,
                             exceptionPointer,
                             siblingStep.CompensationStepId.Value);
@@ -183,8 +185,6 @@ public class CompensateHandler : IWorkflowErrorHandler
         _logger.LogError(exception,
             "补偿逻辑处理完成 (工作流: {WorkflowId}, 异常步骤: {StepName})",
             workflow.Id, exceptionStep.Name);
-
-        return Task.CompletedTask;
     }
 
     /// <summary>
@@ -194,7 +194,7 @@ public class CompensateHandler : IWorkflowErrorHandler
     {
         if (outcome is ValueOutcome valueOutcome)
         {
-            return valueOutcome.Matches(data, valueOutcome.Value);
+            return valueOutcome.Matches(data);
         }
 
         // 对于表达式结果，使用反射调用 Matches 方法

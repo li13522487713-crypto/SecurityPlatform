@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using Atlas.WorkflowCore.Abstractions;
 using Atlas.WorkflowCore.Models;
 
@@ -8,111 +11,76 @@ namespace Atlas.WorkflowCore.Services;
 /// </summary>
 public class ExecutionPointerFactory : IExecutionPointerFactory
 {
-    public ExecutionPointer BuildGenesisPointer(WorkflowStep step)
+    public ExecutionPointer BuildGenesisPointer(WorkflowDefinition def)
     {
+        var firstStep = def.Steps.FindById(0);
         return new ExecutionPointer
         {
-            Id = Guid.NewGuid().ToString(),
-            StepId = step.Id,
-            StepName = step.Name,
+            Id = GenerateId(),
+            StepId = 0,
             Active = true,
             Status = PointerStatus.Pending,
-            StartTime = null,
-            EndTime = null,
-            SleepUntil = null,
-            PersistenceData = null,
-            EventName = null,
-            EventKey = null,
-            EventData = null,
-            EventPublished = false,
-            RetryCount = 0,
-            Children = new List<string>(),
-            Scope = new List<string>()
+            StepName = firstStep?.Name ?? "Genesis"
         };
     }
 
-    public ExecutionPointer BuildNextPointer(WorkflowStep step, ExecutionPointer parentPointer)
+    public ExecutionPointer BuildNextPointer(WorkflowDefinition def, ExecutionPointer pointer, IStepOutcome outcomeTarget)
     {
+        var nextId = GenerateId();
+        var nextStep = def.Steps.FindById(outcomeTarget.NextStep);
         return new ExecutionPointer
         {
-            Id = Guid.NewGuid().ToString(),
-            StepId = step.Id,
-            StepName = step.Name,
+            Id = nextId,
+            PredecessorId = pointer.Id,
+            StepId = outcomeTarget.NextStep,
             Active = true,
+            ContextItem = pointer.ContextItem,
             Status = PointerStatus.Pending,
-            StartTime = null,
-            EndTime = null,
-            SleepUntil = null,
-            PersistenceData = null,
-            EventName = null,
-            EventKey = null,
-            EventData = null,
-            EventPublished = false,
-            RetryCount = 0,
-            Children = new List<string>(),
-            Scope = new List<string>(parentPointer.Scope),
-            PredecessorId = parentPointer.Id
+            StepName = nextStep?.Name ?? "Unknown",
+            Scope = new List<string>(pointer.Scope)
         };
     }
 
-    public ExecutionPointer BuildChildPointer(WorkflowStep step, ExecutionPointer parentPointer, string scope)
+    public ExecutionPointer BuildChildPointer(WorkflowDefinition def, ExecutionPointer pointer, int childDefinitionId, object branch)
     {
-        var childScope = new List<string>(parentPointer.Scope) { scope };
+        var childPointerId = GenerateId();
+        var childScope = new List<string>(pointer.Scope);
+        childScope.Insert(0, pointer.Id);
+        pointer.Children.Add(childPointerId);
 
-        var pointer = new ExecutionPointer
-        {
-            Id = Guid.NewGuid().ToString(),
-            StepId = step.Id,
-            StepName = step.Name,
-            Active = true,
-            Status = PointerStatus.Pending,
-            StartTime = null,
-            EndTime = null,
-            SleepUntil = null,
-            PersistenceData = null,
-            EventName = null,
-            EventKey = null,
-            EventData = null,
-            EventPublished = false,
-            RetryCount = 0,
-            Children = new List<string>(),
-            Scope = childScope,
-            PredecessorId = parentPointer.Id
-        };
-
-        parentPointer.Children.Add(pointer.Id);
-
-        return pointer;
-    }
-
-    public ExecutionPointer BuildCompensationPointer(WorkflowDefinition definition, ExecutionPointer parentPointer, ExecutionPointer exceptionPointer, int compensationStepId)
-    {
-        var compensationStep = definition.Steps.FindById(compensationStepId);
-        if (compensationStep == null)
-        {
-            throw new InvalidOperationException($"Compensation step {compensationStepId} not found in workflow definition");
-        }
-
+        var childStep = def.Steps.FindById(childDefinitionId);
         return new ExecutionPointer
         {
-            Id = Guid.NewGuid().ToString(),
-            StepId = compensationStep.Id,
-            StepName = compensationStep.Name,
+            Id = childPointerId,
+            PredecessorId = pointer.Id,
+            StepId = childDefinitionId,
             Active = true,
+            ContextItem = branch,
             Status = PointerStatus.Pending,
-            StartTime = null,
-            EndTime = null,
-            SleepUntil = null,
-            PersistenceData = null,
-            EventName = null,
-            EventKey = null,
-            EventData = null,
-            EventPublished = false,
-            RetryCount = 0,
-            Children = new List<string>(),
-            Scope = new List<string>(parentPointer.Scope),
-            PredecessorId = exceptionPointer.Id, // 指向异常指针，而非父指针
-            ContextItem = parentPointer.ContextItem
+            StepName = childStep?.Name ?? "Unknown",
+            Scope = new List<string>(childScope)
         };
+    }
+
+    public ExecutionPointer BuildCompensationPointer(WorkflowDefinition def, ExecutionPointer pointer, ExecutionPointer exceptionPointer, int compensationStepId)
+    {
+        var nextId = GenerateId();
+        var compensationStep = def.Steps.FindById(compensationStepId);
+        return new ExecutionPointer
+        {
+            Id = nextId,
+            PredecessorId = exceptionPointer.Id,
+            StepId = compensationStepId,
+            Active = true,
+            ContextItem = pointer.ContextItem,
+            Status = PointerStatus.Pending,
+            StepName = compensationStep?.Name ?? "Unknown",
+            Scope = new List<string>(pointer.Scope)
+        };
+    }
+
+    private string GenerateId()
+    {
+        return Guid.NewGuid().ToString();
     }
 }

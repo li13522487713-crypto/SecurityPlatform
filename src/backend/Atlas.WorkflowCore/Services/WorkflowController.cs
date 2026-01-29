@@ -67,12 +67,8 @@ public class WorkflowController : IWorkflowController
         };
 
         // 初始化执行指针
-        var startStep = definition.Steps.FirstOrDefault(s => s.Id == 0);
-        if (startStep != null)
-        {
-            var initialPointer = _pointerFactory.BuildGenesisPointer(startStep);
-            instance.ExecutionPointers.Add(initialPointer);
-        }
+        var initialPointer = _pointerFactory.BuildGenesisPointer(definition);
+        instance.ExecutionPointers.Add(initialPointer);
 
         // 运行 PreWorkflow 中间件
         try
@@ -92,13 +88,14 @@ public class WorkflowController : IWorkflowController
         await _queueProvider.QueueWork(instanceId, QueueType.Workflow);
 
         // 发布启动事件
-        await _eventPublisher.PublishNotificationAsync(new WorkflowStarted
+        _eventPublisher.PublishNotification(new WorkflowStarted
         {
+            EventTimeUtc = DateTime.UtcNow,
             WorkflowInstanceId = instanceId,
             WorkflowDefinitionId = definition.Id,
             Version = definition.Version,
-            Reference = instanceId
-        }, cancellationToken);
+            Reference = reference
+        });
 
         _logger.LogInformation("工作流实例已启动: {InstanceId} ({WorkflowId} v{Version})", instanceId, definition.Id, definition.Version);
 
@@ -139,13 +136,14 @@ public class WorkflowController : IWorkflowController
             await _persistenceProvider.PersistWorkflowAsync(instance, cancellationToken);
 
             // 发布挂起事件
-            await _eventPublisher.PublishNotificationAsync(new WorkflowSuspended
+            _eventPublisher.PublishNotification(new WorkflowSuspended
             {
+                EventTimeUtc = DateTime.UtcNow,
                 WorkflowInstanceId = instance.Id,
                 WorkflowDefinitionId = instance.WorkflowDefinitionId,
                 Version = instance.Version,
-                Reference = instance.Id
-            }, cancellationToken);
+                Reference = instance.Reference
+            });
 
             _logger.LogInformation("工作流实例已挂起: {InstanceId}", workflowInstanceId);
             return true;
@@ -189,13 +187,14 @@ public class WorkflowController : IWorkflowController
             await _queueProvider.QueueWork(workflowInstanceId, QueueType.Workflow);
 
             // 发布恢复事件
-            await _eventPublisher.PublishNotificationAsync(new WorkflowResumed
+            _eventPublisher.PublishNotification(new WorkflowResumed
             {
+                EventTimeUtc = DateTime.UtcNow,
                 WorkflowInstanceId = instance.Id,
                 WorkflowDefinitionId = instance.WorkflowDefinitionId,
                 Version = instance.Version,
-                Reference = instance.Id
-            }, cancellationToken);
+                Reference = instance.Reference
+            });
 
             _logger.LogInformation("工作流实例已恢复: {InstanceId}", workflowInstanceId);
             return true;
@@ -234,13 +233,14 @@ public class WorkflowController : IWorkflowController
             await _persistenceProvider.TerminateWorkflowAsync(workflowInstanceId, cancellationToken);
 
             // 发布终止事件
-            await _eventPublisher.PublishNotificationAsync(new WorkflowTerminated
+            _eventPublisher.PublishNotification(new WorkflowTerminated
             {
+                EventTimeUtc = DateTime.UtcNow,
                 WorkflowInstanceId = instance.Id,
                 WorkflowDefinitionId = instance.WorkflowDefinitionId,
                 Version = instance.Version,
-                Reference = instance.Id
-            }, cancellationToken);
+                Reference = instance.Reference
+            });
 
             _logger.LogInformation("工作流实例已终止: {InstanceId}", workflowInstanceId);
             return true;

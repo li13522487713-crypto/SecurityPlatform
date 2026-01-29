@@ -1,70 +1,68 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Atlas.WorkflowCore.Abstractions;
 using Atlas.WorkflowCore.Models;
+using Atlas.WorkflowCore.Models.LifeCycleEvents;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace Atlas.WorkflowCore.Services;
 
+/// <summary>
+/// 工作流执行器实现
+/// </summary>
 public class WorkflowExecutor : IWorkflowExecutor
 {
     private readonly IWorkflowRegistry _registry;
     private readonly IServiceProvider _serviceProvider;
-    private readonly IStepExecutor _stepExecutor;
-    private readonly ICancellationProcessor _cancellationProcessor;
-    private readonly IWorkflowMiddlewareRunner _middlewareRunner;
     private readonly IScopeProvider _scopeProvider;
+    private readonly IDateTimeProvider _datetimeProvider;
+    private readonly ILogger _logger;
     private readonly IExecutionResultProcessor _executionResultProcessor;
-    private readonly ILogger<WorkflowExecutor> _logger;
+    private readonly ICancellationProcessor _cancellationProcessor;
+    private readonly ILifeCycleEventPublisher _publisher;
+    private readonly WorkflowOptions _options;
 
-    private IWorkflowHost? Host => _serviceProvider.GetService(typeof(IWorkflowHost)) as IWorkflowHost;
+    private IWorkflowHost? Host => _serviceProvider.GetService<IWorkflowHost>();
 
     public WorkflowExecutor(
         IWorkflowRegistry registry,
         IServiceProvider serviceProvider,
-        IStepExecutor stepExecutor,
-        ICancellationProcessor cancellationProcessor,
-        IWorkflowMiddlewareRunner middlewareRunner,
         IScopeProvider scopeProvider,
+        IDateTimeProvider datetimeProvider,
         IExecutionResultProcessor executionResultProcessor,
-        ILogger<WorkflowExecutor> logger)
+        ILifeCycleEventPublisher publisher,
+        ICancellationProcessor cancellationProcessor,
+        WorkflowOptions options,
+        ILoggerFactory loggerFactory)
     {
-        _registry = registry;
         _serviceProvider = serviceProvider;
-        _stepExecutor = stepExecutor;
-        _cancellationProcessor = cancellationProcessor;
-        _middlewareRunner = middlewareRunner;
         _scopeProvider = scopeProvider;
+        _registry = registry;
+        _datetimeProvider = datetimeProvider;
+        _publisher = publisher;
+        _cancellationProcessor = cancellationProcessor;
+        _options = options;
+        _logger = loggerFactory.CreateLogger<WorkflowExecutor>();
         _executionResultProcessor = executionResultProcessor;
-        _logger = logger;
     }
 
     public async Task<WorkflowExecutorResult> Execute(WorkflowInstance workflow, CancellationToken cancellationToken = default)
     {
-        var result = new WorkflowExecutorResult();
+        var wfResult = new WorkflowExecutorResult();
+
+        var exePointers = new List<ExecutionPointer>(workflow.ExecutionPointers.Where(x => x.Active && (!x.SleepUntil.HasValue || x.SleepUntil < _datetimeProvider.UtcNow)));
         var def = _registry.GetDefinition(workflow.WorkflowDefinitionId, workflow.Version);
         if (def == null)
         {
             _logger.LogError("Workflow {WorkflowDefinitionId} version {Version} is not registered", workflow.WorkflowDefinitionId, workflow.Version);
-            return result;
+            return wfResult;
         }
 
-        // 运行 ExecuteWorkflow 中间件
-        try
-        {
-            await _middlewareRunner.RunExecuteMiddleware(workflow, cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "ExecuteWorkflow 中间件执行失败");
-        }
-
-        // 处理所有取消条件（在开始执行前）
-        _cancellationProcessor.ProcessCancellations(workflow, def, result);
-
-        var exePointers = workflow.ExecutionPointers
-            .Where(x => x.Active && (!x.SleepUntil.HasValue || x.SleepUntil < DateTime.UtcNow))
-            .ToList();
+        _cancellationProcessor.ProcessCancellations(workflow, def, wfResult);
 
         foreach (var pointer in exePointers)
         {
@@ -75,64 +73,46 @@ public class WorkflowExecutor : IWorkflowExecutor
             if (step == null)
             {
                 _logger.LogError("Unable to find step {StepId} in workflow definition", pointer.StepId);
-                pointer.SleepUntil = DateTime.UtcNow.Add(TimeSpan.FromMinutes(1));
-                result.Errors.Add(new ExecutionError
+                pointer.SleepUntil = _datetimeProvider.UtcNow.Add(_options.ErrorRetryInterval);
+                wfResult.Errors.Add(new ExecutionError
                 {
                     WorkflowId = workflow.Id,
                     ExecutionPointerId = pointer.Id,
-                    ErrorTime = DateTime.UtcNow,
+                    ErrorTime = _datetimeProvider.UtcNow,
                     Message = $"Unable to find step {pointer.StepId} in workflow definition"
                 });
                 continue;
             }
 
-            // 添加步骤追踪信息
             WorkflowActivityTracing.Enrich(step);
-
             try
             {
-                if (!InitializeStep(workflow, step, result, def, pointer))
+                if (!InitializeStep(workflow, step, wfResult, def, pointer))
                     continue;
 
-                await ExecuteStep(workflow, step, pointer, result, def, cancellationToken);
+                await ExecuteStep(workflow, step, pointer, wfResult, def, cancellationToken);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Workflow {WorkflowId} raised error on step {StepId} Message: {Message}", workflow.Id, pointer.StepId, ex.Message);
-                
-                // 使用 ExecutionResultProcessor 处理异常
-                await _executionResultProcessor.HandleStepException(workflow, def, pointer, step, ex);
-                
-                // 报告步骤错误
-                Host?.ReportStepError(workflow, step, ex);
-                
-                result.Errors.Add(new ExecutionError
+                wfResult.Errors.Add(new ExecutionError
                 {
                     WorkflowId = workflow.Id,
                     ExecutionPointerId = pointer.Id,
-                    ErrorTime = DateTime.UtcNow,
+                    ErrorTime = _datetimeProvider.UtcNow,
                     Message = ex.Message
                 });
+
+                _executionResultProcessor.HandleStepException(workflow, def, pointer, step, ex);
+                Host?.ReportStepError(workflow, step, ex);
             }
-
-            // 在每个指针执行后再次处理取消条件
-            _cancellationProcessor.ProcessCancellations(workflow, def, result);
+            _cancellationProcessor.ProcessCancellations(workflow, def, wfResult);
         }
-
-        ProcessAfterExecutionIteration(workflow, def, result);
+        
+        ProcessAfterExecutionIteration(workflow, def, wfResult);
         DetermineNextExecutionTime(workflow, def);
 
-        // 运行 PostWorkflow 中间件
-        try
-        {
-            await _middlewareRunner.RunPostMiddleware(workflow, cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "PostWorkflow 中间件执行失败");
-        }
-
-        return result;
+        return wfResult;
     }
 
     private bool InitializeStep(WorkflowInstance workflow, WorkflowStep step, WorkflowExecutorResult wfResult, WorkflowDefinition def, ExecutionPointer pointer)
@@ -143,7 +123,7 @@ public class WorkflowExecutor : IWorkflowExecutor
                 return false;
             case ExecutionPipelineDirective.EndWorkflow:
                 workflow.Status = WorkflowStatus.Complete;
-                workflow.CompleteTime = DateTime.UtcNow;
+                workflow.CompleteTime = _datetimeProvider.UtcNow;
                 return false;
         }
 
@@ -154,7 +134,7 @@ public class WorkflowExecutor : IWorkflowExecutor
 
         if (!pointer.StartTime.HasValue)
         {
-            pointer.StartTime = DateTime.UtcNow;
+            pointer.StartTime = _datetimeProvider.UtcNow;
         }
 
         return true;
@@ -162,9 +142,6 @@ public class WorkflowExecutor : IWorkflowExecutor
 
     private async Task ExecuteStep(WorkflowInstance workflow, WorkflowStep step, ExecutionPointer pointer, WorkflowExecutorResult wfResult, WorkflowDefinition def, CancellationToken cancellationToken)
     {
-        // 使用 ScopeProvider 创建独立的 DI 作用域
-        var scopedServiceProvider = _scopeProvider.CreateScope();
-
         var context = new StepExecutionContext
         {
             Workflow = workflow,
@@ -175,39 +152,53 @@ public class WorkflowExecutor : IWorkflowExecutor
             CancellationToken = cancellationToken
         };
 
-        _logger.LogDebug("Starting step {StepName} on workflow {WorkflowId}", step.Name, workflow.Id);
-
-        var body = step.ConstructBody(scopedServiceProvider);
-        if (body == null)
+        using (var scope = _scopeProvider.CreateScope(context))
         {
-            _logger.LogError("Unable to construct step body {BodyType}", step.BodyType.ToString());
-            pointer.SleepUntil = DateTime.UtcNow.Add(TimeSpan.FromMinutes(1));
-            wfResult.Errors.Add(new ExecutionError
+            _logger.LogDebug("Starting step {StepName} on workflow {WorkflowId}", step.Name, workflow.Id);
+
+            IStepBody body = step.ConstructBody(scope.ServiceProvider);
+            var stepExecutor = scope.ServiceProvider.GetRequiredService<IStepExecutor>();
+
+            if (body == null)
             {
-                WorkflowId = workflow.Id,
-                ExecutionPointerId = pointer.Id,
-                ErrorTime = DateTime.UtcNow,
-                Message = $"Unable to construct step body {step.BodyType}"
-            });
-            return;
-        }
-
-        switch (step.BeforeExecute(wfResult, context, pointer, body))
-        {
-            case ExecutionPipelineDirective.Defer:
+                _logger.LogError("Unable to construct step body {BodyType}", step.BodyType.ToString());
+                pointer.SleepUntil = _datetimeProvider.UtcNow.Add(_options.ErrorRetryInterval);
+                wfResult.Errors.Add(new ExecutionError
+                {
+                    WorkflowId = workflow.Id,
+                    ExecutionPointerId = pointer.Id,
+                    ErrorTime = _datetimeProvider.UtcNow,
+                    Message = $"Unable to construct step body {step.BodyType}"
+                });
                 return;
-            case ExecutionPipelineDirective.EndWorkflow:
-                workflow.Status = WorkflowStatus.Complete;
-                workflow.CompleteTime = DateTime.UtcNow;
-                return;
+            }
+
+            // 应用输入映射
+            foreach (var input in step.Inputs)
+                input.AssignInput(workflow.Data ?? new object(), body, context);
+
+            switch (step.BeforeExecute(wfResult, context, pointer, body))
+            {
+                case ExecutionPipelineDirective.Defer:
+                    return;
+                case ExecutionPipelineDirective.EndWorkflow:
+                    workflow.Status = WorkflowStatus.Complete;
+                    workflow.CompleteTime = _datetimeProvider.UtcNow;
+                    return;
+            }
+
+            var result = await stepExecutor.ExecuteStep(context, body);
+
+            // 应用输出映射
+            if (result.Proceed)
+            {
+                foreach (var output in step.Outputs)
+                    output.AssignOutput(workflow.Data ?? new object(), body, context);
+            }
+
+            _executionResultProcessor.ProcessExecutionResult(workflow, def, pointer, step, result, wfResult);
+            step.AfterExecute(wfResult, context, result, pointer);
         }
-
-        var executionResult = await _stepExecutor.ExecuteStep(context, body);
-
-        // 委托给 ExecutionResultProcessor 处理执行结果
-        await _executionResultProcessor.ProcessExecutionResult(workflow, def, pointer, step, executionResult, wfResult, cancellationToken);
-        
-        step.AfterExecute(wfResult, context, executionResult, pointer);
     }
 
     private void ProcessAfterExecutionIteration(WorkflowInstance workflow, WorkflowDefinition workflowDef, WorkflowExecutorResult workflowResult)
@@ -223,6 +214,7 @@ public class WorkflowExecutor : IWorkflowExecutor
 
     private void DetermineNextExecutionTime(WorkflowInstance workflow, WorkflowDefinition def)
     {
+        //TODO: move to own class
         workflow.NextExecution = null;
 
         if (workflow.Status == WorkflowStatus.Complete)
@@ -240,6 +232,47 @@ public class WorkflowExecutor : IWorkflowExecutor
 
             var pointerSleep = pointer.SleepUntil.Value.ToUniversalTime().Ticks;
             workflow.NextExecution = Math.Min(pointerSleep, workflow.NextExecution ?? pointerSleep);
+        }
+
+        foreach (var pointer in workflow.ExecutionPointers.Where(x => x.Active && x.Children.Count > 0))
+        {
+            if (!workflow.ExecutionPointers.FindByScope(pointer.Id).All(x => x.EndTime.HasValue))
+                continue;
+
+            if (!pointer.SleepUntil.HasValue)
+            {
+                workflow.NextExecution = 0;
+                return;
+            }
+
+            var pointerSleep = pointer.SleepUntil.Value.ToUniversalTime().Ticks;
+            workflow.NextExecution = Math.Min(pointerSleep, workflow.NextExecution ?? pointerSleep);
+        }
+
+        if ((workflow.NextExecution != null) || (workflow.ExecutionPointers.Any(x => x.EndTime == null)))
+        {
+            return;
+        }
+
+        workflow.Status = WorkflowStatus.Complete;
+        workflow.CompleteTime = _datetimeProvider.UtcNow;
+
+        foreach (var pointer in workflow.ExecutionPointers.Where(x => x.Status == PointerStatus.WaitingForEvent))
+        {
+            workflow.Status = WorkflowStatus.Runnable;
+            workflow.CompleteTime = null;
+        }
+
+        if (workflow.Status == WorkflowStatus.Complete)
+        {
+            _publisher.PublishNotification(new WorkflowCompleted
+            {
+                EventTimeUtc = _datetimeProvider.UtcNow,
+                Reference = workflow.Reference,
+                WorkflowInstanceId = workflow.Id,
+                WorkflowDefinitionId = workflow.WorkflowDefinitionId,
+                Version = workflow.Version
+            });
         }
     }
 }

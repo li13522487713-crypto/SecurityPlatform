@@ -51,29 +51,7 @@ public class WorkflowOptions
     public bool EnableLifeCycleEventsPublisher { get; set; } = true;
 
     /// <summary>
-    /// 是否启用搜索索引（默认false，兼容旧代码）
-    /// </summary>
-    [Obsolete("使用 EnableIndexes 替代")]
-    public bool EnableIndex { get; set; } = false;
-
-    /// <summary>
-    /// 是否启用分布式锁（默认true，兼容旧代码）
-    /// </summary>
-    [Obsolete("此选项已移除，分布式锁始终启用")]
-    public bool EnableDistributedLock { get; set; } = true;
-
-    /// <summary>
     /// 默认错误处理策略
     /// </summary>
     public WorkflowErrorHandling DefaultErrorBehavior { get; set; } = WorkflowErrorHandling.Retry;
-
-    /// <summary>
-    /// 默认重试间隔（兼容旧代码，使用 ErrorRetryInterval）
-    /// </summary>
-    [Obsolete("使用 ErrorRetryInterval 替代")]
-    public TimeSpan? DefaultErrorRetryInterval
-    {
-        get => ErrorRetryInterval;
-        set => ErrorRetryInterval = value ?? TimeSpan.FromSeconds(60);
-    }
 }

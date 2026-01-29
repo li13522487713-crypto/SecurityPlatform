@@ -1,3 +1,4 @@
+using System;
 using System.Linq.Expressions;
 using Atlas.WorkflowCore.Abstractions;
 
@@ -9,7 +10,7 @@ namespace Atlas.WorkflowCore.Models;
 /// <typeparam name="TData">工作流数据类型</typeparam>
 public class ExpressionOutcome<TData> : IStepOutcome
 {
-    private readonly Func<TData, object?, bool> _func;
+    private readonly Expression<Func<TData, object?, bool>> _expression;
 
     /// <summary>
     /// 下一步ID
@@ -28,22 +29,26 @@ public class ExpressionOutcome<TData> : IStepOutcome
 
     public ExpressionOutcome(Expression<Func<TData, object?, bool>> expression)
     {
-        _func = expression.Compile();
+        _expression = expression;
     }
 
-    public object? GetValue(object? data)
-    {
-        return null;
-    }
-
-    /// <summary>
-    /// 匹配结果值
-    /// </summary>
-    public bool Matches(object data, object? outcomeValue)
+    public bool Matches(ExecutionResult executionResult, object? data)
     {
         if (data is TData typedData)
         {
-            return _func(typedData, outcomeValue);
+            var func = _expression.Compile();
+            return func(typedData, executionResult.OutcomeValue);
+        }
+
+        return false;
+    }
+
+    public bool Matches(object? data)
+    {
+        if (data is TData typedData)
+        {
+            var func = _expression.Compile();
+            return func(typedData, null);
         }
 
         return false;

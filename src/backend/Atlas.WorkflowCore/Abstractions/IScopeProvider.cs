@@ -1,3 +1,5 @@
+using Microsoft.Extensions.DependencyInjection;
+
 namespace Atlas.WorkflowCore.Abstractions;
 
 /// <summary>
@@ -8,6 +10,7 @@ public interface IScopeProvider
     /// <summary>
     /// 创建服务作用域
     /// </summary>
-    /// <returns>服务提供者</returns>
-    IServiceProvider CreateScope();
+    /// <param name="context">步骤执行上下文</param>
+    /// <returns>服务作用域（实现IDisposable）</returns>
+    IServiceScope CreateScope(IStepExecutionContext context);
 }

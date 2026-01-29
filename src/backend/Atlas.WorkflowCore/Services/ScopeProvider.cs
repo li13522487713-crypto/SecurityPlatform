@@ -15,9 +15,8 @@ public class ScopeProvider : IScopeProvider
         _serviceProvider = serviceProvider;
     }
 
-    public IServiceProvider CreateScope()
+    public IServiceScope CreateScope(IStepExecutionContext context)
     {
-        var scope = _serviceProvider.CreateScope();
-        return scope.ServiceProvider;
+        return _serviceProvider.CreateScope();
     }
 }

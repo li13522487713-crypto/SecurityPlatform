@@ -1,3 +1,7 @@
+using System;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 using Atlas.WorkflowCore.Abstractions;
 using Atlas.WorkflowCore.Models.LifeCycleEvents;
 using Microsoft.Extensions.Logging;
@@ -5,9 +9,9 @@ using Microsoft.Extensions.Logging;
 namespace Atlas.WorkflowCore.Services;
 
 /// <summary>
-/// 生命周期事件中心实现
+/// 生命周期事件中心实现（同时作为发布器）
 /// </summary>
-public class LifeCycleEventHub : ILifeCycleEventHub
+public class LifeCycleEventHub : ILifeCycleEventHub, ILifeCycleEventPublisher
 {
     private readonly Dictionary<Type, List<Delegate>> _handlers = new();
     private readonly object _lock = new();
@@ -31,6 +35,25 @@ public class LifeCycleEventHub : ILifeCycleEventHub
 
         _isStarted = true;
         _logger.LogInformation("生命周期事件中心已启动");
+    }
+
+    /// <summary>
+    /// 启动后台任务（IBackgroundTask接口要求）
+    /// </summary>
+    public Task Start(CancellationToken cancellationToken)
+    {
+        Start();
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// 停止后台任务（IBackgroundTask接口要求）
+    /// </summary>
+    public Task Stop()
+    {
+        _isStarted = false;
+        _logger.LogInformation("生命周期事件中心已停止");
+        return Task.CompletedTask;
     }
 
     /// <summary>
@@ -66,11 +89,11 @@ public class LifeCycleEventHub : ILifeCycleEventHub
     }
 
     /// <summary>
-    /// 发布事件
+    /// 发布事件（同步）
     /// </summary>
-    public async Task PublishNotificationAsync(LifeCycleEvent evt, CancellationToken cancellationToken = default)
+    public void PublishNotification(LifeCycleEvent evt)
     {
-        if (evt == null)
+        if (evt == null || !_isStarted)
         {
             return;
         }
@@ -91,22 +114,15 @@ public class LifeCycleEventHub : ILifeCycleEventHub
         {
             try
             {
-                if (handler is Func<LifeCycleEvent, Task> asyncHandler)
-                {
-                    await asyncHandler(evt);
-                }
-                else if (handler is Action<LifeCycleEvent> syncHandler)
+                // 仅支持同步处理器，因为PublishNotification是同步的
+                if (handler is Action<LifeCycleEvent> syncHandler)
                 {
                     syncHandler(evt);
                 }
                 else
                 {
                     // 使用反射调用泛型处理器
-                    var task = handler.DynamicInvoke(evt);
-                    if (task is Task taskResult)
-                    {
-                        await taskResult;
-                    }
+                    handler.DynamicInvoke(evt);
                 }
             }
             catch (Exception ex)

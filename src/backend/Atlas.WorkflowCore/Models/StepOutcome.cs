@@ -1,37 +1,43 @@
+using System;
+using System.Linq.Expressions;
 using Atlas.WorkflowCore.Abstractions;
 
 namespace Atlas.WorkflowCore.Models;
 
+/// <summary>
+/// 值结果 - 基于静态值的步骤结果
+/// </summary>
 public class ValueOutcome : IStepOutcome
 {
+    private LambdaExpression? _value;
+
+    public LambdaExpression? Value
+    {
+        get { return _value; }
+        set { _value = value; }
+    }
+
     public int NextStep { get; set; }
-
-    public string? ExternalNextStepId { get; set; }
-
-    public object? Value { get; set; }
 
     public string? Label { get; set; }
 
-    public object? GetValue(object? data)
+    public string? ExternalNextStepId { get; set; }
+
+    public bool Matches(ExecutionResult executionResult, object? data)
     {
-        return Value;
+        return object.Equals(GetValue(data), executionResult.OutcomeValue) || GetValue(data) == null;
     }
 
-    /// <summary>
-    /// 匹配结果值
-    /// </summary>
-    public bool Matches(object? data, object? outcomeValue)
+    public bool Matches(object? data)
     {
-        if (Value == null && outcomeValue == null)
-        {
-            return true;
-        }
+        return GetValue(data) == null;
+    }
 
-        if (Value != null && outcomeValue != null)
-        {
-            return Value.Equals(outcomeValue);
-        }
+    public object? GetValue(object? data)
+    {
+        if (_value == null)
+            return null;
 
-        return false;
+        return _value.Compile().DynamicInvoke(data);
     }
 }

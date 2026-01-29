@@ -259,7 +259,6 @@ public class WorkflowBuilder<TData> : WorkflowBuilder, IWorkflowBuilder<TData>
 
     public IContainerStepBuilder<TData, When, OutcomeSwitch> When(Expression<Func<TData, object>> outcomeValue, string? label = null)
     {
-        // When方法需要返回IContainerStepBuilder，不能使用Obsolete的When方法
         // 直接在这里实现逻辑
         var inlineStep = new WorkflowStepInline();
         var builder = new StepBuilder<TData, InlineStepBody>(this, inlineStep);

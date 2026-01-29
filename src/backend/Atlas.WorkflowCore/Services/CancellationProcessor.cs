@@ -73,8 +73,7 @@ public class CancellationProcessor : ICancellationProcessor
                             ptr,
                             step,
                             ExecutionResult.Next(),
-                            executionResult,
-                            CancellationToken.None).Wait();
+                            executionResult);
                     }
 
                     // 标记指针为已取消

@@ -1,5 +1,8 @@
+using System;
+using System.Collections.Generic;
 using Atlas.WorkflowCore.Abstractions;
 using Atlas.WorkflowCore.Models;
+using Atlas.WorkflowCore.Models.LifeCycleEvents;
 using Microsoft.Extensions.Logging;
 
 namespace Atlas.WorkflowCore.Services.ErrorHandlers;
@@ -9,44 +12,44 @@ namespace Atlas.WorkflowCore.Services.ErrorHandlers;
 /// </summary>
 public class TerminateHandler : IWorkflowErrorHandler
 {
+    private readonly ILifeCycleEventPublisher _eventPublisher;
+    private readonly IDateTimeProvider _dateTimeProvider;
     private readonly ILogger<TerminateHandler> _logger;
-
-    public TerminateHandler(ILogger<TerminateHandler> logger)
-    {
-        _logger = logger;
-    }
 
     public WorkflowErrorHandling Type => WorkflowErrorHandling.Terminate;
 
-    public Task HandleAsync(
+    public TerminateHandler(
+        ILifeCycleEventPublisher eventPublisher,
+        IDateTimeProvider dateTimeProvider,
+        ILogger<TerminateHandler> logger)
+    {
+        _eventPublisher = eventPublisher;
+        _dateTimeProvider = dateTimeProvider;
+        _logger = logger;
+    }
+
+    public void Handle(
         WorkflowInstance workflow,
-        WorkflowDefinition definition,
+        WorkflowDefinition def,
         ExecutionPointer pointer,
         WorkflowStep step,
         Exception exception,
-        CancellationToken cancellationToken)
+        Queue<ExecutionPointer> bubbleUpQueue)
     {
-        pointer.Status = PointerStatus.Failed;
-        pointer.Active = false;
-        pointer.EndTime = DateTime.UtcNow;
-
         workflow.Status = WorkflowStatus.Terminated;
-        workflow.CompleteTime = DateTime.UtcNow;
+        workflow.CompleteTime = _dateTimeProvider.UtcNow;
 
-        // 停用所有执行指针
-        foreach (var ep in workflow.ExecutionPointers)
+        _eventPublisher.PublishNotification(new WorkflowTerminated
         {
-            if (ep.Active)
-            {
-                ep.Active = false;
-                ep.EndTime = DateTime.UtcNow;
-            }
-        }
+            EventTimeUtc = _dateTimeProvider.UtcNow,
+            Reference = workflow.Reference,
+            WorkflowInstanceId = workflow.Id,
+            WorkflowDefinitionId = workflow.WorkflowDefinitionId,
+            Version = workflow.Version
+        });
 
         _logger.LogError(exception,
             "步骤 {StepName} 执行失败，工作流已终止: {WorkflowId}",
             step.Name, workflow.Id);
-
-        return Task.CompletedTask;
     }
 }
