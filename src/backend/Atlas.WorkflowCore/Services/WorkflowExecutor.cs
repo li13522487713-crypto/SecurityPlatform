@@ -11,17 +11,29 @@ public class WorkflowExecutor : IWorkflowExecutor
     private readonly IWorkflowRegistry _registry;
     private readonly IServiceProvider _serviceProvider;
     private readonly IStepExecutor _stepExecutor;
+    private readonly ICancellationProcessor _cancellationProcessor;
+    private readonly IWorkflowMiddlewareRunner _middlewareRunner;
+    private readonly IScopeProvider _scopeProvider;
+    private readonly IExecutionResultProcessor _executionResultProcessor;
     private readonly ILogger<WorkflowExecutor> _logger;
 
     public WorkflowExecutor(
         IWorkflowRegistry registry,
         IServiceProvider serviceProvider,
         IStepExecutor stepExecutor,
+        ICancellationProcessor cancellationProcessor,
+        IWorkflowMiddlewareRunner middlewareRunner,
+        IScopeProvider scopeProvider,
+        IExecutionResultProcessor executionResultProcessor,
         ILogger<WorkflowExecutor> logger)
     {
         _registry = registry;
         _serviceProvider = serviceProvider;
         _stepExecutor = stepExecutor;
+        _cancellationProcessor = cancellationProcessor;
+        _middlewareRunner = middlewareRunner;
+        _scopeProvider = scopeProvider;
+        _executionResultProcessor = executionResultProcessor;
         _logger = logger;
     }
 
@@ -33,6 +45,16 @@ public class WorkflowExecutor : IWorkflowExecutor
         {
             _logger.LogError("Workflow {WorkflowDefinitionId} version {Version} is not registered", workflow.WorkflowDefinitionId, workflow.Version);
             return result;
+        }
+
+        // 运行 ExecuteWorkflow 中间件
+        try
+        {
+            await _middlewareRunner.RunExecuteMiddleware(workflow, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "ExecuteWorkflow 中间件执行失败");
         }
 
         var exePointers = workflow.ExecutionPointers
@@ -59,6 +81,21 @@ public class WorkflowExecutor : IWorkflowExecutor
                 continue;
             }
 
+            // 处理取消条件
+            try
+            {
+                var cancelled = await _cancellationProcessor.ProcessCancellation(workflow, def, pointer, step, cancellationToken);
+                if (cancelled)
+                {
+                    _logger.LogInformation("步骤 {StepName} 被取消", step.Name);
+                    continue;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "取消处理器执行失败");
+            }
+
             try
             {
                 if (!InitializeStep(workflow, step, result, def, pointer))
@@ -69,6 +106,10 @@ public class WorkflowExecutor : IWorkflowExecutor
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Workflow {WorkflowId} raised error on step {StepId} Message: {Message}", workflow.Id, pointer.StepId, ex.Message);
+                
+                // 使用 ExecutionResultProcessor 处理异常
+                await _executionResultProcessor.HandleStepException(workflow, def, pointer, step, ex);
+                
                 result.Errors.Add(new ExecutionError
                 {
                     WorkflowId = workflow.Id,
@@ -79,8 +120,35 @@ public class WorkflowExecutor : IWorkflowExecutor
             }
         }
 
+        // 执行后再次处理取消条件
+        foreach (var pointer in workflow.ExecutionPointers.Where(x => x.Active))
+        {
+            var step = def.Steps.FindById(pointer.StepId);
+            if (step != null)
+            {
+                try
+                {
+                    await _cancellationProcessor.ProcessCancellation(workflow, def, pointer, step, cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "取消处理器执行失败");
+                }
+            }
+        }
+
         ProcessAfterExecutionIteration(workflow, def, result);
         DetermineNextExecutionTime(workflow, def);
+
+        // 运行 PostWorkflow 中间件
+        try
+        {
+            await _middlewareRunner.RunPostMiddleware(workflow, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "PostWorkflow 中间件执行失败");
+        }
 
         return result;
     }
@@ -112,6 +180,9 @@ public class WorkflowExecutor : IWorkflowExecutor
 
     private async Task ExecuteStep(WorkflowInstance workflow, WorkflowStep step, ExecutionPointer pointer, WorkflowExecutorResult wfResult, WorkflowDefinition def, CancellationToken cancellationToken)
     {
+        // 使用 ScopeProvider 创建独立的 DI 作用域
+        var scopedServiceProvider = _scopeProvider.CreateScope();
+
         var context = new StepExecutionContext
         {
             Workflow = workflow,
@@ -124,7 +195,7 @@ public class WorkflowExecutor : IWorkflowExecutor
 
         _logger.LogDebug("Starting step {StepName} on workflow {WorkflowId}", step.Name, workflow.Id);
 
-        var body = step.ConstructBody(_serviceProvider);
+        var body = step.ConstructBody(scopedServiceProvider);
         if (body == null)
         {
             _logger.LogError("Unable to construct step body {BodyType}", step.BodyType.ToString());

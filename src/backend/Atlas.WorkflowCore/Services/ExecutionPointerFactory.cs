@@ -8,7 +8,7 @@ namespace Atlas.WorkflowCore.Services;
 /// </summary>
 public class ExecutionPointerFactory : IExecutionPointerFactory
 {
-    public ExecutionPointer CreateInitialPointer(WorkflowStep step)
+    public ExecutionPointer BuildGenesisPointer(WorkflowStep step)
     {
         return new ExecutionPointer
         {
@@ -31,7 +31,7 @@ public class ExecutionPointerFactory : IExecutionPointerFactory
         };
     }
 
-    public ExecutionPointer CreateNextPointer(WorkflowStep step, ExecutionPointer parentPointer)
+    public ExecutionPointer BuildNextPointer(WorkflowStep step, ExecutionPointer parentPointer)
     {
         return new ExecutionPointer
         {
@@ -55,7 +55,7 @@ public class ExecutionPointerFactory : IExecutionPointerFactory
         };
     }
 
-    public ExecutionPointer CreateChildPointer(WorkflowStep step, ExecutionPointer parentPointer, string scope)
+    public ExecutionPointer BuildChildPointer(WorkflowStep step, ExecutionPointer parentPointer, string scope)
     {
         var childScope = new List<string>(parentPointer.Scope) { scope };
 
@@ -85,7 +85,7 @@ public class ExecutionPointerFactory : IExecutionPointerFactory
         return pointer;
     }
 
-    public ExecutionPointer CreateCompensationPointer(WorkflowStep step, ExecutionPointer parentPointer)
+    public ExecutionPointer BuildCompensationPointer(WorkflowStep step, ExecutionPointer parentPointer)
     {
         return new ExecutionPointer
         {

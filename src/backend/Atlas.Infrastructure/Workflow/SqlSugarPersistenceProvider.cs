@@ -18,6 +18,19 @@ public class SqlSugarPersistenceProvider : IPersistenceProvider
         _tenantProvider = tenantProvider;
     }
 
+    public async Task EnsureStoreExists(CancellationToken cancellationToken = default)
+    {
+        // SqlSugar 的 CodeFirst 会自动创建表，这里确保表存在
+        _db.CodeFirst.InitTables(
+            typeof(PersistedWorkflow),
+            typeof(PersistedExecutionPointer),
+            typeof(PersistedEvent),
+            typeof(PersistedSubscription)
+        );
+
+        await Task.CompletedTask;
+    }
+
     public async Task<string> CreateWorkflowAsync(WorkflowInstance workflow, CancellationToken cancellationToken = default)
     {
         var tenantId = _tenantProvider.GetTenantId();

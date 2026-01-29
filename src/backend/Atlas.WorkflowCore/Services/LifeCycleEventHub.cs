@@ -12,10 +12,25 @@ public class LifeCycleEventHub : ILifeCycleEventHub
     private readonly Dictionary<Type, List<Delegate>> _handlers = new();
     private readonly object _lock = new();
     private readonly ILogger<LifeCycleEventHub> _logger;
+    private bool _isStarted;
 
     public LifeCycleEventHub(ILogger<LifeCycleEventHub> logger)
     {
         _logger = logger;
+    }
+
+    /// <summary>
+    /// 启动生命周期事件中心
+    /// </summary>
+    public void Start()
+    {
+        if (_isStarted)
+        {
+            return;
+        }
+
+        _isStarted = true;
+        _logger.LogInformation("生命周期事件中心已启动");
     }
 
     /// <summary>

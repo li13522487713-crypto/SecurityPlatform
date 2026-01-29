@@ -19,8 +19,8 @@ public static class ServiceCollectionExtensions
     {
         // 核心服务
         services.AddSingleton<IWorkflowRegistry, WorkflowRegistry>();
+        services.AddSingleton<IWorkflowController, WorkflowController>();
         services.AddSingleton<IWorkflowHost, WorkflowHost>();
-        services.AddSingleton<IWorkflowController>(sp => sp.GetRequiredService<IWorkflowHost>());
         services.AddScoped<IWorkflowExecutor, WorkflowExecutor>();
         services.AddScoped<IStepExecutor, StepExecutor>();
 

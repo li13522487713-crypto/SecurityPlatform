@@ -8,6 +8,11 @@ namespace Atlas.WorkflowCore.Abstractions;
 public interface ILifeCycleEventHub : ILifeCycleEventPublisher
 {
     /// <summary>
+    /// 启动生命周期事件中心
+    /// </summary>
+    void Start();
+
+    /// <summary>
     /// 订阅特定类型的生命周期事件
     /// </summary>
     /// <typeparam name="TEvent">事件类型</typeparam>
