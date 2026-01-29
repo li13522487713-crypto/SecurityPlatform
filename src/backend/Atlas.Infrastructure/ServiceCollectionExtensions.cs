@@ -5,6 +5,7 @@ using Atlas.Application.Assets.Repositories;
 using Atlas.Application.Audit.Abstractions;
 using Atlas.Application.Identity.Abstractions;
 using Atlas.Application.Identity.Repositories;
+using Atlas.Application.Workflow.Abstractions;
 using Atlas.Core.Abstractions;
 using Atlas.Core.Tenancy;
 using Atlas.Infrastructure.IdGen;
@@ -12,6 +13,8 @@ using Atlas.Infrastructure.Options;
 using Atlas.Infrastructure.Repositories;
 using Atlas.Infrastructure.Security;
 using Atlas.Infrastructure.Services;
+using Atlas.Infrastructure.Workflow;
+using Atlas.WorkflowCore.Abstractions.Persistence;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -167,6 +170,13 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ApprovalIndexInitializer>();
         services.AddHostedService<DatabaseInitializerHostedService>();
         services.AddHostedService<DatabaseBackupHostedService>();
+        
+        // Workflow Persistence
+        services.AddScoped<IPersistenceProvider, SqlSugarPersistenceProvider>();
+        
+        // Workflow Services
+        services.AddScoped<IWorkflowQueryService, WorkflowQueryService>();
+        services.AddScoped<IWorkflowCommandService, WorkflowCommandService>();
 
         services.AddScoped<ISqlSugarClient>(sp =>
         {

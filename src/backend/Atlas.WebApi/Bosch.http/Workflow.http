@@ -1,0 +1,91 @@
+@baseUrl = http://localhost:5000
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+
+### Login to get token (Execute this first)
+# @name login
+POST {{baseUrl}}/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+###
+@accessToken = {{login.response.body.$.data.accessToken}}
+
+### Get all workflow definitions
+GET {{baseUrl}}/workflows/definitions
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### Get specific workflow definition (latest version)
+GET {{baseUrl}}/workflows/definitions/my-workflow
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### Get specific workflow definition (specific version)
+GET {{baseUrl}}/workflows/definitions/my-workflow?version=1
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### Start a workflow instance
+# @name startWorkflow
+POST {{baseUrl}}/workflows/instances
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "workflowId": "my-workflow",
+  "version": 1,
+  "data": {
+    "message": "Hello from workflow!"
+  },
+  "reference": "test-ref-001"
+}
+
+###
+@instanceId = {{startWorkflow.response.body.$.data.instanceId}}
+
+### Get workflow instance details
+GET {{baseUrl}}/workflows/instances/{{instanceId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### Get workflow instances (paged)
+GET {{baseUrl}}/workflows/instances?pageIndex=1&pageSize=10
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### Suspend workflow instance
+POST {{baseUrl}}/workflows/instances/{{instanceId}}/suspend
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### Resume workflow instance
+POST {{baseUrl}}/workflows/instances/{{instanceId}}/resume
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### Terminate workflow instance
+POST {{baseUrl}}/workflows/instances/{{instanceId}}/terminate
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### Publish external event
+POST {{baseUrl}}/workflows/events
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "eventName": "MyEvent",
+  "eventKey": "event-key-001",
+  "eventData": {
+    "status": "approved"
+  }
+}

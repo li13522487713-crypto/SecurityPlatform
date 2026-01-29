@@ -25,7 +25,10 @@
     <ProjectReference Include="..\Atlas.Application.Approval\Atlas.Application.Approval.csproj" />
     <ProjectReference Include="..\Atlas.Application.Assets\Atlas.Application.Assets.csproj" />
     <ProjectReference Include="..\Atlas.Application.Audit\Atlas.Application.Audit.csproj" />
+    <ProjectReference Include="..\Atlas.Application.Workflow\Atlas.Application.Workflow.csproj" />
     <ProjectReference Include="..\Atlas.Domain\Atlas.Domain.csproj" />
+    <ProjectReference Include="..\Atlas.Domain.Workflow\Atlas.Domain.Workflow.csproj" />
+    <ProjectReference Include="..\Atlas.WorkflowCore\Atlas.WorkflowCore.csproj" />
     <ProjectReference Include="..\Atlas.Core\Atlas.Core.csproj" />
   </ItemGroup>
 

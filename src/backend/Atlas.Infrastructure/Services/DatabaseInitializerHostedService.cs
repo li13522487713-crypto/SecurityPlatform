@@ -9,6 +9,7 @@ using Atlas.Domain.Approval.Entities;
 using Atlas.Domain.Assets.Entities;
 using Atlas.Domain.Audit.Entities;
 using Atlas.Domain.Identity.Entities;
+using Atlas.Domain.Workflow.Entities;
 using Atlas.Infrastructure.Options;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -75,7 +76,12 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             typeof(ApprovalTaskAssigneeChange),
             typeof(ApprovalNodeExecution),
             typeof(ApprovalOperationRecord),
-            typeof(ApprovalFlowButtonConfig));
+            typeof(ApprovalFlowButtonConfig),
+            // Workflow entities
+            typeof(PersistedWorkflow),
+            typeof(PersistedExecutionPointer),
+            typeof(PersistedEvent),
+            typeof(PersistedSubscription));
 
         // 创建审批模块数据库索引
         var indexInitializer = scope.ServiceProvider.GetRequiredService<ApprovalIndexInitializer>();

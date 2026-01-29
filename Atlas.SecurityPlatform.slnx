@@ -11,8 +11,10 @@
     <Project Path="src/backend/Atlas.Domain.Approval/Atlas.Domain.Approval.csproj" />
     <Project Path="src/backend/Atlas.Domain.Assets/Atlas.Domain.Assets.csproj" />
     <Project Path="src/backend/Atlas.Domain.Audit/Atlas.Domain.Audit.csproj" />
+    <Project Path="src/backend/Atlas.Domain.Workflow/Atlas.Domain.Workflow.csproj" />
     <Project Path="src/backend/Atlas.Domain/Atlas.Domain.csproj" />
     <Project Path="src/backend/Atlas.Infrastructure/Atlas.Infrastructure.csproj" />
     <Project Path="src/backend/Atlas.WebApi/Atlas.WebApi.csproj" />
+    <Project Path="src/backend/Atlas.WorkflowCore/Atlas.WorkflowCore.csproj" />
   </Folder>
 </Solution>
