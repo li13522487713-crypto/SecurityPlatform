@@ -246,7 +246,7 @@ public class WorkflowExecutor : IWorkflowExecutor
                 return;
             }
 
-            var pointerSleep = pointer.SleepUntil.Value.ToUniversalTime().Ticks;
+            var pointerSleep = new DateTimeOffset(pointer.SleepUntil.Value.ToUniversalTime()).ToUnixTimeMilliseconds();
             workflow.NextExecution = Math.Min(pointerSleep, workflow.NextExecution ?? pointerSleep);
         }
 
@@ -261,7 +261,7 @@ public class WorkflowExecutor : IWorkflowExecutor
                 return;
             }
 
-            var pointerSleep = pointer.SleepUntil.Value.ToUniversalTime().Ticks;
+            var pointerSleep = new DateTimeOffset(pointer.SleepUntil.Value.ToUniversalTime()).ToUnixTimeMilliseconds();
             workflow.NextExecution = Math.Min(pointerSleep, workflow.NextExecution ?? pointerSleep);
         }
 
