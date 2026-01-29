@@ -1,0 +1,260 @@
+import { ref } from 'vue';
+import type { ApprovalFlowTree, TreeNode, ConditionNode, ConditionBranch, ApproveNode, CopyNode, StartNode } from '@/types/approval-tree';
+import { nanoid } from 'nanoid';
+import { ApprovalTreeValidator } from '@/utils/approval-tree-validator';
+import { useApprovalTreeHistory } from './useApprovalTreeHistory';
+
+export function useApprovalTree() {
+  const flowTree = ref<ApprovalFlowTree>({
+    flowName: '',
+    rootNode: {
+      id: nanoid(),
+      nodeType: 'start',
+      nodeName: '发起人',
+      childNode: {
+        id: nanoid(),
+        nodeType: 'end',
+        nodeName: '结束'
+      }
+    }
+  });
+  
+  const selectedNode = ref<TreeNode | ConditionBranch | null>(null);
+  const { pushState, undo, redo, canUndo, canRedo } = useApprovalTreeHistory();
+  
+  // 类型守卫：检查节点是否有 childNode
+  const hasChildNode = (node: TreeNode | ConditionBranch): node is StartNode | ApproveNode | CopyNode | ConditionNode | ConditionBranch => {
+    if (!('nodeType' in node)) {
+      // ConditionBranch 总是有 childNode
+      return true;
+    }
+    // TreeNode: 只有非 EndNode 有 childNode
+    return node.nodeType !== 'end';
+  };
+  
+  // 辅助：递归查找节点或分支
+  const findNodeOrBranch = (
+    current: TreeNode, 
+    targetId: string
+  ): { node?: TreeNode; parent?: TreeNode | ConditionBranch; branch?: ConditionBranch } | null => {
+    if (current.id === targetId) {
+        return { node: current };
+    }
+
+    // 检查 childNode
+    if ('childNode' in current && current.childNode) {
+        if (current.childNode.id === targetId) {
+            return { node: current.childNode, parent: current };
+        }
+        const found = findNodeOrBranch(current.childNode, targetId);
+        if (found) return found;
+    }
+
+    // 检查 conditionNodes
+    if (current.nodeType === 'condition') {
+        const conditionNode = current as ConditionNode;
+        for (const branch of conditionNode.conditionNodes) {
+            if (branch.id === targetId) {
+                return { branch, parent: conditionNode };
+            }
+            if (branch.childNode) {
+                if (branch.childNode.id === targetId) {
+                    return { node: branch.childNode, parent: branch };
+                }
+                const found = findNodeOrBranch(branch.childNode, targetId);
+                if (found) return found;
+            }
+        }
+    }
+
+    return null;
+  };
+
+  /**
+   * 在指定节点后添加新节点
+   * parentId: 可以是 TreeNode.id 或 ConditionBranch.id
+   */
+  const addNode = (parentId: string, newNodeType: string) => {
+    const result = findNodeOrBranch(flowTree.value.rootNode, parentId);
+    if (!result) {
+        console.warn('Parent node not found', parentId);
+        return;
+    }
+
+    const { node, branch } = result;
+    const target = node || branch; // target 是父节点（TreeNode 或 ConditionBranch）
+
+    if (!target) return;
+
+    // 创建新节点
+    const newNode = createNode(newNodeType);
+
+    // 插入逻辑：
+    // newNode.childNode = target.childNode
+    // target.childNode = newNode
+    
+    if (hasChildNode(target) && hasChildNode(newNode)) {
+        const targetWithChild = target as StartNode | ApproveNode | CopyNode | ConditionNode | ConditionBranch;
+        const newNodeWithChild = newNode as StartNode | ApproveNode | CopyNode | ConditionNode;
+        newNodeWithChild.childNode = targetWithChild.childNode;
+        targetWithChild.childNode = newNode;
+    }
+    
+    pushState(flowTree.value);
+  };
+  
+  /**
+   * 删除节点
+   */
+  const deleteNode = (nodeId: string) => {
+    const result = findNodeOrBranch(flowTree.value.rootNode, nodeId);
+    if (!result || !result.parent) {
+        console.warn('Node not found or is root', nodeId);
+        return;
+    }
+
+    const { node, parent } = result;
+    if (!node) return;
+
+    if (hasChildNode(parent)) {
+        if (hasChildNode(node)) {
+            parent.childNode = node.childNode;
+        } else {
+            parent.childNode = undefined;
+        }
+    }
+    
+    pushState(flowTree.value);
+  };
+  
+  /**
+   * 更新节点
+   */
+  const updateNode = (updatedNode: TreeNode | ConditionBranch) => {
+    const result = findNodeOrBranch(flowTree.value.rootNode, updatedNode.id);
+    if (!result) return;
+    
+    // 如果是节点
+    if (result.node) {
+        // 更新属性
+        Object.assign(result.node, updatedNode);
+    } 
+    // 如果是分支
+    else if (result.branch) {
+        Object.assign(result.branch, updatedNode);
+    }
+    
+    pushState(flowTree.value);
+  };
+
+  /**
+   * 添加条件分支
+   */
+  const addConditionBranch = (conditionNodeId: string) => {
+    const result = findNodeOrBranch(flowTree.value.rootNode, conditionNodeId);
+    if (!result || !result.node || result.node.nodeType !== 'condition') return;
+    
+    const conditionNode = result.node as ConditionNode;
+    
+    conditionNode.conditionNodes.push({
+      id: nanoid(),
+      branchName: `条件${conditionNode.conditionNodes.length + 1}`,
+      conditionRule: undefined,
+      childNode: undefined 
+    });
+    
+    pushState(flowTree.value);
+  };
+
+  /**
+   * 删除条件分支
+   */
+  const deleteConditionBranch = (branchId: string) => {
+      const result = findNodeOrBranch(flowTree.value.rootNode, branchId);
+      if (!result || !result.branch || !result.parent) return;
+
+      const conditionNode = result.parent as ConditionNode;
+      const index = conditionNode.conditionNodes.findIndex(b => b.id === branchId);
+      if (index > -1) {
+          conditionNode.conditionNodes.splice(index, 1);
+      }
+      
+      pushState(flowTree.value);
+  };
+  
+  /**
+   * 校验流程完整性
+   */
+  const validateFlow = (): { valid: boolean; errors: string[] } => {
+    return ApprovalTreeValidator.checkCompleteness(flowTree.value.rootNode);
+  };
+  
+  const createNode = (nodeType: string): TreeNode => {
+    const base = {
+        id: nanoid(),
+        nodeName: '',
+    };
+
+    switch (nodeType) {
+        case 'approve':
+            return {
+                ...base,
+                nodeType: 'approve',
+                nodeName: '审批人',
+                assigneeType: 0,
+                assigneeValue: '',
+                approvalMode: 'all'
+            } as ApproveNode;
+        case 'copy':
+            return {
+                ...base,
+                nodeType: 'copy',
+                nodeName: '抄送人',
+                copyToUsers: []
+            } as CopyNode;
+        case 'condition':
+            return {
+                ...base,
+                nodeType: 'condition',
+                nodeName: '条件分支',
+                conditionNodes: [
+                    { id: nanoid(), branchName: '条件1', childNode: undefined },
+                    { id: nanoid(), branchName: '条件2', childNode: undefined }
+                ]
+            } as ConditionNode;
+        default:
+            throw new Error(`Unknown node type: ${nodeType}`);
+    }
+  };
+  
+  const selectNode = (target: TreeNode | ConditionBranch | null) => {
+      selectedNode.value = target;
+  };
+  
+  const handleUndo = () => {
+      const prev = undo();
+      if (prev) flowTree.value = prev;
+  };
+
+  const handleRedo = () => {
+      const next = redo();
+      if (next) flowTree.value = next;
+  };
+
+  return {
+    flowTree,
+    selectedNode,
+    addNode,
+    deleteNode,
+    updateNode,
+    addConditionBranch,
+    deleteConditionBranch,
+    selectNode,
+    validateFlow,
+    undo: handleUndo,
+    redo: handleRedo,
+    canUndo,
+    canRedo,
+    pushState
+  };
+}
