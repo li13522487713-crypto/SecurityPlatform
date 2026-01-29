@@ -1,0 +1,117 @@
+@baseUrl = http://localhost:5000/api
+@token =
+@tenantId =
+
+### 发起流程实例
+POST {{baseUrl}}/approval/runtime/start
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "definitionId": 1,
+  "businessKey": "leave-request-001",
+  "dataJson": "{\"leaveType\":\"sick\",\"startDate\":\"2026-02-01\",\"endDate\":\"2026-02-03\",\"reason\":\"感冒\"}"
+}
+
+### 获取我发起的流程实例
+GET {{baseUrl}}/approval/runtime/my-instances?pageIndex=1&pageSize=10&status=Running
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### 获取流程实例详情
+GET {{baseUrl}}/approval/runtime/instances/{instanceId}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### 获取流程实例历史事件
+GET {{baseUrl}}/approval/runtime/instances/{instanceId}/history?pageIndex=1&pageSize=20
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### 取消流程实例
+POST {{baseUrl}}/approval/runtime/instances/{instanceId}/cancel
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{}
+
+### 预览流程实例
+GET {{baseUrl}}/approval/runtime/instances/{instanceId}/preview
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### 打印流程实例
+GET {{baseUrl}}/approval/runtime/instances/{instanceId}/print
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### 撤回流程
+POST {{baseUrl}}/approval/runtime/instances/{instanceId}/operations?taskId={taskId}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "operationType": 29,
+  "comment": "撤回流程"
+}
+
+### 转办任务
+POST {{baseUrl}}/approval/runtime/instances/{instanceId}/operations?taskId={taskId}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "operationType": 21,
+  "targetAssigneeValue": "200",
+  "comment": "转办给其他处理人"
+}
+
+### 加签
+POST {{baseUrl}}/approval/runtime/instances/{instanceId}/operations?taskId={taskId}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "operationType": 25,
+  "additionalAssigneeValues": ["300", "301"],
+  "comment": "加签审批人"
+}
+
+### 打回修改
+POST {{baseUrl}}/approval/runtime/instances/{instanceId}/operations?taskId={taskId}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "operationType": 18,
+  "comment": "打回修改，请补充材料"
+}
+
+### 退回任意节点
+POST {{baseUrl}}/approval/runtime/instances/{instanceId}/operations?taskId={taskId}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "operationType": 23,
+  "targetNodeId": "approve1",
+  "comment": "退回至第一个审批节点"
+}
+
+### 撤销同意
+POST {{baseUrl}}/approval/runtime/instances/{instanceId}/operations?taskId={taskId}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "operationType": 32,
+  "comment": "撤销之前的同意"
+}

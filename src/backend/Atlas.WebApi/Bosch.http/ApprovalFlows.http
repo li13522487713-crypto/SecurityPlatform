@@ -1,0 +1,56 @@
+@baseUrl = http://localhost:5000/api
+@token =
+@tenantId =
+
+### 创建流程定义
+POST {{baseUrl}}/approval/flows
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "name": "请假审批流程",
+  "definitionJson": "{\"nodes\":[{\"id\":\"start\",\"type\":\"start\",\"data\":{\"label\":\"开始\"}},{\"id\":\"approve1\",\"type\":\"approve\",\"data\":{\"label\":\"部门主管审批\",\"assigneeType\":\"DepartmentLeader\",\"assigneeValue\":\"1\"}},{\"id\":\"approve2\",\"type\":\"approve\",\"data\":{\"label\":\"人力审批\",\"assigneeType\":\"Role\",\"assigneeValue\":\"HR\"}},{\"id\":\"end\",\"type\":\"end\",\"data\":{\"label\":\"结束\"}}],\"edges\":[{\"id\":\"e1\",\"source\":\"start\",\"target\":\"approve1\"},{\"id\":\"e2\",\"source\":\"approve1\",\"target\":\"approve2\"},{\"id\":\"e3\",\"source\":\"approve2\",\"target\":\"end\"}]}"
+}
+
+### 获取流程定义列表
+GET {{baseUrl}}/approval/flows?pageIndex=1&pageSize=10&status=Draft
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### 获取流程定义详情
+GET {{baseUrl}}/approval/flows/{flowId}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### 更新流程定义
+PUT {{baseUrl}}/approval/flows/{flowId}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "name": "请假审批流程v2",
+  "definitionJson": "{\"nodes\":[{\"id\":\"start\",\"type\":\"start\",\"data\":{\"label\":\"开始\"}},{\"id\":\"approve1\",\"type\":\"approve\",\"data\":{\"label\":\"部门主管审批\",\"assigneeType\":\"DepartmentLeader\",\"assigneeValue\":\"1\"}},{\"id\":\"end\",\"type\":\"end\",\"data\":{\"label\":\"结束\"}}],\"edges\":[{\"id\":\"e1\",\"source\":\"start\",\"target\":\"approve1\"},{\"id\":\"e2\",\"source\":\"approve1\",\"target\":\"end\"}]}"
+}
+
+### 发布流程定义
+POST {{baseUrl}}/approval/flows/{flowId}/publish
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{}
+
+### 禁用流程定义
+POST {{baseUrl}}/approval/flows/{flowId}/disable
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{}
+
+### 删除流程定义
+DELETE {{baseUrl}}/approval/flows/{flowId}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
