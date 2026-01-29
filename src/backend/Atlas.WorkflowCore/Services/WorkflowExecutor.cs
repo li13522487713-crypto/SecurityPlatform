@@ -17,6 +17,8 @@ public class WorkflowExecutor : IWorkflowExecutor
     private readonly IExecutionResultProcessor _executionResultProcessor;
     private readonly ILogger<WorkflowExecutor> _logger;
 
+    private IWorkflowHost? Host => _serviceProvider.GetService(typeof(IWorkflowHost)) as IWorkflowHost;
+
     public WorkflowExecutor(
         IWorkflowRegistry registry,
         IServiceProvider serviceProvider,
@@ -57,6 +59,9 @@ public class WorkflowExecutor : IWorkflowExecutor
             _logger.LogError(ex, "ExecuteWorkflow 中间件执行失败");
         }
 
+        // 处理所有取消条件（在开始执行前）
+        _cancellationProcessor.ProcessCancellations(workflow, def, result);
+
         var exePointers = workflow.ExecutionPointers
             .Where(x => x.Active && (!x.SleepUntil.HasValue || x.SleepUntil < DateTime.UtcNow))
             .ToList();
@@ -81,20 +86,8 @@ public class WorkflowExecutor : IWorkflowExecutor
                 continue;
             }
 
-            // 处理取消条件
-            try
-            {
-                var cancelled = await _cancellationProcessor.ProcessCancellation(workflow, def, pointer, step, cancellationToken);
-                if (cancelled)
-                {
-                    _logger.LogInformation("步骤 {StepName} 被取消", step.Name);
-                    continue;
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "取消处理器执行失败");
-            }
+            // 添加步骤追踪信息
+            WorkflowActivityTracing.Enrich(step);
 
             try
             {
@@ -110,6 +103,9 @@ public class WorkflowExecutor : IWorkflowExecutor
                 // 使用 ExecutionResultProcessor 处理异常
                 await _executionResultProcessor.HandleStepException(workflow, def, pointer, step, ex);
                 
+                // 报告步骤错误
+                Host?.ReportStepError(workflow, step, ex);
+                
                 result.Errors.Add(new ExecutionError
                 {
                     WorkflowId = workflow.Id,
@@ -118,23 +114,9 @@ public class WorkflowExecutor : IWorkflowExecutor
                     Message = ex.Message
                 });
             }
-        }
 
-        // 执行后再次处理取消条件
-        foreach (var pointer in workflow.ExecutionPointers.Where(x => x.Active))
-        {
-            var step = def.Steps.FindById(pointer.StepId);
-            if (step != null)
-            {
-                try
-                {
-                    await _cancellationProcessor.ProcessCancellation(workflow, def, pointer, step, cancellationToken);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "取消处理器执行失败");
-                }
-            }
+            // 在每个指针执行后再次处理取消条件
+            _cancellationProcessor.ProcessCancellations(workflow, def, result);
         }
 
         ProcessAfterExecutionIteration(workflow, def, result);

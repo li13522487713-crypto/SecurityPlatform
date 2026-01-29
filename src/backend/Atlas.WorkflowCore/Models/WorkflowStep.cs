@@ -30,6 +30,8 @@ public abstract class WorkflowStep
 
     public virtual bool RevertChildrenAfterCompensation => false;
 
+    public virtual System.Linq.Expressions.LambdaExpression? CancelCondition { get; set; }
+
     public virtual bool ProceedOnCancel { get; set; } = false;
 
     public virtual ExecutionPipelineDirective InitForExecution(WorkflowExecutorResult executorResult, WorkflowDefinition definition, WorkflowInstance workflow, ExecutionPointer executionPointer)

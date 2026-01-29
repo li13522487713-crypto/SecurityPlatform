@@ -71,7 +71,26 @@ public class Activity : StepBody
         }
 
         // 活动已完成，获取结果
-        Result = context.ExecutionPointer.EventData;
+        if (context.ExecutionPointer.EventData is ActivityResult activityResult)
+        {
+            // 检查活动结果状态
+            if (activityResult.Status == ActivityResultStatus.Success)
+            {
+                Result = activityResult.Data;
+            }
+            else
+            {
+                // 活动失败，抛出异常
+                var errorMessage = activityResult.Data?.ToString() ?? "Activity failed";
+                throw new Exceptions.ActivityFailedException(errorMessage);
+            }
+        }
+        else
+        {
+            // 兼容模式：直接使用 EventData
+            Result = context.ExecutionPointer.EventData;
+        }
+
         Token = context.ExecutionPointer.PersistenceData?.ToString();
         
         return ExecutionResult.Next();

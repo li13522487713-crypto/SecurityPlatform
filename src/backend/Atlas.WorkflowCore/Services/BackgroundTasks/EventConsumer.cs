@@ -44,6 +44,9 @@ public class EventConsumer : QueueConsumer
 
             Logger.LogDebug("处理事件 {EventId}: {EventName} - {EventKey}", itemId, evt.EventName, evt.EventKey);
 
+            // 添加事件追踪信息
+            WorkflowActivityTracing.Enrich(evt);
+
             // 2. 获取事件订阅
             var subscriptions = await _persistenceProvider.GetEventSubscriptionsAsync(
                 evt.EventName,

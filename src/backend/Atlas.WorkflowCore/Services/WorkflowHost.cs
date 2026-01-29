@@ -2,6 +2,7 @@ using Atlas.WorkflowCore.Abstractions;
 using Atlas.WorkflowCore.Abstractions.Persistence;
 using Atlas.WorkflowCore.Models;
 using Atlas.WorkflowCore.Models.LifeCycleEvents;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace Atlas.WorkflowCore.Services;
@@ -29,6 +30,7 @@ public class WorkflowHost : IWorkflowHost
     private readonly IQueueProvider _queueProvider;
     private readonly IDistributedLockProvider _lockProvider;
     private readonly IEnumerable<IBackgroundTask> _backgroundTasks;
+    private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<WorkflowHost> _logger;
     private bool _isRunning;
 
@@ -51,6 +53,7 @@ public class WorkflowHost : IWorkflowHost
         IQueueProvider queueProvider,
         IDistributedLockProvider lockProvider,
         IEnumerable<IBackgroundTask> backgroundTasks,
+        IServiceProvider serviceProvider,
         ILogger<WorkflowHost> logger)
     {
         _registry = registry;
@@ -61,6 +64,7 @@ public class WorkflowHost : IWorkflowHost
         _queueProvider = queueProvider;
         _lockProvider = lockProvider;
         _backgroundTasks = backgroundTasks;
+        _serviceProvider = serviceProvider;
         _logger = logger;
     }
 
@@ -73,6 +77,9 @@ public class WorkflowHost : IWorkflowHost
         }
 
         _logger.LogInformation("工作流主机启动中...");
+
+        // 启动主机追踪活动
+        using var activity = WorkflowActivityTracing.StartHost();
 
         // 1. 确保持久化存储初始化
         await _persistenceProvider.EnsureStoreExists(cancellationToken);
@@ -134,16 +141,18 @@ public class WorkflowHost : IWorkflowHost
         _logger.LogInformation("工作流主机停止完成");
     }
 
-    public void RegisterWorkflow<TWorkflow>() where TWorkflow : IWorkflow, new()
+    public void RegisterWorkflow<TWorkflow>() where TWorkflow : IWorkflow
     {
-        var workflow = new TWorkflow();
+        // 使用 ActivatorUtilities 支持 DI 注入
+        var workflow = ActivatorUtilities.CreateInstance<TWorkflow>(_serviceProvider);
         _registry.RegisterWorkflow(workflow);
         _logger.LogInformation("已注册工作流: {WorkflowId} v{Version}", workflow.Id, workflow.Version);
     }
 
-    public void RegisterWorkflow<TWorkflow, TData>() where TWorkflow : IWorkflow<TData>, new() where TData : class, new()
+    public void RegisterWorkflow<TWorkflow, TData>() where TWorkflow : IWorkflow<TData> where TData : class, new()
     {
-        var workflow = new TWorkflow();
+        // 使用 ActivatorUtilities 支持 DI 注入
+        var workflow = ActivatorUtilities.CreateInstance<TWorkflow>(_serviceProvider);
         _registry.RegisterWorkflow(workflow);
         _logger.LogInformation("已注册工作流: {WorkflowId} v{Version}", workflow.Id, workflow.Version);
     }

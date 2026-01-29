@@ -31,6 +31,10 @@ public class SqlSugarPersistenceProvider : IPersistenceProvider
         await Task.CompletedTask;
     }
 
+    // IWorkflowRepository 实现
+    public Task<string> CreateNewWorkflow(WorkflowInstance workflow, CancellationToken cancellationToken = default)
+        => CreateWorkflowAsync(workflow, cancellationToken);
+
     public async Task<string> CreateWorkflowAsync(WorkflowInstance workflow, CancellationToken cancellationToken = default)
     {
         var tenantId = _tenantProvider.GetTenantId();
@@ -73,6 +77,44 @@ public class SqlSugarPersistenceProvider : IPersistenceProvider
         entity.UpdateStatus(pointer.Status);
         return entity;
     }
+
+    public Task<WorkflowInstance> GetWorkflowInstance(string id, CancellationToken cancellationToken = default)
+    {
+        return GetWorkflowAsync(id, cancellationToken).ContinueWith(t => t.Result ?? throw new InvalidOperationException($"Workflow {id} not found"));
+    }
+
+    public async Task<IEnumerable<WorkflowInstance>> GetWorkflowInstances(IEnumerable<string> ids, CancellationToken cancellationToken = default)
+    {
+        var workflows = new List<WorkflowInstance>();
+        foreach (var id in ids)
+        {
+            var workflow = await GetWorkflowAsync(id, cancellationToken);
+            if (workflow != null)
+            {
+                workflows.Add(workflow);
+            }
+        }
+        return workflows;
+    }
+
+    public async Task<IEnumerable<string>> GetRunnableInstances(DateTime asAt, CancellationToken cancellationToken = default)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var entities = await _db.Queryable<PersistedWorkflow>()
+            .Where(x => x.TenantIdValue == tenantId.Value 
+                && x.Status == WorkflowStatus.Runnable
+                && (x.NextExecution == null || x.NextExecution <= asAt.Ticks))
+            .Select(x => x.Id.ToString())
+            .ToListAsync(cancellationToken);
+
+        return entities;
+    }
+
+    public Task PersistWorkflow(WorkflowInstance workflow, CancellationToken cancellationToken = default)
+        => PersistWorkflowAsync(workflow, cancellationToken);
+
+    public Task PersistWorkflow(WorkflowInstance workflow, List<EventSubscription> subscriptions, CancellationToken cancellationToken = default)
+        => PersistWorkflowAsync(workflow, subscriptions, cancellationToken);
 
     public async Task<WorkflowInstance?> GetWorkflowAsync(string workflowId, CancellationToken cancellationToken = default)
     {
@@ -237,6 +279,29 @@ public class SqlSugarPersistenceProvider : IPersistenceProvider
         }
     }
 
+    // IEventRepository 实现
+    public Task<string> CreateEvent(Event newEvent, CancellationToken cancellationToken = default)
+        => CreateEventAsync(newEvent, cancellationToken);
+
+    public Task<Event> GetEvent(string id, CancellationToken cancellationToken = default)
+    {
+        return GetEventAsync(id, cancellationToken).ContinueWith(t => t.Result ?? throw new InvalidOperationException($"Event {id} not found"));
+    }
+
+    public Task<IEnumerable<string>> GetRunnableEvents(DateTime asAt, CancellationToken cancellationToken = default)
+        => GetRunnableEventsAsync(asAt, cancellationToken);
+
+    public Task<IEnumerable<string>> GetEvents(string eventName, string eventKey, DateTime asOf, CancellationToken cancellationToken = default)
+    {
+        return GetEventsAsync(eventName, eventKey, asOf, cancellationToken).ContinueWith(t => t.Result.Select(e => e.Id));
+    }
+
+    public Task MarkEventProcessed(string id, CancellationToken cancellationToken = default)
+        => MarkEventProcessedAsync(id, cancellationToken);
+
+    public Task MarkEventUnprocessed(string id, CancellationToken cancellationToken = default)
+        => MarkEventUnprocessedAsync(id, cancellationToken);
+
     public async Task<string> CreateEventAsync(Event evt, CancellationToken cancellationToken = default)
     {
         var tenantId = _tenantProvider.GetTenantId();
@@ -328,6 +393,40 @@ public class SqlSugarPersistenceProvider : IPersistenceProvider
             EventTime = e.EventTime.DateTime,
             IsProcessed = e.IsProcessed
         });
+    }
+
+    // ISubscriptionRepository 实现
+    public Task<string> CreateEventSubscription(EventSubscription subscription, CancellationToken cancellationToken = default)
+        => CreateEventSubscriptionAsync(subscription, cancellationToken);
+
+    public Task<IEnumerable<EventSubscription>> GetSubscriptions(string eventName, string eventKey, DateTime asOf, CancellationToken cancellationToken = default)
+        => GetEventSubscriptionsAsync(eventName, eventKey, asOf, cancellationToken);
+
+    public Task TerminateSubscription(string eventSubscriptionId, CancellationToken cancellationToken = default)
+        => TerminateEventSubscriptionAsync(eventSubscriptionId, cancellationToken);
+
+    public Task<EventSubscription> GetSubscription(string eventSubscriptionId, CancellationToken cancellationToken = default)
+    {
+        return GetEventSubscriptionAsync(eventSubscriptionId, cancellationToken).ContinueWith(t => t.Result ?? throw new InvalidOperationException($"Subscription {eventSubscriptionId} not found"));
+    }
+
+    public async Task<EventSubscription> GetFirstOpenSubscription(string eventName, string eventKey, DateTime asOf, CancellationToken cancellationToken = default)
+    {
+        var subscriptions = await GetEventSubscriptionsAsync(eventName, eventKey, asOf, cancellationToken);
+        return subscriptions.FirstOrDefault() ?? throw new InvalidOperationException($"No open subscription found for {eventName}#{eventKey}");
+    }
+
+    public Task<bool> SetSubscriptionToken(string eventSubscriptionId, string token, string workerId, DateTime expiry, CancellationToken cancellationToken = default)
+    {
+        // TODO: 实现订阅令牌管理
+        // 需要在 PersistedSubscription 实体中添加 Token、WorkerId、Expiry 字段
+        return Task.FromResult(false);
+    }
+
+    public Task ClearSubscriptionToken(string eventSubscriptionId, string token, CancellationToken cancellationToken = default)
+    {
+        // TODO: 实现订阅令牌清除
+        return Task.CompletedTask;
     }
 
     public async Task<string> CreateEventSubscriptionAsync(EventSubscription subscription, CancellationToken cancellationToken = default)

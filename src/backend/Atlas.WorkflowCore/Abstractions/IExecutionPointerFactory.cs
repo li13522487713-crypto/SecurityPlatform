@@ -34,8 +34,10 @@ public interface IExecutionPointerFactory
     /// <summary>
     /// 构建补偿执行指针
     /// </summary>
-    /// <param name="step">步骤定义</param>
+    /// <param name="definition">工作流定义</param>
     /// <param name="parentPointer">父执行指针</param>
+    /// <param name="exceptionPointer">异常执行指针</param>
+    /// <param name="compensationStepId">补偿步骤ID</param>
     /// <returns>执行指针</returns>
-    ExecutionPointer BuildCompensationPointer(WorkflowStep step, ExecutionPointer parentPointer);
+    ExecutionPointer BuildCompensationPointer(WorkflowDefinition definition, ExecutionPointer parentPointer, ExecutionPointer exceptionPointer, int compensationStepId);
 }

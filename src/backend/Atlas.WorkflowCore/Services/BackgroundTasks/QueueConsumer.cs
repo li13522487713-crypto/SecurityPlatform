@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Atlas.WorkflowCore.Abstractions;
 using Atlas.WorkflowCore.Models;
 using Microsoft.Extensions.Logging;
@@ -58,6 +59,8 @@ public abstract class QueueConsumer : IBackgroundTask
 
     private async Task Run(CancellationToken cancellationToken)
     {
+        using var activity = WorkflowActivityTracing.StartConsume(Queue);
+        
         while (!cancellationToken.IsCancellationRequested)
         {
             try
@@ -71,6 +74,7 @@ public abstract class QueueConsumer : IBackgroundTask
                     continue;
                 }
 
+                activity?.EnrichWithDequeuedItem(itemId);
                 await ProcessItem(itemId, cancellationToken);
             }
             catch (OperationCanceledException)
@@ -80,6 +84,7 @@ public abstract class QueueConsumer : IBackgroundTask
             catch (Exception ex)
             {
                 Logger.LogError(ex, "{ConsumerName} 处理工作项时发生错误", GetType().Name);
+                activity?.SetStatus(ActivityStatusCode.Error);
                 await Task.Delay(1000, cancellationToken);
             }
         }

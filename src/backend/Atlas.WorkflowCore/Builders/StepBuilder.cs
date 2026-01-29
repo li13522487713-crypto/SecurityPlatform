@@ -371,7 +371,7 @@ public class StepBuilder<TData> : IStepBuilder<TData>
 
     public IContainerStepBuilder<TData, IStepBuilder<TData>> Saga()
     {
-        var newStep = new WorkflowStep<SagaContainer>();
+        var newStep = new SagaContainerStep();
         (WorkflowBuilder as WorkflowBuilder<TData>)!.AddStep(newStep);
 
         newStep.Name = "Saga";

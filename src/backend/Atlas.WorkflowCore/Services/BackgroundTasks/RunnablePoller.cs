@@ -95,6 +95,8 @@ public class RunnablePoller : IBackgroundTask
     {
         const string lockId = "poll-runnable-workflows";
 
+        using var activity = WorkflowActivityTracing.StartPoll("workflows");
+
         var lockAcquired = await _lockProvider.AcquireLock(lockId, cancellationToken);
 
         if (!lockAcquired)
@@ -129,6 +131,8 @@ public class RunnablePoller : IBackgroundTask
     private async Task PollRunnableEvents(CancellationToken cancellationToken)
     {
         const string lockId = "poll-runnable-events";
+
+        using var activity = WorkflowActivityTracing.StartPoll("events");
 
         var lockAcquired = await _lockProvider.AcquireLock(lockId, cancellationToken);
 

@@ -85,13 +85,19 @@ public class ExecutionPointerFactory : IExecutionPointerFactory
         return pointer;
     }
 
-    public ExecutionPointer BuildCompensationPointer(WorkflowStep step, ExecutionPointer parentPointer)
+    public ExecutionPointer BuildCompensationPointer(WorkflowDefinition definition, ExecutionPointer parentPointer, ExecutionPointer exceptionPointer, int compensationStepId)
     {
+        var compensationStep = definition.Steps.FindById(compensationStepId);
+        if (compensationStep == null)
+        {
+            throw new InvalidOperationException($"Compensation step {compensationStepId} not found in workflow definition");
+        }
+
         return new ExecutionPointer
         {
             Id = Guid.NewGuid().ToString(),
-            StepId = step.Id,
-            StepName = step.Name,
+            StepId = compensationStep.Id,
+            StepName = compensationStep.Name,
             Active = true,
             Status = PointerStatus.Pending,
             StartTime = null,
@@ -105,7 +111,8 @@ public class ExecutionPointerFactory : IExecutionPointerFactory
             RetryCount = 0,
             Children = new List<string>(),
             Scope = new List<string>(parentPointer.Scope),
-            PredecessorId = parentPointer.Id
+            PredecessorId = exceptionPointer.Id, // 指向异常指针，而非父指针
+            ContextItem = parentPointer.ContextItem
         };
     }
 }

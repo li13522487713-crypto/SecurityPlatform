@@ -14,17 +14,20 @@ public class ExecutionResultProcessor : IExecutionResultProcessor
     private readonly IExecutionPointerFactory _pointerFactory;
     private readonly ILifeCycleEventPublisher _eventPublisher;
     private readonly IEnumerable<IWorkflowErrorHandler> _errorHandlers;
+    private readonly IWorkflowController _workflowController;
     private readonly ILogger<ExecutionResultProcessor> _logger;
 
     public ExecutionResultProcessor(
         IExecutionPointerFactory pointerFactory,
         ILifeCycleEventPublisher eventPublisher,
         IEnumerable<IWorkflowErrorHandler> errorHandlers,
+        IWorkflowController workflowController,
         ILogger<ExecutionResultProcessor> logger)
     {
         _pointerFactory = pointerFactory;
         _eventPublisher = eventPublisher;
         _errorHandlers = errorHandlers;
+        _workflowController = workflowController;
         _logger = logger;
     }
 
@@ -85,6 +88,27 @@ public class ExecutionResultProcessor : IExecutionResultProcessor
         if (result.PersistenceData != null)
         {
             pointer.PersistenceData = result.PersistenceData;
+            
+            // 【子工作流特殊处理】检测是否需要启动子工作流
+            if (await ShouldStartChildWorkflowAsync(pointer, step, cancellationToken))
+            {
+                var childInstanceId = await StartChildWorkflowAsync(
+                    workflow, pointer, step, cancellationToken);
+                
+                // 更新 PersistenceData 包含子工作流实例ID
+                if (pointer.PersistenceData is Dictionary<string, object> dict)
+                {
+                    dict["ChildWorkflowInstanceId"] = childInstanceId;
+                }
+                
+                // 重新激活指针，让步骤再次执行（进入等待事件状态）
+                pointer.Status = PointerStatus.Pending;
+                pointer.Active = true;
+                
+                _logger.LogInformation("子工作流 {ChildInstanceId} 已启动，父工作流 {ParentId} 将等待其完成",
+                    childInstanceId, workflow.Id);
+                return;
+            }
         }
 
         // 4. 处理分支值
@@ -243,7 +267,7 @@ public class ExecutionResultProcessor : IExecutionResultProcessor
         }
 
         // 判断是否需要触发补偿
-        if (ShouldCompensate(workflow, pointer))
+        if (ShouldCompensate(workflow, definition, pointer))
         {
             _logger.LogInformation("步骤执行失败，触发补偿逻辑");
             await TriggerCompensation(workflow, definition, pointer);
@@ -253,26 +277,28 @@ public class ExecutionResultProcessor : IExecutionResultProcessor
     /// <summary>
     /// 判断是否需要补偿
     /// </summary>
-    private bool ShouldCompensate(WorkflowInstance workflow, ExecutionPointer pointer)
+    private bool ShouldCompensate(WorkflowInstance workflow, WorkflowDefinition definition, ExecutionPointer pointer)
     {
-        // 检查指针所在的作用域是否有补偿步骤
-        // 遍历指针的父级链，查找是否有配置了补偿处理的步骤
-        var currentPointer = pointer;
-        while (!string.IsNullOrEmpty(currentPointer.PredecessorId))
+        // 遍历作用域栈，检查是否有步骤配置了补偿处理
+        var scope = new Stack<string>(pointer.Scope.Reverse());
+        scope.Push(pointer.Id);
+
+        while (scope.Count > 0)
         {
-            var predecessor = workflow.ExecutionPointers
-                .FirstOrDefault(p => p.Id == currentPointer.PredecessorId);
+            var pointerId = scope.Pop();
+            var scopePointer = workflow.ExecutionPointers.FindById(pointerId);
+            if (scopePointer == null)
+                continue;
 
-            if (predecessor == null)
-                break;
+            var scopeStep = definition.Steps.FindById(scopePointer.StepId);
+            if (scopeStep == null)
+                continue;
 
-            // 如果前置步骤有补偿步骤配置，则需要补偿
-            if (predecessor.Scope != null && predecessor.Scope.Count > 0)
+            // 检查是否有补偿步骤配置或需要回滚同级步骤
+            if (scopeStep.CompensationStepId.HasValue || scopeStep.RevertChildrenAfterCompensation)
             {
                 return true;
             }
-
-            currentPointer = predecessor;
         }
 
         return false;
@@ -280,34 +306,16 @@ public class ExecutionResultProcessor : IExecutionResultProcessor
 
     /// <summary>
     /// 触发补偿逻辑
+    /// 注意：此方法已被 CompensateHandler 替代，保留用于向后兼容
     /// </summary>
     private Task TriggerCompensation(
         WorkflowInstance workflow,
         WorkflowDefinition definition,
         ExecutionPointer failedPointer)
     {
-        // 查找需要补偿的已完成步骤
-        var completedPointers = workflow.ExecutionPointers
-            .Where(p => p.Status == PointerStatus.Complete && p.EndTime < failedPointer.EndTime)
-            .OrderByDescending(p => p.EndTime)
-            .ToList();
-
-        foreach (var completedPointer in completedPointers)
-        {
-            var step = definition.Steps.FindById(completedPointer.StepId);
-            if (step?.CompensationStepId != null)
-            {
-                // 创建补偿步骤的执行指针
-                var compensationStep = definition.Steps.FindById(step.CompensationStepId.Value);
-                if (compensationStep != null)
-                {
-                    var compensationPointer = _pointerFactory.BuildCompensationPointer(compensationStep, completedPointer);
-                    workflow.ExecutionPointers.Add(compensationPointer);
-                    _logger.LogInformation("创建补偿步骤执行指针: {StepName}", compensationStep.Name);
-                }
-            }
-        }
-
+        // 补偿逻辑现在由 CompensateHandler 处理
+        // 此方法保留用于向后兼容，但实际补偿逻辑在错误处理器中执行
+        _logger.LogDebug("触发补偿逻辑（由 CompensateHandler 处理）");
         return Task.CompletedTask;
     }
 
@@ -352,5 +360,102 @@ public class ExecutionResultProcessor : IExecutionResultProcessor
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// 检测是否需要启动子工作流
+    /// </summary>
+    /// <remarks>
+    /// 判断逻辑：
+    /// 1. 步骤类型必须是 SubWorkflowStepBody
+    /// 2. PersistenceData 必须包含子工作流信息（ChildWorkflowId）
+    /// 3. PersistenceData 不能已经包含子工作流实例ID（ChildWorkflowInstanceId）
+    /// </remarks>
+    private Task<bool> ShouldStartChildWorkflowAsync(
+        ExecutionPointer pointer,
+        WorkflowStep step,
+        CancellationToken cancellationToken)
+    {
+        // 检查步骤类型是否是子工作流
+        if (step.BodyType != typeof(Primitives.SubWorkflowStepBody))
+        {
+            return Task.FromResult(false);
+        }
+
+        // 检查 PersistenceData 格式和内容
+        if (pointer.PersistenceData is Dictionary<string, object> dict)
+        {
+            var hasChildWorkflowId = dict.ContainsKey("ChildWorkflowId");
+            var hasChildInstanceId = dict.ContainsKey("ChildWorkflowInstanceId");
+            
+            // 有子工作流ID但没有实例ID，说明需要启动
+            return Task.FromResult(hasChildWorkflowId && !hasChildInstanceId);
+        }
+
+        return Task.FromResult(false);
+    }
+
+    /// <summary>
+    /// 启动子工作流
+    /// </summary>
+    /// <returns>子工作流实例ID</returns>
+    private async Task<string> StartChildWorkflowAsync(
+        WorkflowInstance parentWorkflow,
+        ExecutionPointer pointer,
+        WorkflowStep step,
+        CancellationToken cancellationToken)
+    {
+        if (pointer.PersistenceData is not Dictionary<string, object> dict)
+        {
+            throw new InvalidOperationException("PersistenceData 格式不正确");
+        }
+
+        // 提取子工作流参数
+        var childWorkflowId = dict["ChildWorkflowId"]?.ToString()
+            ?? throw new InvalidOperationException("ChildWorkflowId 不能为空");
+
+        var childVersion = dict.TryGetValue("ChildWorkflowVersion", out var ver)
+            ? Convert.ToInt32(ver)
+            : (int?)null;
+
+        // 解析子工作流数据
+        object? childData = null;
+        if (dict.TryGetValue("ChildWorkflowData", out var data) && data != null)
+        {
+            var dataStr = data.ToString();
+            if (!string.IsNullOrEmpty(dataStr) && dataStr != "null")
+            {
+                try
+                {
+                    childData = JsonSerializer.Deserialize<object>(dataStr);
+                }
+                catch (JsonException ex)
+                {
+                    _logger.LogWarning(ex, "无法反序列化子工作流数据，将使用原始数据");
+                    childData = data;
+                }
+            }
+        }
+
+        // 构建子工作流引用（标识父子关系）
+        var reference = $"{parentWorkflow.Id}:{pointer.Id}";
+
+        _logger.LogInformation(
+            "父工作流 {ParentId} 步骤 {StepName} 启动子工作流 {ChildId} (版本: {Version})",
+            parentWorkflow.Id, step.Name, childWorkflowId, childVersion ?? -1);
+
+        // 启动子工作流
+        var childInstanceId = await _workflowController.StartWorkflowAsync(
+            childWorkflowId,
+            childVersion,
+            childData,
+            reference,
+            cancellationToken);
+
+        _logger.LogInformation(
+            "子工作流实例 {ChildInstanceId} 已创建（父工作流: {ParentId}, 父步骤: {StepName}）",
+            childInstanceId, parentWorkflow.Id, step.Name);
+
+        return childInstanceId;
     }
 }

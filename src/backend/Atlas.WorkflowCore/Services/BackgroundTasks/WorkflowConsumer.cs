@@ -15,6 +15,8 @@ public class WorkflowConsumer : QueueConsumer
     private readonly IWorkflowExecutor _executor;
     private readonly IDistributedLockProvider _lockProvider;
     private readonly ILifeCycleEventPublisher _eventPublisher;
+    private readonly IGreyList _greyList;
+    private readonly IDateTimeProvider _dateTimeProvider;
     private readonly WorkflowOptions _options;
 
     public WorkflowConsumer(
@@ -23,6 +25,8 @@ public class WorkflowConsumer : QueueConsumer
         IWorkflowExecutor executor,
         IDistributedLockProvider lockProvider,
         ILifeCycleEventPublisher eventPublisher,
+        IGreyList greyList,
+        IDateTimeProvider dateTimeProvider,
         IOptions<WorkflowOptions> options,
         ILogger<WorkflowConsumer> logger)
         : base(queueProvider, logger)
@@ -31,6 +35,8 @@ public class WorkflowConsumer : QueueConsumer
         _executor = executor;
         _lockProvider = lockProvider;
         _eventPublisher = eventPublisher;
+        _greyList = greyList;
+        _dateTimeProvider = dateTimeProvider;
         _options = options.Value;
     }
 
@@ -64,7 +70,7 @@ public class WorkflowConsumer : QueueConsumer
             }
 
             // 3. 添加追踪信息
-            WorkflowTracing.Enrich(workflow);
+            WorkflowActivityTracing.Enrich(workflow, "process");
 
             if (workflow.Status != WorkflowStatus.Runnable)
             {
@@ -83,7 +89,7 @@ public class WorkflowConsumer : QueueConsumer
                 // 5. 添加执行结果追踪信息
                 if (result != null)
                 {
-                    WorkflowTracing.Enrich(result);
+                    WorkflowActivityTracing.Enrich(result);
                 }
 
                 // 6. 持久化工作流状态和订阅
@@ -100,13 +106,17 @@ public class WorkflowConsumer : QueueConsumer
         }
         finally
         {
-            // 8. 释放锁
+            // 8. 从灰名单移除（无论工作流状态如何，防止工作流卡在灰名单中）
+            Logger.LogDebug("从灰名单移除工作流 {WorkflowId}", itemId);
+            _greyList.Remove($"wf:{itemId}");
+
+            // 9. 释放锁
             if (lockAcquired)
             {
                 await _lockProvider.ReleaseLock(itemId);
             }
 
-            // 9. 处理后续逻辑
+            // 10. 处理后续逻辑
             if (workflow != null && result != null)
             {
                 // 处理事件订阅
@@ -124,7 +134,7 @@ public class WorkflowConsumer : QueueConsumer
                 // 处理延迟执行
                 if (workflow.Status == WorkflowStatus.Runnable && workflow.NextExecution.HasValue)
                 {
-                    var readAheadTicks = DateTimeOffset.UtcNow.Add(_options.PollInterval).Ticks;
+                    var readAheadTicks = _dateTimeProvider.UtcNow.Add(_options.PollInterval).Ticks;
                     
                     if (workflow.NextExecution.Value < readAheadTicks)
                     {
@@ -140,7 +150,7 @@ public class WorkflowConsumer : QueueConsumer
                             {
                                 CommandName = ScheduledCommand.ProcessWorkflow,
                                 Data = workflow.Id,
-                                ExecuteTime = new DateTime(workflow.NextExecution.Value)
+                                ExecuteTime = DateTimeOffset.FromUnixTimeMilliseconds(workflow.NextExecution.Value).DateTime
                             }, cancellationToken);
                         }
                     }
@@ -157,21 +167,21 @@ public class WorkflowConsumer : QueueConsumer
         try
         {
             // 跳过活动类型的事件（活动由 ActivityController 处理）
-            if (subscription.EventName == "Activity")
+            if (subscription.EventName == Event.EventTypeActivity)
             {
                 return;
             }
 
-            // 查找匹配的事件
-            var events = await _persistenceProvider.GetEventsAsync(
+            // 查找匹配的事件（使用接口方法返回ID列表）
+            var eventIds = await _persistenceProvider.GetEvents(
                 subscription.EventName,
                 subscription.EventKey,
                 subscription.SubscribeAsOf,
                 cancellationToken);
 
-            foreach (var evt in events)
+            foreach (var eventId in eventIds)
             {
-                var eventKey = $"evt:{evt.Id}";
+                var eventKey = $"evt:{eventId}";
                 bool acquiredLock = false;
 
                 try
@@ -189,13 +199,16 @@ public class WorkflowConsumer : QueueConsumer
 
                     if (!acquiredLock)
                     {
-                        Logger.LogWarning("无法获取事件 {EventId} 的锁", evt.Id);
+                        Logger.LogWarning("无法获取事件 {EventId} 的锁", eventId);
                         continue;
                     }
 
+                    // 从灰名单移除
+                    _greyList.Remove(eventKey);
+
                     // 标记事件为未处理并重新入队
-                    await _persistenceProvider.MarkEventUnprocessedAsync(evt.Id, cancellationToken);
-                    await QueueProvider.QueueWork(evt.Id, QueueType.Event);
+                    await _persistenceProvider.MarkEventUnprocessed(eventId, cancellationToken);
+                    await QueueProvider.QueueWork(eventId, QueueType.Event);
                 }
                 finally
                 {
@@ -226,7 +239,7 @@ public class WorkflowConsumer : QueueConsumer
             }
 
             // 计算延迟时间
-            var target = workflow.NextExecution.Value - DateTimeOffset.UtcNow.Ticks;
+            var target = workflow.NextExecution.Value - _dateTimeProvider.UtcNow.Ticks;
             
             if (target > 0)
             {
@@ -242,4 +255,5 @@ public class WorkflowConsumer : QueueConsumer
             Logger.LogError(ex, "延迟队列处理失败: {WorkflowId}", workflow.Id);
         }
     }
+
 }
