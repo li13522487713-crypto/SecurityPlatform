@@ -70,4 +70,11 @@ public sealed class RoleRepository : IRoleRepository
     {
         return _db.Updateable(role).ExecuteCommandAsync(cancellationToken);
     }
+
+    public Task DeleteAsync(TenantId tenantId, long id, CancellationToken cancellationToken)
+    {
+        return _db.Deleteable<Role>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.Id == id)
+            .ExecuteCommandAsync(cancellationToken);
+    }
 }

@@ -32,6 +32,13 @@ public sealed class UserDepartmentRepository : IUserDepartmentRepository
             .ExecuteCommandAsync(cancellationToken);
     }
 
+    public Task DeleteByDepartmentIdAsync(TenantId tenantId, long departmentId, CancellationToken cancellationToken)
+    {
+        return _db.Deleteable<UserDepartment>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.DepartmentId == departmentId)
+            .ExecuteCommandAsync(cancellationToken);
+    }
+
     public Task AddRangeAsync(IReadOnlyList<UserDepartment> userDepartments, CancellationToken cancellationToken)
     {
         if (userDepartments.Count == 0)

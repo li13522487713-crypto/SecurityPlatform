@@ -18,4 +18,6 @@ public interface IDepartmentRepository
         CancellationToken cancellationToken);
     Task AddAsync(Department department, CancellationToken cancellationToken);
     Task UpdateAsync(Department department, CancellationToken cancellationToken);
+    Task DeleteAsync(TenantId tenantId, long id, CancellationToken cancellationToken);
+    Task<bool> ExistsByParentIdAsync(TenantId tenantId, long parentId, CancellationToken cancellationToken);
 }

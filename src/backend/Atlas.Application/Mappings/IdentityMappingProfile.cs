@@ -23,6 +23,9 @@ public sealed class IdentityMappingProfile : Profile
         CreateMap<Department, DepartmentListItem>()
             .ForCtorParam("Id", opt => opt.MapFrom(src => src.Id.ToString()));
 
+        CreateMap<Position, PositionListItem>()
+            .ForCtorParam("Id", opt => opt.MapFrom(src => src.Id.ToString()));
+
         CreateMap<Menu, MenuListItem>()
             .ForCtorParam("Id", opt => opt.MapFrom(src => src.Id.ToString()));
     }

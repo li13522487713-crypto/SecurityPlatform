@@ -15,12 +15,15 @@ public static class PermissionPolicies
     public const string UsersView = "Permission:users:view";
     public const string UsersCreate = "Permission:users:create";
     public const string UsersUpdate = "Permission:users:update";
+    public const string UsersDelete = "Permission:users:delete";
     public const string UsersAssignRoles = "Permission:users:assign-roles";
     public const string UsersAssignDepartments = "Permission:users:assign-departments";
+    public const string UsersAssignPositions = "Permission:users:assign-positions";
 
     public const string RolesView = "Permission:roles:view";
     public const string RolesCreate = "Permission:roles:create";
     public const string RolesUpdate = "Permission:roles:update";
+    public const string RolesDelete = "Permission:roles:delete";
     public const string RolesAssignPermissions = "Permission:roles:assign-permissions";
     public const string RolesAssignMenus = "Permission:roles:assign-menus";
 
@@ -32,6 +35,12 @@ public static class PermissionPolicies
     public const string DepartmentsAll = "Permission:departments:all";
     public const string DepartmentsCreate = "Permission:departments:create";
     public const string DepartmentsUpdate = "Permission:departments:update";
+    public const string DepartmentsDelete = "Permission:departments:delete";
+
+    public const string PositionsView = "Permission:positions:view";
+    public const string PositionsCreate = "Permission:positions:create";
+    public const string PositionsUpdate = "Permission:positions:update";
+    public const string PositionsDelete = "Permission:positions:delete";
 
     public const string MenusView = "Permission:menus:view";
     public const string MenusAll = "Permission:menus:all";

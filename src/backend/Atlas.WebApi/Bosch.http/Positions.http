@@ -17,41 +17,49 @@ X-Tenant-Id: {{tenantId}}
 ###
 @accessToken = {{login.response.body.$.data.accessToken}}
 
-### Get Departments (Paged)
-GET {{baseUrl}}/departments?pageIndex=1&pageSize=10
+### Get Positions (Paged)
+GET {{baseUrl}}/positions?pageIndex=1&pageSize=10
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
-### Get Departments (All)
-GET {{baseUrl}}/departments/all
+### Get Positions (All)
+GET {{baseUrl}}/positions/all
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
-### Create Department
-POST {{baseUrl}}/departments
+### Get Position Detail
+GET {{baseUrl}}/positions/1
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### Create Position
+POST {{baseUrl}}/positions
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 {
-  "name": "Head Office",
-  "parentId": null,
+  "name": "工程师",
+  "code": "Engineer",
+  "description": "技术岗位",
+  "isActive": true,
   "sortOrder": 0
 }
 
-### Update Department
-PUT {{baseUrl}}/departments/1
+### Update Position
+PUT {{baseUrl}}/positions/1
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 {
-  "name": "Head Office",
-  "parentId": null,
-  "sortOrder": 0
+  "name": "高级工程师",
+  "description": "技术岗位",
+  "isActive": true,
+  "sortOrder": 1
 }
 
-### Delete Department
-DELETE {{baseUrl}}/departments/1
+### Delete Position
+DELETE {{baseUrl}}/positions/1
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}

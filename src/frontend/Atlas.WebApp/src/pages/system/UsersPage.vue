@@ -8,7 +8,7 @@
           allow-clear
           @press-enter="fetchData"
         />
-        <a-button type="primary" @click="openCreate">新增员工</a-button>
+        <a-button v-if="canCreate" type="primary" @click="openCreate">新增员工</a-button>
       </a-space>
     </div>
 
@@ -28,9 +28,19 @@
         </template>
         <template v-else-if="column.key === 'actions'">
           <a-space>
-            <a-button type="link" @click="openEdit(record.id)">编辑</a-button>
-            <a-button type="link" @click="openRoles(record.id)">角色</a-button>
-            <a-button type="link" @click="openDepartments(record.id)">部门</a-button>
+            <a-button v-if="canUpdate" type="link" @click="openEdit(record.id)">编辑</a-button>
+            <a-button v-if="canAssignRoles" type="link" @click="openRoles(record.id)">角色</a-button>
+            <a-button v-if="canAssignDepartments" type="link" @click="openDepartments(record.id)">部门</a-button>
+            <a-button v-if="canAssignPositions" type="link" @click="openPositions(record.id)">职位</a-button>
+            <a-popconfirm
+              v-if="canDelete"
+              title="确认删除该员工？"
+              ok-text="删除"
+              cancel-text="取消"
+              @confirm="handleDelete(record.id)"
+            >
+              <a-button type="link" danger>删除</a-button>
+            </a-popconfirm>
           </a-space>
         </template>
       </template>
@@ -62,7 +72,7 @@
         <a-form-item label="状态" name="isActive">
           <a-switch v-model:checked="formModel.isActive" />
         </a-form-item>
-        <a-form-item v-if="formMode === 'create'" label="角色" name="roleIds">
+        <a-form-item v-if="formMode === 'create' && canAssignRoles" label="角色" name="roleIds">
           <a-select
             v-model:value="formModel.roleIds"
             mode="multiple"
@@ -70,12 +80,20 @@
             :options="roleOptions"
           />
         </a-form-item>
-        <a-form-item v-if="formMode === 'create'" label="部门" name="departmentIds">
+        <a-form-item v-if="formMode === 'create' && canAssignDepartments" label="部门" name="departmentIds">
           <a-select
             v-model:value="formModel.departmentIds"
             mode="multiple"
             placeholder="选择部门"
             :options="departmentOptions"
+          />
+        </a-form-item>
+        <a-form-item v-if="formMode === 'create' && canAssignPositions" label="职位" name="positionIds">
+          <a-select
+            v-model:value="formModel.positionIds"
+            mode="multiple"
+            placeholder="选择职位"
+            :options="positionOptions"
           />
         </a-form-item>
       </a-form>
@@ -96,6 +114,14 @@
         </a-form-item>
       </a-form>
     </a-modal>
+
+    <a-modal v-model:open="positionsVisible" title="设置职位" @ok="submitPositions" @cancel="closePositions" destroy-on-close>
+      <a-form layout="vertical">
+        <a-form-item label="职位">
+          <a-select v-model:value="positionsModel.positionIds" mode="multiple" :options="positionOptions" />
+        </a-form-item>
+      </a-form>
+    </a-modal>
   </a-card>
 </template>
 
@@ -105,12 +131,15 @@ import type { TablePaginationConfig, FormInstance, Rule } from "ant-design-vue";
 import { message } from "ant-design-vue";
 import {
   createUser,
+  deleteUser,
   getDepartmentsAll,
+  getPositionsAll,
   getRolesPaged,
   getUserDetail,
   getUsersPaged,
   updateUser,
   updateUserDepartments,
+  updateUserPositions,
   updateUserRoles
 } from "@/services/api";
 import type {
@@ -119,8 +148,10 @@ import type {
   UserDetail,
   UserListItem,
   UserCreateRequest,
-  UserUpdateRequest
+  UserUpdateRequest,
+  PositionListItem
 } from "@/types/api";
+import { getAuthProfile, hasPermission } from "@/utils/auth";
 
 type FormMode = "create" | "edit";
 
@@ -160,7 +191,8 @@ const formModel = reactive<UserCreateRequest & UserUpdateRequest>({
   phoneNumber: "",
   isActive: true,
   roleIds: [],
-  departmentIds: []
+  departmentIds: [],
+  positionIds: []
 });
 
 const formRules: Record<string, Rule[]> = {
@@ -171,12 +203,22 @@ const formRules: Record<string, Rule[]> = {
 
 const rolesVisible = ref(false);
 const departmentsVisible = ref(false);
+const positionsVisible = ref(false);
 const selectedUserId = ref<string | null>(null);
 const rolesModel = reactive({ roleIds: [] as number[] });
 const departmentsModel = reactive({ departmentIds: [] as number[] });
+const positionsModel = reactive({ positionIds: [] as number[] });
 
 const roleOptions = ref<SelectOption[]>([]);
 const departmentOptions = ref<SelectOption[]>([]);
+const positionOptions = ref<SelectOption[]>([]);
+const profile = getAuthProfile();
+const canCreate = hasPermission(profile, "users:create");
+const canUpdate = hasPermission(profile, "users:update");
+const canDelete = hasPermission(profile, "users:delete");
+const canAssignRoles = hasPermission(profile, "users:assign-roles");
+const canAssignDepartments = hasPermission(profile, "users:assign-departments");
+const canAssignPositions = hasPermission(profile, "users:assign-positions");
 
 const fetchData = async () => {
   loading.value = true;
@@ -197,9 +239,10 @@ const fetchData = async () => {
 
 const fetchSelectOptions = async () => {
   try {
-    const [rolesResult, departmentsResult] = await Promise.all([
+    const [rolesResult, departmentsResult, positionsResult] = await Promise.all([
       getRolesPaged({ pageIndex: 1, pageSize: 200 }),
-      getDepartmentsAll()
+      getDepartmentsAll(),
+      getPositionsAll()
     ]);
     roleOptions.value = rolesResult.items.map((role: RoleListItem) => ({
       label: `${role.name} (${role.code})`,
@@ -208,6 +251,10 @@ const fetchSelectOptions = async () => {
     departmentOptions.value = departmentsResult.map((dept: DepartmentListItem) => ({
       label: dept.name,
       value: Number(dept.id)
+    }));
+    positionOptions.value = positionsResult.map((position: PositionListItem) => ({
+      label: `${position.name} (${position.code})`,
+      value: Number(position.id)
     }));
   } catch (error) {
     message.error((error as Error).message || "加载选项失败");
@@ -229,6 +276,7 @@ const resetForm = () => {
   formModel.isActive = true;
   formModel.roleIds = [];
   formModel.departmentIds = [];
+  formModel.positionIds = [];
 };
 
 const openCreate = () => {
@@ -271,7 +319,8 @@ const submitForm = async () => {
         phoneNumber: formModel.phoneNumber || undefined,
         isActive: formModel.isActive,
         roleIds: formModel.roleIds,
-        departmentIds: formModel.departmentIds
+        departmentIds: formModel.departmentIds,
+        positionIds: formModel.positionIds
       });
       message.success("创建成功");
     } else if (selectedUserId.value) {
@@ -339,6 +388,42 @@ const submitDepartments = async () => {
     departmentsVisible.value = false;
   } catch (error) {
     message.error((error as Error).message || "更新部门失败");
+  }
+};
+
+const openPositions = async (id: string) => {
+  try {
+    const detail = await getUserDetail(id);
+    selectedUserId.value = detail.id;
+    positionsModel.positionIds = detail.positionIds.slice();
+    positionsVisible.value = true;
+  } catch (error) {
+    message.error((error as Error).message || "加载职位失败");
+  }
+};
+
+const closePositions = () => {
+  positionsVisible.value = false;
+};
+
+const submitPositions = async () => {
+  if (!selectedUserId.value) return;
+  try {
+    await updateUserPositions(selectedUserId.value, { positionIds: positionsModel.positionIds });
+    message.success("职位已更新");
+    positionsVisible.value = false;
+  } catch (error) {
+    message.error((error as Error).message || "更新职位失败");
+  }
+};
+
+const handleDelete = async (id: string) => {
+  try {
+    await deleteUser(id);
+    message.success("删除成功");
+    fetchData();
+  } catch (error) {
+    message.error((error as Error).message || "删除失败");
   }
 };
 

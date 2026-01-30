@@ -19,7 +19,8 @@ public sealed record UserDetail(
     bool IsSystem,
     DateTimeOffset? LastLoginAt,
     IReadOnlyList<long> RoleIds,
-    IReadOnlyList<long> DepartmentIds);
+    IReadOnlyList<long> DepartmentIds,
+    IReadOnlyList<long> PositionIds);
 
 public sealed record UserCreateRequest(
     string Username,
@@ -29,7 +30,8 @@ public sealed record UserCreateRequest(
     string? PhoneNumber,
     bool IsActive,
     IReadOnlyList<long> RoleIds,
-    IReadOnlyList<long> DepartmentIds);
+    IReadOnlyList<long> DepartmentIds,
+    IReadOnlyList<long> PositionIds);
 
 public sealed record UserUpdateRequest(
     string DisplayName,
@@ -40,3 +42,5 @@ public sealed record UserUpdateRequest(
 public sealed record UserAssignRolesRequest(IReadOnlyList<long> RoleIds);
 
 public sealed record UserAssignDepartmentsRequest(IReadOnlyList<long> DepartmentIds);
+
+public sealed record UserAssignPositionsRequest(IReadOnlyList<long> PositionIds);

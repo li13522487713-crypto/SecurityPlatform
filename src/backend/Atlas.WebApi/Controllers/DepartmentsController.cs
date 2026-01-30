@@ -83,4 +83,15 @@ public sealed class DepartmentsController : ControllerBase
         await _departmentCommandService.UpdateAsync(tenantId, id, request, cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
     }
+
+    [HttpDelete("{id:long}")]
+    [Authorize(Policy = PermissionPolicies.DepartmentsDelete)]
+    public async Task<ActionResult<ApiResponse<object>>> Delete(
+        long id,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        await _departmentCommandService.DeleteAsync(tenantId, id, cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
+    }
 }

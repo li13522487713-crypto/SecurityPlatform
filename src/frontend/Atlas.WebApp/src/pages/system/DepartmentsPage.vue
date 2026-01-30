@@ -8,7 +8,7 @@
           allow-clear
           @press-enter="fetchData"
         />
-        <a-button type="primary" @click="openCreate">新增部门</a-button>
+        <a-button v-if="canCreate" type="primary" @click="openCreate">新增部门</a-button>
       </a-space>
     </div>
 
@@ -23,7 +23,16 @@
       <template #bodyCell="{ column, record }">
         <template v-if="column.key === 'actions'">
           <a-space>
-            <a-button type="link" @click="openEdit(record)">编辑</a-button>
+            <a-button v-if="canUpdate" type="link" @click="openEdit(record)">编辑</a-button>
+            <a-popconfirm
+              v-if="canDelete"
+              title="确认删除该部门？"
+              ok-text="删除"
+              cancel-text="取消"
+              @confirm="handleDelete(record.id)"
+            >
+              <a-button type="link" danger>删除</a-button>
+            </a-popconfirm>
           </a-space>
         </template>
       </template>
@@ -60,8 +69,9 @@
 import { onMounted, reactive, ref } from "vue";
 import type { TablePaginationConfig, FormInstance, Rule } from "ant-design-vue";
 import { message } from "ant-design-vue";
-import { createDepartment, getDepartmentsAll, getDepartmentsPaged, updateDepartment } from "@/services/api";
+import { createDepartment, deleteDepartment, getDepartmentsAll, getDepartmentsPaged, updateDepartment } from "@/services/api";
 import type { DepartmentCreateRequest, DepartmentListItem, DepartmentUpdateRequest } from "@/types/api";
+import { getAuthProfile, hasPermission } from "@/utils/auth";
 
 type FormMode = "create" | "edit";
 
@@ -102,6 +112,10 @@ const formRules: Record<string, Rule[]> = {
 
 const parentOptions = ref<SelectOption[]>([]);
 const selectedId = ref<string | null>(null);
+const profile = getAuthProfile();
+const canCreate = hasPermission(profile, "departments:create");
+const canUpdate = hasPermission(profile, "departments:update");
+const canDelete = hasPermission(profile, "departments:delete");
 
 const fetchData = async () => {
   loading.value = true;
@@ -189,6 +203,17 @@ const submitForm = async () => {
     fetchParents();
   } catch (error) {
     message.error((error as Error).message || "提交失败");
+  }
+};
+
+const handleDelete = async (id: string) => {
+  try {
+    await deleteDepartment(id);
+    message.success("删除成功");
+    fetchData();
+    fetchParents();
+  } catch (error) {
+    message.error((error as Error).message || "删除失败");
   }
 };
 

@@ -28,4 +28,15 @@ public interface IUserCommandService
         long userId,
         IReadOnlyList<long> departmentIds,
         CancellationToken cancellationToken);
+
+    Task UpdatePositionsAsync(
+        TenantId tenantId,
+        long userId,
+        IReadOnlyList<long> positionIds,
+        CancellationToken cancellationToken);
+
+    Task DeleteAsync(
+        TenantId tenantId,
+        long userId,
+        CancellationToken cancellationToken);
 }

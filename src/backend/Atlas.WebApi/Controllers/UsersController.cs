@@ -121,4 +121,31 @@ public sealed class UsersController : ControllerBase
             cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
     }
+
+    [HttpPut("{id:long}/positions")]
+    [Authorize(Policy = PermissionPolicies.UsersAssignPositions)]
+    public async Task<ActionResult<ApiResponse<object>>> UpdatePositions(
+        long id,
+        [FromBody] UserAssignPositionsRequest request,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        await _userCommandService.UpdatePositionsAsync(
+            tenantId,
+            id,
+            request.PositionIds ?? Array.Empty<long>(),
+            cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
+    }
+
+    [HttpDelete("{id:long}")]
+    [Authorize(Policy = PermissionPolicies.UsersDelete)]
+    public async Task<ActionResult<ApiResponse<object>>> Delete(
+        long id,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        await _userCommandService.DeleteAsync(tenantId, id, cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
+    }
 }

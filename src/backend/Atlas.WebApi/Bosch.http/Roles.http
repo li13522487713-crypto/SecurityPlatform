@@ -69,3 +69,8 @@ X-Tenant-Id: {{tenantId}}
 {
   "menuIds": []
 }
+
+### Delete Role
+DELETE {{baseUrl}}/roles/1
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}

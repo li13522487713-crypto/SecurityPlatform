@@ -38,6 +38,7 @@ import type {
   UserUpdateRequest,
   UserAssignRolesRequest,
   UserAssignDepartmentsRequest,
+  UserAssignPositionsRequest,
   DepartmentListItem,
   DepartmentCreateRequest,
   DepartmentUpdateRequest,
@@ -46,7 +47,11 @@ import type {
   RoleCreateRequest,
   RoleUpdateRequest,
   RoleAssignPermissionsRequest,
-  RoleAssignMenusRequest
+  RoleAssignMenusRequest,
+  PositionListItem,
+  PositionDetail,
+  PositionCreateRequest,
+  PositionUpdateRequest
 } from "@/types/api";
 import type {
   FlowDefinition,
@@ -207,6 +212,26 @@ export async function updateUserDepartments(id: string, request: UserAssignDepar
   }
 }
 
+export async function updateUserPositions(id: string, request: UserAssignPositionsRequest) {
+  const response = await requestApi<ApiResponse<{ id: string }>>(`/users/${id}/positions`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request)
+  });
+  if (!response.success) {
+    throw new Error(response.message || "更新职位失败");
+  }
+}
+
+export async function deleteUser(id: string) {
+  const response = await requestApi<ApiResponse<{ id: string }>>(`/users/${id}`, {
+    method: "DELETE"
+  });
+  if (!response.success) {
+    throw new Error(response.message || "删除失败");
+  }
+}
+
 export async function getDepartmentsPaged(pagedRequest: PagedRequest) {
   const query = toQuery(pagedRequest);
   const response = await requestApi<ApiResponse<PagedResult<DepartmentListItem>>>(`/departments?${query}`);
@@ -245,6 +270,15 @@ export async function updateDepartment(id: string, request: DepartmentUpdateRequ
   });
   if (!response.success) {
     throw new Error(response.message || "更新失败");
+  }
+}
+
+export async function deleteDepartment(id: string) {
+  const response = await requestApi<ApiResponse<{ id: string }>>(`/departments/${id}`, {
+    method: "DELETE"
+  });
+  if (!response.success) {
+    throw new Error(response.message || "删除失败");
   }
 }
 
@@ -289,6 +323,15 @@ export async function updateRole(id: string, request: RoleUpdateRequest) {
   }
 }
 
+export async function deleteRole(id: string) {
+  const response = await requestApi<ApiResponse<{ id: string }>>(`/roles/${id}`, {
+    method: "DELETE"
+  });
+  if (!response.success) {
+    throw new Error(response.message || "删除失败");
+  }
+}
+
 export async function updateRolePermissions(id: string, request: RoleAssignPermissionsRequest) {
   const response = await requestApi<ApiResponse<{ id: string }>>(`/roles/${id}/permissions`, {
     method: "PUT",
@@ -308,6 +351,65 @@ export async function updateRoleMenus(id: string, request: RoleAssignMenusReques
   });
   if (!response.success) {
     throw new Error(response.message || "更新菜单失败");
+  }
+}
+
+export async function getPositionsPaged(pagedRequest: PagedRequest) {
+  const query = toQuery(pagedRequest);
+  const response = await requestApi<ApiResponse<PagedResult<PositionListItem>>>(`/positions?${query}`);
+  if (!response.data) {
+    throw new Error(response.message || "查询失败");
+  }
+
+  return response.data;
+}
+
+export async function getPositionsAll() {
+  const response = await requestApi<ApiResponse<PositionListItem[]>>("/positions/all");
+  if (!response.data) {
+    throw new Error(response.message || "查询失败");
+  }
+
+  return response.data;
+}
+
+export async function getPositionDetail(id: string) {
+  const response = await requestApi<ApiResponse<PositionDetail>>(`/positions/${id}`);
+  if (!response.data) {
+    throw new Error(response.message || "查询失败");
+  }
+
+  return response.data;
+}
+
+export async function createPosition(request: PositionCreateRequest) {
+  const response = await requestApi<ApiResponse<{ id: string }>>("/positions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request)
+  });
+  if (!response.success) {
+    throw new Error(response.message || "创建失败");
+  }
+}
+
+export async function updatePosition(id: string, request: PositionUpdateRequest) {
+  const response = await requestApi<ApiResponse<{ id: string }>>(`/positions/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request)
+  });
+  if (!response.success) {
+    throw new Error(response.message || "更新失败");
+  }
+}
+
+export async function deletePosition(id: string) {
+  const response = await requestApi<ApiResponse<{ id: string }>>(`/positions/${id}`, {
+    method: "DELETE"
+  });
+  if (!response.success) {
+    throw new Error(response.message || "删除失败");
   }
 }
 

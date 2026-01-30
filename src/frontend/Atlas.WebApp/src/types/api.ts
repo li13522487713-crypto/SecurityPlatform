@@ -215,6 +215,7 @@ export interface UserDetail {
   lastLoginAt?: string;
   roleIds: number[];
   departmentIds: number[];
+  positionIds: number[];
 }
 
 export interface UserCreateRequest {
@@ -226,6 +227,7 @@ export interface UserCreateRequest {
   isActive: boolean;
   roleIds: number[];
   departmentIds: number[];
+  positionIds: number[];
 }
 
 export interface UserUpdateRequest {
@@ -241,6 +243,10 @@ export interface UserAssignRolesRequest {
 
 export interface UserAssignDepartmentsRequest {
   departmentIds: number[];
+}
+
+export interface UserAssignPositionsRequest {
+  positionIds: number[];
 }
 
 export interface DepartmentListItem {
@@ -297,6 +303,41 @@ export interface RoleAssignPermissionsRequest {
 
 export interface RoleAssignMenusRequest {
   menuIds: number[];
+}
+
+export interface PositionListItem {
+  id: string;
+  name: string;
+  code: string;
+  description?: string;
+  isActive: boolean;
+  isSystem: boolean;
+  sortOrder: number;
+}
+
+export interface PositionDetail {
+  id: string;
+  name: string;
+  code: string;
+  description?: string;
+  isActive: boolean;
+  isSystem: boolean;
+  sortOrder: number;
+}
+
+export interface PositionCreateRequest {
+  name: string;
+  code: string;
+  description?: string;
+  isActive: boolean;
+  sortOrder: number;
+}
+
+export interface PositionUpdateRequest {
+  name: string;
+  description?: string;
+  isActive: boolean;
+  sortOrder: number;
 }
 
 // WorkflowCore 相关类型

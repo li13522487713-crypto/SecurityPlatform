@@ -74,4 +74,19 @@ public sealed class DepartmentRepository : IDepartmentRepository
     {
         return _db.Updateable(department).ExecuteCommandAsync(cancellationToken);
     }
+
+    public Task DeleteAsync(TenantId tenantId, long id, CancellationToken cancellationToken)
+    {
+        return _db.Deleteable<Department>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.Id == id)
+            .ExecuteCommandAsync(cancellationToken);
+    }
+
+    public async Task<bool> ExistsByParentIdAsync(TenantId tenantId, long parentId, CancellationToken cancellationToken)
+    {
+        var count = await _db.Queryable<Department>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.ParentId == parentId)
+            .CountAsync(cancellationToken);
+        return count > 0;
+    }
 }

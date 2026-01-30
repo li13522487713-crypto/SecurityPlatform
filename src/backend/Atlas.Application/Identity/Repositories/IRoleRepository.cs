@@ -15,4 +15,5 @@ public interface IRoleRepository
     Task<IReadOnlyList<Role>> QueryByIdsAsync(TenantId tenantId, IReadOnlyList<long> ids, CancellationToken cancellationToken);
     Task AddAsync(Role role, CancellationToken cancellationToken);
     Task UpdateAsync(Role role, CancellationToken cancellationToken);
+    Task DeleteAsync(TenantId tenantId, long id, CancellationToken cancellationToken);
 }

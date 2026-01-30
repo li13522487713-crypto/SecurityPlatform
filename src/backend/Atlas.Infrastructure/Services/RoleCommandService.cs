@@ -1,6 +1,7 @@
 using Atlas.Application.Identity.Abstractions;
 using Atlas.Application.Identity.Models;
 using Atlas.Application.Identity.Repositories;
+using Atlas.Application.Abstractions;
 using Atlas.Core.Abstractions;
 using Atlas.Core.Exceptions;
 using Atlas.Core.Models;
@@ -15,6 +16,8 @@ public sealed class RoleCommandService : IRoleCommandService
     private readonly IRoleRepository _roleRepository;
     private readonly IRolePermissionRepository _rolePermissionRepository;
     private readonly IRoleMenuRepository _roleMenuRepository;
+    private readonly IUserRoleRepository _userRoleRepository;
+    private readonly IUserAccountRepository _userRepository;
     private readonly IPermissionRepository _permissionRepository;
     private readonly IMenuRepository _menuRepository;
     private readonly IIdGenerator _idGenerator;
@@ -24,6 +27,8 @@ public sealed class RoleCommandService : IRoleCommandService
         IRoleRepository roleRepository,
         IRolePermissionRepository rolePermissionRepository,
         IRoleMenuRepository roleMenuRepository,
+        IUserRoleRepository userRoleRepository,
+        IUserAccountRepository userRepository,
         IPermissionRepository permissionRepository,
         IMenuRepository menuRepository,
         IIdGenerator idGenerator,
@@ -32,6 +37,8 @@ public sealed class RoleCommandService : IRoleCommandService
         _roleRepository = roleRepository;
         _rolePermissionRepository = rolePermissionRepository;
         _roleMenuRepository = roleMenuRepository;
+        _userRoleRepository = userRoleRepository;
+        _userRepository = userRepository;
         _permissionRepository = permissionRepository;
         _menuRepository = menuRepository;
         _idGenerator = idGenerator;
@@ -110,6 +117,64 @@ public sealed class RoleCommandService : IRoleCommandService
                     .ToArray(),
                 cancellationToken);
         });
+    }
+
+    public async Task DeleteAsync(
+        TenantId tenantId,
+        long roleId,
+        CancellationToken cancellationToken)
+    {
+        var role = await _roleRepository.FindByIdAsync(tenantId, roleId, cancellationToken);
+        if (role is null)
+        {
+            throw new BusinessException("Role not found.", ErrorCodes.NotFound);
+        }
+
+        if (role.IsSystem)
+        {
+            throw new BusinessException("System role cannot be deleted.", ErrorCodes.Forbidden);
+        }
+
+        var userIds = await _userRoleRepository.QueryUserIdsByRoleIdAsync(tenantId, roleId, cancellationToken);
+
+        await _db.Ado.UseTranAsync(async () =>
+        {
+            if (userIds.Count > 0)
+            {
+                foreach (var userId in userIds.Distinct())
+                {
+                    var user = await _userRepository.FindByIdAsync(tenantId, userId, cancellationToken);
+                    if (user is null)
+                    {
+                        continue;
+                    }
+
+                    var updatedRoles = RemoveRoleCode(user.Roles, role.Code);
+                    user.UpdateRoles(updatedRoles);
+                    await _userRepository.UpdateAsync(user, cancellationToken);
+                }
+            }
+
+            await _rolePermissionRepository.DeleteByRoleIdAsync(tenantId, roleId, cancellationToken);
+            await _roleMenuRepository.DeleteByRoleIdAsync(tenantId, roleId, cancellationToken);
+            await _userRoleRepository.DeleteByRoleIdAsync(tenantId, roleId, cancellationToken);
+            await _roleRepository.DeleteAsync(tenantId, roleId, cancellationToken);
+        });
+    }
+
+    private static string RemoveRoleCode(string roles, string code)
+    {
+        if (string.IsNullOrWhiteSpace(roles))
+        {
+            return string.Empty;
+        }
+
+        var remaining = roles
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(item => !string.Equals(item, code, StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+
+        return string.Join(',', remaining);
     }
 
     private async Task EnsureRoleExistsAsync(TenantId tenantId, long roleId, CancellationToken cancellationToken)

@@ -22,7 +22,7 @@
 | Alert | `src/backend/Atlas.Application.Alert/Models` | `src/frontend/Atlas.WebApp/src/services/api.ts` | 已对齐 | `AlertListItem` 字段一致 |
 | Users | `src/backend/Atlas.Application/Identity/Models/UserModels.cs` | `src/frontend/Atlas.WebApp/src/types/api.ts` | 已对齐 | 列表/详情/创建/更新 |
 | Departments | `src/backend/Atlas.Application/Identity/Models/DepartmentModels.cs` | `src/frontend/Atlas.WebApp/src/types/api.ts` | 已对齐 | - |
-| Roles(Positions) | `src/backend/Atlas.Application/Identity/Models/RoleModels.cs` | `src/frontend/Atlas.WebApp/src/types/api.ts` | 已对齐 | 前端“职位管理”映射 Roles |
+| Positions | `src/backend/Atlas.Application/Identity/Models/PositionModels.cs` | `src/frontend/Atlas.WebApp/src/types/api.ts` | 已对齐 | - |
 
 ## 身份与权限
 

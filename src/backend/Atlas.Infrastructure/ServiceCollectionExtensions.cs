@@ -46,6 +46,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IPasswordHasher, Pbkdf2PasswordHasher>();
         services.AddScoped<IUserAccountRepository, UserAccountRepository>();
         services.AddScoped<IRoleRepository, RoleRepository>();
+        services.AddScoped<IPositionRepository, PositionRepository>();
         services.AddScoped<IPermissionRepository, PermissionRepository>();
         services.AddScoped<IDepartmentRepository, DepartmentRepository>();
         services.AddScoped<IMenuRepository, MenuRepository>();
@@ -53,6 +54,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IRolePermissionRepository, RolePermissionRepository>();
         services.AddScoped<IRoleMenuRepository, RoleMenuRepository>();
         services.AddScoped<IUserDepartmentRepository, UserDepartmentRepository>();
+        services.AddScoped<IUserPositionRepository, UserPositionRepository>();
         services.AddScoped<IAssetRepository, AssetRepository>();
         services.AddScoped<IAssetQueryService, AssetQueryService>();
         services.AddScoped<IAssetCommandService, AssetCommandService>();
@@ -68,6 +70,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IPermissionCommandService, PermissionCommandService>();
         services.AddScoped<IDepartmentQueryService, DepartmentQueryService>();
         services.AddScoped<IDepartmentCommandService, DepartmentCommandService>();
+        services.AddScoped<IPositionQueryService, PositionQueryService>();
+        services.AddScoped<IPositionCommandService, PositionCommandService>();
         services.AddScoped<IMenuQueryService, MenuQueryService>();
         services.AddScoped<IMenuCommandService, MenuCommandService>();
         

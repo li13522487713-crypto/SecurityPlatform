@@ -15,4 +15,5 @@ public interface IUserAccountRepository
     Task<bool> ExistsByUsernameAsync(TenantId tenantId, string username, CancellationToken cancellationToken);
     Task AddAsync(UserAccount account, CancellationToken cancellationToken);
     Task UpdateAsync(UserAccount account, CancellationToken cancellationToken);
+    Task DeleteAsync(TenantId tenantId, long id, CancellationToken cancellationToken);
 }

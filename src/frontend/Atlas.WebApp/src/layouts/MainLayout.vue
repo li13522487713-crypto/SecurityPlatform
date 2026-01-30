@@ -104,7 +104,7 @@ const go = (path: string) => {
 const showWorkflowMenu = computed(() => hasPermission(profile.value, "workflow:design"));
 const showUsersMenu = computed(() => hasPermission(profile.value, "users:view"));
 const showDepartmentsMenu = computed(() => hasPermission(profile.value, "departments:view"));
-const showPositionsMenu = computed(() => hasPermission(profile.value, "roles:view"));
+const showPositionsMenu = computed(() => hasPermission(profile.value, "positions:view"));
 const showSystemMenu = computed(
   () => showUsersMenu.value || showDepartmentsMenu.value || showPositionsMenu.value
 );

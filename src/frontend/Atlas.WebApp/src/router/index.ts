@@ -47,7 +47,7 @@ const router = createRouter({
       path: "/system/positions",
       name: "system-positions",
       component: PositionsPage,
-      meta: { requiresAuth: true, requiresPermission: "roles:view" }
+      meta: { requiresAuth: true, requiresPermission: "positions:view" }
     },
     {
       path: "/workflow/designer",

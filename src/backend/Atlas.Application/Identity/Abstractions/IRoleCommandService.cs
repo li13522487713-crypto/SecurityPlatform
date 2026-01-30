@@ -19,4 +19,9 @@ public interface IRoleCommandService
         long roleId,
         IReadOnlyList<long> menuIds,
         CancellationToken cancellationToken);
+
+    Task DeleteAsync(
+        TenantId tenantId,
+        long roleId,
+        CancellationToken cancellationToken);
 }

@@ -19,8 +19,10 @@ public sealed class UserCommandService : IUserCommandService
     private readonly IUserAccountRepository _userRepository;
     private readonly IUserRoleRepository _userRoleRepository;
     private readonly IUserDepartmentRepository _userDepartmentRepository;
+    private readonly IUserPositionRepository _userPositionRepository;
     private readonly IRoleRepository _roleRepository;
     private readonly IDepartmentRepository _departmentRepository;
+    private readonly IPositionRepository _positionRepository;
     private readonly IPasswordHasher _passwordHasher;
     private readonly IIdGenerator _idGenerator;
     private readonly ISqlSugarClient _db;
@@ -30,8 +32,10 @@ public sealed class UserCommandService : IUserCommandService
         IUserAccountRepository userRepository,
         IUserRoleRepository userRoleRepository,
         IUserDepartmentRepository userDepartmentRepository,
+        IUserPositionRepository userPositionRepository,
         IRoleRepository roleRepository,
         IDepartmentRepository departmentRepository,
+        IPositionRepository positionRepository,
         IPasswordHasher passwordHasher,
         IIdGenerator idGenerator,
         ISqlSugarClient db,
@@ -40,8 +44,10 @@ public sealed class UserCommandService : IUserCommandService
         _userRepository = userRepository;
         _userRoleRepository = userRoleRepository;
         _userDepartmentRepository = userDepartmentRepository;
+        _userPositionRepository = userPositionRepository;
         _roleRepository = roleRepository;
         _departmentRepository = departmentRepository;
+        _positionRepository = positionRepository;
         _passwordHasher = passwordHasher;
         _idGenerator = idGenerator;
         _db = db;
@@ -77,6 +83,8 @@ public sealed class UserCommandService : IUserCommandService
         var roles = await EnsureRolesExistAsync(tenantId, roleIds, cancellationToken);
         var departmentIds = request.DepartmentIds?.Distinct().ToArray() ?? Array.Empty<long>();
         await EnsureDepartmentsExistAsync(tenantId, departmentIds, cancellationToken);
+        var positionIds = request.PositionIds?.Distinct().ToArray() ?? Array.Empty<long>();
+        await EnsurePositionsExistAsync(tenantId, positionIds, cancellationToken);
         user.UpdateRoles(string.Join(',', roles.Select(x => x.Code)));
 
         await _db.Ado.UseTranAsync(async () =>
@@ -88,6 +96,11 @@ public sealed class UserCommandService : IUserCommandService
             await _userDepartmentRepository.AddRangeAsync(
                 departmentIds
                     .Select(depId => new UserDepartment(tenantId, user.Id, depId, _idGenerator.NextId(), false))
+                    .ToArray(),
+                cancellationToken);
+            await _userPositionRepository.AddRangeAsync(
+                positionIds
+                    .Select(posId => new UserPosition(tenantId, user.Id, posId, _idGenerator.NextId(), false))
                     .ToArray(),
                 cancellationToken);
         });
@@ -170,6 +183,56 @@ public sealed class UserCommandService : IUserCommandService
         });
     }
 
+    public async Task UpdatePositionsAsync(
+        TenantId tenantId,
+        long userId,
+        IReadOnlyList<long> positionIds,
+        CancellationToken cancellationToken)
+    {
+        var user = await _userRepository.FindByIdAsync(tenantId, userId, cancellationToken);
+        if (user is null)
+        {
+            throw new BusinessException("User not found.", ErrorCodes.NotFound);
+        }
+
+        await EnsurePositionsExistAsync(tenantId, positionIds, cancellationToken);
+
+        await _db.Ado.UseTranAsync(async () =>
+        {
+            await _userPositionRepository.DeleteByUserIdAsync(tenantId, userId, cancellationToken);
+            await _userPositionRepository.AddRangeAsync(
+                positionIds.Distinct()
+                    .Select(posId => new UserPosition(tenantId, userId, posId, _idGenerator.NextId(), false))
+                    .ToArray(),
+                cancellationToken);
+        });
+    }
+
+    public async Task DeleteAsync(
+        TenantId tenantId,
+        long userId,
+        CancellationToken cancellationToken)
+    {
+        var user = await _userRepository.FindByIdAsync(tenantId, userId, cancellationToken);
+        if (user is null)
+        {
+            throw new BusinessException("User not found.", ErrorCodes.NotFound);
+        }
+
+        if (user.IsSystem)
+        {
+            throw new BusinessException("System user cannot be deleted.", ErrorCodes.Forbidden);
+        }
+
+        await _db.Ado.UseTranAsync(async () =>
+        {
+            await _userRoleRepository.DeleteByUserIdAsync(tenantId, userId, cancellationToken);
+            await _userDepartmentRepository.DeleteByUserIdAsync(tenantId, userId, cancellationToken);
+            await _userPositionRepository.DeleteByUserIdAsync(tenantId, userId, cancellationToken);
+            await _userRepository.DeleteAsync(tenantId, userId, cancellationToken);
+        });
+    }
+
     private async Task<IReadOnlyList<Role>> EnsureRolesExistAsync(
         TenantId tenantId,
         IReadOnlyList<long> roleIds,
@@ -205,6 +268,24 @@ public sealed class UserCommandService : IUserCommandService
         if (departments.Count != distinctIds.Length)
         {
             throw new BusinessException("Department not found.", ErrorCodes.ValidationError);
+        }
+    }
+
+    private async Task EnsurePositionsExistAsync(
+        TenantId tenantId,
+        IReadOnlyList<long> positionIds,
+        CancellationToken cancellationToken)
+    {
+        if (positionIds.Count == 0)
+        {
+            return;
+        }
+
+        var distinctIds = positionIds.Distinct().ToArray();
+        var positions = await _positionRepository.QueryByIdsAsync(tenantId, distinctIds, cancellationToken);
+        if (positions.Count != distinctIds.Length)
+        {
+            throw new BusinessException("Position not found.", ErrorCodes.ValidationError);
         }
     }
 }

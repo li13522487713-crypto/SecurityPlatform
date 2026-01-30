@@ -13,17 +13,20 @@ public sealed class UserQueryService : IUserQueryService
     private readonly IUserAccountRepository _userRepository;
     private readonly IUserRoleRepository _userRoleRepository;
     private readonly IUserDepartmentRepository _userDepartmentRepository;
+    private readonly IUserPositionRepository _userPositionRepository;
     private readonly IMapper _mapper;
 
     public UserQueryService(
         IUserAccountRepository userRepository,
         IUserRoleRepository userRoleRepository,
         IUserDepartmentRepository userDepartmentRepository,
+        IUserPositionRepository userPositionRepository,
         IMapper mapper)
     {
         _userRepository = userRepository;
         _userRoleRepository = userRoleRepository;
         _userDepartmentRepository = userDepartmentRepository;
+        _userPositionRepository = userPositionRepository;
         _mapper = mapper;
     }
 
@@ -55,6 +58,7 @@ public sealed class UserQueryService : IUserQueryService
 
         var roleIds = await _userRoleRepository.QueryByUserIdAsync(tenantId, id, cancellationToken);
         var departmentIds = await _userDepartmentRepository.QueryByUserIdAsync(tenantId, id, cancellationToken);
+        var positionIds = await _userPositionRepository.QueryByUserIdAsync(tenantId, id, cancellationToken);
 
         return new UserDetail(
             user.Id.ToString(),
@@ -66,6 +70,7 @@ public sealed class UserQueryService : IUserQueryService
             user.IsSystem,
             user.LastLoginAt,
             roleIds.Select(x => x.RoleId).ToArray(),
-            departmentIds.Select(x => x.DepartmentId).ToArray());
+            departmentIds.Select(x => x.DepartmentId).ToArray(),
+            positionIds.Select(x => x.PositionId).ToArray());
     }
 }

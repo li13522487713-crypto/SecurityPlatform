@@ -26,6 +26,13 @@ public sealed class UserAccountRepository : IUserAccountRepository
             .ExecuteCommandAsync(cancellationToken);
     }
 
+    public Task DeleteAsync(TenantId tenantId, long id, CancellationToken cancellationToken)
+    {
+        return _db.Deleteable<UserAccount>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.Id == id)
+            .ExecuteCommandAsync(cancellationToken);
+    }
+
     public async Task<UserAccount?> FindByIdAsync(TenantId tenantId, long id, CancellationToken cancellationToken)
     {
         var query = _db.Queryable<UserAccount>()

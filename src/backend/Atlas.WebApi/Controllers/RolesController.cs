@@ -119,4 +119,15 @@ public sealed class RolesController : ControllerBase
             cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
     }
+
+    [HttpDelete("{id:long}")]
+    [Authorize(Policy = PermissionPolicies.RolesDelete)]
+    public async Task<ActionResult<ApiResponse<object>>> Delete(
+        long id,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        await _roleCommandService.DeleteAsync(tenantId, id, cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
+    }
 }

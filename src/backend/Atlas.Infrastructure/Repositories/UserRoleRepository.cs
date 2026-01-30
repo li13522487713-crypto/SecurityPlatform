@@ -32,6 +32,13 @@ public sealed class UserRoleRepository : IUserRoleRepository
             .ExecuteCommandAsync(cancellationToken);
     }
 
+    public Task DeleteByRoleIdAsync(TenantId tenantId, long roleId, CancellationToken cancellationToken)
+    {
+        return _db.Deleteable<UserRole>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.RoleId == roleId)
+            .ExecuteCommandAsync(cancellationToken);
+    }
+
     public Task AddRangeAsync(IReadOnlyList<UserRole> userRoles, CancellationToken cancellationToken)
     {
         if (userRoles.Count == 0)
@@ -55,6 +62,18 @@ public sealed class UserRoleRepository : IUserRoleRepository
         var list = await _db.Queryable<UserRole>()
             .Where(x => x.TenantIdValue == tenantId.Value && userIds.Contains(x.UserId))
             .Select(x => x.RoleId)
+            .ToListAsync(cancellationToken);
+        return list;
+    }
+
+    public async Task<IReadOnlyList<long>> QueryUserIdsByRoleIdAsync(
+        TenantId tenantId,
+        long roleId,
+        CancellationToken cancellationToken)
+    {
+        var list = await _db.Queryable<UserRole>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.RoleId == roleId)
+            .Select(x => x.UserId)
             .ToListAsync(cancellationToken);
         return list;
     }

@@ -8,7 +8,7 @@
           allow-clear
           @press-enter="fetchData"
         />
-        <a-button type="primary" @click="openCreate">新增职位</a-button>
+        <a-button v-if="canCreate" type="primary" @click="openCreate">新增职位</a-button>
       </a-space>
     </div>
 
@@ -21,14 +21,28 @@
       @change="onTableChange"
     >
       <template #bodyCell="{ column, record }">
-        <template v-if="column.key === 'system'">
+        <template v-if="column.key === 'status'">
+          <a-tag :color="record.isActive ? 'green' : 'red'">
+            {{ record.isActive ? "启用" : "停用" }}
+          </a-tag>
+        </template>
+        <template v-else-if="column.key === 'system'">
           <a-tag :color="record.isSystem ? 'blue' : 'default'">
             {{ record.isSystem ? "系统内置" : "自定义" }}
           </a-tag>
         </template>
         <template v-else-if="column.key === 'actions'">
           <a-space>
-            <a-button type="link" @click="openEdit(record)">编辑</a-button>
+            <a-button v-if="canUpdate" type="link" @click="openEdit(record)">编辑</a-button>
+            <a-popconfirm
+              v-if="canDelete && !record.isSystem"
+              title="确认删除该职位？"
+              ok-text="删除"
+              cancel-text="取消"
+              @confirm="handleDelete(record.id)"
+            >
+              <a-button type="link" danger>删除</a-button>
+            </a-popconfirm>
           </a-space>
         </template>
       </template>
@@ -51,6 +65,12 @@
         <a-form-item label="描述" name="description">
           <a-textarea v-model:value="formModel.description" rows="3" />
         </a-form-item>
+        <a-form-item label="状态" name="isActive">
+          <a-switch v-model:checked="formModel.isActive" />
+        </a-form-item>
+        <a-form-item label="排序" name="sortOrder">
+          <a-input-number v-model:value="formModel.sortOrder" :min="0" style="width: 100%" />
+        </a-form-item>
       </a-form>
     </a-modal>
   </a-card>
@@ -60,8 +80,15 @@
 import { onMounted, reactive, ref } from "vue";
 import type { TablePaginationConfig, FormInstance, Rule } from "ant-design-vue";
 import { message } from "ant-design-vue";
-import { createRole, getRolesPaged, updateRole } from "@/services/api";
-import type { RoleCreateRequest, RoleListItem, RoleUpdateRequest } from "@/types/api";
+import {
+  createPosition,
+  deletePosition,
+  getPositionDetail,
+  getPositionsPaged,
+  updatePosition
+} from "@/services/api";
+import type { PositionCreateRequest, PositionListItem, PositionUpdateRequest } from "@/types/api";
+import { getAuthProfile, hasPermission } from "@/utils/auth";
 
 type FormMode = "create" | "edit";
 
@@ -69,11 +96,13 @@ const columns = [
   { title: "职位名称", dataIndex: "name" },
   { title: "编码", dataIndex: "code" },
   { title: "描述", dataIndex: "description" },
+  { title: "状态", key: "status" },
   { title: "类型", key: "system" },
+  { title: "排序", dataIndex: "sortOrder" },
   { title: "操作", key: "actions" }
 ];
 
-const dataSource = ref<RoleListItem[]>([]);
+const dataSource = ref<PositionListItem[]>([]);
 const loading = ref(false);
 const keyword = ref("");
 const pagination = reactive<TablePaginationConfig>({
@@ -86,10 +115,12 @@ const pagination = reactive<TablePaginationConfig>({
 const formVisible = ref(false);
 const formMode = ref<FormMode>("create");
 const formRef = ref<FormInstance>();
-const formModel = reactive<RoleCreateRequest & RoleUpdateRequest>({
+const formModel = reactive<PositionCreateRequest & PositionUpdateRequest>({
   name: "",
   code: "",
-  description: ""
+  description: "",
+  isActive: true,
+  sortOrder: 0
 });
 
 const formRules: Record<string, Rule[]> = {
@@ -98,11 +129,15 @@ const formRules: Record<string, Rule[]> = {
 };
 
 const selectedId = ref<string | null>(null);
+const profile = getAuthProfile();
+const canCreate = hasPermission(profile, "positions:create");
+const canUpdate = hasPermission(profile, "positions:update");
+const canDelete = hasPermission(profile, "positions:delete");
 
 const fetchData = async () => {
   loading.value = true;
   try {
-    const result = await getRolesPaged({
+    const result = await getPositionsPaged({
       pageIndex: pagination.current ?? 1,
       pageSize: pagination.pageSize ?? 10,
       keyword: keyword.value || undefined
@@ -126,6 +161,8 @@ const resetForm = () => {
   formModel.name = "";
   formModel.code = "";
   formModel.description = "";
+  formModel.isActive = true;
+  formModel.sortOrder = 0;
 };
 
 const openCreate = () => {
@@ -135,13 +172,20 @@ const openCreate = () => {
   formVisible.value = true;
 };
 
-const openEdit = (record: RoleListItem) => {
+const openEdit = async (record: PositionListItem) => {
   formMode.value = "edit";
   selectedId.value = record.id;
-  formModel.name = record.name;
-  formModel.code = record.code;
-  formModel.description = record.description ?? "";
-  formVisible.value = true;
+  try {
+    const detail = await getPositionDetail(record.id);
+    formModel.name = detail.name;
+    formModel.code = detail.code;
+    formModel.description = detail.description ?? "";
+    formModel.isActive = detail.isActive;
+    formModel.sortOrder = detail.sortOrder;
+    formVisible.value = true;
+  } catch (error) {
+    message.error((error as Error).message || "加载详情失败");
+  }
 };
 
 const closeForm = () => {
@@ -154,16 +198,20 @@ const submitForm = async () => {
 
   try {
     if (formMode.value === "create") {
-      await createRole({
+      await createPosition({
         name: formModel.name,
         code: formModel.code,
-        description: formModel.description || undefined
+        description: formModel.description || undefined,
+        isActive: formModel.isActive,
+        sortOrder: formModel.sortOrder
       });
       message.success("创建成功");
     } else if (selectedId.value) {
-      await updateRole(selectedId.value, {
+      await updatePosition(selectedId.value, {
         name: formModel.name,
-        description: formModel.description || undefined
+        description: formModel.description || undefined,
+        isActive: formModel.isActive,
+        sortOrder: formModel.sortOrder
       });
       message.success("更新成功");
     }
@@ -171,6 +219,16 @@ const submitForm = async () => {
     fetchData();
   } catch (error) {
     message.error((error as Error).message || "提交失败");
+  }
+};
+
+const handleDelete = async (id: string) => {
+  try {
+    await deletePosition(id);
+    message.success("删除成功");
+    fetchData();
+  } catch (error) {
+    message.error((error as Error).message || "删除失败");
   }
 };
 

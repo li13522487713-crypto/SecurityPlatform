@@ -7,5 +7,6 @@ public interface IUserDepartmentRepository
 {
     Task<IReadOnlyList<UserDepartment>> QueryByUserIdAsync(TenantId tenantId, long userId, CancellationToken cancellationToken);
     Task DeleteByUserIdAsync(TenantId tenantId, long userId, CancellationToken cancellationToken);
+    Task DeleteByDepartmentIdAsync(TenantId tenantId, long departmentId, CancellationToken cancellationToken);
     Task AddRangeAsync(IReadOnlyList<UserDepartment> userDepartments, CancellationToken cancellationToken);
 }

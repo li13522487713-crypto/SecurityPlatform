@@ -503,7 +503,7 @@ JWT Claims（新增）：
 }
 ```
 
-## 用户/部门/职位（角色）管理契约
+## 用户/部门/职位管理契约
 
 ### 用户
 
@@ -511,8 +511,10 @@ JWT Claims（新增）：
 - `GET /users/{id}`：用户详情
 - `POST /users`：新增用户
 - `PUT /users/{id}`：更新用户
+- `DELETE /users/{id}`：删除用户
 - `PUT /users/{id}/roles`：更新用户角色
 - `PUT /users/{id}/departments`：更新用户部门
+- `PUT /users/{id}/positions`：更新用户职位
 
 ### 部门
 
@@ -520,15 +522,16 @@ JWT Claims（新增）：
 - `GET /departments/all`：获取全部部门
 - `POST /departments`：新增部门
 - `PUT /departments/{id}`：更新部门
+- `DELETE /departments/{id}`：删除部门
 
-### 职位（角色）
+### 职位
 
-- `GET /roles`：分页查询职位
-- `GET /roles/{id}`：职位详情
-- `POST /roles`：新增职位
-- `PUT /roles/{id}`：更新职位
-- `PUT /roles/{id}/permissions`：更新职位权限
-- `PUT /roles/{id}/menus`：更新职位菜单
+- `GET /positions`：分页查询职位
+- `GET /positions/{id}`：职位详情
+- `GET /positions/all`：获取全部职位
+- `POST /positions`：新增职位
+- `PUT /positions/{id}`：更新职位
+- `DELETE /positions/{id}`：删除职位
 
 ## Workflow Designer APIs (草案)
 - POST `/approval/flows` : 保存流程定义

@@ -76,3 +76,18 @@ X-Tenant-Id: {{tenantId}}
 {
   "departmentIds": []
 }
+
+### Update User Positions
+PUT {{baseUrl}}/users/1/positions
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "positionIds": []
+}
+
+### Delete User
+DELETE {{baseUrl}}/users/1
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
