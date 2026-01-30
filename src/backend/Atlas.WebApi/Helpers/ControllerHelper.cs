@@ -9,6 +9,7 @@ namespace Atlas.WebApi.Helpers;
 /// </summary>
 public static class ControllerHelper
 {
+    private const string ClientContextItemKey = "ClientContext";
     private const string ClientTypeHeader = "X-Client-Type";
     private const string ClientPlatformHeader = "X-Client-Platform";
     private const string ClientChannelHeader = "X-Client-Channel";
@@ -82,6 +83,12 @@ public static class ControllerHelper
 
     public static ClientContext GetClientContext(HttpContext context)
     {
+        if (context.Items.TryGetValue(ClientContextItemKey, out var cached)
+            && cached is ClientContext cachedContext)
+        {
+            return cachedContext;
+        }
+
         var headers = context.Request.Headers;
         var userAgent = GetUserAgent(context) ?? string.Empty;
 
@@ -101,7 +108,9 @@ public static class ControllerHelper
             ? agentValue
             : DetectAgent(userAgent);
 
-        return new ClientContext(clientType, platform, channel, agent);
+        var resolved = new ClientContext(clientType, platform, channel, agent);
+        context.Items[ClientContextItemKey] = resolved;
+        return resolved;
     }
 
     private static bool TryParseHeader<TEnum>(IHeaderDictionary headers, string headerName, out TEnum value)

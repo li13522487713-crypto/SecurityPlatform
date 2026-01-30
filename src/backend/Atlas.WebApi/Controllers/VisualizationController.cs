@@ -1,11 +1,9 @@
 using Atlas.Application.Audit.Abstractions;
 using Atlas.Application.Audit.Models;
-using Atlas.Application.Identity;
 using Atlas.Application.Visualization.Abstractions;
 using Atlas.Application.Visualization.Models;
 using Atlas.Core.Identity;
 using Atlas.Core.Models;
-using Atlas.Domain.Audit.Entities;
 using Atlas.Domain.Approval.Enums;
 using Atlas.WebApi.Helpers;
 using Atlas.WebApi.Authorization;
@@ -23,17 +21,20 @@ namespace Atlas.WebApi.Controllers;
 public sealed class VisualizationController : ControllerBase
 {
     private readonly IVisualizationQueryService _queryService;
-    private readonly IAuditWriter _auditWriter;
+    private readonly IAuditRecorder _auditRecorder;
     private readonly ICurrentUserAccessor _currentUserAccessor;
+    private readonly IClientContextAccessor _clientContextAccessor;
 
     public VisualizationController(
         IVisualizationQueryService queryService,
-        IAuditWriter auditWriter,
-        ICurrentUserAccessor currentUserAccessor)
+        IAuditRecorder auditRecorder,
+        ICurrentUserAccessor currentUserAccessor,
+        IClientContextAccessor clientContextAccessor)
     {
         _queryService = queryService;
-        _auditWriter = auditWriter;
+        _auditRecorder = auditRecorder;
         _currentUserAccessor = currentUserAccessor;
+        _clientContextAccessor = clientContextAccessor;
     }
 
     [HttpGet("overview")]
@@ -122,20 +123,16 @@ public sealed class VisualizationController : ControllerBase
         var result = await _queryService.SaveProcessAsync(request, cancellationToken);
 
         var currentUser = _currentUserAccessor.GetCurrentUserOrThrow();
-        var clientContext = ControllerHelper.GetClientContext(HttpContext);
-        var auditRecord = new AuditRecord(
-            tenantId: currentUser.TenantId,
-            actor: currentUser.UserId.ToString(),
-            action: "可视化流程-保存",
-            result: "成功",
-            target: $"流程ID: {result.ProcessId}",
-            ipAddress: ControllerHelper.GetIpAddress(HttpContext),
-            userAgent: ControllerHelper.GetUserAgent(HttpContext),
-            clientType: clientContext.ClientType.ToString(),
-            clientPlatform: clientContext.ClientPlatform.ToString(),
-            clientChannel: clientContext.ClientChannel.ToString(),
-            clientAgent: clientContext.ClientAgent.ToString());
-        await _auditWriter.WriteAsync(auditRecord, cancellationToken);
+        var auditContext = new AuditContext(
+            currentUser.TenantId,
+            currentUser.UserId.ToString(),
+            "可视化流程-保存",
+            "成功",
+            $"流程ID: {result.ProcessId}",
+            ControllerHelper.GetIpAddress(HttpContext),
+            ControllerHelper.GetUserAgent(HttpContext),
+            _clientContextAccessor.GetCurrent());
+        await _auditRecorder.RecordAsync(auditContext, cancellationToken);
 
         return Ok(ApiResponse<SaveVisualizationProcessResponse>.Ok(result, HttpContext.TraceIdentifier));
     }
@@ -150,20 +147,16 @@ public sealed class VisualizationController : ControllerBase
         var result = await _queryService.SaveProcessAsync(request with { ProcessId = id }, cancellationToken);
 
         var currentUser = _currentUserAccessor.GetCurrentUserOrThrow();
-        var clientContext = ControllerHelper.GetClientContext(HttpContext);
-        var auditRecord = new AuditRecord(
-            tenantId: currentUser.TenantId,
-            actor: currentUser.UserId.ToString(),
-            action: "可视化流程-更新",
-            result: "成功",
-            target: $"流程ID: {result.ProcessId}",
-            ipAddress: ControllerHelper.GetIpAddress(HttpContext),
-            userAgent: ControllerHelper.GetUserAgent(HttpContext),
-            clientType: clientContext.ClientType.ToString(),
-            clientPlatform: clientContext.ClientPlatform.ToString(),
-            clientChannel: clientContext.ClientChannel.ToString(),
-            clientAgent: clientContext.ClientAgent.ToString());
-        await _auditWriter.WriteAsync(auditRecord, cancellationToken);
+        var auditContext = new AuditContext(
+            currentUser.TenantId,
+            currentUser.UserId.ToString(),
+            "可视化流程-更新",
+            "成功",
+            $"流程ID: {result.ProcessId}",
+            ControllerHelper.GetIpAddress(HttpContext),
+            ControllerHelper.GetUserAgent(HttpContext),
+            _clientContextAccessor.GetCurrent());
+        await _auditRecorder.RecordAsync(auditContext, cancellationToken);
 
         return Ok(ApiResponse<SaveVisualizationProcessResponse>.Ok(result, HttpContext.TraceIdentifier));
     }
@@ -177,20 +170,16 @@ public sealed class VisualizationController : ControllerBase
         var currentUser = _currentUserAccessor.GetCurrentUserOrThrow();
         var result = await _queryService.PublishAsync(request, currentUser.UserId, cancellationToken);
 
-        var clientContext = ControllerHelper.GetClientContext(HttpContext);
-        var auditRecord = new AuditRecord(
-            tenantId: currentUser.TenantId,
-            actor: currentUser.UserId.ToString(),
-            action: "可视化流程-发布",
-            result: "成功",
-            target: $"流程ID: {request.ProcessId}",
-            ipAddress: ControllerHelper.GetIpAddress(HttpContext),
-            userAgent: ControllerHelper.GetUserAgent(HttpContext),
-            clientType: clientContext.ClientType.ToString(),
-            clientPlatform: clientContext.ClientPlatform.ToString(),
-            clientChannel: clientContext.ClientChannel.ToString(),
-            clientAgent: clientContext.ClientAgent.ToString());
-        await _auditWriter.WriteAsync(auditRecord, cancellationToken);
+        var auditContext = new AuditContext(
+            currentUser.TenantId,
+            currentUser.UserId.ToString(),
+            "可视化流程-发布",
+            "成功",
+            $"流程ID: {request.ProcessId}",
+            ControllerHelper.GetIpAddress(HttpContext),
+            ControllerHelper.GetUserAgent(HttpContext),
+            _clientContextAccessor.GetCurrent());
+        await _auditRecorder.RecordAsync(auditContext, cancellationToken);
 
         return Ok(ApiResponse<VisualizationPublishResponse>.Ok(result, HttpContext.TraceIdentifier));
     }

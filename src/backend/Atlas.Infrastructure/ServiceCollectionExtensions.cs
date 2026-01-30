@@ -58,6 +58,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAssetCommandService, AssetCommandService>();
         services.AddScoped<IAuditQueryService, AuditQueryService>();
         services.AddScoped<IAuditWriter, AuditWriter>();
+        services.AddScoped<IAuditRecorder, AuditRecorder>();
         services.AddScoped<IAlertQueryService, AlertQueryService>();
         services.AddScoped<IUserQueryService, UserQueryService>();
         services.AddScoped<IUserCommandService, UserCommandService>();

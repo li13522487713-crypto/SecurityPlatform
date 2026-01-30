@@ -64,6 +64,7 @@ builder.Services.AddHttpLogging(options =>
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<Atlas.Core.Tenancy.ITenantProvider, HttpContextTenantProvider>();
 builder.Services.AddScoped<Atlas.Core.Identity.ICurrentUserAccessor, Atlas.WebApi.Identity.HttpContextCurrentUserAccessor>();
+builder.Services.AddScoped<Atlas.Core.Identity.IClientContextAccessor, Atlas.WebApi.Identity.HttpContextClientContextAccessor>();
 
 builder.Services.AddFluentValidationAutoValidation();
 builder.Services.AddValidatorsFromAssemblies(AppDomain.CurrentDomain.GetAssemblies());
@@ -158,6 +159,7 @@ if (securityOptions.EnforceHttps)
 
 app.UseHttpLogging();
 app.UseMiddleware<ExceptionHandlingMiddleware>();
+app.UseMiddleware<ApiVersionRewriteMiddleware>();
 
 if (app.Environment.IsDevelopment())
 {
@@ -165,6 +167,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors("WebAppCors");
+app.UseMiddleware<ClientContextMiddleware>();
 app.UseRouting();
 app.UseAuthentication();
 app.UseMiddleware<TenantContextMiddleware>();

@@ -2,13 +2,13 @@ using Atlas.Application.Abstractions;
 using Atlas.Application.Identity.Repositories;
 using Atlas.Application.Identity.Abstractions;
 using Atlas.Application.Audit.Abstractions;
+using Atlas.Application.Audit.Models;
 using Atlas.Application.Models;
 using Atlas.Application.Options;
 using Atlas.Core.Identity;
 using Atlas.Core.Exceptions;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
-using Atlas.Domain.Audit.Entities;
 using Atlas.Domain.Identity.Entities;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
@@ -25,7 +25,7 @@ public sealed class JwtAuthTokenService : IAuthTokenService
     private readonly LockoutPolicyOptions _lockoutPolicy;
     private readonly IUserAccountRepository _userAccountRepository;
     private readonly IPasswordHasher _passwordHasher;
-    private readonly IAuditWriter _auditWriter;
+    private readonly IAuditRecorder _auditRecorder;
     private readonly TimeProvider _timeProvider;
     private readonly IRbacResolver _rbacResolver;
 
@@ -35,7 +35,7 @@ public sealed class JwtAuthTokenService : IAuthTokenService
         IOptions<LockoutPolicyOptions> lockoutPolicy,
         IUserAccountRepository userAccountRepository,
         IPasswordHasher passwordHasher,
-        IAuditWriter auditWriter,
+        IAuditRecorder auditRecorder,
         TimeProvider timeProvider,
         IRbacResolver rbacResolver)
     {
@@ -44,7 +44,7 @@ public sealed class JwtAuthTokenService : IAuthTokenService
         _lockoutPolicy = lockoutPolicy.Value;
         _userAccountRepository = userAccountRepository;
         _passwordHasher = passwordHasher;
-        _auditWriter = auditWriter;
+        _auditRecorder = auditRecorder;
         _timeProvider = timeProvider;
         _rbacResolver = rbacResolver;
     }
@@ -255,7 +255,7 @@ public sealed class JwtAuthTokenService : IAuthTokenService
             return Task.CompletedTask;
         }
 
-        var record = new AuditRecord(
+        var auditContext = new AuditContext(
             tenantId,
             actor,
             action,
@@ -263,10 +263,8 @@ public sealed class JwtAuthTokenService : IAuthTokenService
             target,
             context.IpAddress,
             context.UserAgent,
-            context.ClientContext.ClientType.ToString(),
-            context.ClientContext.ClientPlatform.ToString(),
-            context.ClientContext.ClientChannel.ToString(),
-            context.ClientContext.ClientAgent.ToString());
-        return _auditWriter.WriteAsync(record, cancellationToken);
+            context.ClientContext);
+
+        return _auditRecorder.RecordAsync(auditContext, cancellationToken);
     }
 }

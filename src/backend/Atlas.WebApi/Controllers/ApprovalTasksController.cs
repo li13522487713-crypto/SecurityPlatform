@@ -3,11 +3,11 @@ using Microsoft.AspNetCore.Mvc;
 using Atlas.Application.Approval.Abstractions;
 using Atlas.Application.Approval.Models;
 using Atlas.Application.Audit.Abstractions;
+using Atlas.Application.Audit.Models;
 using Atlas.Core.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Approval.Enums;
-using Atlas.Domain.Audit.Entities;
 using FluentValidation;
 using Atlas.WebApi.Helpers;
 
@@ -25,23 +25,26 @@ public sealed class ApprovalTasksController : ControllerBase
     private readonly IApprovalRuntimeCommandService _commandService;
     private readonly ITenantProvider _tenantProvider;
     private readonly ICurrentUserAccessor _currentUserAccessor;
+    private readonly IClientContextAccessor _clientContextAccessor;
     private readonly IValidator<ApprovalTaskDecideRequest> _decideValidator;
-    private readonly IAuditWriter _auditWriter;
+    private readonly IAuditRecorder _auditRecorder;
 
     public ApprovalTasksController(
         IApprovalRuntimeQueryService queryService,
         IApprovalRuntimeCommandService commandService,
         ITenantProvider tenantProvider,
         ICurrentUserAccessor currentUserAccessor,
+        IClientContextAccessor clientContextAccessor,
         IValidator<ApprovalTaskDecideRequest> decideValidator,
-        IAuditWriter auditWriter)
+        IAuditRecorder auditRecorder)
     {
         _queryService = queryService;
         _commandService = commandService;
         _tenantProvider = tenantProvider;
         _currentUserAccessor = currentUserAccessor;
+        _clientContextAccessor = clientContextAccessor;
         _decideValidator = decideValidator;
-        _auditWriter = auditWriter;
+        _auditRecorder = auditRecorder;
     }
 
     /// <summary>
@@ -104,8 +107,7 @@ public sealed class ApprovalTasksController : ControllerBase
             cancellationToken);
 
         // 记录审计日志
-        var clientContext = ControllerHelper.GetClientContext(HttpContext);
-        var auditRecord = new AuditRecord(
+        var auditContext = new AuditContext(
             currentUser.TenantId,
             currentUser.UserId.ToString(),
             "审批任务-同意",
@@ -113,11 +115,8 @@ public sealed class ApprovalTasksController : ControllerBase
             $"任务ID: {taskId}",
             ControllerHelper.GetIpAddress(HttpContext),
             ControllerHelper.GetUserAgent(HttpContext),
-            clientContext.ClientType.ToString(),
-            clientContext.ClientPlatform.ToString(),
-            clientContext.ClientChannel.ToString(),
-            clientContext.ClientAgent.ToString());
-        await _auditWriter.WriteAsync(auditRecord, cancellationToken);
+            _clientContextAccessor.GetCurrent());
+        await _auditRecorder.RecordAsync(auditContext, cancellationToken);
 
         return ApiResponse<string>.Ok("已同意", HttpContext.TraceIdentifier);
     }
@@ -144,8 +143,7 @@ public sealed class ApprovalTasksController : ControllerBase
             cancellationToken);
 
         // 记录审计日志
-        var clientContext = ControllerHelper.GetClientContext(HttpContext);
-        var auditRecord = new AuditRecord(
+        var auditContext = new AuditContext(
             currentUser.TenantId,
             currentUser.UserId.ToString(),
             "审批任务-驳回",
@@ -153,11 +151,8 @@ public sealed class ApprovalTasksController : ControllerBase
             $"任务ID: {taskId}",
             ControllerHelper.GetIpAddress(HttpContext),
             ControllerHelper.GetUserAgent(HttpContext),
-            clientContext.ClientType.ToString(),
-            clientContext.ClientPlatform.ToString(),
-            clientContext.ClientChannel.ToString(),
-            clientContext.ClientAgent.ToString());
-        await _auditWriter.WriteAsync(auditRecord, cancellationToken);
+            _clientContextAccessor.GetCurrent());
+        await _auditRecorder.RecordAsync(auditContext, cancellationToken);
 
         return ApiResponse<string>.Ok("已驳回", HttpContext.TraceIdentifier);
     }

@@ -2,12 +2,12 @@ using AutoMapper;
 using FluentValidation;
 using Atlas.Application.Abstractions;
 using Atlas.Application.Audit.Abstractions;
+using Atlas.Application.Audit.Models;
 using Atlas.Application.Models;
 using Atlas.Core.Exceptions;
 using Atlas.Core.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
-using Atlas.Domain.Audit.Entities;
 using Atlas.WebApi.Helpers;
 using Atlas.WebApi.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -23,26 +23,29 @@ public sealed class AuthController : ControllerBase
     private readonly IAuthProfileService _authProfileService;
     private readonly ITenantProvider _tenantProvider;
     private readonly ICurrentUserAccessor _currentUserAccessor;
+    private readonly IClientContextAccessor _clientContextAccessor;
     private readonly IMapper _mapper;
     private readonly IValidator<AuthTokenRequest> _validator;
-    private readonly IAuditWriter _auditWriter;
+    private readonly IAuditRecorder _auditRecorder;
 
     public AuthController(
         IAuthTokenService authTokenService,
         IAuthProfileService authProfileService,
         ITenantProvider tenantProvider,
         ICurrentUserAccessor currentUserAccessor,
+        IClientContextAccessor clientContextAccessor,
         IMapper mapper,
         IValidator<AuthTokenRequest> validator,
-        IAuditWriter auditWriter)
+        IAuditRecorder auditRecorder)
     {
         _authTokenService = authTokenService;
         _authProfileService = authProfileService;
         _tenantProvider = tenantProvider;
         _currentUserAccessor = currentUserAccessor;
+        _clientContextAccessor = clientContextAccessor;
         _mapper = mapper;
         _validator = validator;
-        _auditWriter = auditWriter;
+        _auditRecorder = auditRecorder;
     }
 
     [HttpPost("token")]
@@ -100,8 +103,7 @@ public sealed class AuthController : ControllerBase
             return NotFound(ApiResponse<AuthProfileResult>.Fail(ErrorCodes.NotFound, "用户不存在", HttpContext.TraceIdentifier));
         }
 
-        var clientContext = ControllerHelper.GetClientContext(HttpContext);
-        var payloadProfile = profile with { ClientContext = clientContext };
+        var payloadProfile = profile with { ClientContext = _clientContextAccessor.GetCurrent() };
         return Ok(ApiResponse<AuthProfileResult>.Ok(payloadProfile, HttpContext.TraceIdentifier));
     }
 
@@ -111,22 +113,17 @@ public sealed class AuthController : ControllerBase
     {
         var currentUser = _currentUserAccessor.GetCurrentUserOrThrow();
         var actor = string.IsNullOrWhiteSpace(currentUser.Username) ? currentUser.UserId.ToString() : currentUser.Username;
-        var clientContext = ControllerHelper.GetClientContext(HttpContext);
+        var auditContext = new AuditContext(
+            currentUser.TenantId,
+            actor,
+            "LOGOUT",
+            "SUCCESS",
+            null,
+            ControllerHelper.GetIpAddress(HttpContext),
+            ControllerHelper.GetUserAgent(HttpContext),
+            _clientContextAccessor.GetCurrent());
 
-        var auditRecord = new AuditRecord(
-            tenantId: currentUser.TenantId,
-            actor: actor,
-            action: "LOGOUT",
-            result: "SUCCESS",
-            target: null,
-            ipAddress: ControllerHelper.GetIpAddress(HttpContext),
-            userAgent: ControllerHelper.GetUserAgent(HttpContext),
-            clientType: clientContext.ClientType.ToString(),
-            clientPlatform: clientContext.ClientPlatform.ToString(),
-            clientChannel: clientContext.ClientChannel.ToString(),
-            clientAgent: clientContext.ClientAgent.ToString());
-
-        await _auditWriter.WriteAsync(auditRecord, cancellationToken);
+        await _auditRecorder.RecordAsync(auditContext, cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Success = true }, HttpContext.TraceIdentifier));
     }
 }
