@@ -9,7 +9,7 @@ public class Department : TenantEntity
         : base(TenantId.Empty)
     {
         Name = string.Empty;
-        ParentId = null;
+        ParentId = 0;
         SortOrder = 0;
     }
 
@@ -18,7 +18,7 @@ public class Department : TenantEntity
     {
         Id = id;
         Name = name;
-        ParentId = parentId;
+        ParentId = parentId ?? 0;
         SortOrder = sortOrder;
     }
 
@@ -29,7 +29,7 @@ public class Department : TenantEntity
     public void Update(string name, long? parentId, int sortOrder)
     {
         Name = name;
-        ParentId = parentId;
+        ParentId = parentId ?? 0;
         SortOrder = sortOrder;
     }
 }

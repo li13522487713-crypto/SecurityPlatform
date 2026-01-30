@@ -12,12 +12,15 @@ public class UserAccount : TenantEntity
         DisplayName = string.Empty;
         PasswordHash = string.Empty;
         Roles = string.Empty;
-        Email = null;
-        PhoneNumber = null;
+        Email = string.Empty;
+        PhoneNumber = string.Empty;
         IsActive = false;
         IsSystem = false;
         FailedLoginCount = 0;
+        LockoutEndAt = DateTimeOffset.MinValue;
+        ManualLockAt = DateTimeOffset.MinValue;
         LastPasswordChangeAt = DateTimeOffset.UtcNow;
+        LastLoginAt = DateTimeOffset.MinValue;
     }
 
     public UserAccount(TenantId tenantId, string username, string passwordHash, string roles)
@@ -27,12 +30,15 @@ public class UserAccount : TenantEntity
         DisplayName = username;
         PasswordHash = passwordHash;
         Roles = roles;
-        Email = null;
-        PhoneNumber = null;
+        Email = string.Empty;
+        PhoneNumber = string.Empty;
         IsActive = true;
         IsSystem = false;
         FailedLoginCount = 0;
+        LockoutEndAt = DateTimeOffset.MinValue;
+        ManualLockAt = DateTimeOffset.MinValue;
         LastPasswordChangeAt = DateTimeOffset.UtcNow;
+        LastLoginAt = DateTimeOffset.MinValue;
     }
 
     public UserAccount(TenantId tenantId, string username, string displayName, string passwordHash, long id)
@@ -43,12 +49,15 @@ public class UserAccount : TenantEntity
         DisplayName = displayName;
         PasswordHash = passwordHash;
         Roles = string.Empty;
-        Email = null;
-        PhoneNumber = null;
+        Email = string.Empty;
+        PhoneNumber = string.Empty;
         IsActive = true;
         IsSystem = false;
         FailedLoginCount = 0;
+        LockoutEndAt = DateTimeOffset.MinValue;
+        ManualLockAt = DateTimeOffset.MinValue;
         LastPasswordChangeAt = DateTimeOffset.UtcNow;
+        LastLoginAt = DateTimeOffset.MinValue;
     }
 
     public string Username { get; private set; }
@@ -60,28 +69,28 @@ public class UserAccount : TenantEntity
     public bool IsActive { get; private set; }
     public bool IsSystem { get; private set; }
     public int FailedLoginCount { get; private set; }
-    public DateTimeOffset? LockoutEndAt { get; private set; }
+    public DateTimeOffset LockoutEndAt { get; private set; }
     public bool IsManualLocked { get; private set; }
-    public DateTimeOffset? ManualLockAt { get; private set; }
+    public DateTimeOffset ManualLockAt { get; private set; }
     public DateTimeOffset LastPasswordChangeAt { get; private set; }
-    public DateTimeOffset? LastLoginAt { get; private set; }
+    public DateTimeOffset LastLoginAt { get; private set; }
 
     public void UpdatePassword(string passwordHash, DateTimeOffset now)
     {
         PasswordHash = passwordHash;
         LastPasswordChangeAt = now;
         FailedLoginCount = 0;
-        LockoutEndAt = null;
+        LockoutEndAt = DateTimeOffset.MinValue;
         IsManualLocked = false;
-        ManualLockAt = null;
+        ManualLockAt = DateTimeOffset.MinValue;
     }
 
     public void MarkLoginSuccess(DateTimeOffset now)
     {
         FailedLoginCount = 0;
-        LockoutEndAt = null;
+        LockoutEndAt = DateTimeOffset.MinValue;
         IsManualLocked = false;
-        ManualLockAt = null;
+        ManualLockAt = DateTimeOffset.MinValue;
         LastLoginAt = now;
     }
 
@@ -103,9 +112,9 @@ public class UserAccount : TenantEntity
     public void Unlock()
     {
         FailedLoginCount = 0;
-        LockoutEndAt = null;
+        LockoutEndAt = DateTimeOffset.MinValue;
         IsManualLocked = false;
-        ManualLockAt = null;
+        ManualLockAt = DateTimeOffset.MinValue;
     }
 
     public void Deactivate()
@@ -121,8 +130,8 @@ public class UserAccount : TenantEntity
     public void UpdateProfile(string displayName, string? email, string? phoneNumber)
     {
         DisplayName = displayName;
-        Email = email;
-        PhoneNumber = phoneNumber;
+        Email = email ?? string.Empty;
+        PhoneNumber = phoneNumber ?? string.Empty;
     }
 
     public void UpdateRoles(string roles)

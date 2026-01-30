@@ -10,7 +10,7 @@ public class Role : TenantEntity
     {
         Name = string.Empty;
         Code = string.Empty;
-        Description = null;
+        Description = string.Empty;
         IsSystem = false;
     }
 
@@ -20,7 +20,7 @@ public class Role : TenantEntity
         Id = id;
         Name = name;
         Code = code;
-        Description = null;
+        Description = string.Empty;
         IsSystem = false;
     }
 
@@ -32,7 +32,7 @@ public class Role : TenantEntity
     public void Update(string name, string? description)
     {
         Name = name;
-        Description = description;
+        Description = description ?? string.Empty;
     }
 
     public void MarkSystemRole()

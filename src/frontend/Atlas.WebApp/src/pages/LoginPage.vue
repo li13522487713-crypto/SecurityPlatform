@@ -1,6 +1,6 @@
 <template>
   <a-card title="登录" class="page-card login-card">
-    <a-form layout="vertical" @finish="onFinish">
+    <a-form layout="vertical" :model="form" @finish="onFinish">
       <a-form-item label="租户ID" name="tenantId" :rules="[{ required: true, message: '请输入租户ID' }]">
         <a-input v-model:value="form.tenantId" placeholder="GUID" />
       </a-form-item>

@@ -33,8 +33,8 @@ public sealed class AuditRecord : TenantEntity
         Action = action;
         Result = result;
         Target = target ?? string.Empty;
-        IpAddress = ipAddress;
-        UserAgent = userAgent;
+        IpAddress = ipAddress ?? string.Empty;
+        UserAgent = userAgent ?? string.Empty;
         OccurredAt = DateTimeOffset.UtcNow;
     }
 
@@ -42,7 +42,7 @@ public sealed class AuditRecord : TenantEntity
     public string Action { get; private set; }
     public string Result { get; private set; }
     public string Target { get; private set; }
-    public string? IpAddress { get; private set; }
-    public string? UserAgent { get; private set; }
+    public string IpAddress { get; private set; }
+    public string UserAgent { get; private set; }
     public DateTimeOffset OccurredAt { get; private set; }
 }

@@ -236,9 +236,9 @@ public sealed class JwtAuthTokenService : IAuthTokenService
     private bool IsLocked(UserAccount account, DateTimeOffset now, out bool stateChanged)
     {
         stateChanged = false;
-        if (account.IsManualLocked && account.ManualLockAt.HasValue)
+        if (account.IsManualLocked && account.ManualLockAt > DateTimeOffset.MinValue)
         {
-            var autoUnlockAt = account.ManualLockAt.Value.AddMinutes(_lockoutPolicy.AutoUnlockMinutes);
+            var autoUnlockAt = account.ManualLockAt.AddMinutes(_lockoutPolicy.AutoUnlockMinutes);
             if (now >= autoUnlockAt)
             {
                 account.Unlock();
@@ -249,9 +249,9 @@ public sealed class JwtAuthTokenService : IAuthTokenService
             return true;
         }
 
-        if (account.LockoutEndAt.HasValue)
+        if (account.LockoutEndAt > DateTimeOffset.MinValue)
         {
-            if (now >= account.LockoutEndAt.Value)
+            if (now >= account.LockoutEndAt)
             {
                 account.Unlock();
                 stateChanged = true;

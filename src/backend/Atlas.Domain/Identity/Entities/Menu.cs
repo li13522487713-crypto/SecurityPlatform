@@ -10,11 +10,11 @@ public class Menu : TenantEntity
     {
         Name = string.Empty;
         Path = string.Empty;
-        Component = null;
-        Icon = null;
-        ParentId = null;
+        Component = string.Empty;
+        Icon = string.Empty;
+        ParentId = 0;
         SortOrder = 0;
-        PermissionCode = null;
+        PermissionCode = string.Empty;
         IsHidden = false;
     }
 
@@ -34,11 +34,11 @@ public class Menu : TenantEntity
         Id = id;
         Name = name;
         Path = path;
-        ParentId = parentId;
+        ParentId = parentId ?? 0;
         SortOrder = sortOrder;
-        Component = component;
-        Icon = icon;
-        PermissionCode = permissionCode;
+        Component = component ?? string.Empty;
+        Icon = icon ?? string.Empty;
+        PermissionCode = permissionCode ?? string.Empty;
         IsHidden = isHidden;
     }
 
@@ -63,11 +63,11 @@ public class Menu : TenantEntity
     {
         Name = name;
         Path = path;
-        ParentId = parentId;
+        ParentId = parentId ?? 0;
         SortOrder = sortOrder;
-        Component = component;
-        Icon = icon;
-        PermissionCode = permissionCode;
+        Component = component ?? string.Empty;
+        Icon = icon ?? string.Empty;
+        PermissionCode = permissionCode ?? string.Empty;
         IsHidden = isHidden;
     }
 }

@@ -11,7 +11,7 @@ public class Permission : TenantEntity
         Name = string.Empty;
         Code = string.Empty;
         Type = "Api";
-        Description = null;
+        Description = string.Empty;
     }
 
     public Permission(TenantId tenantId, string name, string code, string type, long id)
@@ -21,7 +21,7 @@ public class Permission : TenantEntity
         Name = name;
         Code = code;
         Type = type;
-        Description = null;
+        Description = string.Empty;
     }
 
     public string Name { get; private set; }
@@ -33,6 +33,6 @@ public class Permission : TenantEntity
     {
         Name = name;
         Type = type;
-        Description = description;
+        Description = description ?? string.Empty;
     }
 }
