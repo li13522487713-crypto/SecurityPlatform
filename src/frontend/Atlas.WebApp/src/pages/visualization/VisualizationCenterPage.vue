@@ -31,6 +31,23 @@
       </a-col>
     </a-row>
 
+    <a-card title="运行指标" size="small" style="margin-top: 16px">
+      <a-row :gutter="[16, 16]">
+        <a-col :span="6">
+          <a-statistic title="待办任务" :value="metrics?.pendingTasks ?? 0" />
+        </a-col>
+        <a-col :span="6">
+          <a-statistic title="超时待办" :value="metrics?.overdueTasks ?? 0" />
+        </a-col>
+        <a-col :span="6">
+          <a-statistic title="资产总量" :value="metrics?.assetsTotal ?? 0" />
+        </a-col>
+        <a-col :span="6">
+          <a-statistic title="今日审计" :value="metrics?.auditEventsToday ?? 0" />
+        </a-col>
+      </a-row>
+    </a-card>
+
     <a-card title="风险提示" size="small" style="margin-top: 16px">
       <a-list :data-source="overview?.riskHints || []" bordered>
         <template #renderItem="{ item }">
@@ -48,17 +65,19 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
-import { getVisualizationOverview } from "@/services/api";
-import type { VisualizationOverview } from "@/types/api";
+import { getVisualizationMetrics, getVisualizationOverview } from "@/services/api";
+import type { VisualizationMetricsResponse, VisualizationOverview } from "@/types/api";
 import { message } from "ant-design-vue";
 
 const overview = ref<VisualizationOverview>();
+const metrics = ref<VisualizationMetricsResponse>();
 const loading = ref(false);
 
 const loadOverview = async () => {
   try {
     loading.value = true;
     overview.value = await getVisualizationOverview();
+    metrics.value = await getVisualizationMetrics();
   } catch (err) {
     message.error((err as Error).message);
   } finally {

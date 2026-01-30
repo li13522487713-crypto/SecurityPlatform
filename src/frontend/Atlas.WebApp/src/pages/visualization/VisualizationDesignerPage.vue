@@ -64,23 +64,64 @@
 
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, reactive, ref } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { message } from "ant-design-vue";
-import { Graph } from "@antv/x6";
+import { Graph, Node } from "@antv/x6";
 import { Dnd } from "@antv/x6-plugin-dnd";
 import {
-  validateVisualizationProcess,
-  publishVisualizationProcess
+  getVisualizationProcessDetail,
+  publishVisualizationProcess,
+  saveVisualizationProcess,
+  validateVisualizationProcess
 } from "@/services/api";
 
+interface FlowNodeData {
+  type?: string;
+  label?: string;
+  name?: string;
+  assignee?: string;
+  timeoutMinutes?: number;
+}
+
+interface FlowNodeDefinition {
+  id: string;
+  type: string;
+  label?: string;
+  x: number;
+  y: number;
+  data?: FlowNodeData;
+}
+
+interface FlowEdgeDefinition {
+  source: string;
+  target: string;
+  data?: Record<string, string>;
+  label?: string;
+}
+
+interface FlowDefinition {
+  nodes: FlowNodeDefinition[];
+  edges: FlowEdgeDefinition[];
+}
+
+interface NodeLibraryItem {
+  label: string;
+  color: string;
+  type: string;
+}
+
+const route = useRoute();
+const router = useRouter();
+const processId = ref<string>();
 const processName = ref("示例流程");
 const version = ref(1);
 const note = ref("");
-const canvasDefinition = reactive<{ nodes: any[]; edges: any[] }>({ nodes: [], edges: [] });
+const canvasDefinition = reactive<FlowDefinition>({ nodes: [], edges: [] });
 const canvasRef = ref<HTMLDivElement>();
 const graphRef = ref<Graph>();
 const dndRef = ref<Dnd>();
 
-const nodeLibrary = [
+const nodeLibrary: NodeLibraryItem[] = [
   { label: "开始", color: "#1890ff", type: "start" },
   { label: "审批", color: "#52c41a", type: "approve" },
   { label: "条件", color: "#fa8c16", type: "condition" },
@@ -88,13 +129,82 @@ const nodeLibrary = [
   { label: "结束", color: "#595959", type: "end" }
 ];
 
-const selectedNode = ref<any>();
+const selectedNode = ref<Node>();
 const selectedNodeName = ref("");
 const selectedNodeAssignee = ref("");
 const selectedNodeTimeout = ref<number | null>(null);
 
+const buildDefinition = (): FlowDefinition => {
+  const graph = graphRef.value;
+  if (!graph) {
+    return canvasDefinition;
+  }
+
+  const nodes = graph.getNodes().map((node) => {
+    const data = node.getData() as FlowNodeData | undefined;
+    const position = node.getPosition();
+    const label = (node.getAttrs().label?.text as string | undefined) ?? data?.label ?? node.id;
+    return {
+      id: node.id,
+      type: data?.type ?? "node",
+      label,
+      x: position.x,
+      y: position.y,
+      data: { ...data, label }
+    };
+  });
+
+  const edges = graph.getEdges().map((edge) => {
+    const source = edge.getSourceCellId() ?? "";
+    const target = edge.getTargetCellId() ?? "";
+    return {
+      source,
+      target,
+      data: edge.getData() as Record<string, string> | undefined,
+      label: edge.getLabels()?.[0]?.attrs?.label?.text as string | undefined
+    };
+  });
+
+  return { nodes, edges };
+};
+
+const loadDefinition = (definitionJson: string) => {
+  if (!graphRef.value) return;
+  graphRef.value.clearCells();
+  try {
+    const parsed = JSON.parse(definitionJson) as FlowDefinition;
+    const nodes = parsed.nodes ?? [];
+    const edges = parsed.edges ?? [];
+    nodes.forEach((node) => {
+      graphRef.value?.addNode({
+        id: node.id,
+        width: 120,
+        height: 40,
+        x: node.x,
+        y: node.y,
+        attrs: {
+          body: { stroke: "#1890ff", fill: "#fff" },
+          label: { text: node.label ?? node.id, fill: "#262626" }
+        },
+        data: { ...(node.data ?? {}), type: node.type }
+      });
+    });
+    edges.forEach((edge) => {
+      if (!edge.source || !edge.target) return;
+      graphRef.value?.addEdge({
+        source: edge.source,
+        target: edge.target,
+        data: edge.data ?? {},
+        labels: edge.label ? [{ attrs: { label: { text: edge.label } } }] : undefined
+      });
+    });
+  } catch (err) {
+    message.error("流程定义解析失败");
+  }
+};
+
 const handleValidate = async () => {
-  const definitionJson = JSON.stringify(graphRef.value?.toJSON() ?? canvasDefinition);
+  const definitionJson = JSON.stringify(buildDefinition());
   const result = await validateVisualizationProcess({ definitionJson });
   if (result.passed) {
     message.success("校验通过");
@@ -104,24 +214,42 @@ const handleValidate = async () => {
 };
 
 const handlePublish = async () => {
-  const definitionJson = JSON.stringify(graphRef.value?.toJSON() ?? canvasDefinition);
+  const definitionJson = JSON.stringify(buildDefinition());
   const validateResult = await validateVisualizationProcess({ definitionJson });
   if (!validateResult.passed) {
     message.error("请先修复校验错误再发布");
     return;
   }
 
+  if (!processId.value) {
+    const saved = await saveVisualizationProcess({
+      name: processName.value,
+      definitionJson
+    });
+    processId.value = saved.processId;
+    version.value = saved.version;
+  }
+
   const result = await publishVisualizationProcess({
-    processId: processName.value,
+    processId: processId.value,
     version: version.value,
     note: note.value
   });
   message.success(`已发布：${result.processId} v${result.version}`);
+  router.replace(`/visualization/designer/${result.processId}`);
 };
 
-const handleSave = () => {
-  localStorage.setItem("viz_draft", JSON.stringify(graphRef.value?.toJSON() ?? canvasDefinition));
+const handleSave = async () => {
+  const definitionJson = JSON.stringify(buildDefinition());
+  const saved = await saveVisualizationProcess({
+    processId: processId.value,
+    name: processName.value,
+    definitionJson
+  });
+  processId.value = saved.processId;
+  version.value = saved.version;
   message.success("已保存草稿");
+  router.replace(`/visualization/designer/${saved.processId}`);
 };
 
 const initGraph = () => {
@@ -139,7 +267,7 @@ const initGraph = () => {
   graphRef.value = graph;
   dndRef.value = new Dnd({ target: graph, scaled: false });
 
-   graph.on("node:click", ({ node }) => {
+  graph.on("node:click", ({ node }) => {
     selectedNode.value = node;
     selectedNodeName.value = (node.getData()?.name as string) || (node.getAttrs().label?.text as string) || "";
     selectedNodeAssignee.value = (node.getData()?.assignee as string) || "";
@@ -148,7 +276,7 @@ const initGraph = () => {
   });
 };
 
-const handleDragStart = (e: DragEvent, item: { label: string; color: string; type: string }) => {
+const handleDragStart = (e: DragEvent, item: NodeLibraryItem) => {
   if (!graphRef.value || !dndRef.value) return;
   const node = graphRef.value.createNode({
     width: 120,
@@ -157,7 +285,7 @@ const handleDragStart = (e: DragEvent, item: { label: string; color: string; typ
       body: { stroke: item.color, fill: "#fff" },
       label: { text: item.label, fill: "#262626" }
     },
-    data: { type: item.type }
+    data: { type: item.type, label: item.label }
   });
   dndRef.value.start(node, e);
 };
@@ -167,6 +295,7 @@ const applyNodeEdit = () => {
   selectedNode.value.setData({
     ...selectedNode.value.getData(),
     name: selectedNodeName.value,
+    label: selectedNodeName.value || (selectedNode.value.getData()?.label as string | undefined),
     assignee: selectedNodeAssignee.value,
     timeoutMinutes: selectedNodeTimeout.value ?? undefined
   });
@@ -178,9 +307,18 @@ const applyNodeEdit = () => {
 
 onMounted(() => {
   initGraph();
-  const draft = localStorage.getItem("viz_draft");
-  if (draft && graphRef.value) {
-    graphRef.value.fromJSON(JSON.parse(draft));
+  const idParam = route.params.id;
+  if (typeof idParam === "string" && idParam.length > 0) {
+    processId.value = idParam;
+    getVisualizationProcessDetail(idParam)
+      .then((detail) => {
+        processName.value = detail.name;
+        version.value = detail.version;
+        loadDefinition(detail.definitionJson);
+      })
+      .catch((err) => {
+        message.error((err as Error).message);
+      });
   }
 });
 

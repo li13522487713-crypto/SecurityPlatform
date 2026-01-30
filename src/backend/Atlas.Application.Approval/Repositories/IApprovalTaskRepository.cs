@@ -46,4 +46,10 @@ public interface IApprovalTaskRepository
         long instanceId,
         ApprovalTaskStatus status,
         CancellationToken cancellationToken);
+
+    Task<int> CountByStatusAsync(
+        TenantId tenantId,
+        ApprovalTaskStatus status,
+        DateTimeOffset? createdBefore,
+        CancellationToken cancellationToken);
 }

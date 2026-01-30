@@ -20,12 +20,17 @@ import type {
   WorkflowInstanceListItem,
   VisualizationOverview,
   VisualizationProcessSummary,
+  VisualizationProcessDetail,
   VisualizationInstanceSummary,
   VisualizationInstanceDetail,
   PublishVisualizationRequest,
   ValidateVisualizationRequest,
   VisualizationValidationResult,
-  VisualizationPublishResult
+  VisualizationPublishResult,
+  SaveVisualizationProcessRequest,
+  SaveVisualizationProcessResult,
+  VisualizationMetricsResponse,
+  AuditListItem
 } from "@/types/api";
 import { message } from "ant-design-vue";
 
@@ -39,17 +44,6 @@ interface TokenResult {
 export interface AssetListItem {
   id: string;
   name: string;
-}
-
-export interface AuditListItem {
-  id: string;
-  actor: string;
-  action: string;
-  result: string;
-  target: string;
-  ipAddress?: string;
-  userAgent?: string;
-  occurredAt: string;
 }
 
 export interface AlertListItem {
@@ -414,9 +408,17 @@ export async function getVisualizationProcesses(
 }
 
 export async function getVisualizationInstances(
-  pagedRequest: PagedRequest
+  pagedRequest: PagedRequest,
+  params?: { processId?: string; status?: string }
 ): Promise<PagedResult<VisualizationInstanceSummary>> {
-  const query = toQuery(pagedRequest);
+  const queryParams = new URLSearchParams(toQuery(pagedRequest));
+  if (params?.processId) {
+    queryParams.append("processId", params.processId);
+  }
+  if (params?.status) {
+    queryParams.append("status", params.status);
+  }
+  const query = queryParams.toString();
   const response = await requestApi<ApiResponse<PagedResult<VisualizationInstanceSummary>>>(
     `/visualization/instances?${query}`
   );
@@ -460,6 +462,32 @@ export async function publishVisualizationProcess(
   return response.data;
 }
 
+export async function saveVisualizationProcess(
+  request: SaveVisualizationProcessRequest
+): Promise<SaveVisualizationProcessResult> {
+  const isUpdate = Boolean(request.processId);
+  const path = isUpdate
+    ? `/visualization/processes/${request.processId}`
+    : "/visualization/processes";
+  const response = await requestApi<ApiResponse<SaveVisualizationProcessResult>>(path, {
+    method: isUpdate ? "PUT" : "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request)
+  });
+  if (!response.data) {
+    throw new Error(response.message || "保存失败");
+  }
+  return response.data;
+}
+
+export async function getVisualizationProcessDetail(id: string): Promise<VisualizationProcessDetail> {
+  const response = await requestApi<ApiResponse<VisualizationProcessDetail>>(`/visualization/processes/${id}`);
+  if (!response.data) {
+    throw new Error(response.message || "获取流程详情失败");
+  }
+  return response.data;
+}
+
 export async function getVisualizationInstanceDetail(
   id: string
 ): Promise<VisualizationInstanceDetail> {
@@ -468,6 +496,40 @@ export async function getVisualizationInstanceDetail(
   );
   if (!response.data) {
     throw new Error(response.message || "获取实例详情失败");
+  }
+  return response.data;
+}
+
+export async function getVisualizationMetrics(params?: {
+  department?: string;
+  flowType?: string;
+  from?: string;
+  to?: string;
+}): Promise<VisualizationMetricsResponse> {
+  const query = params
+    ? new URLSearchParams(
+        Object.entries(params).reduce((acc, [k, v]) => {
+          if (v) acc[k] = v;
+          return acc;
+        }, {} as Record<string, string>)
+      ).toString()
+    : "";
+  const response = await requestApi<ApiResponse<VisualizationMetricsResponse>>(
+    `/visualization/metrics${query ? `?${query}` : ""}`
+  );
+  if (!response.data) {
+    throw new Error(response.message || "获取指标失败");
+  }
+  return response.data;
+}
+
+export async function getVisualizationAudit(
+  pagedRequest: PagedRequest
+): Promise<PagedResult<AuditListItem>> {
+  const query = toQuery(pagedRequest);
+  const response = await requestApi<ApiResponse<PagedResult<AuditListItem>>>(`/visualization/audit?${query}`);
+  if (!response.data) {
+    throw new Error(response.message || "获取审计记录失败");
   }
   return response.data;
 }

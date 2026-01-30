@@ -1,28 +1,23 @@
 <template>
-  <a-card title="治理中心（骨架）" class="page-card">
+  <a-card title="治理中心" class="page-card" :loading="loading">
     <a-row :gutter="[16, 16]">
-      <a-col :span="12">
-        <a-card size="small" title="口径管理">
-          <p>列出口径、版本、审批状态。</p>
-          <a-button type="primary" size="small">新建口径</a-button>
-        </a-card>
+      <a-col :span="24">
+        <a-alert
+          type="info"
+          show-icon
+          message="治理中心当前提供审计留痕与运行指标概览，口径管理与数据源清单将在后续版本完善。"
+        />
       </a-col>
-      <a-col :span="12">
-        <a-card size="small" title="数据源清单">
-          <p>展示数据源、刷新频率、负责人。</p>
-          <a-button size="small">导出清单</a-button>
-        </a-card>
-      </a-col>
-      <a-col :span="12">
-        <a-card size="small" title="质量检查">
-          <p>质量抽检结果与异常记录。</p>
-          <a-button size="small">查看详情</a-button>
-        </a-card>
-      </a-col>
-      <a-col :span="12">
-        <a-card size="small" title="审计与留痕">
-          <p>重要操作、发布、导出等留痕查看。</p>
-          <a-button size="small">查看审计</a-button>
+      <a-col :span="24">
+        <a-card size="small" title="审计留痕">
+          <a-table
+            :data-source="audits"
+            :columns="columns"
+            :pagination="pagination"
+            row-key="id"
+            size="middle"
+            @change="handleTableChange"
+          />
         </a-card>
       </a-col>
     </a-row>
@@ -30,5 +25,52 @@
 </template>
 
 <script setup lang="ts">
-// 治理中心骨架，无额外逻辑
+import { onMounted, ref } from "vue";
+import { getVisualizationAudit } from "@/services/api";
+import type { AuditListItem } from "@/types/api";
+import { message } from "ant-design-vue";
+
+interface TablePagination {
+  current?: number;
+  pageSize?: number;
+}
+
+const audits = ref<AuditListItem[]>([]);
+const loading = ref(false);
+const pagination = ref({ current: 1, pageSize: 10, total: 0 });
+
+const columns = [
+  { title: "时间", dataIndex: "occurredAt", key: "occurredAt" },
+  { title: "操作人", dataIndex: "actor", key: "actor" },
+  { title: "动作", dataIndex: "action", key: "action" },
+  { title: "结果", dataIndex: "result", key: "result" },
+  { title: "目标", dataIndex: "target", key: "target" }
+];
+
+const loadData = async () => {
+  try {
+    loading.value = true;
+    const result = await getVisualizationAudit({
+      pageIndex: pagination.value.current,
+      pageSize: pagination.value.pageSize
+    });
+    audits.value = result.items;
+    pagination.value.total = result.total;
+  } catch (err) {
+    message.error((err as Error).message);
+  } finally {
+    loading.value = false;
+  }
+};
+
+const handleTableChange = (pager: TablePagination) => {
+  pagination.value = {
+    ...pagination.value,
+    current: pager.current ?? pagination.value.current,
+    pageSize: pager.pageSize ?? pagination.value.pageSize
+  };
+  loadData();
+};
+
+onMounted(loadData);
 </script>

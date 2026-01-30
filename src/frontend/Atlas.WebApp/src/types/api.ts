@@ -142,6 +142,17 @@ export interface ApprovalHistoryEventResponse {
   occurredAt: string;
 }
 
+export interface AuditListItem {
+  id: string;
+  actor: string;
+  action: string;
+  result: string;
+  target: string;
+  ipAddress?: string;
+  userAgent?: string;
+  occurredAt: string;
+}
+
 // WorkflowCore 相关类型
 export interface StepParameter {
   name: string;
@@ -219,6 +230,15 @@ export interface VisualizationProcessSummary {
   publishedAt?: string;
 }
 
+export interface VisualizationProcessDetail {
+  id: string;
+  name: string;
+  version: number;
+  status: string;
+  publishedAt?: string;
+  definitionJson: string;
+}
+
 export interface VisualizationInstanceSummary {
   id: string;
   flowName: string;
@@ -258,6 +278,12 @@ export interface PublishVisualizationRequest {
   note?: string;
 }
 
+export interface SaveVisualizationProcessRequest {
+  processId?: string;
+  name: string;
+  definitionJson: string;
+}
+
 export interface VisualizationValidationResult {
   passed: boolean;
   errors: string[];
@@ -267,4 +293,22 @@ export interface VisualizationPublishResult {
   processId: string;
   version: number;
   status: string;
+}
+
+export interface SaveVisualizationProcessResult {
+  processId: string;
+  version: number;
+  status: string;
+}
+
+export interface VisualizationMetricsResponse {
+  totalProcesses: number;
+  draftProcesses: number;
+  runningInstances: number;
+  completedInstances: number;
+  pendingTasks: number;
+  overdueTasks: number;
+  assetsTotal: number;
+  alertsToday: number;
+  auditEventsToday: number;
 }

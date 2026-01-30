@@ -27,7 +27,8 @@ public sealed class AuditQueryService : IAuditQueryService
         var pageIndex = request.PageIndex < 1 ? 1 : request.PageIndex;
         var pageSize = request.PageSize < 1 ? 10 : request.PageSize;
 
-        var query = _db.Queryable<AuditRecord>();
+        var query = _db.Queryable<AuditRecord>()
+            .Where(x => x.TenantIdValue == tenantId.Value);
         if (!string.IsNullOrWhiteSpace(request.Keyword))
         {
             var keyword = request.Keyword.Trim();

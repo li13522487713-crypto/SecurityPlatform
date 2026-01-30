@@ -120,4 +120,22 @@ public sealed class ApprovalTaskRepository : IApprovalTaskRepository
                 && x.Status == status)
             .ToListAsync(cancellationToken);
     }
+
+    public async Task<int> CountByStatusAsync(
+        TenantId tenantId,
+        ApprovalTaskStatus status,
+        DateTimeOffset? createdBefore,
+        CancellationToken cancellationToken)
+    {
+        var query = _db.Queryable<ApprovalTask>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.Status == status);
+
+        if (createdBefore.HasValue)
+        {
+            var threshold = createdBefore.Value;
+            query = query.Where(x => x.CreatedAt <= threshold);
+        }
+
+        return await query.CountAsync(cancellationToken);
+    }
 }

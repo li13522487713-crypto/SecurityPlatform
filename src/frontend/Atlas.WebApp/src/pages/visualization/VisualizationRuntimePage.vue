@@ -84,14 +84,23 @@ const columns = [
   { title: "耗时(分钟)", dataIndex: "durationMinutes", key: "durationMinutes" }
 ];
 
+interface TablePagination {
+  current?: number;
+  pageSize?: number;
+}
+
 const loadData = async () => {
   try {
     loading.value = true;
-    const result = await getVisualizationInstances({
-      pageIndex: pagination.value.current,
-      pageSize: pagination.value.pageSize,
-      keyword: statusFilter.value
-    });
+    const result = await getVisualizationInstances(
+      {
+        pageIndex: pagination.value.current,
+        pageSize: pagination.value.pageSize
+      },
+      {
+        status: statusFilter.value
+      }
+    );
     instances.value = result.items;
     pagination.value.total = result.total;
   } catch (err) {
@@ -101,8 +110,12 @@ const loadData = async () => {
   }
 };
 
-const handleTableChange = (pager: any) => {
-  pagination.value = { ...pagination.value, current: pager.current, pageSize: pager.pageSize };
+const handleTableChange = (pager: TablePagination) => {
+  pagination.value = {
+    ...pagination.value,
+    current: pager.current ?? pagination.value.current,
+    pageSize: pager.pageSize ?? pagination.value.pageSize
+  };
   loadData();
 };
 

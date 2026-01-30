@@ -26,6 +26,16 @@ public sealed record VisualizationProcessSummary
     public DateTimeOffset? PublishedAt { get; init; }
 }
 
+public sealed record VisualizationProcessDetail
+{
+    public string Id { get; init; } = default!;
+    public string Name { get; init; } = default!;
+    public int Version { get; init; }
+    public string Status { get; init; } = "Draft";
+    public DateTimeOffset? PublishedAt { get; init; }
+    public string DefinitionJson { get; init; } = "{}";
+}
+
 public sealed record VisualizationInstanceSummary
 {
     public string Id { get; init; } = default!;
@@ -70,6 +80,13 @@ public sealed record PublishVisualizationRequest
     public string? Note { get; init; }
 }
 
+public sealed record SaveVisualizationProcessRequest
+{
+    public string? ProcessId { get; init; }
+    public string Name { get; init; } = default!;
+    public string DefinitionJson { get; init; } = "{}";
+}
+
 public sealed record VisualizationValidationResponse(
     bool Passed,
     IReadOnlyList<string> Errors);
@@ -78,6 +95,22 @@ public sealed record VisualizationPublishResponse(
     string ProcessId,
     int Version,
     string Status);
+
+public sealed record SaveVisualizationProcessResponse(
+    string ProcessId,
+    int Version,
+    string Status);
+
+public sealed record VisualizationMetricsResponse(
+    int TotalProcesses,
+    int DraftProcesses,
+    int RunningInstances,
+    int CompletedInstances,
+    int PendingTasks,
+    int OverdueTasks,
+    int AssetsTotal,
+    int AlertsToday,
+    int AuditEventsToday);
 
 #region X6 画布定义（强类型约束）
 

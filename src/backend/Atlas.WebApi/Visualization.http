@@ -1,25 +1,30 @@
 ### 可视化概览
-GET http://localhost:5000/visualization/overview
+GET http://localhost:5000/api/visualization/overview
 Authorization: Bearer {{access_token}}
 X-Tenant-Id: {{tenant_id}}
 
 ### 可视化流程列表
-GET http://localhost:5000/visualization/processes?pageIndex=1&pageSize=10
+GET http://localhost:5000/api/visualization/processes?pageIndex=1&pageSize=10
+Authorization: Bearer {{access_token}}
+X-Tenant-Id: {{tenant_id}}
+
+### 可视化流程详情
+GET http://localhost:5000/api/visualization/processes/1
 Authorization: Bearer {{access_token}}
 X-Tenant-Id: {{tenant_id}}
 
 ### 可视化实例列表
-GET http://localhost:5000/visualization/instances?pageIndex=1&pageSize=10
+GET http://localhost:5000/api/visualization/instances?pageIndex=1&pageSize=10
 Authorization: Bearer {{access_token}}
 X-Tenant-Id: {{tenant_id}}
 
 ### 可视化实例详情
-GET http://localhost:5000/visualization/instances/inst-1-1
+GET http://localhost:5000/api/visualization/instances/1
 Authorization: Bearer {{access_token}}
 X-Tenant-Id: {{tenant_id}}
 
 ### 校验流程定义
-POST http://localhost:5000/visualization/processes/validate
+POST http://localhost:5000/api/visualization/processes/validate
 Authorization: Bearer {{access_token}}
 X-Tenant-Id: {{tenant_id}}
 Content-Type: application/json
@@ -28,14 +33,35 @@ Content-Type: application/json
   "definitionJson": "{ \"nodes\": [], \"edges\": [] }"
 }
 
-### 发布流程定义
-POST http://localhost:5000/visualization/processes/publish
+### 保存流程草稿
+POST http://localhost:5000/api/visualization/processes
 Authorization: Bearer {{access_token}}
 X-Tenant-Id: {{tenant_id}}
 Content-Type: application/json
 
 {
-  "processId": "sample-flow",
+  "name": "sample-flow",
+  "definitionJson": "{ \"nodes\": [], \"edges\": [] }"
+}
+
+### 发布流程定义
+POST http://localhost:5000/api/visualization/processes/publish
+Authorization: Bearer {{access_token}}
+X-Tenant-Id: {{tenant_id}}
+Content-Type: application/json
+
+{
+  "processId": "1",
   "version": 1,
   "note": "demo publish"
 }
+
+### 指标聚合
+GET http://localhost:5000/api/visualization/metrics
+Authorization: Bearer {{access_token}}
+X-Tenant-Id: {{tenant_id}}
+
+### 可视化审计
+GET http://localhost:5000/api/visualization/audit?pageIndex=1&pageSize=10
+Authorization: Bearer {{access_token}}
+X-Tenant-Id: {{tenant_id}}
