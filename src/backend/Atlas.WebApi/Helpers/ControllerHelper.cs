@@ -15,20 +15,20 @@ public static class ControllerHelper
     /// <returns>用户ID，如果无法解析则返回null</returns>
     public static long? GetUserIdSafely(ClaimsPrincipal? user)
     {
-        if (user == null)
-        {
-            return null;
-        }
+        if (user == null) return null;
 
-        var claimValue = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (string.IsNullOrWhiteSpace(claimValue))
+        var candidates = new[]
         {
-            return null;
-        }
+            user.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)?.Value,
+            user.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier && long.TryParse(c.Value, out _))?.Value,
+            user.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+            user.FindFirst(ClaimTypes.Name)?.Value
+        };
 
-        if (long.TryParse(claimValue, out var userId))
+        foreach (var v in candidates)
         {
-            return userId;
+            if (!string.IsNullOrWhiteSpace(v) && long.TryParse(v, out var id))
+                return id;
         }
 
         return null;
