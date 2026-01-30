@@ -31,7 +31,22 @@ import type {
   SaveVisualizationProcessRequest,
   SaveVisualizationProcessResult,
   VisualizationMetricsResponse,
-  AuditListItem
+  AuditListItem,
+  UserListItem,
+  UserDetail,
+  UserCreateRequest,
+  UserUpdateRequest,
+  UserAssignRolesRequest,
+  UserAssignDepartmentsRequest,
+  DepartmentListItem,
+  DepartmentCreateRequest,
+  DepartmentUpdateRequest,
+  RoleListItem,
+  RoleDetail,
+  RoleCreateRequest,
+  RoleUpdateRequest,
+  RoleAssignPermissionsRequest,
+  RoleAssignMenusRequest
 } from "@/types/api";
 import type {
   FlowDefinition,
@@ -127,6 +142,173 @@ export async function getAuditsPaged(pagedRequest: PagedRequest) {
   }
 
   return response.data;
+}
+
+export async function getUsersPaged(pagedRequest: PagedRequest) {
+  const query = toQuery(pagedRequest);
+  const response = await requestApi<ApiResponse<PagedResult<UserListItem>>>(`/users?${query}`);
+  if (!response.data) {
+    throw new Error(response.message || "查询失败");
+  }
+
+  return response.data;
+}
+
+export async function getUserDetail(id: string) {
+  const response = await requestApi<ApiResponse<UserDetail>>(`/users/${id}`);
+  if (!response.data) {
+    throw new Error(response.message || "查询失败");
+  }
+
+  return response.data;
+}
+
+export async function createUser(request: UserCreateRequest) {
+  const response = await requestApi<ApiResponse<{ id: string }>>("/users", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request)
+  });
+  if (!response.success) {
+    throw new Error(response.message || "创建失败");
+  }
+}
+
+export async function updateUser(id: string, request: UserUpdateRequest) {
+  const response = await requestApi<ApiResponse<{ id: string }>>(`/users/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request)
+  });
+  if (!response.success) {
+    throw new Error(response.message || "更新失败");
+  }
+}
+
+export async function updateUserRoles(id: string, request: UserAssignRolesRequest) {
+  const response = await requestApi<ApiResponse<{ id: string }>>(`/users/${id}/roles`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request)
+  });
+  if (!response.success) {
+    throw new Error(response.message || "更新角色失败");
+  }
+}
+
+export async function updateUserDepartments(id: string, request: UserAssignDepartmentsRequest) {
+  const response = await requestApi<ApiResponse<{ id: string }>>(`/users/${id}/departments`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request)
+  });
+  if (!response.success) {
+    throw new Error(response.message || "更新部门失败");
+  }
+}
+
+export async function getDepartmentsPaged(pagedRequest: PagedRequest) {
+  const query = toQuery(pagedRequest);
+  const response = await requestApi<ApiResponse<PagedResult<DepartmentListItem>>>(`/departments?${query}`);
+  if (!response.data) {
+    throw new Error(response.message || "查询失败");
+  }
+
+  return response.data;
+}
+
+export async function getDepartmentsAll() {
+  const response = await requestApi<ApiResponse<DepartmentListItem[]>>("/departments/all");
+  if (!response.data) {
+    throw new Error(response.message || "查询失败");
+  }
+
+  return response.data;
+}
+
+export async function createDepartment(request: DepartmentCreateRequest) {
+  const response = await requestApi<ApiResponse<{ id: string }>>("/departments", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request)
+  });
+  if (!response.success) {
+    throw new Error(response.message || "创建失败");
+  }
+}
+
+export async function updateDepartment(id: string, request: DepartmentUpdateRequest) {
+  const response = await requestApi<ApiResponse<{ id: string }>>(`/departments/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request)
+  });
+  if (!response.success) {
+    throw new Error(response.message || "更新失败");
+  }
+}
+
+export async function getRolesPaged(pagedRequest: PagedRequest) {
+  const query = toQuery(pagedRequest);
+  const response = await requestApi<ApiResponse<PagedResult<RoleListItem>>>(`/roles?${query}`);
+  if (!response.data) {
+    throw new Error(response.message || "查询失败");
+  }
+
+  return response.data;
+}
+
+export async function getRoleDetail(id: string) {
+  const response = await requestApi<ApiResponse<RoleDetail>>(`/roles/${id}`);
+  if (!response.data) {
+    throw new Error(response.message || "查询失败");
+  }
+
+  return response.data;
+}
+
+export async function createRole(request: RoleCreateRequest) {
+  const response = await requestApi<ApiResponse<{ id: string }>>("/roles", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request)
+  });
+  if (!response.success) {
+    throw new Error(response.message || "创建失败");
+  }
+}
+
+export async function updateRole(id: string, request: RoleUpdateRequest) {
+  const response = await requestApi<ApiResponse<{ id: string }>>(`/roles/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request)
+  });
+  if (!response.success) {
+    throw new Error(response.message || "更新失败");
+  }
+}
+
+export async function updateRolePermissions(id: string, request: RoleAssignPermissionsRequest) {
+  const response = await requestApi<ApiResponse<{ id: string }>>(`/roles/${id}/permissions`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request)
+  });
+  if (!response.success) {
+    throw new Error(response.message || "更新权限失败");
+  }
+}
+
+export async function updateRoleMenus(id: string, request: RoleAssignMenusRequest) {
+  const response = await requestApi<ApiResponse<{ id: string }>>(`/roles/${id}/menus`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request)
+  });
+  if (!response.success) {
+    throw new Error(response.message || "更新菜单失败");
+  }
 }
 
 export async function getAlertsPaged(pagedRequest: PagedRequest) {

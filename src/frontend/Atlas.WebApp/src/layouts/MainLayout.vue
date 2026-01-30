@@ -9,6 +9,17 @@
         <a-menu-item key="audit" @click="go('/audit')">审计</a-menu-item>
         <a-menu-item key="alert" @click="go('/alert')">告警</a-menu-item>
         <a-menu-item key="approval" @click="go('/approval/flows')">审批流</a-menu-item>
+        <a-sub-menu v-if="showSystemMenu" key="system" title="系统管理">
+          <a-menu-item v-if="showUsersMenu" key="system-users" @click="go('/system/users')">
+            员工管理
+          </a-menu-item>
+          <a-menu-item v-if="showDepartmentsMenu" key="system-departments" @click="go('/system/departments')">
+            部门管理
+          </a-menu-item>
+          <a-menu-item v-if="showPositionsMenu" key="system-positions" @click="go('/system/positions')">
+            职位管理
+          </a-menu-item>
+        </a-sub-menu>
         <a-sub-menu key="visualization" title="可视化中心">
           <a-menu-item key="visualization-center" @click="go('/visualization/center')">
             总览
@@ -68,6 +79,9 @@ const selectedKeys = computed(() => {
   if (route.path.startsWith("/audit")) return ["audit"];
   if (route.path.startsWith("/alert")) return ["alert"];
   if (route.path.startsWith("/approval")) return ["approval"];
+  if (route.path.startsWith("/system/users")) return ["system-users"];
+  if (route.path.startsWith("/system/departments")) return ["system-departments"];
+  if (route.path.startsWith("/system/positions")) return ["system-positions"];
   if (route.path.startsWith("/visualization")) {
     if (route.path.includes("designer")) return ["visualization-designer"];
     if (route.path.includes("runtime")) return ["visualization-runtime"];
@@ -88,6 +102,12 @@ const go = (path: string) => {
 };
 
 const showWorkflowMenu = computed(() => hasPermission(profile.value, "workflow:design"));
+const showUsersMenu = computed(() => hasPermission(profile.value, "users:view"));
+const showDepartmentsMenu = computed(() => hasPermission(profile.value, "departments:view"));
+const showPositionsMenu = computed(() => hasPermission(profile.value, "roles:view"));
+const showSystemMenu = computed(
+  () => showUsersMenu.value || showDepartmentsMenu.value || showPositionsMenu.value
+);
 
 const loadProfile = async () => {
   const cached = getAuthProfile();

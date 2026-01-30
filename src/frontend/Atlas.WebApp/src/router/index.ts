@@ -15,6 +15,9 @@ const VisualizationCenterPage = () => import("@/pages/visualization/Visualizatio
 const VisualizationDesignerPage = () => import("@/pages/visualization/VisualizationDesignerPage.vue");
 const VisualizationRuntimePage = () => import("@/pages/visualization/VisualizationRuntimePage.vue");
 const VisualizationGovernancePage = () => import("@/pages/visualization/VisualizationGovernancePage.vue");
+const UsersPage = () => import("@/pages/system/UsersPage.vue");
+const DepartmentsPage = () => import("@/pages/system/DepartmentsPage.vue");
+const PositionsPage = () => import("@/pages/system/PositionsPage.vue");
 
 const router = createRouter({
   history: createWebHistory(),
@@ -28,6 +31,24 @@ const router = createRouter({
     { path: "/approval/designer/:id?", name: "approval-designer", component: ApprovalDesignerPage, meta: { requiresAuth: true } },
     { path: "/approval/tasks", name: "approval-tasks", component: ApprovalTasksPage, meta: { requiresAuth: true } },
     { path: "/approval/instances", name: "approval-instances", component: ApprovalInstancesPage, meta: { requiresAuth: true } },
+    {
+      path: "/system/users",
+      name: "system-users",
+      component: UsersPage,
+      meta: { requiresAuth: true, requiresPermission: "users:view" }
+    },
+    {
+      path: "/system/departments",
+      name: "system-departments",
+      component: DepartmentsPage,
+      meta: { requiresAuth: true, requiresPermission: "departments:view" }
+    },
+    {
+      path: "/system/positions",
+      name: "system-positions",
+      component: PositionsPage,
+      meta: { requiresAuth: true, requiresPermission: "roles:view" }
+    },
     {
       path: "/workflow/designer",
       name: "workflow-designer",

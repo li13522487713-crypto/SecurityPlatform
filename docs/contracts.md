@@ -503,6 +503,33 @@ JWT Claims（新增）：
 }
 ```
 
+## 用户/部门/职位（角色）管理契约
+
+### 用户
+
+- `GET /users`：分页查询用户
+- `GET /users/{id}`：用户详情
+- `POST /users`：新增用户
+- `PUT /users/{id}`：更新用户
+- `PUT /users/{id}/roles`：更新用户角色
+- `PUT /users/{id}/departments`：更新用户部门
+
+### 部门
+
+- `GET /departments`：分页查询部门
+- `GET /departments/all`：获取全部部门
+- `POST /departments`：新增部门
+- `PUT /departments/{id}`：更新部门
+
+### 职位（角色）
+
+- `GET /roles`：分页查询职位
+- `GET /roles/{id}`：职位详情
+- `POST /roles`：新增职位
+- `PUT /roles/{id}`：更新职位
+- `PUT /roles/{id}/permissions`：更新职位权限
+- `PUT /roles/{id}/menus`：更新职位菜单
+
 ## Workflow Designer APIs (草案)
 - POST `/approval/flows` : 保存流程定义
   - body: { tenantId: string, definition: FlowDefinition }

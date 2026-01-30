@@ -194,6 +194,111 @@ export interface AuditListItem {
   occurredAt: string;
 }
 
+export interface UserListItem {
+  id: string;
+  username: string;
+  displayName: string;
+  isActive: boolean;
+  email?: string;
+  phoneNumber?: string;
+  lastLoginAt?: string;
+}
+
+export interface UserDetail {
+  id: string;
+  username: string;
+  displayName: string;
+  email?: string;
+  phoneNumber?: string;
+  isActive: boolean;
+  isSystem: boolean;
+  lastLoginAt?: string;
+  roleIds: number[];
+  departmentIds: number[];
+}
+
+export interface UserCreateRequest {
+  username: string;
+  password: string;
+  displayName: string;
+  email?: string;
+  phoneNumber?: string;
+  isActive: boolean;
+  roleIds: number[];
+  departmentIds: number[];
+}
+
+export interface UserUpdateRequest {
+  displayName: string;
+  email?: string;
+  phoneNumber?: string;
+  isActive: boolean;
+}
+
+export interface UserAssignRolesRequest {
+  roleIds: number[];
+}
+
+export interface UserAssignDepartmentsRequest {
+  departmentIds: number[];
+}
+
+export interface DepartmentListItem {
+  id: string;
+  name: string;
+  parentId?: number;
+  sortOrder: number;
+}
+
+export interface DepartmentCreateRequest {
+  name: string;
+  parentId?: number;
+  sortOrder: number;
+}
+
+export interface DepartmentUpdateRequest {
+  name: string;
+  parentId?: number;
+  sortOrder: number;
+}
+
+export interface RoleListItem {
+  id: string;
+  name: string;
+  code: string;
+  description?: string;
+  isSystem: boolean;
+}
+
+export interface RoleDetail {
+  id: string;
+  name: string;
+  code: string;
+  description?: string;
+  isSystem: boolean;
+  permissionIds: number[];
+  menuIds: number[];
+}
+
+export interface RoleCreateRequest {
+  name: string;
+  code: string;
+  description?: string;
+}
+
+export interface RoleUpdateRequest {
+  name: string;
+  description?: string;
+}
+
+export interface RoleAssignPermissionsRequest {
+  permissionIds: number[];
+}
+
+export interface RoleAssignMenusRequest {
+  menuIds: number[];
+}
+
 // WorkflowCore 相关类型
 export interface StepParameter {
   name: string;
