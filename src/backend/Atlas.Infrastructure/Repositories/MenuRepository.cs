@@ -52,6 +52,21 @@ public sealed class MenuRepository : IMenuRepository
         return list;
     }
 
+    public async Task<IReadOnlyList<Menu>> QueryByIdsAsync(
+        TenantId tenantId,
+        IReadOnlyList<long> ids,
+        CancellationToken cancellationToken)
+    {
+        if (ids.Count == 0)
+        {
+            return Array.Empty<Menu>();
+        }
+
+        return await _db.Queryable<Menu>()
+            .Where(x => x.TenantIdValue == tenantId.Value && ids.Contains(x.Id))
+            .ToListAsync(cancellationToken);
+    }
+
     public Task AddAsync(Menu menu, CancellationToken cancellationToken)
     {
         return _db.Insertable(menu).ExecuteCommandAsync(cancellationToken);

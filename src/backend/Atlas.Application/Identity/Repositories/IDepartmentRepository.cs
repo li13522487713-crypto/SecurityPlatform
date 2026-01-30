@@ -12,6 +12,10 @@ public interface IDepartmentRepository
         string? keyword,
         CancellationToken cancellationToken);
     Task<IReadOnlyList<Department>> QueryAllAsync(TenantId tenantId, CancellationToken cancellationToken);
+    Task<IReadOnlyList<Department>> QueryByIdsAsync(
+        TenantId tenantId,
+        IReadOnlyList<long> ids,
+        CancellationToken cancellationToken);
     Task AddAsync(Department department, CancellationToken cancellationToken);
     Task UpdateAsync(Department department, CancellationToken cancellationToken);
 }

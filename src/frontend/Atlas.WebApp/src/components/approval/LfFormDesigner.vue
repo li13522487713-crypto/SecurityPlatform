@@ -8,7 +8,8 @@
     />
     <div class="designer-shell">
       <div class="designer-panel">
-        <v-form-designer ref="designerRef"></v-form-designer>
+        <div v-if="!vformReady" class="designer-loading">表单设计器加载中...</div>
+        <v-form-designer v-else ref="designerRef"></v-form-designer>
       </div>
       <div class="json-panel">
         <a-form layout="vertical" class="form-container">
@@ -43,7 +44,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue';
+import { getCurrentInstance, onMounted, ref, watch } from 'vue';
 import type { LfFormField, FormJson, FormWidget } from '@/types/approval-definition';
 import { message } from 'ant-design-vue';
 
@@ -59,6 +60,7 @@ const emit = defineEmits<{
 const formJsonText = ref('');
 const formFields = ref<LfFormField[]>([]);
 const designerRef = ref<VFormDesignerInstance | null>(null);
+const vformReady = ref(false);
 
 const columns = [
   { title: '字段ID', dataIndex: 'fieldId' },
@@ -178,10 +180,27 @@ const parseFormJson = (value: string): FormJson | null => {
 };
 
 onMounted(() => {
+  void initVForm();
   if (props.modelValue && designerRef.value) {
     designerRef.value.setFormJson(props.modelValue);
   }
 });
+
+const initVForm = async () => {
+  const instance = getCurrentInstance();
+  if (!instance) return;
+
+  const mod = await import('vform3-builds');
+  await import('vform3-builds/dist/designer.style.css');
+
+  const app = instance.appContext.app;
+  const globals = app.config.globalProperties as { __vform3_installed__?: boolean };
+  if (!globals.__vform3_installed__) {
+    app.use(mod.default);
+    globals.__vform3_installed__ = true;
+  }
+  vformReady.value = true;
+};
 
 type VFormDesignerInstance = {
   getFormJson: () => FormJson;
@@ -209,6 +228,10 @@ type VFormDesignerInstance = {
   border-radius: 6px;
   min-height: 520px;
   overflow: hidden;
+}
+.designer-loading {
+  padding: 16px;
+  color: #8c8c8c;
 }
 
 .json-panel {

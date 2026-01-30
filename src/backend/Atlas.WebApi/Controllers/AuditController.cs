@@ -1,9 +1,11 @@
 ﻿using Atlas.Application.Audit.Abstractions;
 using Atlas.Application.Audit.Models;
+using Atlas.Application.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Atlas.WebApi.Authorization;
 
 namespace Atlas.WebApi.Controllers;
 
@@ -21,7 +23,7 @@ public sealed class AuditController : ControllerBase
     }
 
     [HttpGet]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Policy = PermissionPolicies.AuditView)]
     public async Task<ActionResult<ApiResponse<PagedResult<AuditListItem>>>> Get(
         [FromQuery] PagedRequest request,
         CancellationToken cancellationToken)

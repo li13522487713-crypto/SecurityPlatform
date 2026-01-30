@@ -47,6 +47,12 @@ public interface IApprovalRuntimeQueryService
         PagedRequest request,
         bool? isRead = null,
         CancellationToken cancellationToken = default);
+
+    Task<bool> HasInstanceAccessAsync(
+        TenantId tenantId,
+        long instanceId,
+        long userId,
+        CancellationToken cancellationToken = default);
 }
 
 /// <summary>

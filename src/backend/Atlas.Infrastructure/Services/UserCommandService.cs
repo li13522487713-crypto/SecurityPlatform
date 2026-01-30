@@ -20,6 +20,7 @@ public sealed class UserCommandService : IUserCommandService
     private readonly IUserRoleRepository _userRoleRepository;
     private readonly IUserDepartmentRepository _userDepartmentRepository;
     private readonly IRoleRepository _roleRepository;
+    private readonly IDepartmentRepository _departmentRepository;
     private readonly IPasswordHasher _passwordHasher;
     private readonly IIdGenerator _idGenerator;
     private readonly ISqlSugarClient _db;
@@ -30,6 +31,7 @@ public sealed class UserCommandService : IUserCommandService
         IUserRoleRepository userRoleRepository,
         IUserDepartmentRepository userDepartmentRepository,
         IRoleRepository roleRepository,
+        IDepartmentRepository departmentRepository,
         IPasswordHasher passwordHasher,
         IIdGenerator idGenerator,
         ISqlSugarClient db,
@@ -39,6 +41,7 @@ public sealed class UserCommandService : IUserCommandService
         _userRoleRepository = userRoleRepository;
         _userDepartmentRepository = userDepartmentRepository;
         _roleRepository = roleRepository;
+        _departmentRepository = departmentRepository;
         _passwordHasher = passwordHasher;
         _idGenerator = idGenerator;
         _db = db;
@@ -71,7 +74,9 @@ public sealed class UserCommandService : IUserCommandService
         }
 
         var roleIds = request.RoleIds?.Distinct().ToArray() ?? Array.Empty<long>();
-        var roles = await _roleRepository.QueryByIdsAsync(tenantId, roleIds, cancellationToken);
+        var roles = await EnsureRolesExistAsync(tenantId, roleIds, cancellationToken);
+        var departmentIds = request.DepartmentIds?.Distinct().ToArray() ?? Array.Empty<long>();
+        await EnsureDepartmentsExistAsync(tenantId, departmentIds, cancellationToken);
         user.UpdateRoles(string.Join(',', roles.Select(x => x.Code)));
 
         await _db.Ado.UseTranAsync(async () =>
@@ -81,9 +86,9 @@ public sealed class UserCommandService : IUserCommandService
                 roles.Select(role => new UserRole(tenantId, user.Id, role.Id, _idGenerator.NextId())).ToArray(),
                 cancellationToken);
             await _userDepartmentRepository.AddRangeAsync(
-                request.DepartmentIds?.Distinct()
+                departmentIds
                     .Select(depId => new UserDepartment(tenantId, user.Id, depId, _idGenerator.NextId(), false))
-                    .ToArray() ?? Array.Empty<UserDepartment>(),
+                    .ToArray(),
                 cancellationToken);
         });
 
@@ -127,7 +132,7 @@ public sealed class UserCommandService : IUserCommandService
             throw new BusinessException("User not found.", ErrorCodes.NotFound);
         }
 
-        var roles = await _roleRepository.QueryByIdsAsync(tenantId, roleIds.Distinct().ToArray(), cancellationToken);
+        var roles = await EnsureRolesExistAsync(tenantId, roleIds.Distinct().ToArray(), cancellationToken);
         user.UpdateRoles(string.Join(',', roles.Select(x => x.Code)));
 
         await _db.Ado.UseTranAsync(async () =>
@@ -152,6 +157,8 @@ public sealed class UserCommandService : IUserCommandService
             throw new BusinessException("User not found.", ErrorCodes.NotFound);
         }
 
+        await EnsureDepartmentsExistAsync(tenantId, departmentIds, cancellationToken);
+
         await _db.Ado.UseTranAsync(async () =>
         {
             await _userDepartmentRepository.DeleteByUserIdAsync(tenantId, userId, cancellationToken);
@@ -161,5 +168,43 @@ public sealed class UserCommandService : IUserCommandService
                     .ToArray(),
                 cancellationToken);
         });
+    }
+
+    private async Task<IReadOnlyList<Role>> EnsureRolesExistAsync(
+        TenantId tenantId,
+        IReadOnlyList<long> roleIds,
+        CancellationToken cancellationToken)
+    {
+        if (roleIds.Count == 0)
+        {
+            return Array.Empty<Role>();
+        }
+
+        var distinctIds = roleIds.Distinct().ToArray();
+        var roles = await _roleRepository.QueryByIdsAsync(tenantId, distinctIds, cancellationToken);
+        if (roles.Count != distinctIds.Length)
+        {
+            throw new BusinessException("Role not found.", ErrorCodes.ValidationError);
+        }
+
+        return roles;
+    }
+
+    private async Task EnsureDepartmentsExistAsync(
+        TenantId tenantId,
+        IReadOnlyList<long> departmentIds,
+        CancellationToken cancellationToken)
+    {
+        if (departmentIds.Count == 0)
+        {
+            return;
+        }
+
+        var distinctIds = departmentIds.Distinct().ToArray();
+        var departments = await _departmentRepository.QueryByIdsAsync(tenantId, distinctIds, cancellationToken);
+        if (departments.Count != distinctIds.Length)
+        {
+            throw new BusinessException("Department not found.", ErrorCodes.ValidationError);
+        }
     }
 }

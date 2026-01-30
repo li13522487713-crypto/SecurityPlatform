@@ -121,6 +121,20 @@ public sealed class ApprovalTaskRepository : IApprovalTaskRepository
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<bool> ExistsByInstanceAndAssigneeAsync(
+        TenantId tenantId,
+        long instanceId,
+        long assigneeUserId,
+        CancellationToken cancellationToken)
+    {
+        return await _db.Queryable<ApprovalTask>()
+            .Where(x => x.TenantIdValue == tenantId.Value
+                && x.InstanceId == instanceId
+                && x.AssigneeType == AssigneeType.User
+                && x.AssigneeValue == assigneeUserId.ToString())
+            .AnyAsync();
+    }
+
     public async Task<int> CountByStatusAsync(
         TenantId tenantId,
         ApprovalTaskStatus status,

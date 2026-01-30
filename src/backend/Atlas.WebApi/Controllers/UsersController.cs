@@ -1,10 +1,12 @@
 using Atlas.Application.Identity.Abstractions;
 using Atlas.Application.Identity.Models;
+using Atlas.Application.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Atlas.WebApi.Authorization;
 
 namespace Atlas.WebApi.Controllers;
 
@@ -36,7 +38,7 @@ public sealed class UsersController : ControllerBase
     }
 
     [HttpGet]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Policy = PermissionPolicies.UsersView)]
     public async Task<ActionResult<ApiResponse<PagedResult<UserListItem>>>> Get(
         [FromQuery] PagedRequest request,
         CancellationToken cancellationToken)
@@ -48,7 +50,7 @@ public sealed class UsersController : ControllerBase
     }
 
     [HttpGet("{id:long}")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Policy = PermissionPolicies.UsersView)]
     public async Task<ActionResult<ApiResponse<UserDetail>>> GetById(long id, CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
@@ -62,7 +64,7 @@ public sealed class UsersController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Policy = PermissionPolicies.UsersCreate)]
     public async Task<ActionResult<ApiResponse<object>>> Create(
         [FromBody] UserCreateRequest request,
         CancellationToken cancellationToken)
@@ -76,7 +78,7 @@ public sealed class UsersController : ControllerBase
     }
 
     [HttpPut("{id:long}")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Policy = PermissionPolicies.UsersUpdate)]
     public async Task<ActionResult<ApiResponse<object>>> Update(
         long id,
         [FromBody] UserUpdateRequest request,
@@ -89,7 +91,7 @@ public sealed class UsersController : ControllerBase
     }
 
     [HttpPut("{id:long}/roles")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Policy = PermissionPolicies.UsersAssignRoles)]
     public async Task<ActionResult<ApiResponse<object>>> UpdateRoles(
         long id,
         [FromBody] UserAssignRolesRequest request,
@@ -105,7 +107,7 @@ public sealed class UsersController : ControllerBase
     }
 
     [HttpPut("{id:long}/departments")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Policy = PermissionPolicies.UsersAssignDepartments)]
     public async Task<ActionResult<ApiResponse<object>>> UpdateDepartments(
         long id,
         [FromBody] UserAssignDepartmentsRequest request,

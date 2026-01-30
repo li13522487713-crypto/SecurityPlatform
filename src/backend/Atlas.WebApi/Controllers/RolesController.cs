@@ -1,10 +1,12 @@
 using Atlas.Application.Identity.Abstractions;
 using Atlas.Application.Identity.Models;
+using Atlas.Application.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Atlas.WebApi.Authorization;
 
 namespace Atlas.WebApi.Controllers;
 
@@ -36,7 +38,7 @@ public sealed class RolesController : ControllerBase
     }
 
     [HttpGet]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Policy = PermissionPolicies.RolesView)]
     public async Task<ActionResult<ApiResponse<PagedResult<RoleListItem>>>> Get(
         [FromQuery] PagedRequest request,
         CancellationToken cancellationToken)
@@ -47,7 +49,7 @@ public sealed class RolesController : ControllerBase
     }
 
     [HttpGet("{id:long}")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Policy = PermissionPolicies.RolesView)]
     public async Task<ActionResult<ApiResponse<RoleDetail>>> GetById(long id, CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
@@ -61,7 +63,7 @@ public sealed class RolesController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Policy = PermissionPolicies.RolesCreate)]
     public async Task<ActionResult<ApiResponse<object>>> Create(
         [FromBody] RoleCreateRequest request,
         CancellationToken cancellationToken)
@@ -74,7 +76,7 @@ public sealed class RolesController : ControllerBase
     }
 
     [HttpPut("{id:long}")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Policy = PermissionPolicies.RolesUpdate)]
     public async Task<ActionResult<ApiResponse<object>>> Update(
         long id,
         [FromBody] RoleUpdateRequest request,
@@ -87,7 +89,7 @@ public sealed class RolesController : ControllerBase
     }
 
     [HttpPut("{id:long}/permissions")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Policy = PermissionPolicies.RolesAssignPermissions)]
     public async Task<ActionResult<ApiResponse<object>>> UpdatePermissions(
         long id,
         [FromBody] RoleAssignPermissionsRequest request,
@@ -103,7 +105,7 @@ public sealed class RolesController : ControllerBase
     }
 
     [HttpPut("{id:long}/menus")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Policy = PermissionPolicies.RolesAssignMenus)]
     public async Task<ActionResult<ApiResponse<object>>> UpdateMenus(
         long id,
         [FromBody] RoleAssignMenusRequest request,

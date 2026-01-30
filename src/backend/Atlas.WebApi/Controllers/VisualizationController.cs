@@ -1,5 +1,6 @@
 using Atlas.Application.Audit.Abstractions;
 using Atlas.Application.Audit.Models;
+using Atlas.Application.Identity;
 using Atlas.Application.Visualization.Abstractions;
 using Atlas.Application.Visualization.Models;
 using Atlas.Core.Identity;
@@ -7,6 +8,7 @@ using Atlas.Core.Models;
 using Atlas.Domain.Audit.Entities;
 using Atlas.Domain.Approval.Enums;
 using Atlas.WebApi.Helpers;
+using Atlas.WebApi.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -112,7 +114,7 @@ public sealed class VisualizationController : ControllerBase
     }
 
     [HttpPost("processes")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Policy = PermissionPolicies.VisualizationProcessSave)]
     public async Task<ActionResult<ApiResponse<SaveVisualizationProcessResponse>>> SaveProcess(
         [FromBody] SaveVisualizationProcessRequest request,
         CancellationToken cancellationToken)
@@ -120,6 +122,7 @@ public sealed class VisualizationController : ControllerBase
         var result = await _queryService.SaveProcessAsync(request, cancellationToken);
 
         var currentUser = _currentUserAccessor.GetCurrentUserOrThrow();
+        var clientContext = ControllerHelper.GetClientContext(HttpContext);
         var auditRecord = new AuditRecord(
             tenantId: currentUser.TenantId,
             actor: currentUser.UserId.ToString(),
@@ -127,14 +130,18 @@ public sealed class VisualizationController : ControllerBase
             result: "成功",
             target: $"流程ID: {result.ProcessId}",
             ipAddress: ControllerHelper.GetIpAddress(HttpContext),
-            userAgent: ControllerHelper.GetUserAgent(HttpContext));
+            userAgent: ControllerHelper.GetUserAgent(HttpContext),
+            clientType: clientContext.ClientType.ToString(),
+            clientPlatform: clientContext.ClientPlatform.ToString(),
+            clientChannel: clientContext.ClientChannel.ToString(),
+            clientAgent: clientContext.ClientAgent.ToString());
         await _auditWriter.WriteAsync(auditRecord, cancellationToken);
 
         return Ok(ApiResponse<SaveVisualizationProcessResponse>.Ok(result, HttpContext.TraceIdentifier));
     }
 
     [HttpPut("processes/{id}")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Policy = PermissionPolicies.VisualizationProcessUpdate)]
     public async Task<ActionResult<ApiResponse<SaveVisualizationProcessResponse>>> UpdateProcess(
         string id,
         [FromBody] SaveVisualizationProcessRequest request,
@@ -143,6 +150,7 @@ public sealed class VisualizationController : ControllerBase
         var result = await _queryService.SaveProcessAsync(request with { ProcessId = id }, cancellationToken);
 
         var currentUser = _currentUserAccessor.GetCurrentUserOrThrow();
+        var clientContext = ControllerHelper.GetClientContext(HttpContext);
         var auditRecord = new AuditRecord(
             tenantId: currentUser.TenantId,
             actor: currentUser.UserId.ToString(),
@@ -150,14 +158,18 @@ public sealed class VisualizationController : ControllerBase
             result: "成功",
             target: $"流程ID: {result.ProcessId}",
             ipAddress: ControllerHelper.GetIpAddress(HttpContext),
-            userAgent: ControllerHelper.GetUserAgent(HttpContext));
+            userAgent: ControllerHelper.GetUserAgent(HttpContext),
+            clientType: clientContext.ClientType.ToString(),
+            clientPlatform: clientContext.ClientPlatform.ToString(),
+            clientChannel: clientContext.ClientChannel.ToString(),
+            clientAgent: clientContext.ClientAgent.ToString());
         await _auditWriter.WriteAsync(auditRecord, cancellationToken);
 
         return Ok(ApiResponse<SaveVisualizationProcessResponse>.Ok(result, HttpContext.TraceIdentifier));
     }
 
     [HttpPost("processes/publish")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Policy = PermissionPolicies.VisualizationProcessPublish)]
     public async Task<ActionResult<ApiResponse<VisualizationPublishResponse>>> PublishProcess(
         [FromBody] PublishVisualizationRequest request,
         CancellationToken cancellationToken)
@@ -165,6 +177,7 @@ public sealed class VisualizationController : ControllerBase
         var currentUser = _currentUserAccessor.GetCurrentUserOrThrow();
         var result = await _queryService.PublishAsync(request, currentUser.UserId, cancellationToken);
 
+        var clientContext = ControllerHelper.GetClientContext(HttpContext);
         var auditRecord = new AuditRecord(
             tenantId: currentUser.TenantId,
             actor: currentUser.UserId.ToString(),
@@ -172,7 +185,11 @@ public sealed class VisualizationController : ControllerBase
             result: "成功",
             target: $"流程ID: {request.ProcessId}",
             ipAddress: ControllerHelper.GetIpAddress(HttpContext),
-            userAgent: ControllerHelper.GetUserAgent(HttpContext));
+            userAgent: ControllerHelper.GetUserAgent(HttpContext),
+            clientType: clientContext.ClientType.ToString(),
+            clientPlatform: clientContext.ClientPlatform.ToString(),
+            clientChannel: clientContext.ClientChannel.ToString(),
+            clientAgent: clientContext.ClientAgent.ToString());
         await _auditWriter.WriteAsync(auditRecord, cancellationToken);
 
         return Ok(ApiResponse<VisualizationPublishResponse>.Ok(result, HttpContext.TraceIdentifier));

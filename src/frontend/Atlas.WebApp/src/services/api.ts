@@ -42,6 +42,8 @@ import type {
   FlowValidationResult
 } from "@/types/workflow";
 import { message } from "ant-design-vue";
+import { getAccessToken, getTenantId } from "@/utils/auth";
+import { getClientContextHeaders } from "@/utils/clientContext";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "/api";
 
@@ -638,8 +640,8 @@ export async function previewFlowDefinition(id: string): Promise<FlowDefinition>
 
 async function requestApi<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers ?? {});
-  const token = localStorage.getItem("access_token");
-  const tenantId = localStorage.getItem("tenant_id");
+  const token = getAccessToken();
+  const tenantId = getTenantId();
 
   if (token) {
     headers.set("Authorization", `Bearer ${token}`);
@@ -648,6 +650,13 @@ async function requestApi<T>(path: string, init?: RequestInit): Promise<T> {
   if (tenantId && !headers.has("X-Tenant-Id")) {
     headers.set("X-Tenant-Id", tenantId);
   }
+
+  const clientHeaders = getClientContextHeaders();
+  (Object.entries(clientHeaders) as [string, string][]).forEach(([key, value]) => {
+    if (value && !headers.has(key)) {
+      headers.set(key, value);
+    }
+  });
 
   const response = await fetch(`${API_BASE}${path}`, {
     ...init,

@@ -2,12 +2,20 @@
 @tenantId = 00000000-0000-0000-0000-000000000001
 @username = admin
 @password = P@ssw0rd!
+@clientType = WebH5
+@clientPlatform = Web
+@clientChannel = Browser
+@clientAgent = Chrome
 
 ### Create Token
 # @name login
 POST {{baseUrl}}/auth/token
 Content-Type: application/json
 X-Tenant-Id: {{tenantId}}
+X-Client-Type: {{clientType}}
+X-Client-Platform: {{clientPlatform}}
+X-Client-Channel: {{clientChannel}}
+X-Client-Agent: {{clientAgent}}
 
 {
   "username": "{{username}}",
@@ -21,13 +29,25 @@ X-Tenant-Id: {{tenantId}}
 POST {{baseUrl}}/auth/refresh
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
+X-Client-Type: {{clientType}}
+X-Client-Platform: {{clientPlatform}}
+X-Client-Channel: {{clientChannel}}
+X-Client-Agent: {{clientAgent}}
 
 ### Current User
 GET {{baseUrl}}/auth/me
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
+X-Client-Type: {{clientType}}
+X-Client-Platform: {{clientPlatform}}
+X-Client-Channel: {{clientChannel}}
+X-Client-Agent: {{clientAgent}}
 
 ### Logout
 POST {{baseUrl}}/auth/logout
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
+X-Client-Type: {{clientType}}
+X-Client-Platform: {{clientPlatform}}
+X-Client-Channel: {{clientChannel}}
+X-Client-Agent: {{clientAgent}}

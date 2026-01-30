@@ -59,6 +59,15 @@ Asynchronous coding is mandatory. Define async interfaces and implementations fo
 
 Standardize HTTP test files. On every new or modified API endpoint, create or update a `*.http` file where `*` is the controller name (for example `Bosch.http`). The `.http` file must include requests that cover the affected endpoints.
 
+## 控制器规范（RESTful + 版本控制）
+
+- 控制器必须遵循 RESTful 风格：资源名用复数、路径表示资源层级，HTTP 动词表达操作语义（GET/POST/PUT/PATCH/DELETE）。
+- 禁止在路径中使用动词（例如 `/create`、`/update`），改用标准动词与语义化路径。
+- 统一 API 版本控制：所有 API 路由必须包含版本前缀（例如 `api/v1`）。新增版本时保持向后兼容或明确弃用策略。
+- 版本并行策略：同一资源允许 `v1`/`v2` 并行存在，新增版本必须保持旧版本可用，除非明确进入弃用期。
+- 弃用流程：发布新版本时同步标记旧版本为 Deprecated，并给出至少 6 个月的弃用窗口；窗口期内不再新增旧版本功能，但允许安全修复与关键缺陷修复。
+- 终止策略：弃用窗口结束后方可移除旧版本路由，移除需在变更日志与发布说明中显式告知。
+
 ## Testing Guidelines
 
 No test framework is configured. When tests are added, document:

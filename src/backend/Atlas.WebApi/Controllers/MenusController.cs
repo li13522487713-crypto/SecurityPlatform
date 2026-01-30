@@ -1,10 +1,12 @@
 using Atlas.Application.Identity.Abstractions;
 using Atlas.Application.Identity.Models;
+using Atlas.Application.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Atlas.WebApi.Authorization;
 
 namespace Atlas.WebApi.Controllers;
 
@@ -36,7 +38,7 @@ public sealed class MenusController : ControllerBase
     }
 
     [HttpGet]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Policy = PermissionPolicies.MenusView)]
     public async Task<ActionResult<ApiResponse<PagedResult<MenuListItem>>>> Get(
         [FromQuery] PagedRequest request,
         CancellationToken cancellationToken)
@@ -47,7 +49,7 @@ public sealed class MenusController : ControllerBase
     }
 
     [HttpGet("all")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Policy = PermissionPolicies.MenusAll)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<MenuListItem>>>> GetAll(
         CancellationToken cancellationToken)
     {
@@ -57,7 +59,7 @@ public sealed class MenusController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Policy = PermissionPolicies.MenusCreate)]
     public async Task<ActionResult<ApiResponse<object>>> Create(
         [FromBody] MenuCreateRequest request,
         CancellationToken cancellationToken)
@@ -70,7 +72,7 @@ public sealed class MenusController : ControllerBase
     }
 
     [HttpPut("{id:long}")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Policy = PermissionPolicies.MenusUpdate)]
     public async Task<ActionResult<ApiResponse<object>>> Update(
         long id,
         [FromBody] MenuUpdateRequest request,

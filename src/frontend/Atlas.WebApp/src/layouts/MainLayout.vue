@@ -54,6 +54,7 @@ import { useRoute, useRouter } from "vue-router";
 import { message } from "ant-design-vue";
 import { getCurrentUser, logout as apiLogout } from "@/services/api";
 import type { AuthProfile } from "@/types/api";
+import { clearAuthStorage, getAccessToken, getAuthProfile, hasPermission, setAuthProfile } from "@/utils/auth";
 
 const collapsed = ref(false);
 const router = useRouter();
@@ -86,34 +87,23 @@ const go = (path: string) => {
   router.push(path);
 };
 
-const hasPermission = (code: string) => {
-  if (!profile.value) return false;
-  const hasAdminRole = profile.value.roles.some((role) => role.toLowerCase() === "admin");
-  if (hasAdminRole) return true;
-  return profile.value.permissions.includes(code);
-};
-
-const showWorkflowMenu = computed(() => hasPermission("workflow:design"));
+const showWorkflowMenu = computed(() => hasPermission(profile.value, "workflow:design"));
 
 const loadProfile = async () => {
-  const cached = localStorage.getItem("auth_profile");
+  const cached = getAuthProfile();
   if (cached) {
-    try {
-      profile.value = JSON.parse(cached) as AuthProfile;
-      return;
-    } catch {
-      localStorage.removeItem("auth_profile");
-    }
+    profile.value = cached;
+    return;
   }
 
-  if (!localStorage.getItem("access_token")) {
+  if (!getAccessToken()) {
     return;
   }
 
   try {
     const result = await getCurrentUser();
     profile.value = result;
-    localStorage.setItem("auth_profile", JSON.stringify(result));
+    setAuthProfile(result);
   } catch (error) {
     message.error((error as Error).message || "获取用户信息失败");
   }
@@ -125,9 +115,7 @@ const logout = async () => {
   } catch (error) {
     message.error((error as Error).message || "退出失败");
   } finally {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("tenant_id");
-    localStorage.removeItem("auth_profile");
+    clearAuthStorage();
     router.push("/login");
   }
 };

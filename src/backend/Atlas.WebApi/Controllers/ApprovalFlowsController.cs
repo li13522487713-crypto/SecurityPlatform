@@ -2,10 +2,12 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Atlas.Application.Approval.Abstractions;
 using Atlas.Application.Approval.Models;
+using Atlas.Application.Identity;
 using Atlas.Core.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Approval.Enums;
+using Atlas.WebApi.Authorization;
 using FluentValidation;
 
 namespace Atlas.WebApi.Controllers;
@@ -83,7 +85,7 @@ public sealed class ApprovalFlowsController : ControllerBase
     /// 创建流程定义
     /// </summary>
     [HttpPost]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Policy = PermissionPolicies.ApprovalFlowCreate)]
     public async Task<ApiResponse<ApprovalFlowDefinitionResponse>> CreateAsync(
         ApprovalFlowDefinitionCreateRequest request,
         CancellationToken cancellationToken = default)
@@ -99,7 +101,7 @@ public sealed class ApprovalFlowsController : ControllerBase
     /// 更新流程定义
     /// </summary>
     [HttpPut("{id}")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Policy = PermissionPolicies.ApprovalFlowUpdate)]
     public async Task<ApiResponse<ApprovalFlowDefinitionResponse>> UpdateAsync(
         long id,
         [FromBody] ApprovalFlowDefinitionCreateRequest request,
@@ -127,7 +129,7 @@ public sealed class ApprovalFlowsController : ControllerBase
     /// 发布流程定义
     /// </summary>
     [HttpPost("{id}/publish")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Policy = PermissionPolicies.ApprovalFlowPublish)]
     public async Task<ApiResponse<string>> PublishAsync(
         long id,
         CancellationToken cancellationToken = default)
@@ -146,7 +148,7 @@ public sealed class ApprovalFlowsController : ControllerBase
     /// 删除流程定义
     /// </summary>
     [HttpDelete("{id}")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Policy = PermissionPolicies.ApprovalFlowDelete)]
     public async Task<ApiResponse<string>> DeleteAsync(
         long id,
         CancellationToken cancellationToken = default)
@@ -160,7 +162,7 @@ public sealed class ApprovalFlowsController : ControllerBase
     /// 禁用流程定义
     /// </summary>
     [HttpPost("{id}/disable")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Policy = PermissionPolicies.ApprovalFlowDisable)]
     public async Task<ApiResponse<string>> DisableAsync(
         long id,
         CancellationToken cancellationToken = default)

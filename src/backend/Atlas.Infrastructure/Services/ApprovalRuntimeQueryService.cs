@@ -189,4 +189,27 @@ public sealed class ApprovalRuntimeQueryService : IApprovalRuntimeQueryService
             request.PageIndex,
             request.PageSize);
     }
+
+    public async Task<bool> HasInstanceAccessAsync(
+        TenantId tenantId,
+        long instanceId,
+        long userId,
+        CancellationToken cancellationToken = default)
+    {
+        var hasTask = await _taskRepository.ExistsByInstanceAndAssigneeAsync(
+            tenantId,
+            instanceId,
+            userId,
+            cancellationToken);
+        if (hasTask)
+        {
+            return true;
+        }
+
+        return await _copyRecordRepository.ExistsByInstanceAndRecipientAsync(
+            tenantId,
+            instanceId,
+            userId,
+            cancellationToken);
+    }
 }

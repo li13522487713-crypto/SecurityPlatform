@@ -2,6 +2,7 @@ using Atlas.Application.Abstractions;
 using Atlas.Application.Identity.Repositories;
 using Atlas.Application.Options;
 using Atlas.Application.Security;
+using Atlas.Application.Identity;
 using Atlas.Core.Abstractions;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Alert.Entities;
@@ -155,13 +156,73 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             }
         }
 
-        var adminPermission = await db.Queryable<Permission>()
-            .Where(x => x.TenantIdValue == tenantId.Value && x.Code == "system:admin")
-            .FirstAsync(cancellationToken);
-        if (adminPermission is null)
+        var permissionSeeds = new (string Code, string Name, string Type)[]
         {
-            adminPermission = new Permission(tenantId, "System Admin", "system:admin", "Api", idGenerator.NextId());
-            await db.Insertable(adminPermission).ExecuteCommandAsync(cancellationToken);
+            (PermissionCodes.SystemAdmin, "System Admin", "Api"),
+            (PermissionCodes.WorkflowDesign, "Workflow Designer", "Menu"),
+            (PermissionCodes.UsersView, "Users View", "Api"),
+            (PermissionCodes.UsersCreate, "Users Create", "Api"),
+            (PermissionCodes.UsersUpdate, "Users Update", "Api"),
+            (PermissionCodes.UsersAssignRoles, "Users Assign Roles", "Api"),
+            (PermissionCodes.UsersAssignDepartments, "Users Assign Departments", "Api"),
+            (PermissionCodes.RolesView, "Roles View", "Api"),
+            (PermissionCodes.RolesCreate, "Roles Create", "Api"),
+            (PermissionCodes.RolesUpdate, "Roles Update", "Api"),
+            (PermissionCodes.RolesAssignPermissions, "Roles Assign Permissions", "Api"),
+            (PermissionCodes.RolesAssignMenus, "Roles Assign Menus", "Api"),
+            (PermissionCodes.PermissionsView, "Permissions View", "Api"),
+            (PermissionCodes.PermissionsCreate, "Permissions Create", "Api"),
+            (PermissionCodes.PermissionsUpdate, "Permissions Update", "Api"),
+            (PermissionCodes.DepartmentsView, "Departments View", "Api"),
+            (PermissionCodes.DepartmentsAll, "Departments All", "Api"),
+            (PermissionCodes.DepartmentsCreate, "Departments Create", "Api"),
+            (PermissionCodes.DepartmentsUpdate, "Departments Update", "Api"),
+            (PermissionCodes.MenusView, "Menus View", "Api"),
+            (PermissionCodes.MenusAll, "Menus All", "Api"),
+            (PermissionCodes.MenusCreate, "Menus Create", "Api"),
+            (PermissionCodes.MenusUpdate, "Menus Update", "Api"),
+            (PermissionCodes.AuditView, "Audit View", "Api"),
+            (PermissionCodes.AssetsCreate, "Assets Create", "Api"),
+            (PermissionCodes.ApprovalFlowCreate, "Approval Flow Create", "Api"),
+            (PermissionCodes.ApprovalFlowUpdate, "Approval Flow Update", "Api"),
+            (PermissionCodes.ApprovalFlowPublish, "Approval Flow Publish", "Api"),
+            (PermissionCodes.ApprovalFlowDelete, "Approval Flow Delete", "Api"),
+            (PermissionCodes.ApprovalFlowDisable, "Approval Flow Disable", "Api"),
+            (PermissionCodes.VisualizationProcessSave, "Visualization Process Save", "Api"),
+            (PermissionCodes.VisualizationProcessUpdate, "Visualization Process Update", "Api"),
+            (PermissionCodes.VisualizationProcessPublish, "Visualization Process Publish", "Api")
+        };
+
+        var permissionIdMap = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+        Permission? adminPermission = null;
+        Permission? workflowPermission = null;
+
+        foreach (var seed in permissionSeeds)
+        {
+            var existingPermission = await db.Queryable<Permission>()
+                .Where(x => x.TenantIdValue == tenantId.Value && x.Code == seed.Code)
+                .FirstAsync(cancellationToken);
+            if (existingPermission is null)
+            {
+                existingPermission = new Permission(tenantId, seed.Name, seed.Code, seed.Type, idGenerator.NextId());
+                await db.Insertable(existingPermission).ExecuteCommandAsync(cancellationToken);
+            }
+
+            permissionIdMap[existingPermission.Code] = existingPermission.Id;
+            if (string.Equals(existingPermission.Code, PermissionCodes.SystemAdmin, StringComparison.OrdinalIgnoreCase))
+            {
+                adminPermission = existingPermission;
+            }
+
+            if (string.Equals(existingPermission.Code, PermissionCodes.WorkflowDesign, StringComparison.OrdinalIgnoreCase))
+            {
+                workflowPermission = existingPermission;
+            }
+        }
+
+        if (adminPermission is null || workflowPermission is null)
+        {
+            throw new InvalidOperationException("初始化权限失败：缺少 system:admin 或 workflow:design。");
         }
 
         var adminMenu = await db.Queryable<Menu>()
@@ -181,15 +242,6 @@ public sealed class DatabaseInitializerHostedService : IHostedService
                 adminPermission.Code,
                 false);
             await db.Insertable(adminMenu).ExecuteCommandAsync(cancellationToken);
-        }
-
-        var workflowPermission = await db.Queryable<Permission>()
-            .Where(x => x.TenantIdValue == tenantId.Value && x.Code == "workflow:design")
-            .FirstAsync(cancellationToken);
-        if (workflowPermission is null)
-        {
-            workflowPermission = new Permission(tenantId, "Workflow Designer", "workflow:design", "Menu", idGenerator.NextId());
-            await db.Insertable(workflowPermission).ExecuteCommandAsync(cancellationToken);
         }
 
         var workflowRootMenu = await db.Queryable<Menu>()
@@ -435,24 +487,17 @@ public sealed class DatabaseInitializerHostedService : IHostedService
                 }
             }
 
-            var existsPermission = await db.Queryable<RolePermission>()
-                .Where(x => x.TenantIdValue == tenantId.Value && x.RoleId == roleId && x.PermissionId == adminPermission.Id)
-                .AnyAsync();
-            if (!existsPermission)
+            foreach (var permissionId in permissionIdMap.Values.Distinct())
             {
-                await rolePermissionRepository.AddRangeAsync(
-                    new[] { new RolePermission(tenantId, roleId, adminPermission.Id, idGenerator.NextId()) },
-                    cancellationToken);
-            }
-
-            var existsWorkflowPermission = await db.Queryable<RolePermission>()
-                .Where(x => x.TenantIdValue == tenantId.Value && x.RoleId == roleId && x.PermissionId == workflowPermission.Id)
-                .AnyAsync();
-            if (!existsWorkflowPermission)
-            {
-                await rolePermissionRepository.AddRangeAsync(
-                    new[] { new RolePermission(tenantId, roleId, workflowPermission.Id, idGenerator.NextId()) },
-                    cancellationToken);
+                var existsPermission = await db.Queryable<RolePermission>()
+                    .Where(x => x.TenantIdValue == tenantId.Value && x.RoleId == roleId && x.PermissionId == permissionId)
+                    .AnyAsync();
+                if (!existsPermission)
+                {
+                    await rolePermissionRepository.AddRangeAsync(
+                        new[] { new RolePermission(tenantId, roleId, permissionId, idGenerator.NextId()) },
+                        cancellationToken);
+                }
             }
 
             var existsMenu = await db.Queryable<RoleMenu>()

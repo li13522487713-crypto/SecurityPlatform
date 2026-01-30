@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from "vue-router";
-import type { AuthProfile } from "@/types/api";
+import { getAccessToken, getAuthProfile, getTenantId, hasPermission } from "@/utils/auth";
 const HomePage = () => import("@/pages/HomePage.vue");
 const LoginPage = () => import("@/pages/LoginPage.vue");
 const AssetsPage = () => import("@/pages/AssetsPage.vue");
@@ -47,28 +47,10 @@ const router = createRouter({
   ]
 });
 
-const getProfile = (): AuthProfile | null => {
-  const raw = localStorage.getItem("auth_profile");
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw) as AuthProfile;
-  } catch {
-    localStorage.removeItem("auth_profile");
-    return null;
-  }
-};
-
-const hasPermission = (profile: AuthProfile | null, code: string) => {
-  if (!profile) return false;
-  const hasAdminRole = profile.roles.some((role) => role.toLowerCase() === "admin");
-  if (hasAdminRole) return true;
-  return profile.permissions.includes(code);
-};
-
 router.beforeEach((to) => {
-  const token = localStorage.getItem("access_token");
-  const tenantId = localStorage.getItem("tenant_id");
-  const profile = getProfile();
+  const token = getAccessToken();
+  const tenantId = getTenantId();
+  const profile = getAuthProfile();
 
   // 要求登录：必须同时有 token + tenantId
   if (to.meta.requiresAuth && (!token || !tenantId)) {

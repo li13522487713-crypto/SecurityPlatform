@@ -6,6 +6,18 @@ export interface ApiResponse<T> {
   data?: T;
 }
 
+export type ClientType = "WebH5" | "Mobile" | "Backend";
+export type ClientPlatform = "Web" | "Android" | "iOS";
+export type ClientChannel = "Browser" | "App";
+export type ClientAgent = "Chrome" | "Edge" | "Safari" | "Firefox" | "Other";
+
+export interface ClientContext {
+  clientType: ClientType;
+  clientPlatform: ClientPlatform;
+  clientChannel: ClientChannel;
+  clientAgent: ClientAgent;
+}
+
 export interface AuthProfile {
   id: string;
   username: string;
@@ -13,6 +25,7 @@ export interface AuthProfile {
   tenantId: string;
   roles: string[];
   permissions: string[];
+  clientContext?: ClientContext;
 }
 
 export interface PagedRequest {
@@ -174,6 +187,10 @@ export interface AuditListItem {
   target: string;
   ipAddress?: string;
   userAgent?: string;
+  clientType?: string;
+  clientPlatform?: string;
+  clientChannel?: string;
+  clientAgent?: string;
   occurredAt: string;
 }
 

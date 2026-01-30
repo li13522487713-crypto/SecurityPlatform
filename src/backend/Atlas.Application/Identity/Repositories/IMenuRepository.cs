@@ -13,6 +13,10 @@ public interface IMenuRepository
         string? keyword,
         CancellationToken cancellationToken);
     Task<IReadOnlyList<Menu>> QueryAllAsync(TenantId tenantId, CancellationToken cancellationToken);
+    Task<IReadOnlyList<Menu>> QueryByIdsAsync(
+        TenantId tenantId,
+        IReadOnlyList<long> ids,
+        CancellationToken cancellationToken);
     Task AddAsync(Menu menu, CancellationToken cancellationToken);
     Task UpdateAsync(Menu menu, CancellationToken cancellationToken);
 }

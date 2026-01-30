@@ -13,5 +13,9 @@ public sealed class AuditRecordValidator : AbstractValidator<AuditRecord>
         RuleFor(x => x.Target).MaximumLength(256);
         RuleFor(x => x.IpAddress).MaximumLength(64);
         RuleFor(x => x.UserAgent).MaximumLength(256);
+        RuleFor(x => x.ClientType).MaximumLength(32);
+        RuleFor(x => x.ClientPlatform).MaximumLength(32);
+        RuleFor(x => x.ClientChannel).MaximumLength(32);
+        RuleFor(x => x.ClientAgent).MaximumLength(32);
     }
 }

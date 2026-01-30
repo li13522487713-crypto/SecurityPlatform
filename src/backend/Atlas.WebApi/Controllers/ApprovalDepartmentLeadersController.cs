@@ -2,8 +2,10 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Atlas.Application.Approval.Abstractions;
 using Atlas.Application.Approval.Models;
+using Atlas.Application.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
+using Atlas.WebApi.Authorization;
 using FluentValidation;
 
 namespace Atlas.WebApi.Controllers;
@@ -13,7 +15,7 @@ namespace Atlas.WebApi.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/approval/department-leaders")]
-[Authorize(Roles = "Admin")]
+[Authorize(Policy = PermissionPolicies.SystemAdmin)]
 public sealed class ApprovalDepartmentLeadersController : ControllerBase
 {
     private readonly IApprovalDepartmentLeaderService _leaderService;

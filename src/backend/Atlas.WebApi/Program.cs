@@ -17,6 +17,7 @@ using NLog.Web;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using Atlas.WebApi.Authorization;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -110,6 +111,8 @@ builder.Services.AddAuthorization(options =>
         .RequireAuthenticatedUser()
         .Build();
 });
+builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
+builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
 
 builder.Services.AddAtlasApplication();
 builder.Services.AddAtlasInfrastructure(builder.Configuration);

@@ -9,6 +9,10 @@
 
 - `Authorization: Bearer <accessToken>`：JWT 访问令牌。
 - `X-Tenant-Id: <tenantId>`：租户标识（GUID）。
+- `X-Client-Type: WebH5 | Mobile | Backend`：客户端类型。
+- `X-Client-Platform: Web | Android | iOS`：客户端平台。
+- `X-Client-Channel: Browser | App`：客户端通道。
+- `X-Client-Agent: Chrome | Edge | Safari | Firefox | Other`：客户端代理（浏览器或环境）。
 
 ## 通用响应模型
 
@@ -82,6 +86,13 @@
   "accessToken": "jwt-access-token",
   "expiresAt": "2026-01-30T10:00:00Z"
 }
+
+JWT Claims（新增）：
+
+- `client_type`：客户端类型（`WebH5`/`Mobile`/`Backend`）
+- `client_platform`：客户端平台（`Web`/`Android`/`iOS`）
+- `client_channel`：客户端通道（`Browser`/`App`）
+- `client_agent`：客户端代理（`Chrome`/`Edge`/`Safari`/`Firefox`/`Other`）
 ```
 
 ### 刷新令牌（使用当前登录态）
@@ -112,7 +123,13 @@
   "displayName": "系统管理员",
   "tenantId": "00000000-0000-0000-0000-000000000001",
   "roles": ["Admin"],
-  "permissions": ["workflow:design", "system:admin"]
+  "permissions": ["workflow:design", "system:admin", "users:view", "roles:view"],
+  "clientContext": {
+    "clientType": "WebH5",
+    "clientPlatform": "Web",
+    "clientChannel": "Browser",
+    "clientAgent": "Chrome"
+  }
 }
 ```
 
@@ -170,6 +187,42 @@
   }
 ]
 ```
+
+### 权限码清单（默认）
+
+- `system:admin`：系统管理员
+- `workflow:design`：工作流设计器
+- `users:view`：用户查看
+- `users:create`：用户新增
+- `users:update`：用户更新
+- `users:assign-roles`：用户分配角色
+- `users:assign-departments`：用户分配部门
+- `roles:view`：角色查看
+- `roles:create`：角色新增
+- `roles:update`：角色更新
+- `roles:assign-permissions`：角色分配权限
+- `roles:assign-menus`：角色分配菜单
+- `permissions:view`：权限查看
+- `permissions:create`：权限新增
+- `permissions:update`：权限更新
+- `departments:view`：部门查看
+- `departments:all`：部门全量
+- `departments:create`：部门新增
+- `departments:update`：部门更新
+- `menus:view`：菜单查看
+- `menus:all`：菜单全量
+- `menus:create`：菜单新增
+- `menus:update`：菜单更新
+- `audit:view`：审计查看
+- `assets:create`：资产新增
+- `approval:flow:create`：审批流创建
+- `approval:flow:update`：审批流更新
+- `approval:flow:publish`：审批流发布
+- `approval:flow:delete`：审批流删除
+- `approval:flow:disable`：审批流停用
+- `visualization:process:save`：可视化流程保存
+- `visualization:process:update`：可视化流程更新
+- `visualization:process:publish`：可视化流程发布
 
 字段说明：
 
@@ -437,6 +490,10 @@
       "target": "流程ID: 1",
       "ipAddress": "127.0.0.1",
       "userAgent": "Mozilla/5.0",
+      "clientType": "WebH5",
+      "clientPlatform": "Web",
+      "clientChannel": "Browser",
+      "clientAgent": "Chrome",
       "occurredAt": "2026-01-30T10:00:00Z"
     }
   ],

@@ -31,11 +31,20 @@ export default defineConfig({
           if (!id.includes("node_modules")) {
             return undefined;
           }
+          if (id.includes("vform3-builds")) {
+            return "vendor-vform";
+          }
+          if (id.includes("@antv/x6")) {
+            return "vendor-x6";
+          }
           if (id.includes("ant-design-vue") || id.includes("@ant-design")) {
             return "vendor-antd";
           }
-          if (id.includes("/vue/") || id.includes("vue-router")) {
-            return "vendor-vue";
+          if (id.includes("element-plus")) {
+            return "vendor-element";
+          }
+          if (id.includes("vue-router")) {
+            return "vendor-router";
           }
           return "vendor";
         }

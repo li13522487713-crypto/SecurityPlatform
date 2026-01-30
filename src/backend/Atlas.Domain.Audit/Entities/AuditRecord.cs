@@ -16,6 +16,10 @@ public sealed class AuditRecord : TenantEntity
         Result = string.Empty;
         Target = string.Empty;
         OccurredAt = DateTimeOffset.UtcNow;
+        ClientType = string.Empty;
+        ClientPlatform = string.Empty;
+        ClientChannel = string.Empty;
+        ClientAgent = string.Empty;
     }
 #pragma warning restore CS8618
 
@@ -27,6 +31,22 @@ public sealed class AuditRecord : TenantEntity
         string? target,
         string? ipAddress,
         string? userAgent)
+        : this(tenantId, actor, action, result, target, ipAddress, userAgent, null, null, null, null)
+    {
+    }
+
+    public AuditRecord(
+        TenantId tenantId,
+        string actor,
+        string action,
+        string result,
+        string? target,
+        string? ipAddress,
+        string? userAgent,
+        string? clientType,
+        string? clientPlatform,
+        string? clientChannel,
+        string? clientAgent)
         : base(tenantId)
     {
         Actor = actor;
@@ -35,6 +55,10 @@ public sealed class AuditRecord : TenantEntity
         Target = target ?? string.Empty;
         IpAddress = ipAddress ?? string.Empty;
         UserAgent = userAgent ?? string.Empty;
+        ClientType = clientType ?? string.Empty;
+        ClientPlatform = clientPlatform ?? string.Empty;
+        ClientChannel = clientChannel ?? string.Empty;
+        ClientAgent = clientAgent ?? string.Empty;
         OccurredAt = DateTimeOffset.UtcNow;
     }
 
@@ -44,5 +68,9 @@ public sealed class AuditRecord : TenantEntity
     public string Target { get; private set; }
     public string IpAddress { get; private set; }
     public string UserAgent { get; private set; }
+    public string ClientType { get; private set; }
+    public string ClientPlatform { get; private set; }
+    public string ClientChannel { get; private set; }
+    public string ClientAgent { get; private set; }
     public DateTimeOffset OccurredAt { get; private set; }
 }

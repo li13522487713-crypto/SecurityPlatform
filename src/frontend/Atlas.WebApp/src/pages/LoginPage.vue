@@ -20,13 +20,14 @@ import { message } from "ant-design-vue";
 import { reactive, ref } from "vue";
 import { useRouter } from "vue-router";
 import { createToken, getCurrentUser } from "@/services/api";
+import { clearAuthStorage, getTenantId, setAccessToken, setAuthProfile, setTenantId } from "@/utils/auth";
 
 const router = useRouter();
 const loading = ref(false);
 
 const defaultTenantId = "00000000-0000-0000-0000-000000000001";
 const form = reactive({
-  tenantId: localStorage.getItem("tenant_id") ?? defaultTenantId,
+  tenantId: getTenantId() ?? defaultTenantId,
   username: "",
   password: ""
 });
@@ -35,15 +36,13 @@ const onFinish = async () => {
   loading.value = true;
   try {
     const result = await createToken(form.tenantId, form.username, form.password);
-    localStorage.setItem("access_token", result.accessToken);
-    localStorage.setItem("tenant_id", form.tenantId);
+    setAccessToken(result.accessToken);
+    setTenantId(form.tenantId);
     const profile = await getCurrentUser();
-    localStorage.setItem("auth_profile", JSON.stringify(profile));
+    setAuthProfile(profile);
     router.push("/");
   } catch (error) {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("tenant_id");
-    localStorage.removeItem("auth_profile");
+    clearAuthStorage();
     message.error((error as Error).message || "登录失败");
   } finally {
     loading.value = false;

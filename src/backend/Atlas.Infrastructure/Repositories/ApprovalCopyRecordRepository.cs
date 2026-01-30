@@ -78,6 +78,19 @@ public sealed class ApprovalCopyRecordRepository : IApprovalCopyRecordRepository
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<bool> ExistsByInstanceAndRecipientAsync(
+        TenantId tenantId,
+        long instanceId,
+        long recipientUserId,
+        CancellationToken cancellationToken)
+    {
+        return await _db.Queryable<ApprovalCopyRecord>()
+            .Where(x => x.TenantIdValue == tenantId.Value
+                && x.InstanceId == instanceId
+                && x.RecipientUserId == recipientUserId)
+            .AnyAsync();
+    }
+
     public async Task<(IReadOnlyList<ApprovalCopyRecord> Items, int TotalCount)> GetPagedByRecipientAsync(
         TenantId tenantId,
         long recipientUserId,

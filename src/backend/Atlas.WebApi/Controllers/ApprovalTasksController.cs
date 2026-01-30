@@ -104,6 +104,7 @@ public sealed class ApprovalTasksController : ControllerBase
             cancellationToken);
 
         // 记录审计日志
+        var clientContext = ControllerHelper.GetClientContext(HttpContext);
         var auditRecord = new AuditRecord(
             currentUser.TenantId,
             currentUser.UserId.ToString(),
@@ -111,7 +112,11 @@ public sealed class ApprovalTasksController : ControllerBase
             "成功",
             $"任务ID: {taskId}",
             ControllerHelper.GetIpAddress(HttpContext),
-            ControllerHelper.GetUserAgent(HttpContext));
+            ControllerHelper.GetUserAgent(HttpContext),
+            clientContext.ClientType.ToString(),
+            clientContext.ClientPlatform.ToString(),
+            clientContext.ClientChannel.ToString(),
+            clientContext.ClientAgent.ToString());
         await _auditWriter.WriteAsync(auditRecord, cancellationToken);
 
         return ApiResponse<string>.Ok("已同意", HttpContext.TraceIdentifier);
@@ -139,6 +144,7 @@ public sealed class ApprovalTasksController : ControllerBase
             cancellationToken);
 
         // 记录审计日志
+        var clientContext = ControllerHelper.GetClientContext(HttpContext);
         var auditRecord = new AuditRecord(
             currentUser.TenantId,
             currentUser.UserId.ToString(),
@@ -146,7 +152,11 @@ public sealed class ApprovalTasksController : ControllerBase
             "成功",
             $"任务ID: {taskId}",
             ControllerHelper.GetIpAddress(HttpContext),
-            ControllerHelper.GetUserAgent(HttpContext));
+            ControllerHelper.GetUserAgent(HttpContext),
+            clientContext.ClientType.ToString(),
+            clientContext.ClientPlatform.ToString(),
+            clientContext.ClientChannel.ToString(),
+            clientContext.ClientAgent.ToString());
         await _auditWriter.WriteAsync(auditRecord, cancellationToken);
 
         return ApiResponse<string>.Ok("已驳回", HttpContext.TraceIdentifier);

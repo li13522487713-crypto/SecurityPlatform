@@ -1,8 +1,10 @@
 using Atlas.Application.Abstractions;
 using Atlas.Application.Identity.Repositories;
+using Atlas.Application.Identity.Abstractions;
 using Atlas.Application.Audit.Abstractions;
 using Atlas.Application.Models;
 using Atlas.Application.Options;
+using Atlas.Core.Identity;
 using Atlas.Core.Exceptions;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
@@ -25,8 +27,7 @@ public sealed class JwtAuthTokenService : IAuthTokenService
     private readonly IPasswordHasher _passwordHasher;
     private readonly IAuditWriter _auditWriter;
     private readonly TimeProvider _timeProvider;
-    private readonly IUserRoleRepository _userRoleRepository;
-    private readonly IRoleRepository _roleRepository;
+    private readonly IRbacResolver _rbacResolver;
 
     public JwtAuthTokenService(
         IOptions<JwtOptions> jwtOptions,
@@ -36,8 +37,7 @@ public sealed class JwtAuthTokenService : IAuthTokenService
         IPasswordHasher passwordHasher,
         IAuditWriter auditWriter,
         TimeProvider timeProvider,
-        IUserRoleRepository userRoleRepository,
-        IRoleRepository roleRepository)
+        IRbacResolver rbacResolver)
     {
         _jwtOptions = jwtOptions.Value;
         _passwordPolicy = passwordPolicy.Value;
@@ -46,8 +46,7 @@ public sealed class JwtAuthTokenService : IAuthTokenService
         _passwordHasher = passwordHasher;
         _auditWriter = auditWriter;
         _timeProvider = timeProvider;
-        _userRoleRepository = userRoleRepository;
-        _roleRepository = roleRepository;
+        _rbacResolver = rbacResolver;
     }
 
     public async Task<AuthTokenResult> CreateTokenAsync(
@@ -103,8 +102,8 @@ public sealed class JwtAuthTokenService : IAuthTokenService
         await WriteAuditAsync(tenantId, request.Username, "LOGIN", "SUCCESS", null, context, cancellationToken);
 
         var expires = now.AddMinutes(_jwtOptions.ExpiresMinutes);
-        var roleCodes = await ResolveRoleCodesAsync(account, tenantId, cancellationToken);
-        var claims = BuildClaims(account, tenantId, roleCodes);
+        var roleCodes = await _rbacResolver.GetRoleCodesAsync(account, tenantId, cancellationToken);
+        var claims = BuildClaims(account, tenantId, roleCodes, context.ClientContext);
 
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtOptions.SigningKey));
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
@@ -162,8 +161,8 @@ public sealed class JwtAuthTokenService : IAuthTokenService
         }
 
         var expires = now.AddMinutes(_jwtOptions.ExpiresMinutes);
-        var roleCodes = await ResolveRoleCodesAsync(account, tenantId, cancellationToken);
-        var claims = BuildClaims(account, tenantId, roleCodes);
+        var roleCodes = await _rbacResolver.GetRoleCodesAsync(account, tenantId, cancellationToken);
+        var claims = BuildClaims(account, tenantId, roleCodes, context.ClientContext);
 
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtOptions.SigningKey));
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
@@ -183,7 +182,11 @@ public sealed class JwtAuthTokenService : IAuthTokenService
         return new AuthTokenResult(tokenString, expires);
     }
 
-    private static List<Claim> BuildClaims(UserAccount account, TenantId tenantId, IReadOnlyList<string> roleCodes)
+    private static List<Claim> BuildClaims(
+        UserAccount account,
+        TenantId tenantId,
+        IReadOnlyList<string> roleCodes,
+        ClientContext clientContext)
     {
         var claims = new List<Claim>
         {
@@ -191,7 +194,11 @@ public sealed class JwtAuthTokenService : IAuthTokenService
             new("tenant_id", tenantId.Value.ToString("D")),
             new(ClaimTypes.NameIdentifier, account.Id.ToString()),
             new(ClaimTypes.Name, account.Username),
-            new("display_name", account.DisplayName)
+            new("display_name", account.DisplayName),
+            new("client_type", clientContext.ClientType.ToString()),
+            new("client_platform", clientContext.ClientPlatform.ToString()),
+            new("client_channel", clientContext.ClientChannel.ToString()),
+            new("client_agent", clientContext.ClientAgent.ToString())
         };
 
         if (roleCodes.Count > 0)
@@ -200,37 +207,6 @@ public sealed class JwtAuthTokenService : IAuthTokenService
         }
 
         return claims;
-    }
-
-    private async Task<IReadOnlyList<string>> ResolveRoleCodesAsync(
-        UserAccount account,
-        TenantId tenantId,
-        CancellationToken cancellationToken)
-    {
-        var codes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        if (!string.IsNullOrWhiteSpace(account.Roles))
-        {
-            foreach (var role in account.Roles.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-            {
-                codes.Add(role);
-            }
-        }
-
-        var userRoles = await _userRoleRepository.QueryByUserIdAsync(tenantId, account.Id, cancellationToken);
-        if (userRoles.Count == 0)
-        {
-            return codes.ToArray();
-        }
-
-        var roleIds = userRoles.Select(x => x.RoleId).Distinct().ToArray();
-        var roles = await _roleRepository.QueryByIdsAsync(tenantId, roleIds, cancellationToken);
-        foreach (var role in roles)
-        {
-            codes.Add(role.Code);
-        }
-
-        return codes.ToArray();
     }
 
     private bool IsLocked(UserAccount account, DateTimeOffset now, out bool stateChanged)
@@ -279,7 +255,18 @@ public sealed class JwtAuthTokenService : IAuthTokenService
             return Task.CompletedTask;
         }
 
-        var record = new AuditRecord(tenantId, actor, action, result, target, context.IpAddress, context.UserAgent);
+        var record = new AuditRecord(
+            tenantId,
+            actor,
+            action,
+            result,
+            target,
+            context.IpAddress,
+            context.UserAgent,
+            context.ClientContext.ClientType.ToString(),
+            context.ClientContext.ClientPlatform.ToString(),
+            context.ClientContext.ClientChannel.ToString(),
+            context.ClientContext.ClientAgent.ToString());
         return _auditWriter.WriteAsync(record, cancellationToken);
     }
 }

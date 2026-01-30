@@ -60,7 +60,10 @@ public sealed class AuthController : ControllerBase
         var dto = _mapper.Map<AuthTokenRequest>(request);
         _validator.ValidateAndThrow(dto);
 
-        var context = new AuthRequestContext(HttpContext.Connection.RemoteIpAddress?.ToString(), Request.Headers.UserAgent.ToString());
+        var context = new AuthRequestContext(
+            ControllerHelper.GetIpAddress(HttpContext),
+            ControllerHelper.GetUserAgent(HttpContext),
+            ControllerHelper.GetClientContext(HttpContext));
         var result = await _authTokenService.CreateTokenAsync(dto, tenantId, context, cancellationToken);
         var payload = ApiResponse<AuthTokenResult>.Ok(result, HttpContext.TraceIdentifier);
         return Ok(payload);
@@ -71,7 +74,10 @@ public sealed class AuthController : ControllerBase
     public async Task<ActionResult<ApiResponse<AuthTokenResult>>> RefreshToken(CancellationToken cancellationToken)
     {
         var currentUser = _currentUserAccessor.GetCurrentUserOrThrow();
-        var context = new AuthRequestContext(HttpContext.Connection.RemoteIpAddress?.ToString(), Request.Headers.UserAgent.ToString());
+        var context = new AuthRequestContext(
+            ControllerHelper.GetIpAddress(HttpContext),
+            ControllerHelper.GetUserAgent(HttpContext),
+            ControllerHelper.GetClientContext(HttpContext));
         var result = await _authTokenService.CreateTokenForUserAsync(
             currentUser.UserId,
             currentUser.TenantId,
@@ -94,7 +100,9 @@ public sealed class AuthController : ControllerBase
             return NotFound(ApiResponse<AuthProfileResult>.Fail(ErrorCodes.NotFound, "用户不存在", HttpContext.TraceIdentifier));
         }
 
-        return Ok(ApiResponse<AuthProfileResult>.Ok(profile, HttpContext.TraceIdentifier));
+        var clientContext = ControllerHelper.GetClientContext(HttpContext);
+        var payloadProfile = profile with { ClientContext = clientContext };
+        return Ok(ApiResponse<AuthProfileResult>.Ok(payloadProfile, HttpContext.TraceIdentifier));
     }
 
     [HttpPost("logout")]
@@ -103,6 +111,7 @@ public sealed class AuthController : ControllerBase
     {
         var currentUser = _currentUserAccessor.GetCurrentUserOrThrow();
         var actor = string.IsNullOrWhiteSpace(currentUser.Username) ? currentUser.UserId.ToString() : currentUser.Username;
+        var clientContext = ControllerHelper.GetClientContext(HttpContext);
 
         var auditRecord = new AuditRecord(
             tenantId: currentUser.TenantId,
@@ -111,7 +120,11 @@ public sealed class AuthController : ControllerBase
             result: "SUCCESS",
             target: null,
             ipAddress: ControllerHelper.GetIpAddress(HttpContext),
-            userAgent: ControllerHelper.GetUserAgent(HttpContext));
+            userAgent: ControllerHelper.GetUserAgent(HttpContext),
+            clientType: clientContext.ClientType.ToString(),
+            clientPlatform: clientContext.ClientPlatform.ToString(),
+            clientChannel: clientContext.ClientChannel.ToString(),
+            clientAgent: clientContext.ClientAgent.ToString());
 
         await _auditWriter.WriteAsync(auditRecord, cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Success = true }, HttpContext.TraceIdentifier));

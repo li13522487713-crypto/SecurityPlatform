@@ -2,11 +2,13 @@
 using FluentValidation;
 using Atlas.Application.Assets.Abstractions;
 using Atlas.Application.Assets.Models;
+using Atlas.Application.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Assets.Entities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Atlas.WebApi.Authorization;
 
 namespace Atlas.WebApi.Controllers;
 
@@ -50,7 +52,7 @@ public sealed class AssetsController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Policy = PermissionPolicies.AssetsCreate)]
     public async Task<ActionResult<ApiResponse<object>>> Create(
         [FromBody] AssetCreateRequest request,
         CancellationToken cancellationToken)

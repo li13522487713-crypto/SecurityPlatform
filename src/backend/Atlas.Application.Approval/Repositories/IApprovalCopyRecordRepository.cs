@@ -35,6 +35,12 @@ public interface IApprovalCopyRecordRepository
         string nodeId,
         CancellationToken cancellationToken);
 
+    Task<bool> ExistsByInstanceAndRecipientAsync(
+        TenantId tenantId,
+        long instanceId,
+        long recipientUserId,
+        CancellationToken cancellationToken);
+
     Task<(IReadOnlyList<ApprovalCopyRecord> Items, int TotalCount)> GetPagedByRecipientAsync(
         TenantId tenantId,
         long recipientUserId,

@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Atlas.Core.Identity;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Atlas.WebApi.Helpers;
@@ -8,6 +9,10 @@ namespace Atlas.WebApi.Helpers;
 /// </summary>
 public static class ControllerHelper
 {
+    private const string ClientTypeHeader = "X-Client-Type";
+    private const string ClientPlatformHeader = "X-Client-Platform";
+    private const string ClientChannelHeader = "X-Client-Channel";
+    private const string ClientAgentHeader = "X-Client-Agent";
     /// <summary>
     /// 安全地获取当前用户ID（从JWT Claims中）
     /// </summary>
@@ -73,5 +78,84 @@ public static class ControllerHelper
     public static string? GetUserAgent(HttpContext context)
     {
         return context.Request.Headers.UserAgent.ToString();
+    }
+
+    public static ClientContext GetClientContext(HttpContext context)
+    {
+        var headers = context.Request.Headers;
+        var userAgent = GetUserAgent(context) ?? string.Empty;
+
+        var clientType = TryParseHeader(headers, ClientTypeHeader, out ClientType type)
+            ? type
+            : ClientType.WebH5;
+
+        var platform = TryParseHeader(headers, ClientPlatformHeader, out ClientPlatform platformValue)
+            ? platformValue
+            : DetectPlatform(userAgent);
+
+        var channel = TryParseHeader(headers, ClientChannelHeader, out ClientChannel channelValue)
+            ? channelValue
+            : ClientChannel.Browser;
+
+        var agent = TryParseHeader(headers, ClientAgentHeader, out ClientAgent agentValue)
+            ? agentValue
+            : DetectAgent(userAgent);
+
+        return new ClientContext(clientType, platform, channel, agent);
+    }
+
+    private static bool TryParseHeader<TEnum>(IHeaderDictionary headers, string headerName, out TEnum value)
+        where TEnum : struct
+    {
+        value = default;
+        if (!headers.TryGetValue(headerName, out var rawValue))
+        {
+            return false;
+        }
+
+        var text = rawValue.ToString();
+        return Enum.TryParse(text, ignoreCase: true, out value);
+    }
+
+    private static ClientPlatform DetectPlatform(string userAgent)
+    {
+        var ua = userAgent.ToLowerInvariant();
+        if (ua.Contains("android"))
+        {
+            return ClientPlatform.Android;
+        }
+
+        if (ua.Contains("iphone") || ua.Contains("ipad") || ua.Contains("ipod"))
+        {
+            return ClientPlatform.iOS;
+        }
+
+        return ClientPlatform.Web;
+    }
+
+    private static ClientAgent DetectAgent(string userAgent)
+    {
+        var ua = userAgent.ToLowerInvariant();
+        if (ua.Contains("edg/"))
+        {
+            return ClientAgent.Edge;
+        }
+
+        if (ua.Contains("chrome/") && !ua.Contains("edg/"))
+        {
+            return ClientAgent.Chrome;
+        }
+
+        if (ua.Contains("firefox/"))
+        {
+            return ClientAgent.Firefox;
+        }
+
+        if (ua.Contains("safari/") && !ua.Contains("chrome/"))
+        {
+            return ClientAgent.Safari;
+        }
+
+        return ClientAgent.Other;
     }
 }

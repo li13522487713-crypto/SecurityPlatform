@@ -1,31 +1,22 @@
 using Atlas.Application.Abstractions;
+using Atlas.Application.Identity.Abstractions;
 using Atlas.Application.Identity.Repositories;
 using Atlas.Application.Models;
 using Atlas.Core.Tenancy;
-using Atlas.Domain.Identity.Entities;
 
 namespace Atlas.Infrastructure.Services;
 
 public sealed class AuthProfileService : IAuthProfileService
 {
     private readonly IUserAccountRepository _userRepository;
-    private readonly IUserRoleRepository _userRoleRepository;
-    private readonly IRoleRepository _roleRepository;
-    private readonly IRolePermissionRepository _rolePermissionRepository;
-    private readonly IPermissionRepository _permissionRepository;
+    private readonly IRbacResolver _rbacResolver;
 
     public AuthProfileService(
         IUserAccountRepository userRepository,
-        IUserRoleRepository userRoleRepository,
-        IRoleRepository roleRepository,
-        IRolePermissionRepository rolePermissionRepository,
-        IPermissionRepository permissionRepository)
+        IRbacResolver rbacResolver)
     {
         _userRepository = userRepository;
-        _userRoleRepository = userRoleRepository;
-        _roleRepository = roleRepository;
-        _rolePermissionRepository = rolePermissionRepository;
-        _permissionRepository = permissionRepository;
+        _rbacResolver = rbacResolver;
     }
 
     public async Task<AuthProfileResult?> GetProfileAsync(
@@ -39,8 +30,8 @@ public sealed class AuthProfileService : IAuthProfileService
             return null;
         }
 
-        var roleCodes = await ResolveRoleCodesAsync(account, tenantId, cancellationToken);
-        var permissionCodes = await ResolvePermissionCodesAsync(tenantId, userId, cancellationToken);
+        var roleCodes = await _rbacResolver.GetRoleCodesAsync(account, tenantId, cancellationToken);
+        var permissionCodes = await _rbacResolver.GetPermissionCodesAsync(tenantId, userId, cancellationToken);
 
         return new AuthProfileResult(
             account.Id.ToString(),
@@ -48,67 +39,9 @@ public sealed class AuthProfileService : IAuthProfileService
             account.DisplayName,
             tenantId.Value.ToString("D"),
             roleCodes,
-            permissionCodes);
+            permissionCodes,
+            null);
     }
 
-    private async Task<IReadOnlyList<string>> ResolveRoleCodesAsync(
-        UserAccount account,
-        TenantId tenantId,
-        CancellationToken cancellationToken)
-    {
-        var codes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        if (!string.IsNullOrWhiteSpace(account.Roles))
-        {
-            foreach (var role in account.Roles.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-            {
-                codes.Add(role);
-            }
-        }
-
-        var userRoles = await _userRoleRepository.QueryByUserIdAsync(tenantId, account.Id, cancellationToken);
-        if (userRoles.Count == 0)
-        {
-            return codes.ToArray();
-        }
-
-        var roleIds = userRoles.Select(x => x.RoleId).Distinct().ToArray();
-        var roles = await _roleRepository.QueryByIdsAsync(tenantId, roleIds, cancellationToken);
-        foreach (var role in roles)
-        {
-            codes.Add(role.Code);
-        }
-
-        return codes.ToArray();
-    }
-
-    private async Task<IReadOnlyList<string>> ResolvePermissionCodesAsync(
-        TenantId tenantId,
-        long userId,
-        CancellationToken cancellationToken)
-    {
-        var userRoles = await _userRoleRepository.QueryByUserIdAsync(tenantId, userId, cancellationToken);
-        if (userRoles.Count == 0)
-        {
-            return Array.Empty<string>();
-        }
-
-        var permissionIds = new HashSet<long>();
-        foreach (var roleId in userRoles.Select(x => x.RoleId).Distinct())
-        {
-            var rolePermissions = await _rolePermissionRepository.QueryByRoleIdAsync(tenantId, roleId, cancellationToken);
-            foreach (var permissionId in rolePermissions.Select(x => x.PermissionId))
-            {
-                permissionIds.Add(permissionId);
-            }
-        }
-
-        if (permissionIds.Count == 0)
-        {
-            return Array.Empty<string>();
-        }
-
-        var permissions = await _permissionRepository.QueryByIdsAsync(tenantId, permissionIds.ToArray(), cancellationToken);
-        return permissions.Select(x => x.Code).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
-    }
+    
 }

@@ -47,6 +47,12 @@ public interface IApprovalTaskRepository
         ApprovalTaskStatus status,
         CancellationToken cancellationToken);
 
+    Task<bool> ExistsByInstanceAndAssigneeAsync(
+        TenantId tenantId,
+        long instanceId,
+        long assigneeUserId,
+        CancellationToken cancellationToken);
+
     Task<int> CountByStatusAsync(
         TenantId tenantId,
         ApprovalTaskStatus status,

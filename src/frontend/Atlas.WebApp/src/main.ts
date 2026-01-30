@@ -6,8 +6,6 @@ import "ant-design-vue/dist/reset.css";
 import "./styles/index.css";
 import ElementPlus from "element-plus";
 import "element-plus/dist/index.css";
-import VForm3 from "vform3-builds";
-import "vform3-builds/dist/designer.style.css";
 
 // 默认租户ID：用于本地开发/体验时免输入（后端仍会校验租户头）
 // 建议在 .env.local 中配置 VITE_DEFAULT_TENANT_ID
@@ -21,6 +19,5 @@ const app = createApp(App);
 app.use(router);
 app.use(Antd);
 app.use(ElementPlus);
-app.use(VForm3);
 
 app.mount("#app");

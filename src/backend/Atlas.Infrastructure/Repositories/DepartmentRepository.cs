@@ -50,6 +50,21 @@ public sealed class DepartmentRepository : IDepartmentRepository
         return list;
     }
 
+    public async Task<IReadOnlyList<Department>> QueryByIdsAsync(
+        TenantId tenantId,
+        IReadOnlyList<long> ids,
+        CancellationToken cancellationToken)
+    {
+        if (ids.Count == 0)
+        {
+            return Array.Empty<Department>();
+        }
+
+        return await _db.Queryable<Department>()
+            .Where(x => x.TenantIdValue == tenantId.Value && ids.Contains(x.Id))
+            .ToListAsync(cancellationToken);
+    }
+
     public Task AddAsync(Department department, CancellationToken cancellationToken)
     {
         return _db.Insertable(department).ExecuteCommandAsync(cancellationToken);

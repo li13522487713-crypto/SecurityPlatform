@@ -8,4 +8,8 @@ public sealed record AuditListItem(
     string Target,
     string? IpAddress,
     string? UserAgent,
+    string? ClientType,
+    string? ClientPlatform,
+    string? ClientChannel,
+    string? ClientAgent,
     DateTimeOffset OccurredAt);

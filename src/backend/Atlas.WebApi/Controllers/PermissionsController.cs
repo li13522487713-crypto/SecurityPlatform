@@ -1,10 +1,12 @@
 using Atlas.Application.Identity.Abstractions;
 using Atlas.Application.Identity.Models;
+using Atlas.Application.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Atlas.WebApi.Authorization;
 
 namespace Atlas.WebApi.Controllers;
 
@@ -36,7 +38,7 @@ public sealed class PermissionsController : ControllerBase
     }
 
     [HttpGet]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Policy = PermissionPolicies.PermissionsView)]
     public async Task<ActionResult<ApiResponse<PagedResult<PermissionListItem>>>> Get(
         [FromQuery] PagedRequest request,
         CancellationToken cancellationToken)
@@ -47,7 +49,7 @@ public sealed class PermissionsController : ControllerBase
     }
 
     [HttpGet("{id:long}")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Policy = PermissionPolicies.PermissionsView)]
     public async Task<ActionResult<ApiResponse<PermissionDetail>>> GetById(long id, CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
@@ -61,7 +63,7 @@ public sealed class PermissionsController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Policy = PermissionPolicies.PermissionsCreate)]
     public async Task<ActionResult<ApiResponse<object>>> Create(
         [FromBody] PermissionCreateRequest request,
         CancellationToken cancellationToken)
@@ -74,7 +76,7 @@ public sealed class PermissionsController : ControllerBase
     }
 
     [HttpPut("{id:long}")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Policy = PermissionPolicies.PermissionsUpdate)]
     public async Task<ActionResult<ApiResponse<object>>> Update(
         long id,
         [FromBody] PermissionUpdateRequest request,

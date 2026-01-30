@@ -1,3 +1,5 @@
+using Atlas.Core.Identity;
+
 namespace Atlas.Application.Models;
 
 public sealed record AuthProfileResult(
@@ -6,4 +8,5 @@ public sealed record AuthProfileResult(
     string DisplayName,
     string TenantId,
     IReadOnlyList<string> Roles,
-    IReadOnlyList<string> Permissions);
+    IReadOnlyList<string> Permissions,
+    ClientContext? ClientContext);
