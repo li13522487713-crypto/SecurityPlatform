@@ -17,7 +17,14 @@ import type {
   RegisterWorkflowDefinitionRequest,
   ExecutionPointerResponse,
   WorkflowInstanceResponse,
-  WorkflowInstanceListItem
+  WorkflowInstanceListItem,
+  VisualizationOverview,
+  VisualizationProcessSummary,
+  VisualizationInstanceSummary,
+  PublishVisualizationRequest,
+  ValidateVisualizationRequest,
+  VisualizationValidationResult,
+  VisualizationPublishResult
 } from "@/types/api";
 import { message } from "ant-design-vue";
 
@@ -366,6 +373,83 @@ export async function terminateWorkflow(instanceId: string) {
   if (!response.success) {
     throw new Error(response.message || "终止工作流失败");
   }
+}
+
+// Visualization module
+export async function getVisualizationOverview(params?: {
+  department?: string;
+  flowType?: string;
+  from?: string;
+  to?: string;
+}): Promise<VisualizationOverview> {
+  const query = params ? toQuery(params) : "";
+  const response = await requestApi<ApiResponse<VisualizationOverview>>(
+    `/visualization/overview${query ? `?${query}` : ""}`
+  );
+  if (!response.data) {
+    throw new Error(response.message || "获取概览失败");
+  }
+  return response.data;
+}
+
+export async function getVisualizationProcesses(
+  pagedRequest: PagedRequest
+): Promise<PagedResult<VisualizationProcessSummary>> {
+  const query = toQuery(pagedRequest);
+  const response = await requestApi<ApiResponse<PagedResult<VisualizationProcessSummary>>>(
+    `/visualization/processes?${query}`
+  );
+  if (!response.data) {
+    throw new Error(response.message || "获取流程列表失败");
+  }
+  return response.data;
+}
+
+export async function getVisualizationInstances(
+  pagedRequest: PagedRequest
+): Promise<PagedResult<VisualizationInstanceSummary>> {
+  const query = toQuery(pagedRequest);
+  const response = await requestApi<ApiResponse<PagedResult<VisualizationInstanceSummary>>>(
+    `/visualization/instances?${query}`
+  );
+  if (!response.data) {
+    throw new Error(response.message || "获取实例列表失败");
+  }
+  return response.data;
+}
+
+export async function validateVisualizationProcess(
+  request: ValidateVisualizationRequest
+): Promise<VisualizationValidationResult> {
+  const response = await requestApi<ApiResponse<VisualizationValidationResult>>(
+    "/visualization/processes/validate",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request)
+    }
+  );
+  if (!response.data) {
+    throw new Error(response.message || "校验失败");
+  }
+  return response.data;
+}
+
+export async function publishVisualizationProcess(
+  request: PublishVisualizationRequest
+): Promise<VisualizationPublishResult> {
+  const response = await requestApi<ApiResponse<VisualizationPublishResult>>(
+    "/visualization/processes/publish",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request)
+    }
+  );
+  if (!response.data) {
+    throw new Error(response.message || "发布失败");
+  }
+  return response.data;
 }
 
 async function requestApi<T>(path: string, init?: RequestInit): Promise<T> {

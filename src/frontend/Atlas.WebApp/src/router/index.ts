@@ -10,6 +10,10 @@ import ApprovalTasksPage from "@/pages/ApprovalTasksPage.vue";
 import ApprovalInstancesPage from "@/pages/ApprovalInstancesPage.vue";
 import WorkflowDesignerPage from "@/pages/WorkflowDesignerPage.vue";
 import WorkflowInstancesPage from "@/pages/WorkflowInstancesPage.vue";
+import VisualizationCenterPage from "@/pages/visualization/VisualizationCenterPage.vue";
+import VisualizationDesignerPage from "@/pages/visualization/VisualizationDesignerPage.vue";
+import VisualizationRuntimePage from "@/pages/visualization/VisualizationRuntimePage.vue";
+import VisualizationGovernancePage from "@/pages/visualization/VisualizationGovernancePage.vue";
 
 const router = createRouter({
   history: createWebHistory(),
@@ -24,7 +28,11 @@ const router = createRouter({
     { path: "/approval/tasks", name: "approval-tasks", component: ApprovalTasksPage, meta: { requiresAuth: true } },
     { path: "/approval/instances", name: "approval-instances", component: ApprovalInstancesPage, meta: { requiresAuth: true } },
     { path: "/workflow/designer", name: "workflow-designer", component: WorkflowDesignerPage, meta: { requiresAuth: false, requiresTenant: true } },
-    { path: "/workflow/instances", name: "workflow-instances", component: WorkflowInstancesPage, meta: { requiresAuth: false, requiresTenant: true } }
+    { path: "/workflow/instances", name: "workflow-instances", component: WorkflowInstancesPage, meta: { requiresAuth: false, requiresTenant: true } },
+    { path: "/visualization/center", name: "visualization-center", component: VisualizationCenterPage, meta: { requiresAuth: true } },
+    { path: "/visualization/designer", name: "visualization-designer", component: VisualizationDesignerPage, meta: { requiresAuth: true } },
+    { path: "/visualization/runtime", name: "visualization-runtime", component: VisualizationRuntimePage, meta: { requiresAuth: true } },
+    { path: "/visualization/governance", name: "visualization-governance", component: VisualizationGovernancePage, meta: { requiresAuth: true } }
   ]
 });
 

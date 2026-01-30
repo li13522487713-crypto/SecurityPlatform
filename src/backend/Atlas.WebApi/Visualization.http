@@ -1,0 +1,36 @@
+### 可视化概览
+GET http://localhost:5000/visualization/overview
+Authorization: Bearer {{access_token}}
+X-Tenant-Id: {{tenant_id}}
+
+### 可视化流程列表
+GET http://localhost:5000/visualization/processes?pageIndex=1&pageSize=10
+Authorization: Bearer {{access_token}}
+X-Tenant-Id: {{tenant_id}}
+
+### 可视化实例列表
+GET http://localhost:5000/visualization/instances?pageIndex=1&pageSize=10
+Authorization: Bearer {{access_token}}
+X-Tenant-Id: {{tenant_id}}
+
+### 校验流程定义
+POST http://localhost:5000/visualization/processes/validate
+Authorization: Bearer {{access_token}}
+X-Tenant-Id: {{tenant_id}}
+Content-Type: application/json
+
+{
+  "definitionJson": "{ \"nodes\": [], \"edges\": [] }"
+}
+
+### 发布流程定义
+POST http://localhost:5000/visualization/processes/publish
+Authorization: Bearer {{access_token}}
+X-Tenant-Id: {{tenant_id}}
+Content-Type: application/json
+
+{
+  "processId": "sample-flow",
+  "version": 1,
+  "note": "demo publish"
+}

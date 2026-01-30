@@ -201,3 +201,50 @@ export interface WorkflowInstanceListItem {
   createTime: string;
   completeTime?: string;
 }
+
+// 可视化中心
+export interface VisualizationOverview {
+  totalProcesses: number;
+  runningInstances: number;
+  blockedNodes: number;
+  alertsToday: number;
+  riskHints: string[];
+}
+
+export interface VisualizationProcessSummary {
+  id: string;
+  name: string;
+  version: number;
+  status: string;
+  publishedAt?: string;
+}
+
+export interface VisualizationInstanceSummary {
+  id: string;
+  flowName: string;
+  status: string;
+  currentNode: string;
+  startedAt: string;
+  durationMinutes: number;
+}
+
+export interface ValidateVisualizationRequest {
+  definitionJson: string;
+}
+
+export interface PublishVisualizationRequest {
+  processId: string;
+  version: number;
+  note?: string;
+}
+
+export interface VisualizationValidationResult {
+  passed: boolean;
+  errors: string[];
+}
+
+export interface VisualizationPublishResult {
+  processId: string;
+  version: number;
+  status: string;
+}
