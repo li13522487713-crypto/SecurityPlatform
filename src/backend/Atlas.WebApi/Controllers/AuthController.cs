@@ -103,7 +103,15 @@ public sealed class AuthController : ControllerBase
             return NotFound(ApiResponse<AuthProfileResult>.Fail(ErrorCodes.NotFound, "用户不存在", HttpContext.TraceIdentifier));
         }
 
-        var payloadProfile = profile with { ClientContext = _clientContextAccessor.GetCurrent() };
+        var clientContext = _clientContextAccessor.GetCurrent();
+        var payloadProfile = profile with
+        {
+            ClientContext = new ClientContextView(
+                clientContext.ClientType.ToString(),
+                clientContext.ClientPlatform.ToString(),
+                clientContext.ClientChannel.ToString(),
+                clientContext.ClientAgent.ToString())
+        };
         return Ok(ApiResponse<AuthProfileResult>.Ok(payloadProfile, HttpContext.TraceIdentifier));
     }
 

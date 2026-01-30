@@ -9,4 +9,4 @@ public sealed record AuthProfileResult(
     string TenantId,
     IReadOnlyList<string> Roles,
     IReadOnlyList<string> Permissions,
-    ClientContext? ClientContext);
+    ClientContextView? ClientContext);
