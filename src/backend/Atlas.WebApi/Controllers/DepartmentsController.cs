@@ -11,13 +11,13 @@ using Atlas.WebApi.Authorization;
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
-[Route("departments")]
+[Route("api/departments")]
 public sealed class DepartmentsController : ControllerBase
 {
     private readonly IDepartmentQueryService _departmentQueryService;
     private readonly IDepartmentCommandService _departmentCommandService;
     private readonly ITenantProvider _tenantProvider;
-    private readonly Atlas.Core.Abstractions.IIdGenerator _idGenerator;
+    private readonly Atlas.Core.Abstractions.IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly IValidator<DepartmentCreateRequest> _createValidator;
     private readonly IValidator<DepartmentUpdateRequest> _updateValidator;
 
@@ -25,14 +25,14 @@ public sealed class DepartmentsController : ControllerBase
         IDepartmentQueryService departmentQueryService,
         IDepartmentCommandService departmentCommandService,
         ITenantProvider tenantProvider,
-        Atlas.Core.Abstractions.IIdGenerator idGenerator,
+        Atlas.Core.Abstractions.IIdGeneratorAccessor idGeneratorAccessor,
         IValidator<DepartmentCreateRequest> createValidator,
         IValidator<DepartmentUpdateRequest> updateValidator)
     {
         _departmentQueryService = departmentQueryService;
         _departmentCommandService = departmentCommandService;
         _tenantProvider = tenantProvider;
-        _idGenerator = idGenerator;
+        _idGeneratorAccessor = idGeneratorAccessor;
         _createValidator = createValidator;
         _updateValidator = updateValidator;
     }
@@ -66,7 +66,7 @@ public sealed class DepartmentsController : ControllerBase
     {
         _createValidator.ValidateAndThrow(request);
         var tenantId = _tenantProvider.GetTenantId();
-        var id = _idGenerator.NextId();
+        var id = _idGeneratorAccessor.NextId();
         var createdId = await _departmentCommandService.CreateAsync(tenantId, request, id, cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = createdId.ToString() }, HttpContext.TraceIdentifier));
     }
@@ -95,3 +95,7 @@ public sealed class DepartmentsController : ControllerBase
         return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
     }
 }
+
+
+
+

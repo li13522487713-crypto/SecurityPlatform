@@ -16,7 +16,7 @@ public sealed class RemoveAssigneeOperationHandler : IApprovalOperationHandler
     private readonly IApprovalTaskRepository _taskRepository;
     private readonly IApprovalTaskAssigneeChangeRepository _assigneeChangeRepository;
     private readonly IApprovalHistoryRepository _historyRepository;
-    private readonly IIdGenerator _idGenerator;
+    private readonly IIdGeneratorAccessor _idGeneratorAccessor;
 
     public ApprovalOperationType SupportedOperationType => ApprovalOperationType.RemoveAssignee;
 
@@ -24,12 +24,12 @@ public sealed class RemoveAssigneeOperationHandler : IApprovalOperationHandler
         IApprovalTaskRepository taskRepository,
         IApprovalTaskAssigneeChangeRepository assigneeChangeRepository,
         IApprovalHistoryRepository historyRepository,
-        IIdGenerator idGenerator)
+        IIdGeneratorAccessor idGeneratorAccessor)
     {
         _taskRepository = taskRepository;
         _assigneeChangeRepository = assigneeChangeRepository;
         _historyRepository = historyRepository;
-        _idGenerator = idGenerator;
+        _idGeneratorAccessor = idGeneratorAccessor;
     }
 
     public async Task ExecuteAsync(
@@ -73,7 +73,7 @@ public sealed class RemoveAssigneeOperationHandler : IApprovalOperationHandler
             request.TargetAssigneeValue,
             AssigneeChangeType.Remove,
             operatorUserId,
-            _idGenerator.NextId(),
+            _idGeneratorAccessor.NextId(),
             targetTask.Id,
             request.Comment);
         await _assigneeChangeRepository.AddAsync(change, cancellationToken);
@@ -90,7 +90,12 @@ public sealed class RemoveAssigneeOperationHandler : IApprovalOperationHandler
             null,
             task.NodeId,
             operatorUserId,
-            _idGenerator.NextId());
+            _idGeneratorAccessor.NextId());
         await _historyRepository.AddAsync(removeEvent, cancellationToken);
     }
 }
+
+
+
+
+

@@ -29,7 +29,8 @@ public sealed class JwtAuthTokenService : IAuthTokenService
     private readonly IAuditRecorder _auditRecorder;
     private readonly IAuthSessionRepository _authSessionRepository;
     private readonly IRefreshTokenRepository _refreshTokenRepository;
-    private readonly IIdGenerator _idGenerator;
+    private readonly IIdGeneratorAccessor _idGeneratorAccessor;
+    private readonly IAppContextAccessor _appContextAccessor;
     private readonly TimeProvider _timeProvider;
     private readonly IRbacResolver _rbacResolver;
 
@@ -42,7 +43,8 @@ public sealed class JwtAuthTokenService : IAuthTokenService
         IAuditRecorder auditRecorder,
         IAuthSessionRepository authSessionRepository,
         IRefreshTokenRepository refreshTokenRepository,
-        IIdGenerator idGenerator,
+        IIdGeneratorAccessor idGeneratorAccessor,
+        IAppContextAccessor appContextAccessor,
         TimeProvider timeProvider,
         IRbacResolver rbacResolver)
     {
@@ -54,7 +56,8 @@ public sealed class JwtAuthTokenService : IAuthTokenService
         _auditRecorder = auditRecorder;
         _authSessionRepository = authSessionRepository;
         _refreshTokenRepository = refreshTokenRepository;
-        _idGenerator = idGenerator;
+        _idGeneratorAccessor = idGeneratorAccessor;
+        _appContextAccessor = appContextAccessor;
         _timeProvider = timeProvider;
         _rbacResolver = rbacResolver;
     }
@@ -111,7 +114,7 @@ public sealed class JwtAuthTokenService : IAuthTokenService
         await _userAccountRepository.UpdateAsync(account, cancellationToken);
         await WriteAuditAsync(tenantId, request.Username, "LOGIN", "SUCCESS", null, context, cancellationToken);
 
-        var sessionId = _idGenerator.NextId();
+        var sessionId = _idGeneratorAccessor.NextId();
         var sessionExpiresAt = now.AddMinutes(_jwtOptions.SessionExpiresMinutes);
         var clientContext = context.ClientContext;
         var session = new AuthSession(
@@ -131,7 +134,8 @@ public sealed class JwtAuthTokenService : IAuthTokenService
         var (refreshToken, refreshExpiresAt, refreshEntity) = CreateRefreshToken(account.Id, tenantId, sessionId, now);
         await _refreshTokenRepository.AddAsync(refreshEntity, cancellationToken);
 
-        var accessTokenResult = CreateAccessToken(account, tenantId, clientContext, sessionId, now, cancellationToken);
+        var appId = _appContextAccessor.GetAppId();
+        var accessTokenResult = CreateAccessToken(account, tenantId, clientContext, sessionId, now, cancellationToken, appId);
         var accessToken = await accessTokenResult;
         return new AuthTokenResult(accessToken.Token, accessToken.ExpiresAt, refreshToken, refreshExpiresAt, sessionId);
     }
@@ -211,7 +215,8 @@ public sealed class JwtAuthTokenService : IAuthTokenService
         await _refreshTokenRepository.UpdateAsync(storedToken, cancellationToken);
         await _refreshTokenRepository.AddAsync(refreshEntity, cancellationToken);
 
-        var accessTokenResult = CreateAccessToken(account, tenantId, context.ClientContext, session.Id, now, cancellationToken);
+        var appId = _appContextAccessor.GetAppId();
+        var accessTokenResult = CreateAccessToken(account, tenantId, context.ClientContext, session.Id, now, cancellationToken, appId);
         var accessToken = await accessTokenResult;
         await WriteAuditAsync(tenantId, account.Username, "TOKEN_REFRESH", "SUCCESS", null, context, cancellationToken);
         return new AuthTokenResult(accessToken.Token, accessToken.ExpiresAt, refreshToken, refreshExpiresAt, session.Id);
@@ -235,7 +240,8 @@ public sealed class JwtAuthTokenService : IAuthTokenService
         TenantId tenantId,
         IReadOnlyList<string> roleCodes,
         ClientContext clientContext,
-        long sessionId)
+        long sessionId,
+        string appId)
     {
         var claims = new List<Claim>
         {
@@ -246,6 +252,7 @@ public sealed class JwtAuthTokenService : IAuthTokenService
             new(ClaimTypes.NameIdentifier, account.Id.ToString()),
             new(ClaimTypes.Name, account.Username),
             new("display_name", account.DisplayName),
+            new("app_id", appId),
             new("client_type", clientContext.ClientType.ToString()),
             new("client_platform", clientContext.ClientPlatform.ToString()),
             new("client_channel", clientContext.ClientChannel.ToString()),
@@ -266,11 +273,12 @@ public sealed class JwtAuthTokenService : IAuthTokenService
         ClientContext clientContext,
         long sessionId,
         DateTimeOffset now,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string appId)
     {
         var expires = now.AddMinutes(_jwtOptions.ExpiresMinutes);
         var roleCodes = await _rbacResolver.GetRoleCodesAsync(account, tenantId, cancellationToken);
-        var claims = BuildClaims(account, tenantId, roleCodes, clientContext, sessionId);
+        var claims = BuildClaims(account, tenantId, roleCodes, clientContext, sessionId, appId);
 
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtOptions.SigningKey));
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
@@ -305,7 +313,7 @@ public sealed class JwtAuthTokenService : IAuthTokenService
             hash,
             now,
             refreshExpiresAt,
-            _idGenerator.NextId());
+            _idGeneratorAccessor.NextId());
         return (token, refreshExpiresAt, entity);
     }
 
@@ -393,3 +401,4 @@ public sealed class JwtAuthTokenService : IAuthTokenService
         return _auditRecorder.RecordAsync(auditContext, cancellationToken);
     }
 }
+

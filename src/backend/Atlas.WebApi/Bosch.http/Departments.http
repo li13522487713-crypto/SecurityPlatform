@@ -5,7 +5,7 @@
 
 ### Login to get token (Execute this first)
 # @name login
-POST {{baseUrl}}/auth/token
+POST {{baseUrl}}/api/v1/auth/token
 Content-Type: application/json
 X-Tenant-Id: {{tenantId}}
 
@@ -18,17 +18,17 @@ X-Tenant-Id: {{tenantId}}
 @accessToken = {{login.response.body.$.data.accessToken}}
 
 ### Get Departments (Paged)
-GET {{baseUrl}}/departments?pageIndex=1&pageSize=10
+GET {{baseUrl}}/api/v1/departments?pageIndex=1&pageSize=10
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ### Get Departments (All)
-GET {{baseUrl}}/departments/all
+GET {{baseUrl}}/api/v1/departments/all
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ### Create Department
-POST {{baseUrl}}/departments
+POST {{baseUrl}}/api/v1/departments
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
@@ -40,7 +40,7 @@ X-Tenant-Id: {{tenantId}}
 }
 
 ### Update Department
-PUT {{baseUrl}}/departments/1
+PUT {{baseUrl}}/api/v1/departments/1
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
@@ -52,6 +52,7 @@ X-Tenant-Id: {{tenantId}}
 }
 
 ### Delete Department
-DELETE {{baseUrl}}/departments/1
+DELETE {{baseUrl}}/api/v1/departments/1
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
+

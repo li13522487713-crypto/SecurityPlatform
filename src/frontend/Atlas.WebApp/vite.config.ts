@@ -14,12 +14,10 @@ export default defineConfig({
     port: 5173,
     open: true,
     proxy: {
-      "/api": {
+      "/api/v1": {
         target: "http://localhost:5000",
         changeOrigin: true,
-        secure: false,
-        // 后端 Controller 路由不带 /api 前缀，这里需要重写去掉 /api
-        rewrite: (path) => path.replace(/^\/api/, "")
+        secure: false
       }
     }
   },

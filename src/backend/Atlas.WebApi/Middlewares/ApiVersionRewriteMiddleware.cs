@@ -21,7 +21,7 @@ public sealed class ApiVersionRewriteMiddleware
             {
                 rest = "/api";
             }
-            else if (!rest.StartsWith("/auth", StringComparison.OrdinalIgnoreCase))
+            else if (!rest.StartsWith("/api", StringComparison.OrdinalIgnoreCase))
             {
                 rest = "/api" + rest;
             }

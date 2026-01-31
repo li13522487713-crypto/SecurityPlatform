@@ -1,9 +1,9 @@
-@baseUrl = http://localhost:5000/api
+@baseUrl = http://localhost:5000
 @token =
 @tenantId =
 
 ### 设置部门负责人
-POST {{baseUrl}}/approval/department-leaders
+POST {{baseUrl}}/api/v1/approval/department-leaders
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
@@ -14,11 +14,12 @@ Content-Type: application/json
 }
 
 ### 获取部门负责人
-GET {{baseUrl}}/approval/department-leaders/1
+GET {{baseUrl}}/api/v1/approval/department-leaders/1
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 
 ### 移除部门负责人
-DELETE {{baseUrl}}/approval/department-leaders/1
+DELETE {{baseUrl}}/api/v1/approval/department-leaders/1
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
+

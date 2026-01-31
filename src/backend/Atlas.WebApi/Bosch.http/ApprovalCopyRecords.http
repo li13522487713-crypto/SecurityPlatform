@@ -1,23 +1,24 @@
-@baseUrl = http://localhost:5000/api
+@baseUrl = http://localhost:5000
 @token =
 @tenantId =
 
 ### 获取我的抄送记录（全部）
-GET {{baseUrl}}/approval/copy-records/my-copies?pageIndex=1&pageSize=10
+GET {{baseUrl}}/api/v1/approval/copy-records/my-copies?pageIndex=1&pageSize=10
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 
 ### 获取我的抄送记录（仅未读）
-GET {{baseUrl}}/approval/copy-records/my-copies?pageIndex=1&pageSize=10&isRead=false
+GET {{baseUrl}}/api/v1/approval/copy-records/my-copies?pageIndex=1&pageSize=10&isRead=false
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 
 ### 获取我的抄送记录（仅已读）
-GET {{baseUrl}}/approval/copy-records/my-copies?pageIndex=1&pageSize=10&isRead=true
+GET {{baseUrl}}/api/v1/approval/copy-records/my-copies?pageIndex=1&pageSize=10&isRead=true
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 
 ### 标记抄送记录为已读
-POST {{baseUrl}}/approval/copy-records/{copyRecordId}/mark-read
+POST {{baseUrl}}/api/v1/approval/copy-records/{copyRecordId}/mark-read
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
+

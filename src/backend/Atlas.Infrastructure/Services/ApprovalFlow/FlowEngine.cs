@@ -26,7 +26,7 @@ public sealed class FlowEngine
     private readonly IApprovalNotificationService? _notificationService;
     private readonly IApprovalTimeoutReminderRepository? _timeoutReminderRepository;
     private readonly ExternalCallbackService? _callbackService;
-    private readonly IIdGenerator _idGenerator;
+    private readonly IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<FlowEngine>? _logger;
 
@@ -39,7 +39,7 @@ public sealed class FlowEngine
         ConditionEvaluator conditionEvaluator,
         IApprovalUserQueryService userQueryService,
         DeduplicationService deduplicationService,
-        IIdGenerator idGenerator,
+        IIdGeneratorAccessor idGeneratorAccessor,
         IApprovalNotificationService? notificationService = null,
         IApprovalTimeoutReminderRepository? timeoutReminderRepository = null,
         ExternalCallbackService? callbackService = null,
@@ -57,7 +57,7 @@ public sealed class FlowEngine
         _notificationService = notificationService;
         _timeoutReminderRepository = timeoutReminderRepository;
         _callbackService = callbackService;
-        _idGenerator = idGenerator;
+        _idGeneratorAccessor = idGeneratorAccessor;
         _timeProvider = timeProvider ?? TimeProvider.System;
         _logger = logger;
     }
@@ -266,7 +266,7 @@ public sealed class FlowEngine
                 instance.Id,
                 nextNodeId,
                 ApprovalNodeExecutionStatus.Running,
-                _idGenerator.NextId());
+                _idGeneratorAccessor.NextId());
             await _nodeExecutionRepository.AddAsync(execution, cancellationToken);
 
             instance.SetCurrentNode(nextNodeId);
@@ -279,7 +279,7 @@ public sealed class FlowEngine
                 instance.Id,
                 nextNodeId,
                 ApprovalNodeExecutionStatus.Running,
-                _idGenerator.NextId());
+                _idGeneratorAccessor.NextId());
             await _nodeExecutionRepository.AddAsync(execution, cancellationToken);
             instance.SetCurrentNode(nextNodeId);
             await AdvanceFlowAsync(tenantId, instance, definition, nextNodeId, cancellationToken);
@@ -295,7 +295,7 @@ public sealed class FlowEngine
                 instance.Id,
                 nextNodeId,
                 ApprovalNodeExecutionStatus.Completed,
-                _idGenerator.NextId());
+                _idGeneratorAccessor.NextId());
             await _nodeExecutionRepository.AddAsync(execution, cancellationToken);
 
             // 抄送节点不阻塞流程，继续推进
@@ -317,7 +317,7 @@ public sealed class FlowEngine
                 instance.Id,
                 nextNodeId,
                 ApprovalNodeExecutionStatus.Running,
-                _idGenerator.NextId());
+                _idGeneratorAccessor.NextId());
             await _nodeExecutionRepository.AddAsync(execution, cancellationToken);
             instance.SetCurrentNode(nextNodeId);
             await AdvanceFlowAsync(tenantId, instance, definition, nextNodeId, cancellationToken);
@@ -524,7 +524,7 @@ public sealed class FlowEngine
                 Domain.Approval.Enums.ReminderType.NodeTimeout,
                 recipientUserId.Value,
                 expectedCompleteTime,
-                _idGenerator.NextId());
+                _idGeneratorAccessor.NextId());
 
             reminders.Add(reminder);
         }
@@ -732,7 +732,7 @@ public sealed class FlowEngine
                 node.Label ?? "审批",
                 AssigneeType.User,
                 userId.ToString(),
-                _idGenerator.NextId(),
+                _idGeneratorAccessor.NextId(),
                 order: order,
                 initialStatus: initialStatus);
 
@@ -929,7 +929,7 @@ public sealed class FlowEngine
                 instance.Id,
                 gatewayNodeId,
                 nextNodeId,
-                _idGenerator.NextId());
+                _idGeneratorAccessor.NextId());
             await _parallelTokenRepository.AddAsync(token, cancellationToken);
         }
 
@@ -1085,7 +1085,7 @@ public sealed class FlowEngine
             instance.Id,
             node.Id,
             userId,
-            _idGenerator.NextId())).ToList();
+            _idGeneratorAccessor.NextId())).ToList();
 
         if (copyRecords.Count > 0)
         {
@@ -1093,3 +1093,7 @@ public sealed class FlowEngine
         }
     }
 }
+
+
+
+

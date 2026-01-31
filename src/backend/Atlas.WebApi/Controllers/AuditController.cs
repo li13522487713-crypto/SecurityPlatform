@@ -1,4 +1,4 @@
-﻿using Atlas.Application.Audit.Abstractions;
+using Atlas.Application.Audit.Abstractions;
 using Atlas.Application.Audit.Models;
 using Atlas.Application.Identity;
 using Atlas.Core.Models;
@@ -10,7 +10,7 @@ using Atlas.WebApi.Authorization;
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
-[Route("audit")]
+[Route("api/audit")]
 public sealed class AuditController : ControllerBase
 {
     private readonly IAuditQueryService _auditQueryService;
@@ -34,3 +34,4 @@ public sealed class AuditController : ControllerBase
         return Ok(payload);
     }
 }
+

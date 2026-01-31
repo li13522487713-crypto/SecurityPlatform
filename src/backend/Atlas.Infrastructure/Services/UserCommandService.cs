@@ -27,7 +27,7 @@ public sealed class UserCommandService : IUserCommandService
     private readonly IPositionRepository _positionRepository;
     private readonly IPasswordHistoryRepository _passwordHistoryRepository;
     private readonly IPasswordHasher _passwordHasher;
-    private readonly IIdGenerator _idGenerator;
+    private readonly IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly ISqlSugarClient _db;
     private readonly PasswordPolicyOptions _passwordPolicy;
 
@@ -41,7 +41,7 @@ public sealed class UserCommandService : IUserCommandService
         IPositionRepository positionRepository,
         IPasswordHistoryRepository passwordHistoryRepository,
         IPasswordHasher passwordHasher,
-        IIdGenerator idGenerator,
+        IIdGeneratorAccessor idGeneratorAccessor,
         ISqlSugarClient db,
         IOptions<PasswordPolicyOptions> passwordPolicy)
     {
@@ -54,7 +54,7 @@ public sealed class UserCommandService : IUserCommandService
         _positionRepository = positionRepository;
         _passwordHistoryRepository = passwordHistoryRepository;
         _passwordHasher = passwordHasher;
-        _idGenerator = idGenerator;
+        _idGeneratorAccessor = idGeneratorAccessor;
         _db = db;
         _passwordPolicy = passwordPolicy.Value;
     }
@@ -96,16 +96,16 @@ public sealed class UserCommandService : IUserCommandService
         {
             await _userRepository.AddAsync(user, cancellationToken);
             await _userRoleRepository.AddRangeAsync(
-                roles.Select(role => new UserRole(tenantId, user.Id, role.Id, _idGenerator.NextId())).ToArray(),
+                roles.Select(role => new UserRole(tenantId, user.Id, role.Id, _idGeneratorAccessor.NextId())).ToArray(),
                 cancellationToken);
             await _userDepartmentRepository.AddRangeAsync(
                 departmentIds
-                    .Select(depId => new UserDepartment(tenantId, user.Id, depId, _idGenerator.NextId(), false))
+                    .Select(depId => new UserDepartment(tenantId, user.Id, depId, _idGeneratorAccessor.NextId(), false))
                     .ToArray(),
                 cancellationToken);
             await _userPositionRepository.AddRangeAsync(
                 positionIds
-                    .Select(posId => new UserPosition(tenantId, user.Id, posId, _idGenerator.NextId(), false))
+                    .Select(posId => new UserPosition(tenantId, user.Id, posId, _idGeneratorAccessor.NextId(), false))
                     .ToArray(),
                 cancellationToken);
         });
@@ -157,7 +157,7 @@ public sealed class UserCommandService : IUserCommandService
         {
             await _userRoleRepository.DeleteByUserIdAsync(tenantId, userId, cancellationToken);
             await _userRoleRepository.AddRangeAsync(
-                roles.Select(role => new UserRole(tenantId, userId, role.Id, _idGenerator.NextId())).ToArray(),
+                roles.Select(role => new UserRole(tenantId, userId, role.Id, _idGeneratorAccessor.NextId())).ToArray(),
                 cancellationToken);
             await _userRepository.UpdateAsync(user, cancellationToken);
         });
@@ -182,7 +182,7 @@ public sealed class UserCommandService : IUserCommandService
             await _userDepartmentRepository.DeleteByUserIdAsync(tenantId, userId, cancellationToken);
             await _userDepartmentRepository.AddRangeAsync(
                 departmentIds.Distinct()
-                    .Select(depId => new UserDepartment(tenantId, userId, depId, _idGenerator.NextId(), false))
+                    .Select(depId => new UserDepartment(tenantId, userId, depId, _idGeneratorAccessor.NextId(), false))
                     .ToArray(),
                 cancellationToken);
         });
@@ -207,7 +207,7 @@ public sealed class UserCommandService : IUserCommandService
             await _userPositionRepository.DeleteByUserIdAsync(tenantId, userId, cancellationToken);
             await _userPositionRepository.AddRangeAsync(
                 positionIds.Distinct()
-                    .Select(posId => new UserPosition(tenantId, userId, posId, _idGenerator.NextId(), false))
+                    .Select(posId => new UserPosition(tenantId, userId, posId, _idGeneratorAccessor.NextId(), false))
                     .ToArray(),
                 cancellationToken);
         });
@@ -259,7 +259,12 @@ public sealed class UserCommandService : IUserCommandService
         var passwordHash = _passwordHasher.HashPassword(newPassword);
         user.UpdatePassword(passwordHash, now);
 
-        var historyEntry = new PasswordHistory(tenantId, userId, oldPasswordHash, _idGenerator.NextId(), now);
+        var historyEntry = new PasswordHistory(
+            tenantId,
+            userId,
+            oldPasswordHash,
+            _idGeneratorAccessor.NextId(),
+            now);
         await _db.Ado.UseTranAsync(async () =>
         {
             await _userRepository.UpdateAsync(user, cancellationToken);
@@ -353,3 +358,7 @@ public sealed class UserCommandService : IUserCommandService
         }
     }
 }
+
+
+
+

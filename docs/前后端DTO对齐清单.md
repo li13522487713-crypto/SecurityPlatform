@@ -59,23 +59,23 @@
 
 | 前端调用 | 后端实际 | 状态 | 备注 |
 | --- | --- | --- | --- |
-| `POST /approval/instances` | `POST /api/approval/runtime/start` | 不一致 | 路由不同 |
-| `GET /approval/instances/my` | `GET /api/approval/runtime/my-instances` | 不一致 | 路由不同 |
-| `GET /approval/instances/{id}` | `GET /api/approval/runtime/instances/{id}` | 不一致 | 路由不同 |
-| `GET /approval/instances/{id}/history` | `GET /api/approval/runtime/instances/{id}/history` | 不一致 | 路由不同 |
-| `POST /approval/instances/{id}/cancel` | `POST /api/approval/runtime/instances/{id}/cancel` | 不一致 | 路由不同 |
-| `GET /approval/tasks/my` | `GET /api/approval/tasks/my-tasks` | 不一致 | 路由不同 |
-| `GET /approval/tasks/instance/{id}` | `GET /api/approval/tasks/by-instance/{id}` | 不一致 | 路由不同 |
-| `POST /approval/tasks/decide` | `POST /api/approval/tasks/{taskId}/approve|reject` | 不一致 | 接口设计不同 |
+| `POST /api/v1/approval/instances` | `POST /api/v1/approval/runtime/start` | 不一致 | 路由不同 |
+| `GET /api/v1/approval/instances/my` | `GET /api/v1/approval/runtime/my-instances` | 不一致 | 路由不同 |
+| `GET /api/v1/approval/instances/{id}` | `GET /api/v1/approval/runtime/instances/{id}` | 不一致 | 路由不同 |
+| `GET /api/v1/approval/instances/{id}/history` | `GET /api/v1/approval/runtime/instances/{id}/history` | 不一致 | 路由不同 |
+| `POST /api/v1/approval/instances/{id}/cancel` | `POST /api/v1/approval/runtime/instances/{id}/cancel` | 不一致 | 路由不同 |
+| `GET /api/v1/approval/tasks/my` | `GET /api/v1/approval/tasks/my-tasks` | 不一致 | 路由不同 |
+| `GET /api/v1/approval/tasks/instance/{id}` | `GET /api/v1/approval/tasks/by-instance/{id}` | 不一致 | 路由不同 |
+| `POST /api/v1/approval/tasks/decide` | `POST /api/v1/approval/tasks/{taskId}/approve|reject` | 不一致 | 接口设计不同 |
 
 ## 接口路径对齐（基础模块）
 
-| 前端调用（API_BASE 为 `/api`） | 后端实际 | 状态 | 备注 |
+| 前端调用（API_BASE 为 `/api/v1`） | 后端实际 | 状态 | 备注 |
 | --- | --- | --- | --- |
-| `/api/assets` | `/assets` | 需确认 | 如无网关前缀需统一 |
-| `/api/alert` | `/alert` | 需确认 | 如无网关前缀需统一 |
-| `/api/audit` | `/audit` | 需确认 | 如无网关前缀需统一 |
-| `/api/v1/auth/token` | `/auth/token` | 需确认 | 如无网关前缀需统一 |
+| `/api/v1/assets` | `/api/assets` | 已对齐 | 通过版本重写映射 |
+| `/api/v1/alert` | `/api/alert` | 已对齐 | 通过版本重写映射 |
+| `/api/v1/audit` | `/api/audit` | 已对齐 | 通过版本重写映射 |
+| `/api/v1/auth/token` | `/api/auth/token` | 已对齐 | 通过版本重写映射 |
 
 ## 建议修复顺序
 
@@ -83,3 +83,4 @@
 2. 补齐审批流枚举与运行时操作 DTO。
 3. 统一 ID 类型（推荐前端使用 `number` 或 `string` 但保持一致）。
 4. 建立身份与权限模块的前端 DTO。
+

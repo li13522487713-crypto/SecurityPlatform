@@ -17,7 +17,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
-[Route("auth")]
+[Route("api/auth")]
 public sealed class AuthController : ControllerBase
 {
     private readonly IAuthTokenService _authTokenService;
@@ -198,3 +198,4 @@ public sealed class AuthController : ControllerBase
         return Ok(ApiResponse<object>.Ok(new { Success = true }, HttpContext.TraceIdentifier));
     }
 }
+

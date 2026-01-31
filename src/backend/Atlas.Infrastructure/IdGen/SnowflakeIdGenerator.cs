@@ -15,5 +15,10 @@ public sealed class SnowflakeIdGenerator : IIdGenerator
         _generator = new IdGenerator(options.Value.GeneratorId, config);
     }
 
+    public SnowflakeIdGenerator(int generatorId, IdGeneratorOptions options)
+    {
+        _generator = new IdGenerator(generatorId, options);
+    }
+
     public long NextId() => _generator.CreateId();
 }

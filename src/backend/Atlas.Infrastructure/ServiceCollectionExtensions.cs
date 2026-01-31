@@ -32,8 +32,10 @@ public static class ServiceCollectionExtensions
         services.Configure<DatabaseBackupOptions>(configuration.GetSection("Database:Backup"));
         services.Configure<DatabaseEncryptionOptions>(configuration.GetSection("Database:Encryption"));
         services.Configure<SnowflakeOptions>(configuration.GetSection("Snowflake"));
+        services.Configure<IdGeneratorMappingOptions>(configuration.GetSection("IdGenerator"));
         services.AddSingleton(TimeProvider.System);
-        services.AddSingleton<IIdGenerator, SnowflakeIdGenerator>();
+        services.AddSingleton<IIdGeneratorProvider, SnowflakeIdGeneratorProvider>();
+        services.AddScoped<IIdGeneratorAccessor, DefaultIdGeneratorAccessor>();
 
         // 注意：HostedService 启动按注册顺序执行。数据库初始化必须最先完成（建表/建索引/种子数据），
         // 否则其它后台服务（超时提醒、外部回调重试等）可能会在表尚未创建时就开始查询，导致 no such table。
@@ -163,7 +165,7 @@ public static class ServiceCollectionExtensions
             var copyRecordRepository = sp.GetRequiredService<Atlas.Application.Approval.Repositories.IApprovalCopyRecordRepository>();
             var processVariableRepository = sp.GetRequiredService<Atlas.Application.Approval.Repositories.IApprovalProcessVariableRepository>();
             var userQueryService = sp.GetRequiredService<Atlas.Application.Approval.Abstractions.IApprovalUserQueryService>();
-            var idGenerator = sp.GetRequiredService<Atlas.Core.Abstractions.IIdGenerator>();
+            var idGeneratorAccessor = sp.GetRequiredService<Atlas.Core.Abstractions.IIdGeneratorAccessor>();
             var mapper = sp.GetRequiredService<AutoMapper.IMapper>();
             var notificationService = sp.GetService<Atlas.Application.Approval.Abstractions.IApprovalNotificationService>();
             var timeoutReminderRepository = sp.GetService<Atlas.Application.Approval.Repositories.IApprovalTimeoutReminderRepository>();
@@ -172,7 +174,7 @@ public static class ServiceCollectionExtensions
                 flowRepository, instanceRepository, taskRepository, historyRepository,
                 deptLeaderRepository, nodeExecutionRepository, parallelTokenRepository,
                 copyRecordRepository, processVariableRepository, userQueryService,
-                idGenerator, mapper, notificationService, timeoutReminderRepository, callbackService);
+                idGeneratorAccessor, mapper, notificationService, timeoutReminderRepository, callbackService);
         });
         services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalDepartmentLeaderService, ApprovalDepartmentLeaderService>();
         services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalOperationService, ApprovalOperationService>();

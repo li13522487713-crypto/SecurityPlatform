@@ -30,7 +30,7 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
     private readonly IApprovalNotificationService? _notificationService;
     private readonly IApprovalTimeoutReminderRepository? _timeoutReminderRepository;
     private readonly ExternalCallbackService? _callbackService;
-    private readonly IIdGenerator _idGenerator;
+    private readonly IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly IMapper _mapper;
     private readonly FlowEngine _flowEngine;
     private readonly ILogger<ApprovalRuntimeCommandService>? _logger;
@@ -46,7 +46,7 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
         IApprovalCopyRecordRepository copyRecordRepository,
         IApprovalProcessVariableRepository processVariableRepository,
         IApprovalUserQueryService userQueryService,
-        IIdGenerator idGenerator,
+        IIdGeneratorAccessor idGeneratorAccessor,
         IMapper mapper,
         IApprovalNotificationService? notificationService = null,
         IApprovalTimeoutReminderRepository? timeoutReminderRepository = null,
@@ -65,12 +65,24 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
         _notificationService = notificationService;
         _timeoutReminderRepository = timeoutReminderRepository;
         _callbackService = callbackService;
-        _idGenerator = idGenerator;
+        _idGeneratorAccessor = idGeneratorAccessor;
         _mapper = mapper;
         _logger = logger;
         var conditionEvaluator = new ConditionEvaluator(processVariableRepository);
         var deduplicationService = new DeduplicationService(taskRepository, userQueryService);
-        _flowEngine = new FlowEngine(taskRepository, nodeExecutionRepository, deptLeaderRepository, parallelTokenRepository, copyRecordRepository, conditionEvaluator, userQueryService, deduplicationService, idGenerator, notificationService, timeoutReminderRepository, callbackService);
+        _flowEngine = new FlowEngine(
+            taskRepository,
+            nodeExecutionRepository,
+            deptLeaderRepository,
+            parallelTokenRepository,
+            copyRecordRepository,
+            conditionEvaluator,
+            userQueryService,
+            deduplicationService,
+            idGeneratorAccessor,
+            notificationService,
+            timeoutReminderRepository,
+            callbackService);
     }
 
     public async Task<ApprovalInstanceResponse> StartAsync(
@@ -97,7 +109,7 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
             request.DefinitionId,
             request.BusinessKey,
             initiatorUserId,
-            _idGenerator.NextId(),
+            _idGeneratorAccessor.NextId(),
             request.DataJson);
         await _instanceRepository.AddAsync(instance, cancellationToken);
 
@@ -109,7 +121,7 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
             null,
             null,
             initiatorUserId,
-            _idGenerator.NextId());
+            _idGeneratorAccessor.NextId());
         await _historyRepository.AddAsync(startEvent, cancellationToken);
 
         // 发送流程启动通知（异步，失败不影响主流程）
@@ -169,7 +181,7 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
                 instance.Id,
                 startNode.Id,
                 ApprovalNodeExecutionStatus.Completed,
-                _idGenerator.NextId());
+                _idGeneratorAccessor.NextId());
             await _nodeExecutionRepository.AddAsync(startExecution, cancellationToken);
 
             // 推进到第一个审批节点
@@ -218,7 +230,7 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
             task.NodeId,
             null,
             approverUserId,
-            _idGenerator.NextId());
+            _idGeneratorAccessor.NextId());
         await _historyRepository.AddAsync(approveEvent, cancellationToken);
 
         // 标记任务为同意
@@ -321,7 +333,7 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
             task.NodeId,
             null,
             approverUserId,
-            _idGenerator.NextId());
+            _idGeneratorAccessor.NextId());
         await _historyRepository.AddAsync(rejectEvent, cancellationToken);
 
         // 标记任务为驳回
@@ -356,7 +368,7 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
             null,
             null,
             approverUserId,
-            _idGenerator.NextId());
+            _idGeneratorAccessor.NextId());
         await _historyRepository.AddAsync(instanceRejectEvent, cancellationToken);
 
         // 发送流程驳回通知（异步，失败不影响主流程）
@@ -452,7 +464,7 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
             null,
             null,
             cancelledByUserId,
-            _idGenerator.NextId());
+            _idGeneratorAccessor.NextId());
         await _historyRepository.AddAsync(cancelEvent, cancellationToken);
 
         // 发送流程取消通知（异步，失败不影响主流程）
@@ -536,3 +548,4 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
         await _copyRecordRepository.UpdateAsync(copyRecord, cancellationToken);
     }
 }
+

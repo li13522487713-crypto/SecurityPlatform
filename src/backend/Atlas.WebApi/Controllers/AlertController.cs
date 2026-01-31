@@ -1,4 +1,4 @@
-﻿using Atlas.Application.Alert.Abstractions;
+using Atlas.Application.Alert.Abstractions;
 using Atlas.Application.Alert.Models;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
-[Route("alert")]
+[Route("api/alert")]
 public sealed class AlertController : ControllerBase
 {
     private readonly IAlertQueryService _alertQueryService;

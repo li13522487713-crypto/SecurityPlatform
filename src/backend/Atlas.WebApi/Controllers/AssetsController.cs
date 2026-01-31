@@ -1,8 +1,7 @@
-﻿using AutoMapper;
+using AutoMapper;
 using FluentValidation;
 using Atlas.Application.Assets.Abstractions;
 using Atlas.Application.Assets.Models;
-using Atlas.Application.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Assets.Entities;
@@ -13,7 +12,7 @@ using Atlas.WebApi.Authorization;
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
-[Route("assets")]
+[Route("api/assets")]
 public sealed class AssetsController : ControllerBase
 {
     private readonly IAssetQueryService _assetQueryService;
@@ -21,7 +20,7 @@ public sealed class AssetsController : ControllerBase
     private readonly ITenantProvider _tenantProvider;
     private readonly IMapper _mapper;
     private readonly IValidator<Asset> _entityValidator;
-    private readonly Atlas.Core.Abstractions.IIdGenerator _idGenerator;
+    private readonly Atlas.Core.Abstractions.IIdGeneratorAccessor _idGeneratorAccessor;
 
     public AssetsController(
         IAssetQueryService assetQueryService,
@@ -29,14 +28,14 @@ public sealed class AssetsController : ControllerBase
         ITenantProvider tenantProvider,
         IMapper mapper,
         IValidator<Asset> entityValidator,
-        Atlas.Core.Abstractions.IIdGenerator idGenerator)
+        Atlas.Core.Abstractions.IIdGeneratorAccessor idGeneratorAccessor)
     {
         _assetQueryService = assetQueryService;
         _assetCommandService = assetCommandService;
         _tenantProvider = tenantProvider;
         _mapper = mapper;
         _entityValidator = entityValidator;
-        _idGenerator = idGenerator;
+        _idGeneratorAccessor = idGeneratorAccessor;
     }
 
     [HttpGet]
@@ -61,7 +60,7 @@ public sealed class AssetsController : ControllerBase
         var asset = _mapper.Map<Asset>(request, opt =>
         {
             opt.Items["TenantId"] = tenantId;
-            opt.Items["Id"] = _idGenerator.NextId();
+            opt.Items["Id"] = _idGeneratorAccessor.NextId();
         });
 
         _entityValidator.ValidateAndThrow(asset);
@@ -71,3 +70,7 @@ public sealed class AssetsController : ControllerBase
         return Ok(payload);
     }
 }
+
+
+
+

@@ -1,19 +1,19 @@
-@baseUrl = http://localhost:5000/api
+@baseUrl = http://localhost:5000
 @token =
 @tenantId =
 
 ### 获取我的待办任务
-GET {{baseUrl}}/approval/tasks/my-tasks?pageIndex=1&pageSize=10&status=Pending
+GET {{baseUrl}}/api/v1/approval/tasks/my-tasks?pageIndex=1&pageSize=10&status=Pending
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 
 ### 获取实例内的所有任务
-GET {{baseUrl}}/approval/tasks/by-instance/{instanceId}?pageIndex=1&pageSize=10
+GET {{baseUrl}}/api/v1/approval/tasks/by-instance/{instanceId}?pageIndex=1&pageSize=10
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 
 ### 同意审批任务
-POST {{baseUrl}}/approval/tasks/{taskId}/approve
+POST {{baseUrl}}/api/v1/approval/tasks/{taskId}/approve
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
@@ -23,7 +23,7 @@ Content-Type: application/json
 }
 
 ### 驳回审批任务
-POST {{baseUrl}}/approval/tasks/{taskId}/reject
+POST {{baseUrl}}/api/v1/approval/tasks/{taskId}/reject
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
@@ -31,3 +31,4 @@ Content-Type: application/json
 {
   "comment": "不同意，请假天数过长"
 }
+

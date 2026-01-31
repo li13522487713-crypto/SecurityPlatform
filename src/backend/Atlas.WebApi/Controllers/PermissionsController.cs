@@ -11,13 +11,13 @@ using Atlas.WebApi.Authorization;
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
-[Route("permissions")]
+[Route("api/permissions")]
 public sealed class PermissionsController : ControllerBase
 {
     private readonly IPermissionQueryService _permissionQueryService;
     private readonly IPermissionCommandService _permissionCommandService;
     private readonly ITenantProvider _tenantProvider;
-    private readonly Atlas.Core.Abstractions.IIdGenerator _idGenerator;
+    private readonly Atlas.Core.Abstractions.IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly IValidator<PermissionCreateRequest> _createValidator;
     private readonly IValidator<PermissionUpdateRequest> _updateValidator;
 
@@ -25,14 +25,14 @@ public sealed class PermissionsController : ControllerBase
         IPermissionQueryService permissionQueryService,
         IPermissionCommandService permissionCommandService,
         ITenantProvider tenantProvider,
-        Atlas.Core.Abstractions.IIdGenerator idGenerator,
+        Atlas.Core.Abstractions.IIdGeneratorAccessor idGeneratorAccessor,
         IValidator<PermissionCreateRequest> createValidator,
         IValidator<PermissionUpdateRequest> updateValidator)
     {
         _permissionQueryService = permissionQueryService;
         _permissionCommandService = permissionCommandService;
         _tenantProvider = tenantProvider;
-        _idGenerator = idGenerator;
+        _idGeneratorAccessor = idGeneratorAccessor;
         _createValidator = createValidator;
         _updateValidator = updateValidator;
     }
@@ -70,7 +70,7 @@ public sealed class PermissionsController : ControllerBase
     {
         _createValidator.ValidateAndThrow(request);
         var tenantId = _tenantProvider.GetTenantId();
-        var id = _idGenerator.NextId();
+        var id = _idGeneratorAccessor.NextId();
         var createdId = await _permissionCommandService.CreateAsync(tenantId, request, id, cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = createdId.ToString() }, HttpContext.TraceIdentifier));
     }
@@ -88,3 +88,7 @@ public sealed class PermissionsController : ControllerBase
         return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
     }
 }
+
+
+
+

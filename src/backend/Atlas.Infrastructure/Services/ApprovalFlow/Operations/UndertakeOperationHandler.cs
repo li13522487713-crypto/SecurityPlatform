@@ -15,18 +15,18 @@ public sealed class UndertakeOperationHandler : IApprovalOperationHandler
 {
     private readonly IApprovalTaskRepository _taskRepository;
     private readonly IApprovalHistoryRepository _historyRepository;
-    private readonly IIdGenerator _idGenerator;
+    private readonly IIdGeneratorAccessor _idGeneratorAccessor;
 
     public ApprovalOperationType SupportedOperationType => ApprovalOperationType.Undertake;
 
     public UndertakeOperationHandler(
         IApprovalTaskRepository taskRepository,
         IApprovalHistoryRepository historyRepository,
-        IIdGenerator idGenerator)
+        IIdGeneratorAccessor idGeneratorAccessor)
     {
         _taskRepository = taskRepository;
         _historyRepository = historyRepository;
-        _idGenerator = idGenerator;
+        _idGeneratorAccessor = idGeneratorAccessor;
     }
 
     public async Task ExecuteAsync(
@@ -71,7 +71,12 @@ public sealed class UndertakeOperationHandler : IApprovalOperationHandler
             task.NodeId,
             task.NodeId,
             operatorUserId,
-            _idGenerator.NextId());
+            _idGeneratorAccessor.NextId());
         await _historyRepository.AddAsync(undertakeEvent, cancellationToken);
     }
 }
+
+
+
+
+

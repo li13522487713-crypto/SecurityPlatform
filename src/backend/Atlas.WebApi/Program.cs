@@ -39,6 +39,7 @@ builder.Services.Configure<LockoutPolicyOptions>(builder.Configuration.GetSectio
 builder.Services.Configure<BootstrapAdminOptions>(builder.Configuration.GetSection("Security:BootstrapAdmin"));
 builder.Services.Configure<ApprovalSeedDataOptions>(builder.Configuration.GetSection("Approval:SeedData"));
 builder.Services.Configure<TenancyOptions>(builder.Configuration.GetSection("Tenancy"));
+builder.Services.Configure<Atlas.WebApi.Identity.AppOptions>(builder.Configuration.GetSection("App"));
 
 builder.Services.AddCors(options =>
 {
@@ -65,6 +66,7 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<Atlas.Core.Tenancy.ITenantProvider, HttpContextTenantProvider>();
 builder.Services.AddScoped<Atlas.Core.Identity.ICurrentUserAccessor, Atlas.WebApi.Identity.HttpContextCurrentUserAccessor>();
 builder.Services.AddScoped<Atlas.Core.Identity.IClientContextAccessor, Atlas.WebApi.Identity.HttpContextClientContextAccessor>();
+builder.Services.AddScoped<Atlas.Core.Identity.IAppContextAccessor, Atlas.WebApi.Identity.HttpContextAppContextAccessor>();
 
 builder.Services.AddFluentValidationAutoValidation();
 builder.Services.AddValidatorsFromAssemblies(AppDomain.CurrentDomain.GetAssemblies());
@@ -167,6 +169,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors("WebAppCors");
+app.UseMiddleware<AppContextMiddleware>();
 app.UseMiddleware<ClientContextMiddleware>();
 app.UseRouting();
 app.UseAuthentication();

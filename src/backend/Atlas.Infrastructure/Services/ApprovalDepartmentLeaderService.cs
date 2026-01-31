@@ -14,14 +14,14 @@ namespace Atlas.Infrastructure.Services;
 public sealed class ApprovalDepartmentLeaderService : IApprovalDepartmentLeaderService
 {
     private readonly IApprovalDepartmentLeaderRepository _leaderRepository;
-    private readonly IIdGenerator _idGenerator;
+    private readonly IIdGeneratorAccessor _idGeneratorAccessor;
 
     public ApprovalDepartmentLeaderService(
         IApprovalDepartmentLeaderRepository leaderRepository,
-        IIdGenerator idGenerator)
+        IIdGeneratorAccessor idGeneratorAccessor)
     {
         _leaderRepository = leaderRepository;
-        _idGenerator = idGenerator;
+        _idGeneratorAccessor = idGeneratorAccessor;
     }
 
     public async Task SetLeaderAsync(
@@ -45,7 +45,7 @@ public sealed class ApprovalDepartmentLeaderService : IApprovalDepartmentLeaderS
                 tenantId,
                 request.DepartmentId,
                 request.LeaderUserId,
-                _idGenerator.NextId());
+                _idGeneratorAccessor.NextId());
             await _leaderRepository.AddAsync(newLeader, cancellationToken);
         }
     }
@@ -66,3 +66,7 @@ public sealed class ApprovalDepartmentLeaderService : IApprovalDepartmentLeaderS
         await _leaderRepository.DeleteByDepartmentIdAsync(tenantId, departmentId, cancellationToken);
     }
 }
+
+
+
+

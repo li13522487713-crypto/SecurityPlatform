@@ -15,18 +15,18 @@ public sealed class ApprovalNotificationService : IApprovalNotificationService
     private readonly IApprovalNotificationTemplateRepository _templateRepository;
     private readonly IApprovalInboxMessageRepository _inboxRepository;
     private readonly IEnumerable<IApprovalNotificationSender> _senders;
-    private readonly IIdGenerator _idGenerator;
+    private readonly IIdGeneratorAccessor _idGeneratorAccessor;
 
     public ApprovalNotificationService(
         IApprovalNotificationTemplateRepository templateRepository,
         IApprovalInboxMessageRepository inboxRepository,
         IEnumerable<IApprovalNotificationSender> senders,
-        IIdGenerator idGenerator)
+        IIdGeneratorAccessor idGeneratorAccessor)
     {
         _templateRepository = templateRepository;
         _inboxRepository = inboxRepository;
         _senders = senders;
-        _idGenerator = idGenerator;
+        _idGeneratorAccessor = idGeneratorAccessor;
     }
 
     public async Task NotifyAsync(
@@ -76,7 +76,7 @@ public sealed class ApprovalNotificationService : IApprovalNotificationService
                         eventType,
                         title,
                         content,
-                        _idGenerator.NextId());
+                        _idGeneratorAccessor.NextId());
                     messages.Add(inboxMessage);
                 }
                 else
@@ -140,3 +140,7 @@ public sealed class ApprovalNotificationService : IApprovalNotificationService
         return result;
     }
 }
+
+
+
+

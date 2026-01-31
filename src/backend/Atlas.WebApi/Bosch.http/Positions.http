@@ -5,7 +5,7 @@
 
 ### Login to get token (Execute this first)
 # @name login
-POST {{baseUrl}}/auth/token
+POST {{baseUrl}}/api/v1/auth/token
 Content-Type: application/json
 X-Tenant-Id: {{tenantId}}
 
@@ -18,22 +18,22 @@ X-Tenant-Id: {{tenantId}}
 @accessToken = {{login.response.body.$.data.accessToken}}
 
 ### Get Positions (Paged)
-GET {{baseUrl}}/positions?pageIndex=1&pageSize=10
+GET {{baseUrl}}/api/v1/positions?pageIndex=1&pageSize=10
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ### Get Positions (All)
-GET {{baseUrl}}/positions/all
+GET {{baseUrl}}/api/v1/positions/all
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ### Get Position Detail
-GET {{baseUrl}}/positions/1
+GET {{baseUrl}}/api/v1/positions/1
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ### Create Position
-POST {{baseUrl}}/positions
+POST {{baseUrl}}/api/v1/positions
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
@@ -47,7 +47,7 @@ X-Tenant-Id: {{tenantId}}
 }
 
 ### Update Position
-PUT {{baseUrl}}/positions/1
+PUT {{baseUrl}}/api/v1/positions/1
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
@@ -60,6 +60,7 @@ X-Tenant-Id: {{tenantId}}
 }
 
 ### Delete Position
-DELETE {{baseUrl}}/positions/1
+DELETE {{baseUrl}}/api/v1/positions/1
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
+

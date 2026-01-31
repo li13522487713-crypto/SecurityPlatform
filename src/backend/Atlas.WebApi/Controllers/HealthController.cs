@@ -1,11 +1,11 @@
-﻿using Atlas.Core.Models;
+using Atlas.Core.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
-[Route("health")]
+[Route("api/health")]
 public sealed class HealthController : ControllerBase
 {
     [HttpGet]

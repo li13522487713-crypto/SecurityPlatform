@@ -1,9 +1,9 @@
-@baseUrl = http://localhost:5000/api
+@baseUrl = http://localhost:5000
 @token =
 @tenantId =
 
 ### 发起流程实例
-POST {{baseUrl}}/approval/runtime/start
+POST {{baseUrl}}/api/v1/approval/runtime/start
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
@@ -15,22 +15,22 @@ Content-Type: application/json
 }
 
 ### 获取我发起的流程实例
-GET {{baseUrl}}/approval/runtime/my-instances?pageIndex=1&pageSize=10&status=Running
+GET {{baseUrl}}/api/v1/approval/runtime/my-instances?pageIndex=1&pageSize=10&status=Running
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 
 ### 获取流程实例详情
-GET {{baseUrl}}/approval/runtime/instances/{instanceId}
+GET {{baseUrl}}/api/v1/approval/runtime/instances/{instanceId}
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 
 ### 获取流程实例历史事件
-GET {{baseUrl}}/approval/runtime/instances/{instanceId}/history?pageIndex=1&pageSize=20
+GET {{baseUrl}}/api/v1/approval/runtime/instances/{instanceId}/history?pageIndex=1&pageSize=20
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 
 ### 取消流程实例
-POST {{baseUrl}}/approval/runtime/instances/{instanceId}/cancel
+POST {{baseUrl}}/api/v1/approval/runtime/instances/{instanceId}/cancel
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
@@ -38,17 +38,17 @@ Content-Type: application/json
 {}
 
 ### 预览流程实例
-GET {{baseUrl}}/approval/runtime/instances/{instanceId}/preview
+GET {{baseUrl}}/api/v1/approval/runtime/instances/{instanceId}/preview
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 
 ### 打印流程实例
-GET {{baseUrl}}/approval/runtime/instances/{instanceId}/print
+GET {{baseUrl}}/api/v1/approval/runtime/instances/{instanceId}/print
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 
 ### 撤回流程
-POST {{baseUrl}}/approval/runtime/instances/{instanceId}/operations?taskId={taskId}
+POST {{baseUrl}}/api/v1/approval/runtime/instances/{instanceId}/operations?taskId={taskId}
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
@@ -59,7 +59,7 @@ Content-Type: application/json
 }
 
 ### 转办任务
-POST {{baseUrl}}/approval/runtime/instances/{instanceId}/operations?taskId={taskId}
+POST {{baseUrl}}/api/v1/approval/runtime/instances/{instanceId}/operations?taskId={taskId}
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
@@ -71,7 +71,7 @@ Content-Type: application/json
 }
 
 ### 加签
-POST {{baseUrl}}/approval/runtime/instances/{instanceId}/operations?taskId={taskId}
+POST {{baseUrl}}/api/v1/approval/runtime/instances/{instanceId}/operations?taskId={taskId}
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
@@ -83,7 +83,7 @@ Content-Type: application/json
 }
 
 ### 打回修改
-POST {{baseUrl}}/approval/runtime/instances/{instanceId}/operations?taskId={taskId}
+POST {{baseUrl}}/api/v1/approval/runtime/instances/{instanceId}/operations?taskId={taskId}
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
@@ -94,7 +94,7 @@ Content-Type: application/json
 }
 
 ### 退回任意节点
-POST {{baseUrl}}/approval/runtime/instances/{instanceId}/operations?taskId={taskId}
+POST {{baseUrl}}/api/v1/approval/runtime/instances/{instanceId}/operations?taskId={taskId}
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
@@ -106,7 +106,7 @@ Content-Type: application/json
 }
 
 ### 撤销同意
-POST {{baseUrl}}/approval/runtime/instances/{instanceId}/operations?taskId={taskId}
+POST {{baseUrl}}/api/v1/approval/runtime/instances/{instanceId}/operations?taskId={taskId}
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
@@ -115,3 +115,4 @@ Content-Type: application/json
   "operationType": 32,
   "comment": "撤销之前的同意"
 }
+

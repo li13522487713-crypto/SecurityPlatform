@@ -11,13 +11,13 @@ using Atlas.WebApi.Authorization;
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
-[Route("positions")]
+[Route("api/positions")]
 public sealed class PositionsController : ControllerBase
 {
     private readonly IPositionQueryService _positionQueryService;
     private readonly IPositionCommandService _positionCommandService;
     private readonly ITenantProvider _tenantProvider;
-    private readonly Atlas.Core.Abstractions.IIdGenerator _idGenerator;
+    private readonly Atlas.Core.Abstractions.IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly IValidator<PositionCreateRequest> _createValidator;
     private readonly IValidator<PositionUpdateRequest> _updateValidator;
 
@@ -25,14 +25,14 @@ public sealed class PositionsController : ControllerBase
         IPositionQueryService positionQueryService,
         IPositionCommandService positionCommandService,
         ITenantProvider tenantProvider,
-        Atlas.Core.Abstractions.IIdGenerator idGenerator,
+        Atlas.Core.Abstractions.IIdGeneratorAccessor idGeneratorAccessor,
         IValidator<PositionCreateRequest> createValidator,
         IValidator<PositionUpdateRequest> updateValidator)
     {
         _positionQueryService = positionQueryService;
         _positionCommandService = positionCommandService;
         _tenantProvider = tenantProvider;
-        _idGenerator = idGenerator;
+        _idGeneratorAccessor = idGeneratorAccessor;
         _createValidator = createValidator;
         _updateValidator = updateValidator;
     }
@@ -80,7 +80,7 @@ public sealed class PositionsController : ControllerBase
     {
         _createValidator.ValidateAndThrow(request);
         var tenantId = _tenantProvider.GetTenantId();
-        var id = _idGenerator.NextId();
+        var id = _idGeneratorAccessor.NextId();
         var createdId = await _positionCommandService.CreateAsync(tenantId, request, id, cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = createdId.ToString() }, HttpContext.TraceIdentifier));
     }
@@ -109,3 +109,7 @@ public sealed class PositionsController : ControllerBase
         return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
     }
 }
+
+
+
+

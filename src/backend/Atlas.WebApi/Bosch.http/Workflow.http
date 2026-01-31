@@ -5,7 +5,7 @@
 
 ### Login to get token (Execute this first)
 # @name login
-POST {{baseUrl}}/auth/token
+POST {{baseUrl}}/api/v1/auth/token
 Content-Type: application/json
 X-Tenant-Id: {{tenantId}}
 
@@ -18,23 +18,23 @@ X-Tenant-Id: {{tenantId}}
 @accessToken = {{login.response.body.$.data.accessToken}}
 
 ### Get all workflow definitions
-GET {{baseUrl}}/workflows/definitions
+GET {{baseUrl}}/api/v1/workflows/definitions
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ### Get specific workflow definition (latest version)
-GET {{baseUrl}}/workflows/definitions/my-workflow
+GET {{baseUrl}}/api/v1/workflows/definitions/my-workflow
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ### Get specific workflow definition (specific version)
-GET {{baseUrl}}/workflows/definitions/my-workflow?version=1
+GET {{baseUrl}}/api/v1/workflows/definitions/my-workflow?version=1
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ### Start a workflow instance
 # @name startWorkflow
-POST {{baseUrl}}/workflows/instances
+POST {{baseUrl}}/api/v1/workflows/instances
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
@@ -52,32 +52,32 @@ X-Tenant-Id: {{tenantId}}
 @instanceId = {{startWorkflow.response.body.$.data.instanceId}}
 
 ### Get workflow instance details
-GET {{baseUrl}}/workflows/instances/{{instanceId}}
+GET {{baseUrl}}/api/v1/workflows/instances/{{instanceId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ### Get workflow instances (paged)
-GET {{baseUrl}}/workflows/instances?pageIndex=1&pageSize=10
+GET {{baseUrl}}/api/v1/workflows/instances?pageIndex=1&pageSize=10
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ### Suspend workflow instance
-POST {{baseUrl}}/workflows/instances/{{instanceId}}/suspend
+POST {{baseUrl}}/api/v1/workflows/instances/{{instanceId}}/suspend
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ### Resume workflow instance
-POST {{baseUrl}}/workflows/instances/{{instanceId}}/resume
+POST {{baseUrl}}/api/v1/workflows/instances/{{instanceId}}/resume
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ### Terminate workflow instance
-POST {{baseUrl}}/workflows/instances/{{instanceId}}/terminate
+POST {{baseUrl}}/api/v1/workflows/instances/{{instanceId}}/terminate
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ### Publish external event
-POST {{baseUrl}}/workflows/events
+POST {{baseUrl}}/api/v1/workflows/events
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
@@ -91,13 +91,13 @@ X-Tenant-Id: {{tenantId}}
 }
 
 ### Get available step types
-GET {{baseUrl}}/workflows/step-types
+GET {{baseUrl}}/api/v1/workflows/step-types
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ### Register dynamic workflow from JSON (DSL v1 format)
 # @name registerDynamic
-POST {{baseUrl}}/workflows/definitions
+POST {{baseUrl}}/api/v1/workflows/definitions
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
@@ -110,7 +110,7 @@ X-Tenant-Id: {{tenantId}}
 
 ### Start the dynamic workflow
 # @name startDynamic
-POST {{baseUrl}}/workflows/instances
+POST {{baseUrl}}/api/v1/workflows/instances
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
@@ -126,6 +126,7 @@ X-Tenant-Id: {{tenantId}}
 @dynamicInstanceId = {{startDynamic.response.body.$.data.instanceId}}
 
 ### Get execution pointers for the dynamic workflow
-GET {{baseUrl}}/workflows/instances/{{dynamicInstanceId}}/pointers
+GET {{baseUrl}}/api/v1/workflows/instances/{{dynamicInstanceId}}/pointers
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
+

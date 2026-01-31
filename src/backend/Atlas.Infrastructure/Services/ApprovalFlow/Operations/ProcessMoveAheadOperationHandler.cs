@@ -21,7 +21,7 @@ public sealed class ProcessMoveAheadOperationHandler : IApprovalOperationHandler
     private readonly IApprovalNodeExecutionRepository _nodeExecutionRepository;
     private readonly IApprovalHistoryRepository _historyRepository;
     private readonly IServiceProvider _serviceProvider;
-    private readonly IIdGenerator _idGenerator;
+    private readonly IIdGeneratorAccessor _idGeneratorAccessor;
 
     public ApprovalOperationType SupportedOperationType => ApprovalOperationType.ProcessMoveAhead;
 
@@ -32,7 +32,7 @@ public sealed class ProcessMoveAheadOperationHandler : IApprovalOperationHandler
         IApprovalNodeExecutionRepository nodeExecutionRepository,
         IApprovalHistoryRepository historyRepository,
         IServiceProvider serviceProvider,
-        IIdGenerator idGenerator)
+        IIdGeneratorAccessor idGeneratorAccessor)
     {
         _instanceRepository = instanceRepository;
         _flowRepository = flowRepository;
@@ -40,7 +40,7 @@ public sealed class ProcessMoveAheadOperationHandler : IApprovalOperationHandler
         _nodeExecutionRepository = nodeExecutionRepository;
         _historyRepository = historyRepository;
         _serviceProvider = serviceProvider;
-        _idGenerator = idGenerator;
+        _idGeneratorAccessor = idGeneratorAccessor;
     }
 
     public async Task ExecuteAsync(
@@ -107,7 +107,7 @@ public sealed class ProcessMoveAheadOperationHandler : IApprovalOperationHandler
             conditionEvaluator,
             userQueryService,
             deduplicationService,
-            _idGenerator);
+            _idGeneratorAccessor);
 
         // 调用流程推进引擎
         await flowEngine.AdvanceFlowAsync(tenantId, instance, flowDefinition, currentNodeId, cancellationToken);
@@ -123,7 +123,12 @@ public sealed class ProcessMoveAheadOperationHandler : IApprovalOperationHandler
             currentNodeId,
             instance.CurrentNodeId,
             operatorUserId,
-            _idGenerator.NextId());
+            _idGeneratorAccessor.NextId());
         await _historyRepository.AddAsync(moveAheadEvent, cancellationToken);
     }
 }
+
+
+
+
+

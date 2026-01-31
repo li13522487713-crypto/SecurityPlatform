@@ -1,9 +1,9 @@
-@baseUrl = http://localhost:5000/api
+@baseUrl = http://localhost:5000
 @token =
 @tenantId =
 
 ### 创建流程定义
-POST {{baseUrl}}/approval/flows
+POST {{baseUrl}}/api/v1/approval/flows
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
@@ -18,17 +18,17 @@ Content-Type: application/json
 }
 
 ### 获取流程定义列表
-GET {{baseUrl}}/approval/flows?pageIndex=1&pageSize=10&status=Draft
+GET {{baseUrl}}/api/v1/approval/flows?pageIndex=1&pageSize=10&status=Draft
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 
 ### 获取流程定义详情
-GET {{baseUrl}}/approval/flows/{flowId}
+GET {{baseUrl}}/api/v1/approval/flows/{flowId}
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 
 ### 更新流程定义
-PUT {{baseUrl}}/approval/flows/{flowId}
+PUT {{baseUrl}}/api/v1/approval/flows/{flowId}
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
@@ -43,7 +43,7 @@ Content-Type: application/json
 }
 
 ### 发布流程定义
-POST {{baseUrl}}/approval/flows/{flowId}/publish
+POST {{baseUrl}}/api/v1/approval/flows/{flowId}/publish
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
@@ -51,7 +51,7 @@ Content-Type: application/json
 {}
 
 ### 禁用流程定义
-POST {{baseUrl}}/approval/flows/{flowId}/disable
+POST {{baseUrl}}/api/v1/approval/flows/{flowId}/disable
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
@@ -59,6 +59,7 @@ Content-Type: application/json
 {}
 
 ### 删除流程定义
-DELETE {{baseUrl}}/approval/flows/{flowId}
+DELETE {{baseUrl}}/api/v1/approval/flows/{flowId}
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
+

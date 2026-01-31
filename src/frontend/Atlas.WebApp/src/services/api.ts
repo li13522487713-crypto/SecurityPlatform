@@ -74,7 +74,7 @@ import {
 } from "@/utils/auth";
 import { getClientContextHeaders } from "@/utils/clientContext";
 
-const API_BASE = import.meta.env.VITE_API_BASE ?? "/api";
+const API_BASE = import.meta.env.VITE_API_BASE ?? "/api/v1";
 
 interface RequestOptions {
   disableAutoRefresh?: boolean;

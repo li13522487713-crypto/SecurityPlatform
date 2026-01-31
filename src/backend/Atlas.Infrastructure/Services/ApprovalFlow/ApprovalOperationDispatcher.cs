@@ -16,16 +16,16 @@ public sealed class ApprovalOperationDispatcher
 {
     private readonly Dictionary<ApprovalOperationType, IApprovalOperationHandler> _handlers;
     private readonly IApprovalOperationRecordRepository _operationRecordRepository;
-    private readonly IIdGenerator _idGenerator;
+    private readonly IIdGeneratorAccessor _idGeneratorAccessor;
 
     public ApprovalOperationDispatcher(
         IEnumerable<IApprovalOperationHandler> handlers,
         IApprovalOperationRecordRepository operationRecordRepository,
-        IIdGenerator idGenerator)
+        IIdGeneratorAccessor idGeneratorAccessor)
     {
         _handlers = handlers.ToDictionary(h => h.SupportedOperationType);
         _operationRecordRepository = operationRecordRepository;
-        _idGenerator = idGenerator;
+        _idGeneratorAccessor = idGeneratorAccessor;
     }
 
     /// <summary>
@@ -70,7 +70,7 @@ public sealed class ApprovalOperationDispatcher
                 request.OperationType,
                 request.IdempotencyKey,
                 operatorUserId,
-                _idGenerator.NextId(),
+                _idGeneratorAccessor.NextId(),
                 taskId,
                 JsonSerializer.Serialize(request));
 
@@ -109,7 +109,7 @@ public sealed class ApprovalOperationDispatcher
                 request.OperationType,
                 generatedIdempotencyKey,
                 operatorUserId,
-                _idGenerator.NextId(),
+                _idGeneratorAccessor.NextId(),
                 taskId,
                 JsonSerializer.Serialize(request));
 
@@ -138,3 +138,7 @@ public sealed class ApprovalOperationDispatcher
         }
     }
 }
+
+
+
+

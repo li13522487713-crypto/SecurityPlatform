@@ -1,5 +1,6 @@
 using Atlas.Application.Options;
 using Atlas.Core.Abstractions;
+using Atlas.Core.Identity;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Approval.Entities;
 using Atlas.Domain.Approval.Enums;
@@ -15,18 +16,21 @@ namespace Atlas.Infrastructure.Services;
 public sealed class ApprovalSeedDataService
 {
     private readonly ISqlSugarClient _db;
-    private readonly IIdGenerator _idGenerator;
+    private readonly IIdGeneratorAccessor _idGeneratorAccessor;
+    private readonly IAppContextAccessor _appContextAccessor;
     private readonly ApprovalSeedDataOptions _options;
     private readonly ILogger<ApprovalSeedDataService> _logger;
 
     public ApprovalSeedDataService(
         ISqlSugarClient db,
-        IIdGenerator idGenerator,
+        IIdGeneratorAccessor idGeneratorAccessor,
+        IAppContextAccessor appContextAccessor,
         IOptions<ApprovalSeedDataOptions> options,
         ILogger<ApprovalSeedDataService> logger)
     {
         _db = db;
-        _idGenerator = idGenerator;
+        _idGeneratorAccessor = idGeneratorAccessor;
+        _appContextAccessor = appContextAccessor;
         _options = options.Value;
         _logger = logger;
     }
@@ -42,6 +46,7 @@ public sealed class ApprovalSeedDataService
             return;
         }
 
+        using var appContextScope = _appContextAccessor.BeginScope(CreateSystemContext(tenantId));
         if (_options.InitializeButtonConfigs)
         {
             await InitializeDefaultButtonConfigsAsync(tenantId, cancellationToken);
@@ -106,7 +111,7 @@ public sealed class ApprovalSeedDataService
                     viewType,
                     buttonType,
                     buttonName,
-                    _idGenerator.NextId());
+                    _idGeneratorAccessor.NextId());
                 await _db.Insertable(config).ExecuteCommandAsync(cancellationToken);
                 _logger.LogInformation("已创建默认按钮配置：{ViewType} - {ButtonType} - {ButtonName}",
                     viewType, buttonType, buttonName);
@@ -115,4 +120,19 @@ public sealed class ApprovalSeedDataService
 
         _logger.LogInformation("审批模块默认按钮配置初始化完成");
     }
+
+    private IAppContext CreateSystemContext(TenantId tenantId)
+    {
+        var appId = _appContextAccessor.GetAppId();
+        var clientContext = new ClientContext(
+            ClientType.Backend,
+            ClientPlatform.Web,
+            ClientChannel.App,
+            ClientAgent.Other);
+        return new AppContextSnapshot(tenantId, appId, null, clientContext, null);
+    }
 }
+
+
+
+

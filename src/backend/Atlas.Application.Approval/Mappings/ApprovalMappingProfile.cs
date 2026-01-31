@@ -17,8 +17,12 @@ public sealed class ApprovalMappingProfile : Profile
             .ConstructUsing((src, ctx) =>
             {
                 var tenantId = (Atlas.Core.Tenancy.TenantId)ctx.Items["TenantId"];
-                var idGenerator = (IIdGenerator)ctx.Items["IdGenerator"];
-                return new ApprovalFlowDefinition(tenantId, src.Name, src.DefinitionJson, idGenerator.NextId());
+                var idGeneratorAccessor = (IIdGeneratorAccessor)ctx.Items["IdGeneratorAccessor"];
+                return new ApprovalFlowDefinition(
+                    tenantId,
+                    src.Name,
+                    src.DefinitionJson,
+                    idGeneratorAccessor.NextId());
             })
             .ForMember(dest => dest.Id, opt => opt.Ignore())
             .ForMember(dest => dest.TenantIdValue, opt => opt.Ignore())
@@ -40,14 +44,14 @@ public sealed class ApprovalMappingProfile : Profile
             .ConstructUsing((src, ctx) =>
             {
                 var tenantId = (Atlas.Core.Tenancy.TenantId)ctx.Items["TenantId"];
-                var idGenerator = (IIdGenerator)ctx.Items["IdGenerator"];
+                var idGeneratorAccessor = (IIdGeneratorAccessor)ctx.Items["IdGeneratorAccessor"];
                 var initiatorUserId = (long)ctx.Items["UserId"];
                 return new ApprovalProcessInstance(
                     tenantId,
                     src.DefinitionId,
                     src.BusinessKey,
                     initiatorUserId,
-                    idGenerator.NextId(),
+                    idGeneratorAccessor.NextId(),
                     src.DataJson);
             })
             .ForMember(dest => dest.Id, opt => opt.Ignore())
@@ -68,8 +72,12 @@ public sealed class ApprovalMappingProfile : Profile
             .ConstructUsing((src, ctx) =>
             {
                 var tenantId = (Atlas.Core.Tenancy.TenantId)ctx.Items["TenantId"];
-                var idGenerator = (IIdGenerator)ctx.Items["IdGenerator"];
-                return new ApprovalDepartmentLeader(tenantId, src.DepartmentId, src.LeaderUserId, idGenerator.NextId());
+                var idGeneratorAccessor = (IIdGeneratorAccessor)ctx.Items["IdGeneratorAccessor"];
+                return new ApprovalDepartmentLeader(
+                    tenantId,
+                    src.DepartmentId,
+                    src.LeaderUserId,
+                    idGeneratorAccessor.NextId());
             })
             .ForMember(dest => dest.Id, opt => opt.Ignore())
             .ForMember(dest => dest.TenantIdValue, opt => opt.Ignore());

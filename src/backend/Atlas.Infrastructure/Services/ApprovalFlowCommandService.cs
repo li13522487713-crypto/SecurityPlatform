@@ -16,16 +16,16 @@ namespace Atlas.Infrastructure.Services;
 public sealed class ApprovalFlowCommandService : IApprovalFlowCommandService
 {
     private readonly IApprovalFlowRepository _flowRepository;
-    private readonly IIdGenerator _idGenerator;
+    private readonly IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly IMapper _mapper;
 
     public ApprovalFlowCommandService(
         IApprovalFlowRepository flowRepository,
-        IIdGenerator idGenerator,
+        IIdGeneratorAccessor idGeneratorAccessor,
         IMapper mapper)
     {
         _flowRepository = flowRepository;
-        _idGenerator = idGenerator;
+        _idGeneratorAccessor = idGeneratorAccessor;
         _mapper = mapper;
     }
 
@@ -34,7 +34,11 @@ public sealed class ApprovalFlowCommandService : IApprovalFlowCommandService
         ApprovalFlowDefinitionCreateRequest request,
         CancellationToken cancellationToken)
     {
-        var entity = new ApprovalFlowDefinition(tenantId, request.Name, request.DefinitionJson, _idGenerator.NextId());
+        var entity = new ApprovalFlowDefinition(
+            tenantId,
+            request.Name,
+            request.DefinitionJson,
+            _idGeneratorAccessor.NextId());
         entity.SetMetadata(request.Description, request.Category, request.VisibilityScopeJson, request.IsQuickEntry);
         await _flowRepository.AddAsync(entity, cancellationToken);
 
@@ -119,3 +123,7 @@ public sealed class ApprovalFlowCommandService : IApprovalFlowCommandService
         await _flowRepository.UpdateAsync(entity, cancellationToken);
     }
 }
+
+
+
+

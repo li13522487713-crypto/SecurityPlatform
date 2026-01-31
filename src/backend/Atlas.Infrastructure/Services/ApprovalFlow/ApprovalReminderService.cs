@@ -16,20 +16,20 @@ public sealed class ApprovalReminderService : IApprovalReminderService
     private readonly IApprovalInstanceRepository _instanceRepository;
     private readonly IApprovalTaskRepository _taskRepository;
     private readonly IApprovalNotificationService? _notificationService;
-    private readonly IIdGenerator _idGenerator;
+    private readonly IIdGeneratorAccessor _idGeneratorAccessor;
 
     public ApprovalReminderService(
         IApprovalReminderRecordRepository reminderRecordRepository,
         IApprovalInstanceRepository instanceRepository,
         IApprovalTaskRepository taskRepository,
         IApprovalNotificationService? notificationService,
-        IIdGenerator idGenerator)
+        IIdGeneratorAccessor idGeneratorAccessor)
     {
         _reminderRecordRepository = reminderRecordRepository;
         _instanceRepository = instanceRepository;
         _taskRepository = taskRepository;
         _notificationService = notificationService;
-        _idGenerator = idGenerator;
+        _idGeneratorAccessor = idGeneratorAccessor;
     }
 
     public async Task SendReminderAsync(
@@ -66,7 +66,7 @@ public sealed class ApprovalReminderService : IApprovalReminderService
             reminderUserId,
             recipientUserId,
             reminderMessage,
-            _idGenerator.NextId());
+            _idGeneratorAccessor.NextId());
 
         await _reminderRecordRepository.AddAsync(reminderRecord, cancellationToken);
 
@@ -87,3 +87,7 @@ public sealed class ApprovalReminderService : IApprovalReminderService
         }
     }
 }
+
+
+
+

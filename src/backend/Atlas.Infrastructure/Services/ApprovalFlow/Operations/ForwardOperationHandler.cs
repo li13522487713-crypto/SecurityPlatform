@@ -16,7 +16,7 @@ public sealed class ForwardOperationHandler : IApprovalOperationHandler
     private readonly IApprovalTaskRepository _taskRepository;
     private readonly IApprovalTaskTransferRepository _transferRepository;
     private readonly IApprovalHistoryRepository _historyRepository;
-    private readonly IIdGenerator _idGenerator;
+    private readonly IIdGeneratorAccessor _idGeneratorAccessor;
 
     public ApprovalOperationType SupportedOperationType => ApprovalOperationType.Forward;
 
@@ -24,12 +24,12 @@ public sealed class ForwardOperationHandler : IApprovalOperationHandler
         IApprovalTaskRepository taskRepository,
         IApprovalTaskTransferRepository transferRepository,
         IApprovalHistoryRepository historyRepository,
-        IIdGenerator idGenerator)
+        IIdGeneratorAccessor idGeneratorAccessor)
     {
         _taskRepository = taskRepository;
         _transferRepository = transferRepository;
         _historyRepository = historyRepository;
-        _idGenerator = idGenerator;
+        _idGeneratorAccessor = idGeneratorAccessor;
     }
 
     public async Task ExecuteAsync(
@@ -75,7 +75,7 @@ public sealed class ForwardOperationHandler : IApprovalOperationHandler
             task.AssigneeValue,
             request.TargetAssigneeValue,
             operatorUserId,
-            _idGenerator.NextId(),
+            _idGeneratorAccessor.NextId(),
             request.Comment);
         await _transferRepository.AddAsync(forward, cancellationToken);
 
@@ -87,7 +87,12 @@ public sealed class ForwardOperationHandler : IApprovalOperationHandler
             task.NodeId,
             task.NodeId,
             operatorUserId,
-            _idGenerator.NextId());
+            _idGeneratorAccessor.NextId());
         await _historyRepository.AddAsync(forwardEvent, cancellationToken);
     }
 }
+
+
+
+
+

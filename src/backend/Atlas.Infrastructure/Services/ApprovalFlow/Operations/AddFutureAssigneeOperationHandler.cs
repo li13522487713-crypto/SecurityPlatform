@@ -19,7 +19,7 @@ public sealed class AddFutureAssigneeOperationHandler : IApprovalOperationHandle
     private readonly IApprovalTaskRepository _taskRepository;
     private readonly IApprovalTaskAssigneeChangeRepository _assigneeChangeRepository;
     private readonly IApprovalHistoryRepository _historyRepository;
-    private readonly IIdGenerator _idGenerator;
+    private readonly IIdGeneratorAccessor _idGeneratorAccessor;
 
     public ApprovalOperationType SupportedOperationType => ApprovalOperationType.AddFutureAssignee;
 
@@ -29,14 +29,14 @@ public sealed class AddFutureAssigneeOperationHandler : IApprovalOperationHandle
         IApprovalTaskRepository taskRepository,
         IApprovalTaskAssigneeChangeRepository assigneeChangeRepository,
         IApprovalHistoryRepository historyRepository,
-        IIdGenerator idGenerator)
+        IIdGeneratorAccessor idGeneratorAccessor)
     {
         _instanceRepository = instanceRepository;
         _flowRepository = flowRepository;
         _taskRepository = taskRepository;
         _assigneeChangeRepository = assigneeChangeRepository;
         _historyRepository = historyRepository;
-        _idGenerator = idGenerator;
+        _idGeneratorAccessor = idGeneratorAccessor;
     }
 
     public async Task ExecuteAsync(
@@ -93,7 +93,7 @@ public sealed class AddFutureAssigneeOperationHandler : IApprovalOperationHandle
                 assigneeValue,
                 AssigneeChangeType.AddFuture,
                 operatorUserId,
-                _idGenerator.NextId(),
+                _idGeneratorAccessor.NextId(),
                 null,
                 request.Comment);
             await _assigneeChangeRepository.AddAsync(change, cancellationToken);
@@ -107,7 +107,9 @@ public sealed class AddFutureAssigneeOperationHandler : IApprovalOperationHandle
             instance.CurrentNodeId,
             request.TargetNodeId,
             operatorUserId,
-            _idGenerator.NextId());
+            _idGeneratorAccessor.NextId());
         await _historyRepository.AddAsync(addFutureEvent, cancellationToken);
     }
 }
+
+

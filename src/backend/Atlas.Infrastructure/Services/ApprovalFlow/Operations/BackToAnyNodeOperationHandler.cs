@@ -21,7 +21,7 @@ public sealed class BackToAnyNodeOperationHandler : IApprovalOperationHandler
     private readonly IApprovalNodeExecutionRepository _nodeExecutionRepository;
     private readonly IApprovalDepartmentLeaderRepository _deptLeaderRepository;
     private readonly IApprovalUserQueryService _userQueryService;
-    private readonly IIdGenerator _idGenerator;
+    private readonly IIdGeneratorAccessor _idGeneratorAccessor;
 
     public ApprovalOperationType SupportedOperationType => ApprovalOperationType.BackToAnyNode;
 
@@ -33,7 +33,7 @@ public sealed class BackToAnyNodeOperationHandler : IApprovalOperationHandler
         IApprovalNodeExecutionRepository nodeExecutionRepository,
         IApprovalDepartmentLeaderRepository deptLeaderRepository,
         IApprovalUserQueryService userQueryService,
-        IIdGenerator idGenerator)
+        IIdGeneratorAccessor idGeneratorAccessor)
     {
         _instanceRepository = instanceRepository;
         _taskRepository = taskRepository;
@@ -42,7 +42,7 @@ public sealed class BackToAnyNodeOperationHandler : IApprovalOperationHandler
         _nodeExecutionRepository = nodeExecutionRepository;
         _deptLeaderRepository = deptLeaderRepository;
         _userQueryService = userQueryService;
-        _idGenerator = idGenerator;
+        _idGeneratorAccessor = idGeneratorAccessor;
     }
 
     public async Task ExecuteAsync(
@@ -111,7 +111,7 @@ public sealed class BackToAnyNodeOperationHandler : IApprovalOperationHandler
                 instanceId,
                 targetNode.Id,
                 ApprovalNodeExecutionStatus.Running,
-                _idGenerator.NextId());
+                _idGeneratorAccessor.NextId());
             await _nodeExecutionRepository.AddAsync(execution, cancellationToken);
         }
 
@@ -127,7 +127,7 @@ public sealed class BackToAnyNodeOperationHandler : IApprovalOperationHandler
             instance.CurrentNodeId,
             request.TargetNodeId,
             operatorUserId,
-            _idGenerator.NextId());
+            _idGeneratorAccessor.NextId());
         await _historyRepository.AddAsync(backToNodeEvent, cancellationToken);
     }
 
@@ -263,7 +263,7 @@ public sealed class BackToAnyNodeOperationHandler : IApprovalOperationHandler
                 nodeTitle,
                 AssigneeType.User,
                 userId.ToString(),
-                _idGenerator.NextId(),
+                _idGeneratorAccessor.NextId(),
                 order: order,
                 initialStatus: initialStatus);
 
@@ -360,3 +360,8 @@ public sealed class BackToAnyNodeOperationHandler : IApprovalOperationHandler
         return userIds;
     }
 }
+
+
+
+
+

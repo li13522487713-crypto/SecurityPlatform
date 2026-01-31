@@ -7,9 +7,9 @@
 ### 实现的功能
 
 **后端 API**：
-1. ✅ `GET /workflows/step-types` - 获取所有可用的 Primitive 步骤类型（Delay、If、While、Foreach 等）
-2. ✅ `POST /workflows/definitions` - 从 JSON 定义注册动态工作流
-3. ✅ `GET /workflows/instances/{id}/pointers` - 获取执行指针详情（步骤级监控）
+1. ✅ `GET /api/v1/workflows/step-types` - 获取所有可用的 Primitive 步骤类型（Delay、If、While、Foreach 等）
+2. ✅ `POST /api/v1/workflows/definitions` - 从 JSON 定义注册动态工作流
+3. ✅ `GET /api/v1/workflows/instances/{id}/pointers` - 获取执行指针详情（步骤级监控）
 4. ✅ 复用现有的工作流实例管理 API（启动、挂起、恢复、终止）
 
 **前端页面**：
@@ -173,7 +173,7 @@ npm run dev
 
 ```http
 # 1. 登录获取 Token
-POST http://localhost:5000/auth/token
+POST http://localhost:5000/api/v1/auth/token
 Content-Type: application/json
 X-Tenant-Id: 00000000-0000-0000-0000-000000000001
 
@@ -183,12 +183,12 @@ X-Tenant-Id: 00000000-0000-0000-0000-000000000001
 }
 
 # 2. 获取步骤类型
-GET http://localhost:5000/workflows/step-types
+GET http://localhost:5000/api/v1/workflows/step-types
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: 00000000-0000-0000-0000-000000000001
 
 # 3. 注册工作流
-POST http://localhost:5000/workflows/definitions
+POST http://localhost:5000/api/v1/workflows/definitions
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: 00000000-0000-0000-0000-000000000001
@@ -200,7 +200,7 @@ X-Tenant-Id: 00000000-0000-0000-0000-000000000001
 }
 
 # 4. 启动工作流
-POST http://localhost:5000/workflows/instances
+POST http://localhost:5000/api/v1/workflows/instances
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: 00000000-0000-0000-0000-000000000001
@@ -213,7 +213,7 @@ X-Tenant-Id: 00000000-0000-0000-0000-000000000001
 }
 
 # 5. 获取执行指针
-GET http://localhost:5000/workflows/instances/{{instanceId}}/pointers
+GET http://localhost:5000/api/v1/workflows/instances/{{instanceId}}/pointers
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: 00000000-0000-0000-0000-000000000001
 ```
@@ -325,3 +325,4 @@ X-Tenant-Id: 00000000-0000-0000-0000-000000000001
 - 支持 8 种 Primitive 步骤类型
 
 本次集成成功将 WorkflowCore 通用工作流引擎接入到 Atlas 安全平台，为后续的复杂业务流程自动化奠定了基础。
+

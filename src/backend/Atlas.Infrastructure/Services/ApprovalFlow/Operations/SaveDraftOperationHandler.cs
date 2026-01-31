@@ -15,18 +15,18 @@ public sealed class SaveDraftOperationHandler : IApprovalOperationHandler
 {
     private readonly IApprovalInstanceRepository _instanceRepository;
     private readonly IApprovalHistoryRepository _historyRepository;
-    private readonly IIdGenerator _idGenerator;
+    private readonly IIdGeneratorAccessor _idGeneratorAccessor;
 
     public ApprovalOperationType SupportedOperationType => ApprovalOperationType.SaveDraft;
 
     public SaveDraftOperationHandler(
         IApprovalInstanceRepository instanceRepository,
         IApprovalHistoryRepository historyRepository,
-        IIdGenerator idGenerator)
+        IIdGeneratorAccessor idGeneratorAccessor)
     {
         _instanceRepository = instanceRepository;
         _historyRepository = historyRepository;
-        _idGenerator = idGenerator;
+        _idGeneratorAccessor = idGeneratorAccessor;
     }
 
     public async Task ExecuteAsync(
@@ -63,7 +63,12 @@ public sealed class SaveDraftOperationHandler : IApprovalOperationHandler
             null,
             null,
             operatorUserId,
-            _idGenerator.NextId());
+            _idGeneratorAccessor.NextId());
         await _historyRepository.AddAsync(saveDraftEvent, cancellationToken);
     }
 }
+
+
+
+
+

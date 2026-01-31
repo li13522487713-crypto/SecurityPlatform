@@ -5,7 +5,7 @@
 
 ### Login to get token (Execute this first)
 # @name login
-POST {{baseUrl}}/auth/token
+POST {{baseUrl}}/api/v1/auth/token
 Content-Type: application/json
 X-Tenant-Id: {{tenantId}}
 
@@ -18,17 +18,17 @@ X-Tenant-Id: {{tenantId}}
 @accessToken = {{login.response.body.$.data.accessToken}}
 
 ### Get Roles (Paged)
-GET {{baseUrl}}/roles?pageIndex=1&pageSize=10
+GET {{baseUrl}}/api/v1/roles?pageIndex=1&pageSize=10
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ### Get Role Detail
-GET {{baseUrl}}/roles/1
+GET {{baseUrl}}/api/v1/roles/1
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ### Create Role
-POST {{baseUrl}}/roles
+POST {{baseUrl}}/api/v1/roles
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
@@ -40,7 +40,7 @@ X-Tenant-Id: {{tenantId}}
 }
 
 ### Update Role
-PUT {{baseUrl}}/roles/1
+PUT {{baseUrl}}/api/v1/roles/1
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
@@ -51,7 +51,7 @@ X-Tenant-Id: {{tenantId}}
 }
 
 ### Update Role Permissions
-PUT {{baseUrl}}/roles/1/permissions
+PUT {{baseUrl}}/api/v1/roles/1/permissions
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
@@ -61,7 +61,7 @@ X-Tenant-Id: {{tenantId}}
 }
 
 ### Update Role Menus
-PUT {{baseUrl}}/roles/1/menus
+PUT {{baseUrl}}/api/v1/roles/1/menus
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
@@ -71,6 +71,7 @@ X-Tenant-Id: {{tenantId}}
 }
 
 ### Delete Role
-DELETE {{baseUrl}}/roles/1
+DELETE {{baseUrl}}/api/v1/roles/1
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
+

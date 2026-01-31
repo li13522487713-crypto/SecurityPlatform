@@ -17,16 +17,16 @@ public sealed class ApprovalOperationService : IApprovalOperationService
 {
     private readonly ApprovalOperationDispatcher _dispatcher;
     private readonly IApprovalOperationRecordRepository _operationRecordRepository;
-    private readonly IIdGenerator _idGenerator;
+    private readonly IIdGeneratorAccessor _idGeneratorAccessor;
 
     public ApprovalOperationService(
         ApprovalOperationDispatcher dispatcher,
         IApprovalOperationRecordRepository operationRecordRepository,
-        IIdGenerator idGenerator)
+        IIdGeneratorAccessor idGeneratorAccessor)
     {
         _dispatcher = dispatcher;
         _operationRecordRepository = operationRecordRepository;
-        _idGenerator = idGenerator;
+        _idGeneratorAccessor = idGeneratorAccessor;
     }
 
     public async Task ExecuteOperationAsync(
@@ -65,7 +65,7 @@ public sealed class ApprovalOperationService : IApprovalOperationService
             operationType,
             $"ui-{operationType}-{instanceId}-{operatorUserId}-{DateTimeOffset.UtcNow:yyyyMMddHHmmss}",
             operatorUserId,
-            _idGenerator.NextId(),
+            _idGeneratorAccessor.NextId(),
             taskId,
             null);
 
@@ -73,3 +73,7 @@ public sealed class ApprovalOperationService : IApprovalOperationService
         await _operationRecordRepository.AddAsync(operationRecord, cancellationToken);
     }
 }
+
+
+
+

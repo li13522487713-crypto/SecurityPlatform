@@ -20,7 +20,7 @@ public sealed class RoleCommandService : IRoleCommandService
     private readonly IUserAccountRepository _userRepository;
     private readonly IPermissionRepository _permissionRepository;
     private readonly IMenuRepository _menuRepository;
-    private readonly IIdGenerator _idGenerator;
+    private readonly IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly ISqlSugarClient _db;
 
     public RoleCommandService(
@@ -31,7 +31,7 @@ public sealed class RoleCommandService : IRoleCommandService
         IUserAccountRepository userRepository,
         IPermissionRepository permissionRepository,
         IMenuRepository menuRepository,
-        IIdGenerator idGenerator,
+        IIdGeneratorAccessor idGeneratorAccessor,
         ISqlSugarClient db)
     {
         _roleRepository = roleRepository;
@@ -41,7 +41,7 @@ public sealed class RoleCommandService : IRoleCommandService
         _userRepository = userRepository;
         _permissionRepository = permissionRepository;
         _menuRepository = menuRepository;
-        _idGenerator = idGenerator;
+        _idGeneratorAccessor = idGeneratorAccessor;
         _db = db;
     }
 
@@ -93,7 +93,7 @@ public sealed class RoleCommandService : IRoleCommandService
             await _rolePermissionRepository.DeleteByRoleIdAsync(tenantId, roleId, cancellationToken);
             await _rolePermissionRepository.AddRangeAsync(
                 permissionIds.Distinct()
-                    .Select(permissionId => new RolePermission(tenantId, roleId, permissionId, _idGenerator.NextId()))
+                    .Select(permissionId => new RolePermission(tenantId, roleId, permissionId, _idGeneratorAccessor.NextId()))
                     .ToArray(),
                 cancellationToken);
         });
@@ -113,7 +113,7 @@ public sealed class RoleCommandService : IRoleCommandService
             await _roleMenuRepository.DeleteByRoleIdAsync(tenantId, roleId, cancellationToken);
             await _roleMenuRepository.AddRangeAsync(
                 menuIds.Distinct()
-                    .Select(menuId => new RoleMenu(tenantId, roleId, menuId, _idGenerator.NextId()))
+                    .Select(menuId => new RoleMenu(tenantId, roleId, menuId, _idGeneratorAccessor.NextId()))
                     .ToArray(),
                 cancellationToken);
         });
@@ -222,3 +222,7 @@ public sealed class RoleCommandService : IRoleCommandService
         }
     }
 }
+
+
+
+

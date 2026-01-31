@@ -24,7 +24,7 @@ public sealed class ExternalCallbackService
     private readonly IApprovalInstanceRepository _instanceRepository;
     private readonly IApprovalTaskRepository? _taskRepository;
     private readonly IExternalCallbackHandler _callbackHandler;
-    private readonly IIdGenerator _idGenerator;
+    private readonly IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly TimeProvider _timeProvider;
     private readonly CallbackSecurityOptions _securityOptions;
     private readonly DataProtectionService? _dataProtectionService;
@@ -36,7 +36,7 @@ public sealed class ExternalCallbackService
         IApprovalInstanceRepository instanceRepository,
         IApprovalTaskRepository? taskRepository,
         IExternalCallbackHandler callbackHandler,
-        IIdGenerator idGenerator,
+        IIdGeneratorAccessor idGeneratorAccessor,
         IOptions<CallbackSecurityOptions>? securityOptions = null,
         DataProtectionService? dataProtectionService = null,
         ILogger<ExternalCallbackService>? logger = null,
@@ -47,7 +47,7 @@ public sealed class ExternalCallbackService
         _instanceRepository = instanceRepository;
         _taskRepository = taskRepository;
         _callbackHandler = callbackHandler;
-        _idGenerator = idGenerator;
+        _idGeneratorAccessor = idGeneratorAccessor;
         _timeProvider = timeProvider ?? TimeProvider.System;
         _securityOptions = securityOptions?.Value ?? new CallbackSecurityOptions();
         _dataProtectionService = dataProtectionService;
@@ -144,7 +144,7 @@ public sealed class ExternalCallbackService
                 config.CallbackUrl,
                 requestBody,
                 idempotencyKey,
-                _idGenerator.NextId());
+                _idGeneratorAccessor.NextId());
             await _recordRepository.AddAsync(record, cancellationToken);
         }
 
@@ -384,3 +384,7 @@ public sealed class ExternalCallbackService
         return headers;
     }
 }
+
+
+
+

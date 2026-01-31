@@ -11,13 +11,13 @@ using Atlas.WebApi.Authorization;
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
-[Route("users")]
+[Route("api/users")]
 public sealed class UsersController : ControllerBase
 {
     private readonly IUserQueryService _userQueryService;
     private readonly IUserCommandService _userCommandService;
     private readonly ITenantProvider _tenantProvider;
-    private readonly Atlas.Core.Abstractions.IIdGenerator _idGenerator;
+    private readonly Atlas.Core.Abstractions.IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly IValidator<UserCreateRequest> _createValidator;
     private readonly IValidator<UserUpdateRequest> _updateValidator;
 
@@ -25,14 +25,14 @@ public sealed class UsersController : ControllerBase
         IUserQueryService userQueryService,
         IUserCommandService userCommandService,
         ITenantProvider tenantProvider,
-        Atlas.Core.Abstractions.IIdGenerator idGenerator,
+        Atlas.Core.Abstractions.IIdGeneratorAccessor idGeneratorAccessor,
         IValidator<UserCreateRequest> createValidator,
         IValidator<UserUpdateRequest> updateValidator)
     {
         _userQueryService = userQueryService;
         _userCommandService = userCommandService;
         _tenantProvider = tenantProvider;
-        _idGenerator = idGenerator;
+        _idGeneratorAccessor = idGeneratorAccessor;
         _createValidator = createValidator;
         _updateValidator = updateValidator;
     }
@@ -71,7 +71,7 @@ public sealed class UsersController : ControllerBase
     {
         _createValidator.ValidateAndThrow(request);
         var tenantId = _tenantProvider.GetTenantId();
-        var id = _idGenerator.NextId();
+        var id = _idGeneratorAccessor.NextId();
         var createdId = await _userCommandService.CreateAsync(tenantId, request, id, cancellationToken);
         var payload = ApiResponse<object>.Ok(new { Id = createdId.ToString() }, HttpContext.TraceIdentifier);
         return Ok(payload);
@@ -149,3 +149,7 @@ public sealed class UsersController : ControllerBase
         return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
     }
 }
+
+
+
+

@@ -4,6 +4,7 @@ using Atlas.Application.Options;
 using Atlas.Application.Security;
 using Atlas.Application.Identity;
 using Atlas.Core.Abstractions;
+using Atlas.Core.Identity;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Alert.Entities;
 using Atlas.Domain.Approval.Entities;
@@ -28,6 +29,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
     private readonly DatabaseEncryptionOptions _encryptionOptions;
     private readonly IHostEnvironment _environment;
     private readonly ILogger<DatabaseInitializerHostedService> _logger;
+    private readonly IAppContextAccessor _appContextAccessor;
 
     public DatabaseInitializerHostedService(
         IServiceScopeFactory scopeFactory,
@@ -35,7 +37,8 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         IOptions<PasswordPolicyOptions> passwordPolicy,
         IOptions<DatabaseEncryptionOptions> encryptionOptions,
         IHostEnvironment environment,
-        ILogger<DatabaseInitializerHostedService> logger)
+        ILogger<DatabaseInitializerHostedService> logger,
+        IAppContextAccessor appContextAccessor)
     {
         _scopeFactory = scopeFactory;
         _bootstrapOptions = bootstrapOptions.Value;
@@ -43,6 +46,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         _encryptionOptions = encryptionOptions.Value;
         _environment = environment;
         _logger = logger;
+        _appContextAccessor = appContextAccessor;
     }
 
     public async Task StartAsync(CancellationToken cancellationToken)
@@ -131,8 +135,9 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         }
 
         var tenantId = new TenantId(tenantGuid);
+        using var appContextScope = _appContextAccessor.BeginScope(CreateSystemContext(tenantId));
         var userRepository = scope.ServiceProvider.GetRequiredService<IUserAccountRepository>();
-        var idGenerator = scope.ServiceProvider.GetRequiredService<IIdGenerator>();
+        var idGeneratorAccessor = scope.ServiceProvider.GetRequiredService<IIdGeneratorAccessor>();
         var userRoleRepository = scope.ServiceProvider.GetRequiredService<IUserRoleRepository>();
         var roleRepository = scope.ServiceProvider.GetRequiredService<IRoleRepository>();
         var rolePermissionRepository = scope.ServiceProvider.GetRequiredService<IRolePermissionRepository>();
@@ -167,7 +172,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             {
                 var displayName = roleSeedMap.TryGetValue(roleCode, out var seed) ? seed.Name : roleCode;
                 var description = roleSeedMap.TryGetValue(roleCode, out seed) ? seed.Description : roleCode;
-                var role = new Role(tenantId, displayName, roleCode, idGenerator.NextId());
+                var role = new Role(tenantId, displayName, roleCode, idGeneratorAccessor.NextId());
                 role.Update(displayName, description);
                 role.MarkSystemRole();
                 await roleRepository.AddAsync(role, cancellationToken);
@@ -192,7 +197,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
                 continue;
             }
 
-            var role = new Role(tenantId, seed.Name, seed.Code, idGenerator.NextId());
+            var role = new Role(tenantId, seed.Name, seed.Code, idGeneratorAccessor.NextId());
             role.Update(seed.Name, seed.Description);
             if (seed.IsSystem)
             {
@@ -258,7 +263,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
                 .FirstAsync(cancellationToken);
             if (existingPermission is null)
             {
-                existingPermission = new Permission(tenantId, seed.Name, seed.Code, seed.Type, idGenerator.NextId());
+                existingPermission = new Permission(tenantId, seed.Name, seed.Code, seed.Type, idGeneratorAccessor.NextId());
                 await db.Insertable(existingPermission).ExecuteCommandAsync(cancellationToken);
             }
 
@@ -288,7 +293,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
                 tenantId,
                 "System",
                 "/system",
-                idGenerator.NextId(),
+                idGeneratorAccessor.NextId(),
                 0,
                 0,
                 "Layout",
@@ -307,7 +312,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
                 tenantId,
                 "Workflow",
                 "/workflow",
-                idGenerator.NextId(),
+                idGeneratorAccessor.NextId(),
                 0,
                 10,
                 "Layout",
@@ -326,7 +331,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
                 tenantId,
                 "Workflow Designer",
                 "/workflow/designer",
-                idGenerator.NextId(),
+                idGeneratorAccessor.NextId(),
                 workflowRootMenu.Id,
                 20,
                 "workflow/designer",
@@ -345,7 +350,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
                 tenantId,
                 "总览",
                 "/",
-                idGenerator.NextId(),
+                idGeneratorAccessor.NextId(),
                 0,
                 0,
                 null,
@@ -364,7 +369,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
                 tenantId,
                 "资产",
                 "/assets",
-                idGenerator.NextId(),
+                idGeneratorAccessor.NextId(),
                 0,
                 10,
                 null,
@@ -383,7 +388,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
                 tenantId,
                 "审计",
                 "/audit",
-                idGenerator.NextId(),
+                idGeneratorAccessor.NextId(),
                 0,
                 20,
                 null,
@@ -402,7 +407,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
                 tenantId,
                 "告警",
                 "/alert",
-                idGenerator.NextId(),
+                idGeneratorAccessor.NextId(),
                 0,
                 30,
                 null,
@@ -421,7 +426,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
                 tenantId,
                 "审批流",
                 "/approval/flows",
-                idGenerator.NextId(),
+                idGeneratorAccessor.NextId(),
                 0,
                 40,
                 null,
@@ -440,7 +445,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
                 tenantId,
                 "可视化中心",
                 "/visualization",
-                idGenerator.NextId(),
+                idGeneratorAccessor.NextId(),
                 0,
                 50,
                 "Layout",
@@ -459,7 +464,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
                 tenantId,
                 "总览",
                 "/visualization/center",
-                idGenerator.NextId(),
+                idGeneratorAccessor.NextId(),
                 visualizationRootMenu.Id,
                 10,
                 "visualization/center",
@@ -478,7 +483,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
                 tenantId,
                 "设计器",
                 "/visualization/designer",
-                idGenerator.NextId(),
+                idGeneratorAccessor.NextId(),
                 visualizationRootMenu.Id,
                 20,
                 "visualization/designer",
@@ -497,7 +502,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
                 tenantId,
                 "运行态",
                 "/visualization/runtime",
-                idGenerator.NextId(),
+                idGeneratorAccessor.NextId(),
                 visualizationRootMenu.Id,
                 30,
                 "visualization/runtime",
@@ -516,7 +521,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
                 tenantId,
                 "治理中心",
                 "/visualization/governance",
-                idGenerator.NextId(),
+                idGeneratorAccessor.NextId(),
                 visualizationRootMenu.Id,
                 40,
                 "visualization/governance",
@@ -538,7 +543,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
 
         var departmentNameList = departmentSeeds.Select(x => x.Name).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         var existingDepartments = await db.Queryable<Department>()
-            .Where(x => x.TenantIdValue == tenantId.Value && departmentNameList.Contains(x.Name))
+            .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(departmentNameList, x.Name))
             .ToListAsync(cancellationToken);
         var departmentIdMap = existingDepartments.ToDictionary(x => x.Name, x => x.Id, StringComparer.OrdinalIgnoreCase);
 
@@ -556,7 +561,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
                 parentId = resolvedParentId;
             }
 
-            var department = new Department(tenantId, seed.Name, idGenerator.NextId(), parentId, seed.SortOrder);
+            var department = new Department(tenantId, seed.Name, idGeneratorAccessor.NextId(), parentId, seed.SortOrder);
             await db.Insertable(department).ExecuteCommandAsync(cancellationToken);
             departmentIdMap[seed.Name] = department.Id;
         }
@@ -573,7 +578,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
 
         var positionCodeList = positionSeeds.Select(x => x.Code).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         var existingPositions = await db.Queryable<Position>()
-            .Where(x => x.TenantIdValue == tenantId.Value && positionCodeList.Contains(x.Code))
+            .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(positionCodeList, x.Code))
             .ToListAsync(cancellationToken);
         var positionCodeMap = existingPositions.ToDictionary(x => x.Code, x => x.Id, StringComparer.OrdinalIgnoreCase);
 
@@ -584,7 +589,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
                 continue;
             }
 
-            var position = new Position(tenantId, seed.Name, seed.Code, idGenerator.NextId());
+            var position = new Position(tenantId, seed.Name, seed.Code, idGeneratorAccessor.NextId());
             position.Update(seed.Name, seed.Description, true, seed.SortOrder);
             if (seed.IsSystem)
             {
@@ -605,7 +610,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
                 if (!exists)
                 {
                     await roleMenuRepository.AddRangeAsync(
-                        new[] { new RoleMenu(tenantId, roleId, menuId, idGenerator.NextId()) },
+                        new[] { new RoleMenu(tenantId, roleId, menuId, idGeneratorAccessor.NextId()) },
                         cancellationToken);
                 }
             }
@@ -618,7 +623,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
                 if (!existsPermission)
                 {
                     await rolePermissionRepository.AddRangeAsync(
-                        new[] { new RolePermission(tenantId, roleId, permissionId, idGenerator.NextId()) },
+                        new[] { new RolePermission(tenantId, roleId, permissionId, idGeneratorAccessor.NextId()) },
                         cancellationToken);
                 }
             }
@@ -629,7 +634,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             if (!existsMenu)
             {
                 await roleMenuRepository.AddRangeAsync(
-                    new[] { new RoleMenu(tenantId, roleId, adminMenu.Id, idGenerator.NextId()) },
+                    new[] { new RoleMenu(tenantId, roleId, adminMenu.Id, idGeneratorAccessor.NextId()) },
                     cancellationToken);
             }
 
@@ -639,7 +644,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             if (!existsWorkflowRootMenu)
             {
                 await roleMenuRepository.AddRangeAsync(
-                    new[] { new RoleMenu(tenantId, roleId, workflowRootMenu.Id, idGenerator.NextId()) },
+                    new[] { new RoleMenu(tenantId, roleId, workflowRootMenu.Id, idGeneratorAccessor.NextId()) },
                     cancellationToken);
             }
 
@@ -649,7 +654,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             if (!existsWorkflowDesignerMenu)
             {
                 await roleMenuRepository.AddRangeAsync(
-                    new[] { new RoleMenu(tenantId, roleId, workflowDesignerMenu.Id, idGenerator.NextId()) },
+                    new[] { new RoleMenu(tenantId, roleId, workflowDesignerMenu.Id, idGeneratorAccessor.NextId()) },
                     cancellationToken);
             }
 
@@ -672,21 +677,36 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             await userRepository.UpdateAsync(existing, cancellationToken);
             await userRoleRepository.DeleteByUserIdAsync(tenantId, existing.Id, cancellationToken);
             await userRoleRepository.AddRangeAsync(
-                roleIds.Select(roleId => new UserRole(tenantId, existing.Id, roleId, idGenerator.NextId())).ToArray(),
+                roleIds.Select(roleId => new UserRole(tenantId, existing.Id, roleId, idGeneratorAccessor.NextId())).ToArray(),
                 cancellationToken);
             return;
         }
 
         var hashed = passwordHasher.HashPassword(_bootstrapOptions.Password);
-        var account = new UserAccount(tenantId, _bootstrapOptions.Username, _bootstrapOptions.Username, hashed, idGenerator.NextId());
+        var account = new UserAccount(tenantId, _bootstrapOptions.Username, _bootstrapOptions.Username, hashed, idGeneratorAccessor.NextId());
         account.UpdateRoles(string.Join(',', roleCodes));
         account.MarkSystemAccount();
         await userRepository.AddAsync(account, cancellationToken);
         await userRoleRepository.AddRangeAsync(
-            roleIds.Select(roleId => new UserRole(tenantId, account.Id, roleId, idGenerator.NextId())).ToArray(),
+            roleIds.Select(roleId => new UserRole(tenantId, account.Id, roleId, idGeneratorAccessor.NextId())).ToArray(),
             cancellationToken);
         _logger.LogInformation("已创建BootstrapAdmin账号：{Username}", _bootstrapOptions.Username);
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    private IAppContext CreateSystemContext(TenantId tenantId)
+    {
+        var appId = _appContextAccessor.GetAppId();
+        var clientContext = new ClientContext(
+            ClientType.Backend,
+            ClientPlatform.Web,
+            ClientChannel.App,
+            ClientAgent.Other);
+        return new AppContextSnapshot(tenantId, appId, null, clientContext, null);
+    }
 }
+
+
+
+

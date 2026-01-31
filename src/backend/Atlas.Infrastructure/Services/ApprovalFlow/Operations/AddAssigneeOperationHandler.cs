@@ -17,7 +17,7 @@ public sealed class AddAssigneeOperationHandler : IApprovalOperationHandler
     private readonly IApprovalTaskAssigneeChangeRepository _assigneeChangeRepository;
     private readonly IApprovalHistoryRepository _historyRepository;
     private readonly IApprovalDepartmentLeaderRepository _deptLeaderRepository;
-    private readonly IIdGenerator _idGenerator;
+    private readonly IIdGeneratorAccessor _idGeneratorAccessor;
 
     public ApprovalOperationType SupportedOperationType => ApprovalOperationType.AddAssignee;
 
@@ -26,13 +26,13 @@ public sealed class AddAssigneeOperationHandler : IApprovalOperationHandler
         IApprovalTaskAssigneeChangeRepository assigneeChangeRepository,
         IApprovalHistoryRepository historyRepository,
         IApprovalDepartmentLeaderRepository deptLeaderRepository,
-        IIdGenerator idGenerator)
+        IIdGeneratorAccessor idGeneratorAccessor)
     {
         _taskRepository = taskRepository;
         _assigneeChangeRepository = assigneeChangeRepository;
         _historyRepository = historyRepository;
         _deptLeaderRepository = deptLeaderRepository;
-        _idGenerator = idGenerator;
+        _idGeneratorAccessor = idGeneratorAccessor;
     }
 
     public async Task ExecuteAsync(
@@ -81,7 +81,7 @@ public sealed class AddAssigneeOperationHandler : IApprovalOperationHandler
                 task.Title,
                 AssigneeType.User,
                 assigneeValue,
-                _idGenerator.NextId());
+                _idGeneratorAccessor.NextId());
             newTasks.Add(newTask);
 
             // 记录加签操作
@@ -92,7 +92,7 @@ public sealed class AddAssigneeOperationHandler : IApprovalOperationHandler
                 assigneeValue,
                 AssigneeChangeType.Add,
                 operatorUserId,
-                _idGenerator.NextId(),
+                _idGeneratorAccessor.NextId(),
                 newTask.Id,
                 request.Comment);
             changes.Add(change);
@@ -113,7 +113,9 @@ public sealed class AddAssigneeOperationHandler : IApprovalOperationHandler
             null,
             task.NodeId,
             operatorUserId,
-            _idGenerator.NextId());
+            _idGeneratorAccessor.NextId());
         await _historyRepository.AddAsync(addAssigneeEvent, cancellationToken);
     }
 }
+
+

@@ -15,18 +15,18 @@ public sealed class RecoverToHistoryOperationHandler : IApprovalOperationHandler
 {
     private readonly IApprovalInstanceRepository _instanceRepository;
     private readonly IApprovalHistoryRepository _historyRepository;
-    private readonly IIdGenerator _idGenerator;
+    private readonly IIdGeneratorAccessor _idGeneratorAccessor;
 
     public ApprovalOperationType SupportedOperationType => ApprovalOperationType.RecoverToHistory;
 
     public RecoverToHistoryOperationHandler(
         IApprovalInstanceRepository instanceRepository,
         IApprovalHistoryRepository historyRepository,
-        IIdGenerator idGenerator)
+        IIdGeneratorAccessor idGeneratorAccessor)
     {
         _instanceRepository = instanceRepository;
         _historyRepository = historyRepository;
-        _idGenerator = idGenerator;
+        _idGeneratorAccessor = idGeneratorAccessor;
     }
 
     public async Task ExecuteAsync(
@@ -56,3 +56,8 @@ public sealed class RecoverToHistoryOperationHandler : IApprovalOperationHandler
         await _instanceRepository.UpdateAsync(instance, cancellationToken);
     }
 }
+
+
+
+
+

@@ -16,7 +16,7 @@ public sealed class ChangeAssigneeOperationHandler : IApprovalOperationHandler
     private readonly IApprovalTaskRepository _taskRepository;
     private readonly IApprovalTaskAssigneeChangeRepository _assigneeChangeRepository;
     private readonly IApprovalHistoryRepository _historyRepository;
-    private readonly IIdGenerator _idGenerator;
+    private readonly IIdGeneratorAccessor _idGeneratorAccessor;
 
     public ApprovalOperationType SupportedOperationType => ApprovalOperationType.ChangeAssignee;
 
@@ -24,12 +24,12 @@ public sealed class ChangeAssigneeOperationHandler : IApprovalOperationHandler
         IApprovalTaskRepository taskRepository,
         IApprovalTaskAssigneeChangeRepository assigneeChangeRepository,
         IApprovalHistoryRepository historyRepository,
-        IIdGenerator idGenerator)
+        IIdGeneratorAccessor idGeneratorAccessor)
     {
         _taskRepository = taskRepository;
         _assigneeChangeRepository = assigneeChangeRepository;
         _historyRepository = historyRepository;
-        _idGenerator = idGenerator;
+        _idGeneratorAccessor = idGeneratorAccessor;
     }
 
     public async Task ExecuteAsync(
@@ -69,7 +69,7 @@ public sealed class ChangeAssigneeOperationHandler : IApprovalOperationHandler
             request.TargetAssigneeValue,
             AssigneeChangeType.Change,
             operatorUserId,
-            _idGenerator.NextId(),
+            _idGeneratorAccessor.NextId(),
             taskId.Value,
             request.Comment);
         await _assigneeChangeRepository.AddAsync(change, cancellationToken);
@@ -86,7 +86,12 @@ public sealed class ChangeAssigneeOperationHandler : IApprovalOperationHandler
             task.NodeId,
             task.NodeId,
             operatorUserId,
-            _idGenerator.NextId());
+            _idGeneratorAccessor.NextId());
         await _historyRepository.AddAsync(changeEvent, cancellationToken);
     }
 }
+
+
+
+
+

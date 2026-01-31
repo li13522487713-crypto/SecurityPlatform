@@ -9,6 +9,7 @@
 
 - `Authorization: Bearer <accessToken>`：JWT 访问令牌。
 - `X-Tenant-Id: <tenantId>`：租户标识（GUID）。
+- `X-App-Id: <appId>`：应用标识（字符串，仅服务到服务或匿名场景使用；已登录请求从 JWT 的 `app_id` Claim 获取）。
 - `X-Client-Type: WebH5 | Mobile | Backend`：客户端类型。
 - `X-Client-Platform: Web | Android | iOS`：客户端平台。
 - `X-Client-Channel: Browser | App`：客户端通道。
@@ -94,6 +95,7 @@ JWT Claims（新增）：
 
 - `sid`：会话 ID
 - `jti`：访问令牌唯一标识
+- `app_id`：应用标识（用于租户 + 应用维度的 ID 生成）
 - `client_type`：客户端类型（`WebH5`/`Mobile`/`Backend`）
 - `client_platform`：客户端平台（`Web`/`Android`/`iOS`）
 - `client_channel`：客户端通道（`Browser`/`App`）
@@ -175,7 +177,7 @@ JWT Claims（新增）：
 
 ### 菜单树
 
-`GET /api/menus`
+`GET /api/v1/menus`
 
 响应：
 
@@ -203,7 +205,7 @@ JWT Claims（新增）：
 
 ### 权限列表
 
-`GET /api/permissions`
+`GET /api/v1/permissions`
 
 响应：
 
@@ -395,7 +397,7 @@ JWT Claims（新增）：
 
 ### 流程概览
 
-`GET /api/visualization/overview`
+`GET /api/v1/visualization/overview`
 
 响应数据：
 
@@ -411,7 +413,7 @@ JWT Claims（新增）：
 
 ### 流程列表与详情
 
-`GET /api/visualization/processes?pageIndex=1&pageSize=10`
+`GET /api/v1/visualization/processes?pageIndex=1&pageSize=10`
 
 ```json
 {
@@ -430,7 +432,7 @@ JWT Claims（新增）：
 }
 ```
 
-`GET /api/visualization/processes/{id}`
+`GET /api/v1/visualization/processes/{id}`
 
 ```json
 {
@@ -445,7 +447,7 @@ JWT Claims（新增）：
 
 ### 保存草稿 / 发布
 
-`POST /api/visualization/processes`
+`POST /api/v1/visualization/processes`
 
 ```json
 {
@@ -455,7 +457,7 @@ JWT Claims（新增）：
 }
 ```
 
-`POST /api/visualization/processes/publish`
+`POST /api/v1/visualization/processes/publish`
 
 ```json
 {
@@ -467,7 +469,7 @@ JWT Claims（新增）：
 
 ### 运行态实例
 
-`GET /api/visualization/instances?pageIndex=1&pageSize=10&processId=1&status=Running`
+`GET /api/v1/visualization/instances?pageIndex=1&pageSize=10&processId=1&status=Running`
 
 ```json
 {
@@ -489,7 +491,7 @@ JWT Claims（新增）：
 
 ### 指标聚合
 
-`GET /api/visualization/metrics`
+`GET /api/v1/visualization/metrics`
 
 ```json
 {
@@ -507,7 +509,7 @@ JWT Claims（新增）：
 
 ### 审计查询
 
-`GET /api/visualization/audit?pageIndex=1&pageSize=10`
+`GET /api/v1/visualization/audit?pageIndex=1&pageSize=10`
 
 ```json
 {
@@ -537,47 +539,47 @@ JWT Claims（新增）：
 
 ### 用户
 
-- `GET /users`：分页查询用户
-- `GET /users/{id}`：用户详情
-- `POST /users`：新增用户
-- `PUT /users/{id}`：更新用户
-- `DELETE /users/{id}`：删除用户
-- `PUT /users/{id}/roles`：更新用户角色
-- `PUT /users/{id}/departments`：更新用户部门
-- `PUT /users/{id}/positions`：更新用户职位
+- `GET /api/v1/users`：分页查询用户
+- `GET /api/v1/users/{id}`：用户详情
+- `POST /api/v1/users`：新增用户
+- `PUT /api/v1/users/{id}`：更新用户
+- `DELETE /api/v1/users/{id}`：删除用户
+- `PUT /api/v1/users/{id}/roles`：更新用户角色
+- `PUT /api/v1/users/{id}/departments`：更新用户部门
+- `PUT /api/v1/users/{id}/positions`：更新用户职位
 
 ### 部门
 
-- `GET /departments`：分页查询部门
-- `GET /departments/all`：获取全部部门
-- `POST /departments`：新增部门
-- `PUT /departments/{id}`：更新部门
-- `DELETE /departments/{id}`：删除部门
+- `GET /api/v1/departments`：分页查询部门
+- `GET /api/v1/departments/all`：获取全部部门
+- `POST /api/v1/departments`：新增部门
+- `PUT /api/v1/departments/{id}`：更新部门
+- `DELETE /api/v1/departments/{id}`：删除部门
 
 ### 职位
 
-- `GET /positions`：分页查询职位
-- `GET /positions/{id}`：职位详情
-- `GET /positions/all`：获取全部职位
-- `POST /positions`：新增职位
-- `PUT /positions/{id}`：更新职位
-- `DELETE /positions/{id}`：删除职位
+- `GET /api/v1/positions`：分页查询职位
+- `GET /api/v1/positions/{id}`：职位详情
+- `GET /api/v1/positions/all`：获取全部职位
+- `POST /api/v1/positions`：新增职位
+- `PUT /api/v1/positions/{id}`：更新职位
+- `DELETE /api/v1/positions/{id}`：删除职位
 
 ## Workflow Designer APIs (草案)
-- POST `/approval/flows` : 保存流程定义
+- POST `/api/v1/approval/flows` : 保存流程定义
   - body: { tenantId: string, definition: FlowDefinition }
   - resp: { id: string, version?: number }
-- GET `/approval/flows/{id}` : 加载流程定义
+- GET `/api/v1/approval/flows/{id}` : 加载流程定义
   - resp: { definition: FlowDefinition }
-- PUT `/approval/flows/{id}` : 更新流程定义
+- PUT `/api/v1/approval/flows/{id}` : 更新流程定义
   - body 同保存
   - resp: { success: boolean }
-- POST `/approval/flows/{id}/publish` : 发布流程
+- POST `/api/v1/approval/flows/{id}/publish` : 发布流程
   - resp: { success: boolean, version: number }
-- POST `/approval/flows/validate` : 前/后端联合校验
+- POST `/api/v1/approval/flows/validate` : 前/后端联合校验
   - body: { tenantId: string, definition: FlowDefinition }
   - resp: { isValid: boolean, errors: string[], warnings?: string[] }
-- POST `/approval/flows/{id}/preview` : 预览（返回节点线性/树形展开视图数据）
+- POST `/api/v1/approval/flows/{id}/preview` : 预览（返回节点线性/树形展开视图数据）
   - resp: { definition: FlowDefinition, preview: any }
 
 ### FlowDefinition / FlowNode (见前端 types/workflow.ts)
@@ -593,3 +595,4 @@ JWT Claims（新增）：
 - 审批节点必须配置 approverRule
 - 节点 name/code 长度与特殊字符校验
 - 发布前需要通过 validate
+

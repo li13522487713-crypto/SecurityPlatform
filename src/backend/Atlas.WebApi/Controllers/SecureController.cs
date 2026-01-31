@@ -1,4 +1,4 @@
-﻿using Atlas.Core.Models;
+using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
-[Route("secure")]
+[Route("api/secure")]
 public sealed class SecureController : ControllerBase
 {
     private readonly ITenantProvider _tenantProvider;

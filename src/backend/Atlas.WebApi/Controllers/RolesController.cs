@@ -11,13 +11,13 @@ using Atlas.WebApi.Authorization;
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
-[Route("roles")]
+[Route("api/roles")]
 public sealed class RolesController : ControllerBase
 {
     private readonly IRoleQueryService _roleQueryService;
     private readonly IRoleCommandService _roleCommandService;
     private readonly ITenantProvider _tenantProvider;
-    private readonly Atlas.Core.Abstractions.IIdGenerator _idGenerator;
+    private readonly Atlas.Core.Abstractions.IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly IValidator<RoleCreateRequest> _createValidator;
     private readonly IValidator<RoleUpdateRequest> _updateValidator;
 
@@ -25,14 +25,14 @@ public sealed class RolesController : ControllerBase
         IRoleQueryService roleQueryService,
         IRoleCommandService roleCommandService,
         ITenantProvider tenantProvider,
-        Atlas.Core.Abstractions.IIdGenerator idGenerator,
+        Atlas.Core.Abstractions.IIdGeneratorAccessor idGeneratorAccessor,
         IValidator<RoleCreateRequest> createValidator,
         IValidator<RoleUpdateRequest> updateValidator)
     {
         _roleQueryService = roleQueryService;
         _roleCommandService = roleCommandService;
         _tenantProvider = tenantProvider;
-        _idGenerator = idGenerator;
+        _idGeneratorAccessor = idGeneratorAccessor;
         _createValidator = createValidator;
         _updateValidator = updateValidator;
     }
@@ -70,7 +70,7 @@ public sealed class RolesController : ControllerBase
     {
         _createValidator.ValidateAndThrow(request);
         var tenantId = _tenantProvider.GetTenantId();
-        var id = _idGenerator.NextId();
+        var id = _idGeneratorAccessor.NextId();
         var createdId = await _roleCommandService.CreateAsync(tenantId, request, id, cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = createdId.ToString() }, HttpContext.TraceIdentifier));
     }
@@ -131,3 +131,7 @@ public sealed class RolesController : ControllerBase
         return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
     }
 }
+
+
+
+

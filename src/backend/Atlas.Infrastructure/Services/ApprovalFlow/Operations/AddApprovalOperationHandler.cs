@@ -19,7 +19,7 @@ public sealed class AddApprovalOperationHandler : IApprovalOperationHandler
     private readonly IApprovalTaskRepository _taskRepository;
     private readonly IApprovalNodeExecutionRepository _nodeExecutionRepository;
     private readonly IApprovalHistoryRepository _historyRepository;
-    private readonly IIdGenerator _idGenerator;
+    private readonly IIdGeneratorAccessor _idGeneratorAccessor;
 
     public ApprovalOperationType SupportedOperationType => ApprovalOperationType.AddApproval;
 
@@ -29,14 +29,14 @@ public sealed class AddApprovalOperationHandler : IApprovalOperationHandler
         IApprovalTaskRepository taskRepository,
         IApprovalNodeExecutionRepository nodeExecutionRepository,
         IApprovalHistoryRepository historyRepository,
-        IIdGenerator idGenerator)
+        IIdGeneratorAccessor idGeneratorAccessor)
     {
         _instanceRepository = instanceRepository;
         _flowRepository = flowRepository;
         _taskRepository = taskRepository;
         _nodeExecutionRepository = nodeExecutionRepository;
         _historyRepository = historyRepository;
-        _idGenerator = idGenerator;
+        _idGeneratorAccessor = idGeneratorAccessor;
     }
 
     public async Task ExecuteAsync(
@@ -66,7 +66,7 @@ public sealed class AddApprovalOperationHandler : IApprovalOperationHandler
 
         // 加批操作：在当前节点后动态添加一个新的审批节点
         // 在当前实现中，我们创建一个临时的审批节点ID
-        var addApprovalNodeId = $"add_approval_{_idGenerator.NextId()}";
+        var addApprovalNodeId = $"add_approval_{_idGeneratorAccessor.NextId()}";
         var currentNodeId = instance.CurrentNodeId ?? "start";
 
         // 创建加批节点（简化实现：直接在当前节点后生成任务）
@@ -80,7 +80,7 @@ public sealed class AddApprovalOperationHandler : IApprovalOperationHandler
             $"加批审批 - {request.Comment ?? ""}",
             AssigneeType.User,
             request.TargetAssigneeValue,
-            _idGenerator.NextId());
+            _idGeneratorAccessor.NextId());
         await _taskRepository.AddAsync(addApprovalTask, cancellationToken);
 
         // 创建节点执行记录
@@ -89,7 +89,7 @@ public sealed class AddApprovalOperationHandler : IApprovalOperationHandler
             instanceId,
             addApprovalNodeId,
             ApprovalNodeExecutionStatus.Running,
-            _idGenerator.NextId());
+            _idGeneratorAccessor.NextId());
         await _nodeExecutionRepository.AddAsync(execution, cancellationToken);
 
         // 记录历史事件
@@ -100,7 +100,9 @@ public sealed class AddApprovalOperationHandler : IApprovalOperationHandler
             currentNodeId,
             addApprovalNodeId,
             operatorUserId,
-            _idGenerator.NextId());
+            _idGeneratorAccessor.NextId());
         await _historyRepository.AddAsync(addApprovalEvent, cancellationToken);
     }
 }
+
+

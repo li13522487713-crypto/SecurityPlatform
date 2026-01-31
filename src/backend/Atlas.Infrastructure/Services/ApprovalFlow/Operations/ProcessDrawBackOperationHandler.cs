@@ -16,7 +16,7 @@ public sealed class ProcessDrawBackOperationHandler : IApprovalOperationHandler
     private readonly IApprovalInstanceRepository _instanceRepository;
     private readonly IApprovalTaskRepository _taskRepository;
     private readonly IApprovalHistoryRepository _historyRepository;
-    private readonly IIdGenerator _idGenerator;
+    private readonly IIdGeneratorAccessor _idGeneratorAccessor;
 
     public ApprovalOperationType SupportedOperationType => ApprovalOperationType.ProcessDrawBack;
 
@@ -24,12 +24,12 @@ public sealed class ProcessDrawBackOperationHandler : IApprovalOperationHandler
         IApprovalInstanceRepository instanceRepository,
         IApprovalTaskRepository taskRepository,
         IApprovalHistoryRepository historyRepository,
-        IIdGenerator idGenerator)
+        IIdGeneratorAccessor idGeneratorAccessor)
     {
         _instanceRepository = instanceRepository;
         _taskRepository = taskRepository;
         _historyRepository = historyRepository;
-        _idGenerator = idGenerator;
+        _idGeneratorAccessor = idGeneratorAccessor;
     }
 
     public async Task ExecuteAsync(
@@ -87,7 +87,12 @@ public sealed class ProcessDrawBackOperationHandler : IApprovalOperationHandler
             null,
             null,
             operatorUserId,
-            _idGenerator.NextId());
+            _idGeneratorAccessor.NextId());
         await _historyRepository.AddAsync(drawBackEvent, cancellationToken);
     }
 }
+
+
+
+
+
