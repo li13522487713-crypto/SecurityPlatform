@@ -59,7 +59,17 @@ import type {
   PositionListItem,
   PositionDetail,
   PositionCreateRequest,
-  PositionUpdateRequest
+  PositionUpdateRequest,
+  AppConfigListItem,
+  AppConfigDetail,
+  AppConfigUpdateRequest,
+  ProjectListItem,
+  ProjectDetail,
+  ProjectCreateRequest,
+  ProjectUpdateRequest,
+  ProjectAssignUsersRequest,
+  ProjectAssignDepartmentsRequest,
+  ProjectAssignPositionsRequest
 } from "@/types/api";
 import type {
   FlowDefinition,
@@ -76,7 +86,9 @@ import {
   getRefreshToken,
   setAccessToken,
   setRefreshToken,
-  getTenantId
+  getTenantId,
+  getProjectId,
+  getProjectScopeEnabled
 } from "@/utils/auth";
 import { getClientContextHeaders } from "@/utils/clientContext";
 
@@ -1033,10 +1045,135 @@ export async function previewFlowDefinition(id: string): Promise<FlowDefinition>
   return response.data.definition;
 }
 
+export async function getAppConfigsPaged(pagedRequest: PagedRequest) {
+  const query = toQuery(pagedRequest);
+  const response = await requestApi<ApiResponse<PagedResult<AppConfigListItem>>>(`/apps?${query}`);
+  if (!response.data) {
+    throw new Error(response.message || "查询失败");
+  }
+
+  return response.data;
+}
+
+export async function getAppConfigDetail(id: string) {
+  const response = await requestApi<ApiResponse<AppConfigDetail>>(`/apps/${id}`);
+  if (!response.data) {
+    throw new Error(response.message || "查询失败");
+  }
+  return response.data;
+}
+
+export async function updateAppConfig(id: string, request: AppConfigUpdateRequest) {
+  const response = await requestApi<ApiResponse<{ id: string }>>(`/apps/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request)
+  });
+  if (!response.success) {
+    throw new Error(response.message || "更新失败");
+  }
+}
+
+export async function getCurrentAppConfig(): Promise<AppConfigDetail | null> {
+  const response = await requestApi<ApiResponse<AppConfigDetail>>("/apps/current");
+  return response.data ?? null;
+}
+
+export async function getProjectsPaged(pagedRequest: PagedRequest) {
+  const query = toQuery(pagedRequest);
+  const response = await requestApi<ApiResponse<PagedResult<ProjectListItem>>>(`/projects?${query}`);
+  if (!response.data) {
+    throw new Error(response.message || "查询失败");
+  }
+  return response.data;
+}
+
+export async function getProjectDetail(id: string) {
+  const response = await requestApi<ApiResponse<ProjectDetail>>(`/projects/${id}`);
+  if (!response.data) {
+    throw new Error(response.message || "查询失败");
+  }
+  return response.data;
+}
+
+export async function createProject(request: ProjectCreateRequest) {
+  const response = await requestApi<ApiResponse<{ id: string }>>("/projects", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request)
+  });
+  if (!response.success) {
+    throw new Error(response.message || "创建失败");
+  }
+}
+
+export async function updateProject(id: string, request: ProjectUpdateRequest) {
+  const response = await requestApi<ApiResponse<{ id: string }>>(`/projects/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request)
+  });
+  if (!response.success) {
+    throw new Error(response.message || "更新失败");
+  }
+}
+
+export async function deleteProject(id: string) {
+  const response = await requestApi<ApiResponse<{ id: string }>>(`/projects/${id}`, {
+    method: "DELETE"
+  });
+  if (!response.success) {
+    throw new Error(response.message || "删除失败");
+  }
+}
+
+export async function updateProjectUsers(id: string, request: ProjectAssignUsersRequest) {
+  const response = await requestApi<ApiResponse<{ id: string }>>(`/projects/${id}/users`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request)
+  });
+  if (!response.success) {
+    throw new Error(response.message || "更新项目人员失败");
+  }
+}
+
+export async function updateProjectDepartments(id: string, request: ProjectAssignDepartmentsRequest) {
+  const response = await requestApi<ApiResponse<{ id: string }>>(`/projects/${id}/departments`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request)
+  });
+  if (!response.success) {
+    throw new Error(response.message || "更新项目部门失败");
+  }
+}
+
+export async function updateProjectPositions(id: string, request: ProjectAssignPositionsRequest) {
+  const response = await requestApi<ApiResponse<{ id: string }>>(`/projects/${id}/positions`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request)
+  });
+  if (!response.success) {
+    throw new Error(response.message || "更新项目岗位失败");
+  }
+}
+
+export async function getMyProjects() {
+  const response = await requestApi<ApiResponse<ProjectListItem[]>>("/projects/my");
+  if (!response.data) {
+    throw new Error(response.message || "查询失败");
+  }
+  return response.data;
+}
+
 async function requestApi<T>(path: string, init?: RequestInit, options?: RequestOptions): Promise<T> {
   const headers = new Headers(init?.headers ?? {});
   const token = getAccessToken();
   const tenantId = getTenantId();
+  const projectScopeEnabled = getProjectScopeEnabled();
+  const projectId = getProjectId();
 
   if (token) {
     headers.set("Authorization", `Bearer ${token}`);
@@ -1052,6 +1189,21 @@ async function requestApi<T>(path: string, init?: RequestInit, options?: Request
       headers.set(key, value);
     }
   });
+
+  if (projectScopeEnabled && projectId && !headers.has("X-Project-Id")) {
+    headers.set("X-Project-Id", projectId);
+  }
+
+  if (
+    projectScopeEnabled &&
+    !projectId &&
+    !path.startsWith("/apps") &&
+    !path.startsWith("/projects") &&
+    !path.startsWith("/auth")
+  ) {
+    message.warning("请先选择项目");
+    throw new Error("缺少项目上下文");
+  }
 
   const response = await fetch(`${API_BASE}${path}`, {
     ...init,

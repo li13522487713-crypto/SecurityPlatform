@@ -28,5 +28,14 @@ public sealed class IdentityMappingProfile : Profile
 
         CreateMap<Menu, MenuListItem>()
             .ForCtorParam("Id", opt => opt.MapFrom(src => src.Id.ToString()));
+
+        CreateMap<AppConfig, AppConfigListItem>()
+            .ForCtorParam("Id", opt => opt.MapFrom(src => src.Id.ToString()));
+
+        CreateMap<AppConfig, AppConfigDetail>()
+            .ForCtorParam("Id", opt => opt.MapFrom(src => src.Id.ToString()));
+
+        CreateMap<Project, ProjectListItem>()
+            .ForCtorParam("Id", opt => opt.MapFrom(src => src.Id.ToString()));
     }
 }

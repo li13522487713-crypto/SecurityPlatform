@@ -7,6 +7,14 @@ public interface IDepartmentRepository
 {
     Task<Department?> FindByIdAsync(TenantId tenantId, long id, CancellationToken cancellationToken);
     Task<(IReadOnlyList<Department> Items, int TotalCount)> QueryPageAsync(
+        TenantId tenantId,
+        int pageIndex,
+        int pageSize,
+        string? keyword,
+        CancellationToken cancellationToken);
+    Task<(IReadOnlyList<Department> Items, int TotalCount)> QueryPageByIdsAsync(
+        TenantId tenantId,
+        IReadOnlyList<long> ids,
         int pageIndex,
         int pageSize,
         string? keyword,

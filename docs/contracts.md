@@ -14,6 +14,7 @@
 - `X-Client-Platform: Web | Android | iOS`：客户端平台。
 - `X-Client-Channel: Browser | App`：客户端通道。
 - `X-Client-Agent: Chrome | Edge | Safari | Firefox | Other`：客户端代理（浏览器或环境）。
+- `X-Project-Id: <projectId>`：项目标识（仅当应用启用项目模式 `EnableProjectMode = true` 时必填）。
 
 ## 通用响应模型
 
@@ -48,6 +49,9 @@
 - `ACCOUNT_LOCKED`：账号锁定
 - `PASSWORD_EXPIRED`：密码过期
 - `TENANT_NOT_FOUND`：租户不存在
+- `PROJECT_REQUIRED`：项目必填
+- `PROJECT_NOT_FOUND`：项目不存在
+- `PROJECT_DISABLED`：项目已停用
 - `INVALID_CREDENTIALS`：账号或密码错误
 - `TOKEN_EXPIRED`：令牌过期
 
@@ -245,6 +249,15 @@ JWT Claims（新增）：
 - `menus:all`：菜单全量
 - `menus:create`：菜单新增
 - `menus:update`：菜单更新
+- `apps:view`：应用配置查看
+- `apps:update`：应用配置更新
+- `projects:view`：项目查看
+- `projects:create`：项目新增
+- `projects:update`：项目更新
+- `projects:delete`：项目删除
+- `projects:assign-users`：项目分配人员
+- `projects:assign-departments`：项目分配部门
+- `projects:assign-positions`：项目分配岗位
 - `audit:view`：审计查看
 - `assets:create`：资产新增
 - `approval:flow:create`：审批流创建
@@ -564,6 +577,126 @@ JWT Claims（新增）：
 - `POST /api/v1/positions`：新增职位
 - `PUT /api/v1/positions/{id}`：更新职位
 - `DELETE /api/v1/positions/{id}`：删除职位
+
+## 项目管理契约
+
+### 项目
+
+- `GET /api/v1/projects?appId=app-100`：分页查询项目（`appId` 为应用维度，必填）
+- `GET /api/v1/projects/{id}`：项目详情
+- `POST /api/v1/projects`：新增项目
+- `PUT /api/v1/projects/{id}`：更新项目
+- `DELETE /api/v1/projects/{id}`：删除项目
+- `PUT /api/v1/projects/{id}/users`：项目分配人员
+- `PUT /api/v1/projects/{id}/departments`：项目分配部门
+- `PUT /api/v1/projects/{id}/positions`：项目分配职位
+- `GET /api/v1/projects/my`：当前用户可切换项目列表
+
+说明：
+
+- 项目标识唯一性按 `appId + projectCode` 约束。
+
+## 应用配置契约
+
+### 应用配置
+
+- `GET /api/v1/apps`：分页查询应用配置
+- `GET /api/v1/apps/current`：当前应用配置
+- `GET /api/v1/apps/{id}`：应用配置详情
+- `PUT /api/v1/apps/{id}`：更新应用配置
+
+### AppConfigResponse
+
+```json
+{
+  "id": "app-100",
+  "appCode": "security-platform",
+  "name": "SecurityPlatform",
+  "description": "默认应用配置",
+  "apiVersion": "v1",
+  "isActive": true,
+  "isTenantSubscribable": true,
+  "enableProjectMode": true,
+  "allowTenantAdminManageDataSource": true,
+  "auditLevel": "Required",
+  "sortOrder": 0
+}
+```
+
+### AppConfigUpdateRequest
+
+```json
+{
+  "name": "SecurityPlatform",
+  "isActive": true,
+  "enableProjectMode": false,
+  "apiVersion": "v1",
+  "isTenantSubscribable": true,
+  "allowTenantAdminManageDataSource": true,
+  "auditLevel": "Required",
+  "description": "默认应用配置",
+  "sortOrder": 0
+}
+```
+
+字段说明：
+
+- `enableProjectMode`：是否启用项目模式（应用级开关，启用后业务数据必须带 `project_id`）。
+- `isTenantSubscribable`：是否允许租户开通该应用。
+- `allowTenantAdminManageDataSource`：是否允许租户管理员管理该应用的数据源。
+- `auditLevel`：审计级别（`Required`/`Optional`/`None`）。
+
+## 项目管理契约
+
+项目为业务实体，启用项目模式后，所有业务数据必须以 `project_id` 作为数据范围隔离维度，项目编码在应用维度唯一（`appId + projectCode`）。
+
+### 项目
+
+- `GET /api/v1/projects?appId=app-100`：分页查询项目（`appId` 为应用维度，必填）
+- `GET /api/v1/projects/{id}`：项目详情
+- `POST /api/v1/projects`：新增项目
+- `PUT /api/v1/projects/{id}`：更新项目
+- `DELETE /api/v1/projects/{id}`：停用项目（逻辑删除）
+
+### ProjectResponse
+
+```json
+{
+  "id": "project-100",
+  "appId": "app-100",
+  "projectCode": "ops-core",
+  "name": "运维核心项目",
+  "description": "运维平台核心业务线",
+  "isActive": true,
+  "createdAt": "2026-01-31T10:00:00Z",
+  "updatedAt": "2026-01-31T10:00:00Z"
+}
+```
+
+### ProjectCreateRequest
+
+```json
+{
+  "appId": "app-100",
+  "projectCode": "ops-core",
+  "name": "运维核心项目",
+  "description": "运维平台核心业务线"
+}
+```
+
+### ProjectUpdateRequest
+
+```json
+{
+  "name": "运维核心项目",
+  "description": "运维平台核心业务线",
+  "isActive": true
+}
+```
+
+字段说明：
+
+- `appId`：所属应用标识（项目维度唯一性按 `appId + projectCode`）。
 
 ## Workflow Designer APIs (草案)
 - POST `/api/v1/approval/flows` : 保存流程定义

@@ -28,6 +28,12 @@
           <a-menu-item v-if="showPositionsMenu" key="system-positions" @click="go('/system/positions')">
             职位管理
           </a-menu-item>
+          <a-menu-item v-if="showAppsMenu" key="system-apps" @click="go('/system/apps')">
+            应用配置
+          </a-menu-item>
+          <a-menu-item v-if="showProjectsMenu" key="system-projects" @click="go('/system/projects')">
+            项目管理
+          </a-menu-item>
         </a-sub-menu>
         <a-sub-menu key="visualization" title="可视化中心">
           <a-menu-item key="visualization-center" @click="go('/visualization/center')">
@@ -56,7 +62,10 @@
 
     <a-layout>
       <a-layout-header class="app-header">
-        <div class="header-left">多租户安全支撑平台</div>
+        <div class="header-left">
+          <span class="header-title">多租户安全支撑平台</span>
+          <ProjectSwitcher />
+        </div>
         <div class="header-right">
           <a-dropdown trigger="click">
             <a-button type="text">
@@ -78,24 +87,26 @@
         </div>
       </a-layout-header>
       <a-layout-content class="app-content">
-        <router-view />
+        <router-view :key="contentKey" />
       </a-layout-content>
     </a-layout>
   </a-layout>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { message } from "ant-design-vue";
 import { getCurrentUser, logout as apiLogout } from "@/services/api";
 import type { AuthProfile } from "@/types/api";
 import { clearAuthStorage, getAccessToken, getAuthProfile, hasPermission, setAuthProfile } from "@/utils/auth";
+import ProjectSwitcher from "@/components/ProjectSwitcher.vue";
 
 const collapsed = ref(false);
 const router = useRouter();
 const route = useRoute();
 const profile = ref<AuthProfile | null>(null);
+const contentKey = ref(0);
 
 const isLogin = computed(() => route.name === "login");
 const profileDisplayName = computed(() => profile.value?.displayName || profile.value?.username || "个人中心");
@@ -115,6 +126,8 @@ const selectedKeys = computed(() => {
   if (route.path.startsWith("/system/menus")) return ["system-menus"];
   if (route.path.startsWith("/system/departments")) return ["system-departments"];
   if (route.path.startsWith("/system/positions")) return ["system-positions"];
+  if (route.path.startsWith("/system/apps")) return ["system-apps"];
+  if (route.path.startsWith("/system/projects")) return ["system-projects"];
   if (route.path.startsWith("/visualization")) {
     if (route.path.includes("designer")) return ["visualization-designer"];
     if (route.path.includes("runtime")) return ["visualization-runtime"];
@@ -141,6 +154,8 @@ const showPermissionsMenu = computed(() => hasPermission(profile.value, "permiss
 const showMenusMenu = computed(() => hasPermission(profile.value, "menus:view"));
 const showDepartmentsMenu = computed(() => hasPermission(profile.value, "departments:view"));
 const showPositionsMenu = computed(() => hasPermission(profile.value, "positions:view"));
+const showAppsMenu = computed(() => hasPermission(profile.value, "apps:view"));
+const showProjectsMenu = computed(() => hasPermission(profile.value, "projects:view"));
 const showSystemMenu = computed(
   () =>
     showUsersMenu.value ||
@@ -148,7 +163,9 @@ const showSystemMenu = computed(
     showPermissionsMenu.value ||
     showMenusMenu.value ||
     showDepartmentsMenu.value ||
-    showPositionsMenu.value
+    showPositionsMenu.value ||
+    showAppsMenu.value ||
+    showProjectsMenu.value
 );
 
 const loadProfile = async () => {
@@ -185,5 +202,29 @@ const logout = async () => {
   }
 };
 
-onMounted(loadProfile);
+const onProjectChanged = () => {
+  contentKey.value += 1;
+};
+
+onMounted(() => {
+  loadProfile();
+  window.addEventListener("project-changed", onProjectChanged);
+});
+
+onUnmounted(() => {
+  window.removeEventListener("project-changed", onProjectChanged);
+});
 </script>
+
+<style scoped>
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.header-title {
+  color: #fff;
+  font-weight: 500;
+}
+</style>

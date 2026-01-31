@@ -40,6 +40,17 @@ public static class PermissionCodes
     public const string MenusCreate = "menus:create";
     public const string MenusUpdate = "menus:update";
 
+    public const string AppsView = "apps:view";
+    public const string AppsUpdate = "apps:update";
+
+    public const string ProjectsView = "projects:view";
+    public const string ProjectsCreate = "projects:create";
+    public const string ProjectsUpdate = "projects:update";
+    public const string ProjectsDelete = "projects:delete";
+    public const string ProjectsAssignUsers = "projects:assign-users";
+    public const string ProjectsAssignDepartments = "projects:assign-departments";
+    public const string ProjectsAssignPositions = "projects:assign-positions";
+
     public const string AuditView = "audit:view";
     public const string AssetsCreate = "assets:create";
 

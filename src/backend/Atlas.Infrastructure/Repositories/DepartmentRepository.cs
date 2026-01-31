@@ -22,12 +22,42 @@ public sealed class DepartmentRepository : IDepartmentRepository
     }
 
     public async Task<(IReadOnlyList<Department> Items, int TotalCount)> QueryPageAsync(
+        TenantId tenantId,
         int pageIndex,
         int pageSize,
         string? keyword,
         CancellationToken cancellationToken)
     {
-        var query = _db.Queryable<Department>();
+        var query = _db.Queryable<Department>()
+            .Where(x => x.TenantIdValue == tenantId.Value);
+        if (!string.IsNullOrWhiteSpace(keyword))
+        {
+            query = query.Where(x => x.Name.Contains(keyword));
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken);
+        var list = await query
+            .OrderBy(x => x.SortOrder, OrderByType.Asc)
+            .ToPageListAsync(pageIndex, pageSize, cancellationToken);
+
+        return (list, totalCount);
+    }
+
+    public async Task<(IReadOnlyList<Department> Items, int TotalCount)> QueryPageByIdsAsync(
+        TenantId tenantId,
+        IReadOnlyList<long> ids,
+        int pageIndex,
+        int pageSize,
+        string? keyword,
+        CancellationToken cancellationToken)
+    {
+        if (ids.Count == 0)
+        {
+            return (Array.Empty<Department>(), 0);
+        }
+
+        var query = _db.Queryable<Department>()
+            .Where(x => x.TenantIdValue == tenantId.Value && ids.Contains(x.Id));
         if (!string.IsNullOrWhiteSpace(keyword))
         {
             query = query.Where(x => x.Name.Contains(keyword));

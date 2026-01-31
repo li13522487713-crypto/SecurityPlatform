@@ -22,6 +22,8 @@ const PermissionsPage = () => import("@/pages/system/PermissionsPage.vue");
 const MenusPage = () => import("@/pages/system/MenusPage.vue");
 const DepartmentsPage = () => import("@/pages/system/DepartmentsPage.vue");
 const PositionsPage = () => import("@/pages/system/PositionsPage.vue");
+const AppsPage = () => import("@/pages/system/AppsPage.vue");
+const ProjectsPage = () => import("@/pages/system/ProjectsPage.vue");
 
 const router = createRouter({
   history: createWebHistory(),
@@ -71,6 +73,18 @@ const router = createRouter({
       name: "system-positions",
       component: PositionsPage,
       meta: { requiresAuth: true, requiresPermission: "positions:view" }
+    },
+    {
+      path: "/system/apps",
+      name: "system-apps",
+      component: AppsPage,
+      meta: { requiresAuth: true, requiresPermission: "apps:view" }
+    },
+    {
+      path: "/system/projects",
+      name: "system-projects",
+      component: ProjectsPage,
+      meta: { requiresAuth: true, requiresPermission: "projects:view" }
     },
     {
       path: "/workflow/designer",

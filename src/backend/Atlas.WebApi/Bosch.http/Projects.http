@@ -1,0 +1,90 @@
+@baseUrl = http://localhost:5000
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+
+### Login to get token (Execute this first)
+# @name login
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+###
+@accessToken = {{login.response.body.$.data.accessToken}}
+
+### Get Projects (Paged)
+GET {{baseUrl}}/api/v1/projects?pageIndex=1&pageSize=10
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### Get My Projects
+GET {{baseUrl}}/api/v1/projects/my
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### Create Project
+POST {{baseUrl}}/api/v1/projects
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "code": "PRJ001",
+  "name": "示例项目",
+  "isActive": true,
+  "description": "用于测试",
+  "sortOrder": 0
+}
+
+### Update Project
+PUT {{baseUrl}}/api/v1/projects/1
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "name": "示例项目",
+  "isActive": true,
+  "description": "更新说明",
+  "sortOrder": 0
+}
+
+### Assign Users
+PUT {{baseUrl}}/api/v1/projects/1/users
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "userIds": [1001, 1002]
+}
+
+### Assign Departments
+PUT {{baseUrl}}/api/v1/projects/1/departments
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "departmentIds": [10, 11]
+}
+
+### Assign Positions
+PUT {{baseUrl}}/api/v1/projects/1/positions
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "positionIds": [20, 21]
+}
+
+### Delete Project
+DELETE {{baseUrl}}/api/v1/projects/1
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}

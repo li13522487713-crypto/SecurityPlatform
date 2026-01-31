@@ -56,12 +56,42 @@ public sealed class UserAccountRepository : IUserAccountRepository
     }
 
     public async Task<(IReadOnlyList<UserAccount> Items, int TotalCount)> QueryPageAsync(
+        TenantId tenantId,
         int pageIndex,
         int pageSize,
         string? keyword,
         CancellationToken cancellationToken)
     {
-        var query = _db.Queryable<UserAccount>();
+        var query = _db.Queryable<UserAccount>()
+            .Where(x => x.TenantIdValue == tenantId.Value);
+        if (!string.IsNullOrWhiteSpace(keyword))
+        {
+            query = query.Where(x => x.Username.Contains(keyword) || x.DisplayName.Contains(keyword));
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken);
+        var list = await query
+            .OrderBy(x => x.Id, OrderByType.Desc)
+            .ToPageListAsync(pageIndex, pageSize, cancellationToken);
+
+        return (list, totalCount);
+    }
+
+    public async Task<(IReadOnlyList<UserAccount> Items, int TotalCount)> QueryPageByIdsAsync(
+        TenantId tenantId,
+        IReadOnlyList<long> userIds,
+        int pageIndex,
+        int pageSize,
+        string? keyword,
+        CancellationToken cancellationToken)
+    {
+        if (userIds.Count == 0)
+        {
+            return (Array.Empty<UserAccount>(), 0);
+        }
+
+        var query = _db.Queryable<UserAccount>()
+            .Where(x => x.TenantIdValue == tenantId.Value && userIds.Contains(x.Id));
         if (!string.IsNullOrWhiteSpace(keyword))
         {
             query = query.Where(x => x.Username.Contains(keyword) || x.DisplayName.Contains(keyword));

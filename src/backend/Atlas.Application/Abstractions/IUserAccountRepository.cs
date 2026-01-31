@@ -8,6 +8,14 @@ public interface IUserAccountRepository
     Task<UserAccount?> FindByUsernameAsync(TenantId tenantId, string username, CancellationToken cancellationToken);
     Task<UserAccount?> FindByIdAsync(TenantId tenantId, long id, CancellationToken cancellationToken);
     Task<(IReadOnlyList<UserAccount> Items, int TotalCount)> QueryPageAsync(
+        TenantId tenantId,
+        int pageIndex,
+        int pageSize,
+        string? keyword,
+        CancellationToken cancellationToken);
+    Task<(IReadOnlyList<UserAccount> Items, int TotalCount)> QueryPageByIdsAsync(
+        TenantId tenantId,
+        IReadOnlyList<long> userIds,
         int pageIndex,
         int pageSize,
         string? keyword,

@@ -374,6 +374,68 @@ export interface MenuUpdateRequest {
   isHidden: boolean;
 }
 
+export interface AppConfigListItem {
+  id: string;
+  appId: string;
+  name: string;
+  isActive: boolean;
+  enableProjectScope: boolean;
+  description?: string;
+  sortOrder: number;
+}
+
+export interface AppConfigDetail extends AppConfigListItem {}
+
+export interface AppConfigUpdateRequest {
+  name: string;
+  isActive: boolean;
+  enableProjectScope: boolean;
+  description?: string;
+  sortOrder: number;
+}
+
+export interface ProjectListItem {
+  id: string;
+  code: string;
+  name: string;
+  isActive: boolean;
+  description?: string;
+  sortOrder: number;
+}
+
+export interface ProjectDetail extends ProjectListItem {
+  userIds: number[];
+  departmentIds: number[];
+  positionIds: number[];
+}
+
+export interface ProjectCreateRequest {
+  code: string;
+  name: string;
+  isActive: boolean;
+  description?: string;
+  sortOrder: number;
+}
+
+export interface ProjectUpdateRequest {
+  name: string;
+  isActive: boolean;
+  description?: string;
+  sortOrder: number;
+}
+
+export interface ProjectAssignUsersRequest {
+  userIds: number[];
+}
+
+export interface ProjectAssignDepartmentsRequest {
+  departmentIds: number[];
+}
+
+export interface ProjectAssignPositionsRequest {
+  positionIds: number[];
+}
+
 export interface PositionListItem {
   id: string;
   name: string;

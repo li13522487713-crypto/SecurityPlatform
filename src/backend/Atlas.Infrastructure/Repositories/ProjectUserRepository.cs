@@ -1,0 +1,82 @@
+using Atlas.Application.Identity.Repositories;
+using Atlas.Core.Tenancy;
+using Atlas.Domain.Identity.Entities;
+using SqlSugar;
+
+namespace Atlas.Infrastructure.Repositories;
+
+public sealed class ProjectUserRepository : IProjectUserRepository
+{
+    private readonly ISqlSugarClient _db;
+
+    public ProjectUserRepository(ISqlSugarClient db)
+    {
+        _db = db;
+    }
+
+    public async Task<IReadOnlyList<ProjectUser>> QueryByProjectIdAsync(
+        TenantId tenantId,
+        long projectId,
+        CancellationToken cancellationToken)
+    {
+        var list = await _db.Queryable<ProjectUser>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.ProjectId == projectId)
+            .ToListAsync(cancellationToken);
+        return list;
+    }
+
+    public async Task<IReadOnlyList<long>> QueryUserIdsByProjectIdAsync(
+        TenantId tenantId,
+        long projectId,
+        CancellationToken cancellationToken)
+    {
+        var list = await _db.Queryable<ProjectUser>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.ProjectId == projectId)
+            .Select(x => x.UserId)
+            .ToListAsync(cancellationToken);
+        return list;
+    }
+
+    public async Task<IReadOnlyList<long>> QueryProjectIdsByUserIdAsync(
+        TenantId tenantId,
+        long userId,
+        CancellationToken cancellationToken)
+    {
+        var list = await _db.Queryable<ProjectUser>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.UserId == userId)
+            .Select(x => x.ProjectId)
+            .ToListAsync(cancellationToken);
+        return list;
+    }
+
+    public async Task<bool> ExistsAsync(TenantId tenantId, long projectId, long userId, CancellationToken cancellationToken)
+    {
+        return await _db.Queryable<ProjectUser>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.ProjectId == projectId && x.UserId == userId)
+            .AnyAsync();
+    }
+
+    public Task DeleteByProjectIdAsync(TenantId tenantId, long projectId, CancellationToken cancellationToken)
+    {
+        return _db.Deleteable<ProjectUser>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.ProjectId == projectId)
+            .ExecuteCommandAsync(cancellationToken);
+    }
+
+    public Task DeleteByUserIdAsync(TenantId tenantId, long userId, CancellationToken cancellationToken)
+    {
+        return _db.Deleteable<ProjectUser>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.UserId == userId)
+            .ExecuteCommandAsync(cancellationToken);
+    }
+
+    public Task AddRangeAsync(IReadOnlyList<ProjectUser> entities, CancellationToken cancellationToken)
+    {
+        if (entities.Count == 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        return _db.Insertable(entities.ToList()).ExecuteCommandAsync(cancellationToken);
+    }
+}

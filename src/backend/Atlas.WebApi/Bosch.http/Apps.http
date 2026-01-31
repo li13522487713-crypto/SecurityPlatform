@@ -1,0 +1,42 @@
+@baseUrl = http://localhost:5000
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+
+### Login to get token (Execute this first)
+# @name login
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+###
+@accessToken = {{login.response.body.$.data.accessToken}}
+
+### Get Apps (Paged)
+GET {{baseUrl}}/api/v1/apps?pageIndex=1&pageSize=10
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### Get App Detail
+GET {{baseUrl}}/api/v1/apps/1
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### Update App Config
+PUT {{baseUrl}}/api/v1/apps/1
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "name": "SecurityPlatform",
+  "isActive": true,
+  "enableProjectScope": false,
+  "description": "默认应用配置",
+  "sortOrder": 0
+}

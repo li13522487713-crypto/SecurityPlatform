@@ -47,6 +47,17 @@ public static class PermissionPolicies
     public const string MenusCreate = "Permission:menus:create";
     public const string MenusUpdate = "Permission:menus:update";
 
+    public const string AppsView = "Permission:apps:view";
+    public const string AppsUpdate = "Permission:apps:update";
+
+    public const string ProjectsView = "Permission:projects:view";
+    public const string ProjectsCreate = "Permission:projects:create";
+    public const string ProjectsUpdate = "Permission:projects:update";
+    public const string ProjectsDelete = "Permission:projects:delete";
+    public const string ProjectsAssignUsers = "Permission:projects:assign-users";
+    public const string ProjectsAssignDepartments = "Permission:projects:assign-departments";
+    public const string ProjectsAssignPositions = "Permission:projects:assign-positions";
+
     public const string AuditView = "Permission:audit:view";
     public const string AssetsCreate = "Permission:assets:create";
 

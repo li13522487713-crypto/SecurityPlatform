@@ -54,6 +54,11 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IPermissionRepository, PermissionRepository>();
         services.AddScoped<IDepartmentRepository, DepartmentRepository>();
         services.AddScoped<IMenuRepository, MenuRepository>();
+        services.AddScoped<IAppConfigRepository, AppConfigRepository>();
+        services.AddScoped<IProjectRepository, ProjectRepository>();
+        services.AddScoped<IProjectUserRepository, ProjectUserRepository>();
+        services.AddScoped<IProjectDepartmentRepository, ProjectDepartmentRepository>();
+        services.AddScoped<IProjectPositionRepository, ProjectPositionRepository>();
         services.AddScoped<IUserRoleRepository, UserRoleRepository>();
         services.AddScoped<IRolePermissionRepository, RolePermissionRepository>();
         services.AddScoped<IRoleMenuRepository, RoleMenuRepository>();
@@ -79,6 +84,10 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IPositionCommandService, PositionCommandService>();
         services.AddScoped<IMenuQueryService, MenuQueryService>();
         services.AddScoped<IMenuCommandService, MenuCommandService>();
+        services.AddScoped<IAppConfigQueryService, AppConfigQueryService>();
+        services.AddScoped<IAppConfigCommandService, AppConfigCommandService>();
+        services.AddScoped<IProjectQueryService, ProjectQueryService>();
+        services.AddScoped<IProjectCommandService, ProjectCommandService>();
         
         // Approval Workflow Services
         services.AddScoped<Atlas.Application.Approval.Repositories.IApprovalFlowRepository, ApprovalFlowRepository>();

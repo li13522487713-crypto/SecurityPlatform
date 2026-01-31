@@ -4,6 +4,8 @@ const ACCESS_TOKEN_KEY = "access_token";
 const REFRESH_TOKEN_KEY = "refresh_token";
 const TENANT_ID_KEY = "tenant_id";
 const PROFILE_KEY = "auth_profile";
+const PROJECT_ID_KEY = "project_id";
+const PROJECT_SCOPE_KEY = "project_scope_enabled";
 
 export const getAccessToken = () => localStorage.getItem(ACCESS_TOKEN_KEY);
 
@@ -21,6 +23,22 @@ export const getTenantId = () => localStorage.getItem(TENANT_ID_KEY);
 
 export const setTenantId = (tenantId: string) => {
   localStorage.setItem(TENANT_ID_KEY, tenantId);
+};
+
+export const getProjectId = () => localStorage.getItem(PROJECT_ID_KEY);
+
+export const setProjectId = (projectId: string) => {
+  localStorage.setItem(PROJECT_ID_KEY, projectId);
+};
+
+export const clearProjectId = () => {
+  localStorage.removeItem(PROJECT_ID_KEY);
+};
+
+export const getProjectScopeEnabled = () => localStorage.getItem(PROJECT_SCOPE_KEY) === "true";
+
+export const setProjectScopeEnabled = (enabled: boolean) => {
+  localStorage.setItem(PROJECT_SCOPE_KEY, enabled ? "true" : "false");
 };
 
 export const getAuthProfile = (): AuthProfile | null => {
@@ -43,6 +61,8 @@ export const clearAuthStorage = () => {
   localStorage.removeItem(REFRESH_TOKEN_KEY);
   localStorage.removeItem(TENANT_ID_KEY);
   localStorage.removeItem(PROFILE_KEY);
+  localStorage.removeItem(PROJECT_ID_KEY);
+  localStorage.removeItem(PROJECT_SCOPE_KEY);
 };
 
 export const isAdminRole = (profile: AuthProfile | null) => {

@@ -8,6 +8,14 @@ public interface IPositionRepository
     Task<Position?> FindByIdAsync(TenantId tenantId, long id, CancellationToken cancellationToken);
     Task<Position?> FindByCodeAsync(TenantId tenantId, string code, CancellationToken cancellationToken);
     Task<(IReadOnlyList<Position> Items, int TotalCount)> QueryPageAsync(
+        TenantId tenantId,
+        int pageIndex,
+        int pageSize,
+        string? keyword,
+        CancellationToken cancellationToken);
+    Task<(IReadOnlyList<Position> Items, int TotalCount)> QueryPageByIdsAsync(
+        TenantId tenantId,
+        IReadOnlyList<long> ids,
         int pageIndex,
         int pageSize,
         string? keyword,

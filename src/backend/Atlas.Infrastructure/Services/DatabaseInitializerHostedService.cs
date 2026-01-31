@@ -71,6 +71,11 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         typeof(UserPosition),
         typeof(PasswordHistory),
             typeof(Menu),
+            typeof(AppConfig),
+            typeof(Project),
+            typeof(ProjectUser),
+            typeof(ProjectDepartment),
+            typeof(ProjectPosition),
             typeof(RoleMenu),
             typeof(AuditRecord),
             typeof(Asset),
@@ -107,6 +112,22 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             var approvalSeedService = scope.ServiceProvider.GetRequiredService<ApprovalSeedDataService>();
             var seedTenantId = new TenantId(seedTenantGuid);
             await approvalSeedService.InitializeSeedDataAsync(seedTenantId, cancellationToken);
+        }
+
+        if (Guid.TryParse(_bootstrapOptions.TenantId, out var appTenantGuid))
+        {
+            var appTenantId = new TenantId(appTenantGuid);
+            using var appConfigScope = appContextAccessor.BeginScope(CreateSystemContext(appContextAccessor, appTenantId));
+            var appConfigRepository = scope.ServiceProvider.GetRequiredService<IAppConfigRepository>();
+            var appConfigIdGenerator = scope.ServiceProvider.GetRequiredService<IIdGeneratorAccessor>();
+            var appId = appContextAccessor.GetAppId();
+            var existingAppConfig = await appConfigRepository.FindByAppIdAsync(appTenantId, appId, cancellationToken);
+            if (existingAppConfig is null)
+            {
+                var appConfig = new AppConfig(appTenantId, appId, appId, appConfigIdGenerator.NextId());
+                appConfig.Update(appId, true, false, "默认应用配置", 0);
+                await appConfigRepository.AddAsync(appConfig, cancellationToken);
+            }
         }
 
         if (!_bootstrapOptions.Enabled)
@@ -241,6 +262,15 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             (PermissionCodes.MenusAll, "Menus All", "Api"),
             (PermissionCodes.MenusCreate, "Menus Create", "Api"),
             (PermissionCodes.MenusUpdate, "Menus Update", "Api"),
+            (PermissionCodes.AppsView, "Apps View", "Api"),
+            (PermissionCodes.AppsUpdate, "Apps Update", "Api"),
+            (PermissionCodes.ProjectsView, "Projects View", "Api"),
+            (PermissionCodes.ProjectsCreate, "Projects Create", "Api"),
+            (PermissionCodes.ProjectsUpdate, "Projects Update", "Api"),
+            (PermissionCodes.ProjectsDelete, "Projects Delete", "Api"),
+            (PermissionCodes.ProjectsAssignUsers, "Projects Assign Users", "Api"),
+            (PermissionCodes.ProjectsAssignDepartments, "Projects Assign Departments", "Api"),
+            (PermissionCodes.ProjectsAssignPositions, "Projects Assign Positions", "Api"),
             (PermissionCodes.AuditView, "Audit View", "Api"),
             (PermissionCodes.AssetsCreate, "Assets Create", "Api"),
             (PermissionCodes.ApprovalFlowCreate, "Approval Flow Create", "Api"),
@@ -302,6 +332,25 @@ public sealed class DatabaseInitializerHostedService : IHostedService
                 adminPermission.Code,
                 false);
             await db.Insertable(adminMenu).ExecuteCommandAsync(cancellationToken);
+        }
+
+        var projectsMenu = await db.Queryable<Menu>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.Path == "/system/projects")
+            .FirstAsync(cancellationToken);
+        if (projectsMenu is null)
+        {
+            projectsMenu = new Menu(
+                tenantId,
+                "项目管理",
+                "/system/projects",
+                idGeneratorAccessor.NextId(),
+                adminMenu.Id,
+                70,
+                "system/projects",
+                "project",
+                PermissionCodes.ProjectsView,
+                false);
+            await db.Insertable(projectsMenu).ExecuteCommandAsync(cancellationToken);
         }
 
         var workflowRootMenu = await db.Queryable<Menu>()
@@ -669,6 +718,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             await EnsureRoleMenuAsync(visualizationDesignerMenu.Id);
             await EnsureRoleMenuAsync(visualizationRuntimeMenu.Id);
             await EnsureRoleMenuAsync(visualizationGovernanceMenu.Id);
+            await EnsureRoleMenuAsync(projectsMenu.Id);
         }
 
         var existing = await userRepository.FindByUsernameAsync(tenantId, _bootstrapOptions.Username, cancellationToken);

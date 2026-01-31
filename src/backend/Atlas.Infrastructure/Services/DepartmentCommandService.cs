@@ -13,15 +13,24 @@ public sealed class DepartmentCommandService : IDepartmentCommandService
 {
     private readonly IDepartmentRepository _departmentRepository;
     private readonly IUserDepartmentRepository _userDepartmentRepository;
+    private readonly IProjectDepartmentRepository _projectDepartmentRepository;
+    private readonly Atlas.Core.Identity.IProjectContextAccessor _projectContextAccessor;
+    private readonly Atlas.Core.Abstractions.IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly ISqlSugarClient _db;
 
     public DepartmentCommandService(
         IDepartmentRepository departmentRepository,
         IUserDepartmentRepository userDepartmentRepository,
+        IProjectDepartmentRepository projectDepartmentRepository,
+        Atlas.Core.Identity.IProjectContextAccessor projectContextAccessor,
+        Atlas.Core.Abstractions.IIdGeneratorAccessor idGeneratorAccessor,
         ISqlSugarClient db)
     {
         _departmentRepository = departmentRepository;
         _userDepartmentRepository = userDepartmentRepository;
+        _projectDepartmentRepository = projectDepartmentRepository;
+        _projectContextAccessor = projectContextAccessor;
+        _idGeneratorAccessor = idGeneratorAccessor;
         _db = db;
     }
 
@@ -32,7 +41,21 @@ public sealed class DepartmentCommandService : IDepartmentCommandService
         CancellationToken cancellationToken)
     {
         var department = new Department(tenantId, request.Name, id, request.ParentId, request.SortOrder);
-        await _departmentRepository.AddAsync(department, cancellationToken);
+        await _db.Ado.UseTranAsync(async () =>
+        {
+            await _departmentRepository.AddAsync(department, cancellationToken);
+
+            var projectContext = _projectContextAccessor.GetCurrent();
+            if (projectContext.IsEnabled && projectContext.ProjectId.HasValue)
+            {
+                var link = new ProjectDepartment(
+                    tenantId,
+                    projectContext.ProjectId.Value,
+                    department.Id,
+                    _idGeneratorAccessor.NextId());
+                await _projectDepartmentRepository.AddRangeAsync(new[] { link }, cancellationToken);
+            }
+        });
         return department.Id;
     }
 
@@ -42,6 +65,7 @@ public sealed class DepartmentCommandService : IDepartmentCommandService
         DepartmentUpdateRequest request,
         CancellationToken cancellationToken)
     {
+        await EnsureDepartmentInProjectAsync(tenantId, departmentId, cancellationToken);
         var department = await _departmentRepository.FindByIdAsync(tenantId, departmentId, cancellationToken);
         if (department is null)
         {
@@ -57,6 +81,7 @@ public sealed class DepartmentCommandService : IDepartmentCommandService
         long departmentId,
         CancellationToken cancellationToken)
     {
+        await EnsureDepartmentInProjectAsync(tenantId, departmentId, cancellationToken);
         var department = await _departmentRepository.FindByIdAsync(tenantId, departmentId, cancellationToken);
         if (department is null)
         {
@@ -72,7 +97,26 @@ public sealed class DepartmentCommandService : IDepartmentCommandService
         await _db.Ado.UseTranAsync(async () =>
         {
             await _userDepartmentRepository.DeleteByDepartmentIdAsync(tenantId, departmentId, cancellationToken);
+            await _projectDepartmentRepository.DeleteByDepartmentIdAsync(tenantId, departmentId, cancellationToken);
             await _departmentRepository.DeleteAsync(tenantId, departmentId, cancellationToken);
         });
+    }
+
+    private async Task EnsureDepartmentInProjectAsync(TenantId tenantId, long departmentId, CancellationToken cancellationToken)
+    {
+        var projectContext = _projectContextAccessor.GetCurrent();
+        if (!projectContext.IsEnabled || !projectContext.ProjectId.HasValue)
+        {
+            return;
+        }
+
+        var relations = await _projectDepartmentRepository.QueryByProjectIdAsync(
+            tenantId,
+            projectContext.ProjectId.Value,
+            cancellationToken);
+        if (!relations.Any(x => x.DepartmentId == departmentId))
+        {
+            throw new BusinessException("Department not in current project.", ErrorCodes.Forbidden);
+        }
     }
 }

@@ -30,6 +30,8 @@ public sealed class UserCommandService : IUserCommandService
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly ISqlSugarClient _db;
     private readonly PasswordPolicyOptions _passwordPolicy;
+    private readonly IProjectUserRepository _projectUserRepository;
+    private readonly Atlas.Core.Identity.IProjectContextAccessor _projectContextAccessor;
 
     public UserCommandService(
         IUserAccountRepository userRepository,
@@ -43,7 +45,9 @@ public sealed class UserCommandService : IUserCommandService
         IPasswordHasher passwordHasher,
         IIdGeneratorAccessor idGeneratorAccessor,
         ISqlSugarClient db,
-        IOptions<PasswordPolicyOptions> passwordPolicy)
+        IOptions<PasswordPolicyOptions> passwordPolicy,
+        IProjectUserRepository projectUserRepository,
+        Atlas.Core.Identity.IProjectContextAccessor projectContextAccessor)
     {
         _userRepository = userRepository;
         _userRoleRepository = userRoleRepository;
@@ -57,6 +61,8 @@ public sealed class UserCommandService : IUserCommandService
         _idGeneratorAccessor = idGeneratorAccessor;
         _db = db;
         _passwordPolicy = passwordPolicy.Value;
+        _projectUserRepository = projectUserRepository;
+        _projectContextAccessor = projectContextAccessor;
     }
 
     public async Task<long> CreateAsync(
@@ -108,6 +114,14 @@ public sealed class UserCommandService : IUserCommandService
                     .Select(posId => new UserPosition(tenantId, user.Id, posId, _idGeneratorAccessor.NextId(), false))
                     .ToArray(),
                 cancellationToken);
+
+            var projectContext = _projectContextAccessor.GetCurrent();
+            if (projectContext.IsEnabled && projectContext.ProjectId.HasValue)
+            {
+                await _projectUserRepository.AddRangeAsync(
+                    new[] { new ProjectUser(tenantId, projectContext.ProjectId.Value, user.Id, _idGeneratorAccessor.NextId()) },
+                    cancellationToken);
+            }
         });
 
         return user.Id;
@@ -119,6 +133,7 @@ public sealed class UserCommandService : IUserCommandService
         UserUpdateRequest request,
         CancellationToken cancellationToken)
     {
+        await EnsureUserInProjectAsync(tenantId, userId, cancellationToken);
         var user = await _userRepository.FindByIdAsync(tenantId, userId, cancellationToken);
         if (user is null)
         {
@@ -144,6 +159,7 @@ public sealed class UserCommandService : IUserCommandService
         IReadOnlyList<long> roleIds,
         CancellationToken cancellationToken)
     {
+        await EnsureUserInProjectAsync(tenantId, userId, cancellationToken);
         var user = await _userRepository.FindByIdAsync(tenantId, userId, cancellationToken);
         if (user is null)
         {
@@ -169,6 +185,7 @@ public sealed class UserCommandService : IUserCommandService
         IReadOnlyList<long> departmentIds,
         CancellationToken cancellationToken)
     {
+        await EnsureUserInProjectAsync(tenantId, userId, cancellationToken);
         var user = await _userRepository.FindByIdAsync(tenantId, userId, cancellationToken);
         if (user is null)
         {
@@ -194,6 +211,7 @@ public sealed class UserCommandService : IUserCommandService
         IReadOnlyList<long> positionIds,
         CancellationToken cancellationToken)
     {
+        await EnsureUserInProjectAsync(tenantId, userId, cancellationToken);
         var user = await _userRepository.FindByIdAsync(tenantId, userId, cancellationToken);
         if (user is null)
         {
@@ -282,6 +300,7 @@ public sealed class UserCommandService : IUserCommandService
         long userId,
         CancellationToken cancellationToken)
     {
+        await EnsureUserInProjectAsync(tenantId, userId, cancellationToken);
         var user = await _userRepository.FindByIdAsync(tenantId, userId, cancellationToken);
         if (user is null)
         {
@@ -298,8 +317,28 @@ public sealed class UserCommandService : IUserCommandService
             await _userRoleRepository.DeleteByUserIdAsync(tenantId, userId, cancellationToken);
             await _userDepartmentRepository.DeleteByUserIdAsync(tenantId, userId, cancellationToken);
             await _userPositionRepository.DeleteByUserIdAsync(tenantId, userId, cancellationToken);
+            await _projectUserRepository.DeleteByUserIdAsync(tenantId, userId, cancellationToken);
             await _userRepository.DeleteAsync(tenantId, userId, cancellationToken);
         });
+    }
+
+    private async Task EnsureUserInProjectAsync(TenantId tenantId, long userId, CancellationToken cancellationToken)
+    {
+        var projectContext = _projectContextAccessor.GetCurrent();
+        if (!projectContext.IsEnabled || !projectContext.ProjectId.HasValue)
+        {
+            return;
+        }
+
+        var hasMembership = await _projectUserRepository.ExistsAsync(
+            tenantId,
+            projectContext.ProjectId.Value,
+            userId,
+            cancellationToken);
+        if (!hasMembership)
+        {
+            throw new BusinessException("User not in current project.", ErrorCodes.Forbidden);
+        }
     }
 
     private async Task<IReadOnlyList<Role>> EnsureRolesExistAsync(

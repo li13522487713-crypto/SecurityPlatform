@@ -52,7 +52,9 @@ Asynchronous coding is mandatory. Define async interfaces and implementations fo
 ## 前后端约束
 
 - 后端：禁止反射、动态类型/`dynamic`、运行时编译或表达式树生成等弱类型特性；必须使用强类型 DTO、实体、配置对象和接口，所有公共 API 输入输出都需显式类型声明与验证。
+- 后端：后台接口操作数据库时不允许在循环内执行数据库操作；优先使用批量查询、批量更新、批量删除，并通过字典或集合聚合减少往返次数。
 - 前端：禁止使用 `any`、`unknown` 或运行时 `eval`/动态注入脚本；必须使用 TypeScript 全量类型标注，组件 props/emit/状态均需强类型定义，API 客户端与接口契约保持类型对齐。
+- 前端：搜索下拉框默认展示 20 条结果，必须提供搜索框并支持远程检索。
 - 合同：前后端共享的数据契约需集中于 `docs/contracts.md` 并保持与实现同步，修改契约时同步更新类型定义与相关校验。
 
 ## API Testing Artifacts

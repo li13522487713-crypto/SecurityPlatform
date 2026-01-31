@@ -67,6 +67,7 @@ builder.Services.AddScoped<Atlas.Core.Tenancy.ITenantProvider, HttpContextTenant
 builder.Services.AddScoped<Atlas.Core.Identity.ICurrentUserAccessor, Atlas.WebApi.Identity.HttpContextCurrentUserAccessor>();
 builder.Services.AddScoped<Atlas.Core.Identity.IClientContextAccessor, Atlas.WebApi.Identity.HttpContextClientContextAccessor>();
 builder.Services.AddScoped<Atlas.Core.Identity.IAppContextAccessor, Atlas.WebApi.Identity.HttpContextAppContextAccessor>();
+builder.Services.AddScoped<Atlas.Core.Identity.IProjectContextAccessor, Atlas.WebApi.Identity.HttpContextProjectContextAccessor>();
 
 builder.Services.AddFluentValidationAutoValidation();
 builder.Services.AddValidatorsFromAssemblies(AppDomain.CurrentDomain.GetAssemblies());
@@ -174,6 +175,7 @@ app.UseMiddleware<ClientContextMiddleware>();
 app.UseRouting();
 app.UseAuthentication();
 app.UseMiddleware<TenantContextMiddleware>();
+app.UseMiddleware<ProjectContextMiddleware>();
 app.UseAuthorization();
 
 app.MapControllers();

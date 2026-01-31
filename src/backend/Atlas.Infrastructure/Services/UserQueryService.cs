@@ -14,6 +14,8 @@ public sealed class UserQueryService : IUserQueryService
     private readonly IUserRoleRepository _userRoleRepository;
     private readonly IUserDepartmentRepository _userDepartmentRepository;
     private readonly IUserPositionRepository _userPositionRepository;
+    private readonly IProjectUserRepository _projectUserRepository;
+    private readonly Atlas.Core.Identity.IProjectContextAccessor _projectContextAccessor;
     private readonly IMapper _mapper;
 
     public UserQueryService(
@@ -21,12 +23,16 @@ public sealed class UserQueryService : IUserQueryService
         IUserRoleRepository userRoleRepository,
         IUserDepartmentRepository userDepartmentRepository,
         IUserPositionRepository userPositionRepository,
+        IProjectUserRepository projectUserRepository,
+        Atlas.Core.Identity.IProjectContextAccessor projectContextAccessor,
         IMapper mapper)
     {
         _userRepository = userRepository;
         _userRoleRepository = userRoleRepository;
         _userDepartmentRepository = userDepartmentRepository;
         _userPositionRepository = userPositionRepository;
+        _projectUserRepository = projectUserRepository;
+        _projectContextAccessor = projectContextAccessor;
         _mapper = mapper;
     }
 
@@ -38,18 +44,52 @@ public sealed class UserQueryService : IUserQueryService
         var pageIndex = request.PageIndex < 1 ? 1 : request.PageIndex;
         var pageSize = request.PageSize < 1 ? 10 : request.PageSize;
 
-        var (items, total) = await _userRepository.QueryPageAsync(
-            pageIndex,
-            pageSize,
-            request.Keyword,
-            cancellationToken);
+        var projectContext = _projectContextAccessor.GetCurrent();
+        (IReadOnlyList<Atlas.Domain.Identity.Entities.UserAccount> Items, int TotalCount) result;
+        if (projectContext.IsEnabled && projectContext.ProjectId.HasValue)
+        {
+            var userIds = await _projectUserRepository.QueryUserIdsByProjectIdAsync(
+                tenantId,
+                projectContext.ProjectId.Value,
+                cancellationToken);
+            result = await _userRepository.QueryPageByIdsAsync(
+                tenantId,
+                userIds.Distinct().ToArray(),
+                pageIndex,
+                pageSize,
+                request.Keyword,
+                cancellationToken);
+        }
+        else
+        {
+            result = await _userRepository.QueryPageAsync(
+                tenantId,
+                pageIndex,
+                pageSize,
+                request.Keyword,
+                cancellationToken);
+        }
 
-        var resultItems = items.Select(x => _mapper.Map<UserListItem>(x)).ToArray();
-        return new PagedResult<UserListItem>(resultItems, total, pageIndex, pageSize);
+        var resultItems = result.Items.Select(x => _mapper.Map<UserListItem>(x)).ToArray();
+        return new PagedResult<UserListItem>(resultItems, result.TotalCount, pageIndex, pageSize);
     }
 
     public async Task<UserDetail?> GetDetailAsync(long id, TenantId tenantId, CancellationToken cancellationToken)
     {
+        var projectContext = _projectContextAccessor.GetCurrent();
+        if (projectContext.IsEnabled && projectContext.ProjectId.HasValue)
+        {
+            var hasMembership = await _projectUserRepository.ExistsAsync(
+                tenantId,
+                projectContext.ProjectId.Value,
+                id,
+                cancellationToken);
+            if (!hasMembership)
+            {
+                return null;
+            }
+        }
+
         var user = await _userRepository.FindByIdAsync(tenantId, id, cancellationToken);
         if (user is null)
         {
