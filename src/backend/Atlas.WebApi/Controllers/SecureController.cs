@@ -1,5 +1,6 @@
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
+using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -23,6 +24,19 @@ public sealed class SecureController : ControllerBase
         var tenantId = _tenantProvider.GetTenantId();
         var data = new { Message = "PONG", TenantId = tenantId.ToString(), User = User.Identity?.Name };
         var payload = ApiResponse<object>.Ok(data, HttpContext.TraceIdentifier);
+        return Ok(payload);
+    }
+
+    [HttpGet("antiforgery")]
+    [Authorize]
+    public ActionResult<ApiResponse<object>> GetAntiforgeryToken([FromServices] IAntiforgery antiforgery)
+    {
+        var tokens = antiforgery.GetAndStoreTokens(HttpContext);
+        var payload = ApiResponse<object>.Ok(new
+        {
+            Token = tokens.RequestToken,
+            HeaderName = tokens.HeaderName
+        }, HttpContext.TraceIdentifier);
         return Ok(payload);
     }
 }

@@ -48,6 +48,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IPasswordHasher, Pbkdf2PasswordHasher>();
         services.AddScoped<IAuthSessionRepository, AuthSessionRepository>();
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
+        services.AddScoped<IIdempotencyRecordRepository, IdempotencyRecordRepository>();
         services.AddScoped<IUserAccountRepository, UserAccountRepository>();
         services.AddScoped<IRoleRepository, RoleRepository>();
         services.AddScoped<IPositionRepository, PositionRepository>();
@@ -138,6 +139,7 @@ public static class ServiceCollectionExtensions
         
         // Approval Timeout Reminder Hosted Service
         services.AddHostedService<ApprovalTimeoutReminderHostedService>();
+        services.AddHostedService<IdempotencyCleanupHostedService>();
         
         // Approval Flow Operation Handlers
         services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalOperationHandler, Atlas.Infrastructure.Services.ApprovalFlow.Operations.ProcessDrawBackOperationHandler>();
@@ -198,6 +200,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalUserQueryService, Atlas.Infrastructure.Services.ApprovalFlow.ApprovalUserQueryService>();
         services.AddScoped<ApprovalSeedDataService>();
         services.AddScoped<ApprovalIndexInitializer>();
+        services.AddScoped<IdempotencyIndexInitializer>();
         
         // Workflow Persistence
         services.AddScoped<IPersistenceProvider, SqlSugarPersistenceProvider>();

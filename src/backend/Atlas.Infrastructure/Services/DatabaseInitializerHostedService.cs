@@ -77,6 +77,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             typeof(ProjectDepartment),
             typeof(ProjectPosition),
             typeof(RoleMenu),
+            typeof(IdempotencyRecord),
             typeof(AuditRecord),
             typeof(Asset),
             typeof(AlertRecord),
@@ -105,6 +106,8 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         // 创建审批模块数据库索引
         var indexInitializer = scope.ServiceProvider.GetRequiredService<ApprovalIndexInitializer>();
         await indexInitializer.CreateIndexesAsync(cancellationToken);
+        var idempotencyIndexInitializer = scope.ServiceProvider.GetRequiredService<IdempotencyIndexInitializer>();
+        await idempotencyIndexInitializer.CreateIndexesAsync(cancellationToken);
 
         // 初始化审批模块种子数据（使用 BootstrapAdmin 的 TenantId）
         if (Guid.TryParse(_bootstrapOptions.TenantId, out var seedTenantGuid))

@@ -88,7 +88,9 @@ import {
   setRefreshToken,
   getTenantId,
   getProjectId,
-  getProjectScopeEnabled
+  getProjectScopeEnabled,
+  getAntiforgeryToken,
+  setAntiforgeryToken
 } from "@/utils/auth";
 import { getClientContextHeaders } from "@/utils/clientContext";
 
@@ -97,9 +99,12 @@ const API_BASE = import.meta.env.VITE_API_BASE ?? "/api/v1";
 interface RequestOptions {
   disableAutoRefresh?: boolean;
   isRetry?: boolean;
+  idempotencyKey?: string;
+  antiforgeryToken?: string;
 }
 
 let refreshPromise: Promise<boolean> | null = null;
+let antiforgeryPromise: Promise<string | null> | null = null;
 
 export interface AssetListItem {
   id: string;
@@ -1174,6 +1179,8 @@ async function requestApi<T>(path: string, init?: RequestInit, options?: Request
   const tenantId = getTenantId();
   const projectScopeEnabled = getProjectScopeEnabled();
   const projectId = getProjectId();
+  const method = (init?.method ?? "GET").toUpperCase();
+  const shouldAttachSecurityHeaders = Boolean(token) && !path.startsWith("/auth");
 
   if (token) {
     headers.set("Authorization", `Bearer ${token}`);
@@ -1199,16 +1206,31 @@ async function requestApi<T>(path: string, init?: RequestInit, options?: Request
     !projectId &&
     !path.startsWith("/apps") &&
     !path.startsWith("/projects") &&
-    !path.startsWith("/auth")
+    !path.startsWith("/auth") &&
+    !path.startsWith("/secure")
   ) {
     message.warning("请先选择项目");
     throw new Error("缺少项目上下文");
   }
 
-  const response = await fetch(`${API_BASE}${path}`, {
+  if (shouldAttachSecurityHeaders && isUnsafeMethod(method)) {
+    const idempotencyKey = options?.idempotencyKey ?? generateIdempotencyKey();
+    headers.set("Idempotency-Key", idempotencyKey);
+
+    const antiforgeryToken = options?.antiforgeryToken ?? (await ensureAntiforgeryToken()) ?? undefined;
+    if (antiforgeryToken) {
+      headers.set("X-CSRF-TOKEN", antiforgeryToken);
+    }
+
+    options = { ...(options ?? {}), idempotencyKey, antiforgeryToken };
+  }
+
+  const requestInit: RequestInit = {
     ...init,
     headers
-  });
+  };
+
+  const response = await fetch(`${API_BASE}${path}`, requestInit);
 
   const shouldAttemptRefresh = !options?.disableAutoRefresh && !options?.isRetry;
   if (response.status === 401 && shouldAttemptRefresh) {
@@ -1225,6 +1247,47 @@ async function requestApi<T>(path: string, init?: RequestInit, options?: Request
   }
 
   return (await response.json()) as T;
+}
+
+function isUnsafeMethod(method: string) {
+  return !["GET", "HEAD", "OPTIONS", "TRACE"].includes(method);
+}
+
+function generateIdempotencyKey(): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+  return `idem-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+async function ensureAntiforgeryToken(): Promise<string | null> {
+  const cached = getAntiforgeryToken();
+  if (cached) {
+    return cached;
+  }
+
+  if (antiforgeryPromise) {
+    return antiforgeryPromise;
+  }
+
+  antiforgeryPromise = (async () => {
+    try {
+      const response = await requestApi<ApiResponse<{ token: string }>>("/secure/antiforgery", {
+        method: "GET"
+      }, { disableAutoRefresh: true, isRetry: true });
+      const token = response.data?.token ?? null;
+      if (token) {
+        setAntiforgeryToken(token);
+      }
+      return token;
+    } catch (error) {
+      return null;
+    } finally {
+      antiforgeryPromise = null;
+    }
+  })();
+
+  return antiforgeryPromise;
 }
 
 async function ensureFreshTokens(): Promise<boolean> {

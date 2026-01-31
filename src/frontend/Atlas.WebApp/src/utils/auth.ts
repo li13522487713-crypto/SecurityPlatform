@@ -6,6 +6,7 @@ const TENANT_ID_KEY = "tenant_id";
 const PROFILE_KEY = "auth_profile";
 const PROJECT_ID_KEY = "project_id";
 const PROJECT_SCOPE_KEY = "project_scope_enabled";
+const ANTIFORGERY_TOKEN_KEY = "antiforgery_token";
 
 export const getAccessToken = () => localStorage.getItem(ACCESS_TOKEN_KEY);
 
@@ -41,6 +42,16 @@ export const setProjectScopeEnabled = (enabled: boolean) => {
   localStorage.setItem(PROJECT_SCOPE_KEY, enabled ? "true" : "false");
 };
 
+export const getAntiforgeryToken = () => sessionStorage.getItem(ANTIFORGERY_TOKEN_KEY);
+
+export const setAntiforgeryToken = (token: string) => {
+  sessionStorage.setItem(ANTIFORGERY_TOKEN_KEY, token);
+};
+
+export const clearAntiforgeryToken = () => {
+  sessionStorage.removeItem(ANTIFORGERY_TOKEN_KEY);
+};
+
 export const getAuthProfile = (): AuthProfile | null => {
   const raw = localStorage.getItem(PROFILE_KEY);
   if (!raw) return null;
@@ -63,6 +74,7 @@ export const clearAuthStorage = () => {
   localStorage.removeItem(PROFILE_KEY);
   localStorage.removeItem(PROJECT_ID_KEY);
   localStorage.removeItem(PROJECT_SCOPE_KEY);
+  sessionStorage.removeItem(ANTIFORGERY_TOKEN_KEY);
 };
 
 export const isAdminRole = (profile: AuthProfile | null) => {

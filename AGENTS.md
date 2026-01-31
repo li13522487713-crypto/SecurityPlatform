@@ -85,3 +85,11 @@ There is no Git history available in this repository. If you initialize version 
 ## Security & Compliance (等保2.0)
 
 All design and implementation must comply with 等保2.0 requirements. Treat security controls as non-optional and document how each feature satisfies relevant control points. Avoid storing secrets in the repo; use environment variables or secure secret stores. For SqlSugar + SQLite, enforce least-privilege data access and encrypt sensitive fields at rest where required by the checklist.
+
+### 幂等与防重放要求
+
+- 关键写接口（创建/提交/开通/触发任务）必须要求客户端传 `Idempotency-Key`。
+- 服务端以 `tenant_id + user_id + api_name + idempotency_key` 作为唯一键；首次成功后保存处理结果（状态 + 资源ID/响应摘要）。
+- 重复请求应返回相同业务结果；同 key 不同 payload 必须拒绝并返回“幂等键冲突”。
+- 幂等记录需按配置保留 N 小时/天后过期并清理。
+- 受浏览器调用的写接口必须通过 Anti-Forgery 校验（Header: `X-CSRF-TOKEN`，由后端下发），前端需在写请求中携带。

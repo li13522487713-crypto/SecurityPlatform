@@ -15,7 +15,23 @@
 - `X-Client-Channel: Browser | App`：客户端通道。
 - `X-Client-Agent: Chrome | Edge | Safari | Firefox | Other`：客户端代理（浏览器或环境）。
 - `X-Project-Id: <projectId>`：项目标识（仅当应用启用项目模式 `EnableProjectMode = true` 时必填）。
+- `Idempotency-Key: <uuid>`：关键写接口必填（创建/提交/开通/触发任务），幂等键冲突返回 409。
+- `X-CSRF-TOKEN: <token>`：已登录 Web 写请求必填，需先获取 Anti-Forgery Token。
 
+## 幂等与 Anti-Forgery
+
+### 幂等（Idempotency-Key）
+
+- 服务端唯一键：`tenant_id + user_id + api_name + idempotency_key`。
+- 首次请求成功后保存处理结果（状态 + 资源ID/响应摘要）；重复请求返回相同业务结果。
+- 同一幂等键但 payload 不一致返回 `IDEMPOTENCY_CONFLICT`。
+- 幂等记录保留 N 小时/天后过期（按配置清理）。
+
+### Anti-Forgery Token
+
+- 获取方式：`GET /api/v1/secure/antiforgery`（需登录）。
+- 请求头：`X-CSRF-TOKEN`。
+- 校验失败返回 `ANTIFORGERY_TOKEN_INVALID`。
 ## 通用响应模型
 
 ### ApiResponse
@@ -54,6 +70,10 @@
 - `PROJECT_DISABLED`：项目已停用
 - `INVALID_CREDENTIALS`：账号或密码错误
 - `TOKEN_EXPIRED`：令牌过期
+- `IDEMPOTENCY_REQUIRED`：缺少幂等键
+- `IDEMPOTENCY_CONFLICT`：幂等键冲突
+- `IDEMPOTENCY_IN_PROGRESS`：幂等键处理中
+- `ANTIFORGERY_TOKEN_INVALID`：CSRF 校验失败
 
 ## 分页模型
 

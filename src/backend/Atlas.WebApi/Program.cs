@@ -10,7 +10,9 @@ using Atlas.WorkflowCore;
 using Atlas.WorkflowCore.DSL;
 using Microsoft.AspNetCore.Authentication.Certificate;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.HttpLogging;
 using Microsoft.IdentityModel.Tokens;
 using NLog.Web;
@@ -18,6 +20,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using Atlas.WebApi.Authorization;
+using Atlas.WebApi.Filters;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -29,7 +32,10 @@ if (builder.Environment.IsDevelopment())
 builder.Logging.ClearProviders();
 builder.Host.UseNLog();
 
-builder.Services.AddControllers();
+builder.Services.AddControllers(options =>
+{
+    options.Filters.Add<IdempotencyFilter>();
+});
 builder.Services.AddOpenApi();
 
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("Jwt"));
@@ -39,6 +45,7 @@ builder.Services.Configure<LockoutPolicyOptions>(builder.Configuration.GetSectio
 builder.Services.Configure<BootstrapAdminOptions>(builder.Configuration.GetSection("Security:BootstrapAdmin"));
 builder.Services.Configure<ApprovalSeedDataOptions>(builder.Configuration.GetSection("Approval:SeedData"));
 builder.Services.Configure<TenancyOptions>(builder.Configuration.GetSection("Tenancy"));
+builder.Services.Configure<IdempotencyOptions>(builder.Configuration.GetSection("Idempotency"));
 builder.Services.Configure<Atlas.WebApi.Identity.AppOptions>(builder.Configuration.GetSection("App"));
 
 builder.Services.AddCors(options =>
@@ -68,6 +75,7 @@ builder.Services.AddScoped<Atlas.Core.Identity.ICurrentUserAccessor, Atlas.WebAp
 builder.Services.AddScoped<Atlas.Core.Identity.IClientContextAccessor, Atlas.WebApi.Identity.HttpContextClientContextAccessor>();
 builder.Services.AddScoped<Atlas.Core.Identity.IAppContextAccessor, Atlas.WebApi.Identity.HttpContextAppContextAccessor>();
 builder.Services.AddScoped<Atlas.Core.Identity.IProjectContextAccessor, Atlas.WebApi.Identity.HttpContextProjectContextAccessor>();
+builder.Services.AddScoped<IdempotencyFilter>();
 
 builder.Services.AddFluentValidationAutoValidation();
 builder.Services.AddValidatorsFromAssemblies(AppDomain.CurrentDomain.GetAssemblies());
@@ -83,6 +91,17 @@ if (!builder.Environment.IsDevelopment())
         throw new InvalidOperationException("生产环境必须配置长度不少于32位的JWT SigningKey。");
     }
 }
+
+builder.Services.AddAntiforgery(options =>
+{
+    options.HeaderName = "X-CSRF-TOKEN";
+    options.Cookie.Name = "XSRF-TOKEN";
+    options.Cookie.HttpOnly = false;
+    options.Cookie.SameSite = SameSiteMode.Strict;
+    options.Cookie.SecurePolicy = securityOptions.EnforceHttps && !builder.Environment.IsDevelopment()
+        ? CookieSecurePolicy.Always
+        : CookieSecurePolicy.None;
+});
 
 builder.Services.AddAuthentication()
     .AddJwtBearer(options =>
@@ -174,6 +193,7 @@ app.UseMiddleware<AppContextMiddleware>();
 app.UseMiddleware<ClientContextMiddleware>();
 app.UseRouting();
 app.UseAuthentication();
+app.UseMiddleware<AntiforgeryValidationMiddleware>();
 app.UseMiddleware<TenantContextMiddleware>();
 app.UseMiddleware<ProjectContextMiddleware>();
 app.UseAuthorization();
