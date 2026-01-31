@@ -1,0 +1,68 @@
+using Atlas.Core.Models;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization.Policy;
+using System.Text.Json;
+
+namespace Atlas.WebApi.Authorization;
+
+public sealed class ApiAuthorizationMiddlewareResultHandler : IAuthorizationMiddlewareResultHandler
+{
+    private readonly AuthorizationMiddlewareResultHandler _defaultHandler = new();
+
+    public async Task HandleAsync(
+        RequestDelegate next,
+        HttpContext context,
+        AuthorizationPolicy policy,
+        PolicyAuthorizationResult authorizeResult)
+    {
+        if (authorizeResult.Succeeded)
+        {
+            await _defaultHandler.HandleAsync(next, context, policy, authorizeResult);
+            return;
+        }
+
+        if (authorizeResult.Forbidden)
+        {
+            await WriteErrorAsync(context, StatusCodes.Status403Forbidden, ErrorCodes.Forbidden, "没有权限访问");
+            return;
+        }
+
+        if (authorizeResult.Challenged)
+        {
+            var code = ResolveAuthErrorCode(context);
+            var message = code == ErrorCodes.TokenExpired ? "访问令牌已过期" : "未认证或认证失败";
+            await WriteErrorAsync(context, StatusCodes.Status401Unauthorized, code, message);
+            return;
+        }
+
+        await _defaultHandler.HandleAsync(next, context, policy, authorizeResult);
+    }
+
+    private static string ResolveAuthErrorCode(HttpContext context)
+    {
+        if (context.Items.TryGetValue(AuthorizationContextKeys.AuthErrorCodeItemKey, out var value)
+            && value is string code
+            && !string.IsNullOrWhiteSpace(code))
+        {
+            return code;
+        }
+
+        return ErrorCodes.Unauthorized;
+    }
+
+    private static async Task WriteErrorAsync(HttpContext context, int statusCode, string code, string message)
+    {
+        if (context.Response.HasStarted)
+        {
+            return;
+        }
+
+        context.Response.Clear();
+        context.Response.StatusCode = statusCode;
+        context.Response.ContentType = "application/json";
+
+        var payload = ApiResponse<object>.Fail(code, message, context.TraceIdentifier);
+        var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        await context.Response.WriteAsync(json);
+    }
+}

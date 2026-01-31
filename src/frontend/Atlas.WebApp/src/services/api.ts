@@ -90,9 +90,11 @@ import {
   getProjectId,
   getProjectScopeEnabled,
   getAntiforgeryToken,
-  setAntiforgeryToken
+  setAntiforgeryToken,
+  clearAntiforgeryToken
 } from "@/utils/auth";
 import { getClientContextHeaders } from "@/utils/clientContext";
+import router from "@/router";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "/api/v1";
 
@@ -101,10 +103,24 @@ interface RequestOptions {
   isRetry?: boolean;
   idempotencyKey?: string;
   antiforgeryToken?: string;
+  antiforgeryRetry?: boolean;
 }
 
 let refreshPromise: Promise<boolean> | null = null;
 let antiforgeryPromise: Promise<string | null> | null = null;
+
+const ErrorCodes = {
+  AccountLocked: "ACCOUNT_LOCKED",
+  PasswordExpired: "PASSWORD_EXPIRED",
+  AntiforgeryTokenInvalid: "ANTIFORGERY_TOKEN_INVALID"
+} as const;
+
+interface ApiErrorPayload {
+  success?: boolean;
+  code?: string;
+  message?: string;
+  traceId?: string;
+}
 
 export interface AssetListItem {
   id: string;
@@ -1234,16 +1250,45 @@ async function requestApi<T>(path: string, init?: RequestInit, options?: Request
 
   const shouldAttemptRefresh = !options?.disableAutoRefresh && !options?.isRetry;
   if (response.status === 401 && shouldAttemptRefresh) {
-    const refreshed = await ensureFreshTokens();
+    const refreshed = await tryRefreshTokens();
     if (refreshed) {
       return requestApi(path, init, { ...(options ?? {}), isRetry: true });
     }
   }
 
+  if (response.status === 403) {
+    const errorText = await response.text();
+    const errorPayload = tryParseErrorPayload(errorText);
+    const errorCode = errorPayload?.code ?? "";
+    const errorMessage = (errorPayload?.message ?? errorText) || "没有权限访问";
+
+    if (errorCode === ErrorCodes.AntiforgeryTokenInvalid && !options?.antiforgeryRetry) {
+      clearAntiforgeryToken();
+      return requestApi(path, init, { ...(options ?? {}), antiforgeryRetry: true, antiforgeryToken: undefined });
+    }
+
+    if (shouldAttemptRefresh) {
+      const refreshed = await tryRefreshTokens();
+      if (refreshed) {
+        return requestApi(path, init, { ...(options ?? {}), isRetry: true });
+      }
+    }
+
+    if (shouldForceLogout(errorCode)) {
+      forceLogout(errorMessage);
+      throw new Error(errorMessage || "登录状态已失效");
+    }
+
+    message.error(errorMessage || "没有权限访问");
+    throw new Error(errorMessage || "没有权限访问");
+  }
+
   if (!response.ok) {
-    const text = await response.text();
-    message.error(text || "网络请求失败");
-    throw new Error(text || "网络请求失败");
+    const errorText = await response.text();
+    const errorPayload = tryParseErrorPayload(errorText);
+    const errorMessage = (errorPayload?.message ?? errorText) || "网络请求失败";
+    message.error(errorMessage);
+    throw new Error(errorMessage);
   }
 
   return (await response.json()) as T;
@@ -1317,4 +1362,44 @@ async function ensureFreshTokens(): Promise<boolean> {
 function persistTokenResult(result: AuthTokenResult) {
   setAccessToken(result.accessToken);
   setRefreshToken(result.refreshToken);
+}
+
+function tryParseErrorPayload(text: string): ApiErrorPayload | null {
+  if (!text) {
+    return null;
+  }
+
+  try {
+    const payload = JSON.parse(text) as ApiErrorPayload;
+    if (payload && (payload.code || payload.message)) {
+      return payload;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+async function tryRefreshTokens(): Promise<boolean> {
+  try {
+    return await ensureFreshTokens();
+  } catch {
+    forceLogout("登录已过期，请重新登录");
+    return false;
+  }
+}
+
+function shouldForceLogout(code: string): boolean {
+  return code === ErrorCodes.AccountLocked || code === ErrorCodes.PasswordExpired;
+}
+
+function forceLogout(messageText?: string) {
+  clearAuthStorage();
+  if (messageText) {
+    message.error(messageText);
+  }
+  if (router.currentRoute.value.name !== "login") {
+    void router.push({ name: "login" });
+  }
 }

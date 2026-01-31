@@ -21,6 +21,8 @@ using System.Security.Claims;
 using System.Text;
 using Atlas.WebApi.Authorization;
 using Atlas.WebApi.Filters;
+using Microsoft.AspNetCore.Authorization.Policy;
+using Atlas.Core.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -120,6 +122,18 @@ builder.Services.AddAuthentication()
             RoleClaimType = ClaimTypes.Role,
             ClockSkew = TimeSpan.FromMinutes(1)
         };
+        options.Events = new JwtBearerEvents
+        {
+            OnAuthenticationFailed = context =>
+            {
+                if (context.Exception is SecurityTokenExpiredException)
+                {
+                    context.HttpContext.Items[AuthorizationContextKeys.AuthErrorCodeItemKey] = ErrorCodes.TokenExpired;
+                }
+
+                return Task.CompletedTask;
+            }
+        };
     })
     .AddCertificate(options =>
     {
@@ -136,6 +150,7 @@ builder.Services.AddAuthorization(options =>
 });
 builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
 builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
+builder.Services.AddSingleton<IAuthorizationMiddlewareResultHandler, ApiAuthorizationMiddlewareResultHandler>();
 
 builder.Services.AddAtlasApplication();
 builder.Services.AddAtlasInfrastructure(builder.Configuration);
