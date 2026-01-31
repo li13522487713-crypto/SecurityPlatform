@@ -1,11 +1,11 @@
 {
   "key": "system.permissions",
-  "title": "权限管理",
-  "description": "通过 AMIS 管理接口层权限码",
+  "title": "\u6743\u9650\u7ba1\u7406",
+  "description": "\u901a\u8fc7 AMIS \u7ba1\u7406\u63a5\u53e3\u5c42\u6743\u9650\u7801",
   "tableKey": "system.permissions",
   "schema": {
     "type": "page",
-    "title": "权限管理",
+    "title": "\u6743\u9650\u7ba1\u7406",
     "body": [
       {
         "type": "crud",
@@ -18,52 +18,98 @@
           "adaptor": "const payloadData = payload?.data ?? { items: [], total: 0 }; return { status: 0, msg: payload?.message ?? 'OK', data: payloadData };"
         },
         "filter": [
-          { "type": "input-text", "name": "keyword", "label": "关键字", "placeholder": "名称/编码", "clearable": true },
+          {
+            "type": "input-text",
+            "name": "keyword",
+            "label": "\u5173\u952e\u5b57",
+            "placeholder": "\u540d\u79f0/\u7f16\u7801",
+            "clearable": true
+          },
           {
             "type": "select",
             "name": "type",
-            "label": "类型",
+            "label": "\u7c7b\u578b",
             "options": [
-              { "label": "全部", "value": "" },
-              { "label": "API", "value": "Api" },
-              { "label": "菜单", "value": "Menu" }
+              {
+                "label": "\u5168\u90e8",
+                "value": ""
+              },
+              {
+                "label": "API",
+                "value": "Api"
+              },
+              {
+                "label": "\u83dc\u5355",
+                "value": "Menu"
+              }
             ]
           }
         ],
         "headerToolbar": [
           {
             "type": "button",
-            "label": "新增权限",
+            "label": "\u65b0\u589e\u6743\u9650",
             "level": "primary",
             "actionType": "dialog",
             "dialog": {
-              "title": "新增权限",
-              "body": [
-                { "type": "input-text", "name": "name", "label": "名称", "required": true },
-                { "type": "input-text", "name": "code", "label": "编码", "required": true },
-                {
-                  "type": "select",
-                  "name": "type",
-                  "label": "类型",
-                  "options": [
-                    { "label": "API", "value": "Api" },
-                    { "label": "菜单", "value": "Menu" }
-                  ],
-                  "required": true
+              "title": "\u65b0\u589e\u6743\u9650",
+              "body": {
+                "type": "form",
+                "api": {
+                  "url": "/permissions",
+                  "method": "post",
+                  "adaptor": "return { status: payload?.success ? 0 : 1, msg: payload?.message ?? '\u64cd\u4f5c\u5b8c\u6210', data: payload?.data };"
                 },
-                { "type": "textarea", "name": "description", "label": "描述", "rows": 3 }
-              ],
+                "body": [
+                  {
+                    "type": "input-text",
+                    "name": "name",
+                    "label": "\u540d\u79f0",
+                    "required": true
+                  },
+                  {
+                    "type": "input-text",
+                    "name": "code",
+                    "label": "\u7f16\u7801",
+                    "required": true
+                  },
+                  {
+                    "type": "select",
+                    "name": "type",
+                    "label": "\u7c7b\u578b",
+                    "options": [
+                      {
+                        "label": "API",
+                        "value": "Api"
+                      },
+                      {
+                        "label": "\u83dc\u5355",
+                        "value": "Menu"
+                      }
+                    ],
+                    "required": true
+                  },
+                  {
+                    "type": "textarea",
+                    "name": "description",
+                    "label": "\u63cf\u8ff0",
+                    "rows": 3
+                  }
+                ],
+                "name": "system-permissions-dialog-form-1"
+              },
               "actions": [
                 {
                   "type": "button",
-                  "label": "保存",
+                  "label": "\u53d6\u6d88",
+                  "actionType": "cancel"
+                },
+                {
+                  "type": "button",
+                  "label": "\u4fdd\u5b58",
                   "level": "primary",
-                  "actionType": "ajax",
-                  "api": {
-                    "url": "/permissions",
-                    "method": "post",
-                    "adaptor": "return { status: payload?.success ? 0 : 1, msg: payload?.message ?? '操作完成', data: payload?.data };"
-                  }
+                  "actionType": "submit",
+                  "target": "system-permissions-dialog-form-1"
                 }
               ]
             }
@@ -71,58 +117,102 @@
           "reload"
         ],
         "columns": [
-          { "name": "name", "label": "名称" },
-          { "name": "code", "label": "编码" },
-          { "name": "type", "label": "类型" },
-          { "name": "description", "label": "描述", "tpl": "<span>${description || '-'}</span>" },
+          {
+            "name": "name",
+            "label": "\u540d\u79f0"
+          },
+          {
+            "name": "code",
+            "label": "\u7f16\u7801"
+          },
+          {
+            "name": "type",
+            "label": "\u7c7b\u578b"
+          },
+          {
+            "name": "description",
+            "label": "\u63cf\u8ff0",
+            "tpl": "<span>${description || '-'}</span>"
+          },
           {
             "type": "operation",
-            "label": "操作",
+            "label": "\u64cd\u4f5c",
             "buttons": [
               {
-                "label": "编辑",
+                "label": "\u7f16\u8f91",
                 "level": "link",
                 "actionType": "dialog",
                 "dialog": {
-                  "title": "编辑权限",
-                  "initApi": "/permissions/${id}",
-                  "body": [
-                    { "type": "input-text", "name": "name", "label": "名称", "required": true },
-                    { "type": "input-text", "name": "code", "label": "编码", "disabled": true },
-                    {
-                      "type": "select",
-                      "name": "type",
-                      "label": "类型",
-                      "options": [
-                        { "label": "API", "value": "Api" },
-                        { "label": "菜单", "value": "Menu" }
-                      ],
-                      "required": true
+                  "title": "\u7f16\u8f91\u6743\u9650",
+                  "body": {
+                    "type": "form",
+                    "api": {
+                      "url": "/permissions/${id}",
+                      "method": "put",
+                      "adaptor": "return { status: payload?.success ? 0 : 1, msg: payload?.message ?? '\u66f4\u65b0\u5b8c\u6210' };"
                     },
-                    { "type": "textarea", "name": "description", "label": "描述", "rows": 3 }
-                  ],
+                    "body": [
+                      {
+                        "type": "input-text",
+                        "name": "name",
+                        "label": "\u540d\u79f0",
+                        "required": true
+                      },
+                      {
+                        "type": "input-text",
+                        "name": "code",
+                        "label": "\u7f16\u7801",
+                        "disabled": true
+                      },
+                      {
+                        "type": "select",
+                        "name": "type",
+                        "label": "\u7c7b\u578b",
+                        "options": [
+                          {
+                            "label": "API",
+                            "value": "Api"
+                          },
+                          {
+                            "label": "\u83dc\u5355",
+                            "value": "Menu"
+                          }
+                        ],
+                        "required": true
+                      },
+                      {
+                        "type": "textarea",
+                        "name": "description",
+                        "label": "\u63cf\u8ff0",
+                        "rows": 3
+                      }
+                    ],
+                    "initApi": "/permissions/${id}",
+                    "name": "system-permissions-dialog-form-2"
+                  },
                   "actions": [
                     {
                       "type": "button",
-                      "label": "保存",
+                      "label": "\u53d6\u6d88",
+                      "actionType": "cancel"
+                    },
+                    {
+                      "type": "button",
+                      "label": "\u4fdd\u5b58",
                       "level": "primary",
-                      "actionType": "ajax",
-                      "api": {
-                        "url": "/permissions/${id}",
-                        "method": "put",
-                        "adaptor": "return { status: payload?.success ? 0 : 1, msg: payload?.message ?? '更新完成' };"
-                      }
+                      "actionType": "submit",
+                      "target": "system-permissions-dialog-form-2"
                     }
                   ]
                 }
               },
               {
-                "label": "提示",
+                "label": "\u63d0\u793a",
                 "level": "link",
                 "actionType": "dialog",
                 "dialog": {
-                  "title": "说明",
-                  "body": "当前版本未开放权限删除接口，如需删除请走配置流程。"
+                  "title": "\u8bf4\u660e",
+                  "body": "\u5f53\u524d\u7248\u672c\u672a\u5f00\u653e\u6743\u9650\u5220\u9664\u63a5\u53e3\uff0c\u5982\u9700\u5220\u9664\u8bf7\u8d70\u914d\u7f6e\u6d41\u7a0b\u3002"
                 }
               }
             ]

@@ -25,6 +25,8 @@ const PositionsPage = () => import("@/pages/system/PositionsPage.vue");
 const AppsPage = () => import("@/pages/system/AppsPage.vue");
 const ProjectsPage = () => import("@/pages/system/ProjectsPage.vue");
 const AmisSystemPage = () => import("@/pages/system/AmisSystemPage.vue");
+const DynamicTablesPage = () => import("@/pages/dynamic/DynamicTablesPage.vue");
+const DynamicTableCrudPage = () => import("@/pages/dynamic/DynamicTableCrudPage.vue");
 
 const router = createRouter({
   history: createWebHistory(),
@@ -146,6 +148,18 @@ const router = createRouter({
       name: "workflow-instances",
       component: WorkflowInstancesPage,
       meta: { requiresAuth: true, requiresPermission: "workflow:design" }
+    },
+    {
+      path: "/dynamic-tables",
+      name: "dynamic-tables",
+      component: DynamicTablesPage,
+      meta: { requiresAuth: true, requiresPermission: "system:admin" }
+    },
+    {
+      path: "/dynamic-tables/:tableKey",
+      name: "dynamic-table-crud",
+      component: DynamicTableCrudPage,
+      meta: { requiresAuth: true, requiresPermission: "system:admin" }
     },
     { path: "/visualization/center", name: "visualization-center", component: VisualizationCenterPage, meta: { requiresAuth: true } },
     { path: "/visualization/designer/:id?", name: "visualization-designer", component: VisualizationDesignerPage, meta: { requiresAuth: true } },

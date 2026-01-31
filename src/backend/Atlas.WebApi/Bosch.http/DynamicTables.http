@@ -1,0 +1,142 @@
+@baseUrl = http://localhost:5000
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+
+### Login to get token (Execute this first)
+# @name login
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+###
+@accessToken = {{login.response.body.$.data.accessToken}}
+
+### Get Anti-Forgery Token
+# @name antiforgery
+GET {{baseUrl}}/api/v1/secure/antiforgery
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+###
+@csrfToken = {{antiforgery.response.body.$.data.token}}
+
+### Create Dynamic Table
+POST {{baseUrl}}/api/v1/dynamic-tables
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$randomUUID}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "tableKey": "orders",
+  "displayName": "订单",
+  "description": "订单主表",
+  "dbType": "Sqlite",
+  "fields": [
+    {
+      "name": "id",
+      "displayName": "主键",
+      "fieldType": "Long",
+      "allowNull": false,
+      "isPrimaryKey": true,
+      "isAutoIncrement": true,
+      "isUnique": true,
+      "sortOrder": 0
+    },
+    {
+      "name": "orderNo",
+      "displayName": "订单号",
+      "fieldType": "String",
+      "length": 50,
+      "allowNull": false,
+      "isPrimaryKey": false,
+      "isAutoIncrement": false,
+      "isUnique": true,
+      "sortOrder": 1
+    },
+    {
+      "name": "amount",
+      "displayName": "金额",
+      "fieldType": "Decimal",
+      "precision": 18,
+      "scale": 2,
+      "allowNull": false,
+      "isPrimaryKey": false,
+      "isAutoIncrement": false,
+      "isUnique": false,
+      "sortOrder": 2
+    }
+  ],
+  "indexes": [
+    {
+      "name": "idx_orders_no",
+      "isUnique": true,
+      "fields": ["orderNo"]
+    }
+  ]
+}
+
+### List Dynamic Tables
+GET {{baseUrl}}/api/v1/dynamic-tables?pageIndex=1&pageSize=20&keyword=order
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### Get Dynamic Table Detail
+GET {{baseUrl}}/api/v1/dynamic-tables/orders
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### Create Record
+POST {{baseUrl}}/api/v1/dynamic-tables/orders/records
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$randomUUID}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "values": [
+    { "field": "orderNo", "valueType": "String", "stringValue": "SO-10001" },
+    { "field": "amount", "valueType": "Decimal", "decimalValue": 199.99 }
+  ]
+}
+
+### Query Records
+GET {{baseUrl}}/api/v1/dynamic-tables/orders/records?pageIndex=1&pageSize=20&keyword=SO
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### Update Record
+PUT {{baseUrl}}/api/v1/dynamic-tables/orders/records/1
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$randomUUID}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "values": [
+    { "field": "amount", "valueType": "Decimal", "decimalValue": 299.99 }
+  ]
+}
+
+### Delete Record
+DELETE {{baseUrl}}/api/v1/dynamic-tables/orders/records/1
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$randomUUID}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+### Delete Dynamic Table
+DELETE {{baseUrl}}/api/v1/dynamic-tables/orders
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$randomUUID}}
+X-CSRF-TOKEN: {{csrfToken}}

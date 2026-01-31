@@ -1,11 +1,11 @@
 {
   "key": "system.positions",
-  "title": "职位管理",
-  "description": "AMIS CRUD 管理职位、排序与状态",
+  "title": "\u804c\u4f4d\u7ba1\u7406",
+  "description": "AMIS CRUD \u7ba1\u7406\u804c\u4f4d\u3001\u6392\u5e8f\u4e0e\u72b6\u6001",
   "tableKey": "system.positions",
   "schema": {
     "type": "page",
-    "title": "职位管理",
+    "title": "\u804c\u4f4d\u7ba1\u7406",
     "body": [
       {
         "type": "crud",
@@ -18,34 +18,76 @@
           "adaptor": "const payloadData = payload?.data ?? { items: [], total: 0 }; return { status: 0, msg: payload?.message ?? 'OK', data: payloadData };"
         },
         "filter": [
-          { "type": "input-text", "name": "keyword", "label": "关键字", "placeholder": "名称/编码", "clearable": true }
+          {
+            "type": "input-text",
+            "name": "keyword",
+            "label": "\u5173\u952e\u5b57",
+            "placeholder": "\u540d\u79f0/\u7f16\u7801",
+            "clearable": true
+          }
         ],
         "headerToolbar": [
           {
             "type": "button",
-            "label": "新增职位",
+            "label": "\u65b0\u589e\u804c\u4f4d",
             "level": "primary",
             "actionType": "dialog",
             "dialog": {
-              "title": "新增职位",
-              "body": [
-                { "type": "input-text", "name": "name", "label": "名称", "required": true },
-                { "type": "input-text", "name": "code", "label": "编码", "required": true },
-                { "type": "textarea", "name": "description", "label": "描述", "rows": 3 },
-                { "type": "switch", "name": "isActive", "label": "启用", "trueValue": true, "falseValue": false },
-                { "type": "input-number", "name": "sortOrder", "label": "排序", "value": 0 }
-              ],
+              "title": "\u65b0\u589e\u804c\u4f4d",
+              "body": {
+                "type": "form",
+                "api": {
+                  "url": "/positions",
+                  "method": "post",
+                  "adaptor": "return { status: payload?.success ? 0 : 1, msg: payload?.message ?? '\u4fdd\u5b58\u5b8c\u6210', data: payload?.data };"
+                },
+                "body": [
+                  {
+                    "type": "input-text",
+                    "name": "name",
+                    "label": "\u540d\u79f0",
+                    "required": true
+                  },
+                  {
+                    "type": "input-text",
+                    "name": "code",
+                    "label": "\u7f16\u7801",
+                    "required": true
+                  },
+                  {
+                    "type": "textarea",
+                    "name": "description",
+                    "label": "\u63cf\u8ff0",
+                    "rows": 3
+                  },
+                  {
+                    "type": "switch",
+                    "name": "isActive",
+                    "label": "\u542f\u7528",
+                    "trueValue": true,
+                    "falseValue": false
+                  },
+                  {
+                    "type": "input-number",
+                    "name": "sortOrder",
+                    "label": "\u6392\u5e8f",
+                    "value": 0
+                  }
+                ],
+                "name": "system-positions-dialog-form-1"
+              },
               "actions": [
                 {
                   "type": "button",
-                  "label": "保存",
+                  "label": "\u53d6\u6d88",
+                  "actionType": "cancel"
+                },
+                {
+                  "type": "button",
+                  "label": "\u4fdd\u5b58",
                   "level": "primary",
-                  "actionType": "ajax",
-                  "api": {
-                    "url": "/positions",
-                    "method": "post",
-                    "adaptor": "return { status: payload?.success ? 0 : 1, msg: payload?.message ?? '保存完成', data: payload?.data };"
-                  }
+                  "actionType": "submit",
+                  "target": "system-positions-dialog-form-1"
                 }
               ]
             }
@@ -53,58 +95,107 @@
           "reload"
         ],
         "columns": [
-          { "name": "name", "label": "名称" },
-          { "name": "code", "label": "编码" },
-          { "name": "description", "label": "描述", "tpl": "<span>${description || '-'}</span>" },
+          {
+            "name": "name",
+            "label": "\u540d\u79f0"
+          },
+          {
+            "name": "code",
+            "label": "\u7f16\u7801"
+          },
+          {
+            "name": "description",
+            "label": "\u63cf\u8ff0",
+            "tpl": "<span>${description || '-'}</span>"
+          },
           {
             "name": "isActive",
-            "label": "状态",
+            "label": "\u72b6\u6001",
             "type": "tpl",
-            "tpl": "<span>${isActive ? '启用' : '停用'}</span>"
+            "tpl": "<span>${isActive ? '\u542f\u7528' : '\u505c\u7528'}</span>"
           },
-          { "name": "sortOrder", "label": "排序" },
+          {
+            "name": "sortOrder",
+            "label": "\u6392\u5e8f"
+          },
           {
             "type": "operation",
-            "label": "操作",
+            "label": "\u64cd\u4f5c",
             "buttons": [
               {
-                "label": "编辑",
+                "label": "\u7f16\u8f91",
                 "level": "link",
                 "actionType": "dialog",
                 "dialog": {
-                  "title": "编辑职位",
-                  "initApi": "/positions/${id}",
-                  "body": [
-                    { "type": "input-text", "name": "name", "label": "名称", "required": true },
-                    { "type": "input-text", "name": "code", "label": "编码", "required": true },
-                    { "type": "textarea", "name": "description", "label": "描述", "rows": 3 },
-                    { "type": "switch", "name": "isActive", "label": "启用", "trueValue": true, "falseValue": false },
-                    { "type": "input-number", "name": "sortOrder", "label": "排序", "value": 0 }
-                  ],
+                  "title": "\u7f16\u8f91\u804c\u4f4d",
+                  "body": {
+                    "type": "form",
+                    "api": {
+                      "url": "/positions/${id}",
+                      "method": "put",
+                      "adaptor": "return { status: payload?.success ? 0 : 1, msg: payload?.message ?? '\u66f4\u65b0\u5b8c\u6210' };"
+                    },
+                    "body": [
+                      {
+                        "type": "input-text",
+                        "name": "name",
+                        "label": "\u540d\u79f0",
+                        "required": true
+                      },
+                      {
+                        "type": "input-text",
+                        "name": "code",
+                        "label": "\u7f16\u7801",
+                        "required": true
+                      },
+                      {
+                        "type": "textarea",
+                        "name": "description",
+                        "label": "\u63cf\u8ff0",
+                        "rows": 3
+                      },
+                      {
+                        "type": "switch",
+                        "name": "isActive",
+                        "label": "\u542f\u7528",
+                        "trueValue": true,
+                        "falseValue": false
+                      },
+                      {
+                        "type": "input-number",
+                        "name": "sortOrder",
+                        "label": "\u6392\u5e8f",
+                        "value": 0
+                      }
+                    ],
+                    "initApi": "/positions/${id}",
+                    "name": "system-positions-dialog-form-2"
+                  },
                   "actions": [
                     {
                       "type": "button",
-                      "label": "保存",
+                      "label": "\u53d6\u6d88",
+                      "actionType": "cancel"
+                    },
+                    {
+                      "type": "button",
+                      "label": "\u4fdd\u5b58",
                       "level": "primary",
-                      "actionType": "ajax",
-                      "api": {
-                        "url": "/positions/${id}",
-                        "method": "put",
-                        "adaptor": "return { status: payload?.success ? 0 : 1, msg: payload?.message ?? '更新完成' };"
-                      }
+                      "actionType": "submit",
+                      "target": "system-positions-dialog-form-2"
                     }
                   ]
                 }
               },
               {
-                "label": "删除",
+                "label": "\u5220\u9664",
                 "level": "link",
                 "actionType": "ajax",
-                "confirmText": "确认删除该职位？",
+                "confirmText": "\u786e\u8ba4\u5220\u9664\u8be5\u804c\u4f4d\uff1f",
                 "api": {
                   "url": "/positions/${id}",
                   "method": "delete",
-                  "adaptor": "return { status: payload?.success ? 0 : 1, msg: payload?.message ?? '删除完成' };"
+                  "adaptor": "return { status: payload?.success ? 0 : 1, msg: payload?.message ?? '\u5220\u9664\u5b8c\u6210' };"
                 }
               }
             ]

@@ -802,6 +802,251 @@ JWT Claims（新增）：
 
 前端 `AmisRenderer` 组件会把 `schema` 直接传给 `render` 并依赖 `env.fetcher` 将请求透传到后端 `ApiResponse`，还会用 `notify`/`alert` 显示提示。
 
+## 动态表与低代码 CRUD 契约（草案）
+
+### 命名与校验规则
+
+- `tableKey`：`^[A-Za-z][A-Za-z0-9_]{1,63}$`，禁止保留字与系统表名。
+- `fieldName`：`^[A-Za-z][A-Za-z0-9_]{0,63}$`，禁止保留字与系统字段。
+- 不允许使用 `drop/alter/insert/update/delete` 等危险关键字作为名称。
+
+### 字段类型枚举
+
+- `Int`、`Long`、`Decimal`、`String`、`Text`、`Bool`、`DateTime`、`Date`
+- `Decimal` 需指定 `precision`/`scale`
+- `String` 需指定 `length`
+- 自增仅允许 `Int/Long` 且必须主键
+
+### 动态表接口
+
+- `GET /api/v1/dynamic-tables`：分页查询动态表
+- `GET /api/v1/dynamic-tables/{tableKey}`：动态表详情
+- `POST /api/v1/dynamic-tables`：新建动态表（需幂等 + CSRF）
+- `PUT /api/v1/dynamic-tables/{tableKey}`：更新表元数据（需幂等 + CSRF）
+- `POST /api/v1/dynamic-tables/{tableKey}/schema/alter`：变更字段（需幂等 + CSRF）
+- `DELETE /api/v1/dynamic-tables/{tableKey}`：删除动态表（需幂等 + CSRF）
+
+### dbType 枚举
+
+- `Sqlite`、`SqlServer`、`MySql`、`PostgreSql`
+
+### 字段元数据接口
+
+- `GET /api/v1/dynamic-tables/{tableKey}/fields`：字段列表
+- `GET /api/v1/dynamic/meta/field-types?dbType=Sqlite`：字段类型枚举（用于前端联动）
+
+### 记录 CRUD 接口
+
+- `GET /api/v1/dynamic-tables/{tableKey}/records`：分页查询记录（支持 `includeColumns=true`）
+- `GET /api/v1/dynamic-tables/{tableKey}/records/{id}`：单条记录
+- `POST /api/v1/dynamic-tables/{tableKey}/records`：新增记录（需幂等 + CSRF）
+- `PUT /api/v1/dynamic-tables/{tableKey}/records/{id}`：更新记录（需幂等 + CSRF）
+- `DELETE /api/v1/dynamic-tables/{tableKey}/records/{id}`：删除记录（需幂等 + CSRF）
+- `POST /api/v1/dynamic-tables/{tableKey}/records/query`：复杂筛选（需幂等 + CSRF）
+- `POST /api/v1/dynamic-tables/{tableKey}/records/batch`：批量新增（需幂等 + CSRF）
+- `DELETE /api/v1/dynamic-tables/{tableKey}/records`：批量删除（需幂等 + CSRF）
+
+### AMIS Schema 接口
+
+- `GET /api/v1/amis/dynamic-tables/designer`：表结构设计器 Schema
+- `GET /api/v1/amis/dynamic-tables/{tableKey}/crud`：动态 CRUD Schema
+- `GET /api/v1/amis/dynamic-tables/{tableKey}/forms/create`：新建表单 Schema
+- `GET /api/v1/amis/dynamic-tables/{tableKey}/forms/edit?id=1001`：编辑表单 Schema
+
+### DynamicTableSummary
+
+```json
+{
+  "id": "1001",
+  "tableKey": "orders",
+  "displayName": "订单",
+  "description": "订单主表",
+  "dbType": "Sqlite",
+  "status": "Active",
+  "createdAt": "2026-01-31T10:00:00Z",
+  "createdBy": "10001"
+}
+```
+
+### TableCreateRequest
+
+```json
+{
+  "tableKey": "orders",
+  "displayName": "订单",
+  "description": "订单主表",
+  "dbType": "Sqlite",
+  "fields": [
+    {
+      "name": "id",
+      "displayName": "主键",
+      "fieldType": "Long",
+      "isPrimaryKey": true,
+      "isAutoIncrement": true,
+      "allowNull": false
+    },
+    {
+      "name": "orderNo",
+      "displayName": "订单号",
+      "fieldType": "String",
+      "length": 50,
+      "isUnique": true,
+      "allowNull": false
+    },
+    {
+      "name": "amount",
+      "displayName": "金额",
+      "fieldType": "Decimal",
+      "precision": 18,
+      "scale": 2,
+      "allowNull": false
+    }
+  ],
+  "indexes": [
+    {
+      "name": "idx_orders_no",
+      "isUnique": true,
+      "fields": ["orderNo"]
+    }
+  ]
+}
+```
+
+### TableAlterRequest
+
+```json
+{
+  "addFields": [
+    { "name": "remark", "displayName": "备注", "fieldType": "String", "length": 200, "allowNull": true }
+  ],
+  "updateFields": [
+    { "name": "amount", "displayName": "金额", "precision": 18, "scale": 4 }
+  ],
+  "removeFields": ["legacyField"]
+}
+```
+
+### FieldDefinition
+
+```json
+{
+  "name": "orderNo",
+  "displayName": "订单号",
+  "fieldType": "String",
+  "length": 50,
+  "precision": 18,
+  "scale": 2,
+  "allowNull": false,
+  "isPrimaryKey": false,
+  "isAutoIncrement": false,
+  "isUnique": true,
+  "defaultValue": null,
+  "validation": {
+    "regex": "^[A-Za-z0-9_-]+$",
+    "minLength": 1,
+    "maxLength": 50
+  }
+}
+```
+
+### FieldValueDto
+
+```json
+{
+  "field": "amount",
+  "valueType": "Decimal",
+  "decimalValue": 199.99
+}
+```
+
+约束：仅允许填写一个具体值字段（`stringValue/intValue/longValue/decimalValue/boolValue/dateTimeValue/dateValue`）。
+
+### DynamicRecordUpsertRequest
+
+```json
+{
+  "values": [
+    { "field": "orderNo", "valueType": "String", "stringValue": "SO-10001" },
+    { "field": "amount", "valueType": "Decimal", "decimalValue": 199.99 },
+    { "field": "createdAt", "valueType": "DateTime", "dateTimeValue": "2026-01-31T10:00:00Z" }
+  ]
+}
+```
+
+### DynamicRecordDto
+
+```json
+{
+  "id": "1001",
+  "values": [
+    { "field": "orderNo", "valueType": "String", "stringValue": "SO-10001" },
+    { "field": "amount", "valueType": "Decimal", "decimalValue": 199.99 }
+  ]
+}
+```
+
+### DynamicRecordQueryRequest
+
+```json
+{
+  "pageIndex": 1,
+  "pageSize": 20,
+  "keyword": "SO-10001",
+  "sortBy": "createdAt",
+  "sortDesc": true,
+  "filters": [
+    { "field": "amount", "operator": "gte", "value": 100 },
+    { "field": "status", "operator": "eq", "value": "Paid" }
+  ]
+}
+```
+
+### FilterOperator
+
+- `eq`、`ne`、`gt`、`gte`、`lt`、`lte`、`like`、`in`、`between`
+
+### DynamicColumnDef（AMIS 列配置）
+
+```json
+{
+  "name": "orderNo",
+  "label": "订单号",
+  "type": "text",
+  "sortable": true,
+  "quickEdit": false,
+  "searchable": true
+}
+```
+
+### 动态列表响应（支持列定义）
+
+当 `includeColumns=true` 时，响应数据附带 `columns` 供 AMIS 渲染。
+
+```json
+{
+  "items": [
+    {
+      "id": "1001",
+      "values": [
+        { "field": "orderNo", "valueType": "String", "stringValue": "SO-10001" }
+      ]
+    }
+  ],
+  "total": 1,
+  "pageIndex": 1,
+  "pageSize": 20,
+  "columns": [
+    { "name": "orderNo", "label": "订单号", "type": "text", "sortable": true }
+  ]
+}
+```
+
+### AMIS 模板引用
+
+- `docs/amis-templates/dynamic-table-list.json`：动态表列表
+- `docs/amis-templates/dynamic-table-designer.json`：表结构设计器
+- `docs/amis-templates/dynamic-table-crud.json`：动态 CRUD 页面
+
 ## 用户/部门/职位管理契约
 
 ## 用户/部门/职位管理契约

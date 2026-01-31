@@ -4,6 +4,8 @@ using Atlas.Application.Alert.Abstractions;
 using Atlas.Application.Assets.Abstractions;
 using Atlas.Application.Assets.Repositories;
 using Atlas.Application.Audit.Abstractions;
+using Atlas.Application.DynamicTables.Abstractions;
+using Atlas.Application.DynamicTables.Repositories;
 using Atlas.Application.Identity.Abstractions;
 using Atlas.Application.Identity.Repositories;
 using Atlas.Application.TableViews.Abstractions;
@@ -99,6 +101,14 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ITableViewQueryService, TableViewQueryService>();
         services.AddScoped<ITableViewCommandService, TableViewCommandService>();
         services.AddSingleton<IAmisSchemaProvider, Atlas.Infrastructure.Services.Amis.FileSystemAmisSchemaProvider>();
+        services.AddScoped<IDynamicTableRepository, DynamicTableRepository>();
+        services.AddScoped<IDynamicFieldRepository, DynamicFieldRepository>();
+        services.AddScoped<IDynamicIndexRepository, DynamicIndexRepository>();
+        services.AddScoped<IDynamicRecordRepository, DynamicRecordRepository>();
+        services.AddScoped<IDynamicTableQueryService, DynamicTableQueryService>();
+        services.AddScoped<IDynamicTableCommandService, DynamicTableCommandService>();
+        services.AddScoped<IDynamicRecordQueryService, DynamicRecordQueryService>();
+        services.AddScoped<IDynamicRecordCommandService, DynamicRecordCommandService>();
         
         // Approval Workflow Services
         services.AddScoped<Atlas.Application.Approval.Repositories.IApprovalFlowRepository, ApprovalFlowRepository>();

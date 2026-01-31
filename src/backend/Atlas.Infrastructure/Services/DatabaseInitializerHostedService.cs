@@ -10,6 +10,7 @@ using Atlas.Domain.Alert.Entities;
 using Atlas.Domain.Approval.Entities;
 using Atlas.Domain.Assets.Entities;
 using Atlas.Domain.Audit.Entities;
+using Atlas.Domain.DynamicTables.Entities;
 using Atlas.Domain.Identity.Entities;
 using Atlas.Domain.Workflow.Entities;
 using Atlas.Infrastructure.Options;
@@ -99,6 +100,9 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             typeof(ApprovalTimeoutReminder),
             typeof(ApprovalExternalCallbackRecord),
             typeof(ApprovalParallelToken),
+            typeof(DynamicTable),
+            typeof(DynamicField),
+            typeof(DynamicIndex),
             // Workflow entities
             typeof(PersistedWorkflow),
             typeof(PersistedExecutionPointer),
