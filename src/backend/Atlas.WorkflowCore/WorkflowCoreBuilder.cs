@@ -5,6 +5,7 @@ using Atlas.WorkflowCore.Services.DefaultProviders;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.ObjectPool;
+using Microsoft.Extensions.Options;
 
 namespace Atlas.WorkflowCore;
 
@@ -97,5 +98,6 @@ public class WorkflowCoreBuilder
         };
         _configureOptions?.Invoke(options);
         _services.AddSingleton(options);
+        _services.AddSingleton<IOptions<WorkflowOptions>>(sp => Options.Create(options));
     }
 }
