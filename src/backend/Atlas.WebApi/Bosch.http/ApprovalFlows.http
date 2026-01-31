@@ -43,7 +43,7 @@ Content-Type: application/json
 }
 
 ### 发布流程定义
-POST {{baseUrl}}/api/v1/approval/flows/{flowId}/publish
+POST {{baseUrl}}/api/v1/approval/flows/{flowId}/publication
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
@@ -51,7 +51,7 @@ Content-Type: application/json
 {}
 
 ### 禁用流程定义
-POST {{baseUrl}}/api/v1/approval/flows/{flowId}/disable
+POST {{baseUrl}}/api/v1/approval/flows/{flowId}/deactivation
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json

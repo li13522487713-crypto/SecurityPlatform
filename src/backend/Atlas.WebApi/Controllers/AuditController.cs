@@ -10,7 +10,7 @@ using Atlas.WebApi.Authorization;
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
-[Route("api/audit")]
+[Route("api/v1/audit")]
 public sealed class AuditController : ControllerBase
 {
     private readonly IAuditQueryService _auditQueryService;

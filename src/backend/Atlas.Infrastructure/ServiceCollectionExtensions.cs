@@ -5,6 +5,8 @@ using Atlas.Application.Assets.Repositories;
 using Atlas.Application.Audit.Abstractions;
 using Atlas.Application.Identity.Abstractions;
 using Atlas.Application.Identity.Repositories;
+using Atlas.Application.TableViews.Abstractions;
+using Atlas.Application.TableViews.Repositories;
 using Atlas.Application.Visualization.Abstractions;
 using Atlas.Application.Workflow.Abstractions;
 using Atlas.Core.Abstractions;
@@ -67,6 +69,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IUserPositionRepository, UserPositionRepository>();
         services.AddScoped<IUserHierarchyQueryRepository, UserHierarchyQueryRepository>();
         services.AddScoped<IPasswordHistoryRepository, PasswordHistoryRepository>();
+        services.AddScoped<ITableViewRepository, TableViewRepository>();
+        services.AddScoped<ITableViewDefaultRepository, TableViewDefaultRepository>();
+        services.AddScoped<ITableViewDefaultConfigProvider, TableViewDefaultConfigProvider>();
         services.AddScoped<IAssetRepository, AssetRepository>();
         services.AddScoped<IAssetQueryService, AssetQueryService>();
         services.AddScoped<IAssetCommandService, AssetCommandService>();
@@ -90,6 +95,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAppConfigCommandService, AppConfigCommandService>();
         services.AddScoped<IProjectQueryService, ProjectQueryService>();
         services.AddScoped<IProjectCommandService, ProjectCommandService>();
+        services.AddScoped<ITableViewQueryService, TableViewQueryService>();
+        services.AddScoped<ITableViewCommandService, TableViewCommandService>();
         
         // Approval Workflow Services
         services.AddScoped<Atlas.Application.Approval.Repositories.IApprovalFlowRepository, ApprovalFlowRepository>();
@@ -201,6 +208,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ApprovalSeedDataService>();
         services.AddScoped<ApprovalIndexInitializer>();
         services.AddScoped<IdempotencyIndexInitializer>();
+        services.AddScoped<TableViewIndexInitializer>();
         
         // Workflow Persistence
         services.AddScoped<IPersistenceProvider, SqlSugarPersistenceProvider>();

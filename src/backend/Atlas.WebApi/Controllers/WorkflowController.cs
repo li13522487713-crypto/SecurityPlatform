@@ -10,7 +10,7 @@ namespace Atlas.WebApi.Controllers;
 /// 工作流管理控制器
 /// </summary>
 [ApiController]
-[Route("api/workflows")]
+[Route("api/v1/workflows")]
 [Authorize]
 public sealed class WorkflowController : ControllerBase
 {

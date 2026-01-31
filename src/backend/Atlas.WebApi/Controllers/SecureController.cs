@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
-[Route("api/secure")]
+[Route("api/v1/secure")]
 public sealed class SecureController : ControllerBase
 {
     private readonly ITenantProvider _tenantProvider;

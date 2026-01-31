@@ -50,12 +50,15 @@ import type {
   RoleUpdateRequest,
   RoleAssignPermissionsRequest,
   RoleAssignMenusRequest,
+  RoleQueryRequest,
   PermissionListItem,
   PermissionCreateRequest,
   PermissionUpdateRequest,
+  PermissionQueryRequest,
   MenuListItem,
   MenuCreateRequest,
   MenuUpdateRequest,
+  MenuQueryRequest,
   PositionListItem,
   PositionDetail,
   PositionCreateRequest,
@@ -69,7 +72,14 @@ import type {
   ProjectUpdateRequest,
   ProjectAssignUsersRequest,
   ProjectAssignDepartmentsRequest,
-  ProjectAssignPositionsRequest
+  ProjectAssignPositionsRequest,
+  TableViewConfig,
+  TableViewListItem,
+  TableViewDetail,
+  TableViewCreateRequest,
+  TableViewUpdateRequest,
+  TableViewConfigUpdateRequest,
+  TableViewDuplicateRequest
 } from "@/types/api";
 import type {
   FlowDefinition,
@@ -353,8 +363,10 @@ export async function deleteDepartment(id: string) {
   }
 }
 
-export async function getRolesPaged(pagedRequest: PagedRequest) {
-  const query = toQuery(pagedRequest);
+export async function getRolesPaged(pagedRequest: RoleQueryRequest) {
+  const query = toQuery(pagedRequest, {
+    isSystem: typeof pagedRequest.isSystem === "boolean" ? String(pagedRequest.isSystem) : undefined
+  });
   const response = await requestApi<ApiResponse<PagedResult<RoleListItem>>>(`/roles?${query}`);
   if (!response.data) {
     throw new Error(response.message || "查询失败");
@@ -425,8 +437,10 @@ export async function updateRoleMenus(id: string, request: RoleAssignMenusReques
   }
 }
 
-export async function getPermissionsPaged(pagedRequest: PagedRequest) {
-  const query = toQuery(pagedRequest);
+export async function getPermissionsPaged(pagedRequest: PermissionQueryRequest) {
+  const query = toQuery(pagedRequest, {
+    type: pagedRequest.type
+  });
   const response = await requestApi<ApiResponse<PagedResult<PermissionListItem>>>(`/permissions?${query}`);
   if (!response.data) {
     throw new Error(response.message || "查询失败");
@@ -457,8 +471,10 @@ export async function updatePermission(id: string, request: PermissionUpdateRequ
   }
 }
 
-export async function getMenusPaged(pagedRequest: PagedRequest) {
-  const query = toQuery(pagedRequest);
+export async function getMenusPaged(pagedRequest: MenuQueryRequest) {
+  const query = toQuery(pagedRequest, {
+    isHidden: typeof pagedRequest.isHidden === "boolean" ? String(pagedRequest.isHidden) : undefined
+  });
   const response = await requestApi<ApiResponse<PagedResult<MenuListItem>>>(`/menus?${query}`);
   if (!response.data) {
     throw new Error(response.message || "查询失败");
@@ -567,7 +583,7 @@ export async function getAlertsPaged(pagedRequest: PagedRequest) {
   return response.data;
 }
 
-function toQuery(pagedRequest: PagedRequest) {
+function toQuery(pagedRequest: PagedRequest, extra?: Record<string, string | undefined>) {
   const query = new URLSearchParams({
     pageIndex: pagedRequest.pageIndex.toString(),
     pageSize: pagedRequest.pageSize.toString(),
@@ -576,7 +592,27 @@ function toQuery(pagedRequest: PagedRequest) {
     sortDesc: pagedRequest.sortDesc ? "true" : "false"
   });
 
+  if (extra) {
+    Object.entries(extra).forEach(([key, value]) => {
+      if (value) {
+        query.set(key, value);
+      }
+    });
+  }
+
   return query.toString();
+}
+
+function toApprovalFlowRequest(req: FlowSaveRequest): ApprovalFlowDefinitionCreateRequest {
+  return {
+    name: req.definition.name || req.definition.code || "未命名流程",
+    definitionJson: JSON.stringify(req.definition),
+    description: req.definition.remark || undefined
+  };
+}
+
+function parseFlowDefinition(definitionJson: string): FlowDefinition {
+  return JSON.parse(definitionJson) as FlowDefinition;
 }
 
 // 审批流 API
@@ -633,7 +669,7 @@ export async function deleteApprovalFlow(id: string) {
 }
 
 export async function publishApprovalFlow(id: string, request?: ApprovalFlowPublishRequest) {
-  const response = await requestApi<ApiResponse<void>>(`/approval/flows/${id}/publish`, {
+  const response = await requestApi<ApiResponse<void>>(`/approval/flows/${id}/publication`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(request || {})
@@ -644,7 +680,7 @@ export async function publishApprovalFlow(id: string, request?: ApprovalFlowPubl
 }
 
 export async function disableApprovalFlow(id: string) {
-  const response = await requestApi<ApiResponse<void>>(`/approval/flows/${id}/disable`, {
+  const response = await requestApi<ApiResponse<void>>(`/approval/flows/${id}/deactivation`, {
     method: "POST"
   });
   if (!response.success) {
@@ -698,7 +734,7 @@ export async function getApprovalInstanceHistory(id: string, pagedRequest: Paged
 }
 
 export async function cancelApprovalInstance(id: string) {
-  const response = await requestApi<ApiResponse<void>>(`/approval/instances/${id}/cancel`, {
+  const response = await requestApi<ApiResponse<void>>(`/approval/instances/${id}/cancellation`, {
     method: "POST"
   });
   if (!response.success) {
@@ -723,7 +759,7 @@ export async function getMyTasksPaged(pagedRequest: PagedRequest, status?: numbe
 export async function getApprovalTasksByInstance(instanceId: string, pagedRequest: PagedRequest) {
   const query = toQuery(pagedRequest);
   const response = await requestApi<ApiResponse<PagedResult<ApprovalTaskResponse>>>(
-    `/approval/tasks/instance/${instanceId}?${query}`
+    `/approval/instances/${instanceId}/tasks?${query}`
   );
   if (!response.data) {
     throw new Error(response.message || "查询失败");
@@ -732,7 +768,7 @@ export async function getApprovalTasksByInstance(instanceId: string, pagedReques
 }
 
 export async function decideApprovalTask(request: ApprovalTaskDecideRequest) {
-  const response = await requestApi<ApiResponse<void>>("/approval/tasks/decide", {
+  const response = await requestApi<ApiResponse<void>>(`/approval/tasks/${request.taskId}/decision`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(request)
@@ -900,7 +936,7 @@ export async function validateVisualizationProcess(
   request: ValidateVisualizationRequest
 ): Promise<VisualizationValidationResult> {
   const response = await requestApi<ApiResponse<VisualizationValidationResult>>(
-    "/visualization/processes/validate",
+    "/visualization/processes/validation",
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -917,7 +953,7 @@ export async function publishVisualizationProcess(
   request: PublishVisualizationRequest
 ): Promise<VisualizationPublishResult> {
   const response = await requestApi<ApiResponse<VisualizationPublishResult>>(
-    "/visualization/processes/publish",
+    `/visualization/processes/${request.processId}/publication`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1004,38 +1040,40 @@ export async function getVisualizationAudit(
 
 // ---------- Workflow Designer (Visualization) ----------
 export async function loadFlowDefinition(id: string): Promise<FlowDefinition> {
-  const response = await requestApi<ApiResponse<FlowLoadResponse>>(`/approval/flows/${id}`);
-  if (!response.data?.definition) {
+  const response = await requestApi<ApiResponse<ApprovalFlowDefinitionResponse>>(`/approval/flows/${id}`);
+  if (!response.data?.definitionJson) {
     throw new Error(response.message || "加载流程失败");
   }
-  return response.data.definition;
+  return parseFlowDefinition(response.data.definitionJson);
 }
 
 export async function saveFlowDefinition(req: FlowSaveRequest): Promise<FlowSaveResponse> {
-  const response = await requestApi<ApiResponse<FlowSaveResponse>>("/approval/flows", {
+  const payload = toApprovalFlowRequest(req);
+  const response = await requestApi<ApiResponse<ApprovalFlowDefinitionResponse>>("/approval/flows", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(req)
+    body: JSON.stringify(payload)
   });
   if (!response.data) {
     throw new Error(response.message || "保存流程失败");
   }
-  return response.data;
+  return { id: response.data.id, version: response.data.version };
 }
 
 export async function updateFlowDefinition(id: string, req: FlowSaveRequest): Promise<void> {
-  const response = await requestApi<ApiResponse<{ success: boolean }>>(`/approval/flows/${id}`, {
+  const payload = toApprovalFlowRequest(req);
+  const response = await requestApi<ApiResponse<ApprovalFlowDefinitionResponse>>(`/approval/flows/${id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(req)
+    body: JSON.stringify(payload)
   });
-  if (!response.success) {
+  if (!response.data) {
     throw new Error(response.message || "更新流程失败");
   }
 }
 
 export async function publishFlowDefinition(id: string): Promise<FlowPublishResponse> {
-  const response = await requestApi<ApiResponse<FlowPublishResponse>>(`/approval/flows/${id}/publish`, {
+  const response = await requestApi<ApiResponse<FlowPublishResponse>>(`/approval/flows/${id}/publication`, {
     method: "POST"
   });
   if (!response.data) {
@@ -1045,10 +1083,11 @@ export async function publishFlowDefinition(id: string): Promise<FlowPublishResp
 }
 
 export async function validateFlowDefinition(req: FlowSaveRequest): Promise<FlowValidationResult> {
-  const response = await requestApi<ApiResponse<FlowValidationResult>>("/approval/flows/validate", {
+  const payload = toApprovalFlowRequest(req);
+  const response = await requestApi<ApiResponse<FlowValidationResult>>("/approval/flows/validation", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(req)
+    body: JSON.stringify(payload)
   });
   if (!response.data) {
     throw new Error(response.message || "校验失败");
@@ -1187,6 +1226,103 @@ export async function getMyProjects() {
     throw new Error(response.message || "查询失败");
   }
   return response.data;
+}
+
+// ---------- Table Views (Personal) ----------
+export async function getTableViewsPaged(tableKey: string, pagedRequest: PagedRequest) {
+  const queryParams = new URLSearchParams(toQuery(pagedRequest));
+  queryParams.append("tableKey", tableKey);
+  const response = await requestApi<ApiResponse<PagedResult<TableViewListItem>>>(`/table-views?${queryParams}`);
+  if (!response.data) {
+    throw new Error(response.message || "查询失败");
+  }
+  return response.data;
+}
+
+export async function getDefaultTableView(tableKey: string): Promise<TableViewDetail | null> {
+  const response = await requestApi<ApiResponse<TableViewDetail | null>>(
+    `/table-views/default?tableKey=${encodeURIComponent(tableKey)}`
+  );
+  return response.data ?? null;
+}
+
+export async function getDefaultTableViewConfig(tableKey: string): Promise<TableViewConfig | null> {
+  const response = await requestApi<ApiResponse<TableViewConfig | null>>(
+    `/table-views/default-config?tableKey=${encodeURIComponent(tableKey)}`
+  );
+  return response.data ?? null;
+}
+
+export async function getTableViewDetail(id: string): Promise<TableViewDetail> {
+  const response = await requestApi<ApiResponse<TableViewDetail>>(`/table-views/${id}`);
+  if (!response.data) {
+    throw new Error(response.message || "查询失败");
+  }
+  return response.data;
+}
+
+export async function createTableView(request: TableViewCreateRequest): Promise<{ id: string }> {
+  const response = await requestApi<ApiResponse<{ id: string }>>("/table-views", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request)
+  });
+  if (!response.data) {
+    throw new Error(response.message || "创建失败");
+  }
+  return response.data;
+}
+
+export async function updateTableView(id: string, request: TableViewUpdateRequest): Promise<void> {
+  const response = await requestApi<ApiResponse<{ id: string }>>(`/table-views/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request)
+  });
+  if (!response.success) {
+    throw new Error(response.message || "更新失败");
+  }
+}
+
+export async function updateTableViewConfig(id: string, request: TableViewConfigUpdateRequest): Promise<void> {
+  const response = await requestApi<ApiResponse<{ id: string }>>(`/table-views/${id}/config`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request)
+  });
+  if (!response.success) {
+    throw new Error(response.message || "更新失败");
+  }
+}
+
+export async function duplicateTableView(id: string, request: TableViewDuplicateRequest): Promise<{ id: string }> {
+  const response = await requestApi<ApiResponse<{ id: string }>>(`/table-views/${id}/duplicate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request)
+  });
+  if (!response.data) {
+    throw new Error(response.message || "复制失败");
+  }
+  return response.data;
+}
+
+export async function setDefaultTableView(id: string): Promise<void> {
+  const response = await requestApi<ApiResponse<{ id: string }>>(`/table-views/${id}/set-default`, {
+    method: "POST"
+  });
+  if (!response.success) {
+    throw new Error(response.message || "设置失败");
+  }
+}
+
+export async function deleteTableView(id: string): Promise<void> {
+  const response = await requestApi<ApiResponse<{ id: string }>>(`/table-views/${id}`, {
+    method: "DELETE"
+  });
+  if (!response.success) {
+    throw new Error(response.message || "删除失败");
+  }
 }
 
 async function requestApi<T>(path: string, init?: RequestInit, options?: RequestOptions): Promise<T> {

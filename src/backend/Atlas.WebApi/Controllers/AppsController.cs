@@ -11,7 +11,7 @@ using Atlas.WebApi.Authorization;
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
-[Route("api/apps")]
+[Route("api/v1/apps")]
 public sealed class AppsController : ControllerBase
 {
     private readonly IAppConfigQueryService _queryService;

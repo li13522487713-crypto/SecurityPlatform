@@ -11,7 +11,7 @@ using Atlas.WebApi.Authorization;
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
-[Route("api/positions")]
+[Route("api/v1/positions")]
 public sealed class PositionsController : ControllerBase
 {
     private readonly IPositionQueryService _positionQueryService;

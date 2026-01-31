@@ -18,7 +18,7 @@ X-Tenant-Id: {{tenantId}}
 @accessToken = {{login.response.body.$.data.accessToken}}
 
 ### Get Menus (Paged)
-GET {{baseUrl}}/api/v1/menus?pageIndex=1&pageSize=10
+GET {{baseUrl}}/api/v1/menus?pageIndex=1&pageSize=10&isHidden=false
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 

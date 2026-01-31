@@ -33,10 +33,20 @@ body {
   padding: 0 24px;
   background: #ffffff;
   border-bottom: 1px solid #eef0f5;
+  color: #1f2937;
 }
 
 .app-content {
   padding: 24px;
+}
+
+.app-header .ant-btn,
+.app-header .ant-btn-text {
+  color: #1f2937;
+}
+
+.app-header .ant-input {
+  background-color: #f8fafc;
 }
 
 .page-card {

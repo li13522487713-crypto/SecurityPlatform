@@ -1,5 +1,15 @@
 <template>
   <a-card title="我的待办" class="page-card">
+    <div class="toolbar">
+      <a-space>
+        <a-select
+          v-model:value="statusFilter"
+          style="width: 140px"
+          :options="statusOptions"
+        />
+        <a-button @click="fetchData">刷新</a-button>
+      </a-space>
+    </div>
     <a-table
       :columns="columns"
       :data-source="dataSource"
@@ -57,7 +67,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from "vue";
+import { onMounted, reactive, ref, watch } from "vue";
 import { getMyTasksPaged, decideApprovalTask } from "@/services/api";
 import type { TablePaginationConfig } from "ant-design-vue";
 import { ApprovalTaskStatus, type ApprovalTaskResponse } from "@/types/api";
@@ -73,6 +83,14 @@ const columns = [
 
 const dataSource = ref<ApprovalTaskResponse[]>([]);
 const loading = ref(false);
+const statusFilter = ref<ApprovalTaskStatus | "all">(ApprovalTaskStatus.Pending);
+const statusOptions = [
+  { label: "全部", value: "all" },
+  { label: "待审批", value: ApprovalTaskStatus.Pending },
+  { label: "已同意", value: ApprovalTaskStatus.Approved },
+  { label: "已驳回", value: ApprovalTaskStatus.Rejected },
+  { label: "已取消", value: ApprovalTaskStatus.Canceled }
+];
 const pagination = reactive<TablePaginationConfig>({
   current: 1,
   pageSize: 10,
@@ -88,10 +106,11 @@ const decideForm = ref({ comment: "" });
 const fetchData = async () => {
   loading.value = true;
   try {
+    const statusValue = statusFilter.value === "all" ? undefined : statusFilter.value;
     const result = await getMyTasksPaged({
       pageIndex: pagination.current ?? 1,
       pageSize: pagination.pageSize ?? 10
-    }, ApprovalTaskStatus.Pending);
+    }, statusValue);
     dataSource.value = result.items;
     pagination.total = result.total;
   } catch (err) {
@@ -178,4 +197,15 @@ const handleModalCancel = () => {
 };
 
 onMounted(fetchData);
+
+watch(statusFilter, () => {
+  pagination.current = 1;
+  fetchData();
+});
 </script>
+
+<style scoped>
+.toolbar {
+  margin-bottom: 16px;
+}
+</style>

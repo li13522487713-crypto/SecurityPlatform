@@ -10,13 +10,15 @@
         />
         <a-button v-if="canCreate" type="primary" @click="openCreate">新增职位</a-button>
       </a-space>
+      <TableViewToolbar :controller="tableViewController" />
     </div>
 
     <a-table
-      :columns="columns"
+      :columns="tableColumns"
       :data-source="dataSource"
       :pagination="pagination"
       :loading="loading"
+      :size="tableSize"
       row-key="id"
       @change="onTableChange"
     >
@@ -48,11 +50,12 @@
       </template>
     </a-table>
 
-    <a-modal
+    <a-drawer
       v-model:open="formVisible"
       :title="formMode === 'create' ? '新增职位' : '编辑职位'"
-      @ok="submitForm"
-      @cancel="closeForm"
+      placement="right"
+      width="520"
+      @close="closeForm"
       destroy-on-close
     >
       <a-form ref="formRef" :model="formModel" :rules="formRules" layout="vertical">
@@ -72,7 +75,13 @@
           <a-input-number v-model:value="formModel.sortOrder" :min="0" style="width: 100%" />
         </a-form-item>
       </a-form>
-    </a-modal>
+      <template #footer>
+        <a-space>
+          <a-button @click="closeForm">取消</a-button>
+          <a-button type="primary" @click="submitForm">保存</a-button>
+        </a-space>
+      </template>
+    </a-drawer>
   </a-card>
 </template>
 
@@ -81,6 +90,8 @@ import { onMounted, reactive, ref } from "vue";
 import type { TablePaginationConfig, FormInstance } from "ant-design-vue";
 import type { Rule } from "ant-design-vue/es/form";
 import { message } from "ant-design-vue";
+import TableViewToolbar from "@/components/table/table-view-toolbar.vue";
+import { useTableView } from "@/composables/useTableView";
 import {
   createPosition,
   deletePosition,
@@ -93,14 +104,14 @@ import { getAuthProfile, hasPermission } from "@/utils/auth";
 
 type FormMode = "create" | "edit";
 
-const columns = [
-  { title: "职位名称", dataIndex: "name" },
-  { title: "编码", dataIndex: "code" },
-  { title: "描述", dataIndex: "description" },
+const baseColumns = [
+  { title: "职位名称", dataIndex: "name", key: "name" },
+  { title: "编码", dataIndex: "code", key: "code" },
+  { title: "描述", dataIndex: "description", key: "description" },
   { title: "状态", key: "status" },
   { title: "类型", key: "system" },
-  { title: "排序", dataIndex: "sortOrder" },
-  { title: "操作", key: "actions" }
+  { title: "排序", dataIndex: "sortOrder", key: "sortOrder" },
+  { title: "操作", key: "actions", view: { canHide: false } }
 ];
 
 const dataSource = ref<PositionListItem[]>([]);
@@ -151,6 +162,13 @@ const fetchData = async () => {
     loading.value = false;
   }
 };
+
+const { controller: tableViewController, tableColumns, tableSize } = useTableView<PositionListItem>({
+  tableKey: "system.positions",
+  columns: baseColumns,
+  pagination,
+  onRefresh: fetchData
+});
 
 const onTableChange = (pager: TablePaginationConfig) => {
   pagination.current = pager.current;
@@ -239,5 +257,9 @@ onMounted(fetchData);
 <style scoped>
 .toolbar {
   margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 </style>

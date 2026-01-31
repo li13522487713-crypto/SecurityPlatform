@@ -29,15 +29,23 @@ public sealed class PermissionRepository : IPermissionRepository
     }
 
     public async Task<(IReadOnlyList<Permission> Items, int TotalCount)> QueryPageAsync(
+        TenantId tenantId,
         int pageIndex,
         int pageSize,
         string? keyword,
+        string? type,
         CancellationToken cancellationToken)
     {
-        var query = _db.Queryable<Permission>();
+        var query = _db.Queryable<Permission>()
+            .Where(x => x.TenantIdValue == tenantId.Value);
         if (!string.IsNullOrWhiteSpace(keyword))
         {
             query = query.Where(x => x.Name.Contains(keyword) || x.Code.Contains(keyword));
+        }
+        if (!string.IsNullOrWhiteSpace(type))
+        {
+            var normalized = type.Trim();
+            query = query.Where(x => x.Type == normalized);
         }
 
         var totalCount = await query.CountAsync(cancellationToken);

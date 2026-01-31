@@ -7,7 +7,7 @@ namespace Atlas.Application.Identity.Abstractions;
 public interface IMenuQueryService
 {
     Task<PagedResult<MenuListItem>> QueryMenusAsync(
-        PagedRequest request,
+        MenuQueryRequest request,
         TenantId tenantId,
         CancellationToken cancellationToken);
 

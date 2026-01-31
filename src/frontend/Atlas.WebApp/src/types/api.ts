@@ -50,11 +50,137 @@ export interface PagedRequest {
   sortDesc?: boolean;
 }
 
+export interface RoleQueryRequest extends PagedRequest {
+  isSystem?: boolean;
+}
+
+export interface PermissionQueryRequest extends PagedRequest {
+  type?: string;
+}
+
+export interface MenuQueryRequest extends PagedRequest {
+  isHidden?: boolean;
+}
+
 export interface PagedResult<T> {
   items: T[];
   total: number;
   pageIndex: number;
   pageSize: number;
+}
+
+// 表格视图（个人）
+export type TableViewDensity = "compact" | "default" | "comfortable";
+
+export interface TableViewColumnConfig {
+  key: string;
+  visible: boolean;
+  order: number;
+  width?: number;
+  pinned?: "left" | "right";
+  align?: "left" | "center" | "right";
+  ellipsis?: boolean;
+  wrap?: boolean;
+  tooltip?: boolean;
+}
+
+export interface TableViewPagination {
+  pageSize: number;
+}
+
+export interface TableViewSort {
+  key: string;
+  order: string;
+  priority: number;
+}
+
+export interface TableViewFilter {
+  key: string;
+  operator: string;
+  value?: string | number | boolean | string[] | number[];
+}
+
+export interface TableViewGroupBy {
+  key: string;
+  collapsedKeys?: string[];
+}
+
+export interface TableViewAggregation {
+  key: string;
+  op: string;
+}
+
+export interface TableViewQueryPanel {
+  open: boolean;
+  autoSearch: boolean;
+  savedFilterId?: string;
+}
+
+export interface TableViewQueryCondition {
+  field: string;
+  operator: string;
+  value?: string | number | boolean | string[] | number[];
+}
+
+export interface TableViewQueryGroup {
+  logic: "AND" | "OR";
+  conditions?: TableViewQueryCondition[];
+  groups?: TableViewQueryGroup[];
+}
+
+export interface TableViewConfig {
+  columns: TableViewColumnConfig[];
+  density?: TableViewDensity;
+  pagination?: TableViewPagination;
+  sort?: TableViewSort[];
+  filters?: TableViewFilter[];
+  groupBy?: TableViewGroupBy;
+  aggregations?: TableViewAggregation[];
+  queryPanel?: TableViewQueryPanel;
+  queryModel?: TableViewQueryGroup;
+}
+
+export interface TableViewListItem {
+  id: string;
+  name: string;
+  tableKey: string;
+  configVersion: number;
+  isDefault: boolean;
+  updatedAt: string;
+  lastUsedAt?: string;
+}
+
+export interface TableViewDetail {
+  id: string;
+  name: string;
+  tableKey: string;
+  configVersion: number;
+  isDefault: boolean;
+  config: TableViewConfig;
+  updatedAt: string;
+  lastUsedAt?: string;
+}
+
+export interface TableViewCreateRequest {
+  tableKey: string;
+  name: string;
+  config: TableViewConfig;
+  configVersion?: number;
+}
+
+export interface TableViewUpdateRequest {
+  name: string;
+  config: TableViewConfig;
+  configVersion?: number;
+}
+
+export interface TableViewConfigUpdateRequest {
+  config: TableViewConfig;
+  configVersion?: number;
+}
+
+export interface TableViewDuplicateRequest {
+  name: string;
 }
 
 // 审批流相关类型

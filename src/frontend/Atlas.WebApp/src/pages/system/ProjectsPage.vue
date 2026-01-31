@@ -10,13 +10,15 @@
         />
         <a-button v-if="canCreate" type="primary" @click="openCreate">新增项目</a-button>
       </a-space>
+      <TableViewToolbar :controller="tableViewController" />
     </div>
 
     <a-table
-      :columns="columns"
+      :columns="tableColumns"
       :data-source="dataSource"
       :pagination="pagination"
       :loading="loading"
+      :size="tableSize"
       row-key="id"
       @change="onTableChange"
     >
@@ -43,11 +45,12 @@
       </template>
     </a-table>
 
-    <a-modal
+    <a-drawer
       v-model:open="formVisible"
       :title="formMode === 'create' ? '新增项目' : '编辑项目'"
-      @ok="submitForm"
-      @cancel="closeForm"
+      placement="right"
+      width="560"
+      @close="closeForm"
       destroy-on-close
     >
       <a-form ref="formRef" :model="formModel" :rules="formRules" layout="vertical">
@@ -67,15 +70,21 @@
           <a-input v-model:value="formModel.description" />
         </a-form-item>
       </a-form>
-    </a-modal>
+      <template #footer>
+        <a-space>
+          <a-button @click="closeForm">取消</a-button>
+          <a-button type="primary" @click="submitForm">保存</a-button>
+        </a-space>
+      </template>
+    </a-drawer>
 
-    <a-modal
+    <a-drawer
       v-model:open="assignVisible"
       title="项目分配"
-      @ok="submitAssign"
-      @cancel="closeAssign"
+      placement="right"
+      width="720"
+      @close="closeAssign"
       destroy-on-close
-      width="720px"
     >
       <a-tabs>
         <a-tab-pane v-if="canAssignUsers" key="users" tab="人员">
@@ -110,6 +119,11 @@
             style="width: 100%"
             placeholder="选择部门"
             :options="departmentOptions"
+            :loading="departmentLoading"
+            show-search
+            :filter-option="false"
+            @search="handleDepartmentSearch"
+            @focus="loadDepartmentOptions"
           />
         </a-tab-pane>
         <a-tab-pane v-if="canAssignPositions" key="positions" tab="岗位">
@@ -119,10 +133,21 @@
             style="width: 100%"
             placeholder="选择岗位"
             :options="positionOptions"
+            :loading="positionLoading"
+            show-search
+            :filter-option="false"
+            @search="handlePositionSearch"
+            @focus="loadPositionOptions"
           />
         </a-tab-pane>
       </a-tabs>
-    </a-modal>
+      <template #footer>
+        <a-space>
+          <a-button @click="closeAssign">取消</a-button>
+          <a-button type="primary" @click="submitAssign">保存</a-button>
+        </a-space>
+      </template>
+    </a-drawer>
   </a-card>
 </template>
 
@@ -131,11 +156,13 @@ import { computed, onMounted, reactive, ref } from "vue";
 import type { FormInstance, TablePaginationConfig } from "ant-design-vue";
 import type { Rule } from "ant-design-vue/es/form";
 import { message } from "ant-design-vue";
+import TableViewToolbar from "@/components/table/table-view-toolbar.vue";
+import { useTableView } from "@/composables/useTableView";
 import {
   createProject,
   deleteProject,
-  getDepartmentsAll,
-  getPositionsAll,
+  getDepartmentsPaged,
+  getPositionsPaged,
   getProjectDetail,
   getProjectsPaged,
   getUsersPaged,
@@ -156,13 +183,13 @@ import { getAuthProfile, hasPermission } from "@/utils/auth";
 
 type FormMode = "create" | "edit";
 
-const columns = [
-  { title: "项目编码", dataIndex: "code" },
-  { title: "项目名称", dataIndex: "name" },
+const baseColumns = [
+  { title: "项目编码", dataIndex: "code", key: "code" },
+  { title: "项目名称", dataIndex: "name", key: "name" },
   { title: "状态", key: "isActive" },
-  { title: "排序", dataIndex: "sortOrder" },
-  { title: "描述", dataIndex: "description" },
-  { title: "操作", key: "actions" }
+  { title: "排序", dataIndex: "sortOrder", key: "sortOrder" },
+  { title: "描述", dataIndex: "description", key: "description" },
+  { title: "操作", key: "actions", view: { canHide: false } }
 ];
 
 const dataSource = ref<ProjectListItem[]>([]);
@@ -203,10 +230,12 @@ const userKeyword = ref("");
 const userOptions = ref<{ label: string; value: number }[]>([]);
 const userLoading = ref(false);
 const userPageIndex = ref(1);
-const userPageSize = ref(50);
+const userPageSize = ref(20);
 const userTotal = ref(0);
 const departmentOptions = ref<{ label: string; value: number }[]>([]);
 const positionOptions = ref<{ label: string; value: number }[]>([]);
+const departmentLoading = ref(false);
+const positionLoading = ref(false);
 
 const profile = getAuthProfile();
 const canCreate = hasPermission(profile, "projects:create");
@@ -233,6 +262,13 @@ const fetchData = async () => {
     loading.value = false;
   }
 };
+
+const { controller: tableViewController, tableColumns, tableSize } = useTableView<ProjectListItem>({
+  tableKey: "system.projects",
+  columns: baseColumns,
+  pagination,
+  onRefresh: fetchData
+});
 
 const onTableChange = (pager: TablePaginationConfig) => {
   pagination.current = pager.current;
@@ -310,17 +346,59 @@ const handleDelete = async (id: string) => {
   }
 };
 
-const loadAssignOptions = async () => {
-  const [departments, positions] = await Promise.all([getDepartmentsAll(), getPositionsAll()]);
-  departmentOptions.value = departments.map((item: DepartmentListItem) => ({
-    label: item.name,
-    value: Number(item.id)
-  }));
-  positionOptions.value = positions.map((item: PositionListItem) => ({
-    label: `${item.name}（${item.code}）`,
-    value: Number(item.id)
-  }));
+const loadDepartmentOptions = async (keyword?: string) => {
+  departmentLoading.value = true;
+  try {
+    const result = await getDepartmentsPaged({
+      pageIndex: 1,
+      pageSize: 20,
+      keyword: keyword?.trim() || undefined
+    });
+    departmentOptions.value = result.items.map((item: DepartmentListItem) => ({
+      label: item.name,
+      value: Number(item.id)
+    }));
+  } catch (error) {
+    message.error((error as Error).message || "加载部门失败");
+  } finally {
+    departmentLoading.value = false;
+  }
 };
+
+const loadPositionOptions = async (keyword?: string) => {
+  positionLoading.value = true;
+  try {
+    const result = await getPositionsPaged({
+      pageIndex: 1,
+      pageSize: 20,
+      keyword: keyword?.trim() || undefined
+    });
+    positionOptions.value = result.items.map((item: PositionListItem) => ({
+      label: `${item.name}（${item.code}）`,
+      value: Number(item.id)
+    }));
+  } catch (error) {
+    message.error((error as Error).message || "加载岗位失败");
+  } finally {
+    positionLoading.value = false;
+  }
+};
+
+const debounce = (handler: (value: string) => void, delay = 300) => {
+  let timer: number | undefined;
+  return (value: string) => {
+    if (timer) window.clearTimeout(timer);
+    timer = window.setTimeout(() => handler(value), delay);
+  };
+};
+
+const handleDepartmentSearch = debounce((value: string) => {
+  void loadDepartmentOptions(value);
+});
+
+const handlePositionSearch = debounce((value: string) => {
+  void loadPositionOptions(value);
+});
 
 const hasMoreUsers = computed(() => userOptions.value.length < userTotal.value);
 
@@ -362,7 +440,7 @@ const handleUserSearch = async (value: string) => {
 const openAssign = async (record: ProjectListItem) => {
   selectedId.value = record.id;
   assignVisible.value = true;
-  await loadAssignOptions();
+  await Promise.all([loadDepartmentOptions(), loadPositionOptions()]);
   await searchUsers();
 
   try {
@@ -404,6 +482,10 @@ onMounted(fetchData);
 <style scoped>
 .toolbar {
   margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .assign-toolbar {

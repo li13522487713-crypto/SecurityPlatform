@@ -10,13 +10,15 @@
         />
         <a-button v-if="canCreate" type="primary" @click="openCreate">新增员工</a-button>
       </a-space>
+      <TableViewToolbar :controller="tableViewController" />
     </div>
 
     <a-table
-      :columns="columns"
+      :columns="tableColumns"
       :data-source="dataSource"
       :pagination="pagination"
       :loading="loading"
+      :size="tableSize"
       row-key="id"
       @change="onTableChange"
     >
@@ -46,11 +48,12 @@
       </template>
     </a-table>
 
-    <a-modal
+    <a-drawer
       v-model:open="formVisible"
       :title="formMode === 'create' ? '新增员工' : '编辑员工'"
-      @ok="submitForm"
-      @cancel="closeForm"
+      placement="right"
+      width="560"
+      @close="closeForm"
       destroy-on-close
     >
       <a-form ref="formRef" :model="formModel" :rules="formRules" layout="vertical">
@@ -78,6 +81,11 @@
             mode="multiple"
             placeholder="选择角色"
             :options="roleOptions"
+            :loading="roleLoading"
+            :filter-option="false"
+            show-search
+            @search="handleRoleSearch"
+            @focus="loadRoleOptions"
           />
         </a-form-item>
         <a-form-item v-if="formMode === 'create' && canAssignDepartments" label="部门" name="departmentIds">
@@ -86,6 +94,11 @@
             mode="multiple"
             placeholder="选择部门"
             :options="departmentOptions"
+            :loading="departmentLoading"
+            :filter-option="false"
+            show-search
+            @search="handleDepartmentSearch"
+            @focus="loadDepartmentOptions"
           />
         </a-form-item>
         <a-form-item v-if="formMode === 'create' && canAssignPositions" label="职位" name="positionIds">
@@ -94,34 +107,111 @@
             mode="multiple"
             placeholder="选择职位"
             :options="positionOptions"
+            :loading="positionLoading"
+            :filter-option="false"
+            show-search
+            @search="handlePositionSearch"
+            @focus="loadPositionOptions"
           />
         </a-form-item>
       </a-form>
-    </a-modal>
+      <template #footer>
+        <a-space>
+          <a-button @click="closeForm">取消</a-button>
+          <a-button type="primary" @click="submitForm">保存</a-button>
+        </a-space>
+      </template>
+    </a-drawer>
 
-    <a-modal v-model:open="rolesVisible" title="设置角色" @ok="submitRoles" @cancel="closeRoles" destroy-on-close>
+    <a-drawer
+      v-model:open="rolesVisible"
+      title="设置角色"
+      placement="right"
+      width="480"
+      @close="closeRoles"
+      destroy-on-close
+    >
       <a-form layout="vertical">
         <a-form-item label="角色">
-          <a-select v-model:value="rolesModel.roleIds" mode="multiple" :options="roleOptions" />
+          <a-select
+            v-model:value="rolesModel.roleIds"
+            mode="multiple"
+            :options="roleOptions"
+            :loading="roleLoading"
+            :filter-option="false"
+            show-search
+            @search="handleRoleSearch"
+            @focus="loadRoleOptions"
+          />
         </a-form-item>
       </a-form>
-    </a-modal>
+      <template #footer>
+        <a-space>
+          <a-button @click="closeRoles">取消</a-button>
+          <a-button type="primary" @click="submitRoles">保存</a-button>
+        </a-space>
+      </template>
+    </a-drawer>
 
-    <a-modal v-model:open="departmentsVisible" title="设置部门" @ok="submitDepartments" @cancel="closeDepartments" destroy-on-close>
+    <a-drawer
+      v-model:open="departmentsVisible"
+      title="设置部门"
+      placement="right"
+      width="480"
+      @close="closeDepartments"
+      destroy-on-close
+    >
       <a-form layout="vertical">
         <a-form-item label="部门">
-          <a-select v-model:value="departmentsModel.departmentIds" mode="multiple" :options="departmentOptions" />
+          <a-select
+            v-model:value="departmentsModel.departmentIds"
+            mode="multiple"
+            :options="departmentOptions"
+            :loading="departmentLoading"
+            :filter-option="false"
+            show-search
+            @search="handleDepartmentSearch"
+            @focus="loadDepartmentOptions"
+          />
         </a-form-item>
       </a-form>
-    </a-modal>
+      <template #footer>
+        <a-space>
+          <a-button @click="closeDepartments">取消</a-button>
+          <a-button type="primary" @click="submitDepartments">保存</a-button>
+        </a-space>
+      </template>
+    </a-drawer>
 
-    <a-modal v-model:open="positionsVisible" title="设置职位" @ok="submitPositions" @cancel="closePositions" destroy-on-close>
+    <a-drawer
+      v-model:open="positionsVisible"
+      title="设置职位"
+      placement="right"
+      width="480"
+      @close="closePositions"
+      destroy-on-close
+    >
       <a-form layout="vertical">
         <a-form-item label="职位">
-          <a-select v-model:value="positionsModel.positionIds" mode="multiple" :options="positionOptions" />
+          <a-select
+            v-model:value="positionsModel.positionIds"
+            mode="multiple"
+            :options="positionOptions"
+            :loading="positionLoading"
+            :filter-option="false"
+            show-search
+            @search="handlePositionSearch"
+            @focus="loadPositionOptions"
+          />
         </a-form-item>
       </a-form>
-    </a-modal>
+      <template #footer>
+        <a-space>
+          <a-button @click="closePositions">取消</a-button>
+          <a-button type="primary" @click="submitPositions">保存</a-button>
+        </a-space>
+      </template>
+    </a-drawer>
   </a-card>
 </template>
 
@@ -130,11 +220,13 @@ import { onMounted, reactive, ref } from "vue";
 import type { TablePaginationConfig, FormInstance } from "ant-design-vue";
 import type { Rule } from "ant-design-vue/es/form";
 import { message } from "ant-design-vue";
+import TableViewToolbar from "@/components/table/table-view-toolbar.vue";
+import { useTableView } from "@/composables/useTableView";
 import {
   createUser,
   deleteUser,
-  getDepartmentsAll,
-  getPositionsAll,
+  getDepartmentsPaged,
+  getPositionsPaged,
   getRolesPaged,
   getUserDetail,
   getUsersPaged,
@@ -161,14 +253,14 @@ interface SelectOption {
   value: number;
 }
 
-const columns = [
-  { title: "用户名", dataIndex: "username" },
-  { title: "姓名", dataIndex: "displayName" },
-  { title: "邮箱", dataIndex: "email" },
-  { title: "手机号", dataIndex: "phoneNumber" },
+const baseColumns = [
+  { title: "用户名", dataIndex: "username", key: "username" },
+  { title: "姓名", dataIndex: "displayName", key: "displayName" },
+  { title: "邮箱", dataIndex: "email", key: "email" },
+  { title: "手机号", dataIndex: "phoneNumber", key: "phoneNumber" },
   { title: "状态", dataIndex: "isActive", key: "status" },
-  { title: "最近登录", dataIndex: "lastLoginAt" },
-  { title: "操作", key: "actions" }
+  { title: "最近登录", dataIndex: "lastLoginAt", key: "lastLoginAt" },
+  { title: "操作", key: "actions", view: { canHide: false } }
 ];
 
 const dataSource = ref<UserListItem[]>([]);
@@ -213,6 +305,9 @@ const positionsModel = reactive({ positionIds: [] as number[] });
 const roleOptions = ref<SelectOption[]>([]);
 const departmentOptions = ref<SelectOption[]>([]);
 const positionOptions = ref<SelectOption[]>([]);
+const roleLoading = ref(false);
+const departmentLoading = ref(false);
+const positionLoading = ref(false);
 const profile = getAuthProfile();
 const canCreate = hasPermission(profile, "users:create");
 const canUpdate = hasPermission(profile, "users:update");
@@ -238,29 +333,91 @@ const fetchData = async () => {
   }
 };
 
-const fetchSelectOptions = async () => {
+const { controller: tableViewController, tableColumns, tableSize } = useTableView<UserListItem>({
+  tableKey: "system.users",
+  columns: baseColumns,
+  pagination,
+  onRefresh: fetchData
+});
+
+const loadRoleOptions = async (keyword?: string) => {
+  roleLoading.value = true;
   try {
-    const [rolesResult, departmentsResult, positionsResult] = await Promise.all([
-      getRolesPaged({ pageIndex: 1, pageSize: 200 }),
-      getDepartmentsAll(),
-      getPositionsAll()
-    ]);
-    roleOptions.value = rolesResult.items.map((role: RoleListItem) => ({
+    const result = await getRolesPaged({
+      pageIndex: 1,
+      pageSize: 20,
+      keyword: keyword?.trim() || undefined
+    });
+    roleOptions.value = result.items.map((role: RoleListItem) => ({
       label: `${role.name} (${role.code})`,
       value: Number(role.id)
     }));
-    departmentOptions.value = departmentsResult.map((dept: DepartmentListItem) => ({
+  } catch (error) {
+    message.error((error as Error).message || "加载角色失败");
+  } finally {
+    roleLoading.value = false;
+  }
+};
+
+const loadDepartmentOptions = async (keyword?: string) => {
+  departmentLoading.value = true;
+  try {
+    const result = await getDepartmentsPaged({
+      pageIndex: 1,
+      pageSize: 20,
+      keyword: keyword?.trim() || undefined
+    });
+    departmentOptions.value = result.items.map((dept: DepartmentListItem) => ({
       label: dept.name,
       value: Number(dept.id)
     }));
-    positionOptions.value = positionsResult.map((position: PositionListItem) => ({
+  } catch (error) {
+    message.error((error as Error).message || "加载部门失败");
+  } finally {
+    departmentLoading.value = false;
+  }
+};
+
+const loadPositionOptions = async (keyword?: string) => {
+  positionLoading.value = true;
+  try {
+    const result = await getPositionsPaged({
+      pageIndex: 1,
+      pageSize: 20,
+      keyword: keyword?.trim() || undefined
+    });
+    positionOptions.value = result.items.map((position: PositionListItem) => ({
       label: `${position.name} (${position.code})`,
       value: Number(position.id)
     }));
   } catch (error) {
-    message.error((error as Error).message || "加载选项失败");
+    message.error((error as Error).message || "加载职位失败");
+  } finally {
+    positionLoading.value = false;
   }
 };
+
+const debounce = (handler: (value: string) => void, delay = 300) => {
+  let timer: number | undefined;
+  return (value: string) => {
+    if (timer) {
+      window.clearTimeout(timer);
+    }
+    timer = window.setTimeout(() => handler(value), delay);
+  };
+};
+
+const handleRoleSearch = debounce((value: string) => {
+  void loadRoleOptions(value);
+});
+
+const handleDepartmentSearch = debounce((value: string) => {
+  void loadDepartmentOptions(value);
+});
+
+const handlePositionSearch = debounce((value: string) => {
+  void loadPositionOptions(value);
+});
 
 const onTableChange = (pager: TablePaginationConfig) => {
   pagination.current = pager.current;
@@ -283,6 +440,9 @@ const resetForm = () => {
 const openCreate = () => {
   formMode.value = "create";
   resetForm();
+  void loadRoleOptions();
+  void loadDepartmentOptions();
+  void loadPositionOptions();
   formVisible.value = true;
 };
 
@@ -342,6 +502,7 @@ const submitForm = async () => {
 
 const openRoles = async (id: string) => {
   try {
+    await loadRoleOptions();
     const detail = await getUserDetail(id);
     selectedUserId.value = detail.id;
     rolesModel.roleIds = detail.roleIds.slice();
@@ -368,6 +529,7 @@ const submitRoles = async () => {
 
 const openDepartments = async (id: string) => {
   try {
+    await loadDepartmentOptions();
     const detail = await getUserDetail(id);
     selectedUserId.value = detail.id;
     departmentsModel.departmentIds = detail.departmentIds.slice();
@@ -394,6 +556,7 @@ const submitDepartments = async () => {
 
 const openPositions = async (id: string) => {
   try {
+    await loadPositionOptions();
     const detail = await getUserDetail(id);
     selectedUserId.value = detail.id;
     positionsModel.positionIds = detail.positionIds.slice();
@@ -429,7 +592,6 @@ const handleDelete = async (id: string) => {
 };
 
 onMounted(() => {
-  fetchSelectOptions();
   fetchData();
 });
 </script>
@@ -437,5 +599,9 @@ onMounted(() => {
 <style scoped>
 .toolbar {
   margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 </style>

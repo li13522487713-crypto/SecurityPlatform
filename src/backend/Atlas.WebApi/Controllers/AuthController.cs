@@ -17,7 +17,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
-[Route("api/auth")]
+[Route("api/v1/auth")]
 public sealed class AuthController : ControllerBase
 {
     private readonly IAuthTokenService _authTokenService;

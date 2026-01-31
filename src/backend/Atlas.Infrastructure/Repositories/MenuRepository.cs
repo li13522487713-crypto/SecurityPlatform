@@ -26,6 +26,7 @@ public sealed class MenuRepository : IMenuRepository
         int pageIndex,
         int pageSize,
         string? keyword,
+        bool? isHidden,
         CancellationToken cancellationToken)
     {
         var query = _db.Queryable<Menu>()
@@ -33,6 +34,10 @@ public sealed class MenuRepository : IMenuRepository
         if (!string.IsNullOrWhiteSpace(keyword))
         {
             query = query.Where(x => x.Name.Contains(keyword) || x.Path.Contains(keyword));
+        }
+        if (isHidden.HasValue)
+        {
+            query = query.Where(x => x.IsHidden == isHidden.Value);
         }
 
         var totalCount = await query.CountAsync(cancellationToken);

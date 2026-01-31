@@ -11,7 +11,7 @@ using Atlas.WebApi.Authorization;
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
-[Route("api/permissions")]
+[Route("api/v1/permissions")]
 public sealed class PermissionsController : ControllerBase
 {
     private readonly IPermissionQueryService _permissionQueryService;
@@ -40,7 +40,7 @@ public sealed class PermissionsController : ControllerBase
     [HttpGet]
     [Authorize(Policy = PermissionPolicies.PermissionsView)]
     public async Task<ActionResult<ApiResponse<PagedResult<PermissionListItem>>>> Get(
-        [FromQuery] PagedRequest request,
+        [FromQuery] PermissionQueryRequest request,
         CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();

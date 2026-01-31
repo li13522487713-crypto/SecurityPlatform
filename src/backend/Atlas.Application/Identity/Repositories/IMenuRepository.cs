@@ -11,6 +11,7 @@ public interface IMenuRepository
         int pageIndex,
         int pageSize,
         string? keyword,
+        bool? isHidden,
         CancellationToken cancellationToken);
     Task<IReadOnlyList<Menu>> QueryAllAsync(TenantId tenantId, CancellationToken cancellationToken);
     Task<IReadOnlyList<Menu>> QueryByIdsAsync(

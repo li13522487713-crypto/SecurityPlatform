@@ -17,7 +17,7 @@ namespace Atlas.WebApi.Controllers;
 /// 审批任务控制器（我的待办、审批/驳回等）
 /// </summary>
 [ApiController]
-[Route("api/approval/tasks")]
+[Route("api/v1/approval/tasks")]
 [Authorize]
 public sealed class ApprovalTasksController : ControllerBase
 {
@@ -50,7 +50,7 @@ public sealed class ApprovalTasksController : ControllerBase
     /// <summary>
     /// 获取我的待办任务
     /// </summary>
-    [HttpGet("my-tasks")]
+    [HttpGet("my")]
     public async Task<ApiResponse<PagedResult<ApprovalTaskResponse>>> GetMyTasksAsync(
         [FromQuery] int pageIndex = 1,
         [FromQuery] int pageSize = 10,
@@ -72,7 +72,7 @@ public sealed class ApprovalTasksController : ControllerBase
     /// <summary>
     /// 获取实例内的所有任务
     /// </summary>
-    [HttpGet("by-instance/{instanceId}")]
+    [HttpGet("~/api/v1/approval/instances/{instanceId:long}/tasks")]
     public async Task<ApiResponse<PagedResult<ApprovalTaskResponse>>> GetByInstanceAsync(
         long instanceId,
         [FromQuery] int pageIndex = 1,
@@ -88,29 +88,43 @@ public sealed class ApprovalTasksController : ControllerBase
     /// <summary>
     /// 同意任务（审批通过）
     /// </summary>
-    [HttpPost("{taskId}/approve")]
-    public async Task<ApiResponse<string>> ApproveAsync(
+    [HttpPost("{taskId:long}/decision")]
+    public async Task<ApiResponse<string>> DecideAsync(
         long taskId,
         [FromBody] ApprovalTaskDecideRequest request,
         CancellationToken cancellationToken = default)
     {
-        request = request with { TaskId = taskId, Approved = true };
+        request = request with { TaskId = taskId };
         await _decideValidator.ValidateAndThrowAsync(request, cancellationToken);
 
         var currentUser = _currentUserAccessor.GetCurrentUserOrThrow();
 
-        await _commandService.ApproveTaskAsync(
-            currentUser.TenantId,
-            taskId,
-            currentUser.UserId,
-            request.Comment,
-            cancellationToken);
+        if (request.Approved)
+        {
+            await _commandService.ApproveTaskAsync(
+                currentUser.TenantId,
+                taskId,
+                currentUser.UserId,
+                request.Comment,
+                cancellationToken);
+        }
+        else
+        {
+            await _commandService.RejectTaskAsync(
+                currentUser.TenantId,
+                taskId,
+                currentUser.UserId,
+                request.Comment,
+                cancellationToken);
+        }
 
-        // 记录审计日志
+        var actionName = request.Approved ? "审批任务-同意" : "审批任务-驳回";
+        var resultMessage = request.Approved ? "已同意" : "已驳回";
+
         var auditContext = new AuditContext(
             currentUser.TenantId,
             currentUser.UserId.ToString(),
-            "审批任务-同意",
+            actionName,
             "成功",
             $"任务ID: {taskId}",
             ControllerHelper.GetIpAddress(HttpContext),
@@ -118,42 +132,6 @@ public sealed class ApprovalTasksController : ControllerBase
             _clientContextAccessor.GetCurrent());
         await _auditRecorder.RecordAsync(auditContext, cancellationToken);
 
-        return ApiResponse<string>.Ok("已同意", HttpContext.TraceIdentifier);
-    }
-
-    /// <summary>
-    /// 驳回任务（审批不通过）
-    /// </summary>
-    [HttpPost("{taskId}/reject")]
-    public async Task<ApiResponse<string>> RejectAsync(
-        long taskId,
-        [FromBody] ApprovalTaskDecideRequest request,
-        CancellationToken cancellationToken = default)
-    {
-        request = request with { TaskId = taskId, Approved = false };
-        await _decideValidator.ValidateAndThrowAsync(request, cancellationToken);
-
-        var currentUser = _currentUserAccessor.GetCurrentUserOrThrow();
-
-        await _commandService.RejectTaskAsync(
-            currentUser.TenantId,
-            taskId,
-            currentUser.UserId,
-            request.Comment,
-            cancellationToken);
-
-        // 记录审计日志
-        var auditContext = new AuditContext(
-            currentUser.TenantId,
-            currentUser.UserId.ToString(),
-            "审批任务-驳回",
-            "成功",
-            $"任务ID: {taskId}",
-            ControllerHelper.GetIpAddress(HttpContext),
-            ControllerHelper.GetUserAgent(HttpContext),
-            _clientContextAccessor.GetCurrent());
-        await _auditRecorder.RecordAsync(auditContext, cancellationToken);
-
-        return ApiResponse<string>.Ok("已驳回", HttpContext.TraceIdentifier);
+        return ApiResponse<string>.Ok(resultMessage, HttpContext.TraceIdentifier);
     }
 }

@@ -7,6 +7,14 @@ public sealed record PermissionListItem(
     string Type,
     string? Description);
 
+public sealed record PermissionQueryRequest(
+    int PageIndex,
+    int PageSize,
+    string? Keyword,
+    string? SortBy,
+    bool SortDesc,
+    string? Type);
+
 public sealed record PermissionDetail(
     string Id,
     string Name,

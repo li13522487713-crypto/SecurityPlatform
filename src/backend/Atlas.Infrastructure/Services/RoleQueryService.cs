@@ -27,7 +27,7 @@ public sealed class RoleQueryService : IRoleQueryService
     }
 
     public async Task<PagedResult<RoleListItem>> QueryRolesAsync(
-        PagedRequest request,
+        RoleQueryRequest request,
         TenantId tenantId,
         CancellationToken cancellationToken)
     {
@@ -35,9 +35,11 @@ public sealed class RoleQueryService : IRoleQueryService
         var pageSize = request.PageSize < 1 ? 10 : request.PageSize;
 
         var (items, total) = await _roleRepository.QueryPageAsync(
+            tenantId,
             pageIndex,
             pageSize,
             request.Keyword,
+            request.IsSystem,
             cancellationToken);
 
         var resultItems = items.Select(x => _mapper.Map<RoleListItem>(x)).ToArray();

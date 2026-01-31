@@ -7,7 +7,7 @@ namespace Atlas.Application.Identity.Abstractions;
 public interface IPermissionQueryService
 {
     Task<PagedResult<PermissionListItem>> QueryPermissionsAsync(
-        PagedRequest request,
+        PermissionQueryRequest request,
         TenantId tenantId,
         CancellationToken cancellationToken);
 

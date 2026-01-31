@@ -11,7 +11,7 @@ using Atlas.WebApi.Authorization;
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
-[Route("api/menus")]
+[Route("api/v1/menus")]
 public sealed class MenusController : ControllerBase
 {
     private readonly IMenuQueryService _menuQueryService;
@@ -40,7 +40,7 @@ public sealed class MenusController : ControllerBase
     [HttpGet]
     [Authorize(Policy = PermissionPolicies.MenusView)]
     public async Task<ActionResult<ApiResponse<PagedResult<MenuListItem>>>> Get(
-        [FromQuery] PagedRequest request,
+        [FromQuery] MenuQueryRequest request,
         CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();

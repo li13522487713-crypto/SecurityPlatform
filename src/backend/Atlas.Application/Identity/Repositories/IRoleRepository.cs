@@ -9,9 +9,11 @@ public interface IRoleRepository
     Task<Role?> FindByCodeAsync(TenantId tenantId, string code, CancellationToken cancellationToken);
     Task<IReadOnlyList<Role>> QueryByCodesAsync(TenantId tenantId, IReadOnlyList<string> codes, CancellationToken cancellationToken);
     Task<(IReadOnlyList<Role> Items, int TotalCount)> QueryPageAsync(
+        TenantId tenantId,
         int pageIndex,
         int pageSize,
         string? keyword,
+        bool? isSystem,
         CancellationToken cancellationToken);
     Task<IReadOnlyList<Role>> QueryByIdsAsync(TenantId tenantId, IReadOnlyList<long> ids, CancellationToken cancellationToken);
     Task AddRangeAsync(IReadOnlyList<Role> roles, CancellationToken cancellationToken);

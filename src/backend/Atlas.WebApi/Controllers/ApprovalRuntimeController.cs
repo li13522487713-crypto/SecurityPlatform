@@ -18,7 +18,7 @@ namespace Atlas.WebApi.Controllers;
 /// 审批流运行时控制器（发起、我的发起、实例查询等）
 /// </summary>
 [ApiController]
-[Route("api/approval/runtime")]
+[Route("api/v1/approval/instances")]
 [Authorize]
 public sealed class ApprovalRuntimeController : ControllerBase
 {
@@ -51,7 +51,7 @@ public sealed class ApprovalRuntimeController : ControllerBase
     /// <summary>
     /// 发起流程实例
     /// </summary>
-    [HttpPost("start")]
+    [HttpPost]
     public async Task<ApiResponse<ApprovalInstanceResponse>> StartAsync(
         ApprovalStartRequest request,
         CancellationToken cancellationToken = default)
@@ -84,7 +84,7 @@ public sealed class ApprovalRuntimeController : ControllerBase
     /// <summary>
     /// 获取我发起的流程实例
     /// </summary>
-    [HttpGet("my-instances")]
+    [HttpGet("my")]
     public async Task<ApiResponse<PagedResult<ApprovalInstanceListItem>>> GetMyInstancesAsync(
         [FromQuery] int pageIndex = 1,
         [FromQuery] int pageSize = 10,
@@ -106,7 +106,7 @@ public sealed class ApprovalRuntimeController : ControllerBase
     /// <summary>
     /// 获取流程实例详情
     /// </summary>
-    [HttpGet("instances/{id}")]
+    [HttpGet("{id:long}")]
     public async Task<ApiResponse<ApprovalInstanceResponse>> GetInstanceByIdAsync(
         long id,
         CancellationToken cancellationToken = default)
@@ -127,7 +127,7 @@ public sealed class ApprovalRuntimeController : ControllerBase
     /// <summary>
     /// 获取流程实例的历史事件
     /// </summary>
-    [HttpGet("instances/{id}/history")]
+    [HttpGet("{id:long}/history")]
     public async Task<ApiResponse<PagedResult<ApprovalHistoryEventResponse>>> GetHistoryAsync(
         long id,
         [FromQuery] int pageIndex = 1,
@@ -143,7 +143,7 @@ public sealed class ApprovalRuntimeController : ControllerBase
     /// <summary>
     /// 取消流程实例
     /// </summary>
-    [HttpPost("instances/{id}/cancel")]
+    [HttpPost("{id:long}/cancellation")]
     public async Task<ApiResponse<string>> CancelAsync(
         long id,
         CancellationToken cancellationToken = default)
@@ -174,7 +174,7 @@ public sealed class ApprovalRuntimeController : ControllerBase
     /// <summary>
     /// 执行运行时操作（撤回、转办、加签、打回修改、退回任意节点、撤销同意等）
     /// </summary>
-    [HttpPost("instances/{instanceId}/operations")]
+    [HttpPost("{instanceId:long}/operations")]
     public async Task<ApiResponse<string>> ExecuteOperationAsync(
         long instanceId,
         [FromBody] Atlas.Application.Approval.Models.ApprovalOperationRequest request,
@@ -221,7 +221,7 @@ public sealed class ApprovalRuntimeController : ControllerBase
     /// <summary>
     /// 预览流程实例（需要权限校验和审计记录）
     /// </summary>
-    [HttpGet("instances/{id}/preview")]
+    [HttpGet("{id:long}/preview")]
     public async Task<ApiResponse<ApprovalInstanceResponse>> PreviewInstanceAsync(
         long id,
         CancellationToken cancellationToken = default)
@@ -263,7 +263,7 @@ public sealed class ApprovalRuntimeController : ControllerBase
     /// <summary>
     /// 打印流程实例（需要权限校验和审计记录）
     /// </summary>
-    [HttpGet("instances/{id}/print")]
+    [HttpGet("{id:long}/print-view")]
     public async Task<ApiResponse<ApprovalInstanceResponse>> PrintInstanceAsync(
         long id,
         CancellationToken cancellationToken = default)

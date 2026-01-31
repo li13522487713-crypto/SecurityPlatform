@@ -16,7 +16,7 @@ namespace Atlas.WebApi.Controllers;
 /// 流程可视化中心控制器（骨架版）
 /// </summary>
 [ApiController]
-[Route("api/visualization")]
+[Route("api/v1/visualization")]
 [Authorize]
 public sealed class VisualizationController : ControllerBase
 {
@@ -105,7 +105,7 @@ public sealed class VisualizationController : ControllerBase
         return Ok(ApiResponse<VisualizationInstanceDetail>.Ok(detail, HttpContext.TraceIdentifier));
     }
 
-    [HttpPost("processes/validate")]
+    [HttpPost("processes/validation")]
     public async Task<ActionResult<ApiResponse<VisualizationValidationResponse>>> ValidateProcess(
         [FromBody] ValidateVisualizationRequest request,
         CancellationToken cancellationToken)
@@ -161,21 +161,23 @@ public sealed class VisualizationController : ControllerBase
         return Ok(ApiResponse<SaveVisualizationProcessResponse>.Ok(result, HttpContext.TraceIdentifier));
     }
 
-    [HttpPost("processes/publish")]
+    [HttpPost("processes/{id}/publication")]
     [Authorize(Policy = PermissionPolicies.VisualizationProcessPublish)]
     public async Task<ActionResult<ApiResponse<VisualizationPublishResponse>>> PublishProcess(
+        string id,
         [FromBody] PublishVisualizationRequest request,
         CancellationToken cancellationToken)
     {
         var currentUser = _currentUserAccessor.GetCurrentUserOrThrow();
-        var result = await _queryService.PublishAsync(request, currentUser.UserId, cancellationToken);
+        var payload = request with { ProcessId = id };
+        var result = await _queryService.PublishAsync(payload, currentUser.UserId, cancellationToken);
 
         var auditContext = new AuditContext(
             currentUser.TenantId,
             currentUser.UserId.ToString(),
             "可视化流程-发布",
             "成功",
-            $"流程ID: {request.ProcessId}",
+            $"流程ID: {payload.ProcessId}",
             ControllerHelper.GetIpAddress(HttpContext),
             ControllerHelper.GetUserAgent(HttpContext),
             _clientContextAccessor.GetCurrent());

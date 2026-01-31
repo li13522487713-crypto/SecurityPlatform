@@ -11,7 +11,7 @@ namespace Atlas.WebApi.Controllers;
 /// 审批抄送记录控制器（我的抄送、标记已读等）
 /// </summary>
 [ApiController]
-[Route("api/approval/copy-records")]
+[Route("api/v1/approval/copy-records")]
 [Authorize]
 public sealed class ApprovalCopyRecordsController : ControllerBase
 {

@@ -3,32 +3,34 @@
 @tenantId =
 
 ### 获取我的待办任务
-GET {{baseUrl}}/api/v1/approval/tasks/my-tasks?pageIndex=1&pageSize=10&status=Pending
+GET {{baseUrl}}/api/v1/approval/tasks/my?pageIndex=1&pageSize=10&status=Pending
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 
 ### 获取实例内的所有任务
-GET {{baseUrl}}/api/v1/approval/tasks/by-instance/{instanceId}?pageIndex=1&pageSize=10
+GET {{baseUrl}}/api/v1/approval/instances/{instanceId}/tasks?pageIndex=1&pageSize=10
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 
 ### 同意审批任务
-POST {{baseUrl}}/api/v1/approval/tasks/{taskId}/approve
+POST {{baseUrl}}/api/v1/approval/tasks/{taskId}/decision
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
 
 {
+  "approved": true,
   "comment": "同意，符合请假规范"
 }
 
 ### 驳回审批任务
-POST {{baseUrl}}/api/v1/approval/tasks/{taskId}/reject
+POST {{baseUrl}}/api/v1/approval/tasks/{taskId}/decision
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
 
 {
+  "approved": false,
   "comment": "不同意，请假天数过长"
 }
 

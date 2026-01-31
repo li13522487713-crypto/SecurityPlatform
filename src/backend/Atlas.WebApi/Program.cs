@@ -48,6 +48,7 @@ builder.Services.Configure<BootstrapAdminOptions>(builder.Configuration.GetSecti
 builder.Services.Configure<ApprovalSeedDataOptions>(builder.Configuration.GetSection("Approval:SeedData"));
 builder.Services.Configure<TenancyOptions>(builder.Configuration.GetSection("Tenancy"));
 builder.Services.Configure<IdempotencyOptions>(builder.Configuration.GetSection("Idempotency"));
+builder.Services.Configure<TableViewDefaultOptions>(builder.Configuration.GetSection("TableViewDefaults"));
 builder.Services.Configure<Atlas.WebApi.Identity.AppOptions>(builder.Configuration.GetSection("App"));
 
 builder.Services.AddCors(options =>

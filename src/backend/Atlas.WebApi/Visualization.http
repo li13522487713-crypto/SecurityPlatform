@@ -1,3 +1,5 @@
+@processId = 1
+
 ### 可视化概览
 GET http://localhost:5000/api/v1/visualization/overview
 Authorization: Bearer {{access_token}}
@@ -24,7 +26,7 @@ Authorization: Bearer {{access_token}}
 X-Tenant-Id: {{tenant_id}}
 
 ### 校验流程定义
-POST http://localhost:5000/api/v1/visualization/processes/validate
+POST http://localhost:5000/api/v1/visualization/processes/validation
 Authorization: Bearer {{access_token}}
 X-Tenant-Id: {{tenant_id}}
 Content-Type: application/json
@@ -45,7 +47,7 @@ Content-Type: application/json
 }
 
 ### 发布流程定义
-POST http://localhost:5000/api/v1/visualization/processes/publish
+POST http://localhost:5000/api/v1/visualization/processes/{{processId}}/publication
 Authorization: Bearer {{access_token}}
 X-Tenant-Id: {{tenant_id}}
 Content-Type: application/json

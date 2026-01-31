@@ -197,49 +197,111 @@ JWT Claims（新增）：
 
 响应：通用 `ApiResponse`
 
-## 菜单与权限契约
+## 角色、权限与菜单契约
 
-### 菜单树
+### 角色列表（分页）
 
-`GET /api/v1/menus`
+`GET /api/v1/roles?pageIndex=1&pageSize=10&keyword=管理员&isSystem=true`
 
 响应：
 
 ```json
-[
-  {
-    "id": "menu-100",
-    "name": "主菜单",
-    "path": "/",
-    "icon": "home",
-    "order": 1,
-    "children": [
-      {
-        "id": "menu-110",
-        "name": "工作流设计器",
-        "path": "/workflow/designer",
-        "icon": "workflow",
-        "order": 10,
-        "permissionCode": "workflow:design"
-      }
-    ]
-  }
-]
+{
+  "items": [
+    {
+      "id": "1",
+      "name": "管理员",
+      "code": "Admin",
+      "description": "系统内置角色",
+      "isSystem": true
+    }
+  ],
+  "total": 1,
+  "pageIndex": 1,
+  "pageSize": 10
+}
 ```
 
-### 权限列表
+说明：
 
-`GET /api/v1/permissions`
+- `isSystem`：可选，`true`=系统内置，`false`=自定义。
+
+### 权限列表（分页）
+
+`GET /api/v1/permissions?pageIndex=1&pageSize=10&keyword=workflow&type=Api`
+
+响应：
+
+```json
+{
+  "items": [
+    {
+      "id": "1",
+      "code": "workflow:design",
+      "name": "工作流设计",
+      "type": "Api",
+      "description": "流程配置"
+    }
+  ],
+  "total": 1,
+  "pageIndex": 1,
+  "pageSize": 10
+}
+```
+
+说明：
+
+- `type`：可选，`Api` 或 `Menu`。
+
+### 菜单列表（分页）
+
+`GET /api/v1/menus?pageIndex=1&pageSize=10&keyword=system&isHidden=false`
+
+响应：
+
+```json
+{
+  "items": [
+    {
+      "id": "10",
+      "name": "系统管理",
+      "path": "/system",
+      "parentId": null,
+      "sortOrder": 0,
+      "component": "Layout",
+      "icon": "settings",
+      "permissionCode": "system:admin",
+      "isHidden": false
+    }
+  ],
+  "total": 1,
+  "pageIndex": 1,
+  "pageSize": 10
+}
+```
+
+说明：
+
+- `isHidden`：可选，`true`=仅隐藏，`false`=仅显示。
+
+### 菜单全量
+
+`GET /api/v1/menus/all`
 
 响应：
 
 ```json
 [
   {
-    "id": "perm-200",
-    "code": "workflow:design",
-    "name": "工作流设计",
-    "module": "Workflow"
+    "id": "10",
+    "name": "系统管理",
+    "path": "/system",
+    "parentId": null,
+    "sortOrder": 0,
+    "component": "Layout",
+    "icon": "settings",
+    "permissionCode": "system:admin",
+    "isHidden": false
   }
 ]
 ```
@@ -426,6 +488,25 @@ JWT Claims（新增）：
 }
 ```
 
+## 审批实例与任务契约
+
+### 审批实例
+
+- `POST /api/v1/approval/instances`：发起流程实例
+- `GET /api/v1/approval/instances/my`：我发起的流程实例
+- `GET /api/v1/approval/instances/{id}`：流程实例详情
+- `GET /api/v1/approval/instances/{id}/history`：流程实例历史
+- `POST /api/v1/approval/instances/{id}/cancellation`：取消流程实例
+- `POST /api/v1/approval/instances/{id}/operations`：实例操作（撤回/转办/加签等）
+- `GET /api/v1/approval/instances/{id}/preview`：预览流程实例
+- `GET /api/v1/approval/instances/{id}/print-view`：打印视图
+
+### 审批任务
+
+- `GET /api/v1/approval/tasks/my`：我的待办任务
+- `GET /api/v1/approval/instances/{instanceId}/tasks`：实例内任务列表
+- `POST /api/v1/approval/tasks/{taskId}/decision`：任务审批（`approved=true|false`）
+
 ## 可视化模块契约
 
 ### 流程概览
@@ -490,7 +571,7 @@ JWT Claims（新增）：
 }
 ```
 
-`POST /api/v1/visualization/processes/publish`
+`POST /api/v1/visualization/processes/{id}/publication`
 
 ```json
 {
@@ -565,6 +646,112 @@ JWT Claims（新增）：
   "total": 0,
   "pageIndex": 1,
   "pageSize": 10
+}
+```
+
+## 表格视图（个人）
+
+说明：
+
+- 仅个人视图：与当前登录用户唯一绑定，不支持共享。
+- `tableKey` 统一标识表格来源：
+  - `system.users`：员工管理
+  - `system.roles`：角色管理
+  - `system.permissions`：权限管理
+  - `system.menus`：菜单管理
+  - `system.departments`：部门管理
+  - `system.positions`：职位管理
+  - `system.projects`：项目管理
+  - `system.apps`：应用管理
+- 系统默认配置来源于 `appsettings.json` 的 `TableViewDefaults` 配置节。
+
+### 查询视图列表
+
+`GET /api/v1/table-views?tableKey=system.users&pageIndex=1&pageSize=20&keyword=我的`
+
+响应：`PagedResult<TableViewListItem>`
+
+### 获取默认视图
+
+`GET /api/v1/table-views/default?tableKey=system.users`
+
+### 获取系统默认配置
+
+`GET /api/v1/table-views/default-config?tableKey=system.users`
+
+### 获取视图详情
+
+`GET /api/v1/table-views/{id}`
+
+### 创建视图（需幂等 + CSRF）
+
+`POST /api/v1/table-views`
+
+请求：
+
+```json
+{
+  "tableKey": "system.users",
+  "name": "我的视图",
+  "config": {
+    "columns": [
+      { "key": "username", "visible": true, "order": 0 },
+      { "key": "displayName", "visible": true, "order": 1 }
+    ],
+    "density": "default",
+    "pagination": { "pageSize": 10 }
+  }
+}
+```
+
+### 更新视图（需幂等 + CSRF）
+
+`PUT /api/v1/table-views/{id}`
+
+### 更新视图配置（需幂等 + CSRF）
+
+`PATCH /api/v1/table-views/{id}/config`
+
+### 设为默认视图（需幂等 + CSRF）
+
+`POST /api/v1/table-views/{id}/set-default`
+
+### 复制视图（需幂等 + CSRF）
+
+`POST /api/v1/table-views/{id}/duplicate`
+
+请求：
+
+```json
+{
+  "name": "我的视图（副本）"
+}
+```
+
+### 删除视图（需幂等 + CSRF）
+
+`DELETE /api/v1/table-views/{id}`
+
+### TableViewConfig
+
+```json
+{
+  "columns": [
+    { "key": "username", "visible": true, "order": 0, "width": 120, "pinned": "left" },
+    { "key": "displayName", "visible": true, "order": 1 }
+  ],
+  "density": "compact|default|comfortable",
+  "pagination": { "pageSize": 10 },
+  "sort": [{ "key": "createdAt", "order": "ascend", "priority": 1 }],
+  "filters": [{ "key": "status", "operator": "eq", "value": "Active" }],
+  "groupBy": { "key": "departmentId", "collapsedKeys": [] },
+  "aggregations": [{ "key": "amount", "op": "sum" }],
+  "queryPanel": { "open": true, "autoSearch": false, "savedFilterId": "filter-1" },
+  "queryModel": {
+    "logic": "AND",
+    "conditions": [{ "field": "status", "operator": "eq", "value": "Active" }],
+    "groups": []
+  }
 }
 ```
 
@@ -727,9 +914,9 @@ JWT Claims（新增）：
 - PUT `/api/v1/approval/flows/{id}` : 更新流程定义
   - body 同保存
   - resp: { success: boolean }
-- POST `/api/v1/approval/flows/{id}/publish` : 发布流程
+- POST `/api/v1/approval/flows/{id}/publication` : 发布流程
   - resp: { success: boolean, version: number }
-- POST `/api/v1/approval/flows/validate` : 前/后端联合校验
+- POST `/api/v1/approval/flows/validation` : 前/后端联合校验
   - body: { tenantId: string, definition: FlowDefinition }
   - resp: { isValid: boolean, errors: string[], warnings?: string[] }
 - POST `/api/v1/approval/flows/{id}/preview` : 预览（返回节点线性/树形展开视图数据）
@@ -747,5 +934,5 @@ JWT Claims（新增）：
 - condition 节点需有默认分支或全覆盖
 - 审批节点必须配置 approverRule
 - 节点 name/code 长度与特殊字符校验
-- 发布前需要通过 validate
+- 发布前需要通过 validation
 

@@ -12,7 +12,7 @@ using Atlas.WebApi.Authorization;
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
-[Route("api/assets")]
+[Route("api/v1/assets")]
 public sealed class AssetsController : ControllerBase
 {
     private readonly IAssetQueryService _assetQueryService;

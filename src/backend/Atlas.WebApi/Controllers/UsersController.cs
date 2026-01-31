@@ -11,7 +11,7 @@ using Atlas.WebApi.Authorization;
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
-[Route("api/users")]
+[Route("api/v1/users")]
 public sealed class UsersController : ControllerBase
 {
     private readonly IUserQueryService _userQueryService;

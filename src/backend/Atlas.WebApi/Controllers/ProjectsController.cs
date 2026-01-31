@@ -12,7 +12,7 @@ using Atlas.Core.Identity;
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
-[Route("api/projects")]
+[Route("api/v1/projects")]
 public sealed class ProjectsController : ControllerBase
 {
     private readonly IProjectQueryService _queryService;

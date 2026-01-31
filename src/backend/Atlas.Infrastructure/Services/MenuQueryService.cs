@@ -19,7 +19,7 @@ public sealed class MenuQueryService : IMenuQueryService
     }
 
     public async Task<PagedResult<MenuListItem>> QueryMenusAsync(
-        PagedRequest request,
+        MenuQueryRequest request,
         TenantId tenantId,
         CancellationToken cancellationToken)
     {
@@ -31,6 +31,7 @@ public sealed class MenuQueryService : IMenuQueryService
             pageIndex,
             pageSize,
             request.Keyword,
+            request.IsHidden,
             cancellationToken);
 
         var resultItems = items.Select(x => _mapper.Map<MenuListItem>(x)).ToArray();

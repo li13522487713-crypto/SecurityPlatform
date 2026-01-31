@@ -1,5 +1,15 @@
 <template>
   <a-card title="我发起的流程" class="page-card">
+    <div class="toolbar">
+      <a-space>
+        <a-select
+          v-model:value="statusFilter"
+          style="width: 140px"
+          :options="statusOptions"
+        />
+        <a-button @click="fetchData">刷新</a-button>
+      </a-space>
+    </div>
     <a-table
       :columns="columns"
       :data-source="dataSource"
@@ -86,7 +96,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from "vue";
+import { onMounted, reactive, ref, watch } from "vue";
 import {
   getMyInstancesPaged,
   getApprovalInstanceById,
@@ -122,6 +132,14 @@ const taskColumns = [
 
 const dataSource = ref<ApprovalInstanceListItem[]>([]);
 const loading = ref(false);
+const statusFilter = ref<ApprovalInstanceStatus | "all">("all");
+const statusOptions = [
+  { label: "全部", value: "all" },
+  { label: "运行中", value: ApprovalInstanceStatus.Running },
+  { label: "已完成", value: ApprovalInstanceStatus.Completed },
+  { label: "已驳回", value: ApprovalInstanceStatus.Rejected },
+  { label: "已取消", value: ApprovalInstanceStatus.Canceled }
+];
 const pagination = reactive<TablePaginationConfig>({
   current: 1,
   pageSize: 10,
@@ -138,10 +156,11 @@ const taskLoading = ref(false);
 const fetchData = async () => {
   loading.value = true;
   try {
+    const statusValue = statusFilter.value === "all" ? undefined : statusFilter.value;
     const result = await getMyInstancesPaged({
       pageIndex: pagination.current ?? 1,
       pageSize: pagination.pageSize ?? 10
-    });
+    }, statusValue);
     dataSource.value = result.items;
     pagination.total = result.total;
   } catch (err) {
@@ -262,4 +281,15 @@ const handleDrawerClose = () => {
 };
 
 onMounted(fetchData);
+
+watch(statusFilter, () => {
+  pagination.current = 1;
+  fetchData();
+});
 </script>
+
+<style scoped>
+.toolbar {
+  margin-bottom: 16px;
+}
+</style>

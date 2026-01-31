@@ -9,13 +9,15 @@
           @press-enter="fetchData"
         />
       </a-space>
+      <TableViewToolbar :controller="tableViewController" />
     </div>
 
     <a-table
-      :columns="columns"
+      :columns="tableColumns"
       :data-source="dataSource"
       :pagination="pagination"
       :loading="loading"
+      :size="tableSize"
       row-key="id"
       @change="onTableChange"
     >
@@ -36,11 +38,12 @@
       </template>
     </a-table>
 
-    <a-modal
+    <a-drawer
       v-model:open="formVisible"
       title="编辑应用配置"
-      @ok="submitForm"
-      @cancel="closeForm"
+      placement="right"
+      width="520"
+      @close="closeForm"
       destroy-on-close
     >
       <a-form ref="formRef" :model="formModel" :rules="formRules" layout="vertical">
@@ -67,7 +70,13 @@
           <a-input v-model:value="formModel.description" />
         </a-form-item>
       </a-form>
-    </a-modal>
+      <template #footer>
+        <a-space>
+          <a-button @click="closeForm">取消</a-button>
+          <a-button type="primary" @click="submitForm">保存</a-button>
+        </a-space>
+      </template>
+    </a-drawer>
   </a-card>
 </template>
 
@@ -76,17 +85,19 @@ import { onMounted, reactive, ref } from "vue";
 import type { FormInstance, TablePaginationConfig } from "ant-design-vue";
 import type { Rule } from "ant-design-vue/es/form";
 import { message } from "ant-design-vue";
+import TableViewToolbar from "@/components/table/table-view-toolbar.vue";
+import { useTableView } from "@/composables/useTableView";
 import { getAppConfigsPaged, updateAppConfig } from "@/services/api";
 import type { AppConfigListItem, AppConfigUpdateRequest } from "@/types/api";
 import { getAuthProfile, hasPermission } from "@/utils/auth";
 
-const columns = [
-  { title: "应用标识", dataIndex: "appId" },
-  { title: "应用名称", dataIndex: "name" },
+const baseColumns = [
+  { title: "应用标识", dataIndex: "appId", key: "appId" },
+  { title: "应用名称", dataIndex: "name", key: "name" },
   { title: "状态", key: "isActive" },
   { title: "项目维度", key: "enableProjectScope" },
-  { title: "排序", dataIndex: "sortOrder" },
-  { title: "操作", key: "actions" }
+  { title: "排序", dataIndex: "sortOrder", key: "sortOrder" },
+  { title: "操作", key: "actions", view: { canHide: false } }
 ];
 
 const dataSource = ref<AppConfigListItem[]>([]);
@@ -134,6 +145,13 @@ const fetchData = async () => {
     loading.value = false;
   }
 };
+
+const { controller: tableViewController, tableColumns, tableSize } = useTableView<AppConfigListItem>({
+  tableKey: "system.apps",
+  columns: baseColumns,
+  pagination,
+  onRefresh: fetchData
+});
 
 const onTableChange = (pager: TablePaginationConfig) => {
   pagination.current = pager.current;
@@ -186,5 +204,9 @@ onMounted(fetchData);
 <style scoped>
 .toolbar {
   margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 </style>

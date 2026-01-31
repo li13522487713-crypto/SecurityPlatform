@@ -11,7 +11,7 @@ using Atlas.WebApi.Authorization;
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
-[Route("api/departments")]
+[Route("api/v1/departments")]
 public sealed class DepartmentsController : ControllerBase
 {
     private readonly IDepartmentQueryService _departmentQueryService;

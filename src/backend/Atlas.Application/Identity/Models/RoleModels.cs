@@ -7,6 +7,14 @@ public sealed record RoleListItem(
     string? Description,
     bool IsSystem);
 
+public sealed record RoleQueryRequest(
+    int PageIndex,
+    int PageSize,
+    string? Keyword,
+    string? SortBy,
+    bool SortDesc,
+    bool? IsSystem);
+
 public sealed record RoleDetail(
     string Id,
     string Name,

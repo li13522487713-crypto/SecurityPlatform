@@ -19,7 +19,7 @@ public sealed class PermissionQueryService : IPermissionQueryService
     }
 
     public async Task<PagedResult<PermissionListItem>> QueryPermissionsAsync(
-        PagedRequest request,
+        PermissionQueryRequest request,
         TenantId tenantId,
         CancellationToken cancellationToken)
     {
@@ -27,9 +27,11 @@ public sealed class PermissionQueryService : IPermissionQueryService
         var pageSize = request.PageSize < 1 ? 10 : request.PageSize;
 
         var (items, total) = await _permissionRepository.QueryPageAsync(
+            tenantId,
             pageIndex,
             pageSize,
             request.Keyword,
+            request.Type,
             cancellationToken);
 
         var resultItems = items.Select(x => _mapper.Map<PermissionListItem>(x)).ToArray();

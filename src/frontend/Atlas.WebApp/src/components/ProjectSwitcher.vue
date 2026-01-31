@@ -104,7 +104,7 @@ onUnmounted(() => {
 }
 
 .project-label {
-  color: #fff;
-  opacity: 0.85;
+  color: #1f2937;
+  opacity: 0.9;
 }
 </style>

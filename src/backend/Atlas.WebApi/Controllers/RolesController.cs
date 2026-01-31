@@ -11,7 +11,7 @@ using Atlas.WebApi.Authorization;
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
-[Route("api/roles")]
+[Route("api/v1/roles")]
 public sealed class RolesController : ControllerBase
 {
     private readonly IRoleQueryService _roleQueryService;
@@ -40,7 +40,7 @@ public sealed class RolesController : ControllerBase
     [HttpGet]
     [Authorize(Policy = PermissionPolicies.RolesView)]
     public async Task<ActionResult<ApiResponse<PagedResult<RoleListItem>>>> Get(
-        [FromQuery] PagedRequest request,
+        [FromQuery] RoleQueryRequest request,
         CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();

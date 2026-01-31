@@ -18,7 +18,7 @@ X-Tenant-Id: {{tenantId}}
 @accessToken = {{login.response.body.$.data.accessToken}}
 
 ### Get Permissions (Paged)
-GET {{baseUrl}}/api/v1/permissions?pageIndex=1&pageSize=10
+GET {{baseUrl}}/api/v1/permissions?pageIndex=1&pageSize=10&type=Api
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 

@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
-[Route("api/health")]
+[Route("api/v1/health")]
 public sealed class HealthController : ControllerBase
 {
     [HttpGet]

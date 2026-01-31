@@ -93,3 +93,10 @@ All design and implementation must comply with 等保2.0 requirements. Treat sec
 - 重复请求应返回相同业务结果；同 key 不同 payload 必须拒绝并返回“幂等键冲突”。
 - 幂等记录需按配置保留 N 小时/天后过期并清理。
 - 受浏览器调用的写接口必须通过 Anti-Forgery 校验（Header: `X-CSRF-TOKEN`，由后端下发），前端需在写请求中携带。
+
+## 表格视图（个人）支持
+
+- 员工/角色/权限/菜单/部门/职位/项目/应用管理页面均已接入 Ant Design Vue `a-table` 的个人视图能力（见 `docs/contracts.md` “表格视图（个人）”章节）。
+- 视图只绑定当前登录用户（后台以 `tenant_id + user_id` 识别，前端不可传递用户标识），对每个 `tableKey` 仅保存用户自己的视图与默认映射。
+- `TableViewConfig` 支持列配置、密度、分页等项，所有写接口（POST/PUT/PATCH/DELETE 等）要求 `Idempotency-Key` + `X-CSRF-TOKEN`，相关 HTTP 测试存在于 `src/backend/Atlas.WebApi/Bosch.http/TableViews.http`。
+- 默认配置由 `TableViewDefaultOptions`（`appsettings.json` 的 `TableViewDefaults` 节）定义，需要调整请同步更新后端配置与 `docs/contracts.md` 的描述。

@@ -14,7 +14,7 @@ namespace Atlas.WebApi.Controllers;
 /// 审批流部门负责人管理控制器
 /// </summary>
 [ApiController]
-[Route("api/approval/department-leaders")]
+[Route("api/v1/approval/department-leaders")]
 [Authorize(Policy = PermissionPolicies.SystemAdmin)]
 public sealed class ApprovalDepartmentLeadersController : ControllerBase
 {

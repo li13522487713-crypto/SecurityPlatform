@@ -16,7 +16,7 @@ namespace Atlas.WebApi.Controllers;
 /// 审批流定义管理控制器
 /// </summary>
 [ApiController]
-[Route("api/approval/flows")]
+[Route("api/v1/approval/flows")]
 [Authorize]
 public sealed class ApprovalFlowsController : ControllerBase
 {
@@ -82,6 +82,20 @@ public sealed class ApprovalFlowsController : ControllerBase
     }
 
     /// <summary>
+    /// 校验流程定义（不落库）
+    /// </summary>
+    [HttpPost("validation")]
+    public async Task<ApiResponse<ApprovalFlowValidationResult>> ValidateAsync(
+        [FromBody] ApprovalFlowDefinitionCreateRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var validation = await _createValidator.ValidateAsync(request, cancellationToken);
+        var errors = validation.Errors.Select(error => error.ErrorMessage).ToArray();
+        var payload = new ApprovalFlowValidationResult(validation.IsValid, errors, Array.Empty<string>());
+        return ApiResponse<ApprovalFlowValidationResult>.Ok(payload, HttpContext.TraceIdentifier);
+    }
+
+    /// <summary>
     /// 创建流程定义
     /// </summary>
     [HttpPost]
@@ -128,7 +142,7 @@ public sealed class ApprovalFlowsController : ControllerBase
     /// <summary>
     /// 发布流程定义
     /// </summary>
-    [HttpPost("{id}/publish")]
+    [HttpPost("{id}/publication")]
     [Authorize(Policy = PermissionPolicies.ApprovalFlowPublish)]
     public async Task<ApiResponse<string>> PublishAsync(
         long id,
@@ -161,7 +175,7 @@ public sealed class ApprovalFlowsController : ControllerBase
     /// <summary>
     /// 禁用流程定义
     /// </summary>
-    [HttpPost("{id}/disable")]
+    [HttpPost("{id}/deactivation")]
     [Authorize(Policy = PermissionPolicies.ApprovalFlowDisable)]
     public async Task<ApiResponse<string>> DisableAsync(
         long id,

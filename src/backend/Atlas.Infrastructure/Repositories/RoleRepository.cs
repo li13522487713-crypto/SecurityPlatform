@@ -53,15 +53,22 @@ public sealed class RoleRepository : IRoleRepository
     }
 
     public async Task<(IReadOnlyList<Role> Items, int TotalCount)> QueryPageAsync(
+        TenantId tenantId,
         int pageIndex,
         int pageSize,
         string? keyword,
+        bool? isSystem,
         CancellationToken cancellationToken)
     {
-        var query = _db.Queryable<Role>();
+        var query = _db.Queryable<Role>()
+            .Where(x => x.TenantIdValue == tenantId.Value);
         if (!string.IsNullOrWhiteSpace(keyword))
         {
             query = query.Where(x => x.Name.Contains(keyword) || x.Code.Contains(keyword));
+        }
+        if (isSystem.HasValue)
+        {
+            query = query.Where(x => x.IsSystem == isSystem.Value);
         }
 
         var totalCount = await query.CountAsync(cancellationToken);

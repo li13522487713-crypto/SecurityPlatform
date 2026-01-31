@@ -7,7 +7,7 @@ namespace Atlas.Application.Identity.Abstractions;
 public interface IRoleQueryService
 {
     Task<PagedResult<RoleListItem>> QueryRolesAsync(
-        PagedRequest request,
+        RoleQueryRequest request,
         TenantId tenantId,
         CancellationToken cancellationToken);
 

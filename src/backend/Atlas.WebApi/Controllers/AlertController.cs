@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
-[Route("api/alert")]
+[Route("api/v1/alert")]
 public sealed class AlertController : ControllerBase
 {
     private readonly IAlertQueryService _alertQueryService;

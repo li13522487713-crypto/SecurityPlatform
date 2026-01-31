@@ -18,7 +18,7 @@ X-Tenant-Id: {{tenantId}}
 @accessToken = {{login.response.body.$.data.accessToken}}
 
 ### Get Roles (Paged)
-GET {{baseUrl}}/api/v1/roles?pageIndex=1&pageSize=10
+GET {{baseUrl}}/api/v1/roles?pageIndex=1&pageSize=10&isSystem=true
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 

@@ -1,22 +1,42 @@
 <template>
   <a-card title="权限管理" class="page-card">
     <div class="toolbar">
-      <a-space>
+      <a-space wrap>
         <a-input
           v-model:value="keyword"
           placeholder="搜索权限名称/编码"
           allow-clear
-          @press-enter="fetchData"
+          @press-enter="handleSearch"
         />
+        <a-button @click="handleSearch">查询</a-button>
+        <a-button @click="resetFilters">重置</a-button>
         <a-button v-if="canCreate" type="primary" @click="openCreate">新增权限</a-button>
+      </a-space>
+      <a-space wrap>
+        <TableViewToolbar :controller="tableViewController" />
+        <a-button :disabled="!selectedRowKeys.length" @click="handleBatchCopy">批量复制编码</a-button>
+      </a-space>
+    </div>
+
+    <div class="filter-bar">
+      <a-space wrap>
+        <span class="filter-label">高级筛选</span>
+        <a-select
+          v-model:value="typeFilter"
+          :options="typeFilterOptions"
+          style="width: 160px"
+          @change="handleSearch"
+        />
       </a-space>
     </div>
 
     <a-table
-      :columns="columns"
+      :columns="tableColumns"
       :data-source="dataSource"
       :pagination="pagination"
       :loading="loading"
+      :row-selection="rowSelection"
+      :size="tableSize"
       row-key="id"
       @change="onTableChange"
     >
@@ -29,11 +49,12 @@
       </template>
     </a-table>
 
-    <a-modal
+    <a-drawer
       v-model:open="formVisible"
       :title="formMode === 'create' ? '新增权限' : '编辑权限'"
-      @ok="submitForm"
-      @cancel="closeForm"
+      placement="right"
+      width="520"
+      @close="closeForm"
       destroy-on-close
     >
       <a-form ref="formRef" :model="formModel" :rules="formRules" layout="vertical">
@@ -50,30 +71,44 @@
           <a-input v-model:value="formModel.description" />
         </a-form-item>
       </a-form>
-    </a-modal>
+      <template #footer>
+        <a-space>
+          <a-button @click="closeForm">取消</a-button>
+          <a-button type="primary" @click="submitForm">保存</a-button>
+        </a-space>
+      </template>
+    </a-drawer>
   </a-card>
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref } from "vue";
 import type { TablePaginationConfig, FormInstance } from "ant-design-vue";
 import type { Rule } from "ant-design-vue/es/form";
 import { message } from "ant-design-vue";
+import TableViewToolbar from "@/components/table/table-view-toolbar.vue";
+import { useTableView } from "@/composables/useTableView";
 import { createPermission, getPermissionsPaged, updatePermission } from "@/services/api";
 import type { PermissionCreateRequest, PermissionListItem, PermissionUpdateRequest } from "@/types/api";
 import { getAuthProfile, hasPermission } from "@/utils/auth";
 
 type FormMode = "create" | "edit";
 
-const columns = [
-  { title: "权限名称", dataIndex: "name" },
-  { title: "权限编码", dataIndex: "code" },
-  { title: "类型", dataIndex: "type" },
-  { title: "描述", dataIndex: "description" },
-  { title: "操作", key: "actions" }
+const baseColumns = [
+  { title: "权限名称", dataIndex: "name", key: "name" },
+  { title: "权限编码", dataIndex: "code", key: "code" },
+  { title: "类型", dataIndex: "type", key: "type" },
+  { title: "描述", dataIndex: "description", key: "description" },
+  { title: "操作", key: "actions", view: { canHide: false } }
 ];
 
 const typeOptions = [
+  { label: "Api", value: "Api" },
+  { label: "Menu", value: "Menu" }
+];
+const typeFilter = ref<"all" | "Api" | "Menu">("all");
+const typeFilterOptions = [
+  { label: "全部类型", value: "all" },
   { label: "Api", value: "Api" },
   { label: "Menu", value: "Menu" }
 ];
@@ -108,17 +143,31 @@ const selectedId = ref<string | null>(null);
 const profile = getAuthProfile();
 const canCreate = hasPermission(profile, "permissions:create");
 const canUpdate = hasPermission(profile, "permissions:update");
+const selectedRowKeys = ref<string[]>([]);
+const selectedRows = ref<PermissionListItem[]>([]);
+
+const rowSelection = computed(() => ({
+  selectedRowKeys: selectedRowKeys.value,
+  onChange: (keys: (string | number)[], rows: PermissionListItem[]) => {
+    selectedRowKeys.value = keys.map((key) => key.toString());
+    selectedRows.value = rows;
+  }
+}));
 
 const fetchData = async () => {
   loading.value = true;
   try {
+    const type = typeFilter.value === "all" ? undefined : typeFilter.value;
     const result = await getPermissionsPaged({
       pageIndex: pagination.current ?? 1,
       pageSize: pagination.pageSize ?? 10,
-      keyword: keyword.value || undefined
+      keyword: keyword.value || undefined,
+      type
     });
     dataSource.value = result.items;
     pagination.total = result.total;
+    selectedRowKeys.value = [];
+    selectedRows.value = [];
   } catch (error) {
     message.error((error as Error).message || "查询失败");
   } finally {
@@ -126,10 +175,28 @@ const fetchData = async () => {
   }
 };
 
+const { controller: tableViewController, tableColumns, tableSize } = useTableView<PermissionListItem>({
+  tableKey: "system.permissions",
+  columns: baseColumns,
+  pagination,
+  onRefresh: fetchData
+});
+
 const onTableChange = (pager: TablePaginationConfig) => {
   pagination.current = pager.current;
   pagination.pageSize = pager.pageSize;
   fetchData();
+};
+
+const handleSearch = () => {
+  pagination.current = 1;
+  fetchData();
+};
+
+const resetFilters = () => {
+  keyword.value = "";
+  typeFilter.value = "all";
+  handleSearch();
 };
 
 const resetForm = () => {
@@ -188,11 +255,48 @@ const submitForm = async () => {
   }
 };
 
+const handleBatchCopy = async () => {
+  if (!selectedRows.value.length) {
+    message.warning("请先选择权限");
+    return;
+  }
+  const content = selectedRows.value.map((item) => item.code).join("\n");
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(content);
+      message.success("已复制权限编码");
+      return;
+    }
+    throw new Error("Clipboard API not available");
+  } catch {
+    message.warning("浏览器不支持自动复制，请手动复制");
+    message.info(content);
+  }
+};
+
 onMounted(fetchData);
 </script>
 
 <style scoped>
 .toolbar {
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.filter-bar {
   margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.filter-label {
+  color: #8c8c8c;
 }
 </style>

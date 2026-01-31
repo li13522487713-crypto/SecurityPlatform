@@ -11,6 +11,14 @@ public sealed record MenuListItem(
     string? PermissionCode,
     bool IsHidden);
 
+public sealed record MenuQueryRequest(
+    int PageIndex,
+    int PageSize,
+    string? Keyword,
+    string? SortBy,
+    bool SortDesc,
+    bool? IsHidden);
+
 public sealed record MenuCreateRequest(
     string Name,
     string Path,

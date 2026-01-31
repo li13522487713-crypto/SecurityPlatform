@@ -3,6 +3,7 @@ namespace Atlas.WebApi.Middlewares;
 public sealed class ApiVersionRewriteMiddleware
 {
     private const string VersionPrefix = "/api/v1";
+    private const string LegacyPrefix = "/api";
     private readonly RequestDelegate _next;
 
     public ApiVersionRewriteMiddleware(RequestDelegate next)
@@ -13,20 +14,22 @@ public sealed class ApiVersionRewriteMiddleware
     public Task InvokeAsync(HttpContext context)
     {
         var path = context.Request.Path.Value;
-        if (!string.IsNullOrWhiteSpace(path)
-            && path.StartsWith(VersionPrefix, StringComparison.OrdinalIgnoreCase))
+        if (string.IsNullOrWhiteSpace(path))
         {
-            var rest = path.Substring(VersionPrefix.Length);
-            if (string.IsNullOrWhiteSpace(rest))
-            {
-                rest = "/api";
-            }
-            else if (!rest.StartsWith("/api", StringComparison.OrdinalIgnoreCase))
-            {
-                rest = "/api" + rest;
-            }
+            return _next(context);
+        }
 
-            context.Request.Path = rest;
+        if (path.StartsWith(VersionPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return _next(context);
+        }
+
+        if (path.StartsWith(LegacyPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            var rest = path.Substring(LegacyPrefix.Length);
+            context.Request.Path = string.IsNullOrWhiteSpace(rest)
+                ? VersionPrefix
+                : $"{VersionPrefix}{rest}";
         }
 
         return _next(context);
