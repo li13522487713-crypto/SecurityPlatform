@@ -67,13 +67,11 @@ public sealed class RbacResolver : IRbacResolver
         }
 
         var permissionIds = new HashSet<long>();
-        foreach (var roleId in userRoles.Select(x => x.RoleId).Distinct())
+        var roleIds = userRoles.Select(x => x.RoleId).Distinct().ToArray();
+        var rolePermissions = await _rolePermissionRepository.QueryByRoleIdsAsync(tenantId, roleIds, cancellationToken);
+        foreach (var permissionId in rolePermissions.Select(x => x.PermissionId))
         {
-            var rolePermissions = await _rolePermissionRepository.QueryByRoleIdAsync(tenantId, roleId, cancellationToken);
-            foreach (var permissionId in rolePermissions.Select(x => x.PermissionId))
-            {
-                permissionIds.Add(permissionId);
-            }
+            permissionIds.Add(permissionId);
         }
 
         if (permissionIds.Count == 0)

@@ -26,6 +26,17 @@ public sealed class UserAccountRepository : IUserAccountRepository
             .ExecuteCommandAsync(cancellationToken);
     }
 
+    public Task UpdateRangeAsync(IReadOnlyList<UserAccount> accounts, CancellationToken cancellationToken)
+    {
+        if (accounts.Count == 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        return _db.Updateable(accounts.ToList())
+            .ExecuteCommandAsync(cancellationToken);
+    }
+
     public Task DeleteAsync(TenantId tenantId, long id, CancellationToken cancellationToken)
     {
         return _db.Deleteable<UserAccount>()
@@ -103,6 +114,22 @@ public sealed class UserAccountRepository : IUserAccountRepository
             .ToPageListAsync(pageIndex, pageSize, cancellationToken);
 
         return (list, totalCount);
+    }
+
+    public async Task<IReadOnlyList<UserAccount>> QueryByIdsAsync(
+        TenantId tenantId,
+        IReadOnlyList<long> userIds,
+        CancellationToken cancellationToken)
+    {
+        if (userIds.Count == 0)
+        {
+            return Array.Empty<UserAccount>();
+        }
+
+        var distinctIds = userIds.Distinct().ToArray();
+        return await _db.Queryable<UserAccount>()
+            .Where(x => x.TenantIdValue == tenantId.Value && distinctIds.Contains(x.Id))
+            .ToListAsync(cancellationToken);
     }
 
     public async Task<bool> ExistsByUsernameAsync(TenantId tenantId, string username, CancellationToken cancellationToken)

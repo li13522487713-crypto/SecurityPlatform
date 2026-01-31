@@ -60,22 +60,25 @@ public sealed class ApprovalRuntimeQueryService : IApprovalRuntimeQueryService
             status,
             cancellationToken);
 
-        var listItems = new List<ApprovalInstanceListItem>();
-        foreach (var item in items)
+        var definitionIds = items.Select(x => x.DefinitionId).Distinct().ToArray();
+        var flows = await _flowRepository.QueryByIdsAsync(tenantId, definitionIds, cancellationToken);
+        var flowMap = flows.ToDictionary(x => x.Id, x => x.Name);
+
+        var listItems = items.Select(item =>
         {
-            var flow = await _flowRepository.GetByIdAsync(tenantId, item.DefinitionId, cancellationToken);
-            listItems.Add(new ApprovalInstanceListItem
+            var flowName = flowMap.TryGetValue(item.DefinitionId, out var name) ? name : "Unknown";
+            return new ApprovalInstanceListItem
             {
                 Id = item.Id,
                 DefinitionId = item.DefinitionId,
-                FlowName = flow?.Name ?? "Unknown",
+                FlowName = flowName,
                 BusinessKey = item.BusinessKey,
                 InitiatorUserId = item.InitiatorUserId,
                 Status = item.Status,
                 StartedAt = item.StartedAt,
                 EndedAt = item.EndedAt
-            });
-        }
+            };
+        }).ToList();
 
         return new PagedResult<ApprovalInstanceListItem>(
             listItems,

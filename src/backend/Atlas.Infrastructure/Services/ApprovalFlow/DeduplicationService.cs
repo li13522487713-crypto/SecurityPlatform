@@ -97,9 +97,12 @@ public sealed class DeduplicationService
         if (!string.IsNullOrEmpty(excludeRoleCodes))
         {
             var excludeRoleList = ParseRoleCodes(excludeRoleCodes);
-            foreach (var roleCode in excludeRoleList)
+            var roleUserIds = await _userQueryService.GetUserIdsByRoleCodesAsync(
+                tenantId,
+                excludeRoleList,
+                cancellationToken);
+            if (roleUserIds.Count > 0)
             {
-                var roleUserIds = await _userQueryService.GetUserIdsByRoleCodeAsync(tenantId, roleCode, cancellationToken);
                 result = result.Except(roleUserIds).ToList();
             }
         }
@@ -119,26 +122,18 @@ public sealed class DeduplicationService
     {
         // 获取当前节点之前的所有节点（通过拓扑排序）
         var previousNodeIds = GetPreviousNodeIds(definition, currentNodeId);
-        
-        // 查询这些节点中已审批的用户
-        var excludedUserIds = new HashSet<long>();
-        foreach (var nodeId in previousNodeIds)
-        {
-            var nodeTasks = await _taskRepository.GetByInstanceAndNodeAsync(tenantId, instanceId, nodeId, cancellationToken);
-            foreach (var task in nodeTasks)
-            {
-                // 只排除已审批或已拒绝的任务（不包括待办、取消、等待状态）
-                if (task.Status == ApprovalTaskStatus.Approved || task.Status == ApprovalTaskStatus.Rejected)
-                {
-                    if (task.AssigneeType == AssigneeType.User && long.TryParse(task.AssigneeValue, out var userId))
-                    {
-                        excludedUserIds.Add(userId);
-                    }
-                }
-            }
-        }
 
-        return excludedUserIds.ToList();
+        var nodeTasks = await _taskRepository.GetByInstanceAndNodesAsync(
+            tenantId,
+            instanceId,
+            previousNodeIds,
+            cancellationToken);
+        return nodeTasks
+            .Where(task => task.Status is ApprovalTaskStatus.Approved or ApprovalTaskStatus.Rejected)
+            .Where(task => task.AssigneeType == AssigneeType.User && long.TryParse(task.AssigneeValue, out _))
+            .Select(task => long.Parse(task.AssigneeValue))
+            .Distinct()
+            .ToList();
     }
 
     /// <summary>
@@ -153,26 +148,18 @@ public sealed class DeduplicationService
     {
         // 获取当前节点之后的所有节点（通过拓扑排序）
         var nextNodeIds = GetNextNodeIds(definition, currentNodeId);
-        
-        // 查询这些节点中已审批的用户
-        var excludedUserIds = new HashSet<long>();
-        foreach (var nodeId in nextNodeIds)
-        {
-            var nodeTasks = await _taskRepository.GetByInstanceAndNodeAsync(tenantId, instanceId, nodeId, cancellationToken);
-            foreach (var task in nodeTasks)
-            {
-                // 只排除已审批或已拒绝的任务
-                if (task.Status == ApprovalTaskStatus.Approved || task.Status == ApprovalTaskStatus.Rejected)
-                {
-                    if (task.AssigneeType == AssigneeType.User && long.TryParse(task.AssigneeValue, out var userId))
-                    {
-                        excludedUserIds.Add(userId);
-                    }
-                }
-            }
-        }
 
-        return excludedUserIds.ToList();
+        var nodeTasks = await _taskRepository.GetByInstanceAndNodesAsync(
+            tenantId,
+            instanceId,
+            nextNodeIds,
+            cancellationToken);
+        return nodeTasks
+            .Where(task => task.Status is ApprovalTaskStatus.Approved or ApprovalTaskStatus.Rejected)
+            .Where(task => task.AssigneeType == AssigneeType.User && long.TryParse(task.AssigneeValue, out _))
+            .Select(task => long.Parse(task.AssigneeValue))
+            .Distinct()
+            .ToList();
     }
 
     /// <summary>

@@ -73,10 +73,13 @@ public sealed class ProcessDrawBackOperationHandler : IApprovalOperationHandler
 
         // 取消所有待审批任务
         var pendingTasks = await _taskRepository.GetByInstanceAndStatusAsync(tenantId, instanceId, ApprovalTaskStatus.Pending, cancellationToken);
-        foreach (var task in pendingTasks)
+        if (pendingTasks.Count > 0)
         {
-            task.Cancel();
-            await _taskRepository.UpdateAsync(task, cancellationToken);
+            foreach (var task in pendingTasks)
+            {
+                task.Cancel();
+            }
+            await _taskRepository.UpdateRangeAsync(pendingTasks, cancellationToken);
         }
 
         // 记录撤回事件

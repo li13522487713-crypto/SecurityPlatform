@@ -84,9 +84,8 @@ public sealed class AddFutureAssigneeOperationHandler : IApprovalOperationHandle
         }
 
         // 为每个新审批人记录未来节点加签
-        foreach (var assigneeValue in request.AdditionalAssigneeValues)
-        {
-            var change = new ApprovalTaskAssigneeChange(
+        var changes = request.AdditionalAssigneeValues
+            .Select(assigneeValue => new ApprovalTaskAssigneeChange(
                 tenantId,
                 instanceId,
                 request.TargetNodeId,
@@ -95,8 +94,11 @@ public sealed class AddFutureAssigneeOperationHandler : IApprovalOperationHandle
                 operatorUserId,
                 _idGeneratorAccessor.NextId(),
                 null,
-                request.Comment);
-            await _assigneeChangeRepository.AddAsync(change, cancellationToken);
+                request.Comment))
+            .ToList();
+        if (changes.Count > 0)
+        {
+            await _assigneeChangeRepository.AddRangeAsync(changes, cancellationToken);
         }
 
         // 记录历史事件

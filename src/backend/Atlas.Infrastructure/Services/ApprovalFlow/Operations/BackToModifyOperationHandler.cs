@@ -69,10 +69,13 @@ public sealed class BackToModifyOperationHandler : IApprovalOperationHandler
 
         // 取消所有待审批任务
         var pendingTasks = await _taskRepository.GetByInstanceAndStatusAsync(tenantId, instanceId, ApprovalTaskStatus.Pending, cancellationToken);
-        foreach (var pendingTask in pendingTasks)
+        if (pendingTasks.Count > 0)
         {
-            pendingTask.Cancel();
-            await _taskRepository.UpdateAsync(pendingTask, cancellationToken);
+            foreach (var pendingTask in pendingTasks)
+            {
+                pendingTask.Cancel();
+            }
+            await _taskRepository.UpdateRangeAsync(pendingTasks, cancellationToken);
         }
 
         // 流程状态改为驳回（打回修改）

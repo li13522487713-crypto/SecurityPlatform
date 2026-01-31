@@ -25,6 +25,22 @@ public sealed class RolePermissionRepository : IRolePermissionRepository
         return list;
     }
 
+    public async Task<IReadOnlyList<RolePermission>> QueryByRoleIdsAsync(
+        TenantId tenantId,
+        IReadOnlyList<long> roleIds,
+        CancellationToken cancellationToken)
+    {
+        if (roleIds.Count == 0)
+        {
+            return Array.Empty<RolePermission>();
+        }
+
+        var distinctIds = roleIds.Distinct().ToArray();
+        return await _db.Queryable<RolePermission>()
+            .Where(x => x.TenantIdValue == tenantId.Value && distinctIds.Contains(x.RoleId))
+            .ToListAsync(cancellationToken);
+    }
+
     public Task DeleteByRoleIdAsync(TenantId tenantId, long roleId, CancellationToken cancellationToken)
     {
         return _db.Deleteable<RolePermission>()

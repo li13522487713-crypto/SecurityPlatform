@@ -28,6 +28,30 @@ public sealed class RoleRepository : IRoleRepository
             .FirstAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<Role>> QueryByCodesAsync(
+        TenantId tenantId,
+        IReadOnlyList<string> codes,
+        CancellationToken cancellationToken)
+    {
+        if (codes.Count == 0)
+        {
+            return Array.Empty<Role>();
+        }
+
+        var distinctCodes = codes
+            .Where(code => !string.IsNullOrWhiteSpace(code))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (distinctCodes.Length == 0)
+        {
+            return Array.Empty<Role>();
+        }
+
+        return await _db.Queryable<Role>()
+            .Where(x => x.TenantIdValue == tenantId.Value && distinctCodes.Contains(x.Code))
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<(IReadOnlyList<Role> Items, int TotalCount)> QueryPageAsync(
         int pageIndex,
         int pageSize,
@@ -59,6 +83,16 @@ public sealed class RoleRepository : IRoleRepository
             .Where(x => x.TenantIdValue == tenantId.Value && ids.Contains(x.Id))
             .ToListAsync(cancellationToken);
         return list;
+    }
+
+    public Task AddRangeAsync(IReadOnlyList<Role> roles, CancellationToken cancellationToken)
+    {
+        if (roles.Count == 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        return _db.Insertable(roles.ToList()).ExecuteCommandAsync(cancellationToken);
     }
 
     public Task AddAsync(Role role, CancellationToken cancellationToken)

@@ -45,6 +45,22 @@ public sealed class ApprovalTaskRepository : IApprovalTaskRepository
             .FirstAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<ApprovalTask>> QueryByIdsAsync(
+        TenantId tenantId,
+        IReadOnlyList<long> ids,
+        CancellationToken cancellationToken)
+    {
+        if (ids.Count == 0)
+        {
+            return Array.Empty<ApprovalTask>();
+        }
+
+        var distinctIds = ids.Distinct().ToArray();
+        return await _db.Queryable<ApprovalTask>()
+            .Where(x => x.TenantIdValue == tenantId.Value && distinctIds.Contains(x.Id))
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<(IReadOnlyList<ApprovalTask> Items, int TotalCount)> GetPagedByInstanceAsync(
         TenantId tenantId,
         long instanceId,
@@ -105,6 +121,33 @@ public sealed class ApprovalTaskRepository : IApprovalTaskRepository
             .Where(x => x.TenantIdValue == tenantId.Value
                 && x.InstanceId == instanceId
                 && x.NodeId == nodeId)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<ApprovalTask>> GetByInstanceAndNodesAsync(
+        TenantId tenantId,
+        long instanceId,
+        IReadOnlyList<string> nodeIds,
+        CancellationToken cancellationToken)
+    {
+        if (nodeIds.Count == 0)
+        {
+            return Array.Empty<ApprovalTask>();
+        }
+
+        var distinctNodeIds = nodeIds
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (distinctNodeIds.Length == 0)
+        {
+            return Array.Empty<ApprovalTask>();
+        }
+
+        return await _db.Queryable<ApprovalTask>()
+            .Where(x => x.TenantIdValue == tenantId.Value
+                && x.InstanceId == instanceId
+                && distinctNodeIds.Contains(x.NodeId))
             .ToListAsync(cancellationToken);
     }
 

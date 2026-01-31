@@ -18,6 +18,11 @@ public interface IApprovalExternalCallbackConfigRepository
         long id,
         CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<ApprovalExternalCallbackConfig>> QueryByIdsAsync(
+        TenantId tenantId,
+        IReadOnlyList<long> ids,
+        CancellationToken cancellationToken);
+
     Task<IReadOnlyList<ApprovalExternalCallbackConfig>> GetByFlowAndEventAsync(
         TenantId tenantId,
         long flowDefinitionId,

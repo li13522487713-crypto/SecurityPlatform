@@ -81,10 +81,97 @@ public sealed class ExternalCallbackService
                 return; // 没有配置回调，直接返回
             }
 
-            // 为每个配置创建回调记录并发送
-            foreach (var config in configs)
+            var now = _timeProvider.GetUtcNow();
+            var workItems = BuildWorkItems(tenantId, configs, instance, task, nodeId, eventType);
+            if (workItems.Count == 0)
             {
-                await SendCallbackAsync(tenantId, config, instance, task, nodeId, eventType, cancellationToken);
+                return;
+            }
+
+            var existingRecords = await _recordRepository.QueryByIdempotencyKeysAsync(
+                tenantId,
+                workItems.Select(x => x.IdempotencyKey).ToArray(),
+                cancellationToken);
+            var recordMap = existingRecords.ToDictionary(x => x.IdempotencyKey);
+
+            var newRecords = new List<ApprovalExternalCallbackRecord>();
+            var recordsToMarkSending = new List<ApprovalExternalCallbackRecord>();
+            var sendItems = new List<CallbackWorkItem>();
+
+            foreach (var item in workItems)
+            {
+                if (recordMap.TryGetValue(item.IdempotencyKey, out var existingRecord))
+                {
+                    if (existingRecord.Status == CallbackStatus.Success)
+                    {
+                        continue;
+                    }
+
+                    existingRecord.MarkSending(now);
+                    recordsToMarkSending.Add(existingRecord);
+                    sendItems.Add(new CallbackWorkItem(item.Config, existingRecord, item.SecretKey));
+                    continue;
+                }
+
+                var record = new ApprovalExternalCallbackRecord(
+                    tenantId,
+                    item.Config.Id,
+                    instance.Id,
+                    task?.Id,
+                    nodeId,
+                    eventType,
+                    item.Config.CallbackUrl,
+                    item.RequestBody,
+                    item.IdempotencyKey,
+                    _idGeneratorAccessor.NextId());
+                record.MarkSending(now);
+                newRecords.Add(record);
+                sendItems.Add(new CallbackWorkItem(item.Config, record, item.SecretKey));
+            }
+
+            if (newRecords.Count > 0)
+            {
+                await _recordRepository.AddRangeAsync(newRecords, cancellationToken);
+            }
+
+            if (recordsToMarkSending.Count > 0)
+            {
+                await _recordRepository.UpdateRangeAsync(recordsToMarkSending, cancellationToken);
+            }
+
+            var updatedRecords = new List<ApprovalExternalCallbackRecord>();
+            foreach (var item in sendItems)
+            {
+                var record = item.Record;
+                if (record == null)
+                {
+                    _logger?.LogWarning("回调记录为空，跳过发送：租户={TenantId}, 实例={InstanceId}, 事件={EventType}", tenantId, instance.Id, eventType);
+                    continue;
+                }
+
+                try
+                {
+                    var headers = GenerateHeaders(record.RequestBody, item.SecretKey, now);
+                    var responseBody = await _callbackHandler.SendCallbackAsync(
+                        item.Config.CallbackUrl,
+                        record.RequestBody,
+                        headers,
+                        item.Config.TimeoutSeconds,
+                        cancellationToken);
+
+                    record.MarkSuccess(responseBody, now);
+                }
+                catch (Exception ex)
+                {
+                    record.MarkFailed(ex.Message, item.Config.RetryIntervalSeconds, now);
+                }
+
+                updatedRecords.Add(record);
+            }
+
+            if (updatedRecords.Count > 0)
+            {
+                await _recordRepository.UpdateRangeAsync(updatedRecords, cancellationToken);
             }
         }
         catch (Exception ex)
@@ -94,91 +181,30 @@ public sealed class ExternalCallbackService
         }
     }
 
-    /// <summary>
-    /// 发送回调
-    /// </summary>
-    private async Task SendCallbackAsync(
+    private List<CallbackWorkItem> BuildWorkItems(
         TenantId tenantId,
-        ApprovalExternalCallbackConfig config,
+        IReadOnlyList<ApprovalExternalCallbackConfig> configs,
         ApprovalProcessInstance instance,
         ApprovalTask? task,
         string? nodeId,
-        CallbackEventType eventType,
-        CancellationToken cancellationToken)
+        CallbackEventType eventType)
     {
-        // URL白名单校验
-        if (!ValidateCallbackUrl(config.CallbackUrl))
+        var workItems = new List<CallbackWorkItem>();
+        foreach (var config in configs)
         {
-            _logger?.LogWarning("回调URL不在白名单中：{CallbackUrl}", config.CallbackUrl);
-            throw new InvalidOperationException($"回调URL不在白名单中：{config.CallbackUrl}");
-        }
+            if (!ValidateCallbackUrl(config.CallbackUrl))
+            {
+                _logger?.LogWarning("回调URL不在白名单中：{CallbackUrl}", config.CallbackUrl);
+                continue;
+            }
 
-        // 构建请求体（脱敏处理）
-        var requestBody = BuildRequestBody(instance, task, nodeId, eventType, sanitize: true);
-
-        // 生成幂等键
-        var idempotencyKey = GenerateIdempotencyKey(instance.Id, task?.Id, nodeId, eventType, config.Id);
-
-        // 检查是否已存在（幂等性保护）
-        var existingRecord = await _recordRepository.GetByIdempotencyKeyAsync(tenantId, idempotencyKey, cancellationToken);
-        if (existingRecord != null && existingRecord.Status == CallbackStatus.Success)
-        {
-            return; // 已成功回调，跳过
-        }
-
-        // 创建或更新回调记录
-        ApprovalExternalCallbackRecord record;
-        if (existingRecord != null)
-        {
-            record = existingRecord;
-        }
-        else
-        {
-            record = new ApprovalExternalCallbackRecord(
-                tenantId,
-                config.Id,
-                instance.Id,
-                task?.Id,
-                nodeId,
-                eventType,
-                config.CallbackUrl,
-                requestBody,
-                idempotencyKey,
-                _idGeneratorAccessor.NextId());
-            await _recordRepository.AddAsync(record, cancellationToken);
-        }
-
-        // 发送回调
-        try
-        {
-            record.MarkSending(_timeProvider.GetUtcNow());
-            await _recordRepository.UpdateAsync(record, cancellationToken);
-
-            // 解密SecretKey（如果已加密）
+            var requestBody = BuildRequestBody(instance, task, nodeId, eventType, sanitize: true);
+            var idempotencyKey = GenerateIdempotencyKey(instance.Id, task?.Id, nodeId, eventType, config.Id);
             var secretKey = DecryptSecretKey(config.SecretKey);
-
-            // 生成签名
-            var headers = GenerateHeaders(requestBody, secretKey, _timeProvider.GetUtcNow());
-
-            // 发送 HTTP 回调
-            var responseBody = await _callbackHandler.SendCallbackAsync(
-                config.CallbackUrl,
-                requestBody,
-                headers,
-                config.TimeoutSeconds,
-                cancellationToken);
-
-            // 标记成功
-            record.MarkSuccess(responseBody, _timeProvider.GetUtcNow());
-            await _recordRepository.UpdateAsync(record, cancellationToken);
+            workItems.Add(new CallbackWorkItem(config, requestBody, idempotencyKey, secretKey));
         }
-        catch (Exception ex)
-        {
-            // 标记失败并设置重试
-            record.MarkFailed(ex.Message, config.RetryIntervalSeconds, _timeProvider.GetUtcNow());
-            await _recordRepository.UpdateAsync(record, cancellationToken);
-            throw; // 重新抛出异常，由调用方决定是否重试
-        }
+
+        return workItems;
     }
 
     /// <summary>
@@ -190,36 +216,50 @@ public sealed class ExternalCallbackService
     {
         var currentTime = _timeProvider.GetUtcNow();
         var pendingRecords = await _recordRepository.GetPendingRetriesAsync(tenantId, currentTime, cancellationToken);
+        if (pendingRecords.Count == 0)
+        {
+            return;
+        }
+
+        var configIds = pendingRecords.Select(x => x.ConfigId).Distinct().ToArray();
+        var configs = await _configRepository.QueryByIdsAsync(tenantId, configIds, cancellationToken);
+        var configMap = configs.ToDictionary(x => x.Id);
+
+        var recordsToSend = new List<ApprovalExternalCallbackRecord>();
+        var recordsToUpdate = new List<ApprovalExternalCallbackRecord>();
 
         foreach (var record in pendingRecords)
         {
-            ApprovalExternalCallbackConfig? config = null;
+            if (!configMap.TryGetValue(record.ConfigId, out var config) || !config.IsEnabled)
+            {
+                record.MarkCancelled();
+                recordsToUpdate.Add(record);
+                continue;
+            }
+
+            if (!record.CanRetry(config.MaxRetryCount))
+            {
+                record.MarkCancelled();
+                recordsToUpdate.Add(record);
+                continue;
+            }
+
+            record.MarkSending(currentTime);
+            recordsToSend.Add(record);
+        }
+
+        if (recordsToSend.Count > 0)
+        {
+            await _recordRepository.UpdateRangeAsync(recordsToSend, cancellationToken);
+        }
+
+        foreach (var record in recordsToSend)
+        {
             try
             {
-                config = await _configRepository.GetByIdAsync(tenantId, record.ConfigId, cancellationToken);
-                if (config == null || !config.IsEnabled)
-                {
-                    record.MarkCancelled();
-                    await _recordRepository.UpdateAsync(record, cancellationToken);
-                    continue;
-                }
-
-                // 检查是否超过最大重试次数
-                if (!record.CanRetry(config.MaxRetryCount))
-                {
-                    record.MarkCancelled();
-                    await _recordRepository.UpdateAsync(record, cancellationToken);
-                    continue;
-                }
-
-                // 重新发送
-                record.MarkSending(_timeProvider.GetUtcNow());
-                await _recordRepository.UpdateAsync(record, cancellationToken);
-
-                // 解密SecretKey（如果已加密）
+                var config = configMap[record.ConfigId];
                 var secretKey = DecryptSecretKey(config.SecretKey);
-
-                var headers = GenerateHeaders(record.RequestBody, secretKey, _timeProvider.GetUtcNow());
+                var headers = GenerateHeaders(record.RequestBody, secretKey, currentTime);
 
                 var responseBody = await _callbackHandler.SendCallbackAsync(
                     record.CallbackUrl,
@@ -228,15 +268,37 @@ public sealed class ExternalCallbackService
                     config.TimeoutSeconds,
                     cancellationToken);
 
-                record.MarkSuccess(responseBody, _timeProvider.GetUtcNow());
-                await _recordRepository.UpdateAsync(record, cancellationToken);
+                record.MarkSuccess(responseBody, currentTime);
             }
             catch (Exception ex)
             {
-                var retryIntervalSeconds = config?.RetryIntervalSeconds ?? 300;
-                record.MarkFailed(ex.Message, retryIntervalSeconds, _timeProvider.GetUtcNow());
-                await _recordRepository.UpdateAsync(record, cancellationToken);
+                var retryIntervalSeconds = configMap.TryGetValue(record.ConfigId, out var config)
+                    ? config.RetryIntervalSeconds
+                    : 300;
+                record.MarkFailed(ex.Message, retryIntervalSeconds, currentTime);
             }
+
+            recordsToUpdate.Add(record);
+        }
+
+        if (recordsToUpdate.Count > 0)
+        {
+            await _recordRepository.UpdateRangeAsync(recordsToUpdate, cancellationToken);
+        }
+    }
+
+    private sealed record CallbackWorkItem(
+        ApprovalExternalCallbackConfig Config,
+        string RequestBody,
+        string IdempotencyKey,
+        string SecretKey)
+    {
+        public ApprovalExternalCallbackRecord? Record { get; private set; }
+
+        public CallbackWorkItem(ApprovalExternalCallbackConfig config, ApprovalExternalCallbackRecord record, string secretKey)
+            : this(config, record.RequestBody, record.IdempotencyKey, secretKey)
+        {
+            Record = record;
         }
     }
 

@@ -50,10 +50,12 @@ public class SqlSugarPersistenceProvider : IPersistenceProvider
         await _db.Insertable(entity).ExecuteCommandAsync(cancellationToken);
 
         // Save execution pointers
-        foreach (var pointer in workflow.ExecutionPointers)
+        var pointerEntities = workflow.ExecutionPointers
+            .Select(pointer => CreatePointerEntity(tenantId, workflow.Id, pointer))
+            .ToList();
+        if (pointerEntities.Count > 0)
         {
-            var pointerEntity = CreatePointerEntity(tenantId, workflow.Id, pointer);
-            await _db.Insertable(pointerEntity).ExecuteCommandAsync(cancellationToken);
+            await _db.Insertable(pointerEntities).ExecuteCommandAsync(cancellationToken);
         }
 
         return workflow.Id;
@@ -78,6 +80,52 @@ public class SqlSugarPersistenceProvider : IPersistenceProvider
         return entity;
     }
 
+    private static WorkflowInstance BuildWorkflowInstance(
+        PersistedWorkflow entity,
+        IReadOnlyList<PersistedExecutionPointer> pointers)
+    {
+        var workflow = new WorkflowInstance
+        {
+            Id = entity.Id.ToString(),
+            WorkflowDefinitionId = entity.WorkflowDefinitionId,
+            Version = entity.Version,
+            Description = entity.Description,
+            Reference = entity.Reference,
+            Status = entity.Status,
+            Data = entity.DataJson != null ? JsonSerializer.Deserialize<object>(entity.DataJson) : null,
+            CreateTime = entity.CreateTime.DateTime,
+            CompleteTime = entity.CompleteTime?.DateTime,
+            NextExecution = entity.NextExecution
+        };
+
+        foreach (var pointerEntity in pointers)
+        {
+            var pointer = new ExecutionPointer
+            {
+                Id = pointerEntity.PointerId,
+                StepId = pointerEntity.StepId,
+                Active = pointerEntity.Active,
+                SleepUntil = pointerEntity.SleepUntil?.DateTime,
+                PersistenceData = pointerEntity.PersistenceDataJson != null ? JsonSerializer.Deserialize<object>(pointerEntity.PersistenceDataJson) : null,
+                StartTime = pointerEntity.StartTime?.DateTime,
+                EndTime = pointerEntity.EndTime?.DateTime,
+                EventName = pointerEntity.EventName,
+                EventKey = pointerEntity.EventKey,
+                EventPublished = pointerEntity.EventPublished,
+                EventData = pointerEntity.EventDataJson != null ? JsonSerializer.Deserialize<object>(pointerEntity.EventDataJson) : null,
+                StepName = pointerEntity.StepName,
+                RetryCount = pointerEntity.RetryCount,
+                ContextItem = pointerEntity.ContextItemJson != null ? JsonSerializer.Deserialize<object>(pointerEntity.ContextItemJson) : null,
+                PredecessorId = pointerEntity.PredecessorId,
+                Outcome = pointerEntity.OutcomeJson != null ? JsonSerializer.Deserialize<object>(pointerEntity.OutcomeJson) : null,
+                Status = pointerEntity.Status
+            };
+            workflow.ExecutionPointers.Add(pointer);
+        }
+
+        return workflow;
+    }
+
     public Task<WorkflowInstance> GetWorkflowInstance(string id, CancellationToken cancellationToken = default)
     {
         return GetWorkflowAsync(id, cancellationToken).ContinueWith(t => t.Result ?? throw new InvalidOperationException($"Workflow {id} not found"));
@@ -85,16 +133,50 @@ public class SqlSugarPersistenceProvider : IPersistenceProvider
 
     public async Task<IEnumerable<WorkflowInstance>> GetWorkflowInstances(IEnumerable<string> ids, CancellationToken cancellationToken = default)
     {
-        var workflows = new List<WorkflowInstance>();
-        foreach (var id in ids)
+        var idList = ids
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct()
+            .ToList();
+        if (idList.Count == 0)
         {
-            var workflow = await GetWorkflowAsync(id, cancellationToken);
-            if (workflow != null)
-            {
-                workflows.Add(workflow);
-            }
+            return Array.Empty<WorkflowInstance>();
         }
-        return workflows;
+
+        var parsedIds = idList
+            .Select(id => long.TryParse(id, out var value) ? value : (long?)null)
+            .Where(x => x.HasValue)
+            .Select(x => x!.Value)
+            .Distinct()
+            .ToArray();
+        if (parsedIds.Length == 0)
+        {
+            return Array.Empty<WorkflowInstance>();
+        }
+
+        var tenantId = _tenantProvider.GetTenantId();
+        var entities = await _db.Queryable<PersistedWorkflow>()
+            .Where(x => x.TenantIdValue == tenantId.Value && parsedIds.Contains(x.Id))
+            .ToListAsync(cancellationToken);
+        if (entities.Count == 0)
+        {
+            return Array.Empty<WorkflowInstance>();
+        }
+
+        var workflowIds = entities.Select(x => x.Id.ToString()).ToList();
+        var pointers = await _db.Queryable<PersistedExecutionPointer>()
+            .Where(x => x.TenantIdValue == tenantId.Value && workflowIds.Contains(x.WorkflowId))
+            .ToListAsync(cancellationToken);
+        var pointerLookup = pointers
+            .GroupBy(x => x.WorkflowId)
+            .ToDictionary(x => x.Key, x => (IReadOnlyList<PersistedExecutionPointer>)x.ToList());
+
+        return entities
+            .Select(entity =>
+            {
+                pointerLookup.TryGetValue(entity.Id.ToString(), out var pointerEntities);
+                return BuildWorkflowInstance(entity, pointerEntities ?? Array.Empty<PersistedExecutionPointer>());
+            })
+            .ToList();
     }
 
     public async Task<IEnumerable<string>> GetRunnableInstances(DateTime asAt, CancellationToken cancellationToken = default)
@@ -126,51 +208,11 @@ public class SqlSugarPersistenceProvider : IPersistenceProvider
         if (entity == null)
             return null;
 
-        var workflow = new WorkflowInstance
-        {
-            Id = entity.Id.ToString(),
-            WorkflowDefinitionId = entity.WorkflowDefinitionId,
-            Version = entity.Version,
-            Description = entity.Description,
-            Reference = entity.Reference,
-            Status = entity.Status,
-            Data = entity.DataJson != null ? JsonSerializer.Deserialize<object>(entity.DataJson) : null,
-            CreateTime = entity.CreateTime.DateTime,
-            CompleteTime = entity.CompleteTime?.DateTime,
-            NextExecution = entity.NextExecution
-        };
-
         // Load execution pointers
         var pointers = await _db.Queryable<PersistedExecutionPointer>()
             .Where(x => x.TenantIdValue == tenantId.Value && x.WorkflowId == workflowId)
             .ToListAsync(cancellationToken);
-
-        foreach (var pointerEntity in pointers)
-        {
-            var pointer = new ExecutionPointer
-            {
-                Id = pointerEntity.PointerId,
-                StepId = pointerEntity.StepId,
-                Active = pointerEntity.Active,
-                SleepUntil = pointerEntity.SleepUntil?.DateTime,
-                PersistenceData = pointerEntity.PersistenceDataJson != null ? JsonSerializer.Deserialize<object>(pointerEntity.PersistenceDataJson) : null,
-                StartTime = pointerEntity.StartTime?.DateTime,
-                EndTime = pointerEntity.EndTime?.DateTime,
-                EventName = pointerEntity.EventName,
-                EventKey = pointerEntity.EventKey,
-                EventPublished = pointerEntity.EventPublished,
-                EventData = pointerEntity.EventDataJson != null ? JsonSerializer.Deserialize<object>(pointerEntity.EventDataJson) : null,
-                StepName = pointerEntity.StepName,
-                RetryCount = pointerEntity.RetryCount,
-                ContextItem = pointerEntity.ContextItemJson != null ? JsonSerializer.Deserialize<object>(pointerEntity.ContextItemJson) : null,
-                PredecessorId = pointerEntity.PredecessorId,
-                Outcome = pointerEntity.OutcomeJson != null ? JsonSerializer.Deserialize<object>(pointerEntity.OutcomeJson) : null,
-                Status = pointerEntity.Status
-            };
-            workflow.ExecutionPointers.Add(pointer);
-        }
-
-        return workflow;
+        return BuildWorkflowInstance(entity, pointers);
     }
 
     public async Task<IEnumerable<WorkflowInstance>> GetRunnableInstancesAsync(DateTime asAt, CancellationToken cancellationToken = default)
@@ -182,17 +224,26 @@ public class SqlSugarPersistenceProvider : IPersistenceProvider
                 && (x.NextExecution == null || x.NextExecution <= asAt.Ticks))
             .ToListAsync(cancellationToken);
 
-        var workflows = new List<WorkflowInstance>();
-        foreach (var entity in entities)
+        if (entities.Count == 0)
         {
-            var workflow = await GetWorkflowAsync(entity.Id.ToString(), cancellationToken);
-            if (workflow != null)
-            {
-                workflows.Add(workflow);
-            }
+            return Array.Empty<WorkflowInstance>();
         }
 
-        return workflows;
+        var workflowIds = entities.Select(x => x.Id.ToString()).ToList();
+        var pointers = await _db.Queryable<PersistedExecutionPointer>()
+            .Where(x => x.TenantIdValue == tenantId.Value && workflowIds.Contains(x.WorkflowId))
+            .ToListAsync(cancellationToken);
+        var pointerLookup = pointers
+            .GroupBy(x => x.WorkflowId)
+            .ToDictionary(x => x.Key, x => (IReadOnlyList<PersistedExecutionPointer>)x.ToList());
+
+        return entities
+            .Select(entity =>
+            {
+                pointerLookup.TryGetValue(entity.Id.ToString(), out var pointerEntities);
+                return BuildWorkflowInstance(entity, pointerEntities ?? Array.Empty<PersistedExecutionPointer>());
+            })
+            .ToList();
     }
 
     public async Task PersistWorkflowAsync(WorkflowInstance workflow, CancellationToken cancellationToken = default)
@@ -220,13 +271,16 @@ public class SqlSugarPersistenceProvider : IPersistenceProvider
         }
 
         // Update execution pointers
+        var existingPointers = await _db.Queryable<PersistedExecutionPointer>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.WorkflowId == workflow.Id)
+            .ToListAsync(cancellationToken);
+        var pointerMap = existingPointers.ToDictionary(x => x.PointerId, x => x);
+
+        var toUpdate = new List<PersistedExecutionPointer>();
+        var toInsert = new List<PersistedExecutionPointer>();
         foreach (var pointer in pointers)
         {
-            var pointerEntity = await _db.Queryable<PersistedExecutionPointer>()
-                .Where(x => x.TenantIdValue == tenantId.Value && x.WorkflowId == workflow.Id && x.PointerId == pointer.Id)
-                .FirstAsync(cancellationToken);
-
-            if (pointerEntity != null)
+            if (pointerMap.TryGetValue(pointer.Id, out var pointerEntity))
             {
                 pointerEntity.UpdateStatus(pointer.Status);
                 pointerEntity.MarkActive(pointer.Active);
@@ -239,14 +293,22 @@ public class SqlSugarPersistenceProvider : IPersistenceProvider
                 pointerEntity.SetRetryCount(pointer.RetryCount);
                 pointerEntity.SetContextItemJson(pointer.ContextItem != null ? JsonSerializer.Serialize(pointer.ContextItem) : null);
                 pointerEntity.SetOutcomeJson(pointer.Outcome != null ? JsonSerializer.Serialize(pointer.Outcome) : null);
-                await _db.Updateable(pointerEntity).ExecuteCommandAsync(cancellationToken);
+                toUpdate.Add(pointerEntity);
             }
             else
             {
-                // Create new pointer if not exists
-                var newPointerEntity = CreatePointerEntity(tenantId, workflow.Id, pointer);
-                await _db.Insertable(newPointerEntity).ExecuteCommandAsync(cancellationToken);
+                toInsert.Add(CreatePointerEntity(tenantId, workflow.Id, pointer));
             }
+        }
+
+        if (toUpdate.Count > 0)
+        {
+            await _db.Updateable(toUpdate).ExecuteCommandAsync(cancellationToken);
+        }
+
+        if (toInsert.Count > 0)
+        {
+            await _db.Insertable(toInsert).ExecuteCommandAsync(cancellationToken);
         }
     }
 
@@ -258,10 +320,19 @@ public class SqlSugarPersistenceProvider : IPersistenceProvider
         // 如果有订阅,持久化订阅
         if (subscriptions != null && subscriptions.Count > 0)
         {
-            foreach (var subscription in subscriptions)
-            {
-                await CreateEventSubscriptionAsync(subscription, cancellationToken);
-            }
+            var tenantId = _tenantProvider.GetTenantId();
+            var entities = subscriptions
+                .Select(subscription => new PersistedSubscription(
+                    tenantId,
+                    subscription.WorkflowId,
+                    subscription.StepId,
+                    subscription.ExecutionPointerId,
+                    subscription.EventName,
+                    subscription.EventKey,
+                    long.Parse(subscription.Id),
+                    subscription.SubscriptionData))
+                .ToList();
+            await _db.Insertable(entities).ExecuteCommandAsync(cancellationToken);
         }
     }
 

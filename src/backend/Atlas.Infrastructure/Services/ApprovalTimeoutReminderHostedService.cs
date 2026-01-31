@@ -70,6 +70,27 @@ public sealed class ApprovalTimeoutReminderHostedService : BackgroundService
         // TODO: 如果需要多租户支持，需要遍历所有租户
         var tenantId = tenantProvider.GetTenantId();
         var pendingReminders = await reminderRepository.GetPendingRemindersAsync(tenantId, currentTime, cancellationToken);
+        if (pendingReminders.Count == 0)
+        {
+            return;
+        }
+
+        var taskIds = pendingReminders
+            .Where(r => r.TaskId.HasValue)
+            .Select(r => r.TaskId!.Value)
+            .Distinct()
+            .ToArray();
+        var tasks = await taskRepository.QueryByIdsAsync(tenantId, taskIds, cancellationToken);
+        var taskMap = tasks.ToDictionary(x => x.Id);
+
+        var instanceIds = pendingReminders
+            .Select(r => r.InstanceId)
+            .Distinct()
+            .ToArray();
+        var instances = await instanceRepository.QueryByIdsAsync(tenantId, instanceIds, cancellationToken);
+        var instanceMap = instances.ToDictionary(x => x.Id);
+
+        var remindersToUpdate = new List<ApprovalTimeoutReminder>();
 
         foreach (var reminder in pendingReminders)
         {
@@ -79,15 +100,15 @@ public sealed class ApprovalTimeoutReminderHostedService : BackgroundService
                 var isTaskCompleted = false;
                 if (reminder.TaskId.HasValue)
                 {
-                    var task = await taskRepository.GetByIdAsync(tenantId, reminder.TaskId.Value, cancellationToken);
-                    if (task != null && task.Status != ApprovalTaskStatus.Pending)
+                    if (taskMap.TryGetValue(reminder.TaskId.Value, out var task) &&
+                        task.Status != ApprovalTaskStatus.Pending)
                     {
                         isTaskCompleted = true;
                     }
                 }
 
                 // 检查流程实例是否已结束
-                var instance = await instanceRepository.GetByIdAsync(tenantId, reminder.InstanceId, cancellationToken);
+                instanceMap.TryGetValue(reminder.InstanceId, out var instance);
                 var isInstanceEnded = instance == null || 
                     instance.Status == ApprovalInstanceStatus.Completed ||
                     instance.Status == ApprovalInstanceStatus.Rejected ||
@@ -97,7 +118,7 @@ public sealed class ApprovalTimeoutReminderHostedService : BackgroundService
                 {
                     // 标记提醒为已完成
                     reminder.MarkCompleted();
-                    await reminderRepository.UpdateAsync(reminder, cancellationToken);
+                    remindersToUpdate.Add(reminder);
                     continue;
                 }
 
@@ -111,9 +132,11 @@ public sealed class ApprovalTimeoutReminderHostedService : BackgroundService
                 // 发送提醒
                 if (instance != null)
                 {
-                    var task = reminder.TaskId.HasValue
-                        ? await taskRepository.GetByIdAsync(tenantId, reminder.TaskId.Value, cancellationToken)
-                        : null;
+                    ApprovalTask? task = null;
+                    if (reminder.TaskId.HasValue)
+                    {
+                        taskMap.TryGetValue(reminder.TaskId.Value, out task);
+                    }
 
                     await notificationService.NotifyAsync(
                         tenantId,
@@ -125,7 +148,7 @@ public sealed class ApprovalTimeoutReminderHostedService : BackgroundService
 
                     // 记录提醒
                     reminder.RecordReminder(currentTime);
-                    await reminderRepository.UpdateAsync(reminder, cancellationToken);
+                    remindersToUpdate.Add(reminder);
 
                     _logger.LogInformation(
                         "已发送超时提醒：InstanceId={InstanceId}, TaskId={TaskId}, RecipientUserId={RecipientUserId}",
@@ -138,6 +161,11 @@ public sealed class ApprovalTimeoutReminderHostedService : BackgroundService
                     "处理超时提醒失败：ReminderId={ReminderId}, InstanceId={InstanceId}",
                     reminder.Id, reminder.InstanceId);
             }
+        }
+
+        if (remindersToUpdate.Count > 0)
+        {
+            await reminderRepository.UpdateRangeAsync(remindersToUpdate, cancellationToken);
         }
     }
 

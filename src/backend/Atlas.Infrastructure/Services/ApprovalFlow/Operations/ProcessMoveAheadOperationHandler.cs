@@ -75,10 +75,13 @@ public sealed class ProcessMoveAheadOperationHandler : IApprovalOperationHandler
         // 取消当前节点的所有待审批任务
         var pendingTasks = await _taskRepository.GetByInstanceAndStatusAsync(tenantId, instanceId, ApprovalTaskStatus.Pending, cancellationToken);
         var currentNodeTasks = pendingTasks.Where(t => t.NodeId == currentNodeId).ToList();
-        foreach (var task in currentNodeTasks)
+        if (currentNodeTasks.Count > 0)
         {
-            task.Cancel();
-            await _taskRepository.UpdateAsync(task, cancellationToken);
+            foreach (var task in currentNodeTasks)
+            {
+                task.Cancel();
+            }
+            await _taskRepository.UpdateRangeAsync(currentNodeTasks, cancellationToken);
         }
 
         // 标记当前节点为已完成

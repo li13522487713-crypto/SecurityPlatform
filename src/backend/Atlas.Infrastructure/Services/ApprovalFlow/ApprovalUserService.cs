@@ -17,6 +17,7 @@ public sealed class ApprovalUserService : IApprovalUserService
     private readonly IUserDepartmentRepository _userDepartmentRepository;
     private readonly IApprovalDepartmentLeaderRepository _deptLeaderRepository;
     private readonly IRoleRepository _roleRepository;
+    private readonly IUserHierarchyQueryRepository _hierarchyQueryRepository;
     private readonly ISqlSugarClient _db;
 
     public ApprovalUserService(
@@ -24,12 +25,14 @@ public sealed class ApprovalUserService : IApprovalUserService
         IUserDepartmentRepository userDepartmentRepository,
         IApprovalDepartmentLeaderRepository deptLeaderRepository,
         IRoleRepository roleRepository,
+        IUserHierarchyQueryRepository hierarchyQueryRepository,
         ISqlSugarClient db)
     {
         _userRepository = userRepository;
         _userDepartmentRepository = userDepartmentRepository;
         _deptLeaderRepository = deptLeaderRepository;
         _roleRepository = roleRepository;
+        _hierarchyQueryRepository = hierarchyQueryRepository;
         _db = db;
     }
 
@@ -76,25 +79,11 @@ public sealed class ApprovalUserService : IApprovalUserService
         int maxLevels = 10,
         CancellationToken cancellationToken = default)
     {
-        var approvers = new List<long>();
-        var currentUserId = startUserId;
-        var visited = new HashSet<long> { currentUserId }; // 防止循环
-
-        for (int level = 0; level < maxLevels; level++)
-        {
-            var leaderId = await GetDirectLeaderUserIdAsync(tenantId, currentUserId, cancellationToken);
-            if (!leaderId.HasValue || visited.Contains(leaderId.Value))
-            {
-                // 没有找到上级或出现循环，停止查找
-                break;
-            }
-
-            approvers.Add(leaderId.Value);
-            visited.Add(leaderId.Value);
-            currentUserId = leaderId.Value;
-        }
-
-        return approvers;
+        return await _hierarchyQueryRepository.GetLeaderChainAsync(
+            tenantId,
+            startUserId,
+            maxLevels,
+            cancellationToken);
     }
 
     public async Task<long?> GetLevelApproverAsync(
@@ -103,33 +92,11 @@ public sealed class ApprovalUserService : IApprovalUserService
         int targetLevel,
         CancellationToken cancellationToken = default)
     {
-        if (targetLevel < 1)
-        {
-            return null;
-        }
-
-        var currentUserId = startUserId;
-        var visited = new HashSet<long> { currentUserId }; // 防止循环
-
-        for (int level = 1; level <= targetLevel; level++)
-        {
-            var leaderId = await GetDirectLeaderUserIdAsync(tenantId, currentUserId, cancellationToken);
-            if (!leaderId.HasValue || visited.Contains(leaderId.Value))
-            {
-                // 层级不足或出现循环
-                return null;
-            }
-
-            if (level == targetLevel)
-            {
-                return leaderId.Value;
-            }
-
-            visited.Add(leaderId.Value);
-            currentUserId = leaderId.Value;
-        }
-
-        return null;
+        return await _hierarchyQueryRepository.GetLeaderAtLevelAsync(
+            tenantId,
+            startUserId,
+            targetLevel,
+            cancellationToken);
     }
 
     public async Task<long?> GetHrbpUserIdAsync(

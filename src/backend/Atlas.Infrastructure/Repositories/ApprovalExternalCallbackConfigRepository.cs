@@ -38,6 +38,22 @@ public sealed class ApprovalExternalCallbackConfigRepository : IApprovalExternal
             .FirstAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<ApprovalExternalCallbackConfig>> QueryByIdsAsync(
+        TenantId tenantId,
+        IReadOnlyList<long> ids,
+        CancellationToken cancellationToken)
+    {
+        if (ids.Count == 0)
+        {
+            return Array.Empty<ApprovalExternalCallbackConfig>();
+        }
+
+        var distinctIds = ids.Distinct().ToArray();
+        return await _db.Queryable<ApprovalExternalCallbackConfig>()
+            .Where(x => x.TenantIdValue == tenantId.Value && distinctIds.Contains(x.Id))
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<ApprovalExternalCallbackConfig>> GetByFlowAndEventAsync(
         TenantId tenantId,
         long flowDefinitionId,

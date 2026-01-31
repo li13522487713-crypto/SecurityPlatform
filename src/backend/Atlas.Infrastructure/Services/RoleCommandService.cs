@@ -141,17 +141,16 @@ public sealed class RoleCommandService : IRoleCommandService
         {
             if (userIds.Count > 0)
             {
-                foreach (var userId in userIds.Distinct())
+                var distinctUserIds = userIds.Distinct().ToArray();
+                var users = await _userRepository.QueryByIdsAsync(tenantId, distinctUserIds, cancellationToken);
+                if (users.Count > 0)
                 {
-                    var user = await _userRepository.FindByIdAsync(tenantId, userId, cancellationToken);
-                    if (user is null)
+                    foreach (var user in users)
                     {
-                        continue;
+                        var updatedRoles = RemoveRoleCode(user.Roles, role.Code);
+                        user.UpdateRoles(updatedRoles);
                     }
-
-                    var updatedRoles = RemoveRoleCode(user.Roles, role.Code);
-                    user.UpdateRoles(updatedRoles);
-                    await _userRepository.UpdateAsync(user, cancellationToken);
+                    await _userRepository.UpdateRangeAsync(users.ToArray(), cancellationToken);
                 }
             }
 

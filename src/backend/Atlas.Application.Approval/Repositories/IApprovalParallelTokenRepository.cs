@@ -10,7 +10,11 @@ public interface IApprovalParallelTokenRepository
 {
     Task AddAsync(ApprovalParallelToken entity, CancellationToken cancellationToken);
 
+    Task AddRangeAsync(IEnumerable<ApprovalParallelToken> entities, CancellationToken cancellationToken);
+
     Task UpdateAsync(ApprovalParallelToken entity, CancellationToken cancellationToken);
+
+    Task UpdateRangeAsync(IEnumerable<ApprovalParallelToken> entities, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<ApprovalParallelToken>> GetByInstanceAndGatewayAsync(
         TenantId tenantId,

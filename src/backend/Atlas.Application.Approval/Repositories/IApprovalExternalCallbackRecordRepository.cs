@@ -11,7 +11,11 @@ public interface IApprovalExternalCallbackRecordRepository
 {
     Task AddAsync(ApprovalExternalCallbackRecord entity, CancellationToken cancellationToken);
 
+    Task AddRangeAsync(IEnumerable<ApprovalExternalCallbackRecord> entities, CancellationToken cancellationToken);
+
     Task UpdateAsync(ApprovalExternalCallbackRecord entity, CancellationToken cancellationToken);
+
+    Task UpdateRangeAsync(IEnumerable<ApprovalExternalCallbackRecord> entities, CancellationToken cancellationToken);
 
     Task<ApprovalExternalCallbackRecord?> GetByIdAsync(
         TenantId tenantId,
@@ -21,6 +25,11 @@ public interface IApprovalExternalCallbackRecordRepository
     Task<ApprovalExternalCallbackRecord?> GetByIdempotencyKeyAsync(
         TenantId tenantId,
         string idempotencyKey,
+        CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<ApprovalExternalCallbackRecord>> QueryByIdempotencyKeysAsync(
+        TenantId tenantId,
+        IReadOnlyList<string> idempotencyKeys,
         CancellationToken cancellationToken);
 
     Task<IReadOnlyList<ApprovalExternalCallbackRecord>> GetPendingRetriesAsync(

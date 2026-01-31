@@ -42,6 +42,24 @@ public sealed class ApprovalNotificationService : IApprovalNotificationService
             return;
         }
 
+        var flowTemplates = await _templateRepository.GetByFlowAsync(
+            tenantId,
+            instance.DefinitionId,
+            cancellationToken);
+        var systemTemplates = await _templateRepository.GetByFlowAsync(
+            tenantId,
+            0,
+            cancellationToken);
+
+        var flowTemplateMap = flowTemplates
+            .Where(x => x.IsEnabled && x.EventType == eventType)
+            .GroupBy(x => x.Channel)
+            .ToDictionary(x => x.Key, x => x.First());
+        var systemTemplateMap = systemTemplates
+            .Where(x => x.IsEnabled && x.EventType == eventType)
+            .GroupBy(x => x.Channel)
+            .ToDictionary(x => x.Key, x => x.First());
+
         // 获取所有通知渠道的模板
         var channels = Enum.GetValues<ApprovalNotificationChannel>();
         var messages = new List<ApprovalInboxMessage>();
@@ -49,9 +67,8 @@ public sealed class ApprovalNotificationService : IApprovalNotificationService
         foreach (var channel in channels)
         {
             // 先查找流程级模板，如果没有则查找系统级模板
-            var template = await _templateRepository.GetByFlowAndEventAsync(
-                tenantId, instance.DefinitionId, eventType, channel, cancellationToken)
-                ?? await _templateRepository.GetSystemTemplateAsync(tenantId, eventType, channel, cancellationToken);
+            flowTemplateMap.TryGetValue(channel, out var template);
+            template ??= systemTemplateMap.GetValueOrDefault(channel);
 
             if (template == null || !template.IsEnabled)
             {

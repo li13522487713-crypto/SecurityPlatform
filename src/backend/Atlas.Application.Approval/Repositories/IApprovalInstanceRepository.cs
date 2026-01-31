@@ -15,6 +15,11 @@ public interface IApprovalInstanceRepository
 
     Task<ApprovalProcessInstance?> GetByIdAsync(TenantId tenantId, long id, CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<ApprovalProcessInstance>> QueryByIdsAsync(
+        TenantId tenantId,
+        IReadOnlyList<long> ids,
+        CancellationToken cancellationToken);
+
     Task<ApprovalProcessInstance?> GetByBusinessKeyAsync(
         TenantId tenantId,
         string businessKey,

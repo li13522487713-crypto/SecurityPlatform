@@ -15,6 +15,11 @@ public interface IApprovalFlowRepository
 
     Task<ApprovalFlowDefinition?> GetByIdAsync(TenantId tenantId, long id, CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<ApprovalFlowDefinition>> QueryByIdsAsync(
+        TenantId tenantId,
+        IReadOnlyList<long> ids,
+        CancellationToken cancellationToken);
+
     Task<(IReadOnlyList<ApprovalFlowDefinition> Items, int TotalCount)> GetPagedAsync(
         TenantId tenantId,
         int pageIndex,

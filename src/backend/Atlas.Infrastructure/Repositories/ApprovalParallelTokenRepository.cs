@@ -22,9 +22,31 @@ public sealed class ApprovalParallelTokenRepository : IApprovalParallelTokenRepo
         await _db.Insertable(entity).ExecuteCommandAsync(cancellationToken);
     }
 
+    public async Task AddRangeAsync(IEnumerable<ApprovalParallelToken> entities, CancellationToken cancellationToken)
+    {
+        var list = entities.ToList();
+        if (list.Count == 0)
+        {
+            return;
+        }
+
+        await _db.Insertable(list).ExecuteCommandAsync(cancellationToken);
+    }
+
     public async Task UpdateAsync(ApprovalParallelToken entity, CancellationToken cancellationToken)
     {
         await _db.Updateable(entity).ExecuteCommandAsync(cancellationToken);
+    }
+
+    public async Task UpdateRangeAsync(IEnumerable<ApprovalParallelToken> entities, CancellationToken cancellationToken)
+    {
+        var list = entities.ToList();
+        if (list.Count == 0)
+        {
+            return;
+        }
+
+        await _db.Updateable(list).ExecuteCommandAsync(cancellationToken);
     }
 
     public async Task<IReadOnlyList<ApprovalParallelToken>> GetByInstanceAndGatewayAsync(

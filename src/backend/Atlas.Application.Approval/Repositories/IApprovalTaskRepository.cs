@@ -19,6 +19,11 @@ public interface IApprovalTaskRepository
 
     Task<ApprovalTask?> GetByIdAsync(TenantId tenantId, long id, CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<ApprovalTask>> QueryByIdsAsync(
+        TenantId tenantId,
+        IReadOnlyList<long> ids,
+        CancellationToken cancellationToken);
+
     Task<(IReadOnlyList<ApprovalTask> Items, int TotalCount)> GetPagedByInstanceAsync(
         TenantId tenantId,
         long instanceId,
@@ -39,6 +44,12 @@ public interface IApprovalTaskRepository
         TenantId tenantId,
         long instanceId,
         string nodeId,
+        CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<ApprovalTask>> GetByInstanceAndNodesAsync(
+        TenantId tenantId,
+        long instanceId,
+        IReadOnlyList<string> nodeIds,
         CancellationToken cancellationToken);
 
     Task<IReadOnlyList<ApprovalTask>> GetByInstanceAndStatusAsync(

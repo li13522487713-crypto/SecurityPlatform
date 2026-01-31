@@ -37,6 +37,14 @@ public interface IApprovalUserQueryService
         CancellationToken cancellationToken);
 
     /// <summary>
+    /// 根据角色代码列表查询用户ID列表（聚合去重）
+    /// </summary>
+    Task<IReadOnlyList<long>> GetUserIdsByRoleCodesAsync(
+        TenantId tenantId,
+        IReadOnlyList<string> roleCodes,
+        CancellationToken cancellationToken);
+
+    /// <summary>
     /// 获取用户的直属领导用户ID
     /// </summary>
     Task<long?> GetDirectLeaderUserIdAsync(

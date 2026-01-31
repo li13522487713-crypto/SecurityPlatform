@@ -15,6 +15,8 @@ public interface IApprovalTimeoutReminderRepository
 
     Task UpdateAsync(ApprovalTimeoutReminder entity, CancellationToken cancellationToken);
 
+    Task UpdateRangeAsync(IEnumerable<ApprovalTimeoutReminder> entities, CancellationToken cancellationToken);
+
     Task<ApprovalTimeoutReminder?> GetByIdAsync(
         TenantId tenantId,
         long id,

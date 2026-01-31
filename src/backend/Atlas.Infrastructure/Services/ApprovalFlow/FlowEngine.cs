@@ -903,10 +903,7 @@ public sealed class FlowEngine
         // 批量更新tokens
         if (tokensToUpdate.Count > 0)
         {
-            foreach (var token in tokensToUpdate)
-            {
-                await _parallelTokenRepository.UpdateAsync(token, cancellationToken);
-            }
+            await _parallelTokenRepository.UpdateRangeAsync(tokensToUpdate, cancellationToken);
         }
     }
 
@@ -922,15 +919,17 @@ public sealed class FlowEngine
         CancellationToken cancellationToken)
     {
         // 为每个分支创建token
-        foreach (var nextNodeId in nextNodeIds)
-        {
-            var token = new ApprovalParallelToken(
+        var tokens = nextNodeIds
+            .Select(nextNodeId => new ApprovalParallelToken(
                 tenantId,
                 instance.Id,
                 gatewayNodeId,
                 nextNodeId,
-                _idGeneratorAccessor.NextId());
-            await _parallelTokenRepository.AddAsync(token, cancellationToken);
+                _idGeneratorAccessor.NextId()))
+            .ToList();
+        if (tokens.Count > 0)
+        {
+            await _parallelTokenRepository.AddRangeAsync(tokens, cancellationToken);
         }
 
         // 推进所有分支

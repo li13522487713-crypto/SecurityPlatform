@@ -94,28 +94,36 @@ public sealed class ApprovalSeedDataService
         // 使用 DefinitionId = 0 表示全局默认配置（不绑定到特定流程）
         const long globalDefinitionId = 0;
 
+        var existingConfigs = await _db.Queryable<ApprovalFlowButtonConfig>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.DefinitionId == globalDefinitionId)
+            .Select(x => new { x.ViewType, x.ButtonType })
+            .ToListAsync(cancellationToken);
+        var existingSet = new HashSet<(ApprovalViewType ViewType, ApprovalButtonType ButtonType)>(
+            existingConfigs.Select(x => (x.ViewType, x.ButtonType)));
+
+        var newConfigs = new List<ApprovalFlowButtonConfig>();
         foreach (var (viewType, buttonType, buttonName) in defaultButtonConfigs)
         {
-            var exists = await _db.Queryable<ApprovalFlowButtonConfig>()
-                .Where(x => x.TenantIdValue == tenantId.Value
-                    && x.DefinitionId == globalDefinitionId
-                    && x.ViewType == viewType
-                    && x.ButtonType == buttonType)
-                .AnyAsync();
-
-            if (!exists)
+            if (existingSet.Contains((viewType, buttonType)))
             {
-                var config = new ApprovalFlowButtonConfig(
-                    tenantId,
-                    globalDefinitionId,
-                    viewType,
-                    buttonType,
-                    buttonName,
-                    _idGeneratorAccessor.NextId());
-                await _db.Insertable(config).ExecuteCommandAsync(cancellationToken);
-                _logger.LogInformation("已创建默认按钮配置：{ViewType} - {ButtonType} - {ButtonName}",
-                    viewType, buttonType, buttonName);
+                continue;
             }
+
+            var config = new ApprovalFlowButtonConfig(
+                tenantId,
+                globalDefinitionId,
+                viewType,
+                buttonType,
+                buttonName,
+                _idGeneratorAccessor.NextId());
+            newConfigs.Add(config);
+            _logger.LogInformation("已创建默认按钮配置：{ViewType} - {ButtonType} - {ButtonName}",
+                viewType, buttonType, buttonName);
+        }
+
+        if (newConfigs.Count > 0)
+        {
+            await _db.Insertable(newConfigs).ExecuteCommandAsync(cancellationToken);
         }
 
         _logger.LogInformation("审批模块默认按钮配置初始化完成");

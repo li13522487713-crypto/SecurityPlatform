@@ -186,48 +186,45 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         }
         var roleCodesArray = roleCodes.ToArray();
 
-        var roleIds = new List<long>();
-        foreach (var roleCode in roleCodesArray)
-        {
-            var existingRole = await roleRepository.FindByCodeAsync(tenantId, roleCode, cancellationToken);
-            if (existingRole is null)
-            {
-                var displayName = roleSeedMap.TryGetValue(roleCode, out var seed) ? seed.Name : roleCode;
-                var description = roleSeedMap.TryGetValue(roleCode, out seed) ? seed.Description : roleCode;
-                var role = new Role(tenantId, displayName, roleCode, idGeneratorAccessor.NextId());
-                role.Update(displayName, description);
-                role.MarkSystemRole();
-                await roleRepository.AddAsync(role, cancellationToken);
-                roleIds.Add(role.Id);
-            }
-            else
-            {
-                roleIds.Add(existingRole.Id);
-            }
-        }
+        var roleCodeSet = roleCodesArray.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var allRoleCodes = roleSeedDefinitions
+            .Select(x => x.Code)
+            .Concat(roleCodesArray)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
 
-        foreach (var seed in roleSeedDefinitions)
+        var existingRoles = await roleRepository.QueryByCodesAsync(tenantId, allRoleCodes, cancellationToken);
+        var roleMap = existingRoles.ToDictionary(x => x.Code, x => x, StringComparer.OrdinalIgnoreCase);
+
+        var rolesToInsert = new List<Role>();
+        foreach (var roleCode in allRoleCodes)
         {
-            if (roleCodesArray.Contains(seed.Code, StringComparer.OrdinalIgnoreCase))
+            if (roleMap.ContainsKey(roleCode))
             {
                 continue;
             }
 
-            var existingRole = await roleRepository.FindByCodeAsync(tenantId, seed.Code, cancellationToken);
-            if (existingRole is not null)
-            {
-                continue;
-            }
-
-            var role = new Role(tenantId, seed.Name, seed.Code, idGeneratorAccessor.NextId());
-            role.Update(seed.Name, seed.Description);
-            if (seed.IsSystem)
+            var displayName = roleSeedMap.TryGetValue(roleCode, out var seed) ? seed.Name : roleCode;
+            var description = roleSeedMap.TryGetValue(roleCode, out seed) ? seed.Description : roleCode;
+            var role = new Role(tenantId, displayName, roleCode, idGeneratorAccessor.NextId());
+            role.Update(displayName, description);
+            if (roleCodeSet.Contains(roleCode) || (roleSeedMap.TryGetValue(roleCode, out seed) && seed.IsSystem))
             {
                 role.MarkSystemRole();
             }
-
-            await roleRepository.AddAsync(role, cancellationToken);
+            rolesToInsert.Add(role);
+            roleMap[roleCode] = role;
         }
+
+        if (rolesToInsert.Count > 0)
+        {
+            await roleRepository.AddRangeAsync(rolesToInsert, cancellationToken);
+        }
+
+        var roleIds = roleCodesArray
+            .Select(roleCode => roleMap[roleCode].Id)
+            .Distinct()
+            .ToList();
 
         var permissionSeeds = new (string Code, string Name, string Type)[]
         {
@@ -287,26 +284,44 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         Permission? adminPermission = null;
         Permission? workflowPermission = null;
 
+        var permissionCodes = permissionSeeds
+            .Select(x => x.Code)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var existingPermissions = await db.Queryable<Permission>()
+            .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(permissionCodes, x.Code))
+            .ToListAsync(cancellationToken);
+        var permissionMap = existingPermissions.ToDictionary(x => x.Code, x => x, StringComparer.OrdinalIgnoreCase);
+
+        var permissionsToInsert = new List<Permission>();
         foreach (var seed in permissionSeeds)
         {
-            var existingPermission = await db.Queryable<Permission>()
-                .Where(x => x.TenantIdValue == tenantId.Value && x.Code == seed.Code)
-                .FirstAsync(cancellationToken);
-            if (existingPermission is null)
+            if (permissionMap.ContainsKey(seed.Code))
             {
-                existingPermission = new Permission(tenantId, seed.Name, seed.Code, seed.Type, idGeneratorAccessor.NextId());
-                await db.Insertable(existingPermission).ExecuteCommandAsync(cancellationToken);
+                continue;
             }
 
-            permissionIdMap[existingPermission.Code] = existingPermission.Id;
-            if (string.Equals(existingPermission.Code, PermissionCodes.SystemAdmin, StringComparison.OrdinalIgnoreCase))
+            var permission = new Permission(tenantId, seed.Name, seed.Code, seed.Type, idGeneratorAccessor.NextId());
+            permissionsToInsert.Add(permission);
+            permissionMap[seed.Code] = permission;
+        }
+
+        if (permissionsToInsert.Count > 0)
+        {
+            await db.Insertable(permissionsToInsert).ExecuteCommandAsync(cancellationToken);
+        }
+
+        foreach (var permission in permissionMap.Values)
+        {
+            permissionIdMap[permission.Code] = permission.Id;
+            if (string.Equals(permission.Code, PermissionCodes.SystemAdmin, StringComparison.OrdinalIgnoreCase))
             {
-                adminPermission = existingPermission;
+                adminPermission = permission;
             }
 
-            if (string.Equals(existingPermission.Code, PermissionCodes.WorkflowDesign, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(permission.Code, PermissionCodes.WorkflowDesign, StringComparison.OrdinalIgnoreCase))
             {
-                workflowPermission = existingPermission;
+                workflowPermission = permission;
             }
         }
 
@@ -315,270 +330,62 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             throw new InvalidOperationException("初始化权限失败：缺少 system:admin 或 workflow:design。");
         }
 
-        var adminMenu = await db.Queryable<Menu>()
-            .Where(x => x.TenantIdValue == tenantId.Value && x.Path == "/system")
-            .FirstAsync(cancellationToken);
-        if (adminMenu is null)
+        var menuSeeds = new (string Name, string Path, string? ParentPath, int SortOrder, string? Component, string? Icon, string? PermissionCode, bool IsHidden)[]
         {
-            adminMenu = new Menu(
+            ("System", "/system", null, 0, "Layout", "settings", adminPermission.Code, false),
+            ("项目管理", "/system/projects", "/system", 70, "system/projects", "project", PermissionCodes.ProjectsView, false),
+            ("Workflow", "/workflow", null, 10, "Layout", "workflow", adminPermission.Code, false),
+            ("Workflow Designer", "/workflow/designer", "/workflow", 20, "workflow/designer", "workflow", workflowPermission.Code, false),
+            ("总览", "/", null, 0, null, null, adminPermission.Code, false),
+            ("资产", "/assets", null, 10, null, null, adminPermission.Code, false),
+            ("审计", "/audit", null, 20, null, null, adminPermission.Code, false),
+            ("告警", "/alert", null, 30, null, null, adminPermission.Code, false),
+            ("审批流", "/approval/flows", null, 40, null, null, adminPermission.Code, false),
+            ("可视化中心", "/visualization", null, 50, "Layout", "dashboard", adminPermission.Code, false),
+            ("总览", "/visualization/center", "/visualization", 10, "visualization/center", "dashboard", adminPermission.Code, false),
+            ("设计器", "/visualization/designer", "/visualization", 20, "visualization/designer", "dashboard", adminPermission.Code, false),
+            ("运行态", "/visualization/runtime", "/visualization", 30, "visualization/runtime", "dashboard", adminPermission.Code, false),
+            ("治理中心", "/visualization/governance", "/visualization", 40, "visualization/governance", "dashboard", adminPermission.Code, false)
+        };
+
+        var menuPaths = menuSeeds.Select(x => x.Path).Distinct().ToArray();
+        var existingMenus = await db.Queryable<Menu>()
+            .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(menuPaths, x.Path))
+            .ToListAsync(cancellationToken);
+        var menuIdMap = existingMenus.ToDictionary(x => x.Path, x => x.Id, StringComparer.OrdinalIgnoreCase);
+
+        var menusToInsert = new List<Menu>();
+        foreach (var seed in menuSeeds)
+        {
+            if (menuIdMap.ContainsKey(seed.Path))
+            {
+                continue;
+            }
+
+            var parentId = 0L;
+            if (!string.IsNullOrWhiteSpace(seed.ParentPath) && menuIdMap.TryGetValue(seed.ParentPath, out var resolvedParentId))
+            {
+                parentId = resolvedParentId;
+            }
+
+            var menu = new Menu(
                 tenantId,
-                "System",
-                "/system",
+                seed.Name,
+                seed.Path,
                 idGeneratorAccessor.NextId(),
-                0,
-                0,
-                "Layout",
-                "settings",
-                adminPermission.Code,
-                false);
-            await db.Insertable(adminMenu).ExecuteCommandAsync(cancellationToken);
+                parentId,
+                seed.SortOrder,
+                seed.Component,
+                seed.Icon,
+                seed.PermissionCode,
+                seed.IsHidden);
+            menusToInsert.Add(menu);
+            menuIdMap[seed.Path] = menu.Id;
         }
 
-        var projectsMenu = await db.Queryable<Menu>()
-            .Where(x => x.TenantIdValue == tenantId.Value && x.Path == "/system/projects")
-            .FirstAsync(cancellationToken);
-        if (projectsMenu is null)
+        if (menusToInsert.Count > 0)
         {
-            projectsMenu = new Menu(
-                tenantId,
-                "项目管理",
-                "/system/projects",
-                idGeneratorAccessor.NextId(),
-                adminMenu.Id,
-                70,
-                "system/projects",
-                "project",
-                PermissionCodes.ProjectsView,
-                false);
-            await db.Insertable(projectsMenu).ExecuteCommandAsync(cancellationToken);
-        }
-
-        var workflowRootMenu = await db.Queryable<Menu>()
-            .Where(x => x.TenantIdValue == tenantId.Value && x.Path == "/workflow")
-            .FirstAsync(cancellationToken);
-        if (workflowRootMenu is null)
-        {
-            workflowRootMenu = new Menu(
-                tenantId,
-                "Workflow",
-                "/workflow",
-                idGeneratorAccessor.NextId(),
-                0,
-                10,
-                "Layout",
-                "workflow",
-                adminPermission.Code,
-                false);
-            await db.Insertable(workflowRootMenu).ExecuteCommandAsync(cancellationToken);
-        }
-
-        var workflowDesignerMenu = await db.Queryable<Menu>()
-            .Where(x => x.TenantIdValue == tenantId.Value && x.Path == "/workflow/designer")
-            .FirstAsync(cancellationToken);
-        if (workflowDesignerMenu is null)
-        {
-            workflowDesignerMenu = new Menu(
-                tenantId,
-                "Workflow Designer",
-                "/workflow/designer",
-                idGeneratorAccessor.NextId(),
-                workflowRootMenu.Id,
-                20,
-                "workflow/designer",
-                "workflow",
-                workflowPermission.Code,
-                false);
-            await db.Insertable(workflowDesignerMenu).ExecuteCommandAsync(cancellationToken);
-        }
-
-        var homeMenu = await db.Queryable<Menu>()
-            .Where(x => x.TenantIdValue == tenantId.Value && x.Path == "/")
-            .FirstAsync(cancellationToken);
-        if (homeMenu is null)
-        {
-            homeMenu = new Menu(
-                tenantId,
-                "总览",
-                "/",
-                idGeneratorAccessor.NextId(),
-                0,
-                0,
-                null,
-                null,
-                adminPermission.Code,
-                false);
-            await db.Insertable(homeMenu).ExecuteCommandAsync(cancellationToken);
-        }
-
-        var assetsMenu = await db.Queryable<Menu>()
-            .Where(x => x.TenantIdValue == tenantId.Value && x.Path == "/assets")
-            .FirstAsync(cancellationToken);
-        if (assetsMenu is null)
-        {
-            assetsMenu = new Menu(
-                tenantId,
-                "资产",
-                "/assets",
-                idGeneratorAccessor.NextId(),
-                0,
-                10,
-                null,
-                null,
-                adminPermission.Code,
-                false);
-            await db.Insertable(assetsMenu).ExecuteCommandAsync(cancellationToken);
-        }
-
-        var auditMenu = await db.Queryable<Menu>()
-            .Where(x => x.TenantIdValue == tenantId.Value && x.Path == "/audit")
-            .FirstAsync(cancellationToken);
-        if (auditMenu is null)
-        {
-            auditMenu = new Menu(
-                tenantId,
-                "审计",
-                "/audit",
-                idGeneratorAccessor.NextId(),
-                0,
-                20,
-                null,
-                null,
-                adminPermission.Code,
-                false);
-            await db.Insertable(auditMenu).ExecuteCommandAsync(cancellationToken);
-        }
-
-        var alertMenu = await db.Queryable<Menu>()
-            .Where(x => x.TenantIdValue == tenantId.Value && x.Path == "/alert")
-            .FirstAsync(cancellationToken);
-        if (alertMenu is null)
-        {
-            alertMenu = new Menu(
-                tenantId,
-                "告警",
-                "/alert",
-                idGeneratorAccessor.NextId(),
-                0,
-                30,
-                null,
-                null,
-                adminPermission.Code,
-                false);
-            await db.Insertable(alertMenu).ExecuteCommandAsync(cancellationToken);
-        }
-
-        var approvalMenu = await db.Queryable<Menu>()
-            .Where(x => x.TenantIdValue == tenantId.Value && x.Path == "/approval/flows")
-            .FirstAsync(cancellationToken);
-        if (approvalMenu is null)
-        {
-            approvalMenu = new Menu(
-                tenantId,
-                "审批流",
-                "/approval/flows",
-                idGeneratorAccessor.NextId(),
-                0,
-                40,
-                null,
-                null,
-                adminPermission.Code,
-                false);
-            await db.Insertable(approvalMenu).ExecuteCommandAsync(cancellationToken);
-        }
-
-        var visualizationRootMenu = await db.Queryable<Menu>()
-            .Where(x => x.TenantIdValue == tenantId.Value && x.Path == "/visualization")
-            .FirstAsync(cancellationToken);
-        if (visualizationRootMenu is null)
-        {
-            visualizationRootMenu = new Menu(
-                tenantId,
-                "可视化中心",
-                "/visualization",
-                idGeneratorAccessor.NextId(),
-                0,
-                50,
-                "Layout",
-                "dashboard",
-                adminPermission.Code,
-                false);
-            await db.Insertable(visualizationRootMenu).ExecuteCommandAsync(cancellationToken);
-        }
-
-        var visualizationCenterMenu = await db.Queryable<Menu>()
-            .Where(x => x.TenantIdValue == tenantId.Value && x.Path == "/visualization/center")
-            .FirstAsync(cancellationToken);
-        if (visualizationCenterMenu is null)
-        {
-            visualizationCenterMenu = new Menu(
-                tenantId,
-                "总览",
-                "/visualization/center",
-                idGeneratorAccessor.NextId(),
-                visualizationRootMenu.Id,
-                10,
-                "visualization/center",
-                "dashboard",
-                adminPermission.Code,
-                false);
-            await db.Insertable(visualizationCenterMenu).ExecuteCommandAsync(cancellationToken);
-        }
-
-        var visualizationDesignerMenu = await db.Queryable<Menu>()
-            .Where(x => x.TenantIdValue == tenantId.Value && x.Path == "/visualization/designer")
-            .FirstAsync(cancellationToken);
-        if (visualizationDesignerMenu is null)
-        {
-            visualizationDesignerMenu = new Menu(
-                tenantId,
-                "设计器",
-                "/visualization/designer",
-                idGeneratorAccessor.NextId(),
-                visualizationRootMenu.Id,
-                20,
-                "visualization/designer",
-                "dashboard",
-                adminPermission.Code,
-                false);
-            await db.Insertable(visualizationDesignerMenu).ExecuteCommandAsync(cancellationToken);
-        }
-
-        var visualizationRuntimeMenu = await db.Queryable<Menu>()
-            .Where(x => x.TenantIdValue == tenantId.Value && x.Path == "/visualization/runtime")
-            .FirstAsync(cancellationToken);
-        if (visualizationRuntimeMenu is null)
-        {
-            visualizationRuntimeMenu = new Menu(
-                tenantId,
-                "运行态",
-                "/visualization/runtime",
-                idGeneratorAccessor.NextId(),
-                visualizationRootMenu.Id,
-                30,
-                "visualization/runtime",
-                "dashboard",
-                adminPermission.Code,
-                false);
-            await db.Insertable(visualizationRuntimeMenu).ExecuteCommandAsync(cancellationToken);
-        }
-
-        var visualizationGovernanceMenu = await db.Queryable<Menu>()
-            .Where(x => x.TenantIdValue == tenantId.Value && x.Path == "/visualization/governance")
-            .FirstAsync(cancellationToken);
-        if (visualizationGovernanceMenu is null)
-        {
-            visualizationGovernanceMenu = new Menu(
-                tenantId,
-                "治理中心",
-                "/visualization/governance",
-                idGeneratorAccessor.NextId(),
-                visualizationRootMenu.Id,
-                40,
-                "visualization/governance",
-                "dashboard",
-                adminPermission.Code,
-                false);
-            await db.Insertable(visualizationGovernanceMenu).ExecuteCommandAsync(cancellationToken);
+            await db.Insertable(menusToInsert).ExecuteCommandAsync(cancellationToken);
         }
 
         var departmentSeeds = new (string Name, string? ParentName, int SortOrder)[]
@@ -597,6 +404,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             .ToListAsync(cancellationToken);
         var departmentIdMap = existingDepartments.ToDictionary(x => x.Name, x => x.Id, StringComparer.OrdinalIgnoreCase);
 
+        var departmentsToInsert = new List<Department>();
         foreach (var seed in departmentSeeds)
         {
             if (departmentIdMap.ContainsKey(seed.Name))
@@ -612,8 +420,13 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             }
 
             var department = new Department(tenantId, seed.Name, idGeneratorAccessor.NextId(), parentId, seed.SortOrder);
-            await db.Insertable(department).ExecuteCommandAsync(cancellationToken);
+            departmentsToInsert.Add(department);
             departmentIdMap[seed.Name] = department.Id;
+        }
+
+        if (departmentsToInsert.Count > 0)
+        {
+            await db.Insertable(departmentsToInsert).ExecuteCommandAsync(cancellationToken);
         }
 
         var positionSeeds = new (string Name, string Code, string Description, bool IsSystem, int SortOrder)[]
@@ -632,6 +445,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             .ToListAsync(cancellationToken);
         var positionCodeMap = existingPositions.ToDictionary(x => x.Code, x => x.Id, StringComparer.OrdinalIgnoreCase);
 
+        var positionsToInsert = new List<Position>();
         foreach (var seed in positionSeeds)
         {
             if (positionCodeMap.ContainsKey(seed.Code))
@@ -646,79 +460,93 @@ public sealed class DatabaseInitializerHostedService : IHostedService
                 position.MarkSystem();
             }
 
-            await db.Insertable(position).ExecuteCommandAsync(cancellationToken);
+            positionsToInsert.Add(position);
             positionCodeMap[seed.Code] = position.Id;
         }
 
+        if (positionsToInsert.Count > 0)
+        {
+            await db.Insertable(positionsToInsert).ExecuteCommandAsync(cancellationToken);
+        }
+
+        var permissionIds = permissionIdMap.Values.Distinct().ToArray();
+        var existingRolePermissions = await rolePermissionRepository.QueryByRoleIdsAsync(
+            tenantId,
+            roleIds,
+            cancellationToken);
+        var existingRolePermissionSet = existingRolePermissions
+            .Select(x => (x.RoleId, x.PermissionId))
+            .ToHashSet();
+
+        var rolePermissionsToInsert = new List<RolePermission>();
         foreach (var roleId in roleIds)
         {
-            async Task EnsureRoleMenuAsync(long menuId)
+            foreach (var permissionId in permissionIds)
             {
-                var exists = await db.Queryable<RoleMenu>()
-                    .Where(x => x.TenantIdValue == tenantId.Value && x.RoleId == roleId && x.MenuId == menuId)
-                    .AnyAsync();
-                if (!exists)
+                if (existingRolePermissionSet.Contains((roleId, permissionId)))
                 {
-                    await roleMenuRepository.AddRangeAsync(
-                        new[] { new RoleMenu(tenantId, roleId, menuId, idGeneratorAccessor.NextId()) },
-                        cancellationToken);
+                    continue;
                 }
-            }
 
-            foreach (var permissionId in permissionIdMap.Values.Distinct())
+                rolePermissionsToInsert.Add(new RolePermission(tenantId, roleId, permissionId, idGeneratorAccessor.NextId()));
+            }
+        }
+
+        if (rolePermissionsToInsert.Count > 0)
+        {
+            await rolePermissionRepository.AddRangeAsync(rolePermissionsToInsert, cancellationToken);
+        }
+
+        var requiredMenuPaths = new[]
+        {
+            "/system",
+            "/system/projects",
+            "/workflow",
+            "/workflow/designer",
+            "/",
+            "/assets",
+            "/audit",
+            "/alert",
+            "/approval/flows",
+            "/visualization",
+            "/visualization/center",
+            "/visualization/designer",
+            "/visualization/runtime",
+            "/visualization/governance"
+        };
+        var menuIds = requiredMenuPaths
+            .Select(path => menuIdMap.TryGetValue(path, out var menuId) ? menuId : 0)
+            .Where(menuId => menuId > 0)
+            .Distinct()
+            .ToArray();
+
+        var existingRoleMenus = await db.Queryable<RoleMenu>()
+            .Where(x => x.TenantIdValue == tenantId.Value
+                && roleIds.Contains(x.RoleId)
+                && menuIds.Contains(x.MenuId))
+            .Select(x => new { x.RoleId, x.MenuId })
+            .ToListAsync(cancellationToken);
+        var existingRoleMenuSet = existingRoleMenus
+            .Select(x => (x.RoleId, x.MenuId))
+            .ToHashSet();
+
+        var roleMenusToInsert = new List<RoleMenu>();
+        foreach (var roleId in roleIds)
+        {
+            foreach (var menuId in menuIds)
             {
-                var existsPermission = await db.Queryable<RolePermission>()
-                    .Where(x => x.TenantIdValue == tenantId.Value && x.RoleId == roleId && x.PermissionId == permissionId)
-                    .AnyAsync();
-                if (!existsPermission)
+                if (existingRoleMenuSet.Contains((roleId, menuId)))
                 {
-                    await rolePermissionRepository.AddRangeAsync(
-                        new[] { new RolePermission(tenantId, roleId, permissionId, idGeneratorAccessor.NextId()) },
-                        cancellationToken);
+                    continue;
                 }
-            }
 
-            var existsMenu = await db.Queryable<RoleMenu>()
-                .Where(x => x.TenantIdValue == tenantId.Value && x.RoleId == roleId && x.MenuId == adminMenu.Id)
-                .AnyAsync();
-            if (!existsMenu)
-            {
-                await roleMenuRepository.AddRangeAsync(
-                    new[] { new RoleMenu(tenantId, roleId, adminMenu.Id, idGeneratorAccessor.NextId()) },
-                    cancellationToken);
+                roleMenusToInsert.Add(new RoleMenu(tenantId, roleId, menuId, idGeneratorAccessor.NextId()));
             }
+        }
 
-            var existsWorkflowRootMenu = await db.Queryable<RoleMenu>()
-                .Where(x => x.TenantIdValue == tenantId.Value && x.RoleId == roleId && x.MenuId == workflowRootMenu.Id)
-                .AnyAsync();
-            if (!existsWorkflowRootMenu)
-            {
-                await roleMenuRepository.AddRangeAsync(
-                    new[] { new RoleMenu(tenantId, roleId, workflowRootMenu.Id, idGeneratorAccessor.NextId()) },
-                    cancellationToken);
-            }
-
-            var existsWorkflowDesignerMenu = await db.Queryable<RoleMenu>()
-                .Where(x => x.TenantIdValue == tenantId.Value && x.RoleId == roleId && x.MenuId == workflowDesignerMenu.Id)
-                .AnyAsync();
-            if (!existsWorkflowDesignerMenu)
-            {
-                await roleMenuRepository.AddRangeAsync(
-                    new[] { new RoleMenu(tenantId, roleId, workflowDesignerMenu.Id, idGeneratorAccessor.NextId()) },
-                    cancellationToken);
-            }
-
-            await EnsureRoleMenuAsync(homeMenu.Id);
-            await EnsureRoleMenuAsync(assetsMenu.Id);
-            await EnsureRoleMenuAsync(auditMenu.Id);
-            await EnsureRoleMenuAsync(alertMenu.Id);
-            await EnsureRoleMenuAsync(approvalMenu.Id);
-            await EnsureRoleMenuAsync(visualizationRootMenu.Id);
-            await EnsureRoleMenuAsync(visualizationCenterMenu.Id);
-            await EnsureRoleMenuAsync(visualizationDesignerMenu.Id);
-            await EnsureRoleMenuAsync(visualizationRuntimeMenu.Id);
-            await EnsureRoleMenuAsync(visualizationGovernanceMenu.Id);
-            await EnsureRoleMenuAsync(projectsMenu.Id);
+        if (roleMenusToInsert.Count > 0)
+        {
+            await roleMenuRepository.AddRangeAsync(roleMenusToInsert, cancellationToken);
         }
 
         var existing = await userRepository.FindByUsernameAsync(tenantId, _bootstrapOptions.Username, cancellationToken);

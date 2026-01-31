@@ -79,10 +79,13 @@ public sealed class BackToAnyNodeOperationHandler : IApprovalOperationHandler
 
         // 取消所有待审批任务
         var pendingTasks = await _taskRepository.GetByInstanceAndStatusAsync(tenantId, instanceId, ApprovalTaskStatus.Pending, cancellationToken);
-        foreach (var pendingTask in pendingTasks)
+        if (pendingTasks.Count > 0)
         {
-            pendingTask.Cancel();
-            await _taskRepository.UpdateAsync(pendingTask, cancellationToken);
+            foreach (var pendingTask in pendingTasks)
+            {
+                pendingTask.Cancel();
+            }
+            await _taskRepository.UpdateRangeAsync(pendingTasks, cancellationToken);
         }
 
         // 如果目标节点是审批节点，生成任务

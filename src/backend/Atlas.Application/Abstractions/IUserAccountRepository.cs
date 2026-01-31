@@ -20,8 +20,13 @@ public interface IUserAccountRepository
         int pageSize,
         string? keyword,
         CancellationToken cancellationToken);
+    Task<IReadOnlyList<UserAccount>> QueryByIdsAsync(
+        TenantId tenantId,
+        IReadOnlyList<long> userIds,
+        CancellationToken cancellationToken);
     Task<bool> ExistsByUsernameAsync(TenantId tenantId, string username, CancellationToken cancellationToken);
     Task AddAsync(UserAccount account, CancellationToken cancellationToken);
     Task UpdateAsync(UserAccount account, CancellationToken cancellationToken);
+    Task UpdateRangeAsync(IReadOnlyList<UserAccount> accounts, CancellationToken cancellationToken);
     Task DeleteAsync(TenantId tenantId, long id, CancellationToken cancellationToken);
 }

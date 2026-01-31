@@ -38,6 +38,14 @@ public sealed class ApprovalUserQueryService : IApprovalUserQueryService
         return await _roleService.GetUserIdsByRoleCodeAsync(tenantId, roleCode, cancellationToken);
     }
 
+    public async Task<IReadOnlyList<long>> GetUserIdsByRoleCodesAsync(
+        TenantId tenantId,
+        IReadOnlyList<string> roleCodes,
+        CancellationToken cancellationToken)
+    {
+        return await _roleService.GetUserIdsByRoleCodesAsync(tenantId, roleCodes, cancellationToken);
+    }
+
     public async Task<long?> GetDirectLeaderUserIdAsync(
         TenantId tenantId,
         long userId,

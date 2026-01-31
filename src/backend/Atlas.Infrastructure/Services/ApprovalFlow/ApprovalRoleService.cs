@@ -42,4 +42,30 @@ public sealed class ApprovalRoleService : IApprovalRoleService
 
         return userIds;
     }
+
+    public async Task<IReadOnlyList<long>> GetUserIdsByRoleCodesAsync(
+        TenantId tenantId,
+        IReadOnlyList<string> roleCodes,
+        CancellationToken cancellationToken)
+    {
+        if (roleCodes.Count == 0)
+        {
+            return Array.Empty<long>();
+        }
+
+        var roles = await _roleRepository.QueryByCodesAsync(tenantId, roleCodes, cancellationToken);
+        if (roles.Count == 0)
+        {
+            return Array.Empty<long>();
+        }
+
+        var roleIds = roles.Select(x => x.Id).Distinct().ToArray();
+        var userIds = await _db.Queryable<UserRole>()
+            .Where(x => x.TenantIdValue == tenantId.Value && roleIds.Contains(x.RoleId))
+            .Select(x => x.UserId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        return userIds;
+    }
 }

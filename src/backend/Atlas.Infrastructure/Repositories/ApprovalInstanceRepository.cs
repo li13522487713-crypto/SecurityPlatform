@@ -35,6 +35,22 @@ public sealed class ApprovalInstanceRepository : IApprovalInstanceRepository
             .FirstAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<ApprovalProcessInstance>> QueryByIdsAsync(
+        TenantId tenantId,
+        IReadOnlyList<long> ids,
+        CancellationToken cancellationToken)
+    {
+        if (ids.Count == 0)
+        {
+            return Array.Empty<ApprovalProcessInstance>();
+        }
+
+        var distinctIds = ids.Distinct().ToArray();
+        return await _db.Queryable<ApprovalProcessInstance>()
+            .Where(x => x.TenantIdValue == tenantId.Value && distinctIds.Contains(x.Id))
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<ApprovalProcessInstance?> GetByBusinessKeyAsync(
         TenantId tenantId,
         string businessKey,

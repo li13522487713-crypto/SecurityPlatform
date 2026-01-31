@@ -32,6 +32,11 @@ public sealed class ApprovalTimeoutReminderRepository : IApprovalTimeoutReminder
         await _db.Updateable(entity).ExecuteCommandAsync(cancellationToken);
     }
 
+    public async Task UpdateRangeAsync(IEnumerable<ApprovalTimeoutReminder> entities, CancellationToken cancellationToken)
+    {
+        await _db.Updateable(entities.ToList()).ExecuteCommandAsync(cancellationToken);
+    }
+
     public async Task<ApprovalTimeoutReminder?> GetByIdAsync(
         TenantId tenantId,
         long id,

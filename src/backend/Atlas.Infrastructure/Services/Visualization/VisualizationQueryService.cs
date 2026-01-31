@@ -163,17 +163,10 @@ public sealed class VisualizationQueryService : IVisualizationQueryService
             status,
             cancellationToken);
 
-        var flowMap = new Dictionary<long, string>();
-        var nodeNameMaps = new Dictionary<long, Dictionary<string, string>>();
-        foreach (var defId in items.Select(x => x.DefinitionId).Distinct())
-        {
-            var flow = await _flowRepository.GetByIdAsync(tenantId, defId, cancellationToken);
-            if (flow != null)
-            {
-                flowMap[defId] = flow.Name;
-                nodeNameMaps[defId] = BuildNodeNameMap(flow.DefinitionJson);
-            }
-        }
+        var definitionIds = items.Select(x => x.DefinitionId).Distinct().ToArray();
+        var flows = await _flowRepository.QueryByIdsAsync(tenantId, definitionIds, cancellationToken);
+        var flowMap = flows.ToDictionary(x => x.Id, x => x.Name);
+        var nodeNameMaps = flows.ToDictionary(x => x.Id, x => BuildNodeNameMap(x.DefinitionJson));
 
         var now = DateTimeOffset.UtcNow;
         var summaries = items.Select(item =>

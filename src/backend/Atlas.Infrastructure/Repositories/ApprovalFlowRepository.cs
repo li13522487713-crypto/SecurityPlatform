@@ -35,6 +35,22 @@ public sealed class ApprovalFlowRepository : IApprovalFlowRepository
             .FirstAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<ApprovalFlowDefinition>> QueryByIdsAsync(
+        TenantId tenantId,
+        IReadOnlyList<long> ids,
+        CancellationToken cancellationToken)
+    {
+        if (ids.Count == 0)
+        {
+            return Array.Empty<ApprovalFlowDefinition>();
+        }
+
+        var distinctIds = ids.Distinct().ToArray();
+        return await _db.Queryable<ApprovalFlowDefinition>()
+            .Where(x => x.TenantIdValue == tenantId.Value && distinctIds.Contains(x.Id))
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<(IReadOnlyList<ApprovalFlowDefinition> Items, int TotalCount)> GetPagedAsync(
         TenantId tenantId,
         int pageIndex,

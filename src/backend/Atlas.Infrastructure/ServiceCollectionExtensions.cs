@@ -64,6 +64,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IRoleMenuRepository, RoleMenuRepository>();
         services.AddScoped<IUserDepartmentRepository, UserDepartmentRepository>();
         services.AddScoped<IUserPositionRepository, UserPositionRepository>();
+        services.AddScoped<IUserHierarchyQueryRepository, UserHierarchyQueryRepository>();
         services.AddScoped<IPasswordHistoryRepository, PasswordHistoryRepository>();
         services.AddScoped<IAssetRepository, AssetRepository>();
         services.AddScoped<IAssetQueryService, AssetQueryService>();
