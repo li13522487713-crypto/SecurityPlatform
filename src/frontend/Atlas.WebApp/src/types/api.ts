@@ -319,6 +319,61 @@ export interface RoleAssignMenusRequest {
   menuIds: number[];
 }
 
+export interface PermissionListItem {
+  id: string;
+  name: string;
+  code: string;
+  type: string;
+  description?: string;
+}
+
+export interface PermissionCreateRequest {
+  name: string;
+  code: string;
+  type: string;
+  description?: string;
+}
+
+export interface PermissionUpdateRequest {
+  name: string;
+  type: string;
+  description?: string;
+}
+
+export interface MenuListItem {
+  id: string;
+  name: string;
+  path: string;
+  parentId?: number | null;
+  sortOrder: number;
+  component?: string | null;
+  icon?: string | null;
+  permissionCode?: string | null;
+  isHidden: boolean;
+}
+
+export interface MenuCreateRequest {
+  name: string;
+  path: string;
+  parentId?: number | null;
+  sortOrder: number;
+  component?: string | null;
+  icon?: string | null;
+  permissionCode?: string | null;
+  isHidden: boolean;
+}
+
+export interface MenuUpdateRequest {
+  name: string;
+  path: string;
+  parentId?: number | null;
+  sortOrder: number;
+  component?: string | null;
+  icon?: string | null;
+  permissionCode?: string | null;
+  isHidden: boolean;
+}
+
 export interface PositionListItem {
   id: string;
   name: string;

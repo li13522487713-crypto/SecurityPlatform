@@ -47,7 +47,10 @@ export const clearAuthStorage = () => {
 
 export const isAdminRole = (profile: AuthProfile | null) => {
   if (!profile) return false;
-  return profile.roles.some((role) => role.toLowerCase() === "admin");
+  return profile.roles.some((role) => {
+    const normalized = role.trim().toLowerCase();
+    return normalized === "admin" || normalized === "superadmin";
+  });
 };
 
 export const hasPermission = (profile: AuthProfile | null, code: string) => {

@@ -13,6 +13,15 @@
           <a-menu-item v-if="showUsersMenu" key="system-users" @click="go('/system/users')">
             员工管理
           </a-menu-item>
+          <a-menu-item v-if="showRolesMenu" key="system-roles" @click="go('/system/roles')">
+            角色管理
+          </a-menu-item>
+          <a-menu-item v-if="showPermissionsMenu" key="system-permissions" @click="go('/system/permissions')">
+            权限管理
+          </a-menu-item>
+          <a-menu-item v-if="showMenusMenu" key="system-menus" @click="go('/system/menus')">
+            菜单管理
+          </a-menu-item>
           <a-menu-item v-if="showDepartmentsMenu" key="system-departments" @click="go('/system/departments')">
             部门管理
           </a-menu-item>
@@ -101,6 +110,9 @@ const selectedKeys = computed(() => {
   if (route.path.startsWith("/alert")) return ["alert"];
   if (route.path.startsWith("/approval")) return ["approval"];
   if (route.path.startsWith("/system/users")) return ["system-users"];
+  if (route.path.startsWith("/system/roles")) return ["system-roles"];
+  if (route.path.startsWith("/system/permissions")) return ["system-permissions"];
+  if (route.path.startsWith("/system/menus")) return ["system-menus"];
   if (route.path.startsWith("/system/departments")) return ["system-departments"];
   if (route.path.startsWith("/system/positions")) return ["system-positions"];
   if (route.path.startsWith("/visualization")) {
@@ -124,17 +136,25 @@ const go = (path: string) => {
 
 const showWorkflowMenu = computed(() => hasPermission(profile.value, "workflow:design"));
 const showUsersMenu = computed(() => hasPermission(profile.value, "users:view"));
+const showRolesMenu = computed(() => hasPermission(profile.value, "roles:view"));
+const showPermissionsMenu = computed(() => hasPermission(profile.value, "permissions:view"));
+const showMenusMenu = computed(() => hasPermission(profile.value, "menus:view"));
 const showDepartmentsMenu = computed(() => hasPermission(profile.value, "departments:view"));
 const showPositionsMenu = computed(() => hasPermission(profile.value, "positions:view"));
 const showSystemMenu = computed(
-  () => showUsersMenu.value || showDepartmentsMenu.value || showPositionsMenu.value
+  () =>
+    showUsersMenu.value ||
+    showRolesMenu.value ||
+    showPermissionsMenu.value ||
+    showMenusMenu.value ||
+    showDepartmentsMenu.value ||
+    showPositionsMenu.value
 );
 
 const loadProfile = async () => {
   const cached = getAuthProfile();
   if (cached) {
     profile.value = cached;
-    return;
   }
 
   if (!getAccessToken()) {

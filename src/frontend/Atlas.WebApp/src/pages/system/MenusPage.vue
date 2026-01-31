@@ -1,14 +1,14 @@
 <template>
-  <a-card title="部门管理" class="page-card">
+  <a-card title="菜单管理" class="page-card">
     <div class="toolbar">
       <a-space>
         <a-input
           v-model:value="keyword"
-          placeholder="搜索部门名称"
+          placeholder="搜索菜单名称/路径"
           allow-clear
           @press-enter="fetchData"
         />
-        <a-button v-if="canCreate" type="primary" @click="openCreate">新增部门</a-button>
+        <a-button v-if="canCreate" type="primary" @click="openCreate">新增菜单</a-button>
       </a-space>
     </div>
 
@@ -21,18 +21,16 @@
       @change="onTableChange"
     >
       <template #bodyCell="{ column, record }">
+        <template v-if="column.key === 'parent'">
+          <span>{{ getParentName(record.parentId) }}</span>
+        </template>
+        <template v-if="column.key === 'hidden'">
+          <a-tag v-if="record.isHidden" color="orange">隐藏</a-tag>
+          <span v-else>-</span>
+        </template>
         <template v-if="column.key === 'actions'">
           <a-space>
             <a-button v-if="canUpdate" type="link" @click="openEdit(record)">编辑</a-button>
-            <a-popconfirm
-              v-if="canDelete"
-              title="确认删除该部门？"
-              ok-text="删除"
-              cancel-text="取消"
-              @confirm="handleDelete(record.id)"
-            >
-              <a-button type="link" danger>删除</a-button>
-            </a-popconfirm>
           </a-space>
         </template>
       </template>
@@ -40,16 +38,19 @@
 
     <a-modal
       v-model:open="formVisible"
-      :title="formMode === 'create' ? '新增部门' : '编辑部门'"
+      :title="formMode === 'create' ? '新增菜单' : '编辑菜单'"
       @ok="submitForm"
       @cancel="closeForm"
       destroy-on-close
     >
       <a-form ref="formRef" :model="formModel" :rules="formRules" layout="vertical">
-        <a-form-item label="部门名称" name="name">
+        <a-form-item label="菜单名称" name="name">
           <a-input v-model:value="formModel.name" />
         </a-form-item>
-        <a-form-item label="上级部门" name="parentId">
+        <a-form-item label="菜单路径" name="path">
+          <a-input v-model:value="formModel.path" />
+        </a-form-item>
+        <a-form-item label="上级菜单" name="parentId">
           <a-select
             v-model:value="formModel.parentId"
             :options="parentOptions"
@@ -59,6 +60,18 @@
         </a-form-item>
         <a-form-item label="排序" name="sortOrder">
           <a-input-number v-model:value="formModel.sortOrder" :min="0" style="width: 100%" />
+        </a-form-item>
+        <a-form-item label="组件" name="component">
+          <a-input v-model:value="formModel.component" />
+        </a-form-item>
+        <a-form-item label="图标" name="icon">
+          <a-input v-model:value="formModel.icon" />
+        </a-form-item>
+        <a-form-item label="权限编码" name="permissionCode">
+          <a-input v-model:value="formModel.permissionCode" />
+        </a-form-item>
+        <a-form-item label="隐藏菜单" name="isHidden">
+          <a-switch v-model:checked="formModel.isHidden" />
         </a-form-item>
       </a-form>
     </a-modal>
@@ -70,8 +83,8 @@ import { onMounted, reactive, ref } from "vue";
 import type { TablePaginationConfig, FormInstance } from "ant-design-vue";
 import type { Rule } from "ant-design-vue/es/form";
 import { message } from "ant-design-vue";
-import { createDepartment, deleteDepartment, getDepartmentsAll, getDepartmentsPaged, updateDepartment } from "@/services/api";
-import type { DepartmentCreateRequest, DepartmentListItem, DepartmentUpdateRequest } from "@/types/api";
+import { createMenu, getMenusAll, getMenusPaged, updateMenu } from "@/services/api";
+import type { MenuCreateRequest, MenuListItem, MenuUpdateRequest } from "@/types/api";
 import { getAuthProfile, hasPermission } from "@/utils/auth";
 
 type FormMode = "create" | "edit";
@@ -82,13 +95,18 @@ interface SelectOption {
 }
 
 const columns = [
-  { title: "部门名称", dataIndex: "name" },
-  { title: "上级部门", dataIndex: "parentId" },
+  { title: "菜单名称", dataIndex: "name" },
+  { title: "路径", dataIndex: "path" },
+  { title: "上级菜单", key: "parent" },
   { title: "排序", dataIndex: "sortOrder" },
+  { title: "组件", dataIndex: "component" },
+  { title: "图标", dataIndex: "icon" },
+  { title: "权限编码", dataIndex: "permissionCode" },
+  { title: "隐藏", key: "hidden" },
   { title: "操作", key: "actions" }
 ];
 
-const dataSource = ref<DepartmentListItem[]>([]);
+const dataSource = ref<MenuListItem[]>([]);
 const loading = ref(false);
 const keyword = ref("");
 const pagination = reactive<TablePaginationConfig>({
@@ -101,27 +119,33 @@ const pagination = reactive<TablePaginationConfig>({
 const formVisible = ref(false);
 const formMode = ref<FormMode>("create");
 const formRef = ref<FormInstance>();
-const formModel = reactive<DepartmentCreateRequest & DepartmentUpdateRequest>({
+const formModel = reactive<MenuCreateRequest & MenuUpdateRequest>({
   name: "",
+  path: "",
   parentId: undefined,
-  sortOrder: 0
+  sortOrder: 0,
+  component: "",
+  icon: "",
+  permissionCode: "",
+  isHidden: false
 });
 
 const formRules: Record<string, Rule[]> = {
-  name: [{ required: true, message: "请输入部门名称" }]
+  name: [{ required: true, message: "请输入菜单名称" }],
+  path: [{ required: true, message: "请输入菜单路径" }]
 };
 
 const parentOptions = ref<SelectOption[]>([]);
+const parentNameMap = ref<Map<number, string>>(new Map());
 const selectedId = ref<string | null>(null);
 const profile = getAuthProfile();
-const canCreate = hasPermission(profile, "departments:create");
-const canUpdate = hasPermission(profile, "departments:update");
-const canDelete = hasPermission(profile, "departments:delete");
+const canCreate = hasPermission(profile, "menus:create");
+const canUpdate = hasPermission(profile, "menus:update");
 
 const fetchData = async () => {
   loading.value = true;
   try {
-    const result = await getDepartmentsPaged({
+    const result = await getMenusPaged({
       pageIndex: pagination.current ?? 1,
       pageSize: pagination.pageSize ?? 10,
       keyword: keyword.value || undefined
@@ -137,14 +161,22 @@ const fetchData = async () => {
 
 const fetchParents = async () => {
   try {
-    const list = await getDepartmentsAll();
+    const list = await getMenusAll();
     parentOptions.value = list.map((item) => ({
       label: item.name,
       value: Number(item.id)
     }));
+    parentNameMap.value = new Map(
+      list.map((item) => [Number(item.id), item.name])
+    );
   } catch (error) {
-    message.error((error as Error).message || "加载部门失败");
+    message.error((error as Error).message || "加载菜单失败");
   }
+};
+
+const getParentName = (parentId?: number | null) => {
+  if (!parentId) return "-";
+  return parentNameMap.value.get(Number(parentId)) ?? "-";
 };
 
 const onTableChange = (pager: TablePaginationConfig) => {
@@ -155,8 +187,13 @@ const onTableChange = (pager: TablePaginationConfig) => {
 
 const resetForm = () => {
   formModel.name = "";
+  formModel.path = "";
   formModel.parentId = undefined;
   formModel.sortOrder = 0;
+  formModel.component = "";
+  formModel.icon = "";
+  formModel.permissionCode = "";
+  formModel.isHidden = false;
 };
 
 const openCreate = () => {
@@ -166,12 +203,17 @@ const openCreate = () => {
   formVisible.value = true;
 };
 
-const openEdit = (record: DepartmentListItem) => {
+const openEdit = (record: MenuListItem) => {
   formMode.value = "edit";
   selectedId.value = record.id;
   formModel.name = record.name;
+  formModel.path = record.path;
   formModel.parentId = record.parentId ?? undefined;
   formModel.sortOrder = record.sortOrder;
+  formModel.component = record.component ?? "";
+  formModel.icon = record.icon ?? "";
+  formModel.permissionCode = record.permissionCode ?? "";
+  formModel.isHidden = record.isHidden;
   formVisible.value = true;
 };
 
@@ -185,17 +227,27 @@ const submitForm = async () => {
 
   try {
     if (formMode.value === "create") {
-      await createDepartment({
+      await createMenu({
         name: formModel.name,
+        path: formModel.path,
         parentId: formModel.parentId ?? undefined,
-        sortOrder: formModel.sortOrder
+        sortOrder: formModel.sortOrder,
+        component: formModel.component || undefined,
+        icon: formModel.icon || undefined,
+        permissionCode: formModel.permissionCode || undefined,
+        isHidden: formModel.isHidden
       });
       message.success("创建成功");
     } else if (selectedId.value) {
-      await updateDepartment(selectedId.value, {
+      await updateMenu(selectedId.value, {
         name: formModel.name,
+        path: formModel.path,
         parentId: formModel.parentId ?? undefined,
-        sortOrder: formModel.sortOrder
+        sortOrder: formModel.sortOrder,
+        component: formModel.component || undefined,
+        icon: formModel.icon || undefined,
+        permissionCode: formModel.permissionCode || undefined,
+        isHidden: formModel.isHidden
       });
       message.success("更新成功");
     }
@@ -204,17 +256,6 @@ const submitForm = async () => {
     fetchParents();
   } catch (error) {
     message.error((error as Error).message || "提交失败");
-  }
-};
-
-const handleDelete = async (id: string) => {
-  try {
-    await deleteDepartment(id);
-    message.success("删除成功");
-    fetchData();
-    fetchParents();
-  } catch (error) {
-    message.error((error as Error).message || "删除失败");
   }
 };
 

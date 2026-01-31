@@ -17,6 +17,9 @@ const VisualizationRuntimePage = () => import("@/pages/visualization/Visualizati
 const VisualizationGovernancePage = () => import("@/pages/visualization/VisualizationGovernancePage.vue");
 const ProfilePage = () => import("@/pages/ProfilePage.vue");
 const UsersPage = () => import("@/pages/system/UsersPage.vue");
+const RolesPage = () => import("@/pages/system/RolesPage.vue");
+const PermissionsPage = () => import("@/pages/system/PermissionsPage.vue");
+const MenusPage = () => import("@/pages/system/MenusPage.vue");
 const DepartmentsPage = () => import("@/pages/system/DepartmentsPage.vue");
 const PositionsPage = () => import("@/pages/system/PositionsPage.vue");
 
@@ -38,6 +41,24 @@ const router = createRouter({
       name: "system-users",
       component: UsersPage,
       meta: { requiresAuth: true, requiresPermission: "users:view" }
+    },
+    {
+      path: "/system/roles",
+      name: "system-roles",
+      component: RolesPage,
+      meta: { requiresAuth: true, requiresPermission: "roles:view" }
+    },
+    {
+      path: "/system/permissions",
+      name: "system-permissions",
+      component: PermissionsPage,
+      meta: { requiresAuth: true, requiresPermission: "permissions:view" }
+    },
+    {
+      path: "/system/menus",
+      name: "system-menus",
+      component: MenusPage,
+      meta: { requiresAuth: true, requiresPermission: "menus:view" }
     },
     {
       path: "/system/departments",

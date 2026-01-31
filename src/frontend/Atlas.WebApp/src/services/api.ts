@@ -50,6 +50,12 @@ import type {
   RoleUpdateRequest,
   RoleAssignPermissionsRequest,
   RoleAssignMenusRequest,
+  PermissionListItem,
+  PermissionCreateRequest,
+  PermissionUpdateRequest,
+  MenuListItem,
+  MenuCreateRequest,
+  MenuUpdateRequest,
   PositionListItem,
   PositionDetail,
   PositionCreateRequest,
@@ -383,6 +389,79 @@ export async function updateRoleMenus(id: string, request: RoleAssignMenusReques
   });
   if (!response.success) {
     throw new Error(response.message || "更新菜单失败");
+  }
+}
+
+export async function getPermissionsPaged(pagedRequest: PagedRequest) {
+  const query = toQuery(pagedRequest);
+  const response = await requestApi<ApiResponse<PagedResult<PermissionListItem>>>(`/permissions?${query}`);
+  if (!response.data) {
+    throw new Error(response.message || "查询失败");
+  }
+
+  return response.data;
+}
+
+export async function createPermission(request: PermissionCreateRequest) {
+  const response = await requestApi<ApiResponse<{ id: string }>>("/permissions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request)
+  });
+  if (!response.success) {
+    throw new Error(response.message || "创建失败");
+  }
+}
+
+export async function updatePermission(id: string, request: PermissionUpdateRequest) {
+  const response = await requestApi<ApiResponse<{ id: string }>>(`/permissions/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request)
+  });
+  if (!response.success) {
+    throw new Error(response.message || "更新失败");
+  }
+}
+
+export async function getMenusPaged(pagedRequest: PagedRequest) {
+  const query = toQuery(pagedRequest);
+  const response = await requestApi<ApiResponse<PagedResult<MenuListItem>>>(`/menus?${query}`);
+  if (!response.data) {
+    throw new Error(response.message || "查询失败");
+  }
+
+  return response.data;
+}
+
+export async function getMenusAll() {
+  const response = await requestApi<ApiResponse<MenuListItem[]>>("/menus/all");
+  if (!response.data) {
+    throw new Error(response.message || "查询失败");
+  }
+
+  return response.data;
+}
+
+export async function createMenu(request: MenuCreateRequest) {
+  const response = await requestApi<ApiResponse<{ id: string }>>("/menus", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request)
+  });
+  if (!response.success) {
+    throw new Error(response.message || "创建失败");
+  }
+}
+
+export async function updateMenu(id: string, request: MenuUpdateRequest) {
+  const response = await requestApi<ApiResponse<{ id: string }>>(`/menus/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request)
+  });
+  if (!response.success) {
+    throw new Error(response.message || "更新失败");
   }
 }
 
