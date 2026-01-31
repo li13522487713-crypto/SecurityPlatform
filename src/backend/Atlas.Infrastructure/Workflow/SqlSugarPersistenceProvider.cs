@@ -269,7 +269,9 @@ public class SqlSugarPersistenceProvider : IPersistenceProvider
             {
                 entity.SetCompleteTime(workflow.CompleteTime.Value);
             }
-            await _db.Updateable(entity).ExecuteCommandAsync(cancellationToken);
+            await _db.Updateable(entity)
+                .Where(x => x.Id == entity.Id && x.TenantIdValue == entity.TenantIdValue)
+                .ExecuteCommandAsync(cancellationToken);
         }
 
         // Update execution pointers
@@ -305,7 +307,9 @@ public class SqlSugarPersistenceProvider : IPersistenceProvider
 
         if (toUpdate.Count > 0)
         {
-            await _db.Updateable(toUpdate).ExecuteCommandAsync(cancellationToken);
+            await _db.Updateable(toUpdate)
+                .WhereColumns(x => new { x.Id, x.TenantIdValue })
+                .ExecuteCommandAsync(cancellationToken);
         }
 
         if (toInsert.Count > 0)
@@ -348,7 +352,9 @@ public class SqlSugarPersistenceProvider : IPersistenceProvider
         if (entity != null)
         {
             entity.UpdateStatus(WorkflowStatus.Terminated);
-            await _db.Updateable(entity).ExecuteCommandAsync(cancellationToken);
+            await _db.Updateable(entity)
+                .Where(x => x.Id == entity.Id && x.TenantIdValue == entity.TenantIdValue)
+                .ExecuteCommandAsync(cancellationToken);
         }
     }
 
@@ -393,7 +399,9 @@ public class SqlSugarPersistenceProvider : IPersistenceProvider
         if (entity != null)
         {
             entity.MarkAsProcessed();
-            await _db.Updateable(entity).ExecuteCommandAsync(cancellationToken);
+            await _db.Updateable(entity)
+                .Where(x => x.Id == entity.Id && x.TenantIdValue == entity.TenantIdValue)
+                .ExecuteCommandAsync(cancellationToken);
         }
     }
 
@@ -407,7 +415,9 @@ public class SqlSugarPersistenceProvider : IPersistenceProvider
         if (entity != null)
         {
             entity.MarkAsUnprocessed();
-            await _db.Updateable(entity).ExecuteCommandAsync(cancellationToken);
+            await _db.Updateable(entity)
+                .Where(x => x.Id == entity.Id && x.TenantIdValue == entity.TenantIdValue)
+                .ExecuteCommandAsync(cancellationToken);
         }
     }
 

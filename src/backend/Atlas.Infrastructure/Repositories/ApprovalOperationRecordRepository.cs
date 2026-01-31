@@ -25,7 +25,9 @@ public sealed class ApprovalOperationRecordRepository : IApprovalOperationRecord
 
     public Task UpdateAsync(ApprovalOperationRecord entity, CancellationToken cancellationToken)
     {
-        return _db.Updateable(entity).ExecuteCommandAsync(cancellationToken);
+        return _db.Updateable(entity)
+            .Where(x => x.Id == entity.Id && x.TenantIdValue == entity.TenantIdValue)
+            .ExecuteCommandAsync(cancellationToken);
     }
 
     public async Task<ApprovalOperationRecord?> GetByIdAsync(TenantId tenantId, long id, CancellationToken cancellationToken)

@@ -36,7 +36,9 @@ public sealed class ApprovalExternalCallbackRecordRepository : IApprovalExternal
 
     public async Task UpdateAsync(ApprovalExternalCallbackRecord entity, CancellationToken cancellationToken)
     {
-        await _db.Updateable(entity).ExecuteCommandAsync(cancellationToken);
+        await _db.Updateable(entity)
+            .Where(x => x.Id == entity.Id && x.TenantIdValue == entity.TenantIdValue)
+            .ExecuteCommandAsync(cancellationToken);
     }
 
     public async Task UpdateRangeAsync(IEnumerable<ApprovalExternalCallbackRecord> entities, CancellationToken cancellationToken)
@@ -47,7 +49,9 @@ public sealed class ApprovalExternalCallbackRecordRepository : IApprovalExternal
             return;
         }
 
-        await _db.Updateable(list).ExecuteCommandAsync(cancellationToken);
+        await _db.Updateable(list)
+            .WhereColumns(x => new { x.Id, x.TenantIdValue })
+            .ExecuteCommandAsync(cancellationToken);
     }
 
     public async Task<ApprovalExternalCallbackRecord?> GetByIdAsync(

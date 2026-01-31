@@ -35,7 +35,9 @@ public sealed class ApprovalParallelTokenRepository : IApprovalParallelTokenRepo
 
     public async Task UpdateAsync(ApprovalParallelToken entity, CancellationToken cancellationToken)
     {
-        await _db.Updateable(entity).ExecuteCommandAsync(cancellationToken);
+        await _db.Updateable(entity)
+            .Where(x => x.Id == entity.Id && x.TenantIdValue == entity.TenantIdValue)
+            .ExecuteCommandAsync(cancellationToken);
     }
 
     public async Task UpdateRangeAsync(IEnumerable<ApprovalParallelToken> entities, CancellationToken cancellationToken)
@@ -46,7 +48,9 @@ public sealed class ApprovalParallelTokenRepository : IApprovalParallelTokenRepo
             return;
         }
 
-        await _db.Updateable(list).ExecuteCommandAsync(cancellationToken);
+        await _db.Updateable(list)
+            .WhereColumns(x => new { x.Id, x.TenantIdValue })
+            .ExecuteCommandAsync(cancellationToken);
     }
 
     public async Task<IReadOnlyList<ApprovalParallelToken>> GetByInstanceAndGatewayAsync(

@@ -25,7 +25,9 @@ public sealed class ApprovalFlowRepository : IApprovalFlowRepository
 
     public async Task UpdateAsync(ApprovalFlowDefinition entity, CancellationToken cancellationToken)
     {
-        await _db.Updateable(entity).ExecuteCommandAsync(cancellationToken);
+        await _db.Updateable(entity)
+            .Where(x => x.Id == entity.Id && x.TenantIdValue == entity.TenantIdValue)
+            .ExecuteCommandAsync(cancellationToken);
     }
 
     public async Task<ApprovalFlowDefinition?> GetByIdAsync(TenantId tenantId, long id, CancellationToken cancellationToken)

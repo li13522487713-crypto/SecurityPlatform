@@ -34,6 +34,7 @@ public sealed class UserAccountRepository : IUserAccountRepository
         }
 
         return _db.Updateable(accounts.ToList())
+            .WhereColumns(x => new { x.Id, x.TenantIdValue })
             .ExecuteCommandAsync(cancellationToken);
     }
 

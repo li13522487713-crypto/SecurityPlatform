@@ -25,7 +25,9 @@ public sealed class ApprovalInstanceRepository : IApprovalInstanceRepository
 
     public async Task UpdateAsync(ApprovalProcessInstance entity, CancellationToken cancellationToken)
     {
-        await _db.Updateable(entity).ExecuteCommandAsync(cancellationToken);
+        await _db.Updateable(entity)
+            .Where(x => x.Id == entity.Id && x.TenantIdValue == entity.TenantIdValue)
+            .ExecuteCommandAsync(cancellationToken);
     }
 
     public async Task<ApprovalProcessInstance?> GetByIdAsync(TenantId tenantId, long id, CancellationToken cancellationToken)

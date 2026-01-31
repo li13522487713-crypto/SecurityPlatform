@@ -103,7 +103,9 @@ public sealed class RoleRepository : IRoleRepository
 
     public Task UpdateAsync(Role role, CancellationToken cancellationToken)
     {
-        return _db.Updateable(role).ExecuteCommandAsync(cancellationToken);
+        return _db.Updateable(role)
+            .Where(x => x.Id == role.Id && x.TenantIdValue == role.TenantIdValue)
+            .ExecuteCommandAsync(cancellationToken);
     }
 
     public Task DeleteAsync(TenantId tenantId, long id, CancellationToken cancellationToken)

@@ -75,6 +75,8 @@ public sealed class MenuRepository : IMenuRepository
 
     public Task UpdateAsync(Menu menu, CancellationToken cancellationToken)
     {
-        return _db.Updateable(menu).ExecuteCommandAsync(cancellationToken);
+        return _db.Updateable(menu)
+            .Where(x => x.Id == menu.Id && x.TenantIdValue == menu.TenantIdValue)
+            .ExecuteCommandAsync(cancellationToken);
     }
 }

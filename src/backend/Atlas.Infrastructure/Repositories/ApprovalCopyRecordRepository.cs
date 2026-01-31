@@ -29,7 +29,9 @@ public sealed class ApprovalCopyRecordRepository : IApprovalCopyRecordRepository
 
     public async Task UpdateAsync(ApprovalCopyRecord entity, CancellationToken cancellationToken)
     {
-        await _db.Updateable(entity).ExecuteCommandAsync(cancellationToken);
+        await _db.Updateable(entity)
+            .Where(x => x.Id == entity.Id && x.TenantIdValue == entity.TenantIdValue)
+            .ExecuteCommandAsync(cancellationToken);
     }
 
     public async Task<ApprovalCopyRecord?> GetByIdAsync(

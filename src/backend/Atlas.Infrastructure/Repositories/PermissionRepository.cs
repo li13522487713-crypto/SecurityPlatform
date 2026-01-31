@@ -69,6 +69,8 @@ public sealed class PermissionRepository : IPermissionRepository
 
     public Task UpdateAsync(Permission permission, CancellationToken cancellationToken)
     {
-        return _db.Updateable(permission).ExecuteCommandAsync(cancellationToken);
+        return _db.Updateable(permission)
+            .Where(x => x.Id == permission.Id && x.TenantIdValue == permission.TenantIdValue)
+            .ExecuteCommandAsync(cancellationToken);
     }
 }

@@ -25,7 +25,9 @@ public sealed class ApprovalNotificationTemplateRepository : IApprovalNotificati
 
     public async Task UpdateAsync(ApprovalNotificationTemplate entity, CancellationToken cancellationToken)
     {
-        await _db.Updateable(entity).ExecuteCommandAsync(cancellationToken);
+        await _db.Updateable(entity)
+            .Where(x => x.Id == entity.Id && x.TenantIdValue == entity.TenantIdValue)
+            .ExecuteCommandAsync(cancellationToken);
     }
 
     public async Task<ApprovalNotificationTemplate?> GetByIdAsync(

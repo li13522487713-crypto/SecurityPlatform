@@ -29,12 +29,16 @@ public sealed class ApprovalTimeoutReminderRepository : IApprovalTimeoutReminder
 
     public async Task UpdateAsync(ApprovalTimeoutReminder entity, CancellationToken cancellationToken)
     {
-        await _db.Updateable(entity).ExecuteCommandAsync(cancellationToken);
+        await _db.Updateable(entity)
+            .Where(x => x.Id == entity.Id && x.TenantIdValue == entity.TenantIdValue)
+            .ExecuteCommandAsync(cancellationToken);
     }
 
     public async Task UpdateRangeAsync(IEnumerable<ApprovalTimeoutReminder> entities, CancellationToken cancellationToken)
     {
-        await _db.Updateable(entities.ToList()).ExecuteCommandAsync(cancellationToken);
+        await _db.Updateable(entities.ToList())
+            .WhereColumns(x => new { x.Id, x.TenantIdValue })
+            .ExecuteCommandAsync(cancellationToken);
     }
 
     public async Task<ApprovalTimeoutReminder?> GetByIdAsync(

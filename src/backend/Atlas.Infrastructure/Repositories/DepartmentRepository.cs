@@ -104,7 +104,9 @@ public sealed class DepartmentRepository : IDepartmentRepository
 
     public Task UpdateAsync(Department department, CancellationToken cancellationToken)
     {
-        return _db.Updateable(department).ExecuteCommandAsync(cancellationToken);
+        return _db.Updateable(department)
+            .Where(x => x.Id == department.Id && x.TenantIdValue == department.TenantIdValue)
+            .ExecuteCommandAsync(cancellationToken);
     }
 
     public Task DeleteAsync(TenantId tenantId, long id, CancellationToken cancellationToken)

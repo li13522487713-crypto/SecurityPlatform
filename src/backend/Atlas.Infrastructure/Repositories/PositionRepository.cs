@@ -112,7 +112,9 @@ public sealed class PositionRepository : IPositionRepository
 
     public Task UpdateAsync(Position position, CancellationToken cancellationToken)
     {
-        return _db.Updateable(position).ExecuteCommandAsync(cancellationToken);
+        return _db.Updateable(position)
+            .Where(x => x.Id == position.Id && x.TenantIdValue == position.TenantIdValue)
+            .ExecuteCommandAsync(cancellationToken);
     }
 
     public Task DeleteAsync(TenantId tenantId, long id, CancellationToken cancellationToken)
