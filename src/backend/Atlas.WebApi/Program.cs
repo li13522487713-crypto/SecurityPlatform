@@ -37,6 +37,11 @@ builder.Host.UseNLog();
 builder.Services.AddControllers(options =>
 {
     options.Filters.Add<IdempotencyFilter>();
+})
+.AddJsonOptions(options =>
+{
+    options.JsonSerializerOptions.Converters.Add(new Atlas.WebApi.Json.FlexibleLongJsonConverter());
+    options.JsonSerializerOptions.Converters.Add(new Atlas.WebApi.Json.FlexibleNullableLongJsonConverter());
 });
 builder.Services.AddOpenApi();
 

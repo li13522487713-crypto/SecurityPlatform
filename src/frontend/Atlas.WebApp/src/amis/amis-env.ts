@@ -83,18 +83,45 @@ export function createAmisEnv(): AmisEnv {
         msg: payload.message
       };
     } catch (error) {
-      const messageText = error instanceof Error ? error.message : "请求失败";
+      const errorMessage = error instanceof Error ? error.message : "请求失败";
+      const errorObject = error as {
+        status?: number;
+        payload?: {
+          title?: string;
+          message?: string;
+          errors?: Record<string, string[] | string>;
+        } | null;
+      };
+      const status = errorObject.status ?? 500;
+      const payload = errorObject.payload ?? null;
+      const msg = payload?.message || payload?.title || errorMessage;
+      if (payload?.errors) {
+        const errors = Object.entries(payload.errors).reduce<Record<string, string>>((acc, [key, value]) => {
+          if (!value) {
+            return acc;
+          }
+          const items = Array.isArray(value) ? value : [value];
+          acc[key] = items.join("，");
+          return acc;
+        }, {});
+        return {
+          data: { errors } as JsonValue,
+          ok: false,
+          status,
+          msg
+        };
+      }
       const fallback: ApiResponse<JsonValue> = {
         success: false,
         code: "SERVER_ERROR",
-        message: messageText,
+        message: msg,
         traceId: ""
       };
       return {
-        data: fallback as JsonValue,
+        data: (payload ?? fallback) as JsonValue,
         ok: false,
-        status: 500,
-        msg: messageText
+        status,
+        msg
       };
     }
   };

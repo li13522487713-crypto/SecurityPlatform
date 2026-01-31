@@ -3,8 +3,9 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onBeforeUnmount, ref, watch } from "vue";
+import { onMounted, onBeforeUnmount, ref, watch, toRaw } from "vue";
 import { render as renderAmis } from "amis";
+import { createRoot, type Root } from "react-dom/client";
 import type { AmisSchema } from "@/types/amis";
 import type { JsonValue } from "@/types/api";
 import { createAmisEnv } from "@/amis/amis-env";
@@ -16,14 +17,36 @@ interface Props {
 
 const props = defineProps<Props>();
 const containerRef = ref<HTMLElement | null>(null);
+const rootRef = ref<Root | null>(null);
 const amisEnv = createAmisEnv();
 const emptyData: Record<string, JsonValue> = {};
+
+const normalizeValue = <T extends JsonValue | Record<string, JsonValue>>(value: T): T => {
+  const raw = toRaw(value) as T;
+  if (typeof structuredClone === "function") {
+    try {
+      return structuredClone(raw);
+    } catch {
+      return raw;
+    }
+  }
+  try {
+    return JSON.parse(JSON.stringify(raw)) as T;
+  } catch {
+    return raw;
+  }
+};
 
 const renderSchema = () => {
   const container = containerRef.value;
   if (!container) return;
-  container.innerHTML = "";
-  renderAmis(props.schema, { data: props.data ?? emptyData, env: amisEnv }, container);
+  if (!rootRef.value) {
+    rootRef.value = createRoot(container);
+  }
+  const schema = normalizeValue(props.schema);
+  const data = normalizeValue(props.data ?? emptyData);
+  const element = renderAmis(schema, { data }, amisEnv);
+  rootRef.value.render(element);
 };
 
 onMounted(() => {
@@ -39,6 +62,8 @@ watch(
 );
 
 onBeforeUnmount(() => {
+  rootRef.value?.unmount();
+  rootRef.value = null;
   if (containerRef.value) {
     containerRef.value.innerHTML = "";
   }

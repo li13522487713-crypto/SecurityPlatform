@@ -137,6 +137,12 @@ interface ApiErrorPayload {
   errors?: Record<string, string[] | string>;
 }
 
+interface ApiRequestError extends Error {
+  status?: number;
+  payload?: ApiErrorPayload | null;
+  raw?: string;
+}
+
 export interface AssetListItem {
   id: string;
   name: string;
@@ -1436,7 +1442,7 @@ export async function requestApi<T>(path: string, init?: RequestInit, options?: 
     if (!options?.suppressErrorMessage) {
       showError(errorMessage);
     }
-    throw new Error(errorMessage);
+    throw buildApiError(errorMessage, response.status, errorPayload, errorText);
   }
 
   if (!response.ok) {
@@ -1446,7 +1452,7 @@ export async function requestApi<T>(path: string, init?: RequestInit, options?: 
     if (!options?.suppressErrorMessage) {
       showError(errorMessage);
     }
-    throw new Error(errorMessage);
+    throw buildApiError(errorMessage, response.status, errorPayload, errorText);
   }
 
   return (await response.json()) as T;
@@ -1537,6 +1543,14 @@ function tryParseErrorPayload(text: string): ApiErrorPayload | null {
   }
 
   return null;
+}
+
+function buildApiError(messageText: string, status: number, payload?: ApiErrorPayload | null, raw?: string) {
+  const error = new Error(messageText) as ApiRequestError;
+  error.status = status;
+  error.payload = payload ?? null;
+  error.raw = raw;
+  return error;
 }
 
 const GLOBAL_ERROR_KEY = "global-error";

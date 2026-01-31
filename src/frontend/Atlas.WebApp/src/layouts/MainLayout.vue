@@ -60,6 +60,33 @@
           </a-menu-item>
         </a-sub-menu>
 
+        <a-sub-menu key="amis" title="AMIS 管理">
+          <a-menu-item key="amis-users" @click="go('/amis/system/users')">
+            员工管理
+          </a-menu-item>
+          <a-menu-item key="amis-departments" @click="go('/amis/system/departments')">
+            部门管理
+          </a-menu-item>
+          <a-menu-item key="amis-positions" @click="go('/amis/system/positions')">
+            职位管理
+          </a-menu-item>
+          <a-menu-item key="amis-roles" @click="go('/amis/system/roles')">
+            角色管理
+          </a-menu-item>
+          <a-menu-item key="amis-permissions" @click="go('/amis/system/permissions')">
+            权限管理
+          </a-menu-item>
+          <a-menu-item key="amis-menus" @click="go('/amis/system/menus')">
+            菜单管理
+          </a-menu-item>
+          <a-menu-item key="amis-projects" @click="go('/amis/system/projects')">
+            项目管理
+          </a-menu-item>
+          <a-menu-item key="amis-apps" @click="go('/amis/system/apps')">
+            应用管理
+          </a-menu-item>
+        </a-sub-menu>
+
         <a-sub-menu key="visualization" title="可视化中心">
           <a-menu-item key="visualization-center" @click="go('/visualization/center')">
             总览
@@ -165,6 +192,14 @@ const selectedKeys = computed(() => {
   if (route.path.startsWith("/system/menus")) return ["permission-menus"];
   if (route.path.startsWith("/system/projects")) return ["business-projects"];
   if (route.path.startsWith("/system/apps")) return ["application-apps"];
+  if (route.path.startsWith("/amis/system/users")) return ["amis-users"];
+  if (route.path.startsWith("/amis/system/departments")) return ["amis-departments"];
+  if (route.path.startsWith("/amis/system/positions")) return ["amis-positions"];
+  if (route.path.startsWith("/amis/system/roles")) return ["amis-roles"];
+  if (route.path.startsWith("/amis/system/permissions")) return ["amis-permissions"];
+  if (route.path.startsWith("/amis/system/menus")) return ["amis-menus"];
+  if (route.path.startsWith("/amis/system/projects")) return ["amis-projects"];
+  if (route.path.startsWith("/amis/system/apps")) return ["amis-apps"];
   if (route.path.startsWith("/visualization")) {
     if (route.path.includes("designer")) return ["visualization-designer"];
     if (route.path.includes("runtime")) return ["visualization-runtime"];
@@ -224,6 +259,9 @@ const resolveOpenKeys = (path: string) => {
   }
   if (path.startsWith("/system/apps")) {
     return ["application"];
+  }
+  if (path.startsWith("/amis/system")) {
+    return ["amis"];
   }
   if (path.startsWith("/visualization")) {
     return ["visualization"];
