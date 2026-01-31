@@ -48,7 +48,7 @@ public sealed class RoleRepository : IRoleRepository
         }
 
         return await _db.Queryable<Role>()
-            .Where(x => x.TenantIdValue == tenantId.Value && distinctCodes.Contains(x.Code))
+            .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(distinctCodes, x.Code))
             .ToListAsync(cancellationToken);
     }
 
@@ -79,8 +79,9 @@ public sealed class RoleRepository : IRoleRepository
             return Array.Empty<Role>();
         }
 
+        var idArray = ids.Distinct().ToArray();
         var list = await _db.Queryable<Role>()
-            .Where(x => x.TenantIdValue == tenantId.Value && ids.Contains(x.Id))
+            .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(idArray, x.Id))
             .ToListAsync(cancellationToken);
         return list;
     }

@@ -61,7 +61,7 @@ public sealed class ApprovalRoleService : IApprovalRoleService
 
         var roleIds = roles.Select(x => x.Id).Distinct().ToArray();
         var userIds = await _db.Queryable<UserRole>()
-            .Where(x => x.TenantIdValue == tenantId.Value && roleIds.Contains(x.RoleId))
+            .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(roleIds, x.RoleId))
             .Select(x => x.UserId)
             .Distinct()
             .ToListAsync(cancellationToken);

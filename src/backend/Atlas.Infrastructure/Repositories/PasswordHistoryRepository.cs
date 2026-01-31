@@ -55,8 +55,9 @@ public sealed class PasswordHistoryRepository : IPasswordHistoryRepository
             return;
         }
 
+        var idArray = idsToRemove.Distinct().ToArray();
         await _db.Deleteable<PasswordHistory>()
-            .Where(x => idsToRemove.Contains(x.Id))
+            .Where(x => SqlFunc.ContainsArray(idArray, x.Id))
             .ExecuteCommandAsync(cancellationToken);
     }
 }

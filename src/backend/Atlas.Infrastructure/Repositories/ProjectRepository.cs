@@ -60,8 +60,9 @@ public sealed class ProjectRepository : IProjectRepository
             return Array.Empty<Project>();
         }
 
+        var idArray = ids.Distinct().ToArray();
         return await _db.Queryable<Project>()
-            .Where(x => x.TenantIdValue == tenantId.Value && ids.Contains(x.Id))
+            .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(idArray, x.Id))
             .ToListAsync(cancellationToken);
     }
 

@@ -155,7 +155,7 @@ public class SqlSugarPersistenceProvider : IPersistenceProvider
 
         var tenantId = _tenantProvider.GetTenantId();
         var entities = await _db.Queryable<PersistedWorkflow>()
-            .Where(x => x.TenantIdValue == tenantId.Value && parsedIds.Contains(x.Id))
+            .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(parsedIds, x.Id))
             .ToListAsync(cancellationToken);
         if (entities.Count == 0)
         {
@@ -163,8 +163,9 @@ public class SqlSugarPersistenceProvider : IPersistenceProvider
         }
 
         var workflowIds = entities.Select(x => x.Id.ToString()).ToList();
+        var workflowIdArray = workflowIds.Distinct().ToArray();
         var pointers = await _db.Queryable<PersistedExecutionPointer>()
-            .Where(x => x.TenantIdValue == tenantId.Value && workflowIds.Contains(x.WorkflowId))
+            .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(workflowIdArray, x.WorkflowId))
             .ToListAsync(cancellationToken);
         var pointerLookup = pointers
             .GroupBy(x => x.WorkflowId)
@@ -230,8 +231,9 @@ public class SqlSugarPersistenceProvider : IPersistenceProvider
         }
 
         var workflowIds = entities.Select(x => x.Id.ToString()).ToList();
+        var workflowIdArray = workflowIds.Distinct().ToArray();
         var pointers = await _db.Queryable<PersistedExecutionPointer>()
-            .Where(x => x.TenantIdValue == tenantId.Value && workflowIds.Contains(x.WorkflowId))
+            .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(workflowIdArray, x.WorkflowId))
             .ToListAsync(cancellationToken);
         var pointerLookup = pointers
             .GroupBy(x => x.WorkflowId)

@@ -56,8 +56,9 @@ public sealed class DepartmentRepository : IDepartmentRepository
             return (Array.Empty<Department>(), 0);
         }
 
+        var idArray = ids.Distinct().ToArray();
         var query = _db.Queryable<Department>()
-            .Where(x => x.TenantIdValue == tenantId.Value && ids.Contains(x.Id));
+            .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(idArray, x.Id));
         if (!string.IsNullOrWhiteSpace(keyword))
         {
             query = query.Where(x => x.Name.Contains(keyword));
@@ -90,8 +91,9 @@ public sealed class DepartmentRepository : IDepartmentRepository
             return Array.Empty<Department>();
         }
 
+        var idArray = ids.Distinct().ToArray();
         return await _db.Queryable<Department>()
-            .Where(x => x.TenantIdValue == tenantId.Value && ids.Contains(x.Id))
+            .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(idArray, x.Id))
             .ToListAsync(cancellationToken);
     }
 

@@ -63,8 +63,9 @@ public sealed class PositionRepository : IPositionRepository
             return (Array.Empty<Position>(), 0);
         }
 
+        var idArray = ids.Distinct().ToArray();
         var query = _db.Queryable<Position>()
-            .Where(x => x.TenantIdValue == tenantId.Value && ids.Contains(x.Id));
+            .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(idArray, x.Id));
         if (!string.IsNullOrWhiteSpace(keyword))
         {
             query = query.Where(x => x.Name.Contains(keyword) || x.Code.Contains(keyword));
@@ -88,8 +89,9 @@ public sealed class PositionRepository : IPositionRepository
             return Array.Empty<Position>();
         }
 
+        var idArray = ids.Distinct().ToArray();
         var list = await _db.Queryable<Position>()
-            .Where(x => x.TenantIdValue == tenantId.Value && ids.Contains(x.Id))
+            .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(idArray, x.Id))
             .ToListAsync(cancellationToken);
         return list;
     }

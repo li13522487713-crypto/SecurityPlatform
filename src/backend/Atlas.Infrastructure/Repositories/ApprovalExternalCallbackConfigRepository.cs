@@ -50,7 +50,7 @@ public sealed class ApprovalExternalCallbackConfigRepository : IApprovalExternal
 
         var distinctIds = ids.Distinct().ToArray();
         return await _db.Queryable<ApprovalExternalCallbackConfig>()
-            .Where(x => x.TenantIdValue == tenantId.Value && distinctIds.Contains(x.Id))
+            .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(distinctIds, x.Id))
             .ToListAsync(cancellationToken);
     }
 

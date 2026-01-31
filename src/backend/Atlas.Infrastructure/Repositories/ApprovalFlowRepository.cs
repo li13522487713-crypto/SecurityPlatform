@@ -47,7 +47,7 @@ public sealed class ApprovalFlowRepository : IApprovalFlowRepository
 
         var distinctIds = ids.Distinct().ToArray();
         return await _db.Queryable<ApprovalFlowDefinition>()
-            .Where(x => x.TenantIdValue == tenantId.Value && distinctIds.Contains(x.Id))
+            .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(distinctIds, x.Id))
             .ToListAsync(cancellationToken);
     }
 

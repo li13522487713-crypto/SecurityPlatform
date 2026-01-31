@@ -62,8 +62,9 @@ public sealed class MenuRepository : IMenuRepository
             return Array.Empty<Menu>();
         }
 
+        var idArray = ids.Distinct().ToArray();
         return await _db.Queryable<Menu>()
-            .Where(x => x.TenantIdValue == tenantId.Value && ids.Contains(x.Id))
+            .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(idArray, x.Id))
             .ToListAsync(cancellationToken);
     }
 

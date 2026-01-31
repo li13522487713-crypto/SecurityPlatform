@@ -57,7 +57,7 @@ public sealed class ApprovalTaskRepository : IApprovalTaskRepository
 
         var distinctIds = ids.Distinct().ToArray();
         return await _db.Queryable<ApprovalTask>()
-            .Where(x => x.TenantIdValue == tenantId.Value && distinctIds.Contains(x.Id))
+            .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(distinctIds, x.Id))
             .ToListAsync(cancellationToken);
     }
 
@@ -147,7 +147,7 @@ public sealed class ApprovalTaskRepository : IApprovalTaskRepository
         return await _db.Queryable<ApprovalTask>()
             .Where(x => x.TenantIdValue == tenantId.Value
                 && x.InstanceId == instanceId
-                && distinctNodeIds.Contains(x.NodeId))
+                && SqlFunc.ContainsArray(distinctNodeIds, x.NodeId))
             .ToListAsync(cancellationToken);
     }
 

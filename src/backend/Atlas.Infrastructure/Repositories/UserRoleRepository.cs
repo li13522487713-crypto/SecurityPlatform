@@ -59,8 +59,9 @@ public sealed class UserRoleRepository : IUserRoleRepository
             return Array.Empty<long>();
         }
 
+        var idArray = userIds.Distinct().ToArray();
         var list = await _db.Queryable<UserRole>()
-            .Where(x => x.TenantIdValue == tenantId.Value && userIds.Contains(x.UserId))
+            .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(idArray, x.UserId))
             .Select(x => x.RoleId)
             .ToListAsync(cancellationToken);
         return list;

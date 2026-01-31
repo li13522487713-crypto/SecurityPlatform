@@ -90,7 +90,7 @@ public sealed class ApprovalExternalCallbackRecordRepository : IApprovalExternal
         }
 
         return await _db.Queryable<ApprovalExternalCallbackRecord>()
-            .Where(x => x.TenantIdValue == tenantId.Value && distinctKeys.Contains(x.IdempotencyKey))
+            .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(distinctKeys, x.IdempotencyKey))
             .ToListAsync(cancellationToken);
     }
 

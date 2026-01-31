@@ -520,10 +520,11 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             .Distinct()
             .ToArray();
 
+        var roleIdArray = roleIds.Distinct().ToArray();
         var existingRoleMenus = await db.Queryable<RoleMenu>()
             .Where(x => x.TenantIdValue == tenantId.Value
-                && roleIds.Contains(x.RoleId)
-                && menuIds.Contains(x.MenuId))
+                && SqlFunc.ContainsArray(roleIdArray, x.RoleId)
+                && SqlFunc.ContainsArray(menuIds, x.MenuId))
             .Select(x => new { x.RoleId, x.MenuId })
             .ToListAsync(cancellationToken);
         var existingRoleMenuSet = existingRoleMenus

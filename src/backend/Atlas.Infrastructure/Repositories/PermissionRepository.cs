@@ -55,8 +55,9 @@ public sealed class PermissionRepository : IPermissionRepository
             return Array.Empty<Permission>();
         }
 
+        var idArray = ids.Distinct().ToArray();
         var list = await _db.Queryable<Permission>()
-            .Where(x => x.TenantIdValue == tenantId.Value && ids.Contains(x.Id))
+            .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(idArray, x.Id))
             .ToListAsync(cancellationToken);
         return list;
     }

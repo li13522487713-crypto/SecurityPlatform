@@ -101,8 +101,9 @@ public sealed class UserAccountRepository : IUserAccountRepository
             return (Array.Empty<UserAccount>(), 0);
         }
 
+        var idArray = userIds.Distinct().ToArray();
         var query = _db.Queryable<UserAccount>()
-            .Where(x => x.TenantIdValue == tenantId.Value && userIds.Contains(x.Id));
+            .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(idArray, x.Id));
         if (!string.IsNullOrWhiteSpace(keyword))
         {
             query = query.Where(x => x.Username.Contains(keyword) || x.DisplayName.Contains(keyword));
@@ -128,7 +129,7 @@ public sealed class UserAccountRepository : IUserAccountRepository
 
         var distinctIds = userIds.Distinct().ToArray();
         return await _db.Queryable<UserAccount>()
-            .Where(x => x.TenantIdValue == tenantId.Value && distinctIds.Contains(x.Id))
+            .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(distinctIds, x.Id))
             .ToListAsync(cancellationToken);
     }
 

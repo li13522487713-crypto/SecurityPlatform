@@ -4,6 +4,7 @@ using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.WebApi.Identity;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Atlas.WebApi.Middlewares;
 
@@ -12,30 +13,21 @@ public sealed class ProjectContextMiddleware
     public const string ProjectHeaderName = "X-Project-Id";
 
     private readonly RequestDelegate _next;
-    private readonly IAppContextAccessor _appContextAccessor;
-    private readonly ITenantProvider _tenantProvider;
-    private readonly IAppConfigQueryService _appConfigQueryService;
-    private readonly ICurrentUserAccessor _currentUserAccessor;
-    private readonly Atlas.Application.Identity.Repositories.IProjectUserRepository _projectUserRepository;
 
     public ProjectContextMiddleware(
-        RequestDelegate next,
-        IAppContextAccessor appContextAccessor,
-        ITenantProvider tenantProvider,
-        IAppConfigQueryService appConfigQueryService,
-        ICurrentUserAccessor currentUserAccessor,
-        Atlas.Application.Identity.Repositories.IProjectUserRepository projectUserRepository)
+        RequestDelegate next)
     {
         _next = next;
-        _appContextAccessor = appContextAccessor;
-        _tenantProvider = tenantProvider;
-        _appConfigQueryService = appConfigQueryService;
-        _currentUserAccessor = currentUserAccessor;
-        _projectUserRepository = projectUserRepository;
     }
 
     public async Task InvokeAsync(HttpContext context)
     {
+        var appContextAccessor = context.RequestServices.GetRequiredService<IAppContextAccessor>();
+        var tenantProvider = context.RequestServices.GetRequiredService<ITenantProvider>();
+        var appConfigQueryService = context.RequestServices.GetRequiredService<IAppConfigQueryService>();
+        var currentUserAccessor = context.RequestServices.GetRequiredService<ICurrentUserAccessor>();
+        var projectUserRepository = context.RequestServices.GetRequiredService<Atlas.Application.Identity.Repositories.IProjectUserRepository>();
+
         var endpoint = context.GetEndpoint();
         var allowAnonymous = endpoint?.Metadata.GetMetadata<IAllowAnonymous>() is not null;
         var path = context.Request.Path.Value ?? string.Empty;
@@ -52,15 +44,15 @@ public sealed class ProjectContextMiddleware
             return;
         }
 
-        var appContext = _appContextAccessor.GetCurrent();
-        var tenantId = _tenantProvider.GetTenantId();
+        var appContext = appContextAccessor.GetCurrent();
+        var tenantId = tenantProvider.GetTenantId();
         if (tenantId.IsEmpty)
         {
             await WriteProjectErrorAsync(context, StatusCodes.Status400BadRequest, ErrorCodes.ValidationError, "缺少租户标识");
             return;
         }
 
-        var appConfig = await _appConfigQueryService.GetByAppIdAsync(appContext.AppId, tenantId, context.RequestAborted);
+        var appConfig = await appConfigQueryService.GetByAppIdAsync(appContext.AppId, tenantId, context.RequestAborted);
         if (appConfig is null || !appConfig.EnableProjectScope)
         {
             context.Items[HttpContextProjectContextAccessor.ProjectContextItemKey] = new ProjectContext(false, null);
@@ -74,7 +66,7 @@ public sealed class ProjectContextMiddleware
             return;
         }
 
-        var currentUser = _currentUserAccessor.GetCurrentUser();
+        var currentUser = currentUserAccessor.GetCurrentUser();
         if (currentUser is null)
         {
             await WriteProjectErrorAsync(context, StatusCodes.Status401Unauthorized, ErrorCodes.Unauthorized, "缺少用户上下文");
@@ -83,7 +75,7 @@ public sealed class ProjectContextMiddleware
 
         if (!IsSystemRole(currentUser.Roles))
         {
-            var hasMembership = await _projectUserRepository.ExistsAsync(tenantId, projectId, currentUser.UserId, context.RequestAborted);
+            var hasMembership = await projectUserRepository.ExistsAsync(tenantId, projectId, currentUser.UserId, context.RequestAborted);
             if (!hasMembership)
             {
                 await WriteProjectErrorAsync(context, StatusCodes.Status403Forbidden, ErrorCodes.Forbidden, "当前用户未分配该项目");

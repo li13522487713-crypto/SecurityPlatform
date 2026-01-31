@@ -46,9 +46,10 @@ public sealed class ApprovalUserService : IApprovalUserService
             return Array.Empty<long>();
         }
 
+        var userIdArray = userIds.Distinct().ToArray();
         // 批量查询用户，避免N+1查询
         var users = await _db.Queryable<UserAccount>()
-            .Where(x => x.TenantIdValue == tenantId.Value && userIds.Contains(x.Id) && x.IsActive)
+            .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(userIdArray, x.Id) && x.IsActive)
             .Select(x => x.Id)
             .ToListAsync(cancellationToken);
 
@@ -126,12 +127,18 @@ public sealed class ApprovalUserService : IApprovalUserService
         // 查找同一部门中具有HRBP角色的用户（简化实现）
         // 实际应该根据业务规则：可能是部门关联的HRBP，或组织架构中的HRBP
         var deptIds = userDepts.Select(x => x.DepartmentId).ToList();
+        if (deptIds.Count == 0)
+        {
+            return null;
+        }
+
+        var deptIdArray = deptIds.Distinct().ToArray();
         var hrbpUserIds = await _db.Queryable<UserRole>()
             .InnerJoin<UserDepartment>((ur, ud) => ur.UserId == ud.UserId)
             .Where((ur, ud) => 
                 ur.TenantIdValue == tenantId.Value && 
                 ur.RoleId == hrbpRole.Id &&
-                deptIds.Contains(ud.DepartmentId))
+                SqlFunc.ContainsArray(deptIdArray, ud.DepartmentId))
             .Select((ur, ud) => ur.UserId)
             .Distinct()
             .ToListAsync(cancellationToken);

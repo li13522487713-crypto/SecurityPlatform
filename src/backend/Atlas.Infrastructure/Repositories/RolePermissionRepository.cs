@@ -37,7 +37,7 @@ public sealed class RolePermissionRepository : IRolePermissionRepository
 
         var distinctIds = roleIds.Distinct().ToArray();
         return await _db.Queryable<RolePermission>()
-            .Where(x => x.TenantIdValue == tenantId.Value && distinctIds.Contains(x.RoleId))
+            .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(distinctIds, x.RoleId))
             .ToListAsync(cancellationToken);
     }
 
