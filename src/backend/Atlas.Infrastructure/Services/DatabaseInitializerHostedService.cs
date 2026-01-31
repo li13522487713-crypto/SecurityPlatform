@@ -18,6 +18,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SqlSugar;
+using System.Data;
 
 namespace Atlas.Infrastructure.Services;
 
@@ -56,6 +57,8 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         using var scope = _scopeFactory.CreateScope();
         var appContextAccessor = scope.ServiceProvider.GetRequiredService<IAppContextAccessor>();
         var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+        await EnsureAuthSessionSchemaAsync(db, cancellationToken);
+        await EnsureRefreshTokenSchemaAsync(db, cancellationToken);
         db.CodeFirst.InitTables(
         typeof(UserAccount),
         typeof(Role),
@@ -702,6 +705,129 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             ClientChannel.App,
             ClientAgent.Other);
         return new AppContextSnapshot(tenantId, appId, null, clientContext, null);
+    }
+
+    private static async Task EnsureAuthSessionSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
+    {
+        if (!db.DbMaintenance.IsAnyTable("AuthSession", false))
+        {
+            return;
+        }
+
+        var schema = await db.Ado.GetDataTableAsync("PRAGMA table_info('AuthSession');");
+        if (!IsColumnNotNull(schema, "RevokedAt"))
+        {
+            return;
+        }
+
+        var result = await db.Ado.UseTranAsync(async () =>
+        {
+            await db.Ado.ExecuteCommandAsync("ALTER TABLE AuthSession RENAME TO AuthSession_old;", cancellationToken);
+            await db.Ado.ExecuteCommandAsync(
+                """
+                CREATE TABLE AuthSession (
+                    Id INTEGER NOT NULL,
+                    TenantIdValue TEXT NOT NULL,
+                    UserId INTEGER NOT NULL,
+                    ClientType TEXT NOT NULL,
+                    ClientPlatform TEXT NOT NULL,
+                    ClientChannel TEXT NOT NULL,
+                    ClientAgent TEXT NOT NULL,
+                    IpAddress TEXT NOT NULL,
+                    UserAgent TEXT NOT NULL,
+                    CreatedAt TEXT NOT NULL,
+                    LastSeenAt TEXT NOT NULL,
+                    ExpiresAt TEXT NOT NULL,
+                    RevokedAt TEXT NULL
+                );
+                """,
+                cancellationToken);
+            await db.Ado.ExecuteCommandAsync(
+                """
+                INSERT INTO AuthSession (
+                    Id, TenantIdValue, UserId, ClientType, ClientPlatform, ClientChannel, ClientAgent,
+                    IpAddress, UserAgent, CreatedAt, LastSeenAt, ExpiresAt, RevokedAt
+                )
+                SELECT
+                    Id, TenantIdValue, UserId, ClientType, ClientPlatform, ClientChannel, ClientAgent,
+                    IpAddress, UserAgent, CreatedAt, LastSeenAt, ExpiresAt, RevokedAt
+                FROM AuthSession_old;
+                """,
+                cancellationToken);
+            await db.Ado.ExecuteCommandAsync("DROP TABLE AuthSession_old;", cancellationToken);
+        });
+
+        if (!result.IsSuccess)
+        {
+            throw result.ErrorException ?? new InvalidOperationException("修复 AuthSession 表结构失败。");
+        }
+    }
+
+    private static async Task EnsureRefreshTokenSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
+    {
+        if (!db.DbMaintenance.IsAnyTable("RefreshToken", false))
+        {
+            return;
+        }
+
+        var schema = await db.Ado.GetDataTableAsync("PRAGMA table_info('RefreshToken');");
+        if (!IsColumnNotNull(schema, "RevokedAt") && !IsColumnNotNull(schema, "ReplacedById"))
+        {
+            return;
+        }
+
+        var result = await db.Ado.UseTranAsync(async () =>
+        {
+            await db.Ado.ExecuteCommandAsync("ALTER TABLE RefreshToken RENAME TO RefreshToken_old;", cancellationToken);
+            await db.Ado.ExecuteCommandAsync(
+                """
+                CREATE TABLE RefreshToken (
+                    Id INTEGER NOT NULL,
+                    TenantIdValue TEXT NOT NULL,
+                    UserId INTEGER NOT NULL,
+                    SessionId INTEGER NOT NULL,
+                    TokenHash TEXT NOT NULL,
+                    IssuedAt TEXT NOT NULL,
+                    ExpiresAt TEXT NOT NULL,
+                    RevokedAt TEXT NULL,
+                    ReplacedById INTEGER NULL
+                );
+                """,
+                cancellationToken);
+            await db.Ado.ExecuteCommandAsync(
+                """
+                INSERT INTO RefreshToken (
+                    Id, TenantIdValue, UserId, SessionId, TokenHash, IssuedAt, ExpiresAt, RevokedAt, ReplacedById
+                )
+                SELECT
+                    Id, TenantIdValue, UserId, SessionId, TokenHash, IssuedAt, ExpiresAt, RevokedAt, ReplacedById
+                FROM RefreshToken_old;
+                """,
+                cancellationToken);
+            await db.Ado.ExecuteCommandAsync("DROP TABLE RefreshToken_old;", cancellationToken);
+        });
+
+        if (!result.IsSuccess)
+        {
+            throw result.ErrorException ?? new InvalidOperationException("修复 RefreshToken 表结构失败。");
+        }
+    }
+
+    private static bool IsColumnNotNull(DataTable schema, string columnName)
+    {
+        foreach (DataRow row in schema.Rows)
+        {
+            var name = row["name"]?.ToString();
+            if (!string.Equals(name, columnName, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var notNull = Convert.ToInt32(row["notnull"]);
+            return notNull == 1;
+        }
+
+        return false;
     }
 }
 

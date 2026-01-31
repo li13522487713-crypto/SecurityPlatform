@@ -224,6 +224,21 @@ public static class ServiceCollectionExtensions
                                 column.IsIgnore = true;
                             }
                         }
+
+                        if (property.DeclaringType == typeof(Atlas.Domain.Identity.Entities.AuthSession) &&
+                            property.Name == nameof(Atlas.Domain.Identity.Entities.AuthSession.RevokedAt))
+                        {
+                            column.IsNullable = true;
+                        }
+
+                        if (property.DeclaringType == typeof(Atlas.Domain.Identity.Entities.RefreshToken))
+                        {
+                            if (property.Name == nameof(Atlas.Domain.Identity.Entities.RefreshToken.RevokedAt) ||
+                                property.Name == nameof(Atlas.Domain.Identity.Entities.RefreshToken.ReplacedById))
+                            {
+                                column.IsNullable = true;
+                            }
+                        }
                     }
                 }
             };
