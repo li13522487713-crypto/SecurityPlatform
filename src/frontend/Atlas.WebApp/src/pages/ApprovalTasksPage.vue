@@ -47,11 +47,13 @@
       </template>
     </a-table>
 
-    <a-modal
+    <a-drawer
       v-model:open="modalVisible"
       :title="modalTitle"
-      @ok="handleDecide"
-      @cancel="handleModalCancel"
+      placement="right"
+      width="480"
+      destroy-on-close
+      @close="handleModalCancel"
     >
       <a-form :model="decideForm" layout="vertical">
         <a-form-item label="审批意见">
@@ -62,7 +64,13 @@
           />
         </a-form-item>
       </a-form>
-    </a-modal>
+      <template #footer>
+        <a-space>
+          <a-button @click="handleModalCancel">取消</a-button>
+          <a-button type="primary" @click="handleDecide">确认</a-button>
+        </a-space>
+      </template>
+    </a-drawer>
   </a-card>
 </template>
 

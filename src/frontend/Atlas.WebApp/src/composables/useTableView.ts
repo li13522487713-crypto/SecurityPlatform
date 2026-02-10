@@ -1,4 +1,4 @@
-import { computed, onMounted, reactive, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import type { TablePaginationConfig } from "ant-design-vue";
 import type { ColumnType } from "ant-design-vue/es/table";
 import { message } from "ant-design-vue";
@@ -508,6 +508,13 @@ export function useTableView<TRecord>(options: UseTableViewOptions<TRecord>) {
   onMounted(() => {
     void loadViews();
     void loadDefault();
+  });
+
+  onBeforeUnmount(() => {
+    if (saveTimer) {
+      window.clearTimeout(saveTimer);
+      saveTimer = undefined;
+    }
   });
 
   const controller = reactive<TableViewController>({

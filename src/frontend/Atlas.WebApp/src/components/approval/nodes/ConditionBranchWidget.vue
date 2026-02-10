@@ -50,7 +50,7 @@ const getConditionLabel = (branch: ConditionBranch) => {
 }
 
 .branch-box {
-  background: #fff;
+  background: var(--color-bg-container);
   border-radius: 4px;
   cursor: pointer;
   width: 100%;
@@ -79,7 +79,7 @@ const getConditionLabel = (branch: ConditionBranch) => {
 .branch-content {
   padding: 10px;
   font-size: 12px;
-  color: #666;
+  color: var(--color-text-tertiary);
 }
 
 .close-btn {
@@ -93,6 +93,6 @@ const getConditionLabel = (branch: ConditionBranch) => {
 }
 
 .close-btn:hover {
-  color: #ff4d4f;
+  color: var(--color-error);
 }
 </style>

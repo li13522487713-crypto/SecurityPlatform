@@ -99,6 +99,6 @@ const drawerOpenModel = computed({
 }
 
 .crud-filter-label {
-  color: #8c8c8c;
+  color: var(--color-text-tertiary);
 }
 </style>

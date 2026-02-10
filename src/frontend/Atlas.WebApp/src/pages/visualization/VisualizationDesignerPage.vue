@@ -242,15 +242,15 @@ const findNodeById = (nodes: FlowNode[], id: string): FlowNode | null => {
   min-height: 600px;
 }
 .designer-canvas {
-  border: 1px dashed #d9d9d9;
+  border: 1px dashed var(--color-border-secondary);
   border-radius: 6px;
   padding: 12px;
-  background: #fff;
+  background: var(--color-bg-container);
 }
 .designer-panel {
-  border: 1px solid #f0f0f0;
+  border: 1px solid var(--color-bg-hover);
   border-radius: 6px;
-  background: #fff;
+  background: var(--color-bg-container);
   padding: 12px;
 }
 .msg-list {
@@ -258,6 +258,6 @@ const findNodeById = (nodes: FlowNode[], id: string): FlowNode | null => {
   padding-left: 16px;
 }
 .msg-list .warn {
-  color: #faad14;
+  color: var(--color-warning);
 }
 </style>

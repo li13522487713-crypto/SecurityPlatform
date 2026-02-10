@@ -38,6 +38,11 @@ public static class CoreServiceRegistration
         // Unit of Work
         services.AddScoped<IUnitOfWork, SqlSugarUnitOfWork>();
 
+        // Background Work Queue (replaces unsafe Task.Run pattern for fire-and-forget)
+        services.AddSingleton<BackgroundWorkQueue>();
+        services.AddSingleton<IBackgroundWorkQueue>(sp => sp.GetRequiredService<BackgroundWorkQueue>());
+        services.AddHostedService<BackgroundWorkQueueProcessor>();
+
         // Hosted Services (order matters: DB init first)
         services.AddHostedService<DatabaseInitializerHostedService>();
         services.AddHostedService<DatabaseBackupHostedService>();

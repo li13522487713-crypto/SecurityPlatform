@@ -67,15 +67,25 @@
     </div>
   </a-drawer>
 
-  <a-modal
+  <a-drawer
     v-model:open="saveAsVisible"
     title="另存为视图"
-    ok-text="保存"
-    cancel-text="取消"
-    @ok="handleSaveAs"
+    placement="right"
+    width="380"
+    destroy-on-close
   >
-    <a-input v-model:value="saveAsName" placeholder="请输入视图名称" />
-  </a-modal>
+    <a-form layout="vertical">
+      <a-form-item label="视图名称">
+        <a-input v-model:value="saveAsName" placeholder="请输入视图名称" />
+      </a-form-item>
+    </a-form>
+    <template #footer>
+      <a-space>
+        <a-button @click="saveAsVisible = false">取消</a-button>
+        <a-button type="primary" @click="handleSaveAs">保存</a-button>
+      </a-space>
+    </template>
+  </a-drawer>
 </template>
 
 <script setup lang="ts">

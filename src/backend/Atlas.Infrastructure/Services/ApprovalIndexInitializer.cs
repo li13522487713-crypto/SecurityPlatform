@@ -80,10 +80,10 @@ public sealed class ApprovalIndexInitializer
                 cancellationToken);
 
             // ApprovalOperationRecord 索引
-            // 索引7: TenantId + InstanceId + IdempotencyKey（幂等性检查）
-            await CreateIndexIfNotExistsAsync(
+            // 索引7: TenantId + InstanceId + IdempotencyKey（UNIQUE，幂等性保证）
+            await CreateUniqueIndexIfNotExistsAsync(
                 nameof(ApprovalOperationRecord),
-                "IX_ApprovalOperationRecord_TenantId_InstanceId_IdempotencyKey",
+                "UX_ApprovalOperationRecord_TenantId_InstanceId_IdempotencyKey",
                 $"{nameof(ApprovalOperationRecord.TenantIdValue)}, {nameof(ApprovalOperationRecord.InstanceId)}, {nameof(ApprovalOperationRecord.IdempotencyKey)}",
                 cancellationToken);
 
@@ -93,6 +93,20 @@ public sealed class ApprovalIndexInitializer
                 nameof(ApprovalProcessInstance),
                 "IX_ApprovalProcessInstance_TenantId_InitiatorUserId",
                 $"{nameof(ApprovalProcessInstance.TenantIdValue)}, {nameof(ApprovalProcessInstance.InitiatorUserId)}",
+                cancellationToken);
+
+            // 索引8a: TenantId + InitiatorUserId + Status（按状态过滤我的流程）
+            await CreateIndexIfNotExistsAsync(
+                nameof(ApprovalProcessInstance),
+                "IX_ApprovalProcessInstance_TenantId_InitiatorUserId_Status",
+                $"{nameof(ApprovalProcessInstance.TenantIdValue)}, {nameof(ApprovalProcessInstance.InitiatorUserId)}, {nameof(ApprovalProcessInstance.Status)}",
+                cancellationToken);
+
+            // 索引8b: TenantId + DefinitionId + BusinessKey（按业务键查询实例）
+            await CreateIndexIfNotExistsAsync(
+                nameof(ApprovalProcessInstance),
+                "IX_ApprovalProcessInstance_TenantId_DefinitionId_BusinessKey",
+                $"{nameof(ApprovalProcessInstance.TenantIdValue)}, {nameof(ApprovalProcessInstance.DefinitionId)}, {nameof(ApprovalProcessInstance.BusinessKey)}",
                 cancellationToken);
 
             // ApprovalFlowButtonConfig 索引
@@ -126,11 +140,27 @@ public sealed class ApprovalIndexInitializer
         string columns,
         CancellationToken cancellationToken)
     {
+        await CreateIndexInternalAsync(tableName, indexName, columns, unique: false, cancellationToken);
+    }
+
+    private async Task CreateUniqueIndexIfNotExistsAsync(
+        string tableName,
+        string indexName,
+        string columns,
+        CancellationToken cancellationToken)
+    {
+        await CreateIndexInternalAsync(tableName, indexName, columns, unique: true, cancellationToken);
+    }
+
+    private async Task CreateIndexInternalAsync(
+        string tableName,
+        string indexName,
+        string columns,
+        bool unique,
+        CancellationToken cancellationToken)
+    {
         try
         {
-            // SQLite 创建索引语法（注意：SQLite 不支持 IF NOT EXISTS，需要先检查）
-            // 使用 SqlSugar 的 CreateIndex 方法
-            // 检查索引是否已存在
             cancellationToken.ThrowIfCancellationRequested();
 
             var exists = await _db.Ado.GetDataTableAsync(
@@ -140,9 +170,10 @@ public sealed class ApprovalIndexInitializer
             if (exists.Rows.Count == 0)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                var sql = $"CREATE INDEX {indexName} ON {tableName} ({columns})";
+                var uniqueStr = unique ? "UNIQUE " : "";
+                var sql = $"CREATE {uniqueStr}INDEX {indexName} ON {tableName} ({columns})";
                 await _db.Ado.ExecuteCommandAsync(sql);
-                _logger.LogDebug("已创建索引：{IndexName} on {TableName}", indexName, tableName);
+                _logger.LogDebug("已创建{UniqueStr}索引：{IndexName} on {TableName}", unique ? "唯一" : "", indexName, tableName);
             }
             else
             {

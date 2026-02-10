@@ -140,6 +140,7 @@ import { message } from "ant-design-vue";
 import CrudPageLayout from "@/components/crud/CrudPageLayout.vue";
 import TableViewToolbar from "@/components/table/table-view-toolbar.vue";
 import { useCrudPage } from "@/composables/useCrudPage";
+import { useSelectOptions } from "@/composables/useSelectOptions";
 import {
   createUser,
   deleteUser,
@@ -162,86 +163,40 @@ import type {
   UserUpdateRequest,
   PositionListItem
 } from "@/types/api";
-import { debounce, type SelectOption } from "@/utils/common";
 
 const activeTab = ref("basic");
 
-// Select options
-const roleOptions = ref<SelectOption[]>([]);
-const departmentOptions = ref<SelectOption[]>([]);
-const positionOptions = ref<SelectOption[]>([]);
-const roleLoading = ref(false);
-const departmentLoading = ref(false);
-const positionLoading = ref(false);
-
-const loadRoleOptions = async (keyword?: string) => {
-  roleLoading.value = true;
-  try {
-    const result = await getRolesPaged({
-      pageIndex: 1,
-      pageSize: 20,
-      keyword: keyword?.trim() || undefined
-    });
-    roleOptions.value = result.items.map((role: RoleListItem) => ({
-      label: `${role.name} (${role.code})`,
-      value: Number(role.id)
-    }));
-  } catch (error) {
-    message.error((error as Error).message || "加载角色失败");
-  } finally {
-    roleLoading.value = false;
-  }
-};
-
-const loadDepartmentOptions = async (keyword?: string) => {
-  departmentLoading.value = true;
-  try {
-    const result = await getDepartmentsPaged({
-      pageIndex: 1,
-      pageSize: 20,
-      keyword: keyword?.trim() || undefined
-    });
-    departmentOptions.value = result.items.map((dept: DepartmentListItem) => ({
-      label: dept.name,
-      value: Number(dept.id)
-    }));
-  } catch (error) {
-    message.error((error as Error).message || "加载部门失败");
-  } finally {
-    departmentLoading.value = false;
-  }
-};
-
-const loadPositionOptions = async (keyword?: string) => {
-  positionLoading.value = true;
-  try {
-    const result = await getPositionsPaged({
-      pageIndex: 1,
-      pageSize: 20,
-      keyword: keyword?.trim() || undefined
-    });
-    positionOptions.value = result.items.map((position: PositionListItem) => ({
-      label: `${position.name} (${position.code})`,
-      value: Number(position.id)
-    }));
-  } catch (error) {
-    message.error((error as Error).message || "加载职位失败");
-  } finally {
-    positionLoading.value = false;
-  }
-};
-
-const handleRoleSearch = debounce((value: string) => {
-  void loadRoleOptions(value);
+// Select options via reusable composable
+const roles = useSelectOptions<RoleListItem>({
+  fetcher: getRolesPaged,
+  mapItem: (role) => ({ label: `${role.name} (${role.code})`, value: Number(role.id) }),
+  errorLabel: "加载角色"
 });
 
-const handleDepartmentSearch = debounce((value: string) => {
-  void loadDepartmentOptions(value);
+const departments = useSelectOptions<DepartmentListItem>({
+  fetcher: getDepartmentsPaged,
+  mapItem: (dept) => ({ label: dept.name, value: Number(dept.id) }),
+  errorLabel: "加载部门"
 });
 
-const handlePositionSearch = debounce((value: string) => {
-  void loadPositionOptions(value);
+const positions = useSelectOptions<PositionListItem>({
+  fetcher: getPositionsPaged,
+  mapItem: (pos) => ({ label: `${pos.name} (${pos.code})`, value: Number(pos.id) }),
+  errorLabel: "加载职位"
 });
+
+const roleOptions = roles.options;
+const departmentOptions = departments.options;
+const positionOptions = positions.options;
+const roleLoading = roles.loading;
+const departmentLoading = departments.loading;
+const positionLoading = positions.loading;
+const handleRoleSearch = roles.search;
+const handleDepartmentSearch = departments.search;
+const handlePositionSearch = positions.search;
+const loadRoleOptions = roles.load;
+const loadDepartmentOptions = departments.load;
+const loadPositionOptions = positions.load;
 
 const formRef = ref<FormInstance>();
 
@@ -306,14 +261,14 @@ const crud = useCrudPage<UserListItem, UserDetail, UserCreateRequest, UserUpdate
     isActive: model.isActive
   }),
   mapDetailToForm: (detail, model) => {
-    (model as any).username = detail.username;
+    model.username = detail.username;
     model.displayName = detail.displayName;
-    (model as any).email = detail.email ?? "";
-    (model as any).phoneNumber = detail.phoneNumber ?? "";
+    model.email = detail.email ?? "";
+    model.phoneNumber = detail.phoneNumber ?? "";
     model.isActive = detail.isActive;
-    (model as any).roleIds = detail.roleIds.slice();
-    (model as any).departmentIds = detail.departmentIds.slice();
-    (model as any).positionIds = detail.positionIds.slice();
+    model.roleIds = detail.roleIds.slice();
+    model.departmentIds = detail.departmentIds.slice();
+    model.positionIds = detail.positionIds.slice();
   },
   autoFetch: true
 });
@@ -356,21 +311,21 @@ const handleSubmit = async () => {
     try {
       await updateUser(selectedId.value, {
         displayName: formModel.displayName,
-        email: (formModel as any).email || undefined,
-        phoneNumber: (formModel as any).phoneNumber || undefined,
+        email: formModel.email || undefined,
+        phoneNumber: formModel.phoneNumber || undefined,
         isActive: formModel.isActive
       });
 
       // Update assignments in parallel
       const promises: Promise<void>[] = [];
       if (canAssignRoles) {
-        promises.push(updateUserRoles(selectedId.value, { roleIds: (formModel as any).roleIds }));
+        promises.push(updateUserRoles(selectedId.value, { roleIds: formModel.roleIds }));
       }
       if (canAssignDepartments) {
-        promises.push(updateUserDepartments(selectedId.value, { departmentIds: (formModel as any).departmentIds }));
+        promises.push(updateUserDepartments(selectedId.value, { departmentIds: formModel.departmentIds }));
       }
       if (canAssignPositions) {
-        promises.push(updateUserPositions(selectedId.value, { positionIds: (formModel as any).positionIds }));
+        promises.push(updateUserPositions(selectedId.value, { positionIds: formModel.positionIds }));
       }
       if (promises.length) {
         await Promise.all(promises);

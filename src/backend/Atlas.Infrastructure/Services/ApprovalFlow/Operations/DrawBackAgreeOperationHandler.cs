@@ -76,11 +76,11 @@ public sealed class DrawBackAgreeOperationHandler : IApprovalOperationHandler
         task.Cancel();
         await _taskRepository.UpdateAsync(task, cancellationToken);
 
-        // 记录撤销事件
+        // 记录撤销事件（Bug fix: previously used TaskCreated, now uses dedicated DrawBackAgree type）
         var drawBackEvent = new ApprovalHistoryEvent(
             tenantId,
             instanceId,
-            ApprovalHistoryEventType.TaskCreated,
+            ApprovalHistoryEventType.DrawBackAgree,
             null,
             task.NodeId,
             operatorUserId,

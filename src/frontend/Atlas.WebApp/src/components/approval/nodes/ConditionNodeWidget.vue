@@ -29,7 +29,7 @@ const handleAddBranch = () => {
   z-index: 1;
 }
 .add-branch-btn {
-  background: #fff;
+  background: var(--color-bg-container);
   border: 1px solid #15bc83;
   color: #15bc83;
   border-radius: 15px;
@@ -41,6 +41,6 @@ const handleAddBranch = () => {
 }
 .add-branch-btn:hover {
   background: #15bc83;
-  color: #fff;
+  color: var(--color-text-white);
 }
 </style>

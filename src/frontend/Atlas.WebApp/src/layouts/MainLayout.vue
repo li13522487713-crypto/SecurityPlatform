@@ -360,11 +360,11 @@ watch(
 .header-left {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: var(--spacing-md);
 }
 
 .header-title {
-  color: #1f2937;
+  color: var(--color-text-primary);
   font-weight: 500;
 }
 
@@ -379,6 +379,6 @@ watch(
 }
 
 .header-help {
-  color: #1f2937;
+  color: var(--color-text-primary);
 }
 </style>

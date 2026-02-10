@@ -1,13 +1,15 @@
 <template>
   <a-card title="应用配置" class="page-card">
     <div class="toolbar">
-      <a-space>
+      <a-space wrap>
         <a-input
           v-model:value="keyword"
           placeholder="搜索应用名称/标识"
           allow-clear
-          @press-enter="fetchData"
+          @press-enter="handleSearch"
         />
+        <a-button @click="handleSearch">查询</a-button>
+        <a-button @click="handleReset">重置</a-button>
       </a-space>
       <TableViewToolbar :controller="tableViewController" />
     </div>
@@ -152,6 +154,16 @@ const { controller: tableViewController, tableColumns, tableSize } = useTableVie
   pagination,
   onRefresh: fetchData
 });
+
+const handleSearch = () => {
+  pagination.current = 1;
+  fetchData();
+};
+
+const handleReset = () => {
+  keyword.value = "";
+  handleSearch();
+};
 
 const onTableChange = (pager: TablePaginationConfig) => {
   pagination.current = pager.current;

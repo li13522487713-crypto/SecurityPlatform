@@ -36,6 +36,7 @@
             layout="vertical"
             :model="form"
             class="login-form"
+            :disabled="loading"
             @finish="handleSubmit"
           >
             <a-form-item
@@ -336,11 +337,11 @@ onBeforeUnmount(() => {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background: #f6f8fb;
+  background: var(--color-bg-base);
 }
 
 .login-header {
-  padding: 24px 64px;
+  padding: var(--spacing-lg) 64px;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -349,15 +350,15 @@ onBeforeUnmount(() => {
 .brand-area {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: var(--spacing-md);
 }
 
 .logo-circle {
   width: 48px;
   height: 48px;
-  border-radius: 50%;
-  background: #1677ff;
-  color: white;
+  border-radius: var(--border-radius-round);
+  background: var(--color-primary);
+  color: var(--color-text-white);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -371,31 +372,31 @@ onBeforeUnmount(() => {
 }
 
 .brand-area p {
-  margin: 4px 0 0;
-  color: #8c8c8c;
+  margin: var(--spacing-xs) 0 0;
+  color: var(--color-text-tertiary);
   font-size: 14px;
 }
 
 .header-links a {
-  margin-left: 24px;
-  color: #595959;
+  margin-left: var(--spacing-lg);
+  color: var(--color-text-secondary);
   font-size: 14px;
 }
 
 .login-main {
   flex: 1;
   display: flex;
-  gap: 32px;
-  padding: 0 64px 48px;
+  gap: var(--spacing-xl);
+  padding: 0 64px var(--spacing-xxl);
   align-items: stretch;
 }
 
 .promo-panel {
   flex: 1;
-  background: linear-gradient(135deg, #ffffff 0%, #f0f5ff 100%);
-  border-radius: 16px;
-  padding: 40px 48px;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.08);
+  background: linear-gradient(135deg, var(--color-bg-container) 0%, var(--color-primary-bg) 100%);
+  border-radius: var(--border-radius-lg);
+  padding: 40px var(--spacing-xxl);
+  box-shadow: var(--shadow-md);
 }
 
 .promo-panel h2 {
@@ -405,13 +406,13 @@ onBeforeUnmount(() => {
 }
 
 .promo-panel p {
-  margin: 16px 0;
-  color: #53607b;
+  margin: var(--spacing-md) 0;
+  color: var(--color-text-secondary);
 }
 
 .promo-panel ul {
   padding-left: 20px;
-  color: #1f2d3d;
+  color: var(--color-text-primary);
   margin: 0;
 }
 
@@ -424,29 +425,29 @@ onBeforeUnmount(() => {
 
 .login-card {
   width: 100%;
-  border-radius: 16px;
-  box-shadow: 0 32px 60px rgba(2, 35, 87, 0.12);
+  border-radius: var(--border-radius-lg);
+  box-shadow: var(--shadow-lg);
 }
 
 .error-banner {
   display: flex;
   align-items: center;
   gap: 6px;
-  background: #fff1f0;
-  border: 1px solid #ffa39e;
-  color: #cf1322;
-  padding: 10px 16px;
+  background: var(--color-error-bg);
+  border: 1px solid var(--color-error-border);
+  color: var(--color-error-text);
+  padding: 10px var(--spacing-md);
   border-radius: 6px;
-  margin-bottom: 16px;
+  margin-bottom: var(--spacing-md);
   font-size: 14px;
 }
 
 .error-dot {
   width: 22px;
   height: 22px;
-  border-radius: 50%;
-  background: #cf1322;
-  color: white;
+  border-radius: var(--border-radius-round);
+  background: var(--color-error-text);
+  color: var(--color-text-white);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -456,33 +457,33 @@ onBeforeUnmount(() => {
 .cooldown {
   margin-left: auto;
   font-size: 12px;
-  color: #595959;
+  color: var(--color-text-secondary);
 }
 
 .tenant-tags {
-  margin-top: 8px;
+  margin-top: var(--spacing-sm);
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--spacing-sm);
 }
 
 .tenant-tag {
-  border: 1px dashed #d9d9d9;
-  padding: 2px 8px;
+  border: 1px dashed var(--color-border-dashed);
+  padding: 2px var(--spacing-sm);
   border-radius: 12px;
   font-size: 12px;
   cursor: pointer;
-  color: #595959;
+  color: var(--color-text-secondary);
 }
 
 .tenant-tag:hover {
-  border-color: #1677ff;
-  color: #1677ff;
+  border-color: var(--color-primary);
+  color: var(--color-primary);
 }
 
 .caps-tip {
-  margin-top: 4px;
-  color: #fa8c16;
+  margin-top: var(--spacing-xs);
+  color: var(--color-warning);
   font-size: 12px;
 }
 
@@ -495,48 +496,48 @@ onBeforeUnmount(() => {
 .captcha-image {
   width: 120px;
   height: 44px;
-  border-radius: 8px;
-  background: #f0f0f0;
+  border-radius: var(--border-radius-md);
+  background: var(--color-bg-hover);
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
   font-size: 12px;
-  color: #595959;
+  color: var(--color-text-secondary);
   cursor: pointer;
 }
 
 .captcha-tips {
-  margin-top: 4px;
+  margin-top: var(--spacing-xs);
   font-size: 10px;
-  color: #8c8c8c;
+  color: var(--color-text-tertiary);
 }
 
 .secondary-actions {
   display: flex;
   justify-content: flex-end;
-  margin-top: 8px;
+  margin-top: var(--spacing-sm);
 }
 
 .secondary-actions a {
-  color: #595959;
+  color: var(--color-text-secondary);
   font-size: 14px;
 }
 
 .login-footer {
-  padding: 16px 64px;
+  padding: var(--spacing-md) 64px;
   display: flex;
-  gap: 16px;
+  gap: var(--spacing-md);
   flex-wrap: wrap;
   font-size: 12px;
-  color: #8c8c8c;
-  border-top: 1px solid #f0f0f0;
+  color: var(--color-text-tertiary);
+  border-top: 1px solid var(--color-bg-hover);
 }
 
 @media screen and (max-width: 1024px) {
   .login-main {
     flex-direction: column;
-    padding: 0 24px 48px;
+    padding: 0 var(--spacing-lg) var(--spacing-xxl);
   }
 
   .promo-panel {
@@ -554,7 +555,7 @@ onBeforeUnmount(() => {
   .login-footer {
     flex-direction: column;
     align-items: flex-start;
-    padding: 16px;
+    padding: var(--spacing-md);
   }
 
   .brand-area {

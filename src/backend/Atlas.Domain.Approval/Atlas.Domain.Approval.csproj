@@ -11,4 +11,8 @@
     <ProjectReference Include="..\Atlas.Domain\Atlas.Domain.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="SqlSugarCore" Version="5.1.4.169" />
+  </ItemGroup>
+
 </Project>

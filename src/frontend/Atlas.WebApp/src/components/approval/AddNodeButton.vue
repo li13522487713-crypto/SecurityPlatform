@@ -101,7 +101,7 @@ const handleSelect = (type: string) => {
   line-height: 30px;
   transition: all 0.3s;
   cursor: pointer;
-  color: #fff;
+  color: var(--color-text-white);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -136,7 +136,7 @@ const handleSelect = (type: string) => {
 }
 
 .add-node-popover-item:hover .item-wrapper {
-  background: #f0f0f0;
+  background: var(--color-bg-hover);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 

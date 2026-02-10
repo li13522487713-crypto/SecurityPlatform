@@ -71,22 +71,26 @@ public sealed class ProcessDrawBackOperationHandler : IApprovalOperationHandler
         instance.MarkCanceled(DateTimeOffset.UtcNow);
         await _instanceRepository.UpdateAsync(instance, cancellationToken);
 
-        // 取消所有待审批任务
+        // 取消所有活跃任务（含 Pending 和 Waiting，修复顺签模式下遗漏 Waiting 任务的 bug）
         var pendingTasks = await _taskRepository.GetByInstanceAndStatusAsync(tenantId, instanceId, ApprovalTaskStatus.Pending, cancellationToken);
-        if (pendingTasks.Count > 0)
+        var waitingTasks = await _taskRepository.GetByInstanceAndStatusAsync(tenantId, instanceId, ApprovalTaskStatus.Waiting, cancellationToken);
+        var allActiveTasks = new List<ApprovalTask>();
+        allActiveTasks.AddRange(pendingTasks);
+        allActiveTasks.AddRange(waitingTasks);
+        if (allActiveTasks.Count > 0)
         {
-            foreach (var task in pendingTasks)
+            foreach (var task in allActiveTasks)
             {
                 task.Cancel();
             }
-            await _taskRepository.UpdateRangeAsync(pendingTasks, cancellationToken);
+            await _taskRepository.UpdateRangeAsync(allActiveTasks, cancellationToken);
         }
 
-        // 记录撤回事件
+        // 记录撤回事件（Bug fix: previously used InstanceCanceled, now uses dedicated ProcessDrawBack type）
         var drawBackEvent = new ApprovalHistoryEvent(
             tenantId,
             instanceId,
-            ApprovalHistoryEventType.InstanceCanceled,
+            ApprovalHistoryEventType.ProcessDrawBack,
             null,
             null,
             operatorUserId,

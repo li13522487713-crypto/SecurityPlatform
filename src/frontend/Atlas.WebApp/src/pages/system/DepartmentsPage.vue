@@ -43,6 +43,7 @@
           :pagination="pagination"
           :loading="loading"
           :size="tableSize"
+          :locale="{ emptyText: '暂无部门数据' }"
           row-key="id"
           @change="onTableChange"
         >
@@ -76,6 +77,7 @@
       :pagination="pagination"
       :loading="loading"
       :size="tableSize"
+      :locale="{ emptyText: '暂无部门数据' }"
       row-key="id"
       @change="onTableChange"
     >
@@ -305,7 +307,9 @@ const ensureParentOption = (parentId?: number) => {
   if (!parentId) return;
   const exists = parentOptions.value.some((item) => item.value === parentId);
   if (!exists) {
-    parentOptions.value = [{ label: `部门ID ${parentId}`, value: parentId }, ...parentOptions.value];
+    const dept = allDepartments.value.find((d) => Number(d.id) === parentId);
+    const label = dept?.name ?? `上级部门 #${parentId}`;
+    parentOptions.value = [{ label, value: parentId }, ...parentOptions.value];
   }
 };
 
@@ -357,7 +361,7 @@ const handleTreeSelect = (keys: (string | number)[]) => {
 const getParentName = (parentId?: number | null) => {
   if (!parentId) return "-";
   const target = allDepartments.value.find((item) => Number(item.id) === Number(parentId));
-  return target?.name ?? `部门ID ${parentId}`;
+  return target?.name ?? "-";
 };
 
 const filteredDepartments = computed(() => {

@@ -1,6 +1,7 @@
 using Atlas.Core.Abstractions;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Approval.Enums;
+using SqlSugar;
 
 namespace Atlas.Domain.Approval.Entities;
 
@@ -59,20 +60,36 @@ public sealed class ApprovalProcessInstance : TenantEntity
     /// <summary>当前节点 ID</summary>
     public string? CurrentNodeId { get; private set; }
 
+    /// <summary>乐观并发版本号（SqlSugar 自动校验）</summary>
+    [SugarColumn(IsEnableUpdateVersionValidation = true)]
+    public long RowVersion { get; private set; }
+
     public void MarkCompleted(DateTimeOffset now)
     {
+        if (Status != ApprovalInstanceStatus.Running)
+        {
+            throw new InvalidOperationException($"Cannot complete instance in '{Status}' status. Expected: Running.");
+        }
         Status = ApprovalInstanceStatus.Completed;
         EndedAt = now;
     }
 
     public void MarkRejected(DateTimeOffset now)
     {
+        if (Status != ApprovalInstanceStatus.Running)
+        {
+            throw new InvalidOperationException($"Cannot reject instance in '{Status}' status. Expected: Running.");
+        }
         Status = ApprovalInstanceStatus.Rejected;
         EndedAt = now;
     }
 
     public void MarkCanceled(DateTimeOffset now)
     {
+        if (Status != ApprovalInstanceStatus.Running)
+        {
+            throw new InvalidOperationException($"Cannot cancel instance in '{Status}' status. Expected: Running.");
+        }
         Status = ApprovalInstanceStatus.Canceled;
         EndedAt = now;
     }

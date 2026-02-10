@@ -319,6 +319,29 @@ public sealed class FlowNode
     public int? TimeoutMinutes { get; set; }
     public int? ReminderIntervalHours { get; set; }
     public int? MaxReminderCount { get; set; }
+
+    /// <summary>
+    /// 超时自动处理动作（None = 仅提醒，AutoApprove = 自动通过，AutoReject = 自动驳回，AutoSkip = 自动跳过）
+    /// </summary>
+    public TimeoutAction TimeoutAction { get; set; } = TimeoutAction.None;
+}
+
+/// <summary>
+/// 节点超时自动处理动作
+/// </summary>
+public enum TimeoutAction
+{
+    /// <summary>仅提醒，不自动处理</summary>
+    None = 0,
+
+    /// <summary>超时自动通过</summary>
+    AutoApprove = 1,
+
+    /// <summary>超时自动驳回</summary>
+    AutoReject = 2,
+
+    /// <summary>超时自动跳过（跳到下一个节点）</summary>
+    AutoSkip = 3
 }
 
 /// <summary>

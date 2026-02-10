@@ -4,7 +4,7 @@ using Atlas.Core.Abstractions;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Approval.Entities;
 using Atlas.Domain.Approval.Enums;
-using Atlas.Infrastructure.Services.ApprovalFlow;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using ParallelTokenStatus = Atlas.Domain.Approval.Entities.ParallelTokenStatus;
 
@@ -27,6 +27,7 @@ public sealed class FlowEngine
     private readonly IApprovalTimeoutReminderRepository? _timeoutReminderRepository;
     private readonly ExternalCallbackService? _callbackService;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
+    private readonly IBackgroundWorkQueue? _backgroundWorkQueue;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<FlowEngine>? _logger;
 
@@ -43,6 +44,7 @@ public sealed class FlowEngine
         IApprovalNotificationService? notificationService = null,
         IApprovalTimeoutReminderRepository? timeoutReminderRepository = null,
         ExternalCallbackService? callbackService = null,
+        IBackgroundWorkQueue? backgroundWorkQueue = null,
         TimeProvider? timeProvider = null,
         ILogger<FlowEngine>? logger = null)
     {
@@ -58,6 +60,7 @@ public sealed class FlowEngine
         _timeoutReminderRepository = timeoutReminderRepository;
         _callbackService = callbackService;
         _idGeneratorAccessor = idGeneratorAccessor;
+        _backgroundWorkQueue = backgroundWorkQueue;
         _timeProvider = timeProvider ?? TimeProvider.System;
         _logger = logger;
     }
@@ -133,28 +136,8 @@ public sealed class FlowEngine
             instance.MarkCompleted(DateTimeOffset.UtcNow);
             instance.SetCurrentNode(null);
             
-            // 触发流程完成回调（异步，失败不影响主流程）
-            if (_callbackService != null)
-            {
-                _ = Task.Run(async () =>
-                {
-                    try
-                    {
-                        await _callbackService.TriggerCallbackAsync(
-                            tenantId,
-                            Domain.Approval.Enums.CallbackEventType.InstanceCompleted,
-                            instance,
-                            null,
-                            currentNodeId,
-                            CancellationToken.None);
-                    }
-                    catch (Exception ex)
-                    {
-                        // 回调失败不影响主流程，但记录日志
-                        _logger?.LogError(ex, "流程完成回调失败：租户={TenantId}, 实例={InstanceId}, 节点={NodeId}", tenantId, instance.Id, currentNodeId);
-                    }
-                }, cancellationToken);
-            }
+            // 触发流程完成回调（后台队列，失败不影响主流程）
+            EnqueueCallback(tenantId, CallbackEventType.InstanceCompleted, instance.Id, null, currentNodeId);
             
             return;
         }
@@ -168,28 +151,8 @@ public sealed class FlowEngine
             instance.MarkCompleted(DateTimeOffset.UtcNow);
             instance.SetCurrentNode(null);
             
-            // 触发流程完成回调（异步，失败不影响主流程）
-            if (_callbackService != null)
-            {
-                _ = Task.Run(async () =>
-                {
-                    try
-                    {
-                        await _callbackService.TriggerCallbackAsync(
-                            tenantId,
-                            Domain.Approval.Enums.CallbackEventType.InstanceCompleted,
-                            instance,
-                            null,
-                            currentNodeId,
-                            CancellationToken.None);
-                    }
-                    catch (Exception ex)
-                    {
-                        // 回调失败不影响主流程，但记录日志
-                        _logger?.LogError(ex, "流程完成回调失败：租户={TenantId}, 实例={InstanceId}, 节点={NodeId}", tenantId, instance.Id, currentNodeId);
-                    }
-                }, cancellationToken);
-            }
+            // 触发流程完成回调（后台队列，失败不影响主流程）
+            EnqueueCallback(tenantId, CallbackEventType.InstanceCompleted, instance.Id, null, currentNodeId);
             
             return;
         }
@@ -230,27 +193,8 @@ public sealed class FlowEngine
             instance.MarkCompleted(DateTimeOffset.UtcNow);
             instance.SetCurrentNode(null);
             
-            // 触发流程完成回调（异步，失败不影响主流程）
-            if (_callbackService != null)
-            {
-                _ = Task.Run(async () =>
-                {
-                    try
-                    {
-                        await _callbackService.TriggerCallbackAsync(
-                            tenantId,
-                            Domain.Approval.Enums.CallbackEventType.InstanceCompleted,
-                            instance,
-                            null,
-                            nextNodeId,
-                            CancellationToken.None);
-                    }
-                    catch
-                    {
-                        // 回调失败不影响主流程
-                    }
-                }, cancellationToken);
-            }
+            // 触发流程完成回调（后台队列，失败不影响主流程）
+            EnqueueCallback(tenantId, CallbackEventType.InstanceCompleted, instance.Id, null, nextNodeId);
             
             return;
         }
@@ -383,15 +327,20 @@ public sealed class FlowEngine
         // 判断是否为排他网关（XOR）：只走一条符合条件的路径
         var isExclusiveGateway = currentNode != null && currentNode.Type == "exclusiveGateway";
 
+        // Bug fix: For exclusive gateways, unconditional edges (default path) must be the FALLBACK,
+        // not the priority. Evaluate all conditional edges first; only use the default if none match.
+        string? exclusiveDefaultTarget = null;
+
         foreach (var edge in outgoingEdges)
         {
-            // 如果没有条件规则，直接通过
+            // 如果没有条件规则
             if (string.IsNullOrEmpty(edge.ConditionRule))
             {
                 if (isExclusiveGateway)
                 {
-                    // 排他网关：无条件路径优先，找到第一个就返回
-                    return new List<string> { edge.Target };
+                    // 排他网关：记录默认路径，但不立即返回——先评估所有条件边
+                    exclusiveDefaultTarget ??= edge.Target;
+                    continue;
                 }
                 nextNodeIds.Add(edge.Target);
                 continue;
@@ -416,7 +365,12 @@ public sealed class FlowEngine
             }
         }
 
-        // 排他网关如果没有符合条件的路径，返回空列表（流程可能卡住或结束）
+        // 排他网关：所有条件边都不满足时，走默认（无条件）路径
+        if (isExclusiveGateway && exclusiveDefaultTarget != null)
+        {
+            return new List<string> { exclusiveDefaultTarget };
+        }
+
         return nextNodeIds;
     }
 
@@ -447,29 +401,29 @@ public sealed class FlowEngine
                 await CreateTimeoutRemindersAsync(tenantId, instance, node, tasks, cancellationToken);
             }
 
-            // 发送任务创建通知（异步，失败不影响主流程）
-            if (_notificationService != null)
+            // 发送任务创建通知（后台队列，失败不影响主流程）
+            if (_backgroundWorkQueue != null && _notificationService != null)
             {
                 var recipientUserIds = tasks.Select(t => ExtractAssigneeUserId(t.AssigneeValue)).Where(id => id.HasValue).Select(id => id!.Value).Distinct().ToList();
                 if (recipientUserIds.Count > 0)
                 {
-                    _ = Task.Run(async () =>
+                    var capturedInstanceId = instance.Id;
+                    _backgroundWorkQueue.Enqueue(async (sp, ct) =>
                     {
-                        try
+                        var notificationService = sp.GetRequiredService<IApprovalNotificationService>();
+                        var instanceRepo = sp.GetRequiredService<IApprovalInstanceRepository>();
+                        var inst = await instanceRepo.GetByIdAsync(tenantId, capturedInstanceId, ct);
+                        if (inst != null)
                         {
-                            await _notificationService.NotifyAsync(
+                            await notificationService.NotifyAsync(
                                 tenantId,
                                 ApprovalNotificationEventType.TaskCreated,
-                                instance,
-                                tasks.FirstOrDefault(),
+                                inst,
+                                null,
                                 recipientUserIds,
-                                CancellationToken.None);
+                                ct);
                         }
-                        catch
-                        {
-                            // 通知失败不影响主流程
-                        }
-                    }, cancellationToken);
+                    });
                 }
             }
         }
@@ -1090,6 +1044,41 @@ public sealed class FlowEngine
         {
             await _copyRecordRepository.AddRangeAsync(copyRecords, cancellationToken);
         }
+    }
+
+    /// <summary>
+    /// Enqueue a callback to the background work queue (replaces unsafe Task.Run pattern).
+    /// Each callback executes in its own DI scope, avoiding ObjectDisposedException.
+    /// </summary>
+    private void EnqueueCallback(
+        TenantId tenantId,
+        CallbackEventType eventType,
+        long instanceId,
+        long? taskId,
+        string? nodeId)
+    {
+        if (_backgroundWorkQueue == null || _callbackService == null)
+        {
+            return;
+        }
+
+        _backgroundWorkQueue.Enqueue(async (sp, ct) =>
+        {
+            var callbackService = sp.GetRequiredService<ExternalCallbackService>();
+            var instanceRepo = sp.GetRequiredService<IApprovalInstanceRepository>();
+            var instance = await instanceRepo.GetByIdAsync(tenantId, instanceId, ct);
+            if (instance == null) return;
+
+            ApprovalTask? task = null;
+            if (taskId.HasValue)
+            {
+                var taskRepo = sp.GetRequiredService<IApprovalTaskRepository>();
+                task = await taskRepo.GetByIdAsync(tenantId, taskId.Value, ct);
+            }
+
+            await callbackService.TriggerCallbackAsync(
+                tenantId, eventType, instance, task, nodeId, ct);
+        });
     }
 }
 

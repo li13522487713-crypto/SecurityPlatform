@@ -87,13 +87,14 @@
     </div>
   </a-card>
 
-  <!-- 测试执行对话框 -->
-  <a-modal
+  <!-- 测试执行抽屉 -->
+  <a-drawer
     v-model:open="testModalVisible"
     title="测试工作流执行"
-    @ok="handleExecuteTest"
-    @cancel="testModalVisible = false"
-    width="600px"
+    placement="right"
+    width="560"
+    destroy-on-close
+    @close="testModalVisible = false"
   >
     <a-form layout="vertical">
       <a-form-item label="工作流数据（JSON格式）">
@@ -103,7 +104,13 @@
         <a-input v-model:value="testReference" placeholder="test-ref-001" />
       </a-form-item>
     </a-form>
-  </a-modal>
+    <template #footer>
+      <a-space>
+        <a-button @click="testModalVisible = false">取消</a-button>
+        <a-button type="primary" @click="handleExecuteTest">执行测试</a-button>
+      </a-space>
+    </template>
+  </a-drawer>
 </template>
 
 <script setup lang="ts">
@@ -868,22 +875,22 @@ onBeforeUnmount(() => {
 .designer-container {
   display: flex;
   height: calc(100vh - 200px);
-  border: 1px solid #d9d9d9;
-  border-radius: 4px;
+  border: 1px solid var(--color-border-secondary);
+  border-radius: var(--border-radius-sm);
 }
 
 .designer-toolbar {
   width: 200px;
-  border-right: 1px solid #d9d9d9;
-  padding: 16px;
-  background: #fafafa;
+  border-right: 1px solid var(--color-border-secondary);
+  padding: var(--spacing-md);
+  background: var(--color-bg-subtle);
   overflow-y: auto;
 }
 
 .toolbar-title {
   font-weight: 600;
-  margin-bottom: 16px;
-  color: #262626;
+  margin-bottom: var(--spacing-md);
+  color: var(--color-text-primary);
 }
 
 .node-types {
@@ -897,16 +904,16 @@ onBeforeUnmount(() => {
   flex-direction: column;
   align-items: center;
   padding: 12px;
-  border: 1px solid #d9d9d9;
-  border-radius: 4px;
-  background: white;
+  border: 1px solid var(--color-border-secondary);
+  border-radius: var(--border-radius-sm);
+  background: var(--color-bg-container);
   cursor: move;
   transition: all 0.3s;
 }
 
 .node-type-item:hover {
-  border-color: #1890ff;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-sm);
 }
 
 .node-icon {
@@ -915,21 +922,21 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid #d9d9d9;
-  border-radius: 4px;
-  margin-bottom: 8px;
+  border: 1px solid var(--color-border-secondary);
+  border-radius: var(--border-radius-sm);
+  margin-bottom: var(--spacing-sm);
   font-size: 12px;
   font-weight: 500;
 }
 
 .node-label {
   font-size: 12px;
-  color: #666;
+  color: var(--color-text-tertiary);
 }
 
 .designer-canvas {
   flex: 1;
   position: relative;
-  background: #f5f5f5;
+  background: var(--color-bg-hover);
 }
 </style>

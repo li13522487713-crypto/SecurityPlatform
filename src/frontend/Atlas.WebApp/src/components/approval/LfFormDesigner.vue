@@ -210,9 +210,9 @@ type VFormDesignerInstance = {
 
 <style scoped>
 .lf-form-designer {
-  background: #fff;
+  background: var(--color-bg-container);
   padding: 16px;
-  border: 1px solid #f0f0f0;
+  border: 1px solid var(--color-bg-hover);
   border-radius: 6px;
 }
 
@@ -224,18 +224,18 @@ type VFormDesignerInstance = {
 }
 
 .designer-panel {
-  border: 1px solid #f0f0f0;
+  border: 1px solid var(--color-bg-hover);
   border-radius: 6px;
   min-height: 520px;
   overflow: hidden;
 }
 .designer-loading {
   padding: 16px;
-  color: #8c8c8c;
+  color: var(--color-text-tertiary);
 }
 
 .json-panel {
-  border: 1px solid #f0f0f0;
+  border: 1px solid var(--color-bg-hover);
   border-radius: 6px;
   padding: 12px;
 }

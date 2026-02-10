@@ -84,11 +84,11 @@ public sealed class TransferOperationHandler : IApprovalOperationHandler
         task.Transfer(request.TargetAssigneeValue);
         await _taskRepository.UpdateAsync(task, cancellationToken);
 
-        // 记录历史事件
+        // 记录历史事件（Bug fix: previously used NodeAdvanced, now uses dedicated TaskTransferred type）
         var transferEvent = new ApprovalHistoryEvent(
             tenantId,
             instanceId,
-            ApprovalHistoryEventType.NodeAdvanced,
+            ApprovalHistoryEventType.TaskTransferred,
             task.NodeId,
             task.NodeId,
             operatorUserId,

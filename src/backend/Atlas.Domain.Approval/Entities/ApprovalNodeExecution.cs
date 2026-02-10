@@ -1,6 +1,7 @@
 using Atlas.Core.Abstractions;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Approval.Enums;
+using SqlSugar;
 
 namespace Atlas.Domain.Approval.Entities;
 
@@ -46,14 +47,28 @@ public sealed class ApprovalNodeExecution : TenantEntity
     /// <summary>完成时间</summary>
     public DateTimeOffset? CompletedAt { get; private set; }
 
+    /// <summary>乐观并发版本号（SqlSugar 自动校验）</summary>
+    [SugarColumn(IsEnableUpdateVersionValidation = true)]
+    public long RowVersion { get; private set; }
+
     public void MarkCompleted(DateTimeOffset now)
     {
+        if (Status != ApprovalNodeExecutionStatus.Running)
+        {
+            // Allow idempotent completion (e.g., parallel branches reaching the same join node)
+            if (Status == ApprovalNodeExecutionStatus.Completed) return;
+            throw new InvalidOperationException($"Cannot complete node execution in '{Status}' status. Expected: Running.");
+        }
         Status = ApprovalNodeExecutionStatus.Completed;
         CompletedAt = now;
     }
 
     public void MarkSkipped(DateTimeOffset now)
     {
+        if (Status != ApprovalNodeExecutionStatus.Running)
+        {
+            throw new InvalidOperationException($"Cannot skip node execution in '{Status}' status. Expected: Running.");
+        }
         Status = ApprovalNodeExecutionStatus.Skipped;
         CompletedAt = now;
     }

@@ -3,6 +3,27 @@ import { message } from "ant-design-vue";
 
 export type FormMode = "create" | "edit";
 
+/**
+ * Format an ISO date string to a human-readable local format.
+ * Returns "-" for null/undefined/empty values.
+ */
+export function formatDateTime(value?: string | null): string {
+  if (!value) return "-";
+  try {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    const yyyy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, "0");
+    const dd = String(date.getDate()).padStart(2, "0");
+    const hh = String(date.getHours()).padStart(2, "0");
+    const mi = String(date.getMinutes()).padStart(2, "0");
+    const ss = String(date.getSeconds()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}`;
+  } catch {
+    return value;
+  }
+}
+
 export interface SelectOption {
   label: string;
   value: number;

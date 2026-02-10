@@ -42,7 +42,7 @@ const handleClick = () => {
   border-radius: 4px;
   cursor: pointer;
   box-shadow: 0 2px 5px 0 rgba(0, 0, 0, 0.1);
-  background: #fff;
+  background: var(--color-bg-container);
   transition: all 0.3s cubic-bezier(0.645, 0.045, 0.355, 1);
   overflow: hidden;
   position: relative;
@@ -53,7 +53,7 @@ const handleClick = () => {
 }
 
 .title {
-  color: #fff;
+  color: var(--color-text-white);
   padding: 5px 10px;
   font-size: 12px;
   display: flex;

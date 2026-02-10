@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using Atlas.Application.Approval.Repositories;
 using Atlas.Core.Tenancy;
@@ -77,7 +78,8 @@ public sealed class ConditionEvaluator
         var results = new List<bool>();
         foreach (var condition in conditionsProp.EnumerateArray())
         {
-            var result = await EvaluateSingleConditionAsync(tenantId, instanceId, condition, instanceDataJson, cancellationToken);
+            // Support nested condition groups: if an element has "relationship", recurse into it
+            var result = await EvaluateNestedConditionAsync(tenantId, instanceId, condition, instanceDataJson, cancellationToken);
             results.Add(result);
         }
 
@@ -106,7 +108,14 @@ public sealed class ConditionEvaluator
 
         var fieldName = fieldProp.GetString();
         var operatorStr = operatorProp.GetString();
-        var expectedValue = valueProp.GetString();
+        // Bug fix: GetString() returns null for non-string JSON values (numbers, booleans).
+        // Use GetRawText() as fallback to correctly handle numeric/boolean condition values.
+        var expectedValue = valueProp.ValueKind switch
+        {
+            JsonValueKind.String => valueProp.GetString(),
+            JsonValueKind.Null => null,
+            _ => valueProp.GetRawText()
+        };
 
         if (string.IsNullOrEmpty(fieldName) || string.IsNullOrEmpty(operatorStr))
         {
@@ -170,32 +179,41 @@ public sealed class ConditionEvaluator
     /// </summary>
     private static bool EvaluateOperator(string? actualValue, string operatorStr, string? expectedValue)
     {
+        // Normalize operator to lowercase once for correct matching.
+        // Bug fix: previously ToLowerInvariant() was called but switch arms still used camelCase,
+        // e.g. "notEquals" became "notequals" which didn't match the "notEquals" arm.
+        var op = operatorStr.ToLowerInvariant();
+
         if (actualValue == null && expectedValue == null)
         {
-            return operatorStr == "equals" || operatorStr == "==";
+            return op is "equals" or "==" or "eq" or "isempty" or "isnull";
         }
 
         if (actualValue == null || expectedValue == null)
         {
-            return operatorStr == "notEquals" || operatorStr == "!=";
+            return op is "notequals" or "!=" or "ne" or "isnotempty" or "isnotnull";
         }
 
-        return operatorStr.ToLowerInvariant() switch
+        return op switch
         {
             "equals" or "==" or "eq" => actualValue == expectedValue,
-            "notEquals" or "!=" or "ne" => actualValue != expectedValue,
-            "greaterThan" or ">" or "gt" => CompareNumbers(actualValue, expectedValue) > 0,
-            "lessThan" or "<" or "lt" => CompareNumbers(actualValue, expectedValue) < 0,
-            "greaterThanOrEqual" or ">=" or "ge" => CompareNumbers(actualValue, expectedValue) >= 0,
-            "lessThanOrEqual" or "<=" or "le" => CompareNumbers(actualValue, expectedValue) <= 0,
+            "notequals" or "!=" or "ne" => actualValue != expectedValue,
+            "greaterthan" or ">" or "gt" => CompareNumbers(actualValue, expectedValue) > 0,
+            "lessthan" or "<" or "lt" => CompareNumbers(actualValue, expectedValue) < 0,
+            "greaterthanorequal" or ">=" or "ge" => CompareNumbers(actualValue, expectedValue) >= 0,
+            "lessthanorequal" or "<=" or "le" => CompareNumbers(actualValue, expectedValue) <= 0,
             "contains" => actualValue.Contains(expectedValue, StringComparison.OrdinalIgnoreCase),
-            "notContains" => !actualValue.Contains(expectedValue, StringComparison.OrdinalIgnoreCase),
-            "startsWith" => actualValue.StartsWith(expectedValue, StringComparison.OrdinalIgnoreCase),
-            "endsWith" => actualValue.EndsWith(expectedValue, StringComparison.OrdinalIgnoreCase),
+            "notcontains" => !actualValue.Contains(expectedValue, StringComparison.OrdinalIgnoreCase),
+            "startswith" => actualValue.StartsWith(expectedValue, StringComparison.OrdinalIgnoreCase),
+            "endswith" => actualValue.EndsWith(expectedValue, StringComparison.OrdinalIgnoreCase),
             "in" => expectedValue.Split(',', StringSplitOptions.RemoveEmptyEntries)
                 .Any(v => v.Trim().Equals(actualValue, StringComparison.OrdinalIgnoreCase)),
-            "notIn" => !expectedValue.Split(',', StringSplitOptions.RemoveEmptyEntries)
+            "notin" => !expectedValue.Split(',', StringSplitOptions.RemoveEmptyEntries)
                 .Any(v => v.Trim().Equals(actualValue, StringComparison.OrdinalIgnoreCase)),
+            "isempty" => string.IsNullOrEmpty(actualValue),
+            "isnotempty" => !string.IsNullOrEmpty(actualValue),
+            "isnull" => actualValue == null,
+            "isnotnull" => actualValue != null,
             _ => false
         };
     }
@@ -205,13 +223,35 @@ public sealed class ConditionEvaluator
     /// </summary>
     private static int CompareNumbers(string a, string b)
     {
-        // 尝试解析为数字
-        if (double.TryParse(a, out var numA) && double.TryParse(b, out var numB))
+        // Bug fix: use InvariantCulture to avoid locale-dependent decimal separator issues.
+        // Previously, "1,000" could parse as 1.0 in locales using comma as decimal separator.
+        if (double.TryParse(a, NumberStyles.Any, CultureInfo.InvariantCulture, out var numA)
+            && double.TryParse(b, NumberStyles.Any, CultureInfo.InvariantCulture, out var numB))
         {
             return numA.CompareTo(numB);
         }
 
         // 无法解析为数字，按字符串比较
         return string.Compare(a, b, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// 评估嵌套条件组（支持递归嵌套）
+    /// </summary>
+    private async Task<bool> EvaluateNestedConditionAsync(
+        TenantId tenantId,
+        long instanceId,
+        JsonElement element,
+        string? instanceDataJson,
+        CancellationToken cancellationToken)
+    {
+        // If element has "relationship", it's a nested condition group
+        if (element.TryGetProperty("relationship", out _))
+        {
+            return await EvaluateConditionGroupAsync(tenantId, instanceId, element, instanceDataJson, cancellationToken);
+        }
+
+        // Otherwise it's a single condition
+        return await EvaluateSingleConditionAsync(tenantId, instanceId, element, instanceDataJson, cancellationToken);
     }
 }

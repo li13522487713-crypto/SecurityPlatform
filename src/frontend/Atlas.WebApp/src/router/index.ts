@@ -27,6 +27,7 @@ const ProjectsPage = () => import("@/pages/system/ProjectsPage.vue");
 const AmisSystemPage = () => import("@/pages/system/AmisSystemPage.vue");
 const DynamicTablesPage = () => import("@/pages/dynamic/DynamicTablesPage.vue");
 const DynamicTableCrudPage = () => import("@/pages/dynamic/DynamicTableCrudPage.vue");
+const NotFoundPage = () => import("@/pages/NotFoundPage.vue");
 
 const router = createRouter({
   history: createWebHistory(),
@@ -164,7 +165,9 @@ const router = createRouter({
     { path: "/visualization/center", name: "visualization-center", component: VisualizationCenterPage, meta: { requiresAuth: true } },
     { path: "/visualization/designer/:id?", name: "visualization-designer", component: VisualizationDesignerPage, meta: { requiresAuth: true } },
     { path: "/visualization/runtime", name: "visualization-runtime", component: VisualizationRuntimePage, meta: { requiresAuth: true } },
-    { path: "/visualization/governance", name: "visualization-governance", component: VisualizationGovernancePage, meta: { requiresAuth: true } }
+    { path: "/visualization/governance", name: "visualization-governance", component: VisualizationGovernancePage, meta: { requiresAuth: true } },
+    // 404 catch-all route — must be last
+    { path: "/:pathMatch(.*)*", name: "not-found", component: NotFoundPage }
   ]
 });
 

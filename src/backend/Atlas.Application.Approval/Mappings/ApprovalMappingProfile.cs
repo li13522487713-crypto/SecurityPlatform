@@ -60,7 +60,8 @@ public sealed class ApprovalMappingProfile : Profile
             .ForMember(dest => dest.Status, opt => opt.Ignore())
             .ForMember(dest => dest.StartedAt, opt => opt.Ignore())
             .ForMember(dest => dest.EndedAt, opt => opt.Ignore())
-            .ForMember(dest => dest.CurrentNodeId, opt => opt.Ignore());
+            .ForMember(dest => dest.CurrentNodeId, opt => opt.Ignore())
+            .ForMember(dest => dest.RowVersion, opt => opt.Ignore());
 
         CreateMap<ApprovalProcessInstance, ApprovalInstanceResponse>();
 

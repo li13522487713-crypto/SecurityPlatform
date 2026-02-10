@@ -136,7 +136,7 @@ onMounted(loadData);
   font-weight: 600;
 }
 .trace-meta {
-  color: #595959;
+  color: var(--color-text-secondary);
   font-size: 12px;
 }
 </style>

@@ -65,7 +65,7 @@ const getAssigneeLabel = (node: ApproveNode) => {
   border-radius: 4px;
   cursor: pointer;
   box-shadow: 0 2px 5px 0 rgba(0, 0, 0, 0.1);
-  background: #fff;
+  background: var(--color-bg-container);
   transition: all 0.3s;
   overflow: hidden;
   position: relative;
@@ -76,7 +76,7 @@ const getAssigneeLabel = (node: ApproveNode) => {
 }
 
 .title {
-  color: #fff;
+  color: var(--color-text-white);
   padding: 5px 10px;
   font-size: 12px;
   display: flex;
@@ -107,7 +107,7 @@ const getAssigneeLabel = (node: ApproveNode) => {
 }
 
 .placeholder {
-  color: #bfbfbf;
+  color: var(--color-text-quaternary);
 }
 
 .error {

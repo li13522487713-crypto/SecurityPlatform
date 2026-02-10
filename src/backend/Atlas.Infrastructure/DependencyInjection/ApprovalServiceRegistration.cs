@@ -54,6 +54,8 @@ public static class ApprovalServiceRegistration
 
         // Timeout Reminder Hosted Service
         services.AddHostedService<ApprovalTimeoutReminderHostedService>();
+        // Timeout Auto-Processing Hosted Service (auto-approve/reject/skip timed-out tasks)
+        services.AddHostedService<ApprovalTimeoutAutoProcessHostedService>();
 
         // Operation Handlers
         services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalOperationHandler, Atlas.Infrastructure.Services.ApprovalFlow.Operations.ProcessDrawBackOperationHandler>();
@@ -83,6 +85,14 @@ public static class ApprovalServiceRegistration
         // Approval Status Sync Handler (for dynamic table status writeback)
         services.AddScoped<Atlas.Infrastructure.Services.ApprovalFlow.ApprovalStatusSyncHandler>();
 
+        // Unified Assignee Resolver (eliminates duplicated logic in FlowEngine, BackToAnyNode, CopyRecord)
+        services.AddScoped<Atlas.Infrastructure.Services.ApprovalFlow.AssigneeResolver>();
+
+        // Domain Event Publisher & Handlers (decouples approval from external business modules)
+        services.AddScoped<Atlas.Infrastructure.Services.ApprovalFlow.ApprovalEventPublisher>();
+        services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalEventHandler,
+            Atlas.Infrastructure.Services.ApprovalFlow.DynamicTableApprovalEventHandler>();
+
         // ApprovalRuntimeCommandService (manual resolution for ExternalCallbackService)
         services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalRuntimeCommandService>(sp =>
         {
@@ -98,16 +108,19 @@ public static class ApprovalServiceRegistration
             var userQueryService = sp.GetRequiredService<Atlas.Application.Approval.Abstractions.IApprovalUserQueryService>();
             var idGeneratorAccessor = sp.GetRequiredService<Atlas.Core.Abstractions.IIdGeneratorAccessor>();
             var mapper = sp.GetRequiredService<AutoMapper.IMapper>();
+            var unitOfWork = sp.GetService<Atlas.Core.Abstractions.IUnitOfWork>();
             var notificationService = sp.GetService<Atlas.Application.Approval.Abstractions.IApprovalNotificationService>();
             var timeoutReminderRepository = sp.GetService<Atlas.Application.Approval.Repositories.IApprovalTimeoutReminderRepository>();
             var callbackService = sp.GetService<Atlas.Infrastructure.Services.ApprovalFlow.ExternalCallbackService>();
             var statusSyncHandler = sp.GetService<Atlas.Infrastructure.Services.ApprovalFlow.ApprovalStatusSyncHandler>();
+            var backgroundWorkQueue = sp.GetService<Atlas.Core.Abstractions.IBackgroundWorkQueue>();
+            var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<ApprovalRuntimeCommandService>>();
             return new ApprovalRuntimeCommandService(
                 flowRepository, instanceRepository, taskRepository, historyRepository,
                 deptLeaderRepository, nodeExecutionRepository, parallelTokenRepository,
                 copyRecordRepository, processVariableRepository, userQueryService,
-                idGeneratorAccessor, mapper, notificationService, timeoutReminderRepository, callbackService,
-                statusSyncHandler);
+                idGeneratorAccessor, mapper, unitOfWork, notificationService, timeoutReminderRepository,
+                callbackService, statusSyncHandler, backgroundWorkQueue, logger);
         });
 
         services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalDepartmentLeaderService, ApprovalDepartmentLeaderService>();

@@ -64,6 +64,22 @@ public sealed class BackToAnyNodeOperationHandler : IApprovalOperationHandler
             throw new BusinessException("INSTANCE_NOT_RUNNING", "流程实例不在运行状态");
         }
 
+        // Authorization: BackToAnyNode is an admin-level operation.
+        // Only the initiator or a system administrator should be allowed.
+        // Pending task assignees are also allowed (they are actively reviewing).
+        if (instance.InitiatorUserId != operatorUserId)
+        {
+            // Check if operator has a pending task on this instance
+            var operatorTasks = await _taskRepository.GetByInstanceAndStatusAsync(
+                tenantId, instanceId, ApprovalTaskStatus.Pending, cancellationToken);
+            var hasTask = operatorTasks.Any(t =>
+                t.AssigneeType == AssigneeType.User && t.AssigneeValue == operatorUserId.ToString());
+            if (!hasTask)
+            {
+                throw new BusinessException("FORBIDDEN", "只有发起人或当前审批人可以执行退回操作");
+            }
+        }
+
         var flowDef = await _flowRepository.GetByIdAsync(tenantId, instance.DefinitionId, cancellationToken);
         if (flowDef == null)
         {
@@ -77,15 +93,19 @@ public sealed class BackToAnyNodeOperationHandler : IApprovalOperationHandler
             throw new BusinessException("NODE_NOT_FOUND", "目标节点不存在");
         }
 
-        // 取消所有待审批任务
+        // 取消所有活跃任务（含 Pending 和 Waiting，修复顺签模式下遗漏 Waiting 任务的 bug）
         var pendingTasks = await _taskRepository.GetByInstanceAndStatusAsync(tenantId, instanceId, ApprovalTaskStatus.Pending, cancellationToken);
-        if (pendingTasks.Count > 0)
+        var waitingTasks = await _taskRepository.GetByInstanceAndStatusAsync(tenantId, instanceId, ApprovalTaskStatus.Waiting, cancellationToken);
+        var allActiveTasks = new List<ApprovalTask>();
+        allActiveTasks.AddRange(pendingTasks);
+        allActiveTasks.AddRange(waitingTasks);
+        if (allActiveTasks.Count > 0)
         {
-            foreach (var pendingTask in pendingTasks)
+            foreach (var activeTask in allActiveTasks)
             {
-                pendingTask.Cancel();
+                activeTask.Cancel();
             }
-            await _taskRepository.UpdateRangeAsync(pendingTasks, cancellationToken);
+            await _taskRepository.UpdateRangeAsync(allActiveTasks, cancellationToken);
         }
 
         // 如果目标节点是审批节点，生成任务
@@ -118,16 +138,20 @@ public sealed class BackToAnyNodeOperationHandler : IApprovalOperationHandler
             await _nodeExecutionRepository.AddAsync(execution, cancellationToken);
         }
 
+        // Bug fix: capture the current node BEFORE overwriting it, so the history event
+        // correctly records the from-node and to-node (previously both were the target).
+        var previousNodeId = instance.CurrentNodeId;
+
         // 更新实例当前节点
         instance.SetCurrentNode(request.TargetNodeId);
         await _instanceRepository.UpdateAsync(instance, cancellationToken);
 
-        // 记录退回事件
+        // 记录退回事件（Bug fix: previously used NodeAdvanced, now uses dedicated BackToAnyNode type）
         var backToNodeEvent = new ApprovalHistoryEvent(
             tenantId,
             instanceId,
-            ApprovalHistoryEventType.NodeAdvanced,
-            instance.CurrentNodeId,
+            ApprovalHistoryEventType.BackToAnyNode,
+            previousNodeId,
             request.TargetNodeId,
             operatorUserId,
             _idGeneratorAccessor.NextId());

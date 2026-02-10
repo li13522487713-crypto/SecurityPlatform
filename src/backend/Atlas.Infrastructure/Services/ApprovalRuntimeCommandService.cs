@@ -9,6 +9,7 @@ using Atlas.Core.Tenancy;
 using Atlas.Domain.Approval.Entities;
 using Atlas.Domain.Approval.Enums;
 using Atlas.Infrastructure.Services.ApprovalFlow;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace Atlas.Infrastructure.Services;
@@ -32,6 +33,8 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
     private readonly ExternalCallbackService? _callbackService;
     private readonly ApprovalStatusSyncHandler? _statusSyncHandler;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
+    private readonly IBackgroundWorkQueue? _backgroundWorkQueue;
+    private readonly IUnitOfWork? _unitOfWork;
     private readonly IMapper _mapper;
     private readonly FlowEngine _flowEngine;
     private readonly ILogger<ApprovalRuntimeCommandService>? _logger;
@@ -49,10 +52,12 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
         IApprovalUserQueryService userQueryService,
         IIdGeneratorAccessor idGeneratorAccessor,
         IMapper mapper,
+        IUnitOfWork? unitOfWork = null,
         IApprovalNotificationService? notificationService = null,
         IApprovalTimeoutReminderRepository? timeoutReminderRepository = null,
         ExternalCallbackService? callbackService = null,
         ApprovalStatusSyncHandler? statusSyncHandler = null,
+        IBackgroundWorkQueue? backgroundWorkQueue = null,
         ILogger<ApprovalRuntimeCommandService>? logger = null)
     {
         _flowRepository = flowRepository;
@@ -64,11 +69,13 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
         _parallelTokenRepository = parallelTokenRepository;
         _copyRecordRepository = copyRecordRepository;
         _processVariableRepository = processVariableRepository;
+        _unitOfWork = unitOfWork;
         _notificationService = notificationService;
         _timeoutReminderRepository = timeoutReminderRepository;
         _callbackService = callbackService;
         _statusSyncHandler = statusSyncHandler;
         _idGeneratorAccessor = idGeneratorAccessor;
+        _backgroundWorkQueue = backgroundWorkQueue;
         _mapper = mapper;
         _logger = logger;
         var conditionEvaluator = new ConditionEvaluator(processVariableRepository);
@@ -85,7 +92,8 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
             idGeneratorAccessor,
             notificationService,
             timeoutReminderRepository,
-            callbackService);
+            callbackService,
+            backgroundWorkQueue);
     }
 
     public async Task<ApprovalInstanceResponse> StartAsync(
@@ -114,83 +122,46 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
             initiatorUserId,
             _idGeneratorAccessor.NextId(),
             request.DataJson);
-        await _instanceRepository.AddAsync(instance, cancellationToken);
 
-        // 记录实例启动事件
-        var startEvent = new ApprovalHistoryEvent(
-            tenantId,
-            instance.Id,
-            ApprovalHistoryEventType.InstanceStarted,
-            null,
-            null,
-            initiatorUserId,
-            _idGeneratorAccessor.NextId());
-        await _historyRepository.AddAsync(startEvent, cancellationToken);
-
-        // 发送流程启动通知（异步，失败不影响主流程）
-        if (_notificationService != null)
+        // Wrap all persistence operations in a transaction for atomicity
+        await ExecuteInTransactionAsync(async () =>
         {
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    await _notificationService.NotifyAsync(
-                        tenantId,
-                        ApprovalNotificationEventType.InstanceStarted,
-                        instance,
-                        null,
-                        new[] { initiatorUserId },
-                        CancellationToken.None);
-                }
-                catch (Exception ex)
-                {
-                    // 通知失败不影响主流程，但记录日志
-                    _logger?.LogError(ex, "流程启动通知失败：租户={TenantId}, 实例={InstanceId}", tenantId, instance.Id);
-                }
-            }, cancellationToken);
-        }
+            await _instanceRepository.AddAsync(instance, cancellationToken);
 
-        // 触发流程启动回调（异步，失败不影响主流程）
-        if (_callbackService != null)
-        {
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    await _callbackService.TriggerCallbackAsync(
-                        tenantId,
-                        Domain.Approval.Enums.CallbackEventType.InstanceStarted,
-                        instance,
-                        null,
-                        null,
-                        CancellationToken.None);
-                }
-                catch (Exception ex)
-                {
-                    // 回调失败不影响主流程，但记录日志
-                    _logger?.LogError(ex, "流程启动回调失败：租户={TenantId}, 实例={InstanceId}", tenantId, instance.Id);
-                }
-            }, cancellationToken);
-        }
-
-        // 解析流程定义，生成第一批待审批任务
-        var flowDefinition = FlowDefinitionParser.Parse(flowDef.DefinitionJson);
-        var startNode = flowDefinition.GetStartNode();
-        if (startNode != null)
-        {
-            // 创建开始节点执行记录
-            var startExecution = new ApprovalNodeExecution(
+            // 记录实例启动事件
+            var startEvent = new ApprovalHistoryEvent(
                 tenantId,
                 instance.Id,
-                startNode.Id,
-                ApprovalNodeExecutionStatus.Completed,
+                ApprovalHistoryEventType.InstanceStarted,
+                null,
+                null,
+                initiatorUserId,
                 _idGeneratorAccessor.NextId());
-            await _nodeExecutionRepository.AddAsync(startExecution, cancellationToken);
+            await _historyRepository.AddAsync(startEvent, cancellationToken);
 
-            // 推进到第一个审批节点
-            await _flowEngine.AdvanceFlowAsync(tenantId, instance, flowDefinition, startNode.Id, cancellationToken);
-            await _instanceRepository.UpdateAsync(instance, cancellationToken);
-        }
+            // 解析流程定义，生成第一批待审批任务
+            var flowDefinition = FlowDefinitionParser.Parse(flowDef.DefinitionJson);
+            var startNode = flowDefinition.GetStartNode();
+            if (startNode != null)
+            {
+                // 创建开始节点执行记录
+                var startExecution = new ApprovalNodeExecution(
+                    tenantId,
+                    instance.Id,
+                    startNode.Id,
+                    ApprovalNodeExecutionStatus.Completed,
+                    _idGeneratorAccessor.NextId());
+                await _nodeExecutionRepository.AddAsync(startExecution, cancellationToken);
+
+                // 推进到第一个审批节点
+                await _flowEngine.AdvanceFlowAsync(tenantId, instance, flowDefinition, startNode.Id, cancellationToken);
+                await _instanceRepository.UpdateAsync(instance, cancellationToken);
+            }
+        }, cancellationToken);
+
+        // Background work (notifications/callbacks) enqueued after transaction commits
+        EnqueueNotification(tenantId, ApprovalNotificationEventType.InstanceStarted, instance.Id, null, new[] { initiatorUserId });
+        EnqueueCallback(tenantId, CallbackEventType.InstanceStarted, instance.Id, null, null);
 
         return _mapper.Map<ApprovalInstanceResponse>(instance);
     }
@@ -225,92 +196,42 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
             throw new BusinessException("INSTANCE_NOT_RUNNING", "流程实例不在运行状态");
         }
 
-        // 记录任务同意事件
-        var approveEvent = new ApprovalHistoryEvent(
-            tenantId,
-            instance.Id,
-            ApprovalHistoryEventType.TaskApproved,
-            task.NodeId,
-            null,
-            approverUserId,
-            _idGeneratorAccessor.NextId());
-        await _historyRepository.AddAsync(approveEvent, cancellationToken);
-
-        // 标记任务为同意
-        task.Approve(approverUserId, comment, DateTimeOffset.UtcNow);
-        await _taskRepository.UpdateAsync(task, cancellationToken);
-
-        // 发送任务同意通知（异步，失败不影响主流程）
-        if (_notificationService != null)
+        // Wrap all persistence operations in a transaction for atomicity
+        await ExecuteInTransactionAsync(async () =>
         {
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    // 通知发起人和其他相关人员
-                    var recipients = new List<long> { instance.InitiatorUserId };
-                    await _notificationService.NotifyAsync(
-                        tenantId,
-                        ApprovalNotificationEventType.TaskApproved,
-                        instance,
-                        task,
-                        recipients,
-                        CancellationToken.None);
-                }
-                catch (Exception ex)
-                {
-                    // 通知失败不影响主流程，但记录日志
-                    _logger?.LogError(ex, "任务同意通知失败：租户={TenantId}, 实例={InstanceId}, 任务={TaskId}", tenantId, instance.Id, task.Id);
-                }
-            }, cancellationToken);
-        }
+            // 记录任务同意事件
+            var approveEvent = new ApprovalHistoryEvent(
+                tenantId,
+                instance.Id,
+                ApprovalHistoryEventType.TaskApproved,
+                task.NodeId,
+                null,
+                approverUserId,
+                _idGeneratorAccessor.NextId());
+            await _historyRepository.AddAsync(approveEvent, cancellationToken);
 
-        // 触发任务同意回调（异步，失败不影响主流程）
-        if (_callbackService != null)
-        {
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    await _callbackService.TriggerCallbackAsync(
-                        tenantId,
-                        Domain.Approval.Enums.CallbackEventType.TaskApproved,
-                        instance,
-                        task,
-                        task.NodeId,
-                        CancellationToken.None);
-                }
-                catch (Exception ex)
-                {
-                    // 回调失败不影响主流程，但记录日志
-                    _logger?.LogError(ex, "任务同意回调失败：租户={TenantId}, 实例={InstanceId}, 任务={TaskId}", tenantId, instance.Id, task.Id);
-                }
-            }, cancellationToken);
-        }
+            // 标记任务为同意
+            task.Approve(approverUserId, comment, DateTimeOffset.UtcNow);
+            await _taskRepository.UpdateAsync(task, cancellationToken);
 
-        // 推进流程
-        var flowDef = await _flowRepository.GetByIdAsync(tenantId, instance.DefinitionId, cancellationToken);
-        if (flowDef != null)
-        {
-            var flowDefinition = FlowDefinitionParser.Parse(flowDef.DefinitionJson);
-            await _flowEngine.AdvanceFlowAsync(tenantId, instance, flowDefinition, task.NodeId, cancellationToken);
-            await _instanceRepository.UpdateAsync(instance, cancellationToken);
-
-            // 审批通过且流程已完成时，回写动态表记录状态
-            if (instance.Status == ApprovalInstanceStatus.Completed && _statusSyncHandler != null)
+            // 推进流程
+            var flowDef = await _flowRepository.GetByIdAsync(tenantId, instance.DefinitionId, cancellationToken);
+            if (flowDef != null)
             {
-                _ = Task.Run(async () =>
-                {
-                    try
-                    {
-                        await _statusSyncHandler.SyncStatusAsync(tenantId, instance.BusinessKey, "已通过", CancellationToken.None);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger?.LogError(ex, "审批通过状态回写失败：租户={TenantId}, 实例={InstanceId}", tenantId, instance.Id);
-                    }
-                }, cancellationToken);
+                var flowDefinition = FlowDefinitionParser.Parse(flowDef.DefinitionJson);
+                await _flowEngine.AdvanceFlowAsync(tenantId, instance, flowDefinition, task.NodeId, cancellationToken);
+                await _instanceRepository.UpdateAsync(instance, cancellationToken);
             }
+        }, cancellationToken);
+
+        // Background work enqueued after transaction commits
+        EnqueueNotification(tenantId, ApprovalNotificationEventType.TaskApproved, instance.Id, task.Id, new[] { instance.InitiatorUserId });
+        EnqueueCallback(tenantId, CallbackEventType.TaskApproved, instance.Id, task.Id, task.NodeId);
+
+        // 审批通过且流程已完成时，回写动态表记录状态
+        if (instance.Status == ApprovalInstanceStatus.Completed)
+        {
+            EnqueueStatusSync(tenantId, instance.BusinessKey, "已通过");
         }
     }
 
@@ -344,114 +265,46 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
             throw new BusinessException("INSTANCE_NOT_RUNNING", "流程实例不在运行状态");
         }
 
-        // 记录任务驳回事件
-        var rejectEvent = new ApprovalHistoryEvent(
-            tenantId,
-            instance.Id,
-            ApprovalHistoryEventType.TaskRejected,
-            task.NodeId,
-            null,
-            approverUserId,
-            _idGeneratorAccessor.NextId());
-        await _historyRepository.AddAsync(rejectEvent, cancellationToken);
-
-        // 标记任务为驳回
-        task.Reject(approverUserId, comment, DateTimeOffset.UtcNow);
-        await _taskRepository.UpdateAsync(task, cancellationToken);
-
-        // 驳回后，流程实例变为驳回状态，取消所有待审批任务
-        instance.MarkRejected(DateTimeOffset.UtcNow);
-        await _instanceRepository.UpdateAsync(instance, cancellationToken);
-
-        var pendingTasks = await _taskRepository.GetByInstanceAndStatusAsync(
-            tenantId,
-            instance.Id,
-            ApprovalTaskStatus.Pending,
-            cancellationToken);
-        
-        // 批量更新任务状态
-        if (pendingTasks.Count > 0)
+        // Wrap all persistence operations in a transaction for atomicity
+        await ExecuteInTransactionAsync(async () =>
         {
-            foreach (var pendingTask in pendingTasks)
-            {
-                pendingTask.Cancel();
-            }
-            await _taskRepository.UpdateRangeAsync(pendingTasks, cancellationToken);
-        }
+            // 记录任务驳回事件
+            var rejectEvent = new ApprovalHistoryEvent(
+                tenantId,
+                instance.Id,
+                ApprovalHistoryEventType.TaskRejected,
+                task.NodeId,
+                null,
+                approverUserId,
+                _idGeneratorAccessor.NextId());
+            await _historyRepository.AddAsync(rejectEvent, cancellationToken);
 
-        // 记录流程驳回事件
-        var instanceRejectEvent = new ApprovalHistoryEvent(
-            tenantId,
-            instance.Id,
-            ApprovalHistoryEventType.InstanceRejected,
-            null,
-            null,
-            approverUserId,
-            _idGeneratorAccessor.NextId());
-        await _historyRepository.AddAsync(instanceRejectEvent, cancellationToken);
+            // 标记任务为驳回
+            task.Reject(approverUserId, comment, DateTimeOffset.UtcNow);
+            await _taskRepository.UpdateAsync(task, cancellationToken);
 
-        // 发送流程驳回通知（异步，失败不影响主流程）
-        if (_notificationService != null)
-        {
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    // 通知发起人
-                    await _notificationService.NotifyAsync(
-                        tenantId,
-                        ApprovalNotificationEventType.InstanceRejected,
-                        instance,
-                        task,
-                        new[] { instance.InitiatorUserId },
-                        CancellationToken.None);
-                }
-                catch (Exception ex)
-                {
-                    // 通知失败不影响主流程，但记录日志
-                    _logger?.LogError(ex, "流程驳回通知失败：租户={TenantId}, 实例={InstanceId}", tenantId, instance.Id);
-                }
-            }, cancellationToken);
-        }
+            // 驳回后，流程实例变为驳回状态，取消所有待审批任务（含 Pending 和 Waiting）
+            instance.MarkRejected(DateTimeOffset.UtcNow);
+            await _instanceRepository.UpdateAsync(instance, cancellationToken);
 
-        // 触发流程驳回回调（异步，失败不影响主流程）
-        if (_callbackService != null)
-        {
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    await _callbackService.TriggerCallbackAsync(
-                        tenantId,
-                        Domain.Approval.Enums.CallbackEventType.InstanceRejected,
-                        instance,
-                        task,
-                        task.NodeId,
-                        CancellationToken.None);
-                }
-                catch (Exception ex)
-                {
-                    // 回调失败不影响主流程，但记录日志
-                    _logger?.LogError(ex, "流程驳回回调失败：租户={TenantId}, 实例={InstanceId}", tenantId, instance.Id);
-                }
-            }, cancellationToken);
-        }
+            await CancelAllActiveTasksAsync(tenantId, instance.Id, cancellationToken);
 
-        // 驳回时，回写动态表记录状态为"已驳回"
-        if (_statusSyncHandler != null)
-        {
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    await _statusSyncHandler.SyncStatusAsync(tenantId, instance.BusinessKey, "已驳回", CancellationToken.None);
-                }
-                catch (Exception ex)
-                {
-                    _logger?.LogError(ex, "审批驳回状态回写失败：租户={TenantId}, 实例={InstanceId}", tenantId, instance.Id);
-                }
-            }, cancellationToken);
-        }
+            // 记录流程驳回事件
+            var instanceRejectEvent = new ApprovalHistoryEvent(
+                tenantId,
+                instance.Id,
+                ApprovalHistoryEventType.InstanceRejected,
+                null,
+                null,
+                approverUserId,
+                _idGeneratorAccessor.NextId());
+            await _historyRepository.AddAsync(instanceRejectEvent, cancellationToken);
+        }, cancellationToken);
+
+        // Background work enqueued after transaction commits
+        EnqueueNotification(tenantId, ApprovalNotificationEventType.InstanceRejected, instance.Id, task.Id, new[] { instance.InitiatorUserId });
+        EnqueueCallback(tenantId, CallbackEventType.InstanceRejected, instance.Id, task.Id, task.NodeId);
+        EnqueueStatusSync(tenantId, instance.BusinessKey, "已驳回");
     }
 
     public async Task CancelInstanceAsync(
@@ -471,105 +324,37 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
             throw new BusinessException("INSTANCE_NOT_RUNNING", "流程实例不在运行状态");
         }
 
-        instance.MarkCanceled(DateTimeOffset.UtcNow);
-        await _instanceRepository.UpdateAsync(instance, cancellationToken);
-
-        // 取消所有待审批任务
-        var pendingTasks = await _taskRepository.GetByInstanceAndStatusAsync(
-            tenantId,
-            instance.Id,
-            ApprovalTaskStatus.Pending,
-            cancellationToken);
-        
-        // 批量更新任务状态
-        if (pendingTasks.Count > 0)
+        // Authorization: only the initiator can cancel their own process
+        if (instance.InitiatorUserId != cancelledByUserId)
         {
-            foreach (var task in pendingTasks)
-            {
-                task.Cancel();
-            }
-            await _taskRepository.UpdateRangeAsync(pendingTasks, cancellationToken);
+            throw new BusinessException("FORBIDDEN", "只有发起人可以取消流程");
         }
 
-        // 记录流程取消事件
-        var cancelEvent = new ApprovalHistoryEvent(
-            tenantId,
-            instance.Id,
-            ApprovalHistoryEventType.InstanceCanceled,
-            null,
-            null,
-            cancelledByUserId,
-            _idGeneratorAccessor.NextId());
-        await _historyRepository.AddAsync(cancelEvent, cancellationToken);
-
-        // 发送流程取消通知（异步，失败不影响主流程）
-        if (_notificationService != null)
+        // Wrap all persistence operations in a transaction for atomicity
+        await ExecuteInTransactionAsync(async () =>
         {
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    // 通知发起人和所有待办任务的处理人
-                    var recipients = new List<long> { instance.InitiatorUserId };
-                    foreach (var pendingTask in pendingTasks)
-                    {
-                        // 从任务中提取处理人（需要解析 AssigneeValue）
-                        // TODO: 简化处理，暂时只通知发起人
-                    }
-                    await _notificationService.NotifyAsync(
-                        tenantId,
-                        ApprovalNotificationEventType.InstanceCanceled,
-                        instance,
-                        null,
-                        recipients,
-                        CancellationToken.None);
-                }
-                catch (Exception ex)
-                {
-                    // 通知失败不影响主流程，但记录日志
-                    _logger?.LogError(ex, "流程取消通知失败：租户={TenantId}, 实例={InstanceId}", tenantId, instance.Id);
-                }
-            }, cancellationToken);
-        }
+            instance.MarkCanceled(DateTimeOffset.UtcNow);
+            await _instanceRepository.UpdateAsync(instance, cancellationToken);
 
-        // 触发流程取消回调（异步，失败不影响主流程）
-        if (_callbackService != null)
-        {
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    await _callbackService.TriggerCallbackAsync(
-                        tenantId,
-                        Domain.Approval.Enums.CallbackEventType.InstanceCanceled,
-                        instance,
-                        null,
-                        null,
-                        CancellationToken.None);
-                }
-                catch (Exception ex)
-                {
-                    // 回调失败不影响主流程，但记录日志
-                    _logger?.LogError(ex, "流程取消回调失败：租户={TenantId}, 实例={InstanceId}", tenantId, instance.Id);
-                }
-            }, cancellationToken);
-        }
+            // 取消所有活跃任务（含 Pending 和 Waiting）
+            await CancelAllActiveTasksAsync(tenantId, instance.Id, cancellationToken);
 
-        // 取消时，回写动态表记录状态为"草稿"（允许重新提交）
-        if (_statusSyncHandler != null)
-        {
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    await _statusSyncHandler.SyncStatusAsync(tenantId, instance.BusinessKey, "草稿", CancellationToken.None);
-                }
-                catch (Exception ex)
-                {
-                    _logger?.LogError(ex, "审批取消状态回写失败：租户={TenantId}, 实例={InstanceId}", tenantId, instance.Id);
-                }
-            }, cancellationToken);
-        }
+            // 记录流程取消事件
+            var cancelEvent = new ApprovalHistoryEvent(
+                tenantId,
+                instance.Id,
+                ApprovalHistoryEventType.InstanceCanceled,
+                null,
+                null,
+                cancelledByUserId,
+                _idGeneratorAccessor.NextId());
+            await _historyRepository.AddAsync(cancelEvent, cancellationToken);
+        }, cancellationToken);
+
+        // Background work enqueued after transaction commits
+        EnqueueNotification(tenantId, ApprovalNotificationEventType.InstanceCanceled, instance.Id, null, new[] { instance.InitiatorUserId });
+        EnqueueCallback(tenantId, CallbackEventType.InstanceCanceled, instance.Id, null, null);
+        EnqueueStatusSync(tenantId, instance.BusinessKey, "草稿");
     }
 
     public async Task MarkCopyRecordAsReadAsync(
@@ -598,5 +383,135 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
         copyRecord.MarkAsRead(DateTimeOffset.UtcNow);
         await _copyRecordRepository.UpdateAsync(copyRecord, cancellationToken);
     }
+
+    #region Transaction & Task Cancellation Helpers
+
+    /// <summary>
+    /// Execute an action inside a database transaction if IUnitOfWork is available.
+    /// Falls back to direct execution if no UoW is configured.
+    /// </summary>
+    private async Task ExecuteInTransactionAsync(Func<Task> action, CancellationToken cancellationToken)
+    {
+        if (_unitOfWork != null)
+        {
+            await _unitOfWork.ExecuteInTransactionAsync(action, cancellationToken);
+        }
+        else
+        {
+            await action();
+        }
+    }
+
+    /// <summary>
+    /// Cancel all active tasks (Pending + Waiting) for a given instance.
+    /// Bug fix: previously only Pending tasks were cancelled, leaving Waiting tasks (sequential approval) orphaned.
+    /// </summary>
+    private async Task CancelAllActiveTasksAsync(TenantId tenantId, long instanceId, CancellationToken cancellationToken)
+    {
+        var pendingTasks = await _taskRepository.GetByInstanceAndStatusAsync(
+            tenantId, instanceId, ApprovalTaskStatus.Pending, cancellationToken);
+        var waitingTasks = await _taskRepository.GetByInstanceAndStatusAsync(
+            tenantId, instanceId, ApprovalTaskStatus.Waiting, cancellationToken);
+
+        var allActiveTasks = new List<ApprovalTask>();
+        allActiveTasks.AddRange(pendingTasks);
+        allActiveTasks.AddRange(waitingTasks);
+
+        if (allActiveTasks.Count > 0)
+        {
+            foreach (var task in allActiveTasks)
+            {
+                task.Cancel();
+            }
+            await _taskRepository.UpdateRangeAsync(allActiveTasks, cancellationToken);
+        }
+    }
+
+    #endregion
+
+    #region Background Work Queue Helpers
+
+    /// <summary>
+    /// Enqueue a notification to the background work queue.
+    /// Each notification executes in its own DI scope, avoiding ObjectDisposedException.
+    /// </summary>
+    private void EnqueueNotification(
+        TenantId tenantId,
+        ApprovalNotificationEventType eventType,
+        long instanceId,
+        long? taskId,
+        IReadOnlyList<long> recipientUserIds)
+    {
+        if (_backgroundWorkQueue == null) return;
+
+        _backgroundWorkQueue.Enqueue(async (sp, ct) =>
+        {
+            var notificationService = sp.GetService<IApprovalNotificationService>();
+            if (notificationService == null) return;
+
+            var instanceRepo = sp.GetRequiredService<IApprovalInstanceRepository>();
+            var instance = await instanceRepo.GetByIdAsync(tenantId, instanceId, ct);
+            if (instance == null) return;
+
+            ApprovalTask? task = null;
+            if (taskId.HasValue)
+            {
+                var taskRepo = sp.GetRequiredService<IApprovalTaskRepository>();
+                task = await taskRepo.GetByIdAsync(tenantId, taskId.Value, ct);
+            }
+
+            await notificationService.NotifyAsync(tenantId, eventType, instance, task, recipientUserIds, ct);
+        });
+    }
+
+    /// <summary>
+    /// Enqueue an external callback to the background work queue.
+    /// </summary>
+    private void EnqueueCallback(
+        TenantId tenantId,
+        CallbackEventType eventType,
+        long instanceId,
+        long? taskId,
+        string? nodeId)
+    {
+        if (_backgroundWorkQueue == null) return;
+
+        _backgroundWorkQueue.Enqueue(async (sp, ct) =>
+        {
+            var callbackService = sp.GetService<ExternalCallbackService>();
+            if (callbackService == null) return;
+
+            var instanceRepo = sp.GetRequiredService<IApprovalInstanceRepository>();
+            var instance = await instanceRepo.GetByIdAsync(tenantId, instanceId, ct);
+            if (instance == null) return;
+
+            ApprovalTask? task = null;
+            if (taskId.HasValue)
+            {
+                var taskRepo = sp.GetRequiredService<IApprovalTaskRepository>();
+                task = await taskRepo.GetByIdAsync(tenantId, taskId.Value, ct);
+            }
+
+            await callbackService.TriggerCallbackAsync(tenantId, eventType, instance, task, nodeId, ct);
+        });
+    }
+
+    /// <summary>
+    /// Enqueue a status sync (dynamic table writeback) to the background work queue.
+    /// </summary>
+    private void EnqueueStatusSync(TenantId tenantId, string? businessKey, string status)
+    {
+        if (_backgroundWorkQueue == null || string.IsNullOrEmpty(businessKey)) return;
+
+        _backgroundWorkQueue.Enqueue(async (sp, ct) =>
+        {
+            var syncHandler = sp.GetService<ApprovalStatusSyncHandler>();
+            if (syncHandler == null) return;
+
+            await syncHandler.SyncStatusAsync(tenantId, businessKey, status, ct);
+        });
+    }
+
+    #endregion
 }
 

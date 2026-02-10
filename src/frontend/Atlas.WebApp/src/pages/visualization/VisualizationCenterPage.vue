@@ -92,7 +92,7 @@ onMounted(() => {
 
 <style scoped>
 .kpi-title {
-  color: #595959;
+  color: var(--color-text-secondary);
   font-size: 13px;
 }
 .kpi-value {

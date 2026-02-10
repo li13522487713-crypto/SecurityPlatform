@@ -162,7 +162,7 @@ const pagination = reactive<TablePaginationConfig>({
 });
 
 const drawerVisible = ref(false);
-const instanceDetail = ref<ApprovalInstanceResponse | null>(null);
+const instanceDetail = ref<(ApprovalInstanceResponse & { flowName?: string }) | null>(null);
 const taskList = ref<ApprovalTaskResponse[]>([]);
 const historyList = ref<ApprovalHistoryEventResponse[]>([]);
 const taskLoading = ref(false);
@@ -287,7 +287,7 @@ const handleViewDetail = async (id: string) => {
     // 从列表中找到流程名称
     const listItem = dataSource.value.find((item) => item.id === id);
     if (listItem && instanceDetail.value) {
-      (instanceDetail.value as any).flowName = listItem.flowName;
+      instanceDetail.value.flowName = listItem.flowName;
     }
   } catch (err) {
     message.error(err instanceof Error ? err.message : "加载详情失败");

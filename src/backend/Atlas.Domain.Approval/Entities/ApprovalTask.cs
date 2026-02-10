@@ -1,6 +1,7 @@
 using Atlas.Core.Abstractions;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Approval.Enums;
+using SqlSugar;
 
 namespace Atlas.Domain.Approval.Entities;
 
@@ -77,6 +78,10 @@ public sealed class ApprovalTask : TenantEntity
     /// <summary>顺序号（用于顺序会签，从1开始）</summary>
     public int Order { get; private set; }
 
+    /// <summary>乐观并发版本号（SqlSugar 自动校验）</summary>
+    [SugarColumn(IsEnableUpdateVersionValidation = true)]
+    public long RowVersion { get; private set; }
+
     public ApprovalTask(
         TenantId tenantId,
         long instanceId,
@@ -105,6 +110,10 @@ public sealed class ApprovalTask : TenantEntity
 
     public void Approve(long decisionByUserId, string? comment, DateTimeOffset now)
     {
+        if (Status != ApprovalTaskStatus.Pending)
+        {
+            throw new InvalidOperationException($"Cannot approve task in '{Status}' status. Expected: Pending.");
+        }
         Status = ApprovalTaskStatus.Approved;
         DecisionByUserId = decisionByUserId;
         DecisionAt = now;
@@ -113,6 +122,10 @@ public sealed class ApprovalTask : TenantEntity
 
     public void Reject(long decisionByUserId, string? comment, DateTimeOffset now)
     {
+        if (Status != ApprovalTaskStatus.Pending)
+        {
+            throw new InvalidOperationException($"Cannot reject task in '{Status}' status. Expected: Pending.");
+        }
         Status = ApprovalTaskStatus.Rejected;
         DecisionByUserId = decisionByUserId;
         DecisionAt = now;
@@ -121,6 +134,11 @@ public sealed class ApprovalTask : TenantEntity
 
     public void Cancel()
     {
+        if (Status == ApprovalTaskStatus.Approved || Status == ApprovalTaskStatus.Rejected)
+        {
+            // Already decided — skip silently to allow bulk cancel of mixed-status collections
+            return;
+        }
         Status = ApprovalTaskStatus.Canceled;
     }
 

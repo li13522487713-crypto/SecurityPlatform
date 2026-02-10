@@ -59,6 +59,17 @@ public sealed class AddAssigneeOperationHandler : IApprovalOperationHandler
             throw new BusinessException("TASK_NOT_FOUND", "审批任务不存在");
         }
 
+        if (task.Status != ApprovalTaskStatus.Pending)
+        {
+            throw new BusinessException("TASK_NOT_PENDING", "只能对待审批的任务进行加签");
+        }
+
+        // Authorization: only the current task assignee can add assignees
+        if (task.AssigneeType != AssigneeType.User || task.AssigneeValue != operatorUserId.ToString())
+        {
+            throw new BusinessException("FORBIDDEN", "只有当前处理人可以执行加签操作");
+        }
+
         // 获取同节点的所有任务
         var nodeTasks = await _taskRepository.GetByInstanceAndNodeAsync(tenantId, instanceId, task.NodeId, cancellationToken);
         var existingAssigneeValues = nodeTasks.Select(t => t.AssigneeValue).ToHashSet();
@@ -105,11 +116,11 @@ public sealed class AddAssigneeOperationHandler : IApprovalOperationHandler
             await _assigneeChangeRepository.AddRangeAsync(changes, cancellationToken);
         }
 
-        // 记录历史事件
+        // 记录历史事件（Bug fix: previously used TaskCreated, now uses dedicated AssigneeAdded type）
         var addAssigneeEvent = new ApprovalHistoryEvent(
             tenantId,
             instanceId,
-            ApprovalHistoryEventType.TaskCreated,
+            ApprovalHistoryEventType.AssigneeAdded,
             null,
             task.NodeId,
             operatorUserId,
