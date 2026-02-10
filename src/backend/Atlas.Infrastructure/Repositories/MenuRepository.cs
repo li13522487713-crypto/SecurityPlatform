@@ -5,21 +5,9 @@ using SqlSugar;
 
 namespace Atlas.Infrastructure.Repositories;
 
-public sealed class MenuRepository : IMenuRepository
+public sealed class MenuRepository : RepositoryBase<Menu>, IMenuRepository
 {
-    private readonly ISqlSugarClient _db;
-
-    public MenuRepository(ISqlSugarClient db)
-    {
-        _db = db;
-    }
-
-    public async Task<Menu?> FindByIdAsync(TenantId tenantId, long id, CancellationToken cancellationToken)
-    {
-        return await _db.Queryable<Menu>()
-            .Where(x => x.TenantIdValue == tenantId.Value && x.Id == id)
-            .FirstAsync(cancellationToken);
-    }
+    public MenuRepository(ISqlSugarClient db) : base(db) { }
 
     public async Task<(IReadOnlyList<Menu> Items, int TotalCount)> QueryPageAsync(
         TenantId tenantId,
@@ -29,7 +17,7 @@ public sealed class MenuRepository : IMenuRepository
         bool? isHidden,
         CancellationToken cancellationToken)
     {
-        var query = _db.Queryable<Menu>()
+        var query = Db.Queryable<Menu>()
             .Where(x => x.TenantIdValue == tenantId.Value);
         if (!string.IsNullOrWhiteSpace(keyword))
         {
@@ -50,38 +38,10 @@ public sealed class MenuRepository : IMenuRepository
 
     public async Task<IReadOnlyList<Menu>> QueryAllAsync(TenantId tenantId, CancellationToken cancellationToken)
     {
-        var list = await _db.Queryable<Menu>()
+        var list = await Db.Queryable<Menu>()
             .Where(x => x.TenantIdValue == tenantId.Value)
             .OrderBy(x => x.SortOrder, OrderByType.Asc)
             .ToListAsync(cancellationToken);
         return list;
-    }
-
-    public async Task<IReadOnlyList<Menu>> QueryByIdsAsync(
-        TenantId tenantId,
-        IReadOnlyList<long> ids,
-        CancellationToken cancellationToken)
-    {
-        if (ids.Count == 0)
-        {
-            return Array.Empty<Menu>();
-        }
-
-        var idArray = ids.Distinct().ToArray();
-        return await _db.Queryable<Menu>()
-            .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(idArray, x.Id))
-            .ToListAsync(cancellationToken);
-    }
-
-    public Task AddAsync(Menu menu, CancellationToken cancellationToken)
-    {
-        return _db.Insertable(menu).ExecuteCommandAsync(cancellationToken);
-    }
-
-    public Task UpdateAsync(Menu menu, CancellationToken cancellationToken)
-    {
-        return _db.Updateable(menu)
-            .Where(x => x.Id == menu.Id && x.TenantIdValue == menu.TenantIdValue)
-            .ExecuteCommandAsync(cancellationToken);
     }
 }

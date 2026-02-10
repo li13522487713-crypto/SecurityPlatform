@@ -68,6 +68,8 @@ public class UserAccount : TenantEntity
     public string? PhoneNumber { get; private set; }
     public bool IsActive { get; private set; }
     public bool IsSystem { get; private set; }
+    public bool MfaEnabled { get; private set; }
+    public string? MfaSecretKey { get; private set; }
     public int FailedLoginCount { get; private set; }
     public DateTime LockoutEndAtUtc { get; private set; }
     public DateTimeOffset LockoutEndAt
@@ -164,5 +166,21 @@ public class UserAccount : TenantEntity
     public void MarkSystemAccount()
     {
         IsSystem = true;
+    }
+
+    public void SetupMfa(string secretKey)
+    {
+        MfaSecretKey = secretKey;
+    }
+
+    public void EnableMfa()
+    {
+        MfaEnabled = true;
+    }
+
+    public void DisableMfa()
+    {
+        MfaEnabled = false;
+        MfaSecretKey = null;
     }
 }

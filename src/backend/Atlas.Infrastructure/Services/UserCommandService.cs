@@ -10,7 +10,6 @@ using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Identity.Entities;
 using Microsoft.Extensions.Options;
-using SqlSugar;
 
 namespace Atlas.Infrastructure.Services;
 
@@ -28,7 +27,7 @@ public sealed class UserCommandService : IUserCommandService
     private readonly IPasswordHistoryRepository _passwordHistoryRepository;
     private readonly IPasswordHasher _passwordHasher;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
-    private readonly ISqlSugarClient _db;
+    private readonly IUnitOfWork _unitOfWork;
     private readonly PasswordPolicyOptions _passwordPolicy;
     private readonly IProjectUserRepository _projectUserRepository;
     private readonly Atlas.Core.Identity.IProjectContextAccessor _projectContextAccessor;
@@ -44,7 +43,7 @@ public sealed class UserCommandService : IUserCommandService
         IPasswordHistoryRepository passwordHistoryRepository,
         IPasswordHasher passwordHasher,
         IIdGeneratorAccessor idGeneratorAccessor,
-        ISqlSugarClient db,
+        IUnitOfWork unitOfWork,
         IOptions<PasswordPolicyOptions> passwordPolicy,
         IProjectUserRepository projectUserRepository,
         Atlas.Core.Identity.IProjectContextAccessor projectContextAccessor)
@@ -59,7 +58,7 @@ public sealed class UserCommandService : IUserCommandService
         _passwordHistoryRepository = passwordHistoryRepository;
         _passwordHasher = passwordHasher;
         _idGeneratorAccessor = idGeneratorAccessor;
-        _db = db;
+        _unitOfWork = unitOfWork;
         _passwordPolicy = passwordPolicy.Value;
         _projectUserRepository = projectUserRepository;
         _projectContextAccessor = projectContextAccessor;
@@ -98,7 +97,7 @@ public sealed class UserCommandService : IUserCommandService
         await EnsurePositionsExistAsync(tenantId, positionIds, cancellationToken);
         user.UpdateRoles(string.Join(',', roles.Select(x => x.Code)));
 
-        await _db.Ado.UseTranAsync(async () =>
+        await _unitOfWork.ExecuteInTransactionAsync(async () =>
         {
             await _userRepository.AddAsync(user, cancellationToken);
             await _userRoleRepository.AddRangeAsync(
@@ -122,7 +121,7 @@ public sealed class UserCommandService : IUserCommandService
                     new[] { new ProjectUser(tenantId, projectContext.ProjectId.Value, user.Id, _idGeneratorAccessor.NextId()) },
                     cancellationToken);
             }
-        });
+        }, cancellationToken);
 
         return user.Id;
     }
@@ -169,14 +168,14 @@ public sealed class UserCommandService : IUserCommandService
         var roles = await EnsureRolesExistAsync(tenantId, roleIds.Distinct().ToArray(), cancellationToken);
         user.UpdateRoles(string.Join(',', roles.Select(x => x.Code)));
 
-        await _db.Ado.UseTranAsync(async () =>
+        await _unitOfWork.ExecuteInTransactionAsync(async () =>
         {
             await _userRoleRepository.DeleteByUserIdAsync(tenantId, userId, cancellationToken);
             await _userRoleRepository.AddRangeAsync(
                 roles.Select(role => new UserRole(tenantId, userId, role.Id, _idGeneratorAccessor.NextId())).ToArray(),
                 cancellationToken);
             await _userRepository.UpdateAsync(user, cancellationToken);
-        });
+        }, cancellationToken);
     }
 
     public async Task UpdateDepartmentsAsync(
@@ -194,7 +193,7 @@ public sealed class UserCommandService : IUserCommandService
 
         await EnsureDepartmentsExistAsync(tenantId, departmentIds, cancellationToken);
 
-        await _db.Ado.UseTranAsync(async () =>
+        await _unitOfWork.ExecuteInTransactionAsync(async () =>
         {
             await _userDepartmentRepository.DeleteByUserIdAsync(tenantId, userId, cancellationToken);
             await _userDepartmentRepository.AddRangeAsync(
@@ -202,7 +201,7 @@ public sealed class UserCommandService : IUserCommandService
                     .Select(depId => new UserDepartment(tenantId, userId, depId, _idGeneratorAccessor.NextId(), false))
                     .ToArray(),
                 cancellationToken);
-        });
+        }, cancellationToken);
     }
 
     public async Task UpdatePositionsAsync(
@@ -220,7 +219,7 @@ public sealed class UserCommandService : IUserCommandService
 
         await EnsurePositionsExistAsync(tenantId, positionIds, cancellationToken);
 
-        await _db.Ado.UseTranAsync(async () =>
+        await _unitOfWork.ExecuteInTransactionAsync(async () =>
         {
             await _userPositionRepository.DeleteByUserIdAsync(tenantId, userId, cancellationToken);
             await _userPositionRepository.AddRangeAsync(
@@ -228,7 +227,7 @@ public sealed class UserCommandService : IUserCommandService
                     .Select(posId => new UserPosition(tenantId, userId, posId, _idGeneratorAccessor.NextId(), false))
                     .ToArray(),
                 cancellationToken);
-        });
+        }, cancellationToken);
     }
 
     public async Task ChangePasswordAsync(
@@ -283,7 +282,7 @@ public sealed class UserCommandService : IUserCommandService
             oldPasswordHash,
             _idGeneratorAccessor.NextId(),
             now);
-        await _db.Ado.UseTranAsync(async () =>
+        await _unitOfWork.ExecuteInTransactionAsync(async () =>
         {
             await _userRepository.UpdateAsync(user, cancellationToken);
             await _passwordHistoryRepository.AddAsync(historyEntry, cancellationToken);
@@ -292,7 +291,7 @@ public sealed class UserCommandService : IUserCommandService
                 userId,
                 PasswordHistoryRetention,
                 cancellationToken);
-        });
+        }, cancellationToken);
     }
 
     public async Task DeleteAsync(
@@ -312,14 +311,14 @@ public sealed class UserCommandService : IUserCommandService
             throw new BusinessException("System user cannot be deleted.", ErrorCodes.Forbidden);
         }
 
-        await _db.Ado.UseTranAsync(async () =>
+        await _unitOfWork.ExecuteInTransactionAsync(async () =>
         {
             await _userRoleRepository.DeleteByUserIdAsync(tenantId, userId, cancellationToken);
             await _userDepartmentRepository.DeleteByUserIdAsync(tenantId, userId, cancellationToken);
             await _userPositionRepository.DeleteByUserIdAsync(tenantId, userId, cancellationToken);
             await _projectUserRepository.DeleteByUserIdAsync(tenantId, userId, cancellationToken);
             await _userRepository.DeleteAsync(tenantId, userId, cancellationToken);
-        });
+        }, cancellationToken);
     }
 
     private async Task EnsureUserInProjectAsync(TenantId tenantId, long userId, CancellationToken cancellationToken)

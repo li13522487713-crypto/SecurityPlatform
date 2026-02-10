@@ -9,17 +9,27 @@ namespace Atlas.Infrastructure.Services.ApprovalFlow;
 public sealed class FlowDefinitionParser
 {
     /// <summary>
-    /// 解析流程定义 JSON，返回节点和边的结构化数据
+    /// 解析流程定义 JSON，返回节点和边的结构化数据。
+    /// 支持两种格式：
+    /// 1. nodes[] + edges[] 数组格式（图结构）
+    /// 2. nodes.rootNode 树格式（前端设计器输出）
     /// </summary>
     public static FlowDefinition Parse(string definitionJson)
     {
         using var doc = JsonDocument.Parse(definitionJson);
         var root = doc.RootElement;
 
+        // 检测是否为前端设计器输出的 tree 格式
+        if (TreeToGraphConverter.IsTreeFormat(root))
+        {
+            var (treeNodes, treeEdges) = TreeToGraphConverter.Convert(root);
+            return new FlowDefinition(treeNodes, treeEdges);
+        }
+
         var nodes = new List<FlowNode>();
         var edges = new List<FlowEdge>();
 
-        // 解析节点
+        // 解析节点（数组格式）
         if (root.TryGetProperty("nodes", out var nodesElement) && nodesElement.ValueKind == JsonValueKind.Array)
         {
             foreach (var nodeElement in nodesElement.EnumerateArray())
@@ -32,7 +42,7 @@ public sealed class FlowDefinitionParser
             }
         }
 
-        // 解析边
+        // 解析边（数组格式）
         if (root.TryGetProperty("edges", out var edgesElement) && edgesElement.ValueKind == JsonValueKind.Array)
         {
             foreach (var edgeElement in edgesElement.EnumerateArray())

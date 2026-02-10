@@ -1,11 +1,11 @@
 using Atlas.Application.Identity.Abstractions;
 using Atlas.Application.Identity.Models;
 using Atlas.Application.Identity.Repositories;
+using Atlas.Core.Abstractions;
 using Atlas.Core.Exceptions;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Identity.Entities;
-using SqlSugar;
 
 namespace Atlas.Infrastructure.Services;
 
@@ -15,23 +15,23 @@ public sealed class DepartmentCommandService : IDepartmentCommandService
     private readonly IUserDepartmentRepository _userDepartmentRepository;
     private readonly IProjectDepartmentRepository _projectDepartmentRepository;
     private readonly Atlas.Core.Identity.IProjectContextAccessor _projectContextAccessor;
-    private readonly Atlas.Core.Abstractions.IIdGeneratorAccessor _idGeneratorAccessor;
-    private readonly ISqlSugarClient _db;
+    private readonly IIdGeneratorAccessor _idGeneratorAccessor;
+    private readonly IUnitOfWork _unitOfWork;
 
     public DepartmentCommandService(
         IDepartmentRepository departmentRepository,
         IUserDepartmentRepository userDepartmentRepository,
         IProjectDepartmentRepository projectDepartmentRepository,
         Atlas.Core.Identity.IProjectContextAccessor projectContextAccessor,
-        Atlas.Core.Abstractions.IIdGeneratorAccessor idGeneratorAccessor,
-        ISqlSugarClient db)
+        IIdGeneratorAccessor idGeneratorAccessor,
+        IUnitOfWork unitOfWork)
     {
         _departmentRepository = departmentRepository;
         _userDepartmentRepository = userDepartmentRepository;
         _projectDepartmentRepository = projectDepartmentRepository;
         _projectContextAccessor = projectContextAccessor;
         _idGeneratorAccessor = idGeneratorAccessor;
-        _db = db;
+        _unitOfWork = unitOfWork;
     }
 
     public async Task<long> CreateAsync(
@@ -41,7 +41,7 @@ public sealed class DepartmentCommandService : IDepartmentCommandService
         CancellationToken cancellationToken)
     {
         var department = new Department(tenantId, request.Name, id, request.ParentId, request.SortOrder);
-        await _db.Ado.UseTranAsync(async () =>
+        await _unitOfWork.ExecuteInTransactionAsync(async () =>
         {
             await _departmentRepository.AddAsync(department, cancellationToken);
 
@@ -55,7 +55,7 @@ public sealed class DepartmentCommandService : IDepartmentCommandService
                     _idGeneratorAccessor.NextId());
                 await _projectDepartmentRepository.AddRangeAsync(new[] { link }, cancellationToken);
             }
-        });
+        }, cancellationToken);
         return department.Id;
     }
 
@@ -94,12 +94,12 @@ public sealed class DepartmentCommandService : IDepartmentCommandService
             throw new BusinessException("Department has child nodes.", ErrorCodes.ValidationError);
         }
 
-        await _db.Ado.UseTranAsync(async () =>
+        await _unitOfWork.ExecuteInTransactionAsync(async () =>
         {
             await _userDepartmentRepository.DeleteByDepartmentIdAsync(tenantId, departmentId, cancellationToken);
             await _projectDepartmentRepository.DeleteByDepartmentIdAsync(tenantId, departmentId, cancellationToken);
             await _departmentRepository.DeleteAsync(tenantId, departmentId, cancellationToken);
-        });
+        }, cancellationToken);
     }
 
     private async Task EnsureDepartmentInProjectAsync(TenantId tenantId, long departmentId, CancellationToken cancellationToken)

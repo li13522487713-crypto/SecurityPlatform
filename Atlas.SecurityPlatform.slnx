@@ -20,5 +20,6 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Atlas.WorkflowCore.Tests/Atlas.WorkflowCore.Tests.csproj" />
+    <Project Path="tests/Atlas.SecurityPlatform.Tests/Atlas.SecurityPlatform.Tests.csproj" />
   </Folder>
 </Solution>

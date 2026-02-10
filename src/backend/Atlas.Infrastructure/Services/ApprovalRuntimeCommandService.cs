@@ -30,6 +30,7 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
     private readonly IApprovalNotificationService? _notificationService;
     private readonly IApprovalTimeoutReminderRepository? _timeoutReminderRepository;
     private readonly ExternalCallbackService? _callbackService;
+    private readonly ApprovalStatusSyncHandler? _statusSyncHandler;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly IMapper _mapper;
     private readonly FlowEngine _flowEngine;
@@ -51,6 +52,7 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
         IApprovalNotificationService? notificationService = null,
         IApprovalTimeoutReminderRepository? timeoutReminderRepository = null,
         ExternalCallbackService? callbackService = null,
+        ApprovalStatusSyncHandler? statusSyncHandler = null,
         ILogger<ApprovalRuntimeCommandService>? logger = null)
     {
         _flowRepository = flowRepository;
@@ -65,6 +67,7 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
         _notificationService = notificationService;
         _timeoutReminderRepository = timeoutReminderRepository;
         _callbackService = callbackService;
+        _statusSyncHandler = statusSyncHandler;
         _idGeneratorAccessor = idGeneratorAccessor;
         _mapper = mapper;
         _logger = logger;
@@ -292,6 +295,22 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
             var flowDefinition = FlowDefinitionParser.Parse(flowDef.DefinitionJson);
             await _flowEngine.AdvanceFlowAsync(tenantId, instance, flowDefinition, task.NodeId, cancellationToken);
             await _instanceRepository.UpdateAsync(instance, cancellationToken);
+
+            // 审批通过且流程已完成时，回写动态表记录状态
+            if (instance.Status == ApprovalInstanceStatus.Completed && _statusSyncHandler != null)
+            {
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await _statusSyncHandler.SyncStatusAsync(tenantId, instance.BusinessKey, "已通过", CancellationToken.None);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.LogError(ex, "审批通过状态回写失败：租户={TenantId}, 实例={InstanceId}", tenantId, instance.Id);
+                    }
+                }, cancellationToken);
+            }
         }
     }
 
@@ -417,6 +436,22 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
                 }
             }, cancellationToken);
         }
+
+        // 驳回时，回写动态表记录状态为"已驳回"
+        if (_statusSyncHandler != null)
+        {
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await _statusSyncHandler.SyncStatusAsync(tenantId, instance.BusinessKey, "已驳回", CancellationToken.None);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogError(ex, "审批驳回状态回写失败：租户={TenantId}, 实例={InstanceId}", tenantId, instance.Id);
+                }
+            }, cancellationToken);
+        }
     }
 
     public async Task CancelInstanceAsync(
@@ -516,6 +551,22 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
                 {
                     // 回调失败不影响主流程，但记录日志
                     _logger?.LogError(ex, "流程取消回调失败：租户={TenantId}, 实例={InstanceId}", tenantId, instance.Id);
+                }
+            }, cancellationToken);
+        }
+
+        // 取消时，回写动态表记录状态为"草稿"（允许重新提交）
+        if (_statusSyncHandler != null)
+        {
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await _statusSyncHandler.SyncStatusAsync(tenantId, instance.BusinessKey, "草稿", CancellationToken.None);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogError(ex, "审批取消状态回写失败：租户={TenantId}, 实例={InstanceId}", tenantId, instance.Id);
                 }
             }, cancellationToken);
         }

@@ -169,4 +169,28 @@ public sealed class DynamicTablesController : ControllerBase
         await _commandService.DeleteAsync(tenantId, currentUser.UserId, tableKey, cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { TableKey = tableKey }, HttpContext.TraceIdentifier));
     }
+
+    /// <summary>
+    /// 绑定/解绑审批流
+    /// </summary>
+    [HttpPut("{tableKey}/approval-binding")]
+    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    public async Task<ActionResult<ApiResponse<object>>> BindApprovalFlow(
+        string tableKey,
+        [FromBody] DynamicTableApprovalBindingRequest request,
+        CancellationToken cancellationToken)
+    {
+        var currentUser = _currentUserAccessor.GetCurrentUser();
+        if (currentUser is null)
+        {
+            return Unauthorized(ApiResponse<object>.Fail(
+                ErrorCodes.Unauthorized,
+                "未登录",
+                HttpContext.TraceIdentifier));
+        }
+
+        var tenantId = _tenantProvider.GetTenantId();
+        await _commandService.BindApprovalFlowAsync(tenantId, currentUser.UserId, tableKey, request, cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { TableKey = tableKey }, HttpContext.TraceIdentifier));
+    }
 }

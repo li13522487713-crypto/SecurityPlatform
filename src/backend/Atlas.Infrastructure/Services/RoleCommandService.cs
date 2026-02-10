@@ -7,7 +7,6 @@ using Atlas.Core.Exceptions;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Identity.Entities;
-using SqlSugar;
 
 namespace Atlas.Infrastructure.Services;
 
@@ -21,7 +20,7 @@ public sealed class RoleCommandService : IRoleCommandService
     private readonly IPermissionRepository _permissionRepository;
     private readonly IMenuRepository _menuRepository;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
-    private readonly ISqlSugarClient _db;
+    private readonly IUnitOfWork _unitOfWork;
 
     public RoleCommandService(
         IRoleRepository roleRepository,
@@ -32,7 +31,7 @@ public sealed class RoleCommandService : IRoleCommandService
         IPermissionRepository permissionRepository,
         IMenuRepository menuRepository,
         IIdGeneratorAccessor idGeneratorAccessor,
-        ISqlSugarClient db)
+        IUnitOfWork unitOfWork)
     {
         _roleRepository = roleRepository;
         _rolePermissionRepository = rolePermissionRepository;
@@ -42,7 +41,7 @@ public sealed class RoleCommandService : IRoleCommandService
         _permissionRepository = permissionRepository;
         _menuRepository = menuRepository;
         _idGeneratorAccessor = idGeneratorAccessor;
-        _db = db;
+        _unitOfWork = unitOfWork;
     }
 
     public async Task<long> CreateAsync(
@@ -88,7 +87,7 @@ public sealed class RoleCommandService : IRoleCommandService
         await EnsureRoleExistsAsync(tenantId, roleId, cancellationToken);
         await EnsurePermissionsExistAsync(tenantId, permissionIds, cancellationToken);
 
-        await _db.Ado.UseTranAsync(async () =>
+        await _unitOfWork.ExecuteInTransactionAsync(async () =>
         {
             await _rolePermissionRepository.DeleteByRoleIdAsync(tenantId, roleId, cancellationToken);
             await _rolePermissionRepository.AddRangeAsync(
@@ -96,7 +95,7 @@ public sealed class RoleCommandService : IRoleCommandService
                     .Select(permissionId => new RolePermission(tenantId, roleId, permissionId, _idGeneratorAccessor.NextId()))
                     .ToArray(),
                 cancellationToken);
-        });
+        }, cancellationToken);
     }
 
     public async Task UpdateMenusAsync(
@@ -108,7 +107,7 @@ public sealed class RoleCommandService : IRoleCommandService
         await EnsureRoleExistsAsync(tenantId, roleId, cancellationToken);
         await EnsureMenusExistAsync(tenantId, menuIds, cancellationToken);
 
-        await _db.Ado.UseTranAsync(async () =>
+        await _unitOfWork.ExecuteInTransactionAsync(async () =>
         {
             await _roleMenuRepository.DeleteByRoleIdAsync(tenantId, roleId, cancellationToken);
             await _roleMenuRepository.AddRangeAsync(
@@ -116,7 +115,7 @@ public sealed class RoleCommandService : IRoleCommandService
                     .Select(menuId => new RoleMenu(tenantId, roleId, menuId, _idGeneratorAccessor.NextId()))
                     .ToArray(),
                 cancellationToken);
-        });
+        }, cancellationToken);
     }
 
     public async Task DeleteAsync(
@@ -137,7 +136,7 @@ public sealed class RoleCommandService : IRoleCommandService
 
         var userIds = await _userRoleRepository.QueryUserIdsByRoleIdAsync(tenantId, roleId, cancellationToken);
 
-        await _db.Ado.UseTranAsync(async () =>
+        await _unitOfWork.ExecuteInTransactionAsync(async () =>
         {
             if (userIds.Count > 0)
             {
@@ -158,7 +157,7 @@ public sealed class RoleCommandService : IRoleCommandService
             await _roleMenuRepository.DeleteByRoleIdAsync(tenantId, roleId, cancellationToken);
             await _userRoleRepository.DeleteByRoleIdAsync(tenantId, roleId, cancellationToken);
             await _roleRepository.DeleteAsync(tenantId, roleId, cancellationToken);
-        });
+        }, cancellationToken);
     }
 
     private static string RemoveRoleCode(string roles, string code)
@@ -221,7 +220,3 @@ public sealed class RoleCommandService : IRoleCommandService
         }
     }
 }
-
-
-
-

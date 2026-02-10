@@ -1,3 +1,3 @@
-﻿namespace Atlas.Application.Models;
+namespace Atlas.Application.Models;
 
-public sealed record AuthTokenRequest(string Username, string Password);
+public sealed record AuthTokenRequest(string Username, string Password, string? TotpCode = null);

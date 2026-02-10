@@ -5,26 +5,9 @@ using SqlSugar;
 
 namespace Atlas.Infrastructure.Repositories;
 
-public sealed class UserAccountRepository : IUserAccountRepository
+public sealed class UserAccountRepository : RepositoryBase<UserAccount>, IUserAccountRepository
 {
-    private readonly ISqlSugarClient _db;
-
-    public UserAccountRepository(ISqlSugarClient db)
-    {
-        _db = db;
-    }
-
-    public Task AddAsync(UserAccount account, CancellationToken cancellationToken)
-    {
-        return _db.Insertable(account).ExecuteCommandAsync(cancellationToken);
-    }
-
-    public Task UpdateAsync(UserAccount account, CancellationToken cancellationToken)
-    {
-        return _db.Updateable(account)
-            .Where(x => x.Id == account.Id && x.TenantIdValue == account.TenantIdValue)
-            .ExecuteCommandAsync(cancellationToken);
-    }
+    public UserAccountRepository(ISqlSugarClient db) : base(db) { }
 
     public Task UpdateRangeAsync(IReadOnlyList<UserAccount> accounts, CancellationToken cancellationToken)
     {
@@ -33,28 +16,14 @@ public sealed class UserAccountRepository : IUserAccountRepository
             return Task.CompletedTask;
         }
 
-        return _db.Updateable(accounts.ToList())
+        return Db.Updateable(accounts.ToList())
             .WhereColumns(x => new { x.Id, x.TenantIdValue })
             .ExecuteCommandAsync(cancellationToken);
     }
 
-    public Task DeleteAsync(TenantId tenantId, long id, CancellationToken cancellationToken)
-    {
-        return _db.Deleteable<UserAccount>()
-            .Where(x => x.TenantIdValue == tenantId.Value && x.Id == id)
-            .ExecuteCommandAsync(cancellationToken);
-    }
-
-    public async Task<UserAccount?> FindByIdAsync(TenantId tenantId, long id, CancellationToken cancellationToken)
-    {
-        var query = _db.Queryable<UserAccount>()
-            .Where(x => x.TenantIdValue == tenantId.Value && x.Id == id);
-        return await query.FirstAsync(cancellationToken);
-    }
-
     public async Task<UserAccount?> FindByUsernameAsync(TenantId tenantId, string username, CancellationToken cancellationToken)
     {
-        var query = _db.Queryable<UserAccount>()
+        var query = Db.Queryable<UserAccount>()
             .IgnoreColumns(x => new
             {
                 x.LockoutEndAt,
@@ -74,7 +43,7 @@ public sealed class UserAccountRepository : IUserAccountRepository
         string? keyword,
         CancellationToken cancellationToken)
     {
-        var query = _db.Queryable<UserAccount>()
+        var query = Db.Queryable<UserAccount>()
             .Where(x => x.TenantIdValue == tenantId.Value);
         if (!string.IsNullOrWhiteSpace(keyword))
         {
@@ -103,7 +72,7 @@ public sealed class UserAccountRepository : IUserAccountRepository
         }
 
         var idArray = userIds.Distinct().ToArray();
-        var query = _db.Queryable<UserAccount>()
+        var query = Db.Queryable<UserAccount>()
             .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(idArray, x.Id));
         if (!string.IsNullOrWhiteSpace(keyword))
         {
@@ -118,25 +87,9 @@ public sealed class UserAccountRepository : IUserAccountRepository
         return (list, totalCount);
     }
 
-    public async Task<IReadOnlyList<UserAccount>> QueryByIdsAsync(
-        TenantId tenantId,
-        IReadOnlyList<long> userIds,
-        CancellationToken cancellationToken)
-    {
-        if (userIds.Count == 0)
-        {
-            return Array.Empty<UserAccount>();
-        }
-
-        var distinctIds = userIds.Distinct().ToArray();
-        return await _db.Queryable<UserAccount>()
-            .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(distinctIds, x.Id))
-            .ToListAsync(cancellationToken);
-    }
-
     public async Task<bool> ExistsByUsernameAsync(TenantId tenantId, string username, CancellationToken cancellationToken)
     {
-        var count = await _db.Queryable<UserAccount>()
+        var count = await Db.Queryable<UserAccount>()
             .Where(x => x.TenantIdValue == tenantId.Value && x.Username == username)
             .CountAsync(cancellationToken);
         return count > 0;

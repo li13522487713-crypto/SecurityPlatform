@@ -10,7 +10,9 @@ public sealed record DynamicTableListItem(
     string DbType,
     string Status,
     DateTimeOffset CreatedAt,
-    long CreatedBy);
+    long CreatedBy,
+    long? ApprovalFlowDefinitionId = null,
+    string? ApprovalStatusField = null);
 
 public sealed record DynamicTableDetail(
     string Id,
@@ -24,7 +26,9 @@ public sealed record DynamicTableDetail(
     long CreatedBy,
     long UpdatedBy,
     IReadOnlyList<DynamicFieldDefinition> Fields,
-    IReadOnlyList<DynamicIndexDefinition> Indexes);
+    IReadOnlyList<DynamicIndexDefinition> Indexes,
+    long? ApprovalFlowDefinitionId = null,
+    string? ApprovalStatusField = null);
 
 public sealed record DynamicTableCreateRequest(
     string TableKey,
@@ -75,6 +79,21 @@ public sealed record DynamicIndexDefinition(
     IReadOnlyList<string> Fields);
 
 public sealed record DynamicFieldTypeOption(string Label, string Value);
+
+/// <summary>
+/// 动态表绑定审批流请求
+/// </summary>
+public sealed record DynamicTableApprovalBindingRequest(
+    long? ApprovalFlowDefinitionId,
+    string? ApprovalStatusField);
+
+/// <summary>
+/// 从动态表记录发起审批的响应
+/// </summary>
+public sealed record DynamicTableApprovalSubmitResponse(
+    string InstanceId,
+    string RecordId,
+    string Status);
 
 public sealed record DynamicRecordUpsertRequest(IReadOnlyList<DynamicFieldValueDto> Values);
 

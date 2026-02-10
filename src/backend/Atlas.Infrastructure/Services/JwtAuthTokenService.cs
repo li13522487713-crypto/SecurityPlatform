@@ -16,6 +16,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
+using ITotpService = Atlas.Application.Abstractions.ITotpService;
 
 namespace Atlas.Infrastructure.Services;
 
@@ -24,6 +25,7 @@ public sealed class JwtAuthTokenService : IAuthTokenService
     private readonly JwtOptions _jwtOptions;
     private readonly PasswordPolicyOptions _passwordPolicy;
     private readonly LockoutPolicyOptions _lockoutPolicy;
+    private readonly SecurityOptions _securityOptions;
     private readonly IUserAccountRepository _userAccountRepository;
     private readonly IPasswordHasher _passwordHasher;
     private readonly IAuditRecorder _auditRecorder;
@@ -33,11 +35,13 @@ public sealed class JwtAuthTokenService : IAuthTokenService
     private readonly IAppContextAccessor _appContextAccessor;
     private readonly TimeProvider _timeProvider;
     private readonly IRbacResolver _rbacResolver;
+    private readonly ITotpService _totpService;
 
     public JwtAuthTokenService(
         IOptions<JwtOptions> jwtOptions,
         IOptions<PasswordPolicyOptions> passwordPolicy,
         IOptions<LockoutPolicyOptions> lockoutPolicy,
+        IOptions<SecurityOptions> securityOptions,
         IUserAccountRepository userAccountRepository,
         IPasswordHasher passwordHasher,
         IAuditRecorder auditRecorder,
@@ -46,11 +50,13 @@ public sealed class JwtAuthTokenService : IAuthTokenService
         IIdGeneratorAccessor idGeneratorAccessor,
         IAppContextAccessor appContextAccessor,
         TimeProvider timeProvider,
-        IRbacResolver rbacResolver)
+        IRbacResolver rbacResolver,
+        ITotpService totpService)
     {
         _jwtOptions = jwtOptions.Value;
         _passwordPolicy = passwordPolicy.Value;
         _lockoutPolicy = lockoutPolicy.Value;
+        _securityOptions = securityOptions.Value;
         _userAccountRepository = userAccountRepository;
         _passwordHasher = passwordHasher;
         _auditRecorder = auditRecorder;
@@ -60,6 +66,7 @@ public sealed class JwtAuthTokenService : IAuthTokenService
         _appContextAccessor = appContextAccessor;
         _timeProvider = timeProvider;
         _rbacResolver = rbacResolver;
+        _totpService = totpService;
     }
 
     public async Task<AuthTokenResult> CreateTokenAsync(
@@ -110,9 +117,44 @@ public sealed class JwtAuthTokenService : IAuthTokenService
             throw new BusinessException("用户名或密码错误", ErrorCodes.Unauthorized);
         }
 
+        // MFA verification: if MFA is enabled for the user, require a valid TOTP code
+        if (account.MfaEnabled && !string.IsNullOrWhiteSpace(account.MfaSecretKey))
+        {
+            if (string.IsNullOrWhiteSpace(request.TotpCode))
+            {
+                await WriteAuditAsync(tenantId, request.Username, "LOGIN", "MFA_REQUIRED", null, context, cancellationToken);
+                throw new BusinessException("需要多因素认证验证码", ErrorCodes.MfaRequired);
+            }
+
+            if (!_totpService.ValidateCode(account.MfaSecretKey, request.TotpCode, now))
+            {
+                account.MarkLoginFailure(now, _lockoutPolicy.MaxFailedAttempts, TimeSpan.FromMinutes(_lockoutPolicy.LockoutMinutes));
+                await _userAccountRepository.UpdateAsync(account, cancellationToken);
+                await WriteAuditAsync(tenantId, request.Username, "LOGIN", "MFA_FAILED", null, context, cancellationToken);
+                throw new BusinessException("多因素认证验证码错误", ErrorCodes.Unauthorized);
+            }
+        }
+
         account.MarkLoginSuccess(now);
         await _userAccountRepository.UpdateAsync(account, cancellationToken);
         await WriteAuditAsync(tenantId, request.Username, "LOGIN", "SUCCESS", null, context, cancellationToken);
+
+        // Enforce concurrent session limit: revoke oldest sessions if at or over max
+        if (_securityOptions.MaxConcurrentSessions > 0)
+        {
+            var activeCount = await _authSessionRepository.CountActiveByUserIdAsync(tenantId, account.Id, now, cancellationToken);
+            if (activeCount >= _securityOptions.MaxConcurrentSessions)
+            {
+                var excessCount = activeCount - _securityOptions.MaxConcurrentSessions + 1;
+                var oldestSessions = await _authSessionRepository.QueryOldestActiveByUserIdAsync(
+                    tenantId, account.Id, now, excessCount, cancellationToken);
+                foreach (var oldSession in oldestSessions)
+                {
+                    await _authSessionRepository.RevokeAsync(tenantId, oldSession.Id, now, cancellationToken);
+                    await _refreshTokenRepository.RevokeBySessionAsync(tenantId, oldSession.Id, now, cancellationToken);
+                }
+            }
+        }
 
         var sessionId = _idGeneratorAccessor.NextId();
         var sessionExpiresAt = now.AddMinutes(_jwtOptions.SessionExpiresMinutes);

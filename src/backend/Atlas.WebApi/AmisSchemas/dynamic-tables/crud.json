@@ -45,6 +45,11 @@
             }
           }
         },
+        {
+          "type": "tpl",
+          "tpl": "<span class='label label-info'>已绑定审批流</span>",
+          "visibleOn": "this.approvalFlowDefinitionId"
+        },
         "bulkActions",
         "pagination"
       ],
@@ -74,6 +79,18 @@
               "type": "service",
               "schemaApi": "get:/api/v1/amis/dynamic-tables/${tableKey}/forms/edit?id=${id}"
             }
+          }
+        },
+        {
+          "label": "提交审批",
+          "actionType": "ajax",
+          "level": "info",
+          "confirmText": "确认提交审批？提交后数据将不可修改直至审批结束。",
+          "visibleOn": "this.approvalFlowDefinitionId && (!this.status || this.status === '草稿' || this.status === '已驳回')",
+          "api": {
+            "method": "post",
+            "url": "/api/v1/dynamic-tables/${tableKey}/records/${id}/approval",
+            "adaptor": "return { status: payload.success ? 0 : 1, msg: payload.success ? '已提交审批' : payload.message };"
           }
         },
         {

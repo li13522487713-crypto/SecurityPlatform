@@ -52,7 +52,9 @@ public sealed class DynamicTableQueryService : IDynamicTableQueryService
             item.DbType.ToString(),
             item.Status.ToString(),
             item.CreatedAt,
-            item.CreatedBy)).ToArray();
+            item.CreatedBy,
+            item.ApprovalFlowDefinitionId,
+            item.ApprovalStatusField)).ToArray();
 
         return new PagedResult<DynamicTableListItem>(list, total, pageIndex, pageSize);
     }
@@ -83,7 +85,9 @@ public sealed class DynamicTableQueryService : IDynamicTableQueryService
             table.CreatedBy,
             table.UpdatedBy,
             fields.Select(ToFieldDefinition).ToArray(),
-            indexes.Select(ToIndexDefinition).ToArray());
+            indexes.Select(ToIndexDefinition).ToArray(),
+            table.ApprovalFlowDefinitionId,
+            table.ApprovalStatusField);
     }
 
     public async Task<IReadOnlyList<DynamicFieldDefinition>> GetFieldsAsync(

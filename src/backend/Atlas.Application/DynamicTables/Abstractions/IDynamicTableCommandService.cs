@@ -30,4 +30,24 @@ public interface IDynamicTableCommandService
         long userId,
         string tableKey,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// 绑定/解绑审批流
+    /// </summary>
+    Task BindApprovalFlowAsync(
+        TenantId tenantId,
+        long userId,
+        string tableKey,
+        DynamicTableApprovalBindingRequest request,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// 从动态表记录发起审批
+    /// </summary>
+    Task<DynamicTableApprovalSubmitResponse> SubmitApprovalAsync(
+        TenantId tenantId,
+        long userId,
+        string tableKey,
+        long recordId,
+        CancellationToken cancellationToken);
 }

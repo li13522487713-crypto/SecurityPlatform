@@ -13,6 +13,7 @@ using Atlas.WebApi.Helpers;
 using Atlas.WebApi.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Atlas.WebApi.Controllers;
 
@@ -60,6 +61,7 @@ public sealed class AuthController : ControllerBase
 
     [HttpPost("token")]
     [AllowAnonymous]
+    [EnableRateLimiting("auth")]
     public async Task<ActionResult<ApiResponse<AuthTokenResult>>> CreateToken(
         [FromBody] AuthTokenViewModel request,
         CancellationToken cancellationToken)
@@ -84,6 +86,7 @@ public sealed class AuthController : ControllerBase
 
     [HttpPost("refresh")]
     [AllowAnonymous]
+    [EnableRateLimiting("auth")]
     public async Task<ActionResult<ApiResponse<AuthTokenResult>>> RefreshToken(
         [FromBody] AuthRefreshViewModel request,
         CancellationToken cancellationToken)

@@ -14,11 +14,13 @@ using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.HttpLogging;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using NLog.Web;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using System.Threading.RateLimiting;
 using Atlas.WebApi.Authorization;
 using Atlas.WebApi.Filters;
 using Microsoft.AspNetCore.Authorization.Policy;
@@ -86,7 +88,15 @@ builder.Services.AddScoped<Atlas.Core.Identity.IProjectContextAccessor, Atlas.We
 builder.Services.AddScoped<IdempotencyFilter>();
 
 builder.Services.AddFluentValidationAutoValidation();
-builder.Services.AddValidatorsFromAssemblies(AppDomain.CurrentDomain.GetAssemblies());
+builder.Services.AddValidatorsFromAssemblies([
+    typeof(Atlas.Application.Validators.AuthTokenRequestValidator).Assembly,         // Atlas.Application
+    typeof(Atlas.Application.Approval.Validators.ApprovalFlowDefinitionCreateRequestValidator).Assembly, // Atlas.Application.Approval
+    typeof(Atlas.Application.Assets.Validators.AssetValidator).Assembly,             // Atlas.Application.Assets
+    typeof(Atlas.Application.Alert.Validators.AlertRecordValidator).Assembly,        // Atlas.Application.Alert
+    typeof(Atlas.Application.Audit.Validators.AuditRecordValidator).Assembly,        // Atlas.Application.Audit
+    typeof(Atlas.Application.Workflow.Validators.PublishEventRequestValidator).Assembly, // Atlas.Application.Workflow
+    typeof(Atlas.WebApi.Validators.ChangePasswordViewModelValidator).Assembly,       // Atlas.WebApi
+]);
 
 var securityOptions = builder.Configuration.GetSection("Security").Get<SecurityOptions>() ?? new SecurityOptions();
 var jwt = builder.Configuration.GetSection("Jwt").Get<JwtOptions>() ?? new JwtOptions();
@@ -158,6 +168,30 @@ builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProv
 builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
 builder.Services.AddSingleton<IAuthorizationMiddlewareResultHandler, ApiAuthorizationMiddlewareResultHandler>();
 
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.OnRejected = async (context, ct) =>
+    {
+        context.HttpContext.Response.ContentType = "application/json";
+        var payload = ApiResponse<object>.Fail("RATE_LIMITED", "请求过于频繁，请稍后再试", context.HttpContext.TraceIdentifier);
+        await context.HttpContext.Response.WriteAsJsonAsync(payload, ct);
+    };
+
+    // Auth endpoints: 10 requests per minute per IP
+    options.AddPolicy("auth", httpContext =>
+    {
+        var ip = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        return RateLimitPartition.GetFixedWindowLimiter(ip, _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 10,
+            Window = TimeSpan.FromMinutes(1),
+            QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+            QueueLimit = 0
+        });
+    });
+});
+
 builder.Services.AddAtlasApplication();
 builder.Services.AddAtlasInfrastructure(builder.Configuration);
 
@@ -202,6 +236,7 @@ if (securityOptions.EnforceHttps)
 
 app.UseHttpLogging();
 app.UseMiddleware<ExceptionHandlingMiddleware>();
+app.UseRateLimiter();
 app.UseMiddleware<ApiVersionRewriteMiddleware>();
 
 if (app.Environment.IsDevelopment())

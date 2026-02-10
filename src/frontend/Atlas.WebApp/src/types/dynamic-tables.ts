@@ -18,6 +18,8 @@ export interface DynamicTableListItem {
   status: "Draft" | "Active" | "Disabled";
   createdAt: string;
   createdBy: number;
+  approvalFlowDefinitionId?: number | null;
+  approvalStatusField?: string | null;
 }
 
 export interface DynamicFieldDefinition {

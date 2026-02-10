@@ -5,39 +5,42 @@ using SqlSugar;
 
 namespace Atlas.Infrastructure.Repositories;
 
-public sealed class AuthSessionRepository : IAuthSessionRepository
+public sealed class AuthSessionRepository : RepositoryBase<AuthSession>, IAuthSessionRepository
 {
-    private readonly ISqlSugarClient _db;
-
-    public AuthSessionRepository(ISqlSugarClient db)
-    {
-        _db = db;
-    }
-
-    public Task AddAsync(AuthSession session, CancellationToken cancellationToken)
-    {
-        return _db.Insertable(session).ExecuteCommandAsync(cancellationToken);
-    }
-
-    public Task UpdateAsync(AuthSession session, CancellationToken cancellationToken)
-    {
-        return _db.Updateable(session)
-            .Where(x => x.Id == session.Id && x.TenantIdValue == session.TenantIdValue)
-            .ExecuteCommandAsync(cancellationToken);
-    }
+    public AuthSessionRepository(ISqlSugarClient db) : base(db) { }
 
     public Task RevokeAsync(TenantId tenantId, long sessionId, DateTimeOffset revokedAt, CancellationToken cancellationToken)
     {
-        return _db.Updateable<AuthSession>()
+        return Db.Updateable<AuthSession>()
             .SetColumns(x => x.RevokedAt == revokedAt)
             .Where(x => x.TenantIdValue == tenantId.Value && x.Id == sessionId)
             .ExecuteCommandAsync(cancellationToken);
     }
 
-    public async Task<AuthSession?> FindByIdAsync(TenantId tenantId, long id, CancellationToken cancellationToken)
+    public async Task<int> CountActiveByUserIdAsync(TenantId tenantId, long userId, DateTimeOffset now, CancellationToken cancellationToken)
     {
-        return await _db.Queryable<AuthSession>()
-            .Where(x => x.TenantIdValue == tenantId.Value && x.Id == id)
-            .FirstAsync(cancellationToken);
+        return await Db.Queryable<AuthSession>()
+            .Where(x => x.TenantIdValue == tenantId.Value
+                && x.UserId == userId
+                && x.RevokedAt == null
+                && x.ExpiresAt > now)
+            .CountAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<AuthSession>> QueryOldestActiveByUserIdAsync(
+        TenantId tenantId,
+        long userId,
+        DateTimeOffset now,
+        int count,
+        CancellationToken cancellationToken)
+    {
+        return await Db.Queryable<AuthSession>()
+            .Where(x => x.TenantIdValue == tenantId.Value
+                && x.UserId == userId
+                && x.RevokedAt == null
+                && x.ExpiresAt > now)
+            .OrderBy(x => x.CreatedAt, OrderByType.Asc)
+            .Take(count)
+            .ToListAsync(cancellationToken);
     }
 }

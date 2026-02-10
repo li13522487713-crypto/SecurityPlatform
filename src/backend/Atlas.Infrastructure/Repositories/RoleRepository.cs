@@ -5,25 +5,13 @@ using SqlSugar;
 
 namespace Atlas.Infrastructure.Repositories;
 
-public sealed class RoleRepository : IRoleRepository
+public sealed class RoleRepository : RepositoryBase<Role>, IRoleRepository
 {
-    private readonly ISqlSugarClient _db;
-
-    public RoleRepository(ISqlSugarClient db)
-    {
-        _db = db;
-    }
-
-    public async Task<Role?> FindByIdAsync(TenantId tenantId, long id, CancellationToken cancellationToken)
-    {
-        return await _db.Queryable<Role>()
-            .Where(x => x.TenantIdValue == tenantId.Value && x.Id == id)
-            .FirstAsync(cancellationToken);
-    }
+    public RoleRepository(ISqlSugarClient db) : base(db) { }
 
     public async Task<Role?> FindByCodeAsync(TenantId tenantId, string code, CancellationToken cancellationToken)
     {
-        return await _db.Queryable<Role>()
+        return await Db.Queryable<Role>()
             .Where(x => x.TenantIdValue == tenantId.Value && x.Code == code)
             .FirstAsync(cancellationToken);
     }
@@ -47,7 +35,7 @@ public sealed class RoleRepository : IRoleRepository
             return Array.Empty<Role>();
         }
 
-        return await _db.Queryable<Role>()
+        return await Db.Queryable<Role>()
             .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(distinctCodes, x.Code))
             .ToListAsync(cancellationToken);
     }
@@ -60,7 +48,7 @@ public sealed class RoleRepository : IRoleRepository
         bool? isSystem,
         CancellationToken cancellationToken)
     {
-        var query = _db.Queryable<Role>()
+        var query = Db.Queryable<Role>()
             .Where(x => x.TenantIdValue == tenantId.Value);
         if (!string.IsNullOrWhiteSpace(keyword))
         {
@@ -79,20 +67,6 @@ public sealed class RoleRepository : IRoleRepository
         return (list, totalCount);
     }
 
-    public async Task<IReadOnlyList<Role>> QueryByIdsAsync(TenantId tenantId, IReadOnlyList<long> ids, CancellationToken cancellationToken)
-    {
-        if (ids.Count == 0)
-        {
-            return Array.Empty<Role>();
-        }
-
-        var idArray = ids.Distinct().ToArray();
-        var list = await _db.Queryable<Role>()
-            .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(idArray, x.Id))
-            .ToListAsync(cancellationToken);
-        return list;
-    }
-
     public Task AddRangeAsync(IReadOnlyList<Role> roles, CancellationToken cancellationToken)
     {
         if (roles.Count == 0)
@@ -100,25 +74,6 @@ public sealed class RoleRepository : IRoleRepository
             return Task.CompletedTask;
         }
 
-        return _db.Insertable(roles.ToList()).ExecuteCommandAsync(cancellationToken);
-    }
-
-    public Task AddAsync(Role role, CancellationToken cancellationToken)
-    {
-        return _db.Insertable(role).ExecuteCommandAsync(cancellationToken);
-    }
-
-    public Task UpdateAsync(Role role, CancellationToken cancellationToken)
-    {
-        return _db.Updateable(role)
-            .Where(x => x.Id == role.Id && x.TenantIdValue == role.TenantIdValue)
-            .ExecuteCommandAsync(cancellationToken);
-    }
-
-    public Task DeleteAsync(TenantId tenantId, long id, CancellationToken cancellationToken)
-    {
-        return _db.Deleteable<Role>()
-            .Where(x => x.TenantIdValue == tenantId.Value && x.Id == id)
-            .ExecuteCommandAsync(cancellationToken);
+        return Db.Insertable(roles.ToList()).ExecuteCommandAsync(cancellationToken);
     }
 }

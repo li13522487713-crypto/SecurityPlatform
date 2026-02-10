@@ -26,9 +26,12 @@ const tableKey = computed(() => {
   return typeof key === "string" ? key : "";
 });
 
+const approvalFlowDefinitionId = ref<number | null>(null);
+
 const pageData = computed(() => ({
   tableKey: tableKey.value,
-  tableDisplayName: tableDisplayName.value ?? tableKey.value
+  tableDisplayName: tableDisplayName.value ?? tableKey.value,
+  approvalFlowDefinitionId: approvalFlowDefinitionId.value
 }));
 
 const loadSchema = async () => {
@@ -46,6 +49,7 @@ const loadSchema = async () => {
     schema.value = schemaResult;
     tableDisplayName.value = detail?.displayName ?? tableKey.value;
     pageTitle.value = detail?.displayName ?? "动态数据管理";
+    approvalFlowDefinitionId.value = detail?.approvalFlowDefinitionId ?? null;
   } catch (error) {
     schema.value = null;
     message.error((error as Error).message || "加载页面失败");

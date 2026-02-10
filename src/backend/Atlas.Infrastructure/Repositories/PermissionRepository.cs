@@ -5,25 +5,13 @@ using SqlSugar;
 
 namespace Atlas.Infrastructure.Repositories;
 
-public sealed class PermissionRepository : IPermissionRepository
+public sealed class PermissionRepository : RepositoryBase<Permission>, IPermissionRepository
 {
-    private readonly ISqlSugarClient _db;
-
-    public PermissionRepository(ISqlSugarClient db)
-    {
-        _db = db;
-    }
-
-    public async Task<Permission?> FindByIdAsync(TenantId tenantId, long id, CancellationToken cancellationToken)
-    {
-        return await _db.Queryable<Permission>()
-            .Where(x => x.TenantIdValue == tenantId.Value && x.Id == id)
-            .FirstAsync(cancellationToken);
-    }
+    public PermissionRepository(ISqlSugarClient db) : base(db) { }
 
     public async Task<Permission?> FindByCodeAsync(TenantId tenantId, string code, CancellationToken cancellationToken)
     {
-        return await _db.Queryable<Permission>()
+        return await Db.Queryable<Permission>()
             .Where(x => x.TenantIdValue == tenantId.Value && x.Code == code)
             .FirstAsync(cancellationToken);
     }
@@ -36,7 +24,7 @@ public sealed class PermissionRepository : IPermissionRepository
         string? type,
         CancellationToken cancellationToken)
     {
-        var query = _db.Queryable<Permission>()
+        var query = Db.Queryable<Permission>()
             .Where(x => x.TenantIdValue == tenantId.Value);
         if (!string.IsNullOrWhiteSpace(keyword))
         {
@@ -54,31 +42,5 @@ public sealed class PermissionRepository : IPermissionRepository
             .ToPageListAsync(pageIndex, pageSize, cancellationToken);
 
         return (list, totalCount);
-    }
-
-    public async Task<IReadOnlyList<Permission>> QueryByIdsAsync(TenantId tenantId, IReadOnlyList<long> ids, CancellationToken cancellationToken)
-    {
-        if (ids.Count == 0)
-        {
-            return Array.Empty<Permission>();
-        }
-
-        var idArray = ids.Distinct().ToArray();
-        var list = await _db.Queryable<Permission>()
-            .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(idArray, x.Id))
-            .ToListAsync(cancellationToken);
-        return list;
-    }
-
-    public Task AddAsync(Permission permission, CancellationToken cancellationToken)
-    {
-        return _db.Insertable(permission).ExecuteCommandAsync(cancellationToken);
-    }
-
-    public Task UpdateAsync(Permission permission, CancellationToken cancellationToken)
-    {
-        return _db.Updateable(permission)
-            .Where(x => x.Id == permission.Id && x.TenantIdValue == permission.TenantIdValue)
-            .ExecuteCommandAsync(cancellationToken);
     }
 }

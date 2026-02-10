@@ -16,6 +16,7 @@ public sealed class DynamicTableRecordsController : ControllerBase
 {
     private readonly IDynamicRecordQueryService _queryService;
     private readonly IDynamicRecordCommandService _commandService;
+    private readonly IDynamicTableCommandService _tableCommandService;
     private readonly ITenantProvider _tenantProvider;
     private readonly ICurrentUserAccessor _currentUserAccessor;
     private readonly IValidator<DynamicRecordUpsertRequest> _upsertValidator;
@@ -24,6 +25,7 @@ public sealed class DynamicTableRecordsController : ControllerBase
     public DynamicTableRecordsController(
         IDynamicRecordQueryService queryService,
         IDynamicRecordCommandService commandService,
+        IDynamicTableCommandService tableCommandService,
         ITenantProvider tenantProvider,
         ICurrentUserAccessor currentUserAccessor,
         IValidator<DynamicRecordUpsertRequest> upsertValidator,
@@ -31,6 +33,7 @@ public sealed class DynamicTableRecordsController : ControllerBase
     {
         _queryService = queryService;
         _commandService = commandService;
+        _tableCommandService = tableCommandService;
         _tenantProvider = tenantProvider;
         _currentUserAccessor = currentUserAccessor;
         _upsertValidator = upsertValidator;
@@ -172,5 +175,30 @@ public sealed class DynamicTableRecordsController : ControllerBase
         var tenantId = _tenantProvider.GetTenantId();
         await _commandService.DeleteBatchAsync(tenantId, currentUser.UserId, tableKey, request.Ids, cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Count = request.Ids.Count }, HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>
+    /// 从动态表记录发起审批
+    /// </summary>
+    [HttpPost("{recordId:long}/approval")]
+    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    public async Task<ActionResult<ApiResponse<DynamicTableApprovalSubmitResponse>>> SubmitApproval(
+        string tableKey,
+        long recordId,
+        CancellationToken cancellationToken)
+    {
+        var currentUser = _currentUserAccessor.GetCurrentUser();
+        if (currentUser is null)
+        {
+            return Unauthorized(ApiResponse<DynamicTableApprovalSubmitResponse>.Fail(
+                ErrorCodes.Unauthorized,
+                "未登录",
+                HttpContext.TraceIdentifier));
+        }
+
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _tableCommandService.SubmitApprovalAsync(
+            tenantId, currentUser.UserId, tableKey, recordId, cancellationToken);
+        return Ok(ApiResponse<DynamicTableApprovalSubmitResponse>.Ok(result, HttpContext.TraceIdentifier));
     }
 }

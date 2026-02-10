@@ -1,4 +1,6 @@
 using System.Text.Json;
+using Atlas.Application.Approval.Abstractions;
+using Atlas.Application.Approval.Models;
 using Atlas.Application.DynamicTables.Abstractions;
 using Atlas.Application.DynamicTables.Models;
 using Atlas.Application.DynamicTables.Repositories;
@@ -23,24 +25,30 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
     private readonly IDynamicTableRepository _tableRepository;
     private readonly IDynamicFieldRepository _fieldRepository;
     private readonly IDynamicIndexRepository _indexRepository;
+    private readonly IDynamicRecordRepository _recordRepository;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly ISqlSugarClient _db;
     private readonly TimeProvider _timeProvider;
+    private readonly IApprovalRuntimeCommandService? _approvalRuntimeService;
 
     public DynamicTableCommandService(
         IDynamicTableRepository tableRepository,
         IDynamicFieldRepository fieldRepository,
         IDynamicIndexRepository indexRepository,
+        IDynamicRecordRepository recordRepository,
         IIdGeneratorAccessor idGeneratorAccessor,
         ISqlSugarClient db,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        IApprovalRuntimeCommandService? approvalRuntimeService = null)
     {
         _tableRepository = tableRepository;
         _fieldRepository = fieldRepository;
         _indexRepository = indexRepository;
+        _recordRepository = recordRepository;
         _idGeneratorAccessor = idGeneratorAccessor;
         _db = db;
         _timeProvider = timeProvider;
+        _approvalRuntimeService = approvalRuntimeService;
     }
 
     public async Task<long> CreateAsync(
@@ -211,6 +219,120 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
         }
 
         return list;
+    }
+
+    public async Task BindApprovalFlowAsync(
+        TenantId tenantId,
+        long userId,
+        string tableKey,
+        DynamicTableApprovalBindingRequest request,
+        CancellationToken cancellationToken)
+    {
+        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, cancellationToken);
+        if (table is null)
+        {
+            throw new BusinessException(ErrorCodes.NotFound, "动态表不存在。");
+        }
+
+        var now = _timeProvider.GetUtcNow();
+
+        if (request.ApprovalFlowDefinitionId.HasValue && !string.IsNullOrWhiteSpace(request.ApprovalStatusField))
+        {
+            // 验证状态字段是否存在于动态表中
+            var fields = await _fieldRepository.ListByTableIdAsync(tenantId, table.Id, cancellationToken);
+            var hasField = fields.Any(f => f.Name.Equals(request.ApprovalStatusField, StringComparison.OrdinalIgnoreCase));
+            if (!hasField)
+            {
+                throw new BusinessException(ErrorCodes.ValidationError, $"状态字段 '{request.ApprovalStatusField}' 在动态表 '{tableKey}' 中不存在。");
+            }
+
+            table.BindApprovalFlow(request.ApprovalFlowDefinitionId.Value, request.ApprovalStatusField, userId, now);
+        }
+        else
+        {
+            table.UnbindApprovalFlow(userId, now);
+        }
+
+        await _tableRepository.UpdateAsync(table, cancellationToken);
+    }
+
+    public async Task<DynamicTableApprovalSubmitResponse> SubmitApprovalAsync(
+        TenantId tenantId,
+        long userId,
+        string tableKey,
+        long recordId,
+        CancellationToken cancellationToken)
+    {
+        if (_approvalRuntimeService is null)
+        {
+            throw new BusinessException(ErrorCodes.ServerError, "审批服务不可用。");
+        }
+
+        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, cancellationToken);
+        if (table is null)
+        {
+            throw new BusinessException(ErrorCodes.NotFound, "动态表不存在。");
+        }
+
+        if (!table.ApprovalFlowDefinitionId.HasValue || string.IsNullOrWhiteSpace(table.ApprovalStatusField))
+        {
+            throw new BusinessException(ErrorCodes.ValidationError, "该动态表未绑定审批流。");
+        }
+
+        // 读取记录数据，构建 DataJson
+        var fields = await _fieldRepository.ListByTableIdAsync(tenantId, table.Id, cancellationToken);
+        var record = await _recordRepository.GetByIdAsync(tenantId, table, fields, recordId, cancellationToken);
+        if (record is null)
+        {
+            throw new BusinessException(ErrorCodes.NotFound, "记录不存在。");
+        }
+
+        // 将记录值转为 JSON 对象作为审批实例的 DataJson
+        var dataDict = new Dictionary<string, object?>();
+        foreach (var val in record.Values)
+        {
+            object? value = val.ValueType switch
+            {
+                "Int" => val.IntValue,
+                "Long" => val.LongValue,
+                "Decimal" => val.DecimalValue,
+                "Bool" => val.BoolValue,
+                "DateTime" => val.DateTimeValue?.ToString("O"),
+                "Date" => val.DateValue?.ToString("O"),
+                _ => val.StringValue
+            };
+            dataDict[val.Field] = value;
+        }
+        dataDict["_tableKey"] = tableKey;
+        dataDict["_recordId"] = recordId;
+
+        var dataJson = JsonSerializer.Serialize(dataDict, JsonOptions);
+
+        // 发起审批
+        var businessKey = $"{tableKey}:{recordId}";
+        var startRequest = new ApprovalStartRequest
+        {
+            DefinitionId = table.ApprovalFlowDefinitionId.Value,
+            BusinessKey = businessKey,
+            DataJson = dataJson
+        };
+
+        var instanceResponse = await _approvalRuntimeService.StartAsync(tenantId, startRequest, userId, cancellationToken);
+
+        // 更新记录状态字段为"审批中"
+        var statusFieldValue = new DynamicFieldValueDto
+        {
+            Field = table.ApprovalStatusField,
+            ValueType = "String",
+            StringValue = "审批中"
+        };
+        var updateRequest = new DynamicRecordUpsertRequest(new[] { statusFieldValue });
+        await _recordRepository.UpdateAsync(tenantId, table, fields, recordId, updateRequest, cancellationToken);
+
+        return new DynamicTableApprovalSubmitResponse(
+            instanceResponse.Id.ToString(),
+            recordId.ToString(),
+            "审批中");
     }
 
     private static string BuildCreateIndexSql(DynamicTable table, IReadOnlyList<DynamicIndex> indexes)

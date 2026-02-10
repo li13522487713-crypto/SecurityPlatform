@@ -121,3 +121,46 @@ export async function getDynamicAmisSchema(path: string): Promise<JsonValue> {
   }
   return response.data;
 }
+
+// ---- 审批流绑定 ----
+
+export interface ApprovalBindingRequest {
+  approvalFlowDefinitionId: number | null;
+  approvalStatusField: string | null;
+}
+
+export interface ApprovalSubmitResponse {
+  instanceId: string;
+  recordId: string;
+  status: string;
+}
+
+export async function bindApprovalFlow(tableKey: string, request: ApprovalBindingRequest) {
+  const response = await requestApi<ApiResponse<{ tableKey: string }>>(
+    `/dynamic-tables/${encodeURIComponent(tableKey)}/approval-binding`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request)
+    }
+  );
+  if (!response.success) {
+    throw new Error(response.message || "绑定失败");
+  }
+}
+
+export async function submitRecordApproval(
+  tableKey: string,
+  recordId: string
+): Promise<ApprovalSubmitResponse> {
+  const response = await requestApi<ApiResponse<ApprovalSubmitResponse>>(
+    `/dynamic-tables/${encodeURIComponent(tableKey)}/records/${recordId}/approval`,
+    {
+      method: "POST"
+    }
+  );
+  if (!response.data) {
+    throw new Error(response.message || "提交审批失败");
+  }
+  return response.data;
+}

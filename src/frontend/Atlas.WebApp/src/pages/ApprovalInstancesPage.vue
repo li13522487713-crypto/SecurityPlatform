@@ -62,6 +62,20 @@
           </a-descriptions-item>
         </a-descriptions>
 
+        <!-- 动态表业务数据展示 -->
+        <template v-if="businessData && businessData.length > 0">
+          <a-divider>业务数据</a-divider>
+          <a-descriptions :column="1" bordered size="small">
+            <a-descriptions-item
+              v-for="item in businessData"
+              :key="item.field"
+              :label="item.field"
+            >
+              {{ item.value ?? '-' }}
+            </a-descriptions-item>
+          </a-descriptions>
+        </template>
+
         <a-divider>任务列表</a-divider>
         <a-table
           :columns="taskColumns"
@@ -152,6 +166,7 @@ const instanceDetail = ref<ApprovalInstanceResponse | null>(null);
 const taskList = ref<ApprovalTaskResponse[]>([]);
 const historyList = ref<ApprovalHistoryEventResponse[]>([]);
 const taskLoading = ref(false);
+const businessData = ref<Array<{ field: string; value: string | null }>>([]);
 
 const fetchData = async () => {
   loading.value = true;
@@ -251,6 +266,24 @@ const handleViewDetail = async (id: string) => {
     taskList.value = tasks.items;
     historyList.value = history.items;
     
+    // 解析业务数据 DataJson
+    businessData.value = [];
+    if (instance.dataJson) {
+      try {
+        const parsed = JSON.parse(instance.dataJson);
+        if (typeof parsed === "object" && parsed !== null) {
+          businessData.value = Object.entries(parsed)
+            .filter(([key]) => !key.startsWith("_")) // 排除内部字段
+            .map(([field, value]) => ({
+              field,
+              value: value != null ? String(value) : null
+            }));
+        }
+      } catch {
+        // DataJson 解析失败时忽略
+      }
+    }
+
     // 从列表中找到流程名称
     const listItem = dataSource.value.find((item) => item.id === id);
     if (listItem && instanceDetail.value) {
@@ -278,6 +311,7 @@ const handleDrawerClose = () => {
   instanceDetail.value = null;
   taskList.value = [];
   historyList.value = [];
+  businessData.value = [];
 };
 
 onMounted(fetchData);

@@ -5,25 +5,13 @@ using SqlSugar;
 
 namespace Atlas.Infrastructure.Repositories;
 
-public sealed class PositionRepository : IPositionRepository
+public sealed class PositionRepository : RepositoryBase<Position>, IPositionRepository
 {
-    private readonly ISqlSugarClient _db;
-
-    public PositionRepository(ISqlSugarClient db)
-    {
-        _db = db;
-    }
-
-    public async Task<Position?> FindByIdAsync(TenantId tenantId, long id, CancellationToken cancellationToken)
-    {
-        return await _db.Queryable<Position>()
-            .Where(x => x.TenantIdValue == tenantId.Value && x.Id == id)
-            .FirstAsync(cancellationToken);
-    }
+    public PositionRepository(ISqlSugarClient db) : base(db) { }
 
     public async Task<Position?> FindByCodeAsync(TenantId tenantId, string code, CancellationToken cancellationToken)
     {
-        return await _db.Queryable<Position>()
+        return await Db.Queryable<Position>()
             .Where(x => x.TenantIdValue == tenantId.Value && x.Code == code)
             .FirstAsync(cancellationToken);
     }
@@ -35,7 +23,7 @@ public sealed class PositionRepository : IPositionRepository
         string? keyword,
         CancellationToken cancellationToken)
     {
-        var query = _db.Queryable<Position>()
+        var query = Db.Queryable<Position>()
             .Where(x => x.TenantIdValue == tenantId.Value);
         if (!string.IsNullOrWhiteSpace(keyword))
         {
@@ -64,7 +52,7 @@ public sealed class PositionRepository : IPositionRepository
         }
 
         var idArray = ids.Distinct().ToArray();
-        var query = _db.Queryable<Position>()
+        var query = Db.Queryable<Position>()
             .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(idArray, x.Id));
         if (!string.IsNullOrWhiteSpace(keyword))
         {
@@ -79,48 +67,12 @@ public sealed class PositionRepository : IPositionRepository
         return (list, totalCount);
     }
 
-    public async Task<IReadOnlyList<Position>> QueryByIdsAsync(
-        TenantId tenantId,
-        IReadOnlyList<long> ids,
-        CancellationToken cancellationToken)
-    {
-        if (ids.Count == 0)
-        {
-            return Array.Empty<Position>();
-        }
-
-        var idArray = ids.Distinct().ToArray();
-        var list = await _db.Queryable<Position>()
-            .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(idArray, x.Id))
-            .ToListAsync(cancellationToken);
-        return list;
-    }
-
     public async Task<IReadOnlyList<Position>> QueryAllAsync(TenantId tenantId, CancellationToken cancellationToken)
     {
-        var list = await _db.Queryable<Position>()
+        var list = await Db.Queryable<Position>()
             .Where(x => x.TenantIdValue == tenantId.Value)
             .OrderBy(x => x.SortOrder, OrderByType.Asc)
             .ToListAsync(cancellationToken);
         return list;
-    }
-
-    public Task AddAsync(Position position, CancellationToken cancellationToken)
-    {
-        return _db.Insertable(position).ExecuteCommandAsync(cancellationToken);
-    }
-
-    public Task UpdateAsync(Position position, CancellationToken cancellationToken)
-    {
-        return _db.Updateable(position)
-            .Where(x => x.Id == position.Id && x.TenantIdValue == position.TenantIdValue)
-            .ExecuteCommandAsync(cancellationToken);
-    }
-
-    public Task DeleteAsync(TenantId tenantId, long id, CancellationToken cancellationToken)
-    {
-        return _db.Deleteable<Position>()
-            .Where(x => x.TenantIdValue == tenantId.Value && x.Id == id)
-            .ExecuteCommandAsync(cancellationToken);
     }
 }

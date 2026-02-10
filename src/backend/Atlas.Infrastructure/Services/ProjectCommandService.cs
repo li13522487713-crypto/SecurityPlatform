@@ -6,7 +6,6 @@ using Atlas.Core.Exceptions;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Identity.Entities;
-using SqlSugar;
 
 namespace Atlas.Infrastructure.Services;
 
@@ -17,7 +16,7 @@ public sealed class ProjectCommandService : IProjectCommandService
     private readonly IProjectDepartmentRepository _projectDepartmentRepository;
     private readonly IProjectPositionRepository _projectPositionRepository;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
-    private readonly ISqlSugarClient _db;
+    private readonly IUnitOfWork _unitOfWork;
 
     public ProjectCommandService(
         IProjectRepository projectRepository,
@@ -25,14 +24,14 @@ public sealed class ProjectCommandService : IProjectCommandService
         IProjectDepartmentRepository projectDepartmentRepository,
         IProjectPositionRepository projectPositionRepository,
         IIdGeneratorAccessor idGeneratorAccessor,
-        ISqlSugarClient db)
+        IUnitOfWork unitOfWork)
     {
         _projectRepository = projectRepository;
         _projectUserRepository = projectUserRepository;
         _projectDepartmentRepository = projectDepartmentRepository;
         _projectPositionRepository = projectPositionRepository;
         _idGeneratorAccessor = idGeneratorAccessor;
-        _db = db;
+        _unitOfWork = unitOfWork;
     }
 
     public async Task<long> CreateAsync(
@@ -80,13 +79,13 @@ public sealed class ProjectCommandService : IProjectCommandService
             throw new BusinessException("Project not found.", ErrorCodes.NotFound);
         }
 
-        await _db.Ado.UseTranAsync(async () =>
+        await _unitOfWork.ExecuteInTransactionAsync(async () =>
         {
             await _projectUserRepository.DeleteByProjectIdAsync(tenantId, id, cancellationToken);
             await _projectDepartmentRepository.DeleteByProjectIdAsync(tenantId, id, cancellationToken);
             await _projectPositionRepository.DeleteByProjectIdAsync(tenantId, id, cancellationToken);
             await _projectRepository.DeleteAsync(tenantId, id, cancellationToken);
-        });
+        }, cancellationToken);
     }
 
     public async Task UpdateUsersAsync(
@@ -97,7 +96,7 @@ public sealed class ProjectCommandService : IProjectCommandService
     {
         await EnsureProjectExistsAsync(tenantId, id, cancellationToken);
 
-        await _db.Ado.UseTranAsync(async () =>
+        await _unitOfWork.ExecuteInTransactionAsync(async () =>
         {
             await _projectUserRepository.DeleteByProjectIdAsync(tenantId, id, cancellationToken);
             if (userIds.Count > 0)
@@ -107,7 +106,7 @@ public sealed class ProjectCommandService : IProjectCommandService
                     .ToArray();
                 await _projectUserRepository.AddRangeAsync(items, cancellationToken);
             }
-        });
+        }, cancellationToken);
     }
 
     public async Task UpdateDepartmentsAsync(
@@ -118,7 +117,7 @@ public sealed class ProjectCommandService : IProjectCommandService
     {
         await EnsureProjectExistsAsync(tenantId, id, cancellationToken);
 
-        await _db.Ado.UseTranAsync(async () =>
+        await _unitOfWork.ExecuteInTransactionAsync(async () =>
         {
             await _projectDepartmentRepository.DeleteByProjectIdAsync(tenantId, id, cancellationToken);
             if (departmentIds.Count > 0)
@@ -128,7 +127,7 @@ public sealed class ProjectCommandService : IProjectCommandService
                     .ToArray();
                 await _projectDepartmentRepository.AddRangeAsync(items, cancellationToken);
             }
-        });
+        }, cancellationToken);
     }
 
     public async Task UpdatePositionsAsync(
@@ -139,7 +138,7 @@ public sealed class ProjectCommandService : IProjectCommandService
     {
         await EnsureProjectExistsAsync(tenantId, id, cancellationToken);
 
-        await _db.Ado.UseTranAsync(async () =>
+        await _unitOfWork.ExecuteInTransactionAsync(async () =>
         {
             await _projectPositionRepository.DeleteByProjectIdAsync(tenantId, id, cancellationToken);
             if (positionIds.Count > 0)
@@ -149,7 +148,7 @@ public sealed class ProjectCommandService : IProjectCommandService
                     .ToArray();
                 await _projectPositionRepository.AddRangeAsync(items, cancellationToken);
             }
-        });
+        }, cancellationToken);
     }
 
     private async Task EnsureProjectExistsAsync(TenantId tenantId, long id, CancellationToken cancellationToken)

@@ -1,3 +1,3 @@
-﻿namespace Atlas.WebApi.Models;
+namespace Atlas.WebApi.Models;
 
-public sealed record AuthTokenViewModel(string Username, string Password);
+public sealed record AuthTokenViewModel(string Username, string Password, string? TotpCode = null);
