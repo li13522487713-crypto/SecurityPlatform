@@ -111,6 +111,14 @@ body {
   margin: 0 auto;
 }
 
+/* 全屏模式 */
+.app-fullscreen .page-card {
+  max-width: none;
+  margin: 0;
+  height: 100%;
+  border-radius: 0;
+}
+
 .login-card {
   max-width: 420px;
 }

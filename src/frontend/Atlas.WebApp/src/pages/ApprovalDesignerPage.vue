@@ -1,34 +1,51 @@
 <template>
-  <a-card class="page-card">
-    <template #title>
+  <div class="dd-page">
+    <!-- ══ 顶部工具栏（44px，贴顶） ══ -->
+    <div class="dd-toolbar">
+      <a-button type="text" size="small" class="dd-toolbar__back" @click="goBack">
+        <LeftOutlined /> 返回
+      </a-button>
+      <a-divider type="vertical" />
       <a-input
         v-model:value="flowName"
         placeholder="流程名称"
-        style="width: 320px"
+        :bordered="false"
+        class="dd-toolbar__name"
         :maxlength="100"
       />
-    </template>
-    <template #extra>
-      <a-space>
-        <a-button v-if="activeStep === 2" @click="undo" :disabled="!canUndo">
-          <UndoOutlined /> 撤销
-        </a-button>
-        <a-button v-if="activeStep === 2" @click="redo" :disabled="!canRedo">
-          <RedoOutlined /> 重做
-        </a-button>
-        <a-button @click="handleSave">保存</a-button>
-        <a-button type="primary" @click="handlePublish">发布</a-button>
-      </a-space>
-    </template>
+      <a-tag v-if="flowVersion" color="blue" class="dd-toolbar__version">v{{ flowVersion }}</a-tag>
 
-    <a-steps class="designer-steps" :current="activeStep">
-      <a-step title="基础设置" />
-      <a-step title="表单设计" />
-      <a-step title="流程设计" />
-    </a-steps>
+      <!-- 步骤指示（紧凑圆点） -->
+      <div class="dd-toolbar__steps">
+        <span
+          v-for="(s, i) in ['基础设置', '表单设计', '流程设计']"
+          :key="i"
+          class="dd-step-dot"
+          :class="{ 'dd-step-dot--active': activeStep === i, 'dd-step-dot--done': activeStep > i }"
+          @click="activeStep = i"
+        >{{ s }}</span>
+      </div>
 
-    <div class="step-content" v-show="activeStep === 0">
-      <a-form layout="vertical" class="basic-form">
+      <div class="dd-toolbar__actions">
+        <a-button v-if="activeStep > 0" size="small" @click="prevStep">上一步</a-button>
+        <a-button v-if="activeStep < 2" size="small" @click="nextStep">下一步</a-button>
+        <template v-if="activeStep === 2">
+          <a-divider type="vertical" />
+          <a-button size="small" @click="undo" :disabled="!canUndo"><UndoOutlined /></a-button>
+          <a-button size="small" @click="redo" :disabled="!canRedo"><RedoOutlined /></a-button>
+          <a-divider type="vertical" />
+          <a-button size="small" @click="handleValidate" :loading="validating"><CheckCircleOutlined /> 校验</a-button>
+          <a-button size="small" @click="handlePreview"><EyeOutlined /> 预览</a-button>
+        </template>
+        <a-divider type="vertical" />
+        <a-button size="small" @click="handleSave">保存</a-button>
+        <a-button type="primary" size="small" @click="handlePublishClick">发布</a-button>
+      </div>
+    </div>
+
+    <!-- ══ 步骤 0: 基础设置 ══ -->
+    <div class="dd-body dd-body--scroll" v-show="activeStep === 0">
+      <a-form layout="vertical" class="dd-basic-form">
         <a-form-item label="流程名称">
           <a-input v-model:value="flowName" :maxlength="100" placeholder="请输入流程名称" />
         </a-form-item>
@@ -39,11 +56,7 @@
           <a-textarea v-model:value="definitionMeta.description" :rows="3" />
         </a-form-item>
         <a-form-item label="可见范围(JSON)">
-          <a-textarea
-            v-model:value="visibilityScopeText"
-            :rows="3"
-            placeholder='{"scopeType":"All"}'
-          />
+          <a-textarea v-model:value="visibilityScopeText" :rows="3" placeholder='{"scopeType":"All"}' />
         </a-form-item>
         <a-space>
           <a-switch v-model:checked="definitionMeta.isQuickEntry" /> <span>快捷入口</span>
@@ -52,24 +65,25 @@
       </a-form>
     </div>
 
-    <div class="step-content" v-show="activeStep === 1">
-      <LfFormDesigner
-        v-model="lfFormModel"
-        @update:formFields="handleLfFormFields"
-      />
+    <!-- ══ 步骤 1: 表单设计 ══ -->
+    <div class="dd-body dd-body--scroll" v-show="activeStep === 1">
+      <LfFormDesigner v-model="lfFormModel" @update:formFields="handleLfFormFields" />
     </div>
-    
-    <div class="designer-container" v-show="activeStep === 2">
-      <X6ApprovalDesigner
-        :flow-tree="flowTree"
-        :selected-node-id="selectedNode?.id ?? null"
-        @selectNode="handleSelectNode"
-        @addNode="addNode"
-        @deleteNode="deleteNode"
-        @addConditionBranch="addConditionBranch"
-        @deleteConditionBranch="deleteConditionBranch"
-      />
 
+    <!-- ══ 步骤 2: 流程设计（三栏，撑满剩余） ══ -->
+    <div class="dd-body dd-body--designer" v-show="activeStep === 2">
+      <ApprovalNodePalette @addNode="handlePaletteAddNode" @addDefaultStartEnd="addDefaultStartEnd" />
+      <div class="dd-canvas">
+        <X6ApprovalDesigner
+          :flow-tree="flowTree"
+          :selected-node-id="selectedNode?.id ?? null"
+          @selectNode="handleSelectNode"
+          @addNode="addNode"
+          @deleteNode="deleteNode"
+          @addConditionBranch="addConditionBranch"
+          @deleteConditionBranch="deleteConditionBranch"
+        />
+      </div>
       <ApprovalPropertiesPanel
         :open="panelOpen"
         :node="selectedNode"
@@ -78,265 +92,352 @@
       />
     </div>
 
-    <div class="step-actions">
-      <a-space>
-        <a-button @click="prevStep" :disabled="activeStep === 0">上一步</a-button>
-        <a-button @click="nextStep" :disabled="activeStep === 2">下一步</a-button>
-      </a-space>
-    </div>
-  </a-card>
+    <!-- ══ 弹窗：校验结果 ══ -->
+    <a-modal v-model:open="validateModalOpen" :title="validateResult?.isValid ? '校验通过' : '校验结果'" :footer="null" width="520px">
+      <div v-if="validateResult">
+        <a-alert v-if="validateResult.isValid" type="success" message="流程校验通过，可以发布" show-icon style="margin-bottom:12px" />
+        <template v-else>
+          <a-alert type="error" message="校验不通过，请修正以下问题" show-icon style="margin-bottom:12px" />
+          <div class="dd-validate-list">
+            <div v-for="(err, idx) in validateResult.errors" :key="idx" class="dd-validate-item">
+              <CloseCircleOutlined style="color:#ff4d4f;margin-right:6px" /> {{ err }}
+            </div>
+          </div>
+        </template>
+        <div v-if="validateResult.warnings?.length" class="dd-validate-list" style="margin-top:8px">
+          <div v-for="(warn, idx) in validateResult.warnings" :key="idx" class="dd-validate-item">
+            <ExclamationCircleOutlined style="color:#faad14;margin-right:6px" /> {{ warn }}
+          </div>
+        </div>
+      </div>
+    </a-modal>
+
+    <!-- ══ 弹窗：发布确认 ══ -->
+    <a-modal v-model:open="publishModalOpen" title="确认发布" ok-text="确认发布" cancel-text="取消" @ok="handlePublishConfirm" :confirm-loading="publishing">
+      <a-descriptions :column="1" bordered size="small">
+        <a-descriptions-item label="流程名称">{{ flowName }}</a-descriptions-item>
+        <a-descriptions-item label="当前版本">
+          <a-tag color="blue">v{{ flowVersion || 0 }}</a-tag>
+          <span style="margin-left:4px;color:#8c8c8c">发布后版本号将自动递增</span>
+        </a-descriptions-item>
+        <a-descriptions-item label="分类">{{ definitionMeta.category || '未设置' }}</a-descriptions-item>
+      </a-descriptions>
+      <a-alert style="margin-top:12px" type="info" message="发布后新版本将立即生效，运行中的流程实例不受影响。" show-icon />
+    </a-modal>
+
+    <!-- ══ 弹窗：仿真预览 ══ -->
+    <a-modal v-model:open="previewModalOpen" title="流程预览" :footer="null" width="85vw" :body-style="{ height: '80vh', padding: 0 }" destroy-on-close>
+      <X6PreviewCanvas v-if="previewModalOpen" :flow-tree="flowTree" />
+    </a-modal>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { message } from 'ant-design-vue';
-import { UndoOutlined, RedoOutlined } from '@ant-design/icons-vue';
+import {
+  LeftOutlined,
+  UndoOutlined,
+  RedoOutlined,
+  CheckCircleOutlined,
+  EyeOutlined,
+  CloseCircleOutlined,
+  ExclamationCircleOutlined,
+} from '@ant-design/icons-vue';
 import X6ApprovalDesigner from '@/components/approval/x6/X6ApprovalDesigner.vue';
 import ApprovalPropertiesPanel from '@/components/approval/ApprovalPropertiesPanel.vue';
+import ApprovalNodePalette from '@/components/approval/ApprovalNodePalette.vue';
 import LfFormDesigner from '@/components/approval/LfFormDesigner.vue';
+import X6PreviewCanvas from '@/components/approval/X6PreviewCanvas.vue';
 import { useApprovalTree } from '@/composables/useApprovalTree';
 import { ApprovalTreeConverter } from '@/utils/approval-tree-converter';
 import type { ApprovalDefinitionMeta, LfFormPayload, FormJson, VisibilityScope } from '@/types/approval-definition';
 import type { TreeNode, ConditionBranch } from '@/types/approval-tree';
+import type { ApprovalFlowValidationResult } from '@/types/api';
 import {
   getApprovalFlowById,
   createApprovalFlow,
   updateApprovalFlow,
-  publishApprovalFlow
+  publishApprovalFlow,
+  validateApprovalFlow,
 } from '@/services/api';
 
 const route = useRoute();
 const router = useRouter();
 
-const { 
-    flowTree, 
-    selectedNode, 
-    addNode, 
-    deleteNode, 
-    updateNode, 
-    addConditionBranch, 
-    deleteConditionBranch, 
-    selectNode, 
-    validateFlow,
-    undo,
-    redo,
-    canUndo,
-    canRedo,
-    pushState
+const {
+  flowTree, selectedNode, addNode, deleteNode, updateNode,
+  addConditionBranch, deleteConditionBranch, selectNode,
+  validateFlow, undo, redo, canUndo, canRedo, pushState
 } = useApprovalTree();
 
+// ── 状态 ──
 const flowName = ref('');
 const flowId = ref<string | null>(null);
+const flowVersion = ref<number>(0);
 const panelOpen = ref(false);
 const activeStep = ref(0);
-const definitionMeta = ref<ApprovalDefinitionMeta>({
-  flowName: '',
-  isLowCodeFlow: true
-});
+const definitionMeta = ref<ApprovalDefinitionMeta>({ flowName: '', isLowCodeFlow: true });
 const lfFormPayload = ref<LfFormPayload | undefined>(undefined);
 const lfFormModel = ref<FormJson | undefined>(undefined);
 const visibilityScopeText = ref('');
+const validating = ref(false);
+const validateModalOpen = ref(false);
+const validateResult = ref<ApprovalFlowValidationResult | null>(null);
+const publishModalOpen = ref(false);
+const publishing = ref(false);
+const previewModalOpen = ref(false);
 
-// 节点选中时打开面板
-watch(selectedNode, (node) => {
-  panelOpen.value = !!node;
-});
-
-const handleSelectNode = (node: TreeNode | ConditionBranch | null) => {
-  selectNode(node);
+// ── 导航 ──
+const goBack = () => {
+  if (window.history.length > 1) router.back();
+  else router.push('/approval/flows');
 };
 
-const handleNodeUpdate = (updatedNode: TreeNode | ConditionBranch) => {
-    updateNode(updatedNode);
-};
+// ── 节点选中 ──
+watch(selectedNode, (node) => { panelOpen.value = !!node; });
+const handleSelectNode = (node: TreeNode | ConditionBranch | null) => { selectNode(node); };
+const handleNodeUpdate = (updatedNode: TreeNode | ConditionBranch) => { updateNode(updatedNode); };
 
-const nextStep = () => {
-  if (activeStep.value < 2) {
-    activeStep.value += 1;
-  }
-};
+// ── 步骤 ──
+const nextStep = () => { if (activeStep.value < 2) activeStep.value += 1; };
+const prevStep = () => { if (activeStep.value > 0) activeStep.value -= 1; };
 
-const prevStep = () => {
-  if (activeStep.value > 0) {
-    activeStep.value -= 1;
-  }
+// ── 节点库添加 ──
+const handlePaletteAddNode = (nodeType: string) => {
+  const parentId = selectedNode.value?.id ?? flowTree.value.rootNode.id;
+  addNode(parentId, nodeType);
+};
+const addDefaultStartEnd = () => {
+  if (flowTree.value.rootNode.childNode) return;
+  pushState(flowTree.value);
 };
 
 const handleLfFormFields = (fields: LfFormPayload['formFields']) => {
-  lfFormPayload.value = {
-    formJson: lfFormModel.value ?? { widgetList: [] },
-    formFields: fields
-  };
+  lfFormPayload.value = { formJson: lfFormModel.value ?? { widgetList: [] }, formFields: fields };
 };
 
+// ── 构建后端请求 ──
+const buildRequest = () => {
+  definitionMeta.value.flowName = flowName.value;
+  if (visibilityScopeText.value.trim()) {
+    const parsedScope = parseVisibilityScope(visibilityScopeText.value);
+    if (!parsedScope) { message.error('可见范围JSON格式不正确'); return null; }
+    definitionMeta.value.visibilityScope = parsedScope;
+  } else {
+    definitionMeta.value.visibilityScope = undefined;
+  }
+  if (definitionMeta.value.isLowCodeFlow) {
+    lfFormPayload.value = { formJson: lfFormModel.value ?? { widgetList: [] }, formFields: lfFormPayload.value?.formFields ?? [] };
+  } else {
+    lfFormPayload.value = undefined;
+  }
+  const definitionJson = ApprovalTreeConverter.treeToDefinitionJson(flowTree.value, definitionMeta.value, lfFormPayload.value);
+  const visibilityScopeJson = definitionMeta.value.visibilityScope ? JSON.stringify(definitionMeta.value.visibilityScope) : undefined;
+  return { name: flowName.value, definitionJson, description: definitionMeta.value.description, category: definitionMeta.value.category, visibilityScopeJson, isQuickEntry: !!definitionMeta.value.isQuickEntry };
+};
+
+// ── 加载 ──
 const loadFlow = async () => {
   const id = route.params.id as string;
-  if (!id || id === 'undefined') {
-      pushState(flowTree.value);
-      return;
-  }
-  
+  if (!id || id === 'undefined') { pushState(flowTree.value); return; }
   try {
     const flow = await getApprovalFlowById(id);
     flowName.value = flow.name;
     flowId.value = flow.id;
+    flowVersion.value = flow.version;
     definitionMeta.value.description = flow.description;
     definitionMeta.value.category = flow.category;
     definitionMeta.value.isQuickEntry = flow.isQuickEntry;
     if (flow.visibilityScopeJson && !definitionMeta.value.visibilityScope) {
       visibilityScopeText.value = flow.visibilityScopeJson;
-      const parsedScope = parseVisibilityScope(flow.visibilityScopeJson);
-      definitionMeta.value.visibilityScope = parsedScope ?? undefined;
+      definitionMeta.value.visibilityScope = parseVisibilityScope(flow.visibilityScopeJson) ?? undefined;
     }
-    
     if (flow.definitionJson) {
       const state = ApprovalTreeConverter.definitionJsonToState(flow.definitionJson);
       flowTree.value = state.tree;
-      if (state.meta) {
-        definitionMeta.value = state.meta;
-        visibilityScopeText.value = state.meta.visibilityScope
-          ? JSON.stringify(state.meta.visibilityScope, null, 2)
-          : '';
-      }
-      if (state.lfForm) {
-        lfFormPayload.value = state.lfForm;
-        lfFormModel.value = state.lfForm.formJson;
-      }
+      if (state.meta) { definitionMeta.value = state.meta; visibilityScopeText.value = state.meta.visibilityScope ? JSON.stringify(state.meta.visibilityScope, null, 2) : ''; }
+      if (state.lfForm) { lfFormPayload.value = state.lfForm; lfFormModel.value = state.lfForm.formJson; }
     }
-    
     pushState(flowTree.value);
-  } catch (err) {
-    message.error(err instanceof Error ? err.message : '加载失败');
-  }
+  } catch (err) { message.error(err instanceof Error ? err.message : '加载失败'); }
 };
 
+// ── 校验 ──
+const handleValidate = async () => {
+  const localResult = validateFlow();
+  if (!localResult.valid) { validateResult.value = { isValid: false, errors: localResult.errors, warnings: [] }; validateModalOpen.value = true; return; }
+  if (!flowName.value.trim()) { message.warning('请输入流程名称'); return; }
+  const request = buildRequest();
+  if (!request) return;
+  validating.value = true;
+  try {
+    const result = await validateApprovalFlow(request);
+    validateResult.value = result;
+    validateModalOpen.value = true;
+    if (result.isValid) message.success('校验通过');
+  } catch (err) { message.error(err instanceof Error ? err.message : '校验失败'); }
+  finally { validating.value = false; }
+};
+
+// ── 保存 ──
 const handleSave = async () => {
-  if (!flowName.value.trim()) {
-    message.warning('请输入流程名称');
-    return;
-  }
-  
-  const validation = validateFlow();
-  if (!validation.valid) {
-    message.warning(`流程配置不完整:\n${validation.errors.join('\n')}`);
-    return;
-  }
-  
-  definitionMeta.value.flowName = flowName.value;
-  if (visibilityScopeText.value.trim()) {
-    const parsedScope = parseVisibilityScope(visibilityScopeText.value);
-    if (!parsedScope) {
-      message.error('可见范围JSON格式不正确');
-      return;
-    }
-    definitionMeta.value.visibilityScope = parsedScope;
-  } else {
-    definitionMeta.value.visibilityScope = undefined;
-  }
-
-  if (definitionMeta.value.isLowCodeFlow) {
-    lfFormPayload.value = {
-      formJson: lfFormModel.value ?? { widgetList: [] },
-      formFields: lfFormPayload.value?.formFields ?? []
-    };
-  } else {
-    lfFormPayload.value = undefined;
-  }
-  const definitionJson = ApprovalTreeConverter.treeToDefinitionJson(
-    flowTree.value,
-    definitionMeta.value,
-    lfFormPayload.value
-  );
-  
-  const visibilityScopeJson = definitionMeta.value.visibilityScope
-    ? JSON.stringify(definitionMeta.value.visibilityScope)
-    : undefined;
-
-  const payload = {
-    name: flowName.value,
-    definitionJson,
-    description: definitionMeta.value.description,
-    category: definitionMeta.value.category,
-    visibilityScopeJson,
-    isQuickEntry: !!definitionMeta.value.isQuickEntry
-  };
-
+  if (!flowName.value.trim()) { message.warning('请输入流程名称'); return; }
+  const localResult = validateFlow();
+  if (!localResult.valid) { validateResult.value = { isValid: false, errors: localResult.errors, warnings: [] }; validateModalOpen.value = true; return; }
+  const payload = buildRequest();
+  if (!payload) return;
   try {
     if (flowId.value) {
-      await updateApprovalFlow(flowId.value, payload);
+      const result = await updateApprovalFlow(flowId.value, payload);
+      flowVersion.value = result.version;
       message.success('保存成功');
     } else {
       const result = await createApprovalFlow(payload);
       flowId.value = result.id;
+      flowVersion.value = result.version;
       router.replace(`/approval/designer/${result.id}`);
       message.success('创建成功');
     }
-  } catch (err) {
-    message.error(err instanceof Error ? err.message : '保存失败');
-  }
+  } catch (err) { message.error(err instanceof Error ? err.message : '保存失败'); }
 };
 
-const handlePublish = async () => {
-  if (!flowId.value) {
-    message.warning('请先保存流程');
-    return;
-  }
-  
-  try {
-    await publishApprovalFlow(flowId.value);
-    message.success('发布成功');
-    router.push('/approval/flows');
-  } catch (err) {
-    message.error(err instanceof Error ? err.message : '发布失败');
-  }
+// ── 发布 ──
+const handlePublishClick = () => { if (!flowId.value) { message.warning('请先保存流程'); return; } publishModalOpen.value = true; };
+const handlePublishConfirm = async () => {
+  if (!flowId.value) return;
+  publishing.value = true;
+  try { await publishApprovalFlow(flowId.value); message.success('发布成功'); publishModalOpen.value = false; router.push('/approval/flows'); }
+  catch (err) { message.error(err instanceof Error ? err.message : '发布失败'); }
+  finally { publishing.value = false; }
 };
 
+// ── 预览 ──
+const handlePreview = () => { previewModalOpen.value = true; };
+
+// ── 工具 ──
 const parseVisibilityScope = (value: string): VisibilityScope | null => {
-  try {
-    const parsed = JSON.parse(value) as VisibilityScope;
-    if (!parsed || typeof parsed !== 'object') return null;
-    if (!parsed.scopeType) return null;
-    return parsed;
-  } catch {
-    return null;
-  }
+  try { const p = JSON.parse(value) as VisibilityScope; return p?.scopeType ? p : null; } catch { return null; }
 };
 
-onMounted(() => {
-  loadFlow();
-});
+onMounted(() => { loadFlow(); });
 </script>
 
 <style scoped>
-.designer-container {
-  height: calc(100vh - 260px);
-  min-height: 500px;
-  border: 1px solid #eef0f5;
-  border-radius: 8px;
-  position: relative;
+/* ═══════════════════════════
+   整体：撑满视口，零外边距
+   ═══════════════════════════ */
+.dd-page {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100vh;
   overflow: hidden;
+  background: #f5f5f7;
 }
 
-.designer-steps {
-  margin-bottom: 16px;
+/* ═══ 工具栏 44px ═══ */
+.dd-toolbar {
+  display: flex;
+  align-items: center;
+  height: 44px;
+  flex-shrink: 0;
+  padding: 0 10px;
+  background: #fff;
+  border-bottom: 1px solid #e8e8e8;
+  gap: 4px;
+}
+.dd-toolbar__back {
+  font-size: 13px;
+  color: #595959;
+  padding: 0 6px;
+}
+.dd-toolbar__name {
+  width: 180px;
+  font-weight: 600;
+  font-size: 14px;
+}
+.dd-toolbar__version {
+  margin-right: 4px;
 }
 
-.step-content {
-  margin-bottom: 16px;
+/* 步骤指示：紧凑文字标签 */
+.dd-toolbar__steps {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin: 0 auto;
+}
+.dd-step-dot {
+  padding: 2px 10px;
+  font-size: 12px;
+  color: #8c8c8c;
+  cursor: pointer;
+  border-radius: 10px;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.dd-step-dot--active {
+  background: #1677ff;
+  color: #fff;
+  font-weight: 500;
+}
+.dd-step-dot--done {
+  color: #1677ff;
+}
+.dd-step-dot:hover:not(.dd-step-dot--active) {
+  background: #f0f0f0;
 }
 
-.basic-form {
+.dd-toolbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* ═══ 步骤内容（基础设置/表单设计） ═══ */
+.dd-body {
+  flex: 1;
+  min-height: 0;
+}
+.dd-body--scroll {
+  overflow-y: auto;
+  padding: 16px 24px;
+}
+.dd-basic-form {
   background: #fff;
   padding: 16px;
   border: 1px solid #f0f0f0;
   border-radius: 6px;
-  max-width: 720px;
+  max-width: 640px;
 }
 
-.step-actions {
+/* ═══ 流程设计三栏（撑满剩余高度） ═══ */
+.dd-body--designer {
   display: flex;
-  justify-content: flex-end;
-  margin-top: 12px;
+  overflow: hidden;
+}
+.dd-canvas {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+/* ═══ 弹窗辅助 ═══ */
+.dd-validate-list {
+  max-height: 280px;
+  overflow-y: auto;
+}
+.dd-validate-item {
+  padding: 4px 0;
+  font-size: 13px;
+  line-height: 1.5;
+  border-bottom: 1px solid #fafafa;
+}
+.dd-validate-item:last-child {
+  border-bottom: none;
 }
 </style>

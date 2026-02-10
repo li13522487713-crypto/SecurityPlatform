@@ -275,6 +275,12 @@ export interface ApprovalFlowPublishRequest {
   remark?: string;
 }
 
+export interface ApprovalFlowValidationResult {
+  isValid: boolean;
+  errors: string[];
+  warnings: string[];
+}
+
 export interface ApprovalStartRequest {
   definitionId: string;
   businessKey: string;

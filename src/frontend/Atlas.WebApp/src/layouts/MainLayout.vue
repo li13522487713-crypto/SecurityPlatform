@@ -1,5 +1,9 @@
 <template>
   <router-view v-if="isLogin" />
+  <!-- 全屏模式：无 Sider 无 Header，页面自行管理工具栏 -->
+  <div v-else-if="isFullscreen" class="app-fullscreen">
+    <router-view :key="contentKey" />
+  </div>
   <a-layout v-else class="app-shell">
     <a-layout-sider collapsible :collapsed="collapsed" @collapse="toggle">
       <div class="brand">Atlas 安全平台</div>
@@ -157,6 +161,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { message } from "ant-design-vue";
+import { LeftOutlined } from "@ant-design/icons-vue";
 import { getCurrentUser, logout as apiLogout } from "@/services/api";
 import type { AuthProfile } from "@/types/api";
 import { clearAuthStorage, getAccessToken, getAuthProfile, hasPermission, setAuthProfile } from "@/utils/auth";
@@ -171,6 +176,7 @@ const openKeys = ref<string[]>([]);
 const globalKeyword = ref("");
 
 const isLogin = computed(() => route.name === "login");
+const isFullscreen = computed(() => !!route.meta.fullscreen);
 const profileDisplayName = computed(() => profile.value?.displayName || profile.value?.username || "个人中心");
 const profileInitials = computed(() => {
   const name = profile.value?.displayName || profile.value?.username || "";
@@ -217,6 +223,14 @@ const toggle = (value: boolean) => {
 
 const go = (path: string) => {
   router.push(path);
+};
+
+const goBack = () => {
+  if (window.history.length > 1) {
+    router.back();
+  } else {
+    router.push('/');
+  }
 };
 
 const showWorkflowMenu = computed(() => hasPermission(profile.value, "workflow:design"));
@@ -380,5 +394,12 @@ watch(
 
 .header-help {
   color: var(--color-text-primary);
+}
+
+/* ── Fullscreen mode ── */
+.app-fullscreen {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
 }
 </style>

@@ -39,7 +39,7 @@ const router = createRouter({
     { path: "/audit", name: "audit", component: AuditPage, meta: { requiresAuth: true } },
     { path: "/alert", name: "alert", component: AlertPage, meta: { requiresAuth: true } },
     { path: "/approval/flows", name: "approval-flows", component: ApprovalFlowsPage, meta: { requiresAuth: true } },
-    { path: "/approval/designer/:id?", name: "approval-designer", component: ApprovalDesignerPage, meta: { requiresAuth: true } },
+    { path: "/approval/designer/:id?", name: "approval-designer", component: ApprovalDesignerPage, meta: { requiresAuth: true, fullscreen: true } },
     { path: "/approval/tasks", name: "approval-tasks", component: ApprovalTasksPage, meta: { requiresAuth: true } },
     { path: "/approval/instances", name: "approval-instances", component: ApprovalInstancesPage, meta: { requiresAuth: true } },
     {

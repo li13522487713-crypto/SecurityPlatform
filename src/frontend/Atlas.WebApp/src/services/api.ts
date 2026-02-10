@@ -10,6 +10,7 @@ import type {
   ApprovalFlowDefinitionCreateRequest,
   ApprovalFlowDefinitionUpdateRequest,
   ApprovalFlowPublishRequest,
+  ApprovalFlowValidationResult,
   ApprovalStartRequest,
   ApprovalTaskResponse,
   ApprovalTaskDecideRequest,
@@ -629,6 +630,18 @@ export async function publishApprovalFlow(id: string, request?: ApprovalFlowPubl
   if (!response.success) {
     throw new Error(response.message || "发布失败");
   }
+}
+
+export async function validateApprovalFlow(request: ApprovalFlowDefinitionCreateRequest): Promise<ApprovalFlowValidationResult> {
+  const response = await requestApi<ApiResponse<ApprovalFlowValidationResult>>("/approval/flows/validation", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request)
+  });
+  if (!response.data) {
+    throw new Error(response.message || "校验失败");
+  }
+  return response.data;
 }
 
 export async function disableApprovalFlow(id: string) {
