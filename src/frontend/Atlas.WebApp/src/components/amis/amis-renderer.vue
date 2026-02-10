@@ -6,6 +6,7 @@
 import { onMounted, onBeforeUnmount, ref, watch, toRaw } from "vue";
 import { render as renderAmis } from "amis";
 import { createRoot, type Root } from "react-dom/client";
+import type { Schema } from "amis-core";
 import type { AmisSchema } from "@/types/amis";
 import type { JsonValue } from "@/types/api";
 import { createAmisEnv } from "@/amis/amis-env";
@@ -21,7 +22,7 @@ const rootRef = ref<Root | null>(null);
 const amisEnv = createAmisEnv();
 const emptyData: Record<string, JsonValue> = {};
 
-const normalizeValue = <T extends JsonValue | Record<string, JsonValue>>(value: T): T => {
+const normalizeValue = <T>(value: T): T => {
   const raw = toRaw(value) as T;
   if (typeof structuredClone === "function") {
     try {
@@ -45,7 +46,7 @@ const renderSchema = () => {
   }
   const schema = normalizeValue(props.schema);
   const data = normalizeValue(props.data ?? emptyData);
-  const element = renderAmis(schema, { data }, amisEnv);
+  const element = renderAmis(schema as unknown as Schema, { data }, amisEnv as unknown as Record<string, unknown>);
   rootRef.value.render(element);
 };
 

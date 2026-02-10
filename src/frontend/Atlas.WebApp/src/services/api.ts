@@ -743,6 +743,174 @@ export async function decideApprovalTask(request: ApprovalTaskDecideRequest) {
   }
 }
 
+export async function delegateTask(taskId: string, delegateeUserId: string, comment?: string) {
+  const response = await requestApi<ApiResponse<string>>(`/approval/tasks/${taskId}/delegation?delegateeUserId=${delegateeUserId}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(comment || "")
+  });
+  if (!response.success) {
+    throw new Error(response.message || "委派失败");
+  }
+}
+
+export async function resolveTask(taskId: string, comment?: string) {
+  const response = await requestApi<ApiResponse<string>>(`/approval/tasks/${taskId}/resolution`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(comment || "")
+  });
+  if (!response.success) {
+    throw new Error(response.message || "归还失败");
+  }
+}
+
+export async function claimTask(taskId: string) {
+  const response = await requestApi<ApiResponse<string>>(`/approval/tasks/${taskId}/claim`, {
+    method: "POST"
+  });
+  if (!response.success) {
+    throw new Error(response.message || "认领失败");
+  }
+}
+
+export async function urgeTask(taskId: string, message?: string) {
+  const response = await requestApi<ApiResponse<string>>(`/approval/tasks/${taskId}/urge`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(message || "")
+  });
+  if (!response.success) {
+    throw new Error(response.message || "催办失败");
+  }
+}
+
+export async function communicateTask(taskId: string, recipientUserId: string, content: string) {
+  const response = await requestApi<ApiResponse<string>>(`/approval/tasks/${taskId}/communication?recipientUserId=${recipientUserId}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(content)
+  });
+  if (!response.success) {
+    throw new Error(response.message || "沟通失败");
+  }
+}
+
+export async function getCommunications(taskId: string) {
+  const response = await requestApi<ApiResponse<any[]>>(`/approval/tasks/${taskId}/communications`);
+  if (!response.data) {
+    throw new Error(response.message || "获取沟通记录失败");
+  }
+  return response.data;
+}
+
+export async function jumpTask(instanceId: string, targetNodeId: string) {
+  const request = {
+    operationType: 36, // Jump
+    targetNodeId
+  };
+  const response = await requestApi<ApiResponse<string>>(`/approval/instances/${instanceId}/operations`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request)
+  });
+  if (!response.success) {
+    throw new Error(response.message || "跳转失败");
+  }
+}
+
+export async function reclaimTask(instanceId: string, taskId: string) {
+  const request = {
+    operationType: 37 // Reclaim
+  };
+  const response = await requestApi<ApiResponse<string>>(`/approval/instances/${instanceId}/operations?taskId=${taskId}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request)
+  });
+  if (!response.success) {
+    throw new Error(response.message || "拿回失败");
+  }
+}
+
+export async function getTaskPool(pagedRequest: PagedRequest) {
+  const query = toQuery(pagedRequest);
+  const response = await requestApi<ApiResponse<PagedResult<ApprovalTaskResponse>>>(`/approval/tasks/pool?${query}`);
+  if (!response.data) {
+    throw new Error(response.message || "查询失败");
+  }
+  return response.data;
+}
+
+export async function batchTransferTasks(fromUserId: string, toUserId: string) {
+  const response = await requestApi<ApiResponse<string>>(`/approval/tasks/batch-transfer?fromUserId=${fromUserId}&toUserId=${toUserId}`, {
+    method: "POST"
+  });
+  if (!response.success) {
+    throw new Error(response.message || "转办失败");
+  }
+}
+
+export async function suspendInstance(instanceId: string) {
+  const response = await requestApi<ApiResponse<string>>(`/approval/instances/${instanceId}/suspension`, {
+    method: "POST"
+  });
+  if (!response.success) {
+    throw new Error(response.message || "挂起失败");
+  }
+}
+
+export async function activateInstance(instanceId: string) {
+  const response = await requestApi<ApiResponse<string>>(`/approval/instances/${instanceId}/activation`, {
+    method: "POST"
+  });
+  if (!response.success) {
+    throw new Error(response.message || "激活失败");
+  }
+}
+
+export async function terminateInstance(instanceId: string, comment?: string) {
+  const response = await requestApi<ApiResponse<string>>(`/approval/instances/${instanceId}/termination`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(comment || "")
+  });
+  if (!response.success) {
+    throw new Error(response.message || "终止失败");
+  }
+}
+
+export async function saveDraft(request: ApprovalStartRequest) {
+  const response = await requestApi<ApiResponse<ApprovalInstanceResponse>>("/approval/instances/draft", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request)
+  });
+  if (!response.data) {
+    throw new Error(response.message || "保存草稿失败");
+  }
+  return response.data;
+}
+
+export async function submitDraft(instanceId: string) {
+  const response = await requestApi<ApiResponse<ApprovalInstanceResponse>>(`/approval/instances/${instanceId}/submission`, {
+    method: "POST"
+  });
+  if (!response.data) {
+    throw new Error(response.message || "提交草稿失败");
+  }
+  return response.data;
+}
+
+export async function markTaskViewed(taskId: string) {
+  const response = await requestApi<ApiResponse<string>>(`/approval/tasks/${taskId}/viewed`, {
+    method: "POST"
+  });
+  if (!response.success) {
+    throw new Error(response.message || "操作失败");
+  }
+}
+
 // WorkflowCore 相关 API
 
 export async function getWorkflowStepTypes(): Promise<StepTypeMetadata[]> {

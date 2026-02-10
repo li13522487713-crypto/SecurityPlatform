@@ -101,13 +101,13 @@ const stringOperators = [
 
 function getOperators(fieldId: string) {
   if (!props.formFields) return commonOperators;
-  const field = props.formFields.find(f => f.id === fieldId);
+  const field = props.formFields.find(f => (f.id || f.fieldId) === fieldId);
   if (!field) return commonOperators;
   
   // 简单根据类型判断
   // 假设 LfFormField 有 type 字段，或者我们可以推断
   // 这里暂时简化，如果是数字类组件则返回数字操作符
-  if (['input-number', 'slider', 'rate'].includes(field.widgetType)) {
+  if (['input-number', 'slider', 'rate'].includes(field.widgetType || '')) {
     return numberOperators;
   }
   return stringOperators;

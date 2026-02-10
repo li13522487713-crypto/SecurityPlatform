@@ -60,6 +60,18 @@ public sealed class ApprovalProcessInstance : TenantEntity
     /// <summary>当前节点 ID</summary>
     public string? CurrentNodeId { get; private set; }
 
+    /// <summary>父流程实例 ID</summary>
+    public long? ParentInstanceId { get; private set; }
+
+    /// <summary>优先级</summary>
+    public int? Priority { get; private set; }
+
+    /// <summary>流程编号</summary>
+    public string? InstanceNo { get; private set; }
+
+    /// <summary>当前节点名称</summary>
+    public string? CurrentNodeName { get; private set; }
+
     /// <summary>乐观并发版本号（SqlSugar 自动校验）</summary>
     [SugarColumn(IsEnableUpdateVersionValidation = true)]
     public long RowVersion { get; private set; }
@@ -111,10 +123,61 @@ public sealed class ApprovalProcessInstance : TenantEntity
     {
         if (Status == ApprovalInstanceStatus.Completed ||
             Status == ApprovalInstanceStatus.Rejected ||
-            Status == ApprovalInstanceStatus.Canceled)
+            Status == ApprovalInstanceStatus.Canceled ||
+            Status == ApprovalInstanceStatus.Terminated)
         {
             Status = ApprovalInstanceStatus.Running;
             EndedAt = null;
         }
+    }
+
+    public void Suspend()
+    {
+        if (Status == ApprovalInstanceStatus.Running)
+        {
+            Status = ApprovalInstanceStatus.Suspended;
+        }
+    }
+
+    public void Activate()
+    {
+        if (Status == ApprovalInstanceStatus.Suspended || Status == ApprovalInstanceStatus.Draft)
+        {
+            Status = ApprovalInstanceStatus.Running;
+        }
+    }
+
+    public void SaveAsDraft()
+    {
+        Status = ApprovalInstanceStatus.Draft;
+    }
+
+    public void Terminate(DateTimeOffset now)
+    {
+        if (Status == ApprovalInstanceStatus.Running || Status == ApprovalInstanceStatus.Suspended)
+        {
+            Status = ApprovalInstanceStatus.Terminated;
+            EndedAt = now;
+        }
+    }
+
+    public void SetParentInstanceId(long? parentInstanceId)
+    {
+        ParentInstanceId = parentInstanceId;
+    }
+
+    public void SetPriority(int? priority)
+    {
+        Priority = priority;
+    }
+
+    public void SetInstanceNo(string? instanceNo)
+    {
+        InstanceNo = instanceNo;
+    }
+
+    public void SetCurrentNodeName(string? currentNodeName)
+    {
+        CurrentNodeName = currentNodeName;
     }
 }

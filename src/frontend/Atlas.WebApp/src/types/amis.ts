@@ -21,4 +21,4 @@ export interface AmisEnv {
   confirm: (msg: string) => Promise<boolean>;
 }
 
-export type AmisSchema = JsonValue;
+export type AmisSchema = Record<string, unknown>;

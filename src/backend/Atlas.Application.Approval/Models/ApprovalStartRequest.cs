@@ -13,4 +13,7 @@ public record ApprovalStartRequest
 
     /// <summary>业务数据 JSON</summary>
     public string? DataJson { get; init; }
+
+    /// <summary>穿越时空：覆盖创建时间（仅用于测试或特殊场景）</summary>
+    public DateTimeOffset? OverrideCreateTime { get; init; }
 }

@@ -18,5 +18,17 @@ public enum ApprovalTaskStatus
     Canceled = 3,
 
     /// <summary>等待激活（顺序会签中，等待前序任务完成）</summary>
-    Waiting = 4
+    Waiting = 4,
+
+    /// <summary>已委派</summary>
+    Delegated = 5,
+
+    /// <summary>已认领</summary>
+    Claimed = 6,
+
+    /// <summary>自动通过</summary>
+    AutoApproved = 7,
+
+    /// <summary>自动拒绝</summary>
+    AutoRejected = 8
 }

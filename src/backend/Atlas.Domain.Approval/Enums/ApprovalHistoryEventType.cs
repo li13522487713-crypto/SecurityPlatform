@@ -68,5 +68,38 @@ public enum ApprovalHistoryEventType
     RecoverToHistory = 21,
 
     /// <summary>保存草稿</summary>
-    DraftSaved = 22
+    DraftSaved = 22,
+
+    /// <summary>任务委派</summary>
+    TaskDelegated = 23,
+
+    /// <summary>委派归还</summary>
+    TaskDelegateReturned = 24,
+
+    /// <summary>任务认领</summary>
+    TaskClaimed = 25,
+
+    /// <summary>任务跳转</summary>
+    TaskJumped = 26,
+
+    /// <summary>任务拿回</summary>
+    TaskReclaimed = 27,
+
+    /// <summary>任务唤醒</summary>
+    TaskResumed = 28,
+
+    /// <summary>流程挂起</summary>
+    InstanceSuspended = 29,
+
+    /// <summary>流程激活</summary>
+    InstanceActivated = 30,
+
+    /// <summary>流程强制终止</summary>
+    InstanceTerminated = 31,
+
+    /// <summary>任务催办</summary>
+    TaskUrged = 32,
+
+    /// <summary>任务沟通</summary>
+    TaskCommunicated = 33
 }

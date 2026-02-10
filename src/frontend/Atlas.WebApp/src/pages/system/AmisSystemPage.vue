@@ -13,11 +13,12 @@ import { useRoute } from "vue-router";
 import { message } from "ant-design-vue";
 import AmisRenderer from "@/components/amis/amis-renderer.vue";
 import { getAmisPageDefinition } from "@/services/api";
-import type { AmisPageDefinition, JsonValue } from "@/types/api";
+import type { AmisPageDefinition } from "@/types/api";
+import type { AmisSchema } from "@/types/amis";
 
 const route = useRoute();
 const loading = ref(false);
-const schema = ref<JsonValue | null>(null);
+const schema = ref<AmisSchema | null>(null);
 const pageTitle = ref("系统管理");
 
 const schemaKey = computed(() => {
@@ -34,7 +35,7 @@ const loadSchema = async () => {
   loading.value = true;
   try {
     const definition: AmisPageDefinition = await getAmisPageDefinition(schemaKey.value);
-    schema.value = definition.schema;
+    schema.value = definition.schema as AmisSchema;
     pageTitle.value = definition.title;
   } catch (error) {
     schema.value = null;

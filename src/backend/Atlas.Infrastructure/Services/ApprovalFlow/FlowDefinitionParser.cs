@@ -180,6 +180,65 @@ public sealed class FlowDefinitionParser
                     node.MaxReminderCount = maxReminderCountProp.GetInt32();
                 }
             }
+
+            // --- 解析新增属性 ---
+
+            if (dataElement.TryGetProperty("weight", out var weightProp) && weightProp.ValueKind == JsonValueKind.Number)
+            {
+                node.Weight = weightProp.GetInt32();
+            }
+
+            if (dataElement.TryGetProperty("votePassRate", out var votePassRateProp) && votePassRateProp.ValueKind == JsonValueKind.Number)
+            {
+                node.VotePassRate = votePassRateProp.GetInt32();
+            }
+
+            if (dataElement.TryGetProperty("rejectStrategy", out var rejectStrategyProp))
+            {
+                var str = rejectStrategyProp.GetString();
+                if (Enum.TryParse<RejectStrategy>(str, out var val)) node.RejectStrategy = val;
+            }
+
+            if (dataElement.TryGetProperty("reApproveStrategy", out var reApproveStrategyProp))
+            {
+                var str = reApproveStrategyProp.GetString();
+                if (Enum.TryParse<ReApproveStrategy>(str, out var val)) node.ReApproveStrategy = val;
+            }
+
+            if (dataElement.TryGetProperty("callProcessId", out var callProcessIdProp) && callProcessIdProp.ValueKind == JsonValueKind.Number)
+            {
+                node.CallProcessId = callProcessIdProp.GetInt64();
+            }
+
+            if (dataElement.TryGetProperty("callAsync", out var callAsyncProp))
+            {
+                node.CallAsync = callAsyncProp.GetBoolean();
+            }
+
+            if (dataElement.TryGetProperty("timerConfig", out var timerConfigProp))
+            {
+                node.TimerConfig = timerConfigProp.GetRawText();
+            }
+
+            if (dataElement.TryGetProperty("triggerType", out var triggerTypeProp))
+            {
+                node.TriggerType = triggerTypeProp.GetString();
+            }
+
+            if (dataElement.TryGetProperty("groupStrategy", out var groupStrategyProp) && groupStrategyProp.ValueKind == JsonValueKind.Number)
+            {
+                node.GroupStrategy = groupStrategyProp.GetInt32();
+            }
+
+            if (dataElement.TryGetProperty("callAi", out var callAiProp))
+            {
+                node.CallAi = callAiProp.GetBoolean();
+            }
+
+            if (dataElement.TryGetProperty("aiConfig", out var aiConfigProp))
+            {
+                node.AiConfig = aiConfigProp.GetRawText();
+            }
         }
 
         return node;
@@ -294,6 +353,49 @@ public sealed class FlowDefinition
         var outgoingEdges = GetOutgoingEdges(nodeId);
         return outgoingEdges.Count > 1;
     }
+
+    /// <summary>
+    /// 判断节点是否为包容网关的分支节点
+    /// </summary>
+    public bool IsInclusiveSplitGateway(string nodeId)
+    {
+        var node = GetNodeById(nodeId);
+        if (node == null || node.Type != "inclusiveGateway")
+        {
+            return false;
+        }
+        var outgoingEdges = GetOutgoingEdges(nodeId);
+        return outgoingEdges.Count > 1;
+    }
+
+    /// <summary>
+    /// 判断节点是否为包容网关的汇聚节点
+    /// </summary>
+    public bool IsInclusiveJoinGateway(string nodeId)
+    {
+        var node = GetNodeById(nodeId);
+        if (node == null || node.Type != "inclusiveGateway")
+        {
+            return false;
+        }
+        var incomingEdges = GetIncomingEdges(nodeId);
+        return incomingEdges.Count > 1;
+    }
+
+    /// <summary>
+    /// 获取路由节点的目标节点ID
+    /// </summary>
+    public string? GetRouteTarget(string nodeId)
+    {
+        var node = GetNodeById(nodeId);
+        if (node == null || node.Type != "routeGateway")
+        {
+            return null;
+        }
+        // 路由节点通常只有一个出边，指向目标
+        var outgoingEdges = GetOutgoingEdges(nodeId);
+        return outgoingEdges.FirstOrDefault()?.Target;
+    }
 }
 
 /// <summary>
@@ -324,6 +426,41 @@ public sealed class FlowNode
     /// 超时自动处理动作（None = 仅提醒，AutoApprove = 自动通过，AutoReject = 自动驳回，AutoSkip = 自动跳过）
     /// </summary>
     public TimeoutAction TimeoutAction { get; set; } = TimeoutAction.None;
+
+    // --- 新增属性 ---
+
+    /// <summary>票签权重（默认1）</summary>
+    public int? Weight { get; set; }
+
+    /// <summary>票签通过比率（0-100）</summary>
+    public int? VotePassRate { get; set; }
+
+    /// <summary>驳回策略</summary>
+    public RejectStrategy? RejectStrategy { get; set; }
+
+    /// <summary>重新审批策略</summary>
+    public ReApproveStrategy? ReApproveStrategy { get; set; }
+
+    /// <summary>子流程定义ID</summary>
+    public long? CallProcessId { get; set; }
+
+    /// <summary>是否异步子流程</summary>
+    public bool CallAsync { get; set; }
+
+    /// <summary>定时器配置JSON</summary>
+    public string? TimerConfig { get; set; }
+
+    /// <summary>触发器类型（immediate/scheduled）</summary>
+    public string? TriggerType { get; set; }
+
+    /// <summary>分组策略（0=认领 1=全员审批）</summary>
+    public int? GroupStrategy { get; set; }
+
+    /// <summary>是否调用AI审批</summary>
+    public bool CallAi { get; set; }
+
+    /// <summary>AI审批配置JSON</summary>
+    public string? AiConfig { get; set; }
 }
 
 /// <summary>

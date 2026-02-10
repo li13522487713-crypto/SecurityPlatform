@@ -77,7 +77,7 @@ export function createAmisEnv(): AmisEnv {
         suppressErrorMessage: true
       });
       return {
-        data: payload as JsonValue,
+        data: (payload.data ?? null) as JsonValue,
         ok: true,
         status: 200,
         msg: payload.message

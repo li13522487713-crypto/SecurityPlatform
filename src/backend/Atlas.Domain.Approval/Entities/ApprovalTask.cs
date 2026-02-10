@@ -78,6 +78,21 @@ public sealed class ApprovalTask : TenantEntity
     /// <summary>顺序号（用于顺序会签，从1开始）</summary>
     public int Order { get; private set; }
 
+    /// <summary>票签权重（百分比，默认1）</summary>
+    public int? Weight { get; private set; }
+
+    /// <summary>父任务 ID（用于委派/加签追踪）</summary>
+    public long? ParentTaskId { get; private set; }
+
+    /// <summary>委派人 ID</summary>
+    public long? DelegatorUserId { get; private set; }
+
+    /// <summary>已阅时间</summary>
+    public DateTimeOffset? ViewedAt { get; private set; }
+
+    /// <summary>任务类型（0=主办 1=审批 2=抄送 10=转办 11=委派 12=委派归还 13=代理）</summary>
+    public int TaskType { get; private set; }
+
     /// <summary>乐观并发版本号（SqlSugar 自动校验）</summary>
     [SugarColumn(IsEnableUpdateVersionValidation = true)]
     public long RowVersion { get; private set; }
@@ -157,5 +172,49 @@ public sealed class ApprovalTask : TenantEntity
         {
             Status = ApprovalTaskStatus.Pending;
         }
+    }
+
+    public void Delegate(long delegatorUserId, string delegateeAssigneeValue)
+    {
+        if (Status != ApprovalTaskStatus.Pending)
+        {
+            throw new InvalidOperationException($"Cannot delegate task in '{Status}' status. Expected: Pending.");
+        }
+        Status = ApprovalTaskStatus.Delegated;
+        DelegatorUserId = delegatorUserId;
+        // 注意：委派通常会创建一个新任务给被委派人，当前任务标记为已委派
+        // 这里仅更新状态，新任务创建由服务层处理
+    }
+
+    public void ClaimBack()
+    {
+        if (Status == ApprovalTaskStatus.Delegated)
+        {
+            Status = ApprovalTaskStatus.Pending;
+            DelegatorUserId = null;
+        }
+    }
+
+    public void MarkViewed(DateTimeOffset now)
+    {
+        if (!ViewedAt.HasValue)
+        {
+            ViewedAt = now;
+        }
+    }
+
+    public void SetWeight(int? weight)
+    {
+        Weight = weight;
+    }
+
+    public void SetTaskType(int taskType)
+    {
+        TaskType = taskType;
+    }
+
+    public void SetParentTaskId(long? parentTaskId)
+    {
+        ParentTaskId = parentTaskId;
     }
 }

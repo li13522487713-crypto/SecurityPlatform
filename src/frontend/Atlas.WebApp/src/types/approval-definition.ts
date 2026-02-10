@@ -6,6 +6,11 @@ export type ApprovalNodeType =
   | 'parallel'
   | 'dynamicCondition'
   | 'parallelCondition'
+  | 'inclusive'
+  | 'route'
+  | 'callProcess'
+  | 'timer'
+  | 'trigger'
   | 'end';
 
 export type JsonValue =
@@ -50,6 +55,10 @@ export interface LfFormField {
   fieldType: string;
   valueType: string;
   options?: Array<{ key: string; value: string }>;
+  // 兼容旧前端字段命名
+  id?: string;
+  label?: string;
+  widgetType?: string;
 }
 
 export interface FormWidgetOptions {
@@ -150,6 +159,14 @@ export interface ApprovalNode {
   deduplicationType?: 'none' | 'skipSame' | 'global';
   excludeUserIds?: string[];
   excludeRoleCodes?: string[];
+
+  // 扩展节点属性
+  callAi?: boolean;
+  aiConfig?: string;
+  callProcessId?: number;
+  callAsync?: boolean;
+  timerConfig?: string;
+  triggerType?: string;
 }
 
 export interface ConditionRule {

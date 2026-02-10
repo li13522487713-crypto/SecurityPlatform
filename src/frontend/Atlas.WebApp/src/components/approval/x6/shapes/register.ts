@@ -10,6 +10,11 @@ import ApproveNodeShape from './ApproveNodeShape.vue';
 import CopyNodeShape from './CopyNodeShape.vue';
 import ConditionHeaderShape from './ConditionHeaderShape.vue';
 import ConditionBranchShape from './ConditionBranchShape.vue';
+import InclusiveBranchShape from './InclusiveBranchShape.vue';
+import RouteBranchShape from './RouteBranchShape.vue';
+import CallProcessNodeShape from './CallProcessNodeShape.vue';
+import TimerNodeShape from './TimerNodeShape.vue';
+import TriggerNodeShape from './TriggerNodeShape.vue';
 import EndNodeShape from './EndNodeShape.vue';
 import AddButtonShape from './AddButtonShape.vue';
 import { LAYOUT } from '../layout';
@@ -60,6 +65,46 @@ export function registerAllShapes() {
     component: ConditionBranchShape,
   });
 
+  // ── 包容分支 ──
+  register({
+    shape: 'dd-inclusive-branch',
+    width: LAYOUT.NODE_W,
+    height: LAYOUT.COND_BRANCH_H,
+    component: InclusiveBranchShape,
+  });
+
+  // ── 路由分支 ──
+  register({
+    shape: 'dd-route-node',
+    width: LAYOUT.NODE_W,
+    height: LAYOUT.NODE_H,
+    component: RouteBranchShape,
+  });
+
+  // ── 子流程 ──
+  register({
+    shape: 'dd-call-process-node',
+    width: LAYOUT.NODE_W,
+    height: LAYOUT.NODE_H,
+    component: CallProcessNodeShape,
+  });
+
+  // ── 定时器 ──
+  register({
+    shape: 'dd-timer-node',
+    width: LAYOUT.NODE_W,
+    height: LAYOUT.NODE_H,
+    component: TimerNodeShape,
+  });
+
+  // ── 触发器 ──
+  register({
+    shape: 'dd-trigger-node',
+    width: LAYOUT.NODE_W,
+    height: LAYOUT.NODE_H,
+    component: TriggerNodeShape,
+  });
+
   // ── 结束节点 ──
   register({
     shape: 'dd-end-node',
@@ -87,6 +132,11 @@ export function shapeNameFromType(
     copy: 'dd-copy-node',
     'condition-header': 'dd-condition-header',
     'condition-branch': 'dd-condition-branch',
+    'inclusive': 'dd-inclusive-branch',
+    'route': 'dd-route-node',
+    'callProcess': 'dd-call-process-node',
+    'timer': 'dd-timer-node',
+    'trigger': 'dd-trigger-node',
     end: 'dd-end-node',
     'add-button': 'dd-add-button',
     parallel: 'dd-approve-node', // 并行审批复用审批人样式

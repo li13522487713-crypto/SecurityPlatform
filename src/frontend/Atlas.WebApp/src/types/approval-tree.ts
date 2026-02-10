@@ -15,7 +15,12 @@ export type NodeType =
   | 'parallel'
   | 'dynamicCondition'
   | 'parallelCondition'
-  | 'end';
+  | 'end'
+  | 'inclusive'
+  | 'route'
+  | 'callProcess'
+  | 'timer'
+  | 'trigger';
 
 export interface TreeNodeBase {
   id: string;
@@ -35,7 +40,7 @@ export interface ApproveNode extends TreeNodeBase {
   nodeType: 'approve';
   assigneeType: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;  // 用户/角色/部门负责人/HRBP/直属领导/层级领导/发起人/发起人自选
   assigneeValue: string;
-  approvalMode: 'all' | 'any' | 'sequential';
+  approvalMode: 'all' | 'any' | 'sequential' | 'vote';
   noHeaderAction?: 0 | 1 | 2; // 无审批人策略：不允许/跳过/转管理员
   approverConfig?: ApproverConfig;
   buttonPermissionConfig?: ButtonPermissionConfig;
@@ -53,6 +58,15 @@ export interface ApproveNode extends TreeNodeBase {
   deduplicationType?: 'none' | 'skipSame' | 'global';
   excludeUserIds?: string[];
   excludeRoleCodes?: string[];
+
+  // 新增属性
+  voteWeight?: number;
+  votePassRate?: number;
+  rejectStrategy?: 'toPrevious' | 'toInitiator' | 'toAnyNode';
+  reApproveStrategy?: 'continue' | 'backToRejectNode';
+  groupStrategy?: 'claim' | 'allParticipate';
+  callAi?: boolean;
+  aiConfig?: string;
 }
 
 // 抄送节点
@@ -136,6 +150,48 @@ export interface EndNode extends TreeNodeBase {
   nodeType: 'end';
 }
 
+// 包容分支节点
+export interface InclusiveNode extends TreeNodeBase {
+  nodeType: 'inclusive';
+  conditionNodes: ConditionBranch[];
+  childNode?: TreeNode;
+}
+
+// 路由节点
+export interface RouteNode extends TreeNodeBase {
+  nodeType: 'route';
+  routeTargetNodeId?: string; // 目标节点ID
+  // 路由节点通常是终点，但也可以作为中间节点（如果只是经过）
+  // 但在 FlowLong 中，路由节点是重定向，所以通常没有直接的 childNode，而是跳转到 target
+}
+
+// 子流程节点
+export interface CallProcessNode extends TreeNodeBase {
+  nodeType: 'callProcess';
+  callProcessId?: string; // 子流程定义ID
+  callAsync?: boolean; // 是否异步
+  childNode?: TreeNode;
+}
+
+// 定时器节点
+export interface TimerNode extends TreeNodeBase {
+  nodeType: 'timer';
+  timerConfig?: {
+    type: 'duration' | 'date'; // 时长 或 具体时间
+    duration?: number; // 秒
+    date?: string; // ISO string
+  };
+  childNode?: TreeNode;
+}
+
+// 触发器节点
+export interface TriggerNode extends TreeNodeBase {
+  nodeType: 'trigger';
+  triggerType?: 'immediate' | 'scheduled';
+  triggerConfig?: any;
+  childNode?: TreeNode;
+}
+
 export type TreeNode =
   | StartNode
   | ApproveNode
@@ -144,7 +200,12 @@ export type TreeNode =
   | DynamicConditionNode
   | ParallelConditionNode
   | ParallelNode
-  | EndNode;
+  | EndNode
+  | InclusiveNode
+  | RouteNode
+  | CallProcessNode
+  | TimerNode
+  | TriggerNode;
 
 // 完整流程定义
 export interface ApprovalFlowTree {

@@ -12,16 +12,16 @@ import { onMounted, ref } from "vue";
 import { message } from "ant-design-vue";
 import AmisRenderer from "@/components/amis/amis-renderer.vue";
 import { getDynamicAmisSchema } from "@/services/dynamic-tables";
-import type { JsonValue } from "@/types/api";
+import type { AmisSchema } from "@/types/amis";
 
 const loading = ref(false);
-const schema = ref<JsonValue | null>(null);
+const schema = ref<AmisSchema | null>(null);
 const pageTitle = ref("动态表管理");
 
 const loadSchema = async () => {
   loading.value = true;
   try {
-    schema.value = await getDynamicAmisSchema("list");
+    schema.value = (await getDynamicAmisSchema("list")) as AmisSchema;
   } catch (error) {
     schema.value = null;
     message.error((error as Error).message || "加载页面失败");

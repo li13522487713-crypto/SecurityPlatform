@@ -91,8 +91,22 @@
                     <div class="dd-radio-card__title">顺序签</div>
                     <div class="dd-radio-card__desc">按顺序依次审批</div>
                   </div>
+                  <div
+                    class="dd-radio-card"
+                    :class="{ active: approveForm.approvalMode === 'vote' }"
+                    @click="approveForm.approvalMode = 'vote'"
+                  >
+                    <div class="dd-radio-card__title">票签</div>
+                    <div class="dd-radio-card__desc">按权重投票</div>
+                  </div>
                 </div>
               </a-form-item>
+
+              <template v-if="approveForm.approvalMode === 'vote'">
+                <a-form-item label="票签通过率 (%)">
+                   <a-slider v-model:value="approveForm.votePassRate" :min="1" :max="100" />
+                </a-form-item>
+              </template>
 
               <a-form-item label="审批人为空时">
                 <a-select v-model:value="approveForm.noHeaderAction">
@@ -141,6 +155,46 @@
                   <a-select-option value="global">流程内自动去重</a-select-option>
                 </a-select>
               </a-form-item>
+
+              <a-form-item label="驳回策略">
+                <a-select v-model:value="approveForm.rejectStrategy">
+                  <a-select-option value="toPrevious">退回上一步</a-select-option>
+                  <a-select-option value="toInitiator">退回发起人</a-select-option>
+                  <a-select-option value="toAnyNode">退回任意节点</a-select-option>
+                </a-select>
+              </a-form-item>
+
+              <a-form-item label="重新审批策略">
+                <a-select v-model:value="approveForm.reApproveStrategy">
+                  <a-select-option value="continue">从驳回节点继续往后执行</a-select-option>
+                  <a-select-option value="backToRejectNode">重新从驳回目标节点开始审批</a-select-option>
+                </a-select>
+              </a-form-item>
+
+              <a-form-item label="分组策略">
+                <a-select v-model:value="approveForm.groupStrategy">
+                  <a-select-option value="claim">认领模式</a-select-option>
+                  <a-select-option value="allParticipate">全员审批</a-select-option>
+                </a-select>
+              </a-form-item>
+
+              <a-divider />
+
+              <a-form-item label="AI 智能审批">
+                <a-switch v-model:checked="approveForm.callAi" />
+                <span class="dd-switch-label">启用 AI 辅助决策</span>
+              </a-form-item>
+
+              <template v-if="approveForm.callAi">
+                <a-form-item label="AI 配置 (JSON)">
+                  <a-textarea 
+                    :value="approveForm.aiConfig"
+                    @update:value="(val: string) => approveForm.aiConfig = val"
+                    :rows="4" 
+                    placeholder="请输入 AI 配置 JSON"
+                  />
+                </a-form-item>
+              </template>
             </a-form>
           </a-tab-pane>
 
@@ -154,11 +208,11 @@
                 <div class="dd-perm-col name">字段名称</div>
                 <div class="dd-perm-col perm">权限</div>
               </div>
-              <div v-for="field in formFields" :key="field.id" class="dd-perm-row">
-                <div class="dd-perm-col name">{{ field.label }}</div>
+              <div v-for="field in formFields" :key="field.id || field.fieldId" class="dd-perm-row">
+                <div class="dd-perm-col name">{{ field.label || field.fieldName }}</div>
                 <div class="dd-perm-col perm">
                   <a-radio-group 
-                    v-model:value="formPermMap[field.id]" 
+                    v-model:value="formPermMap[field.id || field.fieldId]" 
                     size="small"
                     button-style="solid"
                   >
@@ -216,11 +270,11 @@
                 <div class="dd-perm-col name">字段名称</div>
                 <div class="dd-perm-col perm">权限</div>
               </div>
-              <div v-for="field in formFields" :key="field.id" class="dd-perm-row">
-                <div class="dd-perm-col name">{{ field.label }}</div>
+              <div v-for="field in formFields" :key="field.id || field.fieldId" class="dd-perm-row">
+                <div class="dd-perm-col name">{{ field.label || field.fieldName }}</div>
                 <div class="dd-perm-col perm">
                   <a-radio-group 
-                    v-model:value="formPermMap[field.id]" 
+                    v-model:value="formPermMap[field.id || field.fieldId]" 
                     size="small"
                     button-style="solid"
                   >
@@ -253,6 +307,82 @@
         </a-form>
       </template>
 
+      <!-- ═══ 包容分支 ═══ -->
+      <template v-else-if="inclusiveForm">
+        <a-form layout="vertical" class="dd-props-form">
+          <a-alert message="包容分支会同时执行所有满足条件的分支" type="info" show-icon style="margin-bottom: 16px" />
+          <a-divider>条件规则</a-divider>
+          <!-- 包容分支通常是多条路径，每条路径有条件。这里的 inclusiveForm 对应的是 InclusiveNode，它包含 conditionNodes -->
+          <!-- 但 PropertiesPanel 是针对单个节点的。如果是 InclusiveNode，我们可能需要展示它的分支列表？ -->
+          <!-- 或者，如果选中的是 InclusiveNode 下的某个分支（ConditionBranch），则展示分支配置（同 branchForm） -->
+          <!-- 这里假设 inclusiveForm 是 InclusiveNode 本身，通常不需要配置太多，主要是分支的条件 -->
+          <div class="dd-empty-state">
+            请点击具体的分支线条进行条件配置
+          </div>
+        </a-form>
+      </template>
+
+      <!-- ═══ 路由分支 ═══ -->
+      <template v-else-if="routeForm">
+        <a-form layout="vertical" class="dd-props-form">
+          <a-form-item label="目标节点ID">
+            <a-input v-model:value="routeForm.routeTargetNodeId" placeholder="请输入目标节点ID" />
+          </a-form-item>
+        </a-form>
+      </template>
+
+      <!-- ═══ 子流程节点 ═══ -->
+      <template v-else-if="callProcessForm">
+        <a-form layout="vertical" class="dd-props-form">
+          <a-form-item label="子流程定义ID">
+            <a-input v-model:value="callProcessForm.callProcessId" placeholder="请输入子流程定义ID" />
+          </a-form-item>
+          <a-form-item label="执行方式">
+            <a-radio-group v-model:value="callProcessForm.callAsync">
+              <a-radio :value="false">同步（等待子流程结束）</a-radio>
+              <a-radio :value="true">异步（不等待）</a-radio>
+            </a-radio-group>
+          </a-form-item>
+        </a-form>
+      </template>
+
+      <!-- ═══ 定时器节点 ═══ -->
+      <template v-else-if="timerForm">
+        <a-form layout="vertical" class="dd-props-form">
+          <a-form-item label="定时类型">
+            <a-select v-model:value="timerForm.timerConfig.type">
+              <a-select-option value="duration">等待时长</a-select-option>
+              <a-select-option value="date">指定时间</a-select-option>
+            </a-select>
+          </a-form-item>
+          <a-form-item label="等待时长（秒）" v-if="timerForm.timerConfig.type === 'duration'">
+            <a-input-number v-model:value="timerForm.timerConfig.duration" :min="0" style="width: 100%" />
+          </a-form-item>
+          <a-form-item label="指定时间" v-if="timerForm.timerConfig.type === 'date'">
+            <a-date-picker v-model:value="timerForm.timerConfig.date" show-time value-format="YYYY-MM-DD HH:mm:ss" style="width: 100%" />
+          </a-form-item>
+        </a-form>
+      </template>
+
+      <!-- ═══ 触发器节点 ═══ -->
+      <template v-else-if="triggerForm">
+        <a-form layout="vertical" class="dd-props-form">
+          <a-form-item label="触发类型">
+            <a-select v-model:value="triggerForm.triggerType">
+              <a-select-option value="immediate">立即触发</a-select-option>
+              <a-select-option value="scheduled">定时触发</a-select-option>
+            </a-select>
+          </a-form-item>
+          <a-form-item label="触发器配置 (JSON)">
+            <a-textarea 
+              :value="JSON.stringify(triggerForm.triggerConfig, null, 2)"
+              @update:value="(val: string) => applyJsonConfig(val, '触发器配置', (v) => triggerForm.triggerConfig = v)"
+              :rows="4" 
+            />
+          </a-form-item>
+        </a-form>
+      </template>
+
       <!-- ═══ 发起人节点 ═══ -->
       <template v-else-if="startForm">
         <a-form layout="vertical" class="dd-props-form">
@@ -280,11 +410,28 @@ import {
   SendOutlined,
   BranchesOutlined,
   PlayCircleOutlined,
+  NodeIndexOutlined,
+  SwapOutlined,
+  SubnodeOutlined,
+  ClockCircleOutlined,
+  ThunderboltOutlined,
 } from '@ant-design/icons-vue';
 import { message } from 'ant-design-vue';
 import UserRolePicker from '@/components/common/UserRolePicker.vue';
 import ConditionGroupEditor from './ConditionGroupEditor.vue';
-import type { TreeNode, ConditionBranch, ApproveNode, CopyNode, StartNode, ConditionGroup } from '@/types/approval-tree';
+import type { 
+  TreeNode, 
+  ConditionBranch, 
+  ApproveNode, 
+  CopyNode, 
+  StartNode, 
+  ConditionGroup,
+  InclusiveNode,
+  RouteNode,
+  CallProcessNode,
+  TimerNode,
+  TriggerNode
+} from '@/types/approval-tree';
 import type { LfFormField } from '@/types/approval-definition';
 
 // ── 内部类型 ──
@@ -317,6 +464,11 @@ const formData = ref<any>(null);
 const approveForm = ref<any>(null);
 const copyForm = ref<any>(null);
 const branchForm = ref<any>(null);
+const inclusiveForm = ref<any>(null);
+const routeForm = ref<any>(null);
+const callProcessForm = ref<any>(null);
+const timerForm = ref<any>(null);
+const triggerForm = ref<any>(null);
 const startForm = ref<any>(null);
 const activeTab = ref('approver');
 
@@ -331,6 +483,11 @@ const iconClass = computed(() => {
   if (approveForm.value) return 'dd-props-header__icon--approve';
   if (copyForm.value) return 'dd-props-header__icon--copy';
   if (branchForm.value) return 'dd-props-header__icon--condition';
+  if (inclusiveForm.value) return 'dd-props-header__icon--condition';
+  if (routeForm.value) return 'dd-props-header__icon--route';
+  if (callProcessForm.value) return 'dd-props-header__icon--call-process';
+  if (timerForm.value) return 'dd-props-header__icon--timer';
+  if (triggerForm.value) return 'dd-props-header__icon--trigger';
   return 'dd-props-header__icon--start';
 });
 
@@ -338,6 +495,11 @@ const nodeIcon = computed(() => {
   if (approveForm.value) return UserOutlined;
   if (copyForm.value) return SendOutlined;
   if (branchForm.value) return BranchesOutlined;
+  if (inclusiveForm.value) return NodeIndexOutlined;
+  if (routeForm.value) return SwapOutlined;
+  if (callProcessForm.value) return SubnodeOutlined;
+  if (timerForm.value) return ClockCircleOutlined;
+  if (triggerForm.value) return ThunderboltOutlined;
   return PlayCircleOutlined;
 });
 
@@ -377,8 +539,9 @@ function syncNodeRefs() {
     formPermMap.value = {};
     if (props.formFields) {
       props.formFields.forEach(f => {
-        const perm = node.formPermissionConfig?.fields?.find(p => p.fieldId === f.id)?.perm;
-        formPermMap.value[f.id] = perm || 'E'; // 默认可编辑
+        const fieldId = f.id || f.fieldId;
+        const perm = node.formPermissionConfig?.fields?.find(p => p.fieldId === fieldId)?.perm;
+        formPermMap.value[fieldId] = perm || 'E'; // 默认可编辑
       });
     }
 
@@ -390,6 +553,10 @@ function syncNodeRefs() {
       noticeChannels.value = [1]; // 默认站内信
       noticeTemplateId.value = undefined;
     }
+
+    // 初始化 AI 配置 (如果 approveForm.value 是 reactive 的，应该已经有了)
+    if (!approveForm.value.callAi) approveForm.value.callAi = false;
+    if (!approveForm.value.aiConfig) approveForm.value.aiConfig = '';
       
   } else if (isCopyNode(current)) {
     const node = current as CopyNode;
@@ -399,8 +566,9 @@ function syncNodeRefs() {
     formPermMap.value = {};
     if (props.formFields) {
       props.formFields.forEach(f => {
-        const perm = node.formPermissionConfig?.fields?.find(p => p.fieldId === f.id)?.perm;
-        formPermMap.value[f.id] = perm || 'R'; // 默认只读
+        const fieldId = f.id || f.fieldId;
+        const perm = node.formPermissionConfig?.fields?.find(p => p.fieldId === fieldId)?.perm;
+        formPermMap.value[fieldId] = perm || 'R'; // 默认只读
       });
     }
 
@@ -426,6 +594,19 @@ function syncNodeRefs() {
         : undefined,
       conditionGroups: groups
     };
+  } else if (isInclusiveNode(current)) {
+    inclusiveForm.value = current;
+  } else if (isRouteNode(current)) {
+    routeForm.value = current;
+  } else if (isCallProcessNode(current)) {
+    callProcessForm.value = current;
+  } else if (isTimerNode(current)) {
+    timerForm.value = current;
+    if (!timerForm.value.timerConfig) {
+        timerForm.value.timerConfig = { type: 'duration', duration: 0 };
+    }
+  } else if (isTriggerNode(current)) {
+    triggerForm.value = current;
   } else if (isStartNode(current)) {
     startForm.value = current;
   }
@@ -435,6 +616,11 @@ function clearRefs() {
   approveForm.value = null;
   copyForm.value = null;
   branchForm.value = null;
+  inclusiveForm.value = null;
+  routeForm.value = null;
+  callProcessForm.value = null;
+  timerForm.value = null;
+  triggerForm.value = null;
   startForm.value = null;
   activeTab.value = 'approver';
   approverTargets.value = [];
@@ -469,6 +655,9 @@ function handleSave() {
       channelIds: noticeChannels.value,
       templateId: noticeTemplateId.value
     };
+
+    // 保存 AI 配置
+    // aiConfig 已经在 v-model 中绑定到 approveForm.value.aiConfig
   }
 
   if (copyForm.value) {
@@ -542,6 +731,21 @@ function isStartNode(n: TreeNode | ConditionBranch): n is StartNode {
 function isConditionBranch(n: TreeNode | ConditionBranch): n is ConditionBranch {
   return 'branchName' in n;
 }
+function isInclusiveNode(n: TreeNode | ConditionBranch): n is InclusiveNode {
+  return 'nodeType' in n && n.nodeType === 'inclusive';
+}
+function isRouteNode(n: TreeNode | ConditionBranch): n is RouteNode {
+  return 'nodeType' in n && n.nodeType === 'route';
+}
+function isCallProcessNode(n: TreeNode | ConditionBranch): n is CallProcessNode {
+  return 'nodeType' in n && n.nodeType === 'callProcess';
+}
+function isTimerNode(n: TreeNode | ConditionBranch): n is TimerNode {
+  return 'nodeType' in n && n.nodeType === 'timer';
+}
+function isTriggerNode(n: TreeNode | ConditionBranch): n is TriggerNode {
+  return 'nodeType' in n && n.nodeType === 'trigger';
+}
 </script>
 
 <style scoped>
@@ -597,6 +801,10 @@ function isConditionBranch(n: TreeNode | ConditionBranch): n is ConditionBranch 
 .dd-props-header__icon--approve { background: #ff943e; }
 .dd-props-header__icon--copy { background: #3296fa; }
 .dd-props-header__icon--condition { background: #15bc83; }
+.dd-props-header__icon--route { background: #718dff; }
+.dd-props-header__icon--call-process { background: #faad14; }
+.dd-props-header__icon--timer { background: #f5222d; }
+.dd-props-header__icon--trigger { background: #722ed1; }
 .dd-props-header__icon--start { background: #576a95; }
 
 .dd-props-header__name {

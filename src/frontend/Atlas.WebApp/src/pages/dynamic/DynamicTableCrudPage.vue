@@ -13,11 +13,11 @@ import { useRoute } from "vue-router";
 import { message } from "ant-design-vue";
 import AmisRenderer from "@/components/amis/amis-renderer.vue";
 import { getDynamicAmisSchema, getDynamicTableDetail } from "@/services/dynamic-tables";
-import type { JsonValue } from "@/types/api";
+import type { AmisSchema } from "@/types/amis";
 
 const route = useRoute();
 const loading = ref(false);
-const schema = ref<JsonValue | null>(null);
+const schema = ref<AmisSchema | null>(null);
 const pageTitle = ref("动态数据管理");
 const tableDisplayName = ref<string | null>(null);
 
@@ -46,7 +46,7 @@ const loadSchema = async () => {
       getDynamicAmisSchema(`${tableKey.value}/crud`),
       getDynamicTableDetail(tableKey.value)
     ]);
-    schema.value = schemaResult;
+    schema.value = schemaResult as AmisSchema;
     tableDisplayName.value = detail?.displayName ?? tableKey.value;
     pageTitle.value = detail?.displayName ?? "动态数据管理";
     approvalFlowDefinitionId.value = detail?.approvalFlowDefinitionId ?? null;

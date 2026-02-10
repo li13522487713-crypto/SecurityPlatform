@@ -26,6 +26,7 @@ public sealed class FlowEngine
     private readonly IApprovalNotificationService? _notificationService;
     private readonly IApprovalTimeoutReminderRepository? _timeoutReminderRepository;
     private readonly ExternalCallbackService? _callbackService;
+    private readonly IApprovalAiHandler? _aiHandler;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly IBackgroundWorkQueue? _backgroundWorkQueue;
     private readonly TimeProvider _timeProvider;
@@ -44,6 +45,7 @@ public sealed class FlowEngine
         IApprovalNotificationService? notificationService = null,
         IApprovalTimeoutReminderRepository? timeoutReminderRepository = null,
         ExternalCallbackService? callbackService = null,
+        IApprovalAiHandler? aiHandler = null,
         IBackgroundWorkQueue? backgroundWorkQueue = null,
         TimeProvider? timeProvider = null,
         ILogger<FlowEngine>? logger = null)
@@ -59,10 +61,34 @@ public sealed class FlowEngine
         _notificationService = notificationService;
         _timeoutReminderRepository = timeoutReminderRepository;
         _callbackService = callbackService;
+        _aiHandler = aiHandler;
         _idGeneratorAccessor = idGeneratorAccessor;
         _backgroundWorkQueue = backgroundWorkQueue;
         _timeProvider = timeProvider ?? TimeProvider.System;
         _logger = logger;
+    }
+
+    /// <summary>
+    /// 跳转到指定节点（取消当前所有任务，在目标节点创建新任务）
+    /// </summary>
+    public async Task JumpToNodeAsync(
+        TenantId tenantId,
+        ApprovalProcessInstance instance,
+        FlowDefinition definition,
+        string targetNodeId,
+        CancellationToken cancellationToken)
+    {
+        var targetNode = definition.GetNodeById(targetNodeId);
+        if (targetNode == null)
+        {
+            throw new Core.Exceptions.BusinessException("NODE_NOT_FOUND", $"目标节点 {targetNodeId} 不存在");
+        }
+
+        // 记录跳转前的当前节点（用于可能的恢复）
+        // instance.CurrentNodeId 已经在外部被更新前记录了历史，这里不需要额外操作
+
+        // 直接处理目标节点
+        await ProcessNextNodeAsync(tenantId, instance, definition, targetNodeId, cancellationToken);
     }
 
     /// <summary>
@@ -164,6 +190,13 @@ public sealed class FlowEngine
             return;
         }
 
+        // 处理包容分支网关：创建token并推进满足条件的分支
+        if (definition.IsInclusiveSplitGateway(currentNodeId))
+        {
+            await HandleInclusiveSplitAsync(tenantId, instance, definition, currentNodeId, nextNodeIds, cancellationToken);
+            return;
+        }
+
         // 为每个下一个节点生成任务
         foreach (var nextNodeId in nextNodeIds)
         {
@@ -201,17 +234,64 @@ public sealed class FlowEngine
 
         if (nextNode.Type == "approve")
         {
+            // AI 审批处理
+            if (nextNode.CallAi && _aiHandler != null)
+            {
+                var aiNodeContext = new AiNodeContext
+                {
+                    NodeId = nextNode.Id,
+                    NodeName = nextNode.Label,
+                    NodeType = nextNode.Type,
+                    AiConfig = nextNode.AiConfig,
+                    TriggerType = nextNode.TriggerType
+                };
+                var aiResult = await _aiHandler.HandleAsync(tenantId, instance, aiNodeContext, cancellationToken);
+                
+                // 记录节点执行（AI开始）
+                var execution = new ApprovalNodeExecution(
+                    tenantId,
+                    instance.Id,
+                    nextNodeId,
+                    ApprovalNodeExecutionStatus.Running,
+                    _idGeneratorAccessor.NextId());
+                await _nodeExecutionRepository.AddAsync(execution, cancellationToken);
+                instance.SetCurrentNode(nextNodeId);
+
+                if (aiResult.Approved)
+                {
+                    // AI 自动通过
+                    execution.MarkCompleted(DateTimeOffset.UtcNow);
+                    await _nodeExecutionRepository.UpdateAsync(execution, cancellationToken);
+                    
+                    // 记录 AI 审批历史（模拟一个系统用户或 AI 用户）
+                    // ...
+
+                    // 继续推进
+                    await AdvanceFlowAsync(tenantId, instance, definition, nextNodeId, cancellationToken);
+                    return;
+                }
+                else if (!aiResult.NeedManualReview)
+                {
+                    // AI 自动拒绝
+                    // ...
+                    // 结束流程
+                    return;
+                }
+                
+                // 如果 AI 无法决定或需要转人工，则继续执行下面的人工审批逻辑
+            }
+
             // 审批节点，生成任务
             await GenerateTasksForNodeAsync(tenantId, instance, definition, nextNode, cancellationToken);
 
             // 创建节点执行记录
-            var execution = new ApprovalNodeExecution(
+            var executionManual = new ApprovalNodeExecution(
                 tenantId,
                 instance.Id,
                 nextNodeId,
                 ApprovalNodeExecutionStatus.Running,
                 _idGeneratorAccessor.NextId());
-            await _nodeExecutionRepository.AddAsync(execution, cancellationToken);
+            await _nodeExecutionRepository.AddAsync(executionManual, cancellationToken);
 
             instance.SetCurrentNode(nextNodeId);
         }
@@ -253,7 +333,7 @@ public sealed class FlowEngine
                 }
             }
         }
-        else if (nextNode.Type == "exclusiveGateway" || nextNode.Type == "parallelGateway")
+        else if (nextNode.Type == "exclusiveGateway" || nextNode.Type == "parallelGateway" || nextNode.Type == "inclusiveGateway")
         {
             // 网关节点：直接推进
             var execution = new ApprovalNodeExecution(
@@ -261,6 +341,53 @@ public sealed class FlowEngine
                 instance.Id,
                 nextNodeId,
                 ApprovalNodeExecutionStatus.Running,
+                _idGeneratorAccessor.NextId());
+            await _nodeExecutionRepository.AddAsync(execution, cancellationToken);
+            instance.SetCurrentNode(nextNodeId);
+            await AdvanceFlowAsync(tenantId, instance, definition, nextNodeId, cancellationToken);
+        }
+        else if (nextNode.Type == "routeGateway")
+        {
+            // 路由网关：直接跳转到目标节点
+            var targetNodeId = definition.GetRouteTarget(nextNodeId);
+            if (!string.IsNullOrEmpty(targetNodeId))
+            {
+                // 记录路由节点执行
+                var execution = new ApprovalNodeExecution(
+                    tenantId,
+                    instance.Id,
+                    nextNodeId,
+                    ApprovalNodeExecutionStatus.Completed,
+                    _idGeneratorAccessor.NextId());
+                await _nodeExecutionRepository.AddAsync(execution, cancellationToken);
+                
+                // 递归处理目标节点
+                await ProcessNextNodeAsync(tenantId, instance, definition, targetNodeId, cancellationToken);
+            }
+        }
+        else if (nextNode.Type == "callProcess")
+        {
+            // 子流程节点
+            var execution = new ApprovalNodeExecution(
+                tenantId,
+                instance.Id,
+                nextNodeId,
+                ApprovalNodeExecutionStatus.Running,
+                _idGeneratorAccessor.NextId());
+            await _nodeExecutionRepository.AddAsync(execution, cancellationToken);
+            instance.SetCurrentNode(nextNodeId);
+            
+            await HandleSubProcessAsync(tenantId, instance, nextNode, cancellationToken);
+        }
+        // TODO: Timer and Trigger nodes implementation in later phases
+        else if (nextNode.Type == "timer" || nextNode.Type == "trigger")
+        {
+             // 暂时作为自动通过处理，后续阶段完善
+            var execution = new ApprovalNodeExecution(
+                tenantId,
+                instance.Id,
+                nextNodeId,
+                ApprovalNodeExecutionStatus.Completed,
                 _idGeneratorAccessor.NextId());
             await _nodeExecutionRepository.AddAsync(execution, cancellationToken);
             instance.SetCurrentNode(nextNodeId);
@@ -305,6 +432,14 @@ public sealed class FlowEngine
                 // 如果没有等待任务且所有已激活的任务都已完成，则节点完成
                 return waitingTasks.Count == 0 && pendingTasks.Count == 0 && approvedTasks.Count > 0;
 
+            case ApprovalMode.Vote:
+                // 票签：按权重投票
+                var totalWeight = tasks.Sum(t => t.Weight ?? 1);
+                if (totalWeight == 0) return true; // 避免除以零
+                var approvedWeight = approvedTasks.Sum(t => t.Weight ?? 1);
+                var passRate = node.VotePassRate ?? 50; // 默认50%通过率
+                return (approvedWeight * 100 / totalWeight) >= passRate;
+
             default:
                 return false;
         }
@@ -326,10 +461,13 @@ public sealed class FlowEngine
 
         // 判断是否为排他网关（XOR）：只走一条符合条件的路径
         var isExclusiveGateway = currentNode != null && currentNode.Type == "exclusiveGateway";
+        // 判断是否为包容网关（Inclusive）：走所有符合条件的路径
+        var isInclusiveGateway = currentNode != null && currentNode.Type == "inclusiveGateway";
 
         // Bug fix: For exclusive gateways, unconditional edges (default path) must be the FALLBACK,
         // not the priority. Evaluate all conditional edges first; only use the default if none match.
         string? exclusiveDefaultTarget = null;
+        var inclusiveTargets = new List<string>();
 
         foreach (var edge in outgoingEdges)
         {
@@ -340,6 +478,14 @@ public sealed class FlowEngine
                 {
                     // 排他网关：记录默认路径，但不立即返回——先评估所有条件边
                     exclusiveDefaultTarget ??= edge.Target;
+                    continue;
+                }
+                if (isInclusiveGateway)
+                {
+                    // 包容网关：默认路径作为备选，如果没有其他路径满足时使用？
+                    // 通常包容网关的无条件路径是"总是执行"或者"默认路径"
+                    // 这里假设无条件路径总是执行
+                    inclusiveTargets.Add(edge.Target);
                     continue;
                 }
                 nextNodeIds.Add(edge.Target);
@@ -361,6 +507,11 @@ public sealed class FlowEngine
                     // 排他网关：找到第一个符合条件的路径就返回
                     return new List<string> { edge.Target };
                 }
+                if (isInclusiveGateway)
+                {
+                    inclusiveTargets.Add(edge.Target);
+                    continue;
+                }
                 nextNodeIds.Add(edge.Target);
             }
         }
@@ -369,6 +520,19 @@ public sealed class FlowEngine
         if (isExclusiveGateway && exclusiveDefaultTarget != null)
         {
             return new List<string> { exclusiveDefaultTarget };
+        }
+
+        // 包容网关：返回所有满足条件的路径
+        if (isInclusiveGateway)
+        {
+            // 如果没有满足条件的路径，且有默认路径（这里假设 inclusiveTargets 已经包含了无条件路径）
+            // 如果 inclusiveTargets 为空，说明没有路径满足，这可能导致流程卡死
+            // 实际上包容网关至少应该有一条路径被激活，否则视为异常
+            if (inclusiveTargets.Count == 0 && exclusiveDefaultTarget != null)
+            {
+                 return new List<string> { exclusiveDefaultTarget };
+            }
+            return inclusiveTargets;
         }
 
         return nextNodeIds;
@@ -891,6 +1055,75 @@ public sealed class FlowEngine
         {
             await ProcessNextNodeAsync(tenantId, instance, definition, nextNodeId, cancellationToken);
         }
+    }
+
+    /// <summary>
+    /// 处理包容分支网关：创建token并推进满足条件的分支
+    /// </summary>
+    private async Task HandleInclusiveSplitAsync(
+        TenantId tenantId,
+        ApprovalProcessInstance instance,
+        FlowDefinition definition,
+        string gatewayNodeId,
+        IReadOnlyList<string> nextNodeIds,
+        CancellationToken cancellationToken)
+    {
+        // 为每个分支创建token
+        var tokens = nextNodeIds
+            .Select(nextNodeId => new ApprovalParallelToken(
+                tenantId,
+                instance.Id,
+                gatewayNodeId,
+                nextNodeId,
+                _idGeneratorAccessor.NextId()))
+            .ToList();
+        if (tokens.Count > 0)
+        {
+            await _parallelTokenRepository.AddRangeAsync(tokens, cancellationToken);
+        }
+
+        // 推进所有分支
+        foreach (var nextNodeId in nextNodeIds)
+        {
+            await ProcessNextNodeAsync(tenantId, instance, definition, nextNodeId, cancellationToken);
+        }
+    }
+
+    /// <summary>
+    /// 处理子流程节点
+    /// </summary>
+    private async Task HandleSubProcessAsync(
+        TenantId tenantId,
+        ApprovalProcessInstance instance,
+        FlowNode node,
+        CancellationToken cancellationToken)
+    {
+        // 这里需要调用 IApprovalRuntimeCommandService 来启动子流程
+        // 由于循环依赖问题，通常建议通过事件或中介服务来处理
+        // 或者将 StartSubProcessAsync 逻辑下沉到更底层的服务
+        // 暂时留空，待 CommandService 完善后再接入
+        // 实际实现中，应该发布一个 StartSubProcessEvent，由 CommandService 监听并处理
+        
+        // 模拟异步完成（如果是同步子流程，应该等待子流程结束）
+        if (node.CallAsync)
+        {
+             // 异步子流程，主流程继续
+             await AdvanceFlowAsync(tenantId, instance, null!, node.Id, cancellationToken);
+        }
+    }
+
+    /// <summary>
+    /// 子流程结束回调
+    /// </summary>
+    public async Task EndSubProcessAsync(
+        TenantId tenantId,
+        long parentInstanceId,
+        string parentNodeId,
+        CancellationToken cancellationToken)
+    {
+        // 查找父流程实例
+        // 恢复父流程执行
+        // await AdvanceFlowAsync(...)
     }
 
     /// <summary>

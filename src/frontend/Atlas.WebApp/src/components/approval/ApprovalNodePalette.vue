@@ -32,6 +32,11 @@ import {
   SendOutlined,
   BranchesOutlined,
   ApartmentOutlined,
+  NodeIndexOutlined,
+  SwapOutlined,
+  SubnodeOutlined,
+  ClockCircleOutlined,
+  ThunderboltOutlined
 } from '@ant-design/icons-vue';
 
 const nodeGroups = [
@@ -47,6 +52,16 @@ const nodeGroups = [
     items: [
       { type: 'condition', label: '条件分支', desc: '根据条件分流', icon: BranchesOutlined, color: '#15bc83' },
       { type: 'parallel', label: '并行分支', desc: '多任务同时进行', icon: ApartmentOutlined, color: '#ff943e' },
+      { type: 'inclusive', label: '包容分支', desc: '满足条件的分支都执行', icon: NodeIndexOutlined, color: '#15bc83' },
+      { type: 'route', label: '路由分支', desc: '重定向到指定节点', icon: SwapOutlined, color: '#718dff' },
+    ]
+  },
+  {
+    title: '高级节点',
+    items: [
+      { type: 'callProcess', label: '子流程', desc: '调用外部流程', icon: SubnodeOutlined, color: '#faad14' },
+      { type: 'timer', label: '定时器', desc: '延时或定时执行', icon: ClockCircleOutlined, color: '#f5222d' },
+      { type: 'trigger', label: '触发器', desc: '触发外部动作', icon: ThunderboltOutlined, color: '#722ed1' },
     ]
   }
 ];

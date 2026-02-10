@@ -10,6 +10,11 @@ import type {
   DynamicConditionNode,
   ParallelConditionNode,
   ParallelNode,
+  InclusiveNode,
+  RouteNode,
+  CallProcessNode,
+  TimerNode,
+  TriggerNode,
   NodeType
 } from '@/types/approval-tree';
 import type {
@@ -218,9 +223,9 @@ export class ApprovalTreeConverter {
     let lastNodeId = node.id;
     let nextY = position.y + 100;
 
-    // 处理条件/动态条件/条件并行节点
-    if (node.nodeType === 'condition' || node.nodeType === 'dynamicCondition' || node.nodeType === 'parallelCondition') {
-      const conditionNode = node as ConditionNode | DynamicConditionNode | ParallelConditionNode;
+    // 处理条件/动态条件/条件并行/包容分支节点
+    if (node.nodeType === 'condition' || node.nodeType === 'dynamicCondition' || node.nodeType === 'parallelCondition' || node.nodeType === 'inclusive') {
+      const conditionNode = node as ConditionNode | DynamicConditionNode | ParallelConditionNode | InclusiveNode;
       // 条件节点本身是一个分流点。
       // 它的 conditionNodes (branches) 是并行的。
       // 每个 branch 的第一个节点连接自 conditionNode。
@@ -401,6 +406,8 @@ export class ApprovalTreeConverter {
       base.deduplicationType = approveNode.deduplicationType;
       base.excludeUserIds = approveNode.excludeUserIds;
       base.excludeRoleCodes = approveNode.excludeRoleCodes;
+      base.callAi = approveNode.callAi;
+      base.aiConfig = approveNode.aiConfig;
     }
 
     if (node.nodeType === 'copy') {
@@ -414,8 +421,8 @@ export class ApprovalTreeConverter {
       base.formPermissionConfig = copyNode.formPermissionConfig;
     }
 
-    if (node.nodeType === 'condition' || node.nodeType === 'dynamicCondition' || node.nodeType === 'parallelCondition') {
-      const conditionNode = node as ConditionNode | DynamicConditionNode | ParallelConditionNode;
+    if (node.nodeType === 'condition' || node.nodeType === 'dynamicCondition' || node.nodeType === 'parallelCondition' || node.nodeType === 'inclusive') {
+      const conditionNode = node as ConditionNode | DynamicConditionNode | ParallelConditionNode | InclusiveNode;
       base.conditionNodes = (conditionNode.conditionNodes || []).map((branch) => this.branchToDefinition(branch));
     }
 
@@ -424,11 +431,41 @@ export class ApprovalTreeConverter {
       base.parallelNodes = (parallelNode.parallelNodes || []).map((child) => this.treeNodeToDefinition(child));
     }
 
+    if (node.nodeType === 'route') {
+      const routeNode = node as RouteNode;
+      // 路由节点没有特殊配置，目标节点ID通常通过连线体现，或者作为属性存储
+      // FlowLong 中路由节点是直接跳转，不生成任务
+      // 我们需要确保 routeTargetNodeId 被保存
+      // 但 ApprovalNode 定义中没有 routeTargetNodeId 字段，可能需要扩展 ApprovalNode
+      // 暂时存入 properties 或 data
+      // 假设后端 FlowNode 有 GetRouteTarget 方法，说明它是通过出边来判断的
+      // 所以这里不需要额外保存 targetId，只要保证连线正确即可
+      // 但 treeToGraph 会处理连线。treeToDefinitionJson 是给后端用的。
+      // 后端解析器通过 edges 来判断路由目标。
+    }
+
+    if (node.nodeType === 'callProcess') {
+        const callNode = node as CallProcessNode;
+        base.callProcessId = callNode.callProcessId ? parseInt(callNode.callProcessId) : undefined;
+        base.callAsync = callNode.callAsync;
+    }
+
+    if (node.nodeType === 'timer') {
+        const timerNode = node as TimerNode;
+        base.timerConfig = JSON.stringify(timerNode.timerConfig);
+    }
+
+    if (node.nodeType === 'trigger') {
+        const triggerNode = node as TriggerNode;
+        base.triggerType = triggerNode.triggerType;
+        // triggerConfig ?
+    }
+
     return base;
   }
 
   private static branchToDefinition(branch: ConditionBranch): DefinitionBranch {
-    let conditionRule: JsonValue | undefined = branch.conditionRule;
+    let conditionRule: JsonValue | undefined = branch.conditionRule as JsonValue | undefined;
 
     // 如果有 conditionGroups，转换为后端格式
     if (branch.conditionGroups && branch.conditionGroups.length > 0) {
@@ -440,10 +477,10 @@ export class ApprovalTreeConverter {
             field: cond.field,
             operator: cond.operator,
             value: cond.value,
-            type: cond.fieldType // 传递类型给后端可能有用
+            ...(cond.fieldType ? { type: cond.fieldType } : {})
           }))
         }))
-      };
+      } as JsonValue;
     }
 
     return {
@@ -488,7 +525,9 @@ export class ApprovalTreeConverter {
           maxReminderCount: node.maxReminderCount,
           deduplicationType: node.deduplicationType,
           excludeUserIds: node.excludeUserIds,
-          excludeRoleCodes: node.excludeRoleCodes
+          excludeRoleCodes: node.excludeRoleCodes,
+          callAi: node.callAi,
+          aiConfig: node.aiConfig
         } as ApproveNode;
       }
       case 'copy':
@@ -527,6 +566,38 @@ export class ApprovalTreeConverter {
           parallelNodes: (node.parallelNodes || []).map((child) => this.definitionNodeToTree(child)),
           childNode: node.childNode ? this.definitionNodeToTree(node.childNode) : undefined
         } as ParallelNode;
+      case 'inclusive':
+        return {
+          ...base,
+          nodeType: 'inclusive',
+          conditionNodes: (node.conditionNodes || []).map((branch) => this.definitionBranchToTree(branch)),
+          childNode: node.childNode ? this.definitionNodeToTree(node.childNode) : undefined
+        } as InclusiveNode;
+      case 'route':
+        return {
+            ...base,
+            nodeType: 'route',
+            // routeTargetNodeId 从边获取，这里无法直接获取，需要在 graphToTree 中处理
+        } as RouteNode;
+      case 'callProcess':
+        return {
+            ...base,
+            nodeType: 'callProcess',
+            callProcessId: node.callProcessId?.toString(),
+            callAsync: node.callAsync
+        } as CallProcessNode;
+      case 'timer':
+        return {
+            ...base,
+            nodeType: 'timer',
+            timerConfig: node.timerConfig ? JSON.parse(node.timerConfig) : undefined
+        } as TimerNode;
+      case 'trigger':
+        return {
+            ...base,
+            nodeType: 'trigger',
+            triggerType: node.triggerType as any
+        } as TriggerNode;
       case 'start':
         return {
           ...base,
@@ -696,6 +767,72 @@ export class ApprovalTreeConverter {
             })
         };
         return node;
+    } else if (normalizedType === 'inclusive') {
+        const node: InclusiveNode = {
+            ...base,
+            nodeType: 'inclusive',
+            conditionNodes: []
+        };
+        // 类似 ConditionNode 处理
+        const branches: ConditionBranch[] = edges.map((edge, index) => {
+            const targetId = getEdgeTarget(edge.target);
+            const branchRoot = this.buildTreeFromNode(targetId, allNodes, outgoing);
+            return {
+                id: nanoid(),
+                branchName: edge.label || `条件${index + 1}`,
+                conditionRule: edge.data?.conditionRule,
+                childNode: branchRoot
+            };
+        });
+        node.conditionNodes = branches;
+        return node;
+    } else if (normalizedType === 'route') {
+        const node: RouteNode = {
+            ...base,
+            nodeType: 'route',
+            routeTargetNodeId: edges.length > 0 ? getEdgeTarget(edges[0].target) : undefined
+        };
+        return node;
+    } else if (normalizedType === 'callProcess') {
+        const node: CallProcessNode = {
+            ...base,
+            nodeType: 'callProcess',
+            callProcessId: data.callProcessId as string,
+            callAsync: data.callAsync as boolean
+        };
+        if (edges.length > 0) {
+             const targetId = getEdgeTarget(edges[0].target);
+             if (targetId) {
+               node.childNode = this.buildTreeFromNode(targetId, allNodes, outgoing);
+             }
+        }
+        return node;
+    } else if (normalizedType === 'timer') {
+        const node: TimerNode = {
+            ...base,
+            nodeType: 'timer',
+            timerConfig: data.timerConfig as any
+        };
+        if (edges.length > 0) {
+             const targetId = getEdgeTarget(edges[0].target);
+             if (targetId) {
+               node.childNode = this.buildTreeFromNode(targetId, allNodes, outgoing);
+             }
+        }
+        return node;
+    } else if (normalizedType === 'trigger') {
+        const node: TriggerNode = {
+            ...base,
+            nodeType: 'trigger',
+            triggerType: data.triggerType as any
+        };
+        if (edges.length > 0) {
+             const targetId = getEdgeTarget(edges[0].target);
+             if (targetId) {
+               node.childNode = this.buildTreeFromNode(targetId, allNodes, outgoing);
+             }
+        }
+        return node;
     } else if (normalizedType === 'end') {
         return { ...base, nodeType: 'end' } as EndNode;
     }
@@ -754,7 +891,7 @@ const normalizeAssigneeType = (value: number | undefined): ApproveNode['assignee
 };
 
 const isApprovalMode = (value: string | undefined): value is ApproveNode['approvalMode'] => {
-  return value === 'all' || value === 'any' || value === 'sequential';
+  return value === 'all' || value === 'any' || value === 'sequential' || value === 'vote';
 };
 
 const normalizeApprovalMode = (value: string | undefined): ApproveNode['approvalMode'] => {
@@ -769,6 +906,11 @@ const isNodeType = (value: string | undefined): value is NodeType => {
     || value === 'parallel'
     || value === 'dynamicCondition'
     || value === 'parallelCondition'
+    || value === 'inclusive'
+    || value === 'route'
+    || value === 'callProcess'
+    || value === 'timer'
+    || value === 'trigger'
     || value === 'end';
 };
 

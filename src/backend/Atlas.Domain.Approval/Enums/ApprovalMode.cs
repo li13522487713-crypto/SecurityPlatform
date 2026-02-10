@@ -12,5 +12,8 @@ public enum ApprovalMode
     Any = 1,
 
     /// <summary>顺序会签（依次审批）</summary>
-    Sequential = 2
+    Sequential = 2,
+
+    /// <summary>票签（按权重投票）</summary>
+    Vote = 3
 }

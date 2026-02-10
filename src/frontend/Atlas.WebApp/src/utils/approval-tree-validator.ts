@@ -4,7 +4,11 @@ import type {
   DynamicConditionNode,
   ParallelConditionNode,
   ParallelNode,
-  ApproveNode
+  ApproveNode,
+  InclusiveNode,
+  RouteNode,
+  CallProcessNode,
+  TimerNode
 } from '@/types/approval-tree';
 
 export class ApprovalTreeValidator {
@@ -28,10 +32,10 @@ export class ApprovalTreeValidator {
         }
       }
       
-      if (node.nodeType === 'condition' || node.nodeType === 'dynamicCondition' || node.nodeType === 'parallelCondition') {
-        const n = node as ConditionNode | DynamicConditionNode | ParallelConditionNode;
+      if (node.nodeType === 'condition' || node.nodeType === 'dynamicCondition' || node.nodeType === 'parallelCondition' || node.nodeType === 'inclusive') {
+        const n = node as ConditionNode | DynamicConditionNode | ParallelConditionNode | InclusiveNode;
         if (n.conditionNodes.length < 2) {
-          errors.push(`${path}: 条件节点至少需要2个分支`);
+          errors.push(`${path}: 分支节点至少需要2个分支`);
         }
 
         n.conditionNodes.forEach((branch, idx) => {
@@ -54,6 +58,36 @@ export class ApprovalTreeValidator {
         });
         if (!n.childNode) {
           errors.push(`${path}: 并行审批需要聚合节点`);
+        }
+      }
+
+      if (node.nodeType === 'route') {
+        const n = node as RouteNode;
+        if (!n.routeTargetNodeId) {
+          errors.push(`${path}: 路由目标节点未配置`);
+          n.error = true;
+        } else {
+          n.error = false;
+        }
+      }
+
+      if (node.nodeType === 'callProcess') {
+        const n = node as CallProcessNode;
+        if (!n.callProcessId) {
+          errors.push(`${path}: 子流程未配置`);
+          n.error = true;
+        } else {
+          n.error = false;
+        }
+      }
+
+      if (node.nodeType === 'timer') {
+        const n = node as TimerNode;
+        if (!n.timerConfig || (n.timerConfig.type === 'duration' && !n.timerConfig.duration) || (n.timerConfig.type === 'date' && !n.timerConfig.date)) {
+          errors.push(`${path}: 定时器配置无效`);
+          n.error = true;
+        } else {
+          n.error = false;
         }
       }
       

@@ -172,6 +172,160 @@ public sealed class ApprovalRuntimeController : ControllerBase
     }
 
     /// <summary>
+    /// 挂起流程实例
+    /// </summary>
+    [HttpPost("{id:long}/suspension")]
+    public async Task<ApiResponse<string>> SuspendAsync(
+        long id,
+        CancellationToken cancellationToken = default)
+    {
+        var currentUser = _currentUserAccessor.GetCurrentUserOrThrow();
+
+        await _commandService.SuspendInstanceAsync(
+            currentUser.TenantId,
+            id,
+            currentUser.UserId,
+            cancellationToken);
+
+        // 记录审计日志
+        var auditContext = new AuditContext(
+            currentUser.TenantId,
+            currentUser.UserId.ToString(),
+            "审批流程-挂起",
+            "成功",
+            $"流程实例ID: {id}",
+            ControllerHelper.GetIpAddress(HttpContext),
+            ControllerHelper.GetUserAgent(HttpContext),
+            _clientContextAccessor.GetCurrent());
+        await _auditRecorder.RecordAsync(auditContext, cancellationToken);
+
+        return ApiResponse<string>.Ok("已挂起", HttpContext.TraceIdentifier);
+    }
+
+    /// <summary>
+    /// 激活流程实例
+    /// </summary>
+    [HttpPost("{id:long}/activation")]
+    public async Task<ApiResponse<string>> ActivateAsync(
+        long id,
+        CancellationToken cancellationToken = default)
+    {
+        var currentUser = _currentUserAccessor.GetCurrentUserOrThrow();
+
+        await _commandService.ActivateInstanceAsync(
+            currentUser.TenantId,
+            id,
+            currentUser.UserId,
+            cancellationToken);
+
+        // 记录审计日志
+        var auditContext = new AuditContext(
+            currentUser.TenantId,
+            currentUser.UserId.ToString(),
+            "审批流程-激活",
+            "成功",
+            $"流程实例ID: {id}",
+            ControllerHelper.GetIpAddress(HttpContext),
+            ControllerHelper.GetUserAgent(HttpContext),
+            _clientContextAccessor.GetCurrent());
+        await _auditRecorder.RecordAsync(auditContext, cancellationToken);
+
+        return ApiResponse<string>.Ok("已激活", HttpContext.TraceIdentifier);
+    }
+
+    /// <summary>
+    /// 强制终止流程实例（管理员操作）
+    /// </summary>
+    [HttpPost("{id:long}/termination")]
+    public async Task<ApiResponse<string>> TerminateAsync(
+        long id,
+        [FromBody] string? comment,
+        CancellationToken cancellationToken = default)
+    {
+        var currentUser = _currentUserAccessor.GetCurrentUserOrThrow();
+
+        // 权限校验：通常只有管理员可以终止
+        if (!currentUser.Roles.Contains("Admin", StringComparer.OrdinalIgnoreCase))
+        {
+             return ApiResponse<string>.Fail("FORBIDDEN", "只有管理员可以终止流程", HttpContext.TraceIdentifier);
+        }
+
+        await _commandService.TerminateInstanceAsync(
+            currentUser.TenantId,
+            id,
+            currentUser.UserId,
+            comment,
+            cancellationToken);
+
+        // 记录审计日志
+        var auditContext = new AuditContext(
+            currentUser.TenantId,
+            currentUser.UserId.ToString(),
+            "审批流程-终止",
+            "成功",
+            $"流程实例ID: {id}",
+            ControllerHelper.GetIpAddress(HttpContext),
+            ControllerHelper.GetUserAgent(HttpContext),
+            _clientContextAccessor.GetCurrent());
+        await _auditRecorder.RecordAsync(auditContext, cancellationToken);
+
+        return ApiResponse<string>.Ok("已终止", HttpContext.TraceIdentifier);
+    }
+
+    /// <summary>
+    /// 暂存草稿
+    /// </summary>
+    [HttpPost("draft")]
+    public async Task<ApiResponse<ApprovalInstanceResponse>> SaveDraftAsync(
+        ApprovalStartRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        // 草稿不需要完整的启动校验，但基础字段需要校验
+        // await _startValidator.ValidateAndThrowAsync(request, cancellationToken);
+
+        var currentUser = _currentUserAccessor.GetCurrentUserOrThrow();
+
+        var result = await _commandService.SaveDraftAsync(
+            currentUser.TenantId,
+            request,
+            currentUser.UserId,
+            cancellationToken);
+
+        return ApiResponse<ApprovalInstanceResponse>.Ok(result, HttpContext.TraceIdentifier);
+    }
+
+    /// <summary>
+    /// 提交草稿（激活流程）
+    /// </summary>
+    [HttpPost("{id:long}/submission")]
+    public async Task<ApiResponse<ApprovalInstanceResponse>> SubmitDraftAsync(
+        long id,
+        CancellationToken cancellationToken = default)
+    {
+        var currentUser = _currentUserAccessor.GetCurrentUserOrThrow();
+
+        var result = await _commandService.SubmitDraftAsync(
+            currentUser.TenantId,
+            id,
+            currentUser.UserId,
+            cancellationToken);
+
+        // 记录审计日志
+        var auditContext = new AuditContext(
+            currentUser.TenantId,
+            currentUser.UserId.ToString(),
+            "审批流程-提交草稿",
+            "成功",
+            $"流程实例ID: {result.Id}",
+            ControllerHelper.GetIpAddress(HttpContext),
+            ControllerHelper.GetUserAgent(HttpContext),
+            _clientContextAccessor.GetCurrent());
+        await _auditRecorder.RecordAsync(auditContext, cancellationToken);
+
+        return ApiResponse<ApprovalInstanceResponse>.Ok(result, HttpContext.TraceIdentifier);
+    }
+
+    /// <summary>
     /// 执行运行时操作（撤回、转办、加签、打回修改、退回任意节点、撤销同意等）
     /// </summary>
     [HttpPost("{instanceId:long}/operations")]

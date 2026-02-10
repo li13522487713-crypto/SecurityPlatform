@@ -39,4 +39,58 @@ public interface IApprovalRuntimeCommandService
         long copyRecordId,
         long userId,
         CancellationToken cancellationToken);
+
+    Task DelegateTaskAsync(
+        TenantId tenantId,
+        long taskId,
+        long delegatorUserId,
+        long delegateeUserId,
+        string? comment,
+        CancellationToken cancellationToken);
+
+    Task ResolveTaskAsync(
+        TenantId tenantId,
+        long taskId,
+        long resolverUserId,
+        string? comment,
+        CancellationToken cancellationToken);
+
+    Task StartSubProcessAsync(
+        TenantId tenantId,
+        long parentInstanceId,
+        string parentNodeId,
+        long childProcessId,
+        bool isAsync,
+        CancellationToken cancellationToken);
+
+    Task SuspendInstanceAsync(
+        TenantId tenantId,
+        long instanceId,
+        long operatorUserId,
+        CancellationToken cancellationToken);
+
+    Task ActivateInstanceAsync(
+        TenantId tenantId,
+        long instanceId,
+        long operatorUserId,
+        CancellationToken cancellationToken);
+
+    Task TerminateInstanceAsync(
+        TenantId tenantId,
+        long instanceId,
+        long operatorUserId,
+        string? comment,
+        CancellationToken cancellationToken);
+
+    Task<ApprovalInstanceResponse> SaveDraftAsync(
+        TenantId tenantId,
+        ApprovalStartRequest request,
+        long initiatorUserId,
+        CancellationToken cancellationToken);
+
+    Task<ApprovalInstanceResponse> SubmitDraftAsync(
+        TenantId tenantId,
+        long instanceId,
+        long initiatorUserId,
+        CancellationToken cancellationToken);
 }

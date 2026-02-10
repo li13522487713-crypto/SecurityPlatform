@@ -87,5 +87,38 @@ public enum ApprovalOperationType
     Preview = 34,
 
     /// <summary>打印流程/表单（仅UI操作，需要权限校验和审计记录）</summary>
-    Print = 35
+    Print = 35,
+
+    /// <summary>跳转</summary>
+    Jump = 36,
+
+    /// <summary>拿回</summary>
+    Reclaim = 37,
+
+    /// <summary>唤醒</summary>
+    Resume = 38,
+
+    /// <summary>认领</summary>
+    Claim = 39,
+
+    /// <summary>释放认领</summary>
+    Release = 40,
+
+    /// <summary>催办</summary>
+    Urge = 41,
+
+    /// <summary>沟通</summary>
+    Communicate = 42,
+
+    /// <summary>离职转办</summary>
+    BatchTransfer = 43,
+
+    /// <summary>委派</summary>
+    Delegate = 44,
+
+    /// <summary>追加处理人</summary>
+    Append = 45,
+
+    /// <summary>强制终止</summary>
+    Terminate = 46
 }

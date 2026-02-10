@@ -9,7 +9,12 @@ import type {
   StartNode,
   DynamicConditionNode,
   ParallelConditionNode,
-  ParallelNode
+  ParallelNode,
+  InclusiveNode,
+  RouteNode,
+  CallProcessNode,
+  TimerNode,
+  TriggerNode
 } from '@/types/approval-tree';
 import { nanoid } from 'nanoid';
 import { ApprovalTreeValidator } from '@/utils/approval-tree-validator';
@@ -36,13 +41,13 @@ export function useApprovalTree() {
   // 类型守卫：检查节点是否有 childNode
   const hasChildNode = (
     node: TreeNode | ConditionBranch
-  ): node is StartNode | ApproveNode | CopyNode | ConditionNode | DynamicConditionNode | ParallelConditionNode | ParallelNode | ConditionBranch => {
+  ): node is StartNode | ApproveNode | CopyNode | ConditionNode | DynamicConditionNode | ParallelConditionNode | ParallelNode | InclusiveNode | CallProcessNode | TimerNode | TriggerNode | ConditionBranch => {
     if (!('nodeType' in node)) {
       // ConditionBranch 总是有 childNode
       return true;
     }
-    // TreeNode: 只有非 EndNode 有 childNode
-    return node.nodeType !== 'end';
+    // TreeNode: 路由与结束节点不维护 childNode
+    return node.nodeType !== 'end' && node.nodeType !== 'route';
   };
   
   // 辅助：递归查找节点或分支
@@ -66,8 +71,8 @@ export function useApprovalTree() {
     }
 
     // 检查 conditionNodes
-    if (current.nodeType === 'condition' || current.nodeType === 'dynamicCondition' || current.nodeType === 'parallelCondition') {
-        const conditionNode = current as ConditionNode | DynamicConditionNode | ParallelConditionNode;
+    if (current.nodeType === 'condition' || current.nodeType === 'dynamicCondition' || current.nodeType === 'parallelCondition' || current.nodeType === 'inclusive') {
+        const conditionNode = current as ConditionNode | DynamicConditionNode | ParallelConditionNode | InclusiveNode;
         for (const branch of conditionNode.conditionNodes) {
             if (branch.id === targetId) {
                 return { branch, parent: conditionNode };
@@ -109,8 +114,8 @@ export function useApprovalTree() {
     // target.childNode = newNode
     
     if (hasChildNode(target) && hasChildNode(newNode)) {
-        const targetWithChild = target as StartNode | ApproveNode | CopyNode | ConditionNode | DynamicConditionNode | ParallelConditionNode | ParallelNode | ConditionBranch;
-        const newNodeWithChild = newNode as StartNode | ApproveNode | CopyNode | ConditionNode | DynamicConditionNode | ParallelConditionNode | ParallelNode;
+        const targetWithChild = target as any; // 简化类型断言
+        const newNodeWithChild = newNode as any;
         newNodeWithChild.childNode = targetWithChild.childNode;
         targetWithChild.childNode = newNode;
     }
@@ -167,9 +172,9 @@ export function useApprovalTree() {
    */
   const addConditionBranch = (conditionNodeId: string) => {
     const result = findNodeOrBranch(flowTree.value.rootNode, conditionNodeId);
-    if (!result || !result.node || result.node.nodeType !== 'condition') return;
+    if (!result || !result.node || !['condition', 'inclusive'].includes(result.node.nodeType)) return;
     
-    const conditionNode = result.node as ConditionNode;
+    const conditionNode = result.node as ConditionNode | InclusiveNode;
     
     conditionNode.conditionNodes.push({
       id: nanoid(),
@@ -188,7 +193,7 @@ export function useApprovalTree() {
       const result = findNodeOrBranch(flowTree.value.rootNode, branchId);
       if (!result || !result.branch || !result.parent) return;
 
-      const conditionNode = result.parent as ConditionNode;
+      const conditionNode = result.parent as ConditionNode | InclusiveNode;
       const index = conditionNode.conditionNodes.findIndex(b => b.id === branchId);
       if (index > -1) {
           conditionNode.conditionNodes.splice(index, 1);
@@ -313,6 +318,46 @@ export function useApprovalTree() {
                     }
                 } as ApproveNode
             } as ParallelNode;
+        case 'inclusive':
+            return {
+                ...base,
+                nodeType: 'inclusive',
+                nodeName: '包容分支',
+                conditionNodes: [
+                    { id: nanoid(), branchName: '条件1', childNode: undefined },
+                    { id: nanoid(), branchName: '条件2', childNode: undefined }
+                ]
+            } as InclusiveNode;
+        case 'route':
+            return {
+                ...base,
+                nodeType: 'route',
+                nodeName: '路由节点',
+                routeTargetNodeId: ''
+            } as RouteNode;
+        case 'callProcess':
+            return {
+                ...base,
+                nodeType: 'callProcess',
+                nodeName: '子流程',
+                callProcessId: '',
+                callAsync: false
+            } as CallProcessNode;
+        case 'timer':
+            return {
+                ...base,
+                nodeType: 'timer',
+                nodeName: '定时器',
+                timerConfig: { type: 'duration', duration: 0 }
+            } as TimerNode;
+        case 'trigger':
+            return {
+                ...base,
+                nodeType: 'trigger',
+                nodeName: '触发器',
+                triggerType: 'immediate',
+                triggerConfig: {}
+            } as TriggerNode;
         default:
             throw new Error(`Unknown node type: ${nodeType}`);
     }
