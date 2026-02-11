@@ -1,11 +1,6 @@
 <template>
   <div class="dd-designer">
-    <div
-      ref="containerRef"
-      class="dd-designer-canvas"
-      @dragover.prevent="handleDragOver"
-      @drop.prevent="handleDrop"
-    ></div>
+    <div ref="containerRef" class="dd-designer-canvas"></div>
 
     <!-- 缩放控制栏 -->
     <div class="dd-zoom-toolbar">
@@ -46,71 +41,13 @@ const emit = defineEmits<{
   deleteNode: [nodeId: string];
   addConditionBranch: [nodeId: string];
   deleteConditionBranch: [branchId: string];
+  moveBranch: [conditionNodeId: string, branchId: string, direction: 'left' | 'right'];
 }>();
 
 const containerRef = ref<HTMLElement>();
 const graphRef = ref<Graph>();
 const zoom = ref(1);
 const zoomPercent = computed(() => Math.round(zoom.value * 100));
-
-// ── 拖拽放置处理 ──
-function handleDragOver(e: DragEvent) {
-  if (e.dataTransfer) {
-    e.dataTransfer.dropEffect = 'copy';
-  }
-}
-
-function handleDrop(e: DragEvent) {
-  if (!e.dataTransfer) return;
-  const nodeType = e.dataTransfer.getData('nodeType');
-  if (!nodeType) return;
-
-  const graph = graphRef.value;
-  if (!graph) return;
-
-  // 在树形设计器中，拖拽添加节点的行为等同于在选中节点后面添加
-  // 尝试根据放置位置找到最近的节点作为 parent
-  const containerRect = containerRef.value?.getBoundingClientRect();
-  if (!containerRect) {
-    // 退化：使用根节点作为 parent
-    emit('addNode', props.flowTree.rootNode.id, nodeType);
-    return;
-  }
-
-  const localPoint = graph.clientToLocal(
-    e.clientX - containerRect.left,
-    e.clientY - containerRect.top,
-  );
-
-  // 找到画布上最接近放置位置的节点
-  let closestNodeId: string | null = null;
-  let closestDist = Infinity;
-
-  const nodes = graph.getNodes();
-  for (const cell of nodes) {
-    const bbox = cell.getBBox();
-    // 跳过非业务节点（如 add-button、condition-header 等不应作为 parent）
-    const shape = cell.shape;
-    if (shape === 'dd-add-button' || shape === 'dd-end-node') continue;
-
-    const centerX = bbox.x + bbox.width / 2;
-    const centerY = bbox.y + bbox.height / 2;
-    const dist = Math.sqrt(
-      Math.pow(localPoint.x - centerX, 2) + Math.pow(localPoint.y - centerY, 2),
-    );
-    if (dist < closestDist) {
-      closestDist = dist;
-      closestNodeId = cell.id;
-    }
-  }
-
-  if (closestNodeId) {
-    emit('addNode', closestNodeId, nodeType);
-  } else {
-    // 如果没有找到最近节点，添加到根节点
-    emit('addNode', props.flowTree.rootNode.id, nodeType);
-  }
-}
 
 // ── Graph 初始化 ──
 function initGraph() {
@@ -180,6 +117,11 @@ function initGraph() {
   // 添加条件分支
   graph.on('condition:addBranch' as string, ({ nodeId }: { nodeId: string }) => {
     emit('addConditionBranch', nodeId);
+  });
+
+  // 移动条件分支（排序）
+  graph.on('branch:move' as string, ({ conditionNodeId, branchId, direction }: { conditionNodeId: string; branchId: string; direction: 'left' | 'right' }) => {
+    emit('moveBranch', conditionNodeId, branchId, direction);
   });
 
   // 缩放同步

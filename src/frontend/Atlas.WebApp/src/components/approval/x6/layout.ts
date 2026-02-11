@@ -363,7 +363,7 @@ function layoutCondition(
     const bStartX = bCenter - LAYOUT.NODE_W / 2;
     const bStartY = y;
 
-    // 分支卡片
+    // 分支卡片（注入 _branchIndex / _totalBranches / _conditionNodeId 供 UI 使用）
     nodes.push({
       id: branch.id,
       shapeType: 'condition-branch',
@@ -371,7 +371,13 @@ function layoutCondition(
       y: bStartY,
       width: LAYOUT.NODE_W,
       height: LAYOUT.COND_BRANCH_H,
-      data: { ...branch, parentConditionId: node.id } as unknown as Record<string, unknown>,
+      data: {
+        ...branch,
+        parentConditionId: node.id,
+        _branchIndex: i + 1,
+        _totalBranches: branches.length,
+        _conditionNodeId: node.id,
+      } as unknown as Record<string, unknown>,
     });
 
     // 从条件头到分支的连线（用顶点实现折线）

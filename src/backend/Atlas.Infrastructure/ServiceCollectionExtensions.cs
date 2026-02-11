@@ -18,6 +18,7 @@ public static class ServiceCollectionExtensions
         services.AddDynamicTableInfrastructure();
         services.AddApprovalInfrastructure();
         services.AddWorkflowInfrastructure();
+        services.AddLowCodeInfrastructure();
 
         // SqlSugar client (shared across all modules)
         services.AddScoped<ISqlSugarClient>(sp =>

@@ -27,6 +27,15 @@ const ProjectsPage = () => import("@/pages/system/ProjectsPage.vue");
 const AmisSystemPage = () => import("@/pages/system/AmisSystemPage.vue");
 const DynamicTablesPage = () => import("@/pages/dynamic/DynamicTablesPage.vue");
 const DynamicTableCrudPage = () => import("@/pages/dynamic/DynamicTableCrudPage.vue");
+const FormListPage = () => import("@/pages/lowcode/FormListPage.vue");
+const FormDesignerPage = () => import("@/pages/lowcode/FormDesignerPage.vue");
+const AppListPage = () => import("@/pages/lowcode/AppListPage.vue");
+const AppBuilderPage = () => import("@/pages/lowcode/AppBuilderPage.vue");
+const ReportListPage = () => import("@/pages/lowcode/ReportListPage.vue");
+const DashboardListPage = () => import("@/pages/lowcode/DashboardListPage.vue");
+const MessageCenterPage = () => import("@/pages/lowcode/MessageCenterPage.vue");
+const AiAssistantPage = () => import("@/pages/lowcode/AiAssistantPage.vue");
+const ProcessMonitorPage = () => import("@/pages/lowcode/ProcessMonitorPage.vue");
 const NotFoundPage = () => import("@/pages/NotFoundPage.vue");
 
 const router = createRouter({
@@ -161,6 +170,61 @@ const router = createRouter({
       name: "dynamic-table-crud",
       component: DynamicTableCrudPage,
       meta: { requiresAuth: true, requiresPermission: "system:admin" }
+    },
+    // 低代码平台
+    {
+      path: "/lowcode/forms",
+      name: "form-list",
+      component: FormListPage,
+      meta: { requiresAuth: true, requiresPermission: "system:admin" }
+    },
+    {
+      path: "/lowcode/forms/designer/:id",
+      name: "form-designer",
+      component: FormDesignerPage,
+      meta: { requiresAuth: true, requiresPermission: "system:admin", fullscreen: true }
+    },
+    {
+      path: "/lowcode/apps",
+      name: "app-list",
+      component: AppListPage,
+      meta: { requiresAuth: true, requiresPermission: "system:admin" }
+    },
+    {
+      path: "/lowcode/apps/builder/:id",
+      name: "app-builder",
+      component: AppBuilderPage,
+      meta: { requiresAuth: true, requiresPermission: "system:admin", fullscreen: true }
+    },
+    {
+      path: "/lowcode/reports",
+      name: "report-list",
+      component: ReportListPage,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: "/lowcode/dashboards",
+      name: "dashboard-list",
+      component: DashboardListPage,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: "/lowcode/messages",
+      name: "message-center",
+      component: MessageCenterPage,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: "/lowcode/ai",
+      name: "ai-assistant",
+      component: AiAssistantPage,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: "/lowcode/process-monitor",
+      name: "process-monitor",
+      component: ProcessMonitorPage,
+      meta: { requiresAuth: true }
     },
     { path: "/visualization/center", name: "visualization-center", component: VisualizationCenterPage, meta: { requiresAuth: true } },
     { path: "/visualization/designer/:id?", name: "visualization-designer", component: VisualizationDesignerPage, meta: { requiresAuth: true } },

@@ -1,29 +1,35 @@
 <template>
-  <div class="dd-palette">
-    <div
-      v-for="group in nodeGroups"
-      :key="group.title"
-      class="dd-palette__group"
-    >
-      <div class="dd-palette__group-title">{{ group.title }}</div>
+  <transition name="dd-palette-slide">
+    <div v-show="visible" class="dd-palette">
+      <div class="dd-palette__header">
+        <span>节点面板</span>
+        <button class="dd-palette__close" @click="emit('update:visible', false)" title="关闭">
+          <CloseOutlined />
+        </button>
+      </div>
       <div
-        v-for="item in group.items"
-        :key="item.type"
-        class="dd-palette__item"
-        draggable="true"
-        @dragstart="handleDragStart($event, item.type)"
-        @click="emit('addNode', item.type)"
+        v-for="group in nodeGroups"
+        :key="group.title"
+        class="dd-palette__group"
       >
-        <div class="dd-palette__icon" :style="{ background: item.color }">
-          <component :is="item.icon" />
-        </div>
-        <div class="dd-palette__info">
-          <span class="dd-palette__label">{{ item.label }}</span>
-          <span class="dd-palette__desc">{{ item.desc }}</span>
+        <div class="dd-palette__group-title">{{ group.title }}</div>
+        <div
+          v-for="item in group.items"
+          :key="item.type"
+          class="dd-palette__item"
+          @click="emit('addNode', item.type)"
+        >
+          <div class="dd-palette__icon" :style="{ background: item.color }">
+            <component :is="item.icon" />
+          </div>
+          <div class="dd-palette__info">
+            <span class="dd-palette__label">{{ item.label }}</span>
+            <span class="dd-palette__desc">{{ item.desc }}</span>
+          </div>
         </div>
       </div>
     </div>
-  </div>
+  </transition>
 </template>
 
 <script setup lang="ts">
@@ -36,8 +42,13 @@ import {
   SwapOutlined,
   SubnodeOutlined,
   ClockCircleOutlined,
-  ThunderboltOutlined
+  ThunderboltOutlined,
+  CloseOutlined,
 } from '@ant-design/icons-vue';
+
+defineProps<{
+  visible: boolean;
+}>();
 
 const nodeGroups = [
   {
@@ -68,35 +79,58 @@ const nodeGroups = [
 
 const emit = defineEmits<{
   addNode: [nodeType: string];
+  'update:visible': [value: boolean];
 }>();
-
-const handleDragStart = (e: DragEvent, type: string) => {
-  if (e.dataTransfer) {
-    e.dataTransfer.setData('nodeType', type);
-    e.dataTransfer.effectAllowed = 'copy';
-  }
-};
 </script>
 
 <style scoped>
 .dd-palette {
-  width: 200px;
+  width: 220px;
   flex-shrink: 0;
   background: #fff;
   border-right: 1px solid #e8e8e8;
-  padding: 12px 0;
   overflow-y: auto;
   user-select: none;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
+}
+
+.dd-palette__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f1f1f;
+}
+
+.dd-palette__close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 4px;
+  color: #8c8c8c;
+  font-size: 12px;
+  transition: all 0.2s;
+}
+
+.dd-palette__close:hover {
+  background: #f0f0f0;
+  color: #1677ff;
 }
 
 .dd-palette__group-title {
   padding: 0 16px;
   font-size: 12px;
   color: #8c8c8c;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
 }
 
 .dd-palette__item {
@@ -104,16 +138,16 @@ const handleDragStart = (e: DragEvent, type: string) => {
   align-items: center;
   gap: 12px;
   padding: 8px 16px;
-  cursor: grab;
+  cursor: pointer;
   transition: background 0.15s;
 }
 
 .dd-palette__item:hover {
-  background: #f5f5f5;
+  background: #f0f5ff;
 }
 
 .dd-palette__item:active {
-  cursor: grabbing;
+  background: #e6f0ff;
 }
 
 .dd-palette__icon {
@@ -149,5 +183,16 @@ const handleDragStart = (e: DragEvent, type: string) => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* 侧边栏滑入/滑出动画 */
+.dd-palette-slide-enter-active,
+.dd-palette-slide-leave-active {
+  transition: all 0.25s ease;
+}
+.dd-palette-slide-enter-from,
+.dd-palette-slide-leave-to {
+  transform: translateX(-100%);
+  opacity: 0;
 }
 </style>

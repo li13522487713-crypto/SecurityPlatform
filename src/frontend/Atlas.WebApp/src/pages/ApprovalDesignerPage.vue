@@ -31,6 +31,8 @@
         <a-button v-if="activeStep < 2" size="small" @click="nextStep">下一步</a-button>
         <template v-if="activeStep === 2">
           <a-divider type="vertical" />
+          <a-button size="small" :type="paletteVisible ? 'primary' : 'default'" @click="paletteVisible = !paletteVisible" title="节点面板"><AppstoreOutlined /></a-button>
+          <a-divider type="vertical" />
           <a-button size="small" @click="undo" :disabled="!canUndo"><UndoOutlined /></a-button>
           <a-button size="small" @click="redo" :disabled="!canRedo"><RedoOutlined /></a-button>
           <a-divider type="vertical" />
@@ -100,7 +102,7 @@
 
     <!-- ══ 步骤 2: 流程设计（三栏，撑满剩余） ══ -->
     <div class="dd-body dd-body--designer" v-show="activeStep === 2">
-      <ApprovalNodePalette @addNode="handlePaletteAddNode" @addDefaultStartEnd="addDefaultStartEnd" />
+      <ApprovalNodePalette :visible="paletteVisible" @update:visible="paletteVisible = $event" @addNode="handlePaletteAddNode" />
       <div class="dd-canvas">
         <X6ApprovalDesigner
           :flow-tree="flowTree"
@@ -110,6 +112,7 @@
           @deleteNode="deleteNode"
           @addConditionBranch="addConditionBranch"
           @deleteConditionBranch="deleteConditionBranch"
+          @moveBranch="moveBranch"
         />
       </div>
       <ApprovalPropertiesPanel
@@ -173,6 +176,7 @@ import {
   EyeOutlined,
   CloseCircleOutlined,
   ExclamationCircleOutlined,
+  AppstoreOutlined,
 } from '@ant-design/icons-vue';
 import X6ApprovalDesigner from '@/components/approval/x6/X6ApprovalDesigner.vue';
 import ApprovalPropertiesPanel from '@/components/approval/ApprovalPropertiesPanel.vue';
@@ -198,7 +202,7 @@ const router = useRouter();
 
 const {
   flowTree, selectedNode, addNode, deleteNode, updateNode,
-  addConditionBranch, deleteConditionBranch, selectNode,
+  addConditionBranch, deleteConditionBranch, moveBranch, selectNode,
   validateFlow, undo, redo, canUndo, canRedo, pushState
 } = useApprovalTree();
 
@@ -207,6 +211,7 @@ const flowName = ref('');
 const flowId = ref<string | null>(null);
 const flowVersion = ref<number>(0);
 const panelOpen = ref(false);
+const paletteVisible = ref(false);
 const activeStep = ref(0);
 const definitionMeta = ref<ApprovalDefinitionMeta>({ flowName: '', isLowCodeFlow: true });
 const lfFormPayload = ref<LfFormPayload | undefined>(undefined);
@@ -241,10 +246,6 @@ const prevStep = () => { if (activeStep.value > 0) activeStep.value -= 1; };
 const handlePaletteAddNode = (nodeType: string) => {
   const parentId = selectedNode.value?.id ?? flowTree.value.rootNode.id;
   addNode(parentId, nodeType);
-};
-const addDefaultStartEnd = () => {
-  if (flowTree.value.rootNode.childNode) return;
-  pushState(flowTree.value);
 };
 
 const handleLfFormFields = (fields: LfFormPayload['formFields']) => {
@@ -293,10 +294,6 @@ const loadFlow = async () => {
   const id = route.params.id as string;
   // 如果没有 ID，说明是新建流程
   if (!id || id === 'undefined') {
-    // 自动初始化 Start/End 节点
-    if (!flowTree.value.rootNode.childNode) {
-      addDefaultStartEnd();
-    }
     // 设置默认名称
     if (!flowName.value) {
       flowName.value = '未命名流程';

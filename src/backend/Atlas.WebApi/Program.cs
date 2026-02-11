@@ -66,7 +66,8 @@ builder.Services.AddCors(options =>
             ?? Array.Empty<string>();
         policy.WithOrigins(origins)
             .AllowAnyHeader()
-            .AllowAnyMethod();
+            .AllowAnyMethod()
+            .AllowCredentials(); // 允许携带凭证（cookies）
     });
 });
 
@@ -140,6 +141,19 @@ builder.Services.AddAuthentication()
         };
         options.Events = new JwtBearerEvents
         {
+            OnMessageReceived = context =>
+            {
+                // 优先从httpOnly cookie读取token（安全加固）
+                var accessToken = context.Request.Cookies["access_token"];
+                if (!string.IsNullOrEmpty(accessToken))
+                {
+                    context.Token = accessToken;
+                }
+                // 向后兼容：如果cookie中没有token，则从Authorization header读取
+                // JwtBearer中间件会自动从header读取
+
+                return Task.CompletedTask;
+            },
             OnAuthenticationFailed = context =>
             {
                 if (context.Exception is SecurityTokenExpiredException)
@@ -233,6 +247,9 @@ if (securityOptions.EnforceHttps)
 
     app.UseHttpsRedirection();
 }
+
+// 添加安全HTTP响应头（防御XSS、Clickjacking等攻击）
+app.UseSecurityHeaders();
 
 app.UseHttpLogging();
 app.UseMiddleware<ExceptionHandlingMiddleware>();

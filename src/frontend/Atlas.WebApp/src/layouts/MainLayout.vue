@@ -64,6 +64,33 @@
           </a-menu-item>
         </a-sub-menu>
 
+        <a-sub-menu key="lowcode" title="低代码平台">
+          <a-menu-item key="lowcode-forms" @click="go('/lowcode/forms')">
+            表单管理
+          </a-menu-item>
+          <a-menu-item key="lowcode-apps" @click="go('/lowcode/apps')">
+            应用管理
+          </a-menu-item>
+          <a-menu-item key="lowcode-dynamic-tables" @click="go('/dynamic-tables')">
+            数据模型
+          </a-menu-item>
+          <a-menu-item key="lowcode-reports" @click="go('/lowcode/reports')">
+            报表中心
+          </a-menu-item>
+          <a-menu-item key="lowcode-dashboards" @click="go('/lowcode/dashboards')">
+            仪表盘
+          </a-menu-item>
+          <a-menu-item key="lowcode-messages" @click="go('/lowcode/messages')">
+            消息中心
+          </a-menu-item>
+          <a-menu-item key="lowcode-ai" @click="go('/lowcode/ai')">
+            AI 助手
+          </a-menu-item>
+          <a-menu-item key="lowcode-process-monitor" @click="go('/lowcode/process-monitor')">
+            流程监控
+          </a-menu-item>
+        </a-sub-menu>
+
         <a-sub-menu key="amis" title="AMIS 管理">
           <a-menu-item key="amis-users" @click="go('/amis/system/users')">
             员工管理
@@ -130,6 +157,17 @@
             allow-clear
             @search="handleGlobalSearch"
           />
+          <a-dropdown trigger="click">
+            <a-button type="text" class="header-locale">
+              <GlobalOutlined /> {{ currentLocaleName }}
+            </a-button>
+            <template #overlay>
+              <a-menu @click="switchLocale">
+                <a-menu-item key="zh-CN">简体中文</a-menu-item>
+                <a-menu-item key="en-US">English</a-menu-item>
+              </a-menu>
+            </template>
+          </a-dropdown>
           <a-button type="text" class="header-help" @click="openHelp">帮助</a-button>
           <a-dropdown trigger="click">
             <a-button type="text">
@@ -161,12 +199,15 @@
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { message } from "ant-design-vue";
-import { LeftOutlined } from "@ant-design/icons-vue";
+import { LeftOutlined, GlobalOutlined } from "@ant-design/icons-vue";
+import { useI18n } from "vue-i18n";
+import { saveLocale, type SupportedLocale } from "@/i18n";
 import { getCurrentUser, logout as apiLogout } from "@/services/api";
 import type { AuthProfile } from "@/types/api";
 import { clearAuthStorage, getAccessToken, getAuthProfile, hasPermission, setAuthProfile } from "@/utils/auth";
 import ProjectSwitcher from "@/components/ProjectSwitcher.vue";
 
+const { locale } = useI18n();
 const collapsed = ref(false);
 const router = useRouter();
 const route = useRoute();
@@ -174,6 +215,13 @@ const profile = ref<AuthProfile | null>(null);
 const contentKey = ref(0);
 const openKeys = ref<string[]>([]);
 const globalKeyword = ref("");
+
+const currentLocaleName = computed(() => locale.value === "zh-CN" ? "中文" : "EN");
+const switchLocale = ({ key }: { key: string }) => {
+  const newLocale = key as SupportedLocale;
+  locale.value = newLocale;
+  saveLocale(newLocale);
+};
 
 const isLogin = computed(() => route.name === "login");
 const isFullscreen = computed(() => !!route.meta.fullscreen);
@@ -198,6 +246,14 @@ const selectedKeys = computed(() => {
   if (route.path.startsWith("/system/menus")) return ["permission-menus"];
   if (route.path.startsWith("/system/projects")) return ["business-projects"];
   if (route.path.startsWith("/system/apps")) return ["application-apps"];
+  if (route.path.startsWith("/lowcode/forms")) return ["lowcode-forms"];
+  if (route.path.startsWith("/lowcode/apps")) return ["lowcode-apps"];
+  if (route.path.startsWith("/lowcode/reports")) return ["lowcode-reports"];
+  if (route.path.startsWith("/lowcode/dashboards")) return ["lowcode-dashboards"];
+  if (route.path.startsWith("/lowcode/messages")) return ["lowcode-messages"];
+  if (route.path.startsWith("/lowcode/ai")) return ["lowcode-ai"];
+  if (route.path.startsWith("/lowcode/process-monitor")) return ["lowcode-process-monitor"];
+  if (route.path.startsWith("/dynamic-tables")) return ["lowcode-dynamic-tables"];
   if (route.path.startsWith("/amis/system/users")) return ["amis-users"];
   if (route.path.startsWith("/amis/system/departments")) return ["amis-departments"];
   if (route.path.startsWith("/amis/system/positions")) return ["amis-positions"];
@@ -273,6 +329,9 @@ const resolveOpenKeys = (path: string) => {
   }
   if (path.startsWith("/system/apps")) {
     return ["application"];
+  }
+  if (path.startsWith("/lowcode") || path.startsWith("/dynamic-tables")) {
+    return ["lowcode"];
   }
   if (path.startsWith("/amis/system")) {
     return ["amis"];
@@ -390,6 +449,13 @@ watch(
 
 .global-search {
   width: 280px;
+}
+
+.header-locale {
+  color: var(--color-text-primary);
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .header-help {
