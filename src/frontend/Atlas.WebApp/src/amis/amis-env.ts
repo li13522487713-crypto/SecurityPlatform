@@ -2,6 +2,7 @@ import { message, Modal } from "ant-design-vue";
 import type { ApiResponse, JsonValue } from "@/types/api";
 import type { AmisEnv, AmisFetcherConfig, AmisFetcherResult } from "@/types/amis";
 import { requestApi } from "@/services/api";
+import i18n from "@/i18n";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "/api/v1";
 
@@ -149,6 +150,20 @@ export function createAmisEnv(): AmisEnv {
     fetcher,
     notify,
     alert,
-    confirm
+    confirm,
+    locale: getAmisLocale()
   };
+}
+
+/**
+ * Map the application locale to the amis locale string.
+ * amis supports: "zh-CN", "en-US", "de-DE", etc.
+ */
+export function getAmisLocale(): string {
+  const appLocale = i18n.global.locale.value ?? "zh-CN";
+  const map: Record<string, string> = {
+    "zh-CN": "zh-CN",
+    "en-US": "en-US"
+  };
+  return map[appLocale] ?? "zh-CN";
 }

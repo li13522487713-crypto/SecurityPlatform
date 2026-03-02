@@ -1,0 +1,177 @@
+@baseUrl = http://localhost:5000
+@tenantId = 00000000-0000-0000-0000-000000000001
+@adminUsername = admin
+@adminPassword = P@ssw0rd!
+
+### ==================== 权限控制测试 ====================
+
+### 1. Admin用户登录
+# @name adminLogin
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{adminPassword}}"
+}
+
+###
+@adminToken = {{adminLogin.response.body.$.data.accessToken}}
+
+### 2. 测试：未认证访问受保护端点（应返回401）
+GET {{baseUrl}}/api/v1/audit?pageIndex=1&pageSize=10
+X-Tenant-Id: {{tenantId}}
+# 故意不提供 Authorization header
+
+### 3. 测试：Admin访问审计日志（应成功，需要 audit:view 权限）
+GET {{baseUrl}}/api/v1/audit?pageIndex=1&pageSize=10
+Authorization: Bearer {{adminToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 4. 测试：Admin访问用户列表（应成功，需要 users:view 权限）
+GET {{baseUrl}}/api/v1/users?pageIndex=1&pageSize=10
+Authorization: Bearer {{adminToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 5. 测试：Admin访问角色列表（应成功，需要 roles:view 权限）
+GET {{baseUrl}}/api/v1/roles?pageIndex=1&pageSize=10
+Authorization: Bearer {{adminToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 6. 测试：Admin访问部门列表（应成功，需要 departments:view 权限）
+GET {{baseUrl}}/api/v1/departments?pageIndex=1&pageSize=10
+Authorization: Bearer {{adminToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 7. 测试：Admin访问权限列表（应成功，需要 permissions:view 权限）
+GET {{baseUrl}}/api/v1/permissions?pageIndex=1&pageSize=10
+Authorization: Bearer {{adminToken}}
+X-Tenant-Id: {{tenantId}}
+
+### ==================== 创建普通用户测试权限隔离 ====================
+
+### 8. Admin创建普通测试用户
+# @name createTestUser
+POST {{baseUrl}}/api/v1/users
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "testuser001",
+  "displayName": "Test User 001",
+  "email": "testuser001@example.com",
+  "password": "TestUser@123",
+  "isActive": true
+}
+
+###
+@testUserId = {{createTestUser.response.body.$.data.id}}
+
+### 9. 普通用户登录
+# @name testUserLogin
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "testuser001",
+  "password": "TestUser@123"
+}
+
+###
+@testUserToken = {{testUserLogin.response.body.$.data.accessToken}}
+
+### 10. 测试：普通用户访问审计日志（应返回403，无 audit:view 权限）
+GET {{baseUrl}}/api/v1/audit?pageIndex=1&pageSize=10
+Authorization: Bearer {{testUserToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 11. 测试：普通用户尝试创建用户（应返回403，无 users:create 权限）
+POST {{baseUrl}}/api/v1/users
+Content-Type: application/json
+Authorization: Bearer {{testUserToken}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "unauthorized_user",
+  "displayName": "Unauthorized User",
+  "email": "unauthorized@example.com",
+  "password": "Password@123"
+}
+
+### 12. 测试：普通用户尝试更新其他用户（应返回403，无 users:update 权限）
+PUT {{baseUrl}}/api/v1/users/1
+Content-Type: application/json
+Authorization: Bearer {{testUserToken}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "id": 1,
+  "username": "admin",
+  "displayName": "Hacked Admin",
+  "email": "admin@example.com",
+  "isActive": true
+}
+
+### 13. 测试：普通用户尝试删除用户（应返回403，无 users:delete 权限）
+DELETE {{baseUrl}}/api/v1/users/1
+Authorization: Bearer {{testUserToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 14. 测试：普通用户尝试创建审批流（应返回403，无 approval:flow:create 权限）
+POST {{baseUrl}}/api/v1/approval-flows
+Content-Type: application/json
+Authorization: Bearer {{testUserToken}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "name": "Unauthorized Approval Flow",
+  "flowKey": "unauthorized_flow",
+  "category": "测试"
+}
+
+### ==================== 租户隔离测试 ====================
+
+### 15. 测试：使用租户A的token访问租户B的数据（应返回403）
+GET {{baseUrl}}/api/v1/users?pageIndex=1&pageSize=10
+Authorization: Bearer {{adminToken}}
+X-Tenant-Id: 00000000-0000-0000-0000-000000000999
+# 使用租户A的token，但header指定租户B的ID
+
+### 16. 测试：缺少X-Tenant-Id header（应返回400或403）
+GET {{baseUrl}}/api/v1/users?pageIndex=1&pageSize=10
+Authorization: Bearer {{adminToken}}
+# 故意不提供 X-Tenant-Id header
+
+### ==================== 权限策略验证 ====================
+
+### 17. 查询当前用户的权限（验证权限分配）
+GET {{baseUrl}}/api/v1/auth/me
+Authorization: Bearer {{adminToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 18. 查询普通用户的权限（验证权限分配）
+GET {{baseUrl}}/api/v1/auth/me
+Authorization: Bearer {{testUserToken}}
+X-Tenant-Id: {{tenantId}}
+
+### ==================== 清理测试数据 ====================
+
+### 19. Admin删除测试用户
+DELETE {{baseUrl}}/api/v1/users/{{testUserId}}
+Authorization: Bearer {{adminToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 验证说明
+# 成功的测试场景：
+# - 请求2: 应返回401 Unauthorized
+# - 请求3-7: 应返回200 OK（Admin有所有权限）
+# - 请求8: 应返回200 OK（创建测试用户成功）
+# - 请求9: 应返回200 OK（测试用户登录成功）
+# - 请求10-14: 应返回403 Forbidden（普通用户无这些权限）
+# - 请求15: 应返回403 Forbidden（租户ID不匹配）
+# - 请求16: 应返回400 Bad Request 或 403 Forbidden（缺少租户ID）
+# - 请求17-18: 应返回200 OK，并显示用户的权限信息
+# - 请求19: 应返回200 OK（清理测试数据）

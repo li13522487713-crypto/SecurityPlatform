@@ -123,11 +123,11 @@ const getStatusText = (status: ApprovalFlowStatus) => {
 };
 
 const handleCreate = () => {
-  router.push("/approval/designer");
+  router.push("/process/designer");
 };
 
 const handleDesign = (id: string) => {
-  router.push(`/approval/designer/${id}`);
+  router.push(`/process/designer/${id}`);
 };
 
 const handlePublish = async (id: string) => {

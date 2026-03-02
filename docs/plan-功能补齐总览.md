@@ -183,6 +183,37 @@
 | `docs/plan-数据权限.md` | 数据权限范围控制 | [ ] |
 | `docs/plan-多数据源.md` | 多租户多数据源切换 | [ ] |
 | `docs/plan-国际化.md` | 前后端 i18n 支持 | [ ] |
+| `docs/prd-case-01-auth-security.md` | 认证安全基线闭环 | [x] |
+| `docs/prd-case-02-dynamic-table-crud.md` | 动态表 CRUD 闭环 | [x] |
+| `docs/prd-case-03-approval-flow.md` | 审批流运行闭环 | [x] |
+| `docs/prd-case-04-scheduled-jobs.md` | 定时任务管理闭环 | [x] |
+| `docs/prd-case-05-monitoring.md` | 服务监控健康闭环 | [x] |
+| `docs/prd-case-06-project-scope.md` | 项目域隔离闭环 | [x] |
+| `docs/prd-case-07-tenant-datasource.md` | 多数据源接入闭环 | [x] |
+| `docs/prd-case-08-table-view.md` | 表格视图配置闭环 | [x] |
+| `docs/prd-case-09-excel-import-export.md` | Excel 导入导出闭环 | [x] |
+| `docs/prd-case-10-data-scope.md` | 数据权限闭环 | [x] |
+| `docs/prd-case-11-notification.md` | 通知公告闭环 | [x] |
+| `docs/prd-case-12-production-hardening.md` | 生产级加固闭环 | [x] |
+
+---
+
+## 12个Case执行追踪（生产级迭代）
+
+| Case | 文档 | 规格 | 后端 | 前端 | 验收 | 备注 |
+|---|---|---|---|---|---|---|
+| Case 01 | 认证安全基线 | [x] | [x] | [ ] | [ ] | 已修复 XSS 条件优先级问题 |
+| Case 02 | 动态表 CRUD | [x] | [ ] | [ ] | [ ] | 文档已完成，待联调 |
+| Case 03 | 审批流设计运行 | [x] | [ ] | [ ] | [ ] | 文档已完成，待联调 |
+| Case 04 | 定时任务管理 | [x] | [ ] | [ ] | [ ] | 文档已完成，待联调 |
+| Case 05 | 服务监控健康 | [x] | [ ] | [ ] | [ ] | 文档已完成，待联调 |
+| Case 06 | 项目域权限隔离 | [x] | [ ] | [ ] | [ ] | 文档已完成，待联调 |
+| Case 07 | 多数据源接入 | [x] | [ ] | [ ] | [ ] | 文档已完成，待联调 |
+| Case 08 | 自定义表格视图 | [x] | [ ] | [ ] | [ ] | 文档已完成，待联调 |
+| Case 09 | Excel 导入导出 | [x] | [ ] | [ ] | [ ] | 文档先行，开发待补齐 |
+| Case 10 | 数据权限 DataScope | [x] | [ ] | [ ] | [ ] | 文档先行，开发待补齐 |
+| Case 11 | 通知公告闭环 | [x] | [ ] | [ ] | [ ] | 文档先行，开发待补齐 |
+| Case 12 | 生产级安全加固 | [x] | [ ] | [ ] | [ ] | 文档已完成，专项实施中 |
 
 ---
 

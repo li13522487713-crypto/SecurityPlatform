@@ -200,6 +200,8 @@ export function useApprovalTree() {
 
   /**
    * 删除条件分支
+   * 当删除后只剩 1 个分支时，自动将该分支的子链合并到父节点链上，
+   * 并移除整个条件/包容节点（与 FlowLong 行为一致）。
    */
   const deleteConditionBranch = (branchId: string) => {
       const result = findNodeOrBranch(flowTree.value.rootNode, branchId);
@@ -210,7 +212,84 @@ export function useApprovalTree() {
       if (index > -1) {
           conditionNode.conditionNodes.splice(index, 1);
       }
-      
+
+      // 如果只剩 1 个分支，将其子链提升合并到条件节点所在位置
+      if (conditionNode.conditionNodes.length <= 1) {
+          const survivingBranch = conditionNode.conditionNodes[0];
+          // 找到条件节点的父节点
+          const parentResult = findNodeOrBranch(flowTree.value.rootNode, conditionNode.id);
+          // 条件节点自身在 parentResult.node 中，它的父在哪里？
+          // 需要额外找一次：遍历寻找 "谁的 childNode === conditionNode"
+          const condParent = findParentOf(flowTree.value.rootNode, conditionNode.id);
+          if (condParent) {
+              // 存活分支的子链
+              const survivingChild = survivingBranch?.childNode;
+              // 条件节点后续的 childNode
+              const conditionTail = conditionNode.childNode;
+              // 拼接：survivingChild → ... → conditionTail → conditionNode.childNode 后续
+              if (survivingChild) {
+                  // 找到 survivingChild 链的末尾
+                  let tail: any = survivingChild;
+                  while (tail.childNode) tail = tail.childNode;
+                  tail.childNode = conditionTail;
+                  (condParent as any).childNode = survivingChild;
+              } else {
+                  (condParent as any).childNode = conditionTail;
+              }
+          }
+      }
+
+      pushState(flowTree.value);
+  };
+
+  /**
+   * 辅助：找到某个节点的父节点（谁的 childNode.id === targetId）
+   */
+  const findParentOf = (current: any, targetId: string): any | null => {
+      if ('childNode' in current && current.childNode) {
+          if (current.childNode.id === targetId) return current;
+          const found = findParentOf(current.childNode, targetId);
+          if (found) return found;
+      }
+      if (current.conditionNodes) {
+          for (const branch of current.conditionNodes) {
+              if (branch.childNode) {
+                  if (branch.childNode.id === targetId) return branch;
+                  const found = findParentOf(branch.childNode, targetId);
+                  if (found) return found;
+              }
+          }
+      }
+      if (current.parallelNodes) {
+          for (const pNode of current.parallelNodes) {
+              if (pNode.id === targetId) return current;
+              const found = findParentOf(pNode, targetId);
+              if (found) return found;
+          }
+      }
+      return null;
+  };
+
+  /**
+   * 移动条件分支（左/右排序）
+   * direction: 'left' 表示向前（index-1），'right' 表示向后（index+1）
+   */
+  const moveBranch = (conditionNodeId: string, branchId: string, direction: 'left' | 'right') => {
+      const result = findNodeOrBranch(flowTree.value.rootNode, conditionNodeId);
+      if (!result || !result.node) return;
+
+      const conditionNode = result.node as ConditionNode | InclusiveNode;
+      if (!conditionNode.conditionNodes) return;
+
+      const branches = conditionNode.conditionNodes;
+      const index = branches.findIndex(b => b.id === branchId);
+      if (index < 0) return;
+
+      const targetIndex = direction === 'left' ? index - 1 : index + 1;
+      if (targetIndex < 0 || targetIndex >= branches.length) return;
+
+      // 交换
+      [branches[index], branches[targetIndex]] = [branches[targetIndex], branches[index]];
       pushState(flowTree.value);
   };
   
@@ -397,6 +476,7 @@ export function useApprovalTree() {
     updateNode,
     addConditionBranch,
     deleteConditionBranch,
+    moveBranch,
     selectNode,
     validateFlow,
     undo: handleUndo,

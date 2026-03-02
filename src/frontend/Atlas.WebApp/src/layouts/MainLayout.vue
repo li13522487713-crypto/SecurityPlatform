@@ -12,78 +12,56 @@
         mode="inline"
         :selected-keys="selectedKeys"
         :open-keys="openKeys"
-        @openChange="handleOpenChange"
+        @open-change="handleOpenChange"
       >
-        <a-menu-item key="home" @click="go('/')">总览</a-menu-item>
+        <a-menu-item key="home" @click="go('/')">
+          <HomeOutlined />
+          <span>工作台</span>
+        </a-menu-item>
 
-        <a-sub-menu key="security" title="安全运营">
-          <a-menu-item key="assets" @click="go('/assets')">资产</a-menu-item>
-          <a-menu-item key="audit" @click="go('/audit')">审计</a-menu-item>
-          <a-menu-item key="alert" @click="go('/alert')">告警</a-menu-item>
+        <a-sub-menu key="security" title="安全中心">
+          <a-menu-item key="assets" @click="go('/assets')">资产管理</a-menu-item>
+          <a-menu-item key="alert" @click="go('/alert')">告警管理</a-menu-item>
+          <a-menu-item key="audit" @click="go('/audit')">审计日志</a-menu-item>
         </a-sub-menu>
 
-        <a-sub-menu key="approval" title="审批中心">
-          <a-menu-item key="approval-flows" @click="go('/approval/flows')">审批流</a-menu-item>
-          <a-menu-item key="approval-tasks" @click="go('/approval/tasks')">审批任务</a-menu-item>
-          <a-menu-item key="approval-instances" @click="go('/approval/instances')">流程实例</a-menu-item>
+        <a-sub-menu key="process" title="流程中心">
+          <a-menu-item key="process-flows" @click="go('/process/flows')">流程定义</a-menu-item>
+          <a-menu-item key="process-tasks" @click="go('/process/tasks')">我的待办</a-menu-item>
+          <a-menu-item key="process-instances" @click="go('/process/instances')">我发起的</a-menu-item>
+          <a-menu-item key="process-monitor" @click="go('/process/monitor')">流程监控</a-menu-item>
         </a-sub-menu>
 
-        <a-sub-menu v-if="showOrganizationMenu" key="organization" title="组织管理">
-          <a-menu-item v-if="showUsersMenu" key="org-users" @click="go('/system/users')">
-            员工管理
-          </a-menu-item>
-          <a-menu-item v-if="showDepartmentsMenu" key="org-departments" @click="go('/system/departments')">
-            部门管理
-          </a-menu-item>
-          <a-menu-item v-if="showPositionsMenu" key="org-positions" @click="go('/system/positions')">
-            职位管理
-          </a-menu-item>
+        <a-sub-menu key="apps" title="应用中心">
+          <a-menu-item key="apps-list" @click="go('/apps/list')">应用管理</a-menu-item>
+          <a-menu-item key="apps-forms" @click="go('/apps/forms')">表单管理</a-menu-item>
+          <a-menu-item key="apps-data-model" @click="go('/apps/data-model')">数据模型</a-menu-item>
         </a-sub-menu>
 
-        <a-sub-menu v-if="showPermissionMenu" key="permission" title="权限管理">
-          <a-menu-item v-if="showRolesMenu" key="permission-roles" @click="go('/system/roles')">
-            角色管理
-          </a-menu-item>
-          <a-menu-item v-if="showPermissionsMenu" key="permission-permissions" @click="go('/system/permissions')">
-            权限管理
-          </a-menu-item>
-          <a-menu-item v-if="showMenusMenu" key="permission-menus" @click="go('/system/menus')">
-            菜单管理
-          </a-menu-item>
-        </a-sub-menu>
-
-        <a-sub-menu v-if="showBusinessMenu" key="business" title="业务管理">
-          <a-menu-item v-if="showProjectsMenu" key="business-projects" @click="go('/system/projects')">
-            项目管理
-          </a-menu-item>
-        </a-sub-menu>
-
-        <a-sub-menu v-if="showApplicationMenu" key="application" title="应用管理">
-          <a-menu-item v-if="showAppsMenu" key="application-apps" @click="go('/system/apps')">
-            应用配置
-          </a-menu-item>
-        </a-sub-menu>
-
-        <a-sub-menu key="amis" title="AMIS 管理">
-          <a-menu-item key="amis-users" @click="go('/amis/system/users')">
-            员工管理
-          </a-menu-item>
-          <a-menu-item key="amis-departments" @click="go('/amis/system/departments')">
-            部门管理
-          </a-menu-item>
-          <a-menu-item key="amis-positions" @click="go('/amis/system/positions')">
-            职位管理
-          </a-menu-item>
-          <a-menu-item key="amis-roles" @click="go('/amis/system/roles')">
-            角色管理
-          </a-menu-item>
-          <a-menu-item key="amis-permissions" @click="go('/amis/system/permissions')">
-            权限管理
-          </a-menu-item>
-          <a-menu-item key="amis-menus" @click="go('/amis/system/menus')">
-            菜单管理
-          </a-menu-item>
-          <a-menu-item key="amis-projects" @click="go('/amis/system/projects')">
+        <a-sub-menu v-if="showSettingsMenu" key="settings" title="系统设置">
+          <a-menu-item-group v-if="showOrgGroup" title="组织架构">
+            <a-menu-item v-if="showUsersMenu" key="settings-users" @click="go('/settings/org/users')">
+              员工管理
+            </a-menu-item>
+            <a-menu-item v-if="showDepartmentsMenu" key="settings-departments" @click="go('/settings/org/departments')">
+              部门管理
+            </a-menu-item>
+            <a-menu-item v-if="showPositionsMenu" key="settings-positions" @click="go('/settings/org/positions')">
+              职位管理
+            </a-menu-item>
+          </a-menu-item-group>
+          <a-menu-item-group v-if="showAuthGroup" title="角色权限">
+            <a-menu-item v-if="showRolesMenu" key="settings-roles" @click="go('/settings/auth/roles')">
+              角色管理
+            </a-menu-item>
+            <a-menu-item v-if="showPermissionsMenu" key="settings-permissions" @click="go('/settings/auth/permissions')">
+              权限管理
+            </a-menu-item>
+            <a-menu-item v-if="showMenusMenu" key="settings-menus" @click="go('/settings/auth/menus')">
+              菜单管理
+            </a-menu-item>
+          </a-menu-item-group>
+          <a-menu-item v-if="showProjectsMenu" key="settings-projects" @click="go('/settings/projects')">
             项目管理
           </a-menu-item>
           <a-menu-item key="amis-apps" @click="go('/amis/system/apps')">
@@ -111,8 +89,8 @@
           <a-menu-item key="workflow-designer" @click="go('/workflow/designer')">
             工作流设计器
           </a-menu-item>
-          <a-menu-item key="workflow-instances" @click="go('/workflow/instances')">
-            实例监控
+          <a-menu-item key="settings-messages" @click="go('/settings/messages')">
+            消息管理
           </a-menu-item>
         </a-sub-menu>
       </a-menu>
@@ -125,12 +103,13 @@
           <ProjectSwitcher />
         </div>
         <div class="header-right">
-          <a-input-search
+          <a-auto-complete
             v-model:value="globalKeyword"
             class="global-search"
-            placeholder="搜索员工、角色、项目或功能入口"
+            :options="searchOptions"
+            placeholder="搜索功能入口（支持拼音）"
             allow-clear
-            @search="handleGlobalSearch"
+            @select="handleSearchSelect"
           />
           <a-button type="text" class="header-help" @click="openHelp">帮助</a-button>
           <a-dropdown trigger="click" :overlay-style="{ minWidth: '100px' }">
@@ -165,24 +144,47 @@
         </div>
       </a-layout-header>
       <a-layout-content class="app-content">
+        <a-breadcrumb v-if="breadcrumbItems.length > 0" class="app-breadcrumb">
+          <a-breadcrumb-item v-for="(item, index) in breadcrumbItems" :key="index">
+            <router-link v-if="item.path" :to="item.path">{{ item.title }}</router-link>
+            <span v-else>{{ item.title }}</span>
+          </a-breadcrumb-item>
+        </a-breadcrumb>
         <router-view :key="contentKey" />
       </a-layout-content>
     </a-layout>
+
+    <!-- AI 助手 Drawer -->
+    <a-drawer
+      v-model:open="aiDrawerOpen"
+      title="AI 助手"
+      placement="right"
+      :width="480"
+      destroy-on-close
+    >
+      <component :is="AiAssistantContent" v-if="aiDrawerOpen" />
+    </a-drawer>
   </a-layout>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, defineAsyncComponent, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { message } from "ant-design-vue";
-import { LeftOutlined } from "@ant-design/icons-vue";
+import { HomeOutlined, GlobalOutlined, RobotOutlined } from "@ant-design/icons-vue";
+import { useI18n } from "vue-i18n";
+import { saveLocale, type SupportedLocale } from "@/i18n";
 import { getCurrentUser, logout as apiLogout } from "@/services/api";
 import type { AuthProfile } from "@/types/api";
+import type { BreadcrumbItem } from "@/router";
 import { clearAuthStorage, getAccessToken, getAuthProfile, hasPermission, setAuthProfile } from "@/utils/auth";
 import ProjectSwitcher from "@/components/ProjectSwitcher.vue";
 import NotificationBell from "@/components/layout/NotificationBell.vue";
 import { setLocale, getLocale } from "@/i18n";
 
+const AiAssistantContent = defineAsyncComponent(() => import("@/pages/lowcode/AiAssistantPage.vue"));
+
+const { locale } = useI18n();
 const collapsed = ref(false);
 const router = useRouter();
 const route = useRoute();
@@ -190,6 +192,14 @@ const profile = ref<AuthProfile | null>(null);
 const contentKey = ref(0);
 const openKeys = ref<string[]>([]);
 const globalKeyword = ref("");
+const aiDrawerOpen = ref(false);
+
+const currentLocaleName = computed(() => locale.value === "zh-CN" ? "中文" : "EN");
+const switchLocale = ({ key }: { key: string }) => {
+  const newLocale = key as SupportedLocale;
+  locale.value = newLocale;
+  saveLocale(newLocale);
+};
 
 const isLogin = computed(() => route.name === "login");
 const isFullscreen = computed(() => !!route.meta.fullscreen);
@@ -199,38 +209,14 @@ const profileInitials = computed(() => {
   return name.trim().slice(0, 2) || "我";
 });
 
+// ── 菜单选中 & 展开 ──
 const selectedKeys = computed(() => {
-  if (route.path.startsWith("/assets")) return ["assets"];
-  if (route.path.startsWith("/audit")) return ["audit"];
-  if (route.path.startsWith("/alert")) return ["alert"];
-  if (route.path.startsWith("/approval/flows") || route.path.startsWith("/approval/designer")) return ["approval-flows"];
-  if (route.path.startsWith("/approval/tasks")) return ["approval-tasks"];
-  if (route.path.startsWith("/approval/instances")) return ["approval-instances"];
-  if (route.path.startsWith("/system/users")) return ["org-users"];
-  if (route.path.startsWith("/system/departments")) return ["org-departments"];
-  if (route.path.startsWith("/system/positions")) return ["org-positions"];
-  if (route.path.startsWith("/system/roles")) return ["permission-roles"];
-  if (route.path.startsWith("/system/permissions")) return ["permission-permissions"];
-  if (route.path.startsWith("/system/menus")) return ["permission-menus"];
-  if (route.path.startsWith("/system/projects")) return ["business-projects"];
-  if (route.path.startsWith("/system/apps")) return ["application-apps"];
-  if (route.path.startsWith("/amis/system/users")) return ["amis-users"];
-  if (route.path.startsWith("/amis/system/departments")) return ["amis-departments"];
-  if (route.path.startsWith("/amis/system/positions")) return ["amis-positions"];
-  if (route.path.startsWith("/amis/system/roles")) return ["amis-roles"];
-  if (route.path.startsWith("/amis/system/permissions")) return ["amis-permissions"];
-  if (route.path.startsWith("/amis/system/menus")) return ["amis-menus"];
-  if (route.path.startsWith("/amis/system/projects")) return ["amis-projects"];
-  if (route.path.startsWith("/amis/system/apps")) return ["amis-apps"];
-  if (route.path.startsWith("/visualization")) {
-    if (route.path.includes("designer")) return ["visualization-designer"];
-    if (route.path.includes("runtime")) return ["visualization-runtime"];
-    if (route.path.includes("governance")) return ["visualization-governance"];
-    return ["visualization-center"];
-  }
-  if (route.path === "/workflow/designer") return ["workflow-designer"];
-  if (route.path === "/workflow/instances") return ["workflow-instances"];
-  return ["home"];
+  const key = route.meta.menuKey as string | undefined;
+  return key ? [key] : ["home"];
+});
+
+const breadcrumbItems = computed<BreadcrumbItem[]>(() => {
+  return (route.meta.breadcrumb as BreadcrumbItem[] | undefined) ?? [];
 });
 
 const toggle = (value: boolean) => {
@@ -241,15 +227,11 @@ const go = (path: string) => {
   router.push(path);
 };
 
-const goBack = () => {
-  if (window.history.length > 1) {
-    router.back();
-  } else {
-    router.push('/');
-  }
+const toggleAiDrawer = () => {
+  aiDrawerOpen.value = !aiDrawerOpen.value;
 };
 
-const showWorkflowMenu = computed(() => hasPermission(profile.value, "workflow:design"));
+// ── 权限菜单 ──
 const showUsersMenu = computed(() => hasPermission(profile.value, "users:view"));
 const showRolesMenu = computed(() => hasPermission(profile.value, "roles:view"));
 const showPermissionsMenu = computed(() => hasPermission(profile.value, "permissions:view"));
@@ -258,76 +240,63 @@ const showDepartmentsMenu = computed(() => hasPermission(profile.value, "departm
 const showPositionsMenu = computed(() => hasPermission(profile.value, "positions:view"));
 const showAppsMenu = computed(() => hasPermission(profile.value, "apps:view"));
 const showProjectsMenu = computed(() => hasPermission(profile.value, "projects:view"));
-const showOrganizationMenu = computed(
+const showOrgGroup = computed(
   () => showUsersMenu.value || showDepartmentsMenu.value || showPositionsMenu.value
 );
-const showPermissionMenu = computed(
+const showAuthGroup = computed(
   () => showRolesMenu.value || showPermissionsMenu.value || showMenusMenu.value
 );
-const showBusinessMenu = computed(() => showProjectsMenu.value);
-const showApplicationMenu = computed(() => showAppsMenu.value);
+const showSettingsMenu = computed(
+  () => showOrgGroup.value || showAuthGroup.value || showProjectsMenu.value || showAppsMenu.value
+);
 
 const handleOpenChange = (keys: string[]) => {
   openKeys.value = keys;
 };
 
-const resolveOpenKeys = (path: string) => {
-  if (path.startsWith("/assets") || path.startsWith("/audit") || path.startsWith("/alert")) {
-    return ["security"];
-  }
-  if (path.startsWith("/approval")) {
-    return ["approval"];
-  }
-  if (path.startsWith("/system/users") || path.startsWith("/system/departments") || path.startsWith("/system/positions")) {
-    return ["organization"];
-  }
-  if (path.startsWith("/system/roles") || path.startsWith("/system/permissions") || path.startsWith("/system/menus")) {
-    return ["permission"];
-  }
-  if (path.startsWith("/system/projects")) {
-    return ["business"];
-  }
-  if (path.startsWith("/system/apps")) {
-    return ["application"];
-  }
-  if (path.startsWith("/amis/system")) {
-    return ["amis"];
-  }
-  if (path.startsWith("/visualization")) {
-    return ["visualization"];
-  }
-  if (path.startsWith("/workflow")) {
-    return ["workflow"];
-  }
-  return [];
+const resolveOpenKeys = (): string[] => {
+  const group = route.meta.menuGroup as string | undefined;
+  return group ? [group] : [];
 };
 
-const handleGlobalSearch = (value: string) => {
-  const keyword = value.trim();
-  if (!keyword) return;
-  const map: Array<{ keywords: string[]; path: string }> = [
-    { keywords: ["员工", "用户", "人员"], path: "/system/users" },
-    { keywords: ["部门", "组织"], path: "/system/departments" },
-    { keywords: ["职位", "岗位"], path: "/system/positions" },
-    { keywords: ["角色"], path: "/system/roles" },
-    { keywords: ["权限"], path: "/system/permissions" },
-    { keywords: ["菜单"], path: "/system/menus" },
-    { keywords: ["项目"], path: "/system/projects" },
-    { keywords: ["应用"], path: "/system/apps" },
-    { keywords: ["审计"], path: "/audit" },
-    { keywords: ["告警"], path: "/alert" },
-    { keywords: ["资产"], path: "/assets" }
-  ];
-  const matched = map.find((entry) => entry.keywords.some((item) => keyword.includes(item)));
-  if (matched) {
-    router.push(matched.path);
-    return;
-  }
-  message.info("全局搜索索引建设中");
-};
+// ── 全局搜索 ──
+const searchIndex = [
+  { label: "工作台", keywords: ["工作台", "首页", "gzt", "sy"], path: "/" },
+  { label: "资产管理", keywords: ["资产", "zc", "asset"], path: "/assets" },
+  { label: "告警管理", keywords: ["告警", "gj", "alert"], path: "/alert" },
+  { label: "审计日志", keywords: ["审计", "sj", "audit"], path: "/audit" },
+  { label: "流程定义", keywords: ["流程", "审批", "lc", "sp"], path: "/process/flows" },
+  { label: "我的待办", keywords: ["待办", "任务", "db", "rw"], path: "/process/tasks" },
+  { label: "我发起的", keywords: ["发起", "实例", "fq"], path: "/process/instances" },
+  { label: "流程监控", keywords: ["监控", "jk"], path: "/process/monitor" },
+  { label: "应用管理", keywords: ["应用", "yy", "app"], path: "/apps/list" },
+  { label: "表单管理", keywords: ["表单", "bd", "form"], path: "/apps/forms" },
+  { label: "数据模型", keywords: ["数据模型", "sjmx", "model"], path: "/apps/data-model" },
+  { label: "员工管理", keywords: ["员工", "用户", "人员", "yg"], path: "/settings/org/users" },
+  { label: "部门管理", keywords: ["部门", "组织", "bm"], path: "/settings/org/departments" },
+  { label: "职位管理", keywords: ["职位", "岗位", "zw"], path: "/settings/org/positions" },
+  { label: "角色管理", keywords: ["角色", "js"], path: "/settings/auth/roles" },
+  { label: "权限管理", keywords: ["权限", "qx"], path: "/settings/auth/permissions" },
+  { label: "菜单管理", keywords: ["菜单", "cd"], path: "/settings/auth/menus" },
+  { label: "项目管理", keywords: ["项目", "xm"], path: "/settings/projects" },
+  { label: "应用配置", keywords: ["应用配置", "yyp"], path: "/settings/apps" },
+  { label: "消息管理", keywords: ["消息", "通知", "xx"], path: "/settings/messages" },
+  { label: "AI 助手", keywords: ["ai", "智能", "助手"], path: "/ai" },
+];
 
-const openHelp = () => {
-  message.info("帮助中心建设中");
+const searchOptions = computed(() => {
+  const kw = globalKeyword.value.trim().toLowerCase();
+  if (!kw) return [];
+  return searchIndex
+    .filter((item) =>
+      item.keywords.some((k) => k.includes(kw)) || item.label.toLowerCase().includes(kw)
+    )
+    .map((item) => ({ value: item.path, label: item.label }));
+});
+
+const handleSearchSelect = (path: string) => {
+  router.push(path);
+  globalKeyword.value = "";
 };
 
 const currentLocale = ref(getLocale());
@@ -377,7 +346,7 @@ const onProjectChanged = () => {
 onMounted(() => {
   loadProfile();
   window.addEventListener("project-changed", onProjectChanged);
-  openKeys.value = resolveOpenKeys(route.path);
+  openKeys.value = resolveOpenKeys();
 });
 
 onUnmounted(() => {
@@ -386,8 +355,8 @@ onUnmounted(() => {
 
 watch(
   () => route.path,
-  (path) => {
-    openKeys.value = resolveOpenKeys(path);
+  () => {
+    openKeys.value = resolveOpenKeys();
   }
 );
 </script>
@@ -414,8 +383,15 @@ watch(
   width: 280px;
 }
 
-.header-help {
+.header-locale {
   color: var(--color-text-primary);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.app-breadcrumb {
+  margin-bottom: 16px;
 }
 
 /* ── Fullscreen mode ── */
