@@ -3,20 +3,6 @@ import type { RouterVo } from "@/types/api";
 
 const pageModules = import.meta.glob("../pages/**/*.vue");
 
-const componentMap: Record<string, string> = {
-  home: "../pages/HomePage.vue",
-  HomePage: "../pages/HomePage.vue",
-  AssetsPage: "../pages/AssetsPage.vue",
-  AuditPage: "../pages/AuditPage.vue",
-  AlertPage: "../pages/AlertPage.vue",
-  ApprovalFlowsPage: "../pages/ApprovalFlowsPage.vue",
-  WorkflowDesignerPage: "../pages/WorkflowDesignerPage.vue",
-  "system/UsersPage": "../pages/system/UsersPage.vue",
-  "system/RolesPage": "../pages/system/RolesPage.vue",
-  "system/MenusPage": "../pages/system/MenusPage.vue",
-  "system/ProjectsPage": "../pages/system/ProjectsPage.vue"
-};
-
 function resolveComponent(component?: string, path?: string) {
   if (!component) {
     if (path === "/") {
@@ -29,27 +15,58 @@ function resolveComponent(component?: string, path?: string) {
     return () => import("@/components/layout/RouterContainer.vue");
   }
 
-  const mapped = componentMap[component];
-  if (mapped && pageModules[mapped]) {
-    return pageModules[mapped];
-  }
-
-  const candidate = `../pages/${component}.vue`;
-  if (pageModules[candidate]) {
-    return pageModules[candidate];
+  const candidates = [
+    `../pages/${component}.vue`,
+    `../pages/${component}/index.vue`
+  ];
+  for (const c of candidates) {
+    if (pageModules[c]) return pageModules[c];
   }
 
   return () => import("@/pages/NotFoundPage.vue");
 }
 
-export function buildRoutesFromRouters(routers: RouterVo[]): RouteRecordRaw[] {
+export function buildRoutesFromRouters(
+  routers: RouterVo[],
+  lastRouter: RouterVo | false = false,
+  type = false
+): RouteRecordRaw[] {
   return routers
-    .filter((item) => item.path && item.name)
-    .map((item) => toRouteRecord(item))
+    .filter((item) => {
+      if (type && item.children) {
+        item.children = filterChildren(item.children, item);
+      }
+      return item.path && item.name;
+    })
+    .map((item) => toRouteRecord(item, type))
     .filter((item): item is RouteRecordRaw => !!item);
 }
 
-function toRouteRecord(item: RouterVo): RouteRecordRaw | null {
+function filterChildren(childrenMap: RouterVo[], lastRouter: RouterVo | false = false): RouterVo[] {
+  let children: RouterVo[] = [];
+  childrenMap.forEach((el) => {
+    if (el.children && el.children.length) {
+      if (el.component === "ParentView") {
+        el.children.forEach((c) => {
+          c.path = el.path + "/" + c.path;
+          if (c.children && c.children.length) {
+            children = children.concat(filterChildren(c.children, c));
+            return;
+          }
+          children.push(c);
+        });
+        return;
+      }
+    }
+    if (lastRouter) {
+      el.path = lastRouter.path + "/" + el.path;
+    }
+    children = children.concat(el);
+  });
+  return children;
+}
+
+function toRouteRecord(item: RouterVo, type: boolean): RouteRecordRaw | null {
   const route: RouteRecordRaw = {
     path: item.path,
     name: item.name,
@@ -58,7 +75,10 @@ function toRouteRecord(item: RouterVo): RouteRecordRaw | null {
       title: item.meta?.title ?? item.name,
       icon: item.meta?.icon,
       requiresAuth: true,
-      requiresPermission: item.meta?.permi
+      requiresPermission: item.meta?.permi,
+      hidden: item.hidden,
+      noCache: item.meta?.noCache,
+      breadcrumb: item.meta?.link ? false : true
     }
   };
 
@@ -67,9 +87,10 @@ function toRouteRecord(item: RouterVo): RouteRecordRaw | null {
   }
 
   if (item.children && item.children.length > 0) {
-    route.children = item.children
-      .map((child) => toRouteRecord(child))
-      .filter((child): child is RouteRecordRaw => !!child);
+    route.children = buildRoutesFromRouters(item.children, item, type);
+  } else {
+    // 叶子节点删除不必要的属性
+    delete route.children;
   }
 
   return route;

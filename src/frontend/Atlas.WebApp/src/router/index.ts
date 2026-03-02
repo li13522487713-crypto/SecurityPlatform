@@ -2,6 +2,11 @@ import { createRouter, createWebHistory } from "vue-router";
 import { getAccessToken, getTenantId } from "@/utils/auth";
 import { useUserStore } from "@/stores/user";
 import { usePermissionStore } from "@/stores/permission";
+import { message } from "ant-design-vue";
+import NProgress from "nprogress";
+import "nprogress/nprogress.css";
+
+NProgress.configure({ showSpinner: false });
 
 const LoginPage = () => import("@/pages/LoginPage.vue");
 const RegisterPage = () => import("@/pages/RegisterPage.vue");
@@ -19,8 +24,8 @@ declare module "vue-router" {
 const router = createRouter({
   history: createWebHistory(),
   routes: [
-    { path: "/login", name: "login", component: LoginPage },
-    { path: "/register", name: "register", component: RegisterPage },
+    { path: "/login", name: "login", component: LoginPage, meta: { title: "登录" } },
+    { path: "/register", name: "register", component: RegisterPage, meta: { title: "注册" } },
     { path: "/profile", name: "profile", component: ProfilePage, meta: { requiresAuth: true, title: "个人中心" } },
     { path: "/:pathMatch(.*)*", name: "not-found", component: NotFoundPage }
   ]
@@ -28,7 +33,12 @@ const router = createRouter({
 
 const whiteList = ["/login", "/register"];
 
-router.beforeEach(async (to) => {
+router.beforeEach(async (to, from, next) => {
+  NProgress.start();
+  if (to.meta.title) {
+    document.title = `${to.meta.title} - Atlas Security Platform`;
+  }
+
   const token = getAccessToken();
   const tenantId = getTenantId();
   const userStore = useUserStore();
@@ -36,32 +46,52 @@ router.beforeEach(async (to) => {
 
   if (token && tenantId) {
     if (to.path === "/login") {
-      return { path: "/" };
+      next({ path: "/" });
+      NProgress.done();
+      return;
     }
 
     if (!permissionStore.routeLoaded || userStore.roles.length === 0) {
-      await userStore.getInfo();
-      await permissionStore.generateRoutes();
-      permissionStore.registerRoutes(router);
-      return { ...to, replace: true };
+      try {
+        await userStore.getInfo();
+        await permissionStore.generateRoutes();
+        permissionStore.registerRoutes(router);
+        next({ ...to, replace: true });
+        return;
+      } catch (err) {
+        console.error(err);
+        await userStore.logout();
+        message.error((err as Error)?.message || "登录失败，请重新登录");
+        next({ path: "/login" });
+        NProgress.done();
+        return;
+      }
     }
 
     if (to.meta.requiresPermission && typeof to.meta.requiresPermission === "string") {
       const has = userStore.permissions.includes(to.meta.requiresPermission)
+        || userStore.permissions.includes("*:*:*")
         || userStore.roles.some((role) => ["admin", "superadmin"].includes(role.toLowerCase()));
       if (!has) {
-        return { path: "/" };
+        next({ path: "/" });
+        NProgress.done();
+        return;
       }
     }
 
-    return true;
+    next();
+  } else {
+    if (whiteList.includes(to.path)) {
+      next();
+    } else {
+      next(`/login?redirect=${encodeURIComponent(to.fullPath)}`);
+      NProgress.done();
+    }
   }
+});
 
-  if (whiteList.includes(to.path)) {
-    return true;
-  }
-
-  return { path: `/login?redirect=${encodeURIComponent(to.fullPath)}` };
+router.afterEach(() => {
+  NProgress.done();
 });
 
 export default router;

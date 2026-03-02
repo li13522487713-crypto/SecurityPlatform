@@ -75,6 +75,20 @@ body {
   min-height: 100vh;
 }
 
+.sidebar-container {
+  transition: width 0.28s;
+  background-color: #304156 !important;
+}
+
+.sidebar-container :deep(.ant-menu) {
+  background-color: transparent;
+  color: #bfcbd9;
+}
+
+.sidebar-container :deep(.ant-menu-item-selected) {
+  color: #409EFF;
+}
+
 .brand {
   height: 48px;
   margin: var(--spacing-md);
@@ -88,9 +102,11 @@ body {
   justify-content: space-between;
   align-items: center;
   padding: 0 var(--spacing-lg);
-  background: var(--color-bg-container);
+  background-color: #fff;
   border-bottom: 1px solid var(--color-border);
   color: var(--color-text-primary);
+  height: 50px;
+  line-height: 50px;
 }
 
 .app-content {

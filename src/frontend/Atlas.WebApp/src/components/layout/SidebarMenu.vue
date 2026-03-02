@@ -6,31 +6,22 @@
     :open-keys="openKeys"
     @openChange="onOpenChange"
   >
-    <template v-for="item in menuTree" :key="item.name + item.path">
-      <a-sub-menu v-if="item.children && item.children.length > 0" :key="item.path">
-        <template #title>{{ item.meta?.title || item.name }}</template>
-        <a-menu-item
-          v-for="child in item.children"
-          :key="child.path"
-          @click="go(child.path)"
-        >
-          {{ child.meta?.title || child.name }}
-        </a-menu-item>
-      </a-sub-menu>
-      <a-menu-item v-else :key="item.path" @click="go(item.path)">
-        {{ item.meta?.title || item.name }}
-      </a-menu-item>
-    </template>
+    <SidebarItem
+      v-for="item in menuTree"
+      :key="item.path"
+      :item="item"
+      :base-path="item.path"
+    />
   </a-menu>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { useRoute, useRouter } from "vue-router";
+import { useRoute } from "vue-router";
 import { usePermissionStore } from "@/stores/permission";
+import SidebarItem from "./SidebarItem.vue";
 
 const permissionStore = usePermissionStore();
-const router = useRouter();
 const route = useRoute();
 const openKeys = ref<string[]>([]);
 
@@ -51,10 +42,5 @@ watch(
 
 function onOpenChange(keys: string[]) {
   openKeys.value = keys;
-}
-
-function go(path: string) {
-  if (!path) return;
-  router.push(path);
 }
 </script>

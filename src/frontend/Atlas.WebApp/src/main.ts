@@ -12,7 +12,7 @@ import ElementPlus from "element-plus";
 import "element-plus/dist/index.css";
 import { i18n } from "./i18n";
 import { createPinia } from "pinia";
-import { hasPermi } from "@/directives/permission";
+import { hasPermi, hasRole } from "@/directives/permission";
 
 // 默认租户ID：用于本地开发/体验时免输入（后端仍会校验租户头）
 // 建议在 .env.local 中配置 VITE_DEFAULT_TENANT_ID
@@ -30,5 +30,6 @@ app.use(Antd);
 app.use(ElementPlus);
 app.use(i18n);
 app.directive("hasPermi", hasPermi);
+app.directive("hasRole", hasRole);
 
 app.mount("#app");

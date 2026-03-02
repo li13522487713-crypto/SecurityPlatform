@@ -45,11 +45,26 @@ const form = reactive({
   captchaCode: ""
 });
 
+const validateConfirmPassword = async (_rule: any, value: string) => {
+  if (value === "") {
+    return Promise.reject("请输入确认密码");
+  } else if (value !== form.password) {
+    return Promise.reject("两次输入的密码不一致");
+  }
+  return Promise.resolve();
+};
+
 const rules = {
   tenantId: [{ required: true, message: "请输入租户 ID" }],
-  username: [{ required: true, message: "请输入账号" }],
-  password: [{ required: true, message: "请输入密码" }],
-  confirmPassword: [{ required: true, message: "请输入确认密码" }]
+  username: [
+    { required: true, message: "请输入账号" },
+    { min: 2, max: 64, message: "账号长度必须介于 2 和 64 之间" }
+  ],
+  password: [
+    { required: true, message: "请输入密码" },
+    { min: 8, max: 128, message: "密码长度不能小于 8" }
+  ],
+  confirmPassword: [{ required: true, validator: validateConfirmPassword }]
 };
 
 async function onSubmit() {
@@ -62,7 +77,7 @@ async function onSubmit() {
       captchaKey: form.captchaKey || undefined,
       captchaCode: form.captchaCode || undefined
     });
-    message.success("注册成功，请登录");
+    message.success(`恭喜你，您的账号 ${form.username} 注册成功！`);
     router.push("/login");
   } catch (error) {
     message.error((error as Error).message || "注册失败");

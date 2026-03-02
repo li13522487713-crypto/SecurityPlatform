@@ -169,8 +169,9 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from "vue";
-import { useRouter } from "vue-router";
-import { createToken, getCaptcha, getCurrentUser } from "@/services/api";
+import { useRoute, useRouter } from "vue-router";
+import { getCaptcha } from "@/services/api";
+import { useUserStore } from "@/stores/user";
 import type { RequestOptions } from "@/services/api";
 import {
   clearAuthStorage,
@@ -192,6 +193,8 @@ const CAPTCHA_THRESHOLD = 3;
 const COOLDOWN_THRESHOLD = 5;
 const COOLDOWN_DURATION = 30;
 
+const userStore = useUserStore();
+const route = useRoute();
 const router = useRouter();
 const loading = ref(false);
 const errorMessage = ref("");
@@ -319,12 +322,11 @@ const handleSubmit = async () => {
     clearAuthStorage();
     const tokenOptions: RequestOptions = { suppressErrorMessage: true };
 
-    // 若验证码显示但尚未获取到 captchaKey，先获取一次
     if (isCaptchaVisible.value && !captchaKey.value) {
       await refreshCaptcha();
     }
 
-    const result = await createToken(
+    await userStore.login(
       form.tenantId,
       form.username.trim(),
       form.password,
@@ -335,17 +337,14 @@ const handleSubmit = async () => {
         rememberMe: form.rememberMe
       }
     );
-    setAccessToken(result.accessToken);
-    setRefreshToken(result.refreshToken);
-    setTenantId(form.tenantId);
-    const profile = await getCurrentUser();
-    setAuthProfile(profile);
+    await userStore.getInfo();
     persistTenantHistory(form.tenantId);
     localStorage.setItem(REMEMBER_ME_KEY, String(form.rememberMe));
     failedAttempts.value = 0;
     cooldownSeconds.value = 0;
     errorMessage.value = "";
-    router.push("/");
+    const redirect = route.query.redirect as string;
+    router.push(redirect || "/");
   } catch (error) {
     clearAuthStorage();
     failedAttempts.value += 1;

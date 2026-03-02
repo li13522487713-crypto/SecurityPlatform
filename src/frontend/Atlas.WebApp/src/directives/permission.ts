@@ -5,14 +5,29 @@ export const hasPermi: Directive<HTMLElement, string[]> = {
   mounted(el, binding) {
     const userStore = useUserStore();
     const required = binding.value ?? [];
-    const hasAdmin = userStore.roles.some((role) =>
-      ["admin", "superadmin"].includes(role.toLowerCase())
+    const ALL_PERMISSION = "*:*:*";
+    const has = userStore.permissions.some(
+      (p) => p === ALL_PERMISSION || required.includes(p)
     );
-    if (hasAdmin) {
-      return;
+    if (!has) {
+      el.parentNode?.removeChild(el);
     }
+  }
+};
 
-    const has = required.some((code) => userStore.permissions.includes(code));
+export const hasRole: Directive<HTMLElement, string[]> = {
+  mounted(el, binding) {
+    const userStore = useUserStore();
+    const required = binding.value ?? [];
+    const requiredLower = required.map((r: string) => r.toLowerCase());
+    const SUPER_ADMIN = "admin";
+    const SUPER_ADMIN_2 = "superadmin";
+
+    const has = userStore.roles.some((role) => {
+      const roleLower = role.toLowerCase();
+      return roleLower === SUPER_ADMIN || roleLower === SUPER_ADMIN_2 || requiredLower.includes(roleLower);
+    });
+
     if (!has) {
       el.parentNode?.removeChild(el);
     }
