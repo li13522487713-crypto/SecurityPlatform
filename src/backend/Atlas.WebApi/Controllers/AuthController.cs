@@ -107,6 +107,10 @@ public sealed class AuthController : ControllerBase
             ControllerHelper.GetUserAgent(HttpContext),
             ControllerHelper.GetClientContext(HttpContext));
         var result = await _authTokenService.CreateTokenAsync(dto, tenantId, context, cancellationToken);
+
+        // 设置 httpOnly cookie 存储令牌（安全加固）
+        SetAuthCookies(result.AccessToken, result.RefreshToken, result.ExpiresAt, result.RefreshExpiresAt);
+
         var payload = ApiResponse<AuthTokenResult>.Ok(result, HttpContext.TraceIdentifier);
         return Ok(payload);
     }
@@ -132,6 +136,10 @@ public sealed class AuthController : ControllerBase
             ControllerHelper.GetUserAgent(HttpContext),
             ControllerHelper.GetClientContext(HttpContext));
         var result = await _authTokenService.RefreshTokenAsync(dto, tenantId, context, cancellationToken);
+
+        // 刷新令牌时也更新cookie
+        SetAuthCookies(result.AccessToken, result.RefreshToken, result.ExpiresAt, result.RefreshExpiresAt);
+
         return Ok(ApiResponse<AuthTokenResult>.Ok(result, HttpContext.TraceIdentifier));
     }
 
@@ -225,7 +233,66 @@ public sealed class AuthController : ControllerBase
             _clientContextAccessor.GetCurrent());
 
         await _auditRecorder.RecordAsync(auditContext, cancellationToken);
+
+        // 清除认证cookie
+        ClearAuthCookies();
+
         return Ok(ApiResponse<object>.Ok(new { Success = true }, HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>
+    /// 设置认证相关的httpOnly cookie
+    /// </summary>
+    private void SetAuthCookies(string accessToken, string refreshToken, DateTimeOffset accessExpires, DateTimeOffset refreshExpires)
+    {
+        var cookieOptions = new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = true, // 生产环境强制HTTPS
+            SameSite = SameSiteMode.Strict,
+            Path = "/"
+        };
+
+        // 设置 Access Token Cookie
+        var accessCookieOptions = new CookieOptions
+        {
+            HttpOnly = cookieOptions.HttpOnly,
+            Secure = cookieOptions.Secure,
+            SameSite = cookieOptions.SameSite,
+            Path = cookieOptions.Path,
+            Expires = accessExpires
+        };
+        HttpContext.Response.Cookies.Append("access_token", accessToken, accessCookieOptions);
+
+        // 设置 Refresh Token Cookie
+        var refreshCookieOptions = new CookieOptions
+        {
+            HttpOnly = cookieOptions.HttpOnly,
+            Secure = cookieOptions.Secure,
+            SameSite = cookieOptions.SameSite,
+            Path = cookieOptions.Path,
+            Expires = refreshExpires
+        };
+        HttpContext.Response.Cookies.Append("refresh_token", refreshToken, refreshCookieOptions);
+    }
+
+    /// <summary>
+    /// 清除认证cookie
+    /// </summary>
+    private void ClearAuthCookies()
+    {
+        HttpContext.Response.Cookies.Delete("access_token", new CookieOptions
+        {
+            Path = "/",
+            Secure = true,
+            SameSite = SameSiteMode.Strict
+        });
+        HttpContext.Response.Cookies.Delete("refresh_token", new CookieOptions
+        {
+            Path = "/",
+            Secure = true,
+            SameSite = SameSiteMode.Strict
+        });
     }
 }
 

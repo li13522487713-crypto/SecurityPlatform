@@ -80,8 +80,7 @@ import type {
   TableViewCreateRequest,
   TableViewUpdateRequest,
   TableViewConfigUpdateRequest,
-  TableViewDuplicateRequest,
-  AmisPageDefinition
+  TableViewDuplicateRequest
 } from "@/types/api";
 import type {
   FlowDefinition,
@@ -1307,14 +1306,6 @@ export async function updateAppConfig(id: string, request: AppConfigUpdateReques
 export async function getCurrentAppConfig(): Promise<AppConfigDetail | null> {
   const response = await requestApi<ApiResponse<AppConfigDetail>>("/apps/current");
   return response.data ?? null;
-}
-
-export async function getAmisPageDefinition(key: string): Promise<AmisPageDefinition> {
-  const response = await requestApi<ApiResponse<AmisPageDefinition>>(`/amis/pages/${encodeURIComponent(key)}`);
-  if (!response.data) {
-    throw new Error(response.message || "获取 AMIS 页面失败");
-  }
-  return response.data;
 }
 
 export async function getProjectsPaged(pagedRequest: PagedRequest) {

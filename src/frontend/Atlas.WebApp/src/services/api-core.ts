@@ -95,6 +95,8 @@ export async function requestApi<T>(path: string, init?: RequestInit, options?: 
   const method = (init?.method ?? "GET").toUpperCase();
   const shouldAttachSecurityHeaders = Boolean(token);
 
+  // 向后兼容：如果localStorage中有token，则设置Authorization header
+  // 否则依赖httpOnly cookie自动发送（更安全）
   if (token) {
     headers.set("Authorization", `Bearer ${token}`);
   }
@@ -140,7 +142,8 @@ export async function requestApi<T>(path: string, init?: RequestInit, options?: 
 
   const requestInit: RequestInit = {
     ...init,
-    headers
+    headers,
+    credentials: "include" // 携带httpOnly cookie凭证
   };
 
   const response = await fetch(`${API_BASE}${path}`, requestInit);

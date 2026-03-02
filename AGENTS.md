@@ -1,53 +1,64 @@
-# Repository Guidelines
+# Repository Guidelines (AGENTS.md)
 
-All assistant responses must be in Chinese.
+本文件为 AI 助理提供仓库级开发指南。详细技术说明见 `CLAUDE.md`。
 
-## Project Structure & Module Organization
+**语言要求：** 所有助理回复必须使用中文。
 
-Current contents are documentation-only:
+## 项目概览
 
-- `等保2.0要求清单.md` — primary checklist for 等保2.0 requirements.
+**Atlas Security Platform** — 符合等保2.0（GB/T 22239-2019）的安全支撑平台，采用 Clean Architecture，支持多租户与严格安全控制。
 
-Planned architecture is C# (.NET 10) backend + Vue 3 frontend, with SqlSugar ORM and SQLite. When code is added, keep server and client separate (for example `src/backend/` and `src/frontend/`) and place shared documents under `docs/`. Update this guide if actual paths differ.
+- 后端：.NET 10 + ASP.NET Core + SqlSugar + SQLite
+- 前端：Vue 3 + Vite + Ant Design Vue + TypeScript
+- 文档：`等保2.0要求清单.md`（等保要求）、`docs/contracts.md`（接口契约）
 
-Design must follow Clean Architecture. Separate domain, application, infrastructure, and presentation layers with clear dependencies toward the core. Keep the layering explicit in folder structure and documentation.
+## 架构与目录
 
-The system consists of an infrastructure support platform and a security support platform. Design both as cohesive bounded contexts with explicit integration points and shared contracts documented under `docs/`. Treat security as a first-class capability across both platforms.
+- 方案：`Atlas.SecurityPlatform.slnx`，代码位于 `src/backend/`、`src/frontend/`
+- 分层：Core → Domain → Application → Infrastructure → WebApi
+- 共享契约：`docs/contracts.md` 定义统一响应、分页与接口模型
 
-## Current Architecture Summary
+完整结构与依赖说明见 `CLAUDE.md` 的 Architecture Overview、Project Structure 章节。
 
-- Solution: `Atlas.SecurityPlatform.slnx` with clean architecture layering under `src/backend`.
-- Core: `Atlas.Core` holds shared models (API response, pagination), tenancy context, base entities.
-- Domain: `Atlas.Domain` + module domains (`Assets`, `Audit`, `Alert`) with tenant-scoped entities.
-- Application: module-specific DTOs, validators, and mapping profiles; AutoMapper configured via DI.
-- Infrastructure: SqlSugar + SQLite, Snowflake ID generator (IdGen), NLog integration, module query services.
-- Web API: ASP.NET Core controllers, JWT + certificate auth, CORS whitelist, HTTP logging, tenant middleware.
-- Frontend: Vue 3 + Vite + Ant Design Vue + Router in `src/frontend/Atlas.WebApp`, dev proxy to backend.
-- Contracts: `docs/contracts.md` defines unified response and pagination models for frontend/backend.
+## 构建与开发命令
 
-## Build, Test, and Development Commands
-
-No build/test commands are defined yet. Once code is added, document the exact commands. Examples only:
-
+### 后端
 ```bash
-dotnet build
-dotnet test
-dotnet run --project src/backend
-npm install
-npm run dev --prefix src/frontend
+dotnet build                                    # 必须 0 错误 0 警告
+dotnet run --project src/backend/Atlas.WebApi   # API 运行于 http://localhost:5000
+dotnet restore
 ```
 
-Quality gate: the build must be 0 errors and 0 warnings. Configure toolchains and CI to fail on any warning once established.
+### 前端
+```bash
+cd src/frontend/Atlas.WebApp
+npm install
+npm run dev      # 开发服务器 http://localhost:5173，代理 /api → localhost:5000
+npm run build    # 生产构建（含 TypeScript 检查）
+npm run lint
+npm run format
+```
 
-## Coding Style & Naming Conventions
+### API 测试
+- 使用 `src/backend/Atlas.WebApi/Bosch.http/` 下的 `.http` 文件
+- 每个新增或修改的接口需创建/更新对应 `.http` 文件
 
-Documentation should use clear headings (`#`, `##`, `###`) without skipping levels, short sentences, and bullet lists for requirements. Keep filenames descriptive and consistent with existing patterns (for example `等保2.0要求清单.md`).
+## 编码规范与约定
 
-For .NET 10: 4-space indentation, PascalCase for types/public members, camelCase for locals/fields. For Vue 3: 2-space indentation, `kebab-case` for component file names, `PascalCase` for component names. Add formatters/linters (for example `dotnet format`, `eslint`, `prettier`) and record the exact tools once configured.
+- **文档：** 标题层级连续（`#`、`##`、`###`），短句、 bullet 列表；文件名与现有模式一致（如 `等保2.0要求清单.md`）。
+- **.NET：** 4 空格缩进，PascalCase 类型/公开成员，camelCase 局部变量/字段；File-scoped namespaces；启用 Nullable reference types。
+- **Vue/TS：** 2 空格缩进，组件文件 kebab-case（如 `login-page.vue`），组件名 PascalCase；TypeScript 严格模式，禁止 `any`。
+- **安全与设计：** 强调安全编码与 OOP；优先清晰、可测试的抽象；避免过度抽象与不必要的模式。
+- **异步与仓储：** 所有 I/O 必须 async/await；控制器不得直接访问数据库，必须通过 Repository 与 Service。
 
-Emphasize secure coding practices and object-oriented design. Prefer clear, testable abstractions; avoid unnecessary patterns, layers, or generalized frameworks.
+完整约定见 `CLAUDE.md` 的 Coding Standards 章节。
 
-Asynchronous coding is mandatory. Define async interfaces and implementations for Controllers and Services, and always use async/await for I/O. Database access must use the repository pattern; direct data access from Controllers is not allowed.
+## 开发约束
+
+- **零警告：** 构建必须 0 错误 0 警告（由 `Directory.Build.props` 约束）。
+- **新增文件：** 必须将新文件加入对应项目文件（`.csproj`），并解决所有警告。
+- **实现顺序：** 先实现底层代码，再实现引用层代码。
+- **避免过度设计：** 仅实现所需功能，不添加未要求的能力。
 
 ## 前后端约束
 
@@ -57,9 +68,10 @@ Asynchronous coding is mandatory. Define async interfaces and implementations fo
 - 前端：搜索下拉框默认展示 20 条结果，必须提供搜索框并支持远程检索。
 - 合同：前后端共享的数据契约需集中于 `docs/contracts.md` 并保持与实现同步，修改契约时同步更新类型定义与相关校验。
 
-## API Testing Artifacts
+## API 测试文件
 
-Standardize HTTP test files. On every new or modified API endpoint, create or update a `*.http` file where `*` is the controller name (for example `Bosch.http`). The `.http` file must include requests that cover the affected endpoints.
+- 每个新增或修改的 API 端点需创建或更新对应的 `*.http` 文件（`*` 为控制器名，如 `Bosch.http`）。
+- `.http` 文件需包含覆盖受影响端点的请求示例。
 
 ## 控制器规范（RESTful + 版本控制）
 
@@ -70,21 +82,23 @@ Standardize HTTP test files. On every new or modified API endpoint, create or up
 - 弃用流程：发布新版本时同步标记旧版本为 Deprecated，并给出至少 6 个月的弃用窗口；窗口期内不再新增旧版本功能，但允许安全修复与关键缺陷修复。
 - 终止策略：弃用窗口结束后方可移除旧版本路由，移除需在变更日志与发布说明中显式告知。
 
-## Testing Guidelines
+## 测试与验证
 
-No test framework is configured. When tests are added, document:
+- **当前：** 无单元测试框架，使用 REST Client `.http` 文件进行接口验证。
+- **新增测试时：** 需记录框架（如 xUnit/NUnit 用于 .NET、Vitest 用于 Vue）、命名模式（如 `*Tests.cs`、`*.spec.ts`）及运行命令。
 
-- The .NET framework (for example `xUnit`) and the Vue stack (for example `vitest`).
-- Naming patterns (for example `*Tests.cs`, `*.spec.ts`).
-- Commands for unit and integration tests.
+## 提交与变更
 
-## Commit & Pull Request Guidelines
+- **提交信息：** 采用清晰约定（如 conventional commits：`feat:`、`fix:`、`docs:`）。
+- **PR/变更：** 包含简要说明、关联需求、UI 变更需附截图。
+- **架构变更：** 修改架构时需同步更新 `AGENTS.md` 与 `docs/contracts.md`。
 
-There is no Git history available in this repository. If you initialize version control, adopt a clear convention (for example `docs: update checklist` or conventional commits) and document it. Pull requests should include a concise summary, linked issues/requirements, and screenshots for UI changes.
+## 安全与合规（等保2.0）
 
-## Security & Compliance (等保2.0)
-
-All design and implementation must comply with 等保2.0 requirements. Treat security controls as non-optional and document how each feature satisfies relevant control points. Avoid storing secrets in the repo; use environment variables or secure secret stores. For SqlSugar + SQLite, enforce least-privilege data access and encrypt sensitive fields at rest where required by the checklist.
+- 设计与实现须符合等保2.0 要求，安全控制为必选项；各功能需满足相关控制点并留有文档。
+- 禁止在仓库中存放密钥；使用环境变量或安全密钥存储。
+- SqlSugar + SQLite：实施最小权限数据访问，敏感字段按清单要求加密存储。
+- 完整清单见 `等保2.0要求清单.md`；已实现安全控制见 `CLAUDE.md` 的 Security and Compliance 章节。
 
 ### 幂等与防重放要求
 

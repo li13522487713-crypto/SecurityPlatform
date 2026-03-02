@@ -1,0 +1,544 @@
+### Dashboards 仪表盘管理测试
+### 低代码平台 - 数据可视化仪表盘
+
+@baseUrl = http://localhost:5000/api/v1
+@tenantId = 00000000-0000-0000-0000-000000000001
+
+### 登录获取令牌
+# @name login
+POST {{baseUrl}}/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "admin",
+  "password": "Admin@123"
+}
+
+@accessToken = {{login.response.body.$.data.accessToken}}
+
+###############################################
+# 仪表盘 CRUD 操作
+###############################################
+
+### 1. 创建标准仪表盘
+# @name createDashboard
+POST {{baseUrl}}/dashboards
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "name": "业务数据概览",
+  "description": "展示关键业务指标和趋势",
+  "category": "业务分析",
+  "icon": "dashboard",
+  "isLargeScreen": false,
+  "layoutJson": {
+    "type": "page",
+    "title": "业务数据概览",
+    "body": [
+      {
+        "type": "grid",
+        "columns": [
+          {
+            "md": 6,
+            "body": [
+              {
+                "type": "card",
+                "header": {
+                  "title": "今日订单"
+                },
+                "body": [
+                  {
+                    "type": "static",
+                    "label": "总订单数",
+                    "value": "${orderCount}",
+                    "className": "text-2xl font-bold"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "md": 6,
+            "body": [
+              {
+                "type": "card",
+                "header": {
+                  "title": "今日销售额"
+                },
+                "body": [
+                  {
+                    "type": "static",
+                    "label": "总金额",
+                    "value": "¥${salesAmount}",
+                    "className": "text-2xl font-bold text-green-600"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "chart",
+        "api": "/api/v1/statistics/sales-trend",
+        "config": {
+          "type": "line",
+          "xField": "date",
+          "yField": "amount"
+        }
+      }
+    ]
+  }
+}
+
+@dashboardId = {{createDashboard.response.body.$.data.id}}
+
+### 2. 创建大屏仪表盘
+POST {{baseUrl}}/dashboards
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "name": "运营监控大屏",
+  "description": "实时运营数据展示大屏",
+  "category": "运营监控",
+  "icon": "monitor",
+  "isLargeScreen": true,
+  "canvasWidth": 1920,
+  "canvasHeight": 1080,
+  "themeJson": {
+    "name": "dark",
+    "primaryColor": "#177ddc",
+    "backgroundColor": "#0e1117"
+  },
+  "layoutJson": {
+    "type": "page",
+    "title": "运营监控中心",
+    "body": [
+      {
+        "type": "grid",
+        "columns": [
+          {
+            "md": 3,
+            "body": [
+              {
+                "type": "card",
+                "header": {"title": "实时访问量"},
+                "body": [
+                  {
+                    "type": "tpl",
+                    "tpl": "<div class=\"stat-value\">${visitors}</div>"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "md": 3,
+            "body": [
+              {
+                "type": "card",
+                "header": {"title": "在线用户"},
+                "body": [
+                  {
+                    "type": "tpl",
+                    "tpl": "<div class=\"stat-value\">${onlineUsers}</div>"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "md": 3,
+            "body": [
+              {
+                "type": "card",
+                "header": {"title": "今日交易"},
+                "body": [
+                  {
+                    "type": "tpl",
+                    "tpl": "<div class=\"stat-value\">¥${todayRevenue}</div>"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "md": 3,
+            "body": [
+              {
+                "type": "card",
+                "header": {"title": "系统状态"},
+                "body": [
+                  {
+                    "type": "tpl",
+                    "tpl": "<div class=\"stat-value text-green-500\">正常</div>"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "grid",
+        "columns": [
+          {
+            "md": 8,
+            "body": [
+              {
+                "type": "chart",
+                "api": "/api/v1/statistics/real-time-traffic",
+                "interval": 5000,
+                "config": {
+                  "type": "area",
+                  "xField": "time",
+                  "yField": "value",
+                  "smooth": true
+                }
+              }
+            ]
+          },
+          {
+            "md": 4,
+            "body": [
+              {
+                "type": "chart",
+                "api": "/api/v1/statistics/top-products",
+                "config": {
+                  "type": "bar",
+                  "xField": "value",
+                  "yField": "product"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
+
+### 3. 获取仪表盘列表（分页）
+GET {{baseUrl}}/dashboards?pageIndex=1&pageSize=10&keyword=&category=
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 4. 按分类过滤
+GET {{baseUrl}}/dashboards?pageIndex=1&pageSize=10&category=业务分析
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 5. 搜索仪表盘
+GET {{baseUrl}}/dashboards?pageIndex=1&pageSize=10&keyword=监控
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 6. 获取仪表盘详情
+GET {{baseUrl}}/dashboards/{{dashboardId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 7. 更新仪表盘
+PUT {{baseUrl}}/dashboards/{{dashboardId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "name": "业务数据概览（增强版）",
+  "description": "展示关键业务指标、趋势和异常告警",
+  "category": "业务分析",
+  "icon": "dashboard",
+  "isLargeScreen": false,
+  "layoutJson": {
+    "type": "page",
+    "title": "业务数据概览",
+    "body": [
+      {
+        "type": "grid",
+        "columns": [
+          {
+            "md": 4,
+            "body": [
+              {
+                "type": "card",
+                "header": {"title": "今日订单"},
+                "body": [
+                  {
+                    "type": "static",
+                    "value": "${orderCount}",
+                    "className": "text-3xl font-bold"
+                  },
+                  {
+                    "type": "tpl",
+                    "tpl": "<div class=\"text-sm text-gray-500\">较昨日 +${orderGrowth}%</div>"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "md": 4,
+            "body": [
+              {
+                "type": "card",
+                "header": {"title": "今日销售额"},
+                "body": [
+                  {
+                    "type": "static",
+                    "value": "¥${salesAmount}",
+                    "className": "text-3xl font-bold text-green-600"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "md": 4,
+            "body": [
+              {
+                "type": "card",
+                "header": {"title": "新增客户"},
+                "body": [
+                  {
+                    "type": "static",
+                    "value": "${newCustomers}",
+                    "className": "text-3xl font-bold text-blue-600"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "chart",
+        "api": "/api/v1/statistics/sales-trend",
+        "height": 400,
+        "config": {
+          "type": "line",
+          "xField": "date",
+          "yField": "amount",
+          "smooth": true,
+          "point": {
+            "size": 5,
+            "shape": "circle"
+          }
+        }
+      },
+      {
+        "type": "grid",
+        "columns": [
+          {
+            "md": 6,
+            "body": [
+              {
+                "type": "chart",
+                "api": "/api/v1/statistics/product-category",
+                "config": {
+                  "type": "pie",
+                  "angleField": "value",
+                  "colorField": "category"
+                }
+              }
+            ]
+          },
+          {
+            "md": 6,
+            "body": [
+              {
+                "type": "table",
+                "api": "/api/v1/statistics/top-products",
+                "columns": [
+                  {"name": "productName", "label": "产品名称"},
+                  {"name": "sales", "label": "销量"},
+                  {"name": "revenue", "label": "营收"}
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
+
+### 8. 删除仪表盘
+DELETE {{baseUrl}}/dashboards/{{dashboardId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+###############################################
+# 特殊场景测试
+###############################################
+
+### 9. 创建多个仪表盘（测试列表）
+POST {{baseUrl}}/dashboards
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "name": "IT系统监控",
+  "description": "服务器、网络、应用监控",
+  "category": "IT运维",
+  "icon": "monitor",
+  "layoutJson": {
+    "type": "page",
+    "body": [
+      {
+        "type": "grid",
+        "columns": [
+          {
+            "md": 3,
+            "body": [{"type": "card", "header": {"title": "CPU使用率"}, "body": [{"type": "static", "value": "${cpuUsage}%"}]}]
+          },
+          {
+            "md": 3,
+            "body": [{"type": "card", "header": {"title": "内存使用"}, "body": [{"type": "static", "value": "${memoryUsage}GB"}]}]
+          },
+          {
+            "md": 3,
+            "body": [{"type": "card", "header": {"title": "磁盘空间"}, "body": [{"type": "static", "value": "${diskUsage}%"}]}]
+          },
+          {
+            "md": 3,
+            "body": [{"type": "card", "header": {"title": "网络流量"}, "body": [{"type": "static", "value": "${networkTraffic}MB/s"}]}]
+          }
+        ]
+      }
+    ]
+  }
+}
+
+### 10. 创建安全态势感知大屏
+POST {{baseUrl}}/dashboards
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "name": "安全态势感知大屏",
+  "description": "网络安全实时监控",
+  "category": "安全监控",
+  "icon": "security-scan",
+  "isLargeScreen": true,
+  "canvasWidth": 1920,
+  "canvasHeight": 1080,
+  "themeJson": {
+    "name": "dark",
+    "primaryColor": "#ff4d4f",
+    "backgroundColor": "#000000"
+  },
+  "layoutJson": {
+    "type": "page",
+    "body": [
+      {
+        "type": "grid",
+        "columns": [
+          {
+            "md": 4,
+            "body": [{"type": "card", "header": {"title": "今日攻击次数"}, "body": [{"type": "tpl", "tpl": "<div class=\"stat-value text-red-500\">${attackCount}</div>"}]}]
+          },
+          {
+            "md": 4,
+            "body": [{"type": "card", "header": {"title": "已拦截威胁"}, "body": [{"type": "tpl", "tpl": "<div class=\"stat-value text-green-500\">${blockedThreats}</div>"}]}]
+          },
+          {
+            "md": 4,
+            "body": [{"type": "card", "header": {"title": "风险等级"}, "body": [{"type": "tpl", "tpl": "<div class=\"stat-value text-yellow-500\">${riskLevel}</div>"}]}]
+          }
+        ]
+      }
+    ]
+  }
+}
+
+###############################################
+# 错误场景测试
+###############################################
+
+### 11. 创建仪表盘 - 缺少必填字段（应该失败）
+POST {{baseUrl}}/dashboards
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "name": ""
+}
+
+### 12. 创建仪表盘 - LayoutJson为空（应该失败）
+POST {{baseUrl}}/dashboards
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "name": "测试仪表盘",
+  "layoutJson": null
+}
+
+### 13. 获取不存在的仪表盘（应该返回404）
+GET {{baseUrl}}/dashboards/99999
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 14. 未授权访问（应该返回401）
+GET {{baseUrl}}/dashboards
+X-Tenant-Id: {{tenantId}}
+
+###############################################
+# 大屏特性测试
+###############################################
+
+### 15. 创建4K分辨率大屏
+POST {{baseUrl}}/dashboards
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "name": "4K超高清数据大屏",
+  "isLargeScreen": true,
+  "canvasWidth": 3840,
+  "canvasHeight": 2160,
+  "themeJson": {
+    "name": "dark",
+    "primaryColor": "#1890ff"
+  },
+  "layoutJson": {
+    "type": "page",
+    "body": [
+      {
+        "type": "tpl",
+        "tpl": "<div class=\"text-4xl text-center text-white\">4K数据中心监控大屏</div>"
+      }
+    ]
+  }
+}
+
+### 16. 获取所有大屏仪表盘
+GET {{baseUrl}}/dashboards?pageIndex=1&pageSize=100
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+###############################################
+# 完整测试流程总结
+###############################################
+
+# 场景1：标准仪表盘创建流程
+# 1. 创建仪表盘 → 2. 设计布局 → 3. 配置图表 → 4. 数据源绑定 → 5. 预览发布
+
+# 场景2：大屏仪表盘创建流程
+# 1. 创建大屏 → 2. 设置画布尺寸 → 3. 选择主题 → 4. 设计布局 → 5. 实时数据刷新
+
+# 仪表盘类型：
+# - 标准仪表盘（PC端浏览）
+# - 大屏仪表盘（会议室/监控中心展示）
+# - 移动端仪表盘（响应式布局）

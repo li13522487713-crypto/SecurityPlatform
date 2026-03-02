@@ -1,5 +1,5 @@
 <template>
-  <a-card title="资产管理" class="page-card">
+  <a-card class="page-card">
     <div class="crud-toolbar">
       <a-space wrap>
         <a-input

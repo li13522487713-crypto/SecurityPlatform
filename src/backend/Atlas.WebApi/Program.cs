@@ -51,7 +51,27 @@ builder.Services.AddControllers(options =>
     options.JsonSerializerOptions.Converters.Add(new Atlas.WebApi.Json.FlexibleNullableLongJsonConverter());
     options.JsonSerializerOptions.Converters.Add(new Atlas.WebApi.Json.SensitiveObjectConverterFactory());
 });
-builder.Services.AddOpenApi();
+
+// 配置 NSwag OpenAPI 文档生成
+builder.Services.AddOpenApiDocument(config =>
+{
+    config.Title = "Atlas Security Platform API";
+    config.Version = "v1";
+    config.Description = "Atlas 安全平台 API 文档（符合等保2.0标准）";
+    config.UseControllerSummaryAsTagDescription = true;
+    config.PostProcess = document =>
+    {
+        document.Info.Contact = new NSwag.OpenApiContact
+        {
+            Name = "Atlas Security Team",
+            Email = "security@atlas.com"
+        };
+        document.Info.License = new NSwag.OpenApiLicense
+        {
+            Name = "Proprietary"
+        };
+    };
+});
 
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("Jwt"));
 builder.Services.Configure<SecurityOptions>(builder.Configuration.GetSection("Security"));
@@ -74,7 +94,8 @@ builder.Services.AddCors(options =>
             ?? Array.Empty<string>();
         policy.WithOrigins(origins)
             .AllowAnyHeader()
-            .AllowAnyMethod();
+            .AllowAnyMethod()
+            .AllowCredentials(); // 允许携带凭证（cookies）
     });
 });
 
@@ -183,6 +204,19 @@ builder.Services.AddAuthentication()
         };
         options.Events = new JwtBearerEvents
         {
+            OnMessageReceived = context =>
+            {
+                // 优先从httpOnly cookie读取token（安全加固）
+                var accessToken = context.Request.Cookies["access_token"];
+                if (!string.IsNullOrEmpty(accessToken))
+                {
+                    context.Token = accessToken;
+                }
+                // 向后兼容：如果cookie中没有token，则从Authorization header读取
+                // JwtBearer中间件会自动从header读取
+
+                return Task.CompletedTask;
+            },
             OnAuthenticationFailed = context =>
             {
                 if (context.Exception is SecurityTokenExpiredException)
@@ -294,6 +328,9 @@ if (securityOptions.EnforceHttps)
     app.UseHttpsRedirection();
 }
 
+// 添加安全HTTP响应头（防御XSS、Clickjacking等攻击）
+app.UseSecurityHeaders();
+
 app.UseHttpLogging();
 app.UseRequestLocalization();
 app.UseMiddleware<ExceptionHandlingMiddleware>();
@@ -303,7 +340,9 @@ app.UseMiddleware<ApiVersionRewriteMiddleware>();
 
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+    // NSwag 中间件：生成 OpenAPI 规范和 Swagger UI
+    app.UseOpenApi();       // 提供 /swagger/v1/swagger.json
+    app.UseSwaggerUi();     // 提供 /swagger 交互式文档
 }
 
 app.UseCors("WebAppCors");
