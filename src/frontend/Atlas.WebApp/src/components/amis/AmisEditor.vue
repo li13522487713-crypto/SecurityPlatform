@@ -64,7 +64,9 @@ const renderEditor = async () => {
   try {
     const React = await import("react");
     const { createRoot } = await import("react-dom/client");
-    const { Editor } = await import(/* @vite-ignore */ "amis-editor");
+    // Keep amis-editor optional: avoid Vite pre-bundling scan on a static literal.
+    const amisEditorModuleName = "amis-editor";
+    const { Editor } = await import(/* @vite-ignore */ amisEditorModuleName);
 
     if (!rootRef.value) {
       rootRef.value = createRoot(container);

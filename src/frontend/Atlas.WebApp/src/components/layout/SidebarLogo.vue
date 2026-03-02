@@ -15,7 +15,6 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
-import logoImg from '@/assets/logo.png'; // 假设有 logo.png，若没有可留空
 
 const props = defineProps({
   collapse: {
@@ -25,8 +24,7 @@ const props = defineProps({
 });
 
 const title = ref('Atlas 安全平台');
-// @ts-ignore
-const logo = ref(new URL('../../assets/logo.png', import.meta.url).href); // 使用 Vite 的方式引入资产，或者如果报错先赋为空
+const logo = ref('');
 </script>
 
 <style scoped>
