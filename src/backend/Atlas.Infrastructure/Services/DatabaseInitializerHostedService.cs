@@ -12,7 +12,9 @@ using Atlas.Domain.Assets.Entities;
 using Atlas.Domain.Audit.Entities;
 using Atlas.Domain.DynamicTables.Entities;
 using Atlas.Domain.Identity.Entities;
+using Atlas.Domain.System.Entities;
 using Atlas.Domain.Workflow.Entities;
+using Atlas.Infrastructure.Repositories;
 using Atlas.Infrastructure.Options;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -107,7 +109,16 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             typeof(PersistedWorkflow),
             typeof(PersistedExecutionPointer),
             typeof(PersistedEvent),
-            typeof(PersistedSubscription));
+            typeof(PersistedSubscription),
+            // System module
+            typeof(DictType),
+            typeof(DictData),
+            typeof(SystemConfig),
+            typeof(LoginLog),
+            typeof(Notification),
+            typeof(UserNotification),
+            typeof(FileRecord),
+            typeof(TenantDataSource));
 
         // 创建审批模块数据库索引
         var indexInitializer = scope.ServiceProvider.GetRequiredService<ApprovalIndexInitializer>();
@@ -139,6 +150,16 @@ public sealed class DatabaseInitializerHostedService : IHostedService
                 appConfig.Update(appId, true, false, "默认应用配置", 0);
                 await appConfigRepository.AddAsync(appConfig, cancellationToken);
             }
+        }
+
+        if (Guid.TryParse(_bootstrapOptions.TenantId, out var configTenantGuid))
+        {
+            var configTenantId = new TenantId(configTenantGuid);
+            await EnsureBuiltInSystemConfigsAsync(
+                scope.ServiceProvider.GetRequiredService<SystemConfigRepository>(),
+                scope.ServiceProvider.GetRequiredService<IIdGeneratorAccessor>(),
+                configTenantId,
+                cancellationToken);
         }
 
         if (!_bootstrapOptions.Enabled)
@@ -288,7 +309,37 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             (PermissionCodes.ApprovalFlowDisable, "Approval Flow Disable", "Api"),
             (PermissionCodes.VisualizationProcessSave, "Visualization Process Save", "Api"),
             (PermissionCodes.VisualizationProcessUpdate, "Visualization Process Update", "Api"),
-            (PermissionCodes.VisualizationProcessPublish, "Visualization Process Publish", "Api")
+            (PermissionCodes.VisualizationProcessPublish, "Visualization Process Publish", "Api"),
+            (PermissionCodes.DictTypeView, "Dict Type View", "Api"),
+            (PermissionCodes.DictTypeCreate, "Dict Type Create", "Api"),
+            (PermissionCodes.DictTypeUpdate, "Dict Type Update", "Api"),
+            (PermissionCodes.DictTypeDelete, "Dict Type Delete", "Api"),
+            (PermissionCodes.DictDataView, "Dict Data View", "Api"),
+            (PermissionCodes.DictDataCreate, "Dict Data Create", "Api"),
+            (PermissionCodes.DictDataUpdate, "Dict Data Update", "Api"),
+            (PermissionCodes.DictDataDelete, "Dict Data Delete", "Api"),
+            (PermissionCodes.ConfigView, "Config View", "Api"),
+            (PermissionCodes.ConfigCreate, "Config Create", "Api"),
+            (PermissionCodes.ConfigUpdate, "Config Update", "Api"),
+            (PermissionCodes.ConfigDelete, "Config Delete", "Api"),
+            (PermissionCodes.LoginLogView, "Login Log View", "Api"),
+            (PermissionCodes.LoginLogDelete, "Login Log Delete", "Api"),
+            (PermissionCodes.OnlineUsersView, "Online Users View", "Api"),
+            (PermissionCodes.OnlineUsersForceLogout, "Online Users Force Logout", "Api"),
+            (PermissionCodes.MonitorView, "Monitor View", "Api"),
+            (PermissionCodes.NotificationView, "Notification View", "Api"),
+            (PermissionCodes.NotificationCreate, "Notification Create", "Api"),
+            (PermissionCodes.NotificationUpdate, "Notification Update", "Api"),
+            (PermissionCodes.NotificationDelete, "Notification Delete", "Api"),
+            (PermissionCodes.JobView, "Job View", "Api"),
+            (PermissionCodes.JobCreate, "Job Create", "Api"),
+            (PermissionCodes.JobUpdate, "Job Update", "Api"),
+            (PermissionCodes.JobDelete, "Job Delete", "Api"),
+            (PermissionCodes.JobTrigger, "Job Trigger", "Api"),
+            (PermissionCodes.DataScopeManage, "Data Scope Manage", "Api"),
+            (PermissionCodes.FileUpload, "File Upload", "Api"),
+            (PermissionCodes.FileDownload, "File Download", "Api"),
+            (PermissionCodes.FileDelete, "File Delete", "Api")
         };
 
         var permissionIdMap = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
@@ -718,6 +769,39 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         }
 
         return false;
+    }
+
+    private async Task EnsureBuiltInSystemConfigsAsync(
+        SystemConfigRepository repository,
+        IIdGeneratorAccessor idGeneratorAccessor,
+        TenantId tenantId,
+        CancellationToken cancellationToken)
+    {
+        var seeds = new (string Key, string Value, string Name, string? Remark)[]
+        {
+            ("security.password.minLength", "8", "密码最小长度", "内置安全策略参数"),
+            ("security.lockout.maxFailedAttempts", "5", "最大失败次数", "内置安全策略参数"),
+            ("security.lockout.lockMinutes", "15", "锁定时长(分钟)", "内置安全策略参数")
+        };
+
+        foreach (var seed in seeds)
+        {
+            var existing = await repository.FindByKeyAsync(tenantId, seed.Key, cancellationToken);
+            if (existing is not null)
+            {
+                continue;
+            }
+
+            var entity = new SystemConfig(
+                tenantId,
+                seed.Key,
+                seed.Value,
+                seed.Name,
+                true,
+                idGeneratorAccessor.NextId());
+            entity.Update(seed.Value, seed.Name, seed.Remark);
+            await repository.AddAsync(entity, cancellationToken);
+        }
     }
 }
 

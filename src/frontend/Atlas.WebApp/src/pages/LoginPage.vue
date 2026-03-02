@@ -130,6 +130,12 @@
               </div>
             </a-form-item>
 
+            <a-form-item style="margin-bottom: 8px">
+              <div class="remember-row">
+                <a-checkbox v-model:checked="form.rememberMe">记住我（30天内保持登录）</a-checkbox>
+              </div>
+            </a-form-item>
+
             <a-form-item>
               <a-button
                 type="primary"
@@ -163,7 +169,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from "vue";
 import { useRouter } from "vue-router";
-import { createToken, getCurrentUser } from "@/services/api";
+import { createToken, getCaptcha, getCurrentUser } from "@/services/api";
 import type { RequestOptions } from "@/services/api";
 import {
   clearAuthStorage,
@@ -195,12 +201,19 @@ const captchaSeed = ref(Date.now());
 const tenantHistory = ref<TenantHistoryItem[]>([]);
 let cooldownTimer: number | undefined;
 
+const REMEMBER_ME_KEY = "atlas-login-remember-me";
+
 const form = reactive({
   tenantId: getTenantId() ?? DEFAULT_TENANT_ID,
   username: "",
   password: "",
-  captcha: ""
+  captcha: "",
+  rememberMe: localStorage.getItem(REMEMBER_ME_KEY) === "true"
 });
+
+// 验证码 API 返回的 key 和图片
+const captchaKey = ref<string>("");
+const captchaImageSrc = ref<string>("");
 
 const isCaptchaVisible = computed(() => failedAttempts.value >= CAPTCHA_THRESHOLD);
 const isSubmitDisabled = computed(
@@ -213,7 +226,7 @@ const isSubmitDisabled = computed(
 );
 const tenantHistoryOptions = computed(() => tenantHistory.value);
 const captchaStyle = computed(() => ({
-  backgroundImage: `url('https://dummyimage.com/120x40/ced4da/6c757d.png&text=%E9%AA%8C%E8%AF%81%E7%A0%81&seed=${captchaSeed.value}')`,
+  backgroundImage: captchaImageSrc.value ? `url('${captchaImageSrc.value}')` : `url('https://dummyimage.com/120x40/ced4da/6c757d.png&text=%E9%AA%8C%E8%AF%81%E7%A0%81&seed=${captchaSeed.value}')`,
   backgroundSize: "cover"
 }));
 
@@ -268,8 +281,19 @@ const startCooldown = () => {
   }, 1000);
 };
 
-const refreshCaptcha = () => {
+const refreshCaptcha = async () => {
   captchaSeed.value = Date.now();
+  if (!form.tenantId) return;
+  try {
+    const result = await getCaptcha(form.tenantId);
+    captchaKey.value = result.captchaKey;
+    captchaImageSrc.value = result.captchaImage;
+  } catch {
+    // 降级显示占位图
+    captchaKey.value = "";
+    captchaImageSrc.value = "";
+  }
+  form.captcha = "";
 };
 
 const normalizeError = (error: unknown) => {
@@ -292,14 +316,23 @@ const handleSubmit = async () => {
   loading.value = true;
   try {
     clearAuthStorage();
-    const tokenOptions: RequestOptions = {
-      suppressErrorMessage: true
-    };
+    const tokenOptions: RequestOptions = { suppressErrorMessage: true };
+
+    // 若验证码显示但尚未获取到 captchaKey，先获取一次
+    if (isCaptchaVisible.value && !captchaKey.value) {
+      await refreshCaptcha();
+    }
+
     const result = await createToken(
       form.tenantId,
       form.username.trim(),
       form.password,
-      tokenOptions
+      tokenOptions,
+      {
+        captchaKey: isCaptchaVisible.value ? captchaKey.value : undefined,
+        captchaCode: isCaptchaVisible.value ? form.captcha.trim() : undefined,
+        rememberMe: form.rememberMe
+      }
     );
     setAccessToken(result.accessToken);
     setRefreshToken(result.refreshToken);
@@ -307,6 +340,7 @@ const handleSubmit = async () => {
     const profile = await getCurrentUser();
     setAuthProfile(profile);
     persistTenantHistory(form.tenantId);
+    localStorage.setItem(REMEMBER_ME_KEY, String(form.rememberMe));
     failedAttempts.value = 0;
     cooldownSeconds.value = 0;
     errorMessage.value = "";
@@ -319,7 +353,10 @@ const handleSubmit = async () => {
       startCooldown();
     }
     if (isCaptchaVisible.value) {
-      refreshCaptcha();
+      await refreshCaptcha();
+    } else if (failedAttempts.value >= CAPTCHA_THRESHOLD) {
+      // 刚触发验证码阈值，立即加载
+      await refreshCaptcha();
     }
   } finally {
     loading.value = false;
@@ -505,6 +542,11 @@ onBeforeUnmount(() => {
   font-size: 12px;
   color: var(--color-text-secondary);
   cursor: pointer;
+}
+
+.remember-row {
+  display: flex;
+  align-items: center;
 }
 
 .captcha-tips {

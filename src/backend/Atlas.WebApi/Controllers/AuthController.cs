@@ -5,6 +5,7 @@ using Atlas.Application.Identity.Abstractions;
 using Atlas.Application.Audit.Abstractions;
 using Atlas.Application.Audit.Models;
 using Atlas.Application.Models;
+using Atlas.Application.Options;
 using Atlas.Core.Exceptions;
 using Atlas.Core.Identity;
 using Atlas.Core.Models;
@@ -14,6 +15,7 @@ using Atlas.WebApi.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.Options;
 
 namespace Atlas.WebApi.Controllers;
 
@@ -27,11 +29,13 @@ public sealed class AuthController : ControllerBase
     private readonly ITenantProvider _tenantProvider;
     private readonly ICurrentUserAccessor _currentUserAccessor;
     private readonly IClientContextAccessor _clientContextAccessor;
+    private readonly ICaptchaService _captchaService;
     private readonly IMapper _mapper;
     private readonly IValidator<AuthTokenRequest> _validator;
     private readonly IValidator<AuthRefreshRequest> _refreshValidator;
     private readonly IValidator<ChangePasswordViewModel> _changePasswordValidator;
     private readonly IAuditRecorder _auditRecorder;
+    private readonly SecurityOptions _securityOptions;
 
     public AuthController(
         IAuthTokenService authTokenService,
@@ -40,11 +44,13 @@ public sealed class AuthController : ControllerBase
         ITenantProvider tenantProvider,
         ICurrentUserAccessor currentUserAccessor,
         IClientContextAccessor clientContextAccessor,
+        ICaptchaService captchaService,
         IMapper mapper,
         IValidator<AuthTokenRequest> validator,
         IValidator<AuthRefreshRequest> refreshValidator,
         IValidator<ChangePasswordViewModel> changePasswordValidator,
-        IAuditRecorder auditRecorder)
+        IAuditRecorder auditRecorder,
+        IOptions<SecurityOptions> securityOptions)
     {
         _authTokenService = authTokenService;
         _authProfileService = authProfileService;
@@ -52,11 +58,22 @@ public sealed class AuthController : ControllerBase
         _tenantProvider = tenantProvider;
         _currentUserAccessor = currentUserAccessor;
         _clientContextAccessor = clientContextAccessor;
+        _captchaService = captchaService;
         _mapper = mapper;
         _validator = validator;
         _refreshValidator = refreshValidator;
         _changePasswordValidator = changePasswordValidator;
         _auditRecorder = auditRecorder;
+        _securityOptions = securityOptions.Value;
+    }
+
+    [HttpGet("captcha")]
+    [AllowAnonymous]
+    [EnableRateLimiting("auth")]
+    public ActionResult<ApiResponse<object>> GetCaptcha()
+    {
+        var (key, image) = _captchaService.Generate();
+        return Ok(ApiResponse<object>.Ok(new { captchaKey = key, captchaImage = image }, HttpContext.TraceIdentifier));
     }
 
     [HttpPost("token")]
@@ -75,11 +92,25 @@ public sealed class AuthController : ControllerBase
         var dto = _mapper.Map<AuthTokenRequest>(request);
         _validator.ValidateAndThrow(dto);
 
+        // 若前端已提供验证码（风控触发后），在此处校验
+        if (!string.IsNullOrWhiteSpace(dto.CaptchaKey))
+        {
+            if (string.IsNullOrWhiteSpace(dto.CaptchaCode)
+                || !_captchaService.Validate(dto.CaptchaKey, dto.CaptchaCode))
+            {
+                throw new BusinessException("验证码错误或已过期", ErrorCodes.ValidationError);
+            }
+        }
+
         var context = new AuthRequestContext(
             ControllerHelper.GetIpAddress(HttpContext),
             ControllerHelper.GetUserAgent(HttpContext),
             ControllerHelper.GetClientContext(HttpContext));
         var result = await _authTokenService.CreateTokenAsync(dto, tenantId, context, cancellationToken);
+
+        // 设置 httpOnly cookie 存储令牌（安全加固）
+        SetAuthCookies(result.AccessToken, result.RefreshToken, result.ExpiresAt, result.RefreshExpiresAt);
+
         var payload = ApiResponse<AuthTokenResult>.Ok(result, HttpContext.TraceIdentifier);
         return Ok(payload);
     }
@@ -105,6 +136,10 @@ public sealed class AuthController : ControllerBase
             ControllerHelper.GetUserAgent(HttpContext),
             ControllerHelper.GetClientContext(HttpContext));
         var result = await _authTokenService.RefreshTokenAsync(dto, tenantId, context, cancellationToken);
+
+        // 刷新令牌时也更新cookie
+        SetAuthCookies(result.AccessToken, result.RefreshToken, result.ExpiresAt, result.RefreshExpiresAt);
+
         return Ok(ApiResponse<AuthTokenResult>.Ok(result, HttpContext.TraceIdentifier));
     }
 
@@ -198,7 +233,66 @@ public sealed class AuthController : ControllerBase
             _clientContextAccessor.GetCurrent());
 
         await _auditRecorder.RecordAsync(auditContext, cancellationToken);
+
+        // 清除认证cookie
+        ClearAuthCookies();
+
         return Ok(ApiResponse<object>.Ok(new { Success = true }, HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>
+    /// 设置认证相关的httpOnly cookie
+    /// </summary>
+    private void SetAuthCookies(string accessToken, string refreshToken, DateTimeOffset accessExpires, DateTimeOffset refreshExpires)
+    {
+        var cookieOptions = new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = true, // 生产环境强制HTTPS
+            SameSite = SameSiteMode.Strict,
+            Path = "/"
+        };
+
+        // 设置 Access Token Cookie
+        var accessCookieOptions = new CookieOptions
+        {
+            HttpOnly = cookieOptions.HttpOnly,
+            Secure = cookieOptions.Secure,
+            SameSite = cookieOptions.SameSite,
+            Path = cookieOptions.Path,
+            Expires = accessExpires
+        };
+        HttpContext.Response.Cookies.Append("access_token", accessToken, accessCookieOptions);
+
+        // 设置 Refresh Token Cookie
+        var refreshCookieOptions = new CookieOptions
+        {
+            HttpOnly = cookieOptions.HttpOnly,
+            Secure = cookieOptions.Secure,
+            SameSite = cookieOptions.SameSite,
+            Path = cookieOptions.Path,
+            Expires = refreshExpires
+        };
+        HttpContext.Response.Cookies.Append("refresh_token", refreshToken, refreshCookieOptions);
+    }
+
+    /// <summary>
+    /// 清除认证cookie
+    /// </summary>
+    private void ClearAuthCookies()
+    {
+        HttpContext.Response.Cookies.Delete("access_token", new CookieOptions
+        {
+            Path = "/",
+            Secure = true,
+            SameSite = SameSiteMode.Strict
+        });
+        HttpContext.Response.Cookies.Delete("refresh_token", new CookieOptions
+        {
+            Path = "/",
+            Secure = true,
+            SameSite = SameSiteMode.Strict
+        });
     }
 }
 

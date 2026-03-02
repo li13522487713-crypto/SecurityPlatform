@@ -5,10 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vue-tsc --noEmit && vite build",
+    "build": "vue-tsc --noEmit && node --max-old-space-size=8192 node_modules/vite/bin/vite.js build",
     "preview": "vite preview",
     "lint": "eslint . --ext .ts,.vue",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "generate-types": "cd ../../backend/Atlas.WebApi && nswag run nswag.json"
   },
   "devDependencies": {
     "@types/node": "^25.0.10",
@@ -32,6 +33,7 @@
     "@antv/x6-vue-shape": "^2.0.8",
     "amis": "^6.0.0",
     "ant-design-vue": "^4.2.6",
+    "driver.js": "^1.4.0",
     "element-plus": "^2.13.2",
     "mobx": "4.15.7",
     "mobx-react-lite": "2.2.2",
@@ -40,6 +42,7 @@
     "react-is": "^18.2.0",
     "vform3-builds": "^3.0.10",
     "vue": "^3.5.27",
+    "vue-i18n": "^9.14.5",
     "vue-router": "^4.6.4"
   },
   "overrides": {

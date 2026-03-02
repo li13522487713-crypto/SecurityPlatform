@@ -70,4 +70,52 @@ public static class PermissionPolicies
     public const string VisualizationProcessSave = "Permission:visualization:process:save";
     public const string VisualizationProcessUpdate = "Permission:visualization:process:update";
     public const string VisualizationProcessPublish = "Permission:visualization:process:publish";
+
+    // Dict management
+    public const string DictTypeView = "Permission:dict:type:view";
+    public const string DictTypeCreate = "Permission:dict:type:create";
+    public const string DictTypeUpdate = "Permission:dict:type:update";
+    public const string DictTypeDelete = "Permission:dict:type:delete";
+    public const string DictDataView = "Permission:dict:data:view";
+    public const string DictDataCreate = "Permission:dict:data:create";
+    public const string DictDataUpdate = "Permission:dict:data:update";
+    public const string DictDataDelete = "Permission:dict:data:delete";
+
+    // System config management
+    public const string ConfigView = "Permission:config:view";
+    public const string ConfigCreate = "Permission:config:create";
+    public const string ConfigUpdate = "Permission:config:update";
+    public const string ConfigDelete = "Permission:config:delete";
+
+    // Login log
+    public const string LoginLogView = "Permission:loginlog:view";
+    public const string LoginLogDelete = "Permission:loginlog:delete";
+
+    // Online users / sessions
+    public const string OnlineUsersView = "Permission:online:view";
+    public const string OnlineUsersForceLogout = "Permission:online:force-logout";
+
+    // Monitor
+    public const string MonitorView = "Permission:monitor:view";
+
+    // Notification
+    public const string NotificationView = "Permission:notification:view";
+    public const string NotificationCreate = "Permission:notification:create";
+    public const string NotificationUpdate = "Permission:notification:update";
+    public const string NotificationDelete = "Permission:notification:delete";
+
+    // Scheduled jobs
+    public const string JobView = "Permission:job:view";
+    public const string JobCreate = "Permission:job:create";
+    public const string JobUpdate = "Permission:job:update";
+    public const string JobDelete = "Permission:job:delete";
+    public const string JobTrigger = "Permission:job:trigger";
+
+    // Data scope
+    public const string DataScopeManage = "Permission:datascope:manage";
+
+    // File upload/download
+    public const string FileUpload = "Permission:file:upload";
+    public const string FileDownload = "Permission:file:download";
+    public const string FileDelete = "Permission:file:delete";
 }

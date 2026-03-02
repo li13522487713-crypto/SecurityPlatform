@@ -5,6 +5,8 @@ using Atlas.Application;
 using Atlas.Application.Options;
 using Atlas.Infrastructure;
 using Atlas.WebApi.Middlewares;
+using Hangfire;
+using Hangfire.Storage.SQLite;
 using Atlas.WebApi.Tenancy;
 using Atlas.WorkflowCore;
 using Atlas.WorkflowCore.DSL;
@@ -25,6 +27,9 @@ using Atlas.WebApi.Authorization;
 using Atlas.WebApi.Filters;
 using Microsoft.AspNetCore.Authorization.Policy;
 using Atlas.Core.Models;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -44,11 +49,34 @@ builder.Services.AddControllers(options =>
 {
     options.JsonSerializerOptions.Converters.Add(new Atlas.WebApi.Json.FlexibleLongJsonConverter());
     options.JsonSerializerOptions.Converters.Add(new Atlas.WebApi.Json.FlexibleNullableLongJsonConverter());
+    options.JsonSerializerOptions.Converters.Add(new Atlas.WebApi.Json.SensitiveObjectConverterFactory());
 });
-builder.Services.AddOpenApi();
+
+// 配置 NSwag OpenAPI 文档生成
+builder.Services.AddOpenApiDocument(config =>
+{
+    config.Title = "Atlas Security Platform API";
+    config.Version = "v1";
+    config.Description = "Atlas 安全平台 API 文档（符合等保2.0标准）";
+    config.UseControllerSummaryAsTagDescription = true;
+    config.PostProcess = document =>
+    {
+        document.Info.Contact = new NSwag.OpenApiContact
+        {
+            Name = "Atlas Security Team",
+            Email = "security@atlas.com"
+        };
+        document.Info.License = new NSwag.OpenApiLicense
+        {
+            Name = "Proprietary"
+        };
+    };
+});
 
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("Jwt"));
 builder.Services.Configure<SecurityOptions>(builder.Configuration.GetSection("Security"));
+builder.Services.Configure<XssOptions>(builder.Configuration.GetSection("Xss"));
+builder.Services.Configure<FileStorageOptions>(builder.Configuration.GetSection("FileStorage"));
 builder.Services.Configure<PasswordPolicyOptions>(builder.Configuration.GetSection("Security:PasswordPolicy"));
 builder.Services.Configure<LockoutPolicyOptions>(builder.Configuration.GetSection("Security:LockoutPolicy"));
 builder.Services.Configure<BootstrapAdminOptions>(builder.Configuration.GetSection("Security:BootstrapAdmin"));
@@ -66,7 +94,8 @@ builder.Services.AddCors(options =>
             ?? Array.Empty<string>();
         policy.WithOrigins(origins)
             .AllowAnyHeader()
-            .AllowAnyMethod();
+            .AllowAnyMethod()
+            .AllowCredentials(); // 允许携带凭证（cookies）
     });
 });
 
@@ -78,6 +107,41 @@ builder.Services.AddHttpLogging(options =>
         | HttpLoggingFields.ResponseStatusCode
         | HttpLoggingFields.Duration;
 });
+
+var serviceName = "Atlas.WebApi";
+var serviceVersion = typeof(Program).Assembly.GetName().Version?.ToString() ?? "1.0.0";
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(resource => resource
+        .AddService(serviceName: serviceName, serviceVersion: serviceVersion))
+    .WithTracing(tracing =>
+    {
+        tracing
+            .AddAspNetCoreInstrumentation()
+            .AddHttpClientInstrumentation();
+        var otlpEndpoint = builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"];
+        if (!string.IsNullOrWhiteSpace(otlpEndpoint))
+        {
+            tracing.AddOtlpExporter(options =>
+            {
+                options.Endpoint = new Uri(otlpEndpoint);
+            });
+        }
+    })
+    .WithMetrics(metrics =>
+    {
+        metrics
+            .AddAspNetCoreInstrumentation()
+            .AddHttpClientInstrumentation()
+            .AddRuntimeInstrumentation();
+        var otlpEndpoint = builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"];
+        if (!string.IsNullOrWhiteSpace(otlpEndpoint))
+        {
+            metrics.AddOtlpExporter(options =>
+            {
+                options.Endpoint = new Uri(otlpEndpoint);
+            });
+        }
+    });
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<Atlas.Core.Tenancy.ITenantProvider, HttpContextTenantProvider>();
@@ -140,6 +204,19 @@ builder.Services.AddAuthentication()
         };
         options.Events = new JwtBearerEvents
         {
+            OnMessageReceived = context =>
+            {
+                // 优先从httpOnly cookie读取token（安全加固）
+                var accessToken = context.Request.Cookies["access_token"];
+                if (!string.IsNullOrEmpty(accessToken))
+                {
+                    context.Token = accessToken;
+                }
+                // 向后兼容：如果cookie中没有token，则从Authorization header读取
+                // JwtBearer中间件会自动从header读取
+
+                return Task.CompletedTask;
+            },
             OnAuthenticationFailed = context =>
             {
                 if (context.Exception is SecurityTokenExpiredException)
@@ -192,8 +269,25 @@ builder.Services.AddRateLimiter(options =>
     });
 });
 
+builder.Services.AddMemoryCache();
 builder.Services.AddAtlasApplication();
 builder.Services.AddAtlasInfrastructure(builder.Configuration);
+
+// 国际化（i18n）：支持中文和英文
+builder.Services.AddLocalization(opts => opts.ResourcesPath = "");
+builder.Services.Configure<Microsoft.AspNetCore.Builder.RequestLocalizationOptions>(opts =>
+{
+    var supportedCultures = new[] { "zh-CN", "en-US" };
+    opts.SetDefaultCulture("zh-CN")
+        .AddSupportedCultures(supportedCultures)
+        .AddSupportedUICultures(supportedCultures);
+    opts.ApplyCurrentCultureToResponseHeaders = true;
+});
+
+// Hangfire 定时任务（使用 SQLite 存储）
+builder.Services.AddHangfire(config =>
+    config.UseSQLiteStorage("hangfire.db"));
+builder.Services.AddHangfireServer();
 
 // 添加 WorkflowCore 工作流引擎
 builder.Services.AddWorkflowCore();
@@ -234,14 +328,21 @@ if (securityOptions.EnforceHttps)
     app.UseHttpsRedirection();
 }
 
+// 添加安全HTTP响应头（防御XSS、Clickjacking等攻击）
+app.UseSecurityHeaders();
+
 app.UseHttpLogging();
+app.UseRequestLocalization();
 app.UseMiddleware<ExceptionHandlingMiddleware>();
+app.UseMiddleware<XssProtectionMiddleware>();
 app.UseRateLimiter();
 app.UseMiddleware<ApiVersionRewriteMiddleware>();
 
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+    // NSwag 中间件：生成 OpenAPI 规范和 Swagger UI
+    app.UseOpenApi();       // 提供 /swagger/v1/swagger.json
+    app.UseSwaggerUi();     // 提供 /swagger 交互式文档
 }
 
 app.UseCors("WebAppCors");

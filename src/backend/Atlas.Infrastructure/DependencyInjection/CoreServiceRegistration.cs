@@ -2,6 +2,7 @@ using Atlas.Application.Abstractions;
 using Atlas.Application.Audit.Abstractions;
 using Atlas.Application.Identity.Abstractions;
 using Atlas.Application.Identity.Repositories;
+using Atlas.Application.System.Abstractions;
 using Atlas.Application.TableViews.Abstractions;
 using Atlas.Application.TableViews.Repositories;
 using Atlas.Core.Abstractions;
@@ -121,6 +122,48 @@ public static class CoreServiceRegistration
         // Index Initializers
         services.AddScoped<IdempotencyIndexInitializer>();
         services.AddScoped<TableViewIndexInitializer>();
+
+        // Dict & SystemConfig Repositories
+        services.AddScoped<DictTypeRepository>();
+        services.AddScoped<DictDataRepository>();
+        services.AddScoped<SystemConfigRepository>();
+
+        // Dict & SystemConfig Services
+        services.AddScoped<IDictQueryService, DictQueryService>();
+        services.AddScoped<IDictCommandService, DictCommandService>();
+        services.AddScoped<ISystemConfigQueryService, SystemConfigQueryService>();
+        services.AddScoped<ISystemConfigCommandService, SystemConfigCommandService>();
+
+        // Login log
+        services.AddScoped<LoginLogRepository>();
+        services.AddScoped<ILoginLogWriteService, LoginLogWriteService>();
+        services.AddScoped<ILoginLogQueryService, LoginLogQueryService>();
+
+        // Captcha (requires IMemoryCache registered in Program.cs via AddMemoryCache)
+        services.AddSingleton<ICaptchaService, CaptchaService>();
+
+        // Notification
+        services.AddScoped<NotificationRepository>();
+        services.AddScoped<UserNotificationRepository>();
+        services.AddScoped<INotificationQueryService, NotificationService>();
+        services.AddScoped<INotificationCommandService, NotificationService>();
+
+        // File Storage
+        services.AddScoped<FileRecordRepository>();
+        services.AddSingleton<IHostEnvironmentAccessor, HostEnvironmentAccessor>();
+        services.AddScoped<IFileStorageService, LocalFileStorageService>();
+
+        // Excel Export
+        services.AddScoped<IExcelExportService, ClosedXmlExcelExportService>();
+
+        // Monitor
+        services.AddSingleton<Atlas.Application.Monitor.Abstractions.IServerInfoQueryService, ServerInfoQueryService>();
+
+        // Scheduled Jobs (Hangfire)
+        services.AddScoped<IScheduledJobService, HangfireScheduledJobService>();
+
+        // Data Scope Filter (等保2.0 数据权限)
+        services.AddScoped<IDataScopeFilter, DataScopeFilter>();
 
         return services;
     }

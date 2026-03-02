@@ -13,6 +13,7 @@ namespace Atlas.Infrastructure.Services.Amis;
 public sealed class FileSystemAmisSchemaProvider : IAmisSchemaProvider
 {
     private readonly string _schemaDirectory;
+    private readonly string _schemaDirectoryFullPath;
     private readonly ILogger<FileSystemAmisSchemaProvider> _logger;
     private readonly ConcurrentDictionary<string, AmisPageDefinition> _cache = new(StringComparer.OrdinalIgnoreCase);
 
@@ -20,6 +21,7 @@ public sealed class FileSystemAmisSchemaProvider : IAmisSchemaProvider
     {
         _logger = logger;
         _schemaDirectory = Path.Combine(environment.ContentRootPath, "AmisSchemas");
+        _schemaDirectoryFullPath = Path.GetFullPath(_schemaDirectory);
     }
 
     public async Task<AmisPageDefinition?> GetByKeyAsync(string key, CancellationToken cancellationToken)
@@ -35,7 +37,17 @@ public sealed class FileSystemAmisSchemaProvider : IAmisSchemaProvider
         }
 
         var filePath = Path.Combine(_schemaDirectory, $"{key}.json");
-        if (!File.Exists(filePath))
+        var fullPath = Path.GetFullPath(filePath);
+        var rootWithSeparator = _schemaDirectoryFullPath.EndsWith(Path.DirectorySeparatorChar)
+            ? _schemaDirectoryFullPath
+            : _schemaDirectoryFullPath + Path.DirectorySeparatorChar;
+        if (!fullPath.StartsWith(rootWithSeparator, StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogWarning("AMIS schema 路径越界访问被拒绝: {Key}", key);
+            return null;
+        }
+
+        if (!File.Exists(fullPath))
         {
             _logger.LogWarning("AMIS schema 文件未找到: {Key}", key);
             return null;
@@ -43,7 +55,7 @@ public sealed class FileSystemAmisSchemaProvider : IAmisSchemaProvider
 
         try
         {
-            var text = await File.ReadAllTextAsync(filePath, cancellationToken);
+            var text = await File.ReadAllTextAsync(fullPath, cancellationToken);
             using var doc = JsonDocument.Parse(text);
             var root = doc.RootElement;
 

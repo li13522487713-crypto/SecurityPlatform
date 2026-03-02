@@ -24,14 +24,6 @@ export interface ClientContext {
   clientAgent: ClientAgent;
 }
 
-export interface AmisPageDefinition {
-  key: string;
-  title: string;
-  description?: string;
-  tableKey: string;
-  schema: JsonValue;
-}
-
 export interface AuthProfile {
   id: string;
   username: string;

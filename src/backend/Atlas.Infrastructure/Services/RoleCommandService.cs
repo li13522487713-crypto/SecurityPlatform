@@ -3,6 +3,7 @@ using Atlas.Application.Identity.Models;
 using Atlas.Application.Identity.Repositories;
 using Atlas.Application.Abstractions;
 using Atlas.Core.Abstractions;
+using Atlas.Core.Enums;
 using Atlas.Core.Exceptions;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
@@ -158,6 +159,18 @@ public sealed class RoleCommandService : IRoleCommandService
             await _userRoleRepository.DeleteByRoleIdAsync(tenantId, roleId, cancellationToken);
             await _roleRepository.DeleteAsync(tenantId, roleId, cancellationToken);
         }, cancellationToken);
+    }
+
+    public async Task SetDataScopeAsync(TenantId tenantId, long roleId, DataScopeType scope, CancellationToken cancellationToken)
+    {
+        var role = await _roleRepository.FindByIdAsync(tenantId, roleId, cancellationToken);
+        if (role is null)
+        {
+            throw new BusinessException("Role not found.", ErrorCodes.NotFound);
+        }
+
+        role.SetDataScope(scope);
+        await _roleRepository.UpdateAsync(role, cancellationToken);
     }
 
     private static string RemoveRoleCode(string roles, string code)

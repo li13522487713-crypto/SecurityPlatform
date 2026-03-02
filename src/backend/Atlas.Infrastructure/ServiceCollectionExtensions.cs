@@ -18,6 +18,12 @@ public static class ServiceCollectionExtensions
         services.AddDynamicTableInfrastructure();
         services.AddApprovalInfrastructure();
         services.AddWorkflowInfrastructure();
+        services.AddLowCodeInfrastructure();
+
+        // 注册多数据源相关服务
+        services.AddScoped<Atlas.Infrastructure.Repositories.TenantDataSourceRepository>();
+        services.AddScoped<Atlas.Application.System.Abstractions.ITenantDbConnectionFactory,
+            Atlas.Infrastructure.Services.TenantDbConnectionFactory>();
 
         // SqlSugar client (shared across all modules)
         services.AddScoped<ISqlSugarClient>(sp =>
@@ -26,9 +32,28 @@ public static class ServiceCollectionExtensions
             var tenantProvider = sp.GetRequiredService<ITenantProvider>();
             var tenantId = tenantProvider.GetTenantId();
 
+            // 尝试获取租户自定义数据源
+            string connectionString = options.ConnectionString;
+            if (!tenantId.IsEmpty)
+            {
+                try
+                {
+                    var factory = sp.GetRequiredService<Atlas.Application.System.Abstractions.ITenantDbConnectionFactory>();
+                    var customConn = factory.GetConnectionStringAsync(tenantId.Value.ToString()).GetAwaiter().GetResult();
+                    if (!string.IsNullOrWhiteSpace(customConn))
+                    {
+                        connectionString = customConn;
+                    }
+                }
+                catch
+                {
+                    // 数据源查询失败时回退到默认连接
+                }
+            }
+
             var config = new ConnectionConfig
             {
-                ConnectionString = options.ConnectionString,
+                ConnectionString = connectionString,
                 DbType = DbType.Sqlite,
                 IsAutoCloseConnection = true,
                 ConfigureExternalServices = new ConfigureExternalServices

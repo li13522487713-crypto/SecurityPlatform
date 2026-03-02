@@ -8,10 +8,11 @@ const PROJECT_ID_KEY = "project_id";
 const PROJECT_SCOPE_KEY = "project_scope_enabled";
 const ANTIFORGERY_TOKEN_KEY = "antiforgery_token";
 
-export const getAccessToken = () => localStorage.getItem(ACCESS_TOKEN_KEY);
+export const getAccessToken = () => sessionStorage.getItem(ACCESS_TOKEN_KEY) ?? localStorage.getItem(ACCESS_TOKEN_KEY);
 
 export const setAccessToken = (token: string) => {
-  localStorage.setItem(ACCESS_TOKEN_KEY, token);
+  sessionStorage.setItem(ACCESS_TOKEN_KEY, token);
+  localStorage.removeItem(ACCESS_TOKEN_KEY);
 };
 
 export const getRefreshToken = () => localStorage.getItem(REFRESH_TOKEN_KEY);
@@ -53,21 +54,25 @@ export const clearAntiforgeryToken = () => {
 };
 
 export const getAuthProfile = (): AuthProfile | null => {
-  const raw = localStorage.getItem(PROFILE_KEY);
+  const raw = sessionStorage.getItem(PROFILE_KEY) ?? localStorage.getItem(PROFILE_KEY);
   if (!raw) return null;
   try {
     return JSON.parse(raw) as AuthProfile;
   } catch {
+    sessionStorage.removeItem(PROFILE_KEY);
     localStorage.removeItem(PROFILE_KEY);
     return null;
   }
 };
 
 export const setAuthProfile = (profile: AuthProfile) => {
-  localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+  sessionStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+  localStorage.removeItem(PROFILE_KEY);
 };
 
 export const clearAuthStorage = () => {
+  sessionStorage.removeItem(ACCESS_TOKEN_KEY);
+  sessionStorage.removeItem(PROFILE_KEY);
   localStorage.removeItem(ACCESS_TOKEN_KEY);
   localStorage.removeItem(REFRESH_TOKEN_KEY);
   localStorage.removeItem(TENANT_ID_KEY);

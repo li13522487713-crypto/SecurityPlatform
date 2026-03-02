@@ -1,5 +1,7 @@
 using Atlas.Application.Audit.Abstractions;
 using Atlas.Application.Audit.Models;
+using Atlas.Application.Identity.Abstractions;
+using Atlas.Core.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Audit.Entities;
@@ -11,11 +13,19 @@ namespace Atlas.Infrastructure.Services;
 public sealed class AuditQueryService : IAuditQueryService
 {
     private readonly ISqlSugarClient _db;
+    private readonly IDataScopeFilter _dataScopeFilter;
+    private readonly ICurrentUserAccessor _currentUserAccessor;
     private readonly IMapper _mapper;
 
-    public AuditQueryService(ISqlSugarClient db, IMapper mapper)
+    public AuditQueryService(
+        ISqlSugarClient db,
+        IDataScopeFilter dataScopeFilter,
+        ICurrentUserAccessor currentUserAccessor,
+        IMapper mapper)
     {
         _db = db;
+        _dataScopeFilter = dataScopeFilter;
+        _currentUserAccessor = currentUserAccessor;
         _mapper = mapper;
     }
 
@@ -29,6 +39,23 @@ public sealed class AuditQueryService : IAuditQueryService
 
         var query = _db.Queryable<AuditRecord>()
             .Where(x => x.TenantIdValue == tenantId.Value);
+
+        var ownerFilterId = await _dataScopeFilter.GetOwnerFilterIdAsync(cancellationToken);
+        if (ownerFilterId.HasValue)
+        {
+            var currentUser = _currentUserAccessor.GetCurrentUser();
+            if (currentUser is null)
+            {
+                query = query.Where(x => false);
+            }
+            else
+            {
+                var actorId = currentUser.UserId.ToString();
+                var actorName = currentUser.Username;
+                query = query.Where(x => x.Actor == actorId || x.Actor == actorName);
+            }
+        }
+
         if (!string.IsNullOrWhiteSpace(request.Keyword))
         {
             var keyword = request.Keyword.Trim();

@@ -1,0 +1,44 @@
+using Atlas.Application.System.Abstractions;
+using Atlas.Application.System.Models;
+using Atlas.Core.Models;
+using Atlas.Core.Tenancy;
+using Atlas.WebApi.Authorization;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+
+namespace Atlas.WebApi.Controllers;
+
+/// <summary>
+/// 登录日志查询（等保2.0：须记录所有登录事件，只读，按时间范围/状态/用户过滤）
+/// </summary>
+[ApiController]
+[Route("api/v1/login-logs")]
+public sealed class LoginLogsController : ControllerBase
+{
+    private readonly ILoginLogQueryService _queryService;
+    private readonly ITenantProvider _tenantProvider;
+
+    public LoginLogsController(ILoginLogQueryService queryService, ITenantProvider tenantProvider)
+    {
+        _queryService = queryService;
+        _tenantProvider = tenantProvider;
+    }
+
+    [HttpGet]
+    [Authorize(Policy = PermissionPolicies.LoginLogView)]
+    public async Task<ActionResult<ApiResponse<PagedResult<LoginLogDto>>>> Get(
+        [FromQuery] int pageIndex = 1,
+        [FromQuery] int pageSize = 20,
+        [FromQuery] string? username = null,
+        [FromQuery] string? ipAddress = null,
+        [FromQuery] bool? loginStatus = null,
+        [FromQuery] DateTimeOffset? from = null,
+        [FromQuery] DateTimeOffset? to = null,
+        CancellationToken cancellationToken = default)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _queryService.GetLoginLogsPagedAsync(
+            tenantId, username, ipAddress, loginStatus, from, to, pageIndex, pageSize, cancellationToken);
+        return Ok(ApiResponse<PagedResult<LoginLogDto>>.Ok(result, HttpContext.TraceIdentifier));
+    }
+}

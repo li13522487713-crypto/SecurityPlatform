@@ -1,3 +1,4 @@
+using Atlas.Core.Enums;
 using Atlas.Core.Tenancy;
 using Atlas.Application.Identity.Models;
 
@@ -24,4 +25,7 @@ public interface IRoleCommandService
         TenantId tenantId,
         long roleId,
         CancellationToken cancellationToken);
+
+    /// <summary>更新角色数据权限范围（等保2.0）</summary>
+    Task SetDataScopeAsync(TenantId tenantId, long roleId, DataScopeType scope, CancellationToken cancellationToken);
 }

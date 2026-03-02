@@ -4,6 +4,7 @@ using Atlas.Application.Identity.Models;
 using Atlas.Application.Abstractions;
 using Atlas.Application.Identity.Repositories;
 using Atlas.Core.Models;
+using Atlas.Core.Identity;
 using Atlas.Core.Tenancy;
 
 namespace Atlas.Infrastructure.Services;
@@ -16,6 +17,8 @@ public sealed class UserQueryService : IUserQueryService
     private readonly IUserPositionRepository _userPositionRepository;
     private readonly IProjectUserRepository _projectUserRepository;
     private readonly Atlas.Core.Identity.IProjectContextAccessor _projectContextAccessor;
+    private readonly IDataScopeFilter _dataScopeFilter;
+    private readonly ICurrentUserAccessor _currentUserAccessor;
     private readonly IMapper _mapper;
 
     public UserQueryService(
@@ -25,6 +28,8 @@ public sealed class UserQueryService : IUserQueryService
         IUserPositionRepository userPositionRepository,
         IProjectUserRepository projectUserRepository,
         Atlas.Core.Identity.IProjectContextAccessor projectContextAccessor,
+        IDataScopeFilter dataScopeFilter,
+        ICurrentUserAccessor currentUserAccessor,
         IMapper mapper)
     {
         _userRepository = userRepository;
@@ -33,6 +38,8 @@ public sealed class UserQueryService : IUserQueryService
         _userPositionRepository = userPositionRepository;
         _projectUserRepository = projectUserRepository;
         _projectContextAccessor = projectContextAccessor;
+        _dataScopeFilter = dataScopeFilter;
+        _currentUserAccessor = currentUserAccessor;
         _mapper = mapper;
     }
 
@@ -70,13 +77,28 @@ public sealed class UserQueryService : IUserQueryService
                 cancellationToken);
         }
 
-        var resultItems = result.Items.Select(x => _mapper.Map<UserListItem>(x)).ToArray();
-        return new PagedResult<UserListItem>(resultItems, result.TotalCount, pageIndex, pageSize);
+        var ownerFilterId = await _dataScopeFilter.GetOwnerFilterIdAsync(cancellationToken);
+        var scopedItems = ownerFilterId.HasValue
+            ? result.Items.Where(x => x.Id == ownerFilterId.Value).ToArray()
+            : result.Items.ToArray();
+
+        var resultItems = scopedItems.Select(x => _mapper.Map<UserListItem>(x)).ToArray();
+        var scopedTotal = ownerFilterId.HasValue
+            ? resultItems.Length
+            : result.TotalCount;
+
+        return new PagedResult<UserListItem>(resultItems, scopedTotal, pageIndex, pageSize);
     }
 
     public async Task<UserDetail?> GetDetailAsync(long id, TenantId tenantId, CancellationToken cancellationToken)
     {
         var projectContext = _projectContextAccessor.GetCurrent();
+        var ownerFilterId = await _dataScopeFilter.GetOwnerFilterIdAsync(cancellationToken);
+        if (ownerFilterId.HasValue && ownerFilterId.Value != id)
+        {
+            return null;
+        }
+
         if (projectContext.IsEnabled && projectContext.ProjectId.HasValue)
         {
             var hasMembership = await _projectUserRepository.ExistsAsync(
@@ -94,6 +116,16 @@ public sealed class UserQueryService : IUserQueryService
         if (user is null)
         {
             return null;
+        }
+
+        // 二次防御：当数据范围为仅本人时，只允许读取当前用户明细
+        if (ownerFilterId.HasValue)
+        {
+            var currentUser = _currentUserAccessor.GetCurrentUser();
+            if (currentUser is null || currentUser.UserId != user.Id)
+            {
+                return null;
+            }
         }
 
         var roleIds = await _userRoleRepository.QueryByUserIdAsync(tenantId, id, cancellationToken);

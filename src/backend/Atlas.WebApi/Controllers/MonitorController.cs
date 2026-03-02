@@ -1,0 +1,34 @@
+using Atlas.Application.Monitor.Abstractions;
+using Atlas.Application.Monitor.Models;
+using Atlas.Core.Models;
+using Atlas.WebApi.Authorization;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+
+namespace Atlas.WebApi.Controllers;
+
+/// <summary>
+/// 服务监控（等保2.0：运维操作需要权限控制）
+/// </summary>
+[ApiController]
+[Route("api/v1/monitor")]
+[Authorize]
+public sealed class MonitorController : ControllerBase
+{
+    private readonly IServerInfoQueryService _serverInfoQueryService;
+
+    public MonitorController(IServerInfoQueryService serverInfoQueryService)
+    {
+        _serverInfoQueryService = serverInfoQueryService;
+    }
+
+    /// <summary>获取服务器当前状态快照</summary>
+    [HttpGet("server-info")]
+    [Authorize(Policy = PermissionPolicies.MonitorView)]
+    public async Task<ActionResult<ApiResponse<ServerInfoDto>>> GetServerInfo(
+        CancellationToken cancellationToken = default)
+    {
+        var info = await _serverInfoQueryService.GetServerInfoAsync(cancellationToken);
+        return Ok(ApiResponse<ServerInfoDto>.Ok(info, HttpContext.TraceIdentifier));
+    }
+}

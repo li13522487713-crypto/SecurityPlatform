@@ -46,26 +46,61 @@ export default defineConfig({
   build: {
     chunkSizeWarningLimit: 2000,
     rollupOptions: {
+      external: ["amis-editor"],
       output: {
         manualChunks(id) {
-          if (!id.includes("node_modules")) {
-            return undefined;
-          }
-          if (id.includes("vform3-builds")) {
-            return "vendor-vform";
-          }
-          if (id.includes("@antv/x6")) {
-            return "vendor-x6";
-          }
-          if (id.includes("ant-design-vue") || id.includes("@ant-design")) {
+          if (!id.includes("node_modules")) return undefined;
+          const nm = id.replace(/\\/g, "/");
+          const pkg = (...names: string[]) =>
+            names.some((n) => nm.includes(`/node_modules/${n}/`));
+
+          // --- Heavy standalone libs (amis transitive deps) ---
+          if (pkg("monaco-editor")) return "vendor-monaco";
+          if (pkg("echarts", "zrender")) return "vendor-echarts";
+          if (pkg("pdfjs-dist", "react-pdf")) return "vendor-pdf";
+          if (pkg("exceljs", "xlsx", "codepage")) return "vendor-excel";
+          if (pkg("tinymce")) return "vendor-tinymce";
+          if (pkg("froala-editor", "cropperjs", "react-cropper"))
+            return "vendor-richedit";
+          if (pkg("hls.js")) return "vendor-hls";
+          if (pkg("moment", "moment-timezone")) return "vendor-moment";
+          if (pkg("@icons/material")) return "vendor-icons";
+          if (pkg("codemirror")) return "vendor-codemirror";
+
+          // --- AMIS ecosystem ---
+          if (pkg("amis", "amis-core", "amis-ui", "amis-formula", "office-viewer"))
+            return "vendor-amis";
+
+          // --- React ecosystem (all react-* packages together) ---
+          if (nm.includes("/node_modules/react")) return "vendor-react";
+          if (pkg("scheduler")) return "vendor-react";
+
+          // --- MobX ---
+          if (pkg("mobx", "mobx-react-lite")) return "vendor-mobx";
+
+          // --- VForm ---
+          if (pkg("vform3-builds")) return "vendor-vform";
+
+          // --- AntV X6 ---
+          if (nm.includes("/node_modules/@antv/")) return "vendor-x6";
+
+          // --- Ant Design Vue ---
+          if (pkg("ant-design-vue") || nm.includes("/node_modules/@ant-design/"))
             return "vendor-antd";
-          }
-          if (id.includes("element-plus")) {
+
+          // --- Element Plus ---
+          if (pkg("element-plus") || nm.includes("/node_modules/@element-plus/"))
             return "vendor-element";
-          }
-          if (id.includes("vue-router")) {
-            return "vendor-router";
-          }
+
+          // --- Vue ecosystem ---
+          if (
+            pkg("vue", "vue-router", "vue-i18n", "vue-demi") ||
+            nm.includes("/node_modules/@vue/") ||
+            nm.includes("/node_modules/@intlify/")
+          )
+            return "vendor-vue";
+
+          // --- Remaining (lodash, core-js, downshift, etc.) ---
           return "vendor";
         }
       }

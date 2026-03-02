@@ -1,6 +1,7 @@
 using Atlas.Application.Workflow.Abstractions;
 using Atlas.Application.Workflow.Models;
 using Atlas.Core.Models;
+using Atlas.WebApi.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -64,7 +65,7 @@ public sealed class WorkflowController : ControllerBase
     /// 启动工作流实例
     /// </summary>
     [HttpPost("instances")]
-    [AllowAnonymous]
+    [Authorize(Policy = PermissionPolicies.WorkflowDesign)]
     public async Task<ActionResult<ApiResponse<object>>> StartWorkflow(
         [FromBody] StartWorkflowRequest request,
         CancellationToken cancellationToken)
@@ -78,7 +79,6 @@ public sealed class WorkflowController : ControllerBase
     /// 获取工作流实例详情
     /// </summary>
     [HttpGet("instances/{instanceId}")]
-    [AllowAnonymous]
     public async Task<ActionResult<ApiResponse<WorkflowInstanceResponse>>> GetInstance(
         string instanceId,
         CancellationToken cancellationToken)
@@ -101,7 +101,6 @@ public sealed class WorkflowController : ControllerBase
     /// 分页查询工作流实例列表
     /// </summary>
     [HttpGet("instances")]
-    [AllowAnonymous]
     public async Task<ActionResult<ApiResponse<PagedResult<WorkflowInstanceListItem>>>> GetInstances(
         [FromQuery] PagedRequest request,
         CancellationToken cancellationToken)
@@ -115,7 +114,7 @@ public sealed class WorkflowController : ControllerBase
     /// 挂起工作流实例
     /// </summary>
     [HttpPost("instances/{instanceId}/suspend")]
-    [AllowAnonymous]
+    [Authorize(Policy = PermissionPolicies.WorkflowDesign)]
     public async Task<ActionResult<ApiResponse<object>>> SuspendWorkflow(
         string instanceId,
         CancellationToken cancellationToken)
@@ -138,7 +137,7 @@ public sealed class WorkflowController : ControllerBase
     /// 恢复工作流实例
     /// </summary>
     [HttpPost("instances/{instanceId}/resume")]
-    [AllowAnonymous]
+    [Authorize(Policy = PermissionPolicies.WorkflowDesign)]
     public async Task<ActionResult<ApiResponse<object>>> ResumeWorkflow(
         string instanceId,
         CancellationToken cancellationToken)
@@ -161,7 +160,7 @@ public sealed class WorkflowController : ControllerBase
     /// 终止工作流实例
     /// </summary>
     [HttpPost("instances/{instanceId}/terminate")]
-    [AllowAnonymous]
+    [Authorize(Policy = PermissionPolicies.WorkflowDesign)]
     public async Task<ActionResult<ApiResponse<object>>> TerminateWorkflow(
         string instanceId,
         CancellationToken cancellationToken)
@@ -184,6 +183,7 @@ public sealed class WorkflowController : ControllerBase
     /// 发布外部事件
     /// </summary>
     [HttpPost("events")]
+    [Authorize(Policy = PermissionPolicies.WorkflowDesign)]
     public async Task<ActionResult<ApiResponse<object>>> PublishEvent(
         [FromBody] PublishEventRequest request,
         CancellationToken cancellationToken)
@@ -197,7 +197,7 @@ public sealed class WorkflowController : ControllerBase
     /// 从 JSON 定义注册动态工作流
     /// </summary>
     [HttpPost("definitions")]
-    [AllowAnonymous]
+    [Authorize(Policy = PermissionPolicies.WorkflowDesign)]
     public async Task<ActionResult<ApiResponse<object>>> RegisterDynamicWorkflow(
         [FromBody] RegisterWorkflowDefinitionRequest request,
         CancellationToken cancellationToken)
@@ -211,7 +211,6 @@ public sealed class WorkflowController : ControllerBase
     /// 获取工作流执行指针详情（步骤级监控）
     /// </summary>
     [HttpGet("instances/{instanceId}/pointers")]
-    [AllowAnonymous]
     public async Task<ActionResult<ApiResponse<IEnumerable<ExecutionPointerResponse>>>> GetExecutionPointers(
         string instanceId,
         CancellationToken cancellationToken)
@@ -225,7 +224,6 @@ public sealed class WorkflowController : ControllerBase
     /// 获取所有可用的步骤类型
     /// </summary>
     [HttpGet("step-types")]
-    [AllowAnonymous]
     public ActionResult<ApiResponse<IEnumerable<StepTypeMetadata>>> GetStepTypes()
     {
         var stepTypes = new List<StepTypeMetadata>

@@ -4,6 +4,8 @@ using Atlas.Application.Audit.Abstractions;
 using Atlas.Application.Audit.Models;
 using Atlas.Application.Models;
 using Atlas.Application.Options;
+using Atlas.Application.System.Abstractions;
+using Atlas.Application.System.Models;
 using Atlas.Core.Abstractions;
 using Atlas.Core.Identity;
 using Atlas.Core.Exceptions;
@@ -36,6 +38,7 @@ public sealed class JwtAuthTokenService : IAuthTokenService
     private readonly TimeProvider _timeProvider;
     private readonly IRbacResolver _rbacResolver;
     private readonly ITotpService _totpService;
+    private readonly ILoginLogWriteService _loginLogWriteService;
 
     public JwtAuthTokenService(
         IOptions<JwtOptions> jwtOptions,
@@ -51,7 +54,8 @@ public sealed class JwtAuthTokenService : IAuthTokenService
         IAppContextAccessor appContextAccessor,
         TimeProvider timeProvider,
         IRbacResolver rbacResolver,
-        ITotpService totpService)
+        ITotpService totpService,
+        ILoginLogWriteService loginLogWriteService)
     {
         _jwtOptions = jwtOptions.Value;
         _passwordPolicy = passwordPolicy.Value;
@@ -67,6 +71,7 @@ public sealed class JwtAuthTokenService : IAuthTokenService
         _timeProvider = timeProvider;
         _rbacResolver = rbacResolver;
         _totpService = totpService;
+        _loginLogWriteService = loginLogWriteService;
     }
 
     public async Task<AuthTokenResult> CreateTokenAsync(
@@ -80,13 +85,15 @@ public sealed class JwtAuthTokenService : IAuthTokenService
         if (account is null)
         {
             await WriteAuditAsync(tenantId, request.Username, "LOGIN", "FAILED", null, context, cancellationToken);
+            await WriteLoginLogAsync(tenantId, request.Username, context, false, "用户名或密码错误", now, cancellationToken);
             throw new BusinessException("用户名或密码错误", ErrorCodes.Unauthorized);
         }
 
         if (!account.IsActive)
         {
             await WriteAuditAsync(tenantId, request.Username, "LOGIN", "FAILED", null, context, cancellationToken);
-            throw new BusinessException("账号已停用", ErrorCodes.Forbidden);
+            await WriteLoginLogAsync(tenantId, request.Username, context, false, "账号已停用", now, cancellationToken);
+            throw new BusinessException("用户名或密码错误", ErrorCodes.Forbidden);
         }
 
         var locked = IsLocked(account, now, out var lockStateChanged);
@@ -98,14 +105,16 @@ public sealed class JwtAuthTokenService : IAuthTokenService
         if (locked)
         {
             await WriteAuditAsync(tenantId, request.Username, "LOGIN", "LOCKED", null, context, cancellationToken);
-            throw new BusinessException("账号已锁定", ErrorCodes.AccountLocked);
+            await WriteLoginLogAsync(tenantId, request.Username, context, false, "账号已锁定", now, cancellationToken);
+            throw new BusinessException("用户名或密码错误", ErrorCodes.AccountLocked);
         }
 
         var passwordExpiredAt = account.LastPasswordChangeAt.AddDays(_passwordPolicy.ExpirationDays);
         if (passwordExpiredAt <= now)
         {
             await WriteAuditAsync(tenantId, request.Username, "LOGIN", "PASSWORD_EXPIRED", null, context, cancellationToken);
-            throw new BusinessException("密码已过期", ErrorCodes.PasswordExpired);
+            await WriteLoginLogAsync(tenantId, request.Username, context, false, "密码已过期", now, cancellationToken);
+            throw new BusinessException("用户名或密码错误", ErrorCodes.PasswordExpired);
         }
 
         var passwordValid = _passwordHasher.VerifyHashedPassword(account.PasswordHash, request.Password);
@@ -114,6 +123,7 @@ public sealed class JwtAuthTokenService : IAuthTokenService
             account.MarkLoginFailure(now, _lockoutPolicy.MaxFailedAttempts, TimeSpan.FromMinutes(_lockoutPolicy.LockoutMinutes));
             await _userAccountRepository.UpdateAsync(account, cancellationToken);
             await WriteAuditAsync(tenantId, request.Username, "LOGIN", "FAILED", null, context, cancellationToken);
+            await WriteLoginLogAsync(tenantId, request.Username, context, false, "密码错误", now, cancellationToken);
             throw new BusinessException("用户名或密码错误", ErrorCodes.Unauthorized);
         }
 
@@ -123,6 +133,7 @@ public sealed class JwtAuthTokenService : IAuthTokenService
             if (string.IsNullOrWhiteSpace(request.TotpCode))
             {
                 await WriteAuditAsync(tenantId, request.Username, "LOGIN", "MFA_REQUIRED", null, context, cancellationToken);
+                await WriteLoginLogAsync(tenantId, request.Username, context, false, "需要多因素认证验证码", now, cancellationToken);
                 throw new BusinessException("需要多因素认证验证码", ErrorCodes.MfaRequired);
             }
 
@@ -131,13 +142,15 @@ public sealed class JwtAuthTokenService : IAuthTokenService
                 account.MarkLoginFailure(now, _lockoutPolicy.MaxFailedAttempts, TimeSpan.FromMinutes(_lockoutPolicy.LockoutMinutes));
                 await _userAccountRepository.UpdateAsync(account, cancellationToken);
                 await WriteAuditAsync(tenantId, request.Username, "LOGIN", "MFA_FAILED", null, context, cancellationToken);
-                throw new BusinessException("多因素认证验证码错误", ErrorCodes.Unauthorized);
+                await WriteLoginLogAsync(tenantId, request.Username, context, false, "多因素认证验证码错误", now, cancellationToken);
+                throw new BusinessException("用户名或密码错误", ErrorCodes.Unauthorized);
             }
         }
 
         account.MarkLoginSuccess(now);
         await _userAccountRepository.UpdateAsync(account, cancellationToken);
         await WriteAuditAsync(tenantId, request.Username, "LOGIN", "SUCCESS", null, context, cancellationToken);
+        await WriteLoginLogAsync(tenantId, request.Username, context, true, null, now, cancellationToken);
 
         // Enforce concurrent session limit: revoke oldest sessions if at or over max
         if (_securityOptions.MaxConcurrentSessions > 0)
@@ -173,7 +186,7 @@ public sealed class JwtAuthTokenService : IAuthTokenService
             sessionId);
         await _authSessionRepository.AddAsync(session, cancellationToken);
 
-        var (refreshToken, refreshExpiresAt, refreshEntity) = CreateRefreshToken(account.Id, tenantId, sessionId, now);
+        var (refreshToken, refreshExpiresAt, refreshEntity) = CreateRefreshToken(account.Id, tenantId, sessionId, now, request.RememberMe);
         await _refreshTokenRepository.AddAsync(refreshEntity, cancellationToken);
 
         var appId = _appContextAccessor.GetAppId();
@@ -342,9 +355,13 @@ public sealed class JwtAuthTokenService : IAuthTokenService
         long userId,
         TenantId tenantId,
         long sessionId,
-        DateTimeOffset now)
+        DateTimeOffset now,
+        bool rememberMe = false)
     {
-        var refreshExpiresAt = now.AddMinutes(_jwtOptions.RefreshExpiresMinutes);
+        var expiryMinutes = rememberMe
+            ? _jwtOptions.RememberMeRefreshExpiresMinutes
+            : _jwtOptions.RefreshExpiresMinutes;
+        var refreshExpiresAt = now.AddMinutes(expiryMinutes);
         var tokenBytes = RandomNumberGenerator.GetBytes(64);
         var token = Base64UrlEncoder.Encode(tokenBytes);
         var hash = ComputeTokenHash(token);
@@ -441,6 +458,25 @@ public sealed class JwtAuthTokenService : IAuthTokenService
             context.ClientContext);
 
         return _auditRecorder.RecordAsync(auditContext, cancellationToken);
+    }
+
+    private Task WriteLoginLogAsync(
+        TenantId tenantId,
+        string username,
+        AuthRequestContext context,
+        bool success,
+        string? message,
+        DateTimeOffset loginTime,
+        CancellationToken cancellationToken)
+    {
+        var request = new LoginLogWriteRequest(
+            username,
+            context.IpAddress ?? string.Empty,
+            context.UserAgent,
+            success,
+            message,
+            loginTime);
+        return _loginLogWriteService.WriteAsync(tenantId, request, cancellationToken);
     }
 }
 

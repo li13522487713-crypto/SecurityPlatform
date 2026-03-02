@@ -14,6 +14,8 @@
   >
     <template #toolbar-actions>
       <a-button v-if="canCreate" type="primary" @click="handleOpenCreate">新增员工</a-button>
+      <a-button @click="handleExport" :loading="exporting">导出</a-button>
+      <a-button v-if="canCreate" @click="importModalVisible = true">导入</a-button>
     </template>
     <template #toolbar-right>
       <TableViewToolbar :controller="tableViewController" />
@@ -131,6 +133,59 @@
       </a-tabs>
     </template>
   </CrudPageLayout>
+
+  <!-- 导入用户弹窗 -->
+  <a-modal
+    v-model:open="importModalVisible"
+    title="批量导入用户"
+    @cancel="handleImportCancel"
+    :confirm-loading="importing"
+    @ok="handleImport"
+    ok-text="开始导入"
+    cancel-text="取消"
+    width="560px"
+  >
+    <div class="import-modal-body">
+      <a-alert
+        message="导入说明"
+        description="请先下载导入模板，按模板填写用户信息后上传。支持 .xlsx 格式，单次最多 1000 行。"
+        type="info"
+        show-icon
+        style="margin-bottom: 16px"
+      />
+      <div style="margin-bottom: 12px">
+        <a-button type="link" style="padding: 0" @click="downloadImportTemplate">
+          下载导入模板
+        </a-button>
+      </div>
+      <a-upload
+        accept=".xlsx"
+        :before-upload="(file: File) => { importFile = file; return false; }"
+        :max-count="1"
+        :show-upload-list="true"
+      >
+        <a-button>选择文件</a-button>
+      </a-upload>
+
+      <div v-if="importResult" style="margin-top: 16px">
+        <a-result
+          :status="importResult.failureCount === 0 ? 'success' : 'warning'"
+          :title="`导入完成：成功 ${importResult.successCount} 条，失败 ${importResult.failureCount} 条`"
+        />
+        <a-table
+          v-if="importResult.errors.length > 0"
+          :data-source="importResult.errors"
+          :pagination="false"
+          size="small"
+          :columns="[
+            { title: '行号', dataIndex: 'row', key: 'row', width: 70 },
+            { title: '字段', dataIndex: 'field', key: 'field', width: 100 },
+            { title: '错误信息', dataIndex: 'message', key: 'message' }
+          ]"
+        />
+      </div>
+    </div>
+  </a-modal>
 </template>
 
 <script setup lang="ts">
@@ -141,6 +196,8 @@ import CrudPageLayout from "@/components/crud/CrudPageLayout.vue";
 import TableViewToolbar from "@/components/table/table-view-toolbar.vue";
 import { useCrudPage } from "@/composables/useCrudPage";
 import { useSelectOptions } from "@/composables/useSelectOptions";
+import { useExcelExport } from "@/composables/useExcelExport";
+import type { ImportResult } from "@/composables/useExcelExport";
 import {
   createUser,
   deleteUser,
@@ -165,6 +222,42 @@ import type {
 } from "@/types/api";
 
 const activeTab = ref("basic");
+
+const { exporting, importing, exportUsers, downloadImportTemplate, importUsers } = useExcelExport();
+const importModalVisible = ref(false);
+const importFile = ref<File | null>(null);
+const importResult = ref<ImportResult | null>(null);
+
+const handleExport = () => exportUsers(keyword.value);
+
+const handleImportFileChange = (info: { file: File }) => {
+  importFile.value = info.file;
+};
+
+const handleImport = async () => {
+  if (!importFile.value) {
+    message.warning("请选择要导入的文件");
+    return;
+  }
+  importResult.value = await importUsers(importFile.value);
+  if (importResult.value) {
+    if (importResult.value.failureCount === 0) {
+      message.success(`导入成功，共 ${importResult.value.successCount} 条`);
+      importModalVisible.value = false;
+    } else {
+      message.warning(
+        `导入完成：成功 ${importResult.value.successCount} 条，失败 ${importResult.value.failureCount} 条`
+      );
+    }
+    fetchData();
+  }
+};
+
+const handleImportCancel = () => {
+  importModalVisible.value = false;
+  importFile.value = null;
+  importResult.value = null;
+};
 
 // Select options via reusable composable
 const roles = useSelectOptions<RoleListItem>({

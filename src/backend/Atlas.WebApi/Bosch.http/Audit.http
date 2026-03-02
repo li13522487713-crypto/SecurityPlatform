@@ -3,7 +3,7 @@
 @username = admin
 @password = P@ssw0rd!
 
-### Login to get token (Execute this first)
+### 1. Login to get token (Execute this first)
 # @name login
 POST {{baseUrl}}/api/v1/auth/token
 Content-Type: application/json
@@ -17,8 +17,84 @@ X-Tenant-Id: {{tenantId}}
 ###
 @accessToken = {{login.response.body.$.data.accessToken}}
 
-### Get Audits (Paged)
+### 2. 查询审计日志列表（分页）
 GET {{baseUrl}}/api/v1/audit?pageIndex=1&pageSize=10
 Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 3. 查询审计日志列表（第2页）
+GET {{baseUrl}}/api/v1/audit?pageIndex=2&pageSize=10
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 4. 查询审计日志列表（每页20条）
+GET {{baseUrl}}/api/v1/audit?pageIndex=1&pageSize=20
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 5. 登录失败测试（触发审计日志记录）
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "{{username}}",
+  "password": "WrongPassword@123"
+}
+
+### 6. 修改密码（触发审计日志记录）
+PUT {{baseUrl}}/api/v1/auth/password
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "currentPassword": "{{password}}",
+  "newPassword": "{{password}}",
+  "confirmPassword": "{{password}}"
+}
+
+### 7. 退出登录（触发审计日志记录）
+POST {{baseUrl}}/api/v1/auth/logout
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 8. 重新登录以查看新的审计日志
+# @name login2
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+###
+@accessToken2 = {{login2.response.body.$.data.accessToken}}
+
+### 9. 查询最新的审计日志（应包含登录失败、密码修改、退出登录等记录）
+GET {{baseUrl}}/api/v1/audit?pageIndex=1&pageSize=50
+Authorization: Bearer {{accessToken2}}
+X-Tenant-Id: {{tenantId}}
+
+### 10. 验证审计日志内容完整性
+# 手动检查响应中的审计记录应包含：
+# - Actor: 操作人（用户名）
+# - Action: 操作类型（LOGIN, LOGOUT, CHANGE_PASSWORD等）
+# - Result: 操作结果（SUCCESS, FAILED, LOCKED等）
+# - IpAddress: IP地址
+# - UserAgent: 用户代理
+# - OccurredAt: 发生时间
+# - ClientType, ClientPlatform, ClientChannel, ClientAgent: 客户端信息
+
+### 11. 测试分页参数边界值
+GET {{baseUrl}}/api/v1/audit?pageIndex=1&pageSize=100
+Authorization: Bearer {{accessToken2}}
+X-Tenant-Id: {{tenantId}}
+
+### 12. 测试小分页（每页1条）
+GET {{baseUrl}}/api/v1/audit?pageIndex=1&pageSize=1
+Authorization: Bearer {{accessToken2}}
 X-Tenant-Id: {{tenantId}}
 

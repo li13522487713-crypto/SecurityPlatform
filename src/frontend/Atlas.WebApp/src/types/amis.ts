@@ -19,6 +19,7 @@ export interface AmisEnv {
   notify: (type: "info" | "success" | "warning" | "error", msg: string) => void;
   alert: (msg: string) => void;
   confirm: (msg: string) => Promise<boolean>;
+  locale?: string;
 }
 
 export type AmisSchema = Record<string, unknown>;

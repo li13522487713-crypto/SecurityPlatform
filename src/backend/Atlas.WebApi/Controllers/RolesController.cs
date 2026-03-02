@@ -1,6 +1,7 @@
 using Atlas.Application.Identity.Abstractions;
 using Atlas.Application.Identity.Models;
 using Atlas.Application.Identity;
+using Atlas.Core.Enums;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using FluentValidation;
@@ -130,7 +131,21 @@ public sealed class RolesController : ControllerBase
         await _roleCommandService.DeleteAsync(tenantId, id, cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
     }
+
+    [HttpPut("{id:long}/data-scope")]
+    [Authorize(Policy = PermissionPolicies.RolesUpdate)]
+    public async Task<ActionResult<ApiResponse<object>>> SetDataScope(
+        long id,
+        [FromBody] SetDataScopeRequest request,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        await _roleCommandService.SetDataScopeAsync(tenantId, id, (DataScopeType)request.DataScope, cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
+    }
 }
+
+public sealed record SetDataScopeRequest(int DataScope);
 
 
 

@@ -100,3 +100,59 @@
 - 可配合前端提供 CSS 样式变量/Ant Design 主题 `token` 如 `colorPrimary`, `borderRadius`, `controlHeightLG`。  
 
 如需我继续给出 Figma 布局草图细化、error-state flowchart 或交互动画建议，只需告诉我。  
+
+---
+
+## 9. 验证码后端实现规格（Phase 2 补充）
+
+### 9.1 API
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/v1/auth/captcha` | 获取图形验证码（返回 captchaKey + base64 图片） |
+| POST | `/api/v1/auth/token` | 登录时附带 `captchaKey` + `captchaCode` 字段 |
+
+### 9.2 流程
+
+1. 前端调用 `GET /auth/captcha`，服务端使用 `SixLabors.ImageSharp` 生成图形验证码（4位字符），将答案存入 `IMemoryCache`，键为随机 UUID（captchaKey），有效期 5 分钟。
+2. 前端显示图片，用户输入后在登录请求中附带 `captchaKey` 和 `captchaCode`。
+3. 服务端校验：若连续失败次数 ≥ 3 次（可配置），要求验证码；验证码校验通过后从缓存中移除（一次性使用）。
+4. 等保2.0要求：验证码为防暴力破解的必要措施，触发条件和有效期均应可配置。
+
+### 9.3 AuthTokenRequest 扩展
+
+```csharp
+// CaptchaKey 和 CaptchaCode 为可选，服务端根据 loginFailCount 决定是否校验
+public sealed record AuthTokenRequest(
+    string Username,
+    string Password,
+    string? TotpCode = null,
+    string? CaptchaKey = null,
+    string? CaptchaCode = null,
+    bool RememberMe = false);
+```
+
+### 9.4 验证码触发阈值
+
+在 `SecurityOptions` 中增加 `CaptchaThreshold`（默认 3），即连续失败次数达到阈值后要求验证码。
+
+---
+
+## 10. 记住我（Remember Me）规格（Phase 2 补充）
+
+### 10.1 功能说明
+
+- 勾选"记住我"后，refreshToken 有效期延长（默认 30 天，普通 7 天）。
+- accessToken 有效期不变（短期，默认 30 分钟）。
+- 等保2.0：Remember Me 有效期应有上限（不超过 30 天），且须在安全审计日志中注明。
+
+### 10.2 实现方式
+
+- `AuthTokenRequest` 增加 `RememberMe` 字段（bool，默认 false）。
+- `JwtOptions` 增加 `RememberMeRefreshExpiresMinutes`（默认 43200 = 30 天）。
+- 在 `JwtAuthTokenService.CreateRefreshToken` 中根据 `rememberMe` 参数选择刷新令牌有效期。
+
+### 10.3 前端
+
+- 登录表单增加"记住我"复选框（`a-checkbox`），状态存入 `localStorage`。
+- 勾选后在登录请求体中设置 `rememberMe: true`。

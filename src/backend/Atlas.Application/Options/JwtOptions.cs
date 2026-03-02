@@ -1,4 +1,4 @@
-﻿namespace Atlas.Application.Options;
+namespace Atlas.Application.Options;
 
 public sealed class JwtOptions
 {
@@ -8,4 +8,7 @@ public sealed class JwtOptions
     public int ExpiresMinutes { get; init; } = 15;
     public int RefreshExpiresMinutes { get; init; } = 720;
     public int SessionExpiresMinutes { get; init; } = 720;
+
+    /// <summary>记住我时 RefreshToken 有效期（分钟），默认 30 天</summary>
+    public int RememberMeRefreshExpiresMinutes { get; init; } = 43200;
 }

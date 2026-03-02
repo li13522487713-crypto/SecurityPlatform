@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:element name="root" msdata:IsDataSet="true">
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
+
+  <data name="InvalidCredentials" xml:space="preserve">
+    <value>Invalid username or password.</value>
+  </data>
+  <data name="AccountLocked" xml:space="preserve">
+    <value>Account is locked. Please try again later.</value>
+  </data>
+  <data name="CaptchaInvalid" xml:space="preserve">
+    <value>Captcha is invalid or expired.</value>
+  </data>
+  <data name="Unauthorized" xml:space="preserve">
+    <value>Unauthorized. Please log in first.</value>
+  </data>
+  <data name="Forbidden" xml:space="preserve">
+    <value>Access denied. Insufficient permissions.</value>
+  </data>
+  <data name="NotFound" xml:space="preserve">
+    <value>The requested resource was not found.</value>
+  </data>
+  <data name="ValidationError" xml:space="preserve">
+    <value>Validation failed.</value>
+  </data>
+  <data name="InternalError" xml:space="preserve">
+    <value>An internal server error occurred. Please contact the administrator.</value>
+  </data>
+  <data name="RoleCodeExists" xml:space="preserve">
+    <value>Role code already exists.</value>
+  </data>
+  <data name="SystemRoleCannotDelete" xml:space="preserve">
+    <value>System roles cannot be deleted.</value>
+  </data>
+  <data name="BuiltInConfigCannotModify" xml:space="preserve">
+    <value>Built-in configuration cannot be modified.</value>
+  </data>
+  <data name="FileTooLarge" xml:space="preserve">
+    <value>File size exceeds the allowed limit.</value>
+  </data>
+  <data name="FileTypeNotAllowed" xml:space="preserve">
+    <value>File type is not allowed.</value>
+  </data>
+</root>

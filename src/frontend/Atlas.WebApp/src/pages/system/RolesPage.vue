@@ -130,6 +130,24 @@
               @focus="() => loadMenuOptions()"
             />
           </a-tab-pane>
+          <a-tab-pane key="data-scope" tab="数据权限">
+            <a-alert
+              message="数据权限控制该角色可查看的数据范围（等保2.0 最小化授权原则）"
+              type="info"
+              show-icon
+              style="margin-bottom: 16px"
+            />
+            <a-radio-group v-model:value="assignModel.dataScope" button-style="solid">
+              <a-radio-button :value="1">当前租户全部</a-radio-button>
+              <a-radio-button :value="2">仅本人</a-radio-button>
+              <a-radio-button :value="0">全部数据（超管）</a-radio-button>
+            </a-radio-group>
+            <div style="margin-top: 12px; color: #888; font-size: 12px;">
+              <p>• <b>当前租户全部</b>：可查看本租户内所有数据（默认）</p>
+              <p>• <b>仅本人</b>：只能查看自己创建/拥有的数据</p>
+              <p>• <b>全部数据</b>：不受租户限制，仅超级管理员使用</p>
+            </div>
+          </a-tab-pane>
         </a-tabs>
         <template #footer>
           <a-space>
@@ -157,6 +175,7 @@ import {
   updateRole,
   updateRolePermissions,
   updateRoleMenus,
+  setRoleDataScope,
   getPermissionsPaged,
   getMenusPaged
 } from "@/services/api";
@@ -254,7 +273,8 @@ const assignTab = ref("permissions");
 const assignRoleId = ref<string | null>(null);
 const assignModel = reactive({
   permissionIds: [] as number[],
-  menuIds: [] as number[]
+  menuIds: [] as number[],
+  dataScope: 1 as number
 });
 
 const permissionOptions = ref<SelectOption[]>([]);
@@ -322,6 +342,7 @@ const openAssign = async (record: RoleListItem) => {
     const detail = await getRoleDetail(record.id);
     assignModel.permissionIds = detail.permissionIds?.slice() ?? [];
     assignModel.menuIds = detail.menuIds?.slice() ?? [];
+    assignModel.dataScope = (detail as unknown as { dataScope?: number }).dataScope ?? 1;
   } catch (error) {
     message.error((error as Error).message || "加载角色详情失败");
   }
@@ -334,12 +355,16 @@ const closeAssign = () => {
 const submitAssign = async () => {
   if (!assignRoleId.value) return;
   try {
+    const tasks: Promise<unknown>[] = [];
     if (canAssignPermissions) {
-      await updateRolePermissions(assignRoleId.value, { permissionIds: assignModel.permissionIds });
+      tasks.push(updateRolePermissions(assignRoleId.value, { permissionIds: assignModel.permissionIds }));
     }
     if (canAssignMenus) {
-      await updateRoleMenus(assignRoleId.value, { menuIds: assignModel.menuIds });
+      tasks.push(updateRoleMenus(assignRoleId.value, { menuIds: assignModel.menuIds }));
     }
+    // 保存数据权限
+    tasks.push(setRoleDataScope(assignRoleId.value, assignModel.dataScope));
+    await Promise.all(tasks);
     message.success("权限配置已更新");
     assignVisible.value = false;
   } catch (error) {
