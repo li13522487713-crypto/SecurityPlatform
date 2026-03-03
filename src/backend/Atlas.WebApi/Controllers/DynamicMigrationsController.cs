@@ -87,4 +87,33 @@ public sealed class DynamicMigrationsController : ControllerBase
         var preview = await _migrationService.DetectChangesAsync(tenantId, tableKey, request, cancellationToken);
         return Ok(ApiResponse<MigrationScriptPreview>.Ok(preview, HttpContext.TraceIdentifier));
     }
+
+    [HttpPost("{id:long}/execute")]
+    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    public async Task<ActionResult<ApiResponse<MigrationExecutionResult>>> Execute(
+        long id,
+        CancellationToken cancellationToken)
+    {
+        var currentUser = _currentUserAccessor.GetCurrentUser();
+        if (currentUser is null)
+        {
+            return Unauthorized(ApiResponse<MigrationExecutionResult>.Fail(
+                ErrorCodes.Unauthorized,
+                "未登录",
+                HttpContext.TraceIdentifier));
+        }
+
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _migrationService.ExecuteAsync(tenantId, currentUser.UserId, id, cancellationToken);
+        return Ok(ApiResponse<MigrationExecutionResult>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost("{id:long}/retry")]
+    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    public Task<ActionResult<ApiResponse<MigrationExecutionResult>>> Retry(
+        long id,
+        CancellationToken cancellationToken)
+    {
+        return Execute(id, cancellationToken);
+    }
 }

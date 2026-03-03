@@ -963,6 +963,8 @@ JWT Claims（新增）：
 - `GET /api/v1/dynamic-migrations/{id}`：迁移记录详情
 - `POST /api/v1/dynamic-migrations`：创建迁移草稿记录（需幂等 + CSRF）
 - `POST /api/v1/dynamic-migrations/detect/{tableKey}`：检测结构变更并生成预览脚本（需幂等 + CSRF）
+- `POST /api/v1/dynamic-migrations/{id}/execute`：执行迁移（需幂等 + CSRF）
+- `POST /api/v1/dynamic-migrations/{id}/retry`：重试迁移（需幂等 + CSRF）
 
 ```json
 {
@@ -983,6 +985,19 @@ JWT Claims（新增）：
   "downScript": "-- no-op",
   "isDestructive": false,
   "warnings": []
+}
+```
+
+`execute/retry` 响应：
+
+```json
+{
+  "id": "1001",
+  "tableKey": "orders",
+  "version": 1,
+  "status": "Succeeded",
+  "executedAt": "2026-03-03T12:00:00Z",
+  "errorMessage": null
 }
 ```
 

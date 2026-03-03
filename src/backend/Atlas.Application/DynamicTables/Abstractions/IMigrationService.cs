@@ -28,4 +28,10 @@ public interface IMigrationService
         string tableKey,
         DynamicTableAlterRequest request,
         CancellationToken cancellationToken);
+
+    Task<MigrationExecutionResult> ExecuteAsync(
+        TenantId tenantId,
+        long userId,
+        long migrationId,
+        CancellationToken cancellationToken);
 }

@@ -9,26 +9,33 @@ using Atlas.Domain.DynamicTables.Enums;
 using Atlas.Domain.DynamicTables.Entities;
 using Atlas.Infrastructure.DynamicTables;
 using System.Text;
+using System.Collections.Concurrent;
+using SqlSugar;
 
 namespace Atlas.Infrastructure.Services;
 
 public sealed class MigrationService : IMigrationService
 {
+    private static readonly ConcurrentDictionary<string, SemaphoreSlim> TableLocks = new();
+
     private readonly IMigrationRecordRepository _migrationRecordRepository;
     private readonly IDynamicTableRepository _dynamicTableRepository;
     private readonly IDynamicFieldRepository _dynamicFieldRepository;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
+    private readonly ISqlSugarClient _db;
 
     public MigrationService(
         IMigrationRecordRepository migrationRecordRepository,
         IDynamicTableRepository dynamicTableRepository,
         IDynamicFieldRepository dynamicFieldRepository,
-        IIdGeneratorAccessor idGeneratorAccessor)
+        IIdGeneratorAccessor idGeneratorAccessor,
+        ISqlSugarClient db)
     {
         _migrationRecordRepository = migrationRecordRepository;
         _dynamicTableRepository = dynamicTableRepository;
         _dynamicFieldRepository = dynamicFieldRepository;
         _idGeneratorAccessor = idGeneratorAccessor;
+        _db = db;
     }
 
     public async Task<PagedResult<MigrationRecordListItem>> QueryAsync(
@@ -202,6 +209,52 @@ public sealed class MigrationService : IMigrationService
             downScript,
             isDestructive,
             warnings);
+    }
+
+    public async Task<MigrationExecutionResult> ExecuteAsync(
+        TenantId tenantId,
+        long userId,
+        long migrationId,
+        CancellationToken cancellationToken)
+    {
+        var migration = await _migrationRecordRepository.FindByIdAsync(tenantId, migrationId, cancellationToken);
+        if (migration is null)
+        {
+            throw new BusinessException("迁移记录不存在。", ErrorCodes.NotFound);
+        }
+
+        var lockKey = $"{tenantId.Value:D}:{migration.TableKey}";
+        var tableLock = TableLocks.GetOrAdd(lockKey, _ => new SemaphoreSlim(1, 1));
+        await tableLock.WaitAsync(cancellationToken);
+        try
+        {
+            var now = DateTimeOffset.UtcNow;
+            migration.MarkExecuting(userId, now);
+            await _migrationRecordRepository.UpdateAsync(migration, cancellationToken);
+
+            try
+            {
+                await _db.Ado.ExecuteCommandAsync(migration.UpScript, cancellationToken);
+                migration.MarkSucceeded(userId, DateTimeOffset.UtcNow);
+            }
+            catch (Exception ex)
+            {
+                migration.MarkFailed(ex.Message, userId, DateTimeOffset.UtcNow);
+            }
+
+            await _migrationRecordRepository.UpdateAsync(migration, cancellationToken);
+            return new MigrationExecutionResult(
+                migration.Id.ToString(),
+                migration.TableKey,
+                migration.Version,
+                migration.Status,
+                migration.ExecutedAt,
+                migration.ErrorMessage);
+        }
+        finally
+        {
+            tableLock.Release();
+        }
     }
 
     private static string BuildAddColumnSql(DynamicTable table, DynamicFieldDefinition field)

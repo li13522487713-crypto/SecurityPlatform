@@ -84,3 +84,17 @@ X-Tenant-Id: {{tenantId}}
 GET {{baseUrl}}/api/v1/dynamic-migrations/{{migrationId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
+
+### Execute migration
+POST {{baseUrl}}/api/v1/dynamic-migrations/{{migrationId}}/execute
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+### Retry migration
+POST {{baseUrl}}/api/v1/dynamic-migrations/{{migrationId}}/retry
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}

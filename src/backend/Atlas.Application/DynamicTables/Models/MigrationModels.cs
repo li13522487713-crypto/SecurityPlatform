@@ -40,3 +40,11 @@ public sealed record MigrationScriptPreview(
     string? DownScript,
     bool IsDestructive,
     IReadOnlyList<string> Warnings);
+
+public sealed record MigrationExecutionResult(
+    string Id,
+    string TableKey,
+    int Version,
+    string Status,
+    DateTimeOffset? ExecutedAt,
+    string? ErrorMessage);
