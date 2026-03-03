@@ -39,6 +39,7 @@
             >
               <a-button type="link" size="small">立即执行</a-button>
             </a-popconfirm>
+            <a-button type="link" size="small" @click="openExecutionHistory(record)">执行历史</a-button>
             <a-popconfirm
               v-if="record.isEnabled"
               title="确认禁用该任务？"
@@ -48,10 +49,62 @@
             >
               <a-button type="link" size="small" danger>禁用</a-button>
             </a-popconfirm>
+            <a-popconfirm
+              v-else
+              title="确认启用该任务？"
+              ok-text="启用"
+              cancel-text="取消"
+              @confirm="handleEnable(record.id)"
+            >
+              <a-button type="link" size="small">启用</a-button>
+            </a-popconfirm>
           </a-space>
         </template>
       </template>
     </a-table>
+
+    <a-drawer
+      v-model:open="historyDrawerVisible"
+      :title="historyDrawerTitle"
+      placement="right"
+      width="760"
+      :destroy-on-close="true"
+    >
+      <a-table
+        :columns="historyColumns"
+        :data-source="executionHistoryItems"
+        :loading="historyLoading"
+        row-key="jobId"
+        :pagination="{
+          total: historyTotal,
+          current: historyPageIndex,
+          pageSize: historyPageSize,
+          showQuickJumper: true,
+          onChange: onHistoryPageChange
+        }"
+      >
+        <template #bodyCell="{ column, record }">
+          <template v-if="column.key === 'state'">
+            <a-tag :color="statusColor(record.state)">{{ record.state ?? '-' }}</a-tag>
+          </template>
+          <template v-else-if="column.key === 'createdAt'">
+            {{ record.createdAt ? formatTime(record.createdAt) : '-' }}
+          </template>
+          <template v-else-if="column.key === 'startedAt'">
+            {{ record.startedAt ? formatTime(record.startedAt) : '-' }}
+          </template>
+          <template v-else-if="column.key === 'finishedAt'">
+            {{ record.finishedAt ? formatTime(record.finishedAt) : '-' }}
+          </template>
+          <template v-else-if="column.key === 'durationMilliseconds'">
+            {{ typeof record.durationMilliseconds === 'number' ? `${record.durationMilliseconds} ms` : '-' }}
+          </template>
+          <template v-else-if="column.key === 'errorMessage'">
+            <span class="error-message">{{ record.errorMessage || '-' }}</span>
+          </template>
+        </template>
+      </a-table>
+    </a-drawer>
   </div>
 </template>
 
@@ -72,11 +125,29 @@ interface ScheduledJobDto {
   nextRunAt?: string;
 }
 
+interface ScheduledJobExecutionDto {
+  jobId: string;
+  createdAt?: string;
+  startedAt?: string;
+  finishedAt?: string;
+  durationMilliseconds?: number;
+  state?: string;
+  errorMessage?: string;
+}
+
 const loading = ref(false);
 const items = ref<ScheduledJobDto[]>([]);
 const total = ref(0);
 const pageIndex = ref(1);
 const pageSize = ref(20);
+const historyDrawerVisible = ref(false);
+const historyDrawerTitle = ref("执行历史");
+const selectedHistoryJobId = ref<string>("");
+const historyLoading = ref(false);
+const executionHistoryItems = ref<ScheduledJobExecutionDto[]>([]);
+const historyTotal = ref(0);
+const historyPageIndex = ref(1);
+const historyPageSize = ref(10);
 
 const columns = [
   { title: "任务 ID", dataIndex: "id", key: "id" },
@@ -87,6 +158,16 @@ const columns = [
   { title: "上次状态", key: "lastRunStatus" },
   { title: "下次执行", key: "nextRunAt" },
   { title: "操作", key: "actions" }
+];
+
+const historyColumns = [
+  { title: "执行实例ID", dataIndex: "jobId", key: "jobId", width: 180 },
+  { title: "状态", key: "state", width: 120 },
+  { title: "创建时间", key: "createdAt", width: 170 },
+  { title: "开始时间", key: "startedAt", width: 170 },
+  { title: "结束时间", key: "finishedAt", width: 170 },
+  { title: "耗时", key: "durationMilliseconds", width: 120 },
+  { title: "错误信息", key: "errorMessage" }
 ];
 
 const load = async () => {
@@ -128,6 +209,46 @@ const handleDisable = async (jobId: string) => {
   }
 };
 
+const handleEnable = async (jobId: string) => {
+  try {
+    await requestApi<ApiResponse<object>>(`/scheduled-jobs/${jobId}/enable`, { method: "PUT" });
+    message.success("已启用");
+    load();
+  } catch {
+    message.error("操作失败");
+  }
+};
+
+const loadExecutionHistory = async () => {
+  if (!selectedHistoryJobId.value) return;
+  historyLoading.value = true;
+  try {
+    const query = `?pageIndex=${historyPageIndex.value}&pageSize=${historyPageSize.value}`;
+    const response = await requestApi<ApiResponse<PagedResult<ScheduledJobExecutionDto>>>(
+      `/scheduled-jobs/${selectedHistoryJobId.value}/executions${query}`
+    );
+    executionHistoryItems.value = response.data?.items ?? [];
+    historyTotal.value = response.data?.total ?? 0;
+  } catch (e: unknown) {
+    message.error(e instanceof Error ? e.message : "加载执行历史失败");
+  } finally {
+    historyLoading.value = false;
+  }
+};
+
+const openExecutionHistory = (job: ScheduledJobDto) => {
+  selectedHistoryJobId.value = job.id;
+  historyDrawerTitle.value = `执行历史 - ${job.id}`;
+  historyPageIndex.value = 1;
+  historyDrawerVisible.value = true;
+  loadExecutionHistory();
+};
+
+const onHistoryPageChange = (page: number) => {
+  historyPageIndex.value = page;
+  loadExecutionHistory();
+};
+
 const statusColor = (status?: string) => {
   const map: Record<string, string> = {
     Succeeded: "green",
@@ -154,4 +275,8 @@ onMounted(load);
   margin-bottom: 20px;
 }
 .page-title { margin: 0; font-size: 18px; font-weight: 600; }
+
+.error-message {
+  color: #cf1322;
+}
 </style>

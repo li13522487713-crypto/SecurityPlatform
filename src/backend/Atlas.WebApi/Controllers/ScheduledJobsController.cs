@@ -81,6 +81,18 @@ public sealed class ScheduledJobsController : ControllerBase
         return Ok(ApiResponse<object>.Ok(new { jobId }, HttpContext.TraceIdentifier));
     }
 
+    [HttpGet("{jobId}/executions")]
+    [Authorize(Policy = PermissionPolicies.JobView)]
+    public async Task<ActionResult<ApiResponse<PagedResult<ScheduledJobExecutionDto>>>> GetExecutions(
+        string jobId,
+        [FromQuery] int pageIndex = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _jobService.GetExecutionsPagedAsync(jobId, pageIndex, pageSize, cancellationToken);
+        return Ok(ApiResponse<PagedResult<ScheduledJobExecutionDto>>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
     private async Task RecordAuditAsync(string action, string target, CancellationToken ct)
     {
         var currentUser = _currentUserAccessor.GetCurrentUser();
