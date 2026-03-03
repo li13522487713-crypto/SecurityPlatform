@@ -23,6 +23,11 @@ GET {{baseUrl}}/api/v1/approval/instances/my?pageIndex=1&pageSize=10&status=Runn
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 
+### 管理端实例分页查询（支持流程/状态/发起人/时间区间过滤）
+GET {{baseUrl}}/api/v1/approval/instances/admin?pageIndex=1&pageSize=10&definitionId={definitionId}&status=Running&initiatorUserId={initiatorUserId}&businessKey=leave&startedFrom=2026-01-01T00:00:00Z&startedTo=2026-12-31T23:59:59Z
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
 ### 获取流程实例详情（需要权限: approval:flow:view）
 GET {{baseUrl}}/api/v1/approval/instances/{instanceId}
 Authorization: Bearer {{token}}

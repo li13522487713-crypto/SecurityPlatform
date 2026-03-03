@@ -121,3 +121,41 @@ Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Idempotency-Key: {{$guid}}
 X-CSRF-TOKEN: {{csrfToken}}
+
+### 复制流程定义为新草稿
+POST {{baseUrl}}/api/v1/approval/flows/{flowId}/copy
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "name": "请假审批流程-复制版"
+}
+
+### 导出流程定义 JSON
+GET {{baseUrl}}/api/v1/approval/flows/{flowId}/export
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### 导入流程定义 JSON 为草稿
+POST {{baseUrl}}/api/v1/approval/flows/import
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "name": "导入的采购流程",
+  "category": "采购",
+  "description": "由导出 JSON 导入",
+  "isQuickEntry": false,
+  "definitionJson": "{\"meta\":{\"flowName\":\"导入的采购流程\"},\"nodes\":{\"rootNode\":{\"nodeId\":\"start_1\",\"nodeType\":\"start\",\"nodeName\":\"发起人\",\"childNode\":{\"nodeId\":\"approve_1\",\"nodeType\":\"approve\",\"nodeName\":\"采购负责人\",\"approverConfig\":{\"setType\":1,\"signType\":1,\"noHeaderAction\":0,\"nodeApproveList\":[{\"targetId\":\"buyer-role\",\"name\":\"采购负责人\"}]},\"childNode\":{\"nodeId\":\"end_1\",\"nodeType\":\"end\",\"nodeName\":\"结束\"}}}}}"
+}
+
+### 版本对比（按流程名 + 版本号）
+GET {{baseUrl}}/api/v1/approval/flows/{flowId}/versions/{targetVersion}/compare
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
