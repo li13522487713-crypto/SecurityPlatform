@@ -1,12 +1,12 @@
 <template>
   <div class="page-container">
     <div class="page-header">
-      <h2 class="page-title">服务监控</h2>
+      <h2 class="page-title">{{ t("monitorServer.title") }}</h2>
       <div class="header-actions">
         <a-tag color="green" v-if="!loading">
-          <ClockCircleOutlined /> 每 30 秒自动刷新
+          <ClockCircleOutlined /> {{ t("monitorServer.autoRefresh") }}
         </a-tag>
-        <a-button :loading="loading" @click="load">立即刷新</a-button>
+        <a-button :loading="loading" @click="load">{{ t("monitorServer.refreshNow") }}</a-button>
       </div>
     </div>
 
@@ -14,9 +14,9 @@
       <a-row :gutter="[16, 16]" v-if="info">
         <!-- CPU -->
         <a-col :xs="24" :md="12" :lg="6">
-          <a-card title="CPU">
+          <a-card :title="t('monitorServer.cardCpu')">
             <a-statistic
-              title="逻辑核心数"
+              :title="t('monitorServer.logicalCores')"
               :value="info.cpu.logicalCores"
               suffix="核"
             />
@@ -25,15 +25,15 @@
               :stroke-color="progressColor(info.cpu.processCpuUsagePercent)"
               style="margin-top: 12px"
             />
-            <div class="stat-label">进程 CPU 使用率</div>
+            <div class="stat-label">{{ t("monitorServer.processCpuUsage") }}</div>
           </a-card>
         </a-col>
 
         <!-- 内存 -->
         <a-col :xs="24" :md="12" :lg="6">
-          <a-card title="内存">
+          <a-card :title="t('monitorServer.cardMemory')">
             <a-statistic
-              title="总内存"
+              :title="t('monitorServer.totalMemory')"
               :value="formatBytes(info.memory.totalBytes)"
             />
             <a-progress
@@ -42,31 +42,33 @@
               style="margin-top: 12px"
             />
             <div class="stat-label">
-              已用 {{ formatBytes(info.memory.usedBytes) }} /
-              可用 {{ formatBytes(info.memory.availableBytes) }}
+              {{ t("monitorServer.usedAvailable", {
+                used: formatBytes(info.memory.usedBytes),
+                available: formatBytes(info.memory.availableBytes)
+              }) }}
             </div>
           </a-card>
         </a-col>
 
         <!-- 运行时 -->
         <a-col :xs="24" :md="12" :lg="12">
-          <a-card title="运行时信息">
+          <a-card :title="t('monitorServer.runtimeInfo')">
             <a-descriptions :column="2" size="small">
-              <a-descriptions-item label=".NET 版本">{{ info.runtime.dotNetVersion }}</a-descriptions-item>
-              <a-descriptions-item label="操作系统">{{ info.runtime.osDescription }}</a-descriptions-item>
-              <a-descriptions-item label="主机名">{{ info.runtime.machineName }}</a-descriptions-item>
-              <a-descriptions-item label="进程 ID">{{ info.runtime.processId }}</a-descriptions-item>
-              <a-descriptions-item label="线程数">{{ info.runtime.threadCount }}</a-descriptions-item>
-              <a-descriptions-item label="GC 内存">{{ formatBytes(info.runtime.gcMemoryBytes) }}</a-descriptions-item>
-              <a-descriptions-item label="启动时间">{{ formatTime(info.runtime.startedAt) }}</a-descriptions-item>
-              <a-descriptions-item label="运行时长">{{ info.runtime.uptime }}</a-descriptions-item>
+              <a-descriptions-item :label="t('monitorServer.dotnetVersion')">{{ info.runtime.dotNetVersion }}</a-descriptions-item>
+              <a-descriptions-item :label="t('monitorServer.osDescription')">{{ info.runtime.osDescription }}</a-descriptions-item>
+              <a-descriptions-item :label="t('monitorServer.machineName')">{{ info.runtime.machineName }}</a-descriptions-item>
+              <a-descriptions-item :label="t('monitorServer.processId')">{{ info.runtime.processId }}</a-descriptions-item>
+              <a-descriptions-item :label="t('monitorServer.threadCount')">{{ info.runtime.threadCount }}</a-descriptions-item>
+              <a-descriptions-item :label="t('monitorServer.gcMemory')">{{ formatBytes(info.runtime.gcMemoryBytes) }}</a-descriptions-item>
+              <a-descriptions-item :label="t('monitorServer.startedAt')">{{ formatTime(info.runtime.startedAt) }}</a-descriptions-item>
+              <a-descriptions-item :label="t('monitorServer.uptime')">{{ info.runtime.uptime }}</a-descriptions-item>
             </a-descriptions>
           </a-card>
         </a-col>
 
         <!-- 磁盘 -->
         <a-col :span="24">
-          <a-card title="磁盘信息">
+          <a-card :title="t('monitorServer.diskInfo')">
             <a-row :gutter="[16, 16]">
               <a-col
                 v-for="disk in info.disks"
@@ -84,8 +86,10 @@
                     size="small"
                   />
                   <div class="disk-meta">
-                    已用 {{ formatBytes(disk.usedBytes) }} /
-                    总计 {{ formatBytes(disk.totalBytes) }}
+                    {{ t("monitorServer.usedTotal", {
+                      used: formatBytes(disk.usedBytes),
+                      total: formatBytes(disk.totalBytes)
+                    }) }}
                   </div>
                 </div>
               </a-col>
@@ -95,13 +99,13 @@
 
         <!-- 依赖健康 -->
         <a-col :span="24">
-          <a-card title="依赖健康状态">
+          <a-card :title="t('monitorServer.healthTitle')">
             <div class="health-header">
               <a-tag :color="healthTagColor(healthInfo?.status)">
                 {{ healthInfo?.status ?? "未知" }}
               </a-tag>
               <span class="health-checked-at" v-if="healthInfo?.checkedAt">
-                检测时间：{{ formatTime(healthInfo.checkedAt) }}
+                {{ t("monitorServer.checkedAt", { time: formatTime(healthInfo.checkedAt) }) }}
               </span>
             </div>
             <a-table
@@ -115,7 +119,7 @@
               <template #bodyCell="{ column, record }">
                 <template v-if="column.key === 'healthy'">
                   <a-tag :color="record.healthy ? 'green' : 'red'">
-                    {{ record.healthy ? "Healthy" : "Unhealthy" }}
+                    {{ record.healthy ? t("monitorServer.healthy") : t("monitorServer.unhealthy") }}
                   </a-tag>
                 </template>
               </template>
@@ -125,18 +129,18 @@
 
         <!-- 链路入口 -->
         <a-col :span="24">
-          <a-card title="观测链路入口">
+          <a-card :title="t('monitorServer.linksTitle')">
             <a-space wrap>
-              <a-button @click="openLink('/hangfire')">Hangfire Dashboard</a-button>
-              <a-button @click="openLink('/swagger')">Swagger</a-button>
-              <a-button @click="openLink('/api/v1/health')">Health API</a-button>
-              <a-button @click="openLink('/api/v1/scheduled-jobs?pageIndex=1&pageSize=10')">定时任务 API</a-button>
+              <a-button @click="openLink('/hangfire')">{{ t("monitorServer.linkHangfire") }}</a-button>
+              <a-button @click="openLink('/swagger')">{{ t("monitorServer.linkSwagger") }}</a-button>
+              <a-button @click="openLink('/api/v1/health')">{{ t("monitorServer.linkHealthApi") }}</a-button>
+              <a-button @click="openLink('/api/v1/scheduled-jobs?pageIndex=1&pageSize=10')">{{ t("monitorServer.linkJobsApi") }}</a-button>
             </a-space>
           </a-card>
         </a-col>
       </a-row>
 
-      <a-empty v-else-if="!loading" description="暂无数据" />
+      <a-empty v-else-if="!loading" :description="t('monitorServer.noData')" />
     </a-spin>
   </div>
 </template>
@@ -145,6 +149,7 @@
 import { ref, onMounted, onUnmounted } from "vue";
 import { message } from "ant-design-vue";
 import { ClockCircleOutlined } from "@ant-design/icons-vue";
+import { useI18n } from "vue-i18n";
 import { requestApi } from "@/services/api-core";
 import type { ApiResponse } from "@/types/api";
 
@@ -160,11 +165,12 @@ const loading = ref(false);
 const info = ref<ServerInfo | null>(null);
 const healthLoading = ref(false);
 const healthInfo = ref<HealthStatusPayload | null>(null);
+const { t } = useI18n();
 let timer: number | undefined;
 const healthColumns = [
-  { title: "依赖项", dataIndex: "name", key: "name", width: 180 },
-  { title: "状态", key: "healthy", width: 140 },
-  { title: "详情", dataIndex: "message", key: "message" }
+  { title: t("monitorServer.dependencyName"), dataIndex: "name", key: "name", width: 180 },
+  { title: t("monitorServer.dependencyStatus"), key: "healthy", width: 140 },
+  { title: t("monitorServer.dependencyMessage"), dataIndex: "message", key: "message" }
 ];
 
 const load = async () => {
@@ -176,7 +182,7 @@ const load = async () => {
     ]);
     info.value = serverResponse.data ?? null;
   } catch (e: unknown) {
-    message.error(e instanceof Error ? e.message : "加载失败");
+    message.error(e instanceof Error ? e.message : t("monitorServer.loadFailed"));
   } finally {
     loading.value = false;
   }
@@ -189,7 +195,7 @@ const loadHealth = async () => {
     healthInfo.value = response.data ?? null;
   } catch (e: unknown) {
     healthInfo.value = null;
-    message.warning(e instanceof Error ? e.message : "健康探针加载失败");
+    message.warning(e instanceof Error ? e.message : t("monitorServer.loadFailed"));
   } finally {
     healthLoading.value = false;
   }
