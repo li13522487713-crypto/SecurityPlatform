@@ -12,6 +12,7 @@ using Atlas.Domain.Assets.Entities;
 using Atlas.Domain.Audit.Entities;
 using Atlas.Domain.DynamicTables.Entities;
 using Atlas.Domain.Identity.Entities;
+using Atlas.Domain.LowCode.Entities;
 using Atlas.Domain.System.Entities;
 using Atlas.Domain.Workflow.Entities;
 using Atlas.Infrastructure.Repositories;
@@ -119,7 +120,11 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             typeof(Notification),
             typeof(UserNotification),
             typeof(FileRecord),
-            typeof(TenantDataSource));
+            typeof(TenantDataSource),
+            // Low code module
+            typeof(LowCodeApp),
+            typeof(LowCodePage),
+            typeof(FormDefinition));
 
         // 创建审批模块数据库索引
         var indexInitializer = scope.ServiceProvider.GetRequiredService<ApprovalIndexInitializer>();

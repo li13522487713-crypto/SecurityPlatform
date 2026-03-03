@@ -1,9 +1,12 @@
 using Atlas.Application.DynamicTables.Abstractions;
 using Atlas.Application.DynamicTables.Models;
+using Atlas.Application.Audit.Abstractions;
+using Atlas.Application.Audit.Models;
 using Atlas.Core.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.WebApi.Authorization;
+using Atlas.WebApi.Helpers;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -19,6 +22,8 @@ public sealed class DynamicTableRecordsController : ControllerBase
     private readonly IDynamicTableCommandService _tableCommandService;
     private readonly ITenantProvider _tenantProvider;
     private readonly ICurrentUserAccessor _currentUserAccessor;
+    private readonly IClientContextAccessor _clientContextAccessor;
+    private readonly IAuditRecorder _auditRecorder;
     private readonly IValidator<DynamicRecordUpsertRequest> _upsertValidator;
     private readonly IValidator<DynamicRecordQueryRequest> _queryValidator;
 
@@ -28,6 +33,8 @@ public sealed class DynamicTableRecordsController : ControllerBase
         IDynamicTableCommandService tableCommandService,
         ITenantProvider tenantProvider,
         ICurrentUserAccessor currentUserAccessor,
+        IClientContextAccessor clientContextAccessor,
+        IAuditRecorder auditRecorder,
         IValidator<DynamicRecordUpsertRequest> upsertValidator,
         IValidator<DynamicRecordQueryRequest> queryValidator)
     {
@@ -36,6 +43,8 @@ public sealed class DynamicTableRecordsController : ControllerBase
         _tableCommandService = tableCommandService;
         _tenantProvider = tenantProvider;
         _currentUserAccessor = currentUserAccessor;
+        _clientContextAccessor = clientContextAccessor;
+        _auditRecorder = auditRecorder;
         _upsertValidator = upsertValidator;
         _queryValidator = queryValidator;
     }
@@ -109,6 +118,7 @@ public sealed class DynamicTableRecordsController : ControllerBase
 
         var tenantId = _tenantProvider.GetTenantId();
         var id = await _commandService.CreateAsync(tenantId, currentUser.UserId, tableKey, request, cancellationToken);
+        await RecordAuditAsync(currentUser, "CREATE_DYNAMIC_RECORD", $"{tableKey}:{id}", cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
     }
 
@@ -132,6 +142,7 @@ public sealed class DynamicTableRecordsController : ControllerBase
 
         var tenantId = _tenantProvider.GetTenantId();
         await _commandService.UpdateAsync(tenantId, currentUser.UserId, tableKey, id, request, cancellationToken);
+        await RecordAuditAsync(currentUser, "UPDATE_DYNAMIC_RECORD", $"{tableKey}:{id}", cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
     }
 
@@ -153,6 +164,7 @@ public sealed class DynamicTableRecordsController : ControllerBase
 
         var tenantId = _tenantProvider.GetTenantId();
         await _commandService.DeleteAsync(tenantId, currentUser.UserId, tableKey, id, cancellationToken);
+        await RecordAuditAsync(currentUser, "DELETE_DYNAMIC_RECORD", $"{tableKey}:{id}", cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
     }
 
@@ -174,6 +186,7 @@ public sealed class DynamicTableRecordsController : ControllerBase
 
         var tenantId = _tenantProvider.GetTenantId();
         await _commandService.DeleteBatchAsync(tenantId, currentUser.UserId, tableKey, request.Ids, cancellationToken);
+        await RecordAuditAsync(currentUser, "DELETE_BATCH_DYNAMIC_RECORD", $"{tableKey}:{string.Join(',', request.Ids)}", cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Count = request.Ids.Count }, HttpContext.TraceIdentifier));
     }
 
@@ -199,6 +212,28 @@ public sealed class DynamicTableRecordsController : ControllerBase
         var tenantId = _tenantProvider.GetTenantId();
         var result = await _tableCommandService.SubmitApprovalAsync(
             tenantId, currentUser.UserId, tableKey, recordId, cancellationToken);
+        await RecordAuditAsync(currentUser, "SUBMIT_DYNAMIC_RECORD_APPROVAL", $"{tableKey}:{recordId}", cancellationToken);
         return Ok(ApiResponse<DynamicTableApprovalSubmitResponse>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    private Task RecordAuditAsync(
+        CurrentUserInfo currentUser,
+        string action,
+        string target,
+        CancellationToken cancellationToken)
+    {
+        var actor = string.IsNullOrWhiteSpace(currentUser.Username)
+            ? currentUser.UserId.ToString()
+            : currentUser.Username;
+        var context = new AuditContext(
+            currentUser.TenantId,
+            actor,
+            action,
+            "SUCCESS",
+            target,
+            ControllerHelper.GetIpAddress(HttpContext),
+            ControllerHelper.GetUserAgent(HttpContext),
+            _clientContextAccessor.GetCurrent());
+        return _auditRecorder.RecordAsync(context, cancellationToken);
     }
 }

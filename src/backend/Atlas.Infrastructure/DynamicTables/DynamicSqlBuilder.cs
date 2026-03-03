@@ -7,12 +7,17 @@ namespace Atlas.Infrastructure.DynamicTables;
 
 internal static class DynamicSqlBuilder
 {
+    public const string TenantColumnName = "TenantIdValue";
+
     public static string BuildCreateTableSql(DynamicTable table, IReadOnlyList<DynamicField> fields)
     {
         var dbType = table.DbType;
         var tableName = Quote(table.TableKey, dbType);
 
-        var columnDefs = new List<string>();
+        var columnDefs = new List<string>
+        {
+            $"{QuoteTenantColumn(dbType)} TEXT NOT NULL"
+        };
         string? primaryKeyColumn = null;
 
         foreach (var field in fields)
@@ -69,6 +74,11 @@ internal static class DynamicSqlBuilder
     public static string BuildDropTableSql(DynamicTable table)
     {
         return $"DROP TABLE IF EXISTS {Quote(table.TableKey, table.DbType)};";
+    }
+
+    public static string QuoteTenantColumn(DynamicDbType dbType)
+    {
+        return Quote(TenantColumnName, dbType);
     }
 
     public static string Quote(string identifier, DynamicDbType dbType)

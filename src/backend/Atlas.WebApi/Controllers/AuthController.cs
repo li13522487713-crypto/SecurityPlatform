@@ -115,9 +115,27 @@ public sealed class AuthController : ControllerBase
         var dto = _mapper.Map<AuthTokenRequest>(request);
         _validator.ValidateAndThrow(dto);
 
-        // 若前端已提供验证码（风控触发后），在此处校验
-        if (!string.IsNullOrWhiteSpace(dto.CaptchaKey))
+        // 后端风控：达到失败阈值后必须校验验证码，不能仅依赖前端展示逻辑。
+        var account = await _userAccountRepository.FindByUsernameAsync(tenantId, dto.Username, cancellationToken);
+        var requireCaptcha = _securityOptions.CaptchaThreshold > 0
+            && account is not null
+            && account.FailedLoginCount >= _securityOptions.CaptchaThreshold;
+
+        if (requireCaptcha)
         {
+            if (string.IsNullOrWhiteSpace(dto.CaptchaKey) || string.IsNullOrWhiteSpace(dto.CaptchaCode))
+            {
+                throw new BusinessException("连续登录失败次数过多，请输入验证码", ErrorCodes.ValidationError);
+            }
+
+            if (!_captchaService.Validate(dto.CaptchaKey, dto.CaptchaCode))
+            {
+                throw new BusinessException("验证码错误或已过期", ErrorCodes.ValidationError);
+            }
+        }
+        else if (!string.IsNullOrWhiteSpace(dto.CaptchaKey))
+        {
+            // 若前端已提供验证码（风控触发后），在此处校验
             if (string.IsNullOrWhiteSpace(dto.CaptchaCode)
                 || !_captchaService.Validate(dto.CaptchaKey, dto.CaptchaCode))
             {
