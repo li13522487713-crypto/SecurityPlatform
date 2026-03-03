@@ -49,6 +49,16 @@ public sealed class LowCodePageRepository : ILowCodePageRepository
         return _db.Insertable(entity).ExecuteCommandAsync(cancellationToken);
     }
 
+    public Task AddRangeAsync(IReadOnlyList<LowCodePage> entities, CancellationToken cancellationToken = default)
+    {
+        if (entities.Count == 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        return _db.Insertable(entities.ToList()).ExecuteCommandAsync(cancellationToken);
+    }
+
     public Task UpdateAsync(LowCodePage entity, CancellationToken cancellationToken = default)
     {
         return _db.Updateable(entity)

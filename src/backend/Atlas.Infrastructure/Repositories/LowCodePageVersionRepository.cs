@@ -35,9 +35,30 @@ public sealed class LowCodePageVersionRepository : ILowCodePageVersionRepository
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<LowCodePageVersion>> GetByAppIdAsync(
+        TenantId tenantId,
+        long appId,
+        CancellationToken cancellationToken = default)
+    {
+        return await _db.Queryable<LowCodePageVersion>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.AppId == appId)
+            .OrderByDescending(x => x.CreatedAt)
+            .ToListAsync(cancellationToken);
+    }
+
     public Task InsertAsync(LowCodePageVersion entity, CancellationToken cancellationToken = default)
     {
         return _db.Insertable(entity).ExecuteCommandAsync(cancellationToken);
+    }
+
+    public Task AddRangeAsync(IReadOnlyList<LowCodePageVersion> entities, CancellationToken cancellationToken = default)
+    {
+        if (entities.Count == 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        return _db.Insertable(entities.ToList()).ExecuteCommandAsync(cancellationToken);
     }
 
     public Task DeleteByPageIdAsync(long pageId, CancellationToken cancellationToken = default)

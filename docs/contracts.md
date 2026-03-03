@@ -862,6 +862,8 @@ JWT Claims（新增）：
 - `PUT /api/v1/lowcode-apps/{id}`：更新应用（需幂等 + CSRF）
 - `POST /api/v1/lowcode-apps/{id}/publish`：发布应用（需幂等 + CSRF）
 - `POST /api/v1/lowcode-apps/{id}/disable`：停用应用（需幂等 + CSRF）
+- `GET /api/v1/lowcode-apps/{id}/export`：导出应用 JSON 包
+- `POST /api/v1/lowcode-apps/import`：导入应用 JSON 包（需幂等 + CSRF，支持 `Rename/Overwrite/Skip` 冲突策略）
 - `DELETE /api/v1/lowcode-apps/{id}`：删除应用（需幂等 + CSRF）
 
 授权策略：

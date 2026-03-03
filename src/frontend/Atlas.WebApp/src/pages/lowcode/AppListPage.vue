@@ -12,6 +12,7 @@
         />
       </div>
       <div class="page-header-right">
+        <a-button v-if="canManageApps" @click="handleImportClick">导入应用</a-button>
         <a-button v-if="canManageApps" type="primary" @click="handleCreate">新建应用</a-button>
       </div>
     </div>
@@ -44,6 +45,7 @@
             <template #overlay>
               <a-menu>
                 <a-menu-item key="edit" @click="handleEdit(app)">编辑</a-menu-item>
+                <a-menu-item key="export" @click="handleExport(app)">导出</a-menu-item>
                 <a-menu-item v-if="app.status === 'Draft'" key="publish" @click="handlePublish(app.id)">发布</a-menu-item>
                 <a-menu-item key="delete" danger @click="handleDelete(app.id)">删除</a-menu-item>
               </a-menu>
@@ -98,6 +100,14 @@
         </a-form-item>
       </a-form>
     </a-modal>
+
+    <input
+      ref="importInputRef"
+      type="file"
+      accept="application/json,.json"
+      style="display: none"
+      @change="handleImportFileChange"
+    />
   </div>
 </template>
 
@@ -111,6 +121,9 @@ import {
   getLowCodeAppsPaged,
   createLowCodeApp,
   updateLowCodeApp,
+  exportLowCodeApp,
+  importLowCodeApp,
+  parseLowCodeAppExportPackage,
   publishLowCodeApp,
   deleteLowCodeApp
 } from "@/services/lowcode";
@@ -121,6 +134,8 @@ const canManageApps = hasPermission(getAuthProfile(), "apps:update");
 const keyword = ref("");
 const loading = ref(false);
 const dataSource = ref<LowCodeAppListItem[]>([]);
+const importing = ref(false);
+const importInputRef = ref<HTMLInputElement | null>(null);
 
 const formVisible = ref(false);
 const formMode = ref<"create" | "edit">("create");
@@ -256,6 +271,58 @@ const handleDelete = async (id: string) => {
     fetchData();
   } catch (error) {
     message.error((error as Error).message || "删除失败");
+  }
+};
+
+const handleExport = async (app: LowCodeAppListItem) => {
+  try {
+    const blob = await exportLowCodeApp(app.id);
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${app.appKey}-export.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    message.success("导出成功");
+  } catch (error) {
+    message.error((error as Error).message || "导出失败");
+  }
+};
+
+const handleImportClick = () => {
+  if (importing.value) {
+    return;
+  }
+
+  importInputRef.value?.click();
+};
+
+const handleImportFileChange = async (event: Event) => {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) {
+    return;
+  }
+
+  importing.value = true;
+  try {
+    const rawText = await file.text();
+    const pkg = parseLowCodeAppExportPackage(rawText);
+    const result = await importLowCodeApp({
+      package: pkg,
+      conflictStrategy: "Rename"
+    });
+    if (result.skipped) {
+      message.info("目标应用已存在，已按策略跳过导入");
+    } else {
+      message.success(`导入成功：${result.appKey}`);
+    }
+    await fetchData();
+  } catch (error) {
+    message.error((error as Error).message || "导入失败");
+  } finally {
+    importing.value = false;
+    input.value = "";
   }
 };
 

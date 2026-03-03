@@ -65,6 +65,63 @@ public sealed class LowCodeAppQueryService : ILowCodeAppQueryService
         return MapToDetail(entity, pages);
     }
 
+    public async Task<LowCodeAppExportPackage?> ExportAsync(
+        TenantId tenantId,
+        long appId,
+        CancellationToken cancellationToken = default)
+    {
+        var entity = await _appRepository.GetByIdAsync(tenantId, appId, cancellationToken);
+        if (entity is null)
+        {
+            return null;
+        }
+
+        var pages = await _pageRepository.GetByAppIdAsync(tenantId, appId, cancellationToken);
+        var versions = await _pageVersionRepository.GetByAppIdAsync(tenantId, appId, cancellationToken);
+
+        return new LowCodeAppExportPackage(
+            entity.AppKey,
+            entity.Name,
+            entity.Description,
+            entity.Category,
+            entity.Icon,
+            entity.Status.ToString(),
+            entity.ConfigJson,
+            pages.Select(x => new LowCodeAppExportPagePackage(
+                x.Id.ToString(),
+                x.PageKey,
+                x.Name,
+                x.PageType.ToString(),
+                x.SchemaJson,
+                x.RoutePath,
+                x.Description,
+                x.Icon,
+                x.SortOrder,
+                x.ParentPageId?.ToString(),
+                x.PermissionCode,
+                x.DataTableKey,
+                x.IsPublished))
+                .ToArray(),
+            versions.Select(x => new LowCodeAppExportPageVersionPackage(
+                x.Id.ToString(),
+                x.PageId.ToString(),
+                x.SnapshotVersion,
+                x.PageKey,
+                x.Name,
+                x.PageType.ToString(),
+                x.SchemaJson,
+                x.RoutePath,
+                x.Description,
+                x.Icon,
+                x.SortOrder,
+                x.ParentPageId?.ToString(),
+                x.PermissionCode,
+                x.DataTableKey,
+                x.CreatedAt,
+                x.CreatedBy))
+                .ToArray());
+    }
+
     public async Task<LowCodePageDetail?> GetPageByIdAsync(
         TenantId tenantId, long pageId, CancellationToken cancellationToken = default)
     {

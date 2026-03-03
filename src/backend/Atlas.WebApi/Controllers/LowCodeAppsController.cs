@@ -7,6 +7,7 @@ using Atlas.WebApi.Authorization;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Text.Json;
 
 namespace Atlas.WebApi.Controllers;
 
@@ -21,6 +22,7 @@ public sealed class LowCodeAppsController : ControllerBase
     private readonly ICurrentUserAccessor _currentUserAccessor;
     private readonly IValidator<LowCodeAppCreateRequest> _createValidator;
     private readonly IValidator<LowCodeAppUpdateRequest> _updateValidator;
+    private readonly IValidator<LowCodeAppImportRequest> _importValidator;
     private readonly IValidator<LowCodePageCreateRequest> _pageCreateValidator;
     private readonly IValidator<LowCodePageUpdateRequest> _pageUpdateValidator;
 
@@ -32,6 +34,7 @@ public sealed class LowCodeAppsController : ControllerBase
         ICurrentUserAccessor currentUserAccessor,
         IValidator<LowCodeAppCreateRequest> createValidator,
         IValidator<LowCodeAppUpdateRequest> updateValidator,
+        IValidator<LowCodeAppImportRequest> importValidator,
         IValidator<LowCodePageCreateRequest> pageCreateValidator,
         IValidator<LowCodePageUpdateRequest> pageUpdateValidator)
     {
@@ -42,6 +45,7 @@ public sealed class LowCodeAppsController : ControllerBase
         _currentUserAccessor = currentUserAccessor;
         _createValidator = createValidator;
         _updateValidator = updateValidator;
+        _importValidator = importValidator;
         _pageCreateValidator = pageCreateValidator;
         _pageUpdateValidator = pageUpdateValidator;
     }
@@ -184,6 +188,51 @@ public sealed class LowCodeAppsController : ControllerBase
         var tenantId = _tenantProvider.GetTenantId();
         await _commandService.DeleteAsync(tenantId, currentUser.UserId, id, cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>
+    /// 导出应用（JSON）
+    /// </summary>
+    [HttpGet("{id:long}/export")]
+    [Authorize(Policy = PermissionPolicies.AppsView)]
+    public async Task<IActionResult> Export(
+        long id,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var exportPackage = await _queryService.ExportAsync(tenantId, id, cancellationToken);
+        if (exportPackage is null)
+        {
+            return NotFound(ApiResponse<object>.Fail(ErrorCodes.NotFound, "应用不存在", HttpContext.TraceIdentifier));
+        }
+
+        var bytes = JsonSerializer.SerializeToUtf8Bytes(exportPackage, new JsonSerializerOptions
+        {
+            WriteIndented = true
+        });
+        var fileName = $"{exportPackage.AppKey}-export.json";
+        return File(bytes, "application/json; charset=utf-8", fileName);
+    }
+
+    /// <summary>
+    /// 导入应用（JSON包）
+    /// </summary>
+    [HttpPost("import")]
+    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
+    public async Task<ActionResult<ApiResponse<LowCodeAppImportResult>>> Import(
+        [FromBody] LowCodeAppImportRequest request,
+        CancellationToken cancellationToken)
+    {
+        _importValidator.ValidateAndThrow(request);
+        var currentUser = _currentUserAccessor.GetCurrentUser();
+        if (currentUser is null)
+        {
+            return Unauthorized(ApiResponse<LowCodeAppImportResult>.Fail(ErrorCodes.Unauthorized, "未登录", HttpContext.TraceIdentifier));
+        }
+
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _commandService.ImportAsync(tenantId, currentUser.UserId, request, cancellationToken);
+        return Ok(ApiResponse<LowCodeAppImportResult>.Ok(result, HttpContext.TraceIdentifier));
     }
 
     // ─── 页面管理 ───

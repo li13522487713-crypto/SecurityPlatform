@@ -184,6 +184,35 @@ X-Tenant-Id: {{tenantId}}
 Idempotency-Key: {{$randomUUID}}
 X-CSRF-TOKEN: {{csrfToken}}
 
+### 导出应用 JSON 包
+GET {{baseUrl}}/api/v1/lowcode-apps/{{appId}}/export
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 导入应用 JSON 包（冲突策略 Rename）
+POST {{baseUrl}}/api/v1/lowcode-apps/import
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$randomUUID}}
+X-CSRF-TOKEN: {{csrfToken}}
+Content-Type: application/json
+
+{
+  "package": {
+    "appKey": "crm_demo_2026",
+    "name": "客户关系管理示例应用",
+    "description": "低代码 CRM 示例",
+    "category": "CRM",
+    "icon": "customer-service",
+    "status": "Draft",
+    "configJson": null,
+    "pages": [],
+    "pageVersions": []
+  },
+  "conflictStrategy": "Rename",
+  "keySuffix": "copy"
+}
+
 ### 删除页面（需幂等+CSRF）
 DELETE {{baseUrl}}/api/v1/lowcode-apps/pages/{{pageId}}
 Authorization: Bearer {{accessToken}}

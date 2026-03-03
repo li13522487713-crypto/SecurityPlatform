@@ -101,6 +101,68 @@ export interface LowCodeAppUpdateRequest {
   icon?: string;
 }
 
+export interface LowCodeAppExportPagePackage {
+  id: string;
+  pageKey: string;
+  name: string;
+  pageType: string;
+  schemaJson: string;
+  routePath?: string;
+  description?: string;
+  icon?: string;
+  sortOrder: number;
+  parentPageId?: string;
+  permissionCode?: string;
+  dataTableKey?: string;
+  isPublished: boolean;
+}
+
+export interface LowCodeAppExportPageVersionPackage {
+  id: string;
+  pageId: string;
+  snapshotVersion: number;
+  pageKey: string;
+  name: string;
+  pageType: string;
+  schemaJson: string;
+  routePath?: string;
+  description?: string;
+  icon?: string;
+  sortOrder: number;
+  parentPageId?: string;
+  permissionCode?: string;
+  dataTableKey?: string;
+  createdAt: string;
+  createdBy: number;
+}
+
+export interface LowCodeAppExportPackage {
+  appKey: string;
+  name: string;
+  description?: string;
+  category?: string;
+  icon?: string;
+  status: string;
+  configJson?: string;
+  pages: LowCodeAppExportPagePackage[];
+  pageVersions: LowCodeAppExportPageVersionPackage[];
+}
+
+export interface LowCodeAppImportRequest {
+  package: LowCodeAppExportPackage;
+  conflictStrategy: "Rename" | "Overwrite" | "Skip";
+  keySuffix?: string;
+}
+
+export interface LowCodeAppImportResult {
+  appId: string;
+  appKey: string;
+  skipped: boolean;
+  overwritten: boolean;
+  importedPageCount: number;
+  importedVersionCount: number;
+}
+
 // ─── 低代码页面 ───
 
 export interface LowCodePageListItem {

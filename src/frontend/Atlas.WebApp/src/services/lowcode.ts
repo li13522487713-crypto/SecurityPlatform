@@ -8,6 +8,9 @@ import type {
   LowCodeAppDetail,
   LowCodeAppCreateRequest,
   LowCodeAppUpdateRequest,
+  LowCodeAppExportPackage,
+  LowCodeAppImportRequest,
+  LowCodeAppImportResult,
   LowCodePageDetail,
   LowCodePageRuntimeSchema,
   LowCodePageVersionListItem,
@@ -16,6 +19,8 @@ import type {
   LowCodePageUpdateRequest
 } from "@/types/lowcode";
 import { requestApi } from "@/services/api";
+import { API_BASE } from "@/services/api-core";
+import { getAccessToken, getTenantId } from "@/utils/auth";
 
 // ─── 表单定义 API ───
 
@@ -231,6 +236,50 @@ export async function deleteLowCodeApp(id: string): Promise<void> {
     { method: "DELETE" }
   );
   if (!response.success) throw new Error(response.message || "删除失败");
+}
+
+export async function exportLowCodeApp(id: string): Promise<Blob> {
+  const headers = new Headers();
+  const token = getAccessToken();
+  const tenantId = getTenantId();
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+  if (tenantId) {
+    headers.set("X-Tenant-Id", tenantId);
+  }
+
+  const response = await fetch(`${API_BASE}/lowcode-apps/${id}/export`, {
+    method: "GET",
+    headers,
+    credentials: "include"
+  });
+  if (!response.ok) {
+    throw new Error("导出应用失败");
+  }
+  return response.blob();
+}
+
+export async function importLowCodeApp(request: LowCodeAppImportRequest): Promise<LowCodeAppImportResult> {
+  const response = await requestApi<ApiResponse<LowCodeAppImportResult>>("/lowcode-apps/import", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request)
+  });
+  if (!response.data) throw new Error(response.message || "导入失败");
+  return response.data;
+}
+
+export function parseLowCodeAppExportPackage(raw: string): LowCodeAppExportPackage {
+  const parsed = JSON.parse(raw) as unknown;
+  if (typeof parsed !== "object" || parsed === null) {
+    throw new Error("导入文件格式不正确");
+  }
+  const pkg = parsed as Partial<LowCodeAppExportPackage>;
+  if (!pkg.appKey || !pkg.name || !Array.isArray(pkg.pages) || !Array.isArray(pkg.pageVersions)) {
+    throw new Error("导入文件缺少必要字段");
+  }
+  return pkg as LowCodeAppExportPackage;
 }
 
 // ─── 低代码页面 API ───
