@@ -215,12 +215,17 @@ public sealed class MigrationService : IMigrationService
         TenantId tenantId,
         long userId,
         long migrationId,
+        bool confirmDestructive,
         CancellationToken cancellationToken)
     {
         var migration = await _migrationRecordRepository.FindByIdAsync(tenantId, migrationId, cancellationToken);
         if (migration is null)
         {
             throw new BusinessException("迁移记录不存在。", ErrorCodes.NotFound);
+        }
+        if (migration.IsDestructive && !confirmDestructive)
+        {
+            throw new BusinessException("该迁移包含破坏性变更，请先通过预检查并确认执行。", ErrorCodes.ValidationError);
         }
 
         var lockKey = $"{tenantId.Value:D}:{migration.TableKey}";
@@ -255,6 +260,45 @@ public sealed class MigrationService : IMigrationService
         {
             tableLock.Release();
         }
+    }
+
+    public async Task<MigrationPrecheckResult> PrecheckAsync(
+        TenantId tenantId,
+        long migrationId,
+        CancellationToken cancellationToken)
+    {
+        var migration = await _migrationRecordRepository.FindByIdAsync(tenantId, migrationId, cancellationToken);
+        if (migration is null)
+        {
+            throw new BusinessException("迁移记录不存在。", ErrorCodes.NotFound);
+        }
+
+        var checks = new List<string>
+        {
+            "迁移记录存在",
+            $"当前状态：{migration.Status}",
+            $"目标表：{migration.TableKey}",
+            $"版本：{migration.Version}"
+        };
+
+        if (migration.IsDestructive)
+        {
+            checks.Add("检测到破坏性变更，执行前需要确认");
+        }
+
+        var canExecute = !string.Equals(migration.Status, "Executing", StringComparison.OrdinalIgnoreCase);
+        if (!canExecute)
+        {
+            checks.Add("当前迁移正在执行中，暂不可重复执行");
+        }
+
+        return new MigrationPrecheckResult(
+            migration.Id.ToString(),
+            migration.TableKey,
+            migration.Version,
+            migration.IsDestructive,
+            canExecute,
+            checks);
     }
 
     private static string BuildAddColumnSql(DynamicTable table, DynamicFieldDefinition field)

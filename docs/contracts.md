@@ -956,6 +956,8 @@ JWT Claims（新增）：
 - `PUT /api/v1/dynamic-tables/{tableKey}`：更新表元数据（需幂等 + CSRF）
 - `POST /api/v1/dynamic-tables/{tableKey}/schema/alter`：变更字段（需幂等 + CSRF）
 - `DELETE /api/v1/dynamic-tables/{tableKey}`：删除动态表（需幂等 + CSRF）
+- `GET /api/v1/dynamic-tables/{tableKey}/relations`：查询轻量关系
+- `PUT /api/v1/dynamic-tables/{tableKey}/relations`：覆盖更新轻量关系（需幂等 + CSRF）
 
 ### 动态迁移记录接口（骨架）
 
@@ -964,6 +966,7 @@ JWT Claims（新增）：
 - `POST /api/v1/dynamic-migrations`：创建迁移草稿记录（需幂等 + CSRF）
 - `POST /api/v1/dynamic-migrations/detect/{tableKey}`：检测结构变更并生成预览脚本（需幂等 + CSRF）
 - `POST /api/v1/dynamic-migrations/{id}/execute`：执行迁移（需幂等 + CSRF）
+- `POST /api/v1/dynamic-migrations/{id}/precheck`：迁移预检查（需幂等 + CSRF）
 - `POST /api/v1/dynamic-migrations/{id}/retry`：重试迁移（需幂等 + CSRF）
 
 ```json
@@ -998,6 +1001,23 @@ JWT Claims（新增）：
   "status": "Succeeded",
   "executedAt": "2026-03-03T12:00:00Z",
   "errorMessage": null
+}
+```
+
+`precheck` 响应：
+
+```json
+{
+  "id": "1001",
+  "tableKey": "orders",
+  "version": 1,
+  "requiresConfirmation": true,
+  "canExecute": true,
+  "checks": [
+    "迁移记录存在",
+    "当前状态：Draft",
+    "检测到破坏性变更，执行前需要确认"
+  ]
 }
 ```
 

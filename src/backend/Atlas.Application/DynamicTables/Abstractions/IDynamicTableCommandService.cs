@@ -31,6 +31,13 @@ public interface IDynamicTableCommandService
         string tableKey,
         CancellationToken cancellationToken);
 
+    Task SetRelationsAsync(
+        TenantId tenantId,
+        long userId,
+        string tableKey,
+        DynamicRelationUpsertRequest request,
+        CancellationToken cancellationToken);
+
     /// <summary>
     /// 绑定/解绑审批流
     /// </summary>

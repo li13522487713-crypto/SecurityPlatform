@@ -33,5 +33,11 @@ public interface IMigrationService
         TenantId tenantId,
         long userId,
         long migrationId,
+        bool confirmDestructive,
+        CancellationToken cancellationToken);
+
+    Task<MigrationPrecheckResult> PrecheckAsync(
+        TenantId tenantId,
+        long migrationId,
         CancellationToken cancellationToken);
 }

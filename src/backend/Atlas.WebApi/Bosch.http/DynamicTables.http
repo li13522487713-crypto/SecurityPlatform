@@ -93,6 +93,31 @@ GET {{baseUrl}}/api/v1/dynamic-tables/orders
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
+### Set Dynamic Table Relations
+PUT {{baseUrl}}/api/v1/dynamic-tables/orders/relations
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$randomUUID}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "relations": [
+    {
+      "relatedTableKey": "order_items",
+      "sourceField": "id",
+      "targetField": "orderId",
+      "relationType": "OneToMany",
+      "cascadeRule": "Restrict"
+    }
+  ]
+}
+
+### Get Dynamic Table Relations
+GET {{baseUrl}}/api/v1/dynamic-tables/orders/relations
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
 ### Create Record
 POST {{baseUrl}}/api/v1/dynamic-tables/orders/records
 Content-Type: application/json

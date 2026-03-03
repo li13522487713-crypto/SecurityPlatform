@@ -10,6 +10,11 @@ public interface IDynamicTableRepository
         string tableKey,
         CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<DynamicTable>> QueryByKeysAsync(
+        TenantId tenantId,
+        IReadOnlyList<string> tableKeys,
+        CancellationToken cancellationToken);
+
     Task<(IReadOnlyList<DynamicTable> Items, int TotalCount)> QueryPageAsync(
         TenantId tenantId,
         int pageIndex,

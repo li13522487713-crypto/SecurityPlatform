@@ -16,6 +16,7 @@ public static class DynamicTableServiceRegistration
         services.AddScoped<IDynamicTableRepository, DynamicTableRepository>();
         services.AddScoped<IDynamicFieldRepository, DynamicFieldRepository>();
         services.AddScoped<IDynamicIndexRepository, DynamicIndexRepository>();
+        services.AddScoped<IDynamicRelationRepository, DynamicRelationRepository>();
         services.AddScoped<IDynamicRecordRepository, DynamicRecordRepository>();
         services.AddScoped<IMigrationRecordRepository, MigrationRecordRepository>();
         services.AddScoped<IDynamicTableQueryService, DynamicTableQueryService>();

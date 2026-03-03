@@ -10,6 +10,11 @@ public interface IDynamicFieldRepository
         long tableId,
         CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<DynamicField>> ListByTableIdsAsync(
+        TenantId tenantId,
+        IReadOnlyList<long> tableIds,
+        CancellationToken cancellationToken);
+
     Task AddRangeAsync(IReadOnlyList<DynamicField> fields, CancellationToken cancellationToken);
 
     Task UpdateRangeAsync(IReadOnlyList<DynamicField> fields, CancellationToken cancellationToken);

@@ -92,6 +92,7 @@ public sealed class DynamicMigrationsController : ControllerBase
     [Authorize(Policy = PermissionPolicies.SystemAdmin)]
     public async Task<ActionResult<ApiResponse<MigrationExecutionResult>>> Execute(
         long id,
+        [FromBody] MigrationExecuteRequest? request,
         CancellationToken cancellationToken)
     {
         var currentUser = _currentUserAccessor.GetCurrentUser();
@@ -104,16 +105,29 @@ public sealed class DynamicMigrationsController : ControllerBase
         }
 
         var tenantId = _tenantProvider.GetTenantId();
-        var result = await _migrationService.ExecuteAsync(tenantId, currentUser.UserId, id, cancellationToken);
+        var confirmDestructive = request?.ConfirmDestructive ?? false;
+        var result = await _migrationService.ExecuteAsync(tenantId, currentUser.UserId, id, confirmDestructive, cancellationToken);
         return Ok(ApiResponse<MigrationExecutionResult>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost("{id:long}/precheck")]
+    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    public async Task<ActionResult<ApiResponse<MigrationPrecheckResult>>> Precheck(
+        long id,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _migrationService.PrecheckAsync(tenantId, id, cancellationToken);
+        return Ok(ApiResponse<MigrationPrecheckResult>.Ok(result, HttpContext.TraceIdentifier));
     }
 
     [HttpPost("{id:long}/retry")]
     [Authorize(Policy = PermissionPolicies.SystemAdmin)]
     public Task<ActionResult<ApiResponse<MigrationExecutionResult>>> Retry(
         long id,
+        [FromBody] MigrationExecuteRequest? request,
         CancellationToken cancellationToken)
     {
-        return Execute(id, cancellationToken);
+        return Execute(id, request, cancellationToken);
     }
 }

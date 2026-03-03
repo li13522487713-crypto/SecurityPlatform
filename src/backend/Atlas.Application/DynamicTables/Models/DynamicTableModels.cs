@@ -78,6 +78,16 @@ public sealed record DynamicIndexDefinition(
     bool IsUnique,
     IReadOnlyList<string> Fields);
 
+public sealed record DynamicRelationDefinition(
+    string RelatedTableKey,
+    string SourceField,
+    string TargetField,
+    string RelationType,
+    string? CascadeRule);
+
+public sealed record DynamicRelationUpsertRequest(
+    IReadOnlyList<DynamicRelationDefinition> Relations);
+
 public sealed record DynamicFieldTypeOption(string Label, string Value);
 
 /// <summary>

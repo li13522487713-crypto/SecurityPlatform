@@ -18,15 +18,18 @@ public sealed class DynamicTableQueryService : IDynamicTableQueryService
     private readonly IDynamicTableRepository _tableRepository;
     private readonly IDynamicFieldRepository _fieldRepository;
     private readonly IDynamicIndexRepository _indexRepository;
+    private readonly IDynamicRelationRepository _relationRepository;
 
     public DynamicTableQueryService(
         IDynamicTableRepository tableRepository,
         IDynamicFieldRepository fieldRepository,
-        IDynamicIndexRepository indexRepository)
+        IDynamicIndexRepository indexRepository,
+        IDynamicRelationRepository relationRepository)
     {
         _tableRepository = tableRepository;
         _fieldRepository = fieldRepository;
         _indexRepository = indexRepository;
+        _relationRepository = relationRepository;
     }
 
     public async Task<PagedResult<DynamicTableListItem>> QueryAsync(
@@ -122,6 +125,28 @@ public sealed class DynamicTableQueryService : IDynamicTableQueryService
         };
 
         return Task.FromResult<IReadOnlyList<DynamicFieldTypeOption>>(types);
+    }
+
+    public async Task<IReadOnlyList<DynamicRelationDefinition>> GetRelationsAsync(
+        TenantId tenantId,
+        string tableKey,
+        CancellationToken cancellationToken)
+    {
+        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, cancellationToken);
+        if (table is null)
+        {
+            return Array.Empty<DynamicRelationDefinition>();
+        }
+
+        var relations = await _relationRepository.ListByTableIdAsync(tenantId, table.Id, cancellationToken);
+        return relations
+            .Select(x => new DynamicRelationDefinition(
+                x.RelatedTableKey,
+                x.SourceField,
+                x.TargetField,
+                x.RelationType,
+                x.CascadeRule))
+            .ToArray();
     }
 
     private static DynamicFieldDefinition ToFieldDefinition(DynamicField field)

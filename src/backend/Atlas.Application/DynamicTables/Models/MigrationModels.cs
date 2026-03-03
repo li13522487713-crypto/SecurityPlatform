@@ -48,3 +48,13 @@ public sealed record MigrationExecutionResult(
     string Status,
     DateTimeOffset? ExecutedAt,
     string? ErrorMessage);
+
+public sealed record MigrationPrecheckResult(
+    string Id,
+    string TableKey,
+    int Version,
+    bool RequiresConfirmation,
+    bool CanExecute,
+    IReadOnlyList<string> Checks);
+
+public sealed record MigrationExecuteRequest(bool ConfirmDestructive);

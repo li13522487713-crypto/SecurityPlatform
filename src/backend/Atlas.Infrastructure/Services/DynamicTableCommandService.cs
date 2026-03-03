@@ -25,6 +25,7 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
     private readonly IDynamicTableRepository _tableRepository;
     private readonly IDynamicFieldRepository _fieldRepository;
     private readonly IDynamicIndexRepository _indexRepository;
+    private readonly IDynamicRelationRepository _relationRepository;
     private readonly IDynamicRecordRepository _recordRepository;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly ISqlSugarClient _db;
@@ -35,6 +36,7 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
         IDynamicTableRepository tableRepository,
         IDynamicFieldRepository fieldRepository,
         IDynamicIndexRepository indexRepository,
+        IDynamicRelationRepository relationRepository,
         IDynamicRecordRepository recordRepository,
         IIdGeneratorAccessor idGeneratorAccessor,
         ISqlSugarClient db,
@@ -44,6 +46,7 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
         _tableRepository = tableRepository;
         _fieldRepository = fieldRepository;
         _indexRepository = indexRepository;
+        _relationRepository = relationRepository;
         _recordRepository = recordRepository;
         _idGeneratorAccessor = idGeneratorAccessor;
         _db = db;
@@ -148,12 +151,92 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
             await _db.Ado.ExecuteCommandAsync(ddl);
             await _fieldRepository.DeleteByTableIdAsync(tenantId, table.Id, cancellationToken);
             await _indexRepository.DeleteByTableIdAsync(tenantId, table.Id, cancellationToken);
+            await _relationRepository.DeleteByTableIdAsync(tenantId, table.Id, cancellationToken);
             await _tableRepository.DeleteAsync(tenantId, table.Id, cancellationToken);
         });
 
         if (!result.IsSuccess)
         {
             throw result.ErrorException ?? new BusinessException(ErrorCodes.ServerError, "删除动态表失败。");
+        }
+    }
+
+    public async Task SetRelationsAsync(
+        TenantId tenantId,
+        long userId,
+        string tableKey,
+        DynamicRelationUpsertRequest request,
+        CancellationToken cancellationToken)
+    {
+        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, cancellationToken);
+        if (table is null)
+        {
+            throw new BusinessException(ErrorCodes.NotFound, "动态表不存在。");
+        }
+
+        var relations = request.Relations ?? Array.Empty<DynamicRelationDefinition>();
+        var fields = await _fieldRepository.ListByTableIdAsync(tenantId, table.Id, cancellationToken);
+        var sourceFieldSet = fields.Select(x => x.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var relatedTableKeys = relations
+            .Select(x => x.RelatedTableKey)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var relatedTables = await _tableRepository.QueryByKeysAsync(tenantId, relatedTableKeys, cancellationToken);
+        var relatedTableMap = relatedTables.ToDictionary(x => x.TableKey, StringComparer.OrdinalIgnoreCase);
+        if (relatedTableMap.Count != relatedTableKeys.Length)
+        {
+            var missing = relatedTableKeys.Where(x => !relatedTableMap.ContainsKey(x)).ToArray();
+            throw new BusinessException(ErrorCodes.ValidationError, $"关联表不存在：{string.Join(", ", missing)}");
+        }
+
+        var relatedTableIds = relatedTables.Select(x => x.Id).Distinct().ToArray();
+        var relatedFields = await _fieldRepository.ListByTableIdsAsync(tenantId, relatedTableIds, cancellationToken);
+        var relatedFieldMap = relatedFields
+            .GroupBy(x => x.TableId)
+            .ToDictionary(
+                x => x.Key,
+                x => x.Select(y => y.Name).ToHashSet(StringComparer.OrdinalIgnoreCase));
+        var now = _timeProvider.GetUtcNow();
+        var relationEntities = new List<DynamicRelation>(relations.Count);
+        foreach (var relation in relations)
+        {
+            if (!sourceFieldSet.Contains(relation.SourceField))
+            {
+                throw new BusinessException(ErrorCodes.ValidationError, $"源字段 {relation.SourceField} 不存在。");
+            }
+
+            var relatedTable = relatedTableMap[relation.RelatedTableKey];
+            if (!relatedFieldMap.TryGetValue(relatedTable.Id, out var targetSet))
+            {
+                targetSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            }
+            if (!targetSet.Contains(relation.TargetField))
+            {
+                throw new BusinessException(ErrorCodes.ValidationError, $"关联字段 {relation.TargetField} 在表 {relation.RelatedTableKey} 中不存在。");
+            }
+
+            relationEntities.Add(new DynamicRelation(
+                tenantId,
+                table.Id,
+                relation.RelatedTableKey,
+                relation.SourceField,
+                relation.TargetField,
+                relation.RelationType,
+                relation.CascadeRule,
+                _idGeneratorAccessor.NextId(),
+                now));
+        }
+
+        var tran = await _db.Ado.UseTranAsync(async () =>
+        {
+            await _relationRepository.DeleteByTableIdAsync(tenantId, table.Id, cancellationToken);
+            await _relationRepository.AddRangeAsync(relationEntities, cancellationToken);
+        });
+
+        if (!tran.IsSuccess)
+        {
+            throw tran.ErrorException ?? new BusinessException(ErrorCodes.ServerError, "更新动态表关系失败。");
         }
     }
 

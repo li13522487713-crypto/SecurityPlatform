@@ -91,6 +91,18 @@ Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Idempotency-Key: {{$guid}}
 X-CSRF-TOKEN: {{csrfToken}}
+Content-Type: application/json
+
+{
+  "confirmDestructive": false
+}
+
+### Precheck migration
+POST {{baseUrl}}/api/v1/dynamic-migrations/{{migrationId}}/precheck
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
 
 ### Retry migration
 POST {{baseUrl}}/api/v1/dynamic-migrations/{{migrationId}}/retry
@@ -98,3 +110,8 @@ Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Idempotency-Key: {{$guid}}
 X-CSRF-TOKEN: {{csrfToken}}
+Content-Type: application/json
+
+{
+  "confirmDestructive": true
+}

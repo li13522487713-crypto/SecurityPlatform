@@ -27,6 +27,22 @@ public sealed class DynamicFieldRepository : IDynamicFieldRepository
         return list;
     }
 
+    public async Task<IReadOnlyList<DynamicField>> ListByTableIdsAsync(
+        TenantId tenantId,
+        IReadOnlyList<long> tableIds,
+        CancellationToken cancellationToken)
+    {
+        if (tableIds.Count == 0)
+        {
+            return Array.Empty<DynamicField>();
+        }
+
+        var ids = tableIds.Distinct().ToArray();
+        return await _db.Queryable<DynamicField>()
+            .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(ids, x.TableId))
+            .ToListAsync(cancellationToken);
+    }
+
     public Task AddRangeAsync(IReadOnlyList<DynamicField> fields, CancellationToken cancellationToken)
     {
         if (fields.Count == 0)
