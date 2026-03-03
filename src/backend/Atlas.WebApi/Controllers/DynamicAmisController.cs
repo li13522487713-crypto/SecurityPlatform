@@ -65,16 +65,13 @@ public sealed class DynamicAmisController : ControllerBase
         string tableKey,
         CancellationToken cancellationToken)
     {
-        var schema = await ReadSchemaAsync("crud.json", cancellationToken);
-        if (schema is null)
-        {
-            return NotFound(ApiResponse<JsonElement>.Fail(
-                ErrorCodes.NotFound,
-                "CRUD Schema未找到",
-                HttpContext.TraceIdentifier));
-        }
-
-        return Ok(ApiResponse<JsonElement>.Ok(schema.Value, HttpContext.TraceIdentifier));
+        var tenantId = _tenantProvider.GetTenantId();
+        var fields = await _queryService.GetFieldsAsync(
+            tenantId,
+            tableKey,
+            cancellationToken);
+        var schema = BuildCrudSchema(tableKey, fields);
+        return Ok(ApiResponse<JsonElement>.Ok(schema, HttpContext.TraceIdentifier));
     }
 
     [HttpGet("{tableKey}/forms/create")]
@@ -105,6 +102,22 @@ public sealed class DynamicAmisController : ControllerBase
             tableKey,
             cancellationToken);
         var schema = BuildFormSchema(tableKey, fields, isEdit: true, id);
+        return Ok(ApiResponse<JsonElement>.Ok(schema, HttpContext.TraceIdentifier));
+    }
+
+    [HttpGet("{tableKey}/forms/detail")]
+    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    public async Task<ActionResult<ApiResponse<JsonElement>>> GetDetailForm(
+        string tableKey,
+        [FromQuery] long id,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var fields = await _queryService.GetFieldsAsync(
+            tenantId,
+            tableKey,
+            cancellationToken);
+        var schema = BuildDetailSchema(tableKey, fields, id);
         return Ok(ApiResponse<JsonElement>.Ok(schema, HttpContext.TraceIdentifier));
     }
 
@@ -174,6 +187,183 @@ public sealed class DynamicAmisController : ControllerBase
         return JsonSerializer.SerializeToElement(schema);
     }
 
+    private static JsonElement BuildCrudSchema(
+        string tableKey,
+        IReadOnlyList<DynamicFieldDefinition> fields)
+    {
+        var columns = new List<object>();
+        foreach (var field in fields.OrderBy(x => x.SortOrder))
+        {
+            columns.Add(BuildCrudColumn(field));
+        }
+
+        columns.Add(new Dictionary<string, object?>
+        {
+            ["type"] = "operation",
+            ["label"] = "操作",
+            ["buttons"] = new object[]
+            {
+                new Dictionary<string, object?>
+                {
+                    ["label"] = "详情",
+                    ["actionType"] = "dialog",
+                    ["dialog"] = new Dictionary<string, object?>
+                    {
+                        ["title"] = "记录详情",
+                        ["size"] = "lg",
+                        ["body"] = new Dictionary<string, object?>
+                        {
+                            ["type"] = "service",
+                            ["schemaApi"] = $"get:/api/v1/amis/dynamic-tables/{tableKey}/forms/detail?id=${{id}}"
+                        }
+                    }
+                },
+                new Dictionary<string, object?>
+                {
+                    ["label"] = "编辑",
+                    ["actionType"] = "dialog",
+                    ["dialog"] = new Dictionary<string, object?>
+                    {
+                        ["title"] = "编辑记录",
+                        ["size"] = "lg",
+                        ["body"] = new Dictionary<string, object?>
+                        {
+                            ["type"] = "service",
+                            ["schemaApi"] = $"get:/api/v1/amis/dynamic-tables/{tableKey}/forms/edit?id=${{id}}"
+                        }
+                    }
+                },
+                new Dictionary<string, object?>
+                {
+                    ["label"] = "删除",
+                    ["actionType"] = "ajax",
+                    ["confirmText"] = "确认删除该记录？",
+                    ["api"] = new Dictionary<string, object?>
+                    {
+                        ["method"] = "delete",
+                        ["url"] = $"/api/v1/dynamic-tables/{tableKey}/records/${{id}}",
+                        ["adaptor"] = "return { status: payload.success ? 0 : 1, msg: payload.message };"
+                    }
+                }
+            }
+        });
+
+        var schema = new Dictionary<string, object?>
+        {
+            ["type"] = "page",
+            ["title"] = "${tableDisplayName | default: '动态数据管理'}",
+            ["body"] = new object[]
+            {
+                new Dictionary<string, object?>
+                {
+                    ["type"] = "crud",
+                    ["name"] = "crudTable",
+                    ["api"] = new Dictionary<string, object?>
+                    {
+                        ["method"] = "get",
+                        ["url"] = $"/api/v1/dynamic-tables/{tableKey}/records?pageIndex=${{pageIndex}}&pageSize=${{perPage}}&keyword=${{keyword}}&sortBy=${{sortBy}}&sortDesc=${{sortDesc}}",
+                        ["adaptor"] = BuildCrudAdaptor()
+                    },
+                    ["pageField"] = "pageIndex",
+                    ["perPageField"] = "perPage",
+                    ["perPageAvailable"] = new[] { 10, 20, 50, 100 },
+                    ["pageSize"] = 20,
+                    ["syncLocation"] = false,
+                    ["filter"] = new Dictionary<string, object?>
+                    {
+                        ["title"] = "搜索",
+                        ["submitText"] = "查询",
+                        ["body"] = new object[]
+                        {
+                            new Dictionary<string, object?>
+                            {
+                                ["type"] = "input-text",
+                                ["name"] = "keyword",
+                                ["label"] = "关键字"
+                            }
+                        }
+                    },
+                    ["headerToolbar"] = new object[]
+                    {
+                        new Dictionary<string, object?>
+                        {
+                            ["type"] = "button",
+                            ["label"] = "新增",
+                            ["level"] = "primary",
+                            ["actionType"] = "dialog",
+                            ["dialog"] = new Dictionary<string, object?>
+                            {
+                                ["title"] = "新增记录",
+                                ["size"] = "lg",
+                                ["body"] = new Dictionary<string, object?>
+                                {
+                                    ["type"] = "service",
+                                    ["schemaApi"] = $"get:/api/v1/amis/dynamic-tables/{tableKey}/forms/create"
+                                }
+                            }
+                        },
+                        "bulkActions",
+                        "pagination"
+                    },
+                    ["bulkActions"] = new object[]
+                    {
+                        new Dictionary<string, object?>
+                        {
+                            ["label"] = "批量删除",
+                            ["actionType"] = "ajax",
+                            ["confirmText"] = "确认删除选中记录？",
+                            ["api"] = new Dictionary<string, object?>
+                            {
+                                ["method"] = "delete",
+                                ["url"] = $"/api/v1/dynamic-tables/{tableKey}/records",
+                                ["data"] = new Dictionary<string, object?>
+                                {
+                                    ["ids"] = "${ids}"
+                                },
+                                ["adaptor"] = "return { status: payload.success ? 0 : 1, msg: payload.message };"
+                            }
+                        }
+                    },
+                    ["columns"] = columns
+                }
+            }
+        };
+
+        return JsonSerializer.SerializeToElement(schema);
+    }
+
+    private static JsonElement BuildDetailSchema(
+        string tableKey,
+        IReadOnlyList<DynamicFieldDefinition> fields,
+        long id)
+    {
+        var body = fields
+            .OrderBy(x => x.SortOrder)
+            .Select(field => new Dictionary<string, object?>
+            {
+                ["type"] = "static",
+                ["name"] = field.Name,
+                ["label"] = field.DisplayName ?? field.Name
+            })
+            .ToArray();
+
+        var schema = new Dictionary<string, object?>
+        {
+            ["type"] = "form",
+            ["wrapWithPanel"] = false,
+            ["mode"] = "horizontal",
+            ["initApi"] = new Dictionary<string, object?>
+            {
+                ["method"] = "get",
+                ["url"] = $"/api/v1/dynamic-tables/{tableKey}/records/{id}",
+                ["adaptor"] = BuildInitAdaptor()
+            },
+            ["body"] = body
+        };
+
+        return JsonSerializer.SerializeToElement(schema);
+    }
+
     private static string BuildRequestAdaptor()
     {
         return """
@@ -197,6 +387,33 @@ public sealed class DynamicAmisController : ControllerBase
         });
         api.data = { values: values };
         return api;
+        """;
+    }
+
+    private static string BuildCrudAdaptor()
+    {
+        return """
+        if (!payload.success) {
+          return { status: 1, msg: payload.message };
+        }
+        var d = payload.data || {};
+        var items = (d.items || []).map(function(r) {
+          var row = { id: r.id };
+          (r.values || []).forEach(function(v) {
+            var val = v.stringValue ?? v.intValue ?? v.longValue ?? v.decimalValue ?? v.boolValue ?? v.dateTimeValue ?? v.dateValue;
+            row[v.field] = val;
+          });
+          return row;
+        });
+        return {
+          status: 0,
+          data: {
+            items: items,
+            total: d.total || 0,
+            pageIndex: d.pageIndex || 1,
+            perPage: d.pageSize || 20
+          }
+        };
         """;
     }
 
@@ -263,6 +480,47 @@ public sealed class DynamicAmisController : ControllerBase
                 ["type"] = "input-text",
                 ["name"] = field.Name,
                 ["label"] = field.DisplayName ?? field.Name
+            }
+        };
+    }
+
+    private static object BuildCrudColumn(DynamicFieldDefinition field)
+    {
+        return field.FieldType switch
+        {
+            "Bool" => new Dictionary<string, object?>
+            {
+                ["name"] = field.Name,
+                ["label"] = field.DisplayName ?? field.Name,
+                ["type"] = "status",
+                ["map"] = new Dictionary<string, object?>
+                {
+                    ["0"] = "danger",
+                    ["1"] = "success"
+                }
+            },
+            "DateTime" => new Dictionary<string, object?>
+            {
+                ["name"] = field.Name,
+                ["label"] = field.DisplayName ?? field.Name,
+                ["type"] = "datetime",
+                ["format"] = "YYYY-MM-DD HH:mm:ss",
+                ["sortable"] = true
+            },
+            "Date" => new Dictionary<string, object?>
+            {
+                ["name"] = field.Name,
+                ["label"] = field.DisplayName ?? field.Name,
+                ["type"] = "date",
+                ["format"] = "YYYY-MM-DD",
+                ["sortable"] = true
+            },
+            _ => new Dictionary<string, object?>
+            {
+                ["name"] = field.Name,
+                ["label"] = field.DisplayName ?? field.Name,
+                ["type"] = "text",
+                ["sortable"] = true
             }
         };
     }

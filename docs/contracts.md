@@ -1044,9 +1044,10 @@ JWT Claims（新增）：
 ### AMIS Schema 接口
 
 - `GET /api/v1/amis/dynamic-tables/designer`：表结构设计器 Schema
-- `GET /api/v1/amis/dynamic-tables/{tableKey}/crud`：动态 CRUD Schema
+- `GET /api/v1/amis/dynamic-tables/{tableKey}/crud`：动态 CRUD Schema（按字段实时生成列定义、排序与分页）
 - `GET /api/v1/amis/dynamic-tables/{tableKey}/forms/create`：新建表单 Schema
 - `GET /api/v1/amis/dynamic-tables/{tableKey}/forms/edit?id=1001`：编辑表单 Schema
+- `GET /api/v1/amis/dynamic-tables/{tableKey}/forms/detail?id=1001`：详情只读 Schema
 
 ### DynamicTableSummary
 
