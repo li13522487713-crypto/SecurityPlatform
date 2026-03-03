@@ -28,7 +28,7 @@ public sealed class DashboardsController : ControllerBase
     }
 
     [HttpGet]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppsView)]
     public async Task<ActionResult<ApiResponse<PagedResult<DashboardDefinitionListItem>>>> Get(
         [FromQuery] PagedRequest request, CancellationToken cancellationToken)
     {
@@ -38,7 +38,7 @@ public sealed class DashboardsController : ControllerBase
     }
 
     [HttpGet("{id:long}")]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppsView)]
     public async Task<ActionResult<ApiResponse<DashboardDefinitionDetail?>>> GetById(
         long id, CancellationToken cancellationToken)
     {
@@ -48,7 +48,7 @@ public sealed class DashboardsController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
     public async Task<ActionResult<ApiResponse<object>>> Create(
         [FromBody] DashboardDefinitionCreateRequest request, CancellationToken cancellationToken)
     {
@@ -60,7 +60,7 @@ public sealed class DashboardsController : ControllerBase
     }
 
     [HttpPut("{id:long}")]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
     public async Task<ActionResult<ApiResponse<object>>> Update(
         long id, [FromBody] DashboardDefinitionUpdateRequest request, CancellationToken cancellationToken)
     {
@@ -72,7 +72,7 @@ public sealed class DashboardsController : ControllerBase
     }
 
     [HttpDelete("{id:long}")]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
     public async Task<ActionResult<ApiResponse<object>>> Delete(long id, CancellationToken cancellationToken)
     {
         var currentUser = _currentUserAccessor.GetCurrentUser();

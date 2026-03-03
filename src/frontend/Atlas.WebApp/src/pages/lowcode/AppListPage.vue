@@ -12,7 +12,7 @@
         />
       </div>
       <div class="page-header-right">
-        <a-button type="primary" @click="handleCreate">新建应用</a-button>
+        <a-button v-if="canManageApps" type="primary" @click="handleCreate">新建应用</a-button>
       </div>
     </div>
 
@@ -39,7 +39,7 @@
           <span class="app-card-version">v{{ app.version }}</span>
         </div>
         <div class="app-card-actions" @click.stop>
-          <a-dropdown trigger="click">
+          <a-dropdown v-if="canManageApps" trigger="click">
             <a-button type="text" size="small">...</a-button>
             <template #overlay>
               <a-menu>
@@ -53,7 +53,7 @@
       </div>
 
       <!-- 新建应用占位卡片 -->
-      <div class="app-card app-card-new" @click="handleCreate">
+      <div v-if="canManageApps" class="app-card app-card-new" @click="handleCreate">
         <div class="app-card-new-icon">+</div>
         <div class="app-card-new-text">新建应用</div>
       </div>
@@ -106,6 +106,7 @@ import { onMounted, reactive, ref } from "vue";
 import { useRouter } from "vue-router";
 import { message } from "ant-design-vue";
 import type { LowCodeAppListItem } from "@/types/lowcode";
+import { getAuthProfile, hasPermission } from "@/utils/auth";
 import {
   getLowCodeAppsPaged,
   createLowCodeApp,
@@ -115,6 +116,7 @@ import {
 } from "@/services/lowcode";
 
 const router = useRouter();
+const canManageApps = hasPermission(getAuthProfile(), "apps:update");
 
 const keyword = ref("");
 const loading = ref(false);
@@ -230,6 +232,10 @@ const handleFormSubmit = async () => {
 };
 
 const handleOpenApp = (id: string) => {
+  if (!canManageApps) {
+    message.warning("当前账号无应用编辑权限");
+    return;
+  }
   router.push(`/lowcode/apps/${id}/builder`);
 };
 

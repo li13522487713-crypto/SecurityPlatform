@@ -44,7 +44,7 @@ public sealed class FormDefinitionsController : ControllerBase
     /// 查询表单定义列表
     /// </summary>
     [HttpGet]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppsView)]
     public async Task<ActionResult<ApiResponse<PagedResult<FormDefinitionListItem>>>> Get(
         [FromQuery] PagedRequest request,
         [FromQuery] string? category,
@@ -59,7 +59,7 @@ public sealed class FormDefinitionsController : ControllerBase
     /// 获取表单定义详情
     /// </summary>
     [HttpGet("{id:long}")]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppsView)]
     public async Task<ActionResult<ApiResponse<FormDefinitionDetail?>>> GetById(
         long id,
         CancellationToken cancellationToken)
@@ -73,7 +73,7 @@ public sealed class FormDefinitionsController : ControllerBase
     /// 创建表单定义
     /// </summary>
     [HttpPost]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
     public async Task<ActionResult<ApiResponse<object>>> Create(
         [FromBody] FormDefinitionCreateRequest request,
         CancellationToken cancellationToken)
@@ -94,7 +94,7 @@ public sealed class FormDefinitionsController : ControllerBase
     /// 更新表单定义
     /// </summary>
     [HttpPut("{id:long}")]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
     public async Task<ActionResult<ApiResponse<object>>> Update(
         long id,
         [FromBody] FormDefinitionUpdateRequest request,
@@ -116,7 +116,7 @@ public sealed class FormDefinitionsController : ControllerBase
     /// 仅更新表单 Schema
     /// </summary>
     [HttpPatch("{id:long}/schema")]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
     public async Task<ActionResult<ApiResponse<object>>> UpdateSchema(
         long id,
         [FromBody] FormDefinitionSchemaUpdateRequest request,
@@ -138,7 +138,7 @@ public sealed class FormDefinitionsController : ControllerBase
     /// 发布表单定义
     /// </summary>
     [HttpPost("{id:long}/publish")]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
     public async Task<ActionResult<ApiResponse<object>>> Publish(
         long id,
         CancellationToken cancellationToken)
@@ -158,7 +158,7 @@ public sealed class FormDefinitionsController : ControllerBase
     /// 停用表单定义
     /// </summary>
     [HttpPost("{id:long}/disable")]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
     public async Task<ActionResult<ApiResponse<object>>> Disable(
         long id,
         CancellationToken cancellationToken)
@@ -178,7 +178,7 @@ public sealed class FormDefinitionsController : ControllerBase
     /// 启用表单定义
     /// </summary>
     [HttpPost("{id:long}/enable")]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
     public async Task<ActionResult<ApiResponse<object>>> Enable(
         long id,
         CancellationToken cancellationToken)
@@ -198,7 +198,7 @@ public sealed class FormDefinitionsController : ControllerBase
     /// 删除表单定义
     /// </summary>
     [HttpDelete("{id:long}")]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
     public async Task<ActionResult<ApiResponse<object>>> Delete(
         long id,
         CancellationToken cancellationToken)

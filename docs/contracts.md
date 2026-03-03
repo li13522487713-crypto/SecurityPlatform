@@ -864,6 +864,11 @@ JWT Claims（新增）：
 - `POST /api/v1/lowcode-apps/{id}/disable`：停用应用（需幂等 + CSRF）
 - `DELETE /api/v1/lowcode-apps/{id}`：删除应用（需幂等 + CSRF）
 
+授权策略：
+
+- 读接口（GET）要求 `apps:view`
+- 写接口（POST/PUT/PATCH/DELETE）要求 `apps:update`
+
 ### 低代码页面（LowCodePage）
 
 - `POST /api/v1/lowcode-apps/{appId}/pages`：创建页面（需幂等 + CSRF）
@@ -873,6 +878,11 @@ JWT Claims（新增）：
 - `DELETE /api/v1/lowcode-apps/pages/{pageId}`：删除页面（需幂等 + CSRF）
 - `GET /api/v1/lowcode-apps/pages/{pageId}`：页面详情（含完整 `schemaJson`）
 - `GET /api/v1/lowcode-apps/{appId}/pages/tree`：页面树（按 `parentPageId` + `sortOrder`）
+
+授权策略：
+
+- 页面读接口要求 `apps:view`
+- 页面写接口要求 `apps:update`
 
 ### LowCodePageTreeNode
 

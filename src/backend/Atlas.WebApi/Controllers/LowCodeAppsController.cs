@@ -50,7 +50,7 @@ public sealed class LowCodeAppsController : ControllerBase
     /// 查询应用列表
     /// </summary>
     [HttpGet]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppsView)]
     public async Task<ActionResult<ApiResponse<PagedResult<LowCodeAppListItem>>>> Get(
         [FromQuery] PagedRequest request,
         [FromQuery] string? category,
@@ -65,7 +65,7 @@ public sealed class LowCodeAppsController : ControllerBase
     /// 获取应用详情（含页面列表）
     /// </summary>
     [HttpGet("{id:long}")]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppsView)]
     public async Task<ActionResult<ApiResponse<LowCodeAppDetail?>>> GetById(
         long id,
         CancellationToken cancellationToken)
@@ -79,7 +79,7 @@ public sealed class LowCodeAppsController : ControllerBase
     /// 按 AppKey 获取应用详情
     /// </summary>
     [HttpGet("by-key/{appKey}")]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppsView)]
     public async Task<ActionResult<ApiResponse<LowCodeAppDetail?>>> GetByKey(
         string appKey,
         CancellationToken cancellationToken)
@@ -93,7 +93,7 @@ public sealed class LowCodeAppsController : ControllerBase
     /// 创建应用
     /// </summary>
     [HttpPost]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
     public async Task<ActionResult<ApiResponse<object>>> Create(
         [FromBody] LowCodeAppCreateRequest request,
         CancellationToken cancellationToken)
@@ -114,7 +114,7 @@ public sealed class LowCodeAppsController : ControllerBase
     /// 更新应用
     /// </summary>
     [HttpPut("{id:long}")]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
     public async Task<ActionResult<ApiResponse<object>>> Update(
         long id,
         [FromBody] LowCodeAppUpdateRequest request,
@@ -136,7 +136,7 @@ public sealed class LowCodeAppsController : ControllerBase
     /// 发布应用
     /// </summary>
     [HttpPost("{id:long}/publish")]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
     public async Task<ActionResult<ApiResponse<object>>> Publish(long id, CancellationToken cancellationToken)
     {
         var currentUser = _currentUserAccessor.GetCurrentUser();
@@ -154,7 +154,7 @@ public sealed class LowCodeAppsController : ControllerBase
     /// 停用应用
     /// </summary>
     [HttpPost("{id:long}/disable")]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
     public async Task<ActionResult<ApiResponse<object>>> Disable(long id, CancellationToken cancellationToken)
     {
         var currentUser = _currentUserAccessor.GetCurrentUser();
@@ -172,7 +172,7 @@ public sealed class LowCodeAppsController : ControllerBase
     /// 删除应用
     /// </summary>
     [HttpDelete("{id:long}")]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
     public async Task<ActionResult<ApiResponse<object>>> Delete(long id, CancellationToken cancellationToken)
     {
         var currentUser = _currentUserAccessor.GetCurrentUser();
@@ -192,7 +192,7 @@ public sealed class LowCodeAppsController : ControllerBase
     /// 获取页面详情
     /// </summary>
     [HttpGet("pages/{pageId:long}")]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppsView)]
     public async Task<ActionResult<ApiResponse<LowCodePageDetail?>>> GetPageById(
         long pageId,
         CancellationToken cancellationToken)
@@ -206,7 +206,7 @@ public sealed class LowCodeAppsController : ControllerBase
     /// 获取应用页面树
     /// </summary>
     [HttpGet("{appId:long}/pages/tree")]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppsView)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<LowCodePageTreeNode>>>> GetPageTree(
         long appId,
         CancellationToken cancellationToken)
@@ -220,7 +220,7 @@ public sealed class LowCodeAppsController : ControllerBase
     /// 创建页面
     /// </summary>
     [HttpPost("{appId:long}/pages")]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
     public async Task<ActionResult<ApiResponse<object>>> CreatePage(
         long appId,
         [FromBody] LowCodePageCreateRequest request,
@@ -242,7 +242,7 @@ public sealed class LowCodeAppsController : ControllerBase
     /// 更新页面
     /// </summary>
     [HttpPut("pages/{pageId:long}")]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
     public async Task<ActionResult<ApiResponse<object>>> UpdatePage(
         long pageId,
         [FromBody] LowCodePageUpdateRequest request,
@@ -264,7 +264,7 @@ public sealed class LowCodeAppsController : ControllerBase
     /// 仅更新页面 Schema
     /// </summary>
     [HttpPatch("pages/{pageId:long}/schema")]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
     public async Task<ActionResult<ApiResponse<object>>> UpdatePageSchema(
         long pageId,
         [FromBody] LowCodePageSchemaUpdateRequest request,
@@ -285,7 +285,7 @@ public sealed class LowCodeAppsController : ControllerBase
     /// 发布页面
     /// </summary>
     [HttpPost("pages/{pageId:long}/publish")]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
     public async Task<ActionResult<ApiResponse<object>>> PublishPage(long pageId, CancellationToken cancellationToken)
     {
         var currentUser = _currentUserAccessor.GetCurrentUser();
@@ -303,7 +303,7 @@ public sealed class LowCodeAppsController : ControllerBase
     /// 删除页面
     /// </summary>
     [HttpDelete("pages/{pageId:long}")]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
     public async Task<ActionResult<ApiResponse<object>>> DeletePage(long pageId, CancellationToken cancellationToken)
     {
         var currentUser = _currentUserAccessor.GetCurrentUser();

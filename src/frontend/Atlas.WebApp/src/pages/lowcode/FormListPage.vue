@@ -24,7 +24,7 @@
         </a-select>
       </div>
       <div class="page-header-right">
-        <a-button type="primary" @click="handleCreate">新建表单</a-button>
+        <a-button v-if="canManageApps" type="primary" @click="handleCreate">新建表单</a-button>
       </div>
     </div>
 
@@ -44,23 +44,24 @@
         </template>
         <template v-else-if="column.key === 'actions'">
           <a-space>
-            <a-button type="link" @click="handleEdit(record.id)">设计</a-button>
+            <a-button v-if="canManageApps" type="link" @click="handleEdit(record.id)">设计</a-button>
             <a-button
-              v-if="record.status === 'Draft'"
+              v-if="canManageApps && record.status === 'Draft'"
               type="link"
               @click="handlePublish(record.id)"
             >发布</a-button>
             <a-button
-              v-if="record.status === 'Published'"
+              v-if="canManageApps && record.status === 'Published'"
               type="link"
               @click="handleDisable(record.id)"
             >停用</a-button>
             <a-button
-              v-if="record.status === 'Disabled'"
+              v-if="canManageApps && record.status === 'Disabled'"
               type="link"
               @click="handleEnable(record.id)"
             >启用</a-button>
             <a-popconfirm
+              v-if="canManageApps"
               title="确认删除该表单？"
               ok-text="删除"
               cancel-text="取消"
@@ -107,6 +108,7 @@ import type { TablePaginationConfig } from "ant-design-vue";
 import { message } from "ant-design-vue";
 import { useRouter } from "vue-router";
 import type { FormDefinitionListItem } from "@/types/lowcode";
+import { getAuthProfile, hasPermission } from "@/utils/auth";
 import {
   getFormDefinitionsPaged,
   createFormDefinition,
@@ -117,6 +119,7 @@ import {
 } from "@/services/lowcode";
 
 const router = useRouter();
+const canManageApps = hasPermission(getAuthProfile(), "apps:update");
 
 const keyword = ref("");
 const categoryFilter = ref<string | undefined>(undefined);
@@ -195,6 +198,10 @@ const handleSearch = () => {
 };
 
 const handleCreate = () => {
+  if (!canManageApps) {
+    message.warning("当前账号无表单编辑权限");
+    return;
+  }
   createForm.name = "";
   createForm.category = undefined;
   createForm.description = "";
@@ -236,6 +243,10 @@ const handleCreateSubmit = async () => {
 };
 
 const handleEdit = (id: string) => {
+  if (!canManageApps) {
+    message.warning("当前账号无表单设计权限");
+    return;
+  }
   router.push({ name: "apps-form-designer", params: { id } });
 };
 

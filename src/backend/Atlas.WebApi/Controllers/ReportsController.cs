@@ -28,7 +28,7 @@ public sealed class ReportsController : ControllerBase
     }
 
     [HttpGet]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppsView)]
     public async Task<ActionResult<ApiResponse<PagedResult<ReportDefinitionListItem>>>> Get(
         [FromQuery] PagedRequest request, CancellationToken cancellationToken)
     {
@@ -38,7 +38,7 @@ public sealed class ReportsController : ControllerBase
     }
 
     [HttpGet("{id:long}")]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppsView)]
     public async Task<ActionResult<ApiResponse<ReportDefinitionDetail?>>> GetById(
         long id, CancellationToken cancellationToken)
     {
@@ -48,7 +48,7 @@ public sealed class ReportsController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
     public async Task<ActionResult<ApiResponse<object>>> Create(
         [FromBody] ReportDefinitionCreateRequest request, CancellationToken cancellationToken)
     {
@@ -60,7 +60,7 @@ public sealed class ReportsController : ControllerBase
     }
 
     [HttpPut("{id:long}")]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
     public async Task<ActionResult<ApiResponse<object>>> Update(
         long id, [FromBody] ReportDefinitionUpdateRequest request, CancellationToken cancellationToken)
     {
@@ -72,7 +72,7 @@ public sealed class ReportsController : ControllerBase
     }
 
     [HttpDelete("{id:long}")]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
     public async Task<ActionResult<ApiResponse<object>>> Delete(long id, CancellationToken cancellationToken)
     {
         var currentUser = _currentUserAccessor.GetCurrentUser();
