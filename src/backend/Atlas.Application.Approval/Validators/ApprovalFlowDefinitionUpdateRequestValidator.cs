@@ -194,10 +194,25 @@ public sealed class ApprovalFlowDefinitionUpdateRequestValidator : AbstractValid
                 if (node.TryGetProperty("parallelNodes", out var parallelNodes) &&
                     parallelNodes.ValueKind == JsonValueKind.Array)
                 {
+                    var branchCount = 0;
                     foreach (var child in parallelNodes.EnumerateArray())
                     {
+                        branchCount++;
                         Traverse(child);
                     }
+                    if (branchCount < 2)
+                    {
+                        ctx.AddFailure("DefinitionJson", "并行节点至少需要2个并行分支");
+                    }
+                }
+                else
+                {
+                    ctx.AddFailure("DefinitionJson", "并行节点必须包含 parallelNodes 数组");
+                }
+
+                if (!node.TryGetProperty("childNode", out var mergeNode) || mergeNode.ValueKind != JsonValueKind.Object)
+                {
+                    ctx.AddFailure("DefinitionJson", "并行节点必须配置汇聚后的后续节点");
                 }
             }
 

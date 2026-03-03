@@ -179,6 +179,24 @@ public sealed class ApprovalFlowsController : ControllerBase
         CancellationToken cancellationToken = default)
     {
         var currentUser = _currentUserAccessor.GetCurrentUserOrThrow();
+        var definition = await _queryService.GetByIdAsync(currentUser.TenantId, id, cancellationToken);
+        if (definition == null)
+        {
+            return ApiResponse<string>.Fail("NOT_FOUND", "流程定义不存在", HttpContext.TraceIdentifier);
+        }
+
+        var semanticIssues = _semanticValidator.Validate(definition.DefinitionJson);
+        var blockingIssues = semanticIssues
+            .Where(issue => string.Equals(issue.Severity, "error", StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        if (blockingIssues.Length > 0)
+        {
+            var summary = string.Join("；", blockingIssues.Take(3).Select(issue => issue.Message));
+            return ApiResponse<string>.Fail(
+                "VALIDATION_ERROR",
+                $"发布前校验不通过：{summary}",
+                HttpContext.TraceIdentifier);
+        }
 
         await _commandService.PublishAsync(
             currentUser.TenantId,

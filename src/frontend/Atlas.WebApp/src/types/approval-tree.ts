@@ -115,6 +115,7 @@ export interface ParallelConditionNode extends TreeNodeBase {
 
 export interface ParallelNode extends TreeNodeBase {
   nodeType: 'parallel';
+  groupId?: string;
   parallelNodes: TreeNode[];
   childNode?: TreeNode;
 }

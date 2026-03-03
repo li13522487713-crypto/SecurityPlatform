@@ -158,14 +158,30 @@
         <template v-else>
           <a-alert type="error" message="校验不通过，请修正以下问题" show-icon style="margin-bottom:12px" />
           <div class="dd-validate-list">
-            <div v-for="(err, idx) in validateResult.errors" :key="idx" class="dd-validate-item">
-              <CloseCircleOutlined style="color:#ff4d4f;margin-right:6px" /> {{ err }}
+            <div
+              v-for="(issue, idx) in errorIssues"
+              :key="`${issue.code}-${idx}`"
+              class="dd-validate-item"
+              :class="{ 'dd-validate-item--locatable': !!issue.nodeId }"
+              @click="handleValidationIssueClick(issue)"
+            >
+              <CloseCircleOutlined style="color:#ff4d4f;margin-right:6px" />
+              <span>{{ issue.message }}</span>
+              <a-tag v-if="issue.nodeId" color="processing" style="margin-left: 8px">点击定位</a-tag>
             </div>
           </div>
         </template>
-        <div v-if="validateResult.warnings?.length" class="dd-validate-list" style="margin-top:8px">
-          <div v-for="(warn, idx) in validateResult.warnings" :key="idx" class="dd-validate-item">
-            <ExclamationCircleOutlined style="color:#faad14;margin-right:6px" /> {{ warn }}
+        <div v-if="warningIssues.length" class="dd-validate-list" style="margin-top:8px">
+          <div
+            v-for="(issue, idx) in warningIssues"
+            :key="`${issue.code}-${idx}`"
+            class="dd-validate-item"
+            :class="{ 'dd-validate-item--locatable': !!issue.nodeId }"
+            @click="handleValidationIssueClick(issue)"
+          >
+            <ExclamationCircleOutlined style="color:#faad14;margin-right:6px" />
+            <span>{{ issue.message }}</span>
+            <a-tag v-if="issue.nodeId" color="gold" style="margin-left: 8px">点击定位</a-tag>
           </div>
         </div>
       </div>
@@ -219,7 +235,7 @@ import { ApprovalTreeConverter } from '@/utils/approval-tree-converter';
 import { extractAmisFields } from '@/utils/amis-field-extractor';
 import type { ApprovalDefinitionMeta, LfFormPayload, FormJson, VisibilityScope } from '@/types/approval-definition';
 import type { TreeNode, ConditionBranch } from '@/types/approval-tree';
-import type { ApprovalFlowValidationResult } from '@/types/api';
+import type { ApprovalFlowValidationIssue, ApprovalFlowValidationResult } from '@/types/api';
 import {
   getApprovalFlowById,
   createApprovalFlow,
@@ -263,6 +279,32 @@ const publishModalOpen = ref(false);
 const publishing = ref(false);
 const previewModalOpen = ref(false);
 const designerRef = ref<InstanceType<typeof X6ApprovalDesigner> | null>(null);
+type ValidationIssueView = ApprovalFlowValidationIssue & { severity: 'error' | 'warning' };
+const normalizeValidationIssues = (result: ApprovalFlowValidationResult | null): ValidationIssueView[] => {
+  if (!result) {
+    return [];
+  }
+  if (result.details && result.details.length > 0) {
+    return result.details.map((detail) => ({
+      ...detail,
+      severity: detail.severity === 'warning' ? 'warning' : 'error',
+    }));
+  }
+  const errorIssues = result.errors.map((message) => ({
+    code: 'LOCAL_ERROR',
+    message,
+    severity: 'error' as const,
+  }));
+  const warningIssues = result.warnings.map((message) => ({
+    code: 'LOCAL_WARNING',
+    message,
+    severity: 'warning' as const,
+  }));
+  return [...errorIssues, ...warningIssues];
+};
+const allValidationIssues = computed(() => normalizeValidationIssues(validateResult.value));
+const errorIssues = computed(() => allValidationIssues.value.filter((issue) => issue.severity === 'error'));
+const warningIssues = computed(() => allValidationIssues.value.filter((issue) => issue.severity === 'warning'));
 
 // ── 导航 ──
 const goBack = () => {
@@ -284,6 +326,19 @@ const handleRouteTargetUpdate = (routeNodeId: string, targetNodeId: string) => {
     ...target,
     routeTargetNodeId: targetNodeId,
   });
+};
+
+const handleValidationIssueClick = (issue: ValidationIssueView) => {
+  if (!issue.nodeId) {
+    return;
+  }
+  const target = findNodeById(flowTree.value.rootNode, issue.nodeId);
+  if (!target) {
+    return;
+  }
+  selectNode(target);
+  activeStep.value = 2;
+  message.info(`已定位到节点：${target.nodeName}`);
 };
 
 // ── 步骤 ──
@@ -428,7 +483,17 @@ const handleValidate = async () => {
   const localResult = validateFlow();
   if (!localResult.valid) {
     focusNodeByErrors(localResult.errors);
-    validateResult.value = { isValid: false, errors: localResult.errors, warnings: [] };
+    validateResult.value = {
+      isValid: false,
+      errors: localResult.errors,
+      warnings: [],
+      details: localResult.issues.map((issue) => ({
+        code: issue.code,
+        message: issue.message,
+        severity: issue.severity,
+        nodeId: issue.nodeId,
+      })),
+    };
     validateModalOpen.value = true;
     return;
   }
@@ -451,7 +516,17 @@ const handleSave = async () => {
   const localResult = validateFlow();
   if (!localResult.valid) {
     focusNodeByErrors(localResult.errors);
-    validateResult.value = { isValid: false, errors: localResult.errors, warnings: [] };
+    validateResult.value = {
+      isValid: false,
+      errors: localResult.errors,
+      warnings: [],
+      details: localResult.issues.map((issue) => ({
+        code: issue.code,
+        message: issue.message,
+        severity: issue.severity,
+        nodeId: issue.nodeId,
+      })),
+    };
     validateModalOpen.value = true;
     return;
   }
@@ -480,7 +555,17 @@ const handlePublishClick = async () => {
   const localResult = validateFlow();
   if (!localResult.valid) {
     focusNodeByErrors(localResult.errors);
-    validateResult.value = { isValid: false, errors: localResult.errors, warnings: [] };
+    validateResult.value = {
+      isValid: false,
+      errors: localResult.errors,
+      warnings: [],
+      details: localResult.issues.map((issue) => ({
+        code: issue.code,
+        message: issue.message,
+        severity: issue.severity,
+        nodeId: issue.nodeId,
+      })),
+    };
     validateModalOpen.value = true;
     return;
   }
@@ -734,8 +819,17 @@ onBeforeUnmount(() => {
   font-size: 13px;
   line-height: 1.5;
   border-bottom: 1px solid #fafafa;
+  display: flex;
+  align-items: center;
 }
 .dd-validate-item:last-child {
   border-bottom: none;
+}
+.dd-validate-item--locatable {
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.dd-validate-item--locatable:hover {
+  background: #f5f5f5;
 }
 </style>
