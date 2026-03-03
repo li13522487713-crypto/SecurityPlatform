@@ -199,6 +199,14 @@ JWT Claims（新增）：
 
 ## 租户数据源契约
 
+### 管理接口
+
+- `GET /api/v1/tenant-datasources`：查询数据源列表
+- `POST /api/v1/tenant-datasources`：新增数据源
+- `PUT /api/v1/tenant-datasources/{id}`：更新数据源
+- `DELETE /api/v1/tenant-datasources/{id}`：删除数据源
+- `POST /api/v1/tenant-datasources/test`：测试数据源连接
+
 ### 数据源类型
 
 - `SQLite`

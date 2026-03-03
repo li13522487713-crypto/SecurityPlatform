@@ -76,6 +76,11 @@ import type {
   ProjectAssignUsersRequest,
   ProjectAssignDepartmentsRequest,
   ProjectAssignPositionsRequest,
+  TenantDataSourceDto,
+  TenantDataSourceCreateRequest,
+  TenantDataSourceUpdateRequest,
+  TenantDataSourceTestConnectionRequest,
+  TenantDataSourceTestConnectionResult,
   TableViewConfig,
   TableViewListItem,
   TableViewDetail,
@@ -1487,6 +1492,63 @@ export async function getMyProjects() {
   const response = await requestApi<ApiResponse<ProjectListItem[]>>("/projects/my");
   if (!response.data) {
     throw new Error(response.message || "查询失败");
+  }
+  return response.data;
+}
+
+export async function getTenantDataSources(): Promise<TenantDataSourceDto[]> {
+  const response = await requestApi<ApiResponse<TenantDataSourceDto[]>>("/tenant-datasources");
+  if (!response.data) {
+    throw new Error(response.message || "查询数据源失败");
+  }
+  return response.data;
+}
+
+export async function createTenantDataSource(request: TenantDataSourceCreateRequest): Promise<{ id: string }> {
+  const response = await requestApi<ApiResponse<{ id: string }>>("/tenant-datasources", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request)
+  });
+  if (!response.data) {
+    throw new Error(response.message || "创建数据源失败");
+  }
+  return response.data;
+}
+
+export async function updateTenantDataSource(
+  id: string,
+  request: TenantDataSourceUpdateRequest
+): Promise<void> {
+  const response = await requestApi<ApiResponse<{ id: string }>>(`/tenant-datasources/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request)
+  });
+  if (!response.success) {
+    throw new Error(response.message || "更新数据源失败");
+  }
+}
+
+export async function deleteTenantDataSource(id: string): Promise<void> {
+  const response = await requestApi<ApiResponse<{ id: string }>>(`/tenant-datasources/${id}`, {
+    method: "DELETE"
+  });
+  if (!response.success) {
+    throw new Error(response.message || "删除数据源失败");
+  }
+}
+
+export async function testTenantDataSourceConnection(
+  request: TenantDataSourceTestConnectionRequest
+): Promise<TenantDataSourceTestConnectionResult> {
+  const response = await requestApi<ApiResponse<TenantDataSourceTestConnectionResult>>("/tenant-datasources/test", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request)
+  });
+  if (!response.data) {
+    throw new Error(response.message || "连接测试失败");
   }
   return response.data;
 }

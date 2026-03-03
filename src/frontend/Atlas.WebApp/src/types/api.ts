@@ -678,6 +678,39 @@ export interface ProjectAssignPositionsRequest {
   positionIds: number[];
 }
 
+export interface TenantDataSourceDto {
+  id: string;
+  tenantIdValue: string;
+  name: string;
+  dbType: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface TenantDataSourceCreateRequest {
+  tenantIdValue: string;
+  name: string;
+  connectionString: string;
+  dbType: string;
+}
+
+export interface TenantDataSourceUpdateRequest {
+  name: string;
+  connectionString: string;
+  dbType: string;
+}
+
+export interface TenantDataSourceTestConnectionRequest {
+  connectionString: string;
+  dbType: string;
+}
+
+export interface TenantDataSourceTestConnectionResult {
+  success: boolean;
+  errorMessage?: string;
+}
+
 export interface PositionListItem {
   id: string;
   name: string;
