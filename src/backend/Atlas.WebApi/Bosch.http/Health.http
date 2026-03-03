@@ -4,3 +4,6 @@
 ### Health
 GET {{baseUrl}}/api/v1/health
 
+### Health（重复探针）
+GET {{baseUrl}}/api/v1/health
+
