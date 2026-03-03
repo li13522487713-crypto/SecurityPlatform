@@ -1,11 +1,13 @@
 using System.Data;
 using System.Text.Json;
+using System.Diagnostics;
 using Atlas.Application.DynamicTables.Models;
 using Atlas.Application.DynamicTables.Repositories;
 using Atlas.Core.Exceptions;
 using Atlas.Domain.DynamicTables.Entities;
 using Atlas.Domain.DynamicTables.Enums;
 using Atlas.Infrastructure.DynamicTables;
+using Atlas.Infrastructure.Observability;
 using SqlSugar;
 
 namespace Atlas.Infrastructure.Repositories;
@@ -183,37 +185,51 @@ public sealed class DynamicRecordRepository : IDynamicRecordRepository
         DynamicRecordQueryRequest request,
         CancellationToken cancellationToken)
     {
-        if (table.DbType != DynamicDbType.Sqlite)
+        var stopwatch = Stopwatch.StartNew();
+        var status = "success";
+        try
         {
-            throw new BusinessException(Atlas.Core.Models.ErrorCodes.ValidationError, "当前仅支持 SQLite 动态数据查询。");
+            if (table.DbType != DynamicDbType.Sqlite)
+            {
+                throw new BusinessException(Atlas.Core.Models.ErrorCodes.ValidationError, "当前仅支持 SQLite 动态数据查询。");
+            }
+
+            var where = BuildWhereClause(tenantId, table, fields, request, out var parameters);
+            var totalSql = $"SELECT COUNT(1) AS Total FROM {DynamicSqlBuilder.Quote(table.TableKey, table.DbType)} {where};";
+            var total = (int)await ExecuteScalarLongAsync(totalSql, parameters.ToArray());
+
+            var orderBy = BuildOrderBy(table, fields, request);
+            var pageIndex = request.PageIndex < 1 ? 1 : request.PageIndex;
+            var pageSize = request.PageSize < 1 ? 20 : request.PageSize;
+            var offset = (pageIndex - 1) * pageSize;
+
+            var pagingParameters = new List<SugarParameter>(parameters)
+            {
+                new SugarParameter("@limit", pageSize),
+                new SugarParameter("@offset", offset)
+            };
+
+            var selectColumns = string.Join(", ", fields.Select(f => DynamicSqlBuilder.Quote(f.Name, table.DbType)));
+            var sql = $"SELECT {selectColumns} FROM {DynamicSqlBuilder.Quote(table.TableKey, table.DbType)} {where} {orderBy} LIMIT @limit OFFSET @offset;";
+            var dataTable = await _db.Ado.GetDataTableAsync(sql, pagingParameters.ToArray());
+            var items = BuildRecords(fields, dataTable);
+
+            return new DynamicRecordListResult(
+                items,
+                total,
+                pageIndex,
+                pageSize,
+                BuildColumns(fields));
         }
-
-        var where = BuildWhereClause(tenantId, table, fields, request, out var parameters);
-        var totalSql = $"SELECT COUNT(1) AS Total FROM {DynamicSqlBuilder.Quote(table.TableKey, table.DbType)} {where};";
-        var total = (int)await ExecuteScalarLongAsync(totalSql, parameters.ToArray());
-
-        var orderBy = BuildOrderBy(table, fields, request);
-        var pageIndex = request.PageIndex < 1 ? 1 : request.PageIndex;
-        var pageSize = request.PageSize < 1 ? 20 : request.PageSize;
-        var offset = (pageIndex - 1) * pageSize;
-
-        var pagingParameters = new List<SugarParameter>(parameters)
+        catch
         {
-            new SugarParameter("@limit", pageSize),
-            new SugarParameter("@offset", offset)
-        };
-
-        var selectColumns = string.Join(", ", fields.Select(f => DynamicSqlBuilder.Quote(f.Name, table.DbType)));
-        var sql = $"SELECT {selectColumns} FROM {DynamicSqlBuilder.Quote(table.TableKey, table.DbType)} {where} {orderBy} LIMIT @limit OFFSET @offset;";
-        var dataTable = await _db.Ado.GetDataTableAsync(sql, pagingParameters.ToArray());
-        var items = BuildRecords(fields, dataTable);
-
-        return new DynamicRecordListResult(
-            items,
-            total,
-            pageIndex,
-            pageSize,
-            BuildColumns(fields));
+            status = "failed";
+            throw;
+        }
+        finally
+        {
+            AtlasMetrics.RecordDynamicQuery(stopwatch.Elapsed.TotalMilliseconds, status);
+        }
     }
 
     public async Task<DynamicRecordDto?> GetByIdAsync(
