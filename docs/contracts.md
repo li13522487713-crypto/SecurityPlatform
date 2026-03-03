@@ -289,7 +289,7 @@ JWT Claims（新增）：
 
 说明：
 
-- `type`：可选，`Api` 或 `Menu`。
+- `type`：可选，支持 `Api`、`Menu`、`Application`、`Page`、`Action`。
 
 ### 菜单列表（分页）
 
