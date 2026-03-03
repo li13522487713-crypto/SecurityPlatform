@@ -607,6 +607,14 @@ JWT Claims（新增）：
 - `GET /api/v1/approval/instances/{instanceId}/tasks`：实例内任务列表
 - `POST /api/v1/approval/tasks/{taskId}/decision`：任务审批（`approved=true|false`）
 
+## 运维监控与合规取证契约
+
+- `GET /api/v1/monitor/server-info`：服务监控快照（CPU/内存/磁盘/运行时）
+- `GET /api/v1/monitor/compliance/evidence-package`：导出等保证据包（zip）
+  - 鉴权：`system:admin`
+  - 响应：`application/zip` 文件流（非 `ApiResponse` 包装）
+  - 默认证据项：合规映射文档、核心配置快照、取证 `.http` 样例、健康与任务取证脚本
+
 ## 可视化模块契约
 
 ### 流程概览

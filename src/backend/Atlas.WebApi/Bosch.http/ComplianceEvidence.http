@@ -26,3 +26,8 @@ X-Tenant-Id: {{tenantId}}
 GET {{baseUrl}}/api/v1/monitor/server-info
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
+
+### 导出等保证据打包（zip）
+GET {{baseUrl}}/api/v1/monitor/compliance/evidence-package
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
