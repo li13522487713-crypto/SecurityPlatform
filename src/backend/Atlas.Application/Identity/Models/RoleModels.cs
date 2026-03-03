@@ -21,6 +21,7 @@ public sealed record RoleDetail(
     string Code,
     string? Description,
     bool IsSystem,
+    int DataScope,
     IReadOnlyList<long> PermissionIds,
     IReadOnlyList<long> MenuIds);
 

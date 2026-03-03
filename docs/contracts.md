@@ -226,6 +226,49 @@ JWT Claims（新增）：
 
 - `isSystem`：可选，`true`=系统内置，`false`=自定义。
 
+### 角色详情
+
+`GET /api/v1/roles/{id}`
+
+响应：
+
+```json
+{
+  "id": "1",
+  "name": "管理员",
+  "code": "Admin",
+  "description": "系统内置角色",
+  "isSystem": true,
+  "dataScope": 1,
+  "permissionIds": [101, 102],
+  "menuIds": [201, 202]
+}
+```
+
+说明：
+
+- `dataScope` 数据范围枚举：
+  - `1`：全部数据（当前租户）
+  - `2`：自定义部门
+  - `3`：本部门
+  - `4`：本部门及下级
+  - `5`：仅本人
+  - `6`：项目维度
+
+### 设置角色数据范围
+
+`PUT /api/v1/roles/{id}/data-scope`
+
+请求体：
+
+```json
+{
+  "dataScope": 4
+}
+```
+
+响应：通用 `ApiResponse`
+
 ### 权限列表（分页）
 
 `GET /api/v1/permissions?pageIndex=1&pageSize=10&keyword=workflow&type=Api`

@@ -470,6 +470,7 @@ export interface RoleDetail {
   code: string;
   description?: string;
   isSystem: boolean;
+  dataScope: number;
   permissionIds: number[];
   menuIds: number[];
 }

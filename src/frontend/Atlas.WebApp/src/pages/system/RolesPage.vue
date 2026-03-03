@@ -138,14 +138,18 @@
               style="margin-bottom: 16px"
             />
             <a-radio-group v-model:value="assignModel.dataScope" button-style="solid">
-              <a-radio-button :value="1">当前租户全部</a-radio-button>
-              <a-radio-button :value="2">仅本人</a-radio-button>
-              <a-radio-button :value="0">全部数据（超管）</a-radio-button>
+              <a-radio-button
+                v-for="scope in dataScopeOptions"
+                :key="scope.value"
+                :value="scope.value"
+              >
+                {{ scope.label }}
+              </a-radio-button>
             </a-radio-group>
             <div style="margin-top: 12px; color: #888; font-size: 12px;">
-              <p>• <b>当前租户全部</b>：可查看本租户内所有数据（默认）</p>
-              <p>• <b>仅本人</b>：只能查看自己创建/拥有的数据</p>
-              <p>• <b>全部数据</b>：不受租户限制，仅超级管理员使用</p>
+              <p v-for="scope in dataScopeOptions" :key="`desc-${scope.value}`">
+                • <b>{{ scope.label }}</b>：{{ scope.description }}
+              </p>
             </div>
           </a-tab-pane>
         </a-tabs>
@@ -266,6 +270,14 @@ const {
 
 const canAssignPermissions = crud.hasPermissionFor("assignPermissions");
 const canAssignMenus = crud.hasPermissionFor("assignMenus");
+const dataScopeOptions = [
+  { value: 1, label: "全部数据", description: "可查看当前租户内全部数据（默认）" },
+  { value: 2, label: "自定义部门", description: "仅可查看指定部门数据（后续按部门配置）" },
+  { value: 3, label: "本部门", description: "仅可查看本人所在部门的数据" },
+  { value: 4, label: "本部门及下级", description: "可查看本部门及所有下级部门的数据" },
+  { value: 5, label: "仅本人", description: "仅可查看本人创建或归属的数据" },
+  { value: 6, label: "项目维度", description: "仅可查看当前项目范围内的数据" }
+];
 
 // --- Assignment Drawer ---
 const assignVisible = ref(false);
@@ -342,7 +354,7 @@ const openAssign = async (record: RoleListItem) => {
     const detail = await getRoleDetail(record.id);
     assignModel.permissionIds = detail.permissionIds?.slice() ?? [];
     assignModel.menuIds = detail.menuIds?.slice() ?? [];
-    assignModel.dataScope = (detail as unknown as { dataScope?: number }).dataScope ?? 1;
+    assignModel.dataScope = detail.dataScope ?? 1;
   } catch (error) {
     message.error((error as Error).message || "加载角色详情失败");
   }

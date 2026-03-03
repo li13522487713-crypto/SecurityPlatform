@@ -63,6 +63,7 @@ public sealed class RoleQueryService : IRoleQueryService
             role.Code,
             role.Description,
             role.IsSystem,
+            (int)role.DataScope,
             permissionIds.Select(x => x.PermissionId).ToArray(),
             menuIds.Select(x => x.MenuId).ToArray());
     }

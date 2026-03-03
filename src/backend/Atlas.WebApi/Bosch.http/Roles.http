@@ -16,6 +16,16 @@ X-Tenant-Id: {{tenantId}}
 
 ###
 @accessToken = {{login.response.body.$.data.accessToken}}
+@csrfToken =
+
+### Get CSRF Token
+# @name antiforgery
+GET {{baseUrl}}/api/v1/secure/antiforgery
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+###
+@csrfToken = {{antiforgery.response.body.$.data.token}}
 
 ### Get Roles (Paged)
 GET {{baseUrl}}/api/v1/roles?pageIndex=1&pageSize=10&isSystem=true
@@ -68,6 +78,18 @@ X-Tenant-Id: {{tenantId}}
 
 {
   "menuIds": []
+}
+
+### Set Role Data Scope
+PUT {{baseUrl}}/api/v1/roles/1/data-scope
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "dataScope": 4
 }
 
 ### Delete Role
