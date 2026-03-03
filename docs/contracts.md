@@ -957,6 +957,22 @@ JWT Claims（新增）：
 - `POST /api/v1/dynamic-tables/{tableKey}/schema/alter`：变更字段（需幂等 + CSRF）
 - `DELETE /api/v1/dynamic-tables/{tableKey}`：删除动态表（需幂等 + CSRF）
 
+### 动态迁移记录接口（骨架）
+
+- `GET /api/v1/dynamic-migrations?pageIndex=1&pageSize=10&tableKey=orders`：分页查询迁移记录
+- `GET /api/v1/dynamic-migrations/{id}`：迁移记录详情
+- `POST /api/v1/dynamic-migrations`：创建迁移草稿记录（需幂等 + CSRF）
+
+```json
+{
+  "tableKey": "orders",
+  "version": 1,
+  "upScript": "ALTER TABLE ...",
+  "downScript": "ALTER TABLE ...",
+  "isDestructive": false
+}
+```
+
 ### dbType 枚举
 
 - `Sqlite`、`SqlServer`、`MySql`、`PostgreSql`

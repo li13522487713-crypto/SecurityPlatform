@@ -1,0 +1,57 @@
+@baseUrl = http://localhost:5000
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+
+### Login to get token
+# @name login
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+###
+@accessToken = {{login.response.body.$.data.accessToken}}
+
+### Get Anti-Forgery Token
+# @name antiforgery
+GET {{baseUrl}}/api/v1/secure/antiforgery
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+###
+@csrfToken = {{antiforgery.response.body.$.data.token}}
+
+### Create migration draft
+# @name createMigration
+POST {{baseUrl}}/api/v1/dynamic-migrations
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+Content-Type: application/json
+
+{
+  "tableKey": "orders",
+  "version": 1,
+  "upScript": "ALTER TABLE orders ADD COLUMN remark TEXT NULL;",
+  "downScript": "ALTER TABLE orders DROP COLUMN remark;",
+  "isDestructive": false
+}
+
+###
+@migrationId = {{createMigration.response.body.$.data.id}}
+
+### Query migration list
+GET {{baseUrl}}/api/v1/dynamic-migrations?pageIndex=1&pageSize=20&tableKey=orders
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### Get migration detail
+GET {{baseUrl}}/api/v1/dynamic-migrations/{{migrationId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}

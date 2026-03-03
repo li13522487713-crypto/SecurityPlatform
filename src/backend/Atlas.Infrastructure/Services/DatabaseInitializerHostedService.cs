@@ -107,6 +107,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             typeof(DynamicTable),
             typeof(DynamicField),
             typeof(DynamicIndex),
+            typeof(MigrationRecord),
             typeof(LowCodeApp),
             typeof(LowCodePage),
             typeof(FormDefinition),
