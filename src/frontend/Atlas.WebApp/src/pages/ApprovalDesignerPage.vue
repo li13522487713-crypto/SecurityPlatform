@@ -1,53 +1,26 @@
 <template>
   <div class="dd-page">
-    <!-- ══ 顶部工具栏（44px，贴顶） ══ -->
-    <div class="dd-toolbar">
-      <a-button type="text" size="small" class="dd-toolbar__back" @click="goBack">
-        <LeftOutlined /> 返回
-      </a-button>
-      <a-divider type="vertical" />
-      <a-input
-        v-model:value="flowName"
-        placeholder="流程名称"
-        :bordered="false"
-        class="dd-toolbar__name"
-        :maxlength="100"
-      />
-      <a-tag v-if="flowVersion" color="blue" class="dd-toolbar__version">v{{ flowVersion }}</a-tag>
-
-      <!-- 步骤指示（紧凑圆点） -->
-      <div class="dd-toolbar__steps">
-        <span
-          v-for="(s, i) in ['基础设置', '表单设计', '流程设计']"
-          :key="i"
-          class="dd-step-dot"
-          :class="{ 'dd-step-dot--active': activeStep === i, 'dd-step-dot--done': activeStep > i }"
-          @click="activeStep = i"
-        >{{ s }}</span>
-      </div>
-
-      <div class="dd-toolbar__actions">
-        <a-button v-if="activeStep > 0" size="small" @click="prevStep">上一步</a-button>
-        <a-button v-if="activeStep < 2" size="small" @click="nextStep">下一步</a-button>
-        <template v-if="activeStep === 2">
-          <a-divider type="vertical" />
-          <a-button size="small" :type="paletteVisible ? 'primary' : 'default'" @click="paletteVisible = !paletteVisible" title="节点面板"><AppstoreOutlined /></a-button>
-          <a-divider type="vertical" />
-          <a-button size="small" @click="zoomOutDesigner" title="缩小（Ctrl + -）"><MinusOutlined /></a-button>
-          <a-button size="small" @click="zoomFitDesigner" title="适应画布（Ctrl + 0）"><CompressOutlined /></a-button>
-          <a-button size="small" @click="zoomInDesigner" title="放大（Ctrl + +）"><PlusOutlined /></a-button>
-          <a-divider type="vertical" />
-          <a-button size="small" @click="undo" :disabled="!canUndo"><UndoOutlined /></a-button>
-          <a-button size="small" @click="redo" :disabled="!canRedo"><RedoOutlined /></a-button>
-          <a-divider type="vertical" />
-          <a-button size="small" @click="handleValidate" :loading="validating"><CheckCircleOutlined /> 校验</a-button>
-          <a-button size="small" @click="handlePreview"><EyeOutlined /> 预览</a-button>
-        </template>
-        <a-divider type="vertical" />
-        <a-button size="small" @click="handleSave">保存</a-button>
-        <a-button type="primary" size="small" @click="handlePublishClick">发布</a-button>
-      </div>
-    </div>
+    <DesignerToolbar
+      v-model:flowName="flowName"
+      v-model:activeStep="activeStep"
+      v-model:paletteVisible="paletteVisible"
+      :flow-version="flowVersion"
+      :can-undo="canUndo"
+      :can-redo="canRedo"
+      :validating="validating"
+      @back="goBack"
+      @prev-step="prevStep"
+      @next-step="nextStep"
+      @zoom-out="zoomOutDesigner"
+      @zoom-fit="zoomFitDesigner"
+      @zoom-in="zoomInDesigner"
+      @undo="undo"
+      @redo="redo"
+      @validate="handleValidate"
+      @preview="handlePreview"
+      @save="handleSave"
+      @publish="handlePublishClick"
+    />
 
     <!-- ══ 步骤 0: 基础设置 ══ -->
     <div class="dd-body dd-body--scroll" v-show="activeStep === 0">
@@ -152,40 +125,13 @@
     </div>
 
     <!-- ══ 弹窗：校验结果 ══ -->
-    <a-modal v-model:open="validateModalOpen" :title="validateResult?.isValid ? '校验通过' : '校验结果'" :footer="null" width="520px">
-      <div v-if="validateResult">
-        <a-alert v-if="validateResult.isValid" type="success" message="流程校验通过，可以发布" show-icon style="margin-bottom:12px" />
-        <template v-else>
-          <a-alert type="error" message="校验不通过，请修正以下问题" show-icon style="margin-bottom:12px" />
-          <div class="dd-validate-list">
-            <div
-              v-for="(issue, idx) in errorIssues"
-              :key="`${issue.code}-${idx}`"
-              class="dd-validate-item"
-              :class="{ 'dd-validate-item--locatable': !!issue.nodeId }"
-              @click="handleValidationIssueClick(issue)"
-            >
-              <CloseCircleOutlined style="color:#ff4d4f;margin-right:6px" />
-              <span>{{ issue.message }}</span>
-              <a-tag v-if="issue.nodeId" color="processing" style="margin-left: 8px">点击定位</a-tag>
-            </div>
-          </div>
-        </template>
-        <div v-if="warningIssues.length" class="dd-validate-list" style="margin-top:8px">
-          <div
-            v-for="(issue, idx) in warningIssues"
-            :key="`${issue.code}-${idx}`"
-            class="dd-validate-item"
-            :class="{ 'dd-validate-item--locatable': !!issue.nodeId }"
-            @click="handleValidationIssueClick(issue)"
-          >
-            <ExclamationCircleOutlined style="color:#faad14;margin-right:6px" />
-            <span>{{ issue.message }}</span>
-            <a-tag v-if="issue.nodeId" color="gold" style="margin-left: 8px">点击定位</a-tag>
-          </div>
-        </div>
-      </div>
-    </a-modal>
+    <ValidationErrorPanel
+      v-model:open="validateModalOpen"
+      :result="validateResult"
+      :error-issues="errorIssues"
+      :warning-issues="warningIssues"
+      @locate="handleValidationIssueClick"
+    />
 
     <!-- ══ 弹窗：发布确认 ══ -->
     <a-modal v-model:open="publishModalOpen" title="确认发布" ok-text="确认发布" cancel-text="取消" @ok="handlePublishConfirm" :confirm-loading="publishing">
@@ -211,25 +157,14 @@
 import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { message } from 'ant-design-vue';
-import {
-  LeftOutlined,
-  MinusOutlined,
-  PlusOutlined,
-  CompressOutlined,
-  UndoOutlined,
-  RedoOutlined,
-  CheckCircleOutlined,
-  EyeOutlined,
-  CloseCircleOutlined,
-  ExclamationCircleOutlined,
-  AppstoreOutlined,
-} from '@ant-design/icons-vue';
 import X6ApprovalDesigner from '@/components/approval/x6/X6ApprovalDesigner.vue';
 import ApprovalPropertiesPanel from '@/components/approval/ApprovalPropertiesPanel.vue';
 import ApprovalNodePalette from '@/components/approval/ApprovalNodePalette.vue';
 import LfFormDesigner from '@/components/approval/LfFormDesigner.vue';
 import X6PreviewCanvas from '@/components/approval/X6PreviewCanvas.vue';
 import UserRolePicker from '@/components/common/UserRolePicker.vue';
+import DesignerToolbar from '@/components/approval/designer/DesignerToolbar.vue';
+import ValidationErrorPanel from '@/components/approval/designer/ValidationErrorPanel.vue';
 import { useApprovalTree } from '@/composables/useApprovalTree';
 import { ApprovalTreeConverter } from '@/utils/approval-tree-converter';
 import { extractAmisFields } from '@/utils/amis-field-extractor';
