@@ -1,7 +1,7 @@
 <template>
   <CrudPageLayout
-    title="角色管理"
     v-model:keyword="keyword"
+    title="角色管理"
     search-placeholder="搜索角色名称/编码"
     :drawer-open="formVisible"
     :drawer-title="formMode === 'create' ? '新增角色' : '编辑角色'"
@@ -98,10 +98,10 @@
         title="角色权限配置"
         placement="right"
         :width="640"
-        @close="closeAssign"
         destroy-on-close
+        @close="closeAssign"
       >
-        <a-tabs v-model:activeKey="assignTab">
+        <a-tabs v-model:active-key="assignTab">
           <a-tab-pane v-if="canAssignPermissions" key="permissions" tab="权限分配">
             <a-select
               v-model:value="assignModel.permissionIds"
@@ -129,6 +129,54 @@
               @search="handleMenuSearch"
               @focus="() => loadMenuOptions()"
             />
+          </a-tab-pane>
+          <a-tab-pane v-if="canAssignPermissions" key="field-permissions" tab="字段权限">
+            <a-alert
+              message="字段权限用于控制角色对动态表字段的可见/可编辑能力。"
+              type="info"
+              show-icon
+              style="margin-bottom: 12px"
+            />
+            <a-select
+              v-model:value="fieldPermissionTableKey"
+              style="width: 100%; margin-bottom: 12px"
+              placeholder="选择动态表（默认展示20条，可搜索）"
+              :options="dynamicTableOptions"
+              :loading="dynamicTableLoading"
+              :filter-option="false"
+              show-search
+              @search="handleDynamicTableSearch"
+              @change="handleFieldPermissionTableChange"
+              @focus="() => loadDynamicTableOptions()"
+            />
+            <a-table
+              :data-source="fieldPermissionRows"
+              :loading="fieldPermissionLoading"
+              :pagination="false"
+              row-key="fieldName"
+              size="small"
+            >
+              <a-table-column key="label" title="字段" data-index="label" />
+              <a-table-column key="canView" title="可见" width="100">
+                <template #default="{ record }">
+                  <a-switch
+                    :checked="record.canView"
+                    size="small"
+                    @change="(value: boolean) => handleFieldViewChange(record.fieldName, value)"
+                  />
+                </template>
+              </a-table-column>
+              <a-table-column key="canEdit" title="可编辑" width="100">
+                <template #default="{ record }">
+                  <a-switch
+                    :checked="record.canEdit"
+                    size="small"
+                    :disabled="!record.canView"
+                    @change="(value: boolean) => handleFieldEditChange(record.fieldName, value)"
+                  />
+                </template>
+              </a-table-column>
+            </a-table>
           </a-tab-pane>
           <a-tab-pane key="data-scope" tab="数据权限">
             <a-alert
@@ -179,6 +227,12 @@ import {
   getPermissionsPaged,
   getMenusPaged
 } from "@/services/api";
+import {
+  getDynamicTablesPaged,
+  getDynamicTableFields,
+  getDynamicFieldPermissions,
+  setDynamicFieldPermissions
+} from "@/services/dynamic-tables";
 import type { RoleListItem, RoleDetail, RoleCreateRequest, RoleUpdateRequest } from "@/types/api";
 import { debounce, type SelectOption } from "@/utils/common";
 
@@ -271,6 +325,7 @@ const canAssignMenus = crud.hasPermissionFor("assignMenus");
 const assignVisible = ref(false);
 const assignTab = ref("permissions");
 const assignRoleId = ref<string | null>(null);
+const assignRoleCode = ref<string>("");
 const assignModel = reactive({
   permissionIds: [] as number[],
   menuIds: [] as number[],
@@ -281,6 +336,22 @@ const permissionOptions = ref<SelectOption[]>([]);
 const menuOptions = ref<SelectOption[]>([]);
 const permissionLoading = ref(false);
 const menuLoading = ref(false);
+const dynamicTableOptions = ref<Array<{ label: string; value: string }>>([]);
+const dynamicTableLoading = ref(false);
+const fieldPermissionLoading = ref(false);
+const fieldPermissionTableKey = ref<string>();
+const existingFieldPermissions = ref<Array<{
+  fieldName: string;
+  roleCode: string;
+  canView: boolean;
+  canEdit: boolean;
+}>>([]);
+const fieldPermissionRows = ref<Array<{
+  fieldName: string;
+  label: string;
+  canView: boolean;
+  canEdit: boolean;
+}>>([]);
 
 const loadPermissionOptions = async (keyword?: string) => {
   permissionLoading.value = true;
@@ -328,14 +399,97 @@ const handleMenuSearch = debounce((value: string) => {
   void loadMenuOptions(value);
 });
 
+const loadDynamicTableOptions = async (search?: string) => {
+  dynamicTableLoading.value = true;
+  try {
+    const result = await getDynamicTablesPaged({
+      pageIndex: 1,
+      pageSize: 20,
+      keyword: search?.trim() || undefined
+    });
+    dynamicTableOptions.value = result.items.map((item) => ({
+      label: `${item.displayName} (${item.tableKey})`,
+      value: item.tableKey
+    }));
+  } catch (error) {
+    message.error((error as Error).message || "加载动态表失败");
+  } finally {
+    dynamicTableLoading.value = false;
+  }
+};
+
+const handleDynamicTableSearch = debounce((value: string) => {
+  void loadDynamicTableOptions(value);
+});
+
+const loadFieldPermissions = async (tableKey: string) => {
+  if (!assignRoleCode.value) {
+    return;
+  }
+
+  fieldPermissionLoading.value = true;
+  try {
+    const [fields, permissions] = await Promise.all([
+      getDynamicTableFields(tableKey),
+      getDynamicFieldPermissions(tableKey)
+    ]);
+    existingFieldPermissions.value = permissions;
+    fieldPermissionRows.value = fields.map((field) => {
+      const current = permissions.find((item) =>
+        item.roleCode === assignRoleCode.value && item.fieldName === field.name
+      );
+      return {
+        fieldName: field.name,
+        label: field.displayName || field.name,
+        canView: current?.canView ?? false,
+        canEdit: current?.canEdit ?? false
+      };
+    });
+  } catch (error) {
+    message.error((error as Error).message || "加载字段权限失败");
+  } finally {
+    fieldPermissionLoading.value = false;
+  }
+};
+
+const handleFieldPermissionTableChange = (value: string) => {
+  if (!value) {
+    fieldPermissionRows.value = [];
+    existingFieldPermissions.value = [];
+    return;
+  }
+
+  void loadFieldPermissions(value);
+};
+
+const handleFieldViewChange = (fieldName: string, value: boolean) => {
+  const target = fieldPermissionRows.value.find((item) => item.fieldName === fieldName);
+  if (!target) return;
+  target.canView = value;
+  if (!value) {
+    target.canEdit = false;
+  }
+};
+
+const handleFieldEditChange = (fieldName: string, value: boolean) => {
+  const target = fieldPermissionRows.value.find((item) => item.fieldName === fieldName);
+  if (!target) return;
+  target.canEdit = value;
+  if (value) {
+    target.canView = true;
+  }
+};
+
 const openAssign = async (record: RoleListItem) => {
   assignRoleId.value = record.id;
+  assignRoleCode.value = record.code;
   assignTab.value = canAssignPermissions ? "permissions" : "menus";
   assignVisible.value = true;
 
   await Promise.all([
     canAssignPermissions ? loadPermissionOptions() : Promise.resolve(),
-    canAssignMenus ? loadMenuOptions() : Promise.resolve()
+    canAssignMenus ? loadMenuOptions() : Promise.resolve(),
+    canAssignPermissions ? loadDynamicTableOptions() : Promise.resolve()
   ]);
 
   try {
@@ -350,6 +504,10 @@ const openAssign = async (record: RoleListItem) => {
 
 const closeAssign = () => {
   assignVisible.value = false;
+  assignRoleCode.value = "";
+  fieldPermissionTableKey.value = undefined;
+  fieldPermissionRows.value = [];
+  existingFieldPermissions.value = [];
 };
 
 const submitAssign = async () => {
@@ -364,6 +522,21 @@ const submitAssign = async () => {
     }
     // 保存数据权限
     tasks.push(setRoleDataScope(assignRoleId.value, assignModel.dataScope));
+    if (fieldPermissionTableKey.value && assignRoleCode.value) {
+      const merged = existingFieldPermissions.value
+        .filter((item) => item.roleCode !== assignRoleCode.value)
+        .concat(
+          fieldPermissionRows.value
+            .filter((item) => item.canView || item.canEdit)
+            .map((item) => ({
+              fieldName: item.fieldName,
+              roleCode: assignRoleCode.value,
+              canView: item.canView,
+              canEdit: item.canEdit
+            }))
+        );
+      tasks.push(setDynamicFieldPermissions(fieldPermissionTableKey.value, { permissions: merged }));
+    }
     await Promise.all(tasks);
     message.success("权限配置已更新");
     assignVisible.value = false;

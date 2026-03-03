@@ -4,6 +4,9 @@ import type {
   DynamicTableDetail,
   DynamicTableCreateRequest,
   DynamicTableUpdateRequest,
+  DynamicFieldDefinition,
+  DynamicFieldPermissionRule,
+  DynamicFieldPermissionUpsertRequest,
   DynamicRecordUpsertRequest,
   DynamicRecordQueryRequest,
   DynamicRecordListResult
@@ -26,6 +29,40 @@ export async function getDynamicTablesPaged(pagedRequest: PagedRequest) {
 export async function getDynamicTableDetail(tableKey: string) {
   const response = await requestApi<ApiResponse<DynamicTableDetail | null>>(`/dynamic-tables/${encodeURIComponent(tableKey)}`);
   return response.data ?? null;
+}
+
+export async function getDynamicTableFields(tableKey: string): Promise<DynamicFieldDefinition[]> {
+  const response = await requestApi<ApiResponse<DynamicFieldDefinition[]>>(
+    `/dynamic-tables/${encodeURIComponent(tableKey)}/fields`
+  );
+  if (!response.data) {
+    throw new Error(response.message || "查询失败");
+  }
+  return response.data;
+}
+
+export async function getDynamicFieldPermissions(tableKey: string): Promise<DynamicFieldPermissionRule[]> {
+  const response = await requestApi<ApiResponse<DynamicFieldPermissionRule[]>>(
+    `/dynamic-tables/${encodeURIComponent(tableKey)}/field-permissions`
+  );
+  if (!response.data) {
+    throw new Error(response.message || "查询失败");
+  }
+  return response.data;
+}
+
+export async function setDynamicFieldPermissions(tableKey: string, request: DynamicFieldPermissionUpsertRequest) {
+  const response = await requestApi<ApiResponse<{ tableKey: string }>>(
+    `/dynamic-tables/${encodeURIComponent(tableKey)}/field-permissions`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request)
+    }
+  );
+  if (!response.success) {
+    throw new Error(response.message || "更新失败");
+  }
 }
 
 export async function createDynamicTable(request: DynamicTableCreateRequest) {
