@@ -57,5 +57,33 @@ export default {
     forbidden: "Access denied.",
     notFound: "Resource not found.",
     serverError: "Server error. Please try again later."
+  },
+  datasource: {
+    title: "Tenant Data Sources",
+    create: "Create Data Source",
+    edit: "Edit Data Source",
+    name: "Data Source Name",
+    tenantId: "Tenant ID",
+    dbType: "Database Type",
+    connectionString: "Connection String",
+    testConnection: "Test Connection",
+    createSuccess: "Data source created successfully",
+    updateSuccess: "Data source updated successfully",
+    deleteSuccess: "Data source deleted",
+    deleteConfirm: "Confirm deleting this data source?",
+    loadFailed: "Failed to load data sources",
+    saveFailed: "Failed to save data source",
+    testSuccess: "Connection test passed",
+    testFailed: "Connection test failed",
+    updateHint: "For security reasons, re-enter the connection string when editing."
+  },
+  fileUpload: {
+    upload: "Upload Attachment",
+    empty: "No attachments",
+    deleteSuccess: "Attachment deleted",
+    deleteFailed: "Failed to delete attachment",
+    uploadSuccess: "File uploaded successfully",
+    uploadFailed: "File upload failed",
+    maxCount: "Up to {count} files"
   }
 };

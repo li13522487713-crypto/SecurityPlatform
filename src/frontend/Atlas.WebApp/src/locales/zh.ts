@@ -57,5 +57,33 @@ export default {
     forbidden: "权限不足",
     notFound: "资源不存在",
     serverError: "服务器错误，请稍后重试"
+  },
+  datasource: {
+    title: "租户数据源管理",
+    create: "新增数据源",
+    edit: "编辑数据源",
+    name: "数据源名称",
+    tenantId: "租户ID",
+    dbType: "数据库类型",
+    connectionString: "连接字符串",
+    testConnection: "测试连接",
+    createSuccess: "数据源创建成功",
+    updateSuccess: "数据源更新成功",
+    deleteSuccess: "数据源已删除",
+    deleteConfirm: "确认删除该数据源？",
+    loadFailed: "加载数据源失败",
+    saveFailed: "保存数据源失败",
+    testSuccess: "连接测试成功",
+    testFailed: "连接测试失败",
+    updateHint: "出于安全要求，编辑数据源时需要重新输入连接字符串。"
+  },
+  fileUpload: {
+    upload: "上传附件",
+    empty: "暂无附件",
+    deleteSuccess: "附件已删除",
+    deleteFailed: "删除附件失败",
+    uploadSuccess: "文件上传成功",
+    uploadFailed: "文件上传失败",
+    maxCount: "最多上传 {count} 个文件"
   }
 };

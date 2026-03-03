@@ -1,9 +1,9 @@
 <template>
-  <a-card title="租户数据源管理" class="page-card">
+  <a-card :title="t('datasource.title')" class="page-card">
     <div class="toolbar">
       <a-space>
-        <a-button type="primary" :disabled="!canManage" @click="openCreate">新增数据源</a-button>
-        <a-button :loading="loading" @click="loadData">刷新</a-button>
+        <a-button type="primary" :disabled="!canManage" @click="openCreate">{{ t("datasource.create") }}</a-button>
+        <a-button :loading="loading" @click="loadData">{{ t("common.refresh") }}</a-button>
       </a-space>
     </div>
 
@@ -23,14 +23,14 @@
         </template>
         <template v-else-if="column.key === 'actions'">
           <a-space>
-            <a-button type="link" :disabled="!canManage" @click="openEdit(record)">编辑</a-button>
+            <a-button type="link" :disabled="!canManage" @click="openEdit(record)">{{ t("common.edit") }}</a-button>
             <a-popconfirm
-              title="确认删除该数据源？"
-              ok-text="删除"
-              cancel-text="取消"
+              :title="t('datasource.deleteConfirm')"
+              :ok-text="t('common.delete')"
+              :cancel-text="t('common.cancel')"
               @confirm="handleDelete(record.id)"
             >
-              <a-button type="link" danger :disabled="!canManage">删除</a-button>
+              <a-button type="link" danger :disabled="!canManage">{{ t("common.delete") }}</a-button>
             </a-popconfirm>
           </a-space>
         </template>
@@ -40,7 +40,7 @@
 
   <a-drawer
     v-model:open="formVisible"
-    :title="formMode === 'create' ? '新增数据源' : '编辑数据源'"
+      :title="formMode === 'create' ? t('datasource.create') : t('datasource.edit')"
     placement="right"
     width="560"
     :destroy-on-close="true"
@@ -50,32 +50,32 @@
       v-if="formMode === 'edit'"
       type="info"
       show-icon
-      message="出于安全要求，编辑数据源时需要重新输入连接字符串。"
+      :message="t('datasource.updateHint')"
       style="margin-bottom: 16px"
     />
     <a-form ref="formRef" :model="formModel" :rules="formRules" layout="vertical">
-      <a-form-item label="租户ID" name="tenantIdValue">
+      <a-form-item :label="t('datasource.tenantId')" name="tenantIdValue">
         <a-input v-model:value="formModel.tenantIdValue" :disabled="formMode === 'edit'" />
       </a-form-item>
-      <a-form-item label="数据源名称" name="name">
+      <a-form-item :label="t('datasource.name')" name="name">
         <a-input v-model:value="formModel.name" />
       </a-form-item>
-      <a-form-item label="数据库类型" name="dbType">
+      <a-form-item :label="t('datasource.dbType')" name="dbType">
         <a-select v-model:value="formModel.dbType" :options="dbTypeOptions" />
       </a-form-item>
-      <a-form-item label="连接字符串" name="connectionString">
+      <a-form-item :label="t('datasource.connectionString')" name="connectionString">
         <a-textarea
           v-model:value="formModel.connectionString"
           :rows="4"
-          placeholder="请输入完整连接字符串"
+          :placeholder="t('datasource.connectionString')"
         />
       </a-form-item>
     </a-form>
     <template #footer>
       <a-space>
-        <a-button :loading="testing" @click="handleTestConnection">测试连接</a-button>
-        <a-button @click="closeForm">取消</a-button>
-        <a-button type="primary" :loading="saving" :disabled="!canManage" @click="submitForm">保存</a-button>
+        <a-button :loading="testing" @click="handleTestConnection">{{ t("datasource.testConnection") }}</a-button>
+        <a-button @click="closeForm">{{ t("common.cancel") }}</a-button>
+        <a-button type="primary" :loading="saving" :disabled="!canManage" @click="submitForm">{{ t("common.save") }}</a-button>
       </a-space>
     </template>
   </a-drawer>
@@ -85,6 +85,7 @@
 import { computed, onMounted, reactive, ref } from "vue";
 import type { FormInstance, Rule } from "ant-design-vue/es/form";
 import { message } from "ant-design-vue";
+import { useI18n } from "vue-i18n";
 import {
   createTenantDataSource,
   deleteTenantDataSource,
@@ -101,6 +102,7 @@ import { getAuthProfile, getTenantId, hasPermission } from "@/utils/auth";
 
 const profile = getAuthProfile();
 const canManage = computed(() => hasPermission(profile, "system:admin"));
+const { t } = useI18n();
 
 const loading = ref(false);
 const saving = ref(false);
@@ -147,7 +149,7 @@ const loadData = async () => {
   try {
     items.value = await getTenantDataSources();
   } catch (error) {
-    message.error(error instanceof Error ? error.message : "加载数据源失败");
+    message.error(error instanceof Error ? error.message : t("datasource.loadFailed"));
   } finally {
     loading.value = false;
   }
@@ -192,12 +194,12 @@ const handleTestConnection = async () => {
       dbType: formModel.dbType
     });
     if (result.success) {
-      message.success("连接测试成功");
+      message.success(t("datasource.testSuccess"));
       return;
     }
-    message.error(result.errorMessage || "连接测试失败");
+    message.error(result.errorMessage || t("datasource.testFailed"));
   } catch (error) {
-    message.error(error instanceof Error ? error.message : "连接测试失败");
+    message.error(error instanceof Error ? error.message : t("datasource.testFailed"));
   } finally {
     testing.value = false;
   }
@@ -217,7 +219,7 @@ const submitForm = async () => {
         connectionString: formModel.connectionString
       };
       await createTenantDataSource(payload);
-      message.success("数据源创建成功");
+      message.success(t("datasource.createSuccess"));
     } else {
       const payload: TenantDataSourceUpdateRequest = {
         name: formModel.name,
@@ -225,12 +227,12 @@ const submitForm = async () => {
         connectionString: formModel.connectionString
       };
       await updateTenantDataSource(editingId.value, payload);
-      message.success("数据源更新成功");
+      message.success(t("datasource.updateSuccess"));
     }
     formVisible.value = false;
     await loadData();
   } catch (error) {
-    message.error(error instanceof Error ? error.message : "保存数据源失败");
+    message.error(error instanceof Error ? error.message : t("datasource.saveFailed"));
   } finally {
     saving.value = false;
   }
@@ -239,10 +241,10 @@ const submitForm = async () => {
 const handleDelete = async (id: string) => {
   try {
     await deleteTenantDataSource(id);
-    message.success("数据源已删除");
+    message.success(t("datasource.deleteSuccess"));
     await loadData();
   } catch (error) {
-    message.error(error instanceof Error ? error.message : "删除失败");
+    message.error(error instanceof Error ? error.message : t("common.failed"));
   }
 };
 

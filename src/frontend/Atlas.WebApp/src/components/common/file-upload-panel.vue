@@ -8,13 +8,13 @@
         :accept="accept"
       >
         <a-button :disabled="disabled || reachedMaxCount" :loading="uploading">
-          {{ reachedMaxCount ? `最多上传 ${maxCount} 个文件` : buttonText }}
+          {{ reachedMaxCount ? t("fileUpload.maxCount", { count: maxCount }) : buttonText }}
         </a-button>
       </a-upload>
 
       <a-empty
         v-if="uploadedFiles.length === 0"
-        description="暂无附件"
+        :description="t('fileUpload.empty')"
         :image="false"
       />
 
@@ -47,6 +47,7 @@
 import { computed, ref, watch } from "vue";
 import { message } from "ant-design-vue";
 import type { UploadRequestOption as RcCustomRequestOptions } from "ant-design-vue/es/vc-upload/interface";
+import { useI18n } from "vue-i18n";
 import { deleteFile, uploadFile } from "@/services/api";
 import type { FileUploadResult } from "@/types/api";
 
@@ -73,6 +74,7 @@ const emit = defineEmits<{
   (e: "removed", value: number): void;
 }>();
 
+const { t } = useI18n();
 const uploadedFiles = ref<FileUploadResult[]>([]);
 const uploading = ref(false);
 
@@ -89,7 +91,7 @@ const reachedMaxCount = computed(() => uploadedFiles.value.length >= props.maxCo
 const handleCustomUpload = async (options: RcCustomRequestOptions) => {
   const originFile = options.file;
   if (!(originFile instanceof File)) {
-    const error = new Error("上传文件格式不正确");
+    const error = new Error(t("fileUpload.uploadFailed"));
     options.onError?.(error);
     return;
   }
@@ -102,9 +104,9 @@ const handleCustomUpload = async (options: RcCustomRequestOptions) => {
     emit("update:modelValue", nextFiles);
     emit("uploaded", result);
     options.onSuccess?.(result);
-    message.success("文件上传成功");
+    message.success(t("fileUpload.uploadSuccess"));
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "文件上传失败";
+    const errorMessage = error instanceof Error ? error.message : t("fileUpload.uploadFailed");
     options.onError?.(new Error(errorMessage));
     message.error(errorMessage);
   } finally {
@@ -119,9 +121,9 @@ const removeFile = async (fileId: number) => {
     uploadedFiles.value = nextFiles;
     emit("update:modelValue", nextFiles);
     emit("removed", fileId);
-    message.success("附件已删除");
+    message.success(t("fileUpload.deleteSuccess"));
   } catch (error) {
-    message.error(error instanceof Error ? error.message : "删除附件失败");
+    message.error(error instanceof Error ? error.message : t("fileUpload.deleteFailed"));
   }
 };
 
