@@ -23,12 +23,14 @@ public sealed class DynamicTableCommandServiceAlterTests
             var fieldRepository = new DynamicFieldRepository(db);
             var indexRepository = new DynamicIndexRepository(db);
             var recordRepository = new DynamicRecordRepository(db);
+            var migrationRepository = new DynamicSchemaMigrationRepository(db);
             var idGenerator = new SequentialIdGenerator(5000);
             var service = new DynamicTableCommandService(
                 tableRepository,
                 fieldRepository,
                 indexRepository,
                 recordRepository,
+                migrationRepository,
                 idGenerator,
                 db,
                 TimeProvider.System);
@@ -67,6 +69,9 @@ public sealed class DynamicTableCommandServiceAlterTests
             Assert.NotNull(table);
             var fields = await fieldRepository.ListByTableIdAsync(tenantId, table!.Id, CancellationToken.None);
             Assert.Contains(fields, x => x.Name.Equals("remark", StringComparison.OrdinalIgnoreCase));
+            var (migrations, migrationCount) = await migrationRepository.QueryPageAsync(tenantId, table.Id, 1, 20, CancellationToken.None);
+            Assert.Equal(1, migrationCount);
+            Assert.Contains(migrations, x => x.OperationType == "ADD_FIELDS" && x.Status == "Succeeded");
 
             var recordId = await recordRepository.InsertAsync(
                 tenantId,
@@ -103,12 +108,14 @@ public sealed class DynamicTableCommandServiceAlterTests
             var fieldRepository = new DynamicFieldRepository(db);
             var indexRepository = new DynamicIndexRepository(db);
             var recordRepository = new DynamicRecordRepository(db);
+            var migrationRepository = new DynamicSchemaMigrationRepository(db);
             var idGenerator = new SequentialIdGenerator(6000);
             var service = new DynamicTableCommandService(
                 tableRepository,
                 fieldRepository,
                 indexRepository,
                 recordRepository,
+                migrationRepository,
                 idGenerator,
                 db,
                 TimeProvider.System);
@@ -222,6 +229,19 @@ public sealed class DynamicTableCommandServiceAlterTests
                     "FieldsJson" TEXT NOT NULL,
                     "CreatedAt" TEXT NOT NULL,
                     "UpdatedAt" TEXT NOT NULL
+                  );
+
+                  CREATE TABLE "DynamicSchemaMigration"(
+                    "TenantIdValue" TEXT NOT NULL,
+                    "Id" INTEGER PRIMARY KEY,
+                    "TableId" INTEGER NOT NULL,
+                    "TableKey" TEXT NOT NULL,
+                    "OperationType" TEXT NOT NULL,
+                    "AppliedSql" TEXT NOT NULL,
+                    "RollbackSql" TEXT NULL,
+                    "Status" TEXT NOT NULL,
+                    "CreatedBy" INTEGER NOT NULL,
+                    "CreatedAt" TEXT NOT NULL
                   );
                   """;
 

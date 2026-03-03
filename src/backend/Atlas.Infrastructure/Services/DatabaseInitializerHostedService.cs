@@ -107,6 +107,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             typeof(DynamicTable),
             typeof(DynamicField),
             typeof(DynamicIndex),
+            typeof(DynamicSchemaMigration),
             // Workflow entities
             typeof(PersistedWorkflow),
             typeof(PersistedExecutionPointer),

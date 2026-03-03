@@ -124,6 +124,11 @@ GET {{baseUrl}}/api/v1/dynamic-tables/orders/fields
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
+### Query Migrations (验证迁移记录)
+GET {{baseUrl}}/api/v1/dynamic-tables/orders/migrations?pageIndex=1&pageSize=20
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
 ### Create Record
 POST {{baseUrl}}/api/v1/dynamic-tables/orders/records
 Content-Type: application/json

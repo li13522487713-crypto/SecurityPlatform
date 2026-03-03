@@ -95,6 +95,26 @@ public sealed class DynamicTablesController : ControllerBase
         return Ok(ApiResponse<IReadOnlyList<DynamicFieldDefinition>>.Ok(fields, HttpContext.TraceIdentifier));
     }
 
+    [HttpGet("{tableKey}/migrations")]
+    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    public async Task<ActionResult<ApiResponse<PagedResult<DynamicSchemaMigrationListItem>>>> GetMigrations(
+        string tableKey,
+        [FromQuery] PagedRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(tableKey))
+        {
+            return BadRequest(ApiResponse<PagedResult<DynamicSchemaMigrationListItem>>.Fail(
+                ErrorCodes.ValidationError,
+                "TableKey不能为空",
+                HttpContext.TraceIdentifier));
+        }
+
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _queryService.GetMigrationsAsync(tenantId, tableKey, request, cancellationToken);
+        return Ok(ApiResponse<PagedResult<DynamicSchemaMigrationListItem>>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
     [HttpPost]
     [Authorize(Policy = PermissionPolicies.SystemAdmin)]
     public async Task<ActionResult<ApiResponse<object>>> Create(

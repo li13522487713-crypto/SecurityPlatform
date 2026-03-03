@@ -963,6 +963,7 @@ JWT Claims（新增）：
 - `POST /api/v1/dynamic-tables`：新建动态表（需幂等 + CSRF）
 - `PUT /api/v1/dynamic-tables/{tableKey}`：更新表元数据（需幂等 + CSRF）
 - `POST /api/v1/dynamic-tables/{tableKey}/schema/alter`：变更字段（需幂等 + CSRF）
+- `GET /api/v1/dynamic-tables/{tableKey}/migrations`：分页查询结构迁移记录
 - `DELETE /api/v1/dynamic-tables/{tableKey}`：删除动态表（需幂等 + CSRF）
 
 ### dbType 枚举
@@ -1064,6 +1065,22 @@ JWT Claims（新增）：
     { "name": "amount", "displayName": "金额", "precision": 18, "scale": 4 }
   ],
   "removeFields": ["legacyField"]
+}
+```
+
+### SchemaMigrationListItem
+
+```json
+{
+  "id": "193500000000000001",
+  "tableId": "193400000000000001",
+  "tableKey": "orders",
+  "operationType": "ADD_FIELDS",
+  "status": "Succeeded",
+  "appliedSql": "ALTER TABLE ...",
+  "rollbackSql": "当前版本不支持自动回滚，请通过备份恢复。",
+  "createdBy": 10001,
+  "createdAt": "2026-03-03T10:00:00Z"
 }
 ```
 

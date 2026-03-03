@@ -18,15 +18,18 @@ public sealed class DynamicTableQueryService : IDynamicTableQueryService
     private readonly IDynamicTableRepository _tableRepository;
     private readonly IDynamicFieldRepository _fieldRepository;
     private readonly IDynamicIndexRepository _indexRepository;
+    private readonly IDynamicSchemaMigrationRepository _migrationRepository;
 
     public DynamicTableQueryService(
         IDynamicTableRepository tableRepository,
         IDynamicFieldRepository fieldRepository,
-        IDynamicIndexRepository indexRepository)
+        IDynamicIndexRepository indexRepository,
+        IDynamicSchemaMigrationRepository migrationRepository)
     {
         _tableRepository = tableRepository;
         _fieldRepository = fieldRepository;
         _indexRepository = indexRepository;
+        _migrationRepository = migrationRepository;
     }
 
     public async Task<PagedResult<DynamicTableListItem>> QueryAsync(
@@ -122,6 +125,45 @@ public sealed class DynamicTableQueryService : IDynamicTableQueryService
         };
 
         return Task.FromResult<IReadOnlyList<DynamicFieldTypeOption>>(types);
+    }
+
+    public async Task<PagedResult<DynamicSchemaMigrationListItem>> GetMigrationsAsync(
+        TenantId tenantId,
+        string tableKey,
+        PagedRequest request,
+        CancellationToken cancellationToken)
+    {
+        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, cancellationToken);
+        if (table is null)
+        {
+            return new PagedResult<DynamicSchemaMigrationListItem>(
+                Array.Empty<DynamicSchemaMigrationListItem>(),
+                0,
+                request.PageIndex,
+                request.PageSize);
+        }
+
+        var pageIndex = request.PageIndex < 1 ? 1 : request.PageIndex;
+        var pageSize = request.PageSize < 1 ? 20 : request.PageSize;
+        var (items, total) = await _migrationRepository.QueryPageAsync(
+            tenantId,
+            table.Id,
+            pageIndex,
+            pageSize,
+            cancellationToken);
+
+        var mapped = items.Select(item => new DynamicSchemaMigrationListItem(
+            item.Id.ToString(),
+            item.TableId.ToString(),
+            item.TableKey,
+            item.OperationType,
+            item.Status,
+            item.AppliedSql,
+            item.RollbackSql,
+            item.CreatedBy,
+            item.CreatedAt)).ToArray();
+
+        return new PagedResult<DynamicSchemaMigrationListItem>(mapped, total, pageIndex, pageSize);
     }
 
     private static DynamicFieldDefinition ToFieldDefinition(DynamicField field)

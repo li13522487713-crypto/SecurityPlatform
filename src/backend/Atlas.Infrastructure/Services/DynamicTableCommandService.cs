@@ -34,6 +34,7 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
     private readonly IDynamicFieldRepository _fieldRepository;
     private readonly IDynamicIndexRepository _indexRepository;
     private readonly IDynamicRecordRepository _recordRepository;
+    private readonly IDynamicSchemaMigrationRepository? _migrationRepository;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly ISqlSugarClient _db;
     private readonly TimeProvider _timeProvider;
@@ -44,6 +45,7 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
         IDynamicFieldRepository fieldRepository,
         IDynamicIndexRepository indexRepository,
         IDynamicRecordRepository recordRepository,
+        IDynamicSchemaMigrationRepository? migrationRepository,
         IIdGeneratorAccessor idGeneratorAccessor,
         ISqlSugarClient db,
         TimeProvider timeProvider,
@@ -53,6 +55,7 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
         _fieldRepository = fieldRepository;
         _indexRepository = indexRepository;
         _recordRepository = recordRepository;
+        _migrationRepository = migrationRepository;
         _idGeneratorAccessor = idGeneratorAccessor;
         _db = db;
         _timeProvider = timeProvider;
@@ -186,6 +189,7 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
         }
 
         table.UpdateMeta(table.DisplayName, table.Description, table.Status, userId, now);
+        var migrationRecord = BuildMigrationRecord(tenantId, table, ddlCommands, userId, now);
         var result = await _db.Ado.UseTranAsync(async () =>
         {
             foreach (var ddl in ddlCommands)
@@ -196,6 +200,10 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
             await _fieldRepository.AddRangeAsync(newFields, cancellationToken);
             await _indexRepository.AddRangeAsync(generatedIndexes, cancellationToken);
             await _tableRepository.UpdateAsync(table, cancellationToken);
+            if (_migrationRepository is not null)
+            {
+                await _migrationRepository.AddAsync(migrationRecord, cancellationToken);
+            }
         });
 
         if (!result.IsSuccess)
@@ -515,5 +523,26 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
                 throw new BusinessException(ErrorCodes.ValidationError, $"新增非空字段 '{field.Name}' 必须提供默认值。");
             }
         }
+    }
+
+    private DynamicSchemaMigration BuildMigrationRecord(
+        TenantId tenantId,
+        DynamicTable table,
+        IReadOnlyList<string> ddlCommands,
+        long userId,
+        DateTimeOffset now)
+    {
+        var appliedSql = string.Join(Environment.NewLine, ddlCommands);
+        return new DynamicSchemaMigration(
+            tenantId,
+            table.Id,
+            table.TableKey,
+            "ADD_FIELDS",
+            appliedSql,
+            "当前版本不支持自动回滚，请通过备份恢复。",
+            "Succeeded",
+            userId,
+            _idGeneratorAccessor.NextId(),
+            now);
     }
 }
