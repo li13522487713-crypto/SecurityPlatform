@@ -33,6 +33,10 @@
           <a-divider type="vertical" />
           <a-button size="small" :type="paletteVisible ? 'primary' : 'default'" @click="paletteVisible = !paletteVisible" title="节点面板"><AppstoreOutlined /></a-button>
           <a-divider type="vertical" />
+          <a-button size="small" @click="zoomOutDesigner" title="缩小（Ctrl + -）"><MinusOutlined /></a-button>
+          <a-button size="small" @click="zoomFitDesigner" title="适应画布（Ctrl + 0）"><CompressOutlined /></a-button>
+          <a-button size="small" @click="zoomInDesigner" title="放大（Ctrl + +）"><PlusOutlined /></a-button>
+          <a-divider type="vertical" />
           <a-button size="small" @click="undo" :disabled="!canUndo"><UndoOutlined /></a-button>
           <a-button size="small" @click="redo" :disabled="!canRedo"><RedoOutlined /></a-button>
           <a-divider type="vertical" />
@@ -126,6 +130,7 @@
       <ApprovalNodePalette :visible="paletteVisible" @update:visible="paletteVisible = $event" @addNode="handlePaletteAddNode" />
       <div class="dd-canvas">
         <X6ApprovalDesigner
+          ref="designerRef"
           :flow-tree="flowTree"
           :selected-node-id="selectedNode?.id ?? null"
           @selectNode="handleSelectNode"
@@ -186,11 +191,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, onMounted } from 'vue';
+import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { message } from 'ant-design-vue';
 import {
   LeftOutlined,
+  MinusOutlined,
+  PlusOutlined,
+  CompressOutlined,
   UndoOutlined,
   RedoOutlined,
   CheckCircleOutlined,
@@ -253,6 +261,7 @@ const validateResult = ref<ApprovalFlowValidationResult | null>(null);
 const publishModalOpen = ref(false);
 const publishing = ref(false);
 const previewModalOpen = ref(false);
+const designerRef = ref<InstanceType<typeof X6ApprovalDesigner> | null>(null);
 
 // ── 导航 ──
 const goBack = () => {
@@ -268,6 +277,9 @@ const handleNodeUpdate = (updatedNode: TreeNode | ConditionBranch) => { updateNo
 // ── 步骤 ──
 const nextStep = () => { if (activeStep.value < 2) activeStep.value += 1; };
 const prevStep = () => { if (activeStep.value > 0) activeStep.value -= 1; };
+const zoomInDesigner = () => designerRef.value?.zoomIn();
+const zoomOutDesigner = () => designerRef.value?.zoomOut();
+const zoomFitDesigner = () => designerRef.value?.zoomFit();
 
 // ── 节点库添加 ──
 const handlePaletteAddNode = (nodeType: string) => {
@@ -494,11 +506,6 @@ const handlePublishConfirm = async () => {
 // ── 预览 ──
 const handlePreview = () => { previewModalOpen.value = true; };
 
-// ── 工具 ──
-const parseVisibilityScope = (value: string): VisibilityScope | null => {
-  try { const p = JSON.parse(value) as VisibilityScope; return p?.scopeType ? p : null; } catch { return null; }
-};
-
 const focusNodeByErrors = (errors: string[]) => {
   if (errors.length === 0) return;
   const firstError = errors[0];
@@ -536,7 +543,71 @@ const findNodeById = (node: TreeNode | undefined, nodeId: string): TreeNode | nu
   return null;
 };
 
-onMounted(() => { loadFlow(); });
+const handleGlobalShortcut = (event: KeyboardEvent) => {
+  const target = event.target as HTMLElement | null;
+  if (!target) {
+    return;
+  }
+
+  const tagName = target.tagName.toUpperCase();
+  if (tagName === 'INPUT' || tagName === 'TEXTAREA' || target.isContentEditable) {
+    return;
+  }
+
+  const isCtrlOrCmd = event.ctrlKey || event.metaKey;
+  if (!isCtrlOrCmd) {
+    return;
+  }
+
+  const key = event.key.toLowerCase();
+  if (key === 's') {
+    event.preventDefault();
+    void handleSave();
+    return;
+  }
+
+  if (activeStep.value !== 2) {
+    return;
+  }
+
+  if (key === 'z' && !event.shiftKey) {
+    event.preventDefault();
+    undo();
+    return;
+  }
+
+  if (key === 'y' || (key === 'z' && event.shiftKey)) {
+    event.preventDefault();
+    redo();
+    return;
+  }
+
+  if (key === '=' || key === '+') {
+    event.preventDefault();
+    zoomInDesigner();
+    return;
+  }
+
+  if (key === '-' || key === '_') {
+    event.preventDefault();
+    zoomOutDesigner();
+    return;
+  }
+
+  if (key === '0') {
+    event.preventDefault();
+    zoomFitDesigner();
+  }
+};
+
+onMounted(() => {
+  loadFlow();
+  window.addEventListener('keydown', handleGlobalShortcut);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleGlobalShortcut);
+});
 </script>
 
 <style scoped>
