@@ -176,7 +176,7 @@ public sealed class ApprovalFlowsController : ControllerBase
             Description = request.Description,
             Category = request.Category,
             VisibilityScopeJson = request.VisibilityScopeJson,
-            IsQuickEntry = request.IsQuickEntry
+            IsQuickEntry = request.IsQuickEntry ?? false
         };
         await _createValidator.ValidateAndThrowAsync(createRequest, cancellationToken);
 
