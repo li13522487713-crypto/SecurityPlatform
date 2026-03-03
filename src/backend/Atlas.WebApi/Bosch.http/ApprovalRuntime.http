@@ -1,8 +1,33 @@
 @baseUrl = http://localhost:5000
 @token =
 @tenantId =
+@username = admin
+@password = P@ssw0rd!
 @idempotencyKey = {{$guid}}
 @csrfToken =
+
+### 登录获取令牌（可选）
+# @name login
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+###
+@token = {{login.response.body.$.data.accessToken}}
+
+### 获取 CSRF Token（执行写接口前建议先调用）
+# @name antiforgery
+GET {{baseUrl}}/api/v1/secure/antiforgery
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+###
+@csrfToken = {{antiforgery.response.body.$.data.token}}
 
 ### 发起流程实例
 POST {{baseUrl}}/api/v1/approval/instances
@@ -18,9 +43,68 @@ X-CSRF-TOKEN: {{csrfToken}}
   "dataJson": "{\"leaveType\":\"sick\",\"startDate\":\"2026-02-01\",\"endDate\":\"2026-02-03\",\"reason\":\"感冒\"}"
 }
 
+### 安全负例：发起流程缺少 Idempotency-Key（应返回 400）
+POST {{baseUrl}}/api/v1/approval/instances
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "definitionId": 1,
+  "businessKey": "leave-request-no-idempotency",
+  "dataJson": "{\"leaveType\":\"annual\"}"
+}
+
+### 安全负例：发起流程缺少 X-CSRF-TOKEN（应返回 403）
+POST {{baseUrl}}/api/v1/approval/instances
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+
+{
+  "definitionId": 1,
+  "businessKey": "leave-request-no-csrf",
+  "dataJson": "{\"leaveType\":\"annual\"}"
+}
+
+### 安全负例：幂等冲突（同 key 不同 payload，第二次应返回 409）
+@idemConflictStart = runtime-conflict-start-001
+POST {{baseUrl}}/api/v1/approval/instances
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{idemConflictStart}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "definitionId": 1,
+  "businessKey": "leave-request-conflict-A",
+  "dataJson": "{\"reason\":\"冲突A\"}"
+}
+
+###
+POST {{baseUrl}}/api/v1/approval/instances
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{idemConflictStart}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "definitionId": 1,
+  "businessKey": "leave-request-conflict-B",
+  "dataJson": "{\"reason\":\"冲突B\"}"
+}
+
 ### 获取我发起的流程实例（需要权限: approval:flow:view）
 GET {{baseUrl}}/api/v1/approval/instances/my?pageIndex=1&pageSize=10&status=Running
 Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### 未认证查询我发起流程（应返回 401）
+GET {{baseUrl}}/api/v1/approval/instances/my?pageIndex=1&pageSize=10&status=Running
 X-Tenant-Id: {{tenantId}}
 
 ### 获取流程实例详情（需要权限: approval:flow:view）
@@ -40,6 +124,15 @@ X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
 Idempotency-Key: {{$guid}}
 X-CSRF-TOKEN: {{csrfToken}}
+
+{}
+
+### 安全负例：取消流程缺少 X-CSRF-TOKEN（应返回 403）
+POST {{baseUrl}}/api/v1/approval/instances/{instanceId}/cancellation
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
 
 {}
 

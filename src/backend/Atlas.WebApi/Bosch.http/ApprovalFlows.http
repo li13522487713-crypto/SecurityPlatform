@@ -30,6 +30,30 @@ X-CSRF-TOKEN: {{csrfToken}}
   "definitionJson": "{\"meta\":{\"flowName\":\"请假审批流程\",\"description\":\"员工请假审批流程\",\"category\":\"人事\",\"isQuickEntry\":false,\"isLowCodeFlow\":true},\"lfForm\":{\"formJson\":{\"widgetList\":[],\"formConfig\":{}},\"formFields\":[]},\"nodes\":{\"rootNode\":{\"nodeId\":\"start_1\",\"nodeType\":\"start\",\"nodeName\":\"发起人\",\"childNode\":{\"nodeId\":\"approve_1\",\"nodeType\":\"approve\",\"nodeName\":\"部门主管审批\",\"approverConfig\":{\"setType\":2,\"signType\":1,\"noHeaderAction\":0,\"nodeApproveList\":[{\"targetId\":\"dept-leader\",\"name\":\"部门主管\"}]},\"childNode\":{\"nodeId\":\"end_1\",\"nodeType\":\"end\",\"nodeName\":\"结束\"}}}}}"
 }
 
+### 安全负例：创建流程缺少 Idempotency-Key（应返回 400）
+POST {{baseUrl}}/api/v1/approval/flows
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "name": "缺幂等键流程",
+  "definitionJson": "{\"meta\":{\"flowName\":\"缺幂等键流程\"},\"nodes\":{\"rootNode\":{\"nodeId\":\"start_1\",\"nodeType\":\"start\",\"nodeName\":\"发起人\",\"childNode\":{\"nodeId\":\"end_1\",\"nodeType\":\"end\",\"nodeName\":\"结束\"}}}}"
+}
+
+### 安全负例：创建流程缺少 X-CSRF-TOKEN（应返回 403）
+POST {{baseUrl}}/api/v1/approval/flows
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+
+{
+  "name": "缺CSRF流程",
+  "definitionJson": "{\"meta\":{\"flowName\":\"缺CSRF流程\"},\"nodes\":{\"rootNode\":{\"nodeId\":\"start_1\",\"nodeType\":\"start\",\"nodeName\":\"发起人\",\"childNode\":{\"nodeId\":\"end_1\",\"nodeType\":\"end\",\"nodeName\":\"结束\"}}}}"
+}
+
 ### 幂等冲突负例（同 key 不同 payload，第二次应返回 409）
 POST {{baseUrl}}/api/v1/approval/flows
 Authorization: Bearer {{token}}
@@ -58,6 +82,10 @@ X-CSRF-TOKEN: {{csrfToken}}
 ### 获取流程定义列表（需要权限: approval:flow:view）
 GET {{baseUrl}}/api/v1/approval/flows?pageIndex=1&pageSize=10&status=Draft
 Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### 未认证查询流程定义列表（应返回 401）
+GET {{baseUrl}}/api/v1/approval/flows?pageIndex=1&pageSize=10&status=Draft
 X-Tenant-Id: {{tenantId}}
 
 ### 获取流程定义详情
