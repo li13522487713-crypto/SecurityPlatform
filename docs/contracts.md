@@ -1032,12 +1032,12 @@ JWT Claims（新增）：
 
 ### 记录 CRUD 接口
 
-- `GET /api/v1/dynamic-tables/{tableKey}/records`：分页查询记录（支持 `includeColumns=true`）
+- `GET /api/v1/dynamic-tables/{tableKey}/records`：分页查询记录（关键词 + 排序）
 - `GET /api/v1/dynamic-tables/{tableKey}/records/{id}`：单条记录
 - `POST /api/v1/dynamic-tables/{tableKey}/records`：新增记录（需幂等 + CSRF）
 - `PUT /api/v1/dynamic-tables/{tableKey}/records/{id}`：更新记录（需幂等 + CSRF）
 - `DELETE /api/v1/dynamic-tables/{tableKey}/records/{id}`：删除记录（需幂等 + CSRF）
-- `POST /api/v1/dynamic-tables/{tableKey}/records/query`：复杂筛选（需幂等 + CSRF）
+- `POST /api/v1/dynamic-tables/{tableKey}/records/query`：复杂筛选（支持 `eq/ne/gt/gte/lt/lte/like/in/between`，需幂等 + CSRF）
 - `POST /api/v1/dynamic-tables/{tableKey}/records/batch`：批量新增（需幂等 + CSRF）
 - `DELETE /api/v1/dynamic-tables/{tableKey}/records`：批量删除（需幂等 + CSRF）
 

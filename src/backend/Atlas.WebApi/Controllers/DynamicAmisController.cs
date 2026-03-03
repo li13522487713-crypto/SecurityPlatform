@@ -196,6 +196,24 @@ public sealed class DynamicAmisController : ControllerBase
         {
             columns.Add(BuildCrudColumn(field));
         }
+        var filterBody = new List<object>
+        {
+            new Dictionary<string, object?>
+            {
+                ["type"] = "input-text",
+                ["name"] = "keyword",
+                ["label"] = "关键字"
+            }
+        };
+
+        foreach (var field in fields.OrderBy(x => x.SortOrder))
+        {
+            var filterItem = BuildCrudFilterItem(field);
+            if (filterItem is not null)
+            {
+                filterBody.Add(filterItem);
+            }
+        }
 
         columns.Add(new Dictionary<string, object?>
         {
@@ -260,11 +278,20 @@ public sealed class DynamicAmisController : ControllerBase
                     ["name"] = "crudTable",
                     ["api"] = new Dictionary<string, object?>
                     {
-                        ["method"] = "get",
-                        ["url"] = $"/api/v1/dynamic-tables/{tableKey}/records?pageIndex=${{pageIndex}}&pageSize=${{perPage}}&keyword=${{keyword}}&sortBy=${{sortBy}}&sortDesc=${{sortDesc}}",
-                        ["adaptor"] = BuildCrudAdaptor()
+                        ["method"] = "post",
+                        ["url"] = $"/api/v1/dynamic-tables/{tableKey}/records/query",
+                        ["requestAdaptor"] = BuildCrudRequestAdaptor(),
+                        ["adaptor"] = BuildCrudAdaptor(),
+                        ["data"] = new Dictionary<string, object?>
+                        {
+                            ["pageIndex"] = "${page}",
+                            ["perPage"] = "${perPage}",
+                            ["keyword"] = "${keyword}",
+                            ["sortBy"] = "${orderBy}",
+                            ["sortDesc"] = "${orderDir === 'desc'}"
+                        }
                     },
-                    ["pageField"] = "pageIndex",
+                    ["pageField"] = "page",
                     ["perPageField"] = "perPage",
                     ["perPageAvailable"] = new[] { 10, 20, 50, 100 },
                     ["pageSize"] = 20,
@@ -273,15 +300,7 @@ public sealed class DynamicAmisController : ControllerBase
                     {
                         ["title"] = "搜索",
                         ["submitText"] = "查询",
-                        ["body"] = new object[]
-                        {
-                            new Dictionary<string, object?>
-                            {
-                                ["type"] = "input-text",
-                                ["name"] = "keyword",
-                                ["label"] = "关键字"
-                            }
-                        }
+                        ["body"] = filterBody
                     },
                     ["headerToolbar"] = new object[]
                     {
@@ -417,6 +436,49 @@ public sealed class DynamicAmisController : ControllerBase
         """;
     }
 
+    private static string BuildCrudRequestAdaptor()
+    {
+        return """
+        var data = api.data || {};
+        var filters = [];
+        Object.keys(data).forEach(function(key) {
+          if (!key.startsWith('f_')) { return; }
+          var field = key.substring(2);
+          var value = data[key];
+          if (value === undefined || value === null || value === '' || (Array.isArray(value) && value.length === 0)) {
+            return;
+          }
+
+          var op = 'eq';
+          var payloadValue = value;
+          if (Array.isArray(value) && value.length >= 2) {
+            op = 'between';
+            payloadValue = [value[0], value[1]];
+          } else if (typeof value === 'string') {
+            op = 'like';
+            payloadValue = value;
+          }
+
+          filters.push({
+            field: field,
+            operator: op,
+            value: payloadValue
+          });
+        });
+
+        api.data = {
+          pageIndex: data.page || 1,
+          pageSize: data.perPage || 20,
+          keyword: data.keyword || null,
+          sortBy: data.sortBy || null,
+          sortDesc: data.sortDesc === true || data.sortDesc === 'true',
+          filters: filters
+        };
+
+        return api;
+        """;
+    }
+
     private static string BuildInitAdaptor()
     {
         return """
@@ -522,6 +584,60 @@ public sealed class DynamicAmisController : ControllerBase
                 ["type"] = "text",
                 ["sortable"] = true
             }
+        };
+    }
+
+    private static object? BuildCrudFilterItem(DynamicFieldDefinition field)
+    {
+        return field.FieldType switch
+        {
+            "String" or "Text" => new Dictionary<string, object?>
+            {
+                ["type"] = "input-text",
+                ["name"] = $"f_{field.Name}",
+                ["label"] = field.DisplayName ?? field.Name
+            },
+            "Int" or "Long" or "Decimal" => new Dictionary<string, object?>
+            {
+                ["type"] = "input-number",
+                ["name"] = $"f_{field.Name}",
+                ["label"] = field.DisplayName ?? field.Name
+            },
+            "Bool" => new Dictionary<string, object?>
+            {
+                ["type"] = "select",
+                ["name"] = $"f_{field.Name}",
+                ["label"] = field.DisplayName ?? field.Name,
+                ["clearable"] = true,
+                ["options"] = new object[]
+                {
+                    new Dictionary<string, object?>
+                    {
+                        ["label"] = "是",
+                        ["value"] = true
+                    },
+                    new Dictionary<string, object?>
+                    {
+                        ["label"] = "否",
+                        ["value"] = false
+                    }
+                }
+            },
+            "Date" => new Dictionary<string, object?>
+            {
+                ["type"] = "input-date-range",
+                ["name"] = $"f_{field.Name}",
+                ["label"] = field.DisplayName ?? field.Name,
+                ["format"] = "YYYY-MM-DD"
+            },
+            "DateTime" => new Dictionary<string, object?>
+            {
+                ["type"] = "input-datetime-range",
+                ["name"] = $"f_{field.Name}",
+                ["label"] = field.DisplayName ?? field.Name,
+                ["format"] = "YYYY-MM-DD HH:mm:ss"
+            },
+            _ => null
         };
     }
 }

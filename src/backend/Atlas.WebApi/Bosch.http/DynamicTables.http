@@ -148,6 +148,34 @@ GET {{baseUrl}}/api/v1/dynamic-tables/orders/records?pageIndex=1&pageSize=20&key
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
+### Query Records (Advanced Filters)
+POST {{baseUrl}}/api/v1/dynamic-tables/orders/records/query
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$randomUUID}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "pageIndex": 1,
+  "pageSize": 20,
+  "keyword": "SO",
+  "sortBy": "amount",
+  "sortDesc": true,
+  "filters": [
+    {
+      "field": "amount",
+      "operator": "gte",
+      "value": 100
+    },
+    {
+      "field": "orderNo",
+      "operator": "like",
+      "value": "SO-"
+    }
+  ]
+}
+
 ### Update Record
 PUT {{baseUrl}}/api/v1/dynamic-tables/orders/records/1
 Content-Type: application/json

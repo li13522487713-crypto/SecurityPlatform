@@ -1,5 +1,6 @@
 using System.Data;
 using System.Text.Json;
+using System.Globalization;
 using Atlas.Application.DynamicTables.Models;
 using Atlas.Application.DynamicTables.Repositories;
 using Atlas.Core.Exceptions;
@@ -291,7 +292,11 @@ public sealed class DynamicRecordRepository : IDynamicRecordRepository
 
             if (op == "in" && filter.Value is { ValueKind: JsonValueKind.Array })
             {
-                var values = filter.Value.Value.EnumerateArray().Select(x => x.ToString()).ToArray();
+                var values = filter.Value.Value
+                    .EnumerateArray()
+                    .Select(x => ConvertFilterValue(field, x))
+                    .Where(x => x is not null)
+                    .ToArray();
                 if (values.Length == 0)
                 {
                     continue;
@@ -302,7 +307,7 @@ public sealed class DynamicRecordRepository : IDynamicRecordRepository
                 {
                     var paramName = $"@p{parameters.Count}";
                     paramNames.Add(paramName);
-                    parameters.Add(new SugarParameter(paramName, item));
+                    parameters.Add(new SugarParameter(paramName, item!));
                 }
 
                 conditions.Add($"{fieldName} IN ({string.Join(", ", paramNames)})");
@@ -311,22 +316,42 @@ public sealed class DynamicRecordRepository : IDynamicRecordRepository
 
             if (op == "between" && filter.Value is { ValueKind: JsonValueKind.Array })
             {
-                var values = filter.Value.Value.EnumerateArray().Select(x => x.ToString()).ToArray();
+                var values = filter.Value.Value
+                    .EnumerateArray()
+                    .Select(x => ConvertFilterValue(field, x))
+                    .Where(x => x is not null)
+                    .ToArray();
                 if (values.Length < 2)
                 {
                     continue;
                 }
 
                 var startParam = $"@p{parameters.Count}";
-                parameters.Add(new SugarParameter(startParam, values[0]));
+                parameters.Add(new SugarParameter(startParam, values[0]!));
                 var endParam = $"@p{parameters.Count}";
-                parameters.Add(new SugarParameter(endParam, values[1]));
+                parameters.Add(new SugarParameter(endParam, values[1]!));
                 conditions.Add($"{fieldName} BETWEEN {startParam} AND {endParam}");
                 continue;
             }
 
+            if (filter.Value is not { } scalarValue)
+            {
+                continue;
+            }
+
+            var resolvedValue = ConvertFilterValue(field, scalarValue);
+            if (resolvedValue is null)
+            {
+                continue;
+            }
+
+            if (op == "like" && resolvedValue is string likeValue && !likeValue.Contains('%'))
+            {
+                resolvedValue = $"%{likeValue}%";
+            }
+
             var param = $"@p{parameters.Count}";
-            parameters.Add(new SugarParameter(param, filter.Value?.ToString()));
+            parameters.Add(new SugarParameter(param, resolvedValue));
             var sqlOp = op switch
             {
                 "eq" => "=",
@@ -347,6 +372,50 @@ public sealed class DynamicRecordRepository : IDynamicRecordRepository
         }
 
         return $"WHERE {string.Join(" AND ", conditions)}";
+    }
+
+    private static object? ConvertFilterValue(DynamicField field, JsonElement value)
+    {
+        if (value.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
+        {
+            return null;
+        }
+
+        try
+        {
+            return field.FieldType switch
+            {
+                DynamicFieldType.Int => value.ValueKind == JsonValueKind.Number
+                    ? value.GetInt32()
+                    : int.Parse(value.ToString(), CultureInfo.InvariantCulture),
+                DynamicFieldType.Long => value.ValueKind == JsonValueKind.Number
+                    ? value.GetInt64()
+                    : long.Parse(value.ToString(), CultureInfo.InvariantCulture),
+                DynamicFieldType.Decimal => value.ValueKind == JsonValueKind.Number
+                    ? value.GetDecimal()
+                    : decimal.Parse(value.ToString(), CultureInfo.InvariantCulture),
+                DynamicFieldType.Bool => value.ValueKind switch
+                {
+                    JsonValueKind.True => true,
+                    JsonValueKind.False => false,
+                    JsonValueKind.Number => value.GetInt32() == 1,
+                    _ => bool.Parse(value.ToString())
+                },
+                DynamicFieldType.DateTime => value.ValueKind == JsonValueKind.String
+                    ? DateTimeOffset.Parse(value.GetString()!)
+                    : DateTimeOffset.Parse(value.ToString()),
+                DynamicFieldType.Date => value.ValueKind == JsonValueKind.String
+                    ? DateTimeOffset.Parse(value.GetString()!).Date
+                    : DateTimeOffset.Parse(value.ToString()).Date,
+                _ => value.ValueKind == JsonValueKind.String
+                    ? value.GetString()
+                    : value.ToString()
+            };
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private static string BuildOrderBy(
