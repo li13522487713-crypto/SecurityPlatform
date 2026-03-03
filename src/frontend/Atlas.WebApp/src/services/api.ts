@@ -82,7 +82,9 @@ import type {
   TableViewCreateRequest,
   TableViewUpdateRequest,
   TableViewConfigUpdateRequest,
-  TableViewDuplicateRequest
+  TableViewDuplicateRequest,
+  FileUploadResult,
+  FileRecordDto
 } from "@/types/api";
 import type {
   FlowDefinition,
@@ -232,6 +234,36 @@ export async function changePassword(request: ChangePasswordRequest): Promise<vo
   });
   if (!response.success) {
     throw new Error(response.message || "修改密码失败");
+  }
+}
+
+export async function uploadFile(file: File): Promise<FileUploadResult> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const response = await requestApi<ApiResponse<FileUploadResult>>("/files", {
+    method: "POST",
+    body: formData
+  });
+  if (!response.data) {
+    throw new Error(response.message || "上传失败");
+  }
+  return response.data;
+}
+
+export async function getFileInfo(id: string | number): Promise<FileRecordDto> {
+  const response = await requestApi<ApiResponse<FileRecordDto>>(`/files/${id}/info`);
+  if (!response.data) {
+    throw new Error(response.message || "文件不存在");
+  }
+  return response.data;
+}
+
+export async function deleteFile(id: string | number): Promise<void> {
+  const response = await requestApi<ApiResponse<{ id: string }>>(`/files/${id}`, {
+    method: "DELETE"
+  });
+  if (!response.success) {
+    throw new Error(response.message || "删除失败");
   }
 }
 

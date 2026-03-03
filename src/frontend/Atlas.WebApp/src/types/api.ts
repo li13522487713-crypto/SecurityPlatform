@@ -75,6 +75,24 @@ export interface PagedResult<T> {
   pageSize: number;
 }
 
+export interface FileRecordDto {
+  id: number;
+  originalName: string;
+  contentType: string;
+  sizeBytes: number;
+  uploadedById: number;
+  uploadedByName: string;
+  uploadedAt: string;
+}
+
+export interface FileUploadResult {
+  id: number;
+  originalName: string;
+  contentType: string;
+  sizeBytes: number;
+  uploadedAt: string;
+}
+
 // 表格视图（个人）
 export type TableViewDensity = "compact" | "default" | "comfortable";
 
