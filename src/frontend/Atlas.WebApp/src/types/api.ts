@@ -228,12 +228,57 @@ export const ApprovalFlowStatus = {
 export type ApprovalFlowStatus = typeof ApprovalFlowStatus[keyof typeof ApprovalFlowStatus];
 
 export const ApprovalInstanceStatus = {
+  Destroy: -3,
+  Suspended: -2,
+  Draft: -1,
   Running: 0,
   Completed: 1,
   Rejected: 2,
-  Canceled: 3
+  Canceled: 3,
+  TimedOut: 4,
+  Terminated: 5,
+  AutoApproved: 6,
+  AutoRejected: 7,
+  AiProcessing: 8,
+  AiManualReview: 9
 } as const;
 export type ApprovalInstanceStatus = typeof ApprovalInstanceStatus[keyof typeof ApprovalInstanceStatus];
+
+export const ApprovalHistoryEventType = {
+  InstanceStarted: "InstanceStarted",
+  TaskCreated: "TaskCreated",
+  TaskApproved: "TaskApproved",
+  TaskRejected: "TaskRejected",
+  NodeAdvanced: "NodeAdvanced",
+  InstanceCompleted: "InstanceCompleted",
+  InstanceRejected: "InstanceRejected",
+  InstanceCanceled: "InstanceCanceled",
+  TaskTransferred: "TaskTransferred",
+  DrawBackAgree: "DrawBackAgree",
+  ProcessDrawBack: "ProcessDrawBack",
+  BackToAnyNode: "BackToAnyNode",
+  BackToModify: "BackToModify",
+  AssigneeAdded: "AssigneeAdded",
+  AssigneeRemoved: "AssigneeRemoved",
+  AssigneeChanged: "AssigneeChanged",
+  TaskForwarded: "TaskForwarded",
+  TaskUndertaken: "TaskUndertaken",
+  ProcessMoveAhead: "ProcessMoveAhead",
+  RecoverToHistory: "RecoverToHistory",
+  DraftSaved: "DraftSaved",
+  TaskDelegated: "TaskDelegated",
+  TaskDelegateReturned: "TaskDelegateReturned",
+  TaskClaimed: "TaskClaimed",
+  TaskJumped: "TaskJumped",
+  TaskReclaimed: "TaskReclaimed",
+  TaskResumed: "TaskResumed",
+  InstanceSuspended: "InstanceSuspended",
+  InstanceActivated: "InstanceActivated",
+  InstanceTerminated: "InstanceTerminated",
+  TaskUrged: "TaskUrged",
+  TaskCommunicated: "TaskCommunicated"
+} as const;
+export type ApprovalHistoryEventType = typeof ApprovalHistoryEventType[keyof typeof ApprovalHistoryEventType];
 
 export const ApprovalTaskStatus = {
   Pending: 0,
@@ -430,7 +475,7 @@ export interface ApprovalInstanceResponse {
 
 export interface ApprovalHistoryEventResponse {
   id: number | string;
-  eventType: string;
+  eventType: ApprovalHistoryEventType;
   fromNode?: string;
   toNode?: string;
   payloadJson?: string;

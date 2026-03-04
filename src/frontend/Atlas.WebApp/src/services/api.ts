@@ -99,6 +99,10 @@ import type {
   FileRecordDto
 } from "@/types/api";
 import type {
+  ApprovalHistoryEventDto,
+  ApprovalInstanceDetailDto
+} from "@/types/approval-instance-detail";
+import type {
   FlowDefinition,
   FlowSaveRequest,
   FlowSaveResponse,
@@ -900,18 +904,21 @@ export async function getAdminInstancesPaged(
   return response.data;
 }
 
-export async function getApprovalInstanceById(id: string) {
-  const response = await requestApi<ApiResponse<ApprovalInstanceResponse>>(`/approval/instances/${id}`);
+export async function getApprovalInstanceById(id: string): Promise<ApprovalInstanceDetailDto> {
+  const response = await requestApi<ApiResponse<ApprovalInstanceDetailDto>>(`/approval/instances/${id}`);
   if (!response.data) {
     throw new Error(response.message || "查询失败");
   }
   return response.data;
 }
 
-export async function getApprovalInstanceHistory(id: string, pagedRequest: PagedRequest) {
-  const query = toQuery(pagedRequest);
-  const response = await requestApi<ApiResponse<PagedResult<ApprovalHistoryEventResponse>>>(
-    `/approval/instances/${id}/history?${query}`
+export async function getApprovalInstanceHistory(
+  id: string,
+  pagedRequest: PagedRequest
+): Promise<PagedResult<ApprovalHistoryEventDto>> {
+  const params = new URLSearchParams(toQuery(pagedRequest));
+  const response = await requestApi<ApiResponse<PagedResult<ApprovalHistoryEventDto>>>(
+    `/approval/instances/${id}/history?${params.toString()}`
   );
   if (!response.data) {
     throw new Error(response.message || "查询失败");

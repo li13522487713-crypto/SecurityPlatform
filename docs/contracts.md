@@ -639,6 +639,24 @@ JWT Claims（新增）：
 - `GET /api/v1/approval/instances/{id}/preview`：预览流程实例
 - `GET /api/v1/approval/instances/{id}/print-view`：打印视图
 
+`GET /api/v1/approval/instances/{id}` 返回 `ApprovalInstanceDetailDto`，其中 `status` 使用数值枚举：
+
+- `-3`：已作废（Destroy）
+- `-2`：已挂起（Suspended）
+- `-1`：草稿（Draft）
+- `0`：运行中（Running）
+- `1`：已完成（Completed）
+- `2`：已驳回（Rejected）
+- `3`：已取消（Canceled）
+- `4`：超时结束（TimedOut）
+- `5`：强制终止（Terminated）
+- `6`：自动通过（AutoApproved）
+- `7`：自动拒绝（AutoRejected）
+- `8`：AI 处理中（AiProcessing）
+- `9`：AI 转人工（AiManualReview）
+
+`GET /api/v1/approval/instances/{id}/history` 返回 `PagedResult<ApprovalHistoryEventDto>`，其中 `eventType` 为字符串枚举（如 `InstanceStarted`、`TaskApproved`、`TaskRejected`、`InstanceCompleted`、`InstanceSuspended` 等）。
+
 ### 审批任务
 
 - `GET /api/v1/approval/tasks/my`：我的待办任务
@@ -1646,4 +1664,3 @@ JWT Claims（新增）：
 - `/process/manage/flows`：流程定义管理
 - `/process/manage/instances`：流程实例管理
 - `/process/designer/:id`、`/process/tasks/:id`、`/process/instances/:id`：隐藏详情路由
-

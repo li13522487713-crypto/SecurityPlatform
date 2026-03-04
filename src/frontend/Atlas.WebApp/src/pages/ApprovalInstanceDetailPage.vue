@@ -47,11 +47,11 @@
                 </template>
                 <div class="timeline-content">
                   <div class="timeline-header">
-                    <span class="timeline-user">{{ event.operatorName }}</span>
+                    <span class="timeline-user">{{ event.actorUserId ? `用户 ${event.actorUserId}` : '系统' }}</span>
                     <span class="timeline-action">{{ getEventActionText(event.eventType) }}</span>
                   </div>
-                  <div class="timeline-comment" v-if="event.comment">{{ event.comment }}</div>
-                  <div class="timeline-time">{{ formatTime(event.createdAt) }}</div>
+                  <div class="timeline-comment" v-if="event.payloadJson">{{ event.payloadJson }}</div>
+                  <div class="timeline-time">{{ formatTime(event.occurredAt) }}</div>
                 </div>
               </a-timeline-item>
             </a-timeline>
@@ -64,8 +64,9 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { useRoute } from 'vue-router';
 import { message } from 'ant-design-vue';
+import type { Component } from 'vue';
 import { 
   getApprovalInstanceById, 
   getApprovalInstanceHistory, 
@@ -80,20 +81,27 @@ import {
   PlayCircleOutlined,
   StopOutlined
 } from '@ant-design/icons-vue';
+import {
+  ApprovalHistoryEventType,
+  ApprovalInstanceStatus
+} from '@/types/api';
+import type {
+  ApprovalHistoryEventDto,
+  ApprovalInstanceDetailDto
+} from '@/types/approval-instance-detail';
 import dayjs from 'dayjs';
 
 const route = useRoute();
-const router = useRouter();
 const instanceId = route.params.id as string;
 
 const loading = ref(false);
-const instance = ref<any>(null);
-const historyEvents = ref<any[]>([]);
+const instance = ref<ApprovalInstanceDetailDto | null>(null);
+const historyEvents = ref<ApprovalHistoryEventDto[]>([]);
 const flowChartRef = ref<HTMLElement | null>(null);
 
-const canCancel = computed(() => instance.value?.status === 0); // Running
-const canSuspend = computed(() => instance.value?.status === 0);
-const canActivate = computed(() => instance.value?.status === -2); // Suspended
+const canCancel = computed(() => instance.value?.status === ApprovalInstanceStatus.Running);
+const canSuspend = computed(() => instance.value?.status === ApprovalInstanceStatus.Running);
+const canActivate = computed(() => instance.value?.status === ApprovalInstanceStatus.Suspended);
 
 const fetchDetail = async () => {
   loading.value = true;
@@ -142,42 +150,96 @@ const handleActivate = async () => {
   }
 };
 
-const getStatusColor = (status: number) => {
-  const map: Record<number, string> = {
-    0: 'blue', // Running
-    1: 'green', // Completed
-    2: 'red', // Rejected
-    3: 'default', // Canceled
-    '-2': 'orange', // Suspended
-    '-1': 'purple' // Draft
+const getStatusColor = (status?: ApprovalInstanceDetailDto['status']) => {
+  if (status === undefined) {
+    return 'default';
+  }
+
+  const map: Record<ApprovalInstanceDetailDto['status'], string> = {
+    [ApprovalInstanceStatus.Destroy]: 'default',
+    [ApprovalInstanceStatus.Suspended]: 'orange',
+    [ApprovalInstanceStatus.Draft]: 'purple',
+    [ApprovalInstanceStatus.Running]: 'blue',
+    [ApprovalInstanceStatus.Completed]: 'green',
+    [ApprovalInstanceStatus.Rejected]: 'red',
+    [ApprovalInstanceStatus.Canceled]: 'default',
+    [ApprovalInstanceStatus.TimedOut]: 'volcano',
+    [ApprovalInstanceStatus.Terminated]: 'magenta',
+    [ApprovalInstanceStatus.AutoApproved]: 'cyan',
+    [ApprovalInstanceStatus.AutoRejected]: 'geekblue',
+    [ApprovalInstanceStatus.AiProcessing]: 'processing',
+    [ApprovalInstanceStatus.AiManualReview]: 'gold'
   };
   return map[status] || 'default';
 };
 
-const getStatusText = (status: number) => {
-  const map: Record<number, string> = {
-    0: '运行中',
-    1: '已完成',
-    2: '已驳回',
-    3: '已取消',
-    '-2': '已挂起',
-    '-1': '草稿'
+const getStatusText = (status?: ApprovalInstanceDetailDto['status']) => {
+  if (status === undefined) {
+    return '未知';
+  }
+
+  const map: Record<ApprovalInstanceDetailDto['status'], string> = {
+    [ApprovalInstanceStatus.Destroy]: '已作废',
+    [ApprovalInstanceStatus.Suspended]: '已挂起',
+    [ApprovalInstanceStatus.Draft]: '草稿',
+    [ApprovalInstanceStatus.Running]: '运行中',
+    [ApprovalInstanceStatus.Completed]: '已完成',
+    [ApprovalInstanceStatus.Rejected]: '已驳回',
+    [ApprovalInstanceStatus.Canceled]: '已取消',
+    [ApprovalInstanceStatus.TimedOut]: '已超时结束',
+    [ApprovalInstanceStatus.Terminated]: '已强制终止',
+    [ApprovalInstanceStatus.AutoApproved]: '自动通过',
+    [ApprovalInstanceStatus.AutoRejected]: '自动拒绝',
+    [ApprovalInstanceStatus.AiProcessing]: 'AI 处理中',
+    [ApprovalInstanceStatus.AiManualReview]: 'AI 转人工'
   };
   return map[status] || '未知';
 };
 
-const getEventColor = (type: number) => {
-  // 根据事件类型返回颜色
-  return 'blue';
+const getEventColor = (type: ApprovalHistoryEventDto['eventType']) => {
+  const map: Partial<Record<ApprovalHistoryEventDto['eventType'], string>> = {
+    [ApprovalHistoryEventType.TaskApproved]: 'green',
+    [ApprovalHistoryEventType.InstanceCompleted]: 'green',
+    [ApprovalHistoryEventType.TaskRejected]: 'red',
+    [ApprovalHistoryEventType.InstanceRejected]: 'red',
+    [ApprovalHistoryEventType.InstanceCanceled]: 'orange',
+    [ApprovalHistoryEventType.InstanceSuspended]: 'orange',
+    [ApprovalHistoryEventType.InstanceActivated]: 'blue'
+  };
+  return map[type] ?? 'blue';
 };
 
-const getEventIcon = (type: number) => {
+const getEventIcon = (type: ApprovalHistoryEventDto['eventType']): Component => {
+  if (type === ApprovalHistoryEventType.TaskApproved || type === ApprovalHistoryEventType.InstanceCompleted) {
+    return CheckCircleOutlined;
+  }
+  if (type === ApprovalHistoryEventType.TaskRejected || type === ApprovalHistoryEventType.InstanceRejected) {
+    return CloseCircleOutlined;
+  }
+  if (type === ApprovalHistoryEventType.InstanceActivated) {
+    return PlayCircleOutlined;
+  }
+  if (type === ApprovalHistoryEventType.InstanceSuspended) {
+    return StopOutlined;
+  }
   return ClockCircleOutlined;
 };
 
-const getEventActionText = (type: number) => {
-  // 映射事件类型文本
-  return '操作';
+const getEventActionText = (type: ApprovalHistoryEventDto['eventType']) => {
+  const map: Partial<Record<ApprovalHistoryEventDto['eventType'], string>> = {
+    [ApprovalHistoryEventType.InstanceStarted]: '发起流程',
+    [ApprovalHistoryEventType.TaskCreated]: '创建任务',
+    [ApprovalHistoryEventType.TaskApproved]: '审批通过',
+    [ApprovalHistoryEventType.TaskRejected]: '审批驳回',
+    [ApprovalHistoryEventType.NodeAdvanced]: '流转到下一节点',
+    [ApprovalHistoryEventType.InstanceCompleted]: '流程完成',
+    [ApprovalHistoryEventType.InstanceRejected]: '流程驳回',
+    [ApprovalHistoryEventType.InstanceCanceled]: '流程取消',
+    [ApprovalHistoryEventType.InstanceSuspended]: '流程挂起',
+    [ApprovalHistoryEventType.InstanceActivated]: '流程激活',
+    [ApprovalHistoryEventType.InstanceTerminated]: '流程终止'
+  };
+  return map[type] ?? '流程操作';
 };
 
 const formatTime = (time: string) => {
