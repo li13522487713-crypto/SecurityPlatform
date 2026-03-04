@@ -15,6 +15,10 @@ public sealed class LowCodePage : TenantEntity
         Name = string.Empty;
         PageKey = string.Empty;
         SchemaJson = string.Empty;
+        PublishedSchemaJson = null;
+        PublishedVersion = null;
+        PublishedAt = null;
+        PublishedBy = null;
     }
 
     public LowCodePage(
@@ -89,6 +93,18 @@ public sealed class LowCodePage : TenantEntity
     /// <summary>是否已发布</summary>
     public bool IsPublished { get; private set; }
 
+    /// <summary>已发布快照 schema（运行态读取）</summary>
+    public string? PublishedSchemaJson { get; private set; }
+
+    /// <summary>已发布快照版本号</summary>
+    public int? PublishedVersion { get; private set; }
+
+    /// <summary>发布时间</summary>
+    public DateTimeOffset? PublishedAt { get; private set; }
+
+    /// <summary>发布人</summary>
+    public long? PublishedBy { get; private set; }
+
     /// <summary>创建时间</summary>
     public DateTimeOffset CreatedAt { get; private set; }
 
@@ -143,6 +159,10 @@ public sealed class LowCodePage : TenantEntity
     public void Publish(long updatedBy, DateTimeOffset now)
     {
         IsPublished = true;
+        PublishedSchemaJson = SchemaJson;
+        PublishedVersion = Version;
+        PublishedAt = now;
+        PublishedBy = updatedBy;
         UpdatedBy = updatedBy;
         UpdatedAt = now;
     }
@@ -163,6 +183,72 @@ public sealed class LowCodePage : TenantEntity
 
     public void BindDataTable(string? dataTableKey, long updatedBy, DateTimeOffset now)
     {
+        DataTableKey = dataTableKey;
+        UpdatedBy = updatedBy;
+        UpdatedAt = now;
+    }
+
+    public void RollbackToVersion(
+        string name,
+        LowCodePageType pageType,
+        string schemaJson,
+        string? routePath,
+        string? description,
+        string? icon,
+        int sortOrder,
+        long? parentPageId,
+        string? permissionCode,
+        string? dataTableKey,
+        long updatedBy,
+        DateTimeOffset now)
+    {
+        Name = name;
+        PageType = pageType;
+        SchemaJson = schemaJson;
+        RoutePath = routePath;
+        Description = description;
+        Icon = icon;
+        SortOrder = sortOrder;
+        ParentPageId = parentPageId;
+        PermissionCode = permissionCode;
+        DataTableKey = dataTableKey;
+        Version += 1;
+        IsPublished = true;
+        PublishedSchemaJson = schemaJson;
+        PublishedVersion = Version;
+        PublishedAt = now;
+        PublishedBy = updatedBy;
+        UpdatedBy = updatedBy;
+        UpdatedAt = now;
+    }
+
+    public void RestoreSnapshot(
+        string name,
+        LowCodePageType pageType,
+        string schemaJson,
+        string? routePath,
+        string? description,
+        string? icon,
+        int sortOrder,
+        long? parentPageId,
+        int version,
+        bool isPublished,
+        string? permissionCode,
+        string? dataTableKey,
+        long updatedBy,
+        DateTimeOffset now)
+    {
+        Name = name;
+        PageType = pageType;
+        SchemaJson = schemaJson;
+        RoutePath = routePath;
+        Description = description;
+        Icon = icon;
+        SortOrder = sortOrder;
+        ParentPageId = parentPageId;
+        Version = version < 1 ? 1 : version;
+        IsPublished = isPublished;
+        PermissionCode = permissionCode;
         DataTableKey = dataTableKey;
         UpdatedBy = updatedBy;
         UpdatedAt = now;

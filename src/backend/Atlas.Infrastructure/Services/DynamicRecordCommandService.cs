@@ -2,6 +2,7 @@ using Atlas.Application.DynamicTables.Abstractions;
 using Atlas.Application.DynamicTables.Models;
 using Atlas.Application.DynamicTables.Repositories;
 using Atlas.Core.Exceptions;
+using Atlas.Core.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 
@@ -12,15 +13,21 @@ public sealed class DynamicRecordCommandService : IDynamicRecordCommandService
     private readonly IDynamicTableRepository _tableRepository;
     private readonly IDynamicFieldRepository _fieldRepository;
     private readonly IDynamicRecordRepository _recordRepository;
+    private readonly IFieldPermissionResolver _fieldPermissionResolver;
+    private readonly ICurrentUserAccessor _currentUserAccessor;
 
     public DynamicRecordCommandService(
         IDynamicTableRepository tableRepository,
         IDynamicFieldRepository fieldRepository,
-        IDynamicRecordRepository recordRepository)
+        IDynamicRecordRepository recordRepository,
+        IFieldPermissionResolver fieldPermissionResolver,
+        ICurrentUserAccessor currentUserAccessor)
     {
         _tableRepository = tableRepository;
         _fieldRepository = fieldRepository;
         _recordRepository = recordRepository;
+        _fieldPermissionResolver = fieldPermissionResolver;
+        _currentUserAccessor = currentUserAccessor;
     }
 
     public async Task<long> CreateAsync(
@@ -42,6 +49,7 @@ public sealed class DynamicRecordCommandService : IDynamicRecordCommandService
             throw new BusinessException(ErrorCodes.ValidationError, "动态表字段为空。");
         }
 
+        await EnsureEditableAsync(tenantId, tableKey, request, cancellationToken);
         return await _recordRepository.InsertAsync(tenantId, table, fields, request, cancellationToken);
     }
 
@@ -65,6 +73,7 @@ public sealed class DynamicRecordCommandService : IDynamicRecordCommandService
             throw new BusinessException(ErrorCodes.ValidationError, "动态表字段为空。");
         }
 
+        await EnsureEditableAsync(tenantId, tableKey, request, cancellationToken);
         await _recordRepository.UpdateAsync(tenantId, table, fields, id, request, cancellationToken);
     }
 
@@ -115,5 +124,29 @@ public sealed class DynamicRecordCommandService : IDynamicRecordCommandService
         }
 
         await _recordRepository.DeleteBatchAsync(tenantId, table, fields, ids, cancellationToken);
+    }
+
+    private async Task EnsureEditableAsync(
+        TenantId tenantId,
+        string tableKey,
+        DynamicRecordUpsertRequest request,
+        CancellationToken cancellationToken)
+    {
+        var currentUser = _currentUserAccessor.GetCurrentUser();
+        if (currentUser is null)
+        {
+            throw new BusinessException(ErrorCodes.Unauthorized, "未登录。");
+        }
+
+        var fieldsToEdit = request.Values
+            .Select(x => x.Field)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .ToArray();
+        await _fieldPermissionResolver.EnsureEditableFieldsAsync(
+            tenantId,
+            currentUser.UserId,
+            tableKey,
+            fieldsToEdit,
+            cancellationToken);
     }
 }

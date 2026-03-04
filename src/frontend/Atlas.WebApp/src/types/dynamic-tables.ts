@@ -43,6 +43,17 @@ export interface DynamicIndexDefinition {
   fields: string[];
 }
 
+export interface DynamicFieldPermissionRule {
+  fieldName: string;
+  roleCode: string;
+  canView: boolean;
+  canEdit: boolean;
+}
+
+export interface DynamicFieldPermissionUpsertRequest {
+  permissions: DynamicFieldPermissionRule[];
+}
+
 export interface DynamicTableDetail extends DynamicTableListItem {
   updatedAt: string;
   updatedBy: number;

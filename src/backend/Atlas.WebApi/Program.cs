@@ -25,6 +25,8 @@ using System.Text;
 using System.Threading.RateLimiting;
 using Atlas.WebApi.Authorization;
 using Atlas.WebApi.Filters;
+using Atlas.Application.Abstractions;
+using Atlas.Core.Tenancy;
 using Microsoft.AspNetCore.Authorization.Policy;
 using Atlas.Core.Models;
 using OpenTelemetry.Metrics;
@@ -225,6 +227,52 @@ builder.Services.AddAuthentication()
                 }
 
                 return Task.CompletedTask;
+            },
+            OnTokenValidated = async context =>
+            {
+                var principal = context.Principal;
+                if (principal is null)
+                {
+                    context.Fail("无效令牌。");
+                    return;
+                }
+
+                var tenantIdRaw = principal.FindFirstValue("tenant_id");
+                if (!Guid.TryParse(tenantIdRaw, out var tenantGuid))
+                {
+                    context.Fail("令牌缺少有效租户信息。");
+                    return;
+                }
+
+                var userIdRaw = principal.FindFirstValue(ClaimTypes.NameIdentifier);
+                if (!long.TryParse(userIdRaw, out var userId))
+                {
+                    context.Fail("令牌缺少有效用户标识。");
+                    return;
+                }
+
+                var tenantId = new TenantId(tenantGuid);
+                var userRepository = context.HttpContext.RequestServices.GetRequiredService<IUserAccountRepository>();
+                var account = await userRepository.FindByIdAsync(tenantId, userId, context.HttpContext.RequestAborted);
+                if (account is null || !account.IsActive)
+                {
+                    context.Fail("用户已禁用或不存在。");
+                    return;
+                }
+
+                var sessionIdRaw = principal.FindFirstValue("sid");
+                if (!long.TryParse(sessionIdRaw, out var sessionId))
+                {
+                    context.Fail("令牌缺少有效会话标识。");
+                    return;
+                }
+
+                var sessionRepository = context.HttpContext.RequestServices.GetRequiredService<IAuthSessionRepository>();
+                var session = await sessionRepository.FindByIdAsync(tenantId, sessionId, context.HttpContext.RequestAborted);
+                if (session is null || session.UserId != userId || session.RevokedAt.HasValue || session.ExpiresAt <= DateTimeOffset.UtcNow)
+                {
+                    context.Fail("会话已失效。");
+                }
             }
         };
     })

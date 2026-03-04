@@ -64,6 +64,14 @@
         </div>
 
         <div class="side-content">
+          <a-card title="附件上传" class="mb-4">
+            <FileUploadPanel
+              v-model="attachmentFiles"
+              :disabled="task?.status !== ApprovalTaskStatus.Pending"
+              button-text="上传审批附件"
+            />
+          </a-card>
+
           <!-- 沟通面板 -->
           <a-card title="沟通记录" class="mb-4">
             <CommunicationPanel
@@ -175,11 +183,13 @@ import JumpNodeSelector from '@/components/approval/runtime/JumpNodeSelector.vue
 import LfFormRenderer from '@/components/approval/runtime/LfFormRenderer.vue';
 import AmisRenderer from '@/components/amis/amis-renderer.vue';
 import UserRolePicker from '@/components/common/UserRolePicker.vue';
+import FileUploadPanel from '@/components/common/file-upload-panel.vue';
 import type {
   ApprovalTaskResponse,
   ApprovalInstanceResponse,
   ApprovalFlowDefinitionResponse,
-  ApprovalHistoryEventResponse
+  ApprovalHistoryEventResponse,
+  FileUploadResult
 } from '@/types/api';
 import type { JsonValue } from '@/types/api';
 import type { ApprovalDefinitionJson, FormJson } from '@/types/approval-definition';
@@ -203,6 +213,7 @@ const rejectVisible = ref(false);
 const transferVisible = ref(false);
 const delegateVisible = ref(false);
 const jumpVisible = ref(false);
+const attachmentFiles = ref<FileUploadResult[]>([]);
 
 const comment = ref('');
 const transferTargetIds = ref<string[]>([]);

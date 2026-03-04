@@ -12,6 +12,10 @@ const LoginPage = () => import("@/pages/LoginPage.vue");
 const RegisterPage = () => import("@/pages/RegisterPage.vue");
 const ProfilePage = () => import("@/pages/ProfilePage.vue");
 const NotFoundPage = () => import("@/pages/NotFoundPage.vue");
+const AppListPage = () => import("@/pages/lowcode/AppListPage.vue");
+const AppBuilderPage = () => import("@/pages/lowcode/AppBuilderPage.vue");
+const FormListPage = () => import("@/pages/lowcode/FormListPage.vue");
+const FormDesignerPage = () => import("@/pages/lowcode/FormDesignerPage.vue");
 
 declare module "vue-router" {
   interface RouteMeta {
@@ -27,6 +31,10 @@ const router = createRouter({
     { path: "/login", name: "login", component: LoginPage, meta: { title: "登录" } },
     { path: "/register", name: "register", component: RegisterPage, meta: { title: "注册" } },
     { path: "/profile", name: "profile", component: ProfilePage, meta: { requiresAuth: true, title: "个人中心" } },
+    { path: "/lowcode/apps", name: "app-list", component: AppListPage, meta: { requiresAuth: true, title: "低代码应用", requiresPermission: "apps:view" } },
+    { path: "/lowcode/apps/:id/builder", name: "app-builder", component: AppBuilderPage, meta: { requiresAuth: true, title: "应用设计器", requiresPermission: "apps:update" } },
+    { path: "/lowcode/forms", name: "apps-form-list", component: FormListPage, meta: { requiresAuth: true, title: "表单管理", requiresPermission: "apps:view" } },
+    { path: "/lowcode/forms/:id/designer", name: "apps-form-designer", component: FormDesignerPage, meta: { requiresAuth: true, title: "表单设计器", requiresPermission: "apps:update" } },
     { path: "/:pathMatch(.*)*", name: "not-found", component: NotFoundPage }
   ]
 });

@@ -12,11 +12,19 @@ using Atlas.Domain.DynamicTables.Entities;
 using Atlas.Domain.DynamicTables.Enums;
 using Atlas.Infrastructure.DynamicTables;
 using SqlSugar;
+using System.Text.RegularExpressions;
 
 namespace Atlas.Infrastructure.Services;
 
 public sealed class DynamicTableCommandService : IDynamicTableCommandService
 {
+    private static readonly Regex FieldNamePattern = new("^[A-Za-z][A-Za-z0-9_]{1,63}$", RegexOptions.Compiled);
+    private static readonly HashSet<string> ReservedNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "select", "from", "where", "table", "index", "create", "drop", "delete", "update", "insert", "alter",
+        DynamicSqlBuilder.TenantColumnName
+    };
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
@@ -25,7 +33,10 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
     private readonly IDynamicTableRepository _tableRepository;
     private readonly IDynamicFieldRepository _fieldRepository;
     private readonly IDynamicIndexRepository _indexRepository;
+    private readonly IDynamicRelationRepository _relationRepository;
+    private readonly IFieldPermissionRepository _fieldPermissionRepository;
     private readonly IDynamicRecordRepository _recordRepository;
+    private readonly IDynamicSchemaMigrationRepository? _migrationRepository;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly ISqlSugarClient _db;
     private readonly TimeProvider _timeProvider;
@@ -35,7 +46,10 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
         IDynamicTableRepository tableRepository,
         IDynamicFieldRepository fieldRepository,
         IDynamicIndexRepository indexRepository,
+        IDynamicRelationRepository relationRepository,
+        IFieldPermissionRepository fieldPermissionRepository,
         IDynamicRecordRepository recordRepository,
+        IDynamicSchemaMigrationRepository? migrationRepository,
         IIdGeneratorAccessor idGeneratorAccessor,
         ISqlSugarClient db,
         TimeProvider timeProvider,
@@ -44,7 +58,10 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
         _tableRepository = tableRepository;
         _fieldRepository = fieldRepository;
         _indexRepository = indexRepository;
+        _relationRepository = relationRepository;
+        _fieldPermissionRepository = fieldPermissionRepository;
         _recordRepository = recordRepository;
+        _migrationRepository = migrationRepository;
         _idGeneratorAccessor = idGeneratorAccessor;
         _db = db;
         _timeProvider = timeProvider;
@@ -120,14 +137,136 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
         await _tableRepository.UpdateAsync(table, cancellationToken);
     }
 
-    public Task AlterAsync(
+    public async Task AlterAsync(
         TenantId tenantId,
         long userId,
         string tableKey,
         DynamicTableAlterRequest request,
         CancellationToken cancellationToken)
     {
-        throw new BusinessException(ErrorCodes.ValidationError, "当前版本暂不支持表结构变更。");
+        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, cancellationToken);
+        if (table is null)
+        {
+            throw new BusinessException(ErrorCodes.NotFound, "动态表不存在。");
+        }
+
+        if (table.DbType != DynamicDbType.Sqlite)
+        {
+            throw new BusinessException(ErrorCodes.ValidationError, "当前仅支持 SQLite 动态表结构变更。");
+        }
+
+        if (request.RemoveFields.Count > 0)
+        {
+            throw new BusinessException(ErrorCodes.ValidationError, "当前版本暂不支持字段删除。");
+        }
+
+        if (request.AddFields.Count == 0 && request.UpdateFields.Count == 0)
+        {
+            return;
+        }
+
+        var existingFields = await _fieldRepository.ListByTableIdAsync(tenantId, table.Id, cancellationToken);
+        var existingNames = existingFields
+            .Select(x => x.Name)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        ValidateAddFieldDefinitions(request.AddFields, existingNames);
+        var now = _timeProvider.GetUtcNow();
+        var newFields = BuildAddFields(tenantId, table.Id, request.AddFields, existingFields, now);
+        var fieldsToUpdate = BuildUpdatedFields(request.UpdateFields, existingFields, now);
+        var ddlCommands = new List<string>(newFields.Count * 2);
+        var generatedIndexes = new List<DynamicIndex>();
+        foreach (var field in newFields)
+        {
+            ddlCommands.Add(DynamicSqlBuilder.BuildAddColumnSql(table, field));
+
+            if (field.IsUnique)
+            {
+                var indexName = $"uk_{table.TableKey}_{field.Name}".ToLowerInvariant();
+                ddlCommands.Add(DynamicSqlBuilder.BuildCreateIndexSql(table, new[] { field.Name }, indexName, true));
+                generatedIndexes.Add(new DynamicIndex(
+                    tenantId,
+                    table.Id,
+                    indexName,
+                    true,
+                    JsonSerializer.Serialize(new[] { field.Name }, JsonOptions),
+                    _idGeneratorAccessor.NextId(),
+                    now));
+            }
+        }
+
+        table.UpdateMeta(table.DisplayName, table.Description, table.Status, userId, now);
+        var migrationRecord = BuildMigrationRecord(
+            tenantId,
+            table,
+            ResolveOperationType(newFields.Count, fieldsToUpdate.Count),
+            BuildMigrationSqlScripts(ddlCommands, fieldsToUpdate),
+            userId,
+            now);
+        var result = await _db.Ado.UseTranAsync(async () =>
+        {
+            foreach (var ddl in ddlCommands)
+            {
+                await _db.Ado.ExecuteCommandAsync(ddl);
+            }
+
+            await _fieldRepository.AddRangeAsync(newFields, cancellationToken);
+            await _fieldRepository.UpdateRangeAsync(fieldsToUpdate, cancellationToken);
+            await _indexRepository.AddRangeAsync(generatedIndexes, cancellationToken);
+            await _tableRepository.UpdateAsync(table, cancellationToken);
+            if (_migrationRepository is not null)
+            {
+                await _migrationRepository.AddAsync(migrationRecord, cancellationToken);
+            }
+        });
+
+        if (!result.IsSuccess)
+        {
+            throw result.ErrorException ?? new BusinessException(ErrorCodes.ServerError, "动态表结构变更失败。");
+        }
+    }
+
+    public async Task<DynamicTableAlterPreviewResponse> PreviewAlterAsync(
+        TenantId tenantId,
+        string tableKey,
+        DynamicTableAlterRequest request,
+        CancellationToken cancellationToken)
+    {
+        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, cancellationToken);
+        if (table is null)
+        {
+            throw new BusinessException(ErrorCodes.NotFound, "动态表不存在。");
+        }
+
+        if (table.DbType != DynamicDbType.Sqlite)
+        {
+            throw new BusinessException(ErrorCodes.ValidationError, "当前仅支持 SQLite 动态表结构变更预览。");
+        }
+
+        if (request.RemoveFields.Count > 0)
+        {
+            throw new BusinessException(ErrorCodes.ValidationError, "当前版本暂不支持字段删除。");
+        }
+
+        if (request.AddFields.Count == 0 && request.UpdateFields.Count == 0)
+        {
+            return new DynamicTableAlterPreviewResponse(tableKey, "NOOP", Array.Empty<string>(), "未检测到可执行变更。");
+        }
+
+        var existingFields = await _fieldRepository.ListByTableIdAsync(tenantId, table.Id, cancellationToken);
+        var existingNames = existingFields
+            .Select(x => x.Name)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        ValidateAddFieldDefinitions(request.AddFields, existingNames);
+
+        var previewFields = BuildPreviewFields(tenantId, table.Id, request.AddFields, existingFields);
+        var previewUpdatedFields = BuildPreviewUpdatedFields(request.UpdateFields, existingFields, DateTimeOffset.UtcNow);
+        var sqlScripts = BuildMigrationSqlScripts(BuildAddFieldSqlScripts(table, previewFields), previewUpdatedFields);
+        return new DynamicTableAlterPreviewResponse(
+            tableKey,
+            ResolveOperationType(previewFields.Count, previewUpdatedFields.Count),
+            sqlScripts,
+            "当前版本不支持自动回滚，请通过备份恢复。");
     }
 
     public async Task DeleteAsync(
@@ -148,6 +287,8 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
             await _db.Ado.ExecuteCommandAsync(ddl);
             await _fieldRepository.DeleteByTableIdAsync(tenantId, table.Id, cancellationToken);
             await _indexRepository.DeleteByTableIdAsync(tenantId, table.Id, cancellationToken);
+            await _relationRepository.DeleteByTableIdAsync(tenantId, table.Id, cancellationToken);
+            await _fieldPermissionRepository.ReplaceByTableKeyAsync(tenantId, tableKey, Array.Empty<FieldPermission>(), cancellationToken);
             await _tableRepository.DeleteAsync(tenantId, table.Id, cancellationToken);
         });
 
@@ -155,6 +296,126 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
         {
             throw result.ErrorException ?? new BusinessException(ErrorCodes.ServerError, "删除动态表失败。");
         }
+    }
+
+    public async Task SetRelationsAsync(
+        TenantId tenantId,
+        long userId,
+        string tableKey,
+        DynamicRelationUpsertRequest request,
+        CancellationToken cancellationToken)
+    {
+        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, cancellationToken);
+        if (table is null)
+        {
+            throw new BusinessException(ErrorCodes.NotFound, "动态表不存在。");
+        }
+
+        var relations = request.Relations ?? Array.Empty<DynamicRelationDefinition>();
+        var fields = await _fieldRepository.ListByTableIdAsync(tenantId, table.Id, cancellationToken);
+        var sourceFieldSet = fields.Select(x => x.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var relatedTableKeys = relations
+            .Select(x => x.RelatedTableKey)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var relatedTables = await _tableRepository.QueryByKeysAsync(tenantId, relatedTableKeys, cancellationToken);
+        var relatedTableMap = relatedTables.ToDictionary(x => x.TableKey, StringComparer.OrdinalIgnoreCase);
+        if (relatedTableMap.Count != relatedTableKeys.Length)
+        {
+            var missing = relatedTableKeys.Where(x => !relatedTableMap.ContainsKey(x)).ToArray();
+            throw new BusinessException(ErrorCodes.ValidationError, $"关联表不存在：{string.Join(", ", missing)}");
+        }
+
+        var relatedTableIds = relatedTables.Select(x => x.Id).Distinct().ToArray();
+        var relatedFields = await _fieldRepository.ListByTableIdsAsync(tenantId, relatedTableIds, cancellationToken);
+        var relatedFieldMap = relatedFields
+            .GroupBy(x => x.TableId)
+            .ToDictionary(
+                x => x.Key,
+                x => x.Select(y => y.Name).ToHashSet(StringComparer.OrdinalIgnoreCase));
+        var now = _timeProvider.GetUtcNow();
+        var relationEntities = new List<DynamicRelation>(relations.Count);
+        foreach (var relation in relations)
+        {
+            if (!sourceFieldSet.Contains(relation.SourceField))
+            {
+                throw new BusinessException(ErrorCodes.ValidationError, $"源字段 {relation.SourceField} 不存在。");
+            }
+
+            var relatedTable = relatedTableMap[relation.RelatedTableKey];
+            if (!relatedFieldMap.TryGetValue(relatedTable.Id, out var targetSet))
+            {
+                targetSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            }
+            if (!targetSet.Contains(relation.TargetField))
+            {
+                throw new BusinessException(ErrorCodes.ValidationError, $"关联字段 {relation.TargetField} 在表 {relation.RelatedTableKey} 中不存在。");
+            }
+
+            relationEntities.Add(new DynamicRelation(
+                tenantId,
+                table.Id,
+                relation.RelatedTableKey,
+                relation.SourceField,
+                relation.TargetField,
+                relation.RelationType,
+                relation.CascadeRule,
+                _idGeneratorAccessor.NextId(),
+                now));
+        }
+
+        var tran = await _db.Ado.UseTranAsync(async () =>
+        {
+            await _relationRepository.DeleteByTableIdAsync(tenantId, table.Id, cancellationToken);
+            await _relationRepository.AddRangeAsync(relationEntities, cancellationToken);
+        });
+
+        if (!tran.IsSuccess)
+        {
+            throw tran.ErrorException ?? new BusinessException(ErrorCodes.ServerError, "更新动态表关系失败。");
+        }
+    }
+
+    public async Task SetFieldPermissionsAsync(
+        TenantId tenantId,
+        long userId,
+        string tableKey,
+        DynamicFieldPermissionUpsertRequest request,
+        CancellationToken cancellationToken)
+    {
+        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, cancellationToken);
+        if (table is null)
+        {
+            throw new BusinessException(ErrorCodes.NotFound, "动态表不存在。");
+        }
+
+        var rules = request.Permissions ?? Array.Empty<DynamicFieldPermissionRule>();
+        var fieldNames = (await _fieldRepository.ListByTableIdAsync(tenantId, table.Id, cancellationToken))
+            .Select(x => x.Name)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var invalid = rules
+            .Where(x => !fieldNames.Contains(x.FieldName))
+            .Select(x => x.FieldName)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (invalid.Length > 0)
+        {
+            throw new BusinessException(ErrorCodes.ValidationError, $"字段不存在：{string.Join(", ", invalid)}");
+        }
+
+        var now = _timeProvider.GetUtcNow();
+        var entities = rules.Select(x => new FieldPermission(
+            tenantId,
+            tableKey,
+            x.FieldName,
+            x.RoleCode,
+            x.CanView,
+            x.CanEdit,
+            _idGeneratorAccessor.NextId(),
+            now)).ToArray();
+
+        await _fieldPermissionRepository.ReplaceByTableKeyAsync(tenantId, tableKey, entities, cancellationToken);
     }
 
     private IReadOnlyList<DynamicField> BuildFields(
@@ -355,5 +616,291 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
         }
 
         return string.Join("\n", sqlList);
+    }
+
+    private IReadOnlyList<DynamicField> BuildAddFields(
+        TenantId tenantId,
+        long tableId,
+        IReadOnlyList<DynamicFieldDefinition> definitions,
+        IReadOnlyList<DynamicField> existingFields,
+        DateTimeOffset now)
+    {
+        var fields = new List<DynamicField>(definitions.Count);
+        var fallbackOrder = existingFields.Count == 0 ? 0 : existingFields.Max(x => x.SortOrder);
+        foreach (var definition in definitions)
+        {
+            var fieldType = DynamicEnumMapper.ParseFieldType(definition.FieldType);
+            var field = new DynamicField(
+                tenantId,
+                tableId,
+                definition.Name,
+                definition.DisplayName ?? definition.Name,
+                fieldType,
+                definition.Length,
+                definition.Precision,
+                definition.Scale,
+                definition.AllowNull,
+                definition.IsPrimaryKey,
+                definition.IsAutoIncrement,
+                definition.IsUnique,
+                definition.DefaultValue,
+                definition.SortOrder > 0 ? definition.SortOrder : ++fallbackOrder,
+                _idGeneratorAccessor.NextId(),
+                now);
+            fields.Add(field);
+        }
+
+        return fields;
+    }
+
+    private static IReadOnlyList<DynamicField> BuildPreviewFields(
+        TenantId tenantId,
+        long tableId,
+        IReadOnlyList<DynamicFieldDefinition> definitions,
+        IReadOnlyList<DynamicField> existingFields)
+    {
+        var fields = new List<DynamicField>(definitions.Count);
+        var fallbackOrder = existingFields.Count == 0 ? 0 : existingFields.Max(x => x.SortOrder);
+        foreach (var definition in definitions)
+        {
+            var fieldType = DynamicEnumMapper.ParseFieldType(definition.FieldType);
+            fields.Add(new DynamicField(
+                tenantId,
+                tableId,
+                definition.Name,
+                definition.DisplayName ?? definition.Name,
+                fieldType,
+                definition.Length,
+                definition.Precision,
+                definition.Scale,
+                definition.AllowNull,
+                definition.IsPrimaryKey,
+                definition.IsAutoIncrement,
+                definition.IsUnique,
+                definition.DefaultValue,
+                definition.SortOrder > 0 ? definition.SortOrder : ++fallbackOrder,
+                id: 0,
+                now: DateTimeOffset.UtcNow));
+        }
+
+        return fields;
+    }
+
+    private static void ValidateAddFieldDefinitions(
+        IReadOnlyList<DynamicFieldDefinition> addFields,
+        HashSet<string> existingNames)
+    {
+        var requestNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var field in addFields)
+        {
+            if (string.IsNullOrWhiteSpace(field.Name) || !FieldNamePattern.IsMatch(field.Name) || ReservedNames.Contains(field.Name))
+            {
+                throw new BusinessException(ErrorCodes.ValidationError, $"字段名 '{field.Name}' 不合法。");
+            }
+
+            if (existingNames.Contains(field.Name) || !requestNames.Add(field.Name))
+            {
+                throw new BusinessException(ErrorCodes.ValidationError, $"字段 '{field.Name}' 已存在。");
+            }
+
+            if (field.IsPrimaryKey || field.IsAutoIncrement)
+            {
+                throw new BusinessException(ErrorCodes.ValidationError, "当前版本不支持在变更中新增主键或自增字段。");
+            }
+
+            var fieldType = field.FieldType?.Trim();
+            if (fieldType is null)
+            {
+                throw new BusinessException(ErrorCodes.ValidationError, $"字段 '{field.Name}' 类型不能为空。");
+            }
+
+            if (fieldType.Equals("String", StringComparison.OrdinalIgnoreCase) &&
+                (field.Length is null || field.Length <= 0 || field.Length > 4000))
+            {
+                throw new BusinessException(ErrorCodes.ValidationError, $"字段 '{field.Name}' 长度必须在 1-4000 之间。");
+            }
+
+            if (fieldType.Equals("Decimal", StringComparison.OrdinalIgnoreCase))
+            {
+                if (field.Precision is null || field.Precision <= 0 || field.Precision > 38 ||
+                    field.Scale is null || field.Scale < 0 || field.Scale > 18 ||
+                    field.Scale > field.Precision)
+                {
+                    throw new BusinessException(ErrorCodes.ValidationError, $"字段 '{field.Name}' 精度/小数位配置不合法。");
+                }
+            }
+
+            if (!field.AllowNull && string.IsNullOrWhiteSpace(field.DefaultValue))
+            {
+                throw new BusinessException(ErrorCodes.ValidationError, $"新增非空字段 '{field.Name}' 必须提供默认值。");
+            }
+        }
+    }
+
+    private static IReadOnlyList<string> BuildAddFieldSqlScripts(DynamicTable table, IReadOnlyList<DynamicField> newFields)
+    {
+        var scripts = new List<string>(newFields.Count * 2);
+        foreach (var field in newFields)
+        {
+            scripts.Add(DynamicSqlBuilder.BuildAddColumnSql(table, field));
+            if (field.IsUnique)
+            {
+                var indexName = $"uk_{table.TableKey}_{field.Name}".ToLowerInvariant();
+                scripts.Add(DynamicSqlBuilder.BuildCreateIndexSql(table, new[] { field.Name }, indexName, true));
+            }
+        }
+
+        return scripts;
+    }
+
+    private static IReadOnlyList<DynamicField> BuildUpdatedFields(
+        IReadOnlyList<DynamicFieldUpdateDefinition> updateFields,
+        IReadOnlyList<DynamicField> existingFields,
+        DateTimeOffset now)
+    {
+        if (updateFields.Count == 0)
+        {
+            return Array.Empty<DynamicField>();
+        }
+
+        var map = existingFields.ToDictionary(x => x.Name, x => x, StringComparer.OrdinalIgnoreCase);
+        var updated = new List<DynamicField>(updateFields.Count);
+        foreach (var update in updateFields)
+        {
+            if (!map.TryGetValue(update.Name, out var field))
+            {
+                throw new BusinessException(ErrorCodes.ValidationError, $"字段 '{update.Name}' 不存在。");
+            }
+
+            if (update.Length.HasValue || update.Precision.HasValue || update.Scale.HasValue ||
+                update.AllowNull.HasValue || update.IsUnique.HasValue || update.DefaultValue is not null)
+            {
+                throw new BusinessException(ErrorCodes.ValidationError, "当前版本仅支持更新字段显示名和排序。");
+            }
+
+            var displayName = string.IsNullOrWhiteSpace(update.DisplayName) ? field.DisplayName : update.DisplayName;
+            var sortOrder = update.SortOrder ?? field.SortOrder;
+            field.Update(
+                displayName,
+                field.Length,
+                field.Precision,
+                field.Scale,
+                field.AllowNull,
+                field.IsUnique,
+                field.DefaultValue,
+                sortOrder,
+                now);
+            updated.Add(field);
+        }
+
+        return updated;
+    }
+
+    /// <summary>
+    /// 构建预览用的已更新字段列表，创建新实例而非修改原始实体，避免污染 ORM 跟踪的领域对象。
+    /// </summary>
+    private static IReadOnlyList<DynamicField> BuildPreviewUpdatedFields(
+        IReadOnlyList<DynamicFieldUpdateDefinition> updateFields,
+        IReadOnlyList<DynamicField> existingFields,
+        DateTimeOffset now)
+    {
+        if (updateFields.Count == 0)
+        {
+            return Array.Empty<DynamicField>();
+        }
+
+        var map = existingFields.ToDictionary(x => x.Name, x => x, StringComparer.OrdinalIgnoreCase);
+        var updated = new List<DynamicField>(updateFields.Count);
+        foreach (var update in updateFields)
+        {
+            if (!map.TryGetValue(update.Name, out var field))
+            {
+                throw new BusinessException(ErrorCodes.ValidationError, $"字段 '{update.Name}' 不存在。");
+            }
+
+            if (update.Length.HasValue || update.Precision.HasValue || update.Scale.HasValue ||
+                update.AllowNull.HasValue || update.IsUnique.HasValue || update.DefaultValue is not null)
+            {
+                throw new BusinessException(ErrorCodes.ValidationError, "当前版本仅支持更新字段显示名和排序。");
+            }
+
+            var displayName = string.IsNullOrWhiteSpace(update.DisplayName) ? field.DisplayName : update.DisplayName;
+            var sortOrder = update.SortOrder ?? field.SortOrder;
+            updated.Add(new DynamicField(
+                field.TenantId,
+                field.TableId,
+                field.Name,
+                displayName,
+                field.FieldType,
+                field.Length,
+                field.Precision,
+                field.Scale,
+                field.AllowNull,
+                field.IsPrimaryKey,
+                field.IsAutoIncrement,
+                field.IsUnique,
+                field.DefaultValue,
+                sortOrder,
+                field.Id,
+                now));
+        }
+
+        return updated;
+    }
+
+    private static string ResolveOperationType(int addCount, int updateCount)
+    {
+        if (addCount > 0 && updateCount > 0)
+        {
+            return "ADD_UPDATE_FIELDS";
+        }
+
+        if (addCount > 0)
+        {
+            return "ADD_FIELDS";
+        }
+
+        if (updateCount > 0)
+        {
+            return "UPDATE_FIELDS_META";
+        }
+
+        return "NOOP";
+    }
+
+    private static IReadOnlyList<string> BuildMigrationSqlScripts(
+        IReadOnlyList<string> ddlScripts,
+        IReadOnlyList<DynamicField> updatedFields)
+    {
+        var scripts = new List<string>(ddlScripts.Count + updatedFields.Count);
+        scripts.AddRange(ddlScripts);
+        foreach (var field in updatedFields)
+        {
+            scripts.Add($"-- UPDATE FIELD META: {field.Name}, displayName={field.DisplayName}, sortOrder={field.SortOrder}");
+        }
+
+        return scripts;
+    }
+
+    private DynamicSchemaMigration BuildMigrationRecord(
+        TenantId tenantId,
+        DynamicTable table,
+        string operationType,
+        IReadOnlyList<string> scripts,
+        long userId,
+        DateTimeOffset now)
+    {
+        var appliedSql = string.Join(Environment.NewLine, scripts);
+        return new DynamicSchemaMigration(
+            tenantId,
+            table.Id,
+            table.TableKey,
+            operationType,
+            appliedSql,
+            "当前版本不支持自动回滚，请通过备份恢复。",
+            "Succeeded",
+            userId,
+            _idGeneratorAccessor.NextId(),
+            now);
     }
 }

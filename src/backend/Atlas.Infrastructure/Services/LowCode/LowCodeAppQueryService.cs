@@ -1,5 +1,7 @@
+using System.Text.Json;
 using Atlas.Application.LowCode.Abstractions;
 using Atlas.Application.LowCode.Models;
+using Atlas.Core.Exceptions;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 
@@ -9,13 +11,22 @@ public sealed class LowCodeAppQueryService : ILowCodeAppQueryService
 {
     private readonly ILowCodeAppRepository _appRepository;
     private readonly ILowCodePageRepository _pageRepository;
+    private readonly ILowCodeAppVersionRepository _versionRepository;
+    private readonly ILowCodePageVersionRepository _pageVersionRepository;
+    private readonly ILowCodeEnvironmentRepository _environmentRepository;
 
     public LowCodeAppQueryService(
         ILowCodeAppRepository appRepository,
-        ILowCodePageRepository pageRepository)
+        ILowCodePageRepository pageRepository,
+        ILowCodeAppVersionRepository versionRepository,
+        ILowCodePageVersionRepository pageVersionRepository,
+        ILowCodeEnvironmentRepository environmentRepository)
     {
         _appRepository = appRepository;
         _pageRepository = pageRepository;
+        _versionRepository = versionRepository;
+        _pageVersionRepository = pageVersionRepository;
+        _environmentRepository = environmentRepository;
     }
 
     public async Task<PagedResult<LowCodeAppListItem>> QueryAsync(
@@ -62,6 +73,228 @@ public sealed class LowCodeAppQueryService : ILowCodeAppQueryService
         return MapToDetail(entity, pages);
     }
 
+    public async Task<PagedResult<LowCodeAppVersionListItem>> GetVersionsAsync(
+        TenantId tenantId,
+        long appId,
+        PagedRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var (items, total) = await _versionRepository.GetPagedAsync(
+            tenantId,
+            appId,
+            request.PageIndex,
+            request.PageSize,
+            cancellationToken);
+
+        var mapped = items.Select(x => new LowCodeAppVersionListItem(
+            x.Id.ToString(),
+            x.AppId.ToString(),
+            x.Version,
+            x.ActionType,
+            x.SourceVersionId?.ToString(),
+            x.Note,
+            x.CreatedAt,
+            x.CreatedBy)).ToList();
+
+        return new PagedResult<LowCodeAppVersionListItem>(mapped, total, request.PageIndex, request.PageSize);
+    }
+
+    public async Task<LowCodeAppExportPackage?> ExportAsync(
+        TenantId tenantId,
+        long appId,
+        CancellationToken cancellationToken = default)
+    {
+        var entity = await _appRepository.GetByIdAsync(tenantId, appId, cancellationToken);
+        if (entity is null)
+        {
+            return null;
+        }
+
+        var pages = await _pageRepository.GetByAppIdAsync(tenantId, appId, cancellationToken);
+        var versions = await _pageVersionRepository.GetByAppIdAsync(tenantId, appId, cancellationToken);
+
+        return new LowCodeAppExportPackage(
+            entity.AppKey,
+            entity.Name,
+            entity.Description,
+            entity.Category,
+            entity.Icon,
+            entity.Status.ToString(),
+            entity.ConfigJson,
+            pages.Select(x => new LowCodeAppExportPagePackage(
+                x.Id.ToString(),
+                x.PageKey,
+                x.Name,
+                x.PageType.ToString(),
+                x.SchemaJson,
+                x.RoutePath,
+                x.Description,
+                x.Icon,
+                x.SortOrder,
+                x.ParentPageId?.ToString(),
+                x.PermissionCode,
+                x.DataTableKey,
+                x.IsPublished))
+                .ToArray(),
+            versions.Select(x => new LowCodeAppExportPageVersionPackage(
+                x.Id.ToString(),
+                x.PageId.ToString(),
+                x.SnapshotVersion,
+                x.PageKey,
+                x.Name,
+                x.PageType.ToString(),
+                x.SchemaJson,
+                x.RoutePath,
+                x.Description,
+                x.Icon,
+                x.SortOrder,
+                x.ParentPageId?.ToString(),
+                x.PermissionCode,
+                x.DataTableKey,
+                x.CreatedAt,
+                x.CreatedBy))
+                .ToArray());
+    }
+
+    public async Task<LowCodePageDetail?> GetPageByIdAsync(
+        TenantId tenantId, long pageId, CancellationToken cancellationToken = default)
+    {
+        var page = await _pageRepository.GetByIdAsync(tenantId, pageId, cancellationToken);
+        return page is null ? null : MapToPageDetail(page);
+    }
+
+    public async Task<IReadOnlyList<LowCodePageTreeNode>> GetPageTreeAsync(
+        TenantId tenantId, long appId, CancellationToken cancellationToken = default)
+    {
+        var pages = await _pageRepository.GetByAppIdAsync(tenantId, appId, cancellationToken);
+        if (pages.Count == 0)
+        {
+            return Array.Empty<LowCodePageTreeNode>();
+        }
+
+        var pageMap = pages.ToDictionary(x => x.Id);
+        var childLookup = pages
+            .Where(x => x.ParentPageId.HasValue && pageMap.ContainsKey(x.ParentPageId.Value))
+            .GroupBy(x => x.ParentPageId!.Value)
+            .ToDictionary(
+                x => x.Key,
+                x => x.OrderBy(p => p.SortOrder).ThenBy(p => p.Id).ToArray());
+
+        var roots = pages
+            .Where(x => !x.ParentPageId.HasValue || !pageMap.ContainsKey(x.ParentPageId.Value))
+            .OrderBy(x => x.SortOrder)
+            .ThenBy(x => x.Id)
+            .Select(x => BuildTreeNode(x, childLookup))
+            .ToArray();
+
+        return roots;
+    }
+
+    public async Task<IReadOnlyList<LowCodePageVersionListItem>> GetPageVersionsAsync(
+        TenantId tenantId,
+        long pageId,
+        CancellationToken cancellationToken = default)
+    {
+        var versions = await _pageVersionRepository.GetByPageIdAsync(tenantId, pageId, cancellationToken);
+        return versions
+            .Select(x => new LowCodePageVersionListItem(
+                x.Id.ToString(),
+                x.PageId.ToString(),
+                x.SnapshotVersion,
+                x.CreatedAt,
+                x.CreatedBy))
+            .ToArray();
+    }
+
+    public async Task<LowCodePageRuntimeSchema?> GetRuntimePageSchemaAsync(
+        TenantId tenantId,
+        long pageId,
+        string mode,
+        string? environmentCode,
+        CancellationToken cancellationToken = default)
+    {
+        var page = await _pageRepository.GetByIdAsync(tenantId, pageId, cancellationToken);
+        if (page is null)
+        {
+            return null;
+        }
+
+        var usePublished = string.Equals(mode, "published", StringComparison.OrdinalIgnoreCase);
+        if (usePublished && !page.IsPublished)
+        {
+            return null;
+        }
+        var schema = usePublished
+            ? (!string.IsNullOrWhiteSpace(page.PublishedSchemaJson) ? page.PublishedSchemaJson : page.SchemaJson)
+            : page.SchemaJson;
+        if (!string.IsNullOrWhiteSpace(environmentCode))
+        {
+            var env = await _environmentRepository.GetByCodeAsync(tenantId, page.AppId, environmentCode.Trim(), cancellationToken);
+            if (env is not null && env.IsActive)
+            {
+                schema = ReplaceVariables(schema, env.VariablesJson);
+            }
+        }
+        var version = usePublished && page.PublishedVersion.HasValue ? page.PublishedVersion.Value : page.Version;
+
+        return new LowCodePageRuntimeSchema(
+            page.Id.ToString(),
+            page.PageKey,
+            page.Name,
+            schema,
+            version,
+            usePublished ? "published" : "draft");
+    }
+
+    private static string ReplaceVariables(string schema, string variablesJson)
+    {
+        if (string.IsNullOrWhiteSpace(schema) || string.IsNullOrWhiteSpace(variablesJson))
+        {
+            return schema;
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(variablesJson);
+            var root = doc.RootElement;
+            if (root.ValueKind != JsonValueKind.Object)
+            {
+                throw new BusinessException(
+                    "环境变量配置必须是 JSON 对象",
+                    ErrorCodes.ValidationError);
+            }
+
+            var result = schema;
+            foreach (var prop in root.EnumerateObject())
+            {
+                var valueStr = JsonValueToString(prop.Value);
+                result = result.Replace($"{{{{{prop.Name}}}}}", valueStr, StringComparison.OrdinalIgnoreCase);
+            }
+
+            return result;
+        }
+        catch (JsonException ex)
+        {
+            throw new BusinessException(
+                $"环境变量配置 JSON 解析失败：{ex.Message}",
+                ErrorCodes.ValidationError);
+        }
+    }
+
+    private static string JsonValueToString(JsonElement element)
+    {
+        return element.ValueKind switch
+        {
+            JsonValueKind.String => element.GetString() ?? string.Empty,
+            JsonValueKind.Number => element.GetRawText(),
+            JsonValueKind.True => "true",
+            JsonValueKind.False => "false",
+            JsonValueKind.Null => string.Empty,
+            JsonValueKind.Object or JsonValueKind.Array => element.GetRawText(),
+            _ => string.Empty
+        };
+    }
+
     private static LowCodeAppDetail MapToDetail(
         Atlas.Domain.LowCode.Entities.LowCodeApp entity,
         IReadOnlyList<Atlas.Domain.LowCode.Entities.LowCodePage> pages)
@@ -101,6 +334,60 @@ public sealed class LowCodeAppQueryService : ILowCodeAppQueryService
             entity.PublishedAt,
             entity.PublishedBy,
             pageItems
+        );
+    }
+
+    private static LowCodePageDetail MapToPageDetail(Atlas.Domain.LowCode.Entities.LowCodePage page)
+    {
+        return new LowCodePageDetail(
+            page.Id.ToString(),
+            page.AppId.ToString(),
+            page.PageKey,
+            page.Name,
+            page.PageType.ToString(),
+            page.SchemaJson,
+            page.RoutePath,
+            page.Description,
+            page.Icon,
+            page.SortOrder,
+            page.ParentPageId?.ToString(),
+            page.Version,
+            page.IsPublished,
+            page.PublishedVersion,
+            page.CreatedAt,
+            page.UpdatedAt,
+            page.CreatedBy,
+            page.UpdatedBy,
+            page.PermissionCode,
+            page.DataTableKey
+        );
+    }
+
+    private static LowCodePageTreeNode BuildTreeNode(
+        Atlas.Domain.LowCode.Entities.LowCodePage page,
+        IReadOnlyDictionary<long, Atlas.Domain.LowCode.Entities.LowCodePage[]> childLookup)
+    {
+        var children = childLookup.TryGetValue(page.Id, out var rawChildren)
+            ? rawChildren.Select(x => BuildTreeNode(x, childLookup)).ToArray()
+            : Array.Empty<LowCodePageTreeNode>();
+
+        return new LowCodePageTreeNode(
+            page.Id.ToString(),
+            page.AppId.ToString(),
+            page.PageKey,
+            page.Name,
+            page.PageType.ToString(),
+            page.RoutePath,
+            page.Description,
+            page.Icon,
+            page.SortOrder,
+            page.ParentPageId?.ToString(),
+            page.Version,
+            page.IsPublished,
+            page.CreatedAt,
+            page.PermissionCode,
+            page.DataTableKey,
+            children
         );
     }
 }

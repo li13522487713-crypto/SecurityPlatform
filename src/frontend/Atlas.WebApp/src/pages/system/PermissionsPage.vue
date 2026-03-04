@@ -81,13 +81,19 @@ import type { PermissionListItem, PermissionCreateRequest, PermissionUpdateReque
 
 const typeOptions = [
   { label: "Api", value: "Api" },
-  { label: "Menu", value: "Menu" }
+  { label: "Menu", value: "Menu" },
+  { label: "Application", value: "Application" },
+  { label: "Page", value: "Page" },
+  { label: "Action", value: "Action" }
 ];
-const typeFilter = ref<"all" | "Api" | "Menu">("all");
+const typeFilter = ref<"all" | "Api" | "Menu" | "Application" | "Page" | "Action">("all");
 const typeFilterOptions = [
   { label: "全部类型", value: "all" },
   { label: "Api", value: "Api" },
-  { label: "Menu", value: "Menu" }
+  { label: "Menu", value: "Menu" },
+  { label: "Application", value: "Application" },
+  { label: "Page", value: "Page" },
+  { label: "Action", value: "Action" }
 ];
 
 const selectedRowKeys = ref<string[]>([]);

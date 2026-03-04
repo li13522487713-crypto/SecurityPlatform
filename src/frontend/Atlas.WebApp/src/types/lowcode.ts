@@ -101,6 +101,79 @@ export interface LowCodeAppUpdateRequest {
   icon?: string;
 }
 
+export interface LowCodeAppVersionListItem {
+  id: string;
+  appId: string;
+  version: number;
+  actionType: string;
+  sourceVersionId?: string;
+  note?: string;
+  createdAt: string;
+  createdBy: number;
+}
+
+export interface LowCodeAppExportPagePackage {
+  id: string;
+  pageKey: string;
+  name: string;
+  pageType: string;
+  schemaJson: string;
+  routePath?: string;
+  description?: string;
+  icon?: string;
+  sortOrder: number;
+  parentPageId?: string;
+  permissionCode?: string;
+  dataTableKey?: string;
+  isPublished: boolean;
+}
+
+export interface LowCodeAppExportPageVersionPackage {
+  id: string;
+  pageId: string;
+  snapshotVersion: number;
+  pageKey: string;
+  name: string;
+  pageType: string;
+  schemaJson: string;
+  routePath?: string;
+  description?: string;
+  icon?: string;
+  sortOrder: number;
+  parentPageId?: string;
+  permissionCode?: string;
+  dataTableKey?: string;
+  createdAt: string;
+  createdBy: number;
+}
+
+export interface LowCodeAppExportPackage {
+  appKey: string;
+  name: string;
+  description?: string;
+  category?: string;
+  icon?: string;
+  status: string;
+  configJson?: string;
+  pages: LowCodeAppExportPagePackage[];
+  pageVersions: LowCodeAppExportPageVersionPackage[];
+}
+
+export interface LowCodeAppImportRequest {
+  package: LowCodeAppExportPackage;
+  conflictStrategy: "Rename" | "Overwrite" | "Skip";
+  keySuffix?: string;
+}
+
+export interface LowCodeAppImportResult {
+  appId: string;
+  appKey: string;
+  skipped: boolean;
+  overwritten: boolean;
+  importedPageCount: number;
+  importedVersionCount: number;
+}
+
 // ─── 低代码页面 ───
 
 export interface LowCodePageListItem {
@@ -135,12 +208,68 @@ export interface LowCodePageDetail {
   parentPageId?: string;
   version: number;
   isPublished: boolean;
+  publishedVersion?: number;
   createdAt: string;
   updatedAt: string;
   createdBy: number;
   updatedBy: number;
   permissionCode?: string;
   dataTableKey?: string;
+}
+
+export interface LowCodePageVersionListItem {
+  id: string;
+  pageId: string;
+  snapshotVersion: number;
+  createdAt: string;
+  createdBy: number;
+}
+
+export interface LowCodePageRuntimeSchema {
+  pageId: string;
+  pageKey: string;
+  name: string;
+  schemaJson: string;
+  version: number;
+  mode: string;
+}
+
+export interface LowCodeEnvironmentListItem {
+  id: string;
+  appId: string;
+  name: string;
+  code: string;
+  description?: string;
+  isDefault: boolean;
+  isActive: boolean;
+  updatedAt: string;
+}
+
+export interface LowCodeEnvironmentDetail extends LowCodeEnvironmentListItem {
+  variablesJson: string;
+  createdAt: string;
+  createdBy: number;
+  updatedBy: number;
+}
+
+export interface LowCodeEnvironmentCreateRequest {
+  name: string;
+  code: string;
+  description?: string;
+  isDefault: boolean;
+  variablesJson: string;
+}
+
+export interface LowCodeEnvironmentUpdateRequest {
+  name: string;
+  description?: string;
+  isDefault: boolean;
+  isActive: boolean;
+  variablesJson: string;
+}
+
+export interface LowCodePageTreeNode extends LowCodePageListItem {
+  children: LowCodePageTreeNode[];
 }
 
 export interface LowCodePageCreateRequest {

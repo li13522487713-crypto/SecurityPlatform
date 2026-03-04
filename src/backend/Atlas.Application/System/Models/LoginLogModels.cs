@@ -10,6 +10,11 @@ public sealed record LoginLogDto(
     string? Message,
     DateTimeOffset LoginTime);
 
+public sealed record LoginLogExportResult(
+    string FileName,
+    string ContentType,
+    byte[] Content);
+
 public sealed record LoginLogWriteRequest(
     string Username,
     string IpAddress,

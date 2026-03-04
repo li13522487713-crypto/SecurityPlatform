@@ -1,4 +1,5 @@
 using Atlas.Core.Tenancy;
+using Atlas.Application.Plugins.Abstractions;
 using Atlas.Infrastructure.DependencyInjection;
 using Atlas.Infrastructure.Options;
 using Microsoft.Extensions.Configuration;
@@ -12,6 +13,8 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddAtlasInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
+        services.Configure<PluginCatalogOptions>(configuration.GetSection("Plugins"));
+
         // Register modular services
         services.AddCoreInfrastructure(configuration);
         services.AddAssetInfrastructure();
@@ -24,6 +27,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<Atlas.Infrastructure.Repositories.TenantDataSourceRepository>();
         services.AddScoped<Atlas.Application.System.Abstractions.ITenantDbConnectionFactory,
             Atlas.Infrastructure.Services.TenantDbConnectionFactory>();
+        services.AddSingleton<IPluginCatalogService, Atlas.Infrastructure.Services.PluginCatalogService>();
 
         // SqlSugar client (shared across all modules)
         services.AddScoped<ISqlSugarClient>(sp =>
@@ -34,15 +38,17 @@ public static class ServiceCollectionExtensions
 
             // 尝试获取租户自定义数据源
             string connectionString = options.ConnectionString;
+            var dbType = DbType.Sqlite;
             if (!tenantId.IsEmpty)
             {
                 try
                 {
                     var factory = sp.GetRequiredService<Atlas.Application.System.Abstractions.ITenantDbConnectionFactory>();
-                    var customConn = factory.GetConnectionStringAsync(tenantId.Value.ToString()).GetAwaiter().GetResult();
-                    if (!string.IsNullOrWhiteSpace(customConn))
+                    var customConnectionInfo = factory.GetConnectionInfoAsync(tenantId.Value.ToString()).GetAwaiter().GetResult();
+                    if (customConnectionInfo is not null && !string.IsNullOrWhiteSpace(customConnectionInfo.ConnectionString))
                     {
-                        connectionString = customConn;
+                        connectionString = customConnectionInfo.ConnectionString;
+                        dbType = MapDbType(customConnectionInfo.DbType);
                     }
                 }
                 catch
@@ -54,7 +60,7 @@ public static class ServiceCollectionExtensions
             var config = new ConnectionConfig
             {
                 ConnectionString = connectionString,
-                DbType = DbType.Sqlite,
+                DbType = dbType,
                 IsAutoCloseConnection = true,
                 ConfigureExternalServices = new ConfigureExternalServices
                 {
@@ -102,5 +108,22 @@ public static class ServiceCollectionExtensions
         });
 
         return services;
+    }
+
+    private static DbType MapDbType(string? dbType)
+    {
+        if (string.IsNullOrWhiteSpace(dbType))
+        {
+            return DbType.Sqlite;
+        }
+
+        return dbType.Trim().ToLowerInvariant() switch
+        {
+            "sqlite" => DbType.Sqlite,
+            "sqlserver" => DbType.SqlServer,
+            "mysql" => DbType.MySql,
+            "postgresql" => DbType.PostgreSQL,
+            _ => DbType.Sqlite
+        };
     }
 }

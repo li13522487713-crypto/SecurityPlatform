@@ -1,35 +1,36 @@
 <template>
-  <a-card title="登录日志" :bordered="false">
+  <a-card :title="t('loginLog.title')" :bordered="false">
     <div class="crud-toolbar">
       <a-space wrap>
         <a-input
           v-model:value="filters.username"
-          placeholder="用户名"
+          :placeholder="t('loginLog.username')"
           allow-clear
           style="width: 160px"
         />
         <a-input
           v-model:value="filters.ipAddress"
-          placeholder="IP地址"
+          :placeholder="t('loginLog.ipAddress')"
           allow-clear
           style="width: 160px"
         />
         <a-select
           v-model:value="filters.loginStatus"
-          placeholder="登录状态"
+          :placeholder="t('loginLog.status')"
           allow-clear
           style="width: 120px"
         >
-          <a-select-option :value="true">成功</a-select-option>
-          <a-select-option :value="false">失败</a-select-option>
+          <a-select-option :value="true">{{ t("loginLog.statusSuccess") }}</a-select-option>
+          <a-select-option :value="false">{{ t("loginLog.statusFailed") }}</a-select-option>
         </a-select>
         <a-range-picker
           v-model:value="filters.timeRange"
           format="YYYY-MM-DD HH:mm"
           show-time
-          :placeholder="['开始时间', '结束时间']"
+          :placeholder="[t('loginLog.startTime'), t('loginLog.endTime')]"
         />
         <a-button type="primary" @click="handleSearch">查询</a-button>
+        <a-button :loading="exporting" @click="handleExport">导出</a-button>
         <a-button @click="handleReset">重置</a-button>
       </a-space>
     </div>
@@ -40,13 +41,13 @@
       :loading="loading"
       :pagination="pagination"
       row-key="id"
-      :locale="{ emptyText: '暂无登录日志' }"
+      :locale="{ emptyText: t('loginLog.empty') }"
       @change="onTableChange"
     >
       <template #bodyCell="{ column, record }">
         <template v-if="column.key === 'loginStatus'">
           <a-tag :color="record.loginStatus ? 'success' : 'error'">
-            {{ record.loginStatus ? '成功' : '失败' }}
+            {{ record.loginStatus ? t("loginLog.statusSuccess") : t("loginLog.statusFailed") }}
           </a-tag>
         </template>
         <template v-else-if="column.key === 'loginTime'">
@@ -60,9 +61,12 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from "vue";
 import { message } from "ant-design-vue";
+import { useI18n } from "vue-i18n";
 import type { TablePaginationConfig } from "ant-design-vue";
 import type { Dayjs } from "dayjs";
-import { getLoginLogsPaged, type LoginLogDto } from "@/services/login-log";
+import { getLoginLogsPaged, exportLoginLogs, type LoginLogDto } from "@/services/login-log";
+
+const { t, locale } = useI18n();
 
 const filters = reactive({
   username: "",
@@ -73,6 +77,7 @@ const filters = reactive({
 
 const dataList = ref<LoginLogDto[]>([]);
 const loading = ref(false);
+const exporting = ref(false);
 const pagination = reactive<TablePaginationConfig>({
   current: 1,
   pageSize: 20,
@@ -82,18 +87,19 @@ const pagination = reactive<TablePaginationConfig>({
 });
 
 const columns = [
-  { title: "用户名", dataIndex: "username", key: "username" },
-  { title: "IP地址", dataIndex: "ipAddress", key: "ipAddress" },
-  { title: "浏览器", dataIndex: "browser", key: "browser" },
-  { title: "操作系统", dataIndex: "operatingSystem", key: "operatingSystem" },
-  { title: "状态", key: "loginStatus", width: 80 },
-  { title: "失败原因", dataIndex: "message", key: "message", ellipsis: true },
-  { title: "登录时间", key: "loginTime", width: 180 }
+  { title: t("loginLog.colUsername"), dataIndex: "username", key: "username" },
+  { title: t("loginLog.colIpAddress"), dataIndex: "ipAddress", key: "ipAddress" },
+  { title: t("loginLog.colBrowser"), dataIndex: "browser", key: "browser" },
+  { title: t("loginLog.colOperatingSystem"), dataIndex: "operatingSystem", key: "operatingSystem" },
+  { title: t("loginLog.colStatus"), key: "loginStatus", width: 80 },
+  { title: t("loginLog.colMessage"), dataIndex: "message", key: "message", ellipsis: true },
+  { title: t("loginLog.colLoginTime"), key: "loginTime", width: 180 }
 ];
 
 function formatTime(val: string) {
   if (!val) return "-";
-  return new Date(val).toLocaleString("zh-CN", { hour12: false });
+  const browserLocale = locale.value === "zh" ? "zh-CN" : "en-US";
+  return new Date(val).toLocaleString(browserLocale, { hour12: false });
 }
 
 async function loadData() {
@@ -111,7 +117,7 @@ async function loadData() {
     dataList.value = result.items as LoginLogDto[];
     pagination.total = Number(result.total);
   } catch (e: any) {
-    message.error(e.message || "加载失败");
+    message.error(e.message || t("loginLog.loadFailed"));
   } finally {
     loading.value = false;
   }
@@ -135,6 +141,30 @@ function onTableChange(pag: TablePaginationConfig) {
   pagination.current = pag.current ?? 1;
   pagination.pageSize = pag.pageSize ?? 20;
   loadData();
+}
+
+async function handleExport() {
+  exporting.value = true;
+  try {
+    const blob = await exportLoginLogs({
+      username: filters.username || undefined,
+      ipAddress: filters.ipAddress || undefined,
+      loginStatus: filters.loginStatus,
+      from: filters.timeRange?.[0]?.toISOString(),
+      to: filters.timeRange?.[1]?.toISOString()
+    });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `login-logs-${Date.now()}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    message.success("导出成功");
+  } catch (error: any) {
+    message.error(error?.message || "导出失败");
+  } finally {
+    exporting.value = false;
+  }
 }
 
 onMounted(() => {

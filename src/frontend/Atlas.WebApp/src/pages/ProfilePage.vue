@@ -77,22 +77,21 @@
 import { computed, onMounted, reactive, ref } from "vue";
 import { useRouter } from "vue-router";
 import { message } from "ant-design-vue";
-import { changePassword, getCurrentUser, getUserDetail, logout as apiLogout, updateUser } from "@/services/api";
-import type { AuthProfile, ChangePasswordRequest, UserDetail, UserUpdateRequest } from "@/types/api";
+import { changePassword, getCurrentUser, getProfileDetail, logout as apiLogout, updateProfile } from "@/services/api";
+import type { AuthProfile, ChangePasswordRequest, UserProfileDetail, UserProfileUpdateRequest } from "@/types/api";
 import { clearAuthStorage, getAuthProfile, setAuthProfile } from "@/utils/auth";
 
 const profile = ref<AuthProfile | null>(null);
-const userDetail = ref<UserDetail | null>(null);
+const userDetail = ref<UserProfileDetail | null>(null);
 const saving = ref(false);
 const changing = ref(false);
 const passwordFormRef = ref();
 const router = useRouter();
 
-const formModel = reactive<UserUpdateRequest>({
+const formModel = reactive<UserProfileUpdateRequest>({
   displayName: "",
   email: "",
-  phoneNumber: "",
-  isActive: true
+  phoneNumber: ""
 });
 
 const rules = {
@@ -144,12 +143,11 @@ const loadDetail = async () => {
   }
 
   try {
-    const detail = await getUserDetail(profile.value.id);
+    const detail = await getProfileDetail();
     userDetail.value = detail;
     formModel.displayName = detail.displayName;
     formModel.email = detail.email ?? "";
     formModel.phoneNumber = detail.phoneNumber ?? "";
-    formModel.isActive = detail.isActive;
   } catch (error) {
     message.error((error as Error).message || "加载个人信息失败");
   }
@@ -162,22 +160,15 @@ const resetForm = () => {
   formModel.displayName = userDetail.value.displayName;
   formModel.email = userDetail.value.email ?? "";
   formModel.phoneNumber = userDetail.value.phoneNumber ?? "";
-  formModel.isActive = userDetail.value.isActive;
 };
 
 const submit = async () => {
-  if (!profile.value?.id) {
-    message.error("缺少用户信息");
-    return;
-  }
-
   saving.value = true;
   try {
-    await updateUser(profile.value.id, {
+    await updateProfile({
       displayName: formModel.displayName,
       email: formModel.email || undefined,
-      phoneNumber: formModel.phoneNumber || undefined,
-      isActive: formModel.isActive
+      phoneNumber: formModel.phoneNumber || undefined
     });
     message.success("保存成功");
     await loadProfile();

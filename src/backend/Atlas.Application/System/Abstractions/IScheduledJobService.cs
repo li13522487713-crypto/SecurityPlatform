@@ -13,4 +13,11 @@ public interface IScheduledJobService
 
     /// <summary>启用/暂停任务</summary>
     Task SetEnabledAsync(string jobId, bool enabled, CancellationToken ct = default);
+
+    /// <summary>查询任务执行历史</summary>
+    Task<PagedResult<ScheduledJobExecutionDto>> GetExecutionsPagedAsync(
+        string jobId,
+        int pageIndex,
+        int pageSize,
+        CancellationToken ct = default);
 }

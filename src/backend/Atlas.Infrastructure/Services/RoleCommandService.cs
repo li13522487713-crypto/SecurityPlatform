@@ -17,7 +17,6 @@ public sealed class RoleCommandService : IRoleCommandService
     private readonly IRolePermissionRepository _rolePermissionRepository;
     private readonly IRoleMenuRepository _roleMenuRepository;
     private readonly IUserRoleRepository _userRoleRepository;
-    private readonly IUserAccountRepository _userRepository;
     private readonly IPermissionRepository _permissionRepository;
     private readonly IMenuRepository _menuRepository;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
@@ -28,7 +27,6 @@ public sealed class RoleCommandService : IRoleCommandService
         IRolePermissionRepository rolePermissionRepository,
         IRoleMenuRepository roleMenuRepository,
         IUserRoleRepository userRoleRepository,
-        IUserAccountRepository userRepository,
         IPermissionRepository permissionRepository,
         IMenuRepository menuRepository,
         IIdGeneratorAccessor idGeneratorAccessor,
@@ -38,7 +36,6 @@ public sealed class RoleCommandService : IRoleCommandService
         _rolePermissionRepository = rolePermissionRepository;
         _roleMenuRepository = roleMenuRepository;
         _userRoleRepository = userRoleRepository;
-        _userRepository = userRepository;
         _permissionRepository = permissionRepository;
         _menuRepository = menuRepository;
         _idGeneratorAccessor = idGeneratorAccessor;
@@ -136,24 +133,13 @@ public sealed class RoleCommandService : IRoleCommandService
         }
 
         var userIds = await _userRoleRepository.QueryUserIdsByRoleIdAsync(tenantId, roleId, cancellationToken);
+        if (userIds.Count > 0)
+        {
+            throw new BusinessException("Role has assigned users, please unbind users before deleting.", ErrorCodes.ValidationError);
+        }
 
         await _unitOfWork.ExecuteInTransactionAsync(async () =>
         {
-            if (userIds.Count > 0)
-            {
-                var distinctUserIds = userIds.Distinct().ToArray();
-                var users = await _userRepository.QueryByIdsAsync(tenantId, distinctUserIds, cancellationToken);
-                if (users.Count > 0)
-                {
-                    foreach (var user in users)
-                    {
-                        var updatedRoles = RemoveRoleCode(user.Roles, role.Code);
-                        user.UpdateRoles(updatedRoles);
-                    }
-                    await _userRepository.UpdateRangeAsync(users.ToArray(), cancellationToken);
-                }
-            }
-
             await _rolePermissionRepository.DeleteByRoleIdAsync(tenantId, roleId, cancellationToken);
             await _roleMenuRepository.DeleteByRoleIdAsync(tenantId, roleId, cancellationToken);
             await _userRoleRepository.DeleteByRoleIdAsync(tenantId, roleId, cancellationToken);
@@ -171,21 +157,6 @@ public sealed class RoleCommandService : IRoleCommandService
 
         role.SetDataScope(scope);
         await _roleRepository.UpdateAsync(role, cancellationToken);
-    }
-
-    private static string RemoveRoleCode(string roles, string code)
-    {
-        if (string.IsNullOrWhiteSpace(roles))
-        {
-            return string.Empty;
-        }
-
-        var remaining = roles
-            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Where(item => !string.Equals(item, code, StringComparison.OrdinalIgnoreCase))
-            .ToArray();
-
-        return string.Join(',', remaining);
     }
 
     private async Task EnsureRoleExistsAsync(TenantId tenantId, long roleId, CancellationToken cancellationToken)

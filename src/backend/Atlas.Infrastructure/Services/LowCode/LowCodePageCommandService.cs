@@ -10,15 +10,18 @@ namespace Atlas.Infrastructure.Services.LowCode;
 public sealed class LowCodePageCommandService : ILowCodePageCommandService
 {
     private readonly ILowCodePageRepository _pageRepository;
+    private readonly ILowCodePageVersionRepository _pageVersionRepository;
     private readonly ILowCodeAppRepository _appRepository;
     private readonly IIdGeneratorAccessor _idGenerator;
 
     public LowCodePageCommandService(
         ILowCodePageRepository pageRepository,
+        ILowCodePageVersionRepository pageVersionRepository,
         ILowCodeAppRepository appRepository,
         IIdGeneratorAccessor idGenerator)
     {
         _pageRepository = pageRepository;
+        _pageVersionRepository = pageVersionRepository;
         _appRepository = appRepository;
         _idGenerator = idGenerator;
     }
@@ -103,6 +106,28 @@ public sealed class LowCodePageCommandService : ILowCodePageCommandService
         var now = DateTimeOffset.UtcNow;
         entity.Publish(userId, now);
 
+        await _pageVersionRepository.InsertAsync(
+            new LowCodePageVersion(
+                tenantId,
+                entity.Id,
+                entity.AppId,
+                entity.Version,
+                entity.PageKey,
+                entity.Name,
+                entity.PageType,
+                entity.SchemaJson,
+                entity.RoutePath,
+                entity.Description,
+                entity.Icon,
+                entity.SortOrder,
+                entity.ParentPageId,
+                entity.PermissionCode,
+                entity.DataTableKey,
+                userId,
+                _idGenerator.NextId(),
+                now),
+            cancellationToken);
+
         await _pageRepository.UpdateAsync(entity, cancellationToken);
     }
 
@@ -126,6 +151,62 @@ public sealed class LowCodePageCommandService : ILowCodePageCommandService
         var entity = await _pageRepository.GetByIdAsync(tenantId, id, cancellationToken)
             ?? throw new InvalidOperationException($"页面 ID={id} 不存在");
 
+        await _pageVersionRepository.DeleteByPageIdAsync(tenantId, entity.Id, cancellationToken);
         await _pageRepository.DeleteAsync(id, cancellationToken);
+    }
+
+    public async Task RollbackAsync(
+        TenantId tenantId,
+        long userId,
+        long id,
+        long versionId,
+        CancellationToken cancellationToken = default)
+    {
+        var entity = await _pageRepository.GetByIdAsync(tenantId, id, cancellationToken)
+            ?? throw new InvalidOperationException($"页面 ID={id} 不存在");
+        var version = await _pageVersionRepository.GetByIdAsync(tenantId, versionId, cancellationToken)
+            ?? throw new InvalidOperationException($"页面版本 ID={versionId} 不存在");
+        if (version.PageId != id)
+        {
+            throw new InvalidOperationException("目标版本不属于当前页面。");
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        entity.RollbackToVersion(
+            version.Name,
+            version.PageType,
+            version.SchemaJson,
+            version.RoutePath,
+            version.Description,
+            version.Icon,
+            version.SortOrder,
+            version.ParentPageId,
+            version.PermissionCode,
+            version.DataTableKey,
+            userId,
+            now);
+
+        await _pageRepository.UpdateAsync(entity, cancellationToken);
+        await _pageVersionRepository.InsertAsync(
+            new LowCodePageVersion(
+                tenantId,
+                entity.Id,
+                entity.AppId,
+                entity.Version,
+                entity.PageKey,
+                entity.Name,
+                entity.PageType,
+                entity.SchemaJson,
+                entity.RoutePath,
+                entity.Description,
+                entity.Icon,
+                entity.SortOrder,
+                entity.ParentPageId,
+                entity.PermissionCode,
+                entity.DataTableKey,
+                userId,
+                _idGenerator.NextId(),
+                now),
+            cancellationToken);
     }
 }

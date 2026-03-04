@@ -16,6 +16,16 @@ X-Tenant-Id: {{tenantId}}
 
 ###
 @accessToken = {{login.response.body.$.data.accessToken}}
+@csrfToken =
+
+### Get Anti-Forgery Token
+# @name antiforgery
+GET {{baseUrl}}/api/v1/secure/antiforgery
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+###
+@csrfToken = {{antiforgery.response.body.$.data.token}}
 
 ### Get Roles (Paged)
 GET {{baseUrl}}/api/v1/roles?pageIndex=1&pageSize=10&isSystem=true
@@ -28,50 +38,107 @@ Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ### Create Role
+# @name createRole
 POST {{baseUrl}}/api/v1/roles
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
 
 {
-  "name": "Admin",
-  "code": "Admin",
-  "description": "System admin"
+  "name": "审计访客角色",
+  "code": "AUDIT_GUEST_DEMO",
+  "description": "用于删除约束验证"
 }
 
+###
+@roleId = {{createRole.response.body.$.data.id}}
+
 ### Update Role
-PUT {{baseUrl}}/api/v1/roles/1
+PUT {{baseUrl}}/api/v1/roles/{{roleId}}
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
 
 {
-  "name": "Admin",
-  "description": "System admin"
+  "name": "审计访客角色（更新）",
+  "description": "用于删除约束验证（更新）"
 }
 
 ### Update Role Permissions
-PUT {{baseUrl}}/api/v1/roles/1/permissions
+PUT {{baseUrl}}/api/v1/roles/{{roleId}}/permissions
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "permissionIds": []
 }
 
 ### Update Role Menus
-PUT {{baseUrl}}/api/v1/roles/1/menus
+PUT {{baseUrl}}/api/v1/roles/{{roleId}}/menus
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "menuIds": []
 }
 
-### Delete Role
-DELETE {{baseUrl}}/api/v1/roles/1
+### 创建测试用户并绑定角色（用于删除约束）
+# @name createBoundUser
+POST {{baseUrl}}/api/v1/users
+Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "username": "role.bound.demo",
+  "password": "P@ssw0rd!2026",
+  "displayName": "Role Bound Demo",
+  "email": "role.bound.demo@atlas.local",
+  "phoneNumber": "13800000888",
+  "isActive": true,
+  "roleIds": [{{roleId}}],
+  "departmentIds": [],
+  "positionIds": []
+}
+
+###
+@boundUserId = {{createBoundUser.response.body.$.data.id}}
+
+### 删除角色（已绑定用户，预期 VALIDATION_ERROR）
+DELETE {{baseUrl}}/api/v1/roles/{{roleId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+### 先解绑用户角色
+PUT {{baseUrl}}/api/v1/users/{{boundUserId}}/roles
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "roleIds": []
+}
+
+### 删除角色（解绑后应成功）
+DELETE {{baseUrl}}/api/v1/roles/{{roleId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
 

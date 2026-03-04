@@ -1,16 +1,16 @@
 <template>
-  <a-card title="系统参数配置" :bordered="false">
+  <a-card :title="t('systemConfig.title')" :bordered="false">
     <div class="crud-toolbar">
       <a-space wrap>
         <a-input-search
           v-model:value="keyword"
-          placeholder="搜索参数键或名称"
+          :placeholder="t('systemConfig.searchPlaceholder')"
           allow-clear
           style="width: 260px"
           @search="loadConfigs"
         />
-        <a-button @click="handleReset">重置</a-button>
-        <a-button type="primary" @click="openCreate">新增参数</a-button>
+        <a-button @click="handleReset">{{ t("common.reset") }}</a-button>
+        <a-button type="primary" @click="openCreate">{{ t("systemConfig.create") }}</a-button>
       </a-space>
     </div>
 
@@ -20,30 +20,30 @@
       :loading="loading"
       :pagination="pagination"
       row-key="id"
-      :locale="{ emptyText: '暂无参数数据' }"
+      :locale="{ emptyText: t('systemConfig.empty') }"
       @change="onTableChange"
     >
       <template #bodyCell="{ column, record }">
         <template v-if="column.key === 'isBuiltIn'">
           <a-tag v-if="record.isBuiltIn" color="gold">
             <template #icon><LockOutlined /></template>
-            内置
+            {{ t("systemConfig.builtIn") }}
           </a-tag>
         </template>
         <template v-else-if="column.key === 'actions'">
           <a-space>
-            <a-button type="link" size="small" @click="openEdit(record)">编辑</a-button>
+            <a-button type="link" size="small" @click="openEdit(record)">{{ t("common.edit") }}</a-button>
             <a-popconfirm
               v-if="!record.isBuiltIn"
-              title="确认删除该参数？"
-              ok-text="删除"
-              cancel-text="取消"
+              :title="t('systemConfig.deleteConfirm')"
+              :ok-text="t('common.delete')"
+              :cancel-text="t('common.cancel')"
               @confirm="handleDelete(record.id)"
             >
-              <a-button type="link" danger size="small">删除</a-button>
+              <a-button type="link" danger size="small">{{ t("common.delete") }}</a-button>
             </a-popconfirm>
-            <a-tooltip v-else title="内置参数不可删除">
-              <a-button type="link" danger size="small" disabled>删除</a-button>
+            <a-tooltip v-else :title="t('systemConfig.builtInCannotDelete')">
+              <a-button type="link" danger size="small" disabled>{{ t("common.delete") }}</a-button>
             </a-tooltip>
           </a-space>
         </template>
@@ -53,27 +53,27 @@
     <!-- 新增/编辑弹窗 -->
     <a-modal
       v-model:open="modalVisible"
-      :title="editTarget ? '编辑参数' : '新增参数'"
+      :title="editTarget ? t('systemConfig.edit') : t('systemConfig.create')"
       :confirm-loading="modalLoading"
       @ok="submitForm"
       @cancel="closeModal"
     >
       <a-form :model="form" layout="vertical" :rules="rules" ref="formRef">
-        <a-form-item label="参数键" name="configKey">
+        <a-form-item :label="t('systemConfig.key')" name="configKey">
           <a-input
             v-model:value="form.configKey"
             :disabled="!!editTarget"
-            placeholder="如 sys.file.upload.path"
+            :placeholder="t('systemConfig.keyPlaceholder')"
           />
         </a-form-item>
-        <a-form-item label="参数名称" name="configName">
-          <a-input v-model:value="form.configName" placeholder="请输入参数名称" />
+        <a-form-item :label="t('systemConfig.name')" name="configName">
+          <a-input v-model:value="form.configName" :placeholder="t('systemConfig.namePlaceholder')" />
         </a-form-item>
-        <a-form-item label="参数值" name="configValue">
-          <a-textarea v-model:value="form.configValue" :rows="3" placeholder="请输入参数值" />
+        <a-form-item :label="t('systemConfig.value')" name="configValue">
+          <a-textarea v-model:value="form.configValue" :rows="3" :placeholder="t('systemConfig.valuePlaceholder')" />
         </a-form-item>
-        <a-form-item label="备注" name="remark">
-          <a-textarea v-model:value="form.remark" :rows="2" placeholder="备注（选填）" />
+        <a-form-item :label="t('systemConfig.remark')" name="remark">
+          <a-textarea v-model:value="form.remark" :rows="2" :placeholder="t('systemConfig.remarkPlaceholder')" />
         </a-form-item>
       </a-form>
     </a-modal>
@@ -84,6 +84,7 @@
 import { ref, reactive, onMounted } from "vue";
 import { message } from "ant-design-vue";
 import { LockOutlined } from "@ant-design/icons-vue";
+import { useI18n } from "vue-i18n";
 import type { TablePaginationConfig } from "ant-design-vue";
 import {
   getSystemConfigsPaged,
@@ -92,6 +93,8 @@ import {
   deleteSystemConfig,
   type SystemConfigDto
 } from "@/services/system-config";
+
+const { t } = useI18n();
 
 const keyword = ref("");
 const dataList = ref<SystemConfigDto[]>([]);
@@ -105,12 +108,12 @@ const pagination = reactive<TablePaginationConfig>({
 });
 
 const columns = [
-  { title: "参数键", dataIndex: "configKey", key: "configKey", ellipsis: true },
-  { title: "参数名称", dataIndex: "configName", key: "configName" },
-  { title: "参数值", dataIndex: "configValue", key: "configValue", ellipsis: true },
-  { title: "类型", key: "isBuiltIn", width: 90 },
-  { title: "备注", dataIndex: "remark", key: "remark", ellipsis: true },
-  { title: "操作", key: "actions", width: 140, fixed: "right" as const }
+  { title: t("systemConfig.colKey"), dataIndex: "configKey", key: "configKey", ellipsis: true },
+  { title: t("systemConfig.colName"), dataIndex: "configName", key: "configName" },
+  { title: t("systemConfig.colValue"), dataIndex: "configValue", key: "configValue", ellipsis: true },
+  { title: t("systemConfig.colType"), key: "isBuiltIn", width: 90 },
+  { title: t("systemConfig.colRemark"), dataIndex: "remark", key: "remark", ellipsis: true },
+  { title: t("systemConfig.colActions"), key: "actions", width: 140, fixed: "right" as const }
 ];
 
 async function loadConfigs() {
@@ -124,7 +127,7 @@ async function loadConfigs() {
     dataList.value = result.items as SystemConfigDto[];
     pagination.total = Number(result.total);
   } catch (e: any) {
-    message.error(e.message || "加载失败");
+    message.error(e.message || t("systemConfig.loadFailed"));
   } finally {
     loading.value = false;
   }
@@ -151,11 +154,11 @@ const form = reactive({ configKey: "", configName: "", configValue: "", remark: 
 
 const rules = {
   configKey: [
-    { required: true, message: "请输入参数键" },
-    { pattern: /^[a-zA-Z][a-zA-Z0-9_.]{0,127}$/, message: "只允许字母、数字、点和下划线，必须以字母开头" }
+    { required: true, message: t("systemConfig.keyRequired") },
+    { pattern: /^[a-zA-Z][a-zA-Z0-9_.]{0,127}$/, message: t("systemConfig.keyPattern") }
   ],
-  configName: [{ required: true, message: "请输入参数名称" }],
-  configValue: [{ required: true, message: "请输入参数值" }]
+  configName: [{ required: true, message: t("systemConfig.nameRequired") }],
+  configValue: [{ required: true, message: t("systemConfig.valueRequired") }]
 };
 
 function openCreate() {
@@ -194,7 +197,7 @@ async function submitForm() {
         configName: form.configName,
         remark: form.remark || undefined
       });
-      message.success("更新成功");
+      message.success(t("systemConfig.updateSuccess"));
     } else {
       await createSystemConfig({
         configKey: form.configKey,
@@ -202,12 +205,12 @@ async function submitForm() {
         configName: form.configName,
         remark: form.remark || undefined
       });
-      message.success("创建成功");
+      message.success(t("systemConfig.createSuccess"));
     }
     modalVisible.value = false;
     loadConfigs();
   } catch (e: any) {
-    message.error(e.message || "操作失败");
+    message.error(e.message || t("systemConfig.operationFailed"));
   } finally {
     modalLoading.value = false;
   }
@@ -216,10 +219,10 @@ async function submitForm() {
 async function handleDelete(id: string) {
   try {
     await deleteSystemConfig(id);
-    message.success("删除成功");
+    message.success(t("systemConfig.deleteSuccess"));
     loadConfigs();
   } catch (e: any) {
-    message.error(e.message || "删除失败");
+    message.error(e.message || t("systemConfig.deleteFailed"));
   }
 }
 

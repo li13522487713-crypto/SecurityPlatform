@@ -10,5 +10,6 @@ public interface ILowCodePageCommandService
     Task UpdateSchemaAsync(TenantId tenantId, long userId, long id, LowCodePageSchemaUpdateRequest request, CancellationToken cancellationToken = default);
     Task PublishAsync(TenantId tenantId, long userId, long id, CancellationToken cancellationToken = default);
     Task UnpublishAsync(TenantId tenantId, long userId, long id, CancellationToken cancellationToken = default);
+    Task RollbackAsync(TenantId tenantId, long userId, long id, long versionId, CancellationToken cancellationToken = default);
     Task DeleteAsync(TenantId tenantId, long userId, long id, CancellationToken cancellationToken = default);
 }

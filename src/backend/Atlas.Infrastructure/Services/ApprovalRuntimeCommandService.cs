@@ -1,5 +1,6 @@
 using AutoMapper;
 using System.Text.Json;
+using System.Diagnostics;
 using Atlas.Application.Approval.Abstractions;
 using Atlas.Application.Approval.Models;
 using Atlas.Application.Approval.Repositories;
@@ -9,6 +10,7 @@ using Atlas.Core.Tenancy;
 using Atlas.Domain.Approval.Entities;
 using Atlas.Domain.Approval.Enums;
 using Atlas.Infrastructure.Services.ApprovalFlow;
+using Atlas.Infrastructure.Observability;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using ApprovalNodeExecutionStatus = Atlas.Domain.Approval.Entities.ApprovalNodeExecutionStatus;
@@ -104,92 +106,106 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
         long initiatorUserId,
         CancellationToken cancellationToken)
     {
-        // 获取已发布的流程定义
-        var flowDef = await _flowRepository.GetByIdAsync(tenantId, request.DefinitionId, cancellationToken);
-        if (flowDef == null)
+        var stopwatch = Stopwatch.StartNew();
+        var status = "success";
+        try
         {
-            throw new BusinessException("FLOW_NOT_FOUND", "审批流定义不存在");
-        }
-
-        if (flowDef.Status != ApprovalFlowStatus.Published)
-        {
-            throw new BusinessException("FLOW_NOT_PUBLISHED", "流程定义未发布");
-        }
-
-        // 创建实例
-        var instance = new ApprovalProcessInstance(
-            tenantId,
-            request.DefinitionId,
-            request.BusinessKey,
-            initiatorUserId,
-            _idGeneratorAccessor.NextId(),
-            request.DataJson);
-        
-        // 穿越时空：覆盖创建时间
-        if (request.OverrideCreateTime.HasValue)
-        {
-            // 注意：ApprovalProcessInstance 的 CreatedAt 是 private set，且在构造函数中初始化为 UtcNow
-            // 我们需要通过反射或者修改实体来支持修改 CreatedAt
-            // 为了简单起见，假设我们可以在这里修改它，或者我们需要在 Entity 中添加 SetCreatedAt 方法
-            // 但 Entity 设计原则通常不允许随意修改 CreatedAt
-            // 不过既然是"穿越时空"功能，这是一个特殊需求。
-            // 让我们在 ApprovalProcessInstance 中添加 SetCreatedAt 方法，或者使用反射。
-            // 鉴于我不能修改 Entity (Phase 1 已过)，我可以使用反射。
-            // 或者，我应该在 Phase 1 中添加这个支持。
-            // 既然我还在 coding，我可以去修改 Entity。
-            
-            // 更好的方式：在构造函数中传入 createdAt
-            // 但构造函数签名已经固定。
-            // 让我们使用反射修改 backing field。
-            
-            var field = typeof(TenantEntity).GetProperty("CreatedAt")?.GetSetMethod(true);
-            if (field != null)
+            // 获取已发布的流程定义
+            var flowDef = await _flowRepository.GetByIdAsync(tenantId, request.DefinitionId, cancellationToken);
+            if (flowDef == null)
             {
-                field.Invoke(instance, new object[] { request.OverrideCreateTime.Value });
+                throw new BusinessException("FLOW_NOT_FOUND", "审批流定义不存在");
             }
-        }
 
-        // Wrap all persistence operations in a transaction for atomicity
-        await ExecuteInTransactionAsync(async () =>
-        {
-            await _instanceRepository.AddAsync(instance, cancellationToken);
-
-            // 记录实例启动事件
-            var startEvent = new ApprovalHistoryEvent(
-                tenantId,
-                instance.Id,
-                ApprovalHistoryEventType.InstanceStarted,
-                null,
-                null,
-                initiatorUserId,
-                _idGeneratorAccessor.NextId());
-            await _historyRepository.AddAsync(startEvent, cancellationToken);
-
-            // 解析流程定义，生成第一批待审批任务
-            var flowDefinition = FlowDefinitionParser.Parse(flowDef.DefinitionJson);
-            var startNode = flowDefinition.GetStartNode();
-            if (startNode != null)
+            if (flowDef.Status != ApprovalFlowStatus.Published)
             {
-                // 创建开始节点执行记录
-                var startExecution = new ApprovalNodeExecution(
+                throw new BusinessException("FLOW_NOT_PUBLISHED", "流程定义未发布");
+            }
+
+            // 创建实例
+            var instance = new ApprovalProcessInstance(
+                tenantId,
+                request.DefinitionId,
+                request.BusinessKey,
+                initiatorUserId,
+                _idGeneratorAccessor.NextId(),
+                request.DataJson);
+            
+            // 穿越时空：覆盖创建时间
+            if (request.OverrideCreateTime.HasValue)
+            {
+                // 注意：ApprovalProcessInstance 的 CreatedAt 是 private set，且在构造函数中初始化为 UtcNow
+                // 我们需要通过反射或者修改实体来支持修改 CreatedAt
+                // 为了简单起见，假设我们可以在这里修改它，或者我们需要在 Entity 中添加 SetCreatedAt 方法
+                // 但 Entity 设计原则通常不允许随意修改 CreatedAt
+                // 不过既然是"穿越时空"功能，这是一个特殊需求。
+                // 让我们在 ApprovalProcessInstance 中添加 SetCreatedAt 方法，或者使用反射。
+                // 鉴于我不能修改 Entity (Phase 1 已过)，我可以使用反射。
+                // 或者，我应该在 Phase 1 中添加这个支持。
+                // 既然我还在 coding，我可以去修改 Entity。
+                
+                // 更好的方式：在构造函数中传入 createdAt
+                // 但构造函数签名已经固定。
+                // 让我们使用反射修改 backing field。
+                
+                var field = typeof(TenantEntity).GetProperty("CreatedAt")?.GetSetMethod(true);
+                if (field != null)
+                {
+                    field.Invoke(instance, new object[] { request.OverrideCreateTime.Value });
+                }
+            }
+
+            // Wrap all persistence operations in a transaction for atomicity
+            await ExecuteInTransactionAsync(async () =>
+            {
+                await _instanceRepository.AddAsync(instance, cancellationToken);
+
+                // 记录实例启动事件
+                var startEvent = new ApprovalHistoryEvent(
                     tenantId,
                     instance.Id,
-                    startNode.Id,
-                    ApprovalNodeExecutionStatus.Completed,
+                    ApprovalHistoryEventType.InstanceStarted,
+                    null,
+                    null,
+                    initiatorUserId,
                     _idGeneratorAccessor.NextId());
-                await _nodeExecutionRepository.AddAsync(startExecution, cancellationToken);
+                await _historyRepository.AddAsync(startEvent, cancellationToken);
 
-                // 推进到第一个审批节点
-                await _flowEngine.AdvanceFlowAsync(tenantId, instance, flowDefinition, startNode.Id, cancellationToken);
-                await _instanceRepository.UpdateAsync(instance, cancellationToken);
-            }
-        }, cancellationToken);
+                // 解析流程定义，生成第一批待审批任务
+                var flowDefinition = FlowDefinitionParser.Parse(flowDef.DefinitionJson);
+                var startNode = flowDefinition.GetStartNode();
+                if (startNode != null)
+                {
+                    // 创建开始节点执行记录
+                    var startExecution = new ApprovalNodeExecution(
+                        tenantId,
+                        instance.Id,
+                        startNode.Id,
+                        ApprovalNodeExecutionStatus.Completed,
+                        _idGeneratorAccessor.NextId());
+                    await _nodeExecutionRepository.AddAsync(startExecution, cancellationToken);
 
-        // Background work (notifications/callbacks) enqueued after transaction commits
-        EnqueueNotification(tenantId, ApprovalNotificationEventType.InstanceStarted, instance.Id, null, new[] { initiatorUserId });
-        EnqueueCallback(tenantId, CallbackEventType.InstanceStarted, instance.Id, null, null);
+                    // 推进到第一个审批节点
+                    await _flowEngine.AdvanceFlowAsync(tenantId, instance, flowDefinition, startNode.Id, cancellationToken);
+                    await _instanceRepository.UpdateAsync(instance, cancellationToken);
+                }
+            }, cancellationToken);
 
-        return _mapper.Map<ApprovalInstanceResponse>(instance);
+            // Background work (notifications/callbacks) enqueued after transaction commits
+            EnqueueNotification(tenantId, ApprovalNotificationEventType.InstanceStarted, instance.Id, null, new[] { initiatorUserId });
+            EnqueueCallback(tenantId, CallbackEventType.InstanceStarted, instance.Id, null, null);
+
+            return _mapper.Map<ApprovalInstanceResponse>(instance);
+        }
+        catch
+        {
+            status = "failed";
+            throw;
+        }
+        finally
+        {
+            AtlasMetrics.RecordApprovalStart(stopwatch.Elapsed.TotalMilliseconds, status);
+        }
     }
 
     public async Task ApproveTaskAsync(

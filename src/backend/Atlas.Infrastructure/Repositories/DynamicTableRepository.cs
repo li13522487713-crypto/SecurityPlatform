@@ -24,6 +24,31 @@ public sealed class DynamicTableRepository : IDynamicTableRepository
             .FirstAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<DynamicTable>> QueryByKeysAsync(
+        TenantId tenantId,
+        IReadOnlyList<string> tableKeys,
+        CancellationToken cancellationToken)
+    {
+        if (tableKeys.Count == 0)
+        {
+            return Array.Empty<DynamicTable>();
+        }
+
+        var normalized = tableKeys
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => x.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (normalized.Length == 0)
+        {
+            return Array.Empty<DynamicTable>();
+        }
+
+        return await _db.Queryable<DynamicTable>()
+            .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(normalized, x.TableKey))
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<(IReadOnlyList<DynamicTable> Items, int TotalCount)> QueryPageAsync(
         TenantId tenantId,
         int pageIndex,

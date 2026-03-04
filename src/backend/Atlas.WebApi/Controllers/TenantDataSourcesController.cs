@@ -3,6 +3,7 @@ using Atlas.Application.Audit.Models;
 using Atlas.Application.System.Abstractions;
 using Atlas.Application.System.Models;
 using Atlas.Core.Abstractions;
+using Atlas.Core.Exceptions;
 using Atlas.Core.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
@@ -127,9 +128,7 @@ public sealed class TenantDataSourcesController : ControllerBase
     {
         try
         {
-            var dbType = request.DbType.Equals("SQLite", StringComparison.OrdinalIgnoreCase)
-                ? DbType.Sqlite
-                : DbType.SqlServer;
+            var dbType = ParseDbType(request.DbType);
 
             var db = new SqlSugarClient(new ConnectionConfig
             {
@@ -146,6 +145,23 @@ public sealed class TenantDataSourcesController : ControllerBase
             return Ok(ApiResponse<TestConnectionResult>.Ok(
                 new TestConnectionResult(false, ex.Message), HttpContext.TraceIdentifier));
         }
+    }
+
+    private static DbType ParseDbType(string? dbType)
+    {
+        if (string.IsNullOrWhiteSpace(dbType))
+        {
+            return DbType.Sqlite;
+        }
+
+        return dbType.Trim().ToLowerInvariant() switch
+        {
+            "sqlite" => DbType.Sqlite,
+            "sqlserver" => DbType.SqlServer,
+            "mysql" => DbType.MySql,
+            "postgresql" => DbType.PostgreSQL,
+            _ => throw new BusinessException($"不支持的数据库类型：{dbType}", ErrorCodes.ValidationError)
+        };
     }
 
     private async Task RecordAuditAsync(string action, string target, CancellationToken ct)

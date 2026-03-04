@@ -15,4 +15,29 @@ public interface ILowCodeAppQueryService
 
     Task<LowCodeAppDetail?> GetByKeyAsync(
         TenantId tenantId, string appKey, CancellationToken cancellationToken = default);
+
+    Task<PagedResult<LowCodeAppVersionListItem>> GetVersionsAsync(
+        TenantId tenantId,
+        long appId,
+        PagedRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task<LowCodeAppExportPackage?> ExportAsync(
+        TenantId tenantId, long appId, CancellationToken cancellationToken = default);
+
+    Task<LowCodePageDetail?> GetPageByIdAsync(
+        TenantId tenantId, long pageId, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<LowCodePageTreeNode>> GetPageTreeAsync(
+        TenantId tenantId, long appId, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<LowCodePageVersionListItem>> GetPageVersionsAsync(
+        TenantId tenantId, long pageId, CancellationToken cancellationToken = default);
+
+    Task<LowCodePageRuntimeSchema?> GetRuntimePageSchemaAsync(
+        TenantId tenantId,
+        long pageId,
+        string mode,
+        string? environmentCode,
+        CancellationToken cancellationToken = default);
 }

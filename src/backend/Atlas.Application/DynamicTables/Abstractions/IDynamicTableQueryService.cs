@@ -24,4 +24,14 @@ public interface IDynamicTableQueryService
     Task<IReadOnlyList<DynamicFieldTypeOption>> GetFieldTypesAsync(
         string dbType,
         CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<DynamicRelationDefinition>> GetRelationsAsync(
+        TenantId tenantId,
+        string tableKey,
+        CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<DynamicFieldPermissionRule>> GetFieldPermissionsAsync(
+        TenantId tenantId,
+        string tableKey,
+        CancellationToken cancellationToken);
 }

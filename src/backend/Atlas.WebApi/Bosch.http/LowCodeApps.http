@@ -1,432 +1,302 @@
-### LowCodeApps 低代码应用管理测试
-### 低代码平台 - 应用和页面管理
+### LowCodeApps 低代码应用与页面管理
 
-@baseUrl = http://localhost:5000/api/v1
+@baseUrl = http://localhost:5000
 @tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
 
 ### 登录获取令牌
 # @name login
-POST {{baseUrl}}/auth/token
+POST {{baseUrl}}/api/v1/auth/token
 Content-Type: application/json
 X-Tenant-Id: {{tenantId}}
 
 {
-  "username": "admin",
-  "password": "Admin@123"
+  "username": "{{username}}",
+  "password": "{{password}}"
 }
 
+###
 @accessToken = {{login.response.body.$.data.accessToken}}
 
+### 获取 Anti-Forgery Token
+# @name antiforgery
+GET {{baseUrl}}/api/v1/secure/antiforgery
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+###
+@csrfToken = {{antiforgery.response.body.$.data.token}}
+
 ###############################################
-# 应用 CRUD 操作
+# 应用管理
 ###############################################
 
-### 1. 创建低代码应用
+### 创建应用（需幂等+CSRF）
 # @name createApp
-POST {{baseUrl}}/lowcode-apps
+POST {{baseUrl}}/api/v1/lowcode-apps
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$randomUUID}}
+X-CSRF-TOKEN: {{csrfToken}}
 Content-Type: application/json
 
 {
-  "appKey": "hr_system",
-  "name": "人力资源管理系统",
-  "description": "企业人力资源信息化管理平台",
-  "category": "企业管理",
-  "icon": "team",
-  "configJson": {
-    "theme": "default",
-    "logo": "https://example.com/logo.png",
-    "copyright": "© 2026 Atlas Security Platform"
-  }
+  "appKey": "crm_demo_2026",
+  "name": "客户关系管理示例应用",
+  "description": "低代码 CRM 示例",
+  "category": "CRM",
+  "icon": "customer-service"
 }
 
+###
 @appId = {{createApp.response.body.$.data.id}}
-@appKey = {{createApp.response.body.$.data.appKey}}
 
-### 2. 获取应用列表（分页）
-GET {{baseUrl}}/lowcode-apps?pageIndex=1&pageSize=10&keyword=&category=
+### 分页查询应用
+GET {{baseUrl}}/api/v1/lowcode-apps?pageIndex=1&pageSize=20&keyword=crm
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
-### 3. 按分类过滤应用
-GET {{baseUrl}}/lowcode-apps?pageIndex=1&pageSize=10&category=企业管理
+### 查询应用详情（含页面列表）
+GET {{baseUrl}}/api/v1/lowcode-apps/{{appId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
-### 4. 搜索应用（关键词）
-GET {{baseUrl}}/lowcode-apps?pageIndex=1&pageSize=10&keyword=人力资源
+### 查询应用详情（按 appKey）
+GET {{baseUrl}}/api/v1/lowcode-apps/by-key/crm_demo_2026
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
-### 5. 获取应用详情（包含页面列表）
-GET {{baseUrl}}/lowcode-apps/{{appId}}
+### 更新应用（需幂等+CSRF）
+PUT {{baseUrl}}/api/v1/lowcode-apps/{{appId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-
-### 6. 按AppKey获取应用
-GET {{baseUrl}}/lowcode-apps/by-key/{{appKey}}
-Authorization: Bearer {{accessToken}}
-X-Tenant-Id: {{tenantId}}
-
-### 7. 更新应用基本信息
-PUT {{baseUrl}}/lowcode-apps/{{appId}}
-Authorization: Bearer {{accessToken}}
-X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$randomUUID}}
+X-CSRF-TOKEN: {{csrfToken}}
 Content-Type: application/json
 
 {
-  "appKey": "hr_system",
-  "name": "人力资源管理系统 Pro",
-  "description": "企业人力资源信息化管理平台 - 增强版",
-  "category": "企业管理",
-  "icon": "team",
-  "configJson": {
-    "theme": "dark",
-    "logo": "https://example.com/logo_v2.png",
-    "copyright": "© 2026 Atlas Security Platform",
-    "features": ["员工管理", "考勤管理", "薪资管理"]
-  }
+  "name": "客户关系管理示例应用（增强）",
+  "description": "低代码 CRM 示例（升级版）",
+  "category": "CRM",
+  "icon": "team"
 }
 
 ###############################################
-# 应用状态管理
+# 页面管理
 ###############################################
 
-### 8. 发布应用
-POST {{baseUrl}}/lowcode-apps/{{appId}}/publish
-Authorization: Bearer {{accessToken}}
-X-Tenant-Id: {{tenantId}}
-
-### 9. 禁用应用
-POST {{baseUrl}}/lowcode-apps/{{appId}}/disable
-Authorization: Bearer {{accessToken}}
-X-Tenant-Id: {{tenantId}}
-
-### 10. 删除应用
-DELETE {{baseUrl}}/lowcode-apps/{{appId}}
-Authorization: Bearer {{accessToken}}
-X-Tenant-Id: {{tenantId}}
-
-###############################################
-# 页面管理（关联到应用）
-###############################################
-
-### 11. 为应用创建页面
+### 创建页面（需幂等+CSRF）
 # @name createPage
-POST {{baseUrl}}/lowcode-apps/{{appId}}/pages
+POST {{baseUrl}}/api/v1/lowcode-apps/{{appId}}/pages
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Content-Type: application/json
-
-{
-  "pageKey": "employee_list",
-  "name": "员工列表",
-  "pageType": "List",
-  "routePath": "/employees",
-  "icon": "user",
-  "sortOrder": 1,
-  "permissionCode": "hr:employee:view",
-  "dataTableKey": "employees",
-  "schemaJson": {
-    "type": "page",
-    "title": "员工管理",
-    "body": [
-      {
-        "type": "crud",
-        "api": "/api/v1/lowcode-apps/${appId}/pages/${pageId}/data",
-        "columns": [
-          {"name": "name", "label": "姓名", "type": "text"},
-          {"name": "email", "label": "邮箱", "type": "text"},
-          {"name": "department", "label": "部门", "type": "text"}
-        ]
-      }
-    ]
-  }
-}
-
-@pageId = {{createPage.response.body.$.data.id}}
-
-### 12. 创建表单页面
-# @name createFormPage
-POST {{baseUrl}}/lowcode-apps/{{appId}}/pages
-Authorization: Bearer {{accessToken}}
-X-Tenant-Id: {{tenantId}}
-Content-Type: application/json
-
-{
-  "pageKey": "employee_form",
-  "name": "员工信息表单",
-  "pageType": "Form",
-  "routePath": "/employees/form",
-  "icon": "form",
-  "sortOrder": 2,
-  "dataTableKey": "employees",
-  "schemaJson": {
-    "type": "page",
-    "title": "编辑员工",
-    "body": [
-      {
-        "type": "form",
-        "api": "/api/v1/lowcode-apps/${appId}/pages/${pageId}/data",
-        "body": [
-          {"type": "input-text", "name": "name", "label": "姓名", "required": true},
-          {"type": "input-email", "name": "email", "label": "邮箱", "required": true},
-          {"type": "select", "name": "department", "label": "部门"}
-        ]
-      }
-    ]
-  }
-}
-
-### 13. 创建详情页面
-POST {{baseUrl}}/lowcode-apps/{{appId}}/pages
-Authorization: Bearer {{accessToken}}
-X-Tenant-Id: {{tenantId}}
-Content-Type: application/json
-
-{
-  "pageKey": "employee_detail",
-  "name": "员工详情",
-  "pageType": "Detail",
-  "routePath": "/employees/:id",
-  "icon": "file-text",
-  "sortOrder": 3,
-  "dataTableKey": "employees",
-  "schemaJson": {
-    "type": "page",
-    "title": "员工详情",
-    "body": [
-      {"type": "static", "name": "name", "label": "姓名"},
-      {"type": "static-email", "name": "email", "label": "邮箱"},
-      {"type": "static", "name": "department", "label": "部门"}
-    ]
-  }
-}
-
-### 14. 获取应用的所有页面
-GET {{baseUrl}}/lowcode-apps/{{appId}}
-Authorization: Bearer {{accessToken}}
-X-Tenant-Id: {{tenantId}}
-
-### 15. 更新页面
-PUT {{baseUrl}}/lowcode-apps/pages/{{pageId}}
-Authorization: Bearer {{accessToken}}
-X-Tenant-Id: {{tenantId}}
-Content-Type: application/json
-
-{
-  "pageKey": "employee_list",
-  "name": "员工列表（增强版）",
-  "pageType": "List",
-  "routePath": "/employees",
-  "icon": "user",
-  "sortOrder": 1,
-  "permissionCode": "hr:employee:view",
-  "dataTableKey": "employees",
-  "schemaJson": {
-    "type": "page",
-    "title": "员工管理",
-    "toolbar": [
-      {"type": "button", "label": "新增员工", "actionType": "link", "link": "/employees/form"}
-    ],
-    "body": [
-      {
-        "type": "crud",
-        "api": "/api/v1/lowcode-apps/${appId}/pages/${pageId}/data",
-        "headerToolbar": ["filter-toggler", "bulkActions"],
-        "columns": [
-          {"name": "id", "label": "ID", "type": "text"},
-          {"name": "name", "label": "姓名", "type": "text"},
-          {"name": "email", "label": "邮箱", "type": "text"},
-          {"name": "department", "label": "部门", "type": "text"},
-          {"name": "joinDate", "label": "入职日期", "type": "date"}
-        ]
-      }
-    ]
-  }
-}
-
-### 16. 仅更新页面Schema
-PATCH {{baseUrl}}/lowcode-apps/pages/{{pageId}}/schema
-Authorization: Bearer {{accessToken}}
-X-Tenant-Id: {{tenantId}}
-Content-Type: application/json
-
-{
-  "schemaJson": {
-    "type": "page",
-    "title": "员工列表（简化）",
-    "body": [
-      {
-        "type": "crud",
-        "api": "/api/v1/lowcode-apps/${appId}/pages/${pageId}/data",
-        "columns": [
-          {"name": "name", "label": "姓名"},
-          {"name": "email", "label": "邮箱"}
-        ]
-      }
-    ]
-  }
-}
-
-### 17. 发布页面
-POST {{baseUrl}}/lowcode-apps/pages/{{pageId}}/publish
-Authorization: Bearer {{accessToken}}
-X-Tenant-Id: {{tenantId}}
-
-### 18. 删除页面
-DELETE {{baseUrl}}/lowcode-apps/pages/{{pageId}}
-Authorization: Bearer {{accessToken}}
-X-Tenant-Id: {{tenantId}}
-
-###############################################
-# 错误场景测试
-###############################################
-
-### 19. 创建应用 - AppKey重复（应该失败）
-POST {{baseUrl}}/lowcode-apps
-Authorization: Bearer {{accessToken}}
-X-Tenant-Id: {{tenantId}}
-Content-Type: application/json
-
-{
-  "appKey": "hr_system",
-  "name": "重复的AppKey",
-  "schemaJson": {}
-}
-
-### 20. 创建应用 - AppKey格式错误（应该失败）
-POST {{baseUrl}}/lowcode-apps
-Authorization: Bearer {{accessToken}}
-X-Tenant-Id: {{tenantId}}
-Content-Type: application/json
-
-{
-  "appKey": "123-invalid-key",
-  "name": "格式错误的AppKey"
-}
-
-### 21. 获取不存在的应用（应该返回404）
-GET {{baseUrl}}/lowcode-apps/99999
-Authorization: Bearer {{accessToken}}
-X-Tenant-Id: {{tenantId}}
-
-### 22. 按不存在的AppKey查询（应该返回404）
-GET {{baseUrl}}/lowcode-apps/by-key/nonexistent_app
-Authorization: Bearer {{accessToken}}
-X-Tenant-Id: {{tenantId}}
-
-###############################################
-# 完整应用创建流程测试
-###############################################
-
-### 23. 创建完整应用（CRM系统）
-# @name createCrmApp
-POST {{baseUrl}}/lowcode-apps
-Authorization: Bearer {{accessToken}}
-X-Tenant-Id: {{tenantId}}
-Content-Type: application/json
-
-{
-  "appKey": "crm_system",
-  "name": "客户关系管理系统",
-  "description": "企业CRM解决方案",
-  "category": "销售管理",
-  "icon": "customer-service",
-  "configJson": {
-    "theme": "default",
-    "primaryColor": "#1890ff"
-  }
-}
-
-@crmAppId = {{createCrmApp.response.body.$.data.id}}
-
-### 24. 为CRM创建客户列表页
-POST {{baseUrl}}/lowcode-apps/{{crmAppId}}/pages
-Authorization: Bearer {{accessToken}}
-X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$randomUUID}}
+X-CSRF-TOKEN: {{csrfToken}}
 Content-Type: application/json
 
 {
   "pageKey": "customer_list",
   "name": "客户列表",
   "pageType": "List",
+  "schemaJson": "{\"type\":\"page\",\"title\":\"客户列表\",\"body\":[{\"type\":\"crud\",\"api\":\"/api/v1/dynamic-tables/customers/records\",\"columns\":[{\"name\":\"id\",\"label\":\"ID\"},{\"name\":\"name\",\"label\":\"客户名称\"}]}]}",
   "routePath": "/customers",
-  "icon": "solution",
+  "description": "客户列表页",
+  "icon": "unordered-list",
   "sortOrder": 1,
-  "dataTableKey": "customers",
-  "schemaJson": {
-    "type": "page",
-    "title": "客户管理",
-    "body": [
-      {
-        "type": "crud",
-        "api": "/api/v1/customers",
-        "columns": [
-          {"name": "companyName", "label": "公司名称"},
-          {"name": "contactPerson", "label": "联系人"},
-          {"name": "phone", "label": "电话"},
-          {"name": "industry", "label": "行业"}
-        ]
-      }
-    ]
-  }
+  "permissionCode": "customers:view",
+  "dataTableKey": "customers"
 }
 
-### 25. 为CRM创建销售机会页
-POST {{baseUrl}}/lowcode-apps/{{crmAppId}}/pages
+###
+@pageId = {{createPage.response.body.$.data.id}}
+
+### 获取页面详情（新增接口）
+GET {{baseUrl}}/api/v1/lowcode-apps/pages/{{pageId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
+
+### 获取运行态页面 Schema（draft/published）
+GET {{baseUrl}}/api/v1/lowcode-apps/pages/{{pageId}}/runtime?mode=draft
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 获取运行态页面 Schema（指定环境变量替换）
+GET {{baseUrl}}/api/v1/lowcode-apps/pages/{{pageId}}/runtime?mode=published&environmentCode=dev
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 获取页面版本历史
+GET {{baseUrl}}/api/v1/lowcode-apps/pages/{{pageId}}/versions
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 获取页面树（新增接口）
+GET {{baseUrl}}/api/v1/lowcode-apps/{{appId}}/pages/tree
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 创建应用环境（需幂等+CSRF）
+# @name createEnvironment
+POST {{baseUrl}}/api/v1/lowcode-apps/{{appId}}/environments
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$randomUUID}}
+X-CSRF-TOKEN: {{csrfToken}}
 Content-Type: application/json
 
 {
-  "pageKey": "opportunity_list",
-  "name": "销售机会",
-  "pageType": "List",
-  "routePath": "/opportunities",
-  "icon": "dollar",
-  "sortOrder": 2,
-  "dataTableKey": "opportunities",
-  "schemaJson": {
-    "type": "page",
-    "title": "销售机会",
-    "body": [
-      {
-        "type": "crud",
-        "api": "/api/v1/opportunities",
-        "columns": [
-          {"name": "title", "label": "机会名称"},
-          {"name": "amount", "label": "金额"},
-          {"name": "stage", "label": "阶段"},
-          {"name": "probability", "label": "赢率%"}
-        ]
-      }
-    ]
-  }
+  "name": "开发环境",
+  "code": "dev",
+  "description": "开发联调环境",
+  "isDefault": true,
+  "variablesJson": "{\"API_BASE\":\"https://dev-api.example.com\",\"ASSET_BUCKET\":\"dev-bucket\"}"
 }
 
-### 26. 发布CRM应用
-POST {{baseUrl}}/lowcode-apps/{{crmAppId}}/publish
+###
+@environmentId = {{createEnvironment.response.body.$.data.id}}
+
+### 查询应用环境列表
+GET {{baseUrl}}/api/v1/lowcode-apps/{{appId}}/environments
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
-### 27. 验证发布状态
-GET {{baseUrl}}/lowcode-apps/{{crmAppId}}
+### 查询环境详情
+GET {{baseUrl}}/api/v1/lowcode-apps/environments/{{environmentId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
-###############################################
-# 完整测试流程总结
-###############################################
+### 更新应用环境（需幂等+CSRF）
+PUT {{baseUrl}}/api/v1/lowcode-apps/environments/{{environmentId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$randomUUID}}
+X-CSRF-TOKEN: {{csrfToken}}
+Content-Type: application/json
 
-# 场景1：应用创建与配置
-# 1. 创建应用 → 2. 设置基本信息 → 3. 配置主题 → 4. 添加页面 → 5. 发布
+{
+  "name": "开发环境",
+  "description": "开发联调环境（更新）",
+  "isDefault": true,
+  "isActive": true,
+  "variablesJson": "{\"API_BASE\":\"https://dev-api-v2.example.com\",\"ASSET_BUCKET\":\"dev-bucket\"}"
+}
 
-# 场景2：应用管理
-# 1. 查看列表 → 2. 搜索/筛选 → 3. 查看详情 → 4. 编辑 → 5. 禁用/启用
+### 删除应用环境（需幂等+CSRF）
+DELETE {{baseUrl}}/api/v1/lowcode-apps/environments/{{environmentId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$randomUUID}}
+X-CSRF-TOKEN: {{csrfToken}}
 
-# 场景3：页面设计
-# 1. 创建页面 → 2. 设计Schema → 3. 配置权限 → 4. 绑定数据表 → 5. 发布
+### 更新页面（需幂等+CSRF）
+PUT {{baseUrl}}/api/v1/lowcode-apps/pages/{{pageId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$randomUUID}}
+X-CSRF-TOKEN: {{csrfToken}}
+Content-Type: application/json
 
-# 应用状态流转：Draft → Published → Disabled → Archived
+{
+  "name": "客户列表（编辑态）",
+  "pageType": "List",
+  "schemaJson": "{\"type\":\"page\",\"title\":\"客户列表（编辑态）\",\"body\":[{\"type\":\"crud\",\"api\":\"/api/v1/dynamic-tables/customers/records\",\"columns\":[{\"name\":\"id\",\"label\":\"ID\"},{\"name\":\"name\",\"label\":\"客户名称\"},{\"name\":\"phone\",\"label\":\"联系电话\"}]}]}",
+  "routePath": "/customers",
+  "description": "客户列表页（增强）",
+  "icon": "unordered-list",
+  "sortOrder": 1,
+  "permissionCode": "customers:view",
+  "dataTableKey": "customers"
+}
+
+### 仅更新页面 Schema（需幂等+CSRF）
+PATCH {{baseUrl}}/api/v1/lowcode-apps/pages/{{pageId}}/schema
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$randomUUID}}
+X-CSRF-TOKEN: {{csrfToken}}
+Content-Type: application/json
+
+{
+  "schemaJson": "{\"type\":\"page\",\"title\":\"客户列表（Schema更新）\",\"body\":[{\"type\":\"crud\",\"api\":\"/api/v1/dynamic-tables/customers/records\",\"columns\":[{\"name\":\"id\",\"label\":\"ID\"},{\"name\":\"name\",\"label\":\"客户名称\"}]}]}"
+}
+
+### 发布页面（需幂等+CSRF）
+POST {{baseUrl}}/api/v1/lowcode-apps/pages/{{pageId}}/publish
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$randomUUID}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+### 回滚页面到历史版本（需幂等+CSRF）
+POST {{baseUrl}}/api/v1/lowcode-apps/pages/{{pageId}}/rollback/1001
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$randomUUID}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+### 发布应用（需幂等+CSRF）
+POST {{baseUrl}}/api/v1/lowcode-apps/{{appId}}/publish
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$randomUUID}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+### 查询应用版本历史（仅系统管理员）
+# @name queryAppVersions
+GET {{baseUrl}}/api/v1/lowcode-apps/{{appId}}/versions?pageIndex=1&pageSize=10
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+###
+@appVersionId = {{queryAppVersions.response.body.$.data.items[0].id}}
+
+### 回滚应用到指定版本（需幂等+CSRF，仅系统管理员）
+POST {{baseUrl}}/api/v1/lowcode-apps/{{appId}}/versions/{{appVersionId}}/rollback
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$randomUUID}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+### 导出应用 JSON 包
+GET {{baseUrl}}/api/v1/lowcode-apps/{{appId}}/export
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 导入应用 JSON 包（冲突策略 Rename）
+POST {{baseUrl}}/api/v1/lowcode-apps/import
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$randomUUID}}
+X-CSRF-TOKEN: {{csrfToken}}
+Content-Type: application/json
+
+{
+  "package": {
+    "appKey": "crm_demo_2026",
+    "name": "客户关系管理示例应用",
+    "description": "低代码 CRM 示例",
+    "category": "CRM",
+    "icon": "customer-service",
+    "status": "Draft",
+    "configJson": null,
+    "pages": [],
+    "pageVersions": []
+  },
+  "conflictStrategy": "Rename",
+  "keySuffix": "copy"
+}
+
+### 删除页面（需幂等+CSRF）
+DELETE {{baseUrl}}/api/v1/lowcode-apps/pages/{{pageId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$randomUUID}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+### 删除应用（需幂等+CSRF）
+DELETE {{baseUrl}}/api/v1/lowcode-apps/{{appId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$randomUUID}}
+X-CSRF-TOKEN: {{csrfToken}}

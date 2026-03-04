@@ -1,0 +1,29 @@
+@baseUrl = http://localhost:5000/api/v1
+@tenantId = 00000000-0000-0000-0000-000000000001
+
+### 登录获取令牌
+# @name login
+POST {{baseUrl}}/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "admin",
+  "password": "Admin@123"
+}
+
+@accessToken = {{login.response.body.$.data.accessToken}}
+
+### 查询插件清单
+GET {{baseUrl}}/plugins
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 重新加载插件
+POST {{baseUrl}}/plugins/reload
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 插件清单未认证访问（应返回 401）
+GET {{baseUrl}}/plugins
+X-Tenant-Id: {{tenantId}}

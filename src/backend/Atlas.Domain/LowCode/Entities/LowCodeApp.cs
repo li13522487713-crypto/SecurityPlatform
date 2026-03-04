@@ -110,6 +110,12 @@ public sealed class LowCodeApp : TenantEntity
 
     public void Publish(long publishedBy, DateTimeOffset now)
     {
+        Publish(Version, publishedBy, now);
+    }
+
+    public void Publish(int version, long publishedBy, DateTimeOffset now)
+    {
+        Version = version < 1 ? 1 : version;
         Status = LowCodeAppStatus.Published;
         PublishedAt = now;
         PublishedBy = publishedBy;
@@ -136,5 +142,23 @@ public sealed class LowCodeApp : TenantEntity
         Status = LowCodeAppStatus.Archived;
         UpdatedBy = updatedBy;
         UpdatedAt = now;
+    }
+
+    public void RestoreSnapshot(
+        string name,
+        string? description,
+        string? category,
+        string? icon,
+        string? configJson,
+        int version,
+        long updatedBy,
+        DateTimeOffset now)
+    {
+        Name = name;
+        Description = description;
+        Category = category;
+        Icon = icon;
+        ConfigJson = configJson;
+        Publish(version, updatedBy, now);
     }
 }

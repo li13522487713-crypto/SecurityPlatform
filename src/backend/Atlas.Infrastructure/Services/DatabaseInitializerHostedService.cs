@@ -12,6 +12,7 @@ using Atlas.Domain.Assets.Entities;
 using Atlas.Domain.Audit.Entities;
 using Atlas.Domain.DynamicTables.Entities;
 using Atlas.Domain.Identity.Entities;
+using Atlas.Domain.LowCode.Entities;
 using Atlas.Domain.System.Entities;
 using Atlas.Domain.Workflow.Entities;
 using Atlas.Infrastructure.Repositories;
@@ -106,6 +107,17 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             typeof(DynamicTable),
             typeof(DynamicField),
             typeof(DynamicIndex),
+            typeof(DynamicRelation),
+            typeof(FieldPermission),
+            typeof(MigrationRecord),
+            typeof(LowCodeApp),
+            typeof(LowCodePage),
+            typeof(LowCodePageVersion),
+            typeof(LowCodeEnvironment),
+            typeof(FormDefinition),
+            typeof(DashboardDefinition),
+            typeof(ReportDefinition),
+            typeof(DataSourceDefinition),
             // Workflow entities
             typeof(PersistedWorkflow),
             typeof(PersistedExecutionPointer),
@@ -119,7 +131,12 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             typeof(Notification),
             typeof(UserNotification),
             typeof(FileRecord),
-            typeof(TenantDataSource));
+            typeof(TenantDataSource),
+            // Low code module
+            typeof(LowCodeApp),
+            typeof(LowCodePage),
+            typeof(LowCodeAppVersion),
+            typeof(FormDefinition));
 
         // 创建审批模块数据库索引
         var indexInitializer = scope.ServiceProvider.GetRequiredService<ApprovalIndexInitializer>();
@@ -306,6 +323,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             (PermissionCodes.AssetsCreate, "Assets Create", "Api"),
             (PermissionCodes.AlertView, "Alert View", "Api"),
             (PermissionCodes.ApprovalFlowView, "Approval Flow View", "Api"),
+            (PermissionCodes.ApprovalFlowManage, "Approval Flow Manage", "Api"),
             (PermissionCodes.ApprovalFlowCreate, "Approval Flow Create", "Api"),
             (PermissionCodes.ApprovalFlowUpdate, "Approval Flow Update", "Api"),
             (PermissionCodes.ApprovalFlowPublish, "Approval Flow Publish", "Api"),
@@ -441,6 +459,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             ("角色管理", "/settings/auth/roles", "/system", 32, "C", "system/RolesPage", "team", PermissionCodes.RolesView, null, false, true, "0", "0", PermissionCodes.RolesView, false),
             ("菜单管理", "/settings/auth/menus", "/system", 33, "C", "system/MenusPage", "menu", PermissionCodes.MenusView, null, false, true, "0", "0", PermissionCodes.MenusView, false),
             ("项目管理", "/settings/projects", "/system", 34, "C", "system/ProjectsPage", "project", PermissionCodes.ProjectsView, null, false, true, "0", "0", PermissionCodes.ProjectsView, false),
+            ("数据源管理", "/settings/system/datasources", "/system", 35, "C", "system/TenantDataSourcesPage", "database", PermissionCodes.SystemAdmin, null, false, true, "0", "0", PermissionCodes.SystemAdmin, false),
 
             ("用户查询", "/settings/org/users:query", "/settings/org/users", 1, "F", null, null, PermissionCodes.UsersView, null, false, false, "0", "0", PermissionCodes.UsersView, true),
             ("用户新增", "/settings/org/users:create", "/settings/org/users", 2, "F", null, null, PermissionCodes.UsersCreate, null, false, false, "0", "0", PermissionCodes.UsersCreate, true),
@@ -636,7 +655,8 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             "/settings/org/users",
             "/settings/auth/roles",
             "/settings/auth/menus",
-            "/settings/projects"
+            "/settings/projects",
+            "/settings/system/datasources"
         };
         var menuIds = requiredMenuPaths
             .Select(path => menuIdMap.TryGetValue(path, out var menuId) ? menuId : 0)

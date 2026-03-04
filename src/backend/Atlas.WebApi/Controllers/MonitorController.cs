@@ -16,10 +16,14 @@ namespace Atlas.WebApi.Controllers;
 public sealed class MonitorController : ControllerBase
 {
     private readonly IServerInfoQueryService _serverInfoQueryService;
+    private readonly IComplianceEvidencePackageService _complianceEvidencePackageService;
 
-    public MonitorController(IServerInfoQueryService serverInfoQueryService)
+    public MonitorController(
+        IServerInfoQueryService serverInfoQueryService,
+        IComplianceEvidencePackageService complianceEvidencePackageService)
     {
         _serverInfoQueryService = serverInfoQueryService;
+        _complianceEvidencePackageService = complianceEvidencePackageService;
     }
 
     /// <summary>获取服务器当前状态快照</summary>
@@ -30,5 +34,14 @@ public sealed class MonitorController : ControllerBase
     {
         var info = await _serverInfoQueryService.GetServerInfoAsync(cancellationToken);
         return Ok(ApiResponse<ServerInfoDto>.Ok(info, HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>导出等保证据包（zip）</summary>
+    [HttpGet("compliance/evidence-package")]
+    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    public async Task<IActionResult> ExportComplianceEvidencePackage(CancellationToken cancellationToken = default)
+    {
+        var package = await _complianceEvidencePackageService.BuildPackageAsync(cancellationToken);
+        return File(package.Content, package.ContentType, package.FileName);
     }
 }

@@ -294,6 +294,24 @@ public sealed class UserCommandService : IUserCommandService
         }, cancellationToken);
     }
 
+    public async Task UpdateProfileAsync(
+        TenantId tenantId,
+        long userId,
+        string displayName,
+        string? email,
+        string? phoneNumber,
+        CancellationToken cancellationToken)
+    {
+        var user = await _userRepository.FindByIdAsync(tenantId, userId, cancellationToken);
+        if (user is null)
+        {
+            throw new BusinessException("User not found.", ErrorCodes.NotFound);
+        }
+
+        user.UpdateProfile(displayName, email, phoneNumber);
+        await _userRepository.UpdateAsync(user, cancellationToken);
+    }
+
     public async Task DeleteAsync(
         TenantId tenantId,
         long userId,

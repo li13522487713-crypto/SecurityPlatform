@@ -68,6 +68,7 @@ public sealed class ApprovalFlowsController : ControllerBase
     /// 获取流程定义详情
     /// </summary>
     [HttpGet("{id}")]
+    [Authorize(Policy = PermissionPolicies.ApprovalFlowView)]
     public async Task<ApiResponse<ApprovalFlowDefinitionResponse>> GetByIdAsync(
         long id,
         CancellationToken cancellationToken = default)
@@ -89,6 +90,7 @@ public sealed class ApprovalFlowsController : ControllerBase
     /// 校验流程定义（不落库）
     /// </summary>
     [HttpPost("validation")]
+    [Authorize(Policy = PermissionPolicies.ApprovalFlowView)]
     public async Task<ApiResponse<ApprovalFlowValidationResult>> ValidateAsync(
         [FromBody] ApprovalFlowDefinitionCreateRequest request,
         CancellationToken cancellationToken = default)

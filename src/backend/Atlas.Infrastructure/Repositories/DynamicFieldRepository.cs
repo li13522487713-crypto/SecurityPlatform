@@ -27,6 +27,22 @@ public sealed class DynamicFieldRepository : IDynamicFieldRepository
         return list;
     }
 
+    public async Task<IReadOnlyList<DynamicField>> ListByTableIdsAsync(
+        TenantId tenantId,
+        IReadOnlyList<long> tableIds,
+        CancellationToken cancellationToken)
+    {
+        if (tableIds.Count == 0)
+        {
+            return Array.Empty<DynamicField>();
+        }
+
+        var ids = tableIds.Distinct().ToArray();
+        return await _db.Queryable<DynamicField>()
+            .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(ids, x.TableId))
+            .ToListAsync(cancellationToken);
+    }
+
     public Task AddRangeAsync(IReadOnlyList<DynamicField> fields, CancellationToken cancellationToken)
     {
         if (fields.Count == 0)
@@ -37,14 +53,27 @@ public sealed class DynamicFieldRepository : IDynamicFieldRepository
         return _db.Insertable(fields.ToList()).ExecuteCommandAsync(cancellationToken);
     }
 
-    public Task UpdateRangeAsync(IReadOnlyList<DynamicField> fields, CancellationToken cancellationToken)
+    public async Task UpdateRangeAsync(IReadOnlyList<DynamicField> fields, CancellationToken cancellationToken)
     {
         if (fields.Count == 0)
         {
-            return Task.CompletedTask;
+            return;
         }
 
-        return _db.Updateable(fields.ToList()).ExecuteCommandAsync(cancellationToken);
+        var result = await _db.Ado.UseTranAsync(async () =>
+        {
+            foreach (var field in fields)
+            {
+                await _db.Updateable(field)
+                    .Where(x => x.Id == field.Id && x.TenantIdValue == field.TenantIdValue)
+                    .ExecuteCommandAsync(cancellationToken);
+            }
+        });
+
+        if (!result.IsSuccess)
+        {
+            throw result.ErrorException ?? new InvalidOperationException("批量更新动态字段失败。");
+        }
     }
 
     public Task DeleteByTableIdAsync(TenantId tenantId, long tableId, CancellationToken cancellationToken)

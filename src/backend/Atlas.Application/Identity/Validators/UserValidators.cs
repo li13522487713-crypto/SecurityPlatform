@@ -11,7 +11,11 @@ public sealed class UserCreateRequestValidator : AbstractValidator<UserCreateReq
     {
         var policy = policyOptions.Value;
 
-        RuleFor(x => x.Username).NotEmpty().MaximumLength(64);
+        RuleFor(x => x.Username)
+            .NotEmpty()
+            .MaximumLength(64)
+            .Matches(@"^\S+$").WithMessage("用户名不能包含空白字符。")
+            .Must(username => !long.TryParse(username, out _)).WithMessage("用户名不能为纯数字。");
         RuleFor(x => x.DisplayName).NotEmpty().MaximumLength(64);
         RuleFor(x => x.Email).MaximumLength(256).When(x => x.Email is not null);
         RuleFor(x => x.PhoneNumber).MaximumLength(32).When(x => x.PhoneNumber is not null);

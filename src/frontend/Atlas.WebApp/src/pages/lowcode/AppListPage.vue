@@ -2,17 +2,18 @@
   <div class="app-list-page">
     <div class="page-header">
       <div class="page-header-left">
-        <h2>应用管理</h2>
+        <h2>{{ t("lowcodeApp.listTitle") }}</h2>
         <a-input-search
           v-model:value="keyword"
-          placeholder="搜索应用名称或标识"
+          :placeholder="t('lowcodeApp.searchPlaceholder')"
           allow-clear
           style="width: 260px"
           @search="handleSearch"
         />
       </div>
       <div class="page-header-right">
-        <a-button type="primary" @click="handleCreate">新建应用</a-button>
+        <a-button v-if="canManageApps" @click="handleImportClick">导入应用</a-button>
+        <a-button v-if="canManageApps" type="primary" @click="handleCreate">新建应用</a-button>
       </div>
     </div>
 
@@ -30,20 +31,21 @@
         <div class="app-card-content">
           <div class="app-card-name">{{ app.name }}</div>
           <div class="app-card-key">{{ app.appKey }}</div>
-          <div class="app-card-desc">{{ app.description || "暂无描述" }}</div>
+          <div class="app-card-desc">{{ app.description || t("lowcodeApp.noDescription") }}</div>
         </div>
         <div class="app-card-footer">
           <a-tag :color="statusColor(app.status)">
             {{ statusLabel(app.status) }}
           </a-tag>
-          <span class="app-card-version">v{{ app.version }}</span>
+          <span class="app-card-version">{{ t("lowcodeApp.versionPrefix", { version: app.version }) }}</span>
         </div>
         <div class="app-card-actions" @click.stop>
-          <a-dropdown trigger="click">
+          <a-dropdown v-if="canManageApps" trigger="click">
             <a-button type="text" size="small">...</a-button>
             <template #overlay>
               <a-menu>
                 <a-menu-item key="edit" @click="handleEdit(app)">编辑</a-menu-item>
+                <a-menu-item key="export" @click="handleExport(app)">导出</a-menu-item>
                 <a-menu-item v-if="app.status === 'Draft'" key="publish" @click="handlePublish(app.id)">发布</a-menu-item>
                 <a-menu-item key="delete" danger @click="handleDelete(app.id)">删除</a-menu-item>
               </a-menu>
@@ -53,51 +55,59 @@
       </div>
 
       <!-- 新建应用占位卡片 -->
-      <div class="app-card app-card-new" @click="handleCreate">
+      <div v-if="canManageApps" class="app-card app-card-new" @click="handleCreate">
         <div class="app-card-new-icon">+</div>
-        <div class="app-card-new-text">新建应用</div>
+        <div class="app-card-new-text">{{ t("lowcodeApp.newCardText") }}</div>
       </div>
     </div>
 
     <div v-else class="loading-container">
-      <a-spin size="large" tip="加载应用列表..." />
+      <a-spin size="large" :tip="t('lowcodeApp.loadingTip')" />
     </div>
 
     <!-- 新建/编辑应用对话框 -->
     <a-modal
       v-model:open="formVisible"
-      :title="formMode === 'create' ? '新建应用' : '编辑应用'"
-      ok-text="确定"
-      cancel-text="取消"
+      :title="formMode === 'create' ? t('lowcodeApp.createModalTitle') : t('lowcodeApp.editModalTitle')"
+      :ok-text="t('common.confirm')"
+      :cancel-text="t('common.cancel')"
       @ok="handleFormSubmit"
     >
       <a-form layout="vertical">
-        <a-form-item v-if="formMode === 'create'" label="应用标识" required>
+        <a-form-item v-if="formMode === 'create'" :label="t('lowcodeApp.appKeyLabel')" required>
           <a-input
             v-model:value="formModel.appKey"
-            placeholder="如 crm, oa, erp（字母开头，只能包含字母数字下划线连字符）"
+            :placeholder="t('lowcodeApp.appKeyPlaceholder')"
           />
         </a-form-item>
-        <a-form-item label="应用名称" required>
-          <a-input v-model:value="formModel.name" placeholder="请输入应用名称" />
+        <a-form-item :label="t('lowcodeApp.appNameLabel')" required>
+          <a-input v-model:value="formModel.name" :placeholder="t('lowcodeApp.appNamePlaceholder')" />
         </a-form-item>
-        <a-form-item label="分类">
-          <a-select v-model:value="formModel.category" placeholder="选择分类" allow-clear>
-            <a-select-option value="OA">OA 办公</a-select-option>
-            <a-select-option value="CRM">客户管理</a-select-option>
-            <a-select-option value="ERP">资源管理</a-select-option>
-            <a-select-option value="HR">人事管理</a-select-option>
-            <a-select-option value="通用">通用</a-select-option>
+        <a-form-item :label="t('lowcodeApp.categoryLabel')">
+          <a-select v-model:value="formModel.category" :placeholder="t('lowcodeApp.categoryPlaceholder')" allow-clear>
+            <a-select-option value="OA">{{ t("lowcodeApp.categoryOA") }}</a-select-option>
+            <a-select-option value="CRM">{{ t("lowcodeApp.categoryCRM") }}</a-select-option>
+            <a-select-option value="ERP">{{ t("lowcodeApp.categoryERP") }}</a-select-option>
+            <a-select-option value="HR">{{ t("lowcodeApp.categoryHR") }}</a-select-option>
+            <a-select-option value="通用">{{ t("lowcodeApp.categoryGeneral") }}</a-select-option>
           </a-select>
         </a-form-item>
-        <a-form-item label="描述">
-          <a-textarea v-model:value="formModel.description" :rows="3" placeholder="请输入描述" />
+        <a-form-item :label="t('lowcodeApp.descriptionLabel')">
+          <a-textarea v-model:value="formModel.description" :rows="3" :placeholder="t('lowcodeApp.descriptionPlaceholder')" />
         </a-form-item>
-        <a-form-item label="图标">
-          <a-input v-model:value="formModel.icon" placeholder="输入 emoji 或图标名称" />
+        <a-form-item :label="t('lowcodeApp.iconLabel')">
+          <a-input v-model:value="formModel.icon" :placeholder="t('lowcodeApp.iconPlaceholder')" />
         </a-form-item>
       </a-form>
     </a-modal>
+
+    <input
+      ref="importInputRef"
+      type="file"
+      accept="application/json,.json"
+      style="display: none"
+      @change="handleImportFileChange"
+    />
   </div>
 </template>
 
@@ -105,20 +115,29 @@
 import { onMounted, reactive, ref } from "vue";
 import { useRouter } from "vue-router";
 import { message } from "ant-design-vue";
+import { useI18n } from "vue-i18n";
 import type { LowCodeAppListItem } from "@/types/lowcode";
+import { getAuthProfile, hasPermission } from "@/utils/auth";
 import {
   getLowCodeAppsPaged,
   createLowCodeApp,
   updateLowCodeApp,
+  exportLowCodeApp,
+  importLowCodeApp,
+  parseLowCodeAppExportPackage,
   publishLowCodeApp,
   deleteLowCodeApp
 } from "@/services/lowcode";
 
 const router = useRouter();
+const { t } = useI18n();
+const canManageApps = hasPermission(getAuthProfile(), "apps:update");
 
 const keyword = ref("");
 const loading = ref(false);
 const dataSource = ref<LowCodeAppListItem[]>([]);
+const importing = ref(false);
+const importInputRef = ref<HTMLInputElement | null>(null);
 
 const formVisible = ref(false);
 const formMode = ref<"create" | "edit">("create");
@@ -143,10 +162,10 @@ const statusColor = (status: string) => {
 
 const statusLabel = (status: string) => {
   const map: Record<string, string> = {
-    Draft: "草稿",
-    Published: "已发布",
-    Disabled: "已停用",
-    Archived: "已归档"
+    Draft: t("lowcodeApp.statusDraft"),
+    Published: t("lowcodeApp.statusPublished"),
+    Disabled: t("lowcodeApp.statusDisabled"),
+    Archived: t("lowcodeApp.statusArchived")
   };
   return map[status] ?? status;
 };
@@ -161,7 +180,7 @@ const fetchData = async () => {
     });
     dataSource.value = result.items;
   } catch (error) {
-    message.error((error as Error).message || "查询失败");
+    message.error((error as Error).message || t("lowcodeApp.queryFailed"));
   } finally {
     loading.value = false;
   }
@@ -195,14 +214,14 @@ const handleEdit = (app: LowCodeAppListItem) => {
 
 const handleFormSubmit = async () => {
   if (!formModel.name.trim()) {
-    message.warning("请输入应用名称");
+    message.warning(t("lowcodeApp.warnNameRequired"));
     return;
   }
 
   try {
     if (formMode.value === "create") {
       if (!formModel.appKey.trim()) {
-        message.warning("请输入应用标识");
+        message.warning(t("lowcodeApp.warnKeyRequired"));
         return;
       }
       await createLowCodeApp({
@@ -212,7 +231,7 @@ const handleFormSubmit = async () => {
         category: formModel.category,
         icon: formModel.icon || undefined
       });
-      message.success("创建成功");
+      message.success(t("lowcodeApp.createSuccess"));
     } else if (selectedId.value) {
       await updateLowCodeApp(selectedId.value, {
         name: formModel.name,
@@ -220,36 +239,92 @@ const handleFormSubmit = async () => {
         category: formModel.category,
         icon: formModel.icon || undefined
       });
-      message.success("更新成功");
+      message.success(t("lowcodeApp.updateSuccess"));
     }
     formVisible.value = false;
     fetchData();
   } catch (error) {
-    message.error((error as Error).message || "操作失败");
+    message.error((error as Error).message || t("lowcodeApp.operationFailed"));
   }
 };
 
 const handleOpenApp = (id: string) => {
-  router.push({ name: "app-builder", params: { id } });
+  if (!canManageApps) {
+    message.warning("当前账号无应用编辑权限");
+    return;
+  }
+  router.push(`/lowcode/apps/${id}/builder`);
 };
 
 const handlePublish = async (id: string) => {
   try {
     await publishLowCodeApp(id);
-    message.success("发布成功");
+    message.success(t("lowcodeApp.publishSuccess"));
     fetchData();
   } catch (error) {
-    message.error((error as Error).message || "发布失败");
+    message.error((error as Error).message || t("lowcodeApp.publishFailed"));
   }
 };
 
 const handleDelete = async (id: string) => {
   try {
     await deleteLowCodeApp(id);
-    message.success("已删除");
+    message.success(t("lowcodeApp.deleteSuccess"));
     fetchData();
   } catch (error) {
-    message.error((error as Error).message || "删除失败");
+    message.error((error as Error).message || t("lowcodeApp.deleteFailed"));
+  }
+};
+
+const handleExport = async (app: LowCodeAppListItem) => {
+  try {
+    const blob = await exportLowCodeApp(app.id);
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${app.appKey}-export.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    message.success("导出成功");
+  } catch (error) {
+    message.error((error as Error).message || "导出失败");
+  }
+};
+
+const handleImportClick = () => {
+  if (importing.value) {
+    return;
+  }
+
+  importInputRef.value?.click();
+};
+
+const handleImportFileChange = async (event: Event) => {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) {
+    return;
+  }
+
+  importing.value = true;
+  try {
+    const rawText = await file.text();
+    const pkg = parseLowCodeAppExportPackage(rawText);
+    const result = await importLowCodeApp({
+      package: pkg,
+      conflictStrategy: "Rename"
+    });
+    if (result.skipped) {
+      message.info("目标应用已存在，已按策略跳过导入");
+    } else {
+      message.success(`导入成功：${result.appKey}`);
+    }
+    await fetchData();
+  } catch (error) {
+    message.error((error as Error).message || "导入失败");
+  } finally {
+    importing.value = false;
+    input.value = "";
   }
 };
 

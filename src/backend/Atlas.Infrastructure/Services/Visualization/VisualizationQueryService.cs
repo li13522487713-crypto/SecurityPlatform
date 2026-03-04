@@ -473,7 +473,7 @@ public sealed class VisualizationQueryService : IVisualizationQueryService
     public async Task<PagedResult<AuditListItem>> GetAuditAsync(PagedRequest request, CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
-        return await _auditQueryService.QueryAuditsAsync(request, tenantId, cancellationToken);
+        return await _auditQueryService.QueryAuditsAsync(request, tenantId, null, null, cancellationToken);
     }
 
     private static bool TryParseFlowDefinition(string json, out FlowDefinition definition, out string? error)

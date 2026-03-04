@@ -1,0 +1,32 @@
+@baseUrl = http://localhost:5000
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+
+### 登录
+# @name login
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+###
+@accessToken = {{login.response.body.$.data.accessToken}}
+
+### 查询登录日志
+GET {{baseUrl}}/api/v1/login-logs?pageIndex=1&pageSize=20&username=admin
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 导出登录日志
+GET {{baseUrl}}/api/v1/login-logs/export?username=admin&loginStatus=true
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 缺少令牌（预期 401）
+GET {{baseUrl}}/api/v1/login-logs?pageIndex=1&pageSize=20
+X-Tenant-Id: {{tenantId}}

@@ -6,6 +6,11 @@ namespace Atlas.Application.Identity.Abstractions;
 public interface IRbacResolver
 {
     Task<IReadOnlyList<string>> GetRoleCodesAsync(
+        TenantId tenantId,
+        long userId,
+        CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<string>> GetRoleCodesAsync(
         UserAccount account,
         TenantId tenantId,
         CancellationToken cancellationToken);

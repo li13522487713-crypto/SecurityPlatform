@@ -64,6 +64,7 @@ public static class PermissionPolicies
     public const string AlertView = "Permission:alert:view";
 
     public const string ApprovalFlowView = "Permission:approval:flow:view";
+    public const string ApprovalFlowManage = "Permission:approval:flow:manage";
     public const string ApprovalFlowCreate = "Permission:approval:flow:create";
     public const string ApprovalFlowUpdate = "Permission:approval:flow:update";
     public const string ApprovalFlowPublish = "Permission:approval:flow:publish";

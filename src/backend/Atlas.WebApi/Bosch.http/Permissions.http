@@ -17,8 +17,22 @@ X-Tenant-Id: {{tenantId}}
 ###
 @accessToken = {{login.response.body.$.data.accessToken}}
 
+### Get Anti-Forgery Token
+# @name antiforgery
+GET {{baseUrl}}/api/v1/secure/antiforgery
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+###
+@csrfToken = {{antiforgery.response.body.$.data.token}}
+
 ### Get Permissions (Paged)
 GET {{baseUrl}}/api/v1/permissions?pageIndex=1&pageSize=10&type=Api
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### Get Permissions by extended type (Page)
+GET {{baseUrl}}/api/v1/permissions?pageIndex=1&pageSize=10&type=Page
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
@@ -28,26 +42,34 @@ Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ### Create Permission
+# @name createPermission
 POST {{baseUrl}}/api/v1/permissions
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
 
 {
-  "name": "System Admin",
-  "code": "system:admin",
-  "type": "Api",
-  "description": "All access"
+  "name": "客户列表页面访问",
+  "code": "crm:customer-list:page",
+  "type": "Page",
+  "description": "CRM 客户列表页面访问权限"
 }
 
+###
+@permissionId = {{createPermission.response.body.$.data.id}}
+
 ### Update Permission
-PUT {{baseUrl}}/api/v1/permissions/1
+PUT {{baseUrl}}/api/v1/permissions/{{permissionId}}
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
 
 {
-  "name": "System Admin",
-  "type": "Api",
-  "description": "All access"
+  "name": "客户列表页面访问（更新）",
+  "type": "Page",
+  "description": "CRM 客户列表页面访问权限（更新）"
 }

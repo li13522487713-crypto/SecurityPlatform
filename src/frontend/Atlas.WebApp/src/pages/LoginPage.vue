@@ -187,6 +187,15 @@ interface TenantHistoryItem {
   label: string;
 }
 
+interface LoginApiError extends Error {
+  status?: number;
+  payload?: {
+    code?: string;
+    message?: string;
+    traceId?: string;
+  } | null;
+}
+
 const TENANT_HISTORY_KEY = "atlas-login-tenant-history";
 const DEFAULT_TENANT_ID = "00000000-0000-0000-0000-000000000001";
 const CAPTCHA_THRESHOLD = 3;
@@ -301,12 +310,31 @@ const refreshCaptcha = async () => {
 };
 
 const normalizeError = (error: unknown) => {
+  const loginError = error as LoginApiError;
+  const code = loginError?.payload?.code ?? "";
+  const traceId = loginError?.payload?.traceId;
   const raw = error instanceof Error ? error.message : "登录失败";
-  if (raw.includes("账号或密码")) {
+
+  if (code === "INVALID_CREDENTIALS" || raw.includes("账号或密码")) {
     return "账号或密码错误，请重试";
+  }
+  if (code === "ACCOUNT_LOCKED") {
+    return "账号已被锁定，请联系管理员或稍后再试";
+  }
+  if (code === "PASSWORD_EXPIRED") {
+    return "密码已过期，请联系管理员重置密码后登录";
+  }
+  if (code === "TENANT_NOT_FOUND") {
+    return "租户不存在，请检查租户ID是否正确";
+  }
+  if (code === "VALIDATION_ERROR") {
+    return raw || "参数校验失败，请检查输入后重试";
   }
   if (raw.toLowerCase().includes("网络")) {
     return "网络异常，请稍后再试";
+  }
+  if (traceId) {
+    return `${raw}（traceId: ${traceId}）`;
   }
   return raw;
 };

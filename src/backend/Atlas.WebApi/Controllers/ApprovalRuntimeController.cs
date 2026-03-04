@@ -12,6 +12,7 @@ using FluentValidation;
 using Atlas.WebApi.Authorization;
 using Microsoft.Extensions.DependencyInjection;
 using Atlas.WebApi.Helpers;
+using System.Text;
 
 namespace Atlas.WebApi.Controllers;
 
@@ -173,6 +174,49 @@ public sealed class ApprovalRuntimeController : ControllerBase
         var request = new PagedRequest(pageIndex, pageSize, null, null, false);
         var result = await _queryService.GetHistoryAsync(tenantId, id, request, cancellationToken);
         return ApiResponse<PagedResult<ApprovalHistoryEventResponse>>.Ok(result, HttpContext.TraceIdentifier);
+    }
+
+    /// <summary>
+    /// 导出流程实例历史事件（CSV）
+    /// </summary>
+    [HttpGet("{id:long}/history/export")]
+    [Authorize(Policy = PermissionPolicies.ApprovalFlowView)]
+    public async Task<IActionResult> ExportHistoryAsync(
+        long id,
+        CancellationToken cancellationToken = default)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var request = new PagedRequest(1, 5000, null, null, false);
+        var result = await _queryService.GetHistoryAsync(tenantId, id, request, cancellationToken);
+
+        var csv = new StringBuilder();
+        csv.AppendLine("Id,EventType,FromNode,ToNode,ActorUserId,OccurredAt");
+        foreach (var item in result.Items)
+        {
+            csv.Append(item.Id).Append(',')
+                .Append(EscapeCsv(item.EventType)).Append(',')
+                .Append(EscapeCsv(item.FromNode)).Append(',')
+                .Append(EscapeCsv(item.ToNode)).Append(',')
+                .Append(item.ActorUserId?.ToString() ?? string.Empty).Append(',')
+                .Append(item.OccurredAt.ToString("O"))
+                .AppendLine();
+        }
+
+        var currentUser = _currentUserAccessor.GetCurrentUserOrThrow();
+        var auditContext = new AuditContext(
+            currentUser.TenantId,
+            currentUser.UserId.ToString(),
+            "审批流程-导出历史",
+            "成功",
+            $"流程实例ID: {id}",
+            ControllerHelper.GetIpAddress(HttpContext),
+            ControllerHelper.GetUserAgent(HttpContext),
+            _clientContextAccessor.GetCurrent());
+        await _auditRecorder.RecordAsync(auditContext, cancellationToken);
+
+        var bytes = Encoding.UTF8.GetBytes(csv.ToString());
+        var fileName = $"approval-history-{id}-{DateTimeOffset.UtcNow:yyyyMMddHHmmss}.csv";
+        return File(bytes, "text/csv; charset=utf-8", fileName);
     }
 
     /// <summary>
@@ -515,5 +559,16 @@ public sealed class ApprovalRuntimeController : ControllerBase
             instanceId,
             currentUser.UserId,
             cancellationToken);
+    }
+
+    private static string EscapeCsv(string? value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return string.Empty;
+        }
+
+        var escaped = value.Replace("\"", "\"\"");
+        return $"\"{escaped}\"";
     }
 }

@@ -39,6 +39,7 @@ export interface RequestOptions {
 
 let refreshPromise: Promise<boolean> | null = null;
 let antiforgeryPromise: Promise<string | null> | null = null;
+let missingProjectWarningAt = 0;
 
 const ErrorCodes = {
   AccountLocked: "ACCOUNT_LOCKED",
@@ -62,6 +63,14 @@ interface ApiRequestError extends Error {
   status?: number;
   payload?: ApiErrorPayload | null;
   raw?: string;
+}
+
+export interface ClientErrorReportPayload {
+  message: string;
+  stack?: string;
+  url?: string;
+  component?: string;
+  level?: string;
 }
 
 // ─── Query Builder ───────────────────────────────────────
@@ -118,15 +127,12 @@ export async function requestApi<T>(path: string, init?: RequestInit, options?: 
     headers.set("X-Project-Id", projectId);
   }
 
-  if (
-    projectScopeEnabled &&
-    !projectId &&
-    !path.startsWith("/apps") &&
-    !path.startsWith("/projects") &&
-    !path.startsWith("/auth") &&
-    !path.startsWith("/secure")
-  ) {
-    message.warning("请先选择项目");
+  if (projectScopeEnabled && !projectId && shouldRequireProjectContext(path)) {
+    const now = Date.now();
+    if (now - missingProjectWarningAt > 1500) {
+      message.warning("请先选择项目");
+      missingProjectWarningAt = now;
+    }
     throw new Error("缺少项目上下文");
   }
 
@@ -200,10 +206,41 @@ export async function requestApi<T>(path: string, init?: RequestInit, options?: 
   return (await response.json()) as T;
 }
 
+let reportingClientError = false;
+
+export async function reportClientErrorSilently(payload: ClientErrorReportPayload): Promise<void> {
+  if (reportingClientError) {
+    return;
+  }
+  if (!payload.message) {
+    return;
+  }
+
+  reportingClientError = true;
+  try {
+    await requestApi<ApiResponse<{ success: boolean }>>("/audit/client-errors", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    }, {
+      suppressErrorMessage: true
+    });
+  } catch {
+    // 静默失败，避免影响主流程
+  } finally {
+    reportingClientError = false;
+  }
+}
+
 // ─── Internal Helpers ────────────────────────────────────
 
 function isUnsafeMethod(method: string) {
   return !["GET", "HEAD", "OPTIONS", "TRACE"].includes(method);
+}
+
+function shouldRequireProjectContext(path: string): boolean {
+  const exemptPrefixes = ["/apps", "/projects", "/auth", "/secure"];
+  return !exemptPrefixes.some((prefix) => path.startsWith(prefix));
 }
 
 function generateIdempotencyKey(): string {

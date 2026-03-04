@@ -43,3 +43,70 @@ public sealed record LowCodeAppUpdateRequest(
     string? Description,
     string? Category,
     string? Icon);
+
+public sealed record LowCodeAppVersionListItem(
+    string Id,
+    string AppId,
+    int Version,
+    string ActionType,
+    string? SourceVersionId,
+    string? Note,
+    DateTimeOffset CreatedAt,
+    long CreatedBy);
+
+public sealed record LowCodeAppExportPackage(
+    string AppKey,
+    string Name,
+    string? Description,
+    string? Category,
+    string? Icon,
+    string Status,
+    string? ConfigJson,
+    IReadOnlyList<LowCodeAppExportPagePackage> Pages,
+    IReadOnlyList<LowCodeAppExportPageVersionPackage> PageVersions);
+
+public sealed record LowCodeAppExportPagePackage(
+    string Id,
+    string PageKey,
+    string Name,
+    string PageType,
+    string SchemaJson,
+    string? RoutePath,
+    string? Description,
+    string? Icon,
+    int SortOrder,
+    string? ParentPageId,
+    string? PermissionCode,
+    string? DataTableKey,
+    bool IsPublished);
+
+public sealed record LowCodeAppExportPageVersionPackage(
+    string Id,
+    string PageId,
+    int SnapshotVersion,
+    string PageKey,
+    string Name,
+    string PageType,
+    string SchemaJson,
+    string? RoutePath,
+    string? Description,
+    string? Icon,
+    int SortOrder,
+    string? ParentPageId,
+    string? PermissionCode,
+    string? DataTableKey,
+    DateTimeOffset CreatedAt,
+    long CreatedBy);
+
+public sealed record LowCodeAppImportRequest(
+    LowCodeAppExportPackage Package,
+    string ConflictStrategy,
+    string? KeySuffix);
+
+public sealed record LowCodeAppImportResult(
+    string AppId,
+    string AppKey,
+    bool Skipped,
+    bool Overwritten,
+    int ImportedPageCount,
+    int ImportedVersionCount);

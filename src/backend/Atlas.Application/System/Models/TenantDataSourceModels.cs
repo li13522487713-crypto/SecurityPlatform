@@ -23,3 +23,5 @@ public sealed record TenantDataSourceUpdateRequest(
 public sealed record TestConnectionRequest(string ConnectionString, string DbType = "SQLite");
 
 public sealed record TestConnectionResult(bool Success, string? ErrorMessage = null);
+
+public sealed record TenantDbConnectionInfo(string ConnectionString, string DbType);

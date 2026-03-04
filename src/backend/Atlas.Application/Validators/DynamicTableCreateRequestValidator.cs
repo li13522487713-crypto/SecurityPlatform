@@ -17,7 +17,8 @@ public sealed class DynamicTableCreateRequestValidator : AbstractValidator<Dynam
     };
     private static readonly HashSet<string> ReservedNames = new(StringComparer.OrdinalIgnoreCase)
     {
-        "select", "from", "where", "table", "index", "create", "drop", "delete", "update", "insert", "alter"
+        "select", "from", "where", "table", "index", "create", "drop", "delete", "update", "insert", "alter",
+        "TenantIdValue"
     };
 
     public DynamicTableCreateRequestValidator()

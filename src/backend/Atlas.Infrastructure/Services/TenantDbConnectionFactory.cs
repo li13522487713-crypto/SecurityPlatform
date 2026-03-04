@@ -1,10 +1,13 @@
 using Atlas.Application.System.Abstractions;
+using Atlas.Application.System.Models;
+using Atlas.Infrastructure.Observability;
 using Atlas.Infrastructure.Options;
 using Atlas.Infrastructure.Repositories;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using System.Security.Cryptography;
 using System.Text;
+using System.Diagnostics;
 
 namespace Atlas.Infrastructure.Services;
 
@@ -32,25 +35,49 @@ public sealed class TenantDbConnectionFactory : ITenantDbConnectionFactory
 
     public async Task<string?> GetConnectionStringAsync(string tenantId, CancellationToken ct = default)
     {
+        var info = await GetConnectionInfoAsync(tenantId, ct);
+        return info?.ConnectionString;
+    }
+
+    public async Task<TenantDbConnectionInfo?> GetConnectionInfoAsync(string tenantId, CancellationToken ct = default)
+    {
         var cacheKey = CacheKeyPrefix + tenantId;
-        if (_cache.TryGetValue(cacheKey, out string? cached))
+        if (_cache.TryGetValue(cacheKey, out TenantDbConnectionInfo? cached))
         {
+            AtlasMetrics.RecordTenantDatasourceResolve(0, "success", "cache");
             return cached;
         }
 
-        var source = await _repository.FindByTenantIdAsync(tenantId, ct);
-        if (source is null)
+        var stopwatch = Stopwatch.StartNew();
+        var status = "success";
+        var sourceTag = "database";
+        try
         {
-            _cache.Set(cacheKey, (string?)null, CacheDuration);
-            return null;
+            var source = await _repository.FindByTenantIdAsync(tenantId, ct);
+            if (source is null)
+            {
+                sourceTag = "not_found";
+                _cache.Set(cacheKey, (TenantDbConnectionInfo?)null, CacheDuration);
+                return null;
+            }
+
+            var connectionString = _encryptionOptions.Enabled
+                ? Decrypt(source.EncryptedConnectionString, _encryptionOptions.Key)
+                : source.EncryptedConnectionString;
+
+            var info = new TenantDbConnectionInfo(connectionString, source.DbType);
+            _cache.Set(cacheKey, info, CacheDuration);
+            return info;
         }
-
-        var connectionString = _encryptionOptions.Enabled
-            ? Decrypt(source.EncryptedConnectionString, _encryptionOptions.Key)
-            : source.EncryptedConnectionString;
-
-        _cache.Set(cacheKey, connectionString, CacheDuration);
-        return connectionString;
+        catch
+        {
+            status = "failed";
+            throw;
+        }
+        finally
+        {
+            AtlasMetrics.RecordTenantDatasourceResolve(stopwatch.Elapsed.TotalMilliseconds, status, sourceTag);
+        }
     }
 
     public void InvalidateCache(string tenantId)

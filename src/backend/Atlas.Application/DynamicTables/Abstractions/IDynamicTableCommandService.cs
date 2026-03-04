@@ -25,10 +25,30 @@ public interface IDynamicTableCommandService
         DynamicTableAlterRequest request,
         CancellationToken cancellationToken);
 
+    Task<DynamicTableAlterPreviewResponse> PreviewAlterAsync(
+        TenantId tenantId,
+        string tableKey,
+        DynamicTableAlterRequest request,
+        CancellationToken cancellationToken);
+
     Task DeleteAsync(
         TenantId tenantId,
         long userId,
         string tableKey,
+        CancellationToken cancellationToken);
+
+    Task SetRelationsAsync(
+        TenantId tenantId,
+        long userId,
+        string tableKey,
+        DynamicRelationUpsertRequest request,
+        CancellationToken cancellationToken);
+
+    Task SetFieldPermissionsAsync(
+        TenantId tenantId,
+        long userId,
+        string tableKey,
+        DynamicFieldPermissionUpsertRequest request,
         CancellationToken cancellationToken);
 
     /// <summary>

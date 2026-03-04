@@ -1,0 +1,96 @@
+@baseUrl = http://localhost:5000
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+@sourceId = 1
+
+### 登录获取令牌
+# @name login
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+###
+@accessToken = {{login.response.body.$.data.accessToken}}
+@csrfToken =
+
+### 获取 CSRF Token
+# @name antiforgery
+GET {{baseUrl}}/api/v1/secure/antiforgery
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+###
+@csrfToken = {{antiforgery.response.body.$.data.token}}
+
+### 查询租户数据源
+GET {{baseUrl}}/api/v1/tenant-datasources
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 创建 SQLite 数据源
+POST {{baseUrl}}/api/v1/tenant-datasources
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "tenantIdValue": "{{tenantId}}",
+  "name": "SQLite-DS",
+  "connectionString": "Data Source=tenant_a.db",
+  "dbType": "SQLite"
+}
+
+### 测试 PostgreSQL 数据源连通性（示例）
+POST {{baseUrl}}/api/v1/tenant-datasources/test
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "connectionString": "Host=127.0.0.1;Port=5432;Database=atlas;Username=postgres;Password=postgres",
+  "dbType": "PostgreSql"
+}
+
+### 测试 MySQL 数据源连通性（示例）
+POST {{baseUrl}}/api/v1/tenant-datasources/test
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "connectionString": "Server=127.0.0.1;Port=3306;Database=atlas;Uid=root;Pwd=root;",
+  "dbType": "MySql"
+}
+
+### 更新数据源
+PUT {{baseUrl}}/api/v1/tenant-datasources/{{sourceId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "name": "SQLite-DS-Updated",
+  "connectionString": "Data Source=tenant_a_v2.db",
+  "dbType": "SQLite"
+}
+
+### 删除数据源
+DELETE {{baseUrl}}/api/v1/tenant-datasources/{{sourceId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}

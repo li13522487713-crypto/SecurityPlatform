@@ -1,0 +1,69 @@
+name: Security Analysis
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - "cursor/**"
+  pull_request:
+    branches:
+      - main
+      - master
+  schedule:
+    - cron: "0 3 * * 1"
+
+jobs:
+  codeql:
+    name: CodeQL Analyze
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language:
+          - csharp
+          - javascript-typescript
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+
+      - name: Setup .NET 10
+        if: matrix.language == 'csharp'
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Setup Node
+        if: matrix.language == 'javascript-typescript'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: src/frontend/Atlas.WebApp/package-lock.json
+
+      - name: Build C# projects
+        if: matrix.language == 'csharp'
+        run: dotnet build Atlas.SecurityPlatform.slnx --configuration Release
+
+      - name: Install frontend dependencies
+        if: matrix.language == 'javascript-typescript'
+        run: npm ci
+        working-directory: src/frontend/Atlas.WebApp
+
+      - name: Build frontend
+        if: matrix.language == 'javascript-typescript'
+        run: npm run build
+        working-directory: src/frontend/Atlas.WebApp
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3

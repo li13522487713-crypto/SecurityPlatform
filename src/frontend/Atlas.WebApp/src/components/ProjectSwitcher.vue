@@ -53,13 +53,16 @@ const loadProjectContext = async () => {
     const hasStored = stored && options.value.some((item) => item.value === stored);
     if (hasStored) {
       selectedProjectId.value = stored ?? undefined;
+      window.dispatchEvent(new CustomEvent("project-changed", { detail: { projectId: stored } }));
     } else if (options.value.length > 0) {
       selectedProjectId.value = options.value[0].value;
       setProjectId(options.value[0].value);
+      window.dispatchEvent(new CustomEvent("project-changed", { detail: { projectId: options.value[0].value } }));
       message.success("已默认选择项目，可在此切换");
     } else {
       clearProjectId();
       selectedProjectId.value = undefined;
+      window.dispatchEvent(new CustomEvent("project-changed", { detail: { projectId: null } }));
       message.warning("当前账号未分配项目");
     }
   } catch (error) {
@@ -70,6 +73,8 @@ const loadProjectContext = async () => {
 };
 
 const handleChange = (value?: string) => {
+  const previous = getProjectId();
+
   if (!value) {
     clearProjectId();
     message.warning("项目为空，部分数据将无法加载");
@@ -77,11 +82,12 @@ const handleChange = (value?: string) => {
     return;
   }
 
-  if (value === selectedProjectId.value) {
+  if (value === previous) {
     return;
   }
 
   setProjectId(value);
+  selectedProjectId.value = value;
   message.success("项目已切换");
   window.dispatchEvent(new CustomEvent("project-changed", { detail: { projectId: value } }));
 };

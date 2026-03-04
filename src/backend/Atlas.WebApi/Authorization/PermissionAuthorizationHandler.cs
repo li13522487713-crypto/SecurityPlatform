@@ -27,7 +27,11 @@ public sealed class PermissionAuthorizationHandler : AuthorizationHandler<Permis
             return;
         }
 
-        if (currentUser.Roles.Contains("Admin", StringComparer.OrdinalIgnoreCase))
+        var roleCodes = await _rbacResolver.GetRoleCodesAsync(
+            currentUser.TenantId,
+            currentUser.UserId,
+            CancellationToken.None);
+        if (roleCodes.Contains("Admin", StringComparer.OrdinalIgnoreCase))
         {
             context.Succeed(requirement);
             return;

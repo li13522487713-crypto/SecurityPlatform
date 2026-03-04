@@ -24,6 +24,7 @@
           <MenuUnfoldOutlined v-if="collapsed" class="trigger" @click="() => (collapsed = !collapsed)" />
           <MenuFoldOutlined v-else class="trigger" @click="() => (collapsed = !collapsed)" />
           <BreadcrumbView />
+          <ProjectSwitcher v-if="!isMobile" class="project-switcher-wrapper" />
         </div>
         <div class="header-right">
           <Screenfull />
@@ -73,6 +74,7 @@ import SidebarMenu from "@/components/layout/SidebarMenu.vue";
 import TagsView from "@/components/layout/TagsView.vue";
 import BreadcrumbView from "@/components/layout/BreadcrumbView.vue";
 import NotificationBell from "@/components/layout/NotificationBell.vue";
+import ProjectSwitcher from "@/components/ProjectSwitcher.vue";
 import Screenfull from "@/components/layout/Screenfull.vue";
 import { MenuUnfoldOutlined, MenuFoldOutlined } from "@ant-design/icons-vue";
 
@@ -215,12 +217,17 @@ async function logout() {
 .header-left {
   display: flex;
   align-items: center;
+  gap: 12px;
 }
 
 .header-right {
   display: flex;
   align-items: center;
   gap: 16px;
+}
+
+.project-switcher-wrapper {
+  margin-left: 4px;
 }
 
 .tags-container {

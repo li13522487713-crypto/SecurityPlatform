@@ -9,3 +9,12 @@ public sealed record ScheduledJobDto(
     DateTimeOffset? LastRunAt,
     string? LastRunStatus,
     DateTimeOffset? NextRunAt);
+
+public sealed record ScheduledJobExecutionDto(
+    string JobId,
+    DateTimeOffset? CreatedAt,
+    DateTimeOffset? StartedAt,
+    DateTimeOffset? FinishedAt,
+    long? DurationMilliseconds,
+    string? State,
+    string? ErrorMessage);

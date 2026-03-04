@@ -17,10 +17,40 @@ X-Tenant-Id: {{tenantId}}
 ###
 @accessToken = {{login.response.body.$.data.accessToken}}
 
+### 1.1 获取 Anti-Forgery Token
+# @name antiforgery
+GET {{baseUrl}}/api/v1/secure/antiforgery
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+###
+@csrfToken = {{antiforgery.response.body.$.data.token}}
+
 ### 2. 查询审计日志列表（分页）
 GET {{baseUrl}}/api/v1/audit?pageIndex=1&pageSize=10
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
+
+### 2.1 按行为与结果过滤
+GET {{baseUrl}}/api/v1/audit?pageIndex=1&pageSize=20&action=CLIENT_ERROR&result=Failure
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 2.2 上报前端异常（CLIENT_ERROR）
+POST {{baseUrl}}/api/v1/audit/client-errors
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$randomUUID}}
+X-CSRF-TOKEN: {{csrfToken}}
+Content-Type: application/json
+
+{
+  "message": "TypeError: Cannot read properties of undefined",
+  "stack": "TypeError: ...",
+  "url": "http://localhost:5173/settings/audit",
+  "component": "AuditPage",
+  "level": "error"
+}
 
 ### 3. 查询审计日志列表（第2页）
 GET {{baseUrl}}/api/v1/audit?pageIndex=2&pageSize=10

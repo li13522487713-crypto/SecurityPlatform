@@ -2,6 +2,7 @@ using Atlas.Application.System.Abstractions;
 using Atlas.Application.System.Models;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
+using Atlas.Core.Utilities;
 using Atlas.Domain.Identity.Entities;
 using Atlas.Infrastructure.Repositories;
 using SqlSugar;
@@ -40,6 +41,71 @@ public sealed class LoginLogQueryService : ILoginLogQueryService
             x.LoginStatus, x.Message, x.LoginTime)).ToList();
 
         return new PagedResult<LoginLogDto>(dtos, total, pageIndex, pageSize);
+    }
+
+    public async Task<LoginLogExportResult> ExportLoginLogsAsync(
+        TenantId tenantId,
+        string? username,
+        string? ipAddress,
+        bool? loginStatus,
+        DateTimeOffset? from,
+        DateTimeOffset? to,
+        CancellationToken cancellationToken)
+    {
+        const int ExportPageSize = 1000;
+        const int MaxExportRows = 10_000;
+
+        var builder = new System.Text.StringBuilder();
+        builder.AppendLine("用户名,IP地址,浏览器,操作系统,状态,失败原因,登录时间");
+
+        var pageIndex = 1;
+        var totalFetched = 0;
+
+        while (totalFetched < MaxExportRows)
+        {
+            var (items, _) = await _loginLogRepository.GetPagedAsync(
+                tenantId,
+                username,
+                ipAddress,
+                loginStatus,
+                from,
+                to,
+                pageIndex,
+                ExportPageSize,
+                cancellationToken);
+
+            foreach (var item in items)
+            {
+                if (totalFetched >= MaxExportRows)
+                {
+                    break;
+                }
+
+                var status = item.LoginStatus ? "成功" : "失败";
+                builder.AppendLine(string.Join(",",
+                    CsvUtility.EscapeField(item.Username),
+                    CsvUtility.EscapeField(item.IpAddress),
+                    CsvUtility.EscapeField(item.Browser),
+                    CsvUtility.EscapeField(item.OperatingSystem),
+                    CsvUtility.EscapeField(status),
+                    CsvUtility.EscapeField(item.Message),
+                    CsvUtility.EscapeField(item.LoginTime.ToString("yyyy-MM-dd HH:mm:ss"))));
+                totalFetched++;
+            }
+
+            if (items.Count < ExportPageSize || totalFetched >= MaxExportRows)
+            {
+                break;
+            }
+
+            pageIndex++;
+        }
+
+        var csvContent = builder.ToString();
+        return new LoginLogExportResult(
+            $"login-logs-{DateTimeOffset.UtcNow:yyyyMMddHHmmss}.csv",
+            "text/csv; charset=utf-8",
+            CsvUtility.GetUtf8BytesWithBom(csvContent));
     }
 
     public async Task<PagedResult<OnlineUserDto>> GetOnlineUsersPagedAsync(
@@ -84,4 +150,5 @@ public sealed class LoginLogQueryService : ILoginLogQueryService
 
         return new PagedResult<OnlineUserDto>(dtos, total, pageIndex, pageSize);
     }
+
 }

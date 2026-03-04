@@ -55,6 +55,22 @@ public sealed class RbacResolver : IRbacResolver
         return codes.ToArray();
     }
 
+    public async Task<IReadOnlyList<string>> GetRoleCodesAsync(
+        TenantId tenantId,
+        long userId,
+        CancellationToken cancellationToken)
+    {
+        var userRoles = await _userRoleRepository.QueryByUserIdAsync(tenantId, userId, cancellationToken);
+        if (userRoles.Count == 0)
+        {
+            return Array.Empty<string>();
+        }
+
+        var roleIds = userRoles.Select(x => x.RoleId).Distinct().ToArray();
+        var roles = await _roleRepository.QueryByIdsAsync(tenantId, roleIds, cancellationToken);
+        return roles.Select(x => x.Code).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+    }
+
     public async Task<IReadOnlyList<string>> GetPermissionCodesAsync(
         TenantId tenantId,
         long userId,

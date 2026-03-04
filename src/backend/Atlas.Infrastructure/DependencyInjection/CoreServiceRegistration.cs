@@ -159,6 +159,7 @@ public static class CoreServiceRegistration
 
         // Monitor
         services.AddSingleton<Atlas.Application.Monitor.Abstractions.IServerInfoQueryService, ServerInfoQueryService>();
+        services.AddSingleton<Atlas.Application.Monitor.Abstractions.IComplianceEvidencePackageService, ComplianceEvidencePackageService>();
 
         // Scheduled Jobs (Hangfire)
         services.AddScoped<IScheduledJobService, HangfireScheduledJobService>();

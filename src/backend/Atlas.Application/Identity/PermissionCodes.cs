@@ -57,6 +57,7 @@ public static class PermissionCodes
     public const string AlertView = "alert:view";
 
     public const string ApprovalFlowView = "approval:flow:view";
+    public const string ApprovalFlowManage = "approval:flow:manage";
     public const string ApprovalFlowCreate = "approval:flow:create";
     public const string ApprovalFlowUpdate = "approval:flow:update";
     public const string ApprovalFlowPublish = "approval:flow:publish";

@@ -41,4 +41,20 @@ public sealed class LoginLogsController : ControllerBase
             tenantId, username, ipAddress, loginStatus, from, to, pageIndex, pageSize, cancellationToken);
         return Ok(ApiResponse<PagedResult<LoginLogDto>>.Ok(result, HttpContext.TraceIdentifier));
     }
+
+    [HttpGet("export")]
+    [Authorize(Policy = PermissionPolicies.LoginLogView)]
+    public async Task<IActionResult> Export(
+        [FromQuery] string? username = null,
+        [FromQuery] string? ipAddress = null,
+        [FromQuery] bool? loginStatus = null,
+        [FromQuery] DateTimeOffset? from = null,
+        [FromQuery] DateTimeOffset? to = null,
+        CancellationToken cancellationToken = default)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _queryService.ExportLoginLogsAsync(
+            tenantId, username, ipAddress, loginStatus, from, to, cancellationToken);
+        return File(result.Content, result.ContentType, result.FileName);
+    }
 }

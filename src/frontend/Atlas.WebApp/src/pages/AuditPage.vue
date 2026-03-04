@@ -9,6 +9,12 @@
           @press-enter="handleSearch"
         />
         <a-select
+          v-model:value="actionFilter"
+          style="width: 180px"
+          :options="actionOptions"
+          @change="handleSearch"
+        />
+        <a-select
           v-model:value="resultFilter"
           style="width: 120px"
           :options="resultOptions"
@@ -74,7 +80,17 @@ const resultOptions = [
   { label: "失败", value: "Failure" }
 ];
 
+const actionOptions = [
+  { label: "全部行为", value: "all" },
+  { label: "登录", value: "LOGIN" },
+  { label: "登出", value: "LOGOUT" },
+  { label: "页面发布", value: "PUBLISH_PAGE" },
+  { label: "迁移执行", value: "EXECUTE_MIGRATION" },
+  { label: "前端异常", value: "CLIENT_ERROR" }
+];
+
 const keyword = ref("");
+const actionFilter = ref<string>("all");
 const resultFilter = ref<string>("all");
 const dataSource = ref<AuditRow[]>([]);
 const loading = ref(false);
@@ -92,6 +108,9 @@ const fetchData = async () => {
       pageIndex: pagination.current ?? 1,
       pageSize: pagination.pageSize ?? 10,
       keyword: keyword.value || undefined
+    }, {
+      action: actionFilter.value === "all" ? undefined : actionFilter.value,
+      result: resultFilter.value === "all" ? undefined : resultFilter.value
     });
     dataSource.value = result.items;
     pagination.total = result.total;
@@ -109,6 +128,7 @@ const handleSearch = () => {
 
 const handleReset = () => {
   keyword.value = "";
+  actionFilter.value = "all";
   resultFilter.value = "all";
   handleSearch();
 };

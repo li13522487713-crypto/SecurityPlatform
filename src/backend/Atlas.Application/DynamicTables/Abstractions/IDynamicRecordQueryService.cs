@@ -16,4 +16,10 @@ public interface IDynamicRecordQueryService
         string tableKey,
         long id,
         CancellationToken cancellationToken);
+
+    Task<DynamicRecordExportResult> ExportAsync(
+        TenantId tenantId,
+        string tableKey,
+        DynamicRecordExportRequest request,
+        CancellationToken cancellationToken);
 }

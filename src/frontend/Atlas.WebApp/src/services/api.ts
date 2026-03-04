@@ -3,6 +3,8 @@ import type {
   AuthTokenResult,
   AuthProfile,
   ChangePasswordRequest,
+  UserProfileDetail,
+  UserProfileUpdateRequest,
   PagedRequest,
   PagedResult,
   ApprovalFlowDefinitionListItem,
@@ -81,13 +83,20 @@ import type {
   ProjectAssignUsersRequest,
   ProjectAssignDepartmentsRequest,
   ProjectAssignPositionsRequest,
+  TenantDataSourceDto,
+  TenantDataSourceCreateRequest,
+  TenantDataSourceUpdateRequest,
+  TenantDataSourceTestConnectionRequest,
+  TenantDataSourceTestConnectionResult,
   TableViewConfig,
   TableViewListItem,
   TableViewDetail,
   TableViewCreateRequest,
   TableViewUpdateRequest,
   TableViewConfigUpdateRequest,
-  TableViewDuplicateRequest
+  TableViewDuplicateRequest,
+  FileUploadResult,
+  FileRecordDto
 } from "@/types/api";
 import type {
   FlowDefinition,
@@ -193,6 +202,26 @@ export async function getCurrentUser(): Promise<AuthProfile> {
   return response.data;
 }
 
+export async function getProfileDetail(): Promise<UserProfileDetail> {
+  const response = await requestApi<ApiResponse<UserProfileDetail>>("/auth/profile");
+  if (!response.data) {
+    throw new Error(response.message || "获取个人资料失败");
+  }
+
+  return response.data;
+}
+
+export async function updateProfile(request: UserProfileUpdateRequest): Promise<void> {
+  const response = await requestApi<ApiResponse<{ success: boolean }>>("/auth/profile", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request)
+  });
+  if (!response.success) {
+    throw new Error(response.message || "更新个人资料失败");
+  }
+}
+
 export async function getRouters(): Promise<RouterVo[]> {
   const response = await requestApi<ApiResponse<RouterVo[]>>("/auth/routers");
   if (!response.data) {
@@ -240,6 +269,36 @@ export async function changePassword(request: ChangePasswordRequest): Promise<vo
   }
 }
 
+export async function uploadFile(file: File): Promise<FileUploadResult> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const response = await requestApi<ApiResponse<FileUploadResult>>("/files", {
+    method: "POST",
+    body: formData
+  });
+  if (!response.data) {
+    throw new Error(response.message || "上传失败");
+  }
+  return response.data;
+}
+
+export async function getFileInfo(id: string | number): Promise<FileRecordDto> {
+  const response = await requestApi<ApiResponse<FileRecordDto>>(`/files/${id}/info`);
+  if (!response.data) {
+    throw new Error(response.message || "文件不存在");
+  }
+  return response.data;
+}
+
+export async function deleteFile(id: string | number): Promise<void> {
+  const response = await requestApi<ApiResponse<{ id: string }>>(`/files/${id}`, {
+    method: "DELETE"
+  });
+  if (!response.success) {
+    throw new Error(response.message || "删除失败");
+  }
+}
+
 export async function getAssetsPaged(pagedRequest: PagedRequest) {
   const query = toQuery(pagedRequest);
   const response = await requestApi<ApiResponse<PagedResult<AssetListItem>>>(`/assets?${query}`);
@@ -250,14 +309,39 @@ export async function getAssetsPaged(pagedRequest: PagedRequest) {
   return response.data;
 }
 
-export async function getAuditsPaged(pagedRequest: PagedRequest) {
-  const query = toQuery(pagedRequest);
+export async function getAuditsPaged(
+  pagedRequest: PagedRequest,
+  extra?: { action?: string; result?: string }
+) {
+  const query = toQuery(pagedRequest, {
+    action: extra?.action,
+    result: extra?.result
+  });
   const response = await requestApi<ApiResponse<PagedResult<AuditListItem>>>(`/audit?${query}`);
   if (!response.data) {
     throw new Error(response.message || "查询失败");
   }
 
   return response.data;
+}
+
+export interface ClientErrorReportRequest {
+  message: string;
+  stack?: string;
+  url?: string;
+  component?: string;
+  level?: string;
+}
+
+export async function reportClientError(request: ClientErrorReportRequest): Promise<void> {
+  const response = await requestApi<ApiResponse<{ success: boolean }>>("/audit/client-errors", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request)
+  }, { suppressErrorMessage: true });
+  if (!response.success) {
+    throw new Error(response.message || "上报失败");
+  }
 }
 
 export async function getUsersPaged(pagedRequest: PagedRequest) {
@@ -1551,6 +1635,63 @@ export async function getMyProjects() {
   const response = await requestApi<ApiResponse<ProjectListItem[]>>("/projects/my");
   if (!response.data) {
     throw new Error(response.message || "查询失败");
+  }
+  return response.data;
+}
+
+export async function getTenantDataSources(): Promise<TenantDataSourceDto[]> {
+  const response = await requestApi<ApiResponse<TenantDataSourceDto[]>>("/tenant-datasources");
+  if (!response.data) {
+    throw new Error(response.message || "查询数据源失败");
+  }
+  return response.data;
+}
+
+export async function createTenantDataSource(request: TenantDataSourceCreateRequest): Promise<{ id: string }> {
+  const response = await requestApi<ApiResponse<{ id: string }>>("/tenant-datasources", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request)
+  });
+  if (!response.data) {
+    throw new Error(response.message || "创建数据源失败");
+  }
+  return response.data;
+}
+
+export async function updateTenantDataSource(
+  id: string,
+  request: TenantDataSourceUpdateRequest
+): Promise<void> {
+  const response = await requestApi<ApiResponse<{ id: string }>>(`/tenant-datasources/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request)
+  });
+  if (!response.success) {
+    throw new Error(response.message || "更新数据源失败");
+  }
+}
+
+export async function deleteTenantDataSource(id: string): Promise<void> {
+  const response = await requestApi<ApiResponse<{ id: string }>>(`/tenant-datasources/${id}`, {
+    method: "DELETE"
+  });
+  if (!response.success) {
+    throw new Error(response.message || "删除数据源失败");
+  }
+}
+
+export async function testTenantDataSourceConnection(
+  request: TenantDataSourceTestConnectionRequest
+): Promise<TenantDataSourceTestConnectionResult> {
+  const response = await requestApi<ApiResponse<TenantDataSourceTestConnectionResult>>("/tenant-datasources/test", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request)
+  });
+  if (!response.data) {
+    throw new Error(response.message || "连接测试失败");
   }
   return response.data;
 }

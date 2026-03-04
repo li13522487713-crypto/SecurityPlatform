@@ -17,6 +17,15 @@ public interface ILoginLogQueryService
         int pageSize,
         CancellationToken cancellationToken);
 
+    Task<LoginLogExportResult> ExportLoginLogsAsync(
+        TenantId tenantId,
+        string? username,
+        string? ipAddress,
+        bool? loginStatus,
+        DateTimeOffset? from,
+        DateTimeOffset? to,
+        CancellationToken cancellationToken);
+
     Task<PagedResult<OnlineUserDto>> GetOnlineUsersPagedAsync(
         TenantId tenantId,
         string? keyword,

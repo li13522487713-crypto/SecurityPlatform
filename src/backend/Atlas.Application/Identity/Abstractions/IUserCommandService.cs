@@ -42,6 +42,14 @@ public interface IUserCommandService
         string newPassword,
         CancellationToken cancellationToken);
 
+    Task UpdateProfileAsync(
+        TenantId tenantId,
+        long userId,
+        string displayName,
+        string? email,
+        string? phoneNumber,
+        CancellationToken cancellationToken);
+
     Task DeleteAsync(
         TenantId tenantId,
         long userId,
