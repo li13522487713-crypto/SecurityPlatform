@@ -101,10 +101,11 @@ public sealed class LoginLogQueryService : ILoginLogQueryService
             pageIndex++;
         }
 
+        var csvContent = builder.ToString();
         return new LoginLogExportResult(
             $"login-logs-{DateTimeOffset.UtcNow:yyyyMMddHHmmss}.csv",
             "text/csv; charset=utf-8",
-            System.Text.Encoding.UTF8.GetBytes(builder.ToString()));
+            CsvUtility.GetUtf8BytesWithBom(csvContent));
     }
 
     public async Task<PagedResult<OnlineUserDto>> GetOnlineUsersPagedAsync(

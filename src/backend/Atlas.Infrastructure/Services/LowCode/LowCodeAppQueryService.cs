@@ -231,7 +231,7 @@ public sealed class LowCodeAppQueryService : ILowCodeAppQueryService
             if (root.ValueKind != JsonValueKind.Object)
             {
                 throw new BusinessException(
-                    "环境变量配置必须是 JSON 对象。",
+                    "环境变量配置必须是 JSON 对象",
                     ErrorCodes.ValidationError);
             }
 

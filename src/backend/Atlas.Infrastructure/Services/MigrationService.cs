@@ -263,15 +263,6 @@ public sealed class MigrationService : IMigrationService
             throw new BusinessException(ErrorCodes.NotFound, "迁移记录不存在。");
         }
 
-        if (string.Equals(migration.Status, "Succeeded", StringComparison.OrdinalIgnoreCase))
-        {
-            throw new BusinessException(ErrorCodes.ValidationError, "迁移已成功执行，不可重复执行。");
-        }
-        if (string.Equals(migration.Status, "Executing", StringComparison.OrdinalIgnoreCase))
-        {
-            throw new BusinessException(ErrorCodes.ValidationError, "迁移正在执行中，请稍后重试。");
-        }
-
         if (migration.IsDestructive && !confirmDestructive)
         {
             throw new BusinessException(ErrorCodes.ValidationError, "该迁移包含破坏性变更，请先通过预检查并确认执行。");
@@ -291,6 +282,23 @@ public sealed class MigrationService : IMigrationService
         await tableLock.WaitAsync(cancellationToken);
         try
         {
+            // 在锁内重新加载实体，确保使用最新状态
+            migration = await _migrationRecordRepository.FindByIdAsync(tenantId, migrationId, cancellationToken);
+            if (migration is null)
+            {
+                throw new BusinessException(ErrorCodes.NotFound, "迁移记录不存在。");
+            }
+
+            // 在临界区内检查状态，防止竞态条件
+            if (string.Equals(migration.Status, "Succeeded", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new BusinessException(ErrorCodes.ValidationError, "迁移已成功执行，不可重复执行。");
+            }
+            if (string.Equals(migration.Status, "Executing", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new BusinessException(ErrorCodes.ValidationError, "迁移正在执行中，请稍后重试。");
+            }
+
             var now = DateTimeOffset.UtcNow;
             migration.MarkExecuting(userId, now);
             await _migrationRecordRepository.UpdateAsync(migration, cancellationToken);

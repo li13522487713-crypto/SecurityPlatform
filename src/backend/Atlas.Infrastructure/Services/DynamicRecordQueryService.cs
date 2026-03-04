@@ -338,7 +338,8 @@ public sealed class DynamicRecordQueryService : IDynamicRecordQueryService
             builder.AppendLine(string.Join(",", row));
         }
 
-        return System.Text.Encoding.UTF8.GetBytes(builder.ToString());
+        var csvContent = builder.ToString();
+        return CsvUtility.GetUtf8BytesWithBom(csvContent);
     }
 
     /// <summary>
