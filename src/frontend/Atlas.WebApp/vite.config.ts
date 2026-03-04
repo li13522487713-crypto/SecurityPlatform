@@ -44,9 +44,30 @@ export default defineConfig({
     }
   },
   build: {
-    chunkSizeWarningLimit: 2000,
+    chunkSizeWarningLimit: 8000,
     rollupOptions: {
       external: ["amis-editor"],
+      onwarn(warning, warn) {
+        const warningMessage = warning.message ?? "";
+        if (
+          warning.code === "MODULE_LEVEL_DIRECTIVE" &&
+          warningMessage.includes('"use client"') &&
+          (warning.id?.includes("/node_modules/react-pdf/") ||
+            warning.id?.includes("/node_modules/react-intersection-observer/"))
+        ) {
+          return;
+        }
+
+        if (
+          warning.code === "EVAL" &&
+          (warning.id?.includes("/node_modules/amis/") ||
+            warning.id?.includes("/node_modules/vform3-builds/"))
+        ) {
+          return;
+        }
+
+        warn(warning);
+      },
       output: {
         manualChunks(id) {
           if (!id.includes("node_modules")) return undefined;
@@ -57,26 +78,35 @@ export default defineConfig({
           // --- Heavy standalone libs (amis transitive deps) ---
           if (pkg("monaco-editor")) return "vendor-monaco";
           if (pkg("echarts", "zrender")) return "vendor-echarts";
-          if (pkg("pdfjs-dist", "react-pdf")) return "vendor-pdf";
           if (pkg("exceljs", "xlsx", "codepage")) return "vendor-excel";
           if (pkg("tinymce")) return "vendor-tinymce";
-          if (pkg("froala-editor", "cropperjs", "react-cropper"))
-            return "vendor-richedit";
           if (pkg("hls.js")) return "vendor-hls";
           if (pkg("moment", "moment-timezone")) return "vendor-moment";
-          if (pkg("@icons/material")) return "vendor-icons";
           if (pkg("codemirror")) return "vendor-codemirror";
 
-          // --- AMIS ecosystem ---
-          if (pkg("amis", "amis-core", "amis-ui", "amis-formula", "office-viewer"))
+          // --- AMIS ecosystem（合并其 React/MobX 依赖，避免循环 chunk） ---
+          if (
+            pkg(
+              "amis",
+              "amis-core",
+              "amis-ui",
+              "amis-formula",
+              "office-viewer",
+              "pdfjs-dist",
+              "react-pdf",
+              "froala-editor",
+              "cropperjs",
+              "react-cropper",
+              "react",
+              "react-dom",
+              "react-is",
+              "scheduler",
+              "mobx",
+              "mobx-react-lite",
+              "@icons/material"
+            )
+          )
             return "vendor-amis";
-
-          // --- React ecosystem (all react-* packages together) ---
-          if (nm.includes("/node_modules/react")) return "vendor-react";
-          if (pkg("scheduler")) return "vendor-react";
-
-          // --- MobX ---
-          if (pkg("mobx", "mobx-react-lite")) return "vendor-mobx";
 
           // --- VForm ---
           if (pkg("vform3-builds")) return "vendor-vform";
@@ -92,16 +122,8 @@ export default defineConfig({
           if (pkg("element-plus") || nm.includes("/node_modules/@element-plus/"))
             return "vendor-element";
 
-          // --- Vue ecosystem ---
-          if (
-            pkg("vue", "vue-router", "vue-i18n", "vue-demi") ||
-            nm.includes("/node_modules/@vue/") ||
-            nm.includes("/node_modules/@intlify/")
-          )
-            return "vendor-vue";
-
-          // --- Remaining (lodash, core-js, downshift, etc.) ---
-          return "vendor";
+          // 其余依赖交给 Rollup 默认策略，减少人为拆包导致的循环依赖。
+          return undefined;
         }
       }
     }
