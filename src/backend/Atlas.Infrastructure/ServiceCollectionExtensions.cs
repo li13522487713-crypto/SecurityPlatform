@@ -37,6 +37,7 @@ public static class ServiceCollectionExtensions
             var tenantId = tenantProvider.GetTenantId();
 
             string connectionString = options.ConnectionString;
+            var dbType = MapDbType(options.DbType);
 
             var config = new ConnectionConfig
             {
