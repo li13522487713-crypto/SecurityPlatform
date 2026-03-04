@@ -1,0 +1,91 @@
+@baseUrl = http://localhost:5000
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+
+### 登录获取访问令牌
+# @name login
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+###
+@accessToken = {{login.response.body.$.data.accessToken}}
+@csrfToken =
+
+### 获取 CSRF Token（写接口必需）
+# @name antiforgery
+GET {{baseUrl}}/api/v1/secure/antiforgery
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+###
+@csrfToken = {{antiforgery.response.body.$.data.token}}
+
+### AI 生成表单
+POST {{baseUrl}}/api/v1/ai/generate-form
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+Content-Type: application/json
+
+{
+  "description": "创建一个资产入库登记表单",
+  "category": "asset",
+  "dataTableKey": "asset_registry"
+}
+
+### AI 生成 SQL
+POST {{baseUrl}}/api/v1/ai/generate-sql
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+Content-Type: application/json
+
+{
+  "question": "查询近7天新增资产数量",
+  "tableContext": "assets(id,name,created_at)"
+}
+
+### AI 建议工作流
+POST {{baseUrl}}/api/v1/ai/suggest-workflow
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+Content-Type: application/json
+
+{
+  "description": "请给出一个请假审批流程建议"
+}
+
+### AI 聊天
+POST {{baseUrl}}/api/v1/ai/chat
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+Content-Type: application/json
+
+{
+  "message": "请解释等保2.0中最小权限原则",
+  "context": "security"
+}
+
+### 安全负向：缺少 Idempotency-Key（预期 400）
+POST {{baseUrl}}/api/v1/ai/generate-form
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+X-CSRF-TOKEN: {{csrfToken}}
+Content-Type: application/json
+
+{
+  "description": "缺少幂等键的请求"
+}
