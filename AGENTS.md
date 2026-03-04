@@ -50,6 +50,7 @@ npm run format
 - **Vue/TS：** 2 空格缩进，组件文件 kebab-case（如 `login-page.vue`），组件名 PascalCase；TypeScript 严格模式，禁止 `any`。
 - **安全与设计：** 强调安全编码与 OOP；优先清晰、可测试的抽象；避免过度抽象与不必要的模式。
 - **异步与仓储：** 所有 I/O 必须 async/await；控制器不得直接访问数据库，必须通过 Repository 与 Service。
+- **注释规范：** 禁止无上下文 TODO（必须包含需求/工单号与处理条件）；注释应优先说明“为什么”与约束背景，而非重复代码“做了什么”。
 
 完整约定见 `CLAUDE.md` 的 Coding Standards 章节。
 

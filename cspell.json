@@ -1,0 +1,55 @@
+{
+  "$schema": "https://raw.githubusercontent.com/streetsidesoftware/cspell/main/cspell.schema.json",
+  "version": "0.2",
+  "language": "en",
+  "allowCompoundWords": true,
+  "dictionaries": [
+    "softwareTerms",
+    "companies",
+    "filetypes",
+    "project-terms"
+  ],
+  "dictionaryDefinitions": [
+    {
+      "name": "project-terms",
+      "path": "./.cspell/project-terms.txt",
+      "addWords": true
+    }
+  ],
+  "ignorePaths": [
+    "**/.git/**",
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/coverage/**",
+    "**/bin/**",
+    "**/obj/**",
+    "**/*.min.*",
+    "**/*.lock"
+  ],
+  "files": [
+    "AGENTS.md",
+    "CLAUDE.md",
+    "README.md",
+    "等保2.0要求清单.md",
+    "docs/**/*.{md,txt}",
+    "src/backend/**/*.{cs,csproj,props,json,md}",
+    "src/frontend/**/*.{ts,tsx,js,vue,json,md}"
+  ],
+  "words": [
+    "等保",
+    "多租户",
+    "幂等",
+    "防重放",
+    "SqlSugar",
+    "Idempotency",
+    "Idempotency-Key",
+    "CSRF",
+    "Hangfire",
+    "BootstrapAdmin",
+    "Bosch",
+    "WebApi",
+    "WebApp",
+    "Atlas"
+  ],
+  "useGitignore": true
+}

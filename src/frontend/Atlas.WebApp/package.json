@@ -11,7 +11,9 @@
     "e2e:headed": "playwright test --headed",
     "lint": "eslint . --ext .ts,.vue",
     "format": "prettier --write .",
-    "generate-types": "cd ../../backend/Atlas.WebApi && nswag run nswag.json"
+    "generate-types": "cd ../../backend/Atlas.WebApi && nswag run nswag.json",
+    "spell:check": "npx --yes cspell --config ../../cspell.json",
+    "spell:check:files": "npx --yes cspell --config ../../cspell.json --no-progress --no-summary"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",

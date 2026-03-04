@@ -12,6 +12,41 @@ on:
       - master
 
 jobs:
+  spell-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Collect changed files
+        id: changed
+        uses: tj-actions/changed-files@v46
+
+      - name: Run cspell for changed files only
+        shell: bash
+        run: |
+          : > changed-spell-files.txt
+          for file in ${{ steps.changed.outputs.all_changed_files }}; do
+            case "$file" in
+              AGENTS.md|CLAUDE.md|README.md|等保2.0要求清单.md|docs/*|src/backend/*|src/frontend/*)
+                case "$file" in
+                  *.cs|*.csproj|*.props|*.json|*.md|*.txt|*.ts|*.tsx|*.js|*.vue)
+                    echo "$file" >> changed-spell-files.txt
+                    ;;
+                esac
+                ;;
+            esac
+          done
+
+          if [ ! -s changed-spell-files.txt ]; then
+            echo "No changed files match spell-check scope, skip."
+            exit 0
+          fi
+
+          npx --yes cspell --config cspell.json --no-progress --no-summary --file-list changed-spell-files.txt
+
   backend-build:
     runs-on: ubuntu-latest
     steps:
