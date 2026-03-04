@@ -49,13 +49,13 @@ public sealed class LowCodeAppImportRequestValidator : AbstractValidator<LowCode
         RuleFor(x => x.Package)
             .NotNull().WithMessage("导入包不能为空");
 
-        RuleFor(x => x.Package.AppKey)
+        RuleFor(x => x.Package != null ? x.Package.AppKey : null)
             .NotEmpty().WithMessage("导入包应用标识不能为空")
             .MaximumLength(100).WithMessage("导入包应用标识不能超过100个字符")
             .Matches(@"^[a-zA-Z][a-zA-Z0-9_-]*$").WithMessage("导入包应用标识格式非法")
             .When(x => x.Package is not null);
 
-        RuleFor(x => x.Package.Name)
+        RuleFor(x => x.Package != null ? x.Package.Name : null)
             .NotEmpty().WithMessage("导入包应用名称不能为空")
             .MaximumLength(200).WithMessage("导入包应用名称不能超过200个字符")
             .When(x => x.Package is not null);

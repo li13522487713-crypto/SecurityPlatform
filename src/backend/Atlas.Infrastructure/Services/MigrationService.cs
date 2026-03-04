@@ -34,7 +34,7 @@ public sealed class MigrationService : IMigrationService
 
     private static SemaphoreSlim GetTableLock(string lockKey)
     {
-        var hash = Math.Abs(lockKey.GetHashCode(StringComparison.Ordinal));
+        var hash = lockKey.GetHashCode(StringComparison.Ordinal) & 0x7FFFFFFF;
         return LockPool[hash % LockPoolSize];
     }
 
@@ -276,6 +276,8 @@ public sealed class MigrationService : IMigrationService
 
             try
             {
+                // 安全边界：UpScript 已在执行前通过 MigrationScriptValidator 白名单校验，
+                // 仅允许 ALTER TABLE ... ADD COLUMN，禁止 DROP/SELECT/INSERT 等任意 SQL。
                 await _db.Ado.ExecuteCommandAsync(migration.UpScript, cancellationToken);
                 migration.MarkSucceeded(userId, DateTimeOffset.UtcNow);
             }

@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.RegularExpressions;
 using Atlas.Domain.DynamicTables.Enums;
 
@@ -5,9 +6,15 @@ namespace Atlas.Infrastructure.DynamicTables;
 
 /// <summary>
 /// 校验迁移脚本内容，仅允许 ALTER TABLE ... ADD COLUMN 语句，防止任意 SQL 注入。
+/// 安全边界：用户输入的 UpScript 必须通过白名单校验后才能执行，禁止 DROP/SELECT/INSERT 等任意 SQL。
 /// </summary>
 internal static class MigrationScriptValidator
 {
+    /// <summary>
+    /// 脚本最大长度，防止 DoS。
+    /// </summary>
+    private const int MaxScriptLength = 65536;
+
     /// <summary>
     /// 允许的列类型（SQLite 常用）。
     /// </summary>
@@ -27,7 +34,8 @@ internal static class MigrationScriptValidator
     [
         "DROP", "DELETE", "TRUNCATE", "INSERT", "UPDATE", "SELECT",
         "CREATE", "ATTACH", "DETACH", "VACUUM", "COPY", "PRAGMA",
-        "REPLACE", "EXEC", "EXECUTE", "GRANT", "REVOKE"
+        "REPLACE", "EXEC", "EXECUTE", "GRANT", "REVOKE",
+        "ANALYZE", "EXPLAIN", "WITH", "UNION"
     ];
 
     /// <summary>
@@ -52,8 +60,12 @@ internal static class MigrationScriptValidator
             return "迁移脚本不能为空。";
         }
 
-        var normalized = script.AsSpan().Trim();
-        if (ContainsDangerousKeyword(normalized))
+        if (script.Length > MaxScriptLength)
+        {
+            return $"迁移脚本长度超过限制（最大 {MaxScriptLength} 字符）。";
+        }
+
+        if (ContainsDangerousKeyword(script))
         {
             return "迁移脚本包含不允许的 SQL 关键字，仅支持 ALTER TABLE ... ADD COLUMN 结构变更。";
         }
@@ -82,9 +94,13 @@ internal static class MigrationScriptValidator
         return null;
     }
 
-    private static bool ContainsDangerousKeyword(ReadOnlySpan<char> script)
+    /// <summary>
+    /// 检测脚本中是否包含危险关键字。移除所有空白后检测，防止 "D\nROP"、"D R O P" 等绕过。
+    /// </summary>
+    private static bool ContainsDangerousKeyword(string script)
     {
-        var upper = script.ToString().ToUpperInvariant();
+        var noWhitespace = RemoveAllWhitespace(script);
+        var upper = noWhitespace.ToUpperInvariant();
         foreach (var kw in DangerousKeywords)
         {
             if (upper.Contains(kw, StringComparison.Ordinal))
@@ -94,6 +110,20 @@ internal static class MigrationScriptValidator
         }
 
         return false;
+    }
+
+    private static string RemoveAllWhitespace(string input)
+    {
+        var sb = new StringBuilder(input.Length);
+        foreach (var c in input)
+        {
+            if (!char.IsWhiteSpace(c))
+            {
+                sb.Append(c);
+            }
+        }
+
+        return sb.ToString();
     }
 
     private static string[] SplitStatements(string script)
