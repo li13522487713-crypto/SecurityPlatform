@@ -248,6 +248,15 @@ public sealed class MigrationService : IMigrationService
             throw new BusinessException(ErrorCodes.ValidationError, "该迁移包含破坏性变更，请先通过预检查并确认执行。");
         }
 
+        var table = await _dynamicTableRepository.FindByKeyAsync(tenantId, migration.TableKey, cancellationToken);
+        var dbType = table?.DbType ?? DynamicDbType.Sqlite;
+
+        var validationError = MigrationScriptValidator.Validate(migration.UpScript, migration.TableKey, dbType);
+        if (validationError is not null)
+        {
+            throw new BusinessException(ErrorCodes.ValidationError, validationError);
+        }
+
         var lockKey = $"{tenantId.Value:D}:{migration.TableKey}";
         var tableLock = GetTableLock(lockKey);
         await tableLock.WaitAsync(cancellationToken);
