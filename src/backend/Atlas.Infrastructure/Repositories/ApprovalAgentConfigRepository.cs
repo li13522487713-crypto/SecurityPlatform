@@ -56,6 +56,33 @@ public sealed class ApprovalAgentConfigRepository : IApprovalAgentConfigReposito
             .FirstAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyDictionary<long, ApprovalAgentConfig>> GetActiveAgentsByUserIdsAsync(
+        TenantId tenantId,
+        IReadOnlyList<long> principalUserIds,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        if (principalUserIds.Count == 0)
+        {
+            return new Dictionary<long, ApprovalAgentConfig>();
+        }
+
+        var ids = principalUserIds.Distinct().ToArray();
+        var configs = await _db.Queryable<ApprovalAgentConfig>()
+            .Where(x => x.TenantIdValue == tenantId.Value
+                && SqlFunc.ContainsArray(ids, x.PrincipalUserId)
+                && x.IsEnabled
+                && x.StartTime <= now
+                && x.EndTime >= now)
+            .OrderByDescending(x => x.CreatedAt)
+            .ToListAsync(cancellationToken);
+
+        // 每个委托人取最新一条生效配置
+        return configs
+            .GroupBy(c => c.PrincipalUserId)
+            .ToDictionary(g => g.Key, g => g.First());
+    }
+
     public async Task<IReadOnlyList<ApprovalAgentConfig>> GetByPrincipalUserIdAsync(
         TenantId tenantId,
         long principalUserId,

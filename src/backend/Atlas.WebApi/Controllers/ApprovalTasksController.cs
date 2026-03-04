@@ -180,16 +180,21 @@ public sealed class ApprovalTasksController : ControllerBase
         CancellationToken cancellationToken = default)
     {
         var currentUser = _currentUserAccessor.GetCurrentUserOrThrow();
-        var operationService = HttpContext.RequestServices.GetRequiredService<Atlas.Application.Approval.Abstractions.IApprovalOperationService>();
+
+        var task = await _taskRepository.GetByIdAsync(currentUser.TenantId, id, cancellationToken);
+        if (task is null)
+        {
+            return ApiResponse<string>.Fail("NOT_FOUND", "任务不存在", HttpContext.TraceIdentifier);
+        }
 
         var request = new Atlas.Application.Approval.Models.ApprovalOperationRequest
         {
             OperationType = ApprovalOperationType.Claim
         };
 
-        await operationService.ExecuteOperationAsync(
+        await _operationService.ExecuteOperationAsync(
             currentUser.TenantId,
-            0,
+            task.InstanceId,
             id,
             currentUser.UserId,
             request,
@@ -209,17 +214,22 @@ public sealed class ApprovalTasksController : ControllerBase
         CancellationToken cancellationToken = default)
     {
         var currentUser = _currentUserAccessor.GetCurrentUserOrThrow();
-        var operationService = HttpContext.RequestServices.GetRequiredService<Atlas.Application.Approval.Abstractions.IApprovalOperationService>();
-        
+
+        var task = await _taskRepository.GetByIdAsync(currentUser.TenantId, id, cancellationToken);
+        if (task is null)
+        {
+            return ApiResponse<string>.Fail("NOT_FOUND", "任务不存在", HttpContext.TraceIdentifier);
+        }
+
         var request = new Atlas.Application.Approval.Models.ApprovalOperationRequest
         {
             OperationType = ApprovalOperationType.Urge,
             Comment = message
         };
 
-        await operationService.ExecuteOperationAsync(
+        await _operationService.ExecuteOperationAsync(
             currentUser.TenantId,
-            0, // 催办通常是针对任务的，这里 instanceId 需要从任务获取，或者 ExecuteOperationAsync 内部处理
+            task.InstanceId,
             id,
             currentUser.UserId,
             request,
@@ -240,7 +250,12 @@ public sealed class ApprovalTasksController : ControllerBase
         CancellationToken cancellationToken = default)
     {
         var currentUser = _currentUserAccessor.GetCurrentUserOrThrow();
-        var operationService = HttpContext.RequestServices.GetRequiredService<Atlas.Application.Approval.Abstractions.IApprovalOperationService>();
+
+        var task = await _taskRepository.GetByIdAsync(currentUser.TenantId, id, cancellationToken);
+        if (task is null)
+        {
+            return ApiResponse<string>.Fail("NOT_FOUND", "任务不存在", HttpContext.TraceIdentifier);
+        }
 
         var request = new Atlas.Application.Approval.Models.ApprovalOperationRequest
         {
@@ -249,9 +264,9 @@ public sealed class ApprovalTasksController : ControllerBase
             TargetAssigneeValue = recipientUserId.ToString()
         };
 
-        await operationService.ExecuteOperationAsync(
+        await _operationService.ExecuteOperationAsync(
             currentUser.TenantId,
-            0, // instanceId 内部获取
+            task.InstanceId,
             id,
             currentUser.UserId,
             request,
@@ -310,26 +325,14 @@ public sealed class ApprovalTasksController : ControllerBase
             throw new BusinessException("VALIDATION_ERROR", "转办用户参数不合法");
         }
 
-        var tasks = await _taskRepository.GetPendingByAssigneeUserAsync(currentUser.TenantId, fromUserId, cancellationToken);
-        foreach (var task in tasks)
-        {
-            var request = new Atlas.Application.Approval.Models.ApprovalOperationRequest
-            {
-                OperationType = ApprovalOperationType.Transfer,
-                TargetAssigneeValue = toUserId.ToString(),
-                Comment = $"批量转办 {fromUserId} -> {toUserId}"
-            };
+        var transferred = await _commandService.BatchTransferTasksAsync(
+            currentUser.TenantId,
+            fromUserId,
+            toUserId,
+            currentUser.UserId,
+            cancellationToken);
 
-            await _operationService.ExecuteOperationAsync(
-                currentUser.TenantId,
-                task.InstanceId,
-                task.Id,
-                currentUser.UserId,
-                request,
-                cancellationToken);
-        }
-
-        return ApiResponse<string>.Ok($"已转办 {tasks.Count} 个任务", HttpContext.TraceIdentifier);
+        return ApiResponse<string>.Ok($"已转办 {transferred} 个任务", HttpContext.TraceIdentifier);
     }
 
     /// <summary>

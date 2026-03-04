@@ -47,20 +47,32 @@ public sealed class ApprovalTimerNodeJob
             .Where(j => j.Status == 0 && j.ScheduledAt <= now)
             .ToListAsync(cancellationToken);
 
+        if (jobs.Count == 0) return;
+
+        // 批量预加载所有关联的 instance
+        var tenantId = jobs[0].TenantId;
+        var instanceIds = jobs.Select(j => j.InstanceId).Distinct().ToList();
+        var instancesById = (await _instanceRepository.QueryByIdsAsync(tenantId, instanceIds, cancellationToken))
+            .ToDictionary(i => i.Id);
+
+        // 批量预加载所有关联的流程定义
+        var definitionIds = instancesById.Values.Select(i => i.DefinitionId).Distinct().ToList();
+        var flowDefsById = (await _flowRepository.QueryByIdsAsync(tenantId, definitionIds, cancellationToken))
+            .ToDictionary(f => f.Id);
+
         foreach (var job in jobs)
         {
             try
             {
-                var instance = await _instanceRepository.GetByIdAsync(job.TenantId, job.InstanceId, cancellationToken);
-                if (instance == null || instance.Status != ApprovalInstanceStatus.Running)
+                if (!instancesById.TryGetValue(job.InstanceId, out var instance)
+                    || instance.Status != ApprovalInstanceStatus.Running)
                 {
                     job.MarkCancelled(now);
                     await _db.Updateable(job).ExecuteCommandAsync(cancellationToken);
                     continue;
                 }
 
-                var flowDef = await _flowRepository.GetByIdAsync(job.TenantId, instance.DefinitionId, cancellationToken);
-                if (flowDef == null) continue;
+                if (!flowDefsById.TryGetValue(instance.DefinitionId, out var flowDef)) continue;
 
                 var flowDefinition = FlowDefinitionParser.Parse(flowDef.DefinitionJson);
 

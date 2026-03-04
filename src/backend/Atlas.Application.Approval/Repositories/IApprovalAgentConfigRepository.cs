@@ -26,6 +26,15 @@ public interface IApprovalAgentConfigRepository
         CancellationToken cancellationToken);
 
     /// <summary>
+    /// 批量获取多个用户当前生效的代理人配置（key 为委托人 userId）
+    /// </summary>
+    Task<IReadOnlyDictionary<long, ApprovalAgentConfig>> GetActiveAgentsByUserIdsAsync(
+        TenantId tenantId,
+        IReadOnlyList<long> principalUserIds,
+        DateTimeOffset now,
+        CancellationToken cancellationToken);
+
+    /// <summary>
     /// 获取指定用户的所有代理配置
     /// </summary>
     Task<IReadOnlyList<ApprovalAgentConfig>> GetByPrincipalUserIdAsync(

@@ -1761,10 +1761,11 @@ public sealed class FlowEngine
         var now = _timeProvider.GetUtcNow();
         var result = new List<long>(userIds.Count);
 
+        var agentConfigMap = await agentConfigRepo.GetActiveAgentsByUserIdsAsync(tenantId, userIds, now, cancellationToken);
+
         foreach (var userId in userIds)
         {
-            var agentConfig = await agentConfigRepo.GetActiveAgentAsync(tenantId, userId, now, cancellationToken);
-            if (agentConfig != null)
+            if (agentConfigMap.TryGetValue(userId, out var agentConfig))
             {
                 // 有生效的代理配置，替换为代理人
                 result.Add(agentConfig.AgentUserId);

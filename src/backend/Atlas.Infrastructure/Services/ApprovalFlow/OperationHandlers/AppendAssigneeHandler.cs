@@ -46,10 +46,11 @@ public sealed class AppendAssigneeHandler : IApprovalOperationHandler
         var currentTask = await _taskRepository.GetByIdAsync(tenantId, taskId.Value, cancellationToken);
         if (currentTask == null) throw new BusinessException("TASK_NOT_FOUND", "任务不存在");
 
-        // 创建新任务
+        // 构建所有新任务列表，批量插入
+        var newTasks = new List<ApprovalTask>(request.AdditionalAssigneeValues.Count);
         foreach (var assignee in request.AdditionalAssigneeValues)
         {
-            var newTask = new ApprovalTask(
+            newTasks.Add(new ApprovalTask(
                 tenantId,
                 instanceId,
                 currentTask.NodeId,
@@ -58,10 +59,10 @@ public sealed class AppendAssigneeHandler : IApprovalOperationHandler
                 assignee,
                 _idGeneratorAccessor.NextId(),
                 order: currentTask.Order,
-                initialStatus: ApprovalTaskStatus.Pending);
-            
-            await _taskRepository.AddAsync(newTask, cancellationToken);
+                initialStatus: ApprovalTaskStatus.Pending));
         }
+
+        await _taskRepository.AddRangeAsync(newTasks, cancellationToken);
 
         // 记录历史
         var historyEvent = new ApprovalHistoryEvent(

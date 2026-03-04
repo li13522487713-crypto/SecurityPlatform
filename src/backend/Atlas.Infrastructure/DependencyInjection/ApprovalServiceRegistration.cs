@@ -32,6 +32,7 @@ public static class ApprovalServiceRegistration
         services.AddScoped<Atlas.Application.Approval.Repositories.IApprovalReminderRecordRepository, ApprovalReminderRecordRepository>();
         services.AddScoped<Atlas.Application.Approval.Repositories.IApprovalExternalCallbackConfigRepository, ApprovalExternalCallbackConfigRepository>();
         services.AddScoped<Atlas.Application.Approval.Repositories.IApprovalExternalCallbackRecordRepository, ApprovalExternalCallbackRecordRepository>();
+        services.AddScoped<Atlas.Application.Approval.Repositories.IApprovalSubProcessLinkRepository, ApprovalSubProcessLinkRepository>();
 
         // External Callback Handler
         services.AddScoped<Atlas.Application.Approval.Abstractions.IExternalCallbackHandler>(sp =>
@@ -58,6 +59,10 @@ public static class ApprovalServiceRegistration
         services.AddHostedService<ApprovalTimeoutReminderHostedService>();
         // Timeout Auto-Processing Hosted Service (auto-approve/reject/skip timed-out tasks)
         services.AddHostedService<ApprovalTimeoutAutoProcessHostedService>();
+        // Timer/Trigger node background service (advances flow when timer/trigger nodes fire)
+        services.AddScoped<Atlas.Infrastructure.Services.ApprovalFlow.Jobs.ApprovalTimerNodeJob>();
+        services.AddScoped<Atlas.Infrastructure.Services.ApprovalFlow.Jobs.ApprovalTriggerNodeJob>();
+        services.AddHostedService<ApprovalTimerNodeHostedService>();
 
         // Operation Handlers
         services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalOperationHandler, Atlas.Infrastructure.Services.ApprovalFlow.Operations.ProcessDrawBackOperationHandler>();
@@ -122,6 +127,7 @@ public static class ApprovalServiceRegistration
             var parallelTokenRepository = sp.GetRequiredService<Atlas.Application.Approval.Repositories.IApprovalParallelTokenRepository>();
             var copyRecordRepository = sp.GetRequiredService<Atlas.Application.Approval.Repositories.IApprovalCopyRecordRepository>();
             var processVariableRepository = sp.GetRequiredService<Atlas.Application.Approval.Repositories.IApprovalProcessVariableRepository>();
+            var subProcessLinkRepository = sp.GetRequiredService<Atlas.Application.Approval.Repositories.IApprovalSubProcessLinkRepository>();
             var userQueryService = sp.GetRequiredService<Atlas.Application.Approval.Abstractions.IApprovalUserQueryService>();
             var idGeneratorAccessor = sp.GetRequiredService<Atlas.Core.Abstractions.IIdGeneratorAccessor>();
             var mapper = sp.GetRequiredService<AutoMapper.IMapper>();
@@ -131,13 +137,15 @@ public static class ApprovalServiceRegistration
             var callbackService = sp.GetService<Atlas.Infrastructure.Services.ApprovalFlow.ExternalCallbackService>();
             var statusSyncHandler = sp.GetService<Atlas.Infrastructure.Services.ApprovalFlow.ApprovalStatusSyncHandler>();
             var backgroundWorkQueue = sp.GetService<Atlas.Core.Abstractions.IBackgroundWorkQueue>();
+            var aiHandler = sp.GetService<Atlas.Application.Approval.Abstractions.IApprovalAiHandler>();
             var logger = sp.GetService<Microsoft.Extensions.Logging.ILogger<ApprovalRuntimeCommandService>>();
             return new ApprovalRuntimeCommandService(
                 flowRepository, instanceRepository, taskRepository, historyRepository,
                 deptLeaderRepository, nodeExecutionRepository, parallelTokenRepository,
-                copyRecordRepository, processVariableRepository, userQueryService,
-                idGeneratorAccessor, mapper, unitOfWork, notificationService, timeoutReminderRepository,
-                callbackService, statusSyncHandler, backgroundWorkQueue, logger);
+                copyRecordRepository, processVariableRepository, subProcessLinkRepository,
+                userQueryService, idGeneratorAccessor, mapper, unitOfWork, notificationService,
+                timeoutReminderRepository, callbackService, statusSyncHandler, backgroundWorkQueue,
+                aiHandler, logger);
         });
 
         services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalDepartmentLeaderService, ApprovalDepartmentLeaderService>();

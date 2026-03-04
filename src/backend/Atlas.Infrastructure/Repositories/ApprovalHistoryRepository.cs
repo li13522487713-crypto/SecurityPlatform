@@ -22,6 +22,13 @@ public sealed class ApprovalHistoryRepository : IApprovalHistoryRepository
         await _db.Insertable(entity).ExecuteCommandAsync(cancellationToken);
     }
 
+    public async Task AddRangeAsync(IEnumerable<ApprovalHistoryEvent> entities, CancellationToken cancellationToken)
+    {
+        var list = entities as List<ApprovalHistoryEvent> ?? entities.ToList();
+        if (list.Count == 0) return;
+        await _db.Insertable(list).ExecuteCommandAsync(cancellationToken);
+    }
+
     public async Task<(IReadOnlyList<ApprovalHistoryEvent> Items, int TotalCount)> GetPagedByInstanceAsync(
         TenantId tenantId,
         long instanceId,

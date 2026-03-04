@@ -87,15 +87,9 @@ const fetchData = async () => {
         pageSize: pagination.pageSize ?? 10,
         keyword: keyword.value || undefined,
       },
-      statusValue,
+      statusValue ?? ApprovalTaskStatus.Approved,
     );
-    dataSource.value = result.items.filter(
-      (item) =>
-        item.status === ApprovalTaskStatus.Approved
-        || item.status === ApprovalTaskStatus.Rejected
-        || item.status === ApprovalTaskStatus.Canceled
-        || item.status === ApprovalTaskStatus.Delegated,
-    );
+    dataSource.value = result.items;
     pagination.total = result.total;
   } catch (err) {
     message.error(err instanceof Error ? err.message : '查询失败');

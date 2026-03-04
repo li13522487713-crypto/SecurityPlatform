@@ -1,6 +1,7 @@
 using Atlas.Application.Approval.Abstractions;
 using Atlas.Application.Approval.Repositories;
 using Atlas.Core.Tenancy;
+using Atlas.Domain.Approval.Entities;
 using Atlas.Domain.Approval.Enums;
 using Atlas.Infrastructure.Services.ApprovalFlow;
 using Microsoft.Extensions.DependencyInjection;
@@ -71,6 +72,28 @@ public sealed class ApprovalTimeoutAutoProcessHostedService : BackgroundService
         var overdueReminders = await reminderRepository.GetPendingRemindersAsync(tenantId, now, cancellationToken);
         if (overdueReminders.Count == 0) return;
 
+        // 批量预加载所有关联的 task
+        var taskIds = overdueReminders
+            .Where(r => r.TaskId.HasValue)
+            .Select(r => r.TaskId!.Value)
+            .Distinct()
+            .ToList();
+
+        var tasksById = taskIds.Count > 0
+            ? (await taskRepository.QueryByIdsAsync(tenantId, taskIds, cancellationToken))
+                .ToDictionary(t => t.Id)
+            : new Dictionary<long, ApprovalTask>();
+
+        // 批量预加载所有关联的 instance
+        var instanceIds = overdueReminders.Select(r => r.InstanceId).Distinct().ToList();
+        var instancesById = (await instanceRepository.QueryByIdsAsync(tenantId, instanceIds, cancellationToken))
+            .ToDictionary(i => i.Id);
+
+        // 批量预加载所有关联的流程定义
+        var definitionIds = instancesById.Values.Select(i => i.DefinitionId).Distinct().ToList();
+        var flowDefsById = (await flowRepository.QueryByIdsAsync(tenantId, definitionIds, cancellationToken))
+            .ToDictionary(f => f.Id);
+
         // Group by instance to avoid repeated flow definition parsing
         var remindersByInstance = overdueReminders.GroupBy(r => r.InstanceId);
 
@@ -79,36 +102,37 @@ public sealed class ApprovalTimeoutAutoProcessHostedService : BackgroundService
             try
             {
                 var instanceId = instanceGroup.Key;
-                var instance = await instanceRepository.GetByIdAsync(tenantId, instanceId, cancellationToken);
-                if (instance == null || instance.Status != ApprovalInstanceStatus.Running)
+                if (!instancesById.TryGetValue(instanceId, out var instance)
+                    || instance.Status != ApprovalInstanceStatus.Running)
                 {
-                    continue; // Instance already finished
+                    continue;
                 }
 
-                var flowDef = await flowRepository.GetByIdAsync(tenantId, instance.DefinitionId, cancellationToken);
-                if (flowDef == null) continue;
+                if (!flowDefsById.TryGetValue(instance.DefinitionId, out var flowDef)) continue;
 
                 var flowDefinition = FlowDefinitionParser.Parse(flowDef.DefinitionJson);
+
+                // 收集本轮已完成的 reminder，批量更新
+                var completedReminders = new List<ApprovalTimeoutReminder>();
 
                 foreach (var reminder in instanceGroup)
                 {
                     if (!reminder.TaskId.HasValue) continue;
 
-                    var task = await taskRepository.GetByIdAsync(tenantId, reminder.TaskId.Value, cancellationToken);
-                    if (task == null || task.Status != ApprovalTaskStatus.Pending) continue;
+                    if (!tasksById.TryGetValue(reminder.TaskId.Value, out var task)
+                        || task.Status != ApprovalTaskStatus.Pending) continue;
 
                     // Look up the node's timeout action
                     var node = flowDefinition.GetNodeById(task.NodeId);
                     if (node == null || !node.TimeoutEnabled || node.TimeoutAction == TimeoutAction.None)
                     {
-                        continue; // No auto-action configured
+                        continue;
                     }
 
-                    // Check if the max reminder count has been reached (auto-process after all reminders sent)
                     var maxReminders = node.MaxReminderCount ?? 3;
                     if (reminder.ReminderCount < maxReminders)
                     {
-                        continue; // Still sending reminders, don't auto-process yet
+                        continue;
                     }
 
                     try
@@ -119,7 +143,6 @@ public sealed class ApprovalTimeoutAutoProcessHostedService : BackgroundService
                                 _logger.LogInformation(
                                     "Auto-approving timed-out task: Instance={InstanceId}, Task={TaskId}, Node={NodeId}",
                                     instanceId, task.Id, task.NodeId);
-                                // Use a system user ID (0) for automatic actions
                                 await runtimeCommandService.ApproveTaskAsync(
                                     tenantId, task.Id, long.Parse(task.AssigneeValue), "系统自动通过（超时）", cancellationToken);
                                 break;
@@ -136,15 +159,13 @@ public sealed class ApprovalTimeoutAutoProcessHostedService : BackgroundService
                                 _logger.LogInformation(
                                     "Auto-skipping timed-out task: Instance={InstanceId}, Task={TaskId}, Node={NodeId}",
                                     instanceId, task.Id, task.NodeId);
-                                // Skip = auto-approve the task to advance the flow
                                 await runtimeCommandService.ApproveTaskAsync(
                                     tenantId, task.Id, long.Parse(task.AssigneeValue), "系统自动跳过（超时）", cancellationToken);
                                 break;
                         }
 
-                        // Mark the reminder as completed after successful auto-processing
                         reminder.MarkCompleted();
-                        await reminderRepository.UpdateAsync(reminder, cancellationToken);
+                        completedReminders.Add(reminder);
                     }
                     catch (Exception ex)
                     {
@@ -152,6 +173,12 @@ public sealed class ApprovalTimeoutAutoProcessHostedService : BackgroundService
                             "Failed to auto-process timed-out task: Instance={InstanceId}, Task={TaskId}, Action={Action}",
                             instanceId, task.Id, node.TimeoutAction);
                     }
+                }
+
+                // 批量更新本实例组内所有已完成的 reminder
+                if (completedReminders.Count > 0)
+                {
+                    await reminderRepository.UpdateRangeAsync(completedReminders, cancellationToken);
                 }
             }
             catch (Exception ex)

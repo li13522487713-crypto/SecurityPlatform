@@ -94,4 +94,14 @@ public interface IApprovalRuntimeCommandService
         long instanceId,
         long initiatorUserId,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// 批量转办（离职转办），将某用户所有待办任务转给目标用户，事务保护
+    /// </summary>
+    Task<int> BatchTransferTasksAsync(
+        TenantId tenantId,
+        long fromUserId,
+        long toUserId,
+        long operatorUserId,
+        CancellationToken cancellationToken);
 }

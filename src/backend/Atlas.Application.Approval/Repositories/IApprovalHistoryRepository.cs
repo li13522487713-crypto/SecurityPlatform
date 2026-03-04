@@ -10,6 +10,8 @@ public interface IApprovalHistoryRepository
 {
     Task AddAsync(ApprovalHistoryEvent entity, CancellationToken cancellationToken);
 
+    Task AddRangeAsync(IEnumerable<ApprovalHistoryEvent> entities, CancellationToken cancellationToken);
+
     Task<(IReadOnlyList<ApprovalHistoryEvent> Items, int TotalCount)> GetPagedByInstanceAsync(
         TenantId tenantId,
         long instanceId,

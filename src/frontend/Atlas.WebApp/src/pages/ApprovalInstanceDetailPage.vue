@@ -22,9 +22,15 @@
           <!-- 表单详情 (只读) -->
           <a-card title="表单详情" class="mb-4">
             <div v-if="instance?.dataJson">
-              <!-- 这里应该使用表单渲染器，暂时用 JSON 展示 -->
-              <pre>{{ JSON.stringify(JSON.parse(instance.dataJson), null, 2) }}</pre>
+              <LfFormRenderer
+                v-if="formJson"
+                :form-json="formJson"
+                :form-data="parsedFormData"
+                :read-only="true"
+              />
+              <pre v-else>{{ JSON.stringify(JSON.parse(instance.dataJson), null, 2) }}</pre>
             </div>
+            <a-empty v-else description="暂无表单数据" />
           </a-card>
 
           <!-- 流程图状态 -->
@@ -81,7 +87,8 @@ import {
   getApprovalInstanceHistory, 
   cancelApprovalInstance,
   suspendInstance,
-  activateInstance
+  activateInstance,
+  getApprovalFlowById
 } from '@/services/api';
 import { 
   CheckCircleOutlined, 
@@ -98,6 +105,8 @@ import type {
   ApprovalHistoryEventDto,
   ApprovalInstanceDetailDto
 } from '@/types/approval-instance-detail';
+import type { FormJson } from '@/types/approval-definition';
+import LfFormRenderer from '@/components/approval/runtime/LfFormRenderer.vue';
 import dayjs from 'dayjs';
 
 const route = useRoute();
@@ -107,6 +116,17 @@ const loading = ref(false);
 const instance = ref<ApprovalInstanceDetailDto | null>(null);
 const historyEvents = ref<ApprovalHistoryEventDto[]>([]);
 const flowChartRef = ref<HTMLElement | null>(null);
+const formJson = ref<FormJson | undefined>(undefined);
+
+const parsedFormData = computed<Record<string, unknown>>(() => {
+  if (!instance.value?.dataJson) return {};
+  try {
+    const parsed = JSON.parse(instance.value.dataJson);
+    return typeof parsed === 'object' && parsed !== null ? (parsed as Record<string, unknown>) : {};
+  } catch {
+    return {};
+  }
+});
 
 const canCancel = computed(() => instance.value?.status === ApprovalInstanceStatus.Running);
 const canSuspend = computed(() => instance.value?.status === ApprovalInstanceStatus.Running);
@@ -115,10 +135,10 @@ const canActivate = computed(() => instance.value?.status === ApprovalInstanceSt
 const flowSteps = computed(() => {
   return historyEvents.value
     .slice()
-    .sort((a, b) => dayjs(a.createdAt).valueOf() - dayjs(b.createdAt).valueOf())
+    .sort((a, b) => dayjs(a.occurredAt).valueOf() - dayjs(b.occurredAt).valueOf())
     .map((event) => ({
       title: getEventActionText(event.eventType),
-      description: `${event.operatorName || '系统'} · ${formatTime(event.createdAt)}`
+      description: `${event.actorUserId ? `用户 ${event.actorUserId}` : '系统'} · ${formatTime(event.occurredAt)}`
     }));
 });
 
@@ -138,6 +158,21 @@ const fetchDetail = async () => {
     
     const historyRes = await getApprovalInstanceHistory(instanceId, { pageIndex: 1, pageSize: 100 });
     historyEvents.value = historyRes.items;
+
+    // 加载流程定义以获取 formJson 用于只读渲染
+    if (res.definitionId) {
+      try {
+        const flowDef = await getApprovalFlowById(String(res.definitionId));
+        if (flowDef.definitionJson) {
+          const defParsed = JSON.parse(flowDef.definitionJson) as { formJson?: FormJson };
+          if (defParsed.formJson) {
+            formJson.value = defParsed.formJson;
+          }
+        }
+      } catch {
+        // 流程定义加载失败时回退到 JSON 展示
+      }
+    }
     
   } catch (error) {
     message.error('获取详情失败');

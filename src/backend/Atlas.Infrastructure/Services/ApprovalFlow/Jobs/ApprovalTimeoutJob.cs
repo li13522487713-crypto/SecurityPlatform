@@ -1,5 +1,6 @@
 using Atlas.Application.Approval.Repositories;
 using Atlas.Core.Abstractions;
+using Atlas.Domain.Approval.Entities;
 using Atlas.Domain.Approval.Enums;
 using Atlas.Infrastructure.Services.ApprovalFlow;
 using Microsoft.Extensions.Logging;
@@ -45,10 +46,47 @@ public sealed class ApprovalTimeoutJob
     {
         var now = _timeProvider.GetUtcNow();
         // 1. 查询所有已到期且未处理的超时提醒
-        var reminders = await _db.Queryable<Domain.Approval.Entities.ApprovalTimeoutReminder>()
+        var reminders = await _db.Queryable<ApprovalTimeoutReminder>()
             .Where(x => !x.IsCompleted && x.ExpectedCompleteTime <= now)
             .OrderBy(x => x.ExpectedCompleteTime)
             .ToListAsync(cancellationToken);
+
+        if (reminders.Count == 0) return;
+
+        // 2. 批量预加载所有关联的 task（有 TaskId 的 reminder）
+        var tenantId = reminders[0].TenantId;
+        var taskIds = reminders
+            .Where(r => r.TaskId.HasValue)
+            .Select(r => r.TaskId!.Value)
+            .Distinct()
+            .ToList();
+
+        var tasksById = taskIds.Count > 0
+            ? (await _taskRepository.QueryByIdsAsync(tenantId, taskIds, cancellationToken))
+                .ToDictionary(t => t.Id)
+            : new Dictionary<long, ApprovalTask>();
+
+        // 3. 批量预加载所有关联的 instance
+        var instanceIds = reminders
+            .Select(r => r.InstanceId)
+            .Distinct()
+            .ToList();
+
+        var instancesById = instanceIds.Count > 0
+            ? (await _instanceRepository.QueryByIdsAsync(tenantId, instanceIds, cancellationToken))
+                .ToDictionary(i => i.Id)
+            : new Dictionary<long, ApprovalProcessInstance>();
+
+        // 4. 批量预加载所有关联的流程定义
+        var definitionIds = instancesById.Values
+            .Select(i => i.DefinitionId)
+            .Distinct()
+            .ToList();
+
+        var flowDefsById = definitionIds.Count > 0
+            ? (await _flowRepository.QueryByIdsAsync(tenantId, definitionIds, cancellationToken))
+                .ToDictionary(f => f.Id)
+            : new Dictionary<long, ApprovalFlowDefinition>();
 
         foreach (var reminder in reminders)
         {
@@ -62,21 +100,19 @@ public sealed class ApprovalTimeoutJob
                     continue;
                 }
 
-                var task = await _taskRepository.GetByIdAsync(reminder.TenantId, reminder.TaskId.Value, cancellationToken);
-                if (task == null || task.Status != ApprovalTaskStatus.Pending)
+                if (!tasksById.TryGetValue(reminder.TaskId.Value, out var task)
+                    || task.Status != ApprovalTaskStatus.Pending)
                 {
-                    // 任务已完成或取消，标记提醒为无效或已处理
                     reminder.MarkCompleted();
                     await _reminderRepository.UpdateAsync(reminder, cancellationToken);
                     continue;
                 }
 
-                // 获取节点配置
-                var instance = await _instanceRepository.GetByIdAsync(reminder.TenantId, reminder.InstanceId, cancellationToken);
-                if (instance == null) continue;
+                if (!instancesById.TryGetValue(reminder.InstanceId, out var instance))
+                    continue;
 
-                var flowDef = await _flowRepository.GetByIdAsync(reminder.TenantId, instance.DefinitionId, cancellationToken);
-                if (flowDef == null) continue;
+                if (!flowDefsById.TryGetValue(instance.DefinitionId, out var flowDef))
+                    continue;
 
                 var flowDefinition = FlowDefinitionParser.Parse(flowDef.DefinitionJson);
                 var node = flowDefinition.GetNodeById(reminder.NodeId);
@@ -101,9 +137,6 @@ public sealed class ApprovalTimeoutJob
                         break;
 
                     case TimeoutAction.AutoSkip:
-                        // 跳过当前节点，直接进入下一节点
-                        // 相当于自动通过，但不记录为 Approved? 或者记录为 Skipped?
-                        // 这里简单处理为自动通过
                         task.Approve(0, "超时自动跳过", now);
                         await _taskRepository.UpdateAsync(task, cancellationToken);
                         await _flowEngine.AdvanceFlowAsync(reminder.TenantId, instance, flowDefinition, node.Id, cancellationToken);
@@ -112,7 +145,6 @@ public sealed class ApprovalTimeoutJob
 
                     case TimeoutAction.None:
                     default:
-                        // 仅提醒（发送通知逻辑在 ReminderJob 中处理，或者这里触发通知事件）
                         break;
                 }
 

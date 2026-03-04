@@ -60,19 +60,12 @@ public sealed class DynamicFieldRepository : IDynamicFieldRepository
             return;
         }
 
-        var result = await _db.Ado.UseTranAsync(async () =>
-        {
-            foreach (var field in fields)
-            {
-                await _db.Updateable(field)
-                    .Where(x => x.Id == field.Id && x.TenantIdValue == field.TenantIdValue)
-                    .ExecuteCommandAsync(cancellationToken);
-            }
-        });
+        var affected = await _db.Updateable(fields.ToList())
+            .ExecuteCommandAsync(cancellationToken);
 
-        if (!result.IsSuccess)
+        if (affected == 0 && fields.Count > 0)
         {
-            throw result.ErrorException ?? new InvalidOperationException("批量更新动态字段失败。");
+            throw new InvalidOperationException("批量更新动态字段失败。");
         }
     }
 

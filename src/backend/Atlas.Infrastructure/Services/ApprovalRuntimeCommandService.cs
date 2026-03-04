@@ -31,6 +31,7 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
     private readonly IApprovalParallelTokenRepository _parallelTokenRepository;
     private readonly IApprovalCopyRecordRepository _copyRecordRepository;
     private readonly IApprovalProcessVariableRepository _processVariableRepository;
+    private readonly IApprovalSubProcessLinkRepository _subProcessLinkRepository;
     private readonly IApprovalNotificationService? _notificationService;
     private readonly IApprovalTimeoutReminderRepository? _timeoutReminderRepository;
     private readonly ExternalCallbackService? _callbackService;
@@ -52,6 +53,7 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
         IApprovalParallelTokenRepository parallelTokenRepository,
         IApprovalCopyRecordRepository copyRecordRepository,
         IApprovalProcessVariableRepository processVariableRepository,
+        IApprovalSubProcessLinkRepository subProcessLinkRepository,
         IApprovalUserQueryService userQueryService,
         IIdGeneratorAccessor idGeneratorAccessor,
         IMapper mapper,
@@ -61,6 +63,7 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
         ExternalCallbackService? callbackService = null,
         ApprovalStatusSyncHandler? statusSyncHandler = null,
         IBackgroundWorkQueue? backgroundWorkQueue = null,
+        IApprovalAiHandler? aiHandler = null,
         ILogger<ApprovalRuntimeCommandService>? logger = null)
     {
         _flowRepository = flowRepository;
@@ -72,6 +75,7 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
         _parallelTokenRepository = parallelTokenRepository;
         _copyRecordRepository = copyRecordRepository;
         _processVariableRepository = processVariableRepository;
+        _subProcessLinkRepository = subProcessLinkRepository;
         _unitOfWork = unitOfWork;
         _notificationService = notificationService;
         _timeoutReminderRepository = timeoutReminderRepository;
@@ -96,7 +100,7 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
             notificationService,
             timeoutReminderRepository,
             callbackService,
-            aiHandler: null,
+            aiHandler: aiHandler,
             backgroundWorkQueue: backgroundWorkQueue);
     }
 
@@ -134,25 +138,7 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
             // 穿越时空：覆盖创建时间
             if (request.OverrideCreateTime.HasValue)
             {
-                // 注意：ApprovalProcessInstance 的 CreatedAt 是 private set，且在构造函数中初始化为 UtcNow
-                // 我们需要通过反射或者修改实体来支持修改 CreatedAt
-                // 为了简单起见，假设我们可以在这里修改它，或者我们需要在 Entity 中添加 SetCreatedAt 方法
-                // 但 Entity 设计原则通常不允许随意修改 CreatedAt
-                // 不过既然是"穿越时空"功能，这是一个特殊需求。
-                // 让我们在 ApprovalProcessInstance 中添加 SetCreatedAt 方法，或者使用反射。
-                // 鉴于我不能修改 Entity (Phase 1 已过)，我可以使用反射。
-                // 或者，我应该在 Phase 1 中添加这个支持。
-                // 既然我还在 coding，我可以去修改 Entity。
-                
-                // 更好的方式：在构造函数中传入 createdAt
-                // 但构造函数签名已经固定。
-                // 让我们使用反射修改 backing field。
-                
-                var field = typeof(TenantEntity).GetProperty("CreatedAt")?.GetSetMethod(true);
-                if (field != null)
-                {
-                    field.Invoke(instance, new object[] { request.OverrideCreateTime.Value });
-                }
+                instance.OverrideStartedAt(request.OverrideCreateTime.Value);
             }
 
             // Wrap all persistence operations in a transaction for atomicity
@@ -580,12 +566,7 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
             isAsync,
             _idGeneratorAccessor.NextId());
 
-        // 尝试获取 SubProcessLink 仓储并持久化
-        if (_backgroundWorkQueue != null)
-        {
-            // 使用现有服务提供者来获取仓储
-            // 注意：这里可以通过构造函数注入，但为了不破坏已有签名，使用 DI
-        }
+        await _subProcessLinkRepository.AddAsync(link, cancellationToken);
 
         // 5. 记录启动事件
         var startEvent = new ApprovalHistoryEvent(
@@ -710,9 +691,40 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
         return _mapper.Map<ApprovalInstanceResponse>(instance);
     }
 
-    #region Transaction & Task Cancellation Helpers
+    public async Task<int> BatchTransferTasksAsync(
+        TenantId tenantId,
+        long fromUserId,
+        long toUserId,
+        long operatorUserId,
+        CancellationToken cancellationToken)
+    {
+        var tasks = await _taskRepository.GetPendingByAssigneeUserAsync(tenantId, fromUserId, cancellationToken);
+        if (tasks.Count == 0) return 0;
 
-    /// <summary>
+        await ExecuteInTransactionAsync(async () =>
+        {
+            var historyEvents = new List<ApprovalHistoryEvent>(tasks.Count);
+            foreach (var task in tasks)
+            {
+                task.Transfer(toUserId.ToString());
+                historyEvents.Add(new ApprovalHistoryEvent(
+                    tenantId,
+                    task.InstanceId,
+                    ApprovalHistoryEventType.TaskTransferred,
+                    task.NodeId,
+                    $"批量转办 {fromUserId} -> {toUserId}",
+                    operatorUserId,
+                    _idGeneratorAccessor.NextId()));
+            }
+
+            await _taskRepository.UpdateRangeAsync(tasks, cancellationToken);
+            await _historyRepository.AddRangeAsync(historyEvents, cancellationToken);
+        }, cancellationToken);
+
+        return tasks.Count;
+    }
+
+    #region Transaction & Task Cancellation Helpers    /// <summary>
     /// Execute an action inside a database transaction if IUnitOfWork is available.
     /// Falls back to direct execution if no UoW is configured.
     /// </summary>

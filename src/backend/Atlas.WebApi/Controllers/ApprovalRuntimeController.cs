@@ -316,18 +316,13 @@ public sealed class ApprovalRuntimeController : ControllerBase
     /// 强制终止流程实例（管理员操作）
     /// </summary>
     [HttpPost("{id:long}/termination")]
+    [Authorize(Roles = "Admin")]
     public async Task<ApiResponse<string>> TerminateAsync(
         long id,
         [FromBody] string? comment,
         CancellationToken cancellationToken = default)
     {
         var currentUser = _currentUserAccessor.GetCurrentUserOrThrow();
-
-        // 权限校验：通常只有管理员可以终止
-        if (!currentUser.Roles.Contains("Admin", StringComparer.OrdinalIgnoreCase))
-        {
-             return ApiResponse<string>.Fail("FORBIDDEN", "只有管理员可以终止流程", HttpContext.TraceIdentifier);
-        }
 
         await _commandService.TerminateInstanceAsync(
             currentUser.TenantId,

@@ -180,4 +180,12 @@ public sealed class ApprovalProcessInstance : TenantEntity
     {
         CurrentNodeName = currentNodeName;
     }
+
+    /// <summary>
+    /// 覆盖实例的启动时间（用于数据迁移/导入等特殊场景）
+    /// </summary>
+    public void OverrideStartedAt(DateTimeOffset startedAt)
+    {
+        StartedAt = startedAt;
+    }
 }

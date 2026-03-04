@@ -1798,3 +1798,82 @@ export async function deleteTableView(id: string): Promise<void> {
 }
 
 // Core infrastructure (requestApi, error handling, token management) is in api-core.ts
+
+// ─── 审批代理人 ──────────────────────────────────────────────────────────────
+
+export interface ApprovalAgentConfigResponse {
+  id: string;
+  agentUserId: string;
+  principalUserId: string;
+  startTime: string;
+  endTime: string;
+  isEnabled: boolean;
+  createdAt: string;
+}
+
+export interface CreateApprovalAgentRequest {
+  agentUserId: string;
+  startTime: string;
+  endTime: string;
+}
+
+export async function getMyAgentConfigs(): Promise<ApprovalAgentConfigResponse[]> {
+  const response = await requestApi<ApiResponse<ApprovalAgentConfigResponse[]>>('/approval/agents');
+  if (!response.data) {
+    throw new Error(response.message || '获取代理设置失败');
+  }
+  return response.data;
+}
+
+export async function createAgentConfig(request: CreateApprovalAgentRequest): Promise<void> {
+  const response = await requestApi<ApiResponse<string>>('/approval/agents', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  if (!response.success) {
+    throw new Error(response.message || '创建代理设置失败');
+  }
+}
+
+export async function deleteAgentConfig(id: string): Promise<void> {
+  const response = await requestApi<ApiResponse<string>>(`/approval/agents/${id}`, {
+    method: 'DELETE',
+  });
+  if (!response.success) {
+    throw new Error(response.message || '删除代理设置失败');
+  }
+}
+
+// ─── 部门负责人 ──────────────────────────────────────────────────────────────
+
+export interface SetDepartmentLeaderRequest {
+  departmentId: string;
+  leaderUserId: string;
+}
+
+export async function getDepartmentLeader(departmentId: string): Promise<string | null> {
+  const response = await requestApi<ApiResponse<string | null>>(`/approval/department-leaders/${departmentId}`);
+  return response.data ?? null;
+}
+
+export async function setDepartmentLeader(request: SetDepartmentLeaderRequest): Promise<void> {
+  const response = await requestApi<ApiResponse<string>>('/approval/department-leaders', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+  if (!response.success) {
+    throw new Error(response.message || '设置部门负责人失败');
+  }
+}
+
+export async function removeDepartmentLeader(departmentId: string): Promise<void> {
+  const response = await requestApi<ApiResponse<string>>(`/approval/department-leaders/${departmentId}`, {
+    method: 'DELETE',
+  });
+  if (!response.success) {
+    throw new Error(response.message || '移除部门负责人失败');
+  }
+}
+
