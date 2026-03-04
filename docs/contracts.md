@@ -1050,7 +1050,7 @@ JWT Claims（新增）：
 - `PUT /api/v1/dynamic-tables/{tableKey}/records/{id}`：更新记录（需幂等 + CSRF）
 - `DELETE /api/v1/dynamic-tables/{tableKey}/records/{id}`：删除记录（需幂等 + CSRF）
 - `POST /api/v1/dynamic-tables/{tableKey}/records/query`：复杂筛选（支持 `eq/ne/gt/gte/lt/lte/like/in/between`，需幂等 + CSRF）
-- `POST /api/v1/dynamic-tables/{tableKey}/records/export`：按筛选条件导出 CSV（需幂等 + CSRF）
+- `POST /api/v1/dynamic-tables/{tableKey}/records/export`：按筛选条件导出 CSV（需幂等 + CSRF，单次最多 10,000 条，分批查询避免 OOM）
 - `POST /api/v1/dynamic-tables/{tableKey}/records/batch`：批量新增（需幂等 + CSRF）
 - `DELETE /api/v1/dynamic-tables/{tableKey}/records`：批量删除（需幂等 + CSRF）
 

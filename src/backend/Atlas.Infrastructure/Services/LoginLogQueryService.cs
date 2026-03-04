@@ -132,7 +132,8 @@ public sealed class LoginLogQueryService : ILoginLogQueryService
         }
 
         var escaped = value.Replace("\"", "\"\"");
-        return escaped.Contains(',') || escaped.Contains('\n') || escaped.Contains('\r')
+        // RFC 4180: fields containing ", comma, or newline must be enclosed in quotes
+        return escaped.Contains('"') || escaped.Contains(',') || escaped.Contains('\n') || escaped.Contains('\r')
             ? $"\"{escaped}\""
             : escaped;
     }

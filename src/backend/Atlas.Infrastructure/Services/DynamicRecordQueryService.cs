@@ -378,7 +378,8 @@ public sealed class DynamicRecordQueryService : IDynamicRecordQueryService
             value = value.Replace("\"", "\"\"");
         }
 
-        return value.Contains(',') || value.Contains('\n') || value.Contains('\r')
+        // RFC 4180: fields containing ", comma, or newline must be enclosed in quotes
+        return value.Contains('"') || value.Contains(',') || value.Contains('\n') || value.Contains('\r')
             ? $"\"{value}\""
             : value;
     }

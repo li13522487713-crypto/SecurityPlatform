@@ -251,6 +251,16 @@ public sealed class MigrationService : IMigrationService
         {
             throw new BusinessException(ErrorCodes.NotFound, "迁移记录不存在。");
         }
+
+        if (string.Equals(migration.Status, "Succeeded", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new BusinessException(ErrorCodes.ValidationError, "迁移已成功执行，不可重复执行。");
+        }
+        if (string.Equals(migration.Status, "Executing", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new BusinessException(ErrorCodes.ValidationError, "迁移正在执行中，请稍后重试。");
+        }
+
         if (migration.IsDestructive && !confirmDestructive)
         {
             throw new BusinessException(ErrorCodes.ValidationError, "该迁移包含破坏性变更，请先通过预检查并确认执行。");
@@ -325,10 +335,18 @@ public sealed class MigrationService : IMigrationService
             checks.Add("检测到破坏性变更，执行前需要确认");
         }
 
-        var canExecute = !string.Equals(migration.Status, "Executing", StringComparison.OrdinalIgnoreCase);
+        var canExecute = string.Equals(migration.Status, "Draft", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(migration.Status, "Failed", StringComparison.OrdinalIgnoreCase);
         if (!canExecute)
         {
-            checks.Add("当前迁移正在执行中，暂不可重复执行");
+            if (string.Equals(migration.Status, "Succeeded", StringComparison.OrdinalIgnoreCase))
+            {
+                checks.Add("迁移已成功执行，不可重复执行");
+            }
+            else if (string.Equals(migration.Status, "Executing", StringComparison.OrdinalIgnoreCase))
+            {
+                checks.Add("当前迁移正在执行中，暂不可重复执行");
+            }
         }
 
         return new MigrationPrecheckResult(
