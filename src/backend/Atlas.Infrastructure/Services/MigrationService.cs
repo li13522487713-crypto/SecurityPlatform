@@ -185,7 +185,7 @@ public sealed class MigrationService : IMigrationService
 
             var addSql = BuildAddColumnSql(table, field);
             upSql.AppendLine(addSql);
-            downSql.AppendLine($"-- SQLite 不支持直接 DROP COLUMN，请通过重建表回滚新增字段 {field.Name}");
+            downSql.AppendLine($"-- SQLite 需重建表: 新增字段 {field.Name} 的回滚需手动执行");
         }
 
         foreach (var field in request.UpdateFields)
@@ -200,8 +200,8 @@ public sealed class MigrationService : IMigrationService
             {
                 isDestructive = true;
                 warnings.Add($"字段 {field.Name} 涉及结构修改，SQLite 需重建表。");
-                upSql.AppendLine($"-- TODO: ALTER COLUMN {field.Name}（SQLite 需重建表）");
-                downSql.AppendLine($"-- TODO: ROLLBACK ALTER COLUMN {field.Name}（SQLite 需重建表）");
+                upSql.AppendLine($"-- SQLite 需重建表: 字段 {field.Name} 的修改需手动执行");
+                downSql.AppendLine($"-- SQLite 需重建表: 字段 {field.Name} 的回滚需手动执行");
             }
         }
 
@@ -215,8 +215,8 @@ public sealed class MigrationService : IMigrationService
 
             isDestructive = true;
             warnings.Add($"字段 {fieldName} 删除属于破坏性变更，SQLite 需重建表。");
-            upSql.AppendLine($"-- TODO: DROP COLUMN {fieldName}（SQLite 需重建表）");
-            downSql.AppendLine($"-- TODO: RESTORE COLUMN {fieldName}（SQLite 需重建表）");
+            upSql.AppendLine($"-- SQLite 需重建表: 字段 {fieldName} 的删除需手动执行");
+            downSql.AppendLine($"-- SQLite 需重建表: 字段 {fieldName} 的还原需手动执行");
         }
 
         var upScript = upSql.ToString().Trim();

@@ -233,13 +233,7 @@ public sealed class LowCodeAppCommandService : ILowCodeAppCommandService
         var versionEntities = new List<LowCodePageVersion>(versionPackages.Count);
         foreach (var version in versionPackages)
         {
-            var sourcePageId = ResolveSourcePageId(version.PageId);
-            if (sourcePageId is null)
-            {
-                continue;
-            }
-
-            var mappedPageId = ResolveMappedPageId(sourcePageId.Value, pageIdMap);
+            var mappedPageId = ResolveMappedPageId(version.PageId, pageIdMap);
             if (!mappedPageId.HasValue || !pageEntityMap.TryGetValue(mappedPageId.Value, out var pageEntity))
             {
                 continue;
@@ -317,36 +311,33 @@ public sealed class LowCodeAppCommandService : ILowCodeAppCommandService
             : LowCodePageType.Blank;
     }
 
+    /// <summary>
+    /// 构建用于 pageIdMap 的源页面键。支持数字 ID 或 GUID 等任意字符串格式。
+    /// </summary>
     private static string BuildSourcePageKey(string? sourceId, int index)
     {
-        var normalized = ResolveSourcePageId(sourceId);
-        return normalized.HasValue ? normalized.Value.ToString() : $"index-{index}";
+        return !string.IsNullOrWhiteSpace(sourceId) ? sourceId.Trim() : $"index-{index}";
     }
 
-    private static long? ResolveSourcePageId(string? sourceId)
+    private static long? ResolveMappedPageId(string? sourcePageId, IReadOnlyDictionary<string, long> pageIdMap)
     {
-        if (string.IsNullOrWhiteSpace(sourceId))
+        if (string.IsNullOrWhiteSpace(sourcePageId))
         {
             return null;
         }
 
-        return long.TryParse(sourceId, out var parsed) ? parsed : null;
-    }
-
-    private static long? ResolveMappedPageId(long sourcePageId, IReadOnlyDictionary<string, long> pageIdMap)
-    {
-        var key = sourcePageId.ToString();
+        var key = sourcePageId.Trim();
         return pageIdMap.TryGetValue(key, out var mapped) ? mapped : null;
     }
 
     private static long? ResolveParentPageId(string? parentSourceId, IReadOnlyDictionary<string, long> pageIdMap)
     {
-        var sourceParentId = ResolveSourcePageId(parentSourceId);
-        if (!sourceParentId.HasValue)
+        if (string.IsNullOrWhiteSpace(parentSourceId))
         {
             return null;
         }
 
-        return pageIdMap.TryGetValue(sourceParentId.Value.ToString(), out var mapped) ? mapped : null;
+        var key = parentSourceId.Trim();
+        return pageIdMap.TryGetValue(key, out var mapped) ? mapped : null;
     }
 }

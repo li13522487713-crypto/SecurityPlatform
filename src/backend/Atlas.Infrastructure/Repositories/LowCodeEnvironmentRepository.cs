@@ -79,7 +79,8 @@ public sealed class LowCodeEnvironmentRepository : ILowCodeEnvironmentRepository
             query = query.Where(x => x.Id != excludeId.Value);
         }
 
-        return await query.AnyAsync();
+        var count = await query.CountAsync(cancellationToken);
+        return count > 0;
     }
 
     public Task ClearDefaultByAppIdAsync(

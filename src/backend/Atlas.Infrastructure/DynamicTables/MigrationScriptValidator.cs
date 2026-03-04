@@ -40,10 +40,11 @@ internal static class MigrationScriptValidator
 
     /// <summary>
     /// ALTER TABLE ... ADD COLUMN 白名单模式。
-    /// 支持 SQLite/PostgreSQL 双引号、MySQL 反引号、SQL Server 方括号。
+    /// 支持 SQLite/PostgreSQL 双引号、MySQL 反引号、SQL Server 方括号，以及未加引号的简单标识符
+    ///（与 DynamicSqlBuilder.Quote 输出及手动编写的 SQL 兼容）。
     /// </summary>
     private static readonly Regex AlterAddColumnPattern = new(
-        @"^\s*ALTER\s+TABLE\s+(?:""([^""]+)""|`([^`]+)`|\[([^\]]+)\])\s+ADD\s+COLUMN\s+(?:""([^""]+)""|`([^`]+)`|\[([^\]]+)\])\s+(\w+)(?:\([^)]+\))?\s*(NOT\s+NULL)?\s*$",
+        @"^\s*ALTER\s+TABLE\s+(?:""([^""]+)""|`([^`]+)`|\[([^\]]+)\]|([a-zA-Z_][a-zA-Z0-9_]*))\s+ADD\s+COLUMN\s+(?:""([^""]+)""|`([^`]+)`|\[([^\]]+)\]|([a-zA-Z_][a-zA-Z0-9_]*))\s+(\w+)(?:\([^)]+\))?\s*(NOT\s+NULL)?\s*$",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     /// <summary>
@@ -84,7 +85,14 @@ internal static class MigrationScriptValidator
                 continue;
             }
 
-            var error = ValidateStatement(stmt, expectedTableKey);
+            // 去除尾随注释后再校验，避免 "ALTER TABLE ... ADD COLUMN x -- comment" 被误拒
+            var stmtWithoutTrailingComments = StripSqlComments(stmt).Trim();
+            if (string.IsNullOrWhiteSpace(stmtWithoutTrailingComments))
+            {
+                continue;
+            }
+
+            var error = ValidateStatement(stmtWithoutTrailingComments, expectedTableKey);
             if (error is not null)
             {
                 return $"第 {i + 1} 条语句校验失败：{error}";
@@ -188,14 +196,15 @@ internal static class MigrationScriptValidator
 
         var tableName = match.Groups[1].Success ? match.Groups[1].Value
             : match.Groups[2].Success ? match.Groups[2].Value
-            : match.Groups[3].Value;
+            : match.Groups[3].Success ? match.Groups[3].Value
+            : match.Groups[4].Value;
 
         if (!string.Equals(tableName, expectedTableKey, StringComparison.OrdinalIgnoreCase))
         {
             return $"表名 '{tableName}' 与迁移目标表 '{expectedTableKey}' 不一致。";
         }
 
-        var typeName = match.Groups[7].Value;
+        var typeName = match.Groups[9].Value;
         if (!AllowedTypes.Contains(typeName) && !typeName.StartsWith("NUMERIC", StringComparison.OrdinalIgnoreCase))
         {
             return $"列类型 '{typeName}' 不在允许列表中（INTEGER/TEXT/REAL/BLOB/NUMERIC）。";

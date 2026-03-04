@@ -9,10 +9,10 @@ public static class CsvUtility
     /// 按 RFC 4180 对 CSV 字段值进行转义。
     /// </summary>
     /// <param name="value">原始字符串，可为 null。</param>
-    /// <returns>转义后的字符串；null 或空白返回空字符串。</returns>
+    /// <returns>转义后的字符串；null 或空字符串返回空字符串；仅含空格的字符串会保留。</returns>
     public static string EscapeField(string? value)
     {
-        if (string.IsNullOrWhiteSpace(value))
+        if (string.IsNullOrEmpty(value))
         {
             return string.Empty;
         }
