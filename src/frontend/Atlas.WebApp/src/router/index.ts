@@ -54,7 +54,7 @@ router.beforeEach(async (to, from, next) => {
 
   if (token && tenantId) {
     if (to.path === "/login") {
-      next({ path: "/" });
+      next({ path: "/profile" });
       NProgress.done();
       return;
     }
@@ -81,7 +81,7 @@ router.beforeEach(async (to, from, next) => {
         || userStore.permissions.includes("*:*:*")
         || userStore.roles.some((role: string) => ["admin", "superadmin"].includes(role.toLowerCase()));
       if (!has) {
-        next({ path: "/" });
+        next({ path: "/profile" });
         NProgress.done();
         return;
       }
