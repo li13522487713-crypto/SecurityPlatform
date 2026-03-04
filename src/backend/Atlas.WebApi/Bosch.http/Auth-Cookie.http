@@ -12,7 +12,7 @@ X-Tenant-Id: {{tenantId}}
 
 {
   "username": "admin",
-  "password": "Admin@123"
+  "password": "P@ssw0rd!"
 }
 
 ### 提取cookie（仅供参考，实际浏览器会自动管理）

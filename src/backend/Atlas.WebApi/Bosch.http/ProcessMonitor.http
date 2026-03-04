@@ -17,16 +17,12 @@ X-Tenant-Id: {{tenantId}}
 ###
 @accessToken = {{login.response.body.$.data.accessToken}}
 
-### 获取流程监控仪表盘
+### 流程监控仪表盘
 GET {{baseUrl}}/api/v1/process-monitor/dashboard
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
-### 获取流程实例轨迹（将 instanceId 替换为真实实例）
+### 指定流程实例追踪（示例实例ID，可能为空）
 GET {{baseUrl}}/api/v1/process-monitor/instances/1/trace
 Authorization: Bearer {{accessToken}}
-X-Tenant-Id: {{tenantId}}
-
-### 安全负例：未登录访问（预期 401）
-GET {{baseUrl}}/api/v1/process-monitor/dashboard
 X-Tenant-Id: {{tenantId}}

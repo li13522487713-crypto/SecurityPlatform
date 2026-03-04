@@ -9,7 +9,7 @@ X-Tenant-Id: {{tenantId}}
 
 {
   "username": "admin",
-  "password": "Admin@123"
+  "password": "P@ssw0rd!"
 }
 
 @accessToken = {{login.response.body.$.data.accessToken}}

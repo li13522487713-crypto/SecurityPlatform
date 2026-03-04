@@ -33,10 +33,12 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ISqlSugarClient>(sp =>
         {
             var options = sp.GetRequiredService<IOptions<DatabaseOptions>>().Value;
+            var configuration = sp.GetRequiredService<IConfiguration>();
             var tenantProvider = sp.GetRequiredService<ITenantProvider>();
             var tenantId = tenantProvider.GetTenantId();
 
             string connectionString = options.ConnectionString;
+            var dbType = MapDbType(options.DbType);
 
             var config = new ConnectionConfig
             {

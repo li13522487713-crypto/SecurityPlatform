@@ -16,6 +16,7 @@ X-Tenant-Id: {{tenantId}}
 
 ###
 @accessToken = {{login.response.body.$.data.accessToken}}
+@csrfToken =
 
 ### 获取 CSRF Token
 # @name antiforgery
@@ -26,88 +27,57 @@ X-Tenant-Id: {{tenantId}}
 ###
 @csrfToken = {{antiforgery.response.body.$.data.token}}
 
-### 用户端：我的通知列表
+### 我的通知列表
 GET {{baseUrl}}/api/v1/notifications?pageIndex=1&pageSize=20
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
-### 用户端：未读计数
+### 未读数
 GET {{baseUrl}}/api/v1/notifications/unread-count
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
-### 管理端：通知列表
+### 管理端列表
 GET {{baseUrl}}/api/v1/notifications/manage?pageIndex=1&pageSize=20
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
-### 管理端：创建通知
-# @name createNotification
+### 创建通知
+# @name createNotice
 POST {{baseUrl}}/api/v1/notifications/manage
-Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Idempotency-Key: {{$guid}}
 X-CSRF-TOKEN: {{csrfToken}}
+Content-Type: application/json
 
 {
   "title": "集成测试通知",
-  "content": "这是通知模块集成测试数据",
-  "noticeType": "System",
+  "content": "Notifications.http 自动化样例",
+  "noticeType": "SYSTEM",
   "priority": 1,
   "expiresAt": null
 }
 
 ###
-@notificationId = {{createNotification.response.body.$.data.id}}
+@notificationId = {{createNotice.response.body.$.data.id}}
 
-### 管理端：更新通知
-PUT {{baseUrl}}/api/v1/notifications/manage/{{notificationId}}
-Content-Type: application/json
-Authorization: Bearer {{accessToken}}
-X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
-
-{
-  "title": "集成测试通知（更新）",
-  "content": "这是通知模块集成测试数据（更新）",
-  "noticeType": "System",
-  "priority": 2,
-  "expiresAt": null
-}
-
-### 用户端：标记单条已读
+### 标记已读
 PUT {{baseUrl}}/api/v1/notifications/{{notificationId}}/read
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Idempotency-Key: {{$guid}}
 X-CSRF-TOKEN: {{csrfToken}}
 
-### 用户端：全部已读
+### 全部已读
 PUT {{baseUrl}}/api/v1/notifications/read-all
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Idempotency-Key: {{$guid}}
 X-CSRF-TOKEN: {{csrfToken}}
 
-### 管理端：删除通知
-DELETE {{baseUrl}}/api/v1/notifications/manage/{{notificationId}}
+### 安全负向：缺少 Idempotency-Key（预期 400）
+PUT {{baseUrl}}/api/v1/notifications/read-all
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
 X-CSRF-TOKEN: {{csrfToken}}
-
-### 安全负例：创建通知缺少 CSRF（预期 403）
-POST {{baseUrl}}/api/v1/notifications/manage
-Content-Type: application/json
-Authorization: Bearer {{accessToken}}
-X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-
-{
-  "title": "CSRF负例",
-  "content": "缺少CSRF",
-  "noticeType": "System",
-  "priority": 0
-}

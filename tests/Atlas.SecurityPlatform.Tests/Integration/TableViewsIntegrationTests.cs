@@ -1,0 +1,66 @@
+using System.Net;
+using System.Net.Http.Json;
+using System.Text.Json;
+using Atlas.Core.Models;
+using Atlas.SecurityPlatform.Tests.Integration.Infrastructure;
+using Xunit;
+
+namespace Atlas.SecurityPlatform.Tests.Integration;
+
+[Collection("Integration")]
+public sealed class TableViewsIntegrationTests
+{
+    private readonly HttpClient _client;
+
+    public TableViewsIntegrationTests(AtlasWebApplicationFactory factory)
+    {
+        _client = factory.CreateClient();
+    }
+
+    [Fact]
+    public async Task GetDefaultConfig_ShouldReturnSuccess()
+    {
+        var accessToken = await IntegrationAuthHelper.LoginAndGetAccessTokenAsync(_client);
+        IntegrationAuthHelper.SetAuthorizationHeaders(_client, accessToken);
+        _client.DefaultRequestHeaders.Remove("X-Project-Id");
+        _client.DefaultRequestHeaders.Add("X-Project-Id", "1");
+
+        using var response = await _client.GetAsync("/api/v1/table-views/default-config?tableKey=system.users");
+        var payload = await ApiResponseAssert.ReadSuccessAsync(response);
+        Assert.NotEqual(JsonValueKind.Undefined, payload.Data.ValueKind);
+    }
+
+    [Fact]
+    public async Task CreateTableViewWithoutIdempotency_ShouldReturn400()
+    {
+        var accessToken = await IntegrationAuthHelper.LoginAndGetAccessTokenAsync(_client);
+        var csrfToken = await CsrfIdempotencyHelper.GetAntiforgeryTokenAsync(_client, accessToken);
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/table-views");
+        request.Headers.Authorization = new("Bearer", accessToken);
+        request.Headers.Add("X-Tenant-Id", IntegrationAuthHelper.DefaultTenantId);
+        request.Headers.Add("X-Project-Id", "1");
+        request.Headers.Add("X-CSRF-TOKEN", csrfToken);
+        request.Content = JsonContent.Create(new
+        {
+            tableKey = "system.users",
+            name = "视图-缺少幂等键",
+            config = new
+            {
+                columns = Array.Empty<object>(),
+                density = "default",
+                pagination = new { pageSize = 10 },
+                sort = Array.Empty<object>(),
+                filters = Array.Empty<object>()
+            },
+            configVersion = 1
+        });
+
+        using var response = await _client.SendAsync(request);
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+        var payload = await response.Content.ReadFromJsonAsync<ApiResponse<JsonElement>>();
+        Assert.NotNull(payload);
+        Assert.Equal(ErrorCodes.IdempotencyRequired, payload.Code);
+    }
+}

@@ -7,11 +7,14 @@
     "dev": "vite",
     "build": "vue-tsc --noEmit && node --max-old-space-size=8192 node_modules/vite/bin/vite.js build",
     "preview": "vite preview",
+    "e2e": "playwright test",
+    "e2e:headed": "playwright test --headed",
     "lint": "eslint . --ext .ts,.vue",
     "format": "prettier --write .",
     "generate-types": "cd ../../backend/Atlas.WebApi && nswag run nswag.json"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "@types/node": "^25.0.10",
     "@types/nprogress": "^0.2.3",
     "@types/react": "^19.2.13",

@@ -16,6 +16,7 @@ X-Tenant-Id: {{tenantId}}
 
 ###
 @accessToken = {{login.response.body.$.data.accessToken}}
+@csrfToken =
 
 ### 获取 CSRF Token
 # @name antiforgery
@@ -26,113 +27,52 @@ X-Tenant-Id: {{tenantId}}
 ###
 @csrfToken = {{antiforgery.response.body.$.data.token}}
 
-### 模板列表（分页）
-GET {{baseUrl}}/api/v1/messages/templates?pageIndex=1&pageSize=20&keyword=
+### 查询消息模板
+GET {{baseUrl}}/api/v1/messages/templates?pageIndex=1&pageSize=20&keyword=&sortBy=id&sortDesc=true
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
-### 创建消息模板
-# @name createTemplate
-POST {{baseUrl}}/api/v1/messages/templates
-Content-Type: application/json
-Authorization: Bearer {{accessToken}}
-X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
-
-{
-  "name": "审批提醒模板",
-  "channel": "InApp",
-  "eventType": "approval.created",
-  "contentTemplate": "审批单 {{orderNo}} 已创建，请及时处理。",
-  "subjectTemplate": "审批提醒",
-  "description": "用于审批创建提醒"
-}
-
-###
-@templateId = {{createTemplate.response.body.$.data.id}}
-
-### 模板详情
-GET {{baseUrl}}/api/v1/messages/templates/{{templateId}}
+### 查询发送记录
+GET {{baseUrl}}/api/v1/messages/records?pageIndex=1&pageSize=20&keyword=&sortBy=id&sortDesc=true
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
-### 更新模板
-PUT {{baseUrl}}/api/v1/messages/templates/{{templateId}}
-Content-Type: application/json
-Authorization: Bearer {{accessToken}}
-X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
-
-{
-  "name": "审批提醒模板（更新）",
-  "channel": "InApp",
-  "eventType": "approval.created",
-  "contentTemplate": "审批单 {{orderNo}} 已创建（更新模板）。",
-  "subjectTemplate": "审批提醒（更新）",
-  "description": "用于审批创建提醒（更新）"
-}
-
-### 发送消息
-POST {{baseUrl}}/api/v1/messages/send
-Content-Type: application/json
-Authorization: Bearer {{accessToken}}
-X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
-
-{
-  "channel": "InApp",
-  "templateId": "{{templateId}}",
-  "recipientId": "1001",
-  "recipientAddress": "admin@atlas.local",
-  "subject": "审批创建通知",
-  "eventType": "approval.created",
-  "variables": {
-    "orderNo": "AP-20260304-001"
-  }
-}
-
-### 发送记录列表
-GET {{baseUrl}}/api/v1/messages/records?pageIndex=1&pageSize=20
-Authorization: Bearer {{accessToken}}
-X-Tenant-Id: {{tenantId}}
-
-### 查询渠道配置
+### 查询通道配置
 GET {{baseUrl}}/api/v1/messages/channels
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
-### 创建/更新渠道配置（幂等 upsert）
-PUT {{baseUrl}}/api/v1/messages/channels/InApp
-Content-Type: application/json
+### 发送消息（成功路径）
+POST {{baseUrl}}/api/v1/messages/send
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Idempotency-Key: {{$guid}}
 X-CSRF-TOKEN: {{csrfToken}}
+Content-Type: application/json
 
 {
-  "configJson": "{\"enabled\":true,\"maxRetry\":3}",
-  "isActive": true
+  "channel": "IN_APP",
+  "templateId": null,
+  "recipientId": "1",
+  "recipientAddress": null,
+  "subject": "集成测试消息",
+  "content": "这是一条来自 Messages.http 的测试消息",
+  "eventType": "integration",
+  "variables": {
+    "source": "http-test"
+  }
 }
 
-### 删除模板
-DELETE {{baseUrl}}/api/v1/messages/templates/{{templateId}}
-Authorization: Bearer {{accessToken}}
-X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-X-CSRF-TOKEN: {{csrfToken}}
-
-### 安全负例：写接口缺少幂等键（预期 400）
+### 安全负向：缺少 Idempotency-Key（预期 400）
 POST {{baseUrl}}/api/v1/messages/send
-Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 X-CSRF-TOKEN: {{csrfToken}}
+Content-Type: application/json
 
 {
-  "channel": "InApp",
-  "subject": "缺少幂等键测试",
-  "content": "test"
+  "channel": "IN_APP",
+  "recipientId": "1",
+  "subject": "缺少幂等键",
+  "content": "应该返回幂等错误"
 }

@@ -16,6 +16,7 @@ X-Tenant-Id: {{tenantId}}
 
 ###
 @accessToken = {{login.response.body.$.data.accessToken}}
+@csrfToken =
 
 ### 获取 CSRF Token
 # @name antiforgery
@@ -26,51 +27,51 @@ X-Tenant-Id: {{tenantId}}
 ###
 @csrfToken = {{antiforgery.response.body.$.data.token}}
 
-### 报表列表（分页）
-GET {{baseUrl}}/api/v1/reports?pageIndex=1&pageSize=20&keyword=
+### 查询报表列表
+GET {{baseUrl}}/api/v1/reports?pageIndex=1&pageSize=20&keyword=&sortBy=id&sortDesc=true
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
-### 创建报表
+### 创建报表定义
 # @name createReport
 POST {{baseUrl}}/api/v1/reports
-Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Idempotency-Key: {{$guid}}
 X-CSRF-TOKEN: {{csrfToken}}
+Content-Type: application/json
 
 {
-  "name": "资产分布报表",
-  "description": "按资产类型统计分布",
-  "category": "Security",
-  "configJson": "{\"type\":\"bar\",\"xField\":\"assetType\",\"yField\":\"count\"}",
+  "name": "集成测试报表",
+  "description": "Reports.http 自动化样例",
+  "category": "security",
+  "configJson": "{\"type\":\"table\",\"columns\":[]}",
   "dataSourceJson": "{\"source\":\"assets\"}"
 }
 
 ###
 @reportId = {{createReport.response.body.$.data.id}}
 
-### 报表详情
+### 查询报表详情
 GET {{baseUrl}}/api/v1/reports/{{reportId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ### 更新报表
 PUT {{baseUrl}}/api/v1/reports/{{reportId}}
-Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Idempotency-Key: {{$guid}}
 X-CSRF-TOKEN: {{csrfToken}}
+Content-Type: application/json
 
 {
-  "name": "资产分布报表（更新）",
-  "description": "按资产类型统计分布（更新）",
-  "category": "Security",
-  "configJson": "{\"type\":\"pie\",\"angleField\":\"count\",\"colorField\":\"assetType\"}",
+  "name": "集成测试报表-更新",
+  "description": "更新描述",
+  "category": "security",
+  "configJson": "{\"type\":\"table\",\"columns\":[{\"key\":\"name\"}]}",
   "dataSourceJson": "{\"source\":\"assets\"}",
-  "printTemplateJson": "{\"title\":\"资产报表\"}"
+  "printTemplateJson": null
 }
 
 ### 删除报表
@@ -80,16 +81,8 @@ X-Tenant-Id: {{tenantId}}
 Idempotency-Key: {{$guid}}
 X-CSRF-TOKEN: {{csrfToken}}
 
-### 安全负例：创建报表缺少幂等键（预期 400）
-POST {{baseUrl}}/api/v1/reports
-Content-Type: application/json
+### 安全负向：缺少 Idempotency-Key（预期 400）
+DELETE {{baseUrl}}/api/v1/reports/{{reportId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 X-CSRF-TOKEN: {{csrfToken}}
-
-{
-  "name": "幂等负例报表",
-  "description": "缺少幂等键",
-  "category": "Security",
-  "configJson": "{}"
-}

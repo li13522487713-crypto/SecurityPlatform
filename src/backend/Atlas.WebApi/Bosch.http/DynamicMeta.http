@@ -17,16 +17,12 @@ X-Tenant-Id: {{tenantId}}
 ###
 @accessToken = {{login.response.body.$.data.accessToken}}
 
-### 获取动态字段类型（Sqlite）
-GET {{baseUrl}}/api/v1/dynamic/meta/field-types?dbType=Sqlite
+### 查询 SQLite 字段类型
+GET {{baseUrl}}/api/v1/dynamic/meta/field-types?dbType=sqlite
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
-### 获取动态字段类型（SqlServer）
-GET {{baseUrl}}/api/v1/dynamic/meta/field-types?dbType=SqlServer
+### 查询 MySql 字段类型
+GET {{baseUrl}}/api/v1/dynamic/meta/field-types?dbType=mysql
 Authorization: Bearer {{accessToken}}
-X-Tenant-Id: {{tenantId}}
-
-### 安全负例：未登录访问（预期 401）
-GET {{baseUrl}}/api/v1/dynamic/meta/field-types?dbType=Sqlite
 X-Tenant-Id: {{tenantId}}

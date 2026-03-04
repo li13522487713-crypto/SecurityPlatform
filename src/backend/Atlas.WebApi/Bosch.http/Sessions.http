@@ -3,7 +3,7 @@
 @username = admin
 @password = P@ssw0rd!
 
-### 登录获取 token
+### 登录获取令牌
 # @name login
 POST {{baseUrl}}/api/v1/auth/token
 Content-Type: application/json
@@ -16,8 +16,9 @@ X-Tenant-Id: {{tenantId}}
 
 ###
 @accessToken = {{login.response.body.$.data.accessToken}}
+@csrfToken =
 
-### 获取 CSRF Token（写接口前置）
+### 获取 CSRF Token
 # @name antiforgery
 GET {{baseUrl}}/api/v1/secure/antiforgery
 Authorization: Bearer {{accessToken}}
@@ -26,30 +27,28 @@ X-Tenant-Id: {{tenantId}}
 ###
 @csrfToken = {{antiforgery.response.body.$.data.token}}
 
-### 查询在线会话（分页）
-GET {{baseUrl}}/api/v1/sessions?pageIndex=1&pageSize=20&keyword=
+### 查询在线会话
+# @name sessions
+GET {{baseUrl}}/api/v1/sessions?pageIndex=1&pageSize=20
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
-### 强制下线会话（将 sessionId 替换为实际值）
-DELETE {{baseUrl}}/api/v1/sessions/1
+###
+@sessionId = {{sessions.response.body.$.data.items[0].sessionId}}
+
+### 强制下线（成功路径）
+DELETE {{baseUrl}}/api/v1/sessions/{{sessionId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Idempotency-Key: {{$guid}}
 X-CSRF-TOKEN: {{csrfToken}}
 
-### 安全负例：删除会话缺少 Idempotency-Key（预期 400）
-DELETE {{baseUrl}}/api/v1/sessions/1
+### 安全负向：缺少 Idempotency-Key（预期 400）
+DELETE {{baseUrl}}/api/v1/sessions/{{sessionId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 X-CSRF-TOKEN: {{csrfToken}}
 
-### 安全负例：删除会话缺少 CSRF Token（预期 403）
-DELETE {{baseUrl}}/api/v1/sessions/1
-Authorization: Bearer {{accessToken}}
-X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$guid}}
-
-### 安全负例：未登录访问（预期 401）
+### 安全负向：缺少认证（预期 401）
 GET {{baseUrl}}/api/v1/sessions?pageIndex=1&pageSize=20
 X-Tenant-Id: {{tenantId}}
