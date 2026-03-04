@@ -12,6 +12,6 @@ public interface ILowCodePageRepository
     Task InsertAsync(LowCodePage entity, CancellationToken cancellationToken = default);
     Task UpdateAsync(LowCodePage entity, CancellationToken cancellationToken = default);
     Task DeleteAsync(long id, CancellationToken cancellationToken = default);
-    Task DeleteByAppIdAsync(long appId, CancellationToken cancellationToken = default);
+    Task DeleteByAppIdAsync(TenantId tenantId, long appId, CancellationToken cancellationToken = default);
     Task<bool> ExistsByKeyAsync(TenantId tenantId, long appId, string pageKey, long? excludeId = null, CancellationToken cancellationToken = default);
 }

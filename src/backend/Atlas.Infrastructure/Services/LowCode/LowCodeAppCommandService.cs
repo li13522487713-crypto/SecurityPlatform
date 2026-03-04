@@ -188,7 +188,7 @@ public sealed class LowCodeAppCommandService : ILowCodeAppCommandService
         var result = await _db.Ado.UseTranAsync(async () =>
         {
             await _appRepository.UpdateAsync(app, cancellationToken);
-            await _pageRepository.DeleteByAppIdAsync(id, cancellationToken);
+            await _pageRepository.DeleteByAppIdAsync(tenantId, id, cancellationToken);
             foreach (var page in restoredPages)
             {
                 await _pageRepository.InsertAsync(page, cancellationToken);
@@ -238,7 +238,7 @@ public sealed class LowCodeAppCommandService : ILowCodeAppCommandService
         var entity = await _appRepository.GetByIdAsync(tenantId, id, cancellationToken)
             ?? throw new InvalidOperationException($"应用 ID={id} 不存在");
 
-        await _pageRepository.DeleteByAppIdAsync(id, cancellationToken);
+        await _pageRepository.DeleteByAppIdAsync(tenantId, id, cancellationToken);
         await _appRepository.DeleteAsync(id, cancellationToken);
     }
 

@@ -63,10 +63,10 @@ public sealed class LowCodePageRepository : ILowCodePageRepository
             .ExecuteCommandAsync(cancellationToken);
     }
 
-    public Task DeleteByAppIdAsync(long appId, CancellationToken cancellationToken = default)
+    public Task DeleteByAppIdAsync(TenantId tenantId, long appId, CancellationToken cancellationToken = default)
     {
         return _db.Deleteable<LowCodePage>()
-            .Where(x => x.AppId == appId)
+            .Where(x => x.TenantIdValue == tenantId.Value && x.AppId == appId)
             .ExecuteCommandAsync(cancellationToken);
     }
 

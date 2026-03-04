@@ -1,5 +1,7 @@
 using System.Globalization;
 using System.Text;
+using Atlas.Core.Exceptions;
+using Atlas.Core.Models;
 using Atlas.Domain.DynamicTables.Entities;
 using Atlas.Domain.DynamicTables.Enums;
 
@@ -143,15 +145,24 @@ internal static class DynamicSqlBuilder
         var value = field.DefaultValue.Trim();
         return field.FieldType switch
         {
-            DynamicFieldType.Int or DynamicFieldType.Long or DynamicFieldType.Decimal
-                => $" DEFAULT {value}",
-            DynamicFieldType.Bool
-                => value.Equals("true", StringComparison.OrdinalIgnoreCase) ? " DEFAULT 1" :
-                   value.Equals("false", StringComparison.OrdinalIgnoreCase) ? " DEFAULT 0" :
-                   $" DEFAULT {value}",
+            DynamicFieldType.Int => TryParseInt(value, out var i) ? $" DEFAULT {i}" : throw new BusinessException($"字段 {field.Name} 的默认值 '{value}' 不是有效的整数。", ErrorCodes.ValidationError),
+            DynamicFieldType.Long => TryParseLong(value, out var l) ? $" DEFAULT {l}" : throw new BusinessException($"字段 {field.Name} 的默认值 '{value}' 不是有效的长整数。", ErrorCodes.ValidationError),
+            DynamicFieldType.Decimal => TryParseDecimal(value, out var d) ? $" DEFAULT {d.ToString(CultureInfo.InvariantCulture)}" : throw new BusinessException($"字段 {field.Name} 的默认值 '{value}' 不是有效的小数。", ErrorCodes.ValidationError),
+            DynamicFieldType.Bool => value.Equals("true", StringComparison.OrdinalIgnoreCase) ? " DEFAULT 1" :
+                value.Equals("false", StringComparison.OrdinalIgnoreCase) ? " DEFAULT 0" :
+                throw new BusinessException($"字段 {field.Name} 的默认值 '{value}' 不是有效的布尔值（应为 true 或 false）。", ErrorCodes.ValidationError),
             _ => $" DEFAULT '{EscapeSqlLiteral(value)}'"
         };
     }
+
+    private static bool TryParseInt(string value, out int result) =>
+        int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out result);
+
+    private static bool TryParseLong(string value, out long result) =>
+        long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out result);
+
+    private static bool TryParseDecimal(string value, out decimal result) =>
+        decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out result);
 
     private static string EscapeSqlLiteral(string value)
     {

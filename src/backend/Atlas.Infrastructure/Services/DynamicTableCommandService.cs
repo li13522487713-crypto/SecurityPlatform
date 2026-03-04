@@ -254,7 +254,7 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
         ValidateAddFieldDefinitions(request.AddFields, existingNames);
 
         var previewFields = BuildPreviewFields(tenantId, table.Id, request.AddFields, existingFields);
-        var previewUpdatedFields = BuildUpdatedFields(request.UpdateFields, existingFields, DateTimeOffset.UtcNow);
+        var previewUpdatedFields = BuildPreviewUpdatedFields(request.UpdateFields, existingFields, DateTimeOffset.UtcNow);
         var sqlScripts = BuildMigrationSqlScripts(BuildAddFieldSqlScripts(table, previewFields), previewUpdatedFields);
         return new DynamicTableAlterPreviewResponse(
             tableKey,
@@ -663,6 +663,58 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
                 sortOrder,
                 now);
             updated.Add(field);
+        }
+
+        return updated;
+    }
+
+    /// <summary>
+    /// 构建预览用的已更新字段列表，创建新实例而非修改原始实体，避免污染 ORM 跟踪的领域对象。
+    /// </summary>
+    private static IReadOnlyList<DynamicField> BuildPreviewUpdatedFields(
+        IReadOnlyList<DynamicFieldUpdateDefinition> updateFields,
+        IReadOnlyList<DynamicField> existingFields,
+        DateTimeOffset now)
+    {
+        if (updateFields.Count == 0)
+        {
+            return Array.Empty<DynamicField>();
+        }
+
+        var map = existingFields.ToDictionary(x => x.Name, x => x, StringComparer.OrdinalIgnoreCase);
+        var updated = new List<DynamicField>(updateFields.Count);
+        foreach (var update in updateFields)
+        {
+            if (!map.TryGetValue(update.Name, out var field))
+            {
+                throw new BusinessException(ErrorCodes.ValidationError, $"字段 '{update.Name}' 不存在。");
+            }
+
+            if (update.Length.HasValue || update.Precision.HasValue || update.Scale.HasValue ||
+                update.AllowNull.HasValue || update.IsUnique.HasValue || update.DefaultValue is not null)
+            {
+                throw new BusinessException(ErrorCodes.ValidationError, "当前版本仅支持更新字段显示名和排序。");
+            }
+
+            var displayName = string.IsNullOrWhiteSpace(update.DisplayName) ? field.DisplayName : update.DisplayName;
+            var sortOrder = update.SortOrder ?? field.SortOrder;
+            updated.Add(new DynamicField(
+                field.TenantId,
+                field.TableId,
+                field.Name,
+                displayName,
+                field.FieldType,
+                field.Length,
+                field.Precision,
+                field.Scale,
+                field.AllowNull,
+                field.IsPrimaryKey,
+                field.IsAutoIncrement,
+                field.IsUnique,
+                field.DefaultValue,
+                sortOrder,
+                field.Id,
+                now));
         }
 
         return updated;
