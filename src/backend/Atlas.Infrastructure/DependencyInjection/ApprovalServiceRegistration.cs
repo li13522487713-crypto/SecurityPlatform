@@ -97,6 +97,11 @@ public static class ApprovalServiceRegistration
         // Approval Status Sync Handler (for dynamic table status writeback)
         services.AddScoped<Atlas.Infrastructure.Services.ApprovalFlow.ApprovalStatusSyncHandler>();
 
+        // FlowEngine and its dependencies
+        services.AddScoped<Atlas.Infrastructure.Services.ApprovalFlow.ConditionEvaluator>();
+        services.AddScoped<Atlas.Infrastructure.Services.ApprovalFlow.DeduplicationService>();
+        services.AddScoped<Atlas.Infrastructure.Services.ApprovalFlow.FlowEngine>();
+
         // Unified Assignee Resolver (eliminates duplicated logic in FlowEngine, BackToAnyNode, CopyRecord)
         services.AddScoped<Atlas.Infrastructure.Services.ApprovalFlow.AssigneeResolver>();
 

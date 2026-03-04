@@ -67,10 +67,17 @@ public sealed class ApprovalMappingProfile : Profile
             .ForMember(dest => dest.CurrentNodeName, opt => opt.Ignore())
             .ForMember(dest => dest.RowVersion, opt => opt.Ignore());
 
-        CreateMap<ApprovalProcessInstance, ApprovalInstanceResponse>();
+        CreateMap<ApprovalProcessInstance, ApprovalInstanceResponse>()
+            .ForMember(dest => dest.FlowName, opt => opt.Ignore())
+            .ForMember(dest => dest.SlaRemainingMinutes, opt => opt.Ignore())
+            .ForMember(dest => dest.ExpectedCompleteTime, opt => opt.Ignore());
 
         // ApprovalTask 映射
-        CreateMap<ApprovalTask, ApprovalTaskResponse>();
+        CreateMap<ApprovalTask, ApprovalTaskResponse>()
+            .ForMember(dest => dest.FlowName, opt => opt.Ignore())
+            .ForMember(dest => dest.CurrentNodeName, opt => opt.Ignore())
+            .ForMember(dest => dest.SlaRemainingMinutes, opt => opt.Ignore())
+            .ForMember(dest => dest.ExpectedCompleteTime, opt => opt.Ignore());
 
         // ApprovalDepartmentLeader 映射
         CreateMap<ApprovalDepartmentLeaderRequest, ApprovalDepartmentLeader>()

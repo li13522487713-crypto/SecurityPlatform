@@ -191,6 +191,7 @@ builder.Services.AddAuthentication()
     .AddJwtBearer(options =>
     {
         options.RequireHttpsMetadata = securityOptions.EnforceHttps && !builder.Environment.IsDevelopment();
+        options.MapInboundClaims = false;
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,

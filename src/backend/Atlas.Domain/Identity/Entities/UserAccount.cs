@@ -14,6 +14,7 @@ public class UserAccount : TenantEntity
         Roles = string.Empty;
         Email = string.Empty;
         PhoneNumber = string.Empty;
+        MfaSecretKey = string.Empty;
         IsActive = false;
         IsSystem = false;
         FailedLoginCount = 0;
@@ -32,6 +33,7 @@ public class UserAccount : TenantEntity
         Roles = roles;
         Email = string.Empty;
         PhoneNumber = string.Empty;
+        MfaSecretKey = string.Empty;
         IsActive = true;
         IsSystem = false;
         FailedLoginCount = 0;
@@ -51,6 +53,7 @@ public class UserAccount : TenantEntity
         Roles = string.Empty;
         Email = string.Empty;
         PhoneNumber = string.Empty;
+        MfaSecretKey = string.Empty;
         IsActive = true;
         IsSystem = false;
         FailedLoginCount = 0;

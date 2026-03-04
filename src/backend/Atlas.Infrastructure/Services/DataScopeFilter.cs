@@ -2,7 +2,6 @@ using Atlas.Application.Identity.Abstractions;
 using Atlas.Application.Identity.Repositories;
 using Atlas.Core.Enums;
 using Atlas.Core.Identity;
-using Atlas.Infrastructure.Repositories;
 
 namespace Atlas.Infrastructure.Services;
 
@@ -12,7 +11,7 @@ namespace Atlas.Infrastructure.Services;
 public sealed class DataScopeFilter : IDataScopeFilter
 {
     private readonly ICurrentUserAccessor _currentUserAccessor;
-    private readonly RoleRepository _roleRepository;
+    private readonly IRoleRepository _roleRepository;
     private readonly IRoleDeptRepository _roleDeptRepository;
     private readonly IUserDepartmentRepository _userDepartmentRepository;
     private readonly IDepartmentRepository _departmentRepository;
@@ -20,7 +19,7 @@ public sealed class DataScopeFilter : IDataScopeFilter
 
     public DataScopeFilter(
         ICurrentUserAccessor currentUserAccessor,
-        RoleRepository roleRepository,
+        IRoleRepository roleRepository,
         IRoleDeptRepository roleDeptRepository,
         IUserDepartmentRepository userDepartmentRepository,
         IDepartmentRepository departmentRepository,

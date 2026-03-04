@@ -130,32 +130,15 @@ npm run format
 
 | 服务 | 端口 | 启动命令 |
 |---|---|---|
-| 后端 API (Atlas.WebApi) | 5000 | 见下方 "后端启动注意事项" |
+| 后端 API (Atlas.WebApi) | 5000 | `dotnet run --project src/backend/Atlas.WebApi` |
 | 前端开发服务器 (Atlas.WebApp) | 5173 | `cd src/frontend/Atlas.WebApp && npm run dev` |
 
-数据库为嵌入式 SQLite（`atlas.db`），无需外部数据库服务。Hangfire（`hangfire.db`）同样为嵌入式 SQLite 存储。
+数据库为嵌入式 SQLite（`atlas.db`），无需外部数据库服务。Hangfire（`hangfire.db`）同样为嵌入式 SQLite 存储。首次启动时会自动创建数据库并初始化 BootstrapAdmin 账号。
 
-### 后端启动注意事项（重要）
+### 后端启动
 
-后端在 `Development` 环境下启用了 .NET DI `ValidateOnBuild`，当前代码存在以下 **预存 DI 注册缺陷**，导致应用无法在 Development 模式启动：
+后端在 `Development` 模式下运行，配置来自 `appsettings.Development.json`。标准启动命令：
 
-1. `DataScopeFilter` 依赖具体类型 `RoleRepository` 而非接口 `IRoleRepository`
-2. `JumpTaskHandler` 依赖 `FlowEngine`，但 `FlowEngine` 未在 DI 容器中注册
-
-此外，AutoMapper 校验（`AssertConfigurationIsValid`）在所有环境均会执行，当前 `ApprovalMappingProfile` 存在未映射属性（`FlowName`, `SlaRemainingMinutes`, `ExpectedCompleteTime` 等），导致启动抛出 `AutoMapperConfigurationException`。
-
-**要成功启动后端**，需先修复上述代码问题。修复后使用以下命令启动（Staging 环境跳过 DI 验证）：
-
-```bash
-ASPNETCORE_ENVIRONMENT=Staging \
-Security__EnforceHttps=false \
-Security__BootstrapAdmin__Password='P@ssw0rd!' \
-Jwt__SigningKey='Atlas_Dev_Secret_Key_For_Testing_Only_2026_LoremIpsum' \
-Cors__AllowedOrigins__0='http://localhost:5173' \
-dotnet run --project src/backend/Atlas.WebApi --no-launch-profile --urls "http://0.0.0.0:5000"
-```
-
-或在 Development 模式下（需同时修复 DI 注册问题）：
 ```bash
 dotnet run --project src/backend/Atlas.WebApi
 ```
@@ -169,7 +152,8 @@ dotnet run --project src/backend/Atlas.WebApi
 ### 测试
 
 - `dotnet test tests/Atlas.WorkflowCore.Tests` — 4 个测试全部通过
-- `dotnet test tests/Atlas.SecurityPlatform.Tests` — 部分测试因上述 DI 问题失败（59 passed, 20 failed）
+- `dotnet test tests/Atlas.SecurityPlatform.Tests --filter "FullyQualifiedName!~Integration"` — 59 个单元/领域测试全部通过
+- 集成测试（`FullyQualifiedName~Integration`）使用 `WebApplicationFactory`，需要 Hangfire SQLite 在测试环境中正确配置
 - `npm run lint`（前端）— 有 2 个预存 ESLint errors 和 155 warnings
 - `npm run build`（前端）— 构建成功
 

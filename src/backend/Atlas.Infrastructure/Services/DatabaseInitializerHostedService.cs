@@ -168,6 +168,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         if (Guid.TryParse(_bootstrapOptions.TenantId, out var configTenantGuid))
         {
             var configTenantId = new TenantId(configTenantGuid);
+            using var configScope = appContextAccessor.BeginScope(CreateSystemContext(appContextAccessor, configTenantId));
             await EnsureBuiltInSystemConfigsAsync(
                 scope.ServiceProvider.GetRequiredService<SystemConfigRepository>(),
                 scope.ServiceProvider.GetRequiredService<IIdGeneratorAccessor>(),

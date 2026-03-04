@@ -32,24 +32,7 @@ public static class ServiceCollectionExtensions
             var tenantProvider = sp.GetRequiredService<ITenantProvider>();
             var tenantId = tenantProvider.GetTenantId();
 
-            // 尝试获取租户自定义数据源
             string connectionString = options.ConnectionString;
-            if (!tenantId.IsEmpty)
-            {
-                try
-                {
-                    var factory = sp.GetRequiredService<Atlas.Application.System.Abstractions.ITenantDbConnectionFactory>();
-                    var customConn = factory.GetConnectionStringAsync(tenantId.Value.ToString()).GetAwaiter().GetResult();
-                    if (!string.IsNullOrWhiteSpace(customConn))
-                    {
-                        connectionString = customConn;
-                    }
-                }
-                catch
-                {
-                    // 数据源查询失败时回退到默认连接
-                }
-            }
 
             var config = new ConnectionConfig
             {
