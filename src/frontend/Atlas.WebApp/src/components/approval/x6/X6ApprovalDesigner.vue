@@ -1,6 +1,11 @@
 <template>
   <div class="dd-designer">
     <div ref="containerRef" class="dd-designer-canvas"></div>
+    <div
+      v-show="minimapVisible"
+      ref="minimapRef"
+      class="dd-minimap"
+    ></div>
 
     <!-- 缩放控制栏 -->
     <div class="dd-zoom-toolbar">
@@ -13,6 +18,14 @@
       </button>
       <button class="dd-zoom-btn" @click="zoomFit" title="适应画布（Ctrl + 0）">
         <CompressOutlined />
+      </button>
+      <button
+        class="dd-zoom-btn"
+        :class="{ 'dd-zoom-btn--active': minimapVisible }"
+        @click="toggleMinimap"
+        title="缩略图"
+      >
+        <BlockOutlined />
       </button>
     </div>
 
@@ -92,10 +105,17 @@
 import { ref, onMounted, onBeforeUnmount, watch, computed, nextTick } from 'vue';
 import { message, Modal } from 'ant-design-vue';
 import { Graph } from '@antv/x6';
+import { Snapline } from '@antv/x6-plugin-snapline';
+import { Selection } from '@antv/x6-plugin-selection';
+import { MiniMap } from '@antv/x6-plugin-minimap';
+import { Clipboard } from '@antv/x6-plugin-clipboard';
+import { Keyboard } from '@antv/x6-plugin-keyboard';
+import { History } from '@antv/x6-plugin-history';
 import {
   MinusOutlined,
   PlusOutlined,
   CompressOutlined,
+  BlockOutlined,
   EditOutlined,
   CopyOutlined,
   DeleteOutlined,
@@ -130,12 +150,17 @@ const emit = defineEmits<{
   addConditionBranch: [nodeId: string];
   deleteConditionBranch: [branchId: string];
   moveBranch: [conditionNodeId: string, branchId: string, direction: 'left' | 'right'];
+  updateRouteTarget: [routeNodeId: string, targetNodeId: string];
 }>();
 
 const containerRef = ref<HTMLElement>();
+const minimapRef = ref<HTMLElement>();
 const graphRef = ref<Graph>();
+const minimapVisible = ref(true);
 const zoom = ref(1);
 const zoomPercent = computed(() => Math.round(zoom.value * 100));
+let selectionPlugin: Selection | null = null;
+let lastConnectionWarnAt = 0;
 
 // ── 右键菜单状态 ──
 const nodeMenuVisible = ref(false);
@@ -158,7 +183,15 @@ function initGraph() {
     container: containerRef.value,
     autoResize: true,
     background: { color: '#f5f5f7' },
-    grid: { visible: false },
+    grid: {
+      visible: true,
+      type: 'dot',
+      size: 20,
+      args: {
+        color: '#e8e8e8',
+        thickness: 1,
+      },
+    },
     panning: {
       enabled: true,
       modifiers: [], // 允许任意拖拽平移
@@ -176,12 +209,97 @@ function initGraph() {
       edgeLabelMovable: false,
     },
     connecting: {
+      highlight: true,
       allowBlank: false,
       allowLoop: false,
       allowNode: false,
       allowEdge: false,
+      allowMulti: false,
+      snap: true,
+      validateMagnet: ({ magnet }: { magnet: Element | null }) =>
+        magnet?.getAttribute('port-group') === 'out',
+      validateConnection: (args: any) => {
+        const sourceCellId = args?.sourceCell?.id as string | undefined;
+        const targetCellId = args?.targetCell?.id as string | undefined;
+        const sourceMagnet = args?.sourceMagnet as Element | null;
+        const targetMagnet = args?.targetMagnet as Element | null;
+
+        if (!sourceCellId || !targetCellId || sourceCellId === targetCellId) {
+          return false;
+        }
+        if (sourceMagnet?.getAttribute('port-group') !== 'out' || targetMagnet?.getAttribute('port-group') !== 'in') {
+          return false;
+        }
+
+        const sourceType = getCellNodeType(sourceCellId);
+        const targetType = getCellNodeType(targetCellId);
+        if (!sourceType || !targetType) {
+          return false;
+        }
+
+        if (sourceType === 'end') {
+          warnInvalidConnection('结束节点不能作为连线起点');
+          return false;
+        }
+        if (targetType === 'start') {
+          warnInvalidConnection('开始节点不能作为连线目标');
+          return false;
+        }
+        if (sourceType !== 'route') {
+          warnInvalidConnection('当前仅支持路由节点通过连线设置目标节点');
+          return false;
+        }
+        if (targetType === 'route') {
+          warnInvalidConnection('路由节点不能跳转到另一个路由节点');
+          return false;
+        }
+
+        return true;
+      },
+      createEdge: () =>
+        graphRef.value!.createEdge({
+          attrs: {
+            line: {
+              stroke: '#1677ff',
+              strokeWidth: 2.5,
+              targetMarker: {
+                name: 'classic',
+                size: 8,
+              },
+            },
+          },
+          connector: {
+            name: 'rounded',
+            args: { radius: 6 },
+          },
+        }),
     },
   });
+
+  graph.use(new Snapline({ enabled: true }));
+  selectionPlugin = new Selection({
+    enabled: true,
+    multiple: true,
+    rubberband: true,
+    showNodeSelectionBox: true,
+    strict: false,
+    modifiers: ['shift'],
+  });
+  graph.use(selectionPlugin);
+  graph.use(new Clipboard({ enabled: true }));
+  graph.use(new Keyboard({ enabled: true }));
+  graph.use(new History({ enabled: true }));
+  if (minimapRef.value) {
+    graph.use(
+      new MiniMap({
+        container: minimapRef.value,
+        width: 220,
+        height: 140,
+        scalable: true,
+        padding: 8,
+      }),
+    );
+  }
 
   // ── 事件监听 ──
 
@@ -248,10 +366,54 @@ function initGraph() {
     nodeMenuVisible.value = false;
   });
 
+  graph.on('edge:connected', ({ edge, isNew }: { edge: { remove: () => void; getSourceCellId: () => string | null; getTargetCellId: () => string | null }; isNew: boolean }) => {
+    if (!isNew) {
+      return;
+    }
+    const sourceId = edge.getSourceCellId();
+    const targetId = edge.getTargetCellId();
+    edge.remove();
+
+    if (!sourceId || !targetId) {
+      return;
+    }
+    if (getCellNodeType(sourceId) !== 'route') {
+      warnInvalidConnection('当前仅支持路由节点通过连线设置目标节点');
+      return;
+    }
+
+    emit('updateRouteTarget', sourceId, targetId);
+    message.success('路由目标节点已更新');
+  });
+
   graphRef.value = graph;
 
   // 首次渲染
   renderTree();
+}
+
+function warnInvalidConnection(text: string) {
+  const now = Date.now();
+  if (now - lastConnectionWarnAt < 1000) {
+    return;
+  }
+  lastConnectionWarnAt = now;
+  message.warning(text);
+}
+
+function getCellNodeType(cellId: string): NodeType | null {
+  if (!graphRef.value) {
+    return null;
+  }
+  const cell = graphRef.value.getCellById(cellId);
+  if (!cell || !cell.isNode()) {
+    return null;
+  }
+  const data = cell.getData() as Record<string, unknown> | null;
+  if (!data || typeof data.nodeType !== 'string') {
+    return null;
+  }
+  return data.nodeType as NodeType;
 }
 
 // ── 渲染 ──
@@ -277,6 +439,10 @@ function zoomFit() {
   if (!graphRef.value) return;
   graphRef.value.zoomToFit({ padding: 40, maxScale: 1.5 });
   zoom.value = graphRef.value.zoom();
+}
+
+function toggleMinimap() {
+  minimapVisible.value = !minimapVisible.value;
 }
 
 // ── 右键菜单处理 ──
@@ -442,7 +608,13 @@ function handleViewNodeDetail() {
 }
 
 function handleSelectAll() {
-  message.info('全选功能（流程树结构暂不支持多选）');
+  if (!graphRef.value || !selectionPlugin) return;
+  const allNodes = graphRef.value.getNodes();
+  if (allNodes.length === 0) {
+    message.info('当前没有可选节点');
+    return;
+  }
+  graphRef.value.select(allNodes);
 }
 
 function handleExportJson() {
@@ -531,6 +703,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   graphRef.value?.dispose();
+  selectionPlugin = null;
   window.removeEventListener('keydown', handleKeyDown);
 });
 
@@ -591,6 +764,11 @@ defineExpose({
   color: #1677ff;
 }
 
+.dd-zoom-btn--active {
+  background: #e6f4ff;
+  color: #1677ff;
+}
+
 .dd-zoom-value {
   min-width: 40px;
   text-align: center;
@@ -605,5 +783,19 @@ defineExpose({
   font-size: 12px;
   color: #8c8c8c;
   font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+}
+
+.dd-minimap {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  width: 220px;
+  height: 140px;
+  border: 1px solid #e8e8e8;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  z-index: 10;
+  overflow: hidden;
 }
 </style>

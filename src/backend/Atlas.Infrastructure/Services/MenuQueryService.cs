@@ -165,8 +165,8 @@ public sealed class MenuQueryService : IMenuQueryService
                 continue;
             }
 
-            var parentId = menu.ParentId.Value.ToString();
-            if (nodeMap.TryGetValue(parentId, out var parent))
+            var parentId = menu.ParentId?.ToString();
+            if (!string.IsNullOrWhiteSpace(parentId) && nodeMap.TryGetValue(parentId, out var parent))
             {
                 parent.Children ??= new List<RouterVo>();
                 parent.Children.Add(node);

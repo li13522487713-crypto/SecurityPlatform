@@ -30,4 +30,10 @@ public record ApprovalInstanceListItem
 
     /// <summary>结束时间</summary>
     public DateTimeOffset? EndedAt { get; init; }
+
+    /// <summary>当前节点名称</summary>
+    public string? CurrentNodeName { get; init; }
+
+    /// <summary>SLA 剩余分钟（负值表示已超时）</summary>
+    public int? SlaRemainingMinutes { get; init; }
 }

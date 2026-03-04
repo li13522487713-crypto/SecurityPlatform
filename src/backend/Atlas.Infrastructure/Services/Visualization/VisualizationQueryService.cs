@@ -62,7 +62,17 @@ public sealed class VisualizationQueryService : IVisualizationQueryService
 
         var totalFlows = await _flowRepository.GetPagedAsync(tenantId, 1, 1, null, filter.FlowType, cancellationToken);
         var draftFlows = await _flowRepository.GetPagedAsync(tenantId, 1, 1, ApprovalFlowStatus.Draft, filter.FlowType, cancellationToken);
-        var runningInstances = await _instanceRepository.GetPagedAsync(tenantId, 1, 1, null, ApprovalInstanceStatus.Running, cancellationToken);
+        var runningInstances = await _instanceRepository.GetPagedAsync(
+            tenantId,
+            1,
+            1,
+            definitionId: null,
+            initiatorUserId: null,
+            startedFrom: null,
+            startedTo: null,
+            businessKey: null,
+            status: ApprovalInstanceStatus.Running,
+            cancellationToken: cancellationToken);
 
         var overdueTasks = await _taskRepository.CountByStatusAsync(
             tenantId,
@@ -159,9 +169,13 @@ public sealed class VisualizationQueryService : IVisualizationQueryService
             tenantId,
             request.PageIndex,
             request.PageSize,
-            definitionId,
-            status,
-            cancellationToken);
+            definitionId: definitionId,
+            initiatorUserId: null,
+            startedFrom: null,
+            startedTo: null,
+            businessKey: null,
+            status: status,
+            cancellationToken: cancellationToken);
 
         var definitionIds = items.Select(x => x.DefinitionId).Distinct().ToArray();
         var flows = await _flowRepository.QueryByIdsAsync(tenantId, definitionIds, cancellationToken);
@@ -412,8 +426,28 @@ public sealed class VisualizationQueryService : IVisualizationQueryService
         var tenantId = _tenantProvider.GetTenantId();
         var totalFlows = await _flowRepository.GetPagedAsync(tenantId, 1, 1, null, filter.FlowType, cancellationToken);
         var draftFlows = await _flowRepository.GetPagedAsync(tenantId, 1, 1, ApprovalFlowStatus.Draft, filter.FlowType, cancellationToken);
-        var runningInstances = await _instanceRepository.GetPagedAsync(tenantId, 1, 1, null, ApprovalInstanceStatus.Running, cancellationToken);
-        var completedInstances = await _instanceRepository.GetPagedAsync(tenantId, 1, 1, null, ApprovalInstanceStatus.Completed, cancellationToken);
+        var runningInstances = await _instanceRepository.GetPagedAsync(
+            tenantId,
+            1,
+            1,
+            definitionId: null,
+            initiatorUserId: null,
+            startedFrom: null,
+            startedTo: null,
+            businessKey: null,
+            status: ApprovalInstanceStatus.Running,
+            cancellationToken: cancellationToken);
+        var completedInstances = await _instanceRepository.GetPagedAsync(
+            tenantId,
+            1,
+            1,
+            definitionId: null,
+            initiatorUserId: null,
+            startedFrom: null,
+            startedTo: null,
+            businessKey: null,
+            status: ApprovalInstanceStatus.Completed,
+            cancellationToken: cancellationToken);
         var pendingTasks = await _taskRepository.CountByStatusAsync(tenantId, ApprovalTaskStatus.Pending, null, cancellationToken);
         var overdueTasks = await _taskRepository.CountByStatusAsync(
             tenantId,

@@ -24,6 +24,12 @@
             {{ getStatusText(record.status) }}
           </a-tag>
         </template>
+        <template v-else-if="column.key === 'sla'">
+          <a-tag v-if="record.slaRemainingMinutes != null" :color="record.slaRemainingMinutes >= 0 ? 'processing' : 'error'">
+            {{ formatSla(record.slaRemainingMinutes) }}
+          </a-tag>
+          <span v-else>-</span>
+        </template>
         <template v-else-if="column.key === 'action'">
           <a-space>
             <a-button type="link" size="small" @click="handleViewDetail(record.id)">查看详情</a-button>
@@ -50,7 +56,15 @@
     >
       <div v-if="instanceDetail">
         <a-descriptions :column="1" bordered>
+          <a-descriptions-item label="流程名称">{{ instanceDetail.flowName || '-' }}</a-descriptions-item>
           <a-descriptions-item label="业务Key">{{ instanceDetail.businessKey }}</a-descriptions-item>
+          <a-descriptions-item label="当前节点">{{ instanceDetail.currentNodeName || '-' }}</a-descriptions-item>
+          <a-descriptions-item label="SLA">
+            <a-tag v-if="instanceDetail.slaRemainingMinutes != null" :color="instanceDetail.slaRemainingMinutes >= 0 ? 'processing' : 'error'">
+              {{ formatSla(instanceDetail.slaRemainingMinutes) }}
+            </a-tag>
+            <span v-else>-</span>
+          </a-descriptions-item>
           <a-descriptions-item label="状态">
             <a-tag :color="getStatusColor(instanceDetail.status)">
               {{ getStatusText(instanceDetail.status) }}
@@ -132,6 +146,8 @@ import { message } from "ant-design-vue";
 const columns = [
   { title: "流程名称", dataIndex: "flowName", key: "flowName" },
   { title: "业务Key", dataIndex: "businessKey", key: "businessKey" },
+  { title: "当前节点", dataIndex: "currentNodeName", key: "currentNodeName" },
+  { title: "SLA", key: "sla" },
   { title: "状态", key: "status" },
   { title: "发起时间", dataIndex: "startedAt", key: "startedAt" },
   { title: "操作", key: "action", width: 150 }
@@ -162,7 +178,7 @@ const pagination = reactive<TablePaginationConfig>({
 });
 
 const drawerVisible = ref(false);
-const instanceDetail = ref<(ApprovalInstanceResponse & { flowName?: string }) | null>(null);
+const instanceDetail = ref<ApprovalInstanceResponse | null>(null);
 const taskList = ref<ApprovalTaskResponse[]>([]);
 const historyList = ref<ApprovalHistoryEventResponse[]>([]);
 const taskLoading = ref(false);
@@ -219,6 +235,16 @@ const getStatusText = (status: ApprovalInstanceStatus) => {
     default:
       return "未知";
   }
+};
+
+const formatSla = (value: number) => {
+  const abs = Math.abs(value);
+  if (abs >= 60) {
+    const hours = Math.floor(abs / 60);
+    const minutes = abs % 60;
+    return value >= 0 ? `剩余 ${hours}h${minutes}m` : `超时 ${hours}h${minutes}m`;
+  }
+  return value >= 0 ? `剩余 ${abs}m` : `超时 ${abs}m`;
 };
 
 const getTaskStatusColor = (status: ApprovalTaskStatus) => {
@@ -284,11 +310,6 @@ const handleViewDetail = async (id: string) => {
       }
     }
 
-    // 从列表中找到流程名称
-    const listItem = dataSource.value.find((item) => item.id === id);
-    if (listItem && instanceDetail.value) {
-      instanceDetail.value.flowName = listItem.flowName;
-    }
   } catch (err) {
     message.error(err instanceof Error ? err.message : "加载详情失败");
   } finally {

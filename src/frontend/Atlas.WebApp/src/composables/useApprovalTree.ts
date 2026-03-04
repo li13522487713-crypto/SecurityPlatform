@@ -18,6 +18,7 @@ import type {
 } from '@/types/approval-tree';
 import { nanoid } from 'nanoid';
 import { ApprovalTreeValidator } from '@/utils/approval-tree-validator';
+import type { ApprovalTreeValidationIssue } from '@/utils/approval-tree-validator';
 import { useApprovalTreeHistory } from './useApprovalTreeHistory';
 
 export function useApprovalTree() {
@@ -296,7 +297,7 @@ export function useApprovalTree() {
   /**
    * 校验流程完整性
    */
-  const validateFlow = (): { valid: boolean; errors: string[] } => {
+  const validateFlow = (): { valid: boolean; errors: string[]; issues: ApprovalTreeValidationIssue[] } => {
     return ApprovalTreeValidator.checkCompleteness(flowTree.value.rootNode as any);
   };
   
@@ -360,10 +361,13 @@ export function useApprovalTree() {
                 ]
             } as ParallelConditionNode;
         case 'parallel':
+            {
+            const groupId = nanoid();
             return {
                 ...base,
                 nodeType: 'parallel',
                 nodeName: '并行审批',
+                groupId,
                 parallelNodes: [
                     {
                         id: nanoid(),
@@ -409,6 +413,7 @@ export function useApprovalTree() {
                     }
                 } as ApproveNode
             } as ParallelNode;
+            }
         case 'inclusive':
             return {
                 ...base,

@@ -38,6 +38,22 @@ public sealed class ConditionEvaluator
             using var doc = JsonDocument.Parse(conditionRuleJson);
             var root = doc.RootElement;
 
+            // CEL: 直接字符串表达式
+            if (root.ValueKind == JsonValueKind.String)
+            {
+                var expression = root.GetString();
+                return await EvaluateCelExpressionAsync(tenantId, instanceId, expression, instanceDataJson, cancellationToken);
+            }
+
+            // CEL: 标记对象 { exprType: "cel", expression: "..." }
+            if (root.ValueKind == JsonValueKind.Object
+                && root.TryGetProperty("exprType", out var exprTypeProp)
+                && string.Equals(exprTypeProp.GetString(), "cel", StringComparison.OrdinalIgnoreCase))
+            {
+                var expression = root.TryGetProperty("expression", out var expressionProp) ? expressionProp.GetString() : null;
+                return await EvaluateCelExpressionAsync(tenantId, instanceId, expression, instanceDataJson, cancellationToken);
+            }
+
             // 检查是否为条件组（有 relationship 字段）
             if (root.TryGetProperty("relationship", out var relationshipProp))
             {
@@ -54,6 +70,153 @@ public sealed class ConditionEvaluator
             // JSON解析失败，默认不通过
             return false;
         }
+    }
+
+    /// <summary>
+    /// CEL 子集评估器（支持 && / || / 比较操作，变量格式：form.field）
+    /// </summary>
+    private async Task<bool> EvaluateCelExpressionAsync(
+        TenantId tenantId,
+        long instanceId,
+        string? expression,
+        string? instanceDataJson,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(expression))
+        {
+            return false;
+        }
+
+        var expr = expression.Trim();
+        if (expr.Length > 4096)
+        {
+            return false;
+        }
+
+        // 先按 OR 切分，再按 AND 切分（简化实现，不支持括号嵌套）
+        var orSegments = expr.Split("||", StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        if (orSegments.Length == 0)
+        {
+            return false;
+        }
+
+        foreach (var orSegment in orSegments)
+        {
+            var andSegments = orSegment.Split("&&", StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+            if (andSegments.Length == 0)
+            {
+                continue;
+            }
+
+            var allPassed = true;
+            foreach (var andSegment in andSegments)
+            {
+                var passed = await EvaluateCelClauseAsync(
+                    tenantId,
+                    instanceId,
+                    andSegment.Trim(),
+                    instanceDataJson,
+                    cancellationToken);
+                if (!passed)
+                {
+                    allPassed = false;
+                    break;
+                }
+            }
+
+            if (allPassed)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private async Task<bool> EvaluateCelClauseAsync(
+        TenantId tenantId,
+        long instanceId,
+        string clause,
+        string? instanceDataJson,
+        CancellationToken cancellationToken)
+    {
+        if (string.Equals(clause, "true", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+        if (string.Equals(clause, "false", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        // 支持 form.field OP value
+        var operators = new[] { ">=", "<=", "==", "!=", ">", "<" };
+        foreach (var op in operators)
+        {
+            var idx = clause.IndexOf(op, StringComparison.Ordinal);
+            if (idx <= 0)
+            {
+                continue;
+            }
+
+            var left = clause[..idx].Trim();
+            var right = clause[(idx + op.Length)..].Trim();
+            if (!TryGetFormFieldName(left, out var fieldName))
+            {
+                return false;
+            }
+
+            var actualValue = await GetFieldValueAsync(tenantId, instanceId, fieldName, instanceDataJson, cancellationToken);
+            var expectedValue = NormalizeCelLiteral(right);
+            return EvaluateOperator(actualValue, op switch
+            {
+                "==" => "equals",
+                "!=" => "notequals",
+                ">" => "greaterthan",
+                "<" => "lessthan",
+                ">=" => "greaterthanorequal",
+                "<=" => "lessthanorequal",
+                _ => "equals"
+            }, expectedValue);
+        }
+
+        // 支持 contains: form.field.contains("abc")
+        const string containsToken = ".contains(";
+        var containsIndex = clause.IndexOf(containsToken, StringComparison.Ordinal);
+        if (containsIndex > 0 && clause.EndsWith(")", StringComparison.Ordinal))
+        {
+            var left = clause[..containsIndex].Trim();
+            if (!TryGetFormFieldName(left, out var fieldName))
+            {
+                return false;
+            }
+            var right = clause[(containsIndex + containsToken.Length)..^1].Trim();
+            var actualValue = await GetFieldValueAsync(tenantId, instanceId, fieldName, instanceDataJson, cancellationToken);
+            return EvaluateOperator(actualValue, "contains", NormalizeCelLiteral(right));
+        }
+
+        return false;
+    }
+
+    private static bool TryGetFormFieldName(string left, out string fieldName)
+    {
+        fieldName = string.Empty;
+        if (!left.StartsWith("form.", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+        fieldName = left["form.".Length..].Trim();
+        return !string.IsNullOrWhiteSpace(fieldName);
+    }
+
+    private static string NormalizeCelLiteral(string text)
+    {
+        if (text.Length >= 2
+            && ((text[0] == '"' && text[^1] == '"') || (text[0] == '\'' && text[^1] == '\'')))
+        {
+            return text[1..^1];
+        }
+        return text;
     }
 
     /// <summary>

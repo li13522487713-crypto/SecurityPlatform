@@ -115,6 +115,37 @@ public sealed class ApprovalTaskRepository : IApprovalTaskRepository
         return (items, totalCount);
     }
 
+    public async Task<(IReadOnlyList<ApprovalTask> Items, int TotalCount)> GetPagedPoolAsync(
+        TenantId tenantId,
+        int pageIndex,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        var query = _db.Queryable<ApprovalTask>()
+            .Where(x => x.TenantIdValue == tenantId.Value
+                && x.Status == ApprovalTaskStatus.Pending
+                && x.AssigneeType != AssigneeType.User);
+
+        var totalCount = await query.CountAsync(cancellationToken);
+        var items = await query
+            .OrderByDescending(x => x.CreatedAt)
+            .ToPageListAsync(pageIndex, pageSize, cancellationToken);
+        return (items, totalCount);
+    }
+
+    public async Task<IReadOnlyList<ApprovalTask>> GetPendingByAssigneeUserAsync(
+        TenantId tenantId,
+        long userId,
+        CancellationToken cancellationToken)
+    {
+        return await _db.Queryable<ApprovalTask>()
+            .Where(x => x.TenantIdValue == tenantId.Value
+                && x.AssigneeType == AssigneeType.User
+                && x.AssigneeValue == userId.ToString()
+                && x.Status == ApprovalTaskStatus.Pending)
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<ApprovalTask>> GetByInstanceAndNodeAsync(
         TenantId tenantId,
         long instanceId,

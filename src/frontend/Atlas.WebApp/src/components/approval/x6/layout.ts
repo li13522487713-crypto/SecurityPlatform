@@ -51,6 +51,7 @@ export type LayoutShapeType =
   | 'copy'
   | 'condition-header'
   | 'condition-branch'
+  | 'parallel-container'
   | 'end'
   | 'add-button'
   | 'parallel'
@@ -506,6 +507,20 @@ function layoutParallel(
     branchWidths.reduce((s, w) => s + w, 0) +
     Math.max(0, node.parallelNodes.length - 1) * LAYOUT.BRANCH_GAP;
 
+  const mergeY = y + maxBranchH + LAYOUT.BRANCH_VERT_PAD;
+  nodes.push({
+    id: `${node.id}__parallel_container`,
+    shapeType: 'parallel-container',
+    x: centerX - totalW / 2 - 28,
+    y: y - 12,
+    width: totalW + 56,
+    height: mergeY + LAYOUT.ADD_BTN_H - y + 24,
+    data: {
+      nodeId: node.id,
+      title: `${node.nodeName || '并行审批'}域`,
+    },
+  });
+
   let bx = centerX - totalW / 2;
   const branchEndIds: string[] = [];
 
@@ -527,8 +542,6 @@ function layoutParallel(
     branchEndIds.push(result.lastNodeId || branch.id);
     bx += branchWidths[i] + LAYOUT.BRANCH_GAP;
   });
-
-  const mergeY = y + maxBranchH + LAYOUT.BRANCH_VERT_PAD;
 
   // 汇聚 AddButton
   const mergeAddId = addBtnId(node.id + '_merge');

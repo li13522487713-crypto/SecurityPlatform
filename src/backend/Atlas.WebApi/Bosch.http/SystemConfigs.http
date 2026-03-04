@@ -16,6 +16,16 @@ X-Tenant-Id: {{tenantId}}
 
 ###
 @accessToken = {{login.response.body.$.data.accessToken}}
+@csrfToken =
+
+### Get CSRF Token
+# @name antiforgery
+GET {{baseUrl}}/api/v1/secure/antiforgery
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+###
+@csrfToken = {{antiforgery.response.body.$.data.token}}
 
 ### Get SystemConfigs (Paged)
 GET {{baseUrl}}/api/v1/system-configs?pageIndex=1&pageSize=20
@@ -33,6 +43,7 @@ Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Idempotency-Key: create-config-001
+X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "configKey": "sys.file.upload.path",
@@ -46,6 +57,8 @@ PUT {{baseUrl}}/api/v1/system-configs/1
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "configValue": "/uploads/v2",
@@ -57,3 +70,5 @@ X-Tenant-Id: {{tenantId}}
 DELETE {{baseUrl}}/api/v1/system-configs/1
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}

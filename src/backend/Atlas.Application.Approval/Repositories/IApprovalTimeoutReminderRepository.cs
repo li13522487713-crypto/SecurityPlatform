@@ -39,6 +39,11 @@ public interface IApprovalTimeoutReminderRepository
         long instanceId,
         CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<ApprovalTimeoutReminder>> GetByInstancesAsync(
+        TenantId tenantId,
+        IReadOnlyList<long> instanceIds,
+        CancellationToken cancellationToken);
+
     Task<IReadOnlyList<ApprovalTimeoutReminder>> GetByInstanceAndNodeAsync(
         TenantId tenantId,
         long instanceId,

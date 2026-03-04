@@ -24,6 +24,40 @@ export function syncGraphFromTree(graph: Graph, tree: ApprovalFlowTree) {
 
   // 添加节点
   layout.nodes.forEach((ln: LayoutNode) => {
+    if (ln.shapeType === 'parallel-container') {
+      graph.addNode({
+        id: ln.id,
+        shape: 'rect',
+        x: ln.x,
+        y: ln.y,
+        width: ln.width,
+        height: ln.height,
+        attrs: {
+          body: {
+            fill: '#f6ffed',
+            fillOpacity: 0.45,
+            stroke: '#95de64',
+            strokeWidth: 1.5,
+            strokeDasharray: '6 4',
+            rx: 12,
+            ry: 12,
+          },
+          label: {
+            text: String(ln.data.title || ''),
+            fill: '#389e0d',
+            fontSize: 12,
+            refX: 12,
+            refY: 14,
+            textAnchor: 'start',
+          },
+        },
+        data: ln.data,
+        zIndex: -2,
+      });
+      return;
+    }
+
+    const nodeType = typeof ln.data.nodeType === 'string' ? String(ln.data.nodeType) : '';
     graph.addNode({
       id: ln.id,
       shape: shapeNameFromType(ln.shapeType),
@@ -32,6 +66,7 @@ export function syncGraphFromTree(graph: Graph, tree: ApprovalFlowTree) {
       width: ln.width,
       height: ln.height,
       data: ln.data,
+      ports: buildPorts(nodeType),
     });
   });
 
@@ -59,6 +94,65 @@ export function syncGraphFromTree(graph: Graph, tree: ApprovalFlowTree) {
 
   // 居中内容
   graph.centerContent();
+}
+
+function buildPorts(nodeType: string) {
+  if (!nodeType || nodeType === 'end') {
+    return {
+      groups: {
+        in: {
+          position: 'top',
+          attrs: {
+            circle: {
+              r: 5,
+              magnet: 'passive',
+              stroke: '#1677ff',
+              strokeWidth: 2,
+              fill: '#fff',
+            },
+          },
+        },
+      },
+      items: nodeType === 'end' ? [{ id: 'in', group: 'in' }] : [],
+    };
+  }
+
+  const groups = {
+    in: {
+      position: 'top',
+      attrs: {
+        circle: {
+          r: 5,
+          magnet: 'passive',
+          stroke: '#1677ff',
+          strokeWidth: 2,
+          fill: '#fff',
+        },
+      },
+    },
+    out: {
+      position: 'bottom',
+      attrs: {
+        circle: {
+          r: 5,
+          magnet: true,
+          stroke: '#1677ff',
+          strokeWidth: 2,
+          fill: '#fff',
+        },
+      },
+    },
+  };
+
+  const items: Array<{ id: string; group: 'in' | 'out' }> = [];
+  if (nodeType !== 'start') {
+    items.push({ id: 'in', group: 'in' });
+  }
+  if (nodeType === 'route') {
+    items.push({ id: 'out', group: 'out' });
+  }
+
+  return { groups, items };
 }
 
 /**

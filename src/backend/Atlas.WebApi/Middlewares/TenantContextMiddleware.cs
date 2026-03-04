@@ -4,6 +4,7 @@ using Atlas.WebApi.Tenancy;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Options;
 using System.Security.Claims;
+using System.Diagnostics;
 
 namespace Atlas.WebApi.Middlewares;
 
@@ -54,6 +55,7 @@ public sealed class TenantContextMiddleware
             }
 
             context.Items[HttpContextTenantProvider.TenantContextKey] = new TenantContext(claimTenantId);
+            SetTelemetryTags(context, claimTenantId);
             await _next(context);
             return;
         }
@@ -65,6 +67,7 @@ public sealed class TenantContextMiddleware
         }
 
         context.Items[HttpContextTenantProvider.TenantContextKey] = new TenantContext(headerTenantId);
+        SetTelemetryTags(context, headerTenantId);
         await _next(context);
     }
 
@@ -106,5 +109,36 @@ public sealed class TenantContextMiddleware
 
         var payload = ApiResponse<object?>.Fail(code, message, context.TraceIdentifier);
         await context.Response.WriteAsJsonAsync(payload);
+    }
+
+    private static void SetTelemetryTags(HttpContext context, TenantId tenantId)
+    {
+        var activity = Activity.Current;
+        if (activity is null)
+        {
+            return;
+        }
+
+        activity.SetTag("atlas.tenant_id", tenantId.Value.ToString());
+        activity.SetTag("atlas.trace_id", context.TraceIdentifier);
+
+        var id = context.Request.RouteValues.TryGetValue("id", out var idValue) ? idValue?.ToString() : null;
+        var taskId = context.Request.RouteValues.TryGetValue("taskId", out var taskIdValue) ? taskIdValue?.ToString() : null;
+        var instanceId = context.Request.RouteValues.TryGetValue("instanceId", out var instanceIdValue) ? instanceIdValue?.ToString() : null;
+
+        if (!string.IsNullOrWhiteSpace(id))
+        {
+            activity.SetTag("atlas.resource_id", id);
+        }
+
+        if (!string.IsNullOrWhiteSpace(taskId))
+        {
+            activity.SetTag("atlas.task_id", taskId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(instanceId))
+        {
+            activity.SetTag("atlas.instance_id", instanceId);
+        }
     }
 }

@@ -106,6 +106,37 @@ public sealed class ApprovalRuntimeController : ControllerBase
     }
 
     /// <summary>
+    /// 管理端查询流程实例
+    /// </summary>
+    [HttpGet("admin")]
+    [Authorize(Policy = PermissionPolicies.ApprovalFlowView)]
+    public async Task<ApiResponse<PagedResult<ApprovalInstanceListItem>>> GetAdminInstancesAsync(
+        [FromQuery] int pageIndex = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] long? definitionId = null,
+        [FromQuery] long? initiatorUserId = null,
+        [FromQuery] string? businessKey = null,
+        [FromQuery] DateTimeOffset? startedFrom = null,
+        [FromQuery] DateTimeOffset? startedTo = null,
+        [FromQuery] ApprovalInstanceStatus? status = null,
+        CancellationToken cancellationToken = default)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var request = new PagedRequest(pageIndex, pageSize, null, null, false);
+        var result = await _queryService.GetInstancesPagedAsync(
+            tenantId,
+            request,
+            definitionId,
+            initiatorUserId,
+            startedFrom,
+            startedTo,
+            businessKey,
+            status,
+            cancellationToken);
+        return ApiResponse<PagedResult<ApprovalInstanceListItem>>.Ok(result, HttpContext.TraceIdentifier);
+    }
+
+    /// <summary>
     /// 获取流程实例详情
     /// </summary>
     [HttpGet("{id:long}")]

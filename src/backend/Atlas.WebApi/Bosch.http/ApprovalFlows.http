@@ -4,6 +4,15 @@
 @idempotencyKey = {{$guid}}
 @csrfToken =
 
+### 获取 CSRF Token（执行写接口前先调用）
+# @name antiforgery
+GET {{baseUrl}}/api/v1/secure/antiforgery
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+###
+@csrfToken = {{antiforgery.response.body.$.data.token}}
+
 ### 创建流程定义（需要权限: approval:flow:create）
 POST {{baseUrl}}/api/v1/approval/flows
 Authorization: Bearer {{token}}
@@ -19,6 +28,31 @@ X-CSRF-TOKEN: {{csrfToken}}
   "visibilityScopeJson": "{\"scopeType\":\"Department\",\"departmentIds\":[\"10\",\"11\"]}",
   "isQuickEntry": false,
   "definitionJson": "{\"meta\":{\"flowName\":\"请假审批流程\",\"description\":\"员工请假审批流程\",\"category\":\"人事\",\"isQuickEntry\":false,\"isLowCodeFlow\":true},\"lfForm\":{\"formJson\":{\"widgetList\":[],\"formConfig\":{}},\"formFields\":[]},\"nodes\":{\"rootNode\":{\"nodeId\":\"start_1\",\"nodeType\":\"start\",\"nodeName\":\"发起人\",\"childNode\":{\"nodeId\":\"approve_1\",\"nodeType\":\"approve\",\"nodeName\":\"部门主管审批\",\"approverConfig\":{\"setType\":2,\"signType\":1,\"noHeaderAction\":0,\"nodeApproveList\":[{\"targetId\":\"dept-leader\",\"name\":\"部门主管\"}]},\"childNode\":{\"nodeId\":\"end_1\",\"nodeType\":\"end\",\"nodeName\":\"结束\"}}}}}"
+}
+
+### 幂等冲突负例（同 key 不同 payload，第二次应返回 409）
+POST {{baseUrl}}/api/v1/approval/flows
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: same-key-conflict-demo
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "name": "请假审批流程-版本A",
+  "definitionJson": "{\"meta\":{\"flowName\":\"请假审批流程-版本A\"},\"nodes\":{\"rootNode\":{\"nodeId\":\"start_1\",\"nodeType\":\"start\",\"nodeName\":\"发起人\",\"childNode\":{\"nodeId\":\"approve_1\",\"nodeType\":\"approve\",\"nodeName\":\"审批\",\"approverConfig\":{\"setType\":1,\"signType\":1,\"noHeaderAction\":0,\"nodeApproveList\":[{\"targetId\":\"1001\",\"name\":\"管理员\"}]},\"childNode\":{\"nodeId\":\"end_1\",\"nodeType\":\"end\",\"nodeName\":\"结束\"}}}}}"
+}
+
+POST {{baseUrl}}/api/v1/approval/flows
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: same-key-conflict-demo
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "name": "请假审批流程-版本B",
+  "definitionJson": "{\"meta\":{\"flowName\":\"请假审批流程-版本B\"},\"nodes\":{\"rootNode\":{\"nodeId\":\"start_1\",\"nodeType\":\"start\",\"nodeName\":\"发起人\",\"childNode\":{\"nodeId\":\"approve_1\",\"nodeType\":\"approve\",\"nodeName\":\"审批\",\"approverConfig\":{\"setType\":1,\"signType\":1,\"noHeaderAction\":0,\"nodeApproveList\":[{\"targetId\":\"1002\",\"name\":\"审批人\"}]},\"childNode\":{\"nodeId\":\"end_1\",\"nodeType\":\"end\",\"nodeName\":\"结束\"}}}}}"
 }
 
 ### 获取流程定义列表（需要权限: approval:flow:view）
@@ -87,3 +121,41 @@ Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Idempotency-Key: {{$guid}}
 X-CSRF-TOKEN: {{csrfToken}}
+
+### 复制流程定义为新草稿
+POST {{baseUrl}}/api/v1/approval/flows/{flowId}/copy
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "name": "请假审批流程-复制版"
+}
+
+### 导出流程定义 JSON
+GET {{baseUrl}}/api/v1/approval/flows/{flowId}/export
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### 导入流程定义 JSON 为草稿
+POST {{baseUrl}}/api/v1/approval/flows/import
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "name": "导入的采购流程",
+  "category": "采购",
+  "description": "由导出 JSON 导入",
+  "isQuickEntry": false,
+  "definitionJson": "{\"meta\":{\"flowName\":\"导入的采购流程\"},\"nodes\":{\"rootNode\":{\"nodeId\":\"start_1\",\"nodeType\":\"start\",\"nodeName\":\"发起人\",\"childNode\":{\"nodeId\":\"approve_1\",\"nodeType\":\"approve\",\"nodeName\":\"采购负责人\",\"approverConfig\":{\"setType\":1,\"signType\":1,\"noHeaderAction\":0,\"nodeApproveList\":[{\"targetId\":\"buyer-role\",\"name\":\"采购负责人\"}]},\"childNode\":{\"nodeId\":\"end_1\",\"nodeType\":\"end\",\"nodeName\":\"结束\"}}}}}"
+}
+
+### 版本对比（按流程名 + 版本号）
+GET {{baseUrl}}/api/v1/approval/flows/{flowId}/versions/{targetVersion}/compare
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}

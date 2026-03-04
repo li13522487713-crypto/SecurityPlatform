@@ -16,6 +16,16 @@ X-Tenant-Id: {{tenantId}}
 
 ###
 @accessToken = {{login.response.body.$.data.accessToken}}
+@csrfToken =
+
+### Get CSRF Token
+# @name antiforgery
+GET {{baseUrl}}/api/v1/secure/antiforgery
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+###
+@csrfToken = {{antiforgery.response.body.$.data.token}}
 
 ### Get DictTypes (Paged)
 GET {{baseUrl}}/api/v1/dict-types?pageIndex=1&pageSize=20
@@ -38,6 +48,7 @@ Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Idempotency-Key: create-dict-type-001
+X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "code": "sys_user_sex",
@@ -62,6 +73,7 @@ Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Idempotency-Key: create-dict-data-001
+X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "label": "男",
@@ -77,6 +89,8 @@ PUT {{baseUrl}}/api/v1/dict-types/1
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "name": "用户性别（更新）",
@@ -88,12 +102,16 @@ X-Tenant-Id: {{tenantId}}
 DELETE {{baseUrl}}/api/v1/dict-types/1
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
 
 ### Update DictData
 PUT {{baseUrl}}/api/v1/dict-data/1
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "label": "男（更新）",
@@ -108,6 +126,8 @@ X-Tenant-Id: {{tenantId}}
 DELETE {{baseUrl}}/api/v1/dict-data/1
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
 
 ### Get DictData by-code (for dropdown)
 GET {{baseUrl}}/api/v1/dict-data/by-code/sys_user_sex

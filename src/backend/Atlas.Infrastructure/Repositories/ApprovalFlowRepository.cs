@@ -88,4 +88,16 @@ public sealed class ApprovalFlowRepository : IApprovalFlowRepository
             .Where(x => x.TenantIdValue == tenantId.Value && x.Id == id)
             .ExecuteCommandAsync(cancellationToken);
     }
+
+    public async Task<ApprovalFlowDefinition?> GetByNameAndVersionAsync(
+        TenantId tenantId,
+        string name,
+        int version,
+        CancellationToken cancellationToken)
+    {
+        return await _db.Queryable<ApprovalFlowDefinition>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.Name == name && x.Version == version)
+            .OrderByDescending(x => x.Id)
+            .FirstAsync(cancellationToken);
+    }
 }

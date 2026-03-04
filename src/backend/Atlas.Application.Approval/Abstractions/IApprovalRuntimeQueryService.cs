@@ -22,6 +22,17 @@ public interface IApprovalRuntimeQueryService
         ApprovalInstanceStatus? status = null,
         CancellationToken cancellationToken = default);
 
+    Task<PagedResult<ApprovalInstanceListItem>> GetInstancesPagedAsync(
+        TenantId tenantId,
+        PagedRequest request,
+        long? definitionId = null,
+        long? initiatorUserId = null,
+        DateTimeOffset? startedFrom = null,
+        DateTimeOffset? startedTo = null,
+        string? businessKey = null,
+        ApprovalInstanceStatus? status = null,
+        CancellationToken cancellationToken = default);
+
     Task<PagedResult<ApprovalTaskResponse>> GetTasksByInstanceAsync(
         TenantId tenantId,
         long instanceId,

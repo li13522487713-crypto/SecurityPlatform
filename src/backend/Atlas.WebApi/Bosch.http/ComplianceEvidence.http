@@ -1,0 +1,28 @@
+@baseUrl = http://localhost:5000
+@tenantId = 00000000-0000-0000-0000-000000000001
+@token =
+
+### 审计记录导出取证（分页拉取）
+GET {{baseUrl}}/api/v1/audit?pageIndex=1&pageSize=200
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### 登录日志取证
+GET {{baseUrl}}/api/v1/login-logs?pageIndex=1&pageSize=200
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### 当前鉴权身份校验取证
+GET {{baseUrl}}/api/v1/auth/me
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### 安全健康探测取证
+GET {{baseUrl}}/api/v1/secure/ping
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### 系统监控取证
+GET {{baseUrl}}/api/v1/monitor/server-info
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}

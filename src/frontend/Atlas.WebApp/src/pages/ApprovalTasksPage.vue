@@ -2,6 +2,13 @@
   <a-card title="我的待办" class="page-card">
     <div class="toolbar">
       <a-space>
+        <a-input
+          v-model:value="keyword"
+          allow-clear
+          style="width: 220px"
+          placeholder="按标题或节点关键词检索"
+          @pressEnter="fetchData"
+        />
         <a-select
           v-model:value="statusFilter"
           style="width: 140px"
@@ -24,8 +31,15 @@
             {{ getStatusText(record.status) }}
           </a-tag>
         </template>
+        <template v-else-if="column.key === 'sla'">
+          <a-tag v-if="record.slaRemainingMinutes != null" :color="record.slaRemainingMinutes >= 0 ? 'processing' : 'error'">
+            {{ formatSla(record.slaRemainingMinutes) }}
+          </a-tag>
+          <span v-else>-</span>
+        </template>
         <template v-else-if="column.key === 'action'">
           <a-space>
+            <a-button type="link" size="small" @click="handleView(record)">详情</a-button>
             <a-button
               v-if="record.status === 0"
               type="primary"
@@ -76,21 +90,27 @@
 
 <script setup lang="ts">
 import { onMounted, reactive, ref, watch } from "vue";
+import { useRouter } from "vue-router";
 import { getMyTasksPaged, decideApprovalTask } from "@/services/api";
 import type { TablePaginationConfig } from "ant-design-vue";
 import { ApprovalTaskStatus, type ApprovalTaskResponse } from "@/types/api";
 import { message } from "ant-design-vue";
 
+const router = useRouter();
+
 const columns = [
+  { title: "流程名称", dataIndex: "flowName", key: "flowName" },
   { title: "任务标题", dataIndex: "title", key: "title" },
-  { title: "节点ID", dataIndex: "nodeId", key: "nodeId" },
+  { title: "当前节点", dataIndex: "currentNodeName", key: "currentNodeName" },
+  { title: "SLA", key: "sla" },
   { title: "状态", key: "status" },
   { title: "创建时间", dataIndex: "createdAt", key: "createdAt" },
-  { title: "操作", key: "action", width: 150 }
+  { title: "操作", key: "action", width: 220 }
 ];
 
 const dataSource = ref<ApprovalTaskResponse[]>([]);
 const loading = ref(false);
+const keyword = ref("");
 const statusFilter = ref<ApprovalTaskStatus | "all">(ApprovalTaskStatus.Pending);
 const statusOptions = [
   { label: "全部", value: "all" },
@@ -117,7 +137,8 @@ const fetchData = async () => {
     const statusValue = statusFilter.value === "all" ? undefined : statusFilter.value;
     const result = await getMyTasksPaged({
       pageIndex: pagination.current ?? 1,
-      pageSize: pagination.pageSize ?? 10
+      pageSize: pagination.pageSize ?? 10,
+      keyword: keyword.value || undefined
     }, statusValue);
     dataSource.value = result.items;
     pagination.total = result.total;
@@ -164,6 +185,16 @@ const getStatusText = (status: ApprovalTaskStatus) => {
   }
 };
 
+const formatSla = (value: number) => {
+  const abs = Math.abs(value);
+  if (abs >= 60) {
+    const hours = Math.floor(abs / 60);
+    const minutes = abs % 60;
+    return value >= 0 ? `剩余 ${hours}h${minutes}m` : `超时 ${hours}h${minutes}m`;
+  }
+  return value >= 0 ? `剩余 ${abs}m` : `超时 ${abs}m`;
+};
+
 const handleApprove = (record: ApprovalTaskResponse) => {
   currentTask.value = record;
   modalTitle.value = "审批通过";
@@ -178,10 +209,18 @@ const handleReject = (record: ApprovalTaskResponse) => {
   modalVisible.value = true;
 };
 
+const handleView = (record: ApprovalTaskResponse) => {
+  router.push(`/process/tasks/${record.id}`);
+};
+
 const handleDecide = async () => {
   if (!currentTask.value) return;
 
   const approved = modalTitle.value === "审批通过";
+  if (!approved && !decideForm.value.comment.trim()) {
+    message.warning("驳回时必须填写审批意见");
+    return;
+  }
   try {
     await decideApprovalTask({
       taskId: currentTask.value.id,

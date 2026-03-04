@@ -45,20 +45,19 @@
             <a-form layout="vertical" class="dd-props-form">
               <a-form-item label="审批人类型">
                 <a-select v-model:value="approveForm.assigneeType" @change="onApproverTypeChange">
-                  <a-select-option :value="0">指定人员</a-select-option>
-                  <a-select-option :value="1">指定角色</a-select-option>
-                  <a-select-option :value="2">部门负责人</a-select-option>
-                  <a-select-option :value="3">HRBP</a-select-option>
-                  <a-select-option :value="4">直属领导</a-select-option>
-                  <a-select-option :value="5">层级领导</a-select-option>
-                  <a-select-option :value="6">发起人</a-select-option>
-                  <a-select-option :value="7">发起人自选</a-select-option>
+                  <a-select-option
+                    v-for="option in assigneeTypeOptions"
+                    :key="option.value"
+                    :value="option.value"
+                  >
+                    {{ option.label }}
+                  </a-select-option>
                 </a-select>
               </a-form-item>
 
               <a-form-item
                 label="选择审批人"
-                v-if="approveForm.assigneeType <= 1"
+                v-if="isPickerAssigneeType(approveForm.assigneeType)"
               >
                 <UserRolePicker
                   v-if="approveForm.assigneeType === 0"
@@ -73,6 +72,44 @@
                   placeholder="请选择角色"
                 />
               </a-form-item>
+
+              <a-form-item label="审批层级" v-else-if="approveForm.assigneeType === 4">
+                <a-input-number
+                  v-model:value="assigneeLevel"
+                  :min="1"
+                  :max="20"
+                  style="width: 100%"
+                  placeholder="请输入向上审批层级"
+                />
+              </a-form-item>
+
+              <a-form-item
+                label="业务字段路径"
+                v-else-if="approveForm.assigneeType === 9"
+              >
+                <a-input
+                  v-model:value="assigneeExpression"
+                  placeholder="示例：formData.ownerId"
+                />
+              </a-form-item>
+
+              <a-form-item
+                label="外部人员字段"
+                v-else-if="approveForm.assigneeType === 10"
+              >
+                <a-input
+                  v-model:value="assigneeExpression"
+                  placeholder="示例：externalApprovers"
+                />
+              </a-form-item>
+
+              <a-alert
+                v-else
+                type="info"
+                show-icon
+                :message="getAssigneeTypeHint(approveForm.assigneeType)"
+                style="margin-bottom: 16px"
+              />
 
               <a-form-item label="多人审批方式">
                 <div class="dd-radio-cards">
@@ -112,8 +149,17 @@
               </a-form-item>
 
               <template v-if="approveForm.approvalMode === 'vote'">
+                <a-form-item label="节点票权重">
+                  <a-input-number
+                    v-model:value="approveForm.voteWeight"
+                    :min="1"
+                    :max="100"
+                    :precision="0"
+                    style="width: 100%"
+                  />
+                </a-form-item>
                 <a-form-item label="票签通过率 (%)">
-                   <a-slider v-model:value="approveForm.votePassRate" :min="1" :max="100" />
+                  <a-slider v-model:value="approveForm.votePassRate" :min="1" :max="100" />
                 </a-form-item>
               </template>
 
@@ -319,6 +365,12 @@
 
           <template v-if="!branchForm.isDefault">
             <a-divider>条件规则</a-divider>
+            <a-form-item label="CEL 表达式（可选）">
+              <ExpressionEditorCel
+                v-model="branchForm.conditionExpr"
+                @validate="onExpressionValidate"
+              />
+            </a-form-item>
             <ConditionGroupEditor 
               v-model="branchForm.conditionGroups" 
               :form-fields="formFields" 
@@ -439,6 +491,7 @@ import {
 import { message } from 'ant-design-vue';
 import UserRolePicker from '@/components/common/UserRolePicker.vue';
 import ConditionGroupEditor from './ConditionGroupEditor.vue';
+import ExpressionEditorCel from './ExpressionEditorCel.vue';
 import type { 
   TreeNode, 
   ConditionBranch, 
@@ -465,6 +518,7 @@ interface BranchForm {
     value: unknown;
   };
   conditionGroups?: ConditionGroup[];
+  conditionExpr?: string;
 }
 
 // ── Props / Emits ──
@@ -493,10 +547,26 @@ const startForm = ref<any>(null);
 const activeTab = ref('approver');
 
 const approverTargets = ref<string[]>([]);
+const assigneeExpression = ref('');
+const assigneeLevel = ref<number | null>(null);
 // const noticeConfigText = ref('');
 const noticeChannels = ref<number[]>([]);
 const noticeTemplateId = ref<string | undefined>(undefined);
 const formPermMap = ref<Record<string, string>>({});
+const expressionValid = ref(true);
+const assigneeTypeOptions: Array<{ value: ApproveNode['assigneeType']; label: string }> = [
+  { value: 0, label: '指定人员' },
+  { value: 1, label: '指定角色' },
+  { value: 2, label: '部门负责人' },
+  { value: 3, label: '逐级领导（Loop）' },
+  { value: 4, label: '指定层级（Level）' },
+  { value: 5, label: '直属领导' },
+  { value: 6, label: '发起人' },
+  { value: 7, label: 'HRBP' },
+  { value: 8, label: '发起人自选' },
+  { value: 9, label: '业务字段取人' },
+  { value: 10, label: '外部传入人员' },
+];
 
 // ── 计算属性 ──
 const iconClass = computed(() => {
@@ -547,12 +617,28 @@ function syncNodeRefs() {
   if (isApproveNode(current)) {
     const node = current as ApproveNode;
     approveForm.value = node;
-    
-    // 初始化审批人列表
-    if (node.assigneeValue) {
-       approverTargets.value = node.assigneeValue.split(',').filter(Boolean);
+
+    // 初始化审批人配置
+    if (isPickerAssigneeType(node.assigneeType)) {
+      approverTargets.value = node.assigneeValue ? node.assigneeValue.split(',').filter(Boolean) : [];
+      assigneeExpression.value = '';
+      assigneeLevel.value = null;
+    } else if (node.assigneeType === 4) {
+      approverTargets.value = [];
+      assigneeExpression.value = '';
+      const parsedLevel = Number.parseInt(node.assigneeValue, 10);
+      assigneeLevel.value = Number.isFinite(parsedLevel) && parsedLevel > 0 ? parsedLevel : null;
     } else {
-       approverTargets.value = [];
+      approverTargets.value = [];
+      assigneeExpression.value = node.assigneeValue ?? '';
+      assigneeLevel.value = null;
+    }
+
+    if (!node.voteWeight || node.voteWeight < 1) {
+      node.voteWeight = 1;
+    }
+    if (!node.votePassRate || node.votePassRate < 1 || node.votePassRate > 100) {
+      node.votePassRate = 60;
     }
 
     // 初始化表单权限
@@ -612,7 +698,8 @@ function syncNodeRefs() {
       conditionRule: current.conditionRule
         ? { ...current.conditionRule, value: current.conditionRule.value as unknown }
         : undefined,
-      conditionGroups: groups
+      conditionGroups: groups,
+      conditionExpr: extractConditionExpr(current.conditionRule)
     };
   } else if (isInclusiveNode(current)) {
     inclusiveForm.value = current;
@@ -644,6 +731,8 @@ function clearRefs() {
   startForm.value = null;
   activeTab.value = 'approver';
   approverTargets.value = [];
+  assigneeExpression.value = '';
+  assigneeLevel.value = null;
   formPermMap.value = {};
   noticeChannels.value = [];
   noticeTemplateId.value = undefined;
@@ -651,8 +740,10 @@ function clearRefs() {
 
 // ── Event handlers ──
 function onApproverTypeChange() {
-  // 切换类型时清空审批人列表
+  // 切换类型时清空审批人配置
   approverTargets.value = [];
+  assigneeExpression.value = '';
+  assigneeLevel.value = null;
 }
 
 function handleClose() {
@@ -663,8 +754,23 @@ function handleSave() {
   if (!formData.value) return;
 
   if (approveForm.value) {
-    // 保存审批人
-    approveForm.value.assigneeValue = approverTargets.value.join(',');
+    // 保存审批人配置
+    if (isPickerAssigneeType(approveForm.value.assigneeType)) {
+      approveForm.value.assigneeValue = approverTargets.value.join(',');
+    } else if (approveForm.value.assigneeType === 4) {
+      approveForm.value.assigneeValue = assigneeLevel.value ? String(assigneeLevel.value) : '';
+    } else {
+      approveForm.value.assigneeValue = assigneeExpression.value.trim();
+    }
+
+    if (approveForm.value.approvalMode === 'vote') {
+      if (!approveForm.value.voteWeight || approveForm.value.voteWeight < 1) {
+        approveForm.value.voteWeight = 1;
+      }
+      if (!approveForm.value.votePassRate || approveForm.value.votePassRate < 1 || approveForm.value.votePassRate > 100) {
+        approveForm.value.votePassRate = 60;
+      }
+    }
     
     // 保存表单权限
     const fields = Object.entries(formPermMap.value).map(([fieldId, perm]) => ({ fieldId, perm }));
@@ -688,13 +794,23 @@ function handleSave() {
 
   // 如果是分支，合并回 formData
   if (branchForm.value) {
+    if (!expressionValid.value) {
+      message.warning('请先修复 CEL 表达式错误');
+      return;
+    }
     const branch = formData.value as ConditionBranch;
     branch.branchName = branchForm.value.branchName;
     branch.isDefault = branchForm.value.isDefault;
     // 保存 conditionGroups
     branch.conditionGroups = branchForm.value.conditionGroups;
     // 同时也更新旧版字段以保持兼容（取第一个条件的第一个规则）
-    if (branch.conditionGroups && branch.conditionGroups.length > 0 && branch.conditionGroups[0].conditions.length > 0) {
+    const celExpr = branchForm.value.conditionExpr?.trim();
+    if (celExpr) {
+      branch.conditionRule = {
+        exprType: 'cel',
+        expression: celExpr
+      } as unknown as typeof branch.conditionRule;
+    } else if (branch.conditionGroups && branch.conditionGroups.length > 0 && branch.conditionGroups[0].conditions.length > 0) {
       const first = branch.conditionGroups[0].conditions[0];
       branch.conditionRule = {
         field: first.field,
@@ -736,6 +852,44 @@ function initConditionRule() {
 function removeConditionRule() {
   if (!branchForm.value) return;
   branchForm.value.conditionRule = undefined;
+}
+
+function onExpressionValidate(valid: boolean) {
+  expressionValid.value = valid;
+}
+
+function extractConditionExpr(conditionRule: unknown): string | undefined {
+  if (!conditionRule || typeof conditionRule !== 'object') {
+    return undefined;
+  }
+  const value = conditionRule as { exprType?: unknown; expression?: unknown };
+  if (value.exprType === 'cel' && typeof value.expression === 'string') {
+    return value.expression;
+  }
+  return undefined;
+}
+
+function isPickerAssigneeType(type: ApproveNode['assigneeType']): boolean {
+  return type === 0 || type === 1;
+}
+
+function getAssigneeTypeHint(type: ApproveNode['assigneeType']): string {
+  switch (type) {
+    case 2:
+      return '系统会自动解析发起人所在部门负责人作为审批人。';
+    case 3:
+      return '系统会沿组织架构逐级向上查找审批人。';
+    case 5:
+      return '系统会自动解析发起人的直属领导。';
+    case 6:
+      return '当前流程发起人将作为审批人。';
+    case 7:
+      return '系统会自动匹配当前组织下配置的 HRBP。';
+    case 8:
+      return '由发起人在提交时手动选择审批人。';
+    default:
+      return '请根据审批场景配置该类型的参数。';
+  }
 }
 
 // ── 类型守卫 ──

@@ -37,18 +37,26 @@ const ASSIGNEE_TYPE_MAP: Record<number, string> = {
   0: '指定人员',
   1: '指定角色',
   2: '部门负责人',
-  3: 'HRBP',
-  4: '直属领导',
-  5: '层级领导',
+  3: '逐级领导',
+  4: '指定层级',
+  5: '直属领导',
   6: '发起人',
-  7: '发起人自选',
+  7: 'HRBP',
+  8: '发起人自选',
+  9: '业务字段取人',
+  10: '外部传入人员',
 };
 
 const assigneeLabel = computed(() => {
   const val = data.value.assigneeValue as string;
-  if (!val) return '';
   const typeNum = (data.value.assigneeType ?? 0) as number;
   const typeName = ASSIGNEE_TYPE_MAP[typeNum] || '指定人员';
+  if (!val) {
+    if (typeNum === 2 || typeNum === 3 || typeNum === 5 || typeNum === 6 || typeNum === 7 || typeNum === 8) {
+      return typeName;
+    }
+    return '';
+  }
   return `${typeName}: ${val}`;
 });
 

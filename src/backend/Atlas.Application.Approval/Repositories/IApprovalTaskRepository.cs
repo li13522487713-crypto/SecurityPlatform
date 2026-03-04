@@ -40,6 +40,17 @@ public interface IApprovalTaskRepository
         ApprovalTaskStatus? status = null,
         CancellationToken cancellationToken = default);
 
+    Task<(IReadOnlyList<ApprovalTask> Items, int TotalCount)> GetPagedPoolAsync(
+        TenantId tenantId,
+        int pageIndex,
+        int pageSize,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<ApprovalTask>> GetPendingByAssigneeUserAsync(
+        TenantId tenantId,
+        long userId,
+        CancellationToken cancellationToken);
+
     Task<IReadOnlyList<ApprovalTask>> GetByInstanceAndNodeAsync(
         TenantId tenantId,
         long instanceId,

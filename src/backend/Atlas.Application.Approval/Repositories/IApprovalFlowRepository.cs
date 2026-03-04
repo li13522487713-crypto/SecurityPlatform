@@ -29,4 +29,10 @@ public interface IApprovalFlowRepository
         CancellationToken cancellationToken = default);
 
     Task DeleteAsync(TenantId tenantId, long id, CancellationToken cancellationToken);
+
+    Task<ApprovalFlowDefinition?> GetByNameAndVersionAsync(
+        TenantId tenantId,
+        string name,
+        int version,
+        CancellationToken cancellationToken);
 }

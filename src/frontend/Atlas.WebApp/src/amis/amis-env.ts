@@ -160,7 +160,8 @@ export function createAmisEnv(): AmisEnv {
  * amis supports: "zh-CN", "en-US", "de-DE", etc.
  */
 export function getAmisLocale(): string {
-  const appLocale = i18n.global.locale.value ?? "zh-CN";
+  const localeSource = i18n.global.locale as string | { value?: string };
+  const appLocale = typeof localeSource === "string" ? localeSource : (localeSource.value ?? "zh-CN");
   const map: Record<string, string> = {
     "zh-CN": "zh-CN",
     "en-US": "en-US"

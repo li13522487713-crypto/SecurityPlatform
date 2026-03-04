@@ -1,6 +1,16 @@
 @baseUrl = http://localhost:5000
 @token =
 @tenantId =
+@csrfToken =
+
+### 获取 CSRF Token（写接口前执行）
+# @name antiforgery
+GET {{baseUrl}}/api/v1/secure/antiforgery
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+###
+@csrfToken = {{antiforgery.response.body.$.data.token}}
 
 ### 获取可视化总览（需要权限: visualization:view）
 GET {{baseUrl}}/api/v1/visualization/overview
@@ -32,6 +42,8 @@ POST {{baseUrl}}/api/v1/visualization/processes
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "name": "示例流程",
@@ -44,6 +56,8 @@ PUT {{baseUrl}}/api/v1/visualization/processes/{processId}
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "processId": "{processId}",
@@ -57,6 +71,8 @@ POST {{baseUrl}}/api/v1/visualization/processes/{processId}/publication
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "comment": "发布测试"

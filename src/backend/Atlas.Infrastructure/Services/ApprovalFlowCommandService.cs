@@ -122,6 +122,47 @@ public sealed class ApprovalFlowCommandService : IApprovalFlowCommandService
         entity.Disable();
         await _flowRepository.UpdateAsync(entity, cancellationToken);
     }
+
+    public async Task<ApprovalFlowDefinitionResponse> CopyAsync(
+        TenantId tenantId,
+        long id,
+        ApprovalFlowCopyRequest request,
+        CancellationToken cancellationToken)
+    {
+        var source = await _flowRepository.GetByIdAsync(tenantId, id, cancellationToken);
+        if (source == null)
+        {
+            throw new BusinessException("FLOW_NOT_FOUND", "审批流定义不存在");
+        }
+
+        var name = string.IsNullOrWhiteSpace(request.Name)
+            ? $"{source.Name}-副本"
+            : request.Name.Trim();
+
+        var entity = new ApprovalFlowDefinition(
+            tenantId,
+            name,
+            source.DefinitionJson,
+            _idGeneratorAccessor.NextId());
+        entity.SetMetadata(source.Description, source.Category, source.VisibilityScopeJson, source.IsQuickEntry);
+        await _flowRepository.AddAsync(entity, cancellationToken);
+        return _mapper.Map<ApprovalFlowDefinitionResponse>(entity);
+    }
+
+    public async Task<ApprovalFlowDefinitionResponse> ImportAsync(
+        TenantId tenantId,
+        ApprovalFlowImportRequest request,
+        CancellationToken cancellationToken)
+    {
+        var entity = new ApprovalFlowDefinition(
+            tenantId,
+            request.Name,
+            request.DefinitionJson,
+            _idGeneratorAccessor.NextId());
+        entity.SetMetadata(request.Description, request.Category, request.VisibilityScopeJson, request.IsQuickEntry);
+        await _flowRepository.AddAsync(entity, cancellationToken);
+        return _mapper.Map<ApprovalFlowDefinitionResponse>(entity);
+    }
 }
 
 

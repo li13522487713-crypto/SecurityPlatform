@@ -38,6 +38,10 @@ public interface IApprovalInstanceRepository
         int pageIndex,
         int pageSize,
         long? definitionId = null,
+        long? initiatorUserId = null,
+        DateTimeOffset? startedFrom = null,
+        DateTimeOffset? startedTo = null,
+        string? businessKey = null,
         ApprovalInstanceStatus? status = null,
         CancellationToken cancellationToken = default);
 }

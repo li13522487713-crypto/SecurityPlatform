@@ -142,12 +142,24 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
-import { message } from "ant-design-vue";
-import { getVisualizationMetrics } from "@/services/api";
+import { Empty, message } from "ant-design-vue";
+import {
+  getAlertsPaged,
+  getAuditsPaged,
+  getMyTasksPaged,
+  getVisualizationMetrics
+} from "@/services/api";
 import type { VisualizationMetricsResponse } from "@/types/api";
 import { getAuthProfile, hasPermission } from "@/utils/auth";
+import {
+  AlertOutlined,
+  DatabaseOutlined,
+  FileSearchOutlined,
+  ThunderboltOutlined
+} from "@ant-design/icons-vue";
 
 const emptyImage = Empty.PRESENTED_IMAGE_SIMPLE;
+const router = useRouter();
 
 const loadingTasks = ref(false);
 const loadingAlerts = ref(false);
@@ -208,7 +220,108 @@ const securityEntries = computed(() =>
     .map((entry) => ({ title: entry.title, description: entry.description, path: entry.path }))
 );
 
+const quickEntries = computed(() =>
+  [...organizationEntries.value, ...businessEntries.value, ...securityEntries.value]
+    .slice(0, 8)
+    .map((entry) => ({ label: entry.title, path: entry.path }))
+);
+
+const todayDate = computed(() => new Date().toLocaleDateString());
+const alertsStyle = computed(() => ({ color: "#cf1322" }));
+
 const go = (path: string) => router.push(path);
+
+const severityColor = (severity: string) => {
+  const s = severity.toLowerCase();
+  if (s.includes("critical") || s.includes("high") || s.includes("严重")) return "red";
+  if (s.includes("medium") || s.includes("中")) return "orange";
+  if (s.includes("low") || s.includes("轻")) return "blue";
+  return "default";
+};
+
+const formatRelativeTime = (value: string) => {
+  const now = Date.now();
+  const then = new Date(value).getTime();
+  if (Number.isNaN(then)) return value;
+  const diff = Math.max(0, Math.floor((now - then) / 1000));
+  if (diff < 60) return "刚刚";
+  if (diff < 3600) return `${Math.floor(diff / 60)} 分钟前`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)} 小时前`;
+  return `${Math.floor(diff / 86400)} 天前`;
+};
+
+const formatTime = (value: string) => {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+};
+
+const loadPendingTasks = async () => {
+  if (!hasPermission(profile.value, "approval:flow:view")) {
+    pendingTasks.value = [];
+    return;
+  }
+
+  loadingTasks.value = true;
+  try {
+    const result = await getMyTasksPaged({ pageIndex: 1, pageSize: 5 });
+    pendingTasks.value = (result.items ?? []).map((item) => ({
+      id: String(item.id),
+      flowName: item.title,
+      applicantName: String(item.assigneeValue ?? "-"),
+      createdAt: item.createdAt
+    }));
+  } catch (error) {
+    message.error((error as Error).message || "加载待办任务失败");
+  } finally {
+    loadingTasks.value = false;
+  }
+};
+
+const loadRecentAlerts = async () => {
+  if (!hasPermission(profile.value, "alert:view")) {
+    recentAlerts.value = [];
+    return;
+  }
+
+  loadingAlerts.value = true;
+  try {
+    const result = await getAlertsPaged({ pageIndex: 1, pageSize: 5 });
+    recentAlerts.value = (result.items ?? []).map((item) => ({
+      id: String((item as { id?: string | number }).id ?? ""),
+      title: String((item as { title?: string }).title ?? "未命名告警"),
+      severity: String((item as { severity?: string }).severity ?? "未知"),
+      source: String((item as { source?: string }).source ?? "-"),
+      createdAt: String((item as { occurredAt?: string; createdAt?: string }).createdAt ?? (item as { occurredAt?: string }).occurredAt ?? new Date().toISOString())
+    }));
+  } catch (error) {
+    message.error((error as Error).message || "加载告警失败");
+  } finally {
+    loadingAlerts.value = false;
+  }
+};
+
+const loadRecentAudits = async () => {
+  if (!hasPermission(profile.value, "audit:view")) {
+    recentAudits.value = [];
+    return;
+  }
+
+  loadingAudits.value = true;
+  try {
+    const result = await getAuditsPaged({ pageIndex: 1, pageSize: 6 });
+    recentAudits.value = (result.items ?? []).map((item) => ({
+      id: String(item.id),
+      actorName: item.actor,
+      action: item.action,
+      targetDescription: item.target,
+      createdAt: item.occurredAt
+    }));
+  } catch (error) {
+    message.error((error as Error).message || "加载审计活动失败");
+  } finally {
+    loadingAudits.value = false;
+  }
+};
 
 const loadMetrics = async () => {
   if (!hasPermission(profile.value, "visualization:view")) {
@@ -216,7 +329,7 @@ const loadMetrics = async () => {
     return;
   }
 
-  loading.value = true;
+  loadingMetrics.value = true;
   try {
     metrics.value = await getVisualizationMetrics();
   } catch (error) {

@@ -19,6 +19,7 @@
 import { computed, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { usePermissionStore } from "@/stores/permission";
+import type { RouterVo } from "@/types/api";
 import SidebarItem from "./SidebarItem.vue";
 
 const permissionStore = usePermissionStore();
@@ -26,7 +27,7 @@ const route = useRoute();
 const openKeys = ref<string[]>([]);
 
 const menuTree = computed(() =>
-  permissionStore.sidebarRouters.filter((item) => !(item.hidden ?? false))
+  permissionStore.sidebarRouters.filter((item: RouterVo) => !(item.hidden ?? false))
 );
 
 const selectedKeys = computed(() => [route.path]);

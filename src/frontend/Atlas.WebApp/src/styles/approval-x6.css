@@ -332,3 +332,21 @@
   stroke: var(--dd-color-line);
   stroke-width: 2px;
 }
+
+/* 连线锚点：默认隐藏，悬浮节点时展示 */
+.dd-designer-canvas .x6-port-body {
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.dd-designer-canvas .x6-node:hover .x6-port-body,
+.dd-designer-canvas .x6-port-body[port-group='out'],
+.dd-designer-canvas .x6-node-selected .x6-port-body {
+  opacity: 1;
+}
+
+/* 连线高亮反馈 */
+.dd-designer-canvas .x6-edge:hover path {
+  stroke: #1677ff;
+  stroke-width: 2.5px;
+}

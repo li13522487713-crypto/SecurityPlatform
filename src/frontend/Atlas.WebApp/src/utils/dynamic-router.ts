@@ -67,30 +67,37 @@ function filterChildren(childrenMap: RouterVo[], lastRouter: RouterVo | false = 
 }
 
 function toRouteRecord(item: RouterVo, type: boolean): RouteRecordRaw | null {
-  const route: RouteRecordRaw = {
-    path: item.path,
-    name: item.name,
-    component: resolveComponent(item.component, item.path),
-    meta: {
-      title: item.meta?.title ?? item.name,
-      icon: item.meta?.icon,
-      requiresAuth: true,
-      requiresPermission: item.meta?.permi,
-      hidden: item.hidden,
-      noCache: item.meta?.noCache,
-      breadcrumb: item.meta?.link ? false : true
-    }
+  const children = item.children && item.children.length > 0
+    ? buildRoutesFromRouters(item.children, item, type)
+    : undefined;
+
+  const baseMeta = {
+    title: item.meta?.title ?? item.name,
+    icon: item.meta?.icon,
+    requiresAuth: true,
+    requiresPermission: item.meta?.permi,
+    hidden: item.hidden,
+    noCache: item.meta?.noCache,
+    breadcrumb: item.meta?.link ? false : true
   };
 
-  if (item.redirect) {
-    route.redirect = item.redirect;
-  }
+  const route: RouteRecordRaw = children
+    ? {
+      path: item.path,
+      name: item.name,
+      component: resolveComponent(item.component, item.path),
+      meta: baseMeta,
+      children
+    }
+    : {
+      path: item.path,
+      name: item.name,
+      component: resolveComponent(item.component, item.path),
+      meta: baseMeta
+    };
 
-  if (item.children && item.children.length > 0) {
-    route.children = buildRoutesFromRouters(item.children, item, type);
-  } else {
-    // 叶子节点删除不必要的属性
-    delete route.children;
+  if (item.redirect) {
+    (route as { redirect?: string }).redirect = item.redirect;
   }
 
   return route;

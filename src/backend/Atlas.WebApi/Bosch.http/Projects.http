@@ -16,6 +16,16 @@ X-Tenant-Id: {{tenantId}}
 
 ###
 @accessToken = {{login.response.body.$.data.accessToken}}
+@csrfToken =
+
+### Get CSRF Token
+# @name antiforgery
+GET {{baseUrl}}/api/v1/secure/antiforgery
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+###
+@csrfToken = {{antiforgery.response.body.$.data.token}}
 
 ### Get Projects (Paged)
 GET {{baseUrl}}/api/v1/projects?pageIndex=1&pageSize=10
@@ -32,6 +42,8 @@ POST {{baseUrl}}/api/v1/projects
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "code": "PRJ001",
@@ -46,6 +58,8 @@ PUT {{baseUrl}}/api/v1/projects/1
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "name": "示例项目",
@@ -59,6 +73,8 @@ PUT {{baseUrl}}/api/v1/projects/1/users
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "userIds": [1001, 1002]
@@ -69,6 +85,8 @@ PUT {{baseUrl}}/api/v1/projects/1/departments
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "departmentIds": [10, 11]
@@ -79,6 +97,8 @@ PUT {{baseUrl}}/api/v1/projects/1/positions
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "positionIds": [20, 21]
@@ -88,3 +108,5 @@ X-Tenant-Id: {{tenantId}}
 DELETE {{baseUrl}}/api/v1/projects/1
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}

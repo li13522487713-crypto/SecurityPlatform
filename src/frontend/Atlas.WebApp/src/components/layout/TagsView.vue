@@ -153,14 +153,14 @@ function closeSelectedTag(view: TagView) {
 
 function closeRightTags() {
   tagsViewStore.delRightTags(selectedTag.value);
-  if (!tagsViewStore.visitedViews.find((i) => i.path === route.path)) {
+  if (!tagsViewStore.visitedViews.find((i: TagView) => i.path === route.path)) {
     toLastView(tagsViewStore.visitedViews);
   }
 }
 
 function closeLeftTags() {
   tagsViewStore.delLeftTags(selectedTag.value);
-  if (!tagsViewStore.visitedViews.find((i) => i.path === route.path)) {
+  if (!tagsViewStore.visitedViews.find((i: TagView) => i.path === route.path)) {
     toLastView(tagsViewStore.visitedViews);
   }
 }

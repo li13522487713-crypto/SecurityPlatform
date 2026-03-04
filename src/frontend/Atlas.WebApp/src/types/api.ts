@@ -209,16 +209,33 @@ export const ApprovalTaskStatus = {
   Pending: 0,
   Approved: 1,
   Rejected: 2,
-  Canceled: 3
+  Canceled: 3,
+  Waiting: 4,
+  Delegated: 5
 } as const;
 export type ApprovalTaskStatus = typeof ApprovalTaskStatus[keyof typeof ApprovalTaskStatus];
 
 export const AssigneeType = {
   User: 0,
   Role: 1,
-  DepartmentLeader: 2
+  DepartmentLeader: 2,
+  Loop: 3,
+  Level: 4,
+  DirectLeader: 5,
+  StartUser: 6,
+  Hrbp: 7,
+  Customize: 8,
+  BusinessTable: 9,
+  OutSideAccess: 10
 } as const;
 export type AssigneeType = typeof AssigneeType[keyof typeof AssigneeType];
+
+export const ApprovalMode = {
+  OrSign: 0,
+  AndSign: 1,
+  SequenceSign: 2
+} as const;
+export type ApprovalMode = typeof ApprovalMode[keyof typeof ApprovalMode];
 
 export interface ApprovalFlowDefinitionListItem {
   id: string;
@@ -271,10 +288,60 @@ export interface ApprovalFlowValidationResult {
   isValid: boolean;
   errors: string[];
   warnings: string[];
+  details?: ApprovalFlowValidationIssue[];
+}
+
+export interface ApprovalFlowValidationIssue {
+  code: string;
+  message: string;
+  severity: 'error' | 'warning';
+  nodeId?: string;
+  edgeId?: string;
+}
+
+export interface ApprovalFlowCopyRequest {
+  name?: string;
+}
+
+export interface ApprovalFlowImportRequest {
+  name: string;
+  definitionJson: string;
+  description?: string;
+  category?: string;
+  visibilityScopeJson?: string;
+  isQuickEntry?: boolean;
+}
+
+export interface ApprovalFlowExportResponse {
+  id: string;
+  name: string;
+  version: number;
+  definitionJson: string;
+  description?: string;
+  category?: string;
+  visibilityScopeJson?: string;
+  isQuickEntry: boolean;
+  exportedAt: string;
+}
+
+export interface ApprovalFlowDifferenceItem {
+  path: string;
+  sourceValue: string;
+  targetValue: string;
+  changeType: string;
+}
+
+export interface ApprovalFlowCompareResponse {
+  sourceFlowId: string;
+  sourceVersion: number;
+  targetVersion: number;
+  isSame: boolean;
+  summary: string;
+  differences: ApprovalFlowDifferenceItem[];
 }
 
 export interface ApprovalStartRequest {
-  definitionId: string;
+  definitionId: number | string;
   businessKey: string;
   dataJson?: string;
 }
@@ -291,44 +358,73 @@ export interface ApprovalTaskResponse {
   decisionAt?: string;
   comment?: string;
   createdAt: string;
+  flowName?: string;
+  currentNodeName?: string;
+  slaRemainingMinutes?: number;
+  expectedCompleteTime?: string;
 }
 
 export interface ApprovalTaskDecideRequest {
-  taskId: string;
+  taskId: number | string;
   approved: boolean;
   comment?: string;
 }
 
 export interface ApprovalInstanceListItem {
-  id: string;
-  definitionId: string;
+  id: number | string;
+  definitionId: number | string;
   flowName: string;
   businessKey: string;
-  initiatorUserId: string;
+  initiatorUserId: number | string;
   status: ApprovalInstanceStatus;
   startedAt: string;
   endedAt?: string;
+  currentNodeName?: string;
+  slaRemainingMinutes?: number;
 }
 
 export interface ApprovalInstanceResponse {
-  id: string;
-  definitionId: string;
+  id: number | string;
+  definitionId: number | string;
   businessKey: string;
-  initiatorUserId: string;
+  initiatorUserId: number | string;
   dataJson?: string;
   status: ApprovalInstanceStatus;
   startedAt: string;
   endedAt?: string;
+  flowName?: string;
+  currentNodeName?: string;
+  slaRemainingMinutes?: number;
+  expectedCompleteTime?: string;
 }
 
 export interface ApprovalHistoryEventResponse {
-  id: string;
+  id: number | string;
   eventType: string;
   fromNode?: string;
   toNode?: string;
   payloadJson?: string;
-  actorUserId?: string;
+  actorUserId?: number | string;
   occurredAt: string;
+}
+
+export interface ApprovalOperationRequest {
+  operationType: number;
+  comment?: string;
+  targetNodeId?: string;
+  targetAssigneeValue?: string;
+  additionalAssigneeValues?: string[];
+  idempotencyKey?: string;
+}
+
+export interface ApprovalCopyRecordResponse {
+  id: number | string;
+  instanceId: number | string;
+  nodeId: string;
+  recipientUserId: number | string;
+  isRead: boolean;
+  createdAt: string;
+  readAt?: string;
 }
 
 export interface AuditListItem {

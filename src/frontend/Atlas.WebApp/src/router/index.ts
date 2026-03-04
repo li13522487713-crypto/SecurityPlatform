@@ -71,7 +71,7 @@ router.beforeEach(async (to, from, next) => {
     if (to.meta.requiresPermission && typeof to.meta.requiresPermission === "string") {
       const has = userStore.permissions.includes(to.meta.requiresPermission)
         || userStore.permissions.includes("*:*:*")
-        || userStore.roles.some((role) => ["admin", "superadmin"].includes(role.toLowerCase()));
+        || userStore.roles.some((role: string) => ["admin", "superadmin"].includes(role.toLowerCase()));
       if (!has) {
         next({ path: "/" });
         NProgress.done();

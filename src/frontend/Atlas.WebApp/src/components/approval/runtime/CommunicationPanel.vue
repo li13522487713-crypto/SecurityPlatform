@@ -33,7 +33,7 @@
 <script setup lang="ts">
 import { ref, onMounted, nextTick } from 'vue';
 import { message } from 'ant-design-vue';
-import { getCommunications, communicateTask } from '@/services/api';
+import { getCommunications, communicateTask, type ApprovalCommunicationMessage } from '@/services/api';
 import UserRolePicker from '@/components/common/UserRolePicker.vue';
 import dayjs from 'dayjs';
 
@@ -42,7 +42,7 @@ const props = defineProps<{
   currentUserId: string;
 }>();
 
-const messages = ref<any[]>([]);
+const messages = ref<ApprovalCommunicationMessage[]>([]);
 const inputText = ref('');
 const recipientIds = ref<string[]>([]);
 const sending = ref(false);
@@ -51,7 +51,7 @@ const msgListRef = ref<HTMLElement | null>(null);
 const fetchMessages = async () => {
   try {
     const res = await getCommunications(props.taskId);
-    messages.value = res;
+    messages.value = [...res].sort((a, b) => dayjs(a.createdAt).valueOf() - dayjs(b.createdAt).valueOf());
     scrollToBottom();
   } catch (error) {
     console.error(error);
@@ -67,7 +67,6 @@ const handleSend = async () => {
 
   sending.value = true;
   try {
-    // 假设只发给第一个选中的人，或者循环发送
     const recipientId = recipientIds.value[0];
     await communicateTask(props.taskId, recipientId, inputText.value);
     inputText.value = '';

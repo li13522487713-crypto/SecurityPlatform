@@ -88,6 +88,12 @@ export interface LfFormPayload {
   formFields: LfFormField[];
 }
 
+export interface AmisFormPayload {
+  schema: Record<string, unknown>;
+  schemaVersion?: string;
+  formFields?: LfFormField[];
+}
+
 export interface ButtonPermissionConfig {
   startPage?: number[];
   approvalPage?: number[];
@@ -196,5 +202,6 @@ export interface ConditionBranch {
 export interface ApprovalDefinitionJson {
   meta: ApprovalDefinitionMeta;
   lfForm?: LfFormPayload;
+  amisForm?: AmisFormPayload;
   nodes: { rootNode: ApprovalNode };
 }

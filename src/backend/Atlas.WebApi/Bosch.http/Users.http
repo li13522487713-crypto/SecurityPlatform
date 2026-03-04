@@ -16,6 +16,16 @@ X-Tenant-Id: {{tenantId}}
 
 ###
 @accessToken = {{login.response.body.$.data.accessToken}}
+@csrfToken =
+
+### Get CSRF Token
+# @name antiforgery
+GET {{baseUrl}}/api/v1/secure/antiforgery
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+###
+@csrfToken = {{antiforgery.response.body.$.data.token}}
 
 ### Get Users (Paged)
 GET {{baseUrl}}/api/v1/users?pageIndex=1&pageSize=10
@@ -32,6 +42,8 @@ POST {{baseUrl}}/api/v1/users
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "username": "demo",
@@ -49,6 +61,8 @@ PUT {{baseUrl}}/api/v1/users/1
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "displayName": "Demo User",
@@ -62,6 +76,8 @@ PUT {{baseUrl}}/api/v1/users/1/roles
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "roleIds": []
@@ -72,6 +88,8 @@ PUT {{baseUrl}}/api/v1/users/1/departments
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "departmentIds": []
@@ -82,6 +100,8 @@ PUT {{baseUrl}}/api/v1/users/1/positions
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "positionIds": []
@@ -91,4 +111,81 @@ X-Tenant-Id: {{tenantId}}
 DELETE {{baseUrl}}/api/v1/users/1
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+### Security Negative: Missing Idempotency-Key (expect 400)
+POST {{baseUrl}}/api/v1/users
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "username": "demo_missing_idem",
+  "password": "P@ssw0rd!",
+  "displayName": "Demo User",
+  "email": "demo_missing_idem@example.com",
+  "phoneNumber": "13800000001",
+  "isActive": true,
+  "roleIds": [],
+  "departmentIds": []
+}
+
+### Security Negative: Missing X-CSRF-TOKEN (expect 403)
+POST {{baseUrl}}/api/v1/users
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+
+{
+  "username": "demo_missing_csrf",
+  "password": "P@ssw0rd!",
+  "displayName": "Demo User",
+  "email": "demo_missing_csrf@example.com",
+  "phoneNumber": "13800000002",
+  "isActive": true,
+  "roleIds": [],
+  "departmentIds": []
+}
+
+### Security Negative: Idempotency conflict (expect 409 on second)
+@idemConflictUsers = users-create-conflict-001
+POST {{baseUrl}}/api/v1/users
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{idemConflictUsers}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "username": "demo_conflict_a",
+  "password": "P@ssw0rd!",
+  "displayName": "Demo A",
+  "email": "demo_conflict_a@example.com",
+  "phoneNumber": "13800000003",
+  "isActive": true,
+  "roleIds": [],
+  "departmentIds": []
+}
+
+###
+POST {{baseUrl}}/api/v1/users
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{idemConflictUsers}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "username": "demo_conflict_b",
+  "password": "P@ssw0rd!",
+  "displayName": "Demo B",
+  "email": "demo_conflict_b@example.com",
+  "phoneNumber": "13800000004",
+  "isActive": true,
+  "roleIds": [],
+  "departmentIds": []
+}
 

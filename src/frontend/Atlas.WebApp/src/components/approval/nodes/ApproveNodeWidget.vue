@@ -7,7 +7,7 @@
         <CloseOutlined class="close-btn" @click.stop="handleDelete" />
       </div>
       <div class="content">
-        <span class="text" v-if="node.assigneeValue">{{ getAssigneeLabel(node) }}</span>
+        <span class="text" v-if="node.assigneeValue || !needsAssigneeValue(node.assigneeType)">{{ getAssigneeLabel(node) }}</span>
         <span class="placeholder" v-else>请选择审批人</span>
       </div>
     </div>
@@ -40,13 +40,23 @@ const getAssigneeLabel = (node: ApproveNode) => {
     0: '指定用户',
     1: '角色',
     2: '部门负责人',
-    3: 'HRBP',
-    4: '直属领导',
-    5: '层级领导',
+    3: '逐级领导',
+    4: '指定层级',
+    5: '直属领导',
     6: '发起人',
-    7: '发起人自选'
+    7: 'HRBP',
+    8: '发起人自选',
+    9: '业务字段取人',
+    10: '外部传入人员'
   };
+  if (!node.assigneeValue) {
+    return typeMap[node.assigneeType];
+  }
   return `${typeMap[node.assigneeType]}: ${node.assigneeValue}`;
+};
+
+const needsAssigneeValue = (assigneeType: ApproveNode['assigneeType']): boolean => {
+  return assigneeType === 0 || assigneeType === 1 || assigneeType === 4 || assigneeType === 9 || assigneeType === 10;
 };
 </script>
 

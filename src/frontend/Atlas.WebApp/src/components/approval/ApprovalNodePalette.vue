@@ -7,32 +7,51 @@
           <CloseOutlined />
         </button>
       </div>
+      <div class="dd-palette__search">
+        <SearchOutlined />
+        <input
+          v-model.trim="keyword"
+          class="dd-palette__search-input"
+          type="text"
+          placeholder="搜索节点（名称/说明）"
+        />
+      </div>
       <div
-        v-for="group in nodeGroups"
+        v-for="group in filteredNodeGroups"
         :key="group.title"
         class="dd-palette__group"
       >
-        <div class="dd-palette__group-title">{{ group.title }}</div>
-        <div
-          v-for="item in group.items"
-          :key="item.type"
-          class="dd-palette__item"
-          @click="emit('addNode', item.type)"
-        >
-          <div class="dd-palette__icon" :style="{ background: item.color }">
-            <component :is="item.icon" />
-          </div>
-          <div class="dd-palette__info">
-            <span class="dd-palette__label">{{ item.label }}</span>
-            <span class="dd-palette__desc">{{ item.desc }}</span>
+        <button class="dd-palette__group-title" type="button" @click="toggleGroup(group.title)">
+          <component :is="expandedGroups.has(group.title) ? DownOutlined : RightOutlined" />
+          <span>{{ group.title }}</span>
+          <span class="dd-palette__group-count">{{ group.items.length }}</span>
+        </button>
+        <div v-show="expandedGroups.has(group.title)">
+          <div
+            v-for="item in group.items"
+            :key="item.type"
+            class="dd-palette__item"
+            @click="emit('addNode', item.type)"
+          >
+            <div class="dd-palette__icon" :style="{ background: item.color }">
+              <component :is="item.icon" />
+            </div>
+            <div class="dd-palette__info">
+              <span class="dd-palette__label">{{ item.label }}</span>
+              <span class="dd-palette__desc">{{ item.desc }}</span>
+            </div>
           </div>
         </div>
+      </div>
+      <div v-if="filteredNodeGroups.length === 0" class="dd-palette__empty">
+        未找到匹配节点
       </div>
     </div>
   </transition>
 </template>
 
 <script setup lang="ts">
+import { computed, ref } from 'vue';
 import {
   UserOutlined,
   SendOutlined,
@@ -44,6 +63,9 @@ import {
   ClockCircleOutlined,
   ThunderboltOutlined,
   CloseOutlined,
+  SearchOutlined,
+  DownOutlined,
+  RightOutlined,
 } from '@ant-design/icons-vue';
 
 defineProps<{
@@ -76,6 +98,32 @@ const nodeGroups = [
     ]
   }
 ];
+const keyword = ref('');
+const expandedGroups = ref(new Set(nodeGroups.map((group) => group.title)));
+
+const filteredNodeGroups = computed(() => {
+  const search = keyword.value.toLowerCase();
+  if (!search) {
+    return nodeGroups;
+  }
+
+  return nodeGroups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) =>
+        item.label.toLowerCase().includes(search) || item.desc.toLowerCase().includes(search),
+      ),
+    }))
+    .filter((group) => group.items.length > 0);
+});
+
+const toggleGroup = (title: string) => {
+  if (expandedGroups.value.has(title)) {
+    expandedGroups.value.delete(title);
+  } else {
+    expandedGroups.value.add(title);
+  }
+};
 
 const emit = defineEmits<{
   addNode: [nodeType: string];
@@ -106,6 +154,32 @@ const emit = defineEmits<{
   color: #1f1f1f;
 }
 
+.dd-palette__search {
+  margin: 0 12px;
+  padding: 0 10px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #e8e8e8;
+  border-radius: 6px;
+  color: #8c8c8c;
+}
+
+.dd-palette__search-input {
+  border: none;
+  outline: none;
+  flex: 1;
+  font-size: 12px;
+  color: #1f1f1f;
+  background: transparent;
+}
+
+.dd-palette__group {
+  display: flex;
+  flex-direction: column;
+}
+
 .dd-palette__close {
   display: flex;
   align-items: center;
@@ -127,10 +201,27 @@ const emit = defineEmits<{
 }
 
 .dd-palette__group-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  border: none;
+  background: transparent;
+  text-align: left;
   padding: 0 16px;
   font-size: 12px;
   color: #8c8c8c;
   margin-bottom: 4px;
+  cursor: pointer;
+}
+
+.dd-palette__group-count {
+  margin-left: auto;
+  color: #bfbfbf;
+}
+
+.dd-palette__group-title:hover {
+  color: #1677ff;
 }
 
 .dd-palette__item {
@@ -183,6 +274,16 @@ const emit = defineEmits<{
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.dd-palette__empty {
+  margin: 12px;
+  padding: 12px;
+  text-align: center;
+  font-size: 12px;
+  color: #8c8c8c;
+  background: #fafafa;
+  border-radius: 6px;
 }
 
 /* 侧边栏滑入/滑出动画 */

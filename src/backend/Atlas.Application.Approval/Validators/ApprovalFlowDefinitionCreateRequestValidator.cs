@@ -57,6 +57,37 @@ public sealed class ApprovalFlowDefinitionCreateRequestValidator : AbstractValid
     /// </summary>
     private static void ValidateConditionRule(JsonElement ruleElement, ValidationContext<ApprovalFlowDefinitionCreateRequest> ctx)
     {
+        // CEL 直接表达式字符串
+        if (ruleElement.ValueKind == JsonValueKind.String)
+        {
+            var expr = ruleElement.GetString() ?? string.Empty;
+            if (expr.Length > 4096)
+            {
+                ctx.AddFailure("DefinitionJson", "CEL 表达式长度超过限制（4096）");
+            }
+            ValidateForbiddenPatterns(expr, ctx);
+            return;
+        }
+
+        // CEL 标记对象
+        if (ruleElement.ValueKind == JsonValueKind.Object
+            && ruleElement.TryGetProperty("exprType", out var exprTypeProp)
+            && string.Equals(exprTypeProp.GetString(), "cel", StringComparison.OrdinalIgnoreCase))
+        {
+            var expr = ruleElement.TryGetProperty("expression", out var expressionProp) ? expressionProp.GetString() ?? string.Empty : string.Empty;
+            if (string.IsNullOrWhiteSpace(expr))
+            {
+                ctx.AddFailure("DefinitionJson", "CEL 表达式不能为空");
+                return;
+            }
+            if (expr.Length > 4096)
+            {
+                ctx.AddFailure("DefinitionJson", "CEL 表达式长度超过限制（4096）");
+            }
+            ValidateForbiddenPatterns(expr, ctx);
+            return;
+        }
+
         const string allowedOperators = "equals,notEquals,greaterThan,lessThan,greaterThanOrEqual,lessThanOrEqual,in,contains,startsWith,endsWith";
         var allowedSet = allowedOperators.Split(',');
 
@@ -70,11 +101,15 @@ public sealed class ApprovalFlowDefinitionCreateRequestValidator : AbstractValid
         }
 
         // 禁止包含脚本关键词
-        var ruleJson = ruleElement.GetRawText();
+        ValidateForbiddenPatterns(ruleElement.GetRawText(), ctx);
+    }
+
+    private static void ValidateForbiddenPatterns(string content, ValidationContext<ApprovalFlowDefinitionCreateRequest> ctx)
+    {
         var forbiddenPatterns = new[] { "javascript:", "eval(", "function(", "script>" };
         foreach (var pattern in forbiddenPatterns)
         {
-            if (ruleJson.Contains(pattern, StringComparison.OrdinalIgnoreCase))
+            if (content.Contains(pattern, StringComparison.OrdinalIgnoreCase))
             {
                 ctx.AddFailure("DefinitionJson", $"条件规则包含不允许的内容：{pattern}");
                 return;
@@ -223,10 +258,25 @@ public sealed class ApprovalFlowDefinitionCreateRequestValidator : AbstractValid
                 if (node.TryGetProperty("parallelNodes", out var parallelNodes) &&
                     parallelNodes.ValueKind == JsonValueKind.Array)
                 {
+                    var branchCount = 0;
                     foreach (var child in parallelNodes.EnumerateArray())
                     {
+                        branchCount++;
                         Traverse(child);
                     }
+                    if (branchCount < 2)
+                    {
+                        ctx.AddFailure("DefinitionJson", "并行节点至少需要2个并行分支");
+                    }
+                }
+                else
+                {
+                    ctx.AddFailure("DefinitionJson", "并行节点必须包含 parallelNodes 数组");
+                }
+
+                if (!node.TryGetProperty("childNode", out var mergeNode) || mergeNode.ValueKind != JsonValueKind.Object)
+                {
+                    ctx.AddFailure("DefinitionJson", "并行节点必须配置汇聚后的后续节点");
                 }
             }
 

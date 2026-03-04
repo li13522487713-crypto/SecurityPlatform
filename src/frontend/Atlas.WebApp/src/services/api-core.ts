@@ -43,7 +43,9 @@ let antiforgeryPromise: Promise<string | null> | null = null;
 const ErrorCodes = {
   AccountLocked: "ACCOUNT_LOCKED",
   PasswordExpired: "PASSWORD_EXPIRED",
-  AntiforgeryTokenInvalid: "ANTIFORGERY_TOKEN_INVALID"
+  AntiforgeryTokenInvalid: "ANTIFORGERY_TOKEN_INVALID",
+  IdempotencyConflict: "IDEMPOTENCY_CONFLICT",
+  IdempotencyInProgress: "IDEMPOTENCY_IN_PROGRESS"
 } as const;
 
 interface ApiErrorPayload {
@@ -334,6 +336,13 @@ function showError(content: string) {
 }
 
 function formatErrorMessage(payload: ApiErrorPayload | null, fallback: string): string {
+  if (payload?.code === ErrorCodes.IdempotencyInProgress) {
+    return "请求正在处理中，请稍后再试";
+  }
+  if (payload?.code === ErrorCodes.IdempotencyConflict) {
+    return "检测到重复提交但请求内容不一致，请刷新后重试";
+  }
+
   if (!payload) {
     return fallback;
   }
@@ -360,7 +369,12 @@ function formatErrorMessage(payload: ApiErrorPayload | null, fallback: string): 
     return fallback;
   }
 
-  return fragments.join("；");
+  const baseMessage = fragments.join("；");
+  if (payload.traceId) {
+    return `${baseMessage}（traceId: ${payload.traceId}）`;
+  }
+
+  return baseMessage;
 }
 
 async function tryRefreshTokens(): Promise<boolean> {

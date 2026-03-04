@@ -99,6 +99,24 @@ public sealed class ApprovalTimeoutReminderRepository : IApprovalTimeoutReminder
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<ApprovalTimeoutReminder>> GetByInstancesAsync(
+        TenantId tenantId,
+        IReadOnlyList<long> instanceIds,
+        CancellationToken cancellationToken)
+    {
+        if (instanceIds.Count == 0)
+        {
+            return Array.Empty<ApprovalTimeoutReminder>();
+        }
+
+        var distinctIds = instanceIds.Distinct().ToArray();
+        return await _db.Queryable<ApprovalTimeoutReminder>()
+            .Where(x => x.TenantIdValue == tenantId.Value
+                && SqlFunc.ContainsArray(distinctIds, x.InstanceId))
+            .OrderBy(x => x.CreatedAt)
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<ApprovalTimeoutReminder>> GetByInstanceAndNodeAsync(
         TenantId tenantId,
         long instanceId,

@@ -1,7 +1,10 @@
 <template>
   <a-card title="流程定义" class="page-card">
     <template #extra>
-      <a-button type="primary" @click="handleCreate">新建流程</a-button>
+      <a-space>
+        <a-button @click="importModalOpen = true">导入 JSON</a-button>
+        <a-button type="primary" @click="handleCreate">新建流程</a-button>
+      </a-space>
     </template>
     <a-table
       :columns="columns"
@@ -20,6 +23,9 @@
         <template v-else-if="column.key === 'action'">
           <a-space>
             <a-button type="link" size="small" @click="handleDesign(record.id)">设计</a-button>
+            <a-button type="link" size="small" @click="handleCopy(record.id)">复制</a-button>
+            <a-button type="link" size="small" @click="handleExport(record.id)">导出</a-button>
+            <a-button type="link" size="small" @click="openCompareModal(record)">对比</a-button>
             <a-button
               v-if="record.status === 0"
               type="link"
@@ -44,15 +50,94 @@
         </template>
       </template>
     </a-table>
+
+    <a-modal
+      v-model:open="importModalOpen"
+      title="导入流程 JSON"
+      ok-text="导入"
+      cancel-text="取消"
+      :confirm-loading="importLoading"
+      @ok="handleImportConfirm"
+    >
+      <a-form layout="vertical">
+        <a-form-item label="流程名称" required>
+          <a-input v-model:value="importName" placeholder="请输入流程名称" />
+        </a-form-item>
+        <a-form-item label="定义 JSON" required>
+          <a-textarea
+            v-model:value="importDefinitionJson"
+            :rows="10"
+            placeholder='{"nodes":{"rootNode":...}}'
+          />
+        </a-form-item>
+      </a-form>
+    </a-modal>
+
+    <a-modal
+      v-model:open="compareModalOpen"
+      title="版本对比"
+      ok-text="开始对比"
+      cancel-text="关闭"
+      :confirm-loading="compareLoading"
+      @ok="handleCompareConfirm"
+    >
+      <a-form layout="vertical">
+        <a-form-item label="目标版本号" required>
+          <a-input-number
+            v-model:value="compareTargetVersion"
+            :min="1"
+            style="width: 100%"
+            placeholder="请输入版本号"
+          />
+        </a-form-item>
+      </a-form>
+
+      <a-alert
+        v-if="compareResult"
+        :type="compareResult.isSame ? 'success' : 'info'"
+        :message="compareResult.summary"
+        show-icon
+      />
+      <a-list
+        v-if="compareResult && compareResult.differences.length > 0"
+        size="small"
+        bordered
+        style="margin-top: 12px"
+        :data-source="compareResult.differences"
+      >
+        <template #renderItem="{ item }">
+          <a-list-item>
+            <div>
+              <div><strong>{{ item.path }}</strong></div>
+              <div>当前：{{ item.sourceValue }}</div>
+              <div>目标：{{ item.targetValue }}</div>
+            </div>
+          </a-list-item>
+        </template>
+      </a-list>
+    </a-modal>
   </a-card>
 </template>
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from "vue";
 import { useRouter } from "vue-router";
-import { getApprovalFlowsPaged, deleteApprovalFlow, publishApprovalFlow, disableApprovalFlow } from "@/services/api";
+import {
+  getApprovalFlowsPaged,
+  deleteApprovalFlow,
+  publishApprovalFlow,
+  disableApprovalFlow,
+  copyApprovalFlow,
+  exportApprovalFlow,
+  importApprovalFlow,
+  compareApprovalFlowVersion
+} from "@/services/api";
 import type { TablePaginationConfig } from "ant-design-vue";
-import { ApprovalFlowStatus, type ApprovalFlowDefinitionListItem } from "@/types/api";
+import {
+  ApprovalFlowStatus,
+  type ApprovalFlowCompareResponse,
+  type ApprovalFlowDefinitionListItem
+} from "@/types/api";
 import { message } from "ant-design-vue";
 
 const router = useRouter();
@@ -67,6 +152,15 @@ const columns = [
 
 const dataSource = ref<ApprovalFlowDefinitionListItem[]>([]);
 const loading = ref(false);
+const importModalOpen = ref(false);
+const importLoading = ref(false);
+const importName = ref("");
+const importDefinitionJson = ref("");
+const compareModalOpen = ref(false);
+const compareLoading = ref(false);
+const compareFlowId = ref<string>();
+const compareTargetVersion = ref<number>(1);
+const compareResult = ref<ApprovalFlowCompareResponse | null>(null);
 const pagination = reactive<TablePaginationConfig>({
   current: 1,
   pageSize: 10,
@@ -128,6 +222,90 @@ const handleCreate = () => {
 
 const handleDesign = (id: string) => {
   router.push(`/process/designer/${id}`);
+};
+
+const handleCopy = async (id: string) => {
+  try {
+    const result = await copyApprovalFlow(id);
+    message.success("复制成功，已生成草稿");
+    router.push(`/process/designer/${result.id}`);
+  } catch (err) {
+    message.error(err instanceof Error ? err.message : "复制失败");
+  }
+};
+
+const handleExport = async (id: string) => {
+  try {
+    const result = await exportApprovalFlow(id);
+    const content = JSON.stringify(result, null, 2);
+    const blob = new Blob([content], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${result.name}-v${result.version}.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    message.success("导出成功");
+  } catch (err) {
+    message.error(err instanceof Error ? err.message : "导出失败");
+  }
+};
+
+const openCompareModal = (record: ApprovalFlowDefinitionListItem) => {
+  compareFlowId.value = record.id;
+  compareTargetVersion.value = Math.max(1, record.version - 1);
+  compareResult.value = null;
+  compareModalOpen.value = true;
+};
+
+const handleImportConfirm = async () => {
+  if (!importName.value.trim()) {
+    message.warning("请输入流程名称");
+    return;
+  }
+  if (!importDefinitionJson.value.trim()) {
+    message.warning("请输入定义 JSON");
+    return;
+  }
+
+  importLoading.value = true;
+  try {
+    await importApprovalFlow({
+      name: importName.value.trim(),
+      definitionJson: importDefinitionJson.value.trim()
+    });
+    message.success("导入成功");
+    importModalOpen.value = false;
+    importName.value = "";
+    importDefinitionJson.value = "";
+    await fetchData();
+  } catch (err) {
+    message.error(err instanceof Error ? err.message : "导入失败");
+  } finally {
+    importLoading.value = false;
+  }
+};
+
+const handleCompareConfirm = async () => {
+  if (!compareFlowId.value) {
+    message.warning("未选择流程");
+    return;
+  }
+  if (!compareTargetVersion.value || compareTargetVersion.value <= 0) {
+    message.warning("请输入有效目标版本号");
+    return;
+  }
+
+  compareLoading.value = true;
+  try {
+    compareResult.value = await compareApprovalFlowVersion(compareFlowId.value, compareTargetVersion.value);
+    message.success("对比完成");
+  } catch (err) {
+    compareResult.value = null;
+    message.error(err instanceof Error ? err.message : "对比失败");
+  } finally {
+    compareLoading.value = false;
+  }
 };
 
 const handlePublish = async (id: string) => {

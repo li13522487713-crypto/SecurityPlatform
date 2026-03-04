@@ -103,12 +103,17 @@ function getOperators(fieldId: string) {
   if (!props.formFields) return commonOperators;
   const field = props.formFields.find(f => (f.fieldId || f.id) === fieldId);
   if (!field) return commonOperators;
-  
-  // 简单根据类型判断
-  // 假设 LfFormField 有 type 字段，或者我们可以推断
-  // 这里暂时简化，如果是数字类组件则返回数字操作符
-  if (['input-number', 'slider', 'rate'].includes(field.widgetType || '')) {
+
+  const fieldType = (field.fieldType || field.widgetType || '').toLowerCase();
+  const valueType = (field.valueType || '').toLowerCase();
+  if (
+    ['number', 'integer', 'decimal'].some((it) => valueType.includes(it))
+    || ['input-number', 'slider', 'rate', 'number'].some((it) => fieldType.includes(it))
+  ) {
     return numberOperators;
+  }
+  if (['string', 'text'].some((it) => valueType.includes(it))) {
+    return stringOperators;
   }
   return stringOperators;
 }

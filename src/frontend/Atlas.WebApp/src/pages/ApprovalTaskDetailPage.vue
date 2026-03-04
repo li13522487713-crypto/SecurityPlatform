@@ -33,11 +33,33 @@
         <div class="main-content">
           <!-- 业务表单区域 -->
           <a-card title="业务表单" class="mb-4">
+            <AmisRenderer
+              v-if="amisSchema"
+              :schema="amisSchema"
+              :data="formDataForAmis"
+            />
             <LfFormRenderer
+              v-else
               :form-json="formJson ?? undefined"
               :form-data="formData"
               :read-only="true"
             />
+          </a-card>
+
+          <a-card title="审批轨迹">
+            <a-timeline v-if="historyItems.length > 0">
+              <a-timeline-item v-for="item in historyItems" :key="item.id">
+                <div class="timeline-title">{{ item.eventType }}</div>
+                <div class="timeline-meta">
+                  {{ formatDateTime(item.occurredAt) }}
+                  <span v-if="item.actorUserId"> · 操作人: {{ item.actorUserId }}</span>
+                  <span v-if="item.fromNode || item.toNode">
+                    · {{ item.fromNode || '-' }} -> {{ item.toNode || '-' }}
+                  </span>
+                </div>
+              </a-timeline-item>
+            </a-timeline>
+            <a-empty v-else description="暂无历史轨迹" />
           </a-card>
         </div>
 
@@ -139,6 +161,7 @@ import { message } from 'ant-design-vue';
 import {
   getApprovalTaskById,
   getApprovalInstanceById,
+  getApprovalInstanceHistory,
   decideApprovalTask,
   delegateTask,
   transferTask,
@@ -150,12 +173,15 @@ import { DownOutlined } from '@ant-design/icons-vue';
 import CommunicationPanel from '@/components/approval/runtime/CommunicationPanel.vue';
 import JumpNodeSelector from '@/components/approval/runtime/JumpNodeSelector.vue';
 import LfFormRenderer from '@/components/approval/runtime/LfFormRenderer.vue';
+import AmisRenderer from '@/components/amis/amis-renderer.vue';
 import UserRolePicker from '@/components/common/UserRolePicker.vue';
 import type {
   ApprovalTaskResponse,
   ApprovalInstanceResponse,
-  ApprovalFlowDefinitionResponse
+  ApprovalFlowDefinitionResponse,
+  ApprovalHistoryEventResponse
 } from '@/types/api';
+import type { JsonValue } from '@/types/api';
 import type { ApprovalDefinitionJson, FormJson } from '@/types/approval-definition';
 import { ApprovalTaskStatus } from '@/types/api';
 
@@ -170,6 +196,7 @@ const instance = ref<ApprovalInstanceResponse | null>(null);
 const flowDefinition = ref<ApprovalFlowDefinitionResponse | null>(null);
 const parsedDefinition = ref<ApprovalDefinitionJson | null>(null);
 const currentUserId = ref('');
+const historyItems = ref<ApprovalHistoryEventResponse[]>([]);
 
 const approveVisible = ref(false);
 const rejectVisible = ref(false);
@@ -187,6 +214,14 @@ const formJson = computed<FormJson | null>(() => {
   return parsedDefinition.value?.lfForm?.formJson ?? null;
 });
 
+const amisSchema = computed<Record<string, JsonValue> | null>(() => {
+  const schema = parsedDefinition.value?.amisForm?.schema;
+  if (!schema || typeof schema !== 'object') {
+    return null;
+  }
+  return schema as Record<string, JsonValue>;
+});
+
 const formData = computed<Record<string, unknown>>(() => {
   if (!instance.value?.dataJson) return {};
   try {
@@ -194,6 +229,10 @@ const formData = computed<Record<string, unknown>>(() => {
   } catch {
     return {};
   }
+});
+
+const formDataForAmis = computed<Record<string, JsonValue>>(() => {
+  return formData.value as Record<string, JsonValue>;
 });
 
 const flowDefinitionNodes = computed(() => {
@@ -211,11 +250,15 @@ const fetchDetail = async () => {
     currentUserId.value = userResult.id;
     task.value = taskResult;
 
-    const instanceResult = await getApprovalInstanceById(taskResult.instanceId);
+    const [instanceResult, historyResult] = await Promise.all([
+      getApprovalInstanceById(taskResult.instanceId),
+      getApprovalInstanceHistory(taskResult.instanceId, { pageIndex: 1, pageSize: 50 })
+    ]);
     instance.value = instanceResult;
+    historyItems.value = historyResult.items;
 
     if (instanceResult.definitionId) {
-      const def = await getApprovalFlowById(instanceResult.definitionId);
+      const def = await getApprovalFlowById(String(instanceResult.definitionId));
       flowDefinition.value = def;
       try {
         parsedDefinition.value = JSON.parse(def.definitionJson) as ApprovalDefinitionJson;
@@ -280,7 +323,7 @@ const handleTransfer = async () => {
   if (!instance.value) return;
   submitting.value = true;
   try {
-    await transferTask(instance.value.id, taskId, transferTargetIds.value[0], transferComment.value || undefined);
+    await transferTask(String(instance.value.id), taskId, transferTargetIds.value[0], transferComment.value || undefined);
     message.success('转办成功');
     transferVisible.value = false;
     resetTransferForm();
@@ -324,7 +367,7 @@ const handleMenuClick = ({ key }: { key: string }) => {
 const handleJump = async (targetNodeId: string) => {
   if (!instance.value) return;
   try {
-    await jumpTask(instance.value.id, targetNodeId);
+    await jumpTask(String(instance.value.id), targetNodeId, taskId);
     message.success('跳转成功');
     router.back();
   } catch {
@@ -363,6 +406,8 @@ const getStatusText = (status: number | undefined) => {
   };
   return map[status] ?? '未知';
 };
+
+const formatDateTime = (value: string) => new Date(value).toLocaleString();
 
 onMounted(() => {
   void fetchDetail();

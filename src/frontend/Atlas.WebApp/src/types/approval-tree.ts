@@ -38,7 +38,7 @@ export interface StartNode extends TreeNodeBase {
 // 审批节点
 export interface ApproveNode extends TreeNodeBase {
   nodeType: 'approve';
-  assigneeType: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;  // 用户/角色/部门负责人/HRBP/直属领导/层级领导/发起人/发起人自选
+  assigneeType: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;  // 与后端 AssigneeType 枚举对齐（0~10）
   assigneeValue: string;
   approvalMode: 'all' | 'any' | 'sequential' | 'vote';
   noHeaderAction?: 0 | 1 | 2; // 无审批人策略：不允许/跳过/转管理员
@@ -115,6 +115,7 @@ export interface ParallelConditionNode extends TreeNodeBase {
 
 export interface ParallelNode extends TreeNodeBase {
   nodeType: 'parallel';
+  groupId?: string;
   parallelNodes: TreeNode[];
   childNode?: TreeNode;
 }

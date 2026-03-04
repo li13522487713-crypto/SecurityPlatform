@@ -1,6 +1,6 @@
 <template>
   <a-modal
-    :visible="visible"
+    :open="visible"
     title="选择跳转节点"
     @ok="handleOk"
     @cancel="handleCancel"
@@ -25,11 +25,10 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue';
-import type { FlowDefinition } from '@/types/workflow'; // 假设有 FlowDefinition 类型
 
 const props = defineProps<{
   visible: boolean;
-  flowDefinition: any; // 应该是解析后的树或图结构
+  flowDefinition: unknown;
 }>();
 
 const emit = defineEmits<{
@@ -37,36 +36,56 @@ const emit = defineEmits<{
   select: [nodeId: string];
 }>();
 
+type SelectableNode = { id: string; name: string; type: string };
+
 const selectedNodeId = ref('');
-const nodes = ref<any[]>([]);
+const nodes = ref<SelectableNode[]>([]);
 
 watch(() => props.flowDefinition, (def) => {
   if (def) {
-    // 解析流程定义，提取所有可跳转节点
-    // 这里假设 def 是树结构，需要扁平化
-    nodes.value = flattenNodes(def.rootNode);
+    // 兼容传入 rootNode 或 nodes.rootNode 两种结构
+    const rootNode = typeof def === 'object' && def !== null
+      ? ((def as { rootNode?: unknown }).rootNode ?? (def as { nodes?: { rootNode?: unknown } }).nodes?.rootNode)
+      : undefined;
+    nodes.value = flattenNodes(rootNode);
   }
 }, { immediate: true });
 
-const flattenNodes = (node: any): any[] => {
-  const list = [];
-  if (node) {
-    list.push({ id: node.id, name: node.nodeName, type: node.nodeType });
-    if (node.childNode) {
-      list.push(...flattenNodes(node.childNode));
+const allowedNodeTypes = new Set(['approve', 'copy', 'condition', 'dynamicCondition', 'parallelCondition', 'inclusive', 'route', 'callProcess', 'timer', 'trigger']);
+
+const flattenNodes = (node: unknown): SelectableNode[] => {
+  const list: SelectableNode[] = [];
+  if (typeof node === 'object' && node !== null) {
+    const currentNode = node as {
+      id?: string;
+      nodeId?: string;
+      nodeName?: string;
+      nodeType?: string;
+      childNode?: unknown;
+      conditionNodes?: Array<{ childNode?: unknown }>;
+      parallelNodes?: unknown[];
+    };
+    const id = currentNode.id ?? currentNode.nodeId;
+    const type = currentNode.nodeType ?? '';
+    if (id && allowedNodeTypes.has(type)) {
+      list.push({ id, name: currentNode.nodeName ?? id, type });
     }
-    if (node.conditionNodes) {
-      node.conditionNodes.forEach((branch: any) => {
+    if (currentNode.childNode) {
+      list.push(...flattenNodes(currentNode.childNode));
+    }
+    if (currentNode.conditionNodes) {
+      currentNode.conditionNodes.forEach((branch) => {
         if (branch.childNode) list.push(...flattenNodes(branch.childNode));
       });
     }
-    if (node.parallelNodes) {
-      node.parallelNodes.forEach((child: any) => {
+    if (currentNode.parallelNodes) {
+      currentNode.parallelNodes.forEach((child) => {
         list.push(...flattenNodes(child));
       });
     }
   }
-  return list;
+  // 防止重复节点展示
+  return list.filter((item, idx, arr) => arr.findIndex((n) => n.id === item.id) === idx);
 };
 
 const getTypeName = (type: string) => {

@@ -21,4 +21,15 @@ public interface IApprovalFlowQueryService
         ApprovalFlowStatus? status = null,
         string? keyword = null,
         CancellationToken cancellationToken = default);
+
+    Task<ApprovalFlowExportResponse?> ExportAsync(
+        TenantId tenantId,
+        long id,
+        CancellationToken cancellationToken);
+
+    Task<ApprovalFlowCompareResponse?> CompareAsync(
+        TenantId tenantId,
+        long id,
+        int targetVersion,
+        CancellationToken cancellationToken);
 }

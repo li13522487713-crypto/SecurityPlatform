@@ -15,7 +15,9 @@ public static class ApprovalServiceRegistration
         services.AddScoped<Atlas.Application.Approval.Repositories.IApprovalFlowRepository, ApprovalFlowRepository>();
         services.AddScoped<Atlas.Application.Approval.Repositories.IApprovalInstanceRepository, ApprovalInstanceRepository>();
         services.AddScoped<Atlas.Application.Approval.Repositories.IApprovalTaskRepository, ApprovalTaskRepository>();
+        services.AddScoped<Atlas.Application.Approval.Repositories.IApprovalAgentConfigRepository, ApprovalAgentConfigRepository>();
         services.AddScoped<Atlas.Application.Approval.Repositories.IApprovalHistoryRepository, ApprovalHistoryRepository>();
+        services.AddScoped<Atlas.Application.Approval.Repositories.IApprovalCommunicationRecordRepository, ApprovalCommunicationRecordRepository>();
         services.AddScoped<Atlas.Application.Approval.Repositories.IApprovalDepartmentLeaderRepository, ApprovalDepartmentLeaderRepository>();
         services.AddScoped<Atlas.Application.Approval.Repositories.IApprovalProcessVariableRepository, ApprovalProcessVariableRepository>();
         services.AddScoped<Atlas.Application.Approval.Repositories.IApprovalTaskTransferRepository, ApprovalTaskTransferRepository>();
@@ -75,12 +77,22 @@ public static class ApprovalServiceRegistration
         services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalOperationHandler, Atlas.Infrastructure.Services.ApprovalFlow.Operations.RecoverToHistoryOperationHandler>();
         services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalOperationHandler, Atlas.Infrastructure.Services.ApprovalFlow.Operations.ProcessMoveAheadOperationHandler>();
         services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalOperationHandler, Atlas.Infrastructure.Services.ApprovalFlow.Operations.AddApprovalOperationHandler>();
+        services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalOperationHandler, Atlas.Infrastructure.Services.ApprovalFlow.OperationHandlers.ClaimTaskHandler>();
+        services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalOperationHandler, Atlas.Infrastructure.Services.ApprovalFlow.OperationHandlers.ReleaseTaskHandler>();
+        services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalOperationHandler, Atlas.Infrastructure.Services.ApprovalFlow.OperationHandlers.ResumeTaskHandler>();
+        services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalOperationHandler, Atlas.Infrastructure.Services.ApprovalFlow.OperationHandlers.ReclaimTaskHandler>();
+        services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalOperationHandler, Atlas.Infrastructure.Services.ApprovalFlow.OperationHandlers.UrgeTaskHandler>();
+        services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalOperationHandler, Atlas.Infrastructure.Services.ApprovalFlow.OperationHandlers.CommunicateHandler>();
+        services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalOperationHandler, Atlas.Infrastructure.Services.ApprovalFlow.OperationHandlers.AppendAssigneeHandler>();
+        services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalOperationHandler, Atlas.Infrastructure.Services.ApprovalFlow.OperationHandlers.JumpTaskHandler>();
+        services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalOperationHandler, Atlas.Infrastructure.Services.ApprovalFlow.OperationHandlers.BatchTransferHandler>();
         services.AddScoped<Atlas.Infrastructure.Services.ApprovalFlow.ApprovalOperationDispatcher>();
 
         // Query & Command Services
         services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalFlowQueryService, ApprovalFlowQueryService>();
         services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalFlowCommandService, ApprovalFlowCommandService>();
         services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalRuntimeQueryService, ApprovalRuntimeQueryService>();
+        services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalDefinitionSemanticValidator, Atlas.Infrastructure.Services.ApprovalFlow.ApprovalDefinitionSemanticValidator>();
 
         // Approval Status Sync Handler (for dynamic table status writeback)
         services.AddScoped<Atlas.Infrastructure.Services.ApprovalFlow.ApprovalStatusSyncHandler>();

@@ -33,4 +33,15 @@ public interface IApprovalFlowCommandService
         TenantId tenantId,
         long id,
         CancellationToken cancellationToken);
+
+    Task<ApprovalFlowDefinitionResponse> CopyAsync(
+        TenantId tenantId,
+        long id,
+        ApprovalFlowCopyRequest request,
+        CancellationToken cancellationToken);
+
+    Task<ApprovalFlowDefinitionResponse> ImportAsync(
+        TenantId tenantId,
+        ApprovalFlowImportRequest request,
+        CancellationToken cancellationToken);
 }

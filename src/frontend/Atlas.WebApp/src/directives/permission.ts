@@ -7,7 +7,7 @@ export const hasPermi: Directive<HTMLElement, string[]> = {
     const required = binding.value ?? [];
     const ALL_PERMISSION = "*:*:*";
     const has = userStore.permissions.some(
-      (p) => p === ALL_PERMISSION || required.includes(p)
+      (p: string) => p === ALL_PERMISSION || required.includes(p)
     );
     if (!has) {
       el.parentNode?.removeChild(el);
@@ -23,7 +23,7 @@ export const hasRole: Directive<HTMLElement, string[]> = {
     const SUPER_ADMIN = "admin";
     const SUPER_ADMIN_2 = "superadmin";
 
-    const has = userStore.roles.some((role) => {
+    const has = userStore.roles.some((role: string) => {
       const roleLower = role.toLowerCase();
       return roleLower === SUPER_ADMIN || roleLower === SUPER_ADMIN_2 || requiredLower.includes(roleLower);
     });

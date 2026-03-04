@@ -92,6 +92,10 @@ public sealed class ApprovalInstanceRepository : IApprovalInstanceRepository
         int pageIndex,
         int pageSize,
         long? definitionId = null,
+        long? initiatorUserId = null,
+        DateTimeOffset? startedFrom = null,
+        DateTimeOffset? startedTo = null,
+        string? businessKey = null,
         ApprovalInstanceStatus? status = null,
         CancellationToken cancellationToken = default)
     {
@@ -101,6 +105,26 @@ public sealed class ApprovalInstanceRepository : IApprovalInstanceRepository
         if (definitionId.HasValue)
         {
             query = query.Where(x => x.DefinitionId == definitionId.Value);
+        }
+
+        if (initiatorUserId.HasValue)
+        {
+            query = query.Where(x => x.InitiatorUserId == initiatorUserId.Value);
+        }
+
+        if (startedFrom.HasValue)
+        {
+            query = query.Where(x => x.StartedAt >= startedFrom.Value);
+        }
+
+        if (startedTo.HasValue)
+        {
+            query = query.Where(x => x.StartedAt <= startedTo.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(businessKey))
+        {
+            query = query.Where(x => x.BusinessKey.Contains(businessKey));
         }
 
         if (status.HasValue)
