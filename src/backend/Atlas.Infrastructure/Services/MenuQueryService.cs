@@ -4,6 +4,7 @@ using Atlas.Application.Identity.Models;
 using Atlas.Application.Identity.Repositories;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
+using System.Text.Json;
 
 namespace Atlas.Infrastructure.Services;
 
@@ -129,6 +130,14 @@ public sealed class MenuQueryService : IMenuQueryService
 
     public IReadOnlyList<RouterVo> BuildMenus(IReadOnlyList<MenuListItem> menus)
     {
+        #region agent log
+        AgentDebugLog(
+            "H1",
+            "MenuQueryService.cs:BuildMenus:entry",
+            "build menus entry",
+            new { menusCount = menus.Count });
+        #endregion
+
         var nodeMap = menus.ToDictionary(
             x => x.Id,
             x => new RouterVo
@@ -182,6 +191,15 @@ public sealed class MenuQueryService : IMenuQueryService
             NormalizeRouter(root);
         }
 
+        var nullChildrenCount = roots.Sum(CountNullChildrenNodes);
+        #region agent log
+        AgentDebugLog(
+            "H1",
+            "MenuQueryService.cs:BuildMenus:exit",
+            "build menus exit",
+            new { rootsCount = roots.Count, nullChildrenCount });
+        #endregion
+
         return roots;
     }
 
@@ -215,6 +233,41 @@ public sealed class MenuQueryService : IMenuQueryService
         else
         {
             router.Children = null;
+        }
+    }
+
+    private static int CountNullChildrenNodes(RouterVo router)
+    {
+        if (router.Children is null)
+        {
+            return 1;
+        }
+
+        var total = 0;
+        foreach (var child in router.Children)
+        {
+            total += CountNullChildrenNodes(child);
+        }
+        return total;
+    }
+
+    private static void AgentDebugLog(string hypothesisId, string location, string message, object data)
+    {
+        try
+        {
+            var payload = new
+            {
+                hypothesisId,
+                location,
+                message,
+                data,
+                timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+            };
+            File.AppendAllText("/opt/cursor/logs/debug.log", JsonSerializer.Serialize(payload) + Environment.NewLine);
+        }
+        catch
+        {
+            // ignore debug log failures
         }
     }
 }

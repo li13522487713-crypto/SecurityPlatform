@@ -1,6 +1,6 @@
 <template>
   <template v-if="!item.hidden">
-    <template v-if="hasOneShowingChild(item.children, item)">
+    <template v-if="hasOneShowingChild(childrenList, item)">
       <a-menu-item :key="resolvePath(onlyOneChild?.path || item.path)" @click="go(onlyOneChild?.path || item.path)">
         <template v-if="onlyOneChild?.meta?.icon || item.meta?.icon" #icon>
           <component :is="getIcon(onlyOneChild?.meta?.icon || item.meta?.icon)" />
@@ -17,7 +17,7 @@
         {{ item.meta?.title || item.name }}
       </template>
       <SidebarItem
-        v-for="child in item.children"
+        v-for="child in childrenList"
         :key="child.path"
         :item="child"
         :base-path="resolvePath(child.path)"
@@ -27,7 +27,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, h } from "vue";
+import { computed, ref, h } from "vue";
 import { useRouter } from "vue-router";
 import type { RouterVo } from "@/types/api";
 import * as antIcons from "@ant-design/icons-vue";
@@ -40,6 +40,7 @@ const props = defineProps<{
 
 const router = useRouter();
 const onlyOneChild = ref<RouterVo | null>(null);
+const childrenList = computed<RouterVo[]>(() => (Array.isArray(props.item.children) ? props.item.children : []));
 
 function getIcon(iconName?: string) {
   if (!iconName) return null;
@@ -63,7 +64,8 @@ function getIcon(iconName?: string) {
   return antIcons.AppstoreOutlined;
 }
 
-function hasOneShowingChild(children: RouterVo[] = [], parent: RouterVo) {
+function hasOneShowingChild(childrenInput: RouterVo[] | null | undefined, parent: RouterVo) {
+  const children = Array.isArray(childrenInput) ? childrenInput : [];
   const showingChildren = children.filter((item) => {
     if (item.hidden) {
       return false;
@@ -77,7 +79,7 @@ function hasOneShowingChild(children: RouterVo[] = [], parent: RouterVo) {
     return true;
   }
 
-  if (showingChildren.length === 0 && !parent.alwaysShow) {
+  if (showingChildren.length === 0) {
     onlyOneChild.value = { ...parent, path: "", noCache: true } as any;
     return true;
   }

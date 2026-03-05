@@ -4,6 +4,17 @@ import type { RouterVo } from "@/types/api";
 import { getRouters } from "@/services/api";
 import { buildRoutesFromRouters } from "@/utils/dynamic-router";
 
+function normalizeRouters(nodes: RouterVo[] | null | undefined): RouterVo[] {
+  if (!Array.isArray(nodes)) {
+    return [];
+  }
+
+  return nodes.map((node) => ({
+    ...node,
+    children: normalizeRouters(node.children)
+  }));
+}
+
 interface PermissionState {
   routes: RouteRecordRaw[];
   addRoutes: RouteRecordRaw[];
@@ -34,8 +45,8 @@ export const usePermissionStore = defineStore("permission", {
     async generateRoutes() {
       const routers = await getRouters();
       // 深拷贝一份给 sidebar 使用
-      const sdata = JSON.parse(JSON.stringify(routers)) as RouterVo[];
-      const rdata = JSON.parse(JSON.stringify(routers)) as RouterVo[];
+      const sdata = normalizeRouters(JSON.parse(JSON.stringify(routers)) as RouterVo[]);
+      const rdata = normalizeRouters(JSON.parse(JSON.stringify(routers)) as RouterVo[]);
 
       const sidebarRoutes = buildRoutesFromRouters(sdata, false, false);
       const rewriteRoutes = buildRoutesFromRouters(rdata, false, true);

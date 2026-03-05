@@ -26,8 +26,12 @@ const permissionStore = usePermissionStore();
 const route = useRoute();
 const openKeys = ref<string[]>([]);
 
+const sidebarRouters = computed<RouterVo[]>(() =>
+  Array.isArray(permissionStore.sidebarRouters) ? permissionStore.sidebarRouters : []
+);
+
 const menuTree = computed(() =>
-  permissionStore.sidebarRouters.filter((item: RouterVo) => !(item.hidden ?? false))
+  sidebarRouters.value.filter((item: RouterVo) => item && !(item.hidden ?? false))
 );
 
 const selectedKeys = computed(() => [route.path]);
