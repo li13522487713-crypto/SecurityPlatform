@@ -29,12 +29,12 @@ export interface SelectOption {
   value: number;
 }
 
-export function debounce<T extends (...args: any[]) => void>(handler: T, delay = 300): T {
+export function debounce<T extends (...args: Parameters<T>) => void>(handler: T, delay = 300): T {
   let timer: number | undefined;
-  return ((...args: any[]) => {
+  return ((...args: Parameters<T>) => {
     if (timer) window.clearTimeout(timer);
     timer = window.setTimeout(() => handler(...args), delay);
-  }) as unknown as T;
+  }) as T;
 }
 
 export interface LoadSelectOptionsConfig<TItem> {
@@ -62,126 +62,148 @@ export async function loadSelectOptions<TItem>(
   }
 }
 
+export interface TreeNode {
+  [key: string]: unknown;
+}
+
 /**
  * 构造树型结构数据
- * @param {*} data 数据源
- * @param {*} id id字段 默认 'id'
- * @param {*} parentId 父节点字段 默认 'parentId'
- * @param {*} children 孩子节点字段 默认 'children'
+ * @param data 数据源
+ * @param id id字段 默认 'id'
+ * @param parentId 父节点字段 默认 'parentId'
+ * @param children 孩子节点字段 默认 'children'
  */
-export function handleTree(data: any[], id?: string, parentId?: string, children?: string) {
+export function handleTree<T extends TreeNode>(data: T[], id?: string, parentId?: string, children?: string): T[] {
   const config = {
     id: id || 'id',
     parentId: parentId || 'parentId',
     childrenList: children || 'children'
-  }
+  };
 
-  const childrenListMap: any = {}
-  const nodeIds: any = {}
-  const tree: any[] = []
+  const childrenListMap: Record<string, T[]> = {};
+  const nodeIds: Record<string, T> = {};
+  const tree: T[] = [];
 
   for (const d of data) {
-    const parentId = d[config.parentId]
-    if (childrenListMap[parentId] == null) {
-      childrenListMap[parentId] = []
+    const pid = d[config.parentId] as string;
+    if (childrenListMap[pid] == null) {
+      childrenListMap[pid] = [];
     }
-    nodeIds[d[config.id]] = d
-    childrenListMap[parentId].push(d)
+    nodeIds[d[config.id] as string] = d;
+    childrenListMap[pid].push(d);
   }
 
   for (const d of data) {
-    const parentId = d[config.parentId]
-    if (nodeIds[parentId] == null) {
-      tree.push(d)
+    const pid = d[config.parentId] as string;
+    if (nodeIds[pid] == null) {
+      tree.push(d);
     }
   }
 
   for (const t of tree) {
-    adaptToChildrenList(t)
+    adaptToChildrenList(t);
   }
 
-  function adaptToChildrenList(o: any) {
-    if (childrenListMap[o[config.id]] !== null) {
-      o[config.childrenList] = childrenListMap[o[config.id]]
+  function adaptToChildrenList(o: T) {
+    const nodeId = o[config.id] as string;
+    if (childrenListMap[nodeId] != null) {
+      (o as TreeNode)[config.childrenList] = childrenListMap[nodeId];
     }
-    if (o[config.childrenList]) {
-      for (const c of o[config.childrenList]) {
-        adaptToChildrenList(c)
+    const childList = o[config.childrenList] as T[] | undefined;
+    if (childList) {
+      for (const c of childList) {
+        adaptToChildrenList(c);
       }
     }
   }
-  return tree
+  return tree;
+}
+
+export interface DateRangeParams {
+  params?: Record<string, string | undefined>;
+  [key: string]: unknown;
 }
 
 /**
  * 添加日期范围
- * @param params
- * @param dateRange
- * @param propName
+ * @param params 查询参数对象
+ * @param dateRange 日期范围数组 [beginDate, endDate]
+ * @param propName 字段名前缀（可选，默认写入 beginTime/endTime）
  */
-export function addDateRange(params: any, dateRange: any[], propName?: string) {
-  const search = params
-  search.params = typeof search.params === 'object' && search.params !== null && !Array.isArray(search.params) ? search.params : {}
-  dateRange = Array.isArray(dateRange) ? dateRange : []
+export function addDateRange<T extends DateRangeParams>(params: T, dateRange: string[], propName?: string): T {
+  const search = params;
+  search.params = typeof search.params === 'object' && search.params !== null && !Array.isArray(search.params)
+    ? search.params
+    : {};
+  const range = Array.isArray(dateRange) ? dateRange : [];
   if (typeof propName === 'undefined') {
-    search.params['beginTime'] = dateRange[0]
-    search.params['endTime'] = dateRange[1]
+    search.params['beginTime'] = range[0];
+    search.params['endTime'] = range[1];
   } else {
-    search.params['begin' + propName] = dateRange[0]
-    search.params['end' + propName] = dateRange[1]
+    search.params['begin' + propName] = range[0];
+    search.params['end' + propName] = range[1];
   }
-  return search
+  return search;
+}
+
+export interface DictItem {
+  dictValue: string;
+  dictLabel: string;
 }
 
 /**
  * 回显数据字典
- * @param datas
- * @param value
+ * @param datas 字典数据
+ * @param value 当前值
  */
-export function selectDictLabel(datas: any, value: any) {
+export function selectDictLabel(datas: Record<string, DictItem>, value: string | number | undefined): string {
   if (value === undefined) {
-    return ''
+    return '';
   }
-  const actions = []
+  const actions: string[] = [];
   Object.keys(datas).some((key) => {
     if (datas[key].dictValue === '' + value) {
-      actions.push(datas[key].dictLabel)
-      return true
+      actions.push(datas[key].dictLabel);
+      return true;
     }
-  })
+    return false;
+  });
   if (actions.length === 0) {
-    actions.push(value)
+    actions.push(String(value));
   }
-  return actions.join('')
+  return actions.join('');
 }
 
 /**
  * 回显数据字典（字符串数组）
- * @param datas
- * @param value
- * @param separator
+ * @param datas 字典数据
+ * @param value 当前值（字符串或数组）
+ * @param separator 分隔符（默认逗号）
  */
-export function selectDictLabels(datas: any, value: any, separator?: string) {
-  if (value === undefined || value.length === 0) {
-    return ''
+export function selectDictLabels(
+  datas: Record<string, DictItem>,
+  value: string | string[] | undefined,
+  separator?: string
+): string {
+  if (value === undefined || (Array.isArray(value) && value.length === 0)) {
+    return '';
   }
-  if (Array.isArray(value)) {
-    value = value.join(',')
-  }
-  const actions: any[] = []
-  const currentSeparator = separator === undefined ? ',' : separator
-  const temp = value.split(currentSeparator)
-  Object.keys(value.split(currentSeparator)).some((val) => {
-    let match = false
+  const valueStr = Array.isArray(value) ? value.join(',') : value;
+  const actions: string[] = [];
+  const currentSeparator = separator === undefined ? ',' : separator;
+  const temp = valueStr.split(currentSeparator);
+  temp.forEach((item) => {
+    let match = false;
     Object.keys(datas).some((key) => {
-      if (datas[key].dictValue === '' + temp[val]) {
-        actions.push(datas[key].dictLabel + currentSeparator)
-        match = true
+      if (datas[key].dictValue === '' + item) {
+        actions.push(datas[key].dictLabel + currentSeparator);
+        match = true;
       }
-    })
+      return match;
+    });
     if (!match) {
-      actions.push(temp[val] + currentSeparator)
+      actions.push(item + currentSeparator);
     }
-  })
-  return actions.join('').substring(0, actions.join('').length - 1)
+  });
+  return actions.join('').substring(0, actions.join('').length - 1);
 }

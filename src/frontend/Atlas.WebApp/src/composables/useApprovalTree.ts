@@ -55,11 +55,15 @@ export function useApprovalTree() {
   type FindResult = { node?: TreeNode; parent?: TreeNode | ConditionBranch; branch?: ConditionBranch };
   
   const findNodeOrBranch = (
-    current: any, 
+    current: TreeNode | ConditionBranch,
     targetId: string
   ): FindResult | null => {
     if (current.id === targetId) {
-        return { node: current };
+        if ('nodeType' in current) {
+          return { node: current };
+        } else {
+          return { branch: current };
+        }
     }
 
     // 检查 childNode
@@ -108,7 +112,7 @@ export function useApprovalTree() {
    * parentId: 可以是 TreeNode.id 或 ConditionBranch.id
    */
   const addNode = (parentId: string, newNodeType: string) => {
-    const result = findNodeOrBranch(flowTree.value.rootNode, parentId);
+    const result = findNodeOrBranch(flowTree.value.rootNode as unknown as TreeNode, parentId);
     if (!result) {
         console.warn('Parent node not found', parentId);
         return;
@@ -127,10 +131,11 @@ export function useApprovalTree() {
     // target.childNode = newNode
     
     if (hasChildNode(target) && hasChildNode(newNode)) {
-        const targetWithChild = target as any; // 简化类型断言
-        const newNodeWithChild = newNode as any;
-        newNodeWithChild.childNode = targetWithChild.childNode;
-        targetWithChild.childNode = newNode;
+        type WithChild = { childNode?: TreeNode };
+        const t = target as unknown as WithChild;
+        const n = newNode as unknown as WithChild;
+        n.childNode = t.childNode;
+        t.childNode = newNode;
     }
     
     pushState(flowTree.value);
@@ -140,7 +145,7 @@ export function useApprovalTree() {
    * 删除节点
    */
   const deleteNode = (nodeId: string) => {
-    const result = findNodeOrBranch(flowTree.value.rootNode, nodeId);
+    const result = findNodeOrBranch(flowTree.value.rootNode as unknown as TreeNode, nodeId);
     if (!result || !result.parent) {
         console.warn('Node not found or is root', nodeId);
         return;
@@ -164,7 +169,7 @@ export function useApprovalTree() {
    * 更新节点
    */
   const updateNode = (updatedNode: TreeNode | ConditionBranch) => {
-    const result = findNodeOrBranch(flowTree.value.rootNode, updatedNode.id);
+    const result = findNodeOrBranch(flowTree.value.rootNode as unknown as TreeNode, updatedNode.id);
     if (!result) return;
     
     // 如果是节点
@@ -184,7 +189,7 @@ export function useApprovalTree() {
    * 添加条件分支
    */
   const addConditionBranch = (conditionNodeId: string) => {
-    const result = findNodeOrBranch(flowTree.value.rootNode, conditionNodeId);
+    const result = findNodeOrBranch(flowTree.value.rootNode as unknown as TreeNode, conditionNodeId);
     if (!result || !result.node || !['condition', 'inclusive'].includes(result.node.nodeType)) return;
     
     const conditionNode = result.node as ConditionNode | InclusiveNode;
@@ -205,7 +210,7 @@ export function useApprovalTree() {
    * 并移除整个条件/包容节点（与 FlowLong 行为一致）。
    */
   const deleteConditionBranch = (branchId: string) => {
-      const result = findNodeOrBranch(flowTree.value.rootNode, branchId);
+      const result = findNodeOrBranch(flowTree.value.rootNode as unknown as TreeNode, branchId);
       if (!result || !result.branch || !result.parent) return;
 
       const conditionNode = result.parent as ConditionNode | InclusiveNode;
@@ -218,10 +223,10 @@ export function useApprovalTree() {
       if (conditionNode.conditionNodes.length <= 1) {
           const survivingBranch = conditionNode.conditionNodes[0];
           // 找到条件节点的父节点
-          const parentResult = findNodeOrBranch(flowTree.value.rootNode, conditionNode.id);
+          const parentResult = findNodeOrBranch(flowTree.value.rootNode as unknown as TreeNode, conditionNode.id);
           // 条件节点自身在 parentResult.node 中，它的父在哪里？
           // 需要额外找一次：遍历寻找 "谁的 childNode === conditionNode"
-          const condParent = findParentOf(flowTree.value.rootNode, conditionNode.id);
+          const condParent = findParentOf(flowTree.value.rootNode as unknown as TreeNode, conditionNode.id);
           if (condParent) {
               // 存活分支的子链
               const survivingChild = survivingBranch?.childNode;
@@ -230,12 +235,13 @@ export function useApprovalTree() {
               // 拼接：survivingChild → ... → conditionTail → conditionNode.childNode 后续
               if (survivingChild) {
                   // 找到 survivingChild 链的末尾
-                  let tail: any = survivingChild;
-                  while (tail.childNode) tail = tail.childNode;
+                  type WithChild = { childNode?: TreeNode };
+                  let tail: WithChild = survivingChild as unknown as WithChild;
+                  while ((tail as { childNode?: TreeNode }).childNode) tail = (tail as { childNode?: TreeNode }).childNode as unknown as WithChild;
                   tail.childNode = conditionTail;
-                  (condParent as any).childNode = survivingChild;
+                  (condParent as unknown as WithChild).childNode = survivingChild;
               } else {
-                  (condParent as any).childNode = conditionTail;
+                  (condParent as unknown as { childNode?: TreeNode }).childNode = conditionTail;
               }
           }
       }
@@ -246,7 +252,7 @@ export function useApprovalTree() {
   /**
    * 辅助：找到某个节点的父节点（谁的 childNode.id === targetId）
    */
-  const findParentOf = (current: any, targetId: string): any | null => {
+  const findParentOf = (current: TreeNode | ConditionBranch, targetId: string): TreeNode | ConditionBranch | null => {
       if ('childNode' in current && current.childNode) {
           if (current.childNode.id === targetId) return current;
           const found = findParentOf(current.childNode, targetId);
@@ -276,7 +282,7 @@ export function useApprovalTree() {
    * direction: 'left' 表示向前（index-1），'right' 表示向后（index+1）
    */
   const moveBranch = (conditionNodeId: string, branchId: string, direction: 'left' | 'right') => {
-      const result = findNodeOrBranch(flowTree.value.rootNode, conditionNodeId);
+      const result = findNodeOrBranch(flowTree.value.rootNode as unknown as TreeNode, conditionNodeId);
       if (!result || !result.node) return;
 
       const conditionNode = result.node as ConditionNode | InclusiveNode;
@@ -298,7 +304,7 @@ export function useApprovalTree() {
    * 校验流程完整性
    */
   const validateFlow = (): { valid: boolean; errors: string[]; issues: ApprovalTreeValidationIssue[] } => {
-    return ApprovalTreeValidator.checkCompleteness(flowTree.value.rootNode as any);
+    return ApprovalTreeValidator.checkCompleteness(flowTree.value.rootNode as unknown as TreeNode);
   };
   
   const createNode = (nodeType: string): TreeNode => {
@@ -491,3 +497,4 @@ export function useApprovalTree() {
     pushState
   };
 }
+

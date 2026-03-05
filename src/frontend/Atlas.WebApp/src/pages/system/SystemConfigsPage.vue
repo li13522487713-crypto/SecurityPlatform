@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <a-card :title="t('systemConfig.title')" :bordered="false">
     <div class="crud-toolbar">
       <a-space wrap>
@@ -126,8 +126,8 @@ async function loadConfigs() {
     });
     dataList.value = result.items as SystemConfigDto[];
     pagination.total = Number(result.total);
-  } catch (e: any) {
-    message.error(e.message || t("systemConfig.loadFailed"));
+  } catch (e: unknown) {
+    message.error((e instanceof Error ? e.message : undefined) || t("systemConfig.loadFailed"));
   } finally {
     loading.value = false;
   }
@@ -209,8 +209,8 @@ async function submitForm() {
     }
     modalVisible.value = false;
     loadConfigs();
-  } catch (e: any) {
-    message.error(e.message || t("systemConfig.operationFailed"));
+  } catch (e: unknown) {
+    message.error((e instanceof Error ? e.message : undefined) || t("systemConfig.operationFailed"));
   } finally {
     modalLoading.value = false;
   }
@@ -221,8 +221,8 @@ async function handleDelete(id: string) {
     await deleteSystemConfig(id);
     message.success(t("systemConfig.deleteSuccess"));
     loadConfigs();
-  } catch (e: any) {
-    message.error(e.message || t("systemConfig.deleteFailed"));
+  } catch (e: unknown) {
+    message.error((e instanceof Error ? e.message : undefined) || t("systemConfig.deleteFailed"));
   }
 }
 
@@ -236,3 +236,6 @@ onMounted(() => {
   margin-bottom: 16px;
 }
 </style>
+
+
+

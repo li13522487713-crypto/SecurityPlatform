@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <a-card :title="t('loginLog.title')" :bordered="false">
     <div class="crud-toolbar">
       <a-space wrap>
@@ -116,8 +116,8 @@ async function loadData() {
     });
     dataList.value = result.items as LoginLogDto[];
     pagination.total = Number(result.total);
-  } catch (e: any) {
-    message.error(e.message || t("loginLog.loadFailed"));
+  } catch (e: unknown) {
+    message.error((e instanceof Error ? e.message : undefined) || t("loginLog.loadFailed"));
   } finally {
     loading.value = false;
   }
@@ -177,3 +177,6 @@ onMounted(() => {
   margin-bottom: 16px;
 }
 </style>
+
+
+

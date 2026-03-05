@@ -190,7 +190,11 @@ export interface TimerNode extends TreeNodeBase {
 export interface TriggerNode extends TreeNodeBase {
   nodeType: 'trigger';
   triggerType?: 'immediate' | 'scheduled';
-  triggerConfig?: any;
+  triggerConfig?: {
+    cronExpression?: string;
+    delay?: number;
+    [key: string]: unknown;
+  };
   childNode?: TreeNode;
 }
 

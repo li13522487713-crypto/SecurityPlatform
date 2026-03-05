@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="dict-page">
     <a-row :gutter="16">
       <!-- 左侧：字典类型列表 -->
@@ -235,8 +235,8 @@ async function loadTypes() {
     });
     typeList.value = result.items as DictTypeDto[];
     typePagination.total = Number(result.total);
-  } catch (e: any) {
-    message.error(e.message || t("dict.loadTypesFailed"));
+  } catch (e: unknown) {
+    message.error((e instanceof Error ? e.message : undefined) || t("dict.loadTypesFailed"));
   } finally {
     typeLoading.value = false;
   }
@@ -280,8 +280,8 @@ async function loadData() {
     });
     dataList.value = result.items as DictDataDto[];
     dataPagination.total = Number(result.total);
-  } catch (e: any) {
-    message.error(e.message || t("dict.loadDataFailed"));
+  } catch (e: unknown) {
+    message.error((e instanceof Error ? e.message : undefined) || t("dict.loadDataFailed"));
   } finally {
     dataLoading.value = false;
   }
@@ -351,8 +351,8 @@ async function submitTypeForm() {
     }
     typeModalVisible.value = false;
     loadTypes();
-  } catch (e: any) {
-    message.error(e.message || t("dict.operationFailed"));
+  } catch (e: unknown) {
+    message.error((e instanceof Error ? e.message : undefined) || t("dict.operationFailed"));
   } finally {
     typeModalLoading.value = false;
   }
@@ -367,8 +367,8 @@ async function handleDeleteType(id: string) {
       dataList.value = [];
     }
     loadTypes();
-  } catch (e: any) {
-    message.error(e.message || t("dict.deleteTypeFailed"));
+  } catch (e: unknown) {
+    message.error((e instanceof Error ? e.message : undefined) || t("dict.deleteTypeFailed"));
   }
 }
 
@@ -441,8 +441,8 @@ async function submitDataForm() {
     }
     dataModalVisible.value = false;
     loadData();
-  } catch (e: any) {
-    message.error(e.message || t("dict.operationFailed"));
+  } catch (e: unknown) {
+    message.error((e instanceof Error ? e.message : undefined) || t("dict.operationFailed"));
   } finally {
     dataModalLoading.value = false;
   }
@@ -453,8 +453,8 @@ async function handleDeleteData(id: string) {
     await deleteDictData(id);
     message.success(t("dict.deleteDataSuccess"));
     loadData();
-  } catch (e: any) {
-    message.error(e.message || t("dict.deleteDataFailed"));
+  } catch (e: unknown) {
+    message.error((e instanceof Error ? e.message : undefined) || t("dict.deleteDataFailed"));
   }
 }
 
@@ -480,3 +480,6 @@ onMounted(() => {
   background-color: #e6f4ff;
 }
 </style>
+
+
+

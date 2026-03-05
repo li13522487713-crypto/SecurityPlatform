@@ -44,7 +44,7 @@ export function useWorkflowGraph(
         connectionPoint: "anchor",
         allowBlank: false,
         snap: { radius: 20 },
-        createEdge(): unknown {
+        createEdge() {
           return graph.createEdge({
             attrs: {
               line: {

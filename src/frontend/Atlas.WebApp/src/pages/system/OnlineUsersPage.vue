@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <a-card title="在线用户" :bordered="false">
     <div class="crud-toolbar">
       <a-space wrap>
@@ -89,8 +89,8 @@ async function loadData() {
     });
     dataList.value = result.items as OnlineUserDto[];
     pagination.total = Number(result.total);
-  } catch (e: any) {
-    message.error(e.message || "加载失败");
+  } catch (e: unknown) {
+    message.error((e instanceof Error ? e.message : undefined) || "加载失败");
   } finally {
     loading.value = false;
   }
@@ -111,8 +111,8 @@ async function handleForceLogout(sessionId: string) {
     await forceLogout(sessionId);
     message.success("已强制下线");
     loadData();
-  } catch (e: any) {
-    message.error(e.message || "操作失败");
+  } catch (e: unknown) {
+    message.error((e instanceof Error ? e.message : undefined) || "操作失败");
   }
 }
 
@@ -126,3 +126,6 @@ onMounted(() => {
   margin-bottom: 16px;
 }
 </style>
+
+
+

@@ -4,6 +4,13 @@ import path from "node:path";
 
 export default defineConfig({
   plugins: [vue()],
+  test: {
+    environment: "node",
+    include: ["src/**/*.spec.ts"],
+    alias: {
+      "@": path.resolve(__dirname, "src")
+    }
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "src"),

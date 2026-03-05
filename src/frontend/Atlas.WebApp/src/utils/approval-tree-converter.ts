@@ -617,7 +617,7 @@ export class ApprovalTreeConverter {
         return {
             ...base,
             nodeType: 'trigger',
-            triggerType: node.triggerType as any
+            triggerType: node.triggerType as TriggerNode['triggerType']
         } as TriggerNode;
       case 'start':
         return {
@@ -892,7 +892,7 @@ export class ApprovalTreeConverter {
         const node: TimerNode = {
             ...base,
             nodeType: 'timer',
-            timerConfig: data.timerConfig as any
+            timerConfig: data.timerConfig
         };
         if (edges.length > 0) {
              const targetId = getEdgeTarget(edges[0].target);
@@ -905,7 +905,7 @@ export class ApprovalTreeConverter {
         const node: TriggerNode = {
             ...base,
             nodeType: 'trigger',
-            triggerType: data.triggerType as any
+            triggerType: data.triggerType
         };
         if (edges.length > 0) {
              const targetId = getEdgeTarget(edges[0].target);
@@ -932,6 +932,8 @@ type GraphNodeData = {
   assigneeValue?: string;
   approvalMode?: ApproveNode['approvalMode'];
   copyToUsers?: string[];
+  timerConfig?: TimerNode['timerConfig'];
+  triggerType?: TriggerNode['triggerType'];
   [key: string]: JsonValue | undefined;
 };
 

@@ -7,6 +7,11 @@ import type {
   ApproveNode,
   CopyNode,
   StartNode,
+  EndNode,
+  ConditionNode,
+  DynamicConditionNode,
+  ParallelConditionNode,
+  ParallelNode,
   InclusiveNode,
   RouteNode,
   CallProcessNode,
@@ -24,6 +29,26 @@ export function isCopyNode(n: TreeNode | ConditionBranch): n is CopyNode {
 
 export function isStartNode(n: TreeNode | ConditionBranch): n is StartNode {
   return "nodeType" in n && n.nodeType === "start";
+}
+
+export function isEndNode(n: TreeNode | ConditionBranch): n is EndNode {
+  return "nodeType" in n && n.nodeType === "end";
+}
+
+export function isConditionNode(n: TreeNode | ConditionBranch): n is ConditionNode {
+  return "nodeType" in n && n.nodeType === "condition";
+}
+
+export function isDynamicConditionNode(n: TreeNode | ConditionBranch): n is DynamicConditionNode {
+  return "nodeType" in n && n.nodeType === "dynamicCondition";
+}
+
+export function isParallelConditionNode(n: TreeNode | ConditionBranch): n is ParallelConditionNode {
+  return "nodeType" in n && n.nodeType === "parallelCondition";
+}
+
+export function isParallelNode(n: TreeNode | ConditionBranch): n is ParallelNode {
+  return "nodeType" in n && n.nodeType === "parallel";
 }
 
 export function isConditionBranch(n: TreeNode | ConditionBranch): n is ConditionBranch {
