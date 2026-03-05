@@ -16,6 +16,8 @@ const AppListPage = () => import("@/pages/lowcode/AppListPage.vue");
 const AppBuilderPage = () => import("@/pages/lowcode/AppBuilderPage.vue");
 const FormListPage = () => import("@/pages/lowcode/FormListPage.vue");
 const FormDesignerPage = () => import("@/pages/lowcode/FormDesignerPage.vue");
+const ApprovalInstanceDetailPage = () => import("@/pages/ApprovalInstanceDetailPage.vue");
+const NotificationsPage = () => import("@/pages/system/NotificationsPage.vue");
 const DictTypesPage = () => import("@/pages/system/DictTypesPage.vue");
 const SystemConfigsPage = () => import("@/pages/system/SystemConfigsPage.vue");
 
@@ -33,6 +35,9 @@ const router = createRouter({
     { path: "/login", name: "login", component: LoginPage, meta: { title: "登录" } },
     { path: "/register", name: "register", component: RegisterPage, meta: { title: "注册" } },
     { path: "/profile", name: "profile", component: ProfilePage, meta: { requiresAuth: true, title: "个人中心" } },
+    { path: "/process/instances/:id", name: "process-instance-detail", component: ApprovalInstanceDetailPage, meta: { requiresAuth: true, title: "流程详情", requiresPermission: "approval:flow:view" } },
+    { path: "/system/notifications", name: "system-notifications", component: NotificationsPage, meta: { requiresAuth: true, title: "通知中心" } },
+    { path: "/notifications", name: "system-notifications-legacy", redirect: "/system/notifications", meta: { requiresAuth: true, title: "通知中心" } },
     { path: "/settings/system/dict-types", name: "settings-system-dict-types", component: DictTypesPage, meta: { requiresAuth: true, title: "字典管理", requiresPermission: "dict:type:view" } },
     { path: "/settings/system/configs", name: "settings-system-configs", component: SystemConfigsPage, meta: { requiresAuth: true, title: "参数配置", requiresPermission: "config:view" } },
     { path: "/system/dict-types", name: "system-dict-types-legacy", redirect: "/settings/system/dict-types", meta: { requiresAuth: true, title: "字典管理" } },

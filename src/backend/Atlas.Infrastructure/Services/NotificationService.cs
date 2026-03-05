@@ -54,15 +54,15 @@ public sealed class NotificationService : INotificationQueryService, INotificati
             tenantId, userId, query.IsRead, query.PageIndex, query.PageSize, ct);
 
         var dtos = items.Select(x => new UserNotificationDto(
-            x.Un.Id,
-            x.N.Id,
-            x.N.Title,
-            x.N.Content,
-            x.N.NoticeType,
-            x.N.Priority,
-            x.N.PublishedAt,
-            x.Un.IsRead,
-            x.Un.ReadAt
+            x.UserNotificationId,
+            x.NotificationId,
+            x.Title,
+            x.Content,
+            x.NoticeType,
+            x.Priority,
+            x.PublishedAt,
+            x.IsRead,
+            x.ReadAt
         )).ToList();
 
         return new PagedResult<UserNotificationDto>(dtos, total, query.PageIndex, query.PageSize);

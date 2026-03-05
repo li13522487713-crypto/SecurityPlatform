@@ -22,7 +22,7 @@
               :class="{ unread: !item.isRead }"
               @click="handleItemClick(item)"
             >
-              <a-badge :dot="!item.isRead" offset="[-2, 4]">
+              <a-badge :dot="!item.isRead" :offset="[-2, 4]">
                 <span class="notif-type-tag" :class="typeClass(item.noticeType)">
                   {{ typeLabel(item.noticeType) }}
                 </span>
@@ -101,7 +101,9 @@ const markAll = async () => {
 const typeLabel = (type: string) => {
   const map: Record<string, string> = {
     Announcement: "公告",
+    announcement: "公告",
     System: "系统",
+    system: "系统",
     Reminder: "提醒"
   };
   return map[type] ?? type;
@@ -110,7 +112,9 @@ const typeLabel = (type: string) => {
 const typeClass = (type: string) => {
   const map: Record<string, string> = {
     Announcement: "type-announcement",
+    announcement: "type-announcement",
     System: "type-system",
+    system: "type-system",
     Reminder: "type-reminder"
   };
   return map[type] ?? "";

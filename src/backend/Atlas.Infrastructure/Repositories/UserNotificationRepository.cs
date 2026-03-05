@@ -8,7 +8,7 @@ public sealed class UserNotificationRepository : RepositoryBase<UserNotification
 {
     public UserNotificationRepository(ISqlSugarClient db) : base(db) { }
 
-    public async Task<(List<(UserNotification Un, Notification N)> Items, long Total)> GetUserPagedAsync(
+    public async Task<(List<UserNotificationJoinedRow> Items, long Total)> GetUserPagedAsync(
         TenantId tenantId,
         long userId,
         bool? isRead,
@@ -29,12 +29,36 @@ public sealed class UserNotificationRepository : RepositoryBase<UserNotification
             query = query.Where((un, n) => un.IsRead == isRead.Value);
 
         var total = await query.CountAsync(ct);
-        var items = await query
+        var rawItems = await query
             .OrderByDescending((un, n) => n.PublishedAt)
-            .Select((un, n) => new { Un = un, N = n })
+            .Select((un, n) => new
+            {
+                UserNotificationId = un.Id,
+                NotificationId = n.Id,
+                Title = n.Title,
+                Content = n.Content,
+                NoticeType = n.NoticeType,
+                Priority = n.Priority,
+                PublishedAt = n.PublishedAt,
+                IsRead = un.IsRead,
+                ReadAt = un.ReadAt
+            })
             .ToPageListAsync(pageIndex, pageSize, ct);
 
-        return (items.Select(x => (x.Un, x.N)).ToList(), total);
+        var items = rawItems.Select(x => new UserNotificationJoinedRow
+        {
+            UserNotificationId = x.UserNotificationId,
+            NotificationId = x.NotificationId,
+            Title = x.Title,
+            Content = x.Content,
+            NoticeType = x.NoticeType,
+            Priority = x.Priority,
+            PublishedAt = x.PublishedAt,
+            IsRead = x.IsRead,
+            ReadAt = x.ReadAt
+        }).ToList();
+
+        return (items, total);
     }
 
     public async Task<int> CountUnreadAsync(TenantId tenantId, long userId, CancellationToken ct)
@@ -82,7 +106,9 @@ public sealed class UserNotificationRepository : RepositoryBase<UserNotification
     {
         var list = items.ToList();
         if (list.Count == 0) return;
-        await Db.Updateable(list).ExecuteCommandAsync(ct);
+        await Db.Updateable(list)
+            .WhereColumns(x => new { x.Id, x.TenantIdValue })
+            .ExecuteCommandAsync(ct);
     }
 
     public async Task DeleteByNotificationIdAsync(TenantId tenantId, long notificationId, CancellationToken ct)
@@ -91,4 +117,17 @@ public sealed class UserNotificationRepository : RepositoryBase<UserNotification
             .Where(x => x.TenantIdValue == tenantId.Value && x.NotificationId == notificationId)
             .ExecuteCommandAsync(ct);
     }
+}
+
+public sealed class UserNotificationJoinedRow
+{
+    public long UserNotificationId { get; set; }
+    public long NotificationId { get; set; }
+    public string Title { get; set; } = string.Empty;
+    public string Content { get; set; } = string.Empty;
+    public string NoticeType { get; set; } = string.Empty;
+    public int Priority { get; set; }
+    public DateTimeOffset PublishedAt { get; set; }
+    public bool IsRead { get; set; }
+    public DateTimeOffset? ReadAt { get; set; }
 }
