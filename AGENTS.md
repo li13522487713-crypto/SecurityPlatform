@@ -136,6 +136,7 @@ npm run format
 
 - **后端：** 需要 .NET 10 SDK（`dotnet-sdk-10.0`），Ubuntu 24.04 可通过 `sudo apt-get install -y dotnet-sdk-10.0` 安装。
 - **前端：** Node.js 22 + npm 10（环境已预装），使用 `npm install` 安装依赖。
+- **Cloud 预装：** 仓库提供 `.cursor/environment.json`，启动时执行 `scripts/cursor-cloud-install.sh`，自动校验 Node 22 并预装 `src/frontend/Atlas.WebApp` 依赖。
 
 ### 服务概览
 
