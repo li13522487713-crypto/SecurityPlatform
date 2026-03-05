@@ -9,6 +9,7 @@ const pathComponentFallbackMap: Record<string, string> = {
   "/assets": "../pages/AssetsPage.vue",
   "/audit": "../pages/AuditPage.vue",
   "/alert": "../pages/AlertPage.vue",
+  "/alerts": "../pages/AlertPage.vue",
   "/workflow/designer": "../pages/WorkflowDesignerPage.vue",
   "/settings/org/users": "../pages/system/UsersPage.vue",
   "/settings/auth/roles": "../pages/system/RolesPage.vue",
