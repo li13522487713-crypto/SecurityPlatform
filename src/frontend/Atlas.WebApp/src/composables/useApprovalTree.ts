@@ -75,8 +75,8 @@ export function useApprovalTree() {
         if (found) return found;
     }
 
-    // 检查 conditionNodes
-    if (current.nodeType === 'condition' || current.nodeType === 'dynamicCondition' || current.nodeType === 'parallelCondition' || current.nodeType === 'inclusive') {
+    // 检查 conditionNodes（ConditionBranch 无 nodeType，需先排除）
+    if ('nodeType' in current && (current.nodeType === 'condition' || current.nodeType === 'dynamicCondition' || current.nodeType === 'parallelCondition' || current.nodeType === 'inclusive')) {
         const conditionNode = current as ConditionNode | DynamicConditionNode | ParallelConditionNode | InclusiveNode;
         for (const branch of conditionNode.conditionNodes) {
             if (branch.id === targetId) {
@@ -92,8 +92,8 @@ export function useApprovalTree() {
         }
     }
 
-    // 检查 parallelNodes
-    if (current.nodeType === 'parallel') {
+    // 检查 parallelNodes（ConditionBranch 无 nodeType）
+    if ('nodeType' in current && current.nodeType === 'parallel') {
         const parallelNode = current as ParallelNode;
         for (const branch of parallelNode.parallelNodes) {
             if (branch.id === targetId) {
@@ -258,7 +258,7 @@ export function useApprovalTree() {
           const found = findParentOf(current.childNode, targetId);
           if (found) return found;
       }
-      if (current.conditionNodes) {
+      if ('conditionNodes' in current && current.conditionNodes) {
           for (const branch of current.conditionNodes) {
               if (branch.childNode) {
                   if (branch.childNode.id === targetId) return branch;
@@ -267,7 +267,7 @@ export function useApprovalTree() {
               }
           }
       }
-      if (current.parallelNodes) {
+      if ('parallelNodes' in current && current.parallelNodes) {
           for (const pNode of current.parallelNodes) {
               if (pNode.id === targetId) return current;
               const found = findParentOf(pNode, targetId);

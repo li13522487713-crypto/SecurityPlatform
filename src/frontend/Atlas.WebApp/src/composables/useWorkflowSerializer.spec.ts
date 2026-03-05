@@ -1,13 +1,15 @@
 import { describe, it, expect } from "vitest";
 import { ref } from "vue";
+import type { Ref } from "vue";
 import { useWorkflowSerializer } from "@/composables/useWorkflowSerializer";
 import type { StepTypeMetadata } from "@/types/api";
+import type { Graph } from "@antv/x6";
 
-// 测试骨架：仅测试纯函数部分，图实例依赖通过 null 模拟
+// 测试骨架：仅测试纯函数部分，图实例依赖通过 undefined 模拟
 describe("useWorkflowSerializer", () => {
-  const graphRef = ref(null);
+  const graphRef = ref(undefined) as Ref<Graph | undefined>;
   const stepTypes = ref<StepTypeMetadata[]>([]);
-  const workflowId = ref<string | undefined>(undefined);
+  const workflowId = ref<string>("");
 
   it("should be constructable without throwing", () => {
     expect(() => {
@@ -15,9 +17,13 @@ describe("useWorkflowSerializer", () => {
     }).not.toThrow();
   });
 
-  it("getLinearPathOrThrow should throw when graph is null", () => {
+  it("getLinearPathOrThrow should throw when graph has no start edge", () => {
     const { getLinearPathOrThrow } = useWorkflowSerializer(graphRef, stepTypes, workflowId);
-    expect(() => getLinearPathOrThrow()).toThrow();
+    const mockGraph = {
+      getNodes: () => [],
+      getEdges: () => []
+    } as unknown as Graph;
+    expect(() => getLinearPathOrThrow(mockGraph)).toThrow();
   });
 
   it("buildTestDataTemplate should return an object", () => {
