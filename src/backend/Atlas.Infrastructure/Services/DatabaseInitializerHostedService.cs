@@ -104,6 +104,8 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             typeof(ApprovalTimeoutReminder),
             typeof(ApprovalExternalCallbackRecord),
             typeof(ApprovalParallelToken),
+            typeof(ApprovalTimerJob),
+            typeof(ApprovalTriggerJob),
             typeof(DynamicTable),
             typeof(DynamicField),
             typeof(DynamicIndex),

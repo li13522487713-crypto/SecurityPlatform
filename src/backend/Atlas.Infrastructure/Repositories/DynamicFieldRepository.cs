@@ -61,6 +61,7 @@ public sealed class DynamicFieldRepository : IDynamicFieldRepository
         }
 
         var affected = await _db.Updateable(fields.ToList())
+            .WhereColumns(x => new { x.Id, x.TenantIdValue })
             .ExecuteCommandAsync(cancellationToken);
 
         if (affected == 0 && fields.Count > 0)

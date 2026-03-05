@@ -25,6 +25,8 @@ public static class ApprovalServiceRegistration
         services.AddScoped<Atlas.Application.Approval.Repositories.IApprovalNodeExecutionRepository, ApprovalNodeExecutionRepository>();
         services.AddScoped<Atlas.Application.Approval.Repositories.IApprovalOperationRecordRepository, ApprovalOperationRecordRepository>();
         services.AddScoped<Atlas.Application.Approval.Repositories.IApprovalParallelTokenRepository, ApprovalParallelTokenRepository>();
+        services.AddScoped<Atlas.Application.Approval.Repositories.IApprovalTimerJobRepository, ApprovalTimerJobRepository>();
+        services.AddScoped<Atlas.Application.Approval.Repositories.IApprovalTriggerJobRepository, ApprovalTriggerJobRepository>();
         services.AddScoped<Atlas.Application.Approval.Repositories.IApprovalCopyRecordRepository, ApprovalCopyRecordRepository>();
         services.AddScoped<Atlas.Application.Approval.Repositories.IApprovalNotificationTemplateRepository, ApprovalNotificationTemplateRepository>();
         services.AddScoped<Atlas.Application.Approval.Repositories.IApprovalInboxMessageRepository, ApprovalInboxMessageRepository>();

@@ -73,7 +73,7 @@ export async function createToken(
 export async function refreshToken(): Promise<boolean> {
   const refreshTokenValue = getRefreshToken();
   if (!refreshTokenValue) return false;
-  const response = await requestApi<ApiResponse<AuthTokenResult>>("/auth/token/refresh", {
+  const response = await requestApi<ApiResponse<AuthTokenResult>>("/auth/refresh", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ refreshToken: refreshTokenValue })
@@ -84,7 +84,7 @@ export async function refreshToken(): Promise<boolean> {
 }
 
 export async function revokeToken(): Promise<void> {
-  await requestApi<ApiResponse<object>>("/auth/token", { method: "DELETE" });
+  await requestApi<ApiResponse<object>>("/auth/logout", { method: "POST" });
 }
 
 export async function getAuthProfile(): Promise<AuthProfile> {

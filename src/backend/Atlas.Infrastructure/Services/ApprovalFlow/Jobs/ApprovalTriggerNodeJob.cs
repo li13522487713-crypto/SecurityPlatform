@@ -42,61 +42,75 @@ public sealed class ApprovalTriggerNodeJob
     public async Task ExecuteAsync(CancellationToken cancellationToken)
     {
         var now = _timeProvider.GetUtcNow();
-        // 查询到期任务
-        var jobs = await _db.Queryable<ApprovalTriggerJob>()
+        // 跨租户扫描所有到期任务，再按租户分批加载关联数据，避免租户数据串读
+        var dueJobs = await _db.Queryable<ApprovalTriggerJob>()
             .Where(j => j.Status == 0 && j.ScheduledAt <= now)
             .ToListAsync(cancellationToken);
 
-        if (jobs.Count == 0) return;
-
-        // 批量预加载所有关联的 instance
-        var tenantId = jobs[0].TenantId;
-        var instanceIds = jobs.Select(j => j.InstanceId).Distinct().ToList();
-        var instancesById = (await _instanceRepository.QueryByIdsAsync(tenantId, instanceIds, cancellationToken))
-            .ToDictionary(i => i.Id);
-
-        // 批量预加载所有关联的流程定义
-        var definitionIds = instancesById.Values.Select(i => i.DefinitionId).Distinct().ToList();
-        var flowDefsById = (await _flowRepository.QueryByIdsAsync(tenantId, definitionIds, cancellationToken))
-            .ToDictionary(f => f.Id);
-
-        foreach (var job in jobs)
+        if (dueJobs.Count == 0)
         {
-            try
+            return;
+        }
+
+        foreach (var tenantJobsGroup in dueJobs.GroupBy(x => x.TenantIdValue))
+        {
+            var tenantId = new Atlas.Core.Tenancy.TenantId(tenantJobsGroup.Key);
+            var tenantJobs = tenantJobsGroup.ToList();
+            var instanceIds = tenantJobs.Select(j => j.InstanceId).Distinct().ToList();
+            var instancesById = (await _instanceRepository.QueryByIdsAsync(tenantId, instanceIds, cancellationToken))
+                .ToDictionary(i => i.Id);
+
+            var definitionIds = instancesById.Values.Select(i => i.DefinitionId).Distinct().ToList();
+            var flowDefsById = (await _flowRepository.QueryByIdsAsync(tenantId, definitionIds, cancellationToken))
+                .ToDictionary(f => f.Id);
+
+            foreach (var job in tenantJobs)
             {
-                if (!instancesById.TryGetValue(job.InstanceId, out var instance)
-                    || instance.Status != ApprovalInstanceStatus.Running)
+                try
                 {
-                    job.MarkCancelled(now);
-                    await _db.Updateable(job).ExecuteCommandAsync(cancellationToken);
-                    continue;
+                    if (!instancesById.TryGetValue(job.InstanceId, out var instance)
+                        || instance.Status != ApprovalInstanceStatus.Running)
+                    {
+                        job.MarkCancelled(now);
+                        await _db.Updateable(job)
+                            .Where(x => x.Id == job.Id && x.TenantIdValue == job.TenantIdValue)
+                            .ExecuteCommandAsync(cancellationToken);
+                        continue;
+                    }
+
+                    if (!flowDefsById.TryGetValue(instance.DefinitionId, out var flowDef))
+                    {
+                        continue;
+                    }
+
+                    var flowDefinition = FlowDefinitionParser.Parse(flowDef.DefinitionJson);
+
+                    // 标记触发器节点执行完成
+                    var nodeExecution = await _nodeExecutionRepository.GetByInstanceAndNodeAsync(
+                        job.TenantId, job.InstanceId, job.NodeId, cancellationToken);
+                    if (nodeExecution != null)
+                    {
+                        nodeExecution.MarkCompleted(now);
+                        await _nodeExecutionRepository.UpdateAsync(nodeExecution, cancellationToken);
+                    }
+
+                    // 推进流程到下一个节点
+                    await _flowEngine.AdvanceFlowAsync(job.TenantId, instance, flowDefinition, job.NodeId, cancellationToken);
+                    await _instanceRepository.UpdateAsync(instance, cancellationToken);
+
+                    job.MarkExecuted(now);
+                    await _db.Updateable(job)
+                        .Where(x => x.Id == job.Id && x.TenantIdValue == job.TenantIdValue)
+                        .ExecuteCommandAsync(cancellationToken);
                 }
-
-                if (!flowDefsById.TryGetValue(instance.DefinitionId, out var flowDef)) continue;
-
-                var flowDefinition = FlowDefinitionParser.Parse(flowDef.DefinitionJson);
-
-                // 标记触发器节点执行完成
-                var nodeExecution = await _nodeExecutionRepository.GetByInstanceAndNodeAsync(
-                    job.TenantId, job.InstanceId, job.NodeId, cancellationToken);
-                if (nodeExecution != null)
+                catch (Exception ex)
                 {
-                    nodeExecution.MarkCompleted(now);
-                    await _nodeExecutionRepository.UpdateAsync(nodeExecution, cancellationToken);
+                    _logger.LogError(ex, "执行触发器节点任务失败: {JobId}", job.Id);
+                    job.MarkFailed(now, ex.Message);
+                    await _db.Updateable(job)
+                        .Where(x => x.Id == job.Id && x.TenantIdValue == job.TenantIdValue)
+                        .ExecuteCommandAsync(cancellationToken);
                 }
-
-                // 推进流程到下一个节点
-                await _flowEngine.AdvanceFlowAsync(job.TenantId, instance, flowDefinition, job.NodeId, cancellationToken);
-                await _instanceRepository.UpdateAsync(instance, cancellationToken);
-
-                job.MarkExecuted(now);
-                await _db.Updateable(job).ExecuteCommandAsync(cancellationToken);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "执行触发器节点任务失败: {JobId}", job.Id);
-                job.MarkFailed(now, ex.Message);
-                await _db.Updateable(job).ExecuteCommandAsync(cancellationToken);
             }
         }
     }
