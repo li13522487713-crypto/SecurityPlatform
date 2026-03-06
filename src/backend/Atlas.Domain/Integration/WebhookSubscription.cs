@@ -13,6 +13,12 @@ public sealed class WebhookSubscription : TenantEntity
     {
     }
 
+    public WebhookSubscription(TenantId tenantId, long id)
+        : base(tenantId)
+    {
+        SetId(id);
+    }
+
     public string Name { get; set; } = string.Empty;
 
     /// <summary>订阅的事件类型，JSON 数组（如 ["approval.completed","approval.rejected"]）</summary>

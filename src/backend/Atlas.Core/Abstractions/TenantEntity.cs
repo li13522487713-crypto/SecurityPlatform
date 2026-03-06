@@ -11,9 +11,5 @@ public abstract class TenantEntity : EntityBase, ITenantScoped
 
     public Guid TenantIdValue { get; protected set; }
 
-    public TenantId TenantId
-    {
-        get => new(TenantIdValue);
-        set => TenantIdValue = value.Value;
-    }
+    public TenantId TenantId => new(TenantIdValue);
 }

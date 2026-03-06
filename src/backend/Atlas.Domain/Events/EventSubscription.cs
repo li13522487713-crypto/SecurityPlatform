@@ -13,6 +13,12 @@ public sealed class EventSubscription : TenantEntity
     {
     }
 
+    public EventSubscription(TenantId tenantId, long id)
+        : base(tenantId)
+    {
+        SetId(id);
+    }
+
     public string Name { get; set; } = string.Empty;
 
     /// <summary>事件类型模式（精确匹配或通配符 *）</summary>

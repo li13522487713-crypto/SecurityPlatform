@@ -25,7 +25,6 @@ public sealed class ApprovalMappingProfile : Profile
                     idGeneratorAccessor.NextId());
             })
             .ForMember(dest => dest.Id, opt => opt.Ignore())
-            .ForMember(dest => dest.TenantId, opt => opt.Ignore())
             .ForMember(dest => dest.TenantIdValue, opt => opt.Ignore())
             .ForMember(dest => dest.Version, opt => opt.Ignore())
             .ForMember(dest => dest.Status, opt => opt.Ignore())
@@ -56,7 +55,6 @@ public sealed class ApprovalMappingProfile : Profile
                     src.DataJson);
             })
             .ForMember(dest => dest.Id, opt => opt.Ignore())
-            .ForMember(dest => dest.TenantId, opt => opt.Ignore())
             .ForMember(dest => dest.TenantIdValue, opt => opt.Ignore())
             .ForMember(dest => dest.InitiatorUserId, opt => opt.Ignore())
             .ForMember(dest => dest.Status, opt => opt.Ignore())
@@ -94,7 +92,6 @@ public sealed class ApprovalMappingProfile : Profile
                     idGeneratorAccessor.NextId());
             })
             .ForMember(dest => dest.Id, opt => opt.Ignore())
-            .ForMember(dest => dest.TenantId, opt => opt.Ignore())
             .ForMember(dest => dest.TenantIdValue, opt => opt.Ignore());
     }
 }

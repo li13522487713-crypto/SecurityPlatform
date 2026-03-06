@@ -327,7 +327,8 @@ public sealed class ApprovalRuntimeQueryService : IApprovalRuntimeQueryService
                 StartedAt = item.StartedAt,
                 EndedAt = item.EndedAt,
                 CurrentNodeName = item.CurrentNodeName,
-                SlaRemainingMinutes = remainingMinutes
+                SlaRemainingMinutes = remainingMinutes,
+                DataJson = item.DataJson
             };
         }).ToList();
     }

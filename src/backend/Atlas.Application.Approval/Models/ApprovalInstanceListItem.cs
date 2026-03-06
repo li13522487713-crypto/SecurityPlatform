@@ -36,4 +36,7 @@ public record ApprovalInstanceListItem
 
     /// <summary>SLA 剩余分钟（负值表示已超时）</summary>
     public int? SlaRemainingMinutes { get; init; }
+
+    /// <summary>业务数据 JSON（表单提交数据）</summary>
+    public string? DataJson { get; init; }
 }

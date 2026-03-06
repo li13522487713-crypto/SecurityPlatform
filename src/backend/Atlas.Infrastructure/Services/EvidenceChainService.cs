@@ -47,7 +47,7 @@ public sealed class EvidenceChainService
             ExportedAt: DateTimeOffset.UtcNow,
             ApprovalInstances: approvalResult.Items.Select(i => new ApprovalEvidence(
                 i.Id, i.DefinitionId, i.BusinessKey, i.Status.ToString(),
-                i.StartedAt, i.EndedAt, i.FlowName, null)).ToList(),
+                i.StartedAt, i.EndedAt, i.FlowName, i.DataJson)).ToList(),
             AuditLogs: auditRecords.Select(r => new AuditEvidence(
                 r.Id, r.Actor, r.Action, r.Result, r.Target,
                 r.IpAddress, r.OccurredAt)).ToList());

@@ -82,7 +82,7 @@ import type { ApiResponse } from '@/types/api'
 
 const loading = ref(false)
 const queues = ref<QueueStat[]>([])
-const globalStats = ref<QueueStats | null>(null)
+const globalStats = ref<QueueStat | null>(null)
 const selectedQueue = ref<string | null>(null)
 const messages = ref<QueueMsg[]>([])
 const msgLoading = ref(false)
@@ -91,15 +91,6 @@ const msgPage = ref(1)
 const messageStatusFilter = ref<string | undefined>()
 
 interface QueueStat {
-  queueName: string
-  pending: number
-  processing: number
-  completed: number
-  failed: number
-  deadLettered: number
-}
-
-interface QueueStats {
   queueName: string
   pending: number
   processing: number
@@ -165,7 +156,7 @@ async function fetchAll() {
   try {
     const [queuesRes, statsRes] = await Promise.all([
       requestApi<ApiResponse<QueueStat[]>>('/admin/message-queue/queues'),
-      requestApi<ApiResponse<QueueStats>>('/admin/message-queue/stats'),
+      requestApi<ApiResponse<QueueStat>>('/admin/message-queue/stats'),
     ])
     if (queuesRes.success) queues.value = queuesRes.data ?? []
     if (statsRes.success) globalStats.value = statsRes.data ?? null

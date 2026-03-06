@@ -13,6 +13,12 @@ public sealed class ApiConnector : TenantEntity
     {
     }
 
+    public ApiConnector(TenantId tenantId, long id)
+        : base(tenantId)
+    {
+        SetId(id);
+    }
+
     public string Name { get; set; } = string.Empty;
     public string BaseUrl { get; set; } = string.Empty;
     public ApiAuthType AuthType { get; set; }

@@ -52,10 +52,8 @@ public sealed class ApiConnectorService : IApiConnectorService
     public async Task<long> CreateAsync(CreateApiConnectorRequest request, CancellationToken cancellationToken)
     {
         var now = DateTimeOffset.UtcNow;
-        var connector = new ApiConnector
+        var connector = new ApiConnector(_tenantProvider.TenantId, _idGen.Generator.NextId())
         {
-            Id = _idGen.Generator.NextId(),
-            TenantId = _tenantProvider.TenantId.Value,
             Name = request.Name,
             BaseUrl = request.BaseUrl.TrimEnd('/'),
             AuthType = request.AuthType,

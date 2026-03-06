@@ -39,10 +39,8 @@ public sealed class EventSubscriptionService : IEventSubscriptionService
     public async Task<long> CreateAsync(CreateEventSubscriptionRequest request, CancellationToken cancellationToken)
     {
         var now = DateTimeOffset.UtcNow;
-        var sub = new EventSubscription
+        var sub = new EventSubscription(_tenantProvider.TenantId, _idGen.Generator.NextId())
         {
-            Id = _idGen.Generator.NextId(),
-            TenantId = _tenantProvider.TenantId.Value,
             Name = request.Name,
             EventTypePattern = request.EventTypePattern,
             TargetType = request.TargetType,

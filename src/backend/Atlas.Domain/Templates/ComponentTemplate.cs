@@ -13,6 +13,12 @@ public sealed class ComponentTemplate : TenantEntity
     {
     }
 
+    public ComponentTemplate(TenantId tenantId, long id)
+        : base(tenantId)
+    {
+        SetId(id);
+    }
+
     public string Name { get; set; } = string.Empty;
     public TemplateCategory Category { get; set; }
     public string SchemaJson { get; set; } = string.Empty;

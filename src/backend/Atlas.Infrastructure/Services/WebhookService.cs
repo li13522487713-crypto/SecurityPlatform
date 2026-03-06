@@ -52,10 +52,8 @@ public sealed class WebhookService : IWebhookService
 
     public async Task<long> CreateAsync(CreateWebhookRequest request, CancellationToken cancellationToken)
     {
-        var subscription = new WebhookSubscription
+        var subscription = new WebhookSubscription(_tenantProvider.TenantId, _idGen.Generator.NextId())
         {
-            Id = _idGen.Generator.NextId(),
-            TenantId = _tenantProvider.TenantId.Value,
             Name = request.Name,
             EventTypes = JsonSerializer.Serialize(request.EventTypes),
             TargetUrl = request.TargetUrl,

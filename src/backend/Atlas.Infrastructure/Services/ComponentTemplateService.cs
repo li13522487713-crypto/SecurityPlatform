@@ -70,10 +70,8 @@ public sealed class ComponentTemplateCommandService : IComponentTemplateCommandS
     public async Task<long> CreateAsync(CreateTemplateRequest request, CancellationToken cancellationToken)
     {
         var now = DateTimeOffset.UtcNow;
-        var template = new ComponentTemplate
+        var template = new ComponentTemplate(_tenantProvider.TenantId, _idGen.Generator.NextId())
         {
-            Id = _idGen.Generator.NextId(),
-            TenantId = _tenantProvider.TenantId.Value,
             Name = request.Name,
             Category = request.Category,
             SchemaJson = request.SchemaJson,
