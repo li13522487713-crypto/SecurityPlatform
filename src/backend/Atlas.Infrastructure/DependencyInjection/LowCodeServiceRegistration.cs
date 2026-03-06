@@ -14,6 +14,7 @@ public static class LowCodeServiceRegistration
     {
         // Repositories
         services.AddScoped<IFormDefinitionRepository, FormDefinitionRepository>();
+        services.AddScoped<IFormDefinitionVersionRepository, FormDefinitionVersionRepository>();
         services.AddScoped<ILowCodeAppRepository, LowCodeAppRepository>();
         services.AddScoped<ILowCodePageRepository, LowCodePageRepository>();
         services.AddScoped<ILowCodeAppVersionRepository, LowCodeAppVersionRepository>();

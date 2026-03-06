@@ -1,5 +1,6 @@
 using Atlas.Application.DynamicTables.Models;
 using Atlas.Application.DynamicTables.Repositories;
+using Atlas.Core.Abstractions;
 using Atlas.Core.Tenancy;
 using Microsoft.Extensions.Logging;
 
@@ -14,17 +15,20 @@ public sealed class ApprovalStatusSyncHandler
     private readonly IDynamicTableRepository _tableRepository;
     private readonly IDynamicFieldRepository _fieldRepository;
     private readonly IDynamicRecordRepository _recordRepository;
+    private readonly ApprovalWritebackRetryService? _retryService;
     private readonly ILogger<ApprovalStatusSyncHandler>? _logger;
 
     public ApprovalStatusSyncHandler(
         IDynamicTableRepository tableRepository,
         IDynamicFieldRepository fieldRepository,
         IDynamicRecordRepository recordRepository,
+        ApprovalWritebackRetryService? retryService = null,
         ILogger<ApprovalStatusSyncHandler>? logger = null)
     {
         _tableRepository = tableRepository;
         _fieldRepository = fieldRepository;
         _recordRepository = recordRepository;
+        _retryService = retryService;
         _logger = logger;
     }
 
@@ -68,6 +72,21 @@ public sealed class ApprovalStatusSyncHandler
 
             var fields = await _fieldRepository.ListByTableIdAsync(tenantId, table.Id, cancellationToken);
 
+            // 幂等性检查：读取当前状态字段值，若相同则跳过
+            var currentRecord = await _recordRepository.GetByIdAsync(tenantId, table, fields, recordId, cancellationToken);
+            if (currentRecord?.Values != null)
+            {
+                var existingStatusValue = currentRecord.Values
+                    .FirstOrDefault(v => v.Field == table.ApprovalStatusField);
+                if (existingStatusValue?.StringValue == status)
+                {
+                    _logger?.LogDebug(
+                        "审批状态回写幂等跳过：租户={TenantId}, 表={TableKey}, 记录={RecordId}, 状态={Status}（已是该状态）",
+                        tenantId, tableKey, recordId, status);
+                    return;
+                }
+            }
+
             // 更新记录状态字段
             var statusFieldValue = new DynamicFieldValueDto
             {
@@ -84,10 +103,12 @@ public sealed class ApprovalStatusSyncHandler
         }
         catch (Exception ex)
         {
-            // 回写失败不应阻塞审批主流程
-            _logger?.LogError(ex,
-                "审批状态回写失败：租户={TenantId}, BusinessKey={BusinessKey}, 状态={Status}",
+            // 回写失败不应阻塞审批主流程 — 投递到重试队列
+            _logger?.LogWarning(ex,
+                "审批状态回写失败（将投递重试）：租户={TenantId}, BusinessKey={BusinessKey}, 状态={Status}",
                 tenantId, businessKey, status);
+
+            _retryService?.EnqueueRetry(tenantId, businessKey!, status, ex.Message, DateTimeOffset.UtcNow);
         }
     }
 }

@@ -1,8 +1,10 @@
 using Atlas.Application.LowCode.Abstractions;
 using Atlas.Application.LowCode.Models;
+using Atlas.Application.Audit.Abstractions;
 using Atlas.Core.Abstractions;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
+using Atlas.Domain.Audit.Entities;
 using Atlas.Domain.LowCode.Entities;
 
 namespace Atlas.Infrastructure.Services.LowCode;
@@ -10,14 +12,20 @@ namespace Atlas.Infrastructure.Services.LowCode;
 public sealed class FormDefinitionCommandService : IFormDefinitionCommandService
 {
     private readonly IFormDefinitionRepository _repository;
+    private readonly IFormDefinitionVersionRepository _versionRepository;
     private readonly IIdGeneratorAccessor _idGenerator;
+    private readonly IAuditWriter _auditWriter;
 
     public FormDefinitionCommandService(
         IFormDefinitionRepository repository,
-        IIdGeneratorAccessor idGenerator)
+        IFormDefinitionVersionRepository versionRepository,
+        IIdGeneratorAccessor idGenerator,
+        IAuditWriter auditWriter)
     {
         _repository = repository;
+        _versionRepository = versionRepository;
         _idGenerator = idGenerator;
+        _auditWriter = auditWriter;
     }
 
     public async Task<long> CreateAsync(
@@ -105,6 +113,35 @@ public sealed class FormDefinitionCommandService : IFormDefinitionCommandService
         entity.Publish(userId, now);
 
         await _repository.UpdateAsync(entity, cancellationToken);
+
+        // 发布时创建版本快照
+        var versionId = _idGenerator.NextId();
+        var version = new FormDefinitionVersion(
+            tenantId,
+            entity.Id,
+            entity.Version,
+            entity.Name,
+            entity.Description,
+            entity.Category,
+            entity.SchemaJson,
+            entity.DataTableKey,
+            entity.Icon,
+            userId,
+            versionId,
+            now);
+
+        await _versionRepository.InsertAsync(version, cancellationToken);
+
+        // 设计态审计埋点
+        var auditRecord = new AuditRecord(
+            tenantId,
+            userId.ToString(),
+            "LowCode.FormDefinition.Published",
+            "Success",
+            $"FormDefinition:{id}",
+            null,
+            null);
+        await _auditWriter.WriteAsync(auditRecord, cancellationToken);
     }
 
     public async Task DisableAsync(
@@ -137,9 +174,84 @@ public sealed class FormDefinitionCommandService : IFormDefinitionCommandService
         TenantId tenantId, long userId, long id,
         CancellationToken cancellationToken = default)
     {
+        _ = await _repository.GetByIdAsync(tenantId, id, cancellationToken)
+            ?? throw new InvalidOperationException($"表单定义 ID={id} 不存在");
+
+        await _versionRepository.DeleteByFormDefinitionIdAsync(tenantId, id, cancellationToken);
+        await _repository.DeleteAsync(id, cancellationToken);
+    }
+
+    public async Task RollbackToVersionAsync(
+        TenantId tenantId, long userId, long id, long versionId,
+        CancellationToken cancellationToken = default)
+    {
         var entity = await _repository.GetByIdAsync(tenantId, id, cancellationToken)
             ?? throw new InvalidOperationException($"表单定义 ID={id} 不存在");
 
-        await _repository.DeleteAsync(id, cancellationToken);
+        var versionSnapshot = await _versionRepository.GetByIdAsync(tenantId, versionId, cancellationToken)
+            ?? throw new InvalidOperationException($"版本 ID={versionId} 不存在");
+
+        if (versionSnapshot.FormDefinitionId != id)
+        {
+            throw new InvalidOperationException("版本不属于该表单定义");
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        // 用快照 Schema 覆盖当前 Schema 并重新发布
+        entity.UpdateSchema(versionSnapshot.SchemaJson, userId, now);
+        entity.Publish(userId, now);
+
+        await _repository.UpdateAsync(entity, cancellationToken);
+
+        // 回滚发布也创建一次版本快照（记录回滚操作）
+        var newVersionId = _idGenerator.NextId();
+        var newVersion = new FormDefinitionVersion(
+            tenantId,
+            entity.Id,
+            entity.Version,
+            entity.Name,
+            entity.Description,
+            entity.Category,
+            entity.SchemaJson,
+            entity.DataTableKey,
+            entity.Icon,
+            userId,
+            newVersionId,
+            now);
+
+        await _versionRepository.InsertAsync(newVersion, cancellationToken);
+
+        // 设计态审计埋点
+        var auditRecord = new AuditRecord(
+            tenantId,
+            userId.ToString(),
+            "LowCode.FormDefinition.RolledBack",
+            "Success",
+            $"FormDefinition:{id}:Version:{versionId}",
+            null,
+            null);
+        await _auditWriter.WriteAsync(auditRecord, cancellationToken);
+    }
+
+    public async Task DeprecateAsync(TenantId tenantId, long userId, long id, CancellationToken cancellationToken = default)
+    {
+        var entity = await _repository.GetByIdAsync(tenantId, id, cancellationToken)
+            ?? throw new KeyNotFoundException($"表单定义 {id} 不存在");
+
+        if (entity.IsDeprecated)
+            return;
+
+        entity.Deprecate(userId, DateTimeOffset.UtcNow);
+        await _repository.UpdateAsync(entity, cancellationToken);
+
+        var auditRecord = new AuditRecord(
+            tenantId,
+            userId.ToString(),
+            "LowCode.FormDefinition.Deprecated",
+            "Success",
+            $"FormDefinition:{id}",
+            null,
+            null);
+        await _auditWriter.WriteAsync(auditRecord, cancellationToken);
     }
 }

@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using Atlas.Application.Approval.Repositories;
+using Atlas.Core.Expressions;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Approval.Entities;
 
@@ -12,10 +13,14 @@ namespace Atlas.Infrastructure.Services.ApprovalFlow;
 public sealed class ConditionEvaluator
 {
     private readonly IApprovalProcessVariableRepository _variableRepository;
+    private readonly IExpressionEngine _expressionEngine;
 
-    public ConditionEvaluator(IApprovalProcessVariableRepository variableRepository)
+    public ConditionEvaluator(
+        IApprovalProcessVariableRepository variableRepository,
+        IExpressionEngine expressionEngine)
     {
         _variableRepository = variableRepository;
+        _expressionEngine = expressionEngine;
     }
 
     /// <summary>
@@ -73,7 +78,7 @@ public sealed class ConditionEvaluator
     }
 
     /// <summary>
-    /// CEL 子集评估器（支持 && / || / 比较操作，变量格式：form.field）
+    /// CEL 子集评估器 — 委托 IExpressionEngine，支持变量从流程实例上下文注入
     /// </summary>
     private async Task<bool> EvaluateCelExpressionAsync(
         TenantId tenantId,
@@ -87,136 +92,8 @@ public sealed class ConditionEvaluator
             return false;
         }
 
-        var expr = expression.Trim();
-        if (expr.Length > 4096)
-        {
-            return false;
-        }
-
-        // 先按 OR 切分，再按 AND 切分（简化实现，不支持括号嵌套）
-        var orSegments = expr.Split("||", StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
-        if (orSegments.Length == 0)
-        {
-            return false;
-        }
-
-        foreach (var orSegment in orSegments)
-        {
-            var andSegments = orSegment.Split("&&", StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
-            if (andSegments.Length == 0)
-            {
-                continue;
-            }
-
-            var allPassed = true;
-            foreach (var andSegment in andSegments)
-            {
-                var passed = await EvaluateCelClauseAsync(
-                    tenantId,
-                    instanceId,
-                    andSegment.Trim(),
-                    instanceDataJson,
-                    cancellationToken);
-                if (!passed)
-                {
-                    allPassed = false;
-                    break;
-                }
-            }
-
-            if (allPassed)
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private async Task<bool> EvaluateCelClauseAsync(
-        TenantId tenantId,
-        long instanceId,
-        string clause,
-        string? instanceDataJson,
-        CancellationToken cancellationToken)
-    {
-        if (string.Equals(clause, "true", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-        if (string.Equals(clause, "false", StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        // 支持 form.field OP value
-        var operators = new[] { ">=", "<=", "==", "!=", ">", "<" };
-        foreach (var op in operators)
-        {
-            var idx = clause.IndexOf(op, StringComparison.Ordinal);
-            if (idx <= 0)
-            {
-                continue;
-            }
-
-            var left = clause[..idx].Trim();
-            var right = clause[(idx + op.Length)..].Trim();
-            if (!TryGetFormFieldName(left, out var fieldName))
-            {
-                return false;
-            }
-
-            var actualValue = await GetFieldValueAsync(tenantId, instanceId, fieldName, instanceDataJson, cancellationToken);
-            var expectedValue = NormalizeCelLiteral(right);
-            return EvaluateOperator(actualValue, op switch
-            {
-                "==" => "equals",
-                "!=" => "notequals",
-                ">" => "greaterthan",
-                "<" => "lessthan",
-                ">=" => "greaterthanorequal",
-                "<=" => "lessthanorequal",
-                _ => "equals"
-            }, expectedValue);
-        }
-
-        // 支持 contains: form.field.contains("abc")
-        const string containsToken = ".contains(";
-        var containsIndex = clause.IndexOf(containsToken, StringComparison.Ordinal);
-        if (containsIndex > 0 && clause.EndsWith(")", StringComparison.Ordinal))
-        {
-            var left = clause[..containsIndex].Trim();
-            if (!TryGetFormFieldName(left, out var fieldName))
-            {
-                return false;
-            }
-            var right = clause[(containsIndex + containsToken.Length)..^1].Trim();
-            var actualValue = await GetFieldValueAsync(tenantId, instanceId, fieldName, instanceDataJson, cancellationToken);
-            return EvaluateOperator(actualValue, "contains", NormalizeCelLiteral(right));
-        }
-
-        return false;
-    }
-
-    private static bool TryGetFormFieldName(string left, out string fieldName)
-    {
-        fieldName = string.Empty;
-        if (!left.StartsWith("form.", StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-        fieldName = left["form.".Length..].Trim();
-        return !string.IsNullOrWhiteSpace(fieldName);
-    }
-
-    private static string NormalizeCelLiteral(string text)
-    {
-        if (text.Length >= 2
-            && ((text[0] == '"' && text[^1] == '"') || (text[0] == '\'' && text[^1] == '\'')))
-        {
-            return text[1..^1];
-        }
-        return text;
+        var context = await BuildExpressionContextAsync(tenantId, instanceId, instanceDataJson, cancellationToken);
+        return _expressionEngine.EvaluateBool(expression, context);
     }
 
     /// <summary>
@@ -416,5 +293,58 @@ public sealed class ConditionEvaluator
 
         // Otherwise it's a single condition
         return await EvaluateSingleConditionAsync(tenantId, instanceId, element, instanceDataJson, cancellationToken);
+    }
+
+    /// <summary>
+    /// 构建 ExpressionContext — 合并流程变量与实例数据 JSON（使用 form.* 前缀）
+    /// </summary>
+    private async Task<ExpressionContext> BuildExpressionContextAsync(
+        TenantId tenantId,
+        long instanceId,
+        string? instanceDataJson,
+        CancellationToken cancellationToken)
+    {
+        var recordVars = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+
+        // 从流程变量仓储批量加载
+        var variables = await _variableRepository.GetByInstanceAsync(tenantId, instanceId, cancellationToken);
+        foreach (var v in variables)
+        {
+            recordVars[v.VariableName] = v.VariableValue;
+            // 支持 form.xxx 前缀访问方式
+            recordVars[$"form.{v.VariableName}"] = v.VariableValue;
+        }
+
+        // 从实例数据 JSON 补充（流程变量优先）
+        if (!string.IsNullOrEmpty(instanceDataJson))
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(instanceDataJson);
+                foreach (var prop in doc.RootElement.EnumerateObject())
+                {
+                    var val = prop.Value.ValueKind switch
+                    {
+                        JsonValueKind.String => prop.Value.GetString(),
+                        JsonValueKind.Number => prop.Value.GetRawText(),
+                        JsonValueKind.True => "true",
+                        JsonValueKind.False => "false",
+                        JsonValueKind.Null => null,
+                        _ => prop.Value.GetRawText()
+                    };
+                    if (!recordVars.ContainsKey(prop.Name))
+                        recordVars[prop.Name] = val;
+                    var prefixedKey = $"form.{prop.Name}";
+                    if (!recordVars.ContainsKey(prefixedKey))
+                        recordVars[prefixedKey] = val;
+                }
+            }
+            catch
+            {
+                // JSON 解析失败时忽略
+            }
+        }
+
+        return ExpressionContext.FromRecord(recordVars);
     }
 }

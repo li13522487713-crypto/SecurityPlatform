@@ -15,11 +15,16 @@ namespace Atlas.Infrastructure.Services;
 public sealed class ApprovalFlowQueryService : IApprovalFlowQueryService
 {
     private readonly IApprovalFlowRepository _flowRepository;
+    private readonly IApprovalFlowDefinitionVersionRepository _versionRepository;
     private readonly IMapper _mapper;
 
-    public ApprovalFlowQueryService(IApprovalFlowRepository flowRepository, IMapper mapper)
+    public ApprovalFlowQueryService(
+        IApprovalFlowRepository flowRepository,
+        IApprovalFlowDefinitionVersionRepository versionRepository,
+        IMapper mapper)
     {
         _flowRepository = flowRepository;
+        _versionRepository = versionRepository;
         _mapper = mapper;
     }
 
@@ -191,5 +196,48 @@ public sealed class ApprovalFlowQueryService : IApprovalFlowQueryService
             return edgesElement.GetArrayLength();
         }
         return 0;
+    }
+
+    public async Task<IReadOnlyList<ApprovalFlowVersionListItem>> GetVersionsAsync(
+        TenantId tenantId,
+        long definitionId,
+        CancellationToken cancellationToken = default)
+    {
+        var versions = await _versionRepository.GetByDefinitionIdAsync(tenantId, definitionId, cancellationToken);
+        return versions.Select(v => new ApprovalFlowVersionListItem(
+            v.Id.ToString(),
+            v.DefinitionId.ToString(),
+            v.SnapshotVersion,
+            v.Name,
+            v.Description,
+            v.Category,
+            v.CreatedBy,
+            v.CreatedAt
+        )).ToList();
+    }
+
+    public async Task<ApprovalFlowVersionDetail?> GetVersionByIdAsync(
+        TenantId tenantId,
+        long versionId,
+        CancellationToken cancellationToken = default)
+    {
+        var v = await _versionRepository.GetByIdAsync(tenantId, versionId, cancellationToken);
+        if (v is null)
+        {
+            return null;
+        }
+
+        return new ApprovalFlowVersionDetail(
+            v.Id.ToString(),
+            v.DefinitionId.ToString(),
+            v.SnapshotVersion,
+            v.Name,
+            v.Description,
+            v.Category,
+            v.DefinitionJson,
+            v.VisibilityScopeJson,
+            v.CreatedBy,
+            v.CreatedAt
+        );
     }
 }

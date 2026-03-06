@@ -1,7 +1,9 @@
 using Atlas.Application.LowCode.Abstractions;
 using Atlas.Application.LowCode.Models;
+using Atlas.Application.Audit.Abstractions;
 using Atlas.Core.Abstractions;
 using Atlas.Core.Tenancy;
+using Atlas.Domain.Audit.Entities;
 using Atlas.Domain.LowCode.Entities;
 using Atlas.Domain.LowCode.Enums;
 
@@ -13,17 +15,20 @@ public sealed class LowCodePageCommandService : ILowCodePageCommandService
     private readonly ILowCodePageVersionRepository _pageVersionRepository;
     private readonly ILowCodeAppRepository _appRepository;
     private readonly IIdGeneratorAccessor _idGenerator;
+    private readonly IAuditWriter _auditWriter;
 
     public LowCodePageCommandService(
         ILowCodePageRepository pageRepository,
         ILowCodePageVersionRepository pageVersionRepository,
         ILowCodeAppRepository appRepository,
-        IIdGeneratorAccessor idGenerator)
+        IIdGeneratorAccessor idGenerator,
+        IAuditWriter auditWriter)
     {
         _pageRepository = pageRepository;
         _pageVersionRepository = pageVersionRepository;
         _appRepository = appRepository;
         _idGenerator = idGenerator;
+        _auditWriter = auditWriter;
     }
 
     public async Task<long> CreateAsync(
@@ -129,6 +134,17 @@ public sealed class LowCodePageCommandService : ILowCodePageCommandService
             cancellationToken);
 
         await _pageRepository.UpdateAsync(entity, cancellationToken);
+
+        // 设计态审计埋点
+        var auditRecord = new AuditRecord(
+            tenantId,
+            userId.ToString(),
+            "LowCode.Page.Published",
+            "Success",
+            $"LowCodePage:{id}",
+            null,
+            null);
+        await _auditWriter.WriteAsync(auditRecord, cancellationToken);
     }
 
     public async Task UnpublishAsync(
@@ -208,5 +224,16 @@ public sealed class LowCodePageCommandService : ILowCodePageCommandService
                 _idGenerator.NextId(),
                 now),
             cancellationToken);
+
+        // 设计态审计埋点
+        var rollbackAudit = new AuditRecord(
+            tenantId,
+            userId.ToString(),
+            "LowCode.Page.RolledBack",
+            "Success",
+            $"LowCodePage:{id}:Version:{versionId}",
+            null,
+            null);
+        await _auditWriter.WriteAsync(rollbackAudit, cancellationToken);
     }
 }

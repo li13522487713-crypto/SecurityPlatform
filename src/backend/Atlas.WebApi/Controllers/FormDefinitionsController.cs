@@ -213,4 +213,70 @@ public sealed class FormDefinitionsController : ControllerBase
         await _commandService.DeleteAsync(tenantId, currentUser.UserId, id, cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
     }
+
+    /// <summary>
+    /// 获取表单版本历史
+    /// </summary>
+    [HttpGet("{id:long}/versions")]
+    [Authorize(Policy = PermissionPolicies.AppsView)]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<FormDefinitionVersionListItem>>>> GetVersions(
+        long id,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var versions = await _queryService.GetVersionsAsync(tenantId, id, cancellationToken);
+        return Ok(ApiResponse<IReadOnlyList<FormDefinitionVersionListItem>>.Ok(versions, HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>
+    /// 获取表单版本详情（含 Schema）
+    /// </summary>
+    [HttpGet("{id:long}/versions/{versionId:long}")]
+    [Authorize(Policy = PermissionPolicies.AppsView)]
+    public async Task<ActionResult<ApiResponse<FormDefinitionVersionDetail?>>> GetVersionById(
+        long id,
+        long versionId,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var version = await _queryService.GetVersionByIdAsync(tenantId, versionId, cancellationToken);
+        return Ok(ApiResponse<FormDefinitionVersionDetail?>.Ok(version, HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>
+    /// 回滚到指定版本
+    /// </summary>
+    [HttpPost("{id:long}/rollback/{versionId:long}")]
+    [Authorize(Roles = "system:admin,apps:update")]
+    public async Task<ActionResult<ApiResponse<object>>> RollbackToVersion(
+        long id,
+        long versionId,
+        CancellationToken cancellationToken)
+    {
+        var currentUser = _currentUserAccessor.GetCurrentUser();
+        if (currentUser is null)
+        {
+            return Unauthorized(ApiResponse<object>.Fail(ErrorCodes.Unauthorized, "未登录", HttpContext.TraceIdentifier));
+        }
+
+        var tenantId = _tenantProvider.GetTenantId();
+        await _commandService.RollbackToVersionAsync(tenantId, currentUser.UserId, id, versionId, cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>弃用表单定义 — 弃用后不允许新引用此版本</summary>
+    [HttpPost("{id:long}/deprecate")]
+    [Authorize(Roles = "system:admin,lowcode:admin")]
+    public async Task<IActionResult> Deprecate(
+        long id,
+        CancellationToken cancellationToken)
+    {
+        var currentUser = _currentUserAccessor.GetCurrentUser();
+        if (currentUser is null)
+            return Unauthorized(ApiResponse<object>.Fail(ErrorCodes.Unauthorized, "未登录", HttpContext.TraceIdentifier));
+
+        var tenantId = _tenantProvider.GetTenantId();
+        await _commandService.DeprecateAsync(tenantId, currentUser.UserId, id, cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
+    }
 }

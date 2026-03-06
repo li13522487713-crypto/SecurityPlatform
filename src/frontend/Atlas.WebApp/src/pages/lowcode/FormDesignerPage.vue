@@ -28,6 +28,11 @@
           <a-button>更多</a-button>
           <template #overlay>
             <a-menu>
+              <a-menu-item key="versions" @click="openVersionHistory">
+                <template #icon><HistoryOutlined /></template>
+                版本历史
+              </a-menu-item>
+              <a-menu-divider />
               <a-menu-item key="guide" @click="showGuide">
                 <template #icon><QuestionCircleOutlined /></template>
                 显示引导
@@ -109,6 +114,54 @@
         style="font-family: monospace; font-size: 13px"
       />
     </a-modal>
+
+    <!-- 版本历史抽屉 -->
+    <a-drawer
+      v-model:open="versionHistoryVisible"
+      title="版本历史"
+      :width="480"
+      placement="right"
+    >
+      <div v-if="loadingVersions" class="version-loading">
+        <a-spin tip="加载版本历史..." />
+      </div>
+      <a-empty v-else-if="versionList.length === 0" description="暂无版本历史，发布后可在此查看" />
+      <a-list
+        v-else
+        :data-source="versionList"
+        item-layout="horizontal"
+      >
+        <template #renderItem="{ item }">
+          <a-list-item>
+            <a-list-item-meta>
+              <template #title>
+                <span>v{{ item.snapshotVersion }} — {{ item.name }}</span>
+              </template>
+              <template #description>
+                <a-space direction="vertical" :size="2">
+                  <span style="color: #666; font-size: 12px">
+                    {{ new Date(item.createdAt).toLocaleString('zh-CN') }}
+                  </span>
+                  <span v-if="item.category" style="color: #999; font-size: 12px">
+                    分类：{{ item.category }}
+                  </span>
+                </a-space>
+              </template>
+            </a-list-item-meta>
+            <template #actions>
+              <a-popconfirm
+                :title="`确定回滚到 v${item.snapshotVersion}？当前未保存内容将丢失。`"
+                ok-text="回滚"
+                cancel-text="取消"
+                @confirm="handleRollback(item.id)"
+              >
+                <a-button type="link" size="small" :loading="rollingBack === item.id">回滚</a-button>
+              </a-popconfirm>
+            </template>
+          </a-list-item>
+        </template>
+      </a-list>
+    </a-drawer>
   </div>
 </template>
 
@@ -116,14 +169,18 @@
 import { onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { message } from "ant-design-vue";
-import { QuestionCircleOutlined } from "@ant-design/icons-vue";
+import { QuestionCircleOutlined, HistoryOutlined } from "@ant-design/icons-vue";
 import AmisEditor from "@/components/amis/AmisEditor.vue";
 import {
   getFormDefinitionDetail,
   updateFormDefinition,
   updateFormDefinitionSchema,
-  publishFormDefinition
+  publishFormDefinition,
+  getFormDefinitionVersions,
+  getFormDefinitionVersionDetail,
+  rollbackFormDefinitionVersion
 } from "@/services/lowcode";
+import type { FormDefinitionVersionListItem } from "@/types/lowcode";
 import { useOnboarding } from "@/composables/useOnboarding";
 import type { DriveStep } from "driver.js";
 
@@ -154,6 +211,11 @@ const formVersion = ref(1);
 
 const viewMode = ref<"edit" | "preview">("edit");
 const deviceMode = ref<"pc" | "mobile">("pc");
+
+const versionHistoryVisible = ref(false);
+const loadingVersions = ref(false);
+const versionList = ref<FormDefinitionVersionListItem[]>([]);
+const rollingBack = ref<string | null>(null);
 
 const statusColor = (status: string) => {
   const map: Record<string, string> = { Draft: "default", Published: "green", Disabled: "red" };
@@ -282,6 +344,46 @@ const handleExport = () => {
 
 const goBack = () => {
   router.push({ name: "apps-forms" });
+};
+
+const openVersionHistory = async () => {
+  versionHistoryVisible.value = true;
+  if (!formId) return;
+  loadingVersions.value = true;
+  try {
+    versionList.value = await getFormDefinitionVersions(formId);
+  } catch (error) {
+    message.error((error as Error).message || "加载版本历史失败");
+  } finally {
+    loadingVersions.value = false;
+  }
+};
+
+const handleRollback = async (versionId: string) => {
+  if (!formId) return;
+  rollingBack.value = versionId;
+  try {
+    // 获取版本详情并恢复 Schema
+    const versionDetail = await getFormDefinitionVersionDetail(formId, versionId);
+    await rollbackFormDefinitionVersion(formId, versionId);
+
+    // 刷新当前页面 Schema
+    try {
+      schema.value = JSON.parse(versionDetail.schemaJson) as Record<string, unknown>;
+    } catch {
+      // 保持现有 schema
+    }
+    formStatus.value = "Published";
+    formVersion.value += 1;
+    versionHistoryVisible.value = false;
+    message.success(`已回滚到 v${versionDetail.snapshotVersion}`);
+    // 刷新版本列表
+    versionList.value = await getFormDefinitionVersions(formId);
+  } catch (error) {
+    message.error((error as Error).message || "回滚失败");
+  } finally {
+    rollingBack.value = null;
+  }
 };
 
 // 新手引导配置
@@ -420,5 +522,11 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   height: 100%;
+}
+
+.version-loading {
+  display: flex;
+  justify-content: center;
+  padding: 40px 0;
 }
 </style>

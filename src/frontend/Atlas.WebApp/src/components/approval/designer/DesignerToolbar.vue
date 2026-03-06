@@ -49,6 +49,7 @@
         <a-button size="small" @click="emit('preview')"><EyeOutlined /> 预览</a-button>
       </template>
       <a-divider type="vertical" />
+      <a-button size="small" @click="emit('history')"><HistoryOutlined /> 历史</a-button>
       <a-button size="small" @click="emit('save')">保存</a-button>
       <a-button type="primary" size="small" @click="emit('publish')">发布</a-button>
     </div>
@@ -66,6 +67,7 @@ import {
   CheckCircleOutlined,
   EyeOutlined,
   AppstoreOutlined,
+  HistoryOutlined,
 } from '@ant-design/icons-vue';
 
 defineProps<{
@@ -94,7 +96,8 @@ const emit = defineEmits<{
   preview: [];
   save: [];
   publish: [];
-}>();
+  history: [];
+}>(); 
 </script>
 
 <style scoped>

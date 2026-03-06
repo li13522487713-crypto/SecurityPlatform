@@ -174,6 +174,14 @@ export interface TableViewConfig {
   aggregations?: TableViewAggregation[];
   queryPanel?: TableViewQueryPanel;
   queryModel?: TableViewQueryGroup;
+  mergeCells?: MergeCellRule[];
+}
+
+export interface MergeCellRule {
+  /** 按哪一列的值进行行合并（相邻相同值自动合并） */
+  columnKey: string;
+  /** 可选：依赖列（只有依赖列也相同时才合并，支持多级分组） */
+  dependsOn?: string[];
 }
 
 export interface TableViewListItem {
@@ -413,6 +421,22 @@ export interface ApprovalFlowCompareResponse {
   isSame: boolean;
   summary: string;
   differences: ApprovalFlowDifferenceItem[];
+}
+
+export interface ApprovalFlowVersionListItem {
+  id: string;
+  definitionId: string;
+  snapshotVersion: number;
+  name: string;
+  description?: string;
+  category?: string;
+  createdBy: number;
+  createdAt: string;
+}
+
+export interface ApprovalFlowVersionDetail extends ApprovalFlowVersionListItem {
+  definitionJson: string;
+  visibilityScopeJson?: string;
 }
 
 export interface ApprovalStartRequest {

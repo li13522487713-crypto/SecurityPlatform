@@ -12,4 +12,6 @@ public interface IFormDefinitionCommandService
     Task DisableAsync(TenantId tenantId, long userId, long id, CancellationToken cancellationToken = default);
     Task EnableAsync(TenantId tenantId, long userId, long id, CancellationToken cancellationToken = default);
     Task DeleteAsync(TenantId tenantId, long userId, long id, CancellationToken cancellationToken = default);
+    Task RollbackToVersionAsync(TenantId tenantId, long userId, long id, long versionId, CancellationToken cancellationToken = default);
+    Task DeprecateAsync(TenantId tenantId, long userId, long id, CancellationToken cancellationToken = default);
 }

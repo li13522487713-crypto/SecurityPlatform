@@ -131,4 +131,20 @@ public sealed class ApprovalFlowDefinition : TenantEntity
     {
         Status = ApprovalFlowStatus.Published;
     }
+
+    /// <summary>标记为弃用状态：不允许新发起实例，但运行中实例可继续完成。</summary>
+    public void Deprecate(long deprecatedByUserId, DateTimeOffset now)
+    {
+        DeprecatedAt = now;
+        DeprecatedByUserId = deprecatedByUserId;
+    }
+
+    /// <summary>弃用时间（null 表示未弃用）</summary>
+    public DateTimeOffset? DeprecatedAt { get; private set; }
+
+    /// <summary>弃用人 ID</summary>
+    public long? DeprecatedByUserId { get; private set; }
+
+    /// <summary>是否已弃用</summary>
+    public bool IsDeprecated => DeprecatedAt.HasValue;
 }

@@ -51,6 +51,23 @@ export interface FormDefinitionUpdateRequest {
   icon?: string;
 }
 
+export interface FormDefinitionVersionListItem {
+  id: string;
+  formDefinitionId: string;
+  snapshotVersion: number;
+  name: string;
+  description?: string;
+  category?: string;
+  dataTableKey?: string;
+  icon?: string;
+  createdBy: number;
+  createdAt: string;
+}
+
+export interface FormDefinitionVersionDetail extends FormDefinitionVersionListItem {
+  schemaJson: string;
+}
+
 // ─── 低代码应用 ───
 
 export interface LowCodeAppListItem {

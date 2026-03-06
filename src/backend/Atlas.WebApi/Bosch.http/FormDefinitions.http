@@ -217,10 +217,73 @@ Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ###############################################
+# 版本历史与回滚测试（Case L1.3）
+###############################################
+
+### 20. 获取表单版本历史列表
+GET {{baseUrl}}/form-definitions/{{formId}}/versions
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 21. 获取版本历史（发布后应出现第一条）
+# 先发布一次
+POST {{baseUrl}}/form-definitions/{{formId}}/publish
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 22. 发布后再查版本列表
+# @name getVersions
+GET {{baseUrl}}/form-definitions/{{formId}}/versions
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+@versionId = {{getVersions.response.body.$.data[0].id}}
+
+### 23. 获取指定版本详情（含 Schema）
+GET {{baseUrl}}/form-definitions/{{formId}}/versions/{{versionId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 24. 修改表单 Schema（模拟变更）
+PATCH {{baseUrl}}/form-definitions/{{formId}}/schema
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "schemaJson": "{\"type\":\"form\",\"title\":\"已修改的表单\",\"body\":[]}"
+}
+
+### 25. 再次发布（产生版本 2）
+POST {{baseUrl}}/form-definitions/{{formId}}/publish
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 26. 查看版本历史（应有 2 条）
+GET {{baseUrl}}/form-definitions/{{formId}}/versions
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 27. 回滚到版本 1（幂等测试：多次调用应返回同结果）
+POST {{baseUrl}}/form-definitions/{{formId}}/rollback/{{versionId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 28. 回滚后验证 Schema 已恢复
+GET {{baseUrl}}/form-definitions/{{formId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 29. 回滚不存在的版本（应返回 404/错误）
+POST {{baseUrl}}/form-definitions/{{formId}}/rollback/9999999999
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+###############################################
 # 批量操作测试
 ###############################################
 
-### 12. 创建多个表单（用于测试列表）
+### 30. 创建多个表单（用于测试列表）
 POST {{baseUrl}}/form-definitions
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
@@ -340,69 +403,11 @@ GET {{baseUrl}}/form-definitions
 X-Tenant-Id: {{tenantId}}
 
 ###############################################
-# 版本控制测试
-###############################################
-
-### 20. 创建表单并记录版本号
-# @name versionTest
-POST {{baseUrl}}/form-definitions
-Authorization: Bearer {{accessToken}}
-X-Tenant-Id: {{tenantId}}
-Content-Type: application/json
-
-{
-  "name": "版本测试表单",
-  "schemaJson": {
-    "type": "form",
-    "body": [
-      {
-        "type": "input-text",
-        "name": "field1",
-        "label": "字段1"
-      }
-    ]
-  }
-}
-
-@versionFormId = {{versionTest.response.body.$.data.id}}
-@initialVersion = {{versionTest.response.body.$.data.version}}
-
-### 21. 更新表单（版本号应增加）
-PUT {{baseUrl}}/form-definitions/{{versionFormId}}
-Authorization: Bearer {{accessToken}}
-X-Tenant-Id: {{tenantId}}
-Content-Type: application/json
-
-{
-  "name": "版本测试表单 v2",
-  "schemaJson": {
-    "type": "form",
-    "body": [
-      {
-        "type": "input-text",
-        "name": "field1",
-        "label": "字段1"
-      },
-      {
-        "type": "input-text",
-        "name": "field2",
-        "label": "字段2"
-      }
-    ]
-  }
-}
-
-### 22. 获取详情验证版本号
-GET {{baseUrl}}/form-definitions/{{versionFormId}}
-Authorization: Bearer {{accessToken}}
-X-Tenant-Id: {{tenantId}}
-
-###############################################
 # 完整测试流程总结
 ###############################################
 
 # 场景1：表单设计与发布流程
-# 1. 创建表单 → 2. 编辑Schema → 3. 预览 → 4. 发布
+# 1. 创建表单 → 2. 编辑Schema → 3. 发布 → 4. 查看版本历史 → 5. 修改 → 6. 再发布 → 7. 回滚到旧版本
 
 # 场景2：表单管理流程
 # 1. 查看列表 → 2. 按分类筛选 → 3. 搜索 → 4. 查看详情 → 5. 编辑 → 6. 禁用/启用

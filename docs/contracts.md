@@ -1665,3 +1665,99 @@ JWT Claims（新增）：
 - `/process/manage/flows`：流程定义管理
 - `/process/manage/instances`：流程实例管理
 - `/process/designer/:id`、`/process/tasks/:id`、`/process/instances/:id`：隐藏详情路由
+
+## 低代码设计器版本管理契约（2026-03）
+
+### 表单版本管理
+
+#### FormDefinitionVersionListItem
+
+```json
+{
+  "id": 123456789,
+  "formDefinitionId": 987654321,
+  "snapshotVersion": 3,
+  "name": "客户信息登记表",
+  "description": "第三版",
+  "category": "CRM",
+  "icon": "file-form",
+  "dataTableKey": "customer_info",
+  "createdBy": 111222333,
+  "createdAt": "2026-03-01T10:00:00Z"
+}
+```
+
+#### FormDefinitionVersionDetail
+
+在 `FormDefinitionVersionListItem` 基础上增加：
+
+```json
+{
+  "schemaJson": "{ ... }"
+}
+```
+
+#### 接口列表
+
+- `GET /api/v1/form-definitions/{id}/versions`：查询表单版本历史列表。
+  - 响应：`FormDefinitionVersionListItem[]`
+- `GET /api/v1/form-definitions/{id}/versions/{versionId}`：查询指定版本详情（含完整 schemaJson）。
+  - 响应：`FormDefinitionVersionDetail`
+- `POST /api/v1/form-definitions/{id}/rollback/{versionId}`：将表单定义回滚至指定历史版本，并创建新快照。
+  - 请求：无 Body（路由参数）
+  - 需要：`Idempotency-Key` + `X-CSRF-TOKEN`
+  - 触发审计：`LowCode.FormDefinition.RolledBack`
+
+### 审批流版本管理
+
+#### ApprovalFlowVersionListItem
+
+```json
+{
+  "id": 123456789,
+  "definitionId": 987654321,
+  "snapshotVersion": 2,
+  "name": "采购审批流",
+  "description": "V2 优化",
+  "category": "采购",
+  "createdBy": 111222333,
+  "createdAt": "2026-03-02T09:00:00Z"
+}
+```
+
+#### ApprovalFlowVersionDetail
+
+在 `ApprovalFlowVersionListItem` 基础上增加：
+
+```json
+{
+  "definitionJson": "{ ... }",
+  "visibilityScopeJson": "{ ... }"
+}
+```
+
+#### 接口列表
+
+- `GET /api/v1/approval/flows/{id}/versions`：查询审批流版本历史列表。
+  - 响应：`ApprovalFlowVersionListItem[]`
+- `GET /api/v1/approval/flows/{id}/versions/{versionId}/detail`：查询指定版本详情（含完整 definitionJson）。
+  - 响应：`ApprovalFlowVersionDetail`
+- `POST /api/v1/approval/flows/{id}/rollback/{versionId}`：将审批流定义回滚至指定历史版本，并创建新快照。
+  - 请求：无 Body（路由参数）
+  - 需要：`Idempotency-Key` + `X-CSRF-TOKEN`
+  - 触发审计：`Approval.FlowDefinition.RolledBack`
+
+### 设计态审计埋点
+
+发布和回滚操作均写入 `AuditRecord`，`action` 字段取值规范：
+
+| 场景 | `action` |
+|---|---|
+| 表单定义发布 | `LowCode.FormDefinition.Published` |
+| 表单定义回滚 | `LowCode.FormDefinition.RolledBack` |
+| 审批流定义发布 | `Approval.FlowDefinition.Published` |
+| 审批流定义回滚 | `Approval.FlowDefinition.RolledBack` |
+| 低代码页面发布 | `LowCode.Page.Published` |
+| 低代码页面回滚 | `LowCode.Page.RolledBack` |
+
+`target` 格式：`{EntityType}:{id}` 或 `{EntityType}:{id}:Version:{versionId}`（回滚时附带版本 ID）。

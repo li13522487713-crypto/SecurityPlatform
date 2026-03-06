@@ -20,6 +20,7 @@
       @preview="handlePreview"
       @save="handleSave"
       @publish="handlePublishClick"
+      @history="openFlowVersionHistory"
     />
 
     <!-- ══ 步骤 0: 基础设置 ══ -->
@@ -150,6 +151,54 @@
     <a-modal v-model:open="previewModalOpen" title="流程预览" :footer="null" width="85vw" :body-style="{ height: '80vh', padding: 0 }" destroy-on-close>
       <X6PreviewCanvas v-if="previewModalOpen" :flow-tree="flowTree" />
     </a-modal>
+
+    <!-- ══ 版本历史抽屉 ══ -->
+    <a-drawer
+      v-model:open="versionHistoryVisible"
+      title="版本历史"
+      :width="480"
+      placement="right"
+    >
+      <div v-if="loadingVersions" class="version-loading">
+        <a-spin tip="加载版本历史..." />
+      </div>
+      <a-empty v-else-if="flowVersionList.length === 0" description="暂无版本历史，发布后可在此查看" />
+      <a-list
+        v-else
+        :data-source="flowVersionList"
+        item-layout="horizontal"
+      >
+        <template #renderItem="{ item }">
+          <a-list-item>
+            <a-list-item-meta>
+              <template #title>
+                <span>v{{ item.snapshotVersion }} — {{ item.name }}</span>
+              </template>
+              <template #description>
+                <a-space direction="vertical" :size="2">
+                  <span style="color: #666; font-size: 12px">
+                    {{ new Date(item.createdAt).toLocaleString('zh-CN') }}
+                  </span>
+                  <span v-if="item.category" style="color: #999; font-size: 12px">
+                    分类：{{ item.category }}
+                  </span>
+                </a-space>
+              </template>
+            </a-list-item-meta>
+            <template #actions>
+              <a-popconfirm
+                :title="`确定回滚到 v${item.snapshotVersion}？当前未保存内容将丢失。`"
+                ok-text="回滚"
+                cancel-text="取消"
+                @confirm="handleFlowRollback(item.id)"
+              >
+                <a-button type="link" size="small" :loading="rollingBackFlow === item.id">回滚</a-button>
+              </a-popconfirm>
+            </template>
+          </a-list-item>
+        </template>
+      </a-list>
+    </a-drawer>
   </div>
 </template>
 
@@ -170,7 +219,7 @@ import { ApprovalTreeConverter } from '@/utils/approval-tree-converter';
 import { extractAmisFields } from '@/utils/amis-field-extractor';
 import type { ApprovalDefinitionMeta, LfFormPayload, FormJson, VisibilityScope } from '@/types/approval-definition';
 import type { TreeNode, ConditionBranch } from '@/types/approval-tree';
-import type { ApprovalFlowValidationIssue, ApprovalFlowValidationResult } from '@/types/api';
+import type { ApprovalFlowValidationIssue, ApprovalFlowValidationResult, ApprovalFlowVersionListItem } from '@/types/api';
 import {
   getApprovalFlowById,
   createApprovalFlow,
@@ -178,6 +227,11 @@ import {
   publishApprovalFlow,
   validateApprovalFlow,
 } from '@/services/api';
+import {
+  getApprovalFlowVersions,
+  getApprovalFlowVersionDetail,
+  rollbackApprovalFlowVersion,
+} from '@/services/api-approval';
 
 const route = useRoute();
 const router = useRouter();
@@ -213,6 +267,10 @@ const validateResult = ref<ApprovalFlowValidationResult | null>(null);
 const publishModalOpen = ref(false);
 const publishing = ref(false);
 const previewModalOpen = ref(false);
+const versionHistoryVisible = ref(false);
+const loadingVersions = ref(false);
+const flowVersionList = ref<ApprovalFlowVersionListItem[]>([]);
+const rollingBackFlow = ref<string | null>(null);
 const designerRef = ref<InstanceType<typeof X6ApprovalDesigner> | null>(null);
 type ValidationIssueView = ApprovalFlowValidationIssue & { severity: 'error' | 'warning' };
 const normalizeValidationIssues = (result: ApprovalFlowValidationResult | null): ValidationIssueView[] => {
@@ -538,6 +596,49 @@ const handlePublishConfirm = async () => {
 // ── 预览 ──
 const handlePreview = () => { previewModalOpen.value = true; };
 
+// ── 版本历史 ──
+const openFlowVersionHistory = async () => {
+  versionHistoryVisible.value = true;
+  if (!flowId.value) return;
+  loadingVersions.value = true;
+  try {
+    flowVersionList.value = await getApprovalFlowVersions(flowId.value);
+  } catch (error) {
+    message.error((error as Error).message || "加载版本历史失败");
+  } finally {
+    loadingVersions.value = false;
+  }
+};
+
+const handleFlowRollback = async (versionId: string) => {
+  if (!flowId.value) return;
+  rollingBackFlow.value = versionId;
+  try {
+    const versionDetail = await getApprovalFlowVersionDetail(flowId.value, versionId);
+    await rollbackApprovalFlowVersion(flowId.value, versionId);
+
+    // 重新加载流程定义
+    try {
+      const parsed = JSON.parse(versionDetail.definitionJson) as Record<string, unknown>;
+      const converter = new ApprovalTreeConverter();
+      const loadedTree = converter.jsonToTree(parsed);
+      if (loadedTree) {
+        Object.assign(flowTree, loadedTree);
+        pushState();
+      }
+    } catch {
+      // 保持现有状态
+    }
+    versionHistoryVisible.value = false;
+    flowVersionList.value = await getApprovalFlowVersions(flowId.value);
+    message.success(`已回滚到 v${versionDetail.snapshotVersion}`);
+  } catch (error) {
+    message.error((error as Error).message || "回滚失败");
+  } finally {
+    rollingBackFlow.value = null;
+  }
+};
+
 const focusNodeByErrors = (errors: string[]) => {
   if (errors.length === 0) return;
   const firstError = errors[0];
@@ -766,5 +867,10 @@ onBeforeUnmount(() => {
 }
 .dd-validate-item--locatable:hover {
   background: #f5f5f5;
+}
+.version-loading {
+  display: flex;
+  justify-content: center;
+  padding: 40px 0;
 }
 </style>

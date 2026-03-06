@@ -30,4 +30,10 @@ public record ApprovalFlowDefinitionListItem
 
     /// <summary>是否为快捷入口</summary>
     public bool IsQuickEntry { get; init; }
+
+    /// <summary>弃用时间（null 表示未弃用）</summary>
+    public DateTimeOffset? DeprecatedAt { get; init; }
+
+    /// <summary>是否已弃用</summary>
+    public bool IsDeprecated => DeprecatedAt.HasValue;
 }

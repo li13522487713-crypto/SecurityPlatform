@@ -32,4 +32,14 @@ public interface IApprovalFlowQueryService
         long id,
         int targetVersion,
         CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<ApprovalFlowVersionListItem>> GetVersionsAsync(
+        TenantId tenantId,
+        long definitionId,
+        CancellationToken cancellationToken = default);
+
+    Task<ApprovalFlowVersionDetail?> GetVersionByIdAsync(
+        TenantId tenantId,
+        long versionId,
+        CancellationToken cancellationToken = default);
 }

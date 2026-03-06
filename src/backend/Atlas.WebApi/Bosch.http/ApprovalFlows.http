@@ -212,3 +212,32 @@ X-CSRF-TOKEN: {{csrfToken}}
 GET {{baseUrl}}/api/v1/approval/flows/{flowId}/versions/{targetVersion}/compare
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
+
+###############################################
+# 版本历史与回滚（Case L2.2）
+###############################################
+
+### 获取审批流版本历史列表（发布后才有数据）
+GET {{baseUrl}}/api/v1/approval/flows/{flowId}/versions
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### 获取指定版本详情（含 DefinitionJson）
+GET {{baseUrl}}/api/v1/approval/flows/{flowId}/versions/{versionId}/detail
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### 回滚到指定版本
+POST {{baseUrl}}/api/v1/approval/flows/{flowId}/rollback/{versionId}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+### 弃用审批流定义（不允许新发起实例，运行中实例可继续）
+POST {{baseUrl}}/api/v1/approval/flows/{{flowId}}/deprecate
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+Content-Length: 0

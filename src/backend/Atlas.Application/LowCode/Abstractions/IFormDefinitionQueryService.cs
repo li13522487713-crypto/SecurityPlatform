@@ -12,4 +12,10 @@ public interface IFormDefinitionQueryService
 
     Task<FormDefinitionDetail?> GetByIdAsync(
         TenantId tenantId, long id, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<FormDefinitionVersionListItem>> GetVersionsAsync(
+        TenantId tenantId, long formDefinitionId, CancellationToken cancellationToken = default);
+
+    Task<FormDefinitionVersionDetail?> GetVersionByIdAsync(
+        TenantId tenantId, long versionId, CancellationToken cancellationToken = default);
 }

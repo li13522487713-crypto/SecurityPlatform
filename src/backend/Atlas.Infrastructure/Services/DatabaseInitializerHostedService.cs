@@ -93,6 +93,8 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             typeof(AuthSession),
             typeof(RefreshToken),
             typeof(ApprovalFlowDefinition),
+            typeof(ApprovalFlowDefinitionVersion),
+            typeof(ApprovalWritebackFailure),
             typeof(ApprovalProcessInstance),
             typeof(ApprovalTask),
             typeof(ApprovalHistoryEvent),
@@ -143,6 +145,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             typeof(LowCodePage),
             typeof(LowCodeAppVersion),
             typeof(FormDefinition),
+            typeof(FormDefinitionVersion),
             // Events / Outbox
             typeof(OutboxMessage),
             // Plugin configuration

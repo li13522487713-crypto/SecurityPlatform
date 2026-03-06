@@ -13,6 +13,8 @@ import type {
   ApprovalFlowImportRequest,
   ApprovalFlowExportResponse,
   ApprovalFlowCompareResponse,
+  ApprovalFlowVersionListItem,
+  ApprovalFlowVersionDetail,
   ApprovalStartRequest,
   ApprovalTaskResponse,
   ApprovalTaskDecideRequest,
@@ -114,6 +116,31 @@ export async function compareApprovalFlowVersion(id: string, targetVersion: numb
     throw new Error(response.message || "版本对比失败");
   }
   return response.data;
+}
+
+export async function getApprovalFlowVersions(id: string): Promise<ApprovalFlowVersionListItem[]> {
+  const response = await requestApi<ApiResponse<ApprovalFlowVersionListItem[]>>(`/approval/flows/${id}/versions`);
+  if (!response.data) {
+    throw new Error(response.message || "获取版本历史失败");
+  }
+  return response.data;
+}
+
+export async function getApprovalFlowVersionDetail(id: string, versionId: string): Promise<ApprovalFlowVersionDetail> {
+  const response = await requestApi<ApiResponse<ApprovalFlowVersionDetail>>(`/approval/flows/${id}/versions/${versionId}/detail`);
+  if (!response.data) {
+    throw new Error(response.message || "获取版本详情失败");
+  }
+  return response.data;
+}
+
+export async function rollbackApprovalFlowVersion(id: string, versionId: string): Promise<void> {
+  const response = await requestApi<ApiResponse<{ id: string }>>(`/approval/flows/${id}/rollback/${versionId}`, {
+    method: "POST"
+  });
+  if (!response.success) {
+    throw new Error(response.message || "回滚失败");
+  }
 }
 
 export async function updateApprovalFlow(id: string, request: ApprovalFlowDefinitionUpdateRequest) {

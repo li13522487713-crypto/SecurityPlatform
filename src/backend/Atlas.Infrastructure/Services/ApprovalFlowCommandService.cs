@@ -2,11 +2,13 @@ using AutoMapper;
 using Atlas.Application.Approval.Abstractions;
 using Atlas.Application.Approval.Models;
 using Atlas.Application.Approval.Repositories;
+using Atlas.Application.Audit.Abstractions;
 using Atlas.Core.Abstractions;
 using Atlas.Core.Exceptions;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Approval.Entities;
 using Atlas.Domain.Approval.Enums;
+using Atlas.Domain.Audit.Entities;
 
 namespace Atlas.Infrastructure.Services;
 
@@ -16,16 +18,22 @@ namespace Atlas.Infrastructure.Services;
 public sealed class ApprovalFlowCommandService : IApprovalFlowCommandService
 {
     private readonly IApprovalFlowRepository _flowRepository;
+    private readonly IApprovalFlowDefinitionVersionRepository _versionRepository;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
+    private readonly IAuditWriter _auditWriter;
     private readonly IMapper _mapper;
 
     public ApprovalFlowCommandService(
         IApprovalFlowRepository flowRepository,
+        IApprovalFlowDefinitionVersionRepository versionRepository,
         IIdGeneratorAccessor idGeneratorAccessor,
+        IAuditWriter auditWriter,
         IMapper mapper)
     {
         _flowRepository = flowRepository;
+        _versionRepository = versionRepository;
         _idGeneratorAccessor = idGeneratorAccessor;
+        _auditWriter = auditWriter;
         _mapper = mapper;
     }
 
@@ -87,6 +95,33 @@ public sealed class ApprovalFlowCommandService : IApprovalFlowCommandService
 
         entity.Publish(publishedByUserId, DateTimeOffset.UtcNow);
         await _flowRepository.UpdateAsync(entity, cancellationToken);
+
+        // 发布时创建版本快照
+        var versionId = _idGeneratorAccessor.NextId();
+        var version = new ApprovalFlowDefinitionVersion(
+            tenantId,
+            entity.Id,
+            entity.Version,
+            entity.Name,
+            entity.Description,
+            entity.Category,
+            entity.DefinitionJson,
+            entity.VisibilityScopeJson,
+            publishedByUserId,
+            versionId,
+            DateTimeOffset.UtcNow);
+        await _versionRepository.InsertAsync(version, cancellationToken);
+
+        // 设计态审计埋点
+        var auditRecord = new AuditRecord(
+            tenantId,
+            publishedByUserId.ToString(),
+            "Approval.FlowDefinition.Published",
+            "Success",
+            $"ApprovalFlowDefinition:{flowId}",
+            null,
+            null);
+        await _auditWriter.WriteAsync(auditRecord, cancellationToken);
     }
 
     public async Task DeleteAsync(
@@ -163,8 +198,81 @@ public sealed class ApprovalFlowCommandService : IApprovalFlowCommandService
         await _flowRepository.AddAsync(entity, cancellationToken);
         return _mapper.Map<ApprovalFlowDefinitionResponse>(entity);
     }
+
+    public async Task RollbackToVersionAsync(
+        TenantId tenantId,
+        long flowId,
+        long versionId,
+        long operatorUserId,
+        CancellationToken cancellationToken)
+    {
+        var entity = await _flowRepository.GetByIdAsync(tenantId, flowId, cancellationToken)
+            ?? throw new BusinessException("FLOW_NOT_FOUND", "审批流定义不存在");
+
+        var versionSnapshot = await _versionRepository.GetByIdAsync(tenantId, versionId, cancellationToken)
+            ?? throw new BusinessException("FLOW_VERSION_NOT_FOUND", "版本快照不存在");
+
+        if (versionSnapshot.DefinitionId != flowId)
+        {
+            throw new BusinessException("FLOW_VERSION_MISMATCH", "版本不属于该审批流定义");
+        }
+
+        // 用快照恢复定义 JSON 并重新发布
+        entity.Update(versionSnapshot.Name, versionSnapshot.DefinitionJson, versionSnapshot.Description, versionSnapshot.Category, versionSnapshot.VisibilityScopeJson);
+        entity.Publish(operatorUserId, DateTimeOffset.UtcNow);
+        await _flowRepository.UpdateAsync(entity, cancellationToken);
+
+        // 回滚发布也创建版本快照
+        var newVersionId = _idGeneratorAccessor.NextId();
+        var newVersion = new ApprovalFlowDefinitionVersion(
+            tenantId,
+            entity.Id,
+            entity.Version,
+            entity.Name,
+            entity.Description,
+            entity.Category,
+            entity.DefinitionJson,
+            entity.VisibilityScopeJson,
+            operatorUserId,
+            newVersionId,
+            DateTimeOffset.UtcNow);
+        await _versionRepository.InsertAsync(newVersion, cancellationToken);
+
+        // 设计态审计埋点
+        var rollbackAudit = new AuditRecord(
+            tenantId,
+            operatorUserId.ToString(),
+            "Approval.FlowDefinition.RolledBack",
+            "Success",
+            $"ApprovalFlowDefinition:{flowId}:Version:{versionId}",
+            null,
+            null);
+        await _auditWriter.WriteAsync(rollbackAudit, cancellationToken);
+    }
+
+    public async Task DeprecateAsync(
+        TenantId tenantId,
+        long id,
+        long operatorUserId,
+        CancellationToken cancellationToken)
+    {
+        var definition = await _flowRepository.GetByIdAsync(tenantId, id, cancellationToken)
+            ?? throw new KeyNotFoundException($"审批流定义 {id} 不存在");
+
+        if (definition.IsDeprecated)
+            return; // 幂等：已弃用则忽略
+
+        definition.Deprecate(operatorUserId, DateTimeOffset.UtcNow);
+        await _flowRepository.UpdateAsync(definition, cancellationToken);
+
+        var auditRecord = new AuditRecord(
+            tenantId,
+            operatorUserId.ToString(),
+            "Approval.FlowDefinition.Deprecated",
+            "Success",
+            $"ApprovalFlowDefinition:{id}",
+            null,
+            null);
+        await _auditWriter.WriteAsync(auditRecord, cancellationToken);
+    }
 }
-
-
-
-

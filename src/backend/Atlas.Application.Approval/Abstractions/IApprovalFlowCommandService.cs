@@ -44,4 +44,17 @@ public interface IApprovalFlowCommandService
         TenantId tenantId,
         ApprovalFlowImportRequest request,
         CancellationToken cancellationToken);
+
+    Task RollbackToVersionAsync(
+        TenantId tenantId,
+        long flowId,
+        long versionId,
+        long operatorUserId,
+        CancellationToken cancellationToken);
+
+    Task DeprecateAsync(
+        TenantId tenantId,
+        long id,
+        long operatorUserId,
+        CancellationToken cancellationToken);
 }

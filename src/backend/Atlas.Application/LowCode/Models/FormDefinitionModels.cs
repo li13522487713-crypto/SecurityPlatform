@@ -12,7 +12,11 @@ public sealed record FormDefinitionListItem(
     long CreatedBy,
     string? DataTableKey,
     string? Icon,
-    DateTimeOffset? PublishedAt);
+    DateTimeOffset? PublishedAt,
+    DateTimeOffset? DeprecatedAt)
+{
+    public bool IsDeprecated => DeprecatedAt.HasValue;
+}
 
 public sealed record FormDefinitionDetail(
     string Id,
@@ -29,7 +33,11 @@ public sealed record FormDefinitionDetail(
     string? DataTableKey,
     string? Icon,
     DateTimeOffset? PublishedAt,
-    long? PublishedBy);
+    long? PublishedBy,
+    DateTimeOffset? DeprecatedAt = null)
+{
+    public bool IsDeprecated => DeprecatedAt.HasValue;
+}
 
 public sealed record FormDefinitionCreateRequest(
     string Name,
@@ -52,3 +60,28 @@ public sealed record FormDefinitionSchemaUpdateRequest(
 
 public sealed record FormDefinitionPublishRequest(
     string? Remark);
+
+public sealed record FormDefinitionVersionListItem(
+    string Id,
+    string FormDefinitionId,
+    int SnapshotVersion,
+    string Name,
+    string? Description,
+    string? Category,
+    string? DataTableKey,
+    string? Icon,
+    long CreatedBy,
+    DateTimeOffset CreatedAt);
+
+public sealed record FormDefinitionVersionDetail(
+    string Id,
+    string FormDefinitionId,
+    int SnapshotVersion,
+    string Name,
+    string? Description,
+    string? Category,
+    string SchemaJson,
+    string? DataTableKey,
+    string? Icon,
+    long CreatedBy,
+    DateTimeOffset CreatedAt);

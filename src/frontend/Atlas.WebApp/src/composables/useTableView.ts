@@ -7,7 +7,8 @@ import type {
   TableViewConfig,
   TableViewCreateRequest,
   TableViewDetail,
-  TableViewListItem
+  TableViewListItem,
+  MergeCellRule
 } from "@/types/api";
 import {
   createTableView,
@@ -76,6 +77,14 @@ export interface TableViewController {
   setDensity: (density: TableViewDensity) => void;
   toggleColumn: (key: string, visible: boolean) => void;
   moveColumn: (key: string, direction: "up" | "down") => void;
+  setPinned: (key: string, pinned: "left" | "right" | undefined) => void;
+  /** 获取当前视图的行合并规则（用于表格渲染时计算 rowSpan） */
+  getMergeCells: () => MergeCellRule[];
+  /**
+   * 根据 mergeCells 规则计算一组数据行的 rowSpan 映射。
+   * 返回二维数组：spans[rowIndex][columnKey] = rowspan 值（0 表示被合并、>=1 表示占用的行数）
+   */
+  computeMergeSpans: <T extends Record<string, unknown>>(rows: T[]) => Map<string, number>[];
 }
 
 interface UseTableViewOptions<TRecord> {
@@ -217,7 +226,8 @@ export function useTableView<TRecord>(options: UseTableViewOptions<TRecord>) {
       title: resolveColumnTitle(item.base),
       visible: item.visible,
       canHide: item.canHide,
-      order: item.order
+      order: item.order,
+      pinned: item.pinned
     }));
   });
 
@@ -488,6 +498,54 @@ export function useTableView<TRecord>(options: UseTableViewOptions<TRecord>) {
     });
   };
 
+  const setPinned = (key: string, pinned: "left" | "right" | undefined) => {
+    updateConfigColumns((items) => {
+      const target = items.find((item) => item.key === key);
+      if (target) {
+        target.pinned = pinned;
+      }
+    });
+  };
+
+  const getMergeCells = (): MergeCellRule[] =>
+    (config.value.mergeCells as MergeCellRule[] | undefined) ?? [];
+
+  /**
+   * 根据 mergeCells 规则计算每行每列的 rowSpan。
+   * 相邻行的 columnKey 值相同（且 dependsOn 列的值也相同）时合并。
+   * 返回数组中每个元素是 Map<columnKey, rowspan>（0=被合并，>=1=实际行数）。
+   */
+  const computeMergeSpans = <T extends Record<string, unknown>>(rows: T[]): Map<string, number>[] => {
+    const rules = getMergeCells();
+    const result: Map<string, number>[] = rows.map(() => new Map());
+
+    for (const rule of rules) {
+      const { columnKey, dependsOn = [] } = rule;
+      const allKeys = [...(dependsOn ?? []), columnKey];
+
+      let i = 0;
+      while (i < rows.length) {
+        // Count how many consecutive rows have identical values for all allKeys
+        let span = 1;
+        while (i + span < rows.length) {
+          const same = allKeys.every(
+            (k) => String(rows[i][k] ?? '') === String(rows[i + span][k] ?? '')
+          );
+          if (!same) break;
+          span++;
+        }
+        // Set rowSpan for the first row, 0 for the rest
+        result[i].set(columnKey, span);
+        for (let j = 1; j < span; j++) {
+          result[i + j].set(columnKey, 0);
+        }
+        i += span;
+      }
+    }
+
+    return result;
+  };
+
   watch(
     () => pagination.pageSize,
     (value, oldValue) => {
@@ -529,7 +587,10 @@ export function useTableView<TRecord>(options: UseTableViewOptions<TRecord>) {
     resetCurrent,
     setDensity,
     toggleColumn,
-    moveColumn
+    moveColumn,
+    setPinned,
+    getMergeCells,
+    computeMergeSpans
   });
 
   watch(columnSettings, (settings) => {

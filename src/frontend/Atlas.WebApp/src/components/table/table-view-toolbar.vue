@@ -41,7 +41,7 @@
     v-model:open="columnsVisible"
     title="列配置"
     placement="right"
-    width="360"
+    width="420"
     destroy-on-close
   >
     <a-input
@@ -60,6 +60,16 @@
           {{ item.title }}
         </a-checkbox>
         <div class="column-actions">
+          <a-select
+            :value="item.pinned ?? 'none'"
+            size="small"
+            style="width: 88px"
+            @change="(val: string) => controller.setPinned(item.key, val === 'none' ? undefined : val as 'left' | 'right')"
+          >
+            <a-select-option value="none">不固定</a-select-option>
+            <a-select-option value="left">左固定</a-select-option>
+            <a-select-option value="right">右固定</a-select-option>
+          </a-select>
           <a-button size="small" @click="controller.moveColumn(item.key, 'up')">上移</a-button>
           <a-button size="small" @click="controller.moveColumn(item.key, 'down')">下移</a-button>
         </div>

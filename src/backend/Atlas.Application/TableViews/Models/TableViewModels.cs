@@ -49,6 +49,7 @@ public sealed class TableViewConfig
     public IReadOnlyList<TableViewAggregation> Aggregations { get; init; } = Array.Empty<TableViewAggregation>();
     public TableViewQueryPanel? QueryPanel { get; init; }
     public TableViewQueryGroup? QueryModel { get; init; }
+    public IReadOnlyList<MergeCellRule> MergeCells { get; init; } = Array.Empty<MergeCellRule>();
 }
 
 public sealed class TableViewColumnConfig
@@ -114,4 +115,14 @@ public sealed class TableViewQueryCondition
     public string Field { get; init; } = string.Empty;
     public string Operator { get; init; } = string.Empty;
     public JsonElement? Value { get; init; }
+}
+
+/// <summary>
+/// 行合并规则：对 columnKey 列的相邻相同值自动合并行（rowSpan）。
+/// dependsOn 指定依赖列，只有依赖列也相同时才合并（支持多级分组合并）。
+/// </summary>
+public sealed class MergeCellRule
+{
+    public string ColumnKey { get; init; } = string.Empty;
+    public IReadOnlyList<string> DependsOn { get; init; } = Array.Empty<string>();
 }

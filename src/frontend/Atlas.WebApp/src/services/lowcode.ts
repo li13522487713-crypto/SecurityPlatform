@@ -4,6 +4,8 @@ import type {
   FormDefinitionDetail,
   FormDefinitionCreateRequest,
   FormDefinitionUpdateRequest,
+  FormDefinitionVersionListItem,
+  FormDefinitionVersionDetail,
   LowCodeAppListItem,
   LowCodeAppDetail,
   LowCodeAppVersionListItem,
@@ -125,6 +127,30 @@ export async function deleteFormDefinition(id: string): Promise<void> {
     { method: "DELETE" }
   );
   if (!response.success) throw new Error(response.message || "删除失败");
+}
+
+export async function getFormDefinitionVersions(id: string): Promise<FormDefinitionVersionListItem[]> {
+  const response = await requestApi<ApiResponse<FormDefinitionVersionListItem[]>>(
+    `/form-definitions/${id}/versions`
+  );
+  if (!response.data) throw new Error(response.message || "查询版本历史失败");
+  return response.data;
+}
+
+export async function getFormDefinitionVersionDetail(id: string, versionId: string): Promise<FormDefinitionVersionDetail> {
+  const response = await requestApi<ApiResponse<FormDefinitionVersionDetail>>(
+    `/form-definitions/${id}/versions/${versionId}`
+  );
+  if (!response.data) throw new Error(response.message || "查询版本详情失败");
+  return response.data;
+}
+
+export async function rollbackFormDefinitionVersion(id: string, versionId: string): Promise<void> {
+  const response = await requestApi<ApiResponse<{ id: string }>>(
+    `/form-definitions/${id}/rollback/${versionId}`,
+    { method: "POST" }
+  );
+  if (!response.success) throw new Error(response.message || "回滚失败");
 }
 
 // ─── 低代码应用 API ───

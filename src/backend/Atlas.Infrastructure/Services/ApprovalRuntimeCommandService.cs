@@ -107,6 +107,24 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
                 throw new BusinessException("FLOW_NOT_PUBLISHED", "流程定义未发布");
             }
 
+            if (flowDef.IsDeprecated)
+            {
+                throw new BusinessException("FLOW_DEPRECATED", "流程定义已弃用，不允许新发起实例");
+            }
+
+            // 幂等性检查：同一 BusinessKey 已存在运行中实例，直接返回
+            if (!string.IsNullOrEmpty(request.BusinessKey))
+            {
+                var existingInstance = await _instanceRepository.GetByBusinessKeyAsync(tenantId, request.BusinessKey, cancellationToken);
+                if (existingInstance != null && existingInstance.Status == ApprovalInstanceStatus.Running)
+                {
+                    _logger?.LogInformation(
+                        "审批发起幂等命中：BusinessKey={BusinessKey}, InstanceId={InstanceId}",
+                        request.BusinessKey, existingInstance.Id);
+                    return _mapper.Map<ApprovalInstanceResponse>(existingInstance);
+                }
+            }
+
             // 创建实例
             var instance = new ApprovalProcessInstance(
                 tenantId,

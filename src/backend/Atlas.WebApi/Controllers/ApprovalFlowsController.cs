@@ -324,4 +324,77 @@ public sealed class ApprovalFlowsController : ControllerBase
 
         return ApiResponse<ApprovalFlowCompareResponse>.Ok(result, HttpContext.TraceIdentifier);
     }
+
+    /// <summary>
+    /// 获取审批流版本历史列表
+    /// </summary>
+    [HttpGet("{id}/versions")]
+    [Authorize(Policy = PermissionPolicies.ApprovalFlowView)]
+    public async Task<ApiResponse<IReadOnlyList<ApprovalFlowVersionListItem>>> GetVersionsAsync(
+        long id,
+        CancellationToken cancellationToken = default)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var versions = await _queryService.GetVersionsAsync(tenantId, id, cancellationToken);
+        return ApiResponse<IReadOnlyList<ApprovalFlowVersionListItem>>.Ok(versions, HttpContext.TraceIdentifier);
+    }
+
+    /// <summary>
+    /// 获取审批流指定版本详情
+    /// </summary>
+    [HttpGet("{id}/versions/{versionId:long}/detail")]
+    [Authorize(Policy = PermissionPolicies.ApprovalFlowView)]
+    public async Task<ApiResponse<ApprovalFlowVersionDetail>> GetVersionDetailAsync(
+        long id,
+        long versionId,
+        CancellationToken cancellationToken = default)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var version = await _queryService.GetVersionByIdAsync(tenantId, versionId, cancellationToken);
+        if (version is null)
+        {
+            return ApiResponse<ApprovalFlowVersionDetail>.Fail("NOT_FOUND", "版本不存在", HttpContext.TraceIdentifier);
+        }
+
+        return ApiResponse<ApprovalFlowVersionDetail>.Ok(version, HttpContext.TraceIdentifier);
+    }
+
+    /// <summary>
+    /// 回滚审批流到指定版本
+    /// </summary>
+    [HttpPost("{id}/rollback/{versionId:long}")]
+    [Authorize(Roles = "system:admin,apps:update")]
+    public async Task<ApiResponse<object>> RollbackAsync(
+        long id,
+        long versionId,
+        CancellationToken cancellationToken = default)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var currentUser = _currentUserAccessor.GetCurrentUser();
+        if (currentUser is null)
+        {
+            return ApiResponse<object>.Fail(ErrorCodes.Unauthorized, "未登录", HttpContext.TraceIdentifier);
+        }
+
+        await _commandService.RollbackToVersionAsync(tenantId, id, versionId, currentUser.UserId, cancellationToken);
+        return ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier);
+    }
+
+    /// <summary>弃用审批流定义 — 弃用后不允许新发起实例，但运行中实例可继续完成。</summary>
+    [HttpPost("{id:long}/deprecate")]
+    [Authorize(Roles = "system:admin,approval:admin")]
+    public async Task<ApiResponse<object>> Deprecate(
+        long id,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var currentUser = _currentUserAccessor.GetCurrentUser();
+        if (currentUser is null)
+        {
+            return ApiResponse<object>.Fail(ErrorCodes.Unauthorized, "未登录", HttpContext.TraceIdentifier);
+        }
+
+        await _commandService.DeprecateAsync(tenantId, id, currentUser.UserId, cancellationToken);
+        return ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier);
+    }
 }

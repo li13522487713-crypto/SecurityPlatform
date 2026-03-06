@@ -1,5 +1,6 @@
 using Atlas.Infrastructure.Repositories;
 using Atlas.Infrastructure.Services;
+using Atlas.Application.Approval.Repositories;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Atlas.Infrastructure.DependencyInjection;
@@ -13,6 +14,7 @@ public static class ApprovalServiceRegistration
     {
         // Approval Repositories
         services.AddScoped<Atlas.Application.Approval.Repositories.IApprovalFlowRepository, ApprovalFlowRepository>();
+        services.AddScoped<Atlas.Application.Approval.Repositories.IApprovalFlowDefinitionVersionRepository, ApprovalFlowDefinitionVersionRepository>();
         services.AddScoped<Atlas.Application.Approval.Repositories.IApprovalInstanceRepository, ApprovalInstanceRepository>();
         services.AddScoped<Atlas.Application.Approval.Repositories.IApprovalTaskRepository, ApprovalTaskRepository>();
         services.AddScoped<Atlas.Application.Approval.Repositories.IApprovalAgentConfigRepository, ApprovalAgentConfigRepository>();
@@ -103,8 +105,11 @@ public static class ApprovalServiceRegistration
 
         // Approval Status Sync Handler (for dynamic table status writeback)
         services.AddScoped<Atlas.Infrastructure.Services.ApprovalFlow.ApprovalStatusSyncHandler>();
+        services.AddScoped<Atlas.Infrastructure.Services.ApprovalFlow.ApprovalWritebackRetryService>();
+        services.AddScoped<IApprovalWritebackFailureRepository, Atlas.Infrastructure.Repositories.ApprovalWritebackFailureRepository>();
 
         // FlowEngine and its dependencies
+        services.AddSingleton<Atlas.Core.Expressions.IExpressionEngine, Atlas.Infrastructure.Expressions.CelExpressionEngine>();
         services.AddScoped<Atlas.Infrastructure.Services.ApprovalFlow.ConditionEvaluator>();
         services.AddScoped<Atlas.Infrastructure.Services.ApprovalFlow.DeduplicationService>();
         services.AddScoped<Atlas.Infrastructure.Services.ApprovalFlow.FlowGatewayHandler>();
