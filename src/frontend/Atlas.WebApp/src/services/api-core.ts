@@ -270,8 +270,14 @@ export async function requestApiBlob(path: string, init?: RequestInit, options?:
     options = { ...(options ?? {}), idempotencyKey, antiforgeryToken };
   }
 
+  const projectId = getProjectId();
+  const projectScopeEnabled = getProjectScopeEnabled();
+  if (projectScopeEnabled && projectId && !headers.has("X-Project-Id")) {
+    headers.set("X-Project-Id", projectId);
+  }
+
   const writeRequestSignature = shouldEnableWriteRequestDeduplication(method, shouldAttachSecurityHeaders, options)
-    ? buildWriteRequestSignature(path, method, init?.body, tenantId, undefined)
+    ? buildWriteRequestSignature(path, method, init?.body, tenantId, projectId, "blob")
     : null;
   if (writeRequestSignature) {
     const inFlight = inFlightWriteRequests.get(writeRequestSignature);
@@ -365,10 +371,11 @@ function buildWriteRequestSignature(
   method: string,
   body: BodyInit | null | undefined,
   tenantId: string | null,
-  projectId: string | null | undefined
+  projectId: string | null | undefined,
+  responseType: "json" | "blob" = "json"
 ) {
   const normalizedBody = normalizeRequestBodyForSignature(body);
-  return [tenantId ?? "", projectId ?? "", method.toUpperCase(), path, normalizedBody].join("|");
+  return [tenantId ?? "", projectId ?? "", method.toUpperCase(), path, normalizedBody, responseType].join("|");
 }
 
 function normalizeRequestBodyForSignature(body: BodyInit | null | undefined) {
@@ -385,7 +392,16 @@ function normalizeRequestBodyForSignature(body: BodyInit | null | undefined) {
   }
 
   if (typeof FormData !== "undefined" && body instanceof FormData) {
-    const entries = Array.from(body.entries()).map(([key, value]) => [key, String(value)]);
+    const entries: [string, string][] = [];
+    for (const [key, value] of body.entries()) {
+      if (typeof value === "string") {
+        entries.push([key, value]);
+      } else {
+        // value is File (FormDataEntryValue = string | File)
+        // Use file metadata to distinguish different files; String(file) yields "[object File]" for all
+        entries.push([key, `file:${value.name}:${value.size}:${value.lastModified}:${value.type}`]);
+      }
+    }
     return JSON.stringify(entries);
   }
 
