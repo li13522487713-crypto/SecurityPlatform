@@ -94,7 +94,7 @@ export async function getAuthProfile(): Promise<AuthProfile> {
 }
 
 export async function getUserProfile(): Promise<UserProfileDetail> {
-  const response = await requestApi<ApiResponse<UserProfileDetail>>("/auth/profile/detail");
+  const response = await requestApi<ApiResponse<UserProfileDetail>>("/auth/profile");
   if (!response.data) throw new Error(response.message || "获取用户详情失败");
   return response.data;
 }
@@ -205,7 +205,7 @@ export async function uploadFile(file: File): Promise<FileUploadResult> {
 }
 
 export async function getFileInfo(id: string | number): Promise<FileRecordDto> {
-  const response = await requestApi<ApiResponse<FileRecordDto>>(`/files/${id}`);
+  const response = await requestApi<ApiResponse<FileRecordDto>>(`/files/${id}/info`);
   if (!response.data) {
     throw new Error(response.message || "查询失败");
   }
