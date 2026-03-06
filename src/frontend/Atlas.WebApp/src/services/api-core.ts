@@ -40,6 +40,7 @@ export interface RequestOptions {
 let refreshPromise: Promise<boolean> | null = null;
 let antiforgeryPromise: Promise<string | null> | null = null;
 let missingProjectWarningAt = 0;
+const inFlightWriteRequests = new Map<string, Promise<unknown>>();
 
 const ErrorCodes = {
   AccountLocked: "ACCOUNT_LOCKED",
@@ -148,62 +149,90 @@ export async function requestApi<T>(path: string, init?: RequestInit, options?: 
     options = { ...(options ?? {}), idempotencyKey, antiforgeryToken };
   }
 
+  const writeRequestSignature = shouldEnableWriteRequestDeduplication(method, shouldAttachSecurityHeaders, options)
+    ? buildWriteRequestSignature(path, method, init?.body, tenantId, projectId)
+    : null;
+  if (writeRequestSignature) {
+    const inFlight = inFlightWriteRequests.get(writeRequestSignature);
+    if (inFlight) {
+      return (await inFlight) as T;
+    }
+  }
+
   const requestInit: RequestInit = {
     ...init,
     headers,
     credentials: "include" // 携带httpOnly cookie凭证
   };
 
-  const response = await fetch(`${API_BASE}${path}`, requestInit);
+  const runRequest = async () => {
+    const response = await fetch(`${API_BASE}${path}`, requestInit);
 
-  const shouldAttemptRefresh = !options?.disableAutoRefresh && !options?.isRetry;
-  if (response.status === 401 && shouldAttemptRefresh) {
-    const refreshed = await tryRefreshTokens();
-    if (refreshed) {
-      return requestApi(path, init, { ...(options ?? {}), isRetry: true });
-    }
-  }
-
-  if (response.status === 403) {
-    const errorText = await response.text();
-    const errorPayload = tryParseErrorPayload(errorText);
-    const errorCode = errorPayload?.code ?? "";
-    const errorMessage = formatErrorMessage(errorPayload, errorText || "没有权限访问");
-
-    if (errorCode === ErrorCodes.AntiforgeryTokenInvalid && !options?.antiforgeryRetry) {
-      clearAntiforgeryToken();
-      return requestApi(path, init, { ...(options ?? {}), antiforgeryRetry: true, antiforgeryToken: undefined });
-    }
-
-    if (shouldAttemptRefresh) {
+    const shouldAttemptRefresh = !options?.disableAutoRefresh && !options?.isRetry;
+    if (response.status === 401 && shouldAttemptRefresh) {
       const refreshed = await tryRefreshTokens();
       if (refreshed) {
-        return requestApi(path, init, { ...(options ?? {}), isRetry: true });
+        return requestApi<T>(path, init, { ...(options ?? {}), isRetry: true });
       }
     }
 
-    if (shouldForceLogout(errorCode)) {
-      forceLogout(errorMessage);
-      throw new Error("登录状态已失效");
+    if (response.status === 403) {
+      const errorText = await response.text();
+      const errorPayload = tryParseErrorPayload(errorText);
+      const errorCode = errorPayload?.code ?? "";
+      const errorMessage = formatErrorMessage(errorPayload, errorText || "没有权限访问");
+
+      if (errorCode === ErrorCodes.AntiforgeryTokenInvalid && !options?.antiforgeryRetry) {
+        clearAntiforgeryToken();
+        return requestApi<T>(path, init, { ...(options ?? {}), antiforgeryRetry: true, antiforgeryToken: undefined });
+      }
+
+      if (shouldAttemptRefresh) {
+        const refreshed = await tryRefreshTokens();
+        if (refreshed) {
+          return requestApi<T>(path, init, { ...(options ?? {}), isRetry: true });
+        }
+      }
+
+      if (shouldForceLogout(errorCode)) {
+        forceLogout(errorMessage);
+        throw new Error("登录状态已失效");
+      }
+
+      if (!options?.suppressErrorMessage) {
+        showError(errorMessage);
+      }
+      throw buildApiError(errorMessage, response.status, errorPayload, errorText);
     }
 
-    if (!options?.suppressErrorMessage) {
-      showError(errorMessage);
+    if (!response.ok) {
+      const errorText = await response.text();
+      const errorPayload = tryParseErrorPayload(errorText);
+      const errorMessage = formatErrorMessage(errorPayload, errorText || "网络请求失败");
+      if (!options?.suppressErrorMessage) {
+        showError(errorMessage);
+      }
+      throw buildApiError(errorMessage, response.status, errorPayload, errorText);
     }
-    throw buildApiError(errorMessage, response.status, errorPayload, errorText);
+
+    return (await response.json()) as T;
+  };
+
+  const requestPromise = runRequest();
+  if (writeRequestSignature) {
+    inFlightWriteRequests.set(writeRequestSignature, requestPromise as Promise<unknown>);
   }
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    const errorPayload = tryParseErrorPayload(errorText);
-    const errorMessage = formatErrorMessage(errorPayload, errorText || "网络请求失败");
-    if (!options?.suppressErrorMessage) {
-      showError(errorMessage);
+  try {
+    return await requestPromise;
+  } finally {
+    if (writeRequestSignature) {
+      const current = inFlightWriteRequests.get(writeRequestSignature);
+      if (current === requestPromise) {
+        inFlightWriteRequests.delete(writeRequestSignature);
+      }
     }
-    throw buildApiError(errorMessage, response.status, errorPayload, errorText);
   }
-
-  return (await response.json()) as T;
 }
 
 /**
@@ -238,29 +267,57 @@ export async function requestApiBlob(path: string, init?: RequestInit, options?:
     if (antiforgeryToken) {
       headers.set("X-CSRF-TOKEN", antiforgeryToken);
     }
+    options = { ...(options ?? {}), idempotencyKey, antiforgeryToken };
+  }
+
+  const writeRequestSignature = shouldEnableWriteRequestDeduplication(method, shouldAttachSecurityHeaders, options)
+    ? buildWriteRequestSignature(path, method, init?.body, tenantId, undefined)
+    : null;
+  if (writeRequestSignature) {
+    const inFlight = inFlightWriteRequests.get(writeRequestSignature);
+    if (inFlight) {
+      return (await inFlight) as Blob;
+    }
   }
 
   const requestInit: RequestInit = { ...init, headers, credentials: "include" };
-  const response = await fetch(`${API_BASE}${path}`, requestInit);
+  const runRequest = async () => {
+    const response = await fetch(`${API_BASE}${path}`, requestInit);
 
-  if (response.status === 401) {
-    const refreshed = await tryRefreshTokens();
-    if (refreshed) {
-      return requestApiBlob(path, init, { ...(options ?? {}), isRetry: true });
+    if (response.status === 401) {
+      const refreshed = await tryRefreshTokens();
+      if (refreshed) {
+        return requestApiBlob(path, init, { ...(options ?? {}), isRetry: true });
+      }
+    }
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      const errorPayload = tryParseErrorPayload(errorText);
+      const errorMessage = formatErrorMessage(errorPayload, errorText || "下载失败");
+      if (!options?.suppressErrorMessage) {
+        showError(errorMessage);
+      }
+      throw buildApiError(errorMessage, response.status, errorPayload, errorText);
+    }
+
+    return response.blob();
+  };
+
+  const requestPromise = runRequest();
+  if (writeRequestSignature) {
+    inFlightWriteRequests.set(writeRequestSignature, requestPromise as Promise<unknown>);
+  }
+  try {
+    return await requestPromise;
+  } finally {
+    if (writeRequestSignature) {
+      const current = inFlightWriteRequests.get(writeRequestSignature);
+      if (current === requestPromise) {
+        inFlightWriteRequests.delete(writeRequestSignature);
+      }
     }
   }
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    const errorPayload = tryParseErrorPayload(errorText);
-    const errorMessage = formatErrorMessage(errorPayload, errorText || "下载失败");
-    if (!options?.suppressErrorMessage) {
-      showError(errorMessage);
-    }
-    throw buildApiError(errorMessage, response.status, errorPayload, errorText);
-  }
-
-  return response.blob();
 }
 
 let reportingClientError = false;
@@ -293,6 +350,58 @@ export async function reportClientErrorSilently(payload: ClientErrorReportPayloa
 
 function isUnsafeMethod(method: string) {
   return !["GET", "HEAD", "OPTIONS", "TRACE"].includes(method);
+}
+
+function shouldEnableWriteRequestDeduplication(
+  method: string,
+  shouldAttachSecurityHeaders: boolean,
+  options?: RequestOptions
+) {
+  return shouldAttachSecurityHeaders && isUnsafeMethod(method) && !options?.isRetry && !options?.antiforgeryRetry;
+}
+
+function buildWriteRequestSignature(
+  path: string,
+  method: string,
+  body: BodyInit | null | undefined,
+  tenantId: string | null,
+  projectId: string | null | undefined
+) {
+  const normalizedBody = normalizeRequestBodyForSignature(body);
+  return [tenantId ?? "", projectId ?? "", method.toUpperCase(), path, normalizedBody].join("|");
+}
+
+function normalizeRequestBodyForSignature(body: BodyInit | null | undefined) {
+  if (body === null || body === undefined) {
+    return "";
+  }
+
+  if (typeof body === "string") {
+    return body;
+  }
+
+  if (typeof URLSearchParams !== "undefined" && body instanceof URLSearchParams) {
+    return body.toString();
+  }
+
+  if (typeof FormData !== "undefined" && body instanceof FormData) {
+    const entries = Array.from(body.entries()).map(([key, value]) => [key, String(value)]);
+    return JSON.stringify(entries);
+  }
+
+  if (typeof Blob !== "undefined" && body instanceof Blob) {
+    return `blob:${body.type}:${body.size}`;
+  }
+
+  if (body instanceof ArrayBuffer) {
+    return `array-buffer:${body.byteLength}`;
+  }
+
+  if (ArrayBuffer.isView(body)) {
+    return `typed-array:${body.byteLength}`;
+  }
+
+  return String(body);
 }
 
 function shouldRequireProjectContext(path: string): boolean {
