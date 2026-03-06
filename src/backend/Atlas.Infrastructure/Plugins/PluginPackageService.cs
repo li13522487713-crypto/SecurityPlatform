@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using System.Text.Json;
 using Atlas.Application.Plugins.Abstractions;
+using Atlas.Application.Plugins.Models;
 using Microsoft.Extensions.Logging;
 
 namespace Atlas.Infrastructure.Plugins;
@@ -50,7 +51,8 @@ public sealed class PluginPackageService
         var pluginDir = Path.Combine(pluginRootPath, manifest.Code);
         Directory.CreateDirectory(pluginDir);
 
-        // 3. 解压所有文件
+        // 3. 解压所有文件（防御 Zip Slip：确保目标路径在 pluginDir 内）
+        var canonicalPluginDir = Path.GetFullPath(pluginDir) + Path.DirectorySeparatorChar;
         foreach (var entry in archive.Entries)
         {
             if (entry.FullName.EndsWith('/'))
@@ -58,7 +60,15 @@ public sealed class PluginPackageService
                 continue; // 跳过目录条目
             }
 
-            var destFile = Path.Combine(pluginDir, entry.FullName.Replace('/', Path.DirectorySeparatorChar));
+            var destFile = Path.GetFullPath(
+                Path.Combine(pluginDir, entry.FullName.Replace('/', Path.DirectorySeparatorChar)));
+
+            if (!destFile.StartsWith(canonicalPluginDir, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    $"插件包包含非法路径条目，可能存在 Zip Slip 攻击：{entry.FullName}");
+            }
+
             var destDir = Path.GetDirectoryName(destFile)!;
             Directory.CreateDirectory(destDir);
 
@@ -95,6 +105,12 @@ public sealed class PluginPackageService
             throw new InvalidOperationException("manifest.json: Code 不能为空");
         }
 
+        // Code 仅允许字母、数字、连字符、下划线，防止路径注入
+        if (!System.Text.RegularExpressions.Regex.IsMatch(manifest.Code, @"^[A-Za-z0-9_\-]+$"))
+        {
+            throw new InvalidOperationException("manifest.json: Code 包含非法字符，只允许字母、数字、连字符和下划线");
+        }
+
         if (string.IsNullOrWhiteSpace(manifest.Version))
         {
             throw new InvalidOperationException("manifest.json: Version 不能为空");
@@ -105,15 +121,4 @@ public sealed class PluginPackageService
             throw new InvalidOperationException("manifest.json: Name 不能为空");
         }
     }
-}
-
-public sealed record PluginManifest
-{
-    public string Code { get; init; } = string.Empty;
-    public string Name { get; init; } = string.Empty;
-    public string Version { get; init; } = string.Empty;
-    public string Description { get; init; } = string.Empty;
-    public string Author { get; init; } = string.Empty;
-    public string? EntryAssembly { get; init; }
-    public string? MinAtlasVersion { get; init; }
 }

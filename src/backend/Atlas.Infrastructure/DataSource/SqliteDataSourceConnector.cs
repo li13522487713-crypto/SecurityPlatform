@@ -115,7 +115,9 @@ public sealed class SqliteDataSourceConnector : IDataSourceConnector
         CancellationToken cancellationToken)
     {
         using var cmd = conn.CreateCommand();
-        cmd.CommandText = $"PRAGMA table_info({tableName})";
+        // 使用双引号引用表名，并将内部双引号转义为 ""，防止含特殊字符的表名引发意外行为
+        var quotedName = tableName.Replace("\"", "\"\"");
+        cmd.CommandText = $"PRAGMA table_info(\"{quotedName}\")";
         using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
 
         var columns = new List<ColumnInfo>();

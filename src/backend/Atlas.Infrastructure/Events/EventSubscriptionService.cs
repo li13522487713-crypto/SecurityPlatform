@@ -82,8 +82,9 @@ public sealed class EventSubscriptionService : IEventSubscriptionService
 
     public async Task<IReadOnlyList<EventSubscription>> GetMatchingAsync(string eventType, CancellationToken cancellationToken)
     {
+        var tenantId = _tenantProvider.TenantId.Value;
         var all = await _db.Queryable<EventSubscription>()
-            .Where(s => s.IsActive)
+            .Where(s => s.IsActive && s.TenantId == tenantId)
             .ToListAsync(cancellationToken);
 
         return all.Where(s =>
