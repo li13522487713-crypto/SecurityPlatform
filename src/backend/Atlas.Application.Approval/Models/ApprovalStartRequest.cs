@@ -8,8 +8,13 @@ public record ApprovalStartRequest
     /// <summary>流程定义 ID</summary>
     public required long DefinitionId { get; init; }
 
-    /// <summary>业务 key（用于关联业务数据）</summary>
+    /// <summary>
+    /// 业务 key（技术关联标识符，格式通常为 "{source}:{id}"，用于状态回写和证据链关联）
+    /// </summary>
     public required string BusinessKey { get; init; }
+
+    /// <summary>审批标题（人类可读名称，用于通知展示）</summary>
+    public string? Title { get; init; }
 
     /// <summary>业务数据 JSON</summary>
     public string? DataJson { get; init; }

@@ -34,16 +34,20 @@ public sealed class ApprovalEventPublisher
             catch (Exception ex) { _logger?.LogError(ex, "Event handler failed: OnInstanceStarted, Instance={InstanceId}", e.InstanceId); }
         }
 
-        await _eventBus.PublishAsync(new ApprovalInstanceDomainEvent
+        try
         {
-            TenantId = e.TenantId,
-            InstanceId = e.InstanceId,
-            DefinitionId = e.DefinitionId,
-            BusinessKey = e.BusinessKey,
-            DataJson = e.DataJson,
-            ActorUserId = e.ActorUserId,
-            EventType = ApprovalInstanceEventType.Started
-        }, ct);
+            await _eventBus.PublishAsync(new ApprovalInstanceDomainEvent
+            {
+                TenantId = e.TenantId,
+                InstanceId = e.InstanceId,
+                DefinitionId = e.DefinitionId,
+                BusinessKey = e.BusinessKey,
+                DataJson = e.DataJson,
+                ActorUserId = e.ActorUserId,
+                EventType = ApprovalInstanceEventType.Started
+            }, ct);
+        }
+        catch (Exception ex) { _logger?.LogError(ex, "EventBus publish failed: ApprovalInstanceStarted, Instance={InstanceId}", e.InstanceId); }
     }
 
     public async Task PublishInstanceCompletedAsync(ApprovalInstanceEvent e, CancellationToken ct)
@@ -54,16 +58,20 @@ public sealed class ApprovalEventPublisher
             catch (Exception ex) { _logger?.LogError(ex, "Event handler failed: OnInstanceCompleted, Instance={InstanceId}", e.InstanceId); }
         }
 
-        await _eventBus.PublishAsync(new ApprovalInstanceDomainEvent
+        try
         {
-            TenantId = e.TenantId,
-            InstanceId = e.InstanceId,
-            DefinitionId = e.DefinitionId,
-            BusinessKey = e.BusinessKey,
-            DataJson = e.DataJson,
-            ActorUserId = e.ActorUserId,
-            EventType = ApprovalInstanceEventType.Completed
-        }, ct);
+            await _eventBus.PublishAsync(new ApprovalInstanceDomainEvent
+            {
+                TenantId = e.TenantId,
+                InstanceId = e.InstanceId,
+                DefinitionId = e.DefinitionId,
+                BusinessKey = e.BusinessKey,
+                DataJson = e.DataJson,
+                ActorUserId = e.ActorUserId,
+                EventType = ApprovalInstanceEventType.Completed
+            }, ct);
+        }
+        catch (Exception ex) { _logger?.LogError(ex, "EventBus publish failed: ApprovalInstanceCompleted, Instance={InstanceId}", e.InstanceId); }
     }
 
     public async Task PublishInstanceRejectedAsync(ApprovalInstanceEvent e, CancellationToken ct)
@@ -74,16 +82,20 @@ public sealed class ApprovalEventPublisher
             catch (Exception ex) { _logger?.LogError(ex, "Event handler failed: OnInstanceRejected, Instance={InstanceId}", e.InstanceId); }
         }
 
-        await _eventBus.PublishAsync(new ApprovalInstanceDomainEvent
+        try
         {
-            TenantId = e.TenantId,
-            InstanceId = e.InstanceId,
-            DefinitionId = e.DefinitionId,
-            BusinessKey = e.BusinessKey,
-            DataJson = e.DataJson,
-            ActorUserId = e.ActorUserId,
-            EventType = ApprovalInstanceEventType.Rejected
-        }, ct);
+            await _eventBus.PublishAsync(new ApprovalInstanceDomainEvent
+            {
+                TenantId = e.TenantId,
+                InstanceId = e.InstanceId,
+                DefinitionId = e.DefinitionId,
+                BusinessKey = e.BusinessKey,
+                DataJson = e.DataJson,
+                ActorUserId = e.ActorUserId,
+                EventType = ApprovalInstanceEventType.Rejected
+            }, ct);
+        }
+        catch (Exception ex) { _logger?.LogError(ex, "EventBus publish failed: ApprovalInstanceRejected, Instance={InstanceId}", e.InstanceId); }
     }
 
     public async Task PublishInstanceCanceledAsync(ApprovalInstanceEvent e, CancellationToken ct)
@@ -94,16 +106,20 @@ public sealed class ApprovalEventPublisher
             catch (Exception ex) { _logger?.LogError(ex, "Event handler failed: OnInstanceCanceled, Instance={InstanceId}", e.InstanceId); }
         }
 
-        await _eventBus.PublishAsync(new ApprovalInstanceDomainEvent
+        try
         {
-            TenantId = e.TenantId,
-            InstanceId = e.InstanceId,
-            DefinitionId = e.DefinitionId,
-            BusinessKey = e.BusinessKey,
-            DataJson = e.DataJson,
-            ActorUserId = e.ActorUserId,
-            EventType = ApprovalInstanceEventType.Canceled
-        }, ct);
+            await _eventBus.PublishAsync(new ApprovalInstanceDomainEvent
+            {
+                TenantId = e.TenantId,
+                InstanceId = e.InstanceId,
+                DefinitionId = e.DefinitionId,
+                BusinessKey = e.BusinessKey,
+                DataJson = e.DataJson,
+                ActorUserId = e.ActorUserId,
+                EventType = ApprovalInstanceEventType.Canceled
+            }, ct);
+        }
+        catch (Exception ex) { _logger?.LogError(ex, "EventBus publish failed: ApprovalInstanceCanceled, Instance={InstanceId}", e.InstanceId); }
     }
 
     public async Task PublishTaskApprovedAsync(ApprovalTaskEvent e, CancellationToken ct)
@@ -114,17 +130,21 @@ public sealed class ApprovalEventPublisher
             catch (Exception ex) { _logger?.LogError(ex, "Event handler failed: OnTaskApproved, Task={TaskId}", e.TaskId); }
         }
 
-        await _eventBus.PublishAsync(new ApprovalTaskDomainEvent
+        try
         {
-            TenantId = e.TenantId,
-            InstanceId = e.InstanceId,
-            TaskId = e.TaskId,
-            NodeId = e.NodeId,
-            BusinessKey = e.BusinessKey,
-            ActorUserId = e.ActorUserId,
-            Comment = e.Comment,
-            EventType = ApprovalTaskEventType.Approved
-        }, ct);
+            await _eventBus.PublishAsync(new ApprovalTaskDomainEvent
+            {
+                TenantId = e.TenantId,
+                InstanceId = e.InstanceId,
+                TaskId = e.TaskId,
+                NodeId = e.NodeId,
+                BusinessKey = e.BusinessKey,
+                ActorUserId = e.ActorUserId,
+                Comment = e.Comment,
+                EventType = ApprovalTaskEventType.Approved
+            }, ct);
+        }
+        catch (Exception ex) { _logger?.LogError(ex, "EventBus publish failed: ApprovalTaskApproved, Task={TaskId}", e.TaskId); }
     }
 
     public async Task PublishTaskRejectedAsync(ApprovalTaskEvent e, CancellationToken ct)
@@ -135,16 +155,20 @@ public sealed class ApprovalEventPublisher
             catch (Exception ex) { _logger?.LogError(ex, "Event handler failed: OnTaskRejected, Task={TaskId}", e.TaskId); }
         }
 
-        await _eventBus.PublishAsync(new ApprovalTaskDomainEvent
+        try
         {
-            TenantId = e.TenantId,
-            InstanceId = e.InstanceId,
-            TaskId = e.TaskId,
-            NodeId = e.NodeId,
-            BusinessKey = e.BusinessKey,
-            ActorUserId = e.ActorUserId,
-            Comment = e.Comment,
-            EventType = ApprovalTaskEventType.Rejected
-        }, ct);
+            await _eventBus.PublishAsync(new ApprovalTaskDomainEvent
+            {
+                TenantId = e.TenantId,
+                InstanceId = e.InstanceId,
+                TaskId = e.TaskId,
+                NodeId = e.NodeId,
+                BusinessKey = e.BusinessKey,
+                ActorUserId = e.ActorUserId,
+                Comment = e.Comment,
+                EventType = ApprovalTaskEventType.Rejected
+            }, ct);
+        }
+        catch (Exception ex) { _logger?.LogError(ex, "EventBus publish failed: ApprovalTaskRejected, Task={TaskId}", e.TaskId); }
     }
 }

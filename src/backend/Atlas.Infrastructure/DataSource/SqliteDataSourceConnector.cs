@@ -80,6 +80,11 @@ public sealed class SqliteDataSourceConnector : IDataSourceConnector
     {
         ValidateReadOnlySql(sql);
 
+        if (pageIndex < 1)
+            throw new BusinessException($"pageIndex 必须 >= 1，当前值：{pageIndex}", "INVALID_PAGE_INDEX");
+        if (pageSize < 1)
+            throw new BusinessException($"pageSize 必须 >= 1，当前值：{pageSize}", "INVALID_PAGE_SIZE");
+
         using var conn = new Microsoft.Data.Sqlite.SqliteConnection(connectionString);
         await conn.OpenAsync(cancellationToken);
 

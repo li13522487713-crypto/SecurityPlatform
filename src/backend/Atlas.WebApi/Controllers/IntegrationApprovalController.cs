@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Atlas.Application.Approval.Abstractions;
 using Atlas.Application.Approval.Models;
 using Atlas.Application.Integration;
@@ -59,11 +60,46 @@ public sealed class IntegrationApprovalController : ControllerBase
             return Unauthorized(ApiResponse<object>.Fail("UNAUTHORIZED", "API Key 无效或无权限", HttpContext.TraceIdentifier));
         }
 
+        // 将 FormData 与 ExtraData 合并为一个 DataJson 对象，避免字段丢失
+        string? mergedDataJson = null;
+        if (!string.IsNullOrWhiteSpace(request.FormData) || !string.IsNullOrWhiteSpace(request.ExtraData))
+        {
+            var merged = new Dictionary<string, JsonElement>();
+            if (!string.IsNullOrWhiteSpace(request.FormData))
+            {
+                try
+                {
+                    var formDoc = JsonDocument.Parse(request.FormData);
+                    foreach (var prop in formDoc.RootElement.EnumerateObject())
+                        merged[prop.Name] = prop.Value.Clone();
+                }
+                catch (JsonException)
+                {
+                    merged["formData"] = JsonDocument.Parse(JsonSerializer.Serialize(request.FormData)).RootElement.Clone();
+                }
+            }
+            if (!string.IsNullOrWhiteSpace(request.ExtraData))
+            {
+                try
+                {
+                    var extraDoc = JsonDocument.Parse(request.ExtraData);
+                    foreach (var prop in extraDoc.RootElement.EnumerateObject())
+                        merged[prop.Name] = prop.Value.Clone();
+                }
+                catch (JsonException)
+                {
+                    merged["extraData"] = JsonDocument.Parse(JsonSerializer.Serialize(request.ExtraData)).RootElement.Clone();
+                }
+            }
+            mergedDataJson = JsonSerializer.Serialize(merged);
+        }
+
         var startRequest = new ApprovalStartRequest
         {
             DefinitionId = request.FlowDefinitionId,
-            BusinessKey = request.Title,
-            DataJson = request.FormData
+            BusinessKey = request.BusinessKey,
+            Title = request.Title,
+            DataJson = mergedDataJson
         };
 
         var instance = await _commandService.StartAsync(tenantId, startRequest, request.InitiatorUserId, cancellationToken);
@@ -151,6 +187,7 @@ public sealed class IntegrationApprovalController : ControllerBase
 
 public sealed record IntegrationStartApprovalRequest(
     long FlowDefinitionId,
+    string BusinessKey,
     string Title,
     long InitiatorUserId,
     string? FormData,
