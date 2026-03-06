@@ -13,6 +13,7 @@ using Atlas.WebApi.Authorization;
 using Microsoft.Extensions.DependencyInjection;
 using Atlas.WebApi.Helpers;
 using System.Text;
+using Atlas.Application.Identity.Abstractions;
 
 namespace Atlas.WebApi.Controllers;
 
@@ -31,6 +32,7 @@ public sealed class ApprovalRuntimeController : ControllerBase
     private readonly IClientContextAccessor _clientContextAccessor;
     private readonly IValidator<ApprovalStartRequest> _startValidator;
     private readonly IAuditRecorder _auditRecorder;
+    private readonly IRbacResolver _rbacResolver;
 
     public ApprovalRuntimeController(
         IApprovalRuntimeQueryService queryService,
@@ -39,7 +41,8 @@ public sealed class ApprovalRuntimeController : ControllerBase
         ICurrentUserAccessor currentUserAccessor,
         IClientContextAccessor clientContextAccessor,
         IValidator<ApprovalStartRequest> startValidator,
-        IAuditRecorder auditRecorder)
+        IAuditRecorder auditRecorder,
+        IRbacResolver rbacResolver)
     {
         _queryService = queryService;
         _commandService = commandService;
@@ -48,6 +51,7 @@ public sealed class ApprovalRuntimeController : ControllerBase
         _clientContextAccessor = clientContextAccessor;
         _startValidator = startValidator;
         _auditRecorder = auditRecorder;
+        _rbacResolver = rbacResolver;
     }
 
     /// <summary>
@@ -223,6 +227,7 @@ public sealed class ApprovalRuntimeController : ControllerBase
     /// 取消流程实例
     /// </summary>
     [HttpPost("{id:long}/cancellation")]
+    [Authorize(Policy = PermissionPolicies.ApprovalFlowView)]
     public async Task<ApiResponse<string>> CancelAsync(
         long id,
         CancellationToken cancellationToken = default)
@@ -254,6 +259,7 @@ public sealed class ApprovalRuntimeController : ControllerBase
     /// 挂起流程实例
     /// </summary>
     [HttpPost("{id:long}/suspension")]
+    [Authorize(Policy = PermissionPolicies.ApprovalFlowView)]
     public async Task<ApiResponse<string>> SuspendAsync(
         long id,
         CancellationToken cancellationToken = default)
@@ -285,6 +291,7 @@ public sealed class ApprovalRuntimeController : ControllerBase
     /// 激活流程实例
     /// </summary>
     [HttpPost("{id:long}/activation")]
+    [Authorize(Policy = PermissionPolicies.ApprovalFlowView)]
     public async Task<ApiResponse<string>> ActivateAsync(
         long id,
         CancellationToken cancellationToken = default)
@@ -316,7 +323,7 @@ public sealed class ApprovalRuntimeController : ControllerBase
     /// 强制终止流程实例（管理员操作）
     /// </summary>
     [HttpPost("{id:long}/termination")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Policy = PermissionPolicies.ApprovalFlowManage)]
     public async Task<ApiResponse<string>> TerminateAsync(
         long id,
         [FromBody] string? comment,
@@ -372,6 +379,7 @@ public sealed class ApprovalRuntimeController : ControllerBase
     /// 提交草稿（激活流程）
     /// </summary>
     [HttpPost("{id:long}/submission")]
+    [Authorize(Policy = PermissionPolicies.ApprovalFlowView)]
     public async Task<ApiResponse<ApprovalInstanceResponse>> SubmitDraftAsync(
         long id,
         CancellationToken cancellationToken = default)
@@ -538,7 +546,12 @@ public sealed class ApprovalRuntimeController : ControllerBase
         ApprovalInstanceResponse instance,
         CancellationToken cancellationToken)
     {
-        var isAdmin = currentUser.Roles.Contains("Admin", StringComparer.OrdinalIgnoreCase);
+        var roleCodes = await _rbacResolver.GetRoleCodesAsync(
+            currentUser.TenantId,
+            currentUser.UserId,
+            cancellationToken);
+        var isAdmin = roleCodes.Contains("Admin", StringComparer.OrdinalIgnoreCase)
+            || roleCodes.Contains("SuperAdmin", StringComparer.OrdinalIgnoreCase);
         if (isAdmin)
         {
             return true;

@@ -4,6 +4,7 @@ using System.Diagnostics;
 using Atlas.Application.Approval.Abstractions;
 using Atlas.Application.Approval.Models;
 using Atlas.Application.Approval.Repositories;
+using Atlas.Application.Identity.Abstractions;
 using Atlas.Core.Abstractions;
 using Atlas.Core.Exceptions;
 using Atlas.Core.Tenancy;
@@ -40,6 +41,7 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
     private readonly IMapper _mapper;
     private readonly FlowEngine _flowEngine;
     private readonly ILogger<ApprovalRuntimeCommandService>? _logger;
+    private readonly IRbacResolver _rbacResolver;
 
     public ApprovalRuntimeCommandService(
         IApprovalFlowRepository flowRepository,
@@ -59,7 +61,8 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
         ExternalCallbackService? callbackService = null,
         ApprovalStatusSyncHandler? statusSyncHandler = null,
         IBackgroundWorkQueue? backgroundWorkQueue = null,
-        ILogger<ApprovalRuntimeCommandService>? logger = null)
+        ILogger<ApprovalRuntimeCommandService>? logger = null,
+        IRbacResolver? rbacResolver = null)
     {
         _flowRepository = flowRepository;
         _instanceRepository = instanceRepository;
@@ -79,6 +82,7 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
         _mapper = mapper;
         _logger = logger;
         _flowEngine = flowEngine;
+        _rbacResolver = rbacResolver ?? throw new ArgumentNullException(nameof(rbacResolver));
     }
 
     public async Task<ApprovalInstanceResponse> StartAsync(
@@ -574,7 +578,8 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
     {
         var instance = await _instanceRepository.GetByIdAsync(tenantId, instanceId, cancellationToken);
         if (instance == null) throw new BusinessException("INSTANCE_NOT_FOUND", "实例不存在");
-        
+
+        await EnsureInstanceOperationPermissionAsync(tenantId, instance, operatorUserId, cancellationToken);
         instance.Suspend();
         await _instanceRepository.UpdateAsync(instance, cancellationToken);
     }
@@ -588,6 +593,7 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
         var instance = await _instanceRepository.GetByIdAsync(tenantId, instanceId, cancellationToken);
         if (instance == null) throw new BusinessException("INSTANCE_NOT_FOUND", "实例不存在");
 
+        await EnsureInstanceOperationPermissionAsync(tenantId, instance, operatorUserId, cancellationToken);
         instance.Activate();
         await _instanceRepository.UpdateAsync(instance, cancellationToken);
     }
@@ -602,6 +608,7 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
         var instance = await _instanceRepository.GetByIdAsync(tenantId, instanceId, cancellationToken);
         if (instance == null) throw new BusinessException("INSTANCE_NOT_FOUND", "实例不存在");
 
+        await EnsureInstanceOperationPermissionAsync(tenantId, instance, operatorUserId, cancellationToken);
         instance.Terminate(DateTimeOffset.UtcNow);
         await _instanceRepository.UpdateAsync(instance, cancellationToken);
         
@@ -639,6 +646,7 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
         var instance = await _instanceRepository.GetByIdAsync(tenantId, instanceId, cancellationToken);
         if (instance == null) throw new BusinessException("INSTANCE_NOT_FOUND", "草稿不存在");
         if (instance.Status != ApprovalInstanceStatus.Draft) throw new BusinessException("INVALID_STATUS", "非草稿状态");
+        await EnsureDraftSubmitPermissionAsync(tenantId, instance, initiatorUserId, cancellationToken);
 
         instance.Activate(); // 变更为 Running
         await _instanceRepository.UpdateAsync(instance, cancellationToken);
@@ -731,6 +739,60 @@ public sealed class ApprovalRuntimeCommandService : IApprovalRuntimeCommandServi
             }
             await _taskRepository.UpdateRangeAsync(allActiveTasks, cancellationToken);
         }
+    }
+
+    private async Task EnsureInstanceOperationPermissionAsync(
+        TenantId tenantId,
+        ApprovalProcessInstance instance,
+        long operatorUserId,
+        CancellationToken cancellationToken)
+    {
+        if (instance.InitiatorUserId == operatorUserId)
+        {
+            return;
+        }
+
+        var roleCodes = await _rbacResolver.GetRoleCodesAsync(tenantId, operatorUserId, cancellationToken);
+        var isAdmin = roleCodes.Contains("Admin", StringComparer.OrdinalIgnoreCase)
+            || roleCodes.Contains("SuperAdmin", StringComparer.OrdinalIgnoreCase);
+        if (isAdmin)
+        {
+            return;
+        }
+
+        var hasTaskAccess = await _taskRepository.ExistsByInstanceAndAssigneeAsync(
+            tenantId,
+            instance.Id,
+            operatorUserId,
+            cancellationToken);
+        if (hasTaskAccess)
+        {
+            return;
+        }
+
+        throw new BusinessException("FORBIDDEN", "您无权操作该流程实例");
+    }
+
+    private async Task EnsureDraftSubmitPermissionAsync(
+        TenantId tenantId,
+        ApprovalProcessInstance draft,
+        long operatorUserId,
+        CancellationToken cancellationToken)
+    {
+        if (draft.InitiatorUserId == operatorUserId)
+        {
+            return;
+        }
+
+        var roleCodes = await _rbacResolver.GetRoleCodesAsync(tenantId, operatorUserId, cancellationToken);
+        var isAdmin = roleCodes.Contains("Admin", StringComparer.OrdinalIgnoreCase)
+            || roleCodes.Contains("SuperAdmin", StringComparer.OrdinalIgnoreCase);
+        if (isAdmin)
+        {
+            return;
+        }
+
+        throw new BusinessException("FORBIDDEN", "只有发起人或管理员可以提交草稿");
     }
 
     #endregion

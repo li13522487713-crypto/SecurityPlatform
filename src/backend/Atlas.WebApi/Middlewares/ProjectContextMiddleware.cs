@@ -27,6 +27,7 @@ public sealed class ProjectContextMiddleware
         var appConfigQueryService = context.RequestServices.GetRequiredService<IAppConfigQueryService>();
         var currentUserAccessor = context.RequestServices.GetRequiredService<ICurrentUserAccessor>();
         var projectUserRepository = context.RequestServices.GetRequiredService<Atlas.Application.Identity.Repositories.IProjectUserRepository>();
+        var rbacResolver = context.RequestServices.GetRequiredService<IRbacResolver>();
 
         var endpoint = context.GetEndpoint();
         var allowAnonymous = endpoint?.Metadata.GetMetadata<IAllowAnonymous>() is not null;
@@ -73,7 +74,12 @@ public sealed class ProjectContextMiddleware
             return;
         }
 
-        if (!IsSystemRole(currentUser.Roles))
+        var isSystemRole = await IsSystemRoleAsync(
+            rbacResolver,
+            tenantId,
+            currentUser.UserId,
+            context.RequestAborted);
+        if (!isSystemRole)
         {
             var hasMembership = await projectUserRepository.ExistsAsync(tenantId, projectId, currentUser.UserId, context.RequestAborted);
             if (!hasMembership)
@@ -107,9 +113,14 @@ public sealed class ProjectContextMiddleware
         await context.Response.WriteAsJsonAsync(payload);
     }
 
-    private static bool IsSystemRole(IReadOnlyList<string> roles)
+    private static async Task<bool> IsSystemRoleAsync(
+        IRbacResolver rbacResolver,
+        TenantId tenantId,
+        long userId,
+        CancellationToken cancellationToken)
     {
-        return roles.Any(role =>
+        var roleCodes = await rbacResolver.GetRoleCodesAsync(tenantId, userId, cancellationToken);
+        return roleCodes.Any(role =>
             string.Equals(role, "SuperAdmin", StringComparison.OrdinalIgnoreCase)
             || string.Equals(role, "Admin", StringComparison.OrdinalIgnoreCase));
     }
