@@ -1,4 +1,4 @@
-﻿namespace Atlas.Core.Models;
+namespace Atlas.Core.Models;
 
 public sealed record ApiResponse<T>(
     bool Success,
@@ -8,6 +8,6 @@ public sealed record ApiResponse<T>(
     T? Data
 )
 {
-    public static ApiResponse<T> Ok(T data, string traceId) => new(true, ErrorCodes.Success, "OK", traceId, data);
+    public static ApiResponse<T> Ok(T? data, string traceId) => new(true, ErrorCodes.Success, "OK", traceId, data);
     public static ApiResponse<T> Fail(string code, string message, string traceId) => new(false, code, message, traceId, default);
 }

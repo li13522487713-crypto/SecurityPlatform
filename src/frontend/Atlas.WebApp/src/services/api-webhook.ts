@@ -1,4 +1,5 @@
 import { requestApi } from '@/services/api-core'
+import type { ApiResponse } from '@/types/api'
 
 export interface WebhookSubscription {
   id: number
@@ -27,11 +28,11 @@ export interface WebhookDeliveryLog {
 }
 
 export function getWebhooks() {
-  return requestApi<WebhookSubscription[]>('GET', '/api/v1/webhooks')
+  return requestApi<ApiResponse<WebhookSubscription[]>>('/webhooks')
 }
 
 export function getWebhook(id: number) {
-  return requestApi<WebhookSubscription>('GET', `/api/v1/webhooks/${id}`)
+  return requestApi<ApiResponse<WebhookSubscription>>(`/webhooks/${id}`)
 }
 
 export function createWebhook(data: {
@@ -41,7 +42,11 @@ export function createWebhook(data: {
   secret: string
   headers?: Record<string, string>
 }) {
-  return requestApi<{ id: number }>('POST', '/api/v1/webhooks', data)
+  return requestApi<ApiResponse<{ id: number }>>('/webhooks', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
 }
 
 export function updateWebhook(
@@ -54,17 +59,25 @@ export function updateWebhook(
     headers?: Record<string, string>
   }
 ) {
-  return requestApi<null>('PUT', `/api/v1/webhooks/${id}`, data)
+  return requestApi<ApiResponse<null>>(`/webhooks/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
 }
 
 export function deleteWebhook(id: number) {
-  return requestApi<null>('DELETE', `/api/v1/webhooks/${id}`)
+  return requestApi<ApiResponse<null>>(`/webhooks/${id}`, {
+    method: 'DELETE',
+  })
 }
 
 export function getWebhookDeliveries(id: number, pageSize = 50) {
-  return requestApi<WebhookDeliveryLog[]>('GET', `/api/v1/webhooks/${id}/deliveries?pageSize=${pageSize}`)
+  return requestApi<ApiResponse<WebhookDeliveryLog[]>>(`/webhooks/${id}/deliveries?pageSize=${pageSize}`)
 }
 
 export function testWebhookDelivery(id: number) {
-  return requestApi<null>('POST', `/api/v1/webhooks/${id}/test`)
+  return requestApi<ApiResponse<null>>(`/webhooks/${id}/test`, {
+    method: 'POST',
+  })
 }

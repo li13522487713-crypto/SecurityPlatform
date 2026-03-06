@@ -38,16 +38,16 @@ public sealed class OidcAccountMapper
         TenantId tenantId,
         CancellationToken cancellationToken)
     {
-        var sub = principal.FindFirstValue(JwtRegisteredClaimNames.Sub)
-            ?? principal.FindFirstValue(ClaimTypes.NameIdentifier)
+        var sub = GetClaimValue(principal, JwtRegisteredClaimNames.Sub)
+            ?? GetClaimValue(principal, ClaimTypes.NameIdentifier)
             ?? string.Empty;
 
-        var email = principal.FindFirstValue(JwtRegisteredClaimNames.Email)
-            ?? principal.FindFirstValue(ClaimTypes.Email)
+        var email = GetClaimValue(principal, JwtRegisteredClaimNames.Email)
+            ?? GetClaimValue(principal, ClaimTypes.Email)
             ?? string.Empty;
 
-        var displayName = principal.FindFirstValue("name")
-            ?? principal.FindFirstValue(ClaimTypes.Name)
+        var displayName = GetClaimValue(principal, "name")
+            ?? GetClaimValue(principal, ClaimTypes.Name)
             ?? email
             ?? sub;
 
@@ -72,11 +72,8 @@ public sealed class OidcAccountMapper
 
         // 创建新账号（空密码哈希，仅 OIDC 登录）
         var userId = _idGen.Generator.NextId();
-        var account = new UserAccount(tenantId, oidcUsername, displayName, string.Empty, userId)
-        {
-            Email = email,
-            IsActive = true
-        };
+        var account = new UserAccount(tenantId, oidcUsername, displayName, string.Empty, userId);
+        account.UpdateProfile(displayName, email, null);
         await _userRepo.AddAsync(account, cancellationToken);
 
         _logger.LogInformation("OIDC user {Sub} created new account {Id}", sub, userId);
@@ -88,5 +85,10 @@ public sealed class OidcAccountMapper
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(sub));
         var hash = Convert.ToHexString(bytes)[..16].ToLowerInvariant();
         return $"oidc_{hash}";
+    }
+
+    private static string? GetClaimValue(ClaimsPrincipal principal, string claimType)
+    {
+        return principal.FindFirst(claimType)?.Value;
     }
 }

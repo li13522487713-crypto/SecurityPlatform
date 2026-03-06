@@ -1,4 +1,4 @@
-﻿using AutoMapper;
+using AutoMapper;
 using Atlas.Application.Assets.Models;
 using Atlas.Domain.Assets.Entities;
 using Atlas.Core.Tenancy;
@@ -20,6 +20,7 @@ public sealed class AssetsMappingProfile : Profile
                 return new Asset(tenantId, src.Name, id);
             })
             .ForMember(dest => dest.Id, opt => opt.Ignore())
+            .ForMember(dest => dest.TenantId, opt => opt.Ignore())
             .ForMember(dest => dest.TenantIdValue, opt => opt.Ignore());
     }
 }

@@ -1,4 +1,4 @@
-﻿using Atlas.Core.Tenancy;
+using Atlas.Core.Tenancy;
 
 namespace Atlas.Core.Abstractions;
 
@@ -11,5 +11,9 @@ public abstract class TenantEntity : EntityBase, ITenantScoped
 
     public Guid TenantIdValue { get; protected set; }
 
-    public TenantId TenantId => new(TenantIdValue);
+    public TenantId TenantId
+    {
+        get => new(TenantIdValue);
+        set => TenantIdValue = value.Value;
+    }
 }

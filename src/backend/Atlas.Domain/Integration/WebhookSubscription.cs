@@ -1,4 +1,5 @@
 using Atlas.Core.Abstractions;
+using Atlas.Core.Tenancy;
 
 namespace Atlas.Domain.Integration;
 
@@ -7,6 +8,11 @@ namespace Atlas.Domain.Integration;
 /// </summary>
 public sealed class WebhookSubscription : TenantEntity
 {
+    public WebhookSubscription()
+        : base(TenantId.Empty)
+    {
+    }
+
     public string Name { get; set; } = string.Empty;
 
     /// <summary>订阅的事件类型，JSON 数组（如 ["approval.completed","approval.rejected"]）</summary>

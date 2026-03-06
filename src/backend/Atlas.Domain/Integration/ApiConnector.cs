@@ -1,4 +1,5 @@
 using Atlas.Core.Abstractions;
+using Atlas.Core.Tenancy;
 
 namespace Atlas.Domain.Integration;
 
@@ -7,6 +8,11 @@ namespace Atlas.Domain.Integration;
 /// </summary>
 public sealed class ApiConnector : TenantEntity
 {
+    public ApiConnector()
+        : base(TenantId.Empty)
+    {
+    }
+
     public string Name { get; set; } = string.Empty;
     public string BaseUrl { get; set; } = string.Empty;
     public ApiAuthType AuthType { get; set; }

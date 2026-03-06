@@ -11,41 +11,50 @@ import type { ApiResponse } from '@/types/api'
 // ─── 已安装插件管理 ───────────────────────────────────────────────────────────
 
 export function getInstalledPlugins() {
-  return requestApi<PluginDescriptor[]>('GET', '/api/v1/plugins')
+  return requestApi<ApiResponse<PluginDescriptor[]>>('/plugins')
 }
 
 export function reloadPlugins() {
-  return requestApi<{ count: number }>('POST', '/api/v1/plugins/reload')
+  return requestApi<ApiResponse<{ count: number }>>('/plugins/reload', {
+    method: 'POST',
+  })
 }
 
 export function enablePlugin(code: string) {
-  return requestApi<null>('POST', `/api/v1/plugins/${code}/enable`)
+  return requestApi<ApiResponse<null>>(`/plugins/${encodeURIComponent(code)}/enable`, {
+    method: 'POST',
+  })
 }
 
 export function disablePlugin(code: string) {
-  return requestApi<null>('POST', `/api/v1/plugins/${code}/disable`)
+  return requestApi<ApiResponse<null>>(`/plugins/${encodeURIComponent(code)}/disable`, {
+    method: 'POST',
+  })
 }
 
 export function unloadPlugin(code: string) {
-  return requestApi<null>('POST', `/api/v1/plugins/${code}/unload`)
+  return requestApi<ApiResponse<null>>(`/plugins/${encodeURIComponent(code)}/unload`, {
+    method: 'POST',
+  })
 }
 
 export function installPluginPackage(file: File) {
   const form = new FormData()
   form.append('package', file)
-  return requestApi<{ code: string; name: string; version: string }>(
-    'POST',
-    '/api/v1/plugins/install',
-    form,
-    { headers: {} } // let browser set content-type with boundary
-  )
+  return requestApi<ApiResponse<{ code: string; name: string; version: string }>>('/plugins/install', {
+    method: 'POST',
+    body: form,
+  })
 }
 
 export function getPluginConfig(code: string, tenantId?: string, appId?: string) {
   const params = new URLSearchParams()
   if (tenantId) params.set('tenantId', tenantId)
   if (appId) params.set('appId', appId)
-  return requestApi<{ configJson: string }>('GET', `/api/v1/plugins/${code}/config?${params}`)
+  const query = params.toString()
+  return requestApi<ApiResponse<{ configJson: string }>>(
+    `/plugins/${encodeURIComponent(code)}/config${query ? `?${query}` : ''}`
+  )
 }
 
 export function savePluginConfig(
@@ -54,7 +63,11 @@ export function savePluginConfig(
   configJson: string,
   scopeId?: string
 ) {
-  return requestApi<null>('PUT', `/api/v1/plugins/${code}/config`, { scope, scopeId, configJson })
+  return requestApi<ApiResponse<null>>(`/plugins/${encodeURIComponent(code)}/config`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ scope, scopeId, configJson }),
+  })
 }
 
 // ─── 插件市场 ──────────────────────────────────────────────────────────────────
@@ -70,28 +83,38 @@ export function searchPluginMarket(params: {
   if (params.category) q.set('category', params.category)
   q.set('pageIndex', String(params.pageIndex ?? 1))
   q.set('pageSize', String(params.pageSize ?? 20))
-  return requestApi<PluginMarketSearchResult>('GET', `/api/v1/plugin-market?${q}`)
+  return requestApi<ApiResponse<PluginMarketSearchResult>>(`/plugin-market?${q.toString()}`)
 }
 
 export function getPluginMarketEntry(code: string) {
-  return requestApi<PluginMarketEntry>('GET', `/api/v1/plugin-market/${code}`)
+  return requestApi<ApiResponse<PluginMarketEntry>>(`/plugin-market/${encodeURIComponent(code)}`)
 }
 
 export function getPluginMarketVersions(code: string) {
-  return requestApi<PluginMarketVersion[]>('GET', `/api/v1/plugin-market/${code}/versions`)
+  return requestApi<ApiResponse<PluginMarketVersion[]>>(`/plugin-market/${encodeURIComponent(code)}/versions`)
 }
 
 export function publishPlugin(data: PublishPluginRequest) {
-  return requestApi<{ id: number }>('POST', '/api/v1/plugin-market', data)
+  return requestApi<ApiResponse<{ id: number }>>('/plugin-market', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
 }
 
 export function updatePluginMarketEntry(
   id: number,
   data: { name: string; description: string; iconUrl?: string }
 ) {
-  return requestApi<null>('PUT', `/api/v1/plugin-market/${id}`, data)
+  return requestApi<ApiResponse<null>>(`/plugin-market/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
 }
 
 export function deprecatePlugin(id: number) {
-  return requestApi<null>('POST', `/api/v1/plugin-market/${id}/deprecate`)
+  return requestApi<ApiResponse<null>>(`/plugin-market/${id}/deprecate`, {
+    method: 'POST',
+  })
 }

@@ -8,6 +8,11 @@ namespace Atlas.Domain.Integration;
 /// </summary>
 public sealed class IntegrationApiKey : TenantEntity
 {
+    public IntegrationApiKey()
+        : base(TenantId.Empty)
+    {
+    }
+
     public string Name { get; set; } = string.Empty;
     public string KeyHash { get; set; } = string.Empty;
     public string[] Scopes { get; set; } = [];

@@ -36,7 +36,7 @@ public sealed class ApiConnectorService : IApiConnectorService
     {
         var tenantId = _tenantProvider.TenantId.Value;
         return await _db.Queryable<ApiConnector>()
-            .Where(c => c.TenantId == tenantId)
+            .Where(c => c.TenantIdValue == tenantId)
             .OrderByDescending(c => c.CreatedAt)
             .ToListAsync(cancellationToken);
     }
@@ -45,7 +45,7 @@ public sealed class ApiConnectorService : IApiConnectorService
     {
         var tenantId = _tenantProvider.TenantId.Value;
         return await _db.Queryable<ApiConnector>()
-            .Where(c => c.Id == id && c.TenantId == tenantId)
+            .Where(c => c.Id == id && c.TenantIdValue == tenantId)
             .FirstAsync(cancellationToken);
     }
 
@@ -87,14 +87,14 @@ public sealed class ApiConnectorService : IApiConnectorService
                 IsActive = request.IsActive,
                 UpdatedAt = DateTimeOffset.UtcNow
             })
-            .Where(c => c.Id == id && c.TenantId == tenantId)
+            .Where(c => c.Id == id && c.TenantIdValue == tenantId)
             .ExecuteCommandAsync(cancellationToken);
     }
 
     public async Task DeleteAsync(long id, CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.TenantId.Value;
-        await _db.Deleteable<ApiConnector>().Where(c => c.Id == id && c.TenantId == tenantId).ExecuteCommandAsync(cancellationToken);
+        await _db.Deleteable<ApiConnector>().Where(c => c.Id == id && c.TenantIdValue == tenantId).ExecuteCommandAsync(cancellationToken);
         await _db.Deleteable<ApiConnectorOperation>().Where(o => o.ConnectorId == id).ExecuteCommandAsync(cancellationToken);
     }
 
@@ -109,7 +109,7 @@ public sealed class ApiConnectorService : IApiConnectorService
     {
         var tenantId = _tenantProvider.TenantId.Value;
         var connector = await _db.Queryable<ApiConnector>()
-            .Where(c => c.Id == connectorId && c.TenantId == tenantId)
+            .Where(c => c.Id == connectorId && c.TenantIdValue == tenantId)
             .FirstAsync(cancellationToken);
 
         if (connector?.OpenApiSpecUrl is null) return;
@@ -139,7 +139,7 @@ public sealed class ApiConnectorService : IApiConnectorService
     {
         var tenantId = _tenantProvider.TenantId.Value;
         var connector = await _db.Queryable<ApiConnector>()
-            .Where(c => c.Id == connectorId && c.TenantId == tenantId)
+            .Where(c => c.Id == connectorId && c.TenantIdValue == tenantId)
             .FirstAsync(cancellationToken);
 
         if (connector is null)
@@ -194,7 +194,7 @@ public sealed class ApiConnectorService : IApiConnectorService
     {
         var tenantId = _tenantProvider.TenantId.Value;
         var connector = await _db.Queryable<ApiConnector>()
-            .Where(c => c.Id == connectorId && c.TenantId == tenantId)
+            .Where(c => c.Id == connectorId && c.TenantIdValue == tenantId)
             .FirstAsync(cancellationToken);
 
         if (connector is null || string.IsNullOrEmpty(connector.HealthCheckUrl)) return false;

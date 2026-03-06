@@ -23,7 +23,7 @@ public sealed class ComponentTemplateQueryService : IComponentTemplateQueryServi
     {
         var tenantId = _tenantProvider.TenantId.Value;
         var query = _db.Queryable<ComponentTemplate>()
-            .Where(t => t.TenantId == tenantId);
+            .Where(t => t.TenantIdValue == tenantId);
 
         if (!string.IsNullOrWhiteSpace(keyword))
         {
@@ -46,7 +46,7 @@ public sealed class ComponentTemplateQueryService : IComponentTemplateQueryServi
     {
         var tenantId = _tenantProvider.TenantId.Value;
         return await _db.Queryable<ComponentTemplate>()
-            .Where(t => t.Id == id && t.TenantId == tenantId)
+            .Where(t => t.Id == id && t.TenantIdValue == tenantId)
             .FirstAsync(cancellationToken);
     }
 }
@@ -101,7 +101,7 @@ public sealed class ComponentTemplateCommandService : IComponentTemplateCommandS
                 Version = request.Version,
                 UpdatedAt = DateTimeOffset.UtcNow
             })
-            .Where(t => t.Id == id && t.TenantId == tenantId && !t.IsBuiltIn)
+            .Where(t => t.Id == id && t.TenantIdValue == tenantId && !t.IsBuiltIn)
             .ExecuteCommandAsync(cancellationToken);
 
         if (rows == 0)
@@ -114,7 +114,7 @@ public sealed class ComponentTemplateCommandService : IComponentTemplateCommandS
     {
         var tenantId = _tenantProvider.TenantId.Value;
         await _db.Deleteable<ComponentTemplate>()
-            .Where(t => t.Id == id && t.TenantId == tenantId && !t.IsBuiltIn)
+            .Where(t => t.Id == id && t.TenantIdValue == tenantId && !t.IsBuiltIn)
             .ExecuteCommandAsync(cancellationToken);
     }
 
@@ -122,7 +122,7 @@ public sealed class ComponentTemplateCommandService : IComponentTemplateCommandS
     {
         var tenantId = _tenantProvider.TenantId.Value;
         var template = await _db.Queryable<ComponentTemplate>()
-            .Where(t => t.Id == id && t.TenantId == tenantId)
+            .Where(t => t.Id == id && t.TenantIdValue == tenantId)
             .FirstAsync(cancellationToken);
 
         if (template is null)

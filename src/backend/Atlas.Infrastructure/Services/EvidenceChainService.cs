@@ -32,13 +32,12 @@ public sealed class EvidenceChainService
     {
         var approvalResult = await _approvalQuery.GetInstancesPagedAsync(
             tenantId,
-            new PagedRequest { PageIndex = 1, PageSize = 100 },
+            new PagedRequest(1, 100, null, null, false),
             businessKey: businessKey,
             cancellationToken: cancellationToken);
 
-        var tenantIdStr = tenantId.Value.ToString();
         var auditRecords = await _db.Queryable<AuditRecord>()
-            .Where(r => r.TenantId == tenantIdStr && r.Target.Contains(businessKey))
+            .Where(r => r.TenantIdValue == tenantId.Value && r.Target.Contains(businessKey))
             .OrderBy(r => r.OccurredAt)
             .ToListAsync(cancellationToken);
 
@@ -48,7 +47,7 @@ public sealed class EvidenceChainService
             ExportedAt: DateTimeOffset.UtcNow,
             ApprovalInstances: approvalResult.Items.Select(i => new ApprovalEvidence(
                 i.Id, i.DefinitionId, i.BusinessKey, i.Status.ToString(),
-                i.StartedAt, i.EndedAt, i.FlowName, i.DataJson)).ToList(),
+                i.StartedAt, i.EndedAt, i.FlowName, null)).ToList(),
             AuditLogs: auditRecords.Select(r => new AuditEvidence(
                 r.Id, r.Actor, r.Action, r.Result, r.Target,
                 r.IpAddress, r.OccurredAt)).ToList());

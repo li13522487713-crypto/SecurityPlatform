@@ -4,8 +4,8 @@
 
     <!-- 全局统计 -->
     <a-row :gutter="16" class="stats-row">
-      <a-col :span="6" v-for="(val, key) in globalStats" :key="key">
-        <a-statistic :title="statLabel(key)" :value="val" />
+      <a-col :span="6" v-for="item in globalStatItems" :key="item.key">
+        <a-statistic :title="statLabel(item.key)" :value="item.value" />
       </a-col>
     </a-row>
 
@@ -74,14 +74,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, reactive } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { ReloadOutlined } from '@ant-design/icons-vue'
 import { message } from 'ant-design-vue'
 import { requestApi } from '@/services/api-core'
+import type { ApiResponse } from '@/types/api'
 
 const loading = ref(false)
 const queues = ref<QueueStat[]>([])
-const globalStats = ref<Record<string, number>>({})
+const globalStats = ref<QueueStats | null>(null)
 const selectedQueue = ref<string | null>(null)
 const messages = ref<QueueMsg[]>([])
 const msgLoading = ref(false)
@@ -90,6 +91,15 @@ const msgPage = ref(1)
 const messageStatusFilter = ref<string | undefined>()
 
 interface QueueStat {
+  queueName: string
+  pending: number
+  processing: number
+  completed: number
+  failed: number
+  deadLettered: number
+}
+
+interface QueueStats {
   queueName: string
   pending: number
   processing: number
@@ -107,6 +117,13 @@ interface QueueMsg {
   errorMessage?: string
   enqueuedAt: string
   completedAt?: string
+}
+
+interface QueueMessagePage {
+  pageIndex: number
+  pageSize: number
+  total: number
+  items: QueueMsg[]
 }
 
 const queueColumns = [
@@ -128,15 +145,30 @@ const msgColumns = [
   { title: '入队时间', dataIndex: 'enqueuedAt', key: 'enqueuedAt', customRender: ({ value }: { value: string }) => new Date(value).toLocaleString('zh-CN') },
 ]
 
+const globalStatItems = computed(() => {
+  const stats = globalStats.value
+  if (!stats) {
+    return []
+  }
+
+  return [
+    { key: 'pending', value: stats.pending },
+    { key: 'processing', value: stats.processing },
+    { key: 'completed', value: stats.completed },
+    { key: 'failed', value: stats.failed },
+    { key: 'deadLettered', value: stats.deadLettered },
+  ]
+})
+
 async function fetchAll() {
   loading.value = true
   try {
     const [queuesRes, statsRes] = await Promise.all([
-      requestApi<QueueStat[]>('GET', '/api/v1/admin/message-queue/queues'),
-      requestApi<Record<string, number>>('GET', '/api/v1/admin/message-queue/stats'),
+      requestApi<ApiResponse<QueueStat[]>>('/admin/message-queue/queues'),
+      requestApi<ApiResponse<QueueStats>>('/admin/message-queue/stats'),
     ])
     if (queuesRes.success) queues.value = queuesRes.data ?? []
-    if (statsRes.success) globalStats.value = statsRes.data ?? {}
+    if (statsRes.success) globalStats.value = statsRes.data ?? null
   } finally {
     loading.value = false
   }
@@ -148,9 +180,8 @@ async function fetchMessages() {
   try {
     const params = new URLSearchParams({ pageIndex: String(msgPage.value), pageSize: '20' })
     if (messageStatusFilter.value) params.set('status', messageStatusFilter.value)
-    const res = await requestApi<{ total: number; items: QueueMsg[] }>(
-      'GET',
-      `/api/v1/admin/message-queue/queues/${selectedQueue.value}/messages?${params}`
+    const res = await requestApi<ApiResponse<QueueMessagePage>>(
+      `/admin/message-queue/queues/${encodeURIComponent(selectedQueue.value)}/messages?${params.toString()}`
     )
     if (res.success && res.data) {
       messages.value = res.data.items
@@ -169,13 +200,19 @@ function openMessages(queueName: string) {
 }
 
 async function retryDeadLetters(queueName: string) {
-  await requestApi('POST', `/api/v1/admin/message-queue/queues/${queueName}/dead-letters/retry`)
+  await requestApi<ApiResponse<unknown>>(
+    `/admin/message-queue/queues/${encodeURIComponent(queueName)}/dead-letters/retry`,
+    { method: 'POST' }
+  )
   message.success('重试已触发')
   fetchAll()
 }
 
 async function deleteDeadLetters(queueName: string) {
-  await requestApi('DELETE', `/api/v1/admin/message-queue/queues/${queueName}/dead-letters`)
+  await requestApi<ApiResponse<unknown>>(
+    `/admin/message-queue/queues/${encodeURIComponent(queueName)}/dead-letters`,
+    { method: 'DELETE' }
+  )
   message.success('死信已清理')
   fetchAll()
 }

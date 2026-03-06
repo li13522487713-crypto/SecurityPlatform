@@ -1,4 +1,5 @@
 using Atlas.Core.Abstractions;
+using Atlas.Core.Tenancy;
 
 namespace Atlas.Domain.Events;
 
@@ -7,6 +8,11 @@ namespace Atlas.Domain.Events;
 /// </summary>
 public sealed class EventSubscription : TenantEntity
 {
+    public EventSubscription()
+        : base(TenantId.Empty)
+    {
+    }
+
     public string Name { get; set; } = string.Empty;
 
     /// <summary>事件类型模式（精确匹配或通配符 *）</summary>

@@ -65,7 +65,7 @@ internal sealed class PluginMetricsEntry
     private void CheckCircuitBreaker()
     {
         // 已开启则无需重复触发
-        if (Interlocked.Read(ref _circuitOpen) == 1) return;
+        if (Volatile.Read(ref _circuitOpen) == 1) return;
 
         var errors = Interlocked.Read(ref _errorCalls);
         var total = Interlocked.Read(ref _totalCalls);
@@ -83,7 +83,7 @@ internal sealed class PluginMetricsEntry
 
     private void TryResetCircuitBreaker()
     {
-        if (Interlocked.Read(ref _circuitOpen) == 0) return;
+        if (Volatile.Read(ref _circuitOpen) == 0) return;
 
         var openedTicks = Interlocked.Read(ref _circuitOpenedAtTicks);
         if (openedTicks == 0) return;
@@ -104,7 +104,7 @@ internal sealed class PluginMetricsEntry
         var total = Interlocked.Read(ref _totalCalls);
         var errors = Interlocked.Read(ref _errorCalls);
         var elapsed = Interlocked.Read(ref _totalElapsedMs);
-        var isOpen = Interlocked.Read(ref _circuitOpen) == 1;
+        var isOpen = Volatile.Read(ref _circuitOpen) == 1;
         var openedTicks = Interlocked.Read(ref _circuitOpenedAtTicks);
         DateTimeOffset? openedAt = isOpen && openedTicks != 0
             ? new DateTimeOffset(openedTicks, TimeSpan.Zero)

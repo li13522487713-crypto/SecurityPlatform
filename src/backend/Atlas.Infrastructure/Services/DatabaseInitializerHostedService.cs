@@ -16,6 +16,7 @@ using Atlas.Domain.LowCode.Entities;
 using Atlas.Domain.System.Entities;
 using Atlas.Domain.Plugins;
 using Atlas.Domain.Events;
+using Atlas.Domain.Workflow.Entities;
 using Atlas.Infrastructure.Repositories;
 using Atlas.Infrastructure.Options;
 using Microsoft.Extensions.DependencyInjection;
