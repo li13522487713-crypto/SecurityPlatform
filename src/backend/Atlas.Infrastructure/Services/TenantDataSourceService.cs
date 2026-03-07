@@ -94,7 +94,8 @@ public sealed class TenantDataSourceService : ITenantDataSourceService
                 IsAutoCloseConnection = true
             });
 
-            _ = await client.Ado.GetIntAsync("SELECT 1");
+            cancellationToken.ThrowIfCancellationRequested();
+            _ = client.DbMaintenance.GetTableInfoList(false);
             return new TestConnectionResult(true, null);
         }
         catch

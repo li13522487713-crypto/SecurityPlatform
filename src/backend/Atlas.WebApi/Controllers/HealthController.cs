@@ -52,16 +52,17 @@ public sealed class HealthController : ControllerBase
         return StatusCode(StatusCodes.Status503ServiceUnavailable, response);
     }
 
-    private async Task<HealthDependencyStatus> CheckDatabaseAsync(CancellationToken cancellationToken)
+    private Task<HealthDependencyStatus> CheckDatabaseAsync(CancellationToken cancellationToken)
     {
         try
         {
-            await _db.Ado.ExecuteCommandAsync("SELECT 1;", cancellationToken);
-            return new HealthDependencyStatus("Database", true, "连接正常");
+            cancellationToken.ThrowIfCancellationRequested();
+            _ = _db.DbMaintenance.GetTableInfoList(false);
+            return Task.FromResult(new HealthDependencyStatus("Database", true, "连接正常"));
         }
         catch (Exception ex)
         {
-            return new HealthDependencyStatus("Database", false, $"连接异常：{ex.Message}");
+            return Task.FromResult(new HealthDependencyStatus("Database", false, $"连接异常：{ex.Message}"));
         }
     }
 

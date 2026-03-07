@@ -1,9 +1,9 @@
 using System.Globalization;
-using System.Text;
 using Atlas.Core.Exceptions;
 using Atlas.Core.Models;
 using Atlas.Domain.DynamicTables.Entities;
 using Atlas.Domain.DynamicTables.Enums;
+using SqlSugar;
 
 namespace Atlas.Infrastructure.DynamicTables;
 
@@ -11,98 +11,64 @@ internal static class DynamicSqlBuilder
 {
     public const string TenantColumnName = "TenantIdValue";
 
-    public static string BuildCreateTableSql(DynamicTable table, IReadOnlyList<DynamicField> fields)
+    public static List<DbColumnInfo> BuildCreateTableColumns(IReadOnlyList<DynamicField> fields)
     {
-        var dbType = table.DbType;
-        var tableName = Quote(table.TableKey, dbType);
-
-        var columnDefs = new List<string>
+        var columns = new List<DbColumnInfo>
         {
-            $"{QuoteTenantColumn(dbType)} TEXT NOT NULL"
+            new()
+            {
+                DbColumnName = TenantColumnName,
+                DataType = "TEXT",
+                IsNullable = false,
+                IsPrimarykey = false,
+                IsIdentity = false
+            }
         };
-        string? primaryKeyColumn = null;
 
         foreach (var field in fields)
         {
-            var columnName = Quote(field.Name, dbType);
-            if (field.IsPrimaryKey && field.IsAutoIncrement && dbType == DynamicDbType.Sqlite)
+            var column = BuildDbColumnInfo(field);
+            if (field.IsPrimaryKey && field.IsAutoIncrement)
             {
-                columnDefs.Add($"{columnName} INTEGER PRIMARY KEY AUTOINCREMENT");
-                primaryKeyColumn = field.Name;
+                column.IsIdentity = true;
+            }
+
+            columns.Add(column);
+        }
+
+        return columns;
+    }
+
+    public static IReadOnlyList<DynamicIndexSpec> BuildCreateIndexSpecs(DynamicTable table, IReadOnlyList<DynamicIndex> indexes)
+    {
+        if (indexes.Count == 0)
+        {
+            return Array.Empty<DynamicIndexSpec>();
+        }
+
+        var specs = new List<DynamicIndexSpec>(indexes.Count);
+        foreach (var index in indexes)
+        {
+            var fields = System.Text.Json.JsonSerializer.Deserialize<string[]>(index.FieldsJson) ?? Array.Empty<string>();
+            if (fields.Length == 0)
+            {
                 continue;
             }
 
-            var typeSql = MapToSqlType(field, dbType);
-            var nullSql = field.AllowNull ? string.Empty : " NOT NULL";
-            columnDefs.Add($"{columnName} {typeSql}{nullSql}");
-            if (field.IsPrimaryKey)
-            {
-                primaryKeyColumn = field.Name;
-            }
+            specs.Add(new DynamicIndexSpec(index.Name, fields, index.IsUnique));
         }
 
-        if (!string.IsNullOrWhiteSpace(primaryKeyColumn))
-        {
-            var hasInlinePk = columnDefs.Any(def => def.Contains("PRIMARY KEY", StringComparison.OrdinalIgnoreCase));
-            if (!hasInlinePk)
-            {
-                columnDefs.Add($"PRIMARY KEY ({Quote(primaryKeyColumn, dbType)})");
-            }
-        }
-
-        foreach (var uniqueField in fields.Where(x => x.IsUnique))
-        {
-            columnDefs.Add($"UNIQUE ({Quote(uniqueField.Name, dbType)})");
-        }
-
-        var sql = new StringBuilder();
-        sql.Append("CREATE TABLE ");
-        sql.Append(tableName);
-        sql.Append(" (");
-        sql.Append(string.Join(", ", columnDefs));
-        sql.Append(");");
-
-        return sql.ToString();
+        return specs;
     }
 
-    public static string BuildCreateIndexSql(DynamicTable table, IReadOnlyList<string> fields, string indexName, bool isUnique)
+    public static DbColumnInfo BuildAddColumnInfo(DynamicField field)
     {
-        var dbType = table.DbType;
-        var quotedFields = fields.Select(f => Quote(f, dbType));
-        var uniqueSql = isUnique ? "UNIQUE " : string.Empty;
-        return $"CREATE {uniqueSql}INDEX {Quote(indexName, dbType)} ON {Quote(table.TableKey, dbType)} ({string.Join(", ", quotedFields)});";
+        return BuildDbColumnInfo(field);
     }
 
-    public static string BuildAddColumnSql(DynamicTable table, DynamicField field)
+    public static string BuildTableName(DynamicTable table)
     {
-        var dbType = table.DbType;
-        var tableName = Quote(table.TableKey, dbType);
-        var columnName = Quote(field.Name, dbType);
-        var typeSql = MapToSqlType(field, dbType);
-        var nullSql = field.AllowNull ? string.Empty : " NOT NULL";
-        var defaultSql = BuildDefaultSql(field);
-        return $"ALTER TABLE {tableName} ADD COLUMN {columnName} {typeSql}{nullSql}{defaultSql};";
-    }
-
-    public static string BuildDropTableSql(DynamicTable table)
-    {
-        return $"DROP TABLE IF EXISTS {Quote(table.TableKey, table.DbType)};";
-    }
-
-    public static string QuoteTenantColumn(DynamicDbType dbType)
-    {
-        return Quote(TenantColumnName, dbType);
-    }
-
-    public static string Quote(string identifier, DynamicDbType dbType)
-    {
-        return dbType switch
-        {
-            DynamicDbType.SqlServer => $"[{identifier}]",
-            DynamicDbType.MySql => $"`{identifier}`",
-            DynamicDbType.PostgreSql => $"\"{identifier}\"",
-            _ => $"\"{identifier}\""
-        };
+        return table.TableKey;
     }
 
     public static string MapToSqlType(DynamicField field, DynamicDbType dbType)
@@ -135,23 +101,38 @@ internal static class DynamicSqlBuilder
         return string.Create(CultureInfo.InvariantCulture, $"NUMERIC({precision},{scale})");
     }
 
-    private static string BuildDefaultSql(DynamicField field)
+    private static DbColumnInfo BuildDbColumnInfo(DynamicField field)
+    {
+        return new DbColumnInfo
+        {
+            DbColumnName = field.Name,
+            DataType = MapToSqlType(field, DynamicDbType.Sqlite),
+            IsNullable = field.AllowNull,
+            IsPrimarykey = field.IsPrimaryKey,
+            IsIdentity = field.IsAutoIncrement,
+            Length = field.Length ?? 0,
+            DecimalDigits = field.Scale ?? 0,
+            DefaultValue = BuildDefaultValueLiteral(field)
+        };
+    }
+
+    private static string? BuildDefaultValueLiteral(DynamicField field)
     {
         if (string.IsNullOrWhiteSpace(field.DefaultValue))
         {
-            return string.Empty;
+            return null;
         }
 
         var value = field.DefaultValue.Trim();
         return field.FieldType switch
         {
-            DynamicFieldType.Int => TryParseInt(value, out var i) ? $" DEFAULT {i}" : throw new BusinessException($"字段 {field.Name} 的默认值 '{value}' 不是有效的整数。", ErrorCodes.ValidationError),
-            DynamicFieldType.Long => TryParseLong(value, out var l) ? $" DEFAULT {l}" : throw new BusinessException($"字段 {field.Name} 的默认值 '{value}' 不是有效的长整数。", ErrorCodes.ValidationError),
-            DynamicFieldType.Decimal => TryParseDecimal(value, out var d) ? $" DEFAULT {d.ToString(CultureInfo.InvariantCulture)}" : throw new BusinessException($"字段 {field.Name} 的默认值 '{value}' 不是有效的小数。", ErrorCodes.ValidationError),
-            DynamicFieldType.Bool => value.Equals("true", StringComparison.OrdinalIgnoreCase) ? " DEFAULT 1" :
-                value.Equals("false", StringComparison.OrdinalIgnoreCase) ? " DEFAULT 0" :
+            DynamicFieldType.Int => TryParseInt(value, out var i) ? i.ToString(CultureInfo.InvariantCulture) : throw new BusinessException($"字段 {field.Name} 的默认值 '{value}' 不是有效的整数。", ErrorCodes.ValidationError),
+            DynamicFieldType.Long => TryParseLong(value, out var l) ? l.ToString(CultureInfo.InvariantCulture) : throw new BusinessException($"字段 {field.Name} 的默认值 '{value}' 不是有效的长整数。", ErrorCodes.ValidationError),
+            DynamicFieldType.Decimal => TryParseDecimal(value, out var d) ? d.ToString(CultureInfo.InvariantCulture) : throw new BusinessException($"字段 {field.Name} 的默认值 '{value}' 不是有效的小数。", ErrorCodes.ValidationError),
+            DynamicFieldType.Bool => value.Equals("true", StringComparison.OrdinalIgnoreCase) ? "1" :
+                value.Equals("false", StringComparison.OrdinalIgnoreCase) ? "0" :
                 throw new BusinessException($"字段 {field.Name} 的默认值 '{value}' 不是有效的布尔值（应为 true 或 false）。", ErrorCodes.ValidationError),
-            _ => $" DEFAULT '{EscapeSqlLiteral(value)}'"
+            _ => value
         };
     }
 
@@ -164,8 +145,6 @@ internal static class DynamicSqlBuilder
     private static bool TryParseDecimal(string value, out decimal result) =>
         decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out result);
 
-    private static string EscapeSqlLiteral(string value)
-    {
-        return value.Replace("'", "''", StringComparison.Ordinal);
-    }
 }
+
+internal sealed record DynamicIndexSpec(string IndexName, IReadOnlyList<string> Fields, bool IsUnique);

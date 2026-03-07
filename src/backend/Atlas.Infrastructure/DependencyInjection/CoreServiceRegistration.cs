@@ -131,10 +131,6 @@ public static class CoreServiceRegistration
         // Amis
         services.AddSingleton<Atlas.Application.Amis.Abstractions.IAmisSchemaProvider, Atlas.Infrastructure.Services.Amis.FileSystemAmisSchemaProvider>();
 
-        // Index Initializers
-        services.AddScoped<IdempotencyIndexInitializer>();
-        services.AddScoped<TableViewIndexInitializer>();
-
         // Dict & SystemConfig Repositories
         services.AddScoped<DictTypeRepository>();
         services.AddScoped<DictDataRepository>();

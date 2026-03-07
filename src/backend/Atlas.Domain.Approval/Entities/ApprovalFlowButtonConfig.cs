@@ -1,12 +1,18 @@
 using Atlas.Core.Abstractions;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Approval.Enums;
+using SqlSugar;
 
 namespace Atlas.Domain.Approval.Entities;
 
 /// <summary>
 /// 审批流按钮配置（流程级别的按钮能力配置）
 /// </summary>
+[SugarIndex(
+    "IX_ApprovalFlowButtonConfig_TenantId_DefinitionId_ViewType",
+    nameof(TenantIdValue), OrderByType.Asc,
+    nameof(DefinitionId), OrderByType.Asc,
+    nameof(ViewType), OrderByType.Asc)]
 public sealed class ApprovalFlowButtonConfig : TenantEntity
 {
     public ApprovalFlowButtonConfig()

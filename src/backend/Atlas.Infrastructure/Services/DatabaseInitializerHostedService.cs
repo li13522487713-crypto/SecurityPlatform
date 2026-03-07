@@ -24,7 +24,6 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SqlSugar;
-using System.Data;
 
 namespace Atlas.Infrastructure.Services;
 
@@ -172,14 +171,6 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             // License
             typeof(Atlas.Domain.License.LicenseRecord));
         await EnsureApprovalSchemaAsync(db, cancellationToken);
-
-        // 创建审批模块数据库索引
-        var indexInitializer = scope.ServiceProvider.GetRequiredService<ApprovalIndexInitializer>();
-        await indexInitializer.CreateIndexesAsync(cancellationToken);
-        var idempotencyIndexInitializer = scope.ServiceProvider.GetRequiredService<IdempotencyIndexInitializer>();
-        await idempotencyIndexInitializer.CreateIndexesAsync(cancellationToken);
-        var tableViewIndexInitializer = scope.ServiceProvider.GetRequiredService<TableViewIndexInitializer>();
-        await tableViewIndexInitializer.CreateIndexesAsync(cancellationToken);
 
         // 初始化审批模块种子数据（使用 BootstrapAdmin 的 TenantId）
         if (Guid.TryParse(_bootstrapOptions.TenantId, out var seedTenantGuid))
@@ -818,53 +809,12 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             return;
         }
 
-        var schema = await db.Ado.GetDataTableAsync("PRAGMA table_info('AuthSession');");
-        if (!IsColumnNotNull(schema, "RevokedAt"))
+        if (!RequiresNullableColumnFix<AuthSession>(db, "RevokedAt"))
         {
             return;
         }
 
-        var result = await db.Ado.UseTranAsync(async () =>
-        {
-            await db.Ado.ExecuteCommandAsync("ALTER TABLE AuthSession RENAME TO AuthSession_old;", cancellationToken);
-            await db.Ado.ExecuteCommandAsync(
-                """
-                CREATE TABLE AuthSession (
-                    Id INTEGER NOT NULL,
-                    TenantIdValue TEXT NOT NULL,
-                    UserId INTEGER NOT NULL,
-                    ClientType TEXT NOT NULL,
-                    ClientPlatform TEXT NOT NULL,
-                    ClientChannel TEXT NOT NULL,
-                    ClientAgent TEXT NOT NULL,
-                    IpAddress TEXT NOT NULL,
-                    UserAgent TEXT NOT NULL,
-                    CreatedAt TEXT NOT NULL,
-                    LastSeenAt TEXT NOT NULL,
-                    ExpiresAt TEXT NOT NULL,
-                    RevokedAt TEXT NULL
-                );
-                """,
-                cancellationToken);
-            await db.Ado.ExecuteCommandAsync(
-                """
-                INSERT INTO AuthSession (
-                    Id, TenantIdValue, UserId, ClientType, ClientPlatform, ClientChannel, ClientAgent,
-                    IpAddress, UserAgent, CreatedAt, LastSeenAt, ExpiresAt, RevokedAt
-                )
-                SELECT
-                    Id, TenantIdValue, UserId, ClientType, ClientPlatform, ClientChannel, ClientAgent,
-                    IpAddress, UserAgent, CreatedAt, LastSeenAt, ExpiresAt, RevokedAt
-                FROM AuthSession_old;
-                """,
-                cancellationToken);
-            await db.Ado.ExecuteCommandAsync("DROP TABLE AuthSession_old;", cancellationToken);
-        });
-
-        if (!result.IsSuccess)
-        {
-            throw result.ErrorException ?? new InvalidOperationException("修复 AuthSession 表结构失败。");
-        }
+        await RebuildTableViaOrmAsync<AuthSession>(db, cancellationToken);
     }
 
     private static async Task EnsureApprovalSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
@@ -884,46 +834,12 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             return;
         }
 
-        var schema = await db.Ado.GetDataTableAsync("PRAGMA table_info('ApprovalFlowDefinition');");
-        if (!IsColumnNotNull(schema, "PublishedAt")
-            && !IsColumnNotNull(schema, "PublishedByUserId")
-            && !IsColumnNotNull(schema, "VisibilityScopeJson")
-            && !IsColumnNotNull(schema, "Category")
-            && !IsColumnNotNull(schema, "Description"))
+        if (!RequiresNullableColumnFix<ApprovalFlowDefinition>(db, "PublishedAt", "PublishedByUserId", "VisibilityScopeJson", "Category", "Description"))
         {
             return;
         }
 
-        await RebuildTableAsync(
-            db,
-            "ApprovalFlowDefinition",
-            """
-            CREATE TABLE ApprovalFlowDefinition (
-                Name TEXT NOT NULL,
-                DefinitionJson TEXT NOT NULL,
-                Version INTEGER NOT NULL,
-                Status INTEGER NOT NULL,
-                PublishedAt TEXT NULL,
-                PublishedByUserId INTEGER NULL,
-                VisibilityScopeJson TEXT NULL,
-                Category TEXT NULL,
-                Description TEXT NULL,
-                IsQuickEntry INTEGER NOT NULL,
-                TenantIdValue TEXT NOT NULL,
-                Id INTEGER NOT NULL
-            );
-            """,
-            """
-            INSERT INTO ApprovalFlowDefinition (
-                Name, DefinitionJson, Version, Status, PublishedAt, PublishedByUserId,
-                VisibilityScopeJson, Category, Description, IsQuickEntry, TenantIdValue, Id
-            )
-            SELECT
-                Name, DefinitionJson, Version, Status, PublishedAt, PublishedByUserId,
-                VisibilityScopeJson, Category, Description, IsQuickEntry, TenantIdValue, Id
-            FROM ApprovalFlowDefinition_old;
-            """,
-            cancellationToken);
+        await RebuildTableViaOrmAsync<ApprovalFlowDefinition>(db, cancellationToken);
     }
 
     private static async Task EnsureApprovalProcessInstanceSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
@@ -933,53 +849,12 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             return;
         }
 
-        var schema = await db.Ado.GetDataTableAsync("PRAGMA table_info('ApprovalProcessInstance');");
-        if (!IsColumnNotNull(schema, "DataJson")
-            && !IsColumnNotNull(schema, "EndedAt")
-            && !IsColumnNotNull(schema, "CurrentNodeId")
-            && !IsColumnNotNull(schema, "ParentInstanceId")
-            && !IsColumnNotNull(schema, "Priority")
-            && !IsColumnNotNull(schema, "InstanceNo")
-            && !IsColumnNotNull(schema, "CurrentNodeName"))
+        if (!RequiresNullableColumnFix<ApprovalProcessInstance>(db, "DataJson", "EndedAt", "CurrentNodeId", "ParentInstanceId", "Priority", "InstanceNo", "CurrentNodeName"))
         {
             return;
         }
 
-        await RebuildTableAsync(
-            db,
-            "ApprovalProcessInstance",
-            """
-            CREATE TABLE ApprovalProcessInstance (
-                DefinitionId INTEGER NOT NULL,
-                BusinessKey TEXT NOT NULL,
-                InitiatorUserId INTEGER NOT NULL,
-                DataJson TEXT NULL,
-                Status INTEGER NOT NULL,
-                StartedAt TEXT NOT NULL,
-                EndedAt TEXT NULL,
-                CurrentNodeId TEXT NULL,
-                TenantIdValue TEXT NOT NULL,
-                Id INTEGER NOT NULL,
-                RowVersion INTEGER NULL,
-                ParentInstanceId INTEGER NULL,
-                Priority INTEGER NULL,
-                InstanceNo TEXT NULL,
-                CurrentNodeName TEXT NULL
-            );
-            """,
-            """
-            INSERT INTO ApprovalProcessInstance (
-                DefinitionId, BusinessKey, InitiatorUserId, DataJson, Status, StartedAt,
-                EndedAt, CurrentNodeId, TenantIdValue, Id, RowVersion, ParentInstanceId,
-                Priority, InstanceNo, CurrentNodeName
-            )
-            SELECT
-                DefinitionId, BusinessKey, InitiatorUserId, DataJson, Status, StartedAt,
-                EndedAt, CurrentNodeId, TenantIdValue, Id, RowVersion, ParentInstanceId,
-                Priority, InstanceNo, CurrentNodeName
-            FROM ApprovalProcessInstance_old;
-            """,
-            cancellationToken);
+        await RebuildTableViaOrmAsync<ApprovalProcessInstance>(db, cancellationToken);
     }
 
     private static async Task EnsureApprovalTaskSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
@@ -989,62 +864,12 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             return;
         }
 
-        var schema = await db.Ado.GetDataTableAsync("PRAGMA table_info('ApprovalTask');");
-        if (!IsColumnNotNull(schema, "DecisionByUserId")
-            && !IsColumnNotNull(schema, "DecisionAt")
-            && !IsColumnNotNull(schema, "Comment")
-            && !IsColumnNotNull(schema, "OriginalAssigneeValue")
-            && !IsColumnNotNull(schema, "Weight")
-            && !IsColumnNotNull(schema, "ParentTaskId")
-            && !IsColumnNotNull(schema, "DelegatorUserId")
-            && !IsColumnNotNull(schema, "ViewedAt")
-            && !IsColumnNotNull(schema, "TaskType"))
+        if (!RequiresNullableColumnFix<ApprovalTask>(db, "DecisionByUserId", "DecisionAt", "Comment", "OriginalAssigneeValue", "Weight", "ParentTaskId", "DelegatorUserId", "ViewedAt", "TaskType"))
         {
             return;
         }
 
-        await RebuildTableAsync(
-            db,
-            "ApprovalTask",
-            """
-            CREATE TABLE ApprovalTask (
-                InstanceId INTEGER NOT NULL,
-                NodeId TEXT NOT NULL,
-                Title TEXT NOT NULL,
-                AssigneeType INTEGER NOT NULL,
-                AssigneeValue TEXT NOT NULL,
-                Status INTEGER NOT NULL,
-                DecisionByUserId INTEGER NULL,
-                DecisionAt TEXT NULL,
-                Comment TEXT NULL,
-                CreatedAt TEXT NOT NULL,
-                OriginalAssigneeValue TEXT NULL,
-                "Order" INTEGER NOT NULL,
-                TenantIdValue TEXT NOT NULL,
-                Id INTEGER NOT NULL,
-                RowVersion INTEGER NULL,
-                Weight INTEGER NULL,
-                ParentTaskId INTEGER NULL,
-                DelegatorUserId INTEGER NULL,
-                ViewedAt TEXT NULL,
-                TaskType INTEGER NULL
-            );
-            """,
-            """
-            INSERT INTO ApprovalTask (
-                InstanceId, NodeId, Title, AssigneeType, AssigneeValue, Status,
-                DecisionByUserId, DecisionAt, Comment, CreatedAt, OriginalAssigneeValue,
-                "Order", TenantIdValue, Id, RowVersion, Weight, ParentTaskId,
-                DelegatorUserId, ViewedAt, TaskType
-            )
-            SELECT
-                InstanceId, NodeId, Title, AssigneeType, AssigneeValue, Status,
-                DecisionByUserId, DecisionAt, Comment, CreatedAt, OriginalAssigneeValue,
-                "Order", TenantIdValue, Id, RowVersion, Weight, ParentTaskId,
-                DelegatorUserId, ViewedAt, TaskType
-            FROM ApprovalTask_old;
-            """,
-            cancellationToken);
+        await RebuildTableViaOrmAsync<ApprovalTask>(db, cancellationToken);
     }
 
     private static async Task EnsureApprovalHistoryEventSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
@@ -1054,40 +879,12 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             return;
         }
 
-        var schema = await db.Ado.GetDataTableAsync("PRAGMA table_info('ApprovalHistoryEvent');");
-        if (!IsColumnNotNull(schema, "FromNode")
-            && !IsColumnNotNull(schema, "ToNode")
-            && !IsColumnNotNull(schema, "PayloadJson")
-            && !IsColumnNotNull(schema, "ActorUserId"))
+        if (!RequiresNullableColumnFix<ApprovalHistoryEvent>(db, "FromNode", "ToNode", "PayloadJson", "ActorUserId"))
         {
             return;
         }
 
-        await RebuildTableAsync(
-            db,
-            "ApprovalHistoryEvent",
-            """
-            CREATE TABLE ApprovalHistoryEvent (
-                InstanceId INTEGER NOT NULL,
-                EventType INTEGER NOT NULL,
-                FromNode TEXT NULL,
-                ToNode TEXT NULL,
-                PayloadJson TEXT NULL,
-                ActorUserId INTEGER NULL,
-                OccurredAt TEXT NOT NULL,
-                TenantIdValue TEXT NOT NULL,
-                Id INTEGER NOT NULL
-            );
-            """,
-            """
-            INSERT INTO ApprovalHistoryEvent (
-                InstanceId, EventType, FromNode, ToNode, PayloadJson, ActorUserId, OccurredAt, TenantIdValue, Id
-            )
-            SELECT
-                InstanceId, EventType, FromNode, ToNode, PayloadJson, ActorUserId, OccurredAt, TenantIdValue, Id
-            FROM ApprovalHistoryEvent_old;
-            """,
-            cancellationToken);
+        await RebuildTableViaOrmAsync<ApprovalHistoryEvent>(db, cancellationToken);
     }
 
     private static async Task EnsureApprovalNodeExecutionSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
@@ -1097,36 +894,12 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             return;
         }
 
-        var schema = await db.Ado.GetDataTableAsync("PRAGMA table_info('ApprovalNodeExecution');");
-        if (!IsColumnNotNull(schema, "CompletedAt"))
+        if (!RequiresNullableColumnFix<ApprovalNodeExecution>(db, "CompletedAt"))
         {
             return;
         }
 
-        await RebuildTableAsync(
-            db,
-            "ApprovalNodeExecution",
-            """
-            CREATE TABLE ApprovalNodeExecution (
-                InstanceId INTEGER NOT NULL,
-                NodeId TEXT NOT NULL,
-                Status INTEGER NOT NULL,
-                StartedAt TEXT NOT NULL,
-                CompletedAt TEXT NULL,
-                TenantIdValue TEXT NOT NULL,
-                Id INTEGER NOT NULL,
-                RowVersion INTEGER NULL
-            );
-            """,
-            """
-            INSERT INTO ApprovalNodeExecution (
-                InstanceId, NodeId, Status, StartedAt, CompletedAt, TenantIdValue, Id, RowVersion
-            )
-            SELECT
-                InstanceId, NodeId, Status, StartedAt, CompletedAt, TenantIdValue, Id, RowVersion
-            FROM ApprovalNodeExecution_old;
-            """,
-            cancellationToken);
+        await RebuildTableViaOrmAsync<ApprovalNodeExecution>(db, cancellationToken);
     }
 
     private static async Task EnsureApprovalCopyRecordSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
@@ -1136,57 +909,48 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             return;
         }
 
-        var schema = await db.Ado.GetDataTableAsync("PRAGMA table_info('ApprovalCopyRecord');");
-        if (!IsColumnNotNull(schema, "ReadAt"))
+        if (!RequiresNullableColumnFix<ApprovalCopyRecord>(db, "ReadAt"))
         {
             return;
         }
 
-        await RebuildTableAsync(
-            db,
-            "ApprovalCopyRecord",
-            """
-            CREATE TABLE ApprovalCopyRecord (
-                InstanceId INTEGER NOT NULL,
-                NodeId TEXT NOT NULL,
-                RecipientUserId INTEGER NOT NULL,
-                IsRead INTEGER NOT NULL,
-                CreatedAt TEXT NOT NULL,
-                ReadAt TEXT NULL,
-                TenantIdValue TEXT NOT NULL,
-                Id INTEGER NOT NULL
-            );
-            """,
-            """
-            INSERT INTO ApprovalCopyRecord (
-                InstanceId, NodeId, RecipientUserId, IsRead, CreatedAt, ReadAt, TenantIdValue, Id
-            )
-            SELECT
-                InstanceId, NodeId, RecipientUserId, IsRead, CreatedAt, ReadAt, TenantIdValue, Id
-            FROM ApprovalCopyRecord_old;
-            """,
-            cancellationToken);
+        await RebuildTableViaOrmAsync<ApprovalCopyRecord>(db, cancellationToken);
     }
 
-    private static async Task RebuildTableAsync(
-        ISqlSugarClient db,
-        string tableName,
-        string createSql,
-        string copySql,
-        CancellationToken cancellationToken)
+    private static async Task RebuildTableViaOrmAsync<TEntity>(ISqlSugarClient db, CancellationToken cancellationToken)
+        where TEntity : class, new()
     {
-        var result = await db.Ado.UseTranAsync(async () =>
+        cancellationToken.ThrowIfCancellationRequested();
+        var tableName = db.EntityMaintenance.GetTableName<TEntity>();
+        if (!db.DbMaintenance.IsAnyTable(tableName, false))
         {
-            await db.Ado.ExecuteCommandAsync($"ALTER TABLE {tableName} RENAME TO {tableName}_old;");
-            await db.Ado.ExecuteCommandAsync(createSql);
-            await db.Ado.ExecuteCommandAsync(copySql);
-            await db.Ado.ExecuteCommandAsync($"DROP TABLE {tableName}_old;");
-        });
-
-        if (!result.IsSuccess)
-        {
-            throw result.ErrorException ?? new InvalidOperationException($"修复 {tableName} 表结构失败。");
+            return;
         }
+
+        var data = await db.Queryable<TEntity>().ToListAsync(cancellationToken);
+        db.DbMaintenance.DropTable(tableName);
+        db.CodeFirst.InitTables<TEntity>();
+        if (data.Count > 0)
+        {
+            await db.Insertable(data).ExecuteCommandAsync(cancellationToken);
+        }
+    }
+
+    private static bool RequiresNullableColumnFix<TEntity>(ISqlSugarClient db, params string[] columnNames)
+        where TEntity : class, new()
+    {
+        var tableName = db.EntityMaintenance.GetTableName<TEntity>();
+        var columns = db.DbMaintenance.GetColumnInfosByTableName(tableName, false);
+        foreach (var columnName in columnNames)
+        {
+            var column = columns.FirstOrDefault(c => string.Equals(c.DbColumnName, columnName, StringComparison.OrdinalIgnoreCase));
+            if (column is not null && !column.IsNullable)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static async Task EnsureRefreshTokenSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
@@ -1196,64 +960,12 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             return;
         }
 
-        var schema = await db.Ado.GetDataTableAsync("PRAGMA table_info('RefreshToken');");
-        if (!IsColumnNotNull(schema, "RevokedAt") && !IsColumnNotNull(schema, "ReplacedById"))
+        if (!RequiresNullableColumnFix<RefreshToken>(db, "RevokedAt", "ReplacedById"))
         {
             return;
         }
 
-        var result = await db.Ado.UseTranAsync(async () =>
-        {
-            await db.Ado.ExecuteCommandAsync("ALTER TABLE RefreshToken RENAME TO RefreshToken_old;", cancellationToken);
-            await db.Ado.ExecuteCommandAsync(
-                """
-                CREATE TABLE RefreshToken (
-                    Id INTEGER NOT NULL,
-                    TenantIdValue TEXT NOT NULL,
-                    UserId INTEGER NOT NULL,
-                    SessionId INTEGER NOT NULL,
-                    TokenHash TEXT NOT NULL,
-                    IssuedAt TEXT NOT NULL,
-                    ExpiresAt TEXT NOT NULL,
-                    RevokedAt TEXT NULL,
-                    ReplacedById INTEGER NULL
-                );
-                """,
-                cancellationToken);
-            await db.Ado.ExecuteCommandAsync(
-                """
-                INSERT INTO RefreshToken (
-                    Id, TenantIdValue, UserId, SessionId, TokenHash, IssuedAt, ExpiresAt, RevokedAt, ReplacedById
-                )
-                SELECT
-                    Id, TenantIdValue, UserId, SessionId, TokenHash, IssuedAt, ExpiresAt, RevokedAt, ReplacedById
-                FROM RefreshToken_old;
-                """,
-                cancellationToken);
-            await db.Ado.ExecuteCommandAsync("DROP TABLE RefreshToken_old;", cancellationToken);
-        });
-
-        if (!result.IsSuccess)
-        {
-            throw result.ErrorException ?? new InvalidOperationException("修复 RefreshToken 表结构失败。");
-        }
-    }
-
-    private static bool IsColumnNotNull(DataTable schema, string columnName)
-    {
-        foreach (DataRow row in schema.Rows)
-        {
-            var name = row["name"]?.ToString();
-            if (!string.Equals(name, columnName, StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            var notNull = Convert.ToInt32(row["notnull"]);
-            return notNull == 1;
-        }
-
-        return false;
+        await RebuildTableViaOrmAsync<RefreshToken>(db, cancellationToken);
     }
 
     private async Task EnsureBuiltInSystemConfigsAsync(

@@ -138,9 +138,8 @@ public static class ApprovalServiceRegistration
         services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalDepartmentService, Atlas.Infrastructure.Services.ApprovalFlow.ApprovalDepartmentService>();
         services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalUserQueryService, Atlas.Infrastructure.Services.ApprovalFlow.ApprovalUserQueryService>();
 
-        // Seed Data & Index
+        // Seed Data
         services.AddScoped<ApprovalSeedDataService>();
-        services.AddScoped<ApprovalIndexInitializer>();
 
         return services;
     }

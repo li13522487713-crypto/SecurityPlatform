@@ -2,6 +2,7 @@ using Atlas.Core.DataSource;
 using Atlas.Core.Exceptions;
 using Atlas.Core.Models;
 using Atlas.Core.Plugins;
+using SqlSugar;
 using System.Text.RegularExpressions;
 
 namespace Atlas.Infrastructure.DataSource;
@@ -35,8 +36,8 @@ public sealed class SqliteDataSourceConnector : IDataSourceConnector
     {
         try
         {
-            using var conn = new Microsoft.Data.Sqlite.SqliteConnection(connectionString);
-            conn.Open();
+            using var client = CreateClient(connectionString);
+            _ = client.DbMaintenance.GetTableInfoList(false);
             return Task.FromResult(true);
         }
         catch
@@ -47,24 +48,14 @@ public sealed class SqliteDataSourceConnector : IDataSourceConnector
 
     public async Task<DataSourceSchema> GetSchemaAsync(string connectionString, CancellationToken cancellationToken)
     {
-        using var conn = new Microsoft.Data.Sqlite.SqliteConnection(connectionString);
-        await conn.OpenAsync(cancellationToken);
-
+        using var client = CreateClient(connectionString);
         var tables = new List<TableInfo>();
-        using var cmd = conn.CreateCommand();
-        cmd.CommandText = "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name";
-        using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
-
-        var tableNames = new List<string>();
-        while (await reader.ReadAsync(cancellationToken))
+        var tableInfos = client.DbMaintenance.GetTableInfoList(false);
+        foreach (var tableInfo in tableInfos.OrderBy(x => x.Name))
         {
-            tableNames.Add(reader.GetString(0));
-        }
-
-        foreach (var tableName in tableNames)
-        {
-            var columns = await GetColumnsAsync(conn, tableName, cancellationToken);
-            tables.Add(new TableInfo(tableName, null, columns));
+            cancellationToken.ThrowIfCancellationRequested();
+            var columns = await GetColumnsAsync(client, tableInfo.Name, cancellationToken);
+            tables.Add(new TableInfo(tableInfo.Name, null, columns));
         }
 
         return new DataSourceSchema(tables, []);
@@ -85,32 +76,22 @@ public sealed class SqliteDataSourceConnector : IDataSourceConnector
         if (pageSize < 1)
             throw new BusinessException($"pageSize 必须 >= 1，当前值：{pageSize}", "INVALID_PAGE_SIZE");
 
-        using var conn = new Microsoft.Data.Sqlite.SqliteConnection(connectionString);
-        await conn.OpenAsync(cancellationToken);
-
-        // pageSize 和 pageIndex 均为强类型 int，不存在注入风险
-        var countSql = $"SELECT COUNT(*) FROM ({sql}) __count";
-        using var countCmd = conn.CreateCommand();
-        countCmd.CommandText = countSql;
-        AddParameters(countCmd, parameters);
-        var total = Convert.ToInt32(await countCmd.ExecuteScalarAsync(cancellationToken));
-
-        var pagedSql = $"{sql} LIMIT {pageSize} OFFSET {(pageIndex - 1) * pageSize}";
-        using var cmd = conn.CreateCommand();
-        cmd.CommandText = pagedSql;
-        AddParameters(cmd, parameters);
-
-        var items = new List<Dictionary<string, object?>>();
-        using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
-        while (await reader.ReadAsync(cancellationToken))
+        using var client = CreateClient(connectionString);
+        var sugarParams = parameters
+            .Select(kv => new SugarParameter(kv.Key.StartsWith('@') ? kv.Key : $"@{kv.Key}", kv.Value ?? DBNull.Value))
+            .ToArray();
+        var query = client.SqlQueryable<Dictionary<string, object?>>(sql);
+        if (sugarParams.Length > 0)
         {
-            var row = new Dictionary<string, object?>();
-            for (var i = 0; i < reader.FieldCount; i++)
-            {
-                row[reader.GetName(i)] = reader.IsDBNull(i) ? null : reader.GetValue(i);
-            }
-            items.Add(row);
+            query = query.AddParameters(sugarParams);
         }
+
+        RefAsync<int> totalRef = 0;
+        var rows = await query.ToPageListAsync(pageIndex, pageSize, totalRef);
+        var items = rows
+            .Select(row => new Dictionary<string, object?>(row, StringComparer.OrdinalIgnoreCase))
+            .ToList();
+        var total = totalRef.Value;
 
         return new PagedResult<Dictionary<string, object?>>(items, total, pageIndex, pageSize);
     }
@@ -121,12 +102,11 @@ public sealed class SqliteDataSourceConnector : IDataSourceConnector
         Dictionary<string, object?> parameters,
         CancellationToken cancellationToken)
     {
-        using var conn = new Microsoft.Data.Sqlite.SqliteConnection(connectionString);
-        await conn.OpenAsync(cancellationToken);
-        using var cmd = conn.CreateCommand();
-        cmd.CommandText = sql;
-        AddParameters(cmd, parameters);
-        return await cmd.ExecuteNonQueryAsync(cancellationToken);
+        using var client = CreateClient(connectionString);
+        var sugarParams = parameters
+            .Select(kv => new SugarParameter(kv.Key.StartsWith('@') ? kv.Key : $"@{kv.Key}", kv.Value ?? DBNull.Value))
+            .ToArray();
+        return await client.Ado.ExecuteCommandAsync(sql, sugarParams);
     }
 
     /// <summary>
@@ -156,36 +136,30 @@ public sealed class SqliteDataSourceConnector : IDataSourceConnector
             throw new BusinessException("查询语句不允许包含多条语句（分号分隔）", "SQL_MULTI_STATEMENT");
     }
 
-    private static async Task<IReadOnlyList<ColumnInfo>> GetColumnsAsync(
-        Microsoft.Data.Sqlite.SqliteConnection conn,
+    private static Task<IReadOnlyList<ColumnInfo>> GetColumnsAsync(
+        SqlSugarClient client,
         string tableName,
         CancellationToken cancellationToken)
     {
-        using var cmd = conn.CreateCommand();
-        // 使用双引号引用表名，并将内部双引号转义为 ""，防止含特殊字符的表名引发意外行为
-        var quotedName = tableName.Replace("\"", "\"\"");
-        cmd.CommandText = $"PRAGMA table_info(\"{quotedName}\")";
-        using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
-
-        var columns = new List<ColumnInfo>();
-        while (await reader.ReadAsync(cancellationToken))
-        {
-            columns.Add(new ColumnInfo(
-                reader.GetString(1),
-                reader.GetString(2),
-                reader.GetInt32(3) == 0,
-                reader.GetInt32(5) > 0,
-                null));
-        }
-
-        return columns;
+        cancellationToken.ThrowIfCancellationRequested();
+        var columns = client.DbMaintenance.GetColumnInfosByTableName(tableName, false)
+            .Select(x => new ColumnInfo(
+                x.DbColumnName,
+                x.DataType,
+                x.IsNullable,
+                x.IsPrimarykey,
+                null))
+            .ToArray();
+        return Task.FromResult<IReadOnlyList<ColumnInfo>>(columns);
     }
 
-    private static void AddParameters(Microsoft.Data.Sqlite.SqliteCommand cmd, Dictionary<string, object?> parameters)
+    private static SqlSugarClient CreateClient(string connectionString)
     {
-        foreach (var (k, v) in parameters)
+        return new SqlSugarClient(new ConnectionConfig
         {
-            cmd.Parameters.AddWithValue(k.StartsWith('@') ? k : $"@{k}", v ?? DBNull.Value);
-        }
+            ConnectionString = connectionString,
+            DbType = DbType.Sqlite,
+            IsAutoCloseConnection = true
+        });
     }
 }

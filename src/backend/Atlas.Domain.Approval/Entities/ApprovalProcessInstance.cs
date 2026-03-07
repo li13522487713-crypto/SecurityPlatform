@@ -8,6 +8,20 @@ namespace Atlas.Domain.Approval.Entities;
 /// <summary>
 /// 审批流运行时实例
 /// </summary>
+[SugarIndex(
+    "IX_ApprovalProcessInstance_TenantId_InitiatorUserId",
+    nameof(TenantIdValue), OrderByType.Asc,
+    nameof(InitiatorUserId), OrderByType.Asc)]
+[SugarIndex(
+    "IX_ApprovalProcessInstance_TenantId_InitiatorUserId_Status",
+    nameof(TenantIdValue), OrderByType.Asc,
+    nameof(InitiatorUserId), OrderByType.Asc,
+    nameof(Status), OrderByType.Asc)]
+[SugarIndex(
+    "IX_ApprovalProcessInstance_TenantId_DefinitionId_BusinessKey",
+    nameof(TenantIdValue), OrderByType.Asc,
+    nameof(DefinitionId), OrderByType.Asc,
+    nameof(BusinessKey), OrderByType.Asc)]
 public sealed class ApprovalProcessInstance : TenantEntity
 {
     public ApprovalProcessInstance()

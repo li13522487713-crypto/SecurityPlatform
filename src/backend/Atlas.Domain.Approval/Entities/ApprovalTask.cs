@@ -1,12 +1,32 @@
 using Atlas.Core.Abstractions;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Approval.Enums;
+using SqlSugar;
 
 namespace Atlas.Domain.Approval.Entities;
 
 /// <summary>
 /// 审批任务（待办）
 /// </summary>
+[SugarIndex(
+    "IX_ApprovalTask_TenantId_AssigneeValue_Status",
+    nameof(TenantIdValue), OrderByType.Asc,
+    nameof(AssigneeValue), OrderByType.Asc,
+    nameof(Status), OrderByType.Asc)]
+[SugarIndex(
+    "IX_ApprovalTask_TenantId_InstanceId",
+    nameof(TenantIdValue), OrderByType.Asc,
+    nameof(InstanceId), OrderByType.Asc)]
+[SugarIndex(
+    "IX_ApprovalTask_TenantId_InstanceId_NodeId",
+    nameof(TenantIdValue), OrderByType.Asc,
+    nameof(InstanceId), OrderByType.Asc,
+    nameof(NodeId), OrderByType.Asc)]
+[SugarIndex(
+    "IX_ApprovalTask_TenantId_InstanceId_Status",
+    nameof(TenantIdValue), OrderByType.Asc,
+    nameof(InstanceId), OrderByType.Asc,
+    nameof(Status), OrderByType.Asc)]
 public sealed class ApprovalTask : TenantEntity
 {
     public ApprovalTask()

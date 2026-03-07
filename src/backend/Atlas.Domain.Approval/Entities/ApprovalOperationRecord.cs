@@ -1,12 +1,19 @@
 using Atlas.Core.Abstractions;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Approval.Enums;
+using SqlSugar;
 
 namespace Atlas.Domain.Approval.Entities;
 
 /// <summary>
 /// 审批流操作记录（用于幂等性保护和操作审计）
 /// </summary>
+[SugarIndex(
+    "UX_ApprovalOperationRecord_TenantId_InstanceId_IdempotencyKey",
+    nameof(TenantIdValue), OrderByType.Asc,
+    nameof(InstanceId), OrderByType.Asc,
+    nameof(IdempotencyKey), OrderByType.Asc,
+    true)]
 public sealed class ApprovalOperationRecord : TenantEntity
 {
     public ApprovalOperationRecord()

@@ -1,320 +1,306 @@
-# 低代码设计器与审批流集成深度研究报告：组件开发与可闭环实施方案
+# lKGreat/SecurityPlatform 项目现状深度评估与改进路线图
 
 ## 执行摘要
 
-本研究严格按你的要求，优先使用启用的连接器 **github**，并且仅检索指定仓库 **lKGreat/SecurityPlatform**；在覆盖仓库实现与文档之后，再补充检索主流低代码平台与流程引擎的官方/原始资料，形成“可落地、可验收、可回滚”的闭环方案。仓库侧可直接作为“参考实现/对标样例”，其内容集中体现了：低代码应用与页面的版本化发布、表单与页面设计器、审批流设计器与运行时、以及动态表记录发起审批与状态回写的闭环链路。fileciteturn11file8L1-L1 fileciteturn10file0L1-L1 fileciteturn10file1L1-L1 fileciteturn10file2L1-L1 fileciteturn86file2L1-L1 fileciteturn87file3L1-L1
+本次审阅以 **GitHub 连接器**优先，对仓库 `lKGreat/SecurityPlatform` 的代码、文档、CI、分支与近期 PR 进行了静态分析，并结合少量高质量公开资料（以官方/原始文档为主，中文优先）形成结论。
 
-从“低代码设计器 × 审批流”集成角度，仓库中最具闭环价值的链路是：  
-- **设计态**：低代码应用/页面（App Builder）与表单设计器（Form Designer）支持草稿编辑、预览、发布、版本历史与回滚，并支持环境变量/环境配置。fileciteturn10file0L1-L1 fileciteturn11file8L1-L1  
-- **流程态**：审批流设计器支持“基础信息 → 表单设计（低代码表单）→ 流程图设计”的三段式编辑体验，并在流程属性面板中承载条件表达式、字段权限与按钮权限等关键配置。fileciteturn10file2L1-L1 fileciteturn93file2L1-L1  
-- **运行态闭环**：动态表记录可通过接口提交审批（触发实例），并依靠审批事件处理器 + 状态同步处理器实现业务模型回写（例如把记录状态从“审批中”更新为“已通过/已驳回”等），形成端到端闭环。fileciteturn86file4L1-L1 fileciteturn86file2L1-L1 fileciteturn87file0L1-L1 fileciteturn87file3L1-L1 fileciteturn88file0L1-L1
+项目总体呈现出“底座能力较扎实、核心业务链路已出现雏形、但产品化的‘平台控制台/应用控制台’与‘低代码运行态闭环’仍未完成”的阶段特征。最关键的时间点是：**2026-03-07** 当天 `平台控制台与应用数据源` 相关实现（PR #57）被合入后又被 **revert**（PR #58），导致“平台级控制台/应用级控制台/应用级数据源绑定”等能力在当前 `master` 上处于缺失状态（或退回到更早形态）。fileciteturn63file0L1-L1 fileciteturn62file0L1-L1
 
-在你关注的“表达式”方面，仓库侧已经存在审批条件求值器（支持条件组与表达式子集），适合作为统一表达式服务的基础；从工程风险与安全角度，推荐将表达式体系收敛到“可静态校验、非图灵完备、宿主可控上下文”的安全表达式语言（例如 CEL 的设计理念），并为设计器提供可视化变量选择与类型提示。fileciteturn95file0L1-L1 citeturn16search4turn16search5
+从“用户提出的六项缺失”视角看：
 
-在“Grid 列定制（冻结列/合并单元格/高级 Grid）”方面，仓库已经有“个人表格视图（TableViews）”与前端列配置能力，覆盖常见的列显隐/排序/固定列（冻结列）等；合并单元格属于更“数据网格（Data Grid）”能力，建议以可插拔方式引入成熟网格组件（或在现有表格组件之上扩展 cell-span 能力），并在低代码元数据中抽象为可配置规则。fileciteturn11file8L1-L1 fileciteturn11file12L1-L1 citeturn16search3turn19search1turn17search1
+- **平台级控制台、应用级控制台**：当前分支已回退到“以系统设置与低代码设计后台为主”的信息架构；缺少平台入口页、应用工作台与应用级资源域（数据源/权限/菜单/别名等）。fileciteturn62file0L1-L1  
+- **流程设计器与审批流衔接**：审批流设计器（X6）与动态表审批绑定已形成闭环的一部分，但“工作流（WorkflowCore）设计器”仍偏实验性质，且**流程结构与后端能力边界存在不一致**（前端序列化器限制“仅顺序链路”，而后端 step-types 列表包含分支/循环等概念）。  
+- **移动端流程设计器支持**：存在“移动端预览”的设计器能力，但没有面向移动端的流程设计交互方案（更接近“可预览/可运行，但不可设计”）。  
+- **预置模板能力**：后端已具备模板实体与 API，但缺少“内置模板的投放、版本治理、可视化选用/市场化沉淀”的产品化闭环。  
+- **仓储系统闭环**：动态表（DynamicTables）+ AMIS schema 驱动的 CRUD + 绑定审批流 + 提交审批 + 审批状态回写/失败补偿 已具备“局部闭环”，但在权限模型（目前强依赖 SystemAdmin）、应用域隔离（App scope）、以及“低代码运行态（page runtime）/表单数据持久化（FormData）”方面仍存在断点，导致“可供业务用户使用的闭环”尚不完整。
 
-## 需求与功能清单
+综合建议：以“**先恢复平台/应用信息架构与资源域** → **补齐运行态（应用访问、权限、数据闭环）** → **流程能力统一（审批/工作流融合或明确边界）**”为主线推进，短期聚焦高确定性与高价值交付，降低跨模块返工风险。
 
-以下需求清单以你的范围为准（表单/页面/列表/Grid、字段编辑、列定制、表达式、校验、预览、组件化复用、审批流集成），并参考仓库中已出现的“低代码应用/页面契约、动态表与 AMIS Schema 输出、审批流设计器契约、TableViews 列配置模型”等实现线索。fileciteturn11file8L1-L1 fileciteturn10file0L1-L1 fileciteturn10file2L1-L1 fileciteturn11file10L1-L1
+## 项目现状与代码基线
 
-| 需求域 | 细粒度能力（字段/组件/表达式/权限/预览/校验） | P0/P1 建议 |
-|---|---|---|
-| 表单设计器 | 字段级编辑：数据类型、默认值、必填、正则、长度、枚举/字典、联动（依赖其他字段）、只读/隐藏；布局：分组/栅格/标签位置/自适应；运行态：只读渲染、禁用态渲染、提交态校验与错误定位；“保存草稿/发布/版本/回滚” | P0：字段+布局+预览+发布；P1：联动/复杂校验/版本差异对比 |
-| 页面设计器（Page/App Builder） | 页面树管理（父子、排序、路由路径、图标）；页面类型（List/Form/Detail/Dashboard/Blank）；Schema 级编辑（JSON/可视化混合）；环境变量替换（dev/test/prod）；发布与回滚（应用级与页面级版本） | P0：页面树+发布回滚；P1：多环境变量与灰度 |
-| 列表/Grid 设计器 | 列显隐、顺序、宽度、对齐、溢出省略、排序/过滤、密度；冻结列（左/右）；合并单元格（rowSpan/colSpan 或 mergeCells 规则）；高级用法：分组表头、汇总、虚拟滚动、行/列固定、行分组、单元格编辑 | P0：列定制+冻结列；P1：合并+高级网格（虚拟滚动/编辑/汇总） |
-| 表达式体系 | 变量分层：全局参数（系统配置）、租户级、应用级、环境级、页面级（局部变量）、组件/字段局部变量、运行时上下文（登录用户/组织/角色/项目/请求参数/记录上下文）；表达式用途：字段可见性、默认值、校验规则、审批条件、路由条件、按钮可用性 | P0：上下文分层+条件表达式；P1：字段公式/依赖追踪/静态类型检查 |
-| 表达式输入体验 | 可视化变量选择器（变量树 + 搜索）；函数提示（日期、字符串、集合、数值）；类型提示与错误定位；静态校验（括号/非法 token/危险函数）；表达式“试运行”与快照数据（模拟上下文） | P0：变量选择+基础校验；P1：类型系统+可视化调试 |
-| 权限与审计 | 最小要求：RBAC；增强：字段级权限（读/写/隐藏）、按钮权限、数据范围（本人/部门/全部/项目维度）；审计事件：设计态（发布/回滚/变更）、运行态（提交审批/审批决策/回写/导出/打印/预览） | P0：RBAC+审计；P1：字段级/数据范围+证据导出 |
-| 表单触发审批流 | 从业务表单（动态表/低代码表单）发起实例：携带 businessKey、dataJson（表单数据快照/摘要/主键引用）；支持“草稿保存 → 提交审批”；幂等提交与防重复发起 | P0：发起+幂等；P1：草稿协作、多次提交策略 |
-| 流程回写 | 实例/任务状态回写到业务记录（审批中/已通过/已驳回/已取消）；回写范围：状态字段、审批人/时间戳、审批意见摘要、附件/签名；失败重试与死信处理 | P0：状态回写；P1：回写扩展点+重试队列 |
-| 审批节点表单嵌入 | 按节点嵌入表单（同一表单在不同节点只读/可写/隐藏不同字段）；节点表单的“字段权限映射”和“按钮权限映射”；节点操作对表单数据的变更策略（仅意见、或允许补充字段） | P0：字段 R/W/H；P1：节点级数据补充与合并策略 |
-| 组件化开发与复用 | 组件注册表（组件元数据、属性面板 schema、运行态 renderer）；版本与兼容（semver、弃用策略）；可复用模板（页面模板/表单模板/流程模板）；插件机制（新增字段类型/校验器/数据源连接器/流程节点） | P0：模板+组件库；P1：插件生态与市场化 |
+### 分支与近期变更信号
 
-## 系统架构设计
+仓库默认分支为 `master`，CI 对 `main/master` 以及 `cursor/**` 分支均触发，说明仓库存在“自动化生成/Agent 分支”与快速试验合并的工作流。fileciteturn99file2L1-L1
 
-本节给出“设计态—运行态—事件闭环”的架构蓝图（可直接落到你的系统实现），同时用仓库的契约与模块拆分作为可行性参考：它已定义统一请求头、幂等键与 CSRF、低代码应用/页面发布回滚、审批流定义/实例/任务接口、以及 TableViews 列配置与固定列等。fileciteturn11file8L1-L1 fileciteturn82file3L1-L1
+近期最关键的产品化相关变更是：
 
-```mermaid
-flowchart LR
-  subgraph DT[设计态 Design-time]
-    DT1[表单设计器<br/>字段/布局/校验] --> DT5[表单定义(FormDef)\n草稿/发布/版本]
-    DT2[页面/应用设计器<br/>页面树/Schema编辑/环境变量] --> DT6[页面定义(PageDef)\n草稿/发布/版本]
-    DT3[Grid设计器<br/>列定制/冻结/合并规则] --> DT7[视图定义(TableViewDef)\n个人/共享]
-    DT4[审批流设计器<br/>节点/条件/权限/表单嵌入] --> DT8[流程定义(FlowDef)\n草稿/发布/版本]
-  end
+- PR #57：引入“平台控制台 + 应用工作区”的前端体验与“应用级数据源/共享/别名”等后端扩展（已 merge）。fileciteturn63file0L1-L1  
+- PR #58：对 #57 做整体 revert（已 merge），删除/回退了上述能力（删除量远大于新增量）。fileciteturn62file0L1-L1  
 
-  subgraph RT[运行态 Run-time]
-    RT1[运行时渲染器<br/>Page/Form Renderer] --> RT2[数据访问层<br/>动态表/外部数据源]
-    RT1 --> RT3[表达式服务<br/>校验/编译/求值]
-    RT1 --> RT4[审批流运行时<br/>实例/任务/操作]
-    RT4 --> RT5[域事件发布器<br/>in-proc 或 MQ]
-    RT5 --> RT6[业务回写处理器<br/>回写状态/字段]
-  end
+这一事实直接解释了用户提出的“平台级控制台、应用级控制台、应用级资源域”在当前状态下的缺失。
 
-  subgraph GOV[治理与运维]
-    GOV1[权限中心<br/>RBAC/数据范围/字段权限]
-    GOV2[审计与证据链<br/>操作留痕/导出]
-    GOV3[发布与回滚<br/>元数据版本/迁移]
-  end
+### CI 与质量门禁
 
-  DT --> RT
-  GOV1 --> RT
-  RT --> GOV2
-  DT --> GOV3
-```
+当前 CI 至少覆盖：拼写检查（cspell）、后端 build+单测、前端 build、集成阶段（启动后端→跑 `Bosch.http` 套件→跑 Playwright e2e），并在失败时上传产物；此外还有 CodeQL 安全分析（C# 与 JS/TS）与定时扫描。该组合对“平台级能力演进”是积极信号，但也意味着对架构级变更需同时维护 API 套件与 e2e 稳定性。fileciteturn99file2L1-L1 fileciteturn99file3L1-L1
 
-上图在仓库中的“可落地证据点”包括：  
-- 低代码应用与页面的发布、版本历史与回滚契约，以及运行态 Schema（支持草稿/已发布模式与环境变量替换）。fileciteturn11file8L1-L1  
-- 审批流定义/实例/任务的接口集合与状态模型，且包含“发布/停用/版本对比/导入导出”等治理能力。fileciteturn11file8L1-L1  
-- 动态表记录审批闭环：记录侧提交审批端点、命令服务 SubmitApprovalAsync、以及审批事件处理器回写状态。fileciteturn86file4L1-L1 fileciteturn86file2L1-L1 fileciteturn87file3L1-L1  
-- 表格视图 TableViews 与 pinned（固定列）等列定制配置（冻结列能力）。fileciteturn11file8L1-L1 fileciteturn11file12L1-L1
+### 关键技术栈轮廓（用于后续建议定位）
 
-运行态“表单提交 → 触发审批 → 回写”的推荐数据流如下（可直接作为你系统的“闭环验收用例”）：
+- 前端：Vue 3 + TypeScript + Ant Design Vue；动态路由由后端菜单/路由数据驱动，并提供路径到页面组件的 fallback 映射（例如审批流列表、工作流设计器、系统管理页面等）。  
+  - 证据：`src/frontend/.../dynamic-router.ts` 提供 `pathComponentFallbackMap`，覆盖 `/approval/flows`、`/workflow/designer`、`/settings/...` 等路径。  
+- 流程可视化：审批流与工作流设计器均基于 **entity["organization","AntV X6","graph editor engine"]**（X6）实现。X6 官方强调“流程图/DAG/ER”等场景与可扩展交互能力。citeturn2search1  
+- 低代码渲染：动态表与部分低代码页面使用 **entity["organization","amis","baidu low-code framework"]**（JSON 驱动的前端低代码框架）思路，仓库亦集成 AMIS schema 资源文件（后端 `AmisSchemas/*`）来驱动前端 `AmisRenderer` 渲染。AMIS 官方仓库定位为“通过 JSON 配置生成页面”。citeturn6view0  
+- 工作流引擎：后端存在 `api/v1/workflows` 控制器与 step-types 元数据接口；项目也引用了 **entity["organization","Workflow Core","dotnet workflow engine"]**（轻量可嵌入 .NET 工作流引擎）的生态语义（“Definitions/Instances/Events/Steps”等）。citeturn0search9turn0search3  
+- 后台任务与调度：后端已纳入 **entity["organization","Hangfire","dotnet background jobs"]** 的典型职责域（后台作业、持久化存储、可靠处理），用于超时、重试、异步处理等是合理方向。citeturn0search1turn0search8  
 
-```mermaid
-sequenceDiagram
-  participant U as 用户
-  participant UI as 低代码运行态UI
-  participant API as 后端API
-  participant WF as 审批流引擎
-  participant EB as 事件发布/回写
-  participant DB as 业务数据(动态表/业务表)
+image_group{"layout":"carousel","aspect_ratio":"16:9","query":["AntV X6 workflow editor screenshot","amis low-code editor screenshot"],"num_per_query":1}
 
-  U->>UI: 填写表单/保存草稿
-  UI->>API: 写入业务记录(幂等)
-  API->>DB: Insert/Update Record
-  U->>UI: 提交审批
-  UI->>API: 提交审批(携带 businessKey + dataJson)
-  API->>WF: StartInstance(definitionId, businessKey, dataJson)
-  WF-->>API: 返回 instanceId / task
-  WF->>EB: 发布实例状态事件(完成/驳回/取消等)
-  EB->>DB: 回写业务记录状态与审批信息
-  DB-->>UI: 查询到最新状态/轨迹
-```
+## 现状清单表格
 
-接口契约层建议统一以下三类“公共约束”，仓库也已给出成熟范式：  
-- **上下文头**：租户（X-Tenant-Id）、应用（X-App-Id 或从 JWT claim 获取）、项目域（X-Project-Id）、客户端信息等。fileciteturn11file8L1-L1  
-- **写接口幂等**：Idempotency-Key，避免重复提交与重复发起审批。fileciteturn11file8L1-L1  
-- **Web 写请求 CSRF 防护**：X-CSRF-TOKEN（若采用 Cookie/浏览器会话）。fileciteturn11file8L1-L1
+下表以你指定的模块维度，对“当前仓库（master）能直接观察到的能力”做对比式盘点；每行都给出可追溯的仓库路径（必要时可反查 PR #58 的回退说明来理解缺失基因）。fileciteturn62file0L1-L1
 
-技术栈方面：你的项目技术栈 **未指定**；仓库给出一种可参考的“前后端 + 低代码 + 安全基线”组合（.NET 10 + Vue 3 + Ant Design Vue + AMIS），并明确了统一响应、幂等、CSRF 与 RBAC 等工程规范。fileciteturn82file3L1-L1  
-若需要“推荐 3 套可选方案”，建议如下（可按你的团队能力与合规要求选型）：
+> 说明：由于连接器返回的源码文本不携带可校验的 GitHub 行号锚点，本报告的“代码引用”以“文件路径 + 关键函数/类名/关键字符串（可全文搜索定位）+ 片段摘录”方式提供；如需精确行号，请在 GitHub 文件视图中以关键字符串定位并获取实际行号。
 
-| 方案 | 设计器技术 | Grid 技术 | 表达式技术 | 流程/审批技术 | 优点 | 主要风险 |
-|---|---|---|---|---|---|---|
-| A（参考仓库路径） | Vue3 + Schema 编辑器（JSON/可视化混合） | 现有表格 + TableViews；高级网格可插件化 | 统一表达式服务 + 变量分层 | 内建审批流 +（可选）内嵌工作流引擎 | 与现有工程规范/安全基线一致，闭环容易做；发布/回滚可围绕元数据版本展开 | 需要自己完成组件生态与高级网格能力；表达式与模板治理要做好 fileciteturn11file8L1-L1 |
-| B（生态组件优先） | Alibaba LowCode Engine（插件化内核） | VXE-Table 或 AG Grid | CEL（或 CEL 风格子集） | 选内建审批或外置 BPMN 引擎 | LowCode Engine 强调“最小内核+插件/物料生态+工具链”，更适合做组件市场与可扩展设计器 citeturn22search6turn22search4 | 引擎接入与团队学习成本；需要把运行态、权限、审计与发布体系自己补齐 |
-| C（SaaS/平台集成优先） | 商业低代码平台设计器 | 平台内置 Table/Grid | 平台内置公式/脚本 | 平台内置审批或对接工作流产品 | 上手快；例如 Power Automate 的 approvals 支持多种审批类型与顺序审批 citeturn0search0turn0search2 | 可控性与二次开发边界；企业审计/权限/私有化与“闭环回写”需要额外方案设计 |
-
-## 审批流集成模式对比
-
-你要求至少三种模式（同步触发 / 异步消息 / 流程引擎嵌入）。下面给出可复制的对比表，并结合仓库“已实现闭环”的方式给出落地建议：仓库本身同时体现了“同步触发 + 引擎内嵌 + 事件回写”的组合。fileciteturn86file4L1-L1 fileciteturn87file1L1-L1 fileciteturn87file3L1-L1
-
-| 模式 | 触发与返回 | 回写方式 | 一致性与可靠性 | 适用场景 | 与主流引擎/实践对齐证据 |
-|---|---|---|---|---|---|
-| 同步触发（REST） | 表单提交后直接调用审批引擎 StartInstance，立即返回 instanceId/task | 同进程回写或后续轮询 | 实现简单；但需要处理超时、重试与幂等（尤其“提交审批”） | 业务系统与审批引擎同域、延迟要求不高、希望快速闭环 | Camunda REST 启动流程实例支持 businessKey 与 variables citeturn20search0；Activiti 也强调 businessKey 的业务意义与最佳实践 citeturn20search6turn20search3 |
-| 异步消息（事件驱动） | 表单仅投递“发起审批事件”到 MQ/事件总线；消费者异步启动流程 | 通过事件回调/订阅回写业务状态 | 最稳健：可做重试/死信/补偿；但系统复杂度更高（需要 MQ、对账与可观测） | 跨系统审批、峰值高、需要隔离审批引擎故障 | Workflow Core 提供外部事件发布/等待机制，可作为事件驱动的一种实现思路 citeturn21search1turn21search11 |
-| 流程引擎嵌入（Library/Embedded） | 引擎作为库嵌入业务服务，StartInstance 为本地方法调用 | 引擎内部状态变化触发域事件（in-proc），回写由处理器执行 | 性能好、运维简单；但需要治理“升级兼容/多节点持久化/队列调度” | 你要强一致、强控制、且审批是平台核心能力 | Workflow Core 明确定位为可嵌入工作流引擎，并支持持久化提供者 citeturn21search9turn21search2；仓库通过事件处理器接口实现业务回写也符合此思路 fileciteturn87file0L1-L1 |
-
-选型建议（面向“低代码设计器 × 审批闭环”）：  
-- 若你希望最快落地且系统在同一平台内，建议优先 **“同步触发 + 引擎嵌入 + 事件回写”**：表单提交审批同步返回实例信息，回写由内部事件处理器异步化/解耦化执行，既保留低耦合扩展点，又能保持运维简化。仓库已经提供了相对标准的扩展点：业务模块实现 IApprovalEventHandler 接口接收流程事件，并由发布器统一派发。fileciteturn87file0L1-L1 fileciteturn87file1L1-L1  
-- 若你必须跨系统（多个业务域、多语言栈）且审计与追踪要求更高，建议升级为 **异步消息模式**，并将“提交审批→启动实例→回写状态”拆成可追踪的 Saga/补偿流程。
-
-## 详细实施计划与交付
-
-本实施计划强调“可闭环”：每一阶段都必须同时产出 **设计态能力 + 运行态能力 + 回写与审计 + 测试与回滚方案**。仓库中已经存在低代码路线图与审批流 v1/v2 实施计划文档，可作为任务拆解的参考输入。fileciteturn98file0L1-L1 fileciteturn95file2L1-L1
-
-里程碑与任务分解（建议以 12 周为一个可交付周期；日期可按你项目实际起始日平移）：
-
-| 里程碑 | 关键产出 | 任务分解（摘要） | 角色配置 | 估时（人日） |
-|---|---|---|---|---|
-| 需求冻结与架构定稿 | 需求清单、元数据模型、接口契约、风险清单 | 统一变量分层模型；统一表达式接口；审批回写策略；Grid 能力范围（冻结/合并/虚拟滚动） | 产品1、架构1、后端1、前端1 | 10–15 |
-| 设计器 MVP | 表单/页面/流程设计器可用 + 预览 | 表单字段/布局/校验；页面树与 schema 编辑；流程图、节点属性面板、条件配置 | 前端2–3、后端1 | 35–50 |
-| 运行时与发布回滚闭环 | 草稿/发布/版本/回滚可用 | 元数据版本化；运行态 schema 获取；发布审计；回滚策略（元数据回滚优先） | 后端2、前端1、测试1 | 25–40 |
-| 提交审批与回写闭环 | “表单触发流程→审批→回写”端到端 | 提交审批幂等；实例/任务接口；事件发布与业务回写处理器；失败重试与补偿 | 后端2–3、测试1 | 30–45 |
-| Grid 高级能力 | 冻结列（P0）+ 合并单元格（P1 可选） | 列配置模型扩展（pinned/mergeRule）；设计器 UI；运行态渲染适配 | 前端1–2 | 15–30 |
-| 测试、上线与回滚演练 | 自动化测试集、灰度与回滚预案 | E2E 用例；性能与安全基线测试；上线脚本；回滚演练（元数据+数据库变更） | 测试1–2、运维1、后端1 | 20–30 |
-
-时间线（示例，可复制修改）：
-
-```mermaid
-gantt
-  title 低代码设计器 × 审批流集成（12周示例）
-  dateFormat  YYYY-MM-DD
-  axisFormat  %m/%d
-
-  section 需求与架构
-  需求冻结与契约/元数据模型 :a1, 2026-03-09, 10d
-
-  section 设计器MVP
-  表单设计器（字段/布局/预览） :a2, 2026-03-16, 20d
-  页面/应用设计器（页面树/Schema编辑） :a3, 2026-03-23, 25d
-  审批流设计器（流程图/属性面板/校验） :a4, 2026-03-30, 25d
-
-  section 运行态与闭环
-  发布/版本/回滚（应用+页面+流程） :a5, 2026-04-14, 20d
-  表单触发审批 + 回写闭环 :a6, 2026-04-21, 25d
-
-  section Grid增强
-  列定制/冻结列（P0） :a7, 2026-05-05, 10d
-  合并单元格/虚拟滚动（P1可选） :a8, 2026-05-12, 10d
-
-  section 测试与上线
-  自动化测试 + 回滚演练 :a9, 2026-05-12, 15d
-  灰度上线 + 监控与复盘 :a10, 2026-05-27, 7d
-```
-
-测试计划（建议作为验收材料的一部分交付）：  
-- **单元测试**：表达式解析/校验、条件求值、字段校验器、回写处理器（对不同实例状态的回写逻辑）。表达式语言推荐参考 CEL 的“安全、可控上下文、非图灵完备”的设计理念，并在设计态做静态校验。citeturn16search4turn16search5  
-- **集成测试**：提交审批接口幂等；实例/任务操作链路；回写一致性；并行/条件节点覆盖。仓库审批流契约已把“定义校验 details（含 nodeId 定位）”作为工程化方向，可沿此思路做自动化断言。fileciteturn11file8L1-L1  
-- **端到端（E2E）**：至少覆盖 5 条闭环用例：  
-  1) 设计表单 → 预览 → 发布 → 运行态可用；  
-  2) 设计流程并发布 → 可发起实例；  
-  3) 运行态提交审批 → 待办出现 → 审批 → 回写业务状态；  
-  4) 字段权限在不同节点生效；  
-  5) 回滚到上一版本后运行态恢复。低代码应用/页面“版本历史与回滚”契约在仓库中已有清晰定义，可作为验收口径基线。fileciteturn11file8L1-L1  
-- **上线回滚策略**：  
-  - 元数据变更（页面/表单/流程）优先走“版本化发布 + 快速回滚”；  
-  - 数据结构变更（动态表 Alter/迁移）必须具备迁移记录与回退预案（可先采用“备份恢复”策略，后续再完善可逆迁移）；  
-  - 审批回写处理器应具备“失败不阻断主流程、可重试、可观测”的特性，仓库中已有“事件发布器 + 多处理器”的扩展点形式，可沿用并加强重试与告警。fileciteturn87file1L1-L1 fileciteturn88file0L1-L1
-
-可交付物清单（建议作为项目验收附件）：  
-- 需求与设计：需求清单、元数据模型、接口契约（OpenAPI/契约文档）、表达式语法规范与变量字典、权限矩阵、回写策略说明。仓库 contracts.md 已体现“统一请求头、幂等、低代码/审批/表格视图”契约组织方式，可直接对齐为交付模板。fileciteturn11file8L1-L1  
-- 代码与组件：设计器组件库（表单/页面/Grid/审批流）、运行态渲染器、表达式服务、审批回写处理器、审计埋点。  
-- 测试与运维：自动化测试报告、E2E 脚本、性能结果、上线手册、回滚演练记录。  
-- 合规与审计：审计事件字典、关键操作日志留存策略、SSO 兼容说明（OIDC/SAML）、权限审计报表导出。
-
-验收标准（可量化口径）：  
-1) 表单/页面/Grid：从设计态发布到运行态无人工改代码；发布与回滚均可在 5 分钟内完成（元数据级）。fileciteturn11file8L1-L1  
-2) 审批闭环：对同一业务记录，完成“提交审批→审批通过→业务状态回写→审计可追溯”。仓库已存在“动态表记录提交审批端点 + SubmitApprovalAsync + 回写处理器”的闭环结构，可按此实现验收用例。fileciteturn86file4L1-L1 fileciteturn86file2L1-L1 fileciteturn87file3L1-L1  
-3) 表达式：表达式编辑器要支持变量选择、静态校验、试运行；审批条件与页面/字段条件使用同一表达式引擎（或至少同一语法子集）。安全表达式的设计目标可参考 CEL 的定位。citeturn16search4turn16search5  
-4) 权限与审计：关键写接口幂等、Web 写接口 CSRF、防越权（字段级/数据范围），审计事件可检索导出。仓库的统一头、幂等与 CSRF 契约可以作为验收基线。fileciteturn11file8L1-L1
-
-示例实现片段与伪代码（便于你快速对齐实现思路）：
-
-```json
-// 表单定义（FormDef）示例：字段+布局+校验+权限（简化）
-{
-  "formKey": "purchase_request",
-  "version": 3,
-  "fields": [
-    { "key": "title", "type": "string", "required": true, "maxLength": 80 },
-    { "key": "amount", "type": "decimal", "required": true, "min": 0 },
-    { "key": "reason", "type": "text", "required": true, "maxLength": 2000 }
-  ],
-  "layout": {
-    "type": "grid",
-    "columns": 2,
-    "items": [
-      { "field": "title", "colSpan": 2 },
-      { "field": "amount", "colSpan": 1 },
-      { "field": "reason", "colSpan": 2 }
-    ]
-  },
-  "permissions": {
-    "field": {
-      "title": { "read": ["Requester", "Approver"], "write": ["Requester"], "hide": [] },
-      "amount": { "read": ["Requester", "Approver"], "write": ["Requester"], "hide": [] },
-      "reason": { "read": ["Requester", "Approver"], "write": ["Requester"], "hide": [] }
-    }
-  }
-}
-```
-
-```ts
-// 表达式解析/校验/求值伪代码：强调“上下文分层 + 静态校验 + 运行时沙箱”
-type VarScope = {
-  global: Record<string, unknown>;     // 系统参数
-  tenant: Record<string, unknown>;     // 租户参数
-  app: Record<string, unknown>;        // 应用参数
-  page: Record<string, unknown>;       // 页面局部
-  user: { id: string; roles: string[]; deptId?: string };
-  record?: Record<string, unknown>;    // 行/记录上下文
-};
-
-function validateExpression(expr: string): { ok: boolean; errors: string[] } {
-  // 1) 词法/括号/长度等基础校验
-  // 2) 禁止危险函数/黑名单 token（如 eval / new Function / 反射式访问）
-  // 3) 可选：类型推断（amount 是 number 则 amount > 100 合法）
-  return { ok: true, errors: [] };
-}
-
-function evalExpression(expr: string, scope: VarScope): boolean | string | number {
-  // 推荐：使用可控表达式语言（CEL 或其子集），只暴露 scope 映射，不允许任意对象逃逸
-  const ctx = {
-    global: scope.global,
-    tenant: scope.tenant,
-    app: scope.app,
-    page: scope.page,
-    user: scope.user,
-    record: scope.record ?? {}
-  };
-  return SafeExpressionEngine.evaluate(expr, ctx);
-}
-```
-
-```ts
-// Grid 冻结列 + 合并单元格：用“配置模型”抽象，运行态适配不同表格引擎
-type ColumnDef = {
-  key: string;
-  title: string;
-  width?: number;
-  pinned?: "left" | "right"; // 冻结列
-};
-
-type MergeRule = { row: number; col: number; rowspan: number; colspan: number };
-
-type GridViewDef = {
-  columns: ColumnDef[];
-  mergeCells?: MergeRule[]; // 合并单元格规则（可选）
-};
-
-// 运行态适配：
-// - 若使用 Ant Design Table：pinned -> column.fixed；mergeCells -> render 返回 rowSpan/colSpan
-// - 若使用 VXE-Table：mergeCells 直接映射到 vxe-grid 的 mergeCells
-// - 若使用 AG Grid：pinned 直接映射；合并可用 column spanning 或 custom renderer
-```
-
-上面 Grid 思路与业界组件能力对齐：  
-- Ant Design Table 支持 colSpan/rowSpan 与 fixed columns（冻结列）。citeturn16search3  
-- AG Grid 支持 pinned columns（以及运行时 API 调整固定）。citeturn17search1  
-- VXE-Table 在仓库与官方说明中明确包含固定列与合并单元格等能力点，且社区文章给出 mergeCells 配置方式。citeturn19search1turn19search0
-
-## 安全、权限与审计要求
-
-你要求默认包含“企业级审计与单点登录兼容性”。在仓库参考实现中，安全与治理已经被“契约化”：统一请求头（租户/应用/项目域）、幂等键、CSRF Token、统一响应模型、以及角色/权限/数据范围等参数都形成了明确规范，可直接作为低代码与审批集成的安全底座。fileciteturn11file8L1-L1 fileciteturn82file3L1-L1
-
-建议在你自己的系统中，把安全与审计要求前置为“设计器配置也必须遵守的约束”，避免运行态出现“低代码注入/越权/审计缺失”的高风险问题：  
-- **SSO 兼容**：建议统一到 OIDC（或兼容 SAML2 的企业 IdP），并把登录态信息注入表达式上下文（user/roles/dept/project），用于字段可见性与审批策略。  
-- **字段级与按钮级权限**：审批节点嵌入表单时，必须按节点配置输出字段权限（R/W/H），并将“节点操作按钮（同意/驳回/退回等）”同样纳入权限模型；仓库 contracts 中已经把 formPermissionConfig 和 buttonPermissionConfig 明确列为流程定义结构的一部分，可作为你的数据模型参考。fileciteturn11file8L1-L1  
-- **幂等与防重放**：对“提交审批”“同意/驳回”等高价值操作，必须强制 Idempotency-Key，并对 payload 冲突给出明确错误；仓库契约已给出唯一键组成与冲突语义。fileciteturn11file8L1-L1  
-- **审计事件闭环**：至少覆盖：发布/回滚、提交审批、审批决策、运行时操作、预览/打印、回写结果。仓库的审批流功能说明也强调这些行为应记录审计日志。fileciteturn83file0L1-L1  
-- **表达式安全**：表达式必须“静态可校验 + 运行时只访问宿主提供数据”。CEL 的公开说明强调其“安全、非图灵完备、仅能访问宿主提供数据”的原则，非常适合作为企业级规则表达式的范式参考。citeturn16search4turn16search5  
-- **低代码模板/脚本治理**：若使用 AMIS 生态的表达式/模板能力，可参考其配套解析库（amis-formula）来理解表达式/模板解析边界，并在平台侧增加“白名单函数 + 禁止任意脚本执行”的治理策略。citeturn16search7
-
-## 风险与缓解措施、成本与资源估算
-
-主要风险与缓解（尽量用“可执行动作”表达）：
-
-| 风险 | 表现 | 影响 | 缓解措施（可操作） |
+| 模块 | 当前可见能力（master） | 主要缺口/边界 | 证据（仓库文件路径与链接） |
 |---|---|---|---|
-| 表达式体系失控 | 设计器里出现多套语法（页面一套、流程一套、校验一套） | 维护成本与安全风险急剧上升 | 建立统一 Expression Service：语法统一、变量分层统一、静态检查统一；优先采用 CEL 风格安全表达式并禁用任意脚本 citeturn16search4turn16search5 |
-| Grid 高级能力“拖垮设计器” | 合并/虚拟滚动/编辑/汇总需求不断叠加 | 交付延期、性能问题 | 先做 P0（列定制+冻结列），P1 再引入成熟网格能力；以配置模型抽象适配层（Renderer Adapter），避免绑定单一实现 citeturn16search3turn17search1turn19search1 |
-| 审批回写不一致 | 流程结束但业务表状态未回写，或回写失败无追踪 | “闭环不可验收”“数据对不上账” | 回写处理器必须具备：失败重试、幂等更新、死信告警；事件处理器作为扩展点（类似 IApprovalEventHandler）并统一发布器派发 fileciteturn87file0L1-L1 fileciteturn87file1L1-L1 |
-| 版本与兼容性问题 | 元数据发布后旧实例/旧页面无法运行 | 线上事故、回滚困难 | 元数据版本化：实例绑定版本快照；运行态渲染按“实例版本→页面版本→组件版本”解析；提供一键回滚（元数据优先） fileciteturn11file8L1-L1 |
-| 企业级审计不完整 | 关键行为未留痕或无法导出 | 合规与内控失败 | 审计事件字典先行；关键操作统一埋点；导出链路纳入验收（审批历史/变更历史/发布回滚历史） fileciteturn83file0L1-L1 |
+| 平台级控制台 | 以“系统设置/组织权限/数据源/字典/配置”为主的管理后台；动态路由支持 `/settings/*` 与若干系统页路径映射 | 缺少“平台首页/平台入口（console）”、“租户/应用总览与治理入口”、“跨应用资源域”及“统一工作台信息架构”；且近期相关实现已被 revert | 动态路由 fallback 映射：`src/frontend/Atlas.WebApp/src/utils/dynamic-router.ts`；被 revert 的平台控制台实现：PR #57/#58 fileciteturn70file2L1-L1 fileciteturn63file0L1-L1 fileciteturn62file0L1-L1 |
+| 应用级控制台 | 低代码应用列表页（创建/编辑/发布/导入导出），可进入 builder；后端低代码应用实体存在（AppKey/ConfigJson/Status/Version 等） | 缺少“应用工作区（workspace）/应用侧导航与配置中心”、“应用级数据源绑定/共享策略/别名”等（已在 PR #57 实现后被 revert）；缺少低代码运行态（按 appKey 访问已发布页面） | 应用列表：`src/frontend/Atlas.WebApp/src/pages/lowcode/AppListPage.vue`；领域实体：`src/backend/Atlas.Domain/LowCode/Entities/LowCodeApp.cs`；被 revert 的能力说明：PR #58 body fileciteturn80file7L1-L1 fileciteturn80file0L1-L1 fileciteturn62file0L1-L1 |
+| 流程设计器 | 审批流：列表页+设计器页（含保存/发布/校验/版本等交互）；工作流：WorkflowDesignerPage（X6 拖拽节点、保存定义、测试启动实例） | “审批流”与“工作流”是两套并行设计器与语义体系；工作流设计器目前在序列化层显式限制“仅顺序流程”，而后端 step-types 同时暴露分支/循环等概念，存在能力不一致风险；缺少统一的流程域模型与运行态观察闭环（面向普通业务用户） | 审批流列表/设计：`src/frontend/.../ApprovalFlowsPage.vue`、`ApprovalDesignerPage.vue`；工作流设计器：`src/frontend/.../WorkflowDesignerPage.vue`；工作流序列化限制：`src/frontend/.../useWorkflowSerializer.ts`；后端 step-types：`src/backend/Atlas.WebApi/Controllers/WorkflowController.cs` fileciteturn75file3L1-L1 fileciteturn72file2L1-L1 fileciteturn72file3L1-L1 fileciteturn75file3L1-L1 |
+| 移动端支持 | 表单设计器支持“移动端预览”切换（deviceMode=mobile），并通过 `AmisEditor` 的 `is-mobile` 参数控制预览形态 | 缺少移动端流程设计交互（审批/工作流的 X6 画布在移动端可用性与手势交互需要单独方案）；更现实的是先做“移动端运行态与审批处理” | 表单设计器：`src/frontend/Atlas.WebApp/src/pages/lowcode/FormDesignerPage.vue`（PC/移动端预览） fileciteturn20file0L1-L1 |
+| 模板系统 | 后端存在 TemplatesController 与模板实体（如 ComponentTemplate，含 IsBuiltIn 字段语义）；可推断支持“模板实例化/复用”的方向 | 缺少“预置模板投放（内置模板数据/导入包）”、“模板版本治理/依赖管理”、“模板市场/可视化挑选/与低代码/审批流联动”的产品化闭环；前端未见对应管理页 | 后端 API：`src/backend/Atlas.WebApi/Controllers/TemplatesController.cs`；模板实体/服务：`src/backend/Atlas.Domain/Templates/ComponentTemplate.cs`、`src/backend/Atlas.Infrastructure/Services/ComponentTemplateService.cs` fileciteturn83file1L1-L1 fileciteturn98file0L1-L1 fileciteturn98file7L1-L1 |
+| 仓储系统相关模块 | 动态表（DynamicTables）具备：表结构管理、记录 CRUD、AMIS schema 驱动 UI；支持绑定审批流、从记录提交审批、审批状态回写/失败补偿监控页面 | 闭环仍偏“系统管理员视角”：API 主要受 SystemAdmin 保护；缺少“应用域/业务用户视角的数据入口（App runtime + 权限）”；FormData 持久化与页面运行态在代码层未见落地（仅文档/规划痕迹） | 动态表 UI：`src/frontend/.../DynamicTablesPage.vue`、`DynamicTableCrudPage.vue`；AMIS schema：`src/backend/Atlas.WebApi/AmisSchemas/dynamic-tables/*.json`；动态表与记录 API：`src/backend/Atlas.WebApi/Controllers/DynamicTablesController.cs`、`DynamicTableRecordsController.cs`；回写监控：`src/frontend/.../WritebackMonitorPage.vue` + `ApprovalWritebackFailuresController.cs` fileciteturn87file11L1-L1 fileciteturn87file12L1-L1 fileciteturn87file14L1-L1 fileciteturn87file1L1-L1 fileciteturn84file10L1-L1 |
 
-成本/资源估算（按“低/中/高”三档假设；你的实际预算与团队熟练度未指定，以下为常见区间）：
+## 差距分析
 
-| 档位 | 目标范围 | 团队配置（建议） | 周期 | 典型交付 |
+### 平台级控制台缺失评估
+
+当前的前端路由与页面组织更接近“系统管理后台 + 若干业务模块页”，缺少“平台首页/控制台”的统一入口与跨域导航信息架构；而 PR #57 曾引入 `/console` 与 `/apps/:appId/*` 等结构，但已被 PR #58 整体回退。fileciteturn62file0L1-L1
+
+缺失功能拆解（以“平台控制台”通常应覆盖的治理能力为参照）：
+
+- 平台入口：平台总览（租户/应用/运行态指标/待办/告警等聚合）缺失，现默认落点更接近 `/profile` 等页面或菜单驱动模块页（与“平台控制台”定位不一致）。  
+- 跨应用治理：应用列表虽存在（低代码 AppList），但缺少“应用工作台/应用域资源绑定”、缺少跨应用的“模板/数据源/连接器/插件”治理面板。  
+- 租户治理：仓库存在租户上下文（tenant headers、tenant provider）与系统管理员策略，但未见“租户 CRUD/租户生命周期/配额与隔离审计”的平台化入口与数据模型闭环（这属于典型平台控制台责任域）。
+
+关键技术债务与风险：
+
+- 信息架构返工风险高：平台控制台一旦落地，会牵动“菜单模型、动态路由、权限码、默认首页、面包屑与布局容器”等跨切面能力，且 PR #57→#58 的快速回退说明当前实现方式可能在交付质量/兼容性上未达预期。fileciteturn62file0L1-L1  
+- “平台 vs 应用”的边界尚未固化：若继续以“系统后台”形态演进，会导致后续再引入“应用域”时必须做路径与权限域的二次迁移，成本更高。
+
+优先级建议：**P0（产品形态与资源域基础）**。原因是它决定了后续所有模块的组织方式、权限域落点与交付节奏。
+
+### 应用级控制台缺失评估
+
+当前“低代码应用”更多是“设计对象”，而不是“可访问的业务应用”。有应用列表、Builder 路径，但缺少：
+
+- 应用工作区（App workspace）：应用配置（菜单、页面发布、权限映射、导航、Logo/主题等）应在 App 域内配置并可独立授权；当前主要集中在全局模块页。  
+- 应用级数据源/共享/别名：PR #57 描述了“应用绑定数据源、共享策略、实体别名”等；PR #58 明确将其移除，且后端 `LowCodeApp` 实体当前并无这些字段。fileciteturn62file0L1-L1 fileciteturn80file0L1-L1  
+- 应用运行态（Runtime）：文档层面出现 `page-runtime` 的规划痕迹，但代码检索层未见对应控制器/服务落地，导致“用户访问已发布页面/表单并产生数据”的关键链路无法闭合。
+
+关键技术债务与风险：
+
+- 设计态功能先行、运行态滞后：会使“发布”语义弱化（变成仅仅版本号或状态字段），长期会造成术语与数据模型混乱（例如 Published 但不可用）。  
+- 权限模型将被迫“系统管理员化”：目前动态表记录与动态表管理 API 多以 SystemAdmin 策略保护，若没有应用域与业务角色的权限模型，闭环只能由管理员操作，不符合“低代码平台”的典型使用方式。fileciteturn84file10L1-L1
+
+优先级建议：**P0（与平台控制台同一主线）**，并且应与“动态表/审批闭环”一起规划，否则很容易出现“有数据、无应用入口”的割裂。
+
+### 流程设计器与审批流衔接缺失评估
+
+这里建议将“流程能力”分成两条线来审视：
+
+- 审批流（Approval Flow）：已与动态表绑定、提交审批入口、状态回写等形成“局部闭环”，且前端存在完整设计器页面。  
+- 工作流（Workflows / WorkflowCore 风格）：存在独立的 WorkflowDesignerPage 与 `api/v1/workflows`，但从前端序列化器的报错文案可见其强制限制“仅顺序链路（NextStepId）”，与“工作流引擎应支持分支/循环/事件等待”等能力预期存在落差；同时后端 step-types 的枚举却包含 If/While/Foreach 等概念，进一步放大了“前后端契约不一致”的技术债风险。citeturn0search9turn0search3 fileciteturn72file3L1-L1 fileciteturn75file3L1-L1
+
+因此，“衔接缺失”的核心不在于“有没有画布”，而在于：
+
+1) **流程域模型不统一**（审批流 DSL 与工作流 DSL 并存）  
+2) **设计器能力边界与运行引擎边界不一致**（能画/不能跑，或接口暴露能力与实现能力不一致）  
+3) **工作流与审批的组合能力缺失**：若期望在工作流中编排“人工审批”步骤，应明确“审批是工作流的一种 Step（UserTask/ApprovalStep）”还是“审批是独立引擎，由工作流调用/等待事件”。当前仓库未呈现明确的一致方案。
+
+优先级建议：**P1（在平台/应用主线打通后推进）**。原因是流程统一往往牵涉运行态、权限、审计、表单渲染等多个子系统；在平台/应用缺失时推进，返工概率高。
+
+可选替代方案（开源组件建议）：
+
+- 若你们希望对齐 BPMN 生态并复用成熟建模器，可评估 **entity["organization","bpmn.io","bpmn js toolkit"]** 的 bpmn-js（浏览器内 BPMN Viewer/Editor），以及配套的表单/决策建模器（form-js、dmn-js）。citeturn1search4  
+- 若团队需要更“产品化”的 BPMN/DMN 建模与协作，可参考 **entity["organization","Camunda","process orchestration platform"]** Modeler 的产品形态（它强调 BPMN/DMN/Forms 的统一建模体验）。citeturn1search0turn1search2  
+- 若坚持 X6 自研画布：X6 官方建议在 Vue 节点数量多时使用 `@antv/x6-vue-shape` 的 teleport 能力优化挂载性能，但这会引入“运行时编译/导入导出限制”等工程约束，需要提前在架构层定界。citeturn2search2turn2search1  
+
+### 移动端流程设计器支持缺失评估
+
+当前“移动端”更像设计器的 **Preview Mode**（例如表单设计器支持 `deviceMode=mobile`），但审批/工作流的画布设计器要在移动端可用，需要解决：
+
+- 画布手势：缩放/拖拽/框选/右键菜单替代（长按菜单、浮动工具条等）；  
+- 面板布局：属性面板与节点列表的移动端折叠与导航（类似“底部抽屉 + 全屏属性页”）；  
+- 输入法与复杂配置：条件组编辑、审批人选择、字段权限矩阵等在移动端的可操作性与效率。
+
+风险很现实：移动端做“完整设计器”会显著增加交互复杂度与测试成本；多数平台选择的常见路径是“**移动端只做运行态（填表/审批/查看），设计态仅 PC**”。建议将你的“移动端流程设计器支持”拆成两个阶段：先实现“移动端运行态闭环”，再评估“移动端轻量编辑（例如仅改审批人/超时策略）”。  
+
+优先级建议：**P2（除非业务强要求移动端设计）**。
+
+### 预置模板能力缺失评估
+
+模板系统在代码层面已具备“实体 + 服务 + 控制器”，并且 `ComponentTemplate` 暴露了 `IsBuiltIn` 这样的字段语义，说明作者已经考虑“内置模板 vs 用户模板”的区分。fileciteturn98file0L1-L1
+
+但当前缺失的关键能力是“模板的供给与治理”：
+
+- 没有看见与发布流程绑定的“模板包/模板仓库（market）/版本策略”；  
+- 缺少模板与低代码对象（App/Form/Page/ApprovalFlow/DynamicTable schema）的明确映射策略；  
+- 前端缺少模板管理/选用入口（当前主要通过导入 JSON 方式间接复用）。
+
+优先级建议：**P1**：模板一旦做对，可以显著降低“从 0 到 1”成本，并可作为“平台生态/集成”的资产沉淀载体。
+
+### 仓储系统闭环缺失评估
+
+当前“动态表 + AMIS schema 驱动 UI + 绑定审批流 + 提交审批 + 状态回写/失败补偿”已经形成了可演示的闭环雏形：动态表列表页可以绑定审批流与状态字段，记录 CRUD 页可“提交审批”，属于关键价值链路。fileciteturn87file1L1-L1
+
+但闭环仍不完整，主要断点在：
+
+- 权限域：动态表与记录 API 多数受 `SystemAdmin` 保护，难以直接成为业务用户的“仓储/数据运营”系统；  
+- 应用域：动态表目前更像“平台数据工具”，而不是某个应用（App）的数据资源；若不引入 App scope（或 project scope），跨应用的数据治理与隔离会困难；  
+- 运行态：如果“仓储闭环”目标是“业务用户通过应用页面录入→触发审批→审批结束后数据进入稳定状态并可被后续流程使用”，那么需要“应用运行态页面 + 表单数据持久化（FormData）/或与动态表写入映射”的完整链路。目前相关内容更像规划文档而非实现。fileciteturn80file16L1-L1
+
+优先级建议：**P0/P1 交界**：若你们的核心商业价值是“低代码 + 审批 + 数据仓储闭环”，则应提到 P0；否则可作为 P1 跟随平台/应用主线推进。
+
+## 改进建议与实施路线图
+
+### 模块依赖关系图
+
+```mermaid
+flowchart TB
+  subgraph FE["前端 WebApp (Vue3/TS/AntdV)"]
+    DR["动态路由 & 菜单渲染"]
+    AMISUI["AMIS Renderer/Editor"]
+    X6UI["X6 设计器(审批/工作流)"]
+    CONSOLE["平台/应用控制台(待补齐)"]
+  end
+
+  subgraph API["后端 WebApi (.NET)"]
+    AUTH["Auth/RBAC/菜单/组织"]
+    LOWCODE["LowCode Apps/Pages/Forms(设计态为主)"]
+    DYN["DynamicTables/Records(数据仓储雏形)"]
+    APPR["ApprovalFlow(设计态+运行态)"]
+    WF["Workflows API(实验/半成熟)"]
+    TPL["Templates(基础 API 已有)"]
+    OPS["审计/监控/回写失败补偿"]
+  end
+
+  subgraph DATA["数据与基础设施"]
+    DB["SqlSugar + SQLite/多数据库(部分规划被回退)"]
+    JOB["Hangfire/后台任务"]
+    OBS["OTel/指标/追踪(用于可观测)"]
+  end
+
+  FE --> API
+  DR --> AUTH
+  AMISUI --> LOWCODE
+  AMISUI --> DYN
+  X6UI --> APPR
+  X6UI --> WF
+  APPR --> DYN
+  APPR --> OPS
+  LOWCODE --> TPL
+  DYN --> DB
+  APPR --> DB
+  WF --> DB
+  JOB --> OPS
+  OBS --> OPS
+```
+
+### 实施里程碑表
+
+在未指定团队规模/预算/部署约束情况下，以下以“中等规模小组（2–4 后端 + 2 前端 + 1 测试/产品）”为参考给出可裁剪路线。工作量以“人日”粗估（±30%），并显式标注关键依赖与替代路径。
+
+| 阶段 | 目标产出 | 关键任务 | 依赖 | 估算工作量 |
+|---|---|---|---|---:|
+| 短期 | 恢复平台/应用信息架构骨架，稳定主干可发布 | 1) 明确“平台首页/默认落点”与 `/console` 信息架构；2) 恢复或重做“应用工作区”路由与布局（参考但不盲搬 PR #57，避免再次 revert）；3) 定义 App scope 基础上下文（header/claim/route param 的权威来源） | 需要统一菜单模型与权限码；需同步修复 e2e 与 API 套件 | 20–35 人日 |
+| 短期 | 应用级资源域最小集（数据与权限） | 1) 应用级数据源：先做“应用引用租户数据源”而非“重新引入多驱动包”以降低复杂度；2) 应用级菜单/权限映射；3) AppKey 作为运行态入口名空间 | 需要与 RBAC 权限码、动态路由生成一致 | 25–45 人日 |
+| 中期 | 低代码运行态闭环（仓储闭环关键断点） | 1) Page Runtime：按 appKey+pageKey 渲染已发布 schema；2) FormData 持久化（或明确“表单提交→动态表写入”的映射）；3) 将动态表/记录访问权限从 SystemAdmin 收敛到“应用角色/数据权限规则” | 需要清晰的数据权限模型；需要审计事件标准化 | 45–80 人日 |
+| 中期 | 审批/动态表闭环产品化 | 1) 动态表审批绑定能力从“管理员工具”演进为“应用能力（可授权给业务角色）”；2) 补齐审批运行态（任务中心、移动端处理优先）；3) 写回失败补偿从“监控页”扩展为“告警/重试策略/死信归档” | 依赖运行态入口与权限域 | 30–60 人日 |
+| 长期 | 流程能力统一与生态化（选择其一） | 方案A：明确工作流与审批的边界，提供“工作流调用审批/等待事件”的组合；方案B：引入 BPMN（bpmn-js/Camunda 生态）并统一建模语言；方案C：继续 X6 自研但统一流程域模型与表达式（避免双 DSL） | 依赖前述运行态/权限/审计成熟 | 60–120 人日 |
+| 长期 | 预置模板与资产市场 | 1) 内置模板包（动态表 CRUD/表单/审批流/仪表盘）随版本发布；2) 模板版本治理与依赖声明；3) 可视化选用/导入导出/回滚 | 依赖 App scope 与运行态可用 | 25–60 人日 |
+
+### 可行的落地策略与替代方案
+
+**平台/应用控制台**：建议把“平台控制台”视为“多应用系统的入口与治理层”，不要与“系统设置”混为一谈。你可以复用现有动态路由机制，但需要新增两个概念：
+
+- Layout 层：PlatformLayout（平台导航）与 AppLayout（应用工作区导航）。  
+- Resource 域：应用资源（pages/forms/dashboards/datasources/templates）必须有“归属 AppId”。
+
+如果不希望再次走“PR #57 大改→回退”的路径，建议采用“**渐进式灰度**”：先保留旧入口，但新增 `/console` 并允许用户切换；当功能齐备再切换默认落点。
+
+**流程设计器衔接**：建议先在产品层做清晰边界声明：
+
+- “审批流”是“人机协作的业务流程”，以任务/抄送/可见范围/审批记录为核心；  
+- “工作流”是“系统编排”，以事件/延迟/重试/补偿为核心；  
+- 两者衔接的最小集：工作流可触发审批并等待审批结果事件。
+
+如果你们倾向采用 BPMN 标准与更成熟的建模生态，可考虑 bpmn-js；它提供在 Web 内嵌 BPMN Editor/Viewer 的基础能力。citeturn1search4  
+若你们希望支持更复杂的协作建模与标准化落地，可参考 Camunda Modeler 强调的 BPMN/DMN/Forms 统一建模体验。citeturn1search0turn1search2  
+若继续使用 X6，自研画布的优势是与当前 Vue 技术栈一致、可高度定制，但要持续承担“性能/导入导出/移动端交互”的工程成本；X6 官方对 Vue 节点性能优化给出了 teleport 等建议，需在架构层评估其副作用。citeturn2search2turn2search1
+
+**仓储闭环**：在当前代码基础上，你们已经拥有“动态表 + 审批绑定 + 提交审批 + 回写”的骨架。下一步建议用“业务用户视角”重构权限域：将 SystemAdmin-only 的路径拆为：
+
+- 平台管理员：管理动态表结构、应用资源治理；  
+- 应用管理员：在 App 域内配置数据表与审批绑定；  
+- 业务用户：只能对授权数据执行 CRUD/提交审批/查看状态。
+
+## 风险与优先级评估
+
+### 风险与优先级矩阵
+
+| 缺失项 | 业务影响 | 技术风险 | 建议优先级 | 核心风险说明 |
 |---|---|---|---|---|
-| 低 | 单业务线、单租户/少租户、P0 能力闭环 | 前端2、后端2、测试1、产品0.5、运维0.5 | 8–12 周 | 表单/页面/流程设计器 MVP；提交审批与状态回写闭环；列定制+冻结列；基础审计与回滚 fileciteturn98file0L1-L1 |
-| 中 | 多业务线、多租户、P1 部分能力（合并单元格/更强表达式） | 前端3、后端3–4、测试2、产品1、运维1 | 4–6 个月 | 表达式类型提示与调试；网格合并/编辑部分；异步回写重试与告警；更完整发布治理 |
-| 高 | 平台化生态（插件市场）、跨系统集成、异步消息模式 | 前端4–6、后端5–8、测试3、产品1–2、运维2 | 6–12 个月 | 插件化组件与数据源连接器；消息总线驱动审批；证据链自动化导出；高可用与全量可观测 |
+| 平台级控制台 | 高 | 高 | P0 | 信息架构牵动面大；PR #57→#58 回退表明一次性大改风险高，应采用渐进式与契约优先策略fileciteturn62file0L1-L1 |
+| 应用级控制台 | 高 | 高 | P0 | 没有 App workspace 与 App scope，会导致权限/数据/模板都无法产品化沉淀 |
+| 流程设计器与审批衔接 | 中-高 | 中-高 | P1 | 两套 DSL/设计器并行带来长期维护成本；工作流设计器边界与引擎能力不一致易形成“能画不能跑” |
+| 移动端流程设计器 | 中 | 高 | P2 | 移动端设计交互成本极高，建议先实现移动端运行态；设计态移到 PC 是更常见路径 |
+| 预置模板能力 | 中 | 中 | P1 | 没有模板资产沉淀，低代码与审批的复用效率会被拉低；但可在运行态闭环后再强化 |
+| 仓储系统闭环 | 高（若以低代码为核心） | 中-高 | P0/P1 | 动态表闭环已有雏形，但权限域与运行态缺失会使其停留在“管理员工具”阶段 |
 
-外部平台对标提示（用于你在评审会上解释“为什么这样设计”）：  
-- Power Automate approvals 提供“全部通过/任一通过/自定义响应/顺序审批”等审批类型，说明审批能力需要可配置的“签核策略”与治理能力。citeturn0search0turn0search2  
-- OutSystems 的审批组件强调“把审批模块嵌入任何应用，并在结束时抛出 Approved/Rejected 事件”，这与“节点表单嵌入 + 事件回写”的闭环思想一致。citeturn22search1  
-- Retool 强调预置组件与自定义组件扩展、以及可视化 workflows（API/webhook/cron 触发、可观测与权限），体现了“组件生态 + 流程编排 + 企业治理”在低代码产品中的共性需求。citeturn17search0turn22search0turn17search5  
-- Tencent 微搭产品介绍明确提到工作流、消息推送、用户权限等能力，说明“低代码 + 流程 + 权限治理”是企业级平台普遍诉求。citeturn22search8  
-- Alibaba LowCode Engine 强调“最小内核、物料体系、设置器、插件及全链路工具链”，适合作为“组件开发与复用”方向的开源参考。citeturn22search6turn22search4turn22search5
+### 关键工程化风险清单
+
+最需要显式管控的不是“功能做不做得出来”，而是“做出来是否会再次被回退”：
+
+- 大改动一次性合并风险：PR #57 与 #58 的快速往返，是强烈信号——需要更细粒度拆分里程碑与 PR，保持可回滚但不破坏主干体验。fileciteturn62file0L1-L1  
+- 前后端契约漂移：流程类能力尤其容易出现“前端可配置项 > 后端可执行项”的漂移；建议将“发布前校验（validate）”作为强制门禁，把不支持的结构在设计器阶段就 fail fast。  
+- 运行态缺失导致的“发布语义虚化”：低代码对象存在 Published 状态但缺少 runtime，会导致运营与用户理解偏差，甚至造成“上线不可用”的信任折损。
+
+## 参考的仓库文件与链接列表
+
+以下列出本报告中“承重最高”的仓库证据入口（按主题分组；均为 `master` 路径或 PR 元信息链接）：
+
+### 平台/应用控制台与回退证据
+
+- PR #57 平台控制台与应用数据源（已合入）：`https://github.com/lKGreat/SecurityPlatform/pull/57` fileciteturn63file0L1-L1  
+- PR #58 Revert 平台控制台与应用数据源（已合入）：`https://github.com/lKGreat/SecurityPlatform/pull/58` fileciteturn62file0L1-L1  
+- 动态路由 fallback 映射：`src/frontend/Atlas.WebApp/src/utils/dynamic-router.ts` fileciteturn70file2L1-L1  
+
+### 低代码应用（设计态）
+
+- 应用列表页：`src/frontend/Atlas.WebApp/src/pages/lowcode/AppListPage.vue` fileciteturn80file7L1-L1  
+- 低代码应用实体：`src/backend/Atlas.Domain/LowCode/Entities/LowCodeApp.cs` fileciteturn80file0L1-L1  
+- 运行态规划文档痕迹：`docs/lowcode/page-runtime.md` fileciteturn80file16L1-L1  
+
+### 流程能力（审批/工作流）
+
+- 工作流设计器页：`src/frontend/Atlas.WebApp/src/pages/WorkflowDesignerPage.vue` fileciteturn72file2L1-L1  
+- 工作流序列化器（限制顺序链路）：`src/frontend/Atlas.WebApp/src/composables/useWorkflowSerializer.ts` fileciteturn72file3L1-L1  
+- 工作流 API 控制器：`src/backend/Atlas.WebApi/Controllers/WorkflowController.cs` fileciteturn75file3L1-L1  
+- 审批流功能说明文档：`docs/审批流功能说明.md`  
+- 审批流设计/列表页：`src/frontend/Atlas.WebApp/src/pages/ApprovalDesignerPage.vue`、`ApprovalFlowsPage.vue`
+
+### 动态表与仓储闭环
+
+- 动态表页面：`src/frontend/Atlas.WebApp/src/pages/dynamic/DynamicTablesPage.vue`、`DynamicTableCrudPage.vue` fileciteturn87file11L1-L1 fileciteturn87file12L1-L1  
+- 动态表 AMIS schema：`src/backend/Atlas.WebApi/AmisSchemas/dynamic-tables/list.json`、`crud.json`  
+- 动态表 API：`src/backend/Atlas.WebApi/Controllers/DynamicTablesController.cs`、`DynamicTableRecordsController.cs` fileciteturn87file14L1-L1 fileciteturn84file10L1-L1  
+- 回写失败监控页面与 API：`src/frontend/.../WritebackMonitorPage.vue`、`src/backend/.../ApprovalWritebackFailuresController.cs`
+
+### 模板系统
+
+- 模板控制器：`src/backend/Atlas.WebApi/Controllers/TemplatesController.cs` fileciteturn83file1L1-L1  
+- 组件模板实体与服务：`src/backend/Atlas.Domain/Templates/ComponentTemplate.cs`、`src/backend/Atlas.Infrastructure/Services/ComponentTemplateService.cs` fileciteturn98file0L1-L1 fileciteturn98file7L1-L1  
+
+### CI 与安全扫描
+
+- CI 工作流：`.github/workflows/ci.yml` fileciteturn99file2L1-L1  
+- CodeQL 工作流：`.github/workflows/security.yml` fileciteturn99file3L1-L1  
+
+### 外部参考资料（用于替代方案与技术边界判断）
+
+- X6 官方简介与能力描述（中文）：citeturn2search1  
+- X6 Vue 节点性能建议（Teleport 等）：citeturn2search2  
+- AMIS 官方仓库与定位说明：citeturn6view0  
+- Workflow Core 官方文档/仓库（引擎语义参考）：citeturn0search9turn0search3  
+- Hangfire 官方文档（后台作业与可靠处理语义参考）：citeturn0search1turn0search8  
+- bpmn.io（bpmn-js、dmn-js、form-js 的统一工具箱入口）：citeturn1search4  
+- Camunda Modeler（BPMN/DMN/Forms 一体化建模产品形态参考）：citeturn1search0turn1search2

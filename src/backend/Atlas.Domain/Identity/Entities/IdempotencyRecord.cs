@@ -1,5 +1,6 @@
 using Atlas.Core.Abstractions;
 using Atlas.Core.Tenancy;
+using SqlSugar;
 
 namespace Atlas.Domain.Identity.Entities;
 
@@ -9,6 +10,13 @@ public enum IdempotencyStatus
     Completed = 1
 }
 
+ [SugarIndex(
+    "UX_IdempotencyRecord_Tenant_User_Api_Key",
+    nameof(TenantIdValue), OrderByType.Asc,
+    nameof(UserId), OrderByType.Asc,
+    nameof(ApiName), OrderByType.Asc,
+    nameof(IdempotencyKey), OrderByType.Asc,
+    true)]
 public sealed class IdempotencyRecord : TenantEntity
 {
     public IdempotencyRecord()

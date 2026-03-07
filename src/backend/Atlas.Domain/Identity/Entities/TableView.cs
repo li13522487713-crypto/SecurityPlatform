@@ -1,8 +1,16 @@
 using Atlas.Core.Abstractions;
 using Atlas.Core.Tenancy;
+using SqlSugar;
 
 namespace Atlas.Domain.Identity.Entities;
 
+[SugarIndex(
+    "UX_TableView_Tenant_User_Table_Name",
+    nameof(TenantIdValue), OrderByType.Asc,
+    nameof(UserId), OrderByType.Asc,
+    nameof(TableKey), OrderByType.Asc,
+    nameof(Name), OrderByType.Asc,
+    true)]
 public sealed class TableView : TenantEntity
 {
     public TableView()

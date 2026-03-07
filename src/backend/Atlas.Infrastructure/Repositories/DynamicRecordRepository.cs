@@ -37,10 +37,9 @@ public sealed class DynamicRecordRepository : IDynamicRecordRepository
         var pk = GetPrimaryKey(fields);
         var values = MapValues(request.Values);
 
-        var columns = new List<string> { DynamicSqlBuilder.QuoteTenantColumn(table.DbType) };
-        var parameters = new List<SugarParameter>
+        var row = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
         {
-            new("@tenantId", tenantId.Value.ToString("D"))
+            [DynamicSqlBuilder.TenantColumnName] = tenantId.Value.ToString("D")
         };
 
         foreach (var field in fields)
@@ -60,23 +59,24 @@ public sealed class DynamicRecordRepository : IDynamicRecordRepository
             }
 
             var value = ResolveValue(field, valueDto);
-            var paramName = $"@p{parameters.Count}";
-            columns.Add(DynamicSqlBuilder.Quote(field.Name, table.DbType));
-            parameters.Add(new SugarParameter(paramName, value ?? DBNull.Value));
+            row[field.Name] = value ?? DBNull.Value;
         }
 
-        if (columns.Count == 0)
+        if (row.Count <= 1)
         {
             throw new BusinessException(Atlas.Core.Models.ErrorCodes.ValidationError, "没有可写入的字段。");
         }
 
-        var sql = $"INSERT INTO {DynamicSqlBuilder.Quote(table.TableKey, table.DbType)} ({string.Join(", ", columns)}) VALUES ({string.Join(", ", parameters.Select(p => p.ParameterName))});";
-        await _db.Ado.ExecuteCommandAsync(sql, parameters.ToArray());
+        await _db.Insertable(row).AS(table.TableKey).ExecuteCommandAsync();
 
         if (pk.IsAutoIncrement)
         {
-            var id = await ExecuteScalarLongAsync("SELECT last_insert_rowid() AS Id;", Array.Empty<SugarParameter>());
-            return id;
+            var latest = await _db.Queryable<object>()
+                .AS(table.TableKey)
+                .OrderBy($"{pk.Name} desc")
+                .Select<long>(pk.Name)
+                .FirstAsync();
+            return latest;
         }
 
         if (values.TryGetValue(pk.Name, out var pkValue))
@@ -99,11 +99,10 @@ public sealed class DynamicRecordRepository : IDynamicRecordRepository
         var pk = GetPrimaryKey(fields);
         var values = MapValues(request.Values);
 
-        var setClauses = new List<string>();
-        var parameters = new List<SugarParameter>
+        var row = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
         {
-            new("@id", id),
-            new("@tenantId", tenantId.Value.ToString("D"))
+            [pk.Name] = id,
+            [DynamicSqlBuilder.TenantColumnName] = tenantId.Value.ToString("D")
         };
 
         foreach (var field in fields)
@@ -119,22 +118,18 @@ public sealed class DynamicRecordRepository : IDynamicRecordRepository
             }
 
             var value = ResolveValue(field, valueDto);
-            var paramName = $"@p{parameters.Count}";
-            setClauses.Add($"{DynamicSqlBuilder.Quote(field.Name, table.DbType)} = {paramName}");
-            parameters.Add(new SugarParameter(paramName, value ?? DBNull.Value));
+            row[field.Name] = value ?? DBNull.Value;
         }
 
-        if (setClauses.Count == 0)
+        if (row.Count <= 2)
         {
             return;
         }
 
-        var sql =
-            $"UPDATE {DynamicSqlBuilder.Quote(table.TableKey, table.DbType)} " +
-            $"SET {string.Join(", ", setClauses)} " +
-            $"WHERE {DynamicSqlBuilder.Quote(pk.Name, table.DbType)} = @id " +
-            $"AND {DynamicSqlBuilder.QuoteTenantColumn(table.DbType)} = @tenantId;";
-        await _db.Ado.ExecuteCommandAsync(sql, parameters.ToArray());
+        await _db.Updateable(row)
+            .AS(table.TableKey)
+            .WhereColumns(pk.Name, DynamicSqlBuilder.TenantColumnName)
+            .ExecuteCommandAsync();
     }
 
     public Task DeleteAsync(
@@ -145,15 +140,14 @@ public sealed class DynamicRecordRepository : IDynamicRecordRepository
         CancellationToken cancellationToken)
     {
         var pk = GetPrimaryKey(fields);
-        var sql =
-            $"DELETE FROM {DynamicSqlBuilder.Quote(table.TableKey, table.DbType)} " +
-            $"WHERE {DynamicSqlBuilder.Quote(pk.Name, table.DbType)} = @id " +
-            $"AND {DynamicSqlBuilder.QuoteTenantColumn(table.DbType)} = @tenantId;";
-        return _db.Ado.ExecuteCommandAsync(sql, new[]
-        {
-            new SugarParameter("@id", id),
-            new SugarParameter("@tenantId", tenantId.Value.ToString("D"))
-        });
+        return _db.Deleteable<object>()
+            .AS(table.TableKey)
+            .Where($"{pk.Name} = @id and {DynamicSqlBuilder.TenantColumnName} = @tenantId", new
+            {
+                id,
+                tenantId = tenantId.Value.ToString("D")
+            })
+            .ExecuteCommandAsync();
     }
 
     public Task DeleteBatchAsync(
@@ -169,14 +163,14 @@ public sealed class DynamicRecordRepository : IDynamicRecordRepository
         }
 
         var pk = GetPrimaryKey(fields);
-        var parameters = ids.Select((id, index) => new SugarParameter($"@p{index}", id)).ToList();
-        var inClause = string.Join(", ", parameters.Select(p => p.ParameterName));
-        parameters.Add(new SugarParameter("@tenantId", tenantId.Value.ToString("D")));
-        var sql =
-            $"DELETE FROM {DynamicSqlBuilder.Quote(table.TableKey, table.DbType)} " +
-            $"WHERE {DynamicSqlBuilder.Quote(pk.Name, table.DbType)} IN ({inClause}) " +
-            $"AND {DynamicSqlBuilder.QuoteTenantColumn(table.DbType)} = @tenantId;";
-        return _db.Ado.ExecuteCommandAsync(sql, parameters.ToArray());
+        var idList = string.Join(", ", ids);
+        return _db.Deleteable<object>()
+            .AS(table.TableKey)
+            .Where($"{pk.Name} in ({idList}) and {DynamicSqlBuilder.TenantColumnName} = @tenantId", new
+            {
+                tenantId = tenantId.Value.ToString("D")
+            })
+            .ExecuteCommandAsync();
     }
 
     public async Task<DynamicRecordListResult> QueryAsync(
@@ -195,24 +189,18 @@ public sealed class DynamicRecordRepository : IDynamicRecordRepository
                 throw new BusinessException(Atlas.Core.Models.ErrorCodes.ValidationError, "当前仅支持 SQLite 动态数据查询。");
             }
 
-            var where = BuildWhereClause(tenantId, table, fields, request, out var parameters);
-            var totalSql = $"SELECT COUNT(1) AS Total FROM {DynamicSqlBuilder.Quote(table.TableKey, table.DbType)} {where};";
-            var total = (int)await ExecuteScalarLongAsync(totalSql, parameters.ToArray());
+            var where = BuildWhereClause(tenantId, fields, request, out var parameters);
+            var query = _db.Queryable<object>()
+                .AS(table.TableKey)
+                .Where(where, parameters.ToArray());
+            var total = await query.CountAsync();
 
-            var orderBy = BuildOrderBy(table, fields, request);
+            var orderBy = BuildOrderBy(fields, request);
             var pageIndex = request.PageIndex < 1 ? 1 : request.PageIndex;
             var pageSize = request.PageSize < 1 ? 20 : request.PageSize;
-            var offset = (pageIndex - 1) * pageSize;
-
-            var pagingParameters = new List<SugarParameter>(parameters)
-            {
-                new SugarParameter("@limit", pageSize),
-                new SugarParameter("@offset", offset)
-            };
-
-            var selectColumns = string.Join(", ", fields.Select(f => DynamicSqlBuilder.Quote(f.Name, table.DbType)));
-            var sql = $"SELECT {selectColumns} FROM {DynamicSqlBuilder.Quote(table.TableKey, table.DbType)} {where} {orderBy} LIMIT @limit OFFSET @offset;";
-            var dataTable = await _db.Ado.GetDataTableAsync(sql, pagingParameters.ToArray());
+            var dataTable = await query
+                .OrderBy(orderBy)
+                .ToDataTablePageAsync(pageIndex, pageSize);
             var items = BuildRecords(fields, dataTable);
 
             return new DynamicRecordListResult(
@@ -241,16 +229,14 @@ public sealed class DynamicRecordRepository : IDynamicRecordRepository
         CancellationToken cancellationToken)
     {
         var pk = GetPrimaryKey(fields);
-        var sql =
-            $"SELECT {string.Join(", ", fields.Select(f => DynamicSqlBuilder.Quote(f.Name, table.DbType)))} " +
-            $"FROM {DynamicSqlBuilder.Quote(table.TableKey, table.DbType)} " +
-            $"WHERE {DynamicSqlBuilder.Quote(pk.Name, table.DbType)} = @id " +
-            $"AND {DynamicSqlBuilder.QuoteTenantColumn(table.DbType)} = @tenantId;";
-        var dataTable = await _db.Ado.GetDataTableAsync(sql, new[]
-        {
-            new SugarParameter("@id", id),
-            new SugarParameter("@tenantId", tenantId.Value.ToString("D"))
-        });
+        var dataTable = await _db.Queryable<object>()
+            .AS(table.TableKey)
+            .Where($"{pk.Name} = @id and {DynamicSqlBuilder.TenantColumnName} = @tenantId", new
+            {
+                id,
+                tenantId = tenantId.Value.ToString("D")
+            })
+            .ToDataTableAsync();
         if (dataTable.Rows.Count == 0)
         {
             return null;
@@ -292,7 +278,6 @@ public sealed class DynamicRecordRepository : IDynamicRecordRepository
 
     private static string BuildWhereClause(
         Atlas.Core.Tenancy.TenantId tenantId,
-        DynamicTable table,
         IReadOnlyList<DynamicField> fields,
         DynamicRecordQueryRequest request,
         out List<SugarParameter> parameters)
@@ -303,7 +288,7 @@ public sealed class DynamicRecordRepository : IDynamicRecordRepository
         };
         var conditions = new List<string>
         {
-            $"{DynamicSqlBuilder.QuoteTenantColumn(table.DbType)} = @tenantId"
+            $"{DynamicSqlBuilder.TenantColumnName} = @tenantId"
         };
 
         if (!string.IsNullOrWhiteSpace(request.Keyword))
@@ -313,7 +298,7 @@ public sealed class DynamicRecordRepository : IDynamicRecordRepository
             foreach (var field in fields.Where(x => x.FieldType is DynamicFieldType.String or DynamicFieldType.Text))
             {
                 var paramName = $"@p{parameters.Count}";
-                keywordConditions.Add($"{DynamicSqlBuilder.Quote(field.Name, table.DbType)} LIKE {paramName}");
+                keywordConditions.Add($"{field.Name} LIKE {paramName}");
                 parameters.Add(new SugarParameter(paramName, keyword));
             }
 
@@ -337,7 +322,7 @@ public sealed class DynamicRecordRepository : IDynamicRecordRepository
                 continue;
             }
 
-            var fieldName = DynamicSqlBuilder.Quote(field.Name, table.DbType);
+            var fieldName = field.Name;
             var op = filter.Operator.ToLowerInvariant();
 
             if (op == "in" && filter.Value is { ValueKind: JsonValueKind.Array })
@@ -464,7 +449,6 @@ public sealed class DynamicRecordRepository : IDynamicRecordRepository
     }
 
     private static string BuildOrderBy(
-        DynamicTable table,
         IReadOnlyList<DynamicField> fields,
         DynamicRecordQueryRequest request)
     {
@@ -474,12 +458,12 @@ public sealed class DynamicRecordRepository : IDynamicRecordRepository
             if (field is not null)
             {
                 var dir = request.SortDesc ? "DESC" : "ASC";
-                return $"ORDER BY {DynamicSqlBuilder.Quote(field.Name, table.DbType)} {dir}";
+                return $"{field.Name} {dir}";
             }
         }
 
         var pk = GetPrimaryKey(fields);
-        return $"ORDER BY {DynamicSqlBuilder.Quote(pk.Name, table.DbType)} DESC";
+        return $"{pk.Name} DESC";
     }
 
     private static IReadOnlyList<DynamicRecordDto> BuildRecords(IReadOnlyList<DynamicField> fields, DataTable table)
@@ -606,14 +590,4 @@ public sealed class DynamicRecordRepository : IDynamicRecordRepository
             false)).ToArray();
     }
 
-    private async Task<long> ExecuteScalarLongAsync(string sql, SugarParameter[] parameters)
-    {
-        var table = await _db.Ado.GetDataTableAsync(sql, parameters);
-        if (table.Rows.Count == 0)
-        {
-            return 0;
-        }
-
-        return Convert.ToInt64(table.Rows[0][0]);
-    }
 }

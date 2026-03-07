@@ -8,6 +8,15 @@ namespace Atlas.Domain.Approval.Entities;
 /// <summary>
 /// 审批节点执行记录（用于跟踪节点执行状态和流转）
 /// </summary>
+[SugarIndex(
+    "IX_ApprovalNodeExecution_TenantId_InstanceId",
+    nameof(TenantIdValue), OrderByType.Asc,
+    nameof(InstanceId), OrderByType.Asc)]
+[SugarIndex(
+    "IX_ApprovalNodeExecution_TenantId_InstanceId_NodeId",
+    nameof(TenantIdValue), OrderByType.Asc,
+    nameof(InstanceId), OrderByType.Asc,
+    nameof(NodeId), OrderByType.Asc)]
 public sealed class ApprovalNodeExecution : TenantEntity
 {
     public ApprovalNodeExecution()

@@ -1,11 +1,17 @@
 using Atlas.Core.Abstractions;
 using Atlas.Core.Tenancy;
+using SqlSugar;
 
 namespace Atlas.Domain.Approval.Entities;
 
 /// <summary>
 /// 并行网关 Token 跟踪（用于并行分支的汇聚）
 /// </summary>
+[SugarIndex(
+    "IX_ApprovalParallelToken_TenantId_InstanceId_GatewayNodeId",
+    nameof(TenantIdValue), OrderByType.Asc,
+    nameof(InstanceId), OrderByType.Asc,
+    nameof(GatewayNodeId), OrderByType.Asc)]
 public sealed class ApprovalParallelToken : TenantEntity
 {
     public ApprovalParallelToken()

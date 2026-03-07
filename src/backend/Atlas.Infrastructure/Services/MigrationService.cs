@@ -9,6 +9,7 @@ using Atlas.Domain.DynamicTables.Enums;
 using Atlas.Domain.DynamicTables.Entities;
 using Atlas.Infrastructure.DynamicTables;
 using System.Text;
+using System.Text.RegularExpressions;
 using SqlSugar;
 
 namespace Atlas.Infrastructure.Services;
@@ -185,8 +186,8 @@ public sealed class MigrationService : IMigrationService
                 continue;
             }
 
-            var addSql = BuildAddColumnSql(table, field);
-            upSql.AppendLine(addSql);
+            var addOperation = BuildAddColumnOperationText(field);
+            upSql.AppendLine(addOperation);
             hasExecutableUp = true;
             downSql.AppendLine("-- SQLite 需重建表，新增列的回退需手动执行");
         }
@@ -307,7 +308,7 @@ public sealed class MigrationService : IMigrationService
             {
                 // 安全边界：UpScript 已在执行前通过 MigrationScriptValidator 白名单校验，
                 // 仅允许 ALTER TABLE ... ADD COLUMN，禁止 DROP/SELECT/INSERT 等任意 SQL。
-                await _db.Ado.ExecuteCommandAsync(migration.UpScript, cancellationToken);
+                await ExecuteMigrationUpScriptAsync(table, migration.UpScript, cancellationToken);
                 migration.MarkSucceeded(userId, DateTimeOffset.UtcNow);
             }
             catch (Exception ex)
@@ -377,31 +378,58 @@ public sealed class MigrationService : IMigrationService
             checks);
     }
 
-    private static string BuildAddColumnSql(DynamicTable table, DynamicFieldDefinition field)
+    private static string BuildAddColumnOperationText(DynamicFieldDefinition field)
     {
-        var fieldType = DynamicEnumMapper.ParseFieldType(field.FieldType);
-        var tempField = new DynamicField(
-            table.TenantId,
-            table.Id,
-            field.Name,
-            field.DisplayName ?? field.Name,
-            fieldType,
-            field.Length,
-            field.Precision,
-            field.Scale,
-            field.AllowNull,
-            field.IsPrimaryKey,
-            field.IsAutoIncrement,
-            field.IsUnique,
-            field.DefaultValue,
-            field.SortOrder,
-            0,
-            DateTimeOffset.UtcNow);
+        var typeText = field.FieldType?.Trim() ?? "String";
+        var nullableText = field.AllowNull ? "NULL" : "NOT NULL";
+        return $"ADD COLUMN: {field.Name} ({typeText}, {nullableText})";
+    }
 
-        var columnName = DynamicSqlBuilder.Quote(field.Name, table.DbType);
-        var columnType = DynamicSqlBuilder.MapToSqlType(tempField, table.DbType);
-        var nullSql = field.AllowNull ? string.Empty : " NOT NULL";
-        return $"ALTER TABLE {DynamicSqlBuilder.Quote(table.TableKey, table.DbType)} ADD COLUMN {columnName} {columnType}{nullSql};";
+    private async Task ExecuteMigrationUpScriptAsync(DynamicTable? table, string upScript, CancellationToken cancellationToken)
+    {
+        var lines = upScript
+            .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(line => !line.StartsWith("--", StringComparison.Ordinal))
+            .ToArray();
+
+        foreach (var line in lines)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var command = line.Trim();
+            if (command.Length == 0)
+            {
+                continue;
+            }
+
+            if (command.EndsWith(";", StringComparison.Ordinal))
+            {
+                command = command[..^1];
+            }
+
+            var match = Regex.Match(
+                command,
+                @"^ALTER\s+TABLE\s+""?(?<table>[A-Za-z0-9_]+)""?\s+ADD\s+COLUMN\s+""?(?<column>[A-Za-z0-9_]+)""?\s+(?<type>[A-Za-z0-9()_,]+)(?<nullable>\s+NOT\s+NULL)?$",
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+            if (!match.Success)
+            {
+                continue;
+            }
+
+            var tableName = match.Groups["table"].Value;
+            if (table is not null && !string.Equals(table.TableKey, tableName, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new BusinessException(ErrorCodes.ValidationError, "迁移脚本表名与目标动态表不一致。");
+            }
+
+            var columnName = match.Groups["column"].Value;
+            var columnType = match.Groups["type"].Value;
+            var notNull = match.Groups["nullable"].Success;
+
+            var nullClause = notNull ? " NOT NULL" : "";
+            var addColumnSql = $"ALTER TABLE \"{tableName}\" ADD COLUMN \"{columnName}\" {columnType}{nullClause}";
+            await _db.Ado.ExecuteCommandAsync(addColumnSql);
+        }
     }
 
     private static bool IsNoopUpdate(DynamicField current, DynamicFieldUpdateDefinition update)

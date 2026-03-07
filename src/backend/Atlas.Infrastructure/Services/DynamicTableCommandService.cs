@@ -99,13 +99,21 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
         var fields = BuildFields(tenantId, table.Id, request.Fields, now);
         var indexes = BuildIndexes(tenantId, table.Id, request.Indexes, now);
 
-        var createTableSql = DynamicSqlBuilder.BuildCreateTableSql(table, fields);
-        var indexSql = BuildCreateIndexSql(table, indexes);
-        var ddl = string.IsNullOrWhiteSpace(indexSql) ? createTableSql : $"{createTableSql}\n{indexSql}";
+        var createColumns = DynamicSqlBuilder.BuildCreateTableColumns(fields);
+        var indexSpecs = DynamicSqlBuilder.BuildCreateIndexSpecs(table, indexes);
 
         var result = await _db.Ado.UseTranAsync(async () =>
         {
-            await _db.Ado.ExecuteCommandAsync(ddl);
+            _db.DbMaintenance.CreateTable(table.TableKey, createColumns, true);
+            foreach (var indexSpec in indexSpecs)
+            {
+                if (_db.DbMaintenance.IsAnyIndex(indexSpec.IndexName))
+                {
+                    continue;
+                }
+
+                _db.DbMaintenance.CreateIndex(indexSpec.IndexName, indexSpec.Fields.ToArray(), table.TableKey, indexSpec.IsUnique);
+            }
             await _tableRepository.AddAsync(table, cancellationToken);
             await _fieldRepository.AddRangeAsync(fields, cancellationToken);
             await _indexRepository.AddRangeAsync(indexes, cancellationToken);
@@ -174,16 +182,15 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
         var now = _timeProvider.GetUtcNow();
         var newFields = BuildAddFields(tenantId, table.Id, request.AddFields, existingFields, now);
         var fieldsToUpdate = BuildUpdatedFields(request.UpdateFields, existingFields, now);
-        var ddlCommands = new List<string>(newFields.Count * 2);
+        var addColumnOperations = new List<DynamicField>(newFields.Count);
         var generatedIndexes = new List<DynamicIndex>();
         foreach (var field in newFields)
         {
-            ddlCommands.Add(DynamicSqlBuilder.BuildAddColumnSql(table, field));
+            addColumnOperations.Add(field);
 
             if (field.IsUnique)
             {
                 var indexName = $"uk_{table.TableKey}_{field.Name}".ToLowerInvariant();
-                ddlCommands.Add(DynamicSqlBuilder.BuildCreateIndexSql(table, new[] { field.Name }, indexName, true));
                 generatedIndexes.Add(new DynamicIndex(
                     tenantId,
                     table.Id,
@@ -200,14 +207,30 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
             tenantId,
             table,
             ResolveOperationType(newFields.Count, fieldsToUpdate.Count),
-            BuildMigrationSqlScripts(ddlCommands, fieldsToUpdate),
+            BuildMigrationOperationLogs(newFields, fieldsToUpdate),
             userId,
             now);
         var result = await _db.Ado.UseTranAsync(async () =>
         {
-            foreach (var ddl in ddlCommands)
+            foreach (var field in addColumnOperations)
             {
-                await _db.Ado.ExecuteCommandAsync(ddl);
+                _db.DbMaintenance.AddColumn(table.TableKey, DynamicSqlBuilder.BuildAddColumnInfo(field));
+            }
+
+            foreach (var index in generatedIndexes)
+            {
+                if (_db.DbMaintenance.IsAnyIndex(index.Name))
+                {
+                    continue;
+                }
+
+                var fields = JsonSerializer.Deserialize<string[]>(index.FieldsJson, JsonOptions) ?? Array.Empty<string>();
+                if (fields.Length == 0)
+                {
+                    continue;
+                }
+
+                _db.DbMaintenance.CreateIndex(index.Name, fields, table.TableKey, index.IsUnique);
             }
 
             await _fieldRepository.AddRangeAsync(newFields, cancellationToken);
@@ -261,11 +284,11 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
 
         var previewFields = BuildPreviewFields(tenantId, table.Id, request.AddFields, existingFields);
         var previewUpdatedFields = BuildPreviewUpdatedFields(request.UpdateFields, existingFields, DateTimeOffset.UtcNow);
-        var sqlScripts = BuildMigrationSqlScripts(BuildAddFieldSqlScripts(table, previewFields), previewUpdatedFields);
+        var operationLogs = BuildMigrationOperationLogs(previewFields, previewUpdatedFields);
         return new DynamicTableAlterPreviewResponse(
             tableKey,
             ResolveOperationType(previewFields.Count, previewUpdatedFields.Count),
-            sqlScripts,
+            operationLogs,
             "当前版本不支持自动回滚，请通过备份恢复。");
     }
 
@@ -281,10 +304,9 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
             return;
         }
 
-        var ddl = DynamicSqlBuilder.BuildDropTableSql(table);
         var result = await _db.Ado.UseTranAsync(async () =>
         {
-            await _db.Ado.ExecuteCommandAsync(ddl);
+            _db.DbMaintenance.DropTable(table.TableKey);
             await _fieldRepository.DeleteByTableIdAsync(tenantId, table.Id, cancellationToken);
             await _indexRepository.DeleteByTableIdAsync(tenantId, table.Id, cancellationToken);
             await _relationRepository.DeleteByTableIdAsync(tenantId, table.Id, cancellationToken);
@@ -596,28 +618,6 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
             "审批中");
     }
 
-    private static string BuildCreateIndexSql(DynamicTable table, IReadOnlyList<DynamicIndex> indexes)
-    {
-        if (indexes.Count == 0)
-        {
-            return string.Empty;
-        }
-
-        var sqlList = new List<string>(indexes.Count);
-        foreach (var index in indexes)
-        {
-            var fields = JsonSerializer.Deserialize<string[]>(index.FieldsJson, JsonOptions) ?? Array.Empty<string>();
-            if (fields.Length == 0)
-            {
-                continue;
-            }
-
-            sqlList.Add(DynamicSqlBuilder.BuildCreateIndexSql(table, fields, index.Name, index.IsUnique));
-        }
-
-        return string.Join("\n", sqlList);
-    }
-
     private IReadOnlyList<DynamicField> BuildAddFields(
         TenantId tenantId,
         long tableId,
@@ -737,22 +737,6 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
         }
     }
 
-    private static IReadOnlyList<string> BuildAddFieldSqlScripts(DynamicTable table, IReadOnlyList<DynamicField> newFields)
-    {
-        var scripts = new List<string>(newFields.Count * 2);
-        foreach (var field in newFields)
-        {
-            scripts.Add(DynamicSqlBuilder.BuildAddColumnSql(table, field));
-            if (field.IsUnique)
-            {
-                var indexName = $"uk_{table.TableKey}_{field.Name}".ToLowerInvariant();
-                scripts.Add(DynamicSqlBuilder.BuildCreateIndexSql(table, new[] { field.Name }, indexName, true));
-            }
-        }
-
-        return scripts;
-    }
-
     private static IReadOnlyList<DynamicField> BuildUpdatedFields(
         IReadOnlyList<DynamicFieldUpdateDefinition> updateFields,
         IReadOnlyList<DynamicField> existingFields,
@@ -868,12 +852,20 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
         return "NOOP";
     }
 
-    private static IReadOnlyList<string> BuildMigrationSqlScripts(
-        IReadOnlyList<string> ddlScripts,
+    private static IReadOnlyList<string> BuildMigrationOperationLogs(
+        IReadOnlyList<DynamicField> newFields,
         IReadOnlyList<DynamicField> updatedFields)
     {
-        var scripts = new List<string>(ddlScripts.Count + updatedFields.Count);
-        scripts.AddRange(ddlScripts);
+        var scripts = new List<string>(newFields.Count + updatedFields.Count);
+        foreach (var field in newFields)
+        {
+            scripts.Add($"ADD COLUMN: {field.Name} ({field.FieldType})");
+            if (field.IsUnique)
+            {
+                scripts.Add($"CREATE UNIQUE INDEX: uk_*_{field.Name}");
+            }
+        }
+
         foreach (var field in updatedFields)
         {
             scripts.Add($"-- UPDATE FIELD META: {field.Name}, displayName={field.DisplayName}, sortOrder={field.SortOrder}");

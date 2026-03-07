@@ -1,12 +1,17 @@
 using Atlas.Core.Abstractions;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Approval.Enums;
+using SqlSugar;
 
 namespace Atlas.Domain.Approval.Entities;
 
 /// <summary>
 /// 审批历史事件（每次状态推进的记录）
 /// </summary>
+[SugarIndex(
+    "IX_ApprovalHistoryEvent_TenantId_InstanceId",
+    nameof(TenantIdValue), OrderByType.Asc,
+    nameof(InstanceId), OrderByType.Asc)]
 public sealed class ApprovalHistoryEvent : TenantEntity
 {
     public ApprovalHistoryEvent()

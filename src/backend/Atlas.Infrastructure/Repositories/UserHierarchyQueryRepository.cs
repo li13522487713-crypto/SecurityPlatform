@@ -1,13 +1,13 @@
 using Atlas.Application.Identity.Repositories;
 using Atlas.Core.Tenancy;
+using Atlas.Domain.Approval.Entities;
+using Atlas.Domain.Identity.Entities;
 using SqlSugar;
 
 namespace Atlas.Infrastructure.Repositories;
 
 public sealed class UserHierarchyQueryRepository : IUserHierarchyQueryRepository
 {
-    private sealed record LeaderRow(long LeaderUserId, int Depth);
-
     private const int MaxRecursionCap = 100;
 
     private readonly ISqlSugarClient _db;
@@ -30,16 +30,7 @@ public sealed class UserHierarchyQueryRepository : IUserHierarchyQueryRepository
         }
 
         var depth = Math.Min(maxLevels, MaxRecursionCap);
-        var sql = BuildLeaderChainSql(_db.CurrentConnectionConfig.DbType);
-        var rows = await _db.Ado.SqlQueryAsync<LeaderRow>(
-            sql,
-            new { TenantId = tenantId.Value, UserId = userId, MaxLevels = depth });
-
-        return rows
-            .OrderBy(x => x.Depth)
-            .Select(x => x.LeaderUserId)
-            .Distinct()
-            .ToList();
+        return await BuildLeaderChainAsync(tenantId, userId, depth, cancellationToken);
     }
 
     public async Task<long?> GetLeaderAtLevelAsync(
@@ -55,86 +46,68 @@ public sealed class UserHierarchyQueryRepository : IUserHierarchyQueryRepository
         }
 
         var depth = Math.Min(level, MaxRecursionCap);
-        var sql = BuildLeaderChainSql(_db.CurrentConnectionConfig.DbType);
-        var rows = await _db.Ado.SqlQueryAsync<LeaderRow>(
-            sql,
-            new { TenantId = tenantId.Value, UserId = userId, MaxLevels = depth });
-
-        return rows.FirstOrDefault(x => x.Depth == level)?.LeaderUserId;
+        var rows = await BuildLeaderChainAsync(tenantId, userId, depth, cancellationToken);
+        return rows.Count >= level ? rows[level - 1] : null;
     }
 
-    private static string BuildLeaderChainSql(DbType dbType)
+    private async Task<IReadOnlyList<long>> BuildLeaderChainAsync(
+        TenantId tenantId,
+        long userId,
+        int maxLevels,
+        CancellationToken cancellationToken)
     {
-        var withKeyword = dbType switch
+        var tenantGuid = tenantId.Value;
+        var userDepartments = await _db.Queryable<UserDepartment>()
+            .Where(x => x.TenantIdValue == tenantGuid)
+            .ToListAsync(cancellationToken);
+        var departmentLeaders = await _db.Queryable<ApprovalDepartmentLeader>()
+            .Where(x => x.TenantIdValue == tenantGuid)
+            .ToListAsync(cancellationToken);
+
+        var primaryDepartmentByUser = userDepartments
+            .GroupBy(x => x.UserId)
+            .ToDictionary(
+                group => group.Key,
+                group =>
+                {
+                    var primary = group.FirstOrDefault(x => x.IsPrimary);
+                    if (primary is not null)
+                    {
+                        return primary.DepartmentId;
+                    }
+
+                    return group.Min(x => x.DepartmentId);
+                });
+        var leaderByDepartment = departmentLeaders
+            .GroupBy(x => x.DepartmentId)
+            .ToDictionary(g => g.Key, g => g.First().LeaderUserId);
+
+        var leaders = new List<long>(maxLevels);
+        var visitedUsers = new HashSet<long> { userId };
+        var currentUserId = userId;
+        var depth = 0;
+        while (depth < maxLevels)
         {
-            DbType.SqlServer => "WITH",
-            DbType.MySql => "WITH RECURSIVE",
-            DbType.Sqlite => "WITH RECURSIVE",
-            _ => "WITH"
-        };
+            if (!primaryDepartmentByUser.TryGetValue(currentUserId, out var departmentId))
+            {
+                break;
+            }
 
-        var pathAnchor = dbType == DbType.Sqlite
-            ? "(',' || @UserId || ',' || adl.LeaderUserId || ',')"
-            : "CONCAT(',', @UserId, ',', adl.LeaderUserId, ',')";
+            if (!leaderByDepartment.TryGetValue(departmentId, out var leaderUserId))
+            {
+                break;
+            }
 
-        var pathNext = dbType == DbType.Sqlite
-            ? "(cte.Path || adl.LeaderUserId || ',')"
-            : "CONCAT(cte.Path, adl.LeaderUserId, ',')";
+            if (!visitedUsers.Add(leaderUserId))
+            {
+                break;
+            }
 
-        var pathCheck = dbType == DbType.Sqlite
-            ? "cte.Path NOT LIKE ('%,' || adl.LeaderUserId || ',%')"
-            : "cte.Path NOT LIKE CONCAT('%,', adl.LeaderUserId, ',%')";
+            leaders.Add(leaderUserId);
+            currentUserId = leaderUserId;
+            depth++;
+        }
 
-        return $@"
-{withKeyword} leader_cte AS (
-    SELECT
-        1 AS Depth,
-        ud.UserId AS UserId,
-        adl.LeaderUserId AS LeaderUserId,
-        ud.DepartmentId AS DepartmentId,
-        {pathAnchor} AS Path
-    FROM UserDepartment ud
-    INNER JOIN ApprovalDepartmentLeader adl
-        ON adl.TenantIdValue = @TenantId
-        AND adl.DepartmentId = ud.DepartmentId
-    WHERE ud.TenantIdValue = @TenantId
-      AND ud.UserId = @UserId
-      AND ud.DepartmentId = (
-          SELECT COALESCE(
-              MAX(CASE WHEN IsPrimary = 1 THEN DepartmentId END),
-              MIN(DepartmentId)
-          )
-          FROM UserDepartment
-          WHERE TenantIdValue = @TenantId AND UserId = @UserId
-      )
-    UNION ALL
-    SELECT
-        cte.Depth + 1,
-        ud.UserId AS UserId,
-        adl.LeaderUserId AS LeaderUserId,
-        ud.DepartmentId AS DepartmentId,
-        {pathNext} AS Path
-    FROM leader_cte cte
-    INNER JOIN UserDepartment ud
-        ON ud.TenantIdValue = @TenantId
-        AND ud.UserId = cte.LeaderUserId
-        AND ud.DepartmentId = (
-            SELECT COALESCE(
-                MAX(CASE WHEN IsPrimary = 1 THEN DepartmentId END),
-                MIN(DepartmentId)
-            )
-            FROM UserDepartment
-            WHERE TenantIdValue = @TenantId AND UserId = cte.LeaderUserId
-        )
-    INNER JOIN ApprovalDepartmentLeader adl
-        ON adl.TenantIdValue = @TenantId
-        AND adl.DepartmentId = ud.DepartmentId
-    WHERE cte.Depth < @MaxLevels
-      AND {pathCheck}
-)
-SELECT LeaderUserId, Depth
-FROM leader_cte
-ORDER BY Depth;
-";
+        return leaders;
     }
 }
