@@ -126,10 +126,19 @@ public sealed class ApprovalRuntimeController : ControllerBase
         [FromQuery] ApprovalInstanceStatus? status = null,
         CancellationToken cancellationToken = default)
     {
-        var tenantId = _tenantProvider.GetTenantId();
+        var currentUser = _currentUserAccessor.GetCurrentUserOrThrow();
+        var isAdmin = await IsAdminAsync(currentUser, cancellationToken);
+        if (!isAdmin)
+        {
+            return ApiResponse<PagedResult<ApprovalInstanceListItem>>.Fail(
+                "FORBIDDEN",
+                "仅管理员可访问管理端流程实例查询",
+                HttpContext.TraceIdentifier);
+        }
+
         var request = new PagedRequest(pageIndex, pageSize, null, null, false);
         var result = await _queryService.GetInstancesPagedAsync(
-            tenantId,
+            currentUser.TenantId,
             request,
             definitionId,
             initiatorUserId,
@@ -546,12 +555,7 @@ public sealed class ApprovalRuntimeController : ControllerBase
         ApprovalInstanceResponse instance,
         CancellationToken cancellationToken)
     {
-        var roleCodes = await _rbacResolver.GetRoleCodesAsync(
-            currentUser.TenantId,
-            currentUser.UserId,
-            cancellationToken);
-        var isAdmin = roleCodes.Contains("Admin", StringComparer.OrdinalIgnoreCase)
-            || roleCodes.Contains("SuperAdmin", StringComparer.OrdinalIgnoreCase);
+        var isAdmin = await IsAdminAsync(currentUser, cancellationToken);
         if (isAdmin)
         {
             return true;
@@ -567,6 +571,16 @@ public sealed class ApprovalRuntimeController : ControllerBase
             instanceId,
             currentUser.UserId,
             cancellationToken);
+    }
+
+    private async Task<bool> IsAdminAsync(CurrentUserInfo currentUser, CancellationToken cancellationToken)
+    {
+        var roleCodes = await _rbacResolver.GetRoleCodesAsync(
+            currentUser.TenantId,
+            currentUser.UserId,
+            cancellationToken);
+        return roleCodes.Contains("Admin", StringComparer.OrdinalIgnoreCase)
+            || roleCodes.Contains("SuperAdmin", StringComparer.OrdinalIgnoreCase);
     }
 
     private static string EscapeCsv(string? value)
