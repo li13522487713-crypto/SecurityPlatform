@@ -404,7 +404,11 @@ const handleSubmit = async () => {
     failedAttempts.value = 0;
     cooldownSeconds.value = 0;
     errorMessage.value = "";
-    const targetPath = "/console";
+    const redirectParam = typeof route.query.redirect === "string" ? route.query.redirect : null;
+    const targetPath =
+      redirectParam && redirectParam.startsWith("/") && !redirectParam.startsWith("//")
+        ? redirectParam
+        : "/console";
     const canNavigate = routes.some((item) => typeof item.path === "string" && targetPath.startsWith(item.path));
     const firstAccessiblePath = pickFirstAccessiblePath(permissionStore.sidebarRouters as SidebarRouteNode[]);
     const fallbackPath = firstAccessiblePath ?? "/console";

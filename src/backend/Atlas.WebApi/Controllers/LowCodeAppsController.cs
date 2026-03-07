@@ -29,7 +29,7 @@ public sealed class LowCodeAppsController : ControllerBase
     private readonly IValidator<LowCodePageUpdateRequest> _pageUpdateValidator;
     private readonly IValidator<LowCodeEnvironmentCreateRequest> _environmentCreateValidator;
     private readonly IValidator<LowCodeEnvironmentUpdateRequest> _environmentUpdateValidator;
-    private readonly IValidator<AppSharingPolicyUpdateRequest> _sharingPolicyUpdateValidator;
+    private readonly IValidator<AppSharingPolicyDto> _sharingPolicyUpdateValidator;
     private readonly IValidator<AppEntityAliasUpdateRequest> _entityAliasUpdateValidator;
 
     public LowCodeAppsController(
@@ -46,7 +46,7 @@ public sealed class LowCodeAppsController : ControllerBase
         IValidator<LowCodePageUpdateRequest> pageUpdateValidator,
         IValidator<LowCodeEnvironmentCreateRequest> environmentCreateValidator,
         IValidator<LowCodeEnvironmentUpdateRequest> environmentUpdateValidator,
-        IValidator<AppSharingPolicyUpdateRequest> sharingPolicyUpdateValidator,
+        IValidator<AppSharingPolicyDto> sharingPolicyUpdateValidator,
         IValidator<AppEntityAliasUpdateRequest> entityAliasUpdateValidator)
     {
         _queryService = queryService;
@@ -202,7 +202,7 @@ public sealed class LowCodeAppsController : ControllerBase
     [Authorize(Policy = PermissionPolicies.AppsUpdate)]
     public async Task<ActionResult<ApiResponse<object>>> UpdateSharingPolicy(
         long id,
-        [FromBody] AppSharingPolicyUpdateRequest request,
+        [FromBody] AppSharingPolicyDto request,
         CancellationToken cancellationToken)
     {
         _sharingPolicyUpdateValidator.ValidateAndThrow(request);

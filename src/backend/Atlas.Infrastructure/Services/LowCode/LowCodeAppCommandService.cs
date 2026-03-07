@@ -8,8 +8,6 @@ using Atlas.Infrastructure.Options;
 using Atlas.Infrastructure.Repositories;
 using Microsoft.Extensions.Options;
 using SqlSugar;
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
 
 namespace Atlas.Infrastructure.Services.LowCode;
@@ -92,7 +90,7 @@ public sealed class LowCodeAppCommandService : ILowCodeAppCommandService
         TenantId tenantId,
         long userId,
         long appId,
-        AppSharingPolicyUpdateRequest request,
+        AppSharingPolicyDto request,
         CancellationToken cancellationToken = default)
     {
         var app = await _appRepository.GetByIdAsync(tenantId, appId, cancellationToken)
@@ -167,11 +165,19 @@ public sealed class LowCodeAppCommandService : ILowCodeAppCommandService
         var dataSource = await _tenantDataSourceRepository.FindByIdAsync(tenantId.Value.ToString(), app.DataSourceId.Value, cancellationToken)
             ?? throw new InvalidOperationException($"数据源 ID={app.DataSourceId.Value} 不存在");
 
-        var connectionString = _databaseEncryptionOptions.Enabled
-            ? Decrypt(dataSource.EncryptedConnectionString, _databaseEncryptionOptions.Key)
-            : dataSource.EncryptedConnectionString;
+        string connectionString;
+        try
+        {
+            connectionString = _databaseEncryptionOptions.Enabled
+                ? TenantDbConnectionFactory.Decrypt(dataSource.EncryptedConnectionString, _databaseEncryptionOptions.Key)
+                : dataSource.EncryptedConnectionString;
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"数据源 ID={dataSource.Id} 连接字符串解密失败，请检查加密密钥配置。", ex);
+        }
 
-        var success = await TestConnectionAsync(connectionString, dataSource.DbType, cancellationToken);
+        var success = await TenantDbConnectionFactory.TestConnectionAsync(connectionString, dataSource.DbType, cancellationToken);
         dataSource.RecordTestResult(success);
         await _tenantDataSourceRepository.UpdateAsync(dataSource, cancellationToken);
         return success;
@@ -653,67 +659,4 @@ public sealed class LowCodeAppCommandService : ILowCodeAppCommandService
         string? PermissionCode,
         string? DataTableKey);
 
-    private static async Task<bool> TestConnectionAsync(
-        string connectionString,
-        string dbType,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            using var client = new SqlSugarClient(new ConnectionConfig
-            {
-                ConnectionString = connectionString,
-                DbType = ParseDbType(dbType),
-                IsAutoCloseConnection = true
-            });
-
-            _ = await client.Ado.GetIntAsync("SELECT 1");
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    private static DbType ParseDbType(string dbType)
-    {
-        return dbType.Trim().ToLowerInvariant() switch
-        {
-            "sqlite" => DbType.Sqlite,
-            "sqlserver" => DbType.SqlServer,
-            "mysql" => DbType.MySql,
-            "postgresql" => DbType.PostgreSQL,
-            _ => DbType.Sqlite
-        };
-    }
-
-    private static string Decrypt(string cipherText, string key)
-    {
-        if (string.IsNullOrEmpty(key))
-        {
-            return cipherText;
-        }
-
-        try
-        {
-            var keyBytes = SHA256.HashData(Encoding.UTF8.GetBytes(key));
-            var allBytes = Convert.FromBase64String(cipherText);
-            using var aes = Aes.Create();
-            aes.Key = keyBytes;
-            var ivLength = aes.BlockSize / 8;
-            var iv = new byte[ivLength];
-            Buffer.BlockCopy(allBytes, 0, iv, 0, ivLength);
-            var encryptedBytes = new byte[allBytes.Length - ivLength];
-            Buffer.BlockCopy(allBytes, ivLength, encryptedBytes, 0, encryptedBytes.Length);
-            aes.IV = iv;
-            using var decryptor = aes.CreateDecryptor();
-            var decrypted = decryptor.TransformFinalBlock(encryptedBytes, 0, encryptedBytes.Length);
-            return Encoding.UTF8.GetString(decrypted);
-        }
-        catch
-        {
-            return cipherText;
-        }
-    }
 }

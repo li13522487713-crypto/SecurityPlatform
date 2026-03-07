@@ -11,7 +11,7 @@ public interface ILowCodeAppCommandService
         TenantId tenantId,
         long userId,
         long appId,
-        AppSharingPolicyUpdateRequest request,
+        AppSharingPolicyDto request,
         CancellationToken cancellationToken = default);
     Task UpdateEntityAliasesAsync(
         TenantId tenantId,

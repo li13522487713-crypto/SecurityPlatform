@@ -79,7 +79,7 @@ public sealed class LowCodeAppImportRequestValidator : AbstractValidator<LowCode
     }
 }
 
-public sealed class AppSharingPolicyUpdateRequestValidator : AbstractValidator<AppSharingPolicyUpdateRequest>
+public sealed class AppSharingPolicyUpdateRequestValidator : AbstractValidator<AppSharingPolicyDto>
 {
     public AppSharingPolicyUpdateRequestValidator()
     {

@@ -53,10 +53,6 @@ public sealed record AppSharingPolicyDto(
     bool UseSharedRoles,
     bool UseSharedDepartments);
 
-public sealed record AppSharingPolicyUpdateRequest(
-    bool UseSharedUsers,
-    bool UseSharedRoles,
-    bool UseSharedDepartments);
 
 public sealed record AppEntityAliasDto(
     string EntityType,
