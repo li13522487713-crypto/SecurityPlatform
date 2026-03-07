@@ -61,20 +61,34 @@ public sealed class BackToAnyNodeOperationHandler : IApprovalOperationHandler
             throw new BusinessException("INSTANCE_NOT_RUNNING", "流程实例不在运行状态");
         }
 
-        // Authorization: BackToAnyNode is an admin-level operation.
-        // Only the initiator or a system administrator should be allowed.
-        // Pending task assignees are also allowed (they are actively reviewing).
-        if (instance.InitiatorUserId != operatorUserId)
+        ApprovalTask? task = null;
+        if (taskId.HasValue)
         {
-            // Check if operator has a pending task on this instance
-            var operatorTasks = await _taskRepository.GetByInstanceAndStatusAsync(
-                tenantId, instanceId, ApprovalTaskStatus.Pending, cancellationToken);
-            var hasTask = operatorTasks.Any(t =>
-                t.AssigneeType == AssigneeType.User && t.AssigneeValue == operatorUserId.ToString());
-            if (!hasTask)
+            task = await _taskRepository.GetByIdAsync(tenantId, taskId.Value, cancellationToken);
+            if (task == null)
             {
-                throw new BusinessException("FORBIDDEN", "只有发起人或当前审批人可以执行退回操作");
+                throw new BusinessException("TASK_NOT_FOUND", "审批任务不存在");
             }
+
+            if (task.InstanceId != instanceId)
+            {
+                throw new BusinessException("TASK_INSTANCE_MISMATCH", "任务不属于指定的流程实例");
+            }
+
+            if (task.Status != ApprovalTaskStatus.Pending)
+            {
+                throw new BusinessException("TASK_NOT_PENDING", "只能基于待审批任务执行退回任意节点");
+            }
+        }
+
+        // 授权校验：仅流程发起人或当前待办处理人可执行退回任意节点
+        var isInitiator = instance.InitiatorUserId == operatorUserId;
+        var isCurrentAssignee = task is not null
+            && task.AssigneeType == AssigneeType.User
+            && task.AssigneeValue == operatorUserId.ToString();
+        if (!isInitiator && !isCurrentAssignee)
+        {
+            throw new BusinessException("FORBIDDEN", "只有发起人或当前处理人可以执行退回操作");
         }
 
         var flowDef = await _flowRepository.GetByIdAsync(tenantId, instance.DefinitionId, cancellationToken);

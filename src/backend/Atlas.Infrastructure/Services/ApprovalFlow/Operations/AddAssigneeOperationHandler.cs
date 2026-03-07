@@ -59,6 +59,11 @@ public sealed class AddAssigneeOperationHandler : IApprovalOperationHandler
             throw new BusinessException("TASK_NOT_FOUND", "审批任务不存在");
         }
 
+        if (task.InstanceId != instanceId)
+        {
+            throw new BusinessException("TASK_INSTANCE_MISMATCH", "任务不属于指定的流程实例");
+        }
+
         if (task.Status != ApprovalTaskStatus.Pending)
         {
             throw new BusinessException("TASK_NOT_PENDING", "只能对待审批的任务进行加签");
@@ -128,5 +133,4 @@ public sealed class AddAssigneeOperationHandler : IApprovalOperationHandler
         await _historyRepository.AddAsync(addAssigneeEvent, cancellationToken);
     }
 }
-
 

@@ -52,9 +52,19 @@ public sealed class BackToModifyOperationHandler : IApprovalOperationHandler
             throw new BusinessException("TASK_NOT_FOUND", "审批任务不存在");
         }
 
+        if (task.InstanceId != instanceId)
+        {
+            throw new BusinessException("TASK_INSTANCE_MISMATCH", "任务不属于指定的流程实例");
+        }
+
         if (task.Status != ApprovalTaskStatus.Pending)
         {
             throw new BusinessException("TASK_NOT_PENDING", "只能打回待审批的任务");
+        }
+
+        if (task.AssigneeType != AssigneeType.User || task.AssigneeValue != operatorUserId.ToString())
+        {
+            throw new BusinessException("FORBIDDEN", "只有当前处理人可以执行打回修改操作");
         }
 
         var instance = await _instanceRepository.GetByIdAsync(tenantId, instanceId, cancellationToken);
