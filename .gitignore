@@ -388,3 +388,9 @@ FodyWeavers.xsd
 # JetBrains Rider
 .idea/
 *.sln.iml
+
+# Local SQLite runtime data (must not be committed)
+src/backend/Atlas.WebApi/*.db
+src/backend/Atlas.WebApi/*.db-shm
+src/backend/Atlas.WebApi/*.db-wal
+src/backend/Atlas.WebApi/backups/*.db
