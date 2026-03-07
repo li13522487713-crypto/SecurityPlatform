@@ -56,7 +56,7 @@ public sealed class DynamicTablesController : ControllerBase
         CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
-        var result = await _queryService.QueryAsync(request, tenantId, ResolveAppId(), cancellationToken);
+        var result = await _queryService.QueryAsync(request, tenantId, _appContextAccessor.ResolveAppId(), cancellationToken);
         return Ok(ApiResponse<PagedResult<DynamicTableListItem>>.Ok(result, HttpContext.TraceIdentifier));
     }
 
@@ -75,7 +75,7 @@ public sealed class DynamicTablesController : ControllerBase
         }
 
         var tenantId = _tenantProvider.GetTenantId();
-        var detail = await _queryService.GetByKeyAsync(tenantId, tableKey, ResolveAppId(), cancellationToken);
+        var detail = await _queryService.GetByKeyAsync(tenantId, tableKey, _appContextAccessor.ResolveAppId(), cancellationToken);
         return Ok(ApiResponse<DynamicTableDetail?>.Ok(detail, HttpContext.TraceIdentifier));
     }
 
@@ -94,7 +94,7 @@ public sealed class DynamicTablesController : ControllerBase
         }
 
         var tenantId = _tenantProvider.GetTenantId();
-        var fields = await _queryService.GetFieldsAsync(tenantId, tableKey, ResolveAppId(), cancellationToken);
+        var fields = await _queryService.GetFieldsAsync(tenantId, tableKey, _appContextAccessor.ResolveAppId(), cancellationToken);
         return Ok(ApiResponse<IReadOnlyList<DynamicFieldDefinition>>.Ok(fields, HttpContext.TraceIdentifier));
     }
 
@@ -113,7 +113,7 @@ public sealed class DynamicTablesController : ControllerBase
         }
 
         var tenantId = _tenantProvider.GetTenantId();
-        var relations = await _queryService.GetRelationsAsync(tenantId, tableKey, ResolveAppId(), cancellationToken);
+        var relations = await _queryService.GetRelationsAsync(tenantId, tableKey, _appContextAccessor.ResolveAppId(), cancellationToken);
         return Ok(ApiResponse<IReadOnlyList<DynamicRelationDefinition>>.Ok(relations, HttpContext.TraceIdentifier));
     }
 
@@ -132,7 +132,7 @@ public sealed class DynamicTablesController : ControllerBase
         }
 
         var tenantId = _tenantProvider.GetTenantId();
-        var rules = await _queryService.GetFieldPermissionsAsync(tenantId, tableKey, ResolveAppId(), cancellationToken);
+        var rules = await _queryService.GetFieldPermissionsAsync(tenantId, tableKey, _appContextAccessor.ResolveAppId(), cancellationToken);
         return Ok(ApiResponse<IReadOnlyList<DynamicFieldPermissionRule>>.Ok(rules, HttpContext.TraceIdentifier));
     }
 
@@ -324,14 +324,4 @@ public sealed class DynamicTablesController : ControllerBase
         return _auditRecorder.RecordAsync(context, cancellationToken);
     }
 
-    private long? ResolveAppId()
-    {
-        var appIdText = _appContextAccessor.GetAppId();
-        if (long.TryParse(appIdText, out var appId))
-        {
-            return appId;
-        }
-
-        return null;
-    }
 }

@@ -92,26 +92,47 @@ export function useWorkflowSerializer(
 
     const path: string[] = [];
     const visited = new Set<string>();
-    let current = startOut[0];
-    while (true) {
+    const visiting = new Set<string>();
+    let reachedEnd = false;
+
+    const walk = (current: string) => {
       if (current === WORKFLOW_END_NODE_ID) {
-        break;
+        reachedEnd = true;
+        return;
       }
+
       if (!stepNodeIds.has(current)) {
         throw new Error(
           "检测到无效连线：请确保'开始'只能连接到步骤节点，且步骤节点最终连接到'结束'"
         );
       }
-      if (visited.has(current)) {
+      if (visiting.has(current)) {
         throw new Error("检测到循环连线：当前后端仅支持无环的顺序流程");
       }
+      if (visited.has(current)) {
+        return;
+      }
+
+      visiting.add(current);
       visited.add(current);
       path.push(current);
+
       const outs = outgoing.get(current) ?? [];
       if (outs.length === 0) {
         throw new Error("流程未完整闭合：请将每个步骤节点连线到下一个节点或'结束'");
       }
-      current = outs[0];
+
+      for (const nextId of outs) {
+        walk(nextId);
+      }
+
+      visiting.delete(current);
+    };
+
+    walk(startOut[0]);
+
+    if (!reachedEnd) {
+      throw new Error("流程未完整闭合：请确保从“开始”可到达“结束”");
     }
 
     return path;

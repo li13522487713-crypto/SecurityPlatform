@@ -35,19 +35,13 @@ public sealed class ApprovalWorkflowBridgeEventHandler : IDomainEventHandler<App
             domainEvent.OccurredAt
         };
 
-        if (!string.IsNullOrWhiteSpace(domainEvent.BusinessKey))
-        {
-            await _workflowHost.PublishEventAsync(
-                WorkflowApprovalEventName,
-                domainEvent.BusinessKey,
-                payload,
-                null,
-                cancellationToken);
-        }
+        var eventKey = !string.IsNullOrWhiteSpace(domainEvent.BusinessKey)
+            ? domainEvent.BusinessKey
+            : domainEvent.InstanceId.ToString();
 
         await _workflowHost.PublishEventAsync(
             WorkflowApprovalEventName,
-            domainEvent.InstanceId.ToString(),
+            eventKey,
             payload,
             null,
             cancellationToken);

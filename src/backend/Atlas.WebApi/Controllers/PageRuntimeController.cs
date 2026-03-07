@@ -220,12 +220,6 @@ public sealed class PageRuntimeController : ControllerBase
                 ValueType = "Decimal",
                 DecimalValue = value.GetDecimal()
             },
-            JsonValueKind.String when value.TryGetDateTimeOffset(out var dateTimeValue) => new DynamicFieldValueDto
-            {
-                Field = fieldName,
-                ValueType = "DateTime",
-                DateTimeValue = dateTimeValue
-            },
             JsonValueKind.String => new DynamicFieldValueDto
             {
                 Field = fieldName,

@@ -40,7 +40,7 @@ public sealed class DynamicRecordCommandService : IDynamicRecordCommandService
         DynamicRecordUpsertRequest request,
         CancellationToken cancellationToken)
     {
-        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, ResolveAppId(), cancellationToken);
+        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, _appContextAccessor.ResolveAppId(), cancellationToken);
         if (table is null)
         {
             throw new BusinessException(ErrorCodes.NotFound, "动态表不存在。");
@@ -64,7 +64,7 @@ public sealed class DynamicRecordCommandService : IDynamicRecordCommandService
         DynamicRecordUpsertRequest request,
         CancellationToken cancellationToken)
     {
-        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, ResolveAppId(), cancellationToken);
+        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, _appContextAccessor.ResolveAppId(), cancellationToken);
         if (table is null)
         {
             throw new BusinessException(ErrorCodes.NotFound, "动态表不存在。");
@@ -87,7 +87,7 @@ public sealed class DynamicRecordCommandService : IDynamicRecordCommandService
         long id,
         CancellationToken cancellationToken)
     {
-        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, ResolveAppId(), cancellationToken);
+        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, _appContextAccessor.ResolveAppId(), cancellationToken);
         if (table is null)
         {
             return;
@@ -114,7 +114,7 @@ public sealed class DynamicRecordCommandService : IDynamicRecordCommandService
             return;
         }
 
-        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, ResolveAppId(), cancellationToken);
+        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, _appContextAccessor.ResolveAppId(), cancellationToken);
         if (table is null)
         {
             return;
@@ -155,14 +155,4 @@ public sealed class DynamicRecordCommandService : IDynamicRecordCommandService
             cancellationToken);
     }
 
-    private long? ResolveAppId()
-    {
-        var appIdText = _appContextAccessor.GetAppId();
-        if (long.TryParse(appIdText, out var appId))
-        {
-            return appId;
-        }
-
-        return null;
-    }
 }
