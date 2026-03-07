@@ -23,13 +23,6 @@ public sealed class LowCodeAppCreateRequestValidator : AbstractValidator<LowCode
 
         RuleFor(x => x.Category)
             .MaximumLength(100).WithMessage(localizer["LowCodeAppCategoryMaxLength"].Value);
-
-        RuleFor(x => x.DataSourceId)
-            .NotEmpty()
-            .WithMessage("当存在独立基础数据策略时，必须绑定应用数据源。")
-            .Must(id => long.TryParse(id, out _))
-            .WithMessage("数据源 ID 格式无效。")
-            .When(x => !x.UseSharedUsers || !x.UseSharedRoles || !x.UseSharedDepartments);
     }
 }
 
@@ -78,40 +71,5 @@ public sealed class LowCodeAppImportRequestValidator : AbstractValidator<LowCode
             .MaximumLength(32).WithMessage("后缀长度不能超过32")
             .Matches(@"^[a-zA-Z0-9_-]+$").WithMessage("后缀仅支持字母数字下划线连字符")
             .When(x => !string.IsNullOrWhiteSpace(x.KeySuffix));
-    }
-}
-
-public sealed class AppSharingPolicyUpdateRequestValidator : AbstractValidator<AppSharingPolicyDto>
-{
-    public AppSharingPolicyUpdateRequestValidator()
-    {
-        RuleFor(x => x).NotNull().WithMessage("共享策略不能为空");
-    }
-}
-
-public sealed class AppEntityAliasUpdateRequestValidator : AbstractValidator<AppEntityAliasUpdateRequest>
-{
-    private static readonly string[] AllowedEntityTypes = ["user", "role", "department"];
-
-    public AppEntityAliasUpdateRequestValidator()
-    {
-        RuleFor(x => x.Aliases)
-            .NotNull()
-            .WithMessage("别名列表不能为空");
-
-        RuleForEach(x => x.Aliases).ChildRules(alias =>
-        {
-            alias.RuleFor(x => x.EntityType)
-                .NotEmpty().WithMessage("实体类型不能为空")
-                .Must(type => AllowedEntityTypes.Contains(type, StringComparer.OrdinalIgnoreCase))
-                .WithMessage("实体类型仅支持 user/role/department");
-
-            alias.RuleFor(x => x.SingularAlias)
-                .NotEmpty().WithMessage("单数别名不能为空")
-                .MaximumLength(100).WithMessage("单数别名不能超过100个字符");
-
-            alias.RuleFor(x => x.PluralAlias)
-                .MaximumLength(100).WithMessage("复数别名不能超过100个字符");
-        });
     }
 }

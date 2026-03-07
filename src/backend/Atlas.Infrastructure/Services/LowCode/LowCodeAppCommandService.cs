@@ -4,9 +4,6 @@ using Atlas.Core.Abstractions;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.LowCode.Entities;
 using Atlas.Domain.LowCode.Enums;
-using Atlas.Infrastructure.Options;
-using Atlas.Infrastructure.Repositories;
-using Microsoft.Extensions.Options;
 using SqlSugar;
 using System.Text.Json;
 
@@ -25,8 +22,6 @@ public sealed class LowCodeAppCommandService : ILowCodeAppCommandService
     private readonly ILowCodePageVersionRepository _pageVersionRepository;
     private readonly IIdGeneratorAccessor _idGenerator;
     private readonly ISqlSugarClient _db;
-    private readonly TenantDataSourceRepository _tenantDataSourceRepository;
-    private readonly DatabaseEncryptionOptions _databaseEncryptionOptions;
 
     public LowCodeAppCommandService(
         ILowCodeAppRepository appRepository,
@@ -34,9 +29,7 @@ public sealed class LowCodeAppCommandService : ILowCodeAppCommandService
         ILowCodeAppVersionRepository versionRepository,
         ILowCodePageVersionRepository pageVersionRepository,
         IIdGeneratorAccessor idGenerator,
-        ISqlSugarClient db,
-        TenantDataSourceRepository tenantDataSourceRepository,
-        IOptions<DatabaseEncryptionOptions> databaseEncryptionOptions)
+        ISqlSugarClient db)
     {
         _appRepository = appRepository;
         _pageRepository = pageRepository;
@@ -44,8 +37,6 @@ public sealed class LowCodeAppCommandService : ILowCodeAppCommandService
         _pageVersionRepository = pageVersionRepository;
         _idGenerator = idGenerator;
         _db = db;
-        _tenantDataSourceRepository = tenantDataSourceRepository;
-        _databaseEncryptionOptions = databaseEncryptionOptions.Value;
     }
 
     public async Task<long> CreateAsync(
@@ -60,15 +51,9 @@ public sealed class LowCodeAppCommandService : ILowCodeAppCommandService
         var id = _idGenerator.NextId();
         var now = DateTimeOffset.UtcNow;
 
-        long? dataSourceId = long.TryParse(request.DataSourceId, out var parsedDsId) ? parsedDsId : null;
-
         var entity = new LowCodeApp(
             tenantId, request.AppKey, request.Name,
             request.Description, request.Category, request.Icon,
-            dataSourceId,
-            request.UseSharedUsers,
-            request.UseSharedRoles,
-            request.UseSharedDepartments,
             userId, id, now);
 
         await _appRepository.InsertAsync(entity, cancellationToken);
@@ -86,103 +71,6 @@ public sealed class LowCodeAppCommandService : ILowCodeAppCommandService
         entity.Update(request.Name, request.Description, request.Category, request.Icon, userId, now);
 
         await _appRepository.UpdateAsync(entity, cancellationToken);
-    }
-
-    public async Task UpdateSharingPolicyAsync(
-        TenantId tenantId,
-        long userId,
-        long appId,
-        AppSharingPolicyDto request,
-        CancellationToken cancellationToken = default)
-    {
-        var app = await _appRepository.GetByIdAsync(tenantId, appId, cancellationToken)
-            ?? throw new InvalidOperationException($"应用 ID={appId} 不存在");
-
-        if ((!request.UseSharedUsers || !request.UseSharedRoles || !request.UseSharedDepartments) && !app.DataSourceId.HasValue)
-        {
-            throw new InvalidOperationException("启用独立基础数据策略前必须先绑定应用数据源。");
-        }
-
-        app.UpdateSharingPolicy(
-            request.UseSharedUsers,
-            request.UseSharedRoles,
-            request.UseSharedDepartments,
-            userId,
-            DateTimeOffset.UtcNow);
-
-        await _appRepository.UpdateAsync(app, cancellationToken);
-    }
-
-    public async Task UpdateEntityAliasesAsync(
-        TenantId tenantId,
-        long appId,
-        AppEntityAliasUpdateRequest request,
-        CancellationToken cancellationToken = default)
-    {
-        var app = await _appRepository.GetByIdAsync(tenantId, appId, cancellationToken)
-            ?? throw new InvalidOperationException($"应用 ID={appId} 不存在");
-
-        var normalizedAliases = request.Aliases
-            .GroupBy(x => x.EntityType.Trim(), StringComparer.OrdinalIgnoreCase)
-            .Select(x => x.First())
-            .Select(alias => new AppEntityAlias(
-                app.Id,
-                alias.EntityType.Trim().ToLowerInvariant(),
-                alias.SingularAlias.Trim(),
-                string.IsNullOrWhiteSpace(alias.PluralAlias) ? null : alias.PluralAlias.Trim(),
-                _idGenerator.NextId()))
-            .ToList();
-
-        var result = await _db.Ado.UseTranAsync(async () =>
-        {
-            await _db.Deleteable<AppEntityAlias>()
-                .Where(x => x.AppId == app.Id)
-                .ExecuteCommandAsync(cancellationToken);
-
-            if (normalizedAliases.Count > 0)
-            {
-                await _db.Insertable(normalizedAliases).ExecuteCommandAsync(cancellationToken);
-            }
-        });
-
-        if (!result.IsSuccess)
-        {
-            throw result.ErrorException ?? new InvalidOperationException("更新应用实体别名失败");
-        }
-    }
-
-    public async Task<bool> TestAppDataSourceAsync(
-        TenantId tenantId,
-        long appId,
-        CancellationToken cancellationToken = default)
-    {
-        var app = await _appRepository.GetByIdAsync(tenantId, appId, cancellationToken)
-            ?? throw new InvalidOperationException($"应用 ID={appId} 不存在");
-
-        if (!app.DataSourceId.HasValue)
-        {
-            return false;
-        }
-
-        var dataSource = await _tenantDataSourceRepository.FindByIdAsync(tenantId.Value.ToString(), app.DataSourceId.Value, cancellationToken)
-            ?? throw new InvalidOperationException($"数据源 ID={app.DataSourceId.Value} 不存在");
-
-        string connectionString;
-        try
-        {
-            connectionString = _databaseEncryptionOptions.Enabled
-                ? TenantDbConnectionFactory.Decrypt(dataSource.EncryptedConnectionString, _databaseEncryptionOptions.Key)
-                : dataSource.EncryptedConnectionString;
-        }
-        catch (Exception ex)
-        {
-            throw new InvalidOperationException($"数据源 ID={dataSource.Id} 连接字符串解密失败，请检查加密密钥配置。", ex);
-        }
-
-        var success = await TenantDbConnectionFactory.TestConnectionAsync(connectionString, dataSource.DbType, cancellationToken);
-        dataSource.RecordTestResult(success);
-        await _tenantDataSourceRepository.UpdateAsync(dataSource, cancellationToken);
-        return success;
     }
 
     public async Task PublishAsync(
@@ -413,10 +301,6 @@ public sealed class LowCodeAppCommandService : ILowCodeAppCommandService
             package.Description,
             package.Category,
             package.Icon,
-            null,
-            true,
-            true,
-            true,
             userId,
             appId,
             now);
@@ -660,5 +544,4 @@ public sealed class LowCodeAppCommandService : ILowCodeAppCommandService
         bool IsPublished,
         string? PermissionCode,
         string? DataTableKey);
-
 }

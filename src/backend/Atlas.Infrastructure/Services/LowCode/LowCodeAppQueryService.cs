@@ -4,9 +4,6 @@ using Atlas.Application.LowCode.Models;
 using Atlas.Core.Exceptions;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
-using Atlas.Domain.LowCode.Entities;
-using Atlas.Infrastructure.Repositories;
-using SqlSugar;
 
 namespace Atlas.Infrastructure.Services.LowCode;
 
@@ -17,25 +14,19 @@ public sealed class LowCodeAppQueryService : ILowCodeAppQueryService
     private readonly ILowCodeAppVersionRepository _versionRepository;
     private readonly ILowCodePageVersionRepository _pageVersionRepository;
     private readonly ILowCodeEnvironmentRepository _environmentRepository;
-    private readonly TenantDataSourceRepository _tenantDataSourceRepository;
-    private readonly ISqlSugarClient _db;
 
     public LowCodeAppQueryService(
         ILowCodeAppRepository appRepository,
         ILowCodePageRepository pageRepository,
         ILowCodeAppVersionRepository versionRepository,
         ILowCodePageVersionRepository pageVersionRepository,
-        ILowCodeEnvironmentRepository environmentRepository,
-        TenantDataSourceRepository tenantDataSourceRepository,
-        ISqlSugarClient db)
+        ILowCodeEnvironmentRepository environmentRepository)
     {
         _appRepository = appRepository;
         _pageRepository = pageRepository;
         _versionRepository = versionRepository;
         _pageVersionRepository = pageVersionRepository;
         _environmentRepository = environmentRepository;
-        _tenantDataSourceRepository = tenantDataSourceRepository;
-        _db = db;
     }
 
     public async Task<PagedResult<LowCodeAppListItem>> QueryAsync(
@@ -80,86 +71,6 @@ public sealed class LowCodeAppQueryService : ILowCodeAppQueryService
 
         var pages = await _pageRepository.GetByAppIdAsync(tenantId, entity.Id, cancellationToken);
         return MapToDetail(entity, pages);
-    }
-
-    public async Task<AppDataSourceView?> GetAppDataSourceAsync(
-        TenantId tenantId,
-        long appId,
-        CancellationToken cancellationToken = default)
-    {
-        var app = await _appRepository.GetByIdAsync(tenantId, appId, cancellationToken);
-        if (app is null)
-        {
-            return null;
-        }
-
-        if (!app.DataSourceId.HasValue)
-        {
-            return new AppDataSourceView(
-                null,
-                null,
-                null,
-                null,
-                null);
-        }
-
-        var dataSource = await _tenantDataSourceRepository.FindByIdAsync(
-            tenantId.Value.ToString(),
-            app.DataSourceId.Value,
-            cancellationToken);
-        if (dataSource is null)
-        {
-            return null;
-        }
-
-        return new AppDataSourceView(
-            dataSource.Id.ToString(),
-            dataSource.Name,
-            dataSource.DbType,
-            dataSource.LastTestSuccess,
-            dataSource.LastTestedAt);
-    }
-
-    public async Task<AppSharingPolicyDto?> GetSharingPolicyAsync(
-        TenantId tenantId,
-        long appId,
-        CancellationToken cancellationToken = default)
-    {
-        var app = await _appRepository.GetByIdAsync(tenantId, appId, cancellationToken);
-        if (app is null)
-        {
-            return null;
-        }
-
-        return new AppSharingPolicyDto(
-            app.UseSharedUsers,
-            app.UseSharedRoles,
-            app.UseSharedDepartments);
-    }
-
-    public async Task<IReadOnlyList<AppEntityAliasDto>> GetEntityAliasesAsync(
-        TenantId tenantId,
-        long appId,
-        CancellationToken cancellationToken = default)
-    {
-        var app = await _appRepository.GetByIdAsync(tenantId, appId, cancellationToken);
-        if (app is null)
-        {
-            return Array.Empty<AppEntityAliasDto>();
-        }
-
-        var aliases = await _db
-            .Queryable<AppEntityAlias>()
-            .Where(x => x.AppId == app.Id)
-            .OrderBy(x => x.EntityType)
-            .ToListAsync(cancellationToken);
-
-        return aliases
-            .Select(x => new AppEntityAliasDto(
-                x.EntityType,
-                x.SingularAlias,
-                x.PluralAlias))
-            .ToArray();
     }
 
     public async Task<PagedResult<LowCodeAppVersionListItem>> GetVersionsAsync(

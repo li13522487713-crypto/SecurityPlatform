@@ -2,10 +2,8 @@ using Atlas.Core.Abstractions;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.LowCode.Entities;
 using Atlas.Domain.LowCode.Enums;
-using Atlas.Infrastructure.Options;
 using Atlas.Infrastructure.Repositories;
 using Atlas.Infrastructure.Services.LowCode;
-using Microsoft.Extensions.Options;
 using SqlSugar;
 
 namespace Atlas.SecurityPlatform.Tests.Services;
@@ -26,7 +24,6 @@ public sealed class LowCodeAppCommandServiceVersionTests
             var pageRepository = new LowCodePageRepository(db);
             var versionRepository = new LowCodeAppVersionRepository(db);
             var pageVersionRepository = new LowCodePageVersionRepository(db);
-            var tenantDataSourceRepository = new TenantDataSourceRepository(db);
             var idGenerator = new SequentialIdGenerator(9000);
             var service = new LowCodeAppCommandService(
                 appRepository,
@@ -34,9 +31,7 @@ public sealed class LowCodeAppCommandServiceVersionTests
                 versionRepository,
                 pageVersionRepository,
                 idGenerator,
-                db,
-                tenantDataSourceRepository,
-                Options.Create(new DatabaseEncryptionOptions()));
+                db);
 
             var seedTime = DateTimeOffset.UtcNow;
             var app = new LowCodeApp(
@@ -46,10 +41,6 @@ public sealed class LowCodeAppCommandServiceVersionTests
                 "初始版本",
                 "销售",
                 "shop",
-                null,
-                true,
-                true,
-                true,
                 createdBy: 1,
                 id: 1001,
                 now: seedTime);
@@ -164,10 +155,6 @@ public sealed class LowCodeAppCommandServiceVersionTests
                     "Description" TEXT NULL,
                     "Category" TEXT NULL,
                     "Icon" TEXT NULL,
-                    "DataSourceId" INTEGER NULL,
-                    "UseSharedUsers" INTEGER NOT NULL,
-                    "UseSharedRoles" INTEGER NOT NULL,
-                    "UseSharedDepartments" INTEGER NOT NULL,
                     "Version" INTEGER NOT NULL,
                     "Status" INTEGER NOT NULL,
                     "CreatedAt" TEXT NOT NULL,

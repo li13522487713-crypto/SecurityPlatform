@@ -1,4 +1,4 @@
-import type { ApiResponse, PagedRequest, PagedResult, TenantDataSourceTestConnectionResult } from "@/types/api";
+import type { ApiResponse, PagedRequest, PagedResult } from "@/types/api";
 import type {
   FormDefinitionListItem,
   FormDefinitionDetail,
@@ -18,9 +18,6 @@ import type {
   LowCodeAppExportPackage,
   LowCodeAppImportRequest,
   LowCodeAppImportResult,
-  AppDataSourceView,
-  AppSharingPolicy,
-  AppEntityAlias,
   LowCodePageDetail,
   LowCodePageRuntimeSchema,
   LowCodePageVersionListItem,
@@ -230,72 +227,6 @@ export async function getLowCodeAppByKey(appKey: string): Promise<LowCodeAppDeta
   );
   if (!response.data) throw new Error(response.message || "查询失败");
   return response.data;
-}
-
-export async function getAppDatasource(appId: string): Promise<AppDataSourceView> {
-  const response = await requestApi<ApiResponse<AppDataSourceView>>(
-    `/lowcode-apps/${appId}/datasource`
-  );
-  if (!response.data) {
-    return {};
-  }
-  return response.data;
-}
-
-export async function testAppDatasource(appId: string): Promise<TenantDataSourceTestConnectionResult> {
-  const response = await requestApi<ApiResponse<TenantDataSourceTestConnectionResult>>(
-    `/lowcode-apps/${appId}/datasource/test`,
-    { method: "POST" }
-  );
-  if (!response.data) {
-    throw new Error(response.message || "测试连接失败");
-  }
-  return response.data;
-}
-
-export async function getAppSharingPolicy(appId: string): Promise<AppSharingPolicy> {
-  const response = await requestApi<ApiResponse<AppSharingPolicy>>(
-    `/lowcode-apps/${appId}/sharing-policy`
-  );
-  if (!response.data) {
-    throw new Error(response.message || "查询共享策略失败");
-  }
-  return response.data;
-}
-
-export async function updateAppSharingPolicy(appId: string, policy: AppSharingPolicy): Promise<void> {
-  const response = await requestApi<ApiResponse<{ id: string }>>(
-    `/lowcode-apps/${appId}/sharing-policy`,
-    {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(policy)
-    }
-  );
-  if (!response.success) {
-    throw new Error(response.message || "更新共享策略失败");
-  }
-}
-
-export async function getAppEntityAliases(appId: string): Promise<AppEntityAlias[]> {
-  const response = await requestApi<ApiResponse<AppEntityAlias[]>>(
-    `/lowcode-apps/${appId}/entity-aliases`
-  );
-  return response.data ?? [];
-}
-
-export async function updateAppEntityAliases(appId: string, aliases: AppEntityAlias[]): Promise<void> {
-  const response = await requestApi<ApiResponse<{ id: string }>>(
-    `/lowcode-apps/${appId}/entity-aliases`,
-    {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ aliases })
-    }
-  );
-  if (!response.success) {
-    throw new Error(response.message || "更新实体别名失败");
-  }
 }
 
 export async function createLowCodeApp(

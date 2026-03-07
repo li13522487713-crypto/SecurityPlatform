@@ -1,6 +1,5 @@
 using Atlas.Application.LowCode.Abstractions;
 using Atlas.Application.LowCode.Models;
-using Atlas.Application.System.Models;
 using Atlas.Core.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
@@ -29,8 +28,6 @@ public sealed class LowCodeAppsController : ControllerBase
     private readonly IValidator<LowCodePageUpdateRequest> _pageUpdateValidator;
     private readonly IValidator<LowCodeEnvironmentCreateRequest> _environmentCreateValidator;
     private readonly IValidator<LowCodeEnvironmentUpdateRequest> _environmentUpdateValidator;
-    private readonly IValidator<AppSharingPolicyDto> _sharingPolicyUpdateValidator;
-    private readonly IValidator<AppEntityAliasUpdateRequest> _entityAliasUpdateValidator;
 
     public LowCodeAppsController(
         ILowCodeAppQueryService queryService,
@@ -45,9 +42,7 @@ public sealed class LowCodeAppsController : ControllerBase
         IValidator<LowCodePageCreateRequest> pageCreateValidator,
         IValidator<LowCodePageUpdateRequest> pageUpdateValidator,
         IValidator<LowCodeEnvironmentCreateRequest> environmentCreateValidator,
-        IValidator<LowCodeEnvironmentUpdateRequest> environmentUpdateValidator,
-        IValidator<AppSharingPolicyDto> sharingPolicyUpdateValidator,
-        IValidator<AppEntityAliasUpdateRequest> entityAliasUpdateValidator)
+        IValidator<LowCodeEnvironmentUpdateRequest> environmentUpdateValidator)
     {
         _queryService = queryService;
         _commandService = commandService;
@@ -62,8 +57,6 @@ public sealed class LowCodeAppsController : ControllerBase
         _pageUpdateValidator = pageUpdateValidator;
         _environmentCreateValidator = environmentCreateValidator;
         _environmentUpdateValidator = environmentUpdateValidator;
-        _sharingPolicyUpdateValidator = sharingPolicyUpdateValidator;
-        _entityAliasUpdateValidator = entityAliasUpdateValidator;
     }
 
     /// <summary>
@@ -149,101 +142,6 @@ public sealed class LowCodeAppsController : ControllerBase
 
         var tenantId = _tenantProvider.GetTenantId();
         await _commandService.UpdateAsync(tenantId, currentUser.UserId, id, request, cancellationToken);
-        return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
-    }
-
-    /// <summary>
-    /// 查询应用数据源（脱敏）
-    /// </summary>
-    [HttpGet("{id:long}/datasource")]
-    [Authorize(Policy = PermissionPolicies.AppsView)]
-    public async Task<ActionResult<ApiResponse<AppDataSourceView?>>> GetDatasource(
-        long id,
-        CancellationToken cancellationToken)
-    {
-        var tenantId = _tenantProvider.GetTenantId();
-        var dataSource = await _queryService.GetAppDataSourceAsync(tenantId, id, cancellationToken);
-        return Ok(ApiResponse<AppDataSourceView?>.Ok(dataSource, HttpContext.TraceIdentifier));
-    }
-
-    /// <summary>
-    /// 测试应用绑定数据源连接
-    /// </summary>
-    [HttpPost("{id:long}/datasource/test")]
-    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
-    public async Task<ActionResult<ApiResponse<TestConnectionResult>>> TestDatasource(
-        long id,
-        CancellationToken cancellationToken)
-    {
-        var tenantId = _tenantProvider.GetTenantId();
-        var success = await _commandService.TestAppDataSourceAsync(tenantId, id, cancellationToken);
-        var result = new TestConnectionResult(success, success ? null : "连接失败，请检查数据源配置");
-        return Ok(ApiResponse<TestConnectionResult>.Ok(result, HttpContext.TraceIdentifier));
-    }
-
-    /// <summary>
-    /// 查询应用共享策略
-    /// </summary>
-    [HttpGet("{id:long}/sharing-policy")]
-    [Authorize(Policy = PermissionPolicies.AppsView)]
-    public async Task<ActionResult<ApiResponse<AppSharingPolicyDto?>>> GetSharingPolicy(
-        long id,
-        CancellationToken cancellationToken)
-    {
-        var tenantId = _tenantProvider.GetTenantId();
-        var policy = await _queryService.GetSharingPolicyAsync(tenantId, id, cancellationToken);
-        return Ok(ApiResponse<AppSharingPolicyDto?>.Ok(policy, HttpContext.TraceIdentifier));
-    }
-
-    /// <summary>
-    /// 更新应用共享策略
-    /// </summary>
-    [HttpPut("{id:long}/sharing-policy")]
-    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
-    public async Task<ActionResult<ApiResponse<object>>> UpdateSharingPolicy(
-        long id,
-        [FromBody] AppSharingPolicyDto request,
-        CancellationToken cancellationToken)
-    {
-        _sharingPolicyUpdateValidator.ValidateAndThrow(request);
-        var currentUser = _currentUserAccessor.GetCurrentUser();
-        if (currentUser is null)
-        {
-            return Unauthorized(ApiResponse<object>.Fail(ErrorCodes.Unauthorized, "未登录", HttpContext.TraceIdentifier));
-        }
-
-        var tenantId = _tenantProvider.GetTenantId();
-        await _commandService.UpdateSharingPolicyAsync(tenantId, currentUser.UserId, id, request, cancellationToken);
-        return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
-    }
-
-    /// <summary>
-    /// 查询应用实体别名
-    /// </summary>
-    [HttpGet("{id:long}/entity-aliases")]
-    [Authorize(Policy = PermissionPolicies.AppsView)]
-    public async Task<ActionResult<ApiResponse<IReadOnlyList<AppEntityAliasDto>>>> GetEntityAliases(
-        long id,
-        CancellationToken cancellationToken)
-    {
-        var tenantId = _tenantProvider.GetTenantId();
-        var aliases = await _queryService.GetEntityAliasesAsync(tenantId, id, cancellationToken);
-        return Ok(ApiResponse<IReadOnlyList<AppEntityAliasDto>>.Ok(aliases, HttpContext.TraceIdentifier));
-    }
-
-    /// <summary>
-    /// 更新应用实体别名
-    /// </summary>
-    [HttpPut("{id:long}/entity-aliases")]
-    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
-    public async Task<ActionResult<ApiResponse<object>>> UpdateEntityAliases(
-        long id,
-        [FromBody] AppEntityAliasUpdateRequest request,
-        CancellationToken cancellationToken)
-    {
-        _entityAliasUpdateValidator.ValidateAndThrow(request);
-        var tenantId = _tenantProvider.GetTenantId();
-        await _commandService.UpdateEntityAliasesAsync(tenantId, id, request, cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
     }
 
