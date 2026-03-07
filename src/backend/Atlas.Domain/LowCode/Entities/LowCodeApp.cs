@@ -36,8 +36,8 @@ public sealed class LowCodeApp : TenantEntity
         AppKey = appKey;
         Name = name;
         Description = description;
-        Category = category;
-        Icon = icon;
+        Category = category ?? string.Empty;
+        Icon = icon ?? string.Empty;
         DataSourceId = dataSourceId;
         UseSharedUsers = useSharedUsers;
         UseSharedRoles = useSharedRoles;
@@ -114,8 +114,8 @@ public sealed class LowCodeApp : TenantEntity
     {
         Name = name;
         Description = description;
-        Category = category;
-        Icon = icon;
+        Category = category ?? string.Empty;
+        Icon = icon ?? string.Empty;
         UpdatedBy = updatedBy;
         UpdatedAt = now;
     }
@@ -190,8 +190,8 @@ public sealed class LowCodeApp : TenantEntity
     {
         Name = name;
         Description = description;
-        Category = category;
-        Icon = icon;
+        Category = category ?? string.Empty;
+        Icon = icon ?? string.Empty;
         ConfigJson = configJson;
         Publish(version, updatedBy, now);
     }
