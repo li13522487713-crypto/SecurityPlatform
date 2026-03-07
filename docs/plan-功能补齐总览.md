@@ -17,10 +17,33 @@
 
 ## 路线图基线（2026-03 规划版）
 
-- 平台主路线图以 `docs/plan-平台控制台与应用数据源.md` 为准，按 **Sprint1~Sprint8 + Gate-R1/R2** 推进。
+- 产品化重构主路线图以 `docs/plan-产品化重构-12-sprint.md` 为准，按 **Sprint1~Sprint12 + Gate-R1/R2** 推进。
+- `docs/plan-平台控制台与应用数据源.md` 作为平台/应用域专题约束文档继续生效（数据源不可变、共享策略、别名等）。
 - Gate-R1（强制）：完整 GUI 手工全链路测试（控制台→应用→运行态→动态表→审批→工作流→模板→移动）。
 - Gate-R2（强制）：提交 `src/backend/Atlas.WebApi/atlas.db`（`hangfire.db` 视验收要求）。
-- 本追踪表中的 Case 状态更新应与上述 Sprint 节奏保持一致（B/F/D/T 同步勾选）。
+- 本追踪表中的 Case 状态更新应与 12 Sprint 节奏保持一致（B/F/D/T 同步勾选）。
+
+### 产品化重构里程碑（12 Sprint）
+
+| Sprint | 目标 | 状态 |
+|---|---|---|
+| Sprint 1 | 基线冻结、统一元模型、弃用清单 | [ ] |
+| Sprint 2 | 后端骨架与迁移、契约占位 | [ ] |
+| Sprint 3 | 平台控制面 V1 | [ ] |
+| Sprint 4 | 发布中心与审计主链路 | [ ] |
+| Sprint 5 | 应用工作台 V1 | [ ] |
+| Sprint 6 | 统一设计器 V1 | [ ] |
+| Sprint 7 | 运行态 V1 | [ ] |
+| Sprint 8 | 流程闭环强化 | [ ] |
+| Sprint 9 | 导入导出 V1 | [ ] |
+| Sprint 10 | 离线 License 中心 V1 | [ ] |
+| Sprint 11 | Tools 授权中心 V1 | [ ] |
+| Sprint 12 | 发布门禁与全链路硬化 | [ ] |
+
+说明：
+
+- 现有 Phase 1~Phase 5 保留为能力池与历史追踪，不再作为主排期顺序。
+- 新增或变更接口统一以 `docs/contracts.md` 和对应 Sprint 契约段为准。
 
 ---
 

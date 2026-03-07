@@ -37,6 +37,72 @@
 - 登录成功默认跳转 `/console`（若 `redirect` 参数存在且可访问则优先）。
 - 旧有 `/settings/*` 与 `/lowcode/*` 路由保持兼容。
 
+## 产品化重构 v1 契约增量（12 Sprint 基线）
+
+### 统一模型（新增）
+
+- `AppManifest`：应用元数据根对象（应用配置、资源绑定、发布策略）。
+- `AppRelease`：发布快照、回滚点、影响分析摘要。
+- `RuntimeRoute`：`appKey + pageKey` 到页面定义的发布态映射。
+- `PackageArtifact`：导入导出包元数据（结构包/基础数据包/完整副本）。
+- `LicenseGrant`：离线授权实体（功能项、席位、节点、有效期）。
+- `ToolAuthorizationPolicy`：工具授权策略（主体、工具集、动作、环境、限流、审批）。
+- `FlowDefinition`：审批流与工作流统一流程定义挂载对象。
+
+### 新增路由约定（前端）
+
+- 运行态入口：`/r/:appKey/:pageKey`
+- 治理入口建议分组：
+  - `/console/governance/licenses`
+  - `/console/governance/packages`
+  - `/console/governance/tools`
+
+### 新增 API 分组（后端，`api/v1`）
+
+- 平台面：
+  - `GET /api/v1/platform/overview`
+  - `GET /api/v1/platform/resources`
+  - `GET /api/v1/platform/releases`
+- 应用面：
+  - `GET /api/v1/app-manifests`
+  - `POST /api/v1/app-manifests`
+  - `GET /api/v1/app-manifests/{id}`
+  - `PUT /api/v1/app-manifests/{id}`
+  - `GET /api/v1/app-manifests/{id}/workspace/{module}`
+- 运行面：
+  - `GET /api/v1/runtime/apps/{appKey}/pages/{pageKey}`
+  - `POST /api/v1/runtime/apps/{appKey}/pages/{pageKey}/actions`
+  - `GET /api/v1/runtime/tasks/inbox`
+  - `GET /api/v1/runtime/tasks/done`
+- 治理面：
+  - `POST /api/v1/packages/export`
+  - `POST /api/v1/packages/import`
+  - `POST /api/v1/licenses/offline-request`
+  - `POST /api/v1/licenses/import`
+  - `POST /api/v1/licenses/validate`
+  - `GET /api/v1/tools/authorization-policies`
+  - `PUT /api/v1/tools/authorization-policies/{id}`
+  - `POST /api/v1/tools/authorization-policies/simulate`
+  - `GET /api/v1/tools/authorization-audits`
+
+### 写接口安全约束（强制）
+
+- 所有新增写接口必须同时校验：
+  - `Idempotency-Key`
+  - `X-CSRF-TOKEN`
+- 幂等语义：
+  - 同 key + 同 payload：返回同一业务结果。
+  - 同 key + 不同 payload：返回 `IDEMPOTENCY_CONFLICT`。
+
+### 兼容与弃用策略
+
+- 旧接口与旧路由保留 6 个月弃用窗口，并标记 Deprecated。
+- 弃用窗口内仅做安全修复与关键缺陷修复，不新增功能。
+- 窗口结束移除时需同步更新：
+  - `docs/contracts.md`
+  - 变更日志/发布说明
+  - 对应 `Bosch.http` 示例
+
 ## LowCodeApp 扩展字段与应用设置 API（Sprint 2）
 
 ### `LowCodeApp` 扩展字段
