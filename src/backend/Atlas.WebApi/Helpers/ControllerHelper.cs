@@ -23,21 +23,13 @@ public static class ControllerHelper
     {
         if (user == null) return null;
 
-        var candidates = new[]
+        var value = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrWhiteSpace(value))
         {
-            user.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)?.Value,
-            user.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier && long.TryParse(c.Value, out _))?.Value,
-            user.FindFirst(ClaimTypes.NameIdentifier)?.Value,
-            user.FindFirst(ClaimTypes.Name)?.Value
-        };
-
-        foreach (var v in candidates)
-        {
-            if (!string.IsNullOrWhiteSpace(v) && long.TryParse(v, out var id))
-                return id;
+            return null;
         }
 
-        return null;
+        return long.TryParse(value, out var id) ? id : null;
     }
 
     /// <summary>
