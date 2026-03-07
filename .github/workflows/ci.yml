@@ -64,8 +64,10 @@ jobs:
       - name: Build backend
         run: dotnet build Atlas.SecurityPlatform.slnx --configuration Release --no-restore
 
-      - name: Run targeted backend tests
-        run: dotnet test tests/Atlas.SecurityPlatform.Tests/Atlas.SecurityPlatform.Tests.csproj --configuration Release --no-build --filter FullyQualifiedName~DynamicRecordRepositoryTenantIsolationTests
+      - name: Run backend unit tests
+        run: |
+          dotnet test tests/Atlas.WorkflowCore.Tests --configuration Release --no-build
+          dotnet test tests/Atlas.SecurityPlatform.Tests --configuration Release --no-build --filter "FullyQualifiedName!~Integration"
 
   frontend-build:
     runs-on: ubuntu-latest
@@ -175,6 +177,7 @@ jobs:
                   f"- 接口总数: {summary.get('total', 0)}",
                   f"- 通过数: {summary.get('passed', 0)}",
                   f"- 失败数: {summary.get('failed', 0)}",
+                  f"- 跳过数: {summary.get('skipped', 0)}",
               ]
           else:
               lines = ["## API 集成测试摘要", "", "- 未生成摘要文件"]

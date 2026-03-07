@@ -6,7 +6,7 @@ import json
 import re
 import sys
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 from urllib import error, request
@@ -15,6 +15,8 @@ METHODS = {"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"}
 VAR_PATTERN = re.compile(r"\{\{\s*([^{}\s]+)\s*\}\}")
 NAME_PATTERN = re.compile(r"#\s*@name\s+([A-Za-z0-9_\-]+)")
 VAR_ASSIGN_PATTERN = re.compile(r"@([A-Za-z0-9_\-]+)\s*=\s*(.*)$")
+SKIP_CI_PATTERN = re.compile(r"#\s*@skip-ci\b")
+EXPECTED_STATUS_PATTERN = re.compile(r"#\s*@expected-status\s+(\d+)")
 
 
 @dataclass
@@ -26,6 +28,8 @@ class RequestBlock:
     url: str
     headers: dict[str, str]
     body: str
+    expected_status: int | None = None
+    skip_ci: bool = False
 
 
 def parse_http_file(path: Path, vars_ctx: dict[str, str]) -> list[RequestBlock]:
@@ -47,6 +51,8 @@ def parse_http_file(path: Path, vars_ctx: dict[str, str]) -> list[RequestBlock]:
         method_idx = -1
         req_name: str | None = None
         title = ""
+        expected_status: int | None = None
+        skip_ci = False
 
         for idx, line in enumerate(block):
             stripped = line.strip()
@@ -56,11 +62,18 @@ def parse_http_file(path: Path, vars_ctx: dict[str, str]) -> list[RequestBlock]:
             if match_name:
                 req_name = match_name.group(1)
                 continue
+            match_expected = EXPECTED_STATUS_PATTERN.search(stripped)
+            if match_expected:
+                expected_status = int(match_expected.group(1))
+                continue
+            if SKIP_CI_PATTERN.search(stripped):
+                skip_ci = True
+                continue
             if stripped.startswith("@"):
                 var_match = VAR_ASSIGN_PATTERN.match(stripped)
                 if var_match:
                     key, value = var_match.groups()
-                    vars_ctx[key] = value
+                    vars_ctx[key] = value.strip()
                 continue
             if stripped.startswith("#") and not title:
                 title = stripped.lstrip("#").strip()
@@ -100,6 +113,8 @@ def parse_http_file(path: Path, vars_ctx: dict[str, str]) -> list[RequestBlock]:
                 url=url.strip(),
                 headers=headers,
                 body="\n".join(body_lines).strip(),
+                expected_status=expected_status,
+                skip_ci=skip_ci,
             )
         )
 
@@ -149,7 +164,12 @@ def resolve_token(token: str, vars_ctx: dict[str, str], named_responses: dict[st
             return ""
         extracted = extract_json_path(body, json_path)
         return "" if extracted is None else str(extracted)
-    return vars_ctx.get(token, "")
+    value = vars_ctx.get(token, "")
+    # 若变量值本身包含模板引用（如 @accessToken = {{login.response.body...}}），
+    # 递归展开一层，避免间接引用无法解析
+    if "{{" in value:
+        return interpolate(value, vars_ctx, named_responses)
+    return value
 
 
 def interpolate(text: str, vars_ctx: dict[str, str], named_responses: dict[str, dict[str, Any]]) -> str:
@@ -176,22 +196,46 @@ def main() -> int:
     named_responses: dict[str, dict[str, Any]] = {}
 
     suite_dir = Path(args.suite_dir)
-    files = sorted(suite_dir.glob("*.http"))
-    if not files:
+    all_files = list(suite_dir.glob("*.http"))
+    if not all_files:
         print(f"No .http files found in {suite_dir}", file=sys.stderr)
         return 2
+
+    # Auth.http 必须最先执行，确保 named_responses["login"] 可用于其他文件
+    auth_file = suite_dir / "Auth.http"
+    other_files = sorted(f for f in all_files if f.name != "Auth.http")
+    files = ([auth_file] if auth_file.exists() else []) + other_files
 
     requests_to_run: list[RequestBlock] = []
     for f in files:
         requests_to_run.extend(parse_http_file(f, vars_ctx))
 
-    total = len(requests_to_run)
+    total = 0
     passed = 0
     failed = 0
+    skipped = 0
     logs: list[dict[str, Any]] = []
     failed_samples: list[dict[str, Any]] = []
 
     for req in requests_to_run:
+        if req.skip_ci:
+            skipped += 1
+            logs.append(
+                {
+                    "file": req.file,
+                    "title": req.title,
+                    "name": req.name,
+                    "method": req.method,
+                    "url": req.url,
+                    "status": None,
+                    "ok": True,
+                    "skipped": True,
+                    "error": "",
+                }
+            )
+            continue
+
+        total += 1
         url = interpolate(req.url, vars_ctx, named_responses)
         headers = {k: interpolate(v, vars_ctx, named_responses) for k, v in req.headers.items()}
         body_str = interpolate(req.body, vars_ctx, named_responses) if req.body else ""
@@ -220,7 +264,12 @@ def main() -> int:
             except json.JSONDecodeError:
                 json_body = None
 
-        is_ok = 200 <= status < 400
+        # 若指定了 @expected-status，以该状态码为准；否则 2xx/3xx 视为成功
+        if req.expected_status is not None:
+            is_ok = status == req.expected_status
+        else:
+            is_ok = 200 <= status < 400
+
         if is_ok:
             passed += 1
         else:
@@ -232,6 +281,7 @@ def main() -> int:
                     "method": req.method,
                     "url": url,
                     "status": status,
+                    "expectedStatus": req.expected_status,
                     "error": err,
                     "requestHeaders": headers,
                     "requestBody": body_str,
@@ -246,7 +296,6 @@ def main() -> int:
                 "json": json_body,
             }
 
-        # 每次请求后应用可能的变量赋值语句（兼容块外赋值）
         if req.name and json_body is not None:
             vars_ctx[f"{req.name}.status"] = str(status)
 
@@ -259,6 +308,7 @@ def main() -> int:
                 "url": url,
                 "status": status,
                 "ok": is_ok,
+                "skipped": False,
                 "error": err,
             }
         )
@@ -267,6 +317,7 @@ def main() -> int:
         "total": total,
         "passed": passed,
         "failed": failed,
+        "skipped": skipped,
     }
 
     for out_file in [args.summary_file, args.log_file, args.failed_file]:
@@ -276,9 +327,7 @@ def main() -> int:
     Path(args.log_file).write_text(json.dumps(logs, ensure_ascii=False, indent=2), encoding="utf-8")
     Path(args.failed_file).write_text(json.dumps(failed_samples, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    print(f"接口总数: {total}")
-    print(f"通过数: {passed}")
-    print(f"失败数: {failed}")
+    print(f"接口总数: {total}  通过: {passed}  失败: {failed}  跳过: {skipped}")
 
     if failed > 0:
         print("失败请求样例已写入:", args.failed_file)
