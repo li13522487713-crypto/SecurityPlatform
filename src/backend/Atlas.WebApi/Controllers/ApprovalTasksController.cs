@@ -313,7 +313,7 @@ public sealed class ApprovalTasksController : ControllerBase
     /// 批量转办（离职转办）
     /// </summary>
     [HttpPost("batch-transfer")]
-    [Authorize(Policy = PermissionPolicies.ApprovalFlowUpdate)]
+    [Authorize(Policy = PermissionPolicies.ApprovalFlowManage)]
     public async Task<ApiResponse<string>> BatchTransferAsync(
         [FromQuery] long fromUserId,
         [FromQuery] long toUserId,
