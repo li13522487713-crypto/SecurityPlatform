@@ -17,6 +17,14 @@ public sealed class AuthSessionRepository : RepositoryBase<AuthSession>, IAuthSe
             .ExecuteCommandAsync(cancellationToken);
     }
 
+    public Task RevokeByUserIdAsync(TenantId tenantId, long userId, DateTimeOffset revokedAt, CancellationToken cancellationToken)
+    {
+        return Db.Updateable<AuthSession>()
+            .SetColumns(x => x.RevokedAt == revokedAt)
+            .Where(x => x.TenantIdValue == tenantId.Value && x.UserId == userId && x.RevokedAt == null)
+            .ExecuteCommandAsync(cancellationToken);
+    }
+
     public async Task<int> CountActiveByUserIdAsync(TenantId tenantId, long userId, DateTimeOffset now, CancellationToken cancellationToken)
     {
         return await Db.Queryable<AuthSession>()

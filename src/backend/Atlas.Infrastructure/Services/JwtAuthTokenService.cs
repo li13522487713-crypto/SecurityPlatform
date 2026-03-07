@@ -262,6 +262,14 @@ public sealed class JwtAuthTokenService : IAuthTokenService
             throw new BusinessException("密码已过期", ErrorCodes.PasswordExpired);
         }
 
+        if (storedToken.IssuedAt < account.LastPasswordChangeAt)
+        {
+            await _authSessionRepository.RevokeByUserIdAsync(tenantId, account.Id, now, cancellationToken);
+            await _refreshTokenRepository.RevokeByUserIdAsync(tenantId, account.Id, now, cancellationToken);
+            await WriteAuditAsync(tenantId, account.Username, "TOKEN_REFRESH", "PASSWORD_CHANGED", null, context, cancellationToken);
+            throw new BusinessException("密码已变更，请重新登录", ErrorCodes.Unauthorized);
+        }
+
         session.MarkSeen(now);
         await _authSessionRepository.UpdateAsync(session, cancellationToken);
 

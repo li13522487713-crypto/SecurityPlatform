@@ -28,6 +28,8 @@ public sealed class UserCommandService : IUserCommandService
     private readonly IPasswordHasher _passwordHasher;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IAuthSessionRepository _authSessionRepository;
+    private readonly IRefreshTokenRepository _refreshTokenRepository;
     private readonly PasswordPolicyOptions _passwordPolicy;
     private readonly IProjectUserRepository _projectUserRepository;
     private readonly Atlas.Core.Identity.IProjectContextAccessor _projectContextAccessor;
@@ -44,6 +46,8 @@ public sealed class UserCommandService : IUserCommandService
         IPasswordHasher passwordHasher,
         IIdGeneratorAccessor idGeneratorAccessor,
         IUnitOfWork unitOfWork,
+        IAuthSessionRepository authSessionRepository,
+        IRefreshTokenRepository refreshTokenRepository,
         IOptions<PasswordPolicyOptions> passwordPolicy,
         IProjectUserRepository projectUserRepository,
         Atlas.Core.Identity.IProjectContextAccessor projectContextAccessor)
@@ -59,6 +63,8 @@ public sealed class UserCommandService : IUserCommandService
         _passwordHasher = passwordHasher;
         _idGeneratorAccessor = idGeneratorAccessor;
         _unitOfWork = unitOfWork;
+        _authSessionRepository = authSessionRepository;
+        _refreshTokenRepository = refreshTokenRepository;
         _passwordPolicy = passwordPolicy.Value;
         _projectUserRepository = projectUserRepository;
         _projectContextAccessor = projectContextAccessor;
@@ -291,6 +297,8 @@ public sealed class UserCommandService : IUserCommandService
                 userId,
                 PasswordHistoryRetention,
                 cancellationToken);
+            await _authSessionRepository.RevokeByUserIdAsync(tenantId, userId, now, cancellationToken);
+            await _refreshTokenRepository.RevokeByUserIdAsync(tenantId, userId, now, cancellationToken);
         }, cancellationToken);
     }
 

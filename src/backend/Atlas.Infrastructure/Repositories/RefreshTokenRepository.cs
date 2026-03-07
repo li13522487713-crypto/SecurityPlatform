@@ -17,6 +17,14 @@ public sealed class RefreshTokenRepository : RepositoryBase<RefreshToken>, IRefr
             .ExecuteCommandAsync(cancellationToken);
     }
 
+    public Task RevokeByUserIdAsync(TenantId tenantId, long userId, DateTimeOffset revokedAt, CancellationToken cancellationToken)
+    {
+        return Db.Updateable<RefreshToken>()
+            .SetColumns(x => x.RevokedAt == revokedAt)
+            .Where(x => x.TenantIdValue == tenantId.Value && x.UserId == userId && x.RevokedAt == null)
+            .ExecuteCommandAsync(cancellationToken);
+    }
+
     public async Task<RefreshToken?> FindByHashAsync(TenantId tenantId, string tokenHash, CancellationToken cancellationToken)
     {
         return await Db.Queryable<RefreshToken>()

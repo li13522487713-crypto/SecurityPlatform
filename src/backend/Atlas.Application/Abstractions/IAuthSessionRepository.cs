@@ -9,6 +9,7 @@ public interface IAuthSessionRepository
     Task<AuthSession?> FindByIdAsync(TenantId tenantId, long id, CancellationToken cancellationToken);
     Task UpdateAsync(AuthSession session, CancellationToken cancellationToken);
     Task RevokeAsync(TenantId tenantId, long sessionId, DateTimeOffset revokedAt, CancellationToken cancellationToken);
+    Task RevokeByUserIdAsync(TenantId tenantId, long userId, DateTimeOffset revokedAt, CancellationToken cancellationToken);
 
     /// <summary>
     /// Gets the count of active (not revoked, not expired) sessions for a user.
