@@ -121,11 +121,13 @@ public sealed class LicenseActivationService : ILicenseActivationService
             previousActiveRecord = existingRecord;
         }
 
+        var tenantId = new TenantId(tenantGuid);
+
+        // 先完成管理员账号绑定，避免“授权已落库但管理员绑定冲突失败”导致的不一致状态。
+        await _tenantAdminProvisionService.EnsureBootstrapAdminAsync(tenantId, cancellationToken);
+
         // 事务内完成“旧记录失效 + 新记录写入”，确保提交后再刷新内存授权状态。
         await _repository.SaveActivatedAsync(record, previousActiveRecord, cancellationToken);
-
-        // 证书激活后，确保该证书租户存在可登录的管理员账号。
-        await _tenantAdminProvisionService.EnsureBootstrapAdminAsync(new TenantId(tenantGuid), cancellationToken);
 
         // 更新本地密封状态
         var nonce = Convert.ToBase64String(RandomNumberGenerator.GetBytes(16));

@@ -51,29 +51,14 @@ public sealed class LicenseTenantAdminProvisionService
 
     public async Task EnsureBootstrapAdminAsync(TenantId tenantId, CancellationToken cancellationToken = default)
     {
-        if (tenantId.IsEmpty)
-        {
-            throw new BusinessException("证书租户为空，无法绑定管理员账号。", ErrorCodes.ValidationError);
-        }
-
-        if (string.IsNullOrWhiteSpace(_bootstrapOptions.Username))
-        {
-            throw new BusinessException("未配置 BootstrapAdmin.Username，无法绑定管理员账号。", ErrorCodes.ValidationError);
-        }
-
-        if (string.IsNullOrWhiteSpace(_bootstrapOptions.Password))
-        {
-            throw new BusinessException("未配置 BootstrapAdmin.Password，无法绑定管理员账号。", ErrorCodes.ValidationError);
-        }
+        var username = EnsureProvisionPreconditions(tenantId);
 
         var roleCodes = ResolveRoleCodes();
         using var contextScope = _appContextAccessor.BeginScope(CreateSystemContext(tenantId));
-
+        var account = await EnsureNoNonSystemConflictAsync(tenantId, username, cancellationToken);
         var roles = await EnsureRolesAsync(tenantId, roleCodes, cancellationToken);
         var roleIdSet = roles.Select(x => x.Id).ToHashSet();
 
-        var username = _bootstrapOptions.Username.Trim();
-        var account = await _userAccountRepository.FindByUsernameAsync(tenantId, username, cancellationToken);
         if (account is null)
         {
             var hashed = _passwordHasher.HashPassword(_bootstrapOptions.Password);
@@ -89,6 +74,13 @@ public sealed class LicenseTenantAdminProvisionService
         }
         else
         {
+            if (!account.IsSystem)
+            {
+                throw new BusinessException(
+                    $"租户 {tenantId.Value} 中已存在同名账号 {username}，且非系统账号，拒绝自动提升权限。",
+                    ErrorCodes.ConflictError);
+            }
+
             var changed = false;
             if (!account.IsActive)
             {
@@ -100,12 +92,6 @@ public sealed class LicenseTenantAdminProvisionService
             if (!string.Equals(account.Roles, targetRoles, StringComparison.OrdinalIgnoreCase))
             {
                 account.UpdateRoles(targetRoles);
-                changed = true;
-            }
-
-            if (!account.IsSystem)
-            {
-                account.MarkSystemAccount();
                 changed = true;
             }
 
@@ -127,6 +113,13 @@ public sealed class LicenseTenantAdminProvisionService
         }
 
         _logger.LogInformation("证书租户管理员绑定完成：TenantId={TenantId}, Username={Username}", tenantId.Value, username);
+    }
+
+    public async Task EnsureProvisionPreconditionsAsync(TenantId tenantId, CancellationToken cancellationToken = default)
+    {
+        var username = EnsureProvisionPreconditions(tenantId);
+        using var contextScope = _appContextAccessor.BeginScope(CreateSystemContext(tenantId));
+        _ = await EnsureNoNonSystemConflictAsync(tenantId, username, cancellationToken);
     }
 
     private async Task<IReadOnlyList<Role>> EnsureRolesAsync(
@@ -176,6 +169,42 @@ public sealed class LicenseTenantAdminProvisionService
             "approvaladmin" => "流程管理员",
             _ => roleCode
         };
+    }
+
+    private string EnsureProvisionPreconditions(TenantId tenantId)
+    {
+        if (tenantId.IsEmpty)
+        {
+            throw new BusinessException("证书租户为空，无法绑定管理员账号。", ErrorCodes.ValidationError);
+        }
+
+        if (string.IsNullOrWhiteSpace(_bootstrapOptions.Username))
+        {
+            throw new BusinessException("未配置 BootstrapAdmin.Username，无法绑定管理员账号。", ErrorCodes.ValidationError);
+        }
+
+        if (string.IsNullOrWhiteSpace(_bootstrapOptions.Password))
+        {
+            throw new BusinessException("未配置 BootstrapAdmin.Password，无法绑定管理员账号。", ErrorCodes.ValidationError);
+        }
+
+        return _bootstrapOptions.Username.Trim();
+    }
+
+    private async Task<UserAccount?> EnsureNoNonSystemConflictAsync(
+        TenantId tenantId,
+        string username,
+        CancellationToken cancellationToken)
+    {
+        var account = await _userAccountRepository.FindByUsernameAsync(tenantId, username, cancellationToken);
+        if (account is not null && !account.IsSystem)
+        {
+            throw new BusinessException(
+                $"租户 {tenantId.Value} 中已存在同名账号 {username}，且非系统账号，拒绝自动提升权限。",
+                ErrorCodes.ConflictError);
+        }
+
+        return account;
     }
 
     private IReadOnlyList<string> ResolveRoleCodes()
