@@ -58,14 +58,20 @@ public sealed class HttpContextAppContextAccessor : IAppContextAccessor
             return _options.DefaultAppId;
         }
 
-        if (context.Items.TryGetValue(AppIdItemKey, out var value) && value is string cached)
-        {
-            return cached;
-        }
-
         var isAuthenticated = context.User?.Identity?.IsAuthenticated == true;
         if (isAuthenticated)
         {
+            var claimAppId = AppIdResolver.TryResolveFromClaims(context.User);
+            if (!string.IsNullOrWhiteSpace(claimAppId))
+            {
+                return claimAppId;
+            }
+
+            if (context.Items.TryGetValue(AppIdItemKey, out var value) && value is string cached)
+            {
+                return cached;
+            }
+
             if (AppIdResolver.CanUseHeaderOverrideForAuthenticatedRequest(context, _options))
             {
                 var headerAppId = AppIdResolver.TryResolveFromHeader(context, _options);
@@ -74,15 +80,14 @@ public sealed class HttpContextAppContextAccessor : IAppContextAccessor
                     return headerAppId;
                 }
             }
-
-            var claimAppId = AppIdResolver.TryResolveFromClaims(context.User);
-            if (!string.IsNullOrWhiteSpace(claimAppId))
-            {
-                return claimAppId;
-            }
         }
         else
         {
+            if (context.Items.TryGetValue(AppIdItemKey, out var value) && value is string cached)
+            {
+                return cached;
+            }
+
             var headerAppId = AppIdResolver.TryResolveFromHeader(context, _options);
             if (!string.IsNullOrWhiteSpace(headerAppId))
             {

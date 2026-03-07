@@ -26,22 +26,22 @@ public sealed class AppContextMiddleware
 
             if (context.User?.Identity?.IsAuthenticated == true)
             {
+                if (!string.IsNullOrWhiteSpace(claimAppId))
+                {
+                    context.Items[HttpContextAppContextAccessor.AppIdItemKey] = claimAppId;
+                    return _next(context);
+                }
+
                 if (AppIdResolver.CanUseHeaderOverrideForAuthenticatedRequest(context, _options)
                     && !string.IsNullOrWhiteSpace(headerAppId))
                 {
                     context.Items[HttpContextAppContextAccessor.AppIdItemKey] = headerAppId;
                     return _next(context);
                 }
-
-                if (!string.IsNullOrWhiteSpace(claimAppId))
-                {
-                    context.Items[HttpContextAppContextAccessor.AppIdItemKey] = claimAppId;
-                    return _next(context);
-                }
             }
             else if (!string.IsNullOrWhiteSpace(headerAppId))
             {
-                if (!hasAuthCredentials || AppIdResolver.CanUseHeaderOverrideForAuthenticatedRequest(context, _options))
+                if (!hasAuthCredentials)
                 {
                     context.Items[HttpContextAppContextAccessor.AppIdItemKey] = headerAppId;
                     return _next(context);
