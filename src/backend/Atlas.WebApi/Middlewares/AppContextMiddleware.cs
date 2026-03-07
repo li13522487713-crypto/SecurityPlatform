@@ -22,10 +22,12 @@ public sealed class AppContextMiddleware
         {
             var claimAppId = AppIdResolver.TryResolveFromClaims(context.User);
             var headerAppId = AppIdResolver.TryResolveFromHeader(context, _options);
+            var hasAuthCredentials = AppIdResolver.HasAuthenticationCredentials(context);
 
             if (context.User?.Identity?.IsAuthenticated == true)
             {
-                if (_options.AllowHeaderOverrideWhenAuthenticated && !string.IsNullOrWhiteSpace(headerAppId))
+                if (AppIdResolver.CanUseHeaderOverrideForAuthenticatedRequest(context, _options)
+                    && !string.IsNullOrWhiteSpace(headerAppId))
                 {
                     context.Items[HttpContextAppContextAccessor.AppIdItemKey] = headerAppId;
                     return _next(context);
@@ -39,7 +41,17 @@ public sealed class AppContextMiddleware
             }
             else if (!string.IsNullOrWhiteSpace(headerAppId))
             {
-                context.Items[HttpContextAppContextAccessor.AppIdItemKey] = headerAppId;
+                if (!hasAuthCredentials || AppIdResolver.CanUseHeaderOverrideForAuthenticatedRequest(context, _options))
+                {
+                    context.Items[HttpContextAppContextAccessor.AppIdItemKey] = headerAppId;
+                    return _next(context);
+                }
+            }
+
+            if (hasAuthCredentials)
+            {
+                // Defer resolution for credential-carrying requests so accessor can
+                // evaluate authenticated claims after authorization middleware runs.
                 return _next(context);
             }
 

@@ -15,6 +15,13 @@
 - 契约同步：所有接口变更需同步更新 `docs/contracts.md`。
 - 文档先行：每个功能先写规格文档，再写代码。
 
+## 路线图基线（2026-03 规划版）
+
+- 平台主路线图以 `docs/plan-平台控制台与应用数据源.md` 为准，按 **Sprint1~Sprint8 + Gate-R1/R2** 推进。
+- Gate-R1（强制）：完整 GUI 手工全链路测试（控制台→应用→运行态→动态表→审批→工作流→模板→移动）。
+- Gate-R2（强制）：提交 `src/backend/Atlas.WebApi/atlas.db`（`hangfire.db` 视验收要求）。
+- 本追踪表中的 Case 状态更新应与上述 Sprint 节奏保持一致（B/F/D/T 同步勾选）。
+
 ---
 
 ## Phase 1 - 系统管理基础

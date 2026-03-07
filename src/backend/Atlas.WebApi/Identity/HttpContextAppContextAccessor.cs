@@ -63,12 +63,10 @@ public sealed class HttpContextAppContextAccessor : IAppContextAccessor
             return cached;
         }
 
-        // Mirror AppContextMiddleware priority: when AllowHeaderOverrideWhenAuthenticated is true,
-        // the header takes precedence over JWT claims for authenticated requests.
         var isAuthenticated = context.User?.Identity?.IsAuthenticated == true;
         if (isAuthenticated)
         {
-            if (_options.AllowHeaderOverrideWhenAuthenticated)
+            if (AppIdResolver.CanUseHeaderOverrideForAuthenticatedRequest(context, _options))
             {
                 var headerAppId = AppIdResolver.TryResolveFromHeader(context, _options);
                 if (!string.IsNullOrWhiteSpace(headerAppId))

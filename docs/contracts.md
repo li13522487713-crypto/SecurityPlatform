@@ -9,7 +9,8 @@
 
 - `Authorization: Bearer <accessToken>`：JWT 访问令牌。
 - `X-Tenant-Id: <tenantId>`：租户标识（GUID）。
-- `X-App-Id: <appId>`：应用标识（字符串，仅服务到服务或匿名场景使用；已登录请求从 JWT 的 `app_id` Claim 获取）。
+- `X-App-Id: <appId>`：应用标识（字符串）。已登录请求默认取 JWT 的 `app_id` Claim；当 `App.AllowHeaderOverrideWhenAuthenticated=true` 且满足受控条件时可被 Header 覆盖。
+- `X-App-Workspace: 1`：应用工作台请求标记。当前默认策略下，已登录请求仅在该标记存在时允许 `X-App-Id` 覆盖 JWT `app_id`。
 - `X-Client-Type: WebH5 | Mobile | Backend`：客户端类型。
 - `X-Client-Platform: Web | Android | iOS`：客户端平台。
 - `X-Client-Channel: Browser | App`：客户端通道。
