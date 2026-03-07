@@ -16,5 +16,5 @@ public interface ITenantDataSourceService
 
     Task<TestConnectionResult> TestConnectionAsync(TestConnectionRequest request, CancellationToken cancellationToken = default);
 
-    Task<TestConnectionResult> TestConnectionByDataSourceIdAsync(long id, CancellationToken cancellationToken = default);
+    Task<TestConnectionResult> TestConnectionByDataSourceIdAsync(string tenantId, long id, CancellationToken cancellationToken = default);
 }

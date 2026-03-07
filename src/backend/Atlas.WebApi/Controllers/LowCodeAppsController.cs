@@ -208,7 +208,7 @@ public sealed class LowCodeAppsController : ControllerBase
                 HttpContext.TraceIdentifier));
         }
 
-        var result = await _tenantDataSourceService.TestConnectionByDataSourceIdAsync(dataSourceId, cancellationToken);
+        var result = await _tenantDataSourceService.TestConnectionByDataSourceIdAsync(tenantId.Value.ToString(), dataSourceId, cancellationToken);
         return Ok(ApiResponse<TestConnectionResult>.Ok(result, HttpContext.TraceIdentifier));
     }
 

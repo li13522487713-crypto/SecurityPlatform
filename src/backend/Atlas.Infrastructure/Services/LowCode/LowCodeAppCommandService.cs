@@ -366,6 +366,9 @@ public sealed class LowCodeAppCommandService : ILowCodeAppCommandService
 
         await _pageVersionRepository.DeleteByAppIdAsync(tenantId, id, cancellationToken);
         await _pageRepository.DeleteByAppIdAsync(tenantId, id, cancellationToken);
+        await _db.Deleteable<AppEntityAlias>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.AppId == id)
+            .ExecuteCommandAsync(cancellationToken);
         await _appRepository.DeleteAsync(id, cancellationToken);
     }
 
@@ -401,6 +404,9 @@ public sealed class LowCodeAppCommandService : ILowCodeAppCommandService
         {
             await _pageVersionRepository.DeleteByAppIdAsync(tenantId, existing.Id, cancellationToken);
             await _pageRepository.DeleteByAppIdAsync(tenantId, existing.Id, cancellationToken);
+            await _db.Deleteable<AppEntityAlias>()
+                .Where(x => x.TenantIdValue == tenantId.Value && x.AppId == existing.Id)
+                .ExecuteCommandAsync(cancellationToken);
             await _appRepository.DeleteAsync(existing.Id, cancellationToken);
             overwritten = true;
             existing = null;

@@ -119,9 +119,9 @@ public sealed class TenantDataSourceService : ITenantDataSourceService
         }
     }
 
-    public async Task<TestConnectionResult> TestConnectionByDataSourceIdAsync(long id, CancellationToken cancellationToken = default)
+    public async Task<TestConnectionResult> TestConnectionByDataSourceIdAsync(string tenantId, long id, CancellationToken cancellationToken = default)
     {
-        var entity = await _repository.FindByIdAsync(id, cancellationToken);
+        var entity = await _repository.FindByTenantAndIdAsync(tenantId, id, cancellationToken);
         if (entity is null)
         {
             return new TestConnectionResult(false, "数据源不存在");
@@ -134,7 +134,6 @@ public sealed class TenantDataSourceService : ITenantDataSourceService
         var result = await TestConnectionAsync(new TestConnectionRequest(connectionString, entity.DbType), cancellationToken);
         entity.MarkTestResult(result.Success, result.ErrorMessage, DateTimeOffset.UtcNow);
         await _repository.UpdateAsync(entity, cancellationToken);
-        _tenantDbConnectionFactory.InvalidateCache(entity.TenantIdValue);
         return result;
     }
 
