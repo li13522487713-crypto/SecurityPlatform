@@ -428,6 +428,7 @@ app.UseAuthentication();
 app.UseMiddleware<AntiforgeryValidationMiddleware>();
 app.UseMiddleware<TenantContextMiddleware>();
 app.UseMiddleware<ProjectContextMiddleware>();
+app.UseMiddleware<LicenseEnforcementMiddleware>();
 app.UseAuthorization();
 
 app.MapControllers();

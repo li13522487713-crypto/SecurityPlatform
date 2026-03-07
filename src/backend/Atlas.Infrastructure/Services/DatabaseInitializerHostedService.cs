@@ -168,7 +168,9 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             // Saga
             typeof(Atlas.Domain.Saga.SagaInstance),
             // Event Subscriptions
-            typeof(Atlas.Domain.Events.EventSubscription));
+            typeof(Atlas.Domain.Events.EventSubscription),
+            // License
+            typeof(Atlas.Domain.License.LicenseRecord));
         await EnsureApprovalSchemaAsync(db, cancellationToken);
 
         // 创建审批模块数据库索引
@@ -213,6 +215,9 @@ public sealed class DatabaseInitializerHostedService : IHostedService
                 configTenantId,
                 cancellationToken);
         }
+
+        // 启动时加载授权证书状态到内存（不阻塞启动）
+        await LoadLicenseStatusAsync(scope, cancellationToken);
 
         if (!_bootstrapOptions.Enabled)
         {
@@ -778,6 +783,22 @@ public sealed class DatabaseInitializerHostedService : IHostedService
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    private async Task LoadLicenseStatusAsync(IServiceScope scope, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var licenseService = scope.ServiceProvider.GetService<Atlas.Application.License.Abstractions.ILicenseService>();
+            if (licenseService is not null)
+            {
+                await licenseService.ReloadAsync(cancellationToken);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "启动时加载授权证书状态失败，平台将以无授权模式运行");
+        }
+    }
 
     private static IAppContext CreateSystemContext(IAppContextAccessor appContextAccessor, TenantId tenantId)
     {

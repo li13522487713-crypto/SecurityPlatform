@@ -1,0 +1,54 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy-compose:
+    name: Deploy Full Stack With Docker Compose
+    runs-on: self-hosted
+    environment: production
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Preflight checks (docker + compose + scripts)
+        run: |
+          set -euo pipefail
+          for cmd in docker curl bash; do
+            command -v "$cmd" >/dev/null 2>&1 || { echo "Missing required command: $cmd" >&2; exit 1; }
+          done
+          docker compose version
+          test -f docker-compose.yml
+          test -f deploy/scripts/deploy.sh
+          test -f deploy/scripts/rollback.sh
+
+      - name: Grant execute permissions for scripts
+        run: chmod +x deploy/scripts/deploy.sh deploy/scripts/rollback.sh
+
+      - name: Deploy with docker compose
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+          JWT_SIGNING_KEY: ${{ secrets.JWT_SIGNING_KEY }}
+          BOOTSTRAP_ADMIN_PASSWORD: ${{ secrets.BOOTSTRAP_ADMIN_PASSWORD }}
+          CORS_ALLOWED_ORIGIN: ${{ vars.CORS_ALLOWED_ORIGIN || 'http://localhost' }}
+        run: bash deploy/scripts/deploy.sh
+
+      - name: Rollback on deployment failure
+        if: failure()
+        env:
+          JWT_SIGNING_KEY: ${{ secrets.JWT_SIGNING_KEY }}
+          BOOTSTRAP_ADMIN_PASSWORD: ${{ secrets.BOOTSTRAP_ADMIN_PASSWORD }}
+          CORS_ALLOWED_ORIGIN: ${{ vars.CORS_ALLOWED_ORIGIN || 'http://localhost' }}
+        run: bash deploy/scripts/rollback.sh

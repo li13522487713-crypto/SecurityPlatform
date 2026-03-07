@@ -154,6 +154,34 @@
               <router-link to="/register">还没有账号？立即注册</router-link>
             </div>
           </a-form>
+
+          <!-- 授权激活区域（未激活或已过期时显示） -->
+          <a-divider style="margin: 12px 0" />
+          <a-collapse v-model:activeKey="licenseCollapseKey" ghost>
+            <a-collapse-panel key="license" :header="licenseCollapseHeader">
+              <div v-if="licenseActivateResult" style="margin-bottom: 8px">
+                <a-alert
+                  :type="licenseActivateResult.success ? 'success' : 'error'"
+                  :message="licenseActivateResult.message"
+                  closable
+                  @close="licenseActivateResult = null"
+                />
+              </div>
+              <a-typography-paragraph type="secondary" style="font-size: 12px; margin-bottom: 8px">
+                上传 <code>.atlaslicense</code> 证书文件以激活平台授权
+              </a-typography-paragraph>
+              <a-upload
+                :before-upload="handleLicenseFileSelect"
+                :show-upload-list="false"
+                accept=".atlaslicense,.lic,.txt"
+              >
+                <a-button size="small" :loading="licenseActivating">
+                  <template #icon><upload-outlined /></template>
+                  选择证书文件
+                </a-button>
+              </a-upload>
+            </a-collapse-panel>
+          </a-collapse>
         </a-card>
       </section>
     </main>
@@ -170,7 +198,8 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { getCaptcha } from "@/services/api";
+import { UploadOutlined } from "@ant-design/icons-vue";
+import { getCaptcha, getLicenseStatus, activateLicense } from "@/services/api";
 import { useUserStore } from "@/stores/user";
 import { usePermissionStore } from "@/stores/permission";
 import type { RequestOptions } from "@/services/api";
@@ -235,6 +264,18 @@ const form = reactive({
 // 验证码 API 返回的 key 和图片
 const captchaKey = ref<string>("");
 const captchaImageSrc = ref<string>("");
+
+// 授权证书相关
+const licenseCollapseKey = ref<string[]>([]);
+const licenseActivating = ref(false);
+const licenseActivateResult = ref<{ success: boolean; message: string } | null>(null);
+const licenseStatusCode = ref<string>("None");
+
+const licenseCollapseHeader = computed(() => {
+  if (licenseStatusCode.value === "Expired") return "⚠ 授权已过期 — 点击续签";
+  if (licenseStatusCode.value === "None") return "激活授权证书";
+  return "授权证书管理";
+});
 
 const isCaptchaVisible = computed(() => failedAttempts.value >= CAPTCHA_THRESHOLD);
 const isSubmitDisabled = computed(
@@ -435,7 +476,77 @@ const handleSubmit = async () => {
   }
 };
 
-onMounted(loadTenantHistory);
+async function handleLicenseFileSelect(file: File): Promise<false> {
+  licenseActivating.value = true;
+  licenseActivateResult.value = null;
+
+  let content = "";
+  try {
+    content = await readFileAsText(file);
+  } catch (error) {
+    licenseActivateResult.value = {
+      success: false,
+      message: error instanceof Error ? error.message : "文件读取失败，请重试"
+    };
+    licenseActivating.value = false;
+    return false;
+  }
+
+  try {
+    const resp = await activateLicense(content);
+    if (resp.success) {
+      licenseActivateResult.value = {
+        success: true,
+        message: resp.data?.message ?? resp.message ?? "授权激活成功！"
+      };
+      licenseStatusCode.value = "Active";
+    } else {
+      licenseActivateResult.value = {
+        success: false,
+        message: resp.message || "证书激活失败"
+      };
+    }
+  } catch (error) {
+    const requestError = error as LoginApiError;
+    const detailMessage =
+      requestError?.payload?.message ??
+      (error instanceof Error ? error.message : "");
+    licenseActivateResult.value = {
+      success: false,
+      message: detailMessage || "证书激活失败，请重试"
+    };
+  } finally {
+    licenseActivating.value = false;
+  }
+  return false;
+}
+
+function readFileAsText(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => resolve((e.target?.result as string) ?? "");
+    reader.onerror = () => reject(new Error("文件读取失败，请重试"));
+    reader.readAsText(file);
+  });
+}
+
+async function loadLicenseStatus() {
+  try {
+    const status = await getLicenseStatus();
+    licenseStatusCode.value = status.status;
+    // 未激活或已过期时自动展开
+    if (status.status === "None" || status.status === "Expired") {
+      licenseCollapseKey.value = ["license"];
+    }
+  } catch {
+    // 静默失败，不影响登录流程
+  }
+}
+
+onMounted(() => {
+  loadTenantHistory();
+  loadLicenseStatus();
+});
 onBeforeUnmount(() => {
   window.clearInterval(cooldownTimer);
 });

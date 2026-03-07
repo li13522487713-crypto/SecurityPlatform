@@ -22,6 +22,7 @@ public static class ServiceCollectionExtensions
         services.AddApprovalInfrastructure();
         services.AddWorkflowInfrastructure();
         services.AddLowCodeInfrastructure();
+        services.AddLicenseInfrastructure();
 
         // 注册多数据源相关服务
         services.AddScoped<Atlas.Infrastructure.Repositories.TenantDataSourceRepository>();

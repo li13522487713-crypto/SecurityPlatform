@@ -1046,3 +1046,39 @@ export interface VisualizationMetricsResponse {
   alertsToday: number;
   auditEventsToday: number;
 }
+
+// ==================== License ====================
+
+export type LicenseEdition = "Trial" | "Pro" | "Enterprise";
+export type LicenseStatusCode = "None" | "Active" | "Expired" | "Invalid";
+
+export interface LicenseStatus {
+  status: LicenseStatusCode;
+  edition: LicenseEdition;
+  isPermanent: boolean;
+  issuedAt: string | null;
+  expiresAt: string | null;
+  remainingDays: number | null;
+  /** 证书是否绑定到特定机器（false 表示任意机器可用） */
+  machineBound: boolean;
+  /** 当前机器是否与证书绑定的机器匹配；未绑定时始终为 true */
+  machineMatched: boolean;
+  features: Record<string, boolean>;
+  limits: Record<string, number>;
+}
+
+export interface LicenseActivateRequest {
+  licenseContent: string;
+}
+
+export interface LicenseActivateResult {
+  message: string;
+  edition: LicenseEdition;
+  isPermanent: boolean;
+  expiresAt: string | null;
+  remainingDays: number | null;
+}
+
+export interface LicenseFingerprintResult {
+  fingerprint: string;
+}

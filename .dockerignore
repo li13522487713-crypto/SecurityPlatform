@@ -1,0 +1,15 @@
+.git
+.github
+.cursor
+**/.DS_Store
+**/node_modules
+**/bin
+**/obj
+**/dist
+**/*.user
+**/*.suo
+**/*.tmp
+**/*.log
+deploy/.env.deploy
+src/backend/Atlas.WebApi/atlas.db
+src/backend/Atlas.WebApi/hangfire.db
