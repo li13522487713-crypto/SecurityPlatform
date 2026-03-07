@@ -22,10 +22,7 @@ public sealed class DynamicTableRepository : IDynamicTableRepository
     {
         var query = _db.Queryable<DynamicTable>()
             .Where(x => x.TenantIdValue == tenantId.Value && x.TableKey == tableKey);
-        if (appId.HasValue)
-        {
-            query = query.Where(x => x.AppId == appId.Value);
-        }
+        query = ApplyAppScope(query, appId);
 
         return await query.FirstAsync(cancellationToken);
     }
@@ -53,10 +50,7 @@ public sealed class DynamicTableRepository : IDynamicTableRepository
 
         var query = _db.Queryable<DynamicTable>()
             .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(normalized, x.TableKey));
-        if (appId.HasValue)
-        {
-            query = query.Where(x => x.AppId == appId.Value);
-        }
+        query = ApplyAppScope(query, appId);
 
         return await query.ToListAsync(cancellationToken);
     }
@@ -71,10 +65,7 @@ public sealed class DynamicTableRepository : IDynamicTableRepository
     {
         var query = _db.Queryable<DynamicTable>()
             .Where(x => x.TenantIdValue == tenantId.Value);
-        if (appId.HasValue)
-        {
-            query = query.Where(x => x.AppId == appId.Value);
-        }
+        query = ApplyAppScope(query, appId);
 
         if (!string.IsNullOrWhiteSpace(keyword))
         {
@@ -106,5 +97,14 @@ public sealed class DynamicTableRepository : IDynamicTableRepository
         return _db.Deleteable<DynamicTable>()
             .Where(x => x.TenantIdValue == tenantId.Value && x.Id == id)
             .ExecuteCommandAsync(cancellationToken);
+    }
+
+    private static ISugarQueryable<DynamicTable> ApplyAppScope(
+        ISugarQueryable<DynamicTable> query,
+        long? appId)
+    {
+        return appId.HasValue
+            ? query.Where(x => x.AppId == appId.Value)
+            : query.Where(x => x.AppId == null);
     }
 }
