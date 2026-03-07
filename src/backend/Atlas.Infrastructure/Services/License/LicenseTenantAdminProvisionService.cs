@@ -89,6 +89,13 @@ public sealed class LicenseTenantAdminProvisionService
         }
         else
         {
+            if (!account.IsSystem)
+            {
+                throw new BusinessException(
+                    $"租户 {tenantId.Value} 中已存在同名账号 {username}，且非系统账号，拒绝自动提升权限。",
+                    ErrorCodes.ConflictError);
+            }
+
             var changed = false;
             if (!account.IsActive)
             {
