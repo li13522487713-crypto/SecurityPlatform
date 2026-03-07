@@ -1,3 +1,4 @@
+#nullable enable
 namespace Atlas.LicenseIssuer.Forms;
 
 partial class MainForm
