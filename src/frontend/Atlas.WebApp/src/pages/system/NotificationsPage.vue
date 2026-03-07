@@ -34,6 +34,12 @@
           </div>
           <div class="notif-card-right">
             <a-button
+              v-if="resolveDeepLink(item)"
+              size="small"
+              type="link"
+              @click="handleOpenDeepLink(item)"
+            >去处理</a-button>
+            <a-button
               v-if="!item.isRead"
               size="small"
               type="link"
@@ -59,11 +65,13 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed } from "vue";
+import { useRouter } from "vue-router";
 import { message } from "ant-design-vue";
 import { getMyNotifications, getUnreadCount, markRead, markAllRead } from "@/services/notification";
 import type { UserNotificationDto } from "@/services/notification";
 
 const loading = ref(false);
+const router = useRouter();
 const items = ref<UserNotificationDto[]>([]);
 const total = ref(0);
 const pageIndex = ref(1);
@@ -118,6 +126,26 @@ const handleMarkAll = async () => {
   } catch {
     message.error("操作失败");
   }
+};
+
+const resolveDeepLink = (item: UserNotificationDto): string | null => {
+  const directPath = item.content.match(/(\/process\/tasks\/[A-Za-z0-9\-]+)/);
+  if (directPath?.[1]) {
+    return directPath[1];
+  }
+  const taskIdMatch = item.content.match(/taskId[:=]\s*([A-Za-z0-9\-]+)/i);
+  if (taskIdMatch?.[1]) {
+    return `/process/tasks/${taskIdMatch[1]}`;
+  }
+  return null;
+};
+
+const handleOpenDeepLink = (item: UserNotificationDto) => {
+  const link = resolveDeepLink(item);
+  if (!link) {
+    return;
+  }
+  void router.push(link);
 };
 
 const typeLabel = (type: string) => {

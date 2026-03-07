@@ -20,6 +20,7 @@ public sealed class DynamicTable : TenantEntity
         UpdatedBy = 0;
         ApprovalFlowDefinitionId = null;
         ApprovalStatusField = null;
+        AppId = null;
     }
 
     public DynamicTable(
@@ -43,6 +44,7 @@ public sealed class DynamicTable : TenantEntity
         UpdatedAt = now;
         CreatedBy = createdBy;
         UpdatedBy = createdBy;
+        AppId = null;
     }
 
     public string TableKey { get; private set; }
@@ -54,6 +56,7 @@ public sealed class DynamicTable : TenantEntity
     public DateTimeOffset UpdatedAt { get; private set; }
     public long CreatedBy { get; private set; }
     public long UpdatedBy { get; private set; }
+    public long? AppId { get; private set; }
 
     /// <summary>关联的审批流定义 ID（null 表示未绑定审批流）</summary>
     public long? ApprovalFlowDefinitionId { get; private set; }
@@ -97,6 +100,13 @@ public sealed class DynamicTable : TenantEntity
     {
         ApprovalFlowDefinitionId = null;
         ApprovalStatusField = null;
+        UpdatedBy = updatedBy;
+        UpdatedAt = now;
+    }
+
+    public void BindAppScope(long? appId, long updatedBy, DateTimeOffset now)
+    {
+        AppId = appId;
         UpdatedBy = updatedBy;
         UpdatedAt = now;
     }

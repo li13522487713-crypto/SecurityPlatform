@@ -1,6 +1,8 @@
 using Atlas.Infrastructure.Repositories;
 using Atlas.Infrastructure.Services;
 using Atlas.Application.Approval.Repositories;
+using Atlas.Core.Events;
+using Atlas.Infrastructure.Events.Approval;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Atlas.Infrastructure.DependencyInjection;
@@ -123,6 +125,7 @@ public static class ApprovalServiceRegistration
         services.AddScoped<Atlas.Infrastructure.Services.ApprovalFlow.ApprovalEventPublisher>();
         services.AddScoped<Atlas.Application.Approval.Abstractions.IApprovalEventHandler,
             Atlas.Infrastructure.Services.ApprovalFlow.DynamicTableApprovalEventHandler>();
+        services.AddScoped<IDomainEventHandler<ApprovalInstanceDomainEvent>, ApprovalWorkflowBridgeEventHandler>();
 
         // ApprovalRuntimeCommandService (standard constructor DI)
         services.AddScoped<

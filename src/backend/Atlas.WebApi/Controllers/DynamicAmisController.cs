@@ -69,6 +69,7 @@ public sealed class DynamicAmisController : ControllerBase
         var fields = await _queryService.GetFieldsAsync(
             tenantId,
             tableKey,
+            null,
             cancellationToken);
         var schema = BuildCrudSchema(tableKey, fields);
         return Ok(ApiResponse<JsonElement>.Ok(schema, HttpContext.TraceIdentifier));
@@ -84,6 +85,7 @@ public sealed class DynamicAmisController : ControllerBase
         var fields = await _queryService.GetFieldsAsync(
             tenantId,
             tableKey,
+            null,
             cancellationToken);
         var schema = BuildFormSchema(tableKey, fields, isEdit: false);
         return Ok(ApiResponse<JsonElement>.Ok(schema, HttpContext.TraceIdentifier));
@@ -100,6 +102,7 @@ public sealed class DynamicAmisController : ControllerBase
         var fields = await _queryService.GetFieldsAsync(
             tenantId,
             tableKey,
+            null,
             cancellationToken);
         var schema = BuildFormSchema(tableKey, fields, isEdit: true, id);
         return Ok(ApiResponse<JsonElement>.Ok(schema, HttpContext.TraceIdentifier));
@@ -116,6 +119,7 @@ public sealed class DynamicAmisController : ControllerBase
         var fields = await _queryService.GetFieldsAsync(
             tenantId,
             tableKey,
+            null,
             cancellationToken);
         var schema = BuildDetailSchema(tableKey, fields, id);
         return Ok(ApiResponse<JsonElement>.Ok(schema, HttpContext.TraceIdentifier));

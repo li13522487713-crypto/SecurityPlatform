@@ -15,19 +15,22 @@ public sealed class DynamicRecordCommandService : IDynamicRecordCommandService
     private readonly IDynamicRecordRepository _recordRepository;
     private readonly IFieldPermissionResolver _fieldPermissionResolver;
     private readonly ICurrentUserAccessor _currentUserAccessor;
+    private readonly IAppContextAccessor _appContextAccessor;
 
     public DynamicRecordCommandService(
         IDynamicTableRepository tableRepository,
         IDynamicFieldRepository fieldRepository,
         IDynamicRecordRepository recordRepository,
         IFieldPermissionResolver fieldPermissionResolver,
-        ICurrentUserAccessor currentUserAccessor)
+        ICurrentUserAccessor currentUserAccessor,
+        IAppContextAccessor appContextAccessor)
     {
         _tableRepository = tableRepository;
         _fieldRepository = fieldRepository;
         _recordRepository = recordRepository;
         _fieldPermissionResolver = fieldPermissionResolver;
         _currentUserAccessor = currentUserAccessor;
+        _appContextAccessor = appContextAccessor;
     }
 
     public async Task<long> CreateAsync(
@@ -37,7 +40,7 @@ public sealed class DynamicRecordCommandService : IDynamicRecordCommandService
         DynamicRecordUpsertRequest request,
         CancellationToken cancellationToken)
     {
-        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, cancellationToken);
+        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, ResolveAppId(), cancellationToken);
         if (table is null)
         {
             throw new BusinessException(ErrorCodes.NotFound, "动态表不存在。");
@@ -49,7 +52,7 @@ public sealed class DynamicRecordCommandService : IDynamicRecordCommandService
             throw new BusinessException(ErrorCodes.ValidationError, "动态表字段为空。");
         }
 
-        await EnsureEditableAsync(tenantId, tableKey, request, cancellationToken);
+        await EnsureEditableAsync(tenantId, tableKey, table.AppId, request, cancellationToken);
         return await _recordRepository.InsertAsync(tenantId, table, fields, request, cancellationToken);
     }
 
@@ -61,7 +64,7 @@ public sealed class DynamicRecordCommandService : IDynamicRecordCommandService
         DynamicRecordUpsertRequest request,
         CancellationToken cancellationToken)
     {
-        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, cancellationToken);
+        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, ResolveAppId(), cancellationToken);
         if (table is null)
         {
             throw new BusinessException(ErrorCodes.NotFound, "动态表不存在。");
@@ -73,7 +76,7 @@ public sealed class DynamicRecordCommandService : IDynamicRecordCommandService
             throw new BusinessException(ErrorCodes.ValidationError, "动态表字段为空。");
         }
 
-        await EnsureEditableAsync(tenantId, tableKey, request, cancellationToken);
+        await EnsureEditableAsync(tenantId, tableKey, table.AppId, request, cancellationToken);
         await _recordRepository.UpdateAsync(tenantId, table, fields, id, request, cancellationToken);
     }
 
@@ -84,7 +87,7 @@ public sealed class DynamicRecordCommandService : IDynamicRecordCommandService
         long id,
         CancellationToken cancellationToken)
     {
-        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, cancellationToken);
+        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, ResolveAppId(), cancellationToken);
         if (table is null)
         {
             return;
@@ -111,7 +114,7 @@ public sealed class DynamicRecordCommandService : IDynamicRecordCommandService
             return;
         }
 
-        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, cancellationToken);
+        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, ResolveAppId(), cancellationToken);
         if (table is null)
         {
             return;
@@ -129,6 +132,7 @@ public sealed class DynamicRecordCommandService : IDynamicRecordCommandService
     private async Task EnsureEditableAsync(
         TenantId tenantId,
         string tableKey,
+        long? appId,
         DynamicRecordUpsertRequest request,
         CancellationToken cancellationToken)
     {
@@ -146,7 +150,19 @@ public sealed class DynamicRecordCommandService : IDynamicRecordCommandService
             tenantId,
             currentUser.UserId,
             tableKey,
+            appId,
             fieldsToEdit,
             cancellationToken);
+    }
+
+    private long? ResolveAppId()
+    {
+        var appIdText = _appContextAccessor.GetAppId();
+        if (long.TryParse(appIdText, out var appId))
+        {
+            return appId;
+        }
+
+        return null;
     }
 }

@@ -13,6 +13,7 @@
       </div>
       <div class="page-header-right">
         <a-button v-if="canManageApps" @click="handleImportClick">导入应用</a-button>
+        <a-button v-if="canManageApps" @click="handleCreateFromTemplate">从模板创建</a-button>
         <a-button v-if="canManageApps" type="primary" @click="handleCreate">新建应用</a-button>
       </div>
     </div>
@@ -65,26 +66,26 @@
       <a-spin size="large" :tip="t('lowcodeApp.loadingTip')" />
     </div>
 
-    <!-- 新建/编辑应用对话框 -->
+    <!-- 新建应用向导 -->
+    <AppCreateWizard
+      v-model:open="createWizardVisible"
+      @created="handleCreated"
+    />
+
+    <!-- 编辑应用对话框 -->
     <a-modal
-      v-model:open="formVisible"
-      :title="formMode === 'create' ? t('lowcodeApp.createModalTitle') : t('lowcodeApp.editModalTitle')"
+      v-model:open="editVisible"
+      :title="t('lowcodeApp.editModalTitle')"
       :ok-text="t('common.confirm')"
       :cancel-text="t('common.cancel')"
-      @ok="handleFormSubmit"
+      @ok="handleEditSubmit"
     >
       <a-form layout="vertical">
-        <a-form-item v-if="formMode === 'create'" :label="t('lowcodeApp.appKeyLabel')" required>
-          <a-input
-            v-model:value="formModel.appKey"
-            :placeholder="t('lowcodeApp.appKeyPlaceholder')"
-          />
-        </a-form-item>
         <a-form-item :label="t('lowcodeApp.appNameLabel')" required>
-          <a-input v-model:value="formModel.name" :placeholder="t('lowcodeApp.appNamePlaceholder')" />
+          <a-input v-model:value="editModel.name" :placeholder="t('lowcodeApp.appNamePlaceholder')" />
         </a-form-item>
         <a-form-item :label="t('lowcodeApp.categoryLabel')">
-          <a-select v-model:value="formModel.category" :placeholder="t('lowcodeApp.categoryPlaceholder')" allow-clear>
+          <a-select v-model:value="editModel.category" :placeholder="t('lowcodeApp.categoryPlaceholder')" allow-clear>
             <a-select-option value="OA">{{ t("lowcodeApp.categoryOA") }}</a-select-option>
             <a-select-option value="CRM">{{ t("lowcodeApp.categoryCRM") }}</a-select-option>
             <a-select-option value="ERP">{{ t("lowcodeApp.categoryERP") }}</a-select-option>
@@ -93,10 +94,10 @@
           </a-select>
         </a-form-item>
         <a-form-item :label="t('lowcodeApp.descriptionLabel')">
-          <a-textarea v-model:value="formModel.description" :rows="3" :placeholder="t('lowcodeApp.descriptionPlaceholder')" />
+          <a-textarea v-model:value="editModel.description" :rows="3" :placeholder="t('lowcodeApp.descriptionPlaceholder')" />
         </a-form-item>
         <a-form-item :label="t('lowcodeApp.iconLabel')">
-          <a-input v-model:value="formModel.icon" :placeholder="t('lowcodeApp.iconPlaceholder')" />
+          <a-input v-model:value="editModel.icon" :placeholder="t('lowcodeApp.iconPlaceholder')" />
         </a-form-item>
       </a-form>
     </a-modal>
@@ -120,7 +121,6 @@ import type { LowCodeAppListItem } from "@/types/lowcode";
 import { getAuthProfile, hasPermission } from "@/utils/auth";
 import {
   getLowCodeAppsPaged,
-  createLowCodeApp,
   updateLowCodeApp,
   exportLowCodeApp,
   importLowCodeApp,
@@ -128,6 +128,7 @@ import {
   publishLowCodeApp,
   deleteLowCodeApp
 } from "@/services/lowcode";
+import AppCreateWizard from "@/pages/console/components/AppCreateWizard.vue";
 
 const router = useRouter();
 const { t } = useI18n();
@@ -139,11 +140,10 @@ const dataSource = ref<LowCodeAppListItem[]>([]);
 const importing = ref(false);
 const importInputRef = ref<HTMLInputElement | null>(null);
 
-const formVisible = ref(false);
-const formMode = ref<"create" | "edit">("create");
+const createWizardVisible = ref(false);
+const editVisible = ref(false);
 const selectedId = ref<string | null>(null);
-const formModel = reactive({
-  appKey: "",
+const editModel = reactive({
   name: "",
   description: "",
   category: undefined as string | undefined,
@@ -191,57 +191,41 @@ const handleSearch = () => {
 };
 
 const handleCreate = () => {
-  formMode.value = "create";
-  selectedId.value = null;
-  formModel.appKey = "";
-  formModel.name = "";
-  formModel.description = "";
-  formModel.category = undefined;
-  formModel.icon = "";
-  formVisible.value = true;
+  createWizardVisible.value = true;
+};
+
+const handleCreateFromTemplate = () => {
+  router.push("/lowcode/templates");
+};
+
+const handleCreated = (_appId: string) => {
+  fetchData();
 };
 
 const handleEdit = (app: LowCodeAppListItem) => {
-  formMode.value = "edit";
   selectedId.value = app.id;
-  formModel.appKey = app.appKey;
-  formModel.name = app.name;
-  formModel.description = app.description ?? "";
-  formModel.category = app.category;
-  formModel.icon = app.icon ?? "";
-  formVisible.value = true;
+  editModel.name = app.name;
+  editModel.description = app.description ?? "";
+  editModel.category = app.category;
+  editModel.icon = app.icon ?? "";
+  editVisible.value = true;
 };
 
-const handleFormSubmit = async () => {
-  if (!formModel.name.trim()) {
+const handleEditSubmit = async () => {
+  if (!editModel.name.trim()) {
     message.warning(t("lowcodeApp.warnNameRequired"));
     return;
   }
-
+  if (!selectedId.value) return;
   try {
-    if (formMode.value === "create") {
-      if (!formModel.appKey.trim()) {
-        message.warning(t("lowcodeApp.warnKeyRequired"));
-        return;
-      }
-      await createLowCodeApp({
-        appKey: formModel.appKey,
-        name: formModel.name,
-        description: formModel.description || undefined,
-        category: formModel.category,
-        icon: formModel.icon || undefined
-      });
-      message.success(t("lowcodeApp.createSuccess"));
-    } else if (selectedId.value) {
-      await updateLowCodeApp(selectedId.value, {
-        name: formModel.name,
-        description: formModel.description || undefined,
-        category: formModel.category,
-        icon: formModel.icon || undefined
-      });
-      message.success(t("lowcodeApp.updateSuccess"));
-    }
-    formVisible.value = false;
+    await updateLowCodeApp(selectedId.value, {
+      name: editModel.name,
+      description: editModel.description || undefined,
+      category: editModel.category,
+      icon: editModel.icon || undefined
+    });
+    message.success(t("lowcodeApp.updateSuccess"));
+    editVisible.value = false;
     fetchData();
   } catch (error) {
     message.error((error as Error).message || t("lowcodeApp.operationFailed"));

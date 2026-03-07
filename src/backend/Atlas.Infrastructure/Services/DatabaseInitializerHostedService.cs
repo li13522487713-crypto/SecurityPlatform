@@ -174,8 +174,10 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         if (Guid.TryParse(_bootstrapOptions.TenantId, out var seedTenantGuid))
         {
             var approvalSeedService = scope.ServiceProvider.GetRequiredService<ApprovalSeedDataService>();
+            var templateSeedDataService = scope.ServiceProvider.GetRequiredService<TemplateSeedDataService>();
             var seedTenantId = new TenantId(seedTenantGuid);
             await approvalSeedService.InitializeSeedDataAsync(seedTenantId, cancellationToken);
+            await templateSeedDataService.InitializeBuiltInTemplatesAsync(seedTenantId, cancellationToken);
         }
 
         if (Guid.TryParse(_bootstrapOptions.TenantId, out var appTenantGuid))
@@ -339,6 +341,8 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             (PermissionCodes.MenusUpdate, "Menus Update", "Api"),
             (PermissionCodes.AppsView, "Apps View", "Api"),
             (PermissionCodes.AppsUpdate, "Apps Update", "Api"),
+            (PermissionCodes.AppAdmin, "App Admin", "Api"),
+            (PermissionCodes.AppUser, "App User", "Api"),
             (PermissionCodes.ProjectsView, "Projects View", "Api"),
             (PermissionCodes.ProjectsCreate, "Projects Create", "Api"),
             (PermissionCodes.ProjectsUpdate, "Projects Update", "Api"),

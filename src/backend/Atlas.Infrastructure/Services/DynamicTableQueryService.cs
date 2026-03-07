@@ -45,6 +45,7 @@ public sealed class DynamicTableQueryService : IDynamicTableQueryService
     public async Task<PagedResult<DynamicTableListItem>> QueryAsync(
         PagedRequest request,
         TenantId tenantId,
+        long? appId,
         CancellationToken cancellationToken)
     {
         var pageIndex = request.PageIndex < 1 ? 1 : request.PageIndex;
@@ -55,10 +56,12 @@ public sealed class DynamicTableQueryService : IDynamicTableQueryService
             pageIndex,
             pageSize,
             request.Keyword,
+            appId,
             cancellationToken);
 
         var list = items.Select(item => new DynamicTableListItem(
             item.Id.ToString(),
+            item.AppId?.ToString(),
             item.TableKey,
             item.DisplayName,
             item.Description,
@@ -75,20 +78,22 @@ public sealed class DynamicTableQueryService : IDynamicTableQueryService
     public async Task<DynamicTableDetail?> GetByKeyAsync(
         TenantId tenantId,
         string tableKey,
+        long? appId,
         CancellationToken cancellationToken)
     {
-        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, cancellationToken);
+        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, appId, cancellationToken);
         if (table is null)
         {
             return null;
         }
 
         var fields = await _fieldRepository.ListByTableIdAsync(tenantId, table.Id, cancellationToken);
-        fields = await FilterFieldsByPermissionAsync(tenantId, table.TableKey, fields, cancellationToken);
+        fields = await FilterFieldsByPermissionAsync(tenantId, table.TableKey, table.AppId, fields, cancellationToken);
         var indexes = await _indexRepository.ListByTableIdAsync(tenantId, table.Id, cancellationToken);
 
         return new DynamicTableDetail(
             table.Id.ToString(),
+            table.AppId?.ToString(),
             table.TableKey,
             table.DisplayName,
             table.Description,
@@ -107,16 +112,17 @@ public sealed class DynamicTableQueryService : IDynamicTableQueryService
     public async Task<IReadOnlyList<DynamicFieldDefinition>> GetFieldsAsync(
         TenantId tenantId,
         string tableKey,
+        long? appId,
         CancellationToken cancellationToken)
     {
-        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, cancellationToken);
+        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, appId, cancellationToken);
         if (table is null)
         {
             return Array.Empty<DynamicFieldDefinition>();
         }
 
         var fields = await _fieldRepository.ListByTableIdAsync(tenantId, table.Id, cancellationToken);
-        fields = await FilterFieldsByPermissionAsync(tenantId, table.TableKey, fields, cancellationToken);
+        fields = await FilterFieldsByPermissionAsync(tenantId, table.TableKey, table.AppId, fields, cancellationToken);
         return fields.Select(ToFieldDefinition).ToArray();
     }
 
@@ -142,9 +148,10 @@ public sealed class DynamicTableQueryService : IDynamicTableQueryService
     public async Task<IReadOnlyList<DynamicRelationDefinition>> GetRelationsAsync(
         TenantId tenantId,
         string tableKey,
+        long? appId,
         CancellationToken cancellationToken)
     {
-        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, cancellationToken);
+        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, appId, cancellationToken);
         if (table is null)
         {
             return Array.Empty<DynamicRelationDefinition>();
@@ -164,9 +171,21 @@ public sealed class DynamicTableQueryService : IDynamicTableQueryService
     public async Task<IReadOnlyList<DynamicFieldPermissionRule>> GetFieldPermissionsAsync(
         TenantId tenantId,
         string tableKey,
+        long? appId,
         CancellationToken cancellationToken)
     {
-        var rules = await _fieldPermissionRepository.ListByTableKeyAsync(tenantId, tableKey, cancellationToken);
+        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, appId, cancellationToken);
+        if (table is null)
+        {
+            return Array.Empty<DynamicFieldPermissionRule>();
+        }
+
+        if (table.AppId != appId)
+        {
+            return Array.Empty<DynamicFieldPermissionRule>();
+        }
+
+        var rules = await _fieldPermissionRepository.ListByTableKeyAsync(tenantId, tableKey, appId, cancellationToken);
         return rules
             .Select(x => new DynamicFieldPermissionRule(x.FieldName, x.RoleCode, x.CanView, x.CanEdit))
             .ToArray();
@@ -175,6 +194,7 @@ public sealed class DynamicTableQueryService : IDynamicTableQueryService
     private async Task<IReadOnlyList<DynamicField>> FilterFieldsByPermissionAsync(
         TenantId tenantId,
         string tableKey,
+        long? appId,
         IReadOnlyList<DynamicField> fields,
         CancellationToken cancellationToken)
     {
@@ -188,6 +208,7 @@ public sealed class DynamicTableQueryService : IDynamicTableQueryService
             tenantId,
             currentUser.UserId,
             tableKey,
+            appId,
             fields,
             cancellationToken);
     }

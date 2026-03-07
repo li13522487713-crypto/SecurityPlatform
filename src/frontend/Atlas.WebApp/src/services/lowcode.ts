@@ -210,6 +210,25 @@ export async function getLowCodeRuntimePageSchema(
   return response.data;
 }
 
+export async function getLowCodeRuntimePageSchemaByKey(
+  appKey: string,
+  pageKey: string,
+  environmentCode?: string
+): Promise<LowCodePageRuntimeSchema> {
+  const query = new URLSearchParams();
+  if (environmentCode) {
+    query.set("environmentCode", environmentCode);
+  }
+  const queryText = query.toString();
+  const response = await requestApi<ApiResponse<LowCodePageRuntimeSchema>>(
+    `/runtime/apps/${encodeURIComponent(appKey)}/pages/${encodeURIComponent(pageKey)}/schema${
+      queryText ? `?${queryText}` : ""
+    }`
+  );
+  if (!response.data) throw new Error(response.message || "查询失败");
+  return response.data;
+}
+
 export async function getLowCodePageVersions(pageId: string): Promise<LowCodePageVersionListItem[]> {
   const response = await requestApi<ApiResponse<LowCodePageVersionListItem[]>>(
     `/lowcode-apps/pages/${pageId}/versions`

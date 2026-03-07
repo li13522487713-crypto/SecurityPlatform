@@ -14,6 +14,16 @@
           style="width: 140px"
           :options="statusOptions"
         />
+        <a-select
+          v-model:value="selectedAppId"
+          style="width: 260px"
+          :loading="appLoading"
+          :options="appOptions"
+          allow-clear
+          show-search
+          placeholder="按应用过滤"
+          @change="handleAppScopeChange"
+        />
         <a-button @click="fetchData">刷新</a-button>
       </a-space>
     </div>
@@ -22,6 +32,7 @@
       :data-source="dataSource"
       :pagination="pagination"
       :loading="loading"
+      :scroll="isMobile ? { x: 640 } : undefined"
       row-key="id"
       @change="onTableChange"
     >
@@ -89,16 +100,18 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref, watch } from "vue";
+import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { getMyTasksPaged, decideApprovalTask } from "@/services/api";
+import { getLowCodeAppsPaged } from "@/services/lowcode";
 import type { TablePaginationConfig } from "ant-design-vue";
 import { ApprovalTaskStatus, type ApprovalTaskResponse } from "@/types/api";
 import { message } from "ant-design-vue";
+import { getCurrentAppIdFromStorage, setCurrentAppIdToStorage } from "@/utils/app-context";
 
 const router = useRouter();
 
-const columns = [
+const desktopColumns = [
   { title: "流程名称", dataIndex: "flowName", key: "flowName" },
   { title: "任务标题", dataIndex: "title", key: "title" },
   { title: "当前节点", dataIndex: "currentNodeName", key: "currentNodeName" },
@@ -107,11 +120,21 @@ const columns = [
   { title: "创建时间", dataIndex: "createdAt", key: "createdAt" },
   { title: "操作", key: "action", width: 220 }
 ];
+const mobileColumns = [
+  { title: "任务标题", dataIndex: "title", key: "title" },
+  { title: "状态", key: "status", width: 90 },
+  { title: "操作", key: "action", width: 170 }
+];
+const isMobile = computed(() => window.innerWidth <= 768);
+const columns = computed(() => (isMobile.value ? mobileColumns : desktopColumns));
 
 const dataSource = ref<ApprovalTaskResponse[]>([]);
 const loading = ref(false);
+const appLoading = ref(false);
 const keyword = ref("");
 const statusFilter = ref<ApprovalTaskStatus | "all">(ApprovalTaskStatus.Pending);
+const selectedAppId = ref<string | undefined>(getCurrentAppIdFromStorage() ?? undefined);
+const appOptions = ref<Array<{ label: string; value: string }>>([]);
 const statusOptions = [
   { label: "全部", value: "all" },
   { label: "待审批", value: ApprovalTaskStatus.Pending },
@@ -147,6 +170,27 @@ const fetchData = async () => {
   } finally {
     loading.value = false;
   }
+};
+
+const loadAppOptions = async () => {
+  appLoading.value = true;
+  try {
+    const result = await getLowCodeAppsPaged({ pageIndex: 1, pageSize: 200 });
+    appOptions.value = result.items.map((item) => ({
+      label: `${item.name} (${item.appKey})`,
+      value: item.id
+    }));
+  } catch (err) {
+    message.error(err instanceof Error ? err.message : "加载应用列表失败");
+  } finally {
+    appLoading.value = false;
+  }
+};
+
+const handleAppScopeChange = (value: string | undefined) => {
+  setCurrentAppIdToStorage(value);
+  pagination.current = 1;
+  void fetchData();
 };
 
 const onTableChange = (pager: TablePaginationConfig) => {
@@ -243,7 +287,10 @@ const handleModalCancel = () => {
   decideForm.value.comment = "";
 };
 
-onMounted(fetchData);
+onMounted(async () => {
+  await loadAppOptions();
+  await fetchData();
+});
 
 watch(statusFilter, () => {
   pagination.current = 1;

@@ -4,6 +4,7 @@ namespace Atlas.Application.DynamicTables.Models;
 
 public sealed record DynamicTableListItem(
     string Id,
+    string? AppId,
     string TableKey,
     string DisplayName,
     string? Description,
@@ -16,6 +17,7 @@ public sealed record DynamicTableListItem(
 
 public sealed record DynamicTableDetail(
     string Id,
+    string? AppId,
     string TableKey,
     string DisplayName,
     string? Description,

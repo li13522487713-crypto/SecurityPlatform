@@ -16,7 +16,9 @@ export default {
     failed: "操作失败",
     noData: "暂无数据",
     total: "共 {total} 条",
-    actions: "操作"
+    actions: "操作",
+    previous: "上一步",
+    next: "下一步"
   },
   auth: {
     login: "登录",
@@ -239,7 +241,23 @@ export default {
     publishSuccess: "发布成功",
     publishFailed: "发布失败",
     deleteSuccess: "已删除",
-    deleteFailed: "删除失败"
+    deleteFailed: "删除失败",
+    wizard: {
+      step1Title: "基本信息",
+      step2Title: "数据源",
+      step3Title: "共享策略",
+      datasourceLabel: "绑定数据源",
+      datasourcePlaceholder: "选择数据源（可选）",
+      datasourceNote: "可选：绑定独立数据源后，应用的业务数据将存储在该数据源中。不绑定则使用平台默认数据库。",
+      datasourceSkipHint: "未选择数据源，将使用平台默认数据库。可在应用设置中随时修改。",
+      useSharedUsers: "使用平台用户体系",
+      useSharedUsersHint: "应用可直接使用平台的用户数据，无需维护独立用户表",
+      useSharedRoles: "使用平台角色体系",
+      useSharedRolesHint: "应用权限控制复用平台角色，无需创建应用级别的角色",
+      useSharedDepartments: "使用平台部门数据",
+      useSharedDepartmentsHint: "应用中的部门选择器直接读取平台组织架构",
+      sharingNote: "共享策略控制应用是否复用平台的用户、角色和部门数据，建议初始全部开启。"
+    }
   },
   lowcodeBuilder: {
     back: "返回",

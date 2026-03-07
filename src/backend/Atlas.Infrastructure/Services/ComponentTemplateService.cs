@@ -19,7 +19,13 @@ public sealed class ComponentTemplateQueryService : IComponentTemplateQueryServi
     }
 
     public async Task<(IReadOnlyList<ComponentTemplate> Items, int Total)> SearchAsync(
-        string? keyword, TemplateCategory? category, int pageIndex, int pageSize, CancellationToken cancellationToken)
+        string? keyword,
+        TemplateCategory? category,
+        string? tags,
+        string? version,
+        int pageIndex,
+        int pageSize,
+        CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.TenantId.Value;
         var query = _db.Queryable<ComponentTemplate>()
@@ -33,6 +39,21 @@ public sealed class ComponentTemplateQueryService : IComponentTemplateQueryServi
         if (category.HasValue)
         {
             query = query.Where(t => t.Category == category.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(tags))
+        {
+            var tagKeywords = tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            foreach (var tag in tagKeywords)
+            {
+                var localTag = tag;
+                query = query.Where(t => t.Tags.Contains(localTag));
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(version))
+        {
+            query = query.Where(t => t.Version.Contains(version));
         }
 
         var total = await query.CountAsync(cancellationToken);

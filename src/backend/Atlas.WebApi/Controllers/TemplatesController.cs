@@ -30,11 +30,13 @@ public sealed class TemplatesController : ControllerBase
     public async Task<ActionResult<ApiResponse<object>>> Search(
         [FromQuery] string? keyword = null,
         [FromQuery] TemplateCategory? category = null,
+        [FromQuery] string? tags = null,
+        [FromQuery] string? version = null,
         [FromQuery] int pageIndex = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken cancellationToken = default)
     {
-        var (items, total) = await _queryService.SearchAsync(keyword, category, pageIndex, pageSize, cancellationToken);
+        var (items, total) = await _queryService.SearchAsync(keyword, category, tags, version, pageIndex, pageSize, cancellationToken);
         return Ok(ApiResponse<object>.Ok(new
         {
             PageIndex = pageIndex,

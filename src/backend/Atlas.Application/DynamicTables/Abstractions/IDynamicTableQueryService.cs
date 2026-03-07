@@ -9,16 +9,19 @@ public interface IDynamicTableQueryService
     Task<PagedResult<DynamicTableListItem>> QueryAsync(
         PagedRequest request,
         TenantId tenantId,
+        long? appId,
         CancellationToken cancellationToken);
 
     Task<DynamicTableDetail?> GetByKeyAsync(
         TenantId tenantId,
         string tableKey,
+        long? appId,
         CancellationToken cancellationToken);
 
     Task<IReadOnlyList<DynamicFieldDefinition>> GetFieldsAsync(
         TenantId tenantId,
         string tableKey,
+        long? appId,
         CancellationToken cancellationToken);
 
     Task<IReadOnlyList<DynamicFieldTypeOption>> GetFieldTypesAsync(
@@ -28,10 +31,12 @@ public interface IDynamicTableQueryService
     Task<IReadOnlyList<DynamicRelationDefinition>> GetRelationsAsync(
         TenantId tenantId,
         string tableKey,
+        long? appId,
         CancellationToken cancellationToken);
 
     Task<IReadOnlyList<DynamicFieldPermissionRule>> GetFieldPermissionsAsync(
         TenantId tenantId,
         string tableKey,
+        long? appId,
         CancellationToken cancellationToken);
 }

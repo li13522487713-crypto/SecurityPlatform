@@ -53,7 +53,7 @@ public sealed class DynamicTableRecordsController : ControllerBase
     }
 
     [HttpGet]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppUser)]
     public async Task<ActionResult<ApiResponse<DynamicRecordListResult>>> Query(
         string tableKey,
         [FromQuery] int pageIndex = 1,
@@ -78,7 +78,7 @@ public sealed class DynamicTableRecordsController : ControllerBase
     }
 
     [HttpPost("query")]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppUser)]
     public async Task<ActionResult<ApiResponse<DynamicRecordListResult>>> QueryWithBody(
         string tableKey,
         [FromBody] DynamicRecordQueryRequest request,
@@ -91,7 +91,7 @@ public sealed class DynamicTableRecordsController : ControllerBase
     }
 
     [HttpGet("{id:long}")]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppUser)]
     public async Task<ActionResult<ApiResponse<DynamicRecordDto?>>> GetById(
         string tableKey,
         long id,
@@ -103,7 +103,7 @@ public sealed class DynamicTableRecordsController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppUser)]
     public async Task<ActionResult<ApiResponse<object>>> Create(
         string tableKey,
         [FromBody] DynamicRecordUpsertRequest request,
@@ -126,7 +126,7 @@ public sealed class DynamicTableRecordsController : ControllerBase
     }
 
     [HttpPut("{id:long}")]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppUser)]
     public async Task<ActionResult<ApiResponse<object>>> Update(
         string tableKey,
         long id,
@@ -150,7 +150,7 @@ public sealed class DynamicTableRecordsController : ControllerBase
     }
 
     [HttpDelete("{id:long}")]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppUser)]
     public async Task<ActionResult<ApiResponse<object>>> Delete(
         string tableKey,
         long id,
@@ -172,7 +172,7 @@ public sealed class DynamicTableRecordsController : ControllerBase
     }
 
     [HttpDelete]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppUser)]
     public async Task<ActionResult<ApiResponse<object>>> DeleteBatch(
         string tableKey,
         [FromBody] DynamicRecordBatchDeleteRequest request,
@@ -194,7 +194,7 @@ public sealed class DynamicTableRecordsController : ControllerBase
     }
 
     [HttpPost("export")]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppUser)]
     public async Task<IActionResult> Export(
         string tableKey,
         [FromBody] DynamicRecordExportRequest request,
@@ -210,7 +210,7 @@ public sealed class DynamicTableRecordsController : ControllerBase
     /// 从动态表记录发起审批
     /// </summary>
     [HttpPost("{recordId:long}/approval")]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppUser)]
     public async Task<ActionResult<ApiResponse<DynamicTableApprovalSubmitResponse>>> SubmitApproval(
         string tableKey,
         long recordId,

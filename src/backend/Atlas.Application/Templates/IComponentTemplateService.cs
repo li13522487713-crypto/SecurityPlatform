@@ -5,7 +5,13 @@ namespace Atlas.Application.Templates;
 public interface IComponentTemplateQueryService
 {
     Task<(IReadOnlyList<ComponentTemplate> Items, int Total)> SearchAsync(
-        string? keyword, TemplateCategory? category, int pageIndex, int pageSize, CancellationToken cancellationToken);
+        string? keyword,
+        TemplateCategory? category,
+        string? tags,
+        string? version,
+        int pageIndex,
+        int pageSize,
+        CancellationToken cancellationToken);
 
     Task<ComponentTemplate?> GetByIdAsync(long id, CancellationToken cancellationToken);
 }

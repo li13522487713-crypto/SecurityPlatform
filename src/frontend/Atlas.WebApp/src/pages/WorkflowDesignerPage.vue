@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <a-card class="page-card">
     <template #title>
       <a-space>
@@ -24,13 +24,17 @@
             v-for="stepType in stepTypes"
             :key="stepType.type"
             class="node-type-item"
-            :draggable="true"
-            @dragstart="handleDragStart($event, stepType)"
+            :class="{ 'node-type-disabled': stepType.supported === false }"
+            :draggable="stepType.supported !== false"
+            @dragstart="stepType.supported !== false && handleDragStart($event, stepType)"
           >
             <div class="node-icon" :style="{ borderColor: stepType.color, color: stepType.color }">
               {{ stepType.label }}
             </div>
-            <div class="node-label">{{ stepType.label }}</div>
+            <div class="node-label">
+              {{ stepType.label }}
+              <a-tag v-if="stepType.supported === false" color="default" size="small">规划中</a-tag>
+            </div>
           </div>
         </div>
       </div>
@@ -330,6 +334,16 @@ onBeforeUnmount(() => {
   box-shadow: var(--shadow-sm);
 }
 
+.node-type-disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.node-type-disabled:hover {
+  border-color: var(--color-border-secondary);
+  box-shadow: none;
+}
+
 .node-icon {
   width: 80px;
   height: 40px;
@@ -346,6 +360,9 @@ onBeforeUnmount(() => {
 .node-label {
   font-size: 12px;
   color: var(--color-text-tertiary);
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .designer-canvas {

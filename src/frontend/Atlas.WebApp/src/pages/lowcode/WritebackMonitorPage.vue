@@ -2,11 +2,35 @@
   <div class="writeback-monitor-page">
     <a-page-header title="审批回写监控" sub-title="查看回写失败记录并手动重试">
       <template #extra>
-        <a-button :loading="loading" @click="loadData">刷新</a-button>
+        <a-space>
+          <a-select
+            v-model:value="selectedAppId"
+            style="width: 260px"
+            :loading="appLoading"
+            :options="appOptions"
+            allow-clear
+            show-search
+            placeholder="按应用过滤"
+            @change="handleAppScopeChange"
+          />
+          <a-button :loading="loading" @click="loadData">刷新</a-button>
+        </a-space>
       </template>
     </a-page-header>
 
     <div class="monitor-content">
+      <a-card size="small" style="margin-bottom: 16px">
+        <a-space>
+          <a-select v-model:value="retryStrategy" style="width: 180px">
+            <a-select-option value="Immediate">立即重试</a-select-option>
+            <a-select-option value="Backoff">指数退避重试</a-select-option>
+            <a-select-option value="ManualOnly">仅手动重试</a-select-option>
+          </a-select>
+          <a-switch v-model:checked="alertEnabled" />
+          <span>失败告警开关</span>
+        </a-space>
+      </a-card>
+
       <!-- 统计卡片 -->
       <a-row :gutter="16" style="margin-bottom: 16px">
         <a-col :span="8">
@@ -66,6 +90,8 @@ import { onMounted, ref } from 'vue'
 import { message } from 'ant-design-vue'
 import { requestApi } from '@/services/api-core'
 import type { ApiResponse } from '@/types/api'
+import { getLowCodeAppsPaged } from '@/services/lowcode'
+import { getCurrentAppIdFromStorage, setCurrentAppIdToStorage } from '@/utils/app-context'
 
 interface WritebackFailureDto {
   id: number
@@ -79,8 +105,13 @@ interface WritebackFailureDto {
 }
 
 const loading = ref(false)
+const appLoading = ref(false)
 const failureList = ref<WritebackFailureDto[]>([])
 const retryingIds = ref(new Set<number>())
+const selectedAppId = ref<string | undefined>(getCurrentAppIdFromStorage() ?? undefined)
+const appOptions = ref<Array<{ label: string; value: string }>>([])
+const retryStrategy = ref<'Immediate' | 'Backoff' | 'ManualOnly'>('Backoff')
+const alertEnabled = ref(true)
 
 const columns = [
   { title: 'BusinessKey', dataIndex: 'businessKey', key: 'businessKey', width: 200 },
@@ -104,10 +135,34 @@ const loadData = async () => {
   }
 }
 
+const loadAppOptions = async () => {
+  appLoading.value = true
+  try {
+    const result = await getLowCodeAppsPaged({ pageIndex: 1, pageSize: 200 })
+    appOptions.value = result.items.map((item) => ({
+      label: `${item.name} (${item.appKey})`,
+      value: item.id
+    }))
+  } catch (e) {
+    message.error((e as Error)?.message || '加载应用列表失败')
+  } finally {
+    appLoading.value = false
+  }
+}
+
+const handleAppScopeChange = (value: string | undefined) => {
+  setCurrentAppIdToStorage(value)
+  void loadData()
+}
+
 const handleRetry = async (record: WritebackFailureDto) => {
   retryingIds.value.add(record.id)
   try {
-    await requestApi(`/approval/writeback-failures/${record.id}/retry`, { method: 'POST' })
+    const query = new URLSearchParams({
+      strategy: retryStrategy.value,
+      alertEnabled: alertEnabled.value ? 'true' : 'false'
+    }).toString()
+    await requestApi(`/approval/writeback-failures/${record.id}/retry?${query}`, { method: 'POST' })
     message.success('重试成功')
     await loadData()
   } catch (e) {
@@ -120,7 +175,10 @@ const handleRetry = async (record: WritebackFailureDto) => {
 const formatDate = (iso: string) =>
   iso ? new Date(iso).toLocaleString('zh-CN') : '-'
 
-onMounted(loadData)
+onMounted(async () => {
+  await loadAppOptions()
+  await loadData()
+})
 </script>
 
 <style scoped>

@@ -25,10 +25,11 @@ public sealed class FieldPermissionResolver : IFieldPermissionResolver
         TenantId tenantId,
         long userId,
         string tableKey,
+        long? appId,
         IReadOnlyList<DynamicField> fields,
         CancellationToken cancellationToken)
     {
-        var (rules, hasConfiguredRules) = await ResolveRulesAsync(tenantId, userId, tableKey, cancellationToken);
+        var (rules, hasConfiguredRules) = await ResolveRulesAsync(tenantId, userId, tableKey, appId, cancellationToken);
         if (!hasConfiguredRules)
         {
             return fields;
@@ -50,6 +51,7 @@ public sealed class FieldPermissionResolver : IFieldPermissionResolver
         TenantId tenantId,
         long userId,
         string tableKey,
+        long? appId,
         IReadOnlyList<string> fieldsToEdit,
         CancellationToken cancellationToken)
     {
@@ -58,7 +60,7 @@ public sealed class FieldPermissionResolver : IFieldPermissionResolver
             return;
         }
 
-        var (rules, hasConfiguredRules) = await ResolveRulesAsync(tenantId, userId, tableKey, cancellationToken);
+        var (rules, hasConfiguredRules) = await ResolveRulesAsync(tenantId, userId, tableKey, appId, cancellationToken);
         if (!hasConfiguredRules)
         {
             return;
@@ -86,6 +88,7 @@ public sealed class FieldPermissionResolver : IFieldPermissionResolver
         TenantId tenantId,
         long userId,
         string tableKey,
+        long? appId,
         CancellationToken cancellationToken)
     {
         var roleCodes = await _rbacResolver.GetRoleCodesAsync(tenantId, userId, cancellationToken);
@@ -95,7 +98,7 @@ public sealed class FieldPermissionResolver : IFieldPermissionResolver
             return (Array.Empty<FieldPermission>(), false);
         }
 
-        var allRules = await _fieldPermissionRepository.ListByTableKeyAsync(tenantId, tableKey, cancellationToken);
+        var allRules = await _fieldPermissionRepository.ListByTableKeyAsync(tenantId, tableKey, appId, cancellationToken);
         if (allRules.Count == 0)
         {
             return (Array.Empty<FieldPermission>(), false);

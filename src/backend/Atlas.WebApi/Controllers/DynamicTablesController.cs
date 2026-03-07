@@ -20,6 +20,7 @@ public sealed class DynamicTablesController : ControllerBase
     private readonly IDynamicTableQueryService _queryService;
     private readonly IDynamicTableCommandService _commandService;
     private readonly ITenantProvider _tenantProvider;
+    private readonly IAppContextAccessor _appContextAccessor;
     private readonly ICurrentUserAccessor _currentUserAccessor;
     private readonly IClientContextAccessor _clientContextAccessor;
     private readonly IAuditRecorder _auditRecorder;
@@ -30,6 +31,7 @@ public sealed class DynamicTablesController : ControllerBase
         IDynamicTableQueryService queryService,
         IDynamicTableCommandService commandService,
         ITenantProvider tenantProvider,
+        IAppContextAccessor appContextAccessor,
         ICurrentUserAccessor currentUserAccessor,
         IClientContextAccessor clientContextAccessor,
         IAuditRecorder auditRecorder,
@@ -39,6 +41,7 @@ public sealed class DynamicTablesController : ControllerBase
         _queryService = queryService;
         _commandService = commandService;
         _tenantProvider = tenantProvider;
+        _appContextAccessor = appContextAccessor;
         _currentUserAccessor = currentUserAccessor;
         _clientContextAccessor = clientContextAccessor;
         _auditRecorder = auditRecorder;
@@ -47,18 +50,18 @@ public sealed class DynamicTablesController : ControllerBase
     }
 
     [HttpGet]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppAdmin)]
     public async Task<ActionResult<ApiResponse<PagedResult<DynamicTableListItem>>>> Get(
         [FromQuery] PagedRequest request,
         CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
-        var result = await _queryService.QueryAsync(request, tenantId, cancellationToken);
+        var result = await _queryService.QueryAsync(request, tenantId, ResolveAppId(), cancellationToken);
         return Ok(ApiResponse<PagedResult<DynamicTableListItem>>.Ok(result, HttpContext.TraceIdentifier));
     }
 
     [HttpGet("{tableKey}")]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppAdmin)]
     public async Task<ActionResult<ApiResponse<DynamicTableDetail?>>> GetByKey(
         string tableKey,
         CancellationToken cancellationToken)
@@ -72,12 +75,12 @@ public sealed class DynamicTablesController : ControllerBase
         }
 
         var tenantId = _tenantProvider.GetTenantId();
-        var detail = await _queryService.GetByKeyAsync(tenantId, tableKey, cancellationToken);
+        var detail = await _queryService.GetByKeyAsync(tenantId, tableKey, ResolveAppId(), cancellationToken);
         return Ok(ApiResponse<DynamicTableDetail?>.Ok(detail, HttpContext.TraceIdentifier));
     }
 
     [HttpGet("{tableKey}/fields")]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppAdmin)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<DynamicFieldDefinition>>>> GetFields(
         string tableKey,
         CancellationToken cancellationToken)
@@ -91,12 +94,12 @@ public sealed class DynamicTablesController : ControllerBase
         }
 
         var tenantId = _tenantProvider.GetTenantId();
-        var fields = await _queryService.GetFieldsAsync(tenantId, tableKey, cancellationToken);
+        var fields = await _queryService.GetFieldsAsync(tenantId, tableKey, ResolveAppId(), cancellationToken);
         return Ok(ApiResponse<IReadOnlyList<DynamicFieldDefinition>>.Ok(fields, HttpContext.TraceIdentifier));
     }
 
     [HttpGet("{tableKey}/relations")]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppAdmin)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<DynamicRelationDefinition>>>> GetRelations(
         string tableKey,
         CancellationToken cancellationToken)
@@ -110,12 +113,12 @@ public sealed class DynamicTablesController : ControllerBase
         }
 
         var tenantId = _tenantProvider.GetTenantId();
-        var relations = await _queryService.GetRelationsAsync(tenantId, tableKey, cancellationToken);
+        var relations = await _queryService.GetRelationsAsync(tenantId, tableKey, ResolveAppId(), cancellationToken);
         return Ok(ApiResponse<IReadOnlyList<DynamicRelationDefinition>>.Ok(relations, HttpContext.TraceIdentifier));
     }
 
     [HttpGet("{tableKey}/field-permissions")]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppAdmin)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<DynamicFieldPermissionRule>>>> GetFieldPermissions(
         string tableKey,
         CancellationToken cancellationToken)
@@ -129,12 +132,12 @@ public sealed class DynamicTablesController : ControllerBase
         }
 
         var tenantId = _tenantProvider.GetTenantId();
-        var rules = await _queryService.GetFieldPermissionsAsync(tenantId, tableKey, cancellationToken);
+        var rules = await _queryService.GetFieldPermissionsAsync(tenantId, tableKey, ResolveAppId(), cancellationToken);
         return Ok(ApiResponse<IReadOnlyList<DynamicFieldPermissionRule>>.Ok(rules, HttpContext.TraceIdentifier));
     }
 
     [HttpPost]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppAdmin)]
     public async Task<ActionResult<ApiResponse<object>>> Create(
         [FromBody] DynamicTableCreateRequest request,
         CancellationToken cancellationToken)
@@ -156,7 +159,7 @@ public sealed class DynamicTablesController : ControllerBase
     }
 
     [HttpPut("{tableKey}")]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppAdmin)]
     public async Task<ActionResult<ApiResponse<object>>> Update(
         string tableKey,
         [FromBody] DynamicTableUpdateRequest request,
@@ -179,7 +182,7 @@ public sealed class DynamicTablesController : ControllerBase
     }
 
     [HttpPost("{tableKey}/schema/alter")]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppAdmin)]
     public async Task<ActionResult<ApiResponse<object>>> AlterSchema(
         string tableKey,
         [FromBody] DynamicTableAlterRequest request,
@@ -201,7 +204,7 @@ public sealed class DynamicTablesController : ControllerBase
     }
 
     [HttpPost("{tableKey}/schema/alter/preview")]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppAdmin)]
     public async Task<ActionResult<ApiResponse<DynamicTableAlterPreviewResponse>>> PreviewAlterSchema(
         string tableKey,
         [FromBody] DynamicTableAlterRequest request,
@@ -213,7 +216,7 @@ public sealed class DynamicTablesController : ControllerBase
     }
 
     [HttpDelete("{tableKey}")]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppAdmin)]
     public async Task<ActionResult<ApiResponse<object>>> Delete(
         string tableKey,
         CancellationToken cancellationToken)
@@ -234,7 +237,7 @@ public sealed class DynamicTablesController : ControllerBase
     }
 
     [HttpPut("{tableKey}/relations")]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppAdmin)]
     public async Task<ActionResult<ApiResponse<object>>> SetRelations(
         string tableKey,
         [FromBody] DynamicRelationUpsertRequest request,
@@ -255,7 +258,7 @@ public sealed class DynamicTablesController : ControllerBase
     }
 
     [HttpPut("{tableKey}/field-permissions")]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppAdmin)]
     public async Task<ActionResult<ApiResponse<object>>> SetFieldPermissions(
         string tableKey,
         [FromBody] DynamicFieldPermissionUpsertRequest request,
@@ -279,7 +282,7 @@ public sealed class DynamicTablesController : ControllerBase
     /// 绑定/解绑审批流
     /// </summary>
     [HttpPut("{tableKey}/approval-binding")]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppAdmin)]
     public async Task<ActionResult<ApiResponse<object>>> BindApprovalFlow(
         string tableKey,
         [FromBody] DynamicTableApprovalBindingRequest request,
@@ -319,5 +322,16 @@ public sealed class DynamicTablesController : ControllerBase
             ControllerHelper.GetUserAgent(HttpContext),
             _clientContextAccessor.GetCurrent());
         return _auditRecorder.RecordAsync(context, cancellationToken);
+    }
+
+    private long? ResolveAppId()
+    {
+        var appIdText = _appContextAccessor.GetAppId();
+        if (long.TryParse(appIdText, out var appId))
+        {
+            return appId;
+        }
+
+        return null;
     }
 }

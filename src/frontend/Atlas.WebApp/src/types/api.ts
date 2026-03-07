@@ -902,6 +902,7 @@ export interface StepTypeMetadata {
   category: string;
   color: string;
   icon: string;
+  supported: boolean;
   parameters: StepParameter[];
 }
 

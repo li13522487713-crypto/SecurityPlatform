@@ -54,6 +54,7 @@
               @change="handleEnvironmentChange"
             />
             <a-button @click="openEnvironmentManager">环境管理</a-button>
+            <a-button @click="handleSaveAsTemplate">保存为模板</a-button>
             <a-button :loading="saving" @click="handleSavePageSchema">保存</a-button>
             <a-button type="primary" :loading="publishing" @click="handlePublishPage(selectedPageId!)">发布</a-button>
           </div>
@@ -294,6 +295,7 @@ import {
   rollbackLowCodePage,
   deleteLowCodePage
 } from "@/services/lowcode";
+import { createTemplate } from "@/services/templates";
 
 const route = useRoute();
 const router = useRouter();
@@ -385,6 +387,12 @@ const pageTypeIcon = (type: string) => {
     Blank: "P"
   };
   return icons[type] ?? "P";
+};
+
+const resolveTemplateCategory = (pageType: string): number => {
+  if (pageType === "Form") return 0;
+  if (pageType === "List" || pageType === "Detail" || pageType === "Dashboard") return 1;
+  return 1;
 };
 
 const generateDefaultSchema = (pageType: string, pageName: string): Record<string, unknown> => {
@@ -605,6 +613,37 @@ const handleSavePageSchema = async () => {
     message.error((error as Error).message || t("lowcodeBuilder.saveSchemaFailed"));
   } finally {
     saving.value = false;
+  }
+};
+
+const handleSaveAsTemplate = async () => {
+  if (!selectedPageId.value) {
+    message.warning("请先选择页面");
+    return;
+  }
+  const page = pages.value.find((item) => item.id === selectedPageId.value);
+  if (!page) {
+    message.warning("页面不存在");
+    return;
+  }
+  const schemaToSave = pageEditorRef.value?.getSchema() ?? pageSchemas.value[selectedPageId.value];
+  if (!schemaToSave) {
+    message.warning("当前页面没有可保存的 Schema");
+    return;
+  }
+
+  try {
+    await createTemplate({
+      name: `${appDetail.value?.name ?? "应用"}-${page.name}-模板`,
+      category: resolveTemplateCategory(page.pageType),
+      schemaJson: JSON.stringify(schemaToSave),
+      description: `由应用 ${appDetail.value?.name ?? ""} 的页面 ${page.name} 保存`,
+      tags: `lowcode,page,${page.pageType.toLowerCase()}`,
+      version: "1.0.0"
+    });
+    message.success("模板已保存到模板市场");
+  } catch (error) {
+    message.error((error as Error).message || "保存模板失败");
   }
 };
 

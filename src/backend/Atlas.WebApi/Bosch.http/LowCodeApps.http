@@ -51,7 +51,11 @@ Content-Type: application/json
   "name": "客户关系管理示例应用",
   "description": "低代码 CRM 示例",
   "category": "CRM",
-  "icon": "customer-service"
+  "icon": "customer-service",
+  "dataSourceId": 1,
+  "useSharedUsers": true,
+  "useSharedRoles": true,
+  "useSharedDepartments": true
 }
 
 ###

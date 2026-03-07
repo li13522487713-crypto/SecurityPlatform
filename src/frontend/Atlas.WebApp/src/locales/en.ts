@@ -16,7 +16,9 @@ export default {
     failed: "Failed",
     noData: "No data",
     total: "{total} items total",
-    actions: "Actions"
+    actions: "Actions",
+    previous: "Previous",
+    next: "Next"
   },
   auth: {
     login: "Login",
@@ -239,7 +241,23 @@ export default {
     publishSuccess: "Published successfully",
     publishFailed: "Publish failed",
     deleteSuccess: "Deleted",
-    deleteFailed: "Delete failed"
+    deleteFailed: "Delete failed",
+    wizard: {
+      step1Title: "Basic Info",
+      step2Title: "Data Source",
+      step3Title: "Sharing Policy",
+      datasourceLabel: "Bind Data Source",
+      datasourcePlaceholder: "Select data source (optional)",
+      datasourceNote: "Optional: bind a dedicated data source to store app data. If not bound, the platform default database will be used.",
+      datasourceSkipHint: "No data source selected. Platform default database will be used. You can change this in app settings.",
+      useSharedUsers: "Use platform user system",
+      useSharedUsersHint: "App can directly use platform user data without maintaining separate user tables",
+      useSharedRoles: "Use platform role system",
+      useSharedRolesHint: "App permission control reuses platform roles",
+      useSharedDepartments: "Use platform department data",
+      useSharedDepartmentsHint: "Department selectors in the app read from platform org structure",
+      sharingNote: "Sharing policy controls whether the app reuses platform users, roles and department data. Recommended to enable all initially."
+    }
   },
   lowcodeBuilder: {
     back: "Back",

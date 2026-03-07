@@ -28,7 +28,7 @@
             allow-clear
             @search="loadApps"
           />
-          <a-button type="primary" @click="go('/lowcode/apps')">新建应用</a-button>
+          <a-button type="primary" @click="createWizardVisible = true">新建应用</a-button>
         </a-space>
       </template>
 
@@ -44,6 +44,11 @@
         </a-col>
       </a-row>
     </a-card>
+
+    <AppCreateWizard
+      v-model:open="createWizardVisible"
+      @created="loadApps"
+    />
   </div>
 </template>
 
@@ -53,11 +58,13 @@ import { useRouter } from "vue-router";
 import { message } from "ant-design-vue";
 import type { LowCodeAppListItem } from "@/types/lowcode";
 import { getLowCodeAppsPaged } from "@/services/lowcode";
+import AppCreateWizard from "@/pages/console/components/AppCreateWizard.vue";
 
 const router = useRouter();
 const loading = ref(false);
 const keyword = ref("");
 const apps = ref<LowCodeAppListItem[]>([]);
+const createWizardVisible = ref(false);
 
 async function loadApps() {
   loading.value = true;

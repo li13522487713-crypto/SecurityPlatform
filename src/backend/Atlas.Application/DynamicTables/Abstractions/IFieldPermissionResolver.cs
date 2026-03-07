@@ -9,6 +9,7 @@ public interface IFieldPermissionResolver
         TenantId tenantId,
         long userId,
         string tableKey,
+        long? appId,
         IReadOnlyList<DynamicField> fields,
         CancellationToken cancellationToken);
 
@@ -16,6 +17,7 @@ public interface IFieldPermissionResolver
         TenantId tenantId,
         long userId,
         string tableKey,
+        long? appId,
         IReadOnlyList<string> fieldsToEdit,
         CancellationToken cancellationToken);
 }

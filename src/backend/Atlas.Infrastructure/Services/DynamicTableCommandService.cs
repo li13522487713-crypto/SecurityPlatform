@@ -6,6 +6,7 @@ using Atlas.Application.DynamicTables.Models;
 using Atlas.Application.DynamicTables.Repositories;
 using Atlas.Core.Abstractions;
 using Atlas.Core.Exceptions;
+using Atlas.Core.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.DynamicTables.Entities;
@@ -40,6 +41,7 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly ISqlSugarClient _db;
     private readonly TimeProvider _timeProvider;
+    private readonly IAppContextAccessor _appContextAccessor;
     private readonly IApprovalRuntimeCommandService? _approvalRuntimeService;
 
     public DynamicTableCommandService(
@@ -53,6 +55,7 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
         IIdGeneratorAccessor idGeneratorAccessor,
         ISqlSugarClient db,
         TimeProvider timeProvider,
+        IAppContextAccessor appContextAccessor,
         IApprovalRuntimeCommandService? approvalRuntimeService = null)
     {
         _tableRepository = tableRepository;
@@ -65,6 +68,7 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
         _idGeneratorAccessor = idGeneratorAccessor;
         _db = db;
         _timeProvider = timeProvider;
+        _appContextAccessor = appContextAccessor;
         _approvalRuntimeService = approvalRuntimeService;
     }
 
@@ -74,7 +78,8 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
         DynamicTableCreateRequest request,
         CancellationToken cancellationToken)
     {
-        var existing = await _tableRepository.FindByKeyAsync(tenantId, request.TableKey, cancellationToken);
+        var appId = ResolveAppId();
+        var existing = await _tableRepository.FindByKeyAsync(tenantId, request.TableKey, appId, cancellationToken);
         if (existing is not null)
         {
             throw new BusinessException(ErrorCodes.ValidationError, "表标识已存在。");
@@ -95,6 +100,7 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
             userId,
             _idGeneratorAccessor.NextId(),
             now);
+        table.BindAppScope(appId, userId, now);
 
         var fields = BuildFields(tenantId, table.Id, request.Fields, now);
         var indexes = BuildIndexes(tenantId, table.Id, request.Indexes, now);
@@ -134,7 +140,7 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
         DynamicTableUpdateRequest request,
         CancellationToken cancellationToken)
     {
-        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, cancellationToken);
+        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, ResolveAppId(), cancellationToken);
         if (table is null)
         {
             throw new BusinessException(ErrorCodes.NotFound, "动态表不存在。");
@@ -152,7 +158,7 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
         DynamicTableAlterRequest request,
         CancellationToken cancellationToken)
     {
-        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, cancellationToken);
+        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, ResolveAppId(), cancellationToken);
         if (table is null)
         {
             throw new BusinessException(ErrorCodes.NotFound, "动态表不存在。");
@@ -255,7 +261,7 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
         DynamicTableAlterRequest request,
         CancellationToken cancellationToken)
     {
-        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, cancellationToken);
+        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, ResolveAppId(), cancellationToken);
         if (table is null)
         {
             throw new BusinessException(ErrorCodes.NotFound, "动态表不存在。");
@@ -298,7 +304,7 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
         string tableKey,
         CancellationToken cancellationToken)
     {
-        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, cancellationToken);
+        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, ResolveAppId(), cancellationToken);
         if (table is null)
         {
             return;
@@ -310,7 +316,7 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
             await _fieldRepository.DeleteByTableIdAsync(tenantId, table.Id, cancellationToken);
             await _indexRepository.DeleteByTableIdAsync(tenantId, table.Id, cancellationToken);
             await _relationRepository.DeleteByTableIdAsync(tenantId, table.Id, cancellationToken);
-            await _fieldPermissionRepository.ReplaceByTableKeyAsync(tenantId, tableKey, Array.Empty<FieldPermission>(), cancellationToken);
+            await _fieldPermissionRepository.ReplaceByTableKeyAsync(tenantId, tableKey, table.AppId, Array.Empty<FieldPermission>(), cancellationToken);
             await _tableRepository.DeleteAsync(tenantId, table.Id, cancellationToken);
         });
 
@@ -327,7 +333,7 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
         DynamicRelationUpsertRequest request,
         CancellationToken cancellationToken)
     {
-        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, cancellationToken);
+        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, ResolveAppId(), cancellationToken);
         if (table is null)
         {
             throw new BusinessException(ErrorCodes.NotFound, "动态表不存在。");
@@ -341,7 +347,7 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
             .Where(x => !string.IsNullOrWhiteSpace(x))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
-        var relatedTables = await _tableRepository.QueryByKeysAsync(tenantId, relatedTableKeys, cancellationToken);
+        var relatedTables = await _tableRepository.QueryByKeysAsync(tenantId, relatedTableKeys, ResolveAppId(), cancellationToken);
         var relatedTableMap = relatedTables.ToDictionary(x => x.TableKey, StringComparer.OrdinalIgnoreCase);
         if (relatedTableMap.Count != relatedTableKeys.Length)
         {
@@ -406,7 +412,7 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
         DynamicFieldPermissionUpsertRequest request,
         CancellationToken cancellationToken)
     {
-        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, cancellationToken);
+        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, ResolveAppId(), cancellationToken);
         if (table is null)
         {
             throw new BusinessException(ErrorCodes.NotFound, "动态表不存在。");
@@ -427,9 +433,10 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
         }
 
         var now = _timeProvider.GetUtcNow();
+        var scopedTableKey = BuildFieldPermissionTableKey(tableKey, table.AppId);
         var entities = rules.Select(x => new FieldPermission(
             tenantId,
-            tableKey,
+            scopedTableKey,
             x.FieldName,
             x.RoleCode,
             x.CanView,
@@ -437,7 +444,7 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
             _idGeneratorAccessor.NextId(),
             now)).ToArray();
 
-        await _fieldPermissionRepository.ReplaceByTableKeyAsync(tenantId, tableKey, entities, cancellationToken);
+        await _fieldPermissionRepository.ReplaceByTableKeyAsync(tenantId, tableKey, table.AppId, entities, cancellationToken);
     }
 
     private IReadOnlyList<DynamicField> BuildFields(
@@ -511,7 +518,7 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
         DynamicTableApprovalBindingRequest request,
         CancellationToken cancellationToken)
     {
-        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, cancellationToken);
+        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, ResolveAppId(), cancellationToken);
         if (table is null)
         {
             throw new BusinessException(ErrorCodes.NotFound, "动态表不存在。");
@@ -551,7 +558,7 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
             throw new BusinessException(ErrorCodes.ServerError, "审批服务不可用。");
         }
 
-        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, cancellationToken);
+        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, ResolveAppId(), cancellationToken);
         if (table is null)
         {
             throw new BusinessException(ErrorCodes.NotFound, "动态表不存在。");
@@ -894,5 +901,21 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
             userId,
             _idGeneratorAccessor.NextId(),
             now);
+    }
+
+    private long? ResolveAppId()
+    {
+        var appIdText = _appContextAccessor.GetAppId();
+        if (long.TryParse(appIdText, out var appId))
+        {
+            return appId;
+        }
+
+        return null;
+    }
+
+    private static string BuildFieldPermissionTableKey(string tableKey, long? appId)
+    {
+        return appId.HasValue ? $"app:{appId.Value}:{tableKey}" : tableKey;
     }
 }

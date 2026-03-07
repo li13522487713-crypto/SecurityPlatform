@@ -123,7 +123,7 @@ public sealed class MigrationService : IMigrationService
         MigrationRecordCreateRequest request,
         CancellationToken cancellationToken)
     {
-        var table = await _dynamicTableRepository.FindByKeyAsync(tenantId, request.TableKey, cancellationToken);
+        var table = await _dynamicTableRepository.FindByKeyAsync(tenantId, request.TableKey, null, cancellationToken);
         var dbType = table?.DbType ?? DynamicDbType.Sqlite;
         var validationError = MigrationScriptValidator.Validate(request.UpScript, request.TableKey, dbType);
         if (validationError is not null)
@@ -163,7 +163,7 @@ public sealed class MigrationService : IMigrationService
         DynamicTableAlterRequest request,
         CancellationToken cancellationToken)
     {
-        var table = await _dynamicTableRepository.FindByKeyAsync(tenantId, tableKey, cancellationToken);
+        var table = await _dynamicTableRepository.FindByKeyAsync(tenantId, tableKey, null, cancellationToken);
         if (table is null)
         {
             throw new BusinessException(ErrorCodes.NotFound, "动态表不存在。");
@@ -269,7 +269,7 @@ public sealed class MigrationService : IMigrationService
             throw new BusinessException(ErrorCodes.ValidationError, "该迁移包含破坏性变更，请先通过预检查并确认执行。");
         }
 
-        var table = await _dynamicTableRepository.FindByKeyAsync(tenantId, migration.TableKey, cancellationToken);
+        var table = await _dynamicTableRepository.FindByKeyAsync(tenantId, migration.TableKey, null, cancellationToken);
         var dbType = table?.DbType ?? DynamicDbType.Sqlite;
 
         var validationError = MigrationScriptValidator.Validate(migration.UpScript, migration.TableKey, dbType);

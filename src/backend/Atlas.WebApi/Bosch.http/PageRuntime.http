@@ -1,0 +1,74 @@
+### PageRuntime 运行态页面接口
+
+@baseUrl = http://localhost:5000
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+@appKey = crm_demo_2026
+@pageKey = customer-form
+
+### 登录获取令牌
+# @name login
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+###
+@accessToken = {{login.response.body.$.data.accessToken}}
+
+### 获取 Anti-Forgery Token
+# @name antiforgery
+GET {{baseUrl}}/api/v1/secure/antiforgery
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+###
+@csrfToken = {{antiforgery.response.body.$.data.token}}
+
+### 获取运行态已发布页面 Schema（按 appKey/pageKey）
+GET {{baseUrl}}/api/v1/runtime/apps/{{appKey}}/pages/{{pageKey}}/schema
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 运行态表单提交（简化对象载荷）
+POST {{baseUrl}}/api/v1/runtime/apps/{{appKey}}/pages/{{pageKey}}/records
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$randomUUID}}
+X-CSRF-TOKEN: {{csrfToken}}
+Content-Type: application/json
+
+{
+  "name": "运行态用户A",
+  "email": "runtime-user-a@example.com",
+  "mobile": "13800000000",
+  "isActive": true
+}
+
+### 运行态表单提交（标准 values 载荷）
+POST {{baseUrl}}/api/v1/runtime/apps/{{appKey}}/pages/{{pageKey}}/records
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$randomUUID}}
+X-CSRF-TOKEN: {{csrfToken}}
+Content-Type: application/json
+
+{
+  "values": [
+    {
+      "field": "name",
+      "valueType": "String",
+      "stringValue": "运行态用户B"
+    },
+    {
+      "field": "isActive",
+      "valueType": "Bool",
+      "boolValue": true
+    }
+  ]
+}

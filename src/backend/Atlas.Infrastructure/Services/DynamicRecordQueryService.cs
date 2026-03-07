@@ -20,6 +20,7 @@ public sealed class DynamicRecordQueryService : IDynamicRecordQueryService
     private readonly IDynamicRecordRepository _recordRepository;
     private readonly IFieldPermissionResolver _fieldPermissionResolver;
     private readonly ICurrentUserAccessor _currentUserAccessor;
+    private readonly IAppContextAccessor _appContextAccessor;
     private readonly IDataScopeFilter _dataScopeFilter;
     private static readonly string[] OwnerFieldCandidates = ["ownerid", "createdby", "creatorid", "owner_id", "created_by"];
     private const int ExportPageSize = 1000;
@@ -31,6 +32,7 @@ public sealed class DynamicRecordQueryService : IDynamicRecordQueryService
         IDynamicRecordRepository recordRepository,
         IFieldPermissionResolver fieldPermissionResolver,
         ICurrentUserAccessor currentUserAccessor,
+        IAppContextAccessor appContextAccessor,
         IDataScopeFilter dataScopeFilter)
     {
         _tableRepository = tableRepository;
@@ -38,6 +40,7 @@ public sealed class DynamicRecordQueryService : IDynamicRecordQueryService
         _recordRepository = recordRepository;
         _fieldPermissionResolver = fieldPermissionResolver;
         _currentUserAccessor = currentUserAccessor;
+        _appContextAccessor = appContextAccessor;
         _dataScopeFilter = dataScopeFilter;
     }
 
@@ -47,14 +50,14 @@ public sealed class DynamicRecordQueryService : IDynamicRecordQueryService
         DynamicRecordQueryRequest request,
         CancellationToken cancellationToken)
     {
-        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, cancellationToken);
+        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, ResolveAppId(), cancellationToken);
         if (table is null)
         {
             throw new BusinessException(ErrorCodes.NotFound, "动态表不存在。");
         }
 
         var fields = await _fieldRepository.ListByTableIdAsync(tenantId, table.Id, cancellationToken);
-        fields = await FilterFieldsByPermissionAsync(tenantId, tableKey, fields, cancellationToken);
+        fields = await FilterFieldsByPermissionAsync(tenantId, tableKey, table.AppId, fields, cancellationToken);
         if (fields.Count == 0)
         {
             throw new BusinessException(ErrorCodes.Forbidden, "无可访问字段。");
@@ -82,14 +85,14 @@ public sealed class DynamicRecordQueryService : IDynamicRecordQueryService
         long id,
         CancellationToken cancellationToken)
     {
-        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, cancellationToken);
+        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, ResolveAppId(), cancellationToken);
         if (table is null)
         {
             return null;
         }
 
         var fields = await _fieldRepository.ListByTableIdAsync(tenantId, table.Id, cancellationToken);
-        fields = await FilterFieldsByPermissionAsync(tenantId, tableKey, fields, cancellationToken);
+        fields = await FilterFieldsByPermissionAsync(tenantId, tableKey, table.AppId, fields, cancellationToken);
         if (fields.Count == 0)
         {
             return null;
@@ -122,14 +125,14 @@ public sealed class DynamicRecordQueryService : IDynamicRecordQueryService
         DynamicRecordExportRequest request,
         CancellationToken cancellationToken)
     {
-        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, cancellationToken);
+        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, ResolveAppId(), cancellationToken);
         if (table is null)
         {
             throw new BusinessException(ErrorCodes.NotFound, "动态表不存在。");
         }
 
         var fields = await _fieldRepository.ListByTableIdAsync(tenantId, table.Id, cancellationToken);
-        fields = await FilterFieldsByPermissionAsync(tenantId, tableKey, fields, cancellationToken);
+        fields = await FilterFieldsByPermissionAsync(tenantId, tableKey, table.AppId, fields, cancellationToken);
         if (fields.Count == 0)
         {
             throw new BusinessException(ErrorCodes.Forbidden, "无可访问字段。");
@@ -280,6 +283,7 @@ public sealed class DynamicRecordQueryService : IDynamicRecordQueryService
     private async Task<IReadOnlyList<DynamicField>> FilterFieldsByPermissionAsync(
         TenantId tenantId,
         string tableKey,
+        long? appId,
         IReadOnlyList<DynamicField> fields,
         CancellationToken cancellationToken)
     {
@@ -293,6 +297,7 @@ public sealed class DynamicRecordQueryService : IDynamicRecordQueryService
             tenantId,
             currentUser.UserId,
             tableKey,
+            appId,
             fields,
             cancellationToken);
     }
@@ -384,6 +389,17 @@ public sealed class DynamicRecordQueryService : IDynamicRecordQueryService
         }
 
         return string.Empty;
+    }
+
+    private long? ResolveAppId()
+    {
+        var appIdText = _appContextAccessor.GetAppId();
+        if (long.TryParse(appIdText, out var appId))
+        {
+            return appId;
+        }
+
+        return null;
     }
 
 }

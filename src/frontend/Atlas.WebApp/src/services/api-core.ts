@@ -18,6 +18,7 @@ import {
   setAntiforgeryToken,
   clearAntiforgeryToken
 } from "@/utils/auth";
+import { getCurrentAppIdFromStorage } from "@/utils/app-context";
 import { getClientContextHeaders } from "@/utils/clientContext";
 import router from "@/router";
 import type { ApiResponse, AuthTokenResult, PagedRequest } from "@/types/api";
@@ -489,7 +490,7 @@ function resolveCurrentAppId(): string | null {
 
   const match = window.location.pathname.match(/^\/apps\/([^/]+)/);
   if (!match || !match[1]) {
-    return null;
+    return getCurrentAppIdFromStorage();
   }
 
   return decodeURIComponent(match[1]);

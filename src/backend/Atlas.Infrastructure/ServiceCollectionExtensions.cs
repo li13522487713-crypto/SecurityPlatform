@@ -46,6 +46,7 @@ public static class ServiceCollectionExtensions
         // Component Templates
         services.AddScoped<Atlas.Application.Templates.IComponentTemplateQueryService, Atlas.Infrastructure.Services.ComponentTemplateQueryService>();
         services.AddScoped<Atlas.Application.Templates.IComponentTemplateCommandService, Atlas.Infrastructure.Services.ComponentTemplateCommandService>();
+        services.AddScoped<Atlas.Infrastructure.Services.TemplateSeedDataService>();
 
         // Webhooks
         services.AddScoped<Atlas.Application.Integration.IWebhookService, Atlas.Infrastructure.Services.WebhookService>();

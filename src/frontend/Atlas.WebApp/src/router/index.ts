@@ -26,6 +26,7 @@ const AppBuilderPage = () => import("@/pages/lowcode/AppBuilderPage.vue");
 const FormListPage = () => import("@/pages/lowcode/FormListPage.vue");
 const FormDesignerPage = () => import("@/pages/lowcode/FormDesignerPage.vue");
 const WritebackMonitorPage = () => import("@/pages/lowcode/WritebackMonitorPage.vue");
+const TemplateMarketPage = () => import("@/pages/lowcode/TemplateMarketPage.vue");
 const ApprovalInstanceDetailPage = () => import("@/pages/ApprovalInstanceDetailPage.vue");
 const NotificationsPage = () => import("@/pages/system/NotificationsPage.vue");
 const DictTypesPage = () => import("@/pages/system/DictTypesPage.vue");
@@ -78,6 +79,7 @@ const router = createRouter({
     { path: "/lowcode/apps", name: "app-list", component: AppListPage, meta: { requiresAuth: true, title: "低代码应用", requiresPermission: "apps:view" } },
     { path: "/lowcode/apps/:id/builder", name: "app-builder", component: AppBuilderPage, meta: { requiresAuth: true, title: "应用设计器", requiresPermission: "apps:update" } },
     { path: "/lowcode/forms", name: "apps-form-list", component: FormListPage, meta: { requiresAuth: true, title: "表单管理", requiresPermission: "apps:view" } },
+    { path: "/lowcode/templates", name: "template-market", component: TemplateMarketPage, meta: { requiresAuth: true, title: "模板市场", requiresPermission: "apps:view" } },
     { path: "/lowcode/forms/:id/designer", name: "apps-form-designer", component: FormDesignerPage, meta: { requiresAuth: true, title: "表单设计器", requiresPermission: "apps:update" } },
     { path: "/monitor/writeback-failures", name: "monitor-writeback-failures", component: WritebackMonitorPage, meta: { requiresAuth: true, title: "回写监控", requiresPermission: "system:admin" } },
     { path: "/:pathMatch(.*)*", name: "not-found", component: NotFoundPage }

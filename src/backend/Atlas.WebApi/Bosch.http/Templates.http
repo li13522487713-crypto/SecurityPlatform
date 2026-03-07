@@ -1,0 +1,60 @@
+### Templates 模板市场接口
+
+@baseUrl = http://localhost:5000
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+
+### 登录获取令牌
+# @name login
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+###
+@accessToken = {{login.response.body.$.data.accessToken}}
+
+### 获取 Anti-Forgery Token
+# @name antiforgery
+GET {{baseUrl}}/api/v1/secure/antiforgery
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+###
+@csrfToken = {{antiforgery.response.body.$.data.token}}
+
+### 查询模板（支持 keyword/category/tags/version）
+GET {{baseUrl}}/api/v1/templates?pageIndex=1&pageSize=20&keyword=模板&category=1&tags=page,list&version=1.0
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 创建自定义模板
+# @name createTemplate
+POST {{baseUrl}}/api/v1/templates
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$randomUUID}}
+X-CSRF-TOKEN: {{csrfToken}}
+Content-Type: application/json
+
+{
+  "name": "客户详情页模板",
+  "category": 1,
+  "schemaJson": "{\"type\":\"page\",\"title\":\"客户详情\"}",
+  "description": "客户详情展示页面模板",
+  "tags": "crm,page,detail",
+  "version": "1.0.1"
+}
+
+###
+@templateId = {{createTemplate.response.body.$.data.id}}
+
+### 从模板实例化
+POST {{baseUrl}}/api/v1/templates/{{templateId}}/instantiate
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}

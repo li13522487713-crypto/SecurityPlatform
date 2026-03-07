@@ -31,6 +31,11 @@ public class StepTypeMetadata
     public string Icon { get; set; } = string.Empty;
 
     /// <summary>
+    /// 当前后端是否已支持执行
+    /// </summary>
+    public bool Supported { get; set; } = true;
+
+    /// <summary>
     /// 参数定义列表
     /// </summary>
     public List<StepParameter> Parameters { get; set; } = new();

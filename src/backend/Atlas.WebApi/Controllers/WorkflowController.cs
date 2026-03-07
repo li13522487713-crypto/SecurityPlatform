@@ -321,6 +321,21 @@ public sealed class WorkflowController : ControllerBase
                     new() { Name = "Interval", Type = "timespan", Required = true, Description = "执行间隔（格式：HH:mm:ss）" },
                     new() { Name = "StopCondition", Type = "bool", Required = false, Description = "停止条件" }
                 }
+            },
+            new()
+            {
+                Type = "ApprovalStep",
+                Label = "审批步骤",
+                Category = "审批",
+                Color = "#2f54eb",
+                Icon = "audit",
+                Parameters = new List<StepParameter>
+                {
+                    new() { Name = "EventName", Type = "string", Required = false, DefaultValue = "ApprovalDecision", Description = "审批事件名称" },
+                    new() { Name = "EventKey", Type = "string", Required = true, Description = "审批业务键（建议使用审批实例或业务主键）" },
+                    new() { Name = "EffectiveDate", Type = "datetime", Required = false, Description = "等待生效时间" }
+                },
+                Supported = true
             }
         };
 

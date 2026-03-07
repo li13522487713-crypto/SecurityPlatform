@@ -64,7 +64,7 @@ public sealed class ApprovalStatusSyncHandler
 
         try
         {
-            var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, cancellationToken);
+            var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, null, cancellationToken);
             if (table is null || string.IsNullOrWhiteSpace(table.ApprovalStatusField))
             {
                 return; // 表不存在或未绑定审批状态字段

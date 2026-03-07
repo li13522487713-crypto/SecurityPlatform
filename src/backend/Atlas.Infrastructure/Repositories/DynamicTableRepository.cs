@@ -17,16 +17,23 @@ public sealed class DynamicTableRepository : IDynamicTableRepository
     public async Task<DynamicTable?> FindByKeyAsync(
         TenantId tenantId,
         string tableKey,
+        long? appId,
         CancellationToken cancellationToken)
     {
-        return await _db.Queryable<DynamicTable>()
-            .Where(x => x.TenantIdValue == tenantId.Value && x.TableKey == tableKey)
-            .FirstAsync(cancellationToken);
+        var query = _db.Queryable<DynamicTable>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.TableKey == tableKey);
+        if (appId.HasValue)
+        {
+            query = query.Where(x => x.AppId == appId.Value);
+        }
+
+        return await query.FirstAsync(cancellationToken);
     }
 
     public async Task<IReadOnlyList<DynamicTable>> QueryByKeysAsync(
         TenantId tenantId,
         IReadOnlyList<string> tableKeys,
+        long? appId,
         CancellationToken cancellationToken)
     {
         if (tableKeys.Count == 0)
@@ -44,9 +51,14 @@ public sealed class DynamicTableRepository : IDynamicTableRepository
             return Array.Empty<DynamicTable>();
         }
 
-        return await _db.Queryable<DynamicTable>()
-            .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(normalized, x.TableKey))
-            .ToListAsync(cancellationToken);
+        var query = _db.Queryable<DynamicTable>()
+            .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(normalized, x.TableKey));
+        if (appId.HasValue)
+        {
+            query = query.Where(x => x.AppId == appId.Value);
+        }
+
+        return await query.ToListAsync(cancellationToken);
     }
 
     public async Task<(IReadOnlyList<DynamicTable> Items, int TotalCount)> QueryPageAsync(
@@ -54,10 +66,15 @@ public sealed class DynamicTableRepository : IDynamicTableRepository
         int pageIndex,
         int pageSize,
         string? keyword,
+        long? appId,
         CancellationToken cancellationToken)
     {
         var query = _db.Queryable<DynamicTable>()
             .Where(x => x.TenantIdValue == tenantId.Value);
+        if (appId.HasValue)
+        {
+            query = query.Where(x => x.AppId == appId.Value);
+        }
 
         if (!string.IsNullOrWhiteSpace(keyword))
         {
