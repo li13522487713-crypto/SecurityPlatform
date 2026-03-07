@@ -20,6 +20,8 @@ public sealed class LicenseRecord : EntityBase
         string? machineFingerprintHash,
         string payloadHash,
         string rawLicenseCiphertext,
+        string featuresJson,
+        string limitsJson,
         DateTimeOffset activatedAt)
     {
         SetId(id);
@@ -32,6 +34,8 @@ public sealed class LicenseRecord : EntityBase
         MachineFingerprintHash = machineFingerprintHash;
         PayloadHash = payloadHash;
         RawLicenseCiphertext = rawLicenseCiphertext;
+        FeaturesJson = featuresJson;
+        LimitsJson = limitsJson;
         Status = LicenseStatus.Active;
         ActivatedAt = activatedAt;
         LastValidatedAt = activatedAt;
@@ -76,6 +80,12 @@ public sealed class LicenseRecord : EntityBase
 
     /// <summary>原始证书内容（加密存储）</summary>
     public string RawLicenseCiphertext { get; private set; } = string.Empty;
+
+    /// <summary>Payload 中的功能开关（JSON 序列化，空串表示全用版本默认值）</summary>
+    public string FeaturesJson { get; private set; } = string.Empty;
+
+    /// <summary>Payload 中的限额配置（JSON 序列化，空串表示全用版本默认值）</summary>
+    public string LimitsJson { get; private set; } = string.Empty;
 
     public void MarkValidated(DateTimeOffset now)
     {

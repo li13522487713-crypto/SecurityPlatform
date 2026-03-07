@@ -31,7 +31,7 @@
                 {{ licenseStatus?.issuedAt ? formatDate(licenseStatus.issuedAt) : '—' }}
               </a-descriptions-item>
               <a-descriptions-item label="机器绑定">
-                <template v-if="!licenseStatus?.machineFingerprint">
+                <template v-if="!licenseStatus?.machineBound">
                   <a-tag color="default">未绑定（任意机器可用）</a-tag>
                 </template>
                 <template v-else-if="licenseStatus?.machineMatched">

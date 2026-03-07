@@ -1059,6 +1059,9 @@ export interface LicenseStatus {
   issuedAt: string | null;
   expiresAt: string | null;
   remainingDays: number | null;
+  /** 证书是否绑定到特定机器（false 表示任意机器可用） */
+  machineBound: boolean;
+  /** 当前机器是否与证书绑定的机器匹配；未绑定时始终为 true */
   machineMatched: boolean;
   features: Record<string, boolean>;
   limits: Record<string, number>;

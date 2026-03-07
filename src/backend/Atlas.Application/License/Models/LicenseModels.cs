@@ -10,6 +10,9 @@ public sealed record LicenseStatusDto(
     DateTimeOffset IssuedAt,
     DateTimeOffset? ExpiresAt,
     int? RemainingDays,
+    /// <summary>证书是否绑定到特定机器（false 表示任意机器可用）</summary>
+    bool MachineBound,
+    /// <summary>当前机器是否与证书绑定的机器匹配；未绑定时始终为 true</summary>
     bool MachineMatched,
     IReadOnlyDictionary<string, bool> Features,
     IReadOnlyDictionary<string, int> Limits
@@ -23,6 +26,7 @@ public sealed record LicenseStatusDto(
             DateTimeOffset.MinValue,
             null,
             null,
+            false,
             false,
             new Dictionary<string, bool>(),
             new Dictionary<string, int>());

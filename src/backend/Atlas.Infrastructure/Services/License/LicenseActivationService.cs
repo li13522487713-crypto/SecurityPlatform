@@ -69,6 +69,14 @@ public sealed class LicenseActivationService : ILicenseActivationService
             ? parsed
             : LicenseEdition.Trial;
 
+        var serializerOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+        var featuresJson = payload.Features.Count > 0
+            ? JsonSerializer.Serialize(payload.Features, serializerOptions)
+            : string.Empty;
+        var limitsJson = payload.Limits.Count > 0
+            ? JsonSerializer.Serialize(payload.Limits, serializerOptions)
+            : string.Empty;
+
         var record = new LicenseRecord(
             _idGenerator.NextId(),
             payload.LicenseId,
@@ -80,6 +88,8 @@ public sealed class LicenseActivationService : ILicenseActivationService
             payload.MachineFingerprint,
             payloadHash,
             ciphertext,
+            featuresJson,
+            limitsJson,
             now);
 
         // 将旧的同 licenseId 记录标记失效（revision 更高时）

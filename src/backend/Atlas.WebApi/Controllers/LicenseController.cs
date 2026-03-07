@@ -38,6 +38,7 @@ public sealed class LicenseController : ControllerBase
             issuedAt = status.IssuedAt == DateTimeOffset.MinValue ? (DateTimeOffset?)null : status.IssuedAt,
             expiresAt = status.ExpiresAt,
             remainingDays = status.RemainingDays,
+            machineBound = status.MachineBound,
             machineMatched = status.MachineMatched,
             features = status.Features,
             limits = status.Limits
