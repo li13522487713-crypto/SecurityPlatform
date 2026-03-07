@@ -109,6 +109,10 @@ export interface LowCodeAppCreateRequest {
   description?: string;
   category?: string;
   icon?: string;
+  dataSourceId?: string;
+  useSharedUsers?: boolean;
+  useSharedRoles?: boolean;
+  useSharedDepartments?: boolean;
 }
 
 export interface LowCodeAppUpdateRequest {
@@ -189,6 +193,26 @@ export interface LowCodeAppImportResult {
   overwritten: boolean;
   importedPageCount: number;
   importedVersionCount: number;
+}
+
+export interface AppDataSourceView {
+  dataSourceId?: string;
+  name?: string;
+  dbType?: string;
+  lastTestSuccess?: boolean;
+  lastTestedAt?: string;
+}
+
+export interface AppSharingPolicy {
+  useSharedUsers: boolean;
+  useSharedRoles: boolean;
+  useSharedDepartments: boolean;
+}
+
+export interface AppEntityAlias {
+  entityType: string;
+  singularAlias: string;
+  pluralAlias?: string;
 }
 
 // ─── 低代码页面 ───

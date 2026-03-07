@@ -101,7 +101,12 @@ watch(
   }
 );
 
-const isAuthPage = computed(() => route.path === "/login" || route.path === "/register");
+const isAuthPage = computed(() =>
+  route.path === "/login"
+  || route.path === "/register"
+  || route.path.startsWith("/console")
+  || route.path.startsWith("/apps/")
+);
 const profileDisplayName = computed(
   () => userStore.profile?.displayName || userStore.profile?.username || "个人中心"
 );

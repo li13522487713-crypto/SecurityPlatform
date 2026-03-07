@@ -36,13 +36,38 @@ public sealed record LowCodeAppCreateRequest(
     string Name,
     string? Description,
     string? Category,
-    string? Icon);
+    string? Icon,
+    string? DataSourceId,
+    bool UseSharedUsers = true,
+    bool UseSharedRoles = true,
+    bool UseSharedDepartments = true);
 
 public sealed record LowCodeAppUpdateRequest(
     string Name,
     string? Description,
     string? Category,
     string? Icon);
+
+public sealed record AppSharingPolicyDto(
+    bool UseSharedUsers,
+    bool UseSharedRoles,
+    bool UseSharedDepartments);
+
+
+public sealed record AppEntityAliasDto(
+    string EntityType,
+    string SingularAlias,
+    string? PluralAlias);
+
+public sealed record AppEntityAliasUpdateRequest(
+    IReadOnlyList<AppEntityAliasDto> Aliases);
+
+public sealed record AppDataSourceView(
+    string? DataSourceId,
+    string? Name,
+    string? DbType,
+    bool? LastTestSuccess,
+    DateTimeOffset? LastTestedAt);
 
 public sealed record LowCodeAppVersionListItem(
     string Id,

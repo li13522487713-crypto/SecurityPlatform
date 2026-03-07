@@ -33,6 +33,13 @@ public sealed class TenantDataSourceRepository
             .FirstAsync(ct);
     }
 
+    public async Task<TenantDataSource?> FindByIdAsync(string tenantId, long id, CancellationToken ct = default)
+    {
+        return await _db.Queryable<TenantDataSource>()
+            .Where(x => x.TenantIdValue == tenantId && x.Id == id)
+            .FirstAsync(ct);
+    }
+
     public async Task AddAsync(TenantDataSource entity, CancellationToken ct = default)
     {
         await _db.Insertable(entity).ExecuteCommandAsync(ct);

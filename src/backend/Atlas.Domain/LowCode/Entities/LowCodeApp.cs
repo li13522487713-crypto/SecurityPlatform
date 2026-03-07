@@ -23,6 +23,10 @@ public sealed class LowCodeApp : TenantEntity
         string? description,
         string? category,
         string? icon,
+        long? dataSourceId,
+        bool useSharedUsers,
+        bool useSharedRoles,
+        bool useSharedDepartments,
         long createdBy,
         long id,
         DateTimeOffset now)
@@ -34,6 +38,10 @@ public sealed class LowCodeApp : TenantEntity
         Description = description;
         Category = category;
         Icon = icon;
+        DataSourceId = dataSourceId;
+        UseSharedUsers = useSharedUsers;
+        UseSharedRoles = useSharedRoles;
+        UseSharedDepartments = useSharedDepartments;
         Version = 1;
         Status = LowCodeAppStatus.Draft;
         CreatedAt = now;
@@ -56,6 +64,18 @@ public sealed class LowCodeApp : TenantEntity
 
     /// <summary>图标</summary>
     public string? Icon { get; private set; }
+
+    /// <summary>绑定的数据源 ID（创建后不可修改）</summary>
+    public long? DataSourceId { get; private set; }
+
+    /// <summary>是否使用平台共享用户</summary>
+    public bool UseSharedUsers { get; private set; } = true;
+
+    /// <summary>是否使用平台共享角色</summary>
+    public bool UseSharedRoles { get; private set; } = true;
+
+    /// <summary>是否使用平台共享部门</summary>
+    public bool UseSharedDepartments { get; private set; } = true;
 
     /// <summary>版本号</summary>
     public int Version { get; private set; }
@@ -104,6 +124,20 @@ public sealed class LowCodeApp : TenantEntity
     {
         ConfigJson = configJson;
         Version += 1;
+        UpdatedBy = updatedBy;
+        UpdatedAt = now;
+    }
+
+    public void UpdateSharingPolicy(
+        bool useSharedUsers,
+        bool useSharedRoles,
+        bool useSharedDepartments,
+        long updatedBy,
+        DateTimeOffset now)
+    {
+        UseSharedUsers = useSharedUsers;
+        UseSharedRoles = useSharedRoles;
+        UseSharedDepartments = useSharedDepartments;
         UpdatedBy = updatedBy;
         UpdatedAt = now;
     }

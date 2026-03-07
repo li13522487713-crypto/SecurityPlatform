@@ -1,11 +1,10 @@
 using Atlas.Application.System.Abstractions;
 using Atlas.Application.System.Models;
 using Atlas.Core.Abstractions;
+using Atlas.Domain.System.Entities;
 using Atlas.Infrastructure.Options;
 using Atlas.Infrastructure.Repositories;
-using Atlas.Domain.System.Entities;
 using Microsoft.Extensions.Options;
-using SqlSugar;
 
 namespace Atlas.Infrastructure.Services;
 
@@ -85,23 +84,15 @@ public sealed class TenantDataSourceService : ITenantDataSourceService
 
     public async Task<TestConnectionResult> TestConnectionAsync(TestConnectionRequest request, CancellationToken cancellationToken = default)
     {
-        try
-        {
-            using var client = new SqlSugarClient(new ConnectionConfig
-            {
-                ConnectionString = request.ConnectionString,
-                DbType = ParseDbType(request.DbType),
-                IsAutoCloseConnection = true
-            });
+        var success = await TenantDbConnectionFactory.TestConnectionAsync(
+            request.ConnectionString,
+            request.DbType,
+            cancellationToken);
 
-            _ = await client.Ado.GetIntAsync("SELECT 1");
-            return new TestConnectionResult(true, null);
-        }
-        catch
-        {
+        return success
+            ? new TestConnectionResult(true, null)
             // 等保要求：避免暴露底层连接异常细节
-            return new TestConnectionResult(false, "连接失败，请检查数据源配置");
-        }
+            : new TestConnectionResult(false, "连接失败，请检查数据源配置");
     }
 
     private static TenantDataSourceDto MapToDto(TenantDataSource entity)
@@ -114,17 +105,5 @@ public sealed class TenantDataSourceService : ITenantDataSourceService
             entity.IsActive,
             entity.CreatedAt,
             entity.UpdatedAt);
-    }
-
-    private static DbType ParseDbType(string dbType)
-    {
-        return dbType.ToLowerInvariant() switch
-        {
-            "sqlite" => DbType.Sqlite,
-            "sqlserver" => DbType.SqlServer,
-            "mysql" => DbType.MySql,
-            "postgresql" => DbType.PostgreSQL,
-            _ => DbType.Sqlite
-        };
     }
 }

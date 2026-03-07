@@ -16,6 +16,15 @@ public interface ILowCodeAppQueryService
     Task<LowCodeAppDetail?> GetByKeyAsync(
         TenantId tenantId, string appKey, CancellationToken cancellationToken = default);
 
+    Task<AppDataSourceView?> GetAppDataSourceAsync(
+        TenantId tenantId, long appId, CancellationToken cancellationToken = default);
+
+    Task<AppSharingPolicyDto?> GetSharingPolicyAsync(
+        TenantId tenantId, long appId, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<AppEntityAliasDto>> GetEntityAliasesAsync(
+        TenantId tenantId, long appId, CancellationToken cancellationToken = default);
+
     Task<PagedResult<LowCodeAppVersionListItem>> GetVersionsAsync(
         TenantId tenantId,
         long appId,

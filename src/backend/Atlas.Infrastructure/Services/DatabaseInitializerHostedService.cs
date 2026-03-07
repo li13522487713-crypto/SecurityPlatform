@@ -119,6 +119,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             typeof(FieldPermission),
             typeof(MigrationRecord),
             typeof(LowCodeApp),
+            typeof(AppEntityAlias),
             typeof(LowCodePage),
             typeof(LowCodePageVersion),
             typeof(LowCodeEnvironment),
@@ -169,6 +170,8 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             typeof(Atlas.Domain.Saga.SagaInstance),
             // Event Subscriptions
             typeof(Atlas.Domain.Events.EventSubscription));
+        await EnsureLowCodeAppSchemaAsync(db, cancellationToken);
+        await EnsureTenantDataSourceSchemaAsync(db, cancellationToken);
         await EnsureApprovalSchemaAsync(db, cancellationToken);
 
         // 创建审批模块数据库索引
@@ -1218,6 +1221,147 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         }
     }
 
+    private static async Task EnsureLowCodeAppSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
+    {
+        if (!db.DbMaintenance.IsAnyTable("LowCodeApp", false))
+        {
+            return;
+        }
+
+        var schema = await db.Ado.GetDataTableAsync("PRAGMA table_info('LowCodeApp');");
+
+        var commands = new List<string>();
+        if (!HasColumn(schema, "DataSourceId"))
+        {
+            commands.Add("ALTER TABLE LowCodeApp ADD COLUMN DataSourceId INTEGER NULL;");
+        }
+        if (!HasColumn(schema, "UseSharedUsers"))
+        {
+            commands.Add("ALTER TABLE LowCodeApp ADD COLUMN UseSharedUsers INTEGER NOT NULL DEFAULT 1;");
+        }
+        if (!HasColumn(schema, "UseSharedRoles"))
+        {
+            commands.Add("ALTER TABLE LowCodeApp ADD COLUMN UseSharedRoles INTEGER NOT NULL DEFAULT 1;");
+        }
+        if (!HasColumn(schema, "UseSharedDepartments"))
+        {
+            commands.Add("ALTER TABLE LowCodeApp ADD COLUMN UseSharedDepartments INTEGER NOT NULL DEFAULT 1;");
+        }
+
+        foreach (var command in commands)
+        {
+            await db.Ado.ExecuteCommandAsync(command, cancellationToken);
+        }
+
+        schema = await db.Ado.GetDataTableAsync("PRAGMA table_info('LowCodeApp');");
+        var needsRelaxNullable =
+            IsColumnNotNull(schema, "Description")
+            || IsColumnNotNull(schema, "Category")
+            || IsColumnNotNull(schema, "Icon")
+            || IsColumnNotNull(schema, "PublishedAt")
+            || IsColumnNotNull(schema, "PublishedBy")
+            || IsColumnNotNull(schema, "ConfigJson");
+
+        if (!needsRelaxNullable)
+        {
+            return;
+        }
+
+        await RebuildTableAsync(
+            db,
+            "LowCodeApp",
+            """
+            CREATE TABLE LowCodeApp (
+                AppKey TEXT NOT NULL,
+                Name TEXT NOT NULL,
+                Description TEXT NULL,
+                Category TEXT NULL,
+                Icon TEXT NULL,
+                Version INTEGER NOT NULL,
+                Status INTEGER NOT NULL,
+                CreatedAt TEXT NOT NULL,
+                UpdatedAt TEXT NOT NULL,
+                CreatedBy INTEGER NOT NULL,
+                UpdatedBy INTEGER NOT NULL,
+                PublishedAt TEXT NULL,
+                PublishedBy INTEGER NULL,
+                ConfigJson TEXT NULL,
+                TenantIdValue TEXT NOT NULL,
+                Id INTEGER NOT NULL PRIMARY KEY,
+                DataSourceId INTEGER NULL,
+                UseSharedUsers INTEGER NOT NULL DEFAULT 1,
+                UseSharedRoles INTEGER NOT NULL DEFAULT 1,
+                UseSharedDepartments INTEGER NOT NULL DEFAULT 1
+            );
+            """,
+            """
+            INSERT INTO LowCodeApp (
+                AppKey, Name, Description, Category, Icon, Version, Status, CreatedAt, UpdatedAt, CreatedBy, UpdatedBy,
+                PublishedAt, PublishedBy, ConfigJson, TenantIdValue, Id, DataSourceId, UseSharedUsers, UseSharedRoles, UseSharedDepartments
+            )
+            SELECT
+                AppKey,
+                Name,
+                NULLIF(Description, ''),
+                NULLIF(Category, ''),
+                NULLIF(Icon, ''),
+                Version,
+                Status,
+                CreatedAt,
+                UpdatedAt,
+                CreatedBy,
+                UpdatedBy,
+                PublishedAt,
+                PublishedBy,
+                NULLIF(ConfigJson, ''),
+                TenantIdValue,
+                Id,
+                DataSourceId,
+                COALESCE(UseSharedUsers, 1),
+                COALESCE(UseSharedRoles, 1),
+                COALESCE(UseSharedDepartments, 1)
+            FROM LowCodeApp_old;
+            """,
+            cancellationToken);
+    }
+
+    private static async Task EnsureTenantDataSourceSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
+    {
+        if (!db.DbMaintenance.IsAnyTable("TenantDataSource", false))
+        {
+            return;
+        }
+
+        var schema = await db.Ado.GetDataTableAsync("PRAGMA table_info('TenantDataSource');");
+
+        var commands = new List<string>();
+        if (!HasColumn(schema, "AppId"))
+        {
+            commands.Add("ALTER TABLE TenantDataSource ADD COLUMN AppId INTEGER NULL;");
+        }
+        if (!HasColumn(schema, "MaxPoolSize"))
+        {
+            commands.Add("ALTER TABLE TenantDataSource ADD COLUMN MaxPoolSize INTEGER NOT NULL DEFAULT 100;");
+        }
+        if (!HasColumn(schema, "ConnectionTimeoutSeconds"))
+        {
+            commands.Add("ALTER TABLE TenantDataSource ADD COLUMN ConnectionTimeoutSeconds INTEGER NOT NULL DEFAULT 30;");
+        }
+        if (!HasColumn(schema, "LastTestSuccess"))
+        {
+            commands.Add("ALTER TABLE TenantDataSource ADD COLUMN LastTestSuccess INTEGER NULL;");
+        }
+        if (!HasColumn(schema, "LastTestedAt"))
+        {
+            commands.Add("ALTER TABLE TenantDataSource ADD COLUMN LastTestedAt TEXT NULL;");
+        }
+
+        foreach (var command in commands)
+        {
+            await db.Ado.ExecuteCommandAsync(command, cancellationToken);
+        }
+    }
+
     private static bool IsColumnNotNull(DataTable schema, string columnName)
     {
         foreach (DataRow row in schema.Rows)
@@ -1230,6 +1374,20 @@ public sealed class DatabaseInitializerHostedService : IHostedService
 
             var notNull = Convert.ToInt32(row["notnull"]);
             return notNull == 1;
+        }
+
+        return false;
+    }
+
+    private static bool HasColumn(DataTable schema, string columnName)
+    {
+        foreach (DataRow row in schema.Rows)
+        {
+            var name = row["name"]?.ToString();
+            if (string.Equals(name, columnName, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
         }
 
         return false;

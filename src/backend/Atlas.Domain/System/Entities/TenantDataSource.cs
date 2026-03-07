@@ -16,6 +16,8 @@ public sealed class TenantDataSource : EntityBase
         Name = name;
         EncryptedConnectionString = encryptedConnectionString;
         DbType = dbType;
+        MaxPoolSize = 100;
+        ConnectionTimeoutSeconds = 30;
         IsActive = true;
         CreatedAt = DateTimeOffset.UtcNow;
     }
@@ -32,6 +34,21 @@ public sealed class TenantDataSource : EntityBase
     /// <summary>数据库类型：SQLite / SqlServer</summary>
     public string DbType { get; set; } = "SQLite";
 
+    /// <summary>所属应用 ID，null 表示平台级数据源</summary>
+    public long? AppId { get; set; }
+
+    /// <summary>连接池最大连接数</summary>
+    public int MaxPoolSize { get; set; } = 100;
+
+    /// <summary>连接超时（秒）</summary>
+    public int ConnectionTimeoutSeconds { get; set; } = 30;
+
+    /// <summary>最近一次连接测试是否成功</summary>
+    public bool? LastTestSuccess { get; set; }
+
+    /// <summary>最近一次连接测试时间</summary>
+    public DateTimeOffset? LastTestedAt { get; set; }
+
     /// <summary>是否启用</summary>
     public bool IsActive { get; set; } = true;
 
@@ -43,6 +60,13 @@ public sealed class TenantDataSource : EntityBase
         Name = name;
         EncryptedConnectionString = encryptedConnectionString;
         DbType = dbType;
+        UpdatedAt = DateTimeOffset.UtcNow;
+    }
+
+    public void RecordTestResult(bool success)
+    {
+        LastTestSuccess = success;
+        LastTestedAt = DateTimeOffset.UtcNow;
         UpdatedAt = DateTimeOffset.UtcNow;
     }
 

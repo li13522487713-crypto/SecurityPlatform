@@ -298,7 +298,7 @@ import {
 const route = useRoute();
 const router = useRouter();
 const { t } = useI18n();
-const appId = route.params.id as string;
+const appId = computed(() => (route.params.appId as string) || (route.params.id as string));
 
 const loading = ref(true);
 const saving = ref(false);
@@ -466,9 +466,9 @@ const loadApp = async () => {
   loading.value = true;
   try {
     const [detail, pageTree, envs] = await Promise.all([
-      getLowCodeAppDetail(appId),
-      getLowCodePageTree(appId),
-      getLowCodeEnvironments(appId)
+      getLowCodeAppDetail(appId.value),
+      getLowCodePageTree(appId.value),
+      getLowCodeEnvironments(appId.value)
     ]);
     appDetail.value = detail;
     environments.value = envs;
@@ -549,7 +549,7 @@ const handlePageFormSubmit = async () => {
         return;
       }
       const schema = generateDefaultSchema(pageForm.pageType, pageForm.name);
-      await createLowCodePage(appId, {
+      await createLowCodePage(appId.value, {
         pageKey: pageForm.pageKey,
         name: pageForm.name,
         pageType: pageForm.pageType,
@@ -670,7 +670,7 @@ const openEnvironmentManager = async () => {
   environmentModalVisible.value = true;
   environmentLoading.value = true;
   try {
-    environments.value = await getLowCodeEnvironments(appId);
+    environments.value = await getLowCodeEnvironments(appId.value);
   } catch (error) {
     message.error((error as Error).message || "加载环境失败");
   } finally {
@@ -720,7 +720,7 @@ const submitEnvironmentForm = async () => {
 
   try {
     if (environmentFormMode.value === "create") {
-      await createLowCodeEnvironment(appId, {
+      await createLowCodeEnvironment(appId.value, {
         name: environmentForm.name,
         code: environmentForm.code,
         description: environmentForm.description || undefined,
@@ -740,7 +740,7 @@ const submitEnvironmentForm = async () => {
     }
 
     environmentFormVisible.value = false;
-    environments.value = await getLowCodeEnvironments(appId);
+    environments.value = await getLowCodeEnvironments(appId.value);
     if (!selectedEnvironmentCode.value || !environments.value.some(item => item.code === selectedEnvironmentCode.value)) {
       selectedEnvironmentCode.value = environments.value.find(item => item.isDefault)?.code;
     }
@@ -762,7 +762,7 @@ const handleDeleteEnvironment = (id: string) => {
     onOk: async () => {
       await deleteLowCodeEnvironment(id);
       message.success("环境已删除");
-      environments.value = await getLowCodeEnvironments(appId);
+      environments.value = await getLowCodeEnvironments(appId.value);
       if (selectedEnvironmentCode.value && !environments.value.some(item => item.code === selectedEnvironmentCode.value)) {
         selectedEnvironmentCode.value = environments.value.find(item => item.isDefault)?.code;
       }
@@ -791,7 +791,7 @@ const handleDeletePage = async (pageId: string) => {
 const loadAppVersions = async () => {
   appVersionLoading.value = true;
   try {
-    const result = await getLowCodeAppVersionsPaged(appId, {
+      const result = await getLowCodeAppVersionsPaged(appId.value, {
       pageIndex: appVersionPageIndex.value,
       pageSize: appVersionPageSize.value
     });
@@ -819,7 +819,7 @@ const onAppVersionPageChange = (page: number, pageSizeValue: number) => {
 const handleRollbackAppVersion = async (versionId: string) => {
   appRollbackingVersionId.value = versionId;
   try {
-    const newVersion = await rollbackLowCodeAppVersion(appId, versionId);
+    const newVersion = await rollbackLowCodeAppVersion(appId.value, versionId);
     message.success(t("lowcodeBuilder.rollbackSuccess", { version: newVersion }));
     await Promise.all([loadApp(), loadAppVersions()]);
   } catch (error) {
@@ -838,7 +838,7 @@ const formatTime = (time: string) => {
 };
 
 const goBack = () => {
-  router.push("/lowcode/apps");
+  router.push("/console");
 };
 
 onMounted(() => {

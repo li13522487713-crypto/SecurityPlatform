@@ -975,6 +975,12 @@ JWT Claims（新增）：
 - `GET /api/v1/lowcode-apps/by-key/{appKey}`：按应用标识查询详情
 - `POST /api/v1/lowcode-apps`：创建应用（需幂等 + CSRF）
 - `PUT /api/v1/lowcode-apps/{id}`：更新应用（需幂等 + CSRF）
+- `GET /api/v1/lowcode-apps/{id}/datasource`：查询应用绑定数据源（脱敏）
+- `POST /api/v1/lowcode-apps/{id}/datasource/test`：测试应用绑定数据源连接（需幂等 + CSRF）
+- `GET /api/v1/lowcode-apps/{id}/sharing-policy`：查询应用共享策略
+- `PUT /api/v1/lowcode-apps/{id}/sharing-policy`：更新应用共享策略（需幂等 + CSRF）
+- `GET /api/v1/lowcode-apps/{id}/entity-aliases`：查询应用实体别名
+- `PUT /api/v1/lowcode-apps/{id}/entity-aliases`：更新应用实体别名（需幂等 + CSRF）
 - `POST /api/v1/lowcode-apps/{id}/publish`：发布应用（需幂等 + CSRF）
 - `GET /api/v1/lowcode-apps/{id}/versions?pageIndex=1&pageSize=10`：分页查询应用版本历史（仅系统管理员）
 - `POST /api/v1/lowcode-apps/{id}/versions/{versionId}/rollback`：按应用版本回滚（需幂等 + CSRF，仅系统管理员）
@@ -993,6 +999,59 @@ JWT Claims（新增）：
 - 读接口（GET）要求 `apps:view`
 - 写接口（POST/PUT/PATCH/DELETE）要求 `apps:update`
 - 应用版本查询/回滚接口要求 `system:admin`
+
+### LowCodeAppCreateRequest（新增字段）
+
+```json
+{
+  "appKey": "crm_app",
+  "name": "CRM 应用",
+  "description": "客户关系管理",
+  "category": "CRM",
+  "icon": "team",
+  "dataSourceId": "20010001",
+  "useSharedUsers": true,
+  "useSharedRoles": true,
+  "useSharedDepartments": true
+}
+```
+
+字段说明：
+
+- `dataSourceId`：应用绑定数据源 ID，创建后不可修改；为空表示使用平台默认数据源。
+- `useSharedUsers/useSharedRoles/useSharedDepartments`：基础数据共享策略开关，`true` 继承平台，`false` 应用独立。
+
+### AppDataSourceView
+
+```json
+{
+  "dataSourceId": "20010001",
+  "name": "CRM-MySQL",
+  "dbType": "MySql",
+  "lastTestSuccess": true,
+  "lastTestedAt": "2026-03-07T10:00:00Z"
+}
+```
+
+### AppSharingPolicyDto
+
+```json
+{
+  "useSharedUsers": true,
+  "useSharedRoles": true,
+  "useSharedDepartments": true
+}
+```
+
+### AppEntityAliasDto
+
+```json
+{
+  "entityType": "user",
+  "singularAlias": "员工",
+  "pluralAlias": "员工列表"
+}
+```
 
 ### LowCodeAppVersionListItem
 

@@ -5,9 +5,10 @@ using Atlas.Infrastructure.Options;
 using Atlas.Infrastructure.Repositories;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
+using SqlSugar;
+using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
-using System.Diagnostics;
 
 namespace Atlas.Infrastructure.Services;
 
@@ -101,7 +102,7 @@ public sealed class TenantDbConnectionFactory : ITenantDbConnectionFactory
         return Convert.ToBase64String(result);
     }
 
-    private static string Decrypt(string cipherText, string key)
+    public static string Decrypt(string cipherText, string key)
     {
         if (string.IsNullOrEmpty(key)) return cipherText;
         var keyBytes = GetKeyBytes(key);
@@ -117,6 +118,41 @@ public sealed class TenantDbConnectionFactory : ITenantDbConnectionFactory
         using var decryptor = aes.CreateDecryptor();
         var decrypted = decryptor.TransformFinalBlock(cipherBytes, 0, cipherBytes.Length);
         return Encoding.UTF8.GetString(decrypted);
+    }
+
+    public static DbType ParseDbType(string dbType)
+    {
+        return dbType.Trim().ToLowerInvariant() switch
+        {
+            "sqlite" => DbType.Sqlite,
+            "sqlserver" => DbType.SqlServer,
+            "mysql" => DbType.MySql,
+            "postgresql" => DbType.PostgreSQL,
+            _ => DbType.Sqlite
+        };
+    }
+
+    public static async Task<bool> TestConnectionAsync(
+        string connectionString,
+        string dbType,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            using var client = new SqlSugarClient(new ConnectionConfig
+            {
+                ConnectionString = connectionString,
+                DbType = ParseDbType(dbType),
+                IsAutoCloseConnection = true
+            });
+
+            _ = await client.Ado.GetIntAsync("SELECT 1");
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static byte[] GetKeyBytes(string key)
