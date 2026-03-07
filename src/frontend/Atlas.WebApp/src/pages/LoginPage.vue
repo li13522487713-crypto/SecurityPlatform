@@ -5,7 +5,7 @@
         <div class="logo-circle">Atlas</div>
         <div>
           <h1>安全控制台</h1>
-          <p>统一安全管理 & 运维管控</p>
+          <p>统一安全管理 &amp; 运维管控</p>
         </div>
       </div>
       <div class="header-links">
@@ -26,119 +26,63 @@
 
       <section class="card-panel">
         <a-card title="欢迎登录" class="login-card" :bordered="false">
-          <div v-if="errorMessage" class="error-banner">
-            <span class="error-dot" aria-hidden="true">!</span>
-            <span>{{ errorMessage }}</span>
-            <span v-if="cooldownSeconds > 0" class="cooldown">（请 {{ cooldownSeconds }} 秒后再试）</span>
-          </div>
 
-          <a-form
-            layout="vertical"
-            :model="form"
-            class="login-form"
-            :disabled="loading"
-            @finish="handleSubmit"
-          >
-            <a-form-item
-              label="租户 / 组织"
-              name="tenantId"
-              :rules="[
-                { required: true, message: '请输入租户 / 组织ID' },
-                { pattern: /^[0-9a-fA-F-]{36}$/, message: '租户ID格式无效，请输入GUID' }
-              ]"
-            >
-              <a-input
-                v-model:value="form.tenantId"
-                placeholder="请输入租户 / 组织 ID"
-                list="tenant-history"
-                allow-clear
-                autocomplete="off"
-                @focus="errorMessage = ''"
-              />
-              <datalist id="tenant-history">
-                <option
-                  v-for="item in tenantHistoryOptions"
-                  :key="item.id"
-                  :value="item.id"
+          <!-- ① 授权证书区（始终可见，在登录表单上方） -->
+          <div class="license-section">
+            <div v-if="licenseLoading" class="license-loading">
+              <a-spin size="small" />
+              <span style="margin-left: 8px">正在验证授权证书…</span>
+            </div>
+
+            <!-- 已激活 -->
+            <template v-else-if="licenseStatusCode === 'Active'">
+              <div class="license-active-header">
+                <span class="license-badge license-badge--active">✓ 已授权</span>
+                <span v-if="licenseStatusInfo?.tenantName" class="license-org">
+                  {{ licenseStatusInfo.tenantName }}
+                </span>
+                <a-tag color="blue" style="margin: 0">{{ licenseStatusInfo?.edition }}</a-tag>
+                <span class="license-expire">{{ licenseExpireText }}</span>
+                <a class="license-renew-link" @click="showRenewArea = !showRenewArea">
+                  {{ showRenewArea ? '收起' : '更换证书' }}
+                </a>
+              </div>
+              <div v-if="showRenewArea" class="license-upload-area">
+                <div v-if="licenseActivateResult" style="margin-bottom: 8px">
+                  <a-alert
+                    :type="licenseActivateResult.success ? 'success' : 'error'"
+                    :message="licenseActivateResult.message"
+                    closable
+                    @close="licenseActivateResult = null"
+                  />
+                </div>
+                <a-upload
+                  :before-upload="handleLicenseFileSelect"
+                  :show-upload-list="false"
+                  accept=".atlaslicense,.lic,.txt"
                 >
-                  {{ item.label }}
-                </option>
-              </datalist>
-              <div class="tenant-tags">
+                  <a-button size="small" :loading="licenseActivating">
+                    <template #icon><upload-outlined /></template>
+                    选择证书文件
+                  </a-button>
+                </a-upload>
+              </div>
+            </template>
+
+            <!-- 未激活 / 已过期 -->
+            <template v-else>
+              <div class="license-inactive-header">
                 <span
-                  v-for="item in tenantHistoryOptions"
-                  :key="item.id"
-                  class="tenant-tag"
-                  @click="handleSelectTenant(item.id)"
+                  class="license-badge"
+                  :class="licenseStatusCode === 'Expired' ? 'license-badge--expired' : 'license-badge--none'"
                 >
-                  {{ item.label }}
+                  {{ licenseStatusCode === 'Expired' ? '⚠ 授权已过期' : '未激活' }}
+                </span>
+                <span class="license-hint">
+                  {{ licenseStatusCode === 'Expired' ? '请续签证书后方可使用' : '请上传授权证书以启用平台' }}
                 </span>
               </div>
-            </a-form-item>
-
-            <a-form-item
-              label="账号"
-              name="username"
-              :rules="[{ required: true, message: '请输入账号' }]"
-            >
-              <a-input
-                v-model:value="form.username"
-                placeholder="请输入手机号/邮箱/用户名"
-                allow-clear
-                autocomplete="username"
-                @focus="errorMessage = ''"
-              />
-            </a-form-item>
-
-            <a-form-item
-              label="密码"
-              name="password"
-              :rules="[{ required: true, message: '请输入密码' }]"
-            >
-              <a-input-password
-                v-model:value="form.password"
-                placeholder="请输入密码"
-                autocomplete="current-password"
-                @keydown="handleCapsLockEvent"
-                @keyup="handleCapsLockEvent"
-                @blur="capsLockOn = false"
-                @focus="errorMessage = ''"
-              />
-              <div v-if="capsLockOn" class="caps-tip">
-                Caps Lock 已开启，可能影响密码输入
-              </div>
-            </a-form-item>
-
-            <a-form-item style="margin-bottom: 8px">
-              <div class="remember-row">
-                <a-checkbox v-model:checked="form.rememberMe">记住我（30天内保持登录）</a-checkbox>
-              </div>
-            </a-form-item>
-
-            <a-form-item>
-              <a-button
-                type="primary"
-                block
-                html-type="submit"
-                :loading="loading"
-                :disabled="isSubmitDisabled"
-              >
-                <span v-if="!loading">{{ cooldownSeconds > 0 ? `请稍候 (${cooldownSeconds}s)` : "登录" }}</span>
-                <span v-else>登录中</span>
-              </a-button>
-            </a-form-item>
-
-            <div class="secondary-actions">
-              <a href="/password-reset">忘记密码</a>
-              <router-link to="/register">还没有账号？立即注册</router-link>
-            </div>
-          </a-form>
-
-          <!-- 授权激活区域（未激活或已过期时显示） -->
-          <a-divider style="margin: 12px 0" />
-          <a-collapse v-model:activeKey="licenseCollapseKey" ghost>
-            <a-collapse-panel key="license" :header="licenseCollapseHeader">
-              <div v-if="licenseActivateResult" style="margin-bottom: 8px">
+              <div v-if="licenseActivateResult" style="margin: 8px 0">
                 <a-alert
                   :type="licenseActivateResult.success ? 'success' : 'error'"
                   :message="licenseActivateResult.message"
@@ -146,21 +90,128 @@
                   @close="licenseActivateResult = null"
                 />
               </div>
-              <a-typography-paragraph type="secondary" style="font-size: 12px; margin-bottom: 8px">
-                上传 <code>.atlaslicense</code> 证书文件以激活平台授权
-              </a-typography-paragraph>
               <a-upload
                 :before-upload="handleLicenseFileSelect"
                 :show-upload-list="false"
                 accept=".atlaslicense,.lic,.txt"
               >
-                <a-button size="small" :loading="licenseActivating">
+                <a-button type="primary" size="small" :loading="licenseActivating">
                   <template #icon><upload-outlined /></template>
-                  选择证书文件
+                  {{ licenseActivating ? '激活中…' : '上传证书' }}
                 </a-button>
               </a-upload>
-            </a-collapse-panel>
-          </a-collapse>
+              <a-typography-paragraph
+                type="secondary"
+                style="font-size: 12px; margin-top: 8px; margin-bottom: 0"
+              >
+                上传 <code>.atlaslicense</code> 证书文件以激活平台授权
+              </a-typography-paragraph>
+            </template>
+          </div>
+
+          <a-divider style="margin: 12px 0" />
+
+          <!-- ② 登录表单（仅证书有效时可用） -->
+          <template v-if="licenseStatusCode === 'Active'">
+            <div v-if="errorMessage" class="error-banner">
+              <span class="error-dot" aria-hidden="true">!</span>
+              <span>{{ errorMessage }}</span>
+              <span v-if="cooldownSeconds > 0" class="cooldown">（请 {{ cooldownSeconds }} 秒后再试）</span>
+            </div>
+
+            <a-form
+              layout="vertical"
+              :model="form"
+              class="login-form"
+              :disabled="loading"
+              @finish="handleSubmit"
+            >
+              <a-form-item
+                label="租户 / 组织"
+                name="tenantId"
+                :rules="[
+                  { required: true, message: '授权证书未提供租户 / 组织ID' },
+                  { pattern: /^[0-9a-fA-F-]{36}$/, message: '证书租户ID格式无效，请重新激活证书' }
+                ]"
+              >
+                <a-input
+                  v-model:value="form.tenantId"
+                  placeholder="租户 / 组织 ID 来自授权证书"
+                  readonly
+                  autocomplete="off"
+                  @focus="errorMessage = ''"
+                />
+                <div class="tenant-readonly-tip">租户由证书自动绑定，如需变更请更换证书</div>
+                <div v-if="!hasValidTenantId(form.tenantId.trim())" class="tenant-readonly-error">
+                  当前证书未提供有效租户ID（GUID），请更换正确证书后登录
+                </div>
+              </a-form-item>
+
+              <a-form-item
+                label="账号"
+                name="username"
+                :rules="[{ required: true, message: '请输入账号' }]"
+              >
+                <a-input
+                  v-model:value="form.username"
+                  placeholder="请输入手机号/邮箱/用户名"
+                  allow-clear
+                  autocomplete="username"
+                  @focus="errorMessage = ''"
+                />
+              </a-form-item>
+
+              <a-form-item
+                label="密码"
+                name="password"
+                :rules="[{ required: true, message: '请输入密码' }]"
+              >
+                <a-input-password
+                  v-model:value="form.password"
+                  placeholder="请输入密码"
+                  autocomplete="current-password"
+                  @keydown="handleCapsLockEvent"
+                  @keyup="handleCapsLockEvent"
+                  @blur="capsLockOn = false"
+                  @focus="errorMessage = ''"
+                />
+                <div v-if="capsLockOn" class="caps-tip">
+                  Caps Lock 已开启，可能影响密码输入
+                </div>
+              </a-form-item>
+
+              <a-form-item style="margin-bottom: 8px">
+                <div class="remember-row">
+                  <a-checkbox v-model:checked="form.rememberMe">记住我（30天内保持登录）</a-checkbox>
+                </div>
+              </a-form-item>
+
+              <a-form-item>
+                <a-button
+                  type="primary"
+                  block
+                  html-type="submit"
+                  :loading="loading"
+                  :disabled="isSubmitDisabled"
+                >
+                  <span v-if="!loading">{{ cooldownSeconds > 0 ? `请稍候 (${cooldownSeconds}s)` : "登录" }}</span>
+                  <span v-else>登录中</span>
+                </a-button>
+              </a-form-item>
+
+              <div class="secondary-actions">
+                <a href="/password-reset">忘记密码</a>
+                <router-link to="/register">还没有账号？立即注册</router-link>
+              </div>
+            </a-form>
+          </template>
+
+          <template v-else-if="!licenseLoading">
+            <div class="login-locked-hint">
+              <a-typography-text type="secondary">请先激活有效的授权证书，方可登录系统</a-typography-text>
+            </div>
+          </template>
+
         </a-card>
       </section>
     </main>
@@ -182,15 +233,11 @@ import { getLicenseStatus, activateLicense } from "@/services/api";
 import { useUserStore } from "@/stores/user";
 import { usePermissionStore } from "@/stores/permission";
 import type { RequestOptions } from "@/services/api";
+import type { LicenseStatus } from "@/types/api";
 import {
   clearAuthStorage,
   getTenantId
 } from "@/utils/auth";
-
-interface TenantHistoryItem {
-  id: string;
-  label: string;
-}
 
 interface LoginApiError extends Error {
   status?: number;
@@ -201,8 +248,6 @@ interface LoginApiError extends Error {
   } | null;
 }
 
-const TENANT_HISTORY_KEY = "atlas-login-tenant-history";
-const DEFAULT_TENANT_ID = "00000000-0000-0000-0000-000000000001";
 const TENANT_ID_REGEX =
   /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 const COOLDOWN_THRESHOLD = 5;
@@ -217,71 +262,48 @@ const errorMessage = ref("");
 const failedAttempts = ref(0);
 const capsLockOn = ref(false);
 const cooldownSeconds = ref(0);
-const tenantHistory = ref<TenantHistoryItem[]>([]);
 let cooldownTimer: number | undefined;
 
 const REMEMBER_ME_KEY = "atlas-login-remember-me";
 
+// 租户 ID 初始值：优先取 localStorage 已有的（返回用户），否则留空等待证书填充
 const form = reactive({
-  tenantId: getTenantId() ?? DEFAULT_TENANT_ID,
+  tenantId: getTenantId() ?? "",
   username: "",
   password: "",
   rememberMe: localStorage.getItem(REMEMBER_ME_KEY) === "true"
 });
 
 // 授权证书相关
-const licenseCollapseKey = ref<string[]>([]);
+const licenseLoading = ref(true);
 const licenseActivating = ref(false);
 const licenseActivateResult = ref<{ success: boolean; message: string } | null>(null);
 const licenseStatusCode = ref<string>("None");
+const licenseStatusInfo = ref<LicenseStatus | null>(null);
+const showRenewArea = ref(false);
 
-const licenseCollapseHeader = computed(() => {
-  if (licenseStatusCode.value === "Expired") return "⚠ 授权已过期 — 点击续签";
-  if (licenseStatusCode.value === "None") return "激活授权证书";
-  return "授权证书管理";
+const licenseExpireText = computed(() => {
+  const info = licenseStatusInfo.value;
+  if (!info) return "";
+  if (info.isPermanent) return "永久授权";
+  if (info.remainingDays !== null && info.remainingDays !== undefined) {
+    return `剩余 ${info.remainingDays} 天`;
+  }
+  if (info.expiresAt) {
+    return `到期：${info.expiresAt.substring(0, 10)}`;
+  }
+  return "";
 });
 
 const isSubmitDisabled = computed(
   () =>
     loading.value ||
     cooldownSeconds.value > 0 ||
+    !hasValidTenantId(form.tenantId.trim()) ||
     !form.username.trim() ||
-    !form.password
+    !form.password ||
+    licenseStatusCode.value !== "Active"
 );
-const tenantHistoryOptions = computed(() => tenantHistory.value);
-
-const loadTenantHistory = () => {
-  const raw = localStorage.getItem(TENANT_HISTORY_KEY);
-  try {
-    if (raw) {
-      const parsed = JSON.parse(raw) as TenantHistoryItem[];
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        tenantHistory.value = parsed;
-        if (!form.tenantId && parsed[0]) {
-          form.tenantId = parsed[0].id;
-        }
-        return;
-      }
-    }
-  } catch {
-    // ignore malformed history
-  }
-
-  tenantHistory.value = [{ id: DEFAULT_TENANT_ID, label: "默认租户" }];
-};
-
-const persistTenantHistory = (tenantId: string) => {
-  if (!tenantId) return;
-  const label = tenantId === DEFAULT_TENANT_ID ? "默认租户" : tenantId;
-  const existingIndex = tenantHistory.value.findIndex((item) => item.id === tenantId);
-  const item = { id: tenantId, label };
-  if (existingIndex >= 0) {
-    tenantHistory.value.splice(existingIndex, 1);
-  }
-  tenantHistory.value.unshift(item);
-  tenantHistory.value = tenantHistory.value.slice(0, 5);
-  localStorage.setItem(TENANT_HISTORY_KEY, JSON.stringify(tenantHistory.value));
-};
 
 const handleCapsLockEvent = (event: KeyboardEvent) => {
   if (typeof event.getModifierState === "function") {
@@ -331,11 +353,6 @@ const normalizeError = (error: unknown) => {
   return raw;
 };
 
-const handleSelectTenant = (tenantId: string) => {
-  form.tenantId = tenantId;
-};
-
-const normalizeTenantId = () => form.tenantId.trim();
 const hasValidTenantId = (tenantId: string) => TENANT_ID_REGEX.test(tenantId);
 
 const handleSubmit = async () => {
@@ -358,7 +375,6 @@ const handleSubmit = async () => {
     await userStore.getInfo();
     const routes = await permissionStore.generateRoutes();
     permissionStore.registerRoutes(router);
-    persistTenantHistory(tenantId);
     localStorage.setItem(REMEMBER_ME_KEY, String(form.rememberMe));
     failedAttempts.value = 0;
     cooldownSeconds.value = 0;
@@ -389,16 +405,6 @@ const handleSubmit = async () => {
 };
 
 async function handleLicenseFileSelect(file: File): Promise<false> {
-  const tenantId = normalizeTenantId();
-  if (!hasValidTenantId(tenantId)) {
-    licenseActivateResult.value = {
-      success: false,
-      message: "请先输入有效的租户 / 组织ID（GUID）后再上传证书"
-    };
-    licenseCollapseKey.value = ["license"];
-    return false;
-  }
-
   licenseActivating.value = true;
   licenseActivateResult.value = null;
 
@@ -415,13 +421,15 @@ async function handleLicenseFileSelect(file: File): Promise<false> {
   }
 
   try {
-    const resp = await activateLicense(content, tenantId);
+    const resp = await activateLicense(content);
     if (resp.success) {
       licenseActivateResult.value = {
         success: true,
         message: resp.data?.message ?? resp.message ?? "授权激活成功！"
       };
-      licenseStatusCode.value = "Active";
+      showRenewArea.value = false;
+      // 激活成功后重新加载授权状态，自动填充租户信息
+      await loadLicenseStatus();
     } else {
       licenseActivateResult.value = {
         success: false,
@@ -453,27 +461,27 @@ function readFileAsText(file: File): Promise<string> {
 }
 
 async function loadLicenseStatus() {
-  const tenantId = normalizeTenantId();
-  if (!hasValidTenantId(tenantId)) {
-    licenseStatusCode.value = "None";
-    licenseCollapseKey.value = ["license"];
-    return;
-  }
-
+  licenseLoading.value = true;
   try {
-    const status = await getLicenseStatus(tenantId);
+    const status = await getLicenseStatus();
     licenseStatusCode.value = status.status;
-    // 未激活或已过期时自动展开
-    if (status.status === "None" || status.status === "Expired") {
-      licenseCollapseKey.value = ["license"];
+    licenseStatusInfo.value = status;
+
+    // 证书激活后自动填充租户 ID（若证书含有效 GUID 且当前租户未手动输入）
+    if (status.status === "Active" && status.tenantId && hasValidTenantId(status.tenantId)) {
+      if (!form.tenantId || !hasValidTenantId(form.tenantId)) {
+        form.tenantId = status.tenantId;
+      }
     }
   } catch {
-    // 静默失败，不影响登录流程
+    // 静默失败，不影响页面渲染
+    licenseStatusCode.value = "None";
+  } finally {
+    licenseLoading.value = false;
   }
 }
 
 onMounted(() => {
-  loadTenantHistory();
   loadLicenseStatus();
 });
 onBeforeUnmount(() => {
@@ -578,6 +586,117 @@ onBeforeUnmount(() => {
   box-shadow: var(--shadow-lg);
 }
 
+/* ── 授权证书区 ── */
+.license-section {
+  padding: 10px 0 4px;
+}
+
+.license-loading {
+  display: flex;
+  align-items: center;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  padding: 4px 0;
+}
+
+.license-active-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.license-inactive-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+
+.license-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.license-badge--active {
+  background: #f6ffed;
+  border: 1px solid #b7eb8f;
+  color: #389e0d;
+}
+
+.license-badge--expired {
+  background: #fff7e6;
+  border: 1px solid #ffd591;
+  color: #d46b08;
+}
+
+.license-badge--none {
+  background: #f5f5f5;
+  border: 1px solid #d9d9d9;
+  color: #8c8c8c;
+}
+
+.license-org {
+  font-weight: 500;
+  color: var(--color-text-primary);
+}
+
+.license-expire {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+
+.license-renew-link {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--color-primary);
+  cursor: pointer;
+}
+
+.license-renew-link:hover {
+  opacity: 0.8;
+}
+
+.license-hint {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+
+.license-upload-area {
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px dashed var(--color-border-dashed);
+  border-radius: 6px;
+  background: var(--color-bg-layout);
+}
+
+.tenant-readonly-tip {
+  margin-top: var(--spacing-xs);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+
+.tenant-readonly-error {
+  margin-top: var(--spacing-xs);
+  color: var(--color-error-text);
+  font-size: 12px;
+}
+
+/* ── 登录锁定提示 ── */
+.login-locked-hint {
+  padding: 16px 0 8px;
+  text-align: center;
+  font-size: 14px;
+}
+
+/* ── 错误提示 ── */
 .error-banner {
   display: flex;
   align-items: center;

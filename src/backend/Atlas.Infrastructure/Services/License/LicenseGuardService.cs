@@ -115,6 +115,7 @@ public sealed class LicenseGuardService : ILicenseService
             var features = MergeFeatures(record.Edition, record.FeaturesJson);
             var limits = MergeLimits(record.Edition, record.LimitsJson);
 
+            var tenantId = Guid.TryParse(record.CustomerId, out _) ? record.CustomerId : null;
             _currentStatus = new LicenseStatusDto(
                 "Active",
                 record.Edition.ToString(),
@@ -125,7 +126,9 @@ public sealed class LicenseGuardService : ILicenseService
                 !string.IsNullOrWhiteSpace(record.MachineFingerprintHash),
                 machineMatched,
                 features,
-                limits);
+                limits,
+                tenantId,
+                string.IsNullOrWhiteSpace(record.CustomerName) ? null : record.CustomerName);
 
             _logger.LogInformation("授权证书加载成功：{Edition}，{Status}",
                 record.Edition, record.IsPermanent ? "永久" : $"到期日：{record.ExpiresAt:yyyy-MM-dd}");
@@ -149,8 +152,10 @@ public sealed class LicenseGuardService : ILicenseService
         }
     }
 
-    private static LicenseStatusDto BuildExpiredStatus(LicenseRecord record) =>
-        new(
+    private static LicenseStatusDto BuildExpiredStatus(LicenseRecord record)
+    {
+        var tenantId = Guid.TryParse(record.CustomerId, out _) ? record.CustomerId : null;
+        return new(
             "Expired",
             record.Edition.ToString(),
             record.IsPermanent,
@@ -160,7 +165,10 @@ public sealed class LicenseGuardService : ILicenseService
             !string.IsNullOrWhiteSpace(record.MachineFingerprintHash),
             false,
             new Dictionary<string, bool>(),
-            new Dictionary<string, int>());
+            new Dictionary<string, int>(),
+            tenantId,
+            string.IsNullOrWhiteSpace(record.CustomerName) ? null : record.CustomerName);
+    }
 
     private static int? CalculateRemainingDays(LicenseRecord record, DateTimeOffset now)
     {

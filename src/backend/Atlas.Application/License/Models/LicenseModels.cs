@@ -15,7 +15,11 @@ public sealed record LicenseStatusDto(
     /// <summary>当前机器是否与证书绑定的机器匹配；未绑定时始终为 true</summary>
     bool MachineMatched,
     IReadOnlyDictionary<string, bool> Features,
-    IReadOnlyDictionary<string, int> Limits
+    IReadOnlyDictionary<string, int> Limits,
+    /// <summary>证书中的客户 ID（若为合法 GUID 则可直接用作租户 ID）</summary>
+    string? TenantId,
+    /// <summary>证书中的客户名称（组织名）</summary>
+    string? TenantName
 )
 {
     public static LicenseStatusDto None() =>
@@ -29,7 +33,9 @@ public sealed record LicenseStatusDto(
             false,
             false,
             new Dictionary<string, bool>(),
-            new Dictionary<string, int>());
+            new Dictionary<string, int>(),
+            null,
+            null);
 }
 
 /// <summary>证书激活操作结果</summary>
@@ -42,6 +48,8 @@ public sealed class LicensePayload
     public int Revision { get; set; }
     public string CustomerId { get; set; } = string.Empty;
     public string TenantName { get; set; } = string.Empty;
+    /// <summary>证书中声明的平台租户 ID（颁发工具填入，平台激活时用于自动关联租户）</summary>
+    public string TenantId { get; set; } = string.Empty;
     public DateTimeOffset IssuedAt { get; set; }
     public DateTimeOffset? ExpiresAt { get; set; }
     public bool IsPermanent { get; set; }

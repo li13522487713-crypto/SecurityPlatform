@@ -25,6 +25,7 @@ public static class LicenseServiceRegistration
         services.AddSingleton<LicenseValidationService>();
 
         // Activation service (scoped: 需要 ILicenseRepository)
+        services.AddScoped<LicenseTenantAdminProvisionService>();
         services.AddScoped<ILicenseActivationService, LicenseActivationService>();
 
         return services;

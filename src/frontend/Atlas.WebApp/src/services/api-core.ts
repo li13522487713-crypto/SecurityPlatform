@@ -235,7 +235,7 @@ export async function requestApi<T>(path: string, init?: RequestInit, options?: 
       throw buildApiError(errorMessage, response.status, errorPayload, errorText);
     }
 
-    return (await response.json()) as T;
+    return await parseSuccessResponse<T>(response);
   };
 
   const requestPromise = runRequest();
@@ -464,7 +464,7 @@ function shouldRequireProjectContext(path: string): boolean {
 }
 
 function shouldRequireTenantContext(path: string): boolean {
-  const exemptPrefixes = ["/health", "/openapi"];
+  const exemptPrefixes = ["/health", "/openapi", "/license/"];
   return !exemptPrefixes.some((prefix) => path.startsWith(prefix));
 }
 
@@ -565,6 +565,39 @@ async function refreshTokenInternal(): Promise<AuthTokenResult> {
 export function persistTokenResult(result: AuthTokenResult) {
   setAccessToken(result.accessToken);
   setRefreshToken(result.refreshToken);
+}
+
+async function parseSuccessResponse<T>(response: Response): Promise<T> {
+  // 某些接口（例如 204）或异常网关场景会返回空响应体，直接 response.json() 会抛 Unexpected end of JSON input。
+  if (response.status === 204 || response.status === 205) {
+    return {} as T;
+  }
+
+  const bodyText = await response.text();
+  if (!bodyText || !bodyText.trim()) {
+    return {} as T;
+  }
+
+  if (!isJsonContentType(response.headers.get("content-type"))) {
+    throw buildApiError("服务端返回了非 JSON 响应", response.status, null, bodyText);
+  }
+
+  try {
+    return JSON.parse(bodyText) as T;
+  } catch {
+    throw buildApiError("服务端返回了无效的 JSON 响应", response.status, null, bodyText);
+  }
+}
+
+function isJsonContentType(contentType: string | null): boolean {
+  if (!contentType) {
+    return false;
+  }
+
+  const normalized = contentType.toLowerCase();
+  return normalized.includes("application/json")
+    || normalized.includes("+json")
+    || normalized.includes("text/json");
 }
 
 function tryParseErrorPayload(text: string): ApiErrorPayload | null {

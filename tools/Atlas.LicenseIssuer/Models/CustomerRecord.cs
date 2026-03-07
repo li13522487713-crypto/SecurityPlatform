@@ -10,5 +10,7 @@ public sealed class CustomerRecord
     public string Name { get; set; } = string.Empty;
     public string? Contact { get; set; }
     public string? Remark { get; set; }
+    /// <summary>对应平台侧的租户 GUID（可选；颁发证书时写入 Payload.TenantId）</summary>
+    public string? TenantId { get; set; }
     public string CreatedAt { get; set; } = DateTimeOffset.UtcNow.ToString("o");
 }

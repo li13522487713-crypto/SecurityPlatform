@@ -22,7 +22,9 @@ public sealed class LicenseRecord : EntityBase
         string rawLicenseCiphertext,
         string featuresJson,
         string limitsJson,
-        DateTimeOffset activatedAt)
+        DateTimeOffset activatedAt,
+        string customerId = "",
+        string customerName = "")
     {
         SetId(id);
         LicenseId = licenseId;
@@ -42,6 +44,8 @@ public sealed class LicenseRecord : EntityBase
         ActivatedAt = activatedAt;
         LastValidatedAt = activatedAt;
         MaxObservedUtc = activatedAt;
+        CustomerId = customerId ?? string.Empty;
+        CustomerName = customerName ?? string.Empty;
     }
 
     /// <summary>证书唯一标识（同一客户续签保持不变）</summary>
@@ -88,6 +92,12 @@ public sealed class LicenseRecord : EntityBase
 
     /// <summary>Payload 中的限额配置（JSON 序列化，空串表示全用版本默认值）</summary>
     public string LimitsJson { get; private set; } = string.Empty;
+
+    /// <summary>证书颁发时的客户 ID（可为 GUID 格式的租户 ID）</summary>
+    public string CustomerId { get; private set; } = string.Empty;
+
+    /// <summary>证书颁发时的客户名称（组织名）</summary>
+    public string CustomerName { get; private set; } = string.Empty;
 
     public void MarkValidated(DateTimeOffset now)
     {

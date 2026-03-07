@@ -19,7 +19,13 @@ public sealed partial class CustomerForm : Form
         {
             _nameBox.Text = existing.Name;
             _contactBox.Text = existing.Contact ?? "";
+            _tenantIdBox.Text = existing.TenantId ?? "";
             _remarkBox.Text = existing.Remark ?? "";
+        }
+        else
+        {
+            // 新建客户时自动生成平台租户 GUID，操作员可在必要时手动覆盖
+            _tenantIdBox.Text = Guid.NewGuid().ToString();
         }
     }
 
@@ -34,6 +40,7 @@ public sealed partial class CustomerForm : Form
         var record = _existing ?? new CustomerRecord();
         record.Name = _nameBox.Text.Trim();
         record.Contact = _contactBox.Text.Trim();
+        record.TenantId = string.IsNullOrWhiteSpace(_tenantIdBox.Text) ? null : _tenantIdBox.Text.Trim();
         record.Remark = _remarkBox.Text.Trim();
 
         if (_existing is null)

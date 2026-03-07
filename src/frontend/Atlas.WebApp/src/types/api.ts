@@ -1065,6 +1065,10 @@ export interface LicenseStatus {
   machineMatched: boolean;
   features: Record<string, boolean>;
   limits: Record<string, number>;
+  /** 证书中的客户 ID（若为合法 GUID 可直接用作租户 ID） */
+  tenantId?: string | null;
+  /** 证书中的客户名称（组织名） */
+  tenantName?: string | null;
 }
 
 export interface LicenseActivateRequest {

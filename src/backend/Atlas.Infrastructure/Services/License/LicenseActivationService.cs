@@ -5,6 +5,9 @@ using System.Text.Json;
 using Atlas.Application.License.Abstractions;
 using Atlas.Application.License.Models;
 using Atlas.Core.Abstractions;
+using Atlas.Core.Exceptions;
+using Atlas.Core.Models;
+using Atlas.Core.Tenancy;
 using Atlas.Domain.License;
 using Microsoft.Extensions.Logging;
 
@@ -19,6 +22,7 @@ public sealed class LicenseActivationService : ILicenseActivationService
     private readonly ILicenseRepository _repository;
     private readonly ILicenseStateSealService _sealService;
     private readonly ILicenseService _licenseService;
+    private readonly LicenseTenantAdminProvisionService _tenantAdminProvisionService;
     private readonly IIdGeneratorAccessor _idGenerator;
     private readonly ILogger<LicenseActivationService> _logger;
 
@@ -27,6 +31,7 @@ public sealed class LicenseActivationService : ILicenseActivationService
         ILicenseRepository repository,
         ILicenseStateSealService sealService,
         ILicenseService licenseService,
+        LicenseTenantAdminProvisionService tenantAdminProvisionService,
         IIdGeneratorAccessor idGenerator,
         ILogger<LicenseActivationService> logger)
     {
@@ -34,6 +39,7 @@ public sealed class LicenseActivationService : ILicenseActivationService
         _repository = repository;
         _sealService = sealService;
         _licenseService = licenseService;
+        _tenantAdminProvisionService = tenantAdminProvisionService;
         _idGenerator = idGenerator;
         _logger = logger;
     }
@@ -61,6 +67,16 @@ public sealed class LicenseActivationService : ILicenseActivationService
         var payload = envelope.Payload;
         var now = DateTimeOffset.UtcNow;
         var payloadHash = LicenseValidationService.ComputePayloadHash(payload);
+        var effectiveTenantIdRaw = !string.IsNullOrWhiteSpace(payload.TenantId) ? payload.TenantId : payload.CustomerId;
+        if (!Guid.TryParse(effectiveTenantIdRaw, out var tenantGuid))
+        {
+            _logger.LogWarning(
+                "证书激活失败：证书未提供有效租户ID。LicenseId={LicenseId}, TenantId={TenantId}, CustomerId={CustomerId}",
+                payload.LicenseId,
+                payload.TenantId,
+                payload.CustomerId);
+            return new LicenseActivationResult(false, "证书缺少有效的租户ID（GUID），请联系颁发方重新签发证书");
+        }
 
         // 加密存储原始证书内容
         var ciphertext = EncryptContent(rawLicenseContent);
@@ -79,7 +95,7 @@ public sealed class LicenseActivationService : ILicenseActivationService
             : string.Empty;
 
         var record = new LicenseRecord(
-            _idGenerator.NextId(),
+            ResolveRecordId(payload),
             payload.LicenseId,
             payload.Revision,
             edition,
@@ -91,7 +107,9 @@ public sealed class LicenseActivationService : ILicenseActivationService
             ciphertext,
             featuresJson,
             limitsJson,
-            now);
+            now,
+            effectiveTenantIdRaw,
+            payload.TenantName);
 
         // 将旧的同 licenseId 记录标记失效（同 revision 重激活也需要失效旧 Active，避免双 Active）
         LicenseRecord? previousActiveRecord = null;
@@ -105,6 +123,9 @@ public sealed class LicenseActivationService : ILicenseActivationService
 
         // 事务内完成“旧记录失效 + 新记录写入”，确保提交后再刷新内存授权状态。
         await _repository.SaveActivatedAsync(record, previousActiveRecord, cancellationToken);
+
+        // 证书激活后，确保该证书租户存在可登录的管理员账号。
+        await _tenantAdminProvisionService.EnsureBootstrapAdminAsync(new TenantId(tenantGuid), cancellationToken);
 
         // 更新本地密封状态
         var nonce = Convert.ToBase64String(RandomNumberGenerator.GetBytes(16));
@@ -182,4 +203,33 @@ public sealed class LicenseActivationService : ILicenseActivationService
 
     private static byte[] EncryptAesGcm(byte[] plainBytes)
         => MachineBoundAesGcmHelper.Encrypt(plainBytes, "atlas-license-raw-v1");
+
+    private long ResolveRecordId(LicensePayload payload)
+    {
+        try
+        {
+            return _idGenerator.NextId();
+        }
+        catch (BusinessException ex) when (ex.Code == ErrorCodes.ValidationError)
+        {
+            // 授权激活为匿名场景，可能不存在租户上下文；此时使用证书内标识生成回退 ID。
+            var fallbackId = GenerateFallbackRecordId(payload);
+            _logger.LogWarning(
+                ex,
+                "证书激活缺少租户上下文，使用回退ID。LicenseId={LicenseId}, Revision={Revision}, FallbackId={FallbackId}",
+                payload.LicenseId,
+                payload.Revision,
+                fallbackId);
+            return fallbackId;
+        }
+    }
+
+    private static long GenerateFallbackRecordId(LicensePayload payload)
+    {
+        // 混入证书标识 + 时间 + 随机盐，避免同证书重复激活导致主键冲突。
+        var seed = $"{payload.LicenseId:D}:{payload.Revision}:{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}:{Guid.NewGuid():N}";
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(seed));
+        var id = BitConverter.ToInt64(hash, 0) & long.MaxValue;
+        return id == 0 ? 1 : id;
+    }
 }

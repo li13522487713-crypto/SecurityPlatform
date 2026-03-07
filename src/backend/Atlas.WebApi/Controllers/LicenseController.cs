@@ -41,7 +41,9 @@ public sealed class LicenseController : ControllerBase
             machineBound = status.MachineBound,
             machineMatched = status.MachineMatched,
             features = status.Features,
-            limits = status.Limits
+            limits = status.Limits,
+            tenantId = status.TenantId,
+            tenantName = status.TenantName
         }, HttpContext.TraceIdentifier));
     }
 
@@ -81,7 +83,9 @@ public sealed class LicenseController : ControllerBase
             edition = status.Edition,
             isPermanent = status.IsPermanent,
             expiresAt = status.ExpiresAt,
-            remainingDays = status.RemainingDays
+            remainingDays = status.RemainingDays,
+            tenantId = status.TenantId,
+            tenantName = status.TenantName
         }, HttpContext.TraceIdentifier));
     }
 }

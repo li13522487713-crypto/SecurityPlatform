@@ -90,12 +90,24 @@ public sealed partial class NewLicenseForm : Form
             expiresAt = new DateTimeOffset(localEndOfDay).ToUniversalTime();
         }
 
+        // 若客户未配置平台租户 ID，提示颁发员但不阻断
+        if (string.IsNullOrWhiteSpace(_customer.TenantId))
+        {
+            var proceed = MessageBox.Show(
+                $"客户「{_customer.Name}」尚未设置平台租户 ID，证书激活后将无法自动关联租户。\n\n是否继续颁发？",
+                "警告：租户 ID 缺失",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Warning);
+            if (proceed != DialogResult.Yes) return;
+        }
+
         var payload = new LicensePayload
         {
             LicenseId = _renewFrom?.LicenseId ?? Guid.NewGuid(),
             Revision = (_renewFrom?.Revision ?? 0) + 1,
             CustomerId = _customer.Id,
             TenantName = _customer.Name,
+            TenantId = _customer.TenantId ?? string.Empty,
             IssuedAt = DateTimeOffset.UtcNow,
             ExpiresAt = expiresAt,
             IsPermanent = isPermanent,
