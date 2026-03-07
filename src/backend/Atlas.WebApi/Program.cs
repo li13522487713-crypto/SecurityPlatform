@@ -421,10 +421,10 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors("WebAppCors");
-app.UseMiddleware<AppContextMiddleware>();
 app.UseMiddleware<ClientContextMiddleware>();
 app.UseRouting();
 app.UseAuthentication();
+app.UseMiddleware<AppContextMiddleware>();
 app.UseMiddleware<AntiforgeryValidationMiddleware>();
 app.UseMiddleware<TenantContextMiddleware>();
 app.UseMiddleware<ProjectContextMiddleware>();

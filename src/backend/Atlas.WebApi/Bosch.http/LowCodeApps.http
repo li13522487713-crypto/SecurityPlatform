@@ -32,6 +32,11 @@ X-Tenant-Id: {{tenantId}}
 # 应用管理
 ###############################################
 
+### 控制台应用卡片查询（复用 lowcode-apps 列表）
+GET {{baseUrl}}/api/v1/lowcode-apps?pageIndex=1&pageSize=12
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
 ### 创建应用（需幂等+CSRF）
 # @name createApp
 POST {{baseUrl}}/api/v1/lowcode-apps

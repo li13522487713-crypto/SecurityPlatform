@@ -43,6 +43,8 @@ let missingProjectWarningAt = 0;
 const inFlightWriteRequests = new Map<string, Promise<unknown>>();
 const globalErrorShownAt = new Map<string, number>();
 const APP_ID_HEADER = "X-App-Id";
+const APP_WORKSPACE_HEADER = "X-App-Workspace";
+const APP_WORKSPACE_HEADER_VALUE = "1";
 
 const ErrorCodes = {
   AccountLocked: "ACCOUNT_LOCKED",
@@ -122,6 +124,9 @@ export async function requestApi<T>(path: string, init?: RequestInit, options?: 
   const appId = resolveCurrentAppId();
   if (appId && !headers.has(APP_ID_HEADER)) {
     headers.set(APP_ID_HEADER, appId);
+    if (!headers.has(APP_WORKSPACE_HEADER)) {
+      headers.set(APP_WORKSPACE_HEADER, APP_WORKSPACE_HEADER_VALUE);
+    }
   }
 
   if (shouldRequireTenantContext(path) && !headers.has("X-Tenant-Id")) {
@@ -281,6 +286,9 @@ export async function requestApiBlob(path: string, init?: RequestInit, options?:
   const appId = resolveCurrentAppId();
   if (appId && !headers.has(APP_ID_HEADER)) {
     headers.set(APP_ID_HEADER, appId);
+    if (!headers.has(APP_WORKSPACE_HEADER)) {
+      headers.set(APP_WORKSPACE_HEADER, APP_WORKSPACE_HEADER_VALUE);
+    }
   }
   if (shouldRequireTenantContext(path) && !headers.has("X-Tenant-Id")) {
     const missingTenantMessage = shouldAttachSecurityHeaders
