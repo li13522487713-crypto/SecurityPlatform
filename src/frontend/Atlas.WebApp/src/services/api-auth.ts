@@ -12,7 +12,7 @@ import type {
   RouterVo
 } from "@/types/api";
 import { requestApi, persistTokenResult, type RequestOptions } from "@/services/api-core";
-import { getRefreshToken } from "@/utils/auth";
+import { getRefreshToken, getTenantId } from "@/utils/auth";
 
 export interface AssetListItem {
   id: string;
@@ -30,9 +30,20 @@ export interface CaptchaResult {
   captchaImage: string;
 }
 
+const TENANT_ID_REGEX =
+  /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/;
+
+function assertTenantId(tenantId: string) {
+  if (!tenantId || !TENANT_ID_REGEX.test(tenantId.trim())) {
+    throw new Error("请输入有效的租户ID（GUID）");
+  }
+}
+
 export async function getCaptcha(tenantId: string): Promise<CaptchaResult> {
+  assertTenantId(tenantId);
+  const normalizedTenantId = tenantId.trim();
   const response = await requestApi<ApiResponse<CaptchaResult>>("/auth/captcha", {
-    headers: { "X-Tenant-Id": tenantId }
+    headers: { "X-Tenant-Id": normalizedTenantId }
   }, { disableAutoRefresh: true });
   if (!response.data) throw new Error("获取验证码失败");
   return response.data;
@@ -50,11 +61,13 @@ export async function createToken(
     rememberMe?: boolean;
   }
 ) {
+  assertTenantId(tenantId);
+  const normalizedTenantId = tenantId.trim();
   const response = await requestApi<ApiResponse<AuthTokenResult>>("/auth/token", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-Tenant-Id": tenantId
+      "X-Tenant-Id": normalizedTenantId
     },
     body: JSON.stringify({
       username,
@@ -72,12 +85,13 @@ export async function createToken(
 
 export async function refreshToken(): Promise<boolean> {
   const refreshTokenValue = getRefreshToken();
-  if (!refreshTokenValue) return false;
+  const tenantId = getTenantId();
+  if (!refreshTokenValue || !tenantId) return false;
   const response = await requestApi<ApiResponse<AuthTokenResult>>("/auth/refresh", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ refreshToken: refreshTokenValue })
-  }, { disableAutoRefresh: true });
+  }, { disableAutoRefresh: true, suppressErrorMessage: true });
   if (!response.data) return false;
   persistTokenResult(response.data);
   return true;
@@ -159,11 +173,13 @@ export async function register(
   request: RegisterRequest,
   requestOptions?: RequestOptions
 ): Promise<{ id: string }> {
+  assertTenantId(tenantId);
+  const normalizedTenantId = tenantId.trim();
   const response = await requestApi<ApiResponse<{ id: string }>>("/auth/register", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-Tenant-Id": tenantId
+      "X-Tenant-Id": normalizedTenantId
     },
     body: JSON.stringify(request)
   }, { ...requestOptions, disableAutoRefresh: true });

@@ -42,7 +42,10 @@
             <a-form-item
               label="租户 / 组织"
               name="tenantId"
-              :rules="[{ required: true, message: '请输入租户 / 组织ID' }]"
+              :rules="[
+                { required: true, message: '请输入租户 / 组织ID' },
+                { pattern: /^[0-9a-fA-F-]{36}$/, message: '租户ID格式无效，请输入GUID' }
+              ]"
             >
               <a-input
                 v-model:value="form.tenantId"
@@ -368,9 +371,10 @@ const startCooldown = () => {
 
 const refreshCaptcha = async () => {
   captchaSeed.value = Date.now();
-  if (!form.tenantId) return;
+  const tenantId = form.tenantId.trim();
+  if (!tenantId) return;
   try {
-    const result = await getCaptcha(form.tenantId);
+    const result = await getCaptcha(tenantId);
     captchaKey.value = result.captchaKey;
     captchaImageSrc.value = result.captchaImage;
   } catch {
@@ -420,6 +424,7 @@ const handleSubmit = async () => {
   loading.value = true;
   try {
     clearAuthStorage();
+    const tenantId = form.tenantId.trim();
     const tokenOptions: RequestOptions = { suppressErrorMessage: true };
 
     if (isCaptchaVisible.value && !captchaKey.value) {
@@ -427,7 +432,7 @@ const handleSubmit = async () => {
     }
 
     await userStore.login(
-      form.tenantId,
+      tenantId,
       form.username.trim(),
       form.password,
       tokenOptions,
@@ -440,7 +445,7 @@ const handleSubmit = async () => {
     await userStore.getInfo();
     const routes = await permissionStore.generateRoutes();
     permissionStore.registerRoutes(router);
-    persistTenantHistory(form.tenantId);
+    persistTenantHistory(tenantId);
     localStorage.setItem(REMEMBER_ME_KEY, String(form.rememberMe));
     failedAttempts.value = 0;
     cooldownSeconds.value = 0;
@@ -453,10 +458,11 @@ const handleSubmit = async () => {
         ? rawRedirect
         : null;
     const targetPath = redirect ?? "/";
-    const canNavigate = routes.some((item) => typeof item.path === "string" && targetPath.startsWith(item.path));
+    const canNavigate = targetPath === "/"
+      || routes.some((item) => typeof item.path === "string" && targetPath.startsWith(item.path));
     const firstAccessiblePath = pickFirstAccessiblePath(permissionStore.sidebarRouters as SidebarRouteNode[]);
-    const fallbackPath = firstAccessiblePath ?? "/profile";
-    const staticAllowedTargets = new Set(["/profile"]);
+    const fallbackPath = "/";
+    const staticAllowedTargets = new Set(["/"]);
     router.push(canNavigate || staticAllowedTargets.has(targetPath) ? targetPath : fallbackPath);
   } catch (error) {
     clearAuthStorage();

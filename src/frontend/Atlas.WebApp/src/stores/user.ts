@@ -28,10 +28,11 @@ export const useUserStore = defineStore("user", {
   }),
   actions: {
     async login(tenantId: string, username: string, password: string, options?: RequestOptions, extra?: any) {
-      const result = await createToken(tenantId, username, password, options, extra);
+      const normalizedTenantId = tenantId.trim();
+      const result = await createToken(normalizedTenantId, username, password, options, extra);
       setAccessToken(result.accessToken);
       setRefreshToken(result.refreshToken);
-      setTenantId(tenantId);
+      setTenantId(normalizedTenantId);
     },
     async getInfo() {
       const profile = await getCurrentUser();

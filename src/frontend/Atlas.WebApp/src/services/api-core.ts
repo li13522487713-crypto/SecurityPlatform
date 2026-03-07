@@ -472,6 +472,12 @@ async function ensureFreshTokens(): Promise<boolean> {
     return false;
   }
 
+  // 刷新令牌接口依赖租户上下文，缺失时直接判定为未登录态，避免触发后端租户校验报错。
+  if (!getTenantId()) {
+    clearAuthStorage();
+    return false;
+  }
+
   if (refreshPromise) {
     return refreshPromise;
   }
@@ -504,7 +510,7 @@ async function refreshTokenInternal(): Promise<AuthTokenResult> {
       "Content-Type": "application/json"
     },
     body: JSON.stringify({ refreshToken: refreshTokenValue })
-  }, { disableAutoRefresh: true });
+  }, { disableAutoRefresh: true, suppressErrorMessage: true });
   if (!response.data) {
     throw new Error(response.message || "刷新失败");
   }

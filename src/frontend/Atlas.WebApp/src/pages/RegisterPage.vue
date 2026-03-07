@@ -55,7 +55,10 @@ const validateConfirmPassword = async (_rule: any, value: string) => {
 };
 
 const rules = {
-  tenantId: [{ required: true, message: "请输入租户 ID" }],
+  tenantId: [
+    { required: true, message: "请输入租户 ID" },
+    { pattern: /^[0-9a-fA-F-]{36}$/, message: "租户 ID 格式无效，请输入 GUID" }
+  ],
   username: [
     { required: true, message: "请输入账号" },
     { min: 2, max: 64, message: "账号长度必须介于 2 和 64 之间" }
@@ -70,7 +73,7 @@ const rules = {
 async function onSubmit() {
   loading.value = true;
   try {
-    await register(form.tenantId, {
+    await register(form.tenantId.trim(), {
       username: form.username.trim(),
       password: form.password,
       confirmPassword: form.confirmPassword,
