@@ -52,8 +52,6 @@ public sealed class LowCodeApp : TenantEntity
         UpdatedAt = now;
         CreatedBy = createdBy;
         UpdatedBy = createdBy;
-        PublishedAt = now;
-        PublishedBy = createdBy;
     }
 
     public LowCodeApp(

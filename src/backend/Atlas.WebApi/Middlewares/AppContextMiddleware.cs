@@ -1,5 +1,3 @@
-using System;
-using System.Security.Claims;
 using Atlas.Core.Identity;
 using Atlas.WebApi.Helpers;
 using Atlas.WebApi.Identity;
@@ -22,8 +20,8 @@ public sealed class AppContextMiddleware
     {
         if (!context.Items.ContainsKey(HttpContextAppContextAccessor.AppIdItemKey))
         {
-            var claimAppId = TryResolveAppIdFromClaims(context.User);
-            var headerAppId = TryResolveAppIdFromHeader(context);
+            var claimAppId = AppIdResolver.TryResolveFromClaims(context.User);
+            var headerAppId = AppIdResolver.TryResolveFromHeader(context, _options);
 
             if (context.User?.Identity?.IsAuthenticated == true)
             {
@@ -52,17 +50,6 @@ public sealed class AppContextMiddleware
         return _next(context);
     }
 
-    private static string? TryResolveAppIdFromClaims(ClaimsPrincipal? user)
-    {
-        if (user?.Identity?.IsAuthenticated != true)
-        {
-            return null;
-        }
-
-        var appId = user.FindFirst("app_id")?.Value ?? user.FindFirst("appId")?.Value;
-        return string.IsNullOrWhiteSpace(appId) ? null : appId;
-    }
-
     private string ResolveAppIdByClientType(ClientContext clientContext)
     {
         if (_options.ClientTypeMappings.Count == 0)
@@ -83,22 +70,4 @@ public sealed class AppContextMiddleware
         return _options.DefaultAppId;
     }
 
-    private string? TryResolveAppIdFromHeader(HttpContext context)
-    {
-        var headerName = _options.HeaderName;
-        if (string.IsNullOrWhiteSpace(headerName)
-            || !context.Request.Headers.TryGetValue(headerName, out var raw)
-            || string.IsNullOrWhiteSpace(raw))
-        {
-            return null;
-        }
-
-        var value = raw.ToString().Trim();
-        if (!_options.RequireHeaderAppIdNumeric)
-        {
-            return value;
-        }
-
-        return long.TryParse(value, out var parsed) && parsed > 0 ? value : null;
-    }
 }
