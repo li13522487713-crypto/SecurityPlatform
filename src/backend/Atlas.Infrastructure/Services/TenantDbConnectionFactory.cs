@@ -85,7 +85,7 @@ public sealed class TenantDbConnectionFactory : ITenantDbConnectionFactory
         _cache.Remove(CacheKeyPrefix + tenantId);
     }
 
-    public static string Encrypt(string plainText, string key)
+    internal static string Encrypt(string plainText, string key)
     {
         if (string.IsNullOrEmpty(key)) return plainText;
         var keyBytes = GetKeyBytes(key);
@@ -101,7 +101,7 @@ public sealed class TenantDbConnectionFactory : ITenantDbConnectionFactory
         return Convert.ToBase64String(result);
     }
 
-    public static string Decrypt(string cipherText, string key)
+    internal static string Decrypt(string cipherText, string key)
     {
         if (string.IsNullOrEmpty(key)) return cipherText;
         var keyBytes = GetKeyBytes(key);

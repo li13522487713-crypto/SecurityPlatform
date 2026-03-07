@@ -91,6 +91,7 @@ public sealed class LowCodeAppEntityAliasesUpdateRequestValidator : AbstractVali
     public LowCodeAppEntityAliasesUpdateRequestValidator()
     {
         RuleFor(x => x.Items)
+            .Cascade(CascadeMode.Stop)
             .NotNull().WithMessage("实体别名集合不能为空")
             .Must(x => x.Count <= 20).WithMessage("实体别名数量不能超过20");
 
