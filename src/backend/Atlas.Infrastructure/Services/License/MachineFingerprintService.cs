@@ -16,7 +16,7 @@ namespace Atlas.Infrastructure.Services.License;
 public sealed class MachineFingerprintService : IMachineFingerprintService
 {
     private readonly ILogger<MachineFingerprintService> _logger;
-    private string? _cachedFingerprint;
+    private volatile string? _cachedFingerprint;
 
     public MachineFingerprintService(ILogger<MachineFingerprintService> logger)
     {

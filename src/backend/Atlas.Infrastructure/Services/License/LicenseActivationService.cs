@@ -151,41 +151,5 @@ public sealed class LicenseActivationService : ILicenseActivationService
         ProtectedData.Protect(plainBytes, null, DataProtectionScope.LocalMachine);
 
     private static byte[] EncryptAesGcm(byte[] plainBytes)
-    {
-        var key = DeriveLinuxStorageKey();
-        var nonce = RandomNumberGenerator.GetBytes(AesGcm.NonceByteSizes.MaxSize);
-        var tag = new byte[AesGcm.TagByteSizes.MaxSize];
-        var ciphertext = new byte[plainBytes.Length];
-
-        using var aes = new AesGcm(key, AesGcm.TagByteSizes.MaxSize);
-        aes.Encrypt(nonce, plainBytes, ciphertext, tag);
-
-        // 格式：nonce(12) + tag(16) + ciphertext
-        var result = new byte[nonce.Length + tag.Length + ciphertext.Length];
-        Buffer.BlockCopy(nonce, 0, result, 0, nonce.Length);
-        Buffer.BlockCopy(tag, 0, result, nonce.Length, tag.Length);
-        Buffer.BlockCopy(ciphertext, 0, result, nonce.Length + tag.Length, ciphertext.Length);
-        return result;
-    }
-
-    /// <summary>
-    /// Linux 下从 /etc/machine-id 派生 AES 密钥（该文件由 systemd 生成，对普通用户只读）。
-    /// 使用与 LicenseStateSealService 不同的 domain 后缀，避免两处密文互相解密。
-    /// </summary>
-    private static byte[] DeriveLinuxStorageKey()
-    {
-        string machineId;
-        try
-        {
-            machineId = File.Exists("/etc/machine-id")
-                ? File.ReadAllText("/etc/machine-id").Trim()
-                : Environment.MachineName;
-        }
-        catch
-        {
-            machineId = Environment.MachineName;
-        }
-
-        return SHA256.HashData(Encoding.UTF8.GetBytes(machineId + "|atlas-license-raw-v1"));
-    }
+        => MachineBoundAesGcmHelper.Encrypt(plainBytes, "atlas-license-raw-v1");
 }

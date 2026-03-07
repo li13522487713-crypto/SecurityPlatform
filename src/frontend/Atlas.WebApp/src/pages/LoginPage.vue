@@ -479,19 +479,32 @@ const handleSubmit = async () => {
 async function handleLicenseFileSelect(file: File): Promise<false> {
   licenseActivating.value = true;
   licenseActivateResult.value = null;
+
+  let content = "";
   try {
-    const content = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (e) => resolve((e.target?.result as string) ?? "");
-      reader.onerror = () => reject(new Error("文件读取失败"));
-      reader.readAsText(file);
-    });
+    content = await readFileAsText(file);
+  } catch (error) {
+    licenseActivateResult.value = {
+      success: false,
+      message: error instanceof Error ? error.message : "文件读取失败，请重试"
+    };
+    licenseActivating.value = false;
+    return false;
+  }
+
+  try {
     const resp = await activateLicense(content);
     if (resp.success) {
-      licenseActivateResult.value = { success: true, message: "授权激活成功！" };
+      licenseActivateResult.value = {
+        success: true,
+        message: resp.data?.message ?? resp.message ?? "授权激活成功！"
+      };
       licenseStatusCode.value = "Active";
     } else {
-      licenseActivateResult.value = { success: false, message: resp.message || "激活失败" };
+      licenseActivateResult.value = {
+        success: false,
+        message: resp.message || "证书激活失败"
+      };
     }
   } catch (error) {
     const requestError = error as LoginApiError;
@@ -500,12 +513,21 @@ async function handleLicenseFileSelect(file: File): Promise<false> {
       (error instanceof Error ? error.message : "");
     licenseActivateResult.value = {
       success: false,
-      message: detailMessage || "文件读取失败，请重试"
+      message: detailMessage || "证书激活失败，请重试"
     };
   } finally {
     licenseActivating.value = false;
   }
   return false;
+}
+
+function readFileAsText(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => resolve((e.target?.result as string) ?? "");
+    reader.onerror = () => reject(new Error("文件读取失败，请重试"));
+    reader.readAsText(file);
+  });
 }
 
 async function loadLicenseStatus() {

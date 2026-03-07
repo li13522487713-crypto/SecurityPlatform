@@ -285,11 +285,23 @@ async function copyFingerprint() {
 async function handleFileSelect(file: File): Promise<false> {
   activating.value = true
   activateResult.value = null
+
+  let content = ''
   try {
-    const content = await readFileAsText(file)
+    content = await readFileAsText(file)
+  } catch (error) {
+    activateResult.value = {
+      success: false,
+      message: error instanceof Error ? error.message : '文件读取失败，请重试',
+    }
+    activating.value = false
+    return false
+  }
+
+  try {
     const resp = await activateLicense(content)
     if (resp.success) {
-      activateResult.value = { success: true, message: resp.data?.message ?? '证书激活成功' }
+      activateResult.value = { success: true, message: resp.data?.message ?? resp.message ?? '证书激活成功' }
       await loadStatus()
     } else {
       activateResult.value = { success: false, message: resp.message || '证书激活失败' }
@@ -301,7 +313,7 @@ async function handleFileSelect(file: File): Promise<false> {
       (error instanceof Error ? error.message : '')
     activateResult.value = {
       success: false,
-      message: detailMessage || '文件读取或上传失败，请重试',
+      message: detailMessage || '证书激活失败，请重试',
     }
   } finally {
     activating.value = false
@@ -313,7 +325,7 @@ function readFileAsText(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = (e) => resolve((e.target?.result as string) ?? '')
-    reader.onerror = () => reject(new Error('文件读取失败'))
+    reader.onerror = () => reject(new Error('文件读取失败，请重试'))
     reader.readAsText(file)
   })
 }

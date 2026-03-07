@@ -18,6 +18,7 @@ namespace Atlas.Infrastructure.Services.License;
 public sealed class LicenseGuardService : ILicenseService
 {
     private volatile LicenseStatusDto _currentStatus = LicenseStatusDto.None();
+    private readonly SemaphoreSlim _reloadLock = new(1, 1);
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IMachineFingerprintService _fingerprintService;
     private readonly ILogger<LicenseGuardService> _logger;
@@ -81,6 +82,7 @@ public sealed class LicenseGuardService : ILicenseService
 
     public async Task ReloadAsync(CancellationToken cancellationToken = default)
     {
+        await _reloadLock.WaitAsync(cancellationToken);
         var previousStatus = _currentStatus;
 
         try
@@ -130,6 +132,10 @@ public sealed class LicenseGuardService : ILicenseService
             // 刷新失败时保留当前内存状态，避免瞬时故障导致已激活平台被误判为未激活。
             _currentStatus = previousStatus;
             _logger.LogError(ex, "加载授权证书失败，已保留上次授权状态：{Status}", previousStatus.Status);
+        }
+        finally
+        {
+            _reloadLock.Release();
         }
     }
 

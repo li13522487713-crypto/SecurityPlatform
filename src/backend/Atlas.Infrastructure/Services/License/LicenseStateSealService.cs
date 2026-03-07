@@ -1,4 +1,3 @@
-using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Security.Cryptography;
 using System.Text;
@@ -123,66 +122,10 @@ public sealed class LicenseStateSealService : ILicenseStateSealService
     }
 
     private static byte[] EncryptAesGcm(byte[] plainBytes)
-    {
-        var key = DeriveLinuxKey();
-        var nonce = RandomNumberGenerator.GetBytes(AesGcm.NonceByteSizes.MaxSize);
-        var tag = new byte[AesGcm.TagByteSizes.MaxSize];
-        var ciphertext = new byte[plainBytes.Length];
-
-        using var aes = new AesGcm(key, AesGcm.TagByteSizes.MaxSize);
-        aes.Encrypt(nonce, plainBytes, ciphertext, tag);
-
-        // 格式：nonce(12) + tag(16) + ciphertext
-        var result = new byte[nonce.Length + tag.Length + ciphertext.Length];
-        Buffer.BlockCopy(nonce, 0, result, 0, nonce.Length);
-        Buffer.BlockCopy(tag, 0, result, nonce.Length, tag.Length);
-        Buffer.BlockCopy(ciphertext, 0, result, nonce.Length + tag.Length, ciphertext.Length);
-        return result;
-    }
+        => MachineBoundAesGcmHelper.Encrypt(plainBytes, "atlas-license-seal-v1");
 
     private static byte[]? DecryptAesGcm(byte[] data)
-    {
-        try
-        {
-            const int nonceLen = 12;
-            const int tagLen = 16;
-            if (data.Length < nonceLen + tagLen)
-                return null;
-
-            var key = DeriveLinuxKey();
-            var nonce = data[..nonceLen];
-            var tag = data[nonceLen..(nonceLen + tagLen)];
-            var ciphertext = data[(nonceLen + tagLen)..];
-            var plaintext = new byte[ciphertext.Length];
-
-            using var aes = new AesGcm(key, tagLen);
-            aes.Decrypt(nonce, ciphertext, tag, plaintext);
-            return plaintext;
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    private static byte[] DeriveLinuxKey()
-    {
-        // Linux 下使用 /etc/machine-id 或主机名派生密钥
-        string seed;
-        try
-        {
-            seed = File.Exists("/etc/machine-id")
-                ? File.ReadAllText("/etc/machine-id").Trim()
-                : Environment.MachineName;
-        }
-        catch
-        {
-            seed = Environment.MachineName;
-        }
-
-        seed += "|atlas-license-seal-v1";
-        return SHA256.HashData(Encoding.UTF8.GetBytes(seed));
-    }
+        => MachineBoundAesGcmHelper.Decrypt(data, "atlas-license-seal-v1");
 
     private static string GetStateFilePath()
     {
