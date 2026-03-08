@@ -154,6 +154,10 @@ builder.Services.AddOpenTelemetry()
                 options.Endpoint = new Uri(otlpEndpoint);
             });
         }
+        else if (builder.Environment.IsDevelopment())
+        {
+            tracing.AddConsoleExporter();
+        }
     })
     .WithMetrics(metrics =>
     {
@@ -168,6 +172,10 @@ builder.Services.AddOpenTelemetry()
             {
                 options.Endpoint = new Uri(otlpEndpoint);
             });
+        }
+        else if (builder.Environment.IsDevelopment())
+        {
+            metrics.AddConsoleExporter();
         }
     });
 

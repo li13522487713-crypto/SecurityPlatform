@@ -90,14 +90,11 @@ public sealed class ApprovalTasksController : ControllerBase
     [HttpGet("my")]
     [Authorize(Policy = PermissionPolicies.ApprovalFlowView)]
     public async Task<ApiResponse<PagedResult<ApprovalTaskResponse>>> GetMyTasksAsync(
-        [FromQuery] int pageIndex = 1,
-        [FromQuery] int pageSize = 10,
+        [FromQuery] PagedRequest request,
         [FromQuery] ApprovalTaskStatus? status = null,
         CancellationToken cancellationToken = default)
     {
         var currentUser = _currentUserAccessor.GetCurrentUserOrThrow();
-
-        var request = new PagedRequest(pageIndex, pageSize, null, null, false);
         var result = await _queryService.GetMyTasksAsync(
             currentUser.TenantId,
             currentUser.UserId,
@@ -114,12 +111,10 @@ public sealed class ApprovalTasksController : ControllerBase
     [Authorize(Policy = PermissionPolicies.ApprovalFlowView)]
     public async Task<ApiResponse<PagedResult<ApprovalTaskResponse>>> GetByInstanceAsync(
         long instanceId,
-        [FromQuery] int pageIndex = 1,
-        [FromQuery] int pageSize = 10,
+        [FromQuery] PagedRequest request,
         CancellationToken cancellationToken = default)
     {
         var tenantId = _tenantProvider.GetTenantId();
-        var request = new PagedRequest(pageIndex, pageSize, null, null, false);
         var result = await _queryService.GetTasksByInstanceAsync(tenantId, instanceId, request, cancellationToken);
         return ApiResponse<PagedResult<ApprovalTaskResponse>>.Ok(result, HttpContext.TraceIdentifier);
     }
@@ -295,17 +290,16 @@ public sealed class ApprovalTasksController : ControllerBase
     [HttpGet("pool")]
     [Authorize(Policy = PermissionPolicies.ApprovalFlowView)]
     public async Task<ApiResponse<PagedResult<ApprovalTaskResponse>>> GetTaskPoolAsync(
-        [FromQuery] int pageIndex = 1,
-        [FromQuery] int pageSize = 10,
+        [FromQuery] PagedRequest request,
         CancellationToken cancellationToken = default)
     {
         var tenantId = _tenantProvider.GetTenantId();
-        var (items, totalCount) = await _taskRepository.GetPagedPoolAsync(tenantId, pageIndex, pageSize, cancellationToken);
+        var (items, totalCount) = await _taskRepository.GetPagedPoolAsync(tenantId, request.PageIndex, request.PageSize, cancellationToken);
         var result = new PagedResult<ApprovalTaskResponse>(
             _mapper.Map<List<ApprovalTaskResponse>>(items),
             totalCount,
-            pageIndex,
-            pageSize);
+            request.PageIndex,
+            request.PageSize);
         return ApiResponse<PagedResult<ApprovalTaskResponse>>.Ok(result, HttpContext.TraceIdentifier);
     }
 

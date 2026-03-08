@@ -230,6 +230,12 @@
 }
 ```
 
+### 分页参数命名冻结（2026-03 封板）
+
+- OpenAPI 契约统一使用 `PageIndex` / `PageSize` 作为 Query 参数名（与后端 `PagedRequest` 对齐）。
+- 前端与第三方新接入方应优先使用 `PageIndex` / `PageSize`。
+- 为兼容历史调用，服务端继续接受 `pageIndex` / `pageSize`（大小写不敏感绑定）。
+
 ## 认证与授权契约
 
 ### 登录

@@ -27,8 +27,7 @@ public sealed class LoginLogsController : ControllerBase
     [HttpGet]
     [Authorize(Policy = PermissionPolicies.LoginLogView)]
     public async Task<ActionResult<ApiResponse<PagedResult<LoginLogDto>>>> Get(
-        [FromQuery] int pageIndex = 1,
-        [FromQuery] int pageSize = 20,
+        [FromQuery] PagedRequest request,
         [FromQuery] string? username = null,
         [FromQuery] string? ipAddress = null,
         [FromQuery] bool? loginStatus = null,
@@ -38,7 +37,7 @@ public sealed class LoginLogsController : ControllerBase
     {
         var tenantId = _tenantProvider.GetTenantId();
         var result = await _queryService.GetLoginLogsPagedAsync(
-            tenantId, username, ipAddress, loginStatus, from, to, pageIndex, pageSize, cancellationToken);
+            tenantId, username, ipAddress, loginStatus, from, to, request.PageIndex, request.PageSize, cancellationToken);
         return Ok(ApiResponse<PagedResult<LoginLogDto>>.Ok(result, HttpContext.TraceIdentifier));
     }
 

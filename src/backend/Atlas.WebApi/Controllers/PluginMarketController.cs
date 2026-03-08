@@ -29,17 +29,16 @@ public sealed class PluginMarketController : ControllerBase
     /// <summary>分页搜索插件市场（支持 keyword/category 筛选）</summary>
     [HttpGet]
     public async Task<ActionResult<ApiResponse<object>>> Search(
+        [FromQuery] PagedRequest request,
         [FromQuery] string? keyword = null,
         [FromQuery] PluginCategory? category = null,
-        [FromQuery] int pageIndex = 1,
-        [FromQuery] int pageSize = 20,
         CancellationToken cancellationToken = default)
     {
-        var (items, total) = await _queryService.SearchAsync(keyword, category, pageIndex, pageSize, cancellationToken);
+        var (items, total) = await _queryService.SearchAsync(keyword, category, request.PageIndex, request.PageSize, cancellationToken);
         return Ok(ApiResponse<object>.Ok(new
         {
-            PageIndex = pageIndex,
-            PageSize = pageSize,
+            request.PageIndex,
+            request.PageSize,
             Total = total,
             Items = items
         }, HttpContext.TraceIdentifier));

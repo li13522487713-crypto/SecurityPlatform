@@ -1,7 +1,9 @@
 using Atlas.Infrastructure.Options;
+using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using System.Security.Cryptography;
 
 namespace Atlas.Infrastructure.Services;
 
@@ -40,15 +42,16 @@ public sealed class DatabaseBackupHostedService : BackgroundService
         var backupDirectory = Path.GetFullPath(_backupOptions.BackupDirectory);
         Directory.CreateDirectory(backupDirectory);
 
+        var databaseFiles = ResolveDatabaseFiles(dbPath);
         try
         {
-            BackupDatabase(dbPath, backupDirectory);
+            BackupDatabases(databaseFiles, backupDirectory);
             CleanupOldBackups(backupDirectory);
 
             using var timer = new PeriodicTimer(TimeSpan.FromHours(Math.Max(1, _backupOptions.IntervalHours)));
             while (await timer.WaitForNextTickAsync(stoppingToken))
             {
-                BackupDatabase(dbPath, backupDirectory);
+                BackupDatabases(databaseFiles, backupDirectory);
                 CleanupOldBackups(backupDirectory);
             }
         }
@@ -62,18 +65,23 @@ public sealed class DatabaseBackupHostedService : BackgroundService
         }
     }
 
-    private void BackupDatabase(string dbPath, string backupDirectory)
+    private void BackupDatabases(IReadOnlyList<string> databaseFiles, string backupDirectory)
     {
-        if (!File.Exists(dbPath))
-        {
-            _logger.LogWarning("数据库文件不存在，跳过备份: {DbPath}", dbPath);
-            return;
-        }
-
         var timestamp = _timeProvider.GetLocalNow().ToString("yyyyMMdd_HHmmss");
-        var backupFile = Path.Combine(backupDirectory, $"atlas_{timestamp}.db");
-        File.Copy(dbPath, backupFile, overwrite: false);
-        _logger.LogInformation("数据库备份完成: {BackupFile}", backupFile);
+        foreach (var dbPath in databaseFiles)
+        {
+            if (!File.Exists(dbPath))
+            {
+                _logger.LogWarning("数据库文件不存在，跳过备份: {DbPath}", dbPath);
+                continue;
+            }
+
+            var dbName = Path.GetFileNameWithoutExtension(dbPath);
+            var backupFile = Path.Combine(backupDirectory, $"{dbName}_{timestamp}.db");
+            BackupWithSqliteApi(dbPath, backupFile);
+            WriteSha256File(backupFile);
+            _logger.LogInformation("数据库备份完成: {BackupFile}", backupFile);
+        }
     }
 
     private void CleanupOldBackups(string backupDirectory)
@@ -89,6 +97,11 @@ public sealed class DatabaseBackupHostedService : BackgroundService
                 try
                 {
                     info.Delete();
+                    var checksumPath = $"{file}.sha256";
+                    if (File.Exists(checksumPath))
+                    {
+                        File.Delete(checksumPath);
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -119,5 +132,46 @@ public sealed class DatabaseBackupHostedService : BackgroundService
         }
 
         return false;
+    }
+
+    private static IReadOnlyList<string> ResolveDatabaseFiles(string atlasDbPath)
+    {
+        var fileSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            atlasDbPath
+        };
+
+        var currentDirectory = Directory.GetCurrentDirectory();
+        var hangfireInCurrent = Path.GetFullPath(Path.Combine(currentDirectory, "hangfire.db"));
+        fileSet.Add(hangfireInCurrent);
+
+        var atlasDirectory = Path.GetDirectoryName(atlasDbPath);
+        if (!string.IsNullOrWhiteSpace(atlasDirectory))
+        {
+            var hangfireInAtlasDir = Path.GetFullPath(Path.Combine(atlasDirectory, "hangfire.db"));
+            fileSet.Add(hangfireInAtlasDir);
+        }
+
+        return fileSet.ToArray();
+    }
+
+    private static void BackupWithSqliteApi(string sourcePath, string backupPath)
+    {
+        var sourceConnectionString = $"Data Source={sourcePath};Mode=ReadOnly";
+        var backupConnectionString = $"Data Source={backupPath}";
+        using var source = new SqliteConnection(sourceConnectionString);
+        using var backup = new SqliteConnection(backupConnectionString);
+        source.Open();
+        backup.Open();
+        source.BackupDatabase(backup);
+    }
+
+    private static void WriteSha256File(string backupFile)
+    {
+        using var stream = File.OpenRead(backupFile);
+        var hashBytes = SHA256.HashData(stream);
+        var hash = Convert.ToHexString(hashBytes).ToLowerInvariant();
+        var fileName = Path.GetFileName(backupFile);
+        File.WriteAllText($"{backupFile}.sha256", $"{hash}  {fileName}{Environment.NewLine}");
     }
 }
