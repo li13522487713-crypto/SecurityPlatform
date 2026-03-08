@@ -8,6 +8,7 @@ using Atlas.Domain.Audit.Entities;
 using Atlas.Domain.LowCode.Entities;
 using Atlas.Domain.LowCode.Enums;
 using Atlas.Domain.Platform.Entities;
+using SqlSugar;
 
 namespace Atlas.Infrastructure.Services.LowCode;
 
@@ -19,6 +20,7 @@ public sealed class LowCodePageCommandService : ILowCodePageCommandService
     private readonly IRuntimeRouteRepository _runtimeRouteRepository;
     private readonly IIdGeneratorAccessor _idGenerator;
     private readonly IAuditWriter _auditWriter;
+    private readonly ISqlSugarClient _db;
 
     public LowCodePageCommandService(
         ILowCodePageRepository pageRepository,
@@ -26,7 +28,8 @@ public sealed class LowCodePageCommandService : ILowCodePageCommandService
         ILowCodeAppRepository appRepository,
         IRuntimeRouteRepository runtimeRouteRepository,
         IIdGeneratorAccessor idGenerator,
-        IAuditWriter auditWriter)
+        IAuditWriter auditWriter,
+        ISqlSugarClient db)
     {
         _pageRepository = pageRepository;
         _pageVersionRepository = pageVersionRepository;
@@ -34,6 +37,7 @@ public sealed class LowCodePageCommandService : ILowCodePageCommandService
         _runtimeRouteRepository = runtimeRouteRepository;
         _idGenerator = idGenerator;
         _auditWriter = auditWriter;
+        _db = db;
     }
 
     public async Task<long> CreateAsync(
@@ -117,6 +121,11 @@ public sealed class LowCodePageCommandService : ILowCodePageCommandService
         entity.Publish(userId, now);
         var app = await _appRepository.GetByIdAsync(tenantId, entity.AppId, cancellationToken)
             ?? throw new InvalidOperationException($"应用 ID={entity.AppId} 不存在");
+        var manifest = await _db.Queryable<AppManifest>()
+            .FirstAsync(
+                x => x.TenantIdValue == tenantId.Value && x.AppKey == app.AppKey,
+                cancellationToken)
+            ?? throw new InvalidOperationException($"应用清单 AppKey={app.AppKey} 不存在");
 
         await _pageVersionRepository.InsertAsync(
             new LowCodePageVersion(
@@ -151,14 +160,14 @@ public sealed class LowCodePageCommandService : ILowCodePageCommandService
             existingRoute = new RuntimeRoute(
                 tenantId,
                 _idGenerator.NextId(),
-                app.Id,
+                manifest.Id,
                 app.AppKey,
                 entity.PageKey,
                 entity.Version);
         }
         else
         {
-            existingRoute.RebindManifest(app.Id);
+            existingRoute.RebindManifest(manifest.Id);
             existingRoute.Activate(entity.Version);
         }
 

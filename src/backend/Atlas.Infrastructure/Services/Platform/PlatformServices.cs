@@ -2,6 +2,7 @@ using Atlas.Application.Platform.Abstractions;
 using Atlas.Application.Platform.Models;
 using Atlas.Application.Approval.Abstractions;
 using Atlas.Core.Abstractions;
+using Atlas.Core.Exceptions;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Approval.Entities;
@@ -483,14 +484,17 @@ public sealed class RuntimeRouteQueryService : IRuntimeRouteQueryService
             return false;
         }
 
-        var operationType = request.Action.Trim().ToLowerInvariant() switch
+        var normalizedAction = request.Action.Trim().ToLowerInvariant();
+        var operationType = normalizedAction switch
         {
             "approve" => ApprovalOperationType.Agree,
             "reject" => ApprovalOperationType.Disagree,
             "transfer" => ApprovalOperationType.Transfer,
             "delegate" => ApprovalOperationType.Delegate,
             "return" => ApprovalOperationType.BackToPrevModify,
-            _ => ApprovalOperationType.Agree
+            _ => throw new BusinessException(
+                ErrorCodes.ValidationError,
+                $"不支持的运行态任务动作: {request.Action}")
         };
         var opRequest = new Atlas.Application.Approval.Models.ApprovalOperationRequest
         {

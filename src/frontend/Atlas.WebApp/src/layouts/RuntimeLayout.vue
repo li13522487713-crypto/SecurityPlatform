@@ -44,7 +44,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useUserStore } from "@/stores/user";
 import { usePermissionStore } from "@/stores/permission";
@@ -60,16 +60,21 @@ const tagsViewStore = useTagsViewStore();
 
 const menuItems = ref<RuntimeMenuItem[]>([]);
 const taskTotal = ref(0);
+const viewportWidth = ref(typeof window === "undefined" ? 1024 : window.innerWidth);
 
 const runtimeTitle = computed(() => route.meta.title || "运行交付面");
 const appKey = computed(() => String(route.params.appKey || ""));
 const pageKey = computed(() => String(route.params.pageKey || ""));
 const selectedKeys = computed(() => (pageKey.value ? [pageKey.value] : []));
-const isMobile = computed(() => window.innerWidth <= 768);
+const isMobile = computed(() => viewportWidth.value <= 768);
 const profileDisplayName = computed(
   () => userStore.profile?.displayName || userStore.profile?.username || "个人中心"
 );
 const profileInitials = computed(() => profileDisplayName.value.slice(0, 2));
+
+function handleResize() {
+  viewportWidth.value = window.innerWidth;
+}
 
 async function loadRuntimeMenu() {
   if (!appKey.value) {
@@ -108,8 +113,13 @@ watch(() => appKey.value, () => {
 });
 
 onMounted(() => {
+  window.addEventListener("resize", handleResize);
   void loadRuntimeMenu();
   void reloadTasks();
+});
+
+onUnmounted(() => {
+  window.removeEventListener("resize", handleResize);
 });
 </script>
 

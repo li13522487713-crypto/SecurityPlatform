@@ -176,7 +176,16 @@ public sealed class PackageService : IPackageService
 
     public async Task<PackageOperationResponse> AnalyzeAsync(TenantId tenantId, long userId, PackageAnalyzeRequest request, CancellationToken cancellationToken = default)
     {
-        var zipBytes = Convert.FromBase64String(request.ContentBase64);
+        byte[] zipBytes;
+        try
+        {
+            zipBytes = Convert.FromBase64String(request.ContentBase64);
+        }
+        catch (FormatException)
+        {
+            throw new BusinessException(ErrorCodes.ValidationError, "分析内容不是有效的 Base64。");
+        }
+
         var payloadBytes = ExtractPackageJson(zipBytes);
         var payload = JsonSerializer.Deserialize<ProductizationPackagePayload>(payloadBytes, JsonOptions);
         var appKey = payload?.Manifest?.AppKey;
