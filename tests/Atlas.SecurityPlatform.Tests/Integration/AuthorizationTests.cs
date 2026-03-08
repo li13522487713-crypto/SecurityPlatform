@@ -44,6 +44,22 @@ public sealed class AuthorizationTests
         _client.DefaultRequestHeaders.Add("X-Tenant-Id", "00000000-0000-0000-0000-000000000099");
 
         using var response = await _client.GetAsync("/api/v1/auth/me");
-        Assert.Contains(response.StatusCode, new[] { HttpStatusCode.Forbidden, HttpStatusCode.NotFound });
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("/api/v1/assets?pageIndex=1&pageSize=1")]
+    [InlineData("/api/v1/users?pageIndex=1&pageSize=1")]
+    [InlineData("/api/v1/lowcode-apps?pageIndex=1&pageSize=1")]
+    public async Task AccessMultiResource_WithMismatchedTenantHeader_ShouldReturn403(string endpoint)
+    {
+        var accessToken = await IntegrationAuthHelper.LoginAndGetAccessTokenAsync(_client);
+
+        _client.DefaultRequestHeaders.Clear();
+        _client.DefaultRequestHeaders.Add("Authorization", $"Bearer {accessToken}");
+        _client.DefaultRequestHeaders.Add("X-Tenant-Id", "00000000-0000-0000-0000-000000000099");
+
+        using var response = await _client.GetAsync(endpoint);
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 }

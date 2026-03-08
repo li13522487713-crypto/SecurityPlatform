@@ -34,14 +34,11 @@ public sealed class ApprovalCopyRecordsController : ControllerBase
     /// </summary>
     [HttpGet("my-copies")]
     public async Task<ApiResponse<PagedResult<ApprovalCopyRecordResponse>>> GetMyCopyRecordsAsync(
-        [FromQuery] int pageIndex = 1,
-        [FromQuery] int pageSize = 10,
+        [FromQuery] PagedRequest request,
         [FromQuery] bool? isRead = null,
         CancellationToken cancellationToken = default)
     {
         var currentUser = _currentUserAccessor.GetCurrentUserOrThrow();
-
-        var request = new PagedRequest(pageIndex, pageSize, null, null, false);
         var result = await _queryService.GetMyCopyRecordsAsync(
             currentUser.TenantId,
             currentUser.UserId,

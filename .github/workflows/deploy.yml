@@ -31,8 +31,10 @@ jobs:
           done
           docker compose version
           test -f docker-compose.yml
+          test -f .env.example
           test -f deploy/scripts/deploy.sh
           test -f deploy/scripts/rollback.sh
+          test -f deploy/nginx/default.conf
 
       - name: Grant execute permissions for scripts
         run: chmod +x deploy/scripts/deploy.sh deploy/scripts/rollback.sh

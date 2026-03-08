@@ -35,16 +35,15 @@ public sealed class OutboxController : ControllerBase
     [HttpGet("dead-letters")]
     [Authorize(Policy = PermissionPolicies.SystemAdmin)]
     public async Task<ActionResult<ApiResponse<object>>> GetDeadLetters(
-        [FromQuery] int pageIndex = 1,
-        [FromQuery] int pageSize = 20,
+        [FromQuery] PagedRequest request,
         CancellationToken cancellationToken = default)
     {
-        var (items, total) = await _outboxService.GetDeadLetteredAsync(pageIndex, pageSize, cancellationToken);
+        var (items, total) = await _outboxService.GetDeadLetteredAsync(request.PageIndex, request.PageSize, cancellationToken);
 
         var result = new
         {
-            PageIndex = pageIndex,
-            PageSize = pageSize,
+            request.PageIndex,
+            request.PageSize,
             Total = total,
             Items = items.Select(m => new
             {

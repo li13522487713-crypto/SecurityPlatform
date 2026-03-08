@@ -93,14 +93,11 @@ public sealed class ApprovalRuntimeController : ControllerBase
     [HttpGet("my")]
     [Authorize(Policy = PermissionPolicies.ApprovalFlowView)]
     public async Task<ApiResponse<PagedResult<ApprovalInstanceListItem>>> GetMyInstancesAsync(
-        [FromQuery] int pageIndex = 1,
-        [FromQuery] int pageSize = 10,
+        [FromQuery] PagedRequest request,
         [FromQuery] ApprovalInstanceStatus? status = null,
         CancellationToken cancellationToken = default)
     {
         var currentUser = _currentUserAccessor.GetCurrentUserOrThrow();
-
-        var request = new PagedRequest(pageIndex, pageSize, null, null, false);
         var result = await _queryService.GetInstancesByInitiatorAsync(
             currentUser.TenantId,
             currentUser.UserId,
@@ -116,8 +113,7 @@ public sealed class ApprovalRuntimeController : ControllerBase
     [HttpGet("admin")]
     [Authorize(Policy = PermissionPolicies.ApprovalFlowView)]
     public async Task<ApiResponse<PagedResult<ApprovalInstanceListItem>>> GetAdminInstancesAsync(
-        [FromQuery] int pageIndex = 1,
-        [FromQuery] int pageSize = 10,
+        [FromQuery] PagedRequest request,
         [FromQuery] long? definitionId = null,
         [FromQuery] long? initiatorUserId = null,
         [FromQuery] string? businessKey = null,
@@ -136,7 +132,6 @@ public sealed class ApprovalRuntimeController : ControllerBase
                 HttpContext.TraceIdentifier);
         }
 
-        var request = new PagedRequest(pageIndex, pageSize, null, null, false);
         var result = await _queryService.GetInstancesPagedAsync(
             currentUser.TenantId,
             request,
@@ -179,12 +174,10 @@ public sealed class ApprovalRuntimeController : ControllerBase
     [Authorize(Policy = PermissionPolicies.ApprovalFlowView)]
     public async Task<ApiResponse<PagedResult<ApprovalHistoryEventResponse>>> GetHistoryAsync(
         long id,
-        [FromQuery] int pageIndex = 1,
-        [FromQuery] int pageSize = 20,
+        [FromQuery] PagedRequest request,
         CancellationToken cancellationToken = default)
     {
         var tenantId = _tenantProvider.GetTenantId();
-        var request = new PagedRequest(pageIndex, pageSize, null, null, false);
         var result = await _queryService.GetHistoryAsync(tenantId, id, request, cancellationToken);
         return ApiResponse<PagedResult<ApprovalHistoryEventResponse>>.Ok(result, HttpContext.TraceIdentifier);
     }

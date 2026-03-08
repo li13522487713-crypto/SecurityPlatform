@@ -46,13 +46,12 @@ public sealed class DictTypesController : ControllerBase
     [HttpGet]
     [Authorize(Policy = PermissionPolicies.DictTypeView)]
     public async Task<ActionResult<ApiResponse<PagedResult<DictTypeDto>>>> Get(
-        [FromQuery] int pageIndex = 1,
-        [FromQuery] int pageSize = 20,
+        [FromQuery] PagedRequest request,
         [FromQuery] string? keyword = null,
         CancellationToken cancellationToken = default)
     {
         var tenantId = _tenantProvider.GetTenantId();
-        var result = await _queryService.GetDictTypesPagedAsync(tenantId, keyword, pageIndex, pageSize, cancellationToken);
+        var result = await _queryService.GetDictTypesPagedAsync(tenantId, keyword, request.PageIndex, request.PageSize, cancellationToken);
         return Ok(ApiResponse<PagedResult<DictTypeDto>>.Ok(result, HttpContext.TraceIdentifier));
     }
 
@@ -83,13 +82,12 @@ public sealed class DictTypesController : ControllerBase
     [Authorize(Policy = PermissionPolicies.DictDataView)]
     public async Task<ActionResult<ApiResponse<PagedResult<DictDataDto>>>> GetData(
         string code,
-        [FromQuery] int pageIndex = 1,
-        [FromQuery] int pageSize = 20,
+        [FromQuery] PagedRequest request,
         [FromQuery] string? keyword = null,
         CancellationToken cancellationToken = default)
     {
         var tenantId = _tenantProvider.GetTenantId();
-        var result = await _queryService.GetDictDataPagedAsync(tenantId, code, keyword, pageIndex, pageSize, cancellationToken);
+        var result = await _queryService.GetDictDataPagedAsync(tenantId, code, keyword, request.PageIndex, request.PageSize, cancellationToken);
         return Ok(ApiResponse<PagedResult<DictDataDto>>.Ok(result, HttpContext.TraceIdentifier));
     }
 

@@ -51,9 +51,8 @@ public sealed class MessageQueueController : ControllerBase
     [HttpGet("queues/{name}/messages")]
     public async Task<ActionResult<ApiResponse<object>>> GetMessages(
         string name,
+        [FromQuery] PagedRequest request,
         [FromQuery] QueueMessageStatus? status = null,
-        [FromQuery] int pageIndex = 1,
-        [FromQuery] int pageSize = 20,
         CancellationToken cancellationToken = default)
     {
         var query = _db.Queryable<QueueMessage>().Where(m => m.QueueName == name);
@@ -64,9 +63,9 @@ public sealed class MessageQueueController : ControllerBase
 
         var total = await query.CountAsync(cancellationToken);
         var items = await query.OrderByDescending(m => m.EnqueuedAt)
-            .ToPageListAsync(pageIndex, pageSize, cancellationToken);
+            .ToPageListAsync(request.PageIndex, request.PageSize, cancellationToken);
 
-        return Ok(ApiResponse<object>.Ok(new { PageIndex = pageIndex, PageSize = pageSize, Total = total, Items = items }, HttpContext.TraceIdentifier));
+        return Ok(ApiResponse<object>.Ok(new { request.PageIndex, request.PageSize, Total = total, Items = items }, HttpContext.TraceIdentifier));
     }
 
     /// <summary>批量重试死信消息</summary>

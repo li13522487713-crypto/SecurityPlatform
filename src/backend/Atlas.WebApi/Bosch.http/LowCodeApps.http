@@ -4,6 +4,8 @@
 @tenantId = 00000000-0000-0000-0000-000000000001
 @username = admin
 @password = P@ssw0rd!
+@appKey = crm_demo_2026
+@pageKey = customer_list
 
 ### 登录获取令牌
 # @name login
@@ -47,7 +49,7 @@ X-CSRF-TOKEN: {{csrfToken}}
 Content-Type: application/json
 
 {
-  "appKey": "crm_demo_2026",
+  "appKey": "{{appKey}}",
   "name": "客户关系管理示例应用",
   "description": "低代码 CRM 示例",
   "category": "CRM",
@@ -164,7 +166,7 @@ X-CSRF-TOKEN: {{csrfToken}}
 Content-Type: application/json
 
 {
-  "pageKey": "customer_list",
+  "pageKey": "{{pageKey}}",
   "name": "客户列表",
   "pageType": "List",
   "schemaJson": "{\"type\":\"page\",\"title\":\"客户列表\",\"body\":[{\"type\":\"crud\",\"api\":\"/api/v1/dynamic-tables/customers/records\",\"columns\":[{\"name\":\"id\",\"label\":\"ID\"},{\"name\":\"name\",\"label\":\"客户名称\"}]}]}",
@@ -309,6 +311,21 @@ Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Idempotency-Key: {{$randomUUID}}
 X-CSRF-TOKEN: {{csrfToken}}
+
+### 闭环验收：发布后按 appKey/pageKey 获取运行态 schema
+GET {{baseUrl}}/api/v1/runtime/apps/{{appKey}}/pages/{{pageKey}}/schema
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 闭环验收：发布后运行态路由元信息可访问
+GET {{baseUrl}}/api/v1/runtime/apps/{{appKey}}/pages/{{pageKey}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 闭环验收：发布后运行态菜单可返回页面入口
+GET {{baseUrl}}/api/v1/runtime/apps/{{appKey}}/menu
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
 
 ### 查询应用版本历史（仅系统管理员）
 # @name queryAppVersions

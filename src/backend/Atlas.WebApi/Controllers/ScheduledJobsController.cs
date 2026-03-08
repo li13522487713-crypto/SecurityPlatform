@@ -43,11 +43,10 @@ public sealed class ScheduledJobsController : ControllerBase
     [HttpGet]
     [Authorize(Policy = PermissionPolicies.JobView)]
     public async Task<ActionResult<ApiResponse<PagedResult<ScheduledJobDto>>>> Get(
-        [FromQuery] int pageIndex = 1,
-        [FromQuery] int pageSize = 20,
+        [FromQuery] PagedRequest request,
         CancellationToken cancellationToken = default)
     {
-        var result = await _jobService.GetPagedAsync(pageIndex, pageSize, cancellationToken);
+        var result = await _jobService.GetPagedAsync(request.PageIndex, request.PageSize, cancellationToken);
         return Ok(ApiResponse<PagedResult<ScheduledJobDto>>.Ok(result, HttpContext.TraceIdentifier));
     }
 
@@ -85,11 +84,10 @@ public sealed class ScheduledJobsController : ControllerBase
     [Authorize(Policy = PermissionPolicies.JobView)]
     public async Task<ActionResult<ApiResponse<PagedResult<ScheduledJobExecutionDto>>>> GetExecutions(
         string jobId,
-        [FromQuery] int pageIndex = 1,
-        [FromQuery] int pageSize = 20,
+        [FromQuery] PagedRequest request,
         CancellationToken cancellationToken = default)
     {
-        var result = await _jobService.GetExecutionsPagedAsync(jobId, pageIndex, pageSize, cancellationToken);
+        var result = await _jobService.GetExecutionsPagedAsync(jobId, request.PageIndex, request.PageSize, cancellationToken);
         return Ok(ApiResponse<PagedResult<ScheduledJobExecutionDto>>.Ok(result, HttpContext.TraceIdentifier));
     }
 

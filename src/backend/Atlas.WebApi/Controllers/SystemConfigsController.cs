@@ -52,13 +52,12 @@ public sealed class SystemConfigsController : ControllerBase
     [HttpGet]
     [Authorize(Policy = PermissionPolicies.ConfigView)]
     public async Task<ActionResult<ApiResponse<PagedResult<SystemConfigDto>>>> Get(
-        [FromQuery] int pageIndex = 1,
-        [FromQuery] int pageSize = 20,
+        [FromQuery] PagedRequest request,
         [FromQuery] string? keyword = null,
         CancellationToken cancellationToken = default)
     {
         var tenantId = _tenantProvider.GetTenantId();
-        var result = await _queryService.GetSystemConfigsPagedAsync(tenantId, keyword, pageIndex, pageSize, cancellationToken);
+        var result = await _queryService.GetSystemConfigsPagedAsync(tenantId, keyword, request.PageIndex, request.PageSize, cancellationToken);
         return Ok(ApiResponse<PagedResult<SystemConfigDto>>.Ok(result, HttpContext.TraceIdentifier));
     }
 

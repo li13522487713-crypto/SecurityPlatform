@@ -56,24 +56,23 @@ public sealed class DynamicTableRecordsController : ControllerBase
     [Authorize(Policy = PermissionPolicies.AppUser)]
     public async Task<ActionResult<ApiResponse<DynamicRecordListResult>>> Query(
         string tableKey,
-        [FromQuery] int pageIndex = 1,
-        [FromQuery] int pageSize = 20,
+        [FromQuery] PagedRequest request,
         [FromQuery] string? keyword = null,
         [FromQuery] string? sortBy = null,
         [FromQuery] bool sortDesc = false,
         CancellationToken cancellationToken = default)
     {
-        var request = new DynamicRecordQueryRequest(
-            pageIndex,
-            pageSize,
+        var queryRequest = new DynamicRecordQueryRequest(
+            request.PageIndex,
+            request.PageSize,
             keyword,
             sortBy,
             sortDesc,
             Array.Empty<DynamicFilterCondition>());
-        _queryValidator.ValidateAndThrow(request);
+        _queryValidator.ValidateAndThrow(queryRequest);
 
         var tenantId = _tenantProvider.GetTenantId();
-        var result = await _queryService.QueryAsync(tenantId, tableKey, request, cancellationToken);
+        var result = await _queryService.QueryAsync(tenantId, tableKey, queryRequest, cancellationToken);
         return Ok(ApiResponse<DynamicRecordListResult>.Ok(result, HttpContext.TraceIdentifier));
     }
 

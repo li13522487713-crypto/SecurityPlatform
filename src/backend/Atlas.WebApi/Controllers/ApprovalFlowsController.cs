@@ -52,14 +52,12 @@ public sealed class ApprovalFlowsController : ControllerBase
     [HttpGet]
     [Authorize(Policy = PermissionPolicies.ApprovalFlowView)]
     public async Task<ApiResponse<PagedResult<ApprovalFlowDefinitionListItem>>> GetPagedAsync(
-        [FromQuery] int pageIndex = 1,
-        [FromQuery] int pageSize = 10,
+        [FromQuery] PagedRequest request,
         [FromQuery] ApprovalFlowStatus? status = null,
         [FromQuery] string? keyword = null,
         CancellationToken cancellationToken = default)
     {
         var tenantId = _tenantProvider.GetTenantId();
-        var request = new PagedRequest(pageIndex, pageSize, keyword, null, false);
         var result = await _queryService.GetPagedAsync(tenantId, request, status, keyword, cancellationToken);
         return ApiResponse<PagedResult<ApprovalFlowDefinitionListItem>>.Ok(result, HttpContext.TraceIdentifier);
     }

@@ -48,8 +48,7 @@ public sealed class NotificationsController : ControllerBase
     /// <summary>当前用户通知列表（分页）</summary>
     [HttpGet]
     public async Task<ActionResult<ApiResponse<PagedResult<UserNotificationDto>>>> GetMyNotifications(
-        [FromQuery] int pageIndex = 1,
-        [FromQuery] int pageSize = 20,
+        [FromQuery] PagedRequest request,
         [FromQuery] bool? isRead = null,
         CancellationToken cancellationToken = default)
     {
@@ -57,7 +56,7 @@ public sealed class NotificationsController : ControllerBase
         var currentUser = _currentUserAccessor.GetCurrentUser()
             ?? throw new UnauthorizedAccessException();
 
-        var query = new UserNotificationPagedQuery(pageIndex, pageSize, isRead);
+        var query = new UserNotificationPagedQuery(request.PageIndex, request.PageSize, isRead);
         var result = await _queryService.GetUserNotificationsAsync(tenantId, currentUser.UserId, query, cancellationToken);
         return Ok(ApiResponse<PagedResult<UserNotificationDto>>.Ok(result, HttpContext.TraceIdentifier));
     }
@@ -105,15 +104,14 @@ public sealed class NotificationsController : ControllerBase
     [HttpGet("manage")]
     [Authorize(Policy = PermissionPolicies.NotificationView)]
     public async Task<ActionResult<ApiResponse<PagedResult<NotificationDto>>>> GetManage(
-        [FromQuery] int pageIndex = 1,
-        [FromQuery] int pageSize = 20,
+        [FromQuery] PagedRequest request,
         [FromQuery] string? title = null,
         [FromQuery] string? noticeType = null,
         [FromQuery] bool? isActive = null,
         CancellationToken cancellationToken = default)
     {
         var tenantId = _tenantProvider.GetTenantId();
-        var query = new NotificationPagedQuery(pageIndex, pageSize, title, noticeType, isActive);
+        var query = new NotificationPagedQuery(request.PageIndex, request.PageSize, title, noticeType, isActive);
         var result = await _queryService.GetPagedAsync(tenantId, query, cancellationToken);
         return Ok(ApiResponse<PagedResult<NotificationDto>>.Ok(result, HttpContext.TraceIdentifier));
     }

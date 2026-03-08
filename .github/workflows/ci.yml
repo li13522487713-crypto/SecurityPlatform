@@ -61,13 +61,75 @@ jobs:
       - name: Restore backend
         run: dotnet restore Atlas.SecurityPlatform.slnx
 
+      - name: Dependency vulnerability gate (Critical/High)
+        run: |
+          dotnet list Atlas.SecurityPlatform.slnx package --vulnerable --include-transitive --format json > vulnerability-report.json
+          python3 - <<'PY'
+          import json
+          import sys
+
+          with open("vulnerability-report.json", "r", encoding="utf-8") as f:
+              data = json.load(f)
+
+          blocked = []
+          for project in data.get("projects", []):
+              for section in ("topLevelPackages", "transitivePackages"):
+                  for pkg in project.get(section, []):
+                      for vuln in pkg.get("vulnerabilities", []):
+                          severity = str(vuln.get("severity", "")).lower()
+                          if severity in {"critical", "high"}:
+                              blocked.append(
+                                  (
+                                      project.get("path", ""),
+                                      pkg.get("id", ""),
+                                      pkg.get("resolvedVersion", ""),
+                                      vuln.get("severity", ""),
+                                      vuln.get("advisoryurl", ""),
+                                  )
+                              )
+
+          if blocked:
+              print("发现 Critical/High 漏洞，阻断构建：")
+              for item in blocked:
+                  print(f"- project={item[0]} package={item[1]} version={item[2]} severity={item[3]} advisory={item[4]}")
+              sys.exit(1)
+
+          print("依赖漏洞扫描通过（Critical/High=0）。")
+          PY
+
       - name: Build backend
         run: dotnet build Atlas.SecurityPlatform.slnx --configuration Release --no-restore
 
       - name: Run backend unit tests
         run: |
-          dotnet test tests/Atlas.WorkflowCore.Tests --configuration Release --no-build
-          dotnet test tests/Atlas.SecurityPlatform.Tests --configuration Release --no-build --filter "FullyQualifiedName!~Integration"
+          dotnet test tests/Atlas.WorkflowCore.Tests --configuration Release --no-build --collect:"XPlat Code Coverage" --results-directory artifacts/coverage/workflow
+          dotnet test tests/Atlas.SecurityPlatform.Tests --configuration Release --no-build --filter "FullyQualifiedName!~Integration" --collect:"XPlat Code Coverage" --results-directory artifacts/coverage/security
+
+      - name: Coverage gate (backend >= 60%)
+        run: |
+          python3 - <<'PY'
+          import glob
+          import sys
+          import xml.etree.ElementTree as ET
+
+          files = glob.glob("artifacts/coverage/**/coverage.cobertura.xml", recursive=True)
+          if not files:
+              print("未找到 coverage.cobertura.xml，阻断构建。")
+              sys.exit(1)
+
+          covered = 0
+          valid = 0
+          for file in files:
+              root = ET.parse(file).getroot()
+              covered += int(root.attrib.get("lines-covered", "0"))
+              valid += int(root.attrib.get("lines-valid", "0"))
+
+          rate = (covered / valid) if valid else 0.0
+          print(f"Backend line coverage: {rate:.2%} ({covered}/{valid})")
+          if rate < 0.60:
+              print("覆盖率未达到门禁阈值 60%。")
+              sys.exit(1)
+          PY
 
   frontend-build:
     runs-on: ubuntu-latest
@@ -151,6 +213,11 @@ jobs:
           echo "Health endpoint not ready in time." >&2
           tail -n 200 backend.log || true
           exit 1
+
+      - name: Verify OpenAPI generated types are up to date
+        run: |
+          "$HOME/.dotnet/tools/nswag" run src/backend/Atlas.WebApi/nswag.json
+          git diff --exit-code src/frontend/Atlas.WebApp/src/types/api-generated.ts
 
       - name: Run API integration suite
         id: api-suite

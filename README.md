@@ -38,7 +38,51 @@
 
 ## 构建与运行
 
-当前未固化构建与运行命令，待补充后在此更新。
+### 本地开发
+
+后端：
+
+```bash
+dotnet restore Atlas.SecurityPlatform.slnx
+dotnet build Atlas.SecurityPlatform.slnx
+dotnet run --project src/backend/Atlas.WebApi --urls http://127.0.0.1:5000
+```
+
+前端：
+
+```bash
+cd src/frontend/Atlas.WebApp
+npm ci
+npm run build
+```
+
+### Docker Compose 部署（封板基线）
+
+仓库已提供：
+
+- `docker-compose.yml`：生产部署拓扑（backend + frontend + nginx）
+- `docker-compose.override.yml`：开发覆盖
+- `.env.example`：环境变量模板
+- `deploy/scripts/deploy.sh`：部署脚本
+- `deploy/scripts/rollback.sh`：回滚脚本
+
+部署步骤：
+
+1. 复制环境变量模板：`cp .env.example .env`（Windows 可手工复制）
+2. 至少配置以下参数：
+   - `JWT_SIGNING_KEY`
+   - `BOOTSTRAP_ADMIN_PASSWORD`
+   - `CORS_ALLOWED_ORIGIN`
+3. 准备 TLS 证书（用于 Nginx 443）：
+   - `/opt/atlas/certs/server.crt`
+   - `/opt/atlas/certs/server.key`
+4. 执行部署：
+   - `IMAGE_TAG=<tag> JWT_SIGNING_KEY=<...> BOOTSTRAP_ADMIN_PASSWORD=<...> bash deploy/scripts/deploy.sh`
+5. 健康检查：`GET /api/v1/health`
+
+回滚：
+
+- `bash deploy/scripts/rollback.sh`
 
 ## 初始化管理员账号
 

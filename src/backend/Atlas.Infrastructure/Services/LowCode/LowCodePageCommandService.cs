@@ -127,62 +127,70 @@ public sealed class LowCodePageCommandService : ILowCodePageCommandService
                 cancellationToken)
             ?? throw new InvalidOperationException($"应用清单 AppKey={app.AppKey} 不存在");
 
-        await _pageVersionRepository.InsertAsync(
-            new LowCodePageVersion(
-                tenantId,
-                entity.Id,
-                entity.AppId,
-                entity.Version,
-                entity.PageKey,
-                entity.Name,
-                entity.PageType,
-                entity.SchemaJson,
-                entity.RoutePath,
-                entity.Description,
-                entity.Icon,
-                entity.SortOrder,
-                entity.ParentPageId,
-                entity.PermissionCode,
-                entity.DataTableKey,
-                userId,
-                _idGenerator.NextId(),
-                now),
-            cancellationToken);
-
-        await _pageRepository.UpdateAsync(entity, cancellationToken);
-        var existingRoute = await _runtimeRouteRepository.GetByAppAndPageKeyAsync(
-            tenantId,
-            app.AppKey,
-            entity.PageKey,
-            cancellationToken);
-        if (existingRoute is null)
+        var result = await _db.Ado.UseTranAsync(async () =>
         {
-            existingRoute = new RuntimeRoute(
+            await _pageVersionRepository.InsertAsync(
+                new LowCodePageVersion(
+                    tenantId,
+                    entity.Id,
+                    entity.AppId,
+                    entity.Version,
+                    entity.PageKey,
+                    entity.Name,
+                    entity.PageType,
+                    entity.SchemaJson,
+                    entity.RoutePath,
+                    entity.Description,
+                    entity.Icon,
+                    entity.SortOrder,
+                    entity.ParentPageId,
+                    entity.PermissionCode,
+                    entity.DataTableKey,
+                    userId,
+                    _idGenerator.NextId(),
+                    now),
+                cancellationToken);
+
+            await _pageRepository.UpdateAsync(entity, cancellationToken);
+            var existingRoute = await _runtimeRouteRepository.GetByAppAndPageKeyAsync(
                 tenantId,
-                _idGenerator.NextId(),
-                manifest.Id,
                 app.AppKey,
                 entity.PageKey,
-                entity.Version);
-        }
-        else
+                cancellationToken);
+            if (existingRoute is null)
+            {
+                existingRoute = new RuntimeRoute(
+                    tenantId,
+                    _idGenerator.NextId(),
+                    manifest.Id,
+                    app.AppKey,
+                    entity.PageKey,
+                    entity.Version);
+            }
+            else
+            {
+                existingRoute.RebindManifest(manifest.Id);
+                existingRoute.Activate(entity.Version);
+            }
+
+            await _runtimeRouteRepository.UpsertAsync(existingRoute, cancellationToken);
+
+            // 设计态审计埋点
+            var auditRecord = new AuditRecord(
+                tenantId,
+                userId.ToString(),
+                "LowCode.Page.Published",
+                "Success",
+                $"LowCodePage:{id}",
+                null,
+                null);
+            await _auditWriter.WriteAsync(auditRecord, cancellationToken);
+        });
+
+        if (!result.IsSuccess)
         {
-            existingRoute.RebindManifest(manifest.Id);
-            existingRoute.Activate(entity.Version);
+            throw result.ErrorException ?? new InvalidOperationException("发布页面失败");
         }
-
-        await _runtimeRouteRepository.UpsertAsync(existingRoute, cancellationToken);
-
-        // 设计态审计埋点
-        var auditRecord = new AuditRecord(
-            tenantId,
-            userId.ToString(),
-            "LowCode.Page.Published",
-            "Success",
-            $"LowCodePage:{id}",
-            null,
-            null);
-        await _auditWriter.WriteAsync(auditRecord, cancellationToken);
     }
 
     public async Task UnpublishAsync(

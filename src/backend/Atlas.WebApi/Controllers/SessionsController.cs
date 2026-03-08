@@ -50,13 +50,12 @@ public sealed class SessionsController : ControllerBase
     [HttpGet]
     [Authorize(Policy = PermissionPolicies.OnlineUsersView)]
     public async Task<ActionResult<ApiResponse<PagedResult<OnlineUserDto>>>> Get(
-        [FromQuery] int pageIndex = 1,
-        [FromQuery] int pageSize = 20,
+        [FromQuery] PagedRequest request,
         [FromQuery] string? keyword = null,
         CancellationToken cancellationToken = default)
     {
         var tenantId = _tenantProvider.GetTenantId();
-        var result = await _queryService.GetOnlineUsersPagedAsync(tenantId, keyword, pageIndex, pageSize, cancellationToken);
+        var result = await _queryService.GetOnlineUsersPagedAsync(tenantId, keyword, request.PageIndex, request.PageSize, cancellationToken);
         return Ok(ApiResponse<PagedResult<OnlineUserDto>>.Ok(result, HttpContext.TraceIdentifier));
     }
 

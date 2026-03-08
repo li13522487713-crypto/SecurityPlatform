@@ -12,6 +12,7 @@
     <PackageReference Include="Hangfire.Core" Version="1.8.23" />
     <PackageReference Include="Hangfire.Storage.SQLite" Version="0.4.3" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.3" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.0" />
     <PackageReference Include="SqlSugarCore" Version="5.1.4.169" />
     <PackageReference Include="NLog" Version="5.3.4" />
     <PackageReference Include="IdGen" Version="3.0.1" />
