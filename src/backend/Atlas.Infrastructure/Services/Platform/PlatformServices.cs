@@ -181,20 +181,31 @@ public sealed class AppReleaseCommandService : IAppReleaseCommandService
     {
         var manifest = await _db.Queryable<AppManifest>().FirstAsync(x => x.Id == manifestId, cancellationToken)
             ?? throw new InvalidOperationException("应用不存在");
-        var version = manifest.Version + 1;
-        manifest.Publish(userId, DateTimeOffset.UtcNow);
+        var now = DateTimeOffset.UtcNow;
+        manifest.Publish(userId, now);
         await _db.Updateable(manifest).ExecuteCommandAsync(cancellationToken);
-        var release = new AppRelease(tenantId, _idGenerator.NextId(), manifestId, version, "{}", userId, DateTimeOffset.UtcNow);
+        var release = new AppRelease(tenantId, _idGenerator.NextId(), manifestId, manifest.Version, "{}", userId, now);
         await _db.Insertable(release).ExecuteCommandAsync(cancellationToken);
         return release.Id;
     }
 
     public async Task RollbackAsync(TenantId tenantId, long userId, long manifestId, long releaseId, CancellationToken cancellationToken = default)
     {
-        var release = await _db.Queryable<AppRelease>().FirstAsync(x => x.Id == releaseId && x.ManifestId == manifestId, cancellationToken)
-            ?? throw new InvalidOperationException("发布记录不存在");
-        release.MarkRolledBack(releaseId);
-        await _db.Updateable(release).ExecuteCommandAsync(cancellationToken);
+        var rollbackTarget = await _db.Queryable<AppRelease>()
+            .FirstAsync(x => x.Id == releaseId && x.ManifestId == manifestId, cancellationToken)
+            ?? throw new InvalidOperationException("回滚目标发布记录不存在");
+        var currentRelease = await _db.Queryable<AppRelease>()
+            .Where(x => x.ManifestId == manifestId && x.Status == AppReleaseStatus.Released)
+            .OrderByDescending(x => x.ReleasedAt)
+            .FirstAsync(cancellationToken)
+            ?? throw new InvalidOperationException("当前发布版本不存在");
+        if (currentRelease.Id == rollbackTarget.Id)
+        {
+            throw new InvalidOperationException("当前已是目标版本，无需回滚");
+        }
+
+        currentRelease.MarkRolledBack(rollbackTarget.Id);
+        await _db.Updateable(currentRelease).ExecuteCommandAsync(cancellationToken);
     }
 }
 

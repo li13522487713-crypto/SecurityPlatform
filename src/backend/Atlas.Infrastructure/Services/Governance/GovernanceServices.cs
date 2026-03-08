@@ -1,6 +1,7 @@
 using Atlas.Application.Governance.Abstractions;
 using Atlas.Application.Governance.Models;
 using Atlas.Core.Abstractions;
+using Atlas.Core.Exceptions;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Platform.Entities;
@@ -21,7 +22,11 @@ public sealed class PackageService : IPackageService
 
     public async Task<PackageOperationResponse> ExportAsync(TenantId tenantId, long userId, PackageExportRequest request, CancellationToken cancellationToken = default)
     {
-        _ = long.TryParse(request.ManifestId, out var manifestId);
+        if (!long.TryParse(request.ManifestId, out var manifestId) || manifestId <= 0)
+        {
+            throw new BusinessException(ErrorCodes.ValidationError, "ManifestId 无效，必须为正整数。");
+        }
+
         var entity = new PackageArtifact(
             tenantId,
             _idGenerator.NextId(),

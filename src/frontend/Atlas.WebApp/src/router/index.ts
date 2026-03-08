@@ -88,7 +88,20 @@ const router = createRouter({
     { path: "/settings/system/webhooks", name: "settings-webhooks", component: WebhooksPage, meta: { requiresAuth: true, title: "Webhook 管理" } },
     { path: "/monitor/message-queue", name: "monitor-message-queue", component: MessageQueuePage, meta: { requiresAuth: true, title: "消息队列监控", requiresPermission: "system:admin" } },
     { path: "/settings/license", name: "settings-license", component: LicensePage, meta: { requiresAuth: true, title: "授权管理", requiresPermission: "system:license:view" } },
-    { path: "/settings/:pathMatch(.*)*", name: "settings-legacy", redirect: (to) => `/console/settings/${String(to.params.pathMatch ?? "")}`, meta: { requiresAuth: true, title: "兼容设置路由（Deprecated）" } },
+    {
+      path: "/settings/:pathMatch(.*)*",
+      name: "settings-legacy",
+      redirect: (to) => {
+        const pathMatch = to.params.pathMatch;
+        const suffix = Array.isArray(pathMatch)
+          ? pathMatch.join("/")
+          : typeof pathMatch === "string"
+            ? pathMatch
+            : "";
+        return `/console/settings/${suffix}`;
+      },
+      meta: { requiresAuth: true, title: "兼容设置路由（Deprecated）" }
+    },
     { path: "/system/dict-types", name: "system-dict-types-legacy", redirect: "/settings/system/dict-types", meta: { requiresAuth: true, title: "字典管理" } },
     { path: "/system/configs", name: "system-configs-legacy", redirect: "/settings/system/configs", meta: { requiresAuth: true, title: "参数配置" } },
     { path: "/alerts", name: "alerts-legacy", redirect: "/alert", meta: { requiresAuth: true, title: "告警" } },

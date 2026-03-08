@@ -1,3 +1,4 @@
+using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Platform.Entities;
 
@@ -26,5 +27,3 @@ public interface IRuntimeRouteRepository
     Task<RuntimeRoute?> GetByAppAndPageKeyAsync(TenantId tenantId, string appKey, string pageKey, CancellationToken cancellationToken = default);
     Task UpsertAsync(RuntimeRoute route, CancellationToken cancellationToken = default);
 }
-
-public sealed record PagedResult<T>(IReadOnlyList<T> Items, int Total);
