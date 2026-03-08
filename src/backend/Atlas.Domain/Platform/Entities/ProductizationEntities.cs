@@ -240,6 +240,10 @@ public sealed class PackageArtifact : TenantEntity
         Status = PackageArtifactStatus.Exported;
         ExportedBy = operatorUserId;
         ExportedAt = now;
+        // 兼容历史 SQLite 表结构中 ImportedBy/ImportedAt 的 NOT NULL 约束，
+        // 避免导出阶段插入失败（状态仍以 Status=Exported 表示“尚未导入”）。
+        ImportedBy = 0;
+        ImportedAt = now;
     }
 
     public long ManifestId { get; private set; }

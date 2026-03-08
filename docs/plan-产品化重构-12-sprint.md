@@ -151,6 +151,15 @@
 - 缺陷列表与回归结论
 - 关键流程截图或录屏引用
 
+### 6.4 执行记录（2026-03-08）
+
+- 已完成 Gate-R1 GUI 手测执行与证据归档：
+  - 报告：`docs/gate-r1-12sprint-gui手测报告-2026-03-08.md`
+  - 截图：`docs/evidence/gate-r1-20260308/*.png`
+  - API 补证：`docs/evidence/gate-r1-20260308/api-check-results.json`
+- 当前结论：**Gate-R1 已通过**（License 激活 + 关键 API/GUI 回归均通过）。
+- 历史阻塞已在执行阶段修复，详见手测报告“缺陷与阻塞清单（修复记录）”。
+
 ---
 
 ## 七、执行纪律

@@ -94,7 +94,8 @@ public sealed class AppManifestQueryService : IAppManifestQueryService
             .CountAsync(x => x.AppId == id, cancellationToken);
         var formCount = await _db.Queryable<Atlas.Domain.LowCode.Entities.FormDefinition>()
             .InnerJoin<Atlas.Domain.DynamicTables.Entities.DynamicTable>((form, table) => form.DataTableKey == table.TableKey)
-            .CountAsync((form, table) => table.AppId == id, cancellationToken);
+            .Where((form, table) => table.AppId == id)
+            .CountAsync(cancellationToken);
         var flowCount = await _db.Queryable<Atlas.Domain.DynamicTables.Entities.DynamicTable>()
             .Where(table => table.AppId == id && table.ApprovalFlowDefinitionId != null)
             .Select(table => table.ApprovalFlowDefinitionId!.Value)

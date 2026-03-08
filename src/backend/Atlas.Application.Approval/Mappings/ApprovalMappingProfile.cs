@@ -30,6 +30,7 @@ public sealed class ApprovalMappingProfile : Profile
             .ForMember(dest => dest.Status, opt => opt.Ignore())
             .ForMember(dest => dest.PublishedAt, opt => opt.Ignore())
             .ForMember(dest => dest.PublishedByUserId, opt => opt.Ignore())
+            .ForMember(dest => dest.FlowKind, opt => opt.Ignore())
             .ForMember(dest => dest.VisibilityScopeJson, opt => opt.Ignore())
             .ForMember(dest => dest.Category, opt => opt.Ignore())
             .ForMember(dest => dest.Description, opt => opt.Ignore())

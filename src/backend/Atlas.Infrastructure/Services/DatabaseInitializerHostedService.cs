@@ -184,6 +184,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             var approvalSeedService = scope.ServiceProvider.GetRequiredService<ApprovalSeedDataService>();
             var templateSeedDataService = scope.ServiceProvider.GetRequiredService<TemplateSeedDataService>();
             var seedTenantId = new TenantId(seedTenantGuid);
+            using var seedScope = appContextAccessor.BeginScope(CreateSystemContext(appContextAccessor, seedTenantId));
             await approvalSeedService.InitializeSeedDataAsync(seedTenantId, cancellationToken);
             await templateSeedDataService.InitializeBuiltInTemplatesAsync(seedTenantId, cancellationToken);
         }
