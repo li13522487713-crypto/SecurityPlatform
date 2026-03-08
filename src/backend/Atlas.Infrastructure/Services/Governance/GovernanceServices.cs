@@ -7,6 +7,7 @@ using Atlas.Core.Exceptions;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.LowCode.Entities;
+using Atlas.Domain.LowCode.Enums;
 using Atlas.Domain.Platform.Entities;
 using SqlSugar;
 using System.IO.Compression;
@@ -98,11 +99,13 @@ public sealed class PackageService : IPackageService
         var conflictPolicy = (request.ConflictPolicy ?? "skip").Trim().ToLowerInvariant();
         var existing = await _db.Queryable<AppManifest>().FirstAsync(x => x.AppKey == payload.Manifest.AppKey, cancellationToken);
         long targetManifestId;
+        string targetAppKey;
         if (existing is not null)
         {
             if (conflictPolicy == "skip")
             {
                 targetManifestId = existing.Id;
+                targetAppKey = existing.AppKey;
             }
             else if (conflictPolicy == "overwrite")
             {
@@ -116,6 +119,7 @@ public sealed class PackageService : IPackageService
                     DateTimeOffset.UtcNow);
                 await _db.Updateable(existing).ExecuteCommandAsync(cancellationToken);
                 targetManifestId = existing.Id;
+                targetAppKey = existing.AppKey;
             }
             else
             {
@@ -136,6 +140,7 @@ public sealed class PackageService : IPackageService
                     DateTimeOffset.UtcNow);
                 await _db.Insertable(renamed).ExecuteCommandAsync(cancellationToken);
                 targetManifestId = renamed.Id;
+                targetAppKey = renamed.AppKey;
             }
         }
         else
@@ -157,7 +162,12 @@ public sealed class PackageService : IPackageService
                 DateTimeOffset.UtcNow);
             await _db.Insertable(imported).ExecuteCommandAsync(cancellationToken);
             targetManifestId = imported.Id;
+            targetAppKey = imported.AppKey;
         }
+
+        await ImportReleasesAsync(targetManifestId, payload.Releases, conflictPolicy, tenantId, userId, cancellationToken);
+        await ImportRuntimeRoutesAsync(targetManifestId, targetAppKey, payload.Routes, conflictPolicy, tenantId, cancellationToken);
+        await ImportLowCodeAppAndPagesAsync(targetAppKey, payload.LowCodeApp, payload.Pages, conflictPolicy, tenantId, userId, cancellationToken);
 
         var entity = new PackageArtifact(
             tenantId,
@@ -172,6 +182,275 @@ public sealed class PackageService : IPackageService
         entity.MarkImported(userId, DateTimeOffset.UtcNow);
         await _db.Insertable(entity).ExecuteCommandAsync(cancellationToken);
         return new PackageOperationResponse(entity.Id.ToString(), entity.Status.ToString(), "导入完成");
+    }
+
+    private async Task ImportReleasesAsync(
+        long manifestId,
+        IReadOnlyList<ReleasePackageDto> releaseDtos,
+        string conflictPolicy,
+        TenantId tenantId,
+        long userId,
+        CancellationToken cancellationToken)
+    {
+        if (releaseDtos.Count == 0)
+        {
+            return;
+        }
+
+        if (conflictPolicy == "overwrite")
+        {
+            await _db.Deleteable<AppRelease>()
+                .Where(x => x.ManifestId == manifestId)
+                .ExecuteCommandAsync(cancellationToken);
+        }
+
+        var existingReleases = await _db.Queryable<AppRelease>()
+            .Where(x => x.ManifestId == manifestId)
+            .ToListAsync(cancellationToken);
+        var existingVersions = existingReleases
+            .Select(x => x.Version)
+            .ToHashSet();
+        var now = DateTimeOffset.UtcNow;
+        var toInsert = releaseDtos
+            .Where(x => !existingVersions.Contains(x.Version))
+            .Select(x =>
+            {
+                var release = new AppRelease(
+                    tenantId,
+                    _idGenerator.NextId(),
+                    manifestId,
+                    x.Version <= 0 ? 1 : x.Version,
+                    string.IsNullOrWhiteSpace(x.SnapshotJson) ? "{}" : x.SnapshotJson,
+                    userId,
+                    now);
+                return release;
+            })
+            .ToList();
+
+        if (toInsert.Count > 0)
+        {
+            await _db.Insertable(toInsert).ExecuteCommandAsync(cancellationToken);
+        }
+    }
+
+    private async Task ImportRuntimeRoutesAsync(
+        long manifestId,
+        string appKey,
+        IReadOnlyList<RuntimeRoutePackageDto> routeDtos,
+        string conflictPolicy,
+        TenantId tenantId,
+        CancellationToken cancellationToken)
+    {
+        if (routeDtos.Count == 0)
+        {
+            return;
+        }
+
+        var existingRoutes = await _db.Queryable<RuntimeRoute>()
+            .Where(x => x.AppKey == appKey)
+            .ToListAsync(cancellationToken);
+        var routeByPageKey = existingRoutes
+            .GroupBy(x => x.PageKey, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(x => x.Key, x => x.First(), StringComparer.OrdinalIgnoreCase);
+        var importedPageKeys = routeDtos
+            .Select(x => x.PageKey)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var toInsert = new List<RuntimeRoute>();
+        var toUpdate = new List<RuntimeRoute>();
+
+        foreach (var dto in routeDtos)
+        {
+            if (string.IsNullOrWhiteSpace(dto.PageKey))
+            {
+                continue;
+            }
+
+            if (routeByPageKey.TryGetValue(dto.PageKey, out var existing))
+            {
+                existing.RebindManifest(manifestId);
+                if (dto.IsActive)
+                {
+                    existing.Activate(dto.SchemaVersion <= 0 ? 1 : dto.SchemaVersion, dto.EnvironmentCode);
+                }
+                else
+                {
+                    existing.Disable();
+                }
+
+                toUpdate.Add(existing);
+                continue;
+            }
+
+            var created = new RuntimeRoute(
+                tenantId,
+                _idGenerator.NextId(),
+                manifestId,
+                appKey,
+                dto.PageKey,
+                dto.SchemaVersion <= 0 ? 1 : dto.SchemaVersion);
+            if (!dto.IsActive)
+            {
+                created.Disable();
+            }
+            else if (!string.IsNullOrWhiteSpace(dto.EnvironmentCode))
+            {
+                created.Activate(dto.SchemaVersion <= 0 ? 1 : dto.SchemaVersion, dto.EnvironmentCode);
+            }
+
+            toInsert.Add(created);
+        }
+
+        if (conflictPolicy == "overwrite")
+        {
+            foreach (var stale in existingRoutes.Where(x => !importedPageKeys.Contains(x.PageKey) && x.IsActive))
+            {
+                stale.RebindManifest(manifestId);
+                stale.Disable();
+                toUpdate.Add(stale);
+            }
+        }
+
+        if (toInsert.Count > 0)
+        {
+            await _db.Insertable(toInsert).ExecuteCommandAsync(cancellationToken);
+        }
+
+        if (toUpdate.Count > 0)
+        {
+            await _db.Updateable(toUpdate).ExecuteCommandAsync(cancellationToken);
+        }
+    }
+
+    private async Task ImportLowCodeAppAndPagesAsync(
+        string appKey,
+        LowCodeAppPackageDto? appDto,
+        IReadOnlyList<LowCodePagePackageDto> pageDtos,
+        string conflictPolicy,
+        TenantId tenantId,
+        long userId,
+        CancellationToken cancellationToken)
+    {
+        if (appDto is null && pageDtos.Count == 0)
+        {
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var app = await _db.Queryable<LowCodeApp>()
+            .FirstAsync(x => x.AppKey == appKey, cancellationToken);
+        if (app is null)
+        {
+            var appName = string.IsNullOrWhiteSpace(appDto?.Name) ? appKey : appDto.Name;
+            app = new LowCodeApp(
+                tenantId,
+                appKey,
+                appName,
+                null,
+                null,
+                null,
+                null,
+                true,
+                true,
+                true,
+                userId,
+                _idGenerator.NextId(),
+                now);
+            await _db.Insertable(app).ExecuteCommandAsync(cancellationToken);
+        }
+        else if (appDto is not null && conflictPolicy == "overwrite" && !string.IsNullOrWhiteSpace(appDto.Name))
+        {
+            app.Update(appDto.Name, app.Description, app.Category, app.Icon, userId, now);
+            await _db.Updateable(app).ExecuteCommandAsync(cancellationToken);
+        }
+
+        if (pageDtos.Count == 0)
+        {
+            return;
+        }
+
+        var existingPages = await _db.Queryable<LowCodePage>()
+            .Where(x => x.AppId == app.Id)
+            .ToListAsync(cancellationToken);
+        var pageByKey = existingPages
+            .GroupBy(x => x.PageKey, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(x => x.Key, x => x.First(), StringComparer.OrdinalIgnoreCase);
+        var toInsert = new List<LowCodePage>();
+        var toUpdate = new List<LowCodePage>();
+
+        foreach (var dto in pageDtos)
+        {
+            if (string.IsNullOrWhiteSpace(dto.PageKey))
+            {
+                continue;
+            }
+
+            if (pageByKey.TryGetValue(dto.PageKey, out var existing))
+            {
+                if (conflictPolicy == "overwrite")
+                {
+                    existing.RestoreSnapshot(
+                        string.IsNullOrWhiteSpace(dto.Name) ? existing.Name : dto.Name,
+                        existing.PageType,
+                        string.IsNullOrWhiteSpace(existing.SchemaJson) ? "{}" : existing.SchemaJson,
+                        dto.RoutePath,
+                        existing.Description,
+                        existing.Icon,
+                        existing.SortOrder,
+                        existing.ParentPageId,
+                        dto.Version <= 0 ? 1 : dto.Version,
+                        dto.IsPublished,
+                        existing.PermissionCode,
+                        existing.DataTableKey,
+                        userId,
+                        now);
+                    toUpdate.Add(existing);
+                }
+
+                continue;
+            }
+
+            var page = new LowCodePage(
+                tenantId,
+                app.Id,
+                dto.PageKey,
+                string.IsNullOrWhiteSpace(dto.Name) ? dto.PageKey : dto.Name,
+                LowCodePageType.Blank,
+                "{}",
+                dto.RoutePath,
+                null,
+                null,
+                0,
+                null,
+                userId,
+                _idGenerator.NextId(),
+                now);
+            page.RestoreSnapshot(
+                page.Name,
+                page.PageType,
+                page.SchemaJson,
+                dto.RoutePath,
+                page.Description,
+                page.Icon,
+                page.SortOrder,
+                page.ParentPageId,
+                dto.Version <= 0 ? 1 : dto.Version,
+                dto.IsPublished,
+                page.PermissionCode,
+                page.DataTableKey,
+                userId,
+                now);
+            toInsert.Add(page);
+        }
+
+        if (toInsert.Count > 0)
+        {
+            await _db.Insertable(toInsert).ExecuteCommandAsync(cancellationToken);
+        }
+
+        if (toUpdate.Count > 0)
+        {
+            await _db.Updateable(toUpdate).ExecuteCommandAsync(cancellationToken);
+        }
     }
 
     public async Task<PackageOperationResponse> AnalyzeAsync(TenantId tenantId, long userId, PackageAnalyzeRequest request, CancellationToken cancellationToken = default)

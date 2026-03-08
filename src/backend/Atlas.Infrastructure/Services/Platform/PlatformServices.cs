@@ -403,7 +403,9 @@ public sealed class RuntimeRouteQueryService : IRuntimeRouteQueryService
     public async Task<RuntimePageResponse?> GetRuntimePageAsync(TenantId tenantId, string appKey, string pageKey, CancellationToken cancellationToken = default)
     {
         var route = await _db.Queryable<RuntimeRoute>()
-            .FirstAsync(x => x.AppKey == appKey && x.PageKey == pageKey && x.IsActive, cancellationToken);
+            .FirstAsync(
+                x => x.TenantIdValue == tenantId.Value && x.AppKey == appKey && x.PageKey == pageKey && x.IsActive,
+                cancellationToken);
         return route is null
             ? null
             : new RuntimePageResponse(route.AppKey, route.PageKey, route.SchemaVersion, route.IsActive);
@@ -419,7 +421,10 @@ public sealed class RuntimeRouteQueryService : IRuntimeRouteQueryService
         var pageSize = request.PageSize <= 0 ? 10 : request.PageSize;
         var assignee = userId.ToString();
         var query = _db.Queryable<ApprovalTask>()
-            .Where(x => x.AssigneeValue == assignee && x.Status == ApprovalTaskStatus.Pending);
+            .Where(x =>
+                x.TenantIdValue == tenantId.Value &&
+                x.AssigneeValue == assignee &&
+                x.Status == ApprovalTaskStatus.Pending);
         var total = await query.CountAsync(cancellationToken);
         var rows = await query.OrderByDescending(x => x.CreatedAt).ToPageListAsync(pageIndex, pageSize, cancellationToken);
         var items = rows.Select(x => new RuntimeTaskListItem(
@@ -434,7 +439,7 @@ public sealed class RuntimeRouteQueryService : IRuntimeRouteQueryService
     public async Task<RuntimeMenuResponse> GetRuntimeMenuAsync(TenantId tenantId, string appKey, CancellationToken cancellationToken = default)
     {
         var routes = await _db.Queryable<RuntimeRoute>()
-            .Where(x => x.AppKey == appKey && x.IsActive)
+            .Where(x => x.TenantIdValue == tenantId.Value && x.AppKey == appKey && x.IsActive)
             .OrderBy(x => x.PageKey)
             .ToListAsync(cancellationToken);
         if (routes.Count == 0)
@@ -444,7 +449,7 @@ public sealed class RuntimeRouteQueryService : IRuntimeRouteQueryService
 
         var pageKeys = routes.Select(x => x.PageKey).Distinct().ToArray();
         var pages = await _db.Queryable<LowCodePage>()
-            .Where(x => x.AppId > 0 && SqlFunc.ContainsArray(pageKeys, x.PageKey))
+            .Where(x => x.TenantIdValue == tenantId.Value && x.AppId > 0 && SqlFunc.ContainsArray(pageKeys, x.PageKey))
             .ToListAsync(cancellationToken);
         var pageMap = pages.ToDictionary(x => x.PageKey, x => x, StringComparer.OrdinalIgnoreCase);
         var items = routes.Select(route =>
