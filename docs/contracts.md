@@ -19,6 +19,33 @@
 - `Idempotency-Key: <uuid>`：关键写接口必填（创建/提交/开通/触发任务），幂等键冲突返回 409。
 - `X-CSRF-TOKEN: <token>`：已登录 Web 写请求必填，需先获取 Anti-Forgery Token。
 
+## 平台统一规则（封板基线）
+
+- Schema 主路线：AMIS；`LF(vform3)` 仅保留历史兼容，不再扩展新功能。
+- 表达式统一：CEL（`CelExpressionEngine`），前后端共享一致的校验与求值语义。
+- 上下文优先级：`Tenant > App > Project`。
+
+### 上下文优先级细则
+
+- Tenant：
+  - 权威来源为 JWT claim + `X-Tenant-Id` 一致性校验
+  - 不一致返回 `CROSS_TENANT_FORBIDDEN`
+- App：
+  - 运行态以 `appKey` 路由参数为准（`/r/:appKey/:pageKey`）
+  - 应用工作台以 `appId` 路由参数为准（`/apps/:appId/*`）
+- Project：
+  - 仅在应用启用项目模式时要求 `X-Project-Id`
+
+### 发布态与草稿态行为矩阵
+
+| 场景 | Draft | Published |
+|---|---|---|
+| 设计器编辑 | 允许 | 允许（编辑后生成新草稿） |
+| `GET /api/v1/runtime/apps/{appKey}/pages/{pageKey}/schema` | 拒绝 | 允许 |
+| 运行态菜单展示 | 否 | 是 |
+| 运行态路由 `/r/:appKey/:pageKey` | 不可达 | 可达 |
+| 表单提交 `/api/v1/runtime/apps/{appKey}/pages/{pageKey}/records` | 拒绝 | 允许 |
+
 ## 平台控制面/应用工作台/运行交付面路由约定（前端）
 
 - 平台控制台入口：`/console`

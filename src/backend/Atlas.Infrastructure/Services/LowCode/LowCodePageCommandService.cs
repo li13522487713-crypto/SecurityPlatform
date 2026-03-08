@@ -1,11 +1,13 @@
 using Atlas.Application.LowCode.Abstractions;
 using Atlas.Application.LowCode.Models;
+using Atlas.Application.Platform.Repositories;
 using Atlas.Application.Audit.Abstractions;
 using Atlas.Core.Abstractions;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Audit.Entities;
 using Atlas.Domain.LowCode.Entities;
 using Atlas.Domain.LowCode.Enums;
+using Atlas.Domain.Platform.Entities;
 
 namespace Atlas.Infrastructure.Services.LowCode;
 
@@ -14,6 +16,7 @@ public sealed class LowCodePageCommandService : ILowCodePageCommandService
     private readonly ILowCodePageRepository _pageRepository;
     private readonly ILowCodePageVersionRepository _pageVersionRepository;
     private readonly ILowCodeAppRepository _appRepository;
+    private readonly IRuntimeRouteRepository _runtimeRouteRepository;
     private readonly IIdGeneratorAccessor _idGenerator;
     private readonly IAuditWriter _auditWriter;
 
@@ -21,12 +24,14 @@ public sealed class LowCodePageCommandService : ILowCodePageCommandService
         ILowCodePageRepository pageRepository,
         ILowCodePageVersionRepository pageVersionRepository,
         ILowCodeAppRepository appRepository,
+        IRuntimeRouteRepository runtimeRouteRepository,
         IIdGeneratorAccessor idGenerator,
         IAuditWriter auditWriter)
     {
         _pageRepository = pageRepository;
         _pageVersionRepository = pageVersionRepository;
         _appRepository = appRepository;
+        _runtimeRouteRepository = runtimeRouteRepository;
         _idGenerator = idGenerator;
         _auditWriter = auditWriter;
     }
@@ -110,6 +115,8 @@ public sealed class LowCodePageCommandService : ILowCodePageCommandService
 
         var now = DateTimeOffset.UtcNow;
         entity.Publish(userId, now);
+        var app = await _appRepository.GetByIdAsync(tenantId, entity.AppId, cancellationToken)
+            ?? throw new InvalidOperationException($"应用 ID={entity.AppId} 不存在");
 
         await _pageVersionRepository.InsertAsync(
             new LowCodePageVersion(
@@ -134,6 +141,28 @@ public sealed class LowCodePageCommandService : ILowCodePageCommandService
             cancellationToken);
 
         await _pageRepository.UpdateAsync(entity, cancellationToken);
+        var existingRoute = await _runtimeRouteRepository.GetByAppAndPageKeyAsync(
+            tenantId,
+            app.AppKey,
+            entity.PageKey,
+            cancellationToken);
+        if (existingRoute is null)
+        {
+            existingRoute = new RuntimeRoute(
+                tenantId,
+                _idGenerator.NextId(),
+                app.Id,
+                app.AppKey,
+                entity.PageKey,
+                entity.Version);
+        }
+        else
+        {
+            existingRoute.RebindManifest(app.Id);
+            existingRoute.Activate(entity.Version);
+        }
+
+        await _runtimeRouteRepository.UpsertAsync(existingRoute, cancellationToken);
 
         // 设计态审计埋点
         var auditRecord = new AuditRecord(
@@ -158,6 +187,20 @@ public sealed class LowCodePageCommandService : ILowCodePageCommandService
         entity.Unpublish(userId, now);
 
         await _pageRepository.UpdateAsync(entity, cancellationToken);
+        var app = await _appRepository.GetByIdAsync(tenantId, entity.AppId, cancellationToken);
+        if (app is not null)
+        {
+            var existingRoute = await _runtimeRouteRepository.GetByAppAndPageKeyAsync(
+                tenantId,
+                app.AppKey,
+                entity.PageKey,
+                cancellationToken);
+            if (existingRoute is not null)
+            {
+                existingRoute.Disable();
+                await _runtimeRouteRepository.UpsertAsync(existingRoute, cancellationToken);
+            }
+        }
     }
 
     public async Task DeleteAsync(

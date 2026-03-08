@@ -76,7 +76,13 @@
     <!-- ══ 步骤 1: 表单设计 ══ -->
     <div class="dd-body dd-body--scroll" v-show="activeStep === 1">
       <a-tabs v-model:activeKey="formEngine">
-        <a-tab-pane key="lf" tab="LF(vform3) 表单">
+        <a-tab-pane key="lf" tab="LF(vform3) 兼容表单">
+          <a-alert
+            type="warning"
+            show-icon
+            style="margin-bottom: 12px"
+            message="LF(vform3) 仅用于历史流程兼容维护，新增流程请优先使用 AMIS Schema。"
+          />
           <LfFormDesigner v-model="lfFormModel" @update:formFields="handleLfFormFields" />
         </a-tab-pane>
         <a-tab-pane key="amis" tab="AMIS 表单 Schema">

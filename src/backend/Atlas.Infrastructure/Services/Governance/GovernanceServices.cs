@@ -1,11 +1,18 @@
 using Atlas.Application.Governance.Abstractions;
 using Atlas.Application.Governance.Models;
+using Atlas.Application.License.Abstractions;
+using Atlas.Application.License.Models;
 using Atlas.Core.Abstractions;
 using Atlas.Core.Exceptions;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
+using Atlas.Domain.LowCode.Entities;
 using Atlas.Domain.Platform.Entities;
 using SqlSugar;
+using System.IO.Compression;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 
 namespace Atlas.Infrastructure.Services.Governance;
 
@@ -13,6 +20,7 @@ public sealed class PackageService : IPackageService
 {
     private readonly ISqlSugarClient _db;
     private readonly IIdGeneratorAccessor _idGenerator;
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     public PackageService(ISqlSugarClient db, IIdGeneratorAccessor idGenerator)
     {
@@ -27,14 +35,40 @@ public sealed class PackageService : IPackageService
             throw new BusinessException(ErrorCodes.ValidationError, "ManifestId 无效，必须为正整数。");
         }
 
+        var manifest = await _db.Queryable<AppManifest>().FirstAsync(x => x.Id == manifestId, cancellationToken)
+            ?? throw new BusinessException(ErrorCodes.NotFound, "应用清单不存在。");
+        var releases = await _db.Queryable<AppRelease>().Where(x => x.ManifestId == manifestId).ToListAsync(cancellationToken);
+        var routes = await _db.Queryable<RuntimeRoute>().Where(x => x.ManifestId == manifestId).ToListAsync(cancellationToken);
+        var lowCodeApp = await _db.Queryable<LowCodeApp>().FirstAsync(x => x.AppKey == manifest.AppKey, cancellationToken);
+        var pages = lowCodeApp is null
+            ? new List<LowCodePage>()
+            : await _db.Queryable<LowCodePage>().Where(x => x.AppId == lowCodeApp.Id).ToListAsync(cancellationToken);
+
+        var payload = new ProductizationPackagePayload
+        {
+            Manifest = ManifestPackageDto.FromEntity(manifest),
+            Releases = releases.Select(ReleasePackageDto.FromEntity).ToArray(),
+            Routes = routes.Select(RuntimeRoutePackageDto.FromEntity).ToArray(),
+            LowCodeApp = lowCodeApp is null ? null : LowCodeAppPackageDto.FromEntity(lowCodeApp),
+            Pages = pages.Select(LowCodePagePackageDto.FromEntity).ToArray()
+        };
+        var payloadJson = JsonSerializer.Serialize(payload, JsonOptions);
+        var payloadBytes = Encoding.UTF8.GetBytes(payloadJson);
+        var zipBytes = CreateZip(payloadBytes);
+        var hash = Convert.ToHexString(SHA256.HashData(zipBytes));
+        var packageDir = Path.Combine(AppContext.BaseDirectory, "packages");
+        Directory.CreateDirectory(packageDir);
+        var filePath = Path.Combine(packageDir, $"manifest-{manifestId}-{DateTimeOffset.UtcNow:yyyyMMddHHmmss}.zip");
+        await File.WriteAllBytesAsync(filePath, zipBytes, cancellationToken);
+
         var entity = new PackageArtifact(
             tenantId,
             _idGenerator.NextId(),
             manifestId,
             ParsePackageType(request.PackageType),
-            $"exports/{Guid.NewGuid():N}.zip",
-            Guid.NewGuid().ToString("N"),
-            0,
+            filePath,
+            hash,
+            zipBytes.LongLength,
             userId,
             DateTimeOffset.UtcNow);
         await _db.Insertable(entity).ExecuteCommandAsync(cancellationToken);
@@ -43,14 +77,96 @@ public sealed class PackageService : IPackageService
 
     public async Task<PackageOperationResponse> ImportAsync(TenantId tenantId, long userId, PackageImportRequest request, CancellationToken cancellationToken = default)
     {
+        byte[] zipBytes;
+        try
+        {
+            zipBytes = Convert.FromBase64String(request.ContentBase64);
+        }
+        catch (FormatException)
+        {
+            throw new BusinessException(ErrorCodes.ValidationError, "导入内容不是有效的 Base64。");
+        }
+
+        var payloadBytes = ExtractPackageJson(zipBytes);
+        var payload = JsonSerializer.Deserialize<ProductizationPackagePayload>(payloadBytes, JsonOptions)
+            ?? throw new BusinessException(ErrorCodes.ValidationError, "导入包内容无效。");
+        if (payload.Manifest is null)
+        {
+            throw new BusinessException(ErrorCodes.ValidationError, "导入包缺少应用清单。");
+        }
+
+        var conflictPolicy = (request.ConflictPolicy ?? "skip").Trim().ToLowerInvariant();
+        var existing = await _db.Queryable<AppManifest>().FirstAsync(x => x.AppKey == payload.Manifest.AppKey, cancellationToken);
+        long targetManifestId;
+        if (existing is not null)
+        {
+            if (conflictPolicy == "skip")
+            {
+                targetManifestId = existing.Id;
+            }
+            else if (conflictPolicy == "overwrite")
+            {
+                existing.Update(
+                    payload.Manifest.Name,
+                    payload.Manifest.Description,
+                    payload.Manifest.Category,
+                    payload.Manifest.Icon,
+                    payload.Manifest.DataSourceId,
+                    userId,
+                    DateTimeOffset.UtcNow);
+                await _db.Updateable(existing).ExecuteCommandAsync(cancellationToken);
+                targetManifestId = existing.Id;
+            }
+            else
+            {
+                var renamed = new AppManifest(
+                    tenantId,
+                    _idGenerator.NextId(),
+                    $"{payload.Manifest.AppKey}-{Guid.NewGuid().ToString("N")[..6]}",
+                    payload.Manifest.Name,
+                    userId,
+                    DateTimeOffset.UtcNow);
+                renamed.Update(
+                    payload.Manifest.Name,
+                    payload.Manifest.Description,
+                    payload.Manifest.Category,
+                    payload.Manifest.Icon,
+                    payload.Manifest.DataSourceId,
+                    userId,
+                    DateTimeOffset.UtcNow);
+                await _db.Insertable(renamed).ExecuteCommandAsync(cancellationToken);
+                targetManifestId = renamed.Id;
+            }
+        }
+        else
+        {
+            var imported = new AppManifest(
+                tenantId,
+                _idGenerator.NextId(),
+                payload.Manifest.AppKey,
+                payload.Manifest.Name,
+                userId,
+                DateTimeOffset.UtcNow);
+            imported.Update(
+                payload.Manifest.Name,
+                payload.Manifest.Description,
+                payload.Manifest.Category,
+                payload.Manifest.Icon,
+                payload.Manifest.DataSourceId,
+                userId,
+                DateTimeOffset.UtcNow);
+            await _db.Insertable(imported).ExecuteCommandAsync(cancellationToken);
+            targetManifestId = imported.Id;
+        }
+
         var entity = new PackageArtifact(
             tenantId,
             _idGenerator.NextId(),
-            0,
+            targetManifestId,
             PackageArtifactType.Full,
             $"imports/{request.FileName}",
-            Guid.NewGuid().ToString("N"),
-            request.ContentBase64.Length,
+            Convert.ToHexString(SHA256.HashData(zipBytes)),
+            zipBytes.LongLength,
             userId,
             DateTimeOffset.UtcNow);
         entity.MarkImported(userId, DateTimeOffset.UtcNow);
@@ -58,8 +174,19 @@ public sealed class PackageService : IPackageService
         return new PackageOperationResponse(entity.Id.ToString(), entity.Status.ToString(), "导入完成");
     }
 
-    public Task<PackageOperationResponse> AnalyzeAsync(TenantId tenantId, long userId, PackageAnalyzeRequest request, CancellationToken cancellationToken = default)
-        => Task.FromResult(new PackageOperationResponse("analyze", "Analyzed", "冲突分析完成，无阻断冲突"));
+    public async Task<PackageOperationResponse> AnalyzeAsync(TenantId tenantId, long userId, PackageAnalyzeRequest request, CancellationToken cancellationToken = default)
+    {
+        var zipBytes = Convert.FromBase64String(request.ContentBase64);
+        var payloadBytes = ExtractPackageJson(zipBytes);
+        var payload = JsonSerializer.Deserialize<ProductizationPackagePayload>(payloadBytes, JsonOptions);
+        var appKey = payload?.Manifest?.AppKey;
+        var conflict = !string.IsNullOrWhiteSpace(appKey) &&
+            await _db.Queryable<AppManifest>().AnyAsync(x => x.AppKey == appKey, cancellationToken);
+        var message = conflict
+            ? $"检测到 AppKey 冲突：{appKey}"
+            : "冲突分析完成，无阻断冲突";
+        return new PackageOperationResponse("analyze", "Analyzed", message);
+    }
 
     private static PackageArtifactType ParsePackageType(string packageType)
         => packageType.Trim().ToLowerInvariant() switch
@@ -68,17 +195,145 @@ public sealed class PackageService : IPackageService
             "data" => PackageArtifactType.Data,
             _ => PackageArtifactType.Full
         };
+
+    private static byte[] CreateZip(byte[] packageJsonBytes)
+    {
+        using var ms = new MemoryStream();
+        using (var archive = new ZipArchive(ms, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            var entry = archive.CreateEntry("package.json", CompressionLevel.Optimal);
+            using var entryStream = entry.Open();
+            entryStream.Write(packageJsonBytes, 0, packageJsonBytes.Length);
+        }
+
+        return ms.ToArray();
+    }
+
+    private static byte[] ExtractPackageJson(byte[] zipBytes)
+    {
+        using var ms = new MemoryStream(zipBytes);
+        using var archive = new ZipArchive(ms, ZipArchiveMode.Read);
+        var entry = archive.GetEntry("package.json")
+            ?? throw new BusinessException(ErrorCodes.ValidationError, "导入包缺少 package.json。");
+        using var stream = entry.Open();
+        using var buffer = new MemoryStream();
+        stream.CopyTo(buffer);
+        return buffer.ToArray();
+    }
+
+    private sealed class ProductizationPackagePayload
+    {
+        public ManifestPackageDto? Manifest { get; set; }
+        public IReadOnlyList<ReleasePackageDto> Releases { get; set; } = Array.Empty<ReleasePackageDto>();
+        public IReadOnlyList<RuntimeRoutePackageDto> Routes { get; set; } = Array.Empty<RuntimeRoutePackageDto>();
+        public LowCodeAppPackageDto? LowCodeApp { get; set; }
+        public IReadOnlyList<LowCodePagePackageDto> Pages { get; set; } = Array.Empty<LowCodePagePackageDto>();
+    }
+
+    private sealed class ManifestPackageDto
+    {
+        public string AppKey { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public string? Category { get; set; }
+        public string? Icon { get; set; }
+        public long? DataSourceId { get; set; }
+
+        public static ManifestPackageDto FromEntity(AppManifest entity) => new()
+        {
+            AppKey = entity.AppKey,
+            Name = entity.Name,
+            Description = entity.Description,
+            Category = entity.Category,
+            Icon = entity.Icon,
+            DataSourceId = entity.DataSourceId
+        };
+    }
+
+    private sealed class ReleasePackageDto
+    {
+        public int Version { get; set; }
+        public string? ReleaseNote { get; set; }
+        public string SnapshotJson { get; set; } = "{}";
+
+        public static ReleasePackageDto FromEntity(AppRelease entity) => new()
+        {
+            Version = entity.Version,
+            ReleaseNote = entity.ReleaseNote,
+            SnapshotJson = entity.SnapshotJson
+        };
+    }
+
+    private sealed class RuntimeRoutePackageDto
+    {
+        public string AppKey { get; set; } = string.Empty;
+        public string PageKey { get; set; } = string.Empty;
+        public int SchemaVersion { get; set; }
+        public bool IsActive { get; set; }
+        public string EnvironmentCode { get; set; } = "prod";
+
+        public static RuntimeRoutePackageDto FromEntity(RuntimeRoute entity) => new()
+        {
+            AppKey = entity.AppKey,
+            PageKey = entity.PageKey,
+            SchemaVersion = entity.SchemaVersion,
+            IsActive = entity.IsActive,
+            EnvironmentCode = entity.EnvironmentCode
+        };
+    }
+
+    private sealed class LowCodeAppPackageDto
+    {
+        public string AppKey { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+
+        public static LowCodeAppPackageDto FromEntity(LowCodeApp entity) => new()
+        {
+            AppKey = entity.AppKey,
+            Name = entity.Name
+        };
+    }
+
+    private sealed class LowCodePagePackageDto
+    {
+        public string PageKey { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string? RoutePath { get; set; }
+        public int Version { get; set; }
+        public bool IsPublished { get; set; }
+
+        public static LowCodePagePackageDto FromEntity(LowCodePage entity) => new()
+        {
+            PageKey = entity.PageKey,
+            Name = entity.Name,
+            RoutePath = entity.RoutePath,
+            Version = entity.Version,
+            IsPublished = entity.IsPublished
+        };
+    }
 }
 
 public sealed class LicenseGrantService : ILicenseGrantService
 {
     private readonly ISqlSugarClient _db;
     private readonly IIdGeneratorAccessor _idGenerator;
+    private readonly ILicenseSignatureService _licenseSignatureService;
+    private readonly IMachineFingerprintService _machineFingerprintService;
+    private readonly ILicenseService _licenseService;
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
-    public LicenseGrantService(ISqlSugarClient db, IIdGeneratorAccessor idGenerator)
+    public LicenseGrantService(
+        ISqlSugarClient db,
+        IIdGeneratorAccessor idGenerator,
+        ILicenseSignatureService licenseSignatureService,
+        IMachineFingerprintService machineFingerprintService,
+        ILicenseService licenseService)
     {
         _db = db;
         _idGenerator = idGenerator;
+        _licenseSignatureService = licenseSignatureService;
+        _machineFingerprintService = machineFingerprintService;
+        _licenseService = licenseService;
     }
 
     public async Task<string> CreateOfflineRequestAsync(TenantId tenantId, long userId, LicenseOfflineRequest request, CancellationToken cancellationToken = default)
@@ -98,16 +353,33 @@ public sealed class LicenseGrantService : ILicenseGrantService
 
     public async Task<LicenseValidateResponse> ImportAsync(TenantId tenantId, long userId, LicenseImportRequest request, CancellationToken cancellationToken = default)
     {
+        var envelope = _licenseSignatureService.Parse(request.LicenseContent)
+            ?? throw new BusinessException(ErrorCodes.ValidationError, "授权文件格式无效。");
+        if (!_licenseSignatureService.Verify(envelope))
+        {
+            throw new BusinessException(ErrorCodes.ValidationError, "授权文件签名校验失败。");
+        }
+
+        var payload = envelope.Payload;
+        if (!string.IsNullOrWhiteSpace(payload.MachineFingerprint) &&
+            !_machineFingerprintService.Matches(payload.MachineFingerprint))
+        {
+            throw new BusinessException(ErrorCodes.ValidationError, "授权文件与当前机器指纹不匹配。");
+        }
+
+        var featuresJson = JsonSerializer.Serialize(payload.Features, JsonOptions);
+        var limitsJson = JsonSerializer.Serialize(payload.Limits, JsonOptions);
         var entity = new LicenseGrant(
             _idGenerator.NextId(),
             Guid.NewGuid().ToString("N"),
             LicenseGrantMode.Offline,
-            "{\"featureA\":true}",
-            "{\"users\":200}",
+            featuresJson,
+            limitsJson,
             DateTimeOffset.UtcNow);
-        entity.Renew(DateTimeOffset.UtcNow.AddDays(365));
+        entity.Renew(payload.ExpiresAt);
         await _db.Insertable(entity).ExecuteCommandAsync(cancellationToken);
-        return new LicenseValidateResponse(true, "Standard", entity.ExpiresAt?.ToString("O"), "导入成功");
+        await _licenseService.ReloadAsync(cancellationToken);
+        return new LicenseValidateResponse(true, payload.Edition, entity.ExpiresAt?.ToString("O"), "导入成功");
     }
 
     public async Task<LicenseValidateResponse> ValidateAsync(TenantId tenantId, CancellationToken cancellationToken = default)

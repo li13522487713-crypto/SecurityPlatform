@@ -67,6 +67,17 @@ public sealed record RuntimeTaskActionRequest(
     string Action,
     string? Comment);
 
+public sealed record RuntimeMenuItem(
+    string PageKey,
+    string Title,
+    string RoutePath,
+    string? Icon,
+    int SortOrder);
+
+public sealed record RuntimeMenuResponse(
+    string AppKey,
+    IReadOnlyList<RuntimeMenuItem> Items);
+
 public sealed record WorkspaceOverviewResponse(
     int PageCount,
     int FormCount,

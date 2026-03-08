@@ -55,13 +55,13 @@ public sealed class RuntimeTasksController : ControllerBase
     }
 
     [HttpGet("apps/{appKey}/menu")]
-    public ActionResult<ApiResponse<object>> GetRuntimeMenu(string appKey)
+    public async Task<ActionResult<ApiResponse<RuntimeMenuResponse>>> GetRuntimeMenu(
+        string appKey,
+        CancellationToken cancellationToken)
     {
-        return Ok(ApiResponse<object>.Ok(new
-        {
-            AppKey = appKey,
-            Items = Array.Empty<object>()
-        }, HttpContext.TraceIdentifier));
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _runtimeService.GetRuntimeMenuAsync(tenantId, appKey, cancellationToken);
+        return Ok(ApiResponse<RuntimeMenuResponse>.Ok(result, HttpContext.TraceIdentifier));
     }
 
     [HttpPost("tasks/{taskId:long}/actions")]

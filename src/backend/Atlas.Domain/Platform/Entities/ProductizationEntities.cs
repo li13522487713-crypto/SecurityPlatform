@@ -208,6 +208,21 @@ public sealed class RuntimeRoute : TenantEntity
     public string EnvironmentCode { get; private set; }
 
     public void Disable() => IsActive = false;
+
+    public void Activate(int schemaVersion, string? environmentCode = null)
+    {
+        SchemaVersion = schemaVersion;
+        IsActive = true;
+        if (!string.IsNullOrWhiteSpace(environmentCode))
+        {
+            EnvironmentCode = environmentCode.Trim();
+        }
+    }
+
+    public void RebindManifest(long manifestId)
+    {
+        ManifestId = manifestId;
+    }
 }
 
 public sealed class PackageArtifact : TenantEntity
