@@ -1,48 +1,48 @@
 {
   "loginStatus": 200,
-  "antiforgeryStatus": 402,
+  "antiforgeryStatus": 200,
   "results": [
     {
       "method": "GET",
       "path": "/api/v1/platform/overview",
-      "httpStatus": 402,
-      "code": "LICENSE_INVALID",
-      "message": "平台尚未激活，请上传授权证书"
+      "httpStatus": 200,
+      "code": "SUCCESS",
+      "message": "OK"
     },
     {
       "method": "GET",
-      "path": "/api/v1/app-manifests?pageIndex=1&pageSize=10",
-      "httpStatus": 402,
-      "code": "LICENSE_INVALID",
-      "message": "平台尚未激活，请上传授权证书"
+      "path": "/api/v1/app-manifests?PageIndex=1&PageSize=10",
+      "httpStatus": 200,
+      "code": "SUCCESS",
+      "message": "OK"
     },
     {
       "method": "POST",
       "path": "/api/v1/packages/export",
-      "httpStatus": 402,
-      "code": "LICENSE_INVALID",
-      "message": "平台尚未激活，请上传授权证书"
+      "httpStatus": 200,
+      "code": "SUCCESS",
+      "message": "OK"
     },
     {
       "method": "POST",
       "path": "/api/v1/licenses/offline-request",
-      "httpStatus": 402,
-      "code": "LICENSE_INVALID",
-      "message": "平台尚未激活，请上传授权证书"
+      "httpStatus": 200,
+      "code": "SUCCESS",
+      "message": "OK"
     },
     {
       "method": "GET",
-      "path": "/api/v1/tools/authorization-policies?pageIndex=1&pageSize=10",
-      "httpStatus": 402,
-      "code": "LICENSE_INVALID",
-      "message": "平台尚未激活，请上传授权证书"
+      "path": "/api/v1/tools/authorization-policies?PageIndex=1&PageSize=10",
+      "httpStatus": 200,
+      "code": "SUCCESS",
+      "message": "OK"
     },
     {
       "method": "GET",
       "path": "/api/v1/runtime/apps/crm_demo_2026/pages/customer-form",
-      "httpStatus": 402,
-      "code": "LICENSE_INVALID",
-      "message": "平台尚未激活，请上传授权证书"
+      "httpStatus": 200,
+      "code": "SUCCESS",
+      "message": "OK"
     },
     {
       "method": "GET",

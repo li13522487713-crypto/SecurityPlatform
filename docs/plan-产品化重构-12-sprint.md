@@ -157,8 +157,8 @@
   - 报告：`docs/gate-r1-12sprint-gui手测报告-2026-03-08.md`
   - 截图：`docs/evidence/gate-r1-20260308/*.png`
   - API 补证：`docs/evidence/gate-r1-20260308/api-check-results.json`
-- 当前结论：**Gate-R1 未通过**（License 中间件拦截导致关键业务端点返回 `402 LICENSE_INVALID`）。
-- 阻塞项详见手测报告“缺陷与阻塞清单”。
+- 当前结论：**Gate-R1 已通过**（License 激活 + 关键 API/GUI 回归均通过）。
+- 历史阻塞已在执行阶段修复，详见手测报告“缺陷与阻塞清单（修复记录）”。
 
 ---
 

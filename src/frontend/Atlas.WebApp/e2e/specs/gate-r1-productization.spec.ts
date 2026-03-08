@@ -4,7 +4,7 @@ import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
-const evidenceDir = path.resolve(currentDir, "../../../../docs/evidence/gate-r1-20260308");
+const evidenceDir = path.resolve(currentDir, "../../../../../docs/evidence/gate-r1-20260308");
 
 function ensureEvidenceDir() {
   if (!fs.existsSync(evidenceDir)) {

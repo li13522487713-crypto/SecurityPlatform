@@ -62,7 +62,7 @@
 - Gate-R2：契约、`.http`、集成测试、e2e、上线文档与运维手册齐套。
 
 > 2026-03-08 执行记录：已完成 Gate-R1 手测与证据留痕，报告见
-> `docs/gate-r1-12sprint-gui手测报告-2026-03-08.md`。当前判定为“未通过”，主阻塞为 License 中间件对关键端点返回 `402 LICENSE_INVALID`。
+> `docs/gate-r1-12sprint-gui手测报告-2026-03-08.md`。当前判定为“已通过”，License 激活与关键端点回归已完成。
 
 ---
 
