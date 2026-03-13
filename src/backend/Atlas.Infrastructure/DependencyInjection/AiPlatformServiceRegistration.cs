@@ -1,5 +1,6 @@
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Infrastructure.Options;
+using Atlas.Infrastructure.Repositories;
 using Atlas.Infrastructure.Services.AiPlatform;
 using Atlas.Infrastructure.Services.AiPlatform.Parsers;
 using Microsoft.Extensions.Configuration;
@@ -33,7 +34,15 @@ public static class AiPlatformServiceRegistration
             throw new InvalidOperationException("No embedding provider is configured. Please configure AiPlatform:Providers.");
         });
 
-        services.AddSingleton<ILlmProviderFactory, LlmProviderFactory>();
+        services.AddScoped<ModelConfigRepository>();
+        services.AddScoped<AgentRepository>();
+        services.AddScoped<AgentKnowledgeLinkRepository>();
+        services.AddScoped<IModelConfigCommandService, ModelConfigCommandService>();
+        services.AddScoped<IModelConfigQueryService, ModelConfigQueryService>();
+        services.AddScoped<IAgentCommandService, AgentCommandService>();
+        services.AddScoped<IAgentQueryService, AgentQueryService>();
+
+        services.AddScoped<ILlmProviderFactory, LlmProviderFactory>();
 
         services.AddSingleton<IVectorStore, SqliteVectorStore>();
 

@@ -89,19 +89,19 @@
 
 | # | 功能 | Coze 参考 | 后端文件 | 状态 |
 |---|------|-----------|----------|------|
-| 2.1.1 | 模型配置实体（Provider / Model / ApiKey / BaseUrl） | `bizpkg/config/modelmgr` | `Atlas.Domain.Agent/ModelConfig.cs` | [ ] |
-| 2.1.2 | 模型配置 CRUD 服务 | `GetProviderModelList`, `CreateModel`, `DeleteModel` | `IModelConfigService` | [ ] |
-| 2.1.3 | 模型连通性测试（创建时验证） | `CreateModel` + modelbuilder | `ModelConfigService.TestConnection()` | [ ] |
+| 2.1.1 | 模型配置实体（Provider / Model / ApiKey / BaseUrl） | `bizpkg/config/modelmgr` | `Atlas.Domain.Agent/ModelConfig.cs` | [x] |
+| 2.1.2 | 模型配置 CRUD 服务 | `GetProviderModelList`, `CreateModel`, `DeleteModel` | `IModelConfigService` | [x] |
+| 2.1.3 | 模型连通性测试（创建时验证） | `CreateModel` + modelbuilder | `ModelConfigService.TestConnection()` | [x] |
 | 2.1.4 | 模型模板管理（预置模板 YAML/JSON） | `conf/model/template/` 22 个 YAML | `ModelTemplates.json` 嵌入资源 | [ ] |
-| 2.1.5 | `ModelConfigsController` | `GET/POST/DELETE /api/admin/config/model/*` | `GET/POST/PUT/DELETE /api/v1/model-configs` | [ ] |
+| 2.1.5 | `ModelConfigsController` | `GET/POST/DELETE /api/admin/config/model/*` | `GET/POST/PUT/DELETE /api/v1/model-configs` | [x] |
 
 ### 2.2 前端
 
 | # | 功能 | Coze 参考 | 前端文件 | 状态 |
 |---|------|-----------|----------|------|
-| 2.2.1 | 模型管理页面（Admin） | `/admin` 模型管理 | `pages/ai/ModelConfigPage.vue` | [ ] |
-| 2.2.2 | 新建模型 Modal（选 Provider + 填 ApiKey + 测试） | Admin 模型创建 | 同上 | [ ] |
-| 2.2.3 | 模型 API 封装 | — | `services/model-config-api.ts` | [ ] |
+| 2.2.1 | 模型管理页面（Admin） | `/admin` 模型管理 | `pages/ai/ModelConfigPage.vue` | [x] |
+| 2.2.2 | 新建模型 Modal（选 Provider + 填 ApiKey + 测试） | Admin 模型创建 | 同上 | [x] |
+| 2.2.3 | 模型 API 封装 | — | `services/model-config-api.ts` | [x] |
 
 ---
 
@@ -113,22 +113,22 @@
 
 | # | 功能 | Coze 接口 | 后端文件 | 状态 |
 |---|------|-----------|----------|------|
-| 3.1.1 | Agent 实体（Name / SystemPrompt / Model / KnowledgeBaseId） | `application/singleagent/` | `Atlas.Domain.Agent/Agent.cs` | [ ] |
-| 3.1.2 | Agent CRUD 服务（Command + Query） | `Create/Update/Delete/GetAgentBotInfo` | `IAgentCommandService`, `IAgentQueryService` | [ ] |
-| 3.1.3 | 创建 Agent（自动设置默认模型） | `CreateSingleAgentDraft` | `AgentCommandService.Create()` | [ ] |
-| 3.1.4 | 更新 Agent（名称/模型/Prompt/知识库关联） | `UpdateSingleAgentDraft` | `AgentCommandService.Update()` | [ ] |
-| 3.1.5 | 删除 Agent | `DeleteAgentDraft` | `AgentCommandService.Delete()` | [ ] |
-| 3.1.6 | 复制 Agent（含关联资源） | `DuplicateDraftBot` | `AgentCommandService.Duplicate()` | [ ] |
-| 3.1.7 | 获取 Agent 完整信息 | `GetAgentBotInfo` | `AgentQueryService.GetById()` | [ ] |
-| 3.1.8 | Agent 列表（分页/搜索） | `GetDraftIntelligenceList` | `AgentQueryService.List()` | [ ] |
-| 3.1.9 | Agent 展示信息 Get/Update | `Get/UpdateDraftBotDisplayInfo` | 合并到 CRUD | [ ] |
-| 3.1.10 | `AgentsController` | `/api/draftbot/*` | `GET/POST/PUT/DELETE /api/v1/agents` | [ ] |
+| 3.1.1 | Agent 实体（Name / SystemPrompt / Model / KnowledgeBaseId） | `application/singleagent/` | `Atlas.Domain.Agent/Agent.cs` | [x] |
+| 3.1.2 | Agent CRUD 服务（Command + Query） | `Create/Update/Delete/GetAgentBotInfo` | `IAgentCommandService`, `IAgentQueryService` | [x] |
+| 3.1.3 | 创建 Agent（自动设置默认模型） | `CreateSingleAgentDraft` | `AgentCommandService.Create()` | [x] |
+| 3.1.4 | 更新 Agent（名称/模型/Prompt/知识库关联） | `UpdateSingleAgentDraft` | `AgentCommandService.Update()` | [x] |
+| 3.1.5 | 删除 Agent | `DeleteAgentDraft` | `AgentCommandService.Delete()` | [x] |
+| 3.1.6 | 复制 Agent（含关联资源） | `DuplicateDraftBot` | `AgentCommandService.Duplicate()` | [x] |
+| 3.1.7 | 获取 Agent 完整信息 | `GetAgentBotInfo` | `AgentQueryService.GetById()` | [x] |
+| 3.1.8 | Agent 列表（分页/搜索） | `GetDraftIntelligenceList` | `AgentQueryService.List()` | [x] |
+| 3.1.9 | Agent 展示信息 Get/Update | `Get/UpdateDraftBotDisplayInfo` | 合并到 CRUD | [x] |
+| 3.1.10 | `AgentsController` | `/api/draftbot/*` | `GET/POST/PUT/DELETE /api/v1/agents` | [x] |
 
 ### 3.2 Agent 发布
 
 | # | 功能 | Coze 接口 | 后端文件 | 状态 |
 |---|------|-----------|----------|------|
-| 3.2.1 | 发布 Agent（版本快照） | `PublishAgent` | `AgentCommandService.Publish()` | [ ] |
+| 3.2.1 | 发布 Agent（版本快照） | `PublishAgent` | `AgentCommandService.Publish()` | [x] |
 | 3.2.2 | 发布历史列表 | `ListAgentPublishHistory` | `AgentQueryService.ListPublishHistory()` | [ ] |
 | 3.2.3 | 发布渠道列表 | `GetPublishConnectorList` | `AgentQueryService.ListConnectors()` | [ ] |
 | 3.2.4 | 发布预检查 | `CheckDraftBotCommit` | `AgentCommandService.PrePublishCheck()` | [ ] |
@@ -138,14 +138,14 @@
 
 | # | 功能 | Coze 参考 | 前端文件 | 状态 |
 |---|------|-----------|----------|------|
-| 3.3.1 | Agent 列表页 | `/space/:id/develop` | `pages/ai/AgentListPage.vue` | [ ] |
-| 3.3.2 | 创建 Agent Modal | DraftBotCreate | 同上 | [ ] |
-| 3.3.3 | Agent 编辑页（IDE 风格） | `/space/:id/bot/:bot_id` Agent IDE | `pages/ai/AgentEditorPage.vue` | [ ] |
-| 3.3.4 | Prompt 编辑器 | `agent-ide` PromptEditor | 同上 | [ ] |
-| 3.3.5 | 模型选择器 | `agent-ide/model-manager` | 同上 | [ ] |
-| 3.3.6 | 知识库绑定 | Agent BindDatabase | 同上 | [ ] |
+| 3.3.1 | Agent 列表页 | `/space/:id/develop` | `pages/ai/AgentListPage.vue` | [x] |
+| 3.3.2 | 创建 Agent Modal | DraftBotCreate | 同上 | [x] |
+| 3.3.3 | Agent 编辑页（IDE 风格） | `/space/:id/bot/:bot_id` Agent IDE | `pages/ai/AgentEditorPage.vue` | [x] |
+| 3.3.4 | Prompt 编辑器 | `agent-ide` PromptEditor | 同上 | [x] |
+| 3.3.5 | 模型选择器 | `agent-ide/model-manager` | 同上 | [x] |
+| 3.3.6 | 知识库绑定 | Agent BindDatabase | 同上 | [x] |
 | 3.3.7 | Agent 发布页 | `/space/:id/bot/:bot_id/publish` | `pages/ai/AgentPublishPage.vue` | [ ] |
-| 3.3.8 | Agent API 封装 | — | `services/agent-api.ts` | [ ] |
+| 3.3.8 | Agent API 封装 | — | `services/agent-api.ts` | [x] |
 
 ---
 

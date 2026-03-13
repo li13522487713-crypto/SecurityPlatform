@@ -27,7 +27,10 @@ const pathComponentFallbackMap: Record<string, string> = {
   "/settings/system/dict-types": "../pages/system/DictTypesPage.vue",
   "/settings/system/configs": "../pages/system/SystemConfigsPage.vue",
   "/system/dict-types": "../pages/system/DictTypesPage.vue",
-  "/system/configs": "../pages/system/SystemConfigsPage.vue"
+  "/system/configs": "../pages/system/SystemConfigsPage.vue",
+  "/settings/ai/model-configs": "../pages/ai/ModelConfigsPage.vue",
+  "/ai/agents": "../pages/ai/AgentListPage.vue",
+  "/ai/agents/:id/edit": "../pages/ai/AgentEditorPage.vue"
 };
 
 function resolveByPathFallback(path?: string) {

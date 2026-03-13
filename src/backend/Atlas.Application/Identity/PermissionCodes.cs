@@ -58,6 +58,16 @@ public static class PermissionCodes
     public const string AssetsCreate = "assets:create";
     public const string AlertView = "alert:view";
 
+    public const string ModelConfigView = "model-config:view";
+    public const string ModelConfigCreate = "model-config:create";
+    public const string ModelConfigUpdate = "model-config:update";
+    public const string ModelConfigDelete = "model-config:delete";
+
+    public const string AgentView = "agent:view";
+    public const string AgentCreate = "agent:create";
+    public const string AgentUpdate = "agent:update";
+    public const string AgentDelete = "agent:delete";
+
     public const string ApprovalFlowView = "approval:flow:view";
     public const string ApprovalFlowManage = "approval:flow:manage";
     public const string ApprovalFlowCreate = "approval:flow:create";

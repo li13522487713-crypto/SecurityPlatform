@@ -65,6 +65,16 @@ public static class PermissionPolicies
     public const string AssetsCreate = "Permission:assets:create";
     public const string AlertView = "Permission:alert:view";
 
+    public const string ModelConfigView = "Permission:model-config:view";
+    public const string ModelConfigCreate = "Permission:model-config:create";
+    public const string ModelConfigUpdate = "Permission:model-config:update";
+    public const string ModelConfigDelete = "Permission:model-config:delete";
+
+    public const string AgentView = "Permission:agent:view";
+    public const string AgentCreate = "Permission:agent:create";
+    public const string AgentUpdate = "Permission:agent:update";
+    public const string AgentDelete = "Permission:agent:delete";
+
     public const string ApprovalFlowView = "Permission:approval:flow:view";
     public const string ApprovalFlowManage = "Permission:approval:flow:manage";
     public const string ApprovalFlowCreate = "Permission:approval:flow:create";

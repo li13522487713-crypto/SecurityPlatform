@@ -7,6 +7,7 @@ using Atlas.Core.Abstractions;
 using Atlas.Core.Identity;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Alert.Entities;
+using Atlas.Domain.AiPlatform.Entities;
 using Atlas.Domain.Approval.Entities;
 using Atlas.Domain.Assets.Entities;
 using Atlas.Domain.Audit.Entities;
@@ -90,6 +91,9 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             typeof(AuditRecord),
             typeof(Asset),
             typeof(AlertRecord),
+            typeof(ModelConfig),
+            typeof(Agent),
+            typeof(AgentKnowledgeLink),
             typeof(AuthSession),
             typeof(RefreshToken),
             typeof(ApprovalFlowDefinition),
@@ -363,6 +367,14 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             (PermissionCodes.AssetsView, "Assets View", "Api"),
             (PermissionCodes.AssetsCreate, "Assets Create", "Api"),
             (PermissionCodes.AlertView, "Alert View", "Api"),
+            (PermissionCodes.ModelConfigView, "Model Config View", "Api"),
+            (PermissionCodes.ModelConfigCreate, "Model Config Create", "Api"),
+            (PermissionCodes.ModelConfigUpdate, "Model Config Update", "Api"),
+            (PermissionCodes.ModelConfigDelete, "Model Config Delete", "Api"),
+            (PermissionCodes.AgentView, "Agent View", "Api"),
+            (PermissionCodes.AgentCreate, "Agent Create", "Api"),
+            (PermissionCodes.AgentUpdate, "Agent Update", "Api"),
+            (PermissionCodes.AgentDelete, "Agent Delete", "Api"),
             (PermissionCodes.ApprovalFlowView, "Approval Flow View", "Api"),
             (PermissionCodes.ApprovalFlowManage, "Approval Flow Manage", "Api"),
             (PermissionCodes.ApprovalFlowCreate, "Approval Flow Create", "Api"),
@@ -484,6 +496,10 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             ("资产管理", "/assets", "/security", 11, "C", "AssetsPage", "database", PermissionCodes.AssetsView, null, false, true, "0", "0", PermissionCodes.AssetsView, false),
             ("审计日志", "/audit", "/security", 12, "C", "AuditPage", "file-search", PermissionCodes.AuditView, null, false, true, "0", "0", PermissionCodes.AuditView, false),
             ("告警管理", "/alert", "/security", 13, "C", "AlertPage", "bell", PermissionCodes.AlertView, null, false, true, "0", "0", PermissionCodes.AlertView, false),
+            ("AI 平台", "/ai", null, 14, "M", "Layout", "robot", null, null, false, false, "0", "0", null, false),
+            ("模型配置", "/settings/ai/model-configs", "/ai", 15, "C", "ai/ModelConfigsPage", "api", PermissionCodes.ModelConfigView, null, false, true, "0", "0", PermissionCodes.ModelConfigView, false),
+            ("Agent 管理", "/ai/agents", "/ai", 16, "C", "ai/AgentListPage", "experiment", PermissionCodes.AgentView, null, false, true, "0", "0", PermissionCodes.AgentView, false),
+            ("Agent 编辑", "/ai/agents/:id/edit", "/ai", 17, "C", "ai/AgentEditorPage", "edit", PermissionCodes.AgentView, null, false, true, "0", "0", PermissionCodes.AgentView, true),
 
             ("低代码中心", "/lowcode", null, 15, "M", "Layout", "appstore", null, null, false, false, "0", "0", null, false),
             ("应用管理", "/lowcode/apps", "/lowcode", 16, "C", "lowcode/AppListPage", "appstore-add", PermissionCodes.AppsView, null, false, true, "0", "0", PermissionCodes.AppsView, false),
@@ -531,7 +547,15 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             ("角色删除", "/settings/auth/roles:delete", "/settings/auth/roles", 4, "F", null, null, PermissionCodes.RolesDelete, null, false, false, "0", "0", PermissionCodes.RolesDelete, true),
             ("菜单查询", "/settings/auth/menus:query", "/settings/auth/menus", 1, "F", null, null, PermissionCodes.MenusView, null, false, false, "0", "0", PermissionCodes.MenusView, true),
             ("菜单新增", "/settings/auth/menus:create", "/settings/auth/menus", 2, "F", null, null, PermissionCodes.MenusCreate, null, false, false, "0", "0", PermissionCodes.MenusCreate, true),
-            ("菜单修改", "/settings/auth/menus:update", "/settings/auth/menus", 3, "F", null, null, PermissionCodes.MenusUpdate, null, false, false, "0", "0", PermissionCodes.MenusUpdate, true)
+            ("菜单修改", "/settings/auth/menus:update", "/settings/auth/menus", 3, "F", null, null, PermissionCodes.MenusUpdate, null, false, false, "0", "0", PermissionCodes.MenusUpdate, true),
+            ("模型配置查询", "/settings/ai/model-configs:query", "/settings/ai/model-configs", 1, "F", null, null, PermissionCodes.ModelConfigView, null, false, false, "0", "0", PermissionCodes.ModelConfigView, true),
+            ("模型配置新增", "/settings/ai/model-configs:create", "/settings/ai/model-configs", 2, "F", null, null, PermissionCodes.ModelConfigCreate, null, false, false, "0", "0", PermissionCodes.ModelConfigCreate, true),
+            ("模型配置修改", "/settings/ai/model-configs:update", "/settings/ai/model-configs", 3, "F", null, null, PermissionCodes.ModelConfigUpdate, null, false, false, "0", "0", PermissionCodes.ModelConfigUpdate, true),
+            ("模型配置删除", "/settings/ai/model-configs:delete", "/settings/ai/model-configs", 4, "F", null, null, PermissionCodes.ModelConfigDelete, null, false, false, "0", "0", PermissionCodes.ModelConfigDelete, true),
+            ("Agent 查询", "/ai/agents:query", "/ai/agents", 1, "F", null, null, PermissionCodes.AgentView, null, false, false, "0", "0", PermissionCodes.AgentView, true),
+            ("Agent 新增", "/ai/agents:create", "/ai/agents", 2, "F", null, null, PermissionCodes.AgentCreate, null, false, false, "0", "0", PermissionCodes.AgentCreate, true),
+            ("Agent 修改", "/ai/agents:update", "/ai/agents", 3, "F", null, null, PermissionCodes.AgentUpdate, null, false, false, "0", "0", PermissionCodes.AgentUpdate, true),
+            ("Agent 删除", "/ai/agents:delete", "/ai/agents", 4, "F", null, null, PermissionCodes.AgentDelete, null, false, false, "0", "0", PermissionCodes.AgentDelete, true)
         };
 
         var menuPaths = menuSeeds.Select(x => x.Path).Distinct().ToArray();
@@ -697,6 +721,9 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             "/assets",
             "/audit",
             "/alert",
+            "/ai",
+            "/settings/ai/model-configs",
+            "/ai/agents",
             "/lowcode",
             "/lowcode/apps",
             "/lowcode/forms",

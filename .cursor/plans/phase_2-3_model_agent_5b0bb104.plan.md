@@ -4,55 +4,55 @@ overview: Implement Phase 2 (Model Config management with persistent DB storage)
 todos:
   - id: 2.1.1-entity
     content: Create ModelConfig entity in Atlas.Domain/AiPlatform/Entities/ModelConfig.cs extending TenantEntity
-    status: pending
+    status: completed
   - id: 2.1.2-repo
     content: Create ModelConfigRepository extending RepositoryBase<ModelConfig> with GetPagedAsync, GetAllEnabledAsync, ExistsByNameAsync
-    status: pending
+    status: completed
   - id: 2.1.3-dto
     content: Create ModelConfigModels.cs DTOs (ModelConfigDto, CreateRequest, UpdateRequest, TestRequest, TestResult) in Atlas.Application/AiPlatform/Models/
-    status: pending
+    status: completed
   - id: 2.1.4-validator
     content: Create ModelConfigValidators.cs (Create + Update validators) in Atlas.Application/AiPlatform/Validators/
-    status: pending
+    status: completed
   - id: 2.1.5-services
     content: Create IModelConfigCommandService + IModelConfigQueryService interfaces and their implementations (including TestConnectionAsync)
-    status: pending
+    status: completed
   - id: 2.1.6-controller
     content: Create ModelConfigsController with GET list/detail, POST create, PUT update, DELETE, POST test-connection endpoints
-    status: pending
+    status: completed
   - id: 2.1.7-permissions-di
     content: Add ModelConfig permissions to PermissionPolicies.cs, register repository + services in AiPlatformServiceRegistration.cs
-    status: pending
+    status: completed
   - id: 2.1.8-factory-wire
     content: Extend LlmProviderFactory to resolve providers from DB-stored ModelConfig records (primary) with appsettings fallback
-    status: pending
+    status: completed
   - id: 2.2-frontend
     content: Create api-model-config.ts, ModelConfigsPage.vue (table + create/edit modal + test connection), add route to pathComponentFallbackMap
-    status: pending
+    status: completed
   - id: 3.1.1-entity
     content: Create Agent entity and AgentKnowledgeLink entity in Atlas.Domain/AiPlatform/Entities/
-    status: pending
+    status: completed
   - id: 3.1.2-repo
     content: Create AgentRepository and AgentKnowledgeLinkRepository extending RepositoryBase
-    status: pending
+    status: completed
   - id: 3.1.3-dto
     content: Create AgentModels.cs DTOs (AgentListItem, AgentDetail, AgentCreateRequest, AgentUpdateRequest) in Atlas.Application/AiPlatform/Models/
-    status: pending
+    status: completed
   - id: 3.1.4-validator
     content: Create AgentValidators.cs (Create + Update validators) in Atlas.Application/AiPlatform/Validators/
-    status: pending
+    status: completed
   - id: 3.1.5-services
     content: Create IAgentCommandService + IAgentQueryService interfaces and implementations (Create, Update, Delete, Duplicate, Publish, GetPaged, GetById)
-    status: pending
+    status: completed
   - id: 3.1.6-controller
     content: Create AgentsController with 7 endpoints (list, detail, create, update, delete, duplicate, publish)
-    status: pending
+    status: completed
   - id: 3.1.7-permissions-di
     content: Add Agent permissions to PermissionPolicies.cs, register repositories + services in AiPlatformServiceRegistration.cs
-    status: pending
+    status: completed
   - id: 3.3-frontend
     content: Create api-agent.ts, AgentListPage.vue (card grid + create modal), AgentEditorPage.vue (IDE-style 3-panel editor), add routes to pathComponentFallbackMap
-    status: pending
+    status: completed
 isProject: false
 ---
 
