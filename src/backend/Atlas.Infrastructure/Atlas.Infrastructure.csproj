@@ -41,4 +41,8 @@
     <ProjectReference Include="..\Atlas.Core\Atlas.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\BuiltInPlugins.json" />
+  </ItemGroup>
+
 </Project>

@@ -1,4 +1,5 @@
 using Atlas.Core.Models;
+using Atlas.WebApi.Security;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -74,6 +75,14 @@ public sealed class AntiforgeryValidationMiddleware
         }
 
         if (context.User?.Identity?.IsAuthenticated != true)
+        {
+            return true;
+        }
+
+        if (string.Equals(
+                context.User.Identity?.AuthenticationType,
+                PatAuthenticationHandler.SchemeName,
+                StringComparison.OrdinalIgnoreCase))
         {
             return true;
         }

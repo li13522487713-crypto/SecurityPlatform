@@ -1910,3 +1910,95 @@ JWT Claims（新增）：
 | 低代码页面回滚 | `LowCode.Page.RolledBack` |
 
 `target` 格式：`{EntityType}:{id}` 或 `{EntityType}:{id}:Version:{versionId}`（回滚时附带版本 ID）。
+
+## AI 平台增量契约（Phase 11-19）
+
+### AI Marketplace（Phase 11）
+
+- `GET /api/v1/ai-marketplace/categories`
+- `POST /api/v1/ai-marketplace/categories`
+- `PUT /api/v1/ai-marketplace/categories/{id}`
+- `DELETE /api/v1/ai-marketplace/categories/{id}`
+- `GET /api/v1/ai-marketplace/products`
+- `GET /api/v1/ai-marketplace/products/{id}`
+- `POST /api/v1/ai-marketplace/products`
+- `PUT /api/v1/ai-marketplace/products/{id}`
+- `DELETE /api/v1/ai-marketplace/products/{id}`
+- `POST /api/v1/ai-marketplace/products/{id}/publish`
+- `POST /api/v1/ai-marketplace/products/{id}/favorite`
+- `DELETE /api/v1/ai-marketplace/products/{id}/favorite`
+- `POST /api/v1/ai-marketplace/products/{id}/download`
+
+### 上传增强（Phase 12）
+
+- 分片上传：
+  - `POST /api/v1/files/upload/init`
+  - `POST /api/v1/files/upload/{sessionId}/part/{partNumber}`
+  - `POST /api/v1/files/upload/{sessionId}/complete`
+  - `GET /api/v1/files/upload/{sessionId}/progress`
+- 签名 URL：
+  - `GET /api/v1/files/{id}/signed-url`
+  - `GET /api/v1/files/signed/{id}?tenantId=<guid>&expires=<unix>&sig=<hmac>`
+- 图片流程：
+  - `POST /api/v1/files/images/apply`
+  - `POST /api/v1/files/images/commit`
+
+### 管理台 AI 配置（Phase 14）
+
+- `GET /api/v1/admin/ai-config`
+- `PUT /api/v1/admin/ai-config`
+
+配置对象 `AdminAiConfig` 字段：
+
+- `enableAiPlatform`
+- `enableOpenPlatform`
+- `enableCodeSandbox`
+- `enableMarketplace`
+- `enableContentModeration`
+- `maxDailyTokensPerUser`
+- `maxKnowledgeRetrievalCount`
+
+### 统一搜索（Phase 15）
+
+- `GET /api/v1/ai-search?keyword=&limit=`
+- `GET /api/v1/ai-search/recent?limit=`
+- `POST /api/v1/ai-search/recent`
+- `DELETE /api/v1/ai-search/recent/{id}`
+
+搜索结果模型 `AiSearchResultItem`：
+
+- `resourceType`
+- `resourceId`
+- `title`
+- `description`
+- `path`
+- `updatedAt`
+
+### Workspace（Phase 16）
+
+- `GET /api/v1/ai-workspaces/current`
+- `PUT /api/v1/ai-workspaces/current`
+- `GET /api/v1/ai-workspaces/library`
+
+### DevOps UI（Phase 17）
+
+- 前端页面与组件契约：
+  - `ai/AiTestSetsPage`
+  - `ai/AiMockSetsPage`
+  - `components/ai/TraceViewer`
+  - `components/ai/PreviewPanel`
+- 当前以前端模拟数据为主，保留后续对接真实评测/追踪后端 API 的扩展位。
+
+### 快捷命令与引导（Phase 19）
+
+- `GET /api/v1/ai-shortcuts`
+- `POST /api/v1/ai-shortcuts`
+- `PUT /api/v1/ai-shortcuts/{id}`
+- `DELETE /api/v1/ai-shortcuts/{id}`
+- `GET /api/v1/ai-shortcuts/popup`
+- `POST /api/v1/ai-shortcuts/popup/dismiss`
+
+写接口继续强制：
+
+- `Idempotency-Key`
+- `X-CSRF-TOKEN`

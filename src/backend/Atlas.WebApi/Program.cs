@@ -10,6 +10,7 @@ using Hangfire.Storage.SQLite;
 using Atlas.WebApi.Tenancy;
 using Atlas.WorkflowCore;
 using Atlas.WorkflowCore.DSL;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Certificate;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Antiforgery;
@@ -25,6 +26,7 @@ using System.Text;
 using System.Threading.RateLimiting;
 using Atlas.WebApi.Authorization;
 using Atlas.WebApi.Filters;
+using Atlas.WebApi.Security;
 using Atlas.Application.Abstractions;
 using Atlas.Core.Tenancy;
 using Microsoft.AspNetCore.Authorization.Policy;
@@ -200,6 +202,7 @@ builder.Services.AddValidatorsFromAssemblies([
 
 var securityOptions = builder.Configuration.GetSection("Security").Get<SecurityOptions>() ?? new SecurityOptions();
 var jwt = builder.Configuration.GetSection("Jwt").Get<JwtOptions>() ?? new JwtOptions();
+var fileStorage = builder.Configuration.GetSection("FileStorage").Get<FileStorageOptions>() ?? new FileStorageOptions();
 if (!builder.Environment.IsDevelopment())
 {
     if (string.IsNullOrWhiteSpace(jwt.SigningKey)
@@ -207,6 +210,14 @@ if (!builder.Environment.IsDevelopment())
         || jwt.SigningKey.Length < 32)
     {
         throw new InvalidOperationException("生产环境必须配置长度不少于32位的JWT SigningKey。");
+    }
+
+    if (string.IsNullOrWhiteSpace(fileStorage.SignedUrlSecret)
+        || string.Equals(fileStorage.SignedUrlSecret, FileStorageOptions.UnsafeDefaultSignedUrlSecret, StringComparison.Ordinal)
+        || fileStorage.SignedUrlSecret.Contains("CHANGE_ME", StringComparison.OrdinalIgnoreCase)
+        || fileStorage.SignedUrlSecret.Length < 32)
+    {
+        throw new InvalidOperationException("生产环境必须配置长度不少于32位且非默认值的 FileStorage SignedUrlSecret。");
     }
 }
 
@@ -314,13 +325,17 @@ builder.Services.AddAuthentication()
     .AddCertificate(options =>
     {
         options.AllowedCertificateTypes = CertificateTypes.All;
+    })
+    .AddScheme<AuthenticationSchemeOptions, PatAuthenticationHandler>(PatAuthenticationHandler.SchemeName, options =>
+    {
     });
 
 builder.Services.AddAuthorization(options =>
 {
     options.DefaultPolicy = new AuthorizationPolicyBuilder(
             JwtBearerDefaults.AuthenticationScheme,
-            CertificateAuthenticationDefaults.AuthenticationScheme)
+            CertificateAuthenticationDefaults.AuthenticationScheme,
+            PatAuthenticationHandler.SchemeName)
         .RequireAuthenticatedUser()
         .Build();
 });

@@ -3,6 +3,7 @@ using Atlas.Core.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.WebApi.Identity;
+using Atlas.WebApi.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -37,7 +38,16 @@ public sealed class ProjectContextMiddleware
             || StartsWithAny(path, "/openapi")
             || StartsWithAny(path, "/api/auth", "/api/v1/auth")
             || StartsWithAny(path, "/api/apps", "/api/v1/apps")
-            || StartsWithAny(path, "/api/projects", "/api/v1/projects");
+            || StartsWithAny(path, "/api/projects", "/api/v1/projects")
+            || StartsWithAny(path, "/api/personal-access-tokens", "/api/v1/personal-access-tokens");
+
+        if (string.Equals(
+                context.User?.Identity?.AuthenticationType,
+                PatAuthenticationHandler.SchemeName,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            skipProjectCheck = true;
+        }
 
         if (skipProjectCheck)
         {

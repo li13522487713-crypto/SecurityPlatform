@@ -2,6 +2,7 @@ using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Infrastructure.Options;
 using Atlas.Infrastructure.Repositories;
 using Atlas.Infrastructure.Services.AiPlatform;
+using Atlas.Infrastructure.Services.AiPlatform.CodeExecution;
 using Atlas.Infrastructure.Services.AiPlatform.WorkflowSteps;
 using Atlas.Infrastructure.Services.AiPlatform.Parsers;
 using Microsoft.Extensions.Configuration;
@@ -15,6 +16,7 @@ public static class AiPlatformServiceRegistration
     public static IServiceCollection AddAiPlatformInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
         services.Configure<AiPlatformOptions>(configuration.GetSection("AiPlatform"));
+        services.Configure<CodeExecutionOptions>(configuration.GetSection("CodeExecution"));
         services.AddHttpClient("AiPlatform", client => client.Timeout = TimeSpan.FromSeconds(120));
 
         services.AddSingleton<ILlmProvider>(sp =>
@@ -43,6 +45,24 @@ public static class AiPlatformServiceRegistration
         services.AddScoped<KnowledgeBaseRepository>();
         services.AddScoped<KnowledgeDocumentRepository>();
         services.AddScoped<DocumentChunkRepository>();
+        services.AddScoped<AiDatabaseRepository>();
+        services.AddScoped<AiDatabaseRecordRepository>();
+        services.AddScoped<AiDatabaseImportTaskRepository>();
+        services.AddScoped<AiVariableRepository>();
+        services.AddScoped<AiPluginRepository>();
+        services.AddScoped<AiPluginApiRepository>();
+        services.AddScoped<AiAppRepository>();
+        services.AddScoped<AiAppPublishRecordRepository>();
+        services.AddScoped<AiAppResourceCopyTaskRepository>();
+        services.AddScoped<AiPromptTemplateRepository>();
+        services.AddScoped<PersonalAccessTokenRepository>();
+        services.AddScoped<AiProductCategoryRepository>();
+        services.AddScoped<AiMarketplaceProductRepository>();
+        services.AddScoped<AiMarketplaceFavoriteRepository>();
+        services.AddScoped<AiRecentEditRepository>();
+        services.AddScoped<AiWorkspaceRepository>();
+        services.AddScoped<AiShortcutCommandRepository>();
+        services.AddScoped<AiBotPopupInfoRepository>();
         services.AddScoped<IModelConfigCommandService, ModelConfigCommandService>();
         services.AddScoped<IModelConfigQueryService, ModelConfigQueryService>();
         services.AddScoped<IAgentCommandService, AgentCommandService>();
@@ -50,6 +70,17 @@ public static class AiPlatformServiceRegistration
         services.AddScoped<IConversationService, ConversationService>();
         services.AddScoped<IAgentChatService, AgentChatService>();
         services.AddScoped<IKnowledgeBaseService, KnowledgeBaseService>();
+        services.AddScoped<IAiDatabaseService, AiDatabaseService>();
+        services.AddScoped<IAiVariableService, AiVariableService>();
+        services.AddScoped<IAiPluginService, AiPluginService>();
+        services.AddScoped<IAiAppService, AiAppService>();
+        services.AddScoped<IAiPromptService, AiPromptService>();
+        services.AddScoped<IPersonalAccessTokenService, PersonalAccessTokenService>();
+        services.AddScoped<IAiMarketplaceService, AiMarketplaceService>();
+        services.AddScoped<IAiSearchService, AiSearchService>();
+        services.AddScoped<IAdminAiConfigService, AdminAiConfigService>();
+        services.AddScoped<IAiWorkspaceService, AiWorkspaceService>();
+        services.AddScoped<IAiShortcutCommandService, AiShortcutCommandService>();
         services.AddScoped<IDocumentService, DocumentService>();
         services.AddScoped<IChunkService, ChunkService>();
         services.AddScoped<IRagRetrievalService, RagRetrievalService>();
@@ -88,6 +119,16 @@ public static class AiPlatformServiceRegistration
         services.AddSingleton<IDocumentParser>(sp => sp.GetRequiredService<DocumentParserComposite>());
 
         services.AddSingleton<IChunkingService, FixedSizeChunkingService>();
+        services.AddSingleton<BuiltInPluginMetadataProvider>();
+        services.AddTransient<DirectPythonExecutor>();
+        services.AddTransient<SandboxedPythonExecutor>();
+        services.AddScoped<ICodeExecutionService>(sp =>
+        {
+            var options = sp.GetRequiredService<IOptions<CodeExecutionOptions>>().Value;
+            return string.Equals(options.Mode, "Sandbox", StringComparison.OrdinalIgnoreCase)
+                ? sp.GetRequiredService<SandboxedPythonExecutor>()
+                : sp.GetRequiredService<DirectPythonExecutor>();
+        });
 
         return services;
     }

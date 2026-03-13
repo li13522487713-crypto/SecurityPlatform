@@ -3,6 +3,7 @@
 @username = admin
 @password = P@ssw0rd!
 @fileId = 1
+@sessionId = 1
 
 ### 登录获取令牌
 # @name login
@@ -43,6 +44,102 @@ Content-Type: text/plain
 hello atlas upload
 --WebAppBoundary--
 
+### 初始化分片上传会话
+# @name initChunk
+POST {{baseUrl}}/api/v1/files/upload/init
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "originalName": "chunked-sample.txt",
+  "contentType": "text/plain",
+  "totalSizeBytes": 18,
+  "totalParts": 2
+}
+
+###
+@sessionId = {{initChunk.response.body.$.data.sessionId}}
+
+### 上传分片 #1
+POST {{baseUrl}}/api/v1/files/upload/{{sessionId}}/part/1
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+
+--WebAppBoundary
+Content-Disposition: form-data; name="file"; filename="part1.txt"
+Content-Type: text/plain
+
+hello
+--WebAppBoundary--
+
+### 上传分片 #2
+POST {{baseUrl}}/api/v1/files/upload/{{sessionId}}/part/2
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+
+--WebAppBoundary
+Content-Disposition: form-data; name="file"; filename="part2.txt"
+Content-Type: text/plain
+
+ atlas upload
+--WebAppBoundary--
+
+### 分片上传进度
+GET {{baseUrl}}/api/v1/files/upload/{{sessionId}}/progress
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 完成分片上传
+POST {{baseUrl}}/api/v1/files/upload/{{sessionId}}/complete
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "originalName": "chunked-sample.txt",
+  "contentType": "text/plain"
+}
+
+### 图片上传申请
+POST {{baseUrl}}/api/v1/files/images/apply
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "originalName": "avatar.png",
+  "contentType": "image/png",
+  "totalSizeBytes": 1024,
+  "totalParts": 1
+}
+
+### 图片上传提交
+POST {{baseUrl}}/api/v1/files/images/commit
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "sessionId": {{sessionId}},
+  "originalName": "avatar.png",
+  "contentType": "image/png"
+}
+
 ### 查询文件元数据
 GET {{baseUrl}}/api/v1/files/{{fileId}}/info
 Authorization: Bearer {{accessToken}}
@@ -52,6 +149,18 @@ X-Tenant-Id: {{tenantId}}
 GET {{baseUrl}}/api/v1/files/{{fileId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
+
+### 获取签名下载地址
+# @name signedUrl
+GET {{baseUrl}}/api/v1/files/{{fileId}}/signed-url?expiresInSeconds=300
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+###
+@signedPath = {{signedUrl.response.body.$.data.url}}
+
+### 使用签名地址下载（允许匿名）
+GET {{baseUrl}}{{signedPath}}
 
 ### 删除文件
 DELETE {{baseUrl}}/api/v1/files/{{fileId}}

@@ -158,6 +158,7 @@ public static class CoreServiceRegistration
 
         // File Storage
         services.AddScoped<FileRecordRepository>();
+        services.AddScoped<FileUploadSessionRepository>();
         services.AddSingleton<IHostEnvironmentAccessor, HostEnvironmentAccessor>();
         services.AddScoped<IFileStorageService, LocalFileStorageService>();
 

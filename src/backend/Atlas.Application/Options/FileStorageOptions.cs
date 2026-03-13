@@ -5,6 +5,8 @@ namespace Atlas.Application.Options;
 /// </summary>
 public sealed class FileStorageOptions
 {
+    public const string UnsafeDefaultSignedUrlSecret = "CHANGE_ME_FILE_SIGNED_URL_SECRET";
+
     /// <summary>文件存储根目录（相对于应用根目录）</summary>
     public string BasePath { get; init; } = "uploads";
 
@@ -25,4 +27,16 @@ public sealed class FileStorageOptions
         ".exe", ".sh", ".bat", ".cmd", ".ps1",
         ".vbs", ".js", ".msi", ".dll", ".so"
     ];
+
+    /// <summary>默认分片大小（字节），默认 2MB。</summary>
+    public int ChunkPartSizeBytes { get; init; } = 2 * 1024 * 1024;
+
+    /// <summary>分片上传会话过期分钟数。</summary>
+    public int ChunkSessionExpireMinutes { get; init; } = 120;
+
+    /// <summary>签名下载默认有效期（秒）。</summary>
+    public int SignedUrlDefaultExpireSeconds { get; init; } = 600;
+
+    /// <summary>签名下载密钥（生产环境请通过环境变量覆盖）。</summary>
+    public string SignedUrlSecret { get; init; } = UnsafeDefaultSignedUrlSecret;
 }

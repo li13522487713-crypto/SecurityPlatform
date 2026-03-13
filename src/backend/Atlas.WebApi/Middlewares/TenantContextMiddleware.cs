@@ -30,7 +30,8 @@ public sealed class TenantContextMiddleware
             && (path.StartsWith("/health", StringComparison.OrdinalIgnoreCase)
                 || path.StartsWith("/api/v1/health", StringComparison.OrdinalIgnoreCase)
                 || path.StartsWith("/openapi", StringComparison.OrdinalIgnoreCase)
-                || path.StartsWith("/api/v1/license/", StringComparison.OrdinalIgnoreCase));
+                || path.StartsWith("/api/v1/license/", StringComparison.OrdinalIgnoreCase)
+                || path.StartsWith("/api/v1/files/signed", StringComparison.OrdinalIgnoreCase));
 
         if (skipTenantCheck)
         {

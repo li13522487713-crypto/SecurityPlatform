@@ -1,15 +1,24 @@
-using System.Data;
+using Atlas.Application.AiPlatform.Abstractions;
+using Atlas.Application.AiPlatform.Models;
 using Atlas.WorkflowCore.Models;
 using Atlas.WorkflowCore.Primitives;
 
 namespace Atlas.Infrastructure.Services.AiPlatform.WorkflowSteps;
 
-public sealed class CodeRunnerStep : StepBody
+public sealed class CodeRunnerStep : StepBodyAsync
 {
+    private readonly ICodeExecutionService _codeExecutionService;
+
+    public CodeRunnerStep(ICodeExecutionService codeExecutionService)
+    {
+        _codeExecutionService = codeExecutionService;
+    }
+
     public string Expression { get; set; } = string.Empty;
     public string OutputKey { get; set; } = "codeResult";
+    public int? TimeoutSeconds { get; set; }
 
-    public override ExecutionResult Run(Atlas.WorkflowCore.Abstractions.IStepExecutionContext context)
+    public override async Task<ExecutionResult> RunAsync(Atlas.WorkflowCore.Abstractions.IStepExecutionContext context)
     {
         var data = WorkflowStepDataHelper.EnsureDataDictionary(context);
         var resolvedExpression = WorkflowStepDataHelper.ResolveTemplate(Expression, data);
@@ -19,15 +28,19 @@ public sealed class CodeRunnerStep : StepBody
             return ExecutionResult.Next();
         }
 
-        try
+        var request = new CodeExecutionRequest(
+            resolvedExpression,
+            data,
+            TimeoutSeconds ?? 0);
+        var result = await _codeExecutionService.ExecuteAsync(request, context.CancellationToken);
+        data[OutputKey] = result.Success ? result.Output : result.ErrorMessage;
+        data[$"{OutputKey}Meta"] = new
         {
-            using var table = new DataTable();
-            data[OutputKey] = table.Compute(resolvedExpression, string.Empty);
-        }
-        catch
-        {
-            data[OutputKey] = resolvedExpression;
-        }
+            result.Success,
+            result.TimedOut,
+            result.DurationMs,
+            result.ErrorMessage
+        };
 
         return ExecutionResult.Next();
     }

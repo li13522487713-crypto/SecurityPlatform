@@ -1,6 +1,7 @@
 using Atlas.Application.DynamicTables.Models;
 using Atlas.Core.Abstractions;
 using Atlas.Core.Exceptions;
+using Atlas.Core.Identity;
 using Atlas.Core.Tenancy;
 using Atlas.Infrastructure.Repositories;
 using Atlas.Infrastructure.Services;
@@ -27,6 +28,7 @@ public sealed class DynamicTableCommandServiceAlterTests
             var recordRepository = new DynamicRecordRepository(db);
             var migrationRepository = new DynamicSchemaMigrationRepository(db);
             var idGenerator = new SequentialIdGenerator(5000);
+            var appContextAccessor = new FakeAppContextAccessor();
             var service = new DynamicTableCommandService(
                 tableRepository,
                 fieldRepository,
@@ -37,7 +39,8 @@ public sealed class DynamicTableCommandServiceAlterTests
                 migrationRepository,
                 idGenerator,
                 db,
-                TimeProvider.System);
+                TimeProvider.System,
+                appContextAccessor);
 
             var tenantId = new TenantId(Guid.Parse("66666666-6666-6666-6666-666666666666"));
             await service.CreateAsync(
@@ -69,7 +72,7 @@ public sealed class DynamicTableCommandServiceAlterTests
                     Array.Empty<string>()),
                 CancellationToken.None);
 
-            var table = await tableRepository.FindByKeyAsync(tenantId, "orders_alter", CancellationToken.None);
+            var table = await tableRepository.FindByKeyAsync(tenantId, "orders_alter", null, CancellationToken.None);
             Assert.NotNull(table);
             var fields = await fieldRepository.ListByTableIdAsync(tenantId, table!.Id, CancellationToken.None);
             Assert.Contains(fields, x => x.Name.Equals("remark", StringComparison.OrdinalIgnoreCase));
@@ -116,6 +119,7 @@ public sealed class DynamicTableCommandServiceAlterTests
             var recordRepository = new DynamicRecordRepository(db);
             var migrationRepository = new DynamicSchemaMigrationRepository(db);
             var idGenerator = new SequentialIdGenerator(6000);
+            var appContextAccessor = new FakeAppContextAccessor();
             var service = new DynamicTableCommandService(
                 tableRepository,
                 fieldRepository,
@@ -126,7 +130,8 @@ public sealed class DynamicTableCommandServiceAlterTests
                 migrationRepository,
                 idGenerator,
                 db,
-                TimeProvider.System);
+                TimeProvider.System,
+                appContextAccessor);
 
             var tenantId = new TenantId(Guid.Parse("77777777-7777-7777-7777-777777777777"));
             await service.CreateAsync(
@@ -181,6 +186,7 @@ public sealed class DynamicTableCommandServiceAlterTests
             var recordRepository = new DynamicRecordRepository(db);
             var migrationRepository = new DynamicSchemaMigrationRepository(db);
             var idGenerator = new SequentialIdGenerator(6500);
+            var appContextAccessor = new FakeAppContextAccessor();
             var service = new DynamicTableCommandService(
                 tableRepository,
                 fieldRepository,
@@ -191,7 +197,8 @@ public sealed class DynamicTableCommandServiceAlterTests
                 migrationRepository,
                 idGenerator,
                 db,
-                TimeProvider.System);
+                TimeProvider.System,
+                appContextAccessor);
 
             var tenantId = new TenantId(Guid.Parse("71717171-7171-7171-7171-717171717171"));
             await service.CreateAsync(
@@ -223,7 +230,7 @@ public sealed class DynamicTableCommandServiceAlterTests
                     Array.Empty<string>()),
                 CancellationToken.None);
 
-            var table = await tableRepository.FindByKeyAsync(tenantId, "orders_alter_update_meta", CancellationToken.None);
+            var table = await tableRepository.FindByKeyAsync(tenantId, "orders_alter_update_meta", null, CancellationToken.None);
             Assert.NotNull(table);
             var fields = await fieldRepository.ListByTableIdAsync(tenantId, table!.Id, CancellationToken.None);
             var orderNo = fields.Single(x => x.Name == "orderNo");
@@ -253,6 +260,7 @@ public sealed class DynamicTableCommandServiceAlterTests
             var recordRepository = new DynamicRecordRepository(db);
             var migrationRepository = new DynamicSchemaMigrationRepository(db);
             var idGenerator = new SequentialIdGenerator(7000);
+            var appContextAccessor = new FakeAppContextAccessor();
             var service = new DynamicTableCommandService(
                 tableRepository,
                 fieldRepository,
@@ -263,7 +271,8 @@ public sealed class DynamicTableCommandServiceAlterTests
                 migrationRepository,
                 idGenerator,
                 db,
-                TimeProvider.System);
+                TimeProvider.System,
+                appContextAccessor);
 
             var tenantId = new TenantId(Guid.Parse("88888888-8888-8888-8888-888888888888"));
             await service.CreateAsync(
@@ -299,7 +308,7 @@ public sealed class DynamicTableCommandServiceAlterTests
             Assert.Contains(preview.SqlScripts, script => script.Contains("ALTER TABLE", StringComparison.OrdinalIgnoreCase));
             Assert.Contains(preview.SqlScripts, script => script.Contains("CREATE UNIQUE INDEX", StringComparison.OrdinalIgnoreCase));
 
-            var table = await tableRepository.FindByKeyAsync(tenantId, "orders_preview", CancellationToken.None);
+            var table = await tableRepository.FindByKeyAsync(tenantId, "orders_preview", null, CancellationToken.None);
             Assert.NotNull(table);
             var fields = await fieldRepository.ListByTableIdAsync(tenantId, table!.Id, CancellationToken.None);
             Assert.DoesNotContain(fields, x => x.Name.Equals("remark_preview", StringComparison.OrdinalIgnoreCase));
@@ -423,6 +432,36 @@ public sealed class DynamicTableCommandServiceAlterTests
         {
             _current += 1;
             return _current;
+        }
+    }
+
+    private sealed class FakeAppContextAccessor : IAppContextAccessor
+    {
+        public IAppContext GetCurrent()
+        {
+            return new AppContextSnapshot(
+                new TenantId(Guid.Empty),
+                "0",
+                null,
+                new ClientContext(ClientType.Backend, ClientPlatform.Web, ClientChannel.Browser, ClientAgent.Other),
+                null);
+        }
+
+        public string GetAppId()
+        {
+            return "0";
+        }
+
+        public IDisposable BeginScope(IAppContext context)
+        {
+            return new NoopDisposable();
+        }
+
+        private sealed class NoopDisposable : IDisposable
+        {
+            public void Dispose()
+            {
+            }
         }
     }
 }

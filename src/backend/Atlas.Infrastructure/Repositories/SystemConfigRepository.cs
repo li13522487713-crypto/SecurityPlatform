@@ -46,4 +46,40 @@ public sealed class SystemConfigRepository : RepositoryBase<SystemConfig>
             .CountAsync(cancellationToken);
         return count > 0;
     }
+
+    public async Task<List<SystemConfig>> GetByKeysAsync(
+        TenantId tenantId,
+        IReadOnlyCollection<string> configKeys,
+        CancellationToken cancellationToken)
+    {
+        if (configKeys.Count == 0)
+        {
+            return [];
+        }
+
+        var keyArray = configKeys.ToArray();
+        return await Db.Queryable<SystemConfig>()
+            .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(keyArray, x.ConfigKey))
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task AddRangeAsync(IReadOnlyCollection<SystemConfig> entities, CancellationToken cancellationToken)
+    {
+        if (entities.Count == 0)
+        {
+            return;
+        }
+
+        await Db.Insertable(entities.ToArray()).ExecuteCommandAsync(cancellationToken);
+    }
+
+    public async Task UpdateRangeAsync(IReadOnlyCollection<SystemConfig> entities, CancellationToken cancellationToken)
+    {
+        if (entities.Count == 0)
+        {
+            return;
+        }
+
+        await Db.Updateable(entities.ToArray()).ExecuteCommandAsync(cancellationToken);
+    }
 }

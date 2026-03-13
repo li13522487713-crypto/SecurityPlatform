@@ -1,0 +1,38 @@
+using Atlas.Core.Models;
+
+namespace Atlas.Application.AiPlatform.Models;
+
+public sealed record AiWorkspaceDto(
+    long Id,
+    string Name,
+    string Theme,
+    string LastVisitedPath,
+    long[] FavoriteResourceIds,
+    DateTime CreatedAt,
+    DateTime? UpdatedAt);
+
+public sealed record AiWorkspaceUpdateRequest(
+    string Name,
+    string Theme,
+    string LastVisitedPath,
+    long[] FavoriteResourceIds);
+
+public sealed record AiLibraryItem(
+    string ResourceType,
+    long ResourceId,
+    string Name,
+    string? Description,
+    DateTime UpdatedAt,
+    string Path);
+
+public sealed record AiLibraryQueryRequest(
+    string? Keyword,
+    string? ResourceType,
+    int PageIndex,
+    int PageSize);
+
+public sealed record AiLibraryPagedResult(
+    IReadOnlyList<AiLibraryItem> Items,
+    long Total,
+    int PageIndex,
+    int PageSize);
