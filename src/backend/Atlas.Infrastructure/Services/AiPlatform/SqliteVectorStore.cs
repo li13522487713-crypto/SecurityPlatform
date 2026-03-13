@@ -80,7 +80,9 @@ public sealed class SqliteVectorStore : IVectorStore
             parameters.Add(new SqliteParameter($"$id{i}", record.Id));
             parameters.Add(new SqliteParameter($"$vector{i}", SerializeVector(record.Vector)));
             parameters.Add(new SqliteParameter($"$content{i}", record.Content));
-            parameters.Add(new SqliteParameter($"$metadata{i}", SerializeMetadata(record.Metadata)));
+            parameters.Add(new SqliteParameter(
+                $"$metadata{i}",
+                (object?)SerializeMetadata(record.Metadata) ?? DBNull.Value));
         }
 
         var sql = $"""

@@ -36,8 +36,8 @@ public sealed partial class MarkdownDocumentParser : IDocumentParser
         var value = markdown;
         value = HeaderRegex().Replace(value, string.Empty);
         value = CodeFenceRegex().Replace(value, string.Empty);
-        value = LinkRegex().Replace(value, "$1");
         value = ImageRegex().Replace(value, "$1");
+        value = LinkRegex().Replace(value, "$1");
         value = EmphasisRegex().Replace(value, "$1");
         value = ListPrefixRegex().Replace(value, string.Empty);
         return value.Trim();
