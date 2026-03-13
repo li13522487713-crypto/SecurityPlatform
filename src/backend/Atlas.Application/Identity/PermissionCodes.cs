@@ -87,6 +87,12 @@ public static class PermissionCodes
     public const string AiVariableCreate = "ai-variable:create";
     public const string AiVariableUpdate = "ai-variable:update";
     public const string AiVariableDelete = "ai-variable:delete";
+    public const string AiPluginView = "ai-plugin:view";
+    public const string AiPluginCreate = "ai-plugin:create";
+    public const string AiPluginUpdate = "ai-plugin:update";
+    public const string AiPluginDelete = "ai-plugin:delete";
+    public const string AiPluginPublish = "ai-plugin:publish";
+    public const string AiPluginDebug = "ai-plugin:debug";
 
     public const string ApprovalFlowView = "approval:flow:view";
     public const string ApprovalFlowManage = "approval:flow:manage";

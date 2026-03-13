@@ -94,6 +94,12 @@ public static class PermissionPolicies
     public const string AiVariableCreate = "Permission:ai-variable:create";
     public const string AiVariableUpdate = "Permission:ai-variable:update";
     public const string AiVariableDelete = "Permission:ai-variable:delete";
+    public const string AiPluginView = "Permission:ai-plugin:view";
+    public const string AiPluginCreate = "Permission:ai-plugin:create";
+    public const string AiPluginUpdate = "Permission:ai-plugin:update";
+    public const string AiPluginDelete = "Permission:ai-plugin:delete";
+    public const string AiPluginPublish = "Permission:ai-plugin:publish";
+    public const string AiPluginDebug = "Permission:ai-plugin:debug";
 
     public const string ApprovalFlowView = "Permission:approval:flow:view";
     public const string ApprovalFlowManage = "Permission:approval:flow:manage";

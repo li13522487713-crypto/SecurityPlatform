@@ -104,6 +104,8 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             typeof(AiDatabaseRecord),
             typeof(AiDatabaseImportTask),
             typeof(AiVariable),
+            typeof(AiPlugin),
+            typeof(AiPluginApi),
             typeof(AuthSession),
             typeof(RefreshToken),
             typeof(ApprovalFlowDefinition),
@@ -405,6 +407,12 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             (PermissionCodes.AiVariableCreate, "AI Variable Create", "Api"),
             (PermissionCodes.AiVariableUpdate, "AI Variable Update", "Api"),
             (PermissionCodes.AiVariableDelete, "AI Variable Delete", "Api"),
+            (PermissionCodes.AiPluginView, "AI Plugin View", "Api"),
+            (PermissionCodes.AiPluginCreate, "AI Plugin Create", "Api"),
+            (PermissionCodes.AiPluginUpdate, "AI Plugin Update", "Api"),
+            (PermissionCodes.AiPluginDelete, "AI Plugin Delete", "Api"),
+            (PermissionCodes.AiPluginPublish, "AI Plugin Publish", "Api"),
+            (PermissionCodes.AiPluginDebug, "AI Plugin Debug", "Api"),
             (PermissionCodes.ApprovalFlowView, "Approval Flow View", "Api"),
             (PermissionCodes.ApprovalFlowManage, "Approval Flow Manage", "Api"),
             (PermissionCodes.ApprovalFlowCreate, "Approval Flow Create", "Api"),
@@ -535,6 +543,8 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             ("数据库管理", "/ai/databases", "/ai", 20, "C", "ai/AiDatabaseListPage", "database", PermissionCodes.AiDatabaseView, null, false, true, "0", "0", PermissionCodes.AiDatabaseView, false),
             ("数据库详情", "/ai/databases/:id", "/ai", 21, "C", "ai/AiDatabaseDetailPage", "table", PermissionCodes.AiDatabaseView, null, false, true, "0", "0", PermissionCodes.AiDatabaseView, true),
             ("变量管理", "/ai/variables", "/ai", 22, "C", "ai/AiVariablesPage", "code", PermissionCodes.AiVariableView, null, false, true, "0", "0", PermissionCodes.AiVariableView, false),
+            ("插件管理", "/ai/plugins", "/ai", 23, "C", "ai/AiPluginListPage", "api", PermissionCodes.AiPluginView, null, false, true, "0", "0", PermissionCodes.AiPluginView, false),
+            ("插件详情", "/ai/plugins/:id", "/ai", 24, "C", "ai/AiPluginDetailPage", "setting", PermissionCodes.AiPluginView, null, false, true, "0", "0", PermissionCodes.AiPluginView, true),
 
             ("低代码中心", "/lowcode", null, 20, "M", "Layout", "appstore", null, null, false, false, "0", "0", null, false),
             ("应用管理", "/lowcode/apps", "/lowcode", 21, "C", "lowcode/AppListPage", "appstore-add", PermissionCodes.AppsView, null, false, true, "0", "0", PermissionCodes.AppsView, false),
@@ -605,7 +615,13 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             ("变量查询", "/ai/variables:query", "/ai/variables", 16, "F", null, null, PermissionCodes.AiVariableView, null, false, false, "0", "0", PermissionCodes.AiVariableView, true),
             ("变量新增", "/ai/variables:create", "/ai/variables", 17, "F", null, null, PermissionCodes.AiVariableCreate, null, false, false, "0", "0", PermissionCodes.AiVariableCreate, true),
             ("变量修改", "/ai/variables:update", "/ai/variables", 18, "F", null, null, PermissionCodes.AiVariableUpdate, null, false, false, "0", "0", PermissionCodes.AiVariableUpdate, true),
-            ("变量删除", "/ai/variables:delete", "/ai/variables", 19, "F", null, null, PermissionCodes.AiVariableDelete, null, false, false, "0", "0", PermissionCodes.AiVariableDelete, true)
+            ("变量删除", "/ai/variables:delete", "/ai/variables", 19, "F", null, null, PermissionCodes.AiVariableDelete, null, false, false, "0", "0", PermissionCodes.AiVariableDelete, true),
+            ("插件查询", "/ai/plugins:query", "/ai/plugins", 20, "F", null, null, PermissionCodes.AiPluginView, null, false, false, "0", "0", PermissionCodes.AiPluginView, true),
+            ("插件新增", "/ai/plugins:create", "/ai/plugins", 21, "F", null, null, PermissionCodes.AiPluginCreate, null, false, false, "0", "0", PermissionCodes.AiPluginCreate, true),
+            ("插件修改", "/ai/plugins:update", "/ai/plugins", 22, "F", null, null, PermissionCodes.AiPluginUpdate, null, false, false, "0", "0", PermissionCodes.AiPluginUpdate, true),
+            ("插件删除", "/ai/plugins:delete", "/ai/plugins", 23, "F", null, null, PermissionCodes.AiPluginDelete, null, false, false, "0", "0", PermissionCodes.AiPluginDelete, true),
+            ("插件发布", "/ai/plugins:publish", "/ai/plugins", 24, "F", null, null, PermissionCodes.AiPluginPublish, null, false, false, "0", "0", PermissionCodes.AiPluginPublish, true),
+            ("插件调试", "/ai/plugins:debug", "/ai/plugins", 25, "F", null, null, PermissionCodes.AiPluginDebug, null, false, false, "0", "0", PermissionCodes.AiPluginDebug, true)
         };
 
         var menuPaths = menuSeeds.Select(x => x.Path).Distinct().ToArray();
@@ -777,6 +793,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             "/ai/knowledge-bases",
             "/ai/databases",
             "/ai/variables",
+            "/ai/plugins",
             "/lowcode",
             "/lowcode/apps",
             "/lowcode/forms",

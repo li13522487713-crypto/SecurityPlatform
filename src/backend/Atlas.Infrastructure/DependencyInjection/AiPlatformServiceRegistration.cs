@@ -47,6 +47,8 @@ public static class AiPlatformServiceRegistration
         services.AddScoped<AiDatabaseRecordRepository>();
         services.AddScoped<AiDatabaseImportTaskRepository>();
         services.AddScoped<AiVariableRepository>();
+        services.AddScoped<AiPluginRepository>();
+        services.AddScoped<AiPluginApiRepository>();
         services.AddScoped<IModelConfigCommandService, ModelConfigCommandService>();
         services.AddScoped<IModelConfigQueryService, ModelConfigQueryService>();
         services.AddScoped<IAgentCommandService, AgentCommandService>();
@@ -56,6 +58,7 @@ public static class AiPlatformServiceRegistration
         services.AddScoped<IKnowledgeBaseService, KnowledgeBaseService>();
         services.AddScoped<IAiDatabaseService, AiDatabaseService>();
         services.AddScoped<IAiVariableService, AiVariableService>();
+        services.AddScoped<IAiPluginService, AiPluginService>();
         services.AddScoped<IDocumentService, DocumentService>();
         services.AddScoped<IChunkService, ChunkService>();
         services.AddScoped<IRagRetrievalService, RagRetrievalService>();
@@ -94,6 +97,7 @@ public static class AiPlatformServiceRegistration
         services.AddSingleton<IDocumentParser>(sp => sp.GetRequiredService<DocumentParserComposite>());
 
         services.AddSingleton<IChunkingService, FixedSizeChunkingService>();
+        services.AddSingleton<BuiltInPluginMetadataProvider>();
 
         return services;
     }

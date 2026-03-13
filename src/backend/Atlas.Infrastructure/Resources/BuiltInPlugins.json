@@ -1,0 +1,26 @@
+[
+  {
+    "code": "http-request",
+    "name": "HTTP 请求",
+    "description": "向外部 REST API 发起请求，支持 Header/Body 模板。",
+    "category": "integration",
+    "version": "1.0.0",
+    "tags": ["http", "api", "integration"]
+  },
+  {
+    "code": "knowledge-search",
+    "name": "知识检索",
+    "description": "根据查询词调用知识库检索并返回片段摘要。",
+    "category": "knowledge",
+    "version": "1.0.0",
+    "tags": ["rag", "knowledge", "search"]
+  },
+  {
+    "code": "image-generate",
+    "name": "图片生成",
+    "description": "基于提示词调用图像生成模型并返回图片地址。",
+    "category": "media",
+    "version": "1.0.0",
+    "tags": ["image", "generation", "ai"]
+  }
+]
