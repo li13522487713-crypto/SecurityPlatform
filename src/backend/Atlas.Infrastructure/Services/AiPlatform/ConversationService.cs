@@ -132,7 +132,7 @@ public sealed class ConversationService : IConversationService
     {
         var conversation = await RequireConversationAsync(tenantId, conversationId, cancellationToken);
         conversation.ClearContext();
-        var marker = new ChatMessage(
+        var marker = new ChatMessageEntity(
             tenantId,
             conversationId,
             "system",
