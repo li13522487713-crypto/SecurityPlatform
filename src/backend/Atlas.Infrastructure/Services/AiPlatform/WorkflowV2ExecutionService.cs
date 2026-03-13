@@ -163,7 +163,7 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
             catch (Exception ex)
             {
                 _logger.LogError(ex, "流式工作流执行失败: ExecutionId={ExecutionId}", execution.Id);
-                channel.Writer.TryComplete(ex);
+                channel.Writer.TryComplete();
                 return;
             }
             channel.Writer.TryComplete();
@@ -172,34 +172,19 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
         // 产出开始事件
         yield return new SseEvent("execution_start", JsonSerializer.Serialize(new { executionId = execution.Id.ToString() }));
 
+        await foreach (var evt in channel.Reader.ReadAllAsync(cancellationToken))
+        {
+            yield return evt;
+        }
+
+        runCts.Cancel();
         try
         {
-            await foreach (var evt in channel.Reader.ReadAllAsync(cancellationToken))
-            {
-                yield return evt;
-            }
+            await runTask;
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (OperationCanceledException) when (runCts.IsCancellationRequested)
         {
-            _logger.LogError(ex, "流式事件通道读取失败: ExecutionId={ExecutionId}", execution.Id);
-            yield return new SseEvent("execution_failed", JsonSerializer.Serialize(new
-            {
-                executionId = execution.Id.ToString(),
-                errorMessage = ex.Message
-            }));
-            yield break;
-        }
-        finally
-        {
-            runCts.Cancel();
-            try
-            {
-                await runTask;
-            }
-            catch (OperationCanceledException) when (runCts.IsCancellationRequested)
-            {
-                // 取消路径无需额外处理。
-            }
+            // 取消路径无需额外处理。
         }
 
         if (cancellationToken.IsCancellationRequested)
