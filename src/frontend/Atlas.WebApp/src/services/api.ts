@@ -33,3 +33,23 @@ export * from "@/services/api-admin-ai-config";
 export * from "@/services/api-ai-workspace";
 export * from "@/services/api-ai-shortcut";
 export * from "@/services/api-pat";
+export {
+  workflowV2Api,
+  createWorkflow,
+  listWorkflows,
+  getWorkflowCanvas,
+  saveWorkflowDraft,
+  updateWorkflowMeta,
+  publishWorkflow,
+  copyWorkflow,
+  deleteWorkflow,
+  listWorkflowVersions,
+  getNodeTypes,
+  syncRunWorkflow,
+  asyncRunWorkflow,
+  cancelExecution,
+  getExecutionProcess,
+  getNodeExecutionDetail,
+  resumeExecution,
+  debugNode,
+} from "@/services/api-workflow-v2";

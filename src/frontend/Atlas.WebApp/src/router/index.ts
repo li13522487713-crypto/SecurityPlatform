@@ -44,6 +44,8 @@ const WebhooksPage = () => import("@/pages/system/WebhooksPage.vue");
 const MessageQueuePage = () => import("@/pages/monitor/MessageQueuePage.vue");
 const LicensePage = () => import("@/pages/LicensePage.vue");
 const ToolsAuthorizationPage = () => import("@/pages/console/ToolsAuthorizationPage.vue");
+const WorkflowListPage = () => import("@/pages/workflow/WorkflowListPage.vue");
+const WorkflowEditorPage = () => import("@/pages/workflow/WorkflowEditorPage.vue");
 
 declare module "vue-router" {
   interface RouteMeta {
@@ -111,6 +113,8 @@ const router = createRouter({
     { path: "/lowcode/templates", name: "template-market", component: TemplateMarketPage, meta: { requiresAuth: true, title: "模板市场", requiresPermission: "apps:view" } },
     { path: "/lowcode/forms/:id/designer", name: "apps-form-designer", component: FormDesignerPage, meta: { requiresAuth: true, title: "表单设计器", requiresPermission: "apps:update" } },
     { path: "/monitor/writeback-failures", name: "monitor-writeback-failures", component: WritebackMonitorPage, meta: { requiresAuth: true, title: "回写监控", requiresPermission: "system:admin" } },
+    { path: "/workflow", name: "workflow-list", component: WorkflowListPage, meta: { requiresAuth: true, title: "工作流管理" } },
+    { path: "/workflow/:id/editor", name: "workflow-editor", component: WorkflowEditorPage, meta: { requiresAuth: true, title: "工作流设计器" } },
     { path: "/:pathMatch(.*)*", name: "not-found", component: NotFoundPage }
   ]
 });
