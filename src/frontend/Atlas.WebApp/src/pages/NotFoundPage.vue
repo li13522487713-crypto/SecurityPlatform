@@ -27,6 +27,6 @@ const goHome = () => {
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 60vh;
+  min-height: calc(100vh - var(--header-height, 56px) - 34px);
 }
 </style>

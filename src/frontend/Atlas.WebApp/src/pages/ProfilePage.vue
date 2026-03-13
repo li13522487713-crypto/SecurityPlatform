@@ -230,10 +230,10 @@ onMounted(async () => {
 
 <style scoped>
 .profile-page {
-  padding: 16px;
+  padding: var(--spacing-lg);
 }
 
 .password-card {
-  margin-top: 16px;
+  margin-top: var(--spacing-md);
 }
 </style>

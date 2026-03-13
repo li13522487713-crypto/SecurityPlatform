@@ -132,8 +132,7 @@ async function logout() {
 }
 
 .drawer-bg {
-  background: #000;
-  opacity: 0.3;
+  background: rgba(0, 0, 0, 0.3);
   width: 100%;
   top: 0;
   height: 100%;
@@ -166,7 +165,7 @@ async function logout() {
   height: 48px;
   line-height: 48px;
   text-align: center;
-  color: #fff;
+  color: var(--color-text-white);
   font-weight: 600;
   font-size: 16px;
   background: rgba(255, 255, 255, 0.1);
@@ -178,11 +177,11 @@ async function logout() {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: #fff;
-  padding: 0 16px;
-  height: 50px;
-  line-height: 50px;
-  box-shadow: 0 1px 4px rgba(0, 21, 41, 0.08);
+  background: var(--color-bg-container);
+  padding: 0 var(--spacing-md);
+  height: var(--header-height);
+  line-height: var(--header-height);
+  border-bottom: 1px solid var(--color-border);
   z-index: 10;
   transition: width 0.28s;
 }
@@ -211,7 +210,7 @@ async function logout() {
 }
 
 .trigger:hover {
-  color: var(--color-primary, #1890ff);
+  color: var(--color-primary);
 }
 
 .header-left {
@@ -231,11 +230,11 @@ async function logout() {
 }
 
 .tags-container {
-  background: #fff;
+  background: var(--color-bg-container);
 }
 
 .app-content {
-  margin: 16px;
+  margin: var(--spacing-md);
   position: relative;
 }
 

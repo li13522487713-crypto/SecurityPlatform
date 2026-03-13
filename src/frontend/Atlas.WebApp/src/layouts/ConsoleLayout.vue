@@ -111,7 +111,7 @@ async function logout() {
 }
 
 .brand {
-  color: #fff;
+  color: var(--color-text-white);
   font-weight: 600;
   margin-right: 20px;
   cursor: pointer;
@@ -125,15 +125,15 @@ async function logout() {
 }
 
 .profile-btn {
-  color: #fff;
+  color: var(--color-text-white);
 }
 
 .profile-name {
-  color: #fff;
+  color: var(--color-text-white);
 }
 
 .console-content {
   min-height: calc(100vh - 56px);
-  background: #f5f7fa;
+  background: var(--color-bg-layout);
 }
 </style>

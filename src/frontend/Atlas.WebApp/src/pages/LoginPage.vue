@@ -1,227 +1,238 @@
 <template>
   <div class="login-page">
-    <header class="login-header">
-      <div class="brand-area">
-        <div class="logo-circle">Atlas</div>
-        <div>
-          <h1>安全控制台</h1>
-          <p>统一安全管理 &amp; 运维管控</p>
+    <!-- 左侧品牌面板 -->
+    <aside class="brand-panel">
+      <div class="brand-content">
+        <div class="brand-logo">
+          <div class="logo-icon">
+            <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M16 2L28 9v14l-12 7L4 23V9l12-7z" fill="rgba(255,255,255,0.15)" stroke="rgba(255,255,255,0.6)" stroke-width="1.5"/>
+              <path d="M16 8l7 4v8l-7 4-7-4v-8l7-4z" fill="rgba(255,255,255,0.25)" stroke="#fff" stroke-width="1.5"/>
+              <circle cx="16" cy="16" r="3" fill="#fff"/>
+            </svg>
+          </div>
+          <div class="brand-text">
+            <h1>Atlas 安全平台</h1>
+            <p>Security Platform</p>
+          </div>
+        </div>
+        <div class="brand-desc">
+          <h2>统一安全管理与运维管控</h2>
+          <ul>
+            <li>统一身份认证 · 多租户组织管理</li>
+            <li>实时审计日志 · 风险策略自动落地</li>
+            <li>资产清点盘查 · 合规告警可追溯</li>
+          </ul>
         </div>
       </div>
-      <div class="header-links">
-        <a href="https://docs.securityplatform.local" target="_blank" rel="noopener">帮助</a>
-        <a href="https://docs.securityplatform.local" target="_blank" rel="noopener">文档</a>
+      <div class="brand-footer">
+        <span>符合等保 2.0 三级要求</span>
       </div>
-    </header>
+      <!-- 装饰元素 -->
+      <div class="decor decor-1" aria-hidden="true"></div>
+      <div class="decor decor-2" aria-hidden="true"></div>
+      <div class="decor decor-3" aria-hidden="true"></div>
+    </aside>
 
-    <main class="login-main">
-      <section class="promo-panel">
-        <h2>智控 · 守护 · 可审计</h2>
-        <p>从账号到权限，从审计到告警，提供一套可复用的控制台管理体验。</p>
-        <ul>
-          <li>统一身份 + 租户/组织可视化管理</li>
-          <li>实时审计 + 风险策略自动落地</li>
-        </ul>
-      </section>
+    <!-- 右侧表单面板 -->
+    <main class="form-panel">
+      <div class="form-wrapper">
+        <!-- 移动端 logo -->
+        <div class="mobile-logo">
+          <div class="logo-icon logo-icon--sm">
+            <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M16 2L28 9v14l-12 7L4 23V9l12-7z" fill="rgba(22,119,255,0.1)" stroke="var(--color-primary)" stroke-width="1.5"/>
+              <path d="M16 8l7 4v8l-7 4-7-4v-8l7-4z" fill="rgba(22,119,255,0.15)" stroke="var(--color-primary)" stroke-width="1.5"/>
+              <circle cx="16" cy="16" r="3" fill="var(--color-primary)"/>
+            </svg>
+          </div>
+          <span>Atlas 安全平台</span>
+        </div>
 
-      <section class="card-panel">
-        <a-card title="欢迎登录" class="login-card" :bordered="false">
+        <h3 class="form-title">账号登录</h3>
 
-          <!-- ① 授权证书区（始终可见，在登录表单上方） -->
-          <div class="license-section">
-            <div v-if="licenseLoading" class="license-loading">
-              <a-spin size="small" />
-              <span style="margin-left: 8px">正在验证授权证书…</span>
+        <!-- 授权证书区 -->
+        <div class="license-section">
+          <div v-if="licenseLoading" class="license-status">
+            <a-spin size="small" />
+            <span>正在验证授权证书…</span>
+          </div>
+
+          <template v-else-if="licenseStatusCode === 'Active'">
+            <div class="license-status license-status--active">
+              <span class="license-dot license-dot--active"></span>
+              <span>已授权</span>
+              <span v-if="licenseStatusInfo?.tenantName" class="license-org">
+                {{ licenseStatusInfo.tenantName }}
+              </span>
+              <a-tag color="blue" size="small">{{ licenseStatusInfo?.edition }}</a-tag>
+              <span class="license-expire">{{ licenseExpireText }}</span>
+              <a class="license-action" @click="showRenewArea = !showRenewArea">
+                {{ showRenewArea ? '收起' : '更换证书' }}
+              </a>
             </div>
-
-            <!-- 已激活 -->
-            <template v-else-if="licenseStatusCode === 'Active'">
-              <div class="license-active-header">
-                <span class="license-badge license-badge--active">✓ 已授权</span>
-                <span v-if="licenseStatusInfo?.tenantName" class="license-org">
-                  {{ licenseStatusInfo.tenantName }}
-                </span>
-                <a-tag color="blue" style="margin: 0">{{ licenseStatusInfo?.edition }}</a-tag>
-                <span class="license-expire">{{ licenseExpireText }}</span>
-                <a class="license-renew-link" @click="showRenewArea = !showRenewArea">
-                  {{ showRenewArea ? '收起' : '更换证书' }}
-                </a>
-              </div>
-              <div v-if="showRenewArea" class="license-upload-area">
-                <div v-if="licenseActivateResult" style="margin-bottom: 8px">
-                  <a-alert
-                    :type="licenseActivateResult.success ? 'success' : 'error'"
-                    :message="licenseActivateResult.message"
-                    closable
-                    @close="licenseActivateResult = null"
-                  />
-                </div>
-                <a-upload
-                  :before-upload="handleLicenseFileSelect"
-                  :show-upload-list="false"
-                  accept=".atlaslicense,.lic,.txt"
-                >
-                  <a-button size="small" :loading="licenseActivating">
-                    <template #icon><upload-outlined /></template>
-                    选择证书文件
-                  </a-button>
-                </a-upload>
-              </div>
-            </template>
-
-            <!-- 未激活 / 已过期 -->
-            <template v-else>
-              <div class="license-inactive-header">
-                <span
-                  class="license-badge"
-                  :class="licenseStatusCode === 'Expired' ? 'license-badge--expired' : 'license-badge--none'"
-                >
-                  {{ licenseStatusCode === 'Expired' ? '⚠ 授权已过期' : '未激活' }}
-                </span>
-                <span class="license-hint">
-                  {{ licenseStatusCode === 'Expired' ? '请续签证书后方可使用' : '请上传授权证书以启用平台' }}
-                </span>
-              </div>
-              <div v-if="licenseActivateResult" style="margin: 8px 0">
-                <a-alert
-                  :type="licenseActivateResult.success ? 'success' : 'error'"
-                  :message="licenseActivateResult.message"
-                  closable
-                  @close="licenseActivateResult = null"
-                />
-              </div>
+            <div v-if="showRenewArea" class="license-upload">
+              <a-alert
+                v-if="licenseActivateResult"
+                :type="licenseActivateResult.success ? 'success' : 'error'"
+                :message="licenseActivateResult.message"
+                closable
+                show-icon
+                style="margin-bottom: 8px"
+                @close="licenseActivateResult = null"
+              />
               <a-upload
                 :before-upload="handleLicenseFileSelect"
                 :show-upload-list="false"
                 accept=".atlaslicense,.lic,.txt"
               >
-                <a-button type="primary" size="small" :loading="licenseActivating">
+                <a-button size="small" :loading="licenseActivating">
                   <template #icon><upload-outlined /></template>
-                  {{ licenseActivating ? '激活中…' : '上传证书' }}
+                  选择证书文件
                 </a-button>
               </a-upload>
-              <a-typography-paragraph
-                type="secondary"
-                style="font-size: 12px; margin-top: 8px; margin-bottom: 0"
-              >
-                上传 <code>.atlaslicense</code> 证书文件以激活平台授权
-              </a-typography-paragraph>
-            </template>
+            </div>
+          </template>
+
+          <template v-else>
+            <div class="license-status" :class="licenseStatusCode === 'Expired' ? 'license-status--expired' : 'license-status--none'">
+              <span class="license-dot" :class="licenseStatusCode === 'Expired' ? 'license-dot--expired' : 'license-dot--none'"></span>
+              <span>{{ licenseStatusCode === 'Expired' ? '授权已过期' : '未激活' }}</span>
+              <span class="license-hint">
+                {{ licenseStatusCode === 'Expired' ? '请续签证书' : '请上传授权证书' }}
+              </span>
+            </div>
+            <a-alert
+              v-if="licenseActivateResult"
+              :type="licenseActivateResult.success ? 'success' : 'error'"
+              :message="licenseActivateResult.message"
+              closable
+              show-icon
+              style="margin: 8px 0"
+              @close="licenseActivateResult = null"
+            />
+            <a-upload
+              :before-upload="handleLicenseFileSelect"
+              :show-upload-list="false"
+              accept=".atlaslicense,.lic,.txt"
+            >
+              <a-button type="primary" size="small" :loading="licenseActivating">
+                <template #icon><upload-outlined /></template>
+                {{ licenseActivating ? '激活中…' : '上传证书' }}
+              </a-button>
+            </a-upload>
+            <p class="license-tip">上传 <code>.atlaslicense</code> 证书文件以激活平台授权</p>
+          </template>
+        </div>
+
+        <a-divider style="margin: 16px 0" />
+
+        <!-- 登录表单 -->
+        <template v-if="licenseStatusCode === 'Active'">
+          <div v-if="errorMessage" class="error-banner">
+            <span class="error-icon">!</span>
+            <span>{{ errorMessage }}</span>
+            <span v-if="cooldownSeconds > 0" class="cooldown-text">请 {{ cooldownSeconds }}s 后再试</span>
           </div>
 
-          <a-divider style="margin: 12px 0" />
-
-          <!-- ② 登录表单（仅证书有效时可用） -->
-          <template v-if="licenseStatusCode === 'Active'">
-            <div v-if="errorMessage" class="error-banner">
-              <span class="error-dot" aria-hidden="true">!</span>
-              <span>{{ errorMessage }}</span>
-              <span v-if="cooldownSeconds > 0" class="cooldown">（请 {{ cooldownSeconds }} 秒后再试）</span>
-            </div>
-
-            <a-form
-              layout="vertical"
-              :model="form"
-              class="login-form"
-              :disabled="loading"
-              @finish="handleSubmit"
+          <a-form
+            layout="vertical"
+            :model="form"
+            class="login-form"
+            :disabled="loading"
+            @finish="handleSubmit"
+          >
+            <a-form-item
+              label="租户 / 组织"
+              name="tenantId"
+              :rules="[
+                { required: true, message: '授权证书未提供租户 / 组织ID' },
+                { pattern: /^[0-9a-fA-F-]{36}$/, message: '证书租户ID格式无效' }
+              ]"
             >
-              <a-form-item
-                label="租户 / 组织"
-                name="tenantId"
-                :rules="[
-                  { required: true, message: '授权证书未提供租户 / 组织ID' },
-                  { pattern: /^[0-9a-fA-F-]{36}$/, message: '证书租户ID格式无效，请重新激活证书' }
-                ]"
-              >
-                <a-input
-                  v-model:value="form.tenantId"
-                  placeholder="租户 / 组织 ID 来自授权证书"
-                  readonly
-                  autocomplete="off"
-                  @focus="errorMessage = ''"
-                />
-                <div class="tenant-readonly-tip">租户由证书自动绑定，如需变更请更换证书</div>
-                <div v-if="!hasValidTenantId(form.tenantId.trim())" class="tenant-readonly-error">
-                  当前证书未提供有效租户ID（GUID），请更换正确证书后登录
-                </div>
-              </a-form-item>
-
-              <a-form-item
-                label="账号"
-                name="username"
-                :rules="[{ required: true, message: '请输入账号' }]"
-              >
-                <a-input
-                  v-model:value="form.username"
-                  placeholder="请输入手机号/邮箱/用户名"
-                  allow-clear
-                  autocomplete="username"
-                  @focus="errorMessage = ''"
-                />
-              </a-form-item>
-
-              <a-form-item
-                label="密码"
-                name="password"
-                :rules="[{ required: true, message: '请输入密码' }]"
-              >
-                <a-input-password
-                  v-model:value="form.password"
-                  placeholder="请输入密码"
-                  autocomplete="current-password"
-                  @keydown="handleCapsLockEvent"
-                  @keyup="handleCapsLockEvent"
-                  @blur="capsLockOn = false"
-                  @focus="errorMessage = ''"
-                />
-                <div v-if="capsLockOn" class="caps-tip">
-                  Caps Lock 已开启，可能影响密码输入
-                </div>
-              </a-form-item>
-
-              <a-form-item style="margin-bottom: 8px">
-                <div class="remember-row">
-                  <a-checkbox v-model:checked="form.rememberMe">记住我（30天内保持登录）</a-checkbox>
-                </div>
-              </a-form-item>
-
-              <a-form-item>
-                <a-button
-                  type="primary"
-                  block
-                  html-type="submit"
-                  :loading="loading"
-                  :disabled="isSubmitDisabled"
-                >
-                  <span v-if="!loading">{{ cooldownSeconds > 0 ? `请稍候 (${cooldownSeconds}s)` : "登录" }}</span>
-                  <span v-else>登录中</span>
-                </a-button>
-              </a-form-item>
-
-              <div class="secondary-actions">
-                <a href="/password-reset">忘记密码</a>
-                <router-link to="/register">还没有账号？立即注册</router-link>
+              <a-input
+                v-model:value="form.tenantId"
+                placeholder="租户 / 组织 ID 来自授权证书"
+                readonly
+                autocomplete="off"
+                @focus="errorMessage = ''"
+              />
+              <div class="field-tip">租户由证书自动绑定，如需变更请更换证书</div>
+              <div v-if="!hasValidTenantId(form.tenantId.trim())" class="field-error">
+                当前证书未提供有效租户ID，请更换正确证书
               </div>
-            </a-form>
-          </template>
+            </a-form-item>
 
-          <template v-else-if="!licenseLoading">
-            <div class="login-locked-hint">
-              <a-typography-text type="secondary">请先激活有效的授权证书，方可登录系统</a-typography-text>
+            <a-form-item
+              label="账号"
+              name="username"
+              :rules="[{ required: true, message: '请输入账号' }]"
+            >
+              <a-input
+                v-model:value="form.username"
+                placeholder="手机号 / 邮箱 / 用户名"
+                allow-clear
+                autocomplete="username"
+                @focus="errorMessage = ''"
+              />
+            </a-form-item>
+
+            <a-form-item
+              label="密码"
+              name="password"
+              :rules="[{ required: true, message: '请输入密码' }]"
+            >
+              <a-input-password
+                v-model:value="form.password"
+                placeholder="请输入密码"
+                autocomplete="current-password"
+                @keydown="handleCapsLockEvent"
+                @keyup="handleCapsLockEvent"
+                @blur="capsLockOn = false"
+                @focus="errorMessage = ''"
+              />
+              <div v-if="capsLockOn" class="caps-tip">Caps Lock 已开启</div>
+            </a-form-item>
+
+            <div class="form-extra">
+              <a-checkbox v-model:checked="form.rememberMe">记住我</a-checkbox>
+              <a href="/password-reset" class="forgot-link">忘记密码？</a>
             </div>
-          </template>
 
-        </a-card>
-      </section>
+            <a-button
+              type="primary"
+              block
+              html-type="submit"
+              size="large"
+              :loading="loading"
+              :disabled="isSubmitDisabled"
+              class="submit-btn"
+            >
+              <span v-if="!loading">{{ cooldownSeconds > 0 ? `请稍候 (${cooldownSeconds}s)` : '登录' }}</span>
+              <span v-else>登录中</span>
+            </a-button>
+
+            <div class="register-link">
+              还没有账号？<router-link to="/register">立即注册</router-link>
+            </div>
+          </a-form>
+        </template>
+
+        <template v-else-if="!licenseLoading">
+          <div class="login-locked">
+            请先激活有效的授权证书，方可登录系统
+          </div>
+        </template>
+      </div>
+
+      <footer class="form-footer">
+        <span>隐私政策</span>
+        <span class="sep">·</span>
+        <span>用户协议</span>
+        <span class="sep">·</span>
+        <span>v1.0.2</span>
+      </footer>
     </main>
-
-    <footer class="login-footer">
-      <span>隐私政策</span>
-      <span>用户协议</span>
-      <span>版本 v1.0.2</span>
-      <span>备案：沪ICP备xxxxxx号</span>
-    </footer>
   </div>
 </template>
 
@@ -266,7 +277,6 @@ let cooldownTimer: number | undefined;
 
 const REMEMBER_ME_KEY = "atlas-login-remember-me";
 
-// 租户 ID 初始值：优先取 localStorage 已有的（返回用户），否则留空等待证书填充
 const form = reactive({
   tenantId: getTenantId() ?? "",
   username: "",
@@ -274,7 +284,6 @@ const form = reactive({
   rememberMe: localStorage.getItem(REMEMBER_ME_KEY) === "true"
 });
 
-// 授权证书相关
 const licenseLoading = ref(true);
 const licenseActivating = ref(false);
 const licenseActivateResult = ref<{ success: boolean; message: string } | null>(null);
@@ -431,7 +440,6 @@ async function handleLicenseFileSelect(file: File): Promise<false> {
         message: resp.data?.message ?? resp.message ?? "授权激活成功！"
       };
       showRenewArea.value = false;
-      // 激活成功后重新加载授权状态，自动填充租户信息
       await loadLicenseStatus();
     } else {
       licenseActivateResult.value = {
@@ -470,14 +478,12 @@ async function loadLicenseStatus() {
     licenseStatusCode.value = status.status;
     licenseStatusInfo.value = status;
 
-    // 证书激活后自动填充租户 ID（若证书含有效 GUID 且当前租户未手动输入）
     if (status.status === "Active" && status.tenantId && hasValidTenantId(status.tenantId)) {
       if (!form.tenantId || !hasValidTenantId(form.tenantId)) {
         form.tenantId = status.tenantId;
       }
     }
   } catch {
-    // 静默失败，不影响页面渲染
     licenseStatusCode.value = "None";
   } finally {
     licenseLoading.value = false;
@@ -496,155 +502,201 @@ onBeforeUnmount(() => {
 .login-page {
   min-height: 100vh;
   display: flex;
+  background: #fff;
+}
+
+/* ── 左侧品牌面板 ── */
+.brand-panel {
+  width: 440px;
+  min-height: 100vh;
+  background: linear-gradient(160deg, #0d47a1 0%, #1565c0 40%, #1e88e5 100%);
+  color: #fff;
+  display: flex;
   flex-direction: column;
-  background: var(--color-bg-base);
+  padding: 48px 40px;
+  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
 }
 
-.login-header {
-  padding: var(--spacing-lg) 64px;
+.brand-content {
+  flex: 1;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.brand-area {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-md);
-}
-
-.logo-circle {
-  width: 48px;
-  height: 48px;
-  border-radius: var(--border-radius-round);
-  background: var(--color-primary);
-  color: var(--color-text-white);
-  display: flex;
-  align-items: center;
+  flex-direction: column;
   justify-content: center;
-  font-weight: 600;
+  position: relative;
+  z-index: 1;
 }
 
-.brand-area h1 {
+.brand-logo {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 48px;
+}
+
+.logo-icon {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+}
+
+.logo-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.brand-text h1 {
   margin: 0;
   font-size: 22px;
   font-weight: 600;
+  letter-spacing: 0.5px;
 }
 
-.brand-area p {
-  margin: var(--spacing-xs) 0 0;
-  color: var(--color-text-tertiary);
-  font-size: 14px;
+.brand-text p {
+  margin: 2px 0 0;
+  font-size: 12px;
+  opacity: 0.65;
+  letter-spacing: 1px;
 }
 
-.header-links a {
-  margin-left: var(--spacing-lg);
-  color: var(--color-text-secondary);
-  font-size: 14px;
-}
-
-.login-main {
-  flex: 1;
-  display: flex;
-  gap: var(--spacing-xl);
-  padding: 0 64px var(--spacing-xxl);
-  align-items: stretch;
-}
-
-.promo-panel {
-  flex: 1;
-  background: linear-gradient(135deg, var(--color-bg-container) 0%, var(--color-primary-bg) 100%);
-  border-radius: var(--border-radius-lg);
-  padding: 40px var(--spacing-xxl);
-  box-shadow: var(--shadow-md);
-}
-
-.promo-panel h2 {
-  margin-top: 0;
-  font-size: 28px;
+.brand-desc h2 {
+  font-size: 26px;
   font-weight: 600;
+  margin: 0 0 24px;
+  line-height: 1.4;
 }
 
-.promo-panel p {
-  margin: var(--spacing-md) 0;
-  color: var(--color-text-secondary);
-}
-
-.promo-panel ul {
-  padding-left: 20px;
-  color: var(--color-text-primary);
+.brand-desc ul {
+  list-style: none;
+  padding: 0;
   margin: 0;
 }
 
-.card-panel {
-  width: 420px;
+.brand-desc li {
+  padding: 8px 0;
+  font-size: 14px;
+  opacity: 0.85;
+  position: relative;
+  padding-left: 20px;
+}
+
+.brand-desc li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.brand-footer {
+  position: relative;
+  z-index: 1;
+  font-size: 12px;
+  opacity: 0.5;
+}
+
+/* 装饰圆 */
+.decor {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.decor-1 {
+  width: 300px;
+  height: 300px;
+  bottom: -80px;
+  right: -80px;
+}
+
+.decor-2 {
+  width: 180px;
+  height: 180px;
+  top: -40px;
+  right: 60px;
+}
+
+.decor-3 {
+  width: 100px;
+  height: 100px;
+  bottom: 120px;
+  left: -30px;
+}
+
+/* ── 右侧表单面板 ── */
+.form-panel {
+  flex: 1;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  padding: 40px;
+  min-height: 100vh;
+  background: #fff;
 }
 
-.login-card {
+.form-wrapper {
   width: 100%;
-  border-radius: var(--border-radius-lg);
-  box-shadow: var(--shadow-lg);
+  max-width: 400px;
 }
 
-/* ── 授权证书区 ── */
+.mobile-logo {
+  display: none;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 32px;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.logo-icon--sm {
+  width: 32px;
+  height: 32px;
+}
+
+.form-title {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: 0 0 24px;
+}
+
+/* ── 授权证书 ── */
 .license-section {
-  padding: 10px 0 4px;
+  padding: 12px 16px;
+  background: var(--color-bg-subtle);
+  border-radius: var(--border-radius-md);
+  border: 1px solid var(--color-border);
 }
 
-.license-loading {
+.license-status {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 13px;
   color: var(--color-text-secondary);
-  font-size: 13px;
-  padding: 4px 0;
 }
 
-.license-active-header {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  font-size: 13px;
+.license-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
-.license-inactive-header {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 10px;
-  font-size: 13px;
-}
+.license-dot--active { background: var(--color-success); }
+.license-dot--expired { background: var(--color-warning); }
+.license-dot--none { background: var(--color-text-quaternary); }
 
-.license-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 8px;
-  border-radius: 10px;
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.license-badge--active {
-  background: #f6ffed;
-  border: 1px solid #b7eb8f;
-  color: #389e0d;
-}
-
-.license-badge--expired {
-  background: #fff7e6;
-  border: 1px solid #ffd591;
-  color: #d46b08;
-}
-
-.license-badge--none {
-  background: #f5f5f5;
-  border: 1px solid #d9d9d9;
-  color: #8c8c8c;
-}
+.license-status--active { color: var(--color-text-primary); }
+.license-status--expired { color: var(--color-warning); }
 
 .license-org {
   font-weight: 500;
@@ -652,50 +704,97 @@ onBeforeUnmount(() => {
 }
 
 .license-expire {
-  color: var(--color-text-secondary);
+  color: var(--color-text-tertiary);
   font-size: 12px;
 }
 
-.license-renew-link {
+.license-action {
   margin-left: auto;
   font-size: 12px;
   color: var(--color-primary);
   cursor: pointer;
 }
 
-.license-renew-link:hover {
-  opacity: 0.8;
-}
-
 .license-hint {
-  color: var(--color-text-secondary);
+  color: var(--color-text-tertiary);
   font-size: 12px;
 }
 
-.license-upload-area {
+.license-upload {
   margin-top: 10px;
   padding: 10px;
-  border: 1px dashed var(--color-border-dashed);
+  border: 1px dashed var(--color-border-secondary);
   border-radius: 6px;
-  background: var(--color-bg-layout);
+  background: #fff;
 }
 
-.tenant-readonly-tip {
-  margin-top: var(--spacing-xs);
-  color: var(--color-text-secondary);
+.license-tip {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+}
+
+/* ── 登录表单 ── */
+.login-form :deep(.ant-form-item) {
+  margin-bottom: 20px;
+}
+
+.login-form :deep(.ant-input),
+.login-form :deep(.ant-input-password .ant-input) {
+  height: 40px;
+}
+
+.field-tip {
+  margin-top: 4px;
+  color: var(--color-text-tertiary);
   font-size: 12px;
 }
 
-.tenant-readonly-error {
-  margin-top: var(--spacing-xs);
+.field-error {
+  margin-top: 4px;
   color: var(--color-error-text);
   font-size: 12px;
 }
 
-/* ── 登录锁定提示 ── */
-.login-locked-hint {
-  padding: 16px 0 8px;
+.caps-tip {
+  margin-top: 4px;
+  color: var(--color-warning);
+  font-size: 12px;
+}
+
+.form-extra {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.forgot-link {
+  color: var(--color-primary);
+  font-size: 14px;
+}
+
+.submit-btn {
+  height: 44px;
+  font-size: 16px;
+  border-radius: var(--border-radius-md);
+}
+
+.register-link {
   text-align: center;
+  margin-top: 16px;
+  font-size: 14px;
+  color: var(--color-text-secondary);
+}
+
+.register-link a {
+  color: var(--color-primary);
+}
+
+.login-locked {
+  padding: 24px 0;
+  text-align: center;
+  color: var(--color-text-tertiary);
   font-size: 14px;
 }
 
@@ -703,121 +802,75 @@ onBeforeUnmount(() => {
 .error-banner {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   background: var(--color-error-bg);
   border: 1px solid var(--color-error-border);
   color: var(--color-error-text);
-  padding: 10px var(--spacing-md);
-  border-radius: 6px;
-  margin-bottom: var(--spacing-md);
+  padding: 10px 14px;
+  border-radius: var(--border-radius-md);
+  margin-bottom: 16px;
   font-size: 14px;
 }
 
-.error-dot {
-  width: 22px;
-  height: 22px;
-  border-radius: var(--border-radius-round);
+.error-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
   background: var(--color-error-text);
-  color: var(--color-text-white);
+  color: #fff;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
 }
 
-.cooldown {
+.cooldown-text {
   margin-left: auto;
   font-size: 12px;
-  color: var(--color-text-secondary);
-}
-
-.tenant-tags {
-  margin-top: var(--spacing-sm);
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--spacing-sm);
-}
-
-.tenant-tag {
-  border: 1px dashed var(--color-border-dashed);
-  padding: 2px var(--spacing-sm);
-  border-radius: 12px;
-  font-size: 12px;
-  cursor: pointer;
-  color: var(--color-text-secondary);
-}
-
-.tenant-tag:hover {
-  border-color: var(--color-primary);
-  color: var(--color-primary);
-}
-
-.caps-tip {
-  margin-top: var(--spacing-xs);
-  color: var(--color-warning);
-  font-size: 12px;
-}
-
-.remember-row {
-  display: flex;
-  align-items: center;
-}
-
-.secondary-actions {
-  display: flex;
-  justify-content: space-between;
-  margin-top: var(--spacing-sm);
-}
-
-.secondary-actions a {
-  color: var(--color-text-secondary);
-  font-size: 14px;
-}
-
-.login-footer {
-  padding: var(--spacing-md) 64px;
-  display: flex;
-  gap: var(--spacing-md);
-  flex-wrap: wrap;
-  font-size: 12px;
   color: var(--color-text-tertiary);
-  border-top: 1px solid var(--color-bg-hover);
+  white-space: nowrap;
 }
 
-@media screen and (max-width: 1024px) {
-  .login-main {
-    flex-direction: column;
-    padding: 0 var(--spacing-lg) var(--spacing-xxl);
+/* ── 页脚 ── */
+.form-footer {
+  margin-top: 48px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--color-text-quaternary);
+}
+
+.form-footer .sep {
+  margin: 0 6px;
+}
+
+/* ── 响应式 ── */
+@media screen and (max-width: 960px) {
+  .brand-panel {
+    display: none;
   }
 
-  .promo-panel {
-    order: 2;
+  .mobile-logo {
+    display: flex;
   }
 
-  .card-panel {
-    width: 100%;
-    order: 1;
+  .form-panel {
+    padding: 32px 24px;
   }
 }
 
-@media screen and (max-width: 720px) {
-  .login-header,
-  .login-footer {
-    flex-direction: column;
-    align-items: flex-start;
-    padding: var(--spacing-md);
+@media screen and (max-width: 480px) {
+  .form-panel {
+    padding: 24px 16px;
   }
 
-  .brand-area {
-    gap: 12px;
+  .form-title {
+    font-size: 20px;
   }
 
-  .login-card {
-    box-shadow: none;
-  }
-
-  .card-panel {
-    padding: 0;
+  .form-wrapper {
+    max-width: 100%;
   }
 }
 </style>
