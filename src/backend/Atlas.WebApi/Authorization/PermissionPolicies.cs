@@ -100,6 +100,11 @@ public static class PermissionPolicies
     public const string AiPluginDelete = "Permission:ai-plugin:delete";
     public const string AiPluginPublish = "Permission:ai-plugin:publish";
     public const string AiPluginDebug = "Permission:ai-plugin:debug";
+    public const string AiAppView = "Permission:ai-app:view";
+    public const string AiAppCreate = "Permission:ai-app:create";
+    public const string AiAppUpdate = "Permission:ai-app:update";
+    public const string AiAppDelete = "Permission:ai-app:delete";
+    public const string AiAppPublish = "Permission:ai-app:publish";
 
     public const string ApprovalFlowView = "Permission:approval:flow:view";
     public const string ApprovalFlowManage = "Permission:approval:flow:manage";

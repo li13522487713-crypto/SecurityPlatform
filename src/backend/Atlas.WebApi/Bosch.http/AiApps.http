@@ -1,0 +1,114 @@
+@baseUrl = http://localhost:5000
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+@appId = 1
+
+### 登录获取令牌
+# @name login
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+###
+@accessToken = {{login.response.body.$.data.accessToken}}
+@csrfToken =
+
+### 获取 CSRF Token
+# @name antiforgery
+GET {{baseUrl}}/api/v1/secure/antiforgery
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+###
+@csrfToken = {{antiforgery.response.body.$.data.token}}
+
+### 应用分页
+GET {{baseUrl}}/api/v1/ai-apps?PageIndex=1&PageSize=20
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 创建应用
+POST {{baseUrl}}/api/v1/ai-apps
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "name": "客服助手应用",
+  "description": "聚合 Agent + Workflow",
+  "icon": "robot",
+  "agentId": null,
+  "workflowId": null,
+  "promptTemplateId": null
+}
+
+### 查询应用详情
+GET {{baseUrl}}/api/v1/ai-apps/{{appId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 更新应用
+PUT {{baseUrl}}/api/v1/ai-apps/{{appId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "name": "客服助手应用V2",
+  "description": "更新后的描述",
+  "icon": "robot",
+  "agentId": null,
+  "workflowId": null,
+  "promptTemplateId": null
+}
+
+### 发布应用
+POST {{baseUrl}}/api/v1/ai-apps/{{appId}}/publish
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "releaseNote": "首个可用版本"
+}
+
+### 版本检查
+GET {{baseUrl}}/api/v1/ai-apps/{{appId}}/version-check
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 提交资源复制任务
+POST {{baseUrl}}/api/v1/ai-apps/{{appId}}/resource-copy-tasks
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "sourceAppId": 2
+}
+
+### 查询资源复制任务进度
+GET {{baseUrl}}/api/v1/ai-apps/{{appId}}/resource-copy-tasks/latest
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 删除应用
+DELETE {{baseUrl}}/api/v1/ai-apps/{{appId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
