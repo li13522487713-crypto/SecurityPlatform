@@ -30,4 +30,5 @@ export * from "@/services/api-ai-prompt";
 export * from "@/services/api-ai-marketplace";
 export * from "@/services/api-ai-search";
 export * from "@/services/api-admin-ai-config";
+export * from "@/services/api-ai-workspace";
 export * from "@/services/api-pat";

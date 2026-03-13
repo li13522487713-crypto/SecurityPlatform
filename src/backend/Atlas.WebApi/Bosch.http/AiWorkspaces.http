@@ -1,0 +1,52 @@
+@baseUrl = http://localhost:5000
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+
+### 登录获取令牌
+# @name login
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+###
+@accessToken = {{login.response.body.$.data.accessToken}}
+
+### 获取 CSRF Token
+# @name antiforgery
+GET {{baseUrl}}/api/v1/secure/antiforgery
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+###
+@csrfToken = {{antiforgery.response.body.$.data.token}}
+
+### 查询当前工作台
+GET {{baseUrl}}/api/v1/ai-workspaces/current
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 更新当前工作台
+PUT {{baseUrl}}/api/v1/ai-workspaces/current
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+Content-Type: application/json
+
+{
+  "name": "我的 AI 工作台",
+  "theme": "light",
+  "lastVisitedPath": "/ai/workspace",
+  "favoriteResourceIds": [1, 2, 3]
+}
+
+### 查询资源库
+GET {{baseUrl}}/api/v1/ai-workspaces/library?pageIndex=1&pageSize=20&keyword=agent
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}

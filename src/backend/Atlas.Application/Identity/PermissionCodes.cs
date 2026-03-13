@@ -111,6 +111,8 @@ public static class PermissionCodes
     public const string AiSearchUpdate = "ai-search:update";
     public const string AiAdminConfigView = "ai-admin-config:view";
     public const string AiAdminConfigUpdate = "ai-admin-config:update";
+    public const string AiWorkspaceView = "ai-workspace:view";
+    public const string AiWorkspaceUpdate = "ai-workspace:update";
     public const string PersonalAccessTokenView = "pat:view";
     public const string PersonalAccessTokenCreate = "pat:create";
     public const string PersonalAccessTokenUpdate = "pat:update";

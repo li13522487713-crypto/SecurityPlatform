@@ -114,6 +114,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             typeof(AiMarketplaceProduct),
             typeof(AiMarketplaceFavorite),
             typeof(AiRecentEdit),
+            typeof(AiWorkspace),
             typeof(PersonalAccessToken),
             typeof(AuthSession),
             typeof(RefreshToken),
@@ -441,6 +442,8 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             (PermissionCodes.AiSearchUpdate, "AI Search Update", "Api"),
             (PermissionCodes.AiAdminConfigView, "AI Admin Config View", "Api"),
             (PermissionCodes.AiAdminConfigUpdate, "AI Admin Config Update", "Api"),
+            (PermissionCodes.AiWorkspaceView, "AI Workspace View", "Api"),
+            (PermissionCodes.AiWorkspaceUpdate, "AI Workspace Update", "Api"),
             (PermissionCodes.PersonalAccessTokenView, "PAT View", "Api"),
             (PermissionCodes.PersonalAccessTokenCreate, "PAT Create", "Api"),
             (PermissionCodes.PersonalAccessTokenUpdate, "PAT Update", "Api"),
@@ -584,6 +587,8 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             ("AI 市场", "/ai/marketplace", "/ai", 29, "C", "ai/AiMarketplacePage", "shop", PermissionCodes.AiMarketplaceView, null, false, true, "0", "0", PermissionCodes.AiMarketplaceView, false),
             ("AI 市场详情", "/ai/marketplace/:id", "/ai", 30, "C", "ai/AiMarketplaceDetailPage", "profile", PermissionCodes.AiMarketplaceView, null, false, true, "0", "0", PermissionCodes.AiMarketplaceView, true),
             ("统一搜索", "/ai/search", "/ai", 31, "C", "ai/AiSearchResultsPage", "search", PermissionCodes.AiSearchView, null, false, true, "0", "0", PermissionCodes.AiSearchView, false),
+            ("AI 工作台", "/ai/workspace", "/ai", 32, "C", "ai/AiWorkspacePage", "desktop", PermissionCodes.AiWorkspaceView, null, false, true, "0", "0", PermissionCodes.AiWorkspaceView, false),
+            ("AI 资源库", "/ai/library", "/ai", 33, "C", "ai/AiLibraryPage", "inbox", PermissionCodes.AiWorkspaceView, null, false, true, "0", "0", PermissionCodes.AiWorkspaceView, false),
 
             ("低代码中心", "/lowcode", null, 20, "M", "Layout", "appstore", null, null, false, false, "0", "0", null, false),
             ("应用管理", "/lowcode/apps", "/lowcode", 21, "C", "lowcode/AppListPage", "appstore-add", PermissionCodes.AppsView, null, false, true, "0", "0", PermissionCodes.AppsView, false),
@@ -684,7 +689,9 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             ("市场删除", "/ai/marketplace:delete", "/ai/marketplace", 38, "F", null, null, PermissionCodes.AiMarketplaceDelete, null, false, false, "0", "0", PermissionCodes.AiMarketplaceDelete, true),
             ("市场发布", "/ai/marketplace:publish", "/ai/marketplace", 39, "F", null, null, PermissionCodes.AiMarketplacePublish, null, false, false, "0", "0", PermissionCodes.AiMarketplacePublish, true),
             ("搜索查询", "/ai/search:query", "/ai/search", 40, "F", null, null, PermissionCodes.AiSearchView, null, false, false, "0", "0", PermissionCodes.AiSearchView, true),
-            ("搜索记录更新", "/ai/search:update", "/ai/search", 41, "F", null, null, PermissionCodes.AiSearchUpdate, null, false, false, "0", "0", PermissionCodes.AiSearchUpdate, true)
+            ("搜索记录更新", "/ai/search:update", "/ai/search", 41, "F", null, null, PermissionCodes.AiSearchUpdate, null, false, false, "0", "0", PermissionCodes.AiSearchUpdate, true),
+            ("工作台查询", "/ai/workspace:query", "/ai/workspace", 42, "F", null, null, PermissionCodes.AiWorkspaceView, null, false, false, "0", "0", PermissionCodes.AiWorkspaceView, true),
+            ("工作台更新", "/ai/workspace:update", "/ai/workspace", 43, "F", null, null, PermissionCodes.AiWorkspaceUpdate, null, false, false, "0", "0", PermissionCodes.AiWorkspaceUpdate, true)
         };
 
         var menuPaths = menuSeeds.Select(x => x.Path).Distinct().ToArray();
@@ -862,6 +869,8 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             "/ai/open-platform",
             "/ai/marketplace",
             "/ai/search",
+            "/ai/workspace",
+            "/ai/library",
             "/lowcode",
             "/lowcode/apps",
             "/lowcode/forms",
