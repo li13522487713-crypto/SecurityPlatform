@@ -113,6 +113,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             typeof(AiProductCategory),
             typeof(AiMarketplaceProduct),
             typeof(AiMarketplaceFavorite),
+            typeof(AiRecentEdit),
             typeof(PersonalAccessToken),
             typeof(AuthSession),
             typeof(RefreshToken),
@@ -436,6 +437,8 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             (PermissionCodes.AiMarketplaceUpdate, "AI Marketplace Update", "Api"),
             (PermissionCodes.AiMarketplaceDelete, "AI Marketplace Delete", "Api"),
             (PermissionCodes.AiMarketplacePublish, "AI Marketplace Publish", "Api"),
+            (PermissionCodes.AiSearchView, "AI Search View", "Api"),
+            (PermissionCodes.AiSearchUpdate, "AI Search Update", "Api"),
             (PermissionCodes.PersonalAccessTokenView, "PAT View", "Api"),
             (PermissionCodes.PersonalAccessTokenCreate, "PAT Create", "Api"),
             (PermissionCodes.PersonalAccessTokenUpdate, "PAT Update", "Api"),
@@ -578,6 +581,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             ("开放平台", "/ai/open-platform", "/ai", 28, "C", "ai/AiOpenPlatformPage", "cloud", PermissionCodes.PersonalAccessTokenView, null, false, true, "0", "0", PermissionCodes.PersonalAccessTokenView, false),
             ("AI 市场", "/ai/marketplace", "/ai", 29, "C", "ai/AiMarketplacePage", "shop", PermissionCodes.AiMarketplaceView, null, false, true, "0", "0", PermissionCodes.AiMarketplaceView, false),
             ("AI 市场详情", "/ai/marketplace/:id", "/ai", 30, "C", "ai/AiMarketplaceDetailPage", "profile", PermissionCodes.AiMarketplaceView, null, false, true, "0", "0", PermissionCodes.AiMarketplaceView, true),
+            ("统一搜索", "/ai/search", "/ai", 31, "C", "ai/AiSearchResultsPage", "search", PermissionCodes.AiSearchView, null, false, true, "0", "0", PermissionCodes.AiSearchView, false),
 
             ("低代码中心", "/lowcode", null, 20, "M", "Layout", "appstore", null, null, false, false, "0", "0", null, false),
             ("应用管理", "/lowcode/apps", "/lowcode", 21, "C", "lowcode/AppListPage", "appstore-add", PermissionCodes.AppsView, null, false, true, "0", "0", PermissionCodes.AppsView, false),
@@ -673,7 +677,9 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             ("市场新增", "/ai/marketplace:create", "/ai/marketplace", 36, "F", null, null, PermissionCodes.AiMarketplaceCreate, null, false, false, "0", "0", PermissionCodes.AiMarketplaceCreate, true),
             ("市场修改", "/ai/marketplace:update", "/ai/marketplace", 37, "F", null, null, PermissionCodes.AiMarketplaceUpdate, null, false, false, "0", "0", PermissionCodes.AiMarketplaceUpdate, true),
             ("市场删除", "/ai/marketplace:delete", "/ai/marketplace", 38, "F", null, null, PermissionCodes.AiMarketplaceDelete, null, false, false, "0", "0", PermissionCodes.AiMarketplaceDelete, true),
-            ("市场发布", "/ai/marketplace:publish", "/ai/marketplace", 39, "F", null, null, PermissionCodes.AiMarketplacePublish, null, false, false, "0", "0", PermissionCodes.AiMarketplacePublish, true)
+            ("市场发布", "/ai/marketplace:publish", "/ai/marketplace", 39, "F", null, null, PermissionCodes.AiMarketplacePublish, null, false, false, "0", "0", PermissionCodes.AiMarketplacePublish, true),
+            ("搜索查询", "/ai/search:query", "/ai/search", 40, "F", null, null, PermissionCodes.AiSearchView, null, false, false, "0", "0", PermissionCodes.AiSearchView, true),
+            ("搜索记录更新", "/ai/search:update", "/ai/search", 41, "F", null, null, PermissionCodes.AiSearchUpdate, null, false, false, "0", "0", PermissionCodes.AiSearchUpdate, true)
         };
 
         var menuPaths = menuSeeds.Select(x => x.Path).Distinct().ToArray();
@@ -850,6 +856,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             "/ai/prompts",
             "/ai/open-platform",
             "/ai/marketplace",
+            "/ai/search",
             "/lowcode",
             "/lowcode/apps",
             "/lowcode/forms",

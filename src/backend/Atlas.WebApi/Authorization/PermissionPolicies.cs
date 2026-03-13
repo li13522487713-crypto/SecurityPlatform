@@ -114,6 +114,8 @@ public static class PermissionPolicies
     public const string AiMarketplaceUpdate = "Permission:ai-marketplace:update";
     public const string AiMarketplaceDelete = "Permission:ai-marketplace:delete";
     public const string AiMarketplacePublish = "Permission:ai-marketplace:publish";
+    public const string AiSearchView = "Permission:ai-search:view";
+    public const string AiSearchUpdate = "Permission:ai-search:update";
     public const string PersonalAccessTokenView = "Permission:pat:view";
     public const string PersonalAccessTokenCreate = "Permission:pat:create";
     public const string PersonalAccessTokenUpdate = "Permission:pat:update";

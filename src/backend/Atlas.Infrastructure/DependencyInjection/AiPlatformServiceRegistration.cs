@@ -59,6 +59,7 @@ public static class AiPlatformServiceRegistration
         services.AddScoped<AiProductCategoryRepository>();
         services.AddScoped<AiMarketplaceProductRepository>();
         services.AddScoped<AiMarketplaceFavoriteRepository>();
+        services.AddScoped<AiRecentEditRepository>();
         services.AddScoped<IModelConfigCommandService, ModelConfigCommandService>();
         services.AddScoped<IModelConfigQueryService, ModelConfigQueryService>();
         services.AddScoped<IAgentCommandService, AgentCommandService>();
@@ -73,6 +74,7 @@ public static class AiPlatformServiceRegistration
         services.AddScoped<IAiPromptService, AiPromptService>();
         services.AddScoped<IPersonalAccessTokenService, PersonalAccessTokenService>();
         services.AddScoped<IAiMarketplaceService, AiMarketplaceService>();
+        services.AddScoped<IAiSearchService, AiSearchService>();
         services.AddScoped<IDocumentService, DocumentService>();
         services.AddScoped<IChunkService, ChunkService>();
         services.AddScoped<IRagRetrievalService, RagRetrievalService>();
