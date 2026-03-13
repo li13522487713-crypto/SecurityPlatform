@@ -26,3 +26,4 @@ export * from "@/services/api-ai-database";
 export * from "@/services/api-ai-variable";
 export * from "@/services/api-ai-plugin";
 export * from "@/services/api-ai-app";
+export * from "@/services/api-ai-prompt";
