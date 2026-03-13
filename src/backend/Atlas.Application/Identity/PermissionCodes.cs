@@ -79,6 +79,14 @@ public static class PermissionCodes
     public const string AiWorkflowUpdate = "ai-workflow:update";
     public const string AiWorkflowDelete = "ai-workflow:delete";
     public const string AiWorkflowExecute = "ai-workflow:execute";
+    public const string AiDatabaseView = "ai-database:view";
+    public const string AiDatabaseCreate = "ai-database:create";
+    public const string AiDatabaseUpdate = "ai-database:update";
+    public const string AiDatabaseDelete = "ai-database:delete";
+    public const string AiVariableView = "ai-variable:view";
+    public const string AiVariableCreate = "ai-variable:create";
+    public const string AiVariableUpdate = "ai-variable:update";
+    public const string AiVariableDelete = "ai-variable:delete";
 
     public const string ApprovalFlowView = "approval:flow:view";
     public const string ApprovalFlowManage = "approval:flow:manage";

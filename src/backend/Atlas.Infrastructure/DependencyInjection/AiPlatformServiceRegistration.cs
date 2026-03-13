@@ -43,6 +43,10 @@ public static class AiPlatformServiceRegistration
         services.AddScoped<KnowledgeBaseRepository>();
         services.AddScoped<KnowledgeDocumentRepository>();
         services.AddScoped<DocumentChunkRepository>();
+        services.AddScoped<AiDatabaseRepository>();
+        services.AddScoped<AiDatabaseRecordRepository>();
+        services.AddScoped<AiDatabaseImportTaskRepository>();
+        services.AddScoped<AiVariableRepository>();
         services.AddScoped<IModelConfigCommandService, ModelConfigCommandService>();
         services.AddScoped<IModelConfigQueryService, ModelConfigQueryService>();
         services.AddScoped<IAgentCommandService, AgentCommandService>();
@@ -50,6 +54,8 @@ public static class AiPlatformServiceRegistration
         services.AddScoped<IConversationService, ConversationService>();
         services.AddScoped<IAgentChatService, AgentChatService>();
         services.AddScoped<IKnowledgeBaseService, KnowledgeBaseService>();
+        services.AddScoped<IAiDatabaseService, AiDatabaseService>();
+        services.AddScoped<IAiVariableService, AiVariableService>();
         services.AddScoped<IDocumentService, DocumentService>();
         services.AddScoped<IChunkService, ChunkService>();
         services.AddScoped<IRagRetrievalService, RagRetrievalService>();

@@ -86,6 +86,14 @@ public static class PermissionPolicies
     public const string AiWorkflowUpdate = "Permission:ai-workflow:update";
     public const string AiWorkflowDelete = "Permission:ai-workflow:delete";
     public const string AiWorkflowExecute = "Permission:ai-workflow:execute";
+    public const string AiDatabaseView = "Permission:ai-database:view";
+    public const string AiDatabaseCreate = "Permission:ai-database:create";
+    public const string AiDatabaseUpdate = "Permission:ai-database:update";
+    public const string AiDatabaseDelete = "Permission:ai-database:delete";
+    public const string AiVariableView = "Permission:ai-variable:view";
+    public const string AiVariableCreate = "Permission:ai-variable:create";
+    public const string AiVariableUpdate = "Permission:ai-variable:update";
+    public const string AiVariableDelete = "Permission:ai-variable:delete";
 
     public const string ApprovalFlowView = "Permission:approval:flow:view";
     public const string ApprovalFlowManage = "Permission:approval:flow:manage";
