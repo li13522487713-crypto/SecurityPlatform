@@ -139,12 +139,12 @@ watch(appId, () => {
 }
 
 .workspace-sider {
-  border-right: 1px solid #f0f0f0;
+  border-right: 1px solid var(--color-border);
 }
 
 .sider-title {
   padding: 12px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .app-name {
@@ -157,11 +157,11 @@ watch(appId, () => {
 }
 
 .workspace-header {
-  height: 50px;
-  line-height: 50px;
-  padding: 0 16px;
-  background: #fff;
-  border-bottom: 1px solid #f0f0f0;
+  height: var(--header-height);
+  line-height: var(--header-height);
+  padding: 0 var(--spacing-md);
+  background: var(--color-bg-container);
+  border-bottom: 1px solid var(--color-border);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -180,6 +180,6 @@ watch(appId, () => {
 }
 
 .workspace-content {
-  margin: 16px;
+  margin: var(--spacing-md);
 }
 </style>

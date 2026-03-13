@@ -206,9 +206,8 @@ function closeMenu() {
 .tags-view-container {
   height: 34px;
   width: 100%;
-  background: #fff;
-  border-bottom: 1px solid #d8dce5;
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.12), 0 0 3px 0 rgba(0, 0, 0, 0.04);
+  background: var(--color-bg-container);
+  border-bottom: 1px solid var(--color-border);
   position: relative;
 }
 
@@ -229,14 +228,15 @@ function closeMenu() {
   cursor: pointer;
   height: 26px;
   line-height: 26px;
-  border: 1px solid #d8dce5;
-  color: #495060;
-  background: #fff;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  background: var(--color-bg-container);
   padding: 0 8px;
   font-size: 12px;
   margin-left: 5px;
   margin-top: 4px;
   text-decoration: none;
+  border-radius: var(--border-radius-sm);
 }
 
 .tags-view-item:first-of-type {
@@ -248,14 +248,14 @@ function closeMenu() {
 }
 
 .tags-view-item.active {
-  background-color: var(--color-primary, #1890ff);
-  color: #fff;
-  border-color: var(--color-primary, #1890ff);
+  background-color: var(--color-primary);
+  color: var(--color-text-white);
+  border-color: var(--color-primary);
 }
 
 .tags-view-item.active::before {
   content: "";
-  background: #fff;
+  background: var(--color-text-white);
   display: inline-block;
   width: 8px;
   height: 8px;
@@ -272,27 +272,25 @@ function closeMenu() {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.3s cubic-bezier(0.645, 0.045, 0.355, 1);
-  transform-origin: 100% 50%;
+  transition: all 0.2s;
 }
 
 .close-icon:hover {
-  background-color: #b4bccc;
-  color: #fff;
+  background-color: var(--color-text-quaternary);
+  color: var(--color-text-white);
 }
 
 .contextmenu {
   margin: 0;
-  background: #fff;
+  background: var(--color-bg-elevated);
   z-index: 3000;
   position: fixed;
   list-style-type: none;
-  padding: 5px 0;
-  border-radius: 4px;
+  padding: 4px 0;
+  border-radius: var(--border-radius-md);
   font-size: 12px;
-  font-weight: 400;
-  color: #333;
-  box-shadow: 2px 2px 3px 0 rgba(0, 0, 0, 0.3);
+  color: var(--color-text-primary);
+  box-shadow: var(--shadow-sm);
 }
 
 .contextmenu li {
@@ -302,6 +300,6 @@ function closeMenu() {
 }
 
 .contextmenu li:hover {
-  background: #eee;
+  background: var(--color-bg-hover);
 }
 </style>

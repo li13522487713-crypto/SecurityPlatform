@@ -159,15 +159,11 @@ onUnmounted(() => {
   color: var(--color-primary);
 }
 
-:deep(.notification-dropdown) {
-  /* handled by .notif-panel */
-}
-
 .notif-panel {
   width: 320px;
-  background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+  background: var(--color-bg-elevated);
+  border-radius: var(--border-radius-md);
+  box-shadow: var(--shadow-md);
   overflow: hidden;
 }
 
@@ -176,7 +172,7 @@ onUnmounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 12px 16px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .notif-title {
@@ -190,20 +186,20 @@ onUnmounted(() => {
   gap: 8px;
   padding: 10px 16px;
   cursor: pointer;
-  border-bottom: 1px solid #fafafa;
+  border-bottom: 1px solid var(--color-bg-subtle);
   transition: background 0.15s;
 }
 
 .notif-item:hover {
-  background: #f5f5f5;
+  background: var(--color-bg-hover);
 }
 
 .notif-item.unread {
-  background: #f0f7ff;
+  background: var(--color-primary-bg);
 }
 
 .notif-item.unread:hover {
-  background: #e6f0ff;
+  background: #dbeafe;
 }
 
 .notif-type-tag {
@@ -216,8 +212,8 @@ onUnmounted(() => {
 }
 
 .type-announcement {
-  background: #e6f4ff;
-  color: #1677ff;
+  background: var(--color-primary-bg);
+  color: var(--color-primary);
 }
 
 .type-system {
@@ -226,7 +222,7 @@ onUnmounted(() => {
 }
 
 .type-reminder {
-  background: #fff7e6;
+  background: var(--color-warning-bg);
   color: #d46b08;
 }
 
@@ -244,14 +240,14 @@ onUnmounted(() => {
 
 .notif-time {
   font-size: 11px;
-  color: #999;
+  color: var(--color-text-tertiary);
   margin-top: 2px;
 }
 
 .notif-footer {
   text-align: center;
   padding: 10px;
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid var(--color-border);
   font-size: 13px;
 }
 </style>

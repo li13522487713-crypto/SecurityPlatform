@@ -129,13 +129,13 @@ onUnmounted(() => {
 }
 
 .runtime-header {
-  height: 56px;
+  height: var(--header-height);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid #f0f0f0;
-  background: #fff;
-  padding: 0 16px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-container);
+  padding: 0 var(--spacing-md);
 }
 
 .runtime-left {
@@ -156,22 +156,22 @@ onUnmounted(() => {
 }
 
 .runtime-content {
-  min-height: calc(100vh - 56px);
-  background: #f5f7fb;
-  padding: 16px;
+  min-height: calc(100vh - var(--header-height));
+  background: var(--color-bg-layout);
+  padding: var(--spacing-md);
 }
 
 .runtime-sider {
-  border-right: 1px solid #f0f0f0;
-  min-height: calc(100vh - 56px);
-  background: #fff;
+  border-right: 1px solid var(--color-border);
+  min-height: calc(100vh - var(--header-height));
+  background: var(--color-bg-container);
 }
 
 .profile-btn {
-  color: #1f1f1f;
+  color: var(--color-text-primary);
 }
 
 .profile-name {
-  color: #1f1f1f;
+  color: var(--color-text-primary);
 }
 </style>
