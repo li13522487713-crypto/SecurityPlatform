@@ -24,3 +24,4 @@ export * from "@/services/api-model-config";
 export * from "@/services/api-agent";
 export * from "@/services/api-ai-database";
 export * from "@/services/api-ai-variable";
+export * from "@/services/api-ai-plugin";
