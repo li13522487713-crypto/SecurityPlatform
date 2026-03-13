@@ -240,7 +240,7 @@ Key design decisions:
 | DELETE | `/api/v1/conversations/{id}/messages/{msgId}` | Delete single message          |
 
 
-`**AgentChatController*`* (extends existing `AiAssistantController` pattern):
+`**AgentChatController`** (extends existing `AiAssistantController` pattern):
 
 
 | Method | Route                                  | Description       |
@@ -254,9 +254,9 @@ SSE pattern: reuse the exact same pattern from `[AiAssistantController.ChatStrea
 
 ### 4.6 Frontend
 
-`**src/frontend/Atlas.WebApp/src/services/api-conversation.ts**`: API calls for conversation CRUD + messages
+`**src/frontend/Atlas.WebApp/src/services/api-conversation.ts`**: API calls for conversation CRUD + messages
 
-`**src/frontend/Atlas.WebApp/src/composables/useStreamChat.ts**`: SSE composable
+`**src/frontend/Atlas.WebApp/src/composables/useStreamChat.ts*`*: SSE composable
 
 - Uses `fetch` with `ReadableStream` to consume SSE
 - Accumulates `contentDelta` chunks
@@ -545,7 +545,7 @@ This is separate from `PersistedWorkflow` (which stores runtime execution instan
 
 - `CreateAsync`, `SaveAsync` (canvas + definition), `GetCanvasAsync`, `GetByIdAsync`, `ListAsync`, `DeleteAsync`, `CopyAsync`, `PublishAsync`, `ValidateAsync`
 
-`**IAiWorkflowExecutionService*`* (runtime):
+`**IAiWorkflowExecutionService`** (runtime):
 
 - `RunAsync(tenantId, workflowDefinitionId, inputs)` -- deserializes DSL JSON, registers workflow via `IWorkflowRegistry`, starts via `IWorkflowHost.StartWorkflowAsync()`
 - `CancelAsync(tenantId, executionId)` -- calls `IWorkflowHost.TerminateWorkflowAsync()`
@@ -581,7 +581,7 @@ This is separate from `PersistedWorkflow` (which stores runtime execution instan
 
 `**AiWorkflowListPage.vue`**: Table of workflow definitions with CRUD
 
-`**AiWorkflowEditorPage.vue**`: The main canvas editor
+`**AiWorkflowEditorPage.vue`**: The main canvas editor
 
 For the canvas, use an existing Vue flow library:
 
