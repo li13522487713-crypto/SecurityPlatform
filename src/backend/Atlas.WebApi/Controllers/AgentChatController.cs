@@ -65,7 +65,7 @@ public sealed class AgentChatController : ControllerBase
 
         await foreach (var chunk in _agentChatService.ChatStreamAsync(tenantId, userId, agentId, request, cancellationToken))
         {
-            await Response.WriteAsync($"data: {chunk}\n\n", cancellationToken);
+            await WriteSseDataEventAsync(Response, chunk, cancellationToken);
             await Response.Body.FlushAsync(cancellationToken);
         }
 
@@ -85,5 +85,17 @@ public sealed class AgentChatController : ControllerBase
         var userId = _currentUserAccessor.GetCurrentUserOrThrow().UserId;
         await _agentChatService.CancelAsync(tenantId, userId, agentId, request.ConversationId, cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = request.ConversationId.ToString() }, HttpContext.TraceIdentifier));
+    }
+
+    private static async Task WriteSseDataEventAsync(HttpResponse response, string payload, CancellationToken cancellationToken)
+    {
+        var normalized = payload.Replace("\r\n", "\n").Replace('\r', '\n');
+        var lines = normalized.Split('\n');
+        foreach (var line in lines)
+        {
+            await response.WriteAsync($"data: {line}\n", cancellationToken);
+        }
+
+        await response.WriteAsync("\n", cancellationToken);
     }
 }
