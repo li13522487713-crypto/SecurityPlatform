@@ -25,40 +25,40 @@ todos:
     status: completed
   - id: p4-frontend
     content: "Phase 4: Create useStreamChat.ts composable, api-conversation.ts, AgentChatPage.vue, ChatMessage.vue, MarkdownRenderer.vue"
-    status: pending
+    status: completed
   - id: p5-entities
     content: "Phase 5: Create KnowledgeBase, KnowledgeDocument, DocumentChunk domain entities"
-    status: pending
+    status: completed
   - id: p5-repos
     content: "Phase 5: Create KnowledgeBase/Document/ChunkRepository classes"
-    status: pending
+    status: completed
   - id: p5-dto-validators
     content: "Phase 5: Create KnowledgeModels.cs DTOs and KnowledgeValidators.cs"
-    status: pending
+    status: completed
   - id: p5-kb-doc-svc
     content: "Phase 5: Implement IKnowledgeBaseService, IDocumentService, IChunkService CRUD services"
-    status: pending
+    status: completed
   - id: p5-processing
     content: "Phase 5: Implement DocumentProcessingService (parse -> chunk -> embed -> vector store pipeline via BackgroundWorkQueue)"
-    status: pending
+    status: completed
   - id: p5-rag
     content: "Phase 5: Implement IRagRetrievalService (embed query -> vector search -> merge results). Wire into AgentChatService for RAG-enabled chat"
-    status: pending
+    status: completed
   - id: p5-controller
     content: "Phase 5: Create KnowledgeBasesController with 14 endpoints (KB CRUD + documents + chunks)"
-    status: pending
+    status: completed
   - id: p5-permissions-di
     content: "Phase 5: Add KnowledgeBase permissions and register all Phase 5 services"
-    status: pending
+    status: completed
   - id: p5-frontend
     content: "Phase 5: Create api-knowledge.ts, KnowledgeBaseListPage.vue, KnowledgeBaseDetailPage.vue (documents tab + chunks tab + upload)"
-    status: pending
+    status: completed
   - id: p6-entity
     content: "Phase 6: Create AiWorkflowDefinition entity in Atlas.Domain/AiPlatform/Entities/"
-    status: pending
+    status: completed
   - id: p6-steps-tier1
     content: "Phase 6: Implement 7 new IStepBody classes (LlmStep, PluginStep, CodeRunnerStep, KnowledgeRetrieverStep, TextProcessorStep, HttpRequesterStep, OutputEmitterStep). Reuse existing If/EndStep/Foreach for Selector/Exit/Loop"
-    status: pending
+    status: completed
   - id: p6-dsl-builder
     content: "Phase 6: Implement AiWorkflowDslBuilder to translate frontend canvas JSON to Atlas.WorkflowCore DSL JSON"
     status: pending
@@ -256,21 +256,21 @@ SSE pattern: reuse the exact same pattern from `[AiAssistantController.ChatStrea
 
 `**src/frontend/Atlas.WebApp/src/services/api-conversation.ts`**: API calls for conversation CRUD + messages
 
-`**src/frontend/Atlas.WebApp/src/composables/useStreamChat.ts*`*: SSE composable
+`**src/frontend/Atlas.WebApp/src/composables/useStreamChat.ts`**: SSE composable
 
 - Uses `fetch` with `ReadableStream` to consume SSE
 - Accumulates `contentDelta` chunks
 - Exposes reactive state: `messages`, `isStreaming`, `error`
 - Supports cancel via `AbortController`
 
-`**src/frontend/Atlas.WebApp/src/pages/ai/AgentChatPage.vue**`:
+`**src/frontend/Atlas.WebApp/src/pages/ai/AgentChatPage.vue`**:
 
 - Left sidebar: conversation list (grouped by date), new conversation button
 - Right main area: message list with bubbles (user right-aligned, assistant left-aligned)
 - Bottom: input area with send button, RAG toggle, cancel button during streaming
 - Uses `useStreamChat` composable
 
-`**src/frontend/Atlas.WebApp/src/components/ai/ChatMessage.vue**`: Single message bubble with Markdown rendering (using `marked` or `markdown-it`)
+`**src/frontend/Atlas.WebApp/src/components/ai/ChatMessage.vue*`*: Single message bubble with Markdown rendering (using `marked` or `markdown-it`)
 
 `**src/frontend/Atlas.WebApp/src/components/ai/MarkdownRenderer.vue**`: Markdown-to-HTML with syntax highlighting (code blocks)
 

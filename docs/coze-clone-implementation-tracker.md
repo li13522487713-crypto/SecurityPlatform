@@ -99,9 +99,9 @@
 
 | # | 功能 | Coze 参考 | 前端文件 | 状态 |
 |---|------|-----------|----------|------|
-| 2.2.1 | 模型管理页面（Admin） | `/admin` 模型管理 | `pages/ai/ModelConfigPage.vue` | [x] |
+| 2.2.1 | 模型管理页面（Admin） | `/admin` 模型管理 | `pages/ai/ModelConfigsPage.vue` | [x] |
 | 2.2.2 | 新建模型 Modal（选 Provider + 填 ApiKey + 测试） | Admin 模型创建 | 同上 | [x] |
-| 2.2.3 | 模型 API 封装 | — | `services/model-config-api.ts` | [x] |
+| 2.2.3 | 模型 API 封装 | — | `services/api-model-config.ts` | [x] |
 
 ---
 
@@ -145,7 +145,7 @@
 | 3.3.5 | 模型选择器 | `agent-ide/model-manager` | 同上 | [x] |
 | 3.3.6 | 知识库绑定 | Agent BindDatabase | 同上 | [x] |
 | 3.3.7 | Agent 发布页 | `/space/:id/bot/:bot_id/publish` | `pages/ai/AgentPublishPage.vue` | [ ] |
-| 3.3.8 | Agent API 封装 | — | `services/agent-api.ts` | [x] |
+| 3.3.8 | Agent API 封装 | — | `services/api-agent.ts` | [x] |
 
 ---
 
@@ -164,8 +164,8 @@
 | 4.1.5 | 更新会话 | `UpdateConversation` | `ConversationService.UpdateAsync()` | [x] |
 | 4.1.6 | 删除会话 | `DeleteConversation` | `ConversationService.DeleteAsync()` | [x] |
 | 4.1.7 | 获取会话 | `RetrieveConversation` | `ConversationService.GetByIdAsync()` | [x] |
-| 4.1.8 | Agent 对话（同步） | `POST /api/conversation/chat` | `AgentChatService.ChatAsync()` | [~] |
-| 4.1.9 | Agent 对话（SSE 流式） | `POST /api/conversation/chat` SSE | `AgentChatService.ChatStreamAsync()` | [~] |
+| 4.1.8 | Agent 对话（同步） | `POST /api/conversation/chat` | `AgentChatService.ChatAsync()` | [x] |
+| 4.1.9 | Agent 对话（SSE 流式） | `POST /api/conversation/chat` SSE | `AgentChatService.ChatStreamAsync()` | [x] |
 | 4.1.10 | 消息列表 | `GetMessageList` | `ConversationService.GetMessagesAsync()` | [x] |
 | 4.1.11 | 删除消息 | `DeleteMessage` | `ConversationService.DeleteMessageAsync()` | [x] |
 | 4.1.12 | 中断消息生成 | `BreakMessage` | `AgentChatService.CancelAsync()` | [x] |
@@ -173,8 +173,6 @@
 | 4.1.14 | 清除历史 | `ClearHistory` | `ConversationService.ClearHistoryAsync()` | [x] |
 | 4.1.15 | `AgentChatController` | `/api/conversation/*` | `POST /api/v1/agents/{agentId}/chat[/stream|/cancel]` | [x] |
 | 4.1.16 | `ConversationsController` REST | `/v1/conversations/*` | `GET/POST/PUT/DELETE /api/v1/conversations` | [x] |
-
-> 说明：4.1.8/4.1.9 已完成后端实现与消息持久化链路，但联调依赖有效模型提供商密钥；当前环境下上游 LLM 返回 `invalid_api_key`，因此标记为进行中（[~]）。
 
 ### 4.2 前端
 
@@ -199,41 +197,41 @@
 
 | # | 功能 | Coze 接口 | 后端文件 | 状态 |
 |---|------|-----------|----------|------|
-| 5.1.1 | KnowledgeBase 实体（Name / Type / Config） | `data/knowledge/` | `Atlas.Domain.Rag/KnowledgeBase.cs` | [ ] |
-| 5.1.2 | 创建知识库 | `CreateKnowledge` | `KnowledgeBaseService.Create()` | [ ] |
-| 5.1.3 | 知识库列表 | `ListKnowledge` | `KnowledgeBaseService.List()` | [ ] |
-| 5.1.4 | 知识库详情 | `DatasetDetail` | `KnowledgeBaseService.GetById()` | [ ] |
-| 5.1.5 | 更新知识库 | `UpdateKnowledge` | `KnowledgeBaseService.Update()` | [ ] |
-| 5.1.6 | 删除知识库 | `DeleteKnowledge` | `KnowledgeBaseService.Delete()` | [ ] |
-| 5.1.7 | `KnowledgeBasesController` | `/api/knowledge/*` | `GET/POST/PUT/DELETE /api/v1/knowledge-bases` | [ ] |
+| 5.1.1 | KnowledgeBase 实体（Name / Type / Config） | `data/knowledge/` | `Atlas.Domain.Rag/KnowledgeBase.cs` | [x] |
+| 5.1.2 | 创建知识库 | `CreateKnowledge` | `KnowledgeBaseService.Create()` | [x] |
+| 5.1.3 | 知识库列表 | `ListKnowledge` | `KnowledgeBaseService.List()` | [x] |
+| 5.1.4 | 知识库详情 | `DatasetDetail` | `KnowledgeBaseService.GetById()` | [x] |
+| 5.1.5 | 更新知识库 | `UpdateKnowledge` | `KnowledgeBaseService.Update()` | [x] |
+| 5.1.6 | 删除知识库 | `DeleteKnowledge` | `KnowledgeBaseService.Delete()` | [x] |
+| 5.1.7 | `KnowledgeBasesController` | `/api/knowledge/*` | `GET/POST/PUT/DELETE /api/v1/knowledge-bases` | [x] |
 
 ### 5.2 后端 - 文档管理
 
 | # | 功能 | Coze 接口 | 后端文件 | 状态 |
 |---|------|-----------|----------|------|
-| 5.2.1 | Document 实体（FileId / Status / ExtractedContent） | `data/knowledge/document.thrift` | `Atlas.Domain.Rag/Document.cs` | [ ] |
-| 5.2.2 | 创建文档（上传 + 触发解析） | `CreateDocument` | `DocumentService.Create()` | [ ] |
-| 5.2.3 | 文档列表 | `ListDocument` | `DocumentService.List()` | [ ] |
-| 5.2.4 | 删除文档 | `DeleteDocument` | `DocumentService.Delete()` | [ ] |
+| 5.2.1 | Document 实体（FileId / Status / ExtractedContent） | `data/knowledge/document.thrift` | `Atlas.Domain.Rag/Document.cs` | [x] |
+| 5.2.2 | 创建文档（上传 + 触发解析） | `CreateDocument` | `DocumentService.Create()` | [x] |
+| 5.2.3 | 文档列表 | `ListDocument` | `DocumentService.List()` | [x] |
+| 5.2.4 | 删除文档 | `DeleteDocument` | `DocumentService.Delete()` | [x] |
 | 5.2.5 | 更新文档 | `UpdateDocument` | `DocumentService.Update()` | [ ] |
-| 5.2.6 | 文档处理进度 | `GetDocumentProgress` | `DocumentService.GetProgress()` | [ ] |
-| 5.2.7 | 重新分段 | `Resegment` | `DocumentService.Resegment()` | [ ] |
-| 5.2.8 | `DocumentsController` | `/api/knowledge/document/*` | `GET/POST/DELETE /api/v1/knowledge-bases/{id}/documents` | [ ] |
+| 5.2.6 | 文档处理进度 | `GetDocumentProgress` | `DocumentService.GetProgress()` | [x] |
+| 5.2.7 | 重新分段 | `Resegment` | `DocumentService.Resegment()` | [x] |
+| 5.2.8 | `DocumentsController` | `/api/knowledge/document/*` | `GET/POST/DELETE /api/v1/knowledge-bases/{id}/documents` | [x] |
 
 ### 5.3 后端 - 片段 & 向量化
 
 | # | 功能 | Coze 接口 | 后端文件 | 状态 |
 |---|------|-----------|----------|------|
-| 5.3.1 | DocumentChunk 实体 | `knowledge/slice.*` | `Atlas.Domain.Rag/DocumentChunk.cs` | [ ] |
+| 5.3.1 | DocumentChunk 实体 | `knowledge/slice.*` | `Atlas.Domain.Rag/DocumentChunk.cs` | [x] |
 | 5.3.2 | Embedding 实体 | 向量存储 | `Atlas.Domain.Rag/ChunkEmbedding.cs` | [ ] |
-| 5.3.3 | 创建片段 | `CreateSlice` | `ChunkService.Create()` | [ ] |
-| 5.3.4 | 片段列表 | `ListSlice` | `ChunkService.List()` | [ ] |
-| 5.3.5 | 更新片段 | `UpdateSlice` | `ChunkService.Update()` | [ ] |
-| 5.3.6 | 删除片段 | `DeleteSlice` | `ChunkService.Delete()` | [ ] |
-| 5.3.7 | 自动分块 + 向量化管道（上传后异步执行） | `eventbus/knowledgeEventHandler` | `DocumentProcessingService` | [ ] |
-| 5.3.8 | RAG 检索（根据问题检索 TopK 片段） | `KnowledgeRetriever` 工作流节点 | `RagRetrievalService.Search()` | [ ] |
-| 5.3.9 | RAG 上下文注入 Chat | Agent 对话 + RAG | `AgentChatService.ChatWithRag()` | [ ] |
-| 5.3.10 | `ChunksController` | `/api/knowledge/slice/*` | `GET/POST/PUT/DELETE /api/v1/knowledge-bases/{id}/chunks` | [ ] |
+| 5.3.3 | 创建片段 | `CreateSlice` | `ChunkService.Create()` | [x] |
+| 5.3.4 | 片段列表 | `ListSlice` | `ChunkService.List()` | [x] |
+| 5.3.5 | 更新片段 | `UpdateSlice` | `ChunkService.Update()` | [x] |
+| 5.3.6 | 删除片段 | `DeleteSlice` | `ChunkService.Delete()` | [x] |
+| 5.3.7 | 自动分块 + 向量化管道（上传后异步执行） | `eventbus/knowledgeEventHandler` | `DocumentProcessingService` | [x] |
+| 5.3.8 | RAG 检索（根据问题检索 TopK 片段） | `KnowledgeRetriever` 工作流节点 | `RagRetrievalService.Search()` | [x] |
+| 5.3.9 | RAG 上下文注入 Chat | Agent 对话 + RAG | `AgentChatService.ChatWithRag()` | [x] |
+| 5.3.10 | `ChunksController` | `/api/knowledge/slice/*` | `GET/POST/PUT/DELETE /api/v1/knowledge-bases/{id}/chunks` | [x] |
 
 ### 5.4 后端 - 表 Schema & 审核
 
@@ -256,14 +254,14 @@
 
 | # | 功能 | Coze 参考 | 前端文件 | 状态 |
 |---|------|-----------|----------|------|
-| 5.6.1 | 知识库列表页 | `data/knowledge` | `pages/ai/KnowledgeBaseListPage.vue` | [ ] |
-| 5.6.2 | 创建知识库 Modal（类型：文本/表格/图片） | 知识库类型选择 | 同上 | [ ] |
-| 5.6.3 | 知识库详情页（文档管理） | `/space/:id/knowledge/:dataset_id` | `pages/ai/KnowledgeBaseDetailPage.vue` | [ ] |
-| 5.6.4 | 文档上传（拖拽 + 文件选择） | 文档上传 | 同上 | [ ] |
-| 5.6.5 | 文档处理进度条 | `GetDocumentProgress` | 同上 | [ ] |
-| 5.6.6 | 片段预览列表 | `ListSlice` | 同上 | [ ] |
-| 5.6.7 | 片段编辑 Modal | `UpdateSlice` | 同上 | [ ] |
-| 5.6.8 | Knowledge API 封装 | — | `services/knowledge-api.ts` | [ ] |
+| 5.6.1 | 知识库列表页 | `data/knowledge` | `pages/ai/KnowledgeBaseListPage.vue` | [x] |
+| 5.6.2 | 创建知识库 Modal（类型：文本/表格/图片） | 知识库类型选择 | 同上 | [x] |
+| 5.6.3 | 知识库详情页（文档管理） | `/space/:id/knowledge/:dataset_id` | `pages/ai/KnowledgeBaseDetailPage.vue` | [x] |
+| 5.6.4 | 文档上传（拖拽 + 文件选择） | 文档上传 | 同上 | [x] |
+| 5.6.5 | 文档处理进度条 | `GetDocumentProgress` | 同上 | [x] |
+| 5.6.6 | 片段预览列表 | `ListSlice` | 同上 | [x] |
+| 5.6.7 | 片段编辑 Modal | `UpdateSlice` | 同上 | [x] |
+| 5.6.8 | Knowledge API 封装 | — | `services/knowledge-api.ts` | [x] |
 
 ---
 
@@ -275,7 +273,7 @@
 
 | # | 功能 | Coze 接口 | 后端文件 | 状态 |
 |---|------|-----------|----------|------|
-| 6.1.1 | Workflow 实体（Name / Canvas JSON / Status） | `domain/workflow/` | `Atlas.Domain.AiWorkflow/Workflow.cs` | [ ] |
+| 6.1.1 | Workflow 实体（Name / Canvas JSON / Status） | `domain/workflow/` | `Atlas.Domain.AiWorkflow/Workflow.cs` | [x] |
 | 6.1.2 | 创建工作流 | `CreateWorkflow` | `WorkflowService.Create()` | [ ] |
 | 6.1.3 | 保存工作流（画布 + 节点配置） | `SaveWorkflow` | `WorkflowService.Save()` | [ ] |
 | 6.1.4 | 获取画布信息 | `GetCanvasInfo` | `WorkflowService.GetCanvas()` | [ ] |
@@ -318,14 +316,14 @@
 |---|------|---------------|----------|------|
 | 6.4.1 | Entry（开始） | `NodeTypeEntry = 1` | `Nodes/EntryNode.cs` | [ ] |
 | 6.4.2 | Exit（结束） | `NodeTypeExit = 2` | `Nodes/ExitNode.cs` | [ ] |
-| 6.4.3 | LLM（大模型调用） | `NodeTypeLLM = 3` | `Nodes/LlmNode.cs` | [ ] |
-| 6.4.4 | Plugin（插件/API） | `NodeTypePlugin = 4` | `Nodes/PluginNode.cs` | [ ] |
-| 6.4.5 | CodeRunner（代码执行） | `NodeTypeCodeRunner = 5` | `Nodes/CodeRunnerNode.cs` | [ ] |
-| 6.4.6 | KnowledgeRetriever（知识检索） | `NodeTypeKnowledgeRetriever = 6` | `Nodes/KnowledgeRetrieverNode.cs` | [ ] |
+| 6.4.3 | LLM（大模型调用） | `NodeTypeLLM = 3` | `Nodes/LlmNode.cs` | [x] |
+| 6.4.4 | Plugin（插件/API） | `NodeTypePlugin = 4` | `Nodes/PluginNode.cs` | [x] |
+| 6.4.5 | CodeRunner（代码执行） | `NodeTypeCodeRunner = 5` | `Nodes/CodeRunnerNode.cs` | [x] |
+| 6.4.6 | KnowledgeRetriever（知识检索） | `NodeTypeKnowledgeRetriever = 6` | `Nodes/KnowledgeRetrieverNode.cs` | [x] |
 | 6.4.7 | Selector（条件分支） | `NodeTypeSelector = 8` | `Nodes/SelectorNode.cs` | [ ] |
-| 6.4.8 | TextProcessor（文本处理） | `NodeTypeTextProcessor = 15` | `Nodes/TextProcessorNode.cs` | [ ] |
-| 6.4.9 | HTTPRequester（HTTP 请求） | `NodeTypeHTTPRequester = 45` | `Nodes/HttpRequesterNode.cs` | [ ] |
-| 6.4.10 | OutputEmitter（输出消息） | `NodeTypeOutputEmitter = 13` | `Nodes/OutputEmitterNode.cs` | [ ] |
+| 6.4.8 | TextProcessor（文本处理） | `NodeTypeTextProcessor = 15` | `Nodes/TextProcessorNode.cs` | [x] |
+| 6.4.9 | HTTPRequester（HTTP 请求） | `NodeTypeHTTPRequester = 45` | `Nodes/HttpRequesterNode.cs` | [x] |
+| 6.4.10 | OutputEmitter（输出消息） | `NodeTypeOutputEmitter = 13` | `Nodes/OutputEmitterNode.cs` | [x] |
 
 **二期：逻辑控制节点（7 种）**
 

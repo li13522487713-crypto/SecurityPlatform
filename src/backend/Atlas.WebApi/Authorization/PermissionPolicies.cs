@@ -77,6 +77,15 @@ public static class PermissionPolicies
     public const string ConversationView = "Permission:conversation:view";
     public const string ConversationCreate = "Permission:conversation:create";
     public const string ConversationDelete = "Permission:conversation:delete";
+    public const string KnowledgeBaseView = "Permission:knowledge-base:view";
+    public const string KnowledgeBaseCreate = "Permission:knowledge-base:create";
+    public const string KnowledgeBaseUpdate = "Permission:knowledge-base:update";
+    public const string KnowledgeBaseDelete = "Permission:knowledge-base:delete";
+    public const string AiWorkflowView = "Permission:ai-workflow:view";
+    public const string AiWorkflowCreate = "Permission:ai-workflow:create";
+    public const string AiWorkflowUpdate = "Permission:ai-workflow:update";
+    public const string AiWorkflowDelete = "Permission:ai-workflow:delete";
+    public const string AiWorkflowExecute = "Permission:ai-workflow:execute";
 
     public const string ApprovalFlowView = "Permission:approval:flow:view";
     public const string ApprovalFlowManage = "Permission:approval:flow:manage";

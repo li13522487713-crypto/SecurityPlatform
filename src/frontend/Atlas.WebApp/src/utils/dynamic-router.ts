@@ -30,7 +30,12 @@ const pathComponentFallbackMap: Record<string, string> = {
   "/system/configs": "../pages/system/SystemConfigsPage.vue",
   "/settings/ai/model-configs": "../pages/ai/ModelConfigsPage.vue",
   "/ai/agents": "../pages/ai/AgentListPage.vue",
-  "/ai/agents/:id/edit": "../pages/ai/AgentEditorPage.vue"
+  "/ai/agents/:id/edit": "../pages/ai/AgentEditorPage.vue",
+  "/ai/agents/:agentId/chat": "../pages/ai/AgentChatPage.vue",
+  "/ai/knowledge-bases": "../pages/ai/KnowledgeBaseListPage.vue",
+  "/ai/knowledge-bases/:id": "../pages/ai/KnowledgeBaseDetailPage.vue",
+  "/ai/workflows": "../pages/ai/AiWorkflowListPage.vue",
+  "/ai/workflows/:id/edit": "../pages/ai/AiWorkflowEditorPage.vue"
 };
 
 function resolveByPathFallback(path?: string) {

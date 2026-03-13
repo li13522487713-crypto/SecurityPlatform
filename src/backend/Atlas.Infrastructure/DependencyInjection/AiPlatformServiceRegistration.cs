@@ -2,6 +2,7 @@ using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Infrastructure.Options;
 using Atlas.Infrastructure.Repositories;
 using Atlas.Infrastructure.Services.AiPlatform;
+using Atlas.Infrastructure.Services.AiPlatform.WorkflowSteps;
 using Atlas.Infrastructure.Services.AiPlatform.Parsers;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -39,12 +40,32 @@ public static class AiPlatformServiceRegistration
         services.AddScoped<AgentKnowledgeLinkRepository>();
         services.AddScoped<ConversationRepository>();
         services.AddScoped<ChatMessageRepository>();
+        services.AddScoped<KnowledgeBaseRepository>();
+        services.AddScoped<KnowledgeDocumentRepository>();
+        services.AddScoped<DocumentChunkRepository>();
         services.AddScoped<IModelConfigCommandService, ModelConfigCommandService>();
         services.AddScoped<IModelConfigQueryService, ModelConfigQueryService>();
         services.AddScoped<IAgentCommandService, AgentCommandService>();
         services.AddScoped<IAgentQueryService, AgentQueryService>();
         services.AddScoped<IConversationService, ConversationService>();
         services.AddScoped<IAgentChatService, AgentChatService>();
+        services.AddScoped<IKnowledgeBaseService, KnowledgeBaseService>();
+        services.AddScoped<IDocumentService, DocumentService>();
+        services.AddScoped<IChunkService, ChunkService>();
+        services.AddScoped<IRagRetrievalService, RagRetrievalService>();
+        services.AddScoped<DocumentProcessingService>();
+        services.AddScoped<AiWorkflowDefinitionRepository>();
+        services.AddScoped<IAiWorkflowDesignService, AiWorkflowDesignService>();
+        services.AddScoped<IAiWorkflowExecutionService, AiWorkflowExecutionService>();
+        services.AddSingleton<AiWorkflowDslBuilder>();
+
+        services.AddTransient<LlmStep>();
+        services.AddTransient<PluginStep>();
+        services.AddTransient<CodeRunnerStep>();
+        services.AddTransient<KnowledgeRetrieverStep>();
+        services.AddTransient<TextProcessorStep>();
+        services.AddTransient<HttpRequesterStep>();
+        services.AddTransient<OutputEmitterStep>();
 
         services.AddScoped<ILlmProviderFactory, LlmProviderFactory>();
 
@@ -67,6 +88,13 @@ public static class AiPlatformServiceRegistration
         services.AddSingleton<IDocumentParser>(sp => sp.GetRequiredService<DocumentParserComposite>());
 
         services.AddSingleton<IChunkingService, FixedSizeChunkingService>();
+        services.AddTransient<LlmStep>();
+        services.AddTransient<PluginStep>();
+        services.AddTransient<KnowledgeRetrieverStep>();
+        services.AddTransient<TextProcessorStep>();
+        services.AddTransient<HttpRequesterStep>();
+        services.AddTransient<OutputEmitterStep>();
+        services.AddTransient<CodeRunnerStep>();
 
         return services;
     }

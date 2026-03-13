@@ -96,6 +96,10 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             typeof(AgentKnowledgeLink),
             typeof(Conversation),
             typeof(ChatMessage),
+            typeof(KnowledgeBase),
+            typeof(KnowledgeDocument),
+            typeof(DocumentChunk),
+            typeof(AiWorkflowDefinition),
             typeof(AuthSession),
             typeof(RefreshToken),
             typeof(ApprovalFlowDefinition),
@@ -380,6 +384,10 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             (PermissionCodes.ConversationView, "Conversation View", "Api"),
             (PermissionCodes.ConversationCreate, "Conversation Create", "Api"),
             (PermissionCodes.ConversationDelete, "Conversation Delete", "Api"),
+            (PermissionCodes.KnowledgeBaseView, "Knowledge Base View", "Api"),
+            (PermissionCodes.KnowledgeBaseCreate, "Knowledge Base Create", "Api"),
+            (PermissionCodes.KnowledgeBaseUpdate, "Knowledge Base Update", "Api"),
+            (PermissionCodes.KnowledgeBaseDelete, "Knowledge Base Delete", "Api"),
             (PermissionCodes.ApprovalFlowView, "Approval Flow View", "Api"),
             (PermissionCodes.ApprovalFlowManage, "Approval Flow Manage", "Api"),
             (PermissionCodes.ApprovalFlowCreate, "Approval Flow Create", "Api"),
@@ -505,6 +513,8 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             ("模型配置", "/settings/ai/model-configs", "/ai", 15, "C", "ai/ModelConfigsPage", "api", PermissionCodes.ModelConfigView, null, false, true, "0", "0", PermissionCodes.ModelConfigView, false),
             ("Agent 管理", "/ai/agents", "/ai", 16, "C", "ai/AgentListPage", "experiment", PermissionCodes.AgentView, null, false, true, "0", "0", PermissionCodes.AgentView, false),
             ("Agent 编辑", "/ai/agents/:id/edit", "/ai", 17, "C", "ai/AgentEditorPage", "edit", PermissionCodes.AgentView, null, false, true, "0", "0", PermissionCodes.AgentView, true),
+            ("知识库管理", "/ai/knowledge-bases", "/ai", 18, "C", "ai/KnowledgeBaseListPage", "book", PermissionCodes.KnowledgeBaseView, null, false, true, "0", "0", PermissionCodes.KnowledgeBaseView, false),
+            ("知识库详情", "/ai/knowledge-bases/:id", "/ai", 19, "C", "ai/KnowledgeBaseDetailPage", "read", PermissionCodes.KnowledgeBaseView, null, false, true, "0", "0", PermissionCodes.KnowledgeBaseView, true),
 
             ("低代码中心", "/lowcode", null, 15, "M", "Layout", "appstore", null, null, false, false, "0", "0", null, false),
             ("应用管理", "/lowcode/apps", "/lowcode", 16, "C", "lowcode/AppListPage", "appstore-add", PermissionCodes.AppsView, null, false, true, "0", "0", PermissionCodes.AppsView, false),
@@ -563,7 +573,11 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             ("Agent 删除", "/ai/agents:delete", "/ai/agents", 4, "F", null, null, PermissionCodes.AgentDelete, null, false, false, "0", "0", PermissionCodes.AgentDelete, true),
             ("会话查询", "/ai/conversations:query", "/ai", 5, "F", null, null, PermissionCodes.ConversationView, null, false, false, "0", "0", PermissionCodes.ConversationView, true),
             ("会话新增", "/ai/conversations:create", "/ai", 6, "F", null, null, PermissionCodes.ConversationCreate, null, false, false, "0", "0", PermissionCodes.ConversationCreate, true),
-            ("会话删除", "/ai/conversations:delete", "/ai", 7, "F", null, null, PermissionCodes.ConversationDelete, null, false, false, "0", "0", PermissionCodes.ConversationDelete, true)
+            ("会话删除", "/ai/conversations:delete", "/ai", 7, "F", null, null, PermissionCodes.ConversationDelete, null, false, false, "0", "0", PermissionCodes.ConversationDelete, true),
+            ("知识库查询", "/ai/knowledge-bases:query", "/ai/knowledge-bases", 8, "F", null, null, PermissionCodes.KnowledgeBaseView, null, false, false, "0", "0", PermissionCodes.KnowledgeBaseView, true),
+            ("知识库新增", "/ai/knowledge-bases:create", "/ai/knowledge-bases", 9, "F", null, null, PermissionCodes.KnowledgeBaseCreate, null, false, false, "0", "0", PermissionCodes.KnowledgeBaseCreate, true),
+            ("知识库修改", "/ai/knowledge-bases:update", "/ai/knowledge-bases", 10, "F", null, null, PermissionCodes.KnowledgeBaseUpdate, null, false, false, "0", "0", PermissionCodes.KnowledgeBaseUpdate, true),
+            ("知识库删除", "/ai/knowledge-bases:delete", "/ai/knowledge-bases", 11, "F", null, null, PermissionCodes.KnowledgeBaseDelete, null, false, false, "0", "0", PermissionCodes.KnowledgeBaseDelete, true)
         };
 
         var menuPaths = menuSeeds.Select(x => x.Path).Distinct().ToArray();
@@ -732,6 +746,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             "/ai",
             "/settings/ai/model-configs",
             "/ai/agents",
+            "/ai/knowledge-bases",
             "/lowcode",
             "/lowcode/apps",
             "/lowcode/forms",

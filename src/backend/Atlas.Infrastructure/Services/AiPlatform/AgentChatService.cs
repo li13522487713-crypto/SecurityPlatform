@@ -24,8 +24,10 @@ public sealed class AgentChatService : IAgentChatService
     private readonly AgentRepository _agentRepository;
     private readonly ConversationRepository _conversationRepository;
     private readonly ChatMessageRepository _chatMessageRepository;
+    private readonly AgentKnowledgeLinkRepository _agentKnowledgeLinkRepository;
     private readonly ModelConfigRepository _modelConfigRepository;
     private readonly ILlmProviderFactory _llmProviderFactory;
+    private readonly IRagRetrievalService _ragRetrievalService;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<AgentChatService> _logger;
@@ -34,8 +36,10 @@ public sealed class AgentChatService : IAgentChatService
         AgentRepository agentRepository,
         ConversationRepository conversationRepository,
         ChatMessageRepository chatMessageRepository,
+        AgentKnowledgeLinkRepository agentKnowledgeLinkRepository,
         ModelConfigRepository modelConfigRepository,
         ILlmProviderFactory llmProviderFactory,
+        IRagRetrievalService ragRetrievalService,
         IIdGeneratorAccessor idGeneratorAccessor,
         IUnitOfWork unitOfWork,
         ILogger<AgentChatService> logger)
@@ -43,8 +47,10 @@ public sealed class AgentChatService : IAgentChatService
         _agentRepository = agentRepository;
         _conversationRepository = conversationRepository;
         _chatMessageRepository = chatMessageRepository;
+        _agentKnowledgeLinkRepository = agentKnowledgeLinkRepository;
         _modelConfigRepository = modelConfigRepository;
         _llmProviderFactory = llmProviderFactory;
+        _ragRetrievalService = ragRetrievalService;
         _idGeneratorAccessor = idGeneratorAccessor;
         _unitOfWork = unitOfWork;
         _logger = logger;
@@ -186,7 +192,8 @@ public sealed class AgentChatService : IAgentChatService
                 afterContextClear: true,
                 limit: ContextWindowSize,
                 linkedCts.Token);
-            var llmMessages = BuildLlmMessages(agent, history);
+            var ragResults = await TrySearchRagAsync(tenantId, agent.Id, request, linkedCts.Token);
+            var llmMessages = BuildLlmMessages(agent, history, ragResults);
 
             var modelConfig = await ResolveModelConfigAsync(tenantId, agent.ModelConfigId, linkedCts.Token);
             var providerName = modelConfig?.ProviderType;
@@ -225,7 +232,14 @@ public sealed class AgentChatService : IAgentChatService
             {
                 provider = provider.ProviderName,
                 model = modelName,
-                ragEnabled = request.EnableRag ?? false
+                ragEnabled = request.EnableRag ?? false,
+                ragSources = ragResults.Select(x => new
+                {
+                    x.KnowledgeBaseId,
+                    x.DocumentId,
+                    x.ChunkId,
+                    x.Score
+                }).ToList()
             });
             var assistantMessageEntity = new ChatMessageEntity(
                 tenantId,
@@ -247,7 +261,9 @@ public sealed class AgentChatService : IAgentChatService
                 conversation.Id,
                 assistantMessageId,
                 assistantContent,
-                Sources: null);
+                Sources: ragResults.Count == 0
+                    ? null
+                    : string.Join(", ", ragResults.Select(x => x.DocumentName).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct()));
         }
         catch (OperationCanceledException) when (linkedCts.IsCancellationRequested)
         {
@@ -303,12 +319,24 @@ public sealed class AgentChatService : IAgentChatService
 
     private static IReadOnlyList<Atlas.Application.AiPlatform.Models.ChatMessage> BuildLlmMessages(
         Agent agent,
-        IReadOnlyList<ChatMessageEntity> history)
+        IReadOnlyList<ChatMessageEntity> history,
+        IReadOnlyList<RagSearchResult> ragResults)
     {
-        var messages = new List<Atlas.Application.AiPlatform.Models.ChatMessage>(history.Count + 1);
+        var messages = new List<Atlas.Application.AiPlatform.Models.ChatMessage>(history.Count + 2);
         if (!string.IsNullOrWhiteSpace(agent.SystemPrompt))
         {
             messages.Add(new Atlas.Application.AiPlatform.Models.ChatMessage("system", agent.SystemPrompt));
+        }
+
+        if (ragResults.Count > 0)
+        {
+            var contextText = string.Join(
+                "\n\n",
+                ragResults.Select((x, i) =>
+                    $"[RAG#{i + 1}] (kb:{x.KnowledgeBaseId}, doc:{x.DocumentId}, chunk:{x.ChunkId}, score:{x.Score:F4})\n{x.Content}"));
+            messages.Add(new Atlas.Application.AiPlatform.Models.ChatMessage(
+                "system",
+                $"你可以参考以下知识库检索结果来回答用户问题。请优先使用其中事实，并在适当时给出简短来源说明。\n\n{contextText}"));
         }
 
         foreach (var item in history)
@@ -317,6 +345,32 @@ public sealed class AgentChatService : IAgentChatService
         }
 
         return messages;
+    }
+
+    private async Task<IReadOnlyList<RagSearchResult>> TrySearchRagAsync(
+        TenantId tenantId,
+        long agentId,
+        AgentChatRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!(request.EnableRag ?? false))
+        {
+            return [];
+        }
+
+        var links = await _agentKnowledgeLinkRepository.GetByAgentIdAsync(tenantId, agentId, cancellationToken);
+        if (links.Count == 0)
+        {
+            return [];
+        }
+
+        var knowledgeBaseIds = links.Select(x => x.KnowledgeBaseId).Distinct().ToList();
+        return await _ragRetrievalService.SearchAsync(
+            tenantId,
+            knowledgeBaseIds,
+            request.Message,
+            topK: 5,
+            cancellationToken);
     }
 
     private async Task<ModelConfig?> ResolveModelConfigAsync(

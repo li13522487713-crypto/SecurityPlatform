@@ -70,6 +70,10 @@ public static class PermissionCodes
     public const string ConversationView = "conversation:view";
     public const string ConversationCreate = "conversation:create";
     public const string ConversationDelete = "conversation:delete";
+    public const string KnowledgeBaseView = "knowledge-base:view";
+    public const string KnowledgeBaseCreate = "knowledge-base:create";
+    public const string KnowledgeBaseUpdate = "knowledge-base:update";
+    public const string KnowledgeBaseDelete = "knowledge-base:delete";
 
     public const string ApprovalFlowView = "approval:flow:view";
     public const string ApprovalFlowManage = "approval:flow:manage";

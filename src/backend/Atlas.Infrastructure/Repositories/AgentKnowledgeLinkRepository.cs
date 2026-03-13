@@ -28,6 +28,13 @@ public sealed class AgentKnowledgeLinkRepository : RepositoryBase<AgentKnowledge
             .ExecuteCommandAsync(cancellationToken);
     }
 
+    public async Task DeleteByKnowledgeBaseIdAsync(TenantId tenantId, long knowledgeBaseId, CancellationToken cancellationToken)
+    {
+        await Db.Deleteable<AgentKnowledgeLink>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.KnowledgeBaseId == knowledgeBaseId)
+            .ExecuteCommandAsync(cancellationToken);
+    }
+
     public async Task AddRangeAsync(IReadOnlyCollection<AgentKnowledgeLink> entities, CancellationToken cancellationToken)
     {
         if (entities.Count == 0)
