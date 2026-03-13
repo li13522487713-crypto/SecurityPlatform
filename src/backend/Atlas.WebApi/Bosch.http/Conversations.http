@@ -1,0 +1,143 @@
+@baseUrl = http://localhost:5000
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+@agentId = 1
+@conversationId = 1
+@messageId = 1
+
+### 登录获取令牌
+# @name login
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+###
+@accessToken = {{login.response.body.$.data.accessToken}}
+@csrfToken =
+
+### 获取 CSRF Token
+# @name antiforgery
+GET {{baseUrl}}/api/v1/secure/antiforgery
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+###
+@csrfToken = {{antiforgery.response.body.$.data.token}}
+
+### 创建会话
+# @name createConversation
+POST {{baseUrl}}/api/v1/conversations
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "agentId": {{agentId}}
+}
+
+###
+@conversationId = {{createConversation.response.body.$.data.id}}
+
+### 会话分页（按当前用户）
+GET {{baseUrl}}/api/v1/conversations?PageIndex=1&PageSize=20
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 会话详情
+GET {{baseUrl}}/api/v1/conversations/{{conversationId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 更新会话标题
+PUT {{baseUrl}}/api/v1/conversations/{{conversationId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "title": "会话标题-更新"
+}
+
+### 同步聊天
+POST {{baseUrl}}/api/v1/agents/{{agentId}}/chat
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "conversationId": {{conversationId}},
+  "message": "请简要介绍等保2.0中访问控制的核心要求。",
+  "enableRag": false
+}
+
+### 流式聊天（SSE）
+POST {{baseUrl}}/api/v1/agents/{{agentId}}/chat/stream
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Accept: text/event-stream
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "conversationId": {{conversationId}},
+  "message": "用三点说明租户隔离设计重点。",
+  "enableRag": false
+}
+
+### 取消生成
+POST {{baseUrl}}/api/v1/agents/{{agentId}}/chat/cancel
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "conversationId": {{conversationId}}
+}
+
+### 查询消息
+GET {{baseUrl}}/api/v1/conversations/{{conversationId}}/messages
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 清理上下文
+POST {{baseUrl}}/api/v1/conversations/{{conversationId}}/clear-context
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+### 清空历史
+POST {{baseUrl}}/api/v1/conversations/{{conversationId}}/clear-history
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+### 删除消息
+DELETE {{baseUrl}}/api/v1/conversations/{{conversationId}}/messages/{{messageId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+### 删除会话
+DELETE {{baseUrl}}/api/v1/conversations/{{conversationId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}

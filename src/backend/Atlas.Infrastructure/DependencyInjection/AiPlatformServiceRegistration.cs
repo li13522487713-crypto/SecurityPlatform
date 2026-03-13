@@ -37,10 +37,14 @@ public static class AiPlatformServiceRegistration
         services.AddScoped<ModelConfigRepository>();
         services.AddScoped<AgentRepository>();
         services.AddScoped<AgentKnowledgeLinkRepository>();
+        services.AddScoped<ConversationRepository>();
+        services.AddScoped<ChatMessageRepository>();
         services.AddScoped<IModelConfigCommandService, ModelConfigCommandService>();
         services.AddScoped<IModelConfigQueryService, ModelConfigQueryService>();
         services.AddScoped<IAgentCommandService, AgentCommandService>();
         services.AddScoped<IAgentQueryService, AgentQueryService>();
+        services.AddScoped<IConversationService, ConversationService>();
+        services.AddScoped<IAgentChatService, AgentChatService>();
 
         services.AddScoped<ILlmProviderFactory, LlmProviderFactory>();
 

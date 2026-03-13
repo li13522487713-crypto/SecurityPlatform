@@ -67,6 +67,9 @@ public static class PermissionCodes
     public const string AgentCreate = "agent:create";
     public const string AgentUpdate = "agent:update";
     public const string AgentDelete = "agent:delete";
+    public const string ConversationView = "conversation:view";
+    public const string ConversationCreate = "conversation:create";
+    public const string ConversationDelete = "conversation:delete";
 
     public const string ApprovalFlowView = "approval:flow:view";
     public const string ApprovalFlowManage = "approval:flow:manage";

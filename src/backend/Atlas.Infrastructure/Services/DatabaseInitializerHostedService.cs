@@ -94,6 +94,8 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             typeof(ModelConfig),
             typeof(Agent),
             typeof(AgentKnowledgeLink),
+            typeof(Conversation),
+            typeof(ChatMessage),
             typeof(AuthSession),
             typeof(RefreshToken),
             typeof(ApprovalFlowDefinition),
@@ -375,6 +377,9 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             (PermissionCodes.AgentCreate, "Agent Create", "Api"),
             (PermissionCodes.AgentUpdate, "Agent Update", "Api"),
             (PermissionCodes.AgentDelete, "Agent Delete", "Api"),
+            (PermissionCodes.ConversationView, "Conversation View", "Api"),
+            (PermissionCodes.ConversationCreate, "Conversation Create", "Api"),
+            (PermissionCodes.ConversationDelete, "Conversation Delete", "Api"),
             (PermissionCodes.ApprovalFlowView, "Approval Flow View", "Api"),
             (PermissionCodes.ApprovalFlowManage, "Approval Flow Manage", "Api"),
             (PermissionCodes.ApprovalFlowCreate, "Approval Flow Create", "Api"),
@@ -555,7 +560,10 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             ("Agent 查询", "/ai/agents:query", "/ai/agents", 1, "F", null, null, PermissionCodes.AgentView, null, false, false, "0", "0", PermissionCodes.AgentView, true),
             ("Agent 新增", "/ai/agents:create", "/ai/agents", 2, "F", null, null, PermissionCodes.AgentCreate, null, false, false, "0", "0", PermissionCodes.AgentCreate, true),
             ("Agent 修改", "/ai/agents:update", "/ai/agents", 3, "F", null, null, PermissionCodes.AgentUpdate, null, false, false, "0", "0", PermissionCodes.AgentUpdate, true),
-            ("Agent 删除", "/ai/agents:delete", "/ai/agents", 4, "F", null, null, PermissionCodes.AgentDelete, null, false, false, "0", "0", PermissionCodes.AgentDelete, true)
+            ("Agent 删除", "/ai/agents:delete", "/ai/agents", 4, "F", null, null, PermissionCodes.AgentDelete, null, false, false, "0", "0", PermissionCodes.AgentDelete, true),
+            ("会话查询", "/ai/conversations:query", "/ai", 5, "F", null, null, PermissionCodes.ConversationView, null, false, false, "0", "0", PermissionCodes.ConversationView, true),
+            ("会话新增", "/ai/conversations:create", "/ai", 6, "F", null, null, PermissionCodes.ConversationCreate, null, false, false, "0", "0", PermissionCodes.ConversationCreate, true),
+            ("会话删除", "/ai/conversations:delete", "/ai", 7, "F", null, null, PermissionCodes.ConversationDelete, null, false, false, "0", "0", PermissionCodes.ConversationDelete, true)
         };
 
         var menuPaths = menuSeeds.Select(x => x.Path).Distinct().ToArray();

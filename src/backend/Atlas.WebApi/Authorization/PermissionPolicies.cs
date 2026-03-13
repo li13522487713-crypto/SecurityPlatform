@@ -74,6 +74,9 @@ public static class PermissionPolicies
     public const string AgentCreate = "Permission:agent:create";
     public const string AgentUpdate = "Permission:agent:update";
     public const string AgentDelete = "Permission:agent:delete";
+    public const string ConversationView = "Permission:conversation:view";
+    public const string ConversationCreate = "Permission:conversation:create";
+    public const string ConversationDelete = "Permission:conversation:delete";
 
     public const string ApprovalFlowView = "Permission:approval:flow:view";
     public const string ApprovalFlowManage = "Permission:approval:flow:manage";

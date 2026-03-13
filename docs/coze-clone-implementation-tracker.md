@@ -157,22 +157,24 @@
 
 | # | 功能 | Coze 接口 | 后端文件 | 状态 |
 |---|------|-----------|----------|------|
-| 4.1.1 | Conversation 实体 | `conversation/` | `Atlas.Domain.Agent/Conversation.cs` | [ ] |
-| 4.1.2 | Message 实体（Role / Content / Metadata） | `conversation/message.thrift` | `Atlas.Domain.Agent/Message.cs` | [ ] |
-| 4.1.3 | 创建会话 | `CreateConversation` | `ConversationService.Create()` | [ ] |
-| 4.1.4 | 会话列表 | `ListConversation` | `ConversationService.List()` | [ ] |
-| 4.1.5 | 更新会话 | `UpdateConversation` | `ConversationService.Update()` | [ ] |
-| 4.1.6 | 删除会话 | `DeleteConversation` | `ConversationService.Delete()` | [ ] |
-| 4.1.7 | 获取会话 | `RetrieveConversation` | `ConversationService.GetById()` | [ ] |
-| 4.1.8 | Agent 对话（同步） | `POST /api/conversation/chat` | `AgentChatService.Chat()` | [ ] |
-| 4.1.9 | Agent 对话（SSE 流式） | `POST /api/conversation/chat` SSE | `AgentChatService.ChatStream()` | [ ] |
-| 4.1.10 | 消息列表 | `GetMessageList` | `MessageService.List()` | [ ] |
-| 4.1.11 | 删除消息 | `DeleteMessage` | `MessageService.Delete()` | [ ] |
-| 4.1.12 | 中断消息生成 | `BreakMessage` | `AgentChatService.Cancel()` | [ ] |
-| 4.1.13 | 清除上下文 | `CreateSection` | `ConversationService.ClearContext()` | [ ] |
-| 4.1.14 | 清除历史 | `ClearHistory` | `ConversationService.ClearHistory()` | [ ] |
-| 4.1.15 | `ConversationsController` | `/api/conversation/*` | `POST /api/v1/agents/{id}/chat[/stream]` | [ ] |
-| 4.1.16 | `ConversationsController` REST | `/v1/conversations/*` | `GET/POST/PUT/DELETE /api/v1/conversations` | [ ] |
+| 4.1.1 | Conversation 实体 | `conversation/` | `Atlas.Domain/AiPlatform/Entities/Conversation.cs` | [x] |
+| 4.1.2 | Message 实体（Role / Content / Metadata） | `conversation/message.thrift` | `Atlas.Domain/AiPlatform/Entities/ChatMessage.cs` | [x] |
+| 4.1.3 | 创建会话 | `CreateConversation` | `ConversationService.CreateAsync()` | [x] |
+| 4.1.4 | 会话列表 | `ListConversation` | `ConversationService.ListByUserAsync()/ListByAgentAsync()` | [x] |
+| 4.1.5 | 更新会话 | `UpdateConversation` | `ConversationService.UpdateAsync()` | [x] |
+| 4.1.6 | 删除会话 | `DeleteConversation` | `ConversationService.DeleteAsync()` | [x] |
+| 4.1.7 | 获取会话 | `RetrieveConversation` | `ConversationService.GetByIdAsync()` | [x] |
+| 4.1.8 | Agent 对话（同步） | `POST /api/conversation/chat` | `AgentChatService.ChatAsync()` | [~] |
+| 4.1.9 | Agent 对话（SSE 流式） | `POST /api/conversation/chat` SSE | `AgentChatService.ChatStreamAsync()` | [~] |
+| 4.1.10 | 消息列表 | `GetMessageList` | `ConversationService.GetMessagesAsync()` | [x] |
+| 4.1.11 | 删除消息 | `DeleteMessage` | `ConversationService.DeleteMessageAsync()` | [x] |
+| 4.1.12 | 中断消息生成 | `BreakMessage` | `AgentChatService.CancelAsync()` | [x] |
+| 4.1.13 | 清除上下文 | `CreateSection` | `ConversationService.ClearContextAsync()` | [x] |
+| 4.1.14 | 清除历史 | `ClearHistory` | `ConversationService.ClearHistoryAsync()` | [x] |
+| 4.1.15 | `AgentChatController` | `/api/conversation/*` | `POST /api/v1/agents/{agentId}/chat[/stream|/cancel]` | [x] |
+| 4.1.16 | `ConversationsController` REST | `/v1/conversations/*` | `GET/POST/PUT/DELETE /api/v1/conversations` | [x] |
+
+> 说明：4.1.8/4.1.9 已完成后端实现与消息持久化链路，但联调依赖有效模型提供商密钥；当前环境下上游 LLM 返回 `invalid_api_key`，因此标记为进行中（[~]）。
 
 ### 4.2 前端
 

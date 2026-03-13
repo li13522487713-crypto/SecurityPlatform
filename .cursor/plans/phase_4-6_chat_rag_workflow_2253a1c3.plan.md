@@ -4,25 +4,25 @@ overview: "Implement Phase 4 (Conversation/Chat with SSE), Phase 5 (Knowledge Ba
 todos:
   - id: p4-entities
     content: "Phase 4: Create Conversation and ChatMessage domain entities in Atlas.Domain/AiPlatform/Entities/"
-    status: pending
+    status: completed
   - id: p4-repos
     content: "Phase 4: Create ConversationRepository and ChatMessageRepository extending RepositoryBase"
-    status: pending
+    status: completed
   - id: p4-dto-validators
     content: "Phase 4: Create ConversationModels.cs DTOs and ConversationValidators.cs"
-    status: pending
+    status: completed
   - id: p4-conversation-svc
     content: "Phase 4: Implement IConversationService (CRUD + clear context/history)"
-    status: pending
+    status: completed
   - id: p4-chat-svc
     content: "Phase 4: Implement IAgentChatService (ChatAsync + ChatStreamAsync + CancelAsync) with LLM provider integration and message persistence"
-    status: pending
+    status: completed
   - id: p4-controllers
     content: "Phase 4: Create ConversationsController (9 endpoints) and AgentChatController (3 endpoints) with SSE streaming"
-    status: pending
+    status: completed
   - id: p4-permissions-di
     content: "Phase 4: Add Conversation permissions and register all Phase 4 services in AiPlatformServiceRegistration"
-    status: pending
+    status: completed
   - id: p4-frontend
     content: "Phase 4: Create useStreamChat.ts composable, api-conversation.ts, AgentChatPage.vue, ChatMessage.vue, MarkdownRenderer.vue"
     status: pending

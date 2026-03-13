@@ -118,7 +118,7 @@ public sealed class ModelConfigCommandService : IModelConfigCommandService
             await provider.ChatAsync(
                 new ChatCompletionRequest(
                     request.Model,
-                    [new ChatMessage("user", "hi")],
+                    [new Atlas.Application.AiPlatform.Models.ChatMessage("user", "hi")],
                     Temperature: 0),
                 cancellationToken);
 
