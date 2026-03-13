@@ -75,6 +75,7 @@ public static class AiPlatformServiceRegistration
         services.AddScoped<IPersonalAccessTokenService, PersonalAccessTokenService>();
         services.AddScoped<IAiMarketplaceService, AiMarketplaceService>();
         services.AddScoped<IAiSearchService, AiSearchService>();
+        services.AddScoped<IAdminAiConfigService, AdminAiConfigService>();
         services.AddScoped<IDocumentService, DocumentService>();
         services.AddScoped<IChunkService, ChunkService>();
         services.AddScoped<IRagRetrievalService, RagRetrievalService>();
