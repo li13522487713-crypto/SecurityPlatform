@@ -10,6 +10,7 @@ public sealed class ChatMessage : TenantEntity
     {
         Role = string.Empty;
         Content = string.Empty;
+        Metadata = string.Empty;
     }
 
     public ChatMessage(
@@ -26,7 +27,7 @@ public sealed class ChatMessage : TenantEntity
         ConversationId = conversationId;
         Role = role;
         Content = content;
-        Metadata = metadata;
+        Metadata = metadata ?? string.Empty;
         IsContextCleared = isContextCleared;
         CreatedAt = DateTime.UtcNow;
     }
