@@ -6,6 +6,8 @@
     :drawer-open="formVisible"
     :drawer-title="formMode === 'create' ? '新增项目' : '编辑项目'"
     :drawer-width="560"
+    :submit-loading="submitting"
+    :submit-disabled="submitting"
     @update:drawer-open="formVisible = $event"
     @search="handleSearch"
     @reset="resetFilters"
@@ -242,7 +244,7 @@ const crud = useCrudPage<ProjectListItem, ProjectDetail, ProjectCreateRequest, P
 
 const {
   dataSource, loading, keyword, pagination,
-  formVisible, formMode, formModel, formRules,
+  formVisible, formMode, submitting, formModel, formRules,
   tableViewController, tableColumns, tableSize,
   canCreate, canUpdate, canDelete,
   onTableChange, handleSearch, resetFilters,

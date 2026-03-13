@@ -6,6 +6,8 @@
     :drawer-open="drawerVisible"
     :drawer-title="editingId ? '编辑模型配置' : '新建模型配置'"
     :drawer-width="560"
+    :submit-loading="submitting"
+    :submit-disabled="submitting"
     @update:drawer-open="drawerVisible = $event"
     @search="handleSearch"
     @reset="handleReset"
@@ -258,6 +260,7 @@ const keyword = ref("");
 const dataList = ref<ModelConfigDto[]>([]);
 const loading = ref(false);
 const testing = ref(false);
+const submitting = ref(false);
 const testResult = ref<ModelConfigTestResult | null>(null);
 const statsData = ref<ModelConfigStatsDto>({
   total: 0,
@@ -366,6 +369,7 @@ const form = reactive({
   supportsEmbedding: true,
   isEnabled: true
 });
+const previousProviderType = ref(form.providerType);
 
 const baseRules = {
   name: [{ required: true, message: "请输入配置名称" }],
@@ -399,11 +403,27 @@ const testResultDescription = computed(() => {
 });
 
 function onProviderChange(value: string) {
+  const lastProviderType = previousProviderType.value;
   const suggestedUrl = providerBaseUrls[value];
-  if (suggestedUrl && !form.baseUrl) {
-    form.baseUrl = suggestedUrl;
+  const previousProviderUrl = providerBaseUrls[lastProviderType];
+
+  // 仅在当前值为空，或仍是上一个 Provider 的默认地址时自动替换，避免覆盖用户手填地址
+  if (!form.baseUrl || (previousProviderUrl && form.baseUrl === previousProviderUrl)) {
+    form.baseUrl = suggestedUrl ?? "";
   }
-  form.defaultModel = "";
+
+  const previousModels = providerModelSuggestions[lastProviderType] ?? [];
+  const normalizedCurrentModel = form.defaultModel.trim().toLowerCase();
+  const usesPreviousProviderModel = previousModels.some(
+    (model) => model.toLowerCase() === normalizedCurrentModel
+  );
+
+  // 仅在模型为空或明显是上一个 Provider 的建议模型时清空
+  if (!normalizedCurrentModel || usesPreviousProviderModel) {
+    form.defaultModel = "";
+  }
+
+  previousProviderType.value = value;
   testResult.value = null;
 }
 
@@ -456,6 +476,7 @@ function resetForm() {
     supportsEmbedding: true,
     isEnabled: true
   });
+  previousProviderType.value = form.providerType;
   testResult.value = null;
 }
 
@@ -478,6 +499,7 @@ async function openEdit(record: ModelConfigDto) {
       supportsEmbedding: detail.supportsEmbedding,
       isEnabled: detail.isEnabled
     });
+    previousProviderType.value = detail.providerType;
     testResult.value = null;
     drawerVisible.value = true;
   } catch (error: unknown) {
@@ -492,12 +514,17 @@ function closeDrawer() {
 }
 
 async function submitForm() {
+  if (submitting.value) {
+    return;
+  }
+
   try {
     await formRef.value?.validate();
   } catch {
     return;
   }
 
+  submitting.value = true;
   try {
     if (editingId.value) {
       await updateModelConfig(editingId.value, {
@@ -526,6 +553,8 @@ async function submitForm() {
     await loadData();
   } catch (error: unknown) {
     message.error((error as Error).message || "提交失败");
+  } finally {
+    submitting.value = false;
   }
 }
 

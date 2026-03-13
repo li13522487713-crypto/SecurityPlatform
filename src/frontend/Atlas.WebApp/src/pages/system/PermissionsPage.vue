@@ -6,6 +6,8 @@
     :drawer-open="formVisible"
     :drawer-title="formMode === 'create' ? '新增权限' : '编辑权限'"
     :drawer-width="520"
+    :submit-loading="submitting"
+    :submit-disabled="submitting"
     @update:drawer-open="formVisible = $event"
     @search="handleSearch"
     @reset="handleReset"
@@ -164,7 +166,7 @@ const crud = useCrudPage<PermissionListItem, PermissionListItem, PermissionCreat
 
 const {
   dataSource, loading, keyword, pagination,
-  formVisible, formMode, formModel, formRules,
+  formVisible, formMode, submitting, formModel, formRules,
   tableViewController, tableColumns, tableSize,
   canCreate, canUpdate,
   onTableChange, openCreate, openEdit, closeForm, submitForm

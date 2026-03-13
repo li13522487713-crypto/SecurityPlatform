@@ -6,6 +6,8 @@
     :drawer-open="formVisible"
     :drawer-title="formMode === 'create' ? '新增员工' : '编辑员工'"
     :drawer-width="640"
+    :submit-loading="submitting"
+    :submit-disabled="submitting"
     @update:drawer-open="formVisible = $event"
     @search="handleSearch"
     @reset="resetFilters"
@@ -222,6 +224,7 @@ import type {
 } from "@/types/api";
 
 const activeTab = ref("basic");
+const submitting = ref(false);
 
 const { exporting, importing, exportUsers, downloadImportTemplate, importUsers } = useExcelExport();
 const importModalVisible = ref(false);
@@ -397,39 +400,48 @@ const handleOpenEdit = async (id: string) => {
 };
 
 const handleSubmit = async () => {
-  if (formMode.value === "create") {
-    await crud.submitForm();
-  } else if (selectedId.value) {
-    // Update basic info
-    try {
-      await updateUser(selectedId.value, {
-        displayName: formModel.displayName,
-        email: formModel.email || undefined,
-        phoneNumber: formModel.phoneNumber || undefined,
-        isActive: formModel.isActive
-      });
+  if (submitting.value) {
+    return;
+  }
 
-      // Update assignments in parallel
-      const promises: Promise<void>[] = [];
-      if (canAssignRoles) {
-        promises.push(updateUserRoles(selectedId.value, { roleIds: formModel.roleIds }));
-      }
-      if (canAssignDepartments) {
-        promises.push(updateUserDepartments(selectedId.value, { departmentIds: formModel.departmentIds }));
-      }
-      if (canAssignPositions) {
-        promises.push(updateUserPositions(selectedId.value, { positionIds: formModel.positionIds }));
-      }
-      if (promises.length) {
-        await Promise.all(promises);
-      }
+  submitting.value = true;
+  try {
+    if (formMode.value === "create") {
+      await crud.submitForm();
+    } else if (selectedId.value) {
+      // Update basic info
+      try {
+        await updateUser(selectedId.value, {
+          displayName: formModel.displayName,
+          email: formModel.email || undefined,
+          phoneNumber: formModel.phoneNumber || undefined,
+          isActive: formModel.isActive
+        });
 
-      message.success("更新成功");
-      formVisible.value = false;
-      fetchData();
-    } catch (error) {
-      message.error((error as Error).message || "更新失败");
+        // Update assignments in parallel
+        const promises: Promise<void>[] = [];
+        if (canAssignRoles) {
+          promises.push(updateUserRoles(selectedId.value, { roleIds: formModel.roleIds }));
+        }
+        if (canAssignDepartments) {
+          promises.push(updateUserDepartments(selectedId.value, { departmentIds: formModel.departmentIds }));
+        }
+        if (canAssignPositions) {
+          promises.push(updateUserPositions(selectedId.value, { positionIds: formModel.positionIds }));
+        }
+        if (promises.length) {
+          await Promise.all(promises);
+        }
+
+        message.success("更新成功");
+        formVisible.value = false;
+        fetchData();
+      } catch (error) {
+        message.error((error as Error).message || "更新失败");
+      }
     }
+  } finally {
+    submitting.value = false;
   }
 };
 </script>

@@ -77,7 +77,11 @@ export async function getEnabledModelConfigs() {
 }
 
 export async function getModelConfigStats(keyword?: string) {
-  const query = toQuery({ keyword });
+  const queryParams = new URLSearchParams();
+  if (keyword && keyword.trim()) {
+    queryParams.set("keyword", keyword.trim());
+  }
+  const query = queryParams.toString();
   const url = query ? `/model-configs/stats?${query}` : "/model-configs/stats";
   const response = await requestApi<ApiResponse<ModelConfigStatsDto>>(url);
   if (!response.data) {

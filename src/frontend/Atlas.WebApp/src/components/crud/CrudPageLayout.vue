@@ -37,8 +37,15 @@
       <slot name="form" />
       <template #footer>
         <a-space>
-          <a-button @click="$emit('close-form')">取消</a-button>
-          <a-button type="primary" @click="$emit('submit')">保存</a-button>
+          <a-button :disabled="submitDisabled || submitLoading" @click="$emit('close-form')">取消</a-button>
+          <a-button
+            type="primary"
+            :loading="submitLoading"
+            :disabled="submitDisabled"
+            @click="$emit('submit')"
+          >
+            保存
+          </a-button>
         </a-space>
       </template>
     </a-drawer>
@@ -57,7 +64,12 @@ const props = defineProps<{
   drawerOpen: boolean;
   drawerTitle: string;
   drawerWidth?: number | string;
+  submitLoading?: boolean;
+  submitDisabled?: boolean;
 }>();
+
+const submitLoading = computed(() => props.submitLoading ?? false);
+const submitDisabled = computed(() => props.submitDisabled ?? false);
 
 const emit = defineEmits<{
   (e: "update:keyword", value: string): void;

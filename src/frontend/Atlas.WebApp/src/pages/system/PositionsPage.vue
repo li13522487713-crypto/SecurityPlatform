@@ -6,6 +6,8 @@
     :drawer-open="formVisible"
     :drawer-title="formMode === 'create' ? '新增职位' : '编辑职位'"
     :drawer-width="520"
+    :submit-loading="submitting"
+    :submit-disabled="submitting"
     @update:drawer-open="formVisible = $event"
     @search="handleSearch"
     @reset="resetFilters"
@@ -104,6 +106,7 @@ const {
   pagination,
   formVisible,
   formMode,
+  submitting,
   formModel,
   formRules,
   tableViewController,

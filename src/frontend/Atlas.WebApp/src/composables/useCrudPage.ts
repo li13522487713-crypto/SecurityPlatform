@@ -77,6 +77,7 @@ export function useCrudPage<TList, TDetail, TCreate extends object, TUpdate exte
   const formRef = options.formRef ?? ref<FormInstance>();
   const formModel = reactive<TCreate & TUpdate>(defaultFormModel()) as TCreate & TUpdate;
   const selectedId = ref<string | null>(null);
+  const submitting = ref(false);
 
   // Permissions
   const profile = getAuthProfile();
@@ -199,9 +200,12 @@ export function useCrudPage<TList, TDetail, TCreate extends object, TUpdate exte
   };
 
   const submitForm = async () => {
+    if (submitting.value) return;
+
     const valid = await formRef.value?.validate().catch(() => false);
     if (!valid) return;
 
+    submitting.value = true;
     try {
       if (formMode.value === "create") {
         const payload = buildCreatePayload ? buildCreatePayload(formModel) : (formModel as unknown as TCreate);
@@ -219,6 +223,8 @@ export function useCrudPage<TList, TDetail, TCreate extends object, TUpdate exte
       }
     } catch (error) {
       message.error((error as Error).message || "提交失败");
+    } finally {
+      submitting.value = false;
     }
   };
 
@@ -255,6 +261,7 @@ export function useCrudPage<TList, TDetail, TCreate extends object, TUpdate exte
     formModel,
     formRules,
     selectedId,
+    submitting,
 
     // Table view
     tableViewController,

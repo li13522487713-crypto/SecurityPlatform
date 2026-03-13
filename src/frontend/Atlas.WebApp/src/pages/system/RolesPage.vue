@@ -6,6 +6,8 @@
     :drawer-open="formVisible"
     :drawer-title="formMode === 'create' ? '新增角色' : '编辑角色'"
     :drawer-width="520"
+    :submit-loading="submitting"
+    :submit-disabled="submitting"
     @update:drawer-open="formVisible = $event"
     @search="handleSearch"
     @reset="handleReset"
@@ -316,7 +318,7 @@ const crud = useCrudPage<RoleListItem, RoleDetail, RoleCreateRequest, RoleUpdate
 
 const {
   dataSource, loading, keyword, pagination,
-  formVisible, formMode, formModel, formRules,
+  formVisible, formMode, submitting, formModel, formRules,
   tableViewController, tableColumns, tableSize,
   canCreate, canUpdate, canDelete,
   onTableChange, openCreate, openEdit, closeForm, submitForm, handleDelete
