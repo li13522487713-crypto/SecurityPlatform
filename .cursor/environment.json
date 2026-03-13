@@ -1,3 +1,15 @@
 {
-  "install": "bash scripts/cursor-cloud-install.sh"
+  "install": "bash scripts/cursor-cloud-install.sh",
+  "terminals": [
+    {
+      "name": "Backend API",
+      "command": "dotnet run --project src/backend/Atlas.WebApi/Atlas.WebApi.csproj",
+      "description": "启动 .NET Web API 后端服务"
+    },
+    {
+      "name": "Frontend Dev",
+      "command": "npm run dev --prefix src/frontend/Atlas.WebApp",
+      "description": "启动 Vue+Vite 前端开发服务器"
+    }
+  ]
 }

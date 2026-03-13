@@ -1,8 +1,15 @@
 #!/usr/bin/env bash
+# Cloud Agent 环境安装脚本（幂等，支持 Cursor 缓存复用）
+# Cursor 会在拉取最新代码后自动执行本脚本
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 FRONTEND_DIR="$ROOT_DIR/src/frontend/Atlas.WebApp"
+
+# 同步子模块（如有），确保代码完整（幂等）
+if [[ -f "$ROOT_DIR/.gitmodules" ]]; then
+  git submodule update --init --recursive
+fi
 
 if ! command -v node >/dev/null 2>&1; then
   echo "Node.js is required but not found." >&2
