@@ -115,6 +115,8 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             typeof(AiMarketplaceFavorite),
             typeof(AiRecentEdit),
             typeof(AiWorkspace),
+            typeof(AiShortcutCommand),
+            typeof(AiBotPopupInfo),
             typeof(PersonalAccessToken),
             typeof(AuthSession),
             typeof(RefreshToken),
@@ -444,6 +446,9 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             (PermissionCodes.AiAdminConfigUpdate, "AI Admin Config Update", "Api"),
             (PermissionCodes.AiWorkspaceView, "AI Workspace View", "Api"),
             (PermissionCodes.AiWorkspaceUpdate, "AI Workspace Update", "Api"),
+            (PermissionCodes.AiDevopsView, "AI DevOps View", "Api"),
+            (PermissionCodes.AiShortcutView, "AI Shortcut View", "Api"),
+            (PermissionCodes.AiShortcutManage, "AI Shortcut Manage", "Api"),
             (PermissionCodes.PersonalAccessTokenView, "PAT View", "Api"),
             (PermissionCodes.PersonalAccessTokenCreate, "PAT Create", "Api"),
             (PermissionCodes.PersonalAccessTokenUpdate, "PAT Update", "Api"),
@@ -589,6 +594,9 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             ("统一搜索", "/ai/search", "/ai", 31, "C", "ai/AiSearchResultsPage", "search", PermissionCodes.AiSearchView, null, false, true, "0", "0", PermissionCodes.AiSearchView, false),
             ("AI 工作台", "/ai/workspace", "/ai", 32, "C", "ai/AiWorkspacePage", "desktop", PermissionCodes.AiWorkspaceView, null, false, true, "0", "0", PermissionCodes.AiWorkspaceView, false),
             ("AI 资源库", "/ai/library", "/ai", 33, "C", "ai/AiLibraryPage", "inbox", PermissionCodes.AiWorkspaceView, null, false, true, "0", "0", PermissionCodes.AiWorkspaceView, false),
+            ("AI 测试集", "/ai/devops/test-sets", "/ai", 34, "C", "ai/AiTestSetsPage", "experiment", PermissionCodes.AiDevopsView, null, false, true, "0", "0", PermissionCodes.AiDevopsView, false),
+            ("AI Mock 集", "/ai/devops/mock-sets", "/ai", 35, "C", "ai/AiMockSetsPage", "api", PermissionCodes.AiDevopsView, null, false, true, "0", "0", PermissionCodes.AiDevopsView, false),
+            ("快捷命令", "/ai/shortcuts", "/ai", 36, "C", "ai/AiShortcutsPage", "thunderbolt", PermissionCodes.AiShortcutView, null, false, true, "0", "0", PermissionCodes.AiShortcutView, false),
 
             ("低代码中心", "/lowcode", null, 20, "M", "Layout", "appstore", null, null, false, false, "0", "0", null, false),
             ("应用管理", "/lowcode/apps", "/lowcode", 21, "C", "lowcode/AppListPage", "appstore-add", PermissionCodes.AppsView, null, false, true, "0", "0", PermissionCodes.AppsView, false),
@@ -691,7 +699,10 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             ("搜索查询", "/ai/search:query", "/ai/search", 40, "F", null, null, PermissionCodes.AiSearchView, null, false, false, "0", "0", PermissionCodes.AiSearchView, true),
             ("搜索记录更新", "/ai/search:update", "/ai/search", 41, "F", null, null, PermissionCodes.AiSearchUpdate, null, false, false, "0", "0", PermissionCodes.AiSearchUpdate, true),
             ("工作台查询", "/ai/workspace:query", "/ai/workspace", 42, "F", null, null, PermissionCodes.AiWorkspaceView, null, false, false, "0", "0", PermissionCodes.AiWorkspaceView, true),
-            ("工作台更新", "/ai/workspace:update", "/ai/workspace", 43, "F", null, null, PermissionCodes.AiWorkspaceUpdate, null, false, false, "0", "0", PermissionCodes.AiWorkspaceUpdate, true)
+            ("工作台更新", "/ai/workspace:update", "/ai/workspace", 43, "F", null, null, PermissionCodes.AiWorkspaceUpdate, null, false, false, "0", "0", PermissionCodes.AiWorkspaceUpdate, true),
+            ("DevOps 查看", "/ai/devops:query", "/ai/devops/test-sets", 44, "F", null, null, PermissionCodes.AiDevopsView, null, false, false, "0", "0", PermissionCodes.AiDevopsView, true),
+            ("快捷命令查看", "/ai/shortcuts:query", "/ai/shortcuts", 45, "F", null, null, PermissionCodes.AiShortcutView, null, false, false, "0", "0", PermissionCodes.AiShortcutView, true),
+            ("快捷命令管理", "/ai/shortcuts:manage", "/ai/shortcuts", 46, "F", null, null, PermissionCodes.AiShortcutManage, null, false, false, "0", "0", PermissionCodes.AiShortcutManage, true)
         };
 
         var menuPaths = menuSeeds.Select(x => x.Path).Distinct().ToArray();
@@ -871,6 +882,9 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             "/ai/search",
             "/ai/workspace",
             "/ai/library",
+            "/ai/devops/test-sets",
+            "/ai/devops/mock-sets",
+            "/ai/shortcuts",
             "/lowcode",
             "/lowcode/apps",
             "/lowcode/forms",

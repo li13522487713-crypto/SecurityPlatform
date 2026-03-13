@@ -120,6 +120,9 @@ public static class PermissionPolicies
     public const string AiAdminConfigUpdate = "Permission:ai-admin-config:update";
     public const string AiWorkspaceView = "Permission:ai-workspace:view";
     public const string AiWorkspaceUpdate = "Permission:ai-workspace:update";
+    public const string AiDevopsView = "Permission:ai-devops:view";
+    public const string AiShortcutView = "Permission:ai-shortcut:view";
+    public const string AiShortcutManage = "Permission:ai-shortcut:manage";
     public const string PersonalAccessTokenView = "Permission:pat:view";
     public const string PersonalAccessTokenCreate = "Permission:pat:create";
     public const string PersonalAccessTokenUpdate = "Permission:pat:update";
