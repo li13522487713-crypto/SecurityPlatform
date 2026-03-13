@@ -77,8 +77,11 @@ export async function getEnabledModelConfigs() {
 }
 
 export async function getModelConfigStats(keyword?: string) {
-  const query = toQuery({ keyword });
-  const url = query ? `/model-configs/stats?${query}` : "/model-configs/stats";
+  const query = new URLSearchParams();
+  if (keyword) {
+    query.set("keyword", keyword);
+  }
+  const url = query.size > 0 ? `/model-configs/stats?${query.toString()}` : "/model-configs/stats";
   const response = await requestApi<ApiResponse<ModelConfigStatsDto>>(url);
   if (!response.data) {
     throw new Error(response.message || "查询模型配置统计失败");
