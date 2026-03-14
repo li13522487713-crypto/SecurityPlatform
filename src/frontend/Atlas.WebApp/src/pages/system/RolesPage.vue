@@ -95,6 +95,22 @@
         </template>
       </MasterDetailLayout>
     </template>
+    
+    <template #form>
+      <div class="form-wrapper">
+        <a-form ref="formRef" :model="formModel" :rules="formRules" layout="vertical">
+          <a-form-item label="角色名称" name="name">
+            <a-input v-model:value="formModel.name" placeholder="请输入角色名称" />
+          </a-form-item>
+          <a-form-item label="角色编码" name="code">
+            <a-input v-model:value="formModel.code" placeholder="请输入角色编码" :disabled="formMode === 'edit'" />
+          </a-form-item>
+          <a-form-item label="描述" name="description">
+            <a-textarea v-model:value="formModel.description" placeholder="请输入角色描述" :rows="4" />
+          </a-form-item>
+        </a-form>
+      </div>
+    </template>
   </CrudPageLayout>
 </template>
 
@@ -211,7 +227,7 @@ const customRow = (record: RoleListItem) => {
     },
     style: {
       cursor: 'pointer',
-      backgroundColor: selectedItem.value?.id === record.id ? 'var(--color-primary-bg)' : undefined
+      backgroundColor: (selectedItem.value && selectedItem.value.id === record.id) ? 'var(--color-primary-bg)' : undefined
     }
   };
 };

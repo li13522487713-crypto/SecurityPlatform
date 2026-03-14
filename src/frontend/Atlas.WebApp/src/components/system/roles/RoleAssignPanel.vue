@@ -132,7 +132,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, watch } from 'vue';
+import { reactive, ref, watch, onBeforeUnmount } from 'vue';
 import { message } from 'ant-design-vue';
 import {
   getRoleDetail,
@@ -161,6 +161,11 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'success'): void;
 }>();
+
+const isMounted = ref(true);
+onBeforeUnmount(() => {
+  isMounted.value = false;
+});
 
 const loading = ref(false);
 const submitting = ref(false);
@@ -204,6 +209,7 @@ const fieldPermissionRows = ref<Array<{
 }>>([]);
 
 const loadPermissionOptions = async (keyword?: string) => {
+  if (!isMounted.value) return;
   permissionLoading.value = true;
   try {
     const result = await getPermissionsPaged({
@@ -211,18 +217,24 @@ const loadPermissionOptions = async (keyword?: string) => {
       pageSize: 50,
       keyword: keyword?.trim() || undefined
     });
+    if (!isMounted.value) return;
     permissionOptions.value = result.items.map((item) => ({
       label: `${item.name} (${item.code})`,
       value: Number(item.id)
     }));
   } catch (error) {
-    message.error((error as Error).message || "加载权限失败");
+    if (isMounted.value) {
+      message.error((error as Error).message || "加载权限失败");
+    }
   } finally {
-    permissionLoading.value = false;
+    if (isMounted.value) {
+      permissionLoading.value = false;
+    }
   }
 };
 
 const loadMenuOptions = async (keyword?: string) => {
+  if (!isMounted.value) return;
   menuLoading.value = true;
   try {
     const result = await getMenusPaged({
@@ -230,14 +242,19 @@ const loadMenuOptions = async (keyword?: string) => {
       pageSize: 50,
       keyword: keyword?.trim() || undefined
     });
+    if (!isMounted.value) return;
     menuOptions.value = result.items.map((item) => ({
       label: `${item.name} (${item.path})`,
       value: Number(item.id)
     }));
   } catch (error) {
-    message.error((error as Error).message || "加载菜单失败");
+    if (isMounted.value) {
+      message.error((error as Error).message || "加载菜单失败");
+    }
   } finally {
-    menuLoading.value = false;
+    if (isMounted.value) {
+      menuLoading.value = false;
+    }
   }
 };
 
@@ -245,6 +262,7 @@ const handlePermissionSearch = debounce((value: string) => void loadPermissionOp
 const handleMenuSearch = debounce((value: string) => void loadMenuOptions(value));
 
 const loadDynamicTableOptions = async (search?: string) => {
+  if (!isMounted.value) return;
   dynamicTableLoading.value = true;
   try {
     const result = await getDynamicTablesPaged({
@@ -252,21 +270,26 @@ const loadDynamicTableOptions = async (search?: string) => {
       pageSize: 20,
       keyword: search?.trim() || undefined
     });
+    if (!isMounted.value) return;
     dynamicTableOptions.value = result.items.map((item) => ({
       label: `${item.displayName} (${item.tableKey})`,
       value: item.tableKey
     }));
   } catch (error) {
-    message.error((error as Error).message || "加载动态表失败");
+    if (isMounted.value) {
+      message.error((error as Error).message || "加载动态表失败");
+    }
   } finally {
-    dynamicTableLoading.value = false;
+    if (isMounted.value) {
+      dynamicTableLoading.value = false;
+    }
   }
 };
 
 const handleDynamicTableSearch = debounce((value: string) => void loadDynamicTableOptions(value));
 
 const loadFieldPermissions = async (tableKey: string) => {
-  if (!props.roleCode) return;
+  if (!props.roleCode || !isMounted.value) return;
 
   fieldPermissionLoading.value = true;
   try {
@@ -274,6 +297,7 @@ const loadFieldPermissions = async (tableKey: string) => {
       getDynamicTableFields(tableKey),
       getDynamicFieldPermissions(tableKey)
     ]);
+    if (!isMounted.value) return;
     existingFieldPermissions.value = permissions;
     fieldPermissionRows.value = fields.map((field) => {
       const current = permissions.find((item) =>
@@ -287,9 +311,13 @@ const loadFieldPermissions = async (tableKey: string) => {
       };
     });
   } catch (error) {
-    message.error((error as Error).message || "加载字段权限失败");
+    if (isMounted.value) {
+      message.error((error as Error).message || "加载字段权限失败");
+    }
   } finally {
-    fieldPermissionLoading.value = false;
+    if (isMounted.value) {
+      fieldPermissionLoading.value = false;
+    }
   }
 };
 
@@ -317,7 +345,7 @@ const handleFieldEditChange = (fieldName: string, value: boolean) => {
 };
 
 const fetchRoleDetail = async () => {
-  if (!props.roleId) return;
+  if (!props.roleId || !isMounted.value) return;
   
   loading.value = true;
   fieldPermissionTableKey.value = undefined;
@@ -331,19 +359,25 @@ const fetchRoleDetail = async () => {
       props.canAssignPermissions ? loadDynamicTableOptions() : Promise.resolve()
     ]);
 
+    if (!isMounted.value) return;
     const detail = await getRoleDetail(props.roleId);
+    if (!isMounted.value) return;
     assignModel.permissionIds = detail.permissionIds?.slice() ?? [];
     assignModel.menuIds = detail.menuIds?.slice() ?? [];
     assignModel.dataScope = detail.dataScope ?? 1;
   } catch (error) {
-    message.error((error as Error).message || "加载角色详情失败");
+    if (isMounted.value) {
+      message.error((error as Error).message || "加载角色详情失败");
+    }
   } finally {
-    loading.value = false;
+    if (isMounted.value) {
+      loading.value = false;
+    }
   }
 };
 
 const submitAssign = async () => {
-  if (!props.roleId) return;
+  if (!props.roleId || !isMounted.value) return;
   
   submitting.value = true;
   try {
@@ -376,12 +410,17 @@ const submitAssign = async () => {
     }
     
     await Promise.all(tasks);
+    if (!isMounted.value) return;
     message.success("权限配置已保存完成");
     emit('success');
   } catch (error) {
-    message.error((error as Error).message || "更新权限配置失败");
+    if (isMounted.value) {
+      message.error((error as Error).message || "更新权限配置失败");
+    }
   } finally {
-    submitting.value = false;
+    if (isMounted.value) {
+      submitting.value = false;
+    }
   }
 };
 

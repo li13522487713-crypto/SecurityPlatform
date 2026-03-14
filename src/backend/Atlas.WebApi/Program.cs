@@ -89,6 +89,7 @@ builder.Services.Configure<TenancyOptions>(builder.Configuration.GetSection("Ten
 builder.Services.Configure<IdempotencyOptions>(builder.Configuration.GetSection("Idempotency"));
 builder.Services.Configure<TableViewDefaultOptions>(builder.Configuration.GetSection("TableViewDefaults"));
 builder.Services.Configure<Atlas.WebApi.Identity.AppOptions>(builder.Configuration.GetSection("App"));
+builder.Services.Configure<Atlas.Application.Options.DatabaseInitializerOptions>(builder.Configuration.GetSection("DatabaseInitializer"));
 
 // OIDC 支持（可选，通过 Oidc:Enabled 控制）
 builder.Services.Configure<Atlas.Infrastructure.Security.OidcOptions>(builder.Configuration.GetSection("Oidc"));

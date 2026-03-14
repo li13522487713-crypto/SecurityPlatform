@@ -164,6 +164,13 @@ public sealed class DatabaseBackupHostedService : BackgroundService
         source.Open();
         backup.Open();
         source.BackupDatabase(backup);
+        backup.Close();
+        source.Close();
+
+        // SQLite 连接池会缓存物理句柄，必须显式清理才能确保后续
+        // WriteSha256File 的 File.OpenRead 不会遭遇文件被占用错误。
+        SqliteConnection.ClearPool(backup);
+        SqliteConnection.ClearPool(source);
     }
 
     private static void WriteSha256File(string backupFile)

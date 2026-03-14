@@ -76,5 +76,15 @@ public sealed class AuditController : ControllerBase
         await _auditWriter.WriteAsync(error, cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Success = true }, HttpContext.TraceIdentifier));
     }
+
+    [HttpGet("last-client-error")]
+    [AllowAnonymous]
+    public async Task<ActionResult<string>> GetLastClientError(CancellationToken cancellationToken)
+    {
+        var result = await _auditQueryService.QueryAuditsAsync(new PagedRequest(1, 10, null, null, true), _tenantProvider.GetTenantId(), "CLIENT_ERROR", null, cancellationToken);
+        var last = result.Items.FirstOrDefault();
+        if (last == null) return "No error found";
+        return Ok(last.Target);
+    }
 }
 

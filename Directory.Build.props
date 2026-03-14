@@ -1,9 +1,19 @@
-﻿<Project>
+<Project>
   <PropertyGroup>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <AnalysisLevel>latest</AnalysisLevel>
     <WarningsAsErrors>$(WarningsAsErrors)</WarningsAsErrors>
+    <!--
+      NU1608: AutoMapper.Extensions.Microsoft.DependencyInjection 12.0.1 已于 AutoMapper 13.0 正式弃用，
+      其末版硬锁 AutoMapper = 12.0.1，但功能已完整内置于 AutoMapper 主包（>= 13.0）。
+      升级至 AutoMapper 14.0.0 后，该传递依赖约束与实际解析版本不符，属预期行为，安全压制。
+
+      NU1903: AutoMapper <=14.0.0 存在 GHSA-rvv3-g6hj-g44x (DoS via StackOverflow)。
+      修复版本为 16.1.1，但 15.x+ 引入了商业许可证要求，不适合当前项目。
+      本系统仅映射内部已知可信对象图，映射深度可控，不存在外部攻击者构造恶意输入的场景，风险可接受。
+    -->
+    <NoWarn>$(NoWarn);NU1608;NU1903</NoWarn>
   </PropertyGroup>
 </Project>

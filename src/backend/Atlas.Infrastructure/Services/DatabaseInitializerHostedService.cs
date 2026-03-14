@@ -35,6 +35,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
     private readonly BootstrapAdminOptions _bootstrapOptions;
     private readonly PasswordPolicyOptions _passwordPolicy;
     private readonly DatabaseEncryptionOptions _encryptionOptions;
+    private readonly DatabaseInitializerOptions _initializerOptions;
     private readonly IHostEnvironment _environment;
     private readonly ILogger<DatabaseInitializerHostedService> _logger;
 
@@ -43,6 +44,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         IOptions<BootstrapAdminOptions> bootstrapOptions,
         IOptions<PasswordPolicyOptions> passwordPolicy,
         IOptions<DatabaseEncryptionOptions> encryptionOptions,
+        IOptions<DatabaseInitializerOptions> initializerOptions,
         IHostEnvironment environment,
         ILogger<DatabaseInitializerHostedService> logger)
     {
@@ -50,6 +52,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         _bootstrapOptions = bootstrapOptions.Value;
         _passwordPolicy = passwordPolicy.Value;
         _encryptionOptions = encryptionOptions.Value;
+        _initializerOptions = initializerOptions.Value;
         _environment = environment;
         _logger = logger;
     }
@@ -58,15 +61,43 @@ public sealed class DatabaseInitializerHostedService : IHostedService
     {
         if (_encryptionOptions.Enabled && string.IsNullOrWhiteSpace(_encryptionOptions.Key))
         {
-            throw new InvalidOperationException("已启用数据库加密但未配置密钥。");
+            if (_environment.IsProduction())
+            {
+                // 生产环境：数据库加密已启用但密钥未配置，必须阻止启动
+                throw new InvalidOperationException(
+                    "生产环境已启用数据库加密（Database:Encryption:Enabled=true）但未配置密钥（Database:Encryption:Key）。" +
+                    "请通过环境变量 Database__Encryption__Key 提供密钥，或将 Database:Encryption:Enabled 设为 false。");
+            }
+
+            // 非生产环境：输出警告并降级为不加密，不阻止启动
+            _logger.LogWarning(
+                "[DatabaseInitializer] Database:Encryption:Enabled=true 但 Key 未配置，" +
+                "非生产环境下自动降级为不加密运行。若为误配置，请检查环境变量 Database__Encryption__Enabled。");
         }
+
 
         using var scope = _scopeFactory.CreateScope();
         var appContextAccessor = scope.ServiceProvider.GetRequiredService<IAppContextAccessor>();
         var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
-        await EnsureAuthSessionSchemaAsync(db, cancellationToken);
-        await EnsureRefreshTokenSchemaAsync(db, cancellationToken);
-        db.CodeFirst.InitTables(
+
+        // Schema 迁移检查（兼容历史版本字段结构）
+        if (!_initializerOptions.SkipSchemaMigrations)
+        {
+            _logger.LogInformation("[DatabaseInitializer] 开始执行 Schema 迁移检查...");
+            await EnsureAuthSessionSchemaAsync(db, cancellationToken);
+            await EnsureRefreshTokenSchemaAsync(db, cancellationToken);
+            await EnsureApprovalSchemaAsync(db, cancellationToken);
+        }
+        else
+        {
+            _logger.LogInformation("[DatabaseInitializer] 已跳过 Schema 迁移检查（DatabaseInitializer:SkipSchemaMigrations=true）");
+        }
+
+        // Schema 初始化（CodeFirst.InitTables）
+        if (!_initializerOptions.SkipSchemaInit)
+        {
+            _logger.LogInformation("[DatabaseInitializer] 开始执行 Schema 初始化（CodeFirst.InitTables）...");
+            db.CodeFirst.InitTables(
         typeof(UserAccount),
         typeof(Role),
         typeof(Permission),
@@ -211,7 +242,23 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             typeof(PackageArtifact),
             typeof(LicenseGrant),
             typeof(ToolAuthorizationPolicy));
-        await EnsureApprovalSchemaAsync(db, cancellationToken);
+        // 结束 CodeFirst.InitTables 块
+        }
+        else
+        {
+            _logger.LogInformation("[DatabaseInitializer] 已跳过 Schema 初始化（DatabaseInitializer:SkipSchemaInit=true）");
+        }
+
+        // 种子数据初始化
+        if (_initializerOptions.SkipSeedData)
+        {
+            _logger.LogInformation("[DatabaseInitializer] 已跳过种子数据初始化（DatabaseInitializer:SkipSeedData=true）");
+            // 始终加载 License 状态，不受 SkipSeedData 影响
+            await LoadLicenseStatusAsync(scope, cancellationToken);
+            return;
+        }
+
+        _logger.LogInformation("[DatabaseInitializer] 开始执行种子数据初始化...");
 
         // 初始化审批模块种子数据（使用 BootstrapAdmin 的 TenantId）
         if (Guid.TryParse(_bootstrapOptions.TenantId, out var seedTenantGuid))
