@@ -210,6 +210,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             typeof(FileRecord),
             typeof(FileUploadSession),
             typeof(TenantDataSource),
+            typeof(Tenant),
             // Low code module (types already registered above: LowCodeApp, AppEntityAlias, LowCodePage, FormDefinition)
             typeof(LowCodeAppVersion),
             typeof(FormDefinitionVersion),
@@ -680,6 +681,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
 
             ("系统管理", "/system", null, 30, "M", "Layout", "setting", null, null, false, false, "0", "0", null, false),
             ("组织架构", "/settings/org/departments", "/system", 31, "C", "system/DepartmentsPage", "cluster", PermissionCodes.DepartmentsView, null, false, true, "0", "0", PermissionCodes.DepartmentsView, false),
+            ("租户管理", "/settings/org/tenants", "/system", 31, "C", "system/TenantsPage", "global", PermissionCodes.SystemAdmin, null, false, true, "0", "0", PermissionCodes.SystemAdmin, false),
             ("职位名称", "/settings/org/positions", "/system", 32, "C", "system/PositionsPage", "idcard", PermissionCodes.PositionsView, null, false, true, "0", "0", PermissionCodes.PositionsView, false),
             ("员工管理", "/settings/org/users", "/system", 33, "C", "system/UsersPage", "user", PermissionCodes.UsersView, null, false, true, "0", "0", PermissionCodes.UsersView, false),
             ("角色管理", "/settings/auth/roles", "/system", 34, "C", "system/RolesPage", "team", PermissionCodes.RolesView, null, false, true, "0", "0", PermissionCodes.RolesView, false),
@@ -966,6 +968,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             "/monitor/message-queue",
             "/system",
             "/settings/org/departments",
+            "/settings/org/tenants",
             "/settings/org/positions",
             "/settings/org/users",
             "/settings/auth/roles",

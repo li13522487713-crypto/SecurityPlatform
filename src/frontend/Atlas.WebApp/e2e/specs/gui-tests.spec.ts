@@ -273,5 +273,35 @@ test.describe('Atlas Security Platform GUI Tests', () => {
       await page.getByRole('menuitem', { name: '删除' }).click();
       await page.getByRole('button', { name: '删除' }).or(page.getByRole('button', { name: '确认' })).or(page.getByRole('button', { name: '确定' })).click();
     });
+
+    test('9. 测试租户管理模块 (Tenants)', async ({ page }) => {
+      await page.goto('/settings/org/tenants').catch(() => {});
+      await page.waitForTimeout(1000);
+      await expect(page.getByText('租户管理', { exact: true })).toBeVisible({ timeout: 10000 });
+      
+      await page.getByRole('button', { name: '新建租户' }).click();
+      const modal = page.locator('.ant-modal').filter({ hasText: '新建租户' });
+      await expect(modal).toBeVisible();
+      await modal.getByLabel('租户名称').fill('GUI自动租户');
+      await modal.getByLabel('租户编码').fill('GUI_AUTO_TENANT');
+      await modal.getByLabel('描述').fill('这是一个自动创建的租户');
+      await modal.getByRole('button', { name: '确 定' }).or(page.getByRole('button', { name: '确 认' })).or(modal.locator('button.ant-btn-primary')).click();
+      await expect(page.getByText('新建租户成功')).toBeVisible();
+
+      await page.waitForTimeout(1000);
+      const row = page.locator('.ant-table-row').filter({ hasText: 'GUI自动租户' });
+      await expect(row).toBeVisible();
+      
+      await row.getByRole('button', { name: '编辑' }).click();
+      const editModal = page.locator('.ant-modal').filter({ hasText: '编辑租户' });
+      await editModal.getByLabel('租户名称').fill('GUI自动租户-改');
+      await editModal.getByRole('button', { name: '确 定' }).or(page.getByRole('button', { name: '确 认' })).or(editModal.locator('button.ant-btn-primary')).click();
+      await expect(page.getByText('编辑租户成功')).toBeVisible();
+
+      await page.waitForTimeout(1000);
+      await row.getByRole('button', { name: '删除' }).click();
+      await page.getByRole('button', { name: '确定' }).or(page.getByRole('button', { name: '确认' })).click();
+      await expect(page.getByText('删除成功')).toBeVisible();
+    });
   });
 });

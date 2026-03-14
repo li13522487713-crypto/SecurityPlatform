@@ -37,6 +37,7 @@ const NotificationsPage = () => import("@/pages/system/NotificationsPage.vue");
 const DictTypesPage = () => import("@/pages/system/DictTypesPage.vue");
 const SystemConfigsPage = () => import("@/pages/system/SystemConfigsPage.vue");
 const TenantDataSourcesPage = () => import("@/pages/system/TenantDataSourcesPage.vue");
+const TenantsPage = () => import("@/pages/system/TenantsPage.vue");
 const RolesPage = () => import("@/pages/system/RolesPage.vue");
 const PluginMarketPage = () => import("@/pages/lowcode/PluginMarketPage.vue");
 const PluginManagePage = () => import("@/pages/system/PluginManagePage.vue");
@@ -56,7 +57,14 @@ const ApprovalFlowManagePage = () => import("@/pages/ApprovalFlowManagePage.vue"
 const ApprovalFlowsPage = () => import("@/pages/ApprovalFlowsPage.vue");
 const ApprovalInstanceManagePage = () => import("@/pages/ApprovalInstanceManagePage.vue");
 const ApprovalWorkspacePage = () => import("@/pages/ApprovalWorkspacePage.vue");
-
+const DepartmentsPage = () => import("@/pages/system/DepartmentsPage.vue");
+const PositionsPage = () => import("@/pages/system/PositionsPage.vue");
+const UsersPage = () => import("@/pages/system/UsersPage.vue");
+const MenusPage = () => import("@/pages/system/MenusPage.vue");
+const ProjectsPage = () => import("@/pages/system/ProjectsPage.vue");
+const AssetsPage = () => import("@/pages/AssetsPage.vue");
+const AuditPage = () => import("@/pages/AuditPage.vue");
+const AlertPage = () => import("@/pages/AlertPage.vue");
 declare module "vue-router" {
   interface RouteMeta {
     requiresAuth?: boolean;
@@ -138,6 +146,15 @@ const router = createRouter({
     { path: "/approval/workspace", name: "approval-workspace", component: ApprovalWorkspacePage, meta: { requiresAuth: true, title: "审批工作台" } },
     { path: "/approval/instances", name: "approval-instances", redirect: "/approval/workspace?tab=requests", meta: { title: "我的申请(Deprecated)" } },
     { path: "/approval/inbox", name: "approval-inbox", redirect: "/approval/workspace?tab=pending", meta: { title: "审批待办(Deprecated)" } },
+    { path: "/settings/org/tenants", name: "settings-org-tenants", component: TenantsPage, meta: { requiresAuth: true, title: "租户管理", requiresPermission: "system:tenant:query" } },
+    { path: "/settings/org/departments", name: "settings-org-deps", component: DepartmentsPage, meta: { requiresAuth: true, title: "组织架构", requiresPermission: "departments:view" } },
+    { path: "/settings/org/positions", name: "settings-org-positions", component: PositionsPage, meta: { requiresAuth: true, title: "职位名称", requiresPermission: "positions:view" } },
+    { path: "/settings/org/users", name: "settings-org-users", component: UsersPage, meta: { requiresAuth: true, title: "员工管理", requiresPermission: "users:view" } },
+    { path: "/settings/auth/menus", name: "settings-auth-menus", component: MenusPage, meta: { requiresAuth: true, title: "菜单管理", requiresPermission: "menus:view" } },
+    { path: "/settings/projects", name: "settings-projects", component: ProjectsPage, meta: { requiresAuth: true, title: "项目管理", requiresPermission: "projects:view" } },
+    { path: "/assets", name: "assets-manage", component: AssetsPage, meta: { requiresAuth: true, title: "资产管理", requiresPermission: "assets:view" } },
+    { path: "/audit", name: "audit-manage", component: AuditPage, meta: { requiresAuth: true, title: "审计日志", requiresPermission: "audit:view" } },
+    { path: "/alert", name: "alert-manage", component: AlertPage, meta: { requiresAuth: true, title: "告警管理", requiresPermission: "alert:view" } },
     { path: "/approval/tasks", name: "approval-tasks", redirect: "/approval/workspace?tab=pending", meta: { title: "我的待办(Deprecated)" } },
     { path: "/approval/done", redirect: "/approval/workspace?tab=done", meta: { title: "已办任务(Deprecated)" } },
     { path: "/approval/cc", redirect: "/approval/workspace?tab=cc", meta: { title: "我的抄送(Deprecated)" } },

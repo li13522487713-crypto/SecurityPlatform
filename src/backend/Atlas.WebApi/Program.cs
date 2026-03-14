@@ -427,6 +427,7 @@ builder.Services.AddAtlasApplication(
 builder.Services.AddAtlasInfrastructure(builder.Configuration);
 
 // 国际化（i18n）：支持中文和英文
+builder.Services.AddScoped<Atlas.Application.System.Abstractions.ITenantService, Atlas.Infrastructure.Services.TenantService>();
 builder.Services.AddLocalization(opts => opts.ResourcesPath = "");
 builder.Services.Configure<Microsoft.AspNetCore.Builder.RequestLocalizationOptions>(opts =>
 {
