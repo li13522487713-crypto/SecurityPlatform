@@ -275,14 +275,14 @@ const buildTree = (items: DepartmentListItem[]) => {
   const rootNodes: TreeNode[] = [];
 
   items.forEach((item) => {
-    nodeMap.set(item.id, { key: item.id, title: item.name, children: [] });
+    nodeMap.set(String(item.id), { key: String(item.id), title: item.name, children: [] });
   });
 
   items.forEach((item) => {
-    const node = nodeMap.get(item.id);
+    const node = nodeMap.get(String(item.id));
     if (!node) return;
     if (item.parentId) {
-      const parent = nodeMap.get(item.parentId.toString());
+      const parent = nodeMap.get(String(item.parentId));
       if (parent) {
         parent.children = parent.children ?? [];
         parent.children.push(node);
@@ -321,7 +321,7 @@ const selectedTreeKeys = computed(() => {
 
 const expandedTreeKeys = computed(() => {
   if (!treeKeyword.value.trim()) return ['all'];
-  return ['all', ...allDepartments.value.map((item) => item.id)];
+  return ['all', ...allDepartments.value.map((item) => String(item.id))];
 });
 
 const loadAllDepartments = async () => {
