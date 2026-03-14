@@ -87,6 +87,9 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             await EnsureAuthSessionSchemaAsync(db, cancellationToken);
             await EnsureRefreshTokenSchemaAsync(db, cancellationToken);
             await EnsureApprovalSchemaAsync(db, cancellationToken);
+            await EnsureLowCodeAppSchemaAsync(db, cancellationToken);
+            await EnsureTenantDataSourceSchemaAsync(db, cancellationToken);
+            await EnsureProductizationSchemaAsync(db, cancellationToken);
         }
         else
         {
@@ -1078,6 +1081,80 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         }
 
         await RebuildTableViaOrmAsync<AuthSession>(db, cancellationToken);
+    }
+
+    private static async Task EnsureLowCodeAppSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
+    {
+        if (!db.DbMaintenance.IsAnyTable("LowCodeApp", false))
+        {
+            return;
+        }
+
+        if (!RequiresNullableColumnFix<LowCodeApp>(db, "DataSourceId", "PublishedBy", "PublishedAt"))
+        {
+            return;
+        }
+
+        await RebuildTableViaOrmAsync<LowCodeApp>(db, cancellationToken);
+    }
+
+    private static async Task EnsureTenantDataSourceSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
+    {
+        if (!db.DbMaintenance.IsAnyTable("TenantDataSource", false))
+        {
+            return;
+        }
+
+        if (!RequiresNullableColumnFix<TenantDataSource>(db, "AppId", "LastTestSuccess", "LastTestedAt", "LastTestMessage", "UpdatedAt"))
+        {
+            return;
+        }
+
+        await RebuildTableViaOrmAsync<TenantDataSource>(db, cancellationToken);
+    }
+
+    private static async Task EnsureProductizationSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
+    {
+        await EnsureAppManifestSchemaAsync(db, cancellationToken);
+        await EnsureAppReleaseSchemaAsync(db, cancellationToken);
+        await EnsurePackageArtifactSchemaAsync(db, cancellationToken);
+        await EnsureLicenseGrantSchemaAsync(db, cancellationToken);
+        await EnsureToolAuthorizationPolicySchemaAsync(db, cancellationToken);
+    }
+
+    private static async Task EnsureAppManifestSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
+    {
+        if (!db.DbMaintenance.IsAnyTable("AppManifest", false)) return;
+        if (!RequiresNullableColumnFix<AppManifest>(db, "DataSourceId", "PublishedBy", "PublishedAt")) return;
+        await RebuildTableViaOrmAsync<AppManifest>(db, cancellationToken);
+    }
+
+    private static async Task EnsureAppReleaseSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
+    {
+        if (!db.DbMaintenance.IsAnyTable("AppRelease", false)) return;
+        if (!RequiresNullableColumnFix<AppRelease>(db, "RollbackPointId")) return;
+        await RebuildTableViaOrmAsync<AppRelease>(db, cancellationToken);
+    }
+
+    private static async Task EnsurePackageArtifactSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
+    {
+        if (!db.DbMaintenance.IsAnyTable("PackageArtifact", false)) return;
+        if (!RequiresNullableColumnFix<PackageArtifact>(db, "ExportedBy", "ExportedAt", "ImportedBy", "ImportedAt")) return;
+        await RebuildTableViaOrmAsync<PackageArtifact>(db, cancellationToken);
+    }
+
+    private static async Task EnsureLicenseGrantSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
+    {
+        if (!db.DbMaintenance.IsAnyTable("LicenseGrant", false)) return;
+        if (!RequiresNullableColumnFix<LicenseGrant>(db, "ExpiresAt")) return;
+        await RebuildTableViaOrmAsync<LicenseGrant>(db, cancellationToken);
+    }
+
+    private static async Task EnsureToolAuthorizationPolicySchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
+    {
+        if (!db.DbMaintenance.IsAnyTable("ToolAuthorizationPolicy", false)) return;
+        if (!RequiresNullableColumnFix<ToolAuthorizationPolicy>(db, "ApprovalFlowId")) return;
+        await RebuildTableViaOrmAsync<ToolAuthorizationPolicy>(db, cancellationToken);
     }
 
     private static async Task EnsureApprovalSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)

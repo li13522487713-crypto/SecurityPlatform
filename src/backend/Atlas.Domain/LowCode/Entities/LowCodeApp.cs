@@ -1,6 +1,7 @@
 using Atlas.Core.Abstractions;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.LowCode.Enums;
+using SqlSugar;
 
 namespace Atlas.Domain.LowCode.Entities;
 
@@ -88,15 +89,19 @@ public sealed class LowCodeApp : TenantEntity
     public string Name { get; private set; }
 
     /// <summary>应用描述</summary>
+    [SugarColumn(IsNullable = true)]
     public string? Description { get; private set; }
 
     /// <summary>分类</summary>
+    [SugarColumn(IsNullable = true)]
     public string? Category { get; private set; }
 
     /// <summary>图标</summary>
+    [SugarColumn(IsNullable = true)]
     public string? Icon { get; private set; }
 
     /// <summary>绑定的数据源 ID（创建后不可变）</summary>
+    [SugarColumn(IsNullable = true)]
     public long? DataSourceId { get; private set; }
 
     /// <summary>是否复用平台用户</summary>
@@ -127,12 +132,15 @@ public sealed class LowCodeApp : TenantEntity
     public long UpdatedBy { get; private set; }
 
     /// <summary>发布时间</summary>
+    [SugarColumn(IsNullable = true)]
     public DateTimeOffset? PublishedAt { get; private set; }
 
     /// <summary>发布人 ID</summary>
+    [SugarColumn(IsNullable = true)]
     public long? PublishedBy { get; private set; }
 
     /// <summary>应用配置 JSON（菜单树、权限映射等）</summary>
+    [SugarColumn(IsNullable = true)]
     public string? ConfigJson { get; private set; }
 
     public void Update(

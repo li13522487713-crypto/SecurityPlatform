@@ -1,4 +1,5 @@
 using Atlas.Core.Abstractions;
+using SqlSugar;
 
 namespace Atlas.Domain.System.Entities;
 
@@ -44,6 +45,7 @@ public sealed class TenantDataSource : EntityBase
     public string DbType { get; set; } = "SQLite";
 
     /// <summary>应用级数据源（null 表示平台级）</summary>
+    [SugarColumn(IsNullable = true)]
     public long? AppId { get; set; }
 
     /// <summary>连接池上限</summary>
@@ -53,18 +55,22 @@ public sealed class TenantDataSource : EntityBase
     public int ConnectionTimeoutSeconds { get; set; } = 15;
 
     /// <summary>最近一次连通性测试结果</summary>
+    [SugarColumn(IsNullable = true)]
     public bool? LastTestSuccess { get; set; }
 
     /// <summary>最近一次连通性测试时间</summary>
+    [SugarColumn(IsNullable = true)]
     public DateTimeOffset? LastTestedAt { get; set; }
 
     /// <summary>最近一次测试消息（脱敏后）</summary>
+    [SugarColumn(IsNullable = true)]
     public string? LastTestMessage { get; set; }
 
     /// <summary>是否启用</summary>
     public bool IsActive { get; set; } = true;
 
     public DateTimeOffset CreatedAt { get; set; }
+    [SugarColumn(IsNullable = true)]
     public DateTimeOffset? UpdatedAt { get; set; }
 
     public void Update(
