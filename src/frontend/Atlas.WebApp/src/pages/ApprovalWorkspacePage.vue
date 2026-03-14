@@ -6,10 +6,10 @@
     </div>
     
     <div class="workspace-content">
-      <ApprovalTasksPage v-if="activeTab === 'pending'" :url-keyword="urlKeyword" :url-status="urlStatus" @update-filter="handleFilterUpdate" />
-      <ApprovalDonePage v-else-if="activeTab === 'done'" :url-keyword="urlKeyword" :url-status="urlStatus" @update-filter="handleFilterUpdate" />
-      <ApprovalInstancesPage v-else-if="activeTab === 'requests'" :url-keyword="urlKeyword" :url-status="urlStatus" @update-filter="handleFilterUpdate" />
-      <ApprovalCcPage v-else-if="activeTab === 'cc'" />
+      <PendingTasks v-if="activeTab === 'pending'" :url-keyword="urlKeyword" :url-status="urlStatus" @update-filter="handleFilterUpdate" />
+      <DoneTasks v-else-if="activeTab === 'done'" :url-keyword="urlKeyword" :url-status="urlStatus" @update-filter="handleFilterUpdate" />
+      <MyRequests v-else-if="activeTab === 'requests'" :url-keyword="urlKeyword" :url-status="urlStatus" @update-filter="handleFilterUpdate" />
+      <CcTasks v-else-if="activeTab === 'cc'" />
     </div>
   </div>
 </template>
@@ -17,10 +17,10 @@
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import ApprovalTasksPage from './ApprovalTasksPage.vue';
-import ApprovalDonePage from './ApprovalDonePage.vue';
-import ApprovalInstancesPage from './ApprovalInstancesPage.vue';
-import ApprovalCcPage from './ApprovalCcPage.vue';
+import PendingTasks from '@/components/approval/workspace/PendingTasks.vue';
+import DoneTasks from '@/components/approval/workspace/DoneTasks.vue';
+import MyRequests from '@/components/approval/workspace/MyRequests.vue';
+import CcTasks from '@/components/approval/workspace/CcTasks.vue';
 
 const route = useRoute();
 const router = useRouter();

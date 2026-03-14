@@ -55,9 +55,6 @@ const ApprovalDesignerPage = () => import("@/pages/ApprovalDesignerPage.vue");
 const ApprovalFlowManagePage = () => import("@/pages/ApprovalFlowManagePage.vue");
 const ApprovalFlowsPage = () => import("@/pages/ApprovalFlowsPage.vue");
 const ApprovalInstanceManagePage = () => import("@/pages/ApprovalInstanceManagePage.vue");
-const ApprovalInstancesPage = () => import("@/pages/ApprovalInstancesPage.vue");
-const ApprovalInboxPage = () => import("@/pages/ApprovalInboxPage.vue");
-const ApprovalTasksPage = () => import("@/pages/ApprovalTasksPage.vue");
 const ApprovalWorkspacePage = () => import("@/pages/ApprovalWorkspacePage.vue");
 
 declare module "vue-router" {
