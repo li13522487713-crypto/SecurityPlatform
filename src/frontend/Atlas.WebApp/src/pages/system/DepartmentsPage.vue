@@ -244,14 +244,15 @@ const buildTree = (items: DepartmentListItem[]) => {
   return rootNodes;
 };
 
-const filterTree = (nodes: TreeNode[], keywordValue: string): TreeNode[] => {
+const filterTree = (nodes: TreeNode[], keywordValue: string, parentMatched: boolean = false): TreeNode[] => {
   if (!keywordValue) return nodes;
-  const matcher = keywordValue.trim();
+  const matcher = keywordValue.trim().toLowerCase();
   if (!matcher) return nodes;
   const result: TreeNode[] = [];
   nodes.forEach((node) => {
-    const children = node.children ? filterTree(node.children, matcher) : [];
-    if (node.title.includes(matcher) || children.length > 0) {
+    const isMatched = parentMatched || node.title.toLowerCase().includes(matcher);
+    const children = node.children ? filterTree(node.children, keywordValue, isMatched) : [];
+    if (isMatched || children.length > 0) {
       result.push({ ...node, children });
     }
   });
@@ -263,6 +264,23 @@ const selectedTreeKeys = computed(() => (selectedParentId.value ? [selectedParen
 const expandedTreeKeys = computed(() => {
   if (!treeKeyword.value.trim()) return [];
   return allDepartments.value.map((item) => item.id);
+});
+
+const isKeyInTree = (nodes: TreeNode[], key: string): boolean => {
+  for (const node of nodes) {
+    if (node.key === key) return true;
+    if (node.children && isKeyInTree(node.children, key)) return true;
+  }
+  return false;
+};
+
+watch(treeData, (newTree) => {
+  if (selectedParentId.value !== null) {
+    if (!isKeyInTree(newTree, selectedParentId.value.toString())) {
+      selectedParentId.value = newTree.length > 0 ? Number(newTree[0].key) : null;
+      pagination.current = 1;
+    }
+  }
 });
 
 const fetchData = async () => {

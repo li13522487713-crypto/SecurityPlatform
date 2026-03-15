@@ -843,7 +843,8 @@ public sealed class DatabaseInitializerHostedService : IHostedService
                 parentId = resolvedParentId;
             }
 
-            var department = new Department(tenantId, seed.Name, idGeneratorAccessor.NextId(), parentId, seed.SortOrder);
+            // Defaulting code to name for seed data
+            var department = new Department(tenantId, seed.Name, seed.Name, idGeneratorAccessor.NextId(), parentId, seed.SortOrder);
             departmentsToInsert.Add(department);
             departmentIdMap[seed.Name] = department.Id;
         }

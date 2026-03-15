@@ -603,18 +603,21 @@ export interface UserAssignPositionsRequest {
 export interface DepartmentListItem {
   id: string;
   name: string;
+  code: string;
   parentId?: number;
   sortOrder: number;
 }
 
 export interface DepartmentCreateRequest {
   name: string;
+  code: string;
   parentId?: number;
   sortOrder: number;
 }
 
 export interface DepartmentUpdateRequest {
   name: string;
+  code: string;
   parentId?: number;
   sortOrder: number;
 }
