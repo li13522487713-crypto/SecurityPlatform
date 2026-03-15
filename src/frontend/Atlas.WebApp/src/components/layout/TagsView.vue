@@ -11,7 +11,7 @@
         @contextmenu.prevent="openMenu(tag, $event)"
         @click.middle="!isAffix(tag) ? closeSelectedTag(tag) : ''"
       >
-        {{ tag.title }}
+        {{ resolveTagTitle(tag) }}
         <span
           v-if="!isAffix(tag)"
           class="close-icon"
@@ -25,31 +25,34 @@
 
     <ul
       v-show="visible"
-      :style="{ left: left + 'px', top: top + 'px' }"
+      :style="{ left: `${left}px`, top: `${top}px` }"
       class="contextmenu"
       data-testid="e2e-tags-contextmenu"
     >
-      <li @click="refreshSelectedTag(selectedTag)">刷新页面</li>
-      <li v-if="!isAffix(selectedTag)" @click="closeSelectedTag(selectedTag)">关闭当前</li>
-      <li @click="closeOthersTags">关闭其他</li>
-      <li @click="closeLeftTags">关闭左侧</li>
-      <li @click="closeRightTags">关闭右侧</li>
-      <li @click="closeAllTags(selectedTag)">全部关闭</li>
+      <li @click="refreshSelectedTag(selectedTag)">{{ labels.refreshPage }}</li>
+      <li v-if="!isAffix(selectedTag)" @click="closeSelectedTag(selectedTag)">{{ labels.closeCurrent }}</li>
+      <li @click="closeOthersTags">{{ labels.closeOthers }}</li>
+      <li @click="closeLeftTags">{{ labels.closeLeft }}</li>
+      <li @click="closeRightTags">{{ labels.closeRight }}</li>
+      <li @click="closeAllTags(selectedTag)">{{ labels.closeAll }}</li>
     </ul>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from "vue";
-import { useRoute, useRouter } from "vue-router";
-import { useTagsViewStore, type TagView } from "@/stores/tagsView";
-import { usePermissionStore } from "@/stores/permission";
 import type { RouteRecordRaw } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
+import { i18n } from "@/i18n";
+import { resolveRouteTitle } from "@/utils/i18n-navigation";
+import { usePermissionStore } from "@/stores/permission";
+import { useTagsViewStore, type TagView } from "@/stores/tagsView";
 
 const route = useRoute();
 const router = useRouter();
 const tagsViewStore = useTagsViewStore();
 const permissionStore = usePermissionStore();
+const composer = i18n.global as unknown as { t: (messageKey: string) => string };
 
 const visible = ref(false);
 const top = ref(0);
@@ -59,6 +62,14 @@ const affixTags = ref<TagView[]>([]);
 
 const visitedViews = computed(() => tagsViewStore.visitedViews);
 const routes = computed(() => permissionStore.routes);
+const labels = computed(() => ({
+  refreshPage: composer.t("tags.refreshPage"),
+  closeCurrent: composer.t("tags.closeCurrent"),
+  closeOthers: composer.t("tags.closeOthers"),
+  closeLeft: composer.t("tags.closeLeft"),
+  closeRight: composer.t("tags.closeRight"),
+  closeAll: composer.t("tags.closeAll")
+}));
 
 watch(route, () => {
   addTags();
@@ -78,28 +89,28 @@ onMounted(() => {
   addTags();
 });
 
-function isActive(r: TagView) {
-  return r.path === route.path;
+function isActive(tag: TagView) {
+  return tag.path === route.path;
 }
 
 function isAffix(tag: TagView) {
-  return tag.meta && tag.meta.affix;
+  return Boolean(tag.meta?.affix);
 }
 
 function filterAffixTags(routesData: RouteRecordRaw[], basePath = "/") {
   let tags: TagView[] = [];
-  routesData.forEach((r) => {
-    if (r.meta && r.meta.affix) {
-      const tagPath = r.path.startsWith("/") ? r.path : basePath + "/" + r.path;
+  routesData.forEach((item) => {
+    if (item.meta?.affix) {
+      const tagPath = item.path.startsWith("/") ? item.path : `${basePath}/${item.path}`;
       tags.push({
         fullPath: tagPath,
         path: tagPath,
-        name: r.name,
-        meta: { ...r.meta }
+        name: item.name,
+        meta: { ...item.meta }
       });
     }
-    if (r.children) {
-      const tempTags = filterAffixTags(r.children, r.path);
+    if (item.children) {
+      const tempTags = filterAffixTags(item.children, item.path);
       if (tempTags.length >= 1) {
         tags = [...tags, ...tempTags];
       }
@@ -128,16 +139,13 @@ function addTags() {
 
 function moveToCurrentTag() {
   nextTick(() => {
-    // scroll logic can be implemented here if needed
+    // Reserved for future scroll syncing.
   });
 }
 
 function refreshSelectedTag(view: TagView) {
   tagsViewStore.delCachedView(view);
-  const { fullPath } = view;
   nextTick(() => {
-    // A simple trick to remount the component is to navigate to a redirect page or replace state.
-    // For simplicity without a redirect component, we just use router replace with a dummy query or key
     router.replace({
       path: view.path,
       query: {
@@ -145,7 +153,6 @@ function refreshSelectedTag(view: TagView) {
         _refresh: Date.now()
       }
     }).catch(() => {
-      // fallback
       window.location.reload();
     });
   });
@@ -160,20 +167,20 @@ function closeSelectedTag(view: TagView) {
 
 function closeRightTags() {
   tagsViewStore.delRightTags(selectedTag.value);
-  if (!tagsViewStore.visitedViews.find((i: TagView) => i.path === route.path)) {
+  if (!tagsViewStore.visitedViews.find((item: TagView) => item.path === route.path)) {
     toLastView(tagsViewStore.visitedViews);
   }
 }
 
 function closeLeftTags() {
   tagsViewStore.delLeftTags(selectedTag.value);
-  if (!tagsViewStore.visitedViews.find((i: TagView) => i.path === route.path)) {
+  if (!tagsViewStore.visitedViews.find((item: TagView) => item.path === route.path)) {
     toLastView(tagsViewStore.visitedViews);
   }
 }
 
 function closeOthersTags() {
-  router.push(selectedTag.value as any);
+  router.push(selectedTag.value as never);
   tagsViewStore.delOthersViews(selectedTag.value);
   moveToCurrentTag();
 }
@@ -188,24 +195,26 @@ function closeAllTags(view: TagView) {
 
 function toLastView(visitedViewsList: TagView[], view?: TagView) {
   const latestView = visitedViewsList.slice(-1)[0];
-  if (latestView && latestView.path) {
+  if (latestView?.path) {
     router.push(latestView.path);
   } else {
     router.push("/");
   }
 }
 
-function openMenu(tag: TagView, e: MouseEvent) {
-  const menuMinWidth = 105;
-  // simple positioning
-  left.value = e.clientX + 15;
-  top.value = e.clientY;
+function openMenu(tag: TagView, event: MouseEvent) {
+  left.value = event.clientX + 15;
+  top.value = event.clientY;
   visible.value = true;
   selectedTag.value = tag;
 }
 
 function closeMenu() {
   visible.value = false;
+}
+
+function resolveTagTitle(tag: TagView) {
+  return resolveRouteTitle(tag.meta, tag.path ?? "", tag.title ?? "no-name");
 }
 </script>
 

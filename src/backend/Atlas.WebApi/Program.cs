@@ -6,6 +6,7 @@ using Atlas.Application.Alert.Mappings;
 using Atlas.Application.Approval.Mappings;
 using Atlas.Application.Assets.Mappings;
 using Atlas.Application.Options;
+using Atlas.Application.Resources;
 using Atlas.Infrastructure;
 using Atlas.WebApi.Middlewares;
 using Hangfire;
@@ -38,6 +39,7 @@ using Atlas.Core.Models;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
+using Microsoft.Extensions.Localization;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -400,7 +402,12 @@ builder.Services.AddRateLimiter(options =>
     options.OnRejected = async (context, ct) =>
     {
         context.HttpContext.Response.ContentType = "application/json";
-        var payload = ApiResponse<object>.Fail("RATE_LIMITED", "请求过于频繁，请稍后再试", context.HttpContext.TraceIdentifier);
+        var localizer = context.HttpContext.RequestServices.GetService<IStringLocalizer<Messages>>();
+        var localized = localizer?["RateLimited"];
+        var message = localized is null || localized.ResourceNotFound
+            ? "Too many requests. Please try again later."
+            : localized.Value;
+        var payload = ApiResponse<object>.Fail("RATE_LIMITED", message, context.HttpContext.TraceIdentifier);
         await context.HttpContext.Response.WriteAsJsonAsync(payload, ct);
     };
 

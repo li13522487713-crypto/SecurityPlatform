@@ -2,13 +2,14 @@
   <a-layout class="runtime-layout">
     <a-layout-header class="runtime-header">
       <div class="runtime-left">
-        <a-button type="link" @click="go('/console')">返回控制台</a-button>
+        <a-button type="link" @click="go('/console')">{{ t("runtime.backToConsole") }}</a-button>
         <span class="runtime-title">{{ runtimeTitle }}</span>
       </div>
       <div class="runtime-right">
+        <LocaleSwitch />
         <NotificationBell />
         <a-badge :count="taskTotal" :overflow-count="99">
-          <a-button size="small" @click="reloadTasks">待办</a-button>
+          <a-button size="small" @click="reloadTasks">{{ t("runtime.pendingTasks") }}</a-button>
         </a-badge>
         <a-dropdown trigger="click">
           <a-button type="text" class="profile-btn">
@@ -19,9 +20,9 @@
           </a-button>
           <template #overlay>
             <a-menu>
-              <a-menu-item key="profile" @click="go('/profile')">个人中心</a-menu-item>
+              <a-menu-item key="profile" @click="go('/profile')">{{ t("layout.profile") }}</a-menu-item>
               <a-menu-divider />
-              <a-menu-item key="logout" @click="logout">退出登录</a-menu-item>
+              <a-menu-item key="logout" @click="logout">{{ t("layout.logout") }}</a-menu-item>
             </a-menu>
           </template>
         </a-dropdown>
@@ -46,14 +47,18 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { useUserStore } from "@/stores/user";
-import { usePermissionStore } from "@/stores/permission";
-import { useTagsViewStore } from "@/stores/tagsView";
+import { useI18n } from "vue-i18n";
+import LocaleSwitch from "@/components/layout/LocaleSwitch.vue";
 import NotificationBell from "@/components/layout/NotificationBell.vue";
 import { getRuntimeMenu, getRuntimeTasks, type RuntimeMenuItem } from "@/services/api-productization";
+import { usePermissionStore } from "@/stores/permission";
+import { useTagsViewStore } from "@/stores/tagsView";
+import { useUserStore } from "@/stores/user";
+import { resolveRouteTitle } from "@/utils/i18n-navigation";
 
 const route = useRoute();
 const router = useRouter();
+const { t } = useI18n();
 const userStore = useUserStore();
 const permissionStore = usePermissionStore();
 const tagsViewStore = useTagsViewStore();
@@ -62,13 +67,15 @@ const menuItems = ref<RuntimeMenuItem[]>([]);
 const taskTotal = ref(0);
 const viewportWidth = ref(typeof window === "undefined" ? 1024 : window.innerWidth);
 
-const runtimeTitle = computed(() => route.meta.title || "运行交付面");
+const runtimeTitle = computed(() =>
+  resolveRouteTitle(route.meta, route.path, typeof route.meta.title === "string" ? route.meta.title : t("route.runtimeDelivery"))
+);
 const appKey = computed(() => String(route.params.appKey || ""));
 const pageKey = computed(() => String(route.params.pageKey || ""));
 const selectedKeys = computed(() => (pageKey.value ? [pageKey.value] : []));
 const isMobile = computed(() => viewportWidth.value <= 768);
 const profileDisplayName = computed(
-  () => userStore.profile?.displayName || userStore.profile?.username || "个人中心"
+  () => userStore.profile?.displayName || userStore.profile?.username || t("layout.profile")
 );
 const profileInitials = computed(() => profileDisplayName.value.slice(0, 2));
 

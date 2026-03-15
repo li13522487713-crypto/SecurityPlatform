@@ -21,27 +21,27 @@
   "cookies": [
     {
       "name": "access_token",
-      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhcHByb3ZhbGFkbWluLmUyZSIsInRlbmFudF9pZCI6IjAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwMSIsInNpZCI6IjE0ODI3MTMxMjU0NzUwNjE3NjAiLCJqdGkiOiIzYjk5YjY3NmI4YjI0YTk4OTI4OWM4ZTIyNjZiNzEzNyIsImh0dHA6Ly9zY2hlbWFzLnhtbHNvYXAub3JnL3dzLzIwMDUvMDUvaWRlbnRpdHkvY2xhaW1zL25hbWVpZGVudGlmaWVyIjoiMTQ4MjcxMzA4NDYzMDkyOTQwOCIsImh0dHA6Ly9zY2hlbWFzLnhtbHNvYXAub3JnL3dzLzIwMDUvMDUvaWRlbnRpdHkvY2xhaW1zL25hbWUiOiJhcHByb3ZhbGFkbWluLmUyZSIsImRpc3BsYXlfbmFtZSI6IkUyRSBBcHByb3ZhbCBBZG1pbiIsImFwcF9pZCI6IlNlY3VyaXR5UGxhdGZvcm0iLCJjbGllbnRfdHlwZSI6IldlYkg1IiwiY2xpZW50X3BsYXRmb3JtIjoiV2ViIiwiY2xpZW50X2NoYW5uZWwiOiJCcm93c2VyIiwiY2xpZW50X2FnZW50IjoiT3RoZXIiLCJodHRwOi8vc2NoZW1hcy5taWNyb3NvZnQuY29tL3dzLzIwMDgvMDYvaWRlbnRpdHkvY2xhaW1zL3JvbGUiOiJFMkVfQVBQUk9WQUxfQURNSU4iLCJuYmYiOjE3NzM1NzY3NTYsImV4cCI6MTc3MzU3NzY1NiwiaXNzIjoiQXRsYXMuU2VjdXJpdHlQbGF0Zm9ybSIsImF1ZCI6IkF0bGFzLlNlY3VyaXR5UGxhdGZvcm0ifQ.Dwr4U5SiYPU0rc78lEfLvqKHf-gHio_-1GMwT42E2aU",
+      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhcHByb3ZhbGFkbWluLmUyZSIsInRlbmFudF9pZCI6IjAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwMSIsInNpZCI6IjE0ODI3NDA4ODk0NTIyODU5NTIiLCJqdGkiOiI4YTgzZDY1ODNkNzg0OWZkYWFkMzhlNTA1ODEwYzNjMCIsImh0dHA6Ly9zY2hlbWFzLnhtbHNvYXAub3JnL3dzLzIwMDUvMDUvaWRlbnRpdHkvY2xhaW1zL25hbWVpZGVudGlmaWVyIjoiMTQ4Mjc0MDg0MzUyMDQ2Mjg0OCIsImh0dHA6Ly9zY2hlbWFzLnhtbHNvYXAub3JnL3dzLzIwMDUvMDUvaWRlbnRpdHkvY2xhaW1zL25hbWUiOiJhcHByb3ZhbGFkbWluLmUyZSIsImRpc3BsYXlfbmFtZSI6IkUyRSBBcHByb3ZhbCBBZG1pbiIsImFwcF9pZCI6IlNlY3VyaXR5UGxhdGZvcm0iLCJjbGllbnRfdHlwZSI6IldlYkg1IiwiY2xpZW50X3BsYXRmb3JtIjoiV2ViIiwiY2xpZW50X2NoYW5uZWwiOiJCcm93c2VyIiwiY2xpZW50X2FnZW50IjoiT3RoZXIiLCJodHRwOi8vc2NoZW1hcy5taWNyb3NvZnQuY29tL3dzLzIwMDgvMDYvaWRlbnRpdHkvY2xhaW1zL3JvbGUiOiJFMkVfQVBQUk9WQUxfQURNSU4iLCJuYmYiOjE3NzM1ODMzNzUsImV4cCI6MTc3MzU4NDI3NSwiaXNzIjoiQXRsYXMuU2VjdXJpdHlQbGF0Zm9ybSIsImF1ZCI6IkF0bGFzLlNlY3VyaXR5UGxhdGZvcm0ifQ.apxuKX1dCbaIJMNxBp6J8stAFPt9LZ5IzW4KGhGsCq8",
       "domain": "127.0.0.1",
       "path": "/",
-      "expires": 1773577656,
+      "expires": 1773584275,
       "httpOnly": true,
       "secure": true,
       "sameSite": "Strict"
     },
     {
       "name": "refresh_token",
-      "value": "G7DDRVd0iLLuZOO3Y3MaJGjuExLujnKxXrJcH_7vyFdMCm8SopBV3B3vkYiTKyvqFhRzr2Qp-3Pg-6xVVx73XQ",
+      "value": "8K_HneaMaTWx4RCkuwYlzXEsyNkuvVmzCnLoCeVX-LZ-CZuCFqMHdufstv0Q7CUuv-JelrXiKDB5d5uhfIqXqA",
       "domain": "127.0.0.1",
       "path": "/",
-      "expires": 1773619956,
+      "expires": 1773626575,
       "httpOnly": true,
       "secure": true,
       "sameSite": "Strict"
     },
     {
       "name": "XSRF-TOKEN",
-      "value": "CfDJ8CZlcFUn_bdJsevIvGMLo8rOyQVN6PT1PZidQ1Uh1nkI_ibajN1ws8VhTQ4GJleqhEoa-7AZL0WKXw9rDrKXp12G1qdlGDyxppubbsU9gTATaQ0cIt0RgWtRL6jgYQdG7HewSWV7ctsF6m6fOCnWqLU",
+      "value": "CfDJ8CZlcFUn_bdJsevIvGMLo8pkbmQjPpwe-9oEegIi7-rZtMBA-qu8nfZP8pB8GwVHjj6A65eWKE5RMyCN5lHM-JvHqPNkf5KW2rTOxgTO0MtBAN0jhhf09_OHU9XssYsAQf3S1hEdam7ZvIGK1-shkMQ",
       "domain": "127.0.0.1",
       "path": "/",
       "expires": -1,
@@ -52,11 +52,11 @@
   ],
   "localStorage": {
     "tenant_id": "00000000-0000-0000-0000-000000000001",
-    "refresh_token": "G7DDRVd0iLLuZOO3Y3MaJGjuExLujnKxXrJcH_7vyFdMCm8SopBV3B3vkYiTKyvqFhRzr2Qp-3Pg-6xVVx73XQ"
+    "refresh_token": "8K_HneaMaTWx4RCkuwYlzXEsyNkuvVmzCnLoCeVX-LZ-CZuCFqMHdufstv0Q7CUuv-JelrXiKDB5d5uhfIqXqA"
   },
   "sessionStorage": {
-    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhcHByb3ZhbGFkbWluLmUyZSIsInRlbmFudF9pZCI6IjAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwMSIsInNpZCI6IjE0ODI3MTMxMjU0NzUwNjE3NjAiLCJqdGkiOiIzYjk5YjY3NmI4YjI0YTk4OTI4OWM4ZTIyNjZiNzEzNyIsImh0dHA6Ly9zY2hlbWFzLnhtbHNvYXAub3JnL3dzLzIwMDUvMDUvaWRlbnRpdHkvY2xhaW1zL25hbWVpZGVudGlmaWVyIjoiMTQ4MjcxMzA4NDYzMDkyOTQwOCIsImh0dHA6Ly9zY2hlbWFzLnhtbHNvYXAub3JnL3dzLzIwMDUvMDUvaWRlbnRpdHkvY2xhaW1zL25hbWUiOiJhcHByb3ZhbGFkbWluLmUyZSIsImRpc3BsYXlfbmFtZSI6IkUyRSBBcHByb3ZhbCBBZG1pbiIsImFwcF9pZCI6IlNlY3VyaXR5UGxhdGZvcm0iLCJjbGllbnRfdHlwZSI6IldlYkg1IiwiY2xpZW50X3BsYXRmb3JtIjoiV2ViIiwiY2xpZW50X2NoYW5uZWwiOiJCcm93c2VyIiwiY2xpZW50X2FnZW50IjoiT3RoZXIiLCJodHRwOi8vc2NoZW1hcy5taWNyb3NvZnQuY29tL3dzLzIwMDgvMDYvaWRlbnRpdHkvY2xhaW1zL3JvbGUiOiJFMkVfQVBQUk9WQUxfQURNSU4iLCJuYmYiOjE3NzM1NzY3NTYsImV4cCI6MTc3MzU3NzY1NiwiaXNzIjoiQXRsYXMuU2VjdXJpdHlQbGF0Zm9ybSIsImF1ZCI6IkF0bGFzLlNlY3VyaXR5UGxhdGZvcm0ifQ.Dwr4U5SiYPU0rc78lEfLvqKHf-gHio_-1GMwT42E2aU",
-    "antiforgery_token": "CfDJ8CZlcFUn_bdJsevIvGMLo8pFtfkBKVilqULqJevC1QbvqGtuU_LszrdABr0Wo8naC48cTWO9fCjfh0Lb_JaES2cuAIt0Y6hwHy2U39vmtwQ1p74rk2juGA9l584hprQrhBlr6aHNV1z6PxkWEwlcwlG87a4ZzVGrd6nBwWS9wSjRWMDtzRlWP42EPaUxDA6ybQ",
+    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhcHByb3ZhbGFkbWluLmUyZSIsInRlbmFudF9pZCI6IjAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwMSIsInNpZCI6IjE0ODI3NDA4ODk0NTIyODU5NTIiLCJqdGkiOiI4YTgzZDY1ODNkNzg0OWZkYWFkMzhlNTA1ODEwYzNjMCIsImh0dHA6Ly9zY2hlbWFzLnhtbHNvYXAub3JnL3dzLzIwMDUvMDUvaWRlbnRpdHkvY2xhaW1zL25hbWVpZGVudGlmaWVyIjoiMTQ4Mjc0MDg0MzUyMDQ2Mjg0OCIsImh0dHA6Ly9zY2hlbWFzLnhtbHNvYXAub3JnL3dzLzIwMDUvMDUvaWRlbnRpdHkvY2xhaW1zL25hbWUiOiJhcHByb3ZhbGFkbWluLmUyZSIsImRpc3BsYXlfbmFtZSI6IkUyRSBBcHByb3ZhbCBBZG1pbiIsImFwcF9pZCI6IlNlY3VyaXR5UGxhdGZvcm0iLCJjbGllbnRfdHlwZSI6IldlYkg1IiwiY2xpZW50X3BsYXRmb3JtIjoiV2ViIiwiY2xpZW50X2NoYW5uZWwiOiJCcm93c2VyIiwiY2xpZW50X2FnZW50IjoiT3RoZXIiLCJodHRwOi8vc2NoZW1hcy5taWNyb3NvZnQuY29tL3dzLzIwMDgvMDYvaWRlbnRpdHkvY2xhaW1zL3JvbGUiOiJFMkVfQVBQUk9WQUxfQURNSU4iLCJuYmYiOjE3NzM1ODMzNzUsImV4cCI6MTc3MzU4NDI3NSwiaXNzIjoiQXRsYXMuU2VjdXJpdHlQbGF0Zm9ybSIsImF1ZCI6IkF0bGFzLlNlY3VyaXR5UGxhdGZvcm0ifQ.apxuKX1dCbaIJMNxBp6J8stAFPt9LZ5IzW4KGhGsCq8",
+    "antiforgery_token": "CfDJ8CZlcFUn_bdJsevIvGMLo8r2TqJEl9kmFTjvbXKe5OQNQhedL4tU-eIU3eXDvg4OK8g6mVY2a6hEbUBI6VjrEs0HIyk-RCh0u93s74BH3xndc6x8YwRQQT3xPYAabKCEypcKAMqbsVh0AiOd_adMzabu1cH3wAo0Hzaml8E-rIa1VqQqslt2IN3PeUQVAAchbg",
     "auth_profile": "{\"username\":\"approvaladmin.e2e\",\"displayName\":\"E2E Approval Admin\",\"permissions\":[\"ai-admin-config:update\",\"ai-workspace:view\",\"ai-workspace:update\",\"ai-devops:view\",\"ai-shortcut:view\",\"ai-shortcut:manage\",\"pat:view\",\"pat:create\",\"pat:update\",\"pat:delete\"],\"roles\":[\"E2E_APPROVAL_ADMIN\"]}"
   }
 }

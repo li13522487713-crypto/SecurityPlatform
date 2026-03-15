@@ -159,6 +159,7 @@ function toRouteRecord(item: RouterVo, type: boolean): RouteRecordRaw | null {
 
   const baseMeta = {
     title: item.meta?.title ?? item.name,
+    titleKey: item.meta?.titleKey,
     icon: item.meta?.icon,
     requiresAuth: true,
     requiresPermission: item.meta?.permi,

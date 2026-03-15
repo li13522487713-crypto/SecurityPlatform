@@ -9,7 +9,7 @@
           <component :is="getIcon(onlyOneChild?.meta?.icon || item.meta?.icon)" />
         </template>
         <span :data-testid="buildMenuTestId(onlyOneChild?.path || item.path)">
-          {{ onlyOneChild?.meta?.title || item.meta?.title || item.name }}
+          {{ resolveMenuTitle(onlyOneChild ?? item) }}
         </span>
       </a-menu-item>
     </template>
@@ -19,7 +19,7 @@
         <span v-if="item.meta?.icon">
           <component :is="getIcon(item.meta.icon)" style="margin-right: 8px;" />
         </span>
-        <span :data-testid="buildMenuTestId(item.path)">{{ item.meta?.title || item.name }}</span>
+        <span :data-testid="buildMenuTestId(item.path)">{{ resolveMenuTitle(item) }}</span>
       </template>
       <SidebarItem
         v-for="child in childrenList"
@@ -37,6 +37,7 @@ import { useRouter } from "vue-router";
 import type { RouterVo } from "@/types/api";
 import * as antIcons from "@ant-design/icons-vue";
 import { isExternal } from "@/utils/validate";
+import { resolveRouteTitle } from "@/utils/i18n-navigation";
 
 const props = defineProps<{
   item: RouterVo;
@@ -122,5 +123,9 @@ function buildMenuTestId(path: string) {
     .replace(/^-+|-+$/g, "")
     .toLowerCase();
   return `e2e-menu-${normalized || "root"}`;
+}
+
+function resolveMenuTitle(routeItem: RouterVo) {
+  return resolveRouteTitle(routeItem.meta, routeItem.path, routeItem.meta?.title || routeItem.name);
 }
 </script>

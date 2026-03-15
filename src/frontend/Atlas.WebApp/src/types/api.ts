@@ -738,6 +738,7 @@ export interface MenuUpdateRequest {
 
 export interface RouterMeta {
   title: string;
+  titleKey?: string;
   icon?: string;
   noCache?: boolean;
   link?: string;

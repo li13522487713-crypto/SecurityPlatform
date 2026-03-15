@@ -16,6 +16,7 @@ public sealed class RouterVo
 public sealed class RouterMeta
 {
     public string Title { get; set; } = string.Empty;
+    public string? TitleKey { get; set; }
     public string? Icon { get; set; }
     public bool NoCache { get; set; }
     public string? Link { get; set; }

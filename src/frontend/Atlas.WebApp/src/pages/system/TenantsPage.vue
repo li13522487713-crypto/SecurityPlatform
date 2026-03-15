@@ -39,7 +39,7 @@
             <a-switch
               :checked="record.isActive"
               :disabled="record.id === 1 || record.id === 10000"
-              @change="(checked) => handleToggleStatus(record, checked)"
+              @change="handleToggleStatus(record, Boolean($event))"
             />
           </template>
           <template v-else-if="column.dataIndex === 'createdAt'">
@@ -101,6 +101,7 @@ import { ref, reactive, onMounted } from 'vue';
 import { message } from 'ant-design-vue';
 import { PlusOutlined } from '@ant-design/icons-vue';
 import type { FormInstance } from 'ant-design-vue';
+import type { TablePaginationConfig } from 'ant-design-vue';
 import dayjs from 'dayjs';
 import * as tenantApi from '@/services/api-tenants';
 import type { TenantQueryRequest, TenantCreateRequest, TenantUpdateRequest, TenantDto } from '@/services/api-tenants';
@@ -109,7 +110,7 @@ import type { TenantQueryRequest, TenantCreateRequest, TenantUpdateRequest, Tena
 const searchParams = reactive<TenantQueryRequest>({
   keyword: undefined,
   isActive: undefined,
-  pageNumber: 1,
+  pageIndex: 1,
   pageSize: 10
 });
 
@@ -163,7 +164,7 @@ const fetchData = async () => {
     const res = await tenantApi.getTenantsPaged(searchParams);
     if (res) {
       tableData.value = res.items || [];
-      pagination.total = res.totalCount || 0;
+      pagination.total = res.total || 0;
     }
   } catch (error: any) {
     message.error(error.message || '获取租户列表失败');
@@ -184,9 +185,9 @@ const resetSearch = () => {
   fetchData();
 };
 
-const handleTableChange = (pag: any) => {
-  pagination.current = pag.current;
-  pagination.pageSize = pag.pageSize;
+const handleTableChange = (pag: TablePaginationConfig) => {
+  pagination.current = pag.current ?? 1;
+  pagination.pageSize = pag.pageSize ?? 10;
   fetchData();
 };
 
@@ -195,8 +196,8 @@ const formatDate = (val: Date | string | null | undefined) => {
   return dayjs(val).format('YYYY-MM-DD HH:mm:ss');
 };
 
-const handleToggleStatus = async (record: TenantDto, checked: boolean | string | number) => {
-  const isChecked = Boolean(checked);
+const handleToggleStatus = async (record: TenantDto, checked: boolean) => {
+  const isChecked = checked;
   try {
     await tenantApi.toggleTenantStatus(record.id, isChecked);
     message.success(`${isChecked ? '启用' : '停用'}成功`);
@@ -242,7 +243,7 @@ const handleEdit = (record: TenantDto) => {
   isEdit.value = true;
   modalTitle.value = '编辑租户';
   resetForm();
-  currentId.value = record.id;
+  currentId.value = Number(record.id);
   formState.name = record.name;
   formState.code = record.code;
   formState.description = record.description || '';
@@ -260,7 +261,7 @@ const handleModalOk = async () => {
   try {
     if (isEdit.value && currentId.value) {
       const payload: TenantUpdateRequest = {
-        id: currentId.value,
+        id: currentId.value.toString(),
         name: formState.name,
         code: formState.code,
         description: formState.description || undefined

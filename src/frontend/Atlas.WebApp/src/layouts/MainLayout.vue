@@ -40,6 +40,7 @@
               <ProjectSwitcher v-if="!isMobile" class="project-switcher-wrapper" />
             </div>
             <div class="header-right" data-testid="e2e-header-actions">
+              <LocaleSwitch />
               <Screenfull />
               <NotificationBell />
               <a-dropdown trigger="click">
@@ -55,11 +56,11 @@
                   <div data-testid="e2e-user-menu">
                     <a-menu>
                       <a-menu-item key="profile" @click="openProfile">
-                        <span data-testid="e2e-user-menu-profile">Profile</span>
+                        <span data-testid="e2e-user-menu-profile">{{ t("layout.profile") }}</span>
                       </a-menu-item>
                       <a-menu-divider />
                       <a-menu-item key="logout" @click="logout">
-                        <span data-testid="e2e-user-menu-logout">Logout</span>
+                        <span data-testid="e2e-user-menu-logout">{{ t("layout.logout") }}</span>
                       </a-menu-item>
                     </a-menu>
                   </div>
@@ -91,12 +92,14 @@
 import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { MenuFoldOutlined, MenuUnfoldOutlined } from "@ant-design/icons-vue";
+import { useI18n } from "vue-i18n";
 import SidebarLogo from "@/components/layout/SidebarLogo.vue";
 import SidebarMenu from "@/components/layout/SidebarMenu.vue";
 import TagsView from "@/components/layout/TagsView.vue";
 import BreadcrumbView from "@/components/layout/BreadcrumbView.vue";
 import NotificationBell from "@/components/layout/NotificationBell.vue";
 import ProjectSwitcher from "@/components/ProjectSwitcher.vue";
+import LocaleSwitch from "@/components/layout/LocaleSwitch.vue";
 import Screenfull from "@/components/layout/Screenfull.vue";
 import { useResize } from "@/composables/useResize";
 import { usePermissionStore } from "@/stores/permission";
@@ -105,6 +108,7 @@ import { useUserStore } from "@/stores/user";
 
 const route = useRoute();
 const router = useRouter();
+const { t } = useI18n();
 const userStore = useUserStore();
 const permissionStore = usePermissionStore();
 const tagsViewStore = useTagsViewStore();
@@ -127,7 +131,7 @@ watch(
 );
 
 const isAuthPage = computed(() => route.path === "/login" || route.path === "/register");
-const profileDisplayName = computed(() => userStore.profile?.displayName || userStore.profile?.username || "Profile");
+const profileDisplayName = computed(() => userStore.profile?.displayName || userStore.profile?.username || t("layout.profile"));
 const profileInitials = computed(() => profileDisplayName.value.slice(0, 2));
 const cachedViews = computed(() => tagsViewStore.cachedViews);
 

@@ -5,6 +5,7 @@ import { usePermissionStore } from "@/stores/permission";
 import { message } from "ant-design-vue";
 import NProgress from "nprogress";
 import "nprogress/nprogress.css";
+import { applyDocumentTitle } from "@/utils/i18n-navigation";
 
 NProgress.configure({ showSpinner: false });
 
@@ -81,6 +82,7 @@ declare module "vue-router" {
     requiresAuth?: boolean;
     requiresPermission?: string;
     title?: string;
+    titleKey?: string;
   }
 }
 
@@ -214,9 +216,6 @@ function getAuthFallbackPath(userStore: ReturnType<typeof useUserStore>) {
 
 router.beforeEach(async (to, from, next) => {
   NProgress.start();
-  if (to.meta.title) {
-    document.title = `${to.meta.title} - Atlas Security Platform`;
-  }
 
   const token = getAccessToken();
   const tenantId = getTenantId();
@@ -284,6 +283,7 @@ router.beforeEach(async (to, from, next) => {
 });
 
 router.afterEach(() => {
+  applyDocumentTitle(router.currentRoute.value);
   NProgress.done();
 });
 

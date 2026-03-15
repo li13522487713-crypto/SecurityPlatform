@@ -1,5 +1,5 @@
 <template>
-  <a-config-provider :locale="zhCN" :theme="appTheme">
+  <a-config-provider :locale="antdLocale" :theme="appTheme">
     <router-view v-if="isAuthPage" />
     <ConsoleLayout v-else-if="isConsoleRoute" />
     <AppWorkspaceLayout v-else-if="isAppWorkspaceRoute" />
@@ -9,13 +9,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, watch } from "vue";
 import { useRoute } from "vue-router";
-import zhCN from "ant-design-vue/es/locale/zh_CN";
 import MainLayout from "@/layouts/MainLayout.vue";
 import ConsoleLayout from "@/layouts/ConsoleLayout.vue";
 import AppWorkspaceLayout from "@/layouts/AppWorkspaceLayout.vue";
 import RuntimeLayout from "@/layouts/RuntimeLayout.vue";
+import { getActiveLocale, getAntdLocale } from "@/i18n";
+import { applyDocumentTitle } from "@/utils/i18n-navigation";
 
 const route = useRoute();
 
@@ -23,6 +24,8 @@ const isAuthPage = computed(() => route.path === "/login" || route.path === "/re
 const isConsoleRoute = computed(() => route.path === "/console" || route.path.startsWith("/console/"));
 const isAppWorkspaceRoute = computed(() => route.path.startsWith("/apps/"));
 const isRuntimeRoute = computed(() => route.path.startsWith("/r/"));
+const currentLocale = computed(() => getActiveLocale());
+const antdLocale = computed(() => getAntdLocale(currentLocale.value));
 
 const appTheme = {
   token: {
@@ -46,4 +49,12 @@ const appTheme = {
     },
   },
 };
+
+watch(
+  () => [route.fullPath, currentLocale.value],
+  () => {
+    applyDocumentTitle(route);
+  },
+  { immediate: true }
+);
 </script>

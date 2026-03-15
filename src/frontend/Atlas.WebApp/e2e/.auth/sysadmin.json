@@ -159,27 +159,27 @@
   "cookies": [
     {
       "name": "access_token",
-      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJzeXNhZG1pbi5lMmUiLCJ0ZW5hbnRfaWQiOiIwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDEiLCJzaWQiOiIxNDgyNzEzMTIxNzAwMTg4MTYwIiwianRpIjoiMTQ5Y2RkODkzOWI4NGYxZGFiYjBhMGEyZDRlZmI1NzYiLCJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1laWRlbnRpZmllciI6IjE0ODI3MTMwNzkxMTEyMjUzNDQiLCJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1lIjoic3lzYWRtaW4uZTJlIiwiZGlzcGxheV9uYW1lIjoiRTJFIFN5c3RlbSBBZG1pbiIsImFwcF9pZCI6IlNlY3VyaXR5UGxhdGZvcm0iLCJjbGllbnRfdHlwZSI6IldlYkg1IiwiY2xpZW50X3BsYXRmb3JtIjoiV2ViIiwiY2xpZW50X2NoYW5uZWwiOiJCcm93c2VyIiwiY2xpZW50X2FnZW50IjoiT3RoZXIiLCJodHRwOi8vc2NoZW1hcy5taWNyb3NvZnQuY29tL3dzLzIwMDgvMDYvaWRlbnRpdHkvY2xhaW1zL3JvbGUiOiJBZG1pbiIsIm5iZiI6MTc3MzU3Njc1NSwiZXhwIjoxNzczNTc3NjU1LCJpc3MiOiJBdGxhcy5TZWN1cml0eVBsYXRmb3JtIiwiYXVkIjoiQXRsYXMuU2VjdXJpdHlQbGF0Zm9ybSJ9.yqpvjNP2aNzWrlIWak8FAfGT1htO-7ekI1bfgoD04hc",
+      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJzeXNhZG1pbi5lMmUiLCJ0ZW5hbnRfaWQiOiIwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDEiLCJzaWQiOiIxNDgyNzQwODg1MTU3MzE4NjU2IiwianRpIjoiZDY4MGM2ZjI4NjY2NDA3ODkyMDU4ZTdiMGZkZjc1ODMiLCJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1laWRlbnRpZmllciI6IjE0ODI3NDA4MzczMjk2NzAxNDQiLCJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1lIjoic3lzYWRtaW4uZTJlIiwiZGlzcGxheV9uYW1lIjoiRTJFIFN5c3RlbSBBZG1pbiIsImFwcF9pZCI6IlNlY3VyaXR5UGxhdGZvcm0iLCJjbGllbnRfdHlwZSI6IldlYkg1IiwiY2xpZW50X3BsYXRmb3JtIjoiV2ViIiwiY2xpZW50X2NoYW5uZWwiOiJCcm93c2VyIiwiY2xpZW50X2FnZW50IjoiT3RoZXIiLCJodHRwOi8vc2NoZW1hcy5taWNyb3NvZnQuY29tL3dzLzIwMDgvMDYvaWRlbnRpdHkvY2xhaW1zL3JvbGUiOiJBZG1pbiIsIm5iZiI6MTc3MzU4MzM3NCwiZXhwIjoxNzczNTg0Mjc0LCJpc3MiOiJBdGxhcy5TZWN1cml0eVBsYXRmb3JtIiwiYXVkIjoiQXRsYXMuU2VjdXJpdHlQbGF0Zm9ybSJ9.IzY8M3N3Qav04k_CuKl-r4quG-rHPBmmEfiLCIm4XOQ",
       "domain": "127.0.0.1",
       "path": "/",
-      "expires": 1773577655,
+      "expires": 1773584274,
       "httpOnly": true,
       "secure": true,
       "sameSite": "Strict"
     },
     {
       "name": "refresh_token",
-      "value": "-FHnCGQVwm-u1uHeHH6sRFcCSzuGaB8oSmYfIB2sWVyVZkQoRP1TbzqnmgwQNVrKMuaBlsrpCQDkmqw__MD9Og",
+      "value": "h8tMJPni1h1qYoIT0kYu_k74YDo2qryKIoLp8HUChTNMPvhLtU30g4o3P5CJDz7awQjOQuZ0jzwexiSKYINAPA",
       "domain": "127.0.0.1",
       "path": "/",
-      "expires": 1773619955,
+      "expires": 1773626574,
       "httpOnly": true,
       "secure": true,
       "sameSite": "Strict"
     },
     {
       "name": "XSRF-TOKEN",
-      "value": "CfDJ8CZlcFUn_bdJsevIvGMLo8rRGGhOwrvyFCyxk_AGsTqBqsFeueYpINU8_ZoiNqxgEIJ_06U6W5eRBPwxuk0Ah4Rx8rQqXEVr0Wf9fVlc8tM1wioQJ25CZQr6e7KDXrNQBQEnqfTCxO_FfLeollzdMeU",
+      "value": "CfDJ8CZlcFUn_bdJsevIvGMLo8pEPQYL5UCykX3DlxWGImEkb05EYMhgR0-rS4ZKMG55UPDWKXrXvQdIeMAi2axrl6NYGXPyPkbKlWBYLL3eN5D-GZzFzqava7_clci7mNYeGXc-7E3SRY1bbx7GfuY0OGs",
       "domain": "127.0.0.1",
       "path": "/",
       "expires": -1,
@@ -190,11 +190,11 @@
   ],
   "localStorage": {
     "tenant_id": "00000000-0000-0000-0000-000000000001",
-    "refresh_token": "-FHnCGQVwm-u1uHeHH6sRFcCSzuGaB8oSmYfIB2sWVyVZkQoRP1TbzqnmgwQNVrKMuaBlsrpCQDkmqw__MD9Og"
+    "refresh_token": "h8tMJPni1h1qYoIT0kYu_k74YDo2qryKIoLp8HUChTNMPvhLtU30g4o3P5CJDz7awQjOQuZ0jzwexiSKYINAPA"
   },
   "sessionStorage": {
-    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJzeXNhZG1pbi5lMmUiLCJ0ZW5hbnRfaWQiOiIwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDEiLCJzaWQiOiIxNDgyNzEzMTIxNzAwMTg4MTYwIiwianRpIjoiMTQ5Y2RkODkzOWI4NGYxZGFiYjBhMGEyZDRlZmI1NzYiLCJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1laWRlbnRpZmllciI6IjE0ODI3MTMwNzkxMTEyMjUzNDQiLCJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1lIjoic3lzYWRtaW4uZTJlIiwiZGlzcGxheV9uYW1lIjoiRTJFIFN5c3RlbSBBZG1pbiIsImFwcF9pZCI6IlNlY3VyaXR5UGxhdGZvcm0iLCJjbGllbnRfdHlwZSI6IldlYkg1IiwiY2xpZW50X3BsYXRmb3JtIjoiV2ViIiwiY2xpZW50X2NoYW5uZWwiOiJCcm93c2VyIiwiY2xpZW50X2FnZW50IjoiT3RoZXIiLCJodHRwOi8vc2NoZW1hcy5taWNyb3NvZnQuY29tL3dzLzIwMDgvMDYvaWRlbnRpdHkvY2xhaW1zL3JvbGUiOiJBZG1pbiIsIm5iZiI6MTc3MzU3Njc1NSwiZXhwIjoxNzczNTc3NjU1LCJpc3MiOiJBdGxhcy5TZWN1cml0eVBsYXRmb3JtIiwiYXVkIjoiQXRsYXMuU2VjdXJpdHlQbGF0Zm9ybSJ9.yqpvjNP2aNzWrlIWak8FAfGT1htO-7ekI1bfgoD04hc",
-    "antiforgery_token": "CfDJ8CZlcFUn_bdJsevIvGMLo8oVCZsTg9PUmTcedTLVmEGJSFoEx6sc3kH3qg7rhcj3IC5ziKn-yCPmLeOO2Wppy3XIfbmNyFylg2h_kWKEcHcQhVd_qf-07Ze1nNV-kezC2SBg9SLw920zonn6szG_an-w36cllbiYk2c7QdE5O1yVArof5tOVK_jRX9zW8oJB3Q",
+    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJzeXNhZG1pbi5lMmUiLCJ0ZW5hbnRfaWQiOiIwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDEiLCJzaWQiOiIxNDgyNzQwODg1MTU3MzE4NjU2IiwianRpIjoiZDY4MGM2ZjI4NjY2NDA3ODkyMDU4ZTdiMGZkZjc1ODMiLCJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1laWRlbnRpZmllciI6IjE0ODI3NDA4MzczMjk2NzAxNDQiLCJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1lIjoic3lzYWRtaW4uZTJlIiwiZGlzcGxheV9uYW1lIjoiRTJFIFN5c3RlbSBBZG1pbiIsImFwcF9pZCI6IlNlY3VyaXR5UGxhdGZvcm0iLCJjbGllbnRfdHlwZSI6IldlYkg1IiwiY2xpZW50X3BsYXRmb3JtIjoiV2ViIiwiY2xpZW50X2NoYW5uZWwiOiJCcm93c2VyIiwiY2xpZW50X2FnZW50IjoiT3RoZXIiLCJodHRwOi8vc2NoZW1hcy5taWNyb3NvZnQuY29tL3dzLzIwMDgvMDYvaWRlbnRpdHkvY2xhaW1zL3JvbGUiOiJBZG1pbiIsIm5iZiI6MTc3MzU4MzM3NCwiZXhwIjoxNzczNTg0Mjc0LCJpc3MiOiJBdGxhcy5TZWN1cml0eVBsYXRmb3JtIiwiYXVkIjoiQXRsYXMuU2VjdXJpdHlQbGF0Zm9ybSJ9.IzY8M3N3Qav04k_CuKl-r4quG-rHPBmmEfiLCIm4XOQ",
+    "antiforgery_token": "CfDJ8CZlcFUn_bdJsevIvGMLo8rE8hLUNz1TIg39dNU8lXFJivb964qzz6QRuxPqFN_vcJVnn0ud40USFPOohHJ7TASSWw4DBccZU8AJjx3NxkUdLKb0Xd9KH1pHDrey22TTJYf29gh8cdKuOU4XFpQJdKPRpcykSVYlgpGVvfR98oWGz26Uy3zVNFOOv9ktmn_bkQ",
     "auth_profile": "{\"username\":\"sysadmin.e2e\",\"displayName\":\"E2E System Admin\",\"permissions\":[\"system:admin\",\"workflow:design\",\"users:view\",\"users:create\",\"users:update\",\"users:delete\",\"users:assign-roles\",\"users:assign-departments\",\"users:assign-positions\",\"roles:view\",\"roles:create\",\"roles:update\",\"roles:delete\",\"roles:assign-permissions\",\"roles:assign-menus\",\"permissions:view\",\"permissions:create\",\"permissions:update\",\"departments:view\",\"departments:all\",\"departments:create\",\"departments:update\",\"departments:delete\",\"positions:view\",\"positions:create\",\"positions:update\",\"positions:delete\",\"menus:view\",\"menus:all\",\"menus:create\",\"menus:update\",\"apps:view\",\"apps:update\",\"app:admin\",\"app:user\",\"projects:view\",\"projects:create\",\"projects:update\",\"projects:delete\",\"projects:assign-users\",\"projects:assign-departments\",\"projects:assign-positions\",\"audit:view\",\"assets:view\",\"assets:create\",\"alert:view\",\"approval:flow:view\",\"approval:flow:manage\",\"approval:flow:create\",\"approval:flow:update\",\"approval:flow:publish\",\"approval:flow:delete\",\"approval:flow:disable\",\"visualization:view\",\"visualization:process:save\",\"visualization:process:update\",\"visualization:process:publish\",\"dict:type:view\",\"dict:type:create\",\"dict:type:update\",\"dict:type:delete\",\"dict:data:view\",\"dict:data:create\",\"dict:data:update\",\"dict:data:delete\",\"config:view\",\"config:create\",\"config:update\",\"config:delete\",\"loginlog:view\",\"loginlog:delete\",\"online:view\",\"online:force-logout\",\"monitor:view\",\"notification:view\",\"notification:create\",\"notification:update\",\"notification:delete\",\"job:view\",\"job:create\",\"job:update\",\"job:delete\",\"job:trigger\",\"datascope:manage\",\"file:upload\",\"file:download\",\"file:delete\",\"model-config:view\",\"model-config:create\",\"model-config:update\",\"model-config:delete\",\"agent:view\",\"agent:create\",\"agent:update\",\"agent:delete\",\"conversation:view\",\"conversation:create\",\"conversation:delete\",\"knowledge-base:view\",\"knowledge-base:create\",\"knowledge-base:update\",\"knowledge-base:delete\",\"ai-workflow:view\",\"ai-workflow:create\",\"ai-workflow:update\",\"ai-workflow:delete\",\"ai-workflow:execute\",\"ai-database:view\",\"ai-database:create\",\"ai-database:update\",\"ai-database:delete\",\"ai-variable:view\",\"ai-variable:create\",\"ai-variable:update\",\"ai-variable:delete\",\"ai-plugin:view\",\"ai-plugin:create\",\"ai-plugin:update\",\"ai-plugin:delete\",\"ai-plugin:publish\",\"ai-plugin:debug\",\"ai-app:view\",\"ai-app:create\",\"ai-app:update\",\"ai-app:delete\",\"ai-app:publish\",\"ai-prompt:view\",\"ai-prompt:create\",\"ai-prompt:update\",\"ai-prompt:delete\",\"ai-marketplace:view\",\"ai-marketplace:create\",\"ai-marketplace:update\",\"ai-marketplace:delete\",\"ai-marketplace:publish\",\"ai-search:view\",\"ai-search:update\",\"ai-admin-config:view\",\"ai-admin-config:update\",\"ai-workspace:view\",\"ai-workspace:update\",\"ai-devops:view\",\"ai-shortcut:view\",\"ai-shortcut:manage\",\"pat:view\",\"pat:create\",\"pat:update\",\"pat:delete\"],\"roles\":[\"Admin\"]}"
   }
 }

@@ -1,13 +1,21 @@
+using System.Text.Json;
+using Atlas.Application.Resources;
 using Atlas.Core.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authorization.Policy;
-using System.Text.Json;
+using Microsoft.Extensions.Localization;
 
 namespace Atlas.WebApi.Authorization;
 
 public sealed class ApiAuthorizationMiddlewareResultHandler : IAuthorizationMiddlewareResultHandler
 {
     private readonly AuthorizationMiddlewareResultHandler _defaultHandler = new();
+    private readonly IStringLocalizer<Messages> _localizer;
+
+    public ApiAuthorizationMiddlewareResultHandler(IStringLocalizer<Messages> localizer)
+    {
+        _localizer = localizer;
+    }
 
     public async Task HandleAsync(
         RequestDelegate next,
@@ -23,15 +31,25 @@ public sealed class ApiAuthorizationMiddlewareResultHandler : IAuthorizationMidd
 
         if (authorizeResult.Forbidden)
         {
-            await WriteErrorAsync(context, StatusCodes.Status403Forbidden, ErrorCodes.Forbidden, "没有权限访问");
+            await WriteErrorAsync(
+                context,
+                StatusCodes.Status403Forbidden,
+                ErrorCodes.Forbidden,
+                ResolveLocalizedMessage(ErrorCodes.Forbidden, "Access denied."));
             return;
         }
 
         if (authorizeResult.Challenged)
         {
             var code = ResolveAuthErrorCode(context);
-            var message = code == ErrorCodes.TokenExpired ? "访问令牌已过期" : "未认证或认证失败";
-            await WriteErrorAsync(context, StatusCodes.Status401Unauthorized, code, message);
+            var fallback = code == ErrorCodes.TokenExpired
+                ? "Access token expired."
+                : "Authentication failed.";
+            await WriteErrorAsync(
+                context,
+                StatusCodes.Status401Unauthorized,
+                code,
+                ResolveLocalizedMessage(code, fallback));
             return;
         }
 
@@ -64,5 +82,19 @@ public sealed class ApiAuthorizationMiddlewareResultHandler : IAuthorizationMidd
         var payload = ApiResponse<object>.Fail(code, message, context.TraceIdentifier);
         var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions(JsonSerializerDefaults.Web));
         await context.Response.WriteAsync(json);
+    }
+
+    private string ResolveLocalizedMessage(string code, string fallbackMessage)
+    {
+        var resourceKey = code switch
+        {
+            ErrorCodes.TokenExpired => "TokenExpired",
+            ErrorCodes.Forbidden => "Forbidden",
+            ErrorCodes.Unauthorized => "Unauthorized",
+            _ => "AuthenticationFailed"
+        };
+
+        var localized = _localizer[resourceKey];
+        return localized.ResourceNotFound ? fallbackMessage : localized.Value;
     }
 }

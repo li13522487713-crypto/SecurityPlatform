@@ -10,64 +10,76 @@
   <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
 
   <data name="InvalidCredentials" xml:space="preserve">
-    <value>用户名或密码错误</value>
+    <value>用户名或密码错误。</value>
   </data>
   <data name="AccountLocked" xml:space="preserve">
-    <value>账号已锁定，请稍后再试</value>
+    <value>账号已被锁定，请稍后再试。</value>
+  </data>
+  <data name="PasswordExpired" xml:space="preserve">
+    <value>密码已过期，请重置后重新登录。</value>
   </data>
   <data name="CaptchaInvalid" xml:space="preserve">
-    <value>验证码错误或已过期</value>
+    <value>验证码无效或已过期。</value>
   </data>
   <data name="Unauthorized" xml:space="preserve">
-    <value>未授权，请先登录</value>
+    <value>未授权，请先登录。</value>
+  </data>
+  <data name="AuthenticationFailed" xml:space="preserve">
+    <value>认证失败。</value>
+  </data>
+  <data name="TokenExpired" xml:space="preserve">
+    <value>访问令牌已过期，请重新登录。</value>
   </data>
   <data name="Forbidden" xml:space="preserve">
-    <value>权限不足，无法执行此操作</value>
+    <value>权限不足，无法执行此操作。</value>
   </data>
   <data name="NotFound" xml:space="preserve">
-    <value>请求的资源不存在</value>
+    <value>请求的资源不存在。</value>
   </data>
   <data name="ValidationError" xml:space="preserve">
-    <value>请求数据验证失败</value>
+    <value>请求数据校验失败。</value>
+  </data>
+  <data name="RateLimited" xml:space="preserve">
+    <value>请求过于频繁，请稍后再试。</value>
   </data>
   <data name="InternalError" xml:space="preserve">
-    <value>服务器内部错误，请联系管理员</value>
+    <value>服务器内部错误，请联系管理员。</value>
   </data>
   <data name="RoleCodeExists" xml:space="preserve">
-    <value>角色编码已存在</value>
+    <value>角色编码已存在。</value>
   </data>
   <data name="SystemRoleCannotDelete" xml:space="preserve">
-    <value>系统内置角色不可删除</value>
+    <value>系统内置角色不可删除。</value>
   </data>
   <data name="BuiltInConfigCannotModify" xml:space="preserve">
-    <value>内置参数不可修改</value>
+    <value>内置参数不可修改。</value>
   </data>
   <data name="FileTooLarge" xml:space="preserve">
-    <value>文件大小超出限制</value>
+    <value>文件大小超出限制。</value>
   </data>
   <data name="FileTypeNotAllowed" xml:space="preserve">
-    <value>文件类型不被允许</value>
+    <value>文件类型不被允许。</value>
   </data>
   <data name="LowCodeAppKeyRequired" xml:space="preserve">
-    <value>应用标识不能为空</value>
+    <value>应用标识不能为空。</value>
   </data>
   <data name="LowCodeAppKeyMaxLength" xml:space="preserve">
-    <value>应用标识不能超过100个字符</value>
+    <value>应用标识不能超过 100 个字符。</value>
   </data>
   <data name="LowCodeAppKeyFormatInvalid" xml:space="preserve">
-    <value>应用标识只能包含字母、数字、下划线和连字符，且必须以字母开头</value>
+    <value>应用标识只能包含字母、数字、下划线和连字符，且必须以字母开头。</value>
   </data>
   <data name="LowCodeAppNameRequired" xml:space="preserve">
-    <value>应用名称不能为空</value>
+    <value>应用名称不能为空。</value>
   </data>
   <data name="LowCodeAppNameMaxLength" xml:space="preserve">
-    <value>应用名称不能超过200个字符</value>
+    <value>应用名称不能超过 200 个字符。</value>
   </data>
   <data name="LowCodeAppDescriptionMaxLength" xml:space="preserve">
-    <value>描述不能超过1000个字符</value>
+    <value>描述不能超过 1000 个字符。</value>
   </data>
   <data name="LowCodeAppCategoryMaxLength" xml:space="preserve">
-    <value>分类不能超过100个字符</value>
+    <value>分类不能超过 100 个字符。</value>
   </data>
   <data name="DynamicAlterAtLeastOneChange" xml:space="preserve">
     <value>至少需要一项表结构变更。</value>
@@ -79,9 +91,9 @@
     <value>当前版本暂不支持字段删除。</value>
   </data>
   <data name="DynamicAlterFieldNameInvalid" xml:space="preserve">
-    <value>新增字段名不合法。</value>
+    <value>新增字段名称不合法。</value>
   </data>
   <data name="DynamicAlterFieldNameDuplicated" xml:space="preserve">
-    <value>新增字段名不能重复。</value>
+    <value>新增字段名称不能重复。</value>
   </data>
 </root>

@@ -2,9 +2,10 @@ import { message, Modal } from "ant-design-vue";
 import type { ApiResponse, JsonValue } from "@/types/api";
 import type { AmisEnv, AmisFetcherConfig, AmisFetcherResult } from "@/types/amis";
 import { requestApi } from "@/services/api-core";
-import { i18n } from "@/i18n";
+import { getActiveLocale, i18n } from "@/i18n";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "/api/v1";
+const globalComposer = i18n.global as unknown as { t: (messageKey: string) => string };
 
 function normalizeUrl(url: string): string {
   if (url.startsWith("http://") || url.startsWith("https://")) {
@@ -66,6 +67,10 @@ function appendQuery(url: string, data?: JsonValue): string {
   return url.includes("?") ? `${url}&${query}` : `${url}?${query}`;
 }
 
+function translate(key: string): string {
+  return globalComposer.t(key);
+}
+
 export function createAmisEnv(): AmisEnv {
   const fetcher = async (config: AmisFetcherConfig): Promise<AmisFetcherResult> => {
     const path = normalizeUrl(config.url);
@@ -84,7 +89,8 @@ export function createAmisEnv(): AmisEnv {
         msg: payload.message
       };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "请求失败";
+      const defaultError = translate("amis.requestFailed");
+      const errorMessage = error instanceof Error ? error.message : defaultError;
       const errorObject = error as {
         status?: number;
         payload?: {
@@ -95,14 +101,14 @@ export function createAmisEnv(): AmisEnv {
       };
       const status = errorObject.status ?? 500;
       const payload = errorObject.payload ?? null;
-      const msg = payload?.message || payload?.title || errorMessage;
+      const msg = payload?.message || payload?.title || errorMessage || defaultError;
       if (payload?.errors) {
         const errors = Object.entries(payload.errors).reduce<Record<string, string>>((acc, [key, value]) => {
           if (!value) {
             return acc;
           }
           const items = Array.isArray(value) ? value : [value];
-          acc[key] = items.join("，");
+          acc[key] = items.join("; ");
           return acc;
         }, {});
         return {
@@ -132,15 +138,15 @@ export function createAmisEnv(): AmisEnv {
   };
 
   const alert = (msg: string) => {
-    Modal.info({ title: "提示", content: msg });
+    Modal.info({ title: translate("amis.notice"), content: msg });
   };
 
   const confirm = (msg: string) => new Promise<boolean>((resolve) => {
     Modal.confirm({
-      title: "请确认",
+      title: translate("amis.confirmTitle"),
       content: msg,
-      okText: "确定",
-      cancelText: "取消",
+      okText: translate("common.confirm"),
+      cancelText: translate("common.cancel"),
       onOk: () => resolve(true),
       onCancel: () => resolve(false)
     });
@@ -155,13 +161,8 @@ export function createAmisEnv(): AmisEnv {
   };
 }
 
-/**
- * Map the application locale to the amis locale string.
- * amis supports: "zh-CN", "en-US", "de-DE", etc.
- */
 export function getAmisLocale(): string {
-  const localeSource = i18n.global.locale as string | { value?: string };
-  const appLocale = typeof localeSource === "string" ? localeSource : (localeSource.value ?? "zh-CN");
+  const appLocale = getActiveLocale();
   const map: Record<string, string> = {
     "zh-CN": "zh-CN",
     "en-US": "en-US"

@@ -1,0 +1,109 @@
+{
+  "type": "page",
+  "title": "${tableDisplayName | default: '动态数据管理'}",
+  "initApi": {
+    "method": "get",
+    "url": "/api/v1/dynamic-tables/${tableKey}",
+    "adaptor": "return { status: payload.success ? 0 : 1, msg: payload.message, data: payload.data };"
+  },
+  "body": [
+    {
+      "type": "crud",
+      "name": "crudTable",
+      "api": {
+        "method": "get",
+        "url": "/api/v1/dynamic-tables/${tableKey}/records?includeColumns=true&pageIndex=${pageIndex}&pageSize=${pageSize}&keyword=${keyword}&sortBy=${sortBy}&sortDesc=${sortDesc}",
+        "adaptor": "if (!payload.success) { return { status: 1, msg: payload.message }; } var d = payload.data; var items = (d.items || []).map(function(r) { var row = { id: r.id }; (r.values || []).forEach(function(v) { var val = v.stringValue ?? v.intValue ?? v.longValue ?? v.decimalValue ?? v.boolValue ?? v.dateTimeValue ?? v.dateValue; row[v.field] = val; }); return row; }); return { status: 0, data: { items: items, total: d.total, pageIndex: d.pageIndex, pageSize: d.pageSize, columns: d.columns } };"
+      },
+      "pageField": "pageIndex",
+      "perPageField": "pageSize",
+      "perPageAvailable": [10, 20, 50, 100],
+      "pageSize": 20,
+      "filter": {
+        "title": "搜索",
+        "submitText": "查询",
+        "body": [
+          {
+            "type": "input-text",
+            "name": "keyword",
+            "label": "关键字"
+          }
+        ]
+      },
+      "headerToolbar": [
+        {
+          "type": "button",
+          "label": "新增",
+          "level": "primary",
+          "actionType": "dialog",
+          "dialog": {
+            "title": "新增记录",
+            "size": "lg",
+            "body": {
+              "type": "service",
+              "schemaApi": "get:/api/v1/amis/dynamic-tables/${tableKey}/forms/create"
+            }
+          }
+        },
+        {
+          "type": "tpl",
+          "tpl": "<span class='label label-info'>已绑定审批流</span>",
+          "visibleOn": "this.approvalFlowDefinitionId"
+        },
+        "bulkActions",
+        "pagination"
+      ],
+      "bulkActions": [
+        {
+          "label": "批量删除",
+          "actionType": "ajax",
+          "confirmText": "确认删除选中记录？",
+          "api": {
+            "method": "delete",
+            "url": "/api/v1/dynamic-tables/${tableKey}/records",
+            "data": {
+              "ids": "${ids}"
+            },
+            "adaptor": "return { status: payload.success ? 0 : 1, msg: payload.message };"
+          }
+        }
+      ],
+      "itemActions": [
+        {
+          "label": "编辑",
+          "actionType": "dialog",
+          "dialog": {
+            "title": "编辑记录",
+            "size": "lg",
+            "body": {
+              "type": "service",
+              "schemaApi": "get:/api/v1/amis/dynamic-tables/${tableKey}/forms/edit?id=${id}"
+            }
+          }
+        },
+        {
+          "label": "提交审批",
+          "actionType": "ajax",
+          "level": "info",
+          "confirmText": "确认提交审批？提交后数据将不可修改直至审批结束。",
+          "visibleOn": "this.approvalFlowDefinitionId && (!this.status || this.status === '草稿' || this.status === '已驳回')",
+          "api": {
+            "method": "post",
+            "url": "/api/v1/dynamic-tables/${tableKey}/records/${id}/approval",
+            "adaptor": "return { status: payload.success ? 0 : 1, msg: payload.success ? '已提交审批' : payload.message };"
+          }
+        },
+        {
+          "label": "删除",
+          "actionType": "ajax",
+          "confirmText": "确认删除该记录？",
+          "api": {
+            "method": "delete",
+            "url": "/api/v1/dynamic-tables/${tableKey}/records/${id}",
+            "adaptor": "return { status: payload.success ? 0 : 1, msg: payload.message };"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -15,11 +15,20 @@
   <data name="AccountLocked" xml:space="preserve">
     <value>Account is locked. Please try again later.</value>
   </data>
+  <data name="PasswordExpired" xml:space="preserve">
+    <value>Password expired. Please reset it before signing in again.</value>
+  </data>
   <data name="CaptchaInvalid" xml:space="preserve">
     <value>Captcha is invalid or expired.</value>
   </data>
   <data name="Unauthorized" xml:space="preserve">
-    <value>Unauthorized. Please log in first.</value>
+    <value>Unauthorized. Please sign in first.</value>
+  </data>
+  <data name="AuthenticationFailed" xml:space="preserve">
+    <value>Authentication failed.</value>
+  </data>
+  <data name="TokenExpired" xml:space="preserve">
+    <value>Access token expired. Please sign in again.</value>
   </data>
   <data name="Forbidden" xml:space="preserve">
     <value>Access denied. Insufficient permissions.</value>
@@ -29,6 +38,9 @@
   </data>
   <data name="ValidationError" xml:space="preserve">
     <value>Validation failed.</value>
+  </data>
+  <data name="RateLimited" xml:space="preserve">
+    <value>Too many requests. Please try again later.</value>
   </data>
   <data name="InternalError" xml:space="preserve">
     <value>An internal server error occurred. Please contact the administrator.</value>
