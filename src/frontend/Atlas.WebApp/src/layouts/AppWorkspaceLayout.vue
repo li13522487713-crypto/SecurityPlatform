@@ -1,59 +1,88 @@
 <template>
-  <a-layout class="workspace-layout">
-    <a-layout-sider theme="light" :width="220" class="workspace-sider">
+  <div data-testid="e2e-app-workspace-layout">
+    <a-layout class="workspace-layout">
+      <div data-testid="e2e-app-workspace-sider">
+        <a-layout-sider theme="light" :width="220" class="workspace-sider">
       <div class="sider-title">
-        <div class="app-name" :title="appName">{{ appName }}</div>
-        <a-button type="link" size="small" @click="goConsole">返回控制台</a-button>
+        <div class="app-name" :title="appName" data-testid="e2e-app-workspace-name">{{ appName }}</div>
+        <span data-testid="e2e-app-workspace-back-console">
+          <a-button type="link" size="small" @click="goConsole">
+            Back to console
+          </a-button>
+        </span>
       </div>
-      <a-menu mode="inline" :selected-keys="selectedKeys" @click="onMenuClick">
-        <a-menu-item :key="dashboardPath">应用仪表盘</a-menu-item>
-        <a-menu-item :key="builderPath">页面设计器</a-menu-item>
-        <a-menu-item :key="runtimeHomePath">运行态入口</a-menu-item>
-        <a-menu-item :key="settingsPath">应用设置</a-menu-item>
-      </a-menu>
-    </a-layout-sider>
+      <div data-testid="e2e-app-workspace-menu">
+        <a-menu mode="inline" :selected-keys="selectedKeys" @click="onMenuClick">
+          <a-menu-item :key="dashboardPath">
+            <span data-testid="e2e-app-workspace-menu-dashboard">Dashboard</span>
+          </a-menu-item>
+          <a-menu-item :key="builderPath">
+            <span data-testid="e2e-app-workspace-menu-builder">Builder</span>
+          </a-menu-item>
+          <a-menu-item :key="runtimeHomePath">
+            <span data-testid="e2e-app-workspace-menu-runtime">Runtime</span>
+          </a-menu-item>
+          <a-menu-item :key="settingsPath">
+            <span data-testid="e2e-app-workspace-menu-settings">Settings</span>
+          </a-menu-item>
+        </a-menu>
+      </div>
+        </a-layout-sider>
+      </div>
 
-    <a-layout>
-      <a-layout-header class="workspace-header">
-        <div class="header-left">
-          <span>应用工作台</span>
-          <a-tag color="blue">AppId: {{ appId }}</a-tag>
+      <a-layout>
+        <div data-testid="e2e-app-workspace-header">
+          <a-layout-header class="workspace-header">
+            <div class="header-left">
+              <span>Workspace</span>
+              <a-tag color="blue">AppId: {{ appId }}</a-tag>
+            </div>
+            <div class="header-right" data-testid="e2e-app-workspace-header-actions">
+              <NotificationBell />
+              <a-dropdown trigger="click">
+                <span data-testid="e2e-app-workspace-user-menu-trigger">
+                  <a-button type="text">
+                    <a-space>
+                      <a-avatar size="small">{{ profileInitials }}</a-avatar>
+                      <span>{{ profileDisplayName }}</span>
+                    </a-space>
+                  </a-button>
+                </span>
+                <template #overlay>
+                  <div data-testid="e2e-app-workspace-user-menu">
+                    <a-menu>
+                      <a-menu-item key="profile" @click="go('/profile')">
+                        <span data-testid="e2e-app-workspace-user-menu-profile">Profile</span>
+                      </a-menu-item>
+                      <a-menu-divider />
+                      <a-menu-item key="logout" @click="logout">
+                        <span data-testid="e2e-app-workspace-user-menu-logout">Logout</span>
+                      </a-menu-item>
+                    </a-menu>
+                  </div>
+                </template>
+              </a-dropdown>
+            </div>
+          </a-layout-header>
         </div>
-        <div class="header-right">
-          <NotificationBell />
-          <a-dropdown trigger="click">
-            <a-button type="text">
-              <a-space>
-                <a-avatar size="small">{{ profileInitials }}</a-avatar>
-                <span>{{ profileDisplayName }}</span>
-              </a-space>
-            </a-button>
-            <template #overlay>
-              <a-menu>
-                <a-menu-item key="profile" @click="go('/profile')">个人中心</a-menu-item>
-                <a-menu-divider />
-                <a-menu-item key="logout" @click="logout">退出登录</a-menu-item>
-              </a-menu>
-            </template>
-          </a-dropdown>
+        <div data-testid="e2e-app-workspace-content">
+          <a-layout-content class="workspace-content">
+            <router-view />
+          </a-layout-content>
         </div>
-      </a-layout-header>
-
-      <a-layout-content class="workspace-content">
-        <router-view />
-      </a-layout-content>
+      </a-layout>
     </a-layout>
-  </a-layout>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { useUserStore } from "@/stores/user";
-import { usePermissionStore } from "@/stores/permission";
-import { useTagsViewStore } from "@/stores/tagsView";
 import NotificationBell from "@/components/layout/NotificationBell.vue";
 import { getLowCodeAppDetail } from "@/services/lowcode";
+import { usePermissionStore } from "@/stores/permission";
+import { useTagsViewStore } from "@/stores/tagsView";
+import { useUserStore } from "@/stores/user";
 
 const route = useRoute();
 const router = useRouter();
@@ -66,10 +95,10 @@ const appName = computed(() => {
   if (typeof metaName === "string" && metaName.trim()) {
     return metaName;
   }
-  return "应用";
+  return "App";
 });
-const appId = computed(() => String(route.params.appId ?? ""));
 
+const appId = computed(() => String(route.params.appId ?? ""));
 const dashboardPath = computed(() => `/apps/${appId.value}/dashboard`);
 const builderPath = computed(() => `/apps/${appId.value}/builder`);
 const runtimeHomePath = computed(() => `/apps/${appId.value}/run/home`);
@@ -88,9 +117,7 @@ const selectedKeys = computed(() => {
   return [dashboardPath.value];
 });
 
-const profileDisplayName = computed(
-  () => userStore.profile?.displayName || userStore.profile?.username || "个人中心"
-);
+const profileDisplayName = computed(() => userStore.profile?.displayName || userStore.profile?.username || "Profile");
 const profileInitials = computed(() => profileDisplayName.value.slice(0, 2));
 
 function onMenuClick(info: { key: string }) {
@@ -120,7 +147,7 @@ async function syncTitle() {
   try {
     const detail = await getLowCodeAppDetail(appId.value);
     if (detail?.name) {
-      document.title = `${detail.name} - 应用工作台 - Atlas Security Platform`;
+      document.title = `${detail.name} - Workspace - Atlas Security Platform`;
     }
   } catch {
     // ignore
@@ -129,7 +156,7 @@ async function syncTitle() {
 
 onMounted(syncTitle);
 watch(appId, () => {
-  syncTitle();
+  void syncTitle();
 });
 </script>
 

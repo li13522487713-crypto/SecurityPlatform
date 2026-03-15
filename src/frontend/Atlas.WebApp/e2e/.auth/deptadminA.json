@@ -1,0 +1,62 @@
+{
+  "role": "deptadminA",
+  "username": "deptadmin.a.e2e",
+  "tenantId": "00000000-0000-0000-0000-000000000001",
+  "homePath": "/settings/org/users",
+  "permissions": [
+    "ai-admin-config:update",
+    "ai-workspace:view",
+    "ai-workspace:update",
+    "ai-devops:view",
+    "ai-shortcut:view",
+    "ai-shortcut:manage",
+    "pat:view",
+    "pat:create",
+    "pat:update",
+    "pat:delete"
+  ],
+  "roles": [
+    "E2E_DEPT_ADMIN_A"
+  ],
+  "cookies": [
+    {
+      "name": "access_token",
+      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkZXB0YWRtaW4uYS5lMmUiLCJ0ZW5hbnRfaWQiOiIwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDEiLCJzaWQiOiIxNDgyNzEzMTMxMDg3MDQwNTEyIiwianRpIjoiOWI0NzEwZTk1MDM0NDE2YjkzZTgxNjNiMjJlODUzZGMiLCJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1laWRlbnRpZmllciI6IjE0ODI3MTMwOTI5MjcyNjI3MjAiLCJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1lIjoiZGVwdGFkbWluLmEuZTJlIiwiZGlzcGxheV9uYW1lIjoiRTJFIERlcHQgQWRtaW4gQSIsImFwcF9pZCI6IlNlY3VyaXR5UGxhdGZvcm0iLCJjbGllbnRfdHlwZSI6IldlYkg1IiwiY2xpZW50X3BsYXRmb3JtIjoiV2ViIiwiY2xpZW50X2NoYW5uZWwiOiJCcm93c2VyIiwiY2xpZW50X2FnZW50IjoiT3RoZXIiLCJodHRwOi8vc2NoZW1hcy5taWNyb3NvZnQuY29tL3dzLzIwMDgvMDYvaWRlbnRpdHkvY2xhaW1zL3JvbGUiOiJFMkVfREVQVF9BRE1JTl9BIiwibmJmIjoxNzczNTc2NzU3LCJleHAiOjE3NzM1Nzc2NTcsImlzcyI6IkF0bGFzLlNlY3VyaXR5UGxhdGZvcm0iLCJhdWQiOiJBdGxhcy5TZWN1cml0eVBsYXRmb3JtIn0.I5rU-Gky9tnNj38AxQ3sof7xCp6stbySWB8uxQkO2-Q",
+      "domain": "127.0.0.1",
+      "path": "/",
+      "expires": 1773577657,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "Strict"
+    },
+    {
+      "name": "refresh_token",
+      "value": "zS93O8fwroT8kpQrruu65N431iFX8vItf9t5uxC0UdPkBU_FjskALLw6XoPWicjv_enezo7BLBK0RCoMROsUdg",
+      "domain": "127.0.0.1",
+      "path": "/",
+      "expires": 1773619957,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "Strict"
+    },
+    {
+      "name": "XSRF-TOKEN",
+      "value": "CfDJ8CZlcFUn_bdJsevIvGMLo8oU0atQeZwcijDXx6MHJOpP6py5kxwZLHEtHfxzI1aMs8q2LiCWhiz_hQZjGCtdNIhsr_BNy6e40MubDl7i79fkct8cVK299n0ROPLALA1Fo4Srlc6W_aaPul3yC_fgAvI",
+      "domain": "127.0.0.1",
+      "path": "/",
+      "expires": -1,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Strict"
+    }
+  ],
+  "localStorage": {
+    "tenant_id": "00000000-0000-0000-0000-000000000001",
+    "refresh_token": "zS93O8fwroT8kpQrruu65N431iFX8vItf9t5uxC0UdPkBU_FjskALLw6XoPWicjv_enezo7BLBK0RCoMROsUdg"
+  },
+  "sessionStorage": {
+    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkZXB0YWRtaW4uYS5lMmUiLCJ0ZW5hbnRfaWQiOiIwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDEiLCJzaWQiOiIxNDgyNzEzMTMxMDg3MDQwNTEyIiwianRpIjoiOWI0NzEwZTk1MDM0NDE2YjkzZTgxNjNiMjJlODUzZGMiLCJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1laWRlbnRpZmllciI6IjE0ODI3MTMwOTI5MjcyNjI3MjAiLCJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1lIjoiZGVwdGFkbWluLmEuZTJlIiwiZGlzcGxheV9uYW1lIjoiRTJFIERlcHQgQWRtaW4gQSIsImFwcF9pZCI6IlNlY3VyaXR5UGxhdGZvcm0iLCJjbGllbnRfdHlwZSI6IldlYkg1IiwiY2xpZW50X3BsYXRmb3JtIjoiV2ViIiwiY2xpZW50X2NoYW5uZWwiOiJCcm93c2VyIiwiY2xpZW50X2FnZW50IjoiT3RoZXIiLCJodHRwOi8vc2NoZW1hcy5taWNyb3NvZnQuY29tL3dzLzIwMDgvMDYvaWRlbnRpdHkvY2xhaW1zL3JvbGUiOiJFMkVfREVQVF9BRE1JTl9BIiwibmJmIjoxNzczNTc2NzU3LCJleHAiOjE3NzM1Nzc2NTcsImlzcyI6IkF0bGFzLlNlY3VyaXR5UGxhdGZvcm0iLCJhdWQiOiJBdGxhcy5TZWN1cml0eVBsYXRmb3JtIn0.I5rU-Gky9tnNj38AxQ3sof7xCp6stbySWB8uxQkO2-Q",
+    "antiforgery_token": "CfDJ8CZlcFUn_bdJsevIvGMLo8rVoMRG-nE2UC251GDnRKvHs79cUC7X7KywGZVopPk6JyPNIlB42obWzi3CjDLyJ1hDpVETfnmW73Qd6c-AoYxpMjpaXeXkAXqjVGlvxjF4xOcYDWysFe2TwhKYChjfst3Vmb0fKmu-eUBnv5brnQ8816ZJ6eSqIbqWWFQEtNEJcA",
+    "auth_profile": "{\"username\":\"deptadmin.a.e2e\",\"displayName\":\"E2E Dept Admin A\",\"permissions\":[\"ai-admin-config:update\",\"ai-workspace:view\",\"ai-workspace:update\",\"ai-devops:view\",\"ai-shortcut:view\",\"ai-shortcut:manage\",\"pat:view\",\"pat:create\",\"pat:update\",\"pat:delete\"],\"roles\":[\"E2E_DEPT_ADMIN_A\"]}"
+  }
+}

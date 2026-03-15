@@ -1,71 +1,85 @@
 <template>
-  <div class="console-page">
+  <div class="console-page" data-testid="e2e-console-page">
     <div class="greet-widget">
       <div class="greet-info">
-        <h3>您好，{{ profileDisplayName }}</h3>
-        <p>今天是 {{ todayDate }}，祝您工作顺利！</p>
+        <h3>Hello, {{ profileDisplayName }}</h3>
+        <p>{{ todayDate }}</p>
       </div>
     </div>
 
-    <a-row :gutter="24" class="quick-actions">
+    <a-row :gutter="24" class="quick-actions" data-testid="e2e-console-quick-actions">
       <a-col :span="8">
-        <a-card :bordered="false" class="widget-card" hoverable @click="go('/console/apps')">
-          <a-card-meta title="应用中心" description="构建与管理低代码应用" />
+        <a-card :bordered="false" class="widget-card" hoverable data-testid="e2e-console-card-apps" @click="go('/console/apps')">
+          <a-card-meta title="Apps" description="Open application management" />
         </a-card>
       </a-col>
       <a-col :span="8">
-        <a-card :bordered="false" class="widget-card" hoverable @click="go('/console/datasources')">
-          <a-card-meta title="数据治理" description="连接与管理多数据源" />
+        <a-card
+          :bordered="false"
+          class="widget-card"
+          hoverable
+          data-testid="e2e-console-card-datasources"
+          @click="go('/console/datasources')"
+        >
+          <a-card-meta title="Datasources" description="Manage tenant datasources" />
         </a-card>
       </a-col>
       <a-col :span="8">
-        <a-card :bordered="false" class="widget-card" hoverable @click="go('/console/settings/system/configs')">
-          <a-card-meta title="系统设置" description="平台配置与字典维护" />
+        <a-card
+          :bordered="false"
+          class="widget-card"
+          hoverable
+          data-testid="e2e-console-card-system-configs"
+          @click="go('/console/settings/system/configs')"
+        >
+          <a-card-meta title="System settings" description="Open system configuration" />
         </a-card>
       </a-col>
     </a-row>
 
-    <a-card :bordered="false" class="widget-card app-list-card" title="最近应用" :loading="loading">
+    <a-card :bordered="false" class="widget-card app-list-card" title="Recent apps" :loading="loading">
       <template #extra>
         <a-space>
           <a-input-search
             v-model:value="keyword"
-            placeholder="搜索应用名称..."
+            placeholder="Search apps"
             style="width: 240px"
             allow-clear
+            data-testid="e2e-console-app-search"
             @search="loadApps"
           />
-          <a-button type="primary" @click="createWizardVisible = true">新建应用</a-button>
+          <a-button type="primary" data-testid="e2e-console-create-app" @click="createWizardVisible = true">
+            Create app
+          </a-button>
         </a-space>
       </template>
 
-      <a-empty v-if="apps.length === 0 && !loading" description="暂无应用" />
+      <a-empty v-if="apps.length === 0 && !loading" description="No apps" />
 
       <a-row v-else :gutter="[24, 24]">
         <a-col v-for="item in apps" :key="item.id" :xs="24" :sm="12" :md="8" :lg="6">
-          <a-card class="app-card" hoverable @click="openApp(item.id)">
+          <a-card class="app-card" hoverable :data-testid="`e2e-console-app-card-${item.id}`" @click="openApp(item.id)">
             <div class="app-card-header">
               <div class="app-icon">{{ item.name.charAt(0) }}</div>
               <div class="app-status">
-                <a-tag :color="item.status === 'Published' ? 'processing' : 'default'">{{ item.status === 'Published' ? '已发布' : item.status }}</a-tag>
+                <a-tag :color="item.status === 'Published' ? 'processing' : 'default'">
+                  {{ item.status === "Published" ? "Published" : item.status }}
+                </a-tag>
               </div>
             </div>
             <div class="app-card-body">
               <h4 class="app-title">{{ item.name }}</h4>
-              <p class="app-desc">{{ item.description || '暂无描述' }}</p>
+              <p class="app-desc">{{ item.description || "No description" }}</p>
             </div>
             <div class="app-card-footer">
-              <span>应用标识：{{ item.appKey }}</span>
+              <span>App key: {{ item.appKey }}</span>
             </div>
           </a-card>
         </a-col>
       </a-row>
     </a-card>
 
-    <AppCreateWizard
-      v-model:open="createWizardVisible"
-      @created="loadApps"
-    />
+    <AppCreateWizard v-model:open="createWizardVisible" @created="loadApps" />
   </div>
 </template>
 
@@ -73,10 +87,10 @@
 import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { message } from "ant-design-vue";
+import AppCreateWizard from "@/pages/console/components/AppCreateWizard.vue";
+import { getLowCodeAppsPaged } from "@/services/lowcode";
 import { useUserStore } from "@/stores/user";
 import type { LowCodeAppListItem } from "@/types/lowcode";
-import { getLowCodeAppsPaged } from "@/services/lowcode";
-import AppCreateWizard from "@/pages/console/components/AppCreateWizard.vue";
 
 const router = useRouter();
 const userStore = useUserStore();
@@ -85,14 +99,15 @@ const keyword = ref("");
 const apps = ref<LowCodeAppListItem[]>([]);
 const createWizardVisible = ref(false);
 
-const profileDisplayName = computed(
-  () => userStore.profile?.displayName || userStore.profile?.username || "管理员"
-);
+const profileDisplayName = computed(() => userStore.profile?.displayName || userStore.profile?.username || "Admin");
 
-const todayDate = computed(() => {
-  const date = new Date();
-  return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
-});
+const todayDate = computed(() =>
+  new Date().toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric"
+  })
+);
 
 async function loadApps() {
   loading.value = true;
@@ -104,7 +119,7 @@ async function loadApps() {
     });
     apps.value = result.items;
   } catch (error) {
-    message.error((error as Error).message || "加载应用失败");
+    message.error((error as Error).message || "Failed to load apps");
   } finally {
     loading.value = false;
   }
@@ -119,7 +134,7 @@ function go(path: string) {
 }
 
 onMounted(() => {
-  loadApps();
+  void loadApps();
 });
 </script>
 

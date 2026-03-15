@@ -1,18 +1,20 @@
 <template>
-  <a-menu
-    theme="light"
-    mode="inline"
-    :selected-keys="selectedKeys"
-    :open-keys="openKeys"
-    @openChange="onOpenChange"
-  >
-    <SidebarItem
-      v-for="item in menuTree"
-      :key="item.path"
-      :item="item"
-      :base-path="item.path"
-    />
-  </a-menu>
+  <div data-testid="e2e-sidebar-menu">
+    <a-menu
+      theme="light"
+      mode="inline"
+      :selected-keys="selectedKeys"
+      :open-keys="openKeys"
+      @openChange="onOpenChange"
+    >
+      <SidebarItem
+        v-for="item in menuTree"
+        :key="item.path"
+        :item="item"
+        :base-path="item.path"
+      />
+    </a-menu>
+  </div>
 </template>
 
 <script setup lang="ts">

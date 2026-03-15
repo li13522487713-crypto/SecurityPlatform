@@ -40,7 +40,13 @@ public sealed class DepartmentCommandService : IDepartmentCommandService
         long id,
         CancellationToken cancellationToken)
     {
-        var department = new Department(tenantId, request.Name, id, request.ParentId, request.SortOrder);
+        var existing = await _departmentRepository.QueryAllAsync(tenantId, cancellationToken);
+        if (existing.Any(x => x.Name == request.Name || x.Code == request.Code))
+        {
+            throw new BusinessException("Department name or code already exists.", ErrorCodes.Conflict);
+        }
+
+        var department = new Department(tenantId, request.Name, request.Code, id, request.ParentId, request.SortOrder);
         await _unitOfWork.ExecuteInTransactionAsync(async () =>
         {
             await _departmentRepository.AddAsync(department, cancellationToken);
@@ -66,13 +72,20 @@ public sealed class DepartmentCommandService : IDepartmentCommandService
         CancellationToken cancellationToken)
     {
         await EnsureDepartmentInProjectAsync(tenantId, departmentId, cancellationToken);
-        var department = await _departmentRepository.FindByIdAsync(tenantId, departmentId, cancellationToken);
+        
+        var existingNodes = await _departmentRepository.QueryAllAsync(tenantId, cancellationToken);
+        if (existingNodes.Any(x => x.Id != departmentId && (x.Name == request.Name || x.Code == request.Code)))
+        {
+            throw new BusinessException("Department name or code already exists.", ErrorCodes.Conflict);
+        }
+
+        var department = existingNodes.FirstOrDefault(x => x.Id == departmentId);
         if (department is null)
         {
             throw new BusinessException("Department not found.", ErrorCodes.NotFound);
         }
 
-        department.Update(request.Name, request.ParentId, request.SortOrder);
+        department.Update(request.Name, request.Code, request.ParentId, request.SortOrder);
         await _departmentRepository.UpdateAsync(department, cancellationToken);
     }
 

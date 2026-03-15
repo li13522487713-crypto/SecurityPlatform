@@ -1,74 +1,88 @@
-import { test, expect } from "../../fixtures/auth.fixture";
+import { test, expect } from "@playwright/test";
 
-test.describe("RBAC 前置数据准备", () => {
-  test.describe.configure({ mode: 'serial' });
+test.describe("RBAC 前置数据准备 (API 方式)", () => {
 
-  test("00. 初始化必须的测试部门与角色", async ({ page, loginAsSuperAdmin }) => {
-    await loginAsSuperAdmin();
-    // In a real robust suite, we would use API calls directly here to seed data rapidly.
-    // For this demonstration, we'll try to create it via the UI or API to ensure it exists.
-
-    // Using API for speed and reliability for seeding
+  test("00. 初始化必须的测试部门与角色", async ({ page }) => {
     const tenantId = process.env.E2E_TEST_TENANT_ID ?? "00000000-0000-0000-0000-000000000001";
+    const adminPassword = process.env.E2E_TEST_PASSWORD ?? "P@ssw0rd!";
     
-    // 1. Create Department "研发部" if not exists
-    await page.goto("/settings/org/departments");
-    const deptExists = await page.getByText("研发部", { exact: true }).count();
-    if (deptExists === 0) {
-       await page.getByRole("button", { name: "新增部门" }).click();
-       await page.getByPlaceholder("请填写部门名称").fill("研发部");
-       await page.getByRole("button", { name: "确 定" }).click();
-       await page.waitForTimeout(500);
+    // 1. 获取 Admin Token
+    const loginResp = await page.request.post("/api/v1/auth/token", {
+      headers: { "Content-Type": "application/json", "X-Tenant-Id": tenantId },
+      data: { username: "admin", password: adminPassword },
+    });
+    expect(loginResp.ok(), "Admin login failed").toBeTruthy();
+    const { accessToken } = (await loginResp.json()).data;
+    const authHeaders = {
+      "Authorization": `Bearer ${accessToken}`,
+      "X-Tenant-Id": tenantId,
+      "Content-Type": "application/json"
+    };
+
+    // 2. Fetch or Create Dept "研发部"
+    const deptResp = await page.request.get("/api/v1/departments?pageSize=100", { headers: authHeaders });
+    const depts = (await deptResp.json()).data?.items || [];
+    let rDDept = depts.find((d: any) => d.name === "研发部");
+    
+    if (!rDDept) {
+      const createDept = await page.request.post("/api/v1/departments", {
+        headers: { ...authHeaders, "Idempotency-Key": `dept-rnd-${Date.now()}` },
+        data: { name: "研发部", parentId: null, sortOrder: 1, isEnabled: true }
+      });
+      rDDept = (await createDept.json()).data;
     }
 
-    // 2. We assume Roles like "DeptAdminA" are already seeded by DB migration.
-    // If not, we would create them here. The system generally boots with some defaults.
-    // Let's create user "deptadmin.a.e2e"
-    await page.goto("/settings/org/users");
-    const userAExists = await page.getByText("deptadmin.a.e2e", { exact: true }).count();
+    // 3. Fetch Roles
+    const roleResp = await page.request.get("/api/v1/roles?pageSize=100", { headers: authHeaders });
+    const roles = (await roleResp.json()).data?.items || [];
+    let deptAdminARole = roles.find((r: any) => r.code === "DeptAdminA") || roles.find((r: any) => r.code === "Admin"); // Fallback if seeding not run
     
-    if (userAExists === 0) {
-      await page.getByRole("button", { name: "新增员工" }).click();
-      await page.getByLabel("用户名").fill("deptadmin.a.e2e");
-      await page.getByLabel("姓名").fill("测试部门领导A");
-      await page.getByLabel("手机号").fill("13800000001");
-      await page.getByLabel("密码").fill("P@ssw0rd!");
-      
-      // Select Department
-      await page.getByLabel("所属部门").click();
-      await page.getByTitle("研发部", { exact: true }).locator("div").first().click();
-      
-      await page.getByRole("button", { name: "确 定" }).click();
-      await page.waitForTimeout(1000);
-      
-      // Assign Role (DeptAdminA)
-      const row = page.locator("tr").filter({ hasText: "deptadmin.a.e2e" });
-      await row.getByRole("button", { name: "配置", exact: false }).click();
-      await page.getByLabel("角色").click();
-      // Assuming DeptAdminA exists, or we pick a standard admin if it doesn't
-      const roleOpt = page.getByText("DeptAdminA", { exact: false });
-      if (await roleOpt.isVisible()) {
-        await roleOpt.click();
-      } else {
-        // Fallback to SystemAdmin if test roles don't exist in a pure clean DB
-        await page.getByText("系统管理员", { exact: false }).click();
-      }
-      await page.getByRole("button", { name: "确 定" }).click();
-    }
+    // 4. Create Users (DeptAdminA, user.a, user.b, readonly, others)
+    const usersToCreate = [
+      { 
+        username: "deptadmin.a.e2e", 
+        name: "测试部门领导A", 
+        phone: "13800000001", 
+        roleIds: deptAdminARole ? [deptAdminARole.id] : [],
+        departmentId: rDDept.id
+      },
+      { username: "user.a.e2e", name: "测试员工user.a", phone: "13800000002" },
+      { username: "user.b.e2e", name: "测试员工user.b", phone: "13800000003" },
+      { username: "readonly.e2e", name: "只读测试账号", phone: "13800000004" },
+      { username: "sysadmin.e2e", name: "系统管理员测试", phone: "13800000005" },
+      { username: "securityadmin.e2e", name: "安全管理员测试", phone: "13800000006" },
+      { username: "approvaladmin.e2e", name: "审批管理员测试", phone: "13800000007" },
+    ];
 
-    // 3. Create normal users
-    for (const u of ['user.a.e2e', 'user.b.e2e']) {
-      await page.goto("/settings/org/users");
-      const uExists = await page.getByText(u, { exact: true }).count();
-      if (uExists === 0) {
-        await page.getByRole("button", { name: "新增员工" }).click();
-        await page.getByLabel("用户名").fill(u);
-        await page.getByLabel("姓名").fill(`测试员工${u}`);
-        await page.getByLabel("手机号").fill(`138000000${u === 'user.a.e2e' ? '2' : '3'}`);
-        await page.getByLabel("密码").fill("P@ssw0rd!");
-        await page.getByRole("button", { name: "确 定" }).click();
-        await page.waitForTimeout(1000);
+    for (const u of usersToCreate) {
+      // Check if exists
+      const checkResp = await page.request.get(`/api/v1/users?keyword=${u.username}`, { headers: authHeaders });
+      const existing = (await checkResp.json()).data?.items || [];
+      
+      // If the user already exists, delete it so we can recreate it with a known password and clean state
+      if (existing.length > 0) {
+        const userId = existing[0].id;
+        await page.request.delete(`/api/v1/users/${userId}`, { headers: authHeaders });
       }
+
+      // Create the user fresh
+      await page.request.post("/api/v1/users", {
+        headers: { ...authHeaders, "Idempotency-Key": `user-${u.username}-${Date.now()}` },
+        data: {
+          username: u.username,
+          displayName: u.name,
+          phoneNumber: u.phone,
+          password: "P@ssw0rd!",
+          gender: 1,
+          accountType: 1,
+          isEnabled: true,
+          departmentIds: u.departmentId ? [u.departmentId] : [],
+          roleIds: u.roleIds || [],
+          positionIds: []
+        }
+      });
     }
+    
+    console.log("RBAC Data Seeding via API Complete.");
   });
 });

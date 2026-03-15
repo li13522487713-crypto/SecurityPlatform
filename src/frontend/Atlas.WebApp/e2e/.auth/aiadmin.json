@@ -1,0 +1,62 @@
+{
+  "role": "aiadmin",
+  "username": "aiadmin.e2e",
+  "tenantId": "00000000-0000-0000-0000-000000000001",
+  "homePath": "/ai/agents",
+  "permissions": [
+    "ai-admin-config:update",
+    "ai-workspace:view",
+    "ai-workspace:update",
+    "ai-devops:view",
+    "ai-shortcut:view",
+    "ai-shortcut:manage",
+    "pat:view",
+    "pat:create",
+    "pat:update",
+    "pat:delete"
+  ],
+  "roles": [
+    "E2E_AI_ADMIN"
+  ],
+  "cookies": [
+    {
+      "name": "access_token",
+      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhaWFkbWluLmUyZSIsInRlbmFudF9pZCI6IjAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwMSIsInNpZCI6IjE0ODI3MTMxMjcyNjE4MzUyNjQiLCJqdGkiOiJiZWUzNjdiZTZmMTc0MGE1OWE5ZmYzMTJmNjk0MWQ0MSIsImh0dHA6Ly9zY2hlbWFzLnhtbHNvYXAub3JnL3dzLzIwMDUvMDUvaWRlbnRpdHkvY2xhaW1zL25hbWVpZGVudGlmaWVyIjoiMTQ4MjcxMzA4NzMyNzg2Njg4MCIsImh0dHA6Ly9zY2hlbWFzLnhtbHNvYXAub3JnL3dzLzIwMDUvMDUvaWRlbnRpdHkvY2xhaW1zL25hbWUiOiJhaWFkbWluLmUyZSIsImRpc3BsYXlfbmFtZSI6IkUyRSBBSSBBZG1pbiIsImFwcF9pZCI6IlNlY3VyaXR5UGxhdGZvcm0iLCJjbGllbnRfdHlwZSI6IldlYkg1IiwiY2xpZW50X3BsYXRmb3JtIjoiV2ViIiwiY2xpZW50X2NoYW5uZWwiOiJCcm93c2VyIiwiY2xpZW50X2FnZW50IjoiT3RoZXIiLCJodHRwOi8vc2NoZW1hcy5taWNyb3NvZnQuY29tL3dzLzIwMDgvMDYvaWRlbnRpdHkvY2xhaW1zL3JvbGUiOiJFMkVfQUlfQURNSU4iLCJuYmYiOjE3NzM1NzY3NTYsImV4cCI6MTc3MzU3NzY1NiwiaXNzIjoiQXRsYXMuU2VjdXJpdHlQbGF0Zm9ybSIsImF1ZCI6IkF0bGFzLlNlY3VyaXR5UGxhdGZvcm0ifQ.HClw6Zql470uAcVJ15KUaB5dZWOsessfCCzOIWSg4f0",
+      "domain": "127.0.0.1",
+      "path": "/",
+      "expires": 1773577656,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "Strict"
+    },
+    {
+      "name": "refresh_token",
+      "value": "rOsYzdMUc_qoNBSJAcHOCtPW8qbC3H8GeBzqkhaJhqvYcvfxEwiSRGjpasAlzzGFQGK5sSi-sQk9DlvG6jch4A",
+      "domain": "127.0.0.1",
+      "path": "/",
+      "expires": 1773619956,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "Strict"
+    },
+    {
+      "name": "XSRF-TOKEN",
+      "value": "CfDJ8CZlcFUn_bdJsevIvGMLo8oX-NJhVIMoV7RgwpVTyR8CNjc8C6NpTgG1R2Cnrhff2TtDgjEyGTwuxlWMoz1UAubjgIB2DsydLZqTNv9towP0TCzxwSffBk75miBkOrrDr3R_6HXPhJws1bD3T5Y2Wps",
+      "domain": "127.0.0.1",
+      "path": "/",
+      "expires": -1,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Strict"
+    }
+  ],
+  "localStorage": {
+    "tenant_id": "00000000-0000-0000-0000-000000000001",
+    "refresh_token": "rOsYzdMUc_qoNBSJAcHOCtPW8qbC3H8GeBzqkhaJhqvYcvfxEwiSRGjpasAlzzGFQGK5sSi-sQk9DlvG6jch4A"
+  },
+  "sessionStorage": {
+    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhaWFkbWluLmUyZSIsInRlbmFudF9pZCI6IjAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwMSIsInNpZCI6IjE0ODI3MTMxMjcyNjE4MzUyNjQiLCJqdGkiOiJiZWUzNjdiZTZmMTc0MGE1OWE5ZmYzMTJmNjk0MWQ0MSIsImh0dHA6Ly9zY2hlbWFzLnhtbHNvYXAub3JnL3dzLzIwMDUvMDUvaWRlbnRpdHkvY2xhaW1zL25hbWVpZGVudGlmaWVyIjoiMTQ4MjcxMzA4NzMyNzg2Njg4MCIsImh0dHA6Ly9zY2hlbWFzLnhtbHNvYXAub3JnL3dzLzIwMDUvMDUvaWRlbnRpdHkvY2xhaW1zL25hbWUiOiJhaWFkbWluLmUyZSIsImRpc3BsYXlfbmFtZSI6IkUyRSBBSSBBZG1pbiIsImFwcF9pZCI6IlNlY3VyaXR5UGxhdGZvcm0iLCJjbGllbnRfdHlwZSI6IldlYkg1IiwiY2xpZW50X3BsYXRmb3JtIjoiV2ViIiwiY2xpZW50X2NoYW5uZWwiOiJCcm93c2VyIiwiY2xpZW50X2FnZW50IjoiT3RoZXIiLCJodHRwOi8vc2NoZW1hcy5taWNyb3NvZnQuY29tL3dzLzIwMDgvMDYvaWRlbnRpdHkvY2xhaW1zL3JvbGUiOiJFMkVfQUlfQURNSU4iLCJuYmYiOjE3NzM1NzY3NTYsImV4cCI6MTc3MzU3NzY1NiwiaXNzIjoiQXRsYXMuU2VjdXJpdHlQbGF0Zm9ybSIsImF1ZCI6IkF0bGFzLlNlY3VyaXR5UGxhdGZvcm0ifQ.HClw6Zql470uAcVJ15KUaB5dZWOsessfCCzOIWSg4f0",
+    "antiforgery_token": "CfDJ8CZlcFUn_bdJsevIvGMLo8pIxckSpQBzpXNGQghOadQpQPeicDMCENh2ykyp3DN1eiCTjPFK4AsMMMZQVKJLIVriIMRo1R8QMCbaF5anl8HaoF0PYlkuLWI6DkGE7OURvF0zkQH_u6WVCVcptN6A_63QRDQ-LIhnlkvlq5m1Ke84463vliwYKdYq4qFw8qZL8Q",
+    "auth_profile": "{\"username\":\"aiadmin.e2e\",\"displayName\":\"E2E AI Admin\",\"permissions\":[\"ai-admin-config:update\",\"ai-workspace:view\",\"ai-workspace:update\",\"ai-devops:view\",\"ai-shortcut:view\",\"ai-shortcut:manage\",\"pat:view\",\"pat:create\",\"pat:update\",\"pat:delete\"],\"roles\":[\"E2E_AI_ADMIN\"]}"
+  }
+}

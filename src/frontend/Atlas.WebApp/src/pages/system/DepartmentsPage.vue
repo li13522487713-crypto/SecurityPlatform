@@ -114,6 +114,9 @@
         <a-form-item label="部门名称" name="name">
           <a-input v-model:value="formModel.name" />
         </a-form-item>
+        <a-form-item label="部门编码" name="code">
+          <a-input v-model:value="formModel.code" />
+        </a-form-item>
         <a-form-item label="上级部门" name="parentId">
           <a-select
             v-model:value="formModel.parentId"
@@ -155,6 +158,7 @@ import { debounce, type FormMode, type SelectOption } from "@/utils/common";
 
 const baseColumns = [
   { title: "部门名称", dataIndex: "name", key: "name" },
+  { title: "部门编码", dataIndex: "code", key: "code" },
   { title: "上级部门", key: "parent" },
   { title: "排序", dataIndex: "sortOrder", key: "sortOrder" },
   { title: "操作", key: "actions", view: { canHide: false } }
@@ -179,12 +183,14 @@ const formMode = ref<FormMode>("create");
 const formRef = ref<FormInstance>();
 const formModel = reactive<DepartmentCreateRequest & DepartmentUpdateRequest>({
   name: "",
+  code: "",
   parentId: undefined,
   sortOrder: 0
 });
 
 const formRules: Record<string, Rule[]> = {
-  name: [{ required: true, message: "请输入部门名称" }]
+  name: [{ required: true, message: "请输入部门名称" }],
+  code: [{ required: true, message: "请输入部门编码" }]
 };
 
 const parentOptions = ref<SelectOption[]>([]);
@@ -394,6 +400,7 @@ const onTableChange = (pager: TablePaginationConfig) => {
 
 const resetForm = () => {
   formModel.name = "";
+  formModel.code = "";
   formModel.parentId = undefined;
   formModel.sortOrder = 0;
 };
@@ -410,6 +417,7 @@ const openEdit = async (record: DepartmentListItem) => {
   formMode.value = "edit";
   selectedId.value = record.id;
   formModel.name = record.name;
+  formModel.code = record.code;
   formModel.parentId = record.parentId ?? undefined;
   formModel.sortOrder = record.sortOrder;
   await loadParentOptions();
@@ -429,6 +437,7 @@ const submitForm = async () => {
     if (formMode.value === "create") {
       await createDepartment({
         name: formModel.name,
+        code: formModel.code,
         parentId: formModel.parentId ?? undefined,
         sortOrder: formModel.sortOrder
       });
@@ -436,6 +445,7 @@ const submitForm = async () => {
     } else if (selectedId.value) {
       await updateDepartment(selectedId.value, {
         name: formModel.name,
+        code: formModel.code,
         parentId: formModel.parentId ?? undefined,
         sortOrder: formModel.sortOrder
       });

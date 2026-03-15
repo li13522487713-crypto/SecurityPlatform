@@ -1,11 +1,13 @@
 <template>
-  <a-breadcrumb class="app-breadcrumb">
-    <a-breadcrumb-item v-for="item in items" :key="item.path || item.title">
-      <span v-if="item.redirect === 'noRedirect' || item.noLink" class="no-redirect">{{ item.title }}</span>
-      <router-link v-else-if="item.path" :to="item.path">{{ item.title }}</router-link>
-      <span v-else>{{ item.title }}</span>
-    </a-breadcrumb-item>
-  </a-breadcrumb>
+  <div class="app-breadcrumb" data-testid="e2e-breadcrumb">
+    <a-breadcrumb>
+      <a-breadcrumb-item v-for="item in items" :key="item.path || item.title">
+        <span v-if="item.redirect === 'noRedirect' || item.noLink" class="no-redirect">{{ item.title }}</span>
+        <router-link v-else-if="item.path" :to="item.path">{{ item.title }}</router-link>
+        <span v-else>{{ item.title }}</span>
+      </a-breadcrumb-item>
+    </a-breadcrumb>
+  </div>
 </template>
 
 <script setup lang="ts">

@@ -25,6 +25,17 @@ const AppFormsPage = () => import("@/pages/lowcode/FormListPage.vue");
 const AppFlowsPage = () => import("@/pages/ApprovalFlowsPage.vue");
 const AppDataPage = () => import("@/pages/dynamic/DynamicTablesPage.vue");
 const AppPermissionsPage = () => import("@/pages/system/PermissionsPage.vue");
+const ModelConfigsPage = () => import("@/pages/ai/ModelConfigsPage.vue");
+const AiVariablesPage = () => import("@/pages/ai/AiVariablesPage.vue");
+const AiOpenPlatformPage = () => import("@/pages/ai/AiOpenPlatformPage.vue");
+const AiWorkspacePage = () => import("@/pages/ai/AiWorkspacePage.vue");
+const AiLibraryPage = () => import("@/pages/ai/AiLibraryPage.vue");
+const AiTestSetsPage = () => import("@/pages/ai/AiTestSetsPage.vue");
+const AiMockSetsPage = () => import("@/pages/ai/AiMockSetsPage.vue");
+const AiShortcutsPage = () => import("@/pages/ai/AiShortcutsPage.vue");
+const AiSearchResultsPage = () => import("@/pages/ai/AiSearchResultsPage.vue");
+const AiMarketplacePage = () => import("@/pages/ai/AiMarketplacePage.vue");
+const AgentEditorPage = () => import("@/pages/ai/AgentEditorPage.vue");
 const PageRuntimeRenderer = () => import("@/pages/runtime/PageRuntimeRenderer.vue");
 const AppListPage = () => import("@/pages/lowcode/AppListPage.vue");
 const AppBuilderPage = () => import("@/pages/lowcode/AppBuilderPage.vue");
@@ -102,7 +113,19 @@ const router = createRouter({
     { path: "/system/notifications/manage", name: "system-notifications-manage", component: NotificationManagePage, meta: { requiresAuth: true, title: "公告管理", requiresPermission: "notification:manage" } },
     { path: "/notifications", name: "system-notifications-legacy", redirect: "/system/notifications", meta: { requiresAuth: true, title: "通知中心" } },
     { path: "/settings/system/dict-types", name: "settings-system-dict-types", component: DictTypesPage, meta: { requiresAuth: true, title: "字典管理", requiresPermission: "dict:type:view" } },
+    { path: "/settings/system/datasources", name: "settings-system-datasources", component: TenantDataSourcesPage, meta: { requiresAuth: true, title: "数据源管理", requiresPermission: "system:admin" } },
     { path: "/settings/system/configs", name: "settings-system-configs", component: SystemConfigsPage, meta: { requiresAuth: true, title: "参数配置", requiresPermission: "config:view" } },
+    { path: "/settings/ai/model-configs", name: "settings-ai-model-configs", component: ModelConfigsPage, meta: { requiresAuth: true, title: "模型配置" } },
+    { path: "/ai/variables", name: "ai-variables-static", component: AiVariablesPage, meta: { requiresAuth: true, title: "变量管理" } },
+    { path: "/ai/open-platform", name: "ai-open-platform-static", component: AiOpenPlatformPage, meta: { requiresAuth: true, title: "开放平台" } },
+    { path: "/ai/workspace", name: "ai-workspace-static", component: AiWorkspacePage, meta: { requiresAuth: true, title: "AI 工作台" } },
+    { path: "/ai/library", name: "ai-library-static", component: AiLibraryPage, meta: { requiresAuth: true, title: "资源库" } },
+    { path: "/ai/devops/test-sets", name: "ai-test-sets-static", component: AiTestSetsPage, meta: { requiresAuth: true, title: "测试集" } },
+    { path: "/ai/devops/mock-sets", name: "ai-mock-sets-static", component: AiMockSetsPage, meta: { requiresAuth: true, title: "Mock 集" } },
+    { path: "/ai/shortcuts", name: "ai-shortcuts-static", component: AiShortcutsPage, meta: { requiresAuth: true, title: "快捷命令" } },
+    { path: "/ai/search", name: "ai-search-static", component: AiSearchResultsPage, meta: { requiresAuth: true, title: "统一搜索" } },
+    { path: "/ai/marketplace", name: "ai-marketplace-static", component: AiMarketplacePage, meta: { requiresAuth: true, title: "应用市场" } },
+    { path: "/ai/agents/:id/edit", name: "ai-agent-edit-static", component: AgentEditorPage, meta: { requiresAuth: true, title: "Agent 编辑" } },
     { path: "/settings/auth/roles", name: "SettingsAuthRoles", component: RolesPage, meta: { requiresAuth: true, title: "角色管理", requiresPermission: "roles:view" } },
     { path: "/lowcode/plugin-market", name: "plugin-market", component: PluginMarketPage, meta: { requiresAuth: true, title: "插件市场" } },
     { path: "/settings/system/plugins", name: "settings-plugins", component: PluginManagePage, meta: { requiresAuth: true, title: "插件管理", requiresPermission: "system:admin" } },
@@ -164,6 +187,31 @@ const router = createRouter({
 
 const whiteList = ["/login", "/register"];
 
+function isPrivilegedUser(userStore: ReturnType<typeof useUserStore>) {
+  return userStore.permissions.includes("*:*:*")
+    || userStore.roles.some((role: string) => ["admin", "superadmin"].includes(role.toLowerCase()));
+}
+
+function hasPermission(userStore: ReturnType<typeof useUserStore>, permission: string) {
+  return userStore.permissions.includes(permission) || isPrivilegedUser(userStore);
+}
+
+function getAuthFallbackPath(userStore: ReturnType<typeof useUserStore>) {
+  if (hasPermission(userStore, "apps:view")) {
+    return "/console";
+  }
+  if (hasPermission(userStore, "approval:flow:view")) {
+    return "/approval/flows";
+  }
+  if (hasPermission(userStore, "users:view")) {
+    return "/settings/org/users";
+  }
+  if (hasPermission(userStore, "audit:view")) {
+    return "/audit";
+  }
+  return "/system/notifications";
+}
+
 router.beforeEach(async (to, from, next) => {
   NProgress.start();
   if (to.meta.title) {
@@ -177,7 +225,7 @@ router.beforeEach(async (to, from, next) => {
 
   if (token && tenantId) {
     if (to.path === "/login") {
-      next({ path: "/console" });
+      next({ path: getAuthFallbackPath(userStore), replace: true });
       NProgress.done();
       return;
     }
@@ -211,11 +259,14 @@ router.beforeEach(async (to, from, next) => {
     }
 
     if (to.meta.requiresPermission && typeof to.meta.requiresPermission === "string") {
-      const has = userStore.permissions.includes(to.meta.requiresPermission)
-        || userStore.permissions.includes("*:*:*")
-        || userStore.roles.some((role: string) => ["admin", "superadmin"].includes(role.toLowerCase()));
+      const has = hasPermission(userStore, to.meta.requiresPermission);
       if (!has) {
-        next({ path: "/console" });
+        const fallbackPath = getAuthFallbackPath(userStore);
+        if (fallbackPath !== to.path) {
+          next({ path: fallbackPath, replace: true });
+        } else {
+          next({ path: "/system/notifications", replace: true });
+        }
         NProgress.done();
         return;
       }

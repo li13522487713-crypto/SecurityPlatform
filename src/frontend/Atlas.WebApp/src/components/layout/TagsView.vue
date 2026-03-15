@@ -1,17 +1,23 @@
 <template>
-  <div class="tags-view-container">
-    <div class="tags-scroll-wrapper" ref="scrollWrapper">
+  <div class="tags-view-container" data-testid="e2e-tags-view">
+    <div class="tags-scroll-wrapper" ref="scrollWrapper" data-testid="e2e-tags-scroll">
       <router-link
         v-for="tag in visitedViews"
-        :key="tag.path"
-        :to="{ path: tag.path, query: tag.query }"
+        :key="tag.path ?? tag.fullPath ?? tag.name"
+        :to="{ path: tag.path ?? '/', query: tag.query }"
         class="tags-view-item"
         :class="isActive(tag) ? 'active' : ''"
+        :data-testid="`e2e-tag-${(tag.path ?? '/').replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-+|-+$/g, '').toLowerCase() || 'root'}`"
         @contextmenu.prevent="openMenu(tag, $event)"
         @click.middle="!isAffix(tag) ? closeSelectedTag(tag) : ''"
       >
         {{ tag.title }}
-        <span v-if="!isAffix(tag)" class="close-icon" @click.prevent.stop="closeSelectedTag(tag)">
+        <span
+          v-if="!isAffix(tag)"
+          class="close-icon"
+          :data-testid="`e2e-tag-close-${(tag.path ?? '/').replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-+|-+$/g, '').toLowerCase() || 'root'}`"
+          @click.prevent.stop="closeSelectedTag(tag)"
+        >
           ×
         </span>
       </router-link>
@@ -21,6 +27,7 @@
       v-show="visible"
       :style="{ left: left + 'px', top: top + 'px' }"
       class="contextmenu"
+      data-testid="e2e-tags-contextmenu"
     >
       <li @click="refreshSelectedTag(selectedTag)">刷新页面</li>
       <li v-if="!isAffix(selectedTag)" @click="closeSelectedTag(selectedTag)">关闭当前</li>

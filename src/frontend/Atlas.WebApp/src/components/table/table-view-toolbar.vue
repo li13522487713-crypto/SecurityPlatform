@@ -1,54 +1,59 @@
 <template>
-  <div class="table-view-toolbar">
+  <div class="table-view-toolbar" data-testid="e2e-table-view-toolbar">
     <a-space wrap>
       <a-select
         :value="controller.state.currentViewId"
         style="min-width: 220px"
         show-search
         allow-clear
-        placeholder="未保存视图"
+        placeholder="Saved view"
         :filter-option="false"
         :options="viewOptions"
         :loading="controller.state.loading"
+        data-testid="e2e-table-view-select"
         @search="handleSearch"
         @focus="handleFocus"
         @change="handleSelect"
       />
-      <a-button type="primary" @click="handleSave">保存</a-button>
-      <a-button @click="openSaveAs">另存为</a-button>
-      <a-button :disabled="!controller.state.currentViewId" @click="handleSetDefault">
-        设为默认
+      <a-button type="primary" data-testid="e2e-table-view-save" @click="handleSave">Save</a-button>
+      <a-button data-testid="e2e-table-view-save-as" @click="openSaveAs">Save as</a-button>
+      <a-button
+        :disabled="!controller.state.currentViewId"
+        data-testid="e2e-table-view-set-default"
+        @click="handleSetDefault"
+      >
+        Set default
       </a-button>
-      <a-button @click="handleResetCurrent">重置视图</a-button>
-      <a-button @click="handleResetDefault">恢复默认</a-button>
+      <a-button data-testid="e2e-table-view-reset-current" @click="handleResetCurrent">Reset current</a-button>
+      <a-button data-testid="e2e-table-view-reset-default" @click="handleResetDefault">Reset default</a-button>
       <a-dropdown>
-        <a-button>
-          密度：{{ densityLabel }}
-        </a-button>
+        <a-button data-testid="e2e-table-view-density">Density: {{ densityLabel }}</a-button>
         <template #overlay>
           <a-menu @click="handleDensityChange">
-            <a-menu-item key="compact">紧凑</a-menu-item>
-            <a-menu-item key="default">默认</a-menu-item>
-            <a-menu-item key="comfortable">舒适</a-menu-item>
+            <a-menu-item key="compact">Compact</a-menu-item>
+            <a-menu-item key="default">Default</a-menu-item>
+            <a-menu-item key="comfortable">Comfortable</a-menu-item>
           </a-menu>
         </template>
       </a-dropdown>
-      <a-button @click="columnsVisible = true">列配置</a-button>
+      <a-button data-testid="e2e-table-view-columns" @click="columnsVisible = true">Columns</a-button>
     </a-space>
   </div>
 
   <a-drawer
     v-model:open="columnsVisible"
-    title="列配置"
+    title="Columns"
     placement="right"
     width="420"
     destroy-on-close
+    data-testid="e2e-table-view-columns-drawer"
   >
     <a-input
       v-model:value="columnKeyword"
-      placeholder="搜索列"
+      placeholder="Search columns"
       allow-clear
       style="margin-bottom: 12px"
+      data-testid="e2e-table-view-columns-search"
     />
     <div class="column-list">
       <div v-for="item in filteredColumns" :key="item.key" class="column-item">
@@ -66,12 +71,12 @@
             style="width: 88px"
             @change="(val: string) => controller.setPinned(item.key, val === 'none' ? undefined : val as 'left' | 'right')"
           >
-            <a-select-option value="none">不固定</a-select-option>
-            <a-select-option value="left">左固定</a-select-option>
-            <a-select-option value="right">右固定</a-select-option>
+            <a-select-option value="none">None</a-select-option>
+            <a-select-option value="left">Left</a-select-option>
+            <a-select-option value="right">Right</a-select-option>
           </a-select>
-          <a-button size="small" @click="controller.moveColumn(item.key, 'up')">上移</a-button>
-          <a-button size="small" @click="controller.moveColumn(item.key, 'down')">下移</a-button>
+          <a-button size="small" @click="controller.moveColumn(item.key, 'up')">Up</a-button>
+          <a-button size="small" @click="controller.moveColumn(item.key, 'down')">Down</a-button>
         </div>
       </div>
     </div>
@@ -79,20 +84,25 @@
 
   <a-drawer
     v-model:open="saveAsVisible"
-    title="另存为视图"
+    title="Save as view"
     placement="right"
     width="380"
     destroy-on-close
+    data-testid="e2e-table-view-save-as-drawer"
   >
     <a-form layout="vertical">
-      <a-form-item label="视图名称">
-        <a-input v-model:value="saveAsName" placeholder="请输入视图名称" />
+      <a-form-item label="View name">
+        <a-input
+          v-model:value="saveAsName"
+          placeholder="Enter view name"
+          data-testid="e2e-table-view-save-as-name"
+        />
       </a-form-item>
     </a-form>
     <template #footer>
-      <a-space>
-        <a-button @click="saveAsVisible = false">取消</a-button>
-        <a-button type="primary" @click="handleSaveAs">保存</a-button>
+      <a-space data-testid="e2e-table-view-save-as-footer">
+        <a-button data-testid="e2e-table-view-save-as-cancel" @click="saveAsVisible = false">Cancel</a-button>
+        <a-button type="primary" data-testid="e2e-table-view-save-as-submit" @click="handleSaveAs">Save</a-button>
       </a-space>
     </template>
   </a-drawer>
@@ -114,21 +124,23 @@ const saveAsName = ref("");
 
 const viewOptions = computed(() =>
   props.controller.state.views.map((item) => ({
-    label: item.isDefault ? `${item.name}（默认）` : item.name,
+    label: item.isDefault ? `${item.name} (default)` : item.name,
     value: item.id
   }))
 );
 
 const filteredColumns = computed(() => {
   const keyword = columnKeyword.value.trim();
-  if (!keyword) return props.controller.columnSettings;
+  if (!keyword) {
+    return props.controller.columnSettings;
+  }
   return props.controller.columnSettings.filter((item) => item.title.includes(keyword));
 });
 
 const densityLabel = computed(() => {
-  if (props.controller.state.density === "compact") return "紧凑";
-  if (props.controller.state.density === "comfortable") return "舒适";
-  return "默认";
+  if (props.controller.state.density === "compact") return "Compact";
+  if (props.controller.state.density === "comfortable") return "Comfortable";
+  return "Default";
 });
 
 const handleSearch = async (value: string) => {
@@ -156,7 +168,9 @@ const openSaveAs = () => {
 
 const handleSaveAs = async () => {
   const name = saveAsName.value.trim();
-  if (!name) return;
+  if (!name) {
+    return;
+  }
   await props.controller.saveAs(name);
   saveAsVisible.value = false;
 };
