@@ -126,10 +126,6 @@ export default defineConfig({
           if (pkg("ant-design-vue") || nm.includes("/node_modules/@ant-design/"))
             return "vendor-antd";
 
-          // --- Element Plus ---
-          if (pkg("element-plus") || nm.includes("/node_modules/@element-plus/"))
-            return "vendor-element";
-
           // 其余依赖交给 Rollup 默认策略，减少人为拆包导致的循环依赖。
           return undefined;
         }

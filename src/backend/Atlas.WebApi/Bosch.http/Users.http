@@ -68,7 +68,10 @@ X-CSRF-TOKEN: {{csrfToken}}
   "displayName": "Demo User",
   "email": "demo@example.com",
   "phoneNumber": "13800000000",
-  "isActive": true
+  "isActive": true,
+  "roleIds": [],
+  "departmentIds": [],
+  "positionIds": []
 }
 
 ### Update User Roles

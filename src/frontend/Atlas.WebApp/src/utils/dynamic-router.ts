@@ -20,6 +20,8 @@ const pathComponentFallbackMap: Record<string, string> = {
   "/alerts": "../pages/AlertPage.vue",
   "/workflow/designer": "../pages/WorkflowDesignerPage.vue",
   "/settings/org/users": "../pages/system/UsersPage.vue",
+  "/settings/org/departments": "../pages/system/DepartmentsPage.vue",
+  "/settings/org/positions": "../pages/system/PositionsPage.vue",
   "/settings/auth/roles": "../pages/system/RolesPage.vue",
   "/settings/auth/menus": "../pages/system/MenusPage.vue",
   "/settings/projects": "../pages/system/ProjectsPage.vue",
@@ -157,6 +159,7 @@ function toRouteRecord(item: RouterVo, type: boolean): RouteRecordRaw | null {
 
   const baseMeta = {
     title: item.meta?.title ?? item.name,
+    titleKey: item.meta?.titleKey,
     icon: item.meta?.icon,
     requiresAuth: true,
     requiresPermission: item.meta?.permi,

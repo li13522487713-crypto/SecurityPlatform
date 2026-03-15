@@ -27,5 +27,5 @@ public interface IRoleCommandService
         CancellationToken cancellationToken);
 
     /// <summary>更新角色数据权限范围（等保2.0）</summary>
-    Task SetDataScopeAsync(TenantId tenantId, long roleId, DataScopeType scope, CancellationToken cancellationToken);
+    Task SetDataScopeAsync(TenantId tenantId, long roleId, DataScopeType scope, IReadOnlyList<long>? deptIds, CancellationToken cancellationToken);
 }

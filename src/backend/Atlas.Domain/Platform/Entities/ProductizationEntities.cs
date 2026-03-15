@@ -1,5 +1,6 @@
 using Atlas.Core.Abstractions;
 using Atlas.Core.Tenancy;
+using SqlSugar;
 
 namespace Atlas.Domain.Platform.Entities;
 
@@ -88,6 +89,7 @@ public sealed class AppManifest : TenantEntity
     public string Category { get; private set; }
     public string Icon { get; private set; }
     public string ConfigJson { get; private set; }
+    [SugarColumn(IsNullable = true)]
     public long? DataSourceId { get; private set; }
     public int Version { get; private set; }
     public AppManifestStatus Status { get; private set; }
@@ -95,7 +97,9 @@ public sealed class AppManifest : TenantEntity
     public DateTimeOffset CreatedAt { get; private set; }
     public long UpdatedBy { get; private set; }
     public DateTimeOffset UpdatedAt { get; private set; }
+    [SugarColumn(IsNullable = true)]
     public long? PublishedBy { get; private set; }
+    [SugarColumn(IsNullable = true)]
     public DateTimeOffset? PublishedAt { get; private set; }
 
     public void Update(string name, string? description, string? category, string? icon, long? dataSourceId, long updatedBy, DateTimeOffset now)
@@ -160,6 +164,7 @@ public sealed class AppRelease : TenantEntity
     public int Version { get; private set; }
     public string ReleaseNote { get; private set; }
     public string SnapshotJson { get; private set; }
+    [SugarColumn(IsNullable = true)]
     public long? RollbackPointId { get; private set; }
     public AppReleaseStatus Status { get; private set; }
     public long ReleasedBy { get; private set; }
@@ -267,9 +272,13 @@ public sealed class PackageArtifact : TenantEntity
     public string FileHash { get; private set; }
     public long Size { get; private set; }
     public PackageArtifactStatus Status { get; private set; }
+    [SugarColumn(IsNullable = true)]
     public long? ExportedBy { get; private set; }
+    [SugarColumn(IsNullable = true)]
     public DateTimeOffset? ExportedAt { get; private set; }
+    [SugarColumn(IsNullable = true)]
     public long? ImportedBy { get; private set; }
+    [SugarColumn(IsNullable = true)]
     public DateTimeOffset? ImportedAt { get; private set; }
 
     public void MarkImported(long userId, DateTimeOffset now)
@@ -314,6 +323,7 @@ public sealed class LicenseGrant : EntityBase
     public string FeaturesJson { get; private set; }
     public string LimitsJson { get; private set; }
     public DateTimeOffset IssuedAt { get; private set; }
+    [SugarColumn(IsNullable = true)]
     public DateTimeOffset? ExpiresAt { get; private set; }
     public string AuditTrailJson { get; private set; }
 
@@ -361,6 +371,7 @@ public sealed class ToolAuthorizationPolicy : TenantEntity
     public string ToolName { get; private set; }
     public ToolAuthorizationPolicyType PolicyType { get; private set; }
     public int RateLimitQuota { get; private set; }
+    [SugarColumn(IsNullable = true)]
     public long? ApprovalFlowId { get; private set; }
     public string ConditionJson { get; private set; }
     public bool AuditEnabled { get; private set; }

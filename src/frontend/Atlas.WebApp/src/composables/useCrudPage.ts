@@ -1,19 +1,21 @@
 import { onMounted, reactive, ref } from "vue";
+import type { ComputedRef, Ref } from "vue";
 import type { TablePaginationConfig, FormInstance } from "ant-design-vue";
 import type { Rule } from "ant-design-vue/es/form";
 import { message } from "ant-design-vue";
 import { useTableView } from "@/composables/useTableView";
 import type { TableViewColumn } from "@/composables/useTableView";
+import { translate } from "@/i18n";
 import type { PagedRequest, PagedResult } from "@/types/api";
 import { getAuthProfile, hasPermission } from "@/utils/auth";
 import type { FormMode } from "@/utils/common";
 
-export interface CrudApi<TList, TDetail, TCreate extends object, TUpdate extends object> {
-  list: (params: any) => Promise<PagedResult<TList>>;
+export interface CrudApi<TList, TDetail, TCreate extends object, TUpdate extends object, TListParams extends object = PagedRequest> {
+  list: (params: TListParams) => Promise<PagedResult<TList>>;
   detail?: (id: string) => Promise<TDetail>;
-  create: (data: TCreate) => Promise<any>;
-  update: (id: string, data: TUpdate) => Promise<any>;
-  delete?: (id: string) => Promise<any>;
+  create: (data: TCreate) => Promise<unknown>;
+  update: (id: string, data: TUpdate) => Promise<unknown>;
+  delete?: (id: string) => Promise<unknown>;
 }
 
 export interface CrudPermissions {
@@ -23,15 +25,21 @@ export interface CrudPermissions {
   [key: string]: string | undefined;
 }
 
-export interface UseCrudPageOptions<TList, TDetail, TCreate extends object, TUpdate extends object> {
+export interface UseCrudPageOptions<
+  TList,
+  TDetail,
+  TCreate extends object,
+  TUpdate extends object,
+  TListParams extends object = PagedRequest
+> {
   tableKey: string;
-  columns: TableViewColumn<TList>[];
+  columns: TableViewColumn<TList>[] | Ref<TableViewColumn<TList>[]> | ComputedRef<TableViewColumn<TList>[]>;
   permissions: CrudPermissions;
-  api: CrudApi<TList, TDetail, TCreate, TUpdate>;
+  api: CrudApi<TList, TDetail, TCreate, TUpdate, TListParams>;
   defaultFormModel: () => TCreate & TUpdate;
   formRules: Record<string, Rule[]>;
   formRef?: ReturnType<typeof ref<FormInstance>>;
-  buildListParams?: (base: PagedRequest) => any;
+  buildListParams?: (base: PagedRequest) => TListParams;
   buildCreatePayload?: (model: TCreate & TUpdate) => TCreate;
   buildUpdatePayload?: (model: TCreate & TUpdate) => TUpdate;
   mapDetailToForm?: (detail: TDetail, model: TCreate & TUpdate) => void;
@@ -41,8 +49,14 @@ export interface UseCrudPageOptions<TList, TDetail, TCreate extends object, TUpd
   autoFetch?: boolean;
 }
 
-export function useCrudPage<TList, TDetail, TCreate extends object, TUpdate extends object>(
-  options: UseCrudPageOptions<TList, TDetail, TCreate, TUpdate>
+export function useCrudPage<
+  TList,
+  TDetail,
+  TCreate extends object,
+  TUpdate extends object,
+  TListParams extends object = PagedRequest
+>(
+  options: UseCrudPageOptions<TList, TDetail, TCreate, TUpdate, TListParams>
 ) {
   const {
     tableKey,
@@ -61,7 +75,8 @@ export function useCrudPage<TList, TDetail, TCreate extends object, TUpdate exte
     autoFetch = true
   } = options;
 
-  // State
+  const t = translate;
+
   const dataSource = ref<TList[]>([]) as { value: TList[] };
   const loading = ref(false);
   const keyword = ref("");
@@ -69,7 +84,7 @@ export function useCrudPage<TList, TDetail, TCreate extends object, TUpdate exte
     current: 1,
     pageSize: 20,
     total: 0,
-    showTotal: (total: number) => `共 ${total} 条`
+    showTotal: (total: number) => t("crud.totalItems", { total })
   });
 
   const formVisible = ref(false);
@@ -79,7 +94,6 @@ export function useCrudPage<TList, TDetail, TCreate extends object, TUpdate exte
   const selectedId = ref<string | null>(null);
   const submitting = ref(false);
 
-  // Permissions
   const profile = getAuthProfile();
   const permissionMap = {} as Record<string, boolean>;
   for (const [key, code] of Object.entries(permissions)) {
@@ -95,7 +109,6 @@ export function useCrudPage<TList, TDetail, TCreate extends object, TUpdate exte
     return permissionMap[key] ?? false;
   };
 
-  // Data fetching
   const fetchData = async () => {
     loading.value = true;
     try {
@@ -104,18 +117,17 @@ export function useCrudPage<TList, TDetail, TCreate extends object, TUpdate exte
         pageSize: pagination.pageSize ?? 20,
         keyword: keyword.value || undefined
       };
-      const params = buildListParams ? buildListParams(baseParams) : baseParams;
+      const params = buildListParams ? buildListParams(baseParams) : (baseParams as unknown as TListParams);
       const result = await api.list(params);
       dataSource.value = result.items;
       pagination.total = result.total;
     } catch (error) {
-      message.error((error as Error).message || "查询失败");
+      message.error((error as Error).message || t("crud.queryFailed"));
     } finally {
       loading.value = false;
     }
   };
 
-  // Table view
   const { controller: tableViewController, tableColumns, tableSize } = useTableView<TList>({
     tableKey,
     columns,
@@ -123,17 +135,15 @@ export function useCrudPage<TList, TDetail, TCreate extends object, TUpdate exte
     onRefresh: fetchData
   });
 
-  // Table change handler
   const onTableChange = (pager: TablePaginationConfig) => {
     pagination.current = pager.current;
     pagination.pageSize = pager.pageSize;
-    fetchData();
+    void fetchData();
   };
 
-  // Search
   const handleSearch = () => {
     pagination.current = 1;
-    fetchData();
+    void fetchData();
   };
 
   const resetFilters = () => {
@@ -141,7 +151,6 @@ export function useCrudPage<TList, TDetail, TCreate extends object, TUpdate exte
     handleSearch();
   };
 
-  // Form helpers
   const resetForm = () => {
     const defaults = defaultFormModel();
     Object.assign(formModel as object, defaults as object);
@@ -159,11 +168,11 @@ export function useCrudPage<TList, TDetail, TCreate extends object, TUpdate exte
     resetForm();
 
     if (typeof recordOrId === "string") {
-      // Load by ID using detail API
       if (!api.detail) {
-        message.error("不支持按ID加载详情");
+        message.error(t("crud.detailByIdNotSupported"));
         return;
       }
+
       try {
         const detail = await api.detail(recordOrId);
         selectedId.value = recordOrId;
@@ -172,27 +181,26 @@ export function useCrudPage<TList, TDetail, TCreate extends object, TUpdate exte
         }
         formVisible.value = true;
       } catch (error) {
-        message.error((error as Error).message || "加载详情失败");
+        message.error((error as Error).message || t("crud.loadDetailFailed"));
       }
-    } else {
-      // Use record directly
-      const record = recordOrId as TList & { id?: string };
-      selectedId.value = record.id ?? null;
-      if (mapRecordToForm) {
-        mapRecordToForm(recordOrId, formModel);
-      } else if (mapDetailToForm && api.detail && record.id) {
-        try {
-          const detail = await api.detail(record.id);
-          if (mapDetailToForm) {
-            mapDetailToForm(detail, formModel);
-          }
-        } catch (error) {
-          message.error((error as Error).message || "加载详情失败");
-          return;
-        }
-      }
-      formVisible.value = true;
+
+      return;
     }
+
+    const record = recordOrId as TList & { id?: string };
+    selectedId.value = record.id ?? null;
+    if (mapRecordToForm) {
+      mapRecordToForm(recordOrId, formModel);
+    } else if (mapDetailToForm && api.detail && record.id) {
+      try {
+        const detail = await api.detail(record.id);
+        mapDetailToForm(detail, formModel);
+      } catch (error) {
+        message.error((error as Error).message || t("crud.loadDetailFailed"));
+        return;
+      }
+    }
+    formVisible.value = true;
   };
 
   const closeForm = () => {
@@ -200,57 +208,63 @@ export function useCrudPage<TList, TDetail, TCreate extends object, TUpdate exte
   };
 
   const submitForm = async () => {
-    if (submitting.value) return;
+    if (submitting.value) {
+      return;
+    }
 
     const valid = await formRef.value?.validate().catch(() => false);
-    if (!valid) return;
+    if (!valid) {
+      return;
+    }
 
     submitting.value = true;
     try {
       if (formMode.value === "create") {
         const payload = buildCreatePayload ? buildCreatePayload(formModel) : (formModel as unknown as TCreate);
         await api.create(payload);
-        message.success("创建成功");
+        message.success(t("crud.createSuccess"));
       } else if (selectedId.value) {
         const payload = buildUpdatePayload ? buildUpdatePayload(formModel) : (formModel as unknown as TUpdate);
         await api.update(selectedId.value, payload);
-        message.success("更新成功");
+        message.success(t("crud.updateSuccess"));
       }
+
       formVisible.value = false;
       await fetchData();
       if (onAfterSubmit) {
         await onAfterSubmit();
       }
     } catch (error) {
-      message.error((error as Error).message || "提交失败");
+      message.error((error as Error).message || t("crud.submitFailed"));
     } finally {
       submitting.value = false;
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!api.delete) return;
+    if (!api.delete) {
+      return;
+    }
+
     try {
       await api.delete(id);
-      message.success("删除成功");
+      message.success(t("crud.deleteSuccess"));
       await fetchData();
       if (onAfterDelete) {
         await onAfterDelete();
       }
     } catch (error) {
-      message.error((error as Error).message || "删除失败");
+      message.error((error as Error).message || t("crud.deleteFailed"));
     }
   };
 
-  // Lifecycle
   if (autoFetch) {
     onMounted(() => {
-      fetchData();
+      void fetchData();
     });
   }
 
   return {
-    // State
     dataSource,
     loading,
     keyword,
@@ -262,20 +276,14 @@ export function useCrudPage<TList, TDetail, TCreate extends object, TUpdate exte
     formRules,
     selectedId,
     submitting,
-
-    // Table view
     tableViewController,
     tableColumns,
     tableSize,
-
-    // Permissions
     canCreate,
     canUpdate,
     canDelete,
     hasPermissionFor,
     profile,
-
-    // Actions
     fetchData,
     onTableChange,
     handleSearch,

@@ -1,21 +1,39 @@
-using Atlas.Application.Workflow;
+using Atlas.Application.Audit.Mappings;
+using Atlas.Application.Mappings;
 using Atlas.Application.Visualization;
+using Atlas.Application.Workflow;
+using Atlas.Application.Workflow.Mappings;
 using AutoMapper;
 using Microsoft.Extensions.DependencyInjection;
+using System.Reflection;
 
 namespace Atlas.Application;
 
 public static class ServiceCollectionExtensions
 {
-    public static IServiceCollection AddAtlasApplication(this IServiceCollection services)
+    private static readonly Assembly[] DefaultMappingAssemblies =
+    [
+        typeof(IdentityMappingProfile).Assembly,
+        typeof(AuditMappingProfile).Assembly,
+        typeof(WorkflowMappingProfile).Assembly
+    ];
+
+    public static IServiceCollection AddAtlasApplication(
+        this IServiceCollection services,
+        params Assembly[] additionalMappingAssemblies)
     {
-        services.AddAutoMapper(AppDomain.CurrentDomain.GetAssemblies());
-        
-        // 添加工作流应用层服务（包括验证器）
+        var mappingAssemblies = additionalMappingAssemblies.Length == 0
+            ? DefaultMappingAssemblies
+            : DefaultMappingAssemblies
+                .Concat(additionalMappingAssemblies)
+                .Distinct()
+                .ToArray();
+
+        services.AddAutoMapper(mappingAssemblies);
+
         services.AddWorkflowApplication();
-        // 可视化模块骨架（后续可按需扩展）
         services.AddVisualizationApplication();
-        
+
         return services;
     }
 }

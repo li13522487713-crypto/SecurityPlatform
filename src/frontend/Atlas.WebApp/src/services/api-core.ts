@@ -22,6 +22,7 @@ import { getCurrentAppIdFromStorage } from "@/utils/app-context";
 import { getClientContextHeaders } from "@/utils/clientContext";
 import router from "@/router";
 import type { ApiResponse, AuthTokenResult, PagedRequest } from "@/types/api";
+import { getLocale } from "@/i18n";
 
 // ─── Configuration ───────────────────────────────────────
 
@@ -111,6 +112,10 @@ export async function requestApi<T>(path: string, init?: RequestInit, options?: 
   const projectId = getProjectId();
   const method = (init?.method ?? "GET").toUpperCase();
   const shouldAttachSecurityHeaders = Boolean(token);
+
+  if (!headers.has("Accept-Language")) {
+    headers.set("Accept-Language", getLocale());
+  }
 
   // 向后兼容：如果localStorage中有token，则设置Authorization header
   // 否则依赖httpOnly cookie自动发送（更安全）
@@ -277,6 +282,10 @@ export async function requestApiBlob(path: string, init?: RequestInit, options?:
   const tenantId = getTenantId();
   const method = (init?.method ?? "GET").toUpperCase();
   const shouldAttachSecurityHeaders = Boolean(token);
+
+  if (!headers.has("Accept-Language")) {
+    headers.set("Accept-Language", getLocale());
+  }
 
   if (token) {
     headers.set("Authorization", `Bearer ${token}`);

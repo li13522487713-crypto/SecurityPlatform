@@ -1,0 +1,14 @@
+E:\codeding\SecurityPlatform\.codex-build\webapi-bin\Atlas.WorkflowCore.DSL.deps.json
+E:\codeding\SecurityPlatform\.codex-build\webapi-bin\Atlas.WorkflowCore.DSL.dll
+E:\codeding\SecurityPlatform\.codex-build\webapi-bin\Atlas.WorkflowCore.DSL.pdb
+E:\codeding\SecurityPlatform\.codex-build\webapi-obj\Atlas.WorkflowCore.DSL.csproj.AssemblyReference.cache
+E:\codeding\SecurityPlatform\.codex-build\webapi-obj\Atlas.WorkflowCore.DSL.GeneratedMSBuildEditorConfig.editorconfig
+E:\codeding\SecurityPlatform\.codex-build\webapi-obj\Atlas.WorkflowCore.DSL.AssemblyInfoInputs.cache
+E:\codeding\SecurityPlatform\.codex-build\webapi-obj\Atlas.WorkflowCore.DSL.AssemblyInfo.cs
+E:\codeding\SecurityPlatform\.codex-build\webapi-obj\Atlas.WorkflowCore.DSL.csproj.CoreCompileInputs.cache
+E:\codeding\SecurityPlatform\.codex-build\webapi-obj\Atlas.WorkflowCore.DSL.sourcelink.json
+E:\codeding\SecurityPlatform\.codex-build\webapi-obj\Atlas.Wo.4A18FB80.Up2Date
+E:\codeding\SecurityPlatform\.codex-build\webapi-obj\Atlas.WorkflowCore.DSL.dll
+E:\codeding\SecurityPlatform\.codex-build\webapi-obj\refint\Atlas.WorkflowCore.DSL.dll
+E:\codeding\SecurityPlatform\.codex-build\webapi-obj\Atlas.WorkflowCore.DSL.pdb
+E:\codeding\SecurityPlatform\.codex-build\webapi-obj\ref\Atlas.WorkflowCore.DSL.dll

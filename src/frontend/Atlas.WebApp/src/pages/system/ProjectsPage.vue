@@ -1,10 +1,10 @@
 <template>
   <CrudPageLayout
-    title="项目管理"
+    :title="t('projectPage.pageTitle')"
     v-model:keyword="keyword"
-    search-placeholder="搜索项目名称/编码"
+    :search-placeholder="t('projectPage.searchPlaceholder')"
     :drawer-open="formVisible"
-    :drawer-title="formMode === 'create' ? '新增项目' : '编辑项目'"
+    :drawer-title="formMode === 'create' ? t('projectPage.drawerCreateTitle') : t('projectPage.drawerEditTitle')"
     :drawer-width="560"
     :submit-loading="submitting"
     :submit-disabled="submitting"
@@ -15,7 +15,7 @@
     @submit="submitForm"
   >
     <template #toolbar-actions>
-      <a-button v-if="canCreate" type="primary" @click="openCreate">新增项目</a-button>
+      <a-button v-if="canCreate" type="primary" @click="openCreate">{{ t("projectPage.addProject") }}</a-button>
     </template>
     <template #toolbar-right>
       <TableViewToolbar :controller="tableViewController" />
@@ -33,21 +33,21 @@
       >
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'isActive'">
-            <a-tag v-if="record.isActive" color="green">启用</a-tag>
-            <a-tag v-else color="red">停用</a-tag>
+            <a-tag v-if="record.isActive" color="green">{{ t("common.statusEnabled") }}</a-tag>
+            <a-tag v-else color="red">{{ t("common.statusDisabled") }}</a-tag>
           </template>
-          <template v-if="column.key === 'actions'">
+          <template v-else-if="column.key === 'actions'">
             <a-space>
-              <a-button v-if="canUpdate" type="link" @click="openEdit(record)">编辑</a-button>
-              <a-button v-if="canAssign" type="link" @click="openAssign(record)">分配</a-button>
+              <a-button v-if="canUpdate" type="link" @click="openEdit(record)">{{ t("common.edit") }}</a-button>
+              <a-button v-if="canAssign" type="link" @click="openAssign(record)">{{ t("projectPage.assign") }}</a-button>
               <a-popconfirm
                 v-if="canDelete"
-                title="确认删除该项目？"
-                ok-text="删除"
-                cancel-text="取消"
+                :title="t('projectPage.deleteConfirm')"
+                :ok-text="t('common.delete')"
+                :cancel-text="t('common.cancel')"
                 @confirm="handleDelete(record.id)"
               >
-                <a-button type="link" danger>删除</a-button>
+                <a-button type="link" danger>{{ t("common.delete") }}</a-button>
               </a-popconfirm>
             </a-space>
           </template>
@@ -57,19 +57,23 @@
 
     <template #form>
       <a-form ref="formRef" :model="formModel" :rules="formRules" layout="vertical">
-        <a-form-item label="项目编码" name="code">
+        <a-form-item :label="t('projectPage.code')" name="code">
           <a-input v-model:value="formModel.code" :disabled="formMode === 'edit'" />
         </a-form-item>
-        <a-form-item label="项目名称" name="name">
+        <a-form-item :label="t('projectPage.name')" name="name">
           <a-input v-model:value="formModel.name" />
         </a-form-item>
-        <a-form-item label="状态">
-          <a-switch v-model:checked="formModel.isActive" checked-children="启用" un-checked-children="停用" />
+        <a-form-item :label="t('projectPage.status')">
+          <a-switch
+            v-model:checked="formModel.isActive"
+            :checked-children="t('common.statusEnabled')"
+            :un-checked-children="t('common.statusDisabled')"
+          />
         </a-form-item>
-        <a-form-item label="排序">
+        <a-form-item :label="t('projectPage.sortOrder')">
           <a-input-number v-model:value="formModel.sortOrder" :min="0" style="width: 100%" />
         </a-form-item>
-        <a-form-item label="描述">
+        <a-form-item :label="t('projectPage.description')">
           <a-input v-model:value="formModel.description" />
         </a-form-item>
       </a-form>
@@ -78,25 +82,25 @@
     <template #extra-drawers>
       <a-drawer
         v-model:open="assignVisible"
-        title="项目分配"
+        :title="t('projectPage.assignDrawerTitle')"
         placement="right"
         :width="720"
-        @close="closeAssign"
         destroy-on-close
+        @close="closeAssign"
       >
         <a-tabs>
-          <a-tab-pane v-if="canAssignUsers" key="users" tab="人员">
+          <a-tab-pane v-if="canAssignUsers" key="users" :tab="t('projectPage.usersTab')">
             <div class="assign-toolbar">
               <a-space>
-                <a-input v-model:value="userKeyword" placeholder="搜索员工账号/姓名" allow-clear />
-                <a-button @click="searchUsers">查询</a-button>
+                <a-input v-model:value="userKeyword" :placeholder="t('projectPage.searchUsersPlaceholder')" allow-clear />
+                <a-button @click="searchUsers">{{ t("common.search") }}</a-button>
               </a-space>
             </div>
             <a-select
               v-model:value="assignModel.userIds"
               mode="multiple"
               style="width: 100%"
-              placeholder="选择人员"
+              :placeholder="t('projectPage.selectUsers')"
               :options="userOptions"
               :loading="userLoading"
               :filter-option="false"
@@ -105,17 +109,19 @@
             />
             <div class="assign-footer">
               <a-button :disabled="!hasMoreUsers" :loading="userLoading" @click="loadMoreUsers">
-                加载更多
+                {{ t("common.loadMore") }}
               </a-button>
-              <span class="assign-hint">已加载 {{ userOptions.length }} / {{ userTotal }} 条</span>
+              <span class="assign-hint">
+                {{ t("projectPage.loadedUsersSummary", { loaded: userOptions.length, total: userTotal }) }}
+              </span>
             </div>
           </a-tab-pane>
-          <a-tab-pane v-if="canAssignDepartments" key="departments" tab="部门">
+          <a-tab-pane v-if="canAssignDepartments" key="departments" :tab="t('projectPage.departmentsTab')">
             <a-select
               v-model:value="assignModel.departmentIds"
               mode="multiple"
               style="width: 100%"
-              placeholder="选择部门"
+              :placeholder="t('projectPage.selectDepartments')"
               :options="departmentOptions"
               :loading="departmentLoading"
               show-search
@@ -124,12 +130,12 @@
               @focus="() => loadDepartmentOptions()"
             />
           </a-tab-pane>
-          <a-tab-pane v-if="canAssignPositions" key="positions" tab="岗位">
+          <a-tab-pane v-if="canAssignPositions" key="positions" :tab="t('projectPage.positionsTab')">
             <a-select
               v-model:value="assignModel.positionIds"
               mode="multiple"
               style="width: 100%"
-              placeholder="选择岗位"
+              :placeholder="t('projectPage.selectPositions')"
               :options="positionOptions"
               :loading="positionLoading"
               show-search
@@ -141,8 +147,8 @@
         </a-tabs>
         <template #footer>
           <a-space>
-            <a-button @click="closeAssign">取消</a-button>
-            <a-button type="primary" @click="submitAssign">保存</a-button>
+            <a-button @click="closeAssign">{{ t("common.cancel") }}</a-button>
+            <a-button type="primary" @click="submitAssign">{{ t("common.save") }}</a-button>
           </a-space>
         </template>
       </a-drawer>
@@ -154,6 +160,7 @@
 import { computed, reactive, ref } from "vue";
 import type { FormInstance } from "ant-design-vue";
 import { message } from "ant-design-vue";
+import { useI18n } from "vue-i18n";
 import CrudPageLayout from "@/components/crud/CrudPageLayout.vue";
 import TableViewToolbar from "@/components/table/table-view-toolbar.vue";
 import { useCrudPage } from "@/composables/useCrudPage";
@@ -173,26 +180,29 @@ import {
 import type {
   DepartmentListItem,
   PositionListItem,
-  ProjectListItem,
-  ProjectDetail,
   ProjectCreateRequest,
+  ProjectDetail,
+  ProjectListItem,
   ProjectUpdateRequest,
   UserListItem
 } from "@/types/api";
 import { debounce, type SelectOption } from "@/utils/common";
 
+const { t } = useI18n();
 const formRef = ref<FormInstance>();
+
+const projectColumns = computed(() => [
+  { title: t("projectPage.code"), dataIndex: "code", key: "code" },
+  { title: t("projectPage.name"), dataIndex: "name", key: "name" },
+  { title: t("projectPage.status"), key: "isActive" },
+  { title: t("projectPage.sortOrder"), dataIndex: "sortOrder", key: "sortOrder" },
+  { title: t("projectPage.description"), dataIndex: "description", key: "description" },
+  { title: t("projectPage.actions"), key: "actions", view: { canHide: false } }
+]);
 
 const crud = useCrudPage<ProjectListItem, ProjectDetail, ProjectCreateRequest, ProjectUpdateRequest>({
   tableKey: "system.projects",
-  columns: [
-    { title: "项目编码", dataIndex: "code", key: "code" },
-    { title: "项目名称", dataIndex: "name", key: "name" },
-    { title: "状态", key: "isActive" },
-    { title: "排序", dataIndex: "sortOrder", key: "sortOrder" },
-    { title: "描述", dataIndex: "description", key: "description" },
-    { title: "操作", key: "actions", view: { canHide: false } }
-  ],
+  columns: projectColumns,
   permissions: {
     create: "projects:create",
     update: "projects:update",
@@ -217,8 +227,8 @@ const crud = useCrudPage<ProjectListItem, ProjectDetail, ProjectCreateRequest, P
     sortOrder: 0
   }),
   formRules: {
-    code: [{ required: true, message: "请输入项目编码" }],
-    name: [{ required: true, message: "请输入项目名称" }]
+    code: [{ required: true, message: t("projectPage.codeRequired") }],
+    name: [{ required: true, message: t("projectPage.nameRequired") }]
   },
   buildCreatePayload: (model) => ({
     code: model.code,
@@ -243,12 +253,29 @@ const crud = useCrudPage<ProjectListItem, ProjectDetail, ProjectCreateRequest, P
 });
 
 const {
-  dataSource, loading, keyword, pagination,
-  formVisible, formMode, submitting, formModel, formRules,
-  tableViewController, tableColumns, tableSize,
-  canCreate, canUpdate, canDelete,
-  onTableChange, handleSearch, resetFilters,
-  openCreate, openEdit, closeForm, submitForm, handleDelete
+  dataSource,
+  loading,
+  keyword,
+  pagination,
+  formVisible,
+  formMode,
+  submitting,
+  formModel,
+  formRules,
+  tableViewController,
+  tableColumns,
+  tableSize,
+  canCreate,
+  canUpdate,
+  canDelete,
+  onTableChange,
+  handleSearch,
+  resetFilters,
+  openCreate,
+  openEdit,
+  closeForm,
+  submitForm,
+  handleDelete
 } = crud;
 
 const canAssignUsers = crud.hasPermissionFor("assignUsers");
@@ -256,7 +283,6 @@ const canAssignDepartments = crud.hasPermissionFor("assignDepartments");
 const canAssignPositions = crud.hasPermissionFor("assignPositions");
 const canAssign = canAssignUsers || canAssignDepartments || canAssignPositions;
 
-// --- Assignment Drawer ---
 const assignVisible = ref(false);
 const assignModel = reactive<{ userIds: number[]; departmentIds: number[]; positionIds: number[] }>({
   userIds: [],
@@ -286,7 +312,7 @@ const loadUsers = async (append: boolean) => {
       keyword: userKeyword.value || undefined
     });
     const options = result.items.map((item: UserListItem) => ({
-      label: `${item.displayName}（${item.username}）`,
+      label: `${item.displayName} (${item.username})`,
       value: Number(item.id)
     }));
     userTotal.value = result.total;
@@ -302,7 +328,9 @@ const searchUsers = async () => {
 };
 
 const loadMoreUsers = async () => {
-  if (!hasMoreUsers.value) return;
+  if (!hasMoreUsers.value) {
+    return;
+  }
   userPageIndex.value += 1;
   await loadUsers(true);
 };
@@ -312,39 +340,39 @@ const handleUserSearch = async (value: string) => {
   await searchUsers();
 };
 
-const loadDepartmentOptions = async (keyword?: string) => {
+const loadDepartmentOptions = async (keywordValue?: string) => {
   departmentLoading.value = true;
   try {
     const result = await getDepartmentsPaged({
       pageIndex: 1,
       pageSize: 20,
-      keyword: keyword?.trim() || undefined
+      keyword: keywordValue?.trim() || undefined
     });
     departmentOptions.value = result.items.map((item: DepartmentListItem) => ({
       label: item.name,
       value: Number(item.id)
     }));
   } catch (error) {
-    message.error((error as Error).message || "加载部门失败");
+    message.error((error as Error).message || t("projectPage.loadDepartmentsFailed"));
   } finally {
     departmentLoading.value = false;
   }
 };
 
-const loadPositionOptions = async (keyword?: string) => {
+const loadPositionOptions = async (keywordValue?: string) => {
   positionLoading.value = true;
   try {
     const result = await getPositionsPaged({
       pageIndex: 1,
       pageSize: 20,
-      keyword: keyword?.trim() || undefined
+      keyword: keywordValue?.trim() || undefined
     });
     positionOptions.value = result.items.map((item: PositionListItem) => ({
-      label: `${item.name}（${item.code}）`,
+      label: `${item.name} (${item.code})`,
       value: Number(item.id)
     }));
   } catch (error) {
-    message.error((error as Error).message || "加载岗位失败");
+    message.error((error as Error).message || t("projectPage.loadPositionsFailed"));
   } finally {
     positionLoading.value = false;
   }
@@ -370,7 +398,7 @@ const openAssign = async (record: ProjectListItem) => {
     assignModel.departmentIds = detail.departmentIds ?? [];
     assignModel.positionIds = detail.positionIds ?? [];
   } catch (error) {
-    message.error((error as Error).message || "加载分配信息失败");
+    message.error((error as Error).message || t("projectPage.loadAssignmentsFailed"));
   }
 };
 
@@ -380,7 +408,10 @@ const closeAssign = () => {
 
 const submitAssign = async () => {
   const id = crud.selectedId.value;
-  if (!id) return;
+  if (!id) {
+    return;
+  }
+
   try {
     if (canAssignUsers) {
       await updateProjectUsers(id, { userIds: assignModel.userIds });
@@ -391,10 +422,10 @@ const submitAssign = async () => {
     if (canAssignPositions) {
       await updateProjectPositions(id, { positionIds: assignModel.positionIds });
     }
-    message.success("分配成功");
+    message.success(t("projectPage.assignSuccess"));
     assignVisible.value = false;
   } catch (error) {
-    message.error((error as Error).message || "分配失败");
+    message.error((error as Error).message || t("projectPage.assignFailed"));
   }
 };
 </script>

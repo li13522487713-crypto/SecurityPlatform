@@ -1,69 +1,65 @@
-# Plan: 国际化（i18n）
+# 国际化实施现状与落地方案
 
-## 1. 功能说明
+## 当前状态
 
-国际化允许系统界面根据用户语言偏好显示对应语言的文本。本期实现中文（zh-CN）和英文（en-US）两种语言。
+### 前端
 
-### 1.1 国际化范围
+- 已统一使用 `src/frontend/Atlas.WebApp/src/i18n/index.ts` 作为 i18n 入口。
+- 已支持 `zh-CN`、`en-US` 两种语言，并持久化到浏览器 `localStorage`。
+- 已在主框架和登录页提供语言切换按钮。
+- 已在请求层统一附带 `Accept-Language`，后端可按当前语言返回消息。
+- 已接通 Ant Design Vue 与 amis 的语言环境切换。
+- 已完成以下高优先级界面国际化：
+  - 主框架头部与运行态头部
+  - 面包屑、标签页、菜单标题
+  - 登录页的品牌区、证书区、表单、提示和错误文案
 
-| 层次 | 内容 |
-|---|---|
-| 前端 UI | 菜单、按钮、标签、错误提示、表单校验信息 |
-| 后端错误消息 | 业务异常、验证错误 |
-| 后端响应内容 | API 错误码描述（可选，本期仅前端） |
+### 后端
 
-### 1.2 本期实现范围
+- 已启用 `RequestLocalizationMiddleware`，支持 `zh-CN`、`en-US`。
+- 已补齐 `Messages.zh-CN.resx`、`Messages.en-US.resx` 的核心资源项。
+- 已对以下高优先级返回做本地化：
+  - 全局异常中间件中的通用错误
+  - 认证/鉴权中间件中的 401、403
+  - 限流返回 429
 
-- 后端：`RequestLocalizationMiddleware` + 资源文件（`zh-CN.resx` / `en-US.resx`）
-- 前端：`vue-i18n` + `locales/zh.ts` + `locales/en.ts` + 顶栏语言切换按钮
+## 契约与回退策略
 
-## 2. 等保 2.0 要求
+- 前端路由与菜单元数据支持 `titleKey?: string`。
+- 渲染规则为：
+  1. 优先使用 `titleKey` 做翻译。
+  2. 若无 `titleKey`，回退到原始 `title`。
+  3. 动态业务数据和用户自定义菜单不做自动翻译。
+- 请求头统一使用 `Accept-Language: zh-CN | en-US`。
+- 语言选择只保存在浏览器本地，不增加后端“语言偏好”接口，也不落库。
 
-国际化本身不影响等保合规，但用户操作界面的可读性提升有助于减少误操作风险。
+## 本期范围
 
-## 3. 接口设计
+### 已完成
 
-后端通过 `Accept-Language` 请求头判断语言，前端切换语言时同步更新请求头。
+- 登录页与主框架语言切换按钮
+- 请求头 `Accept-Language`
+- `document.title` 按当前语言更新
+- 菜单、面包屑、标签页标题的 `titleKey` 优先策略
+- amis `alert`、`confirm`、错误提示国际化
+- 401、403、429、500 等关键错误路径国际化
 
-```
-Headers: Accept-Language: zh-CN  或  en-US
-```
+### 暂不处理
 
-## 4. 后端实现步骤
+- 用户自定义业务数据翻译
+- 租户自定义菜单名称翻译
+- 浏览器以外的跨端语言同步
 
-1. 在 `Atlas.Application` 中添加 `Resources/` 目录
-2. 创建 `Messages.zh-CN.resx`（中文消息）
-3. 创建 `Messages.en-US.resx`（英文消息）
-4. 在 `Program.cs` 注册 `RequestLocalizationMiddleware`，支持 `zh-CN` 和 `en-US`
-5. 在业务异常中使用 `IStringLocalizer<Messages>` 获取本地化消息
+## 验收标准
 
-## 5. 前端实现步骤
+- 登录页和主框架都能切换中文/英文。
+- 切换语言后，菜单、标题、登录页文案和常用提示即时更新。
+- 刷新浏览器后保留上次语言选择。
+- 前端请求头会携带当前 `Accept-Language`。
+- 后端 401、403、429、500 等典型错误返回对应语言消息。
+- 动态菜单无 `titleKey` 时继续显示原始标题，不泄漏 key。
 
-1. 安装 `vue-i18n` npm 包
-2. 创建 `src/locales/zh.ts`（中文语言包）
-3. 创建 `src/locales/en.ts`（英文语言包）
-4. 在 `main.ts` 中初始化 `vue-i18n` 插件
-5. 在 `MainLayout.vue` 顶栏添加语言切换按钮（中文/English）
-6. 切换语言时更新 `axios` 请求头的 `Accept-Language`
+## 验证结果
 
-## 6. 语言包结构示例
-
-```typescript
-// locales/zh.ts
-export default {
-  common: {
-    save: "保存", cancel: "取消", delete: "删除", edit: "编辑",
-    confirm: "确认", loading: "加载中...", search: "搜索"
-  },
-  auth: { login: "登录", logout: "退出", username: "用户名", password: "密码" },
-  menu: { system: "系统管理", roles: "角色管理", users: "用户管理" }
-}
-```
-
-## 7. 验收标准
-
-- [ ] 后端注册 `RequestLocalizationMiddleware`，支持 `zh-CN` 和 `en-US`
-- [ ] 前端安装 `vue-i18n` 并创建中英文语言包
-- [ ] 顶栏有语言切换按钮，切换后界面文本变化
-- [ ] 切换语言后请求头 `Accept-Language` 同步更新
-- [ ] 默认语言为中文
+- 前端 `npm run build` 已通过。
+- 后端 `dotnet build` 当前受运行中的 `Atlas.WebApi` 进程锁定影响，失败原因为输出文件无法复制，不是这次国际化改动暴露出的编译错误。

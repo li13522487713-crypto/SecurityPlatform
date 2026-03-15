@@ -1,16 +1,19 @@
 <template>
-  <a-breadcrumb class="app-breadcrumb">
-    <a-breadcrumb-item v-for="item in items" :key="item.path || item.title">
-      <span v-if="item.redirect === 'noRedirect' || item.noLink" class="no-redirect">{{ item.title }}</span>
-      <router-link v-else-if="item.path" :to="item.path">{{ item.title }}</router-link>
-      <span v-else>{{ item.title }}</span>
-    </a-breadcrumb-item>
-  </a-breadcrumb>
+  <div class="app-breadcrumb" data-testid="e2e-breadcrumb">
+    <a-breadcrumb>
+      <a-breadcrumb-item v-for="item in items" :key="item.path || item.title">
+        <span v-if="item.redirect === 'noRedirect' || item.noLink" class="no-redirect">{{ item.title }}</span>
+        <router-link v-else-if="item.path" :to="item.path">{{ item.title }}</router-link>
+        <span v-else>{{ item.title }}</span>
+      </a-breadcrumb-item>
+    </a-breadcrumb>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from "vue";
 import { useRoute } from "vue-router";
+import { resolveBreadcrumbTitle } from "@/utils/i18n-navigation";
 
 const route = useRoute();
 
@@ -18,22 +21,22 @@ const items = computed(() => {
   let matched = route.matched.filter(
     (item) => item.meta && item.meta.title && item.meta.breadcrumb !== false
   );
-  
+
   const first = matched[0];
   if (!isDashboard(first)) {
-    matched = [{ path: "/", meta: { title: "首页" } } as any].concat(matched);
+    matched = ([{ path: "/", meta: { title: "首页", titleKey: "route.home" } }] as unknown as typeof matched).concat(matched);
   }
 
   return matched.map((record, index) => ({
-    title: String(record.meta?.title),
+    title: resolveBreadcrumbTitle(record),
     path: record.path,
     redirect: record.redirect,
     noLink: index === matched.length - 1
   }));
 });
 
-function isDashboard(routeRecord: any) {
-  const name = routeRecord && routeRecord.name;
+function isDashboard(routeRecord: unknown) {
+  const name = (routeRecord as { name?: string | symbol } | undefined)?.name;
   if (!name) {
     return false;
   }

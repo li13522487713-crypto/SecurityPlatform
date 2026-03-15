@@ -42,9 +42,10 @@ const logo = ref('');
   width: 100%;
   height: 50px;
   line-height: 50px;
-  background: #2b2f3a;
+  background: transparent;
   text-align: center;
   overflow: hidden;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .sidebar-logo-container .sidebar-logo-link {
@@ -63,10 +64,10 @@ const logo = ref('');
 .sidebar-logo-container .sidebar-title {
   display: inline-block;
   margin: 0;
-  color: #fff;
+  color: var(--color-text-primary);
   font-weight: 600;
   line-height: 50px;
-  font-size: 14px;
+  font-size: 16px;
   font-family: Avenir, Helvetica Neue, Arial, Helvetica, sans-serif;
   vertical-align: middle;
 }

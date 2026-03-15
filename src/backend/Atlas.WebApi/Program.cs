@@ -2,7 +2,11 @@ using AutoMapper;
 using FluentValidation;
 using FluentValidation.AspNetCore;
 using Atlas.Application;
+using Atlas.Application.Alert.Mappings;
+using Atlas.Application.Approval.Mappings;
+using Atlas.Application.Assets.Mappings;
 using Atlas.Application.Options;
+using Atlas.Application.Resources;
 using Atlas.Infrastructure;
 using Atlas.WebApi.Middlewares;
 using Hangfire;
@@ -26,6 +30,7 @@ using System.Text;
 using System.Threading.RateLimiting;
 using Atlas.WebApi.Authorization;
 using Atlas.WebApi.Filters;
+using Atlas.WebApi.Mappings;
 using Atlas.WebApi.Security;
 using Atlas.Application.Abstractions;
 using Atlas.Core.Tenancy;
@@ -34,8 +39,16 @@ using Atlas.Core.Models;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
+using Microsoft.Extensions.Localization;
 
 var builder = WebApplication.CreateBuilder(args);
+
+var validateAutoMapperOnStartup = builder.Configuration.GetValue("AutoMapper:ValidateOnStartup", false);
+var runHangfireServer = builder.Configuration.GetValue("Hangfire:RunServer", !builder.Environment.IsDevelopment());
+var hangfireWorkerCount = builder.Configuration.GetValue("Hangfire:WorkerCount", builder.Environment.IsDevelopment() ? 1 : 3);
+var hangfireQueuePollIntervalSeconds = builder.Configuration.GetValue("Hangfire:QueuePollIntervalSeconds", builder.Environment.IsDevelopment() ? 30 : 15);
+var hangfireSchedulePollingIntervalSeconds = builder.Configuration.GetValue("Hangfire:SchedulePollingIntervalSeconds", builder.Environment.IsDevelopment() ? 60 : 15);
+var hangfireJobExpirationCheckIntervalMinutes = builder.Configuration.GetValue("Hangfire:JobExpirationCheckIntervalMinutes", builder.Environment.IsDevelopment() ? 360 : 60);
 
 if (builder.Environment.IsDevelopment())
 {
@@ -89,6 +102,7 @@ builder.Services.Configure<TenancyOptions>(builder.Configuration.GetSection("Ten
 builder.Services.Configure<IdempotencyOptions>(builder.Configuration.GetSection("Idempotency"));
 builder.Services.Configure<TableViewDefaultOptions>(builder.Configuration.GetSection("TableViewDefaults"));
 builder.Services.Configure<Atlas.WebApi.Identity.AppOptions>(builder.Configuration.GetSection("App"));
+builder.Services.Configure<Atlas.Application.Options.DatabaseInitializerOptions>(builder.Configuration.GetSection("DatabaseInitializer"));
 
 // OIDC 支持（可选，通过 Oidc:Enabled 控制）
 builder.Services.Configure<Atlas.Infrastructure.Security.OidcOptions>(builder.Configuration.GetSection("Oidc"));
@@ -156,8 +170,10 @@ builder.Services.AddOpenTelemetry()
                 options.Endpoint = new Uri(otlpEndpoint);
             });
         }
-        else if (builder.Environment.IsDevelopment())
+        else if (builder.Environment.IsDevelopment()
+            && builder.Configuration.GetValue<bool>("OpenTelemetry:EnableConsoleExporter"))
         {
+            // 仅在显式开启时才输出到控制台（默认关闭，避免大量 I/O 拖慢响应）
             tracing.AddConsoleExporter();
         }
     })
@@ -175,8 +191,10 @@ builder.Services.AddOpenTelemetry()
                 options.Endpoint = new Uri(otlpEndpoint);
             });
         }
-        else if (builder.Environment.IsDevelopment())
+        else if (builder.Environment.IsDevelopment()
+            && builder.Configuration.GetValue<bool>("OpenTelemetry:EnableConsoleExporter"))
         {
+            // 仅在显式开启时才输出到控制台（默认关闭，避免大量 I/O 拖慢响应）
             metrics.AddConsoleExporter();
         }
     });
@@ -297,7 +315,39 @@ builder.Services.AddAuthentication()
                     return;
                 }
 
+                var sessionIdRaw = principal.FindFirstValue("sid");
+                if (!long.TryParse(sessionIdRaw, out var sessionId))
+                {
+                    context.Fail("令牌缺少有效会话标识。");
+                    return;
+                }
+
                 var tenantId = new TenantId(tenantGuid);
+
+                // 优先读缓存，减少 DB 查询（TTL 60 秒）
+                var authCache = context.HttpContext.RequestServices
+                    .GetRequiredService<Atlas.Application.Identity.Abstractions.IAuthCacheService>();
+                var cached = authCache.Get(tenantId, userId, sessionId);
+
+                if (cached is not null)
+                {
+                    // 缓存命中：直接使用缓存结果验证
+                    if (!cached.IsUserActive)
+                    {
+                        context.Fail("用户已禁用或不存在。");
+                        return;
+                    }
+
+                    if (cached.IsSessionRevoked || cached.SessionExpiresAt <= DateTimeOffset.UtcNow)
+                    {
+                        context.Fail("会话已失效。");
+                        return;
+                    }
+
+                    return; // 缓存验证通过
+                }
+
+                // 缓存未命中：查数据库
                 var userRepository = context.HttpContext.RequestServices.GetRequiredService<IUserAccountRepository>();
                 var account = await userRepository.FindByIdAsync(tenantId, userId, context.HttpContext.RequestAborted);
                 if (account is null || !account.IsActive)
@@ -306,20 +356,23 @@ builder.Services.AddAuthentication()
                     return;
                 }
 
-                var sessionIdRaw = principal.FindFirstValue("sid");
-                if (!long.TryParse(sessionIdRaw, out var sessionId))
-                {
-                    context.Fail("令牌缺少有效会话标识。");
-                    return;
-                }
-
                 var sessionRepository = context.HttpContext.RequestServices.GetRequiredService<IAuthSessionRepository>();
                 var session = await sessionRepository.FindByIdAsync(tenantId, sessionId, context.HttpContext.RequestAborted);
                 if (session is null || session.UserId != userId || session.RevokedAt.HasValue || session.ExpiresAt <= DateTimeOffset.UtcNow)
                 {
                     context.Fail("会话已失效。");
+                    return;
                 }
+
+                // 写入缓存，下次请求直接命中
+                authCache.Set(tenantId, userId, sessionId, new Atlas.Application.Identity.Abstractions.AuthValidationCacheEntry(
+                    IsUserActive: account.IsActive,
+                    UserId: userId,
+                    SessionId: sessionId,
+                    SessionExpiresAt: session.ExpiresAt,
+                    IsSessionRevoked: session.RevokedAt.HasValue));
             }
+
         };
     })
     .AddCertificate(options =>
@@ -349,7 +402,12 @@ builder.Services.AddRateLimiter(options =>
     options.OnRejected = async (context, ct) =>
     {
         context.HttpContext.Response.ContentType = "application/json";
-        var payload = ApiResponse<object>.Fail("RATE_LIMITED", "请求过于频繁，请稍后再试", context.HttpContext.TraceIdentifier);
+        var localizer = context.HttpContext.RequestServices.GetService<IStringLocalizer<Messages>>();
+        var localized = localizer?["RateLimited"];
+        var message = localized is null || localized.ResourceNotFound
+            ? "Too many requests. Please try again later."
+            : localized.Value;
+        var payload = ApiResponse<object>.Fail("RATE_LIMITED", message, context.HttpContext.TraceIdentifier);
         await context.HttpContext.Response.WriteAsJsonAsync(payload, ct);
     };
 
@@ -368,10 +426,15 @@ builder.Services.AddRateLimiter(options =>
 });
 
 builder.Services.AddMemoryCache();
-builder.Services.AddAtlasApplication();
+builder.Services.AddAtlasApplication(
+    typeof(AlertMappingProfile).Assembly,
+    typeof(ApprovalMappingProfile).Assembly,
+    typeof(AssetsMappingProfile).Assembly,
+    typeof(WebApiMappingProfile).Assembly);
 builder.Services.AddAtlasInfrastructure(builder.Configuration);
 
 // 国际化（i18n）：支持中文和英文
+builder.Services.AddScoped<Atlas.Application.System.Abstractions.ITenantService, Atlas.Infrastructure.Services.TenantService>();
 builder.Services.AddLocalization(opts => opts.ResourcesPath = "");
 builder.Services.Configure<Microsoft.AspNetCore.Builder.RequestLocalizationOptions>(opts =>
 {
@@ -383,9 +446,27 @@ builder.Services.Configure<Microsoft.AspNetCore.Builder.RequestLocalizationOptio
 });
 
 // Hangfire 定时任务（使用 SQLite 存储）
+// SQLite 同一时刻只允许一个写操作，过多 Worker 只会互相争锁；
+// WAL 模式允许读写并发，减少锁等待；Worker 数设为 3 匹配实际并发能力。
 builder.Services.AddHangfire(config =>
-    config.UseSQLiteStorage("hangfire.db"));
-builder.Services.AddHangfireServer();
+    config.UseSQLiteStorage("hangfire.db", new Hangfire.Storage.SQLite.SQLiteStorageOptions
+    {
+        // WAL 模式：读写可并发，减少锁等待
+        JournalMode = Hangfire.Storage.SQLite.SQLiteStorageOptions.JournalModes.WAL,
+        QueuePollInterval = TimeSpan.FromSeconds(hangfireQueuePollIntervalSeconds),
+        JobExpirationCheckInterval = TimeSpan.FromMinutes(hangfireJobExpirationCheckIntervalMinutes)
+    }));
+if (runHangfireServer)
+{
+    builder.Services.AddHangfireServer(options =>
+    {
+        // SQLite 单写限制：3 个 Worker 是比较合理的上限，过多反而因争锁而变慢
+        options.WorkerCount = hangfireWorkerCount;
+        options.SchedulePollingInterval = TimeSpan.FromSeconds(hangfireSchedulePollingIntervalSeconds);
+    });
+}
+
+
 
 // 添加 WorkflowCore 工作流引擎
 builder.Services.AddWorkflowCore();
@@ -397,8 +478,10 @@ builder.Services.AddHostedService<Atlas.Infrastructure.Services.WorkflowHostedSe
 
 var app = builder.Build();
 
-using (var scope = app.Services.CreateScope())
+if (app.Environment.IsDevelopment() && validateAutoMapperOnStartup)
 {
+    // AutoMapper 配置验证仅在开发环境执行，生产环境依赖 CI 管线保证
+    using var scope = app.Services.CreateScope();
     var mapper = scope.ServiceProvider.GetRequiredService<IMapper>();
     try
     {
@@ -455,5 +538,46 @@ app.UseMiddleware<LicenseEnforcementMiddleware>();
 app.UseAuthorization();
 
 app.MapControllers();
+
+app.Lifetime.ApplicationStarted.Register(() =>
+{
+    var addresses = app.Urls
+        .OrderBy(static address => address, StringComparer.OrdinalIgnoreCase)
+        .ToArray();
+
+    var logo = string.Join(Environment.NewLine, [
+        "  ___   _   _               _",
+        " / _ | / | / /___ ______ __(_)",
+        "/ __ |/  |/ / -_) __/ // / /",
+        "/_/ |_/_/|_/\\__/_/  \\_,_/_/"
+    ]);
+
+    Console.WriteLine();
+    Console.WriteLine(logo);
+    Console.WriteLine("Atlas Security Platform 启动成功");
+    Console.WriteLine($"环境: {app.Environment.EnvironmentName}");
+
+    if (addresses.Length == 0)
+    {
+        Console.WriteLine("启动地址: 未获取到监听地址");
+    }
+    else
+    {
+        foreach (var address in addresses)
+        {
+            Console.WriteLine($"启动地址: {address}");
+        }
+
+        if (app.Environment.IsDevelopment())
+        {
+            foreach (var address in addresses)
+            {
+                Console.WriteLine($"Swagger: {address.TrimEnd('/')}/swagger");
+            }
+        }
+    }
+
+    Console.WriteLine();
+});
 
 app.Run();

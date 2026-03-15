@@ -84,50 +84,89 @@ public sealed class AiWorkspaceService : IAiWorkspaceService
         CancellationToken cancellationToken)
     {
         var keyword = request.Keyword?.Trim();
+        var hasKeyword = !string.IsNullOrWhiteSpace(keyword);
         var resourceType = request.ResourceType?.Trim().ToLowerInvariant();
         var pageIndex = Math.Max(1, request.PageIndex);
         var pageSize = Math.Clamp(request.PageSize, 1, 100);
         var perTypeLimit = 50;
 
-        var agents = await _db.Queryable<Agent>()
-            .Where(x => x.TenantIdValue == tenantId.Value
-                && (string.IsNullOrWhiteSpace(keyword) || x.Name.Contains(keyword) || x.Description!.Contains(keyword)))
+        var agentsQuery = _db.Queryable<Agent>()
+            .Where(x => x.TenantIdValue == tenantId.Value);
+        if (hasKeyword)
+        {
+            var safeKeyword = keyword!;
+            agentsQuery = agentsQuery.Where(x => x.Name.Contains(safeKeyword) || (x.Description != null && x.Description.Contains(safeKeyword)));
+        }
+
+        var agentEntities = await agentsQuery
             .OrderBy(x => x.UpdatedAt, OrderByType.Desc)
             .Take(perTypeLimit)
-            .Select(x => new AiLibraryItem("agent", x.Id, x.Name, x.Description, x.UpdatedAt ?? x.CreatedAt, $"/ai/agents/{x.Id}/edit"))
             .ToListAsync(cancellationToken);
+        var agents = agentEntities
+            .Select(x => new AiLibraryItem("agent", x.Id, x.Name, x.Description, x.UpdatedAt ?? x.CreatedAt, $"/ai/agents/{x.Id}/edit"));
 
-        var knowledgeBases = await _db.Queryable<KnowledgeBase>()
-            .Where(x => x.TenantIdValue == tenantId.Value
-                && (string.IsNullOrWhiteSpace(keyword) || x.Name.Contains(keyword) || x.Description!.Contains(keyword)))
+        var knowledgeBasesQuery = _db.Queryable<KnowledgeBase>()
+            .Where(x => x.TenantIdValue == tenantId.Value);
+        if (hasKeyword)
+        {
+            var safeKeyword = keyword!;
+            knowledgeBasesQuery = knowledgeBasesQuery.Where(x => x.Name.Contains(safeKeyword) || (x.Description != null && x.Description.Contains(safeKeyword)));
+        }
+
+        var knowledgeBaseEntities = await knowledgeBasesQuery
             .OrderBy(x => x.CreatedAt, OrderByType.Desc)
             .Take(perTypeLimit)
-            .Select(x => new AiLibraryItem("knowledge-base", x.Id, x.Name, x.Description, x.CreatedAt, $"/ai/knowledge-bases/{x.Id}"))
             .ToListAsync(cancellationToken);
+        var knowledgeBases = knowledgeBaseEntities
+            .Select(x => new AiLibraryItem("knowledge-base", x.Id, x.Name, x.Description, x.CreatedAt, $"/ai/knowledge-bases/{x.Id}"));
 
-        var workflows = await _db.Queryable<AiWorkflowDefinition>()
-            .Where(x => x.TenantIdValue == tenantId.Value
-                && (string.IsNullOrWhiteSpace(keyword) || x.Name.Contains(keyword) || x.Description!.Contains(keyword)))
+        var workflowsQuery = _db.Queryable<AiWorkflowDefinition>()
+            .Where(x => x.TenantIdValue == tenantId.Value);
+        if (hasKeyword)
+        {
+            var safeKeyword = keyword!;
+            workflowsQuery = workflowsQuery.Where(x => x.Name.Contains(safeKeyword) || (x.Description != null && x.Description.Contains(safeKeyword)));
+        }
+
+        var workflowEntities = await workflowsQuery
             .OrderBy(x => x.UpdatedAt, OrderByType.Desc)
             .Take(perTypeLimit)
-            .Select(x => new AiLibraryItem("workflow", x.Id, x.Name, x.Description, x.UpdatedAt ?? x.CreatedAt, $"/ai/workflows/{x.Id}/edit"))
             .ToListAsync(cancellationToken);
+        var workflows = workflowEntities
+            .Select(x => new AiLibraryItem("workflow", x.Id, x.Name, x.Description, x.UpdatedAt ?? x.CreatedAt, $"/ai/workflows/{x.Id}/edit"));
 
-        var apps = await _db.Queryable<AiApp>()
-            .Where(x => x.TenantIdValue == tenantId.Value
-                && (string.IsNullOrWhiteSpace(keyword) || x.Name.Contains(keyword) || x.Description!.Contains(keyword)))
+        var appsQuery = _db.Queryable<AiApp>()
+            .Where(x => x.TenantIdValue == tenantId.Value);
+        if (hasKeyword)
+        {
+            var safeKeyword = keyword!;
+            appsQuery = appsQuery.Where(x => x.Name.Contains(safeKeyword) || (x.Description != null && x.Description.Contains(safeKeyword)));
+        }
+
+        var appEntities = await appsQuery
             .OrderBy(x => x.UpdatedAt, OrderByType.Desc)
             .Take(perTypeLimit)
-            .Select(x => new AiLibraryItem("app", x.Id, x.Name, x.Description, x.UpdatedAt ?? x.CreatedAt, $"/ai/apps/{x.Id}/edit"))
             .ToListAsync(cancellationToken);
+        var apps = appEntities
+            .Select(x => new AiLibraryItem("app", x.Id, x.Name, x.Description, x.UpdatedAt ?? x.CreatedAt, $"/ai/apps/{x.Id}/edit"));
 
-        var prompts = await _db.Queryable<AiPromptTemplate>()
-            .Where(x => x.TenantIdValue == tenantId.Value
-                && (string.IsNullOrWhiteSpace(keyword) || x.Name.Contains(keyword) || x.Description!.Contains(keyword) || x.Content.Contains(keyword)))
+        var promptsQuery = _db.Queryable<AiPromptTemplate>()
+            .Where(x => x.TenantIdValue == tenantId.Value);
+        if (hasKeyword)
+        {
+            var safeKeyword = keyword!;
+            promptsQuery = promptsQuery.Where(x =>
+                x.Name.Contains(safeKeyword)
+                || (x.Description != null && x.Description.Contains(safeKeyword))
+                || x.Content.Contains(safeKeyword));
+        }
+
+        var promptEntities = await promptsQuery
             .OrderBy(x => x.UpdatedAt, OrderByType.Desc)
             .Take(perTypeLimit)
-            .Select(x => new AiLibraryItem("prompt", x.Id, x.Name, x.Description, x.UpdatedAt ?? x.CreatedAt, "/ai/prompts"))
             .ToListAsync(cancellationToken);
+        var prompts = promptEntities
+            .Select(x => new AiLibraryItem("prompt", x.Id, x.Name, x.Description, x.UpdatedAt ?? x.CreatedAt, "/ai/prompts"));
 
         var allItems = agents
             .Concat(knowledgeBases)

@@ -27,7 +27,7 @@ public sealed class ClosedXmlExcelExportService : IExcelExportService
     {
         // 最多导出 5000 条
         var result = await _userQueryService.QueryUsersAsync(
-            new PagedRequest(1, 5000, keyword, null, false), tenantId, ct);
+            new UserQueryRequest(1, 5000, keyword, null, false, null), tenantId, ct);
 
         using var workbook = new XLWorkbook();
         var ws = workbook.Worksheets.Add("用户列表");

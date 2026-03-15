@@ -1,16 +1,20 @@
 <template>
   <a-dropdown trigger="click" placement="bottomRight" :arrow="false" overlay-class-name="notification-dropdown">
-    <a-badge :count="unreadCount > 99 ? '99+' : unreadCount" :offset="[-4, 4]">
-      <a-button type="text" class="bell-btn" @click="refresh">
-        <BellOutlined :style="{ fontSize: '18px' }" />
-      </a-button>
-    </a-badge>
+    <span data-testid="e2e-notification-bell">
+      <a-badge :count="unreadCount > 99 ? '99+' : unreadCount" :offset="[-4, 4]">
+        <a-button type="text" class="bell-btn" @click="refresh">
+          <BellOutlined :style="{ fontSize: '18px' }" />
+        </a-button>
+      </a-badge>
+    </span>
 
     <template #overlay>
-      <div class="notif-panel">
+      <div class="notif-panel" data-testid="e2e-notification-panel">
         <div class="notif-header">
           <span class="notif-title">通知</span>
-          <a-button v-if="unreadCount > 0" type="link" size="small" @click="markAll">全部已读</a-button>
+          <span data-testid="e2e-notification-mark-all">
+            <a-button v-if="unreadCount > 0" type="link" size="small" @click="markAll">全部已读</a-button>
+          </span>
         </div>
 
         <a-spin :spinning="loading">
@@ -20,6 +24,7 @@
               :key="item.notificationId"
               class="notif-item"
               :class="{ unread: !item.isRead }"
+              :data-testid="`e2e-notification-item-${item.notificationId}`"
               @click="handleItemClick(item)"
             >
               <a-badge :dot="!item.isRead" :offset="[-2, 4]">
@@ -36,7 +41,7 @@
           <a-empty v-else description="暂无通知" :image="Empty.PRESENTED_IMAGE_SIMPLE" />
         </a-spin>
 
-        <div class="notif-footer">
+        <div class="notif-footer" data-testid="e2e-notification-footer">
           <router-link to="/system/notifications">查看全部通知</router-link>
         </div>
       </div>

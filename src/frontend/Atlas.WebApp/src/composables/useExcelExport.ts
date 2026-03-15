@@ -1,19 +1,14 @@
 import { ref } from "vue";
 import { message } from "ant-design-vue";
+import { translate } from "@/i18n";
 import { requestApi, requestApiBlob } from "@/services/api-core";
 import type { ApiResponse } from "@/types/api";
 
-/**
- * Excel 导出/导入 Composable
- * 封装文件下载（Blob）和上传逻辑，统一处理认证头
- */
 export function useExcelExport() {
+  const t = translate;
   const exporting = ref(false);
   const importing = ref(false);
 
-  /**
-   * 触发文件下载（通过 Blob URL）
-   */
   async function downloadBlob(url: string, filename: string) {
     const blob = await requestApiBlob(url);
     const objectUrl = URL.createObjectURL(blob);
@@ -24,9 +19,6 @@ export function useExcelExport() {
     URL.revokeObjectURL(objectUrl);
   }
 
-  /**
-   * 导出用户列表
-   */
   async function exportUsers(keyword?: string) {
     exporting.value = true;
     try {
@@ -35,29 +27,22 @@ export function useExcelExport() {
         `/users/export${query}`,
         `users_${new Date().toISOString().slice(0, 10)}.xlsx`
       );
-      message.success("导出成功");
-    } catch (e: unknown) {
-      message.error(e instanceof Error ? e.message : "导出失败");
+      message.success(t("excel.exportUsersSuccess"));
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : t("excel.exportUsersFailed"));
     } finally {
       exporting.value = false;
     }
   }
 
-  /**
-   * 下载用户导入模板
-   */
   async function downloadImportTemplate() {
     try {
       await downloadBlob("/users/import-template", "user_import_template.xlsx");
-    } catch (e: unknown) {
-      message.error(e instanceof Error ? e.message : "下载模板失败");
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : t("excel.downloadTemplateFailed"));
     }
   }
 
-  /**
-   * 上传并导入用户 Excel
-   * @returns 导入结果 { totalRows, successCount, failureCount, errors }
-   */
   async function importUsers(file: File): Promise<ImportResult | null> {
     importing.value = true;
     try {
@@ -68,8 +53,8 @@ export function useExcelExport() {
         body: formData
       });
       return response.data ?? null;
-    } catch (e: unknown) {
-      message.error(e instanceof Error ? e.message : "导入失败");
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : t("excel.importUsersFailed"));
       return null;
     } finally {
       importing.value = false;

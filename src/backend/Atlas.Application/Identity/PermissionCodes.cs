@@ -30,6 +30,11 @@ public static class PermissionCodes
     public const string DepartmentsUpdate = "departments:update";
     public const string DepartmentsDelete = "departments:delete";
 
+    public const string TenantView = "system:tenant:query";
+    public const string TenantCreate = "system:tenant:create";
+    public const string TenantUpdate = "system:tenant:update";
+    public const string TenantDelete = "system:tenant:delete";
+
     public const string PositionsView = "positions:view";
     public const string PositionsCreate = "positions:create";
     public const string PositionsUpdate = "positions:update";

@@ -1,20 +1,28 @@
 <template>
-  <div v-if="enabled" class="project-switcher">
-    <a-space>
-      <span class="project-label">当前项目</span>
-      <a-select
-        v-model:value="selectedProjectId"
-        :options="options"
-        :loading="loading"
-        show-search
-        allow-clear
-        placeholder="选择项目"
-        :filter-option="false"
-        style="min-width: 200px"
-        @search="handleSearch"
-        @focus="handleFocus"
-        @change="handleChange"
-      />
+  <div v-if="enabled" class="project-switcher" data-testid="e2e-project-switcher">
+    <a-space :size="4">
+      <span class="project-icon">
+        <svg viewBox="0 0 1024 1024" width="16" height="16" fill="currentColor">
+          <path
+            d="M880 312H512l-51.2-56.888a72 72 0 0 0-53.52-23.112H144c-39.768 0-72 32.232-72 72v536c0 39.768 32.232 72 72 72h736c39.768 0 72-32.232 72-72V384c0-39.768-32.232-72-72-72zM144 304h263.28l51.2 56.888c14.248 15.824 34.624 23.112 53.52 23.112H880v456H144V304z"
+          />
+        </svg>
+      </span>
+      <span data-testid="e2e-project-switcher-select">
+        <a-select
+          v-model:value="selectedProjectId"
+          :options="options"
+          :loading="loading"
+          show-search
+          :bordered="false"
+          placeholder="Switch project"
+          :filter-option="false"
+          style="min-width: 160px; font-weight: 500"
+          @search="handleSearch"
+          @focus="handleFocus"
+          @change="handleChange"
+        />
+      </span>
     </a-space>
   </div>
 </template>
@@ -38,8 +46,9 @@ const loadProjects = async (keyword?: string) => {
     pageSize: 20,
     keyword: keyword?.trim() || undefined
   });
+
   options.value = result.items.map((item: ProjectListItem) => ({
-    label: `${item.name}（${item.code}）`,
+    label: `${item.name} (${item.code})`,
     value: item.id
   }));
 };
@@ -51,6 +60,7 @@ const loadProjectContext = async () => {
     const isEnabled = Boolean(appConfig?.enableProjectScope);
     setProjectScopeEnabled(isEnabled);
     enabled.value = isEnabled;
+
     if (!isEnabled) {
       clearProjectId();
       selectedProjectId.value = undefined;
@@ -69,15 +79,15 @@ const loadProjectContext = async () => {
       selectedProjectId.value = options.value[0].value;
       setProjectId(options.value[0].value);
       window.dispatchEvent(new CustomEvent("project-changed", { detail: { projectId: options.value[0].value } }));
-      message.success("已默认选择项目，可在此切换");
+      message.success("Default project selected");
     } else {
       clearProjectId();
       selectedProjectId.value = undefined;
       window.dispatchEvent(new CustomEvent("project-changed", { detail: { projectId: null } }));
-      message.warning("当前账号未分配项目");
+      message.warning("No project assigned");
     }
   } catch (error) {
-    message.error((error as Error).message || "加载项目失败");
+    message.error((error as Error).message || "Failed to load projects");
   } finally {
     loading.value = false;
   }
@@ -91,11 +101,12 @@ const handleSearch = (value: string) => {
   if (searchTimer) {
     window.clearTimeout(searchTimer);
   }
+
   searchTimer = window.setTimeout(() => {
     loading.value = true;
     void loadProjects(value)
       .catch((error) => {
-        message.error((error as Error).message || "加载项目失败");
+        message.error((error as Error).message || "Failed to load projects");
       })
       .finally(() => {
         loading.value = false;
@@ -111,7 +122,7 @@ const handleFocus = () => {
   loading.value = true;
   void loadProjects()
     .catch((error) => {
-      message.error((error as Error).message || "加载项目失败");
+      message.error((error as Error).message || "Failed to load projects");
     })
     .finally(() => {
       loading.value = false;
@@ -123,7 +134,7 @@ const handleChange = (value?: string) => {
 
   if (!value) {
     clearProjectId();
-    message.warning("项目为空，部分数据将无法加载");
+    message.warning("Project cleared");
     window.dispatchEvent(new CustomEvent("project-changed", { detail: { projectId: null } }));
     return;
   }
@@ -134,7 +145,7 @@ const handleChange = (value?: string) => {
 
   setProjectId(value);
   selectedProjectId.value = value;
-  message.success("项目已切换");
+  message.success("Project switched");
   window.dispatchEvent(new CustomEvent("project-changed", { detail: { projectId: value } }));
 };
 
@@ -157,10 +168,15 @@ onUnmounted(() => {
 .project-switcher {
   display: flex;
   align-items: center;
+  background: var(--color-bg-hover);
+  padding: 0 8px 0 12px;
+  border-radius: var(--border-radius-md);
+  margin-left: 8px;
 }
 
-.project-label {
-  color: var(--color-text-primary);
-  opacity: 0.9;
+.project-icon {
+  color: var(--color-primary);
+  display: flex;
+  align-items: center;
 }
 </style>

@@ -35,6 +35,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
     private readonly BootstrapAdminOptions _bootstrapOptions;
     private readonly PasswordPolicyOptions _passwordPolicy;
     private readonly DatabaseEncryptionOptions _encryptionOptions;
+    private readonly DatabaseInitializerOptions _initializerOptions;
     private readonly IHostEnvironment _environment;
     private readonly ILogger<DatabaseInitializerHostedService> _logger;
 
@@ -43,6 +44,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         IOptions<BootstrapAdminOptions> bootstrapOptions,
         IOptions<PasswordPolicyOptions> passwordPolicy,
         IOptions<DatabaseEncryptionOptions> encryptionOptions,
+        IOptions<DatabaseInitializerOptions> initializerOptions,
         IHostEnvironment environment,
         ILogger<DatabaseInitializerHostedService> logger)
     {
@@ -50,6 +52,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         _bootstrapOptions = bootstrapOptions.Value;
         _passwordPolicy = passwordPolicy.Value;
         _encryptionOptions = encryptionOptions.Value;
+        _initializerOptions = initializerOptions.Value;
         _environment = environment;
         _logger = logger;
     }
@@ -58,15 +61,46 @@ public sealed class DatabaseInitializerHostedService : IHostedService
     {
         if (_encryptionOptions.Enabled && string.IsNullOrWhiteSpace(_encryptionOptions.Key))
         {
-            throw new InvalidOperationException("已启用数据库加密但未配置密钥。");
+            if (_environment.IsProduction())
+            {
+                // 生产环境：数据库加密已启用但密钥未配置，必须阻止启动
+                throw new InvalidOperationException(
+                    "生产环境已启用数据库加密（Database:Encryption:Enabled=true）但未配置密钥（Database:Encryption:Key）。" +
+                    "请通过环境变量 Database__Encryption__Key 提供密钥，或将 Database:Encryption:Enabled 设为 false。");
+            }
+
+            // 非生产环境：输出警告并降级为不加密，不阻止启动
+            _logger.LogWarning(
+                "[DatabaseInitializer] Database:Encryption:Enabled=true 但 Key 未配置，" +
+                "非生产环境下自动降级为不加密运行。若为误配置，请检查环境变量 Database__Encryption__Enabled。");
         }
+
 
         using var scope = _scopeFactory.CreateScope();
         var appContextAccessor = scope.ServiceProvider.GetRequiredService<IAppContextAccessor>();
         var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
-        await EnsureAuthSessionSchemaAsync(db, cancellationToken);
-        await EnsureRefreshTokenSchemaAsync(db, cancellationToken);
-        db.CodeFirst.InitTables(
+
+        // Schema 迁移检查（兼容历史版本字段结构）
+        if (!_initializerOptions.SkipSchemaMigrations)
+        {
+            _logger.LogInformation("[DatabaseInitializer] 开始执行 Schema 迁移检查...");
+            await EnsureAuthSessionSchemaAsync(db, cancellationToken);
+            await EnsureRefreshTokenSchemaAsync(db, cancellationToken);
+            await EnsureApprovalSchemaAsync(db, cancellationToken);
+            await EnsureLowCodeAppSchemaAsync(db, cancellationToken);
+            await EnsureTenantDataSourceSchemaAsync(db, cancellationToken);
+            await EnsureProductizationSchemaAsync(db, cancellationToken);
+        }
+        else
+        {
+            _logger.LogInformation("[DatabaseInitializer] 已跳过 Schema 迁移检查（DatabaseInitializer:SkipSchemaMigrations=true）");
+        }
+
+        // Schema 初始化（CodeFirst.InitTables）
+        if (!_initializerOptions.SkipSchemaInit)
+        {
+            _logger.LogInformation("[DatabaseInitializer] 开始执行 Schema 初始化（CodeFirst.InitTables）...");
+            db.CodeFirst.InitTables(
         typeof(UserAccount),
         typeof(Role),
         typeof(Permission),
@@ -176,6 +210,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             typeof(FileRecord),
             typeof(FileUploadSession),
             typeof(TenantDataSource),
+            typeof(Tenant),
             // Low code module (types already registered above: LowCodeApp, AppEntityAlias, LowCodePage, FormDefinition)
             typeof(LowCodeAppVersion),
             typeof(FormDefinitionVersion),
@@ -211,7 +246,23 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             typeof(PackageArtifact),
             typeof(LicenseGrant),
             typeof(ToolAuthorizationPolicy));
-        await EnsureApprovalSchemaAsync(db, cancellationToken);
+        // 结束 CodeFirst.InitTables 块
+        }
+        else
+        {
+            _logger.LogInformation("[DatabaseInitializer] 已跳过 Schema 初始化（DatabaseInitializer:SkipSchemaInit=true）");
+        }
+
+        // 种子数据初始化
+        if (_initializerOptions.SkipSeedData)
+        {
+            _logger.LogInformation("[DatabaseInitializer] 已跳过种子数据初始化（DatabaseInitializer:SkipSeedData=true）");
+            // 始终加载 License 状态，不受 SkipSeedData 影响
+            await LoadLicenseStatusAsync(scope, cancellationToken);
+            return;
+        }
+
+        _logger.LogInformation("[DatabaseInitializer] 开始执行种子数据初始化...");
 
         // 初始化审批模块种子数据（使用 BootstrapAdmin 的 TenantId）
         if (Guid.TryParse(_bootstrapOptions.TenantId, out var seedTenantGuid))
@@ -629,9 +680,12 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             ("消息队列监控", "/monitor/message-queue", "/monitor", 36, "C", "monitor/MessageQueuePage", "deployment-unit", PermissionCodes.SystemAdmin, null, false, true, "0", "0", PermissionCodes.SystemAdmin, false),
 
             ("系统管理", "/system", null, 30, "M", "Layout", "setting", null, null, false, false, "0", "0", null, false),
-            ("用户管理", "/settings/org/users", "/system", 31, "C", "system/UsersPage", "user", PermissionCodes.UsersView, null, false, true, "0", "0", PermissionCodes.UsersView, false),
-            ("角色管理", "/settings/auth/roles", "/system", 32, "C", "system/RolesPage", "team", PermissionCodes.RolesView, null, false, true, "0", "0", PermissionCodes.RolesView, false),
-            ("个人访问令牌", "/settings/auth/pats", "/system", 33, "C", "settings/PersonalAccessTokensPage", "safety", PermissionCodes.PersonalAccessTokenView, null, false, true, "0", "0", PermissionCodes.PersonalAccessTokenView, false),
+            ("组织架构", "/settings/org/departments", "/system", 31, "C", "system/DepartmentsPage", "cluster", PermissionCodes.DepartmentsView, null, false, true, "0", "0", PermissionCodes.DepartmentsView, false),
+            ("租户管理", "/settings/org/tenants", "/system", 31, "C", "system/TenantsPage", "global", PermissionCodes.SystemAdmin, null, false, true, "0", "0", PermissionCodes.SystemAdmin, false),
+            ("职位名称", "/settings/org/positions", "/system", 32, "C", "system/PositionsPage", "idcard", PermissionCodes.PositionsView, null, false, true, "0", "0", PermissionCodes.PositionsView, false),
+            ("员工管理", "/settings/org/users", "/system", 33, "C", "system/UsersPage", "user", PermissionCodes.UsersView, null, false, true, "0", "0", PermissionCodes.UsersView, false),
+            ("角色管理", "/settings/auth/roles", "/system", 34, "C", "system/RolesPage", "team", PermissionCodes.RolesView, null, false, true, "0", "0", PermissionCodes.RolesView, false),
+            ("个人访问令牌", "/settings/auth/pats", "/system", 35, "C", "settings/PersonalAccessTokensPage", "safety", PermissionCodes.PersonalAccessTokenView, null, false, true, "0", "0", PermissionCodes.PersonalAccessTokenView, false),
             ("菜单管理", "/settings/auth/menus", "/system", 33, "C", "system/MenusPage", "menu", PermissionCodes.MenusView, null, false, true, "0", "0", PermissionCodes.MenusView, false),
             ("项目管理", "/settings/projects", "/system", 34, "C", "system/ProjectsPage", "project", PermissionCodes.ProjectsView, null, false, true, "0", "0", PermissionCodes.ProjectsView, false),
             ("数据源管理", "/settings/system/datasources", "/system", 35, "C", "system/TenantDataSourcesPage", "database", PermissionCodes.SystemAdmin, null, false, true, "0", "0", PermissionCodes.SystemAdmin, false),
@@ -789,7 +843,8 @@ public sealed class DatabaseInitializerHostedService : IHostedService
                 parentId = resolvedParentId;
             }
 
-            var department = new Department(tenantId, seed.Name, idGeneratorAccessor.NextId(), parentId, seed.SortOrder);
+            // Defaulting code to name for seed data
+            var department = new Department(tenantId, seed.Name, seed.Name, idGeneratorAccessor.NextId(), parentId, seed.SortOrder);
             departmentsToInsert.Add(department);
             departmentIdMap[seed.Name] = department.Id;
         }
@@ -913,6 +968,9 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             "/monitor",
             "/monitor/message-queue",
             "/system",
+            "/settings/org/departments",
+            "/settings/org/tenants",
+            "/settings/org/positions",
             "/settings/org/users",
             "/settings/auth/roles",
             "/settings/auth/pats",
@@ -1027,6 +1085,80 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         }
 
         await RebuildTableViaOrmAsync<AuthSession>(db, cancellationToken);
+    }
+
+    private static async Task EnsureLowCodeAppSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
+    {
+        if (!db.DbMaintenance.IsAnyTable("LowCodeApp", false))
+        {
+            return;
+        }
+
+        if (!RequiresNullableColumnFix<LowCodeApp>(db, "DataSourceId", "PublishedBy", "PublishedAt"))
+        {
+            return;
+        }
+
+        await RebuildTableViaOrmAsync<LowCodeApp>(db, cancellationToken);
+    }
+
+    private static async Task EnsureTenantDataSourceSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
+    {
+        if (!db.DbMaintenance.IsAnyTable("TenantDataSource", false))
+        {
+            return;
+        }
+
+        if (!RequiresNullableColumnFix<TenantDataSource>(db, "AppId", "LastTestSuccess", "LastTestedAt", "LastTestMessage", "UpdatedAt"))
+        {
+            return;
+        }
+
+        await RebuildTableViaOrmAsync<TenantDataSource>(db, cancellationToken);
+    }
+
+    private static async Task EnsureProductizationSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
+    {
+        await EnsureAppManifestSchemaAsync(db, cancellationToken);
+        await EnsureAppReleaseSchemaAsync(db, cancellationToken);
+        await EnsurePackageArtifactSchemaAsync(db, cancellationToken);
+        await EnsureLicenseGrantSchemaAsync(db, cancellationToken);
+        await EnsureToolAuthorizationPolicySchemaAsync(db, cancellationToken);
+    }
+
+    private static async Task EnsureAppManifestSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
+    {
+        if (!db.DbMaintenance.IsAnyTable("AppManifest", false)) return;
+        if (!RequiresNullableColumnFix<AppManifest>(db, "DataSourceId", "PublishedBy", "PublishedAt")) return;
+        await RebuildTableViaOrmAsync<AppManifest>(db, cancellationToken);
+    }
+
+    private static async Task EnsureAppReleaseSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
+    {
+        if (!db.DbMaintenance.IsAnyTable("AppRelease", false)) return;
+        if (!RequiresNullableColumnFix<AppRelease>(db, "RollbackPointId")) return;
+        await RebuildTableViaOrmAsync<AppRelease>(db, cancellationToken);
+    }
+
+    private static async Task EnsurePackageArtifactSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
+    {
+        if (!db.DbMaintenance.IsAnyTable("PackageArtifact", false)) return;
+        if (!RequiresNullableColumnFix<PackageArtifact>(db, "ExportedBy", "ExportedAt", "ImportedBy", "ImportedAt")) return;
+        await RebuildTableViaOrmAsync<PackageArtifact>(db, cancellationToken);
+    }
+
+    private static async Task EnsureLicenseGrantSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
+    {
+        if (!db.DbMaintenance.IsAnyTable("LicenseGrant", false)) return;
+        if (!RequiresNullableColumnFix<LicenseGrant>(db, "ExpiresAt")) return;
+        await RebuildTableViaOrmAsync<LicenseGrant>(db, cancellationToken);
+    }
+
+    private static async Task EnsureToolAuthorizationPolicySchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
+    {
+        if (!db.DbMaintenance.IsAnyTable("ToolAuthorizationPolicy", false)) return;
+        if (!RequiresNullableColumnFix<ToolAuthorizationPolicy>(db, "ApprovalFlowId")) return;
+        await RebuildTableViaOrmAsync<ToolAuthorizationPolicy>(db, cancellationToken);
     }
 
     private static async Task EnsureApprovalSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)

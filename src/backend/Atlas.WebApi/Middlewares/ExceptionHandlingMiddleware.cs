@@ -1,7 +1,9 @@
-using FluentValidation;
+using Atlas.Application.Resources;
 using Atlas.Core.Exceptions;
 using Atlas.Core.Models;
+using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Localization;
 using System.Net;
 using System.Text.Json;
 
@@ -32,12 +34,16 @@ public sealed class ExceptionHandlingMiddleware
         catch (BusinessException ex)
         {
             var statusCode = MapStatusCode(ex.Code);
-            await WriteErrorAsync(context, statusCode, ex.Code, ex.Message);
+            await WriteErrorAsync(context, statusCode, ex.Code, ResolveLocalizedMessage(context, ex.Code, ex.Message));
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Unhandled exception for {Method} {Path}", context.Request.Method, context.Request.Path);
-            await WriteErrorAsync(context, HttpStatusCode.InternalServerError, ErrorCodes.ServerError, "服务器内部错误");
+            await WriteErrorAsync(
+                context,
+                HttpStatusCode.InternalServerError,
+                ErrorCodes.ServerError,
+                ResolveLocalizedMessage(context, ErrorCodes.ServerError, "服务器内部错误"));
         }
     }
 
@@ -70,5 +76,40 @@ public sealed class ExceptionHandlingMiddleware
         var payload = ApiResponse<ProblemDetails>.Fail(code, message, traceId);
         var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions(JsonSerializerDefaults.Web));
         await context.Response.WriteAsync(json);
+    }
+
+    private static string ResolveLocalizedMessage(HttpContext context, string code, string fallbackMessage)
+    {
+        var localizer = context.RequestServices.GetService<IStringLocalizer<Messages>>();
+        if (localizer is null)
+        {
+            return fallbackMessage;
+        }
+
+        var directLocalized = localizer[code];
+        if (!directLocalized.ResourceNotFound)
+        {
+            return directLocalized.Value;
+        }
+
+        var resourceKey = code switch
+        {
+            ErrorCodes.ValidationError => "ValidationError",
+            ErrorCodes.Unauthorized => "Unauthorized",
+            ErrorCodes.Forbidden => "Forbidden",
+            ErrorCodes.NotFound => "NotFound",
+            ErrorCodes.ServerError => "InternalError",
+            ErrorCodes.AccountLocked => "AccountLocked",
+            ErrorCodes.PasswordExpired => "PasswordExpired",
+            _ => null
+        };
+
+        if (resourceKey is null)
+        {
+            return fallbackMessage;
+        }
+
+        var localized = localizer[resourceKey];
+        return localized.ResourceNotFound ? fallbackMessage : localized.Value;
     }
 }

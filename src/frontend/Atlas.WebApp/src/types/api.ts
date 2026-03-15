@@ -66,6 +66,7 @@ export interface PagedRequest {
   keyword?: string;
   sortBy?: string;
   sortDesc?: boolean;
+  departmentId?: number;
 }
 
 export interface RoleQueryRequest extends PagedRequest {
@@ -582,6 +583,9 @@ export interface UserUpdateRequest {
   email?: string;
   phoneNumber?: string;
   isActive: boolean;
+  roleIds?: number[];
+  departmentIds?: number[];
+  positionIds?: number[];
 }
 
 export interface UserAssignRolesRequest {
@@ -599,18 +603,21 @@ export interface UserAssignPositionsRequest {
 export interface DepartmentListItem {
   id: string;
   name: string;
+  code: string;
   parentId?: number;
   sortOrder: number;
 }
 
 export interface DepartmentCreateRequest {
   name: string;
+  code: string;
   parentId?: number;
   sortOrder: number;
 }
 
 export interface DepartmentUpdateRequest {
   name: string;
+  code: string;
   parentId?: number;
   sortOrder: number;
 }
@@ -731,6 +738,7 @@ export interface MenuUpdateRequest {
 
 export interface RouterMeta {
   title: string;
+  titleKey?: string;
   icon?: string;
   noCache?: boolean;
   link?: string;

@@ -8,80 +8,91 @@
   <resheader name="version"><value>2.0</value></resheader>
   <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
   <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
-
-  <data name="InvalidCredentials" xml:space="preserve">
-    <value>Invalid username or password.</value>
-  </data>
-  <data name="AccountLocked" xml:space="preserve">
-    <value>Account is locked. Please try again later.</value>
-  </data>
-  <data name="CaptchaInvalid" xml:space="preserve">
-    <value>Captcha is invalid or expired.</value>
-  </data>
-  <data name="Unauthorized" xml:space="preserve">
-    <value>Unauthorized. Please log in first.</value>
-  </data>
-  <data name="Forbidden" xml:space="preserve">
-    <value>Access denied. Insufficient permissions.</value>
-  </data>
-  <data name="NotFound" xml:space="preserve">
-    <value>The requested resource was not found.</value>
-  </data>
-  <data name="ValidationError" xml:space="preserve">
-    <value>Validation failed.</value>
-  </data>
-  <data name="InternalError" xml:space="preserve">
-    <value>An internal server error occurred. Please contact the administrator.</value>
-  </data>
-  <data name="RoleCodeExists" xml:space="preserve">
-    <value>Role code already exists.</value>
-  </data>
-  <data name="SystemRoleCannotDelete" xml:space="preserve">
-    <value>System roles cannot be deleted.</value>
-  </data>
-  <data name="BuiltInConfigCannotModify" xml:space="preserve">
-    <value>Built-in configuration cannot be modified.</value>
-  </data>
-  <data name="FileTooLarge" xml:space="preserve">
-    <value>File size exceeds the allowed limit.</value>
-  </data>
-  <data name="FileTypeNotAllowed" xml:space="preserve">
-    <value>File type is not allowed.</value>
-  </data>
-  <data name="LowCodeAppKeyRequired" xml:space="preserve">
-    <value>App key is required.</value>
-  </data>
-  <data name="LowCodeAppKeyMaxLength" xml:space="preserve">
-    <value>App key cannot exceed 100 characters.</value>
-  </data>
-  <data name="LowCodeAppKeyFormatInvalid" xml:space="preserve">
-    <value>App key must start with a letter and can only contain letters, numbers, underscores, and hyphens.</value>
-  </data>
-  <data name="LowCodeAppNameRequired" xml:space="preserve">
-    <value>App name is required.</value>
-  </data>
-  <data name="LowCodeAppNameMaxLength" xml:space="preserve">
-    <value>App name cannot exceed 200 characters.</value>
-  </data>
-  <data name="LowCodeAppDescriptionMaxLength" xml:space="preserve">
-    <value>Description cannot exceed 1000 characters.</value>
-  </data>
-  <data name="LowCodeAppCategoryMaxLength" xml:space="preserve">
-    <value>Category cannot exceed 100 characters.</value>
-  </data>
-  <data name="DynamicAlterAtLeastOneChange" xml:space="preserve">
-    <value>At least one schema change is required.</value>
-  </data>
-  <data name="DynamicAlterUpdateNotSupported" xml:space="preserve">
-    <value>Updating existing fields is not supported in this version.</value>
-  </data>
-  <data name="DynamicAlterRemoveNotSupported" xml:space="preserve">
-    <value>Removing fields is not supported in this version.</value>
-  </data>
-  <data name="DynamicAlterFieldNameInvalid" xml:space="preserve">
-    <value>Invalid field name for added fields.</value>
-  </data>
-  <data name="DynamicAlterFieldNameDuplicated" xml:space="preserve">
-    <value>Added field names must be unique.</value>
-  </data>
+  <data name="InvalidCredentials" xml:space="preserve"><value>Invalid username or password.</value></data>
+  <data name="AccountLocked" xml:space="preserve"><value>Account is locked. Please try again later.</value></data>
+  <data name="PasswordExpired" xml:space="preserve"><value>Password expired. Please reset it before signing in again.</value></data>
+  <data name="CaptchaInvalid" xml:space="preserve"><value>Captcha is invalid or expired.</value></data>
+  <data name="Unauthorized" xml:space="preserve"><value>Unauthorized. Please sign in first.</value></data>
+  <data name="AuthenticationFailed" xml:space="preserve"><value>Authentication failed.</value></data>
+  <data name="TokenExpired" xml:space="preserve"><value>Access token expired. Please sign in again.</value></data>
+  <data name="Forbidden" xml:space="preserve"><value>Access denied. Insufficient permissions.</value></data>
+  <data name="NotFound" xml:space="preserve"><value>The requested resource was not found.</value></data>
+  <data name="ValidationError" xml:space="preserve"><value>Validation failed.</value></data>
+  <data name="RateLimited" xml:space="preserve"><value>Too many requests. Please try again later.</value></data>
+  <data name="InternalError" xml:space="preserve"><value>An internal server error occurred. Please contact the administrator.</value></data>
+  <data name="RoleCodeExists" xml:space="preserve"><value>Role code already exists.</value></data>
+  <data name="SystemRoleCannotDelete" xml:space="preserve"><value>System roles cannot be deleted.</value></data>
+  <data name="BuiltInConfigCannotModify" xml:space="preserve"><value>Built-in configuration cannot be modified.</value></data>
+  <data name="FileTooLarge" xml:space="preserve"><value>File size exceeds the allowed limit.</value></data>
+  <data name="FileTypeNotAllowed" xml:space="preserve"><value>File type is not allowed.</value></data>
+  <data name="LowCodeAppKeyRequired" xml:space="preserve"><value>App key is required.</value></data>
+  <data name="LowCodeAppKeyMaxLength" xml:space="preserve"><value>App key cannot exceed 100 characters.</value></data>
+  <data name="LowCodeAppKeyFormatInvalid" xml:space="preserve"><value>App key must start with a letter and can only contain letters, numbers, underscores, and hyphens.</value></data>
+  <data name="LowCodeAppNameRequired" xml:space="preserve"><value>App name is required.</value></data>
+  <data name="LowCodeAppNameMaxLength" xml:space="preserve"><value>App name cannot exceed 200 characters.</value></data>
+  <data name="LowCodeAppDescriptionMaxLength" xml:space="preserve"><value>Description cannot exceed 1000 characters.</value></data>
+  <data name="LowCodeAppCategoryMaxLength" xml:space="preserve"><value>Category cannot exceed 100 characters.</value></data>
+  <data name="DynamicAlterAtLeastOneChange" xml:space="preserve"><value>At least one schema change is required.</value></data>
+  <data name="DynamicAlterUpdateNotSupported" xml:space="preserve"><value>Updating existing fields is not supported in this version.</value></data>
+  <data name="DynamicAlterRemoveNotSupported" xml:space="preserve"><value>Removing fields is not supported in this version.</value></data>
+  <data name="DynamicAlterFieldNameInvalid" xml:space="preserve"><value>Invalid field name for added fields.</value></data>
+  <data name="DynamicAlterFieldNameDuplicated" xml:space="preserve"><value>Added field names must be unique.</value></data>
+  <data name="UsernameRequired" xml:space="preserve"><value>Username is required.</value></data>
+  <data name="UsernameMaxLength" xml:space="preserve"><value>Username cannot exceed {0} characters.</value></data>
+  <data name="UsernameNoWhitespace" xml:space="preserve"><value>Username cannot contain whitespace.</value></data>
+  <data name="UsernameNotNumeric" xml:space="preserve"><value>Username cannot be numeric only.</value></data>
+  <data name="PasswordRequired" xml:space="preserve"><value>Password is required.</value></data>
+  <data name="PasswordMaxLength" xml:space="preserve"><value>Password cannot exceed {0} characters.</value></data>
+  <data name="ConfirmPasswordRequired" xml:space="preserve"><value>Please confirm the password.</value></data>
+  <data name="ConfirmPasswordMismatch" xml:space="preserve"><value>The two passwords do not match.</value></data>
+  <data name="CurrentPasswordRequired" xml:space="preserve"><value>Current password is required.</value></data>
+  <data name="NewPasswordRequired" xml:space="preserve"><value>New password is required.</value></data>
+  <data name="PasswordMinLength" xml:space="preserve"><value>Password must be at least {0} characters long.</value></data>
+  <data name="PasswordRequireUppercase" xml:space="preserve"><value>Password must contain an uppercase letter.</value></data>
+  <data name="PasswordRequireLowercase" xml:space="preserve"><value>Password must contain a lowercase letter.</value></data>
+  <data name="PasswordRequireDigit" xml:space="preserve"><value>Password must contain a digit.</value></data>
+  <data name="PasswordRequireNonAlphanumeric" xml:space="preserve"><value>Password must contain a non-alphanumeric character.</value></data>
+  <data name="DynamicTableTableKeyInvalid" xml:space="preserve"><value>Table key format is invalid.</value></data>
+  <data name="DynamicTableDisplayNameRequired" xml:space="preserve"><value>Display name is required.</value></data>
+  <data name="DynamicTableDisplayNameMaxLength" xml:space="preserve"><value>Display name cannot exceed {0} characters.</value></data>
+  <data name="DynamicTableDbTypeInvalid" xml:space="preserve"><value>The database type is not supported.</value></data>
+  <data name="DynamicTableFieldsCountInvalid" xml:space="preserve"><value>The number of fields must be between 1 and 200.</value></data>
+  <data name="DynamicTableFieldNameInvalid" xml:space="preserve"><value>Field name format is invalid.</value></data>
+  <data name="DynamicTableFieldTypeInvalid" xml:space="preserve"><value>The field type is not supported.</value></data>
+  <data name="DynamicTableFieldLengthInvalid" xml:space="preserve"><value>The field length or precision is invalid.</value></data>
+  <data name="DynamicTableFieldValidationInvalid" xml:space="preserve"><value>The field validation rule is invalid.</value></data>
+  <data name="DynamicTablePrimaryKeyRequired" xml:space="preserve"><value>Exactly one primary key field is required.</value></data>
+  <data name="DynamicTablePrimaryKeyTypeInvalid" xml:space="preserve"><value>The primary key must use Int or Long.</value></data>
+  <data name="DynamicTableFieldNamesDuplicated" xml:space="preserve"><value>Field names must be unique.</value></data>
+  <data name="DynamicTableAutoIncrementInvalid" xml:space="preserve"><value>Auto-increment fields must be primary keys of type Int or Long.</value></data>
+  <data name="LowCodeDataSourceIdPositive" xml:space="preserve"><value>DataSourceId must be a positive number.</value></data>
+  <data name="LowCodeImportPackageRequired" xml:space="preserve"><value>The import package is required.</value></data>
+  <data name="LowCodeImportAppKeyRequired" xml:space="preserve"><value>The app key in the import package is required.</value></data>
+  <data name="LowCodeImportAppKeyMaxLength" xml:space="preserve"><value>The app key in the import package cannot exceed {0} characters.</value></data>
+  <data name="LowCodeImportAppKeyInvalid" xml:space="preserve"><value>The app key in the import package is invalid.</value></data>
+  <data name="LowCodeImportNameRequired" xml:space="preserve"><value>The app name in the import package is required.</value></data>
+  <data name="LowCodeImportNameMaxLength" xml:space="preserve"><value>The app name in the import package cannot exceed {0} characters.</value></data>
+  <data name="LowCodeImportConflictStrategyRequired" xml:space="preserve"><value>The conflict strategy is required.</value></data>
+  <data name="LowCodeImportConflictStrategyInvalid" xml:space="preserve"><value>The conflict strategy must be Rename, Overwrite, or Skip.</value></data>
+  <data name="LowCodeImportKeySuffixMaxLength" xml:space="preserve"><value>The key suffix cannot exceed {0} characters.</value></data>
+  <data name="LowCodeImportKeySuffixInvalid" xml:space="preserve"><value>The key suffix can only contain letters, digits, underscores, and hyphens.</value></data>
+  <data name="LowCodeEntityAliasesRequired" xml:space="preserve"><value>The entity alias list is required.</value></data>
+  <data name="LowCodeEntityAliasesCountMax" xml:space="preserve"><value>The number of entity aliases cannot exceed {0}.</value></data>
+  <data name="LowCodeEntityTypeRequired" xml:space="preserve"><value>Entity type is required.</value></data>
+  <data name="LowCodeEntityTypeMaxLength" xml:space="preserve"><value>Entity type cannot exceed {0} characters.</value></data>
+  <data name="LowCodeSingularAliasRequired" xml:space="preserve"><value>Singular alias is required.</value></data>
+  <data name="LowCodeSingularAliasMaxLength" xml:space="preserve"><value>Singular alias cannot exceed {0} characters.</value></data>
+  <data name="LowCodePluralAliasRequired" xml:space="preserve"><value>Plural alias is required.</value></data>
+  <data name="LowCodePluralAliasMaxLength" xml:space="preserve"><value>Plural alias cannot exceed {0} characters.</value></data>
+  <data name="FLOW_NOT_FOUND" xml:space="preserve"><value>The approval flow definition does not exist.</value></data>
+  <data name="FLOW_NOT_PUBLISHED" xml:space="preserve"><value>The approval flow is not published.</value></data>
+  <data name="FLOW_DEPRECATED" xml:space="preserve"><value>The approval flow has been deprecated and new instances cannot be started.</value></data>
+  <data name="TASK_NOT_FOUND" xml:space="preserve"><value>The approval task does not exist.</value></data>
+  <data name="TASK_NOT_PENDING" xml:space="preserve"><value>The task is not pending.</value></data>
+  <data name="INSTANCE_NOT_RUNNING" xml:space="preserve"><value>The process instance is not running.</value></data>
+  <data name="INSTANCE_NOT_FOUND" xml:space="preserve"><value>The process instance does not exist.</value></data>
+  <data name="COPY_RECORD_NOT_FOUND" xml:space="preserve"><value>The copy record does not exist.</value></data>
+  <data name="COPY_RECORD_NOT_OWNER" xml:space="preserve"><value>You do not have permission to access this copy record.</value></data>
+  <data name="INVALID_OPERATION" xml:space="preserve"><value>The current operation is invalid.</value></data>
+  <data name="INVALID_STATUS" xml:space="preserve"><value>The current status does not allow this operation.</value></data>
 </root>

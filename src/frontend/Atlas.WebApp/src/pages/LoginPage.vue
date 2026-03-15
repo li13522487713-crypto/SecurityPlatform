@@ -1,84 +1,114 @@
 <template>
   <div class="login-page">
-    <!-- 左侧品牌面板 -->
-    <aside class="brand-panel">
-      <div class="brand-content">
-        <div class="brand-logo">
-          <div class="logo-icon">
-            <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M16 2L28 9v14l-12 7L4 23V9l12-7z" fill="rgba(255,255,255,0.15)" stroke="rgba(255,255,255,0.6)" stroke-width="1.5"/>
-              <path d="M16 8l7 4v8l-7 4-7-4v-8l7-4z" fill="rgba(255,255,255,0.25)" stroke="#fff" stroke-width="1.5"/>
-              <circle cx="16" cy="16" r="3" fill="#fff"/>
-            </svg>
-          </div>
-          <div class="brand-text">
-            <h1>Atlas 安全平台</h1>
-            <p>Security Platform</p>
-          </div>
-        </div>
-        <div class="brand-desc">
-          <h2>统一安全管理与运维管控</h2>
-          <ul>
-            <li>统一身份认证 · 多租户组织管理</li>
-            <li>实时审计日志 · 风险策略自动落地</li>
-            <li>资产清点盘查 · 合规告警可追溯</li>
-          </ul>
-        </div>
-      </div>
-      <div class="brand-footer">
-        <span>符合等保 2.0 三级要求</span>
-      </div>
-      <!-- 装饰元素 -->
-      <div class="decor decor-1" aria-hidden="true"></div>
-      <div class="decor decor-2" aria-hidden="true"></div>
-      <div class="decor decor-3" aria-hidden="true"></div>
-    </aside>
-
-    <!-- 右侧表单面板 -->
-    <main class="form-panel">
-      <div class="form-wrapper">
-        <!-- 移动端 logo -->
-        <div class="mobile-logo">
-          <div class="logo-icon logo-icon--sm">
-            <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M16 2L28 9v14l-12 7L4 23V9l12-7z" fill="rgba(22,119,255,0.1)" stroke="var(--color-primary)" stroke-width="1.5"/>
-              <path d="M16 8l7 4v8l-7 4-7-4v-8l7-4z" fill="rgba(22,119,255,0.15)" stroke="var(--color-primary)" stroke-width="1.5"/>
-              <circle cx="16" cy="16" r="3" fill="var(--color-primary)"/>
-            </svg>
-          </div>
-          <span>Atlas 安全平台</span>
-        </div>
-
-        <h3 class="form-title">账号登录</h3>
-
-        <!-- 授权证书区 -->
-        <div class="license-section">
-          <div v-if="licenseLoading" class="license-status">
-            <a-spin size="small" />
-            <span>正在验证授权证书…</span>
-          </div>
-
-          <template v-else-if="licenseStatusCode === 'Active'">
-            <div class="license-status license-status--active">
-              <span class="license-dot license-dot--active"></span>
-              <span>已授权</span>
-              <span v-if="licenseStatusInfo?.tenantName" class="license-org">
-                {{ licenseStatusInfo.tenantName }}
-              </span>
-              <a-tag color="blue" size="small">{{ licenseStatusInfo?.edition }}</a-tag>
-              <span class="license-expire">{{ licenseExpireText }}</span>
-              <a class="license-action" @click="showRenewArea = !showRenewArea">
-                {{ showRenewArea ? '收起' : '更换证书' }}
-              </a>
+    <div class="login-container">
+      <aside class="brand-panel">
+        <div class="brand-content">
+          <div class="brand-logo">
+            <div class="logo-icon">
+              <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M16 2L28 9v14l-12 7L4 23V9l12-7z" fill="rgba(255,255,255,0.15)" stroke="rgba(255,255,255,0.6)" stroke-width="1.5" />
+                <path d="M16 8l7 4v8l-7 4-7-4v-8l7-4z" fill="rgba(255,255,255,0.25)" stroke="#fff" stroke-width="1.5" />
+                <circle cx="16" cy="16" r="3" fill="#fff" />
+              </svg>
             </div>
-            <div v-if="showRenewArea" class="license-upload">
+            <div class="brand-text">
+              <h1>{{ t("authPage.brandTitle") }}</h1>
+              <p>{{ t("authPage.brandSubtitle") }}</p>
+            </div>
+          </div>
+          <div class="brand-desc">
+            <h2>{{ t("authPage.heroTitle") }}</h2>
+            <ul>
+              <li>{{ t("authPage.heroPoint1") }}</li>
+              <li>{{ t("authPage.heroPoint2") }}</li>
+              <li>{{ t("authPage.heroPoint3") }}</li>
+            </ul>
+          </div>
+        </div>
+        <div class="brand-footer">
+          <span>{{ t("authPage.compliance") }}</span>
+        </div>
+        <div class="decor decor-1" aria-hidden="true"></div>
+        <div class="decor decor-2" aria-hidden="true"></div>
+        <div class="decor decor-3" aria-hidden="true"></div>
+      </aside>
+
+      <main class="form-panel">
+        <div class="locale-switch-wrapper">
+          <LocaleSwitch />
+        </div>
+
+        <div class="form-wrapper">
+          <div class="mobile-logo">
+            <div class="logo-icon logo-icon--sm">
+              <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M16 2L28 9v14l-12 7L4 23V9l12-7z" fill="rgba(22,119,255,0.1)" stroke="var(--color-primary)" stroke-width="1.5" />
+                <path d="M16 8l7 4v8l-7 4-7-4v-8l7-4z" fill="rgba(22,119,255,0.15)" stroke="var(--color-primary)" stroke-width="1.5" />
+                <circle cx="16" cy="16" r="3" fill="var(--color-primary)" />
+              </svg>
+            </div>
+            <span>{{ t("authPage.brandTitle") }}</span>
+          </div>
+
+          <h3 class="form-title">{{ t("authPage.loginTitle") }}</h3>
+
+          <div class="license-section">
+            <div v-if="licenseLoading" class="license-status">
+              <a-spin size="small" />
+              <span>{{ t("authPage.loadingLicense") }}</span>
+            </div>
+
+            <template v-else-if="licenseStatusCode === 'Active'">
+              <div class="license-status license-status--active">
+                <span class="license-dot license-dot--active"></span>
+                <span>{{ t("authPage.licenseActive") }}</span>
+                <span v-if="licenseStatusInfo?.tenantName" class="license-org">
+                  {{ licenseStatusInfo.tenantName }}
+                </span>
+                <a-tag color="blue" size="small">{{ licenseEditionText }}</a-tag>
+                <span class="license-expire">{{ licenseExpireText }}</span>
+                <a class="license-action" @click="showRenewArea = !showRenewArea">
+                  {{ showRenewArea ? t("authPage.collapse") : t("authPage.switchCertificate") }}
+                </a>
+              </div>
+              <div v-if="showRenewArea" class="license-upload">
+                <a-alert
+                  v-if="licenseActivateResult"
+                  :type="licenseActivateResult.success ? 'success' : 'error'"
+                  :message="licenseActivateResult.message"
+                  closable
+                  show-icon
+                  style="margin-bottom: 8px"
+                  @close="licenseActivateResult = null"
+                />
+                <a-upload
+                  :before-upload="handleLicenseFileSelect"
+                  :show-upload-list="false"
+                  accept=".atlaslicense,.lic,.txt"
+                >
+                  <a-button size="small" :loading="licenseActivating">
+                    <template #icon><upload-outlined /></template>
+                    {{ t("authPage.selectCertificate") }}
+                  </a-button>
+                </a-upload>
+              </div>
+            </template>
+
+            <template v-else>
+              <div class="license-status" :class="licenseStatusCode === 'Expired' ? 'license-status--expired' : 'license-status--none'">
+                <span class="license-dot" :class="licenseStatusCode === 'Expired' ? 'license-dot--expired' : 'license-dot--none'"></span>
+                <span>{{ licenseStatusCode === "Expired" ? t("authPage.licenseExpired") : t("authPage.licenseInactive") }}</span>
+                <span class="license-hint">
+                  {{ licenseStatusCode === "Expired" ? t("authPage.license.uploadHintExpired") : t("authPage.license.uploadHintInactive") }}
+                </span>
+              </div>
               <a-alert
                 v-if="licenseActivateResult"
                 :type="licenseActivateResult.success ? 'success' : 'error'"
                 :message="licenseActivateResult.message"
                 closable
                 show-icon
-                style="margin-bottom: 8px"
+                style="margin: 8px 0"
                 @close="licenseActivateResult = null"
               />
               <a-upload
@@ -86,153 +116,168 @@
                 :show-upload-list="false"
                 accept=".atlaslicense,.lic,.txt"
               >
-                <a-button size="small" :loading="licenseActivating">
+                <a-button type="primary" size="small" :loading="licenseActivating">
                   <template #icon><upload-outlined /></template>
-                  选择证书文件
+                  {{ licenseActivating ? t("authPage.activating") : t("authPage.uploadCertificate") }}
                 </a-button>
               </a-upload>
-            </div>
-          </template>
+              <p class="license-tip">{{ t("authPage.uploadTip") }}</p>
+            </template>
+          </div>
 
-          <template v-else>
-            <div class="license-status" :class="licenseStatusCode === 'Expired' ? 'license-status--expired' : 'license-status--none'">
-              <span class="license-dot" :class="licenseStatusCode === 'Expired' ? 'license-dot--expired' : 'license-dot--none'"></span>
-              <span>{{ licenseStatusCode === 'Expired' ? '授权已过期' : '未激活' }}</span>
-              <span class="license-hint">
-                {{ licenseStatusCode === 'Expired' ? '请续签证书' : '请上传授权证书' }}
+          <a-divider style="margin: 16px 0" />
+
+          <template v-if="licenseStatusCode === 'Active'">
+            <div v-if="errorMessage" class="error-banner">
+              <span class="error-icon">!</span>
+              <span>{{ errorMessage }}</span>
+              <span v-if="cooldownSeconds > 0" class="cooldown-text">
+                {{ t("authPage.cooldown", { seconds: cooldownSeconds }) }}
               </span>
             </div>
-            <a-alert
-              v-if="licenseActivateResult"
-              :type="licenseActivateResult.success ? 'success' : 'error'"
-              :message="licenseActivateResult.message"
-              closable
-              show-icon
-              style="margin: 8px 0"
-              @close="licenseActivateResult = null"
-            />
-            <a-upload
-              :before-upload="handleLicenseFileSelect"
-              :show-upload-list="false"
-              accept=".atlaslicense,.lic,.txt"
+
+            <a-form
+              layout="vertical"
+              :model="form"
+              class="login-form"
+              :disabled="loading"
+              @finish="handleSubmit"
             >
-              <a-button type="primary" size="small" :loading="licenseActivating">
-                <template #icon><upload-outlined /></template>
-                {{ licenseActivating ? '激活中…' : '上传证书' }}
+              <a-form-item
+                :label="t('authPage.tenantLabel')"
+                name="tenantId"
+                :rules="[
+                  { required: true, message: t('authPage.tenantRequired') },
+                  { pattern: TENANT_ID_REGEX, message: t('authPage.tenantInvalid') }
+                ]"
+              >
+                <a-input
+                  v-model:value="form.tenantId"
+                  :placeholder="t('authPage.tenantPlaceholder')"
+                  readonly
+                  autocomplete="off"
+                  @focus="errorMessage = ''"
+                />
+                <div class="field-tip">{{ t("authPage.tenantTip") }}</div>
+                <div v-if="!hasValidTenantId(form.tenantId.trim())" class="field-error">
+                  {{ t("authPage.tenantError") }}
+                </div>
+              </a-form-item>
+
+              <a-form-item
+                :label="t('authPage.usernameLabel')"
+                name="username"
+                :rules="[{ required: true, message: t('authPage.usernameRequired') }]"
+              >
+                <a-input
+                  v-model:value="form.username"
+                  :placeholder="t('authPage.usernamePlaceholder')"
+                  allow-clear
+                  autocomplete="username"
+                  @focus="errorMessage = ''"
+                />
+              </a-form-item>
+
+              <a-form-item
+                :label="t('authPage.passwordLabel')"
+                name="password"
+                :rules="[{ required: true, message: t('authPage.passwordRequired') }]"
+              >
+                <a-input-password
+                  v-model:value="form.password"
+                  :placeholder="t('authPage.passwordPlaceholder')"
+                  autocomplete="current-password"
+                  @keydown="handleCapsLockEvent"
+                  @keyup="handleCapsLockEvent"
+                  @blur="capsLockOn = false"
+                  @focus="errorMessage = ''"
+                />
+                <div v-if="capsLockOn" class="caps-tip">{{ t("authPage.capsLockOn") }}</div>
+              </a-form-item>
+
+              <a-form-item
+                v-if="needsCaptcha"
+                :label="t('authPage.captchaLabel')"
+                name="captchaCode"
+                :rules="[{ required: true, message: t('authPage.captchaRequired') }]"
+              >
+                <div class="captcha-row">
+                  <a-input
+                    v-model:value="form.captchaCode"
+                    :placeholder="t('authPage.captchaPlaceholder')"
+                    autocomplete="off"
+                    @focus="errorMessage = ''"
+                  />
+                  <img
+                    v-if="captchaImage"
+                    :src="captchaImage"
+                    :alt="t('authPage.captchaAlt')"
+                    :title="t('authPage.captchaRefresh')"
+                    class="captcha-image"
+                    @click="loadCaptcha"
+                  />
+                </div>
+              </a-form-item>
+
+              <a-form-item
+                v-if="needsMfa"
+                :label="t('authPage.mfaLabel')"
+                name="totpCode"
+                :rules="[{ required: true, message: t('authPage.mfaRequired') }]"
+                :help="t('authPage.mfaHelp')"
+              >
+                <a-input
+                  v-model:value="form.totpCode"
+                  :placeholder="t('authPage.mfaPlaceholder')"
+                  :maxlength="6"
+                  autocomplete="off"
+                  @focus="errorMessage = ''"
+                />
+              </a-form-item>
+
+              <div class="form-extra">
+                <a-checkbox v-model:checked="form.rememberMe">{{ t("authPage.rememberMe") }}</a-checkbox>
+                <a href="/password-reset" class="forgot-link">{{ t("authPage.forgotPassword") }}</a>
+              </div>
+
+              <a-button
+                type="primary"
+                block
+                html-type="submit"
+                size="large"
+                :loading="loading"
+                :disabled="isSubmitDisabled"
+                class="submit-btn"
+              >
+                <span v-if="!loading">
+                  {{ cooldownSeconds > 0 ? t("authPage.submitWaiting", { seconds: cooldownSeconds }) : t("auth.login") }}
+                </span>
+                <span v-else>{{ t("authPage.submitting") }}</span>
               </a-button>
-            </a-upload>
-            <p class="license-tip">上传 <code>.atlaslicense</code> 证书文件以激活平台授权</p>
+
+              <div class="register-link">
+                {{ t("authPage.noAccount") }}
+                <router-link to="/register">{{ t("authPage.registerNow") }}</router-link>
+              </div>
+            </a-form>
+          </template>
+
+          <template v-else-if="!licenseLoading">
+            <div class="login-locked">
+              {{ t("authPage.loginLocked") }}
+            </div>
           </template>
         </div>
 
-        <a-divider style="margin: 16px 0" />
-
-        <!-- 登录表单 -->
-        <template v-if="licenseStatusCode === 'Active'">
-          <div v-if="errorMessage" class="error-banner">
-            <span class="error-icon">!</span>
-            <span>{{ errorMessage }}</span>
-            <span v-if="cooldownSeconds > 0" class="cooldown-text">请 {{ cooldownSeconds }}s 后再试</span>
-          </div>
-
-          <a-form
-            layout="vertical"
-            :model="form"
-            class="login-form"
-            :disabled="loading"
-            @finish="handleSubmit"
-          >
-            <a-form-item
-              label="租户 / 组织"
-              name="tenantId"
-              :rules="[
-                { required: true, message: '授权证书未提供租户 / 组织ID' },
-                { pattern: /^[0-9a-fA-F-]{36}$/, message: '证书租户ID格式无效' }
-              ]"
-            >
-              <a-input
-                v-model:value="form.tenantId"
-                placeholder="租户 / 组织 ID 来自授权证书"
-                readonly
-                autocomplete="off"
-                @focus="errorMessage = ''"
-              />
-              <div class="field-tip">租户由证书自动绑定，如需变更请更换证书</div>
-              <div v-if="!hasValidTenantId(form.tenantId.trim())" class="field-error">
-                当前证书未提供有效租户ID，请更换正确证书
-              </div>
-            </a-form-item>
-
-            <a-form-item
-              label="账号"
-              name="username"
-              :rules="[{ required: true, message: '请输入账号' }]"
-            >
-              <a-input
-                v-model:value="form.username"
-                placeholder="手机号 / 邮箱 / 用户名"
-                allow-clear
-                autocomplete="username"
-                @focus="errorMessage = ''"
-              />
-            </a-form-item>
-
-            <a-form-item
-              label="密码"
-              name="password"
-              :rules="[{ required: true, message: '请输入密码' }]"
-            >
-              <a-input-password
-                v-model:value="form.password"
-                placeholder="请输入密码"
-                autocomplete="current-password"
-                @keydown="handleCapsLockEvent"
-                @keyup="handleCapsLockEvent"
-                @blur="capsLockOn = false"
-                @focus="errorMessage = ''"
-              />
-              <div v-if="capsLockOn" class="caps-tip">Caps Lock 已开启</div>
-            </a-form-item>
-
-            <div class="form-extra">
-              <a-checkbox v-model:checked="form.rememberMe">记住我</a-checkbox>
-              <a href="/password-reset" class="forgot-link">忘记密码？</a>
-            </div>
-
-            <a-button
-              type="primary"
-              block
-              html-type="submit"
-              size="large"
-              :loading="loading"
-              :disabled="isSubmitDisabled"
-              class="submit-btn"
-            >
-              <span v-if="!loading">{{ cooldownSeconds > 0 ? `请稍候 (${cooldownSeconds}s)` : '登录' }}</span>
-              <span v-else>登录中</span>
-            </a-button>
-
-            <div class="register-link">
-              还没有账号？<router-link to="/register">立即注册</router-link>
-            </div>
-          </a-form>
-        </template>
-
-        <template v-else-if="!licenseLoading">
-          <div class="login-locked">
-            请先激活有效的授权证书，方可登录系统
-          </div>
-        </template>
-      </div>
-
-      <footer class="form-footer">
-        <span>隐私政策</span>
-        <span class="sep">·</span>
-        <span>用户协议</span>
-        <span class="sep">·</span>
-        <span>v1.0.2</span>
-      </footer>
-    </main>
+        <footer class="form-footer">
+          <span>{{ t("authPage.privacyPolicy") }}</span>
+          <span class="sep">|</span>
+          <span>{{ t("authPage.userAgreement") }}</span>
+          <span class="sep">|</span>
+          <span>v1.0.2</span>
+        </footer>
+      </main>
+    </div>
   </div>
 </template>
 
@@ -240,15 +285,14 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { UploadOutlined } from "@ant-design/icons-vue";
-import { getLicenseStatus, activateLicense } from "@/services/api";
-import { useUserStore } from "@/stores/user";
+import { useI18n } from "vue-i18n";
+import LocaleSwitch from "@/components/layout/LocaleSwitch.vue";
+import { activateLicense, getCaptcha, getLicenseStatus } from "@/services/api";
 import { usePermissionStore } from "@/stores/permission";
+import { useUserStore } from "@/stores/user";
 import type { RequestOptions } from "@/services/api";
 import type { LicenseStatus } from "@/types/api";
-import {
-  clearAuthStorage,
-  getTenantId
-} from "@/utils/auth";
+import { clearAuthStorage, getTenantId } from "@/utils/auth";
 
 interface LoginApiError extends Error {
   status?: number;
@@ -263,27 +307,22 @@ const TENANT_ID_REGEX =
   /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 const COOLDOWN_THRESHOLD = 5;
 const COOLDOWN_DURATION = 30;
+const REMEMBER_ME_KEY = "atlas-login-remember-me";
 
+const { t } = useI18n();
 const userStore = useUserStore();
 const permissionStore = usePermissionStore();
 const route = useRoute();
 const router = useRouter();
+
 const loading = ref(false);
 const errorMessage = ref("");
 const failedAttempts = ref(0);
 const capsLockOn = ref(false);
 const cooldownSeconds = ref(0);
-let cooldownTimer: number | undefined;
-
-const REMEMBER_ME_KEY = "atlas-login-remember-me";
-
-const form = reactive({
-  tenantId: getTenantId() ?? "",
-  username: "",
-  password: "",
-  rememberMe: localStorage.getItem(REMEMBER_ME_KEY) === "true"
-});
-
+const needsCaptcha = ref(false);
+const captchaImage = ref("");
+const needsMfa = ref(false);
 const licenseLoading = ref(true);
 const licenseActivating = ref(false);
 const licenseActivateResult = ref<{ success: boolean; message: string } | null>(null);
@@ -291,15 +330,33 @@ const licenseStatusCode = ref<string>("None");
 const licenseStatusInfo = ref<LicenseStatus | null>(null);
 const showRenewArea = ref(false);
 
+let cooldownTimer: number | undefined;
+
+const form = reactive({
+  tenantId: getTenantId() ?? "",
+  username: "",
+  password: "",
+  rememberMe: localStorage.getItem(REMEMBER_ME_KEY) === "true",
+  captchaKey: "",
+  captchaCode: "",
+  totpCode: ""
+});
+
+const licenseEditionText = computed(() => licenseStatusInfo.value?.edition ?? t("authPage.licenseEditionUnknown"));
+
 const licenseExpireText = computed(() => {
   const info = licenseStatusInfo.value;
-  if (!info) return "";
-  if (info.isPermanent) return "永久授权";
+  if (!info) {
+    return "";
+  }
+  if (info.isPermanent) {
+    return t("authPage.license.permanent");
+  }
   if (info.remainingDays !== null && info.remainingDays !== undefined) {
-    return `剩余 ${info.remainingDays} 天`;
+    return t("authPage.license.remainingDays", { days: info.remainingDays });
   }
   if (info.expiresAt) {
-    return `到期：${info.expiresAt.substring(0, 10)}`;
+    return t("authPage.license.expiresAt", { date: info.expiresAt.substring(0, 10) });
   }
   return "";
 });
@@ -314,13 +371,17 @@ const isSubmitDisabled = computed(
     licenseStatusCode.value !== "Active"
 );
 
-const handleCapsLockEvent = (event: KeyboardEvent) => {
+function hasValidTenantId(tenantId: string): boolean {
+  return TENANT_ID_REGEX.test(tenantId);
+}
+
+function handleCapsLockEvent(event: KeyboardEvent): void {
   if (typeof event.getModifierState === "function") {
     capsLockOn.value = event.getModifierState("CapsLock");
   }
-};
+}
 
-const startCooldown = () => {
+function startCooldown(): void {
   cooldownSeconds.value = COOLDOWN_DURATION;
   window.clearInterval(cooldownTimer);
   cooldownTimer = window.setInterval(() => {
@@ -330,41 +391,61 @@ const startCooldown = () => {
       cooldownSeconds.value = 0;
     }
   }, 1000);
-};
+}
 
-const normalizeError = (error: unknown) => {
+function appendTraceId(message: string, traceId?: string): string {
+  return traceId ? `${message} (traceId: ${traceId})` : message;
+}
+
+function normalizeError(error: unknown): string {
   const loginError = error as LoginApiError;
   const code = loginError?.payload?.code ?? "";
   const traceId = loginError?.payload?.traceId;
-  const raw = error instanceof Error ? error.message : "登录失败";
+  const raw = error instanceof Error ? error.message : t("authPage.errors.loginFailed");
 
-  if (code === "INVALID_CREDENTIALS" || raw.includes("账号或密码")) {
-    return "账号或密码错误，请重试";
+  if (code === "INVALID_CREDENTIALS" || raw.toLowerCase().includes("credential")) {
+    return t("authPage.errors.invalidCredentials");
   }
   if (code === "ACCOUNT_LOCKED") {
-    return "账号已被锁定，请联系管理员或稍后再试";
+    return t("authPage.errors.accountLocked");
   }
   if (code === "PASSWORD_EXPIRED") {
-    return "密码已过期，请联系管理员重置密码后登录";
+    return t("authPage.errors.passwordExpired");
   }
   if (code === "TENANT_NOT_FOUND") {
-    return "租户不存在，请检查租户ID是否正确";
+    return t("authPage.errors.tenantNotFound");
   }
   if (code === "VALIDATION_ERROR") {
-    return raw || "参数校验失败，请检查输入后重试";
+    return raw || t("authPage.errors.validation");
   }
-  if (raw.toLowerCase().includes("网络")) {
-    return "网络异常，请稍后再试";
+  if (raw.toLowerCase().includes("network")) {
+    return t("authPage.errors.network");
   }
-  if (traceId) {
-    return `${raw}（traceId: ${traceId}）`;
-  }
-  return raw;
-};
 
-const hasValidTenantId = (tenantId: string) => TENANT_ID_REGEX.test(tenantId);
+  return appendTraceId(raw, traceId);
+}
 
-const handleSubmit = async () => {
+function shouldLoadCaptcha(code: string, rawMessage: string): boolean {
+  return code === "CAPTCHA_INVALID"
+    || rawMessage.toLowerCase().includes("captcha")
+    || failedAttempts.value >= COOLDOWN_THRESHOLD;
+}
+
+async function loadCaptcha(): Promise<void> {
+  if (!form.tenantId) {
+    return;
+  }
+  try {
+    const res = await getCaptcha(form.tenantId.trim());
+    form.captchaKey = res.captchaKey;
+    captchaImage.value = res.captchaImage;
+    form.captchaCode = "";
+  } catch {
+    captchaImage.value = "";
+  }
+}
+
+async function handleSubmit(): Promise<void> {
   errorMessage.value = "";
   loading.value = true;
   try {
@@ -372,15 +453,12 @@ const handleSubmit = async () => {
     const tenantId = form.tenantId.trim();
     const tokenOptions: RequestOptions = { suppressErrorMessage: true };
 
-    await userStore.login(
-      tenantId,
-      form.username.trim(),
-      form.password,
-      tokenOptions,
-      {
-        rememberMe: form.rememberMe
-      }
-    );
+    await userStore.login(tenantId, form.username.trim(), form.password, tokenOptions, {
+      rememberMe: form.rememberMe,
+      captchaKey: form.captchaKey || undefined,
+      captchaCode: form.captchaCode || undefined,
+      totpCode: form.totpCode || undefined
+    });
     await userStore.getInfo();
     const routes = await permissionStore.generateRoutes();
     permissionStore.registerRoutes(router);
@@ -388,11 +466,12 @@ const handleSubmit = async () => {
     failedAttempts.value = 0;
     cooldownSeconds.value = 0;
     errorMessage.value = "";
+
     const rawRedirect = route.query.redirect;
     const redirect =
-      typeof rawRedirect === "string" &&
-      rawRedirect.startsWith("/") &&
-      !rawRedirect.startsWith("//")
+      typeof rawRedirect === "string"
+      && rawRedirect.startsWith("/")
+      && !rawRedirect.startsWith("//")
         ? rawRedirect
         : null;
     const targetPath = redirect ?? "/console";
@@ -400,13 +479,30 @@ const handleSubmit = async () => {
     const fallbackPath = "/console";
     const staticAllowedTargets = new Set(["/console"]);
     const isUnsafeRedirect =
-      targetPath === "/" ||
-      targetPath.startsWith("/login") ||
-      targetPath.startsWith("/register");
-    router.push(!isUnsafeRedirect && (canNavigate || staticAllowedTargets.has(targetPath)) ? targetPath : fallbackPath);
+      targetPath === "/"
+      || targetPath.startsWith("/login")
+      || targetPath.startsWith("/register");
+
+    void router.push(!isUnsafeRedirect && (canNavigate || staticAllowedTargets.has(targetPath)) ? targetPath : fallbackPath);
   } catch (error) {
     clearAuthStorage();
     failedAttempts.value += 1;
+
+    const loginError = error as LoginApiError;
+    const code = loginError?.payload?.code ?? "";
+    const rawMessage = error instanceof Error ? error.message : "";
+
+    if (code === "MFA_REQUIRED") {
+      needsMfa.value = true;
+      errorMessage.value = t("authPage.errors.mfaRequired");
+      return;
+    }
+
+    if (shouldLoadCaptcha(code, rawMessage)) {
+      needsCaptcha.value = true;
+      void loadCaptcha();
+    }
+
     errorMessage.value = normalizeError(error);
     if (failedAttempts.value >= COOLDOWN_THRESHOLD) {
       startCooldown();
@@ -414,7 +510,7 @@ const handleSubmit = async () => {
   } finally {
     loading.value = false;
   }
-};
+}
 
 async function handleLicenseFileSelect(file: File): Promise<false> {
   licenseActivating.value = true;
@@ -426,7 +522,7 @@ async function handleLicenseFileSelect(file: File): Promise<false> {
   } catch (error) {
     licenseActivateResult.value = {
       success: false,
-      message: error instanceof Error ? error.message : "文件读取失败，请重试"
+      message: error instanceof Error ? error.message : t("authPage.errors.fileReadFailed")
     };
     licenseActivating.value = false;
     return false;
@@ -437,41 +533,40 @@ async function handleLicenseFileSelect(file: File): Promise<false> {
     if (resp.success) {
       licenseActivateResult.value = {
         success: true,
-        message: resp.data?.message ?? resp.message ?? "授权激活成功！"
+        message: resp.data?.message ?? resp.message ?? t("common.success")
       };
       showRenewArea.value = false;
       await loadLicenseStatus();
     } else {
       licenseActivateResult.value = {
         success: false,
-        message: resp.message || "证书激活失败"
+        message: resp.message || t("authPage.errors.licenseActivateFailed")
       };
     }
   } catch (error) {
     const requestError = error as LoginApiError;
-    const detailMessage =
-      requestError?.payload?.message ??
-      (error instanceof Error ? error.message : "");
+    const detailMessage = requestError?.payload?.message ?? (error instanceof Error ? error.message : "");
     licenseActivateResult.value = {
       success: false,
-      message: detailMessage || "证书激活失败，请重试"
+      message: detailMessage || t("authPage.errors.licenseActivateFailed")
     };
   } finally {
     licenseActivating.value = false;
   }
+
   return false;
 }
 
 function readFileAsText(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = (e) => resolve((e.target?.result as string) ?? "");
-    reader.onerror = () => reject(new Error("文件读取失败，请重试"));
+    reader.onload = (event) => resolve((event.target?.result as string) ?? "");
+    reader.onerror = () => reject(new Error(t("authPage.errors.fileReadFailed")));
     reader.readAsText(file);
   });
 }
 
-async function loadLicenseStatus() {
+async function loadLicenseStatus(): Promise<void> {
   licenseLoading.value = true;
   try {
     const status = await getLicenseStatus();
@@ -491,8 +586,9 @@ async function loadLicenseStatus() {
 }
 
 onMounted(() => {
-  loadLicenseStatus();
+  void loadLicenseStatus();
 });
+
 onBeforeUnmount(() => {
   window.clearInterval(cooldownTimer);
 });
@@ -502,20 +598,32 @@ onBeforeUnmount(() => {
 .login-page {
   min-height: 100vh;
   display: flex;
-  background: #fff;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg-base);
+  background-image: radial-gradient(circle at 15% 50%, rgba(0, 137, 255, 0.08), transparent 25%),
+                    radial-gradient(circle at 85% 30%, rgba(0, 137, 255, 0.08), transparent 25%);
 }
 
-/* ── 左侧品牌面板 ── */
+.login-container {
+  display: flex;
+  width: 960px;
+  max-width: 90%;
+  height: 560px;
+  background: var(--color-bg-container);
+  border-radius: var(--border-radius-lg);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+
 .brand-panel {
-  width: 440px;
-  min-height: 100vh;
-  background: linear-gradient(160deg, #0d47a1 0%, #1565c0 40%, #1e88e5 100%);
+  width: 400px;
+  background: linear-gradient(145deg, #0052cc 0%, #0089ff 100%);
   color: #fff;
   display: flex;
   flex-direction: column;
   padding: 48px 40px;
   position: relative;
-  overflow: hidden;
   flex-shrink: 0;
 }
 
@@ -582,7 +690,7 @@ onBeforeUnmount(() => {
 }
 
 .brand-desc li::before {
-  content: '';
+  content: "";
   position: absolute;
   left: 0;
   top: 50%;
@@ -600,7 +708,6 @@ onBeforeUnmount(() => {
   opacity: 0.5;
 }
 
-/* 装饰圆 */
 .decor {
   position: absolute;
   border-radius: 50%;
@@ -628,7 +735,6 @@ onBeforeUnmount(() => {
   left: -30px;
 }
 
-/* ── 右侧表单面板 ── */
 .form-panel {
   flex: 1;
   display: flex;
@@ -636,8 +742,14 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   padding: 40px;
-  min-height: 100vh;
-  background: #fff;
+  background: var(--color-bg-container);
+  position: relative;
+}
+
+.locale-switch-wrapper {
+  position: absolute;
+  top: 16px;
+  right: 16px;
 }
 
 .form-wrapper {
@@ -667,7 +779,6 @@ onBeforeUnmount(() => {
   margin: 0 0 24px;
 }
 
-/* ── 授权证书 ── */
 .license-section {
   padding: 12px 16px;
   background: var(--color-bg-subtle);
@@ -734,7 +845,6 @@ onBeforeUnmount(() => {
   color: var(--color-text-tertiary);
 }
 
-/* ── 登录表单 ── */
 .login-form :deep(.ant-form-item) {
   margin-bottom: 20px;
 }
@@ -760,6 +870,17 @@ onBeforeUnmount(() => {
   margin-top: 4px;
   color: var(--color-warning);
   font-size: 12px;
+}
+
+.captcha-row {
+  display: flex;
+  gap: 8px;
+}
+
+.captcha-image {
+  cursor: pointer;
+  height: 32px;
+  border-radius: 4px;
 }
 
 .form-extra {
@@ -789,6 +910,7 @@ onBeforeUnmount(() => {
 
 .register-link a {
   color: var(--color-primary);
+  margin-left: 4px;
 }
 
 .login-locked {
@@ -798,7 +920,6 @@ onBeforeUnmount(() => {
   font-size: 14px;
 }
 
-/* ── 错误提示 ── */
 .error-banner {
   display: flex;
   align-items: center;
@@ -833,7 +954,6 @@ onBeforeUnmount(() => {
   white-space: nowrap;
 }
 
-/* ── 页脚 ── */
 .form-footer {
   margin-top: 48px;
   text-align: center;
@@ -845,8 +965,16 @@ onBeforeUnmount(() => {
   margin: 0 6px;
 }
 
-/* ── 响应式 ── */
 @media screen and (max-width: 960px) {
+  .login-container {
+    width: 100%;
+    height: 100vh;
+    max-width: 100%;
+    border-radius: 0;
+    box-shadow: none;
+    flex-direction: column;
+  }
+
   .brand-panel {
     display: none;
   }
@@ -857,6 +985,7 @@ onBeforeUnmount(() => {
 
   .form-panel {
     padding: 32px 24px;
+    height: 100vh;
   }
 }
 

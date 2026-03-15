@@ -140,12 +140,12 @@ public sealed class RolesController : ControllerBase
         CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
-        await _roleCommandService.SetDataScopeAsync(tenantId, id, (DataScopeType)request.DataScope, cancellationToken);
+        await _roleCommandService.SetDataScopeAsync(tenantId, id, (DataScopeType)request.DataScope, request.DeptIds, cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
     }
 }
 
-public sealed record SetDataScopeRequest(int DataScope);
+public sealed record SetDataScopeRequest(int DataScope, IReadOnlyList<long>? DeptIds = null);
 
 
 

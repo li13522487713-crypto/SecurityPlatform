@@ -1,50 +1,61 @@
 <template>
-  <a-card :title="title" class="page-card">
-    <div class="crud-toolbar">
+  <a-card :title="title" class="page-card" :data-testid="`e2e-page-card-${sanitizeTestId(title)}`">
+    <div class="crud-toolbar" data-testid="e2e-crud-toolbar">
       <a-space wrap>
         <a-input
           v-model:value="keywordModel"
           :placeholder="searchPlaceholder"
           allow-clear
+          data-testid="e2e-crud-search-input"
           @press-enter="$emit('search')"
         />
-        <a-button @click="$emit('search')">查询</a-button>
-        <a-button @click="$emit('reset')">重置</a-button>
+        <a-button data-testid="e2e-crud-search-submit" @click="$emit('search')">{{ t("crud.search") }}</a-button>
+        <a-button data-testid="e2e-crud-search-reset" @click="$emit('reset')">{{ t("crud.reset") }}</a-button>
         <slot name="toolbar-actions" />
       </a-space>
-      <a-space wrap>
+      <a-space wrap data-testid="e2e-crud-toolbar-right">
         <slot name="toolbar-right" />
       </a-space>
     </div>
 
-    <div v-if="$slots.filter" class="crud-filter-bar">
+    <div v-if="$slots.filter" class="crud-filter-bar" data-testid="e2e-crud-filter-bar">
       <a-space wrap>
-        <span class="crud-filter-label">高级筛选</span>
+        <span class="crud-filter-label">{{ t("crud.filters") }}</span>
         <slot name="filter" />
       </a-space>
     </div>
 
-    <slot name="table" />
+    <div data-testid="e2e-crud-table-region">
+      <slot name="table" />
+    </div>
 
     <a-drawer
       v-model:open="drawerOpenModel"
       :title="drawerTitle"
       placement="right"
       :width="drawerWidth"
-      @close="$emit('close-form')"
       destroy-on-close
+      :data-testid="`e2e-crud-drawer-${sanitizeTestId(drawerTitle)}`"
+      @close="$emit('close-form')"
     >
       <slot name="form" />
       <template #footer>
-        <a-space>
-          <a-button :disabled="submitDisabled || submitLoading" @click="$emit('close-form')">取消</a-button>
+        <a-space data-testid="e2e-crud-drawer-footer">
+          <a-button
+            data-testid="e2e-crud-drawer-cancel"
+            :disabled="submitDisabled || submitLoading"
+            @click="$emit('close-form')"
+          >
+            {{ t("crud.cancel") }}
+          </a-button>
           <a-button
             type="primary"
             :loading="submitLoading"
             :disabled="submitDisabled"
+            data-testid="e2e-crud-drawer-submit"
             @click="$emit('submit')"
           >
-            保存
+            {{ t("crud.save") }}
           </a-button>
         </a-space>
       </template>
@@ -56,6 +67,7 @@
 
 <script setup lang="ts">
 import { computed } from "vue";
+import { useI18n } from "vue-i18n";
 
 const props = defineProps<{
   title: string;
@@ -68,9 +80,6 @@ const props = defineProps<{
   submitDisabled?: boolean;
 }>();
 
-const submitLoading = computed(() => props.submitLoading ?? false);
-const submitDisabled = computed(() => props.submitDisabled ?? false);
-
 const emit = defineEmits<{
   (e: "update:keyword", value: string): void;
   (e: "update:drawerOpen", value: boolean): void;
@@ -79,6 +88,11 @@ const emit = defineEmits<{
   (e: "close-form"): void;
   (e: "submit"): void;
 }>();
+
+const { t } = useI18n();
+
+const submitLoading = computed(() => props.submitLoading ?? false);
+const submitDisabled = computed(() => props.submitDisabled ?? false);
 
 const keywordModel = computed({
   get: () => props.keyword,
@@ -89,6 +103,10 @@ const drawerOpenModel = computed({
   get: () => props.drawerOpen,
   set: (value: boolean) => emit("update:drawerOpen", value)
 });
+
+function sanitizeTestId(value: string) {
+  return value.replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-+|-+$/g, "").toLowerCase();
+}
 </script>
 
 <style scoped>

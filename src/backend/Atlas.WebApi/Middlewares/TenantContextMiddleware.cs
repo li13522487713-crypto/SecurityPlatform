@@ -63,6 +63,15 @@ public sealed class TenantContextMiddleware
             return;
         }
 
+        // 即使 JWT 认证未成功（如 session 失效），JWT claim 在 Token 解码时依然填充。
+        // 若 claim 中含有 tenant_id 且与 header 不符，同样需要拦截并返回 403，
+        // 防止攻击者通过伪造 X-Tenant-Id 绕过租户隔离。
+        if (hasClaimTenant && hasHeaderTenant && headerTenantId != claimTenantId)
+        {
+            await WriteTenantErrorAsync(context, StatusCodes.Status403Forbidden, ErrorCodes.Forbidden, "租户标识不一致");
+            return;
+        }
+
         if (!hasHeaderTenant)
         {
             await WriteTenantErrorAsync(context, StatusCodes.Status400BadRequest, ErrorCodes.ValidationError, "无效或缺失租户标识");

@@ -19,6 +19,8 @@ public sealed class RoleCommandService : IRoleCommandService
     private readonly IUserRoleRepository _userRoleRepository;
     private readonly IPermissionRepository _permissionRepository;
     private readonly IMenuRepository _menuRepository;
+    private readonly IRoleDeptRepository _roleDeptRepository;
+    private readonly IDepartmentRepository _departmentRepository;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly IUnitOfWork _unitOfWork;
 
@@ -29,6 +31,8 @@ public sealed class RoleCommandService : IRoleCommandService
         IUserRoleRepository userRoleRepository,
         IPermissionRepository permissionRepository,
         IMenuRepository menuRepository,
+        IRoleDeptRepository roleDeptRepository,
+        IDepartmentRepository departmentRepository,
         IIdGeneratorAccessor idGeneratorAccessor,
         IUnitOfWork unitOfWork)
     {
@@ -38,6 +42,8 @@ public sealed class RoleCommandService : IRoleCommandService
         _userRoleRepository = userRoleRepository;
         _permissionRepository = permissionRepository;
         _menuRepository = menuRepository;
+        _roleDeptRepository = roleDeptRepository;
+        _departmentRepository = departmentRepository;
         _idGeneratorAccessor = idGeneratorAccessor;
         _unitOfWork = unitOfWork;
     }
@@ -147,7 +153,7 @@ public sealed class RoleCommandService : IRoleCommandService
         }, cancellationToken);
     }
 
-    public async Task SetDataScopeAsync(TenantId tenantId, long roleId, DataScopeType scope, CancellationToken cancellationToken)
+    public async Task SetDataScopeAsync(TenantId tenantId, long roleId, DataScopeType scope, IReadOnlyList<long>? deptIds, CancellationToken cancellationToken)
     {
         var role = await _roleRepository.FindByIdAsync(tenantId, roleId, cancellationToken);
         if (role is null)
@@ -155,8 +161,31 @@ public sealed class RoleCommandService : IRoleCommandService
             throw new BusinessException("Role not found.", ErrorCodes.NotFound);
         }
 
-        role.SetDataScope(scope);
-        await _roleRepository.UpdateAsync(role, cancellationToken);
+        if (scope == DataScopeType.CustomDept && deptIds?.Count > 0)
+        {
+            var distinctIds = deptIds.Distinct().ToArray();
+            var depts = await _departmentRepository.QueryByIdsAsync(tenantId, distinctIds, cancellationToken);
+            if (depts.Count != distinctIds.Length)
+            {
+                throw new BusinessException("Department not found.", ErrorCodes.ValidationError);
+            }
+        }
+
+        await _unitOfWork.ExecuteInTransactionAsync(async () =>
+        {
+            role.SetDataScope(scope);
+            await _roleRepository.UpdateAsync(role, cancellationToken);
+
+            await _roleDeptRepository.DeleteByRoleIdAsync(tenantId, roleId, cancellationToken);
+            if (scope == DataScopeType.CustomDept && deptIds?.Count > 0)
+            {
+                await _roleDeptRepository.AddRangeAsync(
+                    deptIds.Distinct()
+                        .Select(deptId => new RoleDept(tenantId, roleId, deptId, _idGeneratorAccessor.NextId()))
+                        .ToArray(),
+                    cancellationToken);
+            }
+        }, cancellationToken);
     }
 
     private async Task EnsureRoleExistsAsync(TenantId tenantId, long roleId, CancellationToken cancellationToken)

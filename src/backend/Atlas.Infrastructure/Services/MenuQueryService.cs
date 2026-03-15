@@ -9,6 +9,50 @@ namespace Atlas.Infrastructure.Services;
 
 public sealed class MenuQueryService : IMenuQueryService
 {
+    private static readonly IReadOnlyDictionary<string, string> BuiltInTitleKeys = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["/console"] = "route.console",
+        ["/console/apps"] = "route.consoleApps",
+        ["/console/resources"] = "route.consoleResources",
+        ["/console/releases"] = "route.consoleReleases",
+        ["/console/tools"] = "route.consoleTools",
+        ["/console/datasources"] = "route.consoleDatasources",
+        ["/console/settings/system/configs"] = "route.consoleSystemConfigs",
+        ["/system/notifications"] = "route.notifications",
+        ["/system/notifications/manage"] = "route.notificationsManage",
+        ["/settings/system/dict-types"] = "route.dictTypes",
+        ["/settings/system/datasources"] = "route.datasources",
+        ["/settings/system/configs"] = "route.systemConfigs",
+        ["/settings/ai/model-configs"] = "route.modelConfigs",
+        ["/settings/auth/roles"] = "route.roles",
+        ["/settings/system/plugins"] = "route.plugins",
+        ["/settings/system/webhooks"] = "route.webhooks",
+        ["/monitor/message-queue"] = "route.messageQueue",
+        ["/monitor/server-info"] = "route.serverInfo",
+        ["/monitor/scheduled-jobs"] = "route.scheduledJobs",
+        ["/monitor/writeback-failures"] = "route.writebackMonitor",
+        ["/system/login-logs"] = "route.loginLogs",
+        ["/system/online-users"] = "route.onlineUsers",
+        ["/settings/license"] = "route.license",
+        ["/lowcode/apps"] = "route.lowcodeApps",
+        ["/lowcode/forms"] = "route.forms",
+        ["/lowcode/templates"] = "route.templateMarket",
+        ["/workflow"] = "route.workflowList",
+        ["/approval/designer"] = "route.approvalDesigner",
+        ["/approval/flows/manage"] = "route.approvalFlowManage",
+        ["/approval/flows"] = "route.approvalFlows",
+        ["/approval/workspace"] = "route.approvalWorkspace",
+        ["/settings/org/tenants"] = "route.tenants",
+        ["/settings/org/departments"] = "route.departments",
+        ["/settings/org/positions"] = "route.positions",
+        ["/settings/org/users"] = "route.users",
+        ["/settings/auth/menus"] = "route.menus",
+        ["/settings/projects"] = "route.projects",
+        ["/assets"] = "route.assets",
+        ["/audit"] = "route.audit",
+        ["/alert"] = "route.alert"
+    };
+
     private readonly IMenuRepository _menuRepository;
     private readonly IUserRoleRepository _userRoleRepository;
     private readonly IRoleMenuRepository _roleMenuRepository;
@@ -141,6 +185,7 @@ public sealed class MenuQueryService : IMenuQueryService
                 Meta = new RouterMeta
                 {
                     Title = x.Name,
+                    TitleKey = ResolveTitleKey(x.Path),
                     Icon = x.Icon,
                     NoCache = !x.IsCache,
                     Link = x.MenuType == "L" ? x.Path : null,
@@ -216,5 +261,10 @@ public sealed class MenuQueryService : IMenuQueryService
         {
             router.Children = null;
         }
+    }
+
+    private static string? ResolveTitleKey(string path)
+    {
+        return BuiltInTitleKeys.TryGetValue(path, out var titleKey) ? titleKey : null;
     }
 }

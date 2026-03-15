@@ -1,6 +1,8 @@
 using System.Text.RegularExpressions;
 using Atlas.Application.DynamicTables.Models;
+using Atlas.Application.Resources;
 using FluentValidation;
+using Microsoft.Extensions.Localization;
 
 namespace Atlas.Application.Validators;
 
@@ -21,57 +23,57 @@ public sealed class DynamicTableCreateRequestValidator : AbstractValidator<Dynam
         "TenantIdValue"
     };
 
-    public DynamicTableCreateRequestValidator()
+    public DynamicTableCreateRequestValidator(IStringLocalizer<Messages> localizer)
     {
         RuleFor(x => x.TableKey)
-            .NotEmpty()
-            .Must(BeValidKey).WithMessage("表标识格式不正确。");
+            .NotEmpty().WithMessage(localizer["DynamicTableTableKeyInvalid"].Value)
+            .Must(BeValidKey).WithMessage(localizer["DynamicTableTableKeyInvalid"].Value);
 
         RuleFor(x => x.DisplayName)
-            .NotEmpty()
-            .MaximumLength(100);
+            .NotEmpty().WithMessage(localizer["DynamicTableDisplayNameRequired"].Value)
+            .MaximumLength(100).WithMessage(localizer["DynamicTableDisplayNameMaxLength", 100].Value);
 
         RuleFor(x => x.DbType)
-            .NotEmpty()
+            .NotEmpty().WithMessage(localizer["DynamicTableDbTypeInvalid"].Value)
             .Must(type => AllowedDbTypes.Contains(type))
-            .WithMessage("数据库类型不支持。");
+            .WithMessage(localizer["DynamicTableDbTypeInvalid"].Value);
 
         RuleFor(x => x.Fields)
             .NotNull()
             .Must(fields => fields.Count is > 0 and <= 200)
-            .WithMessage("字段数量必须在 1-200 之间。");
+            .WithMessage(localizer["DynamicTableFieldsCountInvalid"].Value);
 
         RuleForEach(x => x.Fields)
             .Must(field => BeValidField(field.Name))
-            .WithMessage("字段名格式不正确。");
+            .WithMessage(localizer["DynamicTableFieldNameInvalid"].Value);
 
         RuleForEach(x => x.Fields)
             .Must(field => AllowedFieldTypes.Contains(field.FieldType))
-            .WithMessage("字段类型不支持。");
+            .WithMessage(localizer["DynamicTableFieldTypeInvalid"].Value);
 
         RuleForEach(x => x.Fields)
             .Must(ValidateFieldLength)
-            .WithMessage("字段长度/精度设置不合法。");
+            .WithMessage(localizer["DynamicTableFieldLengthInvalid"].Value);
 
         RuleForEach(x => x.Fields)
             .Must(ValidateFieldValidation)
-            .WithMessage("字段校验规则不合法。");
+            .WithMessage(localizer["DynamicTableFieldValidationInvalid"].Value);
 
         RuleFor(x => x.Fields)
             .Must(HaveSinglePrimaryKey)
-            .WithMessage("必须且只能有一个主键字段。");
+            .WithMessage(localizer["DynamicTablePrimaryKeyRequired"].Value);
 
         RuleFor(x => x.Fields)
             .Must(IsPrimaryKeyTypeValid)
-            .WithMessage("主键仅支持 Int/Long 类型。");
+            .WithMessage(localizer["DynamicTablePrimaryKeyTypeInvalid"].Value);
 
         RuleFor(x => x.Fields)
             .Must(HaveUniqueFieldNames)
-            .WithMessage("字段名不能重复。");
+            .WithMessage(localizer["DynamicTableFieldNamesDuplicated"].Value);
 
         RuleFor(x => x.Fields)
             .Must(AutoIncrementMustBePrimaryKey)
-            .WithMessage("自增字段必须为主键且类型为 Int/Long。");
+            .WithMessage(localizer["DynamicTableAutoIncrementInvalid"].Value);
     }
 
     private static bool BeValidKey(string key)

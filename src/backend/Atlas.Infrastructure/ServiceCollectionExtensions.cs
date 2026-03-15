@@ -156,6 +156,10 @@ public static class ServiceCollectionExtensions
             return db;
         });
 
+        // JWT 认证缓存（减少热路径 DB 查询，TTL 60 秒）
+        services.AddSingleton<Atlas.Application.Identity.Abstractions.IAuthCacheService,
+            Atlas.Infrastructure.Security.MemoryAuthCacheService>();
+
         return services;
     }
 

@@ -37,7 +37,10 @@ public sealed record UserUpdateRequest(
     string DisplayName,
     string? Email,
     string? PhoneNumber,
-    bool IsActive);
+    bool IsActive,
+    IReadOnlyList<long>? RoleIds = null,
+    IReadOnlyList<long>? DepartmentIds = null,
+    IReadOnlyList<long>? PositionIds = null);
 
 public sealed record UserAssignRolesRequest(IReadOnlyList<long> RoleIds);
 

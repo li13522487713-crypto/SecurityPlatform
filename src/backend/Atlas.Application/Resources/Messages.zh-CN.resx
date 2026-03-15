@@ -8,80 +8,91 @@
   <resheader name="version"><value>2.0</value></resheader>
   <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
   <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
-
-  <data name="InvalidCredentials" xml:space="preserve">
-    <value>用户名或密码错误</value>
-  </data>
-  <data name="AccountLocked" xml:space="preserve">
-    <value>账号已锁定，请稍后再试</value>
-  </data>
-  <data name="CaptchaInvalid" xml:space="preserve">
-    <value>验证码错误或已过期</value>
-  </data>
-  <data name="Unauthorized" xml:space="preserve">
-    <value>未授权，请先登录</value>
-  </data>
-  <data name="Forbidden" xml:space="preserve">
-    <value>权限不足，无法执行此操作</value>
-  </data>
-  <data name="NotFound" xml:space="preserve">
-    <value>请求的资源不存在</value>
-  </data>
-  <data name="ValidationError" xml:space="preserve">
-    <value>请求数据验证失败</value>
-  </data>
-  <data name="InternalError" xml:space="preserve">
-    <value>服务器内部错误，请联系管理员</value>
-  </data>
-  <data name="RoleCodeExists" xml:space="preserve">
-    <value>角色编码已存在</value>
-  </data>
-  <data name="SystemRoleCannotDelete" xml:space="preserve">
-    <value>系统内置角色不可删除</value>
-  </data>
-  <data name="BuiltInConfigCannotModify" xml:space="preserve">
-    <value>内置参数不可修改</value>
-  </data>
-  <data name="FileTooLarge" xml:space="preserve">
-    <value>文件大小超出限制</value>
-  </data>
-  <data name="FileTypeNotAllowed" xml:space="preserve">
-    <value>文件类型不被允许</value>
-  </data>
-  <data name="LowCodeAppKeyRequired" xml:space="preserve">
-    <value>应用标识不能为空</value>
-  </data>
-  <data name="LowCodeAppKeyMaxLength" xml:space="preserve">
-    <value>应用标识不能超过100个字符</value>
-  </data>
-  <data name="LowCodeAppKeyFormatInvalid" xml:space="preserve">
-    <value>应用标识只能包含字母、数字、下划线和连字符，且必须以字母开头</value>
-  </data>
-  <data name="LowCodeAppNameRequired" xml:space="preserve">
-    <value>应用名称不能为空</value>
-  </data>
-  <data name="LowCodeAppNameMaxLength" xml:space="preserve">
-    <value>应用名称不能超过200个字符</value>
-  </data>
-  <data name="LowCodeAppDescriptionMaxLength" xml:space="preserve">
-    <value>描述不能超过1000个字符</value>
-  </data>
-  <data name="LowCodeAppCategoryMaxLength" xml:space="preserve">
-    <value>分类不能超过100个字符</value>
-  </data>
-  <data name="DynamicAlterAtLeastOneChange" xml:space="preserve">
-    <value>至少需要一项表结构变更。</value>
-  </data>
-  <data name="DynamicAlterUpdateNotSupported" xml:space="preserve">
-    <value>当前版本暂不支持字段更新。</value>
-  </data>
-  <data name="DynamicAlterRemoveNotSupported" xml:space="preserve">
-    <value>当前版本暂不支持字段删除。</value>
-  </data>
-  <data name="DynamicAlterFieldNameInvalid" xml:space="preserve">
-    <value>新增字段名不合法。</value>
-  </data>
-  <data name="DynamicAlterFieldNameDuplicated" xml:space="preserve">
-    <value>新增字段名不能重复。</value>
-  </data>
+  <data name="InvalidCredentials" xml:space="preserve"><value>用户名或密码错误。</value></data>
+  <data name="AccountLocked" xml:space="preserve"><value>账号已被锁定，请稍后再试。</value></data>
+  <data name="PasswordExpired" xml:space="preserve"><value>密码已过期，请重置后重新登录。</value></data>
+  <data name="CaptchaInvalid" xml:space="preserve"><value>验证码无效或已过期。</value></data>
+  <data name="Unauthorized" xml:space="preserve"><value>未授权，请先登录。</value></data>
+  <data name="AuthenticationFailed" xml:space="preserve"><value>认证失败。</value></data>
+  <data name="TokenExpired" xml:space="preserve"><value>访问令牌已过期，请重新登录。</value></data>
+  <data name="Forbidden" xml:space="preserve"><value>权限不足，无法执行此操作。</value></data>
+  <data name="NotFound" xml:space="preserve"><value>请求的资源不存在。</value></data>
+  <data name="ValidationError" xml:space="preserve"><value>请求数据校验失败。</value></data>
+  <data name="RateLimited" xml:space="preserve"><value>请求过于频繁，请稍后再试。</value></data>
+  <data name="InternalError" xml:space="preserve"><value>服务器内部错误，请联系管理员。</value></data>
+  <data name="RoleCodeExists" xml:space="preserve"><value>角色编码已存在。</value></data>
+  <data name="SystemRoleCannotDelete" xml:space="preserve"><value>系统角色不可删除。</value></data>
+  <data name="BuiltInConfigCannotModify" xml:space="preserve"><value>内置配置不可修改。</value></data>
+  <data name="FileTooLarge" xml:space="preserve"><value>文件大小超出限制。</value></data>
+  <data name="FileTypeNotAllowed" xml:space="preserve"><value>文件类型不被允许。</value></data>
+  <data name="LowCodeAppKeyRequired" xml:space="preserve"><value>应用标识不能为空。</value></data>
+  <data name="LowCodeAppKeyMaxLength" xml:space="preserve"><value>应用标识不能超过 100 个字符。</value></data>
+  <data name="LowCodeAppKeyFormatInvalid" xml:space="preserve"><value>应用标识必须以字母开头，且只能包含字母、数字、下划线和连字符。</value></data>
+  <data name="LowCodeAppNameRequired" xml:space="preserve"><value>应用名称不能为空。</value></data>
+  <data name="LowCodeAppNameMaxLength" xml:space="preserve"><value>应用名称不能超过 200 个字符。</value></data>
+  <data name="LowCodeAppDescriptionMaxLength" xml:space="preserve"><value>描述不能超过 1000 个字符。</value></data>
+  <data name="LowCodeAppCategoryMaxLength" xml:space="preserve"><value>分类不能超过 100 个字符。</value></data>
+  <data name="DynamicAlterAtLeastOneChange" xml:space="preserve"><value>至少需要一项表结构变更。</value></data>
+  <data name="DynamicAlterUpdateNotSupported" xml:space="preserve"><value>当前版本暂不支持更新已有字段。</value></data>
+  <data name="DynamicAlterRemoveNotSupported" xml:space="preserve"><value>当前版本暂不支持删除字段。</value></data>
+  <data name="DynamicAlterFieldNameInvalid" xml:space="preserve"><value>新增字段名称不合法。</value></data>
+  <data name="DynamicAlterFieldNameDuplicated" xml:space="preserve"><value>新增字段名称不能重复。</value></data>
+  <data name="UsernameRequired" xml:space="preserve"><value>用户名不能为空。</value></data>
+  <data name="UsernameMaxLength" xml:space="preserve"><value>用户名不能超过 {0} 个字符。</value></data>
+  <data name="UsernameNoWhitespace" xml:space="preserve"><value>用户名不能包含空白字符。</value></data>
+  <data name="UsernameNotNumeric" xml:space="preserve"><value>用户名不能为纯数字。</value></data>
+  <data name="PasswordRequired" xml:space="preserve"><value>密码不能为空。</value></data>
+  <data name="PasswordMaxLength" xml:space="preserve"><value>密码不能超过 {0} 个字符。</value></data>
+  <data name="ConfirmPasswordRequired" xml:space="preserve"><value>请再次输入密码。</value></data>
+  <data name="ConfirmPasswordMismatch" xml:space="preserve"><value>两次输入的密码不一致。</value></data>
+  <data name="CurrentPasswordRequired" xml:space="preserve"><value>当前密码不能为空。</value></data>
+  <data name="NewPasswordRequired" xml:space="preserve"><value>新密码不能为空。</value></data>
+  <data name="PasswordMinLength" xml:space="preserve"><value>密码长度不能少于 {0} 位。</value></data>
+  <data name="PasswordRequireUppercase" xml:space="preserve"><value>密码必须包含大写字母。</value></data>
+  <data name="PasswordRequireLowercase" xml:space="preserve"><value>密码必须包含小写字母。</value></data>
+  <data name="PasswordRequireDigit" xml:space="preserve"><value>密码必须包含数字。</value></data>
+  <data name="PasswordRequireNonAlphanumeric" xml:space="preserve"><value>密码必须包含特殊字符。</value></data>
+  <data name="DynamicTableTableKeyInvalid" xml:space="preserve"><value>表标识格式不正确。</value></data>
+  <data name="DynamicTableDisplayNameRequired" xml:space="preserve"><value>显示名称不能为空。</value></data>
+  <data name="DynamicTableDisplayNameMaxLength" xml:space="preserve"><value>显示名称不能超过 {0} 个字符。</value></data>
+  <data name="DynamicTableDbTypeInvalid" xml:space="preserve"><value>数据库类型不支持。</value></data>
+  <data name="DynamicTableFieldsCountInvalid" xml:space="preserve"><value>字段数量必须在 1 到 200 之间。</value></data>
+  <data name="DynamicTableFieldNameInvalid" xml:space="preserve"><value>字段名称格式不正确。</value></data>
+  <data name="DynamicTableFieldTypeInvalid" xml:space="preserve"><value>字段类型不支持。</value></data>
+  <data name="DynamicTableFieldLengthInvalid" xml:space="preserve"><value>字段长度或精度设置不合法。</value></data>
+  <data name="DynamicTableFieldValidationInvalid" xml:space="preserve"><value>字段校验规则不合法。</value></data>
+  <data name="DynamicTablePrimaryKeyRequired" xml:space="preserve"><value>必须且只能有一个主键字段。</value></data>
+  <data name="DynamicTablePrimaryKeyTypeInvalid" xml:space="preserve"><value>主键仅支持 Int 或 Long 类型。</value></data>
+  <data name="DynamicTableFieldNamesDuplicated" xml:space="preserve"><value>字段名称不能重复。</value></data>
+  <data name="DynamicTableAutoIncrementInvalid" xml:space="preserve"><value>自增字段必须为 Int 或 Long 类型的主键。</value></data>
+  <data name="LowCodeDataSourceIdPositive" xml:space="preserve"><value>DataSourceId 必须为正整数。</value></data>
+  <data name="LowCodeImportPackageRequired" xml:space="preserve"><value>导入包不能为空。</value></data>
+  <data name="LowCodeImportAppKeyRequired" xml:space="preserve"><value>导入包中的应用标识不能为空。</value></data>
+  <data name="LowCodeImportAppKeyMaxLength" xml:space="preserve"><value>导入包中的应用标识不能超过 {0} 个字符。</value></data>
+  <data name="LowCodeImportAppKeyInvalid" xml:space="preserve"><value>导入包中的应用标识格式不合法。</value></data>
+  <data name="LowCodeImportNameRequired" xml:space="preserve"><value>导入包中的应用名称不能为空。</value></data>
+  <data name="LowCodeImportNameMaxLength" xml:space="preserve"><value>导入包中的应用名称不能超过 {0} 个字符。</value></data>
+  <data name="LowCodeImportConflictStrategyRequired" xml:space="preserve"><value>冲突策略不能为空。</value></data>
+  <data name="LowCodeImportConflictStrategyInvalid" xml:space="preserve"><value>冲突策略仅支持 Rename、Overwrite 或 Skip。</value></data>
+  <data name="LowCodeImportKeySuffixMaxLength" xml:space="preserve"><value>后缀长度不能超过 {0} 个字符。</value></data>
+  <data name="LowCodeImportKeySuffixInvalid" xml:space="preserve"><value>后缀仅支持字母、数字、下划线和连字符。</value></data>
+  <data name="LowCodeEntityAliasesRequired" xml:space="preserve"><value>实体别名集合不能为空。</value></data>
+  <data name="LowCodeEntityAliasesCountMax" xml:space="preserve"><value>实体别名数量不能超过 {0} 个。</value></data>
+  <data name="LowCodeEntityTypeRequired" xml:space="preserve"><value>实体类型不能为空。</value></data>
+  <data name="LowCodeEntityTypeMaxLength" xml:space="preserve"><value>实体类型长度不能超过 {0} 个字符。</value></data>
+  <data name="LowCodeSingularAliasRequired" xml:space="preserve"><value>单数别名不能为空。</value></data>
+  <data name="LowCodeSingularAliasMaxLength" xml:space="preserve"><value>单数别名长度不能超过 {0} 个字符。</value></data>
+  <data name="LowCodePluralAliasRequired" xml:space="preserve"><value>复数别名不能为空。</value></data>
+  <data name="LowCodePluralAliasMaxLength" xml:space="preserve"><value>复数别名长度不能超过 {0} 个字符。</value></data>
+  <data name="FLOW_NOT_FOUND" xml:space="preserve"><value>审批流定义不存在。</value></data>
+  <data name="FLOW_NOT_PUBLISHED" xml:space="preserve"><value>审批流尚未发布。</value></data>
+  <data name="FLOW_DEPRECATED" xml:space="preserve"><value>审批流已停用，不能再发起新的实例。</value></data>
+  <data name="TASK_NOT_FOUND" xml:space="preserve"><value>审批任务不存在。</value></data>
+  <data name="TASK_NOT_PENDING" xml:space="preserve"><value>任务当前不是待处理状态。</value></data>
+  <data name="INSTANCE_NOT_RUNNING" xml:space="preserve"><value>流程实例当前不在运行状态。</value></data>
+  <data name="INSTANCE_NOT_FOUND" xml:space="preserve"><value>流程实例不存在。</value></data>
+  <data name="COPY_RECORD_NOT_FOUND" xml:space="preserve"><value>抄送记录不存在。</value></data>
+  <data name="COPY_RECORD_NOT_OWNER" xml:space="preserve"><value>无权操作该抄送记录。</value></data>
+  <data name="INVALID_OPERATION" xml:space="preserve"><value>当前操作无效。</value></data>
+  <data name="INVALID_STATUS" xml:space="preserve"><value>当前状态不允许执行该操作。</value></data>
 </root>

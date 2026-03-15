@@ -1,29 +1,61 @@
-import { test as base, expect } from "@playwright/test";
+import { test as base, expect, type Page } from "@playwright/test";
+import type { E2ERole } from "../catalog/seed-types";
+import { readAuthState } from "../helpers/auth-state";
+import { applyStoredSessionState } from "../helpers/test-helpers";
 
 type AuthFixture = {
+  loginAsSuperAdmin: () => Promise<void>;
+  loginAsSysAdmin: () => Promise<void>;
+  loginAsSecurityAdmin: () => Promise<void>;
+  loginAsApprovalAdmin: () => Promise<void>;
+  loginAsAiAdmin: () => Promise<void>;
+  loginAsAppAdmin: () => Promise<void>;
+  loginAsDeptAdminA: () => Promise<void>;
+  loginAsDeptAdminB: () => Promise<void>;
+  loginAsReadonly: () => Promise<void>;
+  loginAsUserA: () => Promise<void>;
+  loginAsUserB: () => Promise<void>;
   loginAsAdmin: () => Promise<void>;
 };
 
-const defaultTenantId = "00000000-0000-0000-0000-000000000001";
-const e2eTenantId = process.env.E2E_TEST_TENANT_ID ?? defaultTenantId;
-const e2eUsername = process.env.E2E_TEST_USERNAME ?? "admin";
-const e2ePassword = process.env.E2E_TEST_PASSWORD;
+async function applyRoleState(page: Page, role: E2ERole) {
+  const state = readAuthState(role);
+  await page.context().clearCookies();
+  if (state.cookies.length > 0) {
+    await page.context().addCookies(state.cookies);
+  }
+  await applyStoredSessionState(page, {
+    localStorage: state.localStorage,
+    sessionStorage: state.sessionStorage
+  });
+  await page.goto(state.homePath);
+  await page.waitForLoadState("networkidle");
+  return state;
+}
+
+function createLoginFixture(role: E2ERole) {
+  return async ({ page }: { page: Page }, use: (value: () => Promise<void>) => Promise<void>) => {
+    await use(async () => {
+      const state = await applyRoleState(page, role);
+      const pattern = new RegExp(state.homePath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+      await expect(page).toHaveURL(pattern);
+    });
+  };
+}
 
 export const test = base.extend<AuthFixture>({
-  loginAsAdmin: async ({ page }, use) => {
-    await use(async () => {
-      if (!e2ePassword) {
-        throw new Error("缺少 E2E_TEST_PASSWORD 环境变量，无法执行登录步骤。");
-      }
-
-      await page.goto("/login");
-      await page.getByPlaceholder("请输入租户 / 组织 ID").fill(e2eTenantId);
-      await page.getByPlaceholder("请输入手机号/邮箱/用户名").fill(e2eUsername);
-      await page.getByPlaceholder("请输入密码").fill(e2ePassword);
-      await page.getByRole("button", { name: "登录" }).click();
-      await page.waitForURL(/\/(home|$)/, { timeout: 15000 });
-    });
-  }
+  loginAsSuperAdmin: createLoginFixture("superadmin"),
+  loginAsSysAdmin: createLoginFixture("sysadmin"),
+  loginAsSecurityAdmin: createLoginFixture("securityadmin"),
+  loginAsApprovalAdmin: createLoginFixture("approvaladmin"),
+  loginAsAiAdmin: createLoginFixture("aiadmin"),
+  loginAsAppAdmin: createLoginFixture("appadmin"),
+  loginAsDeptAdminA: createLoginFixture("deptadminA"),
+  loginAsDeptAdminB: createLoginFixture("deptadminB"),
+  loginAsReadonly: createLoginFixture("readonly"),
+  loginAsUserA: createLoginFixture("userA"),
+  loginAsUserB: createLoginFixture("userB"),
+  loginAsAdmin: createLoginFixture("superadmin")
 });
 
 export { expect };

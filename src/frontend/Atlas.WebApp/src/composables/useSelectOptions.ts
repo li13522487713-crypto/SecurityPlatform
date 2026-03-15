@@ -1,25 +1,19 @@
 import { ref } from "vue";
 import { message } from "ant-design-vue";
+import { translate } from "@/i18n";
 import type { PagedRequest, PagedResult } from "@/types/api";
 import { debounce, type SelectOption } from "@/utils/common";
 
 export interface UseSelectOptionsConfig<TItem> {
-  /** API function to fetch paged items */
   fetcher: (params: PagedRequest) => Promise<PagedResult<TItem>>;
-  /** Map a single item to { label, value } */
   mapItem: (item: TItem) => SelectOption;
-  /** Page size per fetch, default 20 */
   pageSize?: number;
-  /** Error message prefix */
   errorLabel?: string;
 }
 
-/**
- * Reusable composable for loading select options from a paged API.
- * Replaces the duplicated loadRoleOptions / loadDepartmentOptions / loadPositionOptions pattern.
- */
 export function useSelectOptions<TItem>(config: UseSelectOptionsConfig<TItem>) {
-  const { fetcher, mapItem, pageSize = 20, errorLabel = "加载选项" } = config;
+  const { fetcher, mapItem, pageSize = 20, errorLabel } = config;
+  const t = translate;
 
   const options = ref<SelectOption[]>([]);
   const loading = ref(false);
@@ -34,7 +28,8 @@ export function useSelectOptions<TItem>(config: UseSelectOptionsConfig<TItem>) {
       });
       options.value = result.items.map(mapItem);
     } catch (error) {
-      message.error((error as Error).message || `${errorLabel}失败`);
+      const fallbackLabel = errorLabel ?? t("selectOptions.loadPrefix");
+      message.error((error as Error).message || `${fallbackLabel}${t("selectOptions.loadFailedSuffix")}`);
     } finally {
       loading.value = false;
     }

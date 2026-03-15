@@ -1,11 +1,16 @@
 <template>
   <template v-if="!item.hidden">
     <template v-if="hasOneShowingChild(childrenList, item)">
-      <a-menu-item :key="resolvePath(onlyOneChild?.path || item.path)" @click="go(onlyOneChild?.path || item.path)">
+      <a-menu-item
+        :key="resolvePath(onlyOneChild?.path || item.path)"
+        @click="go(onlyOneChild?.path || item.path)"
+      >
         <template v-if="onlyOneChild?.meta?.icon || item.meta?.icon" #icon>
           <component :is="getIcon(onlyOneChild?.meta?.icon || item.meta?.icon)" />
         </template>
-        {{ onlyOneChild?.meta?.title || item.meta?.title || item.name }}
+        <span :data-testid="buildMenuTestId(onlyOneChild?.path || item.path)">
+          {{ resolveMenuTitle(onlyOneChild ?? item) }}
+        </span>
       </a-menu-item>
     </template>
 
@@ -14,7 +19,7 @@
         <span v-if="item.meta?.icon">
           <component :is="getIcon(item.meta.icon)" style="margin-right: 8px;" />
         </span>
-        {{ item.meta?.title || item.name }}
+        <span :data-testid="buildMenuTestId(item.path)">{{ resolveMenuTitle(item) }}</span>
       </template>
       <SidebarItem
         v-for="child in childrenList"
@@ -32,6 +37,7 @@ import { useRouter } from "vue-router";
 import type { RouterVo } from "@/types/api";
 import * as antIcons from "@ant-design/icons-vue";
 import { isExternal } from "@/utils/validate";
+import { resolveRouteTitle } from "@/utils/i18n-navigation";
 
 const props = defineProps<{
   item: RouterVo;
@@ -109,5 +115,17 @@ function go(path: string) {
   } else {
     router.push(fullPath);
   }
+}
+
+function buildMenuTestId(path: string) {
+  const normalized = resolvePath(path)
+    .replace(/[^a-zA-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .toLowerCase();
+  return `e2e-menu-${normalized || "root"}`;
+}
+
+function resolveMenuTitle(routeItem: RouterVo) {
+  return resolveRouteTitle(routeItem.meta, routeItem.path, routeItem.meta?.title || routeItem.name);
 }
 </script>

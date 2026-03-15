@@ -290,11 +290,11 @@ export async function updateRoleMenus(id: string, request: RoleAssignMenusReques
   }
 }
 
-export async function setRoleDataScope(id: string, dataScope: number) {
+export async function setRoleDataScope(id: string, dataScope: number, deptIds?: string[]) {
   const response = await requestApi<ApiResponse<{ id: string }>>(`/roles/${id}/data-scope`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ dataScope })
+    body: JSON.stringify({ dataScope, deptIds })
   });
   if (!response.success) {
     throw new Error(response.message || "更新数据权限失败");

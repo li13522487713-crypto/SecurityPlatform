@@ -44,7 +44,7 @@ public sealed class UsersController : ControllerBase
     [HttpGet]
     [Authorize(Policy = PermissionPolicies.UsersView)]
     public async Task<ActionResult<ApiResponse<PagedResult<UserListItem>>>> Get(
-        [FromQuery] PagedRequest request,
+        [FromQuery] UserQueryRequest request,
         CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();

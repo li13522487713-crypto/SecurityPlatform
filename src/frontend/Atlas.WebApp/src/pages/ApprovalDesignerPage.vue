@@ -2,15 +2,13 @@
   <div class="dd-page">
     <DesignerToolbar
       v-model:flowName="flowName"
-      v-model:activeStep="activeStep"
+      v-model:activeMenu="activeMenu"
       v-model:paletteVisible="paletteVisible"
       :flow-version="flowVersion"
       :can-undo="canUndo"
       :can-redo="canRedo"
       :validating="validating"
       @back="goBack"
-      @prev-step="prevStep"
-      @next-step="nextStep"
       @zoom-out="zoomOutDesigner"
       @zoom-fit="zoomFitDesigner"
       @zoom-in="zoomInDesigner"
@@ -23,112 +21,56 @@
       @history="openFlowVersionHistory"
     />
 
-    <!-- ══ 步骤 0: 基础设置 ══ -->
-    <div class="dd-body dd-body--scroll" v-show="activeStep === 0">
-      <a-form layout="vertical" class="dd-basic-form">
-        <a-form-item label="流程名称">
-          <a-input v-model:value="flowName" :maxlength="100" placeholder="请输入流程名称" />
-        </a-form-item>
-        <a-form-item label="流程分类">
-          <a-input v-model:value="definitionMeta.category" placeholder="如：采购/人事/财务" />
-        </a-form-item>
-        <a-form-item label="流程说明">
-          <a-textarea v-model:value="definitionMeta.description" :rows="3" />
-        </a-form-item>
-        
-        <a-form-item label="可见范围">
-          <a-radio-group v-model:value="visibilityScopeType" style="margin-bottom: 12px">
-            <a-radio value="All">全部可见</a-radio>
-            <a-radio value="Department">指定部门</a-radio>
-            <a-radio value="Role">指定角色</a-radio>
-            <a-radio value="User">指定人员</a-radio>
-          </a-radio-group>
-          
-          <div v-if="visibilityScopeType !== 'All'">
-            <UserRolePicker
-              v-if="visibilityScopeType === 'Department'"
-              mode="department"
-              v-model:value="visibilityScopeIds"
-              placeholder="请选择部门"
-            />
-            <UserRolePicker
-              v-else-if="visibilityScopeType === 'Role'"
-              mode="role"
-              v-model:value="visibilityScopeIds"
-              placeholder="请选择角色"
-            />
-            <UserRolePicker
-              v-else-if="visibilityScopeType === 'User'"
-              mode="user"
-              v-model:value="visibilityScopeIds"
-              placeholder="请选择人员"
-            />
-          </div>
-        </a-form-item>
-
-        <a-space>
-          <a-switch v-model:checked="definitionMeta.isQuickEntry" /> <span>快捷入口</span>
-          <a-switch v-model:checked="definitionMeta.isLowCodeFlow" /> <span>启用低代码表单</span>
-        </a-space>
-      </a-form>
-    </div>
-
-    <!-- ══ 步骤 1: 表单设计 ══ -->
-    <div class="dd-body dd-body--scroll" v-show="activeStep === 1">
-      <a-tabs v-model:activeKey="formEngine">
-        <a-tab-pane key="lf" tab="LF(vform3) 兼容表单">
-          <a-alert
-            type="warning"
-            show-icon
-            style="margin-bottom: 12px"
-            message="LF(vform3) 仅用于历史流程兼容维护，新增流程请优先使用 AMIS Schema。"
-          />
-          <LfFormDesigner v-model="lfFormModel" @update:formFields="handleLfFormFields" />
-        </a-tab-pane>
-        <a-tab-pane key="amis" tab="AMIS 表单 Schema">
-          <a-alert
-            type="info"
-            show-icon
-            style="margin-bottom: 12px"
-            message="请输入 AMIS Schema（JSON），系统会自动提取字段供条件与权限配置使用"
-          />
-          <a-textarea
-            v-model:value="amisSchemaText"
-            :rows="20"
-            placeholder='{"type":"form","body":[{"type":"input-text","name":"title","label":"标题"}]}'
-          />
-          <div style="margin-top: 8px; display: flex; gap: 8px">
-            <a-button size="small" @click="formatAmisSchema">格式化 JSON</a-button>
-            <a-button size="small" @click="applyAmisSchema">应用并提取字段</a-button>
-          </div>
-        </a-tab-pane>
-      </a-tabs>
-    </div>
-
-    <!-- ══ 步骤 2: 流程设计（三栏，撑满剩余） ══ -->
-    <div class="dd-body dd-body--designer" v-show="activeStep === 2">
-      <ApprovalNodePalette :visible="paletteVisible" @update:visible="paletteVisible = $event" @addNode="handlePaletteAddNode" />
-      <div class="dd-canvas">
-        <X6ApprovalDesigner
-          ref="designerRef"
-          :flow-tree="flowTree"
-          :selected-node-id="selectedNode?.id ?? null"
-          @selectNode="handleSelectNode"
-          @addNode="addNode"
-          @deleteNode="deleteNode"
-          @addConditionBranch="addConditionBranch"
-          @deleteConditionBranch="deleteConditionBranch"
-          @moveBranch="moveBranch"
-          @updateRouteTarget="handleRouteTargetUpdate"
-        />
+    <div class="dd-main-container">
+      <div class="dd-sidebar">
+        <a-menu
+          v-model:selectedKeys="sidebarKeys"
+          mode="vertical"
+          style="height: 100%; border-right: 0"
+        >
+          <a-menu-item key="basic">基础设置</a-menu-item>
+          <a-menu-item key="form">表单设计</a-menu-item>
+          <a-menu-item key="process">流程设计</a-menu-item>
+        </a-menu>
       </div>
-      <ApprovalPropertiesPanel
-        :open="panelOpen"
-        :node="selectedNode"
-        :form-fields="effectiveFormFields"
-        @update:open="panelOpen = $event"
-        @update="handleNodeUpdate"
-      />
+
+      <div class="dd-content">
+        <div v-show="activeMenu === 'basic'" class="dd-content-panel dd-body--scroll">
+          <DesignerBasicInfo
+            v-model:flowName="flowName"
+            :definitionMeta="definitionMeta"
+            v-model:visibilityScopeType="visibilityScopeType"
+            v-model:visibilityScopeIds="visibilityScopeIds"
+          />
+        </div>
+
+        <div v-show="activeMenu === 'form'" class="dd-content-panel">
+          <DesignerFormSchema
+            v-model:schemaText="amisSchemaText"
+            @apply="applyAmisSchema"
+          />
+        </div>
+
+        <div v-show="activeMenu === 'process'" class="dd-content-panel">
+          <DesignerFlowProcess
+            ref="processRef"
+            v-model:paletteVisible="paletteVisible"
+            v-model:panelOpen="panelOpen"
+            :flow-tree="flowTree"
+            :selected-node="selectedNode"
+            :effective-form-fields="effectiveFormFields"
+            @addPaletteNode="handlePaletteAddNode"
+            @selectNode="handleSelectNode"
+            @addNode="addNode"
+            @deleteNode="deleteNode"
+            @addConditionBranch="addConditionBranch"
+            @deleteConditionBranch="deleteConditionBranch"
+            @moveBranch="moveBranch"
+            @updateRouteTarget="handleRouteTargetUpdate"
+            @updateNode="handleNodeUpdate"
+          />
+        </div>
+      </div>
     </div>
 
     <!-- ══ 弹窗：校验结果 ══ -->
@@ -212,13 +154,11 @@
 import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { message } from 'ant-design-vue';
-import X6ApprovalDesigner from '@/components/approval/x6/X6ApprovalDesigner.vue';
-import ApprovalPropertiesPanel from '@/components/approval/ApprovalPropertiesPanel.vue';
-import ApprovalNodePalette from '@/components/approval/ApprovalNodePalette.vue';
-import LfFormDesigner from '@/components/approval/LfFormDesigner.vue';
 import X6PreviewCanvas from '@/components/approval/X6PreviewCanvas.vue';
-import UserRolePicker from '@/components/common/UserRolePicker.vue';
 import DesignerToolbar from '@/components/approval/designer/DesignerToolbar.vue';
+import DesignerBasicInfo from '@/components/approval/designer/DesignerBasicInfo.vue';
+import DesignerFormSchema from '@/components/approval/designer/DesignerFormSchema.vue';
+import DesignerFlowProcess from '@/components/approval/designer/DesignerFlowProcess.vue';
 import ValidationErrorPanel from '@/components/approval/designer/ValidationErrorPanel.vue';
 import { useApprovalTree } from '@/composables/useApprovalTree';
 import { ApprovalTreeConverter } from '@/utils/approval-tree-converter';
@@ -254,16 +194,19 @@ const flowId = ref<string | null>(null);
 const flowVersion = ref<number>(0);
 const panelOpen = ref(false);
 const paletteVisible = ref(false);
-const activeStep = ref(0);
+
+const sidebarKeys = ref<string[]>(['basic']);
+const activeMenu = computed({
+  get: () => sidebarKeys.value[0] || 'basic',
+  set: (val) => { sidebarKeys.value = [val]; }
+});
+
 const definitionMeta = ref<ApprovalDefinitionMeta>({ flowName: '', isLowCodeFlow: true });
-const lfFormPayload = ref<LfFormPayload | undefined>(undefined);
-const lfFormModel = ref<FormJson | undefined>(undefined);
-const formEngine = ref<'lf' | 'amis'>('lf');
 const amisSchemaText = ref('');
 const amisSchemaModel = ref<unknown | undefined>(undefined);
-const amisFormFields = ref<LfFormPayload['formFields']>([]);
-const effectiveFormFields = computed(() => (formEngine.value === 'amis' ? amisFormFields.value : (lfFormPayload.value?.formFields ?? [])));
-// const visibilityScopeText = ref(''); // Removed
+const amisFormFields = ref<any[]>([]);
+const effectiveFormFields = computed(() => amisFormFields.value);
+
 const visibilityScopeType = ref<'All' | 'Department' | 'Role' | 'User'>('All');
 const visibilityScopeIds = ref<string[]>([]);
 
@@ -277,7 +220,7 @@ const versionHistoryVisible = ref(false);
 const loadingVersions = ref(false);
 const flowVersionList = ref<ApprovalFlowVersionListItem[]>([]);
 const rollingBackFlow = ref<string | null>(null);
-const designerRef = ref<InstanceType<typeof X6ApprovalDesigner> | null>(null);
+const processRef = ref<InstanceType<typeof DesignerFlowProcess> | null>(null);
 type ValidationIssueView = ApprovalFlowValidationIssue & { severity: 'error' | 'warning' };
 const normalizeValidationIssues = (result: ApprovalFlowValidationResult | null): ValidationIssueView[] => {
   if (!result) {
@@ -336,37 +279,17 @@ const handleValidationIssueClick = (issue: ValidationIssueView) => {
     return;
   }
   selectNode(target);
-  activeStep.value = 2;
+  activeMenu.value = 'process';
   message.info(`已定位到节点：${target.nodeName}`);
 };
+// ── 子组件代理/处理 ──
+const zoomInDesigner = () => processRef.value?.zoomIn();
+const zoomOutDesigner = () => processRef.value?.zoomOut();
+const zoomFitDesigner = () => processRef.value?.zoomFit();
 
-// ── 步骤 ──
-const nextStep = () => { if (activeStep.value < 2) activeStep.value += 1; };
-const prevStep = () => { if (activeStep.value > 0) activeStep.value -= 1; };
-const zoomInDesigner = () => designerRef.value?.zoomIn();
-const zoomOutDesigner = () => designerRef.value?.zoomOut();
-const zoomFitDesigner = () => designerRef.value?.zoomFit();
-
-// ── 节点库添加 ──
 const handlePaletteAddNode = (nodeType: string) => {
   const parentId = selectedNode.value?.id ?? flowTree.value.rootNode.id;
   addNode(parentId, nodeType);
-};
-
-const handleLfFormFields = (fields: LfFormPayload['formFields']) => {
-  lfFormPayload.value = { formJson: lfFormModel.value ?? { widgetList: [] }, formFields: fields };
-};
-
-const formatAmisSchema = () => {
-  if (!amisSchemaText.value.trim()) {
-    return;
-  }
-  try {
-    const parsed = JSON.parse(amisSchemaText.value);
-    amisSchemaText.value = JSON.stringify(parsed, null, 2);
-  } catch {
-    message.error('AMIS Schema JSON 格式不正确');
-  }
 };
 
 const applyAmisSchema = () => {
@@ -399,17 +322,10 @@ const buildRequest = () => {
   
   definitionMeta.value.visibilityScope = scope;
 
-  if (definitionMeta.value.isLowCodeFlow) {
-    if (formEngine.value === 'lf') {
-      lfFormPayload.value = { formJson: lfFormModel.value ?? { widgetList: [] }, formFields: lfFormPayload.value?.formFields ?? [] };
-    }
-  } else {
-    lfFormPayload.value = undefined;
-  }
-  const amisFormPayload = formEngine.value === 'amis' && amisSchemaModel.value
+  const amisFormPayload = amisSchemaModel.value
     ? { schema: amisSchemaModel.value as Record<string, unknown>, schemaVersion: '1.0.0', formFields: amisFormFields.value }
     : undefined;
-  const definitionJson = ApprovalTreeConverter.treeToDefinitionJson(flowTree.value, definitionMeta.value, lfFormPayload.value, amisFormPayload);
+  const definitionJson = ApprovalTreeConverter.treeToDefinitionJson(flowTree.value, definitionMeta.value, undefined, amisFormPayload);
   const visibilityScopeJson = definitionMeta.value.visibilityScope ? JSON.stringify(definitionMeta.value.visibilityScope) : undefined;
   return { name: flowName.value, definitionJson, description: definitionMeta.value.description, category: definitionMeta.value.category, visibilityScopeJson, isQuickEntry: !!definitionMeta.value.isQuickEntry };
 };
@@ -441,13 +357,7 @@ const loadFlow = async () => {
         // 合并 meta，但不覆盖 visibilityScope（由顶层 visibilityScopeJson 权威管理）
         definitionMeta.value = { ...state.meta, visibilityScope: undefined };
       }
-      if (state.lfForm) {
-        formEngine.value = 'lf';
-        lfFormPayload.value = state.lfForm;
-        lfFormModel.value = state.lfForm.formJson;
-      }
       if (state.amisForm?.schema) {
-        formEngine.value = 'amis';
         amisSchemaModel.value = state.amisForm.schema;
         amisSchemaText.value = JSON.stringify(state.amisForm.schema, null, 2);
         amisFormFields.value = state.amisForm.formFields ?? extractAmisFields(state.amisForm.schema);
@@ -651,7 +561,7 @@ const focusNodeByErrors = (errors: string[]) => {
   const target = findNodeById(flowTree.value.rootNode, idMatch[0]);
   if (target) {
     selectNode(target);
-    activeStep.value = 2;
+    activeMenu.value = 'process';
     message.warning(`已定位到异常节点：${target.nodeName}`);
   }
 };
@@ -703,7 +613,7 @@ const handleGlobalShortcut = (event: KeyboardEvent) => {
     return;
   }
 
-  if (activeStep.value !== 2) {
+  if (activeMenu.value !== 'process') {
     return;
   }
 
@@ -820,7 +730,6 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
 }
 
-/* ═══ 步骤内容（基础设置/表单设计） ═══ */
 .dd-body {
   flex: 1;
   min-height: 0;
@@ -837,8 +746,35 @@ onBeforeUnmount(() => {
   max-width: 640px;
 }
 
+/* ═══ 主内容结构（Sidebar 布局） ═══ */
+.dd-main-container {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+.dd-sidebar {
+  width: 160px;
+  background: #fff;
+  border-right: 1px solid #e8e8e8;
+  flex-shrink: 0;
+}
+.dd-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+.dd-content-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 /* ═══ 流程设计三栏（撑满剩余高度） ═══ */
 .dd-body--designer {
+  flex: 1;
   display: flex;
   overflow: hidden;
 }

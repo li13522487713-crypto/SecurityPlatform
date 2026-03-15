@@ -33,6 +33,7 @@ public sealed class UserCommandService : IUserCommandService
     private readonly PasswordPolicyOptions _passwordPolicy;
     private readonly IProjectUserRepository _projectUserRepository;
     private readonly Atlas.Core.Identity.IProjectContextAccessor _projectContextAccessor;
+    private readonly IAuthCacheService _authCacheService;
 
     public UserCommandService(
         IUserAccountRepository userRepository,
@@ -50,7 +51,8 @@ public sealed class UserCommandService : IUserCommandService
         IRefreshTokenRepository refreshTokenRepository,
         IOptions<PasswordPolicyOptions> passwordPolicy,
         IProjectUserRepository projectUserRepository,
-        Atlas.Core.Identity.IProjectContextAccessor projectContextAccessor)
+        Atlas.Core.Identity.IProjectContextAccessor projectContextAccessor,
+        IAuthCacheService authCacheService)
     {
         _userRepository = userRepository;
         _userRoleRepository = userRoleRepository;
@@ -68,6 +70,7 @@ public sealed class UserCommandService : IUserCommandService
         _passwordPolicy = passwordPolicy.Value;
         _projectUserRepository = projectUserRepository;
         _projectContextAccessor = projectContextAccessor;
+        _authCacheService = authCacheService;
     }
 
     public async Task<long> CreateAsync(
@@ -155,14 +158,72 @@ public sealed class UserCommandService : IUserCommandService
             user.Deactivate();
         }
 
-        await _userRepository.UpdateAsync(user, cancellationToken);
+        var roles = request.RoleIds != null 
+            ? await EnsureRolesExistAsync(tenantId, request.RoleIds.Distinct().ToArray(), cancellationToken) 
+            : Array.Empty<Role>();
+            
+        if (request.DepartmentIds != null)
+        {
+            await EnsureDepartmentsExistAsync(tenantId, request.DepartmentIds.Distinct().ToArray(), cancellationToken);
+        }
+        
+        if (request.PositionIds != null)
+        {
+            await EnsurePositionsExistAsync(tenantId, request.PositionIds.Distinct().ToArray(), cancellationToken);
+        }
+
+        if (request.RoleIds != null)
+        {
+            user.UpdateRoles(string.Join(',', roles.Select(x => x.Code)));
+        }
+
+        await _unitOfWork.ExecuteInTransactionAsync(async () =>
+        {
+            if (request.RoleIds != null)
+            {
+                await _userRoleRepository.DeleteByUserIdAsync(tenantId, userId, cancellationToken);
+                await _userRoleRepository.AddRangeAsync(
+                    roles.Select(role => new UserRole(tenantId, userId, role.Id, _idGeneratorAccessor.NextId())).ToArray(),
+                    cancellationToken);
+            }
+
+            if (request.DepartmentIds != null)
+            {
+                await _userDepartmentRepository.DeleteByUserIdAsync(tenantId, userId, cancellationToken);
+                await _userDepartmentRepository.AddRangeAsync(
+                    request.DepartmentIds.Distinct()
+                        .Select(depId => new UserDepartment(tenantId, userId, depId, _idGeneratorAccessor.NextId(), false))
+                        .ToArray(),
+                    cancellationToken);
+            }
+
+            if (request.PositionIds != null)
+            {
+                await _userPositionRepository.DeleteByUserIdAsync(tenantId, userId, cancellationToken);
+                await _userPositionRepository.AddRangeAsync(
+                    request.PositionIds.Distinct()
+                        .Select(posId => new UserPosition(tenantId, userId, posId, _idGeneratorAccessor.NextId(), false))
+                        .ToArray(),
+                    cancellationToken);
+            }
+
+            await _userRepository.UpdateAsync(user, cancellationToken);
+        }, cancellationToken);
+
+        // 若用户被禁用，立即使其所有认证缓存失效，确保已颁发的 JWT 下次请求时被拒绝
+        if (!request.IsActive)
+        {
+            _authCacheService.InvalidateUser(tenantId, userId);
+        }
     }
+
 
     public async Task UpdateRolesAsync(
         TenantId tenantId,
         long userId,
         IReadOnlyList<long> roleIds,
         CancellationToken cancellationToken)
+
     {
         await EnsureUserInProjectAsync(tenantId, userId, cancellationToken);
         var user = await _userRepository.FindByIdAsync(tenantId, userId, cancellationToken);
@@ -300,6 +361,9 @@ public sealed class UserCommandService : IUserCommandService
             await _authSessionRepository.RevokeByUserIdAsync(tenantId, userId, now, cancellationToken);
             await _refreshTokenRepository.RevokeByUserIdAsync(tenantId, userId, now, cancellationToken);
         }, cancellationToken);
+
+        // 密码变更后撤销所有会话，同步清除认证缓存
+        _authCacheService.InvalidateUser(tenantId, userId);
     }
 
     public async Task UpdateProfileAsync(

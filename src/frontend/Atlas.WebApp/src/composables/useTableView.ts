@@ -1,7 +1,9 @@
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, reactive, ref, unref, watch } from "vue";
+import type { ComputedRef, Ref } from "vue";
 import type { TablePaginationConfig } from "ant-design-vue";
 import type { ColumnType } from "ant-design-vue/es/table";
 import { message } from "ant-design-vue";
+import { translate } from "@/i18n";
 import type {
   TableViewColumnConfig,
   TableViewConfig,
@@ -79,18 +81,13 @@ export interface TableViewController {
   toggleColumn: (key: string, visible: boolean) => void;
   moveColumn: (key: string, direction: "up" | "down") => void;
   setPinned: (key: string, pinned: "left" | "right" | undefined) => void;
-  /** 获取当前视图的行合并规则（用于表格渲染时计算 rowSpan） */
   getMergeCells: () => MergeCellRule[];
-  /**
-   * 根据 mergeCells 规则计算一组数据行的 rowSpan 映射。
-   * 返回二维数组：spans[rowIndex][columnKey] = rowspan 值（0 表示被合并、>=1 表示占用的行数）
-   */
   computeMergeSpans: <T extends Record<string, unknown>>(rows: T[]) => Map<string, number>[];
 }
 
 interface UseTableViewOptions<TRecord> {
   tableKey: string;
-  columns: TableViewColumn<TRecord>[];
+  columns: TableViewColumn<TRecord>[] | Ref<TableViewColumn<TRecord>[]> | ComputedRef<TableViewColumn<TRecord>[]>;
   pagination: TablePaginationConfig;
   onRefresh?: () => void;
 }
@@ -114,7 +111,7 @@ const resolveColumnKey = <TRecord>(column: TableViewColumn<TRecord>) => {
 const resolveColumnTitle = <TRecord>(column: TableViewColumn<TRecord>) => {
   if (typeof column.title === "string") return column.title;
   const key = resolveColumnKey(column);
-  return key || "未命名列";
+  return key || translate("tableView.unnamedColumn");
 };
 
 const resolvePinned = (fixed: ColumnType<unknown>["fixed"]) => {
@@ -149,6 +146,13 @@ const buildDefaultConfig = <TRecord>(
     pagination: { pageSize }
   };
 };
+
+const cloneConfig = (config: TableViewConfig): TableViewConfig => ({
+  ...config,
+  columns: (config.columns ?? []).map((item) => ({ ...item })),
+  pagination: config.pagination ? { ...config.pagination } : undefined,
+  mergeCells: config.mergeCells ? [...config.mergeCells] : undefined
+});
 
 const normalizeColumns = <TRecord>(
   columns: TableViewColumn<TRecord>[],
@@ -193,19 +197,22 @@ const toColumnConfig = <TRecord>(items: NormalizedColumn<TRecord>[]): TableViewC
 
 export function useTableView<TRecord>(options: UseTableViewOptions<TRecord>) {
   const { tableKey, columns, pagination, onRefresh } = options;
-  const defaultConfig = buildDefaultConfig(columns, pagination.pageSize ?? 20);
-  const config = ref<TableViewConfig>({ ...defaultConfig });
+  const t = translate;
+  const getColumns = () => unref(columns);
+  const buildCurrentDefaultConfig = () => buildDefaultConfig(getColumns(), pagination.pageSize ?? 20);
+
+  const config = ref<TableViewConfig>(cloneConfig(buildCurrentDefaultConfig()));
   const state = reactive<TableViewState>({
     views: [],
     loading: false,
     currentViewId: null,
-    currentViewName: "未保存",
+    currentViewName: t("tableView.unsavedView"),
     isDefault: false,
-    density: (defaultConfig.density ?? "default") as TableViewDensity
+    density: (config.value.density ?? "default") as TableViewDensity
   });
 
   const tableColumns = computed(() => {
-    const normalized = normalizeColumns(columns, config.value.columns ?? []);
+    const normalized = normalizeColumns(getColumns(), config.value.columns ?? []);
     return normalized
       .filter((item) => item.visible || !item.canHide)
       .map((item) => ({
@@ -221,7 +228,7 @@ export function useTableView<TRecord>(options: UseTableViewOptions<TRecord>) {
   const tableSize = computed(() => densityToTableSize(state.density));
 
   const columnSettings = computed<ColumnSettingItem[]>(() => {
-    const normalized = normalizeColumns(columns, config.value.columns ?? []);
+    const normalized = normalizeColumns(getColumns(), config.value.columns ?? []);
     return normalized.map((item) => ({
       key: item.key,
       title: resolveColumnTitle(item.base),
@@ -247,12 +254,13 @@ export function useTableView<TRecord>(options: UseTableViewOptions<TRecord>) {
   };
 
   const applyConfig = (detail: TableViewDetail | null, refresh = true) => {
+    const baseConfig = buildCurrentDefaultConfig();
     suppressAutoSave = true;
     isApplyingConfig = true;
     if (detail) {
       config.value = {
         ...detail.config,
-        columns: normalizeColumns(columns, detail.config.columns ?? []).map((item) => ({
+        columns: normalizeColumns(getColumns(), detail.config.columns ?? []).map((item) => ({
           key: item.key,
           visible: item.visible,
           order: item.order,
@@ -272,11 +280,11 @@ export function useTableView<TRecord>(options: UseTableViewOptions<TRecord>) {
         pagination.current = 1;
       }
     } else {
-      config.value = { ...defaultConfig };
+      config.value = cloneConfig(baseConfig);
       state.currentViewId = null;
-      state.currentViewName = "未保存";
+      state.currentViewName = t("tableView.unsavedView");
       state.isDefault = false;
-      state.density = (defaultConfig.density ?? "default") as TableViewDensity;
+      state.density = (baseConfig.density ?? "default") as TableViewDensity;
     }
     suppressAutoSave = false;
     queueMicrotask(() => {
@@ -297,7 +305,7 @@ export function useTableView<TRecord>(options: UseTableViewOptions<TRecord>) {
       });
       state.views = result.items;
     } catch (error) {
-      message.error((error as Error).message || "加载视图失败");
+      message.error((error as Error).message || t("tableView.loadViewsFailed"));
     } finally {
       state.loading = false;
     }
@@ -307,7 +315,7 @@ export function useTableView<TRecord>(options: UseTableViewOptions<TRecord>) {
     try {
       const detail = await getDefaultTableView(tableKey);
       applyConfig(detail, false);
-    } catch (error) {
+    } catch {
       applyConfig(null, false);
     }
   };
@@ -321,7 +329,7 @@ export function useTableView<TRecord>(options: UseTableViewOptions<TRecord>) {
       const detail = await getTableViewDetail(id);
       applyConfig(detail);
     } catch (error) {
-      message.error((error as Error).message || "加载视图失败");
+      message.error((error as Error).message || t("tableView.loadViewsFailed"));
     }
   };
 
@@ -330,13 +338,13 @@ export function useTableView<TRecord>(options: UseTableViewOptions<TRecord>) {
     const payload = {
       config: {
         ...config.value,
-        columns: toColumnConfig(normalizeColumns(columns, config.value.columns ?? []))
+        columns: toColumnConfig(normalizeColumns(getColumns(), config.value.columns ?? []))
       }
     };
     try {
       await updateTableViewConfig(state.currentViewId, payload);
     } catch (error) {
-      message.error((error as Error).message || "保存视图失败");
+      message.error((error as Error).message || t("tableView.saveViewFailed"));
     }
   };
 
@@ -346,15 +354,15 @@ export function useTableView<TRecord>(options: UseTableViewOptions<TRecord>) {
       name: state.currentViewName,
       config: {
         ...config.value,
-        columns: toColumnConfig(normalizeColumns(columns, config.value.columns ?? []))
+        columns: toColumnConfig(normalizeColumns(getColumns(), config.value.columns ?? []))
       }
     };
     try {
       await updateTableView(state.currentViewId, payload);
       await loadViews();
-      message.success("视图已保存");
+      message.success(t("tableView.saveViewSuccess"));
     } catch (error) {
-      message.error((error as Error).message || "保存视图失败");
+      message.error((error as Error).message || t("tableView.saveViewFailed"));
     }
   };
 
@@ -364,7 +372,7 @@ export function useTableView<TRecord>(options: UseTableViewOptions<TRecord>) {
       name,
       config: {
         ...config.value,
-        columns: toColumnConfig(normalizeColumns(columns, config.value.columns ?? []))
+        columns: toColumnConfig(normalizeColumns(getColumns(), config.value.columns ?? []))
       }
     };
     try {
@@ -373,9 +381,9 @@ export function useTableView<TRecord>(options: UseTableViewOptions<TRecord>) {
       state.currentViewId = result.id;
       state.currentViewName = name;
       state.isDefault = false;
-      message.success("视图已保存");
+      message.success(t("tableView.saveViewSuccess"));
     } catch (error) {
-      message.error((error as Error).message || "保存视图失败");
+      message.error((error as Error).message || t("tableView.saveViewFailed"));
     }
   };
 
@@ -385,9 +393,9 @@ export function useTableView<TRecord>(options: UseTableViewOptions<TRecord>) {
       await setDefaultTableView(state.currentViewId);
       state.isDefault = true;
       await loadViews();
-      message.success("已设为默认视图");
+      message.success(t("tableView.setDefaultSuccess"));
     } catch (error) {
-      message.error((error as Error).message || "设置默认视图失败");
+      message.error((error as Error).message || t("tableView.setDefaultFailed"));
     }
   };
 
@@ -395,27 +403,29 @@ export function useTableView<TRecord>(options: UseTableViewOptions<TRecord>) {
     const currentId = state.currentViewId;
     const currentName = state.currentViewName;
     const currentDefault = state.isDefault;
-    let targetConfig = { ...defaultConfig };
+    let targetConfig = buildCurrentDefaultConfig();
     try {
       const serverConfig = await getDefaultTableViewConfig(tableKey);
       if (serverConfig) {
+        const fallback = buildCurrentDefaultConfig();
         targetConfig = {
-          ...defaultConfig,
+          ...fallback,
           ...serverConfig,
           columns:
             serverConfig.columns && serverConfig.columns.length > 0
               ? serverConfig.columns
-              : defaultConfig.columns
+              : fallback.columns
         };
       }
     } catch {
-      targetConfig = { ...defaultConfig };
+      targetConfig = buildCurrentDefaultConfig();
     }
+
     suppressAutoSave = true;
     isApplyingConfig = true;
     config.value = {
       ...targetConfig,
-      columns: normalizeColumns(columns, targetConfig.columns ?? []).map((item) => ({
+      columns: normalizeColumns(getColumns(), targetConfig.columns ?? []).map((item) => ({
         key: item.key,
         visible: item.visible,
         order: item.order,
@@ -436,7 +446,7 @@ export function useTableView<TRecord>(options: UseTableViewOptions<TRecord>) {
       state.isDefault = currentDefault;
     } else {
       state.currentViewId = null;
-      state.currentViewName = "未保存";
+      state.currentViewName = t("tableView.unsavedView");
       state.isDefault = false;
     }
     suppressAutoSave = false;
@@ -467,7 +477,7 @@ export function useTableView<TRecord>(options: UseTableViewOptions<TRecord>) {
   };
 
   const updateConfigColumns = (updater: (items: NormalizedColumn<TRecord>[]) => void) => {
-    const normalized = normalizeColumns(columns, config.value.columns ?? []);
+    const normalized = normalizeColumns(getColumns(), config.value.columns ?? []);
     updater(normalized);
     config.value = {
       ...config.value,
@@ -511,11 +521,6 @@ export function useTableView<TRecord>(options: UseTableViewOptions<TRecord>) {
   const getMergeCells = (): MergeCellRule[] =>
     (config.value.mergeCells as MergeCellRule[] | undefined) ?? [];
 
-  /**
-   * 根据 mergeCells 规则计算每行每列的 rowSpan。
-   * 相邻行的 columnKey 值相同（且 dependsOn 列的值也相同）时合并。
-   * 返回数组中每个元素是 Map<columnKey, rowspan>（0=被合并，>=1=实际行数）。
-   */
   const computeMergeSpans = <T extends Record<string, unknown>>(rows: T[]): Map<string, number>[] => {
     const rules = getMergeCells();
     const result: Map<string, number>[] = rows.map(() => new Map());
@@ -526,16 +531,14 @@ export function useTableView<TRecord>(options: UseTableViewOptions<TRecord>) {
 
       let i = 0;
       while (i < rows.length) {
-        // Count how many consecutive rows have identical values for all allKeys
         let span = 1;
         while (i + span < rows.length) {
           const same = allKeys.every(
-            (k) => String(rows[i][k] ?? '') === String(rows[i + span][k] ?? '')
+            (key) => String(rows[i][key] ?? "") === String(rows[i + span][key] ?? "")
           );
           if (!same) break;
           span++;
         }
-        // Set rowSpan for the first row, 0 for the rest
         result[i].set(columnKey, span);
         for (let j = 1; j < span; j++) {
           result[i + j].set(columnKey, 0);
@@ -558,6 +561,21 @@ export function useTableView<TRecord>(options: UseTableViewOptions<TRecord>) {
       };
       scheduleAutoSave();
     }
+  );
+
+  watch(
+    () => getColumns(),
+    () => {
+      if (state.currentViewId) {
+        config.value = {
+          ...config.value,
+          columns: toColumnConfig(normalizeColumns(getColumns(), config.value.columns ?? []))
+        };
+        return;
+      }
+      applyConfig(null, false);
+    },
+    { deep: true }
   );
 
   const searchViews = async (keyword?: string) => {

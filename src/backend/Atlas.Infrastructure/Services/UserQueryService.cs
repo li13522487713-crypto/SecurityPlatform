@@ -44,7 +44,7 @@ public sealed class UserQueryService : IUserQueryService
     }
 
     public async Task<PagedResult<UserListItem>> QueryUsersAsync(
-        PagedRequest request,
+        UserQueryRequest request,
         TenantId tenantId,
         CancellationToken cancellationToken)
     {
@@ -112,6 +112,19 @@ public sealed class UserQueryService : IUserQueryService
             scopedItems = scopedItems.Where(x => allowedUserIds.Contains(x.Id));
         }
         var scopedArray = scopedItems.ToArray();
+
+        if (request.DepartmentId.HasValue)
+        {
+            var deptUserMappings = await _userDepartmentRepository.QueryByUserIdsAsync(
+                tenantId,
+                scopedArray.Select(x => x.Id).Distinct().ToArray(),
+                cancellationToken);
+            var deptUserIds = deptUserMappings
+                .Where(x => x.DepartmentId == request.DepartmentId.Value)
+                .Select(x => x.UserId)
+                .ToHashSet();
+            scopedArray = scopedArray.Where(x => deptUserIds.Contains(x.Id)).ToArray();
+        }
 
         var resultItems = scopedArray.Select(x => _mapper.Map<UserListItem>(x)).ToArray();
         var scopedTotal = resultItems.Length;

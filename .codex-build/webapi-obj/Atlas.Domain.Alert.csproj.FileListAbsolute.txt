@@ -1,0 +1,14 @@
+E:\codeding\SecurityPlatform\.codex-build\webapi-bin\Atlas.Domain.Alert.deps.json
+E:\codeding\SecurityPlatform\.codex-build\webapi-bin\Atlas.Domain.Alert.dll
+E:\codeding\SecurityPlatform\.codex-build\webapi-bin\Atlas.Domain.Alert.pdb
+E:\codeding\SecurityPlatform\.codex-build\webapi-obj\Atlas.Domain.Alert.csproj.AssemblyReference.cache
+E:\codeding\SecurityPlatform\.codex-build\webapi-obj\Atlas.Domain.Alert.GeneratedMSBuildEditorConfig.editorconfig
+E:\codeding\SecurityPlatform\.codex-build\webapi-obj\Atlas.Domain.Alert.AssemblyInfoInputs.cache
+E:\codeding\SecurityPlatform\.codex-build\webapi-obj\Atlas.Domain.Alert.AssemblyInfo.cs
+E:\codeding\SecurityPlatform\.codex-build\webapi-obj\Atlas.Domain.Alert.csproj.CoreCompileInputs.cache
+E:\codeding\SecurityPlatform\.codex-build\webapi-obj\Atlas.Domain.Alert.sourcelink.json
+E:\codeding\SecurityPlatform\.codex-build\webapi-obj\Atlas.Do.53C9A1B1.Up2Date
+E:\codeding\SecurityPlatform\.codex-build\webapi-obj\Atlas.Domain.Alert.dll
+E:\codeding\SecurityPlatform\.codex-build\webapi-obj\refint\Atlas.Domain.Alert.dll
+E:\codeding\SecurityPlatform\.codex-build\webapi-obj\Atlas.Domain.Alert.pdb
+E:\codeding\SecurityPlatform\.codex-build\webapi-obj\ref\Atlas.Domain.Alert.dll

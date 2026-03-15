@@ -14,20 +14,10 @@
     />
     <a-tag v-if="flowVersion" color="blue" class="dd-toolbar__version">v{{ flowVersion }}</a-tag>
 
-    <div class="dd-toolbar__steps">
-      <span
-        v-for="(s, i) in ['基础设置', '表单设计', '流程设计']"
-        :key="i"
-        class="dd-step-dot"
-        :class="{ 'dd-step-dot--active': activeStep === i, 'dd-step-dot--done': activeStep > i }"
-        @click="emit('update:activeStep', i)"
-      >{{ s }}</span>
-    </div>
+    <div style="flex: 1"></div>
 
     <div class="dd-toolbar__actions">
-      <a-button v-if="activeStep > 0" size="small" @click="emit('prev-step')">上一步</a-button>
-      <a-button v-if="activeStep < 2" size="small" @click="emit('next-step')">下一步</a-button>
-      <template v-if="activeStep === 2">
+      <template v-if="activeMenu === 'process'">
         <a-divider type="vertical" />
         <a-button
           size="small"
@@ -73,7 +63,7 @@ import {
 defineProps<{
   flowName: string;
   flowVersion: number;
-  activeStep: number;
+  activeMenu: string;
   paletteVisible: boolean;
   canUndo: boolean;
   canRedo: boolean;
@@ -83,10 +73,8 @@ defineProps<{
 const emit = defineEmits<{
   back: [];
   'update:flowName': [value: string];
-  'update:activeStep': [value: number];
+  'update:activeMenu': [value: string];
   'update:paletteVisible': [value: boolean];
-  'prev-step': [];
-  'next-step': [];
   'zoom-out': [];
   'zoom-fit': [];
   'zoom-in': [];
@@ -124,31 +112,8 @@ const emit = defineEmits<{
 .dd-toolbar__version {
   margin-right: 4px;
 }
-.dd-toolbar__steps {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  margin: 0 auto;
-}
-.dd-step-dot {
-  padding: 2px 10px;
-  font-size: 12px;
-  color: #8c8c8c;
-  cursor: pointer;
-  border-radius: 10px;
-  transition: all 0.2s;
-  white-space: nowrap;
-}
-.dd-step-dot--active {
-  background: #1677ff;
-  color: #fff;
-  font-weight: 500;
-}
-.dd-step-dot--done {
-  color: #1677ff;
-}
-.dd-step-dot:hover:not(.dd-step-dot--active) {
-  background: #f0f0f0;
+.dd-toolbar__version {
+  margin-right: 4px;
 }
 .dd-toolbar__actions {
   display: flex;

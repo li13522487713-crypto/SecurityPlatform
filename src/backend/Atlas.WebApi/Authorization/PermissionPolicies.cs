@@ -12,6 +12,11 @@ public static class PermissionPolicies
     public const string SystemAdmin = "Permission:system:admin";
     public const string WorkflowDesign = "Permission:workflow:design";
 
+    public const string TenantsView = "Permission:system:tenant:query";
+    public const string TenantsCreate = "Permission:system:tenant:create";
+    public const string TenantsUpdate = "Permission:system:tenant:update";
+    public const string TenantsDelete = "Permission:system:tenant:delete";
+
     public const string UsersView = "Permission:users:view";
     public const string UsersCreate = "Permission:users:create";
     public const string UsersUpdate = "Permission:users:update";

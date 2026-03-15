@@ -70,6 +70,42 @@
         </a-space>
       </a-form>
     </a-card>
+
+    <a-card title="两步验证 (MFA) 设置" :bordered="false" class="mfa-card">
+      <div v-if="mfaStatusLoading">加载中...</div>
+      <div v-else>
+        <template v-if="mfaEnabled">
+          <a-alert type="success" message="已启用" description="您的账户当前受到两步验证保护。" show-icon style="margin-bottom: 16px" />
+          <a-form layout="inline">
+            <a-form-item label="动态验证码">
+              <a-input v-model:value="mfaCodeInput" placeholder="请输入您的 TOTP 码" />
+            </a-form-item>
+            <a-form-item>
+              <a-button danger :loading="disablingMfa" @click="handleDisableMfa">禁用 MFA</a-button>
+            </a-form-item>
+          </a-form>
+        </template>
+        <template v-else>
+          <a-alert type="warning" message="未启用" description="启用两步验证可大幅提升账户安全性。" show-icon style="margin-bottom: 16px" />
+          <a-button type="primary" :loading="settingMfa" @click="handleSetupMfa">配置两步验证</a-button>
+
+          <div v-if="mfaSetupContext" class="mfa-setup-area">
+            <a-divider />
+            <h3>请使用 Authenticator App 扫描下方二维码</h3>
+            <a-qrcode :value="mfaSetupContext.provisioningUri" :size="200" />
+            <p>或者手动输入密钥：<a-typography-text copyable>{{ mfaSetupContext.secretKey }}</a-typography-text></p>
+            <a-form layout="inline" style="margin-top: 16px">
+              <a-form-item label="6 位验证码">
+                <a-input v-model:value="mfaCodeInput" placeholder="请输入验证码完成绑定" />
+              </a-form-item>
+              <a-form-item>
+                <a-button type="primary" :loading="verifyingMfa" @click="handleVerifyMfa">验证并启用</a-button>
+              </a-form-item>
+            </a-form>
+          </div>
+        </template>
+      </div>
+    </a-card>
   </div>
 </template>
 
@@ -77,7 +113,18 @@
 import { computed, onMounted, reactive, ref } from "vue";
 import { useRouter } from "vue-router";
 import { message } from "ant-design-vue";
-import { changePassword, getCurrentUser, getProfileDetail, logout as apiLogout, updateProfile } from "@/services/api";
+import { 
+  changePassword, 
+  getCurrentUser, 
+  getProfileDetail, 
+  logout as apiLogout, 
+  updateProfile,
+  getMfaStatus,
+  setupMfa,
+  verifyMfaSetup,
+  disableMfa,
+  type MfaSetupResult
+} from "@/services/api";
 import type { AuthProfile, ChangePasswordRequest, UserProfileDetail, UserProfileUpdateRequest } from "@/types/api";
 import { clearAuthStorage, getAuthProfile, setAuthProfile } from "@/utils/auth";
 
@@ -222,9 +269,84 @@ const logoutAndRedirect = async () => {
   router.push({ name: "login" });
 };
 
+const mfaEnabled = ref(false);
+const mfaStatusLoading = ref(true);
+const settingMfa = ref(false);
+const disablingMfa = ref(false);
+const verifyingMfa = ref(false);
+const mfaSetupContext = ref<MfaSetupResult | null>(null);
+const mfaCodeInput = ref("");
+
+const loadMfaStatus = async () => {
+  mfaStatusLoading.value = true;
+  try {
+    const status = await getMfaStatus();
+    mfaEnabled.value = status.mfaEnabled;
+  } catch (error) {
+    message.error("无法加载MFA状态：" + ((error as Error).message || "未知错误"));
+  } finally {
+    mfaStatusLoading.value = false;
+  }
+};
+
+const handleSetupMfa = async () => {
+  settingMfa.value = true;
+  mfaCodeInput.value = "";
+  try {
+    const result = await setupMfa();
+    mfaSetupContext.value = result;
+  } catch (error) {
+    message.error("发起配置失败：" + ((error as Error).message || "未知错误"));
+  } finally {
+    settingMfa.value = false;
+  }
+};
+
+const handleVerifyMfa = async () => {
+  if (!mfaCodeInput.value) {
+    message.warning("请输入验证码");
+    return;
+  }
+  verifyingMfa.value = true;
+  try {
+    const success = await verifyMfaSetup(mfaCodeInput.value);
+    if (success) {
+      message.success("两步验证启用成功");
+      mfaEnabled.value = true;
+      mfaSetupContext.value = null;
+      mfaCodeInput.value = "";
+    }
+  } catch (error) {
+    message.error("验证失败：" + ((error as Error).message || "验证码可能错误或已过期"));
+  } finally {
+    verifyingMfa.value = false;
+  }
+};
+
+const handleDisableMfa = async () => {
+  if (!mfaCodeInput.value) {
+    message.warning("请输入当前验证码以完成禁用");
+    return;
+  }
+  disablingMfa.value = true;
+  try {
+    const success = await disableMfa(mfaCodeInput.value);
+    if (success) {
+      message.success("已成功取消两步验证");
+      mfaEnabled.value = false;
+      mfaCodeInput.value = "";
+    }
+  } catch (error) {
+    message.error("取消失败：" + ((error as Error).message || "验证码可能错误"));
+  } finally {
+    disablingMfa.value = false;
+  }
+};
+
 onMounted(async () => {
   await loadProfile();
   await loadDetail();
+  await loadMfaStatus();
 });
 </script>
 
@@ -233,7 +355,11 @@ onMounted(async () => {
   padding: var(--spacing-lg);
 }
 
-.password-card {
+.password-card, .mfa-card {
   margin-top: var(--spacing-md);
+}
+
+.mfa-setup-area {
+  margin-top: 24px;
 }
 </style>

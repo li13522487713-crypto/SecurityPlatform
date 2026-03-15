@@ -1,0 +1,103 @@
+/**
+ * Amis UI Overrides to match DingTalk / Ant Design Vue
+ */
+
+/* Container and panels */
+.amis-container {
+  --body-bg: transparent;
+  --panel-bg: var(--color-bg-base, #ffffff);
+  --panel-border-color: var(--color-border, #f0f0f0);
+  --panel-border-radius: var(--border-radius-base, 8px);
+  --panel-box-shadow: none;
+}
+
+/* Typography */
+.amis-container .a-base {
+  font-family: var(--font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif);
+  color: var(--color-text-primary, #1f2329);
+  font-size: 14px;
+}
+
+/* Buttons */
+.amis-container .cxd-Button {
+  border-radius: var(--border-radius-base, 8px);
+  font-weight: 500;
+  transition: all 0.2s;
+  height: 32px;
+  padding: 4px 15px;
+  border-color: var(--color-border, #d9d9d9);
+  color: var(--color-text-secondary, #434c5a);
+}
+
+.amis-container .cxd-Button:hover {
+  border-color: var(--color-primary-hover, #3b82f6);
+  color: var(--color-primary-hover, #3b82f6);
+}
+
+.amis-container .cxd-Button--primary {
+  background-color: var(--color-primary, #0052d9);
+  border-color: var(--color-primary, #0052d9);
+  color: #fff;
+}
+
+.amis-container .cxd-Button--primary:hover {
+  background-color: var(--color-primary-hover, #3b82f6);
+  border-color: var(--color-primary-hover, #3b82f6);
+  color: #fff;
+}
+
+.amis-container .cxd-Button--danger {
+  color: var(--color-error, #f53f3f);
+  background-color: var(--color-error-light, #ffece8);
+  border-color: transparent;
+}
+
+/* Form Inputs */
+.amis-container .cxd-TextControl-input,
+.amis-container .cxd-Select,
+.amis-container .cxd-DatePicker {
+  border-radius: var(--border-radius-base, 8px);
+  border-color: var(--color-border, #d9d9d9);
+  box-shadow: none;
+  transition: all 0.2s;
+}
+
+.amis-container .cxd-TextControl-input:focus-within,
+.amis-container .cxd-Select.is-opened {
+  border-color: var(--color-primary, #0052d9);
+  box-shadow: 0 0 0 2px rgba(0, 82, 217, 0.1);
+}
+
+/* Tables */
+.amis-container .cxd-Table-table {
+  border-radius: var(--border-radius-base, 8px);
+  overflow: hidden;
+  border: 1px solid var(--color-border, #f0f0f0);
+}
+
+.amis-container .cxd-Table-heading,
+.amis-container .cxd-Table-table > thead > tr > th {
+  background-color: var(--color-bg-light, #f4f5f7);
+  color: var(--color-text-secondary, #434c5a);
+  font-weight: 500;
+  border-bottom: 1px solid var(--color-border, #f0f0f0);
+}
+
+.amis-container .cxd-Table-table > tbody > tr > td {
+  border-bottom: 1px solid var(--color-border, #f0f0f0);
+}
+
+/* Checkbox and Radio */
+.amis-container .cxd-Checkbox--sm input:checked + i, 
+.amis-container .cxd-Checkbox input:checked + i {
+  border-color: var(--color-primary, #0052d9);
+  background-color: var(--color-primary, #0052d9);
+}
+
+.amis-container .cxd-Radio--sm input:checked + i, 
+.amis-container .cxd-Radio input:checked + i {
+  border-color: var(--color-primary, #0052d9);
+}
+.amis-container .cxd-Radio input:checked + i:before {
+  background-color: var(--color-primary, #0052d9);
+}

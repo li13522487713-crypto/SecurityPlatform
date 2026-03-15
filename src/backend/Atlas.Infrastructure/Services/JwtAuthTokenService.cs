@@ -39,6 +39,7 @@ public sealed class JwtAuthTokenService : IAuthTokenService
     private readonly IRbacResolver _rbacResolver;
     private readonly ITotpService _totpService;
     private readonly ILoginLogWriteService _loginLogWriteService;
+    private readonly IAuthCacheService _authCacheService;
 
     public JwtAuthTokenService(
         IOptions<JwtOptions> jwtOptions,
@@ -55,7 +56,8 @@ public sealed class JwtAuthTokenService : IAuthTokenService
         TimeProvider timeProvider,
         IRbacResolver rbacResolver,
         ITotpService totpService,
-        ILoginLogWriteService loginLogWriteService)
+        ILoginLogWriteService loginLogWriteService,
+        IAuthCacheService authCacheService)
     {
         _jwtOptions = jwtOptions.Value;
         _passwordPolicy = passwordPolicy.Value;
@@ -72,6 +74,7 @@ public sealed class JwtAuthTokenService : IAuthTokenService
         _rbacResolver = rbacResolver;
         _totpService = totpService;
         _loginLogWriteService = loginLogWriteService;
+        _authCacheService = authCacheService;
     }
 
     public async Task<AuthTokenResult> CreateTokenAsync(
@@ -295,6 +298,8 @@ public sealed class JwtAuthTokenService : IAuthTokenService
         var now = _timeProvider.GetUtcNow();
         await _authSessionRepository.RevokeAsync(tenantId, sessionId, now, cancellationToken);
         await _refreshTokenRepository.RevokeBySessionAsync(tenantId, sessionId, now, cancellationToken);
+        // 退出登录后立即清除该 session 的认证缓存
+        _authCacheService.InvalidateSession(tenantId, sessionId);
         await WriteAuditAsync(tenantId, userId.ToString(), "TOKEN_REVOKE", "SUCCESS", null, context, cancellationToken);
     }
 

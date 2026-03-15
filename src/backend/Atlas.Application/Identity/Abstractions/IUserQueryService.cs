@@ -7,7 +7,7 @@ namespace Atlas.Application.Identity.Abstractions;
 public interface IUserQueryService
 {
     Task<PagedResult<UserListItem>> QueryUsersAsync(
-        PagedRequest request,
+        UserQueryRequest request,
         TenantId tenantId,
         CancellationToken cancellationToken);
 

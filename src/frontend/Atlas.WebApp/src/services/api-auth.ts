@@ -30,6 +30,15 @@ export interface CaptchaResult {
   captchaImage: string;
 }
 
+export interface MfaSetupResult {
+  secretKey: string;
+  provisioningUri: string;
+}
+
+export interface MfaStatusResult {
+  mfaEnabled: boolean;
+}
+
 const TENANT_ID_REGEX =
   /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
@@ -131,6 +140,36 @@ export async function changePassword(request: ChangePasswordRequest): Promise<vo
   if (!response.success) {
     throw new Error(response.message || "修改密码失败");
   }
+}
+
+export async function getMfaStatus(): Promise<MfaStatusResult> {
+  const response = await requestApi<ApiResponse<MfaStatusResult>>("/mfa/status");
+  if (!response.data) throw new Error(response.message || "获取 MFA 状态失败");
+  return response.data;
+}
+
+export async function setupMfa(): Promise<MfaSetupResult> {
+  const response = await requestApi<ApiResponse<MfaSetupResult>>("/mfa/setup", { method: "POST" });
+  if (!response.data) throw new Error(response.message || "设置 MFA 失败");
+  return response.data;
+}
+
+export async function verifyMfaSetup(code: string): Promise<boolean> {
+  const response = await requestApi<ApiResponse<{ mfaEnabled: boolean }>>("/mfa/verify-setup", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code })
+  });
+  return response.success;
+}
+
+export async function disableMfa(code: string): Promise<boolean> {
+  const response = await requestApi<ApiResponse<{ mfaEnabled: boolean }>>("/mfa/disable", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code })
+  });
+  return response.success;
 }
 
 export async function getCurrentUser(): Promise<AuthProfile> {

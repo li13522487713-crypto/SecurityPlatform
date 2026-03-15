@@ -18,6 +18,7 @@
 - `X-Project-Id: <projectId>`：项目标识（仅当应用启用项目模式 `EnableProjectMode = true` 时必填）。
 - `Idempotency-Key: <uuid>`：关键写接口必填（创建/提交/开通/触发任务），幂等键冲突返回 409。
 - `X-CSRF-TOKEN: <token>`：已登录 Web 写请求必填，需先获取 Anti-Forgery Token。
+- `Accept-Language: zh-CN | en-US`：界面与 API 国际化语言标识。前端语言切换后必须同步发送该请求头。
 
 ## 平台统一规则（封板基线）
 
@@ -64,6 +65,20 @@
 
 - 登录成功默认跳转 `/console`（若 `redirect` 参数存在且可访问则优先）。
 - 旧有 `/settings/*` 与 `/lowcode/*` 路由保持兼容并标记 `Deprecated`（弃用窗口 6 个月）。
+
+### 路由与菜单国际化约定
+
+- 前端 `RouterMeta` 新增可选字段 `titleKey?: string`。
+- 标题解析顺序：
+  1. 若存在 `titleKey`，前端必须优先按当前语言翻译。
+  2. 若不存在 `titleKey`，回退显示原始 `title`。
+  3. 若为动态业务数据或用户自定义菜单，允许仅返回 `title`，不强制要求翻译。
+- 后端菜单/动态路由返回结构保持兼容：
+  - `title` 继续保留。
+  - 系统内置菜单和内置路由可额外返回 `titleKey`。
+- 验收要求：
+  - 不得出现空白标题。
+  - 不得直接向用户暴露未解析的 i18n key。
 
 ## 产品化重构 v1 契约增量（12 Sprint 基线）
 

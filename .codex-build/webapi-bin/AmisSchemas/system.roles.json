@@ -1,0 +1,291 @@
+{
+  "key": "system.roles",
+  "title": "\u89d2\u8272\u7ba1\u7406",
+  "description": "\u901a\u8fc7 AMIS CRUD \u7edf\u4e00\u7ba1\u7406\u89d2\u8272\u4e0e\u83dc\u5355/\u6743\u9650\u5206\u914d",
+  "tableKey": "system.roles",
+  "schema": {
+    "type": "page",
+    "title": "\u89d2\u8272\u7ba1\u7406",
+    "body": [
+      {
+        "type": "crud",
+        "name": "roles-crud",
+        "syncLocation": false,
+        "perPage": 20,
+        "api": {
+          "url": "/roles?pageIndex=${page}&pageSize=${perPage}&keyword=${keyword}&isSystem=${isSystem}",
+          "method": "get",
+          "adaptor": "const payloadData = payload?.data ?? { items: [], total: 0 }; return { status: 0, msg: payload?.message ?? 'OK', data: payloadData };"
+        },
+        "filter": [
+          {
+            "type": "input-text",
+            "name": "keyword",
+            "label": "\u5173\u952e\u5b57",
+            "placeholder": "\u540d\u79f0/\u7f16\u7801",
+            "clearable": true
+          },
+          {
+            "type": "select",
+            "name": "isSystem",
+            "label": "\u6765\u6e90",
+            "options": [
+              {
+                "label": "\u5168\u90e8",
+                "value": ""
+              },
+              {
+                "label": "\u7cfb\u7edf\u89d2\u8272",
+                "value": "true"
+              },
+              {
+                "label": "\u81ea\u5b9a\u4e49\u89d2\u8272",
+                "value": "false"
+              }
+            ]
+          }
+        ],
+        "headerToolbar": [
+          {
+            "type": "button",
+            "label": "\u65b0\u589e\u89d2\u8272",
+            "level": "primary",
+            "actionType": "dialog",
+            "dialog": {
+              "title": "\u65b0\u589e\u89d2\u8272",
+              "body": {
+                "type": "form",
+                "api": {
+                  "url": "/roles",
+                  "method": "post",
+                  "adaptor": "return { status: payload?.success ? 0 : 1, msg: payload?.message ?? '\u64cd\u4f5c\u5b8c\u6210', data: payload?.data };"
+                },
+                "body": [
+                  {
+                    "type": "input-text",
+                    "name": "name",
+                    "label": "\u540d\u79f0",
+                    "required": true
+                  },
+                  {
+                    "type": "input-text",
+                    "name": "code",
+                    "label": "\u7f16\u7801",
+                    "required": true
+                  },
+                  {
+                    "type": "textarea",
+                    "name": "description",
+                    "label": "\u63cf\u8ff0",
+                    "rows": 3
+                  }
+                ],
+                "name": "system-roles-dialog-form-1"
+              },
+              "actions": [
+                {
+                  "type": "button",
+                  "label": "\u53d6\u6d88",
+                  "actionType": "cancel"
+                },
+                {
+                  "type": "button",
+                  "label": "\u4fdd\u5b58",
+                  "level": "primary",
+                  "actionType": "submit",
+                  "target": "system-roles-dialog-form-1"
+                }
+              ]
+            }
+          },
+          "reload"
+        ],
+        "columns": [
+          {
+            "name": "name",
+            "label": "\u540d\u79f0",
+            "sortable": true
+          },
+          {
+            "name": "code",
+            "label": "\u7f16\u7801"
+          },
+          {
+            "name": "description",
+            "label": "\u63cf\u8ff0",
+            "tpl": "<span>${description || '-'}</span>"
+          },
+          {
+            "name": "isSystem",
+            "label": "\u7c7b\u578b",
+            "type": "tpl",
+            "tpl": "<span>${isSystem ? '\u7cfb\u7edf' : '\u81ea\u5b9a\u4e49'}</span>"
+          },
+          {
+            "type": "operation",
+            "label": "\u64cd\u4f5c",
+            "buttons": [
+              {
+                "label": "\u7f16\u8f91",
+                "level": "link",
+                "actionType": "dialog",
+                "dialog": {
+                  "title": "\u7f16\u8f91\u89d2\u8272",
+                  "body": {
+                    "type": "form",
+                    "api": {
+                      "url": "/roles/${id}",
+                      "method": "put",
+                      "adaptor": "return { status: payload?.success ? 0 : 1, msg: payload?.message ?? '\u66f4\u65b0\u5b8c\u6210' };"
+                    },
+                    "body": [
+                      {
+                        "type": "input-text",
+                        "name": "name",
+                        "label": "\u540d\u79f0",
+                        "required": true
+                      },
+                      {
+                        "type": "input-text",
+                        "name": "code",
+                        "label": "\u7f16\u7801",
+                        "disabled": true
+                      },
+                      {
+                        "type": "textarea",
+                        "name": "description",
+                        "label": "\u63cf\u8ff0",
+                        "rows": 3
+                      }
+                    ],
+                    "initApi": "/roles/${id}",
+                    "name": "system-roles-dialog-form-2"
+                  },
+                  "actions": [
+                    {
+                      "type": "button",
+                      "label": "\u53d6\u6d88",
+                      "actionType": "cancel"
+                    },
+                    {
+                      "type": "button",
+                      "label": "\u4fdd\u5b58",
+                      "level": "primary",
+                      "actionType": "submit",
+                      "target": "system-roles-dialog-form-2"
+                    }
+                  ]
+                }
+              },
+              {
+                "label": "\u5220\u9664",
+                "level": "link",
+                "actionType": "ajax",
+                "confirmText": "\u786e\u8ba4\u5220\u9664\u8be5\u89d2\u8272\uff1f",
+                "api": {
+                  "url": "/roles/${id}",
+                  "method": "delete",
+                  "adaptor": "return { status: payload?.success ? 0 : 1, msg: payload?.message ?? '\u5220\u9664\u5b8c\u6210' };"
+                }
+              },
+              {
+                "label": "\u6743\u9650",
+                "level": "link",
+                "actionType": "dialog",
+                "dialog": {
+                  "title": "\u5206\u914d\u6743\u9650",
+                  "body": {
+                    "type": "form",
+                    "api": {
+                      "url": "/roles/${id}/permissions",
+                      "method": "put",
+                      "adaptor": "return { status: payload?.success ? 0 : 1, msg: payload?.message ?? '\u4fdd\u5b58\u5b8c\u6210' };"
+                    },
+                    "body": [
+                      {
+                        "type": "select",
+                        "name": "permissionIds",
+                        "label": "\u6743\u9650",
+                        "mode": "multiple",
+                        "searchable": true,
+                        "source": {
+                          "url": "/permissions?pageIndex=1&pageSize=20&keyword=${term}",
+                          "method": "get",
+                          "adaptor": "const list = payload?.data?.items ?? []; return { status: 0, msg: payload?.message ?? 'OK', data: list };"
+                        },
+                        "valueField": "id",
+                        "labelField": "name"
+                      }
+                    ],
+                    "name": "system-roles-dialog-form-3"
+                  },
+                  "actions": [
+                    {
+                      "type": "button",
+                      "label": "\u53d6\u6d88",
+                      "actionType": "cancel"
+                    },
+                    {
+                      "type": "button",
+                      "label": "\u4fdd\u5b58",
+                      "level": "primary",
+                      "actionType": "submit",
+                      "target": "system-roles-dialog-form-3"
+                    }
+                  ]
+                }
+              },
+              {
+                "label": "\u83dc\u5355",
+                "level": "link",
+                "actionType": "dialog",
+                "dialog": {
+                  "title": "\u5206\u914d\u83dc\u5355",
+                  "body": {
+                    "type": "form",
+                    "api": {
+                      "url": "/roles/${id}/menus",
+                      "method": "put",
+                      "adaptor": "return { status: payload?.success ? 0 : 1, msg: payload?.message ?? '\u4fdd\u5b58\u5b8c\u6210' };"
+                    },
+                    "body": [
+                      {
+                        "type": "select",
+                        "name": "menuIds",
+                        "label": "\u83dc\u5355",
+                        "mode": "multiple",
+                        "searchable": true,
+                        "source": {
+                          "url": "/menus?pageIndex=1&pageSize=20&keyword=${term}",
+                          "method": "get",
+                          "adaptor": "const list = payload?.data?.items ?? []; return { status: 0, msg: payload?.message ?? 'OK', data: list };"
+                        },
+                        "valueField": "id",
+                        "labelField": "name"
+                      }
+                    ],
+                    "name": "system-roles-dialog-form-4"
+                  },
+                  "actions": [
+                    {
+                      "type": "button",
+                      "label": "\u53d6\u6d88",
+                      "actionType": "cancel"
+                    },
+                    {
+                      "type": "button",
+                      "label": "\u4fdd\u5b58",
+                      "level": "primary",
+                      "actionType": "submit",
+                      "target": "system-roles-dialog-form-4"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

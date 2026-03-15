@@ -1,10 +1,10 @@
 <template>
   <CrudPageLayout
-    title="员工管理"
+    :title="t('systemUsers.pageTitle')"
     v-model:keyword="keyword"
-    search-placeholder="搜索用户名/姓名/邮箱"
+    :search-placeholder="t('systemUsers.searchPlaceholder')"
     :drawer-open="formVisible"
-    :drawer-title="formMode === 'create' ? '新增员工' : '编辑员工'"
+    :drawer-title="formMode === 'create' ? t('systemUsers.drawerCreateTitle') : t('systemUsers.drawerEditTitle')"
     :drawer-width="640"
     :submit-loading="submitting"
     :submit-disabled="submitting"
@@ -15,79 +15,110 @@
     @submit="handleSubmit"
   >
     <template #toolbar-actions>
-      <a-button v-if="canCreate" type="primary" @click="handleOpenCreate">新增员工</a-button>
-      <a-button @click="handleExport" :loading="exporting">导出</a-button>
-      <a-button v-if="canCreate" @click="importModalVisible = true">导入</a-button>
+      <a-button v-if="canCreate" type="primary" @click="handleOpenCreate">{{ t("systemUsers.addUser") }}</a-button>
+      <a-button :loading="exporting" @click="handleExport">{{ t("systemUsers.exportUsers") }}</a-button>
+      <a-button v-if="canCreate" @click="importModalVisible = true">{{ t("systemUsers.importUsers") }}</a-button>
     </template>
     <template #toolbar-right>
       <TableViewToolbar :controller="tableViewController" />
     </template>
 
     <template #table>
-      <a-table
-        :columns="tableColumns"
-        :data-source="dataSource"
-        :pagination="pagination"
-        :loading="loading"
-        :size="tableSize"
-        row-key="id"
-        @change="onTableChange"
-      >
-        <template #bodyCell="{ column, record }">
-          <template v-if="column.key === 'status'">
-            <a-tag :color="record.isActive ? 'green' : 'red'">
-              {{ record.isActive ? "启用" : "停用" }}
-            </a-tag>
-          </template>
-          <template v-else-if="column.key === 'actions'">
-            <a-space>
-              <a-button v-if="canUpdate || canAssignRoles || canAssignDepartments || canAssignPositions" type="link" @click="handleOpenEdit(record.id)">编辑</a-button>
-              <a-popconfirm
-                v-if="canDelete"
-                title="确认删除该员工？"
-                ok-text="删除"
-                cancel-text="取消"
-                @confirm="handleDelete(record.id)"
-              >
-                <a-button type="link" danger>删除</a-button>
-              </a-popconfirm>
-            </a-space>
-          </template>
-        </template>
-      </a-table>
+      <a-row :gutter="16" style="height: 100%">
+        <a-col :span="5" style="height: 100%; border-right: 1px solid var(--color-border); padding-right: 16px;">
+          <div style="margin-bottom: 12px">
+            <a-input
+              v-model:value="treeKeyword"
+              :placeholder="t('systemUsers.treeSearchPlaceholder')"
+              allow-clear
+              size="small"
+            />
+          </div>
+          <a-skeleton :loading="treeLoading" active>
+            <a-tree
+              :tree-data="treeData"
+              :selected-keys="selectedTreeKeys"
+              :expanded-keys="expandedTreeKeys"
+              :auto-expand-parent="true"
+              @select="handleTreeSelect"
+              style="height: calc(100vh - 250px); overflow-y: auto;"
+            />
+          </a-skeleton>
+        </a-col>
+        <a-col :span="19">
+          <a-table
+            :columns="tableColumns"
+            :data-source="dataSource"
+            :pagination="pagination"
+            :loading="loading"
+            :size="tableSize"
+            row-key="id"
+            @change="onTableChange"
+          >
+            <template #bodyCell="{ column, record }">
+              <template v-if="column.key === 'status'">
+                <StatusSwitch
+                  v-model="record.isActive"
+                  :api="(value) => handleStatusChange(record.id, value)"
+                />
+              </template>
+              <template v-else-if="column.key === 'actions'">
+                <a-space>
+                  <a-button
+                    v-if="canUpdate || canAssignRoles || canAssignDepartments || canAssignPositions"
+                    type="link"
+                    @click="handleOpenEdit(record.id)"
+                  >
+                    {{ t("common.edit") }}
+                  </a-button>
+                  <a-popconfirm
+                    v-if="canDelete"
+                    :title="t('systemUsers.deleteConfirm')"
+                    :ok-text="t('common.delete')"
+                    :cancel-text="t('common.cancel')"
+                    @confirm="handleDelete(record.id)"
+                  >
+                    <a-button type="link" danger>{{ t("common.delete") }}</a-button>
+                  </a-popconfirm>
+                </a-space>
+              </template>
+            </template>
+          </a-table>
+        </a-col>
+      </a-row>
     </template>
 
     <template #form>
       <a-tabs v-model:activeKey="activeTab">
-        <a-tab-pane key="basic" tab="基本信息">
+        <a-tab-pane key="basic" :tab="t('systemUsers.basicTab')">
           <a-form ref="formRef" :model="formModel" :rules="formRules" layout="vertical">
-            <a-form-item v-if="formMode === 'create'" label="用户名" name="username">
+            <a-form-item v-if="formMode === 'create'" :label="t('systemUsers.username')" name="username">
               <a-input v-model:value="formModel.username" />
             </a-form-item>
-            <a-form-item v-if="formMode === 'create'" label="密码" name="password">
+            <a-form-item v-if="formMode === 'create'" :label="t('systemUsers.password')" name="password">
               <a-input-password v-model:value="formModel.password" />
             </a-form-item>
-            <a-form-item label="姓名" name="displayName">
+            <a-form-item :label="t('systemUsers.displayName')" name="displayName">
               <a-input v-model:value="formModel.displayName" />
             </a-form-item>
-            <a-form-item label="邮箱" name="email">
+            <a-form-item :label="t('systemUsers.email')" name="email">
               <a-input v-model:value="formModel.email" />
             </a-form-item>
-            <a-form-item label="手机号" name="phoneNumber">
+            <a-form-item :label="t('systemUsers.phoneNumber')" name="phoneNumber">
               <a-input v-model:value="formModel.phoneNumber" />
             </a-form-item>
-            <a-form-item label="状态" name="isActive">
+            <a-form-item :label="t('systemUsers.status')" name="isActive">
               <a-switch v-model:checked="formModel.isActive" />
             </a-form-item>
           </a-form>
         </a-tab-pane>
-        <a-tab-pane v-if="canAssignRoles" key="roles" tab="角色">
+        <a-tab-pane v-if="canAssignRoles" key="roles" :tab="t('systemUsers.rolesTab')">
           <a-form layout="vertical">
-            <a-form-item label="角色">
+            <a-form-item :label="t('systemUsers.rolesTab')">
               <a-select
                 v-model:value="formModel.roleIds"
                 mode="multiple"
-                placeholder="选择角色"
+                :placeholder="t('systemUsers.selectRole')"
                 :options="roleOptions"
                 :loading="roleLoading"
                 :filter-option="false"
@@ -98,13 +129,13 @@
             </a-form-item>
           </a-form>
         </a-tab-pane>
-        <a-tab-pane v-if="canAssignDepartments" key="departments" tab="部门">
+        <a-tab-pane v-if="canAssignDepartments" key="departments" :tab="t('systemUsers.departmentsTab')">
           <a-form layout="vertical">
-            <a-form-item label="部门">
+            <a-form-item :label="t('systemUsers.departmentsTab')">
               <a-select
                 v-model:value="formModel.departmentIds"
                 mode="multiple"
-                placeholder="选择部门"
+                :placeholder="t('systemUsers.selectDepartment')"
                 :options="departmentOptions"
                 :loading="departmentLoading"
                 :filter-option="false"
@@ -115,13 +146,13 @@
             </a-form-item>
           </a-form>
         </a-tab-pane>
-        <a-tab-pane v-if="canAssignPositions" key="positions" tab="职位">
+        <a-tab-pane v-if="canAssignPositions" key="positions" :tab="t('systemUsers.positionsTab')">
           <a-form layout="vertical">
-            <a-form-item label="职位">
+            <a-form-item :label="t('systemUsers.positionsTab')">
               <a-select
                 v-model:value="formModel.positionIds"
                 mode="multiple"
-                placeholder="选择职位"
+                :placeholder="t('systemUsers.selectPosition')"
                 :options="positionOptions"
                 :loading="positionLoading"
                 :filter-option="false"
@@ -136,54 +167,49 @@
     </template>
   </CrudPageLayout>
 
-  <!-- 导入用户弹窗 -->
   <a-modal
     v-model:open="importModalVisible"
-    title="批量导入用户"
-    @cancel="handleImportCancel"
+    :title="t('systemUsers.importModalTitle')"
     :confirm-loading="importing"
-    @ok="handleImport"
-    ok-text="开始导入"
-    cancel-text="取消"
+    :ok-text="t('common.startImport')"
+    :cancel-text="t('common.cancel')"
     width="560px"
+    @cancel="handleImportCancel"
+    @ok="handleImport"
   >
     <div class="import-modal-body">
       <a-alert
-        message="导入说明"
-        description="请先下载导入模板，按模板填写用户信息后上传。支持 .xlsx 格式，单次最多 1000 行。"
+        :message="t('systemUsers.importHelpTitle')"
+        :description="t('systemUsers.importHelpDescription')"
         type="info"
         show-icon
         style="margin-bottom: 16px"
       />
       <div style="margin-bottom: 12px">
         <a-button type="link" style="padding: 0" @click="downloadImportTemplate">
-          下载导入模板
+          {{ t("systemUsers.downloadTemplate") }}
         </a-button>
       </div>
       <a-upload
         accept=".xlsx"
-        :before-upload="(file: File) => { importFile = file; return false; }"
+        :before-upload="beforeUpload"
         :max-count="1"
         :show-upload-list="true"
       >
-        <a-button>选择文件</a-button>
+        <a-button>{{ t("common.selectFile") }}</a-button>
       </a-upload>
 
       <div v-if="importResult" style="margin-top: 16px">
         <a-result
           :status="importResult.failureCount === 0 ? 'success' : 'warning'"
-          :title="`导入完成：成功 ${importResult.successCount} 条，失败 ${importResult.failureCount} 条`"
+          :title="t('systemUsers.importCompletedTitle', { success: importResult.successCount, failure: importResult.failureCount })"
         />
         <a-table
           v-if="importResult.errors.length > 0"
           :data-source="importResult.errors"
           :pagination="false"
           size="small"
-          :columns="[
-            { title: '行号', dataIndex: 'row', key: 'row', width: 70 },
-            { title: '字段', dataIndex: 'field', key: 'field', width: 100 },
-            { title: '错误信息', dataIndex: 'message', key: 'message' }
-          ]"
+          :columns="importResultColumns"
         />
       </div>
     </div>
@@ -191,11 +217,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import type { FormInstance } from "ant-design-vue";
 import { message } from "ant-design-vue";
+import { useI18n } from "vue-i18n";
 import CrudPageLayout from "@/components/crud/CrudPageLayout.vue";
 import TableViewToolbar from "@/components/table/table-view-toolbar.vue";
+import StatusSwitch from "@/components/common/StatusSwitch.vue";
 import { useCrudPage } from "@/composables/useCrudPage";
 import { useSelectOptions } from "@/composables/useSelectOptions";
 import { useExcelExport } from "@/composables/useExcelExport";
@@ -204,25 +232,24 @@ import {
   createUser,
   deleteUser,
   getDepartmentsPaged,
+  getDepartmentsAll,
   getPositionsPaged,
   getRolesPaged,
   getUserDetail,
   getUsersPaged,
-  updateUser,
-  updateUserDepartments,
-  updateUserPositions,
-  updateUserRoles
+  updateUser
 } from "@/services/api";
 import type {
   DepartmentListItem,
+  PositionListItem,
   RoleListItem,
+  UserCreateRequest,
   UserDetail,
   UserListItem,
-  UserCreateRequest,
-  UserUpdateRequest,
-  PositionListItem
+  UserUpdateRequest
 } from "@/types/api";
 
+const { t } = useI18n();
 const activeTab = ref("basic");
 const submitting = ref(false);
 
@@ -231,30 +258,124 @@ const importModalVisible = ref(false);
 const importFile = ref<File | null>(null);
 const importResult = ref<ImportResult | null>(null);
 
-const handleExport = () => exportUsers(keyword.value);
+const treeKeyword = ref("");
+const treeLoading = ref(false);
+const allDepartments = ref<DepartmentListItem[]>([]);
+const selectedDepartmentId = ref<number | null>(null);
 
-const handleImportFileChange = (info: { file: File }) => {
-  importFile.value = info.file;
+interface TreeNode {
+  key: string;
+  title: string;
+  children?: TreeNode[];
+}
+
+const buildTree = (items: DepartmentListItem[]) => {
+  const nodeMap = new Map<string, TreeNode>();
+  const rootNodes: TreeNode[] = [];
+
+  items.forEach((item) => {
+    nodeMap.set(String(item.id), { key: String(item.id), title: item.name, children: [] });
+  });
+
+  items.forEach((item) => {
+    const node = nodeMap.get(String(item.id));
+    if (!node) return;
+    if (item.parentId) {
+      const parent = nodeMap.get(String(item.parentId));
+      if (parent) {
+        parent.children = parent.children ?? [];
+        parent.children.push(node);
+        return;
+      }
+    }
+    rootNodes.push(node);
+  });
+  return rootNodes;
 };
+
+const filterTree = (nodes: TreeNode[], keywordValue: string): TreeNode[] => {
+  if (!keywordValue.trim()) return nodes;
+  const matcher = keywordValue.trim();
+  const result: TreeNode[] = [];
+  nodes.forEach((node) => {
+    const children = node.children ? filterTree(node.children, matcher) : [];
+    if (node.title.includes(matcher) || children.length > 0) {
+      result.push({ ...node, children });
+    }
+  });
+  return result;
+};
+
+const treeData = computed(() => {
+  const rootNodes = buildTree(allDepartments.value);
+  const fullTree = [{ key: "all", title: t("systemUsers.allDepartments"), children: rootNodes }];
+  return filterTree(fullTree, treeKeyword.value);
+});
+
+const selectedTreeKeys = computed(() => {
+  if (selectedDepartmentId.value === null) return ["all"];
+  return [selectedDepartmentId.value.toString()];
+});
+
+const expandedTreeKeys = computed(() => {
+  if (!treeKeyword.value.trim()) return ["all"];
+  return ["all", ...allDepartments.value.map((item) => String(item.id))];
+});
+
+const loadAllDepartments = async () => {
+  treeLoading.value = true;
+  try {
+    allDepartments.value = await getDepartmentsAll();
+  } catch (error) {
+    message.error((error as Error).message || t("systemUsers.loadDepartmentTreeFailed"));
+  } finally {
+    treeLoading.value = false;
+  }
+};
+
+const handleTreeSelect = (keys: (string | number)[]) => {
+  if (!keys.length || keys[0] === "all") {
+    selectedDepartmentId.value = null;
+  } else {
+    selectedDepartmentId.value = Number(keys[0]);
+  }
+  crud.handleSearch();
+};
+
+const handleExport = () => exportUsers(keyword.value);
 
 const handleImport = async () => {
   if (!importFile.value) {
-    message.warning("请选择要导入的文件");
+    message.warning(t("systemUsers.chooseImportFile"));
     return;
   }
   importResult.value = await importUsers(importFile.value);
-  if (importResult.value) {
-    if (importResult.value.failureCount === 0) {
-      message.success(`导入成功，共 ${importResult.value.successCount} 条`);
-      importModalVisible.value = false;
-    } else {
-      message.warning(
-        `导入完成：成功 ${importResult.value.successCount} 条，失败 ${importResult.value.failureCount} 条`
-      );
-    }
-    fetchData();
+  if (!importResult.value) {
+    return;
   }
+
+  if (importResult.value.failureCount === 0) {
+    message.success(t("systemUsers.importSuccessMessage", { count: importResult.value.successCount }));
+    importModalVisible.value = false;
+  } else {
+    message.warning(
+      t("systemUsers.importCompletedMessage", {
+        success: importResult.value.successCount,
+        failure: importResult.value.failureCount
+      })
+    );
+  }
+  await fetchData();
 };
+
+const beforeUpload = (file: File) => {
+  importFile.value = file;
+  return false;
+};
+
+onMounted(() => {
+  void loadAllDepartments();
+});
 
 const handleImportCancel = () => {
   importModalVisible.value = false;
@@ -262,23 +383,22 @@ const handleImportCancel = () => {
   importResult.value = null;
 };
 
-// Select options via reusable composable
 const roles = useSelectOptions<RoleListItem>({
   fetcher: getRolesPaged,
   mapItem: (role) => ({ label: `${role.name} (${role.code})`, value: Number(role.id) }),
-  errorLabel: "加载角色"
+  errorLabel: t("systemUsers.loadRolesLabel")
 });
 
 const departments = useSelectOptions<DepartmentListItem>({
   fetcher: getDepartmentsPaged,
-  mapItem: (dept) => ({ label: dept.name, value: Number(dept.id) }),
-  errorLabel: "加载部门"
+  mapItem: (department) => ({ label: department.name, value: Number(department.id) }),
+  errorLabel: t("systemUsers.loadDepartmentsLabel")
 });
 
 const positions = useSelectOptions<PositionListItem>({
   fetcher: getPositionsPaged,
-  mapItem: (pos) => ({ label: `${pos.name} (${pos.code})`, value: Number(pos.id) }),
-  errorLabel: "加载职位"
+  mapItem: (position) => ({ label: `${position.name} (${position.code})`, value: Number(position.id) }),
+  errorLabel: t("systemUsers.loadPositionsLabel")
 });
 
 const roleOptions = roles.options;
@@ -294,19 +414,27 @@ const loadRoleOptions = roles.load;
 const loadDepartmentOptions = departments.load;
 const loadPositionOptions = positions.load;
 
+const tableColumnsDef = computed(() => [
+  { title: t("systemUsers.username"), dataIndex: "username", key: "username" },
+  { title: t("systemUsers.displayName"), dataIndex: "displayName", key: "displayName" },
+  { title: t("systemUsers.email"), dataIndex: "email", key: "email" },
+  { title: t("systemUsers.phoneNumber"), dataIndex: "phoneNumber", key: "phoneNumber" },
+  { title: t("systemUsers.status"), dataIndex: "isActive", key: "status" },
+  { title: t("systemUsers.lastLoginAt"), dataIndex: "lastLoginAt", key: "lastLoginAt" },
+  { title: t("systemUsers.actions"), key: "actions", view: { canHide: false } }
+]);
+
+const importResultColumns = computed(() => [
+  { title: t("systemUsers.importResultRow"), dataIndex: "row", key: "row", width: 70 },
+  { title: t("systemUsers.importResultField"), dataIndex: "field", key: "field", width: 100 },
+  { title: t("systemUsers.importResultMessage"), dataIndex: "message", key: "message" }
+]);
+
 const formRef = ref<FormInstance>();
 
 const crud = useCrudPage<UserListItem, UserDetail, UserCreateRequest, UserUpdateRequest>({
   tableKey: "system.users",
-  columns: [
-    { title: "用户名", dataIndex: "username", key: "username" },
-    { title: "姓名", dataIndex: "displayName", key: "displayName" },
-    { title: "邮箱", dataIndex: "email", key: "email" },
-    { title: "手机号", dataIndex: "phoneNumber", key: "phoneNumber" },
-    { title: "状态", dataIndex: "isActive", key: "status" },
-    { title: "最近登录", dataIndex: "lastLoginAt", key: "lastLoginAt" },
-    { title: "操作", key: "actions", view: { canHide: false } }
-  ],
+  columns: tableColumnsDef,
   permissions: {
     create: "users:create",
     update: "users:update",
@@ -335,9 +463,9 @@ const crud = useCrudPage<UserListItem, UserDetail, UserCreateRequest, UserUpdate
     positionIds: []
   }),
   formRules: {
-    username: [{ required: true, message: "请输入用户名" }],
-    password: [{ required: true, message: "请输入密码" }],
-    displayName: [{ required: true, message: "请输入姓名" }]
+    username: [{ required: true, message: t("systemUsers.usernameRequired") }],
+    password: [{ required: true, message: t("systemUsers.passwordRequired") }],
+    displayName: [{ required: true, message: t("systemUsers.displayNameRequired") }]
   },
   buildCreatePayload: (model) => ({
     username: model.username,
@@ -354,7 +482,10 @@ const crud = useCrudPage<UserListItem, UserDetail, UserCreateRequest, UserUpdate
     displayName: model.displayName,
     email: model.email || undefined,
     phoneNumber: model.phoneNumber || undefined,
-    isActive: model.isActive
+    isActive: model.isActive,
+    roleIds: model.roleIds,
+    departmentIds: model.departmentIds,
+    positionIds: model.positionIds
   }),
   mapDetailToForm: (detail, model) => {
     model.username = detail.username;
@@ -366,17 +497,34 @@ const crud = useCrudPage<UserListItem, UserDetail, UserCreateRequest, UserUpdate
     model.departmentIds = detail.departmentIds.slice();
     model.positionIds = detail.positionIds.slice();
   },
+  buildListParams: (base) => ({
+    ...base,
+    departmentId: selectedDepartmentId.value || undefined
+  }),
   autoFetch: true
 });
 
 const {
-  dataSource, loading, keyword, pagination,
-  formVisible, formMode, formModel, formRules,
-  selectedId,
-  tableViewController, tableColumns, tableSize,
-  canCreate, canUpdate, canDelete,
-  onTableChange, handleSearch, resetFilters,
-  closeForm, handleDelete, fetchData
+  dataSource,
+  loading,
+  keyword,
+  pagination,
+  formVisible,
+  formMode,
+  formModel,
+  formRules,
+  tableViewController,
+  tableColumns,
+  tableSize,
+  canCreate,
+  canUpdate,
+  canDelete,
+  onTableChange,
+  handleSearch,
+  resetFilters,
+  closeForm,
+  handleDelete,
+  fetchData
 } = crud;
 
 const canAssignRoles = crud.hasPermissionFor("assignRoles");
@@ -403,45 +551,37 @@ const handleSubmit = async () => {
   if (submitting.value) {
     return;
   }
-
   submitting.value = true;
   try {
-    if (formMode.value === "create") {
-      await crud.submitForm();
-    } else if (selectedId.value) {
-      // Update basic info
-      try {
-        await updateUser(selectedId.value, {
-          displayName: formModel.displayName,
-          email: formModel.email || undefined,
-          phoneNumber: formModel.phoneNumber || undefined,
-          isActive: formModel.isActive
-        });
-
-        // Update assignments in parallel
-        const promises: Promise<void>[] = [];
-        if (canAssignRoles) {
-          promises.push(updateUserRoles(selectedId.value, { roleIds: formModel.roleIds }));
-        }
-        if (canAssignDepartments) {
-          promises.push(updateUserDepartments(selectedId.value, { departmentIds: formModel.departmentIds }));
-        }
-        if (canAssignPositions) {
-          promises.push(updateUserPositions(selectedId.value, { positionIds: formModel.positionIds }));
-        }
-        if (promises.length) {
-          await Promise.all(promises);
-        }
-
-        message.success("更新成功");
-        formVisible.value = false;
-        fetchData();
-      } catch (error) {
-        message.error((error as Error).message || "更新失败");
-      }
-    }
+    await crud.submitForm();
   } finally {
     submitting.value = false;
   }
 };
+
+const handleStatusChange = async (id: string, isActive: boolean) => {
+  const user = dataSource.value.find((item) => item.id === id);
+  if (!user) {
+    return;
+  }
+
+  await updateUser(id, {
+    displayName: user.displayName,
+    email: user.email || undefined,
+    phoneNumber: user.phoneNumber || undefined,
+    isActive
+  });
+};
 </script>
+
+<style scoped>
+.import-modal-body {
+  padding: 10px 0;
+}
+
+:deep(.ant-tree-node-content-wrapper) {
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+}
+</style>
