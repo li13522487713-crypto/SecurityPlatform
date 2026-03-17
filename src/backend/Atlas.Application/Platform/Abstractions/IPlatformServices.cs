@@ -88,6 +88,12 @@ public interface IRuntimeExecutionQueryService
         TenantId tenantId,
         long executionId,
         CancellationToken cancellationToken = default);
+
+    Task<PagedResult<RuntimeExecutionAuditTrailItem>> GetAuditTrailsAsync(
+        TenantId tenantId,
+        long executionId,
+        PagedRequest request,
+        CancellationToken cancellationToken = default);
 }
 
 public interface IResourceCenterQueryService
@@ -107,5 +113,22 @@ public interface IReleaseCenterQueryService
     Task<ReleaseCenterDetail?> GetByIdAsync(
         TenantId tenantId,
         long releaseId,
+        CancellationToken cancellationToken = default);
+}
+
+public interface ICozeMappingQueryService
+{
+    Task<CozeLayerMappingOverview> GetOverviewAsync(
+        TenantId tenantId,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IDebugLayerQueryService
+{
+    Task<DebugLayerEmbedMetadata> GetEmbedMetadataAsync(
+        TenantId tenantId,
+        string appId,
+        long? projectId,
+        bool projectScopeEnabled,
         CancellationToken cancellationToken = default);
 }

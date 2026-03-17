@@ -15,6 +15,7 @@ public sealed class MenuQueryService : IMenuQueryService
         ["/console/apps"] = "route.consoleApps",
         ["/console/resources"] = "route.consoleResources",
         ["/console/releases"] = "route.consoleReleases",
+        ["/console/debug"] = "route.consoleDebugLayer",
         ["/console/tools"] = "route.consoleTools",
         ["/console/datasources"] = "route.consoleDatasources",
         ["/console/settings/system/configs"] = "route.consoleSystemConfigs",

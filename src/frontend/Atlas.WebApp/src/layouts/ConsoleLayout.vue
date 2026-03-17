@@ -15,6 +15,8 @@
               >
                 <a-menu-item key="/console">平台首页</a-menu-item>
                 <a-menu-item key="/console/apps">应用管理</a-menu-item>
+                <a-menu-item key="/console/releases">发布中心</a-menu-item>
+                <a-menu-item key="/console/debug">调试层</a-menu-item>
                 <a-menu-item key="/console/datasources">数据源管理</a-menu-item>
                 <a-menu-item key="/console/settings/system/configs">系统设置</a-menu-item>
               </a-menu>
@@ -76,6 +78,12 @@ const selectedKeys = computed(() => {
   const path = route.path;
   if (path.startsWith("/console/apps")) {
     return ["/console/apps"];
+  }
+  if (path.startsWith("/console/releases")) {
+    return ["/console/releases"];
+  }
+  if (path.startsWith("/console/debug")) {
+    return ["/console/debug"];
   }
   if (path.startsWith("/console/datasources")) {
     return ["/console/datasources"];

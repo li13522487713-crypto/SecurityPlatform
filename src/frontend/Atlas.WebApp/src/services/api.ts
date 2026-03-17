@@ -34,6 +34,7 @@ export * from "@/services/api-ai-workspace";
 export * from "@/services/api-ai-shortcut";
 export * from "@/services/api-pat";
 export * from "@/services/api-tenant-app-instances";
+export * from "@/services/api-coze-runtime";
 export {
   workflowV2Api,
   createWorkflow,

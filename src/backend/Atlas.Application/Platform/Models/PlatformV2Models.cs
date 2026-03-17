@@ -128,3 +128,33 @@ public sealed record ReleaseCenterDetail(
     string ReleasedAt,
     string? ReleaseNote,
     string SnapshotJson);
+
+public sealed record RuntimeExecutionAuditTrailItem(
+    string AuditId,
+    string Actor,
+    string Action,
+    string Result,
+    string Target,
+    string OccurredAt);
+
+public sealed record CozeLayerMappingItem(
+    string LayerKey,
+    string LayerName,
+    int Total,
+    string Description);
+
+public sealed record CozeLayerMappingOverview(
+    IReadOnlyList<CozeLayerMappingItem> Layers);
+
+public sealed record DebugLayerResourceItem(
+    string ResourceKey,
+    string ResourceName,
+    string RequiredPermission,
+    string Description);
+
+public sealed record DebugLayerEmbedMetadata(
+    string TenantId,
+    string AppId,
+    string? ProjectId,
+    bool ProjectScopeEnabled,
+    IReadOnlyList<DebugLayerResourceItem> Resources);

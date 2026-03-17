@@ -47,4 +47,15 @@ public sealed class RuntimeExecutionsV2Controller : ControllerBase
 
         return Ok(ApiResponse<RuntimeExecutionDetail>.Ok(result, HttpContext.TraceIdentifier));
     }
+
+    [HttpGet("{id:long}/audit-trails")]
+    public async Task<ActionResult<ApiResponse<PagedResult<RuntimeExecutionAuditTrailItem>>>> GetAuditTrails(
+        long id,
+        [FromQuery] PagedRequest request,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _queryService.GetAuditTrailsAsync(tenantId, id, request, cancellationToken);
+        return Ok(ApiResponse<PagedResult<RuntimeExecutionAuditTrailItem>>.Ok(result, HttpContext.TraceIdentifier));
+    }
 }

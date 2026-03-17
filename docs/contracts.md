@@ -203,6 +203,12 @@
 - `POST /api/v2/release-center/releases/{releaseId}/rollback`
   - 回滚请求按写接口统一要求 `Idempotency-Key` + `X-CSRF-TOKEN`。
   - 服务端必须基于当前租户上下文校验发布记录归属后再执行回滚。
+- `GET /api/v2/runtime-executions/{executionId}/audit-trails`
+  - 通过执行ID关联审计轨迹，支持分页与关键字检索。
+- `GET /api/v2/coze-mappings/overview`
+  - 返回 Coze 六层映射总览（目录/实例/发布/上下文/执行/审计）。
+- `GET /api/v2/debug-layer/embed-metadata`
+  - 返回调试层嵌入元数据（tenant/app/project + 资源权限列表）。
 
 #### 前端主路径约定与弃用窗口（SEC-92）
 

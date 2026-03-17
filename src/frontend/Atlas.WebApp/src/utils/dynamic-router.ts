@@ -7,6 +7,8 @@ const pathComponentFallbackMap: Record<string, string> = {
   "/": "../pages/HomePage.vue",
   "/console": "../pages/console/ConsolePage.vue",
   "/console/apps": "../pages/console/ConsolePage.vue",
+  "/console/releases": "../pages/console/ReleaseCenterPage.vue",
+  "/console/debug": "../pages/console/CozeDebugPage.vue",
   "/console/datasources": "../pages/system/TenantDataSourcesPage.vue",
   "/console/settings/system/configs": "../pages/system/SystemConfigsPage.vue",
   "/apps/:appId/dashboard": "../pages/apps/AppDashboardPage.vue",

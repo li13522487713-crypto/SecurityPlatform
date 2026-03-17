@@ -4,6 +4,7 @@ using Atlas.Application.Platform.Models;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.AiPlatform.Entities;
+using Atlas.Domain.Audit.Entities;
 using Atlas.Domain.LowCode.Entities;
 using Atlas.Domain.Platform.Entities;
 using Atlas.Domain.System.Entities;
@@ -318,6 +319,40 @@ public sealed class RuntimeExecutionQueryService : IRuntimeExecutionQueryService
             execution.OutputsJson,
             execution.ErrorMessage);
     }
+
+    public async Task<PagedResult<RuntimeExecutionAuditTrailItem>> GetAuditTrailsAsync(
+        TenantId tenantId,
+        long executionId,
+        PagedRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var tenantValue = tenantId.Value;
+        var pageIndex = request.PageIndex <= 0 ? 1 : request.PageIndex;
+        var pageSize = request.PageSize <= 0 ? 10 : request.PageSize;
+        var executionIdText = executionId.ToString();
+        var query = _db.Queryable<AuditRecord>()
+            .Where(item => item.TenantIdValue == tenantValue && item.Target.Contains(executionIdText));
+        if (!string.IsNullOrWhiteSpace(request.Keyword))
+        {
+            var keyword = request.Keyword.Trim();
+            query = query.Where(item => item.Action.Contains(keyword) || item.Target.Contains(keyword) || item.Actor.Contains(keyword));
+        }
+
+        var total = await query.CountAsync(cancellationToken);
+        var rows = await query
+            .OrderByDescending(item => item.OccurredAt)
+            .ToPageListAsync(pageIndex, pageSize, cancellationToken);
+        var items = rows.Select(item => new RuntimeExecutionAuditTrailItem(
+            item.Id.ToString(),
+            item.Actor,
+            item.Action,
+            item.Result,
+            item.Target,
+            item.OccurredAt.ToString("O")))
+            .ToArray();
+
+        return new PagedResult<RuntimeExecutionAuditTrailItem>(items, total, pageIndex, pageSize);
+    }
 }
 
 public sealed class ResourceCenterQueryService : IResourceCenterQueryService
@@ -466,5 +501,79 @@ public sealed class ReleaseCenterQueryService : IReleaseCenterQueryService
             release.ReleasedAt.ToString("O"),
             release.ReleaseNote,
             release.SnapshotJson);
+    }
+}
+
+public sealed class CozeMappingQueryService : ICozeMappingQueryService
+{
+    private readonly ISqlSugarClient _db;
+
+    public CozeMappingQueryService(ISqlSugarClient db)
+    {
+        _db = db;
+    }
+
+    public async Task<CozeLayerMappingOverview> GetOverviewAsync(
+        TenantId tenantId,
+        CancellationToken cancellationToken = default)
+    {
+        var tenantValue = tenantId.Value;
+        var catalogsCountTask = _db.Queryable<AppManifest>()
+            .Where(item => item.TenantIdValue == tenantValue)
+            .CountAsync(cancellationToken);
+        var appInstancesCountTask = _db.Queryable<LowCodeApp>()
+            .Where(item => item.TenantIdValue == tenantValue)
+            .CountAsync(cancellationToken);
+        var releasesCountTask = _db.Queryable<AppRelease>()
+            .Where(item => item.TenantIdValue == tenantValue)
+            .CountAsync(cancellationToken);
+        var contextsCountTask = _db.Queryable<RuntimeRoute>()
+            .Where(item => item.TenantIdValue == tenantValue)
+            .CountAsync(cancellationToken);
+        var executionsCountTask = _db.Queryable<WorkflowExecution>()
+            .Where(item => item.TenantIdValue == tenantValue)
+            .CountAsync(cancellationToken);
+        var auditCountTask = _db.Queryable<AuditRecord>()
+            .Where(item => item.TenantIdValue == tenantValue)
+            .CountAsync(cancellationToken);
+        await Task.WhenAll(catalogsCountTask, appInstancesCountTask, releasesCountTask, contextsCountTask, executionsCountTask, auditCountTask);
+
+        var layers = new[]
+        {
+            new CozeLayerMappingItem("L1", "应用目录层(ApplicationCatalog)", catalogsCountTask.Result, "平台侧目录定义"),
+            new CozeLayerMappingItem("L2", "租户实例层(TenantAppInstance)", appInstancesCountTask.Result, "租户开通后的实例"),
+            new CozeLayerMappingItem("L3", "发布层(ReleaseCenter)", releasesCountTask.Result, "发布版本与回滚点"),
+            new CozeLayerMappingItem("L4", "运行上下文层(RuntimeContext)", contextsCountTask.Result, "运行路由与页面上下文"),
+            new CozeLayerMappingItem("L5", "执行层(RuntimeExecution)", executionsCountTask.Result, "运行执行记录与状态"),
+            new CozeLayerMappingItem("L6", "审计层(AuditTrail)", auditCountTask.Result, "操作与执行追溯证据")
+        };
+
+        return new CozeLayerMappingOverview(layers);
+    }
+}
+
+public sealed class DebugLayerQueryService : IDebugLayerQueryService
+{
+    public Task<DebugLayerEmbedMetadata> GetEmbedMetadataAsync(
+        TenantId tenantId,
+        string appId,
+        long? projectId,
+        bool projectScopeEnabled,
+        CancellationToken cancellationToken = default)
+    {
+        _ = cancellationToken;
+        var resources = new[]
+        {
+            new DebugLayerResourceItem("workflow-executions", "运行执行观测", "apps:view", "查看执行状态、输入输出与错误消息"),
+            new DebugLayerResourceItem("runtime-audit-trails", "运行审计追溯", "audit:view", "查看与执行ID关联的审计轨迹"),
+            new DebugLayerResourceItem("rollback-ops", "回滚操作入口", "apps:update", "触发发布版本回滚操作")
+        };
+
+        return Task.FromResult(new DebugLayerEmbedMetadata(
+            tenantId.ToString(),
+            appId,
+            projectId?.ToString(),
+            projectScopeEnabled,
+            resources));
     }
 }

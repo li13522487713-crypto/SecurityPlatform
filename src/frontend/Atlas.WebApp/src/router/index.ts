@@ -20,6 +20,8 @@ const RegisterPage = () => import("@/pages/RegisterPage.vue");
 const ProfilePage = () => import("@/pages/ProfilePage.vue");
 const NotFoundPage = () => import("@/pages/NotFoundPage.vue");
 const ConsolePage = () => import("@/pages/console/ConsolePage.vue");
+const ReleaseCenterPage = () => import("@/pages/console/ReleaseCenterPage.vue");
+const CozeDebugPage = () => import("@/pages/console/CozeDebugPage.vue");
 const AppDashboardPage = () => import("@/pages/apps/AppDashboardPage.vue");
 const AppSettingsPage = () => import("@/pages/apps/AppSettingsPage.vue");
 const AppPagesPage = () => import("@/pages/apps/AppPagesPage.vue");
@@ -96,7 +98,8 @@ const router = createRouter({
     { path: "/console", name: "console-home", component: ConsolePage, meta: { requiresAuth: true, title: "平台控制台", requiresPermission: "apps:view" } },
     { path: "/console/apps", name: "console-apps", component: ConsolePage, meta: { requiresAuth: true, title: "应用中心", requiresPermission: "apps:view" } },
     { path: "/console/resources", name: "console-resources", component: ConsolePage, meta: { requiresAuth: true, title: "资源中心", requiresPermission: "apps:view" } },
-    { path: "/console/releases", name: "console-releases", component: ConsolePage, meta: { requiresAuth: true, title: "发布中心", requiresPermission: "apps:view" } },
+    { path: "/console/releases", name: "console-releases", component: ReleaseCenterPage, meta: { requiresAuth: true, title: "发布中心", requiresPermission: "apps:view" } },
+    { path: "/console/debug", name: "console-debug-layer", component: CozeDebugPage, meta: { requiresAuth: true, title: "调试层", requiresPermission: "apps:view" } },
     { path: "/console/tools", name: "console-tools", component: ToolsAuthorizationPage, meta: { requiresAuth: true, title: "工具授权中心", requiresPermission: "system:admin" } },
     { path: "/console/datasources", name: "console-datasources", component: TenantDataSourcesPage, meta: { requiresAuth: true, title: "数据源管理", requiresPermission: "system:admin" } },
     { path: "/console/settings/system/configs", name: "console-system-configs", component: SystemConfigsPage, meta: { requiresAuth: true, title: "系统设置", requiresPermission: "config:view" } },
@@ -114,6 +117,7 @@ const router = createRouter({
     { path: "/apps/:appId/permissions", name: "app-workspace-permissions", component: AppPermissionsPage, meta: { requiresAuth: true, title: "权限入口", requiresPermission: "apps:view" } },
     { path: "/apps/:appId/run/:pageKey", name: "app-workspace-runtime", component: PageRuntimeRenderer, meta: { requiresAuth: true, title: "应用运行态", requiresPermission: "apps:view" } },
     { path: "/r/:appKey/:pageKey", name: "runtime-delivery-page", component: PageRuntimeRenderer, meta: { requiresAuth: true, title: "运行交付面" } },
+    { path: "/runtime/:appKey/:pageKey", name: "runtime-legacy", redirect: to => `/r/${to.params.appKey}/${to.params.pageKey}`, meta: { requiresAuth: true, title: "运行交付面(Deprecated)" } },
     { path: "/process/instances/:id", name: "process-instance-detail", component: ApprovalInstanceDetailPage, meta: { requiresAuth: true, title: "流程详情", requiresPermission: "approval:flow:view" } },
     { path: "/system/notifications", name: "system-notifications", component: NotificationsPage, meta: { requiresAuth: true, title: "通知中心" } },
     { path: "/system/notifications/manage", name: "system-notifications-manage", component: NotificationManagePage, meta: { requiresAuth: true, title: "公告管理", requiresPermission: "notification:manage" } },
@@ -165,6 +169,7 @@ const router = createRouter({
     { path: "/system/dict-types", name: "system-dict-types-legacy", redirect: "/settings/system/dict-types", meta: { requiresAuth: true, title: "字典管理" } },
     { path: "/system/configs", name: "system-configs-legacy", redirect: "/settings/system/configs", meta: { requiresAuth: true, title: "参数配置" } },
     { path: "/alerts", name: "alerts-legacy", redirect: "/alert", meta: { requiresAuth: true, title: "告警" } },
+    { path: "/coze/debug", name: "coze-debug-legacy", redirect: "/console/debug", meta: { requiresAuth: true, title: "调试层(Deprecated)" } },
     { path: "/lowcode/apps", name: "app-list", component: AppListPage, meta: { requiresAuth: true, title: "低代码应用", requiresPermission: "apps:view" } },
     {
       path: "/lowcode/apps/:id/builder",

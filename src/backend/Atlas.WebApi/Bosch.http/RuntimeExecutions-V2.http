@@ -28,3 +28,8 @@ X-Tenant-Id: {{tenantId}}
 GET {{baseUrl}}/api/v2/runtime-executions/1
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
+
+### 查询运行执行审计轨迹
+GET {{baseUrl}}/api/v2/runtime-executions/1/audit-trails?pageIndex=1&pageSize=10
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
