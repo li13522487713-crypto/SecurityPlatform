@@ -42,7 +42,7 @@ export async function getReleaseCenterDetail(releaseId: string): Promise<Release
 }
 
 export async function rollbackReleaseCenter(releaseId: string): Promise<void> {
-  const idempotencyKey = `release-center-rollback-${releaseId}-${Date.now()}`;
+  const idempotencyKey = `release-center-rollback-${releaseId}`;
   const response = await requestApi<ApiResponse<{ id: string }>>(`${RELEASE_CENTER_BASE}/${releaseId}/rollback`, {
     method: "POST"
   }, {
