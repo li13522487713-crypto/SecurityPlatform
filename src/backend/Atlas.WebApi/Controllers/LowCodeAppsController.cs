@@ -5,6 +5,7 @@ using Atlas.Application.System.Models;
 using Atlas.Core.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
+using Atlas.WebApi.Attributes;
 using Atlas.WebApi.Authorization;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
@@ -15,6 +16,7 @@ namespace Atlas.WebApi.Controllers;
 
 [ApiController]
 [Route("api/v1/lowcode-apps")]
+[DeprecatedApi("lowcode-apps v1 is in compatibility window", "/api/v2/tenant-app-instances")]
 [Obsolete("Deprecated since Sprint 1. Please migrate to api/v1/app-manifests and api/v1/packages endpoints.")]
 public sealed class LowCodeAppsController : ControllerBase
 {

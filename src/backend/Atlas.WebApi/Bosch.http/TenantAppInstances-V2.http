@@ -1,0 +1,35 @@
+### TenantAppInstances V2 API
+
+@baseUrl = http://localhost:5000
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+
+### 登录
+# @name login
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+###
+@accessToken = {{login.response.body.$.data.accessToken}}
+
+### 查询实例列表
+GET {{baseUrl}}/api/v2/tenant-app-instances?pageIndex=1&pageSize=10
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 查询实例详情
+GET {{baseUrl}}/api/v2/tenant-app-instances/1
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 查询实例数据源绑定（可选 appIds 过滤）
+GET {{baseUrl}}/api/v2/tenant-app-instances/data-source-bindings?appIds=1&appIds=2
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}

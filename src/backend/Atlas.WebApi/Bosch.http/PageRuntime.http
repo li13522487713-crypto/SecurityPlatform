@@ -105,3 +105,18 @@ Content-Type: application/json
 GET {{baseUrl}}/api/v1/runtime/apps/{{appKey}}/pages/draft-only-page/schema
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
+
+### [兼容窗口检查] v1 runtime 入口（应返回迁移提示）
+GET {{baseUrl}}/api/v1/runtime/tasks?pageIndex=1&pageSize=10
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### [迁移契约占位] v2 runtime-contexts 目标路径（未落地前可能返回 404/501）
+GET {{baseUrl}}/api/v2/runtime-contexts?pageIndex=1&pageSize=10
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### [迁移契约占位] v2 runtime-executions 目标路径（未落地前可能返回 404/501）
+GET {{baseUrl}}/api/v2/runtime-executions?pageIndex=1&pageSize=10
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}

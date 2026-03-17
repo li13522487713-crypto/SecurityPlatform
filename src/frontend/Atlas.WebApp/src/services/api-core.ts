@@ -28,6 +28,18 @@ import { getLocale } from "@/i18n";
 
 export const API_BASE = import.meta.env.VITE_API_BASE ?? "/api/v1";
 
+function resolveRequestUrl(path: string): string {
+  if (path.startsWith("http://") || path.startsWith("https://")) {
+    return path;
+  }
+
+  if (path.startsWith("/api/")) {
+    return path;
+  }
+
+  return `${API_BASE}${path}`;
+}
+
 export interface RequestOptions {
   disableAutoRefresh?: boolean;
   isRetry?: boolean;
@@ -53,7 +65,10 @@ const ErrorCodes = {
   PasswordExpired: "PASSWORD_EXPIRED",
   AntiforgeryTokenInvalid: "ANTIFORGERY_TOKEN_INVALID",
   IdempotencyConflict: "IDEMPOTENCY_CONFLICT",
-  IdempotencyInProgress: "IDEMPOTENCY_IN_PROGRESS"
+  IdempotencyInProgress: "IDEMPOTENCY_IN_PROGRESS",
+  ProjectRequired: "PROJECT_REQUIRED",
+  ProjectForbidden: "PROJECT_FORBIDDEN",
+  CrossTenantForbidden: "CROSS_TENANT_FORBIDDEN"
 } as const;
 
 interface ApiErrorPayload {
@@ -203,7 +218,7 @@ export async function requestApi<T>(path: string, init?: RequestInit, options?: 
   };
 
   const runRequest = async () => {
-    const response = await fetch(`${API_BASE}${path}`, requestInit);
+    const response = await fetch(resolveRequestUrl(path), requestInit);
 
     const shouldAttemptRefresh = !options?.disableAutoRefresh && !options?.isRetry;
     if (response.status === 401 && shouldAttemptRefresh) {
@@ -354,7 +369,7 @@ export async function requestApiBlob(path: string, init?: RequestInit, options?:
 
   const requestInit: RequestInit = { ...init, headers, credentials: "include" };
   const runRequest = async () => {
-    const response = await fetch(`${API_BASE}${path}`, requestInit);
+    const response = await fetch(resolveRequestUrl(path), requestInit);
 
     if (response.status === 401) {
       const refreshed = await tryRefreshTokens();
@@ -742,6 +757,15 @@ function formatErrorMessage(payload: ApiErrorPayload | null, fallback: string): 
   }
   if (payload?.code === ErrorCodes.IdempotencyConflict) {
     return "检测到重复提交但请求内容不一致，请刷新后重试";
+  }
+  if (payload?.code === ErrorCodes.ProjectRequired) {
+    return "当前应用已启用项目模式，请先选择项目";
+  }
+  if (payload?.code === ErrorCodes.ProjectForbidden) {
+    return "当前账号未分配该项目访问权限";
+  }
+  if (payload?.code === ErrorCodes.CrossTenantForbidden) {
+    return "租户上下文不一致，请刷新后重试";
   }
 
   if (!payload) {

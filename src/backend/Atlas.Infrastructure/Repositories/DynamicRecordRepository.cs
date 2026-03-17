@@ -401,7 +401,7 @@ public sealed class DynamicRecordRepository : IDynamicRecordRepository
             conditions.Add($"{fieldName} {sqlOp} {param}");
         }
 
-        return $"WHERE {string.Join(" AND ", conditions)}";
+        return string.Join(" AND ", conditions);
     }
 
     private static object? ConvertFilterValue(DynamicField field, JsonElement value)

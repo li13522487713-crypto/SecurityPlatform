@@ -75,3 +75,13 @@ Content-Type: application/json
 GET {{baseUrl}}/api/v1/app-manifests/{{manifestId}}/workspace/overview
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
+
+### [兼容窗口检查] v1 接口应可继续访问（Deprecated 提示由响应头或网关提示返回）
+GET {{baseUrl}}/api/v1/app-manifests?pageIndex=1&pageSize=10&keyword=productized
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### [迁移契约占位] v2 目标路径（未落地前可能返回 404/501）
+GET {{baseUrl}}/api/v2/application-catalogs?pageIndex=1&pageSize=10
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}

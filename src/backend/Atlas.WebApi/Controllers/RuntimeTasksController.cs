@@ -3,6 +3,7 @@ using Atlas.Application.Platform.Models;
 using Atlas.Core.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
+using Atlas.WebApi.Attributes;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -10,6 +11,7 @@ namespace Atlas.WebApi.Controllers;
 
 [ApiController]
 [Route("api/v1/runtime")]
+[DeprecatedApi("runtime v1 endpoints are in compatibility window", "/api/v2/runtime-contexts and /api/v2/runtime-executions")]
 [Authorize]
 public sealed class RuntimeTasksController : ControllerBase
 {

@@ -414,3 +414,17 @@ Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Idempotency-Key: {{$randomUUID}}
 X-CSRF-TOKEN: {{csrfToken}}
+
+###############################################
+# 迁移与兼容检查（SEC-91~94）
+###############################################
+
+### [兼容窗口检查] v1 lowcode-apps 仍可访问（应返回迁移提示）
+GET {{baseUrl}}/api/v1/lowcode-apps?pageIndex=1&pageSize=10
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### [迁移契约占位] v2 目标路径（未落地前可能返回 404/501）
+GET {{baseUrl}}/api/v2/tenant-app-instances?pageIndex=1&pageSize=10
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}

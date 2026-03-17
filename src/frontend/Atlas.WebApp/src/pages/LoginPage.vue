@@ -127,7 +127,7 @@
 
           <a-divider style="margin: 16px 0" />
 
-          <template v-if="licenseStatusCode === 'Active'">
+          <template v-if="allowLoginForm">
             <div v-if="errorMessage" class="error-banner">
               <span class="error-icon">!</span>
               <span>{{ errorMessage }}</span>
@@ -361,6 +361,8 @@ const licenseExpireText = computed(() => {
   return "";
 });
 
+const allowLoginForm = computed(() => licenseStatusCode.value === "Active");
+
 const isSubmitDisabled = computed(
   () =>
     loading.value ||
@@ -368,7 +370,7 @@ const isSubmitDisabled = computed(
     !hasValidTenantId(form.tenantId.trim()) ||
     !form.username.trim() ||
     !form.password ||
-    licenseStatusCode.value !== "Active"
+    !allowLoginForm.value
 );
 
 function hasValidTenantId(tenantId: string): boolean {

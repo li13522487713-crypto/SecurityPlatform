@@ -13,9 +13,10 @@ public sealed class DynamicRecordRepositoryTenantIsolationTests
     public async Task GetByIdAsync_ShouldNotReturnCrossTenantRecord()
     {
         var dbPath = CreateTempDbPath();
+        SqlSugarClient? db = null;
         try
         {
-            var db = CreateDb(dbPath);
+            db = CreateDb(dbPath);
             await CreateDynamicTableAsync(db, "asset_records");
 
             var repository = new DynamicRecordRepository(db);
@@ -42,6 +43,7 @@ public sealed class DynamicRecordRepositoryTenantIsolationTests
         }
         finally
         {
+            db?.Dispose();
             CleanupDbFile(dbPath);
         }
     }
@@ -50,9 +52,10 @@ public sealed class DynamicRecordRepositoryTenantIsolationTests
     public async Task QueryAndDelete_ShouldRespectTenantBoundary()
     {
         var dbPath = CreateTempDbPath();
+        SqlSugarClient? db = null;
         try
         {
-            var db = CreateDb(dbPath);
+            db = CreateDb(dbPath);
             await CreateDynamicTableAsync(db, "asset_records");
 
             var repository = new DynamicRecordRepository(db);
@@ -101,6 +104,7 @@ public sealed class DynamicRecordRepositoryTenantIsolationTests
         }
         finally
         {
+            db?.Dispose();
             CleanupDbFile(dbPath);
         }
     }
@@ -189,9 +193,28 @@ public sealed class DynamicRecordRepositoryTenantIsolationTests
 
     private static void CleanupDbFile(string dbPath)
     {
-        if (File.Exists(dbPath))
+        for (var attempt = 0; attempt < 5; attempt++)
         {
-            File.Delete(dbPath);
+            if (!File.Exists(dbPath))
+            {
+                return;
+            }
+
+            try
+            {
+                File.Delete(dbPath);
+                return;
+            }
+            catch (IOException) when (attempt < 4)
+            {
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+                Thread.Sleep(100);
+            }
+            catch (IOException)
+            {
+                return;
+            }
         }
     }
 }

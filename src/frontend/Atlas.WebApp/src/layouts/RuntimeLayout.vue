@@ -4,6 +4,7 @@
       <div class="runtime-left">
         <a-button type="link" @click="go('/console')">{{ t("runtime.backToConsole") }}</a-button>
         <span class="runtime-title">{{ runtimeTitle }}</span>
+        <UnifiedContextBar />
       </div>
       <div class="runtime-right">
         <LocaleSwitch />
@@ -48,6 +49,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
+import UnifiedContextBar from "@/components/context/UnifiedContextBar.vue";
 import LocaleSwitch from "@/components/layout/LocaleSwitch.vue";
 import NotificationBell from "@/components/layout/NotificationBell.vue";
 import { getRuntimeMenu, getRuntimeTasks, type RuntimeMenuItem } from "@/services/api-productization";

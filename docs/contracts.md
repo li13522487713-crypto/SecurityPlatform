@@ -36,6 +36,8 @@
   - 应用工作台以 `appId` 路由参数为准（`/apps/:appId/*`）
 - Project：
   - 仅在应用启用项目模式时要求 `X-Project-Id`
+  - 缺失或非法时返回 `PROJECT_REQUIRED`
+  - 用户未分配项目时返回 `PROJECT_FORBIDDEN`
 
 ### 发布态与草稿态行为矩阵
 
@@ -174,6 +176,66 @@
 | `/api/v1/app-manifests/*` | `/api/v2/application-catalogs/*` | v1 保留只读/兼容映射 |
 | `/api/v1/runtime/*`（混用） | `/api/v2/runtime-contexts/*` + `/api/v2/runtime-executions/*` | 先并行，后下线 |
 
+#### v2 最小读接口（P0 占位基线）
+
+- `GET /api/v2/application-catalogs`
+- `GET /api/v2/application-catalogs/{id}`
+- `GET /api/v2/tenant-app-instances`
+- `GET /api/v2/tenant-app-instances/{id}`
+- `GET /api/v2/runtime-contexts`
+- `GET /api/v2/runtime-contexts/{appKey}/{pageKey}`
+- `GET /api/v2/runtime-executions`
+- `GET /api/v2/runtime-executions/{id}`
+
+#### v2 P1 扩展读接口（资源中心与绑定关系）
+
+- `GET /api/v2/tenant-app-instances/data-source-bindings?appIds=1&appIds=2`
+  - 用于查询租户应用实例与租户数据源绑定关系。
+  - `appIds` 可选；未传时返回当前租户全部实例绑定。
+- `GET /api/v2/resource-center/groups`
+  - 返回资源中心分组聚合（`catalogs`/`instances`/`datasources`）。
+  - 要求服务端采用批量查询 + 内存聚合，禁止循环内数据库访问。
+
+#### v2 P2 发布闭环接口（首批）
+
+- `GET /api/v2/release-center/releases`
+- `GET /api/v2/release-center/releases/{releaseId}`
+- `POST /api/v2/release-center/releases/{releaseId}/rollback`
+  - 回滚请求按写接口统一要求 `Idempotency-Key` + `X-CSRF-TOKEN`。
+  - 服务端必须基于当前租户上下文校验发布记录归属后再执行回滚。
+- `GET /api/v2/runtime-executions/{executionId}/audit-trails`
+  - 通过执行ID关联审计轨迹，支持分页与关键字检索。
+- `GET /api/v2/coze-mappings/overview`
+  - 返回 Coze 六层映射总览（目录/实例/发布/上下文/执行/审计）。
+- `GET /api/v2/debug-layer/embed-metadata`
+  - 返回调试层嵌入元数据（tenant/app/project + 资源权限列表）。
+
+#### 前端主路径约定与弃用窗口（SEC-92）
+
+| 主路径（规范） | 兼容路径（Deprecated） | 弃用窗口 | 备注 |
+|---|---|---|---|
+| `/console/*` | `/settings/*`、`/system/*` | 6 个月 | 平台控制台主入口 |
+| `/apps/:appId/*` | `/ai/*`、`/lowcode/*`、`/workflow/*` | 6 个月 | 应用工作台主入口，编辑页需下沉 |
+| `/r/:appKey/:pageKey` | `/apps/:appId/run/:pageKey` | 6 个月 | 运行交付面主入口 |
+
+- 兼容路径必须返回可追踪的迁移提示（页面提示或响应头提示），禁止直接返回 404。
+- 兼容窗口内仅允许新增 redirect 与安全修复，不允许在兼容路径上新增业务功能。
+- 兼容窗口结束后移除旧路径时，必须同步更新 `router`、`titleKey`、`.http` 与发布说明。
+
+#### 迁移联调顺序与禁止事项（SEC-94）
+
+1. `contracts` 先行：先改文档契约，再改后端实现，再改前端调用。
+2. 接口并行：先提供 v2 读接口，再迁移前端主读链路，最后处理 v1 下线。
+3. 入口迁移：先补 redirect，再迁页面入口，最后清理 legacy 菜单与文案。
+4. 运行闭环：先打通发布/运行/审计主链路，再补调试层入口与权限细节。
+
+禁止事项：
+
+- 禁止前端先切换到尚未落地的 v2 写接口。
+- 禁止删除 v1 接口或 legacy 路由后再补 redirect。
+- 禁止在兼容窗口内修改旧接口响应语义导致联调回归失败。
+- 禁止在循环内执行数据库查询/更新以拼装迁移聚合数据。
+
 #### Runtime 分层契约约束
 
 - 运行态接口不得继续使用 `Runtime` 裸词承载定义态与执行态双语义。
@@ -248,6 +310,8 @@
 - `PROJECT_REQUIRED`：项目必填
 - `PROJECT_NOT_FOUND`：项目不存在
 - `PROJECT_DISABLED`：项目已停用
+- `PROJECT_FORBIDDEN`：当前用户无项目访问权限
+- `APP_CONTEXT_REQUIRED`：缺少应用上下文
 - `INVALID_CREDENTIALS`：账号或密码错误
 - `TOKEN_EXPIRED`：令牌过期
 - `IDEMPOTENCY_REQUIRED`：缺少幂等键

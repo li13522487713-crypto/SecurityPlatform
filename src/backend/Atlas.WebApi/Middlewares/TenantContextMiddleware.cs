@@ -53,7 +53,7 @@ public sealed class TenantContextMiddleware
 
             if (hasHeaderTenant && headerTenantId != claimTenantId)
             {
-                await WriteTenantErrorAsync(context, StatusCodes.Status403Forbidden, ErrorCodes.Forbidden, "租户标识不一致");
+                await WriteTenantErrorAsync(context, StatusCodes.Status403Forbidden, ErrorCodes.CrossTenantForbidden, "租户标识不一致");
                 return;
             }
 
@@ -68,7 +68,7 @@ public sealed class TenantContextMiddleware
         // 防止攻击者通过伪造 X-Tenant-Id 绕过租户隔离。
         if (hasClaimTenant && hasHeaderTenant && headerTenantId != claimTenantId)
         {
-            await WriteTenantErrorAsync(context, StatusCodes.Status403Forbidden, ErrorCodes.Forbidden, "租户标识不一致");
+            await WriteTenantErrorAsync(context, StatusCodes.Status403Forbidden, ErrorCodes.CrossTenantForbidden, "租户标识不一致");
             return;
         }
 

@@ -117,10 +117,10 @@ import { onMounted, reactive, ref } from "vue";
 import { useRouter } from "vue-router";
 import { message } from "ant-design-vue";
 import { useI18n } from "vue-i18n";
-import type { LowCodeAppListItem } from "@/types/lowcode";
+import type { TenantAppInstanceListItem } from "@/types/platform-v2";
 import { getAuthProfile, hasPermission } from "@/utils/auth";
+import { getTenantAppInstancesPaged } from "@/services/api-tenant-app-instances";
 import {
-  getLowCodeAppsPaged,
   updateLowCodeApp,
   exportLowCodeApp,
   importLowCodeApp,
@@ -136,7 +136,7 @@ const canManageApps = hasPermission(getAuthProfile(), "apps:update");
 
 const keyword = ref("");
 const loading = ref(false);
-const dataSource = ref<LowCodeAppListItem[]>([]);
+const dataSource = ref<TenantAppInstanceListItem[]>([]);
 const importing = ref(false);
 const importInputRef = ref<HTMLInputElement | null>(null);
 
@@ -173,7 +173,7 @@ const statusLabel = (status: string) => {
 const fetchData = async () => {
   loading.value = true;
   try {
-    const result = await getLowCodeAppsPaged({
+    const result = await getTenantAppInstancesPaged({
       pageIndex: 1,
       pageSize: 100,
       keyword: keyword.value || undefined
@@ -202,7 +202,7 @@ const handleCreated = (_appId: string) => {
   fetchData();
 };
 
-const handleEdit = (app: LowCodeAppListItem) => {
+const handleEdit = (app: TenantAppInstanceListItem) => {
   selectedId.value = app.id;
   editModel.name = app.name;
   editModel.description = app.description ?? "";
@@ -260,7 +260,7 @@ const handleDelete = async (id: string) => {
   }
 };
 
-const handleExport = async (app: LowCodeAppListItem) => {
+const handleExport = async (app: TenantAppInstanceListItem) => {
   try {
     const blob = await exportLowCodeApp(app.id);
     const url = URL.createObjectURL(blob);

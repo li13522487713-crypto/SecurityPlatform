@@ -15,9 +15,10 @@ public sealed class DynamicTableCommandServiceAlterTests
     public async Task AlterAsync_ShouldAddField_AndSupportRecordWrite()
     {
         var dbPath = CreateTempDbPath();
+        SqlSugarClient? db = null;
         try
         {
-            var db = CreateDb(dbPath);
+            db = CreateDb(dbPath);
             await CreateSchemaAsync(db);
 
             var tableRepository = new DynamicTableRepository(db);
@@ -98,6 +99,7 @@ public sealed class DynamicTableCommandServiceAlterTests
         }
         finally
         {
+            db?.Dispose();
             CleanupDbFile(dbPath);
         }
     }
@@ -106,9 +108,10 @@ public sealed class DynamicTableCommandServiceAlterTests
     public async Task AlterAsync_ShouldRejectUnsupportedFieldStructuralUpdate()
     {
         var dbPath = CreateTempDbPath();
+        SqlSugarClient? db = null;
         try
         {
-            var db = CreateDb(dbPath);
+            db = CreateDb(dbPath);
             await CreateSchemaAsync(db);
 
             var tableRepository = new DynamicTableRepository(db);
@@ -165,6 +168,7 @@ public sealed class DynamicTableCommandServiceAlterTests
         }
         finally
         {
+            db?.Dispose();
             CleanupDbFile(dbPath);
         }
     }
@@ -173,9 +177,10 @@ public sealed class DynamicTableCommandServiceAlterTests
     public async Task AlterAsync_ShouldUpdateFieldDisplayNameAndSortOrder()
     {
         var dbPath = CreateTempDbPath();
+        SqlSugarClient? db = null;
         try
         {
-            var db = CreateDb(dbPath);
+            db = CreateDb(dbPath);
             await CreateSchemaAsync(db);
 
             var tableRepository = new DynamicTableRepository(db);
@@ -239,6 +244,7 @@ public sealed class DynamicTableCommandServiceAlterTests
         }
         finally
         {
+            db?.Dispose();
             CleanupDbFile(dbPath);
         }
     }
@@ -247,9 +253,10 @@ public sealed class DynamicTableCommandServiceAlterTests
     public async Task PreviewAlterAsync_ShouldReturnSql_WithoutChangingSchema()
     {
         var dbPath = CreateTempDbPath();
+        SqlSugarClient? db = null;
         try
         {
-            var db = CreateDb(dbPath);
+            db = CreateDb(dbPath);
             await CreateSchemaAsync(db);
 
             var tableRepository = new DynamicTableRepository(db);
@@ -305,7 +312,7 @@ public sealed class DynamicTableCommandServiceAlterTests
 
             Assert.Equal("orders_preview", preview.TableKey);
             Assert.Equal("ADD_FIELDS", preview.OperationType);
-            Assert.Contains(preview.SqlScripts, script => script.Contains("ALTER TABLE", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(preview.SqlScripts, script => script.Contains("ADD COLUMN", StringComparison.OrdinalIgnoreCase));
             Assert.Contains(preview.SqlScripts, script => script.Contains("CREATE UNIQUE INDEX", StringComparison.OrdinalIgnoreCase));
 
             var table = await tableRepository.FindByKeyAsync(tenantId, "orders_preview", null, CancellationToken.None);
@@ -315,6 +322,7 @@ public sealed class DynamicTableCommandServiceAlterTests
         }
         finally
         {
+            db?.Dispose();
             CleanupDbFile(dbPath);
         }
     }
@@ -359,6 +367,7 @@ public sealed class DynamicTableCommandServiceAlterTests
                     "UpdatedAt" TEXT NOT NULL,
                     "CreatedBy" INTEGER NOT NULL,
                     "UpdatedBy" INTEGER NOT NULL,
+                    "AppId" INTEGER NULL,
                     "ApprovalFlowDefinitionId" INTEGER NULL,
                     "ApprovalStatusField" TEXT NULL
                   );
@@ -413,9 +422,28 @@ public sealed class DynamicTableCommandServiceAlterTests
 
     private static void CleanupDbFile(string dbPath)
     {
-        if (File.Exists(dbPath))
+        for (var attempt = 0; attempt < 5; attempt++)
         {
-            File.Delete(dbPath);
+            if (!File.Exists(dbPath))
+            {
+                return;
+            }
+
+            try
+            {
+                File.Delete(dbPath);
+                return;
+            }
+            catch (IOException) when (attempt < 4)
+            {
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+                Thread.Sleep(100);
+            }
+            catch (IOException)
+            {
+                return;
+            }
         }
     }
 
@@ -449,7 +477,7 @@ public sealed class DynamicTableCommandServiceAlterTests
 
         public string GetAppId()
         {
-            return "0";
+            return string.Empty;
         }
 
         public IDisposable BeginScope(IAppContext context)

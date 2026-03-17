@@ -15,12 +15,15 @@
               >
                 <a-menu-item key="/console">平台首页</a-menu-item>
                 <a-menu-item key="/console/apps">应用管理</a-menu-item>
+                <a-menu-item key="/console/releases">发布中心</a-menu-item>
+                <a-menu-item key="/console/debug">调试层</a-menu-item>
                 <a-menu-item key="/console/datasources">数据源管理</a-menu-item>
                 <a-menu-item key="/console/settings/system/configs">系统设置</a-menu-item>
               </a-menu>
             </div>
           </div>
           <div class="right">
+            <UnifiedContextBar :show-app="false" />
             <NotificationBell />
             <a-dropdown trigger="click">
               <span data-testid="e2e-user-menu-trigger">
@@ -63,6 +66,7 @@ import { useUserStore } from "@/stores/user";
 import { usePermissionStore } from "@/stores/permission";
 import { useTagsViewStore } from "@/stores/tagsView";
 import NotificationBell from "@/components/layout/NotificationBell.vue";
+import UnifiedContextBar from "@/components/context/UnifiedContextBar.vue";
 
 const route = useRoute();
 const router = useRouter();
@@ -74,6 +78,12 @@ const selectedKeys = computed(() => {
   const path = route.path;
   if (path.startsWith("/console/apps")) {
     return ["/console/apps"];
+  }
+  if (path.startsWith("/console/releases")) {
+    return ["/console/releases"];
+  }
+  if (path.startsWith("/console/debug")) {
+    return ["/console/debug"];
   }
   if (path.startsWith("/console/datasources")) {
     return ["/console/datasources"];

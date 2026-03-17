@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from "vue-router";
 import { getAccessToken, getTenantId } from "@/utils/auth";
+import { clearCurrentAppIdFromStorage, getCurrentAppIdFromStorage, setCurrentAppIdToStorage } from "@/utils/app-context";
 import { useUserStore } from "@/stores/user";
 import { usePermissionStore } from "@/stores/permission";
 import { message } from "ant-design-vue";
@@ -19,6 +20,8 @@ const RegisterPage = () => import("@/pages/RegisterPage.vue");
 const ProfilePage = () => import("@/pages/ProfilePage.vue");
 const NotFoundPage = () => import("@/pages/NotFoundPage.vue");
 const ConsolePage = () => import("@/pages/console/ConsolePage.vue");
+const ReleaseCenterPage = () => import("@/pages/console/ReleaseCenterPage.vue");
+const CozeDebugPage = () => import("@/pages/console/CozeDebugPage.vue");
 const AppDashboardPage = () => import("@/pages/apps/AppDashboardPage.vue");
 const AppSettingsPage = () => import("@/pages/apps/AppSettingsPage.vue");
 const AppPagesPage = () => import("@/pages/apps/AppPagesPage.vue");
@@ -95,7 +98,8 @@ const router = createRouter({
     { path: "/console", name: "console-home", component: ConsolePage, meta: { requiresAuth: true, title: "平台控制台", requiresPermission: "apps:view" } },
     { path: "/console/apps", name: "console-apps", component: ConsolePage, meta: { requiresAuth: true, title: "应用中心", requiresPermission: "apps:view" } },
     { path: "/console/resources", name: "console-resources", component: ConsolePage, meta: { requiresAuth: true, title: "资源中心", requiresPermission: "apps:view" } },
-    { path: "/console/releases", name: "console-releases", component: ConsolePage, meta: { requiresAuth: true, title: "发布中心", requiresPermission: "apps:view" } },
+    { path: "/console/releases", name: "console-releases", component: ReleaseCenterPage, meta: { requiresAuth: true, title: "发布中心", requiresPermission: "apps:view" } },
+    { path: "/console/debug", name: "console-debug-layer", component: CozeDebugPage, meta: { requiresAuth: true, title: "调试层", requiresPermission: "apps:view" } },
     { path: "/console/tools", name: "console-tools", component: ToolsAuthorizationPage, meta: { requiresAuth: true, title: "工具授权中心", requiresPermission: "system:admin" } },
     { path: "/console/datasources", name: "console-datasources", component: TenantDataSourcesPage, meta: { requiresAuth: true, title: "数据源管理", requiresPermission: "system:admin" } },
     { path: "/console/settings/system/configs", name: "console-system-configs", component: SystemConfigsPage, meta: { requiresAuth: true, title: "系统设置", requiresPermission: "config:view" } },
@@ -105,11 +109,15 @@ const router = createRouter({
     { path: "/apps/:appId/settings", name: "app-workspace-settings", component: AppSettingsPage, meta: { requiresAuth: true, title: "应用设置", requiresPermission: "apps:view" } },
     { path: "/apps/:appId/pages", name: "app-workspace-pages", component: AppPagesPage, meta: { requiresAuth: true, title: "页面管理", requiresPermission: "apps:view" } },
     { path: "/apps/:appId/forms", name: "app-workspace-forms", component: AppFormsPage, meta: { requiresAuth: true, title: "表单管理", requiresPermission: "apps:view" } },
+    { path: "/apps/:appId/forms/:id/designer", name: "app-workspace-form-designer", component: FormDesignerPage, meta: { requiresAuth: true, title: "表单设计器", requiresPermission: "apps:update" } },
     { path: "/apps/:appId/flows", name: "app-workspace-flows", component: AppFlowsPage, meta: { requiresAuth: true, title: "流程管理", requiresPermission: "apps:view" } },
+    { path: "/apps/:appId/workflows/:id/editor", name: "app-workspace-workflow-editor", component: WorkflowEditorPage, meta: { requiresAuth: true, title: "工作流设计器" } },
+    { path: "/apps/:appId/agents/:id/edit", name: "app-workspace-agent-editor", component: AgentEditorPage, meta: { requiresAuth: true, title: "Agent 编辑" } },
     { path: "/apps/:appId/data", name: "app-workspace-data", component: AppDataPage, meta: { requiresAuth: true, title: "数据管理", requiresPermission: "apps:view" } },
     { path: "/apps/:appId/permissions", name: "app-workspace-permissions", component: AppPermissionsPage, meta: { requiresAuth: true, title: "权限入口", requiresPermission: "apps:view" } },
     { path: "/apps/:appId/run/:pageKey", name: "app-workspace-runtime", component: PageRuntimeRenderer, meta: { requiresAuth: true, title: "应用运行态", requiresPermission: "apps:view" } },
     { path: "/r/:appKey/:pageKey", name: "runtime-delivery-page", component: PageRuntimeRenderer, meta: { requiresAuth: true, title: "运行交付面" } },
+    { path: "/runtime/:appKey/:pageKey", name: "runtime-legacy", redirect: to => `/r/${to.params.appKey}/${to.params.pageKey}`, meta: { requiresAuth: true, title: "运行交付面(Deprecated)" } },
     { path: "/process/instances/:id", name: "process-instance-detail", component: ApprovalInstanceDetailPage, meta: { requiresAuth: true, title: "流程详情", requiresPermission: "approval:flow:view" } },
     { path: "/system/notifications", name: "system-notifications", component: NotificationsPage, meta: { requiresAuth: true, title: "通知中心" } },
     { path: "/system/notifications/manage", name: "system-notifications-manage", component: NotificationManagePage, meta: { requiresAuth: true, title: "公告管理", requiresPermission: "notification:manage" } },
@@ -127,7 +135,12 @@ const router = createRouter({
     { path: "/ai/shortcuts", name: "ai-shortcuts-static", component: AiShortcutsPage, meta: { requiresAuth: true, title: "快捷命令" } },
     { path: "/ai/search", name: "ai-search-static", component: AiSearchResultsPage, meta: { requiresAuth: true, title: "统一搜索" } },
     { path: "/ai/marketplace", name: "ai-marketplace-static", component: AiMarketplacePage, meta: { requiresAuth: true, title: "应用市场" } },
-    { path: "/ai/agents/:id/edit", name: "ai-agent-edit-static", component: AgentEditorPage, meta: { requiresAuth: true, title: "Agent 编辑" } },
+    {
+      path: "/ai/agents/:id/edit",
+      name: "ai-agent-edit-static",
+      redirect: to => buildWorkspaceRedirectPath(to, appId => `/apps/${appId}/agents/${to.params.id}/edit`),
+      meta: { requiresAuth: true, title: "Agent 编辑(Deprecated)" }
+    },
     { path: "/settings/auth/roles", name: "SettingsAuthRoles", component: RolesPage, meta: { requiresAuth: true, title: "角色管理", requiresPermission: "roles:view" } },
     { path: "/lowcode/plugin-market", name: "plugin-market", component: PluginMarketPage, meta: { requiresAuth: true, title: "插件市场" } },
     { path: "/settings/system/plugins", name: "settings-plugins", component: PluginManagePage, meta: { requiresAuth: true, title: "插件管理", requiresPermission: "system:admin" } },
@@ -156,14 +169,36 @@ const router = createRouter({
     { path: "/system/dict-types", name: "system-dict-types-legacy", redirect: "/settings/system/dict-types", meta: { requiresAuth: true, title: "字典管理" } },
     { path: "/system/configs", name: "system-configs-legacy", redirect: "/settings/system/configs", meta: { requiresAuth: true, title: "参数配置" } },
     { path: "/alerts", name: "alerts-legacy", redirect: "/alert", meta: { requiresAuth: true, title: "告警" } },
+    { path: "/coze/debug", name: "coze-debug-legacy", redirect: "/console/debug", meta: { requiresAuth: true, title: "调试层(Deprecated)" } },
     { path: "/lowcode/apps", name: "app-list", component: AppListPage, meta: { requiresAuth: true, title: "低代码应用", requiresPermission: "apps:view" } },
-    { path: "/lowcode/apps/:id/builder", name: "app-builder", component: AppBuilderPage, meta: { requiresAuth: true, title: "应用设计器", requiresPermission: "apps:update" } },
+    {
+      path: "/lowcode/apps/:id/builder",
+      name: "app-builder",
+      redirect: to => `/apps/${to.params.id}/builder`,
+      meta: { requiresAuth: true, title: "应用设计器(Deprecated)", requiresPermission: "apps:update" }
+    },
     { path: "/lowcode/forms", name: "apps-form-list", component: FormListPage, meta: { requiresAuth: true, title: "表单管理", requiresPermission: "apps:view" } },
     { path: "/lowcode/templates", name: "template-market", component: TemplateMarketPage, meta: { requiresAuth: true, title: "模板市场", requiresPermission: "apps:view" } },
-    { path: "/lowcode/forms/:id/designer", name: "apps-form-designer", component: FormDesignerPage, meta: { requiresAuth: true, title: "表单设计器", requiresPermission: "apps:update" } },
+    {
+      path: "/lowcode/forms/:id/designer",
+      name: "apps-form-designer",
+      redirect: to => buildWorkspaceRedirectPath(to, appId => `/apps/${appId}/forms/${to.params.id}/designer`),
+      meta: { requiresAuth: true, title: "表单设计器(Deprecated)", requiresPermission: "apps:update" }
+    },
     { path: "/monitor/writeback-failures", name: "monitor-writeback-failures", component: WritebackMonitorPage, meta: { requiresAuth: true, title: "回写监控", requiresPermission: "system:admin" } },
     { path: "/workflow", name: "workflow-list", component: WorkflowListPage, meta: { requiresAuth: true, title: "工作流管理" } },
-    { path: "/workflow/:id/editor", name: "workflow-editor", component: WorkflowEditorPage, meta: { requiresAuth: true, title: "工作流设计器" } },
+    {
+      path: "/workflow/:id/editor",
+      name: "workflow-editor",
+      redirect: to => buildWorkspaceRedirectPath(to, appId => `/apps/${appId}/workflows/${to.params.id}/editor`),
+      meta: { requiresAuth: true, title: "工作流设计器(Deprecated)" }
+    },
+    {
+      path: "/ai/workflows/:id/edit",
+      name: "ai-workflow-editor-legacy",
+      redirect: to => buildWorkspaceRedirectPath(to, appId => `/apps/${appId}/workflows/${to.params.id}/editor`),
+      meta: { requiresAuth: true, title: "AI 工作流设计器(Deprecated)" }
+    },
     { path: "/approval/designer", name: "approval-designer", component: ApprovalDesignerPage, meta: { requiresAuth: true, title: "流程设计器", requiresPermission: "approval:flow:create" } },
     { path: "/approval/flows/manage", name: "approval-flows-manage", component: ApprovalFlowManagePage, meta: { requiresAuth: true, title: "流程发布总览", requiresPermission: "approval:flow:manage" } },
     { path: "/approval/flows", name: "approval-flows", component: ApprovalFlowsPage, meta: { requiresAuth: true, title: "流程定义列表", requiresPermission: "approval:flow:view" } },
@@ -212,6 +247,42 @@ function getAuthFallbackPath(userStore: ReturnType<typeof useUserStore>) {
     return "/audit";
   }
   return "/system/notifications";
+}
+
+function resolveLegacyAppId(to: { query: Record<string, unknown>; params: Record<string, unknown> }): string | null {
+  const queryAppId = typeof to.query.appId === "string" ? to.query.appId : null;
+  const paramAppId = typeof to.params.appId === "string" ? to.params.appId : null;
+  const cachedAppId = getCurrentAppIdFromStorage();
+  const selected = queryAppId || paramAppId || cachedAppId;
+  if (!selected || !selected.trim()) {
+    return null;
+  }
+
+  return selected.trim();
+}
+
+function buildWorkspaceRedirectPath(
+  to: { query: Record<string, unknown>; params: Record<string, unknown> },
+  suffixBuilder: (appId: string) => string
+): string {
+  const appId = resolveLegacyAppId(to);
+  if (!appId) {
+    return "/console/apps";
+  }
+
+  return suffixBuilder(appId);
+}
+
+function syncAppContextFromRoute(to: { params: Record<string, unknown>; path: string }) {
+  const routeAppId = typeof to.params.appId === "string" ? to.params.appId.trim() : "";
+  if (routeAppId) {
+    setCurrentAppIdToStorage(routeAppId);
+    return;
+  }
+
+  if (!to.path.startsWith("/apps/")) {
+    clearCurrentAppIdFromStorage();
+  }
 }
 
 router.beforeEach(async (to, from, next) => {
@@ -271,6 +342,7 @@ router.beforeEach(async (to, from, next) => {
       }
     }
 
+    syncAppContextFromRoute(to);
     next();
   } else {
     if (whiteList.includes(to.path)) {

@@ -37,6 +37,18 @@
       </a-col>
     </a-row>
 
+    <a-card :bordered="false" class="widget-card resource-group-card" title="Resource center groups" :loading="resourceGroupLoading">
+      <a-row :gutter="[16, 16]">
+        <a-col v-for="group in resourceGroups" :key="group.groupKey" :xs="24" :sm="12" :md="8">
+          <a-card size="small" class="resource-group-item">
+            <div class="resource-group-title">{{ group.groupName }}</div>
+            <div class="resource-group-total">{{ group.total }}</div>
+            <div class="resource-group-meta">{{ group.groupKey }}</div>
+          </a-card>
+        </a-col>
+      </a-row>
+    </a-card>
+
     <a-card :bordered="false" class="widget-card app-list-card" title="Recent apps" :loading="loading">
       <template #extra>
         <a-space>
@@ -88,15 +100,17 @@ import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { message } from "ant-design-vue";
 import AppCreateWizard from "@/pages/console/components/AppCreateWizard.vue";
-import { getLowCodeAppsPaged } from "@/services/lowcode";
+import { getResourceCenterGroups, getTenantAppInstancesPaged } from "@/services/api-tenant-app-instances";
 import { useUserStore } from "@/stores/user";
-import type { LowCodeAppListItem } from "@/types/lowcode";
+import type { ResourceCenterGroupItem, TenantAppInstanceListItem } from "@/types/platform-v2";
 
 const router = useRouter();
 const userStore = useUserStore();
 const loading = ref(false);
+const resourceGroupLoading = ref(false);
 const keyword = ref("");
-const apps = ref<LowCodeAppListItem[]>([]);
+const apps = ref<TenantAppInstanceListItem[]>([]);
+const resourceGroups = ref<ResourceCenterGroupItem[]>([]);
 const createWizardVisible = ref(false);
 
 const profileDisplayName = computed(() => userStore.profile?.displayName || userStore.profile?.username || "Admin");
@@ -112,7 +126,7 @@ const todayDate = computed(() =>
 async function loadApps() {
   loading.value = true;
   try {
-    const result = await getLowCodeAppsPaged({
+    const result = await getTenantAppInstancesPaged({
       pageIndex: 1,
       pageSize: 60,
       keyword: keyword.value || undefined
@@ -122,6 +136,17 @@ async function loadApps() {
     message.error((error as Error).message || "Failed to load apps");
   } finally {
     loading.value = false;
+  }
+}
+
+async function loadResourceGroups() {
+  resourceGroupLoading.value = true;
+  try {
+    resourceGroups.value = await getResourceCenterGroups();
+  } catch (error) {
+    message.error((error as Error).message || "Failed to load resource groups");
+  } finally {
+    resourceGroupLoading.value = false;
   }
 }
 
@@ -135,6 +160,7 @@ function go(path: string) {
 
 onMounted(() => {
   void loadApps();
+  void loadResourceGroups();
 });
 </script>
 
@@ -173,6 +199,30 @@ onMounted(() => {
 
 .app-list-card {
   min-height: 400px;
+}
+
+.resource-group-card {
+  margin-bottom: 24px;
+}
+
+.resource-group-item {
+  border-radius: var(--border-radius-md);
+}
+
+.resource-group-title {
+  font-size: 14px;
+  color: var(--color-text-secondary);
+}
+
+.resource-group-total {
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.resource-group-meta {
+  color: var(--color-text-tertiary);
+  font-size: 12px;
 }
 
 .app-card {

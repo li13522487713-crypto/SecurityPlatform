@@ -19,6 +19,18 @@
           <a-menu-item :key="builderPath">
             <span data-testid="e2e-app-workspace-menu-builder">Builder</span>
           </a-menu-item>
+          <a-menu-item :key="pagesPath">
+            <span data-testid="e2e-app-workspace-menu-pages">Pages</span>
+          </a-menu-item>
+          <a-menu-item :key="formsPath">
+            <span data-testid="e2e-app-workspace-menu-forms">Forms</span>
+          </a-menu-item>
+          <a-menu-item :key="flowsPath">
+            <span data-testid="e2e-app-workspace-menu-flows">Flows</span>
+          </a-menu-item>
+          <a-menu-item :key="dataPath">
+            <span data-testid="e2e-app-workspace-menu-data">Data</span>
+          </a-menu-item>
           <a-menu-item :key="runtimeHomePath">
             <span data-testid="e2e-app-workspace-menu-runtime">Runtime</span>
           </a-menu-item>
@@ -35,7 +47,7 @@
           <a-layout-header class="workspace-header">
             <div class="header-left">
               <span>Workspace</span>
-              <a-tag color="blue">AppId: {{ appId }}</a-tag>
+              <UnifiedContextBar />
             </div>
             <div class="header-right" data-testid="e2e-app-workspace-header-actions">
               <NotificationBell />
@@ -79,6 +91,7 @@
 import { computed, onMounted, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import NotificationBell from "@/components/layout/NotificationBell.vue";
+import UnifiedContextBar from "@/components/context/UnifiedContextBar.vue";
 import { getLowCodeAppDetail } from "@/services/lowcode";
 import { usePermissionStore } from "@/stores/permission";
 import { useTagsViewStore } from "@/stores/tagsView";
@@ -101,12 +114,31 @@ const appName = computed(() => {
 const appId = computed(() => String(route.params.appId ?? ""));
 const dashboardPath = computed(() => `/apps/${appId.value}/dashboard`);
 const builderPath = computed(() => `/apps/${appId.value}/builder`);
+const pagesPath = computed(() => `/apps/${appId.value}/pages`);
+const formsPath = computed(() => `/apps/${appId.value}/forms`);
+const flowsPath = computed(() => `/apps/${appId.value}/flows`);
+const dataPath = computed(() => `/apps/${appId.value}/data`);
 const runtimeHomePath = computed(() => `/apps/${appId.value}/run/home`);
 const settingsPath = computed(() => `/apps/${appId.value}/settings`);
 
 const selectedKeys = computed(() => {
   if (route.path.startsWith(builderPath.value)) {
     return [builderPath.value];
+  }
+  if (route.path.startsWith(pagesPath.value)) {
+    return [pagesPath.value];
+  }
+  if (route.path.startsWith(formsPath.value)) {
+    return [formsPath.value];
+  }
+  if (route.path.startsWith(flowsPath.value) || route.path.startsWith(`/apps/${appId.value}/workflows/`)) {
+    return [flowsPath.value];
+  }
+  if (route.path.startsWith(dataPath.value)) {
+    return [dataPath.value];
+  }
+  if (route.path.startsWith(`/apps/${appId.value}/agents/`)) {
+    return [dashboardPath.value];
   }
   if (route.path.startsWith(`/apps/${appId.value}/run/`)) {
     return [runtimeHomePath.value];
