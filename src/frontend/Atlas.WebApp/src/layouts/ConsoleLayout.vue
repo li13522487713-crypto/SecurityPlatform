@@ -21,6 +21,7 @@
             </div>
           </div>
           <div class="right">
+            <UnifiedContextBar :show-app="false" />
             <NotificationBell />
             <a-dropdown trigger="click">
               <span data-testid="e2e-user-menu-trigger">
@@ -63,6 +64,7 @@ import { useUserStore } from "@/stores/user";
 import { usePermissionStore } from "@/stores/permission";
 import { useTagsViewStore } from "@/stores/tagsView";
 import NotificationBell from "@/components/layout/NotificationBell.vue";
+import UnifiedContextBar from "@/components/context/UnifiedContextBar.vue";
 
 const route = useRoute();
 const router = useRouter();

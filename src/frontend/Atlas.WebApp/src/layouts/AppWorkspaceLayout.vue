@@ -47,7 +47,7 @@
           <a-layout-header class="workspace-header">
             <div class="header-left">
               <span>Workspace</span>
-              <a-tag color="blue">AppId: {{ appId }}</a-tag>
+              <UnifiedContextBar />
             </div>
             <div class="header-right" data-testid="e2e-app-workspace-header-actions">
               <NotificationBell />
@@ -91,6 +91,7 @@
 import { computed, onMounted, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import NotificationBell from "@/components/layout/NotificationBell.vue";
+import UnifiedContextBar from "@/components/context/UnifiedContextBar.vue";
 import { getLowCodeAppDetail } from "@/services/lowcode";
 import { usePermissionStore } from "@/stores/permission";
 import { useTagsViewStore } from "@/stores/tagsView";
