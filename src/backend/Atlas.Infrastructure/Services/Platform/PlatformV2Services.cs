@@ -159,11 +159,9 @@ public sealed class TenantAppInstanceQueryService : ITenantAppInstanceQueryServi
         if (dataSourceIds.Length > 0)
         {
             var tenantDataSources = await _db.Queryable<TenantDataSource>()
-                .Where(ds => ds.TenantIdValue == tenantIdText)
+                .Where(ds => ds.TenantIdValue == tenantIdText && dataSourceIds.Contains(ds.Id))
                 .ToListAsync(cancellationToken);
-            dataSourceDict = tenantDataSources
-                .Where(ds => dataSourceIds.Contains(ds.Id))
-                .ToDictionary(ds => ds.Id);
+            dataSourceDict = tenantDataSources.ToDictionary(ds => ds.Id);
         }
 
         return apps

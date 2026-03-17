@@ -2,6 +2,7 @@ using Atlas.Application.Platform.Abstractions;
 using Atlas.Application.Platform.Models;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
+using Atlas.WebApi.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -24,6 +25,7 @@ public sealed class RuntimeContextsV2Controller : ControllerBase
     }
 
     [HttpGet]
+    [Authorize(Policy = PermissionPolicies.AppsView)]
     public async Task<ActionResult<ApiResponse<PagedResult<RuntimeContextListItem>>>> Get(
         [FromQuery] PagedRequest request,
         [FromQuery] string? appKey,
@@ -36,6 +38,7 @@ public sealed class RuntimeContextsV2Controller : ControllerBase
     }
 
     [HttpGet("{appKey}/{pageKey}")]
+    [Authorize(Policy = PermissionPolicies.AppsView)]
     public async Task<ActionResult<ApiResponse<RuntimeContextDetail>>> GetByRoute(
         string appKey,
         string pageKey,

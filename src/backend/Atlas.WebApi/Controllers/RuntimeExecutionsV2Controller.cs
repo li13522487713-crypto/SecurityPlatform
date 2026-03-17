@@ -2,6 +2,7 @@ using Atlas.Application.Platform.Abstractions;
 using Atlas.Application.Platform.Models;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
+using Atlas.WebApi.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -24,6 +25,7 @@ public sealed class RuntimeExecutionsV2Controller : ControllerBase
     }
 
     [HttpGet]
+    [Authorize(Policy = PermissionPolicies.AppsView)]
     public async Task<ActionResult<ApiResponse<PagedResult<RuntimeExecutionListItem>>>> Get(
         [FromQuery] PagedRequest request,
         CancellationToken cancellationToken)
@@ -34,6 +36,7 @@ public sealed class RuntimeExecutionsV2Controller : ControllerBase
     }
 
     [HttpGet("{id:long}")]
+    [Authorize(Policy = PermissionPolicies.AppsView)]
     public async Task<ActionResult<ApiResponse<RuntimeExecutionDetail>>> GetById(
         long id,
         CancellationToken cancellationToken)
@@ -49,6 +52,7 @@ public sealed class RuntimeExecutionsV2Controller : ControllerBase
     }
 
     [HttpGet("{id:long}/audit-trails")]
+    [Authorize(Policy = PermissionPolicies.AppsView)]
     public async Task<ActionResult<ApiResponse<PagedResult<RuntimeExecutionAuditTrailItem>>>> GetAuditTrails(
         long id,
         [FromQuery] PagedRequest request,
