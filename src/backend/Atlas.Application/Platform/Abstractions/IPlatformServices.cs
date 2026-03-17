@@ -96,3 +96,16 @@ public interface IResourceCenterQueryService
         TenantId tenantId,
         CancellationToken cancellationToken = default);
 }
+
+public interface IReleaseCenterQueryService
+{
+    Task<PagedResult<ReleaseCenterListItem>> QueryAsync(
+        TenantId tenantId,
+        PagedRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task<ReleaseCenterDetail?> GetByIdAsync(
+        TenantId tenantId,
+        long releaseId,
+        CancellationToken cancellationToken = default);
+}

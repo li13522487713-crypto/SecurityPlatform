@@ -107,3 +107,24 @@ public sealed record ResourceCenterGroupItem(
     string GroupName,
     int Total,
     IReadOnlyList<ResourceCenterGroupEntry> Items);
+
+public sealed record ReleaseCenterListItem(
+    string ReleaseId,
+    string ApplicationCatalogId,
+    string ApplicationCatalogName,
+    string AppKey,
+    int Version,
+    string Status,
+    string ReleasedAt,
+    string? ReleaseNote);
+
+public sealed record ReleaseCenterDetail(
+    string ReleaseId,
+    string ApplicationCatalogId,
+    string ApplicationCatalogName,
+    string AppKey,
+    int Version,
+    string Status,
+    string ReleasedAt,
+    string? ReleaseNote,
+    string SnapshotJson);

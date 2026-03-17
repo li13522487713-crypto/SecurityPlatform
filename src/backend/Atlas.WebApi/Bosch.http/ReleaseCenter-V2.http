@@ -1,0 +1,37 @@
+### ReleaseCenter V2 API
+
+@baseUrl = http://localhost:5000
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+
+### 登录
+# @name login
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+###
+@accessToken = {{login.response.body.$.data.accessToken}}
+
+### 查询发布中心列表
+GET {{baseUrl}}/api/v2/release-center/releases?pageIndex=1&pageSize=10
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 查询发布详情
+GET {{baseUrl}}/api/v2/release-center/releases/1
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 回滚发布版本（写接口需幂等与防伪）
+POST {{baseUrl}}/api/v2/release-center/releases/1/rollback
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+X-CSRF-TOKEN: {{login.response.headers.X-CSRF-TOKEN}}
+Idempotency-Key: {{$guid}}

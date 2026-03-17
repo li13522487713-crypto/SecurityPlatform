@@ -18,6 +18,7 @@ public static class PlatformServiceRegistration
         services.AddScoped<IAppReleaseCommandService, AppReleaseCommandService>();
         services.AddScoped<ITenantAppInstanceQueryService, TenantAppInstanceQueryService>();
         services.AddScoped<IResourceCenterQueryService, ResourceCenterQueryService>();
+        services.AddScoped<IReleaseCenterQueryService, ReleaseCenterQueryService>();
         services.AddScoped<IRuntimeContextQueryService, RuntimeContextQueryService>();
         services.AddScoped<IRuntimeExecutionQueryService, RuntimeExecutionQueryService>();
         services.AddScoped<IRuntimeRouteQueryService, RuntimeRouteQueryService>();

@@ -194,6 +194,14 @@
   - 返回资源中心分组聚合（`catalogs`/`instances`/`datasources`）。
   - 要求服务端采用批量查询 + 内存聚合，禁止循环内数据库访问。
 
+#### v2 P2 发布闭环接口（首批）
+
+- `GET /api/v2/release-center/releases`
+- `GET /api/v2/release-center/releases/{releaseId}`
+- `POST /api/v2/release-center/releases/{releaseId}/rollback`
+  - 回滚请求按写接口统一要求 `Idempotency-Key` + `X-CSRF-TOKEN`。
+  - 服务端必须基于当前租户上下文校验发布记录归属后再执行回滚。
+
 #### 前端主路径约定与弃用窗口（SEC-92）
 
 | 主路径（规范） | 兼容路径（Deprecated） | 弃用窗口 | 备注 |

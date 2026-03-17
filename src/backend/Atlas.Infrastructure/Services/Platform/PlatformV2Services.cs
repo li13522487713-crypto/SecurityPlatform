@@ -383,3 +383,88 @@ public sealed class ResourceCenterQueryService : IResourceCenterQueryService
         ];
     }
 }
+
+public sealed class ReleaseCenterQueryService : IReleaseCenterQueryService
+{
+    private readonly ISqlSugarClient _db;
+
+    public ReleaseCenterQueryService(ISqlSugarClient db)
+    {
+        _db = db;
+    }
+
+    public async Task<PagedResult<ReleaseCenterListItem>> QueryAsync(
+        TenantId tenantId,
+        PagedRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var tenantValue = tenantId.Value;
+        var pageIndex = request.PageIndex <= 0 ? 1 : request.PageIndex;
+        var pageSize = request.PageSize <= 0 ? 10 : request.PageSize;
+
+        var manifestList = await _db.Queryable<AppManifest>()
+            .Where(item => item.TenantIdValue == tenantValue)
+            .Select(item => new { item.Id, item.Name, item.AppKey })
+            .ToListAsync(cancellationToken);
+        var manifestDict = manifestList.ToDictionary(item => item.Id);
+
+        var query = _db.Queryable<AppRelease>()
+            .Where(item => item.TenantIdValue == tenantValue);
+        if (!string.IsNullOrWhiteSpace(request.Keyword))
+        {
+            var keyword = request.Keyword.Trim();
+            query = query.Where(item => item.ReleaseNote.Contains(keyword));
+        }
+
+        var total = await query.CountAsync(cancellationToken);
+        var releases = await query
+            .OrderByDescending(item => item.ReleasedAt)
+            .ToPageListAsync(pageIndex, pageSize, cancellationToken);
+        var items = releases
+            .Select(item =>
+            {
+                var manifest = manifestDict.TryGetValue(item.ManifestId, out var manifestValue)
+                    ? manifestValue
+                    : null;
+                return new ReleaseCenterListItem(
+                    item.Id.ToString(),
+                    item.ManifestId.ToString(),
+                    manifest?.Name ?? "Unknown",
+                    manifest?.AppKey ?? string.Empty,
+                    item.Version,
+                    item.Status.ToString(),
+                    item.ReleasedAt.ToString("O"),
+                    item.ReleaseNote);
+            })
+            .ToArray();
+
+        return new PagedResult<ReleaseCenterListItem>(items, total, pageIndex, pageSize);
+    }
+
+    public async Task<ReleaseCenterDetail?> GetByIdAsync(
+        TenantId tenantId,
+        long releaseId,
+        CancellationToken cancellationToken = default)
+    {
+        var tenantValue = tenantId.Value;
+        var release = await _db.Queryable<AppRelease>()
+            .FirstAsync(item => item.TenantIdValue == tenantValue && item.Id == releaseId, cancellationToken);
+        if (release is null)
+        {
+            return null;
+        }
+
+        var manifest = await _db.Queryable<AppManifest>()
+            .FirstAsync(item => item.TenantIdValue == tenantValue && item.Id == release.ManifestId, cancellationToken);
+        return new ReleaseCenterDetail(
+            release.Id.ToString(),
+            release.ManifestId.ToString(),
+            manifest?.Name ?? "Unknown",
+            manifest?.AppKey ?? string.Empty,
+            release.Version,
+            release.Status.ToString(),
+            release.ReleasedAt.ToString("O"),
+            release.ReleaseNote,
+            release.SnapshotJson);
+    }
+}
