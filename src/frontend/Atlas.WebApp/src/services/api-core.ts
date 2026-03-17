@@ -65,7 +65,10 @@ const ErrorCodes = {
   PasswordExpired: "PASSWORD_EXPIRED",
   AntiforgeryTokenInvalid: "ANTIFORGERY_TOKEN_INVALID",
   IdempotencyConflict: "IDEMPOTENCY_CONFLICT",
-  IdempotencyInProgress: "IDEMPOTENCY_IN_PROGRESS"
+  IdempotencyInProgress: "IDEMPOTENCY_IN_PROGRESS",
+  ProjectRequired: "PROJECT_REQUIRED",
+  ProjectForbidden: "PROJECT_FORBIDDEN",
+  CrossTenantForbidden: "CROSS_TENANT_FORBIDDEN"
 } as const;
 
 interface ApiErrorPayload {
@@ -754,6 +757,15 @@ function formatErrorMessage(payload: ApiErrorPayload | null, fallback: string): 
   }
   if (payload?.code === ErrorCodes.IdempotencyConflict) {
     return "检测到重复提交但请求内容不一致，请刷新后重试";
+  }
+  if (payload?.code === ErrorCodes.ProjectRequired) {
+    return "当前应用已启用项目模式，请先选择项目";
+  }
+  if (payload?.code === ErrorCodes.ProjectForbidden) {
+    return "当前账号未分配该项目访问权限";
+  }
+  if (payload?.code === ErrorCodes.CrossTenantForbidden) {
+    return "租户上下文不一致，请刷新后重试";
   }
 
   if (!payload) {

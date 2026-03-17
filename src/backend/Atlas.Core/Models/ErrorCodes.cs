@@ -12,6 +12,12 @@ public static class ErrorCodes
     public const string AccountLocked = "ACCOUNT_LOCKED";
     public const string PasswordExpired = "PASSWORD_EXPIRED";
     public const string TokenExpired = "TOKEN_EXPIRED";
+    public const string ProjectRequired = "PROJECT_REQUIRED";
+    public const string ProjectNotFound = "PROJECT_NOT_FOUND";
+    public const string ProjectDisabled = "PROJECT_DISABLED";
+    public const string CrossTenantForbidden = "CROSS_TENANT_FORBIDDEN";
+    public const string ProjectForbidden = "PROJECT_FORBIDDEN";
+    public const string AppContextRequired = "APP_CONTEXT_REQUIRED";
     public const string IdempotencyRequired = "IDEMPOTENCY_REQUIRED";
     public const string IdempotencyConflict = "IDEMPOTENCY_CONFLICT";
     public const string IdempotencyInProgress = "IDEMPOTENCY_IN_PROGRESS";

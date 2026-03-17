@@ -73,7 +73,7 @@ public sealed class ProjectContextMiddleware
 
         if (!TryResolveProjectId(context, out var projectId))
         {
-            await WriteProjectErrorAsync(context, StatusCodes.Status400BadRequest, ErrorCodes.ValidationError, "缺少或无效项目标识");
+            await WriteProjectErrorAsync(context, StatusCodes.Status400BadRequest, ErrorCodes.ProjectRequired, "缺少或无效项目标识");
             return;
         }
 
@@ -94,7 +94,7 @@ public sealed class ProjectContextMiddleware
             var hasMembership = await projectUserRepository.ExistsAsync(tenantId, projectId, currentUser.UserId, context.RequestAborted);
             if (!hasMembership)
             {
-                await WriteProjectErrorAsync(context, StatusCodes.Status403Forbidden, ErrorCodes.Forbidden, "当前用户未分配该项目");
+                await WriteProjectErrorAsync(context, StatusCodes.Status403Forbidden, ErrorCodes.ProjectForbidden, "当前用户未分配该项目");
                 return;
             }
         }

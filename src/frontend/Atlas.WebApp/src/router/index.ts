@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory } from "vue-router";
 import { getAccessToken, getTenantId } from "@/utils/auth";
-import { getCurrentAppIdFromStorage } from "@/utils/app-context";
+import { clearCurrentAppIdFromStorage, getCurrentAppIdFromStorage, setCurrentAppIdToStorage } from "@/utils/app-context";
 import { useUserStore } from "@/stores/user";
 import { usePermissionStore } from "@/stores/permission";
 import { message } from "ant-design-vue";
@@ -268,6 +268,18 @@ function buildWorkspaceRedirectPath(
   return suffixBuilder(appId);
 }
 
+function syncAppContextFromRoute(to: { params: Record<string, unknown>; path: string }) {
+  const routeAppId = typeof to.params.appId === "string" ? to.params.appId.trim() : "";
+  if (routeAppId) {
+    setCurrentAppIdToStorage(routeAppId);
+    return;
+  }
+
+  if (!to.path.startsWith("/apps/")) {
+    clearCurrentAppIdFromStorage();
+  }
+}
+
 router.beforeEach(async (to, from, next) => {
   NProgress.start();
 
@@ -325,6 +337,7 @@ router.beforeEach(async (to, from, next) => {
       }
     }
 
+    syncAppContextFromRoute(to);
     next();
   } else {
     if (whiteList.includes(to.path)) {

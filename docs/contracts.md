@@ -36,6 +36,8 @@
   - 应用工作台以 `appId` 路由参数为准（`/apps/:appId/*`）
 - Project：
   - 仅在应用启用项目模式时要求 `X-Project-Id`
+  - 缺失或非法时返回 `PROJECT_REQUIRED`
+  - 用户未分配项目时返回 `PROJECT_FORBIDDEN`
 
 ### 发布态与草稿态行为矩阵
 
@@ -302,6 +304,8 @@
 - `PROJECT_REQUIRED`：项目必填
 - `PROJECT_NOT_FOUND`：项目不存在
 - `PROJECT_DISABLED`：项目已停用
+- `PROJECT_FORBIDDEN`：当前用户无项目访问权限
+- `APP_CONTEXT_REQUIRED`：缺少应用上下文
 - `INVALID_CREDENTIALS`：账号或密码错误
 - `TOKEN_EXPIRED`：令牌过期
 - `IDEMPOTENCY_REQUIRED`：缺少幂等键
