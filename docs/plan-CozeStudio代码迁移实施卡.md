@@ -427,17 +427,17 @@
 - `SEC-80`：为 `lowcode-apps`、`app-manifests`、`runtime` 接口补弃用提示
 - `SEC-93`：按控制器拆分更新 HTTP 示例
 
-当前在执行（In Progress）：
+已完成（Done，2026-03-17 本轮收口）：
 
 - `P1-BE-01`：显式落地 `TenantApplication` 实体、查询服务与 v2 控制器读接口。
 - `P1-BE-01`：补齐 `tenant-app-instances` v2 写链路（create/update/publish/delete/export/import）。
 - `P1-FE-01`：应用管理写链路切换到 `/api/v2/tenant-app-instances/*`，并新增 `TenantApplication` 前端类型与 API 客户端。
 - `P0-FE-02`：补充 legacy 路由迁移提示，收口四段式入口下的 titleKey。
 
-说明：
+下一步建议（未执行）：
 
-- 当前执行项继续遵循“后端先行、contracts 同步、前端切换、兼容观察”顺序推进。
-- 每次接口变更必须同步 `.http` 与 `docs/contracts.md`，并通过 `dotnet build`、`npm run build` 验证。
+- 按 4.1 推荐顺序推进 `P1-BE-02`：平台资源中心与 `TenantDataSource` 双层消费模型。
+- 后续每次接口变更继续同步 `.http` 与 `docs/contracts.md`，并通过 `dotnet build`、`npm run build` 验证。
 
 ---
 
