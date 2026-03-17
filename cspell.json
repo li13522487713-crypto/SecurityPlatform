@@ -49,7 +49,18 @@
     "Bosch",
     "WebApi",
     "WebApp",
-    "Atlas"
+    "Atlas",
+    "vform",
+    "hrbp",
+    "hmac",
+    "Permi",
+    "permi",
+    "MLPS",
+    "sider",
+    "totp",
+    "DEDUP",
+    "dedup",
+    "Dedup"
   ],
   "useGitignore": true
 }

@@ -14,9 +14,10 @@ public sealed class LowCodeAppCommandServiceVersionTests
     public async Task PublishAndRollback_ShouldCreateSnapshotAndRestoreMetadata()
     {
         var dbPath = CreateTempDbPath();
+        SqlSugarClient? db = null;
         try
         {
-            var db = CreateDb(dbPath);
+            db = CreateDb(dbPath);
             await CreateSchemaAsync(db);
 
             var tenantId = new TenantId(Guid.Parse("55555555-5555-5555-5555-555555555555"));
@@ -120,6 +121,7 @@ public sealed class LowCodeAppCommandServiceVersionTests
         }
         finally
         {
+            db?.Dispose();
             CleanupDbFile(dbPath);
         }
     }
@@ -155,6 +157,10 @@ public sealed class LowCodeAppCommandServiceVersionTests
                     "Description" TEXT NULL,
                     "Category" TEXT NULL,
                     "Icon" TEXT NULL,
+                    "DataSourceId" INTEGER NULL,
+                    "UseSharedUsers" INTEGER NOT NULL,
+                    "UseSharedRoles" INTEGER NOT NULL,
+                    "UseSharedDepartments" INTEGER NOT NULL,
                     "Version" INTEGER NOT NULL,
                     "Status" INTEGER NOT NULL,
                     "CreatedAt" TEXT NOT NULL,
@@ -205,6 +211,27 @@ public sealed class LowCodeAppCommandServiceVersionTests
                     "CreatedAt" TEXT NOT NULL,
                     "CreatedBy" INTEGER NOT NULL
                   );
+
+                  CREATE TABLE "LowCodePageVersion"(
+                    "TenantIdValue" TEXT NOT NULL,
+                    "Id" INTEGER PRIMARY KEY,
+                    "PageId" INTEGER NOT NULL,
+                    "AppId" INTEGER NOT NULL,
+                    "SnapshotVersion" INTEGER NOT NULL,
+                    "PageKey" TEXT NOT NULL,
+                    "Name" TEXT NOT NULL,
+                    "PageType" INTEGER NOT NULL,
+                    "SchemaJson" TEXT NOT NULL,
+                    "RoutePath" TEXT NULL,
+                    "Description" TEXT NULL,
+                    "Icon" TEXT NULL,
+                    "SortOrder" INTEGER NOT NULL,
+                    "ParentPageId" INTEGER NULL,
+                    "PermissionCode" TEXT NULL,
+                    "DataTableKey" TEXT NULL,
+                    "CreatedBy" INTEGER NOT NULL,
+                    "CreatedAt" TEXT NOT NULL
+                  );
                   """;
 
         return db.Ado.ExecuteCommandAsync(sql);
@@ -217,9 +244,28 @@ public sealed class LowCodeAppCommandServiceVersionTests
 
     private static void CleanupDbFile(string dbPath)
     {
-        if (File.Exists(dbPath))
+        for (var attempt = 0; attempt < 5; attempt++)
         {
-            File.Delete(dbPath);
+            if (!File.Exists(dbPath))
+            {
+                return;
+            }
+
+            try
+            {
+                File.Delete(dbPath);
+                return;
+            }
+            catch (IOException) when (attempt < 4)
+            {
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+                Thread.Sleep(100);
+            }
+            catch (IOException)
+            {
+                return;
+            }
         }
     }
 

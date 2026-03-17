@@ -50,28 +50,28 @@ public sealed class PasswordPolicyTests
     public void NoUppercase_ReturnsFalse()
     {
         Assert.False(PasswordPolicy.IsCompliant("p@ssw0rd!", _defaultPolicy, out var msg));
-        Assert.Contains("大写", msg);
+        Assert.Contains("uppercase", msg);
     }
 
     [Fact]
     public void NoLowercase_ReturnsFalse()
     {
         Assert.False(PasswordPolicy.IsCompliant("P@SSW0RD!", _defaultPolicy, out var msg));
-        Assert.Contains("小写", msg);
+        Assert.Contains("lowercase", msg);
     }
 
     [Fact]
     public void NoDigit_ReturnsFalse()
     {
         Assert.False(PasswordPolicy.IsCompliant("P@ssword!", _defaultPolicy, out var msg));
-        Assert.Contains("数字", msg);
+        Assert.Contains("digit", msg);
     }
 
     [Fact]
     public void NoSpecialChar_ReturnsFalse()
     {
         Assert.False(PasswordPolicy.IsCompliant("Passw0rd1", _defaultPolicy, out var msg));
-        Assert.Contains("特殊", msg);
+        Assert.Contains("non-alphanumeric", msg);
     }
 
     [Fact]

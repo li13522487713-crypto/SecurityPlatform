@@ -46,7 +46,6 @@
           @edges-change="handleEdgesChange"
           class="workflow-canvas"
         >
-          <Background variant="dots" :gap="16" :size="1" :color="'#21262d'" />
           <Controls />
           <MiniMap
             :node-color="getNodeStatusColor"
@@ -110,7 +109,6 @@ import {
   type NodeChange,
   type EdgeChange,
 } from '@vue-flow/core'
-import { Background } from '@vue-flow/background'
 import { Controls } from '@vue-flow/controls'
 import { MiniMap } from '@vue-flow/minimap'
 import '@vue-flow/core/dist/style.css'
