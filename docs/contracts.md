@@ -156,6 +156,30 @@
   - 变更日志/发布说明
   - 对应 `Bosch.http` 示例
 
+### 术语收敛与命名兼容（P0/P1/P2 基线补充）
+
+#### 主术语收敛
+
+- `ApplicationCatalog`：平台目录定义对象（原 `AppManifest` 语义归并目标）。
+- `TenantApplication`：租户开通关系对象（原 `Tenant-App` 语义归并目标）。
+- `TenantAppInstance`：租户应用实例对象（原 `LowCodeApp`/`AiApp` 运行实例语义归并目标）。
+- `RuntimeContext`：运行上下文对象（请求上下文、绑定关系、执行前快照）。
+- `RuntimeExecution`：运行执行实例对象（状态流转、日志、审计追溯）。
+
+#### v1/v2 命名映射（兼容窗口）
+
+| v1（兼容保留） | v2（目标命名） | 兼容策略 |
+|---|---|---|
+| `/api/v1/lowcode-apps/*` | `/api/v2/tenant-app-instances/*` | v1 保留 6 个月，响应附弃用提示 |
+| `/api/v1/app-manifests/*` | `/api/v2/application-catalogs/*` | v1 保留只读/兼容映射 |
+| `/api/v1/runtime/*`（混用） | `/api/v2/runtime-contexts/*` + `/api/v2/runtime-executions/*` | 先并行，后下线 |
+
+#### Runtime 分层契约约束
+
+- 运行态接口不得继续使用 `Runtime` 裸词承载定义态与执行态双语义。
+- 设计态对象（如 `WorkflowDefinition`）与运行态对象（`RuntimeExecution`）必须在契约中分开定义。
+- Trace/Audit 链路必须可通过 `tenantId + appId + executionId` 反查。
+
 ## LowCodeApp 扩展字段与应用设置 API（Sprint 2）
 
 ### `LowCodeApp` 扩展字段
