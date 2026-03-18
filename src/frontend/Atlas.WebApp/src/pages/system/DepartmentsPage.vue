@@ -1,26 +1,26 @@
 <template>
-  <a-card title="部门管理" class="page-card">
+  <a-card :title="t('systemDepartments.pageTitle')" class="page-card">
     <div class="crud-toolbar">
       <a-space wrap>
         <a-input
           v-model:value="keyword"
-          placeholder="搜索部门名称"
+          :placeholder="t('systemDepartments.searchPlaceholder')"
           allow-clear
           @press-enter="handleSearch"
         />
-        <a-button @click="handleSearch">查询</a-button>
-        <a-button @click="handleReset">重置</a-button>
-        <a-button v-if="canCreate" type="primary" @click="openCreate">新增部门</a-button>
+        <a-button @click="handleSearch">{{ t("common.search") }}</a-button>
+        <a-button @click="handleReset">{{ t("common.reset") }}</a-button>
+        <a-button v-if="canCreate" type="primary" @click="openCreate">{{ t("systemDepartments.addDepartment") }}</a-button>
       </a-space>
       <TableViewToolbar :controller="tableViewController" />
     </div>
 
     <a-row v-if="showTreeLayout" :gutter="16">
       <a-col :span="6">
-        <a-card size="small" title="部门树">
+        <a-card size="small" :title="t('systemDepartments.treeTitle')">
           <a-input
             v-model:value="treeKeyword"
-            placeholder="搜索部门"
+            :placeholder="t('systemDepartments.treeSearchPlaceholder')"
             allow-clear
             size="small"
             style="margin-bottom: 12px"
@@ -43,7 +43,7 @@
           :pagination="pagination"
           :loading="loading"
           :size="tableSize"
-          :locale="{ emptyText: '暂无部门数据' }"
+          :locale="{ emptyText: t('systemDepartments.emptyText') }"
           row-key="id"
           @change="onTableChange"
         >
@@ -53,15 +53,15 @@
             </template>
             <template v-else-if="column.key === 'actions'">
               <a-space>
-                <a-button v-if="canUpdate" type="link" @click="openEdit(record)">编辑</a-button>
+                <a-button v-if="canUpdate" type="link" @click="openEdit(record)">{{ t("common.edit") }}</a-button>
                 <a-popconfirm
                   v-if="canDelete"
-                  title="确认删除该部门？"
-                  ok-text="删除"
-                  cancel-text="取消"
+                  :title="t('systemDepartments.deleteConfirm')"
+                  :ok-text="t('common.delete')"
+                  :cancel-text="t('common.cancel')"
                   @confirm="handleDeleteDept(record.id)"
                 >
-                  <a-button type="link" danger>删除</a-button>
+                  <a-button type="link" danger>{{ t("common.delete") }}</a-button>
                 </a-popconfirm>
               </a-space>
             </template>
@@ -77,7 +77,7 @@
       :pagination="pagination"
       :loading="loading"
       :size="tableSize"
-      :locale="{ emptyText: '暂无部门数据' }"
+      :locale="{ emptyText: t('systemDepartments.emptyText') }"
       row-key="id"
       @change="onTableChange"
     >
@@ -87,15 +87,15 @@
         </template>
         <template v-else-if="column.key === 'actions'">
           <a-space>
-            <a-button v-if="canUpdate" type="link" @click="openEdit(record)">编辑</a-button>
+            <a-button v-if="canUpdate" type="link" @click="openEdit(record)">{{ t("common.edit") }}</a-button>
             <a-popconfirm
               v-if="canDelete"
-              title="确认删除该部门？"
-              ok-text="删除"
-              cancel-text="取消"
+              :title="t('systemDepartments.deleteConfirm')"
+              :ok-text="t('common.delete')"
+              :cancel-text="t('common.cancel')"
               @confirm="handleDeleteDept(record.id)"
             >
-              <a-button type="link" danger>删除</a-button>
+              <a-button type="link" danger>{{ t("common.delete") }}</a-button>
             </a-popconfirm>
           </a-space>
         </template>
@@ -104,25 +104,25 @@
 
     <a-drawer
       v-model:open="formVisible"
-      :title="formMode === 'create' ? '新增部门' : '编辑部门'"
+      :title="formMode === 'create' ? t('systemDepartments.drawerCreateTitle') : t('systemDepartments.drawerEditTitle')"
       placement="right"
       :width="520"
-      @close="closeForm"
       destroy-on-close
+      @close="closeForm"
     >
       <a-form ref="formRef" :model="formModel" :rules="formRules" layout="vertical">
-        <a-form-item label="部门名称" name="name">
+        <a-form-item :label="t('systemDepartments.departmentName')" name="name">
           <a-input v-model:value="formModel.name" />
         </a-form-item>
-        <a-form-item label="部门编码" name="code">
+        <a-form-item :label="t('systemDepartments.departmentCode')" name="code">
           <a-input v-model:value="formModel.code" />
         </a-form-item>
-        <a-form-item label="上级部门" name="parentId">
+        <a-form-item :label="t('systemDepartments.parentDepartment')" name="parentId">
           <a-select
             v-model:value="formModel.parentId"
             :options="parentOptions"
             allow-clear
-            placeholder="无"
+            :placeholder="t('common.none')"
             show-search
             :filter-option="false"
             :loading="parentLoading"
@@ -130,14 +130,14 @@
             @focus="() => loadParentOptions()"
           />
         </a-form-item>
-        <a-form-item label="排序" name="sortOrder">
+        <a-form-item :label="t('systemDepartments.sortOrder')" name="sortOrder">
           <a-input-number v-model:value="formModel.sortOrder" :min="0" style="width: 100%" />
         </a-form-item>
       </a-form>
       <template #footer>
         <a-space>
-          <a-button @click="closeForm">取消</a-button>
-          <a-button type="primary" @click="submitForm">保存</a-button>
+          <a-button @click="closeForm">{{ t("common.cancel") }}</a-button>
+          <a-button type="primary" @click="submitForm">{{ t("common.save") }}</a-button>
         </a-space>
       </template>
     </a-drawer>
@@ -149,6 +149,7 @@ import { computed, onMounted, reactive, ref, watch } from "vue";
 import type { TablePaginationConfig, FormInstance } from "ant-design-vue";
 import type { Rule } from "ant-design-vue/es/form";
 import { message } from "ant-design-vue";
+import { useI18n } from "vue-i18n";
 import TableViewToolbar from "@/components/table/table-view-toolbar.vue";
 import { useTableView } from "@/composables/useTableView";
 import { createDepartment, deleteDepartment, getDepartmentsAll, getDepartmentsPaged, updateDepartment } from "@/services/api";
@@ -156,13 +157,14 @@ import type { DepartmentCreateRequest, DepartmentListItem, DepartmentUpdateReque
 import { getAuthProfile, hasPermission } from "@/utils/auth";
 import { debounce, type FormMode, type SelectOption } from "@/utils/common";
 
-const baseColumns = [
-  { title: "部门名称", dataIndex: "name", key: "name" },
-  { title: "部门编码", dataIndex: "code", key: "code" },
-  { title: "上级部门", key: "parent" },
-  { title: "排序", dataIndex: "sortOrder", key: "sortOrder" },
-  { title: "操作", key: "actions", view: { canHide: false } }
-];
+const { t } = useI18n();
+const baseColumns = computed(() => ([
+  { title: t("systemDepartments.colDepartmentName"), dataIndex: "name", key: "name" },
+  { title: t("systemDepartments.colDepartmentCode"), dataIndex: "code", key: "code" },
+  { title: t("systemDepartments.colParentDepartment"), key: "parent" },
+  { title: t("systemDepartments.colSortOrder"), dataIndex: "sortOrder", key: "sortOrder" },
+  { title: t("systemDepartments.colActions"), key: "actions", view: { canHide: false } }
+]));
 
 const dataSource = ref<DepartmentListItem[]>([]);
 const loading = ref(false);
@@ -171,7 +173,7 @@ const pagination = reactive<TablePaginationConfig>({
   current: 1,
   pageSize: 10,
   total: 0,
-  showTotal: (total) => `共 ${total} 条`
+  showTotal: (total) => t("crud.totalItems", { total })
 });
 const treeKeyword = ref("");
 const treeLoading = ref(false);
@@ -189,8 +191,8 @@ const formModel = reactive<DepartmentCreateRequest & DepartmentUpdateRequest>({
 });
 
 const formRules: Record<string, Rule[]> = {
-  name: [{ required: true, message: "请输入部门名称" }],
-  code: [{ required: true, message: "请输入部门编码" }]
+  name: [{ required: true, message: t("systemDepartments.nameRequired") }],
+  code: [{ required: true, message: t("systemDepartments.codeRequired") }]
 };
 
 const parentOptions = ref<SelectOption[]>([]);
@@ -295,7 +297,7 @@ const fetchData = async () => {
     dataSource.value = result.items;
     pagination.total = result.total;
   } catch (error) {
-    message.error((error as Error).message || "查询失败");
+    message.error((error as Error).message || t("crud.queryFailed"));
   } finally {
     loading.value = false;
   }
@@ -321,7 +323,7 @@ const loadParentOptions = async (kw?: string) => {
       value: Number(item.id)
     }));
   } catch (error) {
-    message.error((error as Error).message || "加载部门失败");
+    message.error((error as Error).message || t("systemDepartments.loadDepartmentsFailed"));
   } finally {
     parentLoading.value = false;
   }
@@ -332,7 +334,7 @@ const ensureParentOption = (parentId?: number) => {
   const exists = parentOptions.value.some((item) => item.value === parentId);
   if (!exists) {
     const dept = allDepartments.value.find((d) => Number(d.id) === parentId);
-    const label = dept?.name ?? `上级部门 #${parentId}`;
+    const label = dept?.name ?? t("systemDepartments.parentDepartmentFallback", { id: parentId });
     parentOptions.value = [{ label, value: parentId }, ...parentOptions.value];
   }
 };
@@ -367,7 +369,7 @@ const loadAllDepartments = async () => {
     }
     pagination.total = filteredDepartments.value.length;
   } catch (error) {
-    message.error((error as Error).message || "加载部门树失败");
+    message.error((error as Error).message || t("systemDepartments.loadDepartmentTreeFailed"));
   } finally {
     treeLoading.value = false;
   }
@@ -459,7 +461,7 @@ const submitForm = async () => {
         parentId: formModel.parentId ?? undefined,
         sortOrder: formModel.sortOrder
       });
-      message.success("创建成功");
+      message.success(t("crud.createSuccess"));
     } else if (selectedId.value) {
       await updateDepartment(selectedId.value, {
         name: formModel.name,
@@ -467,26 +469,26 @@ const submitForm = async () => {
         parentId: formModel.parentId ?? undefined,
         sortOrder: formModel.sortOrder
       });
-      message.success("更新成功");
+      message.success(t("crud.updateSuccess"));
     }
     formVisible.value = false;
     await loadAllDepartments();
     fetchData();
     loadParentOptions();
   } catch (error) {
-    message.error((error as Error).message || "提交失败");
+    message.error((error as Error).message || t("crud.submitFailed"));
   }
 };
 
 const handleDeleteDept = async (id: string) => {
   try {
     await deleteDepartment(id);
-    message.success("删除成功");
+    message.success(t("crud.deleteSuccess"));
     await loadAllDepartments();
     fetchData();
     loadParentOptions();
   } catch (error) {
-    message.error((error as Error).message || "删除失败");
+    message.error((error as Error).message || t("crud.deleteFailed"));
   }
 };
 

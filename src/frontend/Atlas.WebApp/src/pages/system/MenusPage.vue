@@ -1,31 +1,31 @@
 <template>
-  <a-card title="菜单管理" class="page-card">
+  <a-card :title="t('systemMenus.pageTitle')" class="page-card">
     <div class="crud-toolbar">
       <a-space wrap>
         <a-input
           v-model:value="keyword"
-          placeholder="搜索菜单名称/路径"
+          :placeholder="t('systemMenus.searchPlaceholder')"
           allow-clear
           @press-enter="handleSearch"
         />
-        <a-button @click="handleSearch">查询</a-button>
-        <a-button @click="handleReset">重置</a-button>
-        <a-button v-if="canCreate" type="primary" @click="openCreate">新增菜单</a-button>
+        <a-button @click="handleSearch">{{ t("common.search") }}</a-button>
+        <a-button @click="handleReset">{{ t("common.reset") }}</a-button>
+        <a-button v-if="canCreate" type="primary" @click="openCreate">{{ t("systemMenus.addMenu") }}</a-button>
       </a-space>
       <a-space wrap>
         <TableViewToolbar :controller="tableViewController" />
         <a-button v-if="canUpdate" :disabled="!selectedRowKeys.length" @click="batchSetHidden(true)">
-          批量隐藏
+          {{ t("systemMenus.batchHide") }}
         </a-button>
         <a-button v-if="canUpdate" :disabled="!selectedRowKeys.length" @click="batchSetHidden(false)">
-          批量显示
+          {{ t("systemMenus.batchShow") }}
         </a-button>
       </a-space>
     </div>
 
     <div class="crud-filter-bar">
       <a-space wrap>
-        <span class="crud-filter-label">高级筛选</span>
+        <span class="crud-filter-label">{{ t("systemMenus.advancedFilter") }}</span>
         <a-select
           v-model:value="hiddenFilter"
           :options="hiddenOptions"
@@ -37,10 +37,10 @@
 
     <a-row v-if="showTreeLayout" :gutter="16">
       <a-col :span="6">
-        <a-card size="small" title="菜单树">
+        <a-card size="small" :title="t('systemMenus.treeTitle')">
           <a-input
             v-model:value="treeKeyword"
-            placeholder="搜索菜单"
+            :placeholder="t('systemMenus.treeSearchPlaceholder')"
             allow-clear
             size="small"
             style="margin-bottom: 12px"
@@ -72,12 +72,12 @@
               <span>{{ getParentName(record.parentId) }}</span>
             </template>
             <template v-else-if="column.key === 'hidden'">
-              <a-tag v-if="record.isHidden" color="orange">隐藏</a-tag>
+              <a-tag v-if="record.isHidden" color="orange">{{ t("systemMenus.hiddenTag") }}</a-tag>
               <span v-else>-</span>
             </template>
             <template v-else-if="column.key === 'actions'">
               <a-space>
-                <a-button v-if="canUpdate" type="link" @click="openEdit(record)">编辑</a-button>
+                <a-button v-if="canUpdate" type="link" @click="openEdit(record)">{{ t("common.edit") }}</a-button>
               </a-space>
             </template>
           </template>
@@ -101,12 +101,12 @@
           <span>{{ getParentName(record.parentId) }}</span>
         </template>
         <template v-else-if="column.key === 'hidden'">
-          <a-tag v-if="record.isHidden" color="orange">隐藏</a-tag>
+          <a-tag v-if="record.isHidden" color="orange">{{ t("systemMenus.hiddenTag") }}</a-tag>
           <span v-else>-</span>
         </template>
         <template v-else-if="column.key === 'actions'">
           <a-space>
-            <a-button v-if="canUpdate" type="link" @click="openEdit(record)">编辑</a-button>
+            <a-button v-if="canUpdate" type="link" @click="openEdit(record)">{{ t("common.edit") }}</a-button>
           </a-space>
         </template>
       </template>
@@ -114,25 +114,25 @@
 
     <a-drawer
       v-model:open="formVisible"
-      :title="formMode === 'create' ? '新增菜单' : '编辑菜单'"
+      :title="formMode === 'create' ? t('systemMenus.drawerCreateTitle') : t('systemMenus.drawerEditTitle')"
       placement="right"
       :width="560"
-      @close="closeForm"
       destroy-on-close
+      @close="closeForm"
     >
       <a-form ref="formRef" :model="formModel" :rules="formRules" layout="vertical">
-        <a-form-item label="菜单名称" name="name">
+        <a-form-item :label="t('systemMenus.menuName')" name="name">
           <a-input v-model:value="formModel.name" />
         </a-form-item>
-        <a-form-item label="菜单路径" name="path">
+        <a-form-item :label="t('systemMenus.menuPath')" name="path">
           <a-input v-model:value="formModel.path" />
         </a-form-item>
-        <a-form-item label="上级菜单" name="parentId">
+        <a-form-item :label="t('systemMenus.parentMenu')" name="parentId">
           <a-select
             v-model:value="formModel.parentId"
             :options="parentOptions"
             allow-clear
-            placeholder="无"
+            :placeholder="t('common.none')"
             show-search
             :filter-option="false"
             :loading="parentLoading"
@@ -140,55 +140,50 @@
             @focus="() => loadParentOptions()"
           />
         </a-form-item>
-        <a-form-item label="排序" name="sortOrder">
+        <a-form-item :label="t('systemMenus.sortOrder')" name="sortOrder">
           <a-input-number v-model:value="formModel.sortOrder" :min="0" style="width: 100%" />
         </a-form-item>
-        <a-form-item label="菜单类型" name="menuType">
+        <a-form-item :label="t('systemMenus.menuType')" name="menuType">
           <a-select
             v-model:value="formModel.menuType"
-            :options="[
-              { label: '目录(M)', value: 'M' },
-              { label: '菜单(C)', value: 'C' },
-              { label: '按钮(F)', value: 'F' },
-              { label: '链接(L)', value: 'L' }
-            ]"
+            :options="menuTypeOptions"
           />
         </a-form-item>
-        <a-form-item label="组件" name="component">
+        <a-form-item :label="t('systemMenus.component')" name="component">
           <a-input v-model:value="formModel.component" />
         </a-form-item>
-        <a-form-item label="图标" name="icon">
+        <a-form-item :label="t('systemMenus.icon')" name="icon">
           <a-input v-model:value="formModel.icon" />
         </a-form-item>
-        <a-form-item label="权限编码" name="permissionCode">
+        <a-form-item :label="t('systemMenus.permissionCode')" name="permissionCode">
           <a-input v-model:value="formModel.permissionCode" />
         </a-form-item>
-        <a-form-item label="权限标识(Perms)" name="perms">
+        <a-form-item :label="t('systemMenus.perms')" name="perms">
           <a-input v-model:value="formModel.perms" />
         </a-form-item>
-        <a-form-item label="路由参数(Query)" name="query">
+        <a-form-item :label="t('systemMenus.query')" name="query">
           <a-input v-model:value="formModel.query" />
         </a-form-item>
-        <a-form-item label="外链" name="isFrame">
+        <a-form-item :label="t('systemMenus.isFrame')" name="isFrame">
           <a-switch v-model:checked="formModel.isFrame" />
         </a-form-item>
-        <a-form-item label="缓存" name="isCache">
+        <a-form-item :label="t('systemMenus.isCache')" name="isCache">
           <a-switch v-model:checked="formModel.isCache" />
         </a-form-item>
-        <a-form-item label="可见性" name="visible">
-          <a-select v-model:value="formModel.visible" :options="[{ label: '显示', value: '0' }, { label: '隐藏', value: '1' }]" />
+        <a-form-item :label="t('systemMenus.visibility')" name="visible">
+          <a-select v-model:value="formModel.visible" :options="visibilityOptions" />
         </a-form-item>
-        <a-form-item label="状态" name="status">
-          <a-select v-model:value="formModel.status" :options="[{ label: '正常', value: '0' }, { label: '停用', value: '1' }]" />
+        <a-form-item :label="t('systemMenus.status')" name="status">
+          <a-select v-model:value="formModel.status" :options="statusOptions" />
         </a-form-item>
-        <a-form-item label="隐藏菜单" name="isHidden">
+        <a-form-item :label="t('systemMenus.hideMenu')" name="isHidden">
           <a-switch v-model:checked="formModel.isHidden" />
         </a-form-item>
       </a-form>
       <template #footer>
         <a-space>
-          <a-button @click="closeForm">取消</a-button>
-          <a-button type="primary" @click="submitForm">保存</a-button>
+          <a-button @click="closeForm">{{ t("common.cancel") }}</a-button>
+          <a-button type="primary" @click="submitForm">{{ t("common.save") }}</a-button>
         </a-space>
       </template>
     </a-drawer>
@@ -200,6 +195,7 @@ import { computed, onMounted, reactive, ref, watch } from "vue";
 import type { TablePaginationConfig, FormInstance } from "ant-design-vue";
 import type { Rule } from "ant-design-vue/es/form";
 import { message } from "ant-design-vue";
+import { useI18n } from "vue-i18n";
 import TableViewToolbar from "@/components/table/table-view-toolbar.vue";
 import { useTableView } from "@/composables/useTableView";
 import { createMenu, getMenusAll, getMenusPaged, updateMenu } from "@/services/api";
@@ -207,32 +203,33 @@ import type { MenuCreateRequest, MenuListItem, MenuUpdateRequest } from "@/types
 import { getAuthProfile, hasPermission } from "@/utils/auth";
 import { debounce, type FormMode, type SelectOption } from "@/utils/common";
 
-const baseColumns = [
-  { title: "菜单名称", dataIndex: "name", key: "name" },
-  { title: "路径", dataIndex: "path", key: "path" },
-  { title: "上级菜单", key: "parent" },
-  { title: "排序", dataIndex: "sortOrder", key: "sortOrder" },
-  { title: "组件", dataIndex: "component", key: "component" },
-  { title: "图标", dataIndex: "icon", key: "icon" },
-  { title: "权限编码", dataIndex: "permissionCode", key: "permissionCode" },
-  { title: "隐藏", key: "hidden" },
-  { title: "操作", key: "actions", view: { canHide: false } }
-];
+const { t } = useI18n();
+const baseColumns = computed(() => ([
+  { title: t("systemMenus.colMenuName"), dataIndex: "name", key: "name" },
+  { title: t("systemMenus.colPath"), dataIndex: "path", key: "path" },
+  { title: t("systemMenus.colParent"), key: "parent" },
+  { title: t("systemMenus.colSortOrder"), dataIndex: "sortOrder", key: "sortOrder" },
+  { title: t("systemMenus.colComponent"), dataIndex: "component", key: "component" },
+  { title: t("systemMenus.colIcon"), dataIndex: "icon", key: "icon" },
+  { title: t("systemMenus.colPermissionCode"), dataIndex: "permissionCode", key: "permissionCode" },
+  { title: t("systemMenus.colHidden"), key: "hidden" },
+  { title: t("systemMenus.colActions"), key: "actions", view: { canHide: false } }
+]));
 
 const dataSource = ref<MenuListItem[]>([]);
 const loading = ref(false);
 const keyword = ref("");
 const hiddenFilter = ref<"all" | "hidden" | "visible">("all");
-const hiddenOptions = [
-  { label: "全部", value: "all" },
-  { label: "仅隐藏", value: "hidden" },
-  { label: "仅显示", value: "visible" }
-];
+const hiddenOptions = computed(() => ([
+  { label: t("systemMenus.hiddenFilterAll"), value: "all" },
+  { label: t("systemMenus.hiddenFilterOnlyHidden"), value: "hidden" },
+  { label: t("systemMenus.hiddenFilterOnlyVisible"), value: "visible" }
+]));
 const pagination = reactive<TablePaginationConfig>({
   current: 1,
   pageSize: 10,
   total: 0,
-  showTotal: (total) => `共 ${total} 条`
+  showTotal: (total) => t("crud.totalItems", { total })
 });
 const treeKeyword = ref("");
 const treeLoading = ref(false);
@@ -261,9 +258,23 @@ const formModel = reactive<MenuCreateRequest & MenuUpdateRequest>({
 });
 
 const formRules: Record<string, Rule[]> = {
-  name: [{ required: true, message: "请输入菜单名称" }],
-  path: [{ required: true, message: "请输入菜单路径" }]
+  name: [{ required: true, message: t("systemMenus.menuNameRequired") }],
+  path: [{ required: true, message: t("systemMenus.menuPathRequired") }]
 };
+const menuTypeOptions = computed(() => ([
+  { label: t("systemMenus.menuTypeDirectory"), value: "M" },
+  { label: t("systemMenus.menuTypeMenu"), value: "C" },
+  { label: t("systemMenus.menuTypeButton"), value: "F" },
+  { label: t("systemMenus.menuTypeLink"), value: "L" }
+]));
+const visibilityOptions = computed(() => ([
+  { label: t("systemMenus.visible"), value: "0" },
+  { label: t("systemMenus.hidden"), value: "1" }
+]));
+const statusOptions = computed(() => ([
+  { label: t("systemMenus.statusNormal"), value: "0" },
+  { label: t("systemMenus.statusDisabled"), value: "1" }
+]));
 
 const parentOptions = ref<SelectOption[]>([]);
 const parentNameMap = ref<Map<number, string>>(new Map());
@@ -367,7 +378,7 @@ const fetchData = async () => {
     selectedRowKeys.value = [];
     selectedRows.value = [];
   } catch (error) {
-    message.error((error as Error).message || "查询失败");
+    message.error((error as Error).message || t("systemMenus.queryFailed"));
   } finally {
     loading.value = false;
   }
@@ -393,7 +404,7 @@ const loadParentOptions = async (kw?: string) => {
       value: Number(item.id)
     }));
   } catch (error) {
-    message.error((error as Error).message || "加载菜单失败");
+    message.error((error as Error).message || t("systemMenus.loadMenusFailed"));
   } finally {
     parentLoading.value = false;
   }
@@ -403,7 +414,7 @@ const ensureParentOption = (parentId?: number) => {
   if (!parentId) return;
   const exists = parentOptions.value.some((item) => item.value === parentId);
   if (!exists) {
-    parentOptions.value = [{ label: `菜单ID ${parentId}`, value: parentId }, ...parentOptions.value];
+    parentOptions.value = [{ label: t("systemMenus.menuIdLabel", { id: parentId }), value: parentId }, ...parentOptions.value];
   }
 };
 
@@ -443,7 +454,7 @@ const loadAllMenus = async () => {
     selectedRowKeys.value = [];
     selectedRows.value = [];
   } catch (error) {
-    message.error((error as Error).message || "加载菜单树失败");
+    message.error((error as Error).message || t("systemMenus.loadTreeFailed"));
   } finally {
     treeLoading.value = false;
   }
@@ -497,7 +508,7 @@ const onTableChange = (pager: TablePaginationConfig) => {
 
 const batchSetHidden = async (isHidden: boolean) => {
   if (!selectedRows.value.length) {
-    message.warning("请先选择菜单");
+    message.warning(t("systemMenus.selectMenuWarning"));
     return;
   }
   try {
@@ -522,13 +533,13 @@ const batchSetHidden = async (isHidden: boolean) => {
         })
       )
     );
-    message.success(`已更新 ${selectedRows.value.length} 个菜单`);
+    message.success(t("systemMenus.batchUpdateSuccess", { count: selectedRows.value.length }));
     selectedRowKeys.value = [];
     selectedRows.value = [];
     await loadAllMenus();
     fetchData();
   } catch (error) {
-    message.error((error as Error).message || "批量更新失败");
+    message.error((error as Error).message || t("systemMenus.batchUpdateFailed"));
   }
 };
 
@@ -608,7 +619,7 @@ const submitForm = async () => {
         permissionCode: formModel.permissionCode || undefined,
         isHidden: formModel.isHidden
       });
-      message.success("创建成功");
+      message.success(t("crud.createSuccess"));
     } else if (selectedId.value) {
       await updateMenu(selectedId.value, {
         name: formModel.name,
@@ -627,14 +638,14 @@ const submitForm = async () => {
         permissionCode: formModel.permissionCode || undefined,
         isHidden: formModel.isHidden
       });
-      message.success("更新成功");
+      message.success(t("crud.updateSuccess"));
     }
     formVisible.value = false;
     await loadAllMenus();
     fetchData();
     loadParentOptions();
   } catch (error) {
-    message.error((error as Error).message || "提交失败");
+    message.error((error as Error).message || t("crud.submitFailed"));
   }
 };
 

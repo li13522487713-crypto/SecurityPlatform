@@ -29,7 +29,11 @@ export default defineConfig({
     baseURL,
     trace: "on-first-retry",
     screenshot: "only-on-failure",
-    video: "retain-on-failure"
+    video: "retain-on-failure",
+    locale: 'zh-CN',
+    timezoneId: 'Asia/Shanghai',
+    geolocation: { longitude: 121.4737, latitude: 31.2304 },
+    permissions: ['geolocation']
   },
   projects: [
     {

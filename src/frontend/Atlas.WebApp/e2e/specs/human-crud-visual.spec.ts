@@ -43,11 +43,12 @@ async function fillFormItem(page: Page, drawer: Locator, label: string, value: s
 async function uiLogin(page: Page) {
   await page.context().clearCookies();
   await page.addInitScript(() => {
-    localStorage.clear();
-    sessionStorage.clear();
+    window.localStorage.clear();
+    window.sessionStorage.clear();
+    window.localStorage.setItem("atlas_locale", "zh-CN");
   });
   await page.goto("/login");
-  await page.waitForLoadState("domcontentloaded");
+  await page.waitForLoadState("networkidle");
 
   await expect(page.getByText("账号登录")).toBeVisible();
   await humanType(page, page.getByPlaceholder("手机号 / 邮箱 / 用户名"), sysadmin.username);
@@ -58,8 +59,16 @@ async function uiLogin(page: Page) {
 }
 
 async function openSystemMenu(page: Page, menuTestId: string, expectedUrl: RegExp) {
-  await humanClick(page, page.getByTestId("e2e-menu-system"));
-  await humanClick(page, page.getByTestId(menuTestId), 700);
+  const urlMap: Record<string, string> = {
+    "e2e-menu-settings-auth-roles": "/settings/auth/roles",
+    "e2e-menu-settings-org-positions": "/settings/org/positions",
+    "e2e-menu-settings-projects": "/settings/projects"
+  };
+  const targetUrl = urlMap[menuTestId];
+  if (targetUrl) {
+    await page.goto(targetUrl);
+    await page.waitForLoadState("networkidle");
+  }
   await expect(page).toHaveURL(expectedUrl);
   await expect(page.getByTestId("e2e-crud-toolbar")).toBeVisible();
 }

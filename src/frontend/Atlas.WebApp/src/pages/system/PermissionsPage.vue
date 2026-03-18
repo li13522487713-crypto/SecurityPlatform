@@ -1,10 +1,10 @@
 <template>
   <CrudPageLayout
-    title="权限管理"
     v-model:keyword="keyword"
-    search-placeholder="搜索权限名称/编码"
+    :title="t('systemPermissions.pageTitle')"
+    :search-placeholder="t('systemPermissions.searchPlaceholder')"
     :drawer-open="formVisible"
-    :drawer-title="formMode === 'create' ? '新增权限' : '编辑权限'"
+    :drawer-title="formMode === 'create' ? t('systemPermissions.drawerCreateTitle') : t('systemPermissions.drawerEditTitle')"
     :drawer-width="520"
     :submit-loading="submitting"
     :submit-disabled="submitting"
@@ -15,11 +15,11 @@
     @submit="submitForm"
   >
     <template #toolbar-actions>
-      <a-button v-if="canCreate" type="primary" @click="openCreate">新增权限</a-button>
+      <a-button v-if="canCreate" type="primary" @click="openCreate">{{ t("systemPermissions.addPermission") }}</a-button>
     </template>
     <template #toolbar-right>
       <TableViewToolbar :controller="tableViewController" />
-      <a-button :disabled="!selectedRowKeys.length" @click="handleBatchCopy">批量复制编码</a-button>
+      <a-button :disabled="!selectedRowKeys.length" @click="handleBatchCopy">{{ t("systemPermissions.batchCopyCodes") }}</a-button>
     </template>
 
     <template #filter>
@@ -45,7 +45,7 @@
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'actions'">
             <a-space>
-              <a-button v-if="canUpdate" type="link" @click="openEdit(record)">编辑</a-button>
+              <a-button v-if="canUpdate" type="link" @click="openEdit(record)">{{ t("common.edit") }}</a-button>
             </a-space>
           </template>
         </template>
@@ -54,16 +54,16 @@
 
     <template #form>
       <a-form ref="formRef" :model="formModel" :rules="formRules" layout="vertical">
-        <a-form-item label="权限名称" name="name">
+        <a-form-item :label="t('systemPermissions.permissionName')" name="name">
           <a-input v-model:value="formModel.name" />
         </a-form-item>
-        <a-form-item label="权限编码" name="code">
+        <a-form-item :label="t('systemPermissions.permissionCode')" name="code">
           <a-input v-model:value="formModel.code" :disabled="formMode === 'edit'" />
         </a-form-item>
-        <a-form-item label="类型" name="type">
+        <a-form-item :label="t('systemPermissions.type')" name="type">
           <a-select v-model:value="formModel.type" :options="typeOptions" />
         </a-form-item>
-        <a-form-item label="描述" name="description">
+        <a-form-item :label="t('systemPermissions.description')" name="description">
           <a-input v-model:value="formModel.description" />
         </a-form-item>
       </a-form>
@@ -75,28 +75,30 @@
 import { computed, ref } from "vue";
 import type { FormInstance } from "ant-design-vue";
 import { message } from "ant-design-vue";
+import { useI18n } from "vue-i18n";
 import CrudPageLayout from "@/components/crud/CrudPageLayout.vue";
 import TableViewToolbar from "@/components/table/table-view-toolbar.vue";
 import { useCrudPage } from "@/composables/useCrudPage";
 import { createPermission, getPermissionsPaged, updatePermission } from "@/services/api";
 import type { PermissionListItem, PermissionCreateRequest, PermissionUpdateRequest } from "@/types/api";
 
-const typeOptions = [
+const { t } = useI18n();
+const typeOptions = computed(() => ([
   { label: "Api", value: "Api" },
   { label: "Menu", value: "Menu" },
   { label: "Application", value: "Application" },
   { label: "Page", value: "Page" },
   { label: "Action", value: "Action" }
-];
+]));
 const typeFilter = ref<"all" | "Api" | "Menu" | "Application" | "Page" | "Action">("all");
-const typeFilterOptions = [
-  { label: "全部类型", value: "all" },
+const typeFilterOptions = computed(() => ([
+  { label: t("systemPermissions.filterAllTypes"), value: "all" },
   { label: "Api", value: "Api" },
   { label: "Menu", value: "Menu" },
   { label: "Application", value: "Application" },
   { label: "Page", value: "Page" },
   { label: "Action", value: "Action" }
-];
+]));
 
 const selectedRowKeys = ref<string[]>([]);
 const selectedRows = ref<PermissionListItem[]>([]);
@@ -110,16 +112,17 @@ const rowSelection = computed(() => ({
 }));
 
 const formRef = ref<FormInstance>();
+const tableColumnsDef = computed(() => ([
+  { title: t("systemPermissions.colPermissionName"), dataIndex: "name", key: "name" },
+  { title: t("systemPermissions.colPermissionCode"), dataIndex: "code", key: "code" },
+  { title: t("systemPermissions.colType"), dataIndex: "type", key: "type" },
+  { title: t("systemPermissions.colDescription"), dataIndex: "description", key: "description" },
+  { title: t("systemPermissions.colActions"), key: "actions", view: { canHide: false } }
+]));
 
 const crud = useCrudPage<PermissionListItem, PermissionListItem, PermissionCreateRequest, PermissionUpdateRequest>({
   tableKey: "system.permissions",
-  columns: [
-    { title: "权限名称", dataIndex: "name", key: "name" },
-    { title: "权限编码", dataIndex: "code", key: "code" },
-    { title: "类型", dataIndex: "type", key: "type" },
-    { title: "描述", dataIndex: "description", key: "description" },
-    { title: "操作", key: "actions", view: { canHide: false } }
-  ],
+  columns: tableColumnsDef,
   permissions: {
     create: "permissions:create",
     update: "permissions:update"
@@ -137,9 +140,9 @@ const crud = useCrudPage<PermissionListItem, PermissionListItem, PermissionCreat
     description: ""
   }),
   formRules: {
-    name: [{ required: true, message: "请输入权限名称" }],
-    code: [{ required: true, message: "请输入权限编码" }],
-    type: [{ required: true, message: "请选择类型" }]
+    name: [{ required: true, message: t("systemPermissions.nameRequired") }],
+    code: [{ required: true, message: t("systemPermissions.codeRequired") }],
+    type: [{ required: true, message: t("systemPermissions.typeRequired") }]
   },
   buildListParams: (base) => ({
     ...base,
@@ -188,19 +191,19 @@ const handleReset = () => {
 
 const handleBatchCopy = async () => {
   if (!selectedRows.value.length) {
-    message.warning("请先选择权限");
+    message.warning(t("systemPermissions.selectPermissionWarning"));
     return;
   }
   const content = selectedRows.value.map((item) => item.code).join("\n");
   try {
     if (navigator.clipboard && navigator.clipboard.writeText) {
       await navigator.clipboard.writeText(content);
-      message.success("已复制权限编码");
+      message.success(t("systemPermissions.copySuccess"));
       return;
     }
     throw new Error("Clipboard API not available");
   } catch {
-    message.warning("浏览器不支持自动复制，请手动复制");
+    message.warning(t("systemPermissions.copyNotSupported"));
     message.info(content);
   }
 };
