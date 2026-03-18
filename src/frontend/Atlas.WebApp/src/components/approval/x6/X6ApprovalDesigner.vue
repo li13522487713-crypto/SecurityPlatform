@@ -425,7 +425,13 @@ function getCellNodeType(cellId: string): NodeType | null {
 function renderTree(forceFullRender = false) {
   if (!graphRef.value) return;
   const store = useApprovalFlowStore();
-  syncGraphFromTree(graphRef.value, props.flowTree, forceFullRender, store.nodeDisplayLabels);
+  syncGraphFromTree(
+    graphRef.value,
+    props.flowTree,
+    forceFullRender,
+    store.nodeDisplayLabels,
+    store.validationErrors
+  );
 }
 
 // ── 缩放 ──

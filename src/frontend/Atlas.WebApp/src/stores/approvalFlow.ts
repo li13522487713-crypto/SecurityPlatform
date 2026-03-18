@@ -516,6 +516,30 @@ export const useApprovalFlowStore = defineStore('approvalFlow', {
       }
 
       this.isDirty = true;
+
+      // 每次状态变更后触发实时校验
+      this._runRealtimeValidation();
+    },
+
+    /**
+     * 实时校验：在每次 flowTree 变更后自动运行
+     * 将校验结果写入 validationErrors，供 X6 节点展示错误状态
+     */
+    _runRealtimeValidation() {
+      const result = ApprovalTreeValidator.checkCompleteness(
+        this.flowTree.rootNode as unknown as TreeNode
+      );
+
+      const errorMap: Record<string, string[]> = {};
+      for (const issue of result.issues) {
+        if (issue.nodeId) {
+          if (!errorMap[issue.nodeId]) {
+            errorMap[issue.nodeId] = [];
+          }
+          errorMap[issue.nodeId].push(issue.message);
+        }
+      }
+      this.validationErrors = errorMap;
     },
 
     /** 撤销 */

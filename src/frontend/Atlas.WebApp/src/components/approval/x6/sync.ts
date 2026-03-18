@@ -288,21 +288,33 @@ function addEdgeToGraph(graph: Graph, le: LayoutEdge) {
  *
  * @param forceFullRender 强制全量渲染（例如加载新流程时）
  * @param displayLabels 由 Store getter 计算的节点展示标签 (nodeId → label)
+ * @param validationErrors 由 Store 计算的节点校验错误 (nodeId → errorMessages[])
  */
 export function syncGraphFromTree(
   graph: Graph,
   tree: ApprovalFlowTree,
   forceFullRender = false,
   displayLabels?: Record<string, string>,
+  validationErrors?: Record<string, string[]>,
 ) {
   const layout = computeLayout(tree);
 
-  // 注入 Store 计算的展示标签到布局节点数据
-  if (displayLabels) {
-    for (const n of layout.nodes) {
+  // 注入 Store 计算的展示标签和校验错误到布局节点数据
+  for (const n of layout.nodes) {
+    if (displayLabels) {
       const label = displayLabels[n.id];
       if (label !== undefined) {
         n.data._displayLabel = label;
+      }
+    }
+    if (validationErrors) {
+      const errors = validationErrors[n.id];
+      if (errors && errors.length > 0) {
+        n.data.error = true;
+        n.data._validationErrors = errors;
+      } else {
+        n.data.error = false;
+        n.data._validationErrors = undefined;
       }
     }
   }
