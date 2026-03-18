@@ -92,7 +92,7 @@ import {
   deleteWorkflow,
 } from '@/services/api-workflow-v2'
 import type { WorkflowListItem } from '@/types/workflow-v2'
-import { getCurrentAppIdFromStorage } from '@/utils/app-context'
+import { resolveCurrentAppId } from '@/utils/app-context'
 
 const route = useRoute()
 const router = useRouter()
@@ -146,8 +146,7 @@ function handleTableChange(pag: { current: number; pageSize: number }) {
 }
 
 function getWorkflowListPath() {
-  const routeAppId = typeof route.params.appId === 'string' ? route.params.appId.trim() : ''
-  const currentAppId = routeAppId || getCurrentAppIdFromStorage()
+  const currentAppId = resolveCurrentAppId(route)
   if (!currentAppId) {
     return '/console/apps'
   }

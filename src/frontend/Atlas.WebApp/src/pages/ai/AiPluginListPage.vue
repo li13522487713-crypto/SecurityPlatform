@@ -114,7 +114,7 @@ import {
   type AiPluginListItem,
   type AiPluginType
 } from "@/services/api-ai-plugin";
-import { getCurrentAppIdFromStorage } from "@/utils/app-context";
+import { resolveCurrentAppId } from "@/utils/app-context";
 
 const route = useRoute();
 const router = useRouter();
@@ -188,17 +188,8 @@ function handleReset() {
   void loadData();
 }
 
-function resolveAppId() {
-  const routeAppId = typeof route.params.appId === "string" ? route.params.appId.trim() : "";
-  if (routeAppId) {
-    return routeAppId;
-  }
-
-  return getCurrentAppIdFromStorage();
-}
-
 function goDetail(id: number) {
-  const currentAppId = resolveAppId();
+  const currentAppId = resolveCurrentAppId(route);
   if (!currentAppId) {
     void router.push("/console/apps");
     return;

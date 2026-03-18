@@ -122,7 +122,7 @@ import TestRunPanel from '@/components/workflow/panels/TestRunPanel.vue'
 import WorkflowNodeRenderer from '@/components/workflow/nodes/WorkflowNodeRenderer.vue'
 
 import { workflowV2Api } from '@/services/api-workflow-v2'
-import { getCurrentAppIdFromStorage } from '@/utils/app-context'
+import { resolveCurrentAppId } from '@/utils/app-context'
 import type {
   CanvasSchema,
   NodeSchema,
@@ -173,8 +173,7 @@ const defaultEdgeOptions = {
 let draggingNodeType: string | null = null
 
 function backToList() {
-  const routeAppId = typeof route.params.appId === 'string' ? route.params.appId.trim() : ''
-  const currentAppId = routeAppId || getCurrentAppIdFromStorage()
+  const currentAppId = resolveCurrentAppId(route)
   if (!currentAppId) {
     router.push('/console/apps')
     return

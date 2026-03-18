@@ -53,7 +53,7 @@
       :bordered="false"
       class="widget-card datasource-consumption-card"
       title="Datasource consumption"
-      :loading="resourceGroupLoading"
+      :loading="dataSourceConsumptionLoading"
     >
       <a-row :gutter="[16, 16]">
         <a-col :xs="24" :md="8">
@@ -178,6 +178,7 @@ const router = useRouter();
 const userStore = useUserStore();
 const loading = ref(false);
 const resourceGroupLoading = ref(false);
+const dataSourceConsumptionLoading = ref(false);
 const keyword = ref("");
 const apps = ref<TenantAppInstanceListItem[]>([]);
 const resourceGroups = ref<ResourceCenterGroupItem[]>([]);
@@ -213,16 +214,22 @@ async function loadApps() {
 async function loadResourceGroups() {
   resourceGroupLoading.value = true;
   try {
-    const [groups, consumption] = await Promise.all([
-      getResourceCenterGroups(),
-      getResourceCenterDataSourceConsumption()
-    ]);
-    resourceGroups.value = groups;
-    dataSourceConsumption.value = consumption;
+    resourceGroups.value = await getResourceCenterGroups();
   } catch (error) {
-    message.error((error as Error).message || "Failed to load resource center data");
+    message.error((error as Error).message || "Failed to load resource groups");
   } finally {
     resourceGroupLoading.value = false;
+  }
+}
+
+async function loadDataSourceConsumption() {
+  dataSourceConsumptionLoading.value = true;
+  try {
+    dataSourceConsumption.value = await getResourceCenterDataSourceConsumption();
+  } catch (error) {
+    message.error((error as Error).message || "Failed to load datasource consumption");
+  } finally {
+    dataSourceConsumptionLoading.value = false;
   }
 }
 
@@ -250,6 +257,7 @@ function go(path: string) {
 onMounted(() => {
   void loadApps();
   void loadResourceGroups();
+  void loadDataSourceConsumption();
 });
 </script>
 

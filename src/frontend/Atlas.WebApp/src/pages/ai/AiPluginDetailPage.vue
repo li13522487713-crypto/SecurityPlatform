@@ -152,7 +152,7 @@ import {
   type AiPluginApiItem,
   type AiPluginDetail
 } from "@/services/api-ai-plugin";
-import { getCurrentAppIdFromStorage } from "@/utils/app-context";
+import { resolveCurrentAppId } from "@/utils/app-context";
 
 const route = useRoute();
 const router = useRouter();
@@ -211,8 +211,7 @@ const debugResultTitle = ref("");
 const apiOptions = computed(() => apis.value.map((api) => ({ label: `${api.method} ${api.path}`, value: api.id })));
 
 function goBack() {
-  const routeAppId = typeof route.params.appId === "string" ? route.params.appId.trim() : "";
-  const currentAppId = routeAppId || getCurrentAppIdFromStorage();
+  const currentAppId = resolveCurrentAppId(route);
   if (!currentAppId) {
     void router.push("/console/apps");
     return;

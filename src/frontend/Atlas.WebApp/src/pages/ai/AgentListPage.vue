@@ -92,7 +92,7 @@ import {
   type AgentListItem
 } from "@/services/api-agent";
 import { getEnabledModelConfigs, type ModelConfigDto } from "@/services/api-model-config";
-import { getCurrentAppIdFromStorage } from "@/utils/app-context";
+import { resolveCurrentAppId } from "@/utils/app-context";
 
 const route = useRoute();
 const router = useRouter();
@@ -175,17 +175,8 @@ function handleModelSearch(value: string) {
   void loadModelConfigs(value);
 }
 
-function resolveAppId() {
-  const routeAppId = typeof route.params.appId === "string" ? route.params.appId.trim() : "";
-  if (routeAppId) {
-    return routeAppId;
-  }
-
-  return getCurrentAppIdFromStorage();
-}
-
 function goEdit(id: number) {
-  const currentAppId = resolveAppId();
+  const currentAppId = resolveCurrentAppId(route);
   if (!currentAppId) {
     void router.push("/console/apps");
     return;
