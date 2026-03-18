@@ -685,6 +685,96 @@ public sealed class ResourceCenterQueryService : IResourceCenterQueryService
             new ResourceCenterGroupItem("datasources", "租户数据源", dataSourceItems.Length, dataSourceItems)
         ];
     }
+
+    public async Task<ResourceCenterDataSourceConsumptionResponse> GetDataSourceConsumptionAsync(
+        TenantId tenantId,
+        CancellationToken cancellationToken = default)
+    {
+        var tenantIdValue = tenantId.Value;
+        var tenantIdText = tenantId.ToString();
+
+        var dataSourcesTask = _db.Queryable<TenantDataSource>()
+            .Where(item => item.TenantIdValue == tenantIdText)
+            .OrderByDescending(item => item.UpdatedAt)
+            .ToListAsync(cancellationToken);
+        var appInstancesTask = _db.Queryable<LowCodeApp>()
+            .Where(item => item.TenantIdValue == tenantIdValue)
+            .OrderByDescending(item => item.UpdatedAt)
+            .ToListAsync(cancellationToken);
+        await Task.WhenAll(dataSourcesTask, appInstancesTask);
+
+        var dataSources = dataSourcesTask.Result;
+        var appInstances = appInstancesTask.Result;
+
+        var appInstanceById = appInstances.ToDictionary(item => item.Id);
+        var appInstancesByDataSourceId = appInstances
+            .Where(item => item.DataSourceId.HasValue)
+            .GroupBy(item => item.DataSourceId!.Value)
+            .ToDictionary(group => group.Key, group => group.ToArray());
+
+        TenantDataSourceConsumptionItem MapDataSource(TenantDataSource dataSource)
+        {
+            var boundApps = appInstancesByDataSourceId.TryGetValue(dataSource.Id, out var items)
+                ? items.Select(MapAppConsumer).ToArray()
+                : [];
+
+            var scope = dataSource.AppId.HasValue ? "AppScoped" : "Platform";
+            string? scopeAppId = null;
+            string? scopeAppName = null;
+            if (dataSource.AppId.HasValue && appInstanceById.TryGetValue(dataSource.AppId.Value, out var scopeApp))
+            {
+                scopeAppId = scopeApp.Id.ToString();
+                scopeAppName = scopeApp.Name;
+            }
+            else if (dataSource.AppId.HasValue)
+            {
+                scopeAppId = dataSource.AppId.Value.ToString();
+            }
+
+            return new TenantDataSourceConsumptionItem(
+                dataSource.Id.ToString(),
+                dataSource.Name,
+                dataSource.DbType,
+                dataSource.IsActive,
+                scope,
+                scopeAppId,
+                scopeAppName,
+                boundApps.Length,
+                boundApps,
+                dataSource.LastTestedAt?.ToString("O"),
+                dataSource.LastTestMessage);
+        }
+
+        var platformDataSources = dataSources
+            .Where(item => !item.AppId.HasValue)
+            .Select(MapDataSource)
+            .ToArray();
+        var appScopedDataSources = dataSources
+            .Where(item => item.AppId.HasValue)
+            .Select(MapDataSource)
+            .ToArray();
+        var unboundTenantApps = appInstances
+            .Where(item => !item.DataSourceId.HasValue)
+            .Select(MapAppConsumer)
+            .ToArray();
+
+        return new ResourceCenterDataSourceConsumptionResponse(
+            platformDataSources.Length,
+            appScopedDataSources.Length,
+            unboundTenantApps.Length,
+            platformDataSources,
+            appScopedDataSources,
+            unboundTenantApps);
+    }
+
+    private static TenantAppConsumerItem MapAppConsumer(LowCodeApp app)
+    {
+        return new TenantAppConsumerItem(
+            app.Id.ToString(),
+            app.AppKey,
+            app.Name,
+            app.Status.ToString());
+    }
 }
 
 public sealed class ReleaseCenterQueryService : IReleaseCenterQueryService

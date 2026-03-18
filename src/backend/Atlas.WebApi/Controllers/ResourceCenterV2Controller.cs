@@ -33,4 +33,14 @@ public sealed class ResourceCenterV2Controller : ControllerBase
         var groups = await _resourceCenterQueryService.GetGroupsAsync(tenantId, cancellationToken);
         return Ok(ApiResponse<IReadOnlyList<ResourceCenterGroupItem>>.Ok(groups, HttpContext.TraceIdentifier));
     }
+
+    [HttpGet("datasource-consumption")]
+    [Authorize(Policy = PermissionPolicies.AppsView)]
+    public async Task<ActionResult<ApiResponse<ResourceCenterDataSourceConsumptionResponse>>> GetDataSourceConsumption(
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var response = await _resourceCenterQueryService.GetDataSourceConsumptionAsync(tenantId, cancellationToken);
+        return Ok(ApiResponse<ResourceCenterDataSourceConsumptionResponse>.Ok(response, HttpContext.TraceIdentifier));
+    }
 }

@@ -197,6 +197,13 @@
 - `GET /api/v2/resource-center/groups`
   - 返回资源中心分组聚合（`catalogs`/`instances`/`datasources`）。
   - 要求服务端采用批量查询 + 内存聚合，禁止循环内数据库访问。
+- `GET /api/v2/resource-center/datasource-consumption`
+  - 返回数据源双层消费模型：
+    - 平台级数据源（`Platform`）
+    - 应用级数据源（`AppScoped`）
+    - 未绑定数据源的租户应用实例清单
+  - 响应包含每个数据源的绑定应用数量与绑定应用列表，用于资源中心导航分组展示。
+  - 服务端实现必须通过批量查询 + 字典聚合完成，禁止循环内数据库访问。
 
 #### v2 P1 扩展写接口（TenantAppInstance）
 

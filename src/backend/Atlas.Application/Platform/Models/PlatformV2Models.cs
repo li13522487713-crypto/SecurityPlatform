@@ -124,6 +124,33 @@ public sealed record ResourceCenterGroupItem(
     int Total,
     IReadOnlyList<ResourceCenterGroupEntry> Items);
 
+public sealed record TenantAppConsumerItem(
+    string TenantAppInstanceId,
+    string AppKey,
+    string Name,
+    string Status);
+
+public sealed record TenantDataSourceConsumptionItem(
+    string DataSourceId,
+    string Name,
+    string DbType,
+    bool IsActive,
+    string Scope,
+    string? ScopeAppId,
+    string? ScopeAppName,
+    int BoundTenantAppCount,
+    IReadOnlyList<TenantAppConsumerItem> BoundTenantApps,
+    string? LastTestedAt,
+    string? LastTestMessage);
+
+public sealed record ResourceCenterDataSourceConsumptionResponse(
+    int PlatformDataSourceTotal,
+    int AppScopedDataSourceTotal,
+    int UnboundTenantAppTotal,
+    IReadOnlyList<TenantDataSourceConsumptionItem> PlatformDataSources,
+    IReadOnlyList<TenantDataSourceConsumptionItem> AppScopedDataSources,
+    IReadOnlyList<TenantAppConsumerItem> UnboundTenantApps);
+
 public sealed record ReleaseCenterListItem(
     string ReleaseId,
     string ApplicationCatalogId,

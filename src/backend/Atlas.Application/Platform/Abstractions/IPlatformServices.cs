@@ -154,6 +154,10 @@ public interface IResourceCenterQueryService
     Task<IReadOnlyList<ResourceCenterGroupItem>> GetGroupsAsync(
         TenantId tenantId,
         CancellationToken cancellationToken = default);
+
+    Task<ResourceCenterDataSourceConsumptionResponse> GetDataSourceConsumptionAsync(
+        TenantId tenantId,
+        CancellationToken cancellationToken = default);
 }
 
 public interface IReleaseCenterQueryService
