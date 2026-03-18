@@ -37,7 +37,38 @@
               </a-select>
               
               <div class="value-input">
-                <a-input v-model:value="cond.value" placeholder="比较值" />
+                <a-input-number
+                  v-if="isNumberField(cond.field)"
+                  :value="typeof cond.value === 'number' ? cond.value : Number(cond.value) || undefined"
+                  placeholder="数值"
+                  style="width: 100%"
+                  @update:value="(v: number | null) => cond.value = v ?? ''"
+                />
+                <a-date-picker
+                  v-else-if="isDateField(cond.field)"
+                  :value="undefined"
+                  placeholder="选择日期"
+                  style="width: 100%"
+                  value-format="YYYY-MM-DD"
+                  @change="(_d: unknown, dateStr: string) => cond.value = dateStr"
+                />
+                <a-select
+                  v-else-if="getFieldOptions(cond.field).length > 0"
+                  v-model:value="cond.value"
+                  placeholder="选择值"
+                  style="width: 100%"
+                  allow-clear
+                  show-search
+                >
+                  <a-select-option
+                    v-for="opt in getFieldOptions(cond.field)"
+                    :key="String(opt.value)"
+                    :value="opt.value"
+                  >
+                    {{ opt.label }}
+                  </a-select-option>
+                </a-select>
+                <a-input v-else v-model:value="cond.value" placeholder="比较值" />
               </div>
               
               <a-button type="text" danger size="small" class="delete-btn" @click="removeCondition(gIndex, cIndex)">
@@ -122,6 +153,53 @@ function onFieldChange(cond: ConditionExpression) {
   // 重置操作符和值
   cond.operator = 'equals';
   cond.value = '';
+  // 更新字段类型（用于 UI 渲染）
+  const field = props.formFields?.find(f => (f.fieldId || f.id) === cond.field);
+  if (field) {
+    cond.fieldType = field.fieldType || field.widgetType || 'string';
+  }
+}
+
+/** 判断字段是否为数字类型 */
+function isNumberField(fieldId: string): boolean {
+  if (!props.formFields) return false;
+  const field = props.formFields.find(f => (f.fieldId || f.id) === fieldId);
+  if (!field) return false;
+  const fieldType = (field.fieldType || field.widgetType || '').toLowerCase();
+  const valueType = (field.valueType || '').toLowerCase();
+  return (
+    ['number', 'integer', 'decimal', 'float', 'double', 'currency'].some(t => valueType.includes(t)) ||
+    ['input-number', 'slider', 'rate', 'number'].some(t => fieldType.includes(t))
+  );
+}
+
+/** 判断字段是否为日期类型 */
+function isDateField(fieldId: string): boolean {
+  if (!props.formFields) return false;
+  const field = props.formFields.find(f => (f.fieldId || f.id) === fieldId);
+  if (!field) return false;
+  const fieldType = (field.fieldType || field.widgetType || '').toLowerCase();
+  const valueType = (field.valueType || '').toLowerCase();
+  return (
+    ['date', 'datetime', 'time'].some(t => valueType.includes(t)) ||
+    ['date-picker', 'time-picker', 'date-range'].some(t => fieldType.includes(t))
+  );
+}
+
+/** 获取字段的选项列表（用于 select/radio/checkbox 类型） */
+function getFieldOptions(fieldId: string): Array<{ label: string; value: string | number }> {
+  if (!props.formFields) return [];
+  const field = props.formFields.find(f => (f.fieldId || f.id) === fieldId);
+  if (!field) return [];
+  // 检查字段是否有预定义的选项列表
+  const options = (field as unknown as Record<string, unknown>).options;
+  if (Array.isArray(options)) {
+    return options.map((opt: Record<string, unknown>) => ({
+      label: String(opt.label ?? opt.text ?? opt.value ?? ''),
+      value: opt.value as string | number,
+    }));
+  }
+  return [];
 }
 
 // ── Actions ──
