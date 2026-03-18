@@ -68,6 +68,8 @@
             @moveBranch="moveBranch"
             @updateRouteTarget="handleRouteTargetUpdate"
             @updateNode="handleNodeUpdate"
+            @undo="undo"
+            @redo="redo"
           />
         </div>
       </div>

@@ -151,6 +151,8 @@ const emit = defineEmits<{
   deleteConditionBranch: [branchId: string];
   moveBranch: [conditionNodeId: string, branchId: string, direction: 'left' | 'right'];
   updateRouteTarget: [routeNodeId: string, targetNodeId: string];
+  undo: [];
+  redo: [];
 }>();
 
 const containerRef = ref<HTMLElement>();
@@ -694,6 +696,15 @@ function handleKeyDown(e: KeyboardEvent) {
   } else if (isCtrlOrCmd && e.key === '0') {
     e.preventDefault();
     zoomFit();
+  } else if (isCtrlOrCmd && e.key === 'z' && !e.shiftKey) {
+    e.preventDefault();
+    emit('undo');
+  } else if (isCtrlOrCmd && e.key === 'z' && e.shiftKey) {
+    e.preventDefault();
+    emit('redo');
+  } else if (isCtrlOrCmd && e.key === 'y') {
+    e.preventDefault();
+    emit('redo');
   }
 }
 

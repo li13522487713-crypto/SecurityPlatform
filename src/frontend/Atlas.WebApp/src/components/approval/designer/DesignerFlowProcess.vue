@@ -18,6 +18,8 @@
         @deleteConditionBranch="(...args) => $emit('deleteConditionBranch', ...args)"
         @moveBranch="(...args) => $emit('moveBranch', ...args)"
         @updateRouteTarget="(...args) => $emit('updateRouteTarget', ...args)"
+        @undo="$emit('undo')"
+        @redo="$emit('redo')"
       />
     </div>
 
@@ -58,6 +60,8 @@ defineEmits<{
   'moveBranch': [...args: any[]];
   'updateRouteTarget': [...args: any[]];
   'updateNode': [node: any];
+  'undo': [];
+  'redo': [];
 }>();
 
 const designerRef = ref<InstanceType<typeof X6ApprovalDesigner> | null>(null);
