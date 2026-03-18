@@ -273,12 +273,10 @@ public sealed class AppRelease : TenantEntity
         Status = AppReleaseStatus.RolledBack;
     }
 
-    public void MarkReleased(long releasedBy, DateTimeOffset releasedAt, string? releaseNote = null)
+    public void MarkReleased(string? releaseNote = null)
     {
         Status = AppReleaseStatus.Released;
         RollbackPointId = null;
-        ReleasedBy = releasedBy;
-        ReleasedAt = releasedAt;
         if (!string.IsNullOrWhiteSpace(releaseNote))
         {
             ReleaseNote = releaseNote.Trim();

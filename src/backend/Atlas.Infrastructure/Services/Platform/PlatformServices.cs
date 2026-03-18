@@ -364,7 +364,7 @@ public sealed class AppReleaseCommandService : IAppReleaseCommandService
         var now = DateTimeOffset.UtcNow;
         manifest.Publish(userId, now);
         var release = new AppRelease(tenantId, _idGenerator.NextId(), manifestId, manifest.Version, "{}", userId, now);
-        release.MarkReleased(userId, now, releaseNote);
+        release.MarkReleased(releaseNote);
 
         var transaction = await _db.Ado.UseTranAsync(async () =>
         {
@@ -403,7 +403,7 @@ public sealed class AppReleaseCommandService : IAppReleaseCommandService
             .ToListAsync(cancellationToken);
         var now = DateTimeOffset.UtcNow;
         currentRelease.MarkRolledBack(rollbackTarget.Id);
-        rollbackTarget.MarkReleased(userId, now, rollbackTarget.ReleaseNote);
+        rollbackTarget.MarkReleased(rollbackTarget.ReleaseNote);
         manifest.SyncReleaseVersion(rollbackTarget.Version, userId, now);
 
         foreach (var route in runtimeRoutes)

@@ -284,7 +284,7 @@ async function traceExecution(id: string) {
   await loadAuditTrails();
 }
 
-onMounted(() => {
+onMounted(async () => {
   if (typeof route.query.releaseId === "string" && route.query.releaseId.trim()) {
     releaseFilter.value = route.query.releaseId.trim();
   }
@@ -292,10 +292,9 @@ onMounted(() => {
     executionId.value = route.query.executionId.trim();
   }
 
-  void loadMappings();
-  void loadMetadata();
+  await Promise.all([loadMappings(), loadMetadata()]);
   if (executionId.value) {
-    void loadAuditTrails();
+    await loadAuditTrails();
   }
   void router.replace({
     query: {
