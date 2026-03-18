@@ -10,6 +10,7 @@ public sealed class HttpContextCurrentUserAccessor : ICurrentUserAccessor
 {
     private const string DisplayNameClaimType = "display_name";
     private const string SessionIdClaimType = "sid";
+    private const string PlatformAdminClaimType = "is_platform_admin";
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly ITenantProvider _tenantProvider;
 
@@ -53,7 +54,14 @@ public sealed class HttpContextCurrentUserAccessor : ICurrentUserAccessor
             sessionId = parsed;
         }
 
-        return new CurrentUserInfo(userId.Value, username, displayName, tenantId, roles, sessionId);
+        var isPlatformAdmin = false;
+        var platformAdminRaw = user.FindFirstValue(PlatformAdminClaimType);
+        if (!string.IsNullOrWhiteSpace(platformAdminRaw))
+        {
+            _ = bool.TryParse(platformAdminRaw, out isPlatformAdmin);
+        }
+
+        return new CurrentUserInfo(userId.Value, username, displayName, tenantId, roles, isPlatformAdmin, sessionId);
     }
 
     public CurrentUserInfo GetCurrentUserOrThrow()

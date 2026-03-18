@@ -31,6 +31,7 @@ export interface AuthProfile {
   tenantId: string;
   roles: string[];
   permissions: string[];
+  isPlatformAdmin: boolean;
   clientContext?: ClientContext;
 }
 

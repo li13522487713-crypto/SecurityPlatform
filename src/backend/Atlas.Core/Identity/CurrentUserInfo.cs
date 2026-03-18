@@ -8,4 +8,5 @@ public sealed record CurrentUserInfo(
     string DisplayName,
     TenantId TenantId,
     IReadOnlyList<string> Roles,
+    bool IsPlatformAdmin = false,
     long SessionId = 0);

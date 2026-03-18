@@ -59,6 +59,7 @@ Accept-Language: {{localeZh}}
 @csrfToken = {{antiforgery.response.body.$.data.token}}
 
 ### Current User
+# 期望 data.isPlatformAdmin 返回布尔值，平台管理员应为 true
 GET {{baseUrl}}/api/v1/auth/me
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}

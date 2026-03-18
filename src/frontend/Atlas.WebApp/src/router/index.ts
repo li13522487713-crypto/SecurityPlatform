@@ -279,6 +279,10 @@ const whiteList = ["/login", "/register"];
 const legacyRedirectNoticeCache = new Set<string>();
 
 function isPrivilegedUser(userStore: ReturnType<typeof useUserStore>) {
+  if (userStore.profile?.isPlatformAdmin) {
+    return true;
+  }
+
   return userStore.permissions.includes("*:*:*")
     || userStore.roles.some((role: string) => ["admin", "superadmin"].includes(role.toLowerCase()));
 }
