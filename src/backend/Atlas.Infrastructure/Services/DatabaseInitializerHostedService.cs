@@ -256,7 +256,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             _logger.LogInformation("[DatabaseInitializer] 已跳过 Schema 初始化（DatabaseInitializer:SkipSchemaInit=true）");
         }
 
-        await EnsureTenantAppDataSourceBindingBackfillAsync(scope.ServiceProvider, db, cancellationToken);
+        await EnsureTenantAppDataSourceBindingBackfillAsync(scope.ServiceProvider, appContextAccessor, db, cancellationToken);
 
         // 种子数据初始化
         if (_initializerOptions.SkipSeedData)
@@ -1055,6 +1055,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
 
     private async Task EnsureTenantAppDataSourceBindingBackfillAsync(
         IServiceProvider serviceProvider,
+        IAppContextAccessor appContextAccessor,
         ISqlSugarClient db,
         CancellationToken cancellationToken)
     {
@@ -1104,6 +1105,8 @@ public sealed class DatabaseInitializerHostedService : IHostedService
 
             var now = legacy.UpdatedAt;
             var actor = legacy.UpdatedBy > 0 ? legacy.UpdatedBy : legacy.CreatedBy;
+            using var appContextScope = appContextAccessor.BeginScope(
+                CreateSystemContext(appContextAccessor, new TenantId(legacy.TenantIdValue)));
             var binding = new TenantAppDataSourceBinding(
                 new TenantId(legacy.TenantIdValue),
                 legacy.TenantAppInstanceId,

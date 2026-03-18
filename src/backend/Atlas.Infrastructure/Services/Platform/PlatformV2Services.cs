@@ -114,7 +114,7 @@ public sealed class TenantApplicationQueryService : ITenantApplicationQueryServi
         if (catalogIds.Length > 0)
         {
             var catalogs = await _db.Queryable<AppManifest>()
-                .Where(item => item.TenantIdValue == tenantValue && catalogIds.Contains(item.Id))
+                .Where(item => item.TenantIdValue == tenantValue && SqlFunc.ContainsArray(catalogIds, item.Id))
                 .Select(item => new { item.Id, item.Name })
                 .ToListAsync(cancellationToken);
             catalogNameDict = catalogs.ToDictionary(item => item.Id, item => item.Name);
@@ -197,7 +197,7 @@ public sealed class TenantApplicationQueryService : ITenantApplicationQueryServi
 
         var appKeys = apps.Select(item => item.AppKey).Distinct().ToArray();
         var catalogs = await _db.Queryable<AppManifest>()
-            .Where(item => item.TenantIdValue == tenantValue && appKeys.Contains(item.AppKey))
+            .Where(item => item.TenantIdValue == tenantValue && SqlFunc.ContainsArray(appKeys, item.AppKey))
             .Select(item => new { item.Id, item.AppKey, item.Name })
             .ToListAsync(cancellationToken);
         var catalogByAppKey = catalogs
@@ -335,7 +335,7 @@ public sealed class TenantAppInstanceQueryService : ITenantAppInstanceQueryServi
         if (appInstanceIds is { Count: > 0 })
         {
             var filterAppIds = appInstanceIds.ToArray();
-            appQuery = appQuery.Where(app => filterAppIds.Contains(app.Id));
+            appQuery = appQuery.Where(app => SqlFunc.ContainsArray(filterAppIds, app.Id));
         }
 
         var apps = await appQuery
@@ -348,7 +348,7 @@ public sealed class TenantAppInstanceQueryService : ITenantAppInstanceQueryServi
 
         var appIds = apps.Select(app => app.Id).ToArray();
         var bindings = await _db.Queryable<TenantAppDataSourceBindingEntity>()
-            .Where(binding => binding.TenantIdValue == tenantValue && appIds.Contains(binding.TenantAppInstanceId))
+            .Where(binding => binding.TenantIdValue == tenantValue && SqlFunc.ContainsArray(appIds, binding.TenantAppInstanceId))
             .ToListAsync(cancellationToken);
         var preferredBindingsByAppId = bindings
             .GroupBy(binding => binding.TenantAppInstanceId)
@@ -373,7 +373,7 @@ public sealed class TenantAppInstanceQueryService : ITenantAppInstanceQueryServi
         if (dataSourceIds.Length > 0)
         {
             var tenantDataSources = await _db.Queryable<TenantDataSource>()
-                .Where(ds => ds.TenantIdValue == tenantIdText && dataSourceIds.Contains(ds.Id))
+                .Where(ds => ds.TenantIdValue == tenantIdText && SqlFunc.ContainsArray(dataSourceIds, ds.Id))
                 .ToListAsync(cancellationToken);
             dataSourceDict = tenantDataSources.ToDictionary(ds => ds.Id);
         }
