@@ -12,6 +12,16 @@
     >
       <a-select v-model:value="statusFilter" style="width: 140px" :options="statusOptions" @change="handleFilterUpdate" />
       <a-select
+        v-model:value="selectedFlowId"
+        style="width: 200px"
+        :loading="flowLoading"
+        :options="flowOptions"
+        allow-clear
+        show-search
+        placeholder="按流程类型过滤"
+        @change="handleFlowFilterChange"
+      />
+      <a-select
         v-model:value="selectedAppId"
         style="width: 200px"
         :loading="appLoading"
@@ -80,6 +90,7 @@
 import { onMounted, reactive, ref, watch } from "vue";
 import { message } from "ant-design-vue";
 import { getMyTasksPaged } from "@/services/api";
+import { getApprovalFlowsPaged } from "@/services/api-approval";
 import { getLowCodeAppsPaged } from "@/services/lowcode";
 import type { TablePaginationConfig } from "ant-design-vue";
 import { ApprovalTaskStatus, type ApprovalTaskResponse } from "@/types/api";
@@ -107,6 +118,9 @@ const keyword = ref(props.urlKeyword || "");
 const statusFilter = ref<ApprovalTaskStatus | "all">((props.urlStatus as unknown as ApprovalTaskStatus) || "all");
 const selectedAppId = ref<string | undefined>(getCurrentAppIdFromStorage() ?? undefined);
 const appOptions = ref<Array<{ label: string; value: string }>>([]);
+const selectedFlowId = ref<string | undefined>(undefined);
+const flowLoading = ref(false);
+const flowOptions = ref<Array<{ label: string; value: string }>>([]);
 const statusOptions = [
   { label: "全部", value: "all" },
   { label: "待审批", value: ApprovalTaskStatus.Pending },
@@ -163,6 +177,27 @@ const loadAppOptions = async () => {
   }
 };
 
+const loadFlowOptions = async () => {
+  flowLoading.value = true;
+  try {
+    const result = await getApprovalFlowsPaged({ pageIndex: 1, pageSize: 200 });
+    flowOptions.value = result.items.map((item) => ({
+      label: item.name,
+      value: String(item.id),
+    }));
+  } catch {
+    // 静默失败，流程过滤非关键功能
+  } finally {
+    flowLoading.value = false;
+  }
+};
+
+const handleFlowFilterChange = () => {
+  pagination.current = 1;
+  clearSelection();
+  fetchData();
+};
+
 const handleAppScopeChange = (value: string | undefined) => {
   setCurrentAppIdToStorage(value);
   pagination.current = 1;
@@ -186,7 +221,7 @@ const formatTime = (value: string) => {
 };
 
 onMounted(async () => {
-  await loadAppOptions();
+  await Promise.all([loadAppOptions(), loadFlowOptions()]);
   await fetchData();
 });
 
