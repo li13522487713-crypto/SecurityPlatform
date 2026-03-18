@@ -42,7 +42,7 @@ public sealed class TenantAppRolesV2Controller : ControllerBase
     }
 
     [HttpGet]
-    [Authorize(Policy = PermissionPolicies.AppsView)]
+    [Authorize(Policy = PermissionPolicies.AppRolesView)]
     public async Task<ActionResult<ApiResponse<PagedResult<TenantAppRoleListItem>>>> Get(
         long appId,
         [FromQuery] PagedRequest request,
@@ -54,7 +54,7 @@ public sealed class TenantAppRolesV2Controller : ControllerBase
     }
 
     [HttpGet("{roleId:long}")]
-    [Authorize(Policy = PermissionPolicies.AppsView)]
+    [Authorize(Policy = PermissionPolicies.AppRolesView)]
     public async Task<ActionResult<ApiResponse<TenantAppRoleDetail>>> GetById(
         long appId,
         long roleId,
@@ -74,7 +74,7 @@ public sealed class TenantAppRolesV2Controller : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
+    [Authorize(Policy = PermissionPolicies.AppRolesUpdate)]
     public async Task<ActionResult<ApiResponse<object>>> Create(
         long appId,
         [FromBody] TenantAppRoleCreateRequest request,
@@ -101,7 +101,7 @@ public sealed class TenantAppRolesV2Controller : ControllerBase
     }
 
     [HttpPut("{roleId:long}")]
-    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
+    [Authorize(Policy = PermissionPolicies.AppRolesUpdate)]
     public async Task<ActionResult<ApiResponse<object>>> Update(
         long appId,
         long roleId,
@@ -130,7 +130,7 @@ public sealed class TenantAppRolesV2Controller : ControllerBase
     }
 
     [HttpPut("{roleId:long}/permissions")]
-    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
+    [Authorize(Policy = PermissionPolicies.AppRolesUpdate)]
     public async Task<ActionResult<ApiResponse<object>>> UpdatePermissions(
         long appId,
         long roleId,
@@ -144,7 +144,7 @@ public sealed class TenantAppRolesV2Controller : ControllerBase
     }
 
     [HttpDelete("{roleId:long}")]
-    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
+    [Authorize(Policy = PermissionPolicies.AppRolesUpdate)]
     public async Task<ActionResult<ApiResponse<object>>> Delete(
         long appId,
         long roleId,

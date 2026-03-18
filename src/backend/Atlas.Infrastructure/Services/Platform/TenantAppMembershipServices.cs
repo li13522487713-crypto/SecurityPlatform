@@ -1,12 +1,15 @@
 using Atlas.Application.Abstractions;
+using Atlas.Application.Audit.Abstractions;
 using Atlas.Application.LowCode.Abstractions;
 using Atlas.Application.Platform.Abstractions;
 using Atlas.Application.Platform.Models;
 using Atlas.Application.Platform.Repositories;
 using Atlas.Core.Abstractions;
+using Atlas.Core.Identity;
 using Atlas.Core.Exceptions;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
+using Atlas.Domain.Audit.Entities;
 using Atlas.Domain.Platform.Entities;
 
 namespace Atlas.Infrastructure.Services.Platform;
@@ -176,6 +179,8 @@ public sealed class TenantAppMemberCommandService : ITenantAppMemberCommandServi
     private readonly IAppUserRoleRepository _appUserRoleRepository;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly TimeProvider _timeProvider;
+    private readonly IAuditWriter _auditWriter;
+    private readonly ICurrentUserAccessor _currentUserAccessor;
 
     public TenantAppMemberCommandService(
         ILowCodeAppRepository lowCodeAppRepository,
@@ -184,7 +189,9 @@ public sealed class TenantAppMemberCommandService : ITenantAppMemberCommandServi
         IUserAccountRepository userAccountRepository,
         IAppUserRoleRepository appUserRoleRepository,
         IIdGeneratorAccessor idGeneratorAccessor,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        IAuditWriter auditWriter,
+        ICurrentUserAccessor currentUserAccessor)
     {
         _lowCodeAppRepository = lowCodeAppRepository;
         _appMemberRepository = appMemberRepository;
@@ -193,6 +200,8 @@ public sealed class TenantAppMemberCommandService : ITenantAppMemberCommandServi
         _appUserRoleRepository = appUserRoleRepository;
         _idGeneratorAccessor = idGeneratorAccessor;
         _timeProvider = timeProvider;
+        _auditWriter = auditWriter;
+        _currentUserAccessor = currentUserAccessor;
     }
 
     public async Task AddMembersAsync(
@@ -251,6 +260,12 @@ public sealed class TenantAppMemberCommandService : ITenantAppMemberCommandServi
 
         if (roleIds.Length == 0)
         {
+            await WriteAuditAsync(
+                tenantId,
+                ResolveActor(operatorUserId),
+                "Platform.AppMember.Assigned",
+                $"appId={appId};userIds={string.Join(',', userIds)};roleIds=",
+                cancellationToken);
             return;
         }
 
@@ -277,6 +292,13 @@ public sealed class TenantAppMemberCommandService : ITenantAppMemberCommandServi
         }
 
         await _appUserRoleRepository.AddRangeAsync(mappingsToAdd, cancellationToken);
+
+        await WriteAuditAsync(
+            tenantId,
+            ResolveActor(operatorUserId),
+            "Platform.AppMember.Assigned",
+            $"appId={appId};userIds={string.Join(',', userIds)};roleIds={string.Join(',', roleIds)}",
+            cancellationToken);
     }
 
     public async Task UpdateMemberRolesAsync(
@@ -312,6 +334,12 @@ public sealed class TenantAppMemberCommandService : ITenantAppMemberCommandServi
         await _appUserRoleRepository.DeleteByUserIdAsync(tenantId, appId, userId, cancellationToken);
         if (roleIds.Length == 0)
         {
+            await WriteAuditAsync(
+                tenantId,
+                ResolveActor(),
+                "Platform.AppMember.RolesUpdated",
+                $"appId={appId};userId={userId};roleIds=",
+                cancellationToken);
             return;
         }
 
@@ -324,6 +352,13 @@ public sealed class TenantAppMemberCommandService : ITenantAppMemberCommandServi
                 _idGeneratorAccessor.NextId()))
             .ToArray();
         await _appUserRoleRepository.AddRangeAsync(mappings, cancellationToken);
+
+        await WriteAuditAsync(
+            tenantId,
+            ResolveActor(),
+            "Platform.AppMember.RolesUpdated",
+            $"appId={appId};userId={userId};roleIds={string.Join(',', roleIds)}",
+            cancellationToken);
     }
 
     public async Task RemoveMemberAsync(
@@ -337,6 +372,12 @@ public sealed class TenantAppMemberCommandService : ITenantAppMemberCommandServi
 
         await _appUserRoleRepository.DeleteByUserIdAsync(tenantId, appId, userId, cancellationToken);
         await _appMemberRepository.DeleteAsync(tenantId, appId, userId, cancellationToken);
+        await WriteAuditAsync(
+            tenantId,
+            ResolveActor(),
+            "Platform.AppMember.Removed",
+            $"appId={appId};userId={userId}",
+            cancellationToken);
     }
 
     private async Task<Atlas.Domain.LowCode.Entities.LowCodeApp> RequireAppAsync(
@@ -367,6 +408,37 @@ public sealed class TenantAppMemberCommandService : ITenantAppMemberCommandServi
         {
             throw new BusinessException(ErrorCodes.ValidationError, "当前应用启用了共享角色，无法维护应用角色绑定。");
         }
+    }
+
+    private string ResolveActor(long? fallbackUserId = null)
+    {
+        var current = _currentUserAccessor.GetCurrentUser();
+        if (current is not null)
+        {
+            return current.Username;
+        }
+
+        return fallbackUserId.HasValue && fallbackUserId.Value > 0
+            ? fallbackUserId.Value.ToString()
+            : "system";
+    }
+
+    private async Task WriteAuditAsync(
+        TenantId tenantId,
+        string actor,
+        string action,
+        string target,
+        CancellationToken cancellationToken)
+    {
+        var record = new AuditRecord(
+            tenantId,
+            actor,
+            action,
+            "Success",
+            target,
+            null,
+            null);
+        await _auditWriter.WriteAsync(record, cancellationToken);
     }
 }
 
@@ -517,6 +589,8 @@ public sealed class TenantAppRoleCommandService : ITenantAppRoleCommandService
     private readonly IAppUserRoleRepository _appUserRoleRepository;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly TimeProvider _timeProvider;
+    private readonly IAuditWriter _auditWriter;
+    private readonly ICurrentUserAccessor _currentUserAccessor;
 
     public TenantAppRoleCommandService(
         ILowCodeAppRepository lowCodeAppRepository,
@@ -524,7 +598,9 @@ public sealed class TenantAppRoleCommandService : ITenantAppRoleCommandService
         IAppRolePermissionRepository appRolePermissionRepository,
         IAppUserRoleRepository appUserRoleRepository,
         IIdGeneratorAccessor idGeneratorAccessor,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        IAuditWriter auditWriter,
+        ICurrentUserAccessor currentUserAccessor)
     {
         _lowCodeAppRepository = lowCodeAppRepository;
         _appRoleRepository = appRoleRepository;
@@ -532,6 +608,8 @@ public sealed class TenantAppRoleCommandService : ITenantAppRoleCommandService
         _appUserRoleRepository = appUserRoleRepository;
         _idGeneratorAccessor = idGeneratorAccessor;
         _timeProvider = timeProvider;
+        _auditWriter = auditWriter;
+        _currentUserAccessor = currentUserAccessor;
     }
 
     public async Task<long> CreateAsync(
@@ -564,6 +642,12 @@ public sealed class TenantAppRoleCommandService : ITenantAppRoleCommandService
             _idGeneratorAccessor.NextId());
         await _appRoleRepository.AddAsync(role, cancellationToken);
         await ReplaceRolePermissionsAsync(tenantId, appId, role.Id, request.PermissionCodes, cancellationToken);
+        await WriteAuditAsync(
+            tenantId,
+            ResolveActor(operatorUserId),
+            "Platform.AppRole.Created",
+            $"appId={appId};roleId={role.Id};code={normalizedCode};permissions={string.Join(',', request.PermissionCodes)}",
+            cancellationToken);
         return role.Id;
     }
 
@@ -591,6 +675,12 @@ public sealed class TenantAppRoleCommandService : ITenantAppRoleCommandService
 
         role.Update(request.Name.Trim(), request.Description, operatorUserId, _timeProvider.GetUtcNow());
         await _appRoleRepository.UpdateAsync(role, cancellationToken);
+        await WriteAuditAsync(
+            tenantId,
+            ResolveActor(operatorUserId),
+            "Platform.AppRole.Updated",
+            $"appId={appId};roleId={roleId};name={request.Name}",
+            cancellationToken);
     }
 
     public async Task UpdatePermissionsAsync(
@@ -610,6 +700,12 @@ public sealed class TenantAppRoleCommandService : ITenantAppRoleCommandService
         }
 
         await ReplaceRolePermissionsAsync(tenantId, appId, roleId, request.PermissionCodes, cancellationToken);
+        await WriteAuditAsync(
+            tenantId,
+            ResolveActor(),
+            "Platform.AppRole.PermissionsUpdated",
+            $"appId={appId};roleId={roleId};permissions={string.Join(',', request.PermissionCodes)}",
+            cancellationToken);
     }
 
     public async Task DeleteAsync(
@@ -635,6 +731,12 @@ public sealed class TenantAppRoleCommandService : ITenantAppRoleCommandService
         await _appUserRoleRepository.DeleteByRoleIdAsync(tenantId, appId, roleId, cancellationToken);
         await _appRolePermissionRepository.DeleteByRoleIdAsync(tenantId, appId, roleId, cancellationToken);
         await _appRoleRepository.DeleteAsync(tenantId, appId, roleId, cancellationToken);
+        await WriteAuditAsync(
+            tenantId,
+            ResolveActor(),
+            "Platform.AppRole.Deleted",
+            $"appId={appId};roleId={roleId};code={role.Code}",
+            cancellationToken);
     }
 
     private async Task ReplaceRolePermissionsAsync(
@@ -692,5 +794,36 @@ public sealed class TenantAppRoleCommandService : ITenantAppRoleCommandService
     private static string NormalizeCode(string code)
     {
         return code.Trim().ToUpperInvariant();
+    }
+
+    private string ResolveActor(long? fallbackUserId = null)
+    {
+        var current = _currentUserAccessor.GetCurrentUser();
+        if (current is not null)
+        {
+            return current.Username;
+        }
+
+        return fallbackUserId.HasValue && fallbackUserId.Value > 0
+            ? fallbackUserId.Value.ToString()
+            : "system";
+    }
+
+    private async Task WriteAuditAsync(
+        TenantId tenantId,
+        string actor,
+        string action,
+        string target,
+        CancellationToken cancellationToken)
+    {
+        var record = new AuditRecord(
+            tenantId,
+            actor,
+            action,
+            "Success",
+            target,
+            null,
+            null);
+        await _auditWriter.WriteAsync(record, cancellationToken);
     }
 }

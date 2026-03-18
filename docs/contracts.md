@@ -226,6 +226,7 @@
   - `POST /api/v2/tenant-app-instances/{appId}/members`
   - `PUT /api/v2/tenant-app-instances/{appId}/members/{userId}/roles`
   - `DELETE /api/v2/tenant-app-instances/{appId}/members/{userId}`
+  - 授权策略：GET 要求 `apps:members:view`，写接口要求 `apps:members:update`
 - 应用角色（`UseSharedRoles=false` 时启用）：
   - `GET /api/v2/tenant-app-instances/{appId}/roles`
   - `GET /api/v2/tenant-app-instances/{appId}/roles/{roleId}`
@@ -233,6 +234,7 @@
   - `PUT /api/v2/tenant-app-instances/{appId}/roles/{roleId}`
   - `PUT /api/v2/tenant-app-instances/{appId}/roles/{roleId}/permissions`
   - `DELETE /api/v2/tenant-app-instances/{appId}/roles/{roleId}`
+  - 授权策略：GET 要求 `apps:roles:view`，写接口要求 `apps:roles:update`
 
 约束说明：
 
@@ -785,6 +787,10 @@ JWT Claims（新增）：
 - `menus:update`：菜单更新
 - `apps:view`：应用配置查看
 - `apps:update`：应用配置更新
+- `apps:members:view`：应用成员查看
+- `apps:members:update`：应用成员维护
+- `apps:roles:view`：应用角色查看
+- `apps:roles:update`：应用角色维护
 - `projects:view`：项目查看
 - `projects:create`：项目新增
 - `projects:update`：项目更新
@@ -2211,7 +2217,7 @@ V2 工作流 API 采用 Coze 风格的 DAG 执行引擎，与 V1（`api/v1/ai-wo
 | POST | `/executions/{id}/resume` | 恢复执行 | `ai-workflow:execute` |
 | GET | `/executions/{id}/process` | 执行进度 | `ai-workflow:view` |
 | GET | `/executions/{id}/nodes/{key}` | 节点执行详情 | `ai-workflow:view` |
-| POST | `/{id}/debug-node` | 单节点调试 | `ai-workflow:execute` |
+| POST | `/{id}/debug-node` | 单节点调试 | `ai-workflow:debug` |
 | GET | `/node-types` | 节点类型列表 | `ai-workflow:view` |
 
 ### 请求模型

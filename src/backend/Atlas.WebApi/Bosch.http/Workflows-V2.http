@@ -150,6 +150,7 @@ X-Tenant-Id: {{tenantId}}
 
 ### ── Debug Single Node ──
 # 返回 data.executionId，且服务端会写入完整节点输入/输出到执行记录，可通过 process/nodes 查询
+# 需要权限：ai-workflow:debug
 POST {{host}}/api/v2/workflows/{{workflowId}}/debug-node
 Content-Type: {{contentType}}
 Authorization: Bearer {{token}}

@@ -47,6 +47,10 @@ public static class PermissionCodes
 
     public const string AppsView = "apps:view";
     public const string AppsUpdate = "apps:update";
+    public const string AppMembersView = "apps:members:view";
+    public const string AppMembersUpdate = "apps:members:update";
+    public const string AppRolesView = "apps:roles:view";
+    public const string AppRolesUpdate = "apps:roles:update";
     public const string AppAdmin = "app:admin";
     public const string AppUser = "app:user";
     public const string DebugView = "debug:view";
@@ -87,6 +91,7 @@ public static class PermissionCodes
     public const string AiWorkflowUpdate = "ai-workflow:update";
     public const string AiWorkflowDelete = "ai-workflow:delete";
     public const string AiWorkflowExecute = "ai-workflow:execute";
+    public const string AiWorkflowDebug = "ai-workflow:debug";
     public const string AiDatabaseView = "ai-database:view";
     public const string AiDatabaseCreate = "ai-database:create";
     public const string AiDatabaseUpdate = "ai-database:update";

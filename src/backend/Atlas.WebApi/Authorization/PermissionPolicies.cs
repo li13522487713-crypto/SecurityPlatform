@@ -54,6 +54,10 @@ public static class PermissionPolicies
 
     public const string AppsView = "Permission:apps:view";
     public const string AppsUpdate = "Permission:apps:update";
+    public const string AppMembersView = "Permission:apps:members:view";
+    public const string AppMembersUpdate = "Permission:apps:members:update";
+    public const string AppRolesView = "Permission:apps:roles:view";
+    public const string AppRolesUpdate = "Permission:apps:roles:update";
     public const string AppAdmin = "Permission:app:admin";
     public const string AppUser = "Permission:app:user";
     public const string DebugView = "Permission:debug:view";
@@ -94,6 +98,7 @@ public static class PermissionPolicies
     public const string AiWorkflowUpdate = "Permission:ai-workflow:update";
     public const string AiWorkflowDelete = "Permission:ai-workflow:delete";
     public const string AiWorkflowExecute = "Permission:ai-workflow:execute";
+    public const string AiWorkflowDebug = "Permission:ai-workflow:debug";
     public const string AiDatabaseView = "Permission:ai-database:view";
     public const string AiDatabaseCreate = "Permission:ai-database:create";
     public const string AiDatabaseUpdate = "Permission:ai-database:update";

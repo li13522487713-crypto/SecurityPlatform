@@ -254,7 +254,7 @@ public sealed class WorkflowV2Controller : ControllerBase
     }
 
     [HttpPost("{id:long}/debug-node")]
-    [Authorize(Policy = PermissionPolicies.AiWorkflowExecute)]
+    [Authorize(Policy = PermissionPolicies.AiWorkflowDebug)]
     public async Task<ActionResult<ApiResponse<WorkflowV2RunResult>>> DebugNode(
         long id, [FromBody] WorkflowV2NodeDebugRequest request, CancellationToken cancellationToken)
     {

@@ -61,6 +61,7 @@ Content-Type: application/json
 @tenantAppInstanceId = {{createTenantAppInstance.response.body.$.data.id}}
 
 ### 查询应用角色
+# 读权限：apps:roles:view
 GET {{baseUrl}}/api/v2/tenant-app-instances/{{tenantAppInstanceId}}/roles?pageIndex=1&pageSize=20
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
@@ -85,6 +86,7 @@ Content-Type: application/json
 @tenantAppRoleId = {{createTenantAppRole.response.body.$.data.roleId}}
 
 ### 更新应用角色权限
+# 写权限：apps:roles:update
 PUT {{baseUrl}}/api/v2/tenant-app-instances/{{tenantAppInstanceId}}/roles/{{tenantAppRoleId}}/permissions
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
@@ -97,6 +99,7 @@ Content-Type: application/json
 }
 
 ### 查询应用成员列表
+# 读权限：apps:members:view
 GET {{baseUrl}}/api/v2/tenant-app-instances/{{tenantAppInstanceId}}/members?pageIndex=1&pageSize=20
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
@@ -111,6 +114,7 @@ X-Tenant-Id: {{tenantId}}
 @currentUserId = {{currentUser.response.body.$.data.userId}}
 
 ### 添加应用成员（示例使用 admin 自身）
+# 写权限：apps:members:update
 POST {{baseUrl}}/api/v2/tenant-app-instances/{{tenantAppInstanceId}}/members
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}

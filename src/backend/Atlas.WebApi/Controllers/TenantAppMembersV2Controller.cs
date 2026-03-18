@@ -39,7 +39,7 @@ public sealed class TenantAppMembersV2Controller : ControllerBase
     }
 
     [HttpGet]
-    [Authorize(Policy = PermissionPolicies.AppsView)]
+    [Authorize(Policy = PermissionPolicies.AppMembersView)]
     public async Task<ActionResult<ApiResponse<PagedResult<TenantAppMemberListItem>>>> Get(
         long appId,
         [FromQuery] PagedRequest request,
@@ -51,7 +51,7 @@ public sealed class TenantAppMembersV2Controller : ControllerBase
     }
 
     [HttpGet("{userId:long}")]
-    [Authorize(Policy = PermissionPolicies.AppsView)]
+    [Authorize(Policy = PermissionPolicies.AppMembersView)]
     public async Task<ActionResult<ApiResponse<TenantAppMemberDetail>>> GetByUserId(
         long appId,
         long userId,
@@ -71,7 +71,7 @@ public sealed class TenantAppMembersV2Controller : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
+    [Authorize(Policy = PermissionPolicies.AppMembersUpdate)]
     public async Task<ActionResult<ApiResponse<object>>> AddMembers(
         long appId,
         [FromBody] TenantAppMemberAssignRequest request,
@@ -98,7 +98,7 @@ public sealed class TenantAppMembersV2Controller : ControllerBase
     }
 
     [HttpPut("{userId:long}/roles")]
-    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
+    [Authorize(Policy = PermissionPolicies.AppMembersUpdate)]
     public async Task<ActionResult<ApiResponse<object>>> UpdateMemberRoles(
         long appId,
         long userId,
@@ -112,7 +112,7 @@ public sealed class TenantAppMembersV2Controller : ControllerBase
     }
 
     [HttpDelete("{userId:long}")]
-    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
+    [Authorize(Policy = PermissionPolicies.AppMembersUpdate)]
     public async Task<ActionResult<ApiResponse<object>>> RemoveMember(
         long appId,
         long userId,

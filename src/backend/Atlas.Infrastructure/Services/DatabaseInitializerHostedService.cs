@@ -355,17 +355,22 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         var roleMenuRepository = scope.ServiceProvider.GetRequiredService<IRoleMenuRepository>();
         var passwordHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
 
-        var roleSeedDefinitions = new (string Code, string Name, string Description, bool IsSystem)[]
+        var requiredRoleDefinitions = new (string Code, string Name, string Description, bool IsSystem)[]
         {
             ("SuperAdmin", "超级管理员", "平台超级管理员（全量权限）", true),
-            ("Admin", "系统管理员", "系统运维与平台配置管理员", true),
+            ("Admin", "系统管理员", "系统运维与平台配置管理员", true)
+        };
+        var optionalRoleDefinitions = new (string Code, string Name, string Description, bool IsSystem)[]
+        {
             ("SecurityAdmin", "安全管理员", "安全策略与告警管理员", false),
             ("AuditAdmin", "审计管理员", "审计日志与合规管理员", false),
             ("AssetAdmin", "资产管理员", "资产台账管理员", false),
             ("ApprovalAdmin", "流程管理员", "审批流配置管理员", false)
         };
 
-        var roleSeedMap = roleSeedDefinitions.ToDictionary(x => x.Code, x => x, StringComparer.OrdinalIgnoreCase);
+        var roleSeedMap = requiredRoleDefinitions
+            .Concat(optionalRoleDefinitions)
+            .ToDictionary(x => x.Code, x => x, StringComparer.OrdinalIgnoreCase);
         var roleCodes = _bootstrapOptions.Roles.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
@@ -376,7 +381,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         var roleCodesArray = roleCodes.ToArray();
 
         var roleCodeSet = roleCodesArray.ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var allRoleCodes = roleSeedDefinitions
+        var allRoleCodes = requiredRoleDefinitions
             .Select(x => x.Code)
             .Concat(roleCodesArray)
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -450,6 +455,10 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             (PermissionCodes.MenusUpdate, "Menus Update", "Api"),
             (PermissionCodes.AppsView, "Apps View", "Api"),
             (PermissionCodes.AppsUpdate, "Apps Update", "Api"),
+            (PermissionCodes.AppMembersView, "App Members View", "Api"),
+            (PermissionCodes.AppMembersUpdate, "App Members Update", "Api"),
+            (PermissionCodes.AppRolesView, "App Roles View", "Api"),
+            (PermissionCodes.AppRolesUpdate, "App Roles Update", "Api"),
             (PermissionCodes.AppAdmin, "App Admin", "Api"),
             (PermissionCodes.AppUser, "App User", "Api"),
             (PermissionCodes.DebugView, "Debug View", "Api"),
@@ -486,6 +495,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             (PermissionCodes.AiWorkflowUpdate, "AI Workflow Update", "Api"),
             (PermissionCodes.AiWorkflowDelete, "AI Workflow Delete", "Api"),
             (PermissionCodes.AiWorkflowExecute, "AI Workflow Execute", "Api"),
+            (PermissionCodes.AiWorkflowDebug, "AI Workflow Debug", "Api"),
             (PermissionCodes.AiDatabaseView, "AI Database View", "Api"),
             (PermissionCodes.AiDatabaseCreate, "AI Database Create", "Api"),
             (PermissionCodes.AiDatabaseUpdate, "AI Database Update", "Api"),

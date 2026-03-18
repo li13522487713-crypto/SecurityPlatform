@@ -50,7 +50,7 @@
           </template>
           <template v-else-if="column.key === 'actions'">
             <a-space v-if="canManageMembers">
-              <a-button type="link" @click="openEditRolesModal(record)">
+              <a-button v-if="canViewAppRoles" type="link" @click="openEditRolesModal(record)">
                 分配角色
               </a-button>
               <a-popconfirm
@@ -98,7 +98,7 @@
             @search="handleUserSearch"
           />
         </a-form-item>
-        <a-form-item label="应用角色（可选）">
+        <a-form-item v-if="canViewAppRoles" label="应用角色（可选）">
           <a-select
             v-model:value="addForm.roleIds"
             mode="multiple"
@@ -126,7 +126,7 @@
         <a-form-item label="成员用户">
           <a-input :value="editingMemberDisplayName" disabled />
         </a-form-item>
-        <a-form-item label="应用角色">
+        <a-form-item v-if="canViewAppRoles" label="应用角色">
           <a-select
             v-model:value="editRolesForm.roleIds"
             mode="multiple"
@@ -201,7 +201,15 @@ const editRolesForm = reactive({
 });
 
 const canManageMembers = computed(() => {
-  return userStore.permissions.includes("apps:update") || isAdminRole(userStore.profile);
+  return userStore.permissions.includes("apps:members:update") || isAdminRole(userStore.profile);
+});
+
+const canViewAppRoles = computed(() => {
+  return (
+    userStore.permissions.includes("apps:roles:view") ||
+    userStore.permissions.includes("apps:roles:update") ||
+    isAdminRole(userStore.profile)
+  );
 });
 
 const columns = computed<TableColumnsType<TenantAppMemberListItem>>(() => [
@@ -289,6 +297,10 @@ async function loadRoleOptions(keywordText?: string) {
   if (!appId.value) {
     return;
   }
+  if (!canViewAppRoles.value) {
+    roleOptions.value = [];
+    return;
+  }
 
   roleOptionsLoading.value = true;
   try {
@@ -336,7 +348,9 @@ function openAddMemberModal() {
   resetAddForm();
   addMemberModalOpen.value = true;
   void loadUserOptions();
-  void loadRoleOptions();
+  if (canViewAppRoles.value) {
+    void loadRoleOptions();
+  }
 }
 
 async function submitAddMembers() {
@@ -366,6 +380,10 @@ async function submitAddMembers() {
 }
 
 function openEditRolesModal(record: TenantAppMemberListItem) {
+  if (!canViewAppRoles.value) {
+    return;
+  }
+
   editingUserId.value = record.userId;
   editingMemberDisplayName.value = `${record.displayName} (${record.username})`;
   editRolesForm.roleIds = [...record.roleIds];
