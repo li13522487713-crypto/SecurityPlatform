@@ -2,27 +2,27 @@
   <div class="tenants-page">
     <a-card :bordered="false" class="mb-4">
       <a-form layout="inline" @finish="handleSearch">
-        <a-form-item label="关键词">
-          <a-input v-model:value="searchParams.keyword" placeholder="租户名称/编码" allow-clear />
+        <a-form-item :label="t('systemTenants.keywordLabel')">
+          <a-input v-model:value="searchParams.keyword" :placeholder="t('systemTenants.keywordPlaceholder')" allow-clear />
         </a-form-item>
-        <a-form-item label="状态">
-          <a-select v-model:value="searchParams.isActive" placeholder="全部" allow-clear style="width: 120px">
-            <a-select-option :value="true">启用</a-select-option>
-            <a-select-option :value="false">停用</a-select-option>
+        <a-form-item :label="t('systemTenants.statusLabel')">
+          <a-select v-model:value="searchParams.isActive" :placeholder="t('common.all')" allow-clear style="width: 120px">
+            <a-select-option :value="true">{{ t("common.statusEnabled") }}</a-select-option>
+            <a-select-option :value="false">{{ t("common.statusDisabled") }}</a-select-option>
           </a-select>
         </a-form-item>
         <a-form-item>
-          <a-button type="primary" html-type="submit">查询</a-button>
-          <a-button style="margin-left: 8px" @click="resetSearch">重置</a-button>
+          <a-button type="primary" html-type="submit">{{ t("common.search") }}</a-button>
+          <a-button style="margin-left: 8px" @click="resetSearch">{{ t("common.reset") }}</a-button>
         </a-form-item>
       </a-form>
     </a-card>
 
     <a-card :bordered="false">
       <template #extra>
-        <a-button type="primary" @click="handleCreate" v-permission="'system:tenant:create'">
+        <a-button type="primary" v-permission="'system:tenant:create'" @click="handleCreate">
           <template #icon><PlusOutlined /></template>
-          新建租户
+          {{ t("systemTenants.createTenant") }}
         </a-button>
       </template>
 
@@ -47,18 +47,18 @@
           </template>
           <template v-else-if="column.key === 'action'">
             <a-space>
-              <a-button type="link" size="small" @click="handleEdit(record)" v-permission="'system:tenant:update'">
-                编辑
+              <a-button type="link" size="small" v-permission="'system:tenant:update'" @click="handleEdit(record)">
+                {{ t("common.edit") }}
               </a-button>
               <a-popconfirm
-                title="确定要删除该租户吗？删除后将无法恢复相关的所有数据！"
-                @confirm="handleDelete(record)"
-                okText="确定"
-                cancelText="取消"
+                :title="t('systemTenants.deleteConfirm')"
+                :ok-text="t('systemTenants.confirm')"
+                :cancel-text="t('common.cancel')"
                 :disabled="record.id === 1 || record.id === 10000"
+                @confirm="handleDelete(record)"
               >
-                <a-button type="link" size="small" danger :disabled="record.id === 1 || record.id === 10000" v-permission="'system:tenant:delete'">
-                  删除
+                <a-button type="link" size="small" danger v-permission="'system:tenant:delete'" :disabled="record.id === 1 || record.id === 10000">
+                  {{ t("common.delete") }}
                 </a-button>
               </a-popconfirm>
             </a-space>
@@ -71,9 +71,9 @@
     <a-modal
       v-model:open="modalVisible"
       :title="modalTitle"
+      :confirm-loading="modalConfirmLoading"
       @ok="handleModalOk"
       @cancel="handleModalCancel"
-      :confirm-loading="modalConfirmLoading"
     >
       <a-form
         ref="formRef"
@@ -82,14 +82,14 @@
         :label-col="{ span: 6 }"
         :wrapper-col="{ span: 16 }"
       >
-        <a-form-item label="租户名称" name="name">
-          <a-input v-model:value="formState.name" placeholder="请输入租户名称" />
+        <a-form-item :label="t('systemTenants.tenantName')" name="name">
+          <a-input v-model:value="formState.name" :placeholder="t('systemTenants.tenantNamePlaceholder')" />
         </a-form-item>
-        <a-form-item label="租户编码" name="code">
-          <a-input v-model:value="formState.code" placeholder="请输入租户编码 (唯一标识)" :disabled="isEdit" />
+        <a-form-item :label="t('systemTenants.tenantCode')" name="code">
+          <a-input v-model:value="formState.code" :placeholder="t('systemTenants.tenantCodePlaceholder')" :disabled="isEdit" />
         </a-form-item>
-        <a-form-item label="描述" name="description">
-          <a-textarea v-model:value="formState.description" :rows="3" placeholder="请输入租户描述" />
+        <a-form-item :label="t('systemTenants.description')" name="description">
+          <a-textarea v-model:value="formState.description" :rows="3" :placeholder="t('systemTenants.descriptionPlaceholder')" />
         </a-form-item>
       </a-form>
     </a-modal>
@@ -97,14 +97,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue';
+import { computed, onMounted, reactive, ref } from "vue";
 import { message } from 'ant-design-vue';
 import { PlusOutlined } from '@ant-design/icons-vue';
 import type { FormInstance } from 'ant-design-vue';
 import type { TablePaginationConfig } from 'ant-design-vue';
+import { useI18n } from "vue-i18n";
 import dayjs from 'dayjs';
 import * as tenantApi from '@/services/api-tenants';
 import type { TenantQueryRequest, TenantCreateRequest, TenantUpdateRequest, TenantDto } from '@/services/api-tenants';
+
+const { t } = useI18n();
 
 // -- 搜索与列表状态 --
 const searchParams = reactive<TenantQueryRequest>({
@@ -121,17 +124,17 @@ const pagination = reactive({
   pageSize: 10,
   total: 0,
   showSizeChanger: true,
-  showTotal: (total: number) => `共 ${total} 条`
+  showTotal: (total: number) => t("crud.totalItems", { total })
 });
 
-const columns = [
-  { title: '租户名称', dataIndex: 'name', key: 'name' },
-  { title: '租户编码', dataIndex: 'code', key: 'code' },
-  { title: '描述', dataIndex: 'description', key: 'description', ellipsis: true },
-  { title: '状态', dataIndex: 'isActive', key: 'isActive', width: 100 },
-  { title: '创建时间', dataIndex: 'createdAt', key: 'createdAt', width: 180 },
-  { title: '操作', key: 'action', width: 150, fixed: 'right' }
-];
+const columns = computed(() => ([
+  { title: t("systemTenants.colTenantName"), dataIndex: "name", key: "name" },
+  { title: t("systemTenants.colTenantCode"), dataIndex: "code", key: "code" },
+  { title: t("systemTenants.colDescription"), dataIndex: "description", key: "description", ellipsis: true },
+  { title: t("systemTenants.colStatus"), dataIndex: "isActive", key: "isActive", width: 100 },
+  { title: t("systemTenants.colCreatedAt"), dataIndex: "createdAt", key: "createdAt", width: 180 },
+  { title: t("systemTenants.colActions"), key: "action", width: 150, fixed: "right" }
+]));
 
 // -- 弹窗表单状态 --
 const modalVisible = ref(false);
@@ -147,8 +150,8 @@ const formState = reactive({
 });
 
 const rules = {
-  name: [{ required: true, message: '请输入租户名称', trigger: 'blur' }],
-  code: [{ required: true, message: '请输入租户唯一编码', trigger: 'blur' }]
+  name: [{ required: true, message: t("systemTenants.nameRequired"), trigger: "blur" }],
+  code: [{ required: true, message: t("systemTenants.codeRequired"), trigger: "blur" }]
 };
 
 // -- 生命周期与方法 --
@@ -166,8 +169,8 @@ const fetchData = async () => {
       tableData.value = res.items || [];
       pagination.total = res.total || 0;
     }
-  } catch (error: any) {
-    message.error(error.message || '获取租户列表失败');
+  } catch (error: unknown) {
+    message.error((error as Error).message || t("systemTenants.fetchFailed"));
   } finally {
     loading.value = false;
   }
@@ -192,7 +195,7 @@ const handleTableChange = (pag: TablePaginationConfig) => {
 };
 
 const formatDate = (val: Date | string | null | undefined) => {
-  if (!val) return '-';
+  if (!val) return "-";
   return dayjs(val).format('YYYY-MM-DD HH:mm:ss');
 };
 
@@ -200,23 +203,23 @@ const handleToggleStatus = async (record: TenantDto, checked: boolean) => {
   const isChecked = checked;
   try {
     await tenantApi.toggleTenantStatus(record.id, isChecked);
-    message.success(`${isChecked ? '启用' : '停用'}成功`);
+    message.success(isChecked ? t("systemTenants.enableSuccess") : t("systemTenants.disableSuccess"));
     record.isActive = isChecked;
-  } catch (error: any) {
-    message.error(error.message || '切换状态失败');
+  } catch (error: unknown) {
+    message.error((error as Error).message || t("systemTenants.toggleFailed"));
   }
 };
 
 const handleDelete = async (record: TenantDto) => {
   try {
     await tenantApi.deleteTenant(record.id);
-    message.success('删除成功');
+    message.success(t("crud.deleteSuccess"));
     if (tableData.value.length === 1 && pagination.current > 1) {
       pagination.current -= 1;
     }
     fetchData();
-  } catch (error: any) {
-    message.error(error.message || '删除失败');
+  } catch (error: unknown) {
+    message.error((error as Error).message || t("crud.deleteFailed"));
   }
 };
 
@@ -232,16 +235,16 @@ const resetForm = () => {
 
 const handleCreate = () => {
   isEdit.value = false;
-  modalTitle.value = '新建租户';
+  modalTitle.value = t("systemTenants.modalCreateTitle");
   resetForm();
   modalVisible.value = true;
 };
 
-const modalTitle = ref('新建租户');
+const modalTitle = ref(t("systemTenants.modalCreateTitle"));
 
 const handleEdit = (record: TenantDto) => {
   isEdit.value = true;
-  modalTitle.value = '编辑租户';
+  modalTitle.value = t("systemTenants.modalEditTitle");
   resetForm();
   currentId.value = Number(record.id);
   formState.name = record.name;
@@ -267,7 +270,7 @@ const handleModalOk = async () => {
         description: formState.description || undefined
       };
       await tenantApi.updateTenant(currentId.value.toString(), payload);
-      message.success('编辑租户成功');
+      message.success(t("systemTenants.updateSuccess"));
     } else {
       const payload: TenantCreateRequest = {
         name: formState.name,
@@ -275,12 +278,12 @@ const handleModalOk = async () => {
         description: formState.description || undefined
       };
       await tenantApi.createTenant(payload);
-      message.success('新建租户成功');
+      message.success(t("systemTenants.createSuccess"));
     }
     modalVisible.value = false;
     fetchData();
-  } catch (error: any) {
-    message.error(error.message || '操作失败');
+  } catch (error: unknown) {
+    message.error((error as Error).message || t("systemTenants.operationFailed"));
   } finally {
     modalConfirmLoading.value = false;
   }
