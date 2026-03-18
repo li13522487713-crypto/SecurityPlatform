@@ -127,7 +127,7 @@ import {
 } from '@ant-design/icons-vue';
 import type { ApprovalFlowTree, TreeNode, ConditionBranch, NodeType } from '@/types/approval-tree';
 import { registerAllShapes } from './shapes/register';
-import { syncGraphFromTree, highlightNode } from './sync';
+import { syncGraphFromTree, highlightNode, resetSyncCache } from './sync';
 
 // Simplified type to avoid TS2589 deep type instantiation on recursive TreeNode union
 interface ContextMenuNode {
@@ -389,8 +389,9 @@ function initGraph() {
 
   graphRef.value = graph;
 
-  // 首次渲染
-  renderTree();
+  // 首次渲染（重置缓存确保全量渲染）
+  resetSyncCache();
+  renderTree(true);
 }
 
 function warnInvalidConnection(text: string) {
@@ -418,9 +419,9 @@ function getCellNodeType(cellId: string): NodeType | null {
 }
 
 // ── 渲染 ──
-function renderTree() {
+function renderTree(forceFullRender = false) {
   if (!graphRef.value) return;
-  syncGraphFromTree(graphRef.value, props.flowTree);
+  syncGraphFromTree(graphRef.value, props.flowTree, forceFullRender);
 }
 
 // ── 缩放 ──
