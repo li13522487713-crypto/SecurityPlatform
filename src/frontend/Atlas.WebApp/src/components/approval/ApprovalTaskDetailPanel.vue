@@ -46,11 +46,20 @@
           <a-tab-pane key="history" tab="流转记录">
             <div class="history-container">
               <a-timeline v-if="historyItems.length > 0">
-                <a-timeline-item v-for="item in historyItems" :key="item.id">
-                  <div class="timeline-title">{{ item.eventType }}</div>
+                <a-timeline-item
+                  v-for="item in historyItems"
+                  :key="item.id"
+                  :color="item.eventType === 'TaskApproved' || item.eventType === 'InstanceCompleted' ? 'green' : (item.eventType === 'TaskRejected' || item.eventType === 'InstanceRejected' ? 'red' : 'blue')"
+                >
+                  <div class="timeline-title">{{ getEventLabel(item.eventType) }}</div>
                   <div class="timeline-meta">
                     {{ formatDateTime(item.occurredAt) }}
                     <span v-if="item.actorUserId"> · 操作人: {{ item.actorUserId }}</span>
+                  </div>
+                  <div v-if="item.fromNode || item.toNode" class="timeline-nodes">
+                    <span v-if="item.fromNode">从: {{ item.fromNode }}</span>
+                    <span v-if="item.fromNode && item.toNode"> → </span>
+                    <span v-if="item.toNode">到: {{ item.toNode }}</span>
                   </div>
                 </a-timeline-item>
               </a-timeline>
@@ -96,6 +105,18 @@
         </a-form-item>
         <a-form-item label="备注">
           <a-textarea v-model:value="transferComment" placeholder="请输入转办说明" :rows="3" />
+        </a-form-item>
+      </a-form>
+    </a-modal>
+
+    <!-- 委派弹窗 -->
+    <a-modal v-model:open="delegateVisible" title="委派" @ok="handleDelegate" :confirm-loading="submitting">
+      <a-form layout="vertical">
+        <a-form-item label="委派给" required>
+          <UserRolePicker mode="user" v-model:value="delegateTargetIds" placeholder="请选择被委派人" style="width: 100%" />
+        </a-form-item>
+        <a-form-item label="备注">
+          <a-textarea v-model:value="delegateComment" placeholder="请输入委派说明" :rows="3" />
         </a-form-item>
       </a-form>
     </a-modal>
@@ -215,8 +236,31 @@ const handleReject = async () => {
   }
 };
 
+const delegateVisible = ref(false);
+const delegateTargetIds = ref<string[]>([]);
+const delegateComment = ref('');
+const jumpVisible = ref(false);
+
 const handleMenuClick = ({ key }: { key: string }) => {
   if (key === 'transfer') transferVisible.value = true;
+  else if (key === 'delegate') delegateVisible.value = true;
+  else if (key === 'jump') jumpVisible.value = true;
+};
+
+const handleDelegate = async () => {
+  if (!delegateTargetIds.value.length || !task.value) return;
+  submitting.value = true;
+  try {
+    const { delegateTask } = await import('@/services/api-approval');
+    await delegateTask(props.taskId, delegateTargetIds.value[0], delegateComment.value || undefined);
+    message.success('委派成功');
+    delegateVisible.value = false;
+    emit('refresh');
+  } catch {
+    message.error('委派失败');
+  } finally {
+    submitting.value = false;
+  }
 };
 
 const handleTransfer = async () => {
@@ -233,6 +277,31 @@ const handleTransfer = async () => {
 const getStatusColor = (status?: number) => status === ApprovalTaskStatus.Pending ? 'blue' : (status === ApprovalTaskStatus.Approved ? 'green' : 'default');
 const getStatusText = (status?: number) => status === ApprovalTaskStatus.Pending ? '待审批' : (status === ApprovalTaskStatus.Approved ? '已同意' : '已处理');
 const formatDateTime = (value: string) => new Date(value).toLocaleString();
+
+/** 历史事件类型的中文标签映射 */
+const EVENT_TYPE_LABELS: Record<string, string> = {
+  InstanceStarted: '流程发起',
+  InstanceCompleted: '流程完成',
+  InstanceRejected: '流程驳回',
+  InstanceCanceled: '流程取消',
+  InstanceSuspended: '流程挂起',
+  InstanceActivated: '流程激活',
+  InstanceTerminated: '流程终止',
+  TaskCreated: '任务创建',
+  TaskApproved: '审批通过',
+  TaskRejected: '审批驳回',
+  TaskTransferred: '任务转办',
+  TaskDelegated: '任务委派',
+  TaskClaimed: '任务认领',
+  TaskCanceled: '任务取消',
+  NodeEntered: '进入节点',
+  NodeCompleted: '节点完成',
+};
+
+/** 获取历史事件的显示文本 */
+const getEventLabel = (eventType: string): string => {
+  return EVENT_TYPE_LABELS[eventType] || eventType;
+};
 </script>
 
 <style scoped>
@@ -283,5 +352,10 @@ const formatDateTime = (value: string) => new Date(value).toLocaleString();
   font-size: 12px;
   color: var(--color-text-tertiary);
   margin-top: 4px;
+}
+.timeline-nodes {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  margin-top: 2px;
 }
 </style>
