@@ -47,6 +47,15 @@ public sealed class ApprovalDefinitionSemanticValidator : IApprovalDefinitionSem
                 case "routeGateway":
                     ValidateRouteGateway(node, definition, issues);
                     break;
+                case "callProcess":
+                    ValidateCallProcessNode(node, issues);
+                    break;
+                case "timer":
+                    ValidateTimerNode(node, issues);
+                    break;
+                case "trigger":
+                    ValidateTriggerNode(node, issues);
+                    break;
             }
         }
 
@@ -264,6 +273,30 @@ public sealed class ApprovalDefinitionSemanticValidator : IApprovalDefinitionSem
         string? edgeId = null)
     {
         return new ApprovalFlowValidationIssue(code, message, "error", nodeId, edgeId);
+    }
+
+    private static void ValidateCallProcessNode(
+        FlowNode node,
+        ICollection<ApprovalFlowValidationIssue> issues)
+    {
+        if (!node.CallProcessId.HasValue || node.CallProcessId.Value == 0)
+        {
+            issues.Add(CreateWarning("CALL_PROCESS_ID_MISSING", "子流程节点未配置目标流程 ID", node.Id));
+        }
+    }
+
+    private static void ValidateTimerNode(
+        FlowNode node,
+        ICollection<ApprovalFlowValidationIssue> issues)
+    {
+        issues.Add(CreateWarning("TIMER_NODE_EXPERIMENTAL", "定时器节点为实验性功能，请确认运行时支持", node.Id));
+    }
+
+    private static void ValidateTriggerNode(
+        FlowNode node,
+        ICollection<ApprovalFlowValidationIssue> issues)
+    {
+        issues.Add(CreateWarning("TRIGGER_NODE_EXPERIMENTAL", "触发器节点为实验性功能，请确认运行时支持", node.Id));
     }
 
     private static ApprovalFlowValidationIssue CreateWarning(
