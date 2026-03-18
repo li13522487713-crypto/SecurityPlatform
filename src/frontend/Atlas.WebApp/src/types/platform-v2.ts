@@ -37,6 +37,11 @@ export interface TenantAppDataSourceBinding {
   dbType?: string;
   dataSourceActive?: boolean;
   lastTestedAt?: string;
+  bindingId?: string;
+  bindingType?: string;
+  bindingActive?: boolean;
+  boundAt?: string;
+  source?: string;
 }
 
 export interface ResourceCenterGroupEntry {
@@ -71,8 +76,20 @@ export interface TenantDataSourceConsumptionItem {
   scopeAppName?: string;
   boundTenantAppCount: number;
   boundTenantApps: TenantAppConsumerItem[];
+  bindingRelations: TenantDataSourceBindingRelationItem[];
   lastTestedAt?: string;
   lastTestMessage?: string;
+}
+
+export interface TenantDataSourceBindingRelationItem {
+  bindingId: string;
+  tenantAppInstanceId: string;
+  dataSourceId: string;
+  bindingType: string;
+  isActive: boolean;
+  boundAt?: string;
+  updatedAt?: string;
+  source: string;
 }
 
 export interface ResourceCenterDataSourceConsumptionResponse {
@@ -106,6 +123,23 @@ export interface RuntimeExecutionAuditTrailItem {
   result: string;
   target: string;
   occurredAt: string;
+}
+
+export interface RuntimeExecutionListItem {
+  id: string;
+  workflowId: string;
+  runtimeContextId?: string;
+  releaseId?: string;
+  appId?: string;
+  status: string;
+  startedAt: string;
+  completedAt?: string;
+  errorMessage?: string;
+}
+
+export interface RuntimeExecutionDetail extends RuntimeExecutionListItem {
+  inputsJson?: string;
+  outputsJson?: string;
 }
 
 export interface CozeLayerMappingItem {

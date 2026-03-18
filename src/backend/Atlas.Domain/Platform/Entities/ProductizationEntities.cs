@@ -137,6 +137,14 @@ public sealed class AppManifest : TenantEntity
         UpdatedBy = updatedBy;
         UpdatedAt = now;
     }
+
+    public void SyncReleaseVersion(int version, long updatedBy, DateTimeOffset now)
+    {
+        Version = version < 1 ? 1 : version;
+        Status = AppManifestStatus.Published;
+        UpdatedBy = updatedBy;
+        UpdatedAt = now;
+    }
 }
 
 public sealed class TenantApplication : TenantEntity
@@ -263,6 +271,18 @@ public sealed class AppRelease : TenantEntity
     {
         RollbackPointId = rollbackPointId;
         Status = AppReleaseStatus.RolledBack;
+    }
+
+    public void MarkReleased(long releasedBy, DateTimeOffset releasedAt, string? releaseNote = null)
+    {
+        Status = AppReleaseStatus.Released;
+        RollbackPointId = null;
+        ReleasedBy = releasedBy;
+        ReleasedAt = releasedAt;
+        if (!string.IsNullOrWhiteSpace(releaseNote))
+        {
+            ReleaseNote = releaseNote.Trim();
+        }
     }
 }
 

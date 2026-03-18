@@ -194,6 +194,7 @@
 - `GET /api/v2/tenant-app-instances/data-source-bindings?appIds=1&appIds=2`
   - 用于查询租户应用实例与租户数据源绑定关系。
   - `appIds` 可选；未传时返回当前租户全部实例绑定。
+  - 响应字段补充：`bindingId`、`bindingType`、`bindingActive`、`boundAt`、`source`（`BindingTable` / `LegacyLowCodeApp.DataSourceId` / `Unbound`）。
 - `GET /api/v2/resource-center/groups`
   - 返回资源中心分组聚合（`catalogs`/`instances`/`datasources`）。
   - 要求服务端采用批量查询 + 内存聚合，禁止循环内数据库访问。
@@ -202,7 +203,7 @@
     - 平台级数据源（`Platform`）
     - 应用级数据源（`AppScoped`）
     - 未绑定数据源的租户应用实例清单
-  - 响应包含每个数据源的绑定应用数量与绑定应用列表，用于资源中心导航分组展示。
+  - 响应包含每个数据源的绑定应用数量、绑定应用列表与 `bindingRelations`（绑定关系明细：`bindingId/tenantAppInstanceId/dataSourceId/bindingType/isActive/boundAt/updatedAt/source`）。
   - 服务端实现必须通过批量查询 + 字典聚合完成，禁止循环内数据库访问。
 
 #### v2 P1 扩展写接口（TenantAppInstance）
@@ -224,12 +225,19 @@
 - `POST /api/v2/release-center/releases/{releaseId}/rollback`
   - 回滚请求按写接口统一要求 `Idempotency-Key` + `X-CSRF-TOKEN`。
   - 服务端必须基于当前租户上下文校验发布记录归属后再执行回滚。
+  - 回滚后要求同步落库：
+    - 原当前版本标记 `RolledBack`
+    - 目标版本切回 `Released`
+    - `RuntimeRoute` 按目标发布版本重绑 `SchemaVersion`
+    - 审计记录写入 `release.rollback` 与 `runtime.route.rebind`
 - `GET /api/v2/runtime-executions/{executionId}/audit-trails`
   - 通过执行ID关联审计轨迹，支持分页与关键字检索。
+  - 审计目标匹配口径包含：`WorkflowExecution:{executionId}`、`RuntimeExecution:{executionId}`，以及执行记录上的 `ReleaseId` / `RuntimeContextId` / `AppId` 派生目标（`Release:*`、`RuntimeContext:*`、`AppManifest:*`）。
 - `GET /api/v2/coze-mappings/overview`
   - 返回 Coze 六层映射总览（目录/实例/发布/上下文/执行/审计）。
 - `GET /api/v2/debug-layer/embed-metadata`
   - 返回调试层嵌入元数据（tenant/app/project + 资源权限列表）。
+  - 访问策略：接口需 `debug:view`；资源项按当前用户已授权权限动态裁剪（`debug:view` / `debug:run` / `debug:manage`）。
 
 #### 前端主路径约定与弃用窗口（SEC-92）
 

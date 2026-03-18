@@ -7,6 +7,7 @@ using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Approval.Entities;
 using Atlas.Domain.Approval.Enums;
+using Atlas.Domain.Audit.Entities;
 using Atlas.Domain.Identity.Entities;
 using Atlas.Domain.LowCode.Entities;
 using Atlas.Domain.Platform.Entities;
@@ -357,33 +358,94 @@ public sealed class AppReleaseCommandService : IAppReleaseCommandService
 
     public async Task<long> CreateReleaseAsync(TenantId tenantId, long userId, long manifestId, string? releaseNote, CancellationToken cancellationToken = default)
     {
-        var manifest = await _db.Queryable<AppManifest>().FirstAsync(x => x.Id == manifestId, cancellationToken)
+        var manifest = await _db.Queryable<AppManifest>()
+            .FirstAsync(x => x.TenantIdValue == tenantId.Value && x.Id == manifestId, cancellationToken)
             ?? throw new InvalidOperationException("应用不存在");
         var now = DateTimeOffset.UtcNow;
         manifest.Publish(userId, now);
-        await _db.Updateable(manifest).ExecuteCommandAsync(cancellationToken);
         var release = new AppRelease(tenantId, _idGenerator.NextId(), manifestId, manifest.Version, "{}", userId, now);
-        await _db.Insertable(release).ExecuteCommandAsync(cancellationToken);
+        release.MarkReleased(userId, now, releaseNote);
+
+        var transaction = await _db.Ado.UseTranAsync(async () =>
+        {
+            await _db.Updateable(manifest).ExecuteCommandAsync(cancellationToken);
+            await _db.Insertable(release).ExecuteCommandAsync(cancellationToken);
+        });
+        if (!transaction.IsSuccess)
+        {
+            throw transaction.ErrorException ?? new InvalidOperationException("创建发布记录失败");
+        }
+
         return release.Id;
     }
 
     public async Task RollbackAsync(TenantId tenantId, long userId, long manifestId, long releaseId, CancellationToken cancellationToken = default)
     {
+        var tenantValue = tenantId.Value;
+        var manifest = await _db.Queryable<AppManifest>()
+            .FirstAsync(x => x.TenantIdValue == tenantValue && x.Id == manifestId, cancellationToken)
+            ?? throw new InvalidOperationException("应用不存在");
         var rollbackTarget = await _db.Queryable<AppRelease>()
-            .FirstAsync(x => x.Id == releaseId && x.ManifestId == manifestId, cancellationToken)
+            .FirstAsync(x => x.TenantIdValue == tenantValue && x.Id == releaseId && x.ManifestId == manifestId, cancellationToken)
             ?? throw new InvalidOperationException("回滚目标发布记录不存在");
         var currentRelease = await _db.Queryable<AppRelease>()
-            .Where(x => x.ManifestId == manifestId && x.Status == AppReleaseStatus.Released)
+            .Where(x => x.TenantIdValue == tenantValue && x.ManifestId == manifestId && x.Status == AppReleaseStatus.Released)
             .OrderByDescending(x => x.ReleasedAt)
             .FirstAsync(cancellationToken)
             ?? throw new InvalidOperationException("当前发布版本不存在");
         if (currentRelease.Id == rollbackTarget.Id)
         {
-            throw new InvalidOperationException("当前已是目标版本，无需回滚");
+            return;
         }
 
+        var runtimeRoutes = await _db.Queryable<RuntimeRoute>()
+            .Where(x => x.TenantIdValue == tenantValue && x.ManifestId == manifestId)
+            .ToListAsync(cancellationToken);
+        var now = DateTimeOffset.UtcNow;
         currentRelease.MarkRolledBack(rollbackTarget.Id);
-        await _db.Updateable(currentRelease).ExecuteCommandAsync(cancellationToken);
+        rollbackTarget.MarkReleased(userId, now, rollbackTarget.ReleaseNote);
+        manifest.SyncReleaseVersion(rollbackTarget.Version, userId, now);
+
+        foreach (var route in runtimeRoutes)
+        {
+            route.RebindManifest(manifestId);
+            route.Activate(rollbackTarget.Version, route.EnvironmentCode);
+        }
+
+        var rollbackAudit = new AuditRecord(
+            tenantId,
+            userId.ToString(),
+            "release.rollback",
+            "Success",
+            $"Release:{rollbackTarget.Id}",
+            null,
+            null);
+        var routeAudit = new AuditRecord(
+            tenantId,
+            userId.ToString(),
+            "runtime.route.rebind",
+            "Success",
+            $"AppManifest:{manifestId}",
+            null,
+            null);
+
+        var transaction = await _db.Ado.UseTranAsync(async () =>
+        {
+            await _db.Updateable(currentRelease).ExecuteCommandAsync(cancellationToken);
+            await _db.Updateable(rollbackTarget).ExecuteCommandAsync(cancellationToken);
+            await _db.Updateable(manifest).ExecuteCommandAsync(cancellationToken);
+            if (runtimeRoutes.Count > 0)
+            {
+                await _db.Updateable(runtimeRoutes).ExecuteCommandAsync(cancellationToken);
+            }
+
+            await _db.Insertable(new[] { rollbackAudit, routeAudit }).ExecuteCommandAsync(cancellationToken);
+        });
+
+        if (!transaction.IsSuccess)
+        {
+            throw transaction.ErrorException ?? new InvalidOperationException("回滚发布记录失败");
+        }
     }
 }
 

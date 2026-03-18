@@ -20,6 +20,7 @@ X-Tenant-Id: {{tenantId}}
 @accessToken = {{login.response.body.$.data.accessToken}}
 
 ### 查询运行执行列表
+# 响应字段包含 workflowId/runtimeContextId/releaseId/appId，便于发布闭环追溯
 GET {{baseUrl}}/api/v2/runtime-executions?pageIndex=1&pageSize=10
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}

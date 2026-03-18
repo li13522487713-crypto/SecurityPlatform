@@ -56,6 +56,9 @@ public static class PermissionPolicies
     public const string AppsUpdate = "Permission:apps:update";
     public const string AppAdmin = "Permission:app:admin";
     public const string AppUser = "Permission:app:user";
+    public const string DebugView = "Permission:debug:view";
+    public const string DebugRun = "Permission:debug:run";
+    public const string DebugManage = "Permission:debug:manage";
 
     public const string ProjectsView = "Permission:projects:view";
     public const string ProjectsCreate = "Permission:projects:create";

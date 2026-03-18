@@ -184,6 +184,7 @@ public interface IDebugLayerQueryService
 {
     Task<DebugLayerEmbedMetadata> GetEmbedMetadataAsync(
         TenantId tenantId,
+        long userId,
         string appId,
         long? projectId,
         bool projectScopeEnabled,

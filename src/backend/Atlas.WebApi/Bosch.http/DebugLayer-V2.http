@@ -20,6 +20,7 @@ X-Tenant-Id: {{tenantId}}
 @accessToken = {{login.response.body.$.data.accessToken}}
 
 ### 查询调试层嵌入元数据
+# 需具备 debug:view；返回资源列表会按 debug:view/debug:run/debug:manage 动态裁剪
 GET {{baseUrl}}/api/v2/debug-layer/embed-metadata
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}

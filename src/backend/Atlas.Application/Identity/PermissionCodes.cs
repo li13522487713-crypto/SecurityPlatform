@@ -49,6 +49,9 @@ public static class PermissionCodes
     public const string AppsUpdate = "apps:update";
     public const string AppAdmin = "app:admin";
     public const string AppUser = "app:user";
+    public const string DebugView = "debug:view";
+    public const string DebugRun = "debug:run";
+    public const string DebugManage = "debug:manage";
 
     public const string ProjectsView = "projects:view";
     public const string ProjectsCreate = "projects:create";

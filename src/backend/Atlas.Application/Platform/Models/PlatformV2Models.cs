@@ -100,7 +100,10 @@ public sealed record RuntimeContextDetail(
 
 public sealed record RuntimeExecutionListItem(
     string Id,
-    string RuntimeContextId,
+    string WorkflowId,
+    string? RuntimeContextId,
+    string? ReleaseId,
+    string? AppId,
     string Status,
     string StartedAt,
     string? CompletedAt,
@@ -108,7 +111,10 @@ public sealed record RuntimeExecutionListItem(
 
 public sealed record RuntimeExecutionDetail(
     string Id,
-    string RuntimeContextId,
+    string WorkflowId,
+    string? RuntimeContextId,
+    string? ReleaseId,
+    string? AppId,
     string Status,
     string StartedAt,
     string? CompletedAt,

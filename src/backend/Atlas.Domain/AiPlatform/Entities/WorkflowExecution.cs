@@ -19,7 +19,10 @@ public sealed class WorkflowExecution : TenantEntity
         int versionNumber,
         long createdByUserId,
         string? inputsJson,
-        long id)
+        long id,
+        long? appId = null,
+        long? releaseId = null,
+        long? runtimeContextId = null)
         : base(tenantId)
     {
         Id = id;
@@ -30,10 +33,19 @@ public sealed class WorkflowExecution : TenantEntity
         Status = ExecutionStatus.Pending;
         InterruptType = InterruptType.None;
         StartedAt = DateTime.UtcNow;
+        AppId = appId;
+        ReleaseId = releaseId;
+        RuntimeContextId = runtimeContextId;
     }
 
     public long WorkflowId { get; private set; }
     public int VersionNumber { get; private set; }
+    [SugarColumn(IsNullable = true)]
+    public long? AppId { get; private set; }
+    [SugarColumn(IsNullable = true)]
+    public long? ReleaseId { get; private set; }
+    [SugarColumn(IsNullable = true)]
+    public long? RuntimeContextId { get; private set; }
     public ExecutionStatus Status { get; private set; }
     [SugarColumn(IsNullable = true)]
     public string? InputsJson { get; private set; }
@@ -87,5 +99,15 @@ public sealed class WorkflowExecution : TenantEntity
         Status = ExecutionStatus.Running;
         InterruptType = InterruptType.None;
         InterruptNodeKey = null;
+    }
+
+    public void BindRuntimeReferences(
+        long? appId,
+        long? releaseId,
+        long? runtimeContextId)
+    {
+        AppId = appId;
+        ReleaseId = releaseId;
+        RuntimeContextId = runtimeContextId;
     }
 }

@@ -30,6 +30,7 @@ Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ### 回滚发布版本（写接口需幂等与防伪）
+# 回滚后应可在 RuntimeExecutions-V2 / Runtime audit-trails 中追溯到 release.rollback 与 runtime.route.rebind 审计
 POST {{baseUrl}}/api/v2/release-center/releases/1/rollback
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}

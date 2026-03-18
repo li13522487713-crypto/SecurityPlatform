@@ -5,6 +5,8 @@ import type {
   DebugLayerEmbedMetadata,
   ReleaseCenterDetail,
   ReleaseCenterListItem,
+  RuntimeExecutionDetail,
+  RuntimeExecutionListItem,
   RuntimeExecutionAuditTrailItem
 } from "@/types/platform-v2";
 
@@ -67,6 +69,36 @@ export async function getRuntimeExecutionAuditTrails(
   );
   if (!response.data) {
     throw new Error(response.message || "查询执行审计轨迹失败");
+  }
+
+  return response.data;
+}
+
+export async function getRuntimeExecutionsPaged(
+  request: PagedRequest
+): Promise<PagedResult<RuntimeExecutionListItem>> {
+  const query = new URLSearchParams({
+    pageIndex: request.pageIndex.toString(),
+    pageSize: request.pageSize.toString()
+  });
+  if (request.keyword) {
+    query.set("keyword", request.keyword);
+  }
+
+  const response = await requestApi<ApiResponse<PagedResult<RuntimeExecutionListItem>>>(
+    `${RUNTIME_EXECUTION_BASE}?${query.toString()}`
+  );
+  if (!response.data) {
+    throw new Error(response.message || "查询运行执行列表失败");
+  }
+
+  return response.data;
+}
+
+export async function getRuntimeExecutionDetail(executionId: string): Promise<RuntimeExecutionDetail> {
+  const response = await requestApi<ApiResponse<RuntimeExecutionDetail>>(`${RUNTIME_EXECUTION_BASE}/${executionId}`);
+  if (!response.data) {
+    throw new Error(response.message || "查询运行执行详情失败");
   }
 
   return response.data;

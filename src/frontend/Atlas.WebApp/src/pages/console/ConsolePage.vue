@@ -55,6 +55,26 @@
       title="Datasource consumption"
       :loading="dataSourceConsumptionLoading"
     >
+      <template #extra>
+        <a-space wrap>
+          <a-input-search
+            v-model:value="dataSourceKeyword"
+            placeholder="检索数据源名称"
+            style="width: 220px"
+            allow-clear
+          />
+          <a-select
+            v-model:value="selectedAppId"
+            allow-clear
+            show-search
+            :filter-option="false"
+            :options="appFilterOptions"
+            placeholder="按应用过滤（默认 20 条）"
+            style="width: 260px"
+            @search="searchAppFilterOptions"
+          />
+        </a-space>
+      </template>
       <a-row :gutter="[16, 16]">
         <a-col :xs="24" :md="8">
           <a-statistic title="Platform datasources" :value="dataSourceConsumption?.platformDataSourceTotal ?? 0" />
@@ -67,49 +87,76 @@
         </a-col>
       </a-row>
 
-      <a-row :gutter="[16, 16]" style="margin-top: 16px">
-        <a-col :xs="24" :lg="12">
-          <a-card size="small" title="Platform datasource bindings">
-            <a-list
-              v-if="(dataSourceConsumption?.platformDataSources.length ?? 0) > 0"
-              :data-source="dataSourceConsumption?.platformDataSources.slice(0, 5) ?? []"
-              size="small"
-            >
-              <template #renderItem="{ item }">
-                <a-list-item>
-                  <a-list-item-meta :title="`${item.name} (${item.dbType})`">
-                    <template #description>
-                      Bound apps: {{ item.boundTenantAppCount }} · Last test: {{ formatLastTest(item.lastTestedAt) }}
-                    </template>
-                  </a-list-item-meta>
-                </a-list-item>
+      <a-tabs class="datasource-tabs" size="small">
+        <a-tab-pane key="platform" tab="平台级数据源">
+          <a-table
+            row-key="dataSourceId"
+            :columns="dataSourceColumns"
+            :data-source="filteredPlatformDataSources"
+            :pagination="{ pageSize: 5, showSizeChanger: false }"
+            size="small"
+          >
+            <template #bodyCell="{ column, record }">
+              <template v-if="column.key === 'lastTestedAt'">
+                {{ formatLastTest(record.lastTestedAt) }}
               </template>
-            </a-list>
-            <a-empty v-else description="No platform datasources" />
-          </a-card>
-        </a-col>
-        <a-col :xs="24" :lg="12">
-          <a-card size="small" title="App scoped datasource bindings">
-            <a-list
-              v-if="(dataSourceConsumption?.appScopedDataSources.length ?? 0) > 0"
-              :data-source="dataSourceConsumption?.appScopedDataSources.slice(0, 5) ?? []"
-              size="small"
-            >
-              <template #renderItem="{ item }">
-                <a-list-item>
-                  <a-list-item-meta :title="item.name">
-                    <template #description>
-                      Scope app: {{ item.scopeAppName || item.scopeAppId || "-" }} · Bound apps: {{ item.boundTenantAppCount }}
-                    </template>
-                  </a-list-item-meta>
-                </a-list-item>
+              <template v-if="column.key === 'actions'">
+                <a-button type="link" size="small" @click="showDataSourceDetails(record)">绑定详情</a-button>
               </template>
-            </a-list>
-            <a-empty v-else description="No app scoped datasources" />
-          </a-card>
-        </a-col>
-      </a-row>
+            </template>
+          </a-table>
+        </a-tab-pane>
+        <a-tab-pane key="appScoped" tab="应用级数据源">
+          <a-table
+            row-key="dataSourceId"
+            :columns="appScopedDataSourceColumns"
+            :data-source="filteredAppScopedDataSources"
+            :pagination="{ pageSize: 5, showSizeChanger: false }"
+            size="small"
+          >
+            <template #bodyCell="{ column, record }">
+              <template v-if="column.key === 'lastTestedAt'">
+                {{ formatLastTest(record.lastTestedAt) }}
+              </template>
+              <template v-if="column.key === 'actions'">
+                <a-button type="link" size="small" @click="showDataSourceDetails(record)">绑定详情</a-button>
+              </template>
+            </template>
+          </a-table>
+        </a-tab-pane>
+        <a-tab-pane key="unbound" tab="未绑定应用">
+          <a-table
+            row-key="tenantAppInstanceId"
+            :columns="unboundAppColumns"
+            :data-source="filteredUnboundTenantApps"
+            :pagination="{ pageSize: 5, showSizeChanger: false }"
+            size="small"
+          />
+        </a-tab-pane>
+      </a-tabs>
     </a-card>
+
+    <a-modal v-model:open="bindingDetailVisible" title="数据源绑定详情" width="860px" :footer="null">
+      <a-descriptions :column="2" bordered size="small">
+        <a-descriptions-item label="数据源ID">{{ selectedDataSource?.dataSourceId }}</a-descriptions-item>
+        <a-descriptions-item label="名称">{{ selectedDataSource?.name }}</a-descriptions-item>
+        <a-descriptions-item label="类型">{{ selectedDataSource?.dbType }}</a-descriptions-item>
+        <a-descriptions-item label="作用域">
+          {{ selectedDataSource?.scope }}{{ selectedDataSource?.scopeAppName ? ` (${selectedDataSource.scopeAppName})` : "" }}
+        </a-descriptions-item>
+        <a-descriptions-item label="绑定应用数">{{ selectedDataSource?.boundTenantAppCount ?? 0 }}</a-descriptions-item>
+        <a-descriptions-item label="最近测试时间">{{ formatLastTest(selectedDataSource?.lastTestedAt) }}</a-descriptions-item>
+      </a-descriptions>
+
+      <a-divider orientation="left">绑定关系</a-divider>
+      <a-table
+        row-key="bindingId"
+        :columns="bindingRelationColumns"
+        :data-source="selectedDataSource?.bindingRelations ?? []"
+        :pagination="false"
+        size="small"
+      />
+    </a-modal>
 
     <a-card :bordered="false" class="widget-card app-list-card" title="Recent apps" :loading="loading">
       <template #extra>
@@ -161,6 +208,7 @@
 import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { message } from "ant-design-vue";
+import type { TableColumnsType } from "ant-design-vue";
 import AppCreateWizard from "@/pages/console/components/AppCreateWizard.vue";
 import {
   getResourceCenterDataSourceConsumption,
@@ -169,6 +217,9 @@ import {
 } from "@/services/api-tenant-app-instances";
 import { useUserStore } from "@/stores/user";
 import type {
+  TenantAppConsumerItem,
+  TenantDataSourceBindingRelationItem,
+  TenantDataSourceConsumptionItem,
   ResourceCenterDataSourceConsumptionResponse,
   ResourceCenterGroupItem,
   TenantAppInstanceListItem
@@ -184,6 +235,67 @@ const apps = ref<TenantAppInstanceListItem[]>([]);
 const resourceGroups = ref<ResourceCenterGroupItem[]>([]);
 const dataSourceConsumption = ref<ResourceCenterDataSourceConsumptionResponse | null>(null);
 const createWizardVisible = ref(false);
+const dataSourceKeyword = ref("");
+const selectedAppId = ref<string>();
+const appFilterOptions = ref<Array<{ label: string; value: string }>>([]);
+const bindingDetailVisible = ref(false);
+const selectedDataSource = ref<TenantDataSourceConsumptionItem | null>(null);
+
+const dataSourceColumns: TableColumnsType<TenantDataSourceConsumptionItem> = [
+  { title: "名称", dataIndex: "name", key: "name", width: 220 },
+  { title: "类型", dataIndex: "dbType", key: "dbType", width: 120 },
+  { title: "绑定应用", dataIndex: "boundTenantAppCount", key: "boundTenantAppCount", width: 120 },
+  { title: "最近测试", dataIndex: "lastTestedAt", key: "lastTestedAt", width: 180 },
+  { title: "操作", key: "actions", width: 120 }
+];
+const appScopedDataSourceColumns: TableColumnsType<TenantDataSourceConsumptionItem> = [
+  { title: "名称", dataIndex: "name", key: "name", width: 220 },
+  { title: "作用域应用", dataIndex: "scopeAppName", key: "scopeAppName", width: 180 },
+  { title: "绑定应用", dataIndex: "boundTenantAppCount", key: "boundTenantAppCount", width: 120 },
+  { title: "最近测试", dataIndex: "lastTestedAt", key: "lastTestedAt", width: 180 },
+  { title: "操作", key: "actions", width: 120 }
+];
+const unboundAppColumns: TableColumnsType<TenantAppConsumerItem> = [
+  { title: "应用ID", dataIndex: "tenantAppInstanceId", key: "tenantAppInstanceId", width: 170 },
+  { title: "AppKey", dataIndex: "appKey", key: "appKey", width: 180 },
+  { title: "应用名称", dataIndex: "name", key: "name", width: 220 },
+  { title: "状态", dataIndex: "status", key: "status", width: 120 }
+];
+const bindingRelationColumns: TableColumnsType<TenantDataSourceBindingRelationItem> = [
+  { title: "绑定ID", dataIndex: "bindingId", key: "bindingId", width: 180 },
+  { title: "应用实例ID", dataIndex: "tenantAppInstanceId", key: "tenantAppInstanceId", width: 180 },
+  { title: "绑定类型", dataIndex: "bindingType", key: "bindingType", width: 120 },
+  { title: "来源", dataIndex: "source", key: "source", width: 180 },
+  { title: "生效", dataIndex: "isActive", key: "isActive", width: 80 }
+];
+
+const filteredPlatformDataSources = computed(() => {
+  const keywordValue = dataSourceKeyword.value.trim().toLowerCase();
+  const selectedApp = selectedAppId.value;
+  const source = dataSourceConsumption.value?.platformDataSources ?? [];
+  return source.filter((item) => {
+    const keywordMatched = !keywordValue || item.name.toLowerCase().includes(keywordValue);
+    const appMatched = !selectedApp || item.boundTenantApps.some((app) => app.tenantAppInstanceId === selectedApp);
+    return keywordMatched && appMatched;
+  });
+});
+const filteredAppScopedDataSources = computed(() => {
+  const keywordValue = dataSourceKeyword.value.trim().toLowerCase();
+  const selectedApp = selectedAppId.value;
+  const source = dataSourceConsumption.value?.appScopedDataSources ?? [];
+  return source.filter((item) => {
+    const keywordMatched = !keywordValue || item.name.toLowerCase().includes(keywordValue);
+    const appMatched = !selectedApp
+      || item.scopeAppId === selectedApp
+      || item.boundTenantApps.some((app) => app.tenantAppInstanceId === selectedApp);
+    return keywordMatched && appMatched;
+  });
+});
+const filteredUnboundTenantApps = computed(() => {
+  const selectedApp = selectedAppId.value;
+  const source = dataSourceConsumption.value?.unboundTenantApps ?? [];
+  return selectedApp ? source.filter((item) => item.tenantAppInstanceId === selectedApp) : source;
+});
 
 const profileDisplayName = computed(() => userStore.profile?.displayName || userStore.profile?.username || "Admin");
 
@@ -226,10 +338,27 @@ async function loadDataSourceConsumption() {
   dataSourceConsumptionLoading.value = true;
   try {
     dataSourceConsumption.value = await getResourceCenterDataSourceConsumption();
+    await searchAppFilterOptions();
   } catch (error) {
     message.error((error as Error).message || "Failed to load datasource consumption");
   } finally {
     dataSourceConsumptionLoading.value = false;
+  }
+}
+
+async function searchAppFilterOptions(keyword?: string) {
+  try {
+    const response = await getTenantAppInstancesPaged({
+      pageIndex: 1,
+      pageSize: 20,
+      keyword: keyword || undefined
+    });
+    appFilterOptions.value = response.items.map((item) => ({
+      label: `${item.name} (${item.appKey})`,
+      value: item.id
+    }));
+  } catch (error) {
+    message.error((error as Error).message || "加载应用过滤选项失败");
   }
 }
 
@@ -244,6 +373,11 @@ function formatLastTest(value?: string) {
   }
 
   return date.toLocaleString("en-US");
+}
+
+function showDataSourceDetails(item: TenantDataSourceConsumptionItem) {
+  selectedDataSource.value = item;
+  bindingDetailVisible.value = true;
 }
 
 function openApp(id: string) {

@@ -1,4 +1,5 @@
 using Atlas.Application.LowCode.Abstractions;
+using Atlas.Application.Identity;
 using Atlas.Application.LowCode.Models;
 using Atlas.Application.Platform.Abstractions;
 using Atlas.Application.Platform.Models;
@@ -6,6 +7,7 @@ using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.AiPlatform.Entities;
 using Atlas.Domain.Audit.Entities;
+using Atlas.Domain.Identity.Entities;
 using Atlas.Domain.LowCode.Entities;
 using Atlas.Domain.LowCode.Enums;
 using Atlas.Domain.Platform.Entities;
@@ -610,6 +612,9 @@ public sealed class RuntimeExecutionQueryService : IRuntimeExecutionQueryService
         var items = rows.Select(execution => new RuntimeExecutionListItem(
             execution.Id.ToString(),
             execution.WorkflowId.ToString(),
+            execution.RuntimeContextId?.ToString(),
+            execution.ReleaseId?.ToString(),
+            execution.AppId?.ToString(),
             execution.Status.ToString(),
             execution.StartedAt.ToString("O"),
             execution.CompletedAt?.ToString("O"),
@@ -634,6 +639,9 @@ public sealed class RuntimeExecutionQueryService : IRuntimeExecutionQueryService
         return new RuntimeExecutionDetail(
             execution.Id.ToString(),
             execution.WorkflowId.ToString(),
+            execution.RuntimeContextId?.ToString(),
+            execution.ReleaseId?.ToString(),
+            execution.AppId?.ToString(),
             execution.Status.ToString(),
             execution.StartedAt.ToString("O"),
             execution.CompletedAt?.ToString("O"),
@@ -651,14 +659,13 @@ public sealed class RuntimeExecutionQueryService : IRuntimeExecutionQueryService
         var tenantValue = tenantId.Value;
         var pageIndex = request.PageIndex <= 0 ? 1 : request.PageIndex;
         var pageSize = request.PageSize <= 0 ? 10 : request.PageSize;
-        var executionIdText = executionId.ToString();
-        var workflowExecutionTarget = $"WorkflowExecution:{executionIdText}";
-        var runtimeExecutionTarget = $"RuntimeExecution:{executionIdText}";
+        var execution = await _db.Queryable<WorkflowExecution>()
+            .FirstAsync(item => item.TenantIdValue == tenantValue && item.Id == executionId, cancellationToken);
+        var targetSet = BuildAuditTargetSet(executionId, execution);
+        var auditTargets = targetSet.ToArray();
         var query = _db.Queryable<AuditRecord>()
             .Where(item => item.TenantIdValue == tenantValue
-                && (item.Target == executionIdText
-                    || item.Target == workflowExecutionTarget
-                    || item.Target == runtimeExecutionTarget));
+                && SqlFunc.ContainsArray(auditTargets, item.Target));
         if (!string.IsNullOrWhiteSpace(request.Keyword))
         {
             var keyword = request.Keyword.Trim();
@@ -679,6 +686,37 @@ public sealed class RuntimeExecutionQueryService : IRuntimeExecutionQueryService
             .ToArray();
 
         return new PagedResult<RuntimeExecutionAuditTrailItem>(items, total, pageIndex, pageSize);
+    }
+
+    private static HashSet<string> BuildAuditTargetSet(long executionId, WorkflowExecution? execution)
+    {
+        var executionIdText = executionId.ToString();
+        var targetSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            executionIdText,
+            $"WorkflowExecution:{executionIdText}",
+            $"RuntimeExecution:{executionIdText}"
+        };
+
+        if (execution?.ReleaseId is { } releaseId)
+        {
+            targetSet.Add($"Release:{releaseId}");
+            targetSet.Add($"AppRelease:{releaseId}");
+        }
+
+        if (execution?.RuntimeContextId is { } runtimeContextId)
+        {
+            targetSet.Add($"RuntimeContext:{runtimeContextId}");
+            targetSet.Add($"RuntimeRoute:{runtimeContextId}");
+        }
+
+        if (execution?.AppId is { } appId)
+        {
+            targetSet.Add($"App:{appId}");
+            targetSet.Add($"AppManifest:{appId}");
+        }
+
+        return targetSet;
     }
 }
 
@@ -1041,26 +1079,60 @@ public sealed class CozeMappingQueryService : ICozeMappingQueryService
 
 public sealed class DebugLayerQueryService : IDebugLayerQueryService
 {
-    public Task<DebugLayerEmbedMetadata> GetEmbedMetadataAsync(
+    private readonly ISqlSugarClient _db;
+
+    public DebugLayerQueryService(ISqlSugarClient db)
+    {
+        _db = db;
+    }
+
+    public async Task<DebugLayerEmbedMetadata> GetEmbedMetadataAsync(
         TenantId tenantId,
+        long userId,
         string appId,
         long? projectId,
         bool projectScopeEnabled,
         CancellationToken cancellationToken = default)
     {
-        _ = cancellationToken;
-        var resources = new[]
+        var roleIds = await _db.Queryable<UserRole>()
+            .Where(item => item.TenantIdValue == tenantId.Value && item.UserId == userId)
+            .Select(item => item.RoleId)
+            .ToListAsync(cancellationToken);
+        var grantedPermissions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (roleIds.Count > 0)
         {
-            new DebugLayerResourceItem("workflow-executions", "运行执行观测", "apps:view", "查看执行状态、输入输出与错误消息"),
-            new DebugLayerResourceItem("runtime-audit-trails", "运行审计追溯", "audit:view", "查看与执行ID关联的审计轨迹"),
-            new DebugLayerResourceItem("rollback-ops", "回滚操作入口", "apps:update", "触发发布版本回滚操作")
-        };
+            var roleIdArray = roleIds.Distinct().ToArray();
+            var permissionIds = await _db.Queryable<RolePermission>()
+                .Where(item => item.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(roleIdArray, item.RoleId))
+                .Select(item => item.PermissionId)
+                .Distinct()
+                .ToListAsync(cancellationToken);
+            if (permissionIds.Count > 0)
+            {
+                var permissionIdArray = permissionIds.ToArray();
+                var permissionCodes = await _db.Queryable<Permission>()
+                    .Where(item => item.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(permissionIdArray, item.Id))
+                    .Select(item => item.Code)
+                    .ToListAsync(cancellationToken);
+                grantedPermissions = permissionCodes.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            }
+        }
 
-        return Task.FromResult(new DebugLayerEmbedMetadata(
+        var resourceDefinitions = new[]
+        {
+            new DebugLayerResourceItem("workflow-executions", "运行执行观测", PermissionCodes.DebugView, "查看执行状态、输入输出与错误消息"),
+            new DebugLayerResourceItem("runtime-audit-trails", "运行审计追溯", PermissionCodes.DebugRun, "查看与执行ID关联的审计轨迹"),
+            new DebugLayerResourceItem("rollback-ops", "回滚操作入口", PermissionCodes.DebugManage, "触发发布版本回滚操作")
+        };
+        var resources = resourceDefinitions
+            .Where(item => grantedPermissions.Contains(item.RequiredPermission))
+            .ToArray();
+
+        return new DebugLayerEmbedMetadata(
             tenantId.ToString(),
             appId,
             projectId?.ToString(),
             projectScopeEnabled,
-            resources));
+            resources);
     }
 }

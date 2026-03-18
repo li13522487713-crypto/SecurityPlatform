@@ -25,6 +25,7 @@ Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ### 查询数据源双层消费模型（平台级/应用级）
+# 响应包含每个数据源的 bindingRelations 明细（bindingId/bindingType/isActive/source）
 GET {{baseUrl}}/api/v2/resource-center/datasource-consumption
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}

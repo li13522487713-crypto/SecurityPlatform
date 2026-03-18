@@ -32,6 +32,7 @@
           <template v-if="column.key === 'actions'">
             <a-space>
               <a-button type="link" size="small" @click="viewDetail(record.releaseId)">详情</a-button>
+              <a-button type="link" size="small" @click="openDebugTrace(record.releaseId)">审计追溯</a-button>
               <a-popconfirm title="确认回滚该发布版本？" @confirm="rollback(record.releaseId)">
                 <a-button type="link" size="small" danger>回滚</a-button>
               </a-popconfirm>
@@ -60,6 +61,7 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
+import { useRouter } from "vue-router";
 import type { TableColumnsType, TablePaginationConfig } from "ant-design-vue";
 import { message } from "ant-design-vue";
 import {
@@ -69,6 +71,7 @@ import {
 } from "@/services/api-coze-runtime";
 import type { ReleaseCenterDetail, ReleaseCenterListItem } from "@/types/platform-v2";
 
+const router = useRouter();
 const loading = ref(false);
 const keyword = ref("");
 const rows = ref<ReleaseCenterListItem[]>([]);
@@ -86,7 +89,7 @@ const columns: TableColumnsType<ReleaseCenterListItem> = [
   { title: "状态", dataIndex: "status", key: "status", width: 110 },
   { title: "发布时间", dataIndex: "releasedAt", key: "releasedAt", width: 180 },
   { title: "发布说明", dataIndex: "releaseNote", key: "releaseNote", ellipsis: true },
-  { title: "操作", key: "actions", width: 150, fixed: "right" }
+  { title: "操作", key: "actions", width: 220, fixed: "right" }
 ];
 
 const pagination = ref<TablePaginationConfig>({
@@ -151,6 +154,13 @@ async function rollback(releaseId: string) {
   } catch (error) {
     message.error((error as Error).message || "回滚失败");
   }
+}
+
+function openDebugTrace(releaseId: string) {
+  void router.push({
+    path: "/console/debug",
+    query: { releaseId }
+  });
 }
 
 onMounted(() => {

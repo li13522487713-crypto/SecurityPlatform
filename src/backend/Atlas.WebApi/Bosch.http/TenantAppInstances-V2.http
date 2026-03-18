@@ -32,6 +32,7 @@ Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ### 查询实例数据源绑定（可选 appIds 过滤）
+# 响应包含 bindingId/bindingType/bindingActive/boundAt/source（支持绑定表与历史字段回填来源）
 GET {{baseUrl}}/api/v2/tenant-app-instances/data-source-bindings?appIds=1&appIds=2
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}

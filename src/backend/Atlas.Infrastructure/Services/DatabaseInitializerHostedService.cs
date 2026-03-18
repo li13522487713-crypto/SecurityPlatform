@@ -90,6 +90,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             await EnsureLowCodeAppSchemaAsync(db, cancellationToken);
             await EnsureTenantDataSourceSchemaAsync(db, cancellationToken);
             await EnsureProductizationSchemaAsync(db, cancellationToken);
+            await EnsureWorkflowExecutionSchemaAsync(db, cancellationToken);
         }
         else
         {
@@ -442,6 +443,9 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             (PermissionCodes.AppsUpdate, "Apps Update", "Api"),
             (PermissionCodes.AppAdmin, "App Admin", "Api"),
             (PermissionCodes.AppUser, "App User", "Api"),
+            (PermissionCodes.DebugView, "Debug View", "Api"),
+            (PermissionCodes.DebugRun, "Debug Run", "Api"),
+            (PermissionCodes.DebugManage, "Debug Manage", "Api"),
             (PermissionCodes.ProjectsView, "Projects View", "Api"),
             (PermissionCodes.ProjectsCreate, "Projects Create", "Api"),
             (PermissionCodes.ProjectsUpdate, "Projects Update", "Api"),
@@ -1204,6 +1208,21 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         await EnsureToolAuthorizationPolicySchemaAsync(db, cancellationToken);
     }
 
+    private static async Task EnsureWorkflowExecutionSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
+    {
+        if (!db.DbMaintenance.IsAnyTable("WorkflowExecution", false))
+        {
+            return;
+        }
+
+        if (!RequiresMissingColumnFix<WorkflowExecution>(db, "AppId", "ReleaseId", "RuntimeContextId"))
+        {
+            return;
+        }
+
+        await RebuildTableViaOrmAsync<WorkflowExecution>(db, cancellationToken);
+    }
+
     private static async Task EnsureAppManifestSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
     {
         if (!db.DbMaintenance.IsAnyTable("AppManifest", false)) return;
@@ -1367,6 +1386,23 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         {
             var column = columns.FirstOrDefault(c => string.Equals(c.DbColumnName, columnName, StringComparison.OrdinalIgnoreCase));
             if (column is not null && !column.IsNullable)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool RequiresMissingColumnFix<TEntity>(ISqlSugarClient db, params string[] requiredColumnNames)
+        where TEntity : class, new()
+    {
+        var tableName = db.EntityMaintenance.GetTableName<TEntity>();
+        var columns = db.DbMaintenance.GetColumnInfosByTableName(tableName, false);
+        foreach (var columnName in requiredColumnNames)
+        {
+            var hasColumn = columns.Any(c => string.Equals(c.DbColumnName, columnName, StringComparison.OrdinalIgnoreCase));
+            if (!hasColumn)
             {
                 return true;
             }
