@@ -14,6 +14,22 @@ export interface TenantAppInstanceDetail extends TenantAppInstanceListItem {
   dataSourceId?: string;
 }
 
+export interface TenantApplicationListItem {
+  id: string;
+  applicationCatalogId: string;
+  applicationCatalogName: string;
+  tenantAppInstanceId: string;
+  appKey: string;
+  name: string;
+  status: string;
+  openedAt: string;
+  dataSourceId?: string;
+}
+
+export interface TenantApplicationDetail extends TenantApplicationListItem {
+  updatedAt: string;
+}
+
 export interface TenantAppDataSourceBinding {
   tenantAppInstanceId: string;
   dataSourceId?: string;

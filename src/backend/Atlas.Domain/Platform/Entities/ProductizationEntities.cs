@@ -12,6 +12,14 @@ public enum AppManifestStatus
     Archived = 3
 }
 
+public enum TenantApplicationStatus
+{
+    Provisioning = 0,
+    Active = 1,
+    Disabled = 2,
+    Archived = 3
+}
+
 public enum AppReleaseStatus
 {
     Pending = 0,
@@ -126,6 +134,87 @@ public sealed class AppManifest : TenantEntity
     public void Archive(long updatedBy, DateTimeOffset now)
     {
         Status = AppManifestStatus.Archived;
+        UpdatedBy = updatedBy;
+        UpdatedAt = now;
+    }
+}
+
+public sealed class TenantApplication : TenantEntity
+{
+    public TenantApplication()
+        : base(TenantId.Empty)
+    {
+        AppKey = string.Empty;
+        Name = string.Empty;
+    }
+
+    public TenantApplication(
+        TenantId tenantId,
+        long id,
+        long catalogId,
+        long appInstanceId,
+        string appKey,
+        string name,
+        long? dataSourceId,
+        long openedBy,
+        DateTimeOffset openedAt)
+        : base(tenantId)
+    {
+        Id = id;
+        CatalogId = catalogId;
+        AppInstanceId = appInstanceId;
+        AppKey = appKey;
+        Name = name;
+        DataSourceId = dataSourceId;
+        Status = TenantApplicationStatus.Active;
+        OpenedBy = openedBy;
+        OpenedAt = openedAt;
+        UpdatedBy = openedBy;
+        UpdatedAt = openedAt;
+    }
+
+    public long CatalogId { get; private set; }
+    public long AppInstanceId { get; private set; }
+    public string AppKey { get; private set; }
+    public string Name { get; private set; }
+    [SugarColumn(IsNullable = true)]
+    public long? DataSourceId { get; private set; }
+    public TenantApplicationStatus Status { get; private set; }
+    public long OpenedBy { get; private set; }
+    public DateTimeOffset OpenedAt { get; private set; }
+    public long UpdatedBy { get; private set; }
+    public DateTimeOffset UpdatedAt { get; private set; }
+
+    public void SyncWithInstance(
+        long catalogId,
+        long appInstanceId,
+        string appKey,
+        string name,
+        long? dataSourceId,
+        TenantApplicationStatus status,
+        long updatedBy,
+        DateTimeOffset now)
+    {
+        CatalogId = catalogId;
+        AppInstanceId = appInstanceId;
+        AppKey = appKey;
+        Name = name;
+        DataSourceId = dataSourceId;
+        Status = status;
+        UpdatedBy = updatedBy;
+        UpdatedAt = now;
+    }
+
+    public void Disable(long updatedBy, DateTimeOffset now)
+    {
+        Status = TenantApplicationStatus.Disabled;
+        UpdatedBy = updatedBy;
+        UpdatedAt = now;
+    }
+
+    public void Enable(long updatedBy, DateTimeOffset now)
+    {
+        Status = TenantApplicationStatus.Active;
         UpdatedBy = updatedBy;
         UpdatedAt = now;
     }

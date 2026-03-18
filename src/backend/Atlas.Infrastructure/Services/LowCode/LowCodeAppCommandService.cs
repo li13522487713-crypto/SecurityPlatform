@@ -79,7 +79,7 @@ public sealed class LowCodeAppCommandService : ILowCodeAppCommandService
         var result = await _db.Ado.UseTranAsync(async () =>
         {
             await _appRepository.InsertAsync(entity, cancellationToken);
-            await EnsureAppManifestAsync(
+            var manifest = await EnsureAppManifestAsync(
                 tenantId,
                 userId,
                 request.AppKey,
@@ -88,6 +88,14 @@ public sealed class LowCodeAppCommandService : ILowCodeAppCommandService
                 request.Category,
                 request.Icon,
                 request.DataSourceId,
+                now,
+                cancellationToken);
+            await EnsureTenantApplicationAsync(
+                tenantId,
+                userId,
+                manifest.Id,
+                entity,
+                TenantApplicationStatus.Active,
                 now,
                 cancellationToken);
         });
@@ -110,7 +118,34 @@ public sealed class LowCodeAppCommandService : ILowCodeAppCommandService
         var now = DateTimeOffset.UtcNow;
         entity.Update(request.Name, request.Description, request.Category, request.Icon, userId, now);
 
-        await _appRepository.UpdateAsync(entity, cancellationToken);
+        var result = await _db.Ado.UseTranAsync(async () =>
+        {
+            await _appRepository.UpdateAsync(entity, cancellationToken);
+            var manifest = await EnsureAppManifestAsync(
+                tenantId,
+                userId,
+                entity.AppKey,
+                entity.Name,
+                entity.Description,
+                entity.Category,
+                entity.Icon,
+                entity.DataSourceId,
+                now,
+                cancellationToken);
+            await EnsureTenantApplicationAsync(
+                tenantId,
+                userId,
+                manifest.Id,
+                entity,
+                MapTenantApplicationStatus(entity.Status),
+                now,
+                cancellationToken);
+        });
+
+        if (!result.IsSuccess)
+        {
+            throw result.ErrorException ?? new BusinessException("更新低代码应用失败", ErrorCodes.ValidationError);
+        }
     }
 
     public async Task PublishAsync(
@@ -258,7 +293,22 @@ public sealed class LowCodeAppCommandService : ILowCodeAppCommandService
         var now = DateTimeOffset.UtcNow;
         entity.Disable(userId, now);
 
-        await _appRepository.UpdateAsync(entity, cancellationToken);
+        var result = await _db.Ado.UseTranAsync(async () =>
+        {
+            await _appRepository.UpdateAsync(entity, cancellationToken);
+            await SyncTenantApplicationStatusAsync(
+                tenantId,
+                userId,
+                entity.Id,
+                TenantApplicationStatus.Disabled,
+                now,
+                cancellationToken);
+        });
+
+        if (!result.IsSuccess)
+        {
+            throw result.ErrorException ?? new BusinessException("停用低代码应用失败", ErrorCodes.ValidationError);
+        }
     }
 
     public async Task EnableAsync(
@@ -271,7 +321,22 @@ public sealed class LowCodeAppCommandService : ILowCodeAppCommandService
         var now = DateTimeOffset.UtcNow;
         entity.Enable(userId, now);
 
-        await _appRepository.UpdateAsync(entity, cancellationToken);
+        var result = await _db.Ado.UseTranAsync(async () =>
+        {
+            await _appRepository.UpdateAsync(entity, cancellationToken);
+            await SyncTenantApplicationStatusAsync(
+                tenantId,
+                userId,
+                entity.Id,
+                TenantApplicationStatus.Active,
+                now,
+                cancellationToken);
+        });
+
+        if (!result.IsSuccess)
+        {
+            throw result.ErrorException ?? new BusinessException("启用低代码应用失败", ErrorCodes.ValidationError);
+        }
     }
 
     public async Task UpdateSharingPolicyAsync(
@@ -392,6 +457,9 @@ public sealed class LowCodeAppCommandService : ILowCodeAppCommandService
         await _db.Deleteable<AppEntityAlias>()
             .Where(x => x.TenantIdValue == tenantId.Value && x.AppId == id)
             .ExecuteCommandAsync(cancellationToken);
+        await _db.Deleteable<TenantApplication>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.AppInstanceId == id)
+            .ExecuteCommandAsync(cancellationToken);
         await _appRepository.DeleteAsync(id, cancellationToken);
     }
 
@@ -477,8 +545,7 @@ public sealed class LowCodeAppCommandService : ILowCodeAppCommandService
             app.Archive(userId, now);
         }
 
-        await _appRepository.InsertAsync(app, cancellationToken);
-        await EnsureAppManifestAsync(
+        var manifest = await EnsureAppManifestAsync(
             tenantId,
             userId,
             targetAppKey,
@@ -487,6 +554,15 @@ public sealed class LowCodeAppCommandService : ILowCodeAppCommandService
             package.Category,
             package.Icon,
             null,
+            now,
+            cancellationToken);
+        await _appRepository.InsertAsync(app, cancellationToken);
+        await EnsureTenantApplicationAsync(
+            tenantId,
+            userId,
+            manifest.Id,
+            app,
+            MapTenantApplicationStatus(app.Status),
             now,
             cancellationToken);
 
@@ -686,7 +762,7 @@ public sealed class LowCodeAppCommandService : ILowCodeAppCommandService
         return JsonSerializer.Serialize(snapshot, SnapshotJsonOptions);
     }
 
-    private async Task EnsureAppManifestAsync(
+    private async Task<AppManifest> EnsureAppManifestAsync(
         TenantId tenantId,
         long userId,
         string appKey,
@@ -708,11 +784,113 @@ public sealed class LowCodeAppCommandService : ILowCodeAppCommandService
             manifest = new AppManifest(tenantId, _idGenerator.NextId(), appKey, name, userId, now);
             manifest.Update(name, description, category, icon, dataSourceId, userId, now);
             await _db.Insertable(manifest).ExecuteCommandAsync(cancellationToken);
-            return;
+            return manifest;
         }
 
         manifest.Update(name, description, category, icon, dataSourceId, userId, now);
         await _db.Updateable(manifest).ExecuteCommandAsync(cancellationToken);
+        return manifest;
+    }
+
+    private async Task EnsureTenantApplicationAsync(
+        TenantId tenantId,
+        long userId,
+        long catalogId,
+        LowCodeApp app,
+        TenantApplicationStatus status,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var relation = await _db.Queryable<TenantApplication>()
+            .FirstAsync(
+                row => row.TenantIdValue == tenantId.Value && row.AppInstanceId == app.Id,
+                cancellationToken);
+        if (relation is null)
+        {
+            relation = new TenantApplication(
+                tenantId,
+                _idGenerator.NextId(),
+                catalogId,
+                app.Id,
+                app.AppKey,
+                app.Name,
+                app.DataSourceId,
+                userId,
+                now);
+            relation.SyncWithInstance(
+                catalogId,
+                app.Id,
+                app.AppKey,
+                app.Name,
+                app.DataSourceId,
+                status,
+                userId,
+                now);
+            await _db.Insertable(relation).ExecuteCommandAsync(cancellationToken);
+            return;
+        }
+
+        relation.SyncWithInstance(
+            catalogId,
+            app.Id,
+            app.AppKey,
+            app.Name,
+            app.DataSourceId,
+            status,
+            userId,
+            now);
+        await _db.Updateable(relation).ExecuteCommandAsync(cancellationToken);
+    }
+
+    private async Task SyncTenantApplicationStatusAsync(
+        TenantId tenantId,
+        long userId,
+        long appInstanceId,
+        TenantApplicationStatus status,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var relation = await _db.Queryable<TenantApplication>()
+            .FirstAsync(
+                row => row.TenantIdValue == tenantId.Value && row.AppInstanceId == appInstanceId,
+                cancellationToken);
+        if (relation is null)
+        {
+            return;
+        }
+
+        if (status == TenantApplicationStatus.Disabled)
+        {
+            relation.Disable(userId, now);
+        }
+        else if (status == TenantApplicationStatus.Active)
+        {
+            relation.Enable(userId, now);
+        }
+        else
+        {
+            relation.SyncWithInstance(
+                relation.CatalogId,
+                relation.AppInstanceId,
+                relation.AppKey,
+                relation.Name,
+                relation.DataSourceId,
+                status,
+                userId,
+                now);
+        }
+
+        await _db.Updateable(relation).ExecuteCommandAsync(cancellationToken);
+    }
+
+    private static TenantApplicationStatus MapTenantApplicationStatus(LowCodeAppStatus appStatus)
+    {
+        return appStatus switch
+        {
+            LowCodeAppStatus.Disabled => TenantApplicationStatus.Disabled,
+            LowCodeAppStatus.Archived => TenantApplicationStatus.Archived,
+            _ => TenantApplicationStatus.Active
+        };
     }
 
     private sealed record LowCodeAppSnapshot(AppSnapshot App, IReadOnlyList<PageSnapshot> Pages);

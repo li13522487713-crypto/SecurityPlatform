@@ -92,7 +92,7 @@ import { computed, onMounted, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import NotificationBell from "@/components/layout/NotificationBell.vue";
 import UnifiedContextBar from "@/components/context/UnifiedContextBar.vue";
-import { getLowCodeAppDetail } from "@/services/lowcode";
+import { getTenantAppInstanceDetail } from "@/services/api-tenant-app-instances";
 import { usePermissionStore } from "@/stores/permission";
 import { useTagsViewStore } from "@/stores/tagsView";
 import { useUserStore } from "@/stores/user";
@@ -177,7 +177,7 @@ async function syncTitle() {
   }
 
   try {
-    const detail = await getLowCodeAppDetail(appId.value);
+    const detail = await getTenantAppInstanceDetail(appId.value);
     if (detail?.name) {
       document.title = `${detail.name} - Workspace - Atlas Security Platform`;
     }

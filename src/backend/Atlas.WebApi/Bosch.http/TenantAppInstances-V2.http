@@ -18,6 +18,8 @@ X-Tenant-Id: {{tenantId}}
 
 ###
 @accessToken = {{login.response.body.$.data.accessToken}}
+@csrfToken = {{login.response.headers.X-CSRF-TOKEN}}
+@idempotencyKey = {{$guid}}
 
 ### 查询实例列表
 GET {{baseUrl}}/api/v2/tenant-app-instances?pageIndex=1&pageSize=10
@@ -33,3 +35,80 @@ X-Tenant-Id: {{tenantId}}
 GET {{baseUrl}}/api/v2/tenant-app-instances/data-source-bindings?appIds=1&appIds=2
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
+
+### 创建实例（写接口需幂等与防伪）
+# @name createTenantAppInstance
+POST {{baseUrl}}/api/v2/tenant-app-instances
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+X-CSRF-TOKEN: {{csrfToken}}
+Idempotency-Key: {{idempotencyKey}}
+Content-Type: application/json
+
+{
+  "appKey": "coze-demo-{{$timestamp}}",
+  "name": "Coze 演示应用",
+  "description": "用于验证 v2 tenant-app-instances 写链路",
+  "category": "OA",
+  "icon": "🤖",
+  "useSharedUsers": true,
+  "useSharedRoles": true,
+  "useSharedDepartments": true
+}
+
+###
+@tenantAppInstanceId = {{createTenantAppInstance.response.body.$.data.id}}
+
+### 更新实例
+PUT {{baseUrl}}/api/v2/tenant-app-instances/{{tenantAppInstanceId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+X-CSRF-TOKEN: {{csrfToken}}
+Idempotency-Key: {{$guid}}
+Content-Type: application/json
+
+{
+  "name": "Coze 演示应用-已更新",
+  "description": "更新后的描述",
+  "category": "CRM",
+  "icon": "✨"
+}
+
+### 发布实例
+POST {{baseUrl}}/api/v2/tenant-app-instances/{{tenantAppInstanceId}}/publish
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+X-CSRF-TOKEN: {{csrfToken}}
+Idempotency-Key: {{$guid}}
+
+### 导出实例
+GET {{baseUrl}}/api/v2/tenant-app-instances/{{tenantAppInstanceId}}/export
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 导入实例
+POST {{baseUrl}}/api/v2/tenant-app-instances/import
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+X-CSRF-TOKEN: {{csrfToken}}
+Idempotency-Key: {{$guid}}
+Content-Type: application/json
+
+{
+  "package": {
+    "appKey": "coze-import-{{$timestamp}}",
+    "name": "Coze 导入应用",
+    "status": "Draft",
+    "pages": [],
+    "pageVersions": []
+  },
+  "conflictStrategy": "Rename",
+  "keySuffix": "v2"
+}
+
+### 删除实例
+DELETE {{baseUrl}}/api/v2/tenant-app-instances/{{tenantAppInstanceId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+X-CSRF-TOKEN: {{csrfToken}}
+Idempotency-Key: {{$guid}}

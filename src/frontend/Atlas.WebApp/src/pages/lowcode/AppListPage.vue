@@ -119,14 +119,16 @@ import { message } from "ant-design-vue";
 import { useI18n } from "vue-i18n";
 import type { TenantAppInstanceListItem } from "@/types/platform-v2";
 import { getAuthProfile, hasPermission } from "@/utils/auth";
-import { getTenantAppInstancesPaged } from "@/services/api-tenant-app-instances";
 import {
-  updateLowCodeApp,
-  exportLowCodeApp,
-  importLowCodeApp,
-  parseLowCodeAppExportPackage,
-  publishLowCodeApp,
-  deleteLowCodeApp
+  getTenantAppInstancesPaged,
+  updateTenantAppInstance,
+  exportTenantAppInstance,
+  importTenantAppInstance,
+  publishTenantAppInstance,
+  deleteTenantAppInstance
+} from "@/services/api-tenant-app-instances";
+import {
+  parseLowCodeAppExportPackage
 } from "@/services/lowcode";
 import AppCreateWizard from "@/pages/console/components/AppCreateWizard.vue";
 
@@ -218,7 +220,7 @@ const handleEditSubmit = async () => {
   }
   if (!selectedId.value) return;
   try {
-    await updateLowCodeApp(selectedId.value, {
+    await updateTenantAppInstance(selectedId.value, {
       name: editModel.name,
       description: editModel.description || undefined,
       category: editModel.category,
@@ -242,7 +244,7 @@ const handleOpenApp = (id: string) => {
 
 const handlePublish = async (id: string) => {
   try {
-    await publishLowCodeApp(id);
+    await publishTenantAppInstance(id);
     message.success(t("lowcodeApp.publishSuccess"));
     fetchData();
   } catch (error) {
@@ -252,7 +254,7 @@ const handlePublish = async (id: string) => {
 
 const handleDelete = async (id: string) => {
   try {
-    await deleteLowCodeApp(id);
+    await deleteTenantAppInstance(id);
     message.success(t("lowcodeApp.deleteSuccess"));
     fetchData();
   } catch (error) {
@@ -262,7 +264,7 @@ const handleDelete = async (id: string) => {
 
 const handleExport = async (app: TenantAppInstanceListItem) => {
   try {
-    const blob = await exportLowCodeApp(app.id);
+    const blob = await exportTenantAppInstance(app.id);
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
@@ -294,7 +296,7 @@ const handleImportFileChange = async (event: Event) => {
   try {
     const rawText = await file.text();
     const pkg = parseLowCodeAppExportPackage(rawText);
-    const result = await importLowCodeApp({
+    const result = await importTenantAppInstance({
       package: pkg,
       conflictStrategy: "Rename"
     });

@@ -130,7 +130,7 @@ import { message } from "ant-design-vue";
 import { useI18n } from "vue-i18n";
 import type { TenantDataSourceDto } from "@/types/api";
 import { getTenantDataSources } from "@/services/api-system";
-import { createLowCodeApp } from "@/services/lowcode";
+import { createTenantAppInstance } from "@/services/api-tenant-app-instances";
 
 const { t } = useI18n();
 
@@ -227,7 +227,7 @@ const handleCancel = () => {
 const handleSubmit = async () => {
   submitting.value = true;
   try {
-    const result = await createLowCodeApp({
+    const result = await createTenantAppInstance({
       appKey: basicForm.appKey,
       name: basicForm.name,
       description: basicForm.description || undefined,

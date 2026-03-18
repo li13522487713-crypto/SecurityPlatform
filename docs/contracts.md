@@ -180,6 +180,8 @@
 
 - `GET /api/v2/application-catalogs`
 - `GET /api/v2/application-catalogs/{id}`
+- `GET /api/v2/tenant-applications`
+- `GET /api/v2/tenant-applications/{id}`
 - `GET /api/v2/tenant-app-instances`
 - `GET /api/v2/tenant-app-instances/{id}`
 - `GET /api/v2/runtime-contexts`
@@ -195,6 +197,18 @@
 - `GET /api/v2/resource-center/groups`
   - 返回资源中心分组聚合（`catalogs`/`instances`/`datasources`）。
   - 要求服务端采用批量查询 + 内存聚合，禁止循环内数据库访问。
+
+#### v2 P1 扩展写接口（TenantAppInstance）
+
+- `POST /api/v2/tenant-app-instances`
+- `PUT /api/v2/tenant-app-instances/{id}`
+- `POST /api/v2/tenant-app-instances/{id}/publish`
+- `DELETE /api/v2/tenant-app-instances/{id}`
+- `GET /api/v2/tenant-app-instances/{id}/export`
+- `POST /api/v2/tenant-app-instances/import`
+  - 写接口统一要求 `Idempotency-Key` + `X-CSRF-TOKEN`。
+  - `export` 为只读接口，不要求幂等头。
+  - `import` 的 `package` 契约沿用 `LowCodeAppExportPackage`，用于兼容窗口内平滑迁移。
 
 #### v2 P2 发布闭环接口（首批）
 

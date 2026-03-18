@@ -1,4 +1,5 @@
 using Atlas.Application.Platform.Models;
+using Atlas.Application.LowCode.Models;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 
@@ -51,6 +52,19 @@ public interface IApplicationCatalogQueryService
     Task<ApplicationCatalogDetail?> GetByIdAsync(TenantId tenantId, long id, CancellationToken cancellationToken = default);
 }
 
+public interface ITenantApplicationQueryService
+{
+    Task<PagedResult<TenantApplicationListItem>> QueryAsync(
+        TenantId tenantId,
+        PagedRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task<TenantApplicationDetail?> GetByIdAsync(
+        TenantId tenantId,
+        long id,
+        CancellationToken cancellationToken = default);
+}
+
 public interface ITenantAppInstanceQueryService
 {
     Task<PagedResult<TenantAppInstanceListItem>> QueryAsync(TenantId tenantId, PagedRequest request, CancellationToken cancellationToken = default);
@@ -58,6 +72,45 @@ public interface ITenantAppInstanceQueryService
     Task<IReadOnlyList<TenantAppDataSourceBinding>> GetDataSourceBindingsAsync(
         TenantId tenantId,
         IReadOnlyCollection<long>? appInstanceIds,
+        CancellationToken cancellationToken = default);
+}
+
+public interface ITenantAppInstanceCommandService
+{
+    Task<long> CreateAsync(
+        TenantId tenantId,
+        long userId,
+        LowCodeAppCreateRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task UpdateAsync(
+        TenantId tenantId,
+        long userId,
+        long id,
+        LowCodeAppUpdateRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task PublishAsync(
+        TenantId tenantId,
+        long userId,
+        long id,
+        CancellationToken cancellationToken = default);
+
+    Task DeleteAsync(
+        TenantId tenantId,
+        long userId,
+        long id,
+        CancellationToken cancellationToken = default);
+
+    Task<LowCodeAppExportPackage?> ExportAsync(
+        TenantId tenantId,
+        long id,
+        CancellationToken cancellationToken = default);
+
+    Task<LowCodeAppImportResult> ImportAsync(
+        TenantId tenantId,
+        long userId,
+        LowCodeAppImportRequest request,
         CancellationToken cancellationToken = default);
 }
 

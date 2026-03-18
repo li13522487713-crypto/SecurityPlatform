@@ -241,6 +241,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             typeof(Atlas.Domain.License.LicenseRecord),
             // Productization
             typeof(AppManifest),
+            typeof(TenantApplication),
             typeof(AppRelease),
             typeof(RuntimeRoute),
             typeof(PackageArtifact),

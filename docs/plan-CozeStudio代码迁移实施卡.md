@@ -416,7 +416,9 @@
 13. `P2-BE-02` 落地 Coze 六层映射、独立调试层权限与嵌入后端支撑
 14. `P2-FE-02` 接入 Coze Studio 页面、独立调试层入口与嵌入式导航
 
-## 4.2 当前只启动的 6 个子任务
+## 4.2 当前执行进度（2026-03-17）
+
+已完成（Done）：
 
 - `SEC-79`：新增三段模型与 Runtime 拆分的 DTO/契约占位
 - `SEC-83`：固化 Console、AppWorkspace、Runtime 三套壳层边界
@@ -425,10 +427,17 @@
 - `SEC-80`：为 `lowcode-apps`、`app-manifests`、`runtime` 接口补弃用提示
 - `SEC-93`：按控制器拆分更新 HTTP 示例
 
-说明：
+已完成（Done，2026-03-17 本轮收口）：
 
-- 这 6 个子任务覆盖后端命名占位、前端主壳层、登录入口、契约基线、旧接口兼容提示和 HTTP 验证。
-- 它们完成后，才能安全进入页面下沉与三段模型大面积切换。
+- `P1-BE-01`：显式落地 `TenantApplication` 实体、查询服务与 v2 控制器读接口。
+- `P1-BE-01`：补齐 `tenant-app-instances` v2 写链路（create/update/publish/delete/export/import）。
+- `P1-FE-01`：应用管理写链路切换到 `/api/v2/tenant-app-instances/*`，并新增 `TenantApplication` 前端类型与 API 客户端。
+- `P0-FE-02`：补充 legacy 路由迁移提示，收口四段式入口下的 titleKey。
+
+下一步建议（未执行）：
+
+- 按 4.1 推荐顺序推进 `P1-BE-02`：平台资源中心与 `TenantDataSource` 双层消费模型。
+- 后续每次接口变更继续同步 `.http` 与 `docs/contracts.md`，并通过 `dotnet build`、`npm run build` 验证。
 
 ## 4.3 主方案 Epic 与既有实施卡映射
 

@@ -23,6 +23,29 @@ public sealed record ApplicationCatalogDetail(
     string? PublishedAt,
     string? DataSourceId);
 
+public sealed record TenantApplicationListItem(
+    string Id,
+    string ApplicationCatalogId,
+    string ApplicationCatalogName,
+    string TenantAppInstanceId,
+    string AppKey,
+    string Name,
+    string Status,
+    string OpenedAt,
+    string? DataSourceId);
+
+public sealed record TenantApplicationDetail(
+    string Id,
+    string ApplicationCatalogId,
+    string ApplicationCatalogName,
+    string TenantAppInstanceId,
+    string AppKey,
+    string Name,
+    string Status,
+    string OpenedAt,
+    string UpdatedAt,
+    string? DataSourceId);
+
 public sealed record TenantAppInstanceListItem(
     string Id,
     string AppKey,
