@@ -145,21 +145,13 @@ function handleTableChange(pag: { current: number; pageSize: number }) {
   loadList()
 }
 
-function getWorkflowListPath() {
+function openEditor(id: number) {
   const currentAppId = resolveCurrentAppId(route)
   if (!currentAppId) {
-    return '/console/apps'
-  }
-  return `/apps/${currentAppId}/workflows`
-}
-
-function openEditor(id: number) {
-  const listPath = getWorkflowListPath()
-  if (listPath === '/console/apps') {
-    router.push(listPath)
+    router.push('/console/apps')
     return
   }
-  router.push(`${listPath}/${id}/editor`)
+  router.push(`/apps/${currentAppId}/workflows/${id}/editor`)
 }
 
 async function handleCreate() {
@@ -173,12 +165,12 @@ async function handleCreate() {
     if (res.success && res.data) {
       showCreateModal.value = false
       message.success('创建成功')
-      const listPath = getWorkflowListPath()
-      if (listPath === '/console/apps') {
-        router.push(listPath)
+      const currentAppId = resolveCurrentAppId(route)
+      if (!currentAppId) {
+        router.push('/console/apps')
         return
       }
-      router.push(`${listPath}/${res.data}/editor`)
+      router.push(`/apps/${currentAppId}/workflows/${res.data}/editor`)
     }
   } finally {
     creating.value = false
