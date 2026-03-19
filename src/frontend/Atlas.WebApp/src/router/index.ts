@@ -24,6 +24,8 @@ const ApplicationCatalogPage = () => import("@/pages/console/ApplicationCatalogP
 const TenantApplicationsPage = () => import("@/pages/console/TenantApplicationsPage.vue");
 const RuntimeContextsPage = () => import("@/pages/console/RuntimeContextsPage.vue");
 const RuntimeExecutionsPage = () => import("@/pages/console/RuntimeExecutionsPage.vue");
+const ResourceCenterPage = () => import("@/pages/console/ResourceCenterPage.vue");
+const DataSourceConsumptionPage = () => import("@/pages/console/DataSourceConsumptionPage.vue");
 const ReleaseCenterPage = () => import("@/pages/console/ReleaseCenterPage.vue");
 const CozeDebugPage = () => import("@/pages/console/CozeDebugPage.vue");
 const AppDashboardPage = () => import("@/pages/apps/AppDashboardPage.vue");
@@ -112,7 +114,8 @@ const router = createRouter({
     { path: "/console/tenant-applications", name: "console-tenant-applications", component: TenantApplicationsPage, meta: { requiresAuth: true, title: "租户开通", titleKey: "route.consoleTenantApplications", requiresPermission: "apps:view" } },
     { path: "/console/runtime-contexts", name: "console-runtime-contexts", component: RuntimeContextsPage, meta: { requiresAuth: true, title: "运行上下文", titleKey: "route.consoleRuntimeContexts", requiresPermission: "apps:view" } },
     { path: "/console/runtime-executions", name: "console-runtime-executions", component: RuntimeExecutionsPage, meta: { requiresAuth: true, title: "执行记录", titleKey: "route.consoleRuntimeExecutions", requiresPermission: "apps:view" } },
-    { path: "/console/resources", name: "console-resources", component: ConsolePage, meta: { requiresAuth: true, title: "资源中心", titleKey: "route.consoleResources", requiresPermission: "apps:view" } },
+    { path: "/console/resources", name: "console-resources", component: ResourceCenterPage, meta: { requiresAuth: true, title: "资源中心", titleKey: "route.consoleResources", requiresPermission: "apps:view" } },
+    { path: "/console/resources/datasource-consumption", name: "console-datasource-consumption", component: DataSourceConsumptionPage, meta: { requiresAuth: true, title: "数据源消费分析", titleKey: "route.consoleDatasourceConsumption", requiresPermission: "apps:view" } },
     { path: "/console/releases", name: "console-releases", component: ReleaseCenterPage, meta: { requiresAuth: true, title: "发布中心", titleKey: "route.consoleReleases", requiresPermission: "apps:view" } },
     { path: "/console/debug", name: "console-debug-layer", component: CozeDebugPage, meta: { requiresAuth: true, title: "调试层", titleKey: "route.consoleDebugLayer", requiresPermission: "apps:view" } },
     { path: "/console/tools", name: "console-tools", component: ToolsAuthorizationPage, meta: { requiresAuth: true, title: "工具授权中心", titleKey: "route.consoleTools", requiresPermission: "system:admin" } },

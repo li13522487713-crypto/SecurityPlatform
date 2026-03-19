@@ -11,6 +11,8 @@ const pathComponentFallbackMap: Record<string, string> = {
   "/console/tenant-applications": "../pages/console/TenantApplicationsPage.vue",
   "/console/runtime-contexts": "../pages/console/RuntimeContextsPage.vue",
   "/console/runtime-executions": "../pages/console/RuntimeExecutionsPage.vue",
+  "/console/resources": "../pages/console/ResourceCenterPage.vue",
+  "/console/resources/datasource-consumption": "../pages/console/DataSourceConsumptionPage.vue",
   "/console/releases": "../pages/console/ReleaseCenterPage.vue",
   "/console/debug": "../pages/console/CozeDebugPage.vue",
   "/console/datasources": "../pages/system/TenantDataSourcesPage.vue",
@@ -59,7 +61,9 @@ const pathTitleKeyFallbackMap: Record<string, string> = {
   "/console/catalog": "route.consoleCatalog",
   "/console/tenant-applications": "route.consoleTenantApplications",
   "/console/runtime-contexts": "route.consoleRuntimeContexts",
-  "/console/runtime-executions": "route.consoleRuntimeExecutions"
+  "/console/runtime-executions": "route.consoleRuntimeExecutions",
+  "/console/resources": "route.consoleResources",
+  "/console/resources/datasource-consumption": "route.consoleDatasourceConsumption"
 };
 
 function resolveByPathFallback(path?: string) {

@@ -17,6 +17,7 @@ const titleKeyByPath: Record<string, string> = {
   "/console/runtime-contexts": "route.consoleRuntimeContexts",
   "/console/runtime-executions": "route.consoleRuntimeExecutions",
   "/console/resources": "route.consoleResources",
+  "/console/resources/datasource-consumption": "route.consoleDatasourceConsumption",
   "/console/releases": "route.consoleReleases",
   "/console/debug": "route.consoleDebugLayer",
   "/console/tools": "route.consoleTools",
