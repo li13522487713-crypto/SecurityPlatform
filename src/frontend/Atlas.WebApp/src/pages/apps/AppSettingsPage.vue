@@ -37,10 +37,61 @@
 
       <a-col :span="24">
         <a-card title="共享策略">
-          <a-space direction="vertical">
-            <a-checkbox v-model:checked="sharingPolicy.useSharedUsers">复用平台用户</a-checkbox>
-            <a-checkbox v-model:checked="sharingPolicy.useSharedRoles">复用平台角色</a-checkbox>
-            <a-checkbox v-model:checked="sharingPolicy.useSharedDepartments">复用平台部门</a-checkbox>
+          <a-alert
+            type="info"
+            show-icon
+            message="共享/隔离模型"
+            description="开启表示“继承平台”，关闭表示“应用独立（隔离）”。切换到隔离模式时建议绑定应用专属数据源。"
+            style="margin-bottom: 12px"
+          />
+          <a-alert
+            v-if="hasIsolatedPolicy && !dataSourceInfo?.dataSourceId"
+            type="warning"
+            show-icon
+            message="当前已选择隔离模式，但应用尚未绑定独立数据源"
+            description="请先在创建阶段或应用配置中绑定数据源后再继续使用隔离策略，避免配置与数据边界不一致。"
+            style="margin-bottom: 12px"
+          />
+          <a-space direction="vertical" style="width: 100%">
+            <div class="policy-row">
+              <div class="policy-title">用户账号来源</div>
+              <a-switch
+                v-model:checked="sharingPolicy.useSharedUsers"
+                checked-children="继承平台"
+                un-checked-children="应用独立"
+              />
+              <a-tag :color="sharingPolicy.useSharedUsers ? 'processing' : 'warning'">
+                {{ sharingPolicy.useSharedUsers ? "共享" : "隔离" }}
+              </a-tag>
+            </div>
+            <div class="policy-row-desc">控制登录账号、用户基础档案是否复用平台统一用户池。</div>
+
+            <div class="policy-row">
+              <div class="policy-title">角色权限来源</div>
+              <a-switch
+                v-model:checked="sharingPolicy.useSharedRoles"
+                checked-children="继承平台"
+                un-checked-children="应用独立"
+              />
+              <a-tag :color="sharingPolicy.useSharedRoles ? 'processing' : 'warning'">
+                {{ sharingPolicy.useSharedRoles ? "共享" : "隔离" }}
+              </a-tag>
+            </div>
+            <div class="policy-row-desc">控制角色定义、权限模型是否复用平台角色体系。</div>
+
+            <div class="policy-row">
+              <div class="policy-title">部门组织来源</div>
+              <a-switch
+                v-model:checked="sharingPolicy.useSharedDepartments"
+                checked-children="继承平台"
+                un-checked-children="应用独立"
+              />
+              <a-tag :color="sharingPolicy.useSharedDepartments ? 'processing' : 'warning'">
+                {{ sharingPolicy.useSharedDepartments ? "共享" : "隔离" }}
+              </a-tag>
+            </div>
+            <div class="policy-row-desc">控制组织架构与部门树是否复用平台主数据。</div>
+
             <a-button type="primary" :loading="savingPolicy" @click="saveSharingPolicy">保存共享策略</a-button>
           </a-space>
         </a-card>
@@ -101,6 +152,11 @@ const sharingPolicy = reactive({
   useSharedRoles: true,
   useSharedDepartments: true
 });
+const hasIsolatedPolicy = computed(() =>
+  !sharingPolicy.useSharedUsers
+  || !sharingPolicy.useSharedRoles
+  || !sharingPolicy.useSharedDepartments
+);
 
 const entityAliases = ref<LowCodeAppEntityAliasItem[]>([
   { entityType: "users", singularAlias: "用户", pluralAlias: "用户列表" },
@@ -156,6 +212,10 @@ async function handleTestDataSource() {
 
 async function saveSharingPolicy() {
   if (!appId.value) return;
+  if (hasIsolatedPolicy.value && !dataSourceInfo.value?.dataSourceId) {
+    message.warning("隔离模式下建议先绑定应用专属数据源");
+    return;
+  }
   savingPolicy.value = true;
   try {
     await updateLowCodeAppSharingPolicy(appId.value, {
@@ -200,5 +260,22 @@ onMounted(loadSettings);
 
 .mt12 {
   margin-top: 12px;
+}
+
+.policy-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.policy-title {
+  min-width: 120px;
+  font-weight: 500;
+}
+
+.policy-row-desc {
+  color: #8c8c8c;
+  font-size: 12px;
+  margin: -6px 0 8px 0;
 }
 </style>

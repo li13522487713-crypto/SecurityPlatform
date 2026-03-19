@@ -86,23 +86,55 @@
         show-icon
         style="margin-bottom: 16px"
       />
+      <a-alert
+        v-if="hasIsolatedPolicy && !datasourceForm.dataSourceId"
+        type="warning"
+        show-icon
+        message="当前选择了应用独立（隔离）策略，但未绑定数据源"
+        description="隔离模式建议绑定应用专属数据源，防止共享与隔离边界不清晰。"
+        style="margin-bottom: 16px"
+      />
       <a-form layout="vertical">
-        <a-form-item>
-          <a-checkbox v-model:checked="sharingForm.useSharedUsers">
-            {{ t('lowcodeApp.wizard.useSharedUsers') }}
-          </a-checkbox>
+        <a-form-item class="policy-form-item">
+          <div class="policy-row">
+            <div class="policy-title">用户账号来源</div>
+            <a-switch
+              v-model:checked="sharingForm.useSharedUsers"
+              checked-children="继承平台"
+              un-checked-children="应用独立"
+            />
+            <a-tag :color="sharingForm.useSharedUsers ? 'processing' : 'warning'">
+              {{ sharingForm.useSharedUsers ? "共享" : "隔离" }}
+            </a-tag>
+          </div>
           <div class="sharing-hint">{{ t('lowcodeApp.wizard.useSharedUsersHint') }}</div>
         </a-form-item>
-        <a-form-item>
-          <a-checkbox v-model:checked="sharingForm.useSharedRoles">
-            {{ t('lowcodeApp.wizard.useSharedRoles') }}
-          </a-checkbox>
+        <a-form-item class="policy-form-item">
+          <div class="policy-row">
+            <div class="policy-title">角色权限来源</div>
+            <a-switch
+              v-model:checked="sharingForm.useSharedRoles"
+              checked-children="继承平台"
+              un-checked-children="应用独立"
+            />
+            <a-tag :color="sharingForm.useSharedRoles ? 'processing' : 'warning'">
+              {{ sharingForm.useSharedRoles ? "共享" : "隔离" }}
+            </a-tag>
+          </div>
           <div class="sharing-hint">{{ t('lowcodeApp.wizard.useSharedRolesHint') }}</div>
         </a-form-item>
-        <a-form-item>
-          <a-checkbox v-model:checked="sharingForm.useSharedDepartments">
-            {{ t('lowcodeApp.wizard.useSharedDepartments') }}
-          </a-checkbox>
+        <a-form-item class="policy-form-item">
+          <div class="policy-row">
+            <div class="policy-title">部门组织来源</div>
+            <a-switch
+              v-model:checked="sharingForm.useSharedDepartments"
+              checked-children="继承平台"
+              un-checked-children="应用独立"
+            />
+            <a-tag :color="sharingForm.useSharedDepartments ? 'processing' : 'warning'">
+              {{ sharingForm.useSharedDepartments ? "共享" : "隔离" }}
+            </a-tag>
+          </div>
           <div class="sharing-hint">{{ t('lowcodeApp.wizard.useSharedDepartmentsHint') }}</div>
         </a-form-item>
       </a-form>
@@ -125,7 +157,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch } from "vue";
+import { computed, ref, reactive, watch } from "vue";
 import { message } from "ant-design-vue";
 import { useI18n } from "vue-i18n";
 import type { TenantDataSourceDto } from "@/types/api";
@@ -166,6 +198,9 @@ const sharingForm = reactive({
   useSharedRoles: true,
   useSharedDepartments: true
 });
+const hasIsolatedPolicy = computed(
+  () => !sharingForm.useSharedUsers || !sharingForm.useSharedRoles || !sharingForm.useSharedDepartments
+);
 
 watch(
   () => props.open,
@@ -225,6 +260,11 @@ const handleCancel = () => {
 };
 
 const handleSubmit = async () => {
+  if (hasIsolatedPolicy.value && !datasourceForm.dataSourceId) {
+    message.warning("隔离模式建议绑定应用专属数据源");
+    return;
+  }
+
   submitting.value = true;
   try {
     const result = await createTenantAppInstance({
@@ -269,6 +309,21 @@ const handleSubmit = async () => {
   color: #999;
   font-size: 12px;
   margin-top: 2px;
-  margin-left: 24px;
+  margin-left: 12px;
+}
+
+.policy-form-item {
+  margin-bottom: 12px;
+}
+
+.policy-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.policy-title {
+  min-width: 120px;
+  font-weight: 500;
 }
 </style>
