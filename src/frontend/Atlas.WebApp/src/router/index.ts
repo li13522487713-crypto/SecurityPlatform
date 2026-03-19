@@ -415,6 +415,12 @@ router.beforeEach(async (to, from, next) => {
     if (to.meta.requiresPermission && typeof to.meta.requiresPermission === "string") {
       const has = hasPermission(userStore, to.meta.requiresPermission);
       if (!has) {
+        if (to.path === "/console" || to.path.startsWith("/console/")) {
+          // 控制台页面通过布局层统一展示“暂无访问权限”空状态，避免强制重定向打断导航语义。
+          next();
+          NProgress.done();
+          return;
+        }
         const fallbackPath = getAuthFallbackPath(userStore);
         if (fallbackPath !== to.path) {
           next({ path: fallbackPath, replace: true });
