@@ -25,6 +25,11 @@ GET {{baseUrl}}/api/v2/runtime-executions?pageIndex=1&pageSize=10
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
+### 查询运行执行列表（多条件筛选）
+GET {{baseUrl}}/api/v2/runtime-executions?pageIndex=1&pageSize=10&appId=1001&status=Failed&startedFrom=2026-01-01T00:00:00.000Z&startedTo=2026-12-31T23:59:59.000Z
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
 ### 查询运行执行详情
 GET {{baseUrl}}/api/v2/runtime-executions/1
 Authorization: Bearer {{accessToken}}

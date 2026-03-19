@@ -3,13 +3,41 @@
     <a-card :bordered="false" class="runtime-execution-card">
       <template #title>运行执行记录</template>
       <template #extra>
-        <a-input-search
-          v-model:value="keyword"
-          allow-clear
-          placeholder="按 workflowId / 状态 / 错误信息检索"
-          style="width: 280px"
-          @search="handleSearch"
-        />
+        <a-space wrap>
+          <a-select
+            v-model:value="selectedAppId"
+            style="width: 220px"
+            :options="appFilterOptions"
+            allow-clear
+            show-search
+            :filter-option="false"
+            :loading="loadingAppOptions"
+            placeholder="按应用过滤"
+            @search="handleSearchAppOptions"
+          />
+          <a-select
+            v-model:value="selectedStatus"
+            style="width: 160px"
+            :options="statusFilterOptions"
+            allow-clear
+            placeholder="按状态过滤"
+          />
+          <a-range-picker
+            v-model:value="startedAtRange"
+            show-time
+            value-format="YYYY-MM-DDTHH:mm:ss.SSS[Z]"
+            :presets="startedAtPresets"
+          />
+          <a-input-search
+            v-model:value="keyword"
+            allow-clear
+            placeholder="按ID/状态/错误信息检索"
+            style="width: 240px"
+            @search="handleSearch"
+          />
+          <a-button type="primary" @click="handleSearch">查询</a-button>
+          <a-button @click="handleResetFilters">重置</a-button>
+        </a-space>
       </template>
 
       <a-table
@@ -18,6 +46,7 @@
         :columns="columns"
         :data-source="rows"
         :pagination="pagination"
+        :row-class-name="resolveExecutionRowClass"
         @change="handleTableChange"
       >
         <template #bodyCell="{ column, record }">
@@ -196,6 +225,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
+import dayjs from "dayjs";
 import { useRouter } from "vue-router";
 import type { TableColumnsType, TablePaginationConfig } from "ant-design-vue";
 import { message } from "ant-design-vue";
@@ -206,14 +236,16 @@ import {
   getRuntimeExecutionsPaged
 } from "@/services/api-runtime-executions";
 import { getRuntimeContextById } from "@/services/api-runtime-contexts";
-import { getTenantAppInstanceDetail } from "@/services/api-tenant-app-instances";
+import { getTenantAppInstanceDetail, getTenantAppInstancesPaged } from "@/services/api-tenant-app-instances";
+import { debounce } from "@/utils/common";
 import type {
   ReleaseCenterDetail,
   RuntimeExecutionAuditTrailItem,
   RuntimeExecutionDetail,
   RuntimeExecutionListItem,
   RuntimeContextDetail,
-  TenantAppInstanceDetail
+  TenantAppInstanceDetail,
+  TenantAppInstanceListItem
 } from "@/types/platform-v2";
 
 const router = useRouter();
@@ -221,6 +253,11 @@ const loading = ref(false);
 const detailLoading = ref(false);
 const auditLoading = ref(false);
 const keyword = ref("");
+const selectedAppId = ref<string>();
+const selectedStatus = ref<string>();
+const startedAtRange = ref<[string, string]>();
+const loadingAppOptions = ref(false);
+const appFilterOptions = ref<Array<{ label: string; value: string }>>([]);
 const auditKeyword = ref("");
 const rows = ref<RuntimeExecutionListItem[]>([]);
 const detail = ref<RuntimeExecutionDetail | null>(null);
@@ -235,6 +272,19 @@ const pageSize = ref(10);
 const auditPageIndex = ref(1);
 const auditPageSize = ref(20);
 const auditTotal = ref(0);
+const statusFilterOptions = [
+  { label: "Pending", value: "Pending" },
+  { label: "Running", value: "Running" },
+  { label: "Completed", value: "Completed" },
+  { label: "Failed", value: "Failed" },
+  { label: "Cancelled", value: "Cancelled" },
+  { label: "Interrupted", value: "Interrupted" }
+] as const;
+const startedAtPresets = [
+  { label: "最近 24 小时", value: [dayjs().subtract(1, "day"), dayjs()] },
+  { label: "最近 7 天", value: [dayjs().subtract(7, "day"), dayjs()] },
+  { label: "最近 30 天", value: [dayjs().subtract(30, "day"), dayjs()] }
+];
 
 const columns: TableColumnsType<RuntimeExecutionListItem> = [
   { title: "WorkflowId", dataIndex: "workflowId", key: "workflowId", width: 130 },
@@ -322,13 +372,44 @@ function resetLinkedResources() {
   linkedRuntimeContext.value = null;
 }
 
+function mapAppOptions(items: TenantAppInstanceListItem[]) {
+  return items.map((item) => ({
+    value: item.id,
+    label: `${item.name}（${item.appKey}）`
+  }));
+}
+
+async function loadAppFilterOptions(keywordValue = "") {
+  loadingAppOptions.value = true;
+  try {
+    const result = await getTenantAppInstancesPaged({
+      pageIndex: 1,
+      pageSize: 20,
+      keyword: keywordValue || undefined
+    });
+    appFilterOptions.value = mapAppOptions(result.items);
+  } catch {
+    // ignore filter option loading failures to avoid interrupting main table.
+  } finally {
+    loadingAppOptions.value = false;
+  }
+}
+
+const handleSearchAppOptions = debounce((value: string) => {
+  void loadAppFilterOptions(value.trim());
+}, 300);
+
 async function loadRuntimeExecutions() {
   loading.value = true;
   try {
     const result = await getRuntimeExecutionsPaged({
       pageIndex: pageIndex.value,
       pageSize: pageSize.value,
-      keyword: keyword.value || undefined
+      keyword: keyword.value || undefined,
+      appId: selectedAppId.value,
+      status: selectedStatus.value,
+      startedFrom: startedAtRange.value?.[0],
+      startedTo: startedAtRange.value?.[1]
     });
     rows.value = result.items;
     pagination.value = {
@@ -349,10 +430,23 @@ function handleSearch() {
   void loadRuntimeExecutions();
 }
 
+function handleResetFilters() {
+  keyword.value = "";
+  selectedAppId.value = undefined;
+  selectedStatus.value = undefined;
+  startedAtRange.value = undefined;
+  pageIndex.value = 1;
+  void loadRuntimeExecutions();
+}
+
 function handleTableChange(page: TablePaginationConfig) {
   pageIndex.value = page.current ?? 1;
   pageSize.value = page.pageSize ?? 10;
   void loadRuntimeExecutions();
+}
+
+function resolveExecutionRowClass(record: RuntimeExecutionListItem) {
+  return record.status === "Failed" ? "failed-row" : "";
 }
 
 async function loadAuditTrails(executionId: string, targetPageIndex = 1, targetPageSize = auditPageSize.value) {
@@ -584,6 +678,7 @@ function openAuditTarget(target: string) {
 }
 
 onMounted(() => {
+  void loadAppFilterOptions();
   void loadRuntimeExecutions();
 });
 </script>
@@ -614,5 +709,9 @@ onMounted(() => {
 
 .detail-actions {
   margin-top: 12px;
+}
+
+:deep(.failed-row > td) {
+  background: #fff1f0 !important;
 }
 </style>
