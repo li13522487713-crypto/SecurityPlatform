@@ -52,7 +52,11 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
     {
         var (execution, canvas, inputs) = await PrepareExecutionAsync(tenantId, workflowId, userId, request, cancellationToken);
         await _dagExecutor.RunAsync(tenantId, execution, canvas, inputs, eventChannel: null, cancellationToken);
-        return new WorkflowV2RunResult(execution.Id.ToString());
+        return new WorkflowV2RunResult(
+            execution.Id.ToString(),
+            execution.Status,
+            execution.OutputsJson,
+            execution.ErrorMessage);
     }
 
     public async Task<WorkflowV2RunResult> AsyncRunAsync(
@@ -84,7 +88,11 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
             }
         }, CancellationToken.None);
 
-        return new WorkflowV2RunResult(execution.Id.ToString());
+        return new WorkflowV2RunResult(
+            execution.Id.ToString(),
+            ExecutionStatus.Pending,
+            null,
+            null);
     }
 
     public async Task CancelAsync(TenantId tenantId, long executionId, CancellationToken cancellationToken)
@@ -130,10 +138,10 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
 
         var entryNode = new Domain.AiPlatform.ValueObjects.NodeSchema(
             "__debug_entry__", Domain.AiPlatform.Enums.WorkflowNodeType.Entry, "Debug Entry",
-            new Dictionary<string, string>(), new Domain.AiPlatform.ValueObjects.NodeLayout(0, 0, 100, 50));
+            new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase), new Domain.AiPlatform.ValueObjects.NodeLayout(0, 0, 100, 50));
         var exitNode = new Domain.AiPlatform.ValueObjects.NodeSchema(
             "__debug_exit__", Domain.AiPlatform.Enums.WorkflowNodeType.Exit, "Debug Exit",
-            new Dictionary<string, string>(), new Domain.AiPlatform.ValueObjects.NodeLayout(300, 0, 100, 50));
+            new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase), new Domain.AiPlatform.ValueObjects.NodeLayout(300, 0, 100, 50));
 
         var debugCanvas = new Domain.AiPlatform.ValueObjects.CanvasSchema(
             new[] { entryNode, targetNode, exitNode },
@@ -148,7 +156,12 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
         await _executionRepo.AddAsync(execution, cancellationToken);
 
         await _dagExecutor.RunAsync(tenantId, execution, debugCanvas, inputs, eventChannel: null, cancellationToken);
-        return new WorkflowV2RunResult(execution.Id.ToString());
+        return new WorkflowV2RunResult(
+            execution.Id.ToString(),
+            execution.Status,
+            execution.OutputsJson,
+            execution.ErrorMessage,
+            request.NodeKey);
     }
 
     public async IAsyncEnumerable<SseEvent> StreamRunAsync(
@@ -226,13 +239,15 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
             case ExecutionStatus.Completed:
                 yield return new SseEvent("execution_complete", JsonSerializer.Serialize(new
                 {
-                    executionId = execution.Id.ToString()
+                    executionId = execution.Id.ToString(),
+                    outputsJson = latestExecution.OutputsJson
                 }));
                 break;
             case ExecutionStatus.Cancelled:
                 yield return new SseEvent("execution_cancelled", JsonSerializer.Serialize(new
                 {
-                    executionId = execution.Id.ToString()
+                    executionId = execution.Id.ToString(),
+                    errorMessage = latestExecution.ErrorMessage
                 }));
                 break;
             case ExecutionStatus.Interrupted:
@@ -240,7 +255,8 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
                 {
                     executionId = execution.Id.ToString(),
                     interruptType = latestExecution.InterruptType.ToString(),
-                    nodeKey = latestExecution.InterruptNodeKey
+                    nodeKey = latestExecution.InterruptNodeKey,
+                    outputsJson = latestExecution.OutputsJson
                 }));
                 break;
             default:
@@ -253,7 +269,7 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
         }
     }
 
-    private async Task<(WorkflowExecution Execution, Domain.AiPlatform.ValueObjects.CanvasSchema Canvas, Dictionary<string, string> Inputs)>
+    private async Task<(WorkflowExecution Execution, Domain.AiPlatform.ValueObjects.CanvasSchema Canvas, Dictionary<string, JsonElement> Inputs)>
         PrepareExecutionAsync(TenantId tenantId, long workflowId, long userId, WorkflowV2RunRequest request, CancellationToken cancellationToken)
     {
         var meta = await _metaRepo.FindActiveByIdAsync(tenantId, workflowId, cancellationToken)
@@ -272,38 +288,16 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
         return (execution, canvas, inputs);
     }
 
-    private static Dictionary<string, string> ParseInputs(string? inputsJson)
+    private static Dictionary<string, JsonElement> ParseInputs(string? inputsJson)
     {
-        if (string.IsNullOrWhiteSpace(inputsJson))
-        {
-            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        }
-
-        try
-        {
-            var parsed = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(inputsJson);
-            var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            if (parsed is not null)
-            {
-                foreach (var kvp in parsed)
-                {
-                    result[kvp.Key] = kvp.Value.ToString();
-                }
-            }
-
-            return result;
-        }
-        catch
-        {
-            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        }
+        return VariableResolver.ParseVariableDictionary(inputsJson);
     }
 
     private async Task RunWithScopeAsync(
         TenantId tenantId,
         WorkflowExecution execution,
         Domain.AiPlatform.ValueObjects.CanvasSchema canvas,
-        Dictionary<string, string> inputs,
+        Dictionary<string, JsonElement> inputs,
         Channel<SseEvent>? eventChannel,
         CancellationToken cancellationToken)
     {

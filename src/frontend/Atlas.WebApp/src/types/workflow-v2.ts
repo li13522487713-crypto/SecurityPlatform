@@ -1,72 +1,107 @@
-// Coze 风格工作流引擎 v2 类型定义
-// 与后端 Atlas.Application.Workflow.Models.V2 保持同步
+// Coze 风格工作流引擎 v2 类型定义（与后端 /api/v2/workflows 契约对齐）
 
-// ============ 枚举 ============
+// ============ 枚举与常量 ============
 
-export type WorkflowMode = 0 | 3 // Standard = 0, ChatFlow = 3
+export type WorkflowMode = 0 | 1 // 0=Standard, 1=ChatFlow
+export type WorkflowLifecycleStatus = 0 | 1 | 2 // 0=Draft, 1=Published, 2=Archived
+export type ExecutionStatus = 0 | 1 | 2 | 3 | 4 | 5 // Pending, Running, Completed, Failed, Cancelled, Interrupted
+export type InterruptType = 0 | 1 | 2 | 3 // None, QuestionAnswer, ManualApproval, Timeout
 
-export type WorkflowLifecycleStatus = 0 | 1 | 2 // Draft=0, Published=1, Disabled=2
+export type WorkflowNodeTypeKey =
+  | "Entry"
+  | "Exit"
+  | "Llm"
+  | "Selector"
+  | "SubWorkflow"
+  | "TextProcessor"
+  | "Loop"
+  | "AssignVariable"
+  | "VariableAggregator"
+  | "DatabaseQuery"
+  | "HttpRequester"
+  | "CodeRunner"
+  | "JsonSerialization"
+  | "JsonDeserialization"
 
-export type NodeType =
-  | 'Entry'
-  | 'Exit'
-  | 'LLM'
-  | 'If'
-  | 'Loop'
-  | 'Break'
-  | 'Continue'
-  | 'Batch'
-  | 'SubWorkflow'
-  | 'IntentDetector'
-  | 'KnowledgeRetriever'
-  | 'KnowledgeIndexer'
-  | 'KnowledgeDeleter'
-  | 'CodeRunner'
-  | 'HttpRequester'
-  | 'PluginApi'
-  | 'DatabaseQuery'
-  | 'DatabaseInsert'
-  | 'DatabaseUpdate'
-  | 'DatabaseDelete'
-  | 'AssignVariable'
-  | 'VariableAggregator'
-  | 'JsonSerialization'
-  | 'JsonDeserialization'
-  | 'TextProcessor'
-  | 'MessageList'
-  | 'CreateMessage'
-  | 'ConversationList'
-  | 'QuestionAnswer'
-  | 'OutputEmitter'
+export const WORKFLOW_NODE_TYPE_VALUES: Record<WorkflowNodeTypeKey, number> = {
+  Entry: 1,
+  Exit: 2,
+  Llm: 3,
+  CodeRunner: 5,
+  Selector: 8,
+  SubWorkflow: 9,
+  TextProcessor: 15,
+  Loop: 21,
+  VariableAggregator: 32,
+  AssignVariable: 40,
+  DatabaseQuery: 43,
+  HttpRequester: 45,
+  JsonSerialization: 58,
+  JsonDeserialization: 59
+}
 
-export type ExecutionStatus = 0 | 1 | 2 | 3 | 4 | 5
-// Pending=0, Running=1, Success=2, Failed=3, Cancelled=4, Interrupted=5
+const NODE_ALIAS_MAP: Record<string, WorkflowNodeTypeKey> = {
+  LLM: "Llm",
+  If: "Selector",
+  ENTRY: "Entry",
+  EXIT: "Exit"
+}
 
-export type InterruptType = 0 | 1 | 2 // None=0, Question=1, InputReceiver=2
+const NODE_VALUE_TO_KEY = Object.entries(WORKFLOW_NODE_TYPE_VALUES).reduce<Record<number, WorkflowNodeTypeKey>>(
+  (acc, [key, value]) => {
+    acc[value] = key as WorkflowNodeTypeKey
+    return acc
+  },
+  {}
+)
 
-// ============ Canvas Schema ============
+export function normalizeNodeTypeKey(value: string): WorkflowNodeTypeKey {
+  if (value in WORKFLOW_NODE_TYPE_VALUES) {
+    return value as WorkflowNodeTypeKey
+  }
+
+  const alias = NODE_ALIAS_MAP[value]
+  if (alias) {
+    return alias
+  }
+
+  return "TextProcessor"
+}
+
+export function workflowNodeTypeToValue(type: WorkflowNodeTypeKey): number {
+  return WORKFLOW_NODE_TYPE_VALUES[type]
+}
+
+export function workflowNodeValueToKey(typeValue: number): WorkflowNodeTypeKey {
+  return NODE_VALUE_TO_KEY[typeValue] ?? "TextProcessor"
+}
+
+// ============ 画布模型 ============
 
 export interface NodeLayout {
   x: number
   y: number
-  width?: number
-  height?: number
+  width: number
+  height: number
 }
 
+// 编辑器内部节点模型（字符串类型键）
 export interface NodeSchema {
   key: string
-  type: NodeType
+  type: WorkflowNodeTypeKey
   title: string
-  layout?: NodeLayout
+  layout: NodeLayout
   configs: Record<string, unknown>
   inputMappings: Record<string, string>
 }
 
+// 编辑器内部连线模型
 export interface ConnectionSchema {
   fromNode: string
-  fromPort?: string
+  fromPort: string
   toNode: string
-  toPort?: string
+  toPort: string
+  condition: string | null
 }
 
 export interface CanvasSchema {
@@ -74,120 +109,124 @@ export interface CanvasSchema {
   connections: ConnectionSchema[]
 }
 
+// 后端 Canvas 契约模型
+export interface WorkflowCanvasNodePayload {
+  key: string
+  type: number
+  label: string
+  config: Record<string, unknown>
+  layout: NodeLayout
+}
+
+export interface WorkflowCanvasConnectionPayload {
+  sourceNodeKey: string
+  sourcePort: string
+  targetNodeKey: string
+  targetPort: string
+  condition: string | null
+}
+
+export interface WorkflowCanvasPayload {
+  nodes: WorkflowCanvasNodePayload[]
+  connections: WorkflowCanvasConnectionPayload[]
+}
+
 // ============ API Request/Response ============
 
 export interface WorkflowCreateRequest {
   name: string
-  description: string
+  description?: string
   mode: WorkflowMode
 }
 
 export interface WorkflowSaveRequest {
   canvasJson: string
+  commitId?: string
 }
 
 export interface WorkflowPublishRequest {
-  changeLog: string
+  changeLog?: string
 }
 
 export interface WorkflowUpdateMetaRequest {
   name: string
-  description: string
+  description?: string
 }
 
 export interface WorkflowListItem {
   id: number
   name: string
-  description: string
+  description?: string
   mode: WorkflowMode
   status: WorkflowLifecycleStatus
-  latestVersion: string | null
+  latestVersionNumber: number
+  creatorId: number
   createdAt: string
   updatedAt: string
+  publishedAt?: string
 }
 
-export interface WorkflowDetailResponse {
-  id: number
-  name: string
-  description: string
-  mode: WorkflowMode
-  status: WorkflowLifecycleStatus
-  latestVersion: string | null
-  createdAt: string
-  updatedAt: string
-  canvasJson: string | null
-  commitId: string | null
+export interface WorkflowDetailResponse extends WorkflowListItem {
+  canvasJson: string
+  commitId?: string
 }
 
 export interface WorkflowVersionItem {
   id: number
-  version: string
-  commitId: string
-  changeLog: string
+  workflowId: number
+  versionNumber: number
+  changeLog?: string
+  canvasJson: string
   publishedAt: string
-  nodeCount?: number
+  publishedByUserId: number
 }
 
 export interface NodeTypeMetadata {
-  type: number
+  key: WorkflowNodeTypeKey | string
   name: string
-  description: string
   category: string
-  icon: string
+  description: string
 }
 
 // ============ 执行相关 ============
 
 export interface WorkflowRunRequest {
-  inputs: Record<string, unknown>
-  version?: string
-  mode?: number
+  inputs?: Record<string, unknown>
+  inputsJson?: string
 }
 
 export interface WorkflowRunResponse {
-  executionId: number
-  status: ExecutionStatus
-  outputs: Record<string, unknown>
-  errorMessage?: string
-  costMs: number
+  executionId: string
 }
 
 export interface NodeExecutionItem {
   id: number
+  executionId: number
   nodeKey: string
   nodeType: number
-  nodeTitle: string
   status: ExecutionStatus
-  costMs: number
-  tokensUsed?: number
-  iterationIndex: number
-  startedAt: string
+  inputsJson?: string
+  outputsJson?: string
+  errorMessage?: string
+  startedAt?: string
   completedAt?: string
+  durationMs?: number
 }
 
 export interface WorkflowProcessResponse {
-  executionId: number
-  status: ExecutionStatus
-  costMs: number
-  errorMessage?: string
-  nodes: NodeExecutionItem[]
-  nodeExecutions: NodeExecutionItem[]  // alias for nodes (backend may return either)
-}
-
-export interface NodeExecutionDetailResponse {
   id: number
-  nodeKey: string
-  nodeType: number
-  nodeTitle: string
+  workflowId: number
+  versionNumber: number
   status: ExecutionStatus
-  inputJson?: string
-  outputJson?: string
+  inputsJson?: string
+  outputsJson?: string
   errorMessage?: string
-  costMs: number
-  tokensUsed?: number
   startedAt: string
   completedAt?: string
+  nodeExecutions: NodeExecutionItem[]
 }
+
+export interface NodeExecutionDetailResponse extends NodeExecutionItem {}
 
 export interface WorkflowResumeRequest {
   data: Record<string, unknown>
@@ -195,73 +234,88 @@ export interface WorkflowResumeRequest {
 
 export interface NodeDebugRequest {
   nodeKey: string
-  inputs: Record<string, unknown>
+  inputs?: Record<string, unknown>
+  inputsJson?: string
 }
 
-export interface NodeDebugResponse {
-  nodeKey: string
-  status: ExecutionStatus
-  inputs: Record<string, unknown>
-  outputs: Record<string, unknown>
-  errorMessage?: string
-  costMs: number
-  tokensUsed?: number
-}
+export interface NodeDebugResponse extends WorkflowRunResponse {}
 
 // ============ SSE 事件 ============
 
+export interface ExecutionStartEvent {
+  executionId: string
+}
+
 export interface NodeStartEvent {
-  executionId: number
+  executionId: string
   nodeKey: string
   nodeType: string
-  nodeTitle: string
 }
 
 export interface NodeCompleteEvent {
-  executionId: number
+  executionId: string
   nodeKey: string
-  status: string
-  costMs: number
-  output: Record<string, unknown>
-  tokensUsed?: number
+  nodeType: string
+  durationMs: number
 }
 
-export interface NodeErrorEvent {
-  executionId: number
+export interface NodeOutputEvent {
+  executionId: string
   nodeKey: string
-  errorMessage: string
-  costMs: number
-}
-
-export interface WorkflowDoneEvent {
-  executionId: number
-  status: string
-  totalCostMs: number
+  nodeType: string
   outputs: Record<string, unknown>
 }
 
-export interface WorkflowInterruptEvent {
-  executionId: number
-  interruptType: string
+export interface NodeFailedEvent {
+  executionId: string
   nodeKey: string
-  promptText: string
+  nodeType: string
+  durationMs?: number
+  errorMessage: string
+  interruptType?: string
+}
+
+export interface ExecutionCompleteEvent {
+  executionId: string
+  outputsJson?: string
+}
+
+export interface ExecutionFailedEvent {
+  executionId: string
+  errorMessage: string
+}
+
+export interface ExecutionCancelledEvent {
+  executionId: string
+  errorMessage?: string
+}
+
+export interface ExecutionInterruptedEvent {
+  executionId: string
+  interruptType: string
+  nodeKey?: string
+  outputsJson?: string
 }
 
 export type SseEventData =
+  | ExecutionStartEvent
   | NodeStartEvent
   | NodeCompleteEvent
-  | NodeErrorEvent
-  | WorkflowDoneEvent
-  | WorkflowInterruptEvent
+  | NodeOutputEvent
+  | NodeFailedEvent
+  | ExecutionCompleteEvent
+  | ExecutionFailedEvent
+  | ExecutionCancelledEvent
+  | ExecutionInterruptedEvent
+  | string
 
 // ============ 前端画布节点状态 ============
 
-export type NodeExecutionStateType = 'idle' | 'running' | 'success' | 'failed' | 'interrupted'
+export type NodeExecutionStateType = "idle" | "running" | "success" | "failed" | "interrupted"
 
 export interface NodeExecutionState {
   nodeKey: string
   state: NodeExecutionStateType
   costMs?: number
-  tokensUsed?: number
   errorMessage?: string
 }

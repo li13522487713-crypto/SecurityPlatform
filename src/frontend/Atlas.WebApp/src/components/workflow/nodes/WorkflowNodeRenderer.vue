@@ -18,8 +18,8 @@
       <ExclamationCircleFilled v-else-if="props.data.__status === 'interrupted'" style="color:#faad14" />
     </div>
 
-    <!-- If 节点：两个输出端口 -->
-    <template v-if="nodeType === 'If'">
+    <!-- Selector 节点：两个输出端口 -->
+    <template v-if="nodeType === 'Selector'">
       <Handle type="source" :position="Position.Right" id="true" class="node-handle handle-true">
         <span class="handle-label">True</span>
       </Handle>
@@ -70,80 +70,50 @@ const nodeTypeLower = computed(() => nodeType.value.toLowerCase())
 const NODE_COLORS: Record<string, string> = {
   Entry: '#52c41a',
   Exit: '#ff4d4f',
-  LLM: '#6366f1',
-  If: '#f59e0b',
+  Llm: '#6366f1',
+  Selector: '#f59e0b',
   Loop: '#f59e0b',
-  Break: '#f59e0b',
-  Continue: '#f59e0b',
-  Batch: '#f59e0b',
   SubWorkflow: '#8b5cf6',
-  IntentDetector: '#6366f1',
-  KnowledgeRetriever: '#06b6d4',
-  KnowledgeIndexer: '#06b6d4',
-  KnowledgeDeleter: '#06b6d4',
   CodeRunner: '#10b981',
   HttpRequester: '#10b981',
-  PluginApi: '#10b981',
   DatabaseQuery: '#3b82f6',
-  DatabaseInsert: '#3b82f6',
-  DatabaseUpdate: '#3b82f6',
-  DatabaseDelete: '#3b82f6',
   AssignVariable: '#d946ef',
   VariableAggregator: '#d946ef',
   JsonSerialization: '#84cc16',
   JsonDeserialization: '#84cc16',
   TextProcessor: '#e2e8f0',
-  MessageList: '#f97316',
-  CreateMessage: '#f97316',
-  ConversationList: '#f97316',
-  QuestionAnswer: '#ec4899',
-  OutputEmitter: '#52c41a',
+  // 兼容历史草稿别名
+  LLM: '#6366f1',
+  If: '#f59e0b',
 }
 
 const NODE_ICONS: Record<string, string> = {
   Entry: '▶',
   Exit: '⏹',
-  LLM: '🤖',
-  If: '⟟',
+  Llm: '🤖',
+  Selector: '⟟',
   Loop: '↻',
-  Break: '⏏',
-  Continue: '⏩',
-  Batch: '≡',
   SubWorkflow: '⊞',
-  IntentDetector: '🎯',
-  KnowledgeRetriever: '📖',
-  KnowledgeIndexer: '📝',
-  KnowledgeDeleter: '🗑',
   CodeRunner: '⌨',
   HttpRequester: '🌐',
-  PluginApi: '🔌',
   DatabaseQuery: '🔍',
-  DatabaseInsert: '➕',
-  DatabaseUpdate: '✏',
-  DatabaseDelete: '🗑',
   AssignVariable: '=',
   VariableAggregator: '∪',
   JsonSerialization: '{}',
   JsonDeserialization: '{}',
   TextProcessor: 'T',
-  MessageList: '💬',
-  CreateMessage: '✉',
-  ConversationList: '📋',
-  QuestionAnswer: '❓',
-  OutputEmitter: '📤',
+  LLM: '🤖',
+  If: '⟟',
 }
 
 const NODE_NAMES: Record<string, string> = {
-  Entry: '开始', Exit: '结束', LLM: '大模型', If: '条件判断',
-  Loop: '循环', Break: 'Break', Continue: 'Continue', Batch: '批处理',
-  SubWorkflow: '子流程', IntentDetector: '意图识别', KnowledgeRetriever: '知识库检索',
-  KnowledgeIndexer: '知识库写入', KnowledgeDeleter: '知识库删除', CodeRunner: '代码执行',
-  HttpRequester: 'HTTP请求', PluginApi: '插件调用', DatabaseQuery: '数据库查询',
-  DatabaseInsert: '数据库插入', DatabaseUpdate: '数据库更新', DatabaseDelete: '数据库删除',
+  Entry: '开始', Exit: '结束', Llm: '大模型', Selector: '条件判断',
+  Loop: '循环',
+  SubWorkflow: '子流程', CodeRunner: '代码执行',
+  HttpRequester: 'HTTP 请求', DatabaseQuery: '数据库查询',
   AssignVariable: '变量赋值', VariableAggregator: '变量聚合', JsonSerialization: 'JSON序列化',
-  JsonDeserialization: 'JSON反序列化', TextProcessor: '文本处理', MessageList: '消息列表',
-  CreateMessage: '创建消息', ConversationList: '会话列表', QuestionAnswer: '提问等待',
-  OutputEmitter: '流式输出',
+  JsonDeserialization: 'JSON反序列化', TextProcessor: '文本处理',
+  LLM: '大模型', If: '条件判断',
 }
 
 const nodeColor = computed(() => NODE_COLORS[nodeType.value] ?? '#6b7280')

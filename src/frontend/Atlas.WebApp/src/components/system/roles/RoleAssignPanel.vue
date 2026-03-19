@@ -124,6 +124,21 @@
                 </div>
               </a-radio-button>
             </a-radio-group>
+
+            <div v-if="assignModel.dataScope === 2" style="margin-top: 12px;">
+              <a-select
+                v-model:value="assignModel.deptIds"
+                mode="multiple"
+                style="width: 100%"
+                placeholder="选择可访问部门（默认展示20条，可搜索）"
+                :options="departmentOptions"
+                :loading="departmentLoading"
+                :filter-option="false"
+                show-search
+                @search="handleDepartmentSearch"
+                @focus="() => loadDepartmentOptions()"
+              />
+            </div>
           </a-tab-pane>
         </a-tabs>
       </a-spin>
@@ -140,7 +155,8 @@ import {
   updateRoleMenus,
   setRoleDataScope,
   getPermissionsPaged,
-  getMenusPaged
+  getMenusPaged,
+  getDepartmentsPaged
 } from '@/services/api';
 import {
   getDynamicTablesPaged,
@@ -172,7 +188,7 @@ const submitting = ref(false);
 const activeTab = ref(props.canAssignPermissions ? 'permissions' : 'menus');
 
 const dataScopeOptions = [
-  { value: 1, label: "全部数据", description: "可查看当前租户内全部数据（默认）" },
+  { value: 0, label: "全部数据", description: "仅平台管理员角色可生效，其他角色自动收敛为租户范围" },
   { value: 2, label: "自定义部门", description: "仅可查看指定部门数据（后续按部门配置）" },
   { value: 3, label: "本部门", description: "仅可查看本人所在部门的数据" },
   { value: 4, label: "本部门及下级", description: "可查看本部门及所有下级部门的数据" },
@@ -183,13 +199,16 @@ const dataScopeOptions = [
 const assignModel = reactive({
   permissionIds: [] as number[],
   menuIds: [] as number[],
-  dataScope: 1 as number
+  dataScope: 0 as number,
+  deptIds: [] as number[]
 });
 
 const permissionOptions = ref<SelectOption[]>([]);
 const menuOptions = ref<SelectOption[]>([]);
+const departmentOptions = ref<SelectOption[]>([]);
 const permissionLoading = ref(false);
 const menuLoading = ref(false);
+const departmentLoading = ref(false);
 
 const dynamicTableOptions = ref<Array<{ label: string; value: string }>>([]);
 const dynamicTableLoading = ref(false);
@@ -260,6 +279,33 @@ const loadMenuOptions = async (keyword?: string) => {
 
 const handlePermissionSearch = debounce((value: string) => void loadPermissionOptions(value));
 const handleMenuSearch = debounce((value: string) => void loadMenuOptions(value));
+
+const loadDepartmentOptions = async (keyword?: string) => {
+  if (!isMounted.value) return;
+  departmentLoading.value = true;
+  try {
+    const result = await getDepartmentsPaged({
+      pageIndex: 1,
+      pageSize: 20,
+      keyword: keyword?.trim() || undefined
+    });
+    if (!isMounted.value) return;
+    departmentOptions.value = result.items.map((item) => ({
+      label: `${item.name} (${item.code})`,
+      value: Number(item.id)
+    }));
+  } catch (error) {
+    if (isMounted.value) {
+      message.error((error as Error).message || "加载部门失败");
+    }
+  } finally {
+    if (isMounted.value) {
+      departmentLoading.value = false;
+    }
+  }
+};
+
+const handleDepartmentSearch = debounce((value: string) => void loadDepartmentOptions(value));
 
 const loadDynamicTableOptions = async (search?: string) => {
   if (!isMounted.value) return;
@@ -356,7 +402,8 @@ const fetchRoleDetail = async () => {
     await Promise.all([
       props.canAssignPermissions ? loadPermissionOptions() : Promise.resolve(),
       props.canAssignMenus ? loadMenuOptions() : Promise.resolve(),
-      props.canAssignPermissions ? loadDynamicTableOptions() : Promise.resolve()
+      props.canAssignPermissions ? loadDynamicTableOptions() : Promise.resolve(),
+      loadDepartmentOptions()
     ]);
 
     if (!isMounted.value) return;
@@ -364,7 +411,11 @@ const fetchRoleDetail = async () => {
     if (!isMounted.value) return;
     assignModel.permissionIds = detail.permissionIds?.slice() ?? [];
     assignModel.menuIds = detail.menuIds?.slice() ?? [];
-    assignModel.dataScope = detail.dataScope ?? 1;
+    // 兼容历史值：CurrentTenant(1) 在前端统一映射为“全部数据(0)”展示。
+    assignModel.dataScope = detail.dataScope === 1 ? 0 : (detail.dataScope ?? 0);
+    assignModel.deptIds = (detail.deptIds ?? [])
+      .map((value) => Number(value))
+      .filter((value) => Number.isFinite(value));
   } catch (error) {
     if (isMounted.value) {
       message.error((error as Error).message || "加载角色详情失败");
@@ -391,7 +442,11 @@ const submitAssign = async () => {
       tasks.push(updateRoleMenus(props.roleId, { menuIds: assignModel.menuIds }));
     }
     
-    tasks.push(setRoleDataScope(props.roleId, assignModel.dataScope));
+    tasks.push(setRoleDataScope(
+      props.roleId,
+      assignModel.dataScope,
+      assignModel.dataScope === 2 ? assignModel.deptIds : undefined
+    ));
     
     if (fieldPermissionTableKey.value && props.roleCode) {
       const merged = existingFieldPermissions.value
@@ -429,6 +484,12 @@ watch(() => props.roleId, (newId) => {
     fetchRoleDetail();
   }
 }, { immediate: true });
+
+watch(() => assignModel.dataScope, (scope) => {
+  if (scope !== 2) {
+    assignModel.deptIds = [];
+  }
+});
 </script>
 
 <style scoped>

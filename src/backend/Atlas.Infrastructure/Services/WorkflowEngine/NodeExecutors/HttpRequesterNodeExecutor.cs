@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Sockets;
 using Atlas.Domain.AiPlatform.Enums;
 using System.IO;
+using System.Text.Json;
 
 namespace Atlas.Infrastructure.Services.WorkflowEngine.NodeExecutors;
 
@@ -17,11 +18,11 @@ public sealed class HttpRequesterNodeExecutor : INodeExecutor
 
     public async Task<NodeExecutionResult> ExecuteAsync(NodeExecutionContext context, CancellationToken cancellationToken)
     {
-        var outputs = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var outputs = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
 
-        var urlTemplate = context.Node.Config.GetValueOrDefault("url") ?? string.Empty;
-        var method = context.Node.Config.GetValueOrDefault("method") ?? "GET";
-        var bodyTemplate = context.Node.Config.GetValueOrDefault("body") ?? string.Empty;
+        var urlTemplate = context.GetConfigString("url");
+        var method = context.GetConfigString("method", "GET");
+        var bodyTemplate = context.GetConfigString("body");
 
         var url = context.ReplaceVariables(urlTemplate);
         var body = context.ReplaceVariables(bodyTemplate);
@@ -51,8 +52,8 @@ public sealed class HttpRequesterNodeExecutor : INodeExecutor
             var response = await client.SendAsync(request, cancellationToken);
             var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
 
-            outputs["http_status_code"] = ((int)response.StatusCode).ToString();
-            outputs["http_response_body"] = responseBody;
+            outputs["http_status_code"] = JsonSerializer.SerializeToElement((int)response.StatusCode);
+            outputs["http_response_body"] = VariableResolver.CreateStringElement(responseBody);
 
             return new NodeExecutionResult(true, outputs);
         }

@@ -11,6 +11,10 @@ public static class PlatformServiceRegistration
     public static IServiceCollection AddPlatformInfrastructure(this IServiceCollection services)
     {
         services.AddScoped<IRuntimeRouteRepository, RuntimeRouteRepository>();
+        services.AddScoped<IAppMemberRepository, AppMemberRepository>();
+        services.AddScoped<IAppRoleRepository, AppRoleRepository>();
+        services.AddScoped<IAppUserRoleRepository, AppUserRoleRepository>();
+        services.AddScoped<IAppRolePermissionRepository, AppRolePermissionRepository>();
         services.AddScoped<IPlatformQueryService, PlatformQueryService>();
         services.AddScoped<IAppManifestQueryService, AppManifestQueryService>();
         services.AddScoped<IApplicationCatalogQueryService, ApplicationCatalogQueryService>();
@@ -19,6 +23,10 @@ public static class PlatformServiceRegistration
         services.AddScoped<IAppReleaseCommandService, AppReleaseCommandService>();
         services.AddScoped<ITenantAppInstanceQueryService, TenantAppInstanceQueryService>();
         services.AddScoped<ITenantAppInstanceCommandService, TenantAppInstanceCommandService>();
+        services.AddScoped<ITenantAppMemberQueryService, TenantAppMemberQueryService>();
+        services.AddScoped<ITenantAppMemberCommandService, TenantAppMemberCommandService>();
+        services.AddScoped<ITenantAppRoleQueryService, TenantAppRoleQueryService>();
+        services.AddScoped<ITenantAppRoleCommandService, TenantAppRoleCommandService>();
         services.AddScoped<IResourceCenterQueryService, ResourceCenterQueryService>();
         services.AddScoped<IReleaseCenterQueryService, ReleaseCenterQueryService>();
         services.AddScoped<ICozeMappingQueryService, CozeMappingQueryService>();

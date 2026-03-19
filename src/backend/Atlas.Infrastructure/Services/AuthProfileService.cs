@@ -40,8 +40,7 @@ public sealed class AuthProfileService : IAuthProfileService
             tenantId.Value.ToString("D"),
             roleCodes,
             permissionCodes,
+            account.IsPlatformAdmin,
             null);
     }
-
-    
 }

@@ -84,6 +84,7 @@ export const clearAuthStorage = () => {
 
 export const isAdminRole = (profile: AuthProfile | null) => {
   if (!profile) return false;
+  if (profile.isPlatformAdmin) return true;
   return profile.roles.some((role) => {
     const normalized = role.trim().toLowerCase();
     return normalized === "admin" || normalized === "superadmin";

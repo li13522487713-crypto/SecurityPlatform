@@ -92,6 +92,18 @@ X-CSRF-TOKEN: {{csrfToken}}
   "menuIds": []
 }
 
+### Update Role Data Scope (All=0)
+PUT {{baseUrl}}/api/v1/roles/{{roleId}}/data-scope
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "dataScope": 0
+}
+
 ### 创建测试用户并绑定角色（用于删除约束）
 # @name createBoundUser
 POST {{baseUrl}}/api/v1/users

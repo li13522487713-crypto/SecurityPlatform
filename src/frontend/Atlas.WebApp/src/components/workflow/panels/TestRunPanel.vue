@@ -104,15 +104,15 @@
           <div
             v-for="ne in currentExecution.nodeExecutions"
             :key="ne.nodeKey"
-            :class="['trace-node', `status-${ne.status}`]"
+            :class="['trace-node', `status-${STATUS_LABELS[ne.status] ?? 'pending'}`]"
           >
             <div class="trace-node-header">
-              <span :class="['trace-status-dot', `dot-${ne.status}`]"></span>
+              <span :class="['trace-status-dot', `dot-${STATUS_LABELS[ne.status] ?? 'pending'}`]"></span>
               <span class="trace-node-name">{{ ne.nodeKey }}</span>
-              <span class="trace-cost">{{ ne.costMs }}ms</span>
+              <span class="trace-cost">{{ ne.durationMs ?? 0 }}ms</span>
             </div>
-            <div v-if="ne.tokensUsed" class="trace-tokens">
-              Tokens: {{ ne.tokensUsed }}
+            <div v-if="ne.errorMessage" class="trace-error">
+              {{ ne.errorMessage }}
             </div>
           </div>
         </div>
@@ -129,15 +129,12 @@
       <div v-if="versions.length === 0" class="trace-empty">
         <p>尚未发布任何版本</p>
       </div>
-      <div v-for="ver in versions" :key="ver.version" class="version-item">
+      <div v-for="ver in versions" :key="ver.versionNumber" class="version-item">
         <div class="version-header">
-          <span class="version-tag">v{{ ver.version }}</span>
+          <span class="version-tag">v{{ ver.versionNumber }}</span>
           <span class="version-time">{{ formatDate(ver.publishedAt) }}</span>
         </div>
         <div class="version-desc">{{ ver.changeLog || '无描述' }}</div>
-        <div class="version-stats">
-          <span>节点数: {{ ver.nodeCount }}</span>
-        </div>
       </div>
     </div>
   </div>
@@ -147,6 +144,7 @@
 import { ref, nextTick } from 'vue'
 import { CloseOutlined } from '@ant-design/icons-vue'
 import type { WorkflowVersionItem, NodeExecutionItem, ExecutionStatus } from '@/types/workflow-v2'
+import type { StreamRunHandle } from '@/services/api-workflow-v2'
 
 const STATUS_LABELS: Record<ExecutionStatus, string> = {
   0: 'pending', 1: 'running', 2: 'success', 3: 'failed', 4: 'cancelled', 5: 'interrupted',
@@ -183,11 +181,16 @@ interface ExecutionEvent {
 const executionEvents = ref<ExecutionEvent[]>([])
 
 const EVENT_LABELS: Record<string, string> = {
-  node_started: '节点开始',
-  node_completed: '节点完成',
-  node_error: '节点错误',
-  workflow_done: '流程完成',
-  workflow_interrupted: '流程中断',
+  execution_start: '执行开始',
+  node_start: '节点开始',
+  node_output: '节点输出',
+  node_complete: '节点完成',
+  node_failed: '节点失败',
+  llm_output: '模型输出',
+  execution_complete: '执行完成',
+  execution_failed: '执行失败',
+  execution_cancelled: '执行取消',
+  execution_interrupted: '执行中断',
   workflow_error: '流程错误',
 }
 
@@ -199,7 +202,7 @@ interface ExecutionSummary {
 
 const currentExecution = ref<ExecutionSummary | null>(null)
 
-let sseEventSource: EventSource | null = null
+let streamHandle: StreamRunHandle | null = null
 
 function addEvent(type: string, message: string) {
   executionEvents.value.push({
@@ -237,30 +240,30 @@ async function startRun(mode: 'sync' | 'stream') {
     if (mode === 'sync') {
     isRunning.value = true
     try {
-      addEvent('workflow_started', '同步执行开始...')
-      const runRes = await workflowV2Api.runSync(props.workflowId, { inputs, mode: 0 })
+      addEvent('execution_start', '同步执行开始...')
+      const runRes = await workflowV2Api.runSync(props.workflowId, { inputs })
       if (!runRes.success || !runRes.data) {
         addEvent('workflow_error', runRes.message ?? '执行失败')
         return
       }
       const result = runRes.data
-      currentExecutionId.value = String(result.executionId)
-      addEvent('workflow_done', `执行完成，耗时 ${result.costMs}ms`)
-
-      const processRes = await workflowV2Api.getProcess(result.executionId)
+      currentExecutionId.value = result.executionId
+      const processRes = await workflowV2Api.getProcess(Number(result.executionId))
       if (processRes.success && processRes.data) {
         const proc = processRes.data
-        const nodeExecs = proc.nodeExecutions ?? proc.nodes ?? []
+        const nodeExecs = proc.nodeExecutions ?? []
+        const totalCostMs = calcExecutionCostMs(proc.startedAt, proc.completedAt)
         currentExecution.value = {
-          costMs: proc.costMs,
+          costMs: totalCostMs,
           status: STATUS_LABELS[proc.status] ?? String(proc.status),
           nodeExecutions: nodeExecs,
         }
         for (const ne of nodeExecs) {
           emit('node-status-update', ne.nodeKey, STATUS_LABELS[ne.status] ?? 'success')
         }
+        finalOutput.value = proc.outputsJson ?? '{}'
+        addEvent('execution_complete', `执行完成，耗时 ${totalCostMs}ms`)
       }
-      finalOutput.value = JSON.stringify(result.outputs ?? {}, null, 2)
     } catch (err: unknown) {
       addEvent('workflow_error', String(err))
     } finally {
@@ -268,41 +271,66 @@ async function startRun(mode: 'sync' | 'stream') {
     }
   } else {
     isStreaming.value = true
-    addEvent('workflow_started', '流式执行开始...')
+    addEvent('execution_start', '流式执行开始...')
     try {
-      sseEventSource = workflowV2Api.runStream(
+      streamHandle = workflowV2Api.runStream(
         props.workflowId,
-        { inputs, mode: 2 },
+        { inputs },
         {
-          onNodeStarted: (ev) => {
-            addEvent('node_started', `[${ev.nodeKey}] 开始执行`)
+          onExecutionStarted: (ev) => {
+            currentExecutionId.value = ev.executionId
+            addEvent('execution_start', `执行实例 ${ev.executionId} 已创建`)
+          },
+          onNodeStarted: ev => {
+            addEvent('node_start', `[${ev.nodeKey}] 开始执行`)
             emit('node-status-update', ev.nodeKey, 'running')
           },
-          onNodeCompleted: (ev) => {
-            addEvent('node_completed', `[${ev.nodeKey}] 完成，耗时 ${ev.costMs}ms`)
+          onNodeOutput: ev => {
+            addEvent('node_output', `[${ev.nodeKey}] 输出: ${JSON.stringify(ev.outputs)}`)
+          },
+          onNodeCompleted: ev => {
+            addEvent('node_complete', `[${ev.nodeKey}] 完成，耗时 ${ev.durationMs}ms`)
             emit('node-status-update', ev.nodeKey, 'success')
           },
-          onNodeError: (ev) => {
-            addEvent('node_error', `[${ev.nodeKey}] 错误: ${ev.errorMessage}`)
+          onNodeFailed: ev => {
+            addEvent('node_failed', `[${ev.nodeKey}] 失败: ${ev.errorMessage}`)
             emit('node-status-update', ev.nodeKey, 'failed')
           },
-          onWorkflowDone: (ev) => {
-            addEvent('workflow_done', `流程完成，耗时 ${ev.totalCostMs}ms`)
-            finalOutput.value = JSON.stringify(ev.outputs, null, 2)
+          onLlmOutput: content => {
+            addEvent('llm_output', content)
+          },
+          onExecutionCompleted: async ev => {
+            addEvent('execution_complete', `执行完成: ${ev.executionId}`)
+            if (ev.outputsJson) {
+              finalOutput.value = ev.outputsJson
+            }
+            await refreshExecutionDetail(ev.executionId)
             isStreaming.value = false
           },
-          onWorkflowInterrupted: (ev) => {
-            const hint = ev.promptText ?? ''
-            addEvent('workflow_interrupted', `流程中断: ${hint}`)
-            interruptQuestion.value = hint
+          onExecutionFailed: async ev => {
+            addEvent('execution_failed', ev.errorMessage || '执行失败')
+            if (currentExecutionId.value) {
+              await refreshExecutionDetail(currentExecutionId.value)
+            }
             isStreaming.value = false
           },
-          onError: (err) => {
+          onExecutionCancelled: ev => {
+            addEvent('execution_cancelled', `执行已取消: ${ev.executionId}`)
+            isStreaming.value = false
+          },
+          onExecutionInterrupted: ev => {
+            addEvent('execution_interrupted', `流程中断: ${ev.interruptType}`)
+            interruptQuestion.value = `执行在节点 ${ev.nodeKey ?? '-'} 发生中断（${ev.interruptType}）`
+            isStreaming.value = false
+          },
+          onError: err => {
             addEvent('workflow_error', String(err))
             isStreaming.value = false
           },
         }
       )
+      await streamHandle.done
+      streamHandle = null
     } catch (err: unknown) {
       addEvent('workflow_error', String(err))
       isStreaming.value = false
@@ -311,9 +339,9 @@ async function startRun(mode: 'sync' | 'stream') {
 }
 
 function stopRun() {
-  if (sseEventSource) {
-    sseEventSource.close()
-    sseEventSource = null
+  if (streamHandle) {
+    streamHandle.abort()
+    streamHandle = null
   }
   isRunning.value = false
   isStreaming.value = false
@@ -334,6 +362,42 @@ async function submitAnswer() {
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleString()
+}
+
+function calcExecutionCostMs(startedAt: string, completedAt?: string) {
+  if (!completedAt) {
+    return 0
+  }
+
+  const startTs = Date.parse(startedAt)
+  const endTs = Date.parse(completedAt)
+  if (Number.isNaN(startTs) || Number.isNaN(endTs)) {
+    return 0
+  }
+
+  return Math.max(0, endTs - startTs)
+}
+
+async function refreshExecutionDetail(executionId: string) {
+  const processRes = await workflowV2Api.getProcess(Number(executionId))
+  if (!processRes.success || !processRes.data) {
+    return
+  }
+
+  const proc = processRes.data
+  const nodeExecs = proc.nodeExecutions ?? []
+  const totalCostMs = calcExecutionCostMs(proc.startedAt, proc.completedAt)
+  currentExecution.value = {
+    costMs: totalCostMs,
+    status: STATUS_LABELS[proc.status] ?? String(proc.status),
+    nodeExecutions: nodeExecs,
+  }
+
+  for (const ne of nodeExecs) {
+    emit('node-status-update', ne.nodeKey, STATUS_LABELS[ne.status] ?? 'success')
+  }
+
+  finalOutput.value = proc.outputsJson ?? '{}'
 }
 </script>
 
@@ -426,12 +490,16 @@ function formatDate(iso: string) {
   min-width: 60px;
 }
 
-.type-node_started { color: #58a6ff; }
-.type-node_completed { color: #52c41a; }
-.type-node_error,
+.type-node_start { color: #58a6ff; }
+.type-node_output { color: #58a6ff; }
+.type-node_complete { color: #52c41a; }
+.type-node_failed { color: #ff4d4f; }
+.type-execution_failed,
 .type-workflow_error { color: #ff4d4f; }
-.type-workflow_done { color: #52c41a; }
-.type-workflow_interrupted { color: #faad14; }
+.type-execution_complete { color: #52c41a; }
+.type-execution_interrupted { color: #faad14; }
+.type-execution_cancelled { color: #7d8590; }
+.type-llm_output { color: #58a6ff; }
 .type-cancelled { color: #7d8590; }
 
 .event-msg { color: #e6edf3; }
@@ -509,8 +577,9 @@ function formatDate(iso: string) {
 .dot-success { background: #52c41a; }
 .dot-failed { background: #ff4d4f; }
 .dot-running { background: #1677ff; }
-.dot-skipped { background: #7d8590; }
 .dot-pending { background: #7d8590; }
+.dot-cancelled { background: #7d8590; }
+.dot-interrupted { background: #faad14; }
 
 .trace-node-name { flex: 1; font-size: 13px; color: #e6edf3; }
 .trace-cost { font-size: 11px; color: #7d8590; }

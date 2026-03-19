@@ -1,4 +1,3 @@
-using Atlas.Application.Identity;
 using Atlas.Application.Identity.Abstractions;
 using Atlas.Core.Identity;
 using Microsoft.AspNetCore.Authorization;
@@ -8,14 +7,14 @@ namespace Atlas.WebApi.Authorization;
 public sealed class PermissionAuthorizationHandler : AuthorizationHandler<PermissionRequirement>
 {
     private readonly ICurrentUserAccessor _currentUserAccessor;
-    private readonly IRbacResolver _rbacResolver;
+    private readonly IPermissionDecisionService _permissionDecisionService;
 
     public PermissionAuthorizationHandler(
         ICurrentUserAccessor currentUserAccessor,
-        IRbacResolver rbacResolver)
+        IPermissionDecisionService permissionDecisionService)
     {
         _currentUserAccessor = currentUserAccessor;
-        _rbacResolver = rbacResolver;
+        _permissionDecisionService = permissionDecisionService;
     }
 
     protected override async Task HandleRequirementAsync(
@@ -28,13 +27,12 @@ public sealed class PermissionAuthorizationHandler : AuthorizationHandler<Permis
             return;
         }
 
-        var permissions = await _rbacResolver.GetPermissionCodesAsync(
+        var hasPermission = await _permissionDecisionService.HasPermissionAsync(
             currentUser.TenantId,
             currentUser.UserId,
+            requirement.PermissionCode,
             CancellationToken.None);
-
-        if (permissions.Contains(PermissionCodes.SystemAdmin, StringComparer.OrdinalIgnoreCase)
-            || permissions.Contains(requirement.PermissionCode, StringComparer.OrdinalIgnoreCase))
+        if (hasPermission)
         {
             context.Succeed(requirement);
         }

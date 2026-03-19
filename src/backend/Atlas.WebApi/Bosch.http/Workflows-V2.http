@@ -116,6 +116,9 @@ X-Tenant-Id: {{tenantId}}
 @executionId = {{runWorkflow.response.body.data.executionId}}
 
 ### ── SSE Stream Run ──
+# 事件顺序示例：
+# execution_start -> node_start -> node_output -> node_complete -> execution_complete
+# 失败场景会返回 node_failed + execution_failed
 POST {{host}}/api/v2/workflows/{{workflowId}}/stream
 Content-Type: {{contentType}}
 Authorization: Bearer {{token}}
@@ -146,6 +149,8 @@ Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 
 ### ── Debug Single Node ──
+# 返回 data.executionId，且服务端会写入完整节点输入/输出到执行记录，可通过 process/nodes 查询
+# 需要权限：ai-workflow:debug
 POST {{host}}/api/v2/workflows/{{workflowId}}/debug-node
 Content-Type: {{contentType}}
 Authorization: Bearer {{token}}

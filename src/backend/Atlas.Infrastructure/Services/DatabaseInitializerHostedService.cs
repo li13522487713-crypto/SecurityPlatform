@@ -80,6 +80,10 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         var appContextAccessor = scope.ServiceProvider.GetRequiredService<IAppContextAccessor>();
         var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
 
+        // 关键兼容迁移：平台管理员标记字段缺失会导致登录链路失败，需始终检查并补齐。
+        await EnsureUserAccountSchemaAsync(db, cancellationToken);
+        await EnsureAppMembershipSchemaAsync(db, cancellationToken);
+
         // Schema 迁移检查（兼容历史版本字段结构）
         if (!_initializerOptions.SkipSchemaMigrations)
         {
@@ -212,6 +216,10 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             typeof(FileUploadSession),
             typeof(TenantDataSource),
             typeof(TenantAppDataSourceBinding),
+            typeof(AppMember),
+            typeof(AppRole),
+            typeof(AppUserRole),
+            typeof(AppRolePermission),
             typeof(Tenant),
             // Low code module (types already registered above: LowCodeApp, AppEntityAlias, LowCodePage, FormDefinition)
             typeof(LowCodeAppVersion),
@@ -262,6 +270,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         if (_initializerOptions.SkipSeedData)
         {
             _logger.LogInformation("[DatabaseInitializer] 已跳过种子数据初始化（DatabaseInitializer:SkipSeedData=true）");
+            await EnsureBootstrapAdminPlatformFlagAsync(scope, appContextAccessor, cancellationToken);
             // 始终加载 License 状态，不受 SkipSeedData 影响
             await LoadLicenseStatusAsync(scope, cancellationToken);
             return;
@@ -346,17 +355,22 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         var roleMenuRepository = scope.ServiceProvider.GetRequiredService<IRoleMenuRepository>();
         var passwordHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
 
-        var roleSeedDefinitions = new (string Code, string Name, string Description, bool IsSystem)[]
+        var requiredRoleDefinitions = new (string Code, string Name, string Description, bool IsSystem)[]
         {
             ("SuperAdmin", "超级管理员", "平台超级管理员（全量权限）", true),
-            ("Admin", "系统管理员", "系统运维与平台配置管理员", true),
+            ("Admin", "系统管理员", "系统运维与平台配置管理员", true)
+        };
+        var optionalRoleDefinitions = new (string Code, string Name, string Description, bool IsSystem)[]
+        {
             ("SecurityAdmin", "安全管理员", "安全策略与告警管理员", false),
             ("AuditAdmin", "审计管理员", "审计日志与合规管理员", false),
             ("AssetAdmin", "资产管理员", "资产台账管理员", false),
             ("ApprovalAdmin", "流程管理员", "审批流配置管理员", false)
         };
 
-        var roleSeedMap = roleSeedDefinitions.ToDictionary(x => x.Code, x => x, StringComparer.OrdinalIgnoreCase);
+        var roleSeedMap = requiredRoleDefinitions
+            .Concat(optionalRoleDefinitions)
+            .ToDictionary(x => x.Code, x => x, StringComparer.OrdinalIgnoreCase);
         var roleCodes = _bootstrapOptions.Roles.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
@@ -367,7 +381,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         var roleCodesArray = roleCodes.ToArray();
 
         var roleCodeSet = roleCodesArray.ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var allRoleCodes = roleSeedDefinitions
+        var allRoleCodes = requiredRoleDefinitions
             .Select(x => x.Code)
             .Concat(roleCodesArray)
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -441,6 +455,10 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             (PermissionCodes.MenusUpdate, "Menus Update", "Api"),
             (PermissionCodes.AppsView, "Apps View", "Api"),
             (PermissionCodes.AppsUpdate, "Apps Update", "Api"),
+            (PermissionCodes.AppMembersView, "App Members View", "Api"),
+            (PermissionCodes.AppMembersUpdate, "App Members Update", "Api"),
+            (PermissionCodes.AppRolesView, "App Roles View", "Api"),
+            (PermissionCodes.AppRolesUpdate, "App Roles Update", "Api"),
             (PermissionCodes.AppAdmin, "App Admin", "Api"),
             (PermissionCodes.AppUser, "App User", "Api"),
             (PermissionCodes.DebugView, "Debug View", "Api"),
@@ -477,6 +495,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             (PermissionCodes.AiWorkflowUpdate, "AI Workflow Update", "Api"),
             (PermissionCodes.AiWorkflowDelete, "AI Workflow Delete", "Api"),
             (PermissionCodes.AiWorkflowExecute, "AI Workflow Execute", "Api"),
+            (PermissionCodes.AiWorkflowDebug, "AI Workflow Debug", "Api"),
             (PermissionCodes.AiDatabaseView, "AI Database View", "Api"),
             (PermissionCodes.AiDatabaseCreate, "AI Database Create", "Api"),
             (PermissionCodes.AiDatabaseUpdate, "AI Database Update", "Api"),
@@ -1032,6 +1051,15 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         if (existing is not null)
         {
             existing.UpdateRoles(string.Join(',', roleCodes));
+            if (_bootstrapOptions.IsPlatformAdmin)
+            {
+                existing.MarkPlatformAdmin();
+            }
+            else
+            {
+                existing.UnmarkPlatformAdmin();
+            }
+
             await userRepository.UpdateAsync(existing, cancellationToken);
             await userRoleRepository.DeleteByUserIdAsync(tenantId, existing.Id, cancellationToken);
             await userRoleRepository.AddRangeAsync(
@@ -1044,6 +1072,10 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         var account = new UserAccount(tenantId, _bootstrapOptions.Username, _bootstrapOptions.Username, hashed, idGeneratorAccessor.NextId());
         account.UpdateRoles(string.Join(',', roleCodes));
         account.MarkSystemAccount();
+        if (_bootstrapOptions.IsPlatformAdmin)
+        {
+            account.MarkPlatformAdmin();
+        }
         await userRepository.AddAsync(account, cancellationToken);
         await userRoleRepository.AddRangeAsync(
             roleIds.Select(roleId => new UserRole(tenantId, account.Id, roleId, idGeneratorAccessor.NextId())).ToArray(),
@@ -1146,6 +1178,47 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         }
     }
 
+    private async Task EnsureBootstrapAdminPlatformFlagAsync(
+        IServiceScope scope,
+        IAppContextAccessor appContextAccessor,
+        CancellationToken cancellationToken)
+    {
+        if (!_bootstrapOptions.Enabled)
+        {
+            return;
+        }
+
+        if (!Guid.TryParse(_bootstrapOptions.TenantId, out var tenantGuid))
+        {
+            _logger.LogWarning("BootstrapAdmin TenantId 配置无效，跳过平台管理员标记检查。");
+            return;
+        }
+
+        var tenantId = new TenantId(tenantGuid);
+        using var appContextScope = appContextAccessor.BeginScope(CreateSystemContext(appContextAccessor, tenantId));
+        var userRepository = scope.ServiceProvider.GetRequiredService<IUserAccountRepository>();
+        var account = await userRepository.FindByUsernameAsync(tenantId, _bootstrapOptions.Username, cancellationToken);
+        if (account is null)
+        {
+            return;
+        }
+
+        if (_bootstrapOptions.IsPlatformAdmin && !account.IsPlatformAdmin)
+        {
+            account.MarkPlatformAdmin();
+            await userRepository.UpdateAsync(account, cancellationToken);
+            _logger.LogInformation("已补齐 BootstrapAdmin 平台管理员标记：{Username}", _bootstrapOptions.Username);
+            return;
+        }
+
+        if (!_bootstrapOptions.IsPlatformAdmin && account.IsPlatformAdmin)
+        {
+            account.UnmarkPlatformAdmin();
+            await userRepository.UpdateAsync(account, cancellationToken);
+            _logger.LogInformation("已移除 BootstrapAdmin 平台管理员标记：{Username}", _bootstrapOptions.Username);
+        }
+    }
+
     private static IAppContext CreateSystemContext(IAppContextAccessor appContextAccessor, TenantId tenantId)
     {
         var appId = appContextAccessor.GetAppId();
@@ -1155,6 +1228,40 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             ClientChannel.App,
             ClientAgent.Other);
         return new AppContextSnapshot(tenantId, appId, null, clientContext, null);
+    }
+
+    private static async Task EnsureUserAccountSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
+    {
+        if (!db.DbMaintenance.IsAnyTable("UserAccount", false))
+        {
+            return;
+        }
+
+        if (!RequiresMissingColumnFix<UserAccount>(db, "IsPlatformAdmin"))
+        {
+            return;
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        await db.Ado.ExecuteCommandAsync(
+            "ALTER TABLE UserAccount ADD COLUMN IsPlatformAdmin INTEGER NOT NULL DEFAULT 0");
+    }
+
+    private static Task EnsureAppMembershipSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
+    {
+        var missingTables =
+            !db.DbMaintenance.IsAnyTable("AppMember", false)
+            || !db.DbMaintenance.IsAnyTable("AppRole", false)
+            || !db.DbMaintenance.IsAnyTable("AppUserRole", false)
+            || !db.DbMaintenance.IsAnyTable("AppRolePermission", false);
+        if (!missingTables)
+        {
+            return Task.CompletedTask;
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        db.CodeFirst.InitTables<AppMember, AppRole, AppUserRole, AppRolePermission>();
+        return Task.CompletedTask;
     }
 
     private static async Task EnsureAuthSessionSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)

@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Atlas.Domain.AiPlatform.Enums;
 
 namespace Atlas.Infrastructure.Services.WorkflowEngine.NodeExecutors;
@@ -13,11 +12,11 @@ public sealed class VariableAggregatorNodeExecutor : INodeExecutor
 
     public Task<NodeExecutionResult> ExecuteAsync(NodeExecutionContext context, CancellationToken cancellationToken)
     {
-        var keys = (context.Node.Config.GetValueOrDefault("variableKeys") ?? string.Empty)
+        var keys = context.GetConfigString("variableKeys")
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        var outputKey = context.Node.Config.GetValueOrDefault("outputKey") ?? "aggregated";
+        var outputKey = context.GetConfigString("outputKey", "aggregated");
 
-        var aggregated = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var aggregated = new Dictionary<string, System.Text.Json.JsonElement>(StringComparer.OrdinalIgnoreCase);
         foreach (var key in keys)
         {
             if (context.Variables.TryGetValue(key, out var value))
@@ -26,9 +25,9 @@ public sealed class VariableAggregatorNodeExecutor : INodeExecutor
             }
         }
 
-        var outputs = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        var outputs = new Dictionary<string, System.Text.Json.JsonElement>(StringComparer.OrdinalIgnoreCase)
         {
-            [outputKey] = JsonSerializer.Serialize(aggregated)
+            [outputKey] = System.Text.Json.JsonSerializer.SerializeToElement(aggregated)
         };
 
         return Task.FromResult(new NodeExecutionResult(true, outputs));

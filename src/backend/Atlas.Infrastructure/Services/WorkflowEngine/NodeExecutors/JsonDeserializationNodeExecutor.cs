@@ -13,19 +13,20 @@ public sealed class JsonDeserializationNodeExecutor : INodeExecutor
 
     public Task<NodeExecutionResult> ExecuteAsync(NodeExecutionContext context, CancellationToken cancellationToken)
     {
-        var inputVariable = context.Node.Config.GetValueOrDefault("inputVariable") ?? string.Empty;
-        var jsonStr = context.Variables.GetValueOrDefault(inputVariable) ?? "{}";
-        var outputs = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var inputVariable = context.GetConfigString("inputVariable");
+        var outputs = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
 
         try
         {
-            var parsed = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(jsonStr);
-            if (parsed is not null)
+            if (!context.TryResolveVariable(inputVariable, out var source))
             {
-                foreach (var kvp in parsed)
-                {
-                    outputs[kvp.Key] = kvp.Value.ToString();
-                }
+                return Task.FromResult(new NodeExecutionResult(true, outputs));
+            }
+
+            var objectPayload = ParseToObject(source);
+            foreach (var kvp in objectPayload)
+            {
+                outputs[kvp.Key] = kvp.Value;
             }
 
             return Task.FromResult(new NodeExecutionResult(true, outputs));
@@ -34,5 +35,44 @@ public sealed class JsonDeserializationNodeExecutor : INodeExecutor
         {
             return Task.FromResult(new NodeExecutionResult(false, outputs, $"JSON 反序列化失败: {ex.Message}"));
         }
+    }
+
+    private static Dictionary<string, JsonElement> ParseToObject(JsonElement source)
+    {
+        if (source.ValueKind == JsonValueKind.Object)
+        {
+            var values = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
+            foreach (var property in source.EnumerateObject())
+            {
+                values[property.Name] = property.Value.Clone();
+            }
+
+            return values;
+        }
+
+        if (source.ValueKind == JsonValueKind.String)
+        {
+            var json = source.GetString();
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                return new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
+            }
+
+            using var document = JsonDocument.Parse(json);
+            if (document.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                return new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
+            }
+
+            var values = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
+            foreach (var property in document.RootElement.EnumerateObject())
+            {
+                values[property.Name] = property.Value.Clone();
+            }
+
+            return values;
+        }
+
+        return new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
     }
 }

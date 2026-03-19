@@ -33,6 +33,7 @@
         <a-button @click="go(`/apps/${appId}/workflows`)">Workflow 管理</a-button>
         <a-button @click="go(`/apps/${appId}/prompts`)">Prompt 模板</a-button>
         <a-button @click="go(`/apps/${appId}/plugins`)">插件配置</a-button>
+        <a-button @click="go(`/apps/${appId}/users`)">应用成员</a-button>
       </a-space>
     </a-card>
   </div>

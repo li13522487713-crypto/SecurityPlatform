@@ -32,7 +32,7 @@ public sealed class ApprovalRuntimeController : ControllerBase
     private readonly IClientContextAccessor _clientContextAccessor;
     private readonly IValidator<ApprovalStartRequest> _startValidator;
     private readonly IAuditRecorder _auditRecorder;
-    private readonly IRbacResolver _rbacResolver;
+    private readonly IPermissionDecisionService _permissionDecisionService;
 
     public ApprovalRuntimeController(
         IApprovalRuntimeQueryService queryService,
@@ -42,7 +42,7 @@ public sealed class ApprovalRuntimeController : ControllerBase
         IClientContextAccessor clientContextAccessor,
         IValidator<ApprovalStartRequest> startValidator,
         IAuditRecorder auditRecorder,
-        IRbacResolver rbacResolver)
+        IPermissionDecisionService permissionDecisionService)
     {
         _queryService = queryService;
         _commandService = commandService;
@@ -51,7 +51,7 @@ public sealed class ApprovalRuntimeController : ControllerBase
         _clientContextAccessor = clientContextAccessor;
         _startValidator = startValidator;
         _auditRecorder = auditRecorder;
-        _rbacResolver = rbacResolver;
+        _permissionDecisionService = permissionDecisionService;
     }
 
     /// <summary>
@@ -568,12 +568,10 @@ public sealed class ApprovalRuntimeController : ControllerBase
 
     private async Task<bool> IsAdminAsync(CurrentUserInfo currentUser, CancellationToken cancellationToken)
     {
-        var roleCodes = await _rbacResolver.GetRoleCodesAsync(
+        return await _permissionDecisionService.IsSystemAdminAsync(
             currentUser.TenantId,
             currentUser.UserId,
             cancellationToken);
-        return roleCodes.Contains("Admin", StringComparer.OrdinalIgnoreCase)
-            || roleCodes.Contains("SuperAdmin", StringComparer.OrdinalIgnoreCase);
     }
 
     private static string EscapeCsv(string? value)

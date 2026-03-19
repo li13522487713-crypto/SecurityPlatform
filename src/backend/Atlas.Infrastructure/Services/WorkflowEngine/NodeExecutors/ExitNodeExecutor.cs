@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Atlas.Domain.AiPlatform.Enums;
 
 namespace Atlas.Infrastructure.Services.WorkflowEngine.NodeExecutors;
@@ -10,7 +11,7 @@ public sealed class ExitNodeExecutor : INodeExecutor
     public Task<NodeExecutionResult> ExecuteAsync(NodeExecutionContext context, CancellationToken cancellationToken)
     {
         // 将当前所有变量作为输出
-        var outputs = new Dictionary<string, string>(context.Variables, StringComparer.OrdinalIgnoreCase);
+        var outputs = new Dictionary<string, JsonElement>(context.Variables, StringComparer.OrdinalIgnoreCase);
         return Task.FromResult(new NodeExecutionResult(true, outputs));
     }
 }

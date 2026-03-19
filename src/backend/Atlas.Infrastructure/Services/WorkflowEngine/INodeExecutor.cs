@@ -1,5 +1,7 @@
+using System.Text.Json;
 using System.Threading.Channels;
 using Atlas.Application.AiPlatform.Models;
+using Atlas.Core.Tenancy;
 using Atlas.Domain.AiPlatform.Enums;
 using Atlas.Domain.AiPlatform.ValueObjects;
 
@@ -22,22 +24,31 @@ public sealed class NodeExecutionContext
 {
     public NodeExecutionContext(
         NodeSchema node,
-        Dictionary<string, string> variables,
+        Dictionary<string, JsonElement> variables,
         IServiceProvider serviceProvider,
+        TenantId tenantId,
+        long workflowId,
         long executionId,
+        IReadOnlyList<long> workflowCallStack,
         Channel<SseEvent>? eventChannel)
     {
         Node = node;
         Variables = variables;
         ServiceProvider = serviceProvider;
+        TenantId = tenantId;
+        WorkflowId = workflowId;
         ExecutionId = executionId;
+        WorkflowCallStack = workflowCallStack;
         EventChannel = eventChannel;
     }
 
     public NodeSchema Node { get; }
-    public Dictionary<string, string> Variables { get; }
+    public Dictionary<string, JsonElement> Variables { get; }
     public IServiceProvider ServiceProvider { get; }
+    public TenantId TenantId { get; }
+    public long WorkflowId { get; }
     public long ExecutionId { get; }
+    public IReadOnlyList<long> WorkflowCallStack { get; }
     public Channel<SseEvent>? EventChannel { get; }
 
     /// <summary>
@@ -56,18 +67,42 @@ public sealed class NodeExecutionContext
     /// </summary>
     public string ReplaceVariables(string template)
     {
-        if (string.IsNullOrEmpty(template) || Variables.Count == 0)
-        {
-            return template;
-        }
+        return VariableResolver.RenderTemplate(template, Variables);
+    }
 
-        var result = template;
-        foreach (var kvp in Variables)
-        {
-            result = result.Replace($"{{{{{kvp.Key}}}}}", kvp.Value, StringComparison.OrdinalIgnoreCase);
-        }
+    public JsonElement ParseLiteralOrTemplate(string value)
+    {
+        return VariableResolver.ParseLiteralOrTemplate(value, Variables);
+    }
 
-        return result;
+    public bool EvaluateCondition(string expression)
+    {
+        return VariableResolver.EvaluateCondition(expression, Variables);
+    }
+
+    public string GetConfigString(string key, string defaultValue = "")
+    {
+        return VariableResolver.GetConfigString(Node.Config, key, defaultValue);
+    }
+
+    public int GetConfigInt32(string key, int defaultValue = 0)
+    {
+        return VariableResolver.GetConfigInt32(Node.Config, key, defaultValue);
+    }
+
+    public long GetConfigInt64(string key, long defaultValue = 0L)
+    {
+        return VariableResolver.GetConfigInt64(Node.Config, key, defaultValue);
+    }
+
+    public bool GetConfigBoolean(string key, bool defaultValue = false)
+    {
+        return VariableResolver.GetConfigBoolean(Node.Config, key, defaultValue);
+    }
+
+    public bool TryResolveVariable(string path, out JsonElement value)
+    {
+        return VariableResolver.TryResolvePath(Variables, path, out value);
     }
 }
 
@@ -76,7 +111,7 @@ public sealed class NodeExecutionContext
 /// </summary>
 public sealed record NodeExecutionResult(
     bool Success,
-    Dictionary<string, string> Outputs,
+    Dictionary<string, JsonElement> Outputs,
     string? ErrorMessage = null,
     InterruptType InterruptType = InterruptType.None);
 

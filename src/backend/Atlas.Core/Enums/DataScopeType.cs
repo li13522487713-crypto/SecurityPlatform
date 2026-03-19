@@ -6,7 +6,9 @@ namespace Atlas.Core.Enums;
 public enum DataScopeType
 {
     /// <summary>全部数据权限</summary>
-    All = 1,
+    All = 0,
+    /// <summary>当前租户全部数据（兼容历史值）</summary>
+    CurrentTenant = 1,
     /// <summary>自定义部门</summary>
     CustomDept = 2,
     /// <summary>本部门</summary>
@@ -16,7 +18,5 @@ public enum DataScopeType
     /// <summary>仅本人</summary>
     OnlySelf = 5,
     /// <summary>项目维度</summary>
-    Project = 6,
-    /// <summary>兼容旧值：当前租户全部数据</summary>
-    CurrentTenant = 1
+    Project = 6
 }

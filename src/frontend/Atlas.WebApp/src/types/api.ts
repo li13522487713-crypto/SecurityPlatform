@@ -31,6 +31,7 @@ export interface AuthProfile {
   tenantId: string;
   roles: string[];
   permissions: string[];
+  isPlatformAdmin: boolean;
   clientContext?: ClientContext;
 }
 
@@ -637,6 +638,7 @@ export interface RoleDetail {
   description?: string;
   isSystem: boolean;
   dataScope: number;
+  deptIds: number[];
   permissionIds: number[];
   menuIds: number[];
 }

@@ -34,6 +34,7 @@ public sealed class UserCommandService : IUserCommandService
     private readonly IProjectUserRepository _projectUserRepository;
     private readonly Atlas.Core.Identity.IProjectContextAccessor _projectContextAccessor;
     private readonly IAuthCacheService _authCacheService;
+    private readonly IPermissionDecisionService _permissionDecisionService;
 
     public UserCommandService(
         IUserAccountRepository userRepository,
@@ -52,7 +53,8 @@ public sealed class UserCommandService : IUserCommandService
         IOptions<PasswordPolicyOptions> passwordPolicy,
         IProjectUserRepository projectUserRepository,
         Atlas.Core.Identity.IProjectContextAccessor projectContextAccessor,
-        IAuthCacheService authCacheService)
+        IAuthCacheService authCacheService,
+        IPermissionDecisionService permissionDecisionService)
     {
         _userRepository = userRepository;
         _userRoleRepository = userRoleRepository;
@@ -71,6 +73,7 @@ public sealed class UserCommandService : IUserCommandService
         _projectUserRepository = projectUserRepository;
         _projectContextAccessor = projectContextAccessor;
         _authCacheService = authCacheService;
+        _permissionDecisionService = permissionDecisionService;
     }
 
     public async Task<long> CreateAsync(
@@ -132,6 +135,7 @@ public sealed class UserCommandService : IUserCommandService
             }
         }, cancellationToken);
 
+        await _permissionDecisionService.InvalidateUserAsync(tenantId, user.Id, cancellationToken);
         return user.Id;
     }
 
@@ -210,6 +214,8 @@ public sealed class UserCommandService : IUserCommandService
             await _userRepository.UpdateAsync(user, cancellationToken);
         }, cancellationToken);
 
+        await _permissionDecisionService.InvalidateUserAsync(tenantId, userId, cancellationToken);
+
         // 若用户被禁用，立即使其所有认证缓存失效，确保已颁发的 JWT 下次请求时被拒绝
         if (!request.IsActive)
         {
@@ -243,6 +249,8 @@ public sealed class UserCommandService : IUserCommandService
                 cancellationToken);
             await _userRepository.UpdateAsync(user, cancellationToken);
         }, cancellationToken);
+
+        await _permissionDecisionService.InvalidateUserAsync(tenantId, userId, cancellationToken);
     }
 
     public async Task UpdateDepartmentsAsync(
@@ -269,6 +277,8 @@ public sealed class UserCommandService : IUserCommandService
                     .ToArray(),
                 cancellationToken);
         }, cancellationToken);
+
+        await _permissionDecisionService.InvalidateUserAsync(tenantId, userId, cancellationToken);
     }
 
     public async Task UpdatePositionsAsync(
@@ -295,6 +305,8 @@ public sealed class UserCommandService : IUserCommandService
                     .ToArray(),
                 cancellationToken);
         }, cancellationToken);
+
+        await _permissionDecisionService.InvalidateUserAsync(tenantId, userId, cancellationToken);
     }
 
     public async Task ChangePasswordAsync(
@@ -364,6 +376,7 @@ public sealed class UserCommandService : IUserCommandService
 
         // 密码变更后撤销所有会话，同步清除认证缓存
         _authCacheService.InvalidateUser(tenantId, userId);
+        await _permissionDecisionService.InvalidateUserAsync(tenantId, userId, cancellationToken);
     }
 
     public async Task UpdateProfileAsync(
@@ -382,6 +395,7 @@ public sealed class UserCommandService : IUserCommandService
 
         user.UpdateProfile(displayName, email, phoneNumber);
         await _userRepository.UpdateAsync(user, cancellationToken);
+        await _permissionDecisionService.InvalidateUserAsync(tenantId, userId, cancellationToken);
     }
 
     public async Task DeleteAsync(
@@ -409,6 +423,8 @@ public sealed class UserCommandService : IUserCommandService
             await _projectUserRepository.DeleteByUserIdAsync(tenantId, userId, cancellationToken);
             await _userRepository.DeleteAsync(tenantId, userId, cancellationToken);
         }, cancellationToken);
+
+        await _permissionDecisionService.InvalidateUserAsync(tenantId, userId, cancellationToken);
     }
 
     private async Task EnsureUserInProjectAsync(TenantId tenantId, long userId, CancellationToken cancellationToken)

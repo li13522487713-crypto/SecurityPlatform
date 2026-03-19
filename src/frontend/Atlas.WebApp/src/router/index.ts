@@ -28,6 +28,7 @@ const AppPagesPage = () => import("@/pages/apps/AppPagesPage.vue");
 const AppFormsPage = () => import("@/pages/lowcode/FormListPage.vue");
 const AppFlowsPage = () => import("@/pages/ApprovalFlowsPage.vue");
 const AppDataPage = () => import("@/pages/dynamic/DynamicTablesPage.vue");
+const AppUsersPage = () => import("@/pages/apps/AppUsersPage.vue");
 const AppPermissionsPage = () => import("@/pages/system/PermissionsPage.vue");
 const ModelConfigsPage = () => import("@/pages/ai/ModelConfigsPage.vue");
 const AiVariablesPage = () => import("@/pages/ai/AiVariablesPage.vue");
@@ -126,6 +127,7 @@ const router = createRouter({
     { path: "/apps/:appId/workflows/:id/editor", name: "app-workspace-workflow-editor", component: WorkflowEditorPage, meta: { requiresAuth: true, title: "工作流设计器", titleKey: "route.workflowEditor" } },
     { path: "/apps/:appId/agents/:id/edit", name: "app-workspace-agent-editor", component: AgentEditorPage, meta: { requiresAuth: true, title: "Agent 编辑", titleKey: "route.aiAgentEdit" } },
     { path: "/apps/:appId/data", name: "app-workspace-data", component: AppDataPage, meta: { requiresAuth: true, title: "数据管理", titleKey: "route.dataManage", requiresPermission: "apps:view" } },
+    { path: "/apps/:appId/users", name: "app-workspace-users", component: AppUsersPage, meta: { requiresAuth: true, title: "应用成员", titleKey: "route.appUsers", requiresPermission: "apps:members:view" } },
     { path: "/apps/:appId/permissions", name: "app-workspace-permissions", component: AppPermissionsPage, meta: { requiresAuth: true, title: "权限入口", titleKey: "route.permissionsEntry", requiresPermission: "apps:view" } },
     { path: "/apps/:appId/run/:pageKey", name: "app-workspace-runtime", component: PageRuntimeRenderer, meta: { requiresAuth: true, title: "应用运行态", titleKey: "route.appRuntime", requiresPermission: "apps:view" } },
     { path: "/r/:appKey/:pageKey", name: "runtime-delivery-page", component: PageRuntimeRenderer, meta: { requiresAuth: true, title: "运行交付面", titleKey: "route.runtimeDelivery" } },
@@ -279,6 +281,10 @@ const whiteList = ["/login", "/register"];
 const legacyRedirectNoticeCache = new Set<string>();
 
 function isPrivilegedUser(userStore: ReturnType<typeof useUserStore>) {
+  if (userStore.profile?.isPlatformAdmin) {
+    return true;
+  }
+
   return userStore.permissions.includes("*:*:*")
     || userStore.roles.some((role: string) => ["admin", "superadmin"].includes(role.toLowerCase()));
 }

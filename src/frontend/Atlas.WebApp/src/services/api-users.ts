@@ -290,7 +290,7 @@ export async function updateRoleMenus(id: string, request: RoleAssignMenusReques
   }
 }
 
-export async function setRoleDataScope(id: string, dataScope: number, deptIds?: string[]) {
+export async function setRoleDataScope(id: string, dataScope: number, deptIds?: number[]) {
   const response = await requestApi<ApiResponse<{ id: string }>>(`/roles/${id}/data-scope`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },

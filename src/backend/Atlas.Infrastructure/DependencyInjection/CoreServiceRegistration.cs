@@ -66,6 +66,7 @@ public static class CoreServiceRegistration
         services.AddScoped<IAuthTokenService, JwtAuthTokenService>();
         services.AddScoped<IAuthProfileService, AuthProfileService>();
         services.AddScoped<IRbacResolver, RbacResolver>();
+        services.AddScoped<IPermissionDecisionService, PermissionDecisionService>();
         services.AddScoped<IPasswordHasher, Pbkdf2PasswordHasher>();
         services.AddSingleton<ITotpService, TotpService>();
 

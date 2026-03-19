@@ -82,6 +82,66 @@ public sealed record TenantAppDataSourceBinding(
     string? BoundAt,
     string? Source);
 
+public sealed record TenantAppMemberListItem(
+    string UserId,
+    string Username,
+    string DisplayName,
+    bool IsActive,
+    string JoinedAt,
+    IReadOnlyList<string> RoleIds,
+    IReadOnlyList<string> RoleNames);
+
+public sealed record TenantAppMemberDetail(
+    string UserId,
+    string Username,
+    string DisplayName,
+    string? Email,
+    string? PhoneNumber,
+    bool IsActive,
+    string JoinedAt,
+    IReadOnlyList<string> RoleIds,
+    IReadOnlyList<string> RoleNames);
+
+public sealed record TenantAppMemberAssignRequest(
+    IReadOnlyList<long> UserIds,
+    IReadOnlyList<long> RoleIds);
+
+public sealed record TenantAppMemberUpdateRolesRequest(
+    IReadOnlyList<long> RoleIds);
+
+public sealed record TenantAppRoleListItem(
+    string Id,
+    string Code,
+    string Name,
+    string? Description,
+    bool IsSystem,
+    int MemberCount,
+    IReadOnlyList<string> PermissionCodes);
+
+public sealed record TenantAppRoleDetail(
+    string Id,
+    string Code,
+    string Name,
+    string? Description,
+    bool IsSystem,
+    string CreatedAt,
+    string UpdatedAt,
+    int MemberCount,
+    IReadOnlyList<string> PermissionCodes);
+
+public sealed record TenantAppRoleCreateRequest(
+    string Code,
+    string Name,
+    string? Description,
+    IReadOnlyList<string> PermissionCodes);
+
+public sealed record TenantAppRoleUpdateRequest(
+    string Name,
+    string? Description);
+
+public sealed record TenantAppRoleAssignPermissionsRequest(
+    IReadOnlyList<string> PermissionCodes);
+
 public sealed record RuntimeContextListItem(
     string Id,
     string AppKey,

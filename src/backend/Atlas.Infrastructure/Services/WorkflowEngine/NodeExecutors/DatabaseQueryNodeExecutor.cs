@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Atlas.Domain.AiPlatform.Enums;
 
 namespace Atlas.Infrastructure.Services.WorkflowEngine.NodeExecutors;
@@ -12,10 +13,10 @@ public sealed class DatabaseQueryNodeExecutor : INodeExecutor
 
     public Task<NodeExecutionResult> ExecuteAsync(NodeExecutionContext context, CancellationToken cancellationToken)
     {
-        var outputKey = context.Node.Config.GetValueOrDefault("outputKey") ?? "query_result";
-        var outputs = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        var outputKey = context.GetConfigString("outputKey", "query_result");
+        var outputs = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase)
         {
-            [outputKey] = "[]"
+            [outputKey] = JsonSerializer.SerializeToElement(Array.Empty<object>())
         };
 
         // 占位：TODO[coze-v2-db-query] 集成 AiDatabase 数据源执行查询

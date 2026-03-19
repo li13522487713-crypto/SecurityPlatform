@@ -47,6 +47,12 @@ public sealed class DataScopeFilter : IDataScopeFilter
             ? roles.Min(r => r.DataScope)
             : DataScopeType.OnlySelf;
 
+        // 全部数据权限仅允许平台管理员生效，其他用户自动降级为当前租户范围。
+        if (minScope == DataScopeType.All && !user.IsPlatformAdmin)
+        {
+            return DataScopeType.CurrentTenant;
+        }
+
         return minScope;
     }
 

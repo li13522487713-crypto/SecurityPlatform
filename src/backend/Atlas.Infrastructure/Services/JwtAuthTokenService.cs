@@ -320,6 +320,7 @@ public sealed class JwtAuthTokenService : IAuthTokenService
             new(ClaimTypes.NameIdentifier, account.Id.ToString()),
             new(ClaimTypes.Name, account.Username),
             new("display_name", account.DisplayName),
+            new("is_platform_admin", account.IsPlatformAdmin ? "true" : "false"),
             new("app_id", appId),
             new("client_type", clientContext.ClientType.ToString()),
             new("client_platform", clientContext.ClientPlatform.ToString()),

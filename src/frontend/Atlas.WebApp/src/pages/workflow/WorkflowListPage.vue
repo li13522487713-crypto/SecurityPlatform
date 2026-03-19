@@ -37,7 +37,7 @@
               <a-tag :color="statusColor(record.status)">{{ statusLabel(record.status) }}</a-tag>
             </template>
             <template v-if="column.key === 'mode'">
-              <a-tag>{{ record.mode === 0 ? '标准' : 'ChatFlow' }}</a-tag>
+            <a-tag>{{ record.mode === 0 ? '标准' : 'ChatFlow' }}</a-tag>
             </template>
             <template v-if="column.key === 'actions'">
               <a-space>
@@ -72,7 +72,7 @@
         <a-form-item label="模式">
           <a-select v-model:value="createForm.mode">
             <a-select-option :value="0">标准工作流</a-select-option>
-            <a-select-option :value="3">ChatFlow</a-select-option>
+              <a-select-option :value="1">ChatFlow</a-select-option>
           </a-select>
         </a-form-item>
       </a-form>
@@ -103,13 +103,13 @@ const keyword = ref('')
 const workflows = ref<WorkflowListItem[]>([])
 const pagination = reactive({ current: 1, pageSize: 20, total: 0 })
 
-const createForm = reactive({ name: '', description: '', mode: 0 as 0 | 3 })
+const createForm = reactive({ name: '', description: '', mode: 0 as 0 | 1 })
 
 const columns = [
   { title: '名称', key: 'name', dataIndex: 'name' },
   { title: '模式', key: 'mode', dataIndex: 'mode', width: 100 },
   { title: '状态', key: 'status', dataIndex: 'status', width: 100 },
-  { title: '最新版本', key: 'latestVersion', dataIndex: 'latestVersion', width: 120 },
+  { title: '最新版本', key: 'latestVersionNumber', dataIndex: 'latestVersionNumber', width: 120 },
   { title: '更新时间', key: 'updatedAt', dataIndex: 'updatedAt', width: 180 },
   { title: '操作', key: 'actions', width: 180 },
 ]
@@ -118,7 +118,7 @@ function statusColor(status: number) {
   return status === 0 ? 'default' : status === 1 ? 'green' : 'orange'
 }
 function statusLabel(status: number) {
-  return status === 0 ? '草稿' : status === 1 ? '已发布' : '已禁用'
+  return status === 0 ? '草稿' : status === 1 ? '已发布' : '已归档'
 }
 
 async function loadList() {

@@ -44,6 +44,61 @@ export interface TenantAppDataSourceBinding {
   source?: string;
 }
 
+export interface TenantAppMemberListItem {
+  userId: string;
+  username: string;
+  displayName: string;
+  isActive: boolean;
+  joinedAt: string;
+  roleIds: string[];
+  roleNames: string[];
+}
+
+export interface TenantAppMemberDetail extends TenantAppMemberListItem {
+  email?: string;
+  phoneNumber?: string;
+}
+
+export interface TenantAppMemberAssignRequest {
+  userIds: number[];
+  roleIds: number[];
+}
+
+export interface TenantAppMemberUpdateRolesRequest {
+  roleIds: number[];
+}
+
+export interface TenantAppRoleListItem {
+  id: string;
+  code: string;
+  name: string;
+  description?: string;
+  isSystem: boolean;
+  memberCount: number;
+  permissionCodes: string[];
+}
+
+export interface TenantAppRoleDetail extends TenantAppRoleListItem {
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TenantAppRoleCreateRequest {
+  code: string;
+  name: string;
+  description?: string;
+  permissionCodes: string[];
+}
+
+export interface TenantAppRoleUpdateRequest {
+  name: string;
+  description?: string;
+}
+
+export interface TenantAppRoleAssignPermissionsRequest {
+  permissionCodes: string[];
+}
+
 export interface ResourceCenterGroupEntry {
   resourceId: string;
   resourceName: string;

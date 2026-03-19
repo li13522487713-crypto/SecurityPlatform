@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Atlas.Domain.AiPlatform.Enums;
 
 namespace Atlas.Infrastructure.Services.WorkflowEngine.NodeExecutors;
@@ -12,13 +13,13 @@ public sealed class TextProcessorNodeExecutor : INodeExecutor
 
     public Task<NodeExecutionResult> ExecuteAsync(NodeExecutionContext context, CancellationToken cancellationToken)
     {
-        var template = context.Node.Config.GetValueOrDefault("template") ?? string.Empty;
-        var outputKey = context.Node.Config.GetValueOrDefault("outputKey") ?? "text_output";
-        var outputs = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var template = context.GetConfigString("template");
+        var outputKey = context.GetConfigString("outputKey", "text_output");
+        var outputs = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
 
         var result = context.ReplaceVariables(template);
 
-        outputs[outputKey] = result;
+        outputs[outputKey] = VariableResolver.CreateStringElement(result);
         return Task.FromResult(new NodeExecutionResult(true, outputs));
     }
 }

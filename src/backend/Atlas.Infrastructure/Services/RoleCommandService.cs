@@ -1,12 +1,15 @@
 using Atlas.Application.Identity.Abstractions;
 using Atlas.Application.Identity.Models;
 using Atlas.Application.Identity.Repositories;
+using Atlas.Application.Audit.Abstractions;
 using Atlas.Application.Abstractions;
 using Atlas.Core.Abstractions;
+using Atlas.Core.Identity;
 using Atlas.Core.Enums;
 using Atlas.Core.Exceptions;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
+using Atlas.Domain.Audit.Entities;
 using Atlas.Domain.Identity.Entities;
 
 namespace Atlas.Infrastructure.Services;
@@ -23,6 +26,9 @@ public sealed class RoleCommandService : IRoleCommandService
     private readonly IDepartmentRepository _departmentRepository;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IPermissionDecisionService _permissionDecisionService;
+    private readonly IAuditWriter _auditWriter;
+    private readonly ICurrentUserAccessor _currentUserAccessor;
 
     public RoleCommandService(
         IRoleRepository roleRepository,
@@ -34,7 +40,10 @@ public sealed class RoleCommandService : IRoleCommandService
         IRoleDeptRepository roleDeptRepository,
         IDepartmentRepository departmentRepository,
         IIdGeneratorAccessor idGeneratorAccessor,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        IPermissionDecisionService permissionDecisionService,
+        IAuditWriter auditWriter,
+        ICurrentUserAccessor currentUserAccessor)
     {
         _roleRepository = roleRepository;
         _rolePermissionRepository = rolePermissionRepository;
@@ -46,6 +55,9 @@ public sealed class RoleCommandService : IRoleCommandService
         _departmentRepository = departmentRepository;
         _idGeneratorAccessor = idGeneratorAccessor;
         _unitOfWork = unitOfWork;
+        _permissionDecisionService = permissionDecisionService;
+        _auditWriter = auditWriter;
+        _currentUserAccessor = currentUserAccessor;
     }
 
     public async Task<long> CreateAsync(
@@ -63,6 +75,11 @@ public sealed class RoleCommandService : IRoleCommandService
         var role = new Role(tenantId, request.Name, request.Code, id);
         role.Update(request.Name, request.Description);
         await _roleRepository.AddAsync(role, cancellationToken);
+        await WriteAuditAsync(
+            tenantId,
+            "Identity.Role.Created",
+            $"roleId={role.Id};code={request.Code};name={request.Name}",
+            cancellationToken);
         return role.Id;
     }
 
@@ -80,6 +97,12 @@ public sealed class RoleCommandService : IRoleCommandService
 
         role.Update(request.Name, request.Description);
         await _roleRepository.UpdateAsync(role, cancellationToken);
+        await _permissionDecisionService.InvalidateRoleAsync(tenantId, roleId, cancellationToken);
+        await WriteAuditAsync(
+            tenantId,
+            "Identity.Role.Updated",
+            $"roleId={roleId};name={request.Name}",
+            cancellationToken);
     }
 
     public async Task UpdatePermissionsAsync(
@@ -100,6 +123,13 @@ public sealed class RoleCommandService : IRoleCommandService
                     .ToArray(),
                 cancellationToken);
         }, cancellationToken);
+
+        await _permissionDecisionService.InvalidateRoleAsync(tenantId, roleId, cancellationToken);
+        await WriteAuditAsync(
+            tenantId,
+            "Identity.Role.PermissionsUpdated",
+            $"roleId={roleId};permissionIds={string.Join(',', permissionIds.Distinct())}",
+            cancellationToken);
     }
 
     public async Task UpdateMenusAsync(
@@ -120,6 +150,13 @@ public sealed class RoleCommandService : IRoleCommandService
                     .ToArray(),
                 cancellationToken);
         }, cancellationToken);
+
+        await _permissionDecisionService.InvalidateRoleAsync(tenantId, roleId, cancellationToken);
+        await WriteAuditAsync(
+            tenantId,
+            "Identity.Role.MenusUpdated",
+            $"roleId={roleId};menuIds={string.Join(',', menuIds.Distinct())}",
+            cancellationToken);
     }
 
     public async Task DeleteAsync(
@@ -151,6 +188,13 @@ public sealed class RoleCommandService : IRoleCommandService
             await _userRoleRepository.DeleteByRoleIdAsync(tenantId, roleId, cancellationToken);
             await _roleRepository.DeleteAsync(tenantId, roleId, cancellationToken);
         }, cancellationToken);
+
+        await _permissionDecisionService.InvalidateRoleAsync(tenantId, roleId, cancellationToken);
+        await WriteAuditAsync(
+            tenantId,
+            "Identity.Role.Deleted",
+            $"roleId={roleId};code={role.Code}",
+            cancellationToken);
     }
 
     public async Task SetDataScopeAsync(TenantId tenantId, long roleId, DataScopeType scope, IReadOnlyList<long>? deptIds, CancellationToken cancellationToken)
@@ -161,11 +205,16 @@ public sealed class RoleCommandService : IRoleCommandService
             throw new BusinessException("Role not found.", ErrorCodes.NotFound);
         }
 
-        if (scope == DataScopeType.CustomDept && deptIds?.Count > 0)
+        var distinctDeptIds = deptIds?.Distinct().ToArray() ?? Array.Empty<long>();
+        if (scope == DataScopeType.CustomDept)
         {
-            var distinctIds = deptIds.Distinct().ToArray();
-            var depts = await _departmentRepository.QueryByIdsAsync(tenantId, distinctIds, cancellationToken);
-            if (depts.Count != distinctIds.Length)
+            if (distinctDeptIds.Length == 0)
+            {
+                throw new BusinessException("Custom department data scope requires at least one department.", ErrorCodes.ValidationError);
+            }
+
+            var depts = await _departmentRepository.QueryByIdsAsync(tenantId, distinctDeptIds, cancellationToken);
+            if (depts.Count != distinctDeptIds.Length)
             {
                 throw new BusinessException("Department not found.", ErrorCodes.ValidationError);
             }
@@ -177,15 +226,22 @@ public sealed class RoleCommandService : IRoleCommandService
             await _roleRepository.UpdateAsync(role, cancellationToken);
 
             await _roleDeptRepository.DeleteByRoleIdAsync(tenantId, roleId, cancellationToken);
-            if (scope == DataScopeType.CustomDept && deptIds?.Count > 0)
+            if (scope == DataScopeType.CustomDept && distinctDeptIds.Length > 0)
             {
                 await _roleDeptRepository.AddRangeAsync(
-                    deptIds.Distinct()
+                    distinctDeptIds
                         .Select(deptId => new RoleDept(tenantId, roleId, deptId, _idGeneratorAccessor.NextId()))
                         .ToArray(),
                     cancellationToken);
             }
         }, cancellationToken);
+
+        await _permissionDecisionService.InvalidateRoleAsync(tenantId, roleId, cancellationToken);
+        await WriteAuditAsync(
+            tenantId,
+            "Identity.Role.DataScopeUpdated",
+            $"roleId={roleId};scope={(int)scope};deptIds={string.Join(',', distinctDeptIds)}",
+            cancellationToken);
     }
 
     private async Task EnsureRoleExistsAsync(TenantId tenantId, long roleId, CancellationToken cancellationToken)
@@ -231,5 +287,24 @@ public sealed class RoleCommandService : IRoleCommandService
         {
             throw new BusinessException("Menu not found.", ErrorCodes.ValidationError);
         }
+    }
+
+    private async Task WriteAuditAsync(
+        TenantId tenantId,
+        string action,
+        string target,
+        CancellationToken cancellationToken)
+    {
+        var currentUser = _currentUserAccessor.GetCurrentUser();
+        var actor = currentUser?.Username ?? "system";
+        var record = new AuditRecord(
+            tenantId,
+            actor,
+            action,
+            "Success",
+            target,
+            null,
+            null);
+        await _auditWriter.WriteAsync(record, cancellationToken);
     }
 }

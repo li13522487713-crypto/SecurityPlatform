@@ -218,6 +218,32 @@
   - `export` 为只读接口，不要求幂等头。
   - `import` 的 `package` 契约沿用 `LowCodeAppExportPackage`，用于兼容窗口内平滑迁移。
 
+#### v2 P0 应用成员与应用角色接口（App-level Isolation）
+
+- 应用成员（`UseSharedUsers=false` 时启用）：
+  - `GET /api/v2/tenant-app-instances/{appId}/members`
+  - `GET /api/v2/tenant-app-instances/{appId}/members/{userId}`
+  - `POST /api/v2/tenant-app-instances/{appId}/members`
+  - `PUT /api/v2/tenant-app-instances/{appId}/members/{userId}/roles`
+  - `DELETE /api/v2/tenant-app-instances/{appId}/members/{userId}`
+  - 授权策略：GET 要求 `apps:members:view`，写接口要求 `apps:members:update`
+- 应用角色（`UseSharedRoles=false` 时启用）：
+  - `GET /api/v2/tenant-app-instances/{appId}/roles`
+  - `GET /api/v2/tenant-app-instances/{appId}/roles/{roleId}`
+  - `POST /api/v2/tenant-app-instances/{appId}/roles`
+  - `PUT /api/v2/tenant-app-instances/{appId}/roles/{roleId}`
+  - `PUT /api/v2/tenant-app-instances/{appId}/roles/{roleId}/permissions`
+  - `DELETE /api/v2/tenant-app-instances/{appId}/roles/{roleId}`
+  - 授权策略：GET 要求 `apps:roles:view`，写接口要求 `apps:roles:update`
+
+约束说明：
+
+- 当应用启用共享用户/共享角色时，对应接口返回 `VALIDATION_ERROR`。
+- 应用工作台中 `app:user` / `app:admin` 受保护接口会触发成员中间件校验：
+  - `UseSharedUsers=false` 且用户未入组时返回 `FORBIDDEN`。
+  - 平台管理员/系统管理员允许绕过成员校验。
+- 成员与角色绑定操作必须采用批量查询与批量写入，禁止在循环内数据库操作。
+
 #### v2 P2 发布闭环接口（首批）
 
 - `GET /api/v2/release-center/releases`
@@ -761,6 +787,10 @@ JWT Claims（新增）：
 - `menus:update`：菜单更新
 - `apps:view`：应用配置查看
 - `apps:update`：应用配置更新
+- `apps:members:view`：应用成员查看
+- `apps:members:update`：应用成员维护
+- `apps:roles:view`：应用角色查看
+- `apps:roles:update`：应用角色维护
 - `projects:view`：项目查看
 - `projects:create`：项目新增
 - `projects:update`：项目更新
@@ -2187,7 +2217,7 @@ V2 工作流 API 采用 Coze 风格的 DAG 执行引擎，与 V1（`api/v1/ai-wo
 | POST | `/executions/{id}/resume` | 恢复执行 | `ai-workflow:execute` |
 | GET | `/executions/{id}/process` | 执行进度 | `ai-workflow:view` |
 | GET | `/executions/{id}/nodes/{key}` | 节点执行详情 | `ai-workflow:view` |
-| POST | `/{id}/debug-node` | 单节点调试 | `ai-workflow:execute` |
+| POST | `/{id}/debug-node` | 单节点调试 | `ai-workflow:debug` |
 | GET | `/node-types` | 节点类型列表 | `ai-workflow:view` |
 
 ### 请求模型
@@ -2297,17 +2327,23 @@ event: execution_start
 data: {"executionId":"123456"}
 
 event: node_start
-data: {"nodeKey":"text_1","nodeType":"TextProcessor"}
+data: {"executionId":"123456","nodeKey":"text_1","nodeType":"TextProcessor"}
+
+event: node_output
+data: {"executionId":"123456","nodeKey":"text_1","nodeType":"TextProcessor","outputs":{"text_output":"hello"}}
 
 event: node_complete
-data: {"nodeKey":"text_1","durationMs":15}
+data: {"executionId":"123456","nodeKey":"text_1","nodeType":"TextProcessor","durationMs":15}
+
+event: node_failed
+data: {"executionId":"123456","nodeKey":"loop_1","nodeType":"Loop","durationMs":2,"errorMessage":"Loop 节点未找到集合变量：items","interruptType":"None"}
 
 event: llm_output
 data: 大模型生成的文本内容...
 
 # 仅在执行成功时发送
 event: execution_complete
-data: {"executionId":"123456"}
+data: {"executionId":"123456","outputsJson":"{\"result\":\"ok\"}"}
 
 # 执行失败（包含业务失败/运行时异常）
 event: execution_failed
@@ -2319,7 +2355,7 @@ data: {"executionId":"123456"}
 
 # 执行中断（等待人工介入/外部输入）
 event: execution_interrupted
-data: {"executionId":"123456","interruptType":"ManualApproval","nodeKey":"approval_1"}
+data: {"executionId":"123456","interruptType":"ManualApproval","nodeKey":"approval_1","outputsJson":"{\"draft\":\"pending\"}"}
 ```
 
 ### Canvas JSON Schema

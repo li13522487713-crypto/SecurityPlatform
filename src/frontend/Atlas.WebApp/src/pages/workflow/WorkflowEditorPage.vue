@@ -123,13 +123,8 @@ import WorkflowNodeRenderer from '@/components/workflow/nodes/WorkflowNodeRender
 
 import { workflowV2Api } from '@/services/api-workflow-v2'
 import { resolveCurrentAppId } from '@/utils/app-context'
-import type {
-  CanvasSchema,
-  NodeSchema,
-  ConnectionSchema,
-  NodeTypeMetadata,
-  WorkflowVersionItem,
-} from '@/types/workflow-v2'
+import { normalizeNodeTypeKey } from '@/types/workflow-v2'
+import type { CanvasSchema, ConnectionSchema, NodeSchema, NodeTypeMetadata, WorkflowVersionItem } from '@/types/workflow-v2'
 
 const route = useRoute()
 const router = useRouter()
@@ -155,13 +150,23 @@ const nodeRunStatus = ref<Record<string, string>>({})
 const _nr = markRaw(WorkflowNodeRenderer)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const nodeTypes: Record<string, any> = {
-  Entry: _nr, Exit: _nr, LLM: _nr, If: _nr, Loop: _nr, Break: _nr, Continue: _nr,
-  Batch: _nr, SubWorkflow: _nr, IntentDetector: _nr, KnowledgeRetriever: _nr,
-  KnowledgeIndexer: _nr, KnowledgeDeleter: _nr, CodeRunner: _nr, HttpRequester: _nr,
-  PluginApi: _nr, DatabaseQuery: _nr, DatabaseInsert: _nr, DatabaseUpdate: _nr,
-  DatabaseDelete: _nr, AssignVariable: _nr, VariableAggregator: _nr, JsonSerialization: _nr,
-  JsonDeserialization: _nr, TextProcessor: _nr, MessageList: _nr, CreateMessage: _nr,
-  ConversationList: _nr, QuestionAnswer: _nr, OutputEmitter: _nr,
+  Entry: _nr,
+  Exit: _nr,
+  Llm: _nr,
+  Selector: _nr,
+  Loop: _nr,
+  SubWorkflow: _nr,
+  CodeRunner: _nr,
+  HttpRequester: _nr,
+  DatabaseQuery: _nr,
+  AssignVariable: _nr,
+  VariableAggregator: _nr,
+  JsonSerialization: _nr,
+  JsonDeserialization: _nr,
+  TextProcessor: _nr,
+  // 兼容历史草稿中的旧键名
+  LLM: _nr,
+  If: _nr,
 }
 
 const defaultEdgeOptions = {
@@ -186,16 +191,17 @@ const currentCanvas = computed<CanvasSchema>(() => {
     key: n.id,
     type: (n.type ?? 'Unknown') as NodeSchema['type'],
     title: (n.data?.title as string) ?? n.type ?? '',
-    layout: { x: n.position.x, y: n.position.y },
+    layout: { x: n.position.x, y: n.position.y, width: 160, height: 60 },
     configs: (n.data?.configs as Record<string, unknown>) ?? {},
     inputMappings: (n.data?.inputMappings as Record<string, string>) ?? {},
   }))
 
   const connections: ConnectionSchema[] = vfEdges.value.map((e, i) => ({
     fromNode: e.source,
-    fromPort: e.sourceHandle ?? undefined,
+    fromPort: e.sourceHandle ?? 'output',
     toNode: e.target,
-    toPort: e.targetHandle ?? undefined,
+    toPort: e.targetHandle ?? 'input',
+    condition: null,
   }))
 
   return { nodes, connections }
@@ -251,9 +257,9 @@ function applyCanvasToVueFlow(canvas: CanvasSchema) {
   vfEdges.value = canvas.connections.map((c, i) => ({
     id: `e-${c.fromNode}-${c.toNode}-${i}`,
     source: c.fromNode,
-    sourceHandle: c.fromPort,
+      sourceHandle: c.fromPort ?? 'output',
     target: c.toNode,
-    targetHandle: c.toPort,
+      targetHandle: c.toPort ?? 'input',
     type: 'smoothstep',
     style: { stroke: '#4b5563', strokeWidth: 2 },
   }))
@@ -311,7 +317,7 @@ async function handlePublish() {
     const res = await workflowV2Api.publish(workflowId.value, { changeLog: changeLog.value })
     if (res.success) {
       showPublishModal.value = false
-      message.success(`已发布版本 ${res.data?.version}`)
+      message.success('发布成功')
       changeLog.value = ''
       // 刷新版本列表
       const vRes = await workflowV2Api.getVersions(workflowId.value)
@@ -338,7 +344,7 @@ function handleNodeClick(event: { node: VfNode }) {
     key: vfNode.id,
     type: (vfNode.type ?? 'Unknown') as NodeSchema['type'],
     title: (vfNode.data?.title as string) ?? '',
-    layout: { x: vfNode.position.x, y: vfNode.position.y },
+    layout: { x: vfNode.position.x, y: vfNode.position.y, width: 160, height: 60 },
     configs: (vfNode.data?.configs as Record<string, unknown>) ?? {},
     inputMappings: (vfNode.data?.inputMappings as Record<string, string>) ?? {},
   }
@@ -385,34 +391,22 @@ function handleDrop(event: DragEvent) {
   const y = event.clientY - rect.top - 30
   const nodeKey = `${draggingNodeType.toLowerCase()}_${Date.now()}`
 
-  const meta = nodeTypesMetadata.value.find(m => nodeTypeEnumToString(m.type) === draggingNodeType)
+  const normalizedDraggingType = normalizeNodeTypeKey(draggingNodeType)
+  const meta = nodeTypesMetadata.value.find(m => normalizeNodeTypeKey(String(m.key)) === normalizedDraggingType)
   const title = meta?.name ?? draggingNodeType
 
   vfNodes.value = [
     ...vfNodes.value,
     {
       id: nodeKey,
-      type: draggingNodeType,
+      type: normalizedDraggingType,
       position: { x, y },
-      data: { title, configs: {}, inputMappings: {}, nodeType: draggingNodeType, __status: '' },
+      data: { title, configs: {}, inputMappings: {}, nodeType: normalizedDraggingType, __status: '' },
     },
   ]
 
   isDirty.value = true
   draggingNodeType = null
-}
-
-function nodeTypeEnumToString(type: number): string {
-  const map: Record<number, string> = {
-    1: 'Entry', 2: 'Exit', 3: 'LLM', 4: 'If', 5: 'Loop', 6: 'Break', 7: 'Continue',
-    8: 'Batch', 9: 'SubWorkflow', 10: 'IntentDetector', 11: 'KnowledgeRetriever',
-    12: 'KnowledgeIndexer', 13: 'KnowledgeDeleter', 14: 'CodeRunner', 15: 'HttpRequester',
-    16: 'PluginApi', 17: 'DatabaseQuery', 18: 'DatabaseInsert', 19: 'DatabaseUpdate',
-    20: 'DatabaseDelete', 21: 'AssignVariable', 22: 'VariableAggregator', 23: 'JsonSerialization',
-    24: 'JsonDeserialization', 25: 'TextProcessor', 26: 'MessageList', 27: 'CreateMessage',
-    28: 'ConversationList', 29: 'QuestionAnswer', 30: 'OutputEmitter',
-  }
-  return map[type] ?? 'Unknown'
 }
 
 function handleNodeConfigUpdate(

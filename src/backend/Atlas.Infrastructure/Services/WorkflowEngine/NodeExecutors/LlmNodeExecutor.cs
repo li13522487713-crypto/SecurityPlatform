@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Text.Json;
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
 using Atlas.Domain.AiPlatform.Enums;
@@ -21,19 +23,18 @@ public sealed class LlmNodeExecutor : INodeExecutor
 
     public async Task<NodeExecutionResult> ExecuteAsync(NodeExecutionContext context, CancellationToken cancellationToken)
     {
-        var outputs = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        var config = context.Node.Config;
+        var outputs = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
 
-        var promptTemplate = config.GetValueOrDefault("prompt") ?? string.Empty;
-        var model = config.GetValueOrDefault("model") ?? "gpt-4o-mini";
-        var provider = config.GetValueOrDefault("provider");
-        var outputKey = config.GetValueOrDefault("outputKey") ?? "llm_output";
+        var promptTemplate = context.GetConfigString("prompt");
+        var model = context.GetConfigString("model", "gpt-4o-mini");
+        var provider = context.GetConfigString("provider");
+        var outputKey = context.GetConfigString("outputKey", "llm_output");
 
         // 变量替换
         var prompt = context.ReplaceVariables(promptTemplate);
         if (string.IsNullOrWhiteSpace(prompt))
         {
-            outputs[outputKey] = string.Empty;
+            outputs[outputKey] = VariableResolver.CreateStringElement(string.Empty);
             return new NodeExecutionResult(true, outputs);
         }
 
@@ -41,8 +42,8 @@ public sealed class LlmNodeExecutor : INodeExecutor
         {
             var llmProvider = _llmProviderFactory.GetLlmProvider(provider);
 
-            float.TryParse(config.GetValueOrDefault("temperature"), out var temperature);
-            int.TryParse(config.GetValueOrDefault("maxTokens"), out var maxTokens);
+            float.TryParse(context.GetConfigString("temperature"), NumberStyles.Float, CultureInfo.InvariantCulture, out var temperature);
+            int.TryParse(context.GetConfigString("maxTokens"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var maxTokens);
 
             var request = new ChatCompletionRequest(
                 model,
@@ -52,7 +53,7 @@ public sealed class LlmNodeExecutor : INodeExecutor
                 provider);
 
             var result = await llmProvider.ChatAsync(request, cancellationToken);
-            outputs[outputKey] = result.Content;
+            outputs[outputKey] = VariableResolver.CreateStringElement(result.Content);
 
             await context.EmitEventAsync("llm_output", result.Content, cancellationToken);
 

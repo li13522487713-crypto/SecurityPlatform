@@ -89,7 +89,12 @@ public sealed record WorkflowV2NodeExecutionDto(
     DateTime? CompletedAt,
     long? DurationMs);
 
-public sealed record WorkflowV2RunResult(string ExecutionId);
+public sealed record WorkflowV2RunResult(
+    string ExecutionId,
+    ExecutionStatus? Status = null,
+    string? OutputsJson = null,
+    string? ErrorMessage = null,
+    string? DebugNodeKey = null);
 
 public sealed record WorkflowV2NodeTypeDto(
     string Key,

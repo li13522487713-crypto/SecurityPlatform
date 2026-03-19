@@ -13,11 +13,11 @@ public sealed class JsonSerializationNodeExecutor : INodeExecutor
 
     public Task<NodeExecutionResult> ExecuteAsync(NodeExecutionContext context, CancellationToken cancellationToken)
     {
-        var keys = (context.Node.Config.GetValueOrDefault("variableKeys") ?? string.Empty)
+        var keys = context.GetConfigString("variableKeys")
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        var outputKey = context.Node.Config.GetValueOrDefault("outputKey") ?? "json_output";
+        var outputKey = context.GetConfigString("outputKey", "json_output");
 
-        var data = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var data = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
         foreach (var key in keys)
         {
             if (context.Variables.TryGetValue(key, out var value))
@@ -26,9 +26,9 @@ public sealed class JsonSerializationNodeExecutor : INodeExecutor
             }
         }
 
-        var outputs = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        var outputs = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase)
         {
-            [outputKey] = JsonSerializer.Serialize(data)
+            [outputKey] = VariableResolver.CreateStringElement(JsonSerializer.Serialize(data))
         };
 
         return Task.FromResult(new NodeExecutionResult(true, outputs));

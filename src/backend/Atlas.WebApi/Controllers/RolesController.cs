@@ -139,6 +139,14 @@ public sealed class RolesController : ControllerBase
         [FromBody] SetDataScopeRequest request,
         CancellationToken cancellationToken)
     {
+        if (!Enum.IsDefined(typeof(DataScopeType), request.DataScope))
+        {
+            return BadRequest(ApiResponse<object>.Fail(
+                ErrorCodes.ValidationError,
+                "数据范围类型无效。",
+                HttpContext.TraceIdentifier));
+        }
+
         var tenantId = _tenantProvider.GetTenantId();
         await _roleCommandService.SetDataScopeAsync(tenantId, id, (DataScopeType)request.DataScope, request.DeptIds, cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));

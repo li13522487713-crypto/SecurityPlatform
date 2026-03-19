@@ -27,3 +27,133 @@ public interface IRuntimeRouteRepository
     Task<RuntimeRoute?> GetByAppAndPageKeyAsync(TenantId tenantId, string appKey, string pageKey, CancellationToken cancellationToken = default);
     Task UpsertAsync(RuntimeRoute route, CancellationToken cancellationToken = default);
 }
+
+public interface IAppMemberRepository
+{
+    Task<(IReadOnlyList<AppMember> Items, int TotalCount)> QueryPageAsync(
+        TenantId tenantId,
+        long appId,
+        int pageIndex,
+        int pageSize,
+        string? keyword,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<AppMember>> QueryByAppIdAsync(
+        TenantId tenantId,
+        long appId,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<AppMember>> QueryByUserIdsAsync(
+        TenantId tenantId,
+        long appId,
+        IReadOnlyList<long> userIds,
+        CancellationToken cancellationToken = default);
+
+    Task<bool> ExistsAsync(
+        TenantId tenantId,
+        long appId,
+        long userId,
+        CancellationToken cancellationToken = default);
+
+    Task<bool> ExistsAnyAsync(
+        TenantId tenantId,
+        long appId,
+        CancellationToken cancellationToken = default);
+
+    Task AddRangeAsync(IReadOnlyList<AppMember> entities, CancellationToken cancellationToken = default);
+
+    Task DeleteAsync(
+        TenantId tenantId,
+        long appId,
+        long userId,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IAppRoleRepository
+{
+    Task<(IReadOnlyList<AppRole> Items, int TotalCount)> QueryPageAsync(
+        TenantId tenantId,
+        long appId,
+        int pageIndex,
+        int pageSize,
+        string? keyword,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<AppRole>> QueryByIdsAsync(
+        TenantId tenantId,
+        long appId,
+        IReadOnlyList<long> ids,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<AppRole>> QueryByAppIdAsync(
+        TenantId tenantId,
+        long appId,
+        CancellationToken cancellationToken = default);
+
+    Task<AppRole?> FindByIdAsync(
+        TenantId tenantId,
+        long appId,
+        long roleId,
+        CancellationToken cancellationToken = default);
+
+    Task<AppRole?> FindByCodeAsync(
+        TenantId tenantId,
+        long appId,
+        string code,
+        CancellationToken cancellationToken = default);
+
+    Task AddAsync(AppRole role, CancellationToken cancellationToken = default);
+    Task UpdateAsync(AppRole role, CancellationToken cancellationToken = default);
+
+    Task DeleteAsync(
+        TenantId tenantId,
+        long appId,
+        long roleId,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IAppUserRoleRepository
+{
+    Task<IReadOnlyList<AppUserRole>> QueryByUserIdsAsync(
+        TenantId tenantId,
+        long appId,
+        IReadOnlyList<long> userIds,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<AppUserRole>> QueryByRoleIdsAsync(
+        TenantId tenantId,
+        long appId,
+        IReadOnlyList<long> roleIds,
+        CancellationToken cancellationToken = default);
+
+    Task DeleteByUserIdAsync(
+        TenantId tenantId,
+        long appId,
+        long userId,
+        CancellationToken cancellationToken = default);
+
+    Task DeleteByRoleIdAsync(
+        TenantId tenantId,
+        long appId,
+        long roleId,
+        CancellationToken cancellationToken = default);
+
+    Task AddRangeAsync(IReadOnlyList<AppUserRole> entities, CancellationToken cancellationToken = default);
+}
+
+public interface IAppRolePermissionRepository
+{
+    Task<IReadOnlyList<AppRolePermission>> QueryByRoleIdsAsync(
+        TenantId tenantId,
+        long appId,
+        IReadOnlyList<long> roleIds,
+        CancellationToken cancellationToken = default);
+
+    Task DeleteByRoleIdAsync(
+        TenantId tenantId,
+        long appId,
+        long roleId,
+        CancellationToken cancellationToken = default);
+
+    Task AddRangeAsync(IReadOnlyList<AppRolePermission> entities, CancellationToken cancellationToken = default);
+}

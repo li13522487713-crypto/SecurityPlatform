@@ -10,17 +10,20 @@ namespace Atlas.Infrastructure.Services;
 public sealed class RoleQueryService : IRoleQueryService
 {
     private readonly IRoleRepository _roleRepository;
+    private readonly IRoleDeptRepository _roleDeptRepository;
     private readonly IRolePermissionRepository _rolePermissionRepository;
     private readonly IRoleMenuRepository _roleMenuRepository;
     private readonly IMapper _mapper;
 
     public RoleQueryService(
         IRoleRepository roleRepository,
+        IRoleDeptRepository roleDeptRepository,
         IRolePermissionRepository rolePermissionRepository,
         IRoleMenuRepository roleMenuRepository,
         IMapper mapper)
     {
         _roleRepository = roleRepository;
+        _roleDeptRepository = roleDeptRepository;
         _rolePermissionRepository = rolePermissionRepository;
         _roleMenuRepository = roleMenuRepository;
         _mapper = mapper;
@@ -54,6 +57,7 @@ public sealed class RoleQueryService : IRoleQueryService
             return null;
         }
 
+        var deptIds = await _roleDeptRepository.QueryByRoleIdsAsync(tenantId, new[] { id }, cancellationToken);
         var permissionIds = await _rolePermissionRepository.QueryByRoleIdAsync(tenantId, id, cancellationToken);
         var menuIds = await _roleMenuRepository.QueryByRoleIdAsync(tenantId, id, cancellationToken);
 
@@ -64,6 +68,7 @@ public sealed class RoleQueryService : IRoleQueryService
             role.Description,
             role.IsSystem,
             (int)role.DataScope,
+            deptIds.Select(x => x.DeptId).Distinct().ToArray(),
             permissionIds.Select(x => x.PermissionId).ToArray(),
             menuIds.Select(x => x.MenuId).ToArray());
     }

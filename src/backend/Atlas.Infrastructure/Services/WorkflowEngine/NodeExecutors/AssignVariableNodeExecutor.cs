@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Atlas.Domain.AiPlatform.Enums;
 
 namespace Atlas.Infrastructure.Services.WorkflowEngine.NodeExecutors;
@@ -12,15 +13,15 @@ public sealed class AssignVariableNodeExecutor : INodeExecutor
 
     public Task<NodeExecutionResult> ExecuteAsync(NodeExecutionContext context, CancellationToken cancellationToken)
     {
-        var outputs = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        var assignments = context.Node.Config.GetValueOrDefault("assignments") ?? string.Empty;
+        var outputs = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
+        var assignments = context.GetConfigString("assignments");
 
         foreach (var pair in assignments.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
             var parts = pair.Split('=', 2, StringSplitOptions.TrimEntries);
             if (parts.Length == 2)
             {
-                var value = context.ReplaceVariables(parts[1]);
+                var value = context.ParseLiteralOrTemplate(parts[1]);
                 outputs[parts[0]] = value;
             }
         }

@@ -114,6 +114,90 @@ public interface ITenantAppInstanceCommandService
         CancellationToken cancellationToken = default);
 }
 
+public interface ITenantAppMemberQueryService
+{
+    Task<PagedResult<TenantAppMemberListItem>> QueryAsync(
+        TenantId tenantId,
+        long appId,
+        PagedRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task<TenantAppMemberDetail?> GetByUserIdAsync(
+        TenantId tenantId,
+        long appId,
+        long userId,
+        CancellationToken cancellationToken = default);
+}
+
+public interface ITenantAppMemberCommandService
+{
+    Task AddMembersAsync(
+        TenantId tenantId,
+        long appId,
+        long operatorUserId,
+        TenantAppMemberAssignRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task UpdateMemberRolesAsync(
+        TenantId tenantId,
+        long appId,
+        long userId,
+        TenantAppMemberUpdateRolesRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task RemoveMemberAsync(
+        TenantId tenantId,
+        long appId,
+        long userId,
+        CancellationToken cancellationToken = default);
+}
+
+public interface ITenantAppRoleQueryService
+{
+    Task<PagedResult<TenantAppRoleListItem>> QueryAsync(
+        TenantId tenantId,
+        long appId,
+        PagedRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task<TenantAppRoleDetail?> GetByIdAsync(
+        TenantId tenantId,
+        long appId,
+        long roleId,
+        CancellationToken cancellationToken = default);
+}
+
+public interface ITenantAppRoleCommandService
+{
+    Task<long> CreateAsync(
+        TenantId tenantId,
+        long appId,
+        long operatorUserId,
+        TenantAppRoleCreateRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task UpdateAsync(
+        TenantId tenantId,
+        long appId,
+        long roleId,
+        long operatorUserId,
+        TenantAppRoleUpdateRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task UpdatePermissionsAsync(
+        TenantId tenantId,
+        long appId,
+        long roleId,
+        TenantAppRoleAssignPermissionsRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task DeleteAsync(
+        TenantId tenantId,
+        long appId,
+        long roleId,
+        CancellationToken cancellationToken = default);
+}
+
 public interface IRuntimeContextQueryService
 {
     Task<PagedResult<RuntimeContextListItem>> QueryAsync(

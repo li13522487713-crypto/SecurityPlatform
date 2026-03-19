@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Atlas.Domain.AiPlatform.Enums;
 
 namespace Atlas.Infrastructure.Services.WorkflowEngine.NodeExecutors;
@@ -13,15 +14,15 @@ public sealed class CodeRunnerNodeExecutor : INodeExecutor
 
     public Task<NodeExecutionResult> ExecuteAsync(NodeExecutionContext context, CancellationToken cancellationToken)
     {
-        var code = context.Node.Config.GetValueOrDefault("code") ?? string.Empty;
-        var outputKey = context.Node.Config.GetValueOrDefault("outputKey") ?? "code_output";
-        var outputs = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var code = context.GetConfigString("code");
+        var outputKey = context.GetConfigString("outputKey", "code_output");
+        var outputs = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
 
         try
         {
             // 简单表达式求值：支持变量替换
             var result = context.ReplaceVariables(code);
-            outputs[outputKey] = result;
+            outputs[outputKey] = VariableResolver.CreateStringElement(result);
             return Task.FromResult(new NodeExecutionResult(true, outputs));
         }
         catch (Exception ex)

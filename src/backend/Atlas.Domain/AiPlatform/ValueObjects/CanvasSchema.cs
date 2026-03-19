@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Atlas.Domain.AiPlatform.Enums;
 
 namespace Atlas.Domain.AiPlatform.ValueObjects;
@@ -16,7 +17,7 @@ public sealed record NodeSchema(
     string Key,
     WorkflowNodeType Type,
     string Label,
-    Dictionary<string, string> Config,
+    Dictionary<string, JsonElement> Config,
     NodeLayout Layout);
 
 /// <summary>

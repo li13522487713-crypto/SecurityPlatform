@@ -17,6 +17,7 @@ public class UserAccount : TenantEntity
         MfaSecretKey = string.Empty;
         IsActive = false;
         IsSystem = false;
+        IsPlatformAdmin = false;
         FailedLoginCount = 0;
         LockoutEndAtUtc = DateTime.SpecifyKind(DateTime.MinValue, DateTimeKind.Utc);
         ManualLockAtUtc = DateTime.SpecifyKind(DateTime.MinValue, DateTimeKind.Utc);
@@ -36,6 +37,7 @@ public class UserAccount : TenantEntity
         MfaSecretKey = string.Empty;
         IsActive = true;
         IsSystem = false;
+        IsPlatformAdmin = false;
         FailedLoginCount = 0;
         LockoutEndAtUtc = DateTime.SpecifyKind(DateTime.MinValue, DateTimeKind.Utc);
         ManualLockAtUtc = DateTime.SpecifyKind(DateTime.MinValue, DateTimeKind.Utc);
@@ -56,6 +58,7 @@ public class UserAccount : TenantEntity
         MfaSecretKey = string.Empty;
         IsActive = true;
         IsSystem = false;
+        IsPlatformAdmin = false;
         FailedLoginCount = 0;
         LockoutEndAtUtc = DateTime.SpecifyKind(DateTime.MinValue, DateTimeKind.Utc);
         ManualLockAtUtc = DateTime.SpecifyKind(DateTime.MinValue, DateTimeKind.Utc);
@@ -71,6 +74,7 @@ public class UserAccount : TenantEntity
     public string? PhoneNumber { get; private set; }
     public bool IsActive { get; private set; }
     public bool IsSystem { get; private set; }
+    public bool IsPlatformAdmin { get; private set; }
     public bool MfaEnabled { get; private set; }
     public string? MfaSecretKey { get; private set; }
     public int FailedLoginCount { get; private set; }
@@ -169,6 +173,16 @@ public class UserAccount : TenantEntity
     public void MarkSystemAccount()
     {
         IsSystem = true;
+    }
+
+    public void MarkPlatformAdmin()
+    {
+        IsPlatformAdmin = true;
+    }
+
+    public void UnmarkPlatformAdmin()
+    {
+        IsPlatformAdmin = false;
     }
 
     public void SetupMfa(string secretKey)

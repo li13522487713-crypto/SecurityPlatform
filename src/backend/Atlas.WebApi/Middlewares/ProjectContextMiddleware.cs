@@ -28,7 +28,7 @@ public sealed class ProjectContextMiddleware
         var appConfigQueryService = context.RequestServices.GetRequiredService<IAppConfigQueryService>();
         var currentUserAccessor = context.RequestServices.GetRequiredService<ICurrentUserAccessor>();
         var projectUserRepository = context.RequestServices.GetRequiredService<Atlas.Application.Identity.Repositories.IProjectUserRepository>();
-        var rbacResolver = context.RequestServices.GetRequiredService<IRbacResolver>();
+        var permissionDecisionService = context.RequestServices.GetRequiredService<IPermissionDecisionService>();
 
         var endpoint = context.GetEndpoint();
         var allowAnonymous = endpoint?.Metadata.GetMetadata<IAllowAnonymous>() is not null;
@@ -84,8 +84,7 @@ public sealed class ProjectContextMiddleware
             return;
         }
 
-        var isSystemRole = await IsSystemRoleAsync(
-            rbacResolver,
+        var isSystemRole = await permissionDecisionService.IsSystemAdminAsync(
             tenantId,
             currentUser.UserId,
             context.RequestAborted);
@@ -121,18 +120,6 @@ public sealed class ProjectContextMiddleware
 
         var payload = ApiResponse<object?>.Fail(code, message, context.TraceIdentifier);
         await context.Response.WriteAsJsonAsync(payload);
-    }
-
-    private static async Task<bool> IsSystemRoleAsync(
-        IRbacResolver rbacResolver,
-        TenantId tenantId,
-        long userId,
-        CancellationToken cancellationToken)
-    {
-        var roleCodes = await rbacResolver.GetRoleCodesAsync(tenantId, userId, cancellationToken);
-        return roleCodes.Any(role =>
-            string.Equals(role, "SuperAdmin", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(role, "Admin", StringComparison.OrdinalIgnoreCase));
     }
 
     private static bool StartsWithAny(string path, params string[] prefixes)
