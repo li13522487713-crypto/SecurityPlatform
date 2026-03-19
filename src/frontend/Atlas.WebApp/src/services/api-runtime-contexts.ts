@@ -41,3 +41,14 @@ export async function getRuntimeContextByRoute(appKey: string, pageKey: string):
 
   return response.data;
 }
+
+export async function getRuntimeContextById(id: string): Promise<RuntimeContextDetail> {
+  const response = await requestApi<ApiResponse<RuntimeContextDetail>>(
+    `${RUNTIME_CONTEXT_BASE}/${encodeURIComponent(id)}`
+  );
+  if (!response.data) {
+    throw new Error(response.message || "查询运行上下文详情失败");
+  }
+
+  return response.data;
+}

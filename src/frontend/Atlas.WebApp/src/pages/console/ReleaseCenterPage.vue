@@ -60,8 +60,8 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
-import { useRouter } from "vue-router";
+import { onMounted, ref, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import type { TableColumnsType, TablePaginationConfig } from "ant-design-vue";
 import { message } from "ant-design-vue";
 import {
@@ -71,6 +71,7 @@ import {
 } from "@/services/api-coze-runtime";
 import type { ReleaseCenterDetail, ReleaseCenterListItem } from "@/types/platform-v2";
 
+const route = useRoute();
 const router = useRouter();
 const loading = ref(false);
 const keyword = ref("");
@@ -163,9 +164,32 @@ function openDebugTrace(releaseId: string) {
   });
 }
 
+function readReleaseIdFromRouteQuery() {
+  const releaseId = typeof route.query.releaseId === "string"
+    ? route.query.releaseId.trim()
+    : "";
+  return releaseId;
+}
+
+function openReleaseDetailByRouteQuery() {
+  const releaseId = readReleaseIdFromRouteQuery();
+  if (!releaseId) {
+    return;
+  }
+  void viewDetail(releaseId);
+}
+
 onMounted(() => {
   void loadReleases();
+  openReleaseDetailByRouteQuery();
 });
+
+watch(
+  () => route.query.releaseId,
+  () => {
+    openReleaseDetailByRouteQuery();
+  }
+);
 </script>
 
 <style scoped>

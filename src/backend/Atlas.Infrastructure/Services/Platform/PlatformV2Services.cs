@@ -513,6 +513,30 @@ public sealed class RuntimeContextQueryService : IRuntimeContextQueryService
         _db = db;
     }
 
+    public async Task<RuntimeContextDetail?> GetByIdAsync(
+        TenantId tenantId,
+        long id,
+        CancellationToken cancellationToken = default)
+    {
+        var tenantValue = tenantId.Value;
+        var route = await _db.Queryable<RuntimeRoute>()
+            .FirstAsync(
+                x => x.TenantIdValue == tenantValue && x.Id == id,
+                cancellationToken);
+        if (route is null)
+        {
+            return null;
+        }
+
+        return new RuntimeContextDetail(
+            route.Id.ToString(),
+            route.AppKey,
+            route.PageKey,
+            route.SchemaVersion,
+            route.EnvironmentCode,
+            route.IsActive);
+    }
+
     public async Task<PagedResult<RuntimeContextListItem>> QueryAsync(
         TenantId tenantId,
         PagedRequest request,

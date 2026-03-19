@@ -24,6 +24,39 @@
           <template v-if="column.key === 'status'">
             <a-tag :color="resolveStatusColor(record.status)">{{ record.status }}</a-tag>
           </template>
+          <template v-else-if="column.key === 'appId'">
+            <a-button
+              v-if="record.appId"
+              type="link"
+              size="small"
+              @click="goToApp(record.appId)"
+            >
+              {{ record.appId }}
+            </a-button>
+            <span v-else>-</span>
+          </template>
+          <template v-else-if="column.key === 'releaseId'">
+            <a-button
+              v-if="record.releaseId"
+              type="link"
+              size="small"
+              @click="goToRelease(record.releaseId)"
+            >
+              {{ record.releaseId }}
+            </a-button>
+            <span v-else>-</span>
+          </template>
+          <template v-else-if="column.key === 'runtimeContextId'">
+            <a-button
+              v-if="record.runtimeContextId"
+              type="link"
+              size="small"
+              @click="goToRuntimeContextByRecord(record)"
+            >
+              {{ record.runtimeContextId }}
+            </a-button>
+            <span v-else>-</span>
+          </template>
           <template v-if="column.key === 'startedAt'">
             {{ formatDate(record.startedAt) }}
           </template>
@@ -45,14 +78,52 @@
       title="运行执行详情"
       width="860"
       :destroy-on-close="true"
+      @close="handleDetailClose"
     >
       <a-spin :spinning="detailLoading">
+        <a-breadcrumb class="execution-breadcrumb">
+          <a-breadcrumb-item>{{ appBreadcrumbLabel }}</a-breadcrumb-item>
+          <a-breadcrumb-item>{{ releaseBreadcrumbLabel }}</a-breadcrumb-item>
+          <a-breadcrumb-item>{{ runtimeContextBreadcrumbLabel }}</a-breadcrumb-item>
+          <a-breadcrumb-item>{{ executionBreadcrumbLabel }}</a-breadcrumb-item>
+        </a-breadcrumb>
+
         <a-descriptions :column="2" bordered size="small">
           <a-descriptions-item label="执行ID">{{ detail?.id || "-" }}</a-descriptions-item>
           <a-descriptions-item label="WorkflowId">{{ detail?.workflowId || "-" }}</a-descriptions-item>
-          <a-descriptions-item label="AppId">{{ detail?.appId || "-" }}</a-descriptions-item>
-          <a-descriptions-item label="ReleaseId">{{ detail?.releaseId || "-" }}</a-descriptions-item>
-          <a-descriptions-item label="RuntimeContextId">{{ detail?.runtimeContextId || "-" }}</a-descriptions-item>
+          <a-descriptions-item label="AppId">
+            <a-button
+              v-if="detail?.appId"
+              type="link"
+              size="small"
+              @click="goToApp(detail.appId)"
+            >
+              {{ detail.appId }}
+            </a-button>
+            <span v-else>-</span>
+          </a-descriptions-item>
+          <a-descriptions-item label="ReleaseId">
+            <a-button
+              v-if="detail?.releaseId"
+              type="link"
+              size="small"
+              @click="goToRelease(detail.releaseId)"
+            >
+              {{ detail.releaseId }}
+            </a-button>
+            <span v-else>-</span>
+          </a-descriptions-item>
+          <a-descriptions-item label="RuntimeContextId">
+            <a-button
+              v-if="detail?.runtimeContextId"
+              type="link"
+              size="small"
+              @click="goToRuntimeContext(detail.runtimeContextId)"
+            >
+              {{ detail.runtimeContextId }}
+            </a-button>
+            <span v-else>-</span>
+          </a-descriptions-item>
           <a-descriptions-item label="状态">{{ detail?.status || "-" }}</a-descriptions-item>
           <a-descriptions-item label="开始时间">{{ formatDate(detail?.startedAt) }}</a-descriptions-item>
           <a-descriptions-item label="完成时间">{{ formatDate(detail?.completedAt) }}</a-descriptions-item>
@@ -61,6 +132,21 @@
           </a-descriptions-item>
         </a-descriptions>
 
+        <a-space class="detail-actions" wrap>
+          <a-button
+            :disabled="!detail?.appId"
+            @click="goToRelatedApp"
+          >
+            查看关联应用
+          </a-button>
+          <a-button
+            :disabled="!detail?.releaseId"
+            @click="goToRelatedRelease"
+          >
+            查看发布版本
+          </a-button>
+        </a-space>
+
         <a-divider orientation="left">InputsJson</a-divider>
         <pre class="json-block">{{ detail?.inputsJson || "-" }}</pre>
 
@@ -68,17 +154,38 @@
         <pre class="json-block">{{ detail?.outputsJson || "-" }}</pre>
 
         <a-divider orientation="left">审计追踪</a-divider>
+        <a-space style="margin-bottom: 12px" wrap>
+          <a-input-search
+            v-model:value="auditKeyword"
+            allow-clear
+            placeholder="按 action / target / actor 检索"
+            style="width: 260px"
+            @search="handleAuditSearch"
+          />
+        </a-space>
         <a-table
           row-key="auditId"
           :loading="auditLoading"
           :columns="auditColumns"
           :data-source="auditRows"
-          :pagination="false"
+          :pagination="auditPagination"
+          @change="handleAuditTableChange"
           size="small"
         >
           <template #bodyCell="{ column, record }">
             <template v-if="column.key === 'occurredAt'">
               {{ formatDate(record.occurredAt) }}
+            </template>
+            <template v-else-if="column.key === 'actions'">
+              <a-button
+                v-if="canOpenAuditTarget(record.target)"
+                type="link"
+                size="small"
+                @click="openAuditTarget(record.target)"
+              >
+                查看
+              </a-button>
+              <span v-else>-</span>
             </template>
           </template>
         </a-table>
@@ -88,35 +195,52 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
+import { useRouter } from "vue-router";
 import type { TableColumnsType, TablePaginationConfig } from "ant-design-vue";
 import { message } from "ant-design-vue";
+import { getReleaseCenterDetail } from "@/services/api-coze-runtime";
 import {
   getRuntimeExecutionAuditTrails,
   getRuntimeExecutionDetail,
   getRuntimeExecutionsPaged
 } from "@/services/api-runtime-executions";
+import { getRuntimeContextById } from "@/services/api-runtime-contexts";
+import { getTenantAppInstanceDetail } from "@/services/api-tenant-app-instances";
 import type {
+  ReleaseCenterDetail,
   RuntimeExecutionAuditTrailItem,
   RuntimeExecutionDetail,
-  RuntimeExecutionListItem
+  RuntimeExecutionListItem,
+  RuntimeContextDetail,
+  TenantAppInstanceDetail
 } from "@/types/platform-v2";
 
+const router = useRouter();
 const loading = ref(false);
 const detailLoading = ref(false);
 const auditLoading = ref(false);
 const keyword = ref("");
+const auditKeyword = ref("");
 const rows = ref<RuntimeExecutionListItem[]>([]);
 const detail = ref<RuntimeExecutionDetail | null>(null);
+const linkedApp = ref<TenantAppInstanceDetail | null>(null);
+const linkedRelease = ref<ReleaseCenterDetail | null>(null);
+const linkedRuntimeContext = ref<RuntimeContextDetail | null>(null);
+const selectedExecutionId = ref<string>("");
 const auditRows = ref<RuntimeExecutionAuditTrailItem[]>([]);
 const detailVisible = ref(false);
 const pageIndex = ref(1);
 const pageSize = ref(10);
+const auditPageIndex = ref(1);
+const auditPageSize = ref(20);
+const auditTotal = ref(0);
 
 const columns: TableColumnsType<RuntimeExecutionListItem> = [
   { title: "WorkflowId", dataIndex: "workflowId", key: "workflowId", width: 130 },
   { title: "AppId", dataIndex: "appId", key: "appId", width: 130 },
   { title: "ReleaseId", dataIndex: "releaseId", key: "releaseId", width: 130 },
+  { title: "RuntimeContextId", dataIndex: "runtimeContextId", key: "runtimeContextId", width: 160 },
   { title: "状态", dataIndex: "status", key: "status", width: 110 },
   { title: "开始时间", dataIndex: "startedAt", key: "startedAt", width: 180 },
   { title: "完成时间", dataIndex: "completedAt", key: "completedAt", width: 180 },
@@ -130,7 +254,8 @@ const auditColumns: TableColumnsType<RuntimeExecutionAuditTrailItem> = [
   { title: "动作", dataIndex: "action", key: "action", width: 180 },
   { title: "结果", dataIndex: "result", key: "result", width: 120 },
   { title: "目标", dataIndex: "target", key: "target", ellipsis: true },
-  { title: "发生时间", dataIndex: "occurredAt", key: "occurredAt", width: 180 }
+  { title: "发生时间", dataIndex: "occurredAt", key: "occurredAt", width: 180 },
+  { title: "操作", key: "actions", width: 90 }
 ];
 
 const pagination = ref<TablePaginationConfig>({
@@ -140,6 +265,33 @@ const pagination = ref<TablePaginationConfig>({
   showSizeChanger: true,
   showTotal: (all) => `共 ${all} 条`
 });
+
+const auditPagination = computed<TablePaginationConfig>(() => ({
+  current: auditPageIndex.value,
+  pageSize: auditPageSize.value,
+  total: auditTotal.value,
+  showSizeChanger: true,
+  showTotal: (all) => `共 ${all} 条`
+}));
+
+const appBreadcrumbLabel = computed(() =>
+  linkedApp.value?.name || detail.value?.appId || "租户应用"
+);
+const releaseBreadcrumbLabel = computed(() => {
+  if (linkedRelease.value) {
+    return `发布版本 v${linkedRelease.value.version}`;
+  }
+  return detail.value?.releaseId ? `发布版本 ${detail.value.releaseId}` : "发布版本";
+});
+const runtimeContextBreadcrumbLabel = computed(() => {
+  if (linkedRuntimeContext.value) {
+    return `运行上下文 ${linkedRuntimeContext.value.appKey}/${linkedRuntimeContext.value.pageKey}`;
+  }
+  return detail.value?.runtimeContextId ? `运行上下文 ${detail.value.runtimeContextId}` : "运行上下文";
+});
+const executionBreadcrumbLabel = computed(() =>
+  detail.value?.id ? `执行记录 ${detail.value.id}` : "执行记录"
+);
 
 function formatDate(value?: string) {
   if (!value) {
@@ -162,6 +314,12 @@ function resolveStatusColor(status: string) {
     return "error";
   }
   return "processing";
+}
+
+function resetLinkedResources() {
+  linkedApp.value = null;
+  linkedRelease.value = null;
+  linkedRuntimeContext.value = null;
 }
 
 async function loadRuntimeExecutions() {
@@ -197,26 +355,232 @@ function handleTableChange(page: TablePaginationConfig) {
   void loadRuntimeExecutions();
 }
 
-async function openDetail(id: string) {
-  detailVisible.value = true;
-  detailLoading.value = true;
+async function loadAuditTrails(executionId: string, targetPageIndex = 1, targetPageSize = auditPageSize.value) {
   auditLoading.value = true;
   try {
-    const [detailResult, auditResult] = await Promise.all([
-      getRuntimeExecutionDetail(id),
-      getRuntimeExecutionAuditTrails(id, {
-        pageIndex: 1,
-        pageSize: 20
-      })
-    ]);
-    detail.value = detailResult;
+    const auditResult = await getRuntimeExecutionAuditTrails(executionId, {
+      pageIndex: targetPageIndex,
+      pageSize: targetPageSize,
+      keyword: auditKeyword.value || undefined
+    });
     auditRows.value = auditResult.items;
+    auditPageIndex.value = auditResult.pageIndex;
+    auditPageSize.value = auditResult.pageSize;
+    auditTotal.value = auditResult.total;
   } catch (error) {
-    message.error((error as Error).message || "加载运行执行详情失败");
+    message.error((error as Error).message || "加载运行执行审计轨迹失败");
   } finally {
-    detailLoading.value = false;
     auditLoading.value = false;
   }
+}
+
+async function loadLinkedResources(detailResult: RuntimeExecutionDetail) {
+  resetLinkedResources();
+  const jobs: Array<Promise<void>> = [];
+
+  if (detailResult.appId) {
+    jobs.push((async () => {
+      const app = await getTenantAppInstanceDetail(detailResult.appId!);
+      linkedApp.value = app;
+    })());
+  }
+
+  if (detailResult.releaseId) {
+    jobs.push((async () => {
+      const release = await getReleaseCenterDetail(detailResult.releaseId!);
+      linkedRelease.value = release;
+    })());
+  }
+
+  if (detailResult.runtimeContextId) {
+    jobs.push((async () => {
+      const runtimeContext = await getRuntimeContextById(detailResult.runtimeContextId!);
+      linkedRuntimeContext.value = runtimeContext;
+    })());
+  }
+
+  if (jobs.length === 0) {
+    return;
+  }
+  await Promise.allSettled(jobs);
+}
+
+async function openDetail(id: string) {
+  detailVisible.value = true;
+  selectedExecutionId.value = id;
+  detailLoading.value = true;
+  auditKeyword.value = "";
+  auditRows.value = [];
+  auditTotal.value = 0;
+  auditPageIndex.value = 1;
+  try {
+    const detailResult = await getRuntimeExecutionDetail(id);
+    detail.value = detailResult;
+    await Promise.all([
+      loadLinkedResources(detailResult),
+      loadAuditTrails(id, 1, auditPageSize.value)
+    ]);
+  } catch (error) {
+    message.error((error as Error).message || "加载运行执行详情失败");
+    detailVisible.value = false;
+  } finally {
+    detailLoading.value = false;
+  }
+}
+
+function handleDetailClose() {
+  detail.value = null;
+  selectedExecutionId.value = "";
+  auditRows.value = [];
+  auditTotal.value = 0;
+  auditKeyword.value = "";
+  resetLinkedResources();
+}
+
+async function goToRuntimeContextByRecord(record: RuntimeExecutionListItem) {
+  if (!record.runtimeContextId) {
+    return;
+  }
+
+  const query: Record<string, string> = {
+    runtimeContextId: record.runtimeContextId
+  };
+  if (record.appId) {
+    try {
+      const app = await getTenantAppInstanceDetail(record.appId);
+      if (app.appKey) {
+        query.appKey = app.appKey;
+      }
+    } catch {
+      // ignore appKey resolving failure and fallback to runtimeContextId navigation
+    }
+  }
+
+  await router.push({
+    path: "/console/runtime-contexts",
+    query
+  });
+}
+
+async function goToRuntimeContext(runtimeContextId: string) {
+  const query: Record<string, string> = {
+    runtimeContextId
+  };
+  const linkedAppKey = linkedRuntimeContext.value?.appKey || linkedApp.value?.appKey;
+  if (linkedAppKey) {
+    query.appKey = linkedAppKey;
+  }
+  await router.push({
+    path: "/console/runtime-contexts",
+    query
+  });
+}
+
+function goToApp(appId: string) {
+  void router.push(`/apps/${appId}/dashboard`);
+}
+
+function goToRelease(releaseId: string) {
+  void router.push({
+    path: "/console/releases",
+    query: { releaseId }
+  });
+}
+
+function goToRelatedApp() {
+  if (!detail.value?.appId) {
+    return;
+  }
+  goToApp(detail.value.appId);
+}
+
+function goToRelatedRelease() {
+  if (!detail.value?.releaseId) {
+    return;
+  }
+  goToRelease(detail.value.releaseId);
+}
+
+function handleAuditSearch() {
+  if (!selectedExecutionId.value) {
+    return;
+  }
+  void loadAuditTrails(selectedExecutionId.value, 1, auditPageSize.value);
+}
+
+function handleAuditTableChange(page: TablePaginationConfig) {
+  if (!selectedExecutionId.value) {
+    return;
+  }
+  const nextPageIndex = page.current ?? 1;
+  const nextPageSize = page.pageSize ?? auditPageSize.value;
+  void loadAuditTrails(selectedExecutionId.value, nextPageIndex, nextPageSize);
+}
+
+type AuditTargetRoute =
+  | { type: "release"; id: string }
+  | { type: "app"; id: string }
+  | { type: "runtime"; id: string }
+  | { type: "execution"; id: string };
+
+function parseAuditTarget(target: string): AuditTargetRoute | null {
+  if (!target) {
+    return null;
+  }
+
+  const releaseMatch = target.match(/(?:Release|AppRelease):(\d+)/i);
+  if (releaseMatch?.[1]) {
+    return { type: "release", id: releaseMatch[1] };
+  }
+
+  const runtimeMatch = target.match(/(?:RuntimeContext|RuntimeRoute):(\d+)/i);
+  if (runtimeMatch?.[1]) {
+    return { type: "runtime", id: runtimeMatch[1] };
+  }
+
+  const appMatch = target.match(/(?:App|AppManifest):(\d+)/i);
+  if (appMatch?.[1]) {
+    return { type: "app", id: appMatch[1] };
+  }
+
+  const executionMatch = target.match(/(?:WorkflowExecution|RuntimeExecution):(\d+)/i);
+  if (executionMatch?.[1]) {
+    return { type: "execution", id: executionMatch[1] };
+  }
+
+  if (/^\d+$/.test(target)) {
+    return { type: "execution", id: target };
+  }
+
+  return null;
+}
+
+function canOpenAuditTarget(target: string) {
+  return parseAuditTarget(target) !== null;
+}
+
+function openAuditTarget(target: string) {
+  const route = parseAuditTarget(target);
+  if (!route) {
+    return;
+  }
+
+  if (route.type === "release") {
+    goToRelease(route.id);
+    return;
+  }
+
+  if (route.type === "app") {
+    goToApp(route.id);
+    return;
+  }
+
+  if (route.type === "runtime") {
+    void goToRuntimeContext(route.id);
+    return;
+  }
+
+  void openDetail(route.id);
 }
 
 onMounted(() => {
@@ -242,5 +606,13 @@ onMounted(() => {
   border: 1px solid #f0f0f0;
   border-radius: 8px;
   padding: 12px;
+}
+
+.execution-breadcrumb {
+  margin-bottom: 12px;
+}
+
+.detail-actions {
+  margin-top: 12px;
 }
 </style>

@@ -200,6 +200,11 @@ public interface ITenantAppRoleCommandService
 
 public interface IRuntimeContextQueryService
 {
+    Task<RuntimeContextDetail?> GetByIdAsync(
+        TenantId tenantId,
+        long id,
+        CancellationToken cancellationToken = default);
+
     Task<PagedResult<RuntimeContextListItem>> QueryAsync(
         TenantId tenantId,
         PagedRequest request,

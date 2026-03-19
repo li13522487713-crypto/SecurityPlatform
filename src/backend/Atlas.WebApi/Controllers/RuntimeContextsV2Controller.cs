@@ -37,6 +37,22 @@ public sealed class RuntimeContextsV2Controller : ControllerBase
         return Ok(ApiResponse<PagedResult<RuntimeContextListItem>>.Ok(result, HttpContext.TraceIdentifier));
     }
 
+    [HttpGet("{id:long}")]
+    [Authorize(Policy = PermissionPolicies.AppsView)]
+    public async Task<ActionResult<ApiResponse<RuntimeContextDetail>>> GetById(
+        long id,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _queryService.GetByIdAsync(tenantId, id, cancellationToken);
+        if (result is null)
+        {
+            return NotFound(ApiResponse<RuntimeContextDetail>.Fail(ErrorCodes.NotFound, "Runtime context not found.", HttpContext.TraceIdentifier));
+        }
+
+        return Ok(ApiResponse<RuntimeContextDetail>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
     [HttpGet("{appKey}/{pageKey}")]
     [Authorize(Policy = PermissionPolicies.AppsView)]
     public async Task<ActionResult<ApiResponse<RuntimeContextDetail>>> GetByRoute(
