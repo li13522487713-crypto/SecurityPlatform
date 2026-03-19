@@ -359,7 +359,7 @@ public sealed class PackageService : IPackageService
         }
         else if (appDto is not null && conflictPolicy == "overwrite" && !string.IsNullOrWhiteSpace(appDto.Name))
         {
-            app.Update(appDto.Name, app.Description, app.Category, app.Icon, userId, now);
+            app.Update(appDto.Name, app.Description, app.Category, app.Icon, app.DataSourceId, userId, now);
             await _db.Updateable(app).ExecuteCommandAsync(cancellationToken);
         }
 

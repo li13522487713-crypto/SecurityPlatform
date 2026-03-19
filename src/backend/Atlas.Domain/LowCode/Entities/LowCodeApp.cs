@@ -148,6 +148,7 @@ public sealed class LowCodeApp : TenantEntity
         string? description,
         string? category,
         string? icon,
+        long? dataSourceId,
         long updatedBy,
         DateTimeOffset now)
     {
@@ -155,6 +156,7 @@ public sealed class LowCodeApp : TenantEntity
         Description = description ?? string.Empty;
         Category = category ?? string.Empty;
         Icon = icon ?? string.Empty;
+        DataSourceId = dataSourceId;
         UpdatedBy = updatedBy;
         UpdatedAt = now;
     }

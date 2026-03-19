@@ -54,7 +54,9 @@ public sealed record LowCodeAppUpdateRequest(
     string Name,
     string? Description,
     string? Category,
-    string? Icon);
+    string? Icon,
+    long? DataSourceId = null,
+    bool UnbindDataSource = false);
 
 public sealed record LowCodeAppSharingPolicy(
     string AppId,

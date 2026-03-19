@@ -834,6 +834,12 @@ export interface TenantDataSourceDto {
   tenantIdValue: string;
   name: string;
   dbType: string;
+  appId?: string;
+  maxPoolSize?: number;
+  connectionTimeoutSeconds?: number;
+  lastTestSuccess?: boolean;
+  lastTestedAt?: string;
+  lastTestMessage?: string;
   isActive: boolean;
   createdAt: string;
   updatedAt?: string;
