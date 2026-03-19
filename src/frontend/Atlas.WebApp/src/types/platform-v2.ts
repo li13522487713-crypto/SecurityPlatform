@@ -14,6 +14,22 @@ export interface TenantAppInstanceDetail extends TenantAppInstanceListItem {
   dataSourceId?: string;
 }
 
+export interface ApplicationCatalogListItem {
+  id: string;
+  catalogKey: string;
+  name: string;
+  status: string;
+  version: number;
+  description?: string;
+  category?: string;
+  icon?: string;
+  publishedAt?: string;
+}
+
+export interface ApplicationCatalogDetail extends ApplicationCatalogListItem {
+  dataSourceId?: string;
+}
+
 export interface TenantApplicationListItem {
   id: string;
   applicationCatalogId: string;
@@ -98,6 +114,17 @@ export interface TenantAppRoleUpdateRequest {
 export interface TenantAppRoleAssignPermissionsRequest {
   permissionCodes: string[];
 }
+
+export interface RuntimeContextListItem {
+  id: string;
+  appKey: string;
+  pageKey: string;
+  schemaVersion: number;
+  environmentCode: string;
+  isActive: boolean;
+}
+
+export interface RuntimeContextDetail extends RuntimeContextListItem {}
 
 export interface ResourceCenterGroupEntry {
   resourceId: string;
