@@ -19,6 +19,7 @@ public sealed class ApprovalNotificationService : IApprovalNotificationService
     private readonly IEnumerable<IApprovalNotificationSender> _senders;
     private readonly IApprovalFlowRepository _flowRepository;
     private readonly IUserAccountRepository? _userAccountRepository;
+    private readonly IApprovalNotificationRetryRepository? _retryRepository;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
 
     public ApprovalNotificationService(
@@ -27,7 +28,8 @@ public sealed class ApprovalNotificationService : IApprovalNotificationService
         IEnumerable<IApprovalNotificationSender> senders,
         IApprovalFlowRepository flowRepository,
         IIdGeneratorAccessor idGeneratorAccessor,
-        IUserAccountRepository? userAccountRepository = null)
+        IUserAccountRepository? userAccountRepository = null,
+        IApprovalNotificationRetryRepository? retryRepository = null)
     {
         _templateRepository = templateRepository;
         _inboxRepository = inboxRepository;
@@ -35,6 +37,7 @@ public sealed class ApprovalNotificationService : IApprovalNotificationService
         _flowRepository = flowRepository;
         _idGeneratorAccessor = idGeneratorAccessor;
         _userAccountRepository = userAccountRepository;
+        _retryRepository = retryRepository;
     }
 
     public async Task NotifyAsync(
@@ -119,8 +122,19 @@ public sealed class ApprovalNotificationService : IApprovalNotificationService
                         }
                         catch
                         {
-                            // 发送失败不影响流程主链路。
-                            // Phase 9 将引入持久化重试机制，届时替换此 catch 块。
+                            // 发送失败：写入重试表由后台 Job 兜底重试
+                            if (_retryRepository != null)
+                            {
+                                var retryRecord = new ApprovalNotificationRetry(
+                                    tenantId,
+                                    recipientUserId,
+                                    channel,
+                                    title,
+                                    content,
+                                    _idGeneratorAccessor.NextId());
+                                await _retryRepository.AddAsync(retryRecord, cancellationToken);
+                            }
+                            // 发送失败不影响流程主链路
                         }
                     }
                 }
