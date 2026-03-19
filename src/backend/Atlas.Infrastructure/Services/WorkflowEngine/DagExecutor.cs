@@ -656,9 +656,10 @@ public sealed class DagExecutor
         Dictionary<string, List<string>> adjacency,
         Dictionary<string, List<ConnectionSchema>> connectionsBySource)
     {
-        if (!string.IsNullOrWhiteSpace(VariableResolver.GetConfigString(loopNode.Config, "bodyNodeKeys")))
+        var bodyNodeKeysConfig = VariableResolver.GetConfigString(loopNode.Config, "bodyNodeKeys");
+        if (!string.IsNullOrWhiteSpace(bodyNodeKeysConfig))
         {
-            return VariableResolver.GetConfigString(loopNode.Config, "bodyNodeKeys")
+            return bodyNodeKeysConfig
                 .Split(new[] { ',', ';', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();

@@ -85,7 +85,7 @@ public sealed class AppMemberRepository : IAppMemberRepository
     {
         return await _db.Queryable<AppMember>()
             .Where(x => x.TenantIdValue == tenantId.Value && x.AppId == appId && x.UserId == userId)
-            .AnyAsync();
+            .AnyAsync(cancellationToken);
     }
 
     public async Task<bool> ExistsAnyAsync(
@@ -95,7 +95,7 @@ public sealed class AppMemberRepository : IAppMemberRepository
     {
         return await _db.Queryable<AppMember>()
             .Where(x => x.TenantIdValue == tenantId.Value && x.AppId == appId)
-            .AnyAsync();
+            .AnyAsync(cancellationToken);
     }
 
     public Task AddRangeAsync(IReadOnlyList<AppMember> entities, CancellationToken cancellationToken = default)
