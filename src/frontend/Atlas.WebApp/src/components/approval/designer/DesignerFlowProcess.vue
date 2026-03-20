@@ -11,13 +11,13 @@
         ref="designerRef"
         :flow-tree="flowTree"
         :selected-node-id="selectedNode?.id ?? null"
-        @selectNode="(...args) => $emit('selectNode', ...args)"
-        @addNode="(...args) => $emit('addNode', ...args)"
-        @deleteNode="(...args) => $emit('deleteNode', ...args)"
-        @addConditionBranch="(...args) => $emit('addConditionBranch', ...args)"
-        @deleteConditionBranch="(...args) => $emit('deleteConditionBranch', ...args)"
-        @moveBranch="(...args) => $emit('moveBranch', ...args)"
-        @updateRouteTarget="(...args) => $emit('updateRouteTarget', ...args)"
+        @selectNode="handleSelectNode"
+        @addNode="handleAddNode"
+        @deleteNode="handleDeleteNode"
+        @addConditionBranch="handleAddConditionBranch"
+        @deleteConditionBranch="handleDeleteConditionBranch"
+        @moveBranch="handleMoveBranch"
+        @updateRouteTarget="handleUpdateRouteTarget"
         @undo="$emit('undo')"
         @redo="$emit('redo')"
       />
@@ -28,7 +28,7 @@
       :node="selectedNode"
       :form-fields="effectiveFormFields"
       @update:open="$emit('update:panelOpen', $event)"
-      @update="$emit('updateNode', $event)"
+      @update="handleUpdateNode"
     />
   </div>
 </template>
@@ -38,33 +38,44 @@ import { ref } from 'vue';
 import X6ApprovalDesigner from '@/components/approval/x6/X6ApprovalDesigner.vue';
 import ApprovalPropertiesPanel from '@/components/approval/ApprovalPropertiesPanel.vue';
 import ApprovalNodePalette from '@/components/approval/ApprovalNodePalette.vue';
+import type { LfFormField } from '@/types/approval-definition';
+import type { ApprovalFlowTree, ConditionBranch, TreeNode } from '@/types/approval-tree';
 
-// Using unknown to avoid massive type imports in this wrapper, let the parent handle strict types
 defineProps<{
   paletteVisible: boolean;
-  flowTree: any;
-  selectedNode: any;
+  flowTree: ApprovalFlowTree;
+  selectedNode: TreeNode | ConditionBranch | null;
   panelOpen: boolean;
-  effectiveFormFields: any[];
+  effectiveFormFields: LfFormField[];
 }>();
 
-defineEmits<{
+const emit = defineEmits<{
   'update:paletteVisible': [value: boolean];
   'update:panelOpen': [value: boolean];
   'addPaletteNode': [nodeType: string];
-  'selectNode': [...args: any[]];
-  'addNode': [...args: any[]];
-  'deleteNode': [...args: any[]];
-  'addConditionBranch': [...args: any[]];
-  'deleteConditionBranch': [...args: any[]];
-  'moveBranch': [...args: any[]];
-  'updateRouteTarget': [...args: any[]];
-  'updateNode': [node: any];
+  'selectNode': [node: TreeNode | ConditionBranch | null];
+  'addNode': [parentId: string, nodeType: string];
+  'deleteNode': [nodeId: string];
+  'addConditionBranch': [nodeId: string];
+  'deleteConditionBranch': [branchId: string];
+  'moveBranch': [conditionNodeId: string, branchId: string, direction: 'left' | 'right'];
+  'updateRouteTarget': [routeNodeId: string, targetNodeId: string];
+  'updateNode': [node: TreeNode | ConditionBranch];
   'undo': [];
   'redo': [];
 }>();
 
 const designerRef = ref<InstanceType<typeof X6ApprovalDesigner> | null>(null);
+const handleSelectNode = (node: TreeNode | ConditionBranch | null) => emit('selectNode', node);
+const handleAddNode = (parentId: string, nodeType: string) => emit('addNode', parentId, nodeType);
+const handleDeleteNode = (nodeId: string) => emit('deleteNode', nodeId);
+const handleAddConditionBranch = (nodeId: string) => emit('addConditionBranch', nodeId);
+const handleDeleteConditionBranch = (branchId: string) => emit('deleteConditionBranch', branchId);
+const handleMoveBranch = (conditionNodeId: string, branchId: string, direction: 'left' | 'right') =>
+  emit('moveBranch', conditionNodeId, branchId, direction);
+const handleUpdateRouteTarget = (routeNodeId: string, targetNodeId: string) =>
+  emit('updateRouteTarget', routeNodeId, targetNodeId);
+const handleUpdateNode = (node: TreeNode | ConditionBranch) => emit('updateNode', node);
 
 const zoomIn = () => designerRef.value?.zoomIn();
 const zoomOut = () => designerRef.value?.zoomOut();

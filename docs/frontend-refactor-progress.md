@@ -210,3 +210,4 @@
 - **Phase C（质量与安全硬化）增量**
   - `MarkdownRenderer.vue` 新增链接协议白名单（`http/https/mailto/tel` + 站内相对路径），阻断 `javascript:` 等危险协议注入。
   - `AmisEditor.vue`、`amis-renderer.vue` 移除 `innerHTML` 清空容器写法，统一改为 `replaceChildren()`，降低 DOM 注入误用风险。
+  - Approval/Workflow 主链路完成一批 `any` 治理：`ApprovalDesignerPage.vue`、`ApprovalTaskPoolPage.vue`、`DesignerFlowProcess.vue`、`X6ApprovalDesigner.vue` 改为显式类型与类型守卫，减少弱类型传递风险。

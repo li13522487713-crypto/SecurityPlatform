@@ -139,6 +139,13 @@ interface ContextMenuNode {
   [key: string]: unknown;
 }
 
+interface ValidateConnectionArgs {
+  sourceCell?: { id?: string };
+  targetCell?: { id?: string };
+  sourceMagnet?: Element | null;
+  targetMagnet?: Element | null;
+}
+
 const props = defineProps<{
   flowTree: ApprovalFlowTree;
   selectedNodeId: string | null;
@@ -221,8 +228,7 @@ function initGraph() {
       snap: true,
       validateMagnet: ({ magnet }: { magnet: Element | null }) =>
         magnet?.getAttribute('port-group') === 'out',
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      validateConnection: (args: any) => {
+      validateConnection: (args: ValidateConnectionArgs) => {
         const sourceCellId = args?.sourceCell?.id as string | undefined;
         const targetCellId = args?.targetCell?.id as string | undefined;
         const sourceMagnet = args?.sourceMagnet as Element | null;
@@ -356,7 +362,7 @@ function initGraph() {
   graph.on('node:contextmenu', ({ e, node }: { e: MouseEvent; node: { id: string; getData: () => ContextMenuNode | null } }) => {
     e.preventDefault();
     const nodeData = node.getData();
-    contextNode.value = nodeData as ContextMenuNode;
+    contextNode.value = nodeData;
     nodeMenuPos.value = { x: e.clientX, y: e.clientY };
     nodeMenuVisible.value = true;
     canvasMenuVisible.value = false;
@@ -508,29 +514,27 @@ function handleCanvasMenuClick({ key }: { key: string }) {
 
 // ── 右键菜单操作 ──
 function handleEditNode() {
-  if (contextNode.value) {
-    emit('selectNode', contextNode.value as any);
+  const node = resolveCurrentNode();
+  if (node) {
+    emit('selectNode', node);
     message.success('已选中节点，可在右侧属性面板编辑');
   }
 }
 
 function handleCopyNode() {
-  const node = contextNode.value || (props.selectedNodeId ? findNodeById(props.selectedNodeId) : null);
+  const node = resolveCurrentNode();
 
   if (!node) {
     message.warning('请先选择要复制的节点');
     return;
   }
 
-  const nodeData = node as any;
-  if (nodeData.nodeType === 'start' || nodeData.nodeType === 'end') {
+  if (isTreeNode(node) && (node.nodeType === 'start' || node.nodeType === 'end')) {
     message.warning('开始和结束节点不能复制');
     return;
   }
 
-  // 深拷贝节点数据
-  if ('branches' in nodeData) {
-    // 条件分支不支持复制
+  if (!isTreeNode(node)) {
     message.warning('条件分支不支持复制');
     return;
   }
@@ -568,9 +572,7 @@ function handlePasteNode() {
     return;
   }
 
-  // 生成新ID
-  const nodeData = copiedNode.value as any;
-  const nodeType = nodeData.nodeType || 'approve';
+  const nodeType = copiedNode.value.nodeType || 'approve';
 
   // 粘贴到当前选中节点的后面，如果没有选中则粘贴到根节点
   const parentId = props.selectedNodeId || props.flowTree.rootNode.id;
@@ -580,20 +582,19 @@ function handlePasteNode() {
 }
 
 function handleDeleteNode() {
-  const node = contextNode.value || (props.selectedNodeId ? findNodeById(props.selectedNodeId) : null);
+  const node = resolveCurrentNode();
 
   if (!node) {
     message.warning('请先选择要删除的节点');
     return;
   }
 
-  const nodeData = node as any;
-  if (nodeData.nodeType === 'start' || nodeData.nodeType === 'end') {
+  if (isTreeNode(node) && (node.nodeType === 'start' || node.nodeType === 'end')) {
     message.warning('开始和结束节点不能删除');
     return;
   }
 
-  const nodeLabel = nodeData.label || '此节点';
+  const nodeLabel = getNodeDisplayName(node);
 
   Modal.confirm({
     title: '确认删除',
@@ -602,7 +603,7 @@ function handleDeleteNode() {
     okType: 'danger',
     cancelText: '取消',
     onOk() {
-      if ('branches' in nodeData) {
+      if (isConditionBranchNode(node)) {
         emit('deleteConditionBranch', node.id);
       } else {
         emit('deleteNode', node.id);
@@ -613,10 +614,41 @@ function handleDeleteNode() {
 }
 
 function handleViewNodeDetail() {
-  if (contextNode.value) {
-    emit('selectNode', contextNode.value as any);
+  const node = resolveCurrentNode();
+  if (node) {
+    emit('selectNode', node);
     message.info('查看节点详情');
   }
+}
+
+function isTreeNode(node: TreeNode | ConditionBranch): node is TreeNode {
+  return 'nodeType' in node;
+}
+
+function isConditionBranchNode(node: TreeNode | ConditionBranch): node is ConditionBranch {
+  return 'branchName' in node;
+}
+
+function getNodeDisplayName(node: TreeNode | ConditionBranch): string {
+  if (isConditionBranchNode(node)) {
+    return node.branchName || '条件分支';
+  }
+  return node.nodeName || '此节点';
+}
+
+function resolveCurrentNode(): TreeNode | ConditionBranch | null {
+  if (contextNode.value?.id) {
+    const contextResolved = findNodeById(contextNode.value.id);
+    if (contextResolved) {
+      return contextResolved;
+    }
+  }
+
+  if (props.selectedNodeId) {
+    return findNodeById(props.selectedNodeId);
+  }
+
+  return null;
 }
 
 function handleSelectAll() {

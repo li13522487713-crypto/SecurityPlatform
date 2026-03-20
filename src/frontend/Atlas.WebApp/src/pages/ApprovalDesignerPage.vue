@@ -165,7 +165,7 @@ import ValidationErrorPanel from '@/components/approval/designer/ValidationError
 import { useApprovalTree } from '@/composables/useApprovalTree';
 import { ApprovalTreeConverter } from '@/utils/approval-tree-converter';
 import { extractAmisFields } from '@/utils/amis-field-extractor';
-import type { ApprovalDefinitionMeta, LfFormPayload, FormJson, VisibilityScope } from '@/types/approval-definition';
+import type { ApprovalDefinitionMeta, LfFormField, LfFormPayload, FormJson, VisibilityScope } from '@/types/approval-definition';
 import type { TreeNode, ConditionBranch } from '@/types/approval-tree';
 import type { ApprovalFlowValidationIssue, ApprovalFlowValidationResult, ApprovalFlowVersionListItem } from '@/types/api';
 import {
@@ -206,7 +206,7 @@ const activeMenu = computed({
 const definitionMeta = ref<ApprovalDefinitionMeta>({ flowName: '', isLowCodeFlow: true });
 const amisSchemaText = ref('');
 const amisSchemaModel = ref<unknown | undefined>(undefined);
-const amisFormFields = ref<any[]>([]);
+const amisFormFields = ref<LfFormField[]>([]);
 const effectiveFormFields = computed(() => amisFormFields.value);
 
 const visibilityScopeType = ref<'All' | 'Department' | 'Role' | 'User'>('All');
