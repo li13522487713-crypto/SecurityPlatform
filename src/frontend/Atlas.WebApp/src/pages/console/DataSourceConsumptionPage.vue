@@ -187,7 +187,7 @@ function resolveDangerRowClass(record: TenantDataSourceConsumptionItem) {
 
 function goToDatasourceDetail(dataSourceId: string) {
   void router.push({
-    path: "/console/datasources",
+    path: "/settings/system/datasources",
     query: { dataSourceId }
   });
 }

@@ -30,6 +30,7 @@ const pathComponentFallbackMap: Record<string, string> = {
   "/apps/:appId/workflows/:id/editor": "../pages/workflow/WorkflowEditorPage.vue",
   "/apps/:appId/agents/:id/edit": "../pages/ai/AgentEditorPage.vue",
   "/apps/:appId/run/:pageKey": "../pages/runtime/PageRuntimeRenderer.vue",
+  "/r/:appKey/:pageKey": "../pages/runtime/PageRuntimeRenderer.vue",
   "/approval/flows": "../pages/ApprovalFlowsPage.vue",
   "/assets": "../pages/AssetsPage.vue",
   "/audit": "../pages/AuditPage.vue",

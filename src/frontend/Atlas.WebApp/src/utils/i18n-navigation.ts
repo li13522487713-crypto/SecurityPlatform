@@ -23,6 +23,8 @@ const titleKeyByPath: Record<string, string> = {
   "/console/tools": "route.consoleTools",
   "/console/datasources": "route.consoleDatasources",
   "/console/settings/system/configs": "route.consoleSystemConfigs",
+  "/apps/:appId/run/:pageKey": "route.appRuntime",
+  "/r/:appKey/:pageKey": "route.runtimeDelivery",
   "/apps/:appId/agents/:id/edit": "route.aiAgentEdit",
   "/apps/:appId/workflows/:id/editor": "route.workflowEditor",
   "/apps/:appId/forms/:id/designer": "route.formDesigner",

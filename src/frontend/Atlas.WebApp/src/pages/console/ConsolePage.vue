@@ -19,7 +19,7 @@
           class="widget-card"
           hoverable
           data-testid="e2e-console-card-datasources"
-          @click="go('/console/datasources')"
+          @click="go('/settings/system/datasources')"
         >
           <a-card-meta title="Datasources" description="Manage tenant datasources" />
         </a-card>
@@ -30,7 +30,7 @@
           class="widget-card"
           hoverable
           data-testid="e2e-console-card-system-configs"
-          @click="go('/console/settings/system/configs')"
+          @click="go('/settings/system/configs')"
         >
           <a-card-meta title="System settings" description="Open system configuration" />
         </a-card>

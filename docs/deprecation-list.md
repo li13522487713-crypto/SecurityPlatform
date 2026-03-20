@@ -24,7 +24,9 @@
 
 | Old Route | New Route | Status |
 |---|---|---|
-| `/settings/*` | `/console/settings/*` | Deprecated |
+| `/console/settings/*` | `/settings/*` | Deprecated |
+| `/console/datasources` | `/settings/system/datasources` | Deprecated |
+| `/console/settings/system/configs` | `/settings/system/configs` | Deprecated |
 | `/lowcode/apps` | `/console/apps` | Deprecated |
 | `/apps/:appId/run/:pageKey` | `/r/:appKey/:pageKey` | Deprecated |
 

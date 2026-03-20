@@ -37,7 +37,7 @@
             >
               测试连接
             </a-button>
-            <a-button @click="go('/console/datasources')">前往数据源管理</a-button>
+            <a-button @click="go('/settings/system/datasources')">前往数据源管理</a-button>
             <a-button
               v-if="!dataSourceInfo?.dataSourceId"
               :loading="bindingDataSource"

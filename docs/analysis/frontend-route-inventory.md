@@ -134,3 +134,38 @@
 - **App Workspace 边界不稳**：`/apps/:appId/*` 已具雏形，但 runtime 仍与 `/r/*` 并行。
 - **Runtime 路径不统一**：流程运行态（`/approval/workspace`）与应用运行态（`/r/*`）尚未在 IA 结构上统一表达。
 - **Tenant/Platform 交界不清**：数据源、系统参数等能力在 console/settings/system 多入口重复，需作为 IA 收敛优先区。
+
+## 6. 收口执行记录（2026-03-20）
+
+> 本节记录第一批“信息架构收口”已落地项，作为联调期唯一入口基线。
+
+### 6.1 唯一主路径表（第一批）
+
+| 领域能力 | 主路径（Canonical） | 兼容路径（Legacy） |
+|---|---|---|
+| 租户数据源管理 | `/settings/system/datasources` | `/console/datasources` |
+| 系统参数配置 | `/settings/system/configs` | `/console/settings/system/configs`、`/system/configs` |
+| 应用运行态（主） | `/r/:appKey/:pageKey` | `/runtime/:appKey/:pageKey`、`/apps/:appId/run/:pageKey`（工作台辅助预览） |
+
+### 6.2 Legacy 下线清单（阶段一）
+
+| Legacy 路径 | 当前状态 | 下线前提 |
+|---|---|---|
+| `/console/datasources` | 已改为 redirect 到主路径，并弹出 Deprecated 提示 | 入口埋点确认低流量 + 文档/收藏链接迁移完成 |
+| `/console/settings/system/configs` | 已改为 redirect 到主路径，并弹出 Deprecated 提示 | 同上 |
+| `/console/settings/:pathMatch(.*)*` | 已限制为 console 前缀内兼容，不再使用 `/settings/:pathMatch(.*)*` 全局通配 | 逐条替换历史入口后可删除该兼容规则 |
+
+### 6.3 动态路由 fallback 映射补齐
+
+- 已补齐 Runtime 主入口映射：`/r/:appKey/:pageKey -> PageRuntimeRenderer.vue`
+- 已保留主路径 fallback：
+  - `/settings/system/datasources`
+  - `/settings/system/configs`
+- legacy fallback 继续保留窗口期，避免动态菜单历史 path 直接 404。
+
+### 6.4 菜单归属层级统一（本次变更）
+
+- `ConsoleLayout` 顶部菜单中的“数据源管理/系统设置”已统一指向主路径：
+  - `/settings/system/datasources`
+  - `/settings/system/configs`
+- Console 首页快捷入口、应用设置页“前往数据源管理”链接已同步到主路径。
