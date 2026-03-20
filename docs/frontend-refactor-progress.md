@@ -207,3 +207,6 @@
   - 发布/编辑的 `noticeType` 输入统一归一化为 `Announcement|System|Reminder`，消除“1/2/中文/大小写”口径不一致问题。
   - 阅读审计补齐：单条已读与全部已读均写入 `NOTIFICATION_READ` 审计事件。
   - 管理页权限改为 `notification:view` 入口权限，按钮按 `create/update/delete` 细分控制，避免路由权限码失配。
+- **Phase C（质量与安全硬化）增量**
+  - `MarkdownRenderer.vue` 新增链接协议白名单（`http/https/mailto/tel` + 站内相对路径），阻断 `javascript:` 等危险协议注入。
+  - `AmisEditor.vue`、`amis-renderer.vue` 移除 `innerHTML` 清空容器写法，统一改为 `replaceChildren()`，降低 DOM 注入误用风险。

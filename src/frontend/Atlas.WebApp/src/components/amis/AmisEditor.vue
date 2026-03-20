@@ -98,7 +98,7 @@ const renderEditor = async () => {
  * Fallback: render a JSON text editor when amis-editor is not available.
  */
 const renderFallbackEditor = (container: HTMLElement) => {
-  container.innerHTML = "";
+  container.replaceChildren();
   const wrapper = document.createElement("div");
   wrapper.style.cssText = "display:flex;flex-direction:column;height:100%;padding:16px;gap:12px;";
 
@@ -180,7 +180,7 @@ onBeforeUnmount(() => {
   rootRef.value?.unmount();
   rootRef.value = null;
   if (containerRef.value) {
-    containerRef.value.innerHTML = "";
+    containerRef.value.replaceChildren();
   }
 });
 

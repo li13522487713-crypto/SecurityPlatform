@@ -52,10 +52,35 @@ function renderMarkdown(md: string): string {
   // Blockquote
   html = html.replace(/^&gt; (.+)$/gm, "<blockquote>$1</blockquote>");
 
+  const sanitizeHref = (href: string): string => {
+    const normalized = href.replace(/&amp;/g, "&").trim();
+    if (!normalized) {
+      return "#";
+    }
+
+    if (normalized.startsWith("//")) {
+      return "#";
+    }
+    if (normalized.startsWith("/") || normalized.startsWith("#") || normalized.startsWith("?")) {
+      return normalized;
+    }
+
+    try {
+      const parsed = new URL(normalized);
+      if (["http:", "https:", "mailto:", "tel:"].includes(parsed.protocol)) {
+        return normalized;
+      }
+    } catch {
+      // ignore invalid url
+    }
+
+    return "#";
+  };
+
   // Links
   html = html.replace(
     /\[([^\]]+)\]\(([^)]+)\)/g,
-    '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>'
+    (_, text, href) => `<a href="${sanitizeHref(href)}" target="_blank" rel="noopener noreferrer">${text}</a>`
   );
 
   // Paragraphs: wrap lines separated by blank lines

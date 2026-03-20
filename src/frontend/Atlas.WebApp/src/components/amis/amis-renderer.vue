@@ -66,7 +66,7 @@ onBeforeUnmount(() => {
   rootRef.value?.unmount();
   rootRef.value = null;
   if (containerRef.value) {
-    containerRef.value.innerHTML = "";
+    containerRef.value.replaceChildren();
   }
 });
 </script>
