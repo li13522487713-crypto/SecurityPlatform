@@ -159,7 +159,7 @@ const fetchData = async () => {
 const applyDeepLinkFocus = () => {
   const urlTaskId = typeof route.query.taskId === "string" ? route.query.taskId : "";
   if (!urlTaskId) return;
-  const matched = dataSource.value.find((item) => item.id === urlTaskId);
+  const matched = dataSource.value.find((item) => String(item.id) === urlTaskId);
   if (matched) {
     selectItem(matched);
   }

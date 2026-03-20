@@ -128,7 +128,7 @@ public sealed class TenantDataSourcesController : ControllerBase
             return NotFound(ApiResponse<object>.Fail("NOT_FOUND", "数据源不存在", HttpContext.TraceIdentifier));
         }
 
-        await RecordAuditAsync("DATASOURCE_DISABLE", id.ToString(), ct);
+        await RecordAuditAsync("DATASOURCE_DELETE", id.ToString(), ct);
         return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
     }
 

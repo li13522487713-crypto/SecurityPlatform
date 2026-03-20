@@ -69,7 +69,7 @@ const resolvedAppId = computed(() => {
   return getCurrentAppIdFromStorage() || "";
 });
 
-const loadProjectContext = async () => {
+const loadProjectContext = async (skipEvent = false) => {
   loading.value = true;
   try {
     const appConfig = await getCurrentAppConfig();
@@ -81,7 +81,7 @@ const loadProjectContext = async () => {
       clearProjectId();
       selectedProjectId.value = undefined;
       options.value = [];
-      emitProjectChanged(null);
+      if (!skipEvent) emitProjectChanged(null);
       return;
     }
 
@@ -91,15 +91,15 @@ const loadProjectContext = async () => {
     const hasStored = stored && options.value.some((item) => item.value === stored);
     if (hasStored) {
       selectedProjectId.value = stored ?? undefined;
-      emitProjectChanged(stored ?? null);
+      if (!skipEvent) emitProjectChanged(stored ?? null);
     } else if (options.value.length > 0) {
       selectedProjectId.value = options.value[0].value;
       setProjectId(options.value[0].value);
-      emitProjectChanged(options.value[0].value);
+      if (!skipEvent) emitProjectChanged(options.value[0].value);
     } else {
       clearProjectId();
       selectedProjectId.value = undefined;
-      emitProjectChanged(null);
+      if (!skipEvent) emitProjectChanged(null);
     }
   } catch (error) {
     message.error((error as Error).message || "Failed to load projects");
@@ -168,10 +168,13 @@ const handleAppConfigChanged = () => {
   void loadProjectContext();
 };
 
+let isFirstAppIdLoad = true;
 watch(
   () => resolvedAppId.value,
   () => {
-    void loadProjectContext();
+    const skipEvent = isFirstAppIdLoad;
+    isFirstAppIdLoad = false;
+    void loadProjectContext(skipEvent);
   },
   { immediate: true }
 );
