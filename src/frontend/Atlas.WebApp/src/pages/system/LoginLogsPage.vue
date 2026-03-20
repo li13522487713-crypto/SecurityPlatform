@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <a-card :title="t('loginLog.title')" :bordered="false">
     <div class="crud-toolbar">
       <a-space wrap>
@@ -160,8 +160,9 @@ async function handleExport() {
     anchor.click();
     URL.revokeObjectURL(url);
     message.success("导出成功");
-  } catch (error: any) {
-    message.error(error?.message || "导出失败");
+  } catch (error: unknown) {
+    const requestError = error as { message?: string };
+    message.error(requestError.message || "导出失败");
   } finally {
     exporting.value = false;
   }

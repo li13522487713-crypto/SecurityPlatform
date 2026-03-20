@@ -1,6 +1,11 @@
 import type { ApiResponse, PagedRequest, PagedResult } from "@/types/api";
 import type {
   LowCodeAppCreateRequest,
+  LowCodeAppDataSourceInfo,
+  LowCodeAppEntityAliasItem,
+  LowCodeAppEntityAliasesUpdateRequest,
+  LowCodeAppSharingPolicy,
+  LowCodeAppSharingPolicyUpdateRequest,
   LowCodeAppUpdateRequest,
   LowCodeAppImportRequest,
   LowCodeAppImportResult
@@ -45,6 +50,89 @@ export async function getTenantAppInstanceDetail(id: string): Promise<TenantAppI
   const response = await requestApi<ApiResponse<TenantAppInstanceDetail>>(`${TENANT_APP_INSTANCE_BASE}/${id}`);
   if (!response.data) {
     throw new Error(response.message || "查询租户应用实例详情失败");
+  }
+
+  return response.data;
+}
+
+export async function getTenantAppInstanceSharingPolicy(id: string): Promise<LowCodeAppSharingPolicy> {
+  const response = await requestApi<ApiResponse<LowCodeAppSharingPolicy>>(
+    `${TENANT_APP_INSTANCE_BASE}/${id}/sharing-policy`
+  );
+  if (!response.data) {
+    throw new Error(response.message || "查询租户应用实例共享策略失败");
+  }
+
+  return response.data;
+}
+
+export async function updateTenantAppInstanceSharingPolicy(
+  id: string,
+  request: LowCodeAppSharingPolicyUpdateRequest
+): Promise<void> {
+  const response = await requestApi<ApiResponse<{ id: string }>>(
+    `${TENANT_APP_INSTANCE_BASE}/${id}/sharing-policy`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request)
+    }
+  );
+  if (!response.success) {
+    throw new Error(response.message || "更新租户应用实例共享策略失败");
+  }
+}
+
+export async function getTenantAppInstanceEntityAliases(id: string): Promise<LowCodeAppEntityAliasItem[]> {
+  const response = await requestApi<ApiResponse<LowCodeAppEntityAliasItem[]>>(
+    `${TENANT_APP_INSTANCE_BASE}/${id}/entity-aliases`
+  );
+  if (!response.data) {
+    throw new Error(response.message || "查询租户应用实例实体别名失败");
+  }
+
+  return response.data;
+}
+
+export async function updateTenantAppInstanceEntityAliases(
+  id: string,
+  request: LowCodeAppEntityAliasesUpdateRequest
+): Promise<void> {
+  const response = await requestApi<ApiResponse<{ id: string }>>(
+    `${TENANT_APP_INSTANCE_BASE}/${id}/entity-aliases`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request)
+    }
+  );
+  if (!response.success) {
+    throw new Error(response.message || "更新租户应用实例实体别名失败");
+  }
+}
+
+export async function getTenantAppInstanceDataSourceInfo(id: string): Promise<LowCodeAppDataSourceInfo> {
+  const response = await requestApi<ApiResponse<LowCodeAppDataSourceInfo>>(
+    `${TENANT_APP_INSTANCE_BASE}/${id}/datasource`
+  );
+  if (!response.data) {
+    throw new Error(response.message || "查询租户应用实例数据源信息失败");
+  }
+
+  return response.data;
+}
+
+export async function testTenantAppInstanceDataSource(
+  id: string
+): Promise<{ success: boolean; errorMessage?: string | null; latencyMs?: number | null }> {
+  const response = await requestApi<ApiResponse<{ success: boolean; errorMessage?: string | null; latencyMs?: number | null }>>(
+    `${TENANT_APP_INSTANCE_BASE}/${id}/datasource/test`,
+    {
+      method: "POST"
+    }
+  );
+  if (!response.data) {
+    throw new Error(response.message || "测试租户应用实例数据源失败");
   }
 
   return response.data;

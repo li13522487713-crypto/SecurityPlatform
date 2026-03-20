@@ -3,6 +3,8 @@ using Atlas.Application.Identity;
 using Atlas.Application.LowCode.Models;
 using Atlas.Application.Platform.Abstractions;
 using Atlas.Application.Platform.Models;
+using Atlas.Application.System.Abstractions;
+using Atlas.Application.System.Models;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.AiPlatform.Entities;
@@ -269,13 +271,16 @@ public sealed class TenantApplicationQueryService : ITenantApplicationQueryServi
 public sealed class TenantAppInstanceQueryService : ITenantAppInstanceQueryService
 {
     private readonly ILowCodeAppQueryService _lowCodeAppQueryService;
+    private readonly ITenantDataSourceService _tenantDataSourceService;
     private readonly ISqlSugarClient _db;
 
     public TenantAppInstanceQueryService(
         ILowCodeAppQueryService lowCodeAppQueryService,
+        ITenantDataSourceService tenantDataSourceService,
         ISqlSugarClient db)
     {
         _lowCodeAppQueryService = lowCodeAppQueryService;
+        _tenantDataSourceService = tenantDataSourceService;
         _db = db;
     }
 
@@ -323,6 +328,52 @@ public sealed class TenantAppInstanceQueryService : ITenantAppInstanceQueryServi
             item.Icon,
             item.PublishedAt?.ToString("O"),
             item.DataSourceId);
+    }
+
+    public Task<LowCodeAppSharingPolicy?> GetSharingPolicyAsync(
+        TenantId tenantId,
+        long id,
+        CancellationToken cancellationToken = default)
+    {
+        return _lowCodeAppQueryService.GetSharingPolicyAsync(tenantId, id, cancellationToken);
+    }
+
+    public Task<IReadOnlyList<LowCodeAppEntityAliasItem>> GetEntityAliasesAsync(
+        TenantId tenantId,
+        long id,
+        CancellationToken cancellationToken = default)
+    {
+        return _lowCodeAppQueryService.GetEntityAliasesAsync(tenantId, id, cancellationToken);
+    }
+
+    public Task<LowCodeAppDataSourceInfo?> GetDataSourceInfoAsync(
+        TenantId tenantId,
+        long id,
+        CancellationToken cancellationToken = default)
+    {
+        return _lowCodeAppQueryService.GetDataSourceInfoAsync(tenantId, id, cancellationToken);
+    }
+
+    public async Task<TestConnectionResult> TestDataSourceAsync(
+        TenantId tenantId,
+        long id,
+        CancellationToken cancellationToken = default)
+    {
+        var dataSourceInfo = await _lowCodeAppQueryService.GetDataSourceInfoAsync(tenantId, id, cancellationToken);
+        if (dataSourceInfo is null)
+        {
+            return new TestConnectionResult(false, "应用不存在");
+        }
+
+        if (!long.TryParse(dataSourceInfo.DataSourceId, out var dataSourceId))
+        {
+            return new TestConnectionResult(false, "应用未绑定数据源");
+        }
+
+        return await _tenantDataSourceService.TestConnectionByDataSourceIdAsync(
+            tenantId.Value.ToString(),
+            dataSourceId,
+            cancellationToken);
     }
 
     public async Task<IReadOnlyList<TenantAppDataSourceBindingDto>> GetDataSourceBindingsAsync(
@@ -476,6 +527,26 @@ public sealed class TenantAppInstanceCommandService : ITenantAppInstanceCommandS
         CancellationToken cancellationToken = default)
     {
         return _commandService.PublishAsync(tenantId, userId, id, cancellationToken);
+    }
+
+    public Task UpdateSharingPolicyAsync(
+        TenantId tenantId,
+        long userId,
+        long id,
+        LowCodeAppSharingPolicyUpdateRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return _commandService.UpdateSharingPolicyAsync(tenantId, userId, id, request, cancellationToken);
+    }
+
+    public Task UpdateEntityAliasesAsync(
+        TenantId tenantId,
+        long userId,
+        long id,
+        LowCodeAppEntityAliasesUpdateRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return _commandService.UpdateEntityAliasesAsync(tenantId, userId, id, request, cancellationToken);
     }
 
     public Task DeleteAsync(

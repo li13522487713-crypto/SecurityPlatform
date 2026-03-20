@@ -190,15 +190,16 @@ import type {
 } from "@/types/lowcode";
 import type { TenantAppInstanceDetail } from "@/types/platform-v2";
 import { getTenantDataSources } from "@/services/api-system";
-import { getTenantAppInstanceDetail, updateTenantAppInstance } from "@/services/api-tenant-app-instances";
 import {
-  getLowCodeAppDataSourceInfo,
-  getLowCodeAppEntityAliases,
-  getLowCodeAppSharingPolicy,
-  testLowCodeAppDataSource,
-  updateLowCodeAppEntityAliases,
-  updateLowCodeAppSharingPolicy
-} from "@/services/lowcode";
+  getTenantAppInstanceDataSourceInfo,
+  getTenantAppInstanceDetail,
+  getTenantAppInstanceEntityAliases,
+  getTenantAppInstanceSharingPolicy,
+  testTenantAppInstanceDataSource,
+  updateTenantAppInstance,
+  updateTenantAppInstanceEntityAliases,
+  updateTenantAppInstanceSharingPolicy
+} from "@/services/api-tenant-app-instances";
 import { debounce } from "@/utils/common";
 
 const route = useRoute();
@@ -253,9 +254,9 @@ async function loadSettings() {
 
   try {
     const [dataSource, policy, aliases, appDetail] = await Promise.all([
-      getLowCodeAppDataSourceInfo(appId.value),
-      getLowCodeAppSharingPolicy(appId.value),
-      getLowCodeAppEntityAliases(appId.value),
+      getTenantAppInstanceDataSourceInfo(appId.value),
+      getTenantAppInstanceSharingPolicy(appId.value),
+      getTenantAppInstanceEntityAliases(appId.value),
       getTenantAppInstanceDetail(appId.value)
     ]);
 
@@ -413,13 +414,13 @@ async function handleTestDataSource() {
   if (!appId.value) return;
   testingDataSource.value = true;
   try {
-    const result = await testLowCodeAppDataSource(appId.value);
+    const result = await testTenantAppInstanceDataSource(appId.value);
     if (result.success) {
       message.success("数据源连接测试成功");
     } else {
       message.error(result.errorMessage || "数据源连接测试失败");
     }
-    dataSourceInfo.value = await getLowCodeAppDataSourceInfo(appId.value);
+    dataSourceInfo.value = await getTenantAppInstanceDataSourceInfo(appId.value);
   } catch (error) {
     message.error((error as Error).message || "测试数据源失败");
   } finally {
@@ -461,7 +462,7 @@ async function persistSharingPolicy() {
 
   savingPolicy.value = true;
   try {
-    await updateLowCodeAppSharingPolicy(appId.value, {
+    await updateTenantAppInstanceSharingPolicy(appId.value, {
       useSharedUsers: sharingPolicy.useSharedUsers,
       useSharedRoles: sharingPolicy.useSharedRoles,
       useSharedDepartments: sharingPolicy.useSharedDepartments
@@ -499,7 +500,7 @@ async function saveEntityAliases() {
   if (!appId.value) return;
   savingAliases.value = true;
   try {
-    await updateLowCodeAppEntityAliases(appId.value, {
+    await updateTenantAppInstanceEntityAliases(appId.value, {
       items: entityAliases.value.map((item) => ({
         entityType: item.entityType.trim(),
         singularAlias: item.singularAlias.trim(),

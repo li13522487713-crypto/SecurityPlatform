@@ -622,13 +622,13 @@ function handleViewNodeDetail() {
 }
 
 function isTreeNode(node: TreeNode | ConditionBranch): node is TreeNode {
-  const candidate = node as Record<string, unknown>;
+  const candidate = node as Partial<TreeNode & ConditionBranch>;
   // TreeNode 必须具备 nodeType + nodeName；仅有 nodeType 不能排除运行时污染数据。
   return typeof candidate.nodeType === 'string' && typeof candidate.nodeName === 'string';
 }
 
 function isConditionBranchNode(node: TreeNode | ConditionBranch): node is ConditionBranch {
-  const candidate = node as Record<string, unknown>;
+  const candidate = node as Partial<TreeNode & ConditionBranch>;
   // 分支节点以 branchName 为主特征；若同时满足 TreeNode 特征，优先按 TreeNode 处理避免误删分支。
   return typeof candidate.branchName === 'string' && !isTreeNode(node);
 }

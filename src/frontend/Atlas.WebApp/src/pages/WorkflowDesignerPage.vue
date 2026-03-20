@@ -134,7 +134,14 @@ const containerRef = ref<HTMLElement>();
 const graphRef = ref<Graph>();
 const workflowId = ref("my-test-workflow");
 const drawerVisible = ref(false);
-const selectedNodeData = ref<any>(null);
+interface DesignerSelectedNodeData {
+  id: string;
+  name: string;
+  stepType: string;
+  inputs: Record<string, unknown>;
+  cellId: string;
+}
+const selectedNodeData = ref<DesignerSelectedNodeData | null>(null);
 const stepTypes = ref<StepTypeMetadata[]>([]);
 const testModalVisible = ref(false);
 const testData = ref("{}");
@@ -156,25 +163,26 @@ const { initGraph, handleDragStart, handleDrop } = useWorkflowGraph(
 
 
 const selectedNodeParams = computed(() => {
-  if (!selectedNodeData.value) return [];
-  const stepType = stepTypes.value.find((st) => st.type === selectedNodeData.value.stepType);
+  const currentNode = selectedNodeData.value;
+  if (!currentNode) return [];
+  const stepType = stepTypes.value.find((st) => st.type === currentNode.stepType);
   return stepType?.parameters || [];
 });
 
 
 
 const handleUpdateNode = () => {
-  if (!graphRef.value || !selectedNodeData.value) return;
+  const currentNode = selectedNodeData.value;
+  if (!graphRef.value || !currentNode) return;
 
-  const nodeId = selectedNodeData.value.cellId;
+  const nodeId = currentNode.cellId;
   const node = graphRef.value.getCellById(nodeId);
   if (!node || !node.isNode()) {
     message.warning("节点不存在");
     return;
   }
 
-  const data = { ...selectedNodeData.value };
-  delete data.cellId;
+  const { cellId: _cellId, ...data } = currentNode;
   
   node.setData(data);
   node.setAttrByPath("title/text", data.name);
@@ -245,9 +253,9 @@ const handleTest = () => {
 
 const handleExecuteTest = async () => {
   try {
-    let data = {};
+    let data: Record<string, unknown> = {};
     if (testData.value.trim()) {
-      data = normalizeJsonValue(JSON.parse(testData.value)) as any;
+      data = normalizeJsonValue(JSON.parse(testData.value)) as Record<string, unknown>;
     }
 
     const instanceId = await startWorkflow({

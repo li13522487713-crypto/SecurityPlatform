@@ -154,6 +154,7 @@ import {
 } from "@/services/api";
 import type { WorkflowInstanceListItem, WorkflowInstanceResponse, ExecutionPointerResponse } from "@/types/api";
 import { message } from "ant-design-vue";
+import type { TablePaginationConfig } from "ant-design-vue";
 import {
   ReloadOutlined,
   LoadingOutlined,
@@ -202,9 +203,9 @@ const loadInstances = async () => {
   }
 };
 
-const handleTableChange = (pagination: any) => {
-  pageIndex.value = pagination.current;
-  pageSize.value = pagination.pageSize;
+const handleTableChange = (pagination: TablePaginationConfig) => {
+  pageIndex.value = pagination.current ?? 1;
+  pageSize.value = pagination.pageSize ?? 10;
   loadInstances();
 };
 

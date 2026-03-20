@@ -215,9 +215,17 @@
 - `DELETE /api/v2/tenant-app-instances/{id}`
 - `GET /api/v2/tenant-app-instances/{id}/export`
 - `POST /api/v2/tenant-app-instances/import`
+- `GET /api/v2/tenant-app-instances/{id}/sharing-policy`
+- `PUT /api/v2/tenant-app-instances/{id}/sharing-policy`
+- `GET /api/v2/tenant-app-instances/{id}/entity-aliases`
+- `PUT /api/v2/tenant-app-instances/{id}/entity-aliases`
+- `GET /api/v2/tenant-app-instances/{id}/datasource`
+- `POST /api/v2/tenant-app-instances/{id}/datasource/test`
   - `PUT /api/v2/tenant-app-instances/{id}` 支持数据源治理字段：
     - `dataSourceId: long?`：绑定或切换目标数据源。
     - `unbindDataSource: bool`：为 `true` 时解绑当前数据源并清空 `dataSourceId`。
+  - `PUT /sharing-policy` 与 `PUT /entity-aliases` 的请求体契约沿用 v1：`LowCodeAppSharingPolicyUpdateRequest`、`LowCodeAppEntityAliasesUpdateRequest`。
+  - `POST /datasource/test` 返回 `TestConnectionResult`（`success/errorMessage/latencyMs`），应用未绑定数据源时返回 `success=false`。
   - 写接口统一要求 `Idempotency-Key` + `X-CSRF-TOKEN`。
   - `export` 为只读接口，不要求幂等头。
   - `import` 的 `package` 契约沿用 `LowCodeAppExportPackage`，用于兼容窗口内平滑迁移。

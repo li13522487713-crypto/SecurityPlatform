@@ -31,6 +31,68 @@ GET {{baseUrl}}/api/v2/tenant-app-instances/1
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
+### 查询实例共享策略
+GET {{baseUrl}}/api/v2/tenant-app-instances/1/sharing-policy
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 更新实例共享策略
+PUT {{baseUrl}}/api/v2/tenant-app-instances/1/sharing-policy
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+X-CSRF-TOKEN: {{csrfToken}}
+Idempotency-Key: {{$guid}}
+Content-Type: application/json
+
+{
+  "useSharedUsers": false,
+  "useSharedRoles": true,
+  "useSharedDepartments": true
+}
+
+### 查询实例实体别名
+GET {{baseUrl}}/api/v2/tenant-app-instances/1/entity-aliases
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 更新实例实体别名
+PUT {{baseUrl}}/api/v2/tenant-app-instances/1/entity-aliases
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+X-CSRF-TOKEN: {{csrfToken}}
+Idempotency-Key: {{$guid}}
+Content-Type: application/json
+
+{
+  "items": [
+    {
+      "entityType": "users",
+      "singularAlias": "成员",
+      "pluralAlias": "成员列表"
+    },
+    {
+      "entityType": "roles",
+      "singularAlias": "岗位",
+      "pluralAlias": "岗位列表"
+    },
+    {
+      "entityType": "departments",
+      "singularAlias": "组织",
+      "pluralAlias": "组织列表"
+    }
+  ]
+}
+
+### 查询实例数据源信息
+GET {{baseUrl}}/api/v2/tenant-app-instances/1/datasource
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 测试实例数据源连接
+POST {{baseUrl}}/api/v2/tenant-app-instances/1/datasource/test
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
 ### 查询实例数据源绑定（可选 appIds 过滤）
 # 响应包含 bindingId/bindingType/bindingActive/boundAt/source（支持绑定表与历史字段回填来源）
 GET {{baseUrl}}/api/v2/tenant-app-instances/data-source-bindings?appIds=1&appIds=2

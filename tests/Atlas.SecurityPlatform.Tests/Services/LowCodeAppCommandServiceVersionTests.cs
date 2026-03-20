@@ -92,7 +92,7 @@ public sealed class LowCodeAppCommandServiceVersionTests
             Assert.Equal(1, targetVersion.Version);
             Assert.Equal("Publish", targetVersion.ActionType);
 
-            app.Update("销售门户 V2", "变更版", "销售", "shop", 1, DateTimeOffset.UtcNow);
+            app.Update("销售门户 V2", "变更版", "销售", "shop", 1, 1, DateTimeOffset.UtcNow);
             await appRepository.UpdateAsync(app);
 
             ordersPage.UpdateSchema("{\"type\":\"page\",\"title\":\"订单列表V2\"}", 1, DateTimeOffset.UtcNow);

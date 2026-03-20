@@ -93,7 +93,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, markRaw } from 'vue'
+import { ref, computed, onMounted, markRaw, type Component } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import {
@@ -147,9 +147,8 @@ const vfEdges = ref<VfEdge[]>([])
 // 节点执行状态（key → status string）
 const nodeRunStatus = ref<Record<string, string>>({})
 
-const _nr = markRaw(WorkflowNodeRenderer)
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const nodeTypes: Record<string, any> = {
+const _nr = markRaw(WorkflowNodeRenderer) as Component
+const nodeTypes: Record<string, Component> = {
   Entry: _nr,
   Exit: _nr,
   Llm: _nr,

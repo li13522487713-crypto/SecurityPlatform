@@ -4,8 +4,12 @@
 
 <script setup lang="ts">
 import { computed } from "vue";
+import DOMPurify from "dompurify";
 
 const props = defineProps<{ content: string }>();
+const MARKDOWN_ALLOWED_TAGS = ["p", "h1", "h2", "h3", "strong", "em", "code", "pre", "ul", "ol", "li", "blockquote", "hr", "a", "br"];
+const MARKDOWN_ALLOWED_ATTR = ["href", "target", "rel", "class"];
+const SAFE_URI_REGEXP = /^(?:(?:https?|mailto|tel):|[/?#]|\.{1,2}\/)/i;
 
 function escapeHtml(text: string): string {
   return text
@@ -104,7 +108,11 @@ function renderMarkdown(md: string): string {
     })
     .join("\n");
 
-  return html;
+  return DOMPurify.sanitize(html, {
+    ALLOWED_TAGS: MARKDOWN_ALLOWED_TAGS,
+    ALLOWED_ATTR: MARKDOWN_ALLOWED_ATTR,
+    ALLOWED_URI_REGEXP: SAFE_URI_REGEXP
+  });
 }
 
 const rendered = computed(() => renderMarkdown(props.content));

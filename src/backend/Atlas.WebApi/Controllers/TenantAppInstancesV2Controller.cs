@@ -1,6 +1,7 @@
 using Atlas.Application.Platform.Abstractions;
 using Atlas.Application.Platform.Models;
 using Atlas.Application.LowCode.Models;
+using Atlas.Application.System.Models;
 using Atlas.Core.Models;
 using Atlas.Core.Identity;
 using Atlas.Core.Tenancy;
@@ -24,6 +25,8 @@ public sealed class TenantAppInstancesV2Controller : ControllerBase
     private readonly IValidator<LowCodeAppCreateRequest> _createValidator;
     private readonly IValidator<LowCodeAppUpdateRequest> _updateValidator;
     private readonly IValidator<LowCodeAppImportRequest> _importValidator;
+    private readonly IValidator<LowCodeAppSharingPolicyUpdateRequest> _sharingPolicyValidator;
+    private readonly IValidator<LowCodeAppEntityAliasesUpdateRequest> _entityAliasesValidator;
 
     public TenantAppInstancesV2Controller(
         ITenantAppInstanceQueryService queryService,
@@ -32,7 +35,9 @@ public sealed class TenantAppInstancesV2Controller : ControllerBase
         ICurrentUserAccessor currentUserAccessor,
         IValidator<LowCodeAppCreateRequest> createValidator,
         IValidator<LowCodeAppUpdateRequest> updateValidator,
-        IValidator<LowCodeAppImportRequest> importValidator)
+        IValidator<LowCodeAppImportRequest> importValidator,
+        IValidator<LowCodeAppSharingPolicyUpdateRequest> sharingPolicyValidator,
+        IValidator<LowCodeAppEntityAliasesUpdateRequest> entityAliasesValidator)
     {
         _queryService = queryService;
         _commandService = commandService;
@@ -41,6 +46,8 @@ public sealed class TenantAppInstancesV2Controller : ControllerBase
         _createValidator = createValidator;
         _updateValidator = updateValidator;
         _importValidator = importValidator;
+        _sharingPolicyValidator = sharingPolicyValidator;
+        _entityAliasesValidator = entityAliasesValidator;
     }
 
     [HttpGet]
@@ -68,6 +75,110 @@ public sealed class TenantAppInstancesV2Controller : ControllerBase
         }
 
         return Ok(ApiResponse<TenantAppInstanceDetail>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    [HttpGet("{id:long}/sharing-policy")]
+    [Authorize(Policy = PermissionPolicies.AppsView)]
+    public async Task<ActionResult<ApiResponse<LowCodeAppSharingPolicy>>> GetSharingPolicy(
+        long id,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _queryService.GetSharingPolicyAsync(tenantId, id, cancellationToken);
+        if (result is null)
+        {
+            return NotFound(ApiResponse<LowCodeAppSharingPolicy>.Fail(ErrorCodes.NotFound, "Tenant app instance not found.", HttpContext.TraceIdentifier));
+        }
+
+        return Ok(ApiResponse<LowCodeAppSharingPolicy>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPut("{id:long}/sharing-policy")]
+    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
+    public async Task<ActionResult<ApiResponse<object>>> UpdateSharingPolicy(
+        long id,
+        [FromBody] LowCodeAppSharingPolicyUpdateRequest request,
+        CancellationToken cancellationToken)
+    {
+        await _sharingPolicyValidator.ValidateAndThrowAsync(request, cancellationToken);
+        var currentUser = _currentUserAccessor.GetCurrentUser();
+        if (currentUser is null)
+        {
+            return Unauthorized(ApiResponse<object>.Fail(ErrorCodes.Unauthorized, "Unauthorized.", HttpContext.TraceIdentifier));
+        }
+
+        var tenantId = _tenantProvider.GetTenantId();
+        await _commandService.UpdateSharingPolicyAsync(tenantId, currentUser.UserId, id, request, cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { id = id.ToString() }, HttpContext.TraceIdentifier));
+    }
+
+    [HttpGet("{id:long}/entity-aliases")]
+    [Authorize(Policy = PermissionPolicies.AppsView)]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<LowCodeAppEntityAliasItem>>>> GetEntityAliases(
+        long id,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var detail = await _queryService.GetByIdAsync(tenantId, id, cancellationToken);
+        if (detail is null)
+        {
+            return NotFound(ApiResponse<IReadOnlyList<LowCodeAppEntityAliasItem>>.Fail(ErrorCodes.NotFound, "Tenant app instance not found.", HttpContext.TraceIdentifier));
+        }
+
+        var result = await _queryService.GetEntityAliasesAsync(tenantId, id, cancellationToken);
+        return Ok(ApiResponse<IReadOnlyList<LowCodeAppEntityAliasItem>>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPut("{id:long}/entity-aliases")]
+    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
+    public async Task<ActionResult<ApiResponse<object>>> UpdateEntityAliases(
+        long id,
+        [FromBody] LowCodeAppEntityAliasesUpdateRequest request,
+        CancellationToken cancellationToken)
+    {
+        await _entityAliasesValidator.ValidateAndThrowAsync(request, cancellationToken);
+        var currentUser = _currentUserAccessor.GetCurrentUser();
+        if (currentUser is null)
+        {
+            return Unauthorized(ApiResponse<object>.Fail(ErrorCodes.Unauthorized, "Unauthorized.", HttpContext.TraceIdentifier));
+        }
+
+        var tenantId = _tenantProvider.GetTenantId();
+        await _commandService.UpdateEntityAliasesAsync(tenantId, currentUser.UserId, id, request, cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { id = id.ToString() }, HttpContext.TraceIdentifier));
+    }
+
+    [HttpGet("{id:long}/datasource")]
+    [Authorize(Policy = PermissionPolicies.AppsView)]
+    public async Task<ActionResult<ApiResponse<LowCodeAppDataSourceInfo>>> GetDataSource(
+        long id,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _queryService.GetDataSourceInfoAsync(tenantId, id, cancellationToken);
+        if (result is null)
+        {
+            return NotFound(ApiResponse<LowCodeAppDataSourceInfo>.Fail(ErrorCodes.NotFound, "Tenant app instance not found.", HttpContext.TraceIdentifier));
+        }
+
+        return Ok(ApiResponse<LowCodeAppDataSourceInfo>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost("{id:long}/datasource/test")]
+    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
+    public async Task<ActionResult<ApiResponse<TestConnectionResult>>> TestDataSource(
+        long id,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var dataSourceInfo = await _queryService.GetDataSourceInfoAsync(tenantId, id, cancellationToken);
+        if (dataSourceInfo is null)
+        {
+            return NotFound(ApiResponse<TestConnectionResult>.Fail(ErrorCodes.NotFound, "Tenant app instance not found.", HttpContext.TraceIdentifier));
+        }
+
+        var result = await _queryService.TestDataSourceAsync(tenantId, id, cancellationToken);
+        return Ok(ApiResponse<TestConnectionResult>.Ok(result, HttpContext.TraceIdentifier));
     }
 
     [HttpGet("data-source-bindings")]

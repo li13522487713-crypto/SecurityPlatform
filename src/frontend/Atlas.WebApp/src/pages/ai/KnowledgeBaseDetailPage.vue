@@ -152,6 +152,12 @@ const editingChunk = reactive({
   endOffset: 0
 });
 
+interface UploadRequestOptions {
+  file: File;
+  onError?: (error: Error) => void;
+  onSuccess?: (body: Record<string, unknown>, xhr?: XMLHttpRequest) => void;
+}
+
 function statusLabel(status: number) {
   if (status === 1) return "处理中";
   if (status === 2) return "完成";
@@ -224,8 +230,8 @@ async function handleAddDocument() {
   }
 }
 
-async function handleUploadDocument(options: any) {
-  const file = options.file as File;
+async function handleUploadDocument(options: UploadRequestOptions) {
+  const file = options.file;
   if (!file) {
     options.onError?.(new Error("未选择文件"));
     return;
