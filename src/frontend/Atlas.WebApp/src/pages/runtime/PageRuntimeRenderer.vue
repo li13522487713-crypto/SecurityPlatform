@@ -1,5 +1,14 @@
 <template>
   <a-card :title="pageTitle" :class="{ 'runtime-mobile-card': isMobile }">
+    <a-alert
+      v-if="isWorkspacePreviewMode"
+      type="warning"
+      show-icon
+      banner
+      message="预览模式"
+      description="当前为工作台预览，不计入正式运行记录。"
+      class="runtime-preview-banner"
+    />
     <a-spin :spinning="loading">
       <AmisRenderer v-if="schema" :schema="schema" />
       <a-empty v-else description="未找到可运行页面，请先在设计器发布页面" />
@@ -20,6 +29,7 @@ const loading = ref(false);
 const schema = ref<AmisSchema | null>(null);
 const pageTitle = ref("运行态页面");
 const isMobile = computed(() => window.innerWidth <= 768 || route.query.deviceMode === "mobile");
+const isWorkspacePreviewMode = computed(() => route.name === "app-workspace-runtime");
 
 const appId = computed(() => String(route.params.appId ?? ""));
 const appKey = computed(() => String(route.params.appKey ?? ""));
@@ -84,5 +94,9 @@ watch([appId, appKey, pageKey], () => {
 .runtime-mobile-card {
   margin: 0;
   border-radius: 0;
+}
+
+.runtime-preview-banner {
+  margin-bottom: 12px;
 }
 </style>

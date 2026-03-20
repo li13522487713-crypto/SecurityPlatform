@@ -185,6 +185,7 @@
 - `GET /api/v2/tenant-app-instances`
 - `GET /api/v2/tenant-app-instances/{id}`
 - `GET /api/v2/runtime-contexts`
+- `GET /api/v2/runtime-contexts/{id}`
 - `GET /api/v2/runtime-contexts/{appKey}/{pageKey}`
 - `GET /api/v2/runtime-executions`
 - `GET /api/v2/runtime-executions/{id}`
@@ -214,6 +215,9 @@
 - `DELETE /api/v2/tenant-app-instances/{id}`
 - `GET /api/v2/tenant-app-instances/{id}/export`
 - `POST /api/v2/tenant-app-instances/import`
+  - `PUT /api/v2/tenant-app-instances/{id}` 支持数据源治理字段：
+    - `dataSourceId: long?`：绑定或切换目标数据源。
+    - `unbindDataSource: bool`：为 `true` 时解绑当前数据源并清空 `dataSourceId`。
   - 写接口统一要求 `Idempotency-Key` + `X-CSRF-TOKEN`。
   - `export` 为只读接口，不要求幂等头。
   - `import` 的 `package` 契约沿用 `LowCodeAppExportPackage`，用于兼容窗口内平滑迁移。
@@ -259,6 +263,9 @@
 - `GET /api/v2/runtime-executions/{executionId}/audit-trails`
   - 通过执行ID关联审计轨迹，支持分页与关键字检索。
   - 审计目标匹配口径包含：`WorkflowExecution:{executionId}`、`RuntimeExecution:{executionId}`，以及执行记录上的 `ReleaseId` / `RuntimeContextId` / `AppId` 派生目标（`Release:*`、`RuntimeContext:*`、`AppManifest:*`）。
+- `GET /api/v2/runtime-executions`
+  - 支持多条件筛选参数：`appId`、`status`、`startedFrom`、`startedTo`（ISO8601）。
+  - `status` 取值口径与 `ExecutionStatus` 对齐（`Pending/Running/Completed/Failed/Cancelled/Interrupted`）。
 - `GET /api/v2/coze-mappings/overview`
   - 返回 Coze 六层映射总览（目录/实例/发布/上下文/执行/审计）。
 - `GET /api/v2/debug-layer/embed-metadata`

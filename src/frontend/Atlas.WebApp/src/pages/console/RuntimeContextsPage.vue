@@ -67,12 +67,14 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { onMounted, ref, watch } from "vue";
 import type { TableColumnsType, TablePaginationConfig } from "ant-design-vue";
 import { message } from "ant-design-vue";
-import { getRuntimeContextByRoute, getRuntimeContextsPaged } from "@/services/api-runtime-contexts";
+import { useRoute } from "vue-router";
+import { getRuntimeContextById, getRuntimeContextByRoute, getRuntimeContextsPaged } from "@/services/api-runtime-contexts";
 import type { RuntimeContextDetail, RuntimeContextListItem } from "@/types/platform-v2";
 
+const route = useRoute();
 const loading = ref(false);
 const keyword = ref("");
 const appKeyFilter = ref("");
@@ -152,9 +154,44 @@ async function viewDetail(appKey: string, pageKey: string) {
   }
 }
 
+function syncFiltersFromRouteQuery() {
+  const queryAppKey = typeof route.query.appKey === "string" ? route.query.appKey.trim() : "";
+  const queryPageKey = typeof route.query.pageKey === "string" ? route.query.pageKey.trim() : "";
+  appKeyFilter.value = queryAppKey;
+  pageKeyFilter.value = queryPageKey;
+}
+
+async function openDetailByRouteQuery() {
+  const runtimeContextId = typeof route.query.runtimeContextId === "string"
+    ? route.query.runtimeContextId.trim()
+    : "";
+  if (!runtimeContextId) {
+    return;
+  }
+
+  try {
+    detail.value = await getRuntimeContextById(runtimeContextId);
+    detailVisible.value = true;
+  } catch {
+    // ignore invalid runtimeContextId query to avoid noisy UX
+  }
+}
+
 onMounted(() => {
+  syncFiltersFromRouteQuery();
   void loadRuntimeContexts();
+  void openDetailByRouteQuery();
 });
+
+watch(
+  () => route.query,
+  () => {
+    syncFiltersFromRouteQuery();
+    pageIndex.value = 1;
+    void loadRuntimeContexts();
+    void openDetailByRouteQuery();
+  }
+);
 </script>
 
 <style scoped>

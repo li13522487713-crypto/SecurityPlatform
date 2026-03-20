@@ -11,6 +11,8 @@ const pathComponentFallbackMap: Record<string, string> = {
   "/console/tenant-applications": "../pages/console/TenantApplicationsPage.vue",
   "/console/runtime-contexts": "../pages/console/RuntimeContextsPage.vue",
   "/console/runtime-executions": "../pages/console/RuntimeExecutionsPage.vue",
+  "/console/resources": "../pages/console/ResourceCenterPage.vue",
+  "/console/resources/datasource-consumption": "../pages/console/DataSourceConsumptionPage.vue",
   "/console/releases": "../pages/console/ReleaseCenterPage.vue",
   "/console/debug": "../pages/console/CozeDebugPage.vue",
   "/console/datasources": "../pages/system/TenantDataSourcesPage.vue",
@@ -53,6 +55,15 @@ const pathComponentFallbackMap: Record<string, string> = {
   "/ai/knowledge-bases/:id": "../pages/ai/KnowledgeBaseDetailPage.vue",
   "/ai/workflows": "../pages/ai/AiWorkflowListPage.vue",
   "/ai/workflows/:id/edit": "../pages/ai/AiWorkflowEditorPage.vue"
+};
+
+const pathTitleKeyFallbackMap: Record<string, string> = {
+  "/console/catalog": "route.consoleCatalog",
+  "/console/tenant-applications": "route.consoleTenantApplications",
+  "/console/runtime-contexts": "route.consoleRuntimeContexts",
+  "/console/runtime-executions": "route.consoleRuntimeExecutions",
+  "/console/resources": "route.consoleResources",
+  "/console/resources/datasource-consumption": "route.consoleDatasourceConsumption"
 };
 
 function resolveByPathFallback(path?: string) {
@@ -174,7 +185,7 @@ function toRouteRecord(item: RouterVo, type: boolean): RouteRecordRaw | null {
 
   const baseMeta = {
     title: item.meta?.title ?? item.name,
-    titleKey: item.meta?.titleKey,
+    titleKey: item.meta?.titleKey || pathTitleKeyFallbackMap[item.path],
     icon: item.meta?.icon,
     requiresAuth: true,
     requiresPermission: item.meta?.permi,

@@ -13,16 +13,12 @@
                 @click="onMenuClick"
                 style="border-bottom: none; line-height: 54px;"
               >
-                <a-menu-item key="/console">平台首页</a-menu-item>
-                <a-menu-item key="/console/apps">应用管理</a-menu-item>
-                <a-menu-item key="/console/catalog">应用目录</a-menu-item>
-                <a-menu-item key="/console/tenant-applications">租户开通</a-menu-item>
-                <a-menu-item key="/console/runtime-contexts">运行上下文</a-menu-item>
-                <a-menu-item key="/console/runtime-executions">执行记录</a-menu-item>
-                <a-menu-item key="/console/releases">发布中心</a-menu-item>
-                <a-menu-item key="/console/debug">调试层</a-menu-item>
-                <a-menu-item key="/console/datasources">数据源管理</a-menu-item>
-                <a-menu-item key="/console/settings/system/configs">系统设置</a-menu-item>
+                <a-menu-item
+                  v-for="item in visibleMenuItems"
+                  :key="item.path"
+                >
+                  {{ item.label }}
+                </a-menu-item>
               </a-menu>
             </div>
           </div>
@@ -57,7 +53,10 @@
       </div>
 
       <a-layout-content class="console-content">
-        <router-view />
+        <router-view v-if="canAccessCurrentRoute" />
+        <div v-else class="no-permission-state">
+          <a-empty description="暂无访问权限，请联系管理员" />
+        </div>
       </a-layout-content>
     </a-layout>
   </div>
@@ -78,42 +77,67 @@ const userStore = useUserStore();
 const permissionStore = usePermissionStore();
 const tagsViewStore = useTagsViewStore();
 
+interface ConsoleMenuItem {
+  key: string;
+  label: string;
+  path: string;
+  permission?: string;
+}
+
+const menuItems: ConsoleMenuItem[] = [
+  { key: "console-home", label: "平台首页", path: "/console", permission: "apps:view" },
+  { key: "console-apps", label: "应用管理", path: "/console/apps", permission: "apps:view" },
+  { key: "console-catalog", label: "应用目录", path: "/console/catalog", permission: "apps:view" },
+  { key: "console-tenant-applications", label: "租户开通", path: "/console/tenant-applications", permission: "apps:view" },
+  { key: "console-runtime-contexts", label: "运行上下文", path: "/console/runtime-contexts", permission: "apps:view" },
+  { key: "console-runtime-executions", label: "执行记录", path: "/console/runtime-executions", permission: "apps:view" },
+  { key: "console-resources", label: "资源中心", path: "/console/resources", permission: "apps:view" },
+  { key: "console-releases", label: "发布中心", path: "/console/releases", permission: "apps:view" },
+  { key: "console-debug", label: "调试层", path: "/console/debug", permission: "apps:view" },
+  { key: "console-datasources", label: "数据源管理", path: "/console/datasources", permission: "system:admin" },
+  { key: "console-system-configs", label: "系统设置", path: "/console/settings/system/configs", permission: "config:view" }
+];
+
+function isPrivilegedUser() {
+  if (userStore.profile?.isPlatformAdmin) {
+    return true;
+  }
+
+  return userStore.permissions.includes("*:*:*")
+    || userStore.roles.some((role) => ["admin", "superadmin"].includes(role.toLowerCase()));
+}
+
+function hasPermission(permissionCode?: string) {
+  if (!permissionCode) {
+    return true;
+  }
+  if (isPrivilegedUser()) {
+    return true;
+  }
+  return userStore.permissions.includes(permissionCode);
+}
+
+const visibleMenuItems = computed(() => menuItems.filter((item) => hasPermission(item.permission)));
+
 const selectedKeys = computed(() => {
-  const path = route.path;
-  if (path.startsWith("/console/apps")) {
-    return ["/console/apps"];
+  const sortedItems = [...menuItems].sort((a, b) => b.path.length - a.path.length);
+  const matched = sortedItems.find((item) => route.path === item.path || route.path.startsWith(`${item.path}/`));
+  if (matched && hasPermission(matched.permission)) {
+    return [matched.path];
   }
-  if (path.startsWith("/console/catalog")) {
-    return ["/console/catalog"];
-  }
-  if (path.startsWith("/console/tenant-applications")) {
-    return ["/console/tenant-applications"];
-  }
-  if (path.startsWith("/console/runtime-contexts")) {
-    return ["/console/runtime-contexts"];
-  }
-  if (path.startsWith("/console/runtime-executions")) {
-    return ["/console/runtime-executions"];
-  }
-  if (path.startsWith("/console/releases")) {
-    return ["/console/releases"];
-  }
-  if (path.startsWith("/console/debug")) {
-    return ["/console/debug"];
-  }
-  if (path.startsWith("/console/datasources")) {
-    return ["/console/datasources"];
-  }
-  if (path.startsWith("/console/settings")) {
-    return ["/console/settings/system/configs"];
-  }
-  return ["/console"];
+  return [];
 });
 
 const profileDisplayName = computed(
   () => userStore.profile?.displayName || userStore.profile?.username || "个人中心"
 );
 const profileInitials = computed(() => profileDisplayName.value.slice(0, 2));
+const canAccessCurrentRoute = computed(() => {
+  const requiredPermission = typeof route.meta.requiresPermission === "string"
+    ? route.meta.requiresPermission
+    : undefined;
+  return hasPermission(requiredPermission);
+});
 
 function onMenuClick(info: { key: string }) {
   go(info.key);
@@ -179,5 +203,12 @@ async function logout() {
 .console-content {
   min-height: calc(100vh - 56px);
   background: var(--color-bg-layout);
+}
+
+.no-permission-state {
+  min-height: calc(100vh - 56px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 </style>

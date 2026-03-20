@@ -24,6 +24,11 @@ GET {{baseUrl}}/api/v2/runtime-contexts?pageIndex=1&pageSize=10
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
+### 按 ID 查询运行上下文
+GET {{baseUrl}}/api/v2/runtime-contexts/1
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
 ### 按路由查询运行上下文
 GET {{baseUrl}}/api/v2/runtime-contexts/crm_demo_2026/customer_list
 Authorization: Bearer {{accessToken}}

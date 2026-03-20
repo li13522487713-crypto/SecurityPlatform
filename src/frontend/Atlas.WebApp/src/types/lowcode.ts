@@ -128,6 +128,8 @@ export interface LowCodeAppUpdateRequest {
   description?: string;
   category?: string;
   icon?: string;
+  dataSourceId?: number | null;
+  unbindDataSource?: boolean;
 }
 
 export interface LowCodeAppSharingPolicy {

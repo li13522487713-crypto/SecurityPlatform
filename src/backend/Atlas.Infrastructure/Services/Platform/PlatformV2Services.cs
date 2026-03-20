@@ -6,6 +6,7 @@ using Atlas.Application.Platform.Models;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.AiPlatform.Entities;
+using Atlas.Domain.AiPlatform.Enums;
 using Atlas.Domain.Audit.Entities;
 using Atlas.Domain.Identity.Entities;
 using Atlas.Domain.LowCode.Entities;
@@ -513,6 +514,30 @@ public sealed class RuntimeContextQueryService : IRuntimeContextQueryService
         _db = db;
     }
 
+    public async Task<RuntimeContextDetail?> GetByIdAsync(
+        TenantId tenantId,
+        long id,
+        CancellationToken cancellationToken = default)
+    {
+        var tenantValue = tenantId.Value;
+        var route = await _db.Queryable<RuntimeRoute>()
+            .FirstAsync(
+                x => x.TenantIdValue == tenantValue && x.Id == id,
+                cancellationToken);
+        if (route is null)
+        {
+            return null;
+        }
+
+        return new RuntimeContextDetail(
+            route.Id.ToString(),
+            route.AppKey,
+            route.PageKey,
+            route.SchemaVersion,
+            route.EnvironmentCode,
+            route.IsActive);
+    }
+
     public async Task<PagedResult<RuntimeContextListItem>> QueryAsync(
         TenantId tenantId,
         PagedRequest request,
@@ -598,13 +623,83 @@ public sealed class RuntimeExecutionQueryService : IRuntimeExecutionQueryService
     public async Task<PagedResult<RuntimeExecutionListItem>> QueryAsync(
         TenantId tenantId,
         PagedRequest request,
+        string? appId = null,
+        string? status = null,
+        DateTimeOffset? startedFrom = null,
+        DateTimeOffset? startedTo = null,
         CancellationToken cancellationToken = default)
     {
         var tenantValue = tenantId.Value;
         var pageIndex = request.PageIndex <= 0 ? 1 : request.PageIndex;
         var pageSize = request.PageSize <= 0 ? 10 : request.PageSize;
+
+        long? appIdValue = null;
+        if (!string.IsNullOrWhiteSpace(appId))
+        {
+            if (!long.TryParse(appId, out var parsedAppId))
+            {
+                return new PagedResult<RuntimeExecutionListItem>(Array.Empty<RuntimeExecutionListItem>(), 0, pageIndex, pageSize);
+            }
+            appIdValue = parsedAppId;
+        }
+
+        ExecutionStatus? statusValue = null;
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            if (!Enum.TryParse<ExecutionStatus>(status, true, out var parsedStatus))
+            {
+                return new PagedResult<RuntimeExecutionListItem>(Array.Empty<RuntimeExecutionListItem>(), 0, pageIndex, pageSize);
+            }
+            statusValue = parsedStatus;
+        }
+
         var query = _db.Queryable<WorkflowExecution>()
             .Where(execution => execution.TenantIdValue == tenantValue);
+
+        if (appIdValue.HasValue)
+        {
+            query = query.Where(execution => execution.AppId == appIdValue.Value);
+        }
+
+        if (statusValue.HasValue)
+        {
+            query = query.Where(execution => execution.Status == statusValue.Value);
+        }
+
+        if (startedFrom.HasValue)
+        {
+            query = query.Where(execution => execution.StartedAt >= startedFrom.Value.UtcDateTime);
+        }
+
+        if (startedTo.HasValue)
+        {
+            query = query.Where(execution => execution.StartedAt <= startedTo.Value.UtcDateTime);
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Keyword))
+        {
+            var keyword = request.Keyword.Trim();
+            if (long.TryParse(keyword, out var idKeyword))
+            {
+                query = query.Where(execution =>
+                    execution.WorkflowId == idKeyword
+                    || execution.AppId == idKeyword
+                    || execution.ReleaseId == idKeyword
+                    || execution.RuntimeContextId == idKeyword
+                    || (execution.ErrorMessage != null && execution.ErrorMessage.Contains(keyword)));
+            }
+            else if (Enum.TryParse<ExecutionStatus>(keyword, true, out var keywordStatus))
+            {
+                query = query.Where(execution =>
+                    execution.Status == keywordStatus
+                    || (execution.ErrorMessage != null && execution.ErrorMessage.Contains(keyword)));
+            }
+            else
+            {
+                query = query.Where(execution => execution.ErrorMessage != null && execution.ErrorMessage.Contains(keyword));
+            }
+        }
+
         var total = await query.CountAsync(cancellationToken);
         var rows = await query
             .OrderByDescending(execution => execution.StartedAt)

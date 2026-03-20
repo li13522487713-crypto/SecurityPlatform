@@ -43,6 +43,10 @@ public sealed class LowCodeAppUpdateRequestValidator : AbstractValidator<LowCode
 
         RuleFor(x => x.Category)
             .MaximumLength(100).WithMessage(localizer["LowCodeAppCategoryMaxLength"].Value);
+
+        RuleFor(x => x.DataSourceId)
+            .GreaterThan(0).WithMessage(localizer["LowCodeDataSourceIdPositive"].Value)
+            .When(x => x.DataSourceId.HasValue);
     }
 }
 

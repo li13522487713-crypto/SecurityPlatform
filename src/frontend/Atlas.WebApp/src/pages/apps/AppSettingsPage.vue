@@ -4,7 +4,7 @@
 
     <a-row :gutter="[16, 16]" class="mt12">
       <a-col :span="24">
-        <a-card title="绑定数据源（只读）">
+        <a-card title="数据源绑定">
           <a-descriptions :column="2" bordered size="small">
             <a-descriptions-item label="数据源ID">
               {{ dataSourceInfo?.dataSourceId || "-" }}
@@ -29,8 +29,38 @@
           </a-descriptions>
 
           <a-space class="mt12">
-            <a-button type="primary" :loading="testingDataSource" @click="handleTestDataSource">测试连接</a-button>
+            <a-button
+              type="primary"
+              :disabled="!dataSourceInfo?.dataSourceId"
+              :loading="testingDataSource"
+              @click="handleTestDataSource"
+            >
+              测试连接
+            </a-button>
             <a-button @click="go('/console/datasources')">前往数据源管理</a-button>
+            <a-button
+              v-if="!dataSourceInfo?.dataSourceId"
+              :loading="bindingDataSource"
+              @click="handleOpenBindDataSource"
+            >
+              绑定数据源
+            </a-button>
+            <a-button
+              v-else
+              :loading="bindingDataSource"
+              @click="handleOpenSwitchDataSource"
+            >
+              切换数据源
+            </a-button>
+            <a-popconfirm
+              v-if="dataSourceInfo?.dataSourceId"
+              title="确认解绑当前数据源？"
+              ok-text="确认解绑"
+              cancel-text="取消"
+              @confirm="handleUnbindDataSource"
+            >
+              <a-button danger :loading="bindingDataSource">解绑数据源</a-button>
+            </a-popconfirm>
           </a-space>
         </a-card>
       </a-col>
@@ -118,17 +148,49 @@
         </a-card>
       </a-col>
     </a-row>
+
+    <a-modal
+      v-model:open="dataSourceSelectorVisible"
+      :title="dataSourceSelectionMode === 'bind' ? '绑定数据源' : '切换数据源'"
+      ok-text="确认"
+      cancel-text="取消"
+      :confirm-loading="bindingDataSource"
+      @ok="handleConfirmDataSourceSelection"
+    >
+      <a-alert
+        type="info"
+        show-icon
+        message="请选择要绑定的数据源"
+        description="默认展示 20 条，支持输入关键字远程检索。"
+        style="margin-bottom: 12px"
+      />
+      <a-select
+        v-model:value="selectedDataSourceId"
+        style="width: 100%"
+        :options="dataSourceOptions"
+        show-search
+        allow-clear
+        :loading="loadingDataSourceOptions"
+        :filter-option="false"
+        placeholder="请选择数据源"
+        @search="handleSearchDataSources"
+      />
+    </a-modal>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, h, onMounted, reactive, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { message } from "ant-design-vue";
+import { message, Modal } from "ant-design-vue";
+import type { TenantDataSourceDto } from "@/types/api";
 import type {
   LowCodeAppDataSourceInfo,
   LowCodeAppEntityAliasItem
 } from "@/types/lowcode";
+import type { TenantAppInstanceDetail } from "@/types/platform-v2";
+import { getTenantDataSources } from "@/services/api-system";
+import { getTenantAppInstanceDetail, updateTenantAppInstance } from "@/services/api-tenant-app-instances";
 import {
   getLowCodeAppDataSourceInfo,
   getLowCodeAppEntityAliases,
@@ -137,17 +199,30 @@ import {
   updateLowCodeAppEntityAliases,
   updateLowCodeAppSharingPolicy
 } from "@/services/lowcode";
+import { debounce } from "@/utils/common";
 
 const route = useRoute();
 const router = useRouter();
 const appId = computed(() => String(route.params.appId ?? ""));
 
 const dataSourceInfo = ref<LowCodeAppDataSourceInfo | null>(null);
+const tenantAppDetail = ref<TenantAppInstanceDetail | null>(null);
 const testingDataSource = ref(false);
+const bindingDataSource = ref(false);
 const savingPolicy = ref(false);
 const savingAliases = ref(false);
+const dataSourceSelectorVisible = ref(false);
+const dataSourceSelectionMode = ref<"bind" | "switch">("bind");
+const loadingDataSourceOptions = ref(false);
+const selectedDataSourceId = ref<string>();
+const dataSourceOptions = ref<Array<{ label: string; value: string }>>([]);
 
 const sharingPolicy = reactive({
+  useSharedUsers: true,
+  useSharedRoles: true,
+  useSharedDepartments: true
+});
+const originalSharingPolicy = ref({
   useSharedUsers: true,
   useSharedRoles: true,
   useSharedDepartments: true
@@ -156,6 +231,11 @@ const hasIsolatedPolicy = computed(() =>
   !sharingPolicy.useSharedUsers
   || !sharingPolicy.useSharedRoles
   || !sharingPolicy.useSharedDepartments
+);
+const isFullySharedPolicy = computed(() =>
+  sharingPolicy.useSharedUsers
+  && sharingPolicy.useSharedRoles
+  && sharingPolicy.useSharedDepartments
 );
 
 const entityAliases = ref<LowCodeAppEntityAliasItem[]>([
@@ -172,17 +252,24 @@ async function loadSettings() {
   if (!appId.value) return;
 
   try {
-    const [dataSource, policy, aliases] = await Promise.all([
+    const [dataSource, policy, aliases, appDetail] = await Promise.all([
       getLowCodeAppDataSourceInfo(appId.value),
       getLowCodeAppSharingPolicy(appId.value),
-      getLowCodeAppEntityAliases(appId.value)
+      getLowCodeAppEntityAliases(appId.value),
+      getTenantAppInstanceDetail(appId.value)
     ]);
 
     dataSourceInfo.value = dataSource;
+    tenantAppDetail.value = appDetail;
     if (policy) {
       sharingPolicy.useSharedUsers = policy.useSharedUsers;
       sharingPolicy.useSharedRoles = policy.useSharedRoles;
       sharingPolicy.useSharedDepartments = policy.useSharedDepartments;
+      originalSharingPolicy.value = {
+        useSharedUsers: policy.useSharedUsers,
+        useSharedRoles: policy.useSharedRoles,
+        useSharedDepartments: policy.useSharedDepartments
+      };
     }
     if (aliases.length > 0) {
       entityAliases.value = aliases;
@@ -190,6 +277,136 @@ async function loadSettings() {
   } catch (error) {
     message.error((error as Error).message || "加载应用设置失败");
   }
+}
+
+async function loadDataSourceOptions(keyword = "") {
+  loadingDataSourceOptions.value = true;
+  try {
+    const allDataSources = await getTenantDataSources();
+    dataSourceOptions.value = mapDataSourceOptions(allDataSources, keyword);
+  } catch (error) {
+    message.error((error as Error).message || "加载数据源列表失败");
+  } finally {
+    loadingDataSourceOptions.value = false;
+  }
+}
+
+function mapDataSourceOptions(dataSources: TenantDataSourceDto[], keyword: string) {
+  const normalizedKeyword = keyword.trim().toLowerCase();
+  return dataSources
+    .filter((item) => {
+      if (item.appId && item.appId !== appId.value) {
+        return false;
+      }
+      if (!normalizedKeyword) {
+        return true;
+      }
+      return item.name.toLowerCase().includes(normalizedKeyword)
+        || item.dbType.toLowerCase().includes(normalizedKeyword)
+        || item.id.toLowerCase().includes(normalizedKeyword);
+    })
+    .slice(0, 20)
+    .map((item) => ({
+      value: item.id,
+      label: `${item.name}（${item.dbType}）`
+    }));
+}
+
+const handleSearchDataSources = debounce((value: string) => {
+  void loadDataSourceOptions(value);
+}, 300);
+
+function handleOpenBindDataSource() {
+  openDataSourceSelector("bind");
+}
+
+function handleOpenSwitchDataSource() {
+  openDataSourceSelector("switch");
+}
+
+function openDataSourceSelector(mode: "bind" | "switch") {
+  const openSelector = () => {
+    dataSourceSelectionMode.value = mode;
+    selectedDataSourceId.value = dataSourceInfo.value?.dataSourceId || undefined;
+    dataSourceSelectorVisible.value = true;
+    void loadDataSourceOptions();
+  };
+
+  if (isFullySharedPolicy.value) {
+    Modal.confirm({
+      title: "共享模式提示",
+      content: "隔离模式下才需要绑定独立数据源，当前为共享模式是否继续？",
+      okText: "继续",
+      cancelText: "取消",
+      onOk: openSelector
+    });
+    return;
+  }
+
+  openSelector();
+}
+
+async function ensureTenantAppDetail() {
+  if (!appId.value) {
+    return null;
+  }
+
+  if (tenantAppDetail.value) {
+    return tenantAppDetail.value;
+  }
+
+  tenantAppDetail.value = await getTenantAppInstanceDetail(appId.value);
+  return tenantAppDetail.value;
+}
+
+async function updateAppDataSourceBinding(targetDataSourceId: number | null) {
+  if (!appId.value) {
+    return;
+  }
+
+  const currentDetail = await ensureTenantAppDetail();
+  if (!currentDetail) {
+    return;
+  }
+
+  bindingDataSource.value = true;
+  try {
+    await updateTenantAppInstance(appId.value, {
+      name: currentDetail.name,
+      description: currentDetail.description,
+      category: currentDetail.category,
+      icon: currentDetail.icon,
+      dataSourceId: targetDataSourceId,
+      unbindDataSource: targetDataSourceId === null
+    });
+    await loadSettings();
+  } catch (error) {
+    message.error((error as Error).message || "更新应用数据源绑定失败");
+    throw error;
+  } finally {
+    bindingDataSource.value = false;
+  }
+}
+
+async function handleConfirmDataSourceSelection() {
+  if (!selectedDataSourceId.value) {
+    message.warning("请选择要绑定的数据源");
+    return;
+  }
+
+  if (selectedDataSourceId.value === dataSourceInfo.value?.dataSourceId) {
+    message.info("所选数据源与当前一致，无需切换");
+    return;
+  }
+
+  await updateAppDataSourceBinding(Number(selectedDataSourceId.value));
+  message.success(dataSourceSelectionMode.value === "bind" ? "数据源绑定成功" : "数据源切换成功");
+  dataSourceSelectorVisible.value = false;
+}
+
+async function handleUnbindDataSource() {
+  await updateAppDataSourceBinding(null);
+  message.success("数据源已解绑");
 }
 
 async function handleTestDataSource() {
@@ -210,12 +427,38 @@ async function handleTestDataSource() {
   }
 }
 
-async function saveSharingPolicy() {
-  if (!appId.value) return;
-  if (hasIsolatedPolicy.value && !dataSourceInfo.value?.dataSourceId) {
-    message.warning("隔离模式下建议先绑定应用专属数据源");
-    return;
+function buildSharingPolicyImpactMessages() {
+  const messages: string[] = [];
+  const previous = originalSharingPolicy.value;
+  const current = sharingPolicy;
+
+  if (previous.useSharedUsers !== current.useSharedUsers) {
+    messages.push(current.useSharedUsers
+      ? "用户：隔离 → 共享。应用级独立用户配置将被平台共享用户体系覆盖。"
+      : "用户：共享 → 隔离。应用将使用独立用户池，现有平台用户将无法登录该应用，需在应用内重新配置成员。");
   }
+
+  if (previous.useSharedRoles !== current.useSharedRoles) {
+    messages.push(current.useSharedRoles
+      ? "角色：隔离 → 共享。应用级独立角色配置将被平台共享角色体系覆盖。"
+      : "角色：共享 → 隔离。应用将使用独立角色体系，现有平台角色绑定失效，需在应用内重新配置权限。");
+  }
+
+  if (previous.useSharedDepartments !== current.useSharedDepartments) {
+    messages.push(current.useSharedDepartments
+      ? "部门：隔离 → 共享。应用级独立部门配置将被平台共享组织体系覆盖。"
+      : "部门：共享 → 隔离。数据权限中的“本部门”等范围将以应用独立部门树为准。");
+  }
+
+  return messages;
+}
+
+async function persistSharingPolicy() {
+  if (!appId.value) return;
+  if (hasIsolatedPolicy.value && !dataSourceInfo.value?.dataSourceId && !savingPolicy.value) {
+    message.warning("隔离模式下建议先绑定应用专属数据源");
+  }
+
   savingPolicy.value = true;
   try {
     await updateLowCodeAppSharingPolicy(appId.value, {
@@ -223,12 +466,33 @@ async function saveSharingPolicy() {
       useSharedRoles: sharingPolicy.useSharedRoles,
       useSharedDepartments: sharingPolicy.useSharedDepartments
     });
+    originalSharingPolicy.value = {
+      useSharedUsers: sharingPolicy.useSharedUsers,
+      useSharedRoles: sharingPolicy.useSharedRoles,
+      useSharedDepartments: sharingPolicy.useSharedDepartments
+    };
     message.success("共享策略已保存");
   } catch (error) {
     message.error((error as Error).message || "保存共享策略失败");
   } finally {
     savingPolicy.value = false;
   }
+}
+
+function saveSharingPolicy() {
+  const impactMessages = buildSharingPolicyImpactMessages();
+  if (impactMessages.length === 0) {
+    void persistSharingPolicy();
+    return;
+  }
+
+  Modal.confirm({
+    title: "共享策略影响分析",
+    okText: "我已了解影响，确认切换",
+    cancelText: "取消",
+    content: h("div", impactMessages.map((item) => h("p", { style: "margin-bottom: 6px;" }, item))),
+    onOk: () => persistSharingPolicy()
+  });
 }
 
 async function saveEntityAliases() {

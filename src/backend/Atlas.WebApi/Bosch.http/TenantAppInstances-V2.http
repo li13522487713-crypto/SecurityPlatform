@@ -139,7 +139,40 @@ Content-Type: application/json
   "name": "Coze 演示应用-已更新",
   "description": "更新后的描述",
   "category": "CRM",
-  "icon": "✨"
+  "icon": "✨",
+  "dataSourceId": 1001
+}
+
+### 切换实例数据源
+PUT {{baseUrl}}/api/v2/tenant-app-instances/{{tenantAppInstanceId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+X-CSRF-TOKEN: {{csrfToken}}
+Idempotency-Key: {{$guid}}
+Content-Type: application/json
+
+{
+  "name": "Coze 演示应用-已更新",
+  "description": "更新后的描述",
+  "category": "CRM",
+  "icon": "✨",
+  "dataSourceId": 1002
+}
+
+### 解绑实例数据源（清空 dataSourceId）
+PUT {{baseUrl}}/api/v2/tenant-app-instances/{{tenantAppInstanceId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+X-CSRF-TOKEN: {{csrfToken}}
+Idempotency-Key: {{$guid}}
+Content-Type: application/json
+
+{
+  "name": "Coze 演示应用-已更新",
+  "description": "更新后的描述",
+  "category": "CRM",
+  "icon": "✨",
+  "unbindDataSource": true
 }
 
 ### 发布实例

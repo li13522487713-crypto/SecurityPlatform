@@ -115,8 +115,37 @@ public sealed class LowCodeAppCommandService : ILowCodeAppCommandService
         var entity = await _appRepository.GetByIdAsync(tenantId, id, cancellationToken)
             ?? throw new BusinessException($"应用 ID={id} 不存在", ErrorCodes.NotFound);
 
+        var targetDataSourceId = entity.DataSourceId;
+        if (request.UnbindDataSource)
+        {
+            targetDataSourceId = null;
+        }
+        else if (request.DataSourceId.HasValue)
+        {
+            targetDataSourceId = request.DataSourceId.Value;
+        }
+
+        if (targetDataSourceId.HasValue)
+        {
+            var hasDataSource = await _db.Queryable<TenantDataSource>()
+                .AnyAsync(
+                    x => x.TenantIdValue == tenantId.Value.ToString() && x.Id == targetDataSourceId.Value,
+                    cancellationToken);
+            if (!hasDataSource)
+            {
+                throw new BusinessException($"数据源 ID={targetDataSourceId.Value} 不存在", ErrorCodes.NotFound);
+            }
+        }
+
         var now = DateTimeOffset.UtcNow;
-        entity.Update(request.Name, request.Description, request.Category, request.Icon, userId, now);
+        entity.Update(
+            request.Name,
+            request.Description,
+            request.Category,
+            request.Icon,
+            targetDataSourceId,
+            userId,
+            now);
 
         var result = await _db.Ado.UseTranAsync(async () =>
         {

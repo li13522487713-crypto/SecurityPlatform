@@ -9,7 +9,13 @@ import { requestApi } from "@/services/api-core";
 const RUNTIME_EXECUTION_BASE = "/api/v2/runtime-executions";
 
 export async function getRuntimeExecutionsPaged(
-  params: PagedRequest & { keyword?: string }
+  params: PagedRequest & {
+    keyword?: string;
+    appId?: string;
+    status?: string;
+    startedFrom?: string;
+    startedTo?: string;
+  }
 ): Promise<PagedResult<RuntimeExecutionListItem>> {
   const query = new URLSearchParams({
     pageIndex: params.pageIndex.toString(),
@@ -17,6 +23,18 @@ export async function getRuntimeExecutionsPaged(
   });
   if (params.keyword) {
     query.set("keyword", params.keyword);
+  }
+  if (params.appId) {
+    query.set("appId", params.appId);
+  }
+  if (params.status) {
+    query.set("status", params.status);
+  }
+  if (params.startedFrom) {
+    query.set("startedFrom", params.startedFrom);
+  }
+  if (params.startedTo) {
+    query.set("startedTo", params.startedTo);
   }
 
   const response = await requestApi<ApiResponse<PagedResult<RuntimeExecutionListItem>>>(

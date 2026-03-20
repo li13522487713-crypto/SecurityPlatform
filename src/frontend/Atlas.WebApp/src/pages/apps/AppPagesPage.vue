@@ -31,6 +31,13 @@
               >
                 运行态预览
               </a-button>
+              <a-button
+                v-if="record.pageKey && appDetail?.appKey"
+                type="link"
+                @click="go(`/r/${appDetail.appKey}/${record.pageKey}`)"
+              >
+                去正式发布页
+              </a-button>
             </a-space>
           </template>
         </template>
