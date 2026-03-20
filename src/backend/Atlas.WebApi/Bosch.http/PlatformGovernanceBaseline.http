@@ -108,3 +108,8 @@ X-Tenant-Id: {{tenantB}}
 GET {{baseUrl}}/api/v1/audit?pageIndex=1&pageSize=10
 X-Tenant-Id: {{tenantA}}
 
+### 迁移治理指标总览（P1）
+GET {{baseUrl}}/api/v2/migration-governance/overview
+Authorization: Bearer {{tokenA}}
+X-Tenant-Id: {{tenantA}}
+

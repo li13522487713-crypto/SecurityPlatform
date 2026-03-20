@@ -306,6 +306,9 @@
 - `GET /api/v2/debug-layer/embed-metadata`
   - 返回调试层嵌入元数据（tenant/app/project + 资源权限列表）。
   - 访问策略：接口需 `debug:view`；资源项按当前用户已授权权限动态裁剪（`debug:view` / `debug:run` / `debug:manage`）。
+- `GET /api/v2/migration-governance/overview`
+  - 返回迁移治理指标总览（`legacyRouteHits`、`rewriteHits`、`notFoundCount/notFoundRate`、`fallbackCount`、`v1EntryHits`、`v2EntryHits`、`newEntryCoverageRate`）。
+  - 指标由 `ApiVersionRewriteMiddleware` 运行时采集，覆盖窗口起点由服务启动时间定义（`windowStartedAt`）。
 
 #### 前端主路径约定与弃用窗口（SEC-92）
 

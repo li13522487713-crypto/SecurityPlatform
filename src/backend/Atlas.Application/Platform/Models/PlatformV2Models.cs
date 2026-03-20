@@ -149,6 +149,18 @@ public sealed record TenantAppRoleGovernanceOverview(
     decimal PermissionCoverageRate,
     IReadOnlyList<TenantAppRoleGovernanceItem> Roles);
 
+public sealed record MigrationGovernanceOverview(
+    string WindowStartedAt,
+    long TotalApiHits,
+    long LegacyRouteHits,
+    long RewriteHits,
+    long V1EntryHits,
+    long V2EntryHits,
+    long NotFoundCount,
+    long FallbackCount,
+    decimal NotFoundRate,
+    decimal NewEntryCoverageRate);
+
 public sealed record TenantAppRoleCreateRequest(
     string Code,
     string Name,

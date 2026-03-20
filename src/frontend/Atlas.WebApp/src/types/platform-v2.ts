@@ -121,6 +121,19 @@ export interface TenantAppRoleGovernanceOverview {
   roles: TenantAppRoleGovernanceItem[];
 }
 
+export interface MigrationGovernanceOverview {
+  windowStartedAt: string;
+  totalApiHits: number;
+  legacyRouteHits: number;
+  rewriteHits: number;
+  v1EntryHits: number;
+  v2EntryHits: number;
+  notFoundCount: number;
+  fallbackCount: number;
+  notFoundRate: number;
+  newEntryCoverageRate: number;
+}
+
 export interface TenantAppRoleCreateRequest {
   code: string;
   name: string;

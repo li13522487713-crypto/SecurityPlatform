@@ -395,6 +395,7 @@ builder.Services.AddAuthorization(options =>
 builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
 builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
 builder.Services.AddSingleton<IAuthorizationMiddlewareResultHandler, ApiAuthorizationMiddlewareResultHandler>();
+builder.Services.AddSingleton<Atlas.WebApi.Services.MigrationGovernanceMetricsStore>();
 
 builder.Services.AddRateLimiter(options =>
 {

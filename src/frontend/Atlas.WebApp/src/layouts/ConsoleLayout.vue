@@ -10,8 +10,8 @@
                 mode="horizontal"
                 theme="light"
                 :selected-keys="selectedKeys"
-                @click="onMenuClick"
                 style="border-bottom: none; line-height: 54px;"
+                @click="onMenuClick"
               >
                 <a-menu-item
                   v-for="item in visibleMenuItems"
@@ -94,6 +94,7 @@ const menuItems: ConsoleMenuItem[] = [
   { key: "console-resources", label: "资源中心", path: "/console/resources", permission: "apps:view" },
   { key: "console-releases", label: "发布中心", path: "/console/releases", permission: "apps:view" },
   { key: "console-debug", label: "调试层", path: "/console/debug", permission: "apps:view" },
+  { key: "console-migration-governance", label: "迁移治理", path: "/console/migration-governance", permission: "apps:view" },
   { key: "console-datasources", label: "数据源管理", path: "/settings/system/datasources", permission: "system:admin" },
   { key: "console-system-configs", label: "系统设置", path: "/settings/system/configs", permission: "config:view" }
 ];

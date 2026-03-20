@@ -28,6 +28,7 @@ const ResourceCenterPage = () => import("@/pages/console/ResourceCenterPage.vue"
 const DataSourceConsumptionPage = () => import("@/pages/console/DataSourceConsumptionPage.vue");
 const ReleaseCenterPage = () => import("@/pages/console/ReleaseCenterPage.vue");
 const CozeDebugPage = () => import("@/pages/console/CozeDebugPage.vue");
+const MigrationGovernancePage = () => import("@/pages/console/MigrationGovernancePage.vue");
 const AppDashboardPage = () => import("@/pages/apps/AppDashboardPage.vue");
 const AppSettingsPage = () => import("@/pages/apps/AppSettingsPage.vue");
 const AppPagesPage = () => import("@/pages/apps/AppPagesPage.vue");
@@ -120,6 +121,7 @@ const router = createRouter({
     { path: "/console/resources/datasource-consumption", name: "console-datasource-consumption", component: DataSourceConsumptionPage, meta: { requiresAuth: true, title: "数据源消费分析", titleKey: "route.consoleDatasourceConsumption", requiresPermission: "apps:view" } },
     { path: "/console/releases", name: "console-releases", component: ReleaseCenterPage, meta: { requiresAuth: true, title: "发布中心", titleKey: "route.consoleReleases", requiresPermission: "apps:view" } },
     { path: "/console/debug", name: "console-debug-layer", component: CozeDebugPage, meta: { requiresAuth: true, title: "调试层", titleKey: "route.consoleDebugLayer", requiresPermission: "apps:view" } },
+    { path: "/console/migration-governance", name: "console-migration-governance", component: MigrationGovernancePage, meta: { requiresAuth: true, title: "迁移治理", titleKey: "route.consoleMigrationGovernance", requiresPermission: "apps:view" } },
     { path: "/console/tools", name: "console-tools", component: ToolsAuthorizationPage, meta: { requiresAuth: true, title: "工具授权中心", titleKey: "route.consoleTools", requiresPermission: "system:admin" } },
     {
       path: "/console/datasources",
