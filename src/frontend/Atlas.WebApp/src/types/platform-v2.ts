@@ -277,6 +277,30 @@ export interface RuntimeExecutionDetail extends RuntimeExecutionListItem {
   outputsJson?: string;
 }
 
+export interface RuntimeExecutionDebugRequest {
+  nodeKey: string;
+  inputsJson?: string;
+}
+
+export interface RuntimeExecutionOperationResult {
+  action: string;
+  executionId: string;
+  status: string;
+  message: string;
+  newExecutionId?: string;
+}
+
+export interface RuntimeExecutionTimeoutDiagnosis {
+  executionId: string;
+  status: string;
+  startedAt: string;
+  completedAt?: string;
+  elapsedSeconds: number;
+  timeoutRisk: boolean;
+  diagnosis: string;
+  suggestions: string[];
+}
+
 export interface CozeLayerMappingItem {
   layerKey: string;
   layerName: string;

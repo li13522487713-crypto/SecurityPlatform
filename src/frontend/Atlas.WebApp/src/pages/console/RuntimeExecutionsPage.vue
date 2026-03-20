@@ -96,7 +96,18 @@
             {{ record.errorMessage || "-" }}
           </template>
           <template v-if="column.key === 'actions'">
-            <a-button type="link" size="small" @click="openDetail(record.id)">详情</a-button>
+            <a-space size="small">
+              <a-button type="link" size="small" @click="openDetail(record.id)">详情</a-button>
+              <a-button v-if="canCancel(record.status)" type="link" size="small" @click="cancelExecution(record.id)">
+                取消
+              </a-button>
+              <a-button v-if="canRetry(record.status)" type="link" size="small" @click="retryExecution(record.id)">
+                重试
+              </a-button>
+              <a-button v-if="canResume(record.status)" type="link" size="small" @click="resumeExecution(record.id)">
+                恢复
+              </a-button>
+            </a-space>
           </template>
         </template>
       </a-table>
@@ -174,7 +185,62 @@
           >
             查看发布版本
           </a-button>
+          <a-button
+            :loading="operationLoading"
+            :disabled="!detail || !canCancel(detail.status)"
+            @click="detail && cancelExecution(detail.id, true)"
+          >
+            取消执行
+          </a-button>
+          <a-button
+            :loading="operationLoading"
+            :disabled="!detail || !canRetry(detail.status)"
+            @click="detail && retryExecution(detail.id, true)"
+          >
+            重试执行
+          </a-button>
+          <a-button
+            :loading="operationLoading"
+            :disabled="!detail || !canResume(detail.status)"
+            @click="detail && resumeExecution(detail.id, true)"
+          >
+            恢复执行
+          </a-button>
+          <a-button
+            :loading="diagnosisLoading"
+            :disabled="!detail"
+            @click="detail && loadTimeoutDiagnosis(detail.id)"
+          >
+            超时诊断
+          </a-button>
         </a-space>
+
+        <a-space class="detail-actions" wrap>
+          <a-input
+            v-model:value="debugNodeKey"
+            style="width: 220px"
+            placeholder="输入节点 Key 进行调试"
+          />
+          <a-button
+            :loading="operationLoading"
+            :disabled="!detail || !debugNodeKey.trim()"
+            @click="detail && debugExecution(detail.id)"
+          >
+            单节点调试
+          </a-button>
+        </a-space>
+
+        <a-alert
+          v-if="timeoutDiagnosis"
+          class="diagnosis-alert"
+          :type="timeoutDiagnosis.timeoutRisk ? 'warning' : 'info'"
+          show-icon
+          :message="timeoutDiagnosis.diagnosis"
+          :description="`耗时 ${Math.round(timeoutDiagnosis.elapsedSeconds)} 秒`"
+        />
+        <ul v-if="timeoutDiagnosis" class="diagnosis-suggestions">
+          <li v-for="item in timeoutDiagnosis.suggestions" :key="item">{{ item }}</li>
+        </ul>
 
         <a-divider orientation="left">InputsJson</a-divider>
         <pre class="json-block">{{ detail?.inputsJson || "-" }}</pre>
@@ -198,8 +264,8 @@
           :columns="auditColumns"
           :data-source="auditRows"
           :pagination="auditPagination"
-          @change="handleAuditTableChange"
           size="small"
+          @change="handleAuditTableChange"
         >
           <template #bodyCell="{ column, record }">
             <template v-if="column.key === 'occurredAt'">
@@ -231,9 +297,14 @@ import type { TableColumnsType, TablePaginationConfig } from "ant-design-vue";
 import { message } from "ant-design-vue";
 import { getReleaseCenterDetail } from "@/services/api-coze-runtime";
 import {
+  cancelRuntimeExecution,
+  debugRuntimeExecution,
   getRuntimeExecutionAuditTrails,
   getRuntimeExecutionDetail,
-  getRuntimeExecutionsPaged
+  getRuntimeExecutionTimeoutDiagnosis,
+  getRuntimeExecutionsPaged,
+  resumeRuntimeExecution,
+  retryRuntimeExecution
 } from "@/services/api-runtime-executions";
 import { getRuntimeContextById } from "@/services/api-runtime-contexts";
 import { getTenantAppInstanceDetail, getTenantAppInstancesPaged } from "@/services/api-tenant-app-instances";
@@ -243,6 +314,7 @@ import type {
   RuntimeExecutionAuditTrailItem,
   RuntimeExecutionDetail,
   RuntimeExecutionListItem,
+  RuntimeExecutionTimeoutDiagnosis,
   RuntimeContextDetail,
   TenantAppInstanceDetail,
   TenantAppInstanceListItem
@@ -252,6 +324,8 @@ const router = useRouter();
 const loading = ref(false);
 const detailLoading = ref(false);
 const auditLoading = ref(false);
+const operationLoading = ref(false);
+const diagnosisLoading = ref(false);
 const keyword = ref("");
 const selectedAppId = ref<string>();
 const selectedStatus = ref<string>();
@@ -266,6 +340,8 @@ const linkedRelease = ref<ReleaseCenterDetail | null>(null);
 const linkedRuntimeContext = ref<RuntimeContextDetail | null>(null);
 const selectedExecutionId = ref<string>("");
 const auditRows = ref<RuntimeExecutionAuditTrailItem[]>([]);
+const timeoutDiagnosis = ref<RuntimeExecutionTimeoutDiagnosis | null>(null);
+const debugNodeKey = ref("");
 const detailVisible = ref(false);
 const pageIndex = ref(1);
 const pageSize = ref(10);
@@ -364,6 +440,18 @@ function resolveStatusColor(status: string) {
     return "error";
   }
   return "processing";
+}
+
+function canCancel(status: string) {
+  return status === "Pending" || status === "Running" || status === "Interrupted";
+}
+
+function canRetry(status: string) {
+  return status === "Failed" || status === "Cancelled" || status === "Interrupted";
+}
+
+function canResume(status: string) {
+  return status === "Interrupted";
 }
 
 function resetLinkedResources() {
@@ -503,6 +591,8 @@ async function openDetail(id: string) {
   detailVisible.value = true;
   selectedExecutionId.value = id;
   detailLoading.value = true;
+  timeoutDiagnosis.value = null;
+  debugNodeKey.value = "";
   auditKeyword.value = "";
   auditRows.value = [];
   auditTotal.value = 0;
@@ -522,12 +612,102 @@ async function openDetail(id: string) {
   }
 }
 
+async function loadTimeoutDiagnosis(executionId: string) {
+  diagnosisLoading.value = true;
+  try {
+    timeoutDiagnosis.value = await getRuntimeExecutionTimeoutDiagnosis(executionId);
+  } catch (error) {
+    message.error((error as Error).message || "加载超时诊断失败");
+  } finally {
+    diagnosisLoading.value = false;
+  }
+}
+
+async function cancelExecution(executionId: string, refreshDetail = false) {
+  operationLoading.value = true;
+  try {
+    const result = await cancelRuntimeExecution(executionId);
+    message.success(result.message);
+    await loadRuntimeExecutions();
+    if (refreshDetail) {
+      await openDetail(executionId);
+    }
+  } catch (error) {
+    message.error((error as Error).message || "取消执行失败");
+  } finally {
+    operationLoading.value = false;
+  }
+}
+
+async function retryExecution(executionId: string, refreshDetail = false) {
+  operationLoading.value = true;
+  try {
+    const result = await retryRuntimeExecution(executionId);
+    message.success(result.message);
+    await loadRuntimeExecutions();
+    if (refreshDetail) {
+      if (result.newExecutionId) {
+        await openDetail(result.newExecutionId);
+      } else {
+        await openDetail(executionId);
+      }
+    }
+  } catch (error) {
+    message.error((error as Error).message || "重试执行失败");
+  } finally {
+    operationLoading.value = false;
+  }
+}
+
+async function resumeExecution(executionId: string, refreshDetail = false) {
+  operationLoading.value = true;
+  try {
+    const result = await resumeRuntimeExecution(executionId);
+    message.success(result.message);
+    await loadRuntimeExecutions();
+    if (refreshDetail) {
+      await openDetail(executionId);
+    }
+  } catch (error) {
+    message.error((error as Error).message || "恢复执行失败");
+  } finally {
+    operationLoading.value = false;
+  }
+}
+
+async function debugExecution(executionId: string) {
+  const nodeKey = debugNodeKey.value.trim();
+  if (!nodeKey) {
+    message.warning("请输入节点 Key");
+    return;
+  }
+
+  operationLoading.value = true;
+  try {
+    const result = await debugRuntimeExecution(executionId, {
+      nodeKey,
+      inputsJson: detail.value?.inputsJson
+    });
+    message.success(result.message);
+    await loadRuntimeExecutions();
+    if (result.newExecutionId) {
+      await openDetail(result.newExecutionId);
+    }
+  } catch (error) {
+    message.error((error as Error).message || "单节点调试失败");
+  } finally {
+    operationLoading.value = false;
+  }
+}
+
 function handleDetailClose() {
   detail.value = null;
   selectedExecutionId.value = "";
   auditRows.value = [];
   auditTotal.value = 0;
   auditKeyword.value = "";
+  timeoutDiagnosis.value = null;
+  debugNodeKey.value = "";
   resetLinkedResources();
 }
 
@@ -709,6 +889,16 @@ onMounted(() => {
 
 .detail-actions {
   margin-top: 12px;
+}
+
+.diagnosis-alert {
+  margin-top: 12px;
+}
+
+.diagnosis-suggestions {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: #595959;
 }
 
 :deep(.failed-row > td) {

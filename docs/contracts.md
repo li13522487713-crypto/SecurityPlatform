@@ -290,6 +290,15 @@
 - `GET /api/v2/runtime-executions`
   - 支持多条件筛选参数：`appId`、`status`、`startedFrom`、`startedTo`（ISO8601）。
   - `status` 取值口径与 `ExecutionStatus` 对齐（`Pending/Running/Completed/Failed/Cancelled/Interrupted`）。
+- `POST /api/v2/runtime-executions/{executionId}/cancel`
+- `POST /api/v2/runtime-executions/{executionId}/retry`
+- `POST /api/v2/runtime-executions/{executionId}/resume`
+- `POST /api/v2/runtime-executions/{executionId}/debug`
+  - 写接口统一要求 `Idempotency-Key` + `X-CSRF-TOKEN`。
+  - 统一返回 `RuntimeExecutionOperationResult`（`action/executionId/status/message/newExecutionId`）。
+  - 审计动作：`runtime.execution.cancel`、`runtime.execution.retry`、`runtime.execution.resume`、`runtime.execution.debug`。
+- `GET /api/v2/runtime-executions/{executionId}/timeout-diagnosis`
+  - 返回 `RuntimeExecutionTimeoutDiagnosis`（耗时、风险标记、诊断结论、建议列表）。
 - `GET /api/v2/coze-mappings/overview`
   - 返回 Coze 六层映射总览（目录/实例/发布/上下文/执行/审计）。
 - `GET /api/v2/debug-layer/embed-metadata`

@@ -39,3 +39,42 @@ X-Tenant-Id: {{tenantId}}
 GET {{baseUrl}}/api/v2/runtime-executions/1/audit-trails?pageIndex=1&pageSize=10
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
+
+### 取消执行
+POST {{baseUrl}}/api/v2/runtime-executions/1/cancel
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+X-CSRF-TOKEN: {{login.response.headers.X-CSRF-TOKEN}}
+Idempotency-Key: {{$guid}}
+
+### 重试执行
+POST {{baseUrl}}/api/v2/runtime-executions/1/retry
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+X-CSRF-TOKEN: {{login.response.headers.X-CSRF-TOKEN}}
+Idempotency-Key: {{$guid}}
+
+### 恢复执行
+POST {{baseUrl}}/api/v2/runtime-executions/1/resume
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+X-CSRF-TOKEN: {{login.response.headers.X-CSRF-TOKEN}}
+Idempotency-Key: {{$guid}}
+
+### 单节点调试
+POST {{baseUrl}}/api/v2/runtime-executions/1/debug
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+X-CSRF-TOKEN: {{login.response.headers.X-CSRF-TOKEN}}
+Idempotency-Key: {{$guid}}
+Content-Type: application/json
+
+{
+  "nodeKey": "Start",
+  "inputsJson": "{\"demo\":true}"
+}
+
+### 超时诊断
+GET {{baseUrl}}/api/v2/runtime-executions/1/timeout-diagnosis
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}

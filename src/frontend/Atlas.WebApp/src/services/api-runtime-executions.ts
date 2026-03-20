@@ -1,8 +1,11 @@
 import type { ApiResponse, PagedRequest, PagedResult } from "@/types/api";
 import type {
   RuntimeExecutionAuditTrailItem,
+  RuntimeExecutionDebugRequest,
   RuntimeExecutionDetail,
-  RuntimeExecutionListItem
+  RuntimeExecutionListItem,
+  RuntimeExecutionOperationResult,
+  RuntimeExecutionTimeoutDiagnosis
 } from "@/types/platform-v2";
 import { requestApi } from "@/services/api-core";
 
@@ -73,6 +76,72 @@ export async function getRuntimeExecutionAuditTrails(
   );
   if (!response.data) {
     throw new Error(response.message || "查询运行执行审计轨迹失败");
+  }
+
+  return response.data;
+}
+
+export async function cancelRuntimeExecution(id: string): Promise<RuntimeExecutionOperationResult> {
+  const response = await requestApi<ApiResponse<RuntimeExecutionOperationResult>>(
+    `${RUNTIME_EXECUTION_BASE}/${id}/cancel`,
+    { method: "POST" }
+  );
+  if (!response.data) {
+    throw new Error(response.message || "取消执行失败");
+  }
+
+  return response.data;
+}
+
+export async function retryRuntimeExecution(id: string): Promise<RuntimeExecutionOperationResult> {
+  const response = await requestApi<ApiResponse<RuntimeExecutionOperationResult>>(
+    `${RUNTIME_EXECUTION_BASE}/${id}/retry`,
+    { method: "POST" }
+  );
+  if (!response.data) {
+    throw new Error(response.message || "重试执行失败");
+  }
+
+  return response.data;
+}
+
+export async function resumeRuntimeExecution(id: string): Promise<RuntimeExecutionOperationResult> {
+  const response = await requestApi<ApiResponse<RuntimeExecutionOperationResult>>(
+    `${RUNTIME_EXECUTION_BASE}/${id}/resume`,
+    { method: "POST" }
+  );
+  if (!response.data) {
+    throw new Error(response.message || "恢复执行失败");
+  }
+
+  return response.data;
+}
+
+export async function debugRuntimeExecution(
+  id: string,
+  request: RuntimeExecutionDebugRequest
+): Promise<RuntimeExecutionOperationResult> {
+  const response = await requestApi<ApiResponse<RuntimeExecutionOperationResult>>(
+    `${RUNTIME_EXECUTION_BASE}/${id}/debug`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request)
+    }
+  );
+  if (!response.data) {
+    throw new Error(response.message || "调试执行失败");
+  }
+
+  return response.data;
+}
+
+export async function getRuntimeExecutionTimeoutDiagnosis(id: string): Promise<RuntimeExecutionTimeoutDiagnosis> {
+  const response = await requestApi<ApiResponse<RuntimeExecutionTimeoutDiagnosis>>(
+    `${RUNTIME_EXECUTION_BASE}/${id}/timeout-diagnosis`
+  );
+  if (!response.data) {
+    throw new Error(response.message || "获取超时诊断失败");
   }
 
   return response.data;

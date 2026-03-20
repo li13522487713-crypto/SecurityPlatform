@@ -274,6 +274,39 @@ public interface IRuntimeExecutionQueryService
         CancellationToken cancellationToken = default);
 }
 
+public interface IRuntimeExecutionCommandService
+{
+    Task<RuntimeExecutionOperationResult> CancelAsync(
+        TenantId tenantId,
+        long operatorUserId,
+        long executionId,
+        CancellationToken cancellationToken = default);
+
+    Task<RuntimeExecutionOperationResult> RetryAsync(
+        TenantId tenantId,
+        long operatorUserId,
+        long executionId,
+        CancellationToken cancellationToken = default);
+
+    Task<RuntimeExecutionOperationResult> ResumeAsync(
+        TenantId tenantId,
+        long operatorUserId,
+        long executionId,
+        CancellationToken cancellationToken = default);
+
+    Task<RuntimeExecutionOperationResult> DebugAsync(
+        TenantId tenantId,
+        long operatorUserId,
+        long executionId,
+        RuntimeExecutionDebugRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task<RuntimeExecutionTimeoutDiagnosis?> GetTimeoutDiagnosisAsync(
+        TenantId tenantId,
+        long executionId,
+        CancellationToken cancellationToken = default);
+}
+
 public interface IResourceCenterQueryService
 {
     Task<IReadOnlyList<ResourceCenterGroupItem>> GetGroupsAsync(

@@ -182,6 +182,27 @@ public sealed record RuntimeExecutionDetail(
     string? OutputsJson,
     string? ErrorMessage);
 
+public sealed record RuntimeExecutionDebugRequest(
+    string NodeKey,
+    string? InputsJson);
+
+public sealed record RuntimeExecutionOperationResult(
+    string Action,
+    string ExecutionId,
+    string Status,
+    string Message,
+    string? NewExecutionId);
+
+public sealed record RuntimeExecutionTimeoutDiagnosis(
+    string ExecutionId,
+    string Status,
+    string StartedAt,
+    string? CompletedAt,
+    double ElapsedSeconds,
+    bool TimeoutRisk,
+    string Diagnosis,
+    IReadOnlyList<string> Suggestions);
+
 public sealed record ResourceCenterGroupEntry(
     string ResourceId,
     string ResourceName,
