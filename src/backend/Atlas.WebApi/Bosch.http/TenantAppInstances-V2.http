@@ -128,6 +128,11 @@ GET {{baseUrl}}/api/v2/tenant-app-instances/{{tenantAppInstanceId}}/roles?pageIn
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
+### 查询应用角色治理概览（成员覆盖/权限覆盖）
+GET {{baseUrl}}/api/v2/tenant-app-instances/{{tenantAppInstanceId}}/roles/governance-overview
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
 ### 创建应用角色
 # @name createTenantAppRole
 POST {{baseUrl}}/api/v2/tenant-app-instances/{{tenantAppInstanceId}}/roles

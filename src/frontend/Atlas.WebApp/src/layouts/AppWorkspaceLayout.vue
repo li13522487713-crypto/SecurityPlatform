@@ -46,6 +46,9 @@
           <a-menu-item :key="usersPath">
             <span data-testid="e2e-app-workspace-menu-users">Users</span>
           </a-menu-item>
+          <a-menu-item :key="rolesPath">
+            <span data-testid="e2e-app-workspace-menu-roles">Roles</span>
+          </a-menu-item>
           <a-menu-item :key="runtimeHomePath">
             <span data-testid="e2e-app-workspace-menu-runtime">Runtime</span>
           </a-menu-item>
@@ -138,6 +141,7 @@ const promptsPath = computed(() => `/apps/${appId.value}/prompts`);
 const pluginsPath = computed(() => `/apps/${appId.value}/plugins`);
 const dataPath = computed(() => `/apps/${appId.value}/data`);
 const usersPath = computed(() => `/apps/${appId.value}/users`);
+const rolesPath = computed(() => `/apps/${appId.value}/roles`);
 const runtimeHomePath = computed(() => `/apps/${appId.value}/run/home`);
 const settingsPath = computed(() => `/apps/${appId.value}/settings`);
 
@@ -171,6 +175,9 @@ const selectedKeys = computed(() => {
   }
   if (route.path.startsWith(usersPath.value)) {
     return [usersPath.value];
+  }
+  if (route.path.startsWith(rolesPath.value)) {
+    return [rolesPath.value];
   }
   if (route.path.startsWith(`/apps/${appId.value}/run/`)) {
     return [runtimeHomePath.value];

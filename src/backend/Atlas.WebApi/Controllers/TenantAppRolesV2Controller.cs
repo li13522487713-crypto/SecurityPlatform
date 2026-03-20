@@ -53,6 +53,17 @@ public sealed class TenantAppRolesV2Controller : ControllerBase
         return Ok(ApiResponse<PagedResult<TenantAppRoleListItem>>.Ok(result, HttpContext.TraceIdentifier));
     }
 
+    [HttpGet("governance-overview")]
+    [Authorize(Policy = PermissionPolicies.AppRolesView)]
+    public async Task<ActionResult<ApiResponse<TenantAppRoleGovernanceOverview>>> GetGovernanceOverview(
+        long appId,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _queryService.GetGovernanceOverviewAsync(tenantId, appId, cancellationToken);
+        return Ok(ApiResponse<TenantAppRoleGovernanceOverview>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
     [HttpGet("{roleId:long}")]
     [Authorize(Policy = PermissionPolicies.AppRolesView)]
     public async Task<ActionResult<ApiResponse<TenantAppRoleDetail>>> GetById(

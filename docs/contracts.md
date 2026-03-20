@@ -251,6 +251,8 @@
   - 授权策略：GET 要求 `apps:members:view`，写接口要求 `apps:members:update`
 - 应用角色（`UseSharedRoles=false` 时启用）：
   - `GET /api/v2/tenant-app-instances/{appId}/roles`
+  - `GET /api/v2/tenant-app-instances/{appId}/roles/governance-overview`
+    - 返回 `TenantAppRoleGovernanceOverview`（总角色数、系统/自定义角色数、成员覆盖数、权限覆盖率、角色治理项列表）。
   - `GET /api/v2/tenant-app-instances/{appId}/roles/{roleId}`
   - `POST /api/v2/tenant-app-instances/{appId}/roles`
   - `PUT /api/v2/tenant-app-instances/{appId}/roles/{roleId}`

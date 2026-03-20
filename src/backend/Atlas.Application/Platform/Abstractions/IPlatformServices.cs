@@ -197,6 +197,11 @@ public interface ITenantAppRoleQueryService
         long appId,
         long roleId,
         CancellationToken cancellationToken = default);
+
+    Task<TenantAppRoleGovernanceOverview> GetGovernanceOverviewAsync(
+        TenantId tenantId,
+        long appId,
+        CancellationToken cancellationToken = default);
 }
 
 public interface ITenantAppRoleCommandService

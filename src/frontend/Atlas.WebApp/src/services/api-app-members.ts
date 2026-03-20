@@ -8,6 +8,7 @@ import type {
   TenantAppRoleAssignPermissionsRequest,
   TenantAppRoleCreateRequest,
   TenantAppRoleDetail,
+  TenantAppRoleGovernanceOverview,
   TenantAppRoleListItem,
   TenantAppRoleUpdateRequest
 } from "@/types/platform-v2";
@@ -111,6 +112,17 @@ export async function getTenantAppRolesPaged(
   );
   if (!response.data) {
     throw new Error(response.message || "查询应用角色失败");
+  }
+
+  return response.data;
+}
+
+export async function getTenantAppRoleGovernanceOverview(appId: string): Promise<TenantAppRoleGovernanceOverview> {
+  const response = await requestApi<ApiResponse<TenantAppRoleGovernanceOverview>>(
+    `${buildRoleBasePath(appId)}/governance-overview`
+  );
+  if (!response.data) {
+    throw new Error(response.message || "查询应用角色治理概览失败");
   }
 
   return response.data;

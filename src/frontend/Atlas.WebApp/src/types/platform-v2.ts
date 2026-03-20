@@ -99,6 +99,28 @@ export interface TenantAppRoleDetail extends TenantAppRoleListItem {
   updatedAt: string;
 }
 
+export interface TenantAppRoleGovernanceItem {
+  roleId: string;
+  roleCode: string;
+  roleName: string;
+  isSystem: boolean;
+  memberCount: number;
+  permissionCount: number;
+  hasPermissionCoverage: boolean;
+}
+
+export interface TenantAppRoleGovernanceOverview {
+  appId: string;
+  totalRoles: number;
+  systemRoleCount: number;
+  customRoleCount: number;
+  totalMembers: number;
+  coveredMembers: number;
+  uncoveredMembers: number;
+  permissionCoverageRate: number;
+  roles: TenantAppRoleGovernanceItem[];
+}
+
 export interface TenantAppRoleCreateRequest {
   code: string;
   name: string;

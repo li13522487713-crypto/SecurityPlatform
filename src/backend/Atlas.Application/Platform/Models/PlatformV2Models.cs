@@ -129,6 +129,26 @@ public sealed record TenantAppRoleDetail(
     int MemberCount,
     IReadOnlyList<string> PermissionCodes);
 
+public sealed record TenantAppRoleGovernanceItem(
+    string RoleId,
+    string RoleCode,
+    string RoleName,
+    bool IsSystem,
+    int MemberCount,
+    int PermissionCount,
+    bool HasPermissionCoverage);
+
+public sealed record TenantAppRoleGovernanceOverview(
+    string AppId,
+    int TotalRoles,
+    int SystemRoleCount,
+    int CustomRoleCount,
+    int TotalMembers,
+    int CoveredMembers,
+    int UncoveredMembers,
+    decimal PermissionCoverageRate,
+    IReadOnlyList<TenantAppRoleGovernanceItem> Roles);
+
 public sealed record TenantAppRoleCreateRequest(
     string Code,
     string Name,

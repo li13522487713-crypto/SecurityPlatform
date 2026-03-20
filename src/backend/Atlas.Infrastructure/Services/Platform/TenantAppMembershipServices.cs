@@ -448,17 +448,20 @@ public sealed class TenantAppRoleQueryService : ITenantAppRoleQueryService
     private readonly IAppRoleRepository _appRoleRepository;
     private readonly IAppRolePermissionRepository _appRolePermissionRepository;
     private readonly IAppUserRoleRepository _appUserRoleRepository;
+    private readonly IAppMemberRepository _appMemberRepository;
 
     public TenantAppRoleQueryService(
         ILowCodeAppRepository lowCodeAppRepository,
         IAppRoleRepository appRoleRepository,
         IAppRolePermissionRepository appRolePermissionRepository,
-        IAppUserRoleRepository appUserRoleRepository)
+        IAppUserRoleRepository appUserRoleRepository,
+        IAppMemberRepository appMemberRepository)
     {
         _lowCodeAppRepository = lowCodeAppRepository;
         _appRoleRepository = appRoleRepository;
         _appRolePermissionRepository = appRolePermissionRepository;
         _appUserRoleRepository = appUserRoleRepository;
+        _appMemberRepository = appMemberRepository;
     }
 
     public async Task<PagedResult<TenantAppRoleListItem>> QueryAsync(
@@ -556,6 +559,91 @@ public sealed class TenantAppRoleQueryService : ITenantAppRoleQueryService
             role.UpdatedAt.ToString("O"),
             memberCount,
             permissionCodes);
+    }
+
+    public async Task<TenantAppRoleGovernanceOverview> GetGovernanceOverviewAsync(
+        TenantId tenantId,
+        long appId,
+        CancellationToken cancellationToken = default)
+    {
+        var app = await RequireAppAsync(tenantId, appId, cancellationToken);
+        EnsureDedicatedRoles(app);
+
+        var roles = await _appRoleRepository.QueryByAppIdAsync(tenantId, appId, cancellationToken);
+        if (roles.Count == 0)
+        {
+            return new TenantAppRoleGovernanceOverview(
+                appId.ToString(),
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                Array.Empty<TenantAppRoleGovernanceItem>());
+        }
+
+        var roleIds = roles.Select(item => item.Id).ToArray();
+        var permissionsTask = _appRolePermissionRepository.QueryByRoleIdsAsync(tenantId, appId, roleIds, cancellationToken);
+        var userRoleMappingsTask = _appUserRoleRepository.QueryByRoleIdsAsync(tenantId, appId, roleIds, cancellationToken);
+        var appMembersTask = _appMemberRepository.QueryByAppIdAsync(tenantId, appId, cancellationToken);
+        await Task.WhenAll(permissionsTask, userRoleMappingsTask, appMembersTask);
+
+        var permissions = permissionsTask.Result;
+        var userRoleMappings = userRoleMappingsTask.Result;
+        var appMembers = appMembersTask.Result;
+
+        var permissionCountByRoleId = permissions
+            .GroupBy(item => item.RoleId)
+            .ToDictionary(
+                group => group.Key,
+                group => group
+                    .Select(item => item.PermissionCode)
+                    .Where(code => !string.IsNullOrWhiteSpace(code))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Count());
+        var coveredUserCountByRoleId = userRoleMappings
+            .GroupBy(item => item.RoleId)
+            .ToDictionary(group => group.Key, group => group.Select(item => item.UserId).Distinct().Count());
+        var coveredUserIds = userRoleMappings
+            .Select(item => item.UserId)
+            .Distinct()
+            .ToHashSet();
+
+        var governanceItems = roles
+            .Select(role =>
+            {
+                permissionCountByRoleId.TryGetValue(role.Id, out var permissionCount);
+                coveredUserCountByRoleId.TryGetValue(role.Id, out var memberCount);
+                return new TenantAppRoleGovernanceItem(
+                    role.Id.ToString(),
+                    role.Code,
+                    role.Name,
+                    role.IsSystem,
+                    memberCount,
+                    permissionCount,
+                    permissionCount > 0);
+            })
+            .ToArray();
+
+        var totalMembers = appMembers.Select(item => item.UserId).Distinct().Count();
+        var coveredMembers = coveredUserIds.Count;
+        var uncoveredMembers = Math.Max(0, totalMembers - coveredMembers);
+        var permissionCoverageRate = totalMembers == 0
+            ? 0
+            : decimal.Round((decimal)coveredMembers / totalMembers, 4, MidpointRounding.AwayFromZero);
+
+        return new TenantAppRoleGovernanceOverview(
+            appId.ToString(),
+            roles.Count,
+            roles.Count(item => item.IsSystem),
+            roles.Count(item => !item.IsSystem),
+            totalMembers,
+            coveredMembers,
+            uncoveredMembers,
+            permissionCoverageRate,
+            governanceItems);
     }
 
     private async Task<Atlas.Domain.LowCode.Entities.LowCodeApp> RequireAppAsync(
