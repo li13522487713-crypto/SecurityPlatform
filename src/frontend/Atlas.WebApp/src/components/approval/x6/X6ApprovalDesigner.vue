@@ -140,8 +140,8 @@ interface ContextMenuNode {
 }
 
 interface ValidateConnectionArgs {
-  sourceCell?: { id?: string };
-  targetCell?: { id?: string };
+  sourceCell?: { id?: string } | null;
+  targetCell?: { id?: string } | null;
   sourceMagnet?: Element | null;
   targetMagnet?: Element | null;
 }

@@ -67,8 +67,8 @@ const fetchTasks = async () => {
 };
 
 const handleTableChange = (pag: TablePaginationConfig) => {
-  pagination.value.current = pag.current;
-  pagination.value.pageSize = pag.pageSize;
+  pagination.value.current = pag.current ?? pagination.value.current;
+  pagination.value.pageSize = pag.pageSize ?? pagination.value.pageSize;
   fetchTasks();
 };
 
