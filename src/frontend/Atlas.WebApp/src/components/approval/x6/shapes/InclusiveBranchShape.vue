@@ -39,9 +39,14 @@ const branchIndex = computed(() => {
   return (data.value._branchIndex as number) ?? 1;
 });
 
+interface ConditionGroupView {
+  conditions?: unknown[];
+}
+
 const conditionLabel = computed(() => {
   // 新版条件组
-  const groups = data.value.conditionGroups as Array<{ conditions: Array<any> }> | undefined;
+  const groupsRaw = data.value.conditionGroups;
+  const groups = Array.isArray(groupsRaw) ? (groupsRaw as ConditionGroupView[]) : undefined;
   if (groups && groups.length > 0) {
     const count = groups.reduce((acc, g) => acc + (g.conditions?.length || 0), 0);
     return `${groups.length}个条件组, 共${count}个条件`;
