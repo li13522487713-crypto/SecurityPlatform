@@ -3,13 +3,35 @@
     <a-card :bordered="false" class="release-card">
       <template #title>发布中心</template>
       <template #extra>
-        <a-input-search
-          v-model:value="keyword"
-          allow-clear
-          placeholder="按发布说明检索"
-          style="width: 240px"
-          @search="loadReleases"
-        />
+        <a-space wrap>
+          <a-select
+            v-model:value="selectedStatus"
+            allow-clear
+            placeholder="状态筛选"
+            style="width: 140px"
+            :options="statusOptions"
+          />
+          <a-input
+            v-model:value="appKeyFilter"
+            allow-clear
+            placeholder="按 AppKey 筛选"
+            style="width: 180px"
+          />
+          <a-input
+            v-model:value="manifestIdFilter"
+            allow-clear
+            placeholder="按目录ID筛选"
+            style="width: 160px"
+          />
+          <a-input-search
+            v-model:value="keyword"
+            allow-clear
+            placeholder="按发布说明检索"
+            style="width: 240px"
+            @search="handleSearch"
+          />
+          <a-button @click="resetFilters">重置</a-button>
+        </a-space>
       </template>
 
       <a-table
@@ -75,6 +97,9 @@ const route = useRoute();
 const router = useRouter();
 const loading = ref(false);
 const keyword = ref("");
+const selectedStatus = ref<string>();
+const appKeyFilter = ref("");
+const manifestIdFilter = ref("");
 const rows = ref<ReleaseCenterListItem[]>([]);
 const detail = ref<ReleaseCenterDetail | null>(null);
 const detailVisible = ref(false);
@@ -101,6 +126,12 @@ const pagination = ref<TablePaginationConfig>({
   showTotal: (all) => `共 ${all} 条`
 });
 
+const statusOptions = [
+  { label: "Pending", value: "Pending" },
+  { label: "Released", value: "Released" },
+  { label: "RolledBack", value: "RolledBack" }
+];
+
 function formatDate(value?: string) {
   if (!value) {
     return "-";
@@ -112,10 +143,16 @@ function formatDate(value?: string) {
 async function loadReleases() {
   loading.value = true;
   try {
+    const parsedManifestId = manifestIdFilter.value.trim().length > 0
+      ? Number.parseInt(manifestIdFilter.value.trim(), 10)
+      : undefined;
     const result = await getReleaseCenterPaged({
       pageIndex: pageIndex.value,
       pageSize: pageSize.value,
-      keyword: keyword.value || undefined
+      keyword: keyword.value || undefined,
+      status: selectedStatus.value,
+      appKey: appKeyFilter.value || undefined,
+      manifestId: Number.isNaN(parsedManifestId) ? undefined : parsedManifestId
     });
     rows.value = result.items;
     total.value = result.total;
@@ -135,6 +172,20 @@ async function loadReleases() {
 function handleTableChange(page: TablePaginationConfig) {
   pageIndex.value = page.current ?? 1;
   pageSize.value = page.pageSize ?? 10;
+  void loadReleases();
+}
+
+function handleSearch() {
+  pageIndex.value = 1;
+  void loadReleases();
+}
+
+function resetFilters() {
+  keyword.value = "";
+  selectedStatus.value = undefined;
+  appKeyFilter.value = "";
+  manifestIdFilter.value = "";
+  pageIndex.value = 1;
   void loadReleases();
 }
 

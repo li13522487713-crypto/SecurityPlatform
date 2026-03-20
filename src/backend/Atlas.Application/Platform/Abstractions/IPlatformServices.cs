@@ -15,7 +15,13 @@ public interface IPlatformQueryService
 
 public interface IAppManifestQueryService
 {
-    Task<PagedResult<AppManifestResponse>> QueryAsync(TenantId tenantId, PagedRequest request, CancellationToken cancellationToken = default);
+    Task<PagedResult<AppManifestResponse>> QueryAsync(
+        TenantId tenantId,
+        PagedRequest request,
+        string? status = null,
+        string? category = null,
+        string? appKey = null,
+        CancellationToken cancellationToken = default);
     Task<AppManifestResponse?> GetByIdAsync(TenantId tenantId, long id, CancellationToken cancellationToken = default);
     Task<WorkspaceOverviewResponse> GetWorkspaceOverviewAsync(TenantId tenantId, long id, CancellationToken cancellationToken = default);
     Task<PagedResult<object>> GetWorkspacePagesAsync(TenantId tenantId, long id, PagedRequest request, CancellationToken cancellationToken = default);
@@ -49,7 +55,13 @@ public interface IRuntimeRouteQueryService
 
 public interface IApplicationCatalogQueryService
 {
-    Task<PagedResult<ApplicationCatalogListItem>> QueryAsync(TenantId tenantId, PagedRequest request, CancellationToken cancellationToken = default);
+    Task<PagedResult<ApplicationCatalogListItem>> QueryAsync(
+        TenantId tenantId,
+        PagedRequest request,
+        string? status = null,
+        string? category = null,
+        string? appKey = null,
+        CancellationToken cancellationToken = default);
     Task<ApplicationCatalogDetail?> GetByIdAsync(TenantId tenantId, long id, CancellationToken cancellationToken = default);
 }
 
@@ -58,6 +70,7 @@ public interface ITenantApplicationQueryService
     Task<PagedResult<TenantApplicationListItem>> QueryAsync(
         TenantId tenantId,
         PagedRequest request,
+        string? status = null,
         CancellationToken cancellationToken = default);
 
     Task<TenantApplicationDetail?> GetByIdAsync(
@@ -277,6 +290,9 @@ public interface IReleaseCenterQueryService
     Task<PagedResult<ReleaseCenterListItem>> QueryAsync(
         TenantId tenantId,
         PagedRequest request,
+        string? status = null,
+        string? appKey = null,
+        long? manifestId = null,
         CancellationToken cancellationToken = default);
 
     Task<ReleaseCenterDetail?> GetByIdAsync(

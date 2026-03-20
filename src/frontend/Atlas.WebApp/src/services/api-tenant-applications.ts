@@ -5,7 +5,7 @@ import { requestApi } from "@/services/api-core";
 const TENANT_APPLICATION_BASE = "/api/v2/tenant-applications";
 
 export async function getTenantApplicationsPaged(
-  params: PagedRequest
+  params: PagedRequest & { status?: string }
 ): Promise<PagedResult<TenantApplicationListItem>> {
   const query = new URLSearchParams({
     pageIndex: params.pageIndex.toString(),
@@ -13,6 +13,9 @@ export async function getTenantApplicationsPaged(
   });
   if (params.keyword) {
     query.set("keyword", params.keyword);
+  }
+  if (params.status) {
+    query.set("status", params.status);
   }
 
   const response = await requestApi<ApiResponse<PagedResult<TenantApplicationListItem>>>(

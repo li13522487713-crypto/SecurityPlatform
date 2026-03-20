@@ -13,7 +13,7 @@ const RELEASE_CENTER_BASE = "/api/v2/release-center/releases";
 const RUNTIME_EXECUTION_BASE = "/api/v2/runtime-executions";
 
 export async function getReleaseCenterPaged(
-  request: PagedRequest
+  request: PagedRequest & { status?: string; appKey?: string; manifestId?: number }
 ): Promise<PagedResult<ReleaseCenterListItem>> {
   const query = new URLSearchParams({
     pageIndex: request.pageIndex.toString(),
@@ -21,6 +21,15 @@ export async function getReleaseCenterPaged(
   });
   if (request.keyword) {
     query.set("keyword", request.keyword);
+  }
+  if (request.status) {
+    query.set("status", request.status);
+  }
+  if (request.appKey) {
+    query.set("appKey", request.appKey);
+  }
+  if (request.manifestId) {
+    query.set("manifestId", request.manifestId.toString());
   }
 
   const response = await requestApi<ApiResponse<PagedResult<ReleaseCenterListItem>>>(

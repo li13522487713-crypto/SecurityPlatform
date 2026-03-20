@@ -24,6 +24,11 @@ GET {{baseUrl}}/api/v2/application-catalogs?pageIndex=1&pageSize=10
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
+### 按状态/分类/AppKey筛选目录列表
+GET {{baseUrl}}/api/v2/application-catalogs?pageIndex=1&pageSize=10&status=Published&category=workflow&appKey=demo
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
 ### 查询目录详情
 GET {{baseUrl}}/api/v2/application-catalogs/1
 Authorization: Bearer {{accessToken}}

@@ -35,10 +35,13 @@ public sealed class ReleaseCenterV2Controller : ControllerBase
     [Authorize(Policy = PermissionPolicies.AppsView)]
     public async Task<ActionResult<ApiResponse<PagedResult<ReleaseCenterListItem>>>> Query(
         [FromQuery] PagedRequest request,
+        [FromQuery] string? status,
+        [FromQuery] string? appKey,
+        [FromQuery] long? manifestId,
         CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
-        var result = await _queryService.QueryAsync(tenantId, request, cancellationToken);
+        var result = await _queryService.QueryAsync(tenantId, request, status, appKey, manifestId, cancellationToken);
         return Ok(ApiResponse<PagedResult<ReleaseCenterListItem>>.Ok(result, HttpContext.TraceIdentifier));
     }
 

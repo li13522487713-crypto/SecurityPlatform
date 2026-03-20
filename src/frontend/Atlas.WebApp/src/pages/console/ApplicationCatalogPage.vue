@@ -3,13 +3,35 @@
     <a-card :bordered="false" class="catalog-card">
       <template #title>应用目录</template>
       <template #extra>
-        <a-input-search
-          v-model:value="keyword"
-          allow-clear
-          placeholder="按名称或 CatalogKey 检索"
-          style="width: 260px"
-          @search="handleSearch"
-        />
+        <a-space wrap>
+          <a-select
+            v-model:value="selectedStatus"
+            allow-clear
+            placeholder="状态筛选"
+            style="width: 140px"
+            :options="statusOptions"
+          />
+          <a-input
+            v-model:value="categoryFilter"
+            allow-clear
+            placeholder="分类筛选"
+            style="width: 160px"
+          />
+          <a-input
+            v-model:value="appKeyFilter"
+            allow-clear
+            placeholder="按 AppKey 筛选"
+            style="width: 180px"
+          />
+          <a-input-search
+            v-model:value="keyword"
+            allow-clear
+            placeholder="按名称或 CatalogKey 检索"
+            style="width: 260px"
+            @search="handleSearch"
+          />
+          <a-button @click="resetFilters">重置</a-button>
+        </a-space>
       </template>
 
       <a-table
@@ -75,6 +97,9 @@ import type { ApplicationCatalogDetail, ApplicationCatalogListItem } from "@/typ
 
 const loading = ref(false);
 const keyword = ref("");
+const selectedStatus = ref<string>();
+const categoryFilter = ref("");
+const appKeyFilter = ref("");
 const rows = ref<ApplicationCatalogListItem[]>([]);
 const detail = ref<ApplicationCatalogDetail | null>(null);
 const detailVisible = ref(false);
@@ -99,6 +124,13 @@ const pagination = ref<TablePaginationConfig>({
   showTotal: (all) => `共 ${all} 条`
 });
 
+const statusOptions = [
+  { label: "Draft", value: "Draft" },
+  { label: "Published", value: "Published" },
+  { label: "Disabled", value: "Disabled" },
+  { label: "Archived", value: "Archived" }
+];
+
 function formatDate(value?: string) {
   if (!value) {
     return "-";
@@ -118,7 +150,10 @@ async function loadCatalogs() {
     const result = await getApplicationCatalogsPaged({
       pageIndex: pageIndex.value,
       pageSize: pageSize.value,
-      keyword: keyword.value || undefined
+      keyword: keyword.value || undefined,
+      status: selectedStatus.value,
+      category: categoryFilter.value || undefined,
+      appKey: appKeyFilter.value || undefined
     });
     rows.value = result.items;
     pagination.value = {
@@ -135,6 +170,15 @@ async function loadCatalogs() {
 }
 
 function handleSearch() {
+  pageIndex.value = 1;
+  void loadCatalogs();
+}
+
+function resetFilters() {
+  keyword.value = "";
+  selectedStatus.value = undefined;
+  categoryFilter.value = "";
+  appKeyFilter.value = "";
   pageIndex.value = 1;
   void loadCatalogs();
 }

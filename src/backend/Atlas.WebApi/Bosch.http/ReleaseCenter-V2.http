@@ -24,6 +24,11 @@ GET {{baseUrl}}/api/v2/release-center/releases?pageIndex=1&pageSize=10
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
+### 按状态/AppKey/目录ID筛选发布列表
+GET {{baseUrl}}/api/v2/release-center/releases?pageIndex=1&pageSize=10&status=Released&appKey=demo&manifestId=1
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
 ### 查询发布详情
 GET {{baseUrl}}/api/v2/release-center/releases/1
 Authorization: Bearer {{accessToken}}

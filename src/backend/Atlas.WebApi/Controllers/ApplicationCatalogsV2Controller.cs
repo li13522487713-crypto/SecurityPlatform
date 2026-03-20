@@ -28,10 +28,13 @@ public sealed class ApplicationCatalogsV2Controller : ControllerBase
     [Authorize(Policy = PermissionPolicies.AppsView)]
     public async Task<ActionResult<ApiResponse<PagedResult<ApplicationCatalogListItem>>>> Get(
         [FromQuery] PagedRequest request,
+        [FromQuery] string? status,
+        [FromQuery] string? category,
+        [FromQuery] string? appKey,
         CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
-        var result = await _queryService.QueryAsync(tenantId, request, cancellationToken);
+        var result = await _queryService.QueryAsync(tenantId, request, status, category, appKey, cancellationToken);
         return Ok(ApiResponse<PagedResult<ApplicationCatalogListItem>>.Ok(result, HttpContext.TraceIdentifier));
     }
 

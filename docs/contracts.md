@@ -179,8 +179,10 @@
 #### v2 最小读接口（P0 占位基线）
 
 - `GET /api/v2/application-catalogs`
+  - 支持筛选参数：`status`（`Draft/Published/Disabled/Archived`）、`category`、`appKey`。
 - `GET /api/v2/application-catalogs/{id}`
 - `GET /api/v2/tenant-applications`
+  - 支持筛选参数：`status`（`Provisioning/Active/Disabled/Archived`）。
 - `GET /api/v2/tenant-applications/{id}`
 - `GET /api/v2/tenant-app-instances`
 - `GET /api/v2/tenant-app-instances/{id}`
@@ -259,6 +261,7 @@
 #### v2 P2 发布闭环接口（首批）
 
 - `GET /api/v2/release-center/releases`
+  - 支持筛选参数：`status`（`Pending/Released/RolledBack`）、`appKey`、`manifestId`。
 - `GET /api/v2/release-center/releases/{releaseId}`
 - `POST /api/v2/release-center/releases/{releaseId}/rollback`
   - 回滚请求按写接口统一要求 `Idempotency-Key` + `X-CSRF-TOKEN`。

@@ -41,7 +41,7 @@ public sealed class AppManifestsController : ControllerBase
         CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
-        var result = await _queryService.QueryAsync(tenantId, request, cancellationToken);
+        var result = await _queryService.QueryAsync(tenantId, request, cancellationToken: cancellationToken);
         return Ok(ApiResponse<PagedResult<AppManifestResponse>>.Ok(result, HttpContext.TraceIdentifier));
     }
 

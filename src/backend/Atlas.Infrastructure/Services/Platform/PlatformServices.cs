@@ -111,15 +111,40 @@ public sealed class AppManifestQueryService : IAppManifestQueryService
         _db = db;
     }
 
-    public async Task<PagedResult<AppManifestResponse>> QueryAsync(TenantId tenantId, PagedRequest request, CancellationToken cancellationToken = default)
+    public async Task<PagedResult<AppManifestResponse>> QueryAsync(
+        TenantId tenantId,
+        PagedRequest request,
+        string? status = null,
+        string? category = null,
+        string? appKey = null,
+        CancellationToken cancellationToken = default)
     {
+        var tenantValue = tenantId.Value;
         var pageIndex = request.PageIndex <= 0 ? 1 : request.PageIndex;
         var pageSize = request.PageSize <= 0 ? 10 : request.PageSize;
-        var query = _db.Queryable<AppManifest>();
+        var query = _db.Queryable<AppManifest>()
+            .Where(item => item.TenantIdValue == tenantValue);
         if (!string.IsNullOrWhiteSpace(request.Keyword))
         {
             var keyword = request.Keyword.Trim();
             query = query.Where(x => x.Name.Contains(keyword) || x.AppKey.Contains(keyword));
+        }
+
+        if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<AppManifestStatus>(status, true, out var statusValue))
+        {
+            query = query.Where(item => item.Status == statusValue);
+        }
+
+        if (!string.IsNullOrWhiteSpace(category))
+        {
+            var categoryValue = category.Trim();
+            query = query.Where(item => item.Category.Contains(categoryValue));
+        }
+
+        if (!string.IsNullOrWhiteSpace(appKey))
+        {
+            var appKeyValue = appKey.Trim();
+            query = query.Where(item => item.AppKey.Contains(appKeyValue));
         }
 
         var total = await query.CountAsync(cancellationToken);

@@ -3,13 +3,23 @@
     <a-card :bordered="false" class="tenant-app-card">
       <template #title>租户开通关系</template>
       <template #extra>
-        <a-input-search
-          v-model:value="keyword"
-          allow-clear
-          placeholder="按目录名或 AppKey 检索"
-          style="width: 260px"
-          @search="handleSearch"
-        />
+        <a-space wrap>
+          <a-select
+            v-model:value="selectedStatus"
+            allow-clear
+            placeholder="状态筛选"
+            style="width: 140px"
+            :options="statusOptions"
+          />
+          <a-input-search
+            v-model:value="keyword"
+            allow-clear
+            placeholder="按目录名或 AppKey 检索"
+            style="width: 260px"
+            @search="handleSearch"
+          />
+          <a-button @click="resetFilters">重置</a-button>
+        </a-space>
       </template>
 
       <a-table
@@ -67,6 +77,7 @@ import type { TenantApplicationDetail, TenantApplicationListItem } from "@/types
 
 const loading = ref(false);
 const keyword = ref("");
+const selectedStatus = ref<string>();
 const rows = ref<TenantApplicationListItem[]>([]);
 const detail = ref<TenantApplicationDetail | null>(null);
 const detailVisible = ref(false);
@@ -90,6 +101,13 @@ const pagination = ref<TablePaginationConfig>({
   showTotal: (all) => `共 ${all} 条`
 });
 
+const statusOptions = [
+  { label: "Provisioning", value: "Provisioning" },
+  { label: "Active", value: "Active" },
+  { label: "Disabled", value: "Disabled" },
+  { label: "Archived", value: "Archived" }
+];
+
 function formatDate(value?: string) {
   if (!value) {
     return "-";
@@ -109,7 +127,8 @@ async function loadTenantApplications() {
     const result = await getTenantApplicationsPaged({
       pageIndex: pageIndex.value,
       pageSize: pageSize.value,
-      keyword: keyword.value || undefined
+      keyword: keyword.value || undefined,
+      status: selectedStatus.value
     });
     rows.value = result.items;
     pagination.value = {
@@ -126,6 +145,13 @@ async function loadTenantApplications() {
 }
 
 function handleSearch() {
+  pageIndex.value = 1;
+  void loadTenantApplications();
+}
+
+function resetFilters() {
+  keyword.value = "";
+  selectedStatus.value = undefined;
   pageIndex.value = 1;
   void loadTenantApplications();
 }

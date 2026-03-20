@@ -33,9 +33,18 @@ public sealed class ApplicationCatalogQueryService : IApplicationCatalogQuerySer
     public async Task<PagedResult<ApplicationCatalogListItem>> QueryAsync(
         TenantId tenantId,
         PagedRequest request,
+        string? status = null,
+        string? category = null,
+        string? appKey = null,
         CancellationToken cancellationToken = default)
     {
-        var result = await _appManifestQueryService.QueryAsync(tenantId, request, cancellationToken);
+        var result = await _appManifestQueryService.QueryAsync(
+            tenantId,
+            request,
+            status,
+            category,
+            appKey,
+            cancellationToken);
         var items = result.Items
             .Select(item => new ApplicationCatalogListItem(
                 item.Id,
@@ -89,6 +98,7 @@ public sealed class TenantApplicationQueryService : ITenantApplicationQueryServi
     public async Task<PagedResult<TenantApplicationListItem>> QueryAsync(
         TenantId tenantId,
         PagedRequest request,
+        string? status = null,
         CancellationToken cancellationToken = default)
     {
         var tenantValue = tenantId.Value;
@@ -103,13 +113,18 @@ public sealed class TenantApplicationQueryService : ITenantApplicationQueryServi
             query = query.Where(item => item.AppKey.Contains(keyword) || item.Name.Contains(keyword));
         }
 
+        if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<TenantApplicationStatus>(status, true, out var statusValue))
+        {
+            query = query.Where(item => item.Status == statusValue);
+        }
+
         var total = await query.CountAsync(cancellationToken);
         var rows = await query
             .OrderByDescending(item => item.UpdatedAt)
             .ToPageListAsync(pageIndex, pageSize, cancellationToken);
         if (rows.Count == 0)
         {
-            return await BuildFallbackResultAsync(tenantId, request, cancellationToken);
+            return await BuildFallbackResultAsync(tenantId, request, status, cancellationToken);
         }
 
         var catalogIds = rows.Select(item => item.CatalogId).Distinct().ToArray();
@@ -175,6 +190,7 @@ public sealed class TenantApplicationQueryService : ITenantApplicationQueryServi
     private async Task<PagedResult<TenantApplicationListItem>> BuildFallbackResultAsync(
         TenantId tenantId,
         PagedRequest request,
+        string? status,
         CancellationToken cancellationToken)
     {
         var tenantValue = tenantId.Value;
@@ -187,6 +203,22 @@ public sealed class TenantApplicationQueryService : ITenantApplicationQueryServi
         {
             var keyword = request.Keyword.Trim();
             appQuery = appQuery.Where(item => item.AppKey.Contains(keyword) || item.Name.Contains(keyword));
+        }
+
+        if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<TenantApplicationStatus>(status, true, out var statusValue))
+        {
+            if (statusValue == TenantApplicationStatus.Provisioning)
+            {
+                return new PagedResult<TenantApplicationListItem>(Array.Empty<TenantApplicationListItem>(), 0, pageIndex, pageSize);
+            }
+
+            var appStatus = statusValue switch
+            {
+                TenantApplicationStatus.Disabled => LowCodeAppStatus.Disabled,
+                TenantApplicationStatus.Archived => LowCodeAppStatus.Archived,
+                _ => LowCodeAppStatus.Published
+            };
+            appQuery = appQuery.Where(item => item.Status == appStatus);
         }
 
         var total = await appQuery.CountAsync(cancellationToken);
@@ -1122,6 +1154,9 @@ public sealed class ReleaseCenterQueryService : IReleaseCenterQueryService
     public async Task<PagedResult<ReleaseCenterListItem>> QueryAsync(
         TenantId tenantId,
         PagedRequest request,
+        string? status = null,
+        string? appKey = null,
+        long? manifestId = null,
         CancellationToken cancellationToken = default)
     {
         var tenantValue = tenantId.Value;
@@ -1140,6 +1175,31 @@ public sealed class ReleaseCenterQueryService : IReleaseCenterQueryService
         {
             var keyword = request.Keyword.Trim();
             query = query.Where(item => item.ReleaseNote.Contains(keyword));
+        }
+
+        if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<AppReleaseStatus>(status, true, out var statusValue))
+        {
+            query = query.Where(item => item.Status == statusValue);
+        }
+
+        if (manifestId.HasValue && manifestId.Value > 0)
+        {
+            query = query.Where(item => item.ManifestId == manifestId.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(appKey))
+        {
+            var appKeyValue = appKey.Trim();
+            var manifestIds = manifestList
+                .Where(item => item.AppKey.Contains(appKeyValue, StringComparison.OrdinalIgnoreCase))
+                .Select(item => item.Id)
+                .ToArray();
+            if (manifestIds.Length == 0)
+            {
+                return new PagedResult<ReleaseCenterListItem>(Array.Empty<ReleaseCenterListItem>(), 0, pageIndex, pageSize);
+            }
+
+            query = query.Where(item => SqlFunc.ContainsArray(manifestIds, item.ManifestId));
         }
 
         var total = await query.CountAsync(cancellationToken);

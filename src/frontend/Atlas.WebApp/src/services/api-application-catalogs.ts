@@ -5,7 +5,7 @@ import { requestApi } from "@/services/api-core";
 const APPLICATION_CATALOG_BASE = "/api/v2/application-catalogs";
 
 export async function getApplicationCatalogsPaged(
-  params: PagedRequest & { keyword?: string }
+  params: PagedRequest & { keyword?: string; status?: string; category?: string; appKey?: string }
 ): Promise<PagedResult<ApplicationCatalogListItem>> {
   const query = new URLSearchParams({
     pageIndex: params.pageIndex.toString(),
@@ -13,6 +13,15 @@ export async function getApplicationCatalogsPaged(
   });
   if (params.keyword) {
     query.set("keyword", params.keyword);
+  }
+  if (params.status) {
+    query.set("status", params.status);
+  }
+  if (params.category) {
+    query.set("category", params.category);
+  }
+  if (params.appKey) {
+    query.set("appKey", params.appKey);
   }
 
   const response = await requestApi<ApiResponse<PagedResult<ApplicationCatalogListItem>>>(
