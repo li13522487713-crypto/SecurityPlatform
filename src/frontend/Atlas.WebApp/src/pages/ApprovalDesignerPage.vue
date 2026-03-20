@@ -38,7 +38,7 @@
         <div v-show="activeMenu === 'basic'" class="dd-content-panel dd-body--scroll">
           <DesignerBasicInfo
             v-model:flowName="flowName"
-            :definitionMeta="definitionMeta"
+            v-model:definitionMeta="definitionMeta"
             v-model:visibilityScopeType="visibilityScopeType"
             v-model:visibilityScopeIds="visibilityScopeIds"
           />

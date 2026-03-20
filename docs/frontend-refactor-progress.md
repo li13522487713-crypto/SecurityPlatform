@@ -212,3 +212,4 @@
   - `AmisEditor.vue`、`amis-renderer.vue` 移除 `innerHTML` 清空容器写法，统一改为 `replaceChildren()`，降低 DOM 注入误用风险。
   - Approval/Workflow 主链路完成一批 `any` 治理：`ApprovalDesignerPage.vue`、`ApprovalTaskPoolPage.vue`、`DesignerFlowProcess.vue`、`X6ApprovalDesigner.vue` 改为显式类型与类型守卫，减少弱类型传递风险。
   - 补齐 shapes 链路弱类型治理：`TimerNodeShape.vue`、`InclusiveBranchShape.vue` 去除 `any` 强转，改为结构化类型解析与守卫。
+  - 修复 `DesignerBasicInfo.vue` 的 `vue/no-mutating-props` 存量错误（改为子组件 emit 回写），并验证 `npm run check` 全量通过。

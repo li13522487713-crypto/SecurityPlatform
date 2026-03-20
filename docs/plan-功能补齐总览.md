@@ -262,7 +262,7 @@
 | Case 09 | Excel 导入导出 | [x] | [x] | [x] | [x] | 已完成，支持用户批量导入、导出及校验反馈 |
 | Case 10 | 数据权限 DataScope | [x] | [x] | [x] | [x] | 已完成，支持作用域与自定义部门选择底层逻辑 |
 | Case 11 | 通知公告闭环 | [x] | [x] | [x] | [x] | 已完成通知公告及相关管理功能（2026-03-20 增补：/inbox 收件箱别名、公告撤回接口、阅读审计事件、noticeType 归一化与前端权限码修正） |
-| Case 12 | 生产级安全加固 | [x] | [x] | [x] | [x] | 已完成，整合OpenTelemetry与备份托管服务（2026-03-20 增补：Markdown 链接协议白名单、移除前端 `innerHTML` 清空容器写法、Approval/Workflow 主链路及 shapes 链路 `any` 类型治理） |
+| Case 12 | 生产级安全加固 | [x] | [x] | [x] | [x] | 已完成，整合OpenTelemetry与备份托管服务（2026-03-20 增补：Markdown 链接协议白名单、移除前端 `innerHTML` 清空容器写法、Approval/Workflow 主链路及 shapes 链路 `any` 类型治理、`no-mutating-props` 存量错误修复并通过前端全量 check） |
 
 ---
 

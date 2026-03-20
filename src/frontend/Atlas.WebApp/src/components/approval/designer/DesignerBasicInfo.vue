@@ -4,10 +4,10 @@
       <a-input v-model:value="flowNameModel" :maxlength="100" placeholder="请输入流程名称" />
     </a-form-item>
     <a-form-item label="流程分类">
-      <a-input v-model:value="definitionMeta.category" placeholder="如：采购/人事/财务" />
+      <a-input v-model:value="categoryModel" placeholder="如：采购/人事/财务" />
     </a-form-item>
     <a-form-item label="流程说明">
-      <a-textarea v-model:value="definitionMeta.description" :rows="3" />
+      <a-textarea v-model:value="descriptionModel" :rows="3" />
     </a-form-item>
     
     <a-form-item label="可见范围">
@@ -41,8 +41,8 @@
     </a-form-item>
 
     <a-space>
-      <a-switch v-model:checked="definitionMeta.isQuickEntry" /> <span>快捷入口</span>
-      <a-switch v-model:checked="definitionMeta.isLowCodeFlow" /> <span>启用低代码表单</span>
+      <a-switch v-model:checked="quickEntryModel" /> <span>快捷入口</span>
+      <a-switch v-model:checked="lowCodeFlowModel" /> <span>启用低代码表单</span>
     </a-space>
   </a-form>
 </template>
@@ -61,13 +61,41 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'update:flowName': [value: string];
+  'update:definitionMeta': [value: ApprovalDefinitionMeta];
   'update:visibilityScopeType': [value: 'All' | 'Department' | 'Role' | 'User'];
   'update:visibilityScopeIds': [value: string[]];
 }>();
 
+const updateDefinitionMeta = (patch: Partial<ApprovalDefinitionMeta>) => {
+  emit('update:definitionMeta', {
+    ...props.definitionMeta,
+    ...patch
+  });
+};
+
 const flowNameModel = computed({
   get: () => props.flowName,
   set: (val) => emit('update:flowName', val)
+});
+
+const categoryModel = computed({
+  get: () => props.definitionMeta.category ?? '',
+  set: (val: string) => updateDefinitionMeta({ category: val || undefined })
+});
+
+const descriptionModel = computed({
+  get: () => props.definitionMeta.description ?? '',
+  set: (val: string) => updateDefinitionMeta({ description: val || undefined })
+});
+
+const quickEntryModel = computed({
+  get: () => Boolean(props.definitionMeta.isQuickEntry),
+  set: (val: boolean) => updateDefinitionMeta({ isQuickEntry: val })
+});
+
+const lowCodeFlowModel = computed({
+  get: () => Boolean(props.definitionMeta.isLowCodeFlow),
+  set: (val: boolean) => updateDefinitionMeta({ isLowCodeFlow: val })
 });
 
 const visibilityScopeTypeModel = computed({
