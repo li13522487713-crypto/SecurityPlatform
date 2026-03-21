@@ -49,11 +49,31 @@ public interface IAiWorkflowDesignService
 
     Task PublishAsync(
         TenantId tenantId,
+        long publisherId,
         long id,
         CancellationToken cancellationToken);
 
     Task<AiWorkflowValidateResult> ValidateAsync(
         TenantId tenantId,
         long id,
+        CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<AiWorkflowVersionItem>> GetVersionsAsync(
+        TenantId tenantId,
+        long id,
+        CancellationToken cancellationToken);
+
+    Task<AiWorkflowVersionDiff?> GetVersionDiffAsync(
+        TenantId tenantId,
+        long id,
+        int fromVersion,
+        int toVersion,
+        CancellationToken cancellationToken);
+
+    Task<AiWorkflowRollbackResult> RollbackAsync(
+        TenantId tenantId,
+        long userId,
+        long id,
+        int targetVersion,
         CancellationToken cancellationToken);
 }

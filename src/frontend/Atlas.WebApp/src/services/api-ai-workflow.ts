@@ -142,3 +142,58 @@ export async function getAiWorkflowNodeTypes() {
   if (!response.data) throw new Error(response.message || "查询节点类型失败");
   return response.data;
 }
+
+// ── 版本快照 ──
+
+export interface AiWorkflowVersionItem {
+  snapshotId: number;
+  version: number;
+  workflowName: string;
+  publishedByUserId: number;
+  publishedAt: string;
+  changeLog?: string;
+}
+
+export interface AiWorkflowVersionDiff {
+  workflowDefinitionId: number;
+  fromVersion: number;
+  toVersion: number;
+  addedNodeIds: string[];
+  removedNodeIds: string[];
+  modifiedNodeIds: string[];
+  addedEdges: number;
+  removedEdges: number;
+}
+
+export interface AiWorkflowRollbackResult {
+  workflowDefinitionId: number;
+  newVersion: number;
+  rolledBackFromVersion: number;
+}
+
+export async function getAiWorkflowVersions(id: number): Promise<AiWorkflowVersionItem[]> {
+  const response = await requestApi<ApiResponse<AiWorkflowVersionItem[]>>(`/ai-workflows/${id}/versions`);
+  if (!response.data) throw new Error(response.message || "查询版本历史失败");
+  return response.data;
+}
+
+export async function getAiWorkflowVersionDiff(
+  id: number,
+  from: number,
+  to: number
+): Promise<AiWorkflowVersionDiff> {
+  const response = await requestApi<ApiResponse<AiWorkflowVersionDiff>>(
+    `/ai-workflows/${id}/versions/diff?from=${from}&to=${to}`
+  );
+  if (!response.data) throw new Error(response.message || "查询版本差异失败");
+  return response.data;
+}
+
+export async function rollbackAiWorkflow(id: number, version: number): Promise<AiWorkflowRollbackResult> {
+  const response = await requestApi<ApiResponse<AiWorkflowRollbackResult>>(
+    `/ai-workflows/${id}/versions/${version}/rollback`,
+    { method: "POST" }
+  );
+  if (!response.data) throw new Error(response.message || "版本回滚失败");
+  return response.data;
+}

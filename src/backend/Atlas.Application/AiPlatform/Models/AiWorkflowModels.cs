@@ -71,3 +71,28 @@ public sealed record AiWorkflowNodeTypeDto(
     string Name,
     string Category,
     string Description);
+
+// ── 版本快照相关 DTO ──
+
+public sealed record AiWorkflowVersionItem(
+    long SnapshotId,
+    int Version,
+    string WorkflowName,
+    long PublishedByUserId,
+    DateTime PublishedAt,
+    string? ChangeLog);
+
+public sealed record AiWorkflowVersionDiff(
+    long WorkflowDefinitionId,
+    int FromVersion,
+    int ToVersion,
+    IReadOnlyList<string> AddedNodeIds,
+    IReadOnlyList<string> RemovedNodeIds,
+    IReadOnlyList<string> ModifiedNodeIds,
+    int AddedEdges,
+    int RemovedEdges);
+
+public sealed record AiWorkflowRollbackResult(
+    long WorkflowDefinitionId,
+    int NewVersion,
+    int RolledBackFromVersion);

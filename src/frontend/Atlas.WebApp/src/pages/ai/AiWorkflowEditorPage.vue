@@ -8,6 +8,7 @@
           <a-button @click="goBack">返回列表</a-button>
           <a-button type="primary" :loading="saving" @click="saveWorkflow">保存</a-button>
           <a-button :loading="validating" @click="validateWorkflow">校验</a-button>
+          <a-button @click="openVersionHistory">版本历史</a-button>
         </a-space>
       </div>
 
@@ -50,6 +51,92 @@
       </template>
       <a-empty v-else description="请选择一个节点" />
     </div>
+
+    <!-- 版本历史抽屉 -->
+    <a-drawer
+      v-model:open="versionDrawerOpen"
+      title="版本历史"
+      width="640"
+      :destroy-on-close="false"
+    >
+      <a-spin :spinning="versionLoading">
+        <a-empty v-if="versionList.length === 0 && !versionLoading" description="暂无发布版本记录" />
+        <a-list
+          v-else
+          :data-source="versionList"
+          size="small"
+          :item-layout="'vertical'"
+        >
+          <template #renderItem="{ item }">
+            <a-list-item :key="item.version">
+              <a-list-item-meta>
+                <template #title>
+                  <a-space>
+                    <a-tag color="blue">v{{ item.version }}</a-tag>
+                    <span>{{ item.workflowName }}</span>
+                    <a-tag v-if="item.changeLog" color="default">{{ item.changeLog }}</a-tag>
+                  </a-space>
+                </template>
+                <template #description>
+                  发布时间：{{ formatDate(item.publishedAt) }}
+                </template>
+              </a-list-item-meta>
+              <template #actions>
+                <a-button
+                  v-if="diffBaseVersion !== null && diffBaseVersion !== item.version"
+                  size="small"
+                  @click="loadDiff(diffBaseVersion!, item.version)"
+                >
+                  与 v{{ diffBaseVersion }} 对比
+                </a-button>
+                <a-button
+                  size="small"
+                  :type="diffBaseVersion === item.version ? 'primary' : 'default'"
+                  @click="setDiffBase(item.version)"
+                >
+                  {{ diffBaseVersion === item.version ? '已选为对比基准' : '选为对比基准' }}
+                </a-button>
+                <a-popconfirm
+                  :title="`确认回滚到 v${item.version}？此操作将创建新版本 v${currentPublishVersion + 1}。`"
+                  ok-text="确认回滚"
+                  cancel-text="取消"
+                  @confirm="doRollback(item.version)"
+                >
+                  <a-button size="small" danger :loading="rollingBack">回滚</a-button>
+                </a-popconfirm>
+              </template>
+            </a-list-item>
+          </template>
+        </a-list>
+      </a-spin>
+
+      <!-- Diff 结果面板 -->
+      <template v-if="diffResult">
+        <a-divider>版本差异：v{{ diffResult.fromVersion }} → v{{ diffResult.toVersion }}</a-divider>
+        <a-row :gutter="[12, 12]">
+          <a-col :span="8">
+            <a-statistic title="新增节点" :value="diffResult.addedNodeIds.length" />
+            <a-tag v-for="nid in diffResult.addedNodeIds" :key="nid" color="success">{{ nid }}</a-tag>
+          </a-col>
+          <a-col :span="8">
+            <a-statistic title="移除节点" :value="diffResult.removedNodeIds.length" />
+            <a-tag v-for="nid in diffResult.removedNodeIds" :key="nid" color="error">{{ nid }}</a-tag>
+          </a-col>
+          <a-col :span="8">
+            <a-statistic title="变更节点" :value="diffResult.modifiedNodeIds.length" />
+            <a-tag v-for="nid in diffResult.modifiedNodeIds" :key="nid" color="warning">{{ nid }}</a-tag>
+          </a-col>
+        </a-row>
+        <a-row :gutter="[12, 12]" style="margin-top:12px">
+          <a-col :span="12">
+            <a-statistic title="新增连线" :value="diffResult.addedEdges" />
+          </a-col>
+          <a-col :span="12">
+            <a-statistic title="移除连线" :value="diffResult.removedEdges" />
+          </a-col>
+        </a-row>
+      </template>
+    </a-drawer>
   </div>
 </template>
 
@@ -70,10 +157,15 @@ import {
   getAiWorkflowById,
   getAiWorkflowExecutionProgress,
   getAiWorkflowNodeTypes,
+  getAiWorkflowVersions,
+  getAiWorkflowVersionDiff,
+  rollbackAiWorkflow,
   runAiWorkflow,
   saveAiWorkflow,
   validateAiWorkflow,
-  type AiWorkflowNodeTypeDto
+  type AiWorkflowNodeTypeDto,
+  type AiWorkflowVersionItem,
+  type AiWorkflowVersionDiff
 } from "@/services/api-ai-workflow";
 
 import "@vue-flow/core/dist/style.css";
@@ -94,7 +186,16 @@ const validating = ref(false);
 const running = ref(false);
 const executionId = ref<string | null>(null);
 const executionStatus = ref<string | null>(null);
+const currentPublishVersion = ref(0);
 let progressPollTimer: number | null = null;
+
+// 版本历史抽屉
+const versionDrawerOpen = ref(false);
+const versionLoading = ref(false);
+const versionList = ref<AiWorkflowVersionItem[]>([]);
+const diffBaseVersion = ref<number | null>(null);
+const diffResult = ref<AiWorkflowVersionDiff | null>(null);
+const rollingBack = ref(false);
 
 const selectedNode = computed(() => nodes.value.find((x) => x.id === selectedNodeId.value) || null);
 
@@ -131,6 +232,7 @@ async function loadWorkflow() {
       nodes.value = parsed.nodes || [];
       edges.value = parsed.edges || [];
     }
+    currentPublishVersion.value = detail.publishVersion;
   } catch (err: unknown) {
     message.error((err as Error).message || "加载工作流失败");
   }
@@ -215,6 +317,59 @@ async function cancelExecution(id: string) {
     executionStatus.value = "Terminated";
   } catch (err: unknown) {
     message.error((err as Error).message || "取消失败");
+  }
+}
+
+// ── 版本历史相关 ──
+
+function formatDate(value: string) {
+  return new Date(value).toLocaleString();
+}
+
+async function openVersionHistory() {
+  versionDrawerOpen.value = true;
+  diffResult.value = null;
+  diffBaseVersion.value = null;
+  versionLoading.value = true;
+  try {
+    versionList.value = await getAiWorkflowVersions(workflowId);
+  } catch (err: unknown) {
+    message.error((err as Error).message || "加载版本历史失败");
+  } finally {
+    versionLoading.value = false;
+  }
+}
+
+function setDiffBase(version: number) {
+  if (diffBaseVersion.value === version) {
+    diffBaseVersion.value = null;
+    diffResult.value = null;
+  } else {
+    diffBaseVersion.value = version;
+    diffResult.value = null;
+  }
+}
+
+async function loadDiff(fromVer: number, toVer: number) {
+  try {
+    diffResult.value = await getAiWorkflowVersionDiff(workflowId, fromVer, toVer);
+  } catch (err: unknown) {
+    message.error((err as Error).message || "加载版本差异失败");
+  }
+}
+
+async function doRollback(targetVersion: number) {
+  rollingBack.value = true;
+  try {
+    const result = await rollbackAiWorkflow(workflowId, targetVersion);
+    message.success(`已回滚到 v${targetVersion}，新版本为 v${result.newVersion}`);
+    currentPublishVersion.value = result.newVersion;
+    versionDrawerOpen.value = false;
+    await loadWorkflow();
+  } catch (err: unknown) {
+    message.error((err as Error).message || "版本回滚失败");
+  } finally {
+    rollingBack.value = false;
   }
 }
 

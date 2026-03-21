@@ -1,11 +1,13 @@
 using System.Text.Json.Nodes;
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
+using Atlas.Application.Audit.Abstractions;
 using Atlas.Core.Abstractions;
 using Atlas.Core.Exceptions;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.AiPlatform.Entities;
+using Atlas.Domain.Audit.Entities;
 using Atlas.Infrastructure.Repositories;
 using Atlas.WorkflowCore.DSL.Interface;
 
@@ -14,20 +16,26 @@ namespace Atlas.Infrastructure.Services.AiPlatform;
 public sealed class AiWorkflowDesignService : IAiWorkflowDesignService
 {
     private readonly AiWorkflowDefinitionRepository _repository;
+    private readonly AiWorkflowSnapshotRepository _snapshotRepository;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly AiWorkflowDslBuilder _dslBuilder;
     private readonly IDefinitionLoader _definitionLoader;
+    private readonly IAuditWriter _auditWriter;
 
     public AiWorkflowDesignService(
         AiWorkflowDefinitionRepository repository,
+        AiWorkflowSnapshotRepository snapshotRepository,
         IIdGeneratorAccessor idGeneratorAccessor,
         AiWorkflowDslBuilder dslBuilder,
-        IDefinitionLoader definitionLoader)
+        IDefinitionLoader definitionLoader,
+        IAuditWriter auditWriter)
     {
         _repository = repository;
+        _snapshotRepository = snapshotRepository;
         _idGeneratorAccessor = idGeneratorAccessor;
         _dslBuilder = dslBuilder;
         _definitionLoader = definitionLoader;
+        _auditWriter = auditWriter;
     }
 
     public async Task<PagedResult<AiWorkflowDefinitionDto>> ListAsync(
@@ -118,7 +126,7 @@ public sealed class AiWorkflowDesignService : IAiWorkflowDesignService
         return newId;
     }
 
-    public async Task PublishAsync(TenantId tenantId, long id, CancellationToken cancellationToken)
+    public async Task PublishAsync(TenantId tenantId, long publisherId, long id, CancellationToken cancellationToken)
     {
         var entity = await _repository.FindByIdAsync(tenantId, id, cancellationToken)
             ?? throw new BusinessException("工作流定义不存在。", ErrorCodes.NotFound);
@@ -132,6 +140,18 @@ public sealed class AiWorkflowDesignService : IAiWorkflowDesignService
 
         entity.Publish();
         await _repository.UpdateAsync(entity, cancellationToken);
+
+        var snapshotId = _idGeneratorAccessor.NextId();
+        var snapshot = new AiWorkflowSnapshot(
+            tenantId,
+            entity.Id,
+            entity.PublishVersion,
+            entity.DefinitionJson,
+            entity.CanvasJson,
+            entity.Name,
+            publisherId,
+            snapshotId);
+        await _snapshotRepository.AddAsync(snapshot, cancellationToken);
     }
 
     public async Task<AiWorkflowValidateResult> ValidateAsync(
@@ -294,4 +314,181 @@ public sealed class AiWorkflowDesignService : IAiWorkflowDesignService
             entity.CreatedAt,
             entity.UpdatedAt,
             entity.PublishedAt);
+
+    public async Task<IReadOnlyList<AiWorkflowVersionItem>> GetVersionsAsync(
+        TenantId tenantId,
+        long id,
+        CancellationToken cancellationToken)
+    {
+        _ = await _repository.FindByIdAsync(tenantId, id, cancellationToken)
+            ?? throw new BusinessException("工作流定义不存在。", ErrorCodes.NotFound);
+
+        var snapshots = await _snapshotRepository.GetByWorkflowIdAsync(tenantId, id, cancellationToken);
+        return snapshots.Select(s => new AiWorkflowVersionItem(
+            s.Id,
+            s.Version,
+            s.WorkflowName,
+            s.PublishedByUserId,
+            s.PublishedAt,
+            s.ChangeLog)).ToList();
+    }
+
+    public async Task<AiWorkflowVersionDiff?> GetVersionDiffAsync(
+        TenantId tenantId,
+        long id,
+        int fromVersion,
+        int toVersion,
+        CancellationToken cancellationToken)
+    {
+        _ = await _repository.FindByIdAsync(tenantId, id, cancellationToken)
+            ?? throw new BusinessException("工作流定义不存在。", ErrorCodes.NotFound);
+
+        var fromSnapshot = await _snapshotRepository.GetByVersionAsync(tenantId, id, fromVersion, cancellationToken);
+        var toSnapshot = await _snapshotRepository.GetByVersionAsync(tenantId, id, toVersion, cancellationToken);
+
+        if (fromSnapshot is null || toSnapshot is null)
+        {
+            return null;
+        }
+
+        var fromNodes = ExtractNodeIds(fromSnapshot.CanvasJson);
+        var toNodes = ExtractNodeIds(toSnapshot.CanvasJson);
+        var fromEdgeCount = CountEdges(fromSnapshot.CanvasJson);
+        var toEdgeCount = CountEdges(toSnapshot.CanvasJson);
+
+        var added = toNodes.Except(fromNodes).ToList();
+        var removed = fromNodes.Except(toNodes).ToList();
+        var common = fromNodes.Intersect(toNodes).ToList();
+
+        var fromNodeMap = ExtractNodeMap(fromSnapshot.CanvasJson);
+        var toNodeMap = ExtractNodeMap(toSnapshot.CanvasJson);
+        var modified = common
+            .Where(nodeId => fromNodeMap.TryGetValue(nodeId, out var fNode)
+                             && toNodeMap.TryGetValue(nodeId, out var tNode)
+                             && fNode != tNode)
+            .ToList();
+
+        return new AiWorkflowVersionDiff(
+            id,
+            fromVersion,
+            toVersion,
+            added,
+            removed,
+            modified,
+            Math.Max(0, toEdgeCount - fromEdgeCount),
+            Math.Max(0, fromEdgeCount - toEdgeCount));
+    }
+
+    public async Task<AiWorkflowRollbackResult> RollbackAsync(
+        TenantId tenantId,
+        long userId,
+        long id,
+        int targetVersion,
+        CancellationToken cancellationToken)
+    {
+        var entity = await _repository.FindByIdAsync(tenantId, id, cancellationToken)
+            ?? throw new BusinessException("工作流定义不存在。", ErrorCodes.NotFound);
+
+        var targetSnapshot = await _snapshotRepository.GetByVersionAsync(tenantId, id, targetVersion, cancellationToken)
+            ?? throw new BusinessException($"版本 {targetVersion} 不存在。", ErrorCodes.NotFound);
+
+        var previousVersion = entity.PublishVersion;
+        entity.Save(targetSnapshot.CanvasJson, targetSnapshot.DefinitionJson);
+        entity.Publish();
+        await _repository.UpdateAsync(entity, cancellationToken);
+
+        var snapshotId = _idGeneratorAccessor.NextId();
+        var newSnapshot = new AiWorkflowSnapshot(
+            tenantId,
+            entity.Id,
+            entity.PublishVersion,
+            entity.DefinitionJson,
+            entity.CanvasJson,
+            entity.Name,
+            userId,
+            snapshotId);
+        await _snapshotRepository.AddAsync(newSnapshot, cancellationToken);
+
+        await _auditWriter.WriteAsync(new AuditRecord(
+            tenantId,
+            userId.ToString(),
+            "AiWorkflow.Rollback",
+            "Success",
+            $"workflowId={id};fromVersion={previousVersion};targetVersion={targetVersion};newVersion={entity.PublishVersion}",
+            null,
+            null), cancellationToken);
+
+        return new AiWorkflowRollbackResult(id, entity.PublishVersion, previousVersion);
+    }
+
+    private static HashSet<string> ExtractNodeIds(string canvasJson)
+    {
+        var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            var root = JsonNode.Parse(canvasJson);
+            var nodes = root?["nodes"]?.AsArray();
+            if (nodes is null)
+            {
+                return result;
+            }
+
+            foreach (var node in nodes)
+            {
+                var nodeId = node?["id"]?.GetValue<string>();
+                if (!string.IsNullOrWhiteSpace(nodeId))
+                {
+                    result.Add(nodeId);
+                }
+            }
+        }
+        catch
+        {
+            // canvas json invalid — return empty set
+        }
+
+        return result;
+    }
+
+    private static Dictionary<string, string> ExtractNodeMap(string canvasJson)
+    {
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            var root = JsonNode.Parse(canvasJson);
+            var nodes = root?["nodes"]?.AsArray();
+            if (nodes is null)
+            {
+                return result;
+            }
+
+            foreach (var node in nodes)
+            {
+                var nodeId = node?["id"]?.GetValue<string>();
+                if (!string.IsNullOrWhiteSpace(nodeId))
+                {
+                    result[nodeId] = node?.ToJsonString() ?? string.Empty;
+                }
+            }
+        }
+        catch
+        {
+            // canvas json invalid — return empty map
+        }
+
+        return result;
+    }
+
+    private static int CountEdges(string canvasJson)
+    {
+        try
+        {
+            var root = JsonNode.Parse(canvasJson);
+            return root?["edges"]?.AsArray()?.Count ?? 0;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
 }

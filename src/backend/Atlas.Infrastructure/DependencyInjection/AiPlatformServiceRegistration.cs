@@ -89,6 +89,7 @@ public static class AiPlatformServiceRegistration
         services.AddScoped<IRagRetrievalService, RagRetrievalService>();
         services.AddScoped<DocumentProcessingService>();
         services.AddScoped<AiWorkflowDefinitionRepository>();
+        services.AddScoped<AiWorkflowSnapshotRepository>();
         services.AddScoped<IAiWorkflowDesignService, AiWorkflowDesignService>();
         services.AddScoped<IAiWorkflowExecutionService, AiWorkflowExecutionService>();
         services.AddSingleton<AiWorkflowDslBuilder>();

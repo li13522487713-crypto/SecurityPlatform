@@ -128,8 +128,9 @@ public sealed class AiWorkflowsController : ControllerBase
     [Authorize(Policy = PermissionPolicies.AiWorkflowUpdate)]
     public async Task<ActionResult<ApiResponse<object>>> Publish(long id, CancellationToken cancellationToken)
     {
+        var currentUser = _currentUserAccessor.GetCurrentUserOrThrow();
         var tenantId = _tenantProvider.GetTenantId();
-        await _designService.PublishAsync(tenantId, id, cancellationToken);
+        await _designService.PublishAsync(tenantId, currentUser.UserId, id, cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
     }
 
@@ -204,5 +205,58 @@ public sealed class AiWorkflowsController : ControllerBase
             new("outputemitter", "OutputEmitter", "Output", "写出流程输出")
         };
         return Ok(ApiResponse<IReadOnlyList<AiWorkflowNodeTypeDto>>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    [HttpGet("{id:long}/versions")]
+    [Authorize(Policy = PermissionPolicies.AiWorkflowView)]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<AiWorkflowVersionItem>>>> GetVersions(
+        long id,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var versions = await _designService.GetVersionsAsync(tenantId, id, cancellationToken);
+        return Ok(ApiResponse<IReadOnlyList<AiWorkflowVersionItem>>.Ok(versions, HttpContext.TraceIdentifier));
+    }
+
+    [HttpGet("{id:long}/versions/diff")]
+    [Authorize(Policy = PermissionPolicies.AiWorkflowView)]
+    public async Task<ActionResult<ApiResponse<AiWorkflowVersionDiff>>> GetVersionDiff(
+        long id,
+        [FromQuery] int from,
+        [FromQuery] int to,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var diff = await _designService.GetVersionDiffAsync(tenantId, id, from, to, cancellationToken);
+        if (diff is null)
+        {
+            return NotFound(ApiResponse<AiWorkflowVersionDiff>.Fail(
+                ErrorCodes.NotFound,
+                $"版本 {from} 或 {to} 不存在。",
+                HttpContext.TraceIdentifier));
+        }
+
+        return Ok(ApiResponse<AiWorkflowVersionDiff>.Ok(diff, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost("{id:long}/versions/{version:int}/rollback")]
+    [Authorize(Policy = PermissionPolicies.AiWorkflowUpdate)]
+    public async Task<ActionResult<ApiResponse<AiWorkflowRollbackResult>>> Rollback(
+        long id,
+        int version,
+        CancellationToken cancellationToken)
+    {
+        var currentUser = _currentUserAccessor.GetCurrentUser();
+        if (currentUser is null)
+        {
+            return Unauthorized(ApiResponse<AiWorkflowRollbackResult>.Fail(
+                ErrorCodes.Unauthorized,
+                "Unauthorized.",
+                HttpContext.TraceIdentifier));
+        }
+
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _designService.RollbackAsync(tenantId, currentUser.UserId, id, version, cancellationToken);
+        return Ok(ApiResponse<AiWorkflowRollbackResult>.Ok(result, HttpContext.TraceIdentifier));
     }
 }

@@ -1,0 +1,105 @@
+### AI Workflows API — 包含版本快照 (versions / diff / rollback)
+
+@baseUrl = http://localhost:5000
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+
+### 登录
+# @name login
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+###
+@accessToken = {{login.response.body.$.data.accessToken}}
+
+### 查询工作流列表
+GET {{baseUrl}}/api/v1/ai-workflows?pageIndex=1&pageSize=10
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 创建工作流
+# @name createWorkflow
+POST {{baseUrl}}/api/v1/ai-workflows
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "name": "测试版本快照工作流",
+  "description": "用于验证版本快照功能",
+  "canvasJson": "{\"nodes\":[{\"id\":\"start\",\"type\":\"default\",\"position\":{\"x\":100,\"y\":100},\"data\":{\"label\":\"开始\"}}],\"edges\":[]}",
+  "definitionJson": "{}"
+}
+
+###
+@workflowId = {{createWorkflow.response.body.$.data.id}}
+
+### 查询工作流详情
+GET {{baseUrl}}/api/v1/ai-workflows/{{workflowId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 校验工作流
+POST {{baseUrl}}/api/v1/ai-workflows/{{workflowId}}/validate
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 发布工作流（自动写版本快照 v1）
+POST {{baseUrl}}/api/v1/ai-workflows/{{workflowId}}/publish
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 修改画布后再次发布（写版本快照 v2）
+PUT {{baseUrl}}/api/v1/ai-workflows/{{workflowId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "canvasJson": "{\"nodes\":[{\"id\":\"start\",\"type\":\"default\",\"position\":{\"x\":100,\"y\":100},\"data\":{\"label\":\"开始\"}},{\"id\":\"llm1\",\"type\":\"llm\",\"position\":{\"x\":300,\"y\":100},\"data\":{\"label\":\"LLM节点\"}}],\"edges\":[{\"id\":\"e1\",\"source\":\"start\",\"target\":\"llm1\"}]}",
+  "definitionJson": "{}"
+}
+
+###
+POST {{baseUrl}}/api/v1/ai-workflows/{{workflowId}}/publish
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### ── 版本历史 ──
+
+### 查询版本历史列表
+GET {{baseUrl}}/api/v1/ai-workflows/{{workflowId}}/versions
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 查询版本差异（v1 → v2）
+GET {{baseUrl}}/api/v1/ai-workflows/{{workflowId}}/versions/diff?from=1&to=2
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 版本回滚（回滚到 v1，创建新版本 v3）
+POST {{baseUrl}}/api/v1/ai-workflows/{{workflowId}}/versions/1/rollback
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 回滚后查看版本列表（应看到 v1/v2/v3）
+GET {{baseUrl}}/api/v1/ai-workflows/{{workflowId}}/versions
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 查询版本差异（回滚前后 v2 → v3 应与 v1 内容相近）
+GET {{baseUrl}}/api/v1/ai-workflows/{{workflowId}}/versions/diff?from=2&to=3
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 查询工作流节点类型
+GET {{baseUrl}}/api/v1/ai-workflows/node-types
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
