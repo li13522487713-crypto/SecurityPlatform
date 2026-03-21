@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: src/backend/Atlas.WebApi/Dockerfile
+      args:
+        BUILD_CONFIGURATION: Release
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:5000
+      Jwt__SigningKey: ${JWT_SIGNING_KEY}
+      Security__BootstrapAdmin__Password: ${BOOTSTRAP_ADMIN_PASSWORD}
+      Cors__AllowedOrigins__0: ${CORS_ALLOWED_ORIGIN:-http://localhost}
+      Database__ConnectionString: ${DATABASE_CONNECTION_STRING:-Data Source=/app/data/atlas.db}
+      Database__Encryption__Key: ${DATABASE_ENCRYPTION_KEY:-}
+      FileStorage__BasePath: ${FILE_STORAGE_BASE_PATH:-/app/uploads}
+      Plugins__RootPath: ${PLUGINS_ROOT_PATH:-/app/plugins}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+    volumes:
+      - /opt/atlas/data:/app/data
+      - /opt/atlas/uploads:/app/uploads
+      - /opt/atlas/plugins:/app/plugins
+      - /opt/atlas/logs/backend:/app/logs
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: src/frontend/Atlas.WebApp/Dockerfile
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:1.27-alpine
+    depends_on:
+      - backend
+      - frontend
+    volumes:
+      - ./deploy/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - /opt/atlas/certs:/etc/nginx/certs:ro
+      - /opt/atlas/logs/nginx:/var/log/nginx
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    restart: unless-stopped
