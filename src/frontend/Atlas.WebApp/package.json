@@ -34,8 +34,10 @@
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-vue": "^10.7.0",
     "prettier": "^3.8.1",
+    "tinymce": "^8.3.2",
     "typescript": "~5.9.3",
     "vite": "^8.0.0",
+    "vite-plugin-static-copy": "^3.3.0",
     "vitest": "^4.1.0",
     "vue-eslint-parser": "^10.2.0",
     "vue-tsc": "^3.2.4"
