@@ -2,7 +2,7 @@
   <div class="coze-debug-page" data-testid="e2e-coze-debug-page">
     <a-row :gutter="[16, 16]">
       <a-col :xs="24" :lg="12">
-        <a-card title="Coze 六层映射总览" :loading="loadingMappings">
+        <a-card :title="t('console.coze.cardMappings')" :loading="loadingMappings">
           <a-list :data-source="mappingRows" size="small">
             <template #renderItem="{ item }">
               <a-list-item>
@@ -15,7 +15,7 @@
       </a-col>
 
       <a-col :xs="24" :lg="12">
-        <a-card title="调试层嵌入元数据" :loading="loadingMetadata">
+        <a-card :title="t('console.coze.cardMetadata')" :loading="loadingMetadata">
           <a-descriptions :column="1" size="small">
             <a-descriptions-item label="TenantId">{{ metadata?.tenantId || "-" }}</a-descriptions-item>
             <a-descriptions-item label="AppId">{{ metadata?.appId || "-" }}</a-descriptions-item>
@@ -29,8 +29,8 @@
             v-if="(metadata?.resources?.length ?? 0) === 0"
             type="warning"
             show-icon
-            message="当前账号没有调试层资源权限"
-            description="请联系管理员分配 debug:view / debug:run / debug:manage 权限。"
+            :message="t('console.coze.noDebugPerm')"
+            :description="t('console.coze.noDebugPermDesc')"
             style="margin-bottom: 12px"
           />
           <a-list :data-source="metadata?.resources || []" size="small">
@@ -48,22 +48,22 @@
       </a-col>
     </a-row>
 
-    <a-card title="运行执行列表（下钻）" class="runtime-card" :loading="loadingRuntimeExecutions">
+    <a-card :title="t('console.coze.cardExecutions')" class="runtime-card" :loading="loadingRuntimeExecutions">
       <template #extra>
         <a-space wrap>
           <a-input-search
             v-model:value="runtimeKeyword"
-            placeholder="按工作流ID/状态检索"
+            :placeholder="t('console.coze.phWorkflow')"
             style="width: 240px"
             allow-clear
             @search="loadRuntimeExecutions"
           />
           <a-input
             v-model:value="releaseFilter"
-            placeholder="按发布ID过滤（可选）"
+            :placeholder="t('console.coze.phRelease')"
             style="width: 220px"
           />
-          <a-button type="primary" @click="loadRuntimeExecutions">刷新</a-button>
+          <a-button type="primary" @click="loadRuntimeExecutions">{{ t("console.coze.refresh") }}</a-button>
         </a-space>
       </template>
 
@@ -71,8 +71,8 @@
         v-if="!canViewRuntimeExecutions"
         type="warning"
         show-icon
-        message="无运行执行查看权限"
-        description="该模块需要 debug:view 权限。"
+        :message="t('console.coze.noExecPerm')"
+        :description="t('console.coze.noExecPermDesc')"
       />
       <a-table
         v-else
@@ -94,32 +94,32 @@
           </template>
           <template v-if="column.key === 'actions'">
             <a-space>
-              <a-button type="link" size="small" @click="traceExecution(record.id)">审计追溯</a-button>
+              <a-button type="link" size="small" @click="traceExecution(record.id)">{{ t("console.coze.traceAudit") }}</a-button>
             </a-space>
           </template>
         </template>
       </a-table>
     </a-card>
 
-    <a-card title="运行执行审计追溯" class="audit-card">
+    <a-card :title="t('console.coze.cardAuditTrace')" class="audit-card">
       <a-alert
         v-if="!canViewRuntimeAudits"
         type="warning"
         show-icon
-        message="无运行审计追溯权限"
-        description="该模块需要 debug:run 权限。"
+        :message="t('console.coze.noAuditPerm')"
+        :description="t('console.coze.noAuditPermDesc')"
         style="margin-bottom: 12px"
       />
       <a-space wrap>
-        <a-input v-model:value="executionId" placeholder="输入执行ID" style="width: 220px" />
+        <a-input v-model:value="executionId" :placeholder="t('console.coze.phExecutionId')" style="width: 220px" />
         <a-input-search
           v-model:value="auditKeyword"
-          placeholder="关键字（action/target/actor）"
+          :placeholder="t('console.coze.phAuditKeyword')"
           style="width: 260px"
           allow-clear
           @search="loadAuditTrails"
         />
-        <a-button type="primary" :disabled="!canViewRuntimeAudits" @click="loadAuditTrails">查询</a-button>
+        <a-button type="primary" :disabled="!canViewRuntimeAudits" @click="loadAuditTrails">{{ t("console.coze.search") }}</a-button>
       </a-space>
 
       <a-table
@@ -143,6 +143,7 @@ onMounted(() => { isMounted.value = true; });
 onUnmounted(() => { isMounted.value = false; });
 
 import { useRoute, useRouter } from "vue-router";
+import { useI18n } from "vue-i18n";
 import { message } from "ant-design-vue";
 import type { TableColumnsType } from "ant-design-vue";
 import {
@@ -160,6 +161,7 @@ import type {
 
 const route = useRoute();
 const router = useRouter();
+const { t } = useI18n();
 const loadingMappings = ref(false);
 const loadingMetadata = ref(false);
 const loadingRuntimeExecutions = ref(false);
@@ -187,23 +189,23 @@ const runtimeRowsFiltered = computed(() => {
   return runtimeRows.value.filter((item) => item.releaseId === releaseId);
 });
 
-const auditColumns: TableColumnsType<RuntimeExecutionAuditTrailItem> = [
-  { title: "审计ID", dataIndex: "auditId", key: "auditId", width: 160 },
-  { title: "操作人", dataIndex: "actor", key: "actor", width: 140 },
-  { title: "动作", dataIndex: "action", key: "action", width: 180 },
-  { title: "结果", dataIndex: "result", key: "result", width: 120 },
-  { title: "目标", dataIndex: "target", key: "target", ellipsis: true },
-  { title: "发生时间", dataIndex: "occurredAt", key: "occurredAt", width: 190 }
-];
-const runtimeColumns: TableColumnsType<RuntimeExecutionListItem> = [
-  { title: "执行ID", dataIndex: "id", key: "id", width: 170 },
-  { title: "工作流ID", dataIndex: "workflowId", key: "workflowId", width: 130 },
-  { title: "发布ID", dataIndex: "releaseId", key: "releaseId", width: 130 },
-  { title: "运行上下文ID", dataIndex: "runtimeContextId", key: "runtimeContextId", width: 140 },
-  { title: "状态", dataIndex: "status", key: "status", width: 120 },
-  { title: "开始时间", dataIndex: "startedAt", key: "startedAt", width: 190 },
-  { title: "操作", key: "actions", width: 120 }
-];
+const auditColumns = computed<TableColumnsType<RuntimeExecutionAuditTrailItem>>(() => [
+  { title: t("console.runtimeExec.auditColId"), dataIndex: "auditId", key: "auditId", width: 160 },
+  { title: t("console.runtimeExec.auditColActor"), dataIndex: "actor", key: "actor", width: 140 },
+  { title: t("console.runtimeExec.auditColAction"), dataIndex: "action", key: "action", width: 180 },
+  { title: t("console.runtimeExec.auditColResult"), dataIndex: "result", key: "result", width: 120 },
+  { title: t("console.runtimeExec.auditColTarget"), dataIndex: "target", key: "target", ellipsis: true },
+  { title: t("console.runtimeExec.auditColTime"), dataIndex: "occurredAt", key: "occurredAt", width: 190 }
+]);
+const runtimeColumns = computed<TableColumnsType<RuntimeExecutionListItem>>(() => [
+  { title: t("console.runtimeExec.labelExecId"), dataIndex: "id", key: "id", width: 170 },
+  { title: t("console.coze.colWorkflowId"), dataIndex: "workflowId", key: "workflowId", width: 130 },
+  { title: t("console.coze.colReleaseIdShort"), dataIndex: "releaseId", key: "releaseId", width: 130 },
+  { title: t("console.coze.colRuntimeContextId"), dataIndex: "runtimeContextId", key: "runtimeContextId", width: 140 },
+  { title: t("console.runtimeExec.colStatus"), dataIndex: "status", key: "status", width: 120 },
+  { title: t("console.runtimeExec.colStartedAt"), dataIndex: "startedAt", key: "startedAt", width: 190 },
+  { title: t("console.runtimeExec.colActions"), key: "actions", width: 120 }
+]);
 
 function formatDate(value?: string) {
   if (!value) {
@@ -220,7 +222,7 @@ async function loadMappings() {
     if (!isMounted.value) return;
     mappingRows.value = overview.layers;
   } catch (error) {
-    message.error((error as Error).message || "加载 Coze 映射失败");
+    message.error((error as Error).message || t("console.coze.loadMappingsFailed"));
   } finally {
     loadingMappings.value = false;
   }
@@ -238,7 +240,7 @@ async function loadMetadata() {
       if (!isMounted.value) return;
     }
   } catch (error) {
-    message.error((error as Error).message || "加载调试层元数据失败");
+    message.error((error as Error).message || t("console.coze.loadMetaFailed"));
   } finally {
     loadingMetadata.value = false;
   }
@@ -261,7 +263,7 @@ async function loadRuntimeExecutions() {
     if (!isMounted.value) return;
     runtimeRows.value = result.items;
   } catch (error) {
-    message.error((error as Error).message || "加载运行执行列表失败");
+    message.error((error as Error).message || t("console.coze.loadExecFailed"));
   } finally {
     loadingRuntimeExecutions.value = false;
   }
@@ -269,11 +271,11 @@ async function loadRuntimeExecutions() {
 
 async function loadAuditTrails() {
   if (!canViewRuntimeAudits.value) {
-    message.warning("当前账号缺少运行审计追溯权限");
+    message.warning(t("console.coze.warnAuditPerm"));
     return;
   }
   if (!executionId.value.trim()) {
-    message.warning("请先输入执行ID");
+    message.warning(t("console.coze.warnExecutionId"));
     return;
   }
 
@@ -288,7 +290,7 @@ async function loadAuditTrails() {
     if (!isMounted.value) return;
     auditRows.value = result.items;
   } catch (error) {
-    message.error((error as Error).message || "加载执行审计失败");
+    message.error((error as Error).message || t("console.coze.loadAuditFailed"));
   } finally {
     loadingAudits.value = false;
   }

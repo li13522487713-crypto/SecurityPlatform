@@ -1,36 +1,36 @@
 <template>
   <div class="application-catalog-page" data-testid="e2e-console-application-catalog-page">
     <a-card :bordered="false" class="catalog-card">
-      <template #title>应用目录</template>
+      <template #title>{{ t("console.catalog.title") }}</template>
       <template #extra>
         <a-space wrap>
           <a-select
             v-model:value="selectedStatus"
             allow-clear
-            placeholder="状态筛选"
+            :placeholder="t('console.catalog.phStatus')"
             style="width: 140px"
             :options="statusOptions"
           />
           <a-input
             v-model:value="categoryFilter"
             allow-clear
-            placeholder="分类筛选"
+            :placeholder="t('console.catalog.phCategory')"
             style="width: 160px"
           />
           <a-input
             v-model:value="appKeyFilter"
             allow-clear
-            placeholder="按 AppKey 筛选"
+            :placeholder="t('console.catalog.phAppKey')"
             style="width: 180px"
           />
           <a-input-search
             v-model:value="keyword"
             allow-clear
-            placeholder="按名称或 CatalogKey 检索"
+            :placeholder="t('console.catalog.phSearch')"
             style="width: 260px"
             @search="handleSearch"
           />
-          <a-button @click="resetFilters">重置</a-button>
+          <a-button @click="resetFilters">{{ t("console.catalog.reset") }}</a-button>
         </a-space>
       </template>
 
@@ -52,7 +52,7 @@
             {{ formatDate(record.publishedAt) }}
           </template>
           <template v-if="column.key === 'actions'">
-            <a-button type="link" size="small" @click="viewDetail(record.id)">查看</a-button>
+            <a-button type="link" size="small" @click="viewDetail(record.id)">{{ t("console.catalog.view") }}</a-button>
           </template>
         </template>
       </a-table>
@@ -60,24 +60,24 @@
 
     <a-drawer
       v-model:open="detailVisible"
-      title="应用目录详情"
+      :title="t('console.catalog.drawerTitle')"
       width="640"
       :destroy-on-close="true"
     >
       <a-descriptions :column="2" bordered size="small">
-        <a-descriptions-item label="ID">{{ detail?.id || "-" }}</a-descriptions-item>
-        <a-descriptions-item label="CatalogKey">{{ detail?.catalogKey || "-" }}</a-descriptions-item>
-        <a-descriptions-item label="名称">{{ detail?.name || "-" }}</a-descriptions-item>
-        <a-descriptions-item label="版本">{{ detail?.version ?? "-" }}</a-descriptions-item>
-        <a-descriptions-item label="状态">{{ detail?.status || "-" }}</a-descriptions-item>
-        <a-descriptions-item label="分类">{{ detail?.category || "-" }}</a-descriptions-item>
-        <a-descriptions-item label="发布时间" :span="2">
+        <a-descriptions-item :label="t('console.catalog.labelId')">{{ detail?.id || "-" }}</a-descriptions-item>
+        <a-descriptions-item :label="t('console.catalog.labelCatalogKey')">{{ detail?.catalogKey || "-" }}</a-descriptions-item>
+        <a-descriptions-item :label="t('console.catalog.labelName')">{{ detail?.name || "-" }}</a-descriptions-item>
+        <a-descriptions-item :label="t('console.catalog.labelVersion')">{{ detail?.version ?? "-" }}</a-descriptions-item>
+        <a-descriptions-item :label="t('console.catalog.labelStatus')">{{ detail?.status || "-" }}</a-descriptions-item>
+        <a-descriptions-item :label="t('console.catalog.labelCategory')">{{ detail?.category || "-" }}</a-descriptions-item>
+        <a-descriptions-item :label="t('console.catalog.labelPublishedAt')" :span="2">
           {{ formatDate(detail?.publishedAt) }}
         </a-descriptions-item>
-        <a-descriptions-item label="数据源ID" :span="2">
+        <a-descriptions-item :label="t('console.catalog.labelDataSourceId')" :span="2">
           {{ detail?.dataSourceId || "-" }}
         </a-descriptions-item>
-        <a-descriptions-item label="描述" :span="2">
+        <a-descriptions-item :label="t('console.catalog.labelDescription')" :span="2">
           {{ detail?.description || "-" }}
         </a-descriptions-item>
       </a-descriptions>
@@ -86,11 +86,18 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, onUnmounted } from "vue";
+import { computed, onMounted, ref, onUnmounted } from "vue";
+import { useI18n } from "vue-i18n";
+
+const { t } = useI18n();
 
 const isMounted = ref(false);
-onMounted(() => { isMounted.value = true; });
-onUnmounted(() => { isMounted.value = false; });
+onMounted(() => {
+  isMounted.value = true;
+});
+onUnmounted(() => {
+  isMounted.value = false;
+});
 
 import type { TableColumnsType, TablePaginationConfig } from "ant-design-vue";
 import { message } from "ant-design-vue";
@@ -111,30 +118,30 @@ const detailVisible = ref(false);
 const pageIndex = ref(1);
 const pageSize = ref(10);
 
-const columns: TableColumnsType<ApplicationCatalogListItem> = [
-  { title: "名称", dataIndex: "name", key: "name", width: 180 },
-  { title: "CatalogKey", dataIndex: "catalogKey", key: "catalogKey", width: 180 },
-  { title: "版本", dataIndex: "version", key: "version", width: 100 },
-  { title: "状态", dataIndex: "status", key: "status", width: 120 },
-  { title: "分类", dataIndex: "category", key: "category", width: 140 },
-  { title: "发布时间", dataIndex: "publishedAt", key: "publishedAt", width: 180 },
-  { title: "操作", key: "actions", width: 100, fixed: "right" }
-];
+const columns = computed<TableColumnsType<ApplicationCatalogListItem>>(() => [
+  { title: t("console.catalog.labelName"), dataIndex: "name", key: "name", width: 180 },
+  { title: t("console.catalog.labelCatalogKey"), dataIndex: "catalogKey", key: "catalogKey", width: 180 },
+  { title: t("console.catalog.labelVersion"), dataIndex: "version", key: "version", width: 100 },
+  { title: t("console.catalog.labelStatus"), dataIndex: "status", key: "status", width: 120 },
+  { title: t("console.catalog.labelCategory"), dataIndex: "category", key: "category", width: 140 },
+  { title: t("console.catalog.labelPublishedAt"), dataIndex: "publishedAt", key: "publishedAt", width: 180 },
+  { title: t("console.resourceCenter.colActions"), key: "actions", width: 100, fixed: "right" }
+]);
 
 const pagination = ref<TablePaginationConfig>({
   current: 1,
   pageSize: 10,
   total: 0,
   showSizeChanger: true,
-  showTotal: (all) => `共 ${all} 条`
+  showTotal: (all) => t("crud.totalItems", { total: all })
 });
 
-const statusOptions = [
+const statusOptions = computed(() => [
   { label: "Draft", value: "Draft" },
   { label: "Published", value: "Published" },
   { label: "Disabled", value: "Disabled" },
   { label: "Archived", value: "Archived" }
-];
+]);
 
 function formatDate(value?: string) {
   if (!value) {
@@ -152,7 +159,7 @@ function formatDate(value?: string) {
 async function loadCatalogs() {
   loading.value = true;
   try {
-    const result  = await getApplicationCatalogsPaged({
+    const result = await getApplicationCatalogsPaged({
       pageIndex: pageIndex.value,
       pageSize: pageSize.value,
       keyword: keyword.value || undefined,
@@ -170,7 +177,7 @@ async function loadCatalogs() {
       total: result.total
     };
   } catch (error) {
-    message.error((error as Error).message || "加载应用目录失败");
+    message.error((error as Error).message || t("console.catalog.loadFailed"));
   } finally {
     loading.value = false;
   }
@@ -203,7 +210,7 @@ async function viewDetail(id: string) {
     if (!isMounted.value) return;
     detailVisible.value = true;
   } catch (error) {
-    message.error((error as Error).message || "加载应用目录详情失败");
+    message.error((error as Error).message || t("console.catalog.loadDetailFailed"));
   }
 }
 

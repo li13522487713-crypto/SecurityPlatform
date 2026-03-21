@@ -1,5 +1,5 @@
 <template>
-  <div class="sidebar-logo-container" :class="{ 'collapse': collapse }">
+  <div class="sidebar-logo-container" :class="{ collapse: collapse }">
     <transition name="sidebarLogoFade">
       <router-link v-if="collapse" key="collapse" class="sidebar-logo-link" to="/">
         <img v-if="logo" :src="logo" class="sidebar-logo" />
@@ -14,17 +14,19 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from "vue";
+import { useI18n } from "vue-i18n";
 
-const props = defineProps({
+defineProps({
   collapse: {
     type: Boolean,
     required: true
   }
 });
 
-const title = ref('Atlas 安全平台');
-const logo = ref('');
+const { t } = useI18n();
+const title = computed(() => t("layoutChrome.brandTitle"));
+const logo = ref("");
 </script>
 
 <style scoped>

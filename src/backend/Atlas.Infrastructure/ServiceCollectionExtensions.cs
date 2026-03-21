@@ -149,6 +149,13 @@ public static class ServiceCollectionExtensions
                             }
                         }
 
+                        // 平台级权限 AppId 必须为 NULL；SqlSugar 对部分可空 long 可能生成 NOT NULL，导致种子数据插入失败
+                        if (property.DeclaringType == typeof(Atlas.Domain.Identity.Entities.Permission)
+                            && property.Name == nameof(Atlas.Domain.Identity.Entities.Permission.AppId))
+                        {
+                            column.IsNullable = true;
+                        }
+
                         if (property.DeclaringType == typeof(Atlas.Domain.Approval.Entities.ApprovalTask)
                             && property.Name == nameof(Atlas.Domain.Approval.Entities.ApprovalTask.RowVersion))
                         {

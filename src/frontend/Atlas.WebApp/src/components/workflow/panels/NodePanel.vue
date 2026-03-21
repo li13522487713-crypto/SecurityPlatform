@@ -3,7 +3,7 @@
     <div class="panel-header">
       <a-input
         v-model:value="searchText"
-        placeholder="搜索节点"
+        :placeholder="t('wfUi.nodePanel.phSearch')"
         size="small"
         allow-clear
       >
@@ -38,7 +38,10 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { SearchOutlined } from '@ant-design/icons-vue'
+
+const { t } = useI18n()
 
 const emit = defineEmits<{
   (e: 'drag-start', nodeType: string): void
@@ -53,22 +56,31 @@ interface NodeItem {
   category: string
 }
 
-const allNodes: NodeItem[] = [
-  { type: 'Entry', name: '开始', description: '工作流入口', category: '基础' },
-  { type: 'Exit', name: '结束', description: '工作流出口', category: '基础' },
-  { type: 'Llm', name: '大模型', description: '调用 LLM 生成文本', category: 'AI' },
-  { type: 'Selector', name: '条件判断', description: '根据条件选择分支', category: '流程控制' },
-  { type: 'Loop', name: '循环', description: '遍历数组元素', category: '流程控制' },
-  { type: 'SubWorkflow', name: '子流程', description: '调用已发布子工作流', category: '流程控制' },
-  { type: 'HttpRequester', name: 'HTTP 请求', description: '发送 HTTP 请求', category: '工具' },
-  { type: 'CodeRunner', name: '代码执行', description: '执行代码片段', category: '工具' },
-  { type: 'DatabaseQuery', name: '数据库查询', description: '执行 SQL 查询', category: '数据' },
-  { type: 'AssignVariable', name: '变量赋值', description: '给变量赋值', category: '变量' },
-  { type: 'VariableAggregator', name: '变量聚合', description: '合并多个变量', category: '变量' },
-  { type: 'JsonSerialization', name: 'JSON 序列化', description: '对象转 JSON 字符串', category: 'JSON' },
-  { type: 'JsonDeserialization', name: 'JSON 反序列化', description: 'JSON 字符串转对象', category: 'JSON' },
-  { type: 'TextProcessor', name: '文本处理', description: '文本拼接/截取/格式化', category: '文本' },
+const NODE_DEFS: ReadonlyArray<{ type: string; desc: string; cat: string }> = [
+  { type: 'Entry', desc: 'descEntry', cat: 'catBasic' },
+  { type: 'Exit', desc: 'descExit', cat: 'catBasic' },
+  { type: 'Llm', desc: 'descLlm', cat: 'catAi' },
+  { type: 'Selector', desc: 'descSelector', cat: 'catFlow' },
+  { type: 'Loop', desc: 'descLoop', cat: 'catFlow' },
+  { type: 'SubWorkflow', desc: 'descSub', cat: 'catFlow' },
+  { type: 'HttpRequester', desc: 'descHttp', cat: 'catTool' },
+  { type: 'CodeRunner', desc: 'descCode', cat: 'catTool' },
+  { type: 'DatabaseQuery', desc: 'descDb', cat: 'catData' },
+  { type: 'AssignVariable', desc: 'descAssign', cat: 'catVar' },
+  { type: 'VariableAggregator', desc: 'descAgg', cat: 'catVar' },
+  { type: 'JsonSerialization', desc: 'descSer', cat: 'catJson' },
+  { type: 'JsonDeserialization', desc: 'descDe', cat: 'catJson' },
+  { type: 'TextProcessor', desc: 'descText', cat: 'catText' },
 ]
+
+const allNodes = computed<NodeItem[]>(() =>
+  NODE_DEFS.map((d) => ({
+    type: d.type,
+    name: t(`wfUi.nodeTypes.${d.type}`),
+    description: t(`wfUi.nodePalette.${d.desc}`),
+    category: t(`wfUi.nodePanel.${d.cat}`)
+  }))
+)
 
 const NODE_COLORS: Record<string, string> = {
   Entry: '#52c41a', Exit: '#ff4d4f', Llm: '#6366f1', Selector: '#f59e0b',
@@ -90,12 +102,12 @@ function getNodeIcon(type: string) { return NODE_ICONS[type] ?? '□' }
 
 const filteredCategories = computed(() => {
   const filtered = searchText.value
-    ? allNodes.filter(n =>
+    ? allNodes.value.filter(n =>
         n.name.includes(searchText.value) ||
         n.description.includes(searchText.value) ||
         n.type.toLowerCase().includes(searchText.value.toLowerCase())
       )
-    : allNodes
+    : allNodes.value
 
   const map = new Map<string, NodeItem[]>()
   for (const node of filtered) {

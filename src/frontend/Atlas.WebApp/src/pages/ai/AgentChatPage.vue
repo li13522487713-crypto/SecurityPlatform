@@ -1,11 +1,10 @@
 <template>
   <div class="agent-chat-layout">
-    <!-- Sidebar: conversation list -->
     <div class="chat-sidebar">
       <div class="sidebar-header">
-        <span class="sidebar-title">对话列表</span>
+        <span class="sidebar-title">{{ t("ai.chat.convList") }}</span>
         <a-button type="primary" size="small" @click="handleNewConversation">
-          + 新建
+          {{ t("ai.chat.newConv") }}
         </a-button>
       </div>
       <a-spin :spinning="loadingConversations">
@@ -16,10 +15,10 @@
             :class="['conversation-item', { active: currentConvId === conv.id }]"
             @click="selectConversation(conv)"
           >
-            <div class="conv-title">{{ conv.title || "新对话" }}</div>
+            <div class="conv-title">{{ conv.title || t("ai.chat.newConvTitle") }}</div>
             <div class="conv-meta">{{ formatDate(conv.lastMessageAt || conv.createdAt) }}</div>
             <a-popconfirm
-              title="确认删除该对话？"
+              :title="t('ai.chat.deleteConvConfirm')"
               placement="right"
               @confirm.stop="handleDeleteConversation(conv.id)"
             >
@@ -35,29 +34,28 @@
             </a-popconfirm>
           </div>
           <div v-if="conversations.length === 0 && !loadingConversations" class="empty-conv">
-            暂无对话，点击「新建」开始
+            {{ t("ai.chat.emptyConv") }}
           </div>
         </div>
       </a-spin>
     </div>
 
-    <!-- Main chat area -->
     <div class="chat-main">
       <div class="chat-header">
         <span class="agent-name">{{ agentName }}</span>
         <a-space v-if="currentConvId">
-          <a-tooltip title="清除上下文（保留历史，但新消息不使用旧上下文）">
-            <a-button size="small" @click="handleClearContext">清除上下文</a-button>
+          <a-tooltip :title="t('ai.chat.clearContextTip')">
+            <a-button size="small" @click="handleClearContext">{{ t("ai.chat.clearContext") }}</a-button>
           </a-tooltip>
-          <a-tooltip title="清除全部历史消息">
-            <a-button size="small" danger @click="handleClearHistory">清除历史</a-button>
+          <a-tooltip :title="t('ai.chat.clearHistoryTip')">
+            <a-button size="small" danger @click="handleClearHistory">{{ t("ai.chat.clearHistory") }}</a-button>
           </a-tooltip>
         </a-space>
       </div>
 
       <div ref="messagesContainer" class="chat-messages">
         <div v-if="!currentConvId" class="chat-empty">
-          <a-empty description="选择或新建一个对话开始聊天" />
+          <a-empty :description="t('ai.chat.emptySelect')" />
         </div>
         <template v-else>
           <a-spin v-if="loadingMessages" />
@@ -75,13 +73,13 @@
 
       <div class="chat-input-area">
         <div class="rag-toggle">
-          <a-checkbox v-model:checked="enableRag">启用知识库 (RAG)</a-checkbox>
+          <a-checkbox v-model:checked="enableRag">{{ t("ai.chat.enableRag") }}</a-checkbox>
         </div>
         <div class="input-row">
           <a-textarea
             v-model:value="inputText"
             :rows="3"
-            :placeholder="isStreaming ? '正在回复中…' : '输入消息，Ctrl+Enter 发送'"
+            :placeholder="isStreaming ? t('ai.chat.placeholderStreaming') : t('ai.chat.placeholderInput')"
             :disabled="!currentConvId || isStreaming"
             @keydown="handleKeyDown"
           />
@@ -92,7 +90,7 @@
               danger
               @click="handleCancel"
             >
-              停止
+              {{ t("ai.chat.stop") }}
             </a-button>
             <a-button
               v-else
@@ -100,7 +98,7 @@
               :disabled="!currentConvId || !inputText.trim()"
               @click="handleSend"
             >
-              发送
+              {{ t("ai.chat.send") }}
             </a-button>
           </div>
         </div>
@@ -111,6 +109,9 @@
 
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted, watch, onUnmounted } from "vue";
+import { useI18n } from "vue-i18n";
+
+const { t, locale } = useI18n();
 
 const isMounted = ref(false);
 onMounted(() => { isMounted.value = true; });
@@ -134,7 +135,7 @@ import { getAgentById } from "@/services/api-agent";
 const route = useRoute();
 const agentId = computed(() => Number(route.params["agentId"]));
 
-const agentName = ref("Agent 对话");
+const agentName = ref("");
 const conversations = ref<ConversationDto[]>([]);
 const currentConvId = ref<number | null>(null);
 const loadingConversations = ref(false);
@@ -157,10 +158,11 @@ function formatDate(iso: string) {
   try {
     const d = new Date(iso);
     const now = new Date();
+    const loc = locale.value === "en-US" ? "en-US" : "zh-CN";
     if (d.toDateString() === now.toDateString()) {
-      return d.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
+      return d.toLocaleTimeString(loc, { hour: "2-digit", minute: "2-digit" });
     }
-    return d.toLocaleDateString("zh-CN", { month: "2-digit", day: "2-digit" });
+    return d.toLocaleDateString(loc, { month: "2-digit", day: "2-digit" });
   } catch {
     return "";
   }
@@ -180,7 +182,7 @@ async function loadConversations() {
                  new Date(a.lastMessageAt || a.createdAt).getTime()
     );
   } catch (err: unknown) {
-    message.error((err as Error).message || "加载对话列表失败");
+    message.error((err as Error).message || t("ai.chat.loadConvFailed"));
   } finally {
     loadingConversations.value = false;
   }
@@ -206,7 +208,7 @@ async function loadMessages(convId: number) {
 
     if (!isMounted.value) return;
   } catch (err: unknown) {
-    message.error((err as Error).message || "加载消息失败");
+    message.error((err as Error).message || t("ai.chat.loadMsgFailed"));
   } finally {
     loadingMessages.value = false;
   }
@@ -214,7 +216,7 @@ async function loadMessages(convId: number) {
 
 async function handleNewConversation() {
   try {
-    const id  = await createConversation(agentId.value, "新对话");
+    const id  = await createConversation(agentId.value, t("ai.chat.newConversationTitle"));
 
     if (!isMounted.value) return;
     await loadConversations();
@@ -230,7 +232,7 @@ async function handleNewConversation() {
       chatStore.clearMessages();
     }
   } catch (err: unknown) {
-    message.error((err as Error).message || "创建对话失败");
+    message.error((err as Error).message || t("ai.chat.createConvFailed"));
   }
 }
 
@@ -246,9 +248,9 @@ async function handleDeleteConversation(id: number) {
     await loadConversations();
 
     if (!isMounted.value) return;
-    message.success("删除成功");
+    message.success(t("crud.deleteSuccess"));
   } catch (err: unknown) {
-    message.error((err as Error).message || "删除失败");
+    message.error((err as Error).message || t("crud.deleteFailed"));
   }
 }
 
@@ -258,9 +260,9 @@ async function handleClearContext() {
     await clearConversationContext(currentConvId.value);
 
     if (!isMounted.value) return;
-    message.success("上下文已清除");
+    message.success(t("ai.chat.clearContextOk"));
   } catch (err: unknown) {
-    message.error((err as Error).message || "操作失败");
+    message.error((err as Error).message || t("ai.chat.opFailed"));
   }
 }
 
@@ -271,9 +273,9 @@ async function handleClearHistory() {
 
     if (!isMounted.value) return;
     chatStore.clearMessages();
-    message.success("历史已清除");
+    message.success(t("ai.chat.clearHistoryOk"));
   } catch (err: unknown) {
-    message.error((err as Error).message || "操作失败");
+    message.error((err as Error).message || t("ai.chat.opFailed"));
   }
 }
 
@@ -328,7 +330,7 @@ onMounted(async () => {
     if (!isMounted.value) return;
     agentName.value = agent.name;
   } catch {
-    // ignore
+    agentName.value = t("ai.chat.defaultAgentName");
   }
   await loadConversations();
 

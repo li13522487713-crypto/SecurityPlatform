@@ -1,15 +1,11 @@
 <template>
-  <a-card title="治理中心" class="page-card" :loading="loading">
+  <a-card :title="t('visualization.governanceTitle')" class="page-card" :loading="loading">
     <a-row :gutter="[16, 16]">
       <a-col :span="24">
-        <a-alert
-          type="info"
-          show-icon
-          message="治理中心当前提供审计留痕与运行指标概览，口径管理与数据源清单将在后续版本完善。"
-        />
+        <a-alert type="info" show-icon :message="t('visualization.governanceBanner')" />
       </a-col>
       <a-col :span="24">
-        <a-card size="small" title="审计留痕">
+        <a-card size="small" :title="t('visualization.cardAudit')">
           <a-table
             :data-source="audits"
             :columns="columns"
@@ -25,15 +21,22 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, onUnmounted } from "vue";
+import { computed, onMounted, ref, onUnmounted } from "vue";
+import { useI18n } from "vue-i18n";
 
 const isMounted = ref(false);
-onMounted(() => { isMounted.value = true; });
-onUnmounted(() => { isMounted.value = false; });
+onMounted(() => {
+  isMounted.value = true;
+});
+onUnmounted(() => {
+  isMounted.value = false;
+});
 
 import { getVisualizationAudit } from "@/services/api";
 import type { AuditListItem } from "@/types/api";
 import { message } from "ant-design-vue";
+
+const { t } = useI18n();
 
 interface TablePagination {
   current?: number;
@@ -44,18 +47,18 @@ const audits = ref<AuditListItem[]>([]);
 const loading = ref(false);
 const pagination = ref({ current: 1, pageSize: 10, total: 0 });
 
-const columns = [
-  { title: "时间", dataIndex: "occurredAt", key: "occurredAt" },
-  { title: "操作人", dataIndex: "actor", key: "actor" },
-  { title: "动作", dataIndex: "action", key: "action" },
-  { title: "结果", dataIndex: "result", key: "result" },
-  { title: "目标", dataIndex: "target", key: "target" }
-];
+const columns = computed(() => [
+  { title: t("visualization.colTime"), dataIndex: "occurredAt", key: "occurredAt" },
+  { title: t("visualization.colActor"), dataIndex: "actor", key: "actor" },
+  { title: t("visualization.colAction"), dataIndex: "action", key: "action" },
+  { title: t("visualization.colResult"), dataIndex: "result", key: "result" },
+  { title: t("visualization.colTarget"), dataIndex: "target", key: "target" }
+]);
 
 const loadData = async () => {
   try {
     loading.value = true;
-    const result  = await getVisualizationAudit({
+    const result = await getVisualizationAudit({
       pageIndex: pagination.value.current,
       pageSize: pagination.value.pageSize
     });

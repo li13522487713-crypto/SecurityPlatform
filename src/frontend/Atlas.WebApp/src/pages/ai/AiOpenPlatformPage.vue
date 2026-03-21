@@ -1,31 +1,31 @@
 <template>
   <a-space direction="vertical" style="width: 100%" :size="16">
-    <a-card title="Open Platform（PAT）" :bordered="false">
+    <a-card :title="t('ai.openPlatform.pageTitle')" :bordered="false">
       <a-alert
         type="info"
         show-icon
-        message="先在“个人访问令牌”页面创建 PAT，并赋予 open:* 或对应 open:xxx scope。"
+        :message="t('ai.openPlatform.alert')"
       />
 
       <a-form layout="vertical" style="margin-top: 16px">
-        <a-form-item label="PAT Token">
-          <a-input-password v-model:value="patToken" placeholder="pat_xxx..." />
+        <a-form-item :label="t('ai.openPlatform.labelPat')">
+          <a-input-password v-model:value="patToken" :placeholder="t('ai.openPlatform.patPlaceholder')" />
         </a-form-item>
-        <a-form-item label="Agent ID（用于 Chat 示例）">
+        <a-form-item :label="t('ai.openPlatform.labelAgentId')">
           <a-input-number v-model:value="agentId" :min="1" style="width: 200px" />
         </a-form-item>
         <a-form-item>
           <a-space>
-            <a-button :loading="loadingBots" @click="loadBots">请求 /open/bots</a-button>
-            <a-button type="primary" :loading="loadingChat" @click="sendChat">请求 /open/chat/completions</a-button>
+            <a-button :loading="loadingBots" @click="loadBots">{{ t("ai.openPlatform.btnBots") }}</a-button>
+            <a-button type="primary" :loading="loadingChat" @click="sendChat">{{ t("ai.openPlatform.btnChat") }}</a-button>
           </a-space>
         </a-form-item>
       </a-form>
 
-      <a-divider orientation="left">示例代码（cURL）</a-divider>
+      <a-divider orientation="left">{{ t("ai.openPlatform.dividerCurl") }}</a-divider>
       <pre class="code-block">{{ curlExample }}</pre>
 
-      <a-divider orientation="left">请求结果</a-divider>
+      <a-divider orientation="left">{{ t("ai.openPlatform.dividerResult") }}</a-divider>
       <pre class="code-block">{{ responseText }}</pre>
     </a-card>
   </a-space>
@@ -33,9 +33,12 @@
 
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import { useI18n } from "vue-i18n";
 import { message } from "ant-design-vue";
 import { API_BASE } from "@/services/api-core";
 import { getTenantId } from "@/utils/auth";
+
+const { t } = useI18n();
 
 const patToken = ref("");
 const agentId = ref<number | undefined>(undefined);
@@ -46,24 +49,25 @@ const loadingChat = ref(false);
 const curlExample = computed(() => {
   const token = patToken.value || "<PAT_TOKEN>";
   const tenantId = getTenantId() || "<TENANT_ID>";
+  const demoMsg = t("ai.openPlatform.curlDemoMessageShort");
   return [
     "curl -X POST \\",
     `  '${window.location.origin}${API_BASE}/open/chat/completions' \\`,
     `  -H 'Authorization: Bearer ${token}' \\`,
     `  -H 'X-Tenant-Id: ${tenantId}' \\`,
     "  -H 'Content-Type: application/json' \\",
-    `  -d '{"agentId": ${agentId.value ?? 1}, "message": "你好", "conversationId": null, "enableRag": false}'`
+    `  -d '{"agentId": ${agentId.value ?? 1}, "message": ${JSON.stringify(demoMsg)}, "conversationId": null, "enableRag": false}'`
   ].join("\n");
 });
 
 async function callOpenApi(path: string, init: RequestInit) {
   const tenantId = getTenantId();
   if (!tenantId) {
-    throw new Error("缺少租户ID，请先登录");
+    throw new Error(t("ai.openPlatform.errNoTenant"));
   }
 
   if (!patToken.value) {
-    throw new Error("请先输入 PAT Token");
+    throw new Error(t("ai.openPlatform.errNoPat"));
   }
 
   const headers = new Headers(init.headers ?? {});
@@ -79,10 +83,10 @@ async function callOpenApi(path: string, init: RequestInit) {
   });
   const text = await response.text();
   if (!response.ok) {
-    throw new Error(text || `请求失败（${response.status}）`);
+    throw new Error(text || t("ai.openPlatform.errRequest", { status: response.status }));
   }
 
-  responseText.value = text || "<empty>";
+  responseText.value = text || t("ai.openPlatform.emptyResponse");
 }
 
 async function loadBots() {
@@ -90,7 +94,7 @@ async function loadBots() {
   try {
     await callOpenApi("/open/bots?PageIndex=1&PageSize=20", { method: "GET" });
   } catch (error: unknown) {
-    message.error((error as Error).message || "调用 open bots 失败");
+    message.error((error as Error).message || t("ai.openPlatform.botsFailed"));
   } finally {
     loadingBots.value = false;
   }
@@ -98,7 +102,7 @@ async function loadBots() {
 
 async function sendChat() {
   if (!agentId.value) {
-    message.warning("请先输入 Agent ID");
+    message.warning(t("ai.openPlatform.warnAgentId"));
     return;
   }
 
@@ -108,13 +112,13 @@ async function sendChat() {
       method: "POST",
       body: JSON.stringify({
         agentId: agentId.value,
-        message: "你好，请简单介绍你的能力",
+        message: t("ai.openPlatform.curlDemoMessage"),
         conversationId: null,
         enableRag: false
       })
     });
   } catch (error: unknown) {
-    message.error((error as Error).message || "调用 open chat 失败");
+    message.error((error as Error).message || t("ai.openPlatform.chatFailed"));
   } finally {
     loadingChat.value = false;
   }

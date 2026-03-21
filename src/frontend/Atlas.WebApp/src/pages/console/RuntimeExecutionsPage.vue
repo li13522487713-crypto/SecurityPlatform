@@ -1,7 +1,7 @@
 <template>
   <div class="runtime-executions-page" data-testid="e2e-console-runtime-executions-page">
     <a-card :bordered="false" class="runtime-execution-card">
-      <template #title>运行执行记录</template>
+      <template #title>{{ t("console.runtimeExec.title") }}</template>
       <template #extra>
         <a-space wrap>
           <a-select
@@ -12,7 +12,7 @@
             show-search
             :filter-option="false"
             :loading="loadingAppOptions"
-            placeholder="按应用过滤"
+            :placeholder="t('console.runtimeExec.phApp')"
             @search="handleSearchAppOptions"
           />
           <a-select
@@ -20,7 +20,7 @@
             style="width: 160px"
             :options="statusFilterOptions"
             allow-clear
-            placeholder="按状态过滤"
+            :placeholder="t('console.runtimeExec.phStatus')"
           />
           <a-range-picker
             v-model:value="startedAtRange"
@@ -31,12 +31,12 @@
           <a-input-search
             v-model:value="keyword"
             allow-clear
-            placeholder="按ID/状态/错误信息检索"
+            :placeholder="t('console.runtimeExec.phKeyword')"
             style="width: 240px"
             @search="handleSearch"
           />
-          <a-button type="primary" @click="handleSearch">查询</a-button>
-          <a-button @click="handleResetFilters">重置</a-button>
+          <a-button type="primary" @click="handleSearch">{{ t("console.runtimeExec.search") }}</a-button>
+          <a-button @click="handleResetFilters">{{ t("console.runtimeExec.reset") }}</a-button>
         </a-space>
       </template>
 
@@ -97,15 +97,15 @@
           </template>
           <template v-if="column.key === 'actions'">
             <a-space size="small">
-              <a-button type="link" size="small" @click="openDetail(record.id)">详情</a-button>
+              <a-button type="link" size="small" @click="openDetail(record.id)">{{ t("console.runtimeExec.detail") }}</a-button>
               <a-button v-if="canCancel(record.status)" type="link" size="small" @click="cancelExecution(record.id)">
-                取消
+                {{ t("console.runtimeExec.cancel") }}
               </a-button>
               <a-button v-if="canRetry(record.status)" type="link" size="small" @click="retryExecution(record.id)">
-                重试
+                {{ t("console.runtimeExec.retry") }}
               </a-button>
               <a-button v-if="canResume(record.status)" type="link" size="small" @click="resumeExecution(record.id)">
-                恢复
+                {{ t("console.runtimeExec.resume") }}
               </a-button>
             </a-space>
           </template>
@@ -115,7 +115,7 @@
 
     <a-drawer
       v-model:open="detailVisible"
-      title="运行执行详情"
+      :title="t('console.runtimeExec.drawerTitle')"
       width="860"
       :destroy-on-close="true"
       @close="handleDetailClose"
@@ -129,7 +129,7 @@
         </a-breadcrumb>
 
         <a-descriptions :column="2" bordered size="small">
-          <a-descriptions-item label="执行ID">{{ detail?.id || "-" }}</a-descriptions-item>
+          <a-descriptions-item :label="t('console.runtimeExec.labelExecId')">{{ detail?.id || "-" }}</a-descriptions-item>
           <a-descriptions-item label="WorkflowId">{{ detail?.workflowId || "-" }}</a-descriptions-item>
           <a-descriptions-item label="AppId">
             <a-button
@@ -164,10 +164,10 @@
             </a-button>
             <span v-else>-</span>
           </a-descriptions-item>
-          <a-descriptions-item label="状态">{{ detail?.status || "-" }}</a-descriptions-item>
-          <a-descriptions-item label="开始时间">{{ formatDate(detail?.startedAt) }}</a-descriptions-item>
-          <a-descriptions-item label="完成时间">{{ formatDate(detail?.completedAt) }}</a-descriptions-item>
-          <a-descriptions-item label="错误信息" :span="2">
+          <a-descriptions-item :label="t('console.runtimeExec.labelStatus')">{{ detail?.status || "-" }}</a-descriptions-item>
+          <a-descriptions-item :label="t('console.runtimeExec.labelStartedAt')">{{ formatDate(detail?.startedAt) }}</a-descriptions-item>
+          <a-descriptions-item :label="t('console.runtimeExec.labelCompletedAt')">{{ formatDate(detail?.completedAt) }}</a-descriptions-item>
+          <a-descriptions-item :label="t('console.runtimeExec.labelError')" :span="2">
             {{ detail?.errorMessage || "-" }}
           </a-descriptions-item>
         </a-descriptions>
@@ -177,41 +177,41 @@
             :disabled="!detail?.appId"
             @click="goToRelatedApp"
           >
-            查看关联应用
+            {{ t("console.runtimeExec.linkApp") }}
           </a-button>
           <a-button
             :disabled="!detail?.releaseId"
             @click="goToRelatedRelease"
           >
-            查看发布版本
+            {{ t("console.runtimeExec.linkRelease") }}
           </a-button>
           <a-button
             :loading="operationLoading"
             :disabled="!detail || !canCancel(detail.status)"
             @click="detail && cancelExecution(detail.id, true)"
           >
-            取消执行
+            {{ t("console.runtimeExec.actionCancel") }}
           </a-button>
           <a-button
             :loading="operationLoading"
             :disabled="!detail || !canRetry(detail.status)"
             @click="detail && retryExecution(detail.id, true)"
           >
-            重试执行
+            {{ t("console.runtimeExec.actionRetry") }}
           </a-button>
           <a-button
             :loading="operationLoading"
             :disabled="!detail || !canResume(detail.status)"
             @click="detail && resumeExecution(detail.id, true)"
           >
-            恢复执行
+            {{ t("console.runtimeExec.actionResume") }}
           </a-button>
           <a-button
             :loading="diagnosisLoading"
             :disabled="!detail"
             @click="detail && loadTimeoutDiagnosis(detail.id)"
           >
-            超时诊断
+            {{ t("console.runtimeExec.timeoutDiag") }}
           </a-button>
         </a-space>
 
@@ -219,14 +219,14 @@
           <a-input
             v-model:value="debugNodeKey"
             style="width: 220px"
-            placeholder="输入节点 Key 进行调试"
+            :placeholder="t('console.runtimeExec.phNodeKey')"
           />
           <a-button
             :loading="operationLoading"
             :disabled="!detail || !debugNodeKey.trim()"
             @click="detail && debugExecution(detail.id)"
           >
-            单节点调试
+            {{ t("console.runtimeExec.debugNode") }}
           </a-button>
         </a-space>
 
@@ -236,7 +236,7 @@
           :type="timeoutDiagnosis.timeoutRisk ? 'warning' : 'info'"
           show-icon
           :message="timeoutDiagnosis.diagnosis"
-          :description="`耗时 ${Math.round(timeoutDiagnosis.elapsedSeconds)} 秒`"
+          :description="t('console.runtimeExec.elapsed', { seconds: Math.round(timeoutDiagnosis.elapsedSeconds) })"
         />
         <ul v-if="timeoutDiagnosis" class="diagnosis-suggestions">
           <li v-for="item in timeoutDiagnosis.suggestions" :key="item">{{ item }}</li>
@@ -248,12 +248,12 @@
         <a-divider orientation="left">OutputsJson</a-divider>
         <pre class="json-block">{{ detail?.outputsJson || "-" }}</pre>
 
-        <a-divider orientation="left">审计追踪</a-divider>
+        <a-divider orientation="left">{{ t("console.runtimeExec.auditDivider") }}</a-divider>
         <a-space style="margin-bottom: 12px" wrap>
           <a-input-search
             v-model:value="auditKeyword"
             allow-clear
-            placeholder="按 action / target / actor 检索"
+            :placeholder="t('console.runtimeExec.phAuditSearch')"
             style="width: 260px"
             @search="handleAuditSearch"
           />
@@ -278,7 +278,7 @@
                 size="small"
                 @click="openAuditTarget(record.target)"
               >
-                查看
+                {{ t("console.runtimeExec.view") }}
               </a-button>
               <span v-else>-</span>
             </template>
@@ -291,6 +291,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, onUnmounted } from "vue";
+import { useI18n } from "vue-i18n";
 
 const isMounted = ref(false);
 onMounted(() => { isMounted.value = true; });
@@ -326,6 +327,7 @@ import type {
 } from "@/types/platform-v2";
 
 const router = useRouter();
+const { t } = useI18n();
 const loading = ref(false);
 const detailLoading = ref(false);
 const auditLoading = ref(false);
@@ -361,40 +363,40 @@ const statusFilterOptions = [
   { label: "Cancelled", value: "Cancelled" },
   { label: "Interrupted", value: "Interrupted" }
 ] as const;
-const startedAtPresets = [
-  { label: "最近 24 小时", value: [dayjs().subtract(1, "day"), dayjs()] },
-  { label: "最近 7 天", value: [dayjs().subtract(7, "day"), dayjs()] },
-  { label: "最近 30 天", value: [dayjs().subtract(30, "day"), dayjs()] }
-];
+const startedAtPresets = computed(() => [
+  { label: t("console.runtimeExec.range24h"), value: [dayjs().subtract(1, "day"), dayjs()] },
+  { label: t("console.runtimeExec.range7d"), value: [dayjs().subtract(7, "day"), dayjs()] },
+  { label: t("console.runtimeExec.range30d"), value: [dayjs().subtract(30, "day"), dayjs()] }
+]);
 
-const columns: TableColumnsType<RuntimeExecutionListItem> = [
+const columns = computed<TableColumnsType<RuntimeExecutionListItem>>(() => [
   { title: "WorkflowId", dataIndex: "workflowId", key: "workflowId", width: 130 },
   { title: "AppId", dataIndex: "appId", key: "appId", width: 130 },
   { title: "ReleaseId", dataIndex: "releaseId", key: "releaseId", width: 130 },
   { title: "RuntimeContextId", dataIndex: "runtimeContextId", key: "runtimeContextId", width: 160 },
-  { title: "状态", dataIndex: "status", key: "status", width: 110 },
-  { title: "开始时间", dataIndex: "startedAt", key: "startedAt", width: 180 },
-  { title: "完成时间", dataIndex: "completedAt", key: "completedAt", width: 180 },
-  { title: "错误信息", dataIndex: "errorMessage", key: "errorMessage", ellipsis: true },
-  { title: "操作", key: "actions", width: 90, fixed: "right" }
-];
+  { title: t("console.runtimeExec.colStatus"), dataIndex: "status", key: "status", width: 110 },
+  { title: t("console.runtimeExec.colStartedAt"), dataIndex: "startedAt", key: "startedAt", width: 180 },
+  { title: t("console.runtimeExec.colCompletedAt"), dataIndex: "completedAt", key: "completedAt", width: 180 },
+  { title: t("console.runtimeExec.colError"), dataIndex: "errorMessage", key: "errorMessage", ellipsis: true },
+  { title: t("console.runtimeExec.colActions"), key: "actions", width: 90, fixed: "right" }
+]);
 
-const auditColumns: TableColumnsType<RuntimeExecutionAuditTrailItem> = [
-  { title: "审计ID", dataIndex: "auditId", key: "auditId", width: 150 },
-  { title: "操作人", dataIndex: "actor", key: "actor", width: 130 },
-  { title: "动作", dataIndex: "action", key: "action", width: 180 },
-  { title: "结果", dataIndex: "result", key: "result", width: 120 },
-  { title: "目标", dataIndex: "target", key: "target", ellipsis: true },
-  { title: "发生时间", dataIndex: "occurredAt", key: "occurredAt", width: 180 },
-  { title: "操作", key: "actions", width: 90 }
-];
+const auditColumns = computed<TableColumnsType<RuntimeExecutionAuditTrailItem>>(() => [
+  { title: t("console.runtimeExec.auditColId"), dataIndex: "auditId", key: "auditId", width: 150 },
+  { title: t("console.runtimeExec.auditColActor"), dataIndex: "actor", key: "actor", width: 130 },
+  { title: t("console.runtimeExec.auditColAction"), dataIndex: "action", key: "action", width: 180 },
+  { title: t("console.runtimeExec.auditColResult"), dataIndex: "result", key: "result", width: 120 },
+  { title: t("console.runtimeExec.auditColTarget"), dataIndex: "target", key: "target", ellipsis: true },
+  { title: t("console.runtimeExec.auditColTime"), dataIndex: "occurredAt", key: "occurredAt", width: 180 },
+  { title: t("console.runtimeExec.colActions"), key: "actions", width: 90 }
+]);
 
 const pagination = ref<TablePaginationConfig>({
   current: 1,
   pageSize: 10,
   total: 0,
   showSizeChanger: true,
-  showTotal: (all) => `共 ${all} 条`
+  showTotal: (all) => t("crud.totalItems", { total: all })
 });
 
 const auditPagination = computed<TablePaginationConfig>(() => ({
@@ -402,26 +404,26 @@ const auditPagination = computed<TablePaginationConfig>(() => ({
   pageSize: auditPageSize.value,
   total: auditTotal.value,
   showSizeChanger: true,
-  showTotal: (all) => `共 ${all} 条`
+  showTotal: (all) => t("crud.totalItems", { total: all })
 }));
 
 const appBreadcrumbLabel = computed(() =>
-  linkedApp.value?.name || detail.value?.appId || "租户应用"
+  linkedApp.value?.name || detail.value?.appId || t("console.runtimeExec.linkedApp")
 );
 const releaseBreadcrumbLabel = computed(() => {
   if (linkedRelease.value) {
-    return `发布版本 v${linkedRelease.value.version}`;
+    return t("console.runtimeExec.releaseVer", { version: linkedRelease.value.version });
   }
-  return detail.value?.releaseId ? `发布版本 ${detail.value.releaseId}` : "发布版本";
+  return detail.value?.releaseId ? t("console.runtimeExec.releaseById", { id: detail.value.releaseId }) : t("console.runtimeExec.releaseId");
 });
 const runtimeContextBreadcrumbLabel = computed(() => {
   if (linkedRuntimeContext.value) {
-    return `运行上下文 ${linkedRuntimeContext.value.appKey}/${linkedRuntimeContext.value.pageKey}`;
+    return t("console.runtimeExec.runtimeCtxSlash", { appKey: linkedRuntimeContext.value.appKey, pageKey: linkedRuntimeContext.value.pageKey });
   }
-  return detail.value?.runtimeContextId ? `运行上下文 ${detail.value.runtimeContextId}` : "运行上下文";
+  return detail.value?.runtimeContextId ? t("console.runtimeExec.runtimeCtx", { key: detail.value.runtimeContextId }) : t("console.runtimeExec.runtimeCtxId");
 });
 const executionBreadcrumbLabel = computed(() =>
-  detail.value?.id ? `执行记录 ${detail.value.id}` : "执行记录"
+  detail.value?.id ? t("console.runtimeExec.execRecordWithId", { id: detail.value.id }) : t("console.runtimeExec.execRecord")
 );
 
 function formatDate(value?: string) {
@@ -468,7 +470,7 @@ function resetLinkedResources() {
 function mapAppOptions(items: TenantAppInstanceListItem[]) {
   return items.map((item) => ({
     value: item.id,
-    label: `${item.name}（${item.appKey}）`
+    label: t("console.dashboard.appOptionLabel", { name: item.name, appKey: item.appKey })
   }));
 }
 
@@ -516,7 +518,7 @@ async function loadRuntimeExecutions() {
       total: result.total
     };
   } catch (error) {
-    message.error((error as Error).message || "加载运行执行记录失败");
+    message.error((error as Error).message || t("console.runtimeExec.loadListFailed"));
   } finally {
     loading.value = false;
   }
@@ -561,7 +563,7 @@ async function loadAuditTrails(executionId: string, targetPageIndex = 1, targetP
     auditPageSize.value = auditResult.pageSize;
     auditTotal.value = auditResult.total;
   } catch (error) {
-    message.error((error as Error).message || "加载运行执行审计轨迹失败");
+    message.error((error as Error).message || t("console.runtimeExec.loadAuditFailed"));
   } finally {
     auditLoading.value = false;
   }
@@ -628,7 +630,7 @@ async function openDetail(id: string) {
 
     if (!isMounted.value) return;
   } catch (error) {
-    message.error((error as Error).message || "加载运行执行详情失败");
+    message.error((error as Error).message || t("console.runtimeExec.loadDetailFailed"));
     detailVisible.value = false;
   } finally {
     detailLoading.value = false;
@@ -642,7 +644,7 @@ async function loadTimeoutDiagnosis(executionId: string) {
 
     if (!isMounted.value) return;
   } catch (error) {
-    message.error((error as Error).message || "加载超时诊断失败");
+    message.error((error as Error).message || t("console.runtimeExec.loadTimeoutFailed"));
   } finally {
     diagnosisLoading.value = false;
   }
@@ -664,7 +666,7 @@ async function cancelExecution(executionId: string, refreshDetail = false) {
       if (!isMounted.value) return;
     }
   } catch (error) {
-    message.error((error as Error).message || "取消执行失败");
+    message.error((error as Error).message || t("console.runtimeExec.cancelFailed"));
   } finally {
     operationLoading.value = false;
   }
@@ -692,7 +694,7 @@ async function retryExecution(executionId: string, refreshDetail = false) {
       }
     }
   } catch (error) {
-    message.error((error as Error).message || "重试执行失败");
+    message.error((error as Error).message || t("console.runtimeExec.retryFailed"));
   } finally {
     operationLoading.value = false;
   }
@@ -714,7 +716,7 @@ async function resumeExecution(executionId: string, refreshDetail = false) {
       if (!isMounted.value) return;
     }
   } catch (error) {
-    message.error((error as Error).message || "恢复执行失败");
+    message.error((error as Error).message || t("console.runtimeExec.resumeFailed"));
   } finally {
     operationLoading.value = false;
   }
@@ -723,7 +725,7 @@ async function resumeExecution(executionId: string, refreshDetail = false) {
 async function debugExecution(executionId: string) {
   const nodeKey = debugNodeKey.value.trim();
   if (!nodeKey) {
-    message.warning("请输入节点 Key");
+    message.warning(t("console.runtimeExec.warnNodeKey"));
     return;
   }
 
@@ -745,7 +747,7 @@ async function debugExecution(executionId: string) {
       if (!isMounted.value) return;
     }
   } catch (error) {
-    message.error((error as Error).message || "单节点调试失败");
+    message.error((error as Error).message || t("console.runtimeExec.debugFailed"));
   } finally {
     operationLoading.value = false;
   }

@@ -1,7 +1,7 @@
 <template>
   <a-card title="Tools Authorization Center">
     <a-space direction="vertical" style="width: 100%">
-      <a-alert type="info" show-icon message="产品化重构 V1：工具授权策略矩阵与策略模拟入口" />
+      <a-alert type="info" show-icon :message="t('console.toolsAuth.banner')" />
       <a-table
         :data-source="items"
         :columns="columns"
@@ -16,6 +16,9 @@
 
 <script setup lang="ts">
 import { onMounted, ref, onUnmounted } from "vue";
+import { useI18n } from "vue-i18n";
+
+const { t } = useI18n();
 
 const isMounted = ref(false);
 onMounted(() => { isMounted.value = true; });
@@ -62,7 +65,7 @@ async function load() {
     items.value = result.items;
     total.value = result.total;
   } catch (error) {
-    message.error((error as Error).message || "加载策略失败");
+    message.error((error as Error).message || t("console.toolsAuth.loadFailed"));
   } finally {
     loading.value = false;
   }

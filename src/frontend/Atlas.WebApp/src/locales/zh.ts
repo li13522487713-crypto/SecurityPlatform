@@ -387,7 +387,9 @@ export default {
     linkHangfire: "Hangfire Dashboard",
     linkSwagger: "Swagger",
     linkHealthApi: "Health API",
-    linkJobsApi: "定时任务 API"
+    linkJobsApi: "定时任务 API",
+    unknown: "未知",
+    coreSuffix: "核"
   },
   scheduledJobs: {
     title: "定时任务",

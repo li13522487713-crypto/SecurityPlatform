@@ -9,21 +9,24 @@
           :loading="appLoading"
           allow-clear
           show-search
-          placeholder="选择应用范围（默认全部）"
+          :placeholder="t('dynamic.selectAppScope')"
           @change="handleAppScopeChange"
         />
-        <a-button @click="loadSchema">刷新</a-button>
+        <a-button @click="loadSchema">{{ t("dynamic.refresh") }}</a-button>
       </a-space>
     </template>
     <a-spin :spinning="loading">
       <AmisRenderer v-if="schema" :schema="schema" :data="pageData" />
-      <a-empty v-else-if="!loading" description="未找到页面配置" />
+      <a-empty v-else-if="!loading" :description="t('dynamic.emptyNoPage')" />
     </a-spin>
   </a-card>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref, onUnmounted } from "vue";
+import { useI18n } from "vue-i18n";
+
+const { t } = useI18n();
 
 const isMounted = ref(false);
 onMounted(() => { isMounted.value = true; });
@@ -41,7 +44,7 @@ const route = useRoute();
 const router = useRouter();
 const loading = ref(false);
 const schema = ref<AmisSchema | null>(null);
-const pageTitle = ref("动态表管理");
+const pageTitle = ref(t("dynamic.tablesTitle"));
 const appLoading = ref(false);
 const selectedAppId = ref<string | undefined>(
   typeof route.params.appId === "string" && route.params.appId.trim()
@@ -60,7 +63,7 @@ const loadSchema = async () => {
     schema.value = (await getDynamicAmisSchema("list")) as AmisSchema;
   } catch (error) {
     schema.value = null;
-    message.error((error as Error).message || "加载页面失败");
+    message.error((error as Error).message || t("dynamic.loadPageFailed"));
   } finally {
     loading.value = false;
   }
@@ -77,7 +80,7 @@ const loadAppOptions = async () => {
       value: item.id
     }));
   } catch (error) {
-    message.error((error as Error).message || "加载应用列表失败");
+    message.error((error as Error).message || t("dynamic.loadAppsFailed"));
   } finally {
     appLoading.value = false;
   }

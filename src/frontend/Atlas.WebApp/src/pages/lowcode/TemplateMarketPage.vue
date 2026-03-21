@@ -1,34 +1,34 @@
 <template>
   <div class="template-market-page">
-    <a-card title="模板市场">
+    <a-card :title="t('lowcode.template.title')">
       <div class="toolbar">
         <a-space>
-          <a-input v-model:value="keyword" style="width: 220px" allow-clear placeholder="模板名称/描述" @pressEnter="loadData" />
-          <a-input v-model:value="tags" style="width: 180px" allow-clear placeholder="标签（逗号分隔）" @pressEnter="loadData" />
-          <a-input v-model:value="version" style="width: 140px" allow-clear placeholder="版本" @pressEnter="loadData" />
-          <a-button type="primary" @click="loadData">查询</a-button>
+          <a-input v-model:value="keyword" style="width: 220px" allow-clear :placeholder="t('lowcode.template.phKeyword')" @pressEnter="loadData" />
+          <a-input v-model:value="tags" style="width: 180px" allow-clear :placeholder="t('lowcode.template.phTags')" @pressEnter="loadData" />
+          <a-input v-model:value="version" style="width: 140px" allow-clear :placeholder="t('lowcode.template.phVersion')" @pressEnter="loadData" />
+          <a-button type="primary" @click="loadData">{{ t("lowcode.template.search") }}</a-button>
         </a-space>
       </div>
 
       <a-table :data-source="items" :loading="loading" row-key="id" :pagination="false">
-        <a-table-column key="name" title="模板名称" data-index="name" />
-        <a-table-column key="tags" title="标签" data-index="tags" />
-        <a-table-column key="version" title="版本" data-index="version" width="120" />
-        <a-table-column key="updatedAt" title="更新时间" data-index="updatedAt" width="180" />
-        <a-table-column key="action" title="操作" width="140">
+        <a-table-column key="name" :title="t('lowcode.template.colName')" data-index="name" />
+        <a-table-column key="tags" :title="t('lowcode.template.colTags')" data-index="tags" />
+        <a-table-column key="version" :title="t('lowcode.template.colVersion')" data-index="version" width="120" />
+        <a-table-column key="updatedAt" :title="t('lowcode.template.colUpdated')" data-index="updatedAt" width="180" />
+        <a-table-column key="action" :title="t('lowcode.template.colActions')" width="140">
           <template #default="{ record }">
-            <a-button type="link" @click="openCreateFromTemplate(record)">从模板创建</a-button>
+            <a-button type="link" @click="openCreateFromTemplate(record)">{{ t("lowcode.template.createFrom") }}</a-button>
           </template>
         </a-table-column>
       </a-table>
     </a-card>
 
-    <a-modal v-model:open="createVisible" title="从模板创建应用" @ok="handleCreateFromTemplate">
+    <a-modal v-model:open="createVisible" :title="t('lowcode.template.modalTitle')" @ok="handleCreateFromTemplate">
       <a-form layout="vertical">
-        <a-form-item label="应用标识" required>
+        <a-form-item :label="t('lowcode.template.labelAppKey')" required>
           <a-input v-model:value="createForm.appKey" />
         </a-form-item>
-        <a-form-item label="应用名称" required>
+        <a-form-item :label="t('lowcode.template.labelAppName')" required>
           <a-input v-model:value="createForm.name" />
         </a-form-item>
       </a-form>
@@ -38,6 +38,7 @@
 
 <script setup lang="ts">
 import { onMounted, reactive, ref, onUnmounted } from "vue";
+import { useI18n } from "vue-i18n";
 
 const isMounted = ref(false);
 onMounted(() => { isMounted.value = true; });
@@ -48,6 +49,7 @@ import { message } from "ant-design-vue";
 import { createLowCodeApp, createLowCodePage } from "@/services/lowcode";
 import { instantiateTemplate, searchTemplates, type TemplateListItem } from "@/services/templates";
 
+const { t } = useI18n();
 const router = useRouter();
 const loading = ref(false);
 const items = ref<TemplateListItem[]>([]);
@@ -65,7 +67,7 @@ const createForm = reactive({
 const loadData = async () => {
   loading.value = true;
   try {
-    const result  = await searchTemplates({
+    const result = await searchTemplates({
       keyword: keyword.value || undefined,
       tags: tags.value || undefined,
       version: version.value || undefined,
@@ -76,7 +78,7 @@ const loadData = async () => {
     if (!isMounted.value) return;
     items.value = result.items;
   } catch (error) {
-    message.error((error as Error).message || "加载模板失败");
+    message.error((error as Error).message || t("lowcode.template.loadFailed"));
   } finally {
     loading.value = false;
   }
@@ -92,18 +94,18 @@ const openCreateFromTemplate = (record: TemplateListItem) => {
 const handleCreateFromTemplate = async () => {
   if (!selectedTemplate.value) return;
   if (!createForm.appKey.trim() || !createForm.name.trim()) {
-    message.warning("请填写应用标识和应用名称");
+    message.warning(t("lowcode.template.warnFill"));
     return;
   }
   try {
-    const instantiated  = await instantiateTemplate(selectedTemplate.value.id);
+    const instantiated = await instantiateTemplate(selectedTemplate.value.id);
 
     if (!isMounted.value) return;
-    const createdApp  = await createLowCodeApp({
+    const createdApp = await createLowCodeApp({
       appKey: createForm.appKey.trim(),
       name: createForm.name.trim(),
       category: "通用",
-      description: `基于模板「${selectedTemplate.value.name}」创建`
+      description: t("lowcode.template.descFromTemplate", { name: selectedTemplate.value.name })
     });
 
     if (!isMounted.value) return;
@@ -117,11 +119,11 @@ const handleCreateFromTemplate = async () => {
     });
 
     if (!isMounted.value) return;
-    message.success("已基于模板创建应用");
+    message.success(t("lowcode.template.createOk"));
     createVisible.value = false;
     router.push(`/apps/${createdApp.id}/builder`);
   } catch (error) {
-    message.error((error as Error).message || "模板创建失败");
+    message.error((error as Error).message || t("lowcode.template.createFailed"));
   }
 };
 

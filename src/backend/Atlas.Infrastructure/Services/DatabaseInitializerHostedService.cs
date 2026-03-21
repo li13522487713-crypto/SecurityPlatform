@@ -265,6 +265,9 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             _logger.LogInformation("[DatabaseInitializer] 已跳过 Schema 初始化（DatabaseInitializer:SkipSchemaInit=true）");
         }
 
+        // 兼容历史库：Permission.AppId 误建为 NOT NULL 时，平台权限种子无法插入（AppId 应为 NULL）
+        await EnsurePermissionAppIdNullableSchemaAsync(db, cancellationToken);
+
         await EnsureTenantAppDataSourceBindingBackfillAsync(scope.ServiceProvider, appContextAccessor, db, cancellationToken);
 
         // 种子数据初始化
@@ -1293,6 +1296,22 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         }
 
         await RebuildTableViaOrmAsync<AuthSession>(db, cancellationToken);
+    }
+
+    private static async Task EnsurePermissionAppIdNullableSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
+    {
+        var tableName = db.EntityMaintenance.GetTableName<Permission>();
+        if (!db.DbMaintenance.IsAnyTable(tableName, false))
+        {
+            return;
+        }
+
+        if (!RequiresNullableColumnFix<Permission>(db, "AppId"))
+        {
+            return;
+        }
+
+        await RebuildTableViaOrmAsync<Permission>(db, cancellationToken);
     }
 
     private static async Task EnsureLowCodeAppSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)

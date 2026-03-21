@@ -2,11 +2,11 @@
   <div class="ai-assistant-page">
     <div class="ai-content">
       <div class="ai-sidebar">
-        <h3>AI 助手功能</h3>
+        <h3>{{ t("lowcode.aiAssistant.sidebarTitle") }}</h3>
         <a-menu v-model:selectedKeys="selectedFunction" mode="inline">
-          <a-menu-item key="form"><template #icon><FormOutlined /></template>表单生成</a-menu-item>
-          <a-menu-item key="sql"><template #icon><CodeOutlined /></template>SQL 生成</a-menu-item>
-          <a-menu-item key="workflow"><template #icon><BranchesOutlined /></template>工作流建议</a-menu-item>
+          <a-menu-item key="form"><template #icon><FormOutlined /></template>{{ t("lowcode.aiAssistant.menuForm") }}</a-menu-item>
+          <a-menu-item key="sql"><template #icon><CodeOutlined /></template>{{ t("lowcode.aiAssistant.menuSql") }}</a-menu-item>
+          <a-menu-item key="workflow"><template #icon><BranchesOutlined /></template>{{ t("lowcode.aiAssistant.menuWorkflow") }}</a-menu-item>
         </a-menu>
       </div>
       <div class="ai-main">
@@ -15,20 +15,20 @@
             <div v-for="msg in messages" :key="msg.id" :class="['chat-message', msg.role]">
               <div class="message-bubble">
                 <div v-if="msg.role === 'assistant' && msg.resultJson" class="result-section">
-                  <a-button type="primary" size="small" @click="handleApplyResult(msg.resultJson)" style="margin-bottom: 8px">应用结果</a-button>
+                  <a-button type="primary" size="small" @click="handleApplyResult(msg.resultJson)" style="margin-bottom: 8px">{{ t("lowcode.aiAssistant.applyResult") }}</a-button>
                   <pre class="result-json">{{ formatJson(msg.resultJson) }}</pre>
                 </div>
                 <div v-else class="message-text">{{ msg.content }}</div>
               </div>
             </div>
             <div v-if="generating" class="chat-message assistant">
-              <div class="message-bubble"><a-spin size="small" /> AI 正在思考中...</div>
+              <div class="message-bubble"><a-spin size="small" /> {{ t("lowcode.aiAssistant.thinking") }}</div>
             </div>
           </div>
           <div class="chat-input">
             <a-textarea v-model:value="userInput" :placeholder="inputPlaceholder" :rows="3" @keydown.enter.ctrl="sendMessage" />
             <a-button type="primary" :loading="generating" @click="sendMessage" style="margin-top: 8px; align-self: flex-end">
-              发送 (Ctrl+Enter)
+              {{ t("lowcode.aiAssistant.send") }}
             </a-button>
           </div>
         </div>
@@ -39,10 +39,13 @@
 
 <script setup lang="ts">
 import { computed, nextTick, reactive, ref } from "vue";
+import { useI18n } from "vue-i18n";
 import { FormOutlined, CodeOutlined, BranchesOutlined } from "@ant-design/icons-vue";
 import { message } from "ant-design-vue";
 import { requestApi } from "@/services/api-core";
 import type { ApiResponse } from "@/types/api";
+
+const { t } = useI18n();
 
 interface ChatMessage { id: string; role: "user" | "assistant"; content: string; resultJson?: string; }
 
@@ -50,15 +53,23 @@ const selectedFunction = ref<string[]>(["form"]);
 const userInput = ref("");
 const generating = ref(false);
 const chatContainerRef = ref<HTMLElement>();
-const messages = reactive<ChatMessage[]>([
-  { id: crypto.randomUUID(), role: "assistant", content: "你好！我是 AI 助手，可以帮你生成表单、SQL 或工作流建议。请选择左侧功能并描述你的需求。" }
-]);
+
+const messages = reactive<ChatMessage[]>([]);
+
+function pushWelcome() {
+  messages.push({
+    id: crypto.randomUUID(),
+    role: "assistant",
+    content: t("lowcode.aiAssistant.welcome")
+  });
+}
+pushWelcome();
 
 const inputPlaceholder = computed(() => {
   const fn = selectedFunction.value[0];
-  if (fn === "form") return "描述你想要的表单，例如：请帮我创建一个员工请假申请表单，包含姓名、部门、请假类型、开始日期、结束日期、原因...";
-  if (fn === "sql") return "描述你需要的 SQL 查询，例如：查询每个部门本月请假超过 3 天的员工...";
-  return "描述你需要的工作流程，例如：一个三级审批的采购审批流程...";
+  if (fn === "form") return t("lowcode.aiAssistant.phForm");
+  if (fn === "sql") return t("lowcode.aiAssistant.phSql");
+  return t("lowcode.aiAssistant.phWorkflow");
 });
 
 const formatJson = (json: string): string => {
@@ -89,10 +100,10 @@ const sendMessage = async () => {
     if (resp.data) {
       messages.push({ id: crypto.randomUUID(), role: "assistant", content: resp.data.explanation, resultJson: resp.data.result });
     } else {
-      messages.push({ id: crypto.randomUUID(), role: "assistant", content: "抱歉，未能生成结果，请重试。" });
+      messages.push({ id: crypto.randomUUID(), role: "assistant", content: t("lowcode.aiAssistant.noResult") });
     }
   } catch (e) {
-    messages.push({ id: crypto.randomUUID(), role: "assistant", content: `出错了：${(e as Error).message}` });
+    messages.push({ id: crypto.randomUUID(), role: "assistant", content: t("lowcode.aiAssistant.errWithMsg", { msg: (e as Error).message }) });
   } finally {
     generating.value = false;
     scrollToBottom();
@@ -100,7 +111,7 @@ const sendMessage = async () => {
 };
 
 const handleApplyResult = (json: string) => {
-  navigator.clipboard.writeText(json).then(() => message.success("已复制到剪贴板")).catch(() => message.error("复制失败"));
+  navigator.clipboard.writeText(json).then(() => message.success(t("lowcode.aiAssistant.copyOk"))).catch(() => message.error(t("lowcode.aiAssistant.copyFail")));
 };
 </script>
 

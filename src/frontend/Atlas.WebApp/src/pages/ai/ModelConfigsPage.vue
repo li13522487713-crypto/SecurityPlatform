@@ -22,7 +22,7 @@
     </template>
 
     <template #table>
-      <!-- 统计概览 -->
+      <!-- Stats overview -->
       <a-row :gutter="16" class="stats-row">
         <a-col :span="6">
           <div class="stat-card">
@@ -126,7 +126,7 @@
 
     <template #form>
       <a-form ref="formRef" :model="form" layout="vertical" :rules="currentRules">
-        <!-- 基本信息 -->
+        <!-- Basic -->
         <a-divider orientation="left" style="margin-top: 0">{{ t("ai.modelConfig.sectionBasic") }}</a-divider>
 
         <a-form-item :label="t('ai.modelConfig.labelName')" name="name">
@@ -149,7 +149,7 @@
           </a-select>
         </a-form-item>
 
-        <!-- 连接配置 -->
+        <!-- Connection -->
         <a-divider orientation="left">{{ t("ai.modelConfig.sectionConnection") }}</a-divider>
 
         <a-form-item label="API Key" name="apiKey">
@@ -181,7 +181,7 @@
           </template>
         </a-form-item>
 
-        <!-- 功能与状态 -->
+        <!-- Features & status -->
         <a-divider orientation="left">{{ t("ai.modelConfig.sectionFeatures") }}</a-divider>
 
         <a-row :gutter="24">
@@ -199,7 +199,7 @@
           </a-col>
         </a-row>
 
-        <!-- 连接测试 -->
+        <!-- Connection test -->
         <a-divider orientation="left">{{ t("ai.modelConfig.sectionTest") }}</a-divider>
 
         <div class="test-section">
@@ -423,7 +423,7 @@ function onProviderChange(value: string) {
   const suggestedUrl = providerBaseUrls[value];
   const previousProviderUrl = providerBaseUrls[lastProviderType];
 
-  // 仅在当前值为空，或仍是上一个 Provider 的默认地址时自动替换，避免覆盖用户手填地址
+  // Replace only when empty or still the previous provider default URL (do not overwrite user input).
   if (!form.baseUrl || (previousProviderUrl && form.baseUrl === previousProviderUrl)) {
     form.baseUrl = suggestedUrl ?? "";
   }
@@ -434,7 +434,7 @@ function onProviderChange(value: string) {
     (model) => model.toLowerCase() === normalizedCurrentModel
   );
 
-  // 仅在模型为空或明显是上一个 Provider 的建议模型时清空
+  // Clear default model only when empty or clearly a suggestion from the previous provider.
   if (!normalizedCurrentModel || usesPreviousProviderModel) {
     form.defaultModel = "";
   }

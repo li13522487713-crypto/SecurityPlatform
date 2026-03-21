@@ -2,19 +2,18 @@
   <div class="test-run-panel">
     <div class="panel-header">
       <div class="panel-tabs">
-        <button :class="['tab', activeTab === 'run' ? 'active' : '']" @click="activeTab = 'run'">测试运行</button>
-        <button :class="['tab', activeTab === 'trace' ? 'active' : '']" @click="activeTab = 'trace'">执行追踪</button>
-        <button :class="['tab', activeTab === 'versions' ? 'active' : '']" @click="activeTab = 'versions'">版本历史</button>
+        <button :class="['tab', activeTab === 'run' ? 'active' : '']" @click="activeTab = 'run'">{{ t('wfUi.testRun.tabRun') }}</button>
+        <button :class="['tab', activeTab === 'trace' ? 'active' : '']" @click="activeTab = 'trace'">{{ t('wfUi.testRun.tabTrace') }}</button>
+        <button :class="['tab', activeTab === 'versions' ? 'active' : '']" @click="activeTab = 'versions'">{{ t('wfUi.testRun.tabVersions') }}</button>
       </div>
       <a-button type="text" size="small" @click="$emit('close')">
         <CloseOutlined />
       </a-button>
     </div>
 
-    <!-- 测试运行面板 -->
     <div v-show="activeTab === 'run'" class="panel-body">
       <div class="run-input-section">
-        <div class="section-title">输入参数</div>
+        <div class="section-title">{{ t('wfUi.testRun.inputParams') }}</div>
         <a-textarea
           v-model:value="inputJson"
           :rows="4"
@@ -27,26 +26,25 @@
             size="small"
             :loading="isRunning"
             @click="startRun('sync')"
-          >同步执行</a-button>
+          >{{ t('wfUi.testRun.syncRun') }}</a-button>
           <a-button
             size="small"
             :loading="isStreaming"
             @click="startRun('stream')"
-          >流式执行</a-button>
+          >{{ t('wfUi.testRun.streamRun') }}</a-button>
           <a-button
             v-if="isRunning || isStreaming"
             size="small"
             danger
             @click="stopRun"
-          >取消</a-button>
+          >{{ t('wfUi.testRun.cancel') }}</a-button>
         </div>
       </div>
 
-      <!-- 执行日志 -->
       <div class="run-log-section">
         <div class="section-title" style="display: flex; justify-content: space-between;">
-          <span>执行日志</span>
-          <a-button type="text" size="small" @click="clearLog">清空</a-button>
+          <span>{{ t('wfUi.testRun.execLog') }}</span>
+          <a-button type="text" size="small" @click="clearLog">{{ t('wfUi.testRun.clearLog') }}</a-button>
         </div>
         <div class="log-container" ref="logContainer">
           <div
@@ -55,52 +53,49 @@
             :class="['log-event', `event-${event.type}`]"
           >
             <span class="event-time">{{ event.time }}</span>
-            <span :class="['event-type', `type-${event.type}`]">{{ EVENT_LABELS[event.type] || event.type }}</span>
+            <span :class="['event-type', `type-${event.type}`]">{{ eventLabel(event.type) }}</span>
             <span class="event-msg">{{ event.message }}</span>
           </div>
-          <div v-if="executionEvents.length === 0" class="log-empty">尚无执行日志</div>
+          <div v-if="executionEvents.length === 0" class="log-empty">{{ t('wfUi.testRun.logEmpty') }}</div>
         </div>
       </div>
 
-      <!-- 最终输出 -->
       <div v-if="finalOutput" class="run-output-section">
-        <div class="section-title">最终输出</div>
+        <div class="section-title">{{ t('wfUi.testRun.finalOutput') }}</div>
         <pre class="output-pre">{{ finalOutput }}</pre>
       </div>
 
-      <!-- 问题回答中断 -->
       <div v-if="interruptQuestion" class="interrupt-section">
-        <div class="section-title" style="color: #faad14;">⚠️ 等待用户输入</div>
+        <div class="section-title" style="color: #faad14;">⚠️ {{ t('wfUi.testRun.waitUser') }}</div>
         <p class="interrupt-question">{{ interruptQuestion }}</p>
-        <a-input v-model:value="interruptAnswer" placeholder="输入你的回答..." />
+        <a-input v-model:value="interruptAnswer" :placeholder="t('wfUi.testRun.phAnswer')" />
         <a-button
           type="primary"
           size="small"
           style="margin-top: 8px"
           @click="submitAnswer"
-        >提交回答</a-button>
+        >{{ t('wfUi.testRun.submitAnswer') }}</a-button>
       </div>
     </div>
 
-    <!-- 执行追踪面板 -->
     <div v-show="activeTab === 'trace'" class="panel-body">
       <div v-if="!currentExecution" class="trace-empty">
-        <p>运行工作流后查看执行追踪</p>
+        <p>{{ t('wfUi.testRun.traceHint') }}</p>
       </div>
       <div v-else>
         <div class="trace-summary">
           <div class="trace-stat">
-            <div class="stat-label">总耗时</div>
+            <div class="stat-label">{{ t('wfUi.testRun.totalTime') }}</div>
             <div class="stat-value">{{ currentExecution.costMs }}ms</div>
           </div>
           <div class="trace-stat">
-            <div class="stat-label">状态</div>
+            <div class="stat-label">{{ t('wfUi.testRun.status') }}</div>
             <div :class="['stat-value', `status-${currentExecution.status}`]">{{ currentExecution.status }}</div>
           </div>
         </div>
 
         <div class="trace-nodes">
-          <div class="section-title">节点执行详情</div>
+          <div class="section-title">{{ t('wfUi.testRun.nodeDetails') }}</div>
           <div
             v-for="ne in currentExecution.nodeExecutions"
             :key="ne.nodeKey"
@@ -119,22 +114,21 @@
       </div>
     </div>
 
-    <!-- 版本历史面板 -->
     <div v-show="activeTab === 'versions'" class="panel-body">
       <div style="padding: 12px">
         <a-button type="primary" size="small" block @click="$emit('publish')">
-          发布新版本
+          {{ t('wfUi.testRun.publishNew') }}
         </a-button>
       </div>
       <div v-if="versions.length === 0" class="trace-empty">
-        <p>尚未发布任何版本</p>
+        <p>{{ t('wfUi.testRun.noVersions') }}</p>
       </div>
       <div v-for="ver in versions" :key="ver.versionNumber" class="version-item">
         <div class="version-header">
           <span class="version-tag">v{{ ver.versionNumber }}</span>
           <span class="version-time">{{ formatDate(ver.publishedAt) }}</span>
         </div>
-        <div class="version-desc">{{ ver.changeLog || '无描述' }}</div>
+        <div class="version-desc">{{ ver.changeLog || t('wfUi.testRun.noDesc') }}</div>
       </div>
     </div>
   </div>
@@ -142,7 +136,10 @@
 
 <script setup lang="ts">
 import { ref, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { CloseOutlined } from '@ant-design/icons-vue'
+
+const { t } = useI18n()
 import type { WorkflowVersionItem, NodeExecutionItem, ExecutionStatus } from '@/types/workflow-v2'
 import type { StreamRunHandle } from '@/services/api-workflow-v2'
 
@@ -180,18 +177,25 @@ interface ExecutionEvent {
 
 const executionEvents = ref<ExecutionEvent[]>([])
 
-const EVENT_LABELS: Record<string, string> = {
-  execution_start: '执行开始',
-  node_start: '节点开始',
-  node_output: '节点输出',
-  node_complete: '节点完成',
-  node_failed: '节点失败',
-  llm_output: '模型输出',
-  execution_complete: '执行完成',
-  execution_failed: '执行失败',
-  execution_cancelled: '执行取消',
-  execution_interrupted: '执行中断',
-  workflow_error: '流程错误',
+function eventLabel(type: string): string {
+  const keyMap: Record<string, string> = {
+    execution_start: 'evtExecutionStart',
+    node_start: 'evtNodeStart',
+    node_output: 'evtNodeOutput',
+    node_complete: 'evtNodeComplete',
+    node_failed: 'evtNodeFailed',
+    llm_output: 'evtLlmOutput',
+    execution_complete: 'evtExecutionComplete',
+    execution_failed: 'evtExecutionFailed',
+    execution_cancelled: 'evtExecutionCancelled',
+    execution_interrupted: 'evtExecutionInterrupted',
+    workflow_error: 'evtWorkflowError',
+    error: 'jsonInvalid',
+    cancelled: 'cancelled',
+    resumed: 'resumed',
+  }
+  const k = keyMap[type]
+  return k ? t(`wfUi.testRun.${k}`) : type
 }
 
 interface ExecutionSummary {
@@ -229,7 +233,7 @@ async function startRun(mode: 'sync' | 'stream') {
   try {
     inputs = JSON.parse(inputJson.value)
   } catch {
-    addEvent('error', '输入 JSON 格式错误')
+    addEvent('error', t('wfUi.testRun.jsonInvalid'))
     return
   }
 
@@ -240,10 +244,10 @@ async function startRun(mode: 'sync' | 'stream') {
     if (mode === 'sync') {
     isRunning.value = true
     try {
-      addEvent('execution_start', '同步执行开始...')
+      addEvent('execution_start', t('wfUi.testRun.syncStart'))
       const runRes = await workflowV2Api.runSync(props.workflowId, { inputs })
       if (!runRes.success || !runRes.data) {
-        addEvent('workflow_error', runRes.message ?? '执行失败')
+        addEvent('workflow_error', runRes.message ?? t('wfUi.testRun.runFailed'))
         return
       }
       const result = runRes.data
@@ -262,7 +266,7 @@ async function startRun(mode: 'sync' | 'stream') {
           emit('node-status-update', ne.nodeKey, STATUS_LABELS[ne.status] ?? 'success')
         }
         finalOutput.value = proc.outputsJson ?? '{}'
-        addEvent('execution_complete', `执行完成，耗时 ${totalCostMs}ms`)
+        addEvent('execution_complete', t('wfUi.testRun.syncComplete', { ms: totalCostMs }))
       }
     } catch (err: unknown) {
       addEvent('workflow_error', String(err))
@@ -271,7 +275,7 @@ async function startRun(mode: 'sync' | 'stream') {
     }
   } else {
     isStreaming.value = true
-    addEvent('execution_start', '流式执行开始...')
+    addEvent('execution_start', t('wfUi.testRun.streamStart'))
     try {
       streamHandle = workflowV2Api.runStream(
         props.workflowId,
@@ -279,28 +283,28 @@ async function startRun(mode: 'sync' | 'stream') {
         {
           onExecutionStarted: (ev) => {
             currentExecutionId.value = ev.executionId
-            addEvent('execution_start', `执行实例 ${ev.executionId} 已创建`)
+            addEvent('execution_start', t('wfUi.testRun.execCreated', { id: ev.executionId }))
           },
           onNodeStarted: ev => {
-            addEvent('node_start', `[${ev.nodeKey}] 开始执行`)
+            addEvent('node_start', t('wfUi.testRun.nodeStart', { key: ev.nodeKey }))
             emit('node-status-update', ev.nodeKey, 'running')
           },
           onNodeOutput: ev => {
-            addEvent('node_output', `[${ev.nodeKey}] 输出: ${JSON.stringify(ev.outputs)}`)
+            addEvent('node_output', t('wfUi.testRun.nodeOutput', { key: ev.nodeKey, out: JSON.stringify(ev.outputs) }))
           },
           onNodeCompleted: ev => {
-            addEvent('node_complete', `[${ev.nodeKey}] 完成，耗时 ${ev.durationMs}ms`)
+            addEvent('node_complete', t('wfUi.testRun.nodeComplete', { key: ev.nodeKey, ms: ev.durationMs ?? 0 }))
             emit('node-status-update', ev.nodeKey, 'success')
           },
           onNodeFailed: ev => {
-            addEvent('node_failed', `[${ev.nodeKey}] 失败: ${ev.errorMessage}`)
+            addEvent('node_failed', t('wfUi.testRun.nodeFailed', { key: ev.nodeKey, msg: ev.errorMessage ?? '' }))
             emit('node-status-update', ev.nodeKey, 'failed')
           },
           onLlmOutput: content => {
             addEvent('llm_output', content)
           },
           onExecutionCompleted: async ev => {
-            addEvent('execution_complete', `执行完成: ${ev.executionId}`)
+            addEvent('execution_complete', t('wfUi.testRun.streamComplete', { id: ev.executionId }))
             if (ev.outputsJson) {
               finalOutput.value = ev.outputsJson
             }
@@ -308,19 +312,19 @@ async function startRun(mode: 'sync' | 'stream') {
             isStreaming.value = false
           },
           onExecutionFailed: async ev => {
-            addEvent('execution_failed', ev.errorMessage || '执行失败')
+            addEvent('execution_failed', ev.errorMessage || t('wfUi.testRun.execFailed'))
             if (currentExecutionId.value) {
               await refreshExecutionDetail(currentExecutionId.value)
             }
             isStreaming.value = false
           },
           onExecutionCancelled: ev => {
-            addEvent('execution_cancelled', `执行已取消: ${ev.executionId}`)
+            addEvent('execution_cancelled', t('wfUi.testRun.execCancelled', { id: ev.executionId }))
             isStreaming.value = false
           },
           onExecutionInterrupted: ev => {
-            addEvent('execution_interrupted', `流程中断: ${ev.interruptType}`)
-            interruptQuestion.value = `执行在节点 ${ev.nodeKey ?? '-'} 发生中断（${ev.interruptType}）`
+            addEvent('execution_interrupted', t('wfUi.testRun.execInterrupted', { type: ev.interruptType ?? '' }))
+            interruptQuestion.value = t('wfUi.testRun.interruptQuestion', { node: ev.nodeKey ?? '-', type: ev.interruptType ?? '' })
             isStreaming.value = false
           },
           onError: err => {
@@ -345,7 +349,7 @@ function stopRun() {
   }
   isRunning.value = false
   isStreaming.value = false
-  addEvent('cancelled', '执行已取消')
+  addEvent('cancelled', t('wfUi.testRun.cancelled'))
 }
 
 async function submitAnswer() {
@@ -354,7 +358,7 @@ async function submitAnswer() {
     await workflowV2Api.resume(Number(currentExecutionId.value), { data: { answer: interruptAnswer.value } })
     interruptQuestion.value = ''
     interruptAnswer.value = ''
-    addEvent('resumed', '已提交回答，继续执行...')
+    addEvent('resumed', t('wfUi.testRun.resumed'))
   } catch (err: unknown) {
     addEvent('error', String(err))
   }

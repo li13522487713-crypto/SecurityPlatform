@@ -1,60 +1,60 @@
 <template>
   <div class="migration-governance-page" data-testid="e2e-console-migration-governance-page">
-    <a-page-header title="迁移治理看板" sub-title="观测 legacy 命中、重写、404 与新入口覆盖率">
+    <a-page-header :title="t('console.migration.title')" :sub-title="t('console.migration.subtitle')">
       <template #extra>
-        <a-button type="primary" :loading="loading" @click="loadOverview">刷新</a-button>
+        <a-button type="primary" :loading="loading" @click="loadOverview">{{ t("console.migration.refresh") }}</a-button>
       </template>
     </a-page-header>
 
     <a-row :gutter="[16, 16]" class="summary-row">
       <a-col :xs="24" :md="8" :xl="6">
-        <a-card><a-statistic title="API 总请求数" :value="overview?.totalApiHits ?? 0" /></a-card>
+        <a-card><a-statistic :title="t('console.migration.statTotalApi')" :value="overview?.totalApiHits ?? 0" /></a-card>
       </a-col>
       <a-col :xs="24" :md="8" :xl="6">
-        <a-card><a-statistic title="Legacy 命中数" :value="overview?.legacyRouteHits ?? 0" /></a-card>
+        <a-card><a-statistic :title="t('console.migration.statLegacy')" :value="overview?.legacyRouteHits ?? 0" /></a-card>
       </a-col>
       <a-col :xs="24" :md="8" :xl="6">
-        <a-card><a-statistic title="重写命中数" :value="overview?.rewriteHits ?? 0" /></a-card>
+        <a-card><a-statistic :title="t('console.migration.statRewrite')" :value="overview?.rewriteHits ?? 0" /></a-card>
       </a-col>
       <a-col :xs="24" :md="8" :xl="6">
-        <a-card><a-statistic title="Fallback 数" :value="overview?.fallbackCount ?? 0" /></a-card>
+        <a-card><a-statistic :title="t('console.migration.statFallback')" :value="overview?.fallbackCount ?? 0" /></a-card>
       </a-col>
       <a-col :xs="24" :md="8" :xl="6">
-        <a-card><a-statistic title="404 数" :value="overview?.notFoundCount ?? 0" /></a-card>
+        <a-card><a-statistic :title="t('console.migration.stat404')" :value="overview?.notFoundCount ?? 0" /></a-card>
       </a-col>
       <a-col :xs="24" :md="8" :xl="6">
-        <a-card><a-statistic title="404 率" :value="notFoundRateText" /></a-card>
+        <a-card><a-statistic :title="t('console.migration.stat404Rate')" :value="notFoundRateText" /></a-card>
       </a-col>
       <a-col :xs="24" :md="8" :xl="6">
-        <a-card><a-statistic title="v1 命中数" :value="overview?.v1EntryHits ?? 0" /></a-card>
+        <a-card><a-statistic :title="t('console.migration.statV1')" :value="overview?.v1EntryHits ?? 0" /></a-card>
       </a-col>
       <a-col :xs="24" :md="8" :xl="6">
-        <a-card><a-statistic title="v2 命中数" :value="overview?.v2EntryHits ?? 0" /></a-card>
+        <a-card><a-statistic :title="t('console.migration.statV2')" :value="overview?.v2EntryHits ?? 0" /></a-card>
       </a-col>
       <a-col :xs="24" :md="12" :xl="8">
         <a-card>
-          <a-statistic title="新入口覆盖率（v2）" :value="newEntryCoverageText" />
+          <a-statistic :title="t('console.migration.statCoverage')" :value="newEntryCoverageText" />
           <a-progress :percent="newEntryCoveragePercent" size="small" />
         </a-card>
       </a-col>
       <a-col :xs="24" :md="12" :xl="8">
         <a-card>
-          <a-statistic title="窗口起始时间" :value="windowStartedAtText" />
+          <a-statistic :title="t('console.migration.statWindow')" :value="windowStartedAtText" />
         </a-card>
       </a-col>
     </a-row>
 
-    <a-card class="detail-card" title="治理解读">
+    <a-card class="detail-card" :title="t('console.migration.cardExplain')">
       <a-alert
         :type="newEntryCoveragePercent >= 80 ? 'success' : 'warning'"
         show-icon
-        :message="`新入口覆盖率 ${newEntryCoverageText}`"
+        :message="t('console.migration.hintCoverage', { value: newEntryCoverageText })"
         :description="interpretation"
       />
       <ul class="tips-list">
-        <li>优先清理高频 Legacy 入口，降低 rewrite 与 fallback 命中。</li>
-        <li>当 404 率持续升高时，需回查路由映射与兼容跳转链路。</li>
-        <li>建议将新入口覆盖率目标设为 ≥ 90%。</li>
+        <li>{{ t("console.migration.bullet1") }}</li>
+        <li>{{ t("console.migration.bullet2") }}</li>
+        <li>{{ t("console.migration.bullet3") }}</li>
       </ul>
     </a-card>
   </div>
@@ -62,10 +62,17 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, onUnmounted } from "vue";
+import { useI18n } from "vue-i18n";
+
+const { t } = useI18n();
 
 const isMounted = ref(false);
-onMounted(() => { isMounted.value = true; });
-onUnmounted(() => { isMounted.value = false; });
+onMounted(() => {
+  isMounted.value = true;
+});
+onUnmounted(() => {
+  isMounted.value = false;
+});
 
 import dayjs from "dayjs";
 import { message } from "ant-design-vue";
@@ -87,18 +94,18 @@ const windowStartedAtText = computed(() => {
 
 const interpretation = computed(() => {
   if (!overview.value) {
-    return "暂无迁移治理指标。";
+    return t("console.migration.summaryEmpty");
   }
 
   if (newEntryCoveragePercent.value >= 90 && overview.value.notFoundRate <= 0.01) {
-    return "迁移治理状态良好，可继续推进 legacy 入口下线。";
+    return t("console.migration.summaryGood");
   }
 
   if (overview.value.legacyRouteHits > overview.value.v2EntryHits) {
-    return "Legacy 入口命中仍高于 v2，请优先排查高频旧入口并补齐重定向提示。";
+    return t("console.migration.summaryLegacy");
   }
 
-  return "建议持续跟踪 fallback 与 404 指标，分批推进入口收敛。";
+  return t("console.migration.summaryFallback");
 });
 
 async function loadOverview() {
@@ -108,7 +115,7 @@ async function loadOverview() {
 
     if (!isMounted.value) return;
   } catch (error) {
-    message.error((error as Error).message || "加载迁移治理指标失败");
+    message.error((error as Error).message || t("console.migration.loadFailed"));
   } finally {
     loading.value = false;
   }

@@ -2,13 +2,16 @@
   <a-card :title="pageTitle" class="page-card">
     <a-spin :spinning="loading">
       <AmisRenderer v-if="schema" :schema="schema" :data="pageData" />
-      <a-empty v-else-if="!loading" description="未找到页面配置" />
+      <a-empty v-else-if="!loading" :description="t('dynamic.emptyNoPage')" />
     </a-spin>
   </a-card>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch, onUnmounted } from "vue";
+import { useI18n } from "vue-i18n";
+
+const { t } = useI18n();
 
 const isMounted = ref(false);
 onMounted(() => { isMounted.value = true; });
@@ -23,7 +26,7 @@ import type { AmisSchema } from "@/types/amis";
 const route = useRoute();
 const loading = ref(false);
 const schema = ref<AmisSchema | null>(null);
-const pageTitle = ref("动态数据管理");
+const pageTitle = ref(t("dynamic.crudTitle"));
 const tableDisplayName = ref<string | null>(null);
 
 const tableKey = computed(() => {
@@ -54,11 +57,11 @@ const loadSchema = async () => {
     if (!isMounted.value) return;
     schema.value = schemaResult as AmisSchema;
     tableDisplayName.value = detail?.displayName ?? tableKey.value;
-    pageTitle.value = detail?.displayName ?? "动态数据管理";
+    pageTitle.value = detail?.displayName ?? t("dynamic.crudTitle");
     approvalFlowDefinitionId.value = detail?.approvalFlowDefinitionId ?? null;
   } catch (error) {
     schema.value = null;
-    message.error((error as Error).message || "加载页面失败");
+    message.error((error as Error).message || t("dynamic.loadPageFailed"));
   } finally {
     loading.value = false;
   }

@@ -1,8 +1,8 @@
 <template>
   <div class="node-list">
     <div class="header">
-      <span>节点结构</span>
-      <a-button type="link" size="small" @click="onAddStart">添加开始/结束</a-button>
+      <span>{{ t("designerUi.nodeStructure") }}</span>
+      <a-button type="link" size="small" @click="onAddStart">{{ t("designerUi.addStartEnd") }}</a-button>
     </div>
     <a-tree
       block-node
@@ -15,7 +15,10 @@
 
 <script setup lang="ts">
 import { computed } from "vue";
+import { useI18n } from "vue-i18n";
 import type { FlowNode } from "@/types/workflow";
+
+const { t } = useI18n();
 
 interface Props {
   nodes: FlowNode[];

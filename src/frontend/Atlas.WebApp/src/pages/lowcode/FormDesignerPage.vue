@@ -1,9 +1,8 @@
 <template>
   <div class="form-designer-page">
-    <!-- 顶部工具栏 -->
     <div class="designer-toolbar">
       <div class="toolbar-left">
-        <a-button @click="goBack">返回</a-button>
+        <a-button @click="goBack">{{ t("lowcode.formDesigner.back") }}</a-button>
         <a-divider type="vertical" />
         <span class="form-name">{{ formName }}</span>
         <a-tag v-if="formStatus" :color="statusColor(formStatus)">
@@ -13,41 +12,40 @@
       </div>
       <div class="toolbar-center">
         <a-radio-group v-model:value="viewMode" button-style="solid" size="small">
-          <a-radio-button value="edit">编辑</a-radio-button>
-          <a-radio-button value="preview">预览</a-radio-button>
+          <a-radio-button value="edit">{{ t("lowcode.formDesigner.modeEdit") }}</a-radio-button>
+          <a-radio-button value="preview">{{ t("lowcode.formDesigner.modePreview") }}</a-radio-button>
         </a-radio-group>
         <a-radio-group v-model:value="deviceMode" button-style="solid" size="small">
-          <a-radio-button value="pc">PC</a-radio-button>
-          <a-radio-button value="mobile">移动端</a-radio-button>
+          <a-radio-button value="pc">{{ t("lowcode.formDesigner.devicePc") }}</a-radio-button>
+          <a-radio-button value="mobile">{{ t("lowcode.formDesigner.deviceMobile") }}</a-radio-button>
         </a-radio-group>
       </div>
       <div class="toolbar-right">
-        <a-button @click="handleSave" :loading="saving">保存</a-button>
-        <a-button type="primary" @click="handlePublish" :loading="publishing">发布</a-button>
+        <a-button @click="handleSave" :loading="saving">{{ t("lowcode.formDesigner.save") }}</a-button>
+        <a-button type="primary" @click="handlePublish" :loading="publishing">{{ t("lowcode.formDesigner.publish") }}</a-button>
         <a-dropdown>
-          <a-button>更多</a-button>
+          <a-button>{{ t("lowcode.formDesigner.more") }}</a-button>
           <template #overlay>
             <a-menu>
               <a-menu-item key="versions" @click="openVersionHistory">
                 <template #icon><HistoryOutlined /></template>
-                版本历史
+                {{ t("lowcode.formDesigner.versionHistory") }}
               </a-menu-item>
               <a-menu-divider />
               <a-menu-item key="guide" @click="showGuide">
                 <template #icon><QuestionCircleOutlined /></template>
-                显示引导
+                {{ t("lowcode.formDesigner.showGuide") }}
               </a-menu-item>
               <a-menu-divider />
-              <a-menu-item key="import" @click="handleImport">导入 JSON</a-menu-item>
-              <a-menu-item key="export" @click="handleExport">导出 JSON</a-menu-item>
-              <a-menu-item key="settings" @click="settingsVisible = true">表单设置</a-menu-item>
+              <a-menu-item key="import" @click="handleImport">{{ t("lowcode.formDesigner.importJson") }}</a-menu-item>
+              <a-menu-item key="export" @click="handleExport">{{ t("lowcode.formDesigner.exportJson") }}</a-menu-item>
+              <a-menu-item key="settings" @click="settingsVisible = true">{{ t("lowcode.formDesigner.formSettings") }}</a-menu-item>
             </a-menu>
           </template>
         </a-dropdown>
       </div>
     </div>
 
-    <!-- 设计器主体 -->
     <div class="designer-body">
       <AmisEditor
         v-if="!loadingSchema"
@@ -60,72 +58,69 @@
         @save="handleSave"
       />
       <div v-else class="loading-container">
-        <a-spin size="large" tip="加载表单定义..." />
+        <a-spin size="large" :tip="t('lowcode.formDesigner.spinLoad')" />
       </div>
     </div>
 
-    <!-- 表单设置抽屉 -->
     <a-drawer
       v-model:open="settingsVisible"
-      title="表单设置"
+      :title="t('lowcode.formDesigner.drawerSettings')"
       :width="480"
       placement="right"
     >
       <a-form layout="vertical">
-        <a-form-item label="表单名称">
+        <a-form-item :label="t('lowcode.formDesigner.labelFormName')">
           <a-input v-model:value="formName" />
         </a-form-item>
-        <a-form-item label="分类">
-          <a-select v-model:value="formCategory" placeholder="选择分类" allow-clear>
-            <a-select-option value="人事类">人事类</a-select-option>
-            <a-select-option value="财务类">财务类</a-select-option>
-            <a-select-option value="采购类">采购类</a-select-option>
-            <a-select-option value="通用">通用</a-select-option>
+        <a-form-item :label="t('lowcode.formDesigner.labelCategory')">
+          <a-select v-model:value="formCategory" :placeholder="t('lowcode.formList.phSelectCat')" allow-clear>
+            <a-select-option value="人事类">{{ t("lowcode.formList.catHr") }}</a-select-option>
+            <a-select-option value="财务类">{{ t("lowcode.formList.catFinance") }}</a-select-option>
+            <a-select-option value="采购类">{{ t("lowcode.formList.catPurchase") }}</a-select-option>
+            <a-select-option value="通用">{{ t("lowcode.formList.catGeneral") }}</a-select-option>
           </a-select>
         </a-form-item>
-        <a-form-item label="描述">
+        <a-form-item :label="t('lowcode.formDesigner.labelDescription')">
           <a-textarea v-model:value="formDescription" :rows="3" />
         </a-form-item>
-        <a-form-item label="数据表绑定">
-          <a-input v-model:value="formDataTableKey" placeholder="关联的动态表 Key" />
+        <a-form-item :label="t('lowcode.formDesigner.labelDataTable')">
+          <a-input v-model:value="formDataTableKey" :placeholder="t('lowcode.formDesigner.phDataTable')" />
         </a-form-item>
       </a-form>
       <template #footer>
         <a-space>
-          <a-button @click="settingsVisible = false">取消</a-button>
-          <a-button type="primary" @click="handleSaveSettings">保存设置</a-button>
+          <a-button @click="settingsVisible = false">{{ t("lowcode.formDesigner.cancel") }}</a-button>
+          <a-button type="primary" @click="handleSaveSettings">{{ t("lowcode.formDesigner.saveSettings") }}</a-button>
         </a-space>
       </template>
     </a-drawer>
 
-    <!-- 导入 JSON 对话框 -->
     <a-modal
       v-model:open="importVisible"
-      title="导入 JSON Schema"
-      ok-text="导入"
-      cancel-text="取消"
+      :title="t('lowcode.formDesigner.modalImportTitle')"
+      :ok-text="t('lowcode.formDesigner.okImport')"
+      :cancel-text="t('common.cancel')"
       width="680px"
       @ok="handleImportConfirm"
     >
       <a-textarea
         v-model:value="importJson"
         :rows="16"
-        placeholder="粘贴 amis JSON Schema..."
+        :placeholder="t('lowcode.formDesigner.phImport')"
         style="font-family: monospace; font-size: 13px"
       />
     </a-modal>
 
-    <!-- 版本历史抽屉 -->
     <a-drawer
       v-model:open="versionHistoryVisible"
-      title="版本历史"
+      :title="t('lowcode.formDesigner.drawerVersions')"
       :width="480"
       placement="right"
     >
       <div v-if="loadingVersions" class="version-loading">
-        <a-spin tip="加载版本历史..." />
+        <a-spin :tip="t('lowcode.formDesigner.spinVersions')" />
       </div>
-      <a-empty v-else-if="versionList.length === 0" description="暂无版本历史，发布后可在此查看" />
+      <a-empty v-else-if="versionList.length === 0" :description="t('lowcode.formDesigner.emptyVersions')" />
       <a-list
         v-else
         :data-source="versionList"
@@ -140,22 +135,22 @@
               <template #description>
                 <a-space direction="vertical" :size="2">
                   <span style="color: #666; font-size: 12px">
-                    {{ new Date(item.createdAt).toLocaleString('zh-CN') }}
+                    {{ new Date(item.createdAt).toLocaleString(locale === 'en-US' ? 'en-US' : 'zh-CN') }}
                   </span>
                   <span v-if="item.category" style="color: #999; font-size: 12px">
-                    分类：{{ item.category }}
+                    {{ t("lowcode.formDesigner.categoryPrefix") }}: {{ item.category }}
                   </span>
                 </a-space>
               </template>
             </a-list-item-meta>
             <template #actions>
               <a-popconfirm
-                :title="`确定回滚到 v${item.snapshotVersion}？当前未保存内容将丢失。`"
-                ok-text="回滚"
-                cancel-text="取消"
+                :title="t('lowcode.formDesigner.rollbackConfirm', { version: item.snapshotVersion })"
+                :ok-text="t('lowcode.formDesigner.rollback')"
+                :cancel-text="t('common.cancel')"
                 @confirm="handleRollback(item.id)"
               >
-                <a-button type="link" size="small" :loading="rollingBack === item.id">回滚</a-button>
+                <a-button type="link" size="small" :loading="rollingBack === item.id">{{ t("lowcode.formDesigner.rollback") }}</a-button>
               </a-popconfirm>
             </template>
           </a-list-item>
@@ -167,11 +162,7 @@
 
 <script setup lang="ts">
 import { onMounted, ref, onUnmounted } from "vue";
-
-const isMounted = ref(false);
-onMounted(() => { isMounted.value = true; });
-onUnmounted(() => { isMounted.value = false; });
-
+import { useI18n } from "vue-i18n";
 import { useRoute, useRouter } from "vue-router";
 import { message } from "ant-design-vue";
 import { QuestionCircleOutlined, HistoryOutlined } from "@ant-design/icons-vue";
@@ -189,9 +180,15 @@ import type { FormDefinitionVersionListItem } from "@/types/lowcode";
 import { useOnboarding } from "@/composables/useOnboarding";
 import type { DriveStep } from "driver.js";
 
+const { t, locale } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const formId = route.params.id as string;
+
+const isMounted = ref(false);
+onUnmounted(() => {
+  isMounted.value = false;
+});
 
 const editorRef = ref<InstanceType<typeof AmisEditor> | null>(null);
 const loadingSchema = ref(true);
@@ -203,7 +200,7 @@ const importJson = ref("");
 
 const schema = ref<Record<string, unknown>>({
   type: "page",
-  title: "新表单",
+  title: t("lowcode.formDesigner.newFormDefault"),
   body: [{ type: "form", title: "", body: [] }]
 });
 
@@ -228,7 +225,11 @@ const statusColor = (status: string) => {
 };
 
 const statusLabel = (status: string) => {
-  const map: Record<string, string> = { Draft: "草稿", Published: "已发布", Disabled: "已停用" };
+  const map: Record<string, string> = {
+    Draft: t("lowcode.formList.stDraft"),
+    Published: t("lowcode.formList.stPublished"),
+    Disabled: t("lowcode.formList.stDisabled")
+  };
   return map[status] ?? status;
 };
 
@@ -255,7 +256,7 @@ const loadFormDefinition = async () => {
       schema.value = { type: "page", title: detail.name, body: [] };
     }
   } catch (error) {
-    message.error((error as Error).message || "加载表单定义失败");
+    message.error((error as Error).message || t("lowcode.formDesigner.loadFailed"));
   } finally {
     loadingSchema.value = false;
   }
@@ -278,9 +279,9 @@ const handleSave = async () => {
 
     if (!isMounted.value) return;
     formVersion.value += 1;
-    message.success("保存成功");
+    message.success(t("lowcode.formDesigner.saveOk"));
   } catch (error) {
-    message.error((error as Error).message || "保存失败");
+    message.error((error as Error).message || t("lowcode.formDesigner.saveFailed"));
   } finally {
     saving.value = false;
   }
@@ -303,9 +304,9 @@ const handlePublish = async () => {
 
     if (!isMounted.value) return;
     formStatus.value = "Published";
-    message.success("发布成功");
+    message.success(t("lowcode.formDesigner.publishOk"));
   } catch (error) {
-    message.error((error as Error).message || "发布失败");
+    message.error((error as Error).message || t("lowcode.formDesigner.publishFailed"));
   } finally {
     publishing.value = false;
   }
@@ -326,9 +327,9 @@ const handleSaveSettings = async () => {
 
     if (!isMounted.value) return;
     settingsVisible.value = false;
-    message.success("设置已保存");
+    message.success(t("lowcode.formDesigner.settingsOk"));
   } catch (error) {
-    message.error((error as Error).message || "保存设置失败");
+    message.error((error as Error).message || t("lowcode.formDesigner.settingsFailed"));
   }
 };
 
@@ -342,9 +343,9 @@ const handleImportConfirm = () => {
     const parsed = JSON.parse(importJson.value) as Record<string, unknown>;
     schema.value = parsed;
     importVisible.value = false;
-    message.success("导入成功");
+    message.success(t("lowcode.formDesigner.importOk"));
   } catch {
-    message.error("JSON 格式不正确");
+    message.error(t("lowcode.formDesigner.jsonInvalid"));
   }
 };
 
@@ -372,7 +373,7 @@ const openVersionHistory = async () => {
 
     if (!isMounted.value) return;
   } catch (error) {
-    message.error((error as Error).message || "加载版本历史失败");
+    message.error((error as Error).message || t("lowcode.formDesigner.loadVersionsFailed"));
   } finally {
     loadingVersions.value = false;
   }
@@ -382,8 +383,7 @@ const handleRollback = async (versionId: string) => {
   if (!formId) return;
   rollingBack.value = versionId;
   try {
-    // 获取版本详情并恢复 Schema
-    const versionDetail  = await getFormDefinitionVersionDetail(formId, versionId);
+    const versionDetail = await getFormDefinitionVersionDetail(formId, versionId);
 
     if (!isMounted.value) return;
     await rollbackFormDefinitionVersion(formId, versionId);
@@ -394,31 +394,28 @@ const handleRollback = async (versionId: string) => {
     try {
       schema.value = JSON.parse(versionDetail.schemaJson) as Record<string, unknown>;
     } catch {
-      // 保持现有 schema
+      /* keep current schema */
     }
     formStatus.value = "Published";
     formVersion.value += 1;
     versionHistoryVisible.value = false;
-    message.success(`已回滚到 v${versionDetail.snapshotVersion}`);
-    // 刷新版本列表
+    message.success(t("lowcode.formDesigner.rollbackOk", { version: versionDetail.snapshotVersion }));
     versionList.value = await getFormDefinitionVersions(formId);
 
     if (!isMounted.value) return;
   } catch (error) {
-    message.error((error as Error).message || "回滚失败");
+    message.error((error as Error).message || t("lowcode.formDesigner.rollbackFailed"));
   } finally {
     rollingBack.value = null;
   }
 };
 
-// 新手引导配置
 const tourSteps: DriveStep[] = [
   {
     element: ".toolbar-left",
     popover: {
-      title: "欢迎使用表单设计器",
-      description:
-        "这是Atlas低代码平台的表单设计器。您可以使用可视化方式设计表单，无需编写代码。让我们快速了解一下各个功能区域。",
+      title: t("lowcode.formDesigner.tourWelcomeTitle"),
+      description: t("lowcode.formDesigner.tourWelcomeDesc"),
       side: "bottom",
       align: "start"
     }
@@ -426,9 +423,8 @@ const tourSteps: DriveStep[] = [
   {
     element: ".toolbar-center",
     popover: {
-      title: "视图模式切换",
-      description:
-        "您可以在【编辑】和【预览】模式之间切换，实时查看表单效果。同时支持PC端和移动端预览。",
+      title: t("lowcode.formDesigner.tourViewTitle"),
+      description: t("lowcode.formDesigner.tourViewDesc"),
       side: "bottom",
       align: "center"
     }
@@ -436,9 +432,8 @@ const tourSteps: DriveStep[] = [
   {
     element: ".toolbar-right .ant-btn-primary",
     popover: {
-      title: "保存与发布",
-      description:
-        "点击【保存】保存当前设计。点击【发布】使表单对外可用。只有已发布的表单才能被用户填写。",
+      title: t("lowcode.formDesigner.tourSaveTitle"),
+      description: t("lowcode.formDesigner.tourSaveDesc"),
       side: "bottom",
       align: "end"
     }
@@ -446,9 +441,8 @@ const tourSteps: DriveStep[] = [
   {
     element: ".toolbar-right .ant-dropdown-trigger",
     popover: {
-      title: "更多操作",
-      description:
-        "在这里可以导入/导出JSON Schema，配置表单设置（如绑定数据表），以及重新显示此引导。",
+      title: t("lowcode.formDesigner.tourMoreTitle"),
+      description: t("lowcode.formDesigner.tourMoreDesc"),
       side: "bottom",
       align: "end"
     }
@@ -456,18 +450,16 @@ const tourSteps: DriveStep[] = [
   {
     element: ".designer-body",
     popover: {
-      title: "设计器画布",
-      description:
-        "这是主要的设计区域。您可以通过拖拽组件、配置属性来设计表单。AMIS编辑器提供了丰富的表单组件供您使用。",
+      title: t("lowcode.formDesigner.tourCanvasTitle"),
+      description: t("lowcode.formDesigner.tourCanvasDesc"),
       side: "top",
       align: "center"
     }
   },
   {
     popover: {
-      title: "开始设计吧！",
-      description:
-        "现在您已经了解了表单设计器的基本功能。尝试添加一些表单字段，然后保存和预览您的设计吧！如需再次查看引导，请点击右上角【更多】→【显示引导】。"
+      title: t("lowcode.formDesigner.tourDoneTitle"),
+      description: t("lowcode.formDesigner.tourDoneDesc")
     }
   }
 ];
@@ -477,7 +469,7 @@ const { startTour } = useOnboarding({
   steps: tourSteps,
   showOnFirstVisit: true,
   onComplete: () => {
-    message.success("引导完成！开始设计您的表单吧");
+    message.success(t("lowcode.formDesigner.tourComplete"));
   }
 });
 
@@ -486,6 +478,7 @@ const showGuide = () => {
 };
 
 onMounted(() => {
+  isMounted.value = true;
   loadFormDefinition();
 });
 </script>

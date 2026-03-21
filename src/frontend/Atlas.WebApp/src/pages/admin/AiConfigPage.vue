@@ -1,34 +1,34 @@
 <template>
-  <a-card title="AI 管理配置" :bordered="false">
+  <a-card :title="t('adminAi.cardTitle')" :bordered="false">
     <a-form layout="vertical">
       <a-row :gutter="16">
         <a-col :span="12">
-          <a-form-item label="启用 AI 平台">
+          <a-form-item :label="t('adminAi.enableAiPlatform')">
             <a-switch v-model:checked="form.enableAiPlatform" />
           </a-form-item>
         </a-col>
         <a-col :span="12">
-          <a-form-item label="启用开放平台">
+          <a-form-item :label="t('adminAi.enableOpenPlatform')">
             <a-switch v-model:checked="form.enableOpenPlatform" />
           </a-form-item>
         </a-col>
         <a-col :span="12">
-          <a-form-item label="启用代码沙箱">
+          <a-form-item :label="t('adminAi.enableSandbox')">
             <a-switch v-model:checked="form.enableCodeSandbox" />
           </a-form-item>
         </a-col>
         <a-col :span="12">
-          <a-form-item label="启用 AI 市场">
+          <a-form-item :label="t('adminAi.enableMarket')">
             <a-switch v-model:checked="form.enableMarketplace" />
           </a-form-item>
         </a-col>
         <a-col :span="12">
-          <a-form-item label="启用内容审核">
+          <a-form-item :label="t('adminAi.enableModeration')">
             <a-switch v-model:checked="form.enableContentModeration" />
           </a-form-item>
         </a-col>
         <a-col :span="12">
-          <a-form-item label="单用户每日 Token 上限">
+          <a-form-item :label="t('adminAi.dailyTokenLimit')">
             <a-input-number
               v-model:value="form.maxDailyTokensPerUser"
               :min="1000"
@@ -39,7 +39,7 @@
           </a-form-item>
         </a-col>
         <a-col :span="12">
-          <a-form-item label="知识检索最大召回数">
+          <a-form-item :label="t('adminAi.maxRecall')">
             <a-input-number
               v-model:value="form.maxKnowledgeRetrievalCount"
               :min="1"
@@ -52,21 +52,28 @@
     </a-form>
 
     <a-space>
-      <a-button @click="loadConfig">重置</a-button>
-      <a-button type="primary" :loading="submitting" @click="submit">保存配置</a-button>
+      <a-button @click="loadConfig">{{ t("common.reset") }}</a-button>
+      <a-button type="primary" :loading="submitting" @click="submit">{{ t("adminAi.saveConfig") }}</a-button>
     </a-space>
   </a-card>
 </template>
 
 <script setup lang="ts">
 import { onMounted, reactive, ref, onUnmounted } from "vue";
+import { useI18n } from "vue-i18n";
 
 const isMounted = ref(false);
-onMounted(() => { isMounted.value = true; });
-onUnmounted(() => { isMounted.value = false; });
+onMounted(() => {
+  isMounted.value = true;
+});
+onUnmounted(() => {
+  isMounted.value = false;
+});
 
 import { message } from "ant-design-vue";
 import { getAdminAiConfig, updateAdminAiConfig } from "@/services/api-admin-ai-config";
+
+const { t } = useI18n();
 
 const form = reactive({
   enableAiPlatform: true,
@@ -81,12 +88,12 @@ const submitting = ref(false);
 
 async function loadConfig() {
   try {
-    const config  = await getAdminAiConfig();
+    const config = await getAdminAiConfig();
 
     if (!isMounted.value) return;
     Object.assign(form, config);
   } catch (error: unknown) {
-    message.error((error as Error).message || "加载配置失败");
+    message.error((error as Error).message || t("adminAi.loadFailed"));
   }
 }
 
@@ -98,9 +105,9 @@ async function submit() {
     });
 
     if (!isMounted.value) return;
-    message.success("配置已保存");
+    message.success(t("adminAi.saveOk"));
   } catch (error: unknown) {
-    message.error((error as Error).message || "保存配置失败");
+    message.error((error as Error).message || t("adminAi.saveFailed"));
   } finally {
     submitting.value = false;
   }

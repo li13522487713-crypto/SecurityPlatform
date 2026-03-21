@@ -5,23 +5,28 @@
       type="warning"
       show-icon
       banner
-      message="预览模式"
-      description="当前为工作台预览，不计入正式运行记录。"
+      :message="t('runtimePage.previewBanner')"
+      :description="t('runtimePage.previewDesc')"
       class="runtime-preview-banner"
     />
     <a-spin :spinning="loading">
       <AmisRenderer v-if="schema" :schema="schema" />
-      <a-empty v-else description="未找到可运行页面，请先在设计器发布页面" />
+      <a-empty v-else :description="t('runtimePage.emptyNoPage')" />
     </a-spin>
   </a-card>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch, onUnmounted } from "vue";
+import { useI18n } from "vue-i18n";
 
 const isMounted = ref(false);
-onMounted(() => { isMounted.value = true; });
-onUnmounted(() => { isMounted.value = false; });
+onMounted(() => {
+  isMounted.value = true;
+});
+onUnmounted(() => {
+  isMounted.value = false;
+});
 
 import { useRoute } from "vue-router";
 import { message } from "ant-design-vue";
@@ -29,10 +34,11 @@ import AmisRenderer from "@/components/amis/amis-renderer.vue";
 import type { AmisSchema } from "@/types/amis";
 import { getLowCodeAppByKey, getLowCodeAppDetail, getLowCodeRuntimePageSchemaByKey } from "@/services/lowcode";
 
+const { t } = useI18n();
 const route = useRoute();
 const loading = ref(false);
 const schema = ref<AmisSchema | null>(null);
-const pageTitle = ref("运行态页面");
+const pageTitle = ref(t("runtimePage.defaultTitle"));
 const isMobile = computed(() => window.innerWidth <= 768 || route.query.deviceMode === "mobile");
 const isWorkspacePreviewMode = computed(() => route.name === "app-workspace-runtime");
 
@@ -85,7 +91,7 @@ async function loadRuntime() {
     schema.value = parsedSchema;
   } catch (error) {
     schema.value = null;
-    message.error((error as Error).message || "加载运行态页面失败");
+    message.error((error as Error).message || t("runtimePage.loadFailed"));
   } finally {
     loading.value = false;
   }

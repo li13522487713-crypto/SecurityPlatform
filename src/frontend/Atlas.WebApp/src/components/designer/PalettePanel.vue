@@ -1,6 +1,6 @@
 <template>
   <div class="palette-panel">
-    <div class="title">节点库</div>
+    <div class="title">{{ t("designerUi.paletteTitle") }}</div>
     <a-space wrap>
       <a-tag
         v-for="item in items"
@@ -15,10 +15,20 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from "vue";
+import { useI18n } from "vue-i18n";
 import { paletteItems } from "./NodePalette";
 import type { NodeType } from "@/types/workflow";
 
-const items = paletteItems;
+const { t } = useI18n();
+
+const items = computed(() =>
+  paletteItems.map((item) => ({
+    ...item,
+    label: t(`approvalPalette.${item.type.replace(/-/g, "_")}`)
+  }))
+);
+
 const emit = defineEmits<{
   (e: "add", type: NodeType): void;
 }>();

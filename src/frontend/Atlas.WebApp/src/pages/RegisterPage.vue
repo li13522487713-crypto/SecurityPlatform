@@ -1,120 +1,121 @@
 <template>
   <div class="register-page">
-    <!-- 左侧品牌面板（与 LoginPage 一致） -->
     <aside class="brand-panel">
       <div class="brand-content">
         <div class="brand-logo">
           <div class="logo-icon">
             <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M16 2L28 9v14l-12 7L4 23V9l12-7z" fill="rgba(255,255,255,0.15)" stroke="rgba(255,255,255,0.6)" stroke-width="1.5"/>
-              <path d="M16 8l7 4v8l-7 4-7-4v-8l7-4z" fill="rgba(255,255,255,0.25)" stroke="#fff" stroke-width="1.5"/>
-              <circle cx="16" cy="16" r="3" fill="#fff"/>
+              <path
+                d="M16 2L28 9v14l-12 7L4 23V9l12-7z"
+                fill="rgba(255,255,255,0.15)"
+                stroke="rgba(255,255,255,0.6)"
+                stroke-width="1.5"
+              />
+              <path
+                d="M16 8l7 4v8l-7 4-7-4v-8l7-4z"
+                fill="rgba(255,255,255,0.25)"
+                stroke="#fff"
+                stroke-width="1.5"
+              />
+              <circle cx="16" cy="16" r="3" fill="#fff" />
             </svg>
           </div>
           <div class="brand-text">
-            <h1>Atlas 安全平台</h1>
+            <h1>{{ t("pages.register.brandTitle") }}</h1>
             <p>Security Platform</p>
           </div>
         </div>
         <div class="brand-desc">
-          <h2>统一安全管理与运维管控</h2>
+          <h2>{{ t("pages.register.brandSubtitle") }}</h2>
           <ul>
-            <li>统一身份认证 · 多租户组织管理</li>
-            <li>实时审计日志 · 风险策略自动落地</li>
-            <li>资产清点盘查 · 合规告警可追溯</li>
+            <li>{{ t("pages.register.bullet1") }}</li>
+            <li>{{ t("pages.register.bullet2") }}</li>
+            <li>{{ t("pages.register.bullet3") }}</li>
           </ul>
         </div>
       </div>
       <div class="brand-footer">
-        <span>符合等保 2.0 三级要求</span>
+        <span>{{ t("pages.register.complianceBadge") }}</span>
       </div>
       <div class="decor decor-1" aria-hidden="true"></div>
       <div class="decor decor-2" aria-hidden="true"></div>
       <div class="decor decor-3" aria-hidden="true"></div>
     </aside>
 
-    <!-- 右侧注册表单 -->
     <main class="form-panel">
       <div class="form-wrapper">
         <div class="mobile-logo">
           <div class="logo-icon logo-icon--sm">
             <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M16 2L28 9v14l-12 7L4 23V9l12-7z" fill="rgba(22,119,255,0.1)" stroke="var(--color-primary)" stroke-width="1.5"/>
-              <path d="M16 8l7 4v8l-7 4-7-4v-8l7-4z" fill="rgba(22,119,255,0.15)" stroke="var(--color-primary)" stroke-width="1.5"/>
-              <circle cx="16" cy="16" r="3" fill="var(--color-primary)"/>
+              <path
+                d="M16 2L28 9v14l-12 7L4 23V9l12-7z"
+                fill="rgba(22,119,255,0.1)"
+                stroke="var(--color-primary)"
+                stroke-width="1.5"
+              />
+              <path
+                d="M16 8l7 4v8l-7 4-7-4v-8l7-4z"
+                fill="rgba(22,119,255,0.15)"
+                stroke="var(--color-primary)"
+                stroke-width="1.5"
+              />
+              <circle cx="16" cy="16" r="3" fill="var(--color-primary)" />
             </svg>
           </div>
-          <span>Atlas 安全平台</span>
+          <span>{{ t("pages.register.formBrand") }}</span>
         </div>
 
-        <h3 class="form-title">注册账号</h3>
-        <p class="form-subtitle">创建您的平台账号</p>
+        <h3 class="form-title">{{ t("pages.register.formTitle") }}</h3>
+        <p class="form-subtitle">{{ t("pages.register.formSubtitle") }}</p>
 
-        <a-form
-          layout="vertical"
-          :model="form"
-          :rules="rules"
-          class="register-form"
-          @finish="onSubmit"
-        >
-          <a-form-item label="租户 ID" name="tenantId">
-            <a-input
-              v-model:value="form.tenantId"
-              placeholder="请输入租户 ID（GUID 格式）"
-              autocomplete="off"
-            />
+        <a-form layout="vertical" :model="form" :rules="rules" class="register-form" @finish="onSubmit">
+          <a-form-item :label="t('pages.register.labelTenantId')" name="tenantId">
+            <a-input v-model:value="form.tenantId" :placeholder="t('pages.register.phTenantId')" autocomplete="off" />
           </a-form-item>
 
-          <a-form-item label="账号" name="username">
+          <a-form-item :label="t('pages.register.labelUsername')" name="username">
             <a-input
               v-model:value="form.username"
-              placeholder="请输入用户名（2-64 位）"
+              :placeholder="t('pages.register.phUsername')"
               allow-clear
               autocomplete="username"
             />
           </a-form-item>
 
-          <a-form-item label="密码" name="password">
+          <a-form-item :label="t('pages.register.labelPassword')" name="password">
             <a-input-password
               v-model:value="form.password"
-              placeholder="请输入密码（至少 8 位）"
+              :placeholder="t('pages.register.phPassword')"
               autocomplete="new-password"
             />
           </a-form-item>
 
-          <a-form-item label="确认密码" name="confirmPassword">
+          <a-form-item :label="t('pages.register.labelConfirm')" name="confirmPassword">
             <a-input-password
               v-model:value="form.confirmPassword"
-              placeholder="请再次输入密码"
+              :placeholder="t('pages.register.phConfirm')"
               autocomplete="new-password"
             />
           </a-form-item>
 
-          <a-form-item label="验证码（可选）" name="captchaCode">
-            <a-input v-model:value="form.captchaCode" placeholder="如需要请输入验证码" />
+          <a-form-item :label="t('pages.register.labelCaptcha')" name="captchaCode">
+            <a-input v-model:value="form.captchaCode" :placeholder="t('pages.register.phCaptcha')" />
           </a-form-item>
 
-          <a-button
-            type="primary"
-            block
-            html-type="submit"
-            size="large"
-            :loading="loading"
-            class="submit-btn"
-          >
-            注册
+          <a-button type="primary" block html-type="submit" size="large" :loading="loading" class="submit-btn">
+            {{ t("pages.register.submit") }}
           </a-button>
 
           <div class="login-link">
-            已有账号？<router-link to="/login">返回登录</router-link>
+            {{ t("pages.register.hasAccount") }}<router-link to="/login">{{ t("pages.register.backLogin") }}</router-link>
           </div>
         </a-form>
       </div>
 
       <footer class="form-footer">
-        <span>隐私政策</span>
+        <span>{{ t("pages.register.privacy") }}</span>
         <span class="sep">·</span>
-        <span>用户协议</span>
+        <span>{{ t("pages.register.terms") }}</span>
         <span class="sep">·</span>
         <span>v1.0.2</span>
       </footer>
@@ -123,12 +124,14 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from "vue";
+import { computed, reactive, ref } from "vue";
+import { useI18n } from "vue-i18n";
 import { message } from "ant-design-vue";
 import { useRouter } from "vue-router";
 import { register } from "@/services/api";
 import type { RuleObject } from "ant-design-vue/es/form";
 
+const { t } = useI18n();
 const router = useRouter();
 const loading = ref(false);
 const form = reactive({
@@ -142,28 +145,29 @@ const form = reactive({
 
 const validateConfirmPassword = async (_rule: RuleObject, value: string) => {
   if (value === "") {
-    return Promise.reject("请输入确认密码");
-  } else if (value !== form.password) {
-    return Promise.reject("两次输入的密码不一致");
+    return Promise.reject(t("pages.register.errConfirmRequired"));
+  }
+  if (value !== form.password) {
+    return Promise.reject(t("pages.register.errPasswordMismatch"));
   }
   return Promise.resolve();
 };
 
-const rules = {
+const rules = computed(() => ({
   tenantId: [
-    { required: true, message: "请输入租户 ID" },
-    { pattern: /^[0-9a-fA-F-]{36}$/, message: "租户 ID 格式无效，请输入 GUID" }
+    { required: true, message: t("pages.register.errTenantRequired") },
+    { pattern: /^[0-9a-fA-F-]{36}$/, message: t("pages.register.errTenantFormat") }
   ],
   username: [
-    { required: true, message: "请输入账号" },
-    { min: 2, max: 64, message: "账号长度必须介于 2 和 64 之间" }
+    { required: true, message: t("pages.register.errUsernameRequired") },
+    { min: 2, max: 64, message: t("pages.register.errUsernameLength") }
   ],
   password: [
-    { required: true, message: "请输入密码" },
-    { min: 8, max: 128, message: "密码长度不能小于 8" }
+    { required: true, message: t("pages.register.errPasswordRequired") },
+    { min: 8, max: 128, message: t("pages.register.errPasswordLength") }
   ],
   confirmPassword: [{ required: true, validator: validateConfirmPassword }]
-};
+}));
 
 async function onSubmit() {
   loading.value = true;
@@ -175,10 +179,10 @@ async function onSubmit() {
       captchaKey: form.captchaKey || undefined,
       captchaCode: form.captchaCode || undefined
     });
-    message.success(`恭喜你，账号 ${form.username} 注册成功！`);
+    message.success(t("pages.register.success", { username: form.username }));
     router.push("/login");
   } catch (error) {
-    message.error((error as Error).message || "注册失败");
+    message.error((error as Error).message || t("pages.register.failed"));
   } finally {
     loading.value = false;
   }
@@ -192,7 +196,6 @@ async function onSubmit() {
   background: #fff;
 }
 
-/* ── 左侧品牌面板（与 LoginPage 共用设计语言） ── */
 .brand-panel {
   width: 440px;
   min-height: 100vh;
@@ -200,17 +203,13 @@ async function onSubmit() {
   color: #fff;
   display: flex;
   flex-direction: column;
-  padding: 48px 40px;
   position: relative;
   overflow: hidden;
-  flex-shrink: 0;
 }
 
 .brand-content {
   flex: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
+  padding: 48px 40px;
   position: relative;
   z-index: 1;
 }
@@ -218,196 +217,167 @@ async function onSubmit() {
 .brand-logo {
   display: flex;
   align-items: center;
-  gap: 14px;
-  margin-bottom: 48px;
+  gap: 16px;
+  margin-bottom: 40px;
 }
 
 .logo-icon {
-  width: 44px;
-  height: 44px;
+  width: 56px;
+  height: 56px;
   flex-shrink: 0;
 }
 
-.logo-icon svg {
-  width: 100%;
-  height: 100%;
+.logo-icon--sm {
+  width: 40px;
+  height: 40px;
 }
 
 .brand-text h1 {
-  margin: 0;
-  font-size: 22px;
+  font-size: 24px;
   font-weight: 600;
-  letter-spacing: 0.5px;
+  margin: 0;
+  line-height: 1.3;
 }
 
 .brand-text p {
-  margin: 2px 0 0;
-  font-size: 12px;
-  opacity: 0.65;
-  letter-spacing: 1px;
+  margin: 4px 0 0;
+  font-size: 13px;
+  opacity: 0.85;
+  letter-spacing: 0.5px;
 }
 
 .brand-desc h2 {
-  font-size: 26px;
-  font-weight: 600;
-  margin: 0 0 24px;
-  line-height: 1.4;
+  font-size: 18px;
+  font-weight: 500;
+  margin: 0 0 20px;
+  line-height: 1.5;
 }
 
 .brand-desc ul {
-  list-style: none;
-  padding: 0;
   margin: 0;
-}
-
-.brand-desc li {
-  padding: 8px 0;
-  font-size: 14px;
-  opacity: 0.85;
-  position: relative;
   padding-left: 20px;
-}
-
-.brand-desc li::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.6);
+  font-size: 14px;
+  line-height: 2;
+  opacity: 0.95;
 }
 
 .brand-footer {
+  padding: 20px 40px;
+  font-size: 12px;
+  opacity: 0.75;
   position: relative;
   z-index: 1;
-  font-size: 12px;
-  opacity: 0.5;
 }
 
 .decor {
   position: absolute;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.06);
+  pointer-events: none;
 }
 
-.decor-1 { width: 300px; height: 300px; bottom: -80px; right: -80px; }
-.decor-2 { width: 180px; height: 180px; top: -40px; right: 60px; }
-.decor-3 { width: 100px; height: 100px; bottom: 120px; left: -30px; }
+.decor-1 {
+  width: 280px;
+  height: 280px;
+  top: -80px;
+  right: -100px;
+}
 
-/* ── 右侧表单面板 ── */
+.decor-2 {
+  width: 160px;
+  height: 160px;
+  bottom: 120px;
+  left: -40px;
+}
+
+.decor-3 {
+  width: 100px;
+  height: 100px;
+  bottom: 40px;
+  right: 40px;
+}
+
 .form-panel {
   flex: 1;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 40px;
-  min-height: 100vh;
-  background: #fff;
+  min-width: 0;
 }
 
 .form-wrapper {
-  width: 100%;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   max-width: 400px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 48px 24px;
 }
 
 .mobile-logo {
   display: none;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 32px;
-  font-size: 18px;
+  gap: 12px;
+  margin-bottom: 24px;
   font-weight: 600;
-  color: var(--color-text-primary);
-}
-
-.logo-icon--sm {
-  width: 32px;
-  height: 32px;
+  font-size: 18px;
+  color: var(--color-text);
 }
 
 .form-title {
-  font-size: 24px;
+  font-size: 22px;
   font-weight: 600;
-  color: var(--color-text-primary);
-  margin: 0 0 4px;
+  margin: 0 0 8px;
+  color: var(--color-text);
 }
 
 .form-subtitle {
-  margin: 0 0 24px;
+  margin: 0 0 32px;
+  color: var(--color-text-secondary);
   font-size: 14px;
-  color: var(--color-text-tertiary);
 }
 
-/* ── 注册表单 ── */
-.register-form :deep(.ant-form-item) {
-  margin-bottom: 18px;
-}
-
-.register-form :deep(.ant-input),
-.register-form :deep(.ant-input-password .ant-input) {
-  height: 40px;
+.register-form :deep(.ant-form-item-label > label) {
+  font-weight: 500;
 }
 
 .submit-btn {
-  height: 44px;
-  font-size: 16px;
-  border-radius: var(--border-radius-md);
   margin-top: 8px;
+  height: 44px;
+  font-size: 15px;
 }
 
 .login-link {
+  margin-top: 24px;
   text-align: center;
-  margin-top: 16px;
-  font-size: 14px;
   color: var(--color-text-secondary);
+  font-size: 14px;
 }
 
 .login-link a {
-  color: var(--color-primary);
+  margin-left: 4px;
 }
 
-/* ── 页脚 ── */
 .form-footer {
-  margin-top: 48px;
+  padding: 16px 24px;
   text-align: center;
   font-size: 12px;
-  color: var(--color-text-quaternary);
+  color: var(--color-text-tertiary);
 }
 
 .form-footer .sep {
-  margin: 0 6px;
+  margin: 0 8px;
+  opacity: 0.5;
 }
 
-/* ── 响应式 ── */
-@media screen and (max-width: 960px) {
+@media (max-width: 960px) {
   .brand-panel {
     display: none;
   }
 
   .mobile-logo {
     display: flex;
-  }
-
-  .form-panel {
-    padding: 32px 24px;
-  }
-}
-
-@media screen and (max-width: 480px) {
-  .form-panel {
-    padding: 24px 16px;
-  }
-
-  .form-title {
-    font-size: 20px;
-  }
-
-  .form-wrapper {
-    max-width: 100%;
   }
 }
 </style>

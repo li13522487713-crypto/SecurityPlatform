@@ -10,7 +10,7 @@
     <a-row :gutter="24" class="quick-actions" data-testid="e2e-console-quick-actions">
       <a-col :span="8">
         <a-card :bordered="false" class="widget-card" hoverable data-testid="e2e-console-card-apps" @click="go('/console/apps')">
-          <a-card-meta title="应用管理" description="进入应用目录管理应用" />
+          <a-card-meta :title="t('console.dashboard.cardAppsTitle')" :description="t('console.dashboard.cardAppsDesc')" />
         </a-card>
       </a-col>
       <a-col :span="8">
@@ -21,7 +21,7 @@
           data-testid="e2e-console-card-datasources"
           @click="go('/settings/system/datasources')"
         >
-          <a-card-meta title="数据源管理" description="管理租户下关联的数据源" />
+          <a-card-meta :title="t('console.dashboard.cardDsTitle')" :description="t('console.dashboard.cardDsDesc')" />
         </a-card>
       </a-col>
       <a-col :span="8">
@@ -32,12 +32,12 @@
           data-testid="e2e-console-card-system-configs"
           @click="go('/settings/system/configs')"
         >
-          <a-card-meta title="系统设置" description="开启系统配置看板" />
+          <a-card-meta :title="t('console.dashboard.cardSettingsTitle')" :description="t('console.dashboard.cardSettingsDesc')" />
         </a-card>
       </a-col>
     </a-row>
 
-    <a-card :bordered="false" class="widget-card resource-group-card" title="资源中心统计" :loading="resourceGroupLoading">
+    <a-card :bordered="false" class="widget-card resource-group-card" :title="t('console.dashboard.resourceStatsTitle')" :loading="resourceGroupLoading">
       <a-row :gutter="[16, 16]">
         <a-col v-for="group in resourceGroups" :key="group.groupKey" :xs="24" :sm="12" :md="8">
           <a-card size="small" class="resource-group-item" hoverable @click="openResourceGroup(group.groupKey)">
@@ -51,14 +51,14 @@
     <a-card
       :bordered="false"
       class="widget-card datasource-consumption-card"
-      title="数据源分布统计"
+      :title="t('console.dashboard.dsDistributionTitle')"
       :loading="dataSourceConsumptionLoading"
     >
       <template #extra>
         <a-space wrap>
           <a-input-search
             v-model:value="dataSourceKeyword"
-            placeholder="检索数据源名称"
+            :placeholder="t('console.dashboard.phSearchDs')"
             style="width: 220px"
             allow-clear
           />
@@ -68,7 +68,7 @@
             show-search
             :filter-option="false"
             :options="appFilterOptions"
-            placeholder="按应用过滤（默认 20 条）"
+            :placeholder="t('console.dashboard.phFilterApp')"
             style="width: 260px"
             @search="searchAppFilterOptions"
           />
@@ -76,18 +76,18 @@
       </template>
       <a-row :gutter="[16, 16]">
         <a-col :xs="24" :md="8">
-          <a-statistic title="平台级数据源" :value="dataSourceConsumption?.platformDataSourceTotal ?? 0" />
+          <a-statistic :title="t('console.dashboard.statPlatformDs')" :value="dataSourceConsumption?.platformDataSourceTotal ?? 0" />
         </a-col>
         <a-col :xs="24" :md="8">
-          <a-statistic title="应用级数据源" :value="dataSourceConsumption?.appScopedDataSourceTotal ?? 0" />
+          <a-statistic :title="t('console.dashboard.statAppDs')" :value="dataSourceConsumption?.appScopedDataSourceTotal ?? 0" />
         </a-col>
         <a-col :xs="24" :md="8">
-          <a-statistic title="未绑定应用" :value="dataSourceConsumption?.unboundTenantAppTotal ?? 0" />
+          <a-statistic :title="t('console.dashboard.statUnbound')" :value="dataSourceConsumption?.unboundTenantAppTotal ?? 0" />
         </a-col>
       </a-row>
 
       <a-tabs class="datasource-tabs" size="small">
-        <a-tab-pane key="platform" tab="平台级数据源">
+        <a-tab-pane key="platform" :tab="t('console.dashboard.tabPlatformDs')">
           <a-table
             row-key="dataSourceId"
             :columns="dataSourceColumns"
@@ -100,12 +100,12 @@
                 {{ formatLastTest(record.lastTestedAt) }}
               </template>
               <template v-if="column.key === 'actions'">
-                <a-button type="link" size="small" @click="showDataSourceDetails(record)">绑定详情</a-button>
+                <a-button type="link" size="small" @click="showDataSourceDetails(record)">{{ t("console.dashboard.bindingDetail") }}</a-button>
               </template>
             </template>
           </a-table>
         </a-tab-pane>
-        <a-tab-pane key="appScoped" tab="应用级数据源">
+        <a-tab-pane key="appScoped" :tab="t('console.dashboard.tabAppDs')">
           <a-table
             row-key="dataSourceId"
             :columns="appScopedDataSourceColumns"
@@ -118,12 +118,12 @@
                 {{ formatLastTest(record.lastTestedAt) }}
               </template>
               <template v-if="column.key === 'actions'">
-                <a-button type="link" size="small" @click="showDataSourceDetails(record)">绑定详情</a-button>
+                <a-button type="link" size="small" @click="showDataSourceDetails(record)">{{ t("console.dashboard.bindingDetail") }}</a-button>
               </template>
             </template>
           </a-table>
         </a-tab-pane>
-        <a-tab-pane key="unbound" tab="未绑定应用">
+        <a-tab-pane key="unbound" :tab="t('console.dashboard.tabUnbound')">
           <a-table
             row-key="tenantAppInstanceId"
             :columns="unboundAppColumns"
@@ -135,19 +135,19 @@
       </a-tabs>
     </a-card>
 
-    <a-modal v-model:open="bindingDetailVisible" title="数据源绑定详情" width="860px" :footer="null">
+    <a-modal v-model:open="bindingDetailVisible" :title="t('console.dashboard.modalBindingTitle')" width="860px" :footer="null">
       <a-descriptions :column="2" bordered size="small">
-        <a-descriptions-item label="数据源ID">{{ selectedDataSource?.dataSourceId }}</a-descriptions-item>
-        <a-descriptions-item label="名称">{{ selectedDataSource?.name }}</a-descriptions-item>
-        <a-descriptions-item label="类型">{{ selectedDataSource?.dbType }}</a-descriptions-item>
-        <a-descriptions-item label="作用域">
+        <a-descriptions-item :label="t('console.dashboard.labelDsId')">{{ selectedDataSource?.dataSourceId }}</a-descriptions-item>
+        <a-descriptions-item :label="t('console.dashboard.labelName')">{{ selectedDataSource?.name }}</a-descriptions-item>
+        <a-descriptions-item :label="t('console.dashboard.labelType')">{{ selectedDataSource?.dbType }}</a-descriptions-item>
+        <a-descriptions-item :label="t('console.dashboard.labelScope')">
           {{ selectedDataSource?.scope }}{{ selectedDataSource?.scopeAppName ? ` (${selectedDataSource.scopeAppName})` : "" }}
         </a-descriptions-item>
-        <a-descriptions-item label="绑定应用数">{{ selectedDataSource?.boundTenantAppCount ?? 0 }}</a-descriptions-item>
-        <a-descriptions-item label="最近测试时间">{{ formatLastTest(selectedDataSource?.lastTestedAt) }}</a-descriptions-item>
+        <a-descriptions-item :label="t('console.dashboard.labelBoundApps')">{{ selectedDataSource?.boundTenantAppCount ?? 0 }}</a-descriptions-item>
+        <a-descriptions-item :label="t('console.dashboard.labelLastTest')">{{ formatLastTest(selectedDataSource?.lastTestedAt) }}</a-descriptions-item>
       </a-descriptions>
 
-      <a-divider orientation="left">绑定关系</a-divider>
+      <a-divider orientation="left">{{ t("console.dashboard.dividerBindings") }}</a-divider>
       <a-table
         row-key="bindingId"
         :columns="bindingRelationColumns"
@@ -157,24 +157,24 @@
       />
     </a-modal>
 
-    <a-card :bordered="false" class="widget-card app-list-card" title="最近访问应用" :loading="loading">
+    <a-card :bordered="false" class="widget-card app-list-card" :title="t('console.dashboard.recentAppsTitle')" :loading="loading">
       <template #extra>
         <a-space>
           <a-input-search
             v-model:value="keyword"
-            placeholder="搜索应用"
+            :placeholder="t('console.dashboard.phSearchApp')"
             style="width: 240px"
             allow-clear
             data-testid="e2e-console-app-search"
             @search="loadApps"
           />
           <a-button type="primary" data-testid="e2e-console-create-app" @click="createWizardVisible = true">
-            新建应用
+            {{ t("console.dashboard.newApp") }}
           </a-button>
         </a-space>
       </template>
 
-      <a-empty v-if="apps.length === 0 && !loading" description="暂无应用" />
+      <a-empty v-if="apps.length === 0 && !loading" :description="t('console.dashboard.emptyApps')" />
 
       <a-row v-else :gutter="[24, 24]">
         <a-col v-for="item in apps" :key="item.id" :xs="24" :sm="12" :md="8" :lg="6">
@@ -183,16 +183,16 @@
               <div class="app-icon">{{ item.name.charAt(0) }}</div>
               <div class="app-status">
                 <a-tag :color="item.status === 'Published' ? 'processing' : 'default'">
-                  {{ item.status === "Published" ? "已发布" : item.status }}
+                  {{ item.status === "Published" ? t("console.dashboard.published") : item.status }}
                 </a-tag>
               </div>
             </div>
             <div class="app-card-body">
               <h4 class="app-title">{{ item.name }}</h4>
-              <p class="app-desc">{{ item.description || "暂无描述" }}</p>
+              <p class="app-desc">{{ item.description || t("console.dashboard.noDesc") }}</p>
             </div>
             <div class="app-card-footer">
-              <span>应用标识: {{ item.appKey }}</span>
+              <span>{{ t("console.dashboard.appKeyLabelInline", { key: item.appKey }) }}</span>
             </div>
           </a-card>
         </a-col>
@@ -205,6 +205,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, onUnmounted } from "vue";
+import { useI18n } from "vue-i18n";
 
 const isMounted = ref(false);
 onMounted(() => { isMounted.value = true; });
@@ -230,6 +231,7 @@ import type {
 } from "@/types/platform-v2";
 
 const router = useRouter();
+const { t, locale } = useI18n();
 const userStore = useUserStore();
 const loading = ref(false);
 const resourceGroupLoading = ref(false);
@@ -245,33 +247,33 @@ const appFilterOptions = ref<Array<{ label: string; value: string }>>([]);
 const bindingDetailVisible = ref(false);
 const selectedDataSource = ref<TenantDataSourceConsumptionItem | null>(null);
 
-const dataSourceColumns: TableColumnsType<TenantDataSourceConsumptionItem> = [
-  { title: "名称", dataIndex: "name", key: "name", width: 220 },
-  { title: "类型", dataIndex: "dbType", key: "dbType", width: 120 },
-  { title: "绑定应用", dataIndex: "boundTenantAppCount", key: "boundTenantAppCount", width: 120 },
-  { title: "最近测试", dataIndex: "lastTestedAt", key: "lastTestedAt", width: 180 },
-  { title: "操作", key: "actions", width: 120 }
-];
-const appScopedDataSourceColumns: TableColumnsType<TenantDataSourceConsumptionItem> = [
-  { title: "名称", dataIndex: "name", key: "name", width: 220 },
-  { title: "作用域应用", dataIndex: "scopeAppName", key: "scopeAppName", width: 180 },
-  { title: "绑定应用", dataIndex: "boundTenantAppCount", key: "boundTenantAppCount", width: 120 },
-  { title: "最近测试", dataIndex: "lastTestedAt", key: "lastTestedAt", width: 180 },
-  { title: "操作", key: "actions", width: 120 }
-];
-const unboundAppColumns: TableColumnsType<TenantAppConsumerItem> = [
-  { title: "应用ID", dataIndex: "tenantAppInstanceId", key: "tenantAppInstanceId", width: 170 },
-  { title: "AppKey", dataIndex: "appKey", key: "appKey", width: 180 },
-  { title: "应用名称", dataIndex: "name", key: "name", width: 220 },
-  { title: "状态", dataIndex: "status", key: "status", width: 120 }
-];
-const bindingRelationColumns: TableColumnsType<TenantDataSourceBindingRelationItem> = [
-  { title: "绑定ID", dataIndex: "bindingId", key: "bindingId", width: 180 },
-  { title: "应用实例ID", dataIndex: "tenantAppInstanceId", key: "tenantAppInstanceId", width: 180 },
-  { title: "绑定类型", dataIndex: "bindingType", key: "bindingType", width: 120 },
-  { title: "来源", dataIndex: "source", key: "source", width: 180 },
-  { title: "生效", dataIndex: "isActive", key: "isActive", width: 80 }
-];
+const dataSourceColumns = computed<TableColumnsType<TenantDataSourceConsumptionItem>>(() => [
+  { title: t("console.dashboard.tableColName"), dataIndex: "name", key: "name", width: 220 },
+  { title: t("console.dashboard.tableColType"), dataIndex: "dbType", key: "dbType", width: 120 },
+  { title: t("console.dashboard.tableColBoundApps"), dataIndex: "boundTenantAppCount", key: "boundTenantAppCount", width: 120 },
+  { title: t("console.dashboard.tableColLastTest"), dataIndex: "lastTestedAt", key: "lastTestedAt", width: 180 },
+  { title: t("console.dashboard.tableColActions"), key: "actions", width: 120 }
+]);
+const appScopedDataSourceColumns = computed<TableColumnsType<TenantDataSourceConsumptionItem>>(() => [
+  { title: t("console.dashboard.tableColName"), dataIndex: "name", key: "name", width: 220 },
+  { title: t("console.dashboard.tableColScopeApp"), dataIndex: "scopeAppName", key: "scopeAppName", width: 180 },
+  { title: t("console.dashboard.tableColBoundApps"), dataIndex: "boundTenantAppCount", key: "boundTenantAppCount", width: 120 },
+  { title: t("console.dashboard.tableColLastTest"), dataIndex: "lastTestedAt", key: "lastTestedAt", width: 180 },
+  { title: t("console.dashboard.tableColActions"), key: "actions", width: 120 }
+]);
+const unboundAppColumns = computed<TableColumnsType<TenantAppConsumerItem>>(() => [
+  { title: t("console.dashboard.unboundColInstanceId"), dataIndex: "tenantAppInstanceId", key: "tenantAppInstanceId", width: 170 },
+  { title: t("console.dashboard.unboundColAppKey"), dataIndex: "appKey", key: "appKey", width: 180 },
+  { title: t("console.dashboard.unboundColAppName"), dataIndex: "name", key: "name", width: 220 },
+  { title: t("console.dashboard.unboundColStatus"), dataIndex: "status", key: "status", width: 120 }
+]);
+const bindingRelationColumns = computed<TableColumnsType<TenantDataSourceBindingRelationItem>>(() => [
+  { title: t("console.dashboard.bindingColId"), dataIndex: "bindingId", key: "bindingId", width: 180 },
+  { title: t("console.dashboard.bindingColTenantInstanceId"), dataIndex: "tenantAppInstanceId", key: "tenantAppInstanceId", width: 180 },
+  { title: t("console.dashboard.bindingColBindingType"), dataIndex: "bindingType", key: "bindingType", width: 120 },
+  { title: t("console.dashboard.bindingColSource"), dataIndex: "source", key: "source", width: 180 },
+  { title: t("console.dashboard.bindingColActive"), dataIndex: "isActive", key: "isActive", width: 80 }
+]);
 
 const filteredPlatformDataSources = computed(() => {
   const keywordValue = dataSourceKeyword.value.trim().toLowerCase();
@@ -304,7 +306,7 @@ const filteredUnboundTenantApps = computed(() => {
 const profileDisplayName = computed(() => userStore.profile?.displayName || userStore.profile?.username || "Admin");
 
 const todayDate = computed(() =>
-  new Date().toLocaleDateString("en-US", {
+  new Date().toLocaleDateString(locale.value === "en-US" ? "en-US" : "zh-CN", {
     year: "numeric",
     month: "long",
     day: "numeric"
@@ -323,7 +325,7 @@ async function loadApps() {
     if (!isMounted.value) return;
     apps.value = result.items;
   } catch (error) {
-    message.error((error as Error).message || "Failed to load apps");
+    message.error((error as Error).message || t("console.dashboard.loadAppsFailed"));
   } finally {
     loading.value = false;
   }
@@ -336,7 +338,7 @@ async function loadResourceGroups() {
 
     if (!isMounted.value) return;
   } catch (error) {
-    message.error((error as Error).message || "Failed to load resource groups");
+    message.error((error as Error).message || t("console.dashboard.loadResourceGroupsFailed"));
   } finally {
     resourceGroupLoading.value = false;
   }
@@ -352,7 +354,7 @@ async function loadDataSourceConsumption() {
 
     if (!isMounted.value) return;
   } catch (error) {
-    message.error((error as Error).message || "Failed to load datasource consumption");
+    message.error((error as Error).message || t("console.dashboard.loadDataSourceConsumptionFailed"));
   } finally {
     dataSourceConsumptionLoading.value = false;
   }
@@ -368,11 +370,11 @@ async function searchAppFilterOptions(keyword?: string) {
 
     if (!isMounted.value) return;
     appFilterOptions.value = response.items.map((item) => ({
-      label: `${item.name} (${item.appKey})`,
+      label: t("console.dashboard.appOptionLabel", { name: item.name, appKey: item.appKey }),
       value: item.id
     }));
   } catch (error) {
-    message.error((error as Error).message || "加载应用过滤选项失败");
+    message.error((error as Error).message || t("console.dashboard.loadAppFilterFailed"));
   }
 }
 
@@ -386,7 +388,7 @@ function formatLastTest(value?: string) {
     return value;
   }
 
-  return date.toLocaleString("en-US");
+  return date.toLocaleString(locale.value === "en-US" ? "en-US" : "zh-CN");
 }
 
 function showDataSourceDetails(item: TenantDataSourceConsumptionItem) {

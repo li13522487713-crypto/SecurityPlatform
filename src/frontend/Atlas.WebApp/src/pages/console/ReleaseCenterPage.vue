@@ -1,36 +1,36 @@
 <template>
   <div class="release-center-page" data-testid="e2e-release-center-page">
     <a-card :bordered="false" class="release-card">
-      <template #title>发布中心</template>
+      <template #title>{{ t("console.releaseCenter.title") }}</template>
       <template #extra>
         <a-space wrap>
           <a-select
             v-model:value="selectedStatus"
             allow-clear
-            placeholder="状态筛选"
+            :placeholder="t('console.releaseCenter.phStatus')"
             style="width: 140px"
             :options="statusOptions"
           />
           <a-input
             v-model:value="appKeyFilter"
             allow-clear
-            placeholder="按 AppKey 筛选"
+            :placeholder="t('console.releaseCenter.phAppKey')"
             style="width: 180px"
           />
           <a-input
             v-model:value="manifestIdFilter"
             allow-clear
-            placeholder="按目录ID筛选"
+            :placeholder="t('console.releaseCenter.phCatalogId')"
             style="width: 160px"
           />
           <a-input-search
             v-model:value="keyword"
             allow-clear
-            placeholder="按发布说明检索"
+            :placeholder="t('console.releaseCenter.phNote')"
             style="width: 240px"
             @search="handleSearch"
           />
-          <a-button @click="resetFilters">重置</a-button>
+          <a-button @click="resetFilters">{{ t("console.releaseCenter.reset") }}</a-button>
         </a-space>
       </template>
 
@@ -53,10 +53,14 @@
           </template>
           <template v-if="column.key === 'actions'">
             <a-space>
-              <a-button type="link" size="small" @click="viewDetail(record.releaseId)">详情</a-button>
-              <a-button type="link" size="small" @click="openDebugTrace(record.releaseId)">审计追溯</a-button>
-              <a-popconfirm title="确认回滚该发布版本？" @confirm="rollback(record.releaseId)">
-                <a-button type="link" size="small" danger>回滚</a-button>
+              <a-button type="link" size="small" @click="viewDetail(record.releaseId)">{{
+                t("console.releaseCenter.detail")
+              }}</a-button>
+              <a-button type="link" size="small" @click="openDebugTrace(record.releaseId)">{{
+                t("console.releaseCenter.trace")
+              }}</a-button>
+              <a-popconfirm :title="t('console.releaseCenter.rollbackConfirm')" @confirm="rollback(record.releaseId)">
+                <a-button type="link" size="small" danger>{{ t("console.releaseCenter.rollback") }}</a-button>
               </a-popconfirm>
             </a-space>
           </template>
@@ -64,41 +68,49 @@
       </a-table>
     </a-card>
 
-    <a-modal v-model:open="detailVisible" title="发布详情" width="760px" :footer="null">
+    <a-modal v-model:open="detailVisible" :title="t('console.releaseCenter.modalTitle')" width="760px" :footer="null">
       <a-alert
         v-if="rollbackResult"
         class="rollback-result"
         :type="rollbackResult.switched ? 'success' : 'warning'"
         show-icon
-        :message="rollbackResult.switched ? '回滚切换成功' : '回滚未发生切换'"
+        :message="
+          rollbackResult.switched ? t('console.releaseCenter.rollbackSwitched') : t('console.releaseCenter.rollbackNoSwitch')
+        "
         :description="buildRollbackMessage(rollbackResult)"
       />
       <a-descriptions :column="2" bordered size="small">
-        <a-descriptions-item label="发布ID">{{ detail?.releaseId }}</a-descriptions-item>
-        <a-descriptions-item label="目录ID">{{ detail?.applicationCatalogId }}</a-descriptions-item>
-        <a-descriptions-item label="应用">{{ detail?.applicationCatalogName }}</a-descriptions-item>
-        <a-descriptions-item label="AppKey">{{ detail?.appKey }}</a-descriptions-item>
-        <a-descriptions-item label="版本">{{ detail?.version }}</a-descriptions-item>
-        <a-descriptions-item label="状态">{{ detail?.status }}</a-descriptions-item>
-        <a-descriptions-item label="发布时间" :span="2">{{ formatDate(detail?.releasedAt) }}</a-descriptions-item>
-        <a-descriptions-item label="发布说明" :span="2">{{ detail?.releaseNote || "-" }}</a-descriptions-item>
+        <a-descriptions-item :label="t('console.releaseCenter.labelReleaseId')">{{ detail?.releaseId }}</a-descriptions-item>
+        <a-descriptions-item :label="t('console.releaseCenter.labelCatalogId')">{{ detail?.applicationCatalogId }}</a-descriptions-item>
+        <a-descriptions-item :label="t('console.releaseCenter.labelApp')">{{ detail?.applicationCatalogName }}</a-descriptions-item>
+        <a-descriptions-item :label="t('console.releaseCenter.colAppKey')">{{ detail?.appKey }}</a-descriptions-item>
+        <a-descriptions-item :label="t('console.releaseCenter.labelVersion')">{{ detail?.version }}</a-descriptions-item>
+        <a-descriptions-item :label="t('console.releaseCenter.labelStatus')">{{ detail?.status }}</a-descriptions-item>
+        <a-descriptions-item :label="t('console.releaseCenter.labelReleasedAt')" :span="2">{{
+          formatDate(detail?.releasedAt)
+        }}</a-descriptions-item>
+        <a-descriptions-item :label="t('console.releaseCenter.labelNote')" :span="2">{{ detail?.releaseNote || "-" }}</a-descriptions-item>
       </a-descriptions>
-      <a-typography-paragraph class="snapshot-title">版本差异摘要</a-typography-paragraph>
+      <a-typography-paragraph class="snapshot-title">{{ t("console.releaseCenter.diffTitle") }}</a-typography-paragraph>
       <a-descriptions bordered size="small" :column="3">
-        <a-descriptions-item label="基线版本">{{ diffSummary?.baselineReleaseId || "-" }}</a-descriptions-item>
-        <a-descriptions-item label="新增字段">{{ diffSummary?.addedCount ?? 0 }}</a-descriptions-item>
-        <a-descriptions-item label="移除字段">{{ diffSummary?.removedCount ?? 0 }}</a-descriptions-item>
-        <a-descriptions-item label="变更字段">{{ diffSummary?.changedCount ?? 0 }}</a-descriptions-item>
+        <a-descriptions-item :label="t('console.releaseCenter.labelBaseline')">{{
+          diffSummary?.baselineReleaseId || "-"
+        }}</a-descriptions-item>
+        <a-descriptions-item :label="t('console.releaseCenter.labelAdded')">{{ diffSummary?.addedCount ?? 0 }}</a-descriptions-item>
+        <a-descriptions-item :label="t('console.releaseCenter.labelRemoved')">{{ diffSummary?.removedCount ?? 0 }}</a-descriptions-item>
+        <a-descriptions-item :label="t('console.releaseCenter.labelChanged')">{{ diffSummary?.changedCount ?? 0 }}</a-descriptions-item>
       </a-descriptions>
       <a-typography-paragraph class="snapshot-json">{{ formatDiffSummary(diffSummary) }}</a-typography-paragraph>
-      <a-typography-paragraph class="snapshot-title">影响范围摘要</a-typography-paragraph>
+      <a-typography-paragraph class="snapshot-title">{{ t("console.releaseCenter.impactTitle") }}</a-typography-paragraph>
       <a-descriptions bordered size="small" :column="2">
-        <a-descriptions-item label="运行路由数">{{ impactSummary?.runtimeRouteCount ?? 0 }}</a-descriptions-item>
-        <a-descriptions-item label="激活路由数">{{ impactSummary?.activeRuntimeRouteCount ?? 0 }}</a-descriptions-item>
-        <a-descriptions-item label="运行上下文数">{{ impactSummary?.runtimeContextCount ?? 0 }}</a-descriptions-item>
-        <a-descriptions-item label="24h执行次数">{{ impactSummary?.recentExecutionCount ?? 0 }}</a-descriptions-item>
-        <a-descriptions-item label="运行中执行">{{ impactSummary?.runningExecutionCount ?? 0 }}</a-descriptions-item>
-        <a-descriptions-item label="失败执行">{{ impactSummary?.failedExecutionCount ?? 0 }}</a-descriptions-item>
+        <a-descriptions-item :label="t('console.releaseCenter.labelRoutes')">{{ impactSummary?.runtimeRouteCount ?? 0 }}</a-descriptions-item>
+        <a-descriptions-item :label="t('console.releaseCenter.labelActiveRoutes')">{{
+          impactSummary?.activeRuntimeRouteCount ?? 0
+        }}</a-descriptions-item>
+        <a-descriptions-item :label="t('console.releaseCenter.labelCtxCount')">{{ impactSummary?.runtimeContextCount ?? 0 }}</a-descriptions-item>
+        <a-descriptions-item :label="t('console.releaseCenter.labelExec24h')">{{ impactSummary?.recentExecutionCount ?? 0 }}</a-descriptions-item>
+        <a-descriptions-item :label="t('console.releaseCenter.labelRunning')">{{ impactSummary?.runningExecutionCount ?? 0 }}</a-descriptions-item>
+        <a-descriptions-item :label="t('console.releaseCenter.labelFailed')">{{ impactSummary?.failedExecutionCount ?? 0 }}</a-descriptions-item>
       </a-descriptions>
       <a-typography-paragraph class="snapshot-title">SnapshotJson</a-typography-paragraph>
       <a-typography-paragraph class="snapshot-json">{{ detail?.snapshotJson || "{}" }}</a-typography-paragraph>
@@ -107,11 +119,18 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, watch, onUnmounted } from "vue";
+import { computed, onMounted, ref, watch, onUnmounted } from "vue";
+import { useI18n } from "vue-i18n";
+
+const { t } = useI18n();
 
 const isMounted = ref(false);
-onMounted(() => { isMounted.value = true; });
-onUnmounted(() => { isMounted.value = false; });
+onMounted(() => {
+  isMounted.value = true;
+});
+onUnmounted(() => {
+  isMounted.value = false;
+});
 
 import { useRoute, useRouter } from "vue-router";
 import type { TableColumnsType, TablePaginationConfig } from "ant-design-vue";
@@ -148,30 +167,30 @@ const pageIndex = ref(1);
 const pageSize = ref(10);
 const total = ref(0);
 
-const columns: TableColumnsType<ReleaseCenterListItem> = [
-  { title: "发布ID", dataIndex: "releaseId", key: "releaseId", width: 160 },
-  { title: "应用目录", dataIndex: "applicationCatalogName", key: "applicationCatalogName", width: 180 },
-  { title: "AppKey", dataIndex: "appKey", key: "appKey", width: 160 },
-  { title: "版本", dataIndex: "version", key: "version", width: 90 },
-  { title: "状态", dataIndex: "status", key: "status", width: 110 },
-  { title: "发布时间", dataIndex: "releasedAt", key: "releasedAt", width: 180 },
-  { title: "发布说明", dataIndex: "releaseNote", key: "releaseNote", ellipsis: true },
-  { title: "操作", key: "actions", width: 220, fixed: "right" }
-];
+const columns = computed<TableColumnsType<ReleaseCenterListItem>>(() => [
+  { title: t("console.releaseCenter.colReleaseId"), dataIndex: "releaseId", key: "releaseId", width: 160 },
+  { title: t("console.releaseCenter.colCatalog"), dataIndex: "applicationCatalogName", key: "applicationCatalogName", width: 180 },
+  { title: t("console.releaseCenter.colAppKey"), dataIndex: "appKey", key: "appKey", width: 160 },
+  { title: t("console.releaseCenter.colVersion"), dataIndex: "version", key: "version", width: 90 },
+  { title: t("console.releaseCenter.colStatus"), dataIndex: "status", key: "status", width: 110 },
+  { title: t("console.releaseCenter.colReleasedAt"), dataIndex: "releasedAt", key: "releasedAt", width: 180 },
+  { title: t("console.releaseCenter.colNote"), dataIndex: "releaseNote", key: "releaseNote", ellipsis: true },
+  { title: t("console.releaseCenter.colActions"), key: "actions", width: 220, fixed: "right" }
+]);
 
 const pagination = ref<TablePaginationConfig>({
   current: 1,
   pageSize: 10,
   total: 0,
   showSizeChanger: true,
-  showTotal: (all) => `共 ${all} 条`
+  showTotal: (all) => t("crud.totalItems", { total: all })
 });
 
-const statusOptions = [
+const statusOptions = computed(() => [
   { label: "Pending", value: "Pending" },
   { label: "Released", value: "Released" },
   { label: "RolledBack", value: "RolledBack" }
-];
+]);
 
 function formatDate(value?: string) {
   if (!value) {
@@ -184,10 +203,9 @@ function formatDate(value?: string) {
 async function loadReleases() {
   loading.value = true;
   try {
-    const parsedManifestId = manifestIdFilter.value.trim().length > 0
-      ? Number.parseInt(manifestIdFilter.value.trim(), 10)
-      : undefined;
-    const result  = await getReleaseCenterPaged({
+    const parsedManifestId =
+      manifestIdFilter.value.trim().length > 0 ? Number.parseInt(manifestIdFilter.value.trim(), 10) : Number.NaN;
+    const result = await getReleaseCenterPaged({
       pageIndex: pageIndex.value,
       pageSize: pageSize.value,
       keyword: keyword.value || undefined,
@@ -206,7 +224,7 @@ async function loadReleases() {
       total: result.total
     };
   } catch (error) {
-    message.error((error as Error).message || "加载发布中心失败");
+    message.error((error as Error).message || t("console.releaseCenter.loadFailed"));
   } finally {
     loading.value = false;
   }
@@ -234,7 +252,7 @@ function resetFilters() {
 
 async function viewDetail(releaseId: string) {
   try {
-    const [detailData, diffData, impactData]  = await Promise.all([
+    const [detailData, diffData, impactData] = await Promise.all([
       getReleaseCenterDetail(releaseId),
       getReleaseCenterDiff(releaseId),
       getReleaseCenterImpact(releaseId)
@@ -246,17 +264,17 @@ async function viewDetail(releaseId: string) {
     impactSummary.value = impactData;
     detailVisible.value = true;
   } catch (error) {
-    message.error((error as Error).message || "加载发布详情失败");
+    message.error((error as Error).message || t("console.releaseCenter.loadDetailFailed"));
   }
 }
 
 async function rollback(releaseId: string) {
   try {
-    const result  = await rollbackReleaseCenter(releaseId);
+    const result = await rollbackReleaseCenter(releaseId);
 
     if (!isMounted.value) return;
     rollbackResult.value = result;
-    message.success(result.switched ? "回滚切换成功" : "回滚未发生切换");
+    message.success(result.switched ? t("console.releaseCenter.rollbackOkSwitch") : t("console.releaseCenter.rollbackOkNoSwitch"));
     await loadReleases();
 
     if (!isMounted.value) return;
@@ -266,31 +284,37 @@ async function rollback(releaseId: string) {
       if (!isMounted.value) return;
     }
   } catch (error) {
-    message.error((error as Error).message || "回滚失败");
+    message.error((error as Error).message || t("console.releaseCenter.rollbackFailed"));
   }
 }
 
 function formatDiffSummary(summary: ReleaseDiffSummary | null) {
   if (!summary) {
-    return "暂无差异摘要。";
+    return t("console.releaseCenter.diffEmpty");
   }
 
   return [
-    `新增: ${summary.addedKeys.join(", ") || "-"}`,
-    `移除: ${summary.removedKeys.join(", ") || "-"}`,
-    `变更: ${summary.changedKeys.join(", ") || "-"}`
+    t("console.releaseCenter.diffAddedKeys", { keys: summary.addedKeys.join(", ") || "-" }),
+    t("console.releaseCenter.diffRemovedKeys", { keys: summary.removedKeys.join(", ") || "-" }),
+    t("console.releaseCenter.diffChangedKeys", { keys: summary.changedKeys.join(", ") || "-" })
   ].join("\n");
 }
 
 function buildRollbackMessage(result: ReleaseRollbackResult) {
+  const prevDetail = result.previousReleaseId
+    ? `#${result.previousReleaseId} (v${result.previousVersion ?? "-"})`
+    : "-";
   const parts = [
-    `目标版本: #${result.targetReleaseId} (v${result.targetVersion})`,
-    `原版本: ${result.previousReleaseId ? `#${result.previousReleaseId} (v${result.previousVersion ?? "-"})` : "-"}`,
-    `重绑路由: ${result.reboundRouteCount}`,
-    `结果: ${result.result}`
+    t("console.releaseCenter.rollbackTraceTarget", {
+      id: result.targetReleaseId,
+      version: result.targetVersion
+    }),
+    t("console.releaseCenter.rollbackTracePrevious", { detail: prevDetail }),
+    t("console.releaseCenter.rollbackTraceRebound", { n: result.reboundRouteCount }),
+    t("console.releaseCenter.rollbackTraceResult", { result: result.result })
   ];
   if (result.message) {
-    parts.push(`说明: ${result.message}`);
+    parts.push(t("console.releaseCenter.rollbackTraceNote", { msg: result.message }));
   }
 
   return parts.join(" | ");
@@ -304,9 +328,7 @@ function openDebugTrace(releaseId: string) {
 }
 
 function readReleaseIdFromRouteQuery() {
-  const releaseId = typeof route.query.releaseId === "string"
-    ? route.query.releaseId.trim()
-    : "";
+  const releaseId = typeof route.query.releaseId === "string" ? route.query.releaseId.trim() : "";
   return releaseId;
 }
 

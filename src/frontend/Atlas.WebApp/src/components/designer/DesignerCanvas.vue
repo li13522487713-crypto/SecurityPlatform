@@ -1,13 +1,15 @@
 <template>
   <div class="designer-canvas">
     <slot>
-      <a-empty description="画布待实现" />
+      <a-empty :description="t('designerUi.canvasEmpty')" />
     </slot>
   </div>
 </template>
 
 <script setup lang="ts">
-// 画布容器，后续可扩展为可拖拽/连线组件
+import { useI18n } from "vue-i18n";
+
+const { t } = useI18n();
 </script>
 
 <style scoped>

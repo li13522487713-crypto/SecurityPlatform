@@ -1,20 +1,20 @@
 <template>
-  <a-card :title="isCreate ? '新建 AI 应用' : `编辑 AI 应用 #${appId}`" :bordered="false">
+  <a-card :title="pageTitle" :bordered="false">
     <template #extra>
       <a-space>
-        <a-button @click="goBack">返回</a-button>
-        <a-button type="primary" :loading="submitting" @click="submit">保存</a-button>
+        <a-button @click="goBack">{{ t("ai.plugin.back") }}</a-button>
+        <a-button type="primary" :loading="submitting" @click="submit">{{ t("common.save") }}</a-button>
       </a-space>
     </template>
 
     <a-form ref="formRef" :model="form" layout="vertical" :rules="rules">
-      <a-form-item label="名称" name="name">
+      <a-form-item :label="t('ai.promptLib.colName')" name="name">
         <a-input v-model:value="form.name" />
       </a-form-item>
-      <a-form-item label="描述" name="description">
+      <a-form-item :label="t('ai.promptLib.labelDescription')" name="description">
         <a-textarea v-model:value="form.description" :rows="3" />
       </a-form-item>
-      <a-form-item label="图标" name="icon">
+      <a-form-item :label="t('ai.plugin.labelIcon')" name="icon">
         <a-input v-model:value="form.icon" />
       </a-form-item>
       <a-form-item label="Agent ID" name="agentId">
@@ -32,13 +32,16 @@
     <a-alert
       type="info"
       show-icon
-      message="提示：应用发布、版本检查与资源复制可在列表页“操作”列完成。"
+      :message="t('ai.app.hintPublish')"
     />
   </a-card>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, onUnmounted } from "vue";
+import { useI18n } from "vue-i18n";
+
+const { t } = useI18n();
 
 const isMounted = ref(false);
 onMounted(() => { isMounted.value = true; });
@@ -54,6 +57,10 @@ const router = useRouter();
 const appId = computed(() => Number(route.params.id));
 const isCreate = computed(() => !Number.isFinite(appId.value) || appId.value <= 0);
 
+const pageTitle = computed(() =>
+  isCreate.value ? t("ai.app.editorCreate") : t("ai.app.editorEdit", { id: appId.value })
+);
+
 const formRef = ref<FormInstance>();
 const submitting = ref(false);
 const form = reactive({
@@ -65,9 +72,9 @@ const form = reactive({
   promptTemplateId: undefined as number | undefined
 });
 
-const rules = {
-  name: [{ required: true, message: "请输入应用名称" }]
-};
+const rules = computed(() => ({
+  name: [{ required: true, message: t("ai.app.ruleName") }]
+}));
 
 function goBack() {
   void router.push("/ai/apps");
@@ -91,7 +98,7 @@ async function loadDetail() {
       promptTemplateId: detail.promptTemplateId
     });
   } catch (error: unknown) {
-    message.error((error as Error).message || "加载应用详情失败");
+    message.error((error as Error).message || t("ai.app.loadDetailFailed"));
   }
 }
 
@@ -119,16 +126,16 @@ async function submit() {
       const newId  = await createAiApp(payload);
 
       if (!isMounted.value) return;
-      message.success("创建成功");
+      message.success(t("crud.createSuccess"));
       void router.replace(`/ai/apps/${newId}/edit`);
     } else {
       await updateAiApp(appId.value, payload);
 
       if (!isMounted.value) return;
-      message.success("更新成功");
+      message.success(t("crud.updateSuccess"));
     }
   } catch (error: unknown) {
-    message.error((error as Error).message || "保存失败");
+    message.error((error as Error).message || t("ai.app.saveFailed"));
   } finally {
     submitting.value = false;
   }

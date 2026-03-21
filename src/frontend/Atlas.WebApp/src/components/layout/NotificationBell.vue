@@ -11,9 +11,11 @@
     <template #overlay>
       <div class="notif-panel" data-testid="e2e-notification-panel">
         <div class="notif-header">
-          <span class="notif-title">通知</span>
+          <span class="notif-title">{{ t("layoutChrome.notifications") }}</span>
           <span data-testid="e2e-notification-mark-all">
-            <a-button v-if="unreadCount > 0" type="link" size="small" @click="markAll">全部已读</a-button>
+            <a-button v-if="unreadCount > 0" type="link" size="small" @click="markAll">{{
+              t("layoutChrome.markAllRead")
+            }}</a-button>
           </span>
         </div>
 
@@ -38,11 +40,11 @@
               </div>
             </div>
           </template>
-          <a-empty v-else description="暂无通知" :image="Empty.PRESENTED_IMAGE_SIMPLE" />
+          <a-empty v-else :description="t('layoutChrome.emptyNotifications')" :image="Empty.PRESENTED_IMAGE_SIMPLE" />
         </a-spin>
 
         <div class="notif-footer" data-testid="e2e-notification-footer">
-          <router-link to="/system/notifications">查看全部通知</router-link>
+          <router-link to="/system/notifications">{{ t("layoutChrome.viewAll") }}</router-link>
         </div>
       </div>
     </template>
@@ -51,6 +53,9 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from "vue";
+import { useI18n } from "vue-i18n";
+
+const { t, locale } = useI18n();
 
 const isMounted = ref(false);
 onMounted(() => { isMounted.value = true; });
@@ -116,11 +121,11 @@ const markAll = async () => {
 
 const typeLabel = (type: string) => {
   const map: Record<string, string> = {
-    Announcement: "公告",
-    announcement: "公告",
-    System: "系统",
-    system: "系统",
-    Reminder: "提醒"
+    Announcement: t("layoutChrome.typeAnnouncement"),
+    announcement: t("layoutChrome.typeAnnouncement"),
+    System: t("layoutChrome.typeSystem"),
+    system: t("layoutChrome.typeSystem"),
+    Reminder: t("layoutChrome.typeReminder")
   };
   return map[type] ?? type;
 };
@@ -139,7 +144,12 @@ const typeClass = (type: string) => {
 const formatTime = (iso: string) => {
   try {
     const d = new Date(iso);
-    return d.toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+    return d.toLocaleString(locale.value === "en-US" ? "en-US" : "zh-CN", {
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit"
+    });
   } catch {
     return iso;
   }

@@ -18,7 +18,7 @@
             <a-statistic
               :title="t('monitorServer.logicalCores')"
               :value="info.cpu.logicalCores"
-              suffix="核"
+              :suffix="t('monitorServer.coreSuffix')"
             />
             <a-progress
               :percent="info.cpu.processCpuUsagePercent"
@@ -102,7 +102,7 @@
           <a-card :title="t('monitorServer.healthTitle')">
             <div class="health-header">
               <a-tag :color="healthTagColor(healthInfo?.status)">
-                {{ healthInfo?.status ?? "未知" }}
+                {{ healthInfo?.status ?? t("monitorServer.unknown") }}
               </a-tag>
               <span class="health-checked-at" v-if="healthInfo?.checkedAt">
                 {{ t("monitorServer.checkedAt", { time: formatTime(healthInfo.checkedAt) }) }}

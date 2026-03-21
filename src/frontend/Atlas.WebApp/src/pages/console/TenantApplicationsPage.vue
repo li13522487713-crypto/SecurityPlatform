@@ -1,24 +1,24 @@
 <template>
   <div class="tenant-applications-page" data-testid="e2e-console-tenant-applications-page">
     <a-card :bordered="false" class="tenant-app-card">
-      <template #title>租户开通关系</template>
+      <template #title>{{ t("console.tenantApps.title") }}</template>
       <template #extra>
         <a-space wrap>
           <a-select
             v-model:value="selectedStatus"
             allow-clear
-            placeholder="状态筛选"
+            :placeholder="t('console.tenantApps.phStatus')"
             style="width: 140px"
             :options="statusOptions"
           />
           <a-input-search
             v-model:value="keyword"
             allow-clear
-            placeholder="按目录名或 AppKey 检索"
+            :placeholder="t('console.tenantApps.phSearch')"
             style="width: 260px"
             @search="handleSearch"
           />
-          <a-button @click="resetFilters">重置</a-button>
+          <a-button @click="resetFilters">{{ t("console.tenantApps.reset") }}</a-button>
         </a-space>
       </template>
 
@@ -40,7 +40,7 @@
             {{ formatDate(record.openedAt) }}
           </template>
           <template v-if="column.key === 'actions'">
-            <a-button type="link" size="small" @click="viewDetail(record.id)">查看</a-button>
+            <a-button type="link" size="small" @click="viewDetail(record.id)">{{ t("console.tenantApps.view") }}</a-button>
           </template>
         </template>
       </a-table>
@@ -48,32 +48,47 @@
 
     <a-drawer
       v-model:open="detailVisible"
-      title="租户开通关系详情"
+      :title="t('console.tenantApps.drawerTitle')"
       width="680"
       :destroy-on-close="true"
     >
       <a-descriptions :column="2" bordered size="small">
-        <a-descriptions-item label="ID">{{ detail?.id || "-" }}</a-descriptions-item>
-        <a-descriptions-item label="目录ID">{{ detail?.applicationCatalogId || "-" }}</a-descriptions-item>
-        <a-descriptions-item label="目录名称">{{ detail?.applicationCatalogName || "-" }}</a-descriptions-item>
-        <a-descriptions-item label="应用实例ID">{{ detail?.tenantAppInstanceId || "-" }}</a-descriptions-item>
-        <a-descriptions-item label="AppKey">{{ detail?.appKey || "-" }}</a-descriptions-item>
-        <a-descriptions-item label="应用名称">{{ detail?.name || "-" }}</a-descriptions-item>
-        <a-descriptions-item label="状态">{{ detail?.status || "-" }}</a-descriptions-item>
-        <a-descriptions-item label="开通时间">{{ formatDate(detail?.openedAt) }}</a-descriptions-item>
-        <a-descriptions-item label="更新时间">{{ formatDate(detail?.updatedAt) }}</a-descriptions-item>
-        <a-descriptions-item label="数据源ID" :span="2">{{ detail?.dataSourceId || "-" }}</a-descriptions-item>
+        <a-descriptions-item :label="t('console.catalog.labelId')">{{ detail?.id || "-" }}</a-descriptions-item>
+        <a-descriptions-item :label="t('console.tenantApps.labelCatalogId')">{{
+          detail?.applicationCatalogId || "-"
+        }}</a-descriptions-item>
+        <a-descriptions-item :label="t('console.tenantApps.labelCatalogName')">{{
+          detail?.applicationCatalogName || "-"
+        }}</a-descriptions-item>
+        <a-descriptions-item :label="t('console.tenantApps.labelInstanceId')">{{
+          detail?.tenantAppInstanceId || "-"
+        }}</a-descriptions-item>
+        <a-descriptions-item :label="t('console.tenantApps.labelAppKey')">{{ detail?.appKey || "-" }}</a-descriptions-item>
+        <a-descriptions-item :label="t('console.tenantApps.labelAppName')">{{ detail?.name || "-" }}</a-descriptions-item>
+        <a-descriptions-item :label="t('console.tenantApps.labelStatus')">{{ detail?.status || "-" }}</a-descriptions-item>
+        <a-descriptions-item :label="t('console.tenantApps.labelOpenedAt')">{{ formatDate(detail?.openedAt) }}</a-descriptions-item>
+        <a-descriptions-item :label="t('console.tenantApps.labelUpdatedAt')">{{ formatDate(detail?.updatedAt) }}</a-descriptions-item>
+        <a-descriptions-item :label="t('console.tenantApps.labelDataSourceId')" :span="2">{{
+          detail?.dataSourceId || "-"
+        }}</a-descriptions-item>
       </a-descriptions>
     </a-drawer>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, onUnmounted } from "vue";
+import { computed, onMounted, ref, onUnmounted } from "vue";
+import { useI18n } from "vue-i18n";
+
+const { t } = useI18n();
 
 const isMounted = ref(false);
-onMounted(() => { isMounted.value = true; });
-onUnmounted(() => { isMounted.value = false; });
+onMounted(() => {
+  isMounted.value = true;
+});
+onUnmounted(() => {
+  isMounted.value = false;
+});
 
 import type { TableColumnsType, TablePaginationConfig } from "ant-design-vue";
 import { message } from "ant-design-vue";
@@ -89,29 +104,29 @@ const detailVisible = ref(false);
 const pageIndex = ref(1);
 const pageSize = ref(10);
 
-const columns: TableColumnsType<TenantApplicationListItem> = [
-  { title: "目录名", dataIndex: "applicationCatalogName", key: "applicationCatalogName", width: 180 },
-  { title: "AppKey", dataIndex: "appKey", key: "appKey", width: 170 },
-  { title: "应用名", dataIndex: "name", key: "name", width: 170 },
-  { title: "开通时间", dataIndex: "openedAt", key: "openedAt", width: 180 },
-  { title: "状态", dataIndex: "status", key: "status", width: 120 },
-  { title: "操作", key: "actions", width: 100, fixed: "right" }
-];
+const columns = computed<TableColumnsType<TenantApplicationListItem>>(() => [
+  { title: t("console.tenantApps.colCatalogName"), dataIndex: "applicationCatalogName", key: "applicationCatalogName", width: 180 },
+  { title: t("console.tenantApps.labelAppKey"), dataIndex: "appKey", key: "appKey", width: 170 },
+  { title: t("console.tenantApps.colAppName"), dataIndex: "name", key: "name", width: 170 },
+  { title: t("console.tenantApps.colOpenedAt"), dataIndex: "openedAt", key: "openedAt", width: 180 },
+  { title: t("console.tenantApps.colStatus"), dataIndex: "status", key: "status", width: 120 },
+  { title: t("console.tenantApps.colActions"), key: "actions", width: 100, fixed: "right" }
+]);
 
 const pagination = ref<TablePaginationConfig>({
   current: 1,
   pageSize: 10,
   total: 0,
   showSizeChanger: true,
-  showTotal: (all) => `共 ${all} 条`
+  showTotal: (all) => t("crud.totalItems", { total: all })
 });
 
-const statusOptions = [
+const statusOptions = computed(() => [
   { label: "Provisioning", value: "Provisioning" },
   { label: "Active", value: "Active" },
   { label: "Disabled", value: "Disabled" },
   { label: "Archived", value: "Archived" }
-];
+]);
 
 function formatDate(value?: string) {
   if (!value) {
@@ -129,7 +144,7 @@ function formatDate(value?: string) {
 async function loadTenantApplications() {
   loading.value = true;
   try {
-    const result  = await getTenantApplicationsPaged({
+    const result = await getTenantApplicationsPaged({
       pageIndex: pageIndex.value,
       pageSize: pageSize.value,
       keyword: keyword.value || undefined,
@@ -145,7 +160,7 @@ async function loadTenantApplications() {
       total: result.total
     };
   } catch (error) {
-    message.error((error as Error).message || "加载租户开通关系失败");
+    message.error((error as Error).message || t("console.tenantApps.loadFailed"));
   } finally {
     loading.value = false;
   }
@@ -176,7 +191,7 @@ async function viewDetail(id: string) {
     if (!isMounted.value) return;
     detailVisible.value = true;
   } catch (error) {
-    message.error((error as Error).message || "加载租户开通关系详情失败");
+    message.error((error as Error).message || t("console.tenantApps.loadDetailFailed"));
   }
 }
 

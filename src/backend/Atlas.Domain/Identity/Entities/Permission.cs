@@ -1,5 +1,6 @@
 using Atlas.Core.Abstractions;
 using Atlas.Core.Tenancy;
+using SqlSugar;
 
 namespace Atlas.Domain.Identity.Entities;
 
@@ -31,6 +32,7 @@ public class Permission : TenantEntity
     public string? Description { get; private set; }
 
     /// <summary>所属应用 ID。null=平台级权限，有值=应用级权限。</summary>
+    [SugarColumn(IsNullable = true)]
     public long? AppId { get; private set; }
 
     public void Update(string name, string type, string? description)

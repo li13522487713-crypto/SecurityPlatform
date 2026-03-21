@@ -18,7 +18,7 @@
       <ExclamationCircleFilled v-else-if="props.data.__status === 'interrupted'" style="color:#faad14" />
     </div>
 
-    <!-- Selector 节点：两个输出端口 -->
+    <!-- Selector: two output handles -->
     <template v-if="nodeType === 'Selector'">
       <Handle type="source" :position="Position.Right" id="true" class="node-handle handle-true">
         <span class="handle-label">True</span>
@@ -27,7 +27,7 @@
         <span class="handle-label">False</span>
       </Handle>
     </template>
-    <!-- Loop 节点：两个输出端口 -->
+    <!-- Loop: two output handles -->
     <template v-else-if="nodeType === 'Loop'">
       <Handle type="source" :position="Position.Right" id="body" class="node-handle handle-loop-body">
         <span class="handle-label">Body</span>
@@ -36,7 +36,7 @@
         <span class="handle-label">Done</span>
       </Handle>
     </template>
-    <!-- 默认：单个输出端口 -->
+    <!-- Default: single output -->
     <template v-else>
       <Handle type="source" :position="Position.Right" class="node-handle" />
     </template>
@@ -45,6 +45,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Handle, Position } from '@vue-flow/core'
 import {
   LoadingOutlined,
@@ -63,6 +64,12 @@ interface NodeData {
 }
 
 const props = defineProps<{ data: NodeData }>()
+const { t } = useI18n()
+
+const KNOWN_NODE_TYPES = new Set([
+  "Entry", "Exit", "Llm", "Selector", "Loop", "SubWorkflow", "HttpRequester", "CodeRunner", "DatabaseQuery",
+  "AssignVariable", "VariableAggregator", "JsonSerialization", "JsonDeserialization", "TextProcessor", "LLM", "If"
+])
 
 const nodeType = computed(() => props.data.nodeType ?? 'Unknown')
 const nodeTypeLower = computed(() => nodeType.value.toLowerCase())
@@ -82,7 +89,6 @@ const NODE_COLORS: Record<string, string> = {
   JsonSerialization: '#84cc16',
   JsonDeserialization: '#84cc16',
   TextProcessor: '#e2e8f0',
-  // 兼容历史草稿别名
   LLM: '#6366f1',
   If: '#f59e0b',
 }
@@ -106,19 +112,15 @@ const NODE_ICONS: Record<string, string> = {
   If: '⟟',
 }
 
-const NODE_NAMES: Record<string, string> = {
-  Entry: '开始', Exit: '结束', Llm: '大模型', Selector: '条件判断',
-  Loop: '循环',
-  SubWorkflow: '子流程', CodeRunner: '代码执行',
-  HttpRequester: 'HTTP 请求', DatabaseQuery: '数据库查询',
-  AssignVariable: '变量赋值', VariableAggregator: '变量聚合', JsonSerialization: 'JSON序列化',
-  JsonDeserialization: 'JSON反序列化', TextProcessor: '文本处理',
-  LLM: '大模型', If: '条件判断',
-}
-
 const nodeColor = computed(() => NODE_COLORS[nodeType.value] ?? '#6b7280')
 const nodeIcon = computed(() => NODE_ICONS[nodeType.value] ?? '□')
-const nodeTypeName = computed(() => NODE_NAMES[nodeType.value] ?? nodeType.value)
+const nodeTypeName = computed(() => {
+  const k = nodeType.value
+  if (KNOWN_NODE_TYPES.has(k)) {
+    return t(`wfUi.nodeTypes.${k}`)
+  }
+  return k
+})
 
 const statusClass = computed(() => {
   const s = props.data.__status

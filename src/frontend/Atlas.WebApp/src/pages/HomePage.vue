@@ -235,9 +235,9 @@ const alertsStyle = computed(() => ({ color: "#cf1322" }));
 
 const severityColor = (severity: string) => {
   const s = severity.toLowerCase();
-  if (s.includes("critical") || s.includes("high") || s.includes("严重")) return "red";
-  if (s.includes("medium") || s.includes("中")) return "orange";
-  if (s.includes("low") || s.includes("轻")) return "blue";
+  if (s.includes("critical") || s.includes("high")) return "red";
+  if (s.includes("medium")) return "orange";
+  if (s.includes("low")) return "blue";
   return "default";
 };
 

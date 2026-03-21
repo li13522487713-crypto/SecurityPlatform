@@ -1,34 +1,34 @@
 <template>
   <a-space direction="vertical" style="width: 100%" :size="16">
-    <a-card :title="`数据库详情 #${databaseId}`" :bordered="false">
+    <a-card :title="t('ai.database.detailTitle', { id: databaseId })" :bordered="false">
       <template #extra>
         <a-space>
-          <a-button @click="goBack">返回</a-button>
-          <a-button :loading="schemaValidating" @click="validateSchema">校验 Schema</a-button>
-          <a-button :loading="templateDownloading" @click="downloadTemplate">下载模板</a-button>
-          <a-button type="primary" @click="openImport">导入数据</a-button>
+          <a-button @click="goBack">{{ t("ai.plugin.back") }}</a-button>
+          <a-button :loading="schemaValidating" @click="validateSchema">{{ t("ai.database.validateSchema") }}</a-button>
+          <a-button :loading="templateDownloading" @click="downloadTemplate">{{ t("ai.database.downloadTemplate") }}</a-button>
+          <a-button type="primary" @click="openImport">{{ t("ai.database.importData") }}</a-button>
         </a-space>
       </template>
 
       <a-descriptions :column="2" bordered size="small">
-        <a-descriptions-item label="名称">{{ detail?.name ?? "-" }}</a-descriptions-item>
-        <a-descriptions-item label="记录数">{{ detail?.recordCount ?? 0 }}</a-descriptions-item>
-        <a-descriptions-item label="Bot">{{ detail?.botId ?? "-" }}</a-descriptions-item>
-        <a-descriptions-item label="更新时间">{{ detail?.updatedAt ?? "-" }}</a-descriptions-item>
-        <a-descriptions-item label="描述" :span="2">{{ detail?.description ?? "-" }}</a-descriptions-item>
+        <a-descriptions-item :label="t('ai.promptLib.colName')">{{ detail?.name ?? "-" }}</a-descriptions-item>
+        <a-descriptions-item :label="t('ai.database.colRecords')">{{ detail?.recordCount ?? 0 }}</a-descriptions-item>
+        <a-descriptions-item :label="t('ai.database.colBot')">{{ detail?.botId ?? "-" }}</a-descriptions-item>
+        <a-descriptions-item :label="t('ai.workflow.colUpdatedAt')">{{ detail?.updatedAt ?? "-" }}</a-descriptions-item>
+        <a-descriptions-item :label="t('ai.promptLib.labelDescription')" :span="2">{{ detail?.description ?? "-" }}</a-descriptions-item>
       </a-descriptions>
 
-      <a-divider orientation="left">Schema</a-divider>
+      <a-divider orientation="left">{{ t("ai.database.sectionSchema") }}</a-divider>
       <a-typography-paragraph>
         <pre class="schema-block">{{ detail?.tableSchema }}</pre>
       </a-typography-paragraph>
     </a-card>
 
-    <a-card title="数据记录" :bordered="false">
+    <a-card :title="t('ai.database.dataRecords')" :bordered="false">
       <template #extra>
         <a-space>
-          <a-button @click="refreshImportProgress">刷新导入进度</a-button>
-          <a-button type="primary" @click="openCreateRecord">新增记录</a-button>
+          <a-button @click="refreshImportProgress">{{ t("ai.database.refreshImport") }}</a-button>
+          <a-button type="primary" @click="openCreateRecord">{{ t("ai.database.newRecord") }}</a-button>
         </a-space>
       </template>
 
@@ -37,22 +37,22 @@
         type="info"
         show-icon
         style="margin-bottom: 12px"
-        :message="`导入任务 #${importProgress.taskId} 状态：${importStatusLabel(importProgress.status)}`"
-        :description="`总计 ${importProgress.totalRows}，成功 ${importProgress.succeededRows}，失败 ${importProgress.failedRows}${importProgress.errorMessage ? `，错误：${importProgress.errorMessage}` : ''}`"
+        :message="importTaskMessage"
+        :description="importTaskDescription"
       />
 
       <a-table row-key="id" :columns="columns" :data-source="records" :loading="recordsLoading" :pagination="false">
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'dataJson'">
-            <a-typography-paragraph :ellipsis="{ rows: 2, expandable: true, symbol: '展开' }">
+            <a-typography-paragraph :ellipsis="{ rows: 2, expandable: true, symbol: t('ai.expand') }">
               {{ record.dataJson }}
             </a-typography-paragraph>
           </template>
           <template v-if="column.key === 'action'">
             <a-space>
-              <a-button type="link" @click="openEditRecord(record.id, record.dataJson)">编辑</a-button>
-              <a-popconfirm title="确认删除该记录？" @confirm="handleDeleteRecord(record.id)">
-                <a-button type="link" danger>删除</a-button>
+              <a-button type="link" @click="openEditRecord(record.id, record.dataJson)">{{ t("common.edit") }}</a-button>
+              <a-popconfirm :title="t('ai.database.deleteRecordConfirm')" @confirm="handleDeleteRecord(record.id)">
+                <a-button type="link" danger>{{ t("common.delete") }}</a-button>
               </a-popconfirm>
             </a-space>
           </template>
@@ -73,14 +73,14 @@
 
     <a-modal
       v-model:open="recordModalOpen"
-      :title="editingRecordId ? '编辑记录' : '新增记录'"
+      :title="editingRecordId ? t('ai.database.modalRecordEdit') : t('ai.database.modalRecordCreate')"
       :confirm-loading="recordSubmitting"
       width="760px"
       @ok="submitRecord"
       @cancel="closeRecordModal"
     >
       <a-form ref="recordFormRef" :model="recordForm" layout="vertical" :rules="recordRules">
-        <a-form-item label="记录 JSON" name="dataJson">
+        <a-form-item :label="t('ai.database.labelRecordJson')" name="dataJson">
           <a-textarea v-model:value="recordForm.dataJson" :rows="12" />
         </a-form-item>
       </a-form>
@@ -97,6 +97,9 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, onUnmounted } from "vue";
+import { useI18n } from "vue-i18n";
+
+const { t } = useI18n();
 
 const isMounted = ref(false);
 onMounted(() => { isMounted.value = true; });
@@ -134,12 +137,31 @@ const importProgress = ref<AiDatabaseImportProgress | null>(null);
 const schemaValidating = ref(false);
 const templateDownloading = ref(false);
 
-const columns = [
-  { title: "ID", dataIndex: "id", key: "id", width: 180 },
-  { title: "数据", key: "dataJson" },
-  { title: "更新时间", dataIndex: "updatedAt", key: "updatedAt", width: 200 },
-  { title: "操作", key: "action", width: 150 }
-];
+const columns = computed(() => [
+  { title: t("ai.knowledgeBase.colId"), dataIndex: "id", key: "id", width: 180 },
+  { title: t("ai.database.colData"), key: "dataJson" },
+  { title: t("ai.workflow.colUpdatedAt"), dataIndex: "updatedAt", key: "updatedAt", width: 200 },
+  { title: t("ai.colActions"), key: "action", width: 150 }
+]);
+
+const importTaskMessage = computed(() => {
+  if (!importProgress.value) return "";
+  return t("ai.database.importTaskMsg", {
+    taskId: importProgress.value.taskId,
+    status: importStatusLabel(importProgress.value.status)
+  });
+});
+
+const importTaskDescription = computed(() => {
+  if (!importProgress.value) return "";
+  const p = importProgress.value;
+  return t("ai.database.importTaskDesc", {
+    total: p.totalRows,
+    success: p.succeededRows,
+    failed: p.failedRows,
+    err: p.errorMessage ? t("ai.database.importTaskError", { msg: p.errorMessage }) : ""
+  });
+});
 
 const recordModalOpen = ref(false);
 const recordSubmitting = ref(false);
@@ -148,9 +170,9 @@ const recordFormRef = ref<FormInstance>();
 const recordForm = reactive({
   dataJson: "{}"
 });
-const recordRules = {
-  dataJson: [{ required: true, message: "请输入 JSON 数据" }]
-};
+const recordRules = computed(() => ({
+  dataJson: [{ required: true, message: t("ai.database.ruleRecordJson") }]
+}));
 
 const importOpen = ref(false);
 
@@ -160,7 +182,7 @@ function goBack() {
 
 async function loadDetail() {
   if (!Number.isFinite(databaseId.value) || databaseId.value <= 0) {
-    message.error("数据库ID无效");
+    message.error(t("ai.database.invalidDbId"));
     return;
   }
 
@@ -169,7 +191,7 @@ async function loadDetail() {
 
     if (!isMounted.value) return;
   } catch (error: unknown) {
-    message.error((error as Error).message || "加载数据库详情失败");
+    message.error((error as Error).message || t("ai.database.loadDetailFailed"));
   }
 }
 
@@ -185,7 +207,7 @@ async function loadRecords() {
     records.value = result.items;
     total.value = Number(result.total);
   } catch (error: unknown) {
-    message.error((error as Error).message || "加载数据库记录失败");
+    message.error((error as Error).message || t("ai.database.loadRecordsFailed"));
   } finally {
     recordsLoading.value = false;
   }
@@ -212,12 +234,12 @@ async function validateSchema() {
 
     if (!isMounted.value) return;
     if (result.isValid) {
-      message.success("Schema 校验通过");
+      message.success(t("ai.database.schemaValidOk"));
     } else {
-      message.error(`Schema 校验失败：${result.errors.join("；")}`);
+      message.error(t("ai.database.schemaValidFailed", { errors: result.errors.join("; ") }));
     }
   } catch (error: unknown) {
-    message.error((error as Error).message || "Schema 校验失败");
+    message.error((error as Error).message || t("ai.database.schemaValidError"));
   } finally {
     schemaValidating.value = false;
   }
@@ -236,7 +258,7 @@ async function downloadTemplate() {
     link.click();
     URL.revokeObjectURL(url);
   } catch (error: unknown) {
-    message.error((error as Error).message || "下载模板失败");
+    message.error((error as Error).message || t("ai.database.downloadTemplateFailed"));
   } finally {
     templateDownloading.value = false;
   }
@@ -274,12 +296,12 @@ async function submitRecord() {
       await updateAiDatabaseRecord(databaseId.value, editingRecordId.value, { dataJson: recordForm.dataJson });
 
       if (!isMounted.value) return;
-      message.success("记录更新成功");
+      message.success(t("ai.database.recordUpdateOk"));
     } else {
       await createAiDatabaseRecord(databaseId.value, { dataJson: recordForm.dataJson });
 
       if (!isMounted.value) return;
-      message.success("记录创建成功");
+      message.success(t("ai.database.recordCreateOk"));
     }
 
     recordModalOpen.value = false;
@@ -287,7 +309,7 @@ async function submitRecord() {
 
     if (!isMounted.value) return;
   } catch (error: unknown) {
-    message.error((error as Error).message || "提交记录失败");
+    message.error((error as Error).message || t("ai.database.recordSubmitFailed"));
   } finally {
     recordSubmitting.value = false;
   }
@@ -298,12 +320,12 @@ async function handleDeleteRecord(recordId: number) {
     await deleteAiDatabaseRecord(databaseId.value, recordId);
 
     if (!isMounted.value) return;
-    message.success("删除成功");
+    message.success(t("crud.deleteSuccess"));
     await Promise.all([loadDetail(), loadRecords()]);
 
     if (!isMounted.value) return;
   } catch (error: unknown) {
-    message.error((error as Error).message || "删除记录失败");
+    message.error((error as Error).message || t("ai.database.deleteRecordFailed"));
   }
 }
 
@@ -321,10 +343,10 @@ function handleImportSuccess() {
 }
 
 function importStatusLabel(status: number) {
-  if (status === 1) return "进行中";
-  if (status === 2) return "已完成";
-  if (status === 3) return "失败";
-  return "待执行";
+  if (status === 1) return t("ai.database.importRunning");
+  if (status === 2) return t("ai.database.importDone");
+  if (status === 3) return t("ai.database.importFailed");
+  return t("ai.database.importPending");
 }
 
 onMounted(() => {

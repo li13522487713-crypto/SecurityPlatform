@@ -1,5 +1,5 @@
 <template>
-  <a-page-header title="流程设计器" sub-title="创建和编辑审批流程" />
+  <a-page-header :title="t('visualization.designerTitle')" :sub-title="t('visualization.designerSubtitle')" />
   <div class="designer-shell">
     <DesignerToolbar
       :loading="loading"
@@ -22,46 +22,46 @@
       <PropertyPanel>
         <template #basic>
           <a-form layout="vertical">
-            <a-form-item label="流程名称">
+            <a-form-item :label="t('visualization.labelFlowName')">
               <a-input v-model:value="definition.name" />
             </a-form-item>
-            <a-form-item label="流程编码">
+            <a-form-item :label="t('visualization.labelFlowCode')">
               <a-input v-model:value="definition.code" />
             </a-form-item>
-            <a-form-item label="表单编码">
+            <a-form-item :label="t('visualization.labelFormCode')">
               <a-input v-model:value="definition.formCode" />
             </a-form-item>
             <a-form-item>
-              <a-checkbox v-model:checked="definition.isLowCodeFlow">低代码流程</a-checkbox>
+              <a-checkbox v-model:checked="definition.isLowCodeFlow">{{ t("visualization.chkLowCodeFlow") }}</a-checkbox>
             </a-form-item>
             <a-form-item>
-              <a-checkbox v-model:checked="definition.isOutSideProcess">外部流程</a-checkbox>
+              <a-checkbox v-model:checked="definition.isOutSideProcess">{{ t("visualization.chkOutsideProcess") }}</a-checkbox>
             </a-form-item>
           </a-form>
         </template>
         <template #node>
           <div v-if="selectedNode">
             <a-form layout="vertical">
-              <a-form-item label="节点名称">
+              <a-form-item :label="t('visualization.labelNodeName')">
                 <a-input v-model:value="selectedNode.name" />
               </a-form-item>
-              <a-form-item label="节点类型">
+              <a-form-item :label="t('visualization.labelNodeType')">
                 <a-tag color="blue">{{ selectedNode.type }}</a-tag>
               </a-form-item>
             </a-form>
           </div>
-          <a-empty v-else description="请选择节点后编辑属性" />
+          <a-empty v-else :description="t('visualization.emptySelectNode')" />
         </template>
         <template #validate>
           <div v-if="validation">
-            <a-alert v-if="validation.isValid" type="success" message="校验通过" show-icon />
-            <a-alert v-else type="error" message="校验失败" show-icon />
+            <a-alert v-if="validation.isValid" type="success" :message="t('visualization.validateOk')" show-icon />
+            <a-alert v-else type="error" :message="t('visualization.validateFail')" show-icon />
             <ul class="msg-list">
               <li v-for="err in validation.errors" :key="err">{{ err }}</li>
               <li v-for="warn in validation.warnings || []" :key="`w-${warn}`" class="warn">{{ warn }}</li>
             </ul>
           </div>
-          <a-empty v-else description="暂无校验结果" />
+          <a-empty v-else :description="t('visualization.emptyValidate')" />
         </template>
       </PropertyPanel>
     </div>
@@ -70,6 +70,9 @@
 
 <script setup lang="ts">
 import { reactive, ref, onMounted, onUnmounted } from "vue";
+import { useI18n } from "vue-i18n";
+
+const { t } = useI18n();
 
 const isMounted = ref(false);
 onMounted(() => { isMounted.value = true; });
@@ -121,7 +124,7 @@ const load = async (id: string) => {
     Object.assign(definition, data);
     currentId.value = id;
   } catch (e) {
-    message.error((e as Error).message || "加载流程失败");
+    message.error((e as Error).message || t("visualization.loadFlowFailed"));
   } finally {
     loading.value = false;
   }
@@ -134,21 +137,23 @@ const onSave = async () => {
       await updateFlowDefinition(currentId.value, { tenantId, definition });
 
       if (!isMounted.value) return;
-      message.success("已更新");
+      message.success(t("visualization.updated"));
     } else {
       const res  = await saveFlowDefinition({ tenantId, definition });
 
       if (!isMounted.value) return;
       currentId.value = res.id;
-      message.success("已保存");
+      message.success(t("visualization.saved"));
     }
   } finally {
     loading.value = false;
   }
 };
 
+const paletteName = (type: NodeType) => t(`approvalPalette.${type.replace(/-/g, "_")}`);
+
 const onAddNode = (type: NodeType) => {
-  const node = createNode(type);
+  const node = createNode(type, paletteName(type));
   definition.nodes.push(node);
   selectedNodeId.value = node.id;
   selectedNode.value = node;
@@ -166,8 +171,8 @@ const onSelectNode = (id: string | undefined) => {
 
 const addDefaultStartEnd = () => {
   if (definition.nodes.length > 0) return;
-  const start = createNode("start");
-  const end = createNode("end");
+  const start = createNode("start", paletteName("start"));
+  const end = createNode("end", paletteName("end"));
   start.children = [end];
   definition.nodes.push(start);
   selectedNodeId.value = start.id;
@@ -181,9 +186,9 @@ const onValidate = async () => {
 
     if (!isMounted.value) return;
     if (validation.value.isValid) {
-      message.success("校验通过");
+      message.success(t("visualization.validatePassed"));
     } else {
-      message.error("校验未通过");
+      message.error(t("visualization.validateNotPassed"));
     }
   } finally {
     loading.value = false;
@@ -191,14 +196,14 @@ const onValidate = async () => {
 };
 
 const onPreview = async () => {
-  message.info("预览功能待接入");
+  message.info(t("visualization.previewPending"));
 };
 
 const onPublish = async () => {
   loading.value = true;
   try {
     if (!currentId.value) {
-      message.warning("请先保存流程");
+      message.warning(t("visualization.saveFlowFirst"));
       return;
     }
     if (!validation.value?.isValid) {
@@ -212,7 +217,7 @@ const onPublish = async () => {
     await publishFlowDefinition(currentId.value);
 
     if (!isMounted.value) return;
-    message.success("发布成功");
+    message.success(t("visualization.publishOk"));
   } finally {
     loading.value = false;
   }
@@ -221,10 +226,10 @@ const onPublish = async () => {
 const confirmProceed = () => {
   return new Promise<boolean>((resolve) => {
     Modal.confirm({
-      title: "尚未校验或存在错误",
-      content: "确认继续发布？",
-      okText: "继续发布",
-      cancelText: "取消",
+      title: t("visualization.publishConfirmTitle"),
+      content: t("visualization.publishConfirmContent"),
+      okText: t("visualization.continuePublish"),
+      cancelText: t("common.cancel"),
       onOk: () => resolve(true),
       onCancel: () => resolve(false)
     });

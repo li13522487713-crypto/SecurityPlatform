@@ -1,54 +1,54 @@
 <template>
-  <a-card title="可视化中心" class="page-card" :loading="loading">
+  <a-card :title="t('visualization.centerTitle')" class="page-card" :loading="loading">
     <template #extra>
-      <a-button type="primary" @click="loadOverview">刷新</a-button>
+      <a-button type="primary" @click="loadOverview">{{ t("visualization.refresh") }}</a-button>
     </template>
 
     <a-row :gutter="[16, 16]">
       <a-col :span="6">
         <a-card size="small" bordered>
-          <div class="kpi-title">流程总数</div>
+          <div class="kpi-title">{{ t("visualization.kpiTotalProcesses") }}</div>
           <div class="kpi-value">{{ overview?.totalProcesses ?? "-" }}</div>
         </a-card>
       </a-col>
       <a-col :span="6">
         <a-card size="small" bordered>
-          <div class="kpi-title">运行实例</div>
+          <div class="kpi-title">{{ t("visualization.kpiRunningInstances") }}</div>
           <div class="kpi-value">{{ overview?.runningInstances ?? "-" }}</div>
         </a-card>
       </a-col>
       <a-col :span="6">
         <a-card size="small" bordered>
-          <div class="kpi-title">阻塞节点</div>
+          <div class="kpi-title">{{ t("visualization.kpiBlockedNodes") }}</div>
           <div class="kpi-value">{{ overview?.blockedNodes ?? "-" }}</div>
         </a-card>
       </a-col>
       <a-col :span="6">
         <a-card size="small" bordered>
-          <div class="kpi-title">今日告警</div>
+          <div class="kpi-title">{{ t("visualization.kpiAlertsToday") }}</div>
           <div class="kpi-value">{{ overview?.alertsToday ?? "-" }}</div>
         </a-card>
       </a-col>
     </a-row>
 
-    <a-card title="运行指标" size="small" style="margin-top: 16px">
+    <a-card :title="t('visualization.cardMetrics')" size="small" style="margin-top: 16px">
       <a-row :gutter="[16, 16]">
         <a-col :span="6">
-          <a-statistic title="待办任务" :value="metrics?.pendingTasks ?? 0" />
+          <a-statistic :title="t('visualization.statPendingTasks')" :value="metrics?.pendingTasks ?? 0" />
         </a-col>
         <a-col :span="6">
-          <a-statistic title="超时待办" :value="metrics?.overdueTasks ?? 0" />
+          <a-statistic :title="t('visualization.statOverdueTasks')" :value="metrics?.overdueTasks ?? 0" />
         </a-col>
         <a-col :span="6">
-          <a-statistic title="资产总量" :value="metrics?.assetsTotal ?? 0" />
+          <a-statistic :title="t('visualization.statAssetsTotal')" :value="metrics?.assetsTotal ?? 0" />
         </a-col>
         <a-col :span="6">
-          <a-statistic title="今日审计" :value="metrics?.auditEventsToday ?? 0" />
+          <a-statistic :title="t('visualization.statAuditToday')" :value="metrics?.auditEventsToday ?? 0" />
         </a-col>
       </a-row>
     </a-card>
 
-    <a-card title="风险提示" size="small" style="margin-top: 16px">
+    <a-card :title="t('visualization.cardRisk')" size="small" style="margin-top: 16px">
       <a-list :data-source="overview?.riskHints || []" bordered>
         <template #renderItem="{ item }">
           <a-list-item>
@@ -64,15 +64,22 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, onUnmounted } from "vue";
+import { onMounted, onUnmounted, ref } from "vue";
+import { useI18n } from "vue-i18n";
 
 const isMounted = ref(false);
-onMounted(() => { isMounted.value = true; });
-onUnmounted(() => { isMounted.value = false; });
+onMounted(() => {
+  isMounted.value = true;
+});
+onUnmounted(() => {
+  isMounted.value = false;
+});
 
 import { getVisualizationMetrics, getVisualizationOverview } from "@/services/api";
 import type { VisualizationMetricsResponse, VisualizationOverview } from "@/types/api";
 import { message } from "ant-design-vue";
+
+const { t } = useI18n();
 
 const overview = ref<VisualizationOverview>();
 const metrics = ref<VisualizationMetricsResponse>();

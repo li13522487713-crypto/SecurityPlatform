@@ -1,6 +1,6 @@
 <template>
   <a-drawer
-    :title="entry ? entry.name : '插件详情'"
+    :title="entry ? entry.name : t('lowcode.plugin.drawerTitle')"
     width="520"
     :open="true"
     @close="$emit('close')"
@@ -16,14 +16,14 @@
               <a-tag>{{ entry.category }}</a-tag>
               <span>v{{ entry.latestVersion }}</span>
               <span>{{ entry.author }}</span>
-              <span>{{ entry.downloads }} 次安装</span>
+              <span>{{ t("lowcode.plugin.installs", { n: entry.downloads }) }}</span>
             </div>
           </div>
         </div>
 
         <a-divider />
         <p>{{ entry.description }}</p>
-        <a-divider>版本历史</a-divider>
+        <a-divider>{{ t("lowcode.plugin.versionHistory") }}</a-divider>
 
         <a-timeline>
           <a-timeline-item v-for="v in versions" :key="v.id">
@@ -36,7 +36,7 @@
 
     <template #footer>
       <a-space>
-        <a-button @click="$emit('close')">关闭</a-button>
+        <a-button @click="$emit('close')">{{ t("lowcode.plugin.close") }}</a-button>
         <a-button
           v-if="entry"
           type="primary"
@@ -44,7 +44,7 @@
           target="_blank"
           :disabled="!entry.packageUrl"
         >
-          下载安装包
+          {{ t("lowcode.plugin.downloadPkg") }}
         </a-button>
       </a-space>
     </template>
@@ -52,42 +52,45 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted } from "vue";
+import { useI18n } from "vue-i18n";
 
 const isMounted = ref(false);
 onMounted(() => { isMounted.value = true; });
 onUnmounted(() => { isMounted.value = false; });
 
-import { AppstoreOutlined } from '@ant-design/icons-vue'
-import { getPluginMarketEntry, getPluginMarketVersions } from '@/services/api-plugin'
-import type { PluginMarketEntry, PluginMarketVersion } from '@/types/plugin'
+import { AppstoreOutlined } from "@ant-design/icons-vue";
+import { getPluginMarketEntry, getPluginMarketVersions } from "@/services/api-plugin";
+import type { PluginMarketEntry, PluginMarketVersion } from "@/types/plugin";
 
-const props = defineProps<{ code: string }>()
-defineEmits<{ close: [] }>()
+const { t, locale } = useI18n();
 
-const loading = ref(false)
-const entry = ref<PluginMarketEntry | null>(null)
-const versions = ref<PluginMarketVersion[]>([])
+const props = defineProps<{ code: string }>();
+defineEmits<{ close: [] }>();
+
+const loading = ref(false);
+const entry = ref<PluginMarketEntry | null>(null);
+const versions = ref<PluginMarketVersion[]>([]);
 
 async function load() {
-  loading.value = true
+  loading.value = true;
   try {
     const [entryRes, versionsRes] = await Promise.all([
       getPluginMarketEntry(props.code),
       getPluginMarketVersions(props.code),
-    ])
-    if (entryRes.success) entry.value = entryRes.data ?? null
-    if (versionsRes.success) versions.value = versionsRes.data ?? []
+    ]);
+    if (entryRes.success) entry.value = entryRes.data ?? null;
+    if (versionsRes.success) versions.value = versionsRes.data ?? [];
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
 
 function formatDate(d: string) {
-  return new Date(d).toLocaleDateString('zh-CN')
+  return new Date(d).toLocaleDateString(locale.value === "en-US" ? "en-US" : "zh-CN");
 }
 
-onMounted(load)
+onMounted(load);
 </script>
 
 <style scoped>

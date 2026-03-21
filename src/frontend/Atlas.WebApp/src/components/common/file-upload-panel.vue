@@ -64,7 +64,7 @@ const props = withDefaults(
     maxCount: 5,
     disabled: false,
     accept: "",
-    buttonText: "上传附件"
+    buttonText: ""
   }
 );
 

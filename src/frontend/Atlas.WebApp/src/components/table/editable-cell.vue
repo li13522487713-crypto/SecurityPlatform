@@ -56,9 +56,12 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, ref, watch } from 'vue'
-import { EditOutlined, LoadingOutlined } from '@ant-design/icons-vue'
-import { message } from 'ant-design-vue'
+import { nextTick, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
+import { EditOutlined, LoadingOutlined } from "@ant-design/icons-vue";
+import { message } from "ant-design-vue";
+
+const { t } = useI18n();
 
 interface SelectOption {
   label: string
@@ -117,13 +120,13 @@ const handleSave = async () => {
     try {
       const ok = await props.onSave(newVal as string | number | null)
       if (ok === false) {
-        message.error('保存失败')
+        message.error(t("tableUi.saveFailed"))
         return
       }
       emit('update:value', newVal as string | number | null)
       emit('saved', newVal as string | number | null)
     } catch (e) {
-      message.error((e as Error)?.message || '保存失败')
+      message.error((e as Error)?.message || t("tableUi.saveFailed"))
     } finally {
       saving.value = false
     }

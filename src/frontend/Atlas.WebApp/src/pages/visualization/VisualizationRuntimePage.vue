@@ -1,13 +1,18 @@
 <template>
-  <a-card title="运行态中心" class="page-card" :loading="loading">
+  <a-card :title="t('visualization.runtimeTitle')" class="page-card" :loading="loading">
     <template #extra>
       <a-space>
-        <a-select v-model:value="statusFilter" style="120px" placeholder="状态" allow-clear>
-          <a-select-option value="Running">运行中</a-select-option>
-          <a-select-option value="Blocked">阻塞</a-select-option>
-          <a-select-option value="Completed">完成</a-select-option>
+        <a-select
+          v-model:value="statusFilter"
+          style="120px"
+          :placeholder="t('visualization.placeholderStatus')"
+          allow-clear
+        >
+          <a-select-option value="Running">{{ t("visualization.statusRunning") }}</a-select-option>
+          <a-select-option value="Blocked">{{ t("visualization.statusBlocked") }}</a-select-option>
+          <a-select-option value="Completed">{{ t("visualization.statusCompleted") }}</a-select-option>
         </a-select>
-        <a-button @click="loadData">查询</a-button>
+        <a-button @click="loadData">{{ t("visualization.search") }}</a-button>
       </a-space>
     </template>
 
@@ -23,16 +28,16 @@
 
     <a-drawer
       v-model:open="detailVisible"
-      :title="detail?.flowName || '实例详情'"
+      :title="detail?.flowName || t('visualization.detailTitle')"
       width="480"
       destroy-on-close
     >
       <a-descriptions size="small" :column="1" bordered>
-        <a-descriptions-item label="实例ID">{{ detail?.id }}</a-descriptions-item>
-        <a-descriptions-item label="状态">{{ detail?.status }}</a-descriptions-item>
-        <a-descriptions-item label="当前节点">{{ detail?.currentNode }}</a-descriptions-item>
-        <a-descriptions-item label="启动时间">{{ detail?.startedAt }}</a-descriptions-item>
-        <a-descriptions-item label="结束时间">{{ detail?.finishedAt || "-" }}</a-descriptions-item>
+        <a-descriptions-item :label="t('visualization.labelInstanceId')">{{ detail?.id }}</a-descriptions-item>
+        <a-descriptions-item :label="t('visualization.labelStatus')">{{ detail?.status }}</a-descriptions-item>
+        <a-descriptions-item :label="t('visualization.labelCurrentNode')">{{ detail?.currentNode }}</a-descriptions-item>
+        <a-descriptions-item :label="t('visualization.labelStartedAt')">{{ detail?.startedAt }}</a-descriptions-item>
+        <a-descriptions-item :label="t('visualization.labelFinishedAt')">{{ detail?.finishedAt || "-" }}</a-descriptions-item>
       </a-descriptions>
 
       <a-divider />
@@ -45,7 +50,8 @@
         >
           <div class="trace-title">{{ trace.name }}（{{ trace.status }}）</div>
           <div class="trace-meta">
-            {{ trace.startedAt }} - {{ trace.endedAt || "..." }} | {{ trace.durationMinutes }} 分钟
+            {{ trace.startedAt }} - {{ trace.endedAt || "..." }} |
+            {{ t("visualization.durationMinutes", { n: trace.durationMinutes }) }}
           </div>
         </a-timeline-item>
       </a-timeline>
@@ -63,15 +69,22 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, onUnmounted } from "vue";
+import { computed, onMounted, onUnmounted, ref } from "vue";
+import { useI18n } from "vue-i18n";
 
 const isMounted = ref(false);
-onMounted(() => { isMounted.value = true; });
-onUnmounted(() => { isMounted.value = false; });
+onMounted(() => {
+  isMounted.value = true;
+});
+onUnmounted(() => {
+  isMounted.value = false;
+});
 
 import { getVisualizationInstances, getVisualizationInstanceDetail } from "@/services/api";
 import type { VisualizationInstanceSummary, VisualizationInstanceDetail } from "@/types/api";
 import { message } from "ant-design-vue";
+
+const { t } = useI18n();
 
 const instances = ref<VisualizationInstanceSummary[]>([]);
 const loading = ref(false);
@@ -80,14 +93,14 @@ const statusFilter = ref<string>();
 const detailVisible = ref(false);
 const detail = ref<VisualizationInstanceDetail>();
 
-const columns = [
-  { title: "实例ID", dataIndex: "id", key: "id" },
-  { title: "流程", dataIndex: "flowName", key: "flowName" },
-  { title: "状态", dataIndex: "status", key: "status" },
-  { title: "当前节点", dataIndex: "currentNode", key: "currentNode" },
-  { title: "启动时间", dataIndex: "startedAt", key: "startedAt" },
-  { title: "耗时(分钟)", dataIndex: "durationMinutes", key: "durationMinutes" }
-];
+const columns = computed(() => [
+  { title: t("visualization.colInstanceId"), dataIndex: "id", key: "id" },
+  { title: t("visualization.colFlow"), dataIndex: "flowName", key: "flowName" },
+  { title: t("visualization.labelStatus"), dataIndex: "status", key: "status" },
+  { title: t("visualization.labelCurrentNode"), dataIndex: "currentNode", key: "currentNode" },
+  { title: t("visualization.labelStartedAt"), dataIndex: "startedAt", key: "startedAt" },
+  { title: t("visualization.colDurationMin"), dataIndex: "durationMinutes", key: "durationMinutes" }
+]);
 
 interface TablePagination {
   current?: number;
@@ -97,7 +110,7 @@ interface TablePagination {
 const loadData = async () => {
   try {
     loading.value = true;
-    const result  = await getVisualizationInstances(
+    const result = await getVisualizationInstances(
       {
         pageIndex: pagination.value.current,
         pageSize: pagination.value.pageSize

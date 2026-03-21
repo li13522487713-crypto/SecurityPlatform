@@ -3,19 +3,17 @@ import { nanoid } from "nanoid";
 
 export interface PaletteItem {
   type: NodeType;
-  label: string;
-  description?: string;
 }
 
 export const paletteItems: PaletteItem[] = [
-  { type: "start", label: "开始" },
-  { type: "approve", label: "审批" },
-  { type: "condition", label: "条件" },
-  { type: "parallel", label: "并行" },
-  { type: "parallel-join", label: "聚合" },
-  { type: "copy", label: "抄送" },
-  { type: "task", label: "任务" },
-  { type: "end", label: "结束" }
+  { type: "start" },
+  { type: "approve" },
+  { type: "condition" },
+  { type: "parallel" },
+  { type: "parallel-join" },
+  { type: "copy" },
+  { type: "task" },
+  { type: "end" }
 ];
 
 export function createNode(type: NodeType, name?: string): FlowNode {
@@ -31,21 +29,21 @@ export function createNode(type: NodeType, name?: string): FlowNode {
 function defaultName(type: NodeType): string {
   switch (type) {
     case "start":
-      return "开始";
+      return "Start";
     case "end":
-      return "结束";
+      return "End";
     case "approve":
-      return "审批";
+      return "Approve";
     case "condition":
-      return "条件";
+      return "Condition";
     case "parallel":
-      return "并行";
+      return "Parallel";
     case "parallel-join":
-      return "聚合";
+      return "Join";
     case "copy":
-      return "抄送";
+      return "CC";
     case "task":
-      return "任务";
+      return "Task";
     default:
       return type;
   }

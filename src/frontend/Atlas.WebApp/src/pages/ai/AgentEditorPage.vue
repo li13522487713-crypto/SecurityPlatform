@@ -2,28 +2,28 @@
   <a-card :bordered="false">
     <template #title>
       <a-space>
-        <a-button type="link" @click="goBack">返回列表</a-button>
-        <span>Agent 编辑器</span>
+        <a-button type="link" @click="goBack">{{ t("ai.agent.backToList") }}</a-button>
+        <span>{{ t("ai.agent.editorTitle") }}</span>
       </a-space>
     </template>
 
     <a-row :gutter="16">
       <a-col :span="8">
-        <a-card size="small" title="基础设置">
+        <a-card size="small" :title="t('ai.agent.cardBasic')">
           <a-form layout="vertical">
-            <a-form-item label="名称">
+            <a-form-item :label="t('ai.promptLib.colName')">
               <a-input v-model:value="form.name" />
             </a-form-item>
-            <a-form-item label="描述">
+            <a-form-item :label="t('ai.promptLib.labelDescription')">
               <a-textarea v-model:value="form.description" :rows="2" />
             </a-form-item>
-            <a-form-item label="头像 URL">
+            <a-form-item :label="t('ai.agent.labelAvatar')">
               <a-input v-model:value="form.avatarUrl" />
             </a-form-item>
-            <a-form-item label="模型配置">
+            <a-form-item :label="t('ai.agent.labelModelConfig')">
               <a-select v-model:value="form.modelConfigId" allow-clear :options="modelOptions" />
             </a-form-item>
-            <a-form-item label="模型覆盖">
+            <a-form-item :label="t('ai.agent.labelModelOverride')">
               <a-input v-model:value="form.modelName" />
             </a-form-item>
             <a-form-item label="Temperature">
@@ -32,32 +32,32 @@
             <a-form-item label="MaxTokens">
               <a-input-number v-model:value="form.maxTokens" :min="1" :max="128000" style="width: 100%" />
             </a-form-item>
-            <a-form-item label="知识库 ID（逗号分隔）">
-              <a-input v-model:value="knowledgeBaseInput" placeholder="例如：1001,1002" />
+            <a-form-item :label="t('ai.agent.labelKbIds')">
+              <a-input v-model:value="knowledgeBaseInput" :placeholder="t('ai.agent.kbPlaceholder')" />
             </a-form-item>
           </a-form>
         </a-card>
       </a-col>
 
       <a-col :span="8">
-        <a-card size="small" title="System Prompt">
+        <a-card size="small" :title="t('ai.agent.cardSystemPrompt')">
           <a-textarea v-model:value="form.systemPrompt" :rows="26" />
-          <div class="counter">字符数：{{ form.systemPrompt.length }}</div>
+          <div class="counter">{{ t("ai.agent.charCount", { count: form.systemPrompt.length }) }}</div>
         </a-card>
       </a-col>
 
       <a-col :span="8">
-        <a-card size="small" title="预览面板">
+        <a-card size="small" :title="t('ai.agent.cardPreview')">
           <a-alert
-            message="MVP 预览"
-            description="此阶段先提供配置编辑与保存，聊天预览将在对话阶段接入。"
+            :message="t('ai.agent.previewMvp')"
+            :description="t('ai.agent.previewDesc')"
             type="info"
             show-icon
           />
           <div class="preview-box">
-            <p><strong>当前状态：</strong>{{ agent?.status || "-" }}</p>
-            <p><strong>发布版本：</strong>v{{ agent?.publishVersion ?? 0 }}</p>
-            <p><strong>最后更新时间：</strong>{{ agent?.updatedAt || "-" }}</p>
+            <p><strong>{{ t("ai.agent.stateLabel") }}</strong>{{ agent?.status || "-" }}</p>
+            <p><strong>{{ t("ai.agent.publishVersionLabel") }}</strong>v{{ agent?.publishVersion ?? 0 }}</p>
+            <p><strong>{{ t("ai.agent.updatedAtLabel") }}</strong>{{ agent?.updatedAt || "-" }}</p>
           </div>
         </a-card>
       </a-col>
@@ -65,9 +65,9 @@
 
     <div class="actions">
       <a-space>
-        <a-button @click="goBack">取消</a-button>
-        <a-button :loading="publishing" @click="handlePublish">发布</a-button>
-        <a-button type="primary" :loading="saving" @click="handleSave">保存</a-button>
+        <a-button @click="goBack">{{ t("ai.agent.cancel") }}</a-button>
+        <a-button :loading="publishing" @click="handlePublish">{{ t("ai.workflow.publish") }}</a-button>
+        <a-button type="primary" :loading="saving" @click="handleSave">{{ t("common.save") }}</a-button>
       </a-space>
     </div>
   </a-card>
@@ -75,6 +75,9 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, onUnmounted } from "vue";
+import { useI18n } from "vue-i18n";
+
+const { t } = useI18n();
 
 const isMounted = ref(false);
 onMounted(() => { isMounted.value = true; });
@@ -150,7 +153,7 @@ async function loadData() {
     });
     knowledgeBaseInput.value = (detail.knowledgeBaseIds || []).join(",");
   } catch (error: unknown) {
-    message.error((error as Error).message || "加载 Agent 失败");
+    message.error((error as Error).message || t("ai.agent.loadAgentFailed"));
   }
 }
 
@@ -163,7 +166,7 @@ function parseKnowledgeBaseIds() {
 
 async function handleSave() {
   if (!form.name.trim()) {
-    message.warning("名称不能为空");
+    message.warning(t("ai.agent.warnName"));
     return;
   }
 
@@ -182,12 +185,12 @@ async function handleSave() {
     });
 
     if (!isMounted.value) return;
-    message.success("保存成功");
+    message.success(t("ai.agent.saveSuccess"));
     await loadData();
 
     if (!isMounted.value) return;
   } catch (error: unknown) {
-    message.error((error as Error).message || "保存失败");
+    message.error((error as Error).message || t("ai.workflow.saveFailed"));
   } finally {
     saving.value = false;
   }
@@ -199,12 +202,12 @@ async function handlePublish() {
     await publishAgent(agentId);
 
     if (!isMounted.value) return;
-    message.success("发布成功");
+    message.success(t("ai.agent.publishSuccess"));
     await loadData();
 
     if (!isMounted.value) return;
   } catch (error: unknown) {
-    message.error((error as Error).message || "发布失败");
+    message.error((error as Error).message || t("ai.agent.publishFailed"));
   } finally {
     publishing.value = false;
   }

@@ -1,36 +1,34 @@
 <template>
   <div class="plugin-market-page">
-    <a-page-header title="插件市场" subtitle="浏览并安装扩展插件" />
+    <a-page-header :title="t('lowcode.plugin.title')" :subtitle="t('lowcode.plugin.subtitle')" />
 
-    <!-- 筛选区 -->
     <a-card :bordered="false" class="filter-card">
       <a-space wrap>
         <a-input-search
           v-model:value="keyword"
-          placeholder="搜索插件名称、描述或代码"
+          :placeholder="t('lowcode.plugin.phSearch')"
           allow-clear
           style="width: 280px"
           @search="handleSearch"
         />
         <a-select
           v-model:value="selectedCategory"
-          placeholder="分类"
+          :placeholder="t('lowcode.plugin.phCategory')"
           allow-clear
           style="width: 160px"
           @change="handleSearch"
         >
-          <a-select-option value="General">通用</a-select-option>
-          <a-select-option value="FieldType">字段类型</a-select-option>
-          <a-select-option value="Validator">验证器</a-select-option>
-          <a-select-option value="DataSource">数据源</a-select-option>
-          <a-select-option value="FlowNode">流程节点</a-select-option>
-          <a-select-option value="GridRenderer">表格渲染</a-select-option>
-          <a-select-option value="Theme">主题</a-select-option>
+          <a-select-option value="General">{{ t("lowcode.plugin.catGeneral") }}</a-select-option>
+          <a-select-option value="FieldType">{{ t("lowcode.plugin.catField") }}</a-select-option>
+          <a-select-option value="Validator">{{ t("lowcode.plugin.catValidator") }}</a-select-option>
+          <a-select-option value="DataSource">{{ t("lowcode.plugin.catDataSource") }}</a-select-option>
+          <a-select-option value="FlowNode">{{ t("lowcode.plugin.catFlowNode") }}</a-select-option>
+          <a-select-option value="GridRenderer">{{ t("lowcode.plugin.catGrid") }}</a-select-option>
+          <a-select-option value="Theme">{{ t("lowcode.plugin.catTheme") }}</a-select-option>
         </a-select>
       </a-space>
     </a-card>
 
-    <!-- 插件列表 -->
     <a-spin :spinning="loading">
       <div class="plugin-grid">
         <a-card
@@ -50,12 +48,12 @@
           <div class="plugin-meta">
             <a-tag :color="categoryColor(entry.category)">{{ entry.category }}</a-tag>
             <span class="plugin-version">v{{ entry.latestVersion }}</span>
-            <span class="plugin-downloads">{{ entry.downloads }} 次安装</span>
+            <span class="plugin-downloads">{{ t("lowcode.plugin.installs", { n: entry.downloads }) }}</span>
           </div>
         </a-card>
       </div>
 
-      <a-empty v-if="!loading && entries.length === 0" description="暂无插件" />
+      <a-empty v-if="!loading && entries.length === 0" :description="t('lowcode.plugin.empty')" />
     </a-spin>
 
     <a-pagination
@@ -68,7 +66,6 @@
       @change="fetchEntries"
     />
 
-    <!-- 插件详情 Drawer -->
     <PluginDetailDrawer
       v-if="detailCode"
       :code="detailCode"
@@ -78,70 +75,73 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted } from "vue";
+import { useI18n } from "vue-i18n";
 
 const isMounted = ref(false);
 onMounted(() => { isMounted.value = true; });
 onUnmounted(() => { isMounted.value = false; });
 
-import { AppstoreOutlined } from '@ant-design/icons-vue'
-import { message } from 'ant-design-vue'
-import { searchPluginMarket } from '@/services/api-plugin'
-import type { PluginMarketEntry } from '@/types/plugin'
-import PluginDetailDrawer from './PluginDetailDrawer.vue'
+import { AppstoreOutlined } from "@ant-design/icons-vue";
+import { message } from "ant-design-vue";
+import { searchPluginMarket } from "@/services/api-plugin";
+import type { PluginMarketEntry } from "@/types/plugin";
+import PluginDetailDrawer from "./PluginDetailDrawer.vue";
 
-const loading = ref(false)
-const keyword = ref('')
-const selectedCategory = ref<string | undefined>()
-const entries = ref<PluginMarketEntry[]>([])
-const total = ref(0)
-const pageIndex = ref(1)
-const pageSize = 20
-const detailCode = ref<string | null>(null)
+const { t } = useI18n();
+
+const loading = ref(false);
+const keyword = ref("");
+const selectedCategory = ref<string | undefined>();
+const entries = ref<PluginMarketEntry[]>([]);
+const total = ref(0);
+const pageIndex = ref(1);
+const pageSize = 20;
+const detailCode = ref<string | null>(null);
 
 async function fetchEntries() {
-  loading.value = true
+  loading.value = true;
   try {
     const res = await searchPluginMarket({
       keyword: keyword.value || undefined,
       category: selectedCategory.value,
       pageIndex: pageIndex.value,
       pageSize,
-    })
+    });
     if (res.success && res.data) {
-      entries.value = res.data.items
-      total.value = res.data.total
+      entries.value = res.data.items;
+      total.value = res.data.total;
     }
   } catch {
-    message.error('加载失败')
+    message.error(t("lowcode.plugin.loadFailed"));
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
 
 function handleSearch() {
-  pageIndex.value = 1
-  fetchEntries()
+  pageIndex.value = 1;
+  fetchEntries();
 }
 
 function openDetail(code: string) {
-  detailCode.value = code
+  detailCode.value = code;
 }
 
 function categoryColor(cat: string) {
   const map: Record<string, string> = {
-    General: 'default',
-    FieldType: 'blue',
-    Validator: 'green',
-    DataSource: 'orange',
-    FlowNode: 'purple',
-    GridRenderer: 'cyan',
-    Theme: 'magenta',
-  }
-  return map[cat] ?? 'default'
+    General: "default",
+    FieldType: "blue",
+    Validator: "green",
+    DataSource: "orange",
+    FlowNode: "purple",
+    GridRenderer: "cyan",
+    Theme: "magenta",
+  };
+  return map[cat] ?? "default";
 }
 
-onMounted(fetchEntries)
+onMounted(fetchEntries);
 </script>
 
 <style scoped>

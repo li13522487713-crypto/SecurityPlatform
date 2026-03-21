@@ -4,12 +4,12 @@
       <a-space wrap>
         <a-input
           v-model:value="keyword"
-          placeholder="搜索资产名称"
+          :placeholder="t('pages.assets.searchPlaceholder')"
           allow-clear
           @press-enter="handleSearch"
         />
-        <a-button @click="handleSearch">查询</a-button>
-        <a-button @click="handleReset">重置</a-button>
+        <a-button @click="handleSearch">{{ t("common.search") }}</a-button>
+        <a-button @click="handleReset">{{ t("common.reset") }}</a-button>
       </a-space>
     </div>
 
@@ -18,7 +18,7 @@
       :data-source="dataSource"
       :pagination="pagination"
       :loading="loading"
-      :locale="{ emptyText: '暂无资产数据' }"
+      :locale="{ emptyText: t('pages.assets.emptyText') }"
       row-key="id"
       @change="onTableChange"
     >
@@ -32,16 +32,23 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref, onUnmounted } from "vue";
+import { computed, onMounted, reactive, ref, onUnmounted } from "vue";
+import { useI18n } from "vue-i18n";
 
 const isMounted = ref(false);
-onMounted(() => { isMounted.value = true; });
-onUnmounted(() => { isMounted.value = false; });
+onMounted(() => {
+  isMounted.value = true;
+});
+onUnmounted(() => {
+  isMounted.value = false;
+});
 
 import { getAssetsPaged } from "@/services/api";
 import type { TablePaginationConfig } from "ant-design-vue";
 import { message } from "ant-design-vue";
 import { formatDateTime } from "@/utils/common";
+
+const { t } = useI18n();
 
 interface AssetRow {
   id: string;
@@ -52,14 +59,14 @@ interface AssetRow {
   updatedAt?: string;
 }
 
-const columns = [
-  { title: "资产ID", dataIndex: "id", key: "id", ellipsis: true },
-  { title: "资产名称", dataIndex: "name", key: "name" },
-  { title: "类型", dataIndex: "type", key: "type" },
-  { title: "状态", dataIndex: "status", key: "status" },
-  { title: "创建时间", dataIndex: "createdAt", key: "createdAt" },
-  { title: "更新时间", dataIndex: "updatedAt", key: "updatedAt" }
-];
+const columns = computed(() => [
+  { title: t("pages.assets.colId"), dataIndex: "id", key: "id", ellipsis: true },
+  { title: t("pages.assets.colName"), dataIndex: "name", key: "name" },
+  { title: t("pages.assets.colType"), dataIndex: "type", key: "type" },
+  { title: t("pages.assets.colStatus"), dataIndex: "status", key: "status" },
+  { title: t("pages.assets.colCreatedAt"), dataIndex: "createdAt", key: "createdAt" },
+  { title: t("pages.assets.colUpdatedAt"), dataIndex: "updatedAt", key: "updatedAt" }
+]);
 
 const keyword = ref("");
 const dataSource = ref<AssetRow[]>([]);
@@ -68,13 +75,13 @@ const pagination = reactive<TablePaginationConfig>({
   current: 1,
   pageSize: 10,
   total: 0,
-  showTotal: (total) => `共 ${total} 条`
+  showTotal: (total) => t("crud.totalItems", { total })
 });
 
 const fetchData = async () => {
   loading.value = true;
   try {
-    const result  = await getAssetsPaged({
+    const result = await getAssetsPaged({
       pageIndex: pagination.current ?? 1,
       pageSize: pagination.pageSize ?? 10,
       keyword: keyword.value || undefined
@@ -84,7 +91,7 @@ const fetchData = async () => {
     dataSource.value = result.items;
     pagination.total = result.total;
   } catch (error) {
-    message.error((error as Error).message || "查询失败");
+    message.error((error as Error).message || t("pages.assets.queryFailed"));
   } finally {
     loading.value = false;
   }

@@ -1,59 +1,54 @@
 <template>
   <div class="resource-center-page" data-testid="e2e-resource-center-page">
-    <a-page-header title="资源中心" sub-title="平台资源分组与数据源绑定概览">
+    <a-page-header :title="t('console.resourceCenter.title')" :sub-title="t('console.resourceCenter.subtitle')">
       <template #extra>
-        <a-button type="primary" @click="goToConsumptionPage">查看消费分析</a-button>
+        <a-button type="primary" @click="goToConsumptionPage">{{ t("console.resourceCenter.goConsumption") }}</a-button>
       </template>
     </a-page-header>
 
     <a-row :gutter="[16, 16]" class="summary-row">
       <a-col :xs="24" :md="12" :xl="6">
         <a-card>
-          <a-statistic title="应用目录总数" :value="catalogTotal" />
+          <a-statistic :title="t('console.resourceCenter.statCatalog')" :value="catalogTotal" />
         </a-card>
       </a-col>
       <a-col :xs="24" :md="12" :xl="6">
         <a-card>
-          <a-statistic title="租户应用实例总数" :value="instanceTotal" />
+          <a-statistic :title="t('console.resourceCenter.statInstances')" :value="instanceTotal" />
         </a-card>
       </a-col>
       <a-col :xs="24" :md="12" :xl="6">
         <a-card>
-          <a-statistic title="发布记录总数" :value="releaseTotal" />
+          <a-statistic :title="t('console.resourceCenter.statReleases')" :value="releaseTotal" />
         </a-card>
       </a-col>
       <a-col :xs="24" :md="12" :xl="6">
         <a-card>
-          <a-statistic title="运行执行总数" :value="runtimeExecutionTotal" />
+          <a-statistic :title="t('console.resourceCenter.statExecutions')" :value="runtimeExecutionTotal" />
         </a-card>
       </a-col>
       <a-col :xs="24" :md="12" :xl="6">
         <a-card>
-          <a-statistic title="审计汇总项" :value="auditSummaryTotal" />
+          <a-statistic :title="t('console.resourceCenter.statAudit')" :value="auditSummaryTotal" />
         </a-card>
       </a-col>
       <a-col :xs="24" :md="12" :xl="6">
         <a-card>
-          <a-statistic title="平台级数据源总数" :value="platformDataSourceTotal" />
+          <a-statistic :title="t('console.resourceCenter.statPlatformDs')" :value="platformDataSourceTotal" />
         </a-card>
       </a-col>
       <a-col :xs="24" :md="12" :xl="6">
         <a-card>
-          <a-statistic title="未绑定数据源应用实例数" :value="unboundTenantAppTotal" />
+          <a-statistic :title="t('console.resourceCenter.statUnbound')" :value="unboundTenantAppTotal" />
         </a-card>
       </a-col>
     </a-row>
 
     <a-row :gutter="[16, 16]" class="group-row">
-      <a-col
-        v-for="group in displayGroups"
-        :key="group.groupKey"
-        :xs="24"
-        :xl="8"
-      >
+      <a-col v-for="group in displayGroups" :key="group.groupKey" :xs="24" :xl="8">
         <a-card :loading="loading" :title="group.groupName">
           <template #extra>
-            <a-tag color="blue">共 {{ group.total }} 项</a-tag>
+            <a-tag color="blue">{{ t("console.resourceCenter.groupTotal", { n: group.total }) }}</a-tag>
           </template>
           <a-table
             row-key="resourceId"
@@ -70,7 +65,7 @@
                   :disabled="!record.navigationPath"
                   @click="jumpToResource(record)"
                 >
-                  跳转
+                  {{ t("console.resourceCenter.jump") }}
                 </a-button>
               </template>
             </template>
@@ -83,10 +78,17 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, onUnmounted } from "vue";
+import { useI18n } from "vue-i18n";
+
+const { t } = useI18n();
 
 const isMounted = ref(false);
-onMounted(() => { isMounted.value = true; });
-onUnmounted(() => { isMounted.value = false; });
+onMounted(() => {
+  isMounted.value = true;
+});
+onUnmounted(() => {
+  isMounted.value = false;
+});
 
 import { useRoute, useRouter } from "vue-router";
 import type { TableColumnsType } from "ant-design-vue";
@@ -104,13 +106,13 @@ const loading = ref(false);
 const resourceGroups = ref<ResourceCenterGroupItem[]>([]);
 const dataSourceConsumption = ref<ResourceCenterDataSourceConsumptionResponse | null>(null);
 
-const groupColumns: TableColumnsType<ResourceCenterGroupEntry> = [
-  { title: "名称", dataIndex: "resourceName", key: "resourceName", ellipsis: true },
-  { title: "类型", dataIndex: "resourceType", key: "resourceType", width: 150 },
-  { title: "状态", dataIndex: "status", key: "status", width: 120 },
-  { title: "描述", dataIndex: "description", key: "description", ellipsis: true },
-  { title: "操作", key: "actions", width: 90, fixed: "right" }
-];
+const groupColumns = computed<TableColumnsType<ResourceCenterGroupEntry>>(() => [
+  { title: t("console.resourceCenter.colName"), dataIndex: "resourceName", key: "resourceName", ellipsis: true },
+  { title: t("console.resourceCenter.colType"), dataIndex: "resourceType", key: "resourceType", width: 150 },
+  { title: t("console.resourceCenter.colStatus"), dataIndex: "status", key: "status", width: 120 },
+  { title: t("console.resourceCenter.colDescription"), dataIndex: "description", key: "description", ellipsis: true },
+  { title: t("console.resourceCenter.colActions"), key: "actions", width: 90, fixed: "right" }
+]);
 
 const catalogTotal = computed(() => resourceGroups.value.find((item) => item.groupKey === "catalogs")?.total ?? 0);
 const instanceTotal = computed(() => resourceGroups.value.find((item) => item.groupKey === "instances")?.total ?? 0);
@@ -135,7 +137,7 @@ const displayGroups = computed(() => {
 async function loadResourceCenterData() {
   loading.value = true;
   try {
-    const [groups, consumption]  = await Promise.all([
+    const [groups, consumption] = await Promise.all([
       getResourceCenterGroups(),
       getResourceCenterDataSourceConsumption()
     ]);
@@ -144,7 +146,7 @@ async function loadResourceCenterData() {
     resourceGroups.value = groups;
     dataSourceConsumption.value = consumption;
   } catch (error) {
-    message.error((error as Error).message || "加载资源中心数据失败");
+    message.error((error as Error).message || t("console.resourceCenter.loadFailed"));
   } finally {
     loading.value = false;
   }

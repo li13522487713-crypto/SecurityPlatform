@@ -10,6 +10,7 @@ onMounted(() => { isMounted.value = true; });
 onUnmounted(() => { isMounted.value = false; });
 
 import type { JsonValue } from "@/types/api";
+import { translate } from "@/i18n";
 
 interface Props {
   schema: Record<string, unknown>;
@@ -118,7 +119,7 @@ const renderFallbackEditor = (container: HTMLElement) => {
 
   const titleSpan = document.createElement("span");
   titleSpan.style.cssText = "font-size:14px;font-weight:500;";
-  titleSpan.textContent = "amis JSON Schema 编辑器";
+  titleSpan.textContent = translate("amisEditor.title");
 
   const btnGroup = document.createElement("div");
   btnGroup.style.cssText = "display:flex;gap:8px;";
@@ -126,12 +127,12 @@ const renderFallbackEditor = (container: HTMLElement) => {
   const formatBtn = document.createElement("button");
   formatBtn.id = "amis-format-btn";
   formatBtn.style.cssText = "padding:4px 12px;border:1px solid #d9d9d9;border-radius:4px;background:#fff;cursor:pointer;font-size:12px;";
-  formatBtn.textContent = "格式化";
+  formatBtn.textContent = translate("amisEditor.format");
 
   const saveBtn = document.createElement("button");
   saveBtn.id = "amis-save-btn";
   saveBtn.style.cssText = "padding:4px 12px;border:1px solid #1890ff;border-radius:4px;background:#1890ff;color:#fff;cursor:pointer;font-size:12px;";
-  saveBtn.textContent = "保存";
+  saveBtn.textContent = translate("amisEditor.save");
 
   btnGroup.appendChild(formatBtn);
   btnGroup.appendChild(saveBtn);

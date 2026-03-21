@@ -1,15 +1,15 @@
 <template>
-  <a-card title="Agent 管理" :bordered="false">
+  <a-card :title="t('ai.agent.listTitle')" :bordered="false">
     <div class="toolbar">
       <a-space wrap>
         <a-input-search
           v-model:value="keyword"
-          placeholder="搜索 Agent 名称"
+          :placeholder="t('ai.agent.searchPlaceholder')"
           style="width: 260px"
           @search="loadData"
         />
         <a-segmented v-model:value="statusFilter" :options="statusOptions" @change="handleFilterChange" />
-        <a-button type="primary" @click="openCreate">新建 Agent</a-button>
+        <a-button type="primary" @click="openCreate">{{ t("ai.agent.newAgent") }}</a-button>
       </a-space>
     </div>
 
@@ -25,14 +25,14 @@
           <template #extra>
             <a-tag :color="statusColor(item.status)">{{ item.status }}</a-tag>
           </template>
-          <p class="description">{{ item.description || "暂无描述" }}</p>
-          <p class="meta">模型：{{ item.modelName || "-" }}</p>
-          <p class="meta">版本：v{{ item.publishVersion }}</p>
+          <p class="description">{{ item.description || t("ai.agent.noDescription") }}</p>
+          <p class="meta">{{ t("ai.agent.modelLabel", { name: item.modelName || "-" }) }}</p>
+          <p class="meta">{{ t("ai.agent.versionLabel", { version: item.publishVersion }) }}</p>
           <a-space>
-            <a-button type="link" size="small" @click="goEdit(item.id)">编辑</a-button>
-            <a-button type="link" size="small" @click="handleDuplicate(item.id)">复制</a-button>
-            <a-popconfirm title="确认删除该 Agent？" @confirm="handleDelete(item.id)">
-              <a-button type="link" danger size="small">删除</a-button>
+            <a-button type="link" size="small" @click="goEdit(item.id)">{{ t("common.edit") }}</a-button>
+            <a-button type="link" size="small" @click="handleDuplicate(item.id)">{{ t("ai.agent.duplicate") }}</a-button>
+            <a-popconfirm :title="t('ai.agent.deleteConfirm')" @confirm="handleDelete(item.id)">
+              <a-button type="link" danger size="small">{{ t("common.delete") }}</a-button>
             </a-popconfirm>
           </a-space>
         </a-card>
@@ -52,19 +52,19 @@
 
     <a-modal
       v-model:open="modalVisible"
-      title="新建 Agent"
+      :title="t('ai.agent.modalCreateTitle')"
       :confirm-loading="modalLoading"
       @ok="submitCreate"
       @cancel="closeModal"
     >
       <a-form ref="formRef" :model="form" layout="vertical" :rules="rules">
-        <a-form-item label="名称" name="name">
+        <a-form-item :label="t('ai.promptLib.colName')" name="name">
           <a-input v-model:value="form.name" />
         </a-form-item>
-        <a-form-item label="描述" name="description">
+        <a-form-item :label="t('ai.promptLib.labelDescription')" name="description">
           <a-textarea v-model:value="form.description" :rows="3" />
         </a-form-item>
-        <a-form-item label="模型配置">
+        <a-form-item :label="t('ai.agent.labelModelConfig')">
           <a-select
             v-model:value="form.modelConfigId"
             allow-clear
@@ -81,6 +81,9 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, onUnmounted } from "vue";
+import { useI18n } from "vue-i18n";
+
+const { t } = useI18n();
 
 const isMounted = ref(false);
 onMounted(() => { isMounted.value = true; });
@@ -128,9 +131,9 @@ const form = reactive({
   modelConfigId: undefined as number | undefined
 });
 
-const rules = {
-  name: [{ required: true, message: "请输入 Agent 名称" }]
-};
+const rules = computed(() => ({
+  name: [{ required: true, message: t("ai.agent.ruleName") }]
+}));
 
 function statusColor(status: string) {
   if (status === "Published") return "green";
@@ -159,7 +162,7 @@ async function loadData() {
     list.value = result.items;
     total.value = Number(result.total);
   } catch (error: unknown) {
-    message.error((error as Error).message || "加载 Agent 列表失败");
+    message.error((error as Error).message || t("ai.agent.loadFailed"));
   } finally {
     loading.value = false;
   }
@@ -221,13 +224,13 @@ async function submitCreate() {
     });
 
     if (!isMounted.value) return;
-    message.success("创建成功");
+    message.success(t("crud.createSuccess"));
     modalVisible.value = false;
     await loadData();
 
     if (!isMounted.value) return;
   } catch (error: unknown) {
-    message.error((error as Error).message || "创建失败");
+    message.error((error as Error).message || t("ai.agent.createFailed"));
   } finally {
     modalLoading.value = false;
   }
@@ -238,12 +241,12 @@ async function handleDuplicate(id: number) {
     await duplicateAgent(id);
 
     if (!isMounted.value) return;
-    message.success("复制成功");
+    message.success(t("ai.workflow.copySuccess"));
     await loadData();
 
     if (!isMounted.value) return;
   } catch (error: unknown) {
-    message.error((error as Error).message || "复制失败");
+    message.error((error as Error).message || t("ai.agent.duplicateFailed"));
   }
 }
 
@@ -252,12 +255,12 @@ async function handleDelete(id: number) {
     await deleteAgent(id);
 
     if (!isMounted.value) return;
-    message.success("删除成功");
+    message.success(t("crud.deleteSuccess"));
     await loadData();
 
     if (!isMounted.value) return;
   } catch (error: unknown) {
-    message.error((error as Error).message || "删除失败");
+    message.error((error as Error).message || t("crud.deleteFailed"));
   }
 }
 

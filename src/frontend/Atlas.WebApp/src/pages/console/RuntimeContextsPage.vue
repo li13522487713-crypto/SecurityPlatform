@@ -1,29 +1,29 @@
 <template>
   <div class="runtime-contexts-page" data-testid="e2e-console-runtime-contexts-page">
     <a-card :bordered="false" class="runtime-context-card">
-      <template #title>运行上下文</template>
+      <template #title>{{ t("console.runtimeCtx.title") }}</template>
       <template #extra>
         <a-space wrap>
           <a-input
             v-model:value="appKeyFilter"
             allow-clear
-            placeholder="按 appKey 过滤"
+            :placeholder="t('console.runtimeCtx.phAppKey')"
             style="width: 180px"
           />
           <a-input
             v-model:value="pageKeyFilter"
             allow-clear
-            placeholder="按 pageKey 过滤"
+            :placeholder="t('console.runtimeCtx.phPageKey')"
             style="width: 180px"
           />
           <a-input-search
             v-model:value="keyword"
             allow-clear
-            placeholder="关键字检索"
+            :placeholder="t('console.runtimeCtx.phKeyword')"
             style="width: 200px"
             @search="handleSearch"
           />
-          <a-button @click="resetFilters">重置</a-button>
+          <a-button @click="resetFilters">{{ t("console.runtimeCtx.reset") }}</a-button>
         </a-space>
       </template>
 
@@ -38,11 +38,13 @@
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'isActive'">
             <a-tag :color="record.isActive ? 'success' : 'default'">
-              {{ record.isActive ? "是" : "否" }}
+              {{ record.isActive ? t("console.runtimeCtx.yes") : t("console.runtimeCtx.no") }}
             </a-tag>
           </template>
           <template v-if="column.key === 'actions'">
-            <a-button type="link" size="small" @click="viewDetail(record.appKey, record.pageKey)">查看</a-button>
+            <a-button type="link" size="small" @click="viewDetail(record.appKey, record.pageKey)">{{
+              t("console.runtimeCtx.view")
+            }}</a-button>
           </template>
         </template>
       </a-table>
@@ -50,28 +52,37 @@
 
     <a-drawer
       v-model:open="detailVisible"
-      title="运行上下文详情"
+      :title="t('console.runtimeCtx.drawerTitle')"
       width="620"
       :destroy-on-close="true"
     >
       <a-descriptions :column="2" bordered size="small">
-        <a-descriptions-item label="ID">{{ detail?.id || "-" }}</a-descriptions-item>
+        <a-descriptions-item :label="t('console.runtimeCtx.labelId')">{{ detail?.id || "-" }}</a-descriptions-item>
         <a-descriptions-item label="AppKey">{{ detail?.appKey || "-" }}</a-descriptions-item>
         <a-descriptions-item label="PageKey">{{ detail?.pageKey || "-" }}</a-descriptions-item>
         <a-descriptions-item label="SchemaVersion">{{ detail?.schemaVersion ?? "-" }}</a-descriptions-item>
         <a-descriptions-item label="Environment">{{ detail?.environmentCode || "-" }}</a-descriptions-item>
-        <a-descriptions-item label="IsActive">{{ detail?.isActive ? "是" : "否" }}</a-descriptions-item>
+        <a-descriptions-item :label="t('console.runtimeCtx.labelIsActive')">{{
+          detail?.isActive ? t("console.runtimeCtx.yes") : t("console.runtimeCtx.no")
+        }}</a-descriptions-item>
       </a-descriptions>
     </a-drawer>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, watch, onUnmounted } from "vue";
+import { computed, onMounted, ref, watch, onUnmounted } from "vue";
+import { useI18n } from "vue-i18n";
+
+const { t } = useI18n();
 
 const isMounted = ref(false);
-onMounted(() => { isMounted.value = true; });
-onUnmounted(() => { isMounted.value = false; });
+onMounted(() => {
+  isMounted.value = true;
+});
+onUnmounted(() => {
+  isMounted.value = false;
+});
 
 import type { TableColumnsType, TablePaginationConfig } from "ant-design-vue";
 import { message } from "ant-design-vue";
@@ -90,27 +101,27 @@ const detailVisible = ref(false);
 const pageIndex = ref(1);
 const pageSize = ref(10);
 
-const columns: TableColumnsType<RuntimeContextListItem> = [
-  { title: "AppKey", dataIndex: "appKey", key: "appKey", width: 180 },
-  { title: "PageKey", dataIndex: "pageKey", key: "pageKey", width: 180 },
-  { title: "SchemaVersion", dataIndex: "schemaVersion", key: "schemaVersion", width: 130 },
-  { title: "Environment", dataIndex: "environmentCode", key: "environmentCode", width: 140 },
-  { title: "IsActive", dataIndex: "isActive", key: "isActive", width: 110 },
-  { title: "操作", key: "actions", width: 100, fixed: "right" }
-];
+const columns = computed<TableColumnsType<RuntimeContextListItem>>(() => [
+  { title: t("console.runtimeCtx.colAppKey"), dataIndex: "appKey", key: "appKey", width: 180 },
+  { title: t("console.runtimeCtx.colPageKey"), dataIndex: "pageKey", key: "pageKey", width: 180 },
+  { title: t("console.runtimeCtx.colSchemaVersion"), dataIndex: "schemaVersion", key: "schemaVersion", width: 130 },
+  { title: t("console.runtimeCtx.colEnvironment"), dataIndex: "environmentCode", key: "environmentCode", width: 140 },
+  { title: t("console.runtimeCtx.colIsActive"), dataIndex: "isActive", key: "isActive", width: 110 },
+  { title: t("console.runtimeCtx.colActions"), key: "actions", width: 100, fixed: "right" }
+]);
 
 const pagination = ref<TablePaginationConfig>({
   current: 1,
   pageSize: 10,
   total: 0,
   showSizeChanger: true,
-  showTotal: (all) => `共 ${all} 条`
+  showTotal: (all) => t("crud.totalItems", { total: all })
 });
 
 async function loadRuntimeContexts() {
   loading.value = true;
   try {
-    const result  = await getRuntimeContextsPaged({
+    const result = await getRuntimeContextsPaged({
       pageIndex: pageIndex.value,
       pageSize: pageSize.value,
       keyword: keyword.value || undefined,
@@ -127,7 +138,7 @@ async function loadRuntimeContexts() {
       total: result.total
     };
   } catch (error) {
-    message.error((error as Error).message || "加载运行上下文失败");
+    message.error((error as Error).message || t("console.runtimeCtx.loadFailed"));
   } finally {
     loading.value = false;
   }
@@ -159,7 +170,7 @@ async function viewDetail(appKey: string, pageKey: string) {
     if (!isMounted.value) return;
     detailVisible.value = true;
   } catch (error) {
-    message.error((error as Error).message || "加载运行上下文详情失败");
+    message.error((error as Error).message || t("console.runtimeCtx.loadDetailFailed"));
   }
 }
 
@@ -171,9 +182,8 @@ function syncFiltersFromRouteQuery() {
 }
 
 async function openDetailByRouteQuery() {
-  const runtimeContextId = typeof route.query.runtimeContextId === "string"
-    ? route.query.runtimeContextId.trim()
-    : "";
+  const runtimeContextId =
+    typeof route.query.runtimeContextId === "string" ? route.query.runtimeContextId.trim() : "";
   if (!runtimeContextId) {
     return;
   }

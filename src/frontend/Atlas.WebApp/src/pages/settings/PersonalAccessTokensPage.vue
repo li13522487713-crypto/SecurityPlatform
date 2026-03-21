@@ -1,15 +1,15 @@
 <template>
-  <a-card title="个人访问令牌（PAT）" :bordered="false">
+  <a-card :title="t('settings.pat.cardTitle')" :bordered="false">
     <div class="toolbar">
       <a-space wrap>
         <a-input-search
           v-model:value="keyword"
-          placeholder="搜索令牌名称"
+          :placeholder="t('settings.pat.searchPlaceholder')"
           style="width: 260px"
           @search="loadData"
         />
-        <a-button @click="handleReset">重置</a-button>
-        <a-button type="primary" @click="openCreate">创建令牌</a-button>
+        <a-button @click="handleReset">{{ t("settings.pat.reset") }}</a-button>
+        <a-button type="primary" @click="openCreate">{{ t("settings.pat.create") }}</a-button>
       </a-space>
     </div>
 
@@ -23,14 +23,14 @@
         </template>
         <template v-if="column.key === 'status'">
           <a-tag :color="record.revokedAt ? 'red' : 'green'">
-            {{ record.revokedAt ? "已撤销" : "有效" }}
+            {{ record.revokedAt ? t("settings.pat.statusRevoked") : t("settings.pat.statusActive") }}
           </a-tag>
         </template>
         <template v-if="column.key === 'action'">
           <a-space>
-            <a-button type="link" @click="openEdit(record)">编辑</a-button>
-            <a-popconfirm title="确认撤销该令牌？" @confirm="handleRevoke(record.id)">
-              <a-button type="link" danger :disabled="!!record.revokedAt">撤销</a-button>
+            <a-button type="link" @click="openEdit(record)">{{ t("settings.pat.edit") }}</a-button>
+            <a-popconfirm :title="t('settings.pat.revokeConfirm')" @confirm="handleRevoke(record.id)">
+              <a-button type="link" danger :disabled="!!record.revokedAt">{{ t("settings.pat.revoke") }}</a-button>
             </a-popconfirm>
           </a-space>
         </template>
@@ -50,19 +50,19 @@
 
     <a-modal
       v-model:open="modalOpen"
-      :title="editingId ? '编辑 PAT' : '创建 PAT'"
+      :title="editingId ? t('settings.pat.modalEdit') : t('settings.pat.modalCreate')"
       :confirm-loading="modalLoading"
       @ok="submitForm"
       @cancel="closeModal"
     >
       <a-form ref="formRef" :model="form" layout="vertical" :rules="rules">
-        <a-form-item label="名称" name="name">
+        <a-form-item :label="t('settings.pat.labelName')" name="name">
           <a-input v-model:value="form.name" />
         </a-form-item>
-        <a-form-item label="Scopes（逗号分隔）" name="scopesText">
+        <a-form-item :label="t('settings.pat.labelScopes')" name="scopesText">
           <a-input v-model:value="form.scopesText" placeholder="open:chat,open:workflow" />
         </a-form-item>
-        <a-form-item label="过期时间（可选）">
+        <a-form-item :label="t('settings.pat.labelExpires')">
           <a-date-picker
             v-model:value="form.expiresAt"
             show-time
@@ -73,29 +73,24 @@
       </a-form>
     </a-modal>
 
-    <a-modal
-      v-model:open="tokenModalOpen"
-      title="PAT 创建成功"
-      :footer="null"
-      width="760"
-    >
-      <a-alert
-        type="warning"
-        show-icon
-        message="请立即复制并妥善保存该 Token，关闭后将无法再次查看明文。"
-        style="margin-bottom: 12px"
-      />
+    <a-modal v-model:open="tokenModalOpen" :title="t('settings.pat.successTitle')" :footer="null" width="760">
+      <a-alert type="warning" show-icon :message="t('settings.pat.successMsg')" style="margin-bottom: 12px" />
       <a-typography-paragraph copyable>{{ createdToken }}</a-typography-paragraph>
     </a-modal>
   </a-card>
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref, onUnmounted } from "vue";
+import { computed, onMounted, reactive, ref, onUnmounted } from "vue";
+import { useI18n } from "vue-i18n";
 
 const isMounted = ref(false);
-onMounted(() => { isMounted.value = true; });
-onUnmounted(() => { isMounted.value = false; });
+onMounted(() => {
+  isMounted.value = true;
+});
+onUnmounted(() => {
+  isMounted.value = false;
+});
 
 import type { FormInstance } from "ant-design-vue";
 import { message } from "ant-design-vue";
@@ -108,6 +103,8 @@ import {
   type PersonalAccessTokenListItem
 } from "@/services/api-pat";
 
+const { t } = useI18n();
+
 const keyword = ref("");
 const list = ref<PersonalAccessTokenListItem[]>([]);
 const loading = ref(false);
@@ -115,14 +112,14 @@ const pageIndex = ref(1);
 const pageSize = ref(20);
 const total = ref(0);
 
-const columns = [
-  { title: "名称", dataIndex: "name", key: "name", width: 220 },
-  { title: "前缀", dataIndex: "tokenPrefix", key: "tokenPrefix", width: 180 },
-  { title: "权限范围", key: "scopes" },
-  { title: "状态", key: "status", width: 100 },
-  { title: "过期时间", dataIndex: "expiresAt", key: "expiresAt", width: 220 },
-  { title: "操作", key: "action", width: 140 }
-];
+const columns = computed(() => [
+  { title: t("settings.pat.labelName"), dataIndex: "name", key: "name", width: 220 },
+  { title: t("settings.pat.colPrefix"), dataIndex: "tokenPrefix", key: "tokenPrefix", width: 180 },
+  { title: t("settings.pat.colScopes"), key: "scopes" },
+  { title: t("settings.pat.colStatus"), key: "status", width: 100 },
+  { title: t("settings.pat.colExpires"), dataIndex: "expiresAt", key: "expiresAt", width: 220 },
+  { title: t("settings.pat.colActions"), key: "action", width: 140 }
+]);
 
 const modalOpen = ref(false);
 const modalLoading = ref(false);
@@ -133,9 +130,9 @@ const form = reactive({
   scopesText: "",
   expiresAt: undefined as string | undefined
 });
-const rules = {
-  name: [{ required: true, message: "请输入名称" }]
-};
+const rules = computed(() => ({
+  name: [{ required: true, message: t("settings.pat.ruleName") }]
+}));
 
 const tokenModalOpen = ref(false);
 const createdToken = ref("");
@@ -143,7 +140,7 @@ const createdToken = ref("");
 async function loadData() {
   loading.value = true;
   try {
-    const result  = await getPersonalAccessTokensPaged(
+    const result = await getPersonalAccessTokensPaged(
       {
         pageIndex: pageIndex.value,
         pageSize: pageSize.value,
@@ -156,7 +153,7 @@ async function loadData() {
     list.value = result.items;
     total.value = Number(result.total);
   } catch (error: unknown) {
-    message.error((error as Error).message || "加载 PAT 列表失败");
+    message.error((error as Error).message || t("settings.pat.loadFailed"));
   } finally {
     loading.value = false;
   }
@@ -219,9 +216,9 @@ async function submitForm() {
       });
 
       if (!isMounted.value) return;
-      message.success("更新成功");
+      message.success(t("settings.pat.updateOk"));
     } else {
-      const result  = await createPersonalAccessToken({
+      const result = await createPersonalAccessToken({
         name: form.name,
         scopes: parseScopes(),
         expiresAt: form.expiresAt || undefined
@@ -230,7 +227,7 @@ async function submitForm() {
       if (!isMounted.value) return;
       createdToken.value = result.plainTextToken;
       tokenModalOpen.value = true;
-      message.success("创建成功");
+      message.success(t("settings.pat.createOk"));
     }
 
     modalOpen.value = false;
@@ -238,7 +235,7 @@ async function submitForm() {
 
     if (!isMounted.value) return;
   } catch (error: unknown) {
-    message.error((error as Error).message || "提交失败");
+    message.error((error as Error).message || t("settings.pat.submitFailed"));
   } finally {
     modalLoading.value = false;
   }
@@ -249,12 +246,12 @@ async function handleRevoke(id: number) {
     await revokePersonalAccessToken(id);
 
     if (!isMounted.value) return;
-    message.success("撤销成功");
+    message.success(t("settings.pat.revokeOk"));
     await loadData();
 
     if (!isMounted.value) return;
   } catch (error: unknown) {
-    message.error((error as Error).message || "撤销失败");
+    message.error((error as Error).message || t("settings.pat.revokeFailed"));
   }
 }
 

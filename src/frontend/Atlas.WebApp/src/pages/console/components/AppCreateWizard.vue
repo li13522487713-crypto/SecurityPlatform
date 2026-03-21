@@ -90,49 +90,49 @@
         v-if="hasIsolatedPolicy && !datasourceForm.dataSourceId"
         type="warning"
         show-icon
-        message="当前选择了应用独立（隔离）策略，但未绑定数据源"
-        description="隔离模式建议绑定应用专属数据源，防止共享与隔离边界不清晰。"
+        :message="t('lowcode.createWizard.alertIsolatedTitle')"
+        :description="t('lowcode.createWizard.alertIsolatedDesc')"
         style="margin-bottom: 16px"
       />
       <a-form layout="vertical">
         <a-form-item class="policy-form-item">
           <div class="policy-row">
-            <div class="policy-title">用户账号来源</div>
+            <div class="policy-title">{{ t("lowcode.createWizard.policyUsers") }}</div>
             <a-switch
               v-model:checked="sharingForm.useSharedUsers"
-              checked-children="继承平台"
-              un-checked-children="应用独立"
+              :checked-children="t('lowcode.createWizard.inheritPlatform')"
+              :un-checked-children="t('lowcode.createWizard.appStandalone')"
             />
             <a-tag :color="sharingForm.useSharedUsers ? 'processing' : 'warning'">
-              {{ sharingForm.useSharedUsers ? "共享" : "隔离" }}
+              {{ sharingForm.useSharedUsers ? t("lowcode.createWizard.modeShared") : t("lowcode.createWizard.modeIsolated") }}
             </a-tag>
           </div>
           <div class="sharing-hint">{{ t('lowcodeApp.wizard.useSharedUsersHint') }}</div>
         </a-form-item>
         <a-form-item class="policy-form-item">
           <div class="policy-row">
-            <div class="policy-title">角色权限来源</div>
+            <div class="policy-title">{{ t("lowcode.createWizard.policyRoles") }}</div>
             <a-switch
               v-model:checked="sharingForm.useSharedRoles"
-              checked-children="继承平台"
-              un-checked-children="应用独立"
+              :checked-children="t('lowcode.createWizard.inheritPlatform')"
+              :un-checked-children="t('lowcode.createWizard.appStandalone')"
             />
             <a-tag :color="sharingForm.useSharedRoles ? 'processing' : 'warning'">
-              {{ sharingForm.useSharedRoles ? "共享" : "隔离" }}
+              {{ sharingForm.useSharedRoles ? t("lowcode.createWizard.modeShared") : t("lowcode.createWizard.modeIsolated") }}
             </a-tag>
           </div>
           <div class="sharing-hint">{{ t('lowcodeApp.wizard.useSharedRolesHint') }}</div>
         </a-form-item>
         <a-form-item class="policy-form-item">
           <div class="policy-row">
-            <div class="policy-title">部门组织来源</div>
+            <div class="policy-title">{{ t("lowcode.createWizard.policyDepts") }}</div>
             <a-switch
               v-model:checked="sharingForm.useSharedDepartments"
-              checked-children="继承平台"
-              un-checked-children="应用独立"
+              :checked-children="t('lowcode.createWizard.inheritPlatform')"
+              :un-checked-children="t('lowcode.createWizard.appStandalone')"
             />
             <a-tag :color="sharingForm.useSharedDepartments ? 'processing' : 'warning'">
-              {{ sharingForm.useSharedDepartments ? "共享" : "隔离" }}
+              {{ sharingForm.useSharedDepartments ? t("lowcode.createWizard.modeShared") : t("lowcode.createWizard.modeIsolated") }}
             </a-tag>
           </div>
           <div class="sharing-hint">{{ t('lowcodeApp.wizard.useSharedDepartmentsHint') }}</div>
@@ -261,7 +261,7 @@ const handleCancel = () => {
 
 const handleSubmit = async () => {
   if (hasIsolatedPolicy.value && !datasourceForm.dataSourceId) {
-    message.warning("隔离模式建议绑定应用专属数据源");
+    message.warning(t("lowcode.createWizard.warnIsolatedBindDs"));
     return;
   }
 
