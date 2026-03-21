@@ -25,7 +25,7 @@
 
     <template #table>
       <a-row :gutter="16" style="height: 100%">
-        <a-col :span="5" style="height: 100%; border-right: 1px solid var(--color-border); padding-right: 16px;">
+        <a-col :xs="24" :sm="24" :md="6" :lg="5" class="dept-tree-col">
           <div style="margin-bottom: 12px">
             <a-input
               v-model:value="treeKeyword"
@@ -41,17 +41,18 @@
               :expanded-keys="expandedTreeKeys"
               :auto-expand-parent="true"
               @select="handleTreeSelect"
-              style="height: calc(100vh - 250px); overflow-y: auto;"
+              class="dept-tree"
             />
           </a-skeleton>
         </a-col>
-        <a-col :span="19">
+        <a-col :xs="24" :sm="24" :md="18" :lg="19" class="users-table-col">
           <a-table
             :columns="tableColumns"
             :data-source="dataSource"
             :pagination="pagination"
             :loading="loading"
             :size="tableSize"
+            :scroll="{ x: 'max-content' }"
             row-key="id"
             @change="onTableChange"
           >
@@ -582,5 +583,36 @@ const handleStatusChange = async (id: string, isActive: boolean) => {
   text-overflow: ellipsis;
   overflow: hidden;
   white-space: nowrap;
+}
+
+.dept-tree-col {
+  border-right: 1px solid var(--color-border);
+  padding-right: 16px;
+  height: 100%;
+}
+
+.dept-tree {
+  height: calc(100vh - 290px);
+  overflow-y: auto;
+}
+
+.users-table-col {
+  height: 100%;
+}
+
+/* Responsive adjustments for mobile/tablet */
+@media screen and (max-width: 768px) {
+  .dept-tree-col {
+    border-right: none;
+    border-bottom: 1px solid var(--color-border, #f0f0f0);
+    padding-right: 0;
+    margin-bottom: 16px;
+    padding-bottom: 16px;
+    height: auto;
+  }
+  
+  .dept-tree {
+    height: 200px;
+  }
 }
 </style>

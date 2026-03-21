@@ -1,28 +1,45 @@
 <template>
   <a-card :title="title" class="page-card" :data-testid="`e2e-page-card-${sanitizeTestId(title)}`">
-    <div class="crud-toolbar" data-testid="e2e-crud-toolbar">
-      <a-space wrap>
-        <a-input
-          v-model:value="keywordModel"
-          :placeholder="searchPlaceholder"
-          allow-clear
-          data-testid="e2e-crud-search-input"
-          @press-enter="$emit('search')"
-        />
-        <a-button data-testid="e2e-crud-search-submit" @click="$emit('search')">{{ t("crud.search") }}</a-button>
-        <a-button data-testid="e2e-crud-search-reset" @click="$emit('reset')">{{ t("crud.reset") }}</a-button>
-        <slot name="toolbar-actions" />
-      </a-space>
-      <a-space wrap data-testid="e2e-crud-toolbar-right">
-        <slot name="toolbar-right" />
-      </a-space>
+    <div class="crud-search-bar" data-testid="e2e-crud-search-bar">
+      <div class="search-form-wrapper">
+        <a-form layout="inline" @submit.prevent="$emit('search')">
+          <a-form-item v-if="keywordModel !== undefined">
+            <a-input
+              v-model:value="keywordModel"
+              :placeholder="searchPlaceholder"
+              allow-clear
+              data-testid="e2e-crud-search-input"
+              style="width: 280px; max-width: 100%;"
+            />
+          </a-form-item>
+          <slot name="search-filters" />
+          <a-form-item>
+            <a-space>
+              <a-button type="primary" html-type="submit" data-testid="e2e-crud-search-submit">{{ t("crud.search") }}</a-button>
+              <a-button data-testid="e2e-crud-search-reset" @click="$emit('reset')">{{ t("crud.reset") }}</a-button>
+            </a-space>
+          </a-form-item>
+        </a-form>
+      </div>
+      <div v-if="$slots.filter" class="crud-extra-filters" data-testid="e2e-crud-filter-bar">
+        <a-space wrap>
+          <span class="crud-filter-label">{{ t("crud.filters") }}</span>
+          <slot name="filter" />
+        </a-space>
+      </div>
     </div>
 
-    <div v-if="$slots.filter" class="crud-filter-bar" data-testid="e2e-crud-filter-bar">
-      <a-space wrap>
-        <span class="crud-filter-label">{{ t("crud.filters") }}</span>
-        <slot name="filter" />
-      </a-space>
+    <div class="crud-toolbar" data-testid="e2e-crud-toolbar">
+      <div class="toolbar-left">
+        <a-space wrap>
+          <slot name="toolbar-actions" />
+        </a-space>
+      </div>
+      <div class="toolbar-right" data-testid="e2e-crud-toolbar-right">
+        <a-space wrap>
+          <slot name="toolbar-right" />
+        </a-space>
+      </div>
     </div>
 
     <div data-testid="e2e-crud-table-region">
@@ -110,25 +127,43 @@ function sanitizeTestId(value: string) {
 </script>
 
 <style scoped>
-.crud-toolbar {
-  margin-bottom: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
+.crud-search-bar {
+  margin-bottom: 16px;
+  padding: 16px;
+  background-color: var(--color-fill-quaternary, #f7f9fa);
+  border-radius: 8px;
 }
 
-.crud-filter-bar {
+.search-form-wrapper {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.crud-extra-filters {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.crud-filter-label {
+  color: var(--color-text-tertiary, #8c8c8c);
+  font-size: 14px;
+}
+
+.crud-toolbar {
   margin-bottom: 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 16px;
   flex-wrap: wrap;
 }
 
-.crud-filter-label {
-  color: var(--color-text-tertiary);
+.toolbar-left, .toolbar-right {
+  display: flex;
+  align-items: center;
 }
 </style>
