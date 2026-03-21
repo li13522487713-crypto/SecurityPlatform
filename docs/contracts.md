@@ -93,6 +93,30 @@
 - `LicenseGrant`：离线授权实体（功能项、席位、节点、有效期）。
 - `ToolAuthorizationPolicy`：工具授权策略（主体、工具集、动作、环境、限流、审批）。
 - `FlowDefinition`：审批流与工作流统一流程定义挂载对象。
+- `DataClassification`：分类分级定义对象，描述等级、分类编码、适用范围和强制控制基线。
+- `SensitiveLabel`：敏感标签对象，描述字段、对象、文件等可复用标签语义。
+- `DataAsset`：应用数据资产对象，描述业务对象、敏感字段、敏感文件类型与责任归属。
+- `DlpPolicy`：统一泄露防护策略对象，描述查看、脱敏、导出、下载、分享、外发、AI 使用规则。
+- `OutboundChannel`：导出、下载、Webhook、Email、SMS、Connector、Plugin、AI、KnowledgeBase 等通道定义。
+- `ExportControlPolicy`：导出下载管控对象，描述审批、额度、频次、脱敏、水印、留痕要求。
+- `FileProtectionPolicy`：文件保护对象，描述上传校验、下载鉴权、外链有效期、水印、追踪与扫描接入点。
+- `ExternalShareApproval`：外发审批记录对象，描述申请、审批、执行、撤销与审计关联。
+- `LeakageEvent`：泄露风险事件对象，描述命中策略、阻断 / 放行结果、操作者、时间与对象范围。
+- `EvidencePackage`：审计 / 合规证据包对象，描述事件、附件、摘要、处置记录与导出元数据。
+
+### DLP 四层落位与五层控制模型
+
+- 四层落位：
+  - 平台层：统一规则、统一策略、统一审计、统一通道治理
+  - 租户层：启用范围、例外策略、数据源绑定、合规口径
+  - 应用层：对象标注、页面 / 接口 / 流程节点绑定、业务特例
+  - 运行层：API、导出、下载、文件、消息、Webhook、AI / 知识库执行拦截与留痕
+- 五层控制模型：
+  - L1 数据识别层：分类分级、敏感标签、数据资产清单
+  - L2 访问展示层：字段脱敏、最小可见、明文查看控制
+  - L3 操作外发层：导出、下载、复制、分享、打印、报表生成
+  - L4 跨边界传输层：Webhook、开放 API、消息通知、邮件、连接器、插件、AI / 知识库出站
+  - L5 追踪处置层：水印、指纹、审计、异常检测、证据导出、处置闭环
 
 ### 新增路由约定（前端）
 
@@ -134,6 +158,21 @@
   - `POST /api/v1/tools/simulate`
   - `GET /api/v1/tools/audit`
   - `GET /api/v1/tools/authorization-audits`（兼容别名，后续弃用）
+  - `GET /api/v1/dlp/classifications`
+  - `POST /api/v1/dlp/classifications`
+  - `GET /api/v1/dlp/labels`
+  - `POST /api/v1/dlp/labels`
+  - `GET /api/v1/dlp/policies`
+  - `POST /api/v1/dlp/policies`
+  - `GET /api/v1/dlp/outbound-channels`
+  - `POST /api/v1/dlp/outbound-channels`
+  - `POST /api/v1/dlp/bindings`
+  - `POST /api/v1/dlp/export-jobs`
+  - `POST /api/v1/dlp/download-jobs`
+  - `POST /api/v1/dlp/external-share-approvals`
+  - `POST /api/v1/dlp/outbound-checks`
+  - `GET /api/v1/dlp/events`
+  - `GET /api/v1/dlp/evidence-packages`
 
 ### 写接口安全约束（强制）
 
@@ -148,6 +187,10 @@
 - 敏感字段语义：
   - 涉及账号、联系方式、密钥片段等敏感字段时，返回值必须按脱敏规则处理。
   - 审计日志写入禁止记录明文敏感值，仅允许记录脱敏摘要或哈希摘要。
+- DLP 语义：
+  - 导出、下载、文件外链、Webhook、连接器、插件、AI / 知识库出站必须先经过策略判定。
+  - 命中阻断规则时返回明确业务拒绝结果，并写入 `LeakageEvent`。
+  - 同一外发申请的审批、执行、审计、证据归档必须可串联到同一个 `EvidencePackage`。
 
 ### 兼容与弃用策略
 
