@@ -155,14 +155,10 @@ public static class AiPlatformServiceRegistration
         services.AddHttpClient("WorkflowEngine", client => client.Timeout = TimeSpan.FromSeconds(30));
 
         services.AddTransient<DirectPythonExecutor>();
+        services.AddTransient<DockerPythonExecutor>();
         services.AddTransient<SandboxedPythonExecutor>();
         services.AddScoped<ICodeExecutionService>(sp =>
-        {
-            var options = sp.GetRequiredService<IOptions<CodeExecutionOptions>>().Value;
-            return string.Equals(options.Mode, "Sandbox", StringComparison.OrdinalIgnoreCase)
-                ? sp.GetRequiredService<SandboxedPythonExecutor>()
-                : sp.GetRequiredService<DirectPythonExecutor>();
-        });
+            sp.GetRequiredService<SandboxedPythonExecutor>());
 
         return services;
     }

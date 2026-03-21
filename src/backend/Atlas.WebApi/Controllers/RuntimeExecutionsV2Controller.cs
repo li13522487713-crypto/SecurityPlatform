@@ -53,6 +53,24 @@ public sealed class RuntimeExecutionsV2Controller : ControllerBase
         return Ok(ApiResponse<PagedResult<RuntimeExecutionListItem>>.Ok(result, HttpContext.TraceIdentifier));
     }
 
+    [HttpGet("stats")]
+    [Authorize(Policy = PermissionPolicies.AppsView)]
+    public async Task<ActionResult<ApiResponse<RuntimeExecutionStats>>> GetStats(
+        [FromQuery] string? appId,
+        [FromQuery] DateTimeOffset? startedFrom,
+        [FromQuery] DateTimeOffset? startedTo,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _queryService.GetStatsAsync(
+            tenantId,
+            appId,
+            startedFrom,
+            startedTo,
+            cancellationToken);
+        return Ok(ApiResponse<RuntimeExecutionStats>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
     [HttpGet("{id:long}")]
     [Authorize(Policy = PermissionPolicies.AppsView)]
     public async Task<ActionResult<ApiResponse<RuntimeExecutionDetail>>> GetById(

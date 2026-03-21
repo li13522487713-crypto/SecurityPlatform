@@ -199,7 +199,18 @@ public sealed record RuntimeExecutionListItem(
     string Status,
     string StartedAt,
     string? CompletedAt,
-    string? ErrorMessage);
+    string? ErrorMessage,
+    string? ErrorCategory);
+
+public sealed record RuntimeExecutionStats(
+    long Total,
+    long Running,
+    long Succeeded,
+    long Failed,
+    long Cancelled,
+    double? AvgDurationMs,
+    double? P95DurationMs,
+    IReadOnlyDictionary<string, long> ErrorCategories);
 
 public sealed record RuntimeExecutionDetail(
     string Id,

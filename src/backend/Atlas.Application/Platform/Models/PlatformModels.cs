@@ -95,3 +95,20 @@ public sealed record WorkspacePermissionItem(
 
 public sealed record WorkspacePermissionResponse(
     IReadOnlyList<WorkspacePermissionItem> Items);
+
+public sealed record DesignerSnapshotResponse(
+    string ManifestId,
+    string Type,
+    string ItemId,
+    string SchemaJson,
+    int Version,
+    string CreatedBy,
+    DateTimeOffset CreatedAt);
+
+public sealed record DesignerSnapshotHistoryItem(
+    string Id,
+    int Version,
+    string CreatedBy,
+    DateTimeOffset CreatedAt);
+
+public sealed record DesignerSnapshotSaveRequest(string SchemaJson);

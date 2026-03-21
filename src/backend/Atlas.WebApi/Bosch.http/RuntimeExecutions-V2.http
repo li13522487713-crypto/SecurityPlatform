@@ -20,13 +20,24 @@ X-Tenant-Id: {{tenantId}}
 @accessToken = {{login.response.body.$.data.accessToken}}
 
 ### 查询运行执行列表
-# 响应字段包含 workflowId/runtimeContextId/releaseId/appId，便于发布闭环追溯
+# 响应字段包含 workflowId/runtimeContextId/releaseId/appId/errorCategory，便于发布闭环追溯
 GET {{baseUrl}}/api/v2/runtime-executions?pageIndex=1&pageSize=10
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ### 查询运行执行列表（多条件筛选）
 GET {{baseUrl}}/api/v2/runtime-executions?pageIndex=1&pageSize=10&appId=1001&status=Failed&startedFrom=2026-01-01T00:00:00.000Z&startedTo=2026-12-31T23:59:59.000Z
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 运行执行统计聚合（全量）
+# 返回 total/running/succeeded/failed/cancelled/avgDurationMs/p95DurationMs/errorCategories
+GET {{baseUrl}}/api/v2/runtime-executions/stats
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 运行执行统计聚合（按应用+时间范围）
+GET {{baseUrl}}/api/v2/runtime-executions/stats?appId=1001&startedFrom=2026-01-01T00:00:00.000Z&startedTo=2026-12-31T23:59:59.000Z
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 

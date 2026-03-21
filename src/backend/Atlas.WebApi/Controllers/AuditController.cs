@@ -47,6 +47,23 @@ public sealed class AuditController : ControllerBase
         return Ok(payload);
     }
 
+    [HttpGet("by-resource")]
+    [Authorize(Policy = PermissionPolicies.AuditView)]
+    public async Task<ActionResult<ApiResponse<PagedResult<AuditListItem>>>> GetByResource(
+        [FromQuery] PagedRequest request,
+        [FromQuery] string? actorId,
+        [FromQuery] string? action,
+        [FromQuery] string? resourceId,
+        [FromQuery] DateTimeOffset? from,
+        [FromQuery] DateTimeOffset? to,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var queryResult = await _auditQueryService.QueryAuditsByResourceAsync(
+            request, tenantId, actorId, action, resourceId, from, to, cancellationToken);
+        return Ok(ApiResponse<PagedResult<AuditListItem>>.Ok(queryResult, HttpContext.TraceIdentifier));
+    }
+
     [HttpPost("client-errors")]
     [Authorize]
     public async Task<ActionResult<ApiResponse<object>>> ReportClientError(

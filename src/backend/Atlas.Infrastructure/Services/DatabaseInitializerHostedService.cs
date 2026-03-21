@@ -256,7 +256,8 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             typeof(RuntimeRoute),
             typeof(PackageArtifact),
             typeof(LicenseGrant),
-            typeof(ToolAuthorizationPolicy));
+            typeof(ToolAuthorizationPolicy),
+            typeof(AppDesignerSnapshot));
         // 结束 CodeFirst.InitTables 块
         }
         else

@@ -1,9 +1,10 @@
 using Atlas.Application.System.Abstractions;
 using Atlas.Application.System.Models;
 using Atlas.Core.Abstractions;
+using Atlas.Domain.Platform.Entities;
+using Atlas.Domain.System.Entities;
 using Atlas.Infrastructure.Options;
 using Atlas.Infrastructure.Repositories;
-using Atlas.Domain.System.Entities;
 using Microsoft.Extensions.Options;
 using SqlSugar;
 using System.Diagnostics;
@@ -16,17 +17,20 @@ public sealed class TenantDataSourceService : ITenantDataSourceService
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly ITenantDbConnectionFactory _tenantDbConnectionFactory;
     private readonly DatabaseEncryptionOptions _encryptionOptions;
+    private readonly ISqlSugarClient _db;
 
     public TenantDataSourceService(
         TenantDataSourceRepository repository,
         IIdGeneratorAccessor idGeneratorAccessor,
         ITenantDbConnectionFactory tenantDbConnectionFactory,
-        IOptions<DatabaseEncryptionOptions> encryptionOptions)
+        IOptions<DatabaseEncryptionOptions> encryptionOptions,
+        ISqlSugarClient db)
     {
         _repository = repository;
         _idGeneratorAccessor = idGeneratorAccessor;
         _tenantDbConnectionFactory = tenantDbConnectionFactory;
         _encryptionOptions = encryptionOptions.Value;
+        _db = db;
     }
 
     public async Task<IReadOnlyList<TenantDataSourceDto>> QueryAllAsync(string tenantIdValue, CancellationToken cancellationToken = default)
@@ -212,5 +216,81 @@ public sealed class TenantDataSourceService : ITenantDataSourceService
             "postgresql" => DbType.PostgreSQL,
             _ => DbType.Sqlite
         };
+    }
+
+    public async Task<IReadOnlyList<DataSourceConsumerItem>> GetConsumersAsync(
+        string tenantIdValue,
+        long dataSourceId,
+        CancellationToken cancellationToken = default)
+    {
+        if (!Guid.TryParse(tenantIdValue, out var tenantGuid))
+        {
+            return Array.Empty<DataSourceConsumerItem>();
+        }
+
+        var bindings = await _db.Queryable<TenantAppDataSourceBinding>()
+            .Where(b => b.TenantIdValue == tenantGuid && b.DataSourceId == dataSourceId)
+            .ToListAsync(cancellationToken);
+        if (bindings.Count == 0)
+        {
+            return Array.Empty<DataSourceConsumerItem>();
+        }
+
+        var instanceIds = bindings.Select(b => b.TenantAppInstanceId).Distinct().ToArray();
+        var apps = await _db.Queryable<AppManifest>()
+            .Where(a => a.TenantIdValue == tenantGuid && SqlFunc.ContainsArray(instanceIds, a.Id))
+            .ToListAsync(cancellationToken);
+        var appNameMap = apps.ToDictionary(a => a.Id, a => a.Name);
+
+        return bindings.Select(b => new DataSourceConsumerItem(
+            b.Id.ToString(),
+            b.TenantAppInstanceId.ToString(),
+            appNameMap.TryGetValue(b.TenantAppInstanceId, out var name) ? name : b.TenantAppInstanceId.ToString(),
+            b.BindingType.ToString(),
+            b.IsActive,
+            b.BoundAt)).ToArray();
+    }
+
+    public async Task<IReadOnlyList<DataSourceOrphanItem>> GetOrphansAsync(
+        string tenantIdValue,
+        CancellationToken cancellationToken = default)
+    {
+        var allDataSources = await _repository.QueryByTenantAsync(tenantIdValue, cancellationToken);
+        if (allDataSources.Count == 0)
+        {
+            return Array.Empty<DataSourceOrphanItem>();
+        }
+
+        var allIds = allDataSources.Select(ds => ds.Id).ToArray();
+
+        if (!Guid.TryParse(tenantIdValue, out var tenantGuid))
+        {
+            return allDataSources.Select(ds => new DataSourceOrphanItem(
+                ds.Id.ToString(), ds.Name, ds.DbType, ds.IsActive, ds.CreatedAt, ds.LastTestedAt)).ToArray();
+        }
+
+        var boundIds = await _db.Queryable<TenantAppDataSourceBinding>()
+            .Where(b => b.TenantIdValue == tenantGuid && b.IsActive && SqlFunc.ContainsArray(allIds, b.DataSourceId))
+            .Select(b => b.DataSourceId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        var appRefIds = await _db.Queryable<AppManifest>()
+            .Where(a => a.TenantIdValue == tenantGuid && a.DataSourceId != null && SqlFunc.ContainsArray(allIds, a.DataSourceId!.Value))
+            .Select(a => a.DataSourceId!.Value)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        var usedIds = new HashSet<long>(boundIds.Concat(appRefIds));
+        return allDataSources
+            .Where(ds => !usedIds.Contains(ds.Id))
+            .Select(ds => new DataSourceOrphanItem(
+                ds.Id.ToString(),
+                ds.Name,
+                ds.DbType,
+                ds.IsActive,
+                ds.CreatedAt,
+                ds.LastTestedAt))
+            .ToArray();
     }
 }

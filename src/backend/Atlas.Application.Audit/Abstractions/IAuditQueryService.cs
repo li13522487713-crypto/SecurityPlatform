@@ -12,4 +12,14 @@ public interface IAuditQueryService
         string? action,
         string? result,
         CancellationToken cancellationToken);
+
+    Task<PagedResult<AuditListItem>> QueryAuditsByResourceAsync(
+        PagedRequest request,
+        TenantId tenantId,
+        string? actorId,
+        string? action,
+        string? resourceId,
+        DateTimeOffset? fromDate,
+        DateTimeOffset? toDate,
+        CancellationToken cancellationToken);
 }

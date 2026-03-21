@@ -17,4 +17,8 @@ public interface ITenantDataSourceService
     Task<TestConnectionResult> TestConnectionAsync(TestConnectionRequest request, CancellationToken cancellationToken = default);
 
     Task<TestConnectionResult> TestConnectionByDataSourceIdAsync(string tenantId, long id, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<DataSourceConsumerItem>> GetConsumersAsync(string tenantIdValue, long dataSourceId, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<DataSourceOrphanItem>> GetOrphansAsync(string tenantIdValue, CancellationToken cancellationToken = default);
 }

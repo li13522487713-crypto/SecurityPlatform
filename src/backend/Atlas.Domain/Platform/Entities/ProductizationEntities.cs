@@ -505,3 +505,45 @@ public sealed class ToolAuthorizationPolicy : TenantEntity
         UpdatedAt = now;
     }
 }
+
+public sealed class AppDesignerSnapshot : TenantEntity
+{
+    public AppDesignerSnapshot()
+        : base(TenantId.Empty)
+    {
+        SnapshotType = string.Empty;
+        SchemaJson = "{}";
+        CreatedBy = string.Empty;
+    }
+
+    public AppDesignerSnapshot(
+        TenantId tenantId,
+        long id,
+        long manifestId,
+        string snapshotType,
+        long itemId,
+        string schemaJson,
+        int version,
+        string createdBy,
+        DateTimeOffset createdAt)
+        : base(tenantId)
+    {
+        Id = id;
+        ManifestId = manifestId;
+        SnapshotType = snapshotType;
+        ItemId = itemId;
+        SchemaJson = schemaJson;
+        Version = version;
+        CreatedBy = createdBy;
+        CreatedAt = createdAt;
+    }
+
+    public long ManifestId { get; private set; }
+    public string SnapshotType { get; private set; }
+    public long ItemId { get; private set; }
+    [SugarColumn(ColumnDataType = "TEXT")]
+    public string SchemaJson { get; private set; }
+    public int Version { get; private set; }
+    public string CreatedBy { get; private set; }
+    public DateTimeOffset CreatedAt { get; private set; }
+}

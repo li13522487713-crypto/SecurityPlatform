@@ -2,6 +2,7 @@ using Atlas.Application.Platform.Abstractions;
 using Atlas.Application.Platform.Models;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
+using Atlas.WebApi.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -22,6 +23,7 @@ public sealed class PlatformController : ControllerBase
     }
 
     [HttpGet("overview")]
+    [Authorize(Policy = PermissionPolicies.AppsView)]
     public async Task<ActionResult<ApiResponse<PlatformOverviewResponse>>> GetOverview(CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
@@ -30,6 +32,7 @@ public sealed class PlatformController : ControllerBase
     }
 
     [HttpGet("resources")]
+    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
     public async Task<ActionResult<ApiResponse<PlatformResourcesResponse>>> GetResources(CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
@@ -38,6 +41,7 @@ public sealed class PlatformController : ControllerBase
     }
 
     [HttpGet("releases")]
+    [Authorize(Policy = PermissionPolicies.AppsView)]
     public async Task<ActionResult<ApiResponse<PagedResult<AppReleaseResponse>>>> GetReleases(
         [FromQuery] PagedRequest request,
         CancellationToken cancellationToken)

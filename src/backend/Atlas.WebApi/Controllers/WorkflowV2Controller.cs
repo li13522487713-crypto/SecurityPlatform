@@ -170,6 +170,32 @@ public sealed class WorkflowV2Controller : ControllerBase
         return Ok(ApiResponse<IReadOnlyList<WorkflowV2VersionDto>>.Ok(result, HttpContext.TraceIdentifier));
     }
 
+    [HttpGet("{id:long}/versions/{fromId:long}/diff/{toId:long}")]
+    [Authorize(Policy = PermissionPolicies.AiWorkflowView)]
+    public async Task<ActionResult<ApiResponse<WorkflowVersionDiff>>> GetVersionDiff(
+        long id, long fromId, long toId, CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _queryService.GetVersionDiffAsync(tenantId, id, fromId, toId, cancellationToken);
+        if (result is null)
+        {
+            return NotFound(ApiResponse<WorkflowVersionDiff>.Fail(ErrorCodes.NotFound, "版本不存在或不属于此工作流", HttpContext.TraceIdentifier));
+        }
+
+        return Ok(ApiResponse<WorkflowVersionDiff>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost("{id:long}/versions/{versionId:long}/rollback")]
+    [Authorize(Policy = PermissionPolicies.AiWorkflowUpdate)]
+    public async Task<ActionResult<ApiResponse<WorkflowVersionRollbackResult>>> Rollback(
+        long id, long versionId, CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var userId = _currentUserAccessor.GetCurrentUserOrThrow().UserId;
+        var result = await _commandService.RollbackToVersionAsync(tenantId, id, versionId, userId, cancellationToken);
+        return Ok(ApiResponse<WorkflowVersionRollbackResult>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
     [HttpGet("node-types")]
     [Authorize(Policy = PermissionPolicies.AiWorkflowView)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<WorkflowV2NodeTypeDto>>>> GetNodeTypes(

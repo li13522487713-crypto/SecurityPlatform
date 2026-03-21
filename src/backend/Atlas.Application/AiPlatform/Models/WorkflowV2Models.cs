@@ -122,3 +122,24 @@ public sealed record WorkflowV2NodeTypeDto(
 /// SSE 流式事件封装。
 /// </summary>
 public sealed record SseEvent(string Event, string Data);
+
+/// <summary>
+/// 两个工作流版本之间的 Diff 结果。
+/// </summary>
+public sealed record WorkflowVersionDiff(
+    long WorkflowId,
+    long FromVersionId,
+    int FromVersionNumber,
+    long ToVersionId,
+    int ToVersionNumber,
+    IReadOnlyList<string> AddedNodeKeys,
+    IReadOnlyList<string> RemovedNodeKeys,
+    IReadOnlyList<string> ModifiedNodeKeys,
+    int AddedConnectionCount,
+    int RemovedConnectionCount,
+    bool HasChanges);
+
+public sealed record WorkflowVersionRollbackResult(
+    long WorkflowId,
+    long RolledBackToVersionId,
+    int NewVersionNumber);

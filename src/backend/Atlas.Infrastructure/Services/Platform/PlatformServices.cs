@@ -27,16 +27,22 @@ public sealed class PlatformQueryService : IPlatformQueryService
 
     public async Task<PlatformOverviewResponse> GetOverviewAsync(TenantId tenantId, CancellationToken cancellationToken = default)
     {
-        var appCount = await _db.Queryable<AppManifest>().CountAsync(cancellationToken);
-        var releaseCount = await _db.Queryable<AppRelease>().CountAsync(cancellationToken);
-        var activeRouteCount = await _db.Queryable<RuntimeRoute>().CountAsync(x => x.IsActive, cancellationToken);
-        var policyCount = await _db.Queryable<ToolAuthorizationPolicy>().CountAsync(cancellationToken);
+        var tenantValue = tenantId.Value;
+        var appCount = await _db.Queryable<AppManifest>()
+            .Where(x => x.TenantIdValue == tenantValue).CountAsync(cancellationToken);
+        var releaseCount = await _db.Queryable<AppRelease>()
+            .Where(x => x.TenantIdValue == tenantValue).CountAsync(cancellationToken);
+        var activeRouteCount = await _db.Queryable<RuntimeRoute>()
+            .Where(x => x.TenantIdValue == tenantValue && x.IsActive).CountAsync(cancellationToken);
+        var policyCount = await _db.Queryable<ToolAuthorizationPolicy>()
+            .Where(x => x.TenantIdValue == tenantValue).CountAsync(cancellationToken);
         var licenseCount = await _db.Queryable<LicenseGrant>().CountAsync(cancellationToken);
         return new PlatformOverviewResponse(appCount, releaseCount, activeRouteCount, policyCount, licenseCount);
     }
 
     public async Task<PlatformResourcesResponse> GetResourcesAsync(TenantId tenantId, CancellationToken cancellationToken = default)
     {
+        var tenantValue = tenantId.Value;
         var dbConnectionString = _db.CurrentConnectionConfig.ConnectionString;
         var dbFile = ParseSqliteDataSource(dbConnectionString);
         long dbSize = 0;
@@ -46,10 +52,11 @@ public sealed class PlatformQueryService : IPlatformQueryService
         }
 
         var activeSessionCount = await _db.Queryable<Atlas.Domain.Identity.Entities.AuthSession>()
-            .CountAsync(x => x.RevokedAt == null && x.ExpiresAt > DateTimeOffset.UtcNow, cancellationToken);
+            .CountAsync(x => x.TenantIdValue == tenantValue && x.RevokedAt == null && x.ExpiresAt > DateTimeOffset.UtcNow, cancellationToken);
         var apiCallCount = await _db.Queryable<Atlas.Domain.Audit.Entities.AuditRecord>()
-            .CountAsync(cancellationToken);
-        var routeCount = await _db.Queryable<RuntimeRoute>().CountAsync(x => x.IsActive, cancellationToken);
+            .Where(x => x.TenantIdValue == tenantValue).CountAsync(cancellationToken);
+        var routeCount = await _db.Queryable<RuntimeRoute>()
+            .Where(x => x.TenantIdValue == tenantValue && x.IsActive).CountAsync(cancellationToken);
 
         var items = new List<PlatformResourceItem>
         {
@@ -63,9 +70,12 @@ public sealed class PlatformQueryService : IPlatformQueryService
 
     public async Task<PagedResult<AppReleaseResponse>> GetReleasesAsync(TenantId tenantId, PagedRequest request, CancellationToken cancellationToken = default)
     {
+        var tenantValue = tenantId.Value;
         var pageIndex = request.PageIndex <= 0 ? 1 : request.PageIndex;
         var pageSize = request.PageSize <= 0 ? 10 : request.PageSize;
-        var query = _db.Queryable<AppRelease>().OrderByDescending(x => x.ReleasedAt);
+        var query = _db.Queryable<AppRelease>()
+            .Where(x => x.TenantIdValue == tenantValue)
+            .OrderByDescending(x => x.ReleasedAt);
         var total = await query.CountAsync(cancellationToken);
         var rows = await query.ToPageListAsync(pageIndex, pageSize, cancellationToken);
         var items = rows.Select(x => new AppReleaseResponse(
@@ -156,7 +166,8 @@ public sealed class AppManifestQueryService : IAppManifestQueryService
 
     public async Task<AppManifestResponse?> GetByIdAsync(TenantId tenantId, long id, CancellationToken cancellationToken = default)
     {
-        var entity = await _db.Queryable<AppManifest>().FirstAsync(x => x.Id == id, cancellationToken);
+        var entity = await _db.Queryable<AppManifest>()
+            .FirstAsync(x => x.Id == id && x.TenantIdValue == tenantId.Value, cancellationToken);
         return entity is null ? null : MapManifest(entity);
     }
 
@@ -342,7 +353,8 @@ public sealed class AppManifestCommandService : IAppManifestCommandService
 
     public async Task<long> CreateAsync(TenantId tenantId, long userId, AppManifestCreateRequest request, CancellationToken cancellationToken = default)
     {
-        var exists = await _db.Queryable<AppManifest>().AnyAsync(x => x.AppKey == request.AppKey, cancellationToken);
+        var exists = await _db.Queryable<AppManifest>()
+            .AnyAsync(x => x.TenantIdValue == tenantId.Value && x.AppKey == request.AppKey, cancellationToken);
         if (exists)
         {
             throw new InvalidOperationException($"应用标识 {request.AppKey} 已存在");
@@ -356,7 +368,8 @@ public sealed class AppManifestCommandService : IAppManifestCommandService
 
     public async Task UpdateAsync(TenantId tenantId, long userId, long id, AppManifestUpdateRequest request, CancellationToken cancellationToken = default)
     {
-        var entity = await _db.Queryable<AppManifest>().FirstAsync(x => x.Id == id, cancellationToken)
+        var entity = await _db.Queryable<AppManifest>()
+            .FirstAsync(x => x.Id == id && x.TenantIdValue == tenantId.Value, cancellationToken)
             ?? throw new InvalidOperationException("应用不存在");
         entity.Update(request.Name, request.Description, request.Category, request.Icon, request.DataSourceId, userId, DateTimeOffset.UtcNow);
         await _db.Updateable(entity).ExecuteCommandAsync(cancellationToken);
@@ -364,7 +377,8 @@ public sealed class AppManifestCommandService : IAppManifestCommandService
 
     public async Task ArchiveAsync(TenantId tenantId, long userId, long id, CancellationToken cancellationToken = default)
     {
-        var entity = await _db.Queryable<AppManifest>().FirstAsync(x => x.Id == id, cancellationToken)
+        var entity = await _db.Queryable<AppManifest>()
+            .FirstAsync(x => x.Id == id && x.TenantIdValue == tenantId.Value, cancellationToken)
             ?? throw new InvalidOperationException("应用不存在");
         entity.Archive(userId, DateTimeOffset.UtcNow);
         await _db.Updateable(entity).ExecuteCommandAsync(cancellationToken);
@@ -390,9 +404,17 @@ public sealed class AppReleaseCommandService : IAppReleaseCommandService
         var runtimeRoutes = await _db.Queryable<RuntimeRoute>()
             .Where(item => item.TenantIdValue == tenantId.Value && item.ManifestId == manifestId)
             .ToListAsync(cancellationToken);
+
+        var pageCountTask = _db.Queryable<Atlas.Domain.LowCode.Entities.LowCodePage>()
+            .CountAsync(x => x.AppId == manifestId, cancellationToken);
+        var tableCountTask = _db.Queryable<Atlas.Domain.DynamicTables.Entities.DynamicTable>()
+            .CountAsync(x => x.AppId == manifestId, cancellationToken);
+        await Task.WhenAll(pageCountTask, tableCountTask);
+
         var now = DateTimeOffset.UtcNow;
         manifest.Publish(userId, now);
-        var snapshotJson = BuildReleaseSnapshotJson(manifest, runtimeRoutes, now);
+        var snapshotJson = BuildReleaseSnapshotJson(
+            manifest, runtimeRoutes, pageCountTask.Result, tableCountTask.Result, now);
         var release = new AppRelease(tenantId, _idGenerator.NextId(), manifestId, manifest.Version, snapshotJson, userId, now);
         release.MarkReleased(releaseNote);
 
@@ -514,10 +536,20 @@ public sealed class AppReleaseCommandService : IAppReleaseCommandService
     private static string BuildReleaseSnapshotJson(
         AppManifest manifest,
         IReadOnlyCollection<RuntimeRoute> runtimeRoutes,
+        int pageCount,
+        int tableCount,
         DateTimeOffset generatedAt)
     {
         var snapshot = new
         {
+            summary = new
+            {
+                pageCount,
+                tableCount,
+                routeCount = runtimeRoutes.Count,
+                activeRouteCount = runtimeRoutes.Count(r => r.IsActive),
+                datasourceId = manifest.DataSourceId?.ToString()
+            },
             manifest = new
             {
                 manifest.Id,
@@ -672,7 +704,7 @@ public sealed class RuntimeRouteQueryService : IRuntimeRouteQueryService
         CancellationToken cancellationToken = default)
     {
         var task = await _db.Queryable<ApprovalTask>()
-            .FirstAsync(x => x.Id == taskId, cancellationToken);
+            .FirstAsync(x => x.Id == taskId && x.TenantIdValue == tenantId.Value, cancellationToken);
         if (task is null)
         {
             return false;
@@ -703,5 +735,90 @@ public sealed class RuntimeRouteQueryService : IRuntimeRouteQueryService
             opRequest,
             cancellationToken);
         return true;
+    }
+}
+
+public sealed class AppDesignerSnapshotService : IAppDesignerSnapshotService
+{
+    private readonly ISqlSugarClient _db;
+    private readonly IIdGeneratorAccessor _idGenerator;
+
+    public AppDesignerSnapshotService(ISqlSugarClient db, IIdGeneratorAccessor idGenerator)
+    {
+        _db = db;
+        _idGenerator = idGenerator;
+    }
+
+    public async Task<DesignerSnapshotResponse?> GetSnapshotAsync(
+        TenantId tenantId,
+        long manifestId,
+        string type,
+        long itemId,
+        CancellationToken cancellationToken = default)
+    {
+        var tenantValue = tenantId.Value;
+        var entity = await _db.Queryable<AppDesignerSnapshot>()
+            .Where(x => x.TenantIdValue == tenantValue && x.ManifestId == manifestId
+                && x.SnapshotType == type && x.ItemId == itemId)
+            .OrderByDescending(x => x.Version)
+            .FirstAsync(cancellationToken);
+        return entity is null
+            ? null
+            : new DesignerSnapshotResponse(
+                entity.ManifestId.ToString(),
+                entity.SnapshotType,
+                entity.ItemId.ToString(),
+                entity.SchemaJson,
+                entity.Version,
+                entity.CreatedBy,
+                entity.CreatedAt);
+    }
+
+    public async Task SaveSnapshotAsync(
+        TenantId tenantId,
+        long userId,
+        long manifestId,
+        string type,
+        long itemId,
+        string schemaJson,
+        CancellationToken cancellationToken = default)
+    {
+        var tenantValue = tenantId.Value;
+        var maxVersion = await _db.Queryable<AppDesignerSnapshot>()
+            .Where(x => x.TenantIdValue == tenantValue && x.ManifestId == manifestId
+                && x.SnapshotType == type && x.ItemId == itemId)
+            .MaxAsync(x => x.Version, cancellationToken);
+        var nextVersion = maxVersion + 1;
+        var entity = new AppDesignerSnapshot(
+            tenantId,
+            _idGenerator.NextId(),
+            manifestId,
+            type,
+            itemId,
+            schemaJson,
+            nextVersion,
+            userId.ToString(),
+            DateTimeOffset.UtcNow);
+        await _db.Insertable(entity).ExecuteCommandAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<DesignerSnapshotHistoryItem>> GetSnapshotHistoryAsync(
+        TenantId tenantId,
+        long manifestId,
+        string type,
+        long itemId,
+        CancellationToken cancellationToken = default)
+    {
+        var tenantValue = tenantId.Value;
+        var rows = await _db.Queryable<AppDesignerSnapshot>()
+            .Where(x => x.TenantIdValue == tenantValue && x.ManifestId == manifestId
+                && x.SnapshotType == type && x.ItemId == itemId)
+            .OrderByDescending(x => x.Version)
+            .ToListAsync(cancellationToken);
+        return rows.Select(x => new DesignerSnapshotHistoryItem(
+            x.Id.ToString(),
+            x.Version,
+            x.CreatedBy,
+            x.CreatedAt)).ToArray();
     }
 }

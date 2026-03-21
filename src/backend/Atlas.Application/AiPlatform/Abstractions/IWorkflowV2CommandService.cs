@@ -19,4 +19,11 @@ public interface IWorkflowV2CommandService
     Task DeleteAsync(TenantId tenantId, long id, CancellationToken cancellationToken);
 
     Task<long> CopyAsync(TenantId tenantId, long creatorId, long id, CancellationToken cancellationToken);
+
+    Task<WorkflowVersionRollbackResult> RollbackToVersionAsync(
+        TenantId tenantId,
+        long workflowId,
+        long versionId,
+        long userId,
+        CancellationToken cancellationToken);
 }

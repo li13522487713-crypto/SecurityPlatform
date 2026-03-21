@@ -44,6 +44,13 @@ public interface IAppReleaseCommandService
     Task<ReleaseRollbackResult> RollbackAsync(TenantId tenantId, long userId, long manifestId, long releaseId, CancellationToken cancellationToken = default);
 }
 
+public interface IAppDesignerSnapshotService
+{
+    Task<DesignerSnapshotResponse?> GetSnapshotAsync(TenantId tenantId, long manifestId, string type, long itemId, CancellationToken cancellationToken = default);
+    Task SaveSnapshotAsync(TenantId tenantId, long userId, long manifestId, string type, long itemId, string schemaJson, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<DesignerSnapshotHistoryItem>> GetSnapshotHistoryAsync(TenantId tenantId, long manifestId, string type, long itemId, CancellationToken cancellationToken = default);
+}
+
 public interface IRuntimeRouteQueryService
 {
     Task<RuntimePageResponse?> GetRuntimePageAsync(TenantId tenantId, string appKey, string pageKey, CancellationToken cancellationToken = default);
@@ -276,6 +283,13 @@ public interface IRuntimeExecutionQueryService
         TenantId tenantId,
         long executionId,
         PagedRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task<RuntimeExecutionStats> GetStatsAsync(
+        TenantId tenantId,
+        string? appId = null,
+        DateTimeOffset? startedFrom = null,
+        DateTimeOffset? startedTo = null,
         CancellationToken cancellationToken = default);
 }
 

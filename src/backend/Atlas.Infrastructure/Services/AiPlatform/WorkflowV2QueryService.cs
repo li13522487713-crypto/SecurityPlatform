@@ -152,6 +152,103 @@ public sealed class WorkflowV2QueryService : IWorkflowV2QueryService
         return Task.FromResult<IReadOnlyList<WorkflowV2NodeTypeDto>>(types);
     }
 
+    public async Task<WorkflowVersionDiff?> GetVersionDiffAsync(
+        TenantId tenantId,
+        long workflowId,
+        long fromVersionId,
+        long toVersionId,
+        CancellationToken cancellationToken)
+    {
+        var fromVersion = await _versionRepo.FindByIdAsync(tenantId, fromVersionId, cancellationToken);
+        var toVersion = await _versionRepo.FindByIdAsync(tenantId, toVersionId, cancellationToken);
+
+        if (fromVersion is null || toVersion is null)
+        {
+            return null;
+        }
+
+        if (fromVersion.WorkflowId != workflowId || toVersion.WorkflowId != workflowId)
+        {
+            return null;
+        }
+
+        var (addedNodes, removedNodes, modifiedNodes, addedConnections, removedConnections) =
+            DiffCanvasJson(fromVersion.CanvasJson, toVersion.CanvasJson);
+
+        return new WorkflowVersionDiff(
+            workflowId,
+            fromVersionId,
+            fromVersion.VersionNumber,
+            toVersionId,
+            toVersion.VersionNumber,
+            addedNodes,
+            removedNodes,
+            modifiedNodes,
+            addedConnections,
+            removedConnections,
+            addedNodes.Count + removedNodes.Count + modifiedNodes.Count + addedConnections + removedConnections > 0);
+    }
+
+    private static (
+        IReadOnlyList<string> AddedNodes,
+        IReadOnlyList<string> RemovedNodes,
+        IReadOnlyList<string> ModifiedNodes,
+        int AddedConnectionCount,
+        int RemovedConnectionCount) DiffCanvasJson(string fromJson, string toJson)
+    {
+        using var fromDoc = System.Text.Json.JsonDocument.Parse(fromJson);
+        using var toDoc = System.Text.Json.JsonDocument.Parse(toJson);
+
+        var fromNodes = ExtractNodes(fromDoc.RootElement);
+        var toNodes = ExtractNodes(toDoc.RootElement);
+
+        var fromConnections = ExtractConnectionCount(fromDoc.RootElement);
+        var toConnections = ExtractConnectionCount(toDoc.RootElement);
+
+        var addedNodes = toNodes.Keys.Except(fromNodes.Keys).ToList();
+        var removedNodes = fromNodes.Keys.Except(toNodes.Keys).ToList();
+        var modifiedNodes = fromNodes.Keys.Intersect(toNodes.Keys)
+            .Where(key => fromNodes[key] != toNodes[key])
+            .ToList();
+
+        return (addedNodes, removedNodes, modifiedNodes,
+            Math.Max(0, toConnections - fromConnections),
+            Math.Max(0, fromConnections - toConnections));
+    }
+
+    private static Dictionary<string, string> ExtractNodes(System.Text.Json.JsonElement root)
+    {
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (!root.TryGetProperty("nodes", out var nodesEl) || nodesEl.ValueKind != System.Text.Json.JsonValueKind.Array)
+        {
+            return result;
+        }
+
+        foreach (var node in nodesEl.EnumerateArray())
+        {
+            var key = node.TryGetProperty("key", out var keyProp) ? keyProp.GetString()
+                : node.TryGetProperty("id", out var idProp) ? idProp.GetString()
+                : null;
+            if (!string.IsNullOrWhiteSpace(key))
+            {
+                result[key] = node.GetRawText();
+            }
+        }
+
+        return result;
+    }
+
+    private static int ExtractConnectionCount(System.Text.Json.JsonElement root)
+    {
+        if (root.TryGetProperty("connections", out var connectionsEl)
+            && connectionsEl.ValueKind == System.Text.Json.JsonValueKind.Array)
+        {
+            return connectionsEl.GetArrayLength();
+        }
+
+        return 0;
+    }
+
     private static WorkflowV2ListItem MapListItem(WorkflowMeta meta)
         => new(meta.Id, meta.Name, meta.Description, meta.Mode, meta.Status,
             meta.LatestVersionNumber, meta.CreatorId, meta.CreatedAt, meta.UpdatedAt, meta.PublishedAt);

@@ -111,4 +111,37 @@ public sealed class WorkflowV2CommandService : IWorkflowV2CommandService
 
         return newMetaId;
     }
+
+    public async Task<WorkflowVersionRollbackResult> RollbackToVersionAsync(
+        TenantId tenantId, long workflowId, long versionId, long userId, CancellationToken cancellationToken)
+    {
+        var meta = await _metaRepo.FindActiveByIdAsync(tenantId, workflowId, cancellationToken)
+            ?? throw new BusinessException("工作流不存在。", ErrorCodes.NotFound);
+
+        var targetVersion = await _versionRepo.FindByIdAsync(tenantId, versionId, cancellationToken)
+            ?? throw new BusinessException("目标版本不存在。", ErrorCodes.NotFound);
+
+        if (targetVersion.WorkflowId != workflowId)
+        {
+            throw new BusinessException("目标版本不属于此工作流。", ErrorCodes.ValidationError);
+        }
+
+        var newVersionNumber = meta.LatestVersionNumber + 1;
+        var rollbackChangeLog = $"回滚至版本 v{targetVersion.VersionNumber}";
+        var newVersion = new WorkflowVersion(
+            tenantId, workflowId, newVersionNumber, targetVersion.CanvasJson, rollbackChangeLog, userId, _idGenerator.NextId());
+        await _versionRepo.AddAsync(newVersion, cancellationToken);
+
+        var draft = await _draftRepo.FindByWorkflowIdAsync(tenantId, workflowId, cancellationToken);
+        if (draft is not null)
+        {
+            draft.Save(targetVersion.CanvasJson, newVersion.Id.ToString());
+            await _draftRepo.UpdateAsync(draft, cancellationToken);
+        }
+
+        meta.MarkPublished(newVersionNumber);
+        await _metaRepo.UpdateAsync(meta, cancellationToken);
+
+        return new WorkflowVersionRollbackResult(workflowId, versionId, newVersionNumber);
+    }
 }

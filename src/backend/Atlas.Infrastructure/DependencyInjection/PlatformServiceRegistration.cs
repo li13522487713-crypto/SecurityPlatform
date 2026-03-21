@@ -36,6 +36,7 @@ public static class PlatformServiceRegistration
         services.AddScoped<IRuntimeExecutionQueryService, RuntimeExecutionQueryService>();
         services.AddScoped<IRuntimeExecutionCommandService, RuntimeExecutionCommandService>();
         services.AddScoped<IRuntimeRouteQueryService, RuntimeRouteQueryService>();
+        services.AddScoped<IAppDesignerSnapshotService, AppDesignerSnapshotService>();
         return services;
     }
 }

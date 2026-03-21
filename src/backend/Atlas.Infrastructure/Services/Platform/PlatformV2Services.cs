@@ -820,7 +820,8 @@ public sealed class RuntimeExecutionQueryService : IRuntimeExecutionQueryService
             execution.Status.ToString(),
             execution.StartedAt.ToString("O"),
             execution.CompletedAt?.ToString("O"),
-            execution.ErrorMessage)).ToArray();
+            execution.ErrorMessage,
+            ClassifyErrorCategory(execution.Status, execution.ErrorMessage))).ToArray();
 
         return new PagedResult<RuntimeExecutionListItem>(items, total, pageIndex, pageSize);
     }
@@ -888,6 +889,127 @@ public sealed class RuntimeExecutionQueryService : IRuntimeExecutionQueryService
             .ToArray();
 
         return new PagedResult<RuntimeExecutionAuditTrailItem>(items, total, pageIndex, pageSize);
+    }
+
+    public async Task<RuntimeExecutionStats> GetStatsAsync(
+        TenantId tenantId,
+        string? appId = null,
+        DateTimeOffset? startedFrom = null,
+        DateTimeOffset? startedTo = null,
+        CancellationToken cancellationToken = default)
+    {
+        var tenantValue = tenantId.Value;
+
+        long? appIdValue = null;
+        if (!string.IsNullOrWhiteSpace(appId) && long.TryParse(appId, out var parsedAppId))
+        {
+            appIdValue = parsedAppId;
+        }
+
+        var query = _db.Queryable<WorkflowExecution>()
+            .Where(execution => execution.TenantIdValue == tenantValue);
+
+        if (appIdValue.HasValue)
+        {
+            query = query.Where(execution => execution.AppId == appIdValue.Value);
+        }
+
+        if (startedFrom.HasValue)
+        {
+            query = query.Where(execution => execution.StartedAt >= startedFrom.Value.UtcDateTime);
+        }
+
+        if (startedTo.HasValue)
+        {
+            query = query.Where(execution => execution.StartedAt <= startedTo.Value.UtcDateTime);
+        }
+
+        var rows = await query
+            .Select(execution => new
+            {
+                execution.Status,
+                execution.StartedAt,
+                execution.CompletedAt,
+                execution.ErrorMessage
+            })
+            .ToListAsync(cancellationToken);
+
+        var total = rows.Count;
+        var running = rows.Count(r => r.Status == ExecutionStatus.Running || r.Status == ExecutionStatus.Pending);
+        var succeeded = rows.Count(r => r.Status == ExecutionStatus.Completed);
+        var failed = rows.Count(r => r.Status == ExecutionStatus.Failed);
+        var cancelled = rows.Count(r => r.Status == ExecutionStatus.Cancelled);
+
+        var durations = rows
+            .Where(r => r.CompletedAt.HasValue)
+            .Select(r => (r.CompletedAt!.Value - r.StartedAt).TotalMilliseconds)
+            .OrderBy(d => d)
+            .ToArray();
+
+        double? avgDurationMs = durations.Length > 0 ? durations.Average() : null;
+        double? p95DurationMs = null;
+        if (durations.Length > 0)
+        {
+            var p95Index = (int)Math.Ceiling(durations.Length * 0.95) - 1;
+            p95DurationMs = durations[Math.Max(0, p95Index)];
+        }
+
+        var errorCategories = rows
+            .Where(r => r.Status == ExecutionStatus.Failed)
+            .GroupBy(r => ClassifyErrorCategory(r.Status, r.ErrorMessage) ?? "Unknown")
+            .ToDictionary(g => g.Key, g => (long)g.Count());
+
+        return new RuntimeExecutionStats(
+            total,
+            running,
+            succeeded,
+            failed,
+            cancelled,
+            avgDurationMs,
+            p95DurationMs,
+            errorCategories);
+    }
+
+    private static string? ClassifyErrorCategory(ExecutionStatus status, string? errorMessage)
+    {
+        if (status != ExecutionStatus.Failed)
+        {
+            return null;
+        }
+
+        if (string.IsNullOrWhiteSpace(errorMessage))
+        {
+            return "Unknown";
+        }
+
+        var msg = errorMessage.ToLowerInvariant();
+        if (msg.Contains("timeout") || msg.Contains("超时") || msg.Contains("timed out"))
+        {
+            return "Timeout";
+        }
+
+        if (msg.Contains("network") || msg.Contains("connection") || msg.Contains("网络") || msg.Contains("连接"))
+        {
+            return "NetworkError";
+        }
+
+        if (msg.Contains("validation") || msg.Contains("invalid") || msg.Contains("校验") || msg.Contains("格式"))
+        {
+            return "ValidationError";
+        }
+
+        if (msg.Contains("config") || msg.Contains("配置") || msg.Contains("setting"))
+        {
+            return "ConfigError";
+        }
+
+        if (msg.Contains("permission") || msg.Contains("forbidden") || msg.Contains("unauthorized")
+            || msg.Contains("权限") || msg.Contains("未授权"))
+        {
+            return "PermissionError";
+        }
+
+        return "Unknown";
     }
 
     private static HashSet<string> BuildAuditTargetSet(long executionId, WorkflowExecution? execution)

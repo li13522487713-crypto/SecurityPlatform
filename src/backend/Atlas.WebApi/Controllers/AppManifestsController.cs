@@ -18,6 +18,7 @@ public sealed class AppManifestsController : ControllerBase
     private readonly IAppManifestQueryService _queryService;
     private readonly IAppManifestCommandService _commandService;
     private readonly IAppReleaseCommandService _releaseCommandService;
+    private readonly IAppDesignerSnapshotService _designerSnapshotService;
     private readonly ITenantProvider _tenantProvider;
     private readonly ICurrentUserAccessor _currentUserAccessor;
 
@@ -25,12 +26,14 @@ public sealed class AppManifestsController : ControllerBase
         IAppManifestQueryService queryService,
         IAppManifestCommandService commandService,
         IAppReleaseCommandService releaseCommandService,
+        IAppDesignerSnapshotService designerSnapshotService,
         ITenantProvider tenantProvider,
         ICurrentUserAccessor currentUserAccessor)
     {
         _queryService = queryService;
         _commandService = commandService;
         _releaseCommandService = releaseCommandService;
+        _designerSnapshotService = designerSnapshotService;
         _tenantProvider = tenantProvider;
         _currentUserAccessor = currentUserAccessor;
     }
@@ -187,37 +190,50 @@ public sealed class AppManifestsController : ControllerBase
     [HttpGet("{id:long}/impact-analysis")]
     public ActionResult<ApiResponse<object>> GetImpactAnalysis(long id)
     {
-        return Ok(ApiResponse<object>.Ok(new
-        {
-            ManifestId = id.ToString(),
-            PageCount = 0,
-            DataTableCount = 0,
-            ActiveRuntimeRoutes = 0
-        }, HttpContext.TraceIdentifier));
+        return StatusCode(501, ApiResponse<object>.Fail(
+            "NOT_IMPLEMENTED",
+            "影响分析功能正在建设中，将在后续版本上线。",
+            HttpContext.TraceIdentifier));
     }
 
     [HttpGet("{id:long}/workspace/designers/{type}/{itemId:long}")]
-    public ActionResult<ApiResponse<object>> GetDesignerSnapshot(long id, string type, long itemId)
+    public async Task<ActionResult<ApiResponse<DesignerSnapshotResponse>>> GetDesignerSnapshot(
+        long id, string type, long itemId, CancellationToken cancellationToken)
     {
-        return Ok(ApiResponse<object>.Ok(new
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _designerSnapshotService.GetSnapshotAsync(tenantId, id, type, itemId, cancellationToken);
+        if (result is null)
         {
-            ManifestId = id.ToString(),
-            Type = type,
-            ItemId = itemId.ToString(),
-            SchemaJson = "{}"
-        }, HttpContext.TraceIdentifier));
+            return Ok(ApiResponse<DesignerSnapshotResponse?>.Ok(null, HttpContext.TraceIdentifier));
+        }
+
+        return Ok(ApiResponse<DesignerSnapshotResponse>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    [HttpGet("{id:long}/workspace/designers/{type}/{itemId:long}/history")]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<DesignerSnapshotHistoryItem>>>> GetDesignerSnapshotHistory(
+        long id, string type, long itemId, CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _designerSnapshotService.GetSnapshotHistoryAsync(tenantId, id, type, itemId, cancellationToken);
+        return Ok(ApiResponse<IReadOnlyList<DesignerSnapshotHistoryItem>>.Ok(result, HttpContext.TraceIdentifier));
     }
 
     [HttpPut("{id:long}/workspace/designers/{type}/{itemId:long}")]
-    public ActionResult<ApiResponse<object>> SaveDesignerSnapshot(long id, string type, long itemId, [FromBody] Dictionary<string, object?> payload)
+    public async Task<ActionResult<ApiResponse<object>>> SaveDesignerSnapshot(
+        long id, string type, long itemId,
+        [FromBody] DesignerSnapshotSaveRequest request,
+        CancellationToken cancellationToken)
     {
-        return Ok(ApiResponse<object>.Ok(new
+        var currentUser = _currentUserAccessor.GetCurrentUser();
+        if (currentUser is null)
         {
-            ManifestId = id.ToString(),
-            Type = type,
-            ItemId = itemId.ToString(),
-            Saved = true,
-            PayloadSize = payload.Count
-        }, HttpContext.TraceIdentifier));
+            return Unauthorized(ApiResponse<object>.Fail(ErrorCodes.Unauthorized, "未登录", HttpContext.TraceIdentifier));
+        }
+
+        var tenantId = _tenantProvider.GetTenantId();
+        await _designerSnapshotService.SaveSnapshotAsync(
+            tenantId, currentUser.UserId, id, type, itemId, request.SchemaJson, cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { Saved = true }, HttpContext.TraceIdentifier));
     }
 }

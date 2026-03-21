@@ -36,3 +36,19 @@ public sealed record TestConnectionRequest(string ConnectionString, string DbTyp
 public sealed record TestConnectionResult(bool Success, string? ErrorMessage = null, int? LatencyMs = null);
 
 public sealed record TenantDbConnectionInfo(string ConnectionString, string DbType);
+
+public sealed record DataSourceConsumerItem(
+    string BindingId,
+    string AppInstanceId,
+    string AppInstanceName,
+    string BindingType,
+    bool IsActive,
+    DateTimeOffset BoundAt);
+
+public sealed record DataSourceOrphanItem(
+    string DataSourceId,
+    string Name,
+    string DbType,
+    bool IsActive,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset? LastTestedAt);

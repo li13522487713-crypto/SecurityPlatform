@@ -169,6 +169,37 @@ public sealed class TenantDataSourcesController : ControllerBase
         return Ok(ApiResponse<TestConnectionResult>.Ok(result, HttpContext.TraceIdentifier));
     }
 
+    [HttpGet("{id:long}/consumers")]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<DataSourceConsumerItem>>>> GetConsumers(
+        long id,
+        CancellationToken ct = default)
+    {
+        var tenantIdValue = ResolveTenantIdValue();
+        if (string.IsNullOrWhiteSpace(tenantIdValue))
+        {
+            return BadRequest(ApiResponse<IReadOnlyList<DataSourceConsumerItem>>.Fail(
+                ErrorCodes.ValidationError, "缺少租户标识", HttpContext.TraceIdentifier));
+        }
+
+        var result = await _tenantDataSourceService.GetConsumersAsync(tenantIdValue, id, ct);
+        return Ok(ApiResponse<IReadOnlyList<DataSourceConsumerItem>>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    [HttpGet("orphans")]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<DataSourceOrphanItem>>>> GetOrphans(
+        CancellationToken ct = default)
+    {
+        var tenantIdValue = ResolveTenantIdValue();
+        if (string.IsNullOrWhiteSpace(tenantIdValue))
+        {
+            return BadRequest(ApiResponse<IReadOnlyList<DataSourceOrphanItem>>.Fail(
+                ErrorCodes.ValidationError, "缺少租户标识", HttpContext.TraceIdentifier));
+        }
+
+        var result = await _tenantDataSourceService.GetOrphansAsync(tenantIdValue, ct);
+        return Ok(ApiResponse<IReadOnlyList<DataSourceOrphanItem>>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
     private string ResolveTenantIdValue()
     {
         var tenantId = _tenantProvider.GetTenantId();
