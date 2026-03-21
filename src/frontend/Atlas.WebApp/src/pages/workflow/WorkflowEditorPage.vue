@@ -369,7 +369,7 @@ function handleConnect(params: Connection) {
     type: 'smoothstep',
     style: { stroke: '#4b5563', strokeWidth: 2 },
   }
-  vfEdges.value = [...vfEdges.value, newEdge]
+  vfEdges.value.push(newEdge as any)
   isDirty.value = true
 }
 
@@ -400,15 +400,12 @@ function handleDrop(event: DragEvent) {
   const meta = nodeTypesMetadata.value.find(m => normalizeNodeTypeKey(String(m.key)) === normalizedDraggingType)
   const title = meta?.name ?? draggingNodeType
 
-  vfNodes.value = [
-    ...vfNodes.value,
-    {
-      id: nodeKey,
-      type: normalizedDraggingType,
-      position: { x, y },
-      data: { title, configs: {}, inputMappings: {}, nodeType: normalizedDraggingType, __status: '' },
-    },
-  ]
+  vfNodes.value = vfNodes.value.concat({
+    id: nodeKey,
+    type: normalizedDraggingType,
+    position: { x, y },
+    data: { title, configs: {}, inputMappings: {}, nodeType: normalizedDraggingType, __status: '' },
+  })
 
   isDirty.value = true
   draggingNodeType = null

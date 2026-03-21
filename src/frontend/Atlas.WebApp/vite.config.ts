@@ -39,6 +39,11 @@ export default defineConfig({
       "@popperjs/core/lib/popper-base": path.resolve(__dirname, "src/compat/popper/popper-base.ts")
     }
   },
+  css: {
+    lightningcss: {
+      errorRecovery: true
+    }
+  },
   server: {
     host: "0.0.0.0",
     port: 5173,

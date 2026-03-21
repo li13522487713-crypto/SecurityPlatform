@@ -5,20 +5,24 @@
         <a-layout-header class="console-header">
           <div class="left" data-testid="e2e-sidebar">
             <div class="brand" @click="go('/console')">Atlas Console</div>
-            <div data-testid="e2e-sidebar-menu">
+            <div data-testid="e2e-sidebar-menu" class="menu-wrapper">
               <a-menu
                 mode="horizontal"
                 theme="light"
                 :selected-keys="selectedKeys"
-                style="border-bottom: none; line-height: 54px;"
+                style="border-bottom: none; line-height: 54px; width: 100%; border: none;"
                 @click="onMenuClick"
               >
-                <a-menu-item
-                  v-for="item in visibleMenuItems"
-                  :key="item.path"
-                >
-                  {{ item.label }}
-                </a-menu-item>
+                <template v-for="item in visibleMenuItems" :key="item.key">
+                  <a-sub-menu v-if="item.children" :key="item.key" :title="item.label">
+                    <a-menu-item v-for="child in item.children" :key="child.key">
+                      {{ child.label }}
+                    </a-menu-item>
+                  </a-sub-menu>
+                  <a-menu-item v-else :key="item.key">
+                    {{ item.label }}
+                  </a-menu-item>
+                </template>
               </a-menu>
             </div>
           </div>
@@ -80,23 +84,42 @@ const tagsViewStore = useTagsViewStore();
 interface ConsoleMenuItem {
   key: string;
   label: string;
-  path: string;
+  path?: string;
   permission?: string;
+  children?: ConsoleMenuItem[];
 }
 
 const menuItems: ConsoleMenuItem[] = [
-  { key: "console-home", label: "平台首页", path: "/console", permission: "apps:view" },
-  { key: "console-apps", label: "应用管理", path: "/console/apps", permission: "apps:view" },
-  { key: "console-catalog", label: "应用目录", path: "/console/catalog", permission: "apps:view" },
-  { key: "console-tenant-applications", label: "租户开通", path: "/console/tenant-applications", permission: "apps:view" },
-  { key: "console-runtime-contexts", label: "运行上下文", path: "/console/runtime-contexts", permission: "apps:view" },
-  { key: "console-runtime-executions", label: "执行记录", path: "/console/runtime-executions", permission: "apps:view" },
-  { key: "console-resources", label: "资源中心", path: "/console/resources", permission: "apps:view" },
-  { key: "console-releases", label: "发布中心", path: "/console/releases", permission: "apps:view" },
-  { key: "console-debug", label: "调试层", path: "/console/debug", permission: "apps:view" },
-  { key: "console-migration-governance", label: "迁移治理", path: "/console/migration-governance", permission: "apps:view" },
-  { key: "console-datasources", label: "数据源管理", path: "/settings/system/datasources", permission: "system:admin" },
-  { key: "console-system-configs", label: "系统设置", path: "/settings/system/configs", permission: "config:view" }
+  { key: "/console", label: "平台首页", path: "/console", permission: "apps:view" },
+  { key: "/console/apps", label: "应用管理", path: "/console/apps", permission: "apps:view" },
+  {
+    key: "group-runtime",
+    label: "运行引擎",
+    children: [
+      { key: "/console/runtime-contexts", label: "运行上下文", path: "/console/runtime-contexts", permission: "apps:view" },
+      { key: "/console/runtime-executions", label: "执行记录", path: "/console/runtime-executions", permission: "apps:view" },
+      { key: "/console/releases", label: "发布中心", path: "/console/releases", permission: "apps:view" },
+      { key: "/console/debug", label: "调试层", path: "/console/debug", permission: "apps:view" },
+    ]
+  },
+  {
+    key: "group-tenant",
+    label: "租户与治理",
+    children: [
+      { key: "/console/tenant-applications", label: "租户开通", path: "/console/tenant-applications", permission: "apps:view" },
+      { key: "/console/catalog", label: "应用目录", path: "/console/catalog", permission: "apps:view" },
+      { key: "/console/resources", label: "资源中心", path: "/console/resources", permission: "apps:view" },
+      { key: "/console/migration-governance", label: "迁移治理", path: "/console/migration-governance", permission: "apps:view" },
+    ]
+  },
+  {
+    key: "group-system",
+    label: "系统管理",
+    children: [
+      { key: "/settings/system/datasources", label: "数据源管理", path: "/settings/system/datasources", permission: "system:admin" },
+      { key: "/settings/system/configs", label: "系统配置", path: "/settings/system/configs", permission: "config:view" }
+    ]
+  }
 ];
 
 function isPrivilegedUser() {
@@ -118,13 +141,35 @@ function hasPermission(permissionCode?: string) {
   return userStore.permissions.includes(permissionCode);
 }
 
-const visibleMenuItems = computed(() => menuItems.filter((item) => hasPermission(item.permission)));
+const visibleMenuItems = computed(() => {
+  return menuItems.map(item => {
+    if (item.children) {
+      const filtered = item.children.filter(child => hasPermission(child.permission));
+      if (filtered.length === 0) return null;
+      return { ...item, children: filtered };
+    }
+    return hasPermission(item.permission) ? item : null;
+  }).filter(Boolean) as ConsoleMenuItem[];
+});
+
+const flatMenuItems = computed(() => {
+  const result: ConsoleMenuItem[] = [];
+  menuItems.forEach(item => {
+    if (item.path) result.push(item);
+    if (item.children) {
+      item.children.forEach(child => {
+        if (child.path) result.push(child);
+      });
+    }
+  });
+  return result;
+});
 
 const selectedKeys = computed(() => {
-  const sortedItems = [...menuItems].sort((a, b) => b.path.length - a.path.length);
-  const matched = sortedItems.find((item) => route.path === item.path || route.path.startsWith(`${item.path}/`));
+  const sortedItems = [...flatMenuItems.value].sort((a, b) => (b.path?.length || 0) - (a.path?.length || 0));
+  const matched = sortedItems.find((item) => item.path && (route.path === item.path || route.path.startsWith(`${item.path}/`)));
   if (matched && hasPermission(matched.permission)) {
-    return [matched.path];
+    return [matched.key];
   }
   return [];
 });
@@ -133,6 +178,7 @@ const profileDisplayName = computed(
   () => userStore.profile?.displayName || userStore.profile?.username || "个人中心"
 );
 const profileInitials = computed(() => profileDisplayName.value.slice(0, 2));
+
 const canAccessCurrentRoute = computed(() => {
   const requiredPermission = typeof route.meta.requiresPermission === "string"
     ? route.meta.requiresPermission
@@ -141,7 +187,9 @@ const canAccessCurrentRoute = computed(() => {
 });
 
 function onMenuClick(info: { key: string }) {
-  go(info.key);
+  if (!info.key.startsWith("group-")) {
+    go(info.key);
+  }
 }
 
 function go(path: string) {
@@ -165,9 +213,8 @@ async function logout() {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0 12px 0 20px;
+  padding: 0 16px 0 24px;
   height: 56px;
-  line-height: 56px;
   background: var(--color-bg-container);
   border-bottom: 1px solid var(--color-border);
 }
@@ -175,7 +222,9 @@ async function logout() {
 .left {
   display: flex;
   align-items: center;
+  flex: 1;
   min-width: 0;
+  overflow: hidden;
 }
 
 .brand {
@@ -185,12 +234,20 @@ async function logout() {
   margin-right: 32px;
   cursor: pointer;
   white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.menu-wrapper {
+  flex: 1;
+  min-width: 0;
 }
 
 .right {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
+  margin-left: 16px;
 }
 
 .profile-btn {

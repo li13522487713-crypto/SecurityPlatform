@@ -30,7 +30,7 @@ function buildMinimalFallbackRouters(): RouterVo[] {
           name: "工作台",
           path: "index",
           component: "IndexPage",
-          meta: { title: "工作台", icon: "home", affix: true }
+          meta: { title: "工作台", icon: "home" }
         }
       ]
     }

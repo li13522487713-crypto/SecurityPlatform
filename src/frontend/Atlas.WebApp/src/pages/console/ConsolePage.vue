@@ -10,7 +10,7 @@
     <a-row :gutter="24" class="quick-actions" data-testid="e2e-console-quick-actions">
       <a-col :span="8">
         <a-card :bordered="false" class="widget-card" hoverable data-testid="e2e-console-card-apps" @click="go('/console/apps')">
-          <a-card-meta title="Apps" description="Open application management" />
+          <a-card-meta title="应用管理" description="进入应用目录管理应用" />
         </a-card>
       </a-col>
       <a-col :span="8">
@@ -21,7 +21,7 @@
           data-testid="e2e-console-card-datasources"
           @click="go('/settings/system/datasources')"
         >
-          <a-card-meta title="Datasources" description="Manage tenant datasources" />
+          <a-card-meta title="数据源管理" description="管理租户下关联的数据源" />
         </a-card>
       </a-col>
       <a-col :span="8">
@@ -32,18 +32,17 @@
           data-testid="e2e-console-card-system-configs"
           @click="go('/settings/system/configs')"
         >
-          <a-card-meta title="System settings" description="Open system configuration" />
+          <a-card-meta title="系统设置" description="开启系统配置看板" />
         </a-card>
       </a-col>
     </a-row>
 
-    <a-card :bordered="false" class="widget-card resource-group-card" title="Resource center groups" :loading="resourceGroupLoading">
+    <a-card :bordered="false" class="widget-card resource-group-card" title="资源中心统计" :loading="resourceGroupLoading">
       <a-row :gutter="[16, 16]">
         <a-col v-for="group in resourceGroups" :key="group.groupKey" :xs="24" :sm="12" :md="8">
           <a-card size="small" class="resource-group-item" hoverable @click="openResourceGroup(group.groupKey)">
             <div class="resource-group-title">{{ group.groupName }}</div>
             <div class="resource-group-total">{{ group.total }}</div>
-            <div class="resource-group-meta">{{ group.groupKey }}</div>
           </a-card>
         </a-col>
       </a-row>
@@ -52,7 +51,7 @@
     <a-card
       :bordered="false"
       class="widget-card datasource-consumption-card"
-      title="Datasource consumption"
+      title="数据源分布统计"
       :loading="dataSourceConsumptionLoading"
     >
       <template #extra>
@@ -77,13 +76,13 @@
       </template>
       <a-row :gutter="[16, 16]">
         <a-col :xs="24" :md="8">
-          <a-statistic title="Platform datasources" :value="dataSourceConsumption?.platformDataSourceTotal ?? 0" />
+          <a-statistic title="平台级数据源" :value="dataSourceConsumption?.platformDataSourceTotal ?? 0" />
         </a-col>
         <a-col :xs="24" :md="8">
-          <a-statistic title="App scoped datasources" :value="dataSourceConsumption?.appScopedDataSourceTotal ?? 0" />
+          <a-statistic title="应用级数据源" :value="dataSourceConsumption?.appScopedDataSourceTotal ?? 0" />
         </a-col>
         <a-col :xs="24" :md="8">
-          <a-statistic title="Unbound apps" :value="dataSourceConsumption?.unboundTenantAppTotal ?? 0" />
+          <a-statistic title="未绑定应用" :value="dataSourceConsumption?.unboundTenantAppTotal ?? 0" />
         </a-col>
       </a-row>
 
@@ -158,24 +157,24 @@
       />
     </a-modal>
 
-    <a-card :bordered="false" class="widget-card app-list-card" title="Recent apps" :loading="loading">
+    <a-card :bordered="false" class="widget-card app-list-card" title="最近访问应用" :loading="loading">
       <template #extra>
         <a-space>
           <a-input-search
             v-model:value="keyword"
-            placeholder="Search apps"
+            placeholder="搜索应用"
             style="width: 240px"
             allow-clear
             data-testid="e2e-console-app-search"
             @search="loadApps"
           />
           <a-button type="primary" data-testid="e2e-console-create-app" @click="createWizardVisible = true">
-            Create app
+            新建应用
           </a-button>
         </a-space>
       </template>
 
-      <a-empty v-if="apps.length === 0 && !loading" description="No apps" />
+      <a-empty v-if="apps.length === 0 && !loading" description="暂无应用" />
 
       <a-row v-else :gutter="[24, 24]">
         <a-col v-for="item in apps" :key="item.id" :xs="24" :sm="12" :md="8" :lg="6">
@@ -184,16 +183,16 @@
               <div class="app-icon">{{ item.name.charAt(0) }}</div>
               <div class="app-status">
                 <a-tag :color="item.status === 'Published' ? 'processing' : 'default'">
-                  {{ item.status === "Published" ? "Published" : item.status }}
+                  {{ item.status === "Published" ? "已发布" : item.status }}
                 </a-tag>
               </div>
             </div>
             <div class="app-card-body">
               <h4 class="app-title">{{ item.name }}</h4>
-              <p class="app-desc">{{ item.description || "No description" }}</p>
+              <p class="app-desc">{{ item.description || "暂无描述" }}</p>
             </div>
             <div class="app-card-footer">
-              <span>App key: {{ item.appKey }}</span>
+              <span>应用标识: {{ item.appKey }}</span>
             </div>
           </a-card>
         </a-col>
