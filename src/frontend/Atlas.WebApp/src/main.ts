@@ -3,9 +3,6 @@ import App from "./App.vue";
 import router from "./router";
 import Antd from "ant-design-vue";
 import "ant-design-vue/dist/reset.css";
-import "amis/lib/themes/default.css";
-import "amis/lib/helper.css";
-import "amis/sdk/iconfont.css";
 import tinymce from "tinymce/tinymce";
 import "./styles/amis-overrides.css";
 import "./styles/index.css";
@@ -15,9 +12,10 @@ import { createPinia } from "pinia";
 import { hasPermi, hasRole } from "@/directives/permission";
 import { reportClientErrorSilently, warmupAuthSession } from "@/services/api-core";
 
-tinymce.baseURL = "/tinymce";
-tinymce.suffix = ".min";
-(window as Window & { tinymce?: typeof tinymce }).tinymce = tinymce;
+const globalTinyMce = (window as Window & { tinymce?: typeof tinymce }).tinymce ?? tinymce;
+globalTinyMce.baseURL = "/tinymce";
+globalTinyMce.suffix = ".min";
+(window as Window & { tinymce?: typeof tinymce }).tinymce = globalTinyMce;
 
 // 默认租户ID：用于本地开发/体验时免输入（后端仍会校验租户头）
 // 建议在 .env.local 中配置 VITE_DEFAULT_TENANT_ID

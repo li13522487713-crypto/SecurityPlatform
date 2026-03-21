@@ -7,64 +7,64 @@
         <div class="app-name" :title="appName" data-testid="e2e-app-workspace-name">{{ appName }}</div>
         <span data-testid="e2e-app-workspace-back-console">
           <a-button type="link" size="small" @click="goConsole">
-            Back to console
+            {{ t('appWorkspace.backToConsole') }}
           </a-button>
         </span>
       </div>
       <div data-testid="e2e-app-workspace-menu">
         <a-menu mode="inline" :selected-keys="selectedKeys" @click="onMenuClick">
           <a-menu-item :key="dashboardPath">
-            <span data-testid="e2e-app-workspace-menu-dashboard">Dashboard</span>
+            <span data-testid="e2e-app-workspace-menu-dashboard">{{ t('appWorkspace.menuDashboard') }}</span>
           </a-menu-item>
           <a-menu-item :key="builderPath">
-            <span data-testid="e2e-app-workspace-menu-builder">Builder</span>
+            <span data-testid="e2e-app-workspace-menu-builder">{{ t('appWorkspace.menuBuilder') }}</span>
           </a-menu-item>
           <a-menu-item :key="pagesPath">
-            <span data-testid="e2e-app-workspace-menu-pages">Pages</span>
+            <span data-testid="e2e-app-workspace-menu-pages">{{ t('appWorkspace.menuPages') }}</span>
           </a-menu-item>
           <a-menu-item :key="formsPath">
-            <span data-testid="e2e-app-workspace-menu-forms">Forms</span>
+            <span data-testid="e2e-app-workspace-menu-forms">{{ t('appWorkspace.menuForms') }}</span>
           </a-menu-item>
           <a-menu-item :key="flowsPath">
-            <span data-testid="e2e-app-workspace-menu-flows">Flows</span>
+            <span data-testid="e2e-app-workspace-menu-flows">{{ t('appWorkspace.menuFlows') }}</span>
           </a-menu-item>
           <a-menu-item :key="agentsPath">
-            <span data-testid="e2e-app-workspace-menu-agents">Agents</span>
+            <span data-testid="e2e-app-workspace-menu-agents">{{ t('appWorkspace.menuAgents') }}</span>
           </a-menu-item>
           <a-menu-item :key="workflowsPath">
-            <span data-testid="e2e-app-workspace-menu-workflows">Workflows</span>
+            <span data-testid="e2e-app-workspace-menu-workflows">{{ t('appWorkspace.menuWorkflows') }}</span>
           </a-menu-item>
           <a-menu-item :key="promptsPath">
-            <span data-testid="e2e-app-workspace-menu-prompts">Prompts</span>
+            <span data-testid="e2e-app-workspace-menu-prompts">{{ t('appWorkspace.menuPrompts') }}</span>
           </a-menu-item>
           <a-menu-item :key="pluginsPath">
-            <span data-testid="e2e-app-workspace-menu-plugins">Plugins</span>
+            <span data-testid="e2e-app-workspace-menu-plugins">{{ t('appWorkspace.menuPlugins') }}</span>
           </a-menu-item>
           <a-menu-item :key="dataPath">
-            <span data-testid="e2e-app-workspace-menu-data">Data</span>
+            <span data-testid="e2e-app-workspace-menu-data">{{ t('appWorkspace.menuData') }}</span>
           </a-menu-item>
-          <a-sub-menu key="org-sub" title="组织管理">
+          <a-sub-menu key="org-sub" :title="t('appWorkspace.menuOrgGroup')">
             <a-menu-item :key="usersPath">
-              <span data-testid="e2e-app-workspace-menu-users">应用成员</span>
+              <span data-testid="e2e-app-workspace-menu-users">{{ t('appWorkspace.menuUsers') }}</span>
             </a-menu-item>
             <a-menu-item :key="rolesPath">
-              <span data-testid="e2e-app-workspace-menu-roles">应用角色</span>
+              <span data-testid="e2e-app-workspace-menu-roles">{{ t('appWorkspace.menuRoles') }}</span>
             </a-menu-item>
             <a-menu-item :key="departmentsPath">
-              <span data-testid="e2e-app-workspace-menu-departments">应用部门</span>
+              <span data-testid="e2e-app-workspace-menu-departments">{{ t('appWorkspace.menuDepartments') }}</span>
             </a-menu-item>
             <a-menu-item :key="positionsPath">
-              <span data-testid="e2e-app-workspace-menu-positions">应用职位</span>
+              <span data-testid="e2e-app-workspace-menu-positions">{{ t('appWorkspace.menuPositions') }}</span>
             </a-menu-item>
             <a-menu-item :key="projectsPath">
-              <span data-testid="e2e-app-workspace-menu-projects">应用项目</span>
+              <span data-testid="e2e-app-workspace-menu-projects">{{ t('appWorkspace.menuProjects') }}</span>
             </a-menu-item>
           </a-sub-menu>
           <a-menu-item :key="runtimeHomePath">
-            <span data-testid="e2e-app-workspace-menu-runtime">Runtime</span>
+            <span data-testid="e2e-app-workspace-menu-runtime">{{ t('appWorkspace.menuRuntime') }}</span>
           </a-menu-item>
           <a-menu-item :key="settingsPath">
-            <span data-testid="e2e-app-workspace-menu-settings">Settings</span>
+            <span data-testid="e2e-app-workspace-menu-settings">{{ t('appWorkspace.menuSettings') }}</span>
           </a-menu-item>
         </a-menu>
       </div>
@@ -75,7 +75,7 @@
         <div data-testid="e2e-app-workspace-header">
           <a-layout-header class="workspace-header">
             <div class="header-left">
-              <span>Workspace</span>
+              <span>{{ t('appWorkspace.headerTitle') }}</span>
               <UnifiedContextBar />
             </div>
             <div class="header-right" data-testid="e2e-app-workspace-header-actions">
@@ -93,11 +93,11 @@
                   <div data-testid="e2e-app-workspace-user-menu">
                     <a-menu>
                       <a-menu-item key="profile" @click="go('/profile')">
-                        <span data-testid="e2e-app-workspace-user-menu-profile">Profile</span>
+                        <span data-testid="e2e-app-workspace-user-menu-profile">{{ t('appWorkspace.userMenuProfile') }}</span>
                       </a-menu-item>
                       <a-menu-divider />
                       <a-menu-item key="logout" @click="logout">
-                        <span data-testid="e2e-app-workspace-user-menu-logout">Logout</span>
+                        <span data-testid="e2e-app-workspace-user-menu-logout">{{ t('appWorkspace.userMenuLogout') }}</span>
                       </a-menu-item>
                     </a-menu>
                   </div>
@@ -118,10 +118,13 @@
 
 <script setup lang="ts">
 import { computed, onMounted, watch, ref, onUnmounted } from "vue";
+import { useI18n } from "vue-i18n";
 
 const isMounted = ref(false);
 onMounted(() => { isMounted.value = true; });
 onUnmounted(() => { isMounted.value = false; });
+
+const { t } = useI18n();
 
 import { useRoute, useRouter } from "vue-router";
 import NotificationBell from "@/components/layout/NotificationBell.vue";

@@ -4,7 +4,9 @@
 
 <script setup lang="ts">
 import { onMounted, onBeforeUnmount, ref, watch, toRaw } from "vue";
-import { render as renderAmis } from "amis";
+import "amis/lib/themes/default.css";
+import "amis/lib/helper.css";
+import "amis/sdk/iconfont.css";
 import { createRoot, type Root } from "react-dom/client";
 import type { Schema } from "amis-core";
 import type { AmisSchema } from "@/types/amis";
@@ -21,6 +23,16 @@ const containerRef = ref<HTMLElement | null>(null);
 const rootRef = ref<Root | null>(null);
 const amisEnv = createAmisEnv();
 const emptyData: Record<string, JsonValue> = {};
+const isMounted = ref(false);
+
+let amisRenderPromise: Promise<typeof import("amis")["render"]> | null = null;
+
+function loadAmisRender() {
+  if (!amisRenderPromise) {
+    amisRenderPromise = import("amis").then((module) => module.render);
+  }
+  return amisRenderPromise;
+}
 
 const normalizeValue = <T>(value: T): T => {
   const raw = toRaw(value) as T;
@@ -38,12 +50,14 @@ const normalizeValue = <T>(value: T): T => {
   }
 };
 
-const renderSchema = () => {
+const renderSchema = async () => {
   const container = containerRef.value;
   if (!container) return;
   if (!rootRef.value) {
     rootRef.value = createRoot(container);
   }
+  const renderAmis = await loadAmisRender();
+  if (!isMounted.value) return;
   const schema = normalizeValue(props.schema);
   const data = normalizeValue(props.data ?? emptyData);
   const element = renderAmis(schema as unknown as Schema, { data }, amisEnv as unknown as Record<string, unknown>);
@@ -51,18 +65,20 @@ const renderSchema = () => {
 };
 
 onMounted(() => {
-  renderSchema();
+  isMounted.value = true;
+  void renderSchema();
 });
 
 watch(
   () => props.schema,
   () => {
-    renderSchema();
+    void renderSchema();
   },
   { deep: true }
 );
 
 onBeforeUnmount(() => {
+  isMounted.value = false;
   rootRef.value?.unmount();
   rootRef.value = null;
   if (containerRef.value) {

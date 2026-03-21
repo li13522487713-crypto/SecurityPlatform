@@ -4,6 +4,9 @@
 
 <script setup lang="ts">
 import { onMounted, onBeforeUnmount, ref, watch, toRaw, computed, onUnmounted } from "vue";
+import "amis/lib/themes/default.css";
+import "amis/lib/helper.css";
+import "amis/sdk/iconfont.css";
 
 const isMounted = ref(false);
 onMounted(() => { isMounted.value = true; });
