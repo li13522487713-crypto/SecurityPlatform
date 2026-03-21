@@ -6,61 +6,54 @@ on:
   workflow_dispatch:
 
 env:
-  # 1. 后端配置
   BACKEND_PROJECT: 'src/backend/Atlas.WebApi/Atlas.WebApi.csproj'
   BACKEND_PUBLISH_DIR: '/home/www/security-platform/backend'
   BACKEND_SERVICE: 'security-platform.service'
-
-  # 2. 前端配置
   FRONTEND_DIR: 'src/frontend/Atlas.WebApp'
   FRONTEND_PUBLISH_DIR: '/home/www/security-platform/frontend'
 
 jobs:
   deploy:
-    # 核心：使用您在阿里云 ECS 上配置好的自托管运行器
     runs-on: self-hosted
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # --- 第一部分：后端部署 (直接使用本地 .NET 10) ---
+      # --- 关键步骤：先停止后端服务，释放文件锁定 ---
+      - name: Stop Backend Service
+        run: |
+          sudo systemctl stop ${{ env.BACKEND_SERVICE }} || true
+
+      # --- 第一部分：后端部署 ---
       - name: Backend Build & Publish
         run: |
           echo "Using local dotnet version: $(dotnet --version)"
-          # 确保发布目录存在
           sudo mkdir -p ${{ env.BACKEND_PUBLISH_DIR }}
-          # 编译并发布到指定目录
+          # 现在服务已停止，文件可以被正常覆盖了
           dotnet publish ${{ env.BACKEND_PROJECT }} \
             -c Release \
             -o ${{ env.BACKEND_PUBLISH_DIR }} \
             --no-self-contained
 
-      # --- 第二部分：前端部署 (直接使用本地 Node.js 20) ---
+      # --- 第二部分：前端部署 ---
       - name: Frontend Build
         working-directory: ${{ env.FRONTEND_DIR }}
         run: |
-          echo "Using local node version: $(node -v)"
-          # 关键修复：使用 npm install 替代 npm ci 以解决依赖冲突，并使用国内镜像加速
           npm install --registry=https://registry.npmmirror.com
           npm run build
           
       - name: Sync Frontend Files
         run: |
-          # 确保前端发布目录存在
           sudo mkdir -p ${{ env.FRONTEND_PUBLISH_DIR }}
-          # 清理旧文件并拷贝新构建产物
           sudo rm -rf ${{ env.FRONTEND_PUBLISH_DIR }}/*
           sudo cp -r ${{ env.FRONTEND_DIR }}/dist/* ${{ env.FRONTEND_PUBLISH_DIR }}/
 
       # --- 第三部分：服务重启与权限加固 ---
       - name: Restart & Permissions
         run: |
-          # 1. 重启后端 Systemd 服务
-          sudo systemctl restart ${{ env.BACKEND_SERVICE }}
-          
-          # 2. 统一设置权限（确保 Nginx 能够访问静态资源 ）
-          # 已在服务器上为您创建了 www-data 用户以保持脚本兼容
+          # 重新启动服务
+          sudo systemctl start ${{ env.BACKEND_SERVICE }}
+          # 统一设置权限
           sudo chown -R www-data:www-data /home/www/security-platform
-          
           echo "Deployment Completed Successfully!"
