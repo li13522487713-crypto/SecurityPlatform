@@ -47,7 +47,26 @@ export const extraMessages: Record<SupportedLocale, MessageTree> = {
     apiCore: {
       selectProjectFirst: "请先选择项目",
       projectContextMissing: "缺少项目上下文",
-      projectModeSelectProjectFirst: "当前应用已启用项目模式，请先选择项目"
+      projectModeSelectProjectFirst: "当前应用已启用项目模式，请先选择项目",
+      tenantContextInvalidRelogin: "登录租户上下文已失效，请重新登录",
+      tenantGuidRequired: "请先输入有效的租户 / 组织ID（GUID）",
+      forbiddenDefault: "没有权限访问",
+      networkRequestFailed: "网络请求失败",
+      downloadFailed: "下载失败",
+      responseNotJson: "服务端返回了非 JSON 响应",
+      responseInvalidJson: "服务端返回了无效的 JSON 响应",
+      idempotencyInProgress: "请求正在处理中，请稍后再试",
+      idempotencyConflict: "检测到重复提交但请求内容不一致，请刷新后重试",
+      projectForbidden: "当前账号未分配该项目访问权限",
+      crossTenantForbidden: "租户上下文不一致，请刷新后重试",
+      missingRefreshToken: "缺少刷新令牌",
+      refreshFailed: "刷新失败",
+      sessionExpiredRelogin: "登录已过期，请重新登录",
+      sessionInvalid: "登录状态已失效",
+      traceIdSuffix: "（traceId: {traceId}）",
+      errSepItems: "，",
+      errSepFragments: "；",
+      errFieldPrefix: "{field}: "
     },
     roleAssign: {
       loadPermissionsFailed: "加载权限数据失败，请重试",
@@ -72,6 +91,13 @@ export const extraMessages: Record<SupportedLocale, MessageTree> = {
       handleFalse: "假",
       handleBody: "循环体",
       handleDone: "结束"
+    },
+    httpNodeConfig: {
+      labelUrl: "URL",
+      labelMethod: "请求方法",
+      labelBodyTemplate: "请求体模板",
+      phUrl: "https://api.example.com/endpoint",
+      phBodyTemplate: "{\"input\":\"{{input}}\"}"
     },
     appWorkspace: {
       backToConsole: "返回控制台",
@@ -350,7 +376,26 @@ export const extraMessages: Record<SupportedLocale, MessageTree> = {
     apiCore: {
       selectProjectFirst: "Please select a project first",
       projectContextMissing: "Project context is required",
-      projectModeSelectProjectFirst: "Project mode is enabled for this app. Please select a project first."
+      projectModeSelectProjectFirst: "Project mode is enabled for this app. Please select a project first.",
+      tenantContextInvalidRelogin: "Your tenant session is no longer valid. Please sign in again.",
+      tenantGuidRequired: "Enter a valid tenant / organization ID (GUID).",
+      forbiddenDefault: "You do not have permission to access this resource.",
+      networkRequestFailed: "Network request failed.",
+      downloadFailed: "Download failed.",
+      responseNotJson: "The server returned a non-JSON response.",
+      responseInvalidJson: "The server returned invalid JSON.",
+      idempotencyInProgress: "The request is still being processed. Please try again shortly.",
+      idempotencyConflict: "Duplicate submission detected with different content. Refresh and try again.",
+      projectForbidden: "Your account does not have access to this project.",
+      crossTenantForbidden: "Tenant context mismatch. Refresh and try again.",
+      missingRefreshToken: "Missing refresh token.",
+      refreshFailed: "Token refresh failed.",
+      sessionExpiredRelogin: "Your session has expired. Please sign in again.",
+      sessionInvalid: "Your session is no longer valid.",
+      traceIdSuffix: " (traceId: {traceId})",
+      errSepItems: ", ",
+      errSepFragments: "; ",
+      errFieldPrefix: "{field}: "
     },
     roleAssign: {
       loadPermissionsFailed: "Failed to load permissions. Please try again.",
@@ -375,6 +420,13 @@ export const extraMessages: Record<SupportedLocale, MessageTree> = {
       handleFalse: "False",
       handleBody: "Body",
       handleDone: "Done"
+    },
+    httpNodeConfig: {
+      labelUrl: "URL",
+      labelMethod: "Method",
+      labelBodyTemplate: "Body template",
+      phUrl: "https://api.example.com/endpoint",
+      phBodyTemplate: "{\"input\":\"{{input}}\"}"
     },
     appWorkspace: {
       backToConsole: "Back to Console",

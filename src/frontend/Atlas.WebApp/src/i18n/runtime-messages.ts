@@ -2095,6 +2095,8 @@ export const runtimeMessages: Record<SupportedLocale, MessageTree> = {
       testDrawerTitle: "测试工作流执行",
       labelWorkflowDataJson: "工作流数据（JSON格式）",
       labelReferenceOptional: "引用标识（可选）",
+      phTestDataJson: "{\"key\": \"value\"}",
+      phTestReference: "test-ref-001",
       executeTest: "执行测试",
       warnNodeMissing: "节点不存在",
       nodeUpdated: "节点属性已更新",
@@ -2701,6 +2703,7 @@ export const runtimeMessages: Record<SupportedLocale, MessageTree> = {
         publishFailed: "发布失败"
       },
       chat: {
+        avatarAssistant: "AI",
         convList: "对话列表",
         newConv: "+ 新建",
         newConvTitle: "新对话",
@@ -2981,6 +2984,7 @@ export const runtimeMessages: Record<SupportedLocale, MessageTree> = {
         modalCreate: "创建 PAT",
         labelName: "名称",
         labelScopes: "Scopes（逗号分隔）",
+        scopesTextPlaceholder: "例如：open:chat,open:workflow",
         labelExpires: "过期时间（可选）",
         successTitle: "PAT 创建成功",
         successMsg: "请立即复制并妥善保存该 Token，关闭后将无法再次查看明文。",
@@ -6068,6 +6072,8 @@ export const runtimeMessages: Record<SupportedLocale, MessageTree> = {
       testDrawerTitle: "Test run",
       labelWorkflowDataJson: "Data (JSON)",
       labelReferenceOptional: "Reference (optional)",
+      phTestDataJson: "{\"key\": \"value\"}",
+      phTestReference: "test-ref-001",
       executeTest: "Run",
       warnNodeMissing: "Node not found",
       nodeUpdated: "Node updated",
@@ -6674,6 +6680,7 @@ export const runtimeMessages: Record<SupportedLocale, MessageTree> = {
         publishFailed: "Publish failed"
       },
       chat: {
+        avatarAssistant: "AI",
         convList: "Conversations",
         newConv: "+ New",
         newConvTitle: "New chat",
@@ -6955,6 +6962,7 @@ export const runtimeMessages: Record<SupportedLocale, MessageTree> = {
         modalCreate: "Create PAT",
         labelName: "Name",
         labelScopes: "Scopes (comma-separated)",
+        scopesTextPlaceholder: "e.g. open:chat,open:workflow",
         labelExpires: "Expiry (optional)",
         successTitle: "PAT created",
         successMsg: "Copy and store the token now; it cannot be shown again.",

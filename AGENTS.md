@@ -37,6 +37,7 @@ npm run dev      # 开发服务器 http://localhost:5173，代理 /api → local
 npm run build    # 生产构建（含 TypeScript 检查）
 npm run lint
 npm run format
+npm run i18n:diff-runtime   # 可选：对比 runtime-messages zh/en 叶子 key 差集
 ```
 
 ### API 测试
@@ -71,6 +72,13 @@ npm run format
 - **实现顺序：** 先实现底层代码，再实现引用层代码。
 - **避免过度设计：** 仅实现所需功能，不添加未要求的能力。
 - **国际化检查：** 新开发和更新现有功能时，必须检查并遵循国际化（i18n）实践；禁止硬编码面向用户的文案、日期/时间/数字/货币格式与区域相关内容，需统一走可本地化资源、配置或既有国际化机制，并同时关注中英文等多语言展示、回退文案与区域差异。
+
+### 前端界面语言与排查
+
+- 语言持久化在浏览器 `localStorage` 键 **`atlas_locale`**，取值为 **`zh-CN`** 或 **`en-US`**（实现见 `src/frontend/Atlas.WebApp/src/i18n/index.ts`）。
+- **中英混杂**：先确认 `atlas_locale` 与语言切换器一致；再确认线上/本地使用的是否为最新 **`npm run build`** 产物（避免旧 bundle 缺少新版词条）。
+- **`runtime-messages` 中英键对齐**：在 `src/frontend/Atlas.WebApp` 执行 **`npm run i18n:diff-runtime`**，输出仅存在于单一语言的叶子 key 路径。
+- 未使用 `useI18n` 的 `.vue` 审计清单见 **`docs/frontend-i18n-vue-without-useI18n.md`**。
 
 ## 前后端约束
 

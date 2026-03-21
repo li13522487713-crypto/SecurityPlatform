@@ -102,10 +102,10 @@
   >
     <a-form layout="vertical">
       <a-form-item :label="t('workflow.labelWorkflowDataJson')">
-        <a-textarea v-model:value="testData" :rows="10" placeholder='{"key": "value"}' />
+        <a-textarea v-model:value="testData" :rows="10" :placeholder="t('workflow.phTestDataJson')" />
       </a-form-item>
       <a-form-item :label="t('workflow.labelReferenceOptional')">
-        <a-input v-model:value="testReference" placeholder="test-ref-001" />
+        <a-input v-model:value="testReference" :placeholder="t('workflow.phTestReference')" />
       </a-form-item>
     </a-form>
     <template #footer>

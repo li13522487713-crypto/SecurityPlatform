@@ -60,7 +60,7 @@
           <a-input v-model:value="form.name" />
         </a-form-item>
         <a-form-item :label="t('settings.pat.labelScopes')" name="scopesText">
-          <a-input v-model:value="form.scopesText" placeholder="open:chat,open:workflow" />
+          <a-input v-model:value="form.scopesText" :placeholder="t('settings.pat.scopesTextPlaceholder')" />
         </a-form-item>
         <a-form-item :label="t('settings.pat.labelExpires')">
           <a-date-picker

@@ -1,19 +1,22 @@
 <template>
   <a-form layout="vertical">
-    <a-form-item label="URL">
-      <a-input v-model:value="local.url" placeholder="https://api.example.com/endpoint" />
+    <a-form-item :label="t('httpNodeConfig.labelUrl')">
+      <a-input v-model:value="local.url" :placeholder="t('httpNodeConfig.phUrl')" />
     </a-form-item>
-    <a-form-item label="Method">
+    <a-form-item :label="t('httpNodeConfig.labelMethod')">
       <a-select v-model:value="local.method" :options="methodOptions" />
     </a-form-item>
-    <a-form-item label="Body Template">
-      <a-textarea v-model:value="local.bodyTemplate" :rows="4" placeholder='{"input":"{{input}}"}' />
+    <a-form-item :label="t('httpNodeConfig.labelBodyTemplate')">
+      <a-textarea v-model:value="local.bodyTemplate" :rows="4" :placeholder="t('httpNodeConfig.phBodyTemplate')" />
     </a-form-item>
   </a-form>
 </template>
 
 <script setup lang="ts">
 import { reactive, watch } from "vue";
+import { useI18n } from "vue-i18n";
+
+const { t } = useI18n();
 
 const props = defineProps<{
   modelValue: Record<string, unknown>;

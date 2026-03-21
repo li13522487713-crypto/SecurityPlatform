@@ -5,7 +5,7 @@
         {{ userInitial }}
       </a-avatar>
       <a-avatar v-else :size="32" style="background-color: #52c41a">
-        AI
+        {{ t("ai.chat.avatarAssistant") }}
       </a-avatar>
     </div>
     <div class="chat-message__bubble">
@@ -25,9 +25,12 @@
 
 <script setup lang="ts">
 import { computed } from "vue";
+import { useI18n } from "vue-i18n";
 import MarkdownRenderer from "./MarkdownRenderer.vue";
 import type { StreamChatMessage } from "@/composables/useStreamChat";
 import { getActiveLocale } from "@/i18n";
+
+const { t } = useI18n();
 
 const props = defineProps<{
   message: StreamChatMessage;

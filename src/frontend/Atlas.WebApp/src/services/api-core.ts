@@ -152,10 +152,10 @@ export async function requestApi<T>(path: string, init?: RequestInit, options?: 
 
   if (shouldRequireTenantContext(path) && !headers.has("X-Tenant-Id")) {
     const missingTenantMessage = shouldAttachSecurityHeaders
-      ? "登录租户上下文已失效，请重新登录"
-      : "请先输入有效的租户 / 组织ID（GUID）";
+      ? translate("apiCore.tenantContextInvalidRelogin")
+      : translate("apiCore.tenantGuidRequired");
     if (!options?.suppressErrorMessage) {
-      showError(missingTenantMessage);
+      showError(missingTenantMessage, { longDedupWindow: true });
     }
     if (shouldAttachSecurityHeaders) {
       clearAuthStorage();
@@ -237,7 +237,7 @@ export async function requestApi<T>(path: string, init?: RequestInit, options?: 
       const errorText = await response.text();
       const errorPayload = tryParseErrorPayload(errorText);
       const errorCode = errorPayload?.code ?? "";
-      const errorMessage = formatErrorMessage(errorPayload, errorText || "没有权限访问");
+      const errorMessage = formatErrorMessage(errorPayload, errorText || translate("apiCore.forbiddenDefault"));
 
       if (errorCode === ErrorCodes.AntiforgeryTokenInvalid && !options?.antiforgeryRetry) {
         clearAntiforgeryToken();
@@ -253,7 +253,7 @@ export async function requestApi<T>(path: string, init?: RequestInit, options?: 
 
       if (shouldForceLogout(errorCode)) {
         forceLogout(errorMessage);
-        throw new Error("登录状态已失效");
+        throw new Error(translate("apiCore.sessionInvalid"));
       }
 
       if (!options?.suppressErrorMessage) {
@@ -265,7 +265,7 @@ export async function requestApi<T>(path: string, init?: RequestInit, options?: 
     if (!response.ok) {
       const errorText = await response.text();
       const errorPayload = tryParseErrorPayload(errorText);
-      const errorMessage = formatErrorMessage(errorPayload, errorText || "网络请求失败");
+      const errorMessage = formatErrorMessage(errorPayload, errorText || translate("apiCore.networkRequestFailed"));
       if (!options?.suppressErrorMessage) {
         showError(errorMessage);
       }
@@ -322,10 +322,10 @@ export async function requestApiBlob(path: string, init?: RequestInit, options?:
   }
   if (shouldRequireTenantContext(path) && !headers.has("X-Tenant-Id")) {
     const missingTenantMessage = shouldAttachSecurityHeaders
-      ? "登录租户上下文已失效，请重新登录"
-      : "请先输入有效的租户 / 组织ID（GUID）";
+      ? translate("apiCore.tenantContextInvalidRelogin")
+      : translate("apiCore.tenantGuidRequired");
     if (!options?.suppressErrorMessage) {
-      showError(missingTenantMessage);
+      showError(missingTenantMessage, { longDedupWindow: true });
     }
     if (shouldAttachSecurityHeaders) {
       clearAuthStorage();
@@ -399,7 +399,7 @@ export async function requestApiBlob(path: string, init?: RequestInit, options?:
     if (!response.ok) {
       const errorText = await response.text();
       const errorPayload = tryParseErrorPayload(errorText);
-      const errorMessage = formatErrorMessage(errorPayload, errorText || "下载失败");
+      const errorMessage = formatErrorMessage(errorPayload, errorText || translate("apiCore.downloadFailed"));
       if (!options?.suppressErrorMessage) {
         showError(errorMessage);
       }
@@ -718,7 +718,7 @@ export async function warmupAuthSession(): Promise<void> {
 async function refreshTokenInternal(): Promise<AuthTokenResult> {
   const refreshTokenValue = getRefreshToken();
   if (!refreshTokenValue) {
-    throw new Error("缺少刷新令牌");
+    throw new Error(translate("apiCore.missingRefreshToken"));
   }
 
   const response = await requestApi<ApiResponse<AuthTokenResult>>("/auth/refresh", {
@@ -729,7 +729,7 @@ async function refreshTokenInternal(): Promise<AuthTokenResult> {
     body: JSON.stringify({ refreshToken: refreshTokenValue })
   }, { disableAutoRefresh: true, suppressErrorMessage: true });
   if (!response.data) {
-    throw new Error(response.message || "刷新失败");
+    throw new Error(response.message || translate("apiCore.refreshFailed"));
   }
 
   persistTokenResult(response.data);
@@ -753,13 +753,13 @@ async function parseSuccessResponse<T>(response: Response): Promise<T> {
   }
 
   if (!isJsonContentType(response.headers.get("content-type"))) {
-    throw buildApiError("服务端返回了非 JSON 响应", response.status, null, bodyText);
+    throw buildApiError(translate("apiCore.responseNotJson"), response.status, null, bodyText);
   }
 
   try {
     return JSON.parse(bodyText) as T;
   } catch {
-    throw buildApiError("服务端返回了无效的 JSON 响应", response.status, null, bodyText);
+    throw buildApiError(translate("apiCore.responseInvalidJson"), response.status, null, bodyText);
   }
 }
 
@@ -804,10 +804,10 @@ const GLOBAL_ERROR_DEDUP_WINDOW_MS = 2500;
 const GLOBAL_ERROR_DEDUP_LONG_WINDOW_MS = 6000;
 const GLOBAL_ERROR_CACHE_MAX = 100;
 
-function showError(content: string) {
+function showError(content: string, options?: { longDedupWindow?: boolean }) {
   const dedupKey = toErrorDedupKey(content);
   const now = Date.now();
-  const dedupWindow = getErrorDedupWindow(dedupKey);
+  const dedupWindow = options?.longDedupWindow ? GLOBAL_ERROR_DEDUP_LONG_WINDOW_MS : GLOBAL_ERROR_DEDUP_WINDOW_MS;
   const lastShownAt = globalErrorShownAt.get(dedupKey) ?? 0;
   // 避免并发请求在短时间内重复弹出完全相同的错误。
   if (now - lastShownAt <= dedupWindow) {
@@ -837,36 +837,35 @@ function showError(content: string) {
 
 function toErrorDedupKey(content: string) {
   // traceId 每次请求都不同，去重时忽略该片段，保证同类错误只提示一次。
-  return content.replace(/（\s*traceId:\s*[^）]+\s*）/gi, "").trim();
-}
-
-function getErrorDedupWindow(dedupKey: string) {
-  if (dedupKey.includes("无效或缺失租户标识") || dedupKey.includes("租户上下文已失效")) {
-    return GLOBAL_ERROR_DEDUP_LONG_WINDOW_MS;
-  }
-  return GLOBAL_ERROR_DEDUP_WINDOW_MS;
+  return content
+    .replace(/（\s*traceId:\s*[^）]+\s*）/gi, "")
+    .replace(/\(\s*traceId:\s*[^)]+\s*\)/gi, "")
+    .trim();
 }
 
 function formatErrorMessage(payload: ApiErrorPayload | null, fallback: string): string {
   if (payload?.code === ErrorCodes.IdempotencyInProgress) {
-    return "请求正在处理中，请稍后再试";
+    return translate("apiCore.idempotencyInProgress");
   }
   if (payload?.code === ErrorCodes.IdempotencyConflict) {
-    return "检测到重复提交但请求内容不一致，请刷新后重试";
+    return translate("apiCore.idempotencyConflict");
   }
   if (payload?.code === ErrorCodes.ProjectRequired) {
     return translate("apiCore.projectModeSelectProjectFirst");
   }
   if (payload?.code === ErrorCodes.ProjectForbidden) {
-    return "当前账号未分配该项目访问权限";
+    return translate("apiCore.projectForbidden");
   }
   if (payload?.code === ErrorCodes.CrossTenantForbidden) {
-    return "租户上下文不一致，请刷新后重试";
+    return translate("apiCore.crossTenantForbidden");
   }
 
   if (!payload) {
     return fallback;
   }
+
+  const sepItems = translate("apiCore.errSepItems");
+  const sepFragments = translate("apiCore.errSepFragments");
 
   const fragments: string[] = [];
   if (payload.title) {
@@ -881,8 +880,8 @@ function formatErrorMessage(payload: ApiErrorPayload | null, fallback: string): 
         continue;
       }
       const items = Array.isArray(value) ? value : [value];
-      const prefix = field ? `${field}: ` : "";
-      fragments.push(`${prefix}${items.join("，")}`);
+      const prefix = field ? translate("apiCore.errFieldPrefix", { field }) : "";
+      fragments.push(`${prefix}${items.join(sepItems)}`);
     }
   }
 
@@ -890,9 +889,9 @@ function formatErrorMessage(payload: ApiErrorPayload | null, fallback: string): 
     return fallback;
   }
 
-  const baseMessage = fragments.join("；");
+  const baseMessage = fragments.join(sepFragments);
   if (payload.traceId) {
-    return `${baseMessage}（traceId: ${payload.traceId}）`;
+    return `${baseMessage}${translate("apiCore.traceIdSuffix", { traceId: payload.traceId })}`;
   }
 
   return baseMessage;
@@ -902,7 +901,7 @@ async function tryRefreshTokens(): Promise<boolean> {
   try {
     return await ensureFreshTokens();
   } catch {
-    forceLogout("登录已过期，请重新登录");
+    forceLogout(translate("apiCore.sessionExpiredRelogin"));
     return false;
   }
 }

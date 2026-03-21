@@ -18,7 +18,8 @@
     "generate-types": "cd ../../backend/Atlas.WebApi && nswag run nswag.json",
     "generate-api": "npm run generate-types",
     "spell:check": "npx --yes cspell --config ../../cspell.json",
-    "spell:check:files": "npx --yes cspell --config ../../cspell.json --no-progress --no-summary"
+    "spell:check:files": "npx --yes cspell --config ../../cspell.json --no-progress --no-summary",
+    "i18n:diff-runtime": "node scripts/i18n-runtime-key-diff.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",
