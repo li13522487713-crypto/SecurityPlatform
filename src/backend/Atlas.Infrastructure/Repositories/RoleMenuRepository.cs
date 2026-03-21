@@ -32,6 +32,13 @@ public sealed class RoleMenuRepository : IRoleMenuRepository
             .ExecuteCommandAsync(cancellationToken);
     }
 
+    public Task DeleteByMenuIdAsync(TenantId tenantId, long menuId, CancellationToken cancellationToken)
+    {
+        return _db.Deleteable<RoleMenu>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.MenuId == menuId)
+            .ExecuteCommandAsync(cancellationToken);
+    }
+
     public Task AddRangeAsync(IReadOnlyList<RoleMenu> roleMenus, CancellationToken cancellationToken)
     {
         if (roleMenus.Count == 0)

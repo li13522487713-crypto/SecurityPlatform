@@ -18,6 +18,7 @@ public interface IPluginMarketCommandService
     Task<long> PublishAsync(PublishPluginMarketRequest request, Guid tenantId, CancellationToken cancellationToken);
     Task UpdateAsync(long id, UpdatePluginMarketRequest request, CancellationToken cancellationToken);
     Task DeprecateAsync(long id, CancellationToken cancellationToken);
+    Task RateAsync(long entryId, Guid tenantId, int rating, CancellationToken cancellationToken);
 }
 
 public sealed record PublishPluginMarketRequest(

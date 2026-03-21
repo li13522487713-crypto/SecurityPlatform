@@ -35,7 +35,8 @@ public sealed record NotificationCreateRequest(
     string Content,
     string NoticeType,
     int Priority,
-    DateTimeOffset? ExpiresAt);
+    DateTimeOffset? ExpiresAt,
+    IReadOnlyDictionary<string, string>? TemplateVariables = null);
 
 public sealed record NotificationUpdateRequest(
     string Title,

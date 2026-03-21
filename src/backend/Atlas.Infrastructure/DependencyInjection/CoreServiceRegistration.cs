@@ -59,6 +59,7 @@ public static class CoreServiceRegistration
         services.AddHostedService<DatabaseInitializerHostedService>();
         services.AddHostedService<DatabaseBackupHostedService>();
         services.AddHostedService<AuditRetentionHostedService>();
+        services.AddHostedService<TenantExpirationHostedService>();
         services.AddHostedService<SessionCleanupHostedService>();
         services.AddHostedService<IdempotencyCleanupHostedService>();
 
@@ -95,6 +96,7 @@ public static class CoreServiceRegistration
         services.AddScoped<IUserPositionRepository, UserPositionRepository>();
         services.AddScoped<IUserHierarchyQueryRepository, UserHierarchyQueryRepository>();
         services.AddScoped<IPasswordHistoryRepository, PasswordHistoryRepository>();
+        services.AddScoped<IOidcLinkRepository, OidcLinkRepository>();
 
         // Table Views
         services.AddScoped<ITableViewRepository, TableViewRepository>();

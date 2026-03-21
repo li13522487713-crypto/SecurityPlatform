@@ -13,7 +13,11 @@ public sealed record TenantDto(
     bool IsActive,
     TenantStatus Status,
     DateTimeOffset CreatedAt,
-    DateTimeOffset? UpdatedAt);
+    DateTimeOffset? UpdatedAt,
+    DateTimeOffset? ExpiredAt = null,
+    DateTimeOffset? TrialEndsAt = null);
+
+public sealed record TenantRenewRequest(DateTimeOffset NewExpiredAt);
 
 public sealed record TenantCreateRequest(
     string Name,

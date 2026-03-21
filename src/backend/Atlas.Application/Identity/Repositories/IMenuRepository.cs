@@ -20,4 +20,8 @@ public interface IMenuRepository
         CancellationToken cancellationToken);
     Task AddAsync(Menu menu, CancellationToken cancellationToken);
     Task UpdateAsync(Menu menu, CancellationToken cancellationToken);
+    Task DeleteAsync(TenantId tenantId, long menuId, CancellationToken cancellationToken);
+    Task<bool> HasChildrenAsync(TenantId tenantId, long menuId, CancellationToken cancellationToken);
+    Task<bool> ExistsByPathAsync(TenantId tenantId, string path, long? excludeMenuId, CancellationToken cancellationToken);
+    Task BatchUpdateSortOrderAsync(TenantId tenantId, IReadOnlyList<(long MenuId, int SortOrder)> updates, CancellationToken cancellationToken);
 }

@@ -51,6 +51,7 @@ public static class PermissionPolicies
     public const string MenusAll = "Permission:menus:all";
     public const string MenusCreate = "Permission:menus:create";
     public const string MenusUpdate = "Permission:menus:update";
+    public const string MenusDelete = "Permission:menus:delete";
 
     public const string AppsView = "Permission:apps:view";
     public const string AppsUpdate = "Permission:apps:update";

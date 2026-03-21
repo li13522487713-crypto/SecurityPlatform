@@ -11,4 +11,6 @@ public interface ITenantService
     Task DeleteAsync(long userId, long id, CancellationToken cancellationToken = default);
     Task<TenantDto?> GetByIdAsync(long id, CancellationToken cancellationToken = default);
     Task<PagedResult<TenantDto>> GetPagedAsync(TenantQueryRequest request, CancellationToken cancellationToken = default);
+    Task RenewAsync(long userId, long tenantId, DateTimeOffset newExpiredAt, CancellationToken cancellationToken = default);
+    Task<int> CheckAndSuspendExpiredTenantsAsync(CancellationToken cancellationToken = default);
 }

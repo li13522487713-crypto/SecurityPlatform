@@ -22,6 +22,7 @@ public enum TenantApplicationStatus
 
 public enum AppReleaseStatus
 {
+    Draft = -1,
     Pending = 0,
     Released = 1,
     RolledBack = 2
@@ -252,7 +253,7 @@ public sealed class AppRelease : TenantEntity
         Version = version;
         SnapshotJson = snapshotJson;
         ReleaseNote = string.Empty;
-        Status = AppReleaseStatus.Released;
+        Status = AppReleaseStatus.Draft;
         ReleasedBy = releasedBy;
         ReleasedAt = releasedAt;
     }
@@ -281,6 +282,20 @@ public sealed class AppRelease : TenantEntity
         {
             ReleaseNote = releaseNote.Trim();
         }
+    }
+
+    public void SubmitForReview()
+    {
+        if (Status != AppReleaseStatus.Draft)
+        {
+            return;
+        }
+        Status = AppReleaseStatus.Pending;
+    }
+
+    public void SetReleaseNote(string note)
+    {
+        ReleaseNote = note ?? string.Empty;
     }
 }
 

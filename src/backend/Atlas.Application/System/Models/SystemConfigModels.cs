@@ -6,15 +6,20 @@ public sealed record SystemConfigDto(
     string ConfigValue,
     string ConfigName,
     bool IsBuiltIn,
+    string ConfigType,
+    string? TargetJson,
     string? Remark);
 
 public sealed record SystemConfigCreateRequest(
     string ConfigKey,
     string ConfigValue,
     string ConfigName,
-    string? Remark);
+    string? Remark,
+    string ConfigType = "Text",
+    string? TargetJson = null);
 
 public sealed record SystemConfigUpdateRequest(
     string ConfigValue,
     string ConfigName,
-    string? Remark);
+    string? Remark,
+    string? TargetJson = null);

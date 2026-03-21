@@ -150,4 +150,44 @@ public sealed class AuditQueryService : IAuditQueryService
         var resultItems = items.Select(x => _mapper.Map<AuditListItem>(x)).ToArray();
         return new PagedResult<AuditListItem>(resultItems, total, pageIndex, pageSize);
     }
+
+    public async Task<IReadOnlyList<AuditListItem>> ExportAuditsCsvAsync(
+        TenantId tenantId,
+        string? action,
+        string? result,
+        DateTimeOffset? fromDate,
+        DateTimeOffset? toDate,
+        int maxRows,
+        CancellationToken cancellationToken)
+    {
+        var limit = Math.Clamp(maxRows, 1, 50000);
+        var query = _db.Queryable<AuditRecord>()
+            .Where(x => x.TenantIdValue == tenantId.Value);
+
+        if (!string.IsNullOrWhiteSpace(action))
+        {
+            query = query.Where(x => x.Action == action);
+        }
+        if (!string.IsNullOrWhiteSpace(result))
+        {
+            query = query.Where(x => x.Result == result);
+        }
+        if (fromDate.HasValue)
+        {
+            var from = fromDate.Value;
+            query = query.Where(x => x.OccurredAt >= from);
+        }
+        if (toDate.HasValue)
+        {
+            var to = toDate.Value;
+            query = query.Where(x => x.OccurredAt <= to);
+        }
+
+        var items = await query
+            .OrderBy(x => x.OccurredAt, OrderByType.Desc)
+            .Take(limit)
+            .ToListAsync(cancellationToken);
+
+        return items.Select(x => _mapper.Map<AuditListItem>(x)).ToArray();
+    }
 }

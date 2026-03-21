@@ -270,11 +270,24 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         // 种子数据初始化
         if (_initializerOptions.SkipSeedData)
         {
-            _logger.LogInformation("[DatabaseInitializer] 已跳过种子数据初始化（DatabaseInitializer:SkipSeedData=true）");
-            await EnsureBootstrapAdminPlatformFlagAsync(scope, appContextAccessor, cancellationToken);
-            // 始终加载 License 状态，不受 SkipSeedData 影响
-            await LoadLicenseStatusAsync(scope, cancellationToken);
-            return;
+            // 首次运行自动检测：若 Menu 表为空（新环境/重建 DB），自动忽略 SkipSeedData 标志执行播种
+            // 这样无需手动修改配置即可在全新环境中正常启动
+            var menuCount = await db.Queryable<Menu>().CountAsync(cancellationToken);
+            if (menuCount == 0)
+            {
+                _logger.LogWarning(
+                    "[DatabaseInitializer] 检测到 Menu 表为空（新环境或重建 DB），" +
+                    "自动忽略 SkipSeedData=true 配置，执行首次种子数据播种。" +
+                    "如需永久跳过播种，请在播种完成后确认 DatabaseInitializer:SkipSeedData=true 并保持数据库不删除。");
+            }
+            else
+            {
+                _logger.LogInformation("[DatabaseInitializer] 已跳过种子数据初始化（DatabaseInitializer:SkipSeedData=true）");
+                await EnsureBootstrapAdminPlatformFlagAsync(scope, appContextAccessor, cancellationToken);
+                // 始终加载 License 状态，不受 SkipSeedData 影响
+                await LoadLicenseStatusAsync(scope, cancellationToken);
+                return;
+            }
         }
 
         _logger.LogInformation("[DatabaseInitializer] 开始执行种子数据初始化...");
@@ -454,6 +467,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             (PermissionCodes.MenusAll, "Menus All", "Api"),
             (PermissionCodes.MenusCreate, "Menus Create", "Api"),
             (PermissionCodes.MenusUpdate, "Menus Update", "Api"),
+            (PermissionCodes.MenusDelete, "Menus Delete", "Api"),
             (PermissionCodes.AppsView, "Apps View", "Api"),
             (PermissionCodes.AppsUpdate, "Apps Update", "Api"),
             (PermissionCodes.AppMembersView, "App Members View", "Api"),
@@ -735,6 +749,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             ("菜单查询", "/settings/auth/menus:query", "/settings/auth/menus", 1, "F", null, null, PermissionCodes.MenusView, null, false, false, "0", "0", PermissionCodes.MenusView, true),
             ("菜单新增", "/settings/auth/menus:create", "/settings/auth/menus", 2, "F", null, null, PermissionCodes.MenusCreate, null, false, false, "0", "0", PermissionCodes.MenusCreate, true),
             ("菜单修改", "/settings/auth/menus:update", "/settings/auth/menus", 3, "F", null, null, PermissionCodes.MenusUpdate, null, false, false, "0", "0", PermissionCodes.MenusUpdate, true),
+            ("菜单删除", "/settings/auth/menus:delete", "/settings/auth/menus", 4, "F", null, null, PermissionCodes.MenusDelete, null, false, false, "0", "0", PermissionCodes.MenusDelete, true),
             ("PAT 查询", "/settings/auth/pats:query", "/settings/auth/pats", 1, "F", null, null, PermissionCodes.PersonalAccessTokenView, null, false, false, "0", "0", PermissionCodes.PersonalAccessTokenView, true),
             ("PAT 新增", "/settings/auth/pats:create", "/settings/auth/pats", 2, "F", null, null, PermissionCodes.PersonalAccessTokenCreate, null, false, false, "0", "0", PermissionCodes.PersonalAccessTokenCreate, true),
             ("PAT 修改", "/settings/auth/pats:update", "/settings/auth/pats", 3, "F", null, null, PermissionCodes.PersonalAccessTokenUpdate, null, false, false, "0", "0", PermissionCodes.PersonalAccessTokenUpdate, true),

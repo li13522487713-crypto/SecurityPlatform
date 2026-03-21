@@ -41,5 +41,7 @@ public enum EventSubscriptionTargetType
 {
     Queue = 0,
     Webhook = 1,
-    Handler = 2
+    Handler = 2,
+    InAppMessage = 3,
+    Email = 4
 }

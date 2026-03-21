@@ -18,6 +18,10 @@ public sealed record MenuListItem(
     string Visible = "0",
     string Status = "0");
 
+public sealed record MenuSortItem(long MenuId, int SortOrder);
+
+public sealed record MenuBatchSortRequest(IReadOnlyList<MenuSortItem> Items);
+
 public sealed record MenuQueryRequest(
     int PageIndex,
     int PageSize,

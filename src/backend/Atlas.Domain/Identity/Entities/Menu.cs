@@ -112,4 +112,9 @@ public class Menu : TenantEntity
         PermissionCode = permissionCode ?? perms ?? string.Empty;
         IsHidden = isHidden;
     }
+
+    public void UpdateSortOrder(int sortOrder)
+    {
+        SortOrder = sortOrder;
+    }
 }

@@ -17,4 +17,9 @@ public interface ISystemConfigQueryService
         TenantId tenantId,
         string configKey,
         CancellationToken cancellationToken);
+
+    /// <summary>获取所有 FeatureFlag 类型的配置（用于前端 useFeatureFlag composable）</summary>
+    Task<IReadOnlyList<SystemConfigDto>> GetFeatureFlagsAsync(
+        TenantId tenantId,
+        CancellationToken cancellationToken);
 }

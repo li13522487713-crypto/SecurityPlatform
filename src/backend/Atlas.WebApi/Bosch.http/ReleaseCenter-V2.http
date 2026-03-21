@@ -51,3 +51,10 @@ Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 X-CSRF-TOKEN: {{login.response.headers.X-CSRF-TOKEN}}
 Idempotency-Key: {{$guid}}
+
+### 发布前检查（precheck）
+# 检查指定 manifestId 是否满足发布条件（页面数 + 表格数 > 0）
+# CanRelease=false 时 BlockReason 说明阻断原因
+GET {{baseUrl}}/api/v2/release-center/releases/precheck/1
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}

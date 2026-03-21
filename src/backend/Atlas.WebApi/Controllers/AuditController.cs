@@ -64,6 +64,55 @@ public sealed class AuditController : ControllerBase
         return Ok(ApiResponse<PagedResult<AuditListItem>>.Ok(queryResult, HttpContext.TraceIdentifier));
     }
 
+    [HttpGet("export/csv")]
+    [Authorize(Policy = PermissionPolicies.AuditView)]
+    public async Task<IActionResult> ExportCsv(
+        [FromQuery] string? action,
+        [FromQuery] string? result,
+        [FromQuery] DateTimeOffset? from,
+        [FromQuery] DateTimeOffset? to,
+        [FromQuery] int maxRows = 10000,
+        CancellationToken cancellationToken = default)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var items = await _auditQueryService.ExportAuditsCsvAsync(
+            tenantId, action, result, from, to, maxRows, cancellationToken);
+
+        var csv = BuildCsv(items);
+        var fileName = $"audit-export-{DateTime.UtcNow:yyyyMMddHHmmss}.csv";
+        return File(System.Text.Encoding.UTF8.GetPreamble().Concat(
+                System.Text.Encoding.UTF8.GetBytes(csv)).ToArray(),
+            "text/csv; charset=utf-8",
+            fileName);
+    }
+
+    private static string BuildCsv(IReadOnlyList<AuditListItem> items)
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("操作人,操作类型,操作结果,操作目标,IP地址,客户端类型,发生时间");
+        foreach (var item in items)
+        {
+            sb.AppendLine(string.Join(",",
+                EscapeCsvField(item.Actor),
+                EscapeCsvField(item.Action),
+                EscapeCsvField(item.Result),
+                EscapeCsvField(item.Target),
+                EscapeCsvField(item.IpAddress ?? string.Empty),
+                EscapeCsvField(item.ClientType ?? string.Empty),
+                EscapeCsvField(item.OccurredAt.ToString("yyyy-MM-dd HH:mm:ss"))));
+        }
+        return sb.ToString();
+    }
+
+    private static string EscapeCsvField(string field)
+    {
+        if (field.Contains(',') || field.Contains('"') || field.Contains('\n'))
+        {
+            return $"\"{field.Replace("\"", "\"\"")}\"";
+        }
+        return field;
+    }
+
     [HttpPost("client-errors")]
     [Authorize]
     public async Task<ActionResult<ApiResponse<object>>> ReportClientError(

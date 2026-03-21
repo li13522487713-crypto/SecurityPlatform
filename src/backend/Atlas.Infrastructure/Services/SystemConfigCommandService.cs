@@ -29,7 +29,7 @@ public sealed class SystemConfigCommandService : ISystemConfigCommandService
             throw new BusinessException($"参数键 '{request.ConfigKey}' 已存在。", ErrorCodes.ValidationError);
         }
 
-        var entity = new SystemConfig(tenantId, request.ConfigKey, request.ConfigValue, request.ConfigName, false, _idGeneratorAccessor.NextId());
+        var entity = new SystemConfig(tenantId, request.ConfigKey, request.ConfigValue, request.ConfigName, false, _idGeneratorAccessor.NextId(), request.ConfigType ?? "Text");
         entity.Update(request.ConfigValue, request.ConfigName, request.Remark);
         await _repository.AddAsync(entity, cancellationToken);
         return entity.Id;

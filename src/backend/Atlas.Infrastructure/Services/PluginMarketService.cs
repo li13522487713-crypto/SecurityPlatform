@@ -145,4 +145,29 @@ public sealed class PluginMarketCommandService : IPluginMarketCommandService
             .Where(e => e.Id == id)
             .ExecuteCommandAsync(cancellationToken);
     }
+
+    public async Task RateAsync(long entryId, Guid tenantId, int rating, CancellationToken cancellationToken)
+    {
+        if (rating is < 1 or > 5) return;
+
+        var entry = await _db.Queryable<PluginMarketEntry>()
+            .Where(e => e.Id == entryId)
+            .FirstAsync(cancellationToken);
+        if (entry is null) return;
+
+        // 加权平均：新评分加入滚动计算（简化：直接更新均值和计数）
+        var newCount = entry.RatingCount + 1;
+        var newAvg = Math.Round(
+            (entry.AverageRating * entry.RatingCount + rating) / newCount, 1);
+
+        await _db.Updateable<PluginMarketEntry>()
+            .SetColumns(e => new PluginMarketEntry
+            {
+                AverageRating = (decimal)newAvg,
+                RatingCount = newCount,
+                UpdatedAt = DateTimeOffset.UtcNow
+            })
+            .Where(e => e.Id == entryId)
+            .ExecuteCommandAsync(cancellationToken);
+    }
 }

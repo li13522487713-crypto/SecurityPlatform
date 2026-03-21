@@ -141,7 +141,7 @@ const startPolling = () => {
     } catch {
       // ignore
     }
-  }, 60_000); // 每分钟轮询一次
+  }, 30_000); // 每 30 秒轮询一次未读数
 };
 
 onMounted(() => {

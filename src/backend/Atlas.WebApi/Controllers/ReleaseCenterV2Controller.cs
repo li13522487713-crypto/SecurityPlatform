@@ -120,4 +120,15 @@ public sealed class ReleaseCenterV2Controller : ControllerBase
         var rollbackResult = await _appReleaseCommandService.RollbackAsync(tenantId, currentUser.UserId, catalogId, id, cancellationToken);
         return Ok(ApiResponse<ReleaseRollbackResult>.Ok(rollbackResult, HttpContext.TraceIdentifier));
     }
+
+    [HttpGet("precheck/{manifestId:long}")]
+    [Authorize(Policy = PermissionPolicies.AppsView)]
+    public async Task<ActionResult<ApiResponse<ReleasePreCheckResult>>> PreCheck(
+        long manifestId,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _appReleaseCommandService.PreCheckAsync(tenantId, manifestId, cancellationToken);
+        return Ok(ApiResponse<ReleasePreCheckResult>.Ok(result, HttpContext.TraceIdentifier));
+    }
 }

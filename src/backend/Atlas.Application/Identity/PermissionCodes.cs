@@ -44,6 +44,7 @@ public static class PermissionCodes
     public const string MenusAll = "menus:all";
     public const string MenusCreate = "menus:create";
     public const string MenusUpdate = "menus:update";
+    public const string MenusDelete = "menus:delete";
 
     public const string AppsView = "apps:view";
     public const string AppsUpdate = "apps:update";

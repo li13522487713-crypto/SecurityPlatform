@@ -51,6 +51,12 @@ public sealed class Tenant : EntityBase
     [SugarColumn(IsNullable = true)]
     public long? AdminUserId { get; private set; }
 
+    [SugarColumn(IsNullable = true)]
+    public DateTimeOffset? ExpiredAt { get; private set; }
+
+    [SugarColumn(IsNullable = true)]
+    public DateTimeOffset? TrialEndsAt { get; private set; }
+
     public long CreatedBy { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
     
@@ -77,6 +83,36 @@ public sealed class Tenant : EntityBase
     {
         IsActive = isActive;
         Status = isActive ? TenantStatus.Active : TenantStatus.Inactive;
+        UpdatedBy = updatedBy;
+        UpdatedAt = now;
+    }
+
+    public void Renew(DateTimeOffset newExpiredAt, long updatedBy, DateTimeOffset now)
+    {
+        ExpiredAt = newExpiredAt;
+        if (!IsActive)
+        {
+            IsActive = true;
+            Status = TenantStatus.Active;
+        }
+        UpdatedBy = updatedBy;
+        UpdatedAt = now;
+    }
+
+    public bool IsExpired(DateTimeOffset now)
+    {
+        return ExpiredAt.HasValue && ExpiredAt.Value < now;
+    }
+
+    public bool IsTrialExpired(DateTimeOffset now)
+    {
+        return TrialEndsAt.HasValue && TrialEndsAt.Value < now;
+    }
+
+    public void Suspend(long updatedBy, DateTimeOffset now)
+    {
+        IsActive = false;
+        Status = TenantStatus.Suspended;
         UpdatedBy = updatedBy;
         UpdatedAt = now;
     }

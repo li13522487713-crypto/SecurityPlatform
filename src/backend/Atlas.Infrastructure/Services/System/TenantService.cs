@@ -114,7 +114,9 @@ public sealed class TenantService : ITenantService
             tenant.IsActive,
             tenant.Status,
             tenant.CreatedAt,
-            tenant.UpdatedAt);
+            tenant.UpdatedAt,
+            tenant.ExpiredAt,
+            tenant.TrialEndsAt);
     }
 
     public async Task<PagedResult<TenantDto>> GetPagedAsync(TenantQueryRequest request, CancellationToken cancellationToken = default)
@@ -138,8 +140,44 @@ public sealed class TenantService : ITenantService
             x.IsActive,
             x.Status,
             x.CreatedAt,
-            x.UpdatedAt)).ToList();
+            x.UpdatedAt,
+            x.ExpiredAt,
+            x.TrialEndsAt)).ToList();
 
         return new PagedResult<TenantDto>(dtos, totalCount, request.PageIndex, request.PageSize);
+    }
+
+    public async Task RenewAsync(long userId, long tenantId, DateTimeOffset newExpiredAt, CancellationToken cancellationToken = default)
+    {
+        var tenant = await _db.Queryable<Tenant>().FirstAsync(x => x.Id == tenantId, cancellationToken)
+            ?? throw new BusinessException("NOT_FOUND", $"租户 {tenantId} 不存在");
+
+        tenant.Renew(newExpiredAt, userId, DateTimeOffset.UtcNow);
+        await _db.Updateable(tenant).ExecuteCommandAsync(cancellationToken);
+    }
+
+    public async Task<int> CheckAndSuspendExpiredTenantsAsync(CancellationToken cancellationToken = default)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var expiredTenants = await _db.Queryable<Tenant>()
+            .Where(x => x.IsActive && x.ExpiredAt != null && x.ExpiredAt < now)
+            .ToListAsync(cancellationToken);
+
+        if (expiredTenants.Count == 0)
+        {
+            return 0;
+        }
+
+        foreach (var tenant in expiredTenants)
+        {
+            // 系统 userId=0 表示定时任务自动执行
+            tenant.Suspend(0, now);
+        }
+
+        await _db.Updateable(expiredTenants)
+            .UpdateColumns(x => new { x.IsActive, x.Status, x.UpdatedBy, x.UpdatedAt })
+            .ExecuteCommandAsync(cancellationToken);
+
+        return expiredTenants.Count;
     }
 }

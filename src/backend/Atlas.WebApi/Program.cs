@@ -104,30 +104,43 @@ builder.Services.Configure<TableViewDefaultOptions>(builder.Configuration.GetSec
 builder.Services.Configure<Atlas.WebApi.Identity.AppOptions>(builder.Configuration.GetSection("App"));
 builder.Services.Configure<Atlas.Application.Options.DatabaseInitializerOptions>(builder.Configuration.GetSection("DatabaseInitializer"));
 
-// OIDC 支持（可选，通过 Oidc:Enabled 控制）
+// OIDC/SSO 支持（可选，通过 Oidc:Enabled 控制；支持多 IdP）
 builder.Services.Configure<Atlas.Infrastructure.Security.OidcOptions>(builder.Configuration.GetSection("Oidc"));
 builder.Services.AddScoped<Atlas.Infrastructure.Security.OidcAccountMapper>();
-var oidcEnabled = builder.Configuration.GetValue<bool>("Oidc:Enabled");
-if (oidcEnabled)
+var oidcOptions = new Atlas.Infrastructure.Security.OidcOptions();
+builder.Configuration.GetSection("Oidc").Bind(oidcOptions);
+if (oidcOptions.Enabled)
 {
-    var oidcAuthority = builder.Configuration["Oidc:Authority"] ?? string.Empty;
-    var oidcClientId = builder.Configuration["Oidc:ClientId"] ?? string.Empty;
-
-    builder.Services.AddAuthentication()
-        .AddOpenIdConnect("oidc", options =>
+    var effectiveProviders = oidcOptions.GetEffectiveProviders();
+    var authBuilder = builder.Services.AddAuthentication();
+    foreach (var provider in effectiveProviders)
+    {
+        var schemeName = $"oidc_{provider.ProviderId}";
+        authBuilder.AddOpenIdConnect(schemeName, displayName: provider.DisplayName, options =>
         {
-            options.Authority = oidcAuthority;
-            options.ClientId = oidcClientId;
-            options.ClientSecret = builder.Configuration["Oidc:ClientSecret"];
-            options.CallbackPath = builder.Configuration["Oidc:CallbackPath"] ?? "/auth/oidc/callback";
+            options.Authority = provider.Authority;
+            options.ClientId = provider.ClientId;
+            options.ClientSecret = provider.ClientSecret;
+            options.CallbackPath = string.IsNullOrWhiteSpace(provider.CallbackPath)
+                ? $"/auth/sso/{provider.ProviderId}/callback"
+                : provider.CallbackPath;
             options.ResponseType = "code";
             options.SaveTokens = false;
-            var scopes = builder.Configuration.GetSection("Oidc:Scopes").Get<string[]>() ?? ["openid", "profile", "email"];
-            foreach (var scope in scopes)
+            foreach (var scope in provider.Scopes)
             {
                 options.Scope.Add(scope);
             }
+            // 登录成功后由 OidcAccountMapper 完成账号映射，并颁发 Atlas JWT
+            options.Events.OnTokenValidated = async ctx =>
+            {
+                if (ctx.Principal is null) return;
+                var mapper = ctx.HttpContext.RequestServices.GetRequiredService<Atlas.Infrastructure.Security.OidcAccountMapper>();
+                var tenantProvider = ctx.HttpContext.RequestServices.GetRequiredService<Atlas.Core.Tenancy.ITenantProvider>();
+                var tenantId = tenantProvider.GetTenantId();
+                await mapper.MapOrCreateAsync(ctx.Principal, tenantId, provider.ProviderId, ctx.HttpContext.RequestAborted);
+            };
         });
+    }
 }
 
 builder.Services.AddCors(options =>

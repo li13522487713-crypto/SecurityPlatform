@@ -86,10 +86,13 @@ public sealed class NotificationService : INotificationQueryService, INotificati
         var now = _timeProvider.GetUtcNow();
         var id = _idGeneratorAccessor.NextId();
 
+        var renderedTitle = RenderTemplate(request.Title, request.TemplateVariables);
+        var renderedContent = RenderTemplate(request.Content, request.TemplateVariables);
+
         var notification = new Notification(
             tenantId,
-            request.Title.Trim(),
-            request.Content.Trim(),
+            renderedTitle.Trim(),
+            renderedContent.Trim(),
             NormalizeNoticeType(request.NoticeType),
             NormalizePriority(request.Priority),
             publisherId,
@@ -210,5 +213,26 @@ public sealed class NotificationService : INotificationQueryService, INotificati
         }
 
         return priority > 2 ? 2 : priority;
+    }
+
+    /// <summary>
+    /// 将模板字符串中的 {variableName} 占位符替换为对应的值。
+    /// 不存在的占位符保留原样，不抛出异常。
+    /// 支持的内置占位符：{username}、{actionName}、{tenantName}、{appName} 等。
+    /// </summary>
+    internal static string RenderTemplate(string template, IReadOnlyDictionary<string, string>? variables)
+    {
+        if (string.IsNullOrEmpty(template) || variables is null || variables.Count == 0)
+        {
+            return template;
+        }
+
+        var result = template;
+        foreach (var (key, value) in variables)
+        {
+            result = result.Replace($"{{{key}}}", value, StringComparison.OrdinalIgnoreCase);
+        }
+
+        return result;
     }
 }

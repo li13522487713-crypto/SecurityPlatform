@@ -1,0 +1,52 @@
+### SSO/OIDC 登录入口接口测试
+# Case-28: 多IdP/自动关联/登录入口
+
+@baseUrl = http://localhost:5000
+@tenantId = 00000000-0000-0000-0000-000000000001
+
+### 1. 查询所有已启用的 SSO 提供者（登录页使用）
+GET {{baseUrl}}/api/v1/auth/sso/providers
+X-Tenant-Id: {{tenantId}}
+
+###
+
+### 2. 发起指定 IdP 的登录（浏览器访问，会重定向到 IdP 授权页）
+# 当 Oidc.Enabled=false 时返回 400；Enabled=true 且 providerId 存在时重定向到 IdP
+GET {{baseUrl}}/api/v1/auth/sso/internal/login?returnUrl=/dashboard
+X-Tenant-Id: {{tenantId}}
+
+###
+
+### 3. 发起 default 提供者登录（向后兼容单 IdP 配置）
+GET {{baseUrl}}/api/v1/auth/sso/default/login
+X-Tenant-Id: {{tenantId}}
+
+###
+
+### 4. 查询当前用户已绑定的 SSO 提供者（需登录）
+# @name loginResult
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "admin",
+  "password": "P@ssw0rd!"
+}
+
+###
+
+@token = {{loginResult.response.body.data.accessToken}}
+
+### 查询我的 SSO 绑定
+GET {{baseUrl}}/api/v1/auth/sso/my-links
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+###
+
+### 5. Feature Flags 端点（Case-27 补充）
+GET {{baseUrl}}/api/v1/system-configs/feature-flags
+X-Tenant-Id: {{tenantId}}
+
+###

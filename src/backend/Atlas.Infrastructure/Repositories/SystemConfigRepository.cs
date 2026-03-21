@@ -82,4 +82,11 @@ public sealed class SystemConfigRepository : RepositoryBase<SystemConfig>
 
         await Db.Updateable(entities.ToArray()).ExecuteCommandAsync(cancellationToken);
     }
+
+    public async Task<List<SystemConfig>> FindByTypeAsync(TenantId tenantId, string configType, CancellationToken cancellationToken)
+    {
+        return await Db.Queryable<SystemConfig>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.ConfigType == configType)
+            .ToListAsync(cancellationToken);
+    }
 }

@@ -7,5 +7,6 @@ public interface IRoleMenuRepository
 {
     Task<IReadOnlyList<RoleMenu>> QueryByRoleIdAsync(TenantId tenantId, long roleId, CancellationToken cancellationToken);
     Task DeleteByRoleIdAsync(TenantId tenantId, long roleId, CancellationToken cancellationToken);
+    Task DeleteByMenuIdAsync(TenantId tenantId, long menuId, CancellationToken cancellationToken);
     Task AddRangeAsync(IReadOnlyList<RoleMenu> roleMenus, CancellationToken cancellationToken);
 }

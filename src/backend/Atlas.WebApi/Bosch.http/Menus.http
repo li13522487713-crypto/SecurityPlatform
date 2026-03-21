@@ -60,3 +60,22 @@ X-Tenant-Id: {{tenantId}}
   "permissionCode": "system:admin",
   "isHidden": false
 }
+
+### Delete Menu (有子菜单时返回 400)
+DELETE {{baseUrl}}/api/v1/menus/1
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### Batch Sort Menus
+PATCH {{baseUrl}}/api/v1/menus/sort
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+{
+  "items": [
+    { "menuId": "1", "sortOrder": 1 },
+    { "menuId": "2", "sortOrder": 2 },
+    { "menuId": "3", "sortOrder": 3 }
+  ]
+}

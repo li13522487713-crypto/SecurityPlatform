@@ -115,6 +115,19 @@ public sealed class SystemConfigsController : ControllerBase
         return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
     }
 
+    /// <summary>获取所有 FeatureFlag 类型的开关（无需权限，供前端 useFeatureFlag 使用）</summary>
+    [HttpGet("feature-flags")]
+    [AllowAnonymous]
+    public async Task<ActionResult<ApiResponse<object>>> GetFeatureFlags(CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var flags = await _queryService.GetFeatureFlagsAsync(tenantId, cancellationToken);
+        var simplified = flags.ToDictionary(
+            f => f.ConfigKey,
+            f => new { f.ConfigValue, f.TargetJson, f.ConfigName });
+        return Ok(ApiResponse<object>.Ok(simplified, HttpContext.TraceIdentifier));
+    }
+
     private async Task RecordAuditAsync(string action, string target, CancellationToken cancellationToken)
     {
         var currentUser = _currentUserAccessor.GetCurrentUser();

@@ -83,6 +83,28 @@ public sealed class MenusController : ControllerBase
         await _menuCommandService.UpdateAsync(tenantId, id, request, cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
     }
+
+    [HttpDelete("{id:long}")]
+    [Authorize(Policy = PermissionPolicies.MenusDelete)]
+    public async Task<ActionResult<ApiResponse<object>>> Delete(
+        long id,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        await _menuCommandService.DeleteAsync(tenantId, id, cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPatch("sort")]
+    [Authorize(Policy = PermissionPolicies.MenusUpdate)]
+    public async Task<ActionResult<ApiResponse<object>>> BatchSort(
+        [FromBody] MenuBatchSortRequest request,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        await _menuCommandService.BatchSortAsync(tenantId, request, cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { Count = request.Items.Count }, HttpContext.TraceIdentifier));
+    }
 }
 
 

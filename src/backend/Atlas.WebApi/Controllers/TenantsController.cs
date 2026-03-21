@@ -5,7 +5,6 @@ using Atlas.WebApi.Authorization;
 using Atlas.WebApi.Helpers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-
 namespace Atlas.WebApi.Controllers;
 
 /// <summary>
@@ -110,6 +109,21 @@ public sealed class TenantsController : ControllerBase
     {
         var userId = ControllerHelper.GetUserIdOrThrow(User);
         await _tenantService.DeleteAsync(userId, id, cancellationToken);
+        return Ok(ApiResponse<bool>.Ok(true, HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>
+    /// 续期租户（更新到期时间，自动恢复激活状态）
+    /// </summary>
+    [HttpPost("{id:long}/renew")]
+    [Authorize(Policy = PermissionPolicies.TenantsUpdate)]
+    public async Task<ActionResult<ApiResponse<bool>>> Renew(
+        long id,
+        [FromBody] TenantRenewRequest request,
+        CancellationToken cancellationToken)
+    {
+        var userId = ControllerHelper.GetUserIdOrThrow(User);
+        await _tenantService.RenewAsync(userId, id, request.NewExpiredAt, cancellationToken);
         return Ok(ApiResponse<bool>.Ok(true, HttpContext.TraceIdentifier));
     }
 }

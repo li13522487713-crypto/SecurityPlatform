@@ -22,4 +22,13 @@ public interface IAuditQueryService
         DateTimeOffset? fromDate,
         DateTimeOffset? toDate,
         CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<AuditListItem>> ExportAuditsCsvAsync(
+        TenantId tenantId,
+        string? action,
+        string? result,
+        DateTimeOffset? fromDate,
+        DateTimeOffset? toDate,
+        int maxRows,
+        CancellationToken cancellationToken);
 }

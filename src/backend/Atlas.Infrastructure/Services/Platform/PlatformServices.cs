@@ -396,6 +396,23 @@ public sealed class AppReleaseCommandService : IAppReleaseCommandService
         _idGenerator = idGenerator;
     }
 
+    public async Task<ReleasePreCheckResult> PreCheckAsync(TenantId tenantId, long manifestId, CancellationToken cancellationToken = default)
+    {
+        var pageCount = await _db.Queryable<Atlas.Domain.LowCode.Entities.LowCodePage>()
+            .CountAsync(x => x.AppId == manifestId, cancellationToken);
+        var tableCount = await _db.Queryable<Atlas.Domain.DynamicTables.Entities.DynamicTable>()
+            .CountAsync(x => x.AppId == manifestId, cancellationToken);
+        var routeCount = await _db.Queryable<RuntimeRoute>()
+            .CountAsync(x => x.TenantIdValue == tenantId.Value && x.ManifestId == manifestId, cancellationToken);
+
+        if (pageCount == 0 && tableCount == 0)
+        {
+            return ReleasePreCheckResult.Fail("应用尚未配置任何页面或数据表，无法发布空版本。", pageCount, tableCount, routeCount);
+        }
+
+        return ReleasePreCheckResult.Pass(pageCount, tableCount, routeCount);
+    }
+
     public async Task<long> CreateReleaseAsync(TenantId tenantId, long userId, long manifestId, string? releaseNote, CancellationToken cancellationToken = default)
     {
         var manifest = await _db.Queryable<AppManifest>()
@@ -411,6 +428,11 @@ public sealed class AppReleaseCommandService : IAppReleaseCommandService
             .CountAsync(x => x.AppId == manifestId, cancellationToken);
         await Task.WhenAll(pageCountTask, tableCountTask);
 
+        if (pageCountTask.Result == 0 && tableCountTask.Result == 0)
+        {
+            throw new InvalidOperationException("应用尚未配置任何页面或数据表，无法发布空版本。");
+        }
+
         var now = DateTimeOffset.UtcNow;
         manifest.Publish(userId, now);
         var snapshotJson = BuildReleaseSnapshotJson(
@@ -418,10 +440,20 @@ public sealed class AppReleaseCommandService : IAppReleaseCommandService
         var release = new AppRelease(tenantId, _idGenerator.NextId(), manifestId, manifest.Version, snapshotJson, userId, now);
         release.MarkReleased(releaseNote);
 
+        var createAudit = new AuditRecord(
+            tenantId,
+            userId.ToString(),
+            "release.create",
+            "Success",
+            $"AppManifest:{manifestId}/Version:{manifest.Version}",
+            null,
+            null);
+
         var transaction = await _db.Ado.UseTranAsync(async () =>
         {
             await _db.Updateable(manifest).ExecuteCommandAsync(cancellationToken);
             await _db.Insertable(release).ExecuteCommandAsync(cancellationToken);
+            await _db.Insertable(createAudit).ExecuteCommandAsync(cancellationToken);
         });
         if (!transaction.IsSuccess)
         {

@@ -25,7 +25,10 @@ public sealed class FileStorageOptions
     public string[] BlockedExtensions { get; init; } =
     [
         ".exe", ".sh", ".bat", ".cmd", ".ps1",
-        ".vbs", ".js", ".msi", ".dll", ".so"
+        ".vbs", ".js", ".msi", ".dll", ".so",
+        ".php", ".py", ".rb", ".pl", ".cgi",
+        ".asp", ".aspx", ".jsp", ".html", ".htm",
+        ".hta", ".scr", ".pif", ".com", ".lnk"
     ];
 
     /// <summary>默认分片大小（字节），默认 2MB。</summary>

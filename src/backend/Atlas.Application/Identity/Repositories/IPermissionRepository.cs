@@ -15,6 +15,7 @@ public interface IPermissionRepository
         string? type,
         CancellationToken cancellationToken);
     Task<IReadOnlyList<Permission>> QueryByIdsAsync(TenantId tenantId, IReadOnlyList<long> ids, CancellationToken cancellationToken);
+    Task<IReadOnlyList<Permission>> QueryAllAsync(TenantId tenantId, CancellationToken cancellationToken);
     Task AddAsync(Permission permission, CancellationToken cancellationToken);
     Task UpdateAsync(Permission permission, CancellationToken cancellationToken);
 }

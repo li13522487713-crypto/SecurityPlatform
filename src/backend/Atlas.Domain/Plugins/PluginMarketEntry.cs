@@ -21,6 +21,12 @@ public sealed class PluginMarketEntry
     public string? IconUrl { get; set; }
     public string? PackageUrl { get; set; }
     public PluginMarketStatus Status { get; set; } = PluginMarketStatus.Draft;
+
+    /// <summary>用户评分平均分（0-5）</summary>
+    public decimal AverageRating { get; set; }
+
+    /// <summary>评分人数</summary>
+    public int RatingCount { get; set; }
     public DateTimeOffset PublishedAt { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }

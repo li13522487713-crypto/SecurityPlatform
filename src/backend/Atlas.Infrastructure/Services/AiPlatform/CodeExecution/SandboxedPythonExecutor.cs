@@ -17,8 +17,14 @@ namespace Atlas.Infrastructure.Services.AiPlatform.CodeExecution;
 /// </summary>
 public sealed class SandboxedPythonExecutor : ICodeExecutionService
 {
+    // 检测标准 import / from...import 语句
     private static readonly Regex ImportRegex = new(
         @"(^|\n)\s*(?:from\s+([a-zA-Z0-9_\.]+)\s+import|import\s+([a-zA-Z0-9_\.]+))",
+        RegexOptions.Compiled);
+
+    // 检测动态导入与危险内置：__import__、importlib、eval、exec
+    private static readonly Regex DangerousCallRegex = new(
+        @"__import__\s*\(|importlib\s*\.|eval\s*\(|exec\s*\(",
         RegexOptions.Compiled);
 
     private readonly DockerPythonExecutor _dockerExecutor;
@@ -57,6 +63,17 @@ public sealed class SandboxedPythonExecutor : ICodeExecutionService
                 false,
                 null,
                 $"检测到受限模块导入：{blockedModule}",
+                false,
+                0);
+        }
+
+        // 检测危险动态调用（绕过模块过滤的常见方式）
+        if (ContainsDangerousCall(request.Code))
+        {
+            return new CodeExecutionResult(
+                false,
+                null,
+                "检测到危险调用（__import__、importlib、eval 或 exec 等），禁止执行。",
                 false,
                 0);
         }
@@ -107,6 +124,15 @@ public sealed class SandboxedPythonExecutor : ICodeExecutionService
         }
 
         return await _directExecutor.ExecuteAsync(sandboxRequest, cancellationToken);
+    }
+
+    private static bool ContainsDangerousCall(string? code)
+    {
+        if (string.IsNullOrWhiteSpace(code))
+        {
+            return false;
+        }
+        return DangerousCallRegex.IsMatch(code);
     }
 
     private string? FindBlockedModule(string? code)

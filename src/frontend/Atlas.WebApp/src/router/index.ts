@@ -340,6 +340,11 @@ const router = createRouter({
     { path: "/approval/tasks", name: "approval-tasks", redirect: "/approval/workspace?tab=pending", meta: { title: "我的待办(Deprecated)", titleKey: "route.approvalTasksDeprecated" } },
     { path: "/approval/done", redirect: "/approval/workspace?tab=done", meta: { title: "已办任务(Deprecated)", titleKey: "route.approvalDoneDeprecated" } },
     { path: "/approval/cc", redirect: "/approval/workspace?tab=cc", meta: { title: "我的抄送(Deprecated)", titleKey: "route.approvalCcDeprecated" } },
+    // ==========================================
+    // 以下为已弃用（Deprecated）路由，弃用窗口截止 2026-12-31
+    // 请在弃用窗口结束前将所有调用方迁移至新路径
+    // 弃用窗口内：仍可访问，但会执行重定向；不再新增功能
+    // ==========================================
     { path: "/process/tasks", name: "process-tasks-legacy", redirect: "/approval/workspace?tab=pending", meta: { title: "流程待办(Deprecated)", titleKey: "route.approvalTasksDeprecated", deprecatedMessage: "旧路由 /process/tasks 已迁移至 /approval/workspace?tab=pending。" } },
     { path: "/process/tasks/:taskId", name: "process-task-detail-legacy", redirect: to => `/approval/workspace?tab=pending&taskId=${to.params.taskId}`, meta: { title: "流程待办详情(Deprecated)", titleKey: "route.approvalTasksDeprecated", deprecatedMessage: "旧路由 /process/tasks/:taskId 已迁移至 /approval/workspace?tab=pending&taskId=*。" } },
     { path: "/process/designer", name: "process-designer-legacy", redirect: "/approval/designer", meta: { title: "流程设计器(Deprecated)", titleKey: "route.approvalDesigner", deprecatedMessage: "旧路由 /process/designer 已迁移至 /approval/designer。" } },

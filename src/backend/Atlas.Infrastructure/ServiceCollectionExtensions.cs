@@ -82,6 +82,18 @@ public static class ServiceCollectionExtensions
 
         // Event Subscriptions
         services.AddScoped<Atlas.Application.Events.IEventSubscriptionService, Atlas.Infrastructure.Events.EventSubscriptionService>();
+        services.AddScoped<Atlas.Application.Events.IPlatformEventService, Atlas.Infrastructure.Events.PlatformEventService>();
+
+        // Metering
+        services.AddScoped<Atlas.Application.Metering.IMeteringService, Atlas.Infrastructure.Services.Metering.MeteringService>();
+
+        // Subscription & Plans
+        services.AddScoped<Atlas.Application.Subscription.IPlanQueryService, Atlas.Infrastructure.Services.Subscription.PlanService>();
+        services.AddScoped<Atlas.Application.Subscription.IPlanCommandService, Atlas.Infrastructure.Services.Subscription.PlanService>();
+        services.AddScoped<Atlas.Application.Subscription.ISubscriptionService, Atlas.Infrastructure.Services.Subscription.SubscriptionService>();
+
+        // Observability - Alert Rules
+        services.AddScoped<Atlas.Application.Observability.IAlertRuleService, Atlas.Infrastructure.Observability.AlertRuleService>();
 
         // Plugin Metrics
         services.AddSingleton<Atlas.Infrastructure.Plugins.PluginMetricsStore>();

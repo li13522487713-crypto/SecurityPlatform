@@ -18,8 +18,18 @@ if [[ -z "${JWT_SIGNING_KEY:-}" ]]; then
   exit 1
 fi
 
+if [[ "${JWT_SIGNING_KEY:-}" == *"CHANGE_ME"* ]]; then
+  echo "JWT_SIGNING_KEY must not contain placeholder value (CHANGE_ME)." >&2
+  exit 1
+fi
+
 if [[ -z "${BOOTSTRAP_ADMIN_PASSWORD:-}" ]]; then
   echo "BOOTSTRAP_ADMIN_PASSWORD is required and must be provided via environment." >&2
+  exit 1
+fi
+
+if [[ "${BOOTSTRAP_ADMIN_PASSWORD:-}" == *"CHANGE_ME"* ]]; then
+  echo "BOOTSTRAP_ADMIN_PASSWORD must not contain placeholder value (CHANGE_ME)." >&2
   exit 1
 fi
 

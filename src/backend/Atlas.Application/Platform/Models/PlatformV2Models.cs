@@ -378,6 +378,20 @@ public sealed record ReleaseRollbackResult(
     string Result,
     string? Message);
 
+public sealed record ReleasePreCheckResult(
+    bool CanRelease,
+    int PageCount,
+    int TableCount,
+    int RouteCount,
+    string? BlockReason)
+{
+    public static ReleasePreCheckResult Pass(int pageCount, int tableCount, int routeCount)
+        => new(true, pageCount, tableCount, routeCount, null);
+
+    public static ReleasePreCheckResult Fail(string reason, int pageCount = 0, int tableCount = 0, int routeCount = 0)
+        => new(false, pageCount, tableCount, routeCount, reason);
+}
+
 public sealed record RuntimeExecutionAuditTrailItem(
     string AuditId,
     string Actor,

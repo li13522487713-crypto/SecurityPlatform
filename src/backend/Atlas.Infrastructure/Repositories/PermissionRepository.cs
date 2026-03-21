@@ -43,4 +43,12 @@ public sealed class PermissionRepository : RepositoryBase<Permission>, IPermissi
 
         return (list, totalCount);
     }
+
+    public async Task<IReadOnlyList<Permission>> QueryAllAsync(TenantId tenantId, CancellationToken cancellationToken)
+    {
+        return await Db.Queryable<Permission>()
+            .Where(x => x.TenantIdValue == tenantId.Value)
+            .OrderBy(x => x.Code, OrderByType.Asc)
+            .ToListAsync(cancellationToken);
+    }
 }
