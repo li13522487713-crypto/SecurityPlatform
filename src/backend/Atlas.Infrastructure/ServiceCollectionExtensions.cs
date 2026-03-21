@@ -23,7 +23,7 @@ public static class ServiceCollectionExtensions
         services.AddWorkflowInfrastructure();
         services.AddLowCodeInfrastructure();
         services.AddAiPlatformInfrastructure(configuration);
-        services.AddLicenseInfrastructure();
+        services.AddLicenseInfrastructure(configuration);
         services.AddPlatformInfrastructure();
         services.AddGovernanceInfrastructure();
 
