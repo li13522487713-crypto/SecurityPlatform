@@ -240,28 +240,34 @@ async function loadNodeTypes() {
 }
 
 function applyCanvasToVueFlow(canvas: CanvasSchema) {
-  vfNodes.value = canvas.nodes.map(n => ({
-    id: n.key,
-    type: n.type,
-    position: { x: n.layout?.x ?? 0, y: n.layout?.y ?? 0 },
-    data: {
-      title: n.title,
-      configs: n.configs,
-      inputMappings: n.inputMappings,
-      nodeType: n.type,
-      __status: nodeRunStatus.value[n.key] ?? '',
-    },
-  }))
+  const toVfNode = (n: NodeSchema): VfNode => {
+    const nodeType = String(n.type)
+    return {
+      id: n.key,
+      type: nodeType,
+      position: { x: n.layout?.x ?? 0, y: n.layout?.y ?? 0 },
+      data: {
+        title: n.title,
+        configs: n.configs,
+        inputMappings: n.inputMappings,
+        nodeType,
+        __status: nodeRunStatus.value[n.key] ?? '',
+      },
+    }
+  }
 
-  vfEdges.value = canvas.connections.map((c, i) => ({
+  const toVfEdge = (c: ConnectionSchema, i: number): VfEdge => ({
     id: `e-${c.fromNode}-${c.toNode}-${i}`,
     source: c.fromNode,
-      sourceHandle: c.fromPort ?? 'output',
+    sourceHandle: c.fromPort ?? 'output',
     target: c.toNode,
-      targetHandle: c.toPort ?? 'input',
+    targetHandle: c.toPort ?? 'input',
     type: 'smoothstep',
     style: { stroke: '#4b5563', strokeWidth: 2 },
-  }))
+  })
+
+  vfNodes.value = canvas.nodes.map(toVfNode)
+  vfEdges.value = canvas.connections.map(toVfEdge)
 
   isDirty.value = false
 }
