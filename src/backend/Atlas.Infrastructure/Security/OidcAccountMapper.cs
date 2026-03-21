@@ -1,4 +1,5 @@
 using Atlas.Application.Abstractions;
+using Atlas.Application.Identity.Repositories;
 using Atlas.Core.Abstractions;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Identity.Entities;

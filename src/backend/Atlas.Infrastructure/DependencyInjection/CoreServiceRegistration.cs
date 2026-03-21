@@ -97,6 +97,7 @@ public static class CoreServiceRegistration
         services.AddScoped<IUserHierarchyQueryRepository, UserHierarchyQueryRepository>();
         services.AddScoped<IPasswordHistoryRepository, PasswordHistoryRepository>();
         services.AddScoped<IOidcLinkRepository, OidcLinkRepository>();
+        services.AddScoped<OidcLinkRepository>();
 
         // Table Views
         services.AddScoped<ITableViewRepository, TableViewRepository>();

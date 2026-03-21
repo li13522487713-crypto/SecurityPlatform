@@ -1,44 +1,53 @@
 <template>
-  <div class="login-page">
-    <div class="login-container">
-      <aside class="brand-panel">
-        <div class="brand-content">
-          <div class="brand-logo">
+  <div class="login-wrapper">
+    <div class="login-split">
+      <!-- Left Panel (Aliyun style) -->
+      <aside class="login-split__left">
+        <div class="tech-bg">
+          <div class="bg-shape shape-1"></div>
+          <div class="bg-shape shape-2"></div>
+          <div class="bg-shape shape-3"></div>
+        </div>
+        <div class="login-left-content">
+          <div class="login-logo">
             <div class="logo-icon">
+              <!-- Inline brand logo SVG -->
               <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M16 2L28 9v14l-12 7L4 23V9l12-7z" fill="rgba(255,255,255,0.15)" stroke="rgba(255,255,255,0.6)" stroke-width="1.5" />
                 <path d="M16 8l7 4v8l-7 4-7-4v-8l7-4z" fill="rgba(255,255,255,0.25)" stroke="#fff" stroke-width="1.5" />
                 <circle cx="16" cy="16" r="3" fill="#fff" />
               </svg>
             </div>
-            <div class="brand-text">
-              <h1>{{ t("authPage.brandTitle") }}</h1>
-              <p>{{ t("authPage.brandSubtitle") }}</p>
+            <span class="logo-text">{{ t("authPage.brandTitle") }}</span>
+          </div>
+          <div class="login-slogan">
+            <h2>{{ t("authPage.heroTitle") }}</h2>
+            <p>{{ t("authPage.brandSubtitle") }}</p>
+          </div>
+          <div class="login-features">
+            <div class="feature-item">
+              <safety-certificate-outlined class="feature-icon" />
+              <span>{{ t("authPage.heroPoint1") }}</span>
+            </div>
+            <div class="feature-item">
+              <appstore-outlined class="feature-icon" />
+              <span>{{ t("authPage.heroPoint2") }}</span>
+            </div>
+            <div class="feature-item">
+              <team-outlined class="feature-icon" />
+              <span>{{ t("authPage.heroPoint3") }}</span>
             </div>
           </div>
-          <div class="brand-desc">
-            <h2>{{ t("authPage.heroTitle") }}</h2>
-            <ul>
-              <li>{{ t("authPage.heroPoint1") }}</li>
-              <li>{{ t("authPage.heroPoint2") }}</li>
-              <li>{{ t("authPage.heroPoint3") }}</li>
-            </ul>
-          </div>
         </div>
-        <div class="brand-footer">
-          <span>{{ t("authPage.compliance") }}</span>
-        </div>
-        <div class="decor decor-1" aria-hidden="true"></div>
-        <div class="decor decor-2" aria-hidden="true"></div>
-        <div class="decor decor-3" aria-hidden="true"></div>
       </aside>
 
-      <main class="form-panel">
+      <!-- Right Panel -->
+      <main class="login-split__right">
         <div class="locale-switch-wrapper">
           <LocaleSwitch />
         </div>
 
-        <div class="form-wrapper">
+        <div class="login-card">
           <div class="mobile-logo">
             <div class="logo-icon logo-icon--sm">
               <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -50,223 +59,111 @@
             <span>{{ t("authPage.brandTitle") }}</span>
           </div>
 
-          <h3 class="form-title">{{ t("authPage.loginTitle") }}</h3>
-
-          <div class="license-section">
-            <div v-if="licenseLoading" class="license-status">
-              <a-spin size="small" />
-              <span>{{ t("authPage.loadingLicense") }}</span>
-            </div>
-
-            <template v-else-if="licenseStatusCode === 'Active'">
-              <div class="license-status license-status--active">
-                <span class="license-dot license-dot--active"></span>
-                <span>{{ t("authPage.licenseActive") }}</span>
-                <span v-if="licenseStatusInfo?.tenantName" class="license-org">
-                  {{ licenseStatusInfo.tenantName }}
-                </span>
-                <a-tag color="blue" size="small">{{ licenseEditionText }}</a-tag>
-                <span class="license-expire">{{ licenseExpireText }}</span>
-                <a class="license-action" @click="showRenewArea = !showRenewArea">
-                  {{ showRenewArea ? t("authPage.collapse") : t("authPage.switchCertificate") }}
-                </a>
+          <a-tabs v-model:activeKey="activeTab" class="login-tabs" :animated="false">
+            <a-tab-pane key="system" :tab="t('authPage.loginTitle')">
+              
+              <div class="license-wrapper" v-if="!allowLoginForm">
+                <div v-if="licenseLoading" class="license-status">
+                  <a-spin size="small" />
+                  <span>{{ t("authPage.loadingLicense") }}</span>
+                </div>
+                <template v-else>
+                  <div class="license-status" :class="licenseStatusCode === 'Expired' ? 'license-status--expired' : 'license-status--none'">
+                    <span class="license-dot" :class="licenseStatusCode === 'Expired' ? 'license-dot--expired' : 'license-dot--none'"></span>
+                    <span>{{ licenseStatusCode === "Expired" ? t("authPage.licenseExpired") : t("authPage.licenseInactive") }}</span>
+                  </div>
+                  <a-alert v-if="licenseActivateResult" :type="licenseActivateResult.success ? 'success' : 'error'" :message="licenseActivateResult.message" closable show-icon style="margin: 12px 0" @close="licenseActivateResult = null" />
+                  <a-upload :before-upload="handleLicenseFileSelect" :show-upload-list="false" accept=".atlaslicense,.lic,.txt">
+                    <a-button type="primary" size="large" block :loading="licenseActivating">
+                      <template #icon><upload-outlined /></template>
+                      {{ licenseActivating ? t("authPage.activating") : t("authPage.uploadCertificate") }}
+                    </a-button>
+                  </a-upload>
+                  <p class="license-tip">{{ t("authPage.uploadTip") }}</p>
+                </template>
               </div>
-              <div v-if="showRenewArea" class="license-upload">
-                <a-alert
-                  v-if="licenseActivateResult"
-                  :type="licenseActivateResult.success ? 'success' : 'error'"
-                  :message="licenseActivateResult.message"
-                  closable
-                  show-icon
-                  style="margin-bottom: 8px"
-                  @close="licenseActivateResult = null"
-                />
-                <a-upload
-                  :before-upload="handleLicenseFileSelect"
-                  :show-upload-list="false"
-                  accept=".atlaslicense,.lic,.txt"
-                >
-                  <a-button size="small" :loading="licenseActivating">
-                    <template #icon><upload-outlined /></template>
-                    {{ t("authPage.selectCertificate") }}
+
+              <template v-else>
+                <!-- Render modern Multi-Tenant / License UI -->
+                <div class="tenant-display">
+                  <div class="tenant-info">
+                    <bank-outlined class="tenant-icon" />
+                    <div class="tenant-name">{{ licenseStatusInfo?.tenantName || 'Atlas Security' }}</div>
+                  </div>
+                  <div class="tenant-meta">
+                    <a-tag color="blue" size="small">{{ licenseEditionText }}</a-tag>
+                    <span class="tenant-expire">{{ licenseExpireText }}</span>
+                    <a class="tenant-switch-btn" @click="showRenewArea = !showRenewArea">{{ showRenewArea ? t("authPage.collapse") : t("authPage.switchCertificate") }}</a>
+                  </div>
+                </div>
+
+                <div v-if="showRenewArea" class="license-upload">
+                  <a-alert v-if="licenseActivateResult" :type="licenseActivateResult.success ? 'success' : 'error'" :message="licenseActivateResult.message" closable show-icon style="margin-bottom: 8px" @close="licenseActivateResult = null" />
+                  <a-upload :before-upload="handleLicenseFileSelect" :show-upload-list="false" accept=".atlaslicense,.lic,.txt">
+                    <a-button size="middle" block :loading="licenseActivating">
+                      <template #icon><upload-outlined /></template>
+                      {{ t("authPage.selectCertificate") }}
+                    </a-button>
+                  </a-upload>
+                </div>
+
+                <div v-if="errorMessage" class="error-banner">
+                  <span class="error-icon">!</span>
+                  <span>{{ errorMessage }}</span>
+                  <span v-if="cooldownSeconds > 0" class="cooldown-text">{{ t("authPage.cooldown", { seconds: cooldownSeconds }) }}</span>
+                </div>
+
+                <a-form layout="vertical" :model="form" class="login-form" :disabled="loading" @finish="handleSubmit">
+                  <a-form-item name="username" :rules="[{ required: true, message: t('authPage.usernameRequired') }]">
+                    <a-input ref="usernameInputRef" v-model:value="form.username" size="large" :placeholder="t('authPage.usernamePlaceholder')" allow-clear autocomplete="username" @focus="errorMessage = ''" aria-label="用户名">
+                      <template #prefix><user-outlined class="input-icon" /></template>
+                    </a-input>
+                  </a-form-item>
+
+                  <a-form-item name="password" :rules="[{ required: true, message: t('authPage.passwordRequired') }]">
+                    <a-input-password v-model:value="form.password" size="large" :placeholder="t('authPage.passwordPlaceholder')" autocomplete="current-password" aria-label="密码" @keydown="handleCapsLockEvent" @keyup="handleCapsLockEvent" @blur="capsLockOn = false" @focus="errorMessage = ''">
+                      <template #prefix><lock-outlined class="input-icon" /></template>
+                    </a-input-password>
+                    <div v-if="capsLockOn" class="caps-tip">{{ t("authPage.capsLockOn") }}</div>
+                  </a-form-item>
+
+                  <a-form-item v-if="needsCaptcha" name="captchaCode" :rules="[{ required: true, message: t('authPage.captchaRequired') }]">
+                    <div class="captcha-row">
+                      <a-input v-model:value="form.captchaCode" size="large" :placeholder="t('authPage.captchaPlaceholder')" autocomplete="off" @focus="errorMessage = ''" aria-label="验证码">
+                        <template #prefix><safety-certificate-outlined class="input-icon" /></template>
+                      </a-input>
+                      <div class="captcha-img-wrap">
+                        <img v-if="captchaImage" :src="captchaImage" :alt="t('authPage.captchaAlt')" :title="t('authPage.captchaRefresh')" class="captcha-image" @click="loadCaptcha" />
+                      </div>
+                      <a class="captcha-refresh" @click="loadCaptcha">{{ t('authPage.captchaRefresh') }}</a>
+                    </div>
+                  </a-form-item>
+
+                  <a-form-item v-if="needsMfa" name="totpCode" :rules="[{ required: true, message: t('authPage.mfaRequired') }]" :help="t('authPage.mfaHelp')">
+                    <a-input v-model:value="form.totpCode" size="large" :placeholder="t('authPage.mfaPlaceholder')" :maxlength="6" autocomplete="off" @focus="errorMessage = ''" aria-label="MFA校验码">
+                      <template #prefix><safety-certificate-outlined class="input-icon" /></template>
+                    </a-input>
+                  </a-form-item>
+
+                  <div class="form-extra">
+                    <a-checkbox v-model:checked="form.rememberMe">{{ t("authPage.rememberMe") }}</a-checkbox>
+                  </div>
+
+                  <a-button type="primary" block html-type="submit" size="large" :loading="loading" :disabled="isSubmitDisabled" class="submit-btn" aria-label="登录">
+                    <span v-if="!loading">{{ cooldownSeconds > 0 ? t("authPage.submitWaiting", { seconds: cooldownSeconds }) : t("auth.login") }}</span>
+                    <span v-else>{{ t("authPage.submitting") }}</span>
                   </a-button>
-                </a-upload>
-              </div>
-            </template>
 
-            <template v-else>
-              <div class="license-status" :class="licenseStatusCode === 'Expired' ? 'license-status--expired' : 'license-status--none'">
-                <span class="license-dot" :class="licenseStatusCode === 'Expired' ? 'license-dot--expired' : 'license-dot--none'"></span>
-                <span>{{ licenseStatusCode === "Expired" ? t("authPage.licenseExpired") : t("authPage.licenseInactive") }}</span>
-                <span class="license-hint">
-                  {{ licenseStatusCode === "Expired" ? t("authPage.license.uploadHintExpired") : t("authPage.license.uploadHintInactive") }}
-                </span>
-              </div>
-              <a-alert
-                v-if="licenseActivateResult"
-                :type="licenseActivateResult.success ? 'success' : 'error'"
-                :message="licenseActivateResult.message"
-                closable
-                show-icon
-                style="margin: 8px 0"
-                @close="licenseActivateResult = null"
-              />
-              <a-upload
-                :before-upload="handleLicenseFileSelect"
-                :show-upload-list="false"
-                accept=".atlaslicense,.lic,.txt"
-              >
-                <a-button type="primary" size="small" :loading="licenseActivating">
-                  <template #icon><upload-outlined /></template>
-                  {{ licenseActivating ? t("authPage.activating") : t("authPage.uploadCertificate") }}
-                </a-button>
-              </a-upload>
-              <p class="license-tip">{{ t("authPage.uploadTip") }}</p>
-            </template>
-          </div>
-
-          <a-divider style="margin: 16px 0" />
-
-          <template v-if="allowLoginForm">
-            <div v-if="errorMessage" class="error-banner">
-              <span class="error-icon">!</span>
-              <span>{{ errorMessage }}</span>
-              <span v-if="cooldownSeconds > 0" class="cooldown-text">
-                {{ t("authPage.cooldown", { seconds: cooldownSeconds }) }}
-              </span>
-            </div>
-
-            <a-form
-              layout="vertical"
-              :model="form"
-              class="login-form"
-              :disabled="loading"
-              @finish="handleSubmit"
-            >
-              <a-form-item
-                :label="t('authPage.tenantLabel')"
-                name="tenantId"
-                :rules="[
-                  { required: true, message: t('authPage.tenantRequired') },
-                  { pattern: TENANT_ID_REGEX, message: t('authPage.tenantInvalid') }
-                ]"
-              >
-                <a-input
-                  v-model:value="form.tenantId"
-                  :placeholder="t('authPage.tenantPlaceholder')"
-                  readonly
-                  autocomplete="off"
-                  @focus="errorMessage = ''"
-                />
-                <div class="field-tip">{{ t("authPage.tenantTip") }}</div>
-                <div v-if="!hasValidTenantId(form.tenantId.trim())" class="field-error">
-                  {{ t("authPage.tenantError") }}
-                </div>
-              </a-form-item>
-
-              <a-form-item
-                :label="t('authPage.usernameLabel')"
-                name="username"
-                :rules="[{ required: true, message: t('authPage.usernameRequired') }]"
-              >
-                <a-input
-                  v-model:value="form.username"
-                  :placeholder="t('authPage.usernamePlaceholder')"
-                  allow-clear
-                  autocomplete="username"
-                  @focus="errorMessage = ''"
-                />
-              </a-form-item>
-
-              <a-form-item
-                :label="t('authPage.passwordLabel')"
-                name="password"
-                :rules="[{ required: true, message: t('authPage.passwordRequired') }]"
-              >
-                <a-input-password
-                  v-model:value="form.password"
-                  :placeholder="t('authPage.passwordPlaceholder')"
-                  autocomplete="current-password"
-                  @keydown="handleCapsLockEvent"
-                  @keyup="handleCapsLockEvent"
-                  @blur="capsLockOn = false"
-                  @focus="errorMessage = ''"
-                />
-                <div v-if="capsLockOn" class="caps-tip">{{ t("authPage.capsLockOn") }}</div>
-              </a-form-item>
-
-              <a-form-item
-                v-if="needsCaptcha"
-                :label="t('authPage.captchaLabel')"
-                name="captchaCode"
-                :rules="[{ required: true, message: t('authPage.captchaRequired') }]"
-              >
-                <div class="captcha-row">
-                  <a-input
-                    v-model:value="form.captchaCode"
-                    :placeholder="t('authPage.captchaPlaceholder')"
-                    autocomplete="off"
-                    @focus="errorMessage = ''"
-                  />
-                  <img
-                    v-if="captchaImage"
-                    :src="captchaImage"
-                    :alt="t('authPage.captchaAlt')"
-                    :title="t('authPage.captchaRefresh')"
-                    class="captcha-image"
-                    @click="loadCaptcha"
-                  />
-                </div>
-              </a-form-item>
-
-              <a-form-item
-                v-if="needsMfa"
-                :label="t('authPage.mfaLabel')"
-                name="totpCode"
-                :rules="[{ required: true, message: t('authPage.mfaRequired') }]"
-                :help="t('authPage.mfaHelp')"
-              >
-                <a-input
-                  v-model:value="form.totpCode"
-                  :placeholder="t('authPage.mfaPlaceholder')"
-                  :maxlength="6"
-                  autocomplete="off"
-                  @focus="errorMessage = ''"
-                />
-              </a-form-item>
-
-              <div class="form-extra">
-                <a-checkbox v-model:checked="form.rememberMe">{{ t("authPage.rememberMe") }}</a-checkbox>
-                <a href="/password-reset" class="forgot-link">{{ t("authPage.forgotPassword") }}</a>
-              </div>
-
-              <a-button
-                type="primary"
-                block
-                html-type="submit"
-                size="large"
-                :loading="loading"
-                :disabled="isSubmitDisabled"
-                class="submit-btn"
-              >
-                <span v-if="!loading">
-                  {{ cooldownSeconds > 0 ? t("authPage.submitWaiting", { seconds: cooldownSeconds }) : t("auth.login") }}
-                </span>
-                <span v-else>{{ t("authPage.submitting") }}</span>
-              </a-button>
-
-              <div class="register-link">
-                {{ t("authPage.noAccount") }}
-                <router-link to="/register">{{ t("authPage.registerNow") }}</router-link>
-              </div>
-            </a-form>
-          </template>
-
-          <template v-else-if="!licenseLoading">
-            <div class="login-locked">
-              {{ t("authPage.loginLocked") }}
-            </div>
-          </template>
+                  <div class="form-bottom-links">
+                    <a href="/password-reset" class="forgot-link">{{ t("authPage.forgotPassword") }}</a>
+                    <span class="register-link">
+                      {{ t("authPage.noAccount") }} <router-link to="/register">{{ t("authPage.registerNow") }}</router-link>
+                    </span>
+                  </div>
+                </a-form>
+              </template>
+            </a-tab-pane>
+          </a-tabs>
         </div>
 
         <footer class="form-footer">
@@ -282,9 +179,17 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { UploadOutlined } from "@ant-design/icons-vue";
+import { 
+  UploadOutlined, 
+  UserOutlined, 
+  LockOutlined, 
+  SafetyCertificateOutlined, 
+  AppstoreOutlined, 
+  TeamOutlined, 
+  BankOutlined 
+} from "@ant-design/icons-vue";
 import { useI18n } from "vue-i18n";
 import LocaleSwitch from "@/components/layout/LocaleSwitch.vue";
 import { activateLicense, getCaptcha, getLicenseStatus } from "@/services/api";
@@ -329,6 +234,8 @@ const licenseActivateResult = ref<{ success: boolean; message: string } | null>(
 const licenseStatusCode = ref<string>("None");
 const licenseStatusInfo = ref<LicenseStatus | null>(null);
 const showRenewArea = ref(false);
+const activeTab = ref("system");
+const usernameInputRef = ref();
 
 let cooldownTimer: number | undefined;
 
@@ -362,6 +269,14 @@ const licenseExpireText = computed(() => {
 });
 
 const allowLoginForm = computed(() => licenseStatusCode.value === "Active");
+
+watch(allowLoginForm, (val) => {
+  if (val) {
+    setTimeout(() => {
+      usernameInputRef.value?.focus();
+    }, 100);
+  }
+}, { immediate: true });
 
 const isSubmitDisabled = computed(
   () =>
@@ -597,411 +512,170 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.login-page {
+.login-wrapper {
   min-height: 100vh;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--color-bg-base);
-  background-image: radial-gradient(circle at 15% 50%, rgba(0, 137, 255, 0.08), transparent 25%),
-                    radial-gradient(circle at 85% 30%, rgba(0, 137, 255, 0.08), transparent 25%);
+  background: var(--color-bg-base, #f0f2f5);
 }
 
-.login-container {
+.login-split {
   display: flex;
-  width: 960px;
-  max-width: 90%;
-  height: 560px;
-  background: var(--color-bg-container);
-  border-radius: var(--border-radius-lg);
-  box-shadow: var(--shadow-lg);
+  width: 100vw;
+  height: 100vh;
   overflow: hidden;
 }
 
-.brand-panel {
-  width: 400px;
-  background: linear-gradient(145deg, #0052cc 0%, #0089ff 100%);
+/* Left Panel */
+.login-split__left {
+  flex: 1;
+  background: linear-gradient(145deg, #001529 0%, #0052cc 100%);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
   color: #fff;
-  display: flex;
-  flex-direction: column;
-  padding: 48px 40px;
-  position: relative;
-  flex-shrink: 0;
+  padding: 60px 80px;
 }
 
-.brand-content {
+.tech-bg {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  z-index: 0;
+  background-image: 
+    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 30px 30px;
+}
+
+.bg-shape {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.03);
+}
+.shape-1 { width: 500px; height: 500px; bottom: -100px; right: -100px; }
+.shape-2 { width: 300px; height: 300px; top: -50px; left: -50px; }
+.shape-3 { width: 150px; height: 150px; bottom: 30%; right: 20%; background: rgba(255,255,255,0.05); }
+
+.login-left-content {
+  position: relative;
+  z-index: 1;
+  max-width: 600px;
+  margin: auto 0;
+}
+
+.login-logo {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 60px;
+}
+.logo-icon { width: 44px; height: 44px; }
+.logo-icon svg { width: 100%; height: 100%; }
+.logo-text { font-size: 26px; font-weight: 600; letter-spacing: 0.5px; }
+
+.login-slogan h2 { font-size: 36px; font-weight: 600; margin: 0 0 16px; line-height: 1.4; color: #fff;}
+.login-slogan p { font-size: 16px; opacity: 0.8; margin-bottom: 60px; letter-spacing: 1px; }
+
+.login-features { display: flex; flex-direction: column; gap: 24px; }
+.feature-item { display: flex; align-items: center; gap: 16px; font-size: 16px; opacity: 0.9; }
+.feature-icon { font-size: 24px; display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; background: rgba(255, 255, 255, 0.1); border-radius: 8px; }
+
+/* Right Panel */
+.login-split__right {
+  width: 520px;
+  background: var(--color-bg-container, #fff);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  box-shadow: -10px 0 30px rgba(0,0,0,0.05);
+}
+
+.locale-switch-wrapper { position: absolute; top: 24px; right: 24px; z-index: 10;}
+
+.login-card {
   flex: 1;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  position: relative;
-  z-index: 1;
-}
-
-.brand-logo {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  margin-bottom: 48px;
-}
-
-.logo-icon {
-  width: 44px;
-  height: 44px;
-  flex-shrink: 0;
-}
-
-.logo-icon svg {
+  padding: 0 60px;
+  max-width: 520px;
+  margin: 0 auto;
   width: 100%;
-  height: 100%;
 }
 
-.brand-text h1 {
-  margin: 0;
-  font-size: 22px;
-  font-weight: 600;
-  letter-spacing: 0.5px;
-}
+.mobile-logo { display: none; }
 
-.brand-text p {
-  margin: 2px 0 0;
-  font-size: 12px;
-  opacity: 0.65;
-  letter-spacing: 1px;
-}
-
-.brand-desc h2 {
-  font-size: 26px;
-  font-weight: 600;
-  margin: 0 0 24px;
-  line-height: 1.4;
-}
-
-.brand-desc ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.brand-desc li {
-  padding: 8px 0;
-  font-size: 14px;
-  opacity: 0.85;
-  position: relative;
-  padding-left: 20px;
-}
-
-.brand-desc li::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.6);
-}
-
-.brand-footer {
-  position: relative;
-  z-index: 1;
-  font-size: 12px;
-  opacity: 0.5;
-}
-
-.decor {
-  position: absolute;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.decor-1 {
-  width: 300px;
-  height: 300px;
-  bottom: -80px;
-  right: -80px;
-}
-
-.decor-2 {
-  width: 180px;
-  height: 180px;
-  top: -40px;
-  right: 60px;
-}
-
-.decor-3 {
-  width: 100px;
-  height: 100px;
-  bottom: 120px;
-  left: -30px;
-}
-
-.form-panel {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 40px;
-  background: var(--color-bg-container);
-  position: relative;
-}
-
-.locale-switch-wrapper {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-}
-
-.form-wrapper {
-  width: 100%;
-  max-width: 400px;
-}
-
-.mobile-logo {
-  display: none;
-  align-items: center;
-  gap: 10px;
+.login-tabs :deep(.ant-tabs-nav) {
   margin-bottom: 32px;
+}
+.login-tabs :deep(.ant-tabs-tab) {
   font-size: 18px;
-  font-weight: 600;
-  color: var(--color-text-primary);
+  padding: 12px 0;
 }
 
-.logo-icon--sm {
-  width: 32px;
-  height: 32px;
-}
-
-.form-title {
-  font-size: 24px;
-  font-weight: 600;
-  color: var(--color-text-primary);
-  margin: 0 0 24px;
-}
-
-.license-section {
-  padding: 12px 16px;
-  background: var(--color-bg-subtle);
-  border-radius: var(--border-radius-md);
-  border: 1px solid var(--color-border);
-}
-
-.license-status {
+.tenant-display {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  font-size: 13px;
-  color: var(--color-text-secondary);
-}
-
-.license-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.license-dot--active { background: var(--color-success); }
-.license-dot--expired { background: var(--color-warning); }
-.license-dot--none { background: var(--color-text-quaternary); }
-
-.license-status--active { color: var(--color-text-primary); }
-.license-status--expired { color: var(--color-warning); }
-
-.license-org {
-  font-weight: 500;
-  color: var(--color-text-primary);
-}
-
-.license-expire {
-  color: var(--color-text-tertiary);
-  font-size: 12px;
-}
-
-.license-action {
-  margin-left: auto;
-  font-size: 12px;
-  color: var(--color-primary);
-  cursor: pointer;
-}
-
-.license-hint {
-  color: var(--color-text-tertiary);
-  font-size: 12px;
-}
-
-.license-upload {
-  margin-top: 10px;
-  padding: 10px;
-  border: 1px dashed var(--color-border-secondary);
-  border-radius: 6px;
-  background: #fff;
-}
-
-.license-tip {
-  margin: 8px 0 0;
-  font-size: 12px;
-  color: var(--color-text-tertiary);
-}
-
-.login-form :deep(.ant-form-item) {
-  margin-bottom: 20px;
-}
-
-.login-form :deep(.ant-input),
-.login-form :deep(.ant-input-password .ant-input) {
-  height: 40px;
-}
-
-.field-tip {
-  margin-top: 4px;
-  color: var(--color-text-tertiary);
-  font-size: 12px;
-}
-
-.field-error {
-  margin-top: 4px;
-  color: var(--color-error-text);
-  font-size: 12px;
-}
-
-.caps-tip {
-  margin-top: 4px;
-  color: var(--color-warning);
-  font-size: 12px;
-}
-
-.captcha-row {
-  display: flex;
-  gap: 8px;
-}
-
-.captcha-image {
-  cursor: pointer;
-  height: 32px;
-  border-radius: 4px;
-}
-
-.form-extra {
-  display: flex;
   justify-content: space-between;
-  align-items: center;
+  padding: 12px 16px;
+  background: var(--color-bg-subtle, #f5f5f5);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
   margin-bottom: 24px;
 }
+.tenant-info { display: flex; align-items: center; gap: 8px; }
+.tenant-icon { font-size: 20px; color: var(--color-primary); }
+.tenant-name { font-size: 15px; font-weight: 600; color: var(--color-text-primary); }
+.tenant-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.tenant-switch-btn { font-size: 12px; color: var(--color-primary); cursor: pointer; }
+.tenant-expire { font-size: 12px; color: var(--color-text-tertiary); margin-top: 2px; }
 
-.forgot-link {
-  color: var(--color-primary);
-  font-size: 14px;
+.license-wrapper { padding: 24px; background: var(--color-bg-layout, #fafafa); border-radius: 8px; text-align: center; }
+.license-status { font-size: 16px; font-weight: 500; margin-bottom: 16px; display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--color-text-primary);}
+.license-dot { width: 8px; height: 8px; border-radius: 50%; }
+.license-dot--expired { background: var(--color-error); }
+.license-dot--none { background: var(--color-warning); }
+.license-tip { margin-top: 12px; font-size: 13px; color: var(--color-text-tertiary); }
+.license-upload { margin-bottom: 24px; }
+
+.login-form :deep(.ant-form-item) { margin-bottom: 24px; }
+.login-form :deep(.ant-input-affix-wrapper) { padding: 0 11px; border-radius: 6px; }
+.input-icon { color: var(--color-text-tertiary); font-size: 16px; margin-right: 4px; }
+
+.captcha-row { display: flex; gap: 12px; align-items: center; }
+.captcha-img-wrap { width: 120px; height: 40px; border-radius: 6px; overflow: hidden; background: #f0f0f0; border: 1px solid var(--color-border); }
+.captcha-image { width: 100%; height: 100%; object-fit: cover; cursor: pointer; }
+.captcha-refresh { font-size: 13px; color: var(--color-primary); white-space: nowrap; cursor: pointer;}
+
+.form-extra { display: flex; margin-bottom: 24px; align-items: center; }
+
+.submit-btn { height: 44px; font-size: 16px; border-radius: 6px; margin-bottom: 24px; }
+
+.form-bottom-links { display: flex; justify-content: space-between; align-items: center; font-size: 14px;}
+.forgot-link { color: var(--color-text-secondary); transition: color 0.3s; }
+.forgot-link:hover { color: var(--color-primary); }
+.register-link { color: var(--color-text-secondary); }
+
+.error-banner { display: flex; align-items: center; gap: 8px; background: var(--color-error-bg, #fff2f0); border: 1px solid var(--color-error-border, #ffccc7); color: var(--color-error-text, #ff4d4f); padding: 10px 14px; border-radius: 6px; margin-bottom: 24px; font-size: 14px; }
+.error-icon { width: 18px; height: 18px; border-radius: 50%; background: var(--color-error-text, #ff4d4f); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold;}
+
+.caps-tip { font-size: 12px; color: var(--color-warning); margin-top: 4px; }
+.cooldown-text { margin-left: auto; color: var(--color-text-tertiary); font-size: 12px; }
+
+.form-footer { text-align: center; padding: 24px; font-size: 13px; color: var(--color-text-tertiary); }
+.form-footer .sep { margin: 0 8px; opacity: 0.5;}
+
+@media screen and (max-width: 1024px) {
+  .login-split__left { flex: 0 0 40%; padding: 40px; }
+  .login-split__right { flex: 0 0 60%; width: auto; }
 }
 
-.submit-btn {
-  height: 44px;
-  font-size: 16px;
-  border-radius: var(--border-radius-md);
-}
-
-.register-link {
-  text-align: center;
-  margin-top: 16px;
-  font-size: 14px;
-  color: var(--color-text-secondary);
-}
-
-.register-link a {
-  color: var(--color-primary);
-  margin-left: 4px;
-}
-
-.login-locked {
-  padding: 24px 0;
-  text-align: center;
-  color: var(--color-text-tertiary);
-  font-size: 14px;
-}
-
-.error-banner {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: var(--color-error-bg);
-  border: 1px solid var(--color-error-border);
-  color: var(--color-error-text);
-  padding: 10px 14px;
-  border-radius: var(--border-radius-md);
-  margin-bottom: 16px;
-  font-size: 14px;
-}
-
-.error-icon {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: var(--color-error-text);
-  color: #fff;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: 700;
-  flex-shrink: 0;
-}
-
-.cooldown-text {
-  margin-left: auto;
-  font-size: 12px;
-  color: var(--color-text-tertiary);
-  white-space: nowrap;
-}
-
-.form-footer {
-  margin-top: 48px;
-  text-align: center;
-  font-size: 12px;
-  color: var(--color-text-quaternary);
-}
-
-.form-footer .sep {
-  margin: 0 6px;
-}
-
-@media screen and (max-width: 960px) {
-  .login-container {
-    width: 100%;
-    height: 100vh;
-    max-width: 100%;
-    border-radius: 0;
-    box-shadow: none;
-    flex-direction: column;
-  }
-
-  .brand-panel {
-    display: none;
-  }
-
-  .mobile-logo {
-    display: flex;
-  }
-
-  .form-panel {
-    padding: 32px 24px;
-    height: 100vh;
-  }
-}
-
-@media screen and (max-width: 480px) {
-  .form-panel {
-    padding: 24px 16px;
-  }
-
-  .form-title {
-    font-size: 20px;
-  }
-
-  .form-wrapper {
-    max-width: 100%;
-  }
+@media screen and (max-width: 768px) {
+  .login-split__left { display: none; }
+  .login-split__right { width: 100vw; }
+  .login-card { padding: 0 24px; max-width: 480px; margin: 0 auto;}
+  .mobile-logo { display: flex; align-items: center; gap: 12px; margin-bottom: 40px; font-size: 22px; font-weight: 600; color: var(--color-text-primary); }
+  .logo-icon--sm { width: 36px; height: 36px; }
+  .logo-icon--sm svg { width: 100%; height: 100%; }
 }
 </style>
