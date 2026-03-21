@@ -61,11 +61,11 @@
           style="width: 140px"
           @change="fetchMessages"
         >
-          <a-select-option value="0">Pending</a-select-option>
-          <a-select-option value="1">Processing</a-select-option>
-          <a-select-option value="2">Completed</a-select-option>
-          <a-select-option value="3">Failed</a-select-option>
-          <a-select-option value="4">DeadLettered</a-select-option>
+          <a-select-option value="0">{{ t("monitor.mq.stPending") }}</a-select-option>
+          <a-select-option value="1">{{ t("monitor.mq.stProcessing") }}</a-select-option>
+          <a-select-option value="2">{{ t("monitor.mq.stCompleted") }}</a-select-option>
+          <a-select-option value="3">{{ t("monitor.mq.stFailed") }}</a-select-option>
+          <a-select-option value="4">{{ t("monitor.mq.stDeadLettered") }}</a-select-option>
         </a-select>
       </a-space>
       <a-table
@@ -77,7 +77,7 @@
       >
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'status'">
-            <a-tag :color="statusColor(record.status)">{{ record.status }}</a-tag>
+            <a-tag :color="statusColor(record.status)">{{ messageStatusLabel(record.status) }}</a-tag>
           </template>
         </template>
       </a-table>
@@ -261,6 +261,18 @@ function statusColor(status: string) {
     DeadLettered: "purple"
   };
   return map[status] ?? "default";
+}
+
+function messageStatusLabel(status: string) {
+  const keyByStatus: Record<string, string> = {
+    Pending: "monitor.mq.stPending",
+    Processing: "monitor.mq.stProcessing",
+    Completed: "monitor.mq.stCompleted",
+    Failed: "monitor.mq.stFailed",
+    DeadLettered: "monitor.mq.stDeadLettered"
+  };
+  const key = keyByStatus[status];
+  return key ? t(key) : status;
 }
 
 onMounted(fetchAll);

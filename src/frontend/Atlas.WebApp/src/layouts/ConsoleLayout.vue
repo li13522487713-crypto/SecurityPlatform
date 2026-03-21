@@ -4,7 +4,7 @@
       <div data-testid="e2e-header">
         <a-layout-header class="console-header">
           <div class="left" data-testid="e2e-sidebar">
-            <div class="brand" @click="go('/console')">Atlas Console</div>
+            <div class="brand" @click="go('/console')">{{ t("consoleLayout.brandTitle") }}</div>
             <div data-testid="e2e-sidebar-menu" class="menu-wrapper">
               <a-menu
                 mode="horizontal"
@@ -42,11 +42,11 @@
                 <div data-testid="e2e-user-menu">
                   <a-menu>
                     <a-menu-item key="profile" @click="go('/profile')">
-                      <span data-testid="e2e-user-menu-profile">个人中心</span>
+                      <span data-testid="e2e-user-menu-profile">{{ t("layout.profile") }}</span>
                     </a-menu-item>
                     <a-menu-divider />
                     <a-menu-item key="logout" @click="logout">
-                      <span data-testid="e2e-user-menu-logout">退出登录</span>
+                      <span data-testid="e2e-user-menu-logout">{{ t("layout.logout") }}</span>
                     </a-menu-item>
                   </a-menu>
                 </div>
@@ -59,7 +59,7 @@
       <a-layout-content class="console-content">
         <router-view v-if="canAccessCurrentRoute" />
         <div v-else class="no-permission-state">
-          <a-empty description="暂无访问权限，请联系管理员" />
+          <a-empty :description="t('consoleLayout.noAccess')" />
         </div>
       </a-layout-content>
     </a-layout>
@@ -68,6 +68,7 @@
 
 <script setup lang="ts">
 import { computed } from "vue";
+import { useI18n } from "vue-i18n";
 import { useRoute, useRouter } from "vue-router";
 import { useUserStore } from "@/stores/user";
 import { usePermissionStore } from "@/stores/permission";
@@ -75,11 +76,20 @@ import { useTagsViewStore } from "@/stores/tagsView";
 import NotificationBell from "@/components/layout/NotificationBell.vue";
 import UnifiedContextBar from "@/components/context/UnifiedContextBar.vue";
 
+const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const userStore = useUserStore();
 const permissionStore = usePermissionStore();
 const tagsViewStore = useTagsViewStore();
+
+interface RawConsoleMenuItem {
+  key: string;
+  labelKey: string;
+  path?: string;
+  permission?: string;
+  children?: RawConsoleMenuItem[];
+}
 
 interface ConsoleMenuItem {
   key: string;
@@ -89,35 +99,35 @@ interface ConsoleMenuItem {
   children?: ConsoleMenuItem[];
 }
 
-const menuItems: ConsoleMenuItem[] = [
-  { key: "/console", label: "平台首页", path: "/console", permission: "apps:view" },
-  { key: "/console/apps", label: "应用管理", path: "/console/apps", permission: "apps:view" },
+const menuItemsRaw: RawConsoleMenuItem[] = [
+  { key: "/console", labelKey: "consoleLayout.menuConsoleHome", path: "/console", permission: "apps:view" },
+  { key: "/console/apps", labelKey: "consoleLayout.menuAppManagement", path: "/console/apps", permission: "apps:view" },
   {
     key: "group-runtime",
-    label: "运行引擎",
+    labelKey: "consoleLayout.groupRuntime",
     children: [
-      { key: "/console/runtime-contexts", label: "运行上下文", path: "/console/runtime-contexts", permission: "apps:view" },
-      { key: "/console/runtime-executions", label: "执行记录", path: "/console/runtime-executions", permission: "apps:view" },
-      { key: "/console/releases", label: "发布中心", path: "/console/releases", permission: "apps:view" },
-      { key: "/console/debug", label: "调试层", path: "/console/debug", permission: "apps:view" },
+      { key: "/console/runtime-contexts", labelKey: "route.consoleRuntimeContexts", path: "/console/runtime-contexts", permission: "apps:view" },
+      { key: "/console/runtime-executions", labelKey: "route.consoleRuntimeExecutions", path: "/console/runtime-executions", permission: "apps:view" },
+      { key: "/console/releases", labelKey: "route.consoleReleases", path: "/console/releases", permission: "apps:view" },
+      { key: "/console/debug", labelKey: "route.consoleDebugLayer", path: "/console/debug", permission: "apps:view" }
     ]
   },
   {
     key: "group-tenant",
-    label: "租户与治理",
+    labelKey: "consoleLayout.groupTenant",
     children: [
-      { key: "/console/tenant-applications", label: "租户开通", path: "/console/tenant-applications", permission: "apps:view" },
-      { key: "/console/catalog", label: "应用目录", path: "/console/catalog", permission: "apps:view" },
-      { key: "/console/resources", label: "资源中心", path: "/console/resources", permission: "apps:view" },
-      { key: "/console/migration-governance", label: "迁移治理", path: "/console/migration-governance", permission: "apps:view" },
+      { key: "/console/tenant-applications", labelKey: "route.consoleTenantApplications", path: "/console/tenant-applications", permission: "apps:view" },
+      { key: "/console/catalog", labelKey: "route.consoleCatalog", path: "/console/catalog", permission: "apps:view" },
+      { key: "/console/resources", labelKey: "route.consoleResources", path: "/console/resources", permission: "apps:view" },
+      { key: "/console/migration-governance", labelKey: "route.consoleMigrationGovernance", path: "/console/migration-governance", permission: "apps:view" }
     ]
   },
   {
     key: "group-system",
-    label: "系统管理",
+    labelKey: "consoleLayout.groupSystem",
     children: [
-      { key: "/settings/system/datasources", label: "数据源管理", path: "/settings/system/datasources", permission: "system:admin" },
-      { key: "/settings/system/configs", label: "系统配置", path: "/settings/system/configs", permission: "config:view" }
+      { key: "/settings/system/datasources", labelKey: "route.consoleDatasources", path: "/settings/system/datasources", permission: "system:admin" },
+      { key: "/settings/system/configs", labelKey: "route.systemConfigs", path: "/settings/system/configs", permission: "config:view" }
     ]
   }
 ];
@@ -141,24 +151,55 @@ function hasPermission(permissionCode?: string) {
   return userStore.permissions.includes(permissionCode);
 }
 
-const visibleMenuItems = computed(() => {
-  return menuItems.map(item => {
-    if (item.children) {
-      const filtered = item.children.filter(child => hasPermission(child.permission));
-      if (filtered.length === 0) return null;
-      return { ...item, children: filtered };
+function mapRawToVisible(raw: RawConsoleMenuItem): ConsoleMenuItem | null {
+  if (raw.children) {
+    const filtered = raw.children
+      .filter((child) => hasPermission(child.permission))
+      .map((child) => ({
+        key: child.key,
+        label: t(child.labelKey),
+        path: child.path,
+        permission: child.permission
+      }));
+    if (filtered.length === 0) {
+      return null;
     }
-    return hasPermission(item.permission) ? item : null;
-  }).filter(Boolean) as ConsoleMenuItem[];
+    return {
+      key: raw.key,
+      label: t(raw.labelKey),
+      children: filtered
+    };
+  }
+  return hasPermission(raw.permission)
+    ? { key: raw.key, label: t(raw.labelKey), path: raw.path, permission: raw.permission }
+    : null;
+}
+
+const visibleMenuItems = computed(() => {
+  return menuItemsRaw.map(mapRawToVisible).filter(Boolean) as ConsoleMenuItem[];
 });
 
 const flatMenuItems = computed(() => {
   const result: ConsoleMenuItem[] = [];
-  menuItems.forEach(item => {
-    if (item.path) result.push(item);
+  menuItemsRaw.forEach((item) => {
+    if (item.path) {
+      result.push({
+        key: item.key,
+        label: t(item.labelKey),
+        path: item.path,
+        permission: item.permission
+      });
+    }
     if (item.children) {
-      item.children.forEach(child => {
-        if (child.path) result.push(child);
+      item.children.forEach((child) => {
+        if (child.path) {
+          result.push({
+            key: child.key,
+            label: t(child.labelKey),
+            path: child.path,
+            permission: child.permission
+          });
+        }
       });
     }
   });
@@ -175,7 +216,7 @@ const selectedKeys = computed(() => {
 });
 
 const profileDisplayName = computed(
-  () => userStore.profile?.displayName || userStore.profile?.username || "个人中心"
+  () => userStore.profile?.displayName || userStore.profile?.username || t("layout.profile")
 );
 const profileInitials = computed(() => profileDisplayName.value.slice(0, 2));
 

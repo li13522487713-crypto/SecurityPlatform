@@ -22,7 +22,7 @@ import { getCurrentAppIdFromStorage } from "@/utils/app-context";
 import { getClientContextHeaders } from "@/utils/clientContext";
 import router from "@/router";
 import type { ApiResponse, AuthTokenResult, PagedRequest } from "@/types/api";
-import { getLocale } from "@/i18n";
+import { getLocale, translate } from "@/i18n";
 
 // ─── Configuration ───────────────────────────────────────
 
@@ -183,13 +183,15 @@ export async function requestApi<T>(path: string, init?: RequestInit, options?: 
   if (projectScopeEnabled && !projectId && shouldRequireProjectContext(path)) {
     const now = Date.now();
     if (now - missingProjectWarningAt > 1500) {
-      message.warning("请先选择项目");
+      message.warning(translate("apiCore.selectProjectFirst"));
       missingProjectWarningAt = now;
     }
-    throw buildApiError("缺少项目上下文", 400, {
+    const missingCtx = translate("apiCore.projectContextMissing");
+    const selectFirst = translate("apiCore.selectProjectFirst");
+    throw buildApiError(missingCtx, 400, {
       code: ErrorCodes.ProjectRequired,
-      message: "请先选择项目"
-    }, "缺少项目上下文");
+      message: selectFirst
+    }, missingCtx);
   }
 
   if (shouldAttachSecurityHeaders && isUnsafeMethod(method)) {
@@ -362,13 +364,15 @@ export async function requestApiBlob(path: string, init?: RequestInit, options?:
   if (projectScopeEnabled && !projectId && shouldRequireProjectContext(path)) {
     const now = Date.now();
     if (now - missingProjectWarningAt > 1500) {
-      message.warning("请先选择项目");
+      message.warning(translate("apiCore.selectProjectFirst"));
       missingProjectWarningAt = now;
     }
-    throw buildApiError("缺少项目上下文", 400, {
+    const missingCtx = translate("apiCore.projectContextMissing");
+    const selectFirst = translate("apiCore.selectProjectFirst");
+    throw buildApiError(missingCtx, 400, {
       code: ErrorCodes.ProjectRequired,
-      message: "请先选择项目"
-    }, "缺少项目上下文");
+      message: selectFirst
+    }, missingCtx);
   }
 
   const writeRequestSignature = shouldEnableWriteRequestDeduplication(method, shouldAttachSecurityHeaders, options)
@@ -851,7 +855,7 @@ function formatErrorMessage(payload: ApiErrorPayload | null, fallback: string): 
     return "检测到重复提交但请求内容不一致，请刷新后重试";
   }
   if (payload?.code === ErrorCodes.ProjectRequired) {
-    return "当前应用已启用项目模式，请先选择项目";
+    return translate("apiCore.projectModeSelectProjectFirst");
   }
   if (payload?.code === ErrorCodes.ProjectForbidden) {
     return "当前账号未分配该项目访问权限";

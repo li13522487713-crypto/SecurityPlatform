@@ -21,6 +21,58 @@ export const extraMessages: Record<SupportedLocale, MessageTree> = {
       backToConsole: "返回控制台",
       pendingTasks: "待办"
     },
+    contextBar: {
+      tenantLabel: "租户",
+      appLabel: "应用",
+      notAvailable: "暂无"
+    },
+    consoleLayout: {
+      brandTitle: "Atlas 控制台",
+      noAccess: "暂无访问权限，请联系管理员",
+      menuConsoleHome: "平台首页",
+      menuAppManagement: "应用管理",
+      groupRuntime: "运行引擎",
+      groupTenant: "租户与治理",
+      groupSystem: "系统管理"
+    },
+    projectSwitcher: {
+      placeholder: "切换项目",
+      loadFailed: "加载项目列表失败",
+      cleared: "已清除项目",
+      switched: "已切换项目"
+    },
+    routerGuard: {
+      sessionReloadLogin: "登录失败，请重新登录"
+    },
+    apiCore: {
+      selectProjectFirst: "请先选择项目",
+      projectContextMissing: "缺少项目上下文",
+      projectModeSelectProjectFirst: "当前应用已启用项目模式，请先选择项目"
+    },
+    roleAssign: {
+      loadPermissionsFailed: "加载权限数据失败，请重试",
+      loadMenusFailed: "加载菜单数据失败，请重试",
+      loadPagesFailed: "加载页面数据失败，请重试",
+      loadFieldPermissionsFailed: "加载字段权限数据失败，请重试",
+      loadDepartmentsFailed: "加载部门数据失败，请重试",
+      loadDynamicTablesFailed: "加载动态表数据失败，请重试"
+    },
+    loginLogs: {
+      exportSuccess: "导出成功",
+      exportFailed: "导出失败"
+    },
+    documentTitle: {
+      productName: "Atlas 安全平台",
+      workspaceSegment: "工作台",
+      pageWithProduct: "{page} - {product}",
+      appWithWorkspace: "{app} - {workspace} - {product}"
+    },
+    workflowUi: {
+      handleTrue: "真",
+      handleFalse: "假",
+      handleBody: "循环体",
+      handleDone: "结束"
+    },
     appWorkspace: {
       backToConsole: "返回控制台",
       headerTitle: "工作台",
@@ -271,6 +323,58 @@ export const extraMessages: Record<SupportedLocale, MessageTree> = {
     runtime: {
       backToConsole: "Back to Console",
       pendingTasks: "Pending"
+    },
+    contextBar: {
+      tenantLabel: "Tenant",
+      appLabel: "App",
+      notAvailable: "N/A"
+    },
+    consoleLayout: {
+      brandTitle: "Atlas Console",
+      noAccess: "You do not have access. Please contact an administrator.",
+      menuConsoleHome: "Console Home",
+      menuAppManagement: "Applications",
+      groupRuntime: "Runtime Engine",
+      groupTenant: "Tenant & Governance",
+      groupSystem: "System"
+    },
+    projectSwitcher: {
+      placeholder: "Switch project",
+      loadFailed: "Failed to load projects",
+      cleared: "Project cleared",
+      switched: "Project switched"
+    },
+    routerGuard: {
+      sessionReloadLogin: "Login failed. Please sign in again."
+    },
+    apiCore: {
+      selectProjectFirst: "Please select a project first",
+      projectContextMissing: "Project context is required",
+      projectModeSelectProjectFirst: "Project mode is enabled for this app. Please select a project first."
+    },
+    roleAssign: {
+      loadPermissionsFailed: "Failed to load permissions. Please try again.",
+      loadMenusFailed: "Failed to load menus. Please try again.",
+      loadPagesFailed: "Failed to load pages. Please try again.",
+      loadFieldPermissionsFailed: "Failed to load field permissions. Please try again.",
+      loadDepartmentsFailed: "Failed to load departments. Please try again.",
+      loadDynamicTablesFailed: "Failed to load dynamic tables. Please try again."
+    },
+    loginLogs: {
+      exportSuccess: "Export completed",
+      exportFailed: "Export failed"
+    },
+    documentTitle: {
+      productName: "Atlas Security Platform",
+      workspaceSegment: "Workspace",
+      pageWithProduct: "{page} - {product}",
+      appWithWorkspace: "{app} - {workspace} - {product}"
+    },
+    workflowUi: {
+      handleTrue: "True",
+      handleFalse: "False",
+      handleBody: "Body",
+      handleDone: "Done"
     },
     appWorkspace: {
       backToConsole: "Back to Console",

@@ -1,5 +1,5 @@
 import type { RouteLocationMatched, RouteLocationNormalizedLoaded } from "vue-router";
-import { i18n } from "@/i18n";
+import { i18n, translate } from "@/i18n";
 
 type NavigableMeta = {
   titleKey?: string;
@@ -143,5 +143,8 @@ export function resolveBreadcrumbTitle(record: RouteLocationMatched): string {
 
 export function applyDocumentTitle(route: RouteLocationNormalizedLoaded): void {
   const title = resolveRouteTitle(route.meta, route.path, typeof route.meta.title === "string" ? route.meta.title : "");
-  document.title = title ? `${title} - Atlas Security Platform` : "Atlas Security Platform";
+  const product = translate("documentTitle.productName");
+  document.title = title
+    ? translate("documentTitle.pageWithProduct", { page: title, product })
+    : product;
 }

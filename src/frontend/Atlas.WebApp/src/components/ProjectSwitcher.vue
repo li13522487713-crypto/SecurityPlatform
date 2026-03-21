@@ -15,7 +15,7 @@
           :loading="loading"
           show-search
           :bordered="false"
-          placeholder="Switch project"
+          :placeholder="t('projectSwitcher.placeholder')"
           :filter-option="false"
           style="min-width: 160px; font-weight: 500"
           @search="handleSearch"
@@ -29,17 +29,19 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
-
-const isMounted = ref(false);
-onMounted(() => { isMounted.value = true; });
-onUnmounted(() => { isMounted.value = false; });
-
+import { useI18n } from "vue-i18n";
 import { useRoute } from "vue-router";
 import { message } from "ant-design-vue";
 import { getCurrentAppConfig, getMyProjectsPaged } from "@/services/api";
 import type { ProjectListItem } from "@/types/api";
 import { clearProjectId, getProjectId, setProjectId, setProjectScopeEnabled } from "@/utils/auth";
 import { getCurrentAppIdFromStorage } from "@/utils/app-context";
+
+const { t } = useI18n();
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
 
 const enabled = ref(false);
 const loading = ref(false);
@@ -114,7 +116,7 @@ const loadProjectContext = async (skipEvent = false) => {
       if (!skipEvent) emitProjectChanged(null);
     }
   } catch (error) {
-    message.error((error as Error).message || "Failed to load projects");
+    message.error((error as Error).message || t("projectSwitcher.loadFailed"));
   } finally {
     loading.value = false;
   }
@@ -133,7 +135,7 @@ const handleSearch = (value: string) => {
     loading.value = true;
     void loadProjects(value)
       .catch((error) => {
-        message.error((error as Error).message || "Failed to load projects");
+        message.error((error as Error).message || t("projectSwitcher.loadFailed"));
       })
       .finally(() => {
         loading.value = false;
@@ -149,7 +151,7 @@ const handleFocus = () => {
   loading.value = true;
   void loadProjects()
     .catch((error) => {
-      message.error((error as Error).message || "Failed to load projects");
+      message.error((error as Error).message || t("projectSwitcher.loadFailed"));
     })
     .finally(() => {
       loading.value = false;
@@ -161,7 +163,7 @@ const handleChange = (value?: string) => {
 
   if (!value) {
     clearProjectId();
-    message.warning("Project cleared");
+    message.warning(t("projectSwitcher.cleared"));
     emitProjectChanged(null);
     return;
   }
@@ -172,7 +174,7 @@ const handleChange = (value?: string) => {
 
   setProjectId(value);
   selectedProjectId.value = value;
-  message.success("Project switched");
+  message.success(t("projectSwitcher.switched"));
   emitProjectChanged(value);
 };
 

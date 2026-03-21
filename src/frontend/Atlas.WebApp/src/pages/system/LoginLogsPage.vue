@@ -168,10 +168,10 @@ async function handleExport() {
     anchor.download = `login-logs-${Date.now()}.csv`;
     anchor.click();
     URL.revokeObjectURL(url);
-    message.success("导出成功");
+    message.success(t("loginLogs.exportSuccess"));
   } catch (error: unknown) {
     const requestError = error as { message?: string };
-    message.error(requestError.message || "导出失败");
+    message.error(requestError.message || t("loginLogs.exportFailed"));
   } finally {
     exporting.value = false;
   }

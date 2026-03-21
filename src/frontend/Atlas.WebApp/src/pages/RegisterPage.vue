@@ -22,7 +22,7 @@
           </div>
           <div class="brand-text">
             <h1>{{ t("pages.register.brandTitle") }}</h1>
-            <p>Security Platform</p>
+            <p>{{ t("pages.register.brandTagline") }}</p>
           </div>
         </div>
         <div class="brand-desc">

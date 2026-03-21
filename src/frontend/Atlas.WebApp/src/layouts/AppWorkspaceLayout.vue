@@ -253,7 +253,11 @@ async function syncTitle() {
 
     if (!isMounted.value) return;
     if (detail?.name) {
-      document.title = `${detail.name} - Workspace - Atlas Security Platform`;
+      document.title = t("documentTitle.appWithWorkspace", {
+        app: detail.name,
+        workspace: t("documentTitle.workspaceSegment"),
+        product: t("documentTitle.productName")
+      });
     }
   } catch {
     // ignore

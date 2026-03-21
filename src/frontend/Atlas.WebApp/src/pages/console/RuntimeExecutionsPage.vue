@@ -242,10 +242,10 @@
           <li v-for="item in timeoutDiagnosis.suggestions" :key="item">{{ item }}</li>
         </ul>
 
-        <a-divider orientation="left">InputsJson</a-divider>
+        <a-divider orientation="left">{{ t("console.runtimeExec.sectionInputsJson") }}</a-divider>
         <pre class="json-block">{{ detail?.inputsJson || "-" }}</pre>
 
-        <a-divider orientation="left">OutputsJson</a-divider>
+        <a-divider orientation="left">{{ t("console.runtimeExec.sectionOutputsJson") }}</a-divider>
         <pre class="json-block">{{ detail?.outputsJson || "-" }}</pre>
 
         <a-divider orientation="left">{{ t("console.runtimeExec.auditDivider") }}</a-divider>

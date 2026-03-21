@@ -7,6 +7,7 @@ import { message } from "ant-design-vue";
 import NProgress from "nprogress";
 import "nprogress/nprogress.css";
 import { applyDocumentTitle } from "@/utils/i18n-navigation";
+import { translate } from "@/i18n";
 
 NProgress.configure({ showSpinner: false });
 
@@ -319,7 +320,7 @@ router.beforeEach(async (to, from, next) => {
         const alreadyHandledByApiCore = typeof requestError?.status === "number" || requestError?.payload !== undefined;
         if (!alreadyHandledByApiCore) {
           // 仅兜底提示非 API 异常，避免与 api-core 全局错误提示重复弹窗。
-          message.error(requestError?.message || "登录失败，请重新登录");
+          message.error(requestError?.message || translate("routerGuard.sessionReloadLogin"));
         }
         next({ path: "/login" });
         NProgress.done();

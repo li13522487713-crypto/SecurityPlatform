@@ -554,7 +554,7 @@ const loadPermissionOptions = async (keyword?: string) => {
     });
     permissionTreeData.value = Object.values(rootNodes);
   } catch {
-    message.warning('加载权限数据失败，请重试');
+    message.warning(t("roleAssign.loadPermissionsFailed"));
   } finally {
     if (isMounted.value) {
       permissionLoading.value = false;
@@ -581,7 +581,7 @@ const loadMenuOptions = async (keyword?: string) => {
     const filtered = keywordTrimmed ? formatted.filter((f) => (f.title as string).toLowerCase().includes(keywordTrimmed)) : formatted;
     menuTreeData.value = handleTree(filtered, "id", "parentId", "children");
   } catch {
-    message.warning('加载菜单数据失败，请重试');
+    message.warning(t("roleAssign.loadMenusFailed"));
   } finally {
     if (isMounted.value) {
       menuLoading.value = false;
@@ -623,7 +623,7 @@ const loadAppPageOptions = async (keyword?: string) => {
       : formatted;
     menuTreeData.value = handleTree(filtered, "id", "parentId", "children");
   } catch {
-    message.warning('加载页面数据失败，请重试');
+    message.warning(t("roleAssign.loadPagesFailed"));
   } finally {
     if (isMounted.value) menuLoading.value = false;
   }
@@ -647,7 +647,7 @@ const loadAppFieldPermissions = async () => {
     ];
     dynamicTableOptions.value = mergedOptions;
   } catch {
-    message.warning('加载字段权限数据失败，请重试');
+    message.warning(t("roleAssign.loadFieldPermissionsFailed"));
   }
 };
 const loadDepartmentOptions = async (keyword?: string) => {
@@ -676,7 +676,7 @@ const loadDepartmentOptions = async (keyword?: string) => {
     const filtered = keywordTrimmed ? formatted.filter((f) => (f.title as string).toLowerCase().includes(keywordTrimmed)) : formatted;
     departmentTreeData.value = handleTree(filtered, "id", "parentId", "children");
   } catch {
-    message.warning('加载部门数据失败，请重试');
+    message.warning(t("roleAssign.loadDepartmentsFailed"));
   } finally {
     if (isMounted.value) {
       departmentLoading.value = false;
@@ -701,7 +701,7 @@ const loadDynamicTableOptions = async (search?: string) => {
       value: item.tableKey
     }));
   } catch {
-    message.warning('加载动态表数据失败，请重试');
+    message.warning(t("roleAssign.loadDynamicTablesFailed"));
   } finally {
     if (isMounted.value) {
       dynamicTableLoading.value = false;

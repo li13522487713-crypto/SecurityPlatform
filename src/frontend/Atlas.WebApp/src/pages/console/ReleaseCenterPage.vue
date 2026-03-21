@@ -112,7 +112,7 @@
         <a-descriptions-item :label="t('console.releaseCenter.labelRunning')">{{ impactSummary?.runningExecutionCount ?? 0 }}</a-descriptions-item>
         <a-descriptions-item :label="t('console.releaseCenter.labelFailed')">{{ impactSummary?.failedExecutionCount ?? 0 }}</a-descriptions-item>
       </a-descriptions>
-      <a-typography-paragraph class="snapshot-title">SnapshotJson</a-typography-paragraph>
+      <a-typography-paragraph class="snapshot-title">{{ t("console.releaseCenter.snapshotJsonTitle") }}</a-typography-paragraph>
       <a-typography-paragraph class="snapshot-json">{{ detail?.snapshotJson || "{}" }}</a-typography-paragraph>
     </a-modal>
   </div>

@@ -2896,6 +2896,7 @@ export const runtimeMessages: Record<SupportedLocale, MessageTree> = {
     pages: {
       register: {
         brandTitle: "Atlas 安全平台",
+        brandTagline: "安全平台",
         brandSubtitle: "统一安全管理与运维管控",
         bullet1: "统一身份认证 · 多租户组织管理",
         bullet2: "实时审计日志 · 风险策略自动落地",
@@ -3192,7 +3193,9 @@ export const runtimeMessages: Record<SupportedLocale, MessageTree> = {
         retryFailed: "重试执行失败",
         resumeFailed: "恢复执行失败",
         warnNodeKey: "请输入节点 Key",
-        debugFailed: "单节点调试失败"
+        debugFailed: "单节点调试失败",
+        sectionInputsJson: "入参（JSON）",
+        sectionOutputsJson: "出参（JSON）"
       },
       runtimeCtx: {
         title: "运行上下文",
@@ -3290,7 +3293,8 @@ export const runtimeMessages: Record<SupportedLocale, MessageTree> = {
         rollbackTraceRebound: "重绑路由: {n}",
         rollbackTraceResult: "结果: {result}",
         rollbackTraceNote: "说明: {msg}",
-        colAppKey: "AppKey"
+        colAppKey: "AppKey",
+        snapshotJsonTitle: "快照（JSON）"
       },
       migration: {
         title: "迁移治理看板",
@@ -3395,7 +3399,12 @@ export const runtimeMessages: Record<SupportedLocale, MessageTree> = {
         legendProcessing: "处理中",
         legendCompleted: "已完成",
         legendFailed: "失败",
-        legendDlq: "死信"
+        legendDlq: "死信",
+        stPending: "待处理",
+        stProcessing: "处理中",
+        stCompleted: "已完成",
+        stFailed: "失败",
+        stDeadLettered: "死信"
       },
       server: {
         suffixCores: "核",
@@ -6861,6 +6870,7 @@ export const runtimeMessages: Record<SupportedLocale, MessageTree> = {
     pages: {
       register: {
         brandTitle: "Atlas Security Platform",
+        brandTagline: "Security platform",
         brandSubtitle: "Unified security management and operations",
         bullet1: "Unified identity · multi-tenant organizations",
         bullet2: "Real-time audit · automated risk policy",
@@ -7157,7 +7167,9 @@ export const runtimeMessages: Record<SupportedLocale, MessageTree> = {
         retryFailed: "Retry failed",
         resumeFailed: "Resume failed",
         warnNodeKey: "Enter node key",
-        debugFailed: "Node debug failed"
+        debugFailed: "Node debug failed",
+        sectionInputsJson: "Inputs (JSON)",
+        sectionOutputsJson: "Outputs (JSON)"
       },
       runtimeCtx: {
         title: "Runtime contexts",
@@ -7255,7 +7267,8 @@ export const runtimeMessages: Record<SupportedLocale, MessageTree> = {
         rollbackTraceRebound: "Rebound routes: {n}",
         rollbackTraceResult: "Result: {result}",
         rollbackTraceNote: "Note: {msg}",
-        colAppKey: "AppKey"
+        colAppKey: "AppKey",
+        snapshotJsonTitle: "Snapshot (JSON)"
       },
       migration: {
         title: "Migration governance",
@@ -7360,7 +7373,12 @@ export const runtimeMessages: Record<SupportedLocale, MessageTree> = {
         legendProcessing: "Processing",
         legendCompleted: "Completed",
         legendFailed: "Failed",
-        legendDlq: "Dead letter"
+        legendDlq: "Dead letter",
+        stPending: "Pending",
+        stProcessing: "Processing",
+        stCompleted: "Completed",
+        stFailed: "Failed",
+        stDeadLettered: "Dead letter"
       },
       server: {
         suffixCores: "cores",

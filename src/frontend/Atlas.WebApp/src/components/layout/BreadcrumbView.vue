@@ -24,7 +24,7 @@ const items = computed(() => {
 
   const first = matched[0];
   if (!isDashboard(first)) {
-    matched = ([{ path: "/", meta: { title: "首页", titleKey: "route.home" } }] as unknown as typeof matched).concat(matched);
+    matched = ([{ path: "/", meta: { titleKey: "route.home" } }] as unknown as typeof matched).concat(matched);
   }
 
   return matched.map((record, index) => ({
