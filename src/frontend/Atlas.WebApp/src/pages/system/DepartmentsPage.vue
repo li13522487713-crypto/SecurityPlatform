@@ -1,115 +1,115 @@
 <template>
-  <a-card :title="t('systemDepartments.pageTitle')" class="page-card">
-    <div class="crud-toolbar">
-      <a-space wrap>
-        <a-input
-          v-model:value="keyword"
-          :placeholder="t('systemDepartments.searchPlaceholder')"
-          allow-clear
-          @press-enter="handleSearch"
-        />
-        <a-button @click="handleSearch">{{ t("common.search") }}</a-button>
-        <a-button @click="handleReset">{{ t("common.reset") }}</a-button>
-        <a-button v-if="canCreate" type="primary" @click="openCreate">{{ t("systemDepartments.addDepartment") }}</a-button>
-      </a-space>
+  <CrudPageLayout
+    :title="t('systemDepartments.pageTitle')"
+    v-model:keyword="keyword"
+    :search-placeholder="t('systemDepartments.searchPlaceholder')"
+    :drawer-open="formVisible"
+    :drawer-title="formMode === 'create' ? t('systemDepartments.drawerCreateTitle') : t('systemDepartments.drawerEditTitle')"
+    :drawer-width="520"
+    @update:drawer-open="formVisible = $event"
+    @search="handleSearch"
+    @reset="handleReset"
+    @close-form="closeForm"
+    @submit="submitForm"
+  >
+    <template #toolbar-actions>
+      <a-button v-if="canCreate" type="primary" @click="openCreate">{{ t("systemDepartments.addDepartment") }}</a-button>
+    </template>
+    
+    <template #toolbar-right>
       <TableViewToolbar :controller="tableViewController" />
-    </div>
+    </template>
 
-    <a-row v-if="showTreeLayout" :gutter="16">
-      <a-col :span="6">
-        <a-card size="small" :title="t('systemDepartments.treeTitle')">
-          <a-input
-            v-model:value="treeKeyword"
-            :placeholder="t('systemDepartments.treeSearchPlaceholder')"
-            allow-clear
-            size="small"
-            style="margin-bottom: 12px"
-          />
-          <a-skeleton :loading="treeLoading" active>
-            <a-tree
-              :tree-data="treeData"
-              :selected-keys="selectedTreeKeys"
-              :expanded-keys="expandedTreeKeys"
-              :auto-expand-parent="true"
-              @select="handleTreeSelect"
+    <template #table>
+      <a-row v-if="showTreeLayout" :gutter="16">
+        <a-col :span="6">
+          <a-card size="small" :title="t('systemDepartments.treeTitle')">
+            <a-input
+              v-model:value="treeKeyword"
+              :placeholder="t('systemDepartments.treeSearchPlaceholder')"
+              allow-clear
+              size="small"
+              style="margin-bottom: 12px"
             />
-          </a-skeleton>
-        </a-card>
-      </a-col>
-      <a-col :span="18">
-        <a-table
-          :columns="tableColumns"
-          :data-source="tableData"
-          :pagination="pagination"
-          :loading="loading"
-          :size="tableSize"
-          :locale="{ emptyText: t('systemDepartments.emptyText') }"
-          row-key="id"
-          @change="onTableChange"
-        >
-          <template #bodyCell="{ column, record }">
-            <template v-if="column.key === 'parent'">
-              <span>{{ getParentName(record.parentId) }}</span>
+            <a-skeleton :loading="treeLoading" active>
+              <a-tree
+                :tree-data="treeData"
+                :selected-keys="selectedTreeKeys"
+                :expanded-keys="expandedTreeKeys"
+                :auto-expand-parent="true"
+                @select="handleTreeSelect"
+              />
+            </a-skeleton>
+          </a-card>
+        </a-col>
+        <a-col :span="18">
+          <a-table
+            :columns="tableColumns"
+            :data-source="tableData"
+            :pagination="pagination"
+            :loading="loading"
+            :size="tableSize"
+            :locale="{ emptyText: t('systemDepartments.emptyText') }"
+            row-key="id"
+            @change="onTableChange"
+          >
+            <template #bodyCell="{ column, record }">
+              <template v-if="column.key === 'parent'">
+                <span>{{ getParentName(record.parentId) }}</span>
+              </template>
+              <template v-else-if="column.key === 'actions'">
+                <a-space>
+                  <a-button v-if="canUpdate" type="link" @click="openEdit(record)">{{ t("common.edit") }}</a-button>
+                  <a-popconfirm
+                    v-if="canDelete"
+                    :title="t('systemDepartments.deleteConfirm')"
+                    :ok-text="t('common.delete')"
+                    :cancel-text="t('common.cancel')"
+                    @confirm="handleDeleteDept(record.id)"
+                  >
+                    <a-button type="link" danger>{{ t("common.delete") }}</a-button>
+                  </a-popconfirm>
+                </a-space>
+              </template>
             </template>
-            <template v-else-if="column.key === 'actions'">
-              <a-space>
-                <a-button v-if="canUpdate" type="link" @click="openEdit(record)">{{ t("common.edit") }}</a-button>
-                <a-popconfirm
-                  v-if="canDelete"
-                  :title="t('systemDepartments.deleteConfirm')"
-                  :ok-text="t('common.delete')"
-                  :cancel-text="t('common.cancel')"
-                  @confirm="handleDeleteDept(record.id)"
-                >
-                  <a-button type="link" danger>{{ t("common.delete") }}</a-button>
-                </a-popconfirm>
-              </a-space>
-            </template>
+          </a-table>
+        </a-col>
+      </a-row>
+
+      <a-table
+        v-else
+        :columns="tableColumns"
+        :data-source="dataSource"
+        :pagination="pagination"
+        :loading="loading"
+        :size="tableSize"
+        :locale="{ emptyText: t('systemDepartments.emptyText') }"
+        row-key="id"
+        @change="onTableChange"
+      >
+        <template #bodyCell="{ column, record }">
+          <template v-if="column.key === 'parent'">
+            <span>{{ getParentName(record.parentId) }}</span>
           </template>
-        </a-table>
-      </a-col>
-    </a-row>
-
-    <a-table
-      v-else
-      :columns="tableColumns"
-      :data-source="dataSource"
-      :pagination="pagination"
-      :loading="loading"
-      :size="tableSize"
-      :locale="{ emptyText: t('systemDepartments.emptyText') }"
-      row-key="id"
-      @change="onTableChange"
-    >
-      <template #bodyCell="{ column, record }">
-        <template v-if="column.key === 'parent'">
-          <span>{{ getParentName(record.parentId) }}</span>
+          <template v-else-if="column.key === 'actions'">
+            <a-space>
+              <a-button v-if="canUpdate" type="link" @click="openEdit(record)">{{ t("common.edit") }}</a-button>
+              <a-popconfirm
+                v-if="canDelete"
+                :title="t('systemDepartments.deleteConfirm')"
+                :ok-text="t('common.delete')"
+                :cancel-text="t('common.cancel')"
+                @confirm="handleDeleteDept(record.id)"
+              >
+                <a-button type="link" danger>{{ t("common.delete") }}</a-button>
+              </a-popconfirm>
+            </a-space>
+          </template>
         </template>
-        <template v-else-if="column.key === 'actions'">
-          <a-space>
-            <a-button v-if="canUpdate" type="link" @click="openEdit(record)">{{ t("common.edit") }}</a-button>
-            <a-popconfirm
-              v-if="canDelete"
-              :title="t('systemDepartments.deleteConfirm')"
-              :ok-text="t('common.delete')"
-              :cancel-text="t('common.cancel')"
-              @confirm="handleDeleteDept(record.id)"
-            >
-              <a-button type="link" danger>{{ t("common.delete") }}</a-button>
-            </a-popconfirm>
-          </a-space>
-        </template>
-      </template>
-    </a-table>
+      </a-table>
+    </template>
 
-    <a-drawer
-      v-model:open="formVisible"
-      :title="formMode === 'create' ? t('systemDepartments.drawerCreateTitle') : t('systemDepartments.drawerEditTitle')"
-      placement="right"
-      :width="520"
-      destroy-on-close
-      @close="closeForm"
-    >
+    <template #form>
       <a-form ref="formRef" :model="formModel" :rules="formRules" layout="vertical">
         <a-form-item :label="t('systemDepartments.departmentName')" name="name">
           <a-input v-model:value="formModel.name" />
@@ -134,14 +134,8 @@
           <a-input-number v-model:value="formModel.sortOrder" :min="0" style="width: 100%" />
         </a-form-item>
       </a-form>
-      <template #footer>
-        <a-space>
-          <a-button @click="closeForm">{{ t("common.cancel") }}</a-button>
-          <a-button type="primary" @click="submitForm">{{ t("common.save") }}</a-button>
-        </a-space>
-      </template>
-    </a-drawer>
-  </a-card>
+    </template>
+  </CrudPageLayout>
 </template>
 
 <script setup lang="ts">
@@ -150,6 +144,7 @@ import type { TablePaginationConfig, FormInstance } from "ant-design-vue";
 import type { Rule } from "ant-design-vue/es/form";
 import { message } from "ant-design-vue";
 import { useI18n } from "vue-i18n";
+import CrudPageLayout from "@/components/crud/CrudPageLayout.vue";
 import TableViewToolbar from "@/components/table/table-view-toolbar.vue";
 import { useTableView } from "@/composables/useTableView";
 import { createDepartment, deleteDepartment, getDepartmentsAll, getDepartmentsPaged, updateDepartment } from "@/services/api";
@@ -529,13 +524,4 @@ watch(
 );
 </script>
 
-<style scoped>
-.crud-toolbar {
-  margin-bottom: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-</style>
+

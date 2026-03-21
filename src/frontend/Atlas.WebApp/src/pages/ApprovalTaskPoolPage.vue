@@ -1,27 +1,28 @@
 <template>
-  <div class="task-pool-page">
-    <div class="page-header">
-      <h2>公共任务池</h2>
+  <CrudPageLayout title="公共任务池">
+    <template #toolbar-actions>
       <a-button type="primary" @click="refresh">刷新</a-button>
-    </div>
-    <a-table
-      :columns="columns"
-      :data-source="tasks"
-      :loading="loading"
-      :pagination="pagination"
-      @change="handleTableChange"
-      row-key="id"
-    >
-      <template #bodyCell="{ column, record }">
-        <template v-if="column.key === 'action'">
-          <a-button type="link" @click="handleClaim(record)">认领</a-button>
+    </template>
+    <template #table>
+      <a-table
+        :columns="columns"
+        :data-source="tasks"
+        :loading="loading"
+        :pagination="pagination"
+        @change="handleTableChange"
+        row-key="id"
+      >
+        <template #bodyCell="{ column, record }">
+          <template v-if="column.key === 'action'">
+            <a-button type="link" @click="handleClaim(record)">认领</a-button>
+          </template>
+          <template v-else-if="column.key === 'status'">
+            <a-tag color="blue">待认领</a-tag>
+          </template>
         </template>
-        <template v-else-if="column.key === 'status'">
-          <a-tag color="blue">待认领</a-tag>
-        </template>
-      </template>
-    </a-table>
-  </div>
+      </a-table>
+    </template>
+  </CrudPageLayout>
 </template>
 
 <script setup lang="ts">
@@ -35,6 +36,7 @@ import { message } from 'ant-design-vue';
 import type { TablePaginationConfig } from 'ant-design-vue';
 import { getTaskPool, claimTask } from '@/services/api';
 import type { ApprovalTaskResponse } from '@/types/api';
+import CrudPageLayout from "@/components/crud/CrudPageLayout.vue";
 
 const loading = ref(false);
 const tasks = ref<ApprovalTaskResponse[]>([]);
@@ -102,14 +104,5 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.task-pool-page {
-  padding: 24px;
-  background: #fff;
-}
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
+
 </style>

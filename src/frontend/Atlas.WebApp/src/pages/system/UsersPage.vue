@@ -27,24 +27,26 @@
     <template #table>
       <a-row :gutter="16" style="height: 100%">
         <a-col :xs="24" :sm="24" :md="6" :lg="5" class="dept-tree-col">
-          <div style="margin-bottom: 12px">
-            <a-input
-              v-model:value="treeKeyword"
-              :placeholder="t('systemUsers.treeSearchPlaceholder')"
-              allow-clear
-              size="small"
-            />
-          </div>
-          <a-skeleton :loading="treeLoading" active>
-            <a-tree
-              :tree-data="treeData"
-              :selected-keys="selectedTreeKeys"
-              :expanded-keys="expandedTreeKeys"
-              :auto-expand-parent="true"
-              @select="handleTreeSelect"
-              class="dept-tree"
-            />
-          </a-skeleton>
+          <a-card size="small" :bordered="false" class="tree-card" :bodyStyle="{ padding: '12px' }">
+            <div style="margin-bottom: 12px">
+              <a-input
+                v-model:value="treeKeyword"
+                :placeholder="t('systemUsers.treeSearchPlaceholder')"
+                allow-clear
+                size="small"
+              />
+            </div>
+            <a-skeleton :loading="treeLoading" active>
+              <a-tree
+                :tree-data="treeData"
+                :selected-keys="selectedTreeKeys"
+                :expanded-keys="expandedTreeKeys"
+                :auto-expand-parent="true"
+                @select="handleTreeSelect"
+                class="dept-tree"
+              />
+            </a-skeleton>
+          </a-card>
         </a-col>
         <a-col :xs="24" :sm="24" :md="18" :lg="19" class="users-table-col">
           <a-table
@@ -602,13 +604,16 @@ const handleStatusChange = async (id: string, isActive: boolean) => {
 }
 
 .dept-tree-col {
-  border-right: 1px solid var(--color-border);
-  padding-right: 16px;
   height: 100%;
 }
 
+.tree-card {
+  height: 100%;
+  border-right: 1px solid var(--color-border, #f0f0f0);
+}
+
 .dept-tree {
-  height: calc(100vh - 290px);
+  height: calc(100vh - 310px);
   overflow-y: auto;
 }
 

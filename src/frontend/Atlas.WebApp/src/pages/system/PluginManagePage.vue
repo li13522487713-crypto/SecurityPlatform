@@ -1,25 +1,21 @@
 <template>
-  <div class="plugin-manage-page">
-    <a-page-header title="插件管理" subtitle="管理已安装的插件" />
+  <CrudPageLayout title="插件管理">
+    <template #toolbar-actions>
+      <a-upload
+        :show-upload-list="false"
+        accept=".atpkg,.zip"
+        :before-upload="handleUpload"
+      >
+        <a-button type="primary" :loading="uploading">
+          <UploadOutlined />上传安装包
+        </a-button>
+      </a-upload>
+      <a-button :loading="reloading" @click="handleReload">
+        <ReloadOutlined />重新加载
+      </a-button>
+    </template>
 
-    <a-card :bordered="false">
-      <template #extra>
-        <a-space>
-          <a-upload
-            :show-upload-list="false"
-            accept=".atpkg,.zip"
-            :before-upload="handleUpload"
-          >
-            <a-button type="primary" :loading="uploading">
-              <UploadOutlined />上传安装包
-            </a-button>
-          </a-upload>
-          <a-button :loading="reloading" @click="handleReload">
-            <ReloadOutlined />重新加载
-          </a-button>
-        </a-space>
-      </template>
-
+    <template #table>
       <a-table
         :columns="columns"
         :data-source="plugins"
@@ -68,29 +64,29 @@
           </template>
         </template>
       </a-table>
-    </a-card>
 
-    <!-- 配置 Drawer -->
-    <a-drawer
-      v-if="configPlugin"
-      :title="`插件配置 — ${configPlugin.name}`"
-      width="480"
-      :open="true"
-      @close="configPlugin = null"
-    >
-      <a-textarea
-        v-model:value="configJson"
-        :rows="16"
-        placeholder='{"key": "value"}'
-      />
-      <template #footer>
-        <a-space>
-          <a-button @click="configPlugin = null">取消</a-button>
-          <a-button type="primary" :loading="savingConfig" @click="handleSaveConfig">保存</a-button>
-        </a-space>
-      </template>
-    </a-drawer>
-  </div>
+      <!-- 配置 Drawer -->
+      <a-drawer
+        v-if="configPlugin"
+        :title="`插件配置 — ${configPlugin.name}`"
+        width="480"
+        :open="true"
+        @close="configPlugin = null"
+      >
+        <a-textarea
+          v-model:value="configJson"
+          :rows="16"
+          placeholder='{"key": "value"}'
+        />
+        <template #footer>
+          <a-space>
+            <a-button @click="configPlugin = null">取消</a-button>
+            <a-button type="primary" :loading="savingConfig" @click="handleSaveConfig">保存</a-button>
+          </a-space>
+        </template>
+      </a-drawer>
+    </template>
+  </CrudPageLayout>
 </template>
 
 <script setup lang="ts">
@@ -101,6 +97,7 @@ onMounted(() => { isMounted.value = true; });
 onUnmounted(() => { isMounted.value = false; });
 
 import { UploadOutlined, ReloadOutlined } from '@ant-design/icons-vue'
+import CrudPageLayout from "@/components/crud/CrudPageLayout.vue";
 import { message } from 'ant-design-vue'
 import type { BadgeProps } from 'ant-design-vue'
 import {
@@ -222,9 +219,3 @@ function stateBadge(state: PluginState): BadgeProps['status'] {
 
 onMounted(fetchPlugins)
 </script>
-
-<style scoped>
-.plugin-manage-page {
-  padding: 0 24px 24px;
-}
-</style>

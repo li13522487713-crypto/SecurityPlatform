@@ -30,13 +30,15 @@
       </a-popconfirm>
     </template>
 
-    <template #filter>
-      <a-select
-        v-model:value="systemFilter"
-        :options="systemOptions"
-        style="width: 160px"
-        @change="handleSearch"
-      />
+    <template #search-filters>
+      <a-form-item>
+        <a-select
+          v-model:value="systemFilter"
+          :options="systemOptions"
+          style="width: 160px"
+          @change="handleSearch"
+        />
+      </a-form-item>
     </template>
 
     <template #table>

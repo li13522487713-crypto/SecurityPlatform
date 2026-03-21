@@ -1,8 +1,9 @@
 <template>
-  <a-card title="我的代理设置" class="page-card">
-    <div class="toolbar">
+  <CrudPageLayout title="我的代理设置">
+    <template #toolbar-actions>
       <a-button type="primary" @click="handleCreate">添加代理</a-button>
-    </div>
+    </template>
+    <template #table>
     <a-table
       :columns="columns"
       :data-source="dataSource"
@@ -51,7 +52,8 @@
         </a-form-item>
       </a-form>
     </a-modal>
-  </a-card>
+    </template>
+  </CrudPageLayout>
 </template>
 
 <script setup lang="ts">
@@ -70,6 +72,7 @@ import {
   deleteAgentConfig,
   type ApprovalAgentConfigResponse,
 } from '@/services/api';
+import CrudPageLayout from "@/components/crud/CrudPageLayout.vue";
 
 const columns = [
   { title: '代理人用户ID', dataIndex: 'agentUserId', key: 'agentUserId' },
@@ -166,9 +169,3 @@ onMounted(() => {
   void fetchData();
 });
 </script>
-
-<style scoped>
-.toolbar {
-  margin-bottom: 16px;
-}
-</style>

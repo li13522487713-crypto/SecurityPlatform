@@ -2,7 +2,7 @@
   <a-card :title="title" class="page-card" :data-testid="`e2e-page-card-${sanitizeTestId(title)}`">
     <div class="crud-search-bar" data-testid="e2e-crud-search-bar">
       <div class="search-form-wrapper">
-        <a-form layout="inline" @submit.prevent="$emit('search')">
+        <a-form layout="inline" @submit.prevent="$emit('search')" style="width: 100%; display: flex; flex-wrap: wrap; gap: 0px 0;">
           <a-form-item v-if="keywordModel !== undefined">
             <a-input
               v-model:value="keywordModel"
@@ -13,19 +13,17 @@
             />
           </a-form-item>
           <slot name="search-filters" />
-          <a-form-item>
-            <a-space>
-              <a-button type="primary" html-type="submit" data-testid="e2e-crud-search-submit">{{ t("crud.search") }}</a-button>
-              <a-button data-testid="e2e-crud-search-reset" @click="$emit('reset')">{{ t("crud.reset") }}</a-button>
-            </a-space>
-          </a-form-item>
-        </a-form>
-      </div>
-      <div v-if="$slots.filter" class="crud-extra-filters" data-testid="e2e-crud-filter-bar">
-        <a-space wrap>
-          <span class="crud-filter-label">{{ t("crud.filters") }}</span>
           <slot name="filter" />
-        </a-space>
+          
+          <div style="flex: auto; display: flex; justify-content: flex-end; align-items: flex-start;">
+            <a-form-item style="margin-right: 0;">
+              <a-space>
+                <a-button type="primary" html-type="submit" data-testid="e2e-crud-search-submit">{{ t("crud.search") }}</a-button>
+                <a-button data-testid="e2e-crud-search-reset" @click="$emit('reset')">{{ t("crud.reset") }}</a-button>
+              </a-space>
+            </a-form-item>
+          </div>
+        </a-form>
       </div>
     </div>
 
@@ -88,17 +86,17 @@ import { useI18n } from "vue-i18n";
 
 const props = defineProps<{
   title: string;
-  keyword: string;
+  keyword?: string;
   searchPlaceholder?: string;
-  drawerOpen: boolean;
-  drawerTitle: string;
+  drawerOpen?: boolean;
+  drawerTitle?: string;
   drawerWidth?: number | string;
   submitLoading?: boolean;
   submitDisabled?: boolean;
 }>();
 
 const emit = defineEmits<{
-  (e: "update:keyword", value: string): void;
+  (e: "update:keyword", value: string | undefined): void;
   (e: "update:drawerOpen", value: boolean): void;
   (e: "search"): void;
   (e: "reset"): void;
@@ -113,15 +111,16 @@ const submitDisabled = computed(() => props.submitDisabled ?? false);
 
 const keywordModel = computed({
   get: () => props.keyword,
-  set: (value: string) => emit("update:keyword", value)
+  set: (value: string | undefined) => emit("update:keyword", value)
 });
 
 const drawerOpenModel = computed({
-  get: () => props.drawerOpen,
+  get: () => props.drawerOpen ?? false,
   set: (value: boolean) => emit("update:drawerOpen", value)
 });
 
-function sanitizeTestId(value: string) {
+function sanitizeTestId(value?: string) {
+  if (!value) return "unknown";
   return value.replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-+|-+$/g, "").toLowerCase();
 }
 </script>

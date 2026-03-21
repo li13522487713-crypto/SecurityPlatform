@@ -1,31 +1,35 @@
 <template>
-  <div class="tenants-page">
-    <a-card :bordered="false" class="mb-4">
-      <a-form layout="inline" @finish="handleSearch">
-        <a-form-item :label="t('systemTenants.keywordLabel')">
-          <a-input v-model:value="searchParams.keyword" :placeholder="t('systemTenants.keywordPlaceholder')" allow-clear />
-        </a-form-item>
-        <a-form-item :label="t('systemTenants.statusLabel')">
-          <a-select v-model:value="searchParams.isActive" :placeholder="t('common.all')" allow-clear style="width: 120px">
-            <a-select-option :value="true">{{ t("common.statusEnabled") }}</a-select-option>
-            <a-select-option :value="false">{{ t("common.statusDisabled") }}</a-select-option>
-          </a-select>
-        </a-form-item>
-        <a-form-item>
-          <a-button type="primary" html-type="submit">{{ t("common.search") }}</a-button>
-          <a-button style="margin-left: 8px" @click="resetSearch">{{ t("common.reset") }}</a-button>
-        </a-form-item>
-      </a-form>
-    </a-card>
+  <CrudPageLayout
+    :title="t('route.tenants')"
+    v-model:keyword="searchParams.keyword"
+    :search-placeholder="t('systemTenants.keywordPlaceholder')"
+    :drawer-open="modalVisible"
+    :drawer-title="modalTitle"
+    :drawer-width="520"
+    :submit-loading="modalConfirmLoading"
+    @update:drawer-open="modalVisible = $event"
+    @search="handleSearch"
+    @reset="resetSearch"
+    @close-form="handleModalCancel"
+    @submit="handleModalOk"
+  >
+    <template #search-filters>
+      <a-form-item :label="t('systemTenants.statusLabel')">
+        <a-select v-model:value="searchParams.isActive" :placeholder="t('common.all')" allow-clear style="width: 120px">
+          <a-select-option :value="true">{{ t("common.statusEnabled") }}</a-select-option>
+          <a-select-option :value="false">{{ t("common.statusDisabled") }}</a-select-option>
+        </a-select>
+      </a-form-item>
+    </template>
 
-    <a-card :bordered="false">
-      <template #extra>
-        <a-button type="primary" v-if="hasPermission(profile, 'system:tenant:create')" @click="handleCreate">
-          <template #icon><PlusOutlined /></template>
-          {{ t("systemTenants.createTenant") }}
-        </a-button>
-      </template>
+    <template #toolbar-actions>
+      <a-button type="primary" v-if="hasPermission(profile, 'system:tenant:create')" @click="handleCreate">
+        <template #icon><PlusOutlined /></template>
+        {{ t("systemTenants.createTenant") }}
+      </a-button>
+    </template>
 
+    <template #table>
       <a-table
         :columns="columns"
         :data-source="tableData"
@@ -65,22 +69,14 @@
           </template>
         </template>
       </a-table>
-    </a-card>
+    </template>
 
-    <!-- 增改表单弹窗 -->
-    <a-modal
-      v-model:open="modalVisible"
-      :title="modalTitle"
-      :confirm-loading="modalConfirmLoading"
-      @ok="handleModalOk"
-      @cancel="handleModalCancel"
-    >
+    <template #form>
       <a-form
         ref="formRef"
         :model="formState"
         :rules="rules"
-        :label-col="{ span: 6 }"
-        :wrapper-col="{ span: 16 }"
+        layout="vertical"
       >
         <a-form-item :label="t('systemTenants.tenantName')" name="name">
           <a-input v-model:value="formState.name" :placeholder="t('systemTenants.tenantNamePlaceholder')" />
@@ -89,11 +85,11 @@
           <a-input v-model:value="formState.code" :placeholder="t('systemTenants.tenantCodePlaceholder')" :disabled="isEdit" />
         </a-form-item>
         <a-form-item :label="t('systemTenants.description')" name="description">
-          <a-textarea v-model:value="formState.description" :rows="3" :placeholder="t('systemTenants.descriptionPlaceholder')" />
+          <a-textarea v-model:value="formState.description" :rows="4" :placeholder="t('systemTenants.descriptionPlaceholder')" />
         </a-form-item>
       </a-form>
-    </a-modal>
-  </div>
+    </template>
+  </CrudPageLayout>
 </template>
 
 <script setup lang="ts">
@@ -107,6 +103,7 @@ import dayjs from 'dayjs';
 import * as tenantApi from '@/services/api-tenants';
 import type { TenantQueryRequest, TenantCreateRequest, TenantUpdateRequest, TenantDto } from '@/services/api-tenants';
 import { getAuthProfile, hasPermission } from '@/utils/auth';
+import CrudPageLayout from '@/components/crud/CrudPageLayout.vue';
 
 const { t } = useI18n();
 const profile = getAuthProfile();
@@ -307,8 +304,4 @@ const handleModalCancel = () => {
 };
 </script>
 
-<style scoped>
-.mb-4 {
-  margin-bottom: 16px;
-}
-</style>
+

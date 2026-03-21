@@ -1,11 +1,10 @@
 <template>
-  <a-card title="流程定义" class="page-card">
-    <template #extra>
-      <a-space>
-        <a-button @click="importModalOpen = true">导入 JSON</a-button>
-        <a-button type="primary" @click="handleCreate">新建流程</a-button>
-      </a-space>
+  <CrudPageLayout title="流程定义">
+    <template #toolbar-actions>
+      <a-button @click="importModalOpen = true">导入 JSON</a-button>
+      <a-button type="primary" @click="handleCreate">新建流程</a-button>
     </template>
+    <template #table>
     <a-table
       :columns="columns"
       :data-source="dataSource"
@@ -116,7 +115,8 @@
         </template>
       </a-list>
     </a-modal>
-  </a-card>
+    </template>
+  </CrudPageLayout>
 </template>
 
 <script setup lang="ts">
@@ -144,6 +144,7 @@ import {
   type ApprovalFlowDefinitionListItem
 } from "@/types/api";
 import { message } from "ant-design-vue";
+import CrudPageLayout from "@/components/crud/CrudPageLayout.vue";
 
 const router = useRouter();
 

@@ -1,67 +1,56 @@
 <template>
-  <div class="workflow-list-page">
-    <a-page-header title="工作流引擎" subtitle="创建和管理 DAG 工作流">
-      <template #extra>
-        <a-button type="primary" @click="showCreateModal = true">
-          <template #icon><PlusOutlined /></template>
-          新建工作流
-        </a-button>
-      </template>
-    </a-page-header>
+  <CrudPageLayout
+    v-model:keyword="keyword"
+    title="工作流引擎"
+    search-placeholder="搜索工作流名称"
+    @search="handleSearch"
+  >
+    <template #toolbar-actions>
+      <a-button type="primary" @click="showCreateModal = true">
+        <template #icon><PlusOutlined /></template>
+        新建工作流
+      </a-button>
+    </template>
 
-    <div class="page-content">
-      <a-card :bordered="false">
-        <template #extra>
-          <a-space>
-            <a-input-search
-              v-model:value="keyword"
-              placeholder="搜索工作流名称"
-              style="width: 280px"
-              allow-clear
-              @search="handleSearch"
-            />
-          </a-space>
-        </template>
+    <template #table>
+      <a-tabs v-model:active-key="activeTab" @change="handleTabChange">
+        <a-tab-pane key="all" tab="全部工作流" />
+        <a-tab-pane key="published" tab="已发布工作流" />
+      </a-tabs>
 
-        <a-tabs v-model:active-key="activeTab" @change="handleTabChange">
-          <a-tab-pane key="all" tab="全部工作流" />
-          <a-tab-pane key="published" tab="已发布工作流" />
-        </a-tabs>
-
-        <a-table
-          :data-source="workflows"
-          :columns="columns"
-          :loading="loading"
-          :pagination="pagination"
-          row-key="id"
-          @change="handleTableChange"
-        >
-          <template #bodyCell="{ column, record }">
-            <template v-if="column.key === 'name'">
-              <a @click="openEditor(record.id)">{{ record.name }}</a>
-            </template>
-            <template v-if="column.key === 'status'">
-              <a-tag :color="statusColor(record.status)">{{ statusLabel(record.status) }}</a-tag>
-            </template>
-            <template v-if="column.key === 'mode'">
-              <a-tag>{{ record.mode === 0 ? '标准' : 'ChatFlow' }}</a-tag>
-            </template>
-            <template v-if="column.key === 'actions'">
-              <a-space>
-                <a @click="openEditor(record.id)">编辑</a>
-                <a-divider type="vertical" />
-                <a @click="handleCopy(record.id)">复制</a>
-                <a-divider type="vertical" />
-                <a-popconfirm title="确认删除此工作流？" @confirm="handleDelete(record.id)">
-                  <a class="danger-link">删除</a>
-                </a-popconfirm>
-              </a-space>
-            </template>
+      <a-table
+        :data-source="workflows"
+        :columns="columns"
+        :loading="loading"
+        :pagination="pagination"
+        row-key="id"
+        @change="handleTableChange"
+      >
+        <template #bodyCell="{ column, record }">
+          <template v-if="column.key === 'name'">
+            <a @click="openEditor(record.id)">{{ record.name }}</a>
           </template>
-        </a-table>
-      </a-card>
+          <template v-if="column.key === 'status'">
+            <a-tag :color="statusColor(record.status)">{{ statusLabel(record.status) }}</a-tag>
+          </template>
+          <template v-if="column.key === 'mode'">
+            <a-tag>{{ record.mode === 0 ? '标准' : 'ChatFlow' }}</a-tag>
+          </template>
+          <template v-if="column.key === 'actions'">
+            <a-space>
+              <a @click="openEditor(record.id)">编辑</a>
+              <a-divider type="vertical" />
+              <a @click="handleCopy(record.id)">复制</a>
+              <a-divider type="vertical" />
+              <a-popconfirm title="确认删除此工作流？" @confirm="handleDelete(record.id)">
+                <a class="danger-link">删除</a>
+              </a-popconfirm>
+            </a-space>
+          </template>
+        </template>
+      </a-table>
 
-      <a-card class="mt12" title="执行恢复与调试视图">
+      <a-card class="mt12" title="执行恢复与调试视图" :bordered="false">
         <a-space wrap>
           <a-input-number
             v-model:value="executionIdInput"
@@ -88,7 +77,8 @@
         </a-typography-paragraph>
         <pre v-if="debugView" class="debug-json">{{ JSON.stringify(debugView, null, 2) }}</pre>
       </a-card>
-    </div>
+    </template>
+  </CrudPageLayout>
 
     <!-- 新建工作流弹窗 -->
     <a-modal
@@ -112,7 +102,6 @@
         </a-form-item>
       </a-form>
     </a-modal>
-  </div>
 </template>
 
 <script setup lang="ts">
@@ -141,6 +130,7 @@ import type {
   WorkflowListItem
 } from '@/types/workflow-v2'
 import { resolveCurrentAppId } from '@/utils/app-context'
+import CrudPageLayout from "@/components/crud/CrudPageLayout.vue"
 
 const route = useRoute()
 const router = useRouter()
@@ -333,14 +323,6 @@ onMounted(loadList)
 </script>
 
 <style scoped>
-.workflow-list-page {
-  min-height: 100vh;
-  background: #f5f5f5;
-}
-.page-content {
-  padding: 0 24px 24px;
-}
-
 .mt12 {
   margin-top: 12px;
 }
@@ -358,6 +340,7 @@ onMounted(loadList)
   border-radius: 8px;
   padding: 12px;
 }
+
 .danger-link {
   color: #ff4d4f;
 }

@@ -1,7 +1,6 @@
 <template>
-  <a-card class="page-card">
-    <template #title>工作流实例监控</template>
-    <template #extra>
+  <CrudPageLayout title="工作流实例监控">
+    <template #toolbar-actions>
       <a-space>
         <a-button @click="loadInstances">
           <template #icon><ReloadOutlined /></template>
@@ -10,135 +9,139 @@
       </a-space>
     </template>
 
-    <a-table
-      :columns="columns"
-      :data-source="instances"
-      :loading="loading"
-      :pagination="{
-        current: pageIndex,
-        pageSize: pageSize,
-        total: total,
-        showSizeChanger: true,
-        showQuickJumper: true,
-        showTotal: (total: number) => `共 ${total} 条`
-      }"
-      @change="handleTableChange"
-      :row-key="(record: WorkflowInstanceListItem) => record.id"
-    >
-      <template #bodyCell="{ column, record }">
-        <template v-if="column.key === 'status'">
-          <a-tag :color="getStatusColor(record.status)">
-            {{ getStatusText(record.status) }}
-          </a-tag>
-        </template>
-        <template v-else-if="column.key === 'createTime'">
-          {{ formatDateTime(record.createTime) }}
-        </template>
-        <template v-else-if="column.key === 'completeTime'">
-          {{ record.completeTime ? formatDateTime(record.completeTime) : "-" }}
-        </template>
-        <template v-else-if="column.key === 'actions'">
-          <a-space>
-            <a-button type="link" size="small" @click="handleViewDetail(record)">
-              查看详情
-            </a-button>
-            <a-button
-              type="link"
-              size="small"
-              @click="handleSuspend(record.id)"
-              v-if="record.status === 'Runnable' || record.status === 'Running'"
-              danger
-            >
-              挂起
-            </a-button>
-            <a-button
-              type="link"
-              size="small"
-              @click="handleResume(record.id)"
-              v-if="record.status === 'Suspended'"
-            >
-              恢复
-            </a-button>
-            <a-button
-              type="link"
-              size="small"
-              @click="handleTerminate(record.id)"
-              v-if="record.status !== 'Complete' && record.status !== 'Terminated'"
-              danger
-            >
-              终止
-            </a-button>
-          </a-space>
-        </template>
-      </template>
-    </a-table>
-
-    <!-- 详情抽屉 -->
-    <a-drawer
-      v-model:open="detailDrawerVisible"
-      title="工作流实例详情"
-      placement="right"
-      width="800"
-      @close="handleCloseDetail"
-    >
-      <div v-if="selectedInstance">
-        <a-descriptions bordered :column="1">
-          <a-descriptions-item label="实例ID">{{ selectedInstance.id }}</a-descriptions-item>
-          <a-descriptions-item label="工作流ID">{{ selectedInstance.workflowDefinitionId }}</a-descriptions-item>
-          <a-descriptions-item label="版本">{{ selectedInstance.version }}</a-descriptions-item>
-          <a-descriptions-item label="状态">
-            <a-tag :color="getStatusColor(selectedInstance.status)">
-              {{ getStatusText(selectedInstance.status) }}
+    <template #table>
+      <a-table
+        :columns="columns"
+        :data-source="instances"
+        :loading="loading"
+        :pagination="{
+          current: pageIndex,
+          pageSize: pageSize,
+          total: total,
+          showSizeChanger: true,
+          showQuickJumper: true,
+          showTotal: (total: number) => `共 ${total} 条`
+        }"
+        @change="handleTableChange"
+        :row-key="(record: WorkflowInstanceListItem) => record.id"
+      >
+        <template #bodyCell="{ column, record }">
+          <template v-if="column.key === 'status'">
+            <a-tag :color="getStatusColor(record.status)">
+              {{ getStatusText(record.status) }}
             </a-tag>
-          </a-descriptions-item>
-          <a-descriptions-item label="创建时间">{{ formatDateTime(selectedInstance.createTime) }}</a-descriptions-item>
-          <a-descriptions-item label="完成时间">
-            {{ selectedInstance.completeTime ? formatDateTime(selectedInstance.completeTime) : "-" }}
-          </a-descriptions-item>
-          <a-descriptions-item label="引用标识">{{ selectedInstance.reference || "-" }}</a-descriptions-item>
-        </a-descriptions>
+          </template>
+          <template v-else-if="column.key === 'createTime'">
+            {{ formatDateTime(record.createTime) }}
+          </template>
+          <template v-else-if="column.key === 'completeTime'">
+            {{ record.completeTime ? formatDateTime(record.completeTime) : "-" }}
+          </template>
+          <template v-else-if="column.key === 'actions'">
+            <a-space>
+              <a-button type="link" size="small" @click="handleViewDetail(record)">
+                查看详情
+              </a-button>
+              <a-button
+                type="link"
+                size="small"
+                @click="handleSuspend(record.id)"
+                v-if="record.status === 'Runnable' || record.status === 'Running'"
+                danger
+              >
+                挂起
+              </a-button>
+              <a-button
+                type="link"
+                size="small"
+                @click="handleResume(record.id)"
+                v-if="record.status === 'Suspended'"
+              >
+                恢复
+              </a-button>
+              <a-button
+                type="link"
+                size="small"
+                @click="handleTerminate(record.id)"
+                v-if="record.status !== 'Complete' && record.status !== 'Terminated'"
+                danger
+              >
+                终止
+              </a-button>
+            </a-space>
+          </template>
+        </template>
+      </a-table>
+    </template>
 
-        <a-divider orientation="left">执行指针（步骤级监控）</a-divider>
-        <a-timeline>
-          <a-timeline-item
-            v-for="pointer in executionPointers"
-            :key="pointer.id"
-            :color="getPointerColor(pointer.status)"
-          >
-            <template #dot>
-              <LoadingOutlined v-if="pointer.status === 'Running'" />
-              <ClockCircleOutlined v-else-if="pointer.status === 'Sleeping'" />
-              <HourglassOutlined v-else-if="pointer.status === 'WaitingForEvent'" />
-              <CheckCircleOutlined v-else-if="pointer.status === 'Complete'" />
-              <CloseCircleOutlined v-else />
-            </template>
-            <div>
-              <strong>{{ pointer.stepName }}</strong>
-              <a-tag :color="getPointerColor(pointer.status)" style="margin-left: 8px">
-                {{ getPointerStatusText(pointer.status) }}
+    <template #extra-drawers>
+      <!-- 详情抽屉 -->
+      <a-drawer
+        v-model:open="detailDrawerVisible"
+        title="工作流实例详情"
+        placement="right"
+        width="800"
+        @close="handleCloseDetail"
+      >
+        <div v-if="selectedInstance">
+          <a-descriptions bordered :column="1">
+            <a-descriptions-item label="实例ID">{{ selectedInstance.id }}</a-descriptions-item>
+            <a-descriptions-item label="工作流ID">{{ selectedInstance.workflowDefinitionId }}</a-descriptions-item>
+            <a-descriptions-item label="版本">{{ selectedInstance.version }}</a-descriptions-item>
+            <a-descriptions-item label="状态">
+              <a-tag :color="getStatusColor(selectedInstance.status)">
+                {{ getStatusText(selectedInstance.status) }}
               </a-tag>
-            </div>
-            <div style="font-size: 12px; color: #666; margin-top: 4px">
-              <div v-if="pointer.startTime">开始: {{ formatDateTime(pointer.startTime) }}</div>
-              <div v-if="pointer.endTime">结束: {{ formatDateTime(pointer.endTime) }}</div>
-              <div v-if="pointer.sleepUntil">睡眠到: {{ formatDateTime(pointer.sleepUntil) }}</div>
-              <div v-if="pointer.eventName">等待事件: {{ pointer.eventName }}</div>
-              <div v-if="pointer.retryCount > 0">重试次数: {{ pointer.retryCount }}</div>
-              <div v-if="pointer.errorMessage" style="color: red">错误: {{ pointer.errorMessage }}</div>
-            </div>
-          </a-timeline-item>
-        </a-timeline>
+            </a-descriptions-item>
+            <a-descriptions-item label="创建时间">{{ formatDateTime(selectedInstance.createTime) }}</a-descriptions-item>
+            <a-descriptions-item label="完成时间">
+              {{ selectedInstance.completeTime ? formatDateTime(selectedInstance.completeTime) : "-" }}
+            </a-descriptions-item>
+            <a-descriptions-item label="引用标识">{{ selectedInstance.reference || "-" }}</a-descriptions-item>
+          </a-descriptions>
 
-        <a-space style="margin-top: 16px">
-          <a-button @click="handleRefreshPointers" :loading="pointersLoading">
-            <template #icon><ReloadOutlined /></template>
-            刷新执行状态
-          </a-button>
-          <a-switch v-model:checked="autoRefresh" /> 自动刷新（每3秒）
-        </a-space>
-      </div>
-    </a-drawer>
-  </a-card>
+          <a-divider orientation="left">执行指针（步骤级监控）</a-divider>
+          <a-timeline>
+            <a-timeline-item
+              v-for="pointer in executionPointers"
+              :key="pointer.id"
+              :color="getPointerColor(pointer.status)"
+            >
+              <template #dot>
+                <LoadingOutlined v-if="pointer.status === 'Running'" />
+                <ClockCircleOutlined v-else-if="pointer.status === 'Sleeping'" />
+                <HourglassOutlined v-else-if="pointer.status === 'WaitingForEvent'" />
+                <CheckCircleOutlined v-else-if="pointer.status === 'Complete'" />
+                <CloseCircleOutlined v-else />
+              </template>
+              <div>
+                <strong>{{ pointer.stepName }}</strong>
+                <a-tag :color="getPointerColor(pointer.status)" style="margin-left: 8px">
+                  {{ getPointerStatusText(pointer.status) }}
+                </a-tag>
+              </div>
+              <div style="font-size: 12px; color: #666; margin-top: 4px">
+                <div v-if="pointer.startTime">开始: {{ formatDateTime(pointer.startTime) }}</div>
+                <div v-if="pointer.endTime">结束: {{ formatDateTime(pointer.endTime) }}</div>
+                <div v-if="pointer.sleepUntil">睡眠到: {{ formatDateTime(pointer.sleepUntil) }}</div>
+                <div v-if="pointer.eventName">等待事件: {{ pointer.eventName }}</div>
+                <div v-if="pointer.retryCount > 0">重试次数: {{ pointer.retryCount }}</div>
+                <div v-if="pointer.errorMessage" style="color: red">错误: {{ pointer.errorMessage }}</div>
+              </div>
+            </a-timeline-item>
+          </a-timeline>
+
+          <a-space style="margin-top: 16px">
+            <a-button @click="handleRefreshPointers" :loading="pointersLoading">
+              <template #icon><ReloadOutlined /></template>
+              刷新执行状态
+            </a-button>
+            <a-switch v-model:checked="autoRefresh" /> 自动刷新（每3秒）
+          </a-space>
+        </div>
+      </a-drawer>
+    </template>
+  </CrudPageLayout>
 </template>
 
 <script setup lang="ts">
@@ -149,6 +152,7 @@ onMounted(() => { isMounted.value = true; });
 onUnmounted(() => { isMounted.value = false; });
 
 import { useRoute } from "vue-router";
+import CrudPageLayout from "@/components/crud/CrudPageLayout.vue";
 import {
   getWorkflowInstances,
   getWorkflowInstance,
@@ -381,9 +385,3 @@ onBeforeUnmount(() => {
   }
 });
 </script>
-
-<style scoped>
-.page-card {
-  margin: 16px;
-}
-</style>

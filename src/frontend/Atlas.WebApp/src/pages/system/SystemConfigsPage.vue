@@ -1,63 +1,62 @@
-﻿<template>
-  <a-card :title="t('systemConfig.title')" :bordered="false">
-    <div class="crud-toolbar">
-      <a-space wrap>
-        <a-input-search
-          v-model:value="keyword"
-          :placeholder="t('systemConfig.searchPlaceholder')"
-          allow-clear
-          style="width: 260px"
-          @search="loadConfigs"
-        />
-        <a-button @click="handleReset">{{ t("common.reset") }}</a-button>
-        <a-button type="primary" @click="openCreate">{{ t("systemConfig.create") }}</a-button>
-      </a-space>
-    </div>
+<template>
+  <CrudPageLayout
+    v-model:keyword="keyword"
+    :title="t('systemConfig.title')"
+    :search-placeholder="t('systemConfig.searchPlaceholder')"
+    :drawer-open="modalVisible"
+    :drawer-title="editTarget ? t('systemConfig.edit') : t('systemConfig.create')"
+    :drawer-width="520"
+    :submit-loading="modalLoading"
+    :submit-disabled="modalLoading"
+    @update:drawer-open="modalVisible = $event"
+    @search="loadConfigs"
+    @reset="handleReset"
+    @close-form="closeModal"
+    @submit="submitForm"
+  >
+    <template #toolbar-actions>
+      <a-button type="primary" @click="openCreate">{{ t("systemConfig.create") }}</a-button>
+    </template>
 
-    <a-table
-      :columns="columns"
-      :data-source="dataList"
-      :loading="loading"
-      :pagination="pagination"
-      row-key="id"
-      :locale="{ emptyText: t('systemConfig.empty') }"
-      @change="onTableChange"
-    >
-      <template #bodyCell="{ column, record }">
-        <template v-if="column.key === 'isBuiltIn'">
-          <a-tag v-if="record.isBuiltIn" color="gold">
-            <template #icon><LockOutlined /></template>
-            {{ t("systemConfig.builtIn") }}
-          </a-tag>
+    <template #table>
+      <a-table
+        :columns="columns"
+        :data-source="dataList"
+        :loading="loading"
+        :pagination="pagination"
+        row-key="id"
+        :locale="{ emptyText: t('systemConfig.empty') }"
+        @change="onTableChange"
+      >
+        <template #bodyCell="{ column, record }">
+          <template v-if="column.key === 'isBuiltIn'">
+            <a-tag v-if="record.isBuiltIn" color="gold">
+              <template #icon><LockOutlined /></template>
+              {{ t("systemConfig.builtIn") }}
+            </a-tag>
+          </template>
+          <template v-else-if="column.key === 'actions'">
+            <a-space>
+              <a-button type="link" size="small" @click="openEdit(record)">{{ t("common.edit") }}</a-button>
+              <a-popconfirm
+                v-if="!record.isBuiltIn"
+                :title="t('systemConfig.deleteConfirm')"
+                :ok-text="t('common.delete')"
+                :cancel-text="t('common.cancel')"
+                @confirm="handleDelete(record.id)"
+              >
+                <a-button type="link" danger size="small">{{ t("common.delete") }}</a-button>
+              </a-popconfirm>
+              <a-tooltip v-else :title="t('systemConfig.builtInCannotDelete')">
+                <a-button type="link" danger size="small" disabled>{{ t("common.delete") }}</a-button>
+              </a-tooltip>
+            </a-space>
+          </template>
         </template>
-        <template v-else-if="column.key === 'actions'">
-          <a-space>
-            <a-button type="link" size="small" @click="openEdit(record)">{{ t("common.edit") }}</a-button>
-            <a-popconfirm
-              v-if="!record.isBuiltIn"
-              :title="t('systemConfig.deleteConfirm')"
-              :ok-text="t('common.delete')"
-              :cancel-text="t('common.cancel')"
-              @confirm="handleDelete(record.id)"
-            >
-              <a-button type="link" danger size="small">{{ t("common.delete") }}</a-button>
-            </a-popconfirm>
-            <a-tooltip v-else :title="t('systemConfig.builtInCannotDelete')">
-              <a-button type="link" danger size="small" disabled>{{ t("common.delete") }}</a-button>
-            </a-tooltip>
-          </a-space>
-        </template>
-      </template>
-    </a-table>
+      </a-table>
+    </template>
 
-    <!-- 新增/编辑弹窗 -->
-    <a-modal
-      v-model:open="modalVisible"
-      :title="editTarget ? t('systemConfig.edit') : t('systemConfig.create')"
-      :confirm-loading="modalLoading"
-      @ok="submitForm"
-      @cancel="closeModal"
-    >
+    <template #form>
       <a-form :model="form" layout="vertical" :rules="rules" ref="formRef">
         <a-form-item :label="t('systemConfig.key')" name="configKey">
           <a-input
@@ -76,8 +75,8 @@
           <a-textarea v-model:value="form.remark" :rows="2" :placeholder="t('systemConfig.remarkPlaceholder')" />
         </a-form-item>
       </a-form>
-    </a-modal>
-  </a-card>
+    </template>
+  </CrudPageLayout>
 </template>
 
 <script setup lang="ts">
@@ -91,6 +90,7 @@ import { message } from "ant-design-vue";
 import { LockOutlined } from "@ant-design/icons-vue";
 import { useI18n } from "vue-i18n";
 import type { TablePaginationConfig } from "ant-design-vue";
+import CrudPageLayout from "@/components/crud/CrudPageLayout.vue";
 import {
   getSystemConfigsPaged,
   createSystemConfig,
@@ -247,10 +247,5 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.crud-toolbar {
-  margin-bottom: 16px;
-}
+
 </style>
-
-
-

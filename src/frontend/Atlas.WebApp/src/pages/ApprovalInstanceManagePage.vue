@@ -1,24 +1,24 @@
 <template>
-  <a-card title="实例管理" class="page-card">
-    <div class="toolbar">
-      <a-space wrap>
-        <a-input
-          v-model:value="filters.businessKey"
-          placeholder="业务Key"
-          allow-clear
-          style="width: 220px"
-        />
+  <CrudPageLayout
+    v-model:keyword="filters.businessKey"
+    title="实例管理"
+    search-placeholder="业务Key"
+    @search="fetchData"
+  >
+    <template #search-filters>
+      <a-form-item>
         <a-select
           v-model:value="filters.status"
           style="width: 160px"
           :options="statusOptions"
           allow-clear
           placeholder="实例状态"
+          @change="fetchData"
         />
-        <a-button type="primary" @click="fetchData">查询</a-button>
-      </a-space>
-    </div>
+      </a-form-item>
+    </template>
 
+    <template #table>
     <a-table
       :columns="columns"
       :data-source="dataSource"
@@ -55,7 +55,8 @@
         </template>
       </template>
     </a-table>
-  </a-card>
+    </template>
+  </CrudPageLayout>
 </template>
 
 <script setup lang="ts">
@@ -70,6 +71,7 @@ import { message } from 'ant-design-vue';
 import type { TablePaginationConfig } from 'ant-design-vue';
 import { ApprovalInstanceStatus, type ApprovalInstanceListItem } from '@/types/api';
 import { getAdminInstancesPaged, terminateInstance } from '@/services/api';
+import CrudPageLayout from "@/components/crud/CrudPageLayout.vue";
 
 const router = useRouter();
 const columns = [
