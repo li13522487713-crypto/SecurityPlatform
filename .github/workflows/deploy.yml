@@ -36,12 +36,16 @@ jobs:
             -o ${{ env.BACKEND_PUBLISH_DIR }} \
             --no-self-contained
 
-      # --- 第二部分：前端部署 ---
+            # --- 第二部分：前端部署 ---
       - name: Frontend Build
         working-directory: ${{ env.FRONTEND_DIR }}
         run: |
+          echo "Using local node version: $(node -v)"
+          # 限制 Node.js 使用 4GB 内存，防止 OOM
+          export NODE_OPTIONS="--max-old-space-size=4096"
           npm install --registry=https://registry.npmmirror.com
           npm run build
+
           
       - name: Sync Frontend Files
         run: |
