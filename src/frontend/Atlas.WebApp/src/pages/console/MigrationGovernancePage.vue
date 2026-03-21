@@ -61,7 +61,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import dayjs from "dayjs";
 import { message } from "ant-design-vue";
 import { getMigrationGovernanceOverview } from "@/services/api-migration-governance";
@@ -100,6 +105,8 @@ async function loadOverview() {
   loading.value = true;
   try {
     overview.value = await getMigrationGovernanceOverview();
+
+    if (!isMounted.value) return;
   } catch (error) {
     message.error((error as Error).message || "加载迁移治理指标失败");
   } finally {

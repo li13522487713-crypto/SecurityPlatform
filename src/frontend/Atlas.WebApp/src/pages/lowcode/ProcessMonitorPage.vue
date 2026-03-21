@@ -56,7 +56,12 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from "vue";
+import { onMounted, reactive, ref, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import type { TablePaginationConfig } from "ant-design-vue";
 import { message } from "ant-design-vue";
 import { getAdminInstancesPaged } from "@/services/api";
@@ -140,7 +145,9 @@ const statusColor = (status: number) => {
 
 const fetchStats = async () => {
   try {
-    const resp = await requestApi<ApiResponse<DashboardStats>>("/process-monitor/dashboard");
+    const resp  = await requestApi<ApiResponse<DashboardStats>>("/process-monitor/dashboard");
+
+    if (!isMounted.value) return;
     if (resp.data) {
       Object.assign(stats, resp.data);
     }
@@ -152,10 +159,12 @@ const fetchStats = async () => {
 const fetchInstances = async () => {
   loading.value = true;
   try {
-    const result = await getAdminInstancesPaged({
+    const result  = await getAdminInstancesPaged({
       pageIndex: pagination.current ?? 1,
       pageSize: pagination.pageSize ?? 10
     });
+
+    if (!isMounted.value) return;
     instances.value = result.items.map((item) => ({
       id: String(item.id),
       flowName: item.flowName,
@@ -183,7 +192,9 @@ const viewTrace = async (instanceId: string) => {
   traceData.value = [];
   traceVisible.value = true;
   try {
-    const resp = await requestApi<ApiResponse<ProcessInstanceTrace>>(`/process-monitor/instances/${instanceId}/trace`);
+    const resp  = await requestApi<ApiResponse<ProcessInstanceTrace>>(`/process-monitor/instances/${instanceId}/trace`);
+
+    if (!isMounted.value) return;
     if (resp.data) {
       traceData.value = resp.data.nodes ?? [];
     }

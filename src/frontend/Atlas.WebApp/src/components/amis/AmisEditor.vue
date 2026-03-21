@@ -3,7 +3,12 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onBeforeUnmount, ref, watch, toRaw, computed } from "vue";
+import { onMounted, onBeforeUnmount, ref, watch, toRaw, computed, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import type { JsonValue } from "@/types/api";
 
 interface Props {
@@ -62,11 +67,17 @@ const renderEditor = async () => {
   if (!container) return;
 
   try {
-    const React = await import("react");
-    const { createRoot } = await import("react-dom/client");
+    const React  = await import("react");
+
+    if (!isMounted.value) return;
+    const { createRoot }  = await import("react-dom/client");
+
+    if (!isMounted.value) return;
     // Keep amis-editor optional: avoid Vite pre-bundling scan on a static literal.
     const amisEditorModuleName = "amis-editor";
-    const { Editor } = await import(/* @vite-ignore */ amisEditorModuleName);
+    const { Editor }  = await import(/* @vite-ignore */ amisEditorModuleName);
+
+    if (!isMounted.value) return;
 
     if (!rootRef.value) {
       rootRef.value = createRoot(container);

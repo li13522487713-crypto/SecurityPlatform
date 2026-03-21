@@ -30,7 +30,12 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from "vue";
+import { onMounted, reactive, ref, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { useRouter } from "vue-router";
 import { message } from "ant-design-vue";
 import WorkspaceSwitcher from "@/components/ai/WorkspaceSwitcher.vue";
@@ -52,17 +57,21 @@ const workspace = reactive({
 const libraryItems = ref<AiLibraryItem[]>([]);
 
 async function loadWorkspace() {
-  const data = await getCurrentAiWorkspace();
+  const data  = await getCurrentAiWorkspace();
+
+  if (!isMounted.value) return;
   Object.assign(workspace, data);
 }
 
 async function loadLibrary() {
   loading.value = true;
   try {
-    const result = await getAiWorkspaceLibrary({
+    const result  = await getAiWorkspaceLibrary({
       pageIndex: 1,
       pageSize: 10
     });
+
+    if (!isMounted.value) return;
     libraryItems.value = result.items;
   } finally {
     loading.value = false;
@@ -71,12 +80,14 @@ async function loadLibrary() {
 
 async function handleWorkspaceSave(payload: { name: string; theme: string }) {
   try {
-    const updated = await updateCurrentAiWorkspace({
+    const updated  = await updateCurrentAiWorkspace({
       name: payload.name,
       theme: payload.theme,
       lastVisitedPath: workspace.lastVisitedPath,
       favoriteResourceIds: workspace.favoriteResourceIds
     });
+
+    if (!isMounted.value) return;
     Object.assign(workspace, updated);
     message.success("工作台配置已保存");
   } catch (error: unknown) {
@@ -87,11 +98,17 @@ async function handleWorkspaceSave(payload: { name: string; theme: string }) {
 async function goPath(path: string) {
   workspace.lastVisitedPath = path;
   await router.push(path);
+
+  if (!isMounted.value) return;
 }
 
 onMounted(async () => {
   await loadWorkspace();
+
+  if (!isMounted.value) return;
   await loadLibrary();
+
+  if (!isMounted.value) return;
 });
 </script>
 

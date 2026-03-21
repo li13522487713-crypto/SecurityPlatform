@@ -50,7 +50,12 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { onMounted, ref, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { useRouter } from "vue-router";
 import { message } from "ant-design-vue";
 import GlobalSearchBar from "@/components/ai/GlobalSearchBar.vue";
@@ -79,7 +84,9 @@ const resultColumns = [
 async function loadSearchResult() {
   loading.value = true;
   try {
-    const response = await searchAiGlobal(keyword.value.trim() || undefined, 20);
+    const response  = await searchAiGlobal(keyword.value.trim() || undefined, 20);
+
+    if (!isMounted.value) return;
     resultRows.value = response.items;
     if (!keyword.value.trim()) {
       recentRows.value = response.recentEdits;
@@ -95,6 +102,8 @@ async function loadRecent() {
   recentLoading.value = true;
   try {
     recentRows.value = await getAiRecentEdits(20);
+
+    if (!isMounted.value) return;
   } catch (error: unknown) {
     message.error((error as Error).message || "加载最近编辑失败");
   } finally {
@@ -109,14 +118,22 @@ function handleSearch(nextKeyword: string) {
 
 async function reload() {
   await loadSearchResult();
+
+  if (!isMounted.value) return;
   await loadRecent();
+
+  if (!isMounted.value) return;
 }
 
 async function handleDeleteRecent(id: number) {
   try {
     await deleteAiRecentEdit(id);
+
+    if (!isMounted.value) return;
     message.success("删除成功");
     await loadRecent();
+
+    if (!isMounted.value) return;
   } catch (error: unknown) {
     message.error((error as Error).message || "删除失败");
   }
@@ -124,11 +141,17 @@ async function handleDeleteRecent(id: number) {
 
 async function goPath(path: string) {
   await router.push(path);
+
+  if (!isMounted.value) return;
 }
 
 onMounted(async () => {
   await loadSearchResult();
+
+  if (!isMounted.value) return;
   await loadRecent();
+
+  if (!isMounted.value) return;
 });
 </script>
 

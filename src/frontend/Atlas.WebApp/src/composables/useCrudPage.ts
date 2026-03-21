@@ -109,6 +109,8 @@ export function useCrudPage<
     return permissionMap[key] ?? false;
   };
 
+  const isMounted = ref(false);
+
   const fetchData = async () => {
     loading.value = true;
     try {
@@ -119,12 +121,18 @@ export function useCrudPage<
       };
       const params = buildListParams ? buildListParams(baseParams) : (baseParams as unknown as TListParams);
       const result = await api.list(params);
+      
+      if (!isMounted.value) return;
+      
       dataSource.value = result.items;
       pagination.total = result.total;
     } catch (error) {
+      if (!isMounted.value) return;
       message.error((error as Error).message || t("crud.queryFailed"));
     } finally {
-      loading.value = false;
+      if (isMounted.value) {
+        loading.value = false;
+      }
     }
   };
 
@@ -175,12 +183,14 @@ export function useCrudPage<
 
       try {
         const detail = await api.detail(recordOrId);
+        if (!isMounted.value) return;
         selectedId.value = recordOrId;
         if (mapDetailToForm) {
           mapDetailToForm(detail, formModel);
         }
         formVisible.value = true;
       } catch (error) {
+        if (!isMounted.value) return;
         message.error((error as Error).message || t("crud.loadDetailFailed"));
       }
 
@@ -194,8 +204,10 @@ export function useCrudPage<
     } else if (mapDetailToForm && api.detail && record.id) {
       try {
         const detail = await api.detail(record.id);
+        if (!isMounted.value) return;
         mapDetailToForm(detail, formModel);
       } catch (error) {
+        if (!isMounted.value) return;
         message.error((error as Error).message || t("crud.loadDetailFailed"));
         return;
       }
@@ -213,7 +225,7 @@ export function useCrudPage<
     }
 
     const valid = await formRef.value?.validate().catch(() => false);
-    if (!valid) {
+    if (!valid || !isMounted.value) {
       return;
     }
 
@@ -222,22 +234,28 @@ export function useCrudPage<
       if (formMode.value === "create") {
         const payload = buildCreatePayload ? buildCreatePayload(formModel) : (formModel as unknown as TCreate);
         await api.create(payload);
+        if (!isMounted.value) return;
         message.success(t("crud.createSuccess"));
       } else if (selectedId.value) {
         const payload = buildUpdatePayload ? buildUpdatePayload(formModel) : (formModel as unknown as TUpdate);
         await api.update(selectedId.value, payload);
+        if (!isMounted.value) return;
         message.success(t("crud.updateSuccess"));
       }
 
       formVisible.value = false;
       await fetchData();
+      if (!isMounted.value) return;
       if (onAfterSubmit) {
         await onAfterSubmit();
       }
     } catch (error) {
+      if (!isMounted.value) return;
       message.error((error as Error).message || t("crud.submitFailed"));
     } finally {
-      submitting.value = false;
+      if (isMounted.value) {
+        submitting.value = false;
+      }
     }
   };
 
@@ -248,12 +266,15 @@ export function useCrudPage<
 
     try {
       await api.delete(id);
+      if (!isMounted.value) return;
       message.success(t("crud.deleteSuccess"));
       await fetchData();
+      if (!isMounted.value) return;
       if (onAfterDelete) {
         await onAfterDelete();
       }
     } catch (error) {
+      if (!isMounted.value) return;
       message.error((error as Error).message || t("crud.deleteFailed"));
     }
   };
@@ -267,6 +288,7 @@ export function useCrudPage<
   };
 
   onMounted(() => {
+    isMounted.value = true;
     if (typeof window !== "undefined") {
       window.addEventListener("project-changed", handleProjectChanged);
     }
@@ -277,6 +299,7 @@ export function useCrudPage<
   });
 
   onUnmounted(() => {
+    isMounted.value = false;
     if (typeof window !== "undefined") {
       window.removeEventListener("project-changed", handleProjectChanged);
     }

@@ -67,7 +67,12 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, watch } from "vue";
+import { onMounted, ref, watch, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import type { TableColumnsType, TablePaginationConfig } from "ant-design-vue";
 import { message } from "ant-design-vue";
 import { useRoute } from "vue-router";
@@ -105,13 +110,15 @@ const pagination = ref<TablePaginationConfig>({
 async function loadRuntimeContexts() {
   loading.value = true;
   try {
-    const result = await getRuntimeContextsPaged({
+    const result  = await getRuntimeContextsPaged({
       pageIndex: pageIndex.value,
       pageSize: pageSize.value,
       keyword: keyword.value || undefined,
       appKey: appKeyFilter.value || undefined,
       pageKey: pageKeyFilter.value || undefined
     });
+
+    if (!isMounted.value) return;
     rows.value = result.items;
     pagination.value = {
       ...pagination.value,
@@ -148,6 +155,8 @@ function handleTableChange(page: TablePaginationConfig) {
 async function viewDetail(appKey: string, pageKey: string) {
   try {
     detail.value = await getRuntimeContextByRoute(appKey, pageKey);
+
+    if (!isMounted.value) return;
     detailVisible.value = true;
   } catch (error) {
     message.error((error as Error).message || "加载运行上下文详情失败");
@@ -171,6 +180,8 @@ async function openDetailByRouteQuery() {
 
   try {
     detail.value = await getRuntimeContextById(runtimeContextId);
+
+    if (!isMounted.value) return;
     detailVisible.value = true;
   } catch {
     // ignore invalid runtimeContextId query to avoid noisy UX

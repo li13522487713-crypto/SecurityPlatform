@@ -199,7 +199,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from "vue";
+import { ref, reactive, onMounted, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { message } from "ant-design-vue";
 import { useI18n } from "vue-i18n";
 import type { TablePaginationConfig } from "ant-design-vue";
@@ -228,11 +233,13 @@ const typePagination = reactive({ pageIndex: 1, pageSize: 20, total: 0 });
 async function loadTypes() {
   typeLoading.value = true;
   try {
-    const result = await getDictTypesPaged({
+    const result  = await getDictTypesPaged({
       pageIndex: typePagination.pageIndex,
       pageSize: typePagination.pageSize,
       keyword: typeKeyword.value || undefined
     });
+
+    if (!isMounted.value) return;
     typeList.value = result.items as DictTypeDto[];
     typePagination.total = Number(result.total);
   } catch (e: unknown) {
@@ -273,11 +280,13 @@ async function loadData() {
   if (!selectedType.value) return;
   dataLoading.value = true;
   try {
-    const result = await getDictDataPaged(selectedType.value.code, {
+    const result  = await getDictDataPaged(selectedType.value.code, {
       pageIndex: dataPagination.current ?? 1,
       pageSize: dataPagination.pageSize ?? 20,
       keyword: dataKeyword.value || undefined
     });
+
+    if (!isMounted.value) return;
     dataList.value = result.items as DictDataDto[];
     dataPagination.total = Number(result.total);
   } catch (e: unknown) {
@@ -328,6 +337,8 @@ function closeTypeModal() {
 async function submitTypeForm() {
   try {
     await typeFormRef.value?.validate();
+
+    if (!isMounted.value) return;
   } catch {
     return;
   }
@@ -339,6 +350,8 @@ async function submitTypeForm() {
         status: typeForm.status,
         remark: typeForm.remark || undefined
       });
+
+      if (!isMounted.value) return;
       message.success(t("dict.updateTypeSuccess"));
     } else {
       await createDictType({
@@ -347,6 +360,8 @@ async function submitTypeForm() {
         status: typeForm.status,
         remark: typeForm.remark || undefined
       });
+
+      if (!isMounted.value) return;
       message.success(t("dict.createTypeSuccess"));
     }
     typeModalVisible.value = false;
@@ -361,6 +376,8 @@ async function submitTypeForm() {
 async function handleDeleteType(id: string) {
   try {
     await deleteDictType(id);
+
+    if (!isMounted.value) return;
     message.success(t("dict.deleteTypeSuccess"));
     if (selectedType.value?.id === id) {
       selectedType.value = null;
@@ -418,6 +435,8 @@ function closeDataModal() {
 async function submitDataForm() {
   try {
     await dataFormRef.value?.validate();
+
+    if (!isMounted.value) return;
   } catch {
     return;
   }
@@ -434,9 +453,13 @@ async function submitDataForm() {
     };
     if (dataEditTarget.value) {
       await updateDictData(dataEditTarget.value.id, payload);
+
+      if (!isMounted.value) return;
       message.success(t("dict.updateDataSuccess"));
     } else {
       await createDictData(selectedType.value.code, payload);
+
+      if (!isMounted.value) return;
       message.success(t("dict.createDataSuccess"));
     }
     dataModalVisible.value = false;
@@ -451,6 +474,8 @@ async function submitDataForm() {
 async function handleDeleteData(id: string) {
   try {
     await deleteDictData(id);
+
+    if (!isMounted.value) return;
     message.success(t("dict.deleteDataSuccess"));
     loadData();
   } catch (e: unknown) {

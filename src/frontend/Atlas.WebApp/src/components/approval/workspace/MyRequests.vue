@@ -125,7 +125,12 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref, watch } from "vue";
+import { onMounted, reactive, ref, watch, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import {
   getMyInstancesPaged,
   getApprovalInstanceById,
@@ -203,10 +208,12 @@ const fetchData = async () => {
   loading.value = true;
   try {
     const statusValue = statusFilter.value === "all" ? undefined : statusFilter.value;
-    const result = await getMyInstancesPaged({
+    const result  = await getMyInstancesPaged({
       pageIndex: Number(pagination.current ?? 1),
       pageSize: Number(pagination.pageSize ?? 10)
     }, statusValue);
+
+    if (!isMounted.value) return;
     dataSource.value = result.items;
     pagination.total = result.total;
   } catch (err) {
@@ -333,11 +340,13 @@ const handleViewDetail = async (id: string) => {
   taskLoading.value = true;
 
   try {
-    const [instance, tasks, history] = await Promise.all([
+    const [instance, tasks, history]  = await Promise.all([
       getApprovalInstanceById(id),
       getApprovalTasksByInstance(id, { pageIndex: 1, pageSize: 100 }),
       getApprovalInstanceHistory(id, { pageIndex: 1, pageSize: 100 })
     ]);
+
+    if (!isMounted.value) return;
 
     instanceDetail.value = instance;
     taskList.value = tasks.items;
@@ -371,6 +380,8 @@ const handleViewDetail = async (id: string) => {
 const handleCancel = async (id: string) => {
   try {
     await cancelApprovalInstance(id);
+
+    if (!isMounted.value) return;
     message.success("取消成功");
     fetchData();
   } catch (err) {

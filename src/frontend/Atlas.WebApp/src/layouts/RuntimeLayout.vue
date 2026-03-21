@@ -47,6 +47,11 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import UnifiedContextBar from "@/components/context/UnifiedContextBar.vue";
@@ -90,12 +95,16 @@ async function loadRuntimeMenu() {
     menuItems.value = [];
     return;
   }
-  const response = await getRuntimeMenu(appKey.value);
+  const response  = await getRuntimeMenu(appKey.value);
+
+  if (!isMounted.value) return;
   menuItems.value = response.items ?? [];
 }
 
 async function reloadTasks() {
-  const tasks = await getRuntimeTasks(1, 20);
+  const tasks  = await getRuntimeTasks(1, 20);
+
+  if (!isMounted.value) return;
   taskTotal.value = tasks.total;
 }
 
@@ -112,6 +121,8 @@ function goRuntime(targetPageKey: string) {
 
 async function logout() {
   await userStore.logout();
+
+  if (!isMounted.value) return;
   permissionStore.reset();
   tagsViewStore.delAllViews();
   router.push("/login");

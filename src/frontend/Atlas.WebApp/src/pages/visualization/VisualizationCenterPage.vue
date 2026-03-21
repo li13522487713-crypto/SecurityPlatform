@@ -64,7 +64,12 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { onMounted, ref, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { getVisualizationMetrics, getVisualizationOverview } from "@/services/api";
 import type { VisualizationMetricsResponse, VisualizationOverview } from "@/types/api";
 import { message } from "ant-design-vue";
@@ -77,7 +82,9 @@ const loadOverview = async () => {
   try {
     loading.value = true;
     overview.value = await getVisualizationOverview();
+    if (!isMounted.value) return;
     metrics.value = await getVisualizationMetrics();
+    if (!isMounted.value) return;
   } catch (err) {
     message.error((err as Error).message);
   } finally {

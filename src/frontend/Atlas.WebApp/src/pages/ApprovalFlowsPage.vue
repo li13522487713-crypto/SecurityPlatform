@@ -120,7 +120,12 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from "vue";
+import { onMounted, reactive, ref, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { useRouter } from "vue-router";
 import {
   getApprovalFlowsPaged,
@@ -171,10 +176,12 @@ const pagination = reactive<TablePaginationConfig>({
 const fetchData = async () => {
   loading.value = true;
   try {
-    const result = await getApprovalFlowsPaged({
+    const result  = await getApprovalFlowsPaged({
       pageIndex: pagination.current ?? 1,
       pageSize: pagination.pageSize ?? 10
     });
+
+    if (!isMounted.value) return;
     dataSource.value = result.items;
     pagination.total = result.total;
   } catch (err) {
@@ -226,7 +233,9 @@ const handleDesign = (id: string) => {
 
 const handleCopy = async (id: string) => {
   try {
-    const result = await copyApprovalFlow(id);
+    const result  = await copyApprovalFlow(id);
+
+    if (!isMounted.value) return;
     message.success("复制成功，已生成草稿");
     router.push(`/approval/designer/${result.id}`);
   } catch (err) {
@@ -236,7 +245,9 @@ const handleCopy = async (id: string) => {
 
 const handleExport = async (id: string) => {
   try {
-    const result = await exportApprovalFlow(id);
+    const result  = await exportApprovalFlow(id);
+
+    if (!isMounted.value) return;
     const content = JSON.stringify(result, null, 2);
     const blob = new Blob([content], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -274,11 +285,15 @@ const handleImportConfirm = async () => {
       name: importName.value.trim(),
       definitionJson: importDefinitionJson.value.trim()
     });
+
+    if (!isMounted.value) return;
     message.success("导入成功");
     importModalOpen.value = false;
     importName.value = "";
     importDefinitionJson.value = "";
     await fetchData();
+
+    if (!isMounted.value) return;
   } catch (err) {
     message.error(err instanceof Error ? err.message : "导入失败");
   } finally {
@@ -299,6 +314,8 @@ const handleCompareConfirm = async () => {
   compareLoading.value = true;
   try {
     compareResult.value = await compareApprovalFlowVersion(compareFlowId.value, compareTargetVersion.value);
+
+    if (!isMounted.value) return;
     message.success("对比完成");
   } catch (err) {
     compareResult.value = null;
@@ -311,6 +328,8 @@ const handleCompareConfirm = async () => {
 const handlePublish = async (id: string) => {
   try {
     await publishApprovalFlow(id);
+
+    if (!isMounted.value) return;
     message.success("发布成功");
     fetchData();
   } catch (err) {
@@ -321,6 +340,8 @@ const handlePublish = async (id: string) => {
 const handleDisable = async (id: string) => {
   try {
     await disableApprovalFlow(id);
+
+    if (!isMounted.value) return;
     message.success("停用成功");
     fetchData();
   } catch (err) {
@@ -331,6 +352,8 @@ const handleDisable = async (id: string) => {
 const handleDelete = async (id: string) => {
   try {
     await deleteApprovalFlow(id);
+
+    if (!isMounted.value) return;
     message.success("删除成功");
     fetchData();
   } catch (err) {

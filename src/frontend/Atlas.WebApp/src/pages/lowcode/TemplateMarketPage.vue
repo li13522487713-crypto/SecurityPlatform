@@ -37,7 +37,12 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from "vue";
+import { onMounted, reactive, ref, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { useRouter } from "vue-router";
 import { message } from "ant-design-vue";
 import { createLowCodeApp, createLowCodePage } from "@/services/lowcode";
@@ -60,13 +65,15 @@ const createForm = reactive({
 const loadData = async () => {
   loading.value = true;
   try {
-    const result = await searchTemplates({
+    const result  = await searchTemplates({
       keyword: keyword.value || undefined,
       tags: tags.value || undefined,
       version: version.value || undefined,
       pageIndex: 1,
       pageSize: 50
     });
+
+    if (!isMounted.value) return;
     items.value = result.items;
   } catch (error) {
     message.error((error as Error).message || "加载模板失败");
@@ -89,13 +96,17 @@ const handleCreateFromTemplate = async () => {
     return;
   }
   try {
-    const instantiated = await instantiateTemplate(selectedTemplate.value.id);
-    const createdApp = await createLowCodeApp({
+    const instantiated  = await instantiateTemplate(selectedTemplate.value.id);
+
+    if (!isMounted.value) return;
+    const createdApp  = await createLowCodeApp({
       appKey: createForm.appKey.trim(),
       name: createForm.name.trim(),
       category: "通用",
       description: `基于模板「${selectedTemplate.value.name}」创建`
     });
+
+    if (!isMounted.value) return;
     await createLowCodePage(createdApp.id, {
       pageKey: "index",
       name: "首页",
@@ -104,6 +115,8 @@ const handleCreateFromTemplate = async () => {
       routePath: "/",
       sortOrder: 1
     });
+
+    if (!isMounted.value) return;
     message.success("已基于模板创建应用");
     createVisible.value = false;
     router.push(`/apps/${createdApp.id}/builder`);

@@ -68,7 +68,12 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from "vue";
+import { onMounted, reactive, ref, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { useRouter } from "vue-router";
 import { message } from "ant-design-vue";
 import type { FormInstance } from "ant-design-vue";
@@ -130,10 +135,12 @@ function typeColor(type: number) {
 async function loadData() {
   loading.value = true;
   try {
-    const result = await getKnowledgeBasesPaged(
+    const result  = await getKnowledgeBasesPaged(
       { pageIndex: pageIndex.value, pageSize: pageSize.value },
       keyword.value || undefined
     );
+
+    if (!isMounted.value) return;
     list.value = result.items;
     total.value = Number(result.total);
   } catch (err: unknown) {
@@ -160,6 +167,8 @@ function closeModal() {
 async function submitCreate() {
   try {
     await formRef.value?.validate();
+
+    if (!isMounted.value) return;
   } catch {
     return;
   }
@@ -171,9 +180,13 @@ async function submitCreate() {
       description: form.description || undefined,
       type: form.type
     });
+
+    if (!isMounted.value) return;
     message.success("创建成功");
     modalVisible.value = false;
     await loadData();
+
+    if (!isMounted.value) return;
   } catch (err: unknown) {
     message.error((err as Error).message || "创建失败");
   } finally {
@@ -184,8 +197,12 @@ async function submitCreate() {
 async function handleDelete(id: number) {
   try {
     await deleteKnowledgeBase(id);
+
+    if (!isMounted.value) return;
     message.success("删除成功");
     await loadData();
+
+    if (!isMounted.value) return;
   } catch (err: unknown) {
     message.error((err as Error).message || "删除失败");
   }

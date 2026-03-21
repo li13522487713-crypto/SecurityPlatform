@@ -33,7 +33,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { useRoute, useRouter } from "vue-router";
 import { message } from "ant-design-vue";
 import {
@@ -72,6 +77,8 @@ async function loadDetail() {
   loading.value = true;
   try {
     detail.value = await getAiMarketplaceProductById(productId.value);
+
+    if (!isMounted.value) return;
   } catch (error: unknown) {
     message.error((error as Error).message || "加载市场商品失败");
     detail.value = null;
@@ -93,8 +100,12 @@ async function handlePublish() {
   try {
     const version = detail.value.status === 0 ? "1.0.0" : detail.value.version;
     await publishAiMarketplaceProduct(detail.value.id, { version });
+
+    if (!isMounted.value) return;
     message.success("发布成功");
     await loadDetail();
+
+    if (!isMounted.value) return;
   } catch (error: unknown) {
     message.error((error as Error).message || "发布失败");
   } finally {
@@ -111,11 +122,18 @@ async function toggleFavorite() {
   try {
     if (detail.value.isFavorited) {
       await unfavoriteAiMarketplaceProduct(detail.value.id);
+
+      if (!isMounted.value) return;
     } else {
       await favoriteAiMarketplaceProduct(detail.value.id);
+
+      if (!isMounted.value) return;
     }
 
     await loadDetail();
+
+
+    if (!isMounted.value) return;
   } catch (error: unknown) {
     message.error((error as Error).message || "更新收藏状态失败");
   } finally {
@@ -131,8 +149,12 @@ async function handleMarkDownload() {
   downloadLoading.value = true;
   try {
     await markAiMarketplaceProductDownloaded(detail.value.id);
+
+    if (!isMounted.value) return;
     message.success("已记录下载");
     await loadDetail();
+
+    if (!isMounted.value) return;
   } catch (error: unknown) {
     message.error((error as Error).message || "记录下载失败");
   } finally {

@@ -222,7 +222,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import type { FormInstance, TablePaginationConfig } from "ant-design-vue";
 import { message } from "ant-design-vue";
 import {
@@ -431,7 +436,7 @@ async function loadData() {
   loading.value = true;
   try {
     const currentKeyword = keyword.value || undefined;
-    const [pagedResult, statsResult] = await Promise.all([
+    const [pagedResult, statsResult]  = await Promise.all([
       getModelConfigsPaged({
         pageIndex: pagination.current ?? 1,
         pageSize: pagination.pageSize ?? 20,
@@ -439,6 +444,8 @@ async function loadData() {
       }),
       getModelConfigStats(currentKeyword)
     ]);
+
+    if (!isMounted.value) return;
     dataList.value = pagedResult.items;
     pagination.total = Number(pagedResult.total);
     statsData.value = statsResult;
@@ -488,7 +495,9 @@ function openCreate() {
 
 async function openEdit(record: ModelConfigDto) {
   try {
-    const detail = await getModelConfigById(record.id);
+    const detail  = await getModelConfigById(record.id);
+
+    if (!isMounted.value) return;
     editingId.value = record.id;
     Object.assign(form, {
       name: detail.name,
@@ -520,6 +529,8 @@ async function submitForm() {
 
   try {
     await formRef.value?.validate();
+
+    if (!isMounted.value) return;
   } catch {
     return;
   }
@@ -535,6 +546,8 @@ async function submitForm() {
         isEnabled: form.isEnabled,
         supportsEmbedding: form.supportsEmbedding
       });
+
+      if (!isMounted.value) return;
       message.success("更新成功");
     } else {
       const payload: ModelConfigCreateRequest = {
@@ -546,11 +559,15 @@ async function submitForm() {
         supportsEmbedding: form.supportsEmbedding
       };
       await createModelConfig(payload);
+
+      if (!isMounted.value) return;
       message.success("创建成功");
     }
 
     drawerVisible.value = false;
     await loadData();
+
+    if (!isMounted.value) return;
   } catch (error: unknown) {
     message.error((error as Error).message || "提交失败");
   } finally {
@@ -561,8 +578,12 @@ async function submitForm() {
 async function handleDelete(id: number) {
   try {
     await deleteModelConfig(id);
+
+    if (!isMounted.value) return;
     message.success("删除成功");
     await loadData();
+
+    if (!isMounted.value) return;
   } catch (error: unknown) {
     message.error((error as Error).message || "删除失败");
   }
@@ -578,6 +599,8 @@ async function handleTestConnection() {
       baseUrl: form.baseUrl,
       model: form.defaultModel
     });
+
+    if (!isMounted.value) return;
   } catch (error: unknown) {
     testResult.value = {
       success: false,

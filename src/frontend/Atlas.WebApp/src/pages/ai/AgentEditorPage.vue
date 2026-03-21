@@ -74,7 +74,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { useRoute, useRouter } from "vue-router";
 import { message } from "ant-design-vue";
 import {
@@ -125,10 +130,12 @@ function goBack() {
 
 async function loadData() {
   try {
-    const [detail, models] = await Promise.all([
+    const [detail, models]  = await Promise.all([
       getAgentById(agentId),
       getEnabledModelConfigs()
     ]);
+
+    if (!isMounted.value) return;
     agent.value = detail;
     modelConfigs.value = models;
     Object.assign(form, {
@@ -173,8 +180,12 @@ async function handleSave() {
       maxTokens: form.maxTokens,
       knowledgeBaseIds: parseKnowledgeBaseIds()
     });
+
+    if (!isMounted.value) return;
     message.success("保存成功");
     await loadData();
+
+    if (!isMounted.value) return;
   } catch (error: unknown) {
     message.error((error as Error).message || "保存失败");
   } finally {
@@ -186,8 +197,12 @@ async function handlePublish() {
   publishing.value = true;
   try {
     await publishAgent(agentId);
+
+    if (!isMounted.value) return;
     message.success("发布成功");
     await loadData();
+
+    if (!isMounted.value) return;
   } catch (error: unknown) {
     message.error((error as Error).message || "发布失败");
   } finally {

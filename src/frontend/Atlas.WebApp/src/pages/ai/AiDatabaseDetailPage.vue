@@ -96,7 +96,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { useRoute, useRouter } from "vue-router";
 import type { FormInstance } from "ant-design-vue";
 import { message } from "ant-design-vue";
@@ -161,6 +166,8 @@ async function loadDetail() {
 
   try {
     detail.value = await getAiDatabaseById(databaseId.value);
+
+    if (!isMounted.value) return;
   } catch (error: unknown) {
     message.error((error as Error).message || "加载数据库详情失败");
   }
@@ -169,10 +176,12 @@ async function loadDetail() {
 async function loadRecords() {
   recordsLoading.value = true;
   try {
-    const result = await getAiDatabaseRecordsPaged(databaseId.value, {
+    const result  = await getAiDatabaseRecordsPaged(databaseId.value, {
       pageIndex: pageIndex.value,
       pageSize: pageSize.value
     });
+
+    if (!isMounted.value) return;
     records.value = result.items;
     total.value = Number(result.total);
   } catch (error: unknown) {
@@ -185,6 +194,8 @@ async function loadRecords() {
 async function refreshImportProgress() {
   try {
     importProgress.value = await getAiDatabaseImportProgress(databaseId.value);
+
+    if (!isMounted.value) return;
   } catch {
     importProgress.value = null;
   }
@@ -197,7 +208,9 @@ async function validateSchema() {
 
   schemaValidating.value = true;
   try {
-    const result = await validateAiDatabaseSchema(databaseId.value, detail.value.tableSchema);
+    const result  = await validateAiDatabaseSchema(databaseId.value, detail.value.tableSchema);
+
+    if (!isMounted.value) return;
     if (result.isValid) {
       message.success("Schema 校验通过");
     } else {
@@ -213,7 +226,9 @@ async function validateSchema() {
 async function downloadTemplate() {
   templateDownloading.value = true;
   try {
-    const blob = await downloadAiDatabaseTemplate(databaseId.value);
+    const blob  = await downloadAiDatabaseTemplate(databaseId.value);
+
+    if (!isMounted.value) return;
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
@@ -247,6 +262,8 @@ function closeRecordModal() {
 async function submitRecord() {
   try {
     await recordFormRef.value?.validate();
+
+    if (!isMounted.value) return;
   } catch {
     return;
   }
@@ -255,14 +272,20 @@ async function submitRecord() {
   try {
     if (editingRecordId.value) {
       await updateAiDatabaseRecord(databaseId.value, editingRecordId.value, { dataJson: recordForm.dataJson });
+
+      if (!isMounted.value) return;
       message.success("记录更新成功");
     } else {
       await createAiDatabaseRecord(databaseId.value, { dataJson: recordForm.dataJson });
+
+      if (!isMounted.value) return;
       message.success("记录创建成功");
     }
 
     recordModalOpen.value = false;
     await Promise.all([loadDetail(), loadRecords()]);
+
+    if (!isMounted.value) return;
   } catch (error: unknown) {
     message.error((error as Error).message || "提交记录失败");
   } finally {
@@ -273,8 +296,12 @@ async function submitRecord() {
 async function handleDeleteRecord(recordId: number) {
   try {
     await deleteAiDatabaseRecord(databaseId.value, recordId);
+
+    if (!isMounted.value) return;
     message.success("删除成功");
     await Promise.all([loadDetail(), loadRecords()]);
+
+    if (!isMounted.value) return;
   } catch (error: unknown) {
     message.error((error as Error).message || "删除记录失败");
   }

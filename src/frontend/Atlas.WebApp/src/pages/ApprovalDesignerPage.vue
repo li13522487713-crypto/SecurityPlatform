@@ -153,7 +153,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue';
+import { computed, ref, watch, onMounted, onBeforeUnmount, onUnmounted } from 'vue';
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { useRoute, useRouter } from 'vue-router';
 import { message } from 'ant-design-vue';
 import X6PreviewCanvas from '@/components/approval/X6PreviewCanvas.vue';
@@ -345,7 +350,9 @@ const loadFlow = async () => {
     return;
   }
   try {
-    const flow = await getApprovalFlowById(id);
+    const flow  = await getApprovalFlowById(id);
+
+    if (!isMounted.value) return;
     flowName.value = flow.name;
     flowId.value = flow.id;
     flowVersion.value = flow.version;
@@ -413,7 +420,9 @@ const handleValidate = async () => {
   if (!request) return;
   validating.value = true;
   try {
-    const result = await validateApprovalFlow(request);
+    const result  = await validateApprovalFlow(request);
+
+    if (!isMounted.value) return;
     validateResult.value = result;
     validateModalOpen.value = true;
     if (result.isValid) message.success('校验通过');
@@ -445,11 +454,15 @@ const handleSave = async () => {
   if (!payload) return;
   try {
     if (flowId.value) {
-      const result = await updateApprovalFlow(flowId.value, payload);
+      const result  = await updateApprovalFlow(flowId.value, payload);
+
+      if (!isMounted.value) return;
       flowVersion.value = result.version;
       message.success('保存成功');
     } else {
-      const result = await createApprovalFlow(payload);
+      const result  = await createApprovalFlow(payload);
+
+      if (!isMounted.value) return;
       flowId.value = result.id;
       flowVersion.value = result.version;
       router.replace(`/approval/designer/${result.id}`);
@@ -487,7 +500,9 @@ const handlePublishClick = async () => {
   if (!payload) return;
   validating.value = true;
   try {
-    const result = await validateApprovalFlow(payload);
+    const result  = await validateApprovalFlow(payload);
+
+    if (!isMounted.value) return;
     if (!result.isValid) {
       validateResult.value = result;
       validateModalOpen.value = true;
@@ -521,6 +536,8 @@ const openFlowVersionHistory = async () => {
   loadingVersions.value = true;
   try {
     flowVersionList.value = await getApprovalFlowVersions(flowId.value);
+
+    if (!isMounted.value) return;
   } catch (error) {
     message.error((error as Error).message || "加载版本历史失败");
   } finally {
@@ -532,8 +549,12 @@ const handleFlowRollback = async (versionId: string) => {
   if (!flowId.value) return;
   rollingBackFlow.value = versionId;
   try {
-    const versionDetail = await getApprovalFlowVersionDetail(flowId.value, versionId);
+    const versionDetail  = await getApprovalFlowVersionDetail(flowId.value, versionId);
+
+    if (!isMounted.value) return;
     await rollbackApprovalFlowVersion(flowId.value, versionId);
+
+    if (!isMounted.value) return;
 
     // 重新加载流程定义
     try {
@@ -547,6 +568,8 @@ const handleFlowRollback = async (versionId: string) => {
     }
     versionHistoryVisible.value = false;
     flowVersionList.value = await getApprovalFlowVersions(flowId.value);
+
+    if (!isMounted.value) return;
     message.success(`已回滚到 v${versionDetail.snapshotVersion}`);
   } catch (error) {
     message.error((error as Error).message || "回滚失败");

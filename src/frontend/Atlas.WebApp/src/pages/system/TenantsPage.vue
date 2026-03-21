@@ -97,7 +97,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onMounted, onUnmounted, reactive, ref } from "vue";
 import { message } from 'ant-design-vue';
 import { PlusOutlined } from '@ant-design/icons-vue';
 import type { FormInstance } from 'ant-design-vue';
@@ -155,8 +155,15 @@ const rules = {
 };
 
 // -- 生命周期与方法 --
+const isMounted = ref(false);
+
 onMounted(() => {
+  isMounted.value = true;
   fetchData();
+});
+
+onUnmounted(() => {
+  isMounted.value = false;
 });
 
 const fetchData = async () => {
@@ -165,14 +172,18 @@ const fetchData = async () => {
     searchParams.pageIndex = pagination.current;
     searchParams.pageSize = pagination.pageSize;
     const res = await tenantApi.getTenantsPaged(searchParams);
+    if (!isMounted.value) return;
     if (res) {
       tableData.value = res.items || [];
       pagination.total = res.total || 0;
     }
   } catch (error: unknown) {
+    if (!isMounted.value) return;
     message.error((error as Error).message || t("systemTenants.fetchFailed"));
   } finally {
-    loading.value = false;
+    if (isMounted.value) {
+      loading.value = false;
+    }
   }
 };
 

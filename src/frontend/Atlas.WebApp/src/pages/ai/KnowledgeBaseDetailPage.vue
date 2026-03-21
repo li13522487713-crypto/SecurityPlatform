@@ -86,7 +86,12 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from "vue";
+import { onMounted, reactive, ref, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { useRoute, useRouter } from "vue-router";
 import { message } from "ant-design-vue";
 import {
@@ -178,7 +183,9 @@ function goBack() {
 
 async function loadBase() {
   try {
-    const detail = await getKnowledgeBaseById(knowledgeBaseId);
+    const detail  = await getKnowledgeBaseById(knowledgeBaseId);
+
+    if (!isMounted.value) return;
     title.value = `${detail.name}（${detail.documentCount} 文档 / ${detail.chunkCount} 分片）`;
   } catch (err: unknown) {
     message.error((err as Error).message || "加载知识库详情失败");
@@ -188,7 +195,9 @@ async function loadBase() {
 async function loadDocuments() {
   loadingDocs.value = true;
   try {
-    const result = await getKnowledgeDocumentsPaged(knowledgeBaseId, { pageIndex: 1, pageSize: 100 });
+    const result  = await getKnowledgeDocumentsPaged(knowledgeBaseId, { pageIndex: 1, pageSize: 100 });
+
+    if (!isMounted.value) return;
     documents.value = result.items;
   } catch (err: unknown) {
     message.error((err as Error).message || "加载文档失败");
@@ -205,7 +214,9 @@ async function loadChunks(documentId?: number) {
       chunks.value = [];
       return;
     }
-    const result = await getDocumentChunksPaged(knowledgeBaseId, targetDocId, { pageIndex: 1, pageSize: 200 });
+    const result  = await getDocumentChunksPaged(knowledgeBaseId, targetDocId, { pageIndex: 1, pageSize: 200 });
+
+    if (!isMounted.value) return;
     chunks.value = result.items;
     activeTab.value = "chunks";
   } catch (err: unknown) {
@@ -222,9 +233,13 @@ async function handleAddDocument() {
   }
   try {
     await createKnowledgeDocument(knowledgeBaseId, { fileId: uploadFileId.value });
+
+    if (!isMounted.value) return;
     message.success("文档已加入处理队列");
     uploadFileId.value = null;
     await Promise.all([loadDocuments(), loadBase()]);
+
+    if (!isMounted.value) return;
   } catch (err: unknown) {
     message.error((err as Error).message || "添加文档失败");
   }
@@ -239,9 +254,13 @@ async function handleUploadDocument(options: UploadRequestOptions) {
 
   try {
     await createKnowledgeDocumentByFile(knowledgeBaseId, file);
+
+    if (!isMounted.value) return;
     message.success("文档上传成功，已加入处理队列");
     options.onSuccess?.({}, new XMLHttpRequest());
     await Promise.all([loadDocuments(), loadBase()]);
+
+    if (!isMounted.value) return;
   } catch (err: unknown) {
     const uploadError = err instanceof Error ? err : new Error("上传失败");
     options.onError?.(uploadError);
@@ -252,8 +271,12 @@ async function handleUploadDocument(options: UploadRequestOptions) {
 async function handleDeleteDocument(documentId: number) {
   try {
     await deleteKnowledgeDocument(knowledgeBaseId, documentId);
+
+    if (!isMounted.value) return;
     message.success("删除成功");
     await Promise.all([loadDocuments(), loadBase()]);
+
+    if (!isMounted.value) return;
     if (chunks.value.some((x) => x.documentId === documentId)) {
       chunks.value = chunks.value.filter((x) => x.documentId !== documentId);
     }
@@ -265,8 +288,12 @@ async function handleDeleteDocument(documentId: number) {
 async function handleResegment(documentId: number) {
   try {
     await resegmentDocument(knowledgeBaseId, documentId, { chunkSize: 500, overlap: 50 });
+
+    if (!isMounted.value) return;
     message.success("已提交重分段任务");
     await loadDocuments();
+
+    if (!isMounted.value) return;
   } catch (err: unknown) {
     message.error((err as Error).message || "重分段失败");
   }
@@ -285,9 +312,13 @@ async function handleCreateChunk() {
       startOffset: newChunk.startOffset,
       endOffset: newChunk.endOffset
     });
+
+    if (!isMounted.value) return;
     message.success("新增分片成功");
     Object.assign(newChunk, { documentId: null, chunkIndex: 0, content: "", startOffset: 0, endOffset: 0 });
     await Promise.all([loadChunks(), loadBase()]);
+
+    if (!isMounted.value) return;
   } catch (err: unknown) {
     message.error((err as Error).message || "新增分片失败");
   }
@@ -315,9 +346,13 @@ async function submitChunkEdit() {
       startOffset: editingChunk.startOffset,
       endOffset: editingChunk.endOffset
     });
+
+    if (!isMounted.value) return;
     message.success("更新成功");
     chunkModalVisible.value = false;
     await loadChunks();
+
+    if (!isMounted.value) return;
   } catch (err: unknown) {
     message.error((err as Error).message || "更新失败");
   } finally {
@@ -328,8 +363,12 @@ async function submitChunkEdit() {
 async function handleDeleteChunk(chunkId: number) {
   try {
     await deleteChunk(knowledgeBaseId, chunkId);
+
+    if (!isMounted.value) return;
     message.success("删除成功");
     await Promise.all([loadChunks(), loadBase()]);
+
+    if (!isMounted.value) return;
   } catch (err: unknown) {
     message.error((err as Error).message || "删除失败");
   }
@@ -337,6 +376,8 @@ async function handleDeleteChunk(chunkId: number) {
 
 onMounted(async () => {
   await Promise.all([loadBase(), loadDocuments()]);
+
+  if (!isMounted.value) return;
 });
 </script>
 

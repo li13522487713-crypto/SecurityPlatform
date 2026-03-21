@@ -118,7 +118,12 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, computed, onBeforeUnmount } from "vue";
+import { onMounted, ref, computed, onBeforeUnmount, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { useRouter } from "vue-router";
 import { Graph } from "@antv/x6";
 import { getWorkflowStepTypes, registerWorkflow, startWorkflow } from "@/services/api";
@@ -223,6 +228,8 @@ const handleSave = async () => {
       version: 1,
       definitionJson: definitionJson
     });
+
+    if (!isMounted.value) return;
     message.success("工作流注册成功");
   } catch (err) {
     message.error(err instanceof Error ? err.message : "注册失败");
@@ -258,12 +265,15 @@ const handleExecuteTest = async () => {
       data = normalizeJsonValue(JSON.parse(testData.value)) as Record<string, unknown>;
     }
 
-    const instanceId = await startWorkflow({
+    const instanceId  = await startWorkflow({
       workflowId: workflowId.value,
       version: 1,
       data: data,
       reference: testReference.value || undefined
     });
+
+
+    if (!isMounted.value) return;
 
     message.success(`工作流已启动，实例ID: ${instanceId}`);
     testModalVisible.value = false;
@@ -278,6 +288,8 @@ const handleExecuteTest = async () => {
 onMounted(async () => {
   try {
     stepTypes.value = await getWorkflowStepTypes();
+
+    if (!isMounted.value) return;
     initGraph();
 
     if (containerRef.value) {

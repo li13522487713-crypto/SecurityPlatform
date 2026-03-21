@@ -34,7 +34,12 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { onMounted, ref, onUnmounted } from 'vue';
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { message } from 'ant-design-vue';
 import { getApprovalFlowsPaged, saveDraft, startApprovalInstance } from '@/services/api';
 import { ApprovalFlowStatus } from '@/types/api';
@@ -49,11 +54,13 @@ const flowOptions = ref<Array<{ label: string; value: string }>>([]);
 const loadFlows = async (keyword?: string) => {
   flowLoading.value = true;
   try {
-    const result = await getApprovalFlowsPaged({
+    const result  = await getApprovalFlowsPaged({
       pageIndex: 1,
       pageSize: 20,
       keyword,
     });
+
+    if (!isMounted.value) return;
     flowOptions.value = result.items
       .filter((item) => item.status === ApprovalFlowStatus.Published)
       .map((item) => ({
@@ -100,6 +107,8 @@ const handleStart = async () => {
       businessKey: businessKey.value.trim(),
       dataJson: dataJsonText.value.trim() || undefined,
     });
+
+    if (!isMounted.value) return;
     message.success('流程发起成功');
     businessKey.value = '';
     dataJsonText.value = '';
@@ -122,6 +131,8 @@ const handleSaveDraft = async () => {
       businessKey: businessKey.value.trim(),
       dataJson: dataJsonText.value.trim() || undefined,
     });
+
+    if (!isMounted.value) return;
     message.success('草稿保存成功');
   } catch (err) {
     message.error(err instanceof Error ? err.message : '保存草稿失败');

@@ -88,7 +88,12 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from "vue";
+import { onMounted, reactive, ref, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import type { TablePaginationConfig } from "ant-design-vue";
 import { message } from "ant-design-vue";
 import { requestApi } from "@/services/api-core";
@@ -169,7 +174,9 @@ const fetchTemplates = async () => {
       pageSize: (templatePagination.pageSize ?? 10).toString(),
       keyword: templateKeyword.value
     });
-    const resp = await requestApi<ApiResponse<PagedResult<TemplateItem>>>(`/messages/templates?${q}`);
+    const resp  = await requestApi<ApiResponse<PagedResult<TemplateItem>>>(`/messages/templates?${q}`);
+
+    if (!isMounted.value) return;
     if (resp.data) {
       templates.value = resp.data.items;
       templatePagination.total = resp.data.total;
@@ -203,7 +210,9 @@ const handleCreateTemplate = () => {
 const handleEditTemplate = async (record: TemplateItem) => {
   editingTemplateId.value = record.id;
   try {
-    const resp = await requestApi<ApiResponse<TemplateDetail>>(`/messages/templates/${record.id}`);
+    const resp  = await requestApi<ApiResponse<TemplateDetail>>(`/messages/templates/${record.id}`);
+
+    if (!isMounted.value) return;
     const detail = resp.data;
     if (!detail) {
       throw new Error(resp.message || "加载模板详情失败");
@@ -245,16 +254,22 @@ const submitTemplate = async () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
+
+      if (!isMounted.value) return;
     } else {
       await requestApi("/messages/templates", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
+
+      if (!isMounted.value) return;
     }
     templateModalVisible.value = false;
     message.success("操作成功");
     await fetchTemplates();
+
+    if (!isMounted.value) return;
   } catch (error) {
     message.error((error as Error).message);
   }
@@ -263,8 +278,12 @@ const submitTemplate = async () => {
 const deleteTemplate = async (id: string) => {
   try {
     await requestApi(`/messages/templates/${id}`, { method: "DELETE" });
+
+    if (!isMounted.value) return;
     message.success("已删除");
     await fetchTemplates();
+
+    if (!isMounted.value) return;
   } catch (error) {
     message.error((error as Error).message);
   }
@@ -290,7 +309,9 @@ const fetchRecords = async () => {
       pageIndex: (recordPagination.current ?? 1).toString(),
       pageSize: (recordPagination.pageSize ?? 10).toString()
     });
-    const resp = await requestApi<ApiResponse<PagedResult<RecordItem>>>(`/messages/records?${q}`);
+    const resp  = await requestApi<ApiResponse<PagedResult<RecordItem>>>(`/messages/records?${q}`);
+
+    if (!isMounted.value) return;
     if (resp.data) {
       records.value = resp.data.items;
       recordPagination.total = resp.data.total;
@@ -325,7 +346,9 @@ const channelColumns = [
 const fetchChannels = async () => {
   channelLoading.value = true;
   try {
-    const resp = await requestApi<ApiResponse<ChannelItem[]>>("/messages/channels");
+    const resp  = await requestApi<ApiResponse<ChannelItem[]>>("/messages/channels");
+
+    if (!isMounted.value) return;
     if (resp.data) {
       channels.value = resp.data;
     }
@@ -373,9 +396,13 @@ const submitChannel = async () => {
         isActive: channelForm.isActive
       })
     });
+
+    if (!isMounted.value) return;
     channelModalVisible.value = false;
     message.success("操作成功");
     await fetchChannels();
+
+    if (!isMounted.value) return;
   } catch (error) {
     message.error((error as Error).message);
   }

@@ -82,7 +82,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { useRoute, useRouter } from "vue-router";
 import type { TableColumnsType } from "ant-design-vue";
 import { message } from "ant-design-vue";
@@ -130,10 +135,12 @@ const displayGroups = computed(() => {
 async function loadResourceCenterData() {
   loading.value = true;
   try {
-    const [groups, consumption] = await Promise.all([
+    const [groups, consumption]  = await Promise.all([
       getResourceCenterGroups(),
       getResourceCenterDataSourceConsumption()
     ]);
+
+    if (!isMounted.value) return;
     resourceGroups.value = groups;
     dataSourceConsumption.value = consumption;
   } catch (error) {

@@ -17,7 +17,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, ref, watch, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { useRoute } from "vue-router";
 import { message } from "ant-design-vue";
 import AmisRenderer from "@/components/amis/amis-renderer.vue";
@@ -72,7 +77,9 @@ async function loadRuntime() {
     }
 
     pageTitle.value = `${app.name} / ${page.name}`;
-    const runtime = await getLowCodeRuntimePageSchemaByKey(app.appKey, page.pageKey);
+    const runtime  = await getLowCodeRuntimePageSchemaByKey(app.appKey, page.pageKey);
+
+    if (!isMounted.value) return;
     const parsedSchema = JSON.parse(runtime.schemaJson) as AmisSchema;
     applyRuntimeSubmitApi(parsedSchema, app.appKey, page.pageKey);
     schema.value = parsedSchema;

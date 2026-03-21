@@ -52,7 +52,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { AppstoreOutlined } from '@ant-design/icons-vue'
 import { getPluginMarketEntry, getPluginMarketVersions } from '@/services/api-plugin'
 import type { PluginMarketEntry, PluginMarketVersion } from '@/types/plugin'

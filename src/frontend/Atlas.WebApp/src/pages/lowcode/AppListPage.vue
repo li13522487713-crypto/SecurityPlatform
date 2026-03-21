@@ -113,7 +113,12 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from "vue";
+import { onMounted, reactive, ref, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { useRouter } from "vue-router";
 import { message } from "ant-design-vue";
 import { useI18n } from "vue-i18n";
@@ -175,11 +180,13 @@ const statusLabel = (status: string) => {
 const fetchData = async () => {
   loading.value = true;
   try {
-    const result = await getTenantAppInstancesPaged({
+    const result  = await getTenantAppInstancesPaged({
       pageIndex: 1,
       pageSize: 100,
       keyword: keyword.value || undefined
     });
+
+    if (!isMounted.value) return;
     dataSource.value = result.items;
   } catch (error) {
     message.error((error as Error).message || t("lowcodeApp.queryFailed"));
@@ -226,6 +233,8 @@ const handleEditSubmit = async () => {
       category: editModel.category,
       icon: editModel.icon || undefined
     });
+
+    if (!isMounted.value) return;
     message.success(t("lowcodeApp.updateSuccess"));
     editVisible.value = false;
     fetchData();
@@ -245,6 +254,8 @@ const handleOpenApp = (id: string) => {
 const handlePublish = async (id: string) => {
   try {
     await publishTenantAppInstance(id);
+
+    if (!isMounted.value) return;
     message.success(t("lowcodeApp.publishSuccess"));
     fetchData();
   } catch (error) {
@@ -255,6 +266,8 @@ const handlePublish = async (id: string) => {
 const handleDelete = async (id: string) => {
   try {
     await deleteTenantAppInstance(id);
+
+    if (!isMounted.value) return;
     message.success(t("lowcodeApp.deleteSuccess"));
     fetchData();
   } catch (error) {
@@ -264,7 +277,9 @@ const handleDelete = async (id: string) => {
 
 const handleExport = async (app: TenantAppInstanceListItem) => {
   try {
-    const blob = await exportTenantAppInstance(app.id);
+    const blob  = await exportTenantAppInstance(app.id);
+
+    if (!isMounted.value) return;
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
@@ -294,18 +309,24 @@ const handleImportFileChange = async (event: Event) => {
 
   importing.value = true;
   try {
-    const rawText = await file.text();
+    const rawText  = await file.text();
+
+    if (!isMounted.value) return;
     const pkg = parseLowCodeAppExportPackage(rawText);
-    const result = await importTenantAppInstance({
+    const result  = await importTenantAppInstance({
       package: pkg,
       conflictStrategy: "Rename"
     });
+
+    if (!isMounted.value) return;
     if (result.skipped) {
       message.info("目标应用已存在，已按策略跳过导入");
     } else {
       message.success(`导入成功：${result.appKey}`);
     }
     await fetchData();
+
+    if (!isMounted.value) return;
   } catch (error) {
     message.error((error as Error).message || "导入失败");
   } finally {

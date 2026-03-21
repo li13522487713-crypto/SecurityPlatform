@@ -95,7 +95,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from "vue";
+import { ref, reactive, onMounted, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { message } from "ant-design-vue";
 import type { TablePaginationConfig } from "ant-design-vue";
 import type { FormInstance } from "ant-design-vue";
@@ -155,11 +160,13 @@ const tableColumns = [
 async function loadData() {
   loading.value = true;
   try {
-    const result = await getNotificationsManage({
+    const result  = await getNotificationsManage({
       pageIndex: pagination.current ?? 1,
       pageSize: pagination.pageSize ?? 20,
       title: keyword.value || undefined
     });
+
+    if (!isMounted.value) return;
     dataSource.value = result.items;
     pagination.total = result.total;
   } catch (err: unknown) {
@@ -226,6 +233,8 @@ function closeForm() {
 async function submitForm() {
   try {
     await formRef.value?.validate();
+
+    if (!isMounted.value) return;
   } catch {
     return;
   }
@@ -243,6 +252,8 @@ async function submitForm() {
         noticeType: formData.noticeType,
         priority: formData.priority
       });
+
+      if (!isMounted.value) return;
     } else {
       if (!canUpdate) {
         message.error("暂无编辑权限");
@@ -254,6 +265,8 @@ async function submitForm() {
         noticeType: formData.noticeType,
         priority: formData.priority
       });
+
+      if (!isMounted.value) return;
     }
     message.success("保存成功");
     closeForm();
@@ -271,6 +284,8 @@ async function handleRevoke(id: string) {
   }
   try {
     await revokeNotification(id);
+
+    if (!isMounted.value) return;
     message.success("撤回成功");
     loadData();
   } catch (err: unknown) {
@@ -284,6 +299,8 @@ async function handleDelete(id: string) {
   }
   try {
     await deleteNotification(id);
+
+    if (!isMounted.value) return;
     message.success("删除成功");
     loadData();
   } catch (err: unknown) {

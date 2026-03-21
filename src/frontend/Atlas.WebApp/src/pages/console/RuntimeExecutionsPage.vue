@@ -290,7 +290,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import dayjs from "dayjs";
 import { useRouter } from "vue-router";
 import type { TableColumnsType, TablePaginationConfig } from "ant-design-vue";
@@ -470,11 +475,13 @@ function mapAppOptions(items: TenantAppInstanceListItem[]) {
 async function loadAppFilterOptions(keywordValue = "") {
   loadingAppOptions.value = true;
   try {
-    const result = await getTenantAppInstancesPaged({
+    const result  = await getTenantAppInstancesPaged({
       pageIndex: 1,
       pageSize: 20,
       keyword: keywordValue || undefined
     });
+
+    if (!isMounted.value) return;
     appFilterOptions.value = mapAppOptions(result.items);
   } catch {
     // ignore filter option loading failures to avoid interrupting main table.
@@ -490,7 +497,7 @@ const handleSearchAppOptions = debounce((value: string) => {
 async function loadRuntimeExecutions() {
   loading.value = true;
   try {
-    const result = await getRuntimeExecutionsPaged({
+    const result  = await getRuntimeExecutionsPaged({
       pageIndex: pageIndex.value,
       pageSize: pageSize.value,
       keyword: keyword.value || undefined,
@@ -499,6 +506,8 @@ async function loadRuntimeExecutions() {
       startedFrom: startedAtRange.value?.[0],
       startedTo: startedAtRange.value?.[1]
     });
+
+    if (!isMounted.value) return;
     rows.value = result.items;
     pagination.value = {
       ...pagination.value,
@@ -540,11 +549,13 @@ function resolveExecutionRowClass(record: RuntimeExecutionListItem) {
 async function loadAuditTrails(executionId: string, targetPageIndex = 1, targetPageSize = auditPageSize.value) {
   auditLoading.value = true;
   try {
-    const auditResult = await getRuntimeExecutionAuditTrails(executionId, {
+    const auditResult  = await getRuntimeExecutionAuditTrails(executionId, {
       pageIndex: targetPageIndex,
       pageSize: targetPageSize,
       keyword: auditKeyword.value || undefined
     });
+
+    if (!isMounted.value) return;
     auditRows.value = auditResult.items;
     auditPageIndex.value = auditResult.pageIndex;
     auditPageSize.value = auditResult.pageSize;
@@ -562,21 +573,27 @@ async function loadLinkedResources(detailResult: RuntimeExecutionDetail) {
 
   if (detailResult.appId) {
     jobs.push((async () => {
-      const app = await getTenantAppInstanceDetail(detailResult.appId!);
+      const app  = await getTenantAppInstanceDetail(detailResult.appId!);
+
+      if (!isMounted.value) return;
       linkedApp.value = app;
     })());
   }
 
   if (detailResult.releaseId) {
     jobs.push((async () => {
-      const release = await getReleaseCenterDetail(detailResult.releaseId!);
+      const release  = await getReleaseCenterDetail(detailResult.releaseId!);
+
+      if (!isMounted.value) return;
       linkedRelease.value = release;
     })());
   }
 
   if (detailResult.runtimeContextId) {
     jobs.push((async () => {
-      const runtimeContext = await getRuntimeContextById(detailResult.runtimeContextId!);
+      const runtimeContext  = await getRuntimeContextById(detailResult.runtimeContextId!);
+
+      if (!isMounted.value) return;
       linkedRuntimeContext.value = runtimeContext;
     })());
   }
@@ -585,6 +602,8 @@ async function loadLinkedResources(detailResult: RuntimeExecutionDetail) {
     return;
   }
   await Promise.allSettled(jobs);
+
+  if (!isMounted.value) return;
 }
 
 async function openDetail(id: string) {
@@ -598,12 +617,16 @@ async function openDetail(id: string) {
   auditTotal.value = 0;
   auditPageIndex.value = 1;
   try {
-    const detailResult = await getRuntimeExecutionDetail(id);
+    const detailResult  = await getRuntimeExecutionDetail(id);
+
+    if (!isMounted.value) return;
     detail.value = detailResult;
     await Promise.all([
       loadLinkedResources(detailResult),
       loadAuditTrails(id, 1, auditPageSize.value)
     ]);
+
+    if (!isMounted.value) return;
   } catch (error) {
     message.error((error as Error).message || "加载运行执行详情失败");
     detailVisible.value = false;
@@ -616,6 +639,8 @@ async function loadTimeoutDiagnosis(executionId: string) {
   diagnosisLoading.value = true;
   try {
     timeoutDiagnosis.value = await getRuntimeExecutionTimeoutDiagnosis(executionId);
+
+    if (!isMounted.value) return;
   } catch (error) {
     message.error((error as Error).message || "加载超时诊断失败");
   } finally {
@@ -626,11 +651,17 @@ async function loadTimeoutDiagnosis(executionId: string) {
 async function cancelExecution(executionId: string, refreshDetail = false) {
   operationLoading.value = true;
   try {
-    const result = await cancelRuntimeExecution(executionId);
+    const result  = await cancelRuntimeExecution(executionId);
+
+    if (!isMounted.value) return;
     message.success(result.message);
     await loadRuntimeExecutions();
+
+    if (!isMounted.value) return;
     if (refreshDetail) {
       await openDetail(executionId);
+
+      if (!isMounted.value) return;
     }
   } catch (error) {
     message.error((error as Error).message || "取消执行失败");
@@ -642,14 +673,22 @@ async function cancelExecution(executionId: string, refreshDetail = false) {
 async function retryExecution(executionId: string, refreshDetail = false) {
   operationLoading.value = true;
   try {
-    const result = await retryRuntimeExecution(executionId);
+    const result  = await retryRuntimeExecution(executionId);
+
+    if (!isMounted.value) return;
     message.success(result.message);
     await loadRuntimeExecutions();
+
+    if (!isMounted.value) return;
     if (refreshDetail) {
       if (result.newExecutionId) {
         await openDetail(result.newExecutionId);
+
+        if (!isMounted.value) return;
       } else {
         await openDetail(executionId);
+
+        if (!isMounted.value) return;
       }
     }
   } catch (error) {
@@ -662,11 +701,17 @@ async function retryExecution(executionId: string, refreshDetail = false) {
 async function resumeExecution(executionId: string, refreshDetail = false) {
   operationLoading.value = true;
   try {
-    const result = await resumeRuntimeExecution(executionId);
+    const result  = await resumeRuntimeExecution(executionId);
+
+    if (!isMounted.value) return;
     message.success(result.message);
     await loadRuntimeExecutions();
+
+    if (!isMounted.value) return;
     if (refreshDetail) {
       await openDetail(executionId);
+
+      if (!isMounted.value) return;
     }
   } catch (error) {
     message.error((error as Error).message || "恢复执行失败");
@@ -684,14 +729,20 @@ async function debugExecution(executionId: string) {
 
   operationLoading.value = true;
   try {
-    const result = await debugRuntimeExecution(executionId, {
+    const result  = await debugRuntimeExecution(executionId, {
       nodeKey,
       inputsJson: detail.value?.inputsJson
     });
+
+    if (!isMounted.value) return;
     message.success(result.message);
     await loadRuntimeExecutions();
+
+    if (!isMounted.value) return;
     if (result.newExecutionId) {
       await openDetail(result.newExecutionId);
+
+      if (!isMounted.value) return;
     }
   } catch (error) {
     message.error((error as Error).message || "单节点调试失败");
@@ -721,7 +772,9 @@ async function goToRuntimeContextByRecord(record: RuntimeExecutionListItem) {
   };
   if (record.appId) {
     try {
-      const app = await getTenantAppInstanceDetail(record.appId);
+      const app  = await getTenantAppInstanceDetail(record.appId);
+
+      if (!isMounted.value) return;
       if (app.appKey) {
         query.appKey = app.appKey;
       }
@@ -734,6 +787,9 @@ async function goToRuntimeContextByRecord(record: RuntimeExecutionListItem) {
     path: "/console/runtime-contexts",
     query
   });
+
+
+  if (!isMounted.value) return;
 }
 
 async function goToRuntimeContext(runtimeContextId: string) {
@@ -748,6 +804,8 @@ async function goToRuntimeContext(runtimeContextId: string) {
     path: "/console/runtime-contexts",
     query
   });
+
+  if (!isMounted.value) return;
 }
 
 function goToApp(appId: string) {

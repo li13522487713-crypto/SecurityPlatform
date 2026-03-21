@@ -29,6 +29,11 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { useRoute } from "vue-router";
 import { message } from "ant-design-vue";
 import { getCurrentAppConfig, getMyProjectsPaged } from "@/services/api";
@@ -44,11 +49,13 @@ const route = useRoute();
 let searchTimer: number | undefined;
 
 const loadProjects = async (keyword?: string) => {
-  const result = await getMyProjectsPaged({
+  const result  = await getMyProjectsPaged({
     pageIndex: 1,
     pageSize: 20,
     keyword: keyword?.trim() || undefined
   });
+
+  if (!isMounted.value) return;
 
   options.value = result.items.map((item: ProjectListItem) => ({
     label: `${item.name} (${item.code})`,
@@ -72,7 +79,9 @@ const resolvedAppId = computed(() => {
 const loadProjectContext = async (skipEvent = false) => {
   loading.value = true;
   try {
-    const appConfig = await getCurrentAppConfig();
+    const appConfig  = await getCurrentAppConfig();
+
+    if (!isMounted.value) return;
     const isEnabled = Boolean(appConfig?.enableProjectScope);
     setProjectScopeEnabled(isEnabled);
     enabled.value = isEnabled;
@@ -86,6 +95,9 @@ const loadProjectContext = async (skipEvent = false) => {
     }
 
     await loadProjects();
+
+
+    if (!isMounted.value) return;
 
     const stored = getProjectId();
     const hasStored = stored && options.value.some((item) => item.value === stored);

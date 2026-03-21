@@ -218,7 +218,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref } from "vue";
 import type { FormInstance } from "ant-design-vue";
 import { message } from "ant-design-vue";
 import { useI18n } from "vue-i18n";
@@ -322,14 +322,21 @@ const expandedTreeKeys = computed(() => {
   return ["all", ...allDepartments.value.map((item) => String(item.id))];
 });
 
+const isMounted = ref(false);
+
 const loadAllDepartments = async () => {
   treeLoading.value = true;
   try {
-    allDepartments.value = await getDepartmentsAll();
+    const result = await getDepartmentsAll();
+    if (!isMounted.value) return;
+    allDepartments.value = result;
   } catch (error) {
+    if (!isMounted.value) return;
     message.error((error as Error).message || t("systemUsers.loadDepartmentTreeFailed"));
   } finally {
-    treeLoading.value = false;
+    if (isMounted.value) {
+      treeLoading.value = false;
+    }
   }
 };
 
@@ -349,7 +356,9 @@ const handleImport = async () => {
     message.warning(t("systemUsers.chooseImportFile"));
     return;
   }
-  importResult.value = await importUsers(importFile.value);
+  const result = await importUsers(importFile.value);
+  if (!isMounted.value) return;
+  importResult.value = result;
   if (!importResult.value) {
     return;
   }
@@ -374,7 +383,12 @@ const beforeUpload = (file: File) => {
 };
 
 onMounted(() => {
+  isMounted.value = true;
   void loadAllDepartments();
+});
+
+onUnmounted(() => {
+  isMounted.value = false;
 });
 
 const handleImportCancel = () => {

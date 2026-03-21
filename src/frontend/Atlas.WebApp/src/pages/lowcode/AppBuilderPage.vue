@@ -262,7 +262,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { useRoute, useRouter } from "vue-router";
 import { message, Modal } from "ant-design-vue";
 import { useI18n } from "vue-i18n";
@@ -473,11 +478,13 @@ const flattenPageTree = (
 const loadApp = async () => {
   loading.value = true;
   try {
-    const [detail, pageTree, envs] = await Promise.all([
+    const [detail, pageTree, envs]  = await Promise.all([
       getLowCodeAppDetail(appId.value),
       getLowCodePageTree(appId.value),
       getLowCodeEnvironments(appId.value)
     ]);
+
+    if (!isMounted.value) return;
     appDetail.value = detail;
     environments.value = envs;
     if (!selectedEnvironmentCode.value) {
@@ -492,6 +499,8 @@ const loadApp = async () => {
     }
     if (!selectedPageId.value && flattened.list.length > 0) {
       await selectPage(flattened.list[0].id);
+
+      if (!isMounted.value) return;
     }
   } catch (error) {
     message.error((error as Error).message || t("lowcodeBuilder.loadAppFailed"));
@@ -507,10 +516,12 @@ const selectPage = async (pageId: string) => {
     const page = pages.value.find(p => p.id === pageId);
     if (page) {
       try {
-        const [detail, runtime] = await Promise.all([
+        const [detail, runtime]  = await Promise.all([
           getLowCodePageDetail(pageId),
           getLowCodeRuntimePageSchema(pageId, "draft", selectedEnvironmentCode.value)
         ]);
+
+        if (!isMounted.value) return;
         pageSchemas.value[pageId] = parseSchemaJson(runtime.schemaJson)
           ?? generateDefaultSchema(detail.pageType, detail.name);
       } catch {
@@ -566,11 +577,15 @@ const handlePageFormSubmit = async () => {
         description: pageForm.description || undefined,
         sortOrder: pageForm.sortOrder
       });
+
+      if (!isMounted.value) return;
       message.success(t("lowcodeBuilder.createPageSuccess"));
     } else if (editingPageId.value) {
       let currentSchema = pageSchemas.value[editingPageId.value];
       if (!currentSchema) {
-        const pageDetail = await getLowCodePageDetail(editingPageId.value);
+        const pageDetail  = await getLowCodePageDetail(editingPageId.value);
+
+        if (!isMounted.value) return;
         currentSchema = parseSchemaJson(pageDetail.schemaJson)
           ?? generateDefaultSchema(pageDetail.pageType, pageDetail.name);
         pageSchemas.value[editingPageId.value] = currentSchema;
@@ -583,10 +598,14 @@ const handlePageFormSubmit = async () => {
         description: pageForm.description || undefined,
         sortOrder: pageForm.sortOrder
       });
+
+      if (!isMounted.value) return;
       message.success(t("lowcodeBuilder.updatePageSuccess"));
     }
     pageFormVisible.value = false;
     await loadApp();
+
+    if (!isMounted.value) return;
   } catch (error) {
     message.error((error as Error).message || t("lowcodeBuilder.pageOperationFailed"));
   }
@@ -607,6 +626,8 @@ const handleSavePageSchema = async () => {
       ?? pageSchemas.value[selectedPageId.value];
     if (currentSchema) {
       await updateLowCodePageSchema(selectedPageId.value, JSON.stringify(currentSchema));
+
+      if (!isMounted.value) return;
       message.success(t("lowcodeBuilder.saveSchemaSuccess"));
     }
   } catch (error) {
@@ -641,6 +662,8 @@ const handleSaveAsTemplate = async () => {
       tags: `lowcode,page,${page.pageType.toLowerCase()}`,
       version: "1.0.0"
     });
+
+    if (!isMounted.value) return;
     message.success("模板已保存到模板市场");
   } catch (error) {
     message.error((error as Error).message || "保存模板失败");
@@ -651,8 +674,12 @@ const handlePublishPage = async (pageId: string) => {
   publishing.value = true;
   try {
     await publishLowCodePage(pageId);
+
+    if (!isMounted.value) return;
     message.success(t("lowcodeBuilder.publishSuccess"));
     await loadApp();
+
+    if (!isMounted.value) return;
   } catch (error) {
     message.error((error as Error).message || t("lowcodeBuilder.publishFailed"));
   } finally {
@@ -666,6 +693,8 @@ const handleOpenVersionHistory = async (page: LowCodePageListItem) => {
   pageVersionLoading.value = true;
   try {
     pageVersions.value = await getLowCodePageVersions(page.id);
+
+    if (!isMounted.value) return;
   } catch (error) {
     pageVersions.value = [];
     message.error((error as Error).message || "加载版本历史失败");
@@ -686,12 +715,18 @@ const handleRollbackPageVersion = async (versionId: string) => {
     cancelText: "取消",
     onOk: async () => {
       await rollbackLowCodePage(versionTargetPageId.value!, versionId);
+
+      if (!isMounted.value) return;
       message.success("回滚成功");
       versionModalVisible.value = false;
       pageSchemas.value = {};
       await loadApp();
+
+      if (!isMounted.value) return;
       if (selectedPageId.value) {
         await selectPage(selectedPageId.value);
+
+        if (!isMounted.value) return;
       }
     }
   });
@@ -703,6 +738,8 @@ const handleEnvironmentChange = async () => {
   }
   delete pageSchemas.value[selectedPageId.value];
   await selectPage(selectedPageId.value);
+
+  if (!isMounted.value) return;
 };
 
 const openEnvironmentManager = async () => {
@@ -710,6 +747,8 @@ const openEnvironmentManager = async () => {
   environmentLoading.value = true;
   try {
     environments.value = await getLowCodeEnvironments(appId.value);
+
+    if (!isMounted.value) return;
   } catch (error) {
     message.error((error as Error).message || "加载环境失败");
   } finally {
@@ -722,7 +761,9 @@ const openEnvironmentForm = async (mode: "create" | "edit", item?: LowCodeEnviro
   editingEnvironmentId.value = item?.id ?? null;
   if (mode === "edit" && item?.id) {
     try {
-      const detail = await getLowCodeEnvironmentDetail(item.id);
+      const detail  = await getLowCodeEnvironmentDetail(item.id);
+
+      if (!isMounted.value) return;
       environmentForm.name = detail.name;
       environmentForm.code = detail.code;
       environmentForm.description = detail.description ?? "";
@@ -766,6 +807,8 @@ const submitEnvironmentForm = async () => {
         isDefault: environmentForm.isDefault,
         variablesJson: environmentForm.variablesJson
       });
+
+      if (!isMounted.value) return;
       message.success("环境创建成功");
     } else if (editingEnvironmentId.value) {
       await updateLowCodeEnvironment(editingEnvironmentId.value, {
@@ -775,17 +818,23 @@ const submitEnvironmentForm = async () => {
         isActive: environmentForm.isActive,
         variablesJson: environmentForm.variablesJson
       });
+
+      if (!isMounted.value) return;
       message.success("环境更新成功");
     }
 
     environmentFormVisible.value = false;
     environments.value = await getLowCodeEnvironments(appId.value);
+
+    if (!isMounted.value) return;
     if (!selectedEnvironmentCode.value || !environments.value.some(item => item.code === selectedEnvironmentCode.value)) {
       selectedEnvironmentCode.value = environments.value.find(item => item.isDefault)?.code;
     }
     if (selectedPageId.value) {
       delete pageSchemas.value[selectedPageId.value];
       await selectPage(selectedPageId.value);
+
+      if (!isMounted.value) return;
     }
   } catch (error) {
     message.error((error as Error).message || "环境保存失败");
@@ -800,14 +849,20 @@ const handleDeleteEnvironment = (id: string) => {
     cancelText: "取消",
     onOk: async () => {
       await deleteLowCodeEnvironment(id);
+
+      if (!isMounted.value) return;
       message.success("环境已删除");
       environments.value = await getLowCodeEnvironments(appId.value);
+
+      if (!isMounted.value) return;
       if (selectedEnvironmentCode.value && !environments.value.some(item => item.code === selectedEnvironmentCode.value)) {
         selectedEnvironmentCode.value = environments.value.find(item => item.isDefault)?.code;
       }
       if (selectedPageId.value) {
         delete pageSchemas.value[selectedPageId.value];
         await selectPage(selectedPageId.value);
+
+        if (!isMounted.value) return;
       }
     }
   });
@@ -816,12 +871,16 @@ const handleDeleteEnvironment = (id: string) => {
 const handleDeletePage = async (pageId: string) => {
   try {
     await deleteLowCodePage(pageId);
+
+    if (!isMounted.value) return;
     if (selectedPageId.value === pageId) {
       selectedPageId.value = null;
     }
     delete pageSchemas.value[pageId];
     message.success(t("lowcodeBuilder.deleteSuccess"));
     await loadApp();
+
+    if (!isMounted.value) return;
   } catch (error) {
     message.error((error as Error).message || t("lowcodeBuilder.deleteFailed"));
   }
@@ -830,10 +889,12 @@ const handleDeletePage = async (pageId: string) => {
 const loadAppVersions = async () => {
   appVersionLoading.value = true;
   try {
-    const result = await getLowCodeAppVersionsPaged(appId.value, {
+    const result  = await getLowCodeAppVersionsPaged(appId.value, {
       pageIndex: appVersionPageIndex.value,
       pageSize: appVersionPageSize.value
     });
+
+    if (!isMounted.value) return;
     appVersionItems.value = result.items;
     appVersionTotal.value = result.total;
   } catch (error) {
@@ -847,6 +908,8 @@ const openAppVersionDrawer = async () => {
   appVersionDrawerVisible.value = true;
   appVersionPageIndex.value = 1;
   await loadAppVersions();
+
+  if (!isMounted.value) return;
 };
 
 const onAppVersionPageChange = (page: number, pageSizeValue: number) => {
@@ -858,9 +921,13 @@ const onAppVersionPageChange = (page: number, pageSizeValue: number) => {
 const handleRollbackAppVersion = async (versionId: string) => {
   appRollbackingVersionId.value = versionId;
   try {
-    const newVersion = await rollbackLowCodeAppVersion(appId.value, versionId);
+    const newVersion  = await rollbackLowCodeAppVersion(appId.value, versionId);
+
+    if (!isMounted.value) return;
     message.success(t("lowcodeBuilder.rollbackSuccess", { version: newVersion }));
     await Promise.all([loadApp(), loadAppVersions()]);
+
+    if (!isMounted.value) return;
   } catch (error) {
     message.error((error as Error).message || t("lowcodeBuilder.rollbackFailed"));
   } finally {

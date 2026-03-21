@@ -63,7 +63,12 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { onMounted, ref, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { getVisualizationInstances, getVisualizationInstanceDetail } from "@/services/api";
 import type { VisualizationInstanceSummary, VisualizationInstanceDetail } from "@/types/api";
 import { message } from "ant-design-vue";
@@ -92,7 +97,7 @@ interface TablePagination {
 const loadData = async () => {
   try {
     loading.value = true;
-    const result = await getVisualizationInstances(
+    const result  = await getVisualizationInstances(
       {
         pageIndex: pagination.value.current,
         pageSize: pagination.value.pageSize
@@ -101,6 +106,8 @@ const loadData = async () => {
         status: statusFilter.value
       }
     );
+
+    if (!isMounted.value) return;
     instances.value = result.items;
     pagination.value.total = result.total;
   } catch (err) {
@@ -123,6 +130,8 @@ const handleRowClick = async (record: VisualizationInstanceSummary) => {
   try {
     detailVisible.value = true;
     detail.value = await getVisualizationInstanceDetail(record.id);
+
+    if (!isMounted.value) return;
   } catch (err) {
     message.error((err as Error).message);
   }

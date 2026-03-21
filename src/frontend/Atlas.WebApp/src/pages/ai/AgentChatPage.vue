@@ -110,7 +110,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick, onMounted, watch } from "vue";
+import { ref, computed, nextTick, onMounted, watch, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { useRoute } from "vue-router";
 import { message } from "ant-design-vue";
 import ChatMessage from "@/components/ai/ChatMessage.vue";
@@ -164,10 +169,12 @@ function formatDate(iso: string) {
 async function loadConversations() {
   loadingConversations.value = true;
   try {
-    const result = await getConversationsPaged(
+    const result  = await getConversationsPaged(
       { pageIndex: 1, pageSize: 50 },
       agentId.value
     );
+
+    if (!isMounted.value) return;
     conversations.value = result.items.sort(
       (a, b) => new Date(b.lastMessageAt || b.createdAt).getTime() -
                  new Date(a.lastMessageAt || a.createdAt).getTime()
@@ -184,14 +191,20 @@ async function selectConversation(conv: ConversationDto) {
   currentConvId.value = conv.id;
   chatStore.currentConversationId.value = conv.id;
   await loadMessages(conv.id);
+
+  if (!isMounted.value) return;
 }
 
 async function loadMessages(convId: number) {
   loadingMessages.value = true;
   try {
-    const msgs = await getMessages(convId, { limit: 50 });
+    const msgs  = await getMessages(convId, { limit: 50 });
+
+    if (!isMounted.value) return;
     chatStore.loadHistory(msgs);
     await scrollToBottom();
+
+    if (!isMounted.value) return;
   } catch (err: unknown) {
     message.error((err as Error).message || "加载消息失败");
   } finally {
@@ -201,11 +214,17 @@ async function loadMessages(convId: number) {
 
 async function handleNewConversation() {
   try {
-    const id = await createConversation(agentId.value, "新对话");
+    const id  = await createConversation(agentId.value, "新对话");
+
+    if (!isMounted.value) return;
     await loadConversations();
+
+    if (!isMounted.value) return;
     const conv = conversations.value.find((c) => c.id === id);
     if (conv) {
       await selectConversation(conv);
+
+      if (!isMounted.value) return;
     } else {
       currentConvId.value = id;
       chatStore.clearMessages();
@@ -218,11 +237,15 @@ async function handleNewConversation() {
 async function handleDeleteConversation(id: number) {
   try {
     await deleteConversation(id);
+
+    if (!isMounted.value) return;
     if (currentConvId.value === id) {
       currentConvId.value = null;
       chatStore.clearMessages();
     }
     await loadConversations();
+
+    if (!isMounted.value) return;
     message.success("删除成功");
   } catch (err: unknown) {
     message.error((err as Error).message || "删除失败");
@@ -233,6 +256,8 @@ async function handleClearContext() {
   if (!currentConvId.value) return;
   try {
     await clearConversationContext(currentConvId.value);
+
+    if (!isMounted.value) return;
     message.success("上下文已清除");
   } catch (err: unknown) {
     message.error((err as Error).message || "操作失败");
@@ -243,6 +268,8 @@ async function handleClearHistory() {
   if (!currentConvId.value) return;
   try {
     await clearConversationHistory(currentConvId.value);
+
+    if (!isMounted.value) return;
     chatStore.clearMessages();
     message.success("历史已清除");
   } catch (err: unknown) {
@@ -255,8 +282,14 @@ async function handleSend() {
   const text = inputText.value;
   inputText.value = "";
   await chatStore.sendMessage(text);
+
+  if (!isMounted.value) return;
   await scrollToBottom();
+
+  if (!isMounted.value) return;
   await loadConversations();
+
+  if (!isMounted.value) return;
 }
 
 function handleCancel() {
@@ -272,6 +305,8 @@ function handleKeyDown(e: KeyboardEvent) {
 
 async function scrollToBottom() {
   await nextTick();
+
+  if (!isMounted.value) return;
   if (messagesContainer.value) {
     messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
   }
@@ -281,19 +316,27 @@ watch(
   () => chatStore.messages.value.length,
   async () => {
     await scrollToBottom();
+
+    if (!isMounted.value) return;
   }
 );
 
 onMounted(async () => {
   try {
-    const agent = await getAgentById(agentId.value);
+    const agent  = await getAgentById(agentId.value);
+
+    if (!isMounted.value) return;
     agentName.value = agent.name;
   } catch {
     // ignore
   }
   await loadConversations();
+
+  if (!isMounted.value) return;
   if (conversations.value.length > 0) {
     await selectConversation(conversations.value[0]);
+
+    if (!isMounted.value) return;
   }
 });
 </script>

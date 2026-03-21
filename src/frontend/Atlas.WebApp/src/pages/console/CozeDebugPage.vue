@@ -136,7 +136,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { useRoute, useRouter } from "vue-router";
 import { message } from "ant-design-vue";
 import type { TableColumnsType } from "ant-design-vue";
@@ -210,7 +215,9 @@ function formatDate(value?: string) {
 async function loadMappings() {
   loadingMappings.value = true;
   try {
-    const overview = await getCozeLayerMappingsOverview();
+    const overview  = await getCozeLayerMappingsOverview();
+
+    if (!isMounted.value) return;
     mappingRows.value = overview.layers;
   } catch (error) {
     message.error((error as Error).message || "加载 Coze 映射失败");
@@ -223,8 +230,12 @@ async function loadMetadata() {
   loadingMetadata.value = true;
   try {
     metadata.value = await getDebugLayerEmbedMetadata();
+
+    if (!isMounted.value) return;
     if (canViewRuntimeExecutions.value) {
       await loadRuntimeExecutions();
+
+      if (!isMounted.value) return;
     }
   } catch (error) {
     message.error((error as Error).message || "加载调试层元数据失败");
@@ -241,11 +252,13 @@ async function loadRuntimeExecutions() {
 
   loadingRuntimeExecutions.value = true;
   try {
-    const result = await getRuntimeExecutionsPaged({
+    const result  = await getRuntimeExecutionsPaged({
       pageIndex: 1,
       pageSize: 50,
       keyword: runtimeKeyword.value || undefined
     });
+
+    if (!isMounted.value) return;
     runtimeRows.value = result.items;
   } catch (error) {
     message.error((error as Error).message || "加载运行执行列表失败");
@@ -266,11 +279,13 @@ async function loadAuditTrails() {
 
   loadingAudits.value = true;
   try {
-    const result = await getRuntimeExecutionAuditTrails(executionId.value.trim(), {
+    const result  = await getRuntimeExecutionAuditTrails(executionId.value.trim(), {
       pageIndex: 1,
       pageSize: 20,
       keyword: auditKeyword.value || undefined
     });
+
+    if (!isMounted.value) return;
     auditRows.value = result.items;
   } catch (error) {
     message.error((error as Error).message || "加载执行审计失败");
@@ -282,6 +297,8 @@ async function loadAuditTrails() {
 async function traceExecution(id: string) {
   executionId.value = id;
   await loadAuditTrails();
+
+  if (!isMounted.value) return;
 }
 
 onMounted(async () => {
@@ -293,8 +310,13 @@ onMounted(async () => {
   }
 
   await Promise.all([loadMappings(), loadMetadata()]);
+
+
+  if (!isMounted.value) return;
   if (executionId.value) {
     await loadAuditTrails();
+
+    if (!isMounted.value) return;
   }
   void router.replace({
     query: {

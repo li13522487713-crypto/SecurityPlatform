@@ -26,7 +26,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue';
+import { ref, watch, onMounted, onUnmounted } from 'vue';
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { debounce } from 'lodash-es';
 import { getUsersPaged, getRolesPaged, getDepartmentsPaged } from '@/services/api';
 import type { UserListItem, RoleListItem, DepartmentListItem } from '@/types/api';
@@ -66,14 +71,18 @@ const handleSearch = debounce(async (value: string) => {
   fetching.value = true;
   try {
     if (props.mode === 'user') {
-      const res = await getUsersPaged({ pageIndex: 1, pageSize: 20, keyword: value });
+      const res  = await getUsersPaged({ pageIndex: 1, pageSize: 20, keyword: value });
+
+      if (!isMounted.value) return;
       options.value = res.items.map((u: UserListItem) => ({
         value: u.id,
         label: u.displayName || u.username,
         avatar: undefined // API doesn't return avatar yet
       }));
     } else if (props.mode === 'role') {
-      const res = await getRolesPaged({ pageIndex: 1, pageSize: 20, keyword: value });
+      const res  = await getRolesPaged({ pageIndex: 1, pageSize: 20, keyword: value });
+
+      if (!isMounted.value) return;
       options.value = res.items.map((r: RoleListItem) => ({
         value: r.code, // Use code for roles as per backend expectation usually, or id? 
                        // In ApprovalPropertiesPanel I used code for role placeholder.
@@ -86,7 +95,9 @@ const handleSearch = debounce(async (value: string) => {
         label: r.name
       }));
     } else if (props.mode === 'department') {
-      const res = await getDepartmentsPaged({ pageIndex: 1, pageSize: 20, keyword: value });
+      const res  = await getDepartmentsPaged({ pageIndex: 1, pageSize: 20, keyword: value });
+
+      if (!isMounted.value) return;
       options.value = res.items.map((d: DepartmentListItem) => ({
         value: d.id,
         label: d.name

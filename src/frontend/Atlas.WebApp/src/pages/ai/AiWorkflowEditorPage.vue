@@ -141,7 +141,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { useRoute, useRouter } from "vue-router";
 import { message } from "ant-design-vue";
 import { Controls } from "@vue-flow/controls";
@@ -219,6 +224,8 @@ function goBack() {
 async function loadNodeTypes() {
   try {
     nodeTypes.value = await getAiWorkflowNodeTypes();
+
+    if (!isMounted.value) return;
   } catch (err: unknown) {
     message.error((err as Error).message || "加载节点类型失败");
   }
@@ -226,7 +233,9 @@ async function loadNodeTypes() {
 
 async function loadWorkflow() {
   try {
-    const detail = await getAiWorkflowById(workflowId);
+    const detail  = await getAiWorkflowById(workflowId);
+
+    if (!isMounted.value) return;
     if (detail.canvasJson) {
       const parsed = JSON.parse(detail.canvasJson) as { nodes?: Node[]; edges?: Edge[] };
       nodes.value = parsed.nodes || [];
@@ -267,6 +276,8 @@ async function saveWorkflow(options?: { silent?: boolean }) {
       canvasJson,
       definitionJson: "{}"
     });
+
+    if (!isMounted.value) return;
     if (!options?.silent) {
       message.success("保存成功");
     }
@@ -282,7 +293,11 @@ async function validateWorkflow() {
   validating.value = true;
   try {
     await saveWorkflow({ silent: true });
-    const result = await validateAiWorkflow(workflowId);
+
+    if (!isMounted.value) return;
+    const result  = await validateAiWorkflow(workflowId);
+
+    if (!isMounted.value) return;
     if (result.isValid) {
       message.success("校验通过");
       return;
@@ -300,7 +315,11 @@ async function runWorkflow(inputs: Record<string, unknown>) {
   running.value = true;
   try {
     await saveWorkflow({ silent: true });
-    const result = await runAiWorkflow(workflowId, inputs);
+
+    if (!isMounted.value) return;
+    const result  = await runAiWorkflow(workflowId, inputs);
+
+    if (!isMounted.value) return;
     executionId.value = result.executionId;
     message.success("已启动执行");
   } catch (err: unknown) {
@@ -313,6 +332,8 @@ async function runWorkflow(inputs: Record<string, unknown>) {
 async function cancelExecution(id: string) {
   try {
     await cancelAiWorkflowExecution(id);
+
+    if (!isMounted.value) return;
     message.success("已取消执行");
     executionStatus.value = "Terminated";
   } catch (err: unknown) {
@@ -333,6 +354,8 @@ async function openVersionHistory() {
   versionLoading.value = true;
   try {
     versionList.value = await getAiWorkflowVersions(workflowId);
+
+    if (!isMounted.value) return;
   } catch (err: unknown) {
     message.error((err as Error).message || "加载版本历史失败");
   } finally {
@@ -353,6 +376,8 @@ function setDiffBase(version: number) {
 async function loadDiff(fromVer: number, toVer: number) {
   try {
     diffResult.value = await getAiWorkflowVersionDiff(workflowId, fromVer, toVer);
+
+    if (!isMounted.value) return;
   } catch (err: unknown) {
     message.error((err as Error).message || "加载版本差异失败");
   }
@@ -361,11 +386,15 @@ async function loadDiff(fromVer: number, toVer: number) {
 async function doRollback(targetVersion: number) {
   rollingBack.value = true;
   try {
-    const result = await rollbackAiWorkflow(workflowId, targetVersion);
+    const result  = await rollbackAiWorkflow(workflowId, targetVersion);
+
+    if (!isMounted.value) return;
     message.success(`已回滚到 v${targetVersion}，新版本为 v${result.newVersion}`);
     currentPublishVersion.value = result.newVersion;
     versionDrawerOpen.value = false;
     await loadWorkflow();
+
+    if (!isMounted.value) return;
   } catch (err: unknown) {
     message.error((err as Error).message || "版本回滚失败");
   } finally {
@@ -382,7 +411,9 @@ watch(executionId, (id) => {
   if (!id) return;
   progressPollTimer = window.setInterval(async () => {
     try {
-      const progress = await getAiWorkflowExecutionProgress(id);
+      const progress  = await getAiWorkflowExecutionProgress(id);
+
+      if (!isMounted.value) return;
       executionStatus.value = progress.status;
       if (["Complete", "Terminated"].includes(progress.status)) {
         if (progressPollTimer) {
@@ -401,6 +432,8 @@ watch(executionId, (id) => {
 
 onMounted(async () => {
   await Promise.all([loadNodeTypes(), loadWorkflow()]);
+
+  if (!isMounted.value) return;
 });
 
 onBeforeUnmount(() => {

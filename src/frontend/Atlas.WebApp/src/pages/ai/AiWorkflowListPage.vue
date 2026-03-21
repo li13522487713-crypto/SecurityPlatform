@@ -61,7 +61,12 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from "vue";
+import { onMounted, reactive, ref, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { useRouter } from "vue-router";
 import { message } from "ant-design-vue";
 import type { FormInstance } from "ant-design-vue";
@@ -126,10 +131,12 @@ function statusColor(status: number | string) {
 async function loadData() {
   loading.value = true;
   try {
-    const result = await getAiWorkflowsPaged(
+    const result  = await getAiWorkflowsPaged(
       { pageIndex: pageIndex.value, pageSize: pageSize.value },
       keyword.value || undefined
     );
+
+    if (!isMounted.value) return;
     list.value = result.items;
     total.value = Number(result.total);
   } catch (err: unknown) {
@@ -156,21 +163,27 @@ function closeModal() {
 async function submitCreate() {
   try {
     await formRef.value?.validate();
+
+    if (!isMounted.value) return;
   } catch {
     return;
   }
 
   modalLoading.value = true;
   try {
-    const id = await createAiWorkflow({
+    const id  = await createAiWorkflow({
       name: form.name,
       description: form.description || undefined,
       canvasJson: JSON.stringify({ nodes: [], edges: [] }),
       definitionJson: "{}"
     });
+
+    if (!isMounted.value) return;
     message.success("创建成功");
     modalVisible.value = false;
     await loadData();
+
+    if (!isMounted.value) return;
     goEditor(id);
   } catch (err: unknown) {
     message.error((err as Error).message || "创建失败");
@@ -182,8 +195,12 @@ async function submitCreate() {
 async function handleDelete(id: number) {
   try {
     await deleteAiWorkflow(id);
+
+    if (!isMounted.value) return;
     message.success("删除成功");
     await loadData();
+
+    if (!isMounted.value) return;
   } catch (err: unknown) {
     message.error((err as Error).message || "删除失败");
   }
@@ -192,8 +209,12 @@ async function handleDelete(id: number) {
 async function handlePublish(id: number) {
   try {
     await publishAiWorkflow(id);
+
+    if (!isMounted.value) return;
     message.success("发布成功");
     await loadData();
+
+    if (!isMounted.value) return;
   } catch (err: unknown) {
     message.error((err as Error).message || "发布失败");
   }
@@ -202,8 +223,12 @@ async function handlePublish(id: number) {
 async function handleCopy(id: number) {
   try {
     await copyAiWorkflow(id);
+
+    if (!isMounted.value) return;
     message.success("复制成功");
     await loadData();
+
+    if (!isMounted.value) return;
   } catch (err: unknown) {
     message.error((err as Error).message || "复制失败");
   }

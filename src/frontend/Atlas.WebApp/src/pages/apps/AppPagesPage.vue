@@ -47,7 +47,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, ref, watch, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { useRoute, useRouter } from "vue-router";
 import { message } from "ant-design-vue";
 import { getLowCodeAppDetail } from "@/services/lowcode";
@@ -79,7 +84,9 @@ async function loadPages() {
 
   loading.value = true;
   try {
-    const detail = await getLowCodeAppDetail(appId.value);
+    const detail  = await getLowCodeAppDetail(appId.value);
+
+    if (!isMounted.value) return;
     appDetail.value = detail;
     pages.value = [...detail.pages].sort((a, b) => a.sortOrder - b.sortOrder);
   } catch (error) {

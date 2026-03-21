@@ -40,7 +40,12 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref, watch } from 'vue';
+import { onMounted, reactive, ref, watch, onUnmounted } from 'vue';
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { useRouter } from 'vue-router';
 import { message } from 'ant-design-vue';
 import type { TablePaginationConfig } from 'ant-design-vue';
@@ -76,13 +81,15 @@ const fetchData = async () => {
   loading.value = true;
   try {
     const isRead = readFilter.value === 'all' ? undefined : readFilter.value === 'read';
-    const result = await getMyCopyRecordsPaged(
+    const result  = await getMyCopyRecordsPaged(
       {
         pageIndex: pagination.current ?? 1,
         pageSize: pagination.pageSize ?? 10,
       },
       isRead,
     );
+
+    if (!isMounted.value) return;
     dataSource.value = result.items;
     pagination.total = result.total;
   } catch (err) {
@@ -101,8 +108,12 @@ const onTableChange = (pager: TablePaginationConfig) => {
 const markRead = async (copyRecordId: string | number) => {
   try {
     await markCopyRecordAsRead(String(copyRecordId));
+
+    if (!isMounted.value) return;
     message.success('已标记为已读');
     await fetchData();
+
+    if (!isMounted.value) return;
   } catch (err) {
     message.error(err instanceof Error ? err.message : '操作失败');
   }

@@ -46,7 +46,12 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { onMounted, ref, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { useRouter } from "vue-router";
 import { message } from "ant-design-vue";
 import { getAiWorkspaceLibrary, type AiLibraryItem } from "@/services/api-ai-workspace";
@@ -78,12 +83,14 @@ const resourceTypeOptions = [
 async function loadData() {
   loading.value = true;
   try {
-    const result = await getAiWorkspaceLibrary({
+    const result  = await getAiWorkspaceLibrary({
       keyword: keyword.value || undefined,
       resourceType: resourceType.value,
       pageIndex: pageIndex.value,
       pageSize: pageSize.value
     });
+
+    if (!isMounted.value) return;
     items.value = result.items.map((item) => ({
       ...item,
       key: `${item.resourceType}-${item.resourceId}`
@@ -98,6 +105,8 @@ async function loadData() {
 
 async function goPath(path: string) {
   await router.push(path);
+
+  if (!isMounted.value) return;
 }
 
 onMounted(() => {

@@ -25,7 +25,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { message } from 'ant-design-vue';
 import type { TablePaginationConfig } from 'ant-design-vue';
 import { getTaskPool, claimTask } from '@/services/api';
@@ -53,10 +58,12 @@ const columns = [
 const fetchTasks = async () => {
   loading.value = true;
   try {
-    const res = await getTaskPool({
+    const res  = await getTaskPool({
       pageIndex: pagination.value.current,
       pageSize: pagination.value.pageSize
     });
+
+    if (!isMounted.value) return;
     tasks.value = res.items;
     pagination.value.total = res.total;
   } catch (error) {
@@ -75,6 +82,8 @@ const handleTableChange = (pag: TablePaginationConfig) => {
 const handleClaim = async (task: ApprovalTaskResponse) => {
   try {
     await claimTask(task.id);
+
+    if (!isMounted.value) return;
     message.success('认领成功');
     fetchTasks();
   } catch (error) {

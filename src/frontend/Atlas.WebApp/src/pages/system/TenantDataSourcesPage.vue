@@ -106,7 +106,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import type { FormInstance, Rule } from "ant-design-vue/es/form";
 import { message } from "ant-design-vue";
 import { useI18n } from "vue-i18n";
@@ -184,6 +189,8 @@ const loadData = async () => {
   loading.value = true;
   try {
     items.value = await getTenantDataSources();
+
+    if (!isMounted.value) return;
   } catch (error) {
     message.error(error instanceof Error ? error.message : t("datasource.loadFailed"));
   } finally {
@@ -224,7 +231,9 @@ const closeForm = () => {
 };
 
 const handleTestConnection = async () => {
-  const valid = await formRef.value?.validate().catch(() => false);
+  const valid  = await formRef.value?.validate().catch(() => false);
+
+  if (!isMounted.value) return;
   if (!valid) return;
 
   testing.value = true;
@@ -238,6 +247,8 @@ const handleTestConnection = async () => {
     if (result.success) {
       message.success(result.latencyMs ? `${t("datasource.testSuccess")}（${result.latencyMs}ms）` : t("datasource.testSuccess"));
       await loadData();
+
+      if (!isMounted.value) return;
       return;
     }
     const suffix = result.latencyMs ? `（${result.latencyMs}ms）` : "";
@@ -250,7 +261,9 @@ const handleTestConnection = async () => {
 };
 
 const submitForm = async () => {
-  const valid = await formRef.value?.validate().catch(() => false);
+  const valid  = await formRef.value?.validate().catch(() => false);
+
+  if (!isMounted.value) return;
   if (!valid) return;
 
   saving.value = true;
@@ -265,6 +278,8 @@ const submitForm = async () => {
         connectionTimeoutSeconds: formModel.connectionTimeoutSeconds
       };
       await createTenantDataSource(payload);
+
+      if (!isMounted.value) return;
       message.success(t("datasource.createSuccess"));
     } else {
       const payload: TenantDataSourceUpdateRequest = {
@@ -275,10 +290,14 @@ const submitForm = async () => {
         connectionTimeoutSeconds: formModel.connectionTimeoutSeconds
       };
       await updateTenantDataSource(editingId.value, payload);
+
+      if (!isMounted.value) return;
       message.success(t("datasource.updateSuccess"));
     }
     formVisible.value = false;
     await loadData();
+
+    if (!isMounted.value) return;
   } catch (error) {
     message.error(error instanceof Error ? error.message : t("datasource.saveFailed"));
   } finally {
@@ -289,8 +308,12 @@ const submitForm = async () => {
 const handleDelete = async (id: string) => {
   try {
     await deleteTenantDataSource(id);
+
+    if (!isMounted.value) return;
     message.success(t("datasource.deleteSuccess"));
     await loadData();
+
+    if (!isMounted.value) return;
   } catch (error) {
     message.error(error instanceof Error ? error.message : t("common.failed"));
   }
@@ -302,7 +325,9 @@ const handleTestById = async (record: TenantDataSourceDto) => {
   }
   testingById[record.id] = true;
   try {
-    const result = await testTenantDataSourceConnectionById(record.id);
+    const result  = await testTenantDataSourceConnectionById(record.id);
+
+    if (!isMounted.value) return;
     if (result.success) {
       message.success(result.latencyMs ? `${t("datasource.testSuccess")}（${result.latencyMs}ms）` : t("datasource.testSuccess"));
     } else {
@@ -310,6 +335,8 @@ const handleTestById = async (record: TenantDataSourceDto) => {
       message.error((result.errorMessage || t("datasource.testFailed")) + suffix);
     }
     await loadData();
+
+    if (!isMounted.value) return;
   } catch (error) {
     message.error(error instanceof Error ? error.message : t("datasource.testFailed"));
   } finally {

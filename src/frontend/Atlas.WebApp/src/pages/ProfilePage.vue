@@ -110,7 +110,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { useRouter } from "vue-router";
 import { message } from "ant-design-vue";
 import { 
@@ -176,7 +181,9 @@ const loadProfile = async () => {
   }
 
   try {
-    const result = await getCurrentUser();
+    const result  = await getCurrentUser();
+
+    if (!isMounted.value) return;
     profile.value = result;
     setAuthProfile(result);
   } catch (error) {
@@ -190,7 +197,9 @@ const loadDetail = async () => {
   }
 
   try {
-    const detail = await getProfileDetail();
+    const detail  = await getProfileDetail();
+
+    if (!isMounted.value) return;
     userDetail.value = detail;
     formModel.displayName = detail.displayName;
     formModel.email = detail.email ?? "";
@@ -217,9 +226,15 @@ const submit = async () => {
       email: formModel.email || undefined,
       phoneNumber: formModel.phoneNumber || undefined
     });
+
+    if (!isMounted.value) return;
     message.success("保存成功");
     await loadProfile();
+
+    if (!isMounted.value) return;
     await loadDetail();
+
+    if (!isMounted.value) return;
   } catch (error) {
     message.error((error as Error).message || "保存失败");
   } finally {
@@ -237,6 +252,8 @@ const resetPasswordForm = () => {
 const submitPassword = async () => {
   try {
     await passwordFormRef.value?.validate();
+
+    if (!isMounted.value) return;
   } catch {
     return;
   }
@@ -248,9 +265,13 @@ const submitPassword = async () => {
       newPassword: passwordModel.newPassword,
       confirmPassword: passwordModel.confirmPassword
     });
+
+    if (!isMounted.value) return;
     message.success("密码更新成功，即将退出登录");
     resetPasswordForm();
     await logoutAndRedirect();
+
+    if (!isMounted.value) return;
   } catch (error) {
     message.error((error as Error).message || "修改密码失败");
   } finally {
@@ -261,6 +282,8 @@ const submitPassword = async () => {
 const logoutAndRedirect = async () => {
   try {
     await apiLogout();
+
+    if (!isMounted.value) return;
   } catch {
     // ignore
   }
@@ -280,7 +303,9 @@ const mfaCodeInput = ref("");
 const loadMfaStatus = async () => {
   mfaStatusLoading.value = true;
   try {
-    const status = await getMfaStatus();
+    const status  = await getMfaStatus();
+
+    if (!isMounted.value) return;
     mfaEnabled.value = status.mfaEnabled;
   } catch (error) {
     message.error("无法加载MFA状态：" + ((error as Error).message || "未知错误"));
@@ -293,7 +318,9 @@ const handleSetupMfa = async () => {
   settingMfa.value = true;
   mfaCodeInput.value = "";
   try {
-    const result = await setupMfa();
+    const result  = await setupMfa();
+
+    if (!isMounted.value) return;
     mfaSetupContext.value = result;
   } catch (error) {
     message.error("发起配置失败：" + ((error as Error).message || "未知错误"));
@@ -309,7 +336,9 @@ const handleVerifyMfa = async () => {
   }
   verifyingMfa.value = true;
   try {
-    const success = await verifyMfaSetup(mfaCodeInput.value);
+    const success  = await verifyMfaSetup(mfaCodeInput.value);
+
+    if (!isMounted.value) return;
     if (success) {
       message.success("两步验证启用成功");
       mfaEnabled.value = true;
@@ -330,7 +359,9 @@ const handleDisableMfa = async () => {
   }
   disablingMfa.value = true;
   try {
-    const success = await disableMfa(mfaCodeInput.value);
+    const success  = await disableMfa(mfaCodeInput.value);
+
+    if (!isMounted.value) return;
     if (success) {
       message.success("已成功取消两步验证");
       mfaEnabled.value = false;
@@ -345,8 +376,14 @@ const handleDisableMfa = async () => {
 
 onMounted(async () => {
   await loadProfile();
+
+  if (!isMounted.value) return;
   await loadDetail();
+
+  if (!isMounted.value) return;
   await loadMfaStatus();
+
+  if (!isMounted.value) return;
 });
 </script>
 

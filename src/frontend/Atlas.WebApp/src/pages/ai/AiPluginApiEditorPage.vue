@@ -52,7 +52,12 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from "vue";
+import { onMounted, reactive, ref, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { useRoute } from "vue-router";
 import type { FormInstance } from "ant-design-vue";
 import { message } from "ant-design-vue";
@@ -97,7 +102,9 @@ async function loadFromServer() {
   }
 
   try {
-    const apis = await getAiPluginApis(pluginId.value);
+    const apis  = await getAiPluginApis(pluginId.value);
+
+    if (!isMounted.value) return;
     const target = apis.find((x) => x.id === apiId.value);
     if (!target) {
       message.warning("未找到指定接口");
@@ -127,6 +134,8 @@ async function submit() {
 
   try {
     await formRef.value?.validate();
+
+    if (!isMounted.value) return;
   } catch {
     return;
   }
@@ -144,9 +153,11 @@ async function submit() {
         timeoutSeconds: form.timeoutSeconds,
         isEnabled: form.isEnabled
       });
+
+      if (!isMounted.value) return;
       message.success("更新成功");
     } else {
-      const newId = await createAiPluginApi(pluginId.value, {
+      const newId  = await createAiPluginApi(pluginId.value, {
         name: form.name,
         description: form.description || undefined,
         method: form.method,
@@ -155,6 +166,8 @@ async function submit() {
         responseSchemaJson: form.responseSchemaJson || undefined,
         timeoutSeconds: form.timeoutSeconds
       });
+
+      if (!isMounted.value) return;
       apiId.value = newId;
       message.success("创建成功");
     }

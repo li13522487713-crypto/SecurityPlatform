@@ -204,7 +204,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { useRouter } from "vue-router";
 import { message } from "ant-design-vue";
 import type { TableColumnsType } from "ant-design-vue";
@@ -309,11 +314,13 @@ const todayDate = computed(() =>
 async function loadApps() {
   loading.value = true;
   try {
-    const result = await getTenantAppInstancesPaged({
+    const result  = await getTenantAppInstancesPaged({
       pageIndex: 1,
       pageSize: 60,
       keyword: keyword.value || undefined
     });
+
+    if (!isMounted.value) return;
     apps.value = result.items;
   } catch (error) {
     message.error((error as Error).message || "Failed to load apps");
@@ -326,6 +333,8 @@ async function loadResourceGroups() {
   resourceGroupLoading.value = true;
   try {
     resourceGroups.value = await getResourceCenterGroups();
+
+    if (!isMounted.value) return;
   } catch (error) {
     message.error((error as Error).message || "Failed to load resource groups");
   } finally {
@@ -337,7 +346,11 @@ async function loadDataSourceConsumption() {
   dataSourceConsumptionLoading.value = true;
   try {
     dataSourceConsumption.value = await getResourceCenterDataSourceConsumption();
+
+    if (!isMounted.value) return;
     await searchAppFilterOptions();
+
+    if (!isMounted.value) return;
   } catch (error) {
     message.error((error as Error).message || "Failed to load datasource consumption");
   } finally {
@@ -347,11 +360,13 @@ async function loadDataSourceConsumption() {
 
 async function searchAppFilterOptions(keyword?: string) {
   try {
-    const response = await getTenantAppInstancesPaged({
+    const response  = await getTenantAppInstancesPaged({
       pageIndex: 1,
       pageSize: 20,
       keyword: keyword || undefined
     });
+
+    if (!isMounted.value) return;
     appFilterOptions.value = response.items.map((item) => ({
       label: `${item.name} (${item.appKey})`,
       value: item.id

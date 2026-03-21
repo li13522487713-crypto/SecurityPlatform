@@ -31,7 +31,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, nextTick } from 'vue';
+import { ref, onMounted, nextTick, onUnmounted } from 'vue';
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { message } from 'ant-design-vue';
 import { getCommunications, communicateTask, type ApprovalCommunicationMessage } from '@/services/api';
 import UserRolePicker from '@/components/common/UserRolePicker.vue';
@@ -50,7 +55,9 @@ const msgListRef = ref<HTMLElement | null>(null);
 
 const fetchMessages = async () => {
   try {
-    const res = await getCommunications(props.taskId);
+    const res  = await getCommunications(props.taskId);
+
+    if (!isMounted.value) return;
     messages.value = [...res].sort((a, b) => dayjs(a.createdAt).valueOf() - dayjs(b.createdAt).valueOf());
     scrollToBottom();
   } catch (error) {
@@ -69,6 +76,8 @@ const handleSend = async () => {
   try {
     const recipientId = recipientIds.value[0];
     await communicateTask(props.taskId, recipientId, inputText.value);
+
+    if (!isMounted.value) return;
     inputText.value = '';
     recipientIds.value = [];
     message.success('发送成功');

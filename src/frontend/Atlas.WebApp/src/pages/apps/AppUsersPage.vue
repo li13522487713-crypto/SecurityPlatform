@@ -145,7 +145,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import type { TableColumnsType, TablePaginationConfig } from "ant-design-vue";
 import { message } from "ant-design-vue";
 import { useRoute } from "vue-router";
@@ -260,7 +265,9 @@ async function loadMembers() {
       pageSize: Number(pagination.pageSize ?? 10),
       keyword: keyword.value.trim() || undefined
     };
-    const result = await getTenantAppMembersPaged(appId.value, request);
+    const result  = await getTenantAppMembersPaged(appId.value, request);
+
+    if (!isMounted.value) return;
     members.value = result.items;
     pagination.total = result.total;
     pagination.current = result.pageIndex;
@@ -277,11 +284,13 @@ async function loadMembers() {
 async function loadUserOptions(keywordText?: string) {
   userOptionsLoading.value = true;
   try {
-    const result = await getUsersPaged({
+    const result  = await getUsersPaged({
       pageIndex: 1,
       pageSize: 20,
       keyword: keywordText?.trim() || undefined
     });
+
+    if (!isMounted.value) return;
     userOptions.value = result.items.map((item) => ({
       label: `${item.displayName} (${item.username})`,
       value: item.id
@@ -304,11 +313,13 @@ async function loadRoleOptions(keywordText?: string) {
 
   roleOptionsLoading.value = true;
   try {
-    const result = await getTenantAppRolesPaged(appId.value, {
+    const result  = await getTenantAppRolesPaged(appId.value, {
       pageIndex: 1,
       pageSize: 20,
       keyword: keywordText?.trim() || undefined
     });
+
+    if (!isMounted.value) return;
     roleOptions.value = result.items.map((item) => ({
       label: `${item.name} (${item.code})`,
       value: item.id
@@ -369,9 +380,13 @@ async function submitAddMembers() {
       userIds: addForm.userIds.map((id) => Number(id)),
       roleIds: addForm.roleIds.map((id) => Number(id))
     });
+
+    if (!isMounted.value) return;
     message.success("添加成员成功");
     addMemberModalOpen.value = false;
     await loadMembers();
+
+    if (!isMounted.value) return;
   } catch (error) {
     message.error((error as Error).message || "添加成员失败");
   } finally {
@@ -401,9 +416,13 @@ async function submitUpdateMemberRoles() {
     await updateTenantAppMemberRoles(appId.value, editingUserId.value, {
       roleIds: editRolesForm.roleIds.map((id) => Number(id))
     });
+
+    if (!isMounted.value) return;
     message.success("成员角色已更新");
     editRolesModalOpen.value = false;
     await loadMembers();
+
+    if (!isMounted.value) return;
   } catch (error) {
     message.error((error as Error).message || "更新成员角色失败");
   } finally {
@@ -418,8 +437,12 @@ async function removeMember(userId: string) {
 
   try {
     await removeTenantAppMember(appId.value, userId);
+
+    if (!isMounted.value) return;
     message.success("成员已移除");
     await loadMembers();
+
+    if (!isMounted.value) return;
   } catch (error) {
     message.error((error as Error).message || "移除成员失败");
   }

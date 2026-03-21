@@ -80,7 +80,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { useRoute, useRouter } from "vue-router";
 import { message } from "ant-design-vue";
 import type { FormInstance } from "ant-design-vue";
@@ -141,7 +146,7 @@ function handleFilterChange() {
 async function loadData() {
   loading.value = true;
   try {
-    const result = await getAgentsPaged(
+    const result  = await getAgentsPaged(
       {
         pageIndex: pageIndex.value,
         pageSize: pageSize.value,
@@ -149,6 +154,8 @@ async function loadData() {
       },
       statusFilter.value === "All" ? undefined : statusFilter.value
     );
+
+    if (!isMounted.value) return;
     list.value = result.items;
     total.value = Number(result.total);
   } catch (error: unknown) {
@@ -159,7 +166,9 @@ async function loadData() {
 }
 
 async function loadModelConfigs(keywordText?: string) {
-  const result = await getEnabledModelConfigs();
+  const result  = await getEnabledModelConfigs();
+
+  if (!isMounted.value) return;
   if (!keywordText) {
     modelConfigs.value = result;
     return;
@@ -197,6 +206,8 @@ function closeModal() {
 async function submitCreate() {
   try {
     await formRef.value?.validate();
+
+    if (!isMounted.value) return;
   } catch {
     return;
   }
@@ -208,9 +219,13 @@ async function submitCreate() {
       description: form.description || undefined,
       modelConfigId: form.modelConfigId
     });
+
+    if (!isMounted.value) return;
     message.success("创建成功");
     modalVisible.value = false;
     await loadData();
+
+    if (!isMounted.value) return;
   } catch (error: unknown) {
     message.error((error as Error).message || "创建失败");
   } finally {
@@ -221,8 +236,12 @@ async function submitCreate() {
 async function handleDuplicate(id: number) {
   try {
     await duplicateAgent(id);
+
+    if (!isMounted.value) return;
     message.success("复制成功");
     await loadData();
+
+    if (!isMounted.value) return;
   } catch (error: unknown) {
     message.error((error as Error).message || "复制失败");
   }
@@ -231,8 +250,12 @@ async function handleDuplicate(id: number) {
 async function handleDelete(id: number) {
   try {
     await deleteAgent(id);
+
+    if (!isMounted.value) return;
     message.success("删除成功");
     await loadData();
+
+    if (!isMounted.value) return;
   } catch (error: unknown) {
     message.error((error as Error).message || "删除失败");
   }
@@ -240,6 +263,8 @@ async function handleDelete(id: number) {
 
 onMounted(async () => {
   await Promise.all([loadData(), loadModelConfigs()]);
+
+  if (!isMounted.value) return;
 });
 </script>
 

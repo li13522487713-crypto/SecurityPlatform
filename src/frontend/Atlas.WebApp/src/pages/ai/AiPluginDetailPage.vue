@@ -135,7 +135,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { useRoute, useRouter } from "vue-router";
 import type { FormInstance } from "ant-design-vue";
 import { message } from "ant-design-vue";
@@ -222,6 +227,8 @@ function goBack() {
 async function loadDetail() {
   try {
     detail.value = await getAiPluginById(pluginId.value);
+
+    if (!isMounted.value) return;
     apis.value = detail.value.apis;
   } catch (error: unknown) {
     message.error((error as Error).message || "加载插件详情失败");
@@ -232,8 +239,12 @@ async function handlePublish() {
   publishing.value = true;
   try {
     await publishAiPlugin(pluginId.value);
+
+    if (!isMounted.value) return;
     message.success("发布成功");
     await loadDetail();
+
+    if (!isMounted.value) return;
   } catch (error: unknown) {
     message.error((error as Error).message || "发布失败");
   } finally {
@@ -249,8 +260,12 @@ async function toggleLock() {
   locking.value = true;
   try {
     await setAiPluginLock(pluginId.value, !detail.value.isLocked);
+
+    if (!isMounted.value) return;
     message.success("锁状态更新成功");
     await loadDetail();
+
+    if (!isMounted.value) return;
   } catch (error: unknown) {
     message.error((error as Error).message || "更新锁状态失败");
   } finally {
@@ -296,6 +311,8 @@ function closeApiModal() {
 async function submitApi() {
   try {
     await apiFormRef.value?.validate();
+
+    if (!isMounted.value) return;
   } catch {
     return;
   }
@@ -316,14 +333,20 @@ async function submitApi() {
         ...payload,
         isEnabled: apiForm.isEnabled
       });
+
+      if (!isMounted.value) return;
       message.success("接口更新成功");
     } else {
       await createAiPluginApi(pluginId.value, payload);
+
+      if (!isMounted.value) return;
       message.success("接口创建成功");
     }
 
     apiModalOpen.value = false;
     await loadDetail();
+
+    if (!isMounted.value) return;
   } catch (error: unknown) {
     message.error((error as Error).message || "提交接口失败");
   } finally {
@@ -334,8 +357,12 @@ async function submitApi() {
 async function handleDeleteApi(apiId: number) {
   try {
     await deleteAiPluginApi(pluginId.value, apiId);
+
+    if (!isMounted.value) return;
     message.success("删除接口成功");
     await loadDetail();
+
+    if (!isMounted.value) return;
   } catch (error: unknown) {
     message.error((error as Error).message || "删除接口失败");
   }
@@ -348,13 +375,17 @@ function openOpenApiImport() {
 async function submitOpenApiImport() {
   openApiSubmitting.value = true;
   try {
-    const result = await importAiPluginOpenApi(pluginId.value, {
+    const result  = await importAiPluginOpenApi(pluginId.value, {
       openApiJson: openApiJson.value,
       overwrite: openApiOverwrite.value
     });
+
+    if (!isMounted.value) return;
     message.success(`导入成功，共 ${result.importedCount} 个接口`);
     openApiModalOpen.value = false;
     await loadDetail();
+
+    if (!isMounted.value) return;
   } catch (error: unknown) {
     message.error((error as Error).message || "导入 OpenAPI 失败");
   } finally {
@@ -373,10 +404,12 @@ function openDebug(apiId?: number) {
 async function submitDebug() {
   debugSubmitting.value = true;
   try {
-    const result = await debugAiPlugin(pluginId.value, {
+    const result  = await debugAiPlugin(pluginId.value, {
       apiId: debugApiId.value,
       inputJson: debugInputJson.value
     });
+
+    if (!isMounted.value) return;
     debugOutputJson.value = result.outputJson;
     debugResultTitle.value = result.success
       ? `调试成功（${result.durationMs}ms）`

@@ -53,7 +53,12 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from "vue";
+import { onMounted, reactive, ref, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import type { FormInstance } from "ant-design-vue";
 import { message } from "ant-design-vue";
 import OnboardingGuide from "@/components/ai/OnboardingGuide.vue";
@@ -98,6 +103,8 @@ async function loadCommands() {
   loading.value = true;
   try {
     commands.value = await getAiShortcutCommands();
+
+    if (!isMounted.value) return;
   } catch (error: unknown) {
     message.error((error as Error).message || "加载快捷命令失败");
   } finally {
@@ -137,6 +144,8 @@ function closeModal() {
 async function submit() {
   try {
     await formRef.value?.validate();
+
+    if (!isMounted.value) return;
   } catch {
     return;
   }
@@ -152,6 +161,8 @@ async function submit() {
         sortOrder: form.sortOrder,
         isEnabled: current?.isEnabled ?? true
       });
+
+      if (!isMounted.value) return;
       message.success("更新成功");
     } else {
       await createAiShortcutCommand({
@@ -161,11 +172,15 @@ async function submit() {
         description: form.description || undefined,
         sortOrder: form.sortOrder
       });
+
+      if (!isMounted.value) return;
       message.success("创建成功");
     }
 
     modalOpen.value = false;
     await loadCommands();
+
+    if (!isMounted.value) return;
   } catch (error: unknown) {
     message.error((error as Error).message || "保存失败");
   } finally {
@@ -182,7 +197,11 @@ async function toggleEnabled(command: AiShortcutCommandItem, checked: boolean) {
       sortOrder: command.sortOrder,
       isEnabled: checked
     });
+
+    if (!isMounted.value) return;
     await loadCommands();
+
+    if (!isMounted.value) return;
   } catch (error: unknown) {
     message.error((error as Error).message || "更新状态失败");
   }
@@ -191,8 +210,12 @@ async function toggleEnabled(command: AiShortcutCommandItem, checked: boolean) {
 async function handleDelete(id: number) {
   try {
     await deleteAiShortcutCommand(id);
+
+    if (!isMounted.value) return;
     message.success("删除成功");
     await loadCommands();
+
+    if (!isMounted.value) return;
   } catch (error: unknown) {
     message.error((error as Error).message || "删除失败");
   }

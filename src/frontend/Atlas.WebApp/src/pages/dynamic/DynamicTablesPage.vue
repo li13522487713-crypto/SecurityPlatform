@@ -23,7 +23,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { useRoute, useRouter } from "vue-router";
 import { message } from "ant-design-vue";
 import AmisRenderer from "@/components/amis/amis-renderer.vue";
@@ -64,7 +69,9 @@ const loadSchema = async () => {
 const loadAppOptions = async () => {
   appLoading.value = true;
   try {
-    const result = await getLowCodeAppsPaged({ pageIndex: 1, pageSize: 200 });
+    const result  = await getLowCodeAppsPaged({ pageIndex: 1, pageSize: 200 });
+
+    if (!isMounted.value) return;
     appOptions.value = result.items.map((item) => ({
       label: `${item.name} (${item.appKey})`,
       value: item.id

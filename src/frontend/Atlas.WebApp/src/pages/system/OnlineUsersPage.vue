@@ -49,7 +49,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from "vue";
+import { ref, reactive, onMounted, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { message } from "ant-design-vue";
 import type { TablePaginationConfig } from "ant-design-vue";
 import { getOnlineUsers, forceLogout, type OnlineUserDto } from "@/services/sessions";
@@ -82,11 +87,13 @@ function formatTime(val: string) {
 async function loadData() {
   loading.value = true;
   try {
-    const result = await getOnlineUsers({
+    const result  = await getOnlineUsers({
       pageIndex: pagination.current ?? 1,
       pageSize: pagination.pageSize ?? 20,
       keyword: keyword.value || undefined
     });
+
+    if (!isMounted.value) return;
     dataList.value = result.items as OnlineUserDto[];
     pagination.total = Number(result.total);
   } catch (e: unknown) {
@@ -109,6 +116,8 @@ function onTableChange(pag: TablePaginationConfig) {
 async function handleForceLogout(sessionId: string) {
   try {
     await forceLogout(sessionId);
+
+    if (!isMounted.value) return;
     message.success("已强制下线");
     loadData();
   } catch (e: unknown) {

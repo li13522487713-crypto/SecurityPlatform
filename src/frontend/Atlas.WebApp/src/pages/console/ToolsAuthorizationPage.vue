@@ -15,7 +15,12 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { onMounted, ref, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import type { TableColumnsType } from "ant-design-vue";
 import { message } from "ant-design-vue";
 import { getToolAuthorizationPolicies } from "@/services/api-productization";
@@ -51,7 +56,9 @@ const columns: TableColumnsType<PolicyItem> = [
 async function load() {
   loading.value = true;
   try {
-    const result = await getToolAuthorizationPolicies(pageIndex.value, pageSize.value);
+    const result  = await getToolAuthorizationPolicies(pageIndex.value, pageSize.value);
+
+    if (!isMounted.value) return;
     items.value = result.items;
     total.value = result.total;
   } catch (error) {

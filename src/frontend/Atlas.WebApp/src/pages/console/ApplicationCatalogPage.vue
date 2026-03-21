@@ -86,7 +86,12 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { onMounted, ref, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import type { TableColumnsType, TablePaginationConfig } from "ant-design-vue";
 import { message } from "ant-design-vue";
 import {
@@ -147,7 +152,7 @@ function formatDate(value?: string) {
 async function loadCatalogs() {
   loading.value = true;
   try {
-    const result = await getApplicationCatalogsPaged({
+    const result  = await getApplicationCatalogsPaged({
       pageIndex: pageIndex.value,
       pageSize: pageSize.value,
       keyword: keyword.value || undefined,
@@ -155,6 +160,8 @@ async function loadCatalogs() {
       category: categoryFilter.value || undefined,
       appKey: appKeyFilter.value || undefined
     });
+
+    if (!isMounted.value) return;
     rows.value = result.items;
     pagination.value = {
       ...pagination.value,
@@ -192,6 +199,8 @@ function handleTableChange(page: TablePaginationConfig) {
 async function viewDetail(id: string) {
   try {
     detail.value = await getApplicationCatalogDetail(id);
+
+    if (!isMounted.value) return;
     detailVisible.value = true;
   } catch (error) {
     message.error((error as Error).message || "加载应用目录详情失败");

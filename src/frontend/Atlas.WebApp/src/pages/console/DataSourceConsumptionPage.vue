@@ -198,7 +198,12 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { onMounted, ref, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { useRouter } from "vue-router";
 import type { TableColumnsType } from "ant-design-vue";
 import { message } from "ant-design-vue";
@@ -259,6 +264,8 @@ async function loadSummary() {
   loading.value = true;
   try {
     summary.value = await getResourceCenterDataSourceConsumption();
+
+    if (!isMounted.value) return;
   } catch (error) {
     message.error((error as Error).message || "加载数据源消费分析失败");
   } finally {
@@ -321,9 +328,13 @@ async function repairDisableInvalid(record: TenantDataSourceConsumptionItem) {
   repairingDataSourceId.value = record.dataSourceId;
   repairAction.value = "disable";
   try {
-    const result = await disableInvalidBinding(bindingId);
+    const result  = await disableInvalidBinding(bindingId);
+
+    if (!isMounted.value) return;
     message.success(result.message);
     await loadSummary();
+
+    if (!isMounted.value) return;
   } catch (error) {
     message.error((error as Error).message || "禁用无效绑定失败");
   } finally {
@@ -342,9 +353,13 @@ async function repairSwitchPrimary(record: TenantDataSourceConsumptionItem) {
   repairingDataSourceId.value = record.dataSourceId;
   repairAction.value = "switch";
   try {
-    const result = await switchPrimaryBinding(appId, record.dataSourceId, "resource-center-repair");
+    const result  = await switchPrimaryBinding(appId, record.dataSourceId, "resource-center-repair");
+
+    if (!isMounted.value) return;
     message.success(result.message);
     await loadSummary();
+
+    if (!isMounted.value) return;
   } catch (error) {
     message.error((error as Error).message || "切换主绑定失败");
   } finally {
@@ -363,9 +378,13 @@ async function repairUnbindOrphan(record: TenantDataSourceConsumptionItem) {
   repairingDataSourceId.value = record.dataSourceId;
   repairAction.value = "unbind";
   try {
-    const result = await unbindOrphanBinding(bindingId);
+    const result  = await unbindOrphanBinding(bindingId);
+
+    if (!isMounted.value) return;
     message.success(result.message);
     await loadSummary();
+
+    if (!isMounted.value) return;
   } catch (error) {
     message.error((error as Error).message || "解绑孤儿绑定失败");
   } finally {

@@ -107,7 +107,12 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, watch } from "vue";
+import { onMounted, ref, watch, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { useRoute, useRouter } from "vue-router";
 import type { TableColumnsType, TablePaginationConfig } from "ant-design-vue";
 import { message } from "ant-design-vue";
@@ -182,7 +187,7 @@ async function loadReleases() {
     const parsedManifestId = manifestIdFilter.value.trim().length > 0
       ? Number.parseInt(manifestIdFilter.value.trim(), 10)
       : undefined;
-    const result = await getReleaseCenterPaged({
+    const result  = await getReleaseCenterPaged({
       pageIndex: pageIndex.value,
       pageSize: pageSize.value,
       keyword: keyword.value || undefined,
@@ -190,6 +195,8 @@ async function loadReleases() {
       appKey: appKeyFilter.value || undefined,
       manifestId: Number.isNaN(parsedManifestId) ? undefined : parsedManifestId
     });
+
+    if (!isMounted.value) return;
     rows.value = result.items;
     total.value = result.total;
     pagination.value = {
@@ -227,11 +234,13 @@ function resetFilters() {
 
 async function viewDetail(releaseId: string) {
   try {
-    const [detailData, diffData, impactData] = await Promise.all([
+    const [detailData, diffData, impactData]  = await Promise.all([
       getReleaseCenterDetail(releaseId),
       getReleaseCenterDiff(releaseId),
       getReleaseCenterImpact(releaseId)
     ]);
+
+    if (!isMounted.value) return;
     detail.value = detailData;
     diffSummary.value = diffData;
     impactSummary.value = impactData;
@@ -243,12 +252,18 @@ async function viewDetail(releaseId: string) {
 
 async function rollback(releaseId: string) {
   try {
-    const result = await rollbackReleaseCenter(releaseId);
+    const result  = await rollbackReleaseCenter(releaseId);
+
+    if (!isMounted.value) return;
     rollbackResult.value = result;
     message.success(result.switched ? "回滚切换成功" : "回滚未发生切换");
     await loadReleases();
+
+    if (!isMounted.value) return;
     if (detailVisible.value && detail.value?.releaseId === releaseId) {
       await viewDetail(releaseId);
+
+      if (!isMounted.value) return;
     }
   } catch (error) {
     message.error((error as Error).message || "回滚失败");

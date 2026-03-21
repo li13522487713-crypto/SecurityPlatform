@@ -91,7 +91,12 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from "vue";
+import { onMounted, reactive, ref, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import type { FormInstance } from "ant-design-vue";
 import { message } from "ant-design-vue";
 import dayjs from "dayjs";
@@ -138,7 +143,7 @@ const createdToken = ref("");
 async function loadData() {
   loading.value = true;
   try {
-    const result = await getPersonalAccessTokensPaged(
+    const result  = await getPersonalAccessTokensPaged(
       {
         pageIndex: pageIndex.value,
         pageSize: pageSize.value,
@@ -146,6 +151,8 @@ async function loadData() {
       },
       keyword.value || undefined
     );
+
+    if (!isMounted.value) return;
     list.value = result.items;
     total.value = Number(result.total);
   } catch (error: unknown) {
@@ -196,6 +203,8 @@ function parseScopes() {
 async function submitForm() {
   try {
     await formRef.value?.validate();
+
+    if (!isMounted.value) return;
   } catch {
     return;
   }
@@ -208,13 +217,17 @@ async function submitForm() {
         scopes: parseScopes(),
         expiresAt: form.expiresAt || undefined
       });
+
+      if (!isMounted.value) return;
       message.success("更新成功");
     } else {
-      const result = await createPersonalAccessToken({
+      const result  = await createPersonalAccessToken({
         name: form.name,
         scopes: parseScopes(),
         expiresAt: form.expiresAt || undefined
       });
+
+      if (!isMounted.value) return;
       createdToken.value = result.plainTextToken;
       tokenModalOpen.value = true;
       message.success("创建成功");
@@ -222,6 +235,8 @@ async function submitForm() {
 
     modalOpen.value = false;
     await loadData();
+
+    if (!isMounted.value) return;
   } catch (error: unknown) {
     message.error((error as Error).message || "提交失败");
   } finally {
@@ -232,8 +247,12 @@ async function submitForm() {
 async function handleRevoke(id: number) {
   try {
     await revokePersonalAccessToken(id);
+
+    if (!isMounted.value) return;
     message.success("撤销成功");
     await loadData();
+
+    if (!isMounted.value) return;
   } catch (error: unknown) {
     message.error((error as Error).message || "撤销失败");
   }

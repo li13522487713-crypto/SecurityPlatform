@@ -81,7 +81,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from "vue";
+import { ref, reactive, onMounted, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { message } from "ant-design-vue";
 import { LockOutlined } from "@ant-design/icons-vue";
 import { useI18n } from "vue-i18n";
@@ -119,11 +124,13 @@ const columns = [
 async function loadConfigs() {
   loading.value = true;
   try {
-    const result = await getSystemConfigsPaged({
+    const result  = await getSystemConfigsPaged({
       pageIndex: pagination.current ?? 1,
       pageSize: pagination.pageSize ?? 20,
       keyword: keyword.value || undefined
     });
+
+    if (!isMounted.value) return;
     dataList.value = result.items as SystemConfigDto[];
     pagination.total = Number(result.total);
   } catch (e: unknown) {
@@ -186,6 +193,8 @@ function closeModal() {
 async function submitForm() {
   try {
     await formRef.value?.validate();
+
+    if (!isMounted.value) return;
   } catch {
     return;
   }
@@ -197,6 +206,8 @@ async function submitForm() {
         configName: form.configName,
         remark: form.remark || undefined
       });
+
+      if (!isMounted.value) return;
       message.success(t("systemConfig.updateSuccess"));
     } else {
       await createSystemConfig({
@@ -205,6 +216,8 @@ async function submitForm() {
         configName: form.configName,
         remark: form.remark || undefined
       });
+
+      if (!isMounted.value) return;
       message.success(t("systemConfig.createSuccess"));
     }
     modalVisible.value = false;
@@ -219,6 +232,8 @@ async function submitForm() {
 async function handleDelete(id: string) {
   try {
     await deleteSystemConfig(id);
+
+    if (!isMounted.value) return;
     message.success(t("systemConfig.deleteSuccess"));
     loadConfigs();
   } catch (e: unknown) {

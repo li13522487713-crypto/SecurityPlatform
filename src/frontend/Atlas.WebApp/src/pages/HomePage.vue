@@ -140,7 +140,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { useRouter } from "vue-router";
 import { Empty, message } from "ant-design-vue";
 import {
@@ -261,7 +266,9 @@ const loadPendingTasks = async () => {
 
   loadingTasks.value = true;
   try {
-    const result = await getMyTasksPaged({ pageIndex: 1, pageSize: 5 });
+    const result  = await getMyTasksPaged({ pageIndex: 1, pageSize: 5 });
+
+    if (!isMounted.value) return;
     pendingTasks.value = (result.items ?? []).map((item) => ({
       id: String(item.id),
       flowName: item.title,
@@ -283,7 +290,9 @@ const loadRecentAlerts = async () => {
 
   loadingAlerts.value = true;
   try {
-    const result = await getAlertsPaged({ pageIndex: 1, pageSize: 5 });
+    const result  = await getAlertsPaged({ pageIndex: 1, pageSize: 5 });
+
+    if (!isMounted.value) return;
     recentAlerts.value = (result.items ?? []).map((item) => ({
       id: String((item as { id?: string | number }).id ?? ""),
       title: String((item as { title?: string }).title ?? "未命名告警"),
@@ -306,7 +315,9 @@ const loadRecentAudits = async () => {
 
   loadingAudits.value = true;
   try {
-    const result = await getAuditsPaged({ pageIndex: 1, pageSize: 6 });
+    const result  = await getAuditsPaged({ pageIndex: 1, pageSize: 6 });
+
+    if (!isMounted.value) return;
     recentAudits.value = (result.items ?? []).map((item) => ({
       id: String(item.id),
       actorName: item.actor,
@@ -330,6 +341,8 @@ const loadMetrics = async () => {
   loadingMetrics.value = true;
   try {
     metrics.value = await getVisualizationMetrics();
+
+    if (!isMounted.value) return;
   } catch (error) {
     message.error((error as Error).message || "加载指标失败");
   } finally {

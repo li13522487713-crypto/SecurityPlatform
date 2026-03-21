@@ -180,7 +180,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, h, onMounted, reactive, ref } from "vue";
+import { computed, h, onMounted, reactive, ref, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { useRoute, useRouter } from "vue-router";
 import { message, Modal } from "ant-design-vue";
 import type { TenantDataSourceDto } from "@/types/api";
@@ -253,12 +258,14 @@ async function loadSettings() {
   if (!appId.value) return;
 
   try {
-    const [dataSource, policy, aliases, appDetail] = await Promise.all([
+    const [dataSource, policy, aliases, appDetail]  = await Promise.all([
       getTenantAppInstanceDataSourceInfo(appId.value),
       getTenantAppInstanceSharingPolicy(appId.value),
       getTenantAppInstanceEntityAliases(appId.value),
       getTenantAppInstanceDetail(appId.value)
     ]);
+
+    if (!isMounted.value) return;
 
     dataSourceInfo.value = dataSource;
     tenantAppDetail.value = appDetail;
@@ -283,7 +290,9 @@ async function loadSettings() {
 async function loadDataSourceOptions(keyword = "") {
   loadingDataSourceOptions.value = true;
   try {
-    const allDataSources = await getTenantDataSources();
+    const allDataSources  = await getTenantDataSources();
+
+    if (!isMounted.value) return;
     dataSourceOptions.value = mapDataSourceOptions(allDataSources, keyword);
   } catch (error) {
     message.error((error as Error).message || "加载数据源列表失败");
@@ -357,6 +366,9 @@ async function ensureTenantAppDetail() {
   }
 
   tenantAppDetail.value = await getTenantAppInstanceDetail(appId.value);
+
+
+  if (!isMounted.value) return;
   return tenantAppDetail.value;
 }
 
@@ -365,7 +377,10 @@ async function updateAppDataSourceBinding(targetDataSourceId: number | null) {
     return;
   }
 
-  const currentDetail = await ensureTenantAppDetail();
+  const currentDetail  = await ensureTenantAppDetail();
+
+
+  if (!isMounted.value) return;
   if (!currentDetail) {
     return;
   }
@@ -380,7 +395,11 @@ async function updateAppDataSourceBinding(targetDataSourceId: number | null) {
       dataSourceId: targetDataSourceId,
       unbindDataSource: targetDataSourceId === null
     });
+
+    if (!isMounted.value) return;
     await loadSettings();
+
+    if (!isMounted.value) return;
   } catch (error) {
     message.error((error as Error).message || "更新应用数据源绑定失败");
     throw error;
@@ -401,12 +420,17 @@ async function handleConfirmDataSourceSelection() {
   }
 
   await updateAppDataSourceBinding(Number(selectedDataSourceId.value));
+
+
+  if (!isMounted.value) return;
   message.success(dataSourceSelectionMode.value === "bind" ? "数据源绑定成功" : "数据源切换成功");
   dataSourceSelectorVisible.value = false;
 }
 
 async function handleUnbindDataSource() {
   await updateAppDataSourceBinding(null);
+
+  if (!isMounted.value) return;
   message.success("数据源已解绑");
 }
 
@@ -414,13 +438,17 @@ async function handleTestDataSource() {
   if (!appId.value) return;
   testingDataSource.value = true;
   try {
-    const result = await testTenantAppInstanceDataSource(appId.value);
+    const result  = await testTenantAppInstanceDataSource(appId.value);
+
+    if (!isMounted.value) return;
     if (result.success) {
       message.success("数据源连接测试成功");
     } else {
       message.error(result.errorMessage || "数据源连接测试失败");
     }
     dataSourceInfo.value = await getTenantAppInstanceDataSourceInfo(appId.value);
+
+    if (!isMounted.value) return;
   } catch (error) {
     message.error((error as Error).message || "测试数据源失败");
   } finally {
@@ -467,6 +495,8 @@ async function persistSharingPolicy() {
       useSharedRoles: sharingPolicy.useSharedRoles,
       useSharedDepartments: sharingPolicy.useSharedDepartments
     });
+
+    if (!isMounted.value) return;
     originalSharingPolicy.value = {
       useSharedUsers: sharingPolicy.useSharedUsers,
       useSharedRoles: sharingPolicy.useSharedRoles,
@@ -507,6 +537,8 @@ async function saveEntityAliases() {
         pluralAlias: item.pluralAlias.trim()
       }))
     });
+
+    if (!isMounted.value) return;
     message.success("实体别名已保存");
   } catch (error) {
     message.error((error as Error).message || "保存实体别名失败");

@@ -1,4 +1,4 @@
-import { ref } from "vue";
+import { onMounted, onUnmounted, ref } from "vue";
 import { message } from "ant-design-vue";
 import { translate } from "@/i18n";
 import type { PagedRequest, PagedResult } from "@/types/api";
@@ -17,6 +17,15 @@ export function useSelectOptions<TItem>(config: UseSelectOptionsConfig<TItem>) {
 
   const options = ref<SelectOption[]>([]);
   const loading = ref(false);
+  const isMounted = ref(false);
+
+  onMounted(() => {
+    isMounted.value = true;
+  });
+
+  onUnmounted(() => {
+    isMounted.value = false;
+  });
 
   const load = async (keyword?: string) => {
     loading.value = true;
@@ -26,12 +35,16 @@ export function useSelectOptions<TItem>(config: UseSelectOptionsConfig<TItem>) {
         pageSize,
         keyword: keyword?.trim() || undefined
       });
+      if (!isMounted.value) return;
       options.value = result.items.map(mapItem);
     } catch (error) {
+      if (!isMounted.value) return;
       const fallbackLabel = errorLabel ?? t("selectOptions.loadPrefix");
       message.error((error as Error).message || `${fallbackLabel}${t("selectOptions.loadFailedSuffix")}`);
     } finally {
-      loading.value = false;
+      if (isMounted.value) {
+        loading.value = false;
+      }
     }
   };
 

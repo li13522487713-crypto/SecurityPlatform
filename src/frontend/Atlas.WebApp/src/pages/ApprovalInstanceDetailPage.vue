@@ -78,7 +78,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, onUnmounted } from 'vue';
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { useRoute } from 'vue-router';
 import { message } from 'ant-design-vue';
 import type { Component } from 'vue';
@@ -153,16 +158,23 @@ const currentFlowStepIndex = computed(() => {
 const fetchDetail = async () => {
   loading.value = true;
   try {
-    const res = await getApprovalInstanceById(instanceId);
+    const res  = await getApprovalInstanceById(instanceId);
+
+    if (!isMounted.value) return;
     instance.value = res;
     
-    const historyRes = await getApprovalInstanceHistory(instanceId, { pageIndex: 1, pageSize: 100 });
+    const historyRes  = await getApprovalInstanceHistory(instanceId, { pageIndex: 1, pageSize: 100 });
+
+    
+    if (!isMounted.value) return;
     historyEvents.value = historyRes.items;
 
     // 加载流程定义以获取 formJson 用于只读渲染
     if (res.definitionId) {
       try {
-        const flowDef = await getApprovalFlowById(String(res.definitionId));
+        const flowDef  = await getApprovalFlowById(String(res.definitionId));
+
+        if (!isMounted.value) return;
         if (flowDef.definitionJson) {
           const defParsed = JSON.parse(flowDef.definitionJson) as { formJson?: FormJson };
           if (defParsed.formJson) {
@@ -184,6 +196,8 @@ const fetchDetail = async () => {
 const handleCancel = async () => {
   try {
     await cancelApprovalInstance(instanceId);
+
+    if (!isMounted.value) return;
     message.success('已撤销');
     fetchDetail();
   } catch (error) {
@@ -194,6 +208,8 @@ const handleCancel = async () => {
 const handleSuspend = async () => {
   try {
     await suspendInstance(instanceId);
+
+    if (!isMounted.value) return;
     message.success('已挂起');
     fetchDetail();
   } catch (error) {
@@ -204,6 +220,8 @@ const handleSuspend = async () => {
 const handleActivate = async () => {
   try {
     await activateInstance(instanceId);
+
+    if (!isMounted.value) return;
     message.success('已激活');
     fetchDetail();
   } catch (error) {

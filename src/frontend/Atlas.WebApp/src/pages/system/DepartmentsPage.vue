@@ -145,7 +145,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from "vue";
 import type { TablePaginationConfig, FormInstance } from "ant-design-vue";
 import type { Rule } from "ant-design-vue/es/form";
 import { message } from "ant-design-vue";
@@ -158,6 +158,7 @@ import { getAuthProfile, hasPermission } from "@/utils/auth";
 import { debounce, type FormMode, type SelectOption } from "@/utils/common";
 
 const { t } = useI18n();
+const isMounted = ref(false);
 const baseColumns = computed(() => ([
   { title: t("systemDepartments.colDepartmentName"), dataIndex: "name", key: "name" },
   { title: t("systemDepartments.colDepartmentCode"), dataIndex: "code", key: "code" },
@@ -294,12 +295,16 @@ const fetchData = async () => {
       pageSize: pagination.pageSize ?? 10,
       keyword: keyword.value || undefined
     });
+    if (!isMounted.value) return;
     dataSource.value = result.items;
     pagination.total = result.total;
   } catch (error) {
+    if (!isMounted.value) return;
     message.error((error as Error).message || t("crud.queryFailed"));
   } finally {
-    loading.value = false;
+    if (isMounted.value) {
+      loading.value = false;
+    }
   }
 };
 
@@ -318,14 +323,18 @@ const loadParentOptions = async (kw?: string) => {
       pageSize: 20,
       keyword: kw?.trim() || undefined
     });
+    if (!isMounted.value) return;
     parentOptions.value = result.items.map((item) => ({
       label: item.name,
       value: Number(item.id)
     }));
   } catch (error) {
+    if (!isMounted.value) return;
     message.error((error as Error).message || t("systemDepartments.loadDepartmentsFailed"));
   } finally {
-    parentLoading.value = false;
+    if (isMounted.value) {
+      parentLoading.value = false;
+    }
   }
 };
 
@@ -362,6 +371,7 @@ const loadAllDepartments = async () => {
   treeLoading.value = true;
   try {
     const list = await getDepartmentsAll();
+    if (!isMounted.value) return;
     allDepartments.value = list;
     if (selectedParentId.value === null && list.length > 0) {
       const root = list.find((item) => !item.parentId);
@@ -369,9 +379,12 @@ const loadAllDepartments = async () => {
     }
     pagination.total = filteredDepartments.value.length;
   } catch (error) {
+    if (!isMounted.value) return;
     message.error((error as Error).message || t("systemDepartments.loadDepartmentTreeFailed"));
   } finally {
-    treeLoading.value = false;
+    if (isMounted.value) {
+      treeLoading.value = false;
+    }
   }
 };
 
@@ -493,9 +506,14 @@ const handleDeleteDept = async (id: string) => {
 };
 
 onMounted(() => {
+  isMounted.value = true;
   loadParentOptions();
   loadAllDepartments();
   fetchData();
+});
+
+onUnmounted(() => {
+  isMounted.value = false;
 });
 
 watch(

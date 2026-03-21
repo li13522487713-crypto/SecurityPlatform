@@ -25,7 +25,12 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { onMounted, ref, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { getVisualizationAudit } from "@/services/api";
 import type { AuditListItem } from "@/types/api";
 import { message } from "ant-design-vue";
@@ -50,10 +55,11 @@ const columns = [
 const loadData = async () => {
   try {
     loading.value = true;
-    const result = await getVisualizationAudit({
+    const result  = await getVisualizationAudit({
       pageIndex: pagination.value.current,
       pageSize: pagination.value.pageSize
     });
+    if (!isMounted.value) return;
     audits.value = result.items;
     pagination.value.total = result.total;
   } catch (err) {

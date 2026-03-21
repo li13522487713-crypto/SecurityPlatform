@@ -166,7 +166,12 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { onMounted, ref, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { useRoute, useRouter } from "vue-router";
 import { message } from "ant-design-vue";
 import { QuestionCircleOutlined, HistoryOutlined } from "@ant-design/icons-vue";
@@ -234,7 +239,9 @@ const loadFormDefinition = async () => {
   }
 
   try {
-    const detail = await getFormDefinitionDetail(formId);
+    const detail  = await getFormDefinitionDetail(formId);
+
+    if (!isMounted.value) return;
     formName.value = detail.name;
     formDescription.value = detail.description ?? "";
     formCategory.value = detail.category;
@@ -267,6 +274,9 @@ const handleSave = async () => {
     const schemaJson = JSON.stringify(currentSchema);
 
     await updateFormDefinitionSchema(formId, schemaJson);
+
+
+    if (!isMounted.value) return;
     formVersion.value += 1;
     message.success("保存成功");
   } catch (error) {
@@ -286,7 +296,12 @@ const handlePublish = async () => {
     const schemaJson = JSON.stringify(currentSchema);
 
     await updateFormDefinitionSchema(formId, schemaJson);
+
+
+    if (!isMounted.value) return;
     await publishFormDefinition(formId);
+
+    if (!isMounted.value) return;
     formStatus.value = "Published";
     message.success("发布成功");
   } catch (error) {
@@ -308,6 +323,8 @@ const handleSaveSettings = async () => {
       schemaJson: JSON.stringify(currentSchema),
       dataTableKey: formDataTableKey.value || undefined
     });
+
+    if (!isMounted.value) return;
     settingsVisible.value = false;
     message.success("设置已保存");
   } catch (error) {
@@ -352,6 +369,8 @@ const openVersionHistory = async () => {
   loadingVersions.value = true;
   try {
     versionList.value = await getFormDefinitionVersions(formId);
+
+    if (!isMounted.value) return;
   } catch (error) {
     message.error((error as Error).message || "加载版本历史失败");
   } finally {
@@ -364,8 +383,12 @@ const handleRollback = async (versionId: string) => {
   rollingBack.value = versionId;
   try {
     // 获取版本详情并恢复 Schema
-    const versionDetail = await getFormDefinitionVersionDetail(formId, versionId);
+    const versionDetail  = await getFormDefinitionVersionDetail(formId, versionId);
+
+    if (!isMounted.value) return;
     await rollbackFormDefinitionVersion(formId, versionId);
+
+    if (!isMounted.value) return;
 
     // 刷新当前页面 Schema
     try {
@@ -379,6 +402,8 @@ const handleRollback = async (versionId: string) => {
     message.success(`已回滚到 v${versionDetail.snapshotVersion}`);
     // 刷新版本列表
     versionList.value = await getFormDefinitionVersions(formId);
+
+    if (!isMounted.value) return;
   } catch (error) {
     message.error((error as Error).message || "回滚失败");
   } finally {

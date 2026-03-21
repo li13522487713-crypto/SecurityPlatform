@@ -162,7 +162,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { useRouter } from "vue-router";
 import type { FormInstance } from "ant-design-vue";
 import { message } from "ant-design-vue";
@@ -295,12 +300,14 @@ function parseTags(input: string) {
 
 async function loadCategories() {
   categories.value = await getAiMarketplaceCategories();
+
+  if (!isMounted.value) return;
 }
 
 async function loadProducts() {
   loading.value = true;
   try {
-    const result = await getAiMarketplaceProductsPaged(
+    const result  = await getAiMarketplaceProductsPaged(
       {
         pageIndex: pageIndex.value,
         pageSize: pageSize.value
@@ -312,6 +319,8 @@ async function loadProducts() {
         status: filters.status
       }
     );
+
+    if (!isMounted.value) return;
     products.value = result.items;
     total.value = Number(result.total);
   } catch (error: unknown) {
@@ -351,7 +360,9 @@ function openCreateProduct() {
 
 async function openEditProduct(id: number) {
   try {
-    const detail = await getAiMarketplaceProductById(id);
+    const detail  = await getAiMarketplaceProductById(id);
+
+    if (!isMounted.value) return;
     editingProductId.value = id;
     Object.assign(productForm, {
       categoryId: detail.categoryId,
@@ -377,6 +388,8 @@ function closeProductModal() {
 async function submitProduct() {
   try {
     await productFormRef.value?.validate();
+
+    if (!isMounted.value) return;
   } catch {
     return;
   }
@@ -395,14 +408,20 @@ async function submitProduct() {
     };
     if (editingProductId.value) {
       await updateAiMarketplaceProduct(editingProductId.value, payload);
+
+      if (!isMounted.value) return;
       message.success("商品更新成功");
     } else {
       await createAiMarketplaceProduct(payload);
+
+      if (!isMounted.value) return;
       message.success("商品创建成功");
     }
 
     productModalOpen.value = false;
     await loadProducts();
+
+    if (!isMounted.value) return;
   } catch (error: unknown) {
     message.error((error as Error).message || "提交商品失败");
   } finally {
@@ -413,8 +432,12 @@ async function submitProduct() {
 async function handleDeleteProduct(id: number) {
   try {
     await deleteAiMarketplaceProduct(id);
+
+    if (!isMounted.value) return;
     message.success("删除成功");
     await loadProducts();
+
+    if (!isMounted.value) return;
   } catch (error: unknown) {
     message.error((error as Error).message || "删除失败");
   }
@@ -424,8 +447,12 @@ async function handlePublish(record: AiMarketplaceProductListItem) {
   try {
     const version = record.status === 0 ? "1.0.0" : record.version;
     await publishAiMarketplaceProduct(record.id, { version });
+
+    if (!isMounted.value) return;
     message.success("发布成功");
     await loadProducts();
+
+    if (!isMounted.value) return;
   } catch (error: unknown) {
     message.error((error as Error).message || "发布失败");
   }
@@ -435,11 +462,18 @@ async function toggleFavorite(record: AiMarketplaceProductListItem) {
   try {
     if (record.isFavorited) {
       await unfavoriteAiMarketplaceProduct(record.id);
+
+      if (!isMounted.value) return;
     } else {
       await favoriteAiMarketplaceProduct(record.id);
+
+      if (!isMounted.value) return;
     }
 
     await loadProducts();
+
+
+    if (!isMounted.value) return;
   } catch (error: unknown) {
     message.error((error as Error).message || "更新收藏失败");
   }
@@ -474,6 +508,8 @@ function fillCategoryForm(item: AiProductCategoryItem) {
 async function submitCategory() {
   try {
     await categoryFormRef.value?.validate();
+
+    if (!isMounted.value) return;
   } catch {
     return;
   }
@@ -488,15 +524,23 @@ async function submitCategory() {
     };
     if (editingCategoryId.value) {
       await updateAiMarketplaceCategory(editingCategoryId.value, payload);
+
+      if (!isMounted.value) return;
       message.success("分类更新成功");
     } else {
       await createAiMarketplaceCategory(payload);
+
+      if (!isMounted.value) return;
       message.success("分类创建成功");
     }
 
     editingCategoryId.value = null;
     await loadCategories();
+
+    if (!isMounted.value) return;
     await loadProducts();
+
+    if (!isMounted.value) return;
   } catch (error: unknown) {
     message.error((error as Error).message || "保存分类失败");
   } finally {
@@ -507,8 +551,12 @@ async function submitCategory() {
 async function handleDeleteCategory(id: number) {
   try {
     await deleteAiMarketplaceCategory(id);
+
+    if (!isMounted.value) return;
     message.success("分类删除成功");
     await loadCategories();
+
+    if (!isMounted.value) return;
   } catch (error: unknown) {
     message.error((error as Error).message || "删除分类失败");
   }
@@ -516,7 +564,11 @@ async function handleDeleteCategory(id: number) {
 
 onMounted(async () => {
   await loadCategories();
+
+  if (!isMounted.value) return;
   await loadProducts();
+
+  if (!isMounted.value) return;
 });
 </script>
 

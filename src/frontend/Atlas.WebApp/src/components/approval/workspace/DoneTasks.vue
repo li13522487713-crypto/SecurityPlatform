@@ -65,7 +65,12 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref, watch } from 'vue';
+import { onMounted, reactive, ref, watch, onUnmounted } from 'vue';
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { message } from 'ant-design-vue';
 import type { TablePaginationConfig } from 'ant-design-vue';
 import { ApprovalTaskStatus, type ApprovalTaskResponse } from '@/types/api';
@@ -112,7 +117,7 @@ const fetchData = async () => {
   loading.value = true;
   try {
     const statusValue = statusFilter.value === 'all' ? undefined : statusFilter.value;
-    const result = await getMyTasksPaged(
+    const result  = await getMyTasksPaged(
       {
         pageIndex: Number(pagination.current ?? 1),
         pageSize: Number(pagination.pageSize ?? 10),
@@ -120,6 +125,8 @@ const fetchData = async () => {
       },
       statusValue,
     );
+
+    if (!isMounted.value) return;
     const items = statusValue === undefined
       ? result.items.filter((item) => doneStatusSet.has(item.status))
       : result.items;
@@ -134,6 +141,8 @@ const fetchData = async () => {
 
 const fetchDataAndRetainSelection = async () => {
   await fetchData();
+
+  if (!isMounted.value) return;
   if (selectedItem.value) {
     const stillExists = dataSource.value.find(t => t.id === selectedItem.value!.id);
     if (!stillExists) clearSelection();

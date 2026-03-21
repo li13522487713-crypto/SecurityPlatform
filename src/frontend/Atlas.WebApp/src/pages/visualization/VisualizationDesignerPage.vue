@@ -69,7 +69,12 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, onMounted } from "vue";
+import { reactive, ref, onMounted, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { message, Modal } from "ant-design-vue";
 import type { FlowDefinition, FlowNode, FlowValidationResult, NodeType } from "@/types/workflow";
 import { createNode } from "@/components/designer/NodePalette";
@@ -102,13 +107,17 @@ onMounted(async () => {
   const id = (route.params.id as string) ?? null;
   if (id) {
     await load(id);
+
+    if (!isMounted.value) return;
   }
 });
 
 const load = async (id: string) => {
   loading.value = true;
   try {
-    const data = await loadFlowDefinition(id);
+    const data  = await loadFlowDefinition(id);
+
+    if (!isMounted.value) return;
     Object.assign(definition, data);
     currentId.value = id;
   } catch (e) {
@@ -123,9 +132,13 @@ const onSave = async () => {
   try {
     if (currentId.value) {
       await updateFlowDefinition(currentId.value, { tenantId, definition });
+
+      if (!isMounted.value) return;
       message.success("已更新");
     } else {
-      const res = await saveFlowDefinition({ tenantId, definition });
+      const res  = await saveFlowDefinition({ tenantId, definition });
+
+      if (!isMounted.value) return;
       currentId.value = res.id;
       message.success("已保存");
     }
@@ -165,6 +178,8 @@ const onValidate = async () => {
   loading.value = true;
   try {
     validation.value = await validateFlowDefinition({ tenantId, definition });
+
+    if (!isMounted.value) return;
     if (validation.value.isValid) {
       message.success("校验通过");
     } else {
@@ -187,12 +202,16 @@ const onPublish = async () => {
       return;
     }
     if (!validation.value?.isValid) {
-      const proceed = await confirmProceed();
+      const proceed  = await confirmProceed();
+
+      if (!isMounted.value) return;
       if (!proceed) {
         return;
       }
     }
     await publishFlowDefinition(currentId.value);
+
+    if (!isMounted.value) return;
     message.success("发布成功");
   } finally {
     loading.value = false;

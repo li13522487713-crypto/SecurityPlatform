@@ -48,7 +48,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, reactive, ref, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { getAuditsPaged } from "@/services/api";
 import type { TablePaginationConfig } from "ant-design-vue";
 import { message } from "ant-design-vue";
@@ -111,7 +116,7 @@ const pagination = reactive<TablePaginationConfig>({
 const fetchData = async () => {
   loading.value = true;
   try {
-    const result = await getAuditsPaged({
+    const result  = await getAuditsPaged({
       pageIndex: pagination.current ?? 1,
       pageSize: pagination.pageSize ?? 10,
       keyword: keyword.value || undefined
@@ -119,6 +124,8 @@ const fetchData = async () => {
       action: actionFilter.value === "all" ? undefined : actionFilter.value,
       result: resultFilter.value === "all" ? undefined : resultFilter.value
     });
+
+    if (!isMounted.value) return;
     dataSource.value = result.items;
     pagination.total = result.total;
   } catch (error) {

@@ -69,7 +69,12 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { onMounted, ref, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import type { TableColumnsType, TablePaginationConfig } from "ant-design-vue";
 import { message } from "ant-design-vue";
 import { getTenantApplicationDetail, getTenantApplicationsPaged } from "@/services/api-tenant-applications";
@@ -124,12 +129,14 @@ function formatDate(value?: string) {
 async function loadTenantApplications() {
   loading.value = true;
   try {
-    const result = await getTenantApplicationsPaged({
+    const result  = await getTenantApplicationsPaged({
       pageIndex: pageIndex.value,
       pageSize: pageSize.value,
       keyword: keyword.value || undefined,
       status: selectedStatus.value
     });
+
+    if (!isMounted.value) return;
     rows.value = result.items;
     pagination.value = {
       ...pagination.value,
@@ -165,6 +172,8 @@ function handleTableChange(page: TablePaginationConfig) {
 async function viewDetail(id: string) {
   try {
     detail.value = await getTenantApplicationDetail(id);
+
+    if (!isMounted.value) return;
     detailVisible.value = true;
   } catch (error) {
     message.error((error as Error).message || "加载租户开通关系详情失败");

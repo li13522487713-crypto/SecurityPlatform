@@ -163,7 +163,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import type { TableColumnsType, TablePaginationConfig } from "ant-design-vue";
 import { message } from "ant-design-vue";
 import { useRoute } from "vue-router";
@@ -247,7 +252,7 @@ async function loadRoles() {
 
   loading.value = true;
   try {
-    const [roleResult, overviewResult] = await Promise.all([
+    const [roleResult, overviewResult]  = await Promise.all([
       getTenantAppRolesPaged(appId.value, {
         pageIndex: Number(pagination.current ?? 1),
         pageSize: Number(pagination.pageSize ?? 10),
@@ -255,6 +260,8 @@ async function loadRoles() {
       }),
       getTenantAppRoleGovernanceOverview(appId.value)
     ]);
+
+    if (!isMounted.value) return;
     rows.value = roleResult.items;
     pagination.total = roleResult.total;
     pagination.current = roleResult.pageIndex;
@@ -314,9 +321,13 @@ async function submitCreate() {
       description: createForm.description.trim() || undefined,
       permissionCodes: createForm.permissionCodes.map((code) => code.trim()).filter((code) => !!code)
     });
+
+    if (!isMounted.value) return;
     message.success("创建应用角色成功");
     createModalOpen.value = false;
     await loadRoles();
+
+    if (!isMounted.value) return;
   } catch (error) {
     message.error((error as Error).message || "创建应用角色失败");
   } finally {
@@ -330,7 +341,9 @@ async function openEditModal(record: TenantAppRoleListItem) {
   editingRoleDisplayName.value = `${record.name} (${record.code})`;
   editModalOpen.value = true;
   try {
-    const detail = await getTenantAppRoleDetail(appId.value, record.id);
+    const detail  = await getTenantAppRoleDetail(appId.value, record.id);
+
+    if (!isMounted.value) return;
     editForm.name = detail.name;
     editForm.description = detail.description || "";
   } catch (error) {
@@ -354,9 +367,13 @@ async function submitEdit() {
       name: editForm.name.trim(),
       description: editForm.description.trim() || undefined
     });
+
+    if (!isMounted.value) return;
     message.success("角色信息已更新");
     editModalOpen.value = false;
     await loadRoles();
+
+    if (!isMounted.value) return;
   } catch (error) {
     message.error((error as Error).message || "更新角色失败");
   } finally {
@@ -370,7 +387,9 @@ async function openPermissionModal(record: TenantAppRoleListItem) {
   editingRoleDisplayName.value = `${record.name} (${record.code})`;
   permissionModalOpen.value = true;
   try {
-    const detail = await getTenantAppRoleDetail(appId.value, record.id);
+    const detail  = await getTenantAppRoleDetail(appId.value, record.id);
+
+    if (!isMounted.value) return;
     permissionForm.permissionCodes = [...detail.permissionCodes];
   } catch (error) {
     permissionModalOpen.value = false;
@@ -388,9 +407,13 @@ async function submitPermissions() {
     await updateTenantAppRolePermissions(appId.value, editingRoleId.value, {
       permissionCodes: permissionForm.permissionCodes.map((code) => code.trim()).filter((code) => !!code)
     });
+
+    if (!isMounted.value) return;
     message.success("角色权限已更新");
     permissionModalOpen.value = false;
     await loadRoles();
+
+    if (!isMounted.value) return;
   } catch (error) {
     message.error((error as Error).message || "更新角色权限失败");
   } finally {
@@ -405,8 +428,12 @@ async function removeRole(roleId: string) {
 
   try {
     await deleteTenantAppRole(appId.value, roleId);
+
+    if (!isMounted.value) return;
     message.success("角色已删除");
     await loadRoles();
+
+    if (!isMounted.value) return;
   } catch (error) {
     message.error((error as Error).message || "删除角色失败");
   }

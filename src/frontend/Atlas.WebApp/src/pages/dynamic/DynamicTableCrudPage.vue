@@ -8,7 +8,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, ref, watch, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { useRoute } from "vue-router";
 import { message } from "ant-design-vue";
 import AmisRenderer from "@/components/amis/amis-renderer.vue";
@@ -42,10 +47,11 @@ const loadSchema = async () => {
 
   loading.value = true;
   try {
-    const [schemaResult, detail] = await Promise.all([
+    const [schemaResult, detail]  = await Promise.all([
       getDynamicAmisSchema(`${tableKey.value}/crud`),
       getDynamicTableDetail(tableKey.value)
     ]);
+    if (!isMounted.value) return;
     schema.value = schemaResult as AmisSchema;
     tableDisplayName.value = detail?.displayName ?? tableKey.value;
     pageTitle.value = detail?.displayName ?? "动态数据管理";

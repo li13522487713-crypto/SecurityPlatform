@@ -142,7 +142,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, watch } from "vue";
+import { ref, onMounted, onBeforeUnmount, watch, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { useRoute } from "vue-router";
 import {
   getWorkflowInstances,
@@ -190,10 +195,12 @@ const columns = [
 const loadInstances = async () => {
   loading.value = true;
   try {
-    const result = await getWorkflowInstances({
+    const result  = await getWorkflowInstances({
       pageIndex: pageIndex.value,
       pageSize: pageSize.value
     });
+
+    if (!isMounted.value) return;
     instances.value = result.items;
     total.value = result.total;
   } catch (err) {
@@ -212,7 +219,11 @@ const handleTableChange = (pagination: TablePaginationConfig) => {
 const handleViewDetail = async (record: WorkflowInstanceListItem) => {
   try {
     selectedInstance.value = await getWorkflowInstance(record.id);
+
+    if (!isMounted.value) return;
     await loadExecutionPointers(record.id);
+
+    if (!isMounted.value) return;
     detailDrawerVisible.value = true;
   } catch (err) {
     message.error(err instanceof Error ? err.message : "加载详情失败");
@@ -223,6 +234,8 @@ const loadExecutionPointers = async (instanceId: string) => {
   pointersLoading.value = true;
   try {
     executionPointers.value = await getExecutionPointers(instanceId);
+
+    if (!isMounted.value) return;
   } catch (err) {
     message.error(err instanceof Error ? err.message : "加载执行指针失败");
   } finally {
@@ -233,6 +246,8 @@ const loadExecutionPointers = async (instanceId: string) => {
 const handleRefreshPointers = async () => {
   if (selectedInstance.value) {
     await loadExecutionPointers(selectedInstance.value.id);
+
+    if (!isMounted.value) return;
   }
 };
 
@@ -246,6 +261,8 @@ const handleCloseDetail = () => {
 const handleSuspend = async (instanceId: string) => {
   try {
     await suspendWorkflow(instanceId);
+
+    if (!isMounted.value) return;
     message.success("工作流已挂起");
     loadInstances();
   } catch (err) {
@@ -256,6 +273,8 @@ const handleSuspend = async (instanceId: string) => {
 const handleResume = async (instanceId: string) => {
   try {
     await resumeWorkflow(instanceId);
+
+    if (!isMounted.value) return;
     message.success("工作流已恢复");
     loadInstances();
   } catch (err) {
@@ -266,6 +285,8 @@ const handleResume = async (instanceId: string) => {
 const handleTerminate = async (instanceId: string) => {
   try {
     await terminateWorkflow(instanceId);
+
+    if (!isMounted.value) return;
     message.success("工作流已终止");
     loadInstances();
   } catch (err) {
@@ -341,6 +362,8 @@ watch(autoRefresh, (newVal) => {
 
 onMounted(async () => {
   await loadInstances();
+
+  if (!isMounted.value) return;
 
   // 如果 URL 中有 instanceId 参数，自动打开详情
   const instanceId = route.query.instanceId as string;

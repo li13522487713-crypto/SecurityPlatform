@@ -82,7 +82,12 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { onMounted, ref, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { useRouter } from "vue-router";
 import { message } from "ant-design-vue";
 import {
@@ -126,10 +131,12 @@ const copyProgress = ref<AiAppResourceCopyTaskProgress | null>(null);
 async function loadData() {
   loading.value = true;
   try {
-    const result = await getAiAppsPaged(
+    const result  = await getAiAppsPaged(
       { pageIndex: pageIndex.value, pageSize: pageSize.value },
       keyword.value || undefined
     );
+
+    if (!isMounted.value) return;
     list.value = result.items;
     total.value = Number(result.total);
   } catch (error: unknown) {
@@ -156,8 +163,12 @@ function goEdit(id: number) {
 async function handlePublish(id: number) {
   try {
     await publishAiApp(id);
+
+    if (!isMounted.value) return;
     message.success("发布成功");
     await loadData();
+
+    if (!isMounted.value) return;
   } catch (error: unknown) {
     message.error((error as Error).message || "发布失败");
   }
@@ -166,6 +177,8 @@ async function handlePublish(id: number) {
 async function showVersion(id: number) {
   try {
     versionInfo.value = await checkAiAppVersion(id);
+
+    if (!isMounted.value) return;
     versionModalOpen.value = true;
   } catch (error: unknown) {
     message.error((error as Error).message || "查询版本失败");
@@ -179,6 +192,8 @@ async function openCopy(id: number) {
   copyModalOpen.value = true;
   try {
     copyProgress.value = await getAiAppLatestResourceCopyTask(id);
+
+    if (!isMounted.value) return;
   } catch {
     copyProgress.value = null;
   }
@@ -193,8 +208,12 @@ async function submitCopyTask() {
   copySubmitting.value = true;
   try {
     await submitAiAppResourceCopy(copyAppId.value, copySourceAppId.value);
+
+    if (!isMounted.value) return;
     message.success("资源复制任务已提交");
     copyProgress.value = await getAiAppLatestResourceCopyTask(copyAppId.value);
+
+    if (!isMounted.value) return;
   } catch (error: unknown) {
     message.error((error as Error).message || "提交复制任务失败");
   } finally {
@@ -205,8 +224,12 @@ async function submitCopyTask() {
 async function handleDelete(id: number) {
   try {
     await deleteAiApp(id);
+
+    if (!isMounted.value) return;
     message.success("删除成功");
     await loadData();
+
+    if (!isMounted.value) return;
   } catch (error: unknown) {
     message.error((error as Error).message || "删除失败");
   }

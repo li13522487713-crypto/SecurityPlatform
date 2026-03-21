@@ -64,7 +64,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from "vue";
+import { ref, onMounted, computed, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { useRouter } from "vue-router";
 import { message } from "ant-design-vue";
 import { getMyNotifications, getUnreadCount, markRead, markAllRead } from "@/services/notification";
@@ -88,10 +93,12 @@ const isReadFilter = computed<boolean | undefined>(() => {
 const loadData = async () => {
   loading.value = true;
   try {
-    const [result, count] = await Promise.all([
+    const [result, count]  = await Promise.all([
       getMyNotifications(pageIndex.value, pageSize.value, isReadFilter.value),
       getUnreadCount()
     ]);
+
+    if (!isMounted.value) return;
     items.value = result.items;
     total.value = result.total;
     unreadCount.value = count;
@@ -110,7 +117,11 @@ const handleTabChange = () => {
 const handleMarkRead = async (item: UserNotificationDto) => {
   try {
     await markRead(item.notificationId);
+
+    if (!isMounted.value) return;
     await loadData();
+
+    if (!isMounted.value) return;
   } catch {
     message.error("操作失败");
   }
@@ -119,7 +130,11 @@ const handleMarkRead = async (item: UserNotificationDto) => {
 const handleMarkAll = async () => {
   try {
     await markAllRead();
+
+    if (!isMounted.value) return;
     await loadData();
+
+    if (!isMounted.value) return;
     message.success("已全部标为已读");
   } catch {
     message.error("操作失败");

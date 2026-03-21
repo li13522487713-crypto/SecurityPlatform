@@ -147,6 +147,11 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { message } from "ant-design-vue";
 import { ClockCircleOutlined } from "@ant-design/icons-vue";
 import { useI18n } from "vue-i18n";
@@ -176,10 +181,12 @@ const healthColumns = [
 const load = async () => {
   loading.value = true;
   try {
-    const [serverResponse] = await Promise.all([
+    const [serverResponse]  = await Promise.all([
       requestApi<ApiResponse<ServerInfo>>("/monitor/server-info"),
       loadHealth()
     ]);
+
+    if (!isMounted.value) return;
     info.value = serverResponse.data ?? null;
   } catch (e: unknown) {
     message.error(e instanceof Error ? e.message : t("monitorServer.loadFailed"));
@@ -191,7 +198,9 @@ const load = async () => {
 const loadHealth = async () => {
   healthLoading.value = true;
   try {
-    const response = await requestApi<ApiResponse<HealthStatusPayload>>("/health");
+    const response  = await requestApi<ApiResponse<HealthStatusPayload>>("/health");
+
+    if (!isMounted.value) return;
     healthInfo.value = response.data ?? null;
   } catch (e: unknown) {
     healthInfo.value = null;

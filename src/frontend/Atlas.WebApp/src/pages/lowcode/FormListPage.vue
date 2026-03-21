@@ -103,7 +103,12 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from "vue";
+import { onMounted, reactive, ref, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import type { TablePaginationConfig } from "ant-design-vue";
 import { message } from "ant-design-vue";
 import { useRouter } from "vue-router";
@@ -171,12 +176,14 @@ const statusLabel = (status: string) => {
 const fetchData = async () => {
   loading.value = true;
   try {
-    const result = await getFormDefinitionsPaged({
+    const result  = await getFormDefinitionsPaged({
       pageIndex: pagination.current ?? 1,
       pageSize: pagination.pageSize ?? 10,
       keyword: keyword.value || undefined,
       category: categoryFilter.value
     });
+
+    if (!isMounted.value) return;
     dataSource.value = result.items;
     pagination.total = result.total;
   } catch (error) {
@@ -227,12 +234,15 @@ const handleCreateSubmit = async () => {
       ]
     });
 
-    const result = await createFormDefinition({
+    const result  = await createFormDefinition({
       name: createForm.name,
       description: createForm.description || undefined,
       category: createForm.category,
       schemaJson: defaultSchema
     });
+
+
+    if (!isMounted.value) return;
 
     createModalVisible.value = false;
     message.success("创建成功");
@@ -253,6 +263,8 @@ const handleEdit = (id: string) => {
 const handlePublish = async (id: string) => {
   try {
     await publishFormDefinition(id);
+
+    if (!isMounted.value) return;
     message.success("发布成功");
     fetchData();
   } catch (error) {
@@ -263,6 +275,8 @@ const handlePublish = async (id: string) => {
 const handleDisable = async (id: string) => {
   try {
     await disableFormDefinition(id);
+
+    if (!isMounted.value) return;
     message.success("已停用");
     fetchData();
   } catch (error) {
@@ -273,6 +287,8 @@ const handleDisable = async (id: string) => {
 const handleEnable = async (id: string) => {
   try {
     await enableFormDefinition(id);
+
+    if (!isMounted.value) return;
     message.success("已启用");
     fetchData();
   } catch (error) {
@@ -283,6 +299,8 @@ const handleEnable = async (id: string) => {
 const handleDelete = async (id: string) => {
   try {
     await deleteFormDefinition(id);
+
+    if (!isMounted.value) return;
     message.success("已删除");
     fetchData();
   } catch (error) {

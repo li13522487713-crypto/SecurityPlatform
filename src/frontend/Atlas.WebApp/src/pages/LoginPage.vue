@@ -179,7 +179,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { useRoute, useRouter } from "vue-router";
 import { 
   UploadOutlined, 
@@ -353,7 +358,8 @@ async function loadCaptcha(): Promise<void> {
     return;
   }
   try {
-    const res = await getCaptcha(form.tenantId.trim());
+    const res  = await getCaptcha(form.tenantId.trim());
+    if (!isMounted.value) return;
     form.captchaKey = res.captchaKey;
     captchaImage.value = res.captchaImage;
     form.captchaCode = "";
@@ -376,8 +382,12 @@ async function handleSubmit(): Promise<void> {
       captchaCode: form.captchaCode || undefined,
       totpCode: form.totpCode || undefined
     });
+
+    if (!isMounted.value) return;
     await userStore.getInfo();
-    const routes = await permissionStore.generateRoutes();
+    if (!isMounted.value) return;
+    const routes  = await permissionStore.generateRoutes();
+    if (!isMounted.value) return;
     permissionStore.registerRoutes(router);
     localStorage.setItem(REMEMBER_ME_KEY, String(form.rememberMe));
     failedAttempts.value = 0;
@@ -436,6 +446,7 @@ async function handleLicenseFileSelect(file: File): Promise<false> {
   let content = "";
   try {
     content = await readFileAsText(file);
+    if (!isMounted.value) return false;
   } catch (error) {
     licenseActivateResult.value = {
       success: false,
@@ -446,7 +457,8 @@ async function handleLicenseFileSelect(file: File): Promise<false> {
   }
 
   try {
-    const resp = await activateLicense(content);
+    const resp  = await activateLicense(content);
+    if (!isMounted.value) return false;
     if (resp.success) {
       licenseActivateResult.value = {
         success: true,
@@ -454,6 +466,7 @@ async function handleLicenseFileSelect(file: File): Promise<false> {
       };
       showRenewArea.value = false;
       await loadLicenseStatus();
+      if (!isMounted.value) return false;
     } else {
       licenseActivateResult.value = {
         success: false,
@@ -486,7 +499,8 @@ function readFileAsText(file: File): Promise<string> {
 async function loadLicenseStatus(): Promise<void> {
   licenseLoading.value = true;
   try {
-    const status = await getLicenseStatus();
+    const status  = await getLicenseStatus();
+    if (!isMounted.value) return;
     licenseStatusCode.value = status.status;
     licenseStatusInfo.value = status;
 

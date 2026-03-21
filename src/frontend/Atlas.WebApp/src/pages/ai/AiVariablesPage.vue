@@ -90,7 +90,12 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from "vue";
+import { onMounted, reactive, ref, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { message } from "ant-design-vue";
 import type { FormInstance } from "ant-design-vue";
 import {
@@ -155,7 +160,7 @@ const systemColumns = [
 async function loadData() {
   loading.value = true;
   try {
-    const result = await getAiVariablesPaged(
+    const result  = await getAiVariablesPaged(
       {
         pageIndex: pageIndex.value,
         pageSize: pageSize.value,
@@ -165,6 +170,8 @@ async function loadData() {
         scope: scopeFilter.value
       }
     );
+
+    if (!isMounted.value) return;
     list.value = result.items;
     total.value = Number(result.total);
   } catch (error: unknown) {
@@ -194,7 +201,9 @@ function openCreate() {
 
 async function openEdit(id: number) {
   try {
-    const detail = await getAiVariableById(id);
+    const detail  = await getAiVariableById(id);
+
+    if (!isMounted.value) return;
     editingId.value = id;
     Object.assign(form, {
       key: detail.key,
@@ -216,6 +225,8 @@ function closeModal() {
 async function submitForm() {
   try {
     await formRef.value?.validate();
+
+    if (!isMounted.value) return;
   } catch {
     return;
   }
@@ -231,14 +242,20 @@ async function submitForm() {
 
     if (editingId.value) {
       await updateAiVariable(editingId.value, payload);
+
+      if (!isMounted.value) return;
       message.success("更新成功");
     } else {
       await createAiVariable(payload);
+
+      if (!isMounted.value) return;
       message.success("创建成功");
     }
 
     modalOpen.value = false;
     await loadData();
+
+    if (!isMounted.value) return;
   } catch (error: unknown) {
     message.error((error as Error).message || "提交失败");
   } finally {
@@ -249,8 +266,12 @@ async function submitForm() {
 async function handleDelete(id: number) {
   try {
     await deleteAiVariable(id);
+
+    if (!isMounted.value) return;
     message.success("删除成功");
     await loadData();
+
+    if (!isMounted.value) return;
   } catch (error: unknown) {
     message.error((error as Error).message || "删除失败");
   }
@@ -259,6 +280,8 @@ async function handleDelete(id: number) {
 async function showSystemDefinitions() {
   try {
     systemVariables.value = await getAiSystemVariableDefinitions();
+
+    if (!isMounted.value) return;
     systemDrawerOpen.value = true;
   } catch (error: unknown) {
     message.error((error as Error).message || "加载系统变量失败");

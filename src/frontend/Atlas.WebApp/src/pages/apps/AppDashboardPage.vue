@@ -40,7 +40,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, ref, watch, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { useRoute, useRouter } from "vue-router";
 import { message } from "ant-design-vue";
 import type { LowCodeAppDetail } from "@/types/lowcode";
@@ -57,6 +62,8 @@ async function loadDetail() {
   }
   try {
     appDetail.value = await getLowCodeAppDetail(appId.value);
+
+    if (!isMounted.value) return;
   } catch (error) {
     message.error((error as Error).message || "加载应用详情失败");
   }

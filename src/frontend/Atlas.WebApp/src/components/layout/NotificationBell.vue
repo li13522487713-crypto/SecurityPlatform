@@ -51,6 +51,11 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { useRouter } from "vue-router";
 import { BellOutlined } from "@ant-design/icons-vue";
 import { Empty } from "ant-design-vue";
@@ -67,10 +72,12 @@ let timer: number | undefined;
 const refresh = async () => {
   loading.value = true;
   try {
-    const [countResult, listResult] = await Promise.all([
+    const [countResult, listResult]  = await Promise.all([
       getUnreadCount(),
       getMyNotifications(1, 5)
     ]);
+
+    if (!isMounted.value) return;
     unreadCount.value = countResult;
     items.value = listResult.items;
   } catch {
@@ -84,6 +91,8 @@ const handleItemClick = async (item: UserNotificationDto) => {
   if (!item.isRead) {
     try {
       await markRead(item.notificationId);
+
+      if (!isMounted.value) return;
       item.isRead = true;
       unreadCount.value = Math.max(0, unreadCount.value - 1);
     } catch {
@@ -96,6 +105,8 @@ const handleItemClick = async (item: UserNotificationDto) => {
 const markAll = async () => {
   try {
     await markAllRead();
+
+    if (!isMounted.value) return;
     items.value.forEach(i => (i.isRead = true));
     unreadCount.value = 0;
   } catch {
@@ -138,6 +149,8 @@ const startPolling = () => {
   timer = window.setInterval(async () => {
     try {
       unreadCount.value = await getUnreadCount();
+
+      if (!isMounted.value) return;
     } catch {
       // ignore
     }

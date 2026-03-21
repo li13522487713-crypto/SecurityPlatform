@@ -106,7 +106,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, watch } from "vue";
+import { computed, onMounted, watch, ref, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { useRoute, useRouter } from "vue-router";
 import NotificationBell from "@/components/layout/NotificationBell.vue";
 import UnifiedContextBar from "@/components/context/UnifiedContextBar.vue";
@@ -205,6 +210,8 @@ function goConsole() {
 
 async function logout() {
   await userStore.logout();
+
+  if (!isMounted.value) return;
   permissionStore.reset();
   tagsViewStore.delAllViews();
   router.push("/login");
@@ -216,7 +223,9 @@ async function syncTitle() {
   }
 
   try {
-    const detail = await getTenantAppInstanceDetail(appId.value);
+    const detail  = await getTenantAppInstanceDetail(appId.value);
+
+    if (!isMounted.value) return;
     if (detail?.name) {
       document.title = `${detail.name} - Workspace - Atlas Security Platform`;
     }

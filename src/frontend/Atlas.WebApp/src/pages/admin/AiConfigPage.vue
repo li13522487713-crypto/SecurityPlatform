@@ -59,7 +59,12 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from "vue";
+import { onMounted, reactive, ref, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { message } from "ant-design-vue";
 import { getAdminAiConfig, updateAdminAiConfig } from "@/services/api-admin-ai-config";
 
@@ -76,7 +81,9 @@ const submitting = ref(false);
 
 async function loadConfig() {
   try {
-    const config = await getAdminAiConfig();
+    const config  = await getAdminAiConfig();
+
+    if (!isMounted.value) return;
     Object.assign(form, config);
   } catch (error: unknown) {
     message.error((error as Error).message || "加载配置失败");
@@ -89,6 +96,8 @@ async function submit() {
     await updateAdminAiConfig({
       ...form
     });
+
+    if (!isMounted.value) return;
     message.success("配置已保存");
   } catch (error: unknown) {
     message.error((error as Error).message || "保存配置失败");

@@ -87,7 +87,12 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref, watch } from "vue";
+import { onMounted, reactive, ref, watch, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { useRoute } from "vue-router";
 import { message } from "ant-design-vue";
 import { getMyTasksPaged } from "@/services/api";
@@ -142,11 +147,13 @@ const fetchData = async () => {
   loading.value = true;
   try {
     const statusValue = statusFilter.value === "all" ? undefined : statusFilter.value;
-    const result = await getMyTasksPaged({
+    const result  = await getMyTasksPaged({
       pageIndex: Number(pagination.current ?? 1),
       pageSize: Number(pagination.pageSize ?? 10),
       keyword: keyword.value || undefined
     }, statusValue);
+
+    if (!isMounted.value) return;
     dataSource.value = result.items;
     pagination.total = result.total;
   } catch (err) {
@@ -170,7 +177,9 @@ const applyDeepLinkFocus = async () => {
   // Slow path: task lives on a different page — fetch it directly by ID so the
   // deep-link still works regardless of which page the item would appear on.
   try {
-    const task = await getApprovalTaskById(urlTaskId);
+    const task  = await getApprovalTaskById(urlTaskId);
+
+    if (!isMounted.value) return;
     selectItem(task);
   } catch {
     // Task not found or caller lacks access — silently ignore so the list still renders normally
@@ -179,6 +188,8 @@ const applyDeepLinkFocus = async () => {
 
 const fetchDataAndRetainSelection = async () => {
   await fetchData();
+
+  if (!isMounted.value) return;
   if (selectedItem.value) {
     const stillExists = dataSource.value.find(t => t.id === selectedItem.value!.id);
     if (!stillExists) clearSelection();
@@ -188,7 +199,9 @@ const fetchDataAndRetainSelection = async () => {
 const loadAppOptions = async () => {
   appLoading.value = true;
   try {
-    const result = await getLowCodeAppsPaged({ pageIndex: 1, pageSize: 200 });
+    const result  = await getLowCodeAppsPaged({ pageIndex: 1, pageSize: 200 });
+
+    if (!isMounted.value) return;
     appOptions.value = result.items.map((item) => ({
       label: `${item.name} (${item.appKey})`,
       value: item.id
@@ -203,7 +216,9 @@ const loadAppOptions = async () => {
 const loadFlowOptions = async () => {
   flowLoading.value = true;
   try {
-    const result = await getApprovalFlowsPaged({ pageIndex: 1, pageSize: 200 });
+    const result  = await getApprovalFlowsPaged({ pageIndex: 1, pageSize: 200 });
+
+    if (!isMounted.value) return;
     flowOptions.value = result.items.map((item) => ({
       label: item.name,
       value: String(item.id),
@@ -245,8 +260,14 @@ const formatTime = (value: string) => {
 
 onMounted(async () => {
   await Promise.all([loadAppOptions(), loadFlowOptions()]);
+
+  if (!isMounted.value) return;
   await fetchData();
+
+  if (!isMounted.value) return;
   await applyDeepLinkFocus();
+
+  if (!isMounted.value) return;
 });
 
 watch(statusFilter, () => {

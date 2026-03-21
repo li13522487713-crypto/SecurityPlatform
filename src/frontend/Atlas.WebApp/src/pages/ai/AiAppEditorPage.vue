@@ -38,7 +38,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { useRoute, useRouter } from "vue-router";
 import type { FormInstance } from "ant-design-vue";
 import { message } from "ant-design-vue";
@@ -74,7 +79,9 @@ async function loadDetail() {
   }
 
   try {
-    const detail = await getAiAppById(appId.value);
+    const detail  = await getAiAppById(appId.value);
+
+    if (!isMounted.value) return;
     Object.assign(form, {
       name: detail.name,
       description: detail.description ?? "",
@@ -91,6 +98,8 @@ async function loadDetail() {
 async function submit() {
   try {
     await formRef.value?.validate();
+
+    if (!isMounted.value) return;
   } catch {
     return;
   }
@@ -107,11 +116,15 @@ async function submit() {
     };
 
     if (isCreate.value) {
-      const newId = await createAiApp(payload);
+      const newId  = await createAiApp(payload);
+
+      if (!isMounted.value) return;
       message.success("创建成功");
       void router.replace(`/ai/apps/${newId}/edit`);
     } else {
       await updateAiApp(appId.value, payload);
+
+      if (!isMounted.value) return;
       message.success("更新成功");
     }
   } catch (error: unknown) {

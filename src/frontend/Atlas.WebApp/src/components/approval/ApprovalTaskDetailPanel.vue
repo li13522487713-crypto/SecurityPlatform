@@ -132,7 +132,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { message } from 'ant-design-vue';
 import { DownOutlined, CloseOutlined } from '@ant-design/icons-vue';
 import {
@@ -187,21 +192,28 @@ const fetchDetail = async () => {
   if (!props.taskId) return;
   loading.value = true;
   try {
-    const [userResult, taskResult] = await Promise.all([
+    const [userResult, taskResult]  = await Promise.all([
       getCurrentUser(), getApprovalTaskById(props.taskId)
     ]);
+
+    if (!isMounted.value) return;
     currentUserId.value = userResult.id;
     task.value = taskResult;
     
-    const [instanceResult, historyResult] = await Promise.all([
+    const [instanceResult, historyResult]  = await Promise.all([
       getApprovalInstanceById(taskResult.instanceId),
       getApprovalInstanceHistory(taskResult.instanceId, { pageIndex: 1, pageSize: 50 })
     ]);
+
+    
+    if (!isMounted.value) return;
     instance.value = instanceResult;
     historyItems.value = historyResult.items;
 
     if (instanceResult.definitionId) {
-      const def = await getApprovalFlowById(String(instanceResult.definitionId));
+      const def  = await getApprovalFlowById(String(instanceResult.definitionId));
+
+      if (!isMounted.value) return;
       try { parsedDefinition.value = JSON.parse(def.definitionJson); } catch { parsedDefinition.value = null; }
     }
   } catch {
@@ -220,6 +232,8 @@ const handleApprove = async () => {
   submitting.value = true;
   try {
     await decideApprovalTask({ taskId: props.taskId, approved: true, comment: comment.value });
+
+    if (!isMounted.value) return;
     message.success('已同意');
     approveVisible.value = false;
     emit('refresh');
@@ -235,6 +249,8 @@ const handleReject = async () => {
   submitting.value = true;
   try {
     await decideApprovalTask({ taskId: props.taskId, approved: false, comment: comment.value });
+
+    if (!isMounted.value) return;
     message.success('已驳回');
     rejectVisible.value = false;
     emit('refresh');
@@ -260,8 +276,12 @@ const handleDelegate = async () => {
   if (!delegateTargetIds.value.length || !task.value) return;
   submitting.value = true;
   try {
-    const { delegateTask } = await import('@/services/api-approval');
+    const { delegateTask }  = await import('@/services/api-approval');
+
+    if (!isMounted.value) return;
     await delegateTask(props.taskId, delegateTargetIds.value[0], delegateComment.value || undefined);
+
+    if (!isMounted.value) return;
     message.success('委派成功');
     delegateVisible.value = false;
     emit('refresh');
@@ -276,8 +296,12 @@ const handleJump = async (targetNodeId: string) => {
   if (!instance.value || !task.value) return;
   submitting.value = true;
   try {
-    const { jumpTask } = await import('@/services/api-approval');
+    const { jumpTask }  = await import('@/services/api-approval');
+
+    if (!isMounted.value) return;
     await jumpTask(String(instance.value.id), targetNodeId, props.taskId);
+
+    if (!isMounted.value) return;
     message.success('跳转成功');
     jumpVisible.value = false;
     emit('refresh');
@@ -293,6 +317,8 @@ const handleTransfer = async () => {
   submitting.value = true;
   try {
     await transferTask(String(instance.value.id), props.taskId, transferTargetIds.value[0], transferComment.value || undefined);
+
+    if (!isMounted.value) return;
     message.success('转办成功');
     transferVisible.value = false;
     emit('refresh');

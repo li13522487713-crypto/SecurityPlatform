@@ -23,7 +23,12 @@
 </template>
 
 <script setup lang="ts">
-import { getCurrentInstance, onMounted, ref, watch } from 'vue';
+import { getCurrentInstance, onMounted, ref, watch, onUnmounted } from 'vue';
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import type { FormJson } from '@/types/approval-definition';
 
 const props = defineProps<{
@@ -52,6 +57,8 @@ watch(
 
 onMounted(async () => {
   await initVForm();
+
+  if (!isMounted.value) return;
   loading.value = false;
 });
 
@@ -59,8 +66,13 @@ const initVForm = async () => {
   const instance = getCurrentInstance();
   if (!instance) return;
 
-  const mod = await import('vform3-builds');
+  const mod  = await import('vform3-builds');
+
+
+  if (!isMounted.value) return;
   await import('vform3-builds/dist/designer.style.css');
+
+  if (!isMounted.value) return;
 
   const app = instance.appContext.app;
   const globals = app.config.globalProperties as { __vform3_installed__?: boolean };

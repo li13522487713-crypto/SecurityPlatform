@@ -55,7 +55,12 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue';
+import { onMounted, reactive, ref, onUnmounted } from 'vue';
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { message } from 'ant-design-vue';
 import type { Dayjs } from 'dayjs';
 import dayjs from 'dayjs';
@@ -91,6 +96,8 @@ const fetchData = async () => {
   loading.value = true;
   try {
     dataSource.value = await getMyAgentConfigs();
+
+    if (!isMounted.value) return;
   } catch (err) {
     message.error(err instanceof Error ? err.message : '加载失败');
   } finally {
@@ -125,9 +132,13 @@ const handleSubmit = async () => {
       startTime: form.dateRange[0].toISOString(),
       endTime: form.dateRange[1].toISOString(),
     });
+
+    if (!isMounted.value) return;
     message.success('已添加代理设置');
     resetForm();
     await fetchData();
+
+    if (!isMounted.value) return;
   } catch (err) {
     message.error(err instanceof Error ? err.message : '添加失败');
   } finally {
@@ -138,8 +149,12 @@ const handleSubmit = async () => {
 const handleDelete = async (id: string) => {
   try {
     await deleteAgentConfig(id);
+
+    if (!isMounted.value) return;
     message.success('已删除');
     await fetchData();
+
+    if (!isMounted.value) return;
   } catch (err) {
     message.error(err instanceof Error ? err.message : '删除失败');
   }

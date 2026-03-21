@@ -191,7 +191,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from "vue";
+import { computed, onMounted, reactive, ref, watch, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import type { TablePaginationConfig, FormInstance } from "ant-design-vue";
 import type { Rule } from "ant-design-vue/es/form";
 import { message } from "ant-design-vue";
@@ -367,12 +372,14 @@ const fetchData = async () => {
     const isHidden = hiddenFilter.value === "all"
       ? undefined
       : hiddenFilter.value === "hidden";
-    const result = await getMenusPaged({
+    const result  = await getMenusPaged({
       pageIndex: pagination.current ?? 1,
       pageSize: pagination.pageSize ?? 10,
       keyword: keyword.value || undefined,
       isHidden
     });
+
+    if (!isMounted.value) return;
     dataSource.value = result.items;
     pagination.total = result.total;
     selectedRowKeys.value = [];
@@ -394,11 +401,13 @@ const { controller: tableViewController, tableColumns, tableSize } = useTableVie
 const loadParentOptions = async (kw?: string) => {
   parentLoading.value = true;
   try {
-    const result = await getMenusPaged({
+    const result  = await getMenusPaged({
       pageIndex: 1,
       pageSize: 20,
       keyword: kw?.trim() || undefined
     });
+
+    if (!isMounted.value) return;
     parentOptions.value = result.items.map((item) => ({
       label: item.name,
       value: Number(item.id)
@@ -443,7 +452,9 @@ const loadAllMenus = async () => {
   if (!showTreeLayout.value) return;
   treeLoading.value = true;
   try {
-    const list = await getMenusAll();
+    const list  = await getMenusAll();
+
+    if (!isMounted.value) return;
     allMenus.value = list;
     parentNameMap.value = new Map(list.map((item) => [Number(item.id), item.name]));
     if (selectedParentId.value === null && list.length > 0) {
@@ -533,10 +544,14 @@ const batchSetHidden = async (isHidden: boolean) => {
         })
       )
     );
+
+    if (!isMounted.value) return;
     message.success(t("systemMenus.batchUpdateSuccess", { count: selectedRows.value.length }));
     selectedRowKeys.value = [];
     selectedRows.value = [];
     await loadAllMenus();
+
+    if (!isMounted.value) return;
     fetchData();
   } catch (error) {
     message.error((error as Error).message || t("systemMenus.batchUpdateFailed"));
@@ -588,6 +603,8 @@ const openEdit = async (record: MenuListItem) => {
   formModel.permissionCode = record.permissionCode ?? "";
   formModel.isHidden = record.isHidden;
   await loadParentOptions();
+
+  if (!isMounted.value) return;
   ensureParentOption(formModel.parentId);
   formVisible.value = true;
 };
@@ -597,7 +614,9 @@ const closeForm = () => {
 };
 
 const submitForm = async () => {
-  const valid = await formRef.value?.validate().catch(() => false);
+  const valid  = await formRef.value?.validate().catch(() => false);
+
+  if (!isMounted.value) return;
   if (!valid) return;
 
   try {
@@ -619,6 +638,8 @@ const submitForm = async () => {
         permissionCode: formModel.permissionCode || undefined,
         isHidden: formModel.isHidden
       });
+
+      if (!isMounted.value) return;
       message.success(t("crud.createSuccess"));
     } else if (selectedId.value) {
       await updateMenu(selectedId.value, {
@@ -638,10 +659,14 @@ const submitForm = async () => {
         permissionCode: formModel.permissionCode || undefined,
         isHidden: formModel.isHidden
       });
+
+      if (!isMounted.value) return;
       message.success(t("crud.updateSuccess"));
     }
     formVisible.value = false;
     await loadAllMenus();
+
+    if (!isMounted.value) return;
     fetchData();
     loadParentOptions();
   } catch (error) {

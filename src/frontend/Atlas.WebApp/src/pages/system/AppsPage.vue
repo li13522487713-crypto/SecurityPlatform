@@ -83,7 +83,12 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from "vue";
+import { onMounted, reactive, ref, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import type { FormInstance, TablePaginationConfig } from "ant-design-vue";
 import type { Rule } from "ant-design-vue/es/form";
 import { message } from "ant-design-vue";
@@ -134,11 +139,12 @@ const canUpdate = hasPermission(profile, "apps:update");
 const fetchData = async () => {
   loading.value = true;
   try {
-    const result = await getAppConfigsPaged({
+    const result  = await getAppConfigsPaged({
       pageIndex: pagination.current ?? 1,
       pageSize: pagination.pageSize ?? 10,
       keyword: keyword.value || undefined
     });
+    if (!isMounted.value) return;
     dataSource.value = result.items;
     pagination.total = result.total;
   } catch (error) {
@@ -187,7 +193,8 @@ const closeForm = () => {
 };
 
 const submitForm = async () => {
-  const valid = await formRef.value?.validate().catch(() => false);
+  const valid  = await formRef.value?.validate().catch(() => false);
+  if (!isMounted.value) return;
   if (!valid) return;
 
   try {
@@ -199,6 +206,7 @@ const submitForm = async () => {
       description: formModel.description || undefined,
       sortOrder: formModel.sortOrder
     });
+    if (!isMounted.value) return;
     message.success("更新成功，配置已刷新");
     if (previousScope !== formModel.enableProjectScope) {
       window.dispatchEvent(new CustomEvent("app-config-changed"));

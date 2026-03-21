@@ -87,7 +87,12 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from "vue";
+import { onMounted, reactive, ref, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import type { FormInstance } from "ant-design-vue";
 import { message } from "ant-design-vue";
 import { useRouter } from "vue-router";
@@ -140,10 +145,12 @@ const importDatabaseId = ref(0);
 async function loadData() {
   loading.value = true;
   try {
-    const result = await getAiDatabasesPaged(
+    const result  = await getAiDatabasesPaged(
       { pageIndex: pageIndex.value, pageSize: pageSize.value },
       keyword.value || undefined
     );
+
+    if (!isMounted.value) return;
     list.value = result.items;
     total.value = Number(result.total);
   } catch (error: unknown) {
@@ -176,7 +183,9 @@ function openCreate() {
 
 async function openEdit(id: number) {
   try {
-    const detail = await getAiDatabaseById(id);
+    const detail  = await getAiDatabaseById(id);
+
+    if (!isMounted.value) return;
     editingId.value = id;
     Object.assign(form, {
       name: detail.name,
@@ -198,6 +207,8 @@ function closeModal() {
 async function submitForm() {
   try {
     await formRef.value?.validate();
+
+    if (!isMounted.value) return;
   } catch {
     return;
   }
@@ -211,6 +222,8 @@ async function submitForm() {
         botId: form.botId,
         tableSchema: form.tableSchema
       });
+
+      if (!isMounted.value) return;
       message.success("更新成功");
     } else {
       await createAiDatabase({
@@ -219,11 +232,15 @@ async function submitForm() {
         botId: form.botId,
         tableSchema: form.tableSchema
       });
+
+      if (!isMounted.value) return;
       message.success("创建成功");
     }
 
     modalVisible.value = false;
     await loadData();
+
+    if (!isMounted.value) return;
   } catch (error: unknown) {
     message.error((error as Error).message || "提交失败");
   } finally {
@@ -234,8 +251,12 @@ async function submitForm() {
 async function handleDelete(id: number) {
   try {
     await deleteAiDatabase(id);
+
+    if (!isMounted.value) return;
     message.success("删除成功");
     await loadData();
+
+    if (!isMounted.value) return;
   } catch (error: unknown) {
     message.error((error as Error).message || "删除失败");
   }

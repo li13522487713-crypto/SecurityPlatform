@@ -163,7 +163,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { useRoute, useRouter } from 'vue-router';
 import { message } from 'ant-design-vue';
 import {
@@ -253,23 +258,30 @@ const flowDefinitionNodes = computed(() => {
 const fetchDetail = async () => {
   loading.value = true;
   try {
-    const [userResult, taskResult] = await Promise.all([
+    const [userResult, taskResult]  = await Promise.all([
       getCurrentUser(),
       getApprovalTaskById(taskId)
     ]);
 
+    if (!isMounted.value) return;
+
     currentUserId.value = userResult.id;
     task.value = taskResult;
 
-    const [instanceResult, historyResult] = await Promise.all([
+    const [instanceResult, historyResult]  = await Promise.all([
       getApprovalInstanceById(taskResult.instanceId),
       getApprovalInstanceHistory(taskResult.instanceId, { pageIndex: 1, pageSize: 50 })
     ]);
+
+
+    if (!isMounted.value) return;
     instance.value = instanceResult;
     historyItems.value = historyResult.items;
 
     if (instanceResult.definitionId) {
-      const def = await getApprovalFlowById(String(instanceResult.definitionId));
+      const def  = await getApprovalFlowById(String(instanceResult.definitionId));
+
+      if (!isMounted.value) return;
       flowDefinition.value = def;
       try {
         parsedDefinition.value = JSON.parse(def.definitionJson) as ApprovalDefinitionJson;
@@ -298,6 +310,8 @@ const handleApprove = async () => {
   submitting.value = true;
   try {
     await decideApprovalTask({ taskId, approved: true, comment: comment.value });
+
+    if (!isMounted.value) return;
     message.success('已同意');
     approveVisible.value = false;
     router.back();
@@ -316,6 +330,8 @@ const handleReject = async () => {
   submitting.value = true;
   try {
     await decideApprovalTask({ taskId, approved: false, comment: comment.value });
+
+    if (!isMounted.value) return;
     message.success('已驳回');
     rejectVisible.value = false;
     router.back();
@@ -335,10 +351,14 @@ const handleTransfer = async () => {
   submitting.value = true;
   try {
     await transferTask(String(instance.value.id), taskId, transferTargetIds.value[0], transferComment.value || undefined);
+
+    if (!isMounted.value) return;
     message.success('转办成功');
     transferVisible.value = false;
     resetTransferForm();
     await fetchDetail();
+
+    if (!isMounted.value) return;
   } catch {
     message.error('转办失败');
   } finally {
@@ -354,10 +374,14 @@ const handleDelegate = async () => {
   submitting.value = true;
   try {
     await delegateTask(taskId, delegateTargetIds.value[0], delegateComment.value || undefined);
+
+    if (!isMounted.value) return;
     message.success('委派成功');
     delegateVisible.value = false;
     resetDelegateForm();
     await fetchDetail();
+
+    if (!isMounted.value) return;
   } catch {
     message.error('委派失败');
   } finally {
@@ -379,6 +403,8 @@ const handleJump = async (targetNodeId: string) => {
   if (!instance.value) return;
   try {
     await jumpTask(String(instance.value.id), targetNodeId, taskId);
+
+    if (!isMounted.value) return;
     message.success('跳转成功');
     router.back();
   } catch {

@@ -59,7 +59,12 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue';
+import { onMounted, reactive, ref, onUnmounted } from 'vue';
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { useRouter } from 'vue-router';
 import { message } from 'ant-design-vue';
 import type { TablePaginationConfig } from 'ant-design-vue';
@@ -98,7 +103,7 @@ const pagination = reactive<TablePaginationConfig>({
 const fetchData = async () => {
   loading.value = true;
   try {
-    const result = await getAdminInstancesPaged(
+    const result  = await getAdminInstancesPaged(
       {
         pageIndex: pagination.current ?? 1,
         pageSize: pagination.pageSize ?? 10,
@@ -108,6 +113,8 @@ const fetchData = async () => {
         businessKey: filters.businessKey,
       },
     );
+
+    if (!isMounted.value) return;
     dataSource.value = result.items;
     pagination.total = result.total;
   } catch (err) {
@@ -130,8 +137,12 @@ const viewDetail = (instanceId: string | number) => {
 const terminate = async (instanceId: string | number) => {
   try {
     await terminateInstance(String(instanceId), '管理端终止');
+
+    if (!isMounted.value) return;
     message.success('终止成功');
     await fetchData();
+
+    if (!isMounted.value) return;
   } catch (err) {
     message.error(err instanceof Error ? err.message : '终止失败');
   }

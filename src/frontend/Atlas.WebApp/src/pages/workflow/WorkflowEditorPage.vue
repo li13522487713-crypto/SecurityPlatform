@@ -93,7 +93,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, markRaw, type Component } from 'vue'
+import { ref, computed, onMounted, markRaw, type Component, onUnmounted } from 'vue'
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { useRoute, useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import {

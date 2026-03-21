@@ -109,7 +109,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, onMounted, onUnmounted } from "vue";
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
 import { message } from "ant-design-vue";
 import { useI18n } from "vue-i18n";
 import { requestApi } from "@/services/api-core";
@@ -177,7 +182,9 @@ const load = async () => {
   loading.value = true;
   try {
     const query = `?pageIndex=${pageIndex.value}&pageSize=${pageSize.value}`;
-    const response = await requestApi<ApiResponse<PagedResult<ScheduledJobDto>>>(`/scheduled-jobs${query}`);
+    const response  = await requestApi<ApiResponse<PagedResult<ScheduledJobDto>>>(`/scheduled-jobs${query}`);
+
+    if (!isMounted.value) return;
     items.value = response.data?.items ?? [];
     total.value = response.data?.total ?? 0;
   } catch (e: unknown) {
@@ -195,6 +202,8 @@ const onPageChange = (page: number) => {
 const handleTrigger = async (jobId: string) => {
   try {
     await requestApi<ApiResponse<object>>(`/scheduled-jobs/${jobId}/trigger`, { method: "POST" });
+
+    if (!isMounted.value) return;
     message.success(t("scheduledJobs.triggerSuccess"));
     load();
   } catch {
@@ -205,6 +214,8 @@ const handleTrigger = async (jobId: string) => {
 const handleDisable = async (jobId: string) => {
   try {
     await requestApi<ApiResponse<object>>(`/scheduled-jobs/${jobId}/disable`, { method: "PUT" });
+
+    if (!isMounted.value) return;
     message.success(t("scheduledJobs.disableSuccess"));
     load();
   } catch {
@@ -215,6 +226,8 @@ const handleDisable = async (jobId: string) => {
 const handleEnable = async (jobId: string) => {
   try {
     await requestApi<ApiResponse<object>>(`/scheduled-jobs/${jobId}/enable`, { method: "PUT" });
+
+    if (!isMounted.value) return;
     message.success(t("scheduledJobs.enableSuccess"));
     load();
   } catch {
@@ -227,9 +240,11 @@ const loadExecutionHistory = async () => {
   historyLoading.value = true;
   try {
     const query = `?pageIndex=${historyPageIndex.value}&pageSize=${historyPageSize.value}`;
-    const response = await requestApi<ApiResponse<PagedResult<ScheduledJobExecutionDto>>>(
+    const response  = await requestApi<ApiResponse<PagedResult<ScheduledJobExecutionDto>>>(
       `/scheduled-jobs/${selectedHistoryJobId.value}/executions${query}`
     );
+
+    if (!isMounted.value) return;
     executionHistoryItems.value = response.data?.items ?? [];
     historyTotal.value = response.data?.total ?? 0;
   } catch (e: unknown) {
