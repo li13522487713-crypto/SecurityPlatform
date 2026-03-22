@@ -31,6 +31,15 @@
         @change="handleSave"
         @blur="handleCancel"
       />
+      <a-date-picker
+        v-else-if="fieldType === 'date'"
+        ref="inputRef"
+        v-model:value="editValue"
+        size="small"
+        :style="{ width: '100%' }"
+        @change="handleSave"
+        @openChange="handleDateOpenChange"
+      />
       <template v-else>
         <a-input
           ref="inputRef"
@@ -49,17 +58,21 @@
       @click="startEdit"
     >
       <slot />
-      <EditOutlined v-if="editable && !saving" class="editable-cell-icon" />
+      <div v-if="editable && !saving" class="actions">
+        <EditOutlined class="editable-cell-icon" />
+        <UndoOutlined v-if="canUndo" class="editable-cell-icon undo-icon" @click.stop="handleUndo" :title="t('tableUi.undo')" />
+      </div>
       <LoadingOutlined v-if="saving" class="editable-cell-icon" />
     </div>
   </td>
 </template>
 
 <script setup lang="ts">
-import { nextTick, ref, watch } from "vue";
+import { nextTick, ref, watch, computed } from "vue";
 import { useI18n } from "vue-i18n";
-import { EditOutlined, LoadingOutlined } from "@ant-design/icons-vue";
+import { EditOutlined, LoadingOutlined, UndoOutlined } from "@ant-design/icons-vue";
 import { message } from "ant-design-vue";
+import dayjs from "dayjs";
 
 const { t } = useI18n();
 
@@ -71,8 +84,8 @@ interface SelectOption {
 const props = withDefaults(defineProps<{
   /** 当前值 */
   value: string | number | null | undefined
-  /** 字段类型：text | number | select */
-  fieldType?: 'text' | 'number' | 'select'
+  /** 字段类型：text | number | select | date */
+  fieldType?: 'text' | 'number' | 'select' | 'date'
   /** 是否可编辑 */
   editable?: boolean
   /** select 类型的选项 */
@@ -92,8 +105,11 @@ const emit = defineEmits<{
 
 const editing = ref(false)
 const saving = ref(false)
-const editValue = ref<string | number | null | undefined>(props.value)
+const editValue = ref<any>(props.value)
+const initialValue = ref(props.value)
 const inputRef = ref<HTMLElement | null>(null)
+
+const canUndo = computed(() => props.value !== initialValue.value && props.value !== undefined)
 
 watch(() => props.value, (v) => {
   if (!editing.value) editValue.value = v
@@ -101,10 +117,14 @@ watch(() => props.value, (v) => {
 
 const startEdit = () => {
   if (!props.editable || saving.value) return
-  editValue.value = props.value
+  if (props.fieldType === 'date' && props.value) {
+    editValue.value = dayjs(props.value)
+  } else {
+    editValue.value = props.value
+  }
   editing.value = true
   nextTick(() => {
-    const el = inputRef.value as HTMLInputElement | null
+    const el = inputRef.value as any
     el?.focus?.()
   })
 }
@@ -112,7 +132,12 @@ const startEdit = () => {
 const handleSave = async () => {
   if (!editing.value) return
   editing.value = false
-  const newVal = editValue.value ?? null
+  
+  let newVal = editValue.value ?? null
+  if (props.fieldType === 'date' && dayjs.isDayjs(newVal)) {
+    newVal = newVal.format("YYYY-MM-DD")
+  }
+
   if (newVal === props.value) return
 
   if (props.onSave) {
@@ -136,6 +161,32 @@ const handleSave = async () => {
   }
 }
 
+const handleDateOpenChange = (open: boolean) => {
+  if (!open) {
+    handleSave()
+  }
+}
+
+const handleUndo = async () => {
+  if (saving.value) return
+  const oldVal = initialValue.value ?? null
+  if (props.onSave) {
+    saving.value = true
+    try {
+      const ok = await props.onSave(oldVal)
+      if (ok !== false) {
+        emit('update:value', oldVal)
+        emit('saved', oldVal)
+      }
+    } finally {
+      saving.value = false
+    }
+  } else {
+    emit('update:value', oldVal)
+    emit('saved', oldVal)
+  }
+}
+
 const handleCancel = () => {
   editing.value = false
   editValue.value = props.value
@@ -148,6 +199,11 @@ const handleCancel = () => {
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+.actions {
+  display: flex;
+  gap: 4px;
 }
 
 .editable-cell-value--active {
@@ -164,5 +220,9 @@ const handleCancel = () => {
   color: #1677ff;
   transition: opacity 0.2s;
   flex-shrink: 0;
+}
+
+.undo-icon {
+  color: #faad14; /* 警告色表示这是一个回退动作 */
 }
 </style>

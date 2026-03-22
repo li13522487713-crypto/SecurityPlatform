@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { computed, useSlots, ref } from "vue";
+import { computed, useSlots, ref, h } from "vue";
+import { LoadingOutlined } from "@ant-design/icons-vue";
 import type { TableProps } from "ant-design-vue";
 import type { TableViewConfig, TableViewColumnConfig } from "@/types/api";
+import VScrollBody from "./VScrollBody.vue";
 
 interface Props {
   config: TableViewConfig;
@@ -9,6 +11,7 @@ interface Props {
   loading?: boolean;
   pagination?: TableProps["pagination"];
   rowSelection?: TableProps["rowSelection"];
+  loadTreeData?: (record: any) => Promise<void>;
 }
 
 const props = defineProps<Props>();
@@ -16,6 +19,7 @@ const emit = defineEmits<{
   (e: "update:config", config: TableViewConfig): void;
   (e: "change", pagination: any, filters: any, sorter: any, extra: any): void;
   (e: "columnResize", key: string, width: number): void;
+  (e: "expand", expanded: boolean, record: any): void;
 }>();
 
 const slots = useSlots();
@@ -46,12 +50,24 @@ const mapColumnsToAntd = (columns: TableViewColumnConfig[]): TableProps["columns
   });
 };
 
-const antTableProps = computed(() => ({
-  columns: mapColumnsToAntd(props.config.columns || []),
-  scroll: props.config.scroll,
-  bordered: props.config.bordered,
-  size: props.config.density === "compact" ? "small" : props.config.density === "comfortable" ? "default" : "middle",
-}));
+const antTableProps = computed(() => {
+  const base: any = {
+    columns: mapColumnsToAntd(props.config.columns || []),
+    scroll: props.config.scroll,
+    bordered: props.config.bordered,
+    size: props.config.density === "compact" ? "small" : props.config.density === "comfortable" ? "default" : "middle",
+  };
+
+  if (props.config.virtual) {
+    base.components = {
+      body: {
+        wrapper: (wProps: any, { slots }: any) => h(VScrollBody, { ...wProps, itemSize: props.config.itemSize || 54 }, slots)
+      }
+    };
+  }
+
+  return base;
+});
 
 // 列宽拖拽相关
 let isResizing = false;
@@ -117,6 +133,22 @@ const stopResize = () => {
   document.body.style.cursor = "";
 };
 
+const loadingKeys = ref<Set<string>>(new Set());
+const handleExpand = async (expanded: boolean, record: any) => {
+  emit("expand", expanded, record);
+  
+  if (expanded && props.loadTreeData && (!record.children || record.children.length === 0)) {
+    const key = record.id || record.key;
+    if (loadingKeys.value.has(key)) return;
+    
+    loadingKeys.value.add(key);
+    try {
+      await props.loadTreeData(record);
+    } finally {
+      loadingKeys.value.delete(key);
+    }
+  }
+};
 </script>
 
 <template>
@@ -129,7 +161,18 @@ const stopResize = () => {
       :row-selection="rowSelection"
       row-key="id"
       @change="(pag: any, filters: any, sorter: any, extra: any) => emit('change', pag, filters, sorter, extra)"
+      @expand="handleExpand"
     >
+      <!-- 使用原生的 expandIcon 来提供加载态包裹 -->
+      <template #expandIcon="{ expanded, onExpand, record }">
+        <template v-if="(record.children && record.children.length > 0) || record.hasChildren">
+           <span v-if="loadingKeys.has(record.id || record.key)" class="pro-tree-loading">
+             <LoadingOutlined />
+           </span>
+           <div v-else @click="e => onExpand(record, e)" :class="['ant-table-row-expand-icon', expanded ? 'ant-table-row-expand-icon-expanded' : 'ant-table-row-expand-icon-collapsed']"></div>
+        </template>
+      </template>
+
       <!-- 透传原生 HeaderCell Slot 并植入 Resize 手柄 -->
       <template #headerCell="{ column }">
         <slot name="headerCell" :column="column">
@@ -227,5 +270,12 @@ const stopResize = () => {
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 100%;
+}
+
+.pro-tree-loading {
+  display: inline-block;
+  margin-right: 8px;
+  color: var(--ant-primary-color, #1890ff);
+  font-size: 14px;
 }
 </style>

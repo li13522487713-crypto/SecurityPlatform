@@ -181,6 +181,8 @@ export interface TableViewConfig {
     x?: number | string;
     y?: number | string;
   };
+  virtual?: boolean;
+  itemSize?: number;
   pagination?: TableViewPagination;
   sort?: TableViewSort[];
   filters?: TableViewFilter[];

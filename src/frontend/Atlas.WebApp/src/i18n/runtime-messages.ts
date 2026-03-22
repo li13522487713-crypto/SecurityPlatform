@@ -4041,7 +4041,11 @@ export const runtimeMessages: Record<SupportedLocale, MessageTree> = {
       fullscreenUnsupported: "您的浏览器不支持全屏功能"
     },
     tableUi: {
-      saveFailed: "保存失败"
+      saveFailed: "保存失败",
+      undo: "撤回修改",
+      exportNoData: "无数据可导出",
+      exportSuccess: "安全导出成功",
+      exportFailed: "导出失败"
     },
     approvalPalette: {
       start: "开始",
@@ -8088,7 +8092,11 @@ export const runtimeMessages: Record<SupportedLocale, MessageTree> = {
       fullscreenUnsupported: "Fullscreen not supported"
     },
     tableUi: {
-      saveFailed: "Save failed"
+      saveFailed: "Save failed",
+      undo: "Undo changes",
+      exportNoData: "No data to export",
+      exportSuccess: "Exported successfully",
+      exportFailed: "Export failed"
     },
     approvalPalette: {
       start: "Start",
