@@ -9,5 +9,11 @@ public enum DynamicFieldType
     Text = 4,
     Bool = 5,
     DateTime = 6,
-    Date = 7
+    Date = 7,
+    Time = 8,
+    Enum = 9,
+    File = 10,
+    Image = 11,
+    Json = 12,
+    Guid = 13
 }

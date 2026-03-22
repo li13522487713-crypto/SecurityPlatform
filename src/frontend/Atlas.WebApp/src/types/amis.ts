@@ -21,6 +21,7 @@ export interface AmisEnv {
   confirm: (msg: string) => Promise<boolean>;
   updateLocation?: (location: string, replace?: boolean) => void;
   locale?: string;
+  data?: Record<string, unknown>;
 }
 
 export type AmisSchema = Record<string, unknown>;

@@ -43,8 +43,25 @@
     <div class="builder-main">
       <template v-if="selectedPageId && currentSchema">
         <div class="main-toolbar">
-          <span class="page-title">{{ currentPageName }}</span>
+          <div class="main-toolbar-left">
+            <span class="page-title">{{ currentPageName }}</span>
+            <a-tooltip :title="t('lowcode.builderExtra.undo')">
+              <a-button size="small" :disabled="!schemaHistory.canUndo" @click="handleUndo">
+                ↩
+              </a-button>
+            </a-tooltip>
+            <a-tooltip :title="t('lowcode.builderExtra.redo')">
+              <a-button size="small" :disabled="!schemaHistory.canRedo" @click="handleRedo">
+                ↪
+              </a-button>
+            </a-tooltip>
+          </div>
           <div class="main-toolbar-actions">
+            <a-radio-group v-model:value="devicePreview" button-style="solid" size="small">
+              <a-radio-button value="desktop">PC</a-radio-button>
+              <a-radio-button value="tablet">Tablet</a-radio-button>
+              <a-radio-button value="mobile">Mobile</a-radio-button>
+            </a-radio-group>
             <a-select
               v-model:value="selectedEnvironmentCode"
               style="width: 180px"
@@ -59,12 +76,15 @@
             <a-button type="primary" :loading="publishing" @click="handlePublishPage(selectedPageId!)">{{ t("lowcode.builderExtra.publishBtn") }}</a-button>
           </div>
         </div>
-        <AmisEditor
-          ref="pageEditorRef"
-          :schema="currentSchema"
-          height="calc(100vh - 112px)"
-          @change="handlePageSchemaChange"
-        />
+        <div :style="{ maxWidth: devicePreview === 'mobile' ? '375px' : devicePreview === 'tablet' ? '768px' : '100%', margin: '0 auto' }">
+          <AmisEditor
+            ref="pageEditorRef"
+            :schema="currentSchema"
+            :is-mobile="devicePreview === 'mobile'"
+            height="calc(100vh - 112px)"
+            @change="handlePageSchemaChange"
+          />
+        </div>
       </template>
       <template v-else>
         <div class="empty-main">
@@ -269,6 +289,7 @@ import { useRoute, useRouter } from "vue-router";
 import { message, Modal } from "ant-design-vue";
 import { useI18n } from "vue-i18n";
 import AmisEditor from "@/components/amis/AmisEditor.vue";
+import { useSchemaHistoryStore } from "@/stores/schemaHistory";
 import type {
   LowCodeAppDetail,
   LowCodeAppVersionListItem,
@@ -304,11 +325,39 @@ const router = useRouter();
 const { t, locale } = useI18n();
 const appId = computed(() => String(route.params.id ?? route.params.appId ?? ""));
 
+const schemaHistory = useSchemaHistoryStore();
 const isMounted = ref(false);
 onUnmounted(() => {
   isMounted.value = false;
+  document.removeEventListener("keydown", handleKeyDown);
 });
 
+function handleKeyDown(e: KeyboardEvent) {
+  if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) {
+    e.preventDefault();
+    handleUndo();
+  }
+  if ((e.ctrlKey || e.metaKey) && ((e.key === "z" && e.shiftKey) || e.key === "y")) {
+    e.preventDefault();
+    handleRedo();
+  }
+}
+
+function handleUndo() {
+  const prev = schemaHistory.undo();
+  if (prev && selectedPageId.value) {
+    pageSchemas.value[selectedPageId.value] = prev;
+  }
+}
+
+function handleRedo() {
+  const next = schemaHistory.redo();
+  if (next && selectedPageId.value) {
+    pageSchemas.value[selectedPageId.value] = next;
+  }
+}
+
+const devicePreview = ref<"desktop" | "tablet" | "mobile">("desktop");
 const loading = ref(true);
 const saving = ref(false);
 const publishing = ref(false);
@@ -534,6 +583,11 @@ const selectPage = async (pageId: string) => {
       }
     }
   }
+
+  const loadedSchema = pageSchemas.value[pageId];
+  if (loadedSchema) {
+    schemaHistory.init(loadedSchema);
+  }
 };
 
 const handleAddPage = () => {
@@ -619,6 +673,7 @@ const handlePageFormSubmit = async () => {
 const handlePageSchemaChange = (newSchema: Record<string, unknown>) => {
   if (selectedPageId.value) {
     pageSchemas.value[selectedPageId.value] = newSchema;
+    schemaHistory.pushState(newSchema);
   }
 };
 
@@ -956,6 +1011,7 @@ const goBack = () => {
 
 onMounted(() => {
   isMounted.value = true;
+  document.addEventListener("keydown", handleKeyDown);
   loadApp();
 });
 </script>
@@ -1066,6 +1122,12 @@ onMounted(() => {
   background: #fff;
   border-bottom: 1px solid #e8e8e8;
   height: 48px;
+}
+
+.main-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .page-title {

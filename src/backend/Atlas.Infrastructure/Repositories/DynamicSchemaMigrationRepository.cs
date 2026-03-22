@@ -36,4 +36,14 @@ public sealed class DynamicSchemaMigrationRepository : IDynamicSchemaMigrationRe
     {
         return _db.Insertable(migration).ExecuteCommandAsync(cancellationToken);
     }
+
+    public async Task<DynamicSchemaMigration?> GetByIdAsync(
+        TenantId tenantId,
+        long id,
+        CancellationToken cancellationToken)
+    {
+        return await _db.Queryable<DynamicSchemaMigration>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.Id == id)
+            .FirstAsync(cancellationToken);
+    }
 }

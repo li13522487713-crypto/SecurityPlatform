@@ -14,6 +14,11 @@ onUnmounted(() => { isMounted.value = false; });
 
 import type { JsonValue } from "@/types/api";
 import { translate } from "@/i18n";
+import type { AmisPluginConfig } from "./amis-plugins";
+import { getRegisteredPlugins } from "./amis-plugins";
+import { registerBusinessPlugins } from "./amis-plugins/business-plugins";
+
+registerBusinessPlugins();
 
 interface Props {
   schema: Record<string, unknown>;
@@ -21,13 +26,15 @@ interface Props {
   preview?: boolean;
   isMobile?: boolean;
   theme?: string;
+  plugins?: AmisPluginConfig[];
 }
 
 const props = withDefaults(defineProps<Props>(), {
   height: "100%",
   preview: false,
   isMobile: false,
-  theme: "cxd"
+  theme: "cxd",
+  plugins: () => [],
 });
 
 const emit = defineEmits<{
@@ -88,6 +95,33 @@ const renderEditor = async () => {
     }
 
     const schema = normalizeValue(props.schema);
+
+    const allPlugins = [...getRegisteredPlugins(), ...props.plugins];
+    const pluginInstances = allPlugins
+      .filter((p) => p.editorConfig?.scaffold)
+      .map((p) => {
+        try {
+          const { registerEditorPlugin, BasePlugin } = await import(/* @vite-ignore */ amisEditorModuleName) as {
+            registerEditorPlugin: (cls: unknown) => void;
+            BasePlugin: new () => Record<string, unknown>;
+          };
+
+          class DynamicPlugin extends BasePlugin {
+            rendererName = p.name;
+            name = p.displayName;
+            description = p.description ?? "";
+            tags = (p.editorConfig?.tags as string[]) ?? [p.group];
+            icon = p.icon ?? "fa fa-puzzle-piece";
+            scaffold = p.editorConfig?.scaffold ?? p.schema;
+            previewSchema = p.editorConfig?.previewSchema ?? p.schema;
+          }
+
+          registerEditorPlugin(DynamicPlugin);
+          return DynamicPlugin;
+        } catch {
+          return null;
+        }
+      });
 
     const editorProps = {
       value: schema,

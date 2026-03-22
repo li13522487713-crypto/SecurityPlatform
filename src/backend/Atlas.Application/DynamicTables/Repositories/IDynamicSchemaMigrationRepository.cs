@@ -13,4 +13,9 @@ public interface IDynamicSchemaMigrationRepository
         CancellationToken cancellationToken);
 
     Task AddAsync(DynamicSchemaMigration migration, CancellationToken cancellationToken);
+
+    Task<DynamicSchemaMigration?> GetByIdAsync(
+        TenantId tenantId,
+        long id,
+        CancellationToken cancellationToken);
 }

@@ -39,4 +39,11 @@ public interface IDynamicTableQueryService
         string tableKey,
         long? appId,
         CancellationToken cancellationToken);
+
+    Task<PagedResult<DynamicSchemaMigrationItem>> GetMigrationHistoryAsync(
+        TenantId tenantId,
+        string tableKey,
+        int pageIndex,
+        int pageSize,
+        CancellationToken cancellationToken);
 }

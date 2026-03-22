@@ -200,3 +200,13 @@ public sealed record DynamicFieldValueDto
     public DateTimeOffset? DateTimeValue { get; init; }
     public DateTimeOffset? DateValue { get; init; }
 }
+
+public sealed record DynamicSchemaMigrationItem(
+    long Id,
+    string TableKey,
+    string OperationType,
+    string AppliedSql,
+    string? RollbackSql,
+    string Status,
+    long CreatedBy,
+    DateTimeOffset CreatedAt);

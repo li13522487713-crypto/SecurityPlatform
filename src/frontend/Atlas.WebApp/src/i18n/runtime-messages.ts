@@ -2882,6 +2882,78 @@ export const runtimeMessages: Record<SupportedLocale, MessageTree> = {
       defaultTitle: "运行态页面",
       loadFailed: "加载运行态页面失败"
     },
+    designer: {
+      dataBinding: {
+        placeholder: "选择数据字段"
+      },
+      conditionEditor: {
+        addCondition: "添加条件",
+        field: "字段",
+        operator: "运算符",
+        value: "值",
+        and: "且",
+        or: "或",
+        eq: "等于",
+        neq: "不等于",
+        gt: "大于",
+        lt: "小于",
+        contains: "包含",
+        empty: "为空"
+      },
+      entityModeling: {
+        title: "实体建模",
+        fieldName: "字段名",
+        displayName: "显示名",
+        fieldType: "类型",
+        length: "长度",
+        allowNull: "允许空",
+        isPrimaryKey: "主键",
+        isUnique: "唯一",
+        addField: "新增字段",
+        removeField: "删除",
+        save: "保存",
+        saveSuccess: "保存成功",
+        saveFailed: "保存失败",
+        tableKey: "表标识",
+        tableName: "表显示名"
+      },
+      componentTree: {
+        title: "组件树",
+        emptyHint: "暂无组件"
+      },
+      menuEditor: {
+        title: "菜单管理",
+        addItem: "添加菜单项",
+        icon: "图标",
+        label: "标题",
+        targetPage: "目标页面",
+        permission: "权限编码",
+        save: "保存菜单",
+        saveSuccess: "菜单保存成功"
+      },
+      microflow: {
+        title: "微流程设计器",
+        addStep: "添加步骤",
+        removeStep: "删除步骤",
+        stepType: "步骤类型",
+        stepName: "步骤名称",
+        apiCall: "API 调用",
+        condition: "条件判断",
+        setVariable: "设置变量",
+        notification: "发送通知",
+        url: "请求地址",
+        method: "请求方法",
+        field: "条件字段",
+        value: "期望值",
+        variableName: "变量名",
+        variableValue: "变量值",
+        message: "通知内容",
+        execute: "执行",
+        executeSuccess: "微流程执行成功",
+        executeFailed: "微流程执行失败",
+        noSteps: "请添加至少一个步骤"
+      }
+    },
     adminAi: {
       cardTitle: "AI 管理配置",
       enableAiPlatform: "启用 AI 平台",
@@ -3711,7 +3783,9 @@ export const runtimeMessages: Record<SupportedLocale, MessageTree> = {
         envManager: "环境管理",
         saveAsTemplate: "保存为模板",
         save: "保存",
-        publishBtn: "发布"
+        publishBtn: "发布",
+        undo: "撤销 (Ctrl+Z)",
+        redo: "重做 (Ctrl+Shift+Z)"
       },
       createWizard: {
         alertIsolatedTitle: "当前选择了应用独立（隔离）策略，但未绑定数据源",
@@ -6860,6 +6934,78 @@ export const runtimeMessages: Record<SupportedLocale, MessageTree> = {
       defaultTitle: "Runtime page",
       loadFailed: "Failed to load runtime page"
     },
+    designer: {
+      dataBinding: {
+        placeholder: "Select data field"
+      },
+      conditionEditor: {
+        addCondition: "Add condition",
+        field: "Field",
+        operator: "Operator",
+        value: "Value",
+        and: "AND",
+        or: "OR",
+        eq: "Equals",
+        neq: "Not equals",
+        gt: "Greater than",
+        lt: "Less than",
+        contains: "Contains",
+        empty: "Is empty"
+      },
+      entityModeling: {
+        title: "Entity Modeling",
+        fieldName: "Field name",
+        displayName: "Display name",
+        fieldType: "Type",
+        length: "Length",
+        allowNull: "Nullable",
+        isPrimaryKey: "PK",
+        isUnique: "Unique",
+        addField: "Add field",
+        removeField: "Remove",
+        save: "Save",
+        saveSuccess: "Saved successfully",
+        saveFailed: "Save failed",
+        tableKey: "Table key",
+        tableName: "Table display name"
+      },
+      componentTree: {
+        title: "Component Tree",
+        emptyHint: "No components"
+      },
+      menuEditor: {
+        title: "Menu editor",
+        addItem: "Add menu item",
+        icon: "Icon",
+        label: "Label",
+        targetPage: "Target page",
+        permission: "Permission code",
+        save: "Save menu",
+        saveSuccess: "Menu saved"
+      },
+      microflow: {
+        title: "Microflow Designer",
+        addStep: "Add step",
+        removeStep: "Remove step",
+        stepType: "Step type",
+        stepName: "Step name",
+        apiCall: "API call",
+        condition: "Condition",
+        setVariable: "Set variable",
+        notification: "Send notification",
+        url: "Request URL",
+        method: "HTTP method",
+        field: "Condition field",
+        value: "Expected value",
+        variableName: "Variable name",
+        variableValue: "Variable value",
+        message: "Message content",
+        execute: "Execute",
+        executeSuccess: "Microflow executed successfully",
+        executeFailed: "Microflow execution failed",
+        noSteps: "Please add at least one step"
+      }
+    },
     adminAi: {
       cardTitle: "AI administration",
       enableAiPlatform: "Enable AI platform",
@@ -7684,7 +7830,9 @@ export const runtimeMessages: Record<SupportedLocale, MessageTree> = {
         envManager: "Environments",
         saveAsTemplate: "Save as template",
         save: "Save",
-        publishBtn: "Publish"
+        publishBtn: "Publish",
+        undo: "Undo (Ctrl+Z)",
+        redo: "Redo (Ctrl+Shift+Z)"
       },
       createWizard: {
         alertIsolatedTitle: "App-standalone (isolated) is selected, but no data source is bound",

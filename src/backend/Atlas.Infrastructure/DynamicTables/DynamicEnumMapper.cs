@@ -40,6 +40,12 @@ internal static class DynamicEnumMapper
             "bool" => DynamicFieldType.Bool,
             "datetime" => DynamicFieldType.DateTime,
             "date" => DynamicFieldType.Date,
+            "time" => DynamicFieldType.Time,
+            "enum" => DynamicFieldType.Enum,
+            "file" => DynamicFieldType.File,
+            "image" => DynamicFieldType.Image,
+            "json" => DynamicFieldType.Json,
+            "guid" => DynamicFieldType.Guid,
             _ => throw new BusinessException(ErrorCodes.ValidationError, "Field type is not supported.")
         };
     }

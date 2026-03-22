@@ -23,6 +23,7 @@ public sealed class DynamicTableQueryService : IDynamicTableQueryService
     private readonly IFieldPermissionRepository _fieldPermissionRepository;
     private readonly IFieldPermissionResolver _fieldPermissionResolver;
     private readonly ICurrentUserAccessor _currentUserAccessor;
+    private readonly IDynamicSchemaMigrationRepository _migrationRepository;
 
     public DynamicTableQueryService(
         IDynamicTableRepository tableRepository,
@@ -31,7 +32,8 @@ public sealed class DynamicTableQueryService : IDynamicTableQueryService
         IDynamicRelationRepository relationRepository,
         IFieldPermissionRepository fieldPermissionRepository,
         IFieldPermissionResolver fieldPermissionResolver,
-        ICurrentUserAccessor currentUserAccessor)
+        ICurrentUserAccessor currentUserAccessor,
+        IDynamicSchemaMigrationRepository migrationRepository)
     {
         _tableRepository = tableRepository;
         _fieldRepository = fieldRepository;
@@ -40,6 +42,7 @@ public sealed class DynamicTableQueryService : IDynamicTableQueryService
         _fieldPermissionRepository = fieldPermissionRepository;
         _fieldPermissionResolver = fieldPermissionResolver;
         _currentUserAccessor = currentUserAccessor;
+        _migrationRepository = migrationRepository;
     }
 
     public async Task<PagedResult<DynamicTableListItem>> QueryAsync(
@@ -189,6 +192,39 @@ public sealed class DynamicTableQueryService : IDynamicTableQueryService
         return rules
             .Select(x => new DynamicFieldPermissionRule(x.FieldName, x.RoleCode, x.CanView, x.CanEdit))
             .ToArray();
+    }
+
+    public async Task<PagedResult<DynamicSchemaMigrationItem>> GetMigrationHistoryAsync(
+        TenantId tenantId,
+        string tableKey,
+        int pageIndex,
+        int pageSize,
+        CancellationToken cancellationToken)
+    {
+        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, null, cancellationToken);
+        if (table is null)
+        {
+            return new PagedResult<DynamicSchemaMigrationItem>(
+                Array.Empty<DynamicSchemaMigrationItem>(), 0, pageIndex, pageSize);
+        }
+
+        var idx = pageIndex < 1 ? 1 : pageIndex;
+        var size = pageSize < 1 ? 20 : pageSize;
+
+        var (items, total) = await _migrationRepository.QueryPageAsync(
+            tenantId, table.Id, idx, size, cancellationToken);
+
+        var list = items.Select(m => new DynamicSchemaMigrationItem(
+            m.Id,
+            m.TableKey,
+            m.OperationType,
+            m.AppliedSql,
+            m.RollbackSql,
+            m.Status,
+            m.CreatedBy,
+            m.CreatedAt)).ToArray();
+
+        return new PagedResult<DynamicSchemaMigrationItem>(list, total, idx, size);
     }
 
     private async Task<IReadOnlyList<DynamicField>> FilterFieldsByPermissionAsync(

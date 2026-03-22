@@ -143,6 +143,10 @@ public sealed class LowCodeApp : TenantEntity
     [SugarColumn(IsNullable = true)]
     public string? ConfigJson { get; private set; }
 
+    /// <summary>菜单配置 JSON（低代码应用侧边栏菜单结构）</summary>
+    [SugarColumn(IsNullable = true)]
+    public string? MenuConfigJson { get; private set; }
+
     public void Update(
         string name,
         string? description,
@@ -165,6 +169,13 @@ public sealed class LowCodeApp : TenantEntity
     {
         ConfigJson = configJson;
         Version += 1;
+        UpdatedBy = updatedBy;
+        UpdatedAt = now;
+    }
+
+    public void UpdateMenuConfig(string menuConfigJson, long updatedBy, DateTimeOffset now)
+    {
+        MenuConfigJson = menuConfigJson;
         UpdatedBy = updatedBy;
         UpdatedAt = now;
     }

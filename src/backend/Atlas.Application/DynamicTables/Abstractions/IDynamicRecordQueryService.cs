@@ -22,4 +22,13 @@ public interface IDynamicRecordQueryService
         string tableKey,
         DynamicRecordExportRequest request,
         CancellationToken cancellationToken);
+
+    Task<DynamicRecordListResult> GetRelatedRecordsAsync(
+        TenantId tenantId,
+        string sourceTableKey,
+        long sourceRecordId,
+        string relatedTableKey,
+        int pageIndex,
+        int pageSize,
+        CancellationToken cancellationToken);
 }

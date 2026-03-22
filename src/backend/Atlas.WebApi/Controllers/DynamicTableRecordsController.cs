@@ -231,6 +231,25 @@ public sealed class DynamicTableRecordsController : ControllerBase
         return Ok(ApiResponse<DynamicTableApprovalSubmitResponse>.Ok(result, HttpContext.TraceIdentifier));
     }
 
+    /// <summary>
+    /// Query related records for master-detail scenarios via DynamicRelation.
+    /// </summary>
+    [HttpGet("{id:long}/related/{relatedTableKey}")]
+    [Authorize(Policy = PermissionPolicies.AppUser)]
+    public async Task<ActionResult<ApiResponse<DynamicRecordListResult>>> GetRelatedRecords(
+        string tableKey,
+        long id,
+        string relatedTableKey,
+        [FromQuery] int pageIndex = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _queryService.GetRelatedRecordsAsync(
+            tenantId, tableKey, id, relatedTableKey, pageIndex, pageSize, cancellationToken);
+        return Ok(ApiResponse<DynamicRecordListResult>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
     private Task RecordAuditAsync(
         CurrentUserInfo currentUser,
         string action,

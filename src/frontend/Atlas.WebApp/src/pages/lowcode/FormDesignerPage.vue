@@ -11,6 +11,17 @@
         <span class="version-label">v{{ formVersion }}</span>
       </div>
       <div class="toolbar-center">
+        <a-tooltip :title="t('lowcode.builderExtra.undo')">
+          <a-button size="small" :disabled="!schemaHistory.canUndo" @click="() => { const s = schemaHistory.undo(); if (s) schema = s; }">
+            ↩
+          </a-button>
+        </a-tooltip>
+        <a-tooltip :title="t('lowcode.builderExtra.redo')">
+          <a-button size="small" :disabled="!schemaHistory.canRedo" @click="() => { const s = schemaHistory.redo(); if (s) schema = s; }">
+            ↪
+          </a-button>
+        </a-tooltip>
+        <a-divider type="vertical" />
         <a-radio-group v-model:value="viewMode" button-style="solid" size="small">
           <a-radio-button value="edit">{{ t("lowcode.formDesigner.modeEdit") }}</a-radio-button>
           <a-radio-button value="preview">{{ t("lowcode.formDesigner.modePreview") }}</a-radio-button>
@@ -167,6 +178,7 @@ import { useRoute, useRouter } from "vue-router";
 import { message } from "ant-design-vue";
 import { QuestionCircleOutlined, HistoryOutlined } from "@ant-design/icons-vue";
 import AmisEditor from "@/components/amis/AmisEditor.vue";
+import { useSchemaHistoryStore } from "@/stores/schemaHistory";
 import {
   getFormDefinitionDetail,
   updateFormDefinition,
@@ -185,10 +197,25 @@ const route = useRoute();
 const router = useRouter();
 const formId = route.params.id as string;
 
+const schemaHistory = useSchemaHistoryStore();
 const isMounted = ref(false);
 onUnmounted(() => {
   isMounted.value = false;
+  document.removeEventListener("keydown", handleFormKeyDown);
 });
+
+function handleFormKeyDown(e: KeyboardEvent) {
+  if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) {
+    e.preventDefault();
+    const prev = schemaHistory.undo();
+    if (prev) schema.value = prev;
+  }
+  if ((e.ctrlKey || e.metaKey) && ((e.key === "z" && e.shiftKey) || e.key === "y")) {
+    e.preventDefault();
+    const next = schemaHistory.redo();
+    if (next) schema.value = next;
+  }
+}
 
 const editorRef = ref<InstanceType<typeof AmisEditor> | null>(null);
 const loadingSchema = ref(true);
@@ -255,6 +282,7 @@ const loadFormDefinition = async () => {
     } catch {
       schema.value = { type: "page", title: detail.name, body: [] };
     }
+    schemaHistory.init(schema.value);
   } catch (error) {
     message.error((error as Error).message || t("lowcode.formDesigner.loadFailed"));
   } finally {
@@ -264,6 +292,7 @@ const loadFormDefinition = async () => {
 
 const handleSchemaChange = (newSchema: Record<string, unknown>) => {
   schema.value = newSchema;
+  schemaHistory.pushState(newSchema);
 };
 
 const handleSave = async () => {
@@ -480,6 +509,7 @@ const showGuide = () => {
 
 onMounted(() => {
   isMounted.value = true;
+  document.addEventListener("keydown", handleFormKeyDown);
   loadFormDefinition();
 });
 </script>

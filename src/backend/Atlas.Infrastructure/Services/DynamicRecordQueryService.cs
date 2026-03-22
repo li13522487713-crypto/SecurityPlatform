@@ -18,6 +18,7 @@ public sealed class DynamicRecordQueryService : IDynamicRecordQueryService
     private readonly IDynamicTableRepository _tableRepository;
     private readonly IDynamicFieldRepository _fieldRepository;
     private readonly IDynamicRecordRepository _recordRepository;
+    private readonly IDynamicRelationRepository _relationRepository;
     private readonly IFieldPermissionResolver _fieldPermissionResolver;
     private readonly ICurrentUserAccessor _currentUserAccessor;
     private readonly IAppContextAccessor _appContextAccessor;
@@ -30,6 +31,7 @@ public sealed class DynamicRecordQueryService : IDynamicRecordQueryService
         IDynamicTableRepository tableRepository,
         IDynamicFieldRepository fieldRepository,
         IDynamicRecordRepository recordRepository,
+        IDynamicRelationRepository relationRepository,
         IFieldPermissionResolver fieldPermissionResolver,
         ICurrentUserAccessor currentUserAccessor,
         IAppContextAccessor appContextAccessor,
@@ -38,6 +40,7 @@ public sealed class DynamicRecordQueryService : IDynamicRecordQueryService
         _tableRepository = tableRepository;
         _fieldRepository = fieldRepository;
         _recordRepository = recordRepository;
+        _relationRepository = relationRepository;
         _fieldPermissionResolver = fieldPermissionResolver;
         _currentUserAccessor = currentUserAccessor;
         _appContextAccessor = appContextAccessor;
@@ -391,4 +394,47 @@ public sealed class DynamicRecordQueryService : IDynamicRecordQueryService
         return string.Empty;
     }
 
+    public async Task<DynamicRecordListResult> GetRelatedRecordsAsync(
+        TenantId tenantId,
+        string sourceTableKey,
+        long sourceRecordId,
+        string relatedTableKey,
+        int pageIndex,
+        int pageSize,
+        CancellationToken cancellationToken)
+    {
+        var appId = _appContextAccessor.ResolveAppId();
+        var sourceTable = await _tableRepository.FindByKeyAsync(tenantId, sourceTableKey, appId, cancellationToken)
+            ?? throw new BusinessException(ErrorCodes.NotFound, $"Source table '{sourceTableKey}' not found.");
+
+        var relations = await _relationRepository.ListByTableIdAsync(tenantId, sourceTable.Id, cancellationToken);
+        var relation = relations.FirstOrDefault(r =>
+            r.RelatedTableKey.Equals(relatedTableKey, StringComparison.OrdinalIgnoreCase))
+            ?? throw new BusinessException(ErrorCodes.NotFound,
+                $"No relation from '{sourceTableKey}' to '{relatedTableKey}' found.");
+
+        var sourceFields = await _fieldRepository.ListByTableIdAsync(tenantId, sourceTable.Id, cancellationToken);
+        var sourceRecord = await _recordRepository.GetByIdAsync(tenantId, sourceTable, sourceFields, sourceRecordId, cancellationToken)
+            ?? throw new BusinessException(ErrorCodes.NotFound, $"Source record '{sourceRecordId}' not found.");
+
+        var matchingField = sourceRecord.Values
+            .FirstOrDefault(v => v.Field.Equals(relation.SourceField, StringComparison.OrdinalIgnoreCase));
+        var sourceFieldValue = matchingField is not null ? ResolveCsvValue(matchingField) : null;
+        if (string.IsNullOrEmpty(sourceFieldValue))
+        {
+            return new DynamicRecordListResult(
+                Array.Empty<DynamicRecordDto>(), 0, pageIndex, pageSize, Array.Empty<DynamicColumnDef>());
+        }
+
+        var filterValue = System.Text.Json.JsonSerializer.SerializeToElement(sourceFieldValue);
+        var queryRequest = new DynamicRecordQueryRequest(
+            pageIndex,
+            pageSize,
+            null,
+            null,
+            false,
+            new[] { new DynamicFilterCondition(relation.TargetField, "=", filterValue) });
+
+        return await QueryAsync(tenantId, relatedTableKey, queryRequest, cancellationToken);
+    }
 }

@@ -456,6 +456,18 @@ X-CSRF-TOKEN: {{csrfToken}}
   ]
 }
 
+### 查询动态表迁移历史
+GET {{baseUrl}}/api/v1/dynamic-tables/test_table/migrations?pageIndex=1&pageSize=20
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### 回滚迁移（替换为实际 migrationId）
+POST {{baseUrl}}/api/v1/dynamic-tables/test_table/migrations/12345/rollback
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: rollback-migration-001
+X-CSRF-TOKEN: {{csrfToken}}
+
 ### 未认证查询动态表（应返回 401）
 GET {{baseUrl}}/api/v1/dynamic-tables?pageIndex=1&pageSize=20
 X-Tenant-Id: {{tenantId}}

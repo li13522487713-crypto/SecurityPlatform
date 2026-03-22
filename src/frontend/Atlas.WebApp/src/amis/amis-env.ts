@@ -3,6 +3,8 @@ import type { ApiResponse, JsonValue } from "@/types/api";
 import type { AmisEnv, AmisFetcherConfig, AmisFetcherResult } from "@/types/amis";
 import { requestApi } from "@/services/api-core";
 import { getActiveLocale, i18n } from "@/i18n";
+import { useUserStore } from "@/stores/user";
+import { getAccessToken, getTenantId } from "@/utils/auth";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "/api/v1";
 const globalComposer = i18n.global as unknown as { t: (messageKey: string) => string };
@@ -42,6 +44,29 @@ function buildRequestInit(config: AmisFetcherConfig): RequestInit {
   };
 }
 
+function normalizeAmisParams(data: JsonValue): JsonValue {
+  if (!data || typeof data !== "object" || Array.isArray(data)) {
+    return data;
+  }
+  const params = data as Record<string, JsonValue>;
+  const result: Record<string, JsonValue> = {};
+
+  for (const [key, value] of Object.entries(params)) {
+    if (key === "page") {
+      result["PageIndex"] = value;
+    } else if (key === "perPage") {
+      result["PageSize"] = value;
+    } else if (key === "orderBy") {
+      result["OrderBy"] = value;
+    } else if (key === "orderDir") {
+      result["OrderDir"] = value;
+    } else {
+      result[key] = value;
+    }
+  }
+  return result;
+}
+
 function appendQuery(url: string, data?: JsonValue): string {
   if (!data || typeof data !== "object" || Array.isArray(data)) {
     return url;
@@ -71,12 +96,32 @@ function translate(key: string): string {
   return globalComposer.t(key);
 }
 
+export function buildGlobalData(): Record<string, unknown> {
+  try {
+    const userStore = useUserStore();
+    return {
+      currentUser: {
+        userId: userStore.profile?.userId ?? "",
+        userName: userStore.profile?.username ?? "",
+        displayName: userStore.name,
+        roles: userStore.roles,
+        permissions: userStore.permissions,
+        tenantId: getTenantId() ?? "",
+      },
+    };
+  } catch {
+    return { currentUser: {} };
+  }
+}
+
 export function createAmisEnv(): AmisEnv {
   const fetcher = async (config: AmisFetcherConfig): Promise<AmisFetcherResult> => {
     const path = normalizeUrl(config.url);
     const method = (config.method ?? "GET").toUpperCase();
-    const finalPath = method === "GET" ? appendQuery(path, config.data) : path;
-    const init = buildRequestInit(config);
+    const normalizedData = method === "GET" ? normalizeAmisParams(config.data) : config.data;
+    const adaptedConfig = { ...config, data: normalizedData };
+    const finalPath = method === "GET" ? appendQuery(path, normalizedData) : path;
+    const init = buildRequestInit(adaptedConfig);
 
     try {
       const payload = await requestApi<ApiResponse<JsonValue>>(finalPath, init, {
@@ -160,7 +205,8 @@ export function createAmisEnv(): AmisEnv {
     updateLocation: (location: string, replace?: boolean) => {
       console.debug('[AMIS] updateLocation:', location, replace);
     },
-    locale: getAmisLocale()
+    locale: getAmisLocale(),
+    data: buildGlobalData()
   };
 }
 

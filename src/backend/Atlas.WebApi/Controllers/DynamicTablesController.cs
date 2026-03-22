@@ -303,6 +303,41 @@ public sealed class DynamicTablesController : ControllerBase
         return Ok(ApiResponse<object>.Ok(new { TableKey = tableKey }, HttpContext.TraceIdentifier));
     }
 
+    [HttpGet("{tableKey}/migrations")]
+    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    public async Task<ActionResult<ApiResponse<PagedResult<DynamicSchemaMigrationItem>>>> GetMigrations(
+        string tableKey,
+        [FromQuery] int pageIndex = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _queryService.GetMigrationHistoryAsync(tenantId, tableKey, pageIndex, pageSize, cancellationToken);
+        return Ok(ApiResponse<PagedResult<DynamicSchemaMigrationItem>>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost("{tableKey}/migrations/{migrationId:long}/rollback")]
+    [Authorize(Policy = PermissionPolicies.AppAdmin)]
+    public async Task<ActionResult<ApiResponse<object>>> RollbackMigration(
+        string tableKey,
+        long migrationId,
+        CancellationToken cancellationToken)
+    {
+        var currentUser = _currentUserAccessor.GetCurrentUser();
+        if (currentUser is null)
+        {
+            return Unauthorized(ApiResponse<object>.Fail(
+                ErrorCodes.Unauthorized,
+                ApiResponseLocalizer.T(HttpContext, "UserNotSignedIn"),
+                HttpContext.TraceIdentifier));
+        }
+
+        var tenantId = _tenantProvider.GetTenantId();
+        await _commandService.RollbackMigrationAsync(tenantId, currentUser.UserId, tableKey, migrationId, cancellationToken);
+        await RecordAuditAsync(currentUser, "ROLLBACK_DYNAMIC_TABLE_SCHEMA", tableKey, cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { TableKey = tableKey, MigrationId = migrationId.ToString() }, HttpContext.TraceIdentifier));
+    }
+
     private Task RecordAuditAsync(
         CurrentUserInfo currentUser,
         string action,

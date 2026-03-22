@@ -1027,6 +1027,54 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
         return identifier.Replace("\"", "\"\"", StringComparison.Ordinal);
     }
 
+    public async Task RollbackMigrationAsync(
+        TenantId tenantId,
+        long userId,
+        string tableKey,
+        long migrationId,
+        CancellationToken cancellationToken)
+    {
+        if (_migrationRepository is null)
+        {
+            throw new BusinessException(ErrorCodes.ServerError, "Migration repository is not available.");
+        }
+
+        var migration = await _migrationRepository.GetByIdAsync(tenantId, migrationId, cancellationToken);
+        if (migration is null)
+        {
+            throw new BusinessException(ErrorCodes.NotFound, $"Migration {migrationId} not found.");
+        }
+
+        if (string.IsNullOrWhiteSpace(migration.RollbackSql) ||
+            migration.RollbackSql.Contains("不支持自动回滚", StringComparison.Ordinal))
+        {
+            throw new BusinessException(ErrorCodes.ValidationError,
+                "This migration does not have an executable rollback script. Please restore from backup.");
+        }
+
+        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, _appContextAccessor.ResolveAppId(), cancellationToken);
+        if (table is null)
+        {
+            throw new BusinessException(ErrorCodes.NotFound, $"Table '{tableKey}' not found.");
+        }
+
+        await _db.Ado.ExecuteCommandAsync(migration.RollbackSql, cancellationToken);
+
+        var now = _timeProvider.GetUtcNow();
+        var rollbackMigration = new DynamicSchemaMigration(
+            tenantId,
+            table.Id,
+            tableKey,
+            "Rollback",
+            migration.RollbackSql,
+            migration.AppliedSql,
+            "Succeeded",
+            userId,
+            _idGeneratorAccessor.NextId(),
+            now);
+        await _migrationRepository.AddAsync(rollbackMigration, cancellationToken);
+    }
+
     private DynamicSchemaMigration BuildMigrationRecord(
         TenantId tenantId,
         DynamicTable table,

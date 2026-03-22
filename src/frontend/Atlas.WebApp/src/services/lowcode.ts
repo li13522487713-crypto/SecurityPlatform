@@ -350,6 +350,42 @@ export async function publishLowCodeApp(id: string): Promise<void> {
   if (!response.success) throw new Error(response.message || "发布失败");
 }
 
+export async function disableLowCodeApp(id: string): Promise<void> {
+  const response = await requestApi<ApiResponse<object>>(
+    `/lowcode-apps/${id}/disable`,
+    { method: "POST" }
+  );
+  if (!response.success) throw new Error(response.message || "停用失败");
+}
+
+export async function enableLowCodeApp(id: string): Promise<void> {
+  const response = await requestApi<ApiResponse<object>>(
+    `/lowcode-apps/${id}/enable`,
+    { method: "POST" }
+  );
+  if (!response.success) throw new Error(response.message || "启用失败");
+}
+
+export async function archiveLowCodeApp(id: string): Promise<void> {
+  const response = await requestApi<ApiResponse<object>>(
+    `/lowcode-apps/${id}/archive`,
+    { method: "POST" }
+  );
+  if (!response.success) throw new Error(response.message || "归档失败");
+}
+
+export async function updateLowCodeAppMenuConfig(id: string, menuConfigJson: string): Promise<void> {
+  const response = await requestApi<ApiResponse<object>>(
+    `/lowcode-apps/${id}/menu-config`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ menuConfigJson })
+    }
+  );
+  if (!response.success) throw new Error(response.message || "保存菜单配置失败");
+}
+
 export async function getLowCodeAppVersionsPaged(
   appId: string,
   params: PagedRequest
@@ -536,4 +572,34 @@ export async function deleteLowCodePage(pageId: string): Promise<void> {
     { method: "DELETE" }
   );
   if (!response.success) throw new Error(response.message || "删除失败");
+}
+
+export interface MicroflowStep {
+  type: "api_call" | "condition" | "set_variable" | "notification";
+  name?: string;
+  config: Record<string, string>;
+}
+
+export interface MicroflowExecutionResult {
+  success: boolean;
+  stepsExecuted: number;
+  outputData?: Record<string, unknown>;
+}
+
+export async function executeMicroflow(
+  steps: MicroflowStep[],
+  inputData?: Record<string, unknown>
+): Promise<MicroflowExecutionResult> {
+  const microflowJson = JSON.stringify({ steps });
+  const response = await requestApi<ApiResponse<MicroflowExecutionResult>>(
+    "/lowcode-actions/execute-microflow",
+    {
+      method: "POST",
+      body: JSON.stringify({ microflowJson, inputData }),
+    }
+  );
+  if (!response.success || !response.data) {
+    throw new Error(response.message || "Microflow execution failed");
+  }
+  return response.data;
 }

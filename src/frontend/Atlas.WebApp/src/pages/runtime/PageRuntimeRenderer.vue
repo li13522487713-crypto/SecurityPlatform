@@ -46,22 +46,32 @@ const appId = computed(() => String(route.params.appId ?? ""));
 const appKey = computed(() => String(route.params.appKey ?? ""));
 const pageKey = computed(() => String(route.params.pageKey ?? ""));
 
-function applyRuntimeSubmitApi(schemaNode: unknown, appKeyValue: string, pageKeyValue: string) {
+function applyRuntimeApis(schemaNode: unknown, appKeyValue: string, pageKeyValue: string) {
   if (!schemaNode || typeof schemaNode !== "object") {
     return;
   }
 
   const node = schemaNode as Record<string, unknown>;
+  const baseUrl = `/api/v1/runtime/apps/${encodeURIComponent(appKeyValue)}/pages/${encodeURIComponent(pageKeyValue)}/records`;
+
   if (node.type === "form" && !node.api) {
-    node.api = `post:/api/v1/runtime/apps/${encodeURIComponent(appKeyValue)}/pages/${encodeURIComponent(pageKeyValue)}/records`;
+    node.api = `post:${baseUrl}`;
+  }
+
+  if (node.type === "form" && !node.initApi && node.dataTableKey) {
+    node.initApi = `get:${baseUrl}/\${id}`;
+  }
+
+  if (node.type === "crud" && !node.api) {
+    node.api = baseUrl;
   }
 
   Object.values(node).forEach((child) => {
     if (Array.isArray(child)) {
-      child.forEach((item) => applyRuntimeSubmitApi(item, appKeyValue, pageKeyValue));
+      child.forEach((item) => applyRuntimeApis(item, appKeyValue, pageKeyValue));
       return;
     }
-    applyRuntimeSubmitApi(child, appKeyValue, pageKeyValue);
+    applyRuntimeApis(child, appKeyValue, pageKeyValue);
   });
 }
 
@@ -87,7 +97,7 @@ async function loadRuntime() {
 
     if (!isMounted.value) return;
     const parsedSchema = JSON.parse(runtime.schemaJson) as AmisSchema;
-    applyRuntimeSubmitApi(parsedSchema, app.appKey, page.pageKey);
+    applyRuntimeApis(parsedSchema, app.appKey, page.pageKey);
     schema.value = parsedSchema;
   } catch (error) {
     schema.value = null;

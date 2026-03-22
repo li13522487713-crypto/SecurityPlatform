@@ -70,4 +70,11 @@ public interface IDynamicTableCommandService
         string tableKey,
         long recordId,
         CancellationToken cancellationToken);
+
+    Task RollbackMigrationAsync(
+        TenantId tenantId,
+        long userId,
+        string tableKey,
+        long migrationId,
+        CancellationToken cancellationToken);
 }

@@ -704,4 +704,64 @@ public sealed class LowCodeAppsController : ControllerBase
         await _pageCommandService.RollbackAsync(tenantId, currentUser.UserId, pageId, versionId, cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = pageId.ToString(), VersionId = versionId.ToString() }, HttpContext.TraceIdentifier));
     }
+
+    /// <summary>
+    /// 增量导出（仅导出指定快照版本之后变更的页面与版本记录）
+    /// </summary>
+    [HttpGet("{id:long}/export/incremental")]
+    [Authorize(Policy = PermissionPolicies.AppsView)]
+    public async Task<IActionResult> ExportIncremental(
+        long id,
+        [FromQuery] int? sinceVersion,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var exportPackage = await _queryService.ExportAsync(tenantId, id, cancellationToken);
+        if (exportPackage is null)
+        {
+            return NotFound(ApiResponse<object>.Fail(ErrorCodes.NotFound, ApiResponseLocalizer.T(HttpContext, "LowCodeAppNotFound"), HttpContext.TraceIdentifier));
+        }
+
+        if (sinceVersion.HasValue)
+        {
+            var changedVersions = exportPackage.PageVersions
+                .Where(v => v.SnapshotVersion > sinceVersion.Value)
+                .ToArray();
+
+            var changedPageIds = changedVersions.Select(v => v.PageId).ToHashSet(StringComparer.Ordinal);
+
+            var changedPages = exportPackage.Pages
+                .Where(p => changedPageIds.Contains(p.Id))
+                .ToArray();
+
+            var incrementalPackage = exportPackage with { Pages = changedPages, PageVersions = changedVersions };
+            var bytes = JsonSerializer.SerializeToUtf8Bytes(incrementalPackage, new JsonSerializerOptions { WriteIndented = true });
+            var fileName = $"{exportPackage.AppKey}-incremental-v{sinceVersion.Value}.json";
+            return File(bytes, "application/json; charset=utf-8", fileName);
+        }
+
+        var fullBytes = JsonSerializer.SerializeToUtf8Bytes(exportPackage, new JsonSerializerOptions { WriteIndented = true });
+        var fullFileName = $"{exportPackage.AppKey}-export.json";
+        return File(fullBytes, "application/json; charset=utf-8", fullFileName);
+    }
+
+    /// <summary>
+    /// CI/CD Webhook — 供外部 CI/CD 管线调用，自动触发导入
+    /// </summary>
+    [HttpPost("webhook/deploy")]
+    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
+    public async Task<ActionResult<ApiResponse<LowCodeAppImportResult>>> WebhookDeploy(
+        [FromBody] LowCodeAppImportRequest request,
+        CancellationToken cancellationToken)
+    {
+        var currentUser = _currentUserAccessor.GetCurrentUser();
+        if (currentUser is null)
+        {
+            return Unauthorized(ApiResponse<LowCodeAppImportResult>.Fail(ErrorCodes.Unauthorized, ApiResponseLocalizer.T(HttpContext, "Unauthorized"), HttpContext.TraceIdentifier));
+        }
+
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _commandService.ImportAsync(tenantId, currentUser.UserId, request, cancellationToken);
+        return Ok(ApiResponse<LowCodeAppImportResult>.Ok(result, HttpContext.TraceIdentifier));
+    }
 }
