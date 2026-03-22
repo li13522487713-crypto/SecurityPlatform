@@ -28,23 +28,64 @@ const slots = useSlots();
 const mapColumnsToAntd = (columns: TableViewColumnConfig[]): TableProps["columns"] => {
   if (!columns) return [];
   return columns.map(col => {
+    const customCell = (record: any) => {
+      const style: any = {};
+      
+      // 动态评估 Excel 式条件格式
+      if (col.conditionalFormats && col.conditionalFormats.length > 0) {
+         const cellValue = record[col.dataIndex || col.key];
+         for (const format of col.conditionalFormats) {
+           let matched = false;
+           if (cellValue != null && cellValue !== '') {
+             const val = Number(cellValue);
+             const threshold = Number(format.value);
+             switch (format.operator) {
+               case 'equal': matched = cellValue == format.value; break;
+               case 'notEqual': matched = cellValue != format.value; break;
+               case 'greaterThan': if(!isNaN(val) && !isNaN(threshold)) matched = val > threshold; break;
+               case 'lessThan': if(!isNaN(val) && !isNaN(threshold)) matched = val < threshold; break;
+               case 'between': 
+                 const t2 = Number(format.value2);
+                 if(!isNaN(val) && !isNaN(threshold) && !isNaN(t2)) {
+                   matched = val >= threshold && val <= t2; 
+                 }
+                 break;
+               case 'contains': 
+                 matched = String(cellValue).toLowerCase().includes(String(format.value).toLowerCase()); 
+                 break;
+             }
+           }
+           if (matched) {
+             if (format.color) style.color = format.color;
+             if (format.backgroundColor) style.backgroundColor = format.backgroundColor;
+             break; // 第一个匹配的规则生效并阻断
+           }
+         }
+      }
+      
+      return { style };
+    };
+
+    const customHeaderCell = () => {
+      return {
+        class: 'resizable-header-wrapper',
+      };
+    };
+
     const antdCol: any = {
       ...col,
-      // Ant Design Vue 中 fixed: false 会引发类型问题或错误渲染，使用 undefined
-      fixed: col.pinned === false ? undefined : col.pinned,
+      title: col.title || col.key,
+      dataIndex: col.dataIndex || col.key,
+      width: col.width,
+      minWidth: col.minWidth,
+      maxWidth: col.maxWidth,
+      fixed: col.pinned === "left" || col.pinned === "right" ? col.pinned : undefined,
+      customHeaderCell: col.resizable !== false ? customHeaderCell : undefined,
+      customCell: customCell,
       children: col.children && col.children.length > 0 ? mapColumnsToAntd(col.children) : undefined,
     };
     if (col.colSpan !== undefined) antdCol.colSpan = col.colSpan;
     if (col.rowSpan !== undefined) antdCol.rowSpan = col.rowSpan;
-    
-    // 如果该列允许 resizable，添加自定义 headerCell 控制 class
-    if (col.resizable) {
-      antdCol.customHeaderCell = () => {
-        return {
-          class: 'resizable-header-wrapper',
-        };
-      };
-    }
 
     return antdCol;
   });
@@ -163,6 +204,16 @@ const handleExpand = async (expanded: boolean, record: any) => {
       @change="(pag: any, filters: any, sorter: any, extra: any) => emit('change', pag, filters, sorter, extra)"
       @expand="handleExpand"
     >
+      <!-- 透传高级嵌套子表展开 -->
+      <template #expandedRowRender="slotProps" v-if="slots.expandedRowRender">
+        <slot name="expandedRowRender" v-bind="slotProps"></slot>
+      </template>
+
+      <!-- 透传底部聚合栏 summary -->
+      <template #summary="slotProps" v-if="slots.summary">
+        <slot name="summary" v-bind="slotProps"></slot>
+      </template>
+
       <!-- 使用原生的 expandIcon 来提供加载态包裹 -->
       <template #expandIcon="{ expanded, onExpand, record }">
         <template v-if="(record.children && record.children.length > 0) || record.hasChildren">

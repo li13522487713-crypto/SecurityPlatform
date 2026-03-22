@@ -111,21 +111,48 @@ export interface FileUploadResult {
 export type TableViewDensity = "compact" | "default" | "comfortable";
 
 export interface TableViewColumnConfig {
+  /** 标识 */
   key: string;
-  visible: boolean;
-  order: number;
-  width?: number | string;
-  minWidth?: number;
-  maxWidth?: number;
-  pinned?: "left" | "right" | false;
-  align?: "left" | "center" | "right";
-  ellipsis?: boolean;
-  wrap?: boolean;
-  tooltip?: boolean;
+  /** 数据字段 */
+  dataIndex?: string;
+  /** 列标题 */
+  title?: string;
+  /** 是否可见 */
+  visible?: boolean;
+  /** 排序号 */
+  order?: number;
+  /** 对齐方式 */
+  align?: 'left' | 'center' | 'right';
+  /** 是否支持列宽拖动 */
   resizable?: boolean;
+  /** 溢出省略 */
+  ellipsis?: boolean;
+  /** 自动换行 */
+  wrap?: boolean;
+  /** 提示 */
+  tooltip?: boolean;
+  /** 当前列宽 */
+  width?: string | number;
+  /** 最小列宽 */
+  minWidth?: number;
+  /** 最大列宽 */
+  maxWidth?: number;
+  /** 固定列配置 (兼容 AntD fixed 属性) */
+  pinned?: 'left' | 'right' | false;
+  /** 跨列数 */
   colSpan?: number;
+  /** 跨行数 */
   rowSpan?: number;
+  /** 多级表头：子列 */
   children?: TableViewColumnConfig[];
+  /** 条件格式规则集合 (类似 Excel) */
+  conditionalFormats?: {
+    operator: 'equal' | 'notEqual' | 'greaterThan' | 'lessThan' | 'between' | 'contains';
+    value: any;
+    value2?: any; // 主要用于 between
+    color?: string; // 字体颜色
+    backgroundColor?: string; // 背景颜色
+  }[];
 }
 
 export interface TableViewPagination {
