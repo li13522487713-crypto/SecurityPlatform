@@ -12,6 +12,7 @@ import type { Schema } from "amis-core";
 import type { AmisSchema } from "@/types/amis";
 import type { JsonValue } from "@/types/api";
 import { createAmisEnv } from "@/amis/amis-env";
+import { AmisSchemaPreprocessor } from "@/utils/AmisSchemaPreprocessor";
 
 interface Props {
   schema: AmisSchema;
@@ -58,9 +59,13 @@ const renderSchema = async () => {
   }
   const renderAmis = await loadAmisRender();
   if (!isMounted.value) return;
-  const schema = normalizeValue(props.schema);
+  const rawSchema = normalizeValue(props.schema);
   const data = normalizeValue(props.data ?? emptyData);
-  const element = renderAmis(schema as unknown as Schema, { data }, amisEnv as unknown as Record<string, unknown>);
+  
+  // 注入高级变量沙盒预处理器
+  const processedSchema = AmisSchemaPreprocessor.process(rawSchema, data as Record<string, any>);
+  
+  const element = renderAmis(processedSchema as unknown as Schema, { data }, amisEnv as unknown as Record<string, unknown>);
   rootRef.value.render(element);
 };
 

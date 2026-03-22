@@ -9,6 +9,7 @@ import { translate } from "@/i18n";
 import type { PagedRequest, PagedResult } from "@/types/api";
 import { getAuthProfile, hasPermission } from "@/utils/auth";
 import type { FormMode } from "@/utils/common";
+import type { AdvancedQueryConfig } from "@/types/advanced-query";
 
 export interface CrudApi<TList, TDetail, TCreate extends object, TUpdate extends object, TListParams extends object = PagedRequest> {
   list: (params: TListParams) => Promise<PagedResult<TList>>;
@@ -47,6 +48,7 @@ export interface UseCrudPageOptions<
   onAfterSubmit?: () => void | Promise<void>;
   onAfterDelete?: () => void | Promise<void>;
   autoFetch?: boolean;
+  defaultQueryConfig?: () => AdvancedQueryConfig;
 }
 
 export function useCrudPage<
@@ -72,7 +74,10 @@ export function useCrudPage<
     mapRecordToForm,
     onAfterSubmit,
     onAfterDelete,
-    autoFetch = true
+    autoFetch = true,
+    defaultQueryConfig = () => ({
+      rootGroup: { id: "root", conjunction: "and", rules: [], groups: [] }
+    })
   } = options;
 
   const t = translate;
@@ -86,6 +91,8 @@ export function useCrudPage<
     total: 0,
     showTotal: (total: number) => t("crud.totalItems", { total })
   });
+
+  const advancedQueryConfig = ref<AdvancedQueryConfig>(defaultQueryConfig());
 
   const formVisible = ref(false);
   const formMode = ref<FormMode>("create");
@@ -310,6 +317,7 @@ export function useCrudPage<
     loading,
     keyword,
     pagination,
+    advancedQueryConfig,
     formVisible,
     formMode,
     formRef,

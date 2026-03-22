@@ -17,7 +17,7 @@ namespace Atlas.WebApi.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/v1/tenant-datasources")]
-[Authorize(Policy = PermissionPolicies.SystemAdmin)]
+[Authorize]
 public sealed class TenantDataSourcesController : ControllerBase
 {
     private readonly ITenantDataSourceService _tenantDataSourceService;
@@ -25,22 +25,26 @@ public sealed class TenantDataSourcesController : ControllerBase
     private readonly IClientContextAccessor _clientContextAccessor;
     private readonly IAuditRecorder _auditRecorder;
     private readonly ITenantProvider _tenantProvider;
+    private readonly Atlas.Application.System.Abstractions.ISqlQueryService _sqlQueryService;
 
     public TenantDataSourcesController(
         ITenantDataSourceService tenantDataSourceService,
         ICurrentUserAccessor currentUserAccessor,
         IClientContextAccessor clientContextAccessor,
         IAuditRecorder auditRecorder,
-        ITenantProvider tenantProvider)
+        ITenantProvider tenantProvider,
+        Atlas.Application.System.Abstractions.ISqlQueryService sqlQueryService)
     {
         _tenantDataSourceService = tenantDataSourceService;
         _currentUserAccessor = currentUserAccessor;
         _clientContextAccessor = clientContextAccessor;
         _auditRecorder = auditRecorder;
         _tenantProvider = tenantProvider;
+        _sqlQueryService = sqlQueryService;
     }
 
     [HttpGet]
+    [Authorize(Policy = PermissionPolicies.DataSourcesView)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<TenantDataSourceDto>>>> GetAll(CancellationToken ct = default)
     {
         var tenantIdValue = ResolveTenantIdValue();
@@ -57,6 +61,7 @@ public sealed class TenantDataSourcesController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = PermissionPolicies.DataSourcesCreate)]
     public async Task<ActionResult<ApiResponse<object>>> Create(
         [FromBody] TenantDataSourceCreateRequest request,
         CancellationToken ct = default)
@@ -86,6 +91,7 @@ public sealed class TenantDataSourcesController : ControllerBase
     }
 
     [HttpPut("{id:long}")]
+    [Authorize(Policy = PermissionPolicies.DataSourcesUpdate)]
     public async Task<ActionResult<ApiResponse<object>>> Update(
         long id,
         [FromBody] TenantDataSourceUpdateRequest request,
@@ -111,6 +117,7 @@ public sealed class TenantDataSourcesController : ControllerBase
     }
 
     [HttpDelete("{id:long}")]
+    [Authorize(Policy = PermissionPolicies.DataSourcesDelete)]
     public async Task<ActionResult<ApiResponse<object>>> Delete(long id, CancellationToken ct = default)
     {
         var tenantIdValue = ResolveTenantIdValue();
@@ -133,6 +140,7 @@ public sealed class TenantDataSourcesController : ControllerBase
     }
 
     [HttpPost("test")]
+    [Authorize(Policy = PermissionPolicies.DataSourcesUpdate)]
     public async Task<ActionResult<ApiResponse<TestConnectionResult>>> TestConnection(
         [FromBody] TestConnectionRequest request,
         CancellationToken ct = default)
@@ -143,6 +151,7 @@ public sealed class TenantDataSourcesController : ControllerBase
     }
 
     [HttpPost("{id:long}/test")]
+    [Authorize(Policy = PermissionPolicies.DataSourcesUpdate)]
     public async Task<ActionResult<ApiResponse<TestConnectionResult>>> TestConnectionById(
         long id,
         CancellationToken ct = default)
@@ -169,7 +178,65 @@ public sealed class TenantDataSourcesController : ControllerBase
         return Ok(ApiResponse<TestConnectionResult>.Ok(result, HttpContext.TraceIdentifier));
     }
 
+    [HttpPost("{id:long}/query")]
+    [Authorize(Policy = PermissionPolicies.DataSourcesQuery)]
+    public async Task<ActionResult<ApiResponse<Atlas.Application.System.Models.SqlQueryResult>>> Query(
+        long id,
+        [FromBody] Atlas.Application.System.Models.SqlQueryRequest request,
+        CancellationToken ct = default)
+    {
+        var tenantIdValue = ResolveTenantIdValue();
+        if (string.IsNullOrWhiteSpace(tenantIdValue))
+        {
+            return BadRequest(ApiResponse<Atlas.Application.System.Models.SqlQueryResult>.Fail(
+                ErrorCodes.ValidationError,
+                ApiResponseLocalizer.T(HttpContext, "TenantIdRequired"),
+                HttpContext.TraceIdentifier));
+        }
+
+        var result = await _sqlQueryService.ExecutePreviewQueryAsync(tenantIdValue, id, request, ct);
+        if (!result.Success && result.ErrorMessage == "Data source not found.")
+        {
+            return NotFound(ApiResponse<Atlas.Application.System.Models.SqlQueryResult>.Fail(
+                ErrorCodes.NotFound,
+                ApiResponseLocalizer.T(HttpContext, "TenantDataSourceNotFound"),
+                HttpContext.TraceIdentifier));
+        }
+        
+        await RecordAuditAsync("DATASOURCE_QUERY", id.ToString(), ct);
+        return Ok(ApiResponse<Atlas.Application.System.Models.SqlQueryResult>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    [HttpGet("{id:long}/schema")]
+    [Authorize(Policy = PermissionPolicies.DataSourcesView)]
+    public async Task<ActionResult<ApiResponse<DataSourceSchemaResult>>> GetSchema(
+        long id,
+        CancellationToken ct = default)
+    {
+        var tenantIdValue = ResolveTenantIdValue();
+        if (string.IsNullOrWhiteSpace(tenantIdValue))
+        {
+            return BadRequest(ApiResponse<DataSourceSchemaResult>.Fail(
+                ErrorCodes.ValidationError,
+                ApiResponseLocalizer.T(HttpContext, "TenantIdRequired"),
+                HttpContext.TraceIdentifier));
+        }
+
+        var result = await _sqlQueryService.GetSchemaAsync(tenantIdValue, id, ct);
+        if (!result.Success && result.ErrorMessage == "Data source not found.")
+        {
+            return NotFound(ApiResponse<DataSourceSchemaResult>.Fail(
+                ErrorCodes.NotFound,
+                ApiResponseLocalizer.T(HttpContext, "TenantDataSourceNotFound"),
+                HttpContext.TraceIdentifier));
+        }
+
+        await RecordAuditAsync("DATASOURCE_SCHEMA", id.ToString(), ct);
+        return Ok(ApiResponse<DataSourceSchemaResult>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
     [HttpGet("{id:long}/consumers")]
+    [Authorize(Policy = PermissionPolicies.DataSourcesView)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<DataSourceConsumerItem>>>> GetConsumers(
         long id,
         CancellationToken ct = default)
@@ -186,6 +253,7 @@ public sealed class TenantDataSourcesController : ControllerBase
     }
 
     [HttpGet("orphans")]
+    [Authorize(Policy = PermissionPolicies.DataSourcesView)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<DataSourceOrphanItem>>>> GetOrphans(
         CancellationToken ct = default)
     {

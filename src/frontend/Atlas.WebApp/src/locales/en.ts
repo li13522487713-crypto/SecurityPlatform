@@ -230,7 +230,22 @@ export default {
     saveFailed: "Failed to save data source",
     testSuccess: "Connection test passed",
     testFailed: "Connection test failed",
-    updateHint: "Leave connection string empty to keep the current secret; enter a new value only when rotating."
+    updateHint: "Leave connection string empty to keep the current secret; enter a new value only when rotating.",
+    advancedPreviewTitle: "Advanced Preview - {name}",
+    schemaTitle: "Schema",
+    filterTables: "Filter tables…",
+    dblClickInsert: "Double-click to insert table name",
+    noTables: "No tables found",
+    sqlExecutor: "SQL Executor",
+    sqlPlaceholder: "Enter a SELECT statement…",
+    sqlRequired: "Please enter a SQL statement",
+    history: "History",
+    execute: "Execute",
+    executeSuccess: "Execution succeeded",
+    executeFailed: "Execution failed",
+    result: "Results",
+    resultWithStats: "Results ({time}ms, {count} rows)",
+    schemaFailed: "Failed to retrieve schema"
   },
   fileUpload: {
     upload: "Upload Attachment",

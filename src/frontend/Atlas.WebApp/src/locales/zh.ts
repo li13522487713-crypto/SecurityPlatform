@@ -230,7 +230,22 @@ export default {
     saveFailed: "保存数据源失败",
     testSuccess: "连接测试成功",
     testFailed: "连接测试失败",
-    updateHint: "连接字符串留空表示保持不变；需要更新时再输入新值。"
+    updateHint: "连接字符串留空表示保持不变；需要更新时再输入新值。",
+    advancedPreviewTitle: "数据源高级预览 - {name}",
+    schemaTitle: "表结构",
+    filterTables: "搜索表名…",
+    dblClickInsert: "双击插入表名",
+    noTables: "暂无表结构",
+    sqlExecutor: "SQL 执行器",
+    sqlPlaceholder: "请输入 SELECT 语句…",
+    sqlRequired: "请输入 SQL 语句",
+    history: "历史",
+    execute: "执行",
+    executeSuccess: "执行成功",
+    executeFailed: "执行失败",
+    result: "执行结果",
+    resultWithStats: "执行结果 (耗时: {time}ms, 共 {count} 条记录)",
+    schemaFailed: "获取表结构失败"
   },
   fileUpload: {
     upload: "上传附件",

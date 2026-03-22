@@ -26,7 +26,7 @@
           <a-radio-button value="edit">{{ t("lowcode.formDesigner.modeEdit") }}</a-radio-button>
           <a-radio-button value="preview">{{ t("lowcode.formDesigner.modePreview") }}</a-radio-button>
         </a-radio-group>
-        <a-radio-group v-model:value="deviceMode" button-style="solid" size="small">
+        <a-radio-group v-if="viewMode === 'edit'" v-model:value="deviceMode" button-style="solid" size="small">
           <a-radio-button value="pc">{{ t("lowcode.formDesigner.devicePc") }}</a-radio-button>
           <a-radio-button value="mobile">{{ t("lowcode.formDesigner.deviceMobile") }}</a-radio-button>
         </a-radio-group>
@@ -57,19 +57,32 @@
       </div>
     </div>
 
-    <div class="designer-body">
-      <AmisEditor
-        v-if="!loadingSchema"
-        ref="editorRef"
-        :schema="schema"
-        :preview="viewMode === 'preview'"
-        :is-mobile="deviceMode === 'mobile'"
-        height="calc(100vh - 56px)"
-        @change="handleSchemaChange"
-        @save="handleSave"
-      />
-      <div v-else class="loading-container">
-        <a-spin size="large" :tip="t('lowcode.formDesigner.spinLoad')" />
+    <div class="designer-body" style="display: flex; flex-direction: column;">
+      <DeviceToolbar v-if="viewMode === 'preview'" v-model="deviceSettings" />
+
+      <div class="editor-container" style="flex: 1; overflow: hidden; position: relative; background: #f0f2f5;">
+        <DeviceFrame v-if="viewMode === 'preview' && !loadingSchema" :settings="deviceSettings">
+          <AmisEditor
+            :schema="schema"
+            :preview="true"
+            :is-mobile="deviceSettings.deviceType === 'mobile' || deviceSettings.deviceType === 'tablet'"
+            height="100%"
+          />
+        </DeviceFrame>
+
+        <AmisEditor
+          v-else-if="!loadingSchema"
+          ref="editorRef"
+          :schema="schema"
+          :preview="false"
+          :is-mobile="deviceMode === 'mobile'"
+          height="100%"
+          @change="handleSchemaChange"
+          @save="handleSave"
+        />
+        <div v-else-if="loadingSchema" class="loading-container">
+          <a-spin size="large" :tip="t('lowcode.formDesigner.spinLoad')" />
+        </div>
       </div>
     </div>
 
@@ -178,6 +191,9 @@ import { useRoute, useRouter } from "vue-router";
 import { message } from "ant-design-vue";
 import { QuestionCircleOutlined, HistoryOutlined } from "@ant-design/icons-vue";
 import AmisEditor from "@/components/amis/AmisEditor.vue";
+import DeviceToolbar from "@/components/device-preview/DeviceToolbar.vue";
+import type { DeviceSettings } from "@/components/device-preview/DeviceToolbar.vue";
+import DeviceFrame from "@/components/device-preview/DeviceFrame.vue";
 import { useSchemaHistoryStore } from "@/stores/schemaHistory";
 import {
   getFormDefinitionDetail,
@@ -240,6 +256,12 @@ const formVersion = ref(1);
 
 const viewMode = ref<"edit" | "preview">("edit");
 const deviceMode = ref<"pc" | "mobile">("pc");
+
+const deviceSettings = ref<DeviceSettings>({
+  deviceType: "desktop",
+  orientation: "portrait",
+  scale: 1
+});
 
 const versionHistoryVisible = ref(false);
 const loadingVersions = ref(false);

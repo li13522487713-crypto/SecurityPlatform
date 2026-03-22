@@ -24,7 +24,10 @@ import type {
   TableViewCreateRequest,
   TableViewUpdateRequest,
   TableViewConfigUpdateRequest,
-  TableViewDuplicateRequest
+  TableViewDuplicateRequest,
+  SqlQueryRequest,
+  SqlQueryResult,
+  DataSourceSchemaResult
 } from "@/types/api";
 import { requestApi, toQuery } from "@/services/api-core";
 
@@ -235,6 +238,31 @@ export async function testTenantDataSourceConnectionById(id: string): Promise<Te
   });
   if (!response.data) {
     throw new Error(response.message || "连接测试失败");
+  }
+  return response.data;
+}
+
+export async function previewTenantDataSourceQuery(
+  id: string,
+  request: SqlQueryRequest
+): Promise<SqlQueryResult> {
+  const response = await requestApi<ApiResponse<SqlQueryResult>>(`/tenant-datasources/${id}/query`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request)
+  });
+  if (!response.data) {
+    throw new Error(response.message || "执行查询失败");
+  }
+  return response.data;
+}
+
+export async function getTenantDataSourceSchema(
+  id: string
+): Promise<DataSourceSchemaResult> {
+  const response = await requestApi<ApiResponse<DataSourceSchemaResult>>(`/tenant-datasources/${id}/schema`);
+  if (!response.data) {
+    throw new Error(response.message || "获取表结构失败");
   }
   return response.data;
 }

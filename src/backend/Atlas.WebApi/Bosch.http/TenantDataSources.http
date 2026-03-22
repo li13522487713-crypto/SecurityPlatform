@@ -101,6 +101,33 @@ X-Tenant-Id: {{tenantId}}
 Idempotency-Key: {{$guid}}
 X-CSRF-TOKEN: {{csrfToken}}
 
+### SQL 预览查询
+POST {{baseUrl}}/api/v1/tenant-datasources/{{sourceId}}/query
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "sql": "SELECT * FROM sqlite_master LIMIT 10"
+}
+
+### 获取数据源表结构
+GET {{baseUrl}}/api/v1/tenant-datasources/{{sourceId}}/schema
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 获取数据源使用者
+GET {{baseUrl}}/api/v1/tenant-datasources/{{sourceId}}/consumers
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 获取孤立数据源
+GET {{baseUrl}}/api/v1/tenant-datasources/orphans
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
 ### 删除数据源
 DELETE {{baseUrl}}/api/v1/tenant-datasources/{{sourceId}}
 Authorization: Bearer {{accessToken}}

@@ -4,6 +4,10 @@ using Atlas.Core.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.WebApi.Authorization;
+using Atlas.Application.Audit.Abstractions;
+using Atlas.Application.Audit.Models;
+using Atlas.Application.System.Abstractions;
+using Atlas.WebApi.Helpers;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -21,6 +25,8 @@ public sealed class FormDefinitionsController : ControllerBase
     private readonly IValidator<FormDefinitionCreateRequest> _createValidator;
     private readonly IValidator<FormDefinitionUpdateRequest> _updateValidator;
     private readonly IValidator<FormDefinitionSchemaUpdateRequest> _schemaValidator;
+    private readonly IAuditRecorder _auditRecorder;
+    private readonly IClientContextAccessor _clientContextAccessor;
 
     public FormDefinitionsController(
         IFormDefinitionQueryService queryService,
@@ -29,7 +35,9 @@ public sealed class FormDefinitionsController : ControllerBase
         ICurrentUserAccessor currentUserAccessor,
         IValidator<FormDefinitionCreateRequest> createValidator,
         IValidator<FormDefinitionUpdateRequest> updateValidator,
-        IValidator<FormDefinitionSchemaUpdateRequest> schemaValidator)
+        IValidator<FormDefinitionSchemaUpdateRequest> schemaValidator,
+        IAuditRecorder auditRecorder,
+        IClientContextAccessor clientContextAccessor)
     {
         _queryService = queryService;
         _commandService = commandService;
@@ -38,6 +46,8 @@ public sealed class FormDefinitionsController : ControllerBase
         _createValidator = createValidator;
         _updateValidator = updateValidator;
         _schemaValidator = schemaValidator;
+        _auditRecorder = auditRecorder;
+        _clientContextAccessor = clientContextAccessor;
     }
 
     /// <summary>
@@ -131,6 +141,7 @@ public sealed class FormDefinitionsController : ControllerBase
 
         var tenantId = _tenantProvider.GetTenantId();
         await _commandService.UpdateSchemaAsync(tenantId, currentUser.UserId, id, request, cancellationToken);
+        await RecordAuditAsync("FORM_SCHEMA_UPDATE", id.ToString(), cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
     }
 
@@ -151,6 +162,7 @@ public sealed class FormDefinitionsController : ControllerBase
 
         var tenantId = _tenantProvider.GetTenantId();
         await _commandService.PublishAsync(tenantId, currentUser.UserId, id, cancellationToken);
+        await RecordAuditAsync("FORM_PUBLISH", id.ToString(), cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
     }
 
@@ -278,5 +290,20 @@ public sealed class FormDefinitionsController : ControllerBase
         var tenantId = _tenantProvider.GetTenantId();
         await _commandService.DeprecateAsync(tenantId, currentUser.UserId, id, cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
+    }
+
+    private async Task RecordAuditAsync(string action, string target, CancellationToken ct)
+    {
+        var currentUser = _currentUserAccessor.GetCurrentUser();
+        if (currentUser is null) return;
+        var actor = string.IsNullOrWhiteSpace(currentUser.Username)
+            ? currentUser.UserId.ToString()
+            : currentUser.Username;
+        var auditContext = new AuditContext(
+            currentUser.TenantId, actor, action, "SUCCESS", target,
+            ControllerHelper.GetIpAddress(HttpContext),
+            ControllerHelper.GetUserAgent(HttpContext),
+            _clientContextAccessor.GetCurrent());
+        await _auditRecorder.RecordAsync(auditContext, ct);
     }
 }

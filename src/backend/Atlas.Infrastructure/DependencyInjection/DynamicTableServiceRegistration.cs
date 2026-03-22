@@ -1,3 +1,4 @@
+using Atlas.Application.DynamicTables;
 using Atlas.Application.DynamicTables.Abstractions;
 using Atlas.Application.DynamicTables.Repositories;
 using Atlas.Infrastructure.Repositories;
@@ -27,6 +28,7 @@ public static class DynamicTableServiceRegistration
         services.AddScoped<IDynamicRecordQueryService, DynamicRecordQueryService>();
         services.AddScoped<IDynamicRecordCommandService, DynamicRecordCommandService>();
         services.AddScoped<IMigrationService, MigrationService>();
+        services.AddScoped<IDynamicFormValidationService, DynamicFormValidationService>();
 
         return services;
     }

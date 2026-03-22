@@ -34,6 +34,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<Atlas.Application.System.Abstractions.ITenantDbConnectionFactory,
             Atlas.Infrastructure.Services.TenantDbConnectionFactory>();
         services.AddSingleton<IPluginCatalogService, Atlas.Infrastructure.Services.PluginCatalogService>();
+        services.AddScoped<Atlas.Application.System.Abstractions.ISqlQueryService, Atlas.Infrastructure.Services.SqlQueryService>();
 
         // Plugin Configuration
         services.AddScoped<Atlas.Application.Plugins.Repositories.IPluginConfigRepository, Atlas.Infrastructure.Repositories.PluginConfigRepository>();

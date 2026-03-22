@@ -17,6 +17,12 @@ public static class PermissionPolicies
     public const string TenantsUpdate = "Permission:system:tenant:update";
     public const string TenantsDelete = "Permission:system:tenant:delete";
 
+    public const string DataSourcesView = "Permission:system:datasource:view";
+    public const string DataSourcesCreate = "Permission:system:datasource:create";
+    public const string DataSourcesUpdate = "Permission:system:datasource:update";
+    public const string DataSourcesDelete = "Permission:system:datasource:delete";
+    public const string DataSourcesQuery = "Permission:system:datasource:query";
+
     public const string UsersView = "Permission:users:view";
     public const string UsersCreate = "Permission:users:create";
     public const string UsersUpdate = "Permission:users:update";

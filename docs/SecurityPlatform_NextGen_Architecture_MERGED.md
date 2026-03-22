@@ -31,6 +31,10 @@
 
 在进入下一轮设计之前，需要明确当前平台已具备的基础能力，以便在此基础上进行增量演进而非推倒重建。
 
+> **说明**：本节于 2026-03-23 更新，基于对代码库的深度审查，补充了原始文档未列出的已实现能力。平台当前已有 **80+ 控制器**、**200+ 服务接口**、**100+ 领域实体**，远超下方"低代码/数据管理"分类所列范围。
+
+### 1.1 低代码 / 数据管理（原始列表，保持不变）
+
 | 模块/文件 | 已实现能力 | 评估 |
 |---|---|---|
 | `useTableView.ts` | 列配置（visible/order/width/pinned）、视图持久化（保存/另存/设默认/重置）、密度控制、合并单元格、400ms 防抖自动保存 | **核心骨架，质量较好** |
@@ -46,6 +50,99 @@
 | `VisualizationDesignerPage.vue` | 工作流画布（画布为占位层，节点管理轻量） | **框架可借鉴，画布需重建** |
 | `DataBindingEditor.vue` | 极简字段绑定控件（单向，无变量作用域） | **最小原型，需重设计** |
 | `ConditionExpressionEditor.vue` | 条件拼装 UI（扁平，无嵌套，无服务端校验） | **最小原型，需重设计** |
+
+### 1.2 身份认证与访问控制（已完整实现）
+
+| 模块 | 已实现能力 | 评估 |
+|---|---|---|
+| 认证体系 | JWT Bearer + Refresh Token + Client Certificate + SSO (OIDC) + MFA (TOTP) + 验证码 | **企业级，完整** |
+| RBAC 权限 | 角色-权限-菜单-部门-职位-项目多维授权，应用级独立权限（AppRole/AppPermission） | **精细化，支持多租户** |
+| 会话管理 | AuthSession 实体、SessionCleanupHostedService、在线用户管理 | **完整** |
+| 密码安全 | PBKDF2 哈希、复杂度策略、90 天过期、5 次锁定、密码历史 | **等保合规** |
+| 幂等+CSRF | IdempotencyRecord 实体 + AntiforgeryValidationMiddleware | **已实现** |
+| PAT 令牌 | PersonalAccessToken CRUD，支持 API 密钥认证 | **已实现** |
+
+### 1.3 审批系统（已完整实现）
+
+| 模块 | 已实现能力 | 评估 |
+|---|---|---|
+| 流程设计器 | X6ApprovalDesigner（AntV X6）、树形编辑器、节点调色板、条件编辑器 | **可视化完整** |
+| 流程引擎 | ApprovalFlowDefinition + Version、ProcessInstance、Task、NodeExecution | **引擎完整** |
+| 高级特性 | 委托/转办/抄送/跳转/认领、子流程、超时提醒、超时自动处理、回写失败重试 | **企业级** |
+| 前端 | 审批工作台（待办/已办/抄送）、流程管理、实例详情、任务池 | **用户体验完整** |
+
+### 1.4 工作流引擎（双版本并存）
+
+| 模块 | 已实现能力 | 评估 |
+|---|---|---|
+| WorkflowCore V1 | DSL/状态机引擎、PersistedWorkflow/ExecutionPointer/Subscription | **基础引擎** |
+| Workflow V2 | WorkflowV2QueryService/CommandService/ExecutionService、SSE 实时执行、调试层 | **增强版，含调试** |
+| 前端 | WorkflowListPage、WorkflowEditorPage、节点面板/属性面板/测试运行面板 | **设计器完整** |
+
+### 1.5 AI 平台（已大幅实现）
+
+| 模块 | 已实现能力 | 评估 |
+|---|---|---|
+| Agent 系统 | Agent CRUD、AgentChat（流式 SSE）、发布/复制 | **核心完整** |
+| 知识库 | KnowledgeBase、KnowledgeDocument、Chunk、RAG 检索 | **RAG 链路完整** |
+| AI 工作流 | AiWorkflowDesignService/ExecutionService、节点编辑器（LLM/HTTP） | **可视化编排** |
+| AI 数据库 | AiDatabase CRUD、Record 管理、Schema 定义、批量导入 | **已实现** |
+| AI 应用 | AiApp CRUD、AiPlugin 管理（含 OpenAPI 导入）、Prompt 模板 | **应用级** |
+| 市场 | AiMarketplace（产品/分类/收藏）、资源中心 | **生态基础** |
+| 配置 | ModelConfig（多 Provider：OpenAI/DeepSeek/Ollama）、Embedding 配置 | **多模型支持** |
+
+### 1.6 应用产品化（已大幅实现）
+
+| 模块 | 已实现能力 | 评估 |
+|---|---|---|
+| 应用生命周期 | AppManifest → AppRelease → TenantApplication → TenantAppInstance | **全链路** |
+| 应用权限 | AppMember/AppRole/AppUserRole/AppRolePermission/AppPermission/AppRolePage | **独立权限体系** |
+| 运行态 | RuntimeRoute、RuntimeContext、RuntimeExecution、PageRuntimeRenderer | **运行时引擎** |
+| 发布中心 | ReleaseCenterV2Controller、ApplicationCatalog、ResourceCenter | **产品化** |
+| 环境管理 | LowCodeEnvironment、AppDesignerSnapshot、MigrationGovernance | **环境隔离** |
+
+### 1.7 事件与集成（已实现）
+
+| 模块 | 已实现能力 | 评估 |
+|---|---|---|
+| 平台事件 | PlatformEvent + EventSubscription + Outbox 模式 + MessageQueueProcessor | **异步事件驱动** |
+| Webhook | WebhookSubscription CRUD、投递历史、测试 | **已实现** |
+| API 连接器 | ApiConnector CRUD、IntegrationApiKey 认证 | **外部集成** |
+
+### 1.8 插件系统（已实现）
+
+| 模块 | 已实现能力 | 评估 |
+|---|---|---|
+| 插件框架 | IAtlasPlugin 接口（Code/Name/Version/Dependencies/ConfigSchema/OnLoaded/OnUnloading） | **生命周期完整** |
+| 动态加载 | PluginLoadContext（AssemblyLoadContext）、PluginPackageService（.atpkg 包） | **热加载** |
+| 插件市场 | PluginMarketEntry/Version、PluginManagePage、PluginMarketPage | **市场化** |
+| 前端注册表 | registerFieldRenderer/registerGridCellRenderer/registerValidator/registerMenuEntry | **前端扩展点** |
+
+### 1.9 系统运维与安全（已实现）
+
+| 模块 | 已实现能力 | 评估 |
+|---|---|---|
+| 中间件管道 | 11 个中间件有序编排：SecurityHeaders → ExceptionHandling → XssProtection → RateLimiter → ApiVersionRewrite → ClientContext → AppContext → AntiforgeryValidation → TenantContext → AppMembership → ProjectContext → LicenseEnforcement | **安全纵深防御** |
+| 审计日志 | AuditRecord 实体、IAuditWriter、AuditRetentionHostedService（180 天保留） | **等保合规** |
+| 许可证 | LicenseRecord、LicenseSignature、LicenseStateSeal、MachineFingerprintService、LicenseEnforcementMiddleware | **全链路管控** |
+| 定时任务 | Hangfire（SQLite 存储）+ HangfireScheduledJobService + 多个 HostedService | **任务调度** |
+| 监控 | ServerInfoQueryService、ProcessMonitorService、DiagnosticsController | **基础监控** |
+| 数据库备份 | DatabaseBackupHostedService（每日备份、30 天保留） | **自动化** |
+| 文件管理 | LocalFileStorageService、FileRecord、FileUploadSession（分块上传）、签名 URL | **完整** |
+| 订阅计量 | Plan/TenantSubscription/UsageRecord/TenantQuota、MeteringService | **SaaS 计量** |
+| 数据字典 | DictType/DictData CRUD、SystemConfig CRUD | **配置管理** |
+| 通知 | Notification/UserNotification CRUD、管理端通知发布 | **已实现** |
+
+### 1.10 前端基础设施（已实现）
+
+| 模块 | 已实现能力 | 评估 |
+|---|---|---|
+| 布局体系 | MainLayout + ConsoleLayout + AppWorkspaceLayout + RuntimeLayout | **四套布局** |
+| 状态管理 | Pinia：user/permission/tagsView/appContext/approvalFlow/schemaHistory | **6 个 Store** |
+| 国际化 | zh-CN + en-US，localStorage 持久化，runtime-messages 动态加载 | **完整** |
+| Composables | 18 个组合式函数（useCrudPage/useTableView/useStreamChat/useWorkflowGraph 等） | **复用率高** |
+| API 层 | 47 个服务文件，覆盖全部后端 API | **契约对齐** |
+| 类型系统 | 18 个类型定义文件（含 api-generated.ts 自动生成） | **强类型覆盖** |
 
 ---
 
@@ -3548,35 +3645,40 @@ SecurityPlatform 现有代码基础为平台扩展提供了良好的起点，但
 
 以下是平台整体架构扩展与业务场景加速各项功能的实施优先级分级和预估工作量（人天）。此估算为初步值，实际可能因需求细节、技术挑战和团队效率而有所调整。
 
-| 模块/功能 | 优先级 | 预估工作量 (人天) |
-|---|---|---|
-| **第一阶段 (P0 - 核心能力建设)** | | |
-| 统一元数据服务与核心元模型设计与实现 | P0 | 30 |
-| 增强实体建模器 (支持基本关系和索引可视化) | P0 | 20 |
-| 工作流画布基础可视化编排能力 | P0 | 40 |
-| 平台级 RBAC 权限管理实现 | P0 | 25 |
-| TenantId 数据隔离机制实现 | P0 | 15 |
-| 等保2.0合规基础安全功能 (身份鉴别、访问控制、安全审计) | P0 | 30 |
-| 初步的性能优化 (数据库索引、缓存) | P0 | 20 |
-| **第二阶段 (P1 - 场景加速与扩展)** | | |
-| 业务场景模板库设计与实现 | P1 | 35 |
-| 全面可视化画布操作 (实体关系连线、工作流高级编排) | P1 | 40 |
-| 多分辨率场景预览的完善 | P1 | 15 |
-| 增强插件机制 (支持前端组件和后端服务插件) | P1 | 30 |
-| 等保2.0合规高级安全功能 (数据加密、入侵防范、恶意代码防范) | P1 | 40 |
-| 进一步性能优化 (异步处理、前端优化) | P1 | 25 |
-| **第三阶段 (P2 - 生态建设与持续优化)** | | |
-| 自定义组件和自定义函数开发框架与沙箱环境 | P2 | 50 |
-| API 开放平台建设 | P2 | 30 |
-| 持续的性能监控、分析和优化 | P2 | 20 |
-| AI 辅助开发能力探索 (例如，通过自然语言生成实体、表单) | P2 | 待定 |
-| **总计** | | **475+** |
+> **2026-03-23 重新估算说明**：原始估算 475+ 人天严重高估，因为当时未充分考虑代码库中已大量实现的基础设施。下表标注了"已实现"模块的实际剩余工作量，并在"备注"列说明理由。
+
+| 模块/功能 | 优先级 | 原估 (人天) | 修正估 (人天) | 实现状态 | 备注 |
+|---|---|---|---|---|---|
+| **第一阶段 (P0 - 核心能力建设)** | | | | | |
+| 统一元数据服务与核心元模型设计与实现 | P0 | 30 | 20 | 部分完成 | DynamicTable/Field/Relation/Index 元数据已有，缺跨模块统一关联 |
+| 增强实体建模器 (关系和索引可视化) | P0 | 20 | 12 | 部分完成 | ERDCanvas/EntityModelingPanel 已有，需完善 X6 连线交互 |
+| 工作流画布基础可视化编排能力 | P0 | 40 | 0 | **已完成** | WorkflowCore V1 + V2 + 审批流设计器（X6）均已实现 |
+| 平台级 RBAC 权限管理实现 | P0 | 25 | 0 | **已完成** | 角色/权限/菜单/部门/职位/项目 + 应用级独立权限体系已完整 |
+| TenantId 数据隔离机制实现 | P0 | 15 | 0 | **已完成** | TenantEntity + QueryFilter + TenantContextMiddleware 已实现 |
+| 等保2.0 基础安全 (身份鉴别/访问控制/安全审计) | P0 | 30 | 0 | **已完成** | JWT+MFA+SSO+RBAC+AuditRecord+CSRF+幂等+XSS 防护 11 中间件 |
+| 初步性能优化 (索引、缓存) | P0 | 20 | 8 | 大部分完成 | 数据库索引已有，缓存层可进一步完善 |
+| **第二阶段 (P1 - 场景加速与扩展)** | | | | | |
+| 业务场景模板库设计与实现 | P1 | 35 | 20 | 部分完成 | TemplateMarketPage 已有，缺预置模板内容和实例化流程 |
+| 全面可视化画布操作 (连线、高级编排) | P1 | 40 | 15 | 部分完成 | 审批流 X6 画布已完整可复用，ERD 连线需完善 |
+| 多分辨率场景预览的完善 | P1 | 15 | 10 | 部分完成 | DeviceFrame/DeviceToolbar 已创建，需完善断点系统 |
+| 增强插件机制 (前后端插件) | P1 | 30 | 10 | 大部分完成 | IAtlasPlugin+PluginLoadContext+前端注册表已实现，需完善沙箱 |
+| 等保2.0 高级安全 (数据加密/入侵防范) | P1 | 40 | 15 | 部分完成 | 数据库加密选项已有，需完善入侵检测和恶意代码防范 |
+| 进一步性能优化 (异步处理、前端优化) | P1 | 25 | 10 | 部分完成 | 事件系统+消息队列已实现，前端虚拟滚动/懒加载可优化 |
+| **第三阶段 (P2 - 生态建设与持续优化)** | | | | | |
+| 自定义组件/函数开发框架与沙箱环境 | P2 | 50 | 30 | 部分完成 | 插件包(.atpkg)加载已有，缺用户级沙箱运行时 |
+| API 开放平台建设 | P2 | 30 | 10 | 大部分完成 | ApiConnector/IntegrationApiKey/Webhook 已实现 |
+| 持续性能监控和优化 | P2 | 20 | 8 | 部分完成 | ServerInfoQueryService/ProcessMonitorService 已有基础 |
+| AI 辅助开发能力探索 | P2 | 待定 | 15 | 大部分完成 | Agent/知识库/AI工作流/AiDatabase 已实现，需集成到低代码流程 |
+| **原始总计** | | **475+** | | | |
+| **修正总计** | | | **183** | | 较原始估算缩减约 61% |
 
 **优先级说明**：
 
 *   **P0 (高优先级)**：核心功能，必须在短期内完成，是平台扩展和业务加速的基础。这些功能是实现平台愿景的关键，直接影响平台的可用性和安全性。
 *   **P1 (中优先级)**：重要功能，在 P0 基础上进一步提升平台能力和用户体验。这些功能将显著提高开发效率和应用质量。
 *   **P2 (低优先级)**：扩展功能，长期规划，提升平台生态和智能化水平。这些功能有助于平台保持竞争力，并探索未来的发展方向。
+
+> **关键结论**：原估 475+ 人天中，约 180 人天的 P0 基础设施（RBAC、租户隔离、等保安全、工作流引擎）已完全实现，无需额外投入。修正后的增量工作量约 183 人天，主要集中在元数据统一（20天）、沙箱环境（30天）、模板库内容（20天）和等保高级安全（15天）。
 
 ---
 
@@ -3633,6 +3735,48 @@ SecurityPlatform 现有代码基础为平台扩展提供了良好的起点，但
 
 ---
 
+## 四-A、实时通信方案评估（SignalR vs SSE vs 轮询）
+
+> 2026-03-23 新增章节：基于代码库审查，评估是否需要引入 SignalR/WebSocket 支持实时协作场景。
+
+### 当前实时通信能力
+
+| 场景 | 技术方案 | 实现位置 |
+|---|---|---|
+| AI 聊天流式输出 | **SSE** (`text/event-stream`) | `AgentChatController` → `useStreamChat.ts` |
+| 工作流 V2 执行状态推送 | **SSE** | `WorkflowV2Controller` → `api-workflow-v2.ts` |
+| 审批任务通知 | 轮询（前端定时刷新） | 审批工作台 |
+| 在线用户状态 | 轮询（后端 Session 查询） | `OnlineUsers` |
+
+### 评估结论
+
+| 维度 | SSE（现有方案） | SignalR | 结论 |
+|---|---|---|---|
+| **服务端→客户端推送** | 原生支持，性能良好 | 支持 | SSE 已满足 |
+| **客户端→服务端推送** | 不支持（需额外 HTTP 请求） | 双向通道 | 当前无强需求 |
+| **多人协同编辑** | 不适合 | 适合 | 暂无此场景 |
+| **部署复杂度** | 零额外依赖 | 需 WebSocket 长连接，负载均衡需配置 sticky session | SSE 更简单 |
+| **浏览器兼容性** | 所有现代浏览器 | 所有现代浏览器 | 等同 |
+| **连接数管理** | 每个 SSE 占一个 HTTP 连接 | 单连接多通道复用 | 大规模场景 SignalR 更优 |
+| **等保合规** | 标准 HTTPS | 需确认 WSS 审计链路 | SSE 更明确 |
+
+### 决策
+
+**当前阶段（P0-P1）不引入 SignalR**，理由：
+1. 当前所有实时场景（AI 流式输出、工作流状态推送）均已通过 SSE 满足
+2. 七大方向中没有强制要求双向实时通信的功能（ERD 画布编辑是单人操作）
+3. 引入 SignalR 会增加部署复杂度（sticky session、WebSocket 反向代理配置），与等保2.0的审计链路需额外适配
+4. SSE 方案维护成本低，与现有 11 中间件管道无冲突
+
+**P2 阶段重新评估条件**：
+- 出现多人同时编辑同一 ERD 画布/工作流的刚性需求
+- 用户规模超过 500 并发连接（SSE 连接数成为瓶颈）
+- 需要服务端主动推送通知（如审批任务实时到达）替代轮询
+
+如需引入，推荐使用 `Microsoft.AspNetCore.SignalR` 并配置 `Redis Backplane` 实现多实例场景。
+
+---
+
 ## 五、技术选型汇总
 
 基于七个方向的研究，综合给出以下关键技术选型建议。
@@ -3649,7 +3793,61 @@ SecurityPlatform 现有代码基础为平台扩展提供了良好的起点，但
 | 列宽拖拽 | **自定义 ResizableHeader 组件** | 与现有 useTableView 深度集成 |
 | 高级筛选 | **基于 TableViewQueryGroup 类型构建 UI** | 类型定义已完整，只缺 UI |
 | AMIS 集成 | **注册自定义 AMIS 插件** | 复用 Vue 组件，避免重复开发 |
+| 实时通信 | **SSE（现有）** | P0/P1 维持现状；P2 按需评估 SignalR |
 
 ---
 
-*本文档由 Manus AI 基于代码库深度分析与并行 Wide Research 自动生成，供研发团队参考。*
+## 六、API 版本策略（v1/v2 并存规范）
+
+> 2026-03-23 新增章节：明确当前 v1/v2 API 的定位、弃用策略和演进路线。
+
+### 当前版本分布
+
+| API 版本 | 控制器数量 | 覆盖领域 | 定位 |
+|---|---|---|---|
+| **v1** | ~98 | 核心平台（认证、RBAC、审计、资产、告警、审批、AI 平台、动态表、低代码、插件、数据源、文件等） | **稳定主版本** |
+| **v2** | ~15 | 应用产品化（TenantApp*、RuntimeContexts、RuntimeExecutions）+ 工作流 V2（DAG 引擎）+ 发布/资源中心 V2 + 迁移治理 | **新领域扩展** |
+
+### 核心定位：互补而非替代
+
+v1 和 v2 **不是**同一资源的新旧版本，而是覆盖不同业务域的独立 API：
+
+- **v1** 覆盖平台基础能力（身份/权限/数据管理/审批/AI 等），是长期稳定的主干
+- **v2** 是"应用产品化"和"工作流 V2"两个新业务域的首版 API，这些资源（`tenant-app-instances`、`runtime-executions` 等）在 v1 中不存在
+
+仅有少量控制器存在 v1→v2 演进关系（标记为 Deprecated）：
+
+| v1 控制器（已废弃） | v2 替代 | 弃用时间窗口 |
+|---|---|---|
+| `AiWorkflowsController` | `WorkflowV2Controller` | 2026-Q3 移除 |
+| 旧 LowCode 应用路由 | `TenantApplicationsV2Controller` | 2026-Q4 移除 |
+| 旧 Delivery/Runtime 路由 | `RuntimeContextsV2Controller` | 2026-Q4 移除 |
+
+### 版本管理规范
+
+1. **新资源**：所有全新业务域（v1 中无对应端点的资源）直接使用 `api/v2/` 前缀
+2. **现有资源升级**：若 v1 端点需要破坏性变更（删除字段、改变语义），创建 v2 版本并标记 v1 为 `[Obsolete]`
+3. **弃用窗口**：v1 端点被标记 Deprecated 后，至少保留 **6 个月**，期间：
+   - 仅接受安全修复和关键缺陷修复
+   - 不新增功能
+   - 响应头添加 `Sunset: <date>` 和 `Deprecation: true`
+4. **移除条件**：弃用窗口到期 + 前端无调用 + 变更日志明确告知后方可移除
+
+### 前端适配策略
+
+| 层级 | 策略 |
+|---|---|
+| API 服务层 | 按版本组织服务文件（`api-*.ts` 调用 v1，`api-*-v2.ts` 调用 v2） |
+| 路由 | 新功能（应用工作空间）路由指向 v2 API |
+| 类型系统 | v1 和 v2 共享基础类型（`api.ts`），v2 专有类型在 `api-generated.ts` |
+| Proxy | Vite 代理统一转发 `/api/*` → 后端，无版本感知 |
+
+### 下一步行动
+
+- [ ] 为前端路由中标记 `(Deprecated)` 的页面添加迁移提示 Banner
+- [ ] 后端 `[Obsolete]` 属性标注所有已废弃 v1 控制器
+- [ ] `docs/contracts.md` 添加版本矩阵表
+
+---
+
+*本文档由 Manus AI 基于代码库深度分析与并行 Wide Research 自动生成，2026-03-23 审查更新。*

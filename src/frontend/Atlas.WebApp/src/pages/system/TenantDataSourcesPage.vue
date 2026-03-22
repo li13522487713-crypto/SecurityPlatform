@@ -36,6 +36,7 @@
             <a-button type="link" :disabled="!canManage || testingById[record.id]" @click="handleTestById(record)">
               {{ t("datasource.testConnection") }}
             </a-button>
+            <a-button type="link" :disabled="!canManage" @click="openPreview(record)">SQL预览</a-button>
             <a-button type="link" :disabled="!canManage" @click="openEdit(record)">{{ t("common.edit") }}</a-button>
             <a-popconfirm
               :title="t('datasource.deleteConfirm')"
@@ -103,6 +104,8 @@
       </a-space>
     </template>
   </a-drawer>
+
+  <advanced-data-preview-drawer ref="previewDrawerRef" />
 </template>
 
 <script setup lang="ts">
@@ -129,6 +132,7 @@ import type {
   TenantDataSourceUpdateRequest
 } from "@/types/api";
 import { getAuthProfile, getTenantId, hasPermission } from "@/utils/auth";
+import AdvancedDataPreviewDrawer from "./AdvancedDataPreviewDrawer.vue";
 
 const profile = getAuthProfile();
 const canManage = computed(() => hasPermission(profile, "system:admin"));
@@ -143,6 +147,7 @@ const formVisible = ref(false);
 const formMode = ref<"create" | "edit">("create");
 const editingId = ref<string>("");
 const formRef = ref<FormInstance>();
+const previewDrawerRef = ref<InstanceType<typeof AdvancedDataPreviewDrawer>>();
 
 const formModel = reactive({
   tenantIdValue: getTenantId() ?? "",
@@ -205,6 +210,10 @@ const resetFormModel = () => {
   formModel.connectionString = "";
   formModel.maxPoolSize = 50;
   formModel.connectionTimeoutSeconds = 15;
+};
+
+const openPreview = (record: TenantDataSourceDto) => {
+  previewDrawerRef.value?.open(record);
 };
 
 const openCreate = () => {

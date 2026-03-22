@@ -1149,3 +1149,40 @@ export interface LicenseActivateResult {
 export interface LicenseFingerprintResult {
   fingerprint: string;
 }
+
+// ---------- 数据库连接器与预览 ----------
+export interface SqlQueryRequest {
+  sql: string;
+}
+
+export interface SqlQueryResultColumn {
+  field: string;
+  title: string;
+  type: string;
+}
+
+export interface SqlQueryResult {
+  success: boolean;
+  errorMessage?: string;
+  columns: SqlQueryResultColumn[];
+  data: Record<string, unknown>[];
+  executionTimeMs: number;
+}
+
+export interface DataSourceColumnInfo {
+  name: string;
+  dataType: string;
+  isNullable: boolean;
+  isPrimaryKey: boolean;
+}
+
+export interface DataSourceTableInfo {
+  name: string;
+  columns: DataSourceColumnInfo[];
+}
+
+export interface DataSourceSchemaResult {
+  success: boolean;
+  errorMessage?: string;
+  tables: DataSourceTableInfo[];
+}
