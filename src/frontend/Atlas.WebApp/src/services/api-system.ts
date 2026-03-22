@@ -363,3 +363,15 @@ export async function deleteTableView(id: string): Promise<void> {
     throw new Error(response.message || "删除失败");
   }
 }
+
+// ---- 统一元数据关联查询 ----
+
+export async function getEntityReferences(tableKey: string): Promise<import('@/types/api').EntityReferenceResult> {
+  const response = await requestApi<ApiResponse<import('@/types/api').EntityReferenceResult>>(
+    `/metadata/entities/${encodeURIComponent(tableKey)}/references`
+  );
+  if (!response.data) {
+    throw new Error(response.message || "查询元数据引用失败");
+  }
+  return response.data;
+}

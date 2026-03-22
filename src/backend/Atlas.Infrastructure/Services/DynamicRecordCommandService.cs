@@ -1,3 +1,4 @@
+using Atlas.Application.DynamicTables;
 using Atlas.Application.DynamicTables.Abstractions;
 using Atlas.Application.DynamicTables.Models;
 using Atlas.Application.DynamicTables.Repositories;
@@ -16,6 +17,7 @@ public sealed class DynamicRecordCommandService : IDynamicRecordCommandService
     private readonly IFieldPermissionResolver _fieldPermissionResolver;
     private readonly ICurrentUserAccessor _currentUserAccessor;
     private readonly IAppContextAccessor _appContextAccessor;
+    private readonly IDynamicFormValidationService _formValidationService;
 
     public DynamicRecordCommandService(
         IDynamicTableRepository tableRepository,
@@ -23,7 +25,8 @@ public sealed class DynamicRecordCommandService : IDynamicRecordCommandService
         IDynamicRecordRepository recordRepository,
         IFieldPermissionResolver fieldPermissionResolver,
         ICurrentUserAccessor currentUserAccessor,
-        IAppContextAccessor appContextAccessor)
+        IAppContextAccessor appContextAccessor,
+        IDynamicFormValidationService formValidationService)
     {
         _tableRepository = tableRepository;
         _fieldRepository = fieldRepository;
@@ -31,6 +34,7 @@ public sealed class DynamicRecordCommandService : IDynamicRecordCommandService
         _fieldPermissionResolver = fieldPermissionResolver;
         _currentUserAccessor = currentUserAccessor;
         _appContextAccessor = appContextAccessor;
+        _formValidationService = formValidationService;
     }
 
     public async Task<long> CreateAsync(
@@ -53,6 +57,11 @@ public sealed class DynamicRecordCommandService : IDynamicRecordCommandService
         }
 
         await EnsureEditableAsync(tenantId, tableKey, table.AppId, request, cancellationToken);
+        var payload = BuildPayloadDict(request.Values);
+        if (!await _formValidationService.ValidateAsync(tableKey, payload, cancellationToken))
+        {
+            throw new BusinessException(ErrorCodes.ValidationError, "DynamicRecordValidationFailed");
+        }
         return await _recordRepository.InsertAsync(tenantId, table, fields, request, cancellationToken);
     }
 
@@ -77,6 +86,11 @@ public sealed class DynamicRecordCommandService : IDynamicRecordCommandService
         }
 
         await EnsureEditableAsync(tenantId, tableKey, table.AppId, request, cancellationToken);
+        var payload = BuildPayloadDict(request.Values);
+        if (!await _formValidationService.ValidateAsync(tableKey, payload, cancellationToken))
+        {
+            throw new BusinessException(ErrorCodes.ValidationError, "DynamicRecordValidationFailed");
+        }
         await _recordRepository.UpdateAsync(tenantId, table, fields, id, request, cancellationToken);
     }
 
@@ -153,6 +167,32 @@ public sealed class DynamicRecordCommandService : IDynamicRecordCommandService
             appId,
             fieldsToEdit,
             cancellationToken);
+    }
+
+    private static Dictionary<string, object> BuildPayloadDict(IReadOnlyList<DynamicFieldValueDto> values)
+    {
+        var dict = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+        foreach (var dto in values)
+        {
+            if (string.IsNullOrWhiteSpace(dto.Field))
+                continue;
+
+            object? raw = dto.ValueType switch
+            {
+                "String" or "Text" or "Json" or "File" or "Image" or "Guid" or "Enum" => dto.StringValue,
+                "Int" => dto.IntValue,
+                "Long" => dto.LongValue,
+                "Decimal" => dto.DecimalValue,
+                "Bool" => dto.BoolValue,
+                "DateTime" => dto.DateTimeValue,
+                "Date" => dto.DateValue,
+                _ => dto.StringValue
+            };
+
+            if (raw is not null)
+                dict[dto.Field] = raw;
+        }
+        return dict;
     }
 
 }

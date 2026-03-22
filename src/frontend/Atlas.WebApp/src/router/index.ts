@@ -38,6 +38,7 @@ const AppFlowsPage = () => import("@/pages/ApprovalFlowsPage.vue");
 const AppDataPage = () => import("@/pages/dynamic/DynamicTablesPage.vue");
 const ERDCanvasPage = () => import("@/pages/dynamic/ERDCanvasPage.vue");
 const DynamicTableCrudPage = () => import("@/pages/dynamic/DynamicTableCrudPage.vue");
+const DynamicRecordsNativePage = () => import("@/pages/dynamic/DynamicRecordsNativePage.vue");
 const AppUsersPage = () => import("@/pages/apps/AppUsersPage.vue");
 const AppRolesPage = () => import("@/pages/apps/AppRolesPage.vue");
 const AppPermissionsPage = () => import("@/pages/system/PermissionsPage.vue");
@@ -146,6 +147,7 @@ const router = createRouter({
     { path: "/apps/:appId/data", name: "app-workspace-data", component: AppDataPage, meta: { requiresAuth: true, title: "数据管理", titleKey: "route.dataManage", requiresPermission: "apps:view" } },
     { path: "/apps/:appId/data/erd", name: "app-workspace-data-erd", component: ERDCanvasPage, meta: { requiresAuth: true, title: "ERD 设计器", titleKey: "route.dataManage", requiresPermission: "apps:update" } },
     { path: "/apps/:appId/data/:tableKey", name: "app-workspace-data-crud", component: DynamicTableCrudPage, meta: { requiresAuth: true, title: "动态数据管理", titleKey: "route.dataManage", requiresPermission: "apps:view" } },
+    { path: "/apps/:appId/data/:tableKey/native", name: "app-workspace-data-native", component: DynamicRecordsNativePage, meta: { requiresAuth: true, title: "原生记录视图", titleKey: "route.dataManage", requiresPermission: "apps:view" } },
     { path: "/apps/:appId/users", name: "app-workspace-users", component: AppUsersPage, meta: { requiresAuth: true, title: "应用成员", titleKey: "route.appUsers", requiresPermission: "apps:members:view" } },
     { path: "/apps/:appId/roles", name: "app-workspace-roles", component: AppRolesPage, meta: { requiresAuth: true, title: "应用角色", titleKey: "route.appRoles", requiresPermission: "apps:roles:view" } },
     { path: "/apps/:appId/permissions", name: "app-workspace-permissions", component: AppPermissionsPage, meta: { requiresAuth: true, title: "权限入口", titleKey: "route.permissionsEntry", requiresPermission: "apps:view" } },

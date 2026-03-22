@@ -40,7 +40,7 @@ export interface UseCrudPageOptions<
   defaultFormModel: () => TCreate & TUpdate;
   formRules: Record<string, Rule[]>;
   formRef?: ReturnType<typeof ref<FormInstance>>;
-  buildListParams?: (base: PagedRequest) => TListParams;
+  buildListParams?: (base: PagedRequest, advancedQuery: AdvancedQueryConfig) => TListParams;
   buildCreatePayload?: (model: TCreate & TUpdate) => TCreate;
   buildUpdatePayload?: (model: TCreate & TUpdate) => TUpdate;
   mapDetailToForm?: (detail: TDetail, model: TCreate & TUpdate) => void;
@@ -126,7 +126,7 @@ export function useCrudPage<
         pageSize: pagination.pageSize ?? 20,
         keyword: keyword.value || undefined
       };
-      const params = buildListParams ? buildListParams(baseParams) : (baseParams as unknown as TListParams);
+      const params = buildListParams ? buildListParams(baseParams, advancedQueryConfig.value) : (baseParams as unknown as TListParams);
       const result = await api.list(params);
       
       if (!isMounted.value) return;

@@ -1186,3 +1186,34 @@ export interface DataSourceSchemaResult {
   errorMessage?: string;
   tables: DataSourceTableInfo[];
 }
+
+// ---- 统一元数据关联查询 ----
+
+export interface FormDefinitionRef {
+  id: string;
+  name: string;
+  description?: string | null;
+  category?: string | null;
+  status: string;
+}
+
+export interface LowCodePageRef {
+  id: string;
+  pageKey: string;
+  name: string;
+  appId: string;
+}
+
+export interface ApprovalFlowRef {
+  id: string;
+  name: string;
+  status: string;
+}
+
+export interface EntityReferenceResult {
+  tableKey: string;
+  formDefinitions: FormDefinitionRef[];
+  lowCodePages: LowCodePageRef[];
+  boundApprovalFlow?: ApprovalFlowRef | null;
+}
+

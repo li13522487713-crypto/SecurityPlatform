@@ -2872,8 +2872,21 @@ export const runtimeMessages: Record<SupportedLocale, MessageTree> = {
       emptyNoPage: "未找到页面配置",
       tablesTitle: "动态表管理",
       crudTitle: "动态数据管理",
+      nativeRecordsTitle: "记录浏览",
+      advancedSearch: "高级查询",
       loadPageFailed: "加载页面失败",
       loadAppsFailed: "加载应用列表失败"
+    },
+    erd: {
+      viewReferences: "查看引用",
+      referencesTitle: "实体引用：{tableKey}",
+      boundApprovalFlow: "绑定的审批流",
+      referencedForms: "引用此实体的表单",
+      referencedPages: "引用此实体的页面",
+      noApprovalFlow: "未绑定审批流",
+      noForms: "无关联表单",
+      noPages: "无关联页面",
+      loadReferencesFailed: "加载引用信息失败"
     },
     runtimePage: {
       previewBanner: "预览模式",
@@ -6928,8 +6941,21 @@ export const runtimeMessages: Record<SupportedLocale, MessageTree> = {
       emptyNoPage: "Page configuration not found",
       tablesTitle: "Dynamic tables",
       crudTitle: "Dynamic data",
+      nativeRecordsTitle: "Records browser",
+      advancedSearch: "Advanced search",
       loadPageFailed: "Failed to load page",
       loadAppsFailed: "Failed to load apps"
+    },
+    erd: {
+      viewReferences: "View references",
+      referencesTitle: "Entity references: {tableKey}",
+      boundApprovalFlow: "Bound approval flow",
+      referencedForms: "Forms referencing this entity",
+      referencedPages: "Pages referencing this entity",
+      noApprovalFlow: "No approval flow bound",
+      noForms: "No forms linked",
+      noPages: "No pages linked",
+      loadReferencesFailed: "Failed to load entity references"
     },
     runtimePage: {
       previewBanner: "Preview mode",

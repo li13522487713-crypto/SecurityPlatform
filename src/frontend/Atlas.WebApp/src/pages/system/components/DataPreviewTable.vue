@@ -7,7 +7,7 @@
     size="small"
     bordered
     :pagination="paginationConfig"
-    :row-key="(_, index) => index"
+    :row-key="(_: unknown, index: number) => index"
   >
     <template #headerCell="{ column }">
       <span :title="`${column.title} (${column.colType})`">

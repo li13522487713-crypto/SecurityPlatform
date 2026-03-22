@@ -14,6 +14,14 @@
           >
             <TableOutlined class="item-icon" />
             <div class="item-name">{{ table.displayName || table.tableKey }}</div>
+            <a-button
+              type="text"
+              size="small"
+              :title="t('erd.viewReferences')"
+              @click.stop="openReferences(table.tableKey)"
+            >
+              <template #icon><LinkOutlined /></template>
+            </a-button>
           </div>
           <a-empty v-if="tables.length === 0 && !loading" description="无可用实体" />
         </div>
@@ -31,11 +39,14 @@
       <div class="erd-canvas-container" ref="containerRef"></div>
     </div>
   </div>
+
+  <EntityReferencesDrawer v-model:open="referencesDrawerOpen" :tableKey="selectedTableKey" />
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue';
-import { TableOutlined, ZoomInOutlined, ZoomOutOutlined, FullscreenExitOutlined } from '@ant-design/icons-vue';
+import { useI18n } from 'vue-i18n';
+import { TableOutlined, ZoomInOutlined, ZoomOutOutlined, FullscreenExitOutlined, LinkOutlined } from '@ant-design/icons-vue';
 import { Graph } from '@antv/x6';
 import { Dnd } from '@antv/x6-plugin-dnd';
 import { register } from '@antv/x6-vue-shape';
@@ -43,6 +54,9 @@ import { message } from 'ant-design-vue';
 import type { DynamicTableListItem } from '@/types/dynamic-tables';
 import { getDynamicTablesPaged, getDynamicTableRelations, setDynamicTableRelations } from '@/services/dynamic-tables';
 import ERDEntityNode from './ERDEntityNode.vue';
+import EntityReferencesDrawer from './EntityReferencesDrawer.vue';
+
+const { t } = useI18n();
 
 const props = defineProps<{
   appId: string;
@@ -52,6 +66,14 @@ const containerRef = ref<HTMLElement | null>(null);
 const tables = ref<DynamicTableListItem[]>([]);
 const loading = ref(false);
 const saving = ref(false);
+
+const referencesDrawerOpen = ref(false);
+const selectedTableKey = ref('');
+
+const openReferences = (tableKey: string) => {
+  selectedTableKey.value = tableKey;
+  referencesDrawerOpen.value = true;
+};
 
 let graph: Graph;
 let dnd: Dnd;
