@@ -13,6 +13,7 @@
           @change="handleAppScopeChange"
         />
         <a-button @click="loadSchema">{{ t("dynamic.refresh") }}</a-button>
+        <a-button type="primary" @click="openERDCanvas" v-if="selectedAppId">ERD 模型设计</a-button>
       </a-space>
     </template>
     <a-spin :spinning="loading">
@@ -99,4 +100,10 @@ onMounted(() => {
   void loadAppOptions();
   void loadSchema();
 });
+
+const openERDCanvas = () => {
+  if (selectedAppId.value) {
+    router.push(`/apps/${selectedAppId.value}/data/erd`);
+  }
+};
 </script>

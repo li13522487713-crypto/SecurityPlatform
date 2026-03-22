@@ -36,6 +36,7 @@ const AppPagesPage = () => import("@/pages/apps/AppPagesPage.vue");
 const AppFormsPage = () => import("@/pages/lowcode/FormListPage.vue");
 const AppFlowsPage = () => import("@/pages/ApprovalFlowsPage.vue");
 const AppDataPage = () => import("@/pages/dynamic/DynamicTablesPage.vue");
+const ERDCanvasPage = () => import("@/pages/dynamic/ERDCanvasPage.vue");
 const DynamicTableCrudPage = () => import("@/pages/dynamic/DynamicTableCrudPage.vue");
 const AppUsersPage = () => import("@/pages/apps/AppUsersPage.vue");
 const AppRolesPage = () => import("@/pages/apps/AppRolesPage.vue");
@@ -143,6 +144,7 @@ const router = createRouter({
     { path: "/apps/:appId/workflows/:id/editor", name: "app-workspace-workflow-editor", component: WorkflowEditorPage, meta: { requiresAuth: true, title: "工作流设计器", titleKey: "route.workflowEditor" } },
     { path: "/apps/:appId/agents/:id/edit", name: "app-workspace-agent-editor", component: AgentEditorPage, meta: { requiresAuth: true, title: "Agent 编辑", titleKey: "route.aiAgentEdit" } },
     { path: "/apps/:appId/data", name: "app-workspace-data", component: AppDataPage, meta: { requiresAuth: true, title: "数据管理", titleKey: "route.dataManage", requiresPermission: "apps:view" } },
+    { path: "/apps/:appId/data/erd", name: "app-workspace-data-erd", component: ERDCanvasPage, meta: { requiresAuth: true, title: "ERD 设计器", titleKey: "route.dataManage", requiresPermission: "apps:update" } },
     { path: "/apps/:appId/data/:tableKey", name: "app-workspace-data-crud", component: DynamicTableCrudPage, meta: { requiresAuth: true, title: "动态数据管理", titleKey: "route.dataManage", requiresPermission: "apps:view" } },
     { path: "/apps/:appId/users", name: "app-workspace-users", component: AppUsersPage, meta: { requiresAuth: true, title: "应用成员", titleKey: "route.appUsers", requiresPermission: "apps:members:view" } },
     { path: "/apps/:appId/roles", name: "app-workspace-roles", component: AppRolesPage, meta: { requiresAuth: true, title: "应用角色", titleKey: "route.appRoles", requiresPermission: "apps:roles:view" } },

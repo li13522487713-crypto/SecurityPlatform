@@ -44,6 +44,18 @@ export interface DynamicIndexDefinition {
   fields: string[];
 }
 
+export interface DynamicRelationDefinition {
+  relatedTableKey: string;
+  sourceField: string;
+  targetField: string;
+  relationType: string;
+  cascadeRule?: string | null;
+}
+
+export interface DynamicRelationUpsertRequest {
+  relations: DynamicRelationDefinition[];
+}
+
 export interface DynamicFieldPermissionRule {
   fieldName: string;
   roleCode: string;

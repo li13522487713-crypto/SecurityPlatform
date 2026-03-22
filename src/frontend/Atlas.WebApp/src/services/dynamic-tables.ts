@@ -7,6 +7,8 @@ import type {
   DynamicFieldDefinition,
   DynamicFieldPermissionRule,
   DynamicFieldPermissionUpsertRequest,
+  DynamicRelationDefinition,
+  DynamicRelationUpsertRequest,
   DynamicRecordUpsertRequest,
   DynamicRecordQueryRequest,
   DynamicRecordListResult
@@ -55,6 +57,30 @@ export async function getDynamicFieldPermissions(tableKey: string): Promise<Dyna
 export async function setDynamicFieldPermissions(tableKey: string, request: DynamicFieldPermissionUpsertRequest) {
   const response = await requestApi<ApiResponse<{ tableKey: string }>>(
     `/dynamic-tables/${encodeURIComponent(tableKey)}/field-permissions`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request)
+    }
+  );
+  if (!response.success) {
+    throw new Error(response.message || "更新失败");
+  }
+}
+
+export async function getDynamicTableRelations(tableKey: string): Promise<DynamicRelationDefinition[]> {
+  const response = await requestApi<ApiResponse<DynamicRelationDefinition[]>>(
+    `/dynamic-tables/${encodeURIComponent(tableKey)}/relations`
+  );
+  if (!response.data) {
+    throw new Error(response.message || "查询失败");
+  }
+  return response.data;
+}
+
+export async function setDynamicTableRelations(tableKey: string, request: DynamicRelationUpsertRequest) {
+  const response = await requestApi<ApiResponse<{ tableKey: string }>>(
+    `/dynamic-tables/${encodeURIComponent(tableKey)}/relations`,
     {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
