@@ -311,97 +311,155 @@ public sealed class DynamicRecordRepository : IDynamicRecordRepository
         var filters = request.Filters ?? Array.Empty<DynamicFilterCondition>();
         foreach (var filter in filters)
         {
-            if (string.IsNullOrWhiteSpace(filter.Field) || !SupportedOperators.Contains(filter.Operator))
+            var ruleCond = BuildQueryRuleCondition(filter.Field, filter.Operator, filter.Value, fields, parameters);
+            if (!string.IsNullOrWhiteSpace(ruleCond))
             {
-                continue;
+                conditions.Add(ruleCond);
             }
+        }
 
-            var field = fields.FirstOrDefault(x => string.Equals(x.Name, filter.Field, StringComparison.OrdinalIgnoreCase));
-            if (field is null)
+        if (request.AdvancedQuery?.RootGroup is not null)
+        {
+            var advancedCondition = BuildQueryGroup(request.AdvancedQuery.RootGroup, fields, parameters);
+            if (!string.IsNullOrWhiteSpace(advancedCondition))
             {
-                continue;
+                conditions.Add($"({advancedCondition})");
             }
-
-            var fieldName = field.Name;
-            var op = filter.Operator.ToLowerInvariant();
-
-            if (op == "in" && filter.Value is { ValueKind: JsonValueKind.Array })
-            {
-                var values = filter.Value.Value
-                    .EnumerateArray()
-                    .Select(x => ConvertFilterValue(field, x))
-                    .Where(x => x is not null)
-                    .ToArray();
-                if (values.Length == 0)
-                {
-                    continue;
-                }
-
-                var paramNames = new List<string>();
-                foreach (var item in values)
-                {
-                    var paramName = $"@p{parameters.Count}";
-                    paramNames.Add(paramName);
-                    parameters.Add(new SugarParameter(paramName, item!));
-                }
-
-                conditions.Add($"{fieldName} IN ({string.Join(", ", paramNames)})");
-                continue;
-            }
-
-            if (op == "between" && filter.Value is { ValueKind: JsonValueKind.Array })
-            {
-                var values = filter.Value.Value
-                    .EnumerateArray()
-                    .Select(x => ConvertFilterValue(field, x))
-                    .Where(x => x is not null)
-                    .ToArray();
-                if (values.Length < 2)
-                {
-                    continue;
-                }
-
-                var startParam = $"@p{parameters.Count}";
-                parameters.Add(new SugarParameter(startParam, values[0]!));
-                var endParam = $"@p{parameters.Count}";
-                parameters.Add(new SugarParameter(endParam, values[1]!));
-                conditions.Add($"{fieldName} BETWEEN {startParam} AND {endParam}");
-                continue;
-            }
-
-            if (filter.Value is not { } scalarValue)
-            {
-                continue;
-            }
-
-            var resolvedValue = ConvertFilterValue(field, scalarValue);
-            if (resolvedValue is null)
-            {
-                continue;
-            }
-
-            if (op == "like" && resolvedValue is string likeValue && !likeValue.Contains('%'))
-            {
-                resolvedValue = $"%{likeValue}%";
-            }
-
-            var param = $"@p{parameters.Count}";
-            parameters.Add(new SugarParameter(param, resolvedValue));
-            var sqlOp = op switch
-            {
-                "eq" => "=",
-                "ne" => "!=",
-                "gt" => ">",
-                "gte" => ">=",
-                "lt" => "<",
-                "lte" => "<=",
-                "like" => "LIKE",
-                _ => "="
-            };
-            conditions.Add($"{fieldName} {sqlOp} {param}");
         }
 
         return string.Join(" AND ", conditions);
+    }
+
+    private static string? BuildQueryGroup(
+        QueryGroup group,
+        IReadOnlyList<DynamicField> fields,
+        List<SugarParameter> parameters)
+    {
+        var groupConditions = new List<string>();
+
+        if (group.Rules != null)
+        {
+            foreach (var rule in group.Rules)
+            {
+                var cond = BuildQueryRuleCondition(rule.Field, rule.Operator, rule.Value, fields, parameters);
+                if (!string.IsNullOrWhiteSpace(cond))
+                {
+                    groupConditions.Add(cond);
+                }
+            }
+        }
+
+        if (group.Groups != null)
+        {
+            foreach (var subGroup in group.Groups)
+            {
+                var cond = BuildQueryGroup(subGroup, fields, parameters);
+                if (!string.IsNullOrWhiteSpace(cond))
+                {
+                    groupConditions.Add($"({cond})");
+                }
+            }
+        }
+
+        if (groupConditions.Count == 0) return null;
+
+        var conj = string.Equals(group.Conjunction, "or", StringComparison.OrdinalIgnoreCase) ? " OR " : " AND ";
+        return string.Join(conj, groupConditions);
+    }
+
+    private static string? BuildQueryRuleCondition(
+        string filterField,
+        string filterOperator,
+        JsonElement? filterValue,
+        IReadOnlyList<DynamicField> fields,
+        List<SugarParameter> parameters)
+    {
+        if (string.IsNullOrWhiteSpace(filterField) || !SupportedOperators.Contains(filterOperator))
+        {
+            return null;
+        }
+
+        var field = fields.FirstOrDefault(x => string.Equals(x.Name, filterField, StringComparison.OrdinalIgnoreCase));
+        if (field is null)
+        {
+            return null;
+        }
+
+        var fieldName = field.Name;
+        var op = filterOperator.ToLowerInvariant();
+
+        if (op == "in" && filterValue is { ValueKind: JsonValueKind.Array })
+        {
+            var values = filterValue.Value
+                .EnumerateArray()
+                .Select(x => ConvertFilterValue(field, x))
+                .Where(x => x is not null)
+                .ToArray();
+            if (values.Length == 0)
+            {
+                return null;
+            }
+
+            var paramNames = new List<string>();
+            foreach (var item in values)
+            {
+                var paramName = $"@p{parameters.Count}";
+                paramNames.Add(paramName);
+                parameters.Add(new SugarParameter(paramName, item!));
+            }
+
+            return $"{fieldName} IN ({string.Join(", ", paramNames)})";
+        }
+
+        if (op == "between" && filterValue is { ValueKind: JsonValueKind.Array })
+        {
+            var values = filterValue.Value
+                .EnumerateArray()
+                .Select(x => ConvertFilterValue(field, x))
+                .Where(x => x is not null)
+                .ToArray();
+            if (values.Length < 2)
+            {
+                return null;
+            }
+
+            var startParam = $"@p{parameters.Count}";
+            parameters.Add(new SugarParameter(startParam, values[0]!));
+            var endParam = $"@p{parameters.Count}";
+            parameters.Add(new SugarParameter(endParam, values[1]!));
+            return $"{fieldName} BETWEEN {startParam} AND {endParam}";
+        }
+
+        if (filterValue is not { } scalarValue)
+        {
+            return null;
+        }
+
+        var resolvedValue = ConvertFilterValue(field, scalarValue);
+        if (resolvedValue is null)
+        {
+            return null;
+        }
+
+        if (op == "like" && resolvedValue is string likeValue && !likeValue.Contains('%'))
+        {
+            resolvedValue = $"%{likeValue}%";
+        }
+
+        var param = $"@p{parameters.Count}";
+        parameters.Add(new SugarParameter(param, resolvedValue));
+        var sqlOp = op switch
+        {
+            "eq" => "=",
+            "ne" => "!=",
+            "gt" => ">",
+            "gte" => ">=",
+            "lt" => "<",
+            "lte" => "<=",
+            "like" => "LIKE",
+            _ => "="
+        };
+        return $"{fieldName} {sqlOp} {param}";
     }
 
     private static object? ConvertFilterValue(DynamicField field, JsonElement value)

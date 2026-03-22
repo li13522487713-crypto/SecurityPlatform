@@ -1,4 +1,5 @@
 export type DynamicDbType = "Sqlite" | "SqlServer" | "MySql" | "PostgreSql";
+import type { AdvancedQueryConfig } from './advanced-query';
 export type DynamicFieldType =
   | "Int"
   | "Long"
@@ -99,6 +100,7 @@ export interface DynamicRecordQueryRequest {
   sortBy?: string | null;
   sortDesc?: boolean;
   filters?: Array<{ field: string; operator: string; value?: unknown }>;
+  advancedQuery?: AdvancedQueryConfig;
 }
 
 export interface DynamicRecordDto {

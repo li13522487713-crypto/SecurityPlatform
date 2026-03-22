@@ -15,5 +15,10 @@ public sealed class DynamicRecordQueryRequestValidator : AbstractValidator<Dynam
         RuleForEach(x => x.Filters)
             .Must(filter => !string.IsNullOrWhiteSpace(filter.Field))
             .WithMessage(localizer["DynamicRecordFilterFieldRequired"].Value);
+
+        When(x => x.AdvancedQuery != null, () =>
+        {
+            RuleFor(x => x.AdvancedQuery!.RootGroup).NotNull();
+        });
     }
 }

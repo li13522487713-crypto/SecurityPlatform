@@ -150,7 +150,10 @@ public sealed record DynamicRecordQueryRequest(
     string? Keyword,
     string? SortBy,
     bool SortDesc,
-    IReadOnlyList<DynamicFilterCondition> Filters);
+    IReadOnlyList<DynamicFilterCondition> Filters)
+{
+    public AdvancedQueryConfig? AdvancedQuery { get; init; }
+}
 
 public sealed record DynamicRecordExportRequest(
     string? Keyword,
@@ -160,6 +163,18 @@ public sealed record DynamicRecordExportRequest(
     IReadOnlyList<string>? Fields);
 
 public sealed record DynamicFilterCondition(
+    string Field,
+    string Operator,
+    JsonElement? Value);
+
+public sealed record AdvancedQueryConfig(QueryGroup RootGroup);
+
+public sealed record QueryGroup(
+    string Conjunction,
+    IReadOnlyList<QueryRule>? Rules,
+    IReadOnlyList<QueryGroup>? Groups);
+
+public sealed record QueryRule(
     string Field,
     string Operator,
     JsonElement? Value);
