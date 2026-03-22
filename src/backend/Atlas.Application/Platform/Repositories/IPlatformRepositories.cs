@@ -196,6 +196,17 @@ public interface IAppPositionRepository
     Task DeleteAsync(TenantId tenantId, long appId, long id, CancellationToken cancellationToken = default);
 }
 
+public interface IAppPermissionRepository
+{
+    Task<AppPermission?> FindByIdAsync(TenantId tenantId, long appId, long id, CancellationToken cancellationToken = default);
+    Task<AppPermission?> FindByCodeAsync(TenantId tenantId, long appId, string code, CancellationToken cancellationToken = default);
+    Task<(IReadOnlyList<AppPermission> Items, int TotalCount)> QueryPageAsync(
+        TenantId tenantId, long appId, int pageIndex, int pageSize, string? keyword, string? type, CancellationToken cancellationToken = default);
+    Task AddAsync(AppPermission entity, CancellationToken cancellationToken = default);
+    Task UpdateAsync(AppPermission entity, CancellationToken cancellationToken = default);
+    Task DeleteAsync(TenantId tenantId, long appId, long id, CancellationToken cancellationToken = default);
+}
+
 public interface IAppProjectRepository
 {
     Task<IReadOnlyList<AppProject>> QueryByAppIdAsync(TenantId tenantId, long appId, CancellationToken cancellationToken = default);

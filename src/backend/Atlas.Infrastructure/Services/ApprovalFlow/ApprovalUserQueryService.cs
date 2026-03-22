@@ -49,43 +49,48 @@ public sealed class ApprovalUserQueryService : IApprovalUserQueryService
     public async Task<long?> GetDirectLeaderUserIdAsync(
         TenantId tenantId,
         long userId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        long? appId = null)
     {
-        return await _userService.GetDirectLeaderUserIdAsync(tenantId, userId, cancellationToken);
+        return await _userService.GetDirectLeaderUserIdAsync(tenantId, userId, cancellationToken, appId);
     }
 
     public async Task<IReadOnlyList<long>> GetLoopApproversAsync(
         TenantId tenantId,
         long startUserId,
         int maxLevels = 10,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        long? appId = null)
     {
-        return await _userService.GetLoopApproversAsync(tenantId, startUserId, maxLevels, cancellationToken);
+        return await _userService.GetLoopApproversAsync(tenantId, startUserId, maxLevels, cancellationToken, appId);
     }
 
     public async Task<long?> GetLevelApproverAsync(
         TenantId tenantId,
         long startUserId,
         int targetLevel,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        long? appId = null)
     {
-        return await _userService.GetLevelApproverAsync(tenantId, startUserId, targetLevel, cancellationToken);
+        return await _userService.GetLevelApproverAsync(tenantId, startUserId, targetLevel, cancellationToken, appId);
     }
 
     public async Task<long?> GetDepartmentHeadUserIdAsync(
         TenantId tenantId,
         long userId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        long? appId = null)
     {
-        return await _departmentService.GetDepartmentHeadUserIdAsync(tenantId, userId, cancellationToken);
+        return await _departmentService.GetDepartmentHeadUserIdAsync(tenantId, userId, cancellationToken, appId);
     }
 
     public async Task<long?> GetHrbpUserIdAsync(
         TenantId tenantId,
         long userId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        long? appId = null)
     {
-        return await _userService.GetHrbpUserIdAsync(tenantId, userId, cancellationToken);
+        return await _userService.GetHrbpUserIdAsync(tenantId, userId, cancellationToken, appId);
     }
 
     public async Task<IReadOnlyList<long>> ValidateUserIdsAsync(

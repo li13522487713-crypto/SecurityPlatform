@@ -418,3 +418,71 @@ public sealed class AppRolePermissionRepository : IAppRolePermissionRepository
         return _db.Insertable(entities.ToList()).ExecuteCommandAsync(cancellationToken);
     }
 }
+
+public sealed class AppPermissionRepository : IAppPermissionRepository
+{
+    private readonly ISqlSugarClient _db;
+
+    public AppPermissionRepository(ISqlSugarClient db)
+    {
+        _db = db;
+    }
+
+    public async Task<AppPermission?> FindByIdAsync(
+        TenantId tenantId, long appId, long id, CancellationToken cancellationToken = default)
+    {
+        return await _db.Queryable<AppPermission>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.AppId == appId && x.Id == id)
+            .FirstAsync(cancellationToken);
+    }
+
+    public async Task<AppPermission?> FindByCodeAsync(
+        TenantId tenantId, long appId, string code, CancellationToken cancellationToken = default)
+    {
+        return await _db.Queryable<AppPermission>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.AppId == appId && x.Code == code)
+            .FirstAsync(cancellationToken);
+    }
+
+    public async Task<(IReadOnlyList<AppPermission> Items, int TotalCount)> QueryPageAsync(
+        TenantId tenantId, long appId, int pageIndex, int pageSize, string? keyword, string? type,
+        CancellationToken cancellationToken = default)
+    {
+        var query = _db.Queryable<AppPermission>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.AppId == appId);
+        if (!string.IsNullOrWhiteSpace(keyword))
+        {
+            query = query.Where(x => x.Name.Contains(keyword) || x.Code.Contains(keyword));
+        }
+        if (!string.IsNullOrWhiteSpace(type))
+        {
+            query = query.Where(x => x.Type == type);
+        }
+        var total = await query.CountAsync(cancellationToken);
+        var items = await query
+            .OrderBy(x => x.Code)
+            .Skip((pageIndex - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+        return (items, total);
+    }
+
+    public async Task AddAsync(AppPermission entity, CancellationToken cancellationToken = default)
+    {
+        await _db.Insertable(entity).ExecuteCommandAsync(cancellationToken);
+    }
+
+    public async Task UpdateAsync(AppPermission entity, CancellationToken cancellationToken = default)
+    {
+        await _db.Updateable(entity)
+            .Where(x => x.TenantIdValue == entity.TenantIdValue && x.AppId == entity.AppId && x.Id == entity.Id)
+            .ExecuteCommandAsync(cancellationToken);
+    }
+
+    public async Task DeleteAsync(TenantId tenantId, long appId, long id, CancellationToken cancellationToken = default)
+    {
+        await _db.Deleteable<AppPermission>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.AppId == appId && x.Id == id)
+            .ExecuteCommandAsync(cancellationToken);
+    }
+}

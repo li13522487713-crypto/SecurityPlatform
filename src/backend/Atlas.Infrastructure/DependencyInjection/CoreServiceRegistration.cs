@@ -1,6 +1,7 @@
 using Atlas.Application.Abstractions;
 using Atlas.Application.Audit.Abstractions;
 using Atlas.Application.Identity.Abstractions;
+using Atlas.Application.Platform.Abstractions;
 using Atlas.Application.Identity.Repositories;
 using Atlas.Application.System.Abstractions;
 using Atlas.Application.TableViews.Abstractions;
@@ -13,6 +14,7 @@ using Atlas.Infrastructure.Options;
 using Atlas.Infrastructure.Repositories;
 using Atlas.Infrastructure.Security;
 using Atlas.Infrastructure.Services;
+using Atlas.Infrastructure.Services.Platform;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using ITotpService = Atlas.Application.Abstractions.ITotpService;
@@ -177,7 +179,8 @@ public static class CoreServiceRegistration
         services.AddScoped<IScheduledJobService, HangfireScheduledJobService>();
 
         // Data Scope Filter (等保2.0 数据权限)
-        services.AddScoped<IDataScopeFilter, DataScopeFilter>();
+        services.AddScoped<ITenantDataScopeFilter, TenantDataScopeFilter>();
+        services.AddScoped<IAppDataScopeFilter, AppDataScopeFilter>();
 
         return services;
     }

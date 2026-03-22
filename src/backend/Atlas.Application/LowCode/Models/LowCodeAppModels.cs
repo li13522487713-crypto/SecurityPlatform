@@ -8,9 +8,6 @@ public sealed record LowCodeAppListItem(
     string? Category,
     string? Icon,
     string? DataSourceId,
-    bool UseSharedUsers,
-    bool UseSharedRoles,
-    bool UseSharedDepartments,
     int Version,
     string Status,
     DateTimeOffset CreatedAt,
@@ -25,9 +22,6 @@ public sealed record LowCodeAppDetail(
     string? Category,
     string? Icon,
     string? DataSourceId,
-    bool UseSharedUsers,
-    bool UseSharedRoles,
-    bool UseSharedDepartments,
     int Version,
     string Status,
     string? ConfigJson,
@@ -45,10 +39,7 @@ public sealed record LowCodeAppCreateRequest(
     string? Description,
     string? Category,
     string? Icon,
-    long? DataSourceId,
-    bool UseSharedUsers = true,
-    bool UseSharedRoles = true,
-    bool UseSharedDepartments = true);
+    long? DataSourceId);
 
 public sealed record LowCodeAppUpdateRequest(
     string Name,
@@ -57,17 +48,6 @@ public sealed record LowCodeAppUpdateRequest(
     string? Icon,
     long? DataSourceId = null,
     bool UnbindDataSource = false);
-
-public sealed record LowCodeAppSharingPolicy(
-    string AppId,
-    bool UseSharedUsers,
-    bool UseSharedRoles,
-    bool UseSharedDepartments);
-
-public sealed record LowCodeAppSharingPolicyUpdateRequest(
-    bool UseSharedUsers,
-    bool UseSharedRoles,
-    bool UseSharedDepartments);
 
 public sealed record LowCodeAppEntityAliasItem(
     string EntityType,

@@ -13,9 +13,7 @@ public sealed record PermissionQueryRequest(
     string? Keyword,
     string? SortBy,
     bool SortDesc,
-    string? Type,
-    long? AppId = null,
-    bool PlatformOnly = false);
+    string? Type);
 
 public sealed record PermissionDetail(
     string Id,

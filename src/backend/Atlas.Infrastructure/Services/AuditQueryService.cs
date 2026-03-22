@@ -13,13 +13,13 @@ namespace Atlas.Infrastructure.Services;
 public sealed class AuditQueryService : IAuditQueryService
 {
     private readonly ISqlSugarClient _db;
-    private readonly IDataScopeFilter _dataScopeFilter;
+    private readonly ITenantDataScopeFilter _dataScopeFilter;
     private readonly ICurrentUserAccessor _currentUserAccessor;
     private readonly IMapper _mapper;
 
     public AuditQueryService(
         ISqlSugarClient db,
-        IDataScopeFilter dataScopeFilter,
+        ITenantDataScopeFilter dataScopeFilter,
         ICurrentUserAccessor currentUserAccessor,
         IMapper mapper)
     {

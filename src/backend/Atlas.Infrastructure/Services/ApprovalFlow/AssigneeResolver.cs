@@ -27,13 +27,15 @@ public sealed class AssigneeResolver
     /// <summary>
     /// Resolve user IDs based on assignee type and value.
     /// </summary>
+    /// <param name="appId">应用 ID（非 null 时走应用级组织查询，null 走平台级）</param>
     public async Task<List<long>> ResolveUserIdsAsync(
         TenantId tenantId,
         long initiatorUserId,
         AssigneeType assigneeType,
         string assigneeValue,
         string? instanceDataJson,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        long? appId = null)
     {
         var userIds = new List<long>();
 
@@ -65,20 +67,20 @@ public sealed class AssigneeResolver
                 break;
 
             case AssigneeType.Loop:
-                var loopUserIds = await _userQueryService.GetLoopApproversAsync(tenantId, initiatorUserId, cancellationToken: cancellationToken);
+                var loopUserIds = await _userQueryService.GetLoopApproversAsync(tenantId, initiatorUserId, cancellationToken: cancellationToken, appId: appId);
                 userIds.AddRange(loopUserIds);
                 break;
 
             case AssigneeType.Level:
                 if (int.TryParse(assigneeValue, out var targetLevel) && targetLevel > 0)
                 {
-                    var levelUserId = await _userQueryService.GetLevelApproverAsync(tenantId, initiatorUserId, targetLevel, cancellationToken);
+                    var levelUserId = await _userQueryService.GetLevelApproverAsync(tenantId, initiatorUserId, targetLevel, cancellationToken, appId);
                     if (levelUserId.HasValue) userIds.Add(levelUserId.Value);
                 }
                 break;
 
             case AssigneeType.DirectLeader:
-                var directLeaderId = await _userQueryService.GetDirectLeaderUserIdAsync(tenantId, initiatorUserId, cancellationToken);
+                var directLeaderId = await _userQueryService.GetDirectLeaderUserIdAsync(tenantId, initiatorUserId, cancellationToken, appId);
                 if (directLeaderId.HasValue) userIds.Add(directLeaderId.Value);
                 break;
 
@@ -87,7 +89,7 @@ public sealed class AssigneeResolver
                 break;
 
             case AssigneeType.Hrbp:
-                var hrbpUserId = await _userQueryService.GetHrbpUserIdAsync(tenantId, initiatorUserId, cancellationToken);
+                var hrbpUserId = await _userQueryService.GetHrbpUserIdAsync(tenantId, initiatorUserId, cancellationToken, appId);
                 if (hrbpUserId.HasValue) userIds.Add(hrbpUserId.Value);
                 break;
 

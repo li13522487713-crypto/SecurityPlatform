@@ -45,11 +45,13 @@ public interface IApprovalUserService
     /// <param name="tenantId">租户ID</param>
     /// <param name="userId">用户ID</param>
     /// <param name="cancellationToken">取消令牌</param>
+    /// <param name="appId">应用 ID（非 null 时走应用级组织查询，null 走平台级）</param>
     /// <returns>直属领导用户ID，如果不存在则返回null</returns>
     Task<long?> GetDirectLeaderUserIdAsync(
         TenantId tenantId,
         long userId,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken,
+        long? appId = null);
 
     /// <summary>
     /// 层层审批：向上逐级查找审批人（直到找到有审批权限的用户或到达顶层）
@@ -58,12 +60,14 @@ public interface IApprovalUserService
     /// <param name="startUserId">起始用户ID</param>
     /// <param name="maxLevels">最大查找层级（防止无限循环，默认10层）</param>
     /// <param name="cancellationToken">取消令牌</param>
+    /// <param name="appId">应用 ID（非 null 时走应用级组织查询，null 走平台级）</param>
     /// <returns>审批人用户ID列表（按层级从低到高）</returns>
     Task<IReadOnlyList<long>> GetLoopApproversAsync(
         TenantId tenantId,
         long startUserId,
         int maxLevels = 10,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        long? appId = null);
 
     /// <summary>
     /// 指定层级：向上查找指定层级的审批人
@@ -72,12 +76,14 @@ public interface IApprovalUserService
     /// <param name="startUserId">起始用户ID</param>
     /// <param name="targetLevel">目标层级（1表示直属领导，2表示上级的上级，以此类推）</param>
     /// <param name="cancellationToken">取消令牌</param>
+    /// <param name="appId">应用 ID（非 null 时走应用级组织查询，null 走平台级）</param>
     /// <returns>审批人用户ID，如果层级不足则返回null</returns>
     Task<long?> GetLevelApproverAsync(
         TenantId tenantId,
         long startUserId,
         int targetLevel,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        long? appId = null);
 
     /// <summary>
     /// 获取用户的HRBP（人力资源业务伙伴）用户ID
@@ -85,9 +91,11 @@ public interface IApprovalUserService
     /// <param name="tenantId">租户ID</param>
     /// <param name="userId">用户ID</param>
     /// <param name="cancellationToken">取消令牌</param>
+    /// <param name="appId">应用 ID（非 null 时走应用级组织查询，null 走平台级）</param>
     /// <returns>HRBP用户ID，如果不存在则返回null</returns>
     Task<long?> GetHrbpUserIdAsync(
         TenantId tenantId,
         long userId,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken,
+        long? appId = null);
 }

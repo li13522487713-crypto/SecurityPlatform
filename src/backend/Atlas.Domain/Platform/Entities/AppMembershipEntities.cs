@@ -156,6 +156,49 @@ public sealed class AppRolePermission : TenantEntity
     public string PermissionCode { get; private set; }
 }
 
+/// <summary>应用级权限（物理隔离于平台级 Permission，确保互不干扰）</summary>
+public sealed class AppPermission : TenantEntity
+{
+    public AppPermission()
+        : base(TenantId.Empty)
+    {
+        Name = string.Empty;
+        Code = string.Empty;
+        Type = "Api";
+        Description = string.Empty;
+    }
+
+    public AppPermission(
+        TenantId tenantId,
+        long appId,
+        string name,
+        string code,
+        string type,
+        long id)
+        : base(tenantId)
+    {
+        Id = id;
+        AppId = appId;
+        Name = name;
+        Code = code;
+        Type = type;
+        Description = string.Empty;
+    }
+
+    public long AppId { get; private set; }
+    public string Name { get; private set; }
+    public string Code { get; private set; }
+    public string Type { get; private set; }
+    public string? Description { get; private set; }
+
+    public void Update(string name, string type, string? description)
+    {
+        Name = name;
+        Type = type;
+        Description = description ?? string.Empty;
+    }
+}
+
 /// <summary>应用角色 ↔ 低代码页面关联（对应平台级的 RoleMenu）</summary>
 public sealed class AppRolePage : TenantEntity
 {

@@ -8,7 +8,7 @@ namespace Atlas.Infrastructure.Services;
 /// <summary>
 /// 基于当前用户角色的数据权限过滤器实现（等保2.0 访问控制）
 /// </summary>
-public sealed class DataScopeFilter : IDataScopeFilter
+public sealed class TenantDataScopeFilter : ITenantDataScopeFilter
 {
     private readonly ICurrentUserAccessor _currentUserAccessor;
     private readonly IRoleRepository _roleRepository;
@@ -17,7 +17,7 @@ public sealed class DataScopeFilter : IDataScopeFilter
     private readonly IDepartmentRepository _departmentRepository;
     private readonly IProjectUserRepository _projectUserRepository;
 
-    public DataScopeFilter(
+    public TenantDataScopeFilter(
         ICurrentUserAccessor currentUserAccessor,
         IRoleRepository roleRepository,
         IRoleDeptRepository roleDeptRepository,
@@ -74,6 +74,7 @@ public sealed class DataScopeFilter : IDataScopeFilter
         var user = _currentUserAccessor.GetCurrentUser();
         if (user is null)
         {
+            // null = 不限制；空集合 = 严格限制为无可访问部门（例如未识别到当前用户）
             return Array.Empty<long>();
         }
 
@@ -137,6 +138,7 @@ public sealed class DataScopeFilter : IDataScopeFilter
         var user = _currentUserAccessor.GetCurrentUser();
         if (user is null)
         {
+            // null = 不限制；空集合 = 严格限制为无可访问项目（例如未识别到当前用户）
             return Array.Empty<long>();
         }
 

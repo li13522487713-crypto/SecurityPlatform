@@ -4,8 +4,6 @@ import type {
   LowCodeAppDataSourceInfo,
   LowCodeAppEntityAliasItem,
   LowCodeAppEntityAliasesUpdateRequest,
-  LowCodeAppSharingPolicy,
-  LowCodeAppSharingPolicyUpdateRequest,
   LowCodeAppUpdateRequest,
   LowCodeAppImportRequest,
   LowCodeAppImportResult
@@ -54,34 +52,6 @@ export async function getTenantAppInstanceDetail(id: string): Promise<TenantAppI
   }
 
   return response.data;
-}
-
-export async function getTenantAppInstanceSharingPolicy(id: string): Promise<LowCodeAppSharingPolicy> {
-  const response = await requestApi<ApiResponse<LowCodeAppSharingPolicy>>(
-    `${TENANT_APP_INSTANCE_BASE}/${id}/sharing-policy`
-  );
-  if (!response.data) {
-    throw new Error(response.message || "查询租户应用实例共享策略失败");
-  }
-
-  return response.data;
-}
-
-export async function updateTenantAppInstanceSharingPolicy(
-  id: string,
-  request: LowCodeAppSharingPolicyUpdateRequest
-): Promise<void> {
-  const response = await requestApi<ApiResponse<{ id: string }>>(
-    `${TENANT_APP_INSTANCE_BASE}/${id}/sharing-policy`,
-    {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(request)
-    }
-  );
-  if (!response.success) {
-    throw new Error(response.message || "更新租户应用实例共享策略失败");
-  }
 }
 
 export async function getTenantAppInstanceEntityAliases(id: string): Promise<LowCodeAppEntityAliasItem[]> {

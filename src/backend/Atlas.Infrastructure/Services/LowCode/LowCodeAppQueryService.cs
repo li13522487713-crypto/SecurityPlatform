@@ -50,9 +50,6 @@ public sealed class LowCodeAppQueryService : ILowCodeAppQueryService
             e.Category,
             e.Icon,
             e.DataSourceId?.ToString(),
-            e.UseSharedUsers,
-            e.UseSharedRoles,
-            e.UseSharedDepartments,
             e.Version,
             e.Status.ToString(),
             e.CreatedAt,
@@ -81,24 +78,6 @@ public sealed class LowCodeAppQueryService : ILowCodeAppQueryService
 
         var pages = await _pageRepository.GetByAppIdAsync(tenantId, entity.Id, cancellationToken);
         return MapToDetail(entity, pages);
-    }
-
-    public async Task<LowCodeAppSharingPolicy?> GetSharingPolicyAsync(
-        TenantId tenantId,
-        long appId,
-        CancellationToken cancellationToken = default)
-    {
-        var entity = await _appRepository.GetByIdAsync(tenantId, appId, cancellationToken);
-        if (entity is null)
-        {
-            return null;
-        }
-
-        return new LowCodeAppSharingPolicy(
-            entity.Id.ToString(),
-            entity.UseSharedUsers,
-            entity.UseSharedRoles,
-            entity.UseSharedDepartments);
     }
 
     public async Task<IReadOnlyList<LowCodeAppEntityAliasItem>> GetEntityAliasesAsync(
@@ -407,9 +386,6 @@ public sealed class LowCodeAppQueryService : ILowCodeAppQueryService
             entity.Category,
             entity.Icon,
             entity.DataSourceId?.ToString(),
-            entity.UseSharedUsers,
-            entity.UseSharedRoles,
-            entity.UseSharedDepartments,
             entity.Version,
             entity.Status.ToString(),
             entity.ConfigJson,

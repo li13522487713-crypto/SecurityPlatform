@@ -43,7 +43,7 @@ public sealed class TenantAppMemberQueryService : ITenantAppMemberQueryService
         CancellationToken cancellationToken = default)
     {
         var app = await RequireAppAsync(tenantId, appId, cancellationToken);
-        EnsureDedicatedUsers(app);
+
 
         var pageIndex = request.PageIndex < 1 ? 1 : request.PageIndex;
         var pageSize = request.PageSize < 1 ? 10 : request.PageSize;
@@ -109,7 +109,7 @@ public sealed class TenantAppMemberQueryService : ITenantAppMemberQueryService
         CancellationToken cancellationToken = default)
     {
         var app = await RequireAppAsync(tenantId, appId, cancellationToken);
-        EnsureDedicatedUsers(app);
+
 
         var member = (await _appMemberRepository.QueryByUserIdsAsync(
                 tenantId,
@@ -161,13 +161,6 @@ public sealed class TenantAppMemberQueryService : ITenantAppMemberQueryService
         return app;
     }
 
-    private static void EnsureDedicatedUsers(Atlas.Domain.LowCode.Entities.LowCodeApp app)
-    {
-        if (app.UseSharedUsers)
-        {
-            throw new BusinessException(ErrorCodes.ValidationError, "当前应用启用了共享用户，无法维护应用成员。");
-        }
-    }
 }
 
 public sealed class TenantAppMemberCommandService : ITenantAppMemberCommandService
@@ -212,7 +205,7 @@ public sealed class TenantAppMemberCommandService : ITenantAppMemberCommandServi
         CancellationToken cancellationToken = default)
     {
         var app = await RequireAppAsync(tenantId, appId, cancellationToken);
-        EnsureDedicatedUsers(app);
+
 
         var userIds = request.UserIds
             .Where(x => x > 0)
@@ -235,7 +228,7 @@ public sealed class TenantAppMemberCommandService : ITenantAppMemberCommandServi
             .ToArray();
         if (roleIds.Length > 0)
         {
-            EnsureDedicatedRoles(app);
+
             var roles = await _appRoleRepository.QueryByIdsAsync(tenantId, appId, roleIds, cancellationToken);
             if (roles.Count != roleIds.Length)
             {
@@ -309,8 +302,8 @@ public sealed class TenantAppMemberCommandService : ITenantAppMemberCommandServi
         CancellationToken cancellationToken = default)
     {
         var app = await RequireAppAsync(tenantId, appId, cancellationToken);
-        EnsureDedicatedUsers(app);
-        EnsureDedicatedRoles(app);
+
+
 
         var exists = await _appMemberRepository.ExistsAsync(tenantId, appId, userId, cancellationToken);
         if (!exists)
@@ -368,7 +361,7 @@ public sealed class TenantAppMemberCommandService : ITenantAppMemberCommandServi
         CancellationToken cancellationToken = default)
     {
         var app = await RequireAppAsync(tenantId, appId, cancellationToken);
-        EnsureDedicatedUsers(app);
+
 
         await _appUserRoleRepository.DeleteByUserIdAsync(tenantId, appId, userId, cancellationToken);
         await _appMemberRepository.DeleteAsync(tenantId, appId, userId, cancellationToken);
@@ -392,22 +385,6 @@ public sealed class TenantAppMemberCommandService : ITenantAppMemberCommandServi
         }
 
         return app;
-    }
-
-    private static void EnsureDedicatedUsers(Atlas.Domain.LowCode.Entities.LowCodeApp app)
-    {
-        if (app.UseSharedUsers)
-        {
-            throw new BusinessException(ErrorCodes.ValidationError, "当前应用启用了共享用户，无法维护应用成员。");
-        }
-    }
-
-    private static void EnsureDedicatedRoles(Atlas.Domain.LowCode.Entities.LowCodeApp app)
-    {
-        if (app.UseSharedRoles)
-        {
-            throw new BusinessException(ErrorCodes.ValidationError, "当前应用启用了共享角色，无法维护应用角色绑定。");
-        }
     }
 
     private string ResolveActor(long? fallbackUserId = null)
@@ -471,7 +448,7 @@ public sealed class TenantAppRoleQueryService : ITenantAppRoleQueryService
         CancellationToken cancellationToken = default)
     {
         var app = await RequireAppAsync(tenantId, appId, cancellationToken);
-        EnsureDedicatedRoles(app);
+
 
         var pageIndex = request.PageIndex < 1 ? 1 : request.PageIndex;
         var pageSize = request.PageSize < 1 ? 10 : request.PageSize;
@@ -531,7 +508,7 @@ public sealed class TenantAppRoleQueryService : ITenantAppRoleQueryService
         CancellationToken cancellationToken = default)
     {
         var app = await RequireAppAsync(tenantId, appId, cancellationToken);
-        EnsureDedicatedRoles(app);
+
 
         var role = await _appRoleRepository.FindByIdAsync(tenantId, appId, roleId, cancellationToken);
         if (role is null)
@@ -567,7 +544,7 @@ public sealed class TenantAppRoleQueryService : ITenantAppRoleQueryService
         CancellationToken cancellationToken = default)
     {
         var app = await RequireAppAsync(tenantId, appId, cancellationToken);
-        EnsureDedicatedRoles(app);
+
 
         var roles = await _appRoleRepository.QueryByAppIdAsync(tenantId, appId, cancellationToken);
         if (roles.Count == 0)
@@ -660,13 +637,6 @@ public sealed class TenantAppRoleQueryService : ITenantAppRoleQueryService
         return app;
     }
 
-    private static void EnsureDedicatedRoles(Atlas.Domain.LowCode.Entities.LowCodeApp app)
-    {
-        if (app.UseSharedRoles)
-        {
-            throw new BusinessException(ErrorCodes.ValidationError, "当前应用启用了共享角色，无法维护应用角色。");
-        }
-    }
 }
 
 public sealed class TenantAppRoleCommandService : ITenantAppRoleCommandService
@@ -708,7 +678,7 @@ public sealed class TenantAppRoleCommandService : ITenantAppRoleCommandService
         CancellationToken cancellationToken = default)
     {
         var app = await RequireAppAsync(tenantId, appId, cancellationToken);
-        EnsureDedicatedRoles(app);
+
 
         var normalizedCode = NormalizeCode(request.Code);
         var existed = await _appRoleRepository.FindByCodeAsync(tenantId, appId, normalizedCode, cancellationToken);
@@ -748,7 +718,7 @@ public sealed class TenantAppRoleCommandService : ITenantAppRoleCommandService
         CancellationToken cancellationToken = default)
     {
         var app = await RequireAppAsync(tenantId, appId, cancellationToken);
-        EnsureDedicatedRoles(app);
+
 
         var role = await _appRoleRepository.FindByIdAsync(tenantId, appId, roleId, cancellationToken);
         if (role is null)
@@ -779,7 +749,7 @@ public sealed class TenantAppRoleCommandService : ITenantAppRoleCommandService
         CancellationToken cancellationToken = default)
     {
         var app = await RequireAppAsync(tenantId, appId, cancellationToken);
-        EnsureDedicatedRoles(app);
+
 
         var role = await _appRoleRepository.FindByIdAsync(tenantId, appId, roleId, cancellationToken);
         if (role is null)
@@ -803,7 +773,7 @@ public sealed class TenantAppRoleCommandService : ITenantAppRoleCommandService
         CancellationToken cancellationToken = default)
     {
         var app = await RequireAppAsync(tenantId, appId, cancellationToken);
-        EnsureDedicatedRoles(app);
+
 
         var role = await _appRoleRepository.FindByIdAsync(tenantId, appId, roleId, cancellationToken);
         if (role is null)
@@ -869,14 +839,6 @@ public sealed class TenantAppRoleCommandService : ITenantAppRoleCommandService
         }
 
         return app;
-    }
-
-    private static void EnsureDedicatedRoles(Atlas.Domain.LowCode.Entities.LowCodeApp app)
-    {
-        if (app.UseSharedRoles)
-        {
-            throw new BusinessException(ErrorCodes.ValidationError, "当前应用启用了共享角色，无法维护应用角色。");
-        }
     }
 
     private static string NormalizeCode(string code)

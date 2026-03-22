@@ -32,9 +32,7 @@ public sealed class PermissionQueryService : IPermissionQueryService
             pageSize,
             request.Keyword,
             request.Type,
-            cancellationToken,
-            request.AppId,
-            request.PlatformOnly);
+            cancellationToken);
 
         var resultItems = items.Select(x => _mapper.Map<PermissionListItem>(x)).ToArray();
         return new PagedResult<PermissionListItem>(resultItems, total, pageIndex, pageSize);
@@ -42,7 +40,7 @@ public sealed class PermissionQueryService : IPermissionQueryService
 
     public async Task<PermissionDetail?> GetDetailAsync(long id, TenantId tenantId, CancellationToken cancellationToken)
     {
-        var permission = await _permissionRepository.FindByIdPlatformOnlyAsync(tenantId, id, cancellationToken);
+        var permission = await _permissionRepository.FindByIdAsync(tenantId, id, cancellationToken);
         if (permission is null)
         {
             return null;

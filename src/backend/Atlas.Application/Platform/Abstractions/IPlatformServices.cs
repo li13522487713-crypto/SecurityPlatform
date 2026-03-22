@@ -92,7 +92,6 @@ public interface ITenantAppInstanceQueryService
 {
     Task<PagedResult<TenantAppInstanceListItem>> QueryAsync(TenantId tenantId, PagedRequest request, CancellationToken cancellationToken = default);
     Task<TenantAppInstanceDetail?> GetByIdAsync(TenantId tenantId, long id, CancellationToken cancellationToken = default);
-    Task<LowCodeAppSharingPolicy?> GetSharingPolicyAsync(TenantId tenantId, long id, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<LowCodeAppEntityAliasItem>> GetEntityAliasesAsync(TenantId tenantId, long id, CancellationToken cancellationToken = default);
     Task<LowCodeAppDataSourceInfo?> GetDataSourceInfoAsync(TenantId tenantId, long id, CancellationToken cancellationToken = default);
     Task<TestConnectionResult> TestDataSourceAsync(TenantId tenantId, long id, CancellationToken cancellationToken = default);
@@ -121,13 +120,6 @@ public interface ITenantAppInstanceCommandService
         TenantId tenantId,
         long userId,
         long id,
-        CancellationToken cancellationToken = default);
-
-    Task UpdateSharingPolicyAsync(
-        TenantId tenantId,
-        long userId,
-        long id,
-        LowCodeAppSharingPolicyUpdateRequest request,
         CancellationToken cancellationToken = default);
 
     Task UpdateEntityAliasesAsync(

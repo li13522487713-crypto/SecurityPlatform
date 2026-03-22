@@ -44,9 +44,7 @@ public sealed class PermissionsController : ControllerBase
         CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
-        // 平台级 API 只返回平台权限（AppId IS NULL），应用级权限通过专属路由管理
-        var platformRequest = request with { PlatformOnly = true, AppId = null };
-        var result = await _permissionQueryService.QueryPermissionsAsync(platformRequest, tenantId, cancellationToken);
+        var result = await _permissionQueryService.QueryPermissionsAsync(request, tenantId, cancellationToken);
         return Ok(ApiResponse<PagedResult<PermissionListItem>>.Ok(result, HttpContext.TraceIdentifier));
     }
 

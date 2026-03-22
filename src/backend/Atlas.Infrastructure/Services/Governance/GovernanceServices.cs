@@ -349,9 +349,6 @@ public sealed class PackageService : IPackageService
                 null,
                 null,
                 null,
-                true,
-                true,
-                true,
                 userId,
                 _idGenerator.NextId(),
                 now);

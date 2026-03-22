@@ -9,7 +9,6 @@
     <a-steps :current="currentStep" size="small" style="margin-bottom: 24px">
       <a-step :title="t('lowcodeApp.wizard.step1Title')" />
       <a-step :title="t('lowcodeApp.wizard.step2Title')" />
-      <a-step :title="t('lowcodeApp.wizard.step3Title')" />
     </a-steps>
 
     <!-- Step 1: 基本信息 -->
@@ -78,74 +77,12 @@
       </a-form>
     </div>
 
-    <!-- Step 3: 共享策略 -->
-    <div v-if="currentStep === 2">
-      <a-alert
-        type="info"
-        :message="t('lowcodeApp.wizard.sharingNote')"
-        show-icon
-        style="margin-bottom: 16px"
-      />
-      <a-alert
-        v-if="hasIsolatedPolicy && !datasourceForm.dataSourceId"
-        type="warning"
-        show-icon
-        :message="t('lowcode.createWizard.alertIsolatedTitle')"
-        :description="t('lowcode.createWizard.alertIsolatedDesc')"
-        style="margin-bottom: 16px"
-      />
-      <a-form layout="vertical">
-        <a-form-item class="policy-form-item">
-          <div class="policy-row">
-            <div class="policy-title">{{ t("lowcode.createWizard.policyUsers") }}</div>
-            <a-switch
-              v-model:checked="sharingForm.useSharedUsers"
-              :checked-children="t('lowcode.createWizard.inheritPlatform')"
-              :un-checked-children="t('lowcode.createWizard.appStandalone')"
-            />
-            <a-tag :color="sharingForm.useSharedUsers ? 'processing' : 'warning'">
-              {{ sharingForm.useSharedUsers ? t("lowcode.createWizard.modeShared") : t("lowcode.createWizard.modeIsolated") }}
-            </a-tag>
-          </div>
-          <div class="sharing-hint">{{ t('lowcodeApp.wizard.useSharedUsersHint') }}</div>
-        </a-form-item>
-        <a-form-item class="policy-form-item">
-          <div class="policy-row">
-            <div class="policy-title">{{ t("lowcode.createWizard.policyRoles") }}</div>
-            <a-switch
-              v-model:checked="sharingForm.useSharedRoles"
-              :checked-children="t('lowcode.createWizard.inheritPlatform')"
-              :un-checked-children="t('lowcode.createWizard.appStandalone')"
-            />
-            <a-tag :color="sharingForm.useSharedRoles ? 'processing' : 'warning'">
-              {{ sharingForm.useSharedRoles ? t("lowcode.createWizard.modeShared") : t("lowcode.createWizard.modeIsolated") }}
-            </a-tag>
-          </div>
-          <div class="sharing-hint">{{ t('lowcodeApp.wizard.useSharedRolesHint') }}</div>
-        </a-form-item>
-        <a-form-item class="policy-form-item">
-          <div class="policy-row">
-            <div class="policy-title">{{ t("lowcode.createWizard.policyDepts") }}</div>
-            <a-switch
-              v-model:checked="sharingForm.useSharedDepartments"
-              :checked-children="t('lowcode.createWizard.inheritPlatform')"
-              :un-checked-children="t('lowcode.createWizard.appStandalone')"
-            />
-            <a-tag :color="sharingForm.useSharedDepartments ? 'processing' : 'warning'">
-              {{ sharingForm.useSharedDepartments ? t("lowcode.createWizard.modeShared") : t("lowcode.createWizard.modeIsolated") }}
-            </a-tag>
-          </div>
-          <div class="sharing-hint">{{ t('lowcodeApp.wizard.useSharedDepartmentsHint') }}</div>
-        </a-form-item>
-      </a-form>
-    </div>
-
     <!-- 底部按钮 -->
     <div class="wizard-footer">
       <a-button v-if="currentStep > 0" @click="currentStep--">{{ t('common.previous') }}</a-button>
       <a-space>
         <a-button @click="handleCancel">{{ t('common.cancel') }}</a-button>
-        <a-button v-if="currentStep < 2" type="primary" @click="handleNext">
+        <a-button v-if="currentStep < 1" type="primary" @click="handleNext">
           {{ t('common.next') }}
         </a-button>
         <a-button v-else type="primary" :loading="submitting" @click="handleSubmit">
@@ -157,7 +94,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, reactive, watch } from "vue";
+import { ref, reactive, watch } from "vue";
 import { message } from "ant-design-vue";
 import { useI18n } from "vue-i18n";
 import type { TenantDataSourceDto } from "@/types/api";
@@ -193,15 +130,6 @@ const datasourceForm = reactive({
   dataSourceId: undefined as string | undefined
 });
 
-const sharingForm = reactive({
-  useSharedUsers: true,
-  useSharedRoles: true,
-  useSharedDepartments: true
-});
-const hasIsolatedPolicy = computed(
-  () => !sharingForm.useSharedUsers || !sharingForm.useSharedRoles || !sharingForm.useSharedDepartments
-);
-
 watch(
   () => props.open,
   (val) => {
@@ -225,9 +153,6 @@ const resetForm = () => {
   basicForm.category = undefined;
   basicForm.icon = "";
   datasourceForm.dataSourceId = undefined;
-  sharingForm.useSharedUsers = true;
-  sharingForm.useSharedRoles = true;
-  sharingForm.useSharedDepartments = true;
 };
 
 const loadDatasources = async () => {
@@ -260,11 +185,6 @@ const handleCancel = () => {
 };
 
 const handleSubmit = async () => {
-  if (hasIsolatedPolicy.value && !datasourceForm.dataSourceId) {
-    message.warning(t("lowcode.createWizard.warnIsolatedBindDs"));
-    return;
-  }
-
   submitting.value = true;
   try {
     const result = await createTenantAppInstance({
@@ -273,10 +193,7 @@ const handleSubmit = async () => {
       description: basicForm.description || undefined,
       category: basicForm.category,
       icon: basicForm.icon || undefined,
-      dataSourceId: datasourceForm.dataSourceId ? Number(datasourceForm.dataSourceId) : undefined,
-      useSharedUsers: sharingForm.useSharedUsers,
-      useSharedRoles: sharingForm.useSharedRoles,
-      useSharedDepartments: sharingForm.useSharedDepartments
+      dataSourceId: datasourceForm.dataSourceId ? Number(datasourceForm.dataSourceId) : undefined
     });
     message.success(t("lowcodeApp.createSuccess"));
     visible.value = false;
@@ -305,25 +222,4 @@ const handleSubmit = async () => {
   margin-top: 4px;
 }
 
-.sharing-hint {
-  color: #999;
-  font-size: 12px;
-  margin-top: 2px;
-  margin-left: 12px;
-}
-
-.policy-form-item {
-  margin-bottom: 12px;
-}
-
-.policy-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.policy-title {
-  min-width: 120px;
-  font-weight: 500;
-}
 </style>

@@ -158,9 +158,6 @@ public sealed class LowCodeAppCommandServiceVersionTests
                     "Category" TEXT NULL,
                     "Icon" TEXT NULL,
                     "DataSourceId" INTEGER NULL,
-                    "UseSharedUsers" INTEGER NOT NULL,
-                    "UseSharedRoles" INTEGER NOT NULL,
-                    "UseSharedDepartments" INTEGER NOT NULL,
                     "Version" INTEGER NOT NULL,
                     "Status" INTEGER NOT NULL,
                     "CreatedAt" TEXT NOT NULL,
@@ -169,7 +166,8 @@ public sealed class LowCodeAppCommandServiceVersionTests
                     "UpdatedBy" INTEGER NOT NULL,
                     "PublishedAt" TEXT NULL,
                     "PublishedBy" INTEGER NULL,
-                    "ConfigJson" TEXT NULL
+                    "ConfigJson" TEXT NULL,
+                    "MenuConfigJson" TEXT NULL
                   );
 
                   CREATE TABLE "LowCodePage"(

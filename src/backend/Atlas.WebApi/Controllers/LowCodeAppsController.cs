@@ -31,7 +31,6 @@ public sealed class LowCodeAppsController : ControllerBase
     private readonly IValidator<LowCodeAppCreateRequest> _createValidator;
     private readonly IValidator<LowCodeAppUpdateRequest> _updateValidator;
     private readonly IValidator<LowCodeAppImportRequest> _importValidator;
-    private readonly IValidator<LowCodeAppSharingPolicyUpdateRequest> _sharingPolicyValidator;
     private readonly IValidator<LowCodeAppEntityAliasesUpdateRequest> _entityAliasesValidator;
     private readonly IValidator<LowCodePageCreateRequest> _pageCreateValidator;
     private readonly IValidator<LowCodePageUpdateRequest> _pageUpdateValidator;
@@ -49,7 +48,6 @@ public sealed class LowCodeAppsController : ControllerBase
         IValidator<LowCodeAppCreateRequest> createValidator,
         IValidator<LowCodeAppUpdateRequest> updateValidator,
         IValidator<LowCodeAppImportRequest> importValidator,
-        IValidator<LowCodeAppSharingPolicyUpdateRequest> sharingPolicyValidator,
         IValidator<LowCodeAppEntityAliasesUpdateRequest> entityAliasesValidator,
         IValidator<LowCodePageCreateRequest> pageCreateValidator,
         IValidator<LowCodePageUpdateRequest> pageUpdateValidator,
@@ -66,7 +64,6 @@ public sealed class LowCodeAppsController : ControllerBase
         _createValidator = createValidator;
         _updateValidator = updateValidator;
         _importValidator = importValidator;
-        _sharingPolicyValidator = sharingPolicyValidator;
         _entityAliasesValidator = entityAliasesValidator;
         _pageCreateValidator = pageCreateValidator;
         _pageUpdateValidator = pageUpdateValidator;
@@ -101,42 +98,6 @@ public sealed class LowCodeAppsController : ControllerBase
         var tenantId = _tenantProvider.GetTenantId();
         var detail = await _queryService.GetByIdAsync(tenantId, id, cancellationToken);
         return Ok(ApiResponse<LowCodeAppDetail?>.Ok(detail, HttpContext.TraceIdentifier));
-    }
-
-    /// <summary>
-    /// 查询应用共享策略
-    /// </summary>
-    [HttpGet("{id:long}/sharing-policy")]
-    [Authorize(Policy = PermissionPolicies.AppsView)]
-    public async Task<ActionResult<ApiResponse<LowCodeAppSharingPolicy?>>> GetSharingPolicy(
-        long id,
-        CancellationToken cancellationToken)
-    {
-        var tenantId = _tenantProvider.GetTenantId();
-        var result = await _queryService.GetSharingPolicyAsync(tenantId, id, cancellationToken);
-        return Ok(ApiResponse<LowCodeAppSharingPolicy?>.Ok(result, HttpContext.TraceIdentifier));
-    }
-
-    /// <summary>
-    /// 更新应用共享策略
-    /// </summary>
-    [HttpPut("{id:long}/sharing-policy")]
-    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
-    public async Task<ActionResult<ApiResponse<object>>> UpdateSharingPolicy(
-        long id,
-        [FromBody] LowCodeAppSharingPolicyUpdateRequest request,
-        CancellationToken cancellationToken)
-    {
-        _sharingPolicyValidator.ValidateAndThrow(request);
-        var currentUser = _currentUserAccessor.GetCurrentUser();
-        if (currentUser is null)
-        {
-            return Unauthorized(ApiResponse<object>.Fail(ErrorCodes.Unauthorized, ApiResponseLocalizer.T(HttpContext, "Unauthorized"), HttpContext.TraceIdentifier));
-        }
-
-        var tenantId = _tenantProvider.GetTenantId();
-        await _commandService.UpdateSharingPolicyAsync(tenantId, currentUser.UserId, id, request, cancellationToken);
-        return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
     }
 
     /// <summary>

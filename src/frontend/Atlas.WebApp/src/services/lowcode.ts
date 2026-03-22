@@ -11,8 +11,6 @@ import type {
   LowCodeAppVersionListItem,
   LowCodeAppCreateRequest,
   LowCodeAppUpdateRequest,
-  LowCodeAppSharingPolicy,
-  LowCodeAppSharingPolicyUpdateRequest,
   LowCodeAppEntityAliasItem,
   LowCodeAppEntityAliasesUpdateRequest,
   LowCodeAppDataSourceInfo,
@@ -278,28 +276,6 @@ export async function updateLowCodeApp(
     }
   );
   if (!response.success) throw new Error(response.message || "更新失败");
-}
-
-export async function getLowCodeAppSharingPolicy(id: string): Promise<LowCodeAppSharingPolicy | null> {
-  const response = await requestApi<ApiResponse<LowCodeAppSharingPolicy | null>>(
-    `/lowcode-apps/${id}/sharing-policy`
-  );
-  return response.data ?? null;
-}
-
-export async function updateLowCodeAppSharingPolicy(
-  id: string,
-  request: LowCodeAppSharingPolicyUpdateRequest
-): Promise<void> {
-  const response = await requestApi<ApiResponse<{ id: string }>>(
-    `/lowcode-apps/${id}/sharing-policy`,
-    {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(request)
-    }
-  );
-  if (!response.success) throw new Error(response.message || "更新共享策略失败");
 }
 
 export async function getLowCodeAppEntityAliases(id: string): Promise<LowCodeAppEntityAliasItem[]> {

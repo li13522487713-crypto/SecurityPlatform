@@ -82,14 +82,6 @@ public sealed class LowCodeAppImportRequestValidator : AbstractValidator<LowCode
     }
 }
 
-public sealed class LowCodeAppSharingPolicyUpdateRequestValidator : AbstractValidator<LowCodeAppSharingPolicyUpdateRequest>
-{
-    public LowCodeAppSharingPolicyUpdateRequestValidator()
-    {
-        RuleFor(x => x).NotNull();
-    }
-}
-
 public sealed class LowCodeAppEntityAliasesUpdateRequestValidator : AbstractValidator<LowCodeAppEntityAliasesUpdateRequest>
 {
     public LowCodeAppEntityAliasesUpdateRequestValidator(IStringLocalizer<Messages> localizer)

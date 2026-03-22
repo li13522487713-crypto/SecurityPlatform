@@ -71,9 +71,6 @@ public sealed class LowCodeAppCommandService : ILowCodeAppCommandService
             tenantId, request.AppKey, request.Name,
             request.Description, request.Category, request.Icon,
             request.DataSourceId,
-            request.UseSharedUsers,
-            request.UseSharedRoles,
-            request.UseSharedDepartments,
             userId, id, now);
 
         var result = await _db.Ado.UseTranAsync(async () =>
@@ -368,26 +365,6 @@ public sealed class LowCodeAppCommandService : ILowCodeAppCommandService
         }
     }
 
-    public async Task UpdateSharingPolicyAsync(
-        TenantId tenantId,
-        long userId,
-        long id,
-        LowCodeAppSharingPolicyUpdateRequest request,
-        CancellationToken cancellationToken = default)
-    {
-        var entity = await _appRepository.GetByIdAsync(tenantId, id, cancellationToken)
-            ?? throw new BusinessException("LowCodeAppNotFound", ErrorCodes.NotFound);
-
-        var now = DateTimeOffset.UtcNow;
-        entity.UpdateSharingPolicy(
-            request.UseSharedUsers,
-            request.UseSharedRoles,
-            request.UseSharedDepartments,
-            userId,
-            now);
-        await _appRepository.UpdateAsync(entity, cancellationToken);
-    }
-
     public async Task UpdateEntityAliasesAsync(
         TenantId tenantId,
         long userId,
@@ -551,9 +528,6 @@ public sealed class LowCodeAppCommandService : ILowCodeAppCommandService
             package.Category,
             package.Icon,
             null,
-            true,
-            true,
-            true,
             userId,
             appId,
             now);

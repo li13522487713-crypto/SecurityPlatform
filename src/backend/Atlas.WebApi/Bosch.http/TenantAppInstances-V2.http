@@ -31,25 +31,6 @@ GET {{baseUrl}}/api/v2/tenant-app-instances/1
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
-### 查询实例共享策略
-GET {{baseUrl}}/api/v2/tenant-app-instances/1/sharing-policy
-Authorization: Bearer {{accessToken}}
-X-Tenant-Id: {{tenantId}}
-
-### 更新实例共享策略
-PUT {{baseUrl}}/api/v2/tenant-app-instances/1/sharing-policy
-Authorization: Bearer {{accessToken}}
-X-Tenant-Id: {{tenantId}}
-X-CSRF-TOKEN: {{csrfToken}}
-Idempotency-Key: {{$guid}}
-Content-Type: application/json
-
-{
-  "useSharedUsers": false,
-  "useSharedRoles": true,
-  "useSharedDepartments": true
-}
-
 ### 查询实例实体别名
 GET {{baseUrl}}/api/v2/tenant-app-instances/1/entity-aliases
 Authorization: Bearer {{accessToken}}
@@ -113,10 +94,7 @@ Content-Type: application/json
   "name": "Coze 演示应用",
   "description": "用于验证 v2 tenant-app-instances 写链路",
   "category": "OA",
-  "icon": "🤖",
-  "useSharedUsers": false,
-  "useSharedRoles": false,
-  "useSharedDepartments": true
+  "icon": "🤖"
 }
 
 ###

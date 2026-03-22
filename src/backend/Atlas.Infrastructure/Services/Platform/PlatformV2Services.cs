@@ -366,14 +366,6 @@ public sealed class TenantAppInstanceQueryService : ITenantAppInstanceQueryServi
             item.DataSourceId);
     }
 
-    public Task<LowCodeAppSharingPolicy?> GetSharingPolicyAsync(
-        TenantId tenantId,
-        long id,
-        CancellationToken cancellationToken = default)
-    {
-        return _lowCodeAppQueryService.GetSharingPolicyAsync(tenantId, id, cancellationToken);
-    }
-
     public Task<IReadOnlyList<LowCodeAppEntityAliasItem>> GetEntityAliasesAsync(
         TenantId tenantId,
         long id,
@@ -563,16 +555,6 @@ public sealed class TenantAppInstanceCommandService : ITenantAppInstanceCommandS
         CancellationToken cancellationToken = default)
     {
         return _commandService.PublishAsync(tenantId, userId, id, cancellationToken);
-    }
-
-    public Task UpdateSharingPolicyAsync(
-        TenantId tenantId,
-        long userId,
-        long id,
-        LowCodeAppSharingPolicyUpdateRequest request,
-        CancellationToken cancellationToken = default)
-    {
-        return _commandService.UpdateSharingPolicyAsync(tenantId, userId, id, request, cancellationToken);
     }
 
     public Task UpdateEntityAliasesAsync(

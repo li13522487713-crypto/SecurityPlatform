@@ -66,68 +66,6 @@
       </a-col>
 
       <a-col :span="24">
-        <a-card :title="t('appsSettings.cardSharing')">
-          <a-alert
-            type="info"
-            show-icon
-            :message="t('appsSettings.sharingModelTitle')"
-            :description="t('appsSettings.sharingModelDesc')"
-            style="margin-bottom: 12px"
-          />
-          <a-alert
-            v-if="hasIsolatedPolicy && !dataSourceInfo?.dataSourceId"
-            type="warning"
-            show-icon
-            :message="t('appsSettings.isolatedNoDsTitle')"
-            :description="t('appsSettings.isolatedNoDsDesc')"
-            style="margin-bottom: 12px"
-          />
-          <a-space direction="vertical" style="width: 100%">
-            <div class="policy-row">
-              <div class="policy-title">{{ t("appsSettings.policyUsers") }}</div>
-              <a-switch
-                v-model:checked="sharingPolicy.useSharedUsers"
-                :checked-children="t('appsSettings.inheritPlatform')"
-                :un-checked-children="t('appsSettings.appIsolated')"
-              />
-              <a-tag :color="sharingPolicy.useSharedUsers ? 'processing' : 'warning'">
-                {{ sharingPolicy.useSharedUsers ? t("appsSettings.tagShared") : t("appsSettings.tagIsolated") }}
-              </a-tag>
-            </div>
-            <div class="policy-row-desc">{{ t("appsSettings.policyUsersDesc") }}</div>
-
-            <div class="policy-row">
-              <div class="policy-title">{{ t("appsSettings.policyRoles") }}</div>
-              <a-switch
-                v-model:checked="sharingPolicy.useSharedRoles"
-                :checked-children="t('appsSettings.inheritPlatform')"
-                :un-checked-children="t('appsSettings.appIsolated')"
-              />
-              <a-tag :color="sharingPolicy.useSharedRoles ? 'processing' : 'warning'">
-                {{ sharingPolicy.useSharedRoles ? t("appsSettings.tagShared") : t("appsSettings.tagIsolated") }}
-              </a-tag>
-            </div>
-            <div class="policy-row-desc">{{ t("appsSettings.policyRolesDesc") }}</div>
-
-            <div class="policy-row">
-              <div class="policy-title">{{ t("appsSettings.policyDepts") }}</div>
-              <a-switch
-                v-model:checked="sharingPolicy.useSharedDepartments"
-                :checked-children="t('appsSettings.inheritPlatform')"
-                :un-checked-children="t('appsSettings.appIsolated')"
-              />
-              <a-tag :color="sharingPolicy.useSharedDepartments ? 'processing' : 'warning'">
-                {{ sharingPolicy.useSharedDepartments ? t("appsSettings.tagShared") : t("appsSettings.tagIsolated") }}
-              </a-tag>
-            </div>
-            <div class="policy-row-desc">{{ t("appsSettings.policyDeptsDesc") }}</div>
-
-            <a-button type="primary" :loading="savingPolicy" @click="saveSharingPolicy">{{ t("appsSettings.saveSharing") }}</a-button>
-          </a-space>
-        </a-card>
-      </a-col>
-
-      <a-col :span="24">
         <a-card :title="t('appsSettings.cardAliases')">
           <a-table :data-source="entityAliases" :pagination="false" row-key="entityType" bordered size="small">
             <a-table-column :title="t('appsSettings.colEntityType')" data-index="entityType" key="entityType" width="180" />
@@ -180,7 +118,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, h, onMounted, reactive, ref, onUnmounted } from "vue";
+import { computed, onMounted, ref, onUnmounted } from "vue";
 import { useI18n } from "vue-i18n";
 
 const isMounted = ref(false);
@@ -188,7 +126,7 @@ onMounted(() => { isMounted.value = true; });
 onUnmounted(() => { isMounted.value = false; });
 
 import { useRoute, useRouter } from "vue-router";
-import { message, Modal } from "ant-design-vue";
+import { message } from "ant-design-vue";
 import type { TenantDataSourceDto } from "@/types/api";
 import type {
   LowCodeAppDataSourceInfo,
@@ -200,11 +138,9 @@ import {
   getTenantAppInstanceDataSourceInfo,
   getTenantAppInstanceDetail,
   getTenantAppInstanceEntityAliases,
-  getTenantAppInstanceSharingPolicy,
   testTenantAppInstanceDataSource,
   updateTenantAppInstance,
-  updateTenantAppInstanceEntityAliases,
-  updateTenantAppInstanceSharingPolicy
+  updateTenantAppInstanceEntityAliases
 } from "@/services/api-tenant-app-instances";
 import { debounce } from "@/utils/common";
 
@@ -217,34 +153,12 @@ const dataSourceInfo = ref<LowCodeAppDataSourceInfo | null>(null);
 const tenantAppDetail = ref<TenantAppInstanceDetail | null>(null);
 const testingDataSource = ref(false);
 const bindingDataSource = ref(false);
-const savingPolicy = ref(false);
 const savingAliases = ref(false);
 const dataSourceSelectorVisible = ref(false);
 const dataSourceSelectionMode = ref<"bind" | "switch">("bind");
 const loadingDataSourceOptions = ref(false);
 const selectedDataSourceId = ref<string>();
 const dataSourceOptions = ref<Array<{ label: string; value: string }>>([]);
-
-const sharingPolicy = reactive({
-  useSharedUsers: true,
-  useSharedRoles: true,
-  useSharedDepartments: true
-});
-const originalSharingPolicy = ref({
-  useSharedUsers: true,
-  useSharedRoles: true,
-  useSharedDepartments: true
-});
-const hasIsolatedPolicy = computed(() =>
-  !sharingPolicy.useSharedUsers
-  || !sharingPolicy.useSharedRoles
-  || !sharingPolicy.useSharedDepartments
-);
-const isFullySharedPolicy = computed(() =>
-  sharingPolicy.useSharedUsers
-  && sharingPolicy.useSharedRoles
-  && sharingPolicy.useSharedDepartments
-);
 
 function defaultEntityAliases(): LowCodeAppEntityAliasItem[] {
   return [
@@ -264,9 +178,8 @@ async function loadSettings() {
   if (!appId.value) return;
 
   try {
-    const [dataSource, policy, aliases, appDetail]  = await Promise.all([
+    const [dataSource, aliases, appDetail]  = await Promise.all([
       getTenantAppInstanceDataSourceInfo(appId.value),
-      getTenantAppInstanceSharingPolicy(appId.value),
       getTenantAppInstanceEntityAliases(appId.value),
       getTenantAppInstanceDetail(appId.value)
     ]);
@@ -275,16 +188,6 @@ async function loadSettings() {
 
     dataSourceInfo.value = dataSource;
     tenantAppDetail.value = appDetail;
-    if (policy) {
-      sharingPolicy.useSharedUsers = policy.useSharedUsers;
-      sharingPolicy.useSharedRoles = policy.useSharedRoles;
-      sharingPolicy.useSharedDepartments = policy.useSharedDepartments;
-      originalSharingPolicy.value = {
-        useSharedUsers: policy.useSharedUsers,
-        useSharedRoles: policy.useSharedRoles,
-        useSharedDepartments: policy.useSharedDepartments
-      };
-    }
     if (aliases.length > 0) {
       entityAliases.value = aliases;
     } else {
@@ -343,25 +246,10 @@ function handleOpenSwitchDataSource() {
 }
 
 function openDataSourceSelector(mode: "bind" | "switch") {
-  const openSelector = () => {
-    dataSourceSelectionMode.value = mode;
-    selectedDataSourceId.value = dataSourceInfo.value?.dataSourceId || undefined;
-    dataSourceSelectorVisible.value = true;
-    void loadDataSourceOptions();
-  };
-
-  if (isFullySharedPolicy.value) {
-    Modal.confirm({
-      title: t("appsSettings.sharedModeHintTitle"),
-      content: t("appsSettings.sharedModeHintContent"),
-      okText: t("appsSettings.continue"),
-      cancelText: t("common.cancel"),
-      onOk: openSelector
-    });
-    return;
-  }
-
-  openSelector();
+  dataSourceSelectionMode.value = mode;
+  selectedDataSourceId.value = dataSourceInfo.value?.dataSourceId || undefined;
+  dataSourceSelectorVisible.value = true;
+  void loadDataSourceOptions();
 }
 
 async function ensureTenantAppDetail() {
@@ -464,76 +352,6 @@ async function handleTestDataSource() {
   }
 }
 
-function buildSharingPolicyImpactMessages() {
-  const messages: string[] = [];
-  const previous = originalSharingPolicy.value;
-  const current = sharingPolicy;
-
-  if (previous.useSharedUsers !== current.useSharedUsers) {
-    messages.push(current.useSharedUsers
-      ? t("appsSettings.impactUserToShared")
-      : t("appsSettings.impactUserToIsolated"));
-  }
-
-  if (previous.useSharedRoles !== current.useSharedRoles) {
-    messages.push(current.useSharedRoles
-      ? t("appsSettings.impactRoleToShared")
-      : t("appsSettings.impactRoleToIsolated"));
-  }
-
-  if (previous.useSharedDepartments !== current.useSharedDepartments) {
-    messages.push(current.useSharedDepartments
-      ? t("appsSettings.impactDeptToShared")
-      : t("appsSettings.impactDeptToIsolated"));
-  }
-
-  return messages;
-}
-
-async function persistSharingPolicy() {
-  if (!appId.value) return;
-  if (hasIsolatedPolicy.value && !dataSourceInfo.value?.dataSourceId && !savingPolicy.value) {
-    message.warning(t("appsSettings.isolatedBindWarn"));
-  }
-
-  savingPolicy.value = true;
-  try {
-    await updateTenantAppInstanceSharingPolicy(appId.value, {
-      useSharedUsers: sharingPolicy.useSharedUsers,
-      useSharedRoles: sharingPolicy.useSharedRoles,
-      useSharedDepartments: sharingPolicy.useSharedDepartments
-    });
-
-    if (!isMounted.value) return;
-    originalSharingPolicy.value = {
-      useSharedUsers: sharingPolicy.useSharedUsers,
-      useSharedRoles: sharingPolicy.useSharedRoles,
-      useSharedDepartments: sharingPolicy.useSharedDepartments
-    };
-    message.success(t("appsSettings.sharingSaved"));
-  } catch (error) {
-    message.error((error as Error).message || t("appsSettings.sharingSaveFailed"));
-  } finally {
-    savingPolicy.value = false;
-  }
-}
-
-function saveSharingPolicy() {
-  const impactMessages = buildSharingPolicyImpactMessages();
-  if (impactMessages.length === 0) {
-    void persistSharingPolicy();
-    return;
-  }
-
-  Modal.confirm({
-    title: t("appsSettings.impactTitle"),
-    okText: t("appsSettings.impactOk"),
-    cancelText: t("common.cancel"),
-    content: h("div", impactMessages.map((item) => h("p", { style: "margin-bottom: 6px;" }, item))),
-    onOk: () => persistSharingPolicy()
-  });
-}
-
 async function saveEntityAliases() {
   if (!appId.value) return;
   savingAliases.value = true;
@@ -565,22 +383,5 @@ onMounted(loadSettings);
 
 .mt12 {
   margin-top: 12px;
-}
-
-.policy-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.policy-title {
-  min-width: 120px;
-  font-weight: 500;
-}
-
-.policy-row-desc {
-  color: #8c8c8c;
-  font-size: 12px;
-  margin: -6px 0 8px 0;
 }
 </style>

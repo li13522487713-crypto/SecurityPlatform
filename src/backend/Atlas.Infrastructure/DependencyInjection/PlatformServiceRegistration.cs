@@ -16,6 +16,7 @@ public static class PlatformServiceRegistration
         services.AddScoped<IAppUserRoleRepository, AppUserRoleRepository>();
         services.AddScoped<IAppRolePermissionRepository, AppRolePermissionRepository>();
         services.AddScoped<IAppRolePageRepository, AppRolePageRepository>();
+        services.AddScoped<IAppPermissionRepository, AppPermissionRepository>();
         services.AddScoped<IAppDepartmentRepository, AppDepartmentRepository>();
         services.AddScoped<IAppPositionRepository, AppPositionRepository>();
         services.AddScoped<IAppProjectRepository, AppProjectRepository>();

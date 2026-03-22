@@ -54,10 +54,7 @@ Content-Type: application/json
   "description": "低代码 CRM 示例",
   "category": "CRM",
   "icon": "customer-service",
-  "dataSourceId": 1,
-  "useSharedUsers": true,
-  "useSharedRoles": true,
-  "useSharedDepartments": true
+  "dataSourceId": 1
 }
 
 ###
@@ -96,25 +93,6 @@ Content-Type: application/json
   "description": "低代码 CRM 示例（升级版）",
   "category": "CRM",
   "icon": "team"
-}
-
-### 查询应用共享策略
-GET {{baseUrl}}/api/v1/lowcode-apps/{{appId}}/sharing-policy
-Authorization: Bearer {{accessToken}}
-X-Tenant-Id: {{tenantId}}
-
-### 更新应用共享策略（需幂等+CSRF）
-PUT {{baseUrl}}/api/v1/lowcode-apps/{{appId}}/sharing-policy
-Authorization: Bearer {{accessToken}}
-X-Tenant-Id: {{tenantId}}
-Idempotency-Key: {{$randomUUID}}
-X-CSRF-TOKEN: {{csrfToken}}
-Content-Type: application/json
-
-{
-  "useSharedUsers": true,
-  "useSharedRoles": true,
-  "useSharedDepartments": false
 }
 
 ### 查询应用实体别名

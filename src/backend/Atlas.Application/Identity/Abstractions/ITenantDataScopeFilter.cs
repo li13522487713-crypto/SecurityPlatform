@@ -5,7 +5,7 @@ namespace Atlas.Application.Identity.Abstractions;
 /// <summary>
 /// 数据权限过滤器（等保2.0 访问控制）
 /// </summary>
-public interface IDataScopeFilter
+public interface ITenantDataScopeFilter
 {
     /// <summary>
     /// 获取当前用户生效的数据权限范围

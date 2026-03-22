@@ -25,7 +25,6 @@ public sealed class TenantAppInstancesV2Controller : ControllerBase
     private readonly IValidator<LowCodeAppCreateRequest> _createValidator;
     private readonly IValidator<LowCodeAppUpdateRequest> _updateValidator;
     private readonly IValidator<LowCodeAppImportRequest> _importValidator;
-    private readonly IValidator<LowCodeAppSharingPolicyUpdateRequest> _sharingPolicyValidator;
     private readonly IValidator<LowCodeAppEntityAliasesUpdateRequest> _entityAliasesValidator;
 
     public TenantAppInstancesV2Controller(
@@ -36,7 +35,6 @@ public sealed class TenantAppInstancesV2Controller : ControllerBase
         IValidator<LowCodeAppCreateRequest> createValidator,
         IValidator<LowCodeAppUpdateRequest> updateValidator,
         IValidator<LowCodeAppImportRequest> importValidator,
-        IValidator<LowCodeAppSharingPolicyUpdateRequest> sharingPolicyValidator,
         IValidator<LowCodeAppEntityAliasesUpdateRequest> entityAliasesValidator)
     {
         _queryService = queryService;
@@ -46,7 +44,6 @@ public sealed class TenantAppInstancesV2Controller : ControllerBase
         _createValidator = createValidator;
         _updateValidator = updateValidator;
         _importValidator = importValidator;
-        _sharingPolicyValidator = sharingPolicyValidator;
         _entityAliasesValidator = entityAliasesValidator;
     }
 
@@ -75,41 +72,6 @@ public sealed class TenantAppInstancesV2Controller : ControllerBase
         }
 
         return Ok(ApiResponse<TenantAppInstanceDetail>.Ok(result, HttpContext.TraceIdentifier));
-    }
-
-    [HttpGet("{id:long}/sharing-policy")]
-    [Authorize(Policy = PermissionPolicies.AppsView)]
-    public async Task<ActionResult<ApiResponse<LowCodeAppSharingPolicy>>> GetSharingPolicy(
-        long id,
-        CancellationToken cancellationToken)
-    {
-        var tenantId = _tenantProvider.GetTenantId();
-        var result = await _queryService.GetSharingPolicyAsync(tenantId, id, cancellationToken);
-        if (result is null)
-        {
-            return NotFound(ApiResponse<LowCodeAppSharingPolicy>.Fail(ErrorCodes.NotFound, "Tenant app instance not found.", HttpContext.TraceIdentifier));
-        }
-
-        return Ok(ApiResponse<LowCodeAppSharingPolicy>.Ok(result, HttpContext.TraceIdentifier));
-    }
-
-    [HttpPut("{id:long}/sharing-policy")]
-    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
-    public async Task<ActionResult<ApiResponse<object>>> UpdateSharingPolicy(
-        long id,
-        [FromBody] LowCodeAppSharingPolicyUpdateRequest request,
-        CancellationToken cancellationToken)
-    {
-        await _sharingPolicyValidator.ValidateAndThrowAsync(request, cancellationToken);
-        var currentUser = _currentUserAccessor.GetCurrentUser();
-        if (currentUser is null)
-        {
-            return Unauthorized(ApiResponse<object>.Fail(ErrorCodes.Unauthorized, "Unauthorized.", HttpContext.TraceIdentifier));
-        }
-
-        var tenantId = _tenantProvider.GetTenantId();
-        await _commandService.UpdateSharingPolicyAsync(tenantId, currentUser.UserId, id, request, cancellationToken);
-        return Ok(ApiResponse<object>.Ok(new { id = id.ToString() }, HttpContext.TraceIdentifier));
     }
 
     [HttpGet("{id:long}/entity-aliases")]

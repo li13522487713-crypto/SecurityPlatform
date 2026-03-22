@@ -78,9 +78,6 @@ export interface LowCodeAppListItem {
   category?: string;
   icon?: string;
   dataSourceId?: string;
-  useSharedUsers: boolean;
-  useSharedRoles: boolean;
-  useSharedDepartments: boolean;
   version: number;
   status: string;
   createdAt: string;
@@ -96,9 +93,6 @@ export interface LowCodeAppDetail {
   category?: string;
   icon?: string;
   dataSourceId?: string;
-  useSharedUsers: boolean;
-  useSharedRoles: boolean;
-  useSharedDepartments: boolean;
   version: number;
   status: string;
   configJson?: string;
@@ -118,9 +112,6 @@ export interface LowCodeAppCreateRequest {
   category?: string;
   icon?: string;
   dataSourceId?: number;
-  useSharedUsers?: boolean;
-  useSharedRoles?: boolean;
-  useSharedDepartments?: boolean;
 }
 
 export interface LowCodeAppUpdateRequest {
@@ -130,19 +121,6 @@ export interface LowCodeAppUpdateRequest {
   icon?: string;
   dataSourceId?: number | null;
   unbindDataSource?: boolean;
-}
-
-export interface LowCodeAppSharingPolicy {
-  appId: string;
-  useSharedUsers: boolean;
-  useSharedRoles: boolean;
-  useSharedDepartments: boolean;
-}
-
-export interface LowCodeAppSharingPolicyUpdateRequest {
-  useSharedUsers: boolean;
-  useSharedRoles: boolean;
-  useSharedDepartments: boolean;
 }
 
 export interface LowCodeAppEntityAliasItem {

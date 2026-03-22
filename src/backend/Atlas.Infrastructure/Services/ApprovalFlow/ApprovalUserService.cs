@@ -59,9 +59,10 @@ public sealed class ApprovalUserService : IApprovalUserService
     public async Task<long?> GetDirectLeaderUserIdAsync(
         TenantId tenantId,
         long userId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        long? appId = null)
     {
-        // 获取用户的主部门
+        // TODO[ORG-ENGINE]: appId 非 null 时应查询 AppDepartment 的负责人，待 AppMemberDepartment 关系表就绪后实现
         var userDepts = await _userDepartmentRepository.QueryByUserIdAsync(tenantId, userId, cancellationToken);
         var primaryDept = userDepts.FirstOrDefault(x => x.IsPrimary) ?? userDepts.FirstOrDefault();
         if (primaryDept == null)
@@ -78,8 +79,10 @@ public sealed class ApprovalUserService : IApprovalUserService
         TenantId tenantId,
         long startUserId,
         int maxLevels = 10,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        long? appId = null)
     {
+        // TODO[ORG-ENGINE]: appId 非 null 时应沿 AppDepartment 层级链向上查找，待 AppMemberDepartment 关系表就绪后实现
         return await _hierarchyQueryRepository.GetLeaderChainAsync(
             tenantId,
             startUserId,
@@ -91,8 +94,10 @@ public sealed class ApprovalUserService : IApprovalUserService
         TenantId tenantId,
         long startUserId,
         int targetLevel,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        long? appId = null)
     {
+        // TODO[ORG-ENGINE]: appId 非 null 时应按 AppDepartment 层级定位指定层级审批人，待 AppMemberDepartment 关系表就绪后实现
         return await _hierarchyQueryRepository.GetLeaderAtLevelAsync(
             tenantId,
             startUserId,
@@ -103,7 +108,8 @@ public sealed class ApprovalUserService : IApprovalUserService
     public async Task<long?> GetHrbpUserIdAsync(
         TenantId tenantId,
         long userId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        long? appId = null)
     {
         // HRBP 策略：当前实现中，可以通过以下方式之一获取：
         // 1. 从用户扩展字段中获取

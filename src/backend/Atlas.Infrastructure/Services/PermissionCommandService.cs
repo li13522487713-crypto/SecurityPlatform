@@ -36,7 +36,7 @@ public sealed class PermissionCommandService : IPermissionCommandService
         long id,
         CancellationToken cancellationToken)
     {
-        var existing = await _permissionRepository.FindByCodeAsync(tenantId, request.Code, null, cancellationToken);
+        var existing = await _permissionRepository.FindByCodeAsync(tenantId, request.Code, cancellationToken);
         if (existing is not null)
         {
             throw new BusinessException("Permission code already exists.", ErrorCodes.ValidationError);
@@ -60,7 +60,7 @@ public sealed class PermissionCommandService : IPermissionCommandService
         PermissionUpdateRequest request,
         CancellationToken cancellationToken)
     {
-        var permission = await _permissionRepository.FindByIdPlatformOnlyAsync(tenantId, permissionId, cancellationToken);
+        var permission = await _permissionRepository.FindByIdAsync(tenantId, permissionId, cancellationToken);
         if (permission is null)
         {
             throw new BusinessException("Permission not found.", ErrorCodes.NotFound);

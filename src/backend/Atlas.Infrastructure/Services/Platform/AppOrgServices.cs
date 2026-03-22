@@ -220,17 +220,20 @@ public sealed class AppRoleAssignmentCommandService : IAppRoleAssignmentCommandS
     private readonly IAppRoleRepository _roleRepo;
     private readonly IAppRolePageRepository _rolePageRepo;
     private readonly IFieldPermissionRepository _fieldPermRepo;
+    private readonly IAppDepartmentRepository _appDeptRepo;
     private readonly IIdGeneratorAccessor _idGen;
 
     public AppRoleAssignmentCommandService(
         IAppRoleRepository roleRepo,
         IAppRolePageRepository rolePageRepo,
         IFieldPermissionRepository fieldPermRepo,
+        IAppDepartmentRepository appDeptRepo,
         IIdGeneratorAccessor idGen)
     {
         _roleRepo = roleRepo;
         _rolePageRepo = rolePageRepo;
         _fieldPermRepo = fieldPermRepo;
+        _appDeptRepo = appDeptRepo;
         _idGen = idGen;
     }
 
@@ -242,7 +245,17 @@ public sealed class AppRoleAssignmentCommandService : IAppRoleAssignmentCommandS
         string? deptIds = null;
         if (scope == DataScopeType.CustomDept && request.DeptIds is { Count: > 0 })
         {
-            deptIds = string.Join(',', request.DeptIds.Where(x => x > 0).Distinct());
+            var distinctDeptIds = request.DeptIds.Where(x => x > 0).Distinct().ToArray();
+            if (distinctDeptIds.Length > 0)
+            {
+                var validDepts = await _appDeptRepo.QueryByIdsAsync(tenantId, appId, distinctDeptIds, cancellationToken);
+                var invalidIds = distinctDeptIds.Except(validDepts.Select(d => d.Id)).ToArray();
+                if (invalidIds.Length > 0)
+                {
+                    throw new BusinessException(ErrorCodes.ValidationError, "AppRoleDeptIdsInvalid");
+                }
+            }
+            deptIds = string.Join(',', distinctDeptIds);
         }
         role.SetDataScope(scope, deptIds);
         await _roleRepo.UpdateAsync(role, cancellationToken);

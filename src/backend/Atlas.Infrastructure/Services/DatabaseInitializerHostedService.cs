@@ -220,6 +220,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             typeof(AppRole),
             typeof(AppUserRole),
             typeof(AppRolePermission),
+            typeof(AppPermission),
             typeof(Tenant),
             // Low code module (types already registered above: LowCodeApp, AppEntityAlias, LowCodePage, FormDefinition)
             typeof(LowCodeAppVersion),
@@ -1272,14 +1273,15 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             !db.DbMaintenance.IsAnyTable("AppMember", false)
             || !db.DbMaintenance.IsAnyTable("AppRole", false)
             || !db.DbMaintenance.IsAnyTable("AppUserRole", false)
-            || !db.DbMaintenance.IsAnyTable("AppRolePermission", false);
+            || !db.DbMaintenance.IsAnyTable("AppRolePermission", false)
+            || !db.DbMaintenance.IsAnyTable("AppPermission", false);
         if (!missingTables)
         {
             return Task.CompletedTask;
         }
 
         cancellationToken.ThrowIfCancellationRequested();
-        db.CodeFirst.InitTables<AppMember, AppRole, AppUserRole, AppRolePermission>();
+        db.CodeFirst.InitTables<AppMember, AppRole, AppUserRole, AppRolePermission, AppPermission>();
         return Task.CompletedTask;
     }
 

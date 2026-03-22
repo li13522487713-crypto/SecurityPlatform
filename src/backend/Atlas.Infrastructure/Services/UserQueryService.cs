@@ -17,7 +17,7 @@ public sealed class UserQueryService : IUserQueryService
     private readonly IUserPositionRepository _userPositionRepository;
     private readonly IProjectUserRepository _projectUserRepository;
     private readonly Atlas.Core.Identity.IProjectContextAccessor _projectContextAccessor;
-    private readonly IDataScopeFilter _dataScopeFilter;
+    private readonly ITenantDataScopeFilter _dataScopeFilter;
     private readonly ICurrentUserAccessor _currentUserAccessor;
     private readonly IMapper _mapper;
 
@@ -28,7 +28,7 @@ public sealed class UserQueryService : IUserQueryService
         IUserPositionRepository userPositionRepository,
         IProjectUserRepository projectUserRepository,
         Atlas.Core.Identity.IProjectContextAccessor projectContextAccessor,
-        IDataScopeFilter dataScopeFilter,
+        ITenantDataScopeFilter dataScopeFilter,
         ICurrentUserAccessor currentUserAccessor,
         IMapper mapper)
     {
@@ -85,7 +85,7 @@ public sealed class UserQueryService : IUserQueryService
         {
             scopedItems = scopedItems.Where(x => x.Id == ownerFilterId.Value);
         }
-        if (deptFilterIds is { Count: > 0 })
+        if (deptFilterIds is not null)
         {
             var deptSet = deptFilterIds.ToHashSet();
             var mappings = await _userDepartmentRepository.QueryByUserIdsAsync(
@@ -98,7 +98,7 @@ public sealed class UserQueryService : IUserQueryService
                 .ToHashSet();
             scopedItems = scopedItems.Where(x => allowedUserIds.Contains(x.Id));
         }
-        if (projectFilterIds is { Count: > 0 })
+        if (projectFilterIds is not null)
         {
             var projectSet = projectFilterIds.ToHashSet();
             var userProjectMappings = await _projectUserRepository.QueryByUserIdsAsync(
@@ -175,11 +175,11 @@ public sealed class UserQueryService : IUserQueryService
         var roleIds = await _userRoleRepository.QueryByUserIdAsync(tenantId, id, cancellationToken);
         var departmentIds = await _userDepartmentRepository.QueryByUserIdAsync(tenantId, id, cancellationToken);
         var positionIds = await _userPositionRepository.QueryByUserIdAsync(tenantId, id, cancellationToken);
-        if (deptFilterIds is { Count: > 0 } && !departmentIds.Any(x => deptFilterIds.Contains(x.DepartmentId)))
+        if (deptFilterIds is not null && !departmentIds.Any(x => deptFilterIds.Contains(x.DepartmentId)))
         {
             return null;
         }
-        if (projectFilterIds is { Count: > 0 })
+        if (projectFilterIds is not null)
         {
             var myProjectIds = await _projectUserRepository.QueryProjectIdsByUserIdAsync(tenantId, id, cancellationToken);
             if (!myProjectIds.Any(projectFilterIds.Contains))

@@ -22,7 +22,7 @@ public sealed class DynamicRecordQueryService : IDynamicRecordQueryService
     private readonly IFieldPermissionResolver _fieldPermissionResolver;
     private readonly ICurrentUserAccessor _currentUserAccessor;
     private readonly IAppContextAccessor _appContextAccessor;
-    private readonly IDataScopeFilter _dataScopeFilter;
+    private readonly ITenantDataScopeFilter _dataScopeFilter;
     private static readonly string[] OwnerFieldCandidates = ["ownerid", "createdby", "creatorid", "owner_id", "created_by"];
     private const int ExportPageSize = 1000;
     private const int MaxExportRows = 10_000;
@@ -35,7 +35,7 @@ public sealed class DynamicRecordQueryService : IDynamicRecordQueryService
         IFieldPermissionResolver fieldPermissionResolver,
         ICurrentUserAccessor currentUserAccessor,
         IAppContextAccessor appContextAccessor,
-        IDataScopeFilter dataScopeFilter)
+        ITenantDataScopeFilter dataScopeFilter)
     {
         _tableRepository = tableRepository;
         _fieldRepository = fieldRepository;

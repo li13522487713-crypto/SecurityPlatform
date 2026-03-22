@@ -2,16 +2,7 @@
   <div class="app-users-page">
     <a-page-header :title="t('appsUsers.pageTitle')" :sub-title="t('appsUsers.pageSubtitle')" />
 
-    <a-alert
-      v-if="useSharedUsers === true"
-      class="mt12"
-      type="info"
-      show-icon
-      :message="t('appsUsers.sharedModeTitle')"
-      :description="t('appsUsers.sharedModeDesc')"
-    />
-
-    <a-card v-if="useSharedUsers === false" class="mt12">
+    <a-card class="mt12">
       <template #extra>
         <a-space>
           <a-input-search
@@ -168,7 +159,6 @@ import { debounce, formatDateTime } from "@/utils/common";
 import { useUserStore } from "@/stores/user";
 import { isAdminRole } from "@/utils/auth";
 import { getUsersPaged } from "@/services/api-users";
-import { getLowCodeAppDetail } from "@/services/lowcode";
 import {
   addTenantAppMembers,
   getTenantAppMembersPaged,
@@ -185,8 +175,6 @@ const { t } = useI18n();
 const route = useRoute();
 const userStore = useUserStore();
 const appId = computed(() => String(route.params.appId ?? ""));
-
-const useSharedUsers = ref<boolean | null>(null);
 
 const loading = ref(false);
 const submitting = ref(false);
@@ -443,17 +431,7 @@ async function loadAppAndMembers() {
   if (!appId.value) {
     return;
   }
-  try {
-    const detail = await getLowCodeAppDetail(appId.value);
-    if (!isMounted.value) return;
-    useSharedUsers.value = detail.useSharedUsers;
-    if (!detail.useSharedUsers) {
-      void loadMembers();
-    }
-  } catch {
-    useSharedUsers.value = false;
-    void loadMembers();
-  }
+  void loadMembers();
 }
 </script>
 

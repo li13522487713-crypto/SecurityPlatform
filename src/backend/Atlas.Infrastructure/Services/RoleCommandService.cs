@@ -264,8 +264,7 @@ public sealed class RoleCommandService : IRoleCommandService
         }
 
         var distinctIds = permissionIds.Distinct().ToArray();
-        // 仅校验平台级权限（AppId IS NULL），防止平台角色绑定应用级权限导致跨级提权
-        var permissions = await _permissionRepository.QueryByIdsPlatformOnlyAsync(tenantId, distinctIds, cancellationToken);
+        var permissions = await _permissionRepository.QueryByIdsAsync(tenantId, distinctIds, cancellationToken);
         if (permissions.Count != distinctIds.Length)
         {
             throw new BusinessException("PermissionNotFoundPlatform", ErrorCodes.ValidationError);

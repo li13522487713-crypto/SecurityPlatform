@@ -15,9 +15,6 @@ public sealed class LowCodeApp : TenantEntity
     {
         Name = string.Empty;
         AppKey = string.Empty;
-        UseSharedUsers = true;
-        UseSharedRoles = true;
-        UseSharedDepartments = true;
     }
 
     public LowCodeApp(
@@ -28,9 +25,6 @@ public sealed class LowCodeApp : TenantEntity
         string? category,
         string? icon,
         long? dataSourceId,
-        bool useSharedUsers,
-        bool useSharedRoles,
-        bool useSharedDepartments,
         long createdBy,
         long id,
         DateTimeOffset now)
@@ -43,9 +37,6 @@ public sealed class LowCodeApp : TenantEntity
         Category = category ?? string.Empty;
         Icon = icon ?? string.Empty;
         DataSourceId = dataSourceId;
-        UseSharedUsers = useSharedUsers;
-        UseSharedRoles = useSharedRoles;
-        UseSharedDepartments = useSharedDepartments;
         ConfigJson = "{}";
         Version = 1;
         Status = LowCodeAppStatus.Draft;
@@ -73,9 +64,6 @@ public sealed class LowCodeApp : TenantEntity
             category,
             icon,
             null,
-            true,
-            true,
-            true,
             createdBy,
             id,
             now)
@@ -103,15 +91,6 @@ public sealed class LowCodeApp : TenantEntity
     /// <summary>绑定的数据源 ID（创建后不可变）</summary>
     [SugarColumn(IsNullable = true)]
     public long? DataSourceId { get; private set; }
-
-    /// <summary>是否复用平台用户</summary>
-    public bool UseSharedUsers { get; private set; }
-
-    /// <summary>是否复用平台角色</summary>
-    public bool UseSharedRoles { get; private set; }
-
-    /// <summary>是否复用平台部门</summary>
-    public bool UseSharedDepartments { get; private set; }
 
     /// <summary>版本号</summary>
     public int Version { get; private set; }
@@ -176,20 +155,6 @@ public sealed class LowCodeApp : TenantEntity
     public void UpdateMenuConfig(string menuConfigJson, long updatedBy, DateTimeOffset now)
     {
         MenuConfigJson = menuConfigJson;
-        UpdatedBy = updatedBy;
-        UpdatedAt = now;
-    }
-
-    public void UpdateSharingPolicy(
-        bool useSharedUsers,
-        bool useSharedRoles,
-        bool useSharedDepartments,
-        long updatedBy,
-        DateTimeOffset now)
-    {
-        UseSharedUsers = useSharedUsers;
-        UseSharedRoles = useSharedRoles;
-        UseSharedDepartments = useSharedDepartments;
         UpdatedBy = updatedBy;
         UpdatedAt = now;
     }

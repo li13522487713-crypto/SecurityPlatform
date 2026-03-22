@@ -73,12 +73,6 @@ public sealed class AppMembershipMiddleware
             return;
         }
 
-        if (app.UseSharedUsers)
-        {
-            await _next(context);
-            return;
-        }
-
         var currentUserAccessor = context.RequestServices.GetRequiredService<ICurrentUserAccessor>();
         var currentUser = currentUserAccessor.GetCurrentUser();
         if (currentUser is null)
