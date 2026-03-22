@@ -101,7 +101,7 @@ export function buildGlobalData(): Record<string, unknown> {
     const userStore = useUserStore();
     return {
       currentUser: {
-        userId: userStore.profile?.userId ?? "",
+        userId: userStore.profile?.id ?? "",
         userName: userStore.profile?.username ?? "",
         displayName: userStore.name,
         roles: userStore.roles,
@@ -118,7 +118,7 @@ export function createAmisEnv(): AmisEnv {
   const fetcher = async (config: AmisFetcherConfig): Promise<AmisFetcherResult> => {
     const path = normalizeUrl(config.url);
     const method = (config.method ?? "GET").toUpperCase();
-    const normalizedData = method === "GET" ? normalizeAmisParams(config.data) : config.data;
+    const normalizedData = method === "GET" ? normalizeAmisParams(config.data ?? null) : config.data;
     const adaptedConfig = { ...config, data: normalizedData };
     const finalPath = method === "GET" ? appendQuery(path, normalizedData) : path;
     const init = buildRequestInit(adaptedConfig);

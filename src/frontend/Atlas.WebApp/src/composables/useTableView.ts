@@ -40,7 +40,7 @@ export interface ColumnSettingItem {
   visible: boolean;
   canHide: boolean;
   order: number;
-  pinned?: "left" | "right";
+  pinned?: "left" | "right" | false;
 }
 
 export interface TableViewState {
@@ -59,10 +59,16 @@ interface NormalizedColumn<TRecord> {
   key: string;
   visible: boolean;
   order: number;
-  width?: number;
-  pinned?: PinnedType;
+  width?: number | string;
+  minWidth?: number;
+  maxWidth?: number;
+  pinned?: PinnedType | false;
   align?: AlignType;
   ellipsis?: boolean;
+  resizable?: boolean;
+  colSpan?: number;
+  rowSpan?: number;
+  children?: TableViewColumnConfig[];
   canHide: boolean;
   base: TableViewColumn<TRecord>;
 }
@@ -81,6 +87,8 @@ export interface TableViewController {
   toggleColumn: (key: string, visible: boolean) => void;
   moveColumn: (key: string, direction: "up" | "down") => void;
   setPinned: (key: string, pinned: "left" | "right" | undefined) => void;
+  setColumnWidth: (key: string, width: number | string) => void;
+  updateTableConfig: (newConfig: Partial<TableViewConfig>) => void;
   getMergeCells: () => MergeCellRule[];
   computeMergeSpans: <T extends Record<string, unknown>>(rows: T[]) => Map<string, number>[];
 }
@@ -133,10 +141,11 @@ const buildDefaultConfig = <TRecord>(
       key,
       visible: defaultVisible,
       order: index,
-      width: typeof column.width === "number" ? column.width : undefined,
+      width: column.width as number | string | undefined,
       pinned: resolvePinned(column.fixed),
       align: resolveAlign(column.align),
-      ellipsis: typeof column.ellipsis === "boolean" ? column.ellipsis : undefined
+      ellipsis: typeof column.ellipsis === "boolean" ? column.ellipsis : undefined,
+      children: (column as any).children
     };
   });
 
@@ -169,9 +178,15 @@ const normalizeColumns = <TRecord>(
       visible,
       order: typeof config?.order === "number" ? config.order : index,
       width: config?.width,
+      minWidth: config?.minWidth,
+      maxWidth: config?.maxWidth,
       pinned: config?.pinned,
       align: config?.align,
       ellipsis: config?.ellipsis,
+      resizable: config?.resizable,
+      colSpan: config?.colSpan,
+      rowSpan: config?.rowSpan,
+      children: config?.children,
       canHide,
       base: column
     };
@@ -190,9 +205,15 @@ const toColumnConfig = <TRecord>(items: NormalizedColumn<TRecord>[]): TableViewC
     visible: item.visible,
     order: item.order,
     width: item.width,
+    minWidth: item.minWidth,
+    maxWidth: item.maxWidth,
     pinned: item.pinned,
     align: item.align,
-    ellipsis: item.ellipsis
+    ellipsis: item.ellipsis,
+    resizable: item.resizable,
+    colSpan: item.colSpan,
+    rowSpan: item.rowSpan,
+    children: item.children
   }));
 
 export function useTableView<TRecord>(options: UseTableViewOptions<TRecord>) {
@@ -265,9 +286,15 @@ export function useTableView<TRecord>(options: UseTableViewOptions<TRecord>) {
           visible: item.visible,
           order: item.order,
           width: item.width,
+          minWidth: item.minWidth,
+          maxWidth: item.maxWidth,
           pinned: item.pinned,
           align: item.align,
-          ellipsis: item.ellipsis
+          ellipsis: item.ellipsis,
+          resizable: item.resizable,
+          colSpan: item.colSpan,
+          rowSpan: item.rowSpan,
+          children: item.children
         }))
       };
       state.currentViewId = detail.id;
@@ -430,9 +457,15 @@ export function useTableView<TRecord>(options: UseTableViewOptions<TRecord>) {
         visible: item.visible,
         order: item.order,
         width: item.width,
+        minWidth: item.minWidth,
+        maxWidth: item.maxWidth,
         pinned: item.pinned,
         align: item.align,
-        ellipsis: item.ellipsis
+        ellipsis: item.ellipsis,
+        resizable: item.resizable,
+        colSpan: item.colSpan,
+        rowSpan: item.rowSpan,
+        children: item.children
       }))
     };
     state.density = (targetConfig.density ?? "default") as TableViewDensity;
@@ -516,6 +549,23 @@ export function useTableView<TRecord>(options: UseTableViewOptions<TRecord>) {
         target.pinned = pinned;
       }
     });
+  };
+
+  const setColumnWidth = (key: string, width: number | string) => {
+    updateConfigColumns((items) => {
+      const target = items.find((item) => item.key === key);
+      if (target) {
+        target.width = width;
+      }
+    });
+  };
+
+  const updateTableConfig = (newConfig: Partial<TableViewConfig>) => {
+    config.value = {
+      ...config.value,
+      ...newConfig
+    };
+    scheduleAutoSave();
   };
 
   const getMergeCells = (): MergeCellRule[] =>
@@ -608,6 +658,8 @@ export function useTableView<TRecord>(options: UseTableViewOptions<TRecord>) {
     toggleColumn,
     moveColumn,
     setPinned,
+    setColumnWidth,
+    updateTableConfig,
     getMergeCells,
     computeMergeSpans
   });

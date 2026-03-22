@@ -99,7 +99,7 @@ const renderEditor = async () => {
     const allPlugins = [...getRegisteredPlugins(), ...props.plugins];
     const pluginInstances = allPlugins
       .filter((p) => p.editorConfig?.scaffold)
-      .map((p) => {
+      .map(async (p) => {
         try {
           const { registerEditorPlugin, BasePlugin } = await import(/* @vite-ignore */ amisEditorModuleName) as {
             registerEditorPlugin: (cls: unknown) => void;

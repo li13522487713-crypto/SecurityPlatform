@@ -114,12 +114,18 @@ export interface TableViewColumnConfig {
   key: string;
   visible: boolean;
   order: number;
-  width?: number;
-  pinned?: "left" | "right";
+  width?: number | string;
+  minWidth?: number;
+  maxWidth?: number;
+  pinned?: "left" | "right" | false;
   align?: "left" | "center" | "right";
   ellipsis?: boolean;
   wrap?: boolean;
   tooltip?: boolean;
+  resizable?: boolean;
+  colSpan?: number;
+  rowSpan?: number;
+  children?: TableViewColumnConfig[];
 }
 
 export interface TableViewPagination {
@@ -169,6 +175,12 @@ export interface TableViewQueryGroup {
 export interface TableViewConfig {
   columns: TableViewColumnConfig[];
   density?: TableViewDensity;
+  bordered?: boolean;
+  stripe?: boolean;
+  scroll?: {
+    x?: number | string;
+    y?: number | string;
+  };
   pagination?: TableViewPagination;
   sort?: TableViewSort[];
   filters?: TableViewFilter[];

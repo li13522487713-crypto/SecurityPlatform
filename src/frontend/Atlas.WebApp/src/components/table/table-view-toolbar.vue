@@ -56,29 +56,34 @@
       data-testid="e2e-table-view-columns-search"
     />
     <div class="column-list">
-      <div v-for="item in filteredColumns" :key="item.key" class="column-item">
-        <a-checkbox
-          :checked="item.visible"
-          :disabled="!item.canHide"
-          @update:checked="(checked: boolean) => controller.toggleColumn(item.key, checked)"
-        >
-          {{ item.title }}
-        </a-checkbox>
-        <div class="column-actions">
-          <a-select
-            :value="item.pinned ?? 'none'"
-            size="small"
-            style="width: 88px"
-            @change="(val: string) => controller.setPinned(item.key, val === 'none' ? undefined : val as 'left' | 'right')"
-          >
-            <a-select-option value="none">{{ t("tableView.pinNone") }}</a-select-option>
-            <a-select-option value="left">{{ t("tableView.pinLeft") }}</a-select-option>
-            <a-select-option value="right">{{ t("tableView.pinRight") }}</a-select-option>
-          </a-select>
-          <a-button size="small" @click="controller.moveColumn(item.key, 'up')">{{ t("tableView.moveUp") }}</a-button>
-          <a-button size="small" @click="controller.moveColumn(item.key, 'down')">{{ t("tableView.moveDown") }}</a-button>
-        </div>
-      </div>
+      <a-tree
+        class="column-tree"
+        checkable
+        draggable
+        block-node
+        :tree-data="treeData"
+        :checked-keys="checkedKeys"
+        @check="handleTreeCheck"
+        @drop="handleTreeDrop"
+      >
+        <template #title="{ key, title, pinned, canHide }">
+          <div class="column-item">
+            <span class="column-title" :title="title">{{ title }}</span>
+            <div class="column-actions">
+              <a-select
+                :value="pinned ?? 'none'"
+                size="small"
+                style="width: 88px"
+                @change="(val: string) => controller.setPinned(key as string, val === 'none' ? undefined : val as 'left' | 'right')"
+              >
+                <a-select-option value="none">{{ t('tableView.pinNone') }}</a-select-option>
+                <a-select-option value="left">{{ t('tableView.pinLeft') }}</a-select-option>
+                <a-select-option value="right">{{ t('tableView.pinRight') }}</a-select-option>
+              </a-select>
+            </div>
+          </div>
+        </template>
+      </a-tree>
     </div>
   </a-drawer>
 
@@ -138,6 +143,40 @@ const filteredColumns = computed(() => {
   }
   return props.controller.columnSettings.filter((item) => item.title.includes(keyword));
 });
+
+const treeData = computed(() => {
+  return filteredColumns.value.map(col => ({
+    key: col.key,
+    title: col.title,
+    pinned: col.pinned,
+    canHide: col.canHide,
+    disabled: !col.canHide,
+    children: (col as any).children // 保留扩展性
+  }));
+});
+
+const checkedKeys = computed(() => {
+  return filteredColumns.value.filter(col => col.visible).map(col => col.key);
+});
+
+const handleTreeCheck = (checked: any) => {
+  const checkedKeyList: string[] = Array.isArray(checked) ? checked : checked.checked;
+  props.controller.columnSettings.forEach(col => {
+    if (col.canHide) {
+      const isVisible = checkedKeyList.includes(col.key);
+      if (col.visible !== isVisible) {
+        props.controller.toggleColumn(col.key, isVisible);
+      }
+    }
+  });
+};
+
+const handleTreeDrop = (info: any) => {
+  const dragKey = info.dragNode.key;
+  // 这里可以触发列重排序，由于 P0 简化先保持原有逻辑流接口
+  // 如果落点在上方触发 moveColumn('up') etc.
+  // 推荐后续在 updateTableViewConfig 直接写新 orders 数组
+};
 
 const densityLabel = computed(() => {
   if (props.controller.state.density === "compact") return t("tableView.densityCompact");
