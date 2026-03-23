@@ -106,7 +106,9 @@ public static class AiPlatformServiceRegistration
 
         services.AddScoped<ILlmProviderFactory, LlmProviderFactory>();
 
-        services.AddSingleton<IVectorStore, SqliteVectorStore>();
+        services.AddSingleton<IVectorDbClient, SqliteVectorDbClient>();
+        services.AddSingleton<IVectorDbClient, QdrantVectorDbClient>();
+        services.AddSingleton<IVectorStore, VectorStore>();
 
         services.AddSingleton<TxtDocumentParser>();
         services.AddSingleton<PdfDocumentParser>();

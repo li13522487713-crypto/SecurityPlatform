@@ -7,6 +7,8 @@ public sealed class AiPlatformOptions
     public Dictionary<string, AiProviderOption> Providers { get; init; } = new(StringComparer.OrdinalIgnoreCase);
 
     public EmbeddingOption Embedding { get; init; } = new();
+
+    public VectorDbOption VectorDb { get; init; } = new();
 }
 
 public sealed class AiProviderOption
@@ -27,4 +29,15 @@ public sealed class EmbeddingOption
     public string Model { get; init; } = "text-embedding-3-small";
 
     public int Dimensions { get; init; } = 1536;
+}
+
+public sealed class VectorDbOption
+{
+    public string Provider { get; init; } = "sqlite";
+
+    public string SqliteConnectionString { get; init; } = string.Empty;
+
+    public string QdrantUrl { get; init; } = "http://localhost:6333";
+
+    public string QdrantApiKey { get; init; } = string.Empty;
 }
