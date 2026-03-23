@@ -234,6 +234,7 @@ builder.Services.AddValidatorsFromAssemblies([
 var securityOptions = builder.Configuration.GetSection("Security").Get<SecurityOptions>() ?? new SecurityOptions();
 var jwt = builder.Configuration.GetSection("Jwt").Get<JwtOptions>() ?? new JwtOptions();
 var fileStorage = builder.Configuration.GetSection("FileStorage").Get<FileStorageOptions>() ?? new FileStorageOptions();
+var storageProvider = fileStorage.Provider?.Trim().ToLowerInvariant() ?? FileStorageOptions.ProviderLocal;
 if (!builder.Environment.IsDevelopment())
 {
     if (string.IsNullOrWhiteSpace(jwt.SigningKey)
@@ -249,6 +250,27 @@ if (!builder.Environment.IsDevelopment())
         || fileStorage.SignedUrlSecret.Length < 32)
     {
         throw new InvalidOperationException("生产环境必须配置长度不少于32位且非默认值的 FileStorage SignedUrlSecret。");
+    }
+
+    if (storageProvider == FileStorageOptions.ProviderMinio)
+    {
+        if (string.IsNullOrWhiteSpace(fileStorage.Minio.Endpoint)
+            || string.IsNullOrWhiteSpace(fileStorage.Minio.AccessKey)
+            || string.IsNullOrWhiteSpace(fileStorage.Minio.SecretKey)
+            || string.IsNullOrWhiteSpace(fileStorage.Minio.BucketName))
+        {
+            throw new InvalidOperationException("生产环境启用 MinIO 存储时必须配置完整的 Endpoint/AccessKey/SecretKey/BucketName。");
+        }
+    }
+    else if (storageProvider == FileStorageOptions.ProviderOss)
+    {
+        if (string.IsNullOrWhiteSpace(fileStorage.Oss.Endpoint)
+            || string.IsNullOrWhiteSpace(fileStorage.Oss.AccessKeyId)
+            || string.IsNullOrWhiteSpace(fileStorage.Oss.AccessKeySecret)
+            || string.IsNullOrWhiteSpace(fileStorage.Oss.BucketName))
+        {
+            throw new InvalidOperationException("生产环境启用 OSS 存储时必须配置完整的 Endpoint/AccessKeyId/AccessKeySecret/BucketName。");
+        }
     }
 }
 

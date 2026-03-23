@@ -14,6 +14,7 @@ public sealed class FileRecord : TenantEntity
         OriginalName = string.Empty;
         StoredName = string.Empty;
         ContentType = string.Empty;
+        FileHashSha256 = string.Empty;
         UploadedByName = string.Empty;
     }
 
@@ -22,6 +23,7 @@ public sealed class FileRecord : TenantEntity
         string originalName,
         string storedName,
         string contentType,
+        string fileHashSha256,
         long sizeBytes,
         long uploadedById,
         string uploadedByName,
@@ -33,6 +35,7 @@ public sealed class FileRecord : TenantEntity
         OriginalName = originalName;
         StoredName = storedName;
         ContentType = contentType;
+        FileHashSha256 = fileHashSha256;
         SizeBytes = sizeBytes;
         UploadedById = uploadedById;
         UploadedByName = uploadedByName;
@@ -43,6 +46,7 @@ public sealed class FileRecord : TenantEntity
     public string OriginalName { get; private set; }
     public string StoredName { get; private set; }
     public string ContentType { get; private set; }
+    public string FileHashSha256 { get; private set; }
     public long SizeBytes { get; private set; }
     public long UploadedById { get; private set; }
     public string UploadedByName { get; private set; }

@@ -40,8 +40,24 @@ const formFieldMap: Record<DynamicFieldType, (name: string, label: string) => Am
   Date: (name, label) => ({ type: "input-date", name, label, format: "YYYY-MM-DD" }),
   Time: (name, label) => ({ type: "input-time", name, label, format: "HH:mm:ss" }),
   Enum: (name, label) => ({ type: "select", name, label, options: [] }),
-  File: (name, label) => ({ type: "input-file", name, label, receiver: "/api/v1/files/upload" }),
-  Image: (name, label) => ({ type: "input-image", name, label, receiver: "/api/v1/files/upload" }),
+  File: (name, label) => ({
+    type: "input-file",
+    name,
+    label,
+    receiver: "/api/v1/files",
+    startChunkApi: "/api/v1/files/upload/init",
+    chunkApi: "/api/v1/files/upload/${sessionId}/part/${partNumber}",
+    finishChunkApi: "/api/v1/files/upload/${sessionId}/complete"
+  }),
+  Image: (name, label) => ({
+    type: "input-image",
+    name,
+    label,
+    receiver: "/api/v1/files",
+    startChunkApi: "/api/v1/files/images/apply",
+    chunkApi: "/api/v1/files/upload/${sessionId}/part/${partNumber}",
+    finishChunkApi: "/api/v1/files/images/commit"
+  }),
   Json: (name, label) => ({ type: "editor", name, label, language: "json" }),
   Guid: (name, label) => ({ type: "input-text", name, label, readOnly: true }),
 };

@@ -6,9 +6,17 @@ namespace Atlas.Application.Options;
 public sealed class FileStorageOptions
 {
     public const string UnsafeDefaultSignedUrlSecret = "CHANGE_ME_FILE_SIGNED_URL_SECRET";
+    public const string ProviderLocal = "local";
+    public const string ProviderMinio = "minio";
+    public const string ProviderOss = "oss";
 
     /// <summary>文件存储根目录（相对于应用根目录）</summary>
     public string BasePath { get; init; } = "uploads";
+
+    /// <summary>
+    /// 对象存储提供器：local|minio|oss（大小写不敏感）。
+    /// </summary>
+    public string Provider { get; init; } = ProviderLocal;
 
     /// <summary>单文件最大字节数，默认 10 MB</summary>
     public long MaxFileSizeBytes { get; init; } = 10 * 1024 * 1024;
@@ -42,4 +50,30 @@ public sealed class FileStorageOptions
 
     /// <summary>签名下载密钥（生产环境请通过环境变量覆盖）。</summary>
     public string SignedUrlSecret { get; init; } = UnsafeDefaultSignedUrlSecret;
+
+    /// <summary>MinIO 存储配置。</summary>
+    public MinioStorageOptions Minio { get; init; } = new();
+
+    /// <summary>阿里云 OSS 存储配置。</summary>
+    public OssStorageOptions Oss { get; init; } = new();
+}
+
+public sealed class MinioStorageOptions
+{
+    public string Endpoint { get; init; } = string.Empty;
+    public string AccessKey { get; init; } = string.Empty;
+    public string SecretKey { get; init; } = string.Empty;
+    public string BucketName { get; init; } = string.Empty;
+    public bool UseSsl { get; init; } = false;
+    public bool ForcePathStyle { get; init; } = true;
+}
+
+public sealed class OssStorageOptions
+{
+    public string Endpoint { get; init; } = string.Empty;
+    public string AccessKeyId { get; init; } = string.Empty;
+    public string AccessKeySecret { get; init; } = string.Empty;
+    public string BucketName { get; init; } = string.Empty;
+    public string Region { get; init; } = string.Empty;
+    public bool ForcePathStyle { get; init; } = false;
 }

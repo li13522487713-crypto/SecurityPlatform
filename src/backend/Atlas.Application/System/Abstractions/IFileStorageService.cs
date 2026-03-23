@@ -89,4 +89,44 @@ public interface IFileStorageService
         long expiresUnixSeconds,
         string signature,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// 创建 Tus 上传会话。
+    /// </summary>
+    Task<FileTusUploadCreateResult> CreateTusUploadAsync(
+        TenantId tenantId,
+        long uploadedById,
+        string uploadedByName,
+        string originalName,
+        string contentType,
+        long totalSizeBytes,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// 查询 Tus 上传会话状态。
+    /// </summary>
+    Task<FileTusUploadStatusDto?> GetTusUploadStatusAsync(
+        TenantId tenantId,
+        long sessionId,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// 追加 Tus 上传数据块。
+    /// </summary>
+    Task<FileTusUploadPatchResult> AppendTusUploadAsync(
+        TenantId tenantId,
+        long sessionId,
+        long uploadOffset,
+        Stream chunkStream,
+        long chunkSizeBytes,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// 秒传校验：按 SHA-256 哈希查重。
+    /// </summary>
+    Task<FileInstantCheckResult> CheckInstantUploadAsync(
+        TenantId tenantId,
+        string fileHashSha256,
+        long sizeBytes,
+        CancellationToken ct = default);
 }

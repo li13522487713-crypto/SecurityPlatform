@@ -24,23 +24,29 @@ public sealed class LocalFileStorageService : IFileStorageService
     private readonly FileStorageOptions _options;
     private readonly FileRecordRepository _fileRecordRepository;
     private readonly FileUploadSessionRepository _fileUploadSessionRepository;
+    private readonly FileTusUploadSessionRepository _fileTusUploadSessionRepository;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly TimeProvider _timeProvider;
+    private readonly IFileObjectStore _fileObjectStore;
     private readonly IHostEnvironmentAccessor _hostEnvironmentAccessor;
 
     public LocalFileStorageService(
         IOptions<FileStorageOptions> options,
         FileRecordRepository fileRecordRepository,
         FileUploadSessionRepository fileUploadSessionRepository,
+        FileTusUploadSessionRepository fileTusUploadSessionRepository,
         IIdGeneratorAccessor idGeneratorAccessor,
         TimeProvider timeProvider,
+        IFileObjectStore fileObjectStore,
         IHostEnvironmentAccessor hostEnvironmentAccessor)
     {
         _options = options.Value;
         _fileRecordRepository = fileRecordRepository;
         _fileUploadSessionRepository = fileUploadSessionRepository;
+        _fileTusUploadSessionRepository = fileTusUploadSessionRepository;
         _idGeneratorAccessor = idGeneratorAccessor;
         _timeProvider = timeProvider;
+        _fileObjectStore = fileObjectStore;
         _hostEnvironmentAccessor = hostEnvironmentAccessor;
     }
 
@@ -65,19 +71,14 @@ public sealed class LocalFileStorageService : IFileStorageService
 
         var ext = Path.GetExtension(originalName).ToLowerInvariant();
         var storedName = $"{Guid.NewGuid():N}{ext}";
-        var dir = GetTenantDirectory(tenantId);
-        Directory.CreateDirectory(dir);
-
-        var physicalPath = Path.Combine(dir, storedName);
-        await using (var dest = File.Create(physicalPath))
-        {
-            await fileStream.CopyToAsync(dest, ct);
-        }
+        await _fileObjectStore.SaveAsync(tenantId, storedName, fileStream, contentType, ct);
+        await using var uploadedStream = await _fileObjectStore.OpenReadAsync(tenantId, storedName, ct);
+        var fileHashSha256 = await ComputeSha256Async(uploadedStream, ct);
 
         var now = _timeProvider.GetUtcNow();
         var id = _idGeneratorAccessor.NextId();
         var record = new FileRecord(
-            tenantId, originalName, storedName, contentType,
+            tenantId, originalName, storedName, contentType, fileHashSha256,
             fileSizeBytes, uploadedById, uploadedByName, now, id);
 
         await _fileRecordRepository.AddAsync(record, ct);
@@ -91,14 +92,21 @@ public sealed class LocalFileStorageService : IFileStorageService
         var record = await _fileRecordRepository.FindByIdAsync(tenantId, fileId, ct)
             ?? throw new BusinessException("文件不存在或已删除。", ErrorCodes.NotFound);
 
-        var physicalPath = Path.Combine(GetTenantDirectory(tenantId), record.StoredName);
-        if (!File.Exists(physicalPath))
+        var exists = await _fileObjectStore.ExistsAsync(tenantId, record.StoredName, ct);
+        if (!exists)
         {
             throw new BusinessException("文件物理存储不存在。", ErrorCodes.NotFound);
         }
 
-        var stream = File.OpenRead(physicalPath);
-        return new FileDownloadResult(stream, record.ContentType, record.OriginalName);
+        var stream = await _fileObjectStore.OpenReadAsync(tenantId, record.StoredName, ct);
+        var eTag = $"\"{record.Id}-{record.SizeBytes}-{record.UploadedAt.ToUnixTimeSeconds()}\"";
+        return new FileDownloadResult(
+            stream,
+            record.ContentType,
+            record.OriginalName,
+            record.SizeBytes,
+            eTag,
+            record.UploadedAt);
     }
 
     public async Task<FileRecordDto?> GetInfoAsync(
@@ -231,11 +239,8 @@ public sealed class LocalFileStorageService : IFileStorageService
             throw new BusinessException("分片尚未上传完成。", ErrorCodes.ValidationError);
         }
 
-        var tenantDirectory = GetTenantDirectory(tenantId);
-        Directory.CreateDirectory(tenantDirectory);
-        var finalPath = Path.Combine(tenantDirectory, session.StoredName);
-
-        await using (var destination = File.Create(finalPath))
+        var mergedPath = Path.Combine(session.TempDirectory, $"{session.StoredName}.merge");
+        await using (var destination = File.Create(mergedPath))
         {
             for (var i = 1; i <= session.TotalParts; i++)
             {
@@ -250,6 +255,11 @@ public sealed class LocalFileStorageService : IFileStorageService
             }
         }
 
+        await using (var mergedStream = File.OpenRead(mergedPath))
+        {
+            await _fileObjectStore.SaveAsync(tenantId, session.StoredName, mergedStream, request.ContentType, ct);
+        }
+
         var now = _timeProvider.GetUtcNow();
         var fileId = _idGeneratorAccessor.NextId();
         var fileRecord = new FileRecord(
@@ -257,6 +267,7 @@ public sealed class LocalFileStorageService : IFileStorageService
             request.OriginalName,
             session.StoredName,
             request.ContentType,
+            await ComputeSha256FromObjectStoreAsync(tenantId, session.StoredName, ct),
             session.TotalSizeBytes,
             session.UploadedByUserId,
             session.UploadedByName,
@@ -343,6 +354,207 @@ public sealed class LocalFileStorageService : IFileStorageService
         return await DownloadAsync(tenantId, fileId, ct);
     }
 
+    public async Task<FileInstantCheckResult> CheckInstantUploadAsync(
+        TenantId tenantId,
+        string fileHashSha256,
+        long sizeBytes,
+        CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(fileHashSha256))
+        {
+            throw new BusinessException("文件哈希不能为空。", ErrorCodes.ValidationError);
+        }
+
+        var normalizedHash = fileHashSha256.Trim().ToLowerInvariant();
+        var record = await _fileRecordRepository.FindByHashAsync(tenantId, normalizedHash, sizeBytes, ct);
+        if (record is null)
+        {
+            return new FileInstantCheckResult(false, null, null, null, null);
+        }
+
+        return new FileInstantCheckResult(
+            true,
+            record.Id,
+            record.OriginalName,
+            record.ContentType,
+            record.SizeBytes);
+    }
+
+    public async Task<FileTusUploadCreateResult> CreateTusUploadAsync(
+        TenantId tenantId,
+        long uploadedById,
+        string uploadedByName,
+        string originalName,
+        string contentType,
+        long totalSizeBytes,
+        CancellationToken ct = default)
+    {
+        ValidateExtension(originalName);
+        if (totalSizeBytes <= 0)
+        {
+            throw new BusinessException("上传总大小必须大于 0。", ErrorCodes.ValidationError);
+        }
+
+        if (totalSizeBytes > _options.MaxFileSizeBytes)
+        {
+            throw new BusinessException(
+                $"文件大小不能超过 {_options.MaxFileSizeBytes / 1024 / 1024} MB。",
+                ErrorCodes.ValidationError);
+        }
+
+        var ext = Path.GetExtension(originalName).ToLowerInvariant();
+        var storedName = $"{Guid.NewGuid():N}{ext}";
+        var sessionId = _idGeneratorAccessor.NextId();
+        var tempDirectory = GetTusTempDirectory(tenantId);
+        Directory.CreateDirectory(tempDirectory);
+        var tempFilePath = Path.Combine(tempDirectory, $"{sessionId}.upload");
+        await using (var _ = File.Create(tempFilePath))
+        {
+            // create empty file
+        }
+
+        var expiresAt = _timeProvider.GetUtcNow().AddMinutes(_options.ChunkSessionExpireMinutes);
+        var session = new FileTusUploadSession(
+            tenantId,
+            originalName,
+            storedName,
+            contentType,
+            totalSizeBytes,
+            tempFilePath,
+            expiresAt,
+            uploadedById,
+            uploadedByName,
+            sessionId);
+        await _fileTusUploadSessionRepository.AddAsync(session, ct);
+
+        return new FileTusUploadCreateResult(
+            session.Id,
+            $"/api/v1/files/tus/{session.Id}",
+            session.UploadedSizeBytes,
+            session.TotalSizeBytes,
+            session.ExpiresAt);
+    }
+
+    public async Task<FileTusUploadStatusDto?> GetTusUploadStatusAsync(
+        TenantId tenantId,
+        long sessionId,
+        CancellationToken ct = default)
+    {
+        var session = await _fileTusUploadSessionRepository.FindByIdAsync(tenantId, sessionId, ct);
+        if (session is null)
+        {
+            return null;
+        }
+
+        if (session.ExpiresAt <= _timeProvider.GetUtcNow() && session.Status != FileTusUploadSessionStatus.Completed)
+        {
+            session.MarkExpired();
+            await _fileTusUploadSessionRepository.UpdateAsync(session, ct);
+        }
+
+        return new FileTusUploadStatusDto(
+            session.Id,
+            session.UploadedSizeBytes,
+            session.TotalSizeBytes,
+            session.Status == FileTusUploadSessionStatus.Completed,
+            session.ExpiresAt);
+    }
+
+    public async Task<FileTusUploadPatchResult> AppendTusUploadAsync(
+        TenantId tenantId,
+        long sessionId,
+        long uploadOffset,
+        Stream chunkStream,
+        long chunkSizeBytes,
+        CancellationToken ct = default)
+    {
+        var session = await _fileTusUploadSessionRepository.FindActiveByIdAsync(tenantId, sessionId, ct)
+            ?? throw new BusinessException("Tus 上传会话不存在或已结束。", ErrorCodes.NotFound);
+        if (session.ExpiresAt <= _timeProvider.GetUtcNow())
+        {
+            session.MarkExpired();
+            await _fileTusUploadSessionRepository.UpdateAsync(session, ct);
+            throw new BusinessException("Tus 上传会话已过期。", ErrorCodes.ValidationError);
+        }
+
+        if (uploadOffset != session.UploadedSizeBytes)
+        {
+            throw new BusinessException("Tus 上传偏移量不匹配。", ErrorCodes.ValidationError);
+        }
+
+        var tempDirectory = Path.GetDirectoryName(session.TempFilePath);
+        if (!string.IsNullOrWhiteSpace(tempDirectory))
+        {
+            Directory.CreateDirectory(tempDirectory);
+        }
+
+        long bytesWritten;
+        await using (var destination = new FileStream(
+                         session.TempFilePath,
+                         FileMode.OpenOrCreate,
+                         FileAccess.Write,
+                         FileShare.Read))
+        {
+            destination.Seek(uploadOffset, SeekOrigin.Begin);
+            bytesWritten = await CopyStreamAndCountAsync(chunkStream, destination, ct);
+            await destination.FlushAsync(ct);
+        }
+
+        if (bytesWritten <= 0)
+        {
+            throw new BusinessException("Tus 上传分片大小无效。", ErrorCodes.ValidationError);
+        }
+
+        if (chunkSizeBytes > 0 && bytesWritten != chunkSizeBytes)
+        {
+            throw new BusinessException("Tus 上传分片大小与请求头不一致。", ErrorCodes.ValidationError);
+        }
+
+        var nextOffset = checked(uploadOffset + bytesWritten);
+        if (nextOffset > session.TotalSizeBytes)
+        {
+            throw new BusinessException("Tus 上传分片超出文件总大小。", ErrorCodes.ValidationError);
+        }
+
+        session.UpdateUploadedSize(nextOffset);
+        long? fileId = null;
+        var completed = nextOffset == session.TotalSizeBytes;
+        if (completed)
+        {
+            await using var mergedStream = File.OpenRead(session.TempFilePath);
+            await _fileObjectStore.SaveAsync(tenantId, session.StoredName, mergedStream, session.ContentType, ct);
+            var now = _timeProvider.GetUtcNow();
+            fileId = _idGeneratorAccessor.NextId();
+            var fileRecord = new FileRecord(
+                tenantId,
+                session.OriginalName,
+                session.StoredName,
+                session.ContentType,
+                await ComputeSha256FromObjectStoreAsync(tenantId, session.StoredName, ct),
+                session.TotalSizeBytes,
+                session.UploadedByUserId,
+                session.UploadedByName,
+                now,
+                fileId.Value);
+            await _fileRecordRepository.AddAsync(fileRecord, ct);
+            session.MarkCompleted(fileId.Value);
+        }
+
+        await _fileTusUploadSessionRepository.UpdateAsync(session, ct);
+
+        if (completed)
+        {
+            TryDeleteFile(session.TempFilePath);
+        }
+
+        return new FileTusUploadPatchResult(
+            session.Id,
+            session.UploadedSizeBytes,
+            session.TotalSizeBytes,
+            completed,
+            fileId);
+    }
+
     // ===== Helpers =====
 
     private void ValidateExtension(string fileName)
@@ -368,6 +580,11 @@ public sealed class LocalFileStorageService : IFileStorageService
     {
         var contentRoot = _hostEnvironmentAccessor.ContentRootPath;
         return Path.Combine(contentRoot, _options.BasePath, tenantId.Value.ToString());
+    }
+
+    private string GetTusTempDirectory(TenantId tenantId)
+    {
+        return Path.Combine(GetTenantDirectory(tenantId), ".tus");
     }
 
     private async Task<FileUploadSession> GetActiveSessionOrThrowAsync(TenantId tenantId, long sessionId, CancellationToken ct)
@@ -424,6 +641,35 @@ public sealed class LocalFileStorageService : IFileStorageService
                && CryptographicOperations.FixedTimeEquals(expectedBytes, actualBytes);
     }
 
+    private async Task<string> ComputeSha256FromObjectStoreAsync(
+        TenantId tenantId,
+        string objectName,
+        CancellationToken cancellationToken)
+    {
+        await using var stream = await _fileObjectStore.OpenReadAsync(tenantId, objectName, cancellationToken);
+        return await ComputeSha256Async(stream, cancellationToken);
+    }
+
+    private static async Task<string> ComputeSha256Async(
+        Stream stream,
+        CancellationToken cancellationToken)
+    {
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        var buffer = new byte[64 * 1024];
+        while (true)
+        {
+            var read = await stream.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken);
+            if (read <= 0)
+            {
+                break;
+            }
+
+            hash.AppendData(buffer, 0, read);
+        }
+
+        return Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
+    }
+
     private static void TryDeleteDirectory(string directory)
     {
         try
@@ -437,6 +683,43 @@ public sealed class LocalFileStorageService : IFileStorageService
         {
             // ignore cleanup failures
         }
+    }
+
+    private static void TryDeleteFile(string filePath)
+    {
+        try
+        {
+            if (File.Exists(filePath))
+            {
+                File.Delete(filePath);
+            }
+        }
+        catch
+        {
+            // ignore cleanup failures
+        }
+    }
+
+    private static async Task<long> CopyStreamAndCountAsync(
+        Stream source,
+        Stream destination,
+        CancellationToken cancellationToken)
+    {
+        var buffer = new byte[1024 * 64];
+        long total = 0;
+        while (true)
+        {
+            var read = await source.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken);
+            if (read == 0)
+            {
+                break;
+            }
+
+            await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+            total += read;
+        }
+
+        return total;
     }
 }
 

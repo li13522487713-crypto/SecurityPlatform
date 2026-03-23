@@ -105,4 +105,39 @@ export function registerBusinessPlugins(): void {
       },
     },
   });
+
+  registerAmisPlugin({
+    name: "atlas-file-uploader",
+    displayName: "FileUploader",
+    group: "business",
+    icon: "fa fa-upload",
+    description: "Atlas 文件上传组件（支持分片接口映射）",
+    schema: {
+      type: "input-file",
+      name: "fileId",
+      label: "附件",
+      receiver: "/api/v1/files",
+      startChunkApi: "/api/v1/files/upload/init",
+      chunkApi: "/api/v1/files/upload/${sessionId}/part/${partNumber}",
+      finishChunkApi: "/api/v1/files/upload/${sessionId}/complete"
+    },
+    editorConfig: {
+      tags: ["business"],
+      scaffold: {
+        type: "input-file",
+        name: "fileId",
+        label: "附件",
+        receiver: "/api/v1/files",
+        startChunkApi: "/api/v1/files/upload/init",
+        chunkApi: "/api/v1/files/upload/${sessionId}/part/${partNumber}",
+        finishChunkApi: "/api/v1/files/upload/${sessionId}/complete"
+      },
+      previewSchema: {
+        type: "input-file",
+        name: "fileId",
+        label: "附件",
+        value: ""
+      }
+    }
+  });
 }

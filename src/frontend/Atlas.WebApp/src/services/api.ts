@@ -11,6 +11,7 @@ export type { RequestOptions } from "@/services/api-core";
 export { requestApi } from "@/services/api-core";
 
 export * from "@/services/api-auth";
+export * from "@/services/api-files";
 export * from "@/services/api-users";
 export * from "@/services/api-approval";
 export * from "@/services/api-workflow";

@@ -30,7 +30,47 @@ function buildRequestInit(config: AmisFetcherConfig): RequestInit {
   const payload = config.data;
 
   if (hasBody && payload !== undefined && payload !== null) {
-    headers.set("Content-Type", "application/json");
+    if (typeof FormData !== "undefined" && payload instanceof FormData) {
+      return {
+        method,
+        headers,
+        body: payload
+      };
+    }
+
+    if (typeof Blob !== "undefined" && payload instanceof Blob) {
+      return {
+        method,
+        headers,
+        body: payload
+      };
+    }
+
+    if (typeof URLSearchParams !== "undefined" && payload instanceof URLSearchParams) {
+      if (!headers.has("Content-Type")) {
+        headers.set("Content-Type", "application/x-www-form-urlencoded;charset=UTF-8");
+      }
+      return {
+        method,
+        headers,
+        body: payload.toString()
+      };
+    }
+
+    if (typeof payload === "string") {
+      if (!headers.has("Content-Type")) {
+        headers.set("Content-Type", "application/json");
+      }
+      return {
+        method,
+        headers,
+        body: payload
+      };
+    }
+
+    if (!headers.has("Content-Type")) {
+      headers.set("Content-Type", "application/json");
+    }
     return {
       method,
       headers,

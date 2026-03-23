@@ -4,6 +4,7 @@
 @password = P@ssw0rd!
 @fileId = 1
 @sessionId = 1
+@tusSessionId = 1
 
 ### 登录获取令牌
 # @name login
@@ -30,6 +31,7 @@ X-Tenant-Id: {{tenantId}}
 @csrfToken = {{antiforgery.response.body.$.data.token}}
 
 ### 上传文件（按本地实际路径修改）
+# @name uploadFile
 POST {{baseUrl}}/api/v1/files
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
@@ -43,6 +45,14 @@ Content-Type: text/plain
 
 hello atlas upload
 --WebAppBoundary--
+
+###
+@fileId = {{uploadFile.response.body.$.data.id}}
+
+### 秒传校验（SHA-256）
+GET {{baseUrl}}/api/v1/files/instant-check?sha256=916690b31697370dc7c569ea972ebb7b45402152175aafabbb7ed2394193362b&sizeBytes=18
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
 
 ### 初始化分片上传会话
 # @name initChunk
@@ -149,6 +159,44 @@ X-Tenant-Id: {{tenantId}}
 GET {{baseUrl}}/api/v1/files/{{fileId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
+
+### Range 下载（206）
+GET {{baseUrl}}/api/v1/files/{{fileId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Range: bytes=0-4
+
+### Tus OPTIONS 探测
+OPTIONS {{baseUrl}}/api/v1/files/tus
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### Tus 创建会话（从响应 Location 读取 sessionId）
+# @name tusCreate
+POST {{baseUrl}}/api/v1/files/tus
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+X-CSRF-TOKEN: {{csrfToken}}
+Tus-Resumable: 1.0.0
+Upload-Length: 14
+Upload-Metadata: filename dHVzLXVwbG9hZC50eHQ=,contentType dGV4dC9wbGFpbg==
+
+### Tus 查询会话状态（将 {{tusSessionId}} 替换为实际值）
+HEAD {{baseUrl}}/api/v1/files/tus/{{tusSessionId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Tus-Resumable: 1.0.0
+
+### Tus PATCH 上传（将 {{tusSessionId}} 替换为实际值）
+PATCH {{baseUrl}}/api/v1/files/tus/{{tusSessionId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+X-CSRF-TOKEN: {{csrfToken}}
+Tus-Resumable: 1.0.0
+Upload-Offset: 0
+Content-Type: application/offset+octet-stream
+
+tus demo data!
 
 ### 获取签名下载地址
 # @name signedUrl

@@ -106,6 +106,7 @@ const PositionsPage = () => import("@/pages/system/PositionsPage.vue");
 const UsersPage = () => import("@/pages/system/UsersPage.vue");
 const MenusPage = () => import("@/pages/system/MenusPage.vue");
 const ProjectsPage = () => import("@/pages/system/ProjectsPage.vue");
+const FileTransferDemoPage = () => import("@/pages/system/FileTransferDemoPage.vue");
 const AssetsPage = () => import("@/pages/AssetsPage.vue");
 const AuditPage = () => import("@/pages/AuditPage.vue");
 const AlertPage = () => import("@/pages/AlertPage.vue");
@@ -229,6 +230,7 @@ const router = createRouter({
     { path: "/settings/org/users", name: "settings-org-users", component: UsersPage, meta: { requiresAuth: true, title: "员工管理", titleKey: "route.users", requiresPermission: "users:view" } },
     { path: "/settings/auth/menus", name: "settings-auth-menus", component: MenusPage, meta: { requiresAuth: true, title: "菜单管理", titleKey: "route.menus", requiresPermission: "menus:view" } },
     { path: "/settings/projects", name: "settings-projects", component: ProjectsPage, meta: { requiresAuth: true, title: "项目管理", titleKey: "route.projects", requiresPermission: "projects:view" } },
+    { path: "/system/file-transfer-demo", name: "system-file-transfer-demo", component: FileTransferDemoPage, meta: { requiresAuth: true, title: "文件传输演示", titleKey: "route.fileTransferDemo", requiresPermission: "file:upload" } },
     { path: "/assets", name: "assets-manage", component: AssetsPage, meta: { requiresAuth: true, title: "资产管理", titleKey: "route.assets", requiresPermission: "assets:view" } },
     { path: "/audit", name: "audit-manage", component: AuditPage, meta: { requiresAuth: true, title: "审计日志", titleKey: "route.audit", requiresPermission: "audit:view" } },
     { path: "/alert", name: "alert-manage", component: AlertPage, meta: { requiresAuth: true, title: "告警管理", titleKey: "route.alert", requiresPermission: "alert:view" } },

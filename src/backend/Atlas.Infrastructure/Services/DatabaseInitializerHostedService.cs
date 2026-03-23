@@ -230,6 +230,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             typeof(UserNotification),
             typeof(FileRecord),
             typeof(FileUploadSession),
+            typeof(FileTusUploadSession),
             typeof(TenantDataSource),
             typeof(TenantAppDataSourceBinding),
             typeof(AppMember),

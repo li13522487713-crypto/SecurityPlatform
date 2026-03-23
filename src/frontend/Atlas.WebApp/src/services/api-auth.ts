@@ -12,6 +12,7 @@ import type {
   RouterVo
 } from "@/types/api";
 import { requestApi, persistTokenResult, type RequestOptions } from "@/services/api-core";
+import { deleteFileResource, getFileInfoResource, uploadFileResource } from "@/services/api-files";
 import { getRefreshToken, getTenantId } from "@/utils/auth";
 
 export interface AssetListItem {
@@ -238,31 +239,13 @@ export async function logout(): Promise<void> {
 }
 
 export async function deleteFile(id: string | number): Promise<void> {
-  const response = await requestApi<ApiResponse<{ id: string }>>(`/files/${id}`, {
-    method: "DELETE"
-  });
-  if (!response.success) {
-    throw new Error(response.message || "删除失败");
-  }
+  await deleteFileResource(id);
 }
 
 export async function uploadFile(file: File): Promise<FileUploadResult> {
-  const formData = new FormData();
-  formData.append("file", file);
-  const response = await requestApi<ApiResponse<FileUploadResult>>("/files", {
-    method: "POST",
-    body: formData
-  });
-  if (!response.data) {
-    throw new Error(response.message || "上传失败");
-  }
-  return response.data;
+  return uploadFileResource(file);
 }
 
 export async function getFileInfo(id: string | number): Promise<FileRecordDto> {
-  const response = await requestApi<ApiResponse<FileRecordDto>>(`/files/${id}/info`);
-  if (!response.data) {
-    throw new Error(response.message || "查询失败");
-  }
-  return response.data;
+  return getFileInfoResource(id);
 }

@@ -1,4 +1,5 @@
 using Atlas.Application.Abstractions;
+using Atlas.Application.Options;
 using Atlas.Application.Audit.Abstractions;
 using Atlas.Application.Identity.Abstractions;
 using Atlas.Application.Platform.Abstractions;
@@ -14,9 +15,11 @@ using Atlas.Infrastructure.Options;
 using Atlas.Infrastructure.Repositories;
 using Atlas.Infrastructure.Security;
 using Atlas.Infrastructure.Services;
+using Atlas.Infrastructure.Services.FileStorage;
 using Atlas.Infrastructure.Services.Platform;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using ITotpService = Atlas.Application.Abstractions.ITotpService;
 
 namespace Atlas.Infrastructure.DependencyInjection;
@@ -64,6 +67,7 @@ public static class CoreServiceRegistration
         services.AddHostedService<TenantExpirationHostedService>();
         services.AddHostedService<SessionCleanupHostedService>();
         services.AddHostedService<IdempotencyCleanupHostedService>();
+        services.AddHostedService<FileUploadSessionCleanupHostedService>();
 
         // Security
         services.AddScoped<IAuthTokenService, JwtAuthTokenService>();
@@ -165,7 +169,22 @@ public static class CoreServiceRegistration
         // File Storage
         services.AddScoped<FileRecordRepository>();
         services.AddScoped<FileUploadSessionRepository>();
+        services.AddScoped<FileTusUploadSessionRepository>();
         services.AddSingleton<IHostEnvironmentAccessor, HostEnvironmentAccessor>();
+        services.AddScoped<LocalObjectStore>();
+        services.AddScoped<MinioObjectStore>();
+        services.AddScoped<AliyunOssObjectStore>();
+        services.AddScoped<IFileObjectStore>(sp =>
+        {
+            var options = sp.GetRequiredService<IOptions<FileStorageOptions>>().Value;
+            var provider = options.Provider?.Trim().ToLowerInvariant();
+            return provider switch
+            {
+                FileStorageOptions.ProviderMinio => sp.GetRequiredService<MinioObjectStore>(),
+                FileStorageOptions.ProviderOss => sp.GetRequiredService<AliyunOssObjectStore>(),
+                _ => sp.GetRequiredService<LocalObjectStore>()
+            };
+        });
         services.AddScoped<IFileStorageService, LocalFileStorageService>();
 
         // Excel Export

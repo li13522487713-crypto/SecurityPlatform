@@ -107,6 +107,67 @@ export interface FileUploadResult {
   uploadedAt: string;
 }
 
+export interface FileChunkUploadInitRequest {
+  originalName: string;
+  contentType: string;
+  totalSizeBytes: number;
+  totalParts: number;
+}
+
+export interface FileChunkUploadInitResult {
+  sessionId: number;
+  partSizeBytes: number;
+  expiresAt: string;
+}
+
+export interface FileChunkUploadCompleteRequest {
+  originalName: string;
+  contentType: string;
+}
+
+export interface FileUploadSessionProgressDto {
+  sessionId: number;
+  originalName: string;
+  contentType: string;
+  totalSizeBytes: number;
+  uploadedSizeBytes: number;
+  totalParts: number;
+  uploadedPartCount: number;
+  completed: boolean;
+  expiresAt: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface FileSignedUrlResult {
+  url: string;
+  expiresAt: string;
+}
+
+export interface FileInstantCheckResult {
+  exists: boolean;
+  fileId?: number;
+  originalName?: string;
+  contentType?: string;
+  sizeBytes?: number;
+}
+
+export interface FileTusCreateResult {
+  sessionId: number;
+  location: string;
+  uploadOffset: number;
+  uploadLength: number;
+  expiresAt: string;
+}
+
+export interface FileTusStatusResult {
+  sessionId: number;
+  uploadOffset: number;
+  uploadLength: number;
+  completed: boolean;
+  expiresAt: string;
+}
+
 // 表格视图（个人）
 export type TableViewDensity = "compact" | "default" | "comfortable";
 

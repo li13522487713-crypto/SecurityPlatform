@@ -7,8 +7,10 @@ using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.WebApi.Authorization;
 using Atlas.WebApi.Helpers;
+using Atlas.WebApi.Filters;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Text;
 
 namespace Atlas.WebApi.Controllers;
 
@@ -20,6 +22,7 @@ namespace Atlas.WebApi.Controllers;
 [Authorize]
 public sealed class FilesController : ControllerBase
 {
+    private const string TusResumable = "1.0.0";
     private readonly IFileStorageService _fileStorageService;
     private readonly ITenantProvider _tenantProvider;
     private readonly ICurrentUserAccessor _currentUserAccessor;
@@ -38,6 +41,143 @@ public sealed class FilesController : ControllerBase
         _currentUserAccessor = currentUserAccessor;
         _clientContextAccessor = clientContextAccessor;
         _auditRecorder = auditRecorder;
+    }
+
+    /// <summary>Tus 协议探测</summary>
+    [HttpOptions("tus")]
+    [Authorize(Policy = PermissionPolicies.FileUpload)]
+    [SkipIdempotency]
+    public IActionResult TusOptions()
+    {
+        Response.Headers.Append("Tus-Resumable", TusResumable);
+        Response.Headers.Append("Tus-Version", TusResumable);
+        Response.Headers.Append("Tus-Extension", "creation,creation-defer-length");
+        return NoContent();
+    }
+
+    [HttpOptions("tus/{sessionId:long}")]
+    [Authorize(Policy = PermissionPolicies.FileUpload)]
+    [SkipIdempotency]
+    public IActionResult TusUploadOptions(long sessionId)
+    {
+        Response.Headers.Append("Tus-Resumable", TusResumable);
+        Response.Headers.Append("Tus-Version", TusResumable);
+        Response.Headers.Append("Tus-Extension", "creation,creation-defer-length");
+        return NoContent();
+    }
+
+    /// <summary>Tus 创建上传会话</summary>
+    [HttpPost("tus")]
+    [Authorize(Policy = PermissionPolicies.FileUpload)]
+    [SkipIdempotency]
+    public async Task<IActionResult> CreateTusUpload(CancellationToken cancellationToken = default)
+    {
+        if (!Request.Headers.TryGetValue("Upload-Length", out var uploadLengthValues)
+            || !long.TryParse(uploadLengthValues.ToString(), out var uploadLength))
+        {
+            return BadRequest(ApiResponse<object>.Fail(
+                ErrorCodes.ValidationError,
+                "Tus Upload-Length 无效",
+                HttpContext.TraceIdentifier));
+        }
+
+        var tenantId = _tenantProvider.GetTenantId();
+        var currentUser = _currentUserAccessor.GetCurrentUser()
+            ?? throw new UnauthorizedAccessException();
+        var metadata = ParseTusUploadMetadata(
+            Request.Headers["Upload-Metadata"].ToString(),
+            $"upload-{DateTimeOffset.UtcNow:yyyyMMddHHmmss}.bin",
+            "application/octet-stream");
+        var result = await _fileStorageService.CreateTusUploadAsync(
+            tenantId,
+            currentUser.UserId,
+            currentUser.Username ?? currentUser.UserId.ToString(),
+            metadata.OriginalName,
+            metadata.ContentType,
+            uploadLength,
+            cancellationToken);
+
+        Response.Headers.Append("Tus-Resumable", TusResumable);
+        Response.Headers.Append("Location", $"/api/v1/files/tus/{result.SessionId}");
+        Response.Headers.Append("Upload-Offset", result.UploadOffset.ToString());
+        Response.Headers.Append("Upload-Length", result.UploadLength.ToString());
+        Response.Headers.Append("Upload-Expires", result.ExpiresAt.ToString("R"));
+        return StatusCode(StatusCodes.Status201Created);
+    }
+
+    /// <summary>Tus 查询上传状态</summary>
+    [HttpHead("tus/{sessionId:long}")]
+    [Authorize(Policy = PermissionPolicies.FileUpload)]
+    [SkipIdempotency]
+    public async Task<IActionResult> GetTusUploadStatus(
+        long sessionId,
+        CancellationToken cancellationToken = default)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var status = await _fileStorageService.GetTusUploadStatusAsync(tenantId, sessionId, cancellationToken);
+        if (status is null)
+        {
+            return NotFound();
+        }
+
+        Response.Headers.Append("Tus-Resumable", TusResumable);
+        Response.Headers.Append("Upload-Offset", status.UploadOffset.ToString());
+        Response.Headers.Append("Upload-Length", status.UploadLength.ToString());
+        Response.Headers.Append("Upload-Expires", status.ExpiresAt.ToString("R"));
+        Response.Headers.Append("Cache-Control", "no-store");
+        return NoContent();
+    }
+
+    /// <summary>Tus 上传分片追加</summary>
+    [HttpPatch("tus/{sessionId:long}")]
+    [Authorize(Policy = PermissionPolicies.FileUpload)]
+    [SkipIdempotency]
+    public async Task<IActionResult> AppendTusUpload(
+        long sessionId,
+        CancellationToken cancellationToken = default)
+    {
+        if (!string.Equals(Request.Headers["Tus-Resumable"], TusResumable, StringComparison.Ordinal))
+        {
+            return StatusCode(StatusCodes.Status412PreconditionFailed, ApiResponse<object>.Fail(
+                ErrorCodes.ValidationError,
+                "Tus-Resumable 请求头无效",
+                HttpContext.TraceIdentifier));
+        }
+
+        if (string.IsNullOrWhiteSpace(Request.ContentType)
+            || !Request.ContentType.StartsWith("application/offset+octet-stream", StringComparison.OrdinalIgnoreCase))
+        {
+            return BadRequest(ApiResponse<object>.Fail(
+                ErrorCodes.ValidationError,
+                "Tus PATCH Content-Type 必须为 application/offset+octet-stream",
+                HttpContext.TraceIdentifier));
+        }
+
+        if (!Request.Headers.TryGetValue("Upload-Offset", out var uploadOffsetValues)
+            || !long.TryParse(uploadOffsetValues.ToString(), out var uploadOffset))
+        {
+            return BadRequest(ApiResponse<object>.Fail(
+                ErrorCodes.ValidationError,
+                "Tus Upload-Offset 无效",
+                HttpContext.TraceIdentifier));
+        }
+
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _fileStorageService.AppendTusUploadAsync(
+            tenantId,
+            sessionId,
+            uploadOffset,
+            Request.Body,
+            Request.ContentLength ?? 0,
+            cancellationToken);
+
+        Response.Headers.Append("Tus-Resumable", TusResumable);
+        Response.Headers.Append("Upload-Offset", result.UploadOffset.ToString());
+        if (result.FileId.HasValue)
+        {
+            Response.Headers.Append("Upload-File-Id", result.FileId.Value.ToString());
+        }
+        return NoContent();
     }
 
     /// <summary>上传文件</summary>
@@ -89,6 +229,23 @@ public sealed class FilesController : ControllerBase
         return Ok(ApiResponse<FileRecordDto>.Ok(info, HttpContext.TraceIdentifier));
     }
 
+    /// <summary>秒传校验（按 SHA-256 哈希查重）</summary>
+    [HttpGet("instant-check")]
+    [Authorize(Policy = PermissionPolicies.FileUpload)]
+    public async Task<ActionResult<ApiResponse<FileInstantCheckResult>>> InstantCheck(
+        [FromQuery] string sha256,
+        [FromQuery] long sizeBytes,
+        CancellationToken cancellationToken = default)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _fileStorageService.CheckInstantUploadAsync(
+            tenantId,
+            sha256,
+            sizeBytes,
+            cancellationToken);
+        return Ok(ApiResponse<FileInstantCheckResult>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
     /// <summary>下载文件</summary>
     [HttpGet("{id:long}")]
     [Authorize(Policy = PermissionPolicies.FileDownload)]
@@ -97,10 +254,7 @@ public sealed class FilesController : ControllerBase
     {
         var tenantId = _tenantProvider.GetTenantId();
         var result = await _fileStorageService.DownloadAsync(tenantId, id, cancellationToken);
-
-        var encodedName = Uri.EscapeDataString(result.FileName);
-        Response.Headers.Append("Content-Disposition", $"attachment; filename*=UTF-8''{encodedName}");
-        return File(result.Stream, result.ContentType);
+        return await BuildFileDownloadResultAsync(result, cancellationToken);
     }
 
     /// <summary>删除文件（软删除 + 审计）</summary>
@@ -227,7 +381,7 @@ public sealed class FilesController : ControllerBase
     {
         var tenant = new TenantId(tenantId);
         var result = await _fileStorageService.DownloadBySignatureAsync(tenant, id, expires, sig, cancellationToken);
-        return File(result.Stream, result.ContentType, result.FileName);
+        return await BuildFileDownloadResultAsync(result, cancellationToken);
     }
 
     /// <summary>图片上传申请（返回分片会话）</summary>
@@ -297,5 +451,233 @@ public sealed class FilesController : ControllerBase
             ControllerHelper.GetUserAgent(HttpContext),
             _clientContextAccessor.GetCurrent());
         await _auditRecorder.RecordAsync(auditContext, ct);
+    }
+
+    private async Task<IActionResult> BuildFileDownloadResultAsync(
+        FileDownloadResult result,
+        CancellationToken cancellationToken)
+    {
+        Response.Headers["Accept-Ranges"] = "bytes";
+        Response.Headers["ETag"] = result.ETag;
+        Response.Headers["Last-Modified"] = result.LastModifiedAt.ToString("R");
+
+        if (TryParseRange(Request.Headers.Range.ToString(), result.SizeBytes, out var rangeStart, out var rangeEnd)
+            && IsIfRangeMatched(Request.Headers.IfRange.ToString(), result.ETag, result.LastModifiedAt))
+        {
+            var length = rangeEnd - rangeStart + 1;
+            var partialStream = await CreatePartialStreamAsync(result.Stream, rangeStart, length, cancellationToken);
+            Response.StatusCode = StatusCodes.Status206PartialContent;
+            Response.Headers["Content-Range"] = $"bytes {rangeStart}-{rangeEnd}/{result.SizeBytes}";
+            Response.Headers["Content-Length"] = length.ToString();
+            return File(partialStream, result.ContentType, result.FileName);
+        }
+
+        Response.Headers["Content-Length"] = result.SizeBytes.ToString();
+        return File(result.Stream, result.ContentType, result.FileName);
+    }
+
+    private static bool TryParseRange(string rangeHeader, long totalLength, out long start, out long end)
+    {
+        start = 0;
+        end = totalLength - 1;
+        if (string.IsNullOrWhiteSpace(rangeHeader)
+            || !rangeHeader.StartsWith("bytes=", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var range = rangeHeader["bytes=".Length..].Trim();
+        var dashIndex = range.IndexOf('-');
+        if (dashIndex <= 0 || dashIndex == range.Length - 1)
+        {
+            return false;
+        }
+
+        var startPart = range[..dashIndex];
+        var endPart = range[(dashIndex + 1)..];
+        if (!long.TryParse(startPart, out start)
+            || !long.TryParse(endPart, out end))
+        {
+            return false;
+        }
+
+        if (start < 0 || end < start || end >= totalLength)
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    private static bool IsIfRangeMatched(string ifRange, string eTag, DateTimeOffset lastModifiedAt)
+    {
+        if (string.IsNullOrWhiteSpace(ifRange))
+        {
+            return true;
+        }
+
+        if (ifRange.StartsWith("\"", StringComparison.Ordinal)
+            || ifRange.StartsWith("W/\"", StringComparison.OrdinalIgnoreCase))
+        {
+            return string.Equals(ifRange, eTag, StringComparison.Ordinal);
+        }
+
+        if (DateTimeOffset.TryParse(ifRange, out var parsedDate))
+        {
+            return parsedDate >= lastModifiedAt;
+        }
+
+        return false;
+    }
+
+    private static async Task<Stream> CreatePartialStreamAsync(
+        Stream source,
+        long start,
+        long length,
+        CancellationToken cancellationToken)
+    {
+        if (source.CanSeek)
+        {
+            source.Seek(start, SeekOrigin.Begin);
+            return new PartialReadStream(source, length);
+        }
+
+        await SkipBytesAsync(source, start, cancellationToken);
+        return new PartialReadStream(source, length);
+    }
+
+    private static async Task SkipBytesAsync(Stream stream, long bytesToSkip, CancellationToken cancellationToken)
+    {
+        var buffer = new byte[64 * 1024];
+        long skipped = 0;
+        while (skipped < bytesToSkip)
+        {
+            var toRead = (int)Math.Min(buffer.Length, bytesToSkip - skipped);
+            var read = await stream.ReadAsync(buffer.AsMemory(0, toRead), cancellationToken);
+            if (read <= 0)
+            {
+                break;
+            }
+
+            skipped += read;
+        }
+    }
+
+    private static (string OriginalName, string ContentType) ParseTusUploadMetadata(
+        string metadataHeader,
+        string defaultName,
+        string defaultContentType)
+    {
+        if (string.IsNullOrWhiteSpace(metadataHeader))
+        {
+            return (defaultName, defaultContentType);
+        }
+
+        string originalName = defaultName;
+        string contentType = defaultContentType;
+        var pairs = metadataHeader.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        foreach (var pair in pairs)
+        {
+            var tokens = pair.Split(' ', 2, StringSplitOptions.TrimEntries);
+            if (tokens.Length != 2)
+            {
+                continue;
+            }
+
+            var key = tokens[0];
+            var value = DecodeBase64Value(tokens[1]);
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                continue;
+            }
+
+            if (string.Equals(key, "filename", StringComparison.OrdinalIgnoreCase))
+            {
+                originalName = value;
+            }
+            else if (string.Equals(key, "contentType", StringComparison.OrdinalIgnoreCase))
+            {
+                contentType = value;
+            }
+        }
+
+        return (originalName, contentType);
+    }
+
+    private static string DecodeBase64Value(string encoded)
+    {
+        try
+        {
+            var bytes = Convert.FromBase64String(encoded);
+            return Encoding.UTF8.GetString(bytes);
+        }
+        catch
+        {
+            return string.Empty;
+        }
+    }
+
+    private sealed class PartialReadStream : Stream
+    {
+        private readonly Stream _inner;
+        private long _remaining;
+
+        public PartialReadStream(Stream inner, long length)
+        {
+            _inner = inner;
+            _remaining = length;
+        }
+
+        public override bool CanRead => _inner.CanRead;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => _remaining;
+        public override long Position
+        {
+            get => 0;
+            set => throw new NotSupportedException();
+        }
+
+        public override void Flush() => _inner.Flush();
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            if (_remaining <= 0)
+            {
+                return 0;
+            }
+
+            var allowed = (int)Math.Min(count, _remaining);
+            var read = _inner.Read(buffer, offset, allowed);
+            _remaining -= read;
+            return read;
+        }
+
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            if (_remaining <= 0)
+            {
+                return 0;
+            }
+
+            var allowed = (int)Math.Min(buffer.Length, _remaining);
+            var read = await _inner.ReadAsync(buffer[..allowed], cancellationToken);
+            _remaining -= read;
+            return read;
+        }
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                _inner.Dispose();
+            }
+
+            base.Dispose(disposing);
+        }
     }
 }

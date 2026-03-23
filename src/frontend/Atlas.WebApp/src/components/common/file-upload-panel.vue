@@ -48,7 +48,7 @@ import { computed, ref, watch } from "vue";
 import { message } from "ant-design-vue";
 import type { UploadRequestOption as RcCustomRequestOptions } from "ant-design-vue/es/vc-upload/interface";
 import { useI18n } from "vue-i18n";
-import { deleteFile, uploadFile } from "@/services/api";
+import { deleteFileResource, uploadFileResource } from "@/services/api-files";
 import type { FileUploadResult } from "@/types/api";
 
 const props = withDefaults(
@@ -99,7 +99,7 @@ const handleCustomUpload = async (options: RcCustomRequestOptions) => {
 
   uploading.value = true;
   try {
-    const result = await uploadFile(originFile);
+    const result = await uploadFileResource(originFile);
     const nextFiles = [...uploadedFiles.value, result];
     uploadedFiles.value = nextFiles;
     emit("update:modelValue", nextFiles);
@@ -117,7 +117,7 @@ const handleCustomUpload = async (options: RcCustomRequestOptions) => {
 
 const removeFile = async (fileId: number) => {
   try {
-    await deleteFile(fileId);
+    await deleteFileResource(fileId);
     const nextFiles = uploadedFiles.value.filter((item) => item.id !== fileId);
     uploadedFiles.value = nextFiles;
     emit("update:modelValue", nextFiles);

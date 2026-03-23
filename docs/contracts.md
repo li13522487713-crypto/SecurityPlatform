@@ -2241,12 +2241,46 @@ JWT Claims（新增）：
   - `POST /api/v1/files/upload/{sessionId}/part/{partNumber}`
   - `POST /api/v1/files/upload/{sessionId}/complete`
   - `GET /api/v1/files/upload/{sessionId}/progress`
+- Tus 协议上传（Resumable Upload）：
+  - `OPTIONS /api/v1/files/tus`
+  - `OPTIONS /api/v1/files/tus/{sessionId}`
+  - `POST /api/v1/files/tus`
+  - `HEAD /api/v1/files/tus/{sessionId}`
+  - `PATCH /api/v1/files/tus/{sessionId}`
+  - 约束：
+    - 头部必须携带 `Tus-Resumable: 1.0.0`
+    - 创建会话必须携带 `Upload-Length`，可选 `Upload-Metadata`（`filename`、`contentType` 使用 Base64 值）
+    - PATCH 必须携带 `Upload-Offset` 且 `Content-Type=application/offset+octet-stream`
+    - Tus 端点免幂等键校验（协议分片重传依赖 `Upload-Offset`），但保持登录与权限控制
 - 签名 URL：
   - `GET /api/v1/files/{id}/signed-url`
   - `GET /api/v1/files/signed/{id}?tenantId=<guid>&expires=<unix>&sig=<hmac>`
+- Range 下载：
+  - `GET /api/v1/files/{id}` 支持 `Range: bytes=start-end`
+  - 响应包含 `Accept-Ranges`、`ETag`、`Last-Modified`
+  - 命中范围请求时返回 `206 Partial Content` + `Content-Range`
+  - 携带 `If-Range` 且校验失败时回退全量下载
+- 秒传校验：
+  - `GET /api/v1/files/instant-check?sha256=<hex>&sizeBytes=<long>`
+  - 返回 `FileInstantCheckResult`：
+    - `exists`：是否命中
+    - `fileId/originalName/contentType/sizeBytes`：命中时返回
 - 图片流程：
   - `POST /api/v1/files/images/apply`
   - `POST /api/v1/files/images/commit`
+
+#### 上传下载性能基线建议
+
+- 默认分片大小：`2MB`（`FileStorage:ChunkPartSizeBytes`）。
+- 默认并发建议：
+  - 上传并发：2~4（前端按网络与设备能力动态调节）
+  - 下载并发：顺序 Range 拉取（避免浏览器内存峰值抖动）
+- 建议压测口径：
+  - 文件大小：10MB / 100MB / 1GB
+  - 指标：成功率、平均耗时、P95、服务端错误率、客户端中断恢复成功率
+- 生产建议：
+  - 保持 `SignedUrlDefaultExpireSeconds` 在最小可用范围（推荐 300~900 秒）
+  - 启用上传会话清理任务，避免临时目录膨胀
 
 ### 管理台 AI 配置（Phase 14）
 
