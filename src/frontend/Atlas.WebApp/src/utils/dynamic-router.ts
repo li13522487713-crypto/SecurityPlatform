@@ -22,6 +22,9 @@ const pathComponentFallbackMap: Record<string, string> = {
   "/apps/:appId/builder": "../pages/lowcode/AppBuilderPage.vue",
   "/apps/:appId/forms/:id/designer": "../pages/lowcode/FormDesignerPage.vue",
   "/apps/:appId/agents": "../pages/ai/AgentListPage.vue",
+  "/apps/:appId/knowledge-bases": "../pages/ai/KnowledgeBaseListPage.vue",
+  "/apps/:appId/knowledge-bases/:id": "../pages/ai/KnowledgeBaseDetailPage.vue",
+  "/apps/:appId/knowledge-bases/:id/test": "../pages/ai/KnowledgeBaseTestPage.vue",
   "/apps/:appId/workflows": "../pages/workflow/WorkflowListPage.vue",
   "/apps/:appId/prompts": "../pages/ai/AiPromptLibraryPage.vue",
   "/apps/:appId/plugins": "../pages/ai/AiPluginListPage.vue",
@@ -64,6 +67,7 @@ const pathComponentFallbackMap: Record<string, string> = {
   "/ai/agents/:agentId/chat": "../pages/ai/AgentChatPage.vue",
   "/ai/knowledge-bases": "../pages/ai/KnowledgeBaseListPage.vue",
   "/ai/knowledge-bases/:id": "../pages/ai/KnowledgeBaseDetailPage.vue",
+  "/ai/knowledge-bases/:id/test": "../pages/ai/KnowledgeBaseTestPage.vue",
   "/ai/workflows": "../pages/ai/AiWorkflowListPage.vue",
   "/ai/workflows/:id/edit": "../pages/ai/AiWorkflowEditorPage.vue"
 };
@@ -89,6 +93,9 @@ const pathTitleKeyFallbackMap: Record<string, string> = {
   "/apps/:appId/builder": "route.appBuilder",
   "/apps/:appId/forms/:id/designer": "route.formDesigner",
   "/apps/:appId/agents": "route.aiAgentList",
+  "/apps/:appId/knowledge-bases": "route.knowledgeBaseList",
+  "/apps/:appId/knowledge-bases/:id": "route.knowledgeBaseDetail",
+  "/apps/:appId/knowledge-bases/:id/test": "route.knowledgeBaseTest",
   "/apps/:appId/workflows": "route.aiWorkflowList",
   "/apps/:appId/prompts": "route.aiPromptTemplates",
   "/apps/:appId/plugins": "route.aiPluginConfig",
@@ -130,6 +137,7 @@ const pathTitleKeyFallbackMap: Record<string, string> = {
   "/ai/agents/:agentId/chat": "route.agentChat",
   "/ai/knowledge-bases": "route.knowledgeBaseList",
   "/ai/knowledge-bases/:id": "route.knowledgeBaseDetail",
+  "/ai/knowledge-bases/:id/test": "route.knowledgeBaseTest",
   "/ai/workflows": "route.aiWorkflowListGlobal",
   "/ai/workflows/:id/edit": "route.aiWorkflowEditor"
 };

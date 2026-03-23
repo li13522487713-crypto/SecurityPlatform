@@ -3,6 +3,7 @@ import type { ApiResponse, PagedRequest, PagedResult } from "@/types/api";
 
 export type KnowledgeBaseType = 0 | 1 | 2;
 export type DocumentProcessingStatus = 0 | 1 | 2 | 3;
+export type KnowledgeRetrievalStrategy = "vector" | "bm25" | "hybrid";
 
 export interface KnowledgeBaseDto {
   id: number;
@@ -55,6 +56,32 @@ export interface DocumentCreateRequest {
 export interface DocumentResegmentRequest {
   chunkSize?: number;
   overlap?: number;
+  strategy?: 0 | 1 | 2;
+}
+
+export interface KnowledgeRetrievalConfigDto {
+  strategy: KnowledgeRetrievalStrategy;
+  enableRerank: boolean;
+  vectorTopK: number;
+  bm25TopK: number;
+  bm25CandidateCount: number;
+  rrfK: number;
+}
+
+export interface KnowledgeRetrievalConfigUpdateRequest extends KnowledgeRetrievalConfigDto {}
+
+export interface KnowledgeRetrievalTestRequest {
+  query: string;
+  topK?: number;
+}
+
+export interface KnowledgeRetrievalTestItem {
+  knowledgeBaseId: number;
+  documentId: number;
+  chunkId: number;
+  content: string;
+  score: number;
+  documentName?: string;
 }
 
 export interface ChunkCreateRequest {
@@ -218,4 +245,49 @@ export async function deleteChunk(knowledgeBaseId: number, chunkId: number) {
     method: "DELETE"
   });
   if (!response.success) throw new Error(response.message || "删除分片失败");
+}
+
+export async function getKnowledgeRetrievalConfig(knowledgeBaseId: number) {
+  const response = await requestApi<ApiResponse<KnowledgeRetrievalConfigDto>>(
+    `/knowledge-bases/${knowledgeBaseId}/retrieval-config`
+  );
+  if (!response.data) {
+    throw new Error(response.message || "查询检索配置失败");
+  }
+  return response.data;
+}
+
+export async function updateKnowledgeRetrievalConfig(
+  knowledgeBaseId: number,
+  request: KnowledgeRetrievalConfigUpdateRequest
+) {
+  const response = await requestApi<ApiResponse<object>>(
+    `/knowledge-bases/${knowledgeBaseId}/retrieval-config`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request)
+    }
+  );
+  if (!response.success) {
+    throw new Error(response.message || "更新检索配置失败");
+  }
+}
+
+export async function testKnowledgeRetrieval(
+  knowledgeBaseId: number,
+  request: KnowledgeRetrievalTestRequest
+) {
+  const response = await requestApi<ApiResponse<KnowledgeRetrievalTestItem[]>>(
+    `/knowledge-bases/${knowledgeBaseId}/retrieval-test`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request)
+    }
+  );
+  if (!response.data) {
+    throw new Error(response.message || "检索测试失败");
+  }
+  return response.data;
 }

@@ -75,7 +75,7 @@ const isMounted = ref(false);
 onMounted(() => { isMounted.value = true; });
 onUnmounted(() => { isMounted.value = false; });
 
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { message } from "ant-design-vue";
 import type { FormInstance } from "ant-design-vue";
 import {
@@ -84,9 +84,11 @@ import {
   getKnowledgeBasesPaged,
   type KnowledgeBaseDto
 } from "@/services/api-knowledge";
+import { resolveCurrentAppId } from "@/utils/app-context";
 
 const { t } = useI18n();
 
+const route = useRoute();
 const router = useRouter();
 const list = ref<KnowledgeBaseDto[]>([]);
 const loading = ref(false);
@@ -154,6 +156,12 @@ async function loadData() {
 }
 
 function goDetail(id: number) {
+  const currentAppId = resolveCurrentAppId(route);
+  if (currentAppId) {
+    void router.push(`/apps/${currentAppId}/knowledge-bases/${id}`);
+    return;
+  }
+
   void router.push(`/ai/knowledge-bases/${id}`);
 }
 
