@@ -9,6 +9,8 @@ public sealed class AiPlatformOptions
     public EmbeddingOption Embedding { get; init; } = new();
 
     public VectorDbOption VectorDb { get; init; } = new();
+
+    public RetrievalOption Retrieval { get; init; } = new();
 }
 
 public sealed class AiProviderOption
@@ -40,4 +42,19 @@ public sealed class VectorDbOption
     public string QdrantUrl { get; init; } = "http://localhost:6333";
 
     public string QdrantApiKey { get; init; } = string.Empty;
+}
+
+public sealed class RetrievalOption
+{
+    public bool EnableHybrid { get; init; } = true;
+
+    public bool EnableRerank { get; init; } = true;
+
+    public int VectorTopK { get; init; } = 12;
+
+    public int Bm25TopK { get; init; } = 12;
+
+    public int Bm25CandidateCount { get; init; } = 300;
+
+    public int RrfK { get; init; } = 60;
 }

@@ -1,8 +1,10 @@
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
 using Atlas.Core.Tenancy;
+using Atlas.Infrastructure.Options;
 using Atlas.Infrastructure.Repositories;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Atlas.Infrastructure.Services.AiPlatform;
 
@@ -14,6 +16,9 @@ public sealed class RagRetrievalService : IRagRetrievalService
     private readonly IVectorStore _vectorStore;
     private readonly DocumentChunkRepository _chunkRepository;
     private readonly KnowledgeDocumentRepository _knowledgeDocumentRepository;
+    private readonly BM25RetrievalService _bm25RetrievalService;
+    private readonly HybridRetrievalService _hybridRetrievalService;
+    private readonly AiPlatformOptions _options;
     private readonly ILogger<RagRetrievalService> _logger;
 
     public RagRetrievalService(
@@ -21,12 +26,18 @@ public sealed class RagRetrievalService : IRagRetrievalService
         IVectorStore vectorStore,
         DocumentChunkRepository chunkRepository,
         KnowledgeDocumentRepository knowledgeDocumentRepository,
+        BM25RetrievalService bm25RetrievalService,
+        HybridRetrievalService hybridRetrievalService,
+        IOptions<AiPlatformOptions> options,
         ILogger<RagRetrievalService> logger)
     {
         _embeddingProvider = embeddingProvider;
         _vectorStore = vectorStore;
         _chunkRepository = chunkRepository;
         _knowledgeDocumentRepository = knowledgeDocumentRepository;
+        _bm25RetrievalService = bm25RetrievalService;
+        _hybridRetrievalService = hybridRetrievalService;
+        _options = options.Value;
         _logger = logger;
     }
 
@@ -42,20 +53,73 @@ public sealed class RagRetrievalService : IRagRetrievalService
             return [];
         }
 
-        var embedding = await _embeddingProvider.EmbedAsync(
-            new EmbeddingRequest(
-                Model: DefaultEmbeddingModel,
-                Inputs: [query.Trim()],
-                Provider: _embeddingProvider.ProviderName),
-            ct);
-        var queryVector = embedding.Vectors.FirstOrDefault();
-        if (queryVector is null || queryVector.Length == 0)
+        var normalizedKnowledgeBaseIds = knowledgeBaseIds
+            .Where(x => x > 0)
+            .Distinct()
+            .ToArray();
+        if (normalizedKnowledgeBaseIds.Length == 0)
         {
             return [];
         }
 
-        var merged = new List<RagSearchResult>();
-        foreach (var knowledgeBaseId in knowledgeBaseIds.Distinct().Where(x => x > 0))
+        var vectorTopK = Math.Max(topK, _options.Retrieval.VectorTopK);
+        var bm25TopK = Math.Max(topK, _options.Retrieval.Bm25TopK);
+
+        var vectorResults = await SearchVectorAsync(
+            tenantId,
+            normalizedKnowledgeBaseIds,
+            query,
+            vectorTopK,
+            ct);
+        var bm25Results = await _bm25RetrievalService.SearchAsync(
+            tenantId,
+            normalizedKnowledgeBaseIds,
+            query,
+            bm25TopK,
+            ct);
+
+        if (_options.Retrieval.EnableHybrid)
+        {
+            return _hybridRetrievalService.MergeAndRerank(query, vectorResults, bm25Results, topK);
+        }
+
+        return vectorResults
+            .OrderByDescending(x => x.Score)
+            .Take(topK)
+            .ToArray();
+    }
+
+    private async Task<IReadOnlyList<RagSearchResult>> SearchVectorAsync(
+        TenantId tenantId,
+        IReadOnlyList<long> knowledgeBaseIds,
+        string query,
+        int topK,
+        CancellationToken ct)
+    {
+        EmbeddingResult embedding;
+        try
+        {
+            embedding = await _embeddingProvider.EmbedAsync(
+                new EmbeddingRequest(
+                    Model: DefaultEmbeddingModel,
+                    Inputs: [query.Trim()],
+                    Provider: _embeddingProvider.ProviderName),
+                ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "RAG embedding generation failed. Fallback to lexical retrieval only.");
+            return Array.Empty<RagSearchResult>();
+        }
+
+        var queryVector = embedding.Vectors.FirstOrDefault();
+        if (queryVector is null || queryVector.Length == 0)
+        {
+            return Array.Empty<RagSearchResult>();
+        }
+
+        var vectorHits = new List<(long KnowledgeBaseId, VectorSearchResult Hit)>();
+        foreach (var knowledgeBaseId in knowledgeBaseIds)
         {
             IReadOnlyList<VectorSearchResult> vectorResults;
             try
@@ -72,59 +136,58 @@ public sealed class RagRetrievalService : IRagRetrievalService
                 continue;
             }
 
-            if (vectorResults.Count == 0)
-            {
-                continue;
-            }
-
-            var chunkIdCandidates = vectorResults
-                .Select(r => long.TryParse(r.Id, out var id) ? id : 0L)
-                .Where(id => id > 0)
-                .ToArray();
-            if (chunkIdCandidates.Length == 0)
-            {
-                continue;
-            }
-
-            var chunks = await _chunkRepository.QueryByIdsAsync(tenantId, chunkIdCandidates, ct);
-            if (chunks.Count == 0)
-            {
-                continue;
-            }
-
-            var chunkMap = chunks
-                .Where(x => x.KnowledgeBaseId == knowledgeBaseId)
-                .ToDictionary(x => x.Id, x => x);
-            if (chunkMap.Count == 0)
-            {
-                continue;
-            }
-
-            var documentIds = chunkMap.Values.Select(x => x.DocumentId).Distinct().ToArray();
-            var documentMap = (await _knowledgeDocumentRepository.QueryByIdsAsync(tenantId, documentIds, ct))
-                .ToDictionary(x => x.Id, x => x.FileName);
-
-            foreach (var result in vectorResults)
-            {
-                if (!long.TryParse(result.Id, out var chunkId) || !chunkMap.TryGetValue(chunkId, out var chunk))
-                {
-                    continue;
-                }
-
-                documentMap.TryGetValue(chunk.DocumentId, out var documentName);
-                merged.Add(new RagSearchResult(
-                    knowledgeBaseId,
-                    chunk.DocumentId,
-                    chunk.Id,
-                    string.IsNullOrWhiteSpace(result.Content) ? chunk.Content : result.Content,
-                    result.Score,
-                    documentName));
-            }
+            vectorHits.AddRange(vectorResults.Select(hit => (knowledgeBaseId, hit)));
         }
 
-        return merged
-            .OrderByDescending(x => x.Score)
-            .Take(topK)
+        if (vectorHits.Count == 0)
+        {
+            return Array.Empty<RagSearchResult>();
+        }
+
+        var chunkIds = vectorHits
+            .Select(hit => long.TryParse(hit.Hit.Id, out var id) ? id : 0L)
+            .Where(id => id > 0)
+            .Distinct()
             .ToArray();
+        if (chunkIds.Length == 0)
+        {
+            return Array.Empty<RagSearchResult>();
+        }
+
+        var chunks = await _chunkRepository.QueryByIdsAsync(tenantId, chunkIds, ct);
+        if (chunks.Count == 0)
+        {
+            return Array.Empty<RagSearchResult>();
+        }
+
+        var chunkMap = chunks.ToDictionary(chunk => chunk.Id, chunk => chunk);
+        var documentIds = chunks.Select(chunk => chunk.DocumentId).Distinct().ToArray();
+        var documentMap = (await _knowledgeDocumentRepository.QueryByIdsAsync(tenantId, documentIds, ct))
+            .ToDictionary(document => document.Id, document => document.FileName);
+
+        var merged = new List<RagSearchResult>(vectorHits.Count);
+        foreach (var (knowledgeBaseId, result) in vectorHits)
+        {
+            if (!long.TryParse(result.Id, out var chunkId) || !chunkMap.TryGetValue(chunkId, out var chunk))
+            {
+                continue;
+            }
+
+            if (chunk.KnowledgeBaseId != knowledgeBaseId)
+            {
+                continue;
+            }
+
+            documentMap.TryGetValue(chunk.DocumentId, out var documentName);
+            merged.Add(new RagSearchResult(
+                knowledgeBaseId,
+                chunk.DocumentId,
+                chunk.Id,
+                string.IsNullOrWhiteSpace(result.Content) ? chunk.Content : result.Content,
+                result.Score,
+                documentName));
+        }
+
+        return merged;
     }
 }

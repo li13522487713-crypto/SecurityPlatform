@@ -46,6 +46,43 @@ public sealed class DocumentChunkRepository : RepositoryBase<DocumentChunk>
         return await query.ToListAsync(cancellationToken);
     }
 
+    public async Task<List<DocumentChunk>> GetByKnowledgeBasesAsync(
+        TenantId tenantId,
+        IReadOnlyCollection<long> knowledgeBaseIds,
+        int topPerKnowledgeBase = 200,
+        CancellationToken cancellationToken = default)
+    {
+        if (knowledgeBaseIds.Count == 0)
+        {
+            return [];
+        }
+
+        var distinctIds = knowledgeBaseIds
+            .Where(id => id > 0)
+            .Distinct()
+            .ToArray();
+        if (distinctIds.Length == 0)
+        {
+            return [];
+        }
+
+        var chunks = await Db.Queryable<DocumentChunk>()
+            .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(distinctIds, x.KnowledgeBaseId))
+            .OrderBy(x => x.KnowledgeBaseId, OrderByType.Asc)
+            .OrderBy(x => x.Id, OrderByType.Desc)
+            .ToListAsync(cancellationToken);
+
+        if (topPerKnowledgeBase <= 0)
+        {
+            return chunks;
+        }
+
+        return chunks
+            .GroupBy(chunk => chunk.KnowledgeBaseId)
+            .SelectMany(group => group.Take(topPerKnowledgeBase))
+            .ToList();
+    }
+
     public Task DeleteByDocumentAsync(TenantId tenantId, long documentId, CancellationToken cancellationToken)
     {
         return Db.Deleteable<DocumentChunk>()

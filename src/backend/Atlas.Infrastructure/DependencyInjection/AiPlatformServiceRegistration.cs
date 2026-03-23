@@ -88,6 +88,8 @@ public static class AiPlatformServiceRegistration
         services.AddScoped<IAiShortcutCommandService, AiShortcutCommandService>();
         services.AddScoped<IDocumentService, DocumentService>();
         services.AddScoped<IChunkService, ChunkService>();
+        services.AddScoped<BM25RetrievalService>();
+        services.AddScoped<HybridRetrievalService>();
         services.AddScoped<IRagRetrievalService, RagRetrievalService>();
         services.AddScoped<DocumentProcessingService>();
         services.AddScoped<AiWorkflowDefinitionRepository>();
