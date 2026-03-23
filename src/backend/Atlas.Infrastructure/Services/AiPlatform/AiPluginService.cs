@@ -80,6 +80,9 @@ public sealed class AiPluginService : IAiPluginService
         }
 
         ValidateJsonPayload(request.DefinitionJson, "定义配置");
+        ValidateJsonPayload(request.AuthConfigJson, "鉴权配置");
+        ValidateJsonPayload(request.ToolSchemaJson, "工具 Schema");
+        ValidateJsonPayload(request.OpenApiSpecJson, "OpenAPI 规范");
         var plugin = new AiPlugin(
             tenantId,
             normalizedName,
@@ -88,6 +91,11 @@ public sealed class AiPluginService : IAiPluginService
             request.Category?.Trim(),
             request.Type,
             request.DefinitionJson,
+            request.SourceType,
+            request.AuthType,
+            request.AuthConfigJson,
+            request.ToolSchemaJson,
+            request.OpenApiSpecJson,
             _idGeneratorAccessor.NextId());
         await _pluginRepository.AddAsync(plugin, cancellationToken);
         return plugin.Id;
@@ -109,13 +117,21 @@ public sealed class AiPluginService : IAiPluginService
         }
 
         ValidateJsonPayload(request.DefinitionJson, "定义配置");
+        ValidateJsonPayload(request.AuthConfigJson, "鉴权配置");
+        ValidateJsonPayload(request.ToolSchemaJson, "工具 Schema");
+        ValidateJsonPayload(request.OpenApiSpecJson, "OpenAPI 规范");
         plugin.Update(
             normalizedName,
             request.Description?.Trim(),
             request.Icon?.Trim(),
             request.Category?.Trim(),
             request.Type,
-            request.DefinitionJson);
+            request.DefinitionJson,
+            request.SourceType,
+            request.AuthType,
+            request.AuthConfigJson,
+            request.ToolSchemaJson,
+            request.OpenApiSpecJson);
         await _pluginRepository.UpdateAsync(plugin, cancellationToken);
     }
 
@@ -400,6 +416,8 @@ public sealed class AiPluginService : IAiPluginService
             plugin.Icon,
             plugin.Category,
             plugin.Type,
+            plugin.SourceType,
+            plugin.AuthType,
             plugin.Status,
             plugin.IsLocked,
             plugin.CreatedAt,
@@ -414,8 +432,13 @@ public sealed class AiPluginService : IAiPluginService
             plugin.Icon,
             plugin.Category,
             plugin.Type,
+            plugin.SourceType,
+            plugin.AuthType,
             plugin.Status,
             plugin.DefinitionJson,
+            plugin.AuthConfigJson,
+            plugin.ToolSchemaJson,
+            plugin.OpenApiSpecJson,
             plugin.IsLocked,
             plugin.CreatedAt,
             plugin.UpdatedAt,

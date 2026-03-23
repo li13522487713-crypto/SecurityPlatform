@@ -95,6 +95,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             await EnsureTenantDataSourceSchemaAsync(db, cancellationToken);
             await EnsureProductizationSchemaAsync(db, cancellationToken);
             await EnsureWorkflowExecutionSchemaAsync(db, cancellationToken);
+            await EnsureAiPluginSchemaAsync(db, cancellationToken);
         }
         else
         {
@@ -133,6 +134,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             typeof(ModelConfig),
             typeof(Agent),
             typeof(AgentKnowledgeLink),
+            typeof(AgentPluginBinding),
             typeof(Conversation),
             typeof(ChatMessage),
             typeof(KnowledgeBase),
@@ -1370,6 +1372,20 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         await RebuildTableViaOrmAsync<WorkflowExecution>(db, cancellationToken);
     }
 
+    private static async Task EnsureAiPluginSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
+    {
+        if (!db.DbMaintenance.IsAnyTable("AiPlugin", false))
+        {
+            return;
+        }
+
+        await AddColumnIfMissingAsync(db, "AiPlugin", "SourceType", "INTEGER NOT NULL DEFAULT 0", cancellationToken);
+        await AddColumnIfMissingAsync(db, "AiPlugin", "AuthType", "INTEGER NOT NULL DEFAULT 0", cancellationToken);
+        await AddColumnIfMissingAsync(db, "AiPlugin", "AuthConfigJson", "TEXT NOT NULL DEFAULT '{}'", cancellationToken);
+        await AddColumnIfMissingAsync(db, "AiPlugin", "ToolSchemaJson", "TEXT NOT NULL DEFAULT '{}'", cancellationToken);
+        await AddColumnIfMissingAsync(db, "AiPlugin", "OpenApiSpecJson", "TEXT NOT NULL DEFAULT '{}'", cancellationToken);
+    }
+
     private static async Task EnsureAppManifestSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
     {
         if (!db.DbMaintenance.IsAnyTable("AppManifest", false)) return;
@@ -1556,6 +1572,25 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         }
 
         return false;
+    }
+
+    private static async Task AddColumnIfMissingAsync(
+        ISqlSugarClient db,
+        string tableName,
+        string columnName,
+        string columnDefinition,
+        CancellationToken cancellationToken)
+    {
+        var columns = db.DbMaintenance.GetColumnInfosByTableName(tableName, false);
+        var hasColumn = columns.Any(c => string.Equals(c.DbColumnName, columnName, StringComparison.OrdinalIgnoreCase));
+        if (hasColumn)
+        {
+            return;
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        await db.Ado.ExecuteCommandAsync(
+            $"ALTER TABLE {tableName} ADD COLUMN {columnName} {columnDefinition}");
     }
 
     private static async Task EnsureRefreshTokenSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)

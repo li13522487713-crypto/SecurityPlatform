@@ -43,6 +43,7 @@ public static class AiPlatformServiceRegistration
         services.AddScoped<ModelConfigRepository>();
         services.AddScoped<AgentRepository>();
         services.AddScoped<AgentKnowledgeLinkRepository>();
+        services.AddScoped<AgentPluginBindingRepository>();
         services.AddScoped<ConversationRepository>();
         services.AddScoped<ChatMessageRepository>();
         services.AddScoped<KnowledgeBaseRepository>();

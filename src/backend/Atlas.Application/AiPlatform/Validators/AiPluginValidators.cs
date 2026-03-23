@@ -12,6 +12,9 @@ public sealed class AiPluginCreateRequestValidator : AbstractValidator<AiPluginC
         RuleFor(x => x.Icon).MaximumLength(256).When(x => x.Icon is not null);
         RuleFor(x => x.Category).MaximumLength(64).When(x => x.Category is not null);
         RuleFor(x => x.DefinitionJson).MaximumLength(500000).When(x => x.DefinitionJson is not null);
+        RuleFor(x => x.AuthConfigJson).MaximumLength(500000).When(x => x.AuthConfigJson is not null);
+        RuleFor(x => x.ToolSchemaJson).MaximumLength(500000).When(x => x.ToolSchemaJson is not null);
+        RuleFor(x => x.OpenApiSpecJson).MaximumLength(2000000).When(x => x.OpenApiSpecJson is not null);
     }
 }
 
@@ -24,6 +27,9 @@ public sealed class AiPluginUpdateRequestValidator : AbstractValidator<AiPluginU
         RuleFor(x => x.Icon).MaximumLength(256).When(x => x.Icon is not null);
         RuleFor(x => x.Category).MaximumLength(64).When(x => x.Category is not null);
         RuleFor(x => x.DefinitionJson).MaximumLength(500000).When(x => x.DefinitionJson is not null);
+        RuleFor(x => x.AuthConfigJson).MaximumLength(500000).When(x => x.AuthConfigJson is not null);
+        RuleFor(x => x.ToolSchemaJson).MaximumLength(500000).When(x => x.ToolSchemaJson is not null);
+        RuleFor(x => x.OpenApiSpecJson).MaximumLength(2000000).When(x => x.OpenApiSpecJson is not null);
     }
 }
 
