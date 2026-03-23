@@ -85,8 +85,55 @@
       </div>
 
       <div class="chat-input-area">
-        <div class="rag-toggle">
-          <a-checkbox v-model:checked="enableRag">{{ t("ai.chat.enableRag") }}</a-checkbox>
+        <div class="toolbar-row">
+          <div class="rag-toggle">
+            <a-checkbox v-model:checked="enableRag">{{ t("ai.chat.enableRag") }}</a-checkbox>
+          </div>
+          <a-space wrap>
+            <input
+              ref="imageInputRef"
+              type="file"
+              accept="image/*"
+              style="display: none"
+              @change="handleImageSelected"
+            />
+            <a-button size="small" :disabled="isStreaming" @click="triggerImageUpload">
+              {{ t("ai.chat.attachImage") }}
+            </a-button>
+            <a-button
+              size="small"
+              :disabled="isStreaming || !audioRecorder.isSupported.value"
+              @click="handleToggleRecord"
+            >
+              {{ audioRecorder.isRecording.value ? t("ai.chat.stopRecord") : t("ai.chat.startRecord") }}
+            </a-button>
+            <a-button
+              size="small"
+              :disabled="isStreaming || pendingAttachments.length === 0"
+              @click="clearAttachments"
+            >
+              {{ t("ai.chat.clearAttachments") }}
+            </a-button>
+          </a-space>
+        </div>
+        <div v-if="pendingAttachments.length > 0" class="attachment-list">
+          <a-tag
+            v-for="(attachment, index) in pendingAttachments"
+            :key="`${attachment.type}-${index}`"
+            closable
+            @close.prevent="removeAttachment(index)"
+          >
+            {{ attachment.type }}{{ attachment.name ? `: ${attachment.name}` : "" }}
+          </a-tag>
+        </div>
+        <audio
+          v-if="audioRecorder.audioUrl.value"
+          :src="audioRecorder.audioUrl.value"
+          class="audio-preview"
+          controls
+        />
+        <div v-if="audioRecorder.error.value" class="recorder-error">
+          <a-alert type="warning" show-icon :message="audioRecorder.error.value" />
         </div>
         <div class="input-row">
           <a-textarea
@@ -108,7 +155,7 @@
             <a-button
               v-else
               type="primary"
-              :disabled="!currentConvId || !inputText.trim()"
+              :disabled="!currentConvId || (!inputText.trim() && pendingAttachments.length === 0)"
               @click="handleSend"
             >
               {{ t("ai.chat.send") }}
@@ -128,12 +175,16 @@ const { t, locale } = useI18n();
 
 const isMounted = ref(false);
 onMounted(() => { isMounted.value = true; });
-onUnmounted(() => { isMounted.value = false; });
+onUnmounted(() => {
+  isMounted.value = false;
+  clearAttachments();
+});
 
 import { useRoute } from "vue-router";
 import { message } from "ant-design-vue";
 import ChatMessage from "@/components/ai/ChatMessage.vue";
 import { useStreamChat } from "@/composables/useStreamChat";
+import { useAudioRecorder } from "@/composables/useAudioRecorder";
 import type { ReActEventType } from "@/composables/useReActStream";
 import {
   getConversationsPaged,
@@ -142,6 +193,7 @@ import {
   clearConversationContext,
   clearConversationHistory,
   getMessages,
+  type AgentChatAttachment,
   type ConversationDto
 } from "@/services/api-conversation";
 import { getAgentById } from "@/services/api-agent";
@@ -157,7 +209,10 @@ const loadingMessages = ref(false);
 const inputText = ref("");
 const enableRag = ref(false);
 const messagesContainer = ref<HTMLElement | null>(null);
+const imageInputRef = ref<HTMLInputElement | null>(null);
 const userInitial = ref("U");
+const pendingAttachments = ref<AgentChatAttachment[]>([]);
+const audioRecorder = useAudioRecorder();
 
 const chatStore = useStreamChat({
   agentId: agentId.value,
@@ -295,10 +350,13 @@ async function handleClearHistory() {
 }
 
 async function handleSend() {
-  if (!inputText.value.trim() || !currentConvId.value || isStreaming.value) return;
+  if ((!inputText.value.trim() && pendingAttachments.value.length === 0) || !currentConvId.value || isStreaming.value) return;
   const text = inputText.value;
+  const attachments = pendingAttachments.value.map((item) => ({ ...item }));
   inputText.value = "";
-  await chatStore.sendMessage(text);
+  pendingAttachments.value = [];
+  audioRecorder.clear();
+  await chatStore.sendMessage(text, attachments);
 
   if (!isMounted.value) return;
   await scrollToBottom();
@@ -311,6 +369,69 @@ async function handleSend() {
 
 function handleCancel() {
   chatStore.cancelStream();
+}
+
+function triggerImageUpload() {
+  imageInputRef.value?.click();
+}
+
+function handleImageSelected(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) {
+    return;
+  }
+
+  const url = URL.createObjectURL(file);
+  pendingAttachments.value.push({
+    type: "image",
+    url,
+    mimeType: file.type || "image/*",
+    name: file.name
+  });
+  input.value = "";
+}
+
+async function handleToggleRecord() {
+  if (!audioRecorder.isSupported.value) {
+    message.warning(t("ai.chat.recordUnsupported"));
+    return;
+  }
+
+  if (!audioRecorder.isRecording.value) {
+    await audioRecorder.startRecording();
+    return;
+  }
+
+  await audioRecorder.stopRecording();
+  if (!audioRecorder.audioBlob.value) {
+    return;
+  }
+
+  pendingAttachments.value.push({
+    type: "audio",
+    url: audioRecorder.audioUrl.value || undefined,
+    mimeType: audioRecorder.audioBlob.value.type || "audio/webm",
+    name: `record-${Date.now()}.webm`,
+    text: t("ai.chat.recordAttachmentHint")
+  });
+}
+
+function removeAttachment(index: number) {
+  const [removed] = pendingAttachments.value.splice(index, 1);
+  if (removed?.url?.startsWith("blob:")) {
+    URL.revokeObjectURL(removed.url);
+  }
+}
+
+function clearAttachments() {
+  pendingAttachments.value.forEach((item) => {
+    if (item.url?.startsWith("blob:")) {
+      URL.revokeObjectURL(item.url);
+    }
+  });
+  pendingAttachments.value = [];
+  audioRecorder.clear();
 }
 
 function handleKeyDown(e: KeyboardEvent) {
@@ -509,6 +630,14 @@ onMounted(async () => {
   background: #fff;
 }
 
+.toolbar-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
 .react-steps {
   border-top: 1px solid #f0f0f0;
   padding: 8px 16px;
@@ -528,6 +657,19 @@ onMounted(async () => {
 }
 
 .rag-toggle {
+  margin-bottom: 0;
+}
+
+.attachment-list {
+  margin-bottom: 8px;
+}
+
+.audio-preview {
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+.recorder-error {
   margin-bottom: 8px;
 }
 

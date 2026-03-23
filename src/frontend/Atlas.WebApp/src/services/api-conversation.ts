@@ -32,6 +32,16 @@ export interface AgentChatRequest {
   conversationId?: number;
   message: string;
   enableRag?: boolean;
+  attachments?: AgentChatAttachment[];
+}
+
+export interface AgentChatAttachment {
+  type: string;
+  url?: string;
+  fileId?: string;
+  mimeType?: string;
+  name?: string;
+  text?: string;
 }
 
 export type AgentStreamEventMode = "legacy" | "react";
@@ -205,7 +215,7 @@ export function createAgentChatStream(
 
   const afToken = getAntiforgeryToken();
   if (afToken) {
-    headers["X-XSRF-TOKEN"] = afToken;
+    headers["X-CSRF-TOKEN"] = afToken;
   }
 
   const streamUrl =

@@ -1,5 +1,5 @@
 import { ref } from "vue";
-import type { ChatMessageDto } from "@/services/api-conversation";
+import type { AgentChatAttachment, ChatMessageDto } from "@/services/api-conversation";
 import { createAgentChatStream } from "@/services/api-conversation";
 import { useReActStream, type ReActEventType } from "@/composables/useReActStream";
 
@@ -42,8 +42,11 @@ export function useStreamChat(options: UseStreamChatOptions) {
     currentConversationId.value = null;
   }
 
-  async function sendMessage(text: string) {
-    if (isStreaming.value || !text.trim()) return;
+  async function sendMessage(text: string, attachments?: AgentChatAttachment[]) {
+    const normalizedText = text.trim();
+    const normalizedAttachments = (attachments ?? [])
+      .filter((item) => item.type && (item.url || item.fileId || item.text));
+    if (isStreaming.value || (!normalizedText && normalizedAttachments.length === 0)) return;
 
     error.value = null;
     reactStream.reset();
@@ -51,7 +54,7 @@ export function useStreamChat(options: UseStreamChatOptions) {
     const userMsg: StreamChatMessage = {
       id: Date.now(),
       role: "user",
-      content: text.trim(),
+      content: buildUserDisplayText(normalizedText, normalizedAttachments),
       createdAt: new Date().toISOString()
     };
     messages.value.push(userMsg);
@@ -69,8 +72,9 @@ export function useStreamChat(options: UseStreamChatOptions) {
 
     const request = {
       conversationId: currentConversationId.value ?? undefined,
-      message: text.trim(),
-      enableRag: options.enableRag?.()
+      message: normalizedText,
+      enableRag: options.enableRag?.(),
+      attachments: normalizedAttachments.length > 0 ? normalizedAttachments : undefined
     };
 
     const { fetchPromise, abortController: ac } = createAgentChatStream(
@@ -206,4 +210,18 @@ export function useStreamChat(options: UseStreamChatOptions) {
     sendMessage,
     cancelStream
   };
+}
+
+function buildUserDisplayText(text: string, attachments: AgentChatAttachment[]) {
+  if (attachments.length === 0) {
+    return text;
+  }
+
+  const lines = attachments.map((item, index) =>
+    `[${index + 1}] ${item.type}${item.name ? `(${item.name})` : ""}`);
+  if (!text) {
+    return `📎 ${lines.join(", ")}`;
+  }
+
+  return `${text}\n\n📎 ${lines.join(", ")}`;
 }
