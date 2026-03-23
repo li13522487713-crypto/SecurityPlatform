@@ -30,6 +30,8 @@ public sealed class AgentChatService : IAgentChatService
     private readonly ILlmProviderFactory _llmProviderFactory;
     private readonly IRagRetrievalService _ragRetrievalService;
     private readonly IAgentToolCallService _agentToolCallService;
+    private readonly IShortTermMemorySummarizationService _shortTermMemorySummarizationService;
+    private readonly ILongTermMemoryExtractionService _longTermMemoryExtractionService;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<AgentChatService> _logger;
@@ -43,6 +45,8 @@ public sealed class AgentChatService : IAgentChatService
         ILlmProviderFactory llmProviderFactory,
         IRagRetrievalService ragRetrievalService,
         IAgentToolCallService agentToolCallService,
+        IShortTermMemorySummarizationService shortTermMemorySummarizationService,
+        ILongTermMemoryExtractionService longTermMemoryExtractionService,
         IIdGeneratorAccessor idGeneratorAccessor,
         IUnitOfWork unitOfWork,
         ILogger<AgentChatService> logger)
@@ -55,6 +59,8 @@ public sealed class AgentChatService : IAgentChatService
         _llmProviderFactory = llmProviderFactory;
         _ragRetrievalService = ragRetrievalService;
         _agentToolCallService = agentToolCallService;
+        _shortTermMemorySummarizationService = shortTermMemorySummarizationService;
+        _longTermMemoryExtractionService = longTermMemoryExtractionService;
         _idGeneratorAccessor = idGeneratorAccessor;
         _unitOfWork = unitOfWork;
         _logger = logger;
@@ -235,6 +241,13 @@ public sealed class AgentChatService : IAgentChatService
                 afterContextClear: true,
                 limit: ContextWindowSize,
                 linkedCts.Token);
+            var shortTermSummary = await SafeGetShortTermSummaryAsync(tenantId, conversation.Id, linkedCts.Token);
+            var recalledMemories = await SafeRecallLongTermMemoriesAsync(
+                tenantId,
+                userId,
+                agent.Id,
+                request.Message,
+                linkedCts.Token);
             var assistantBuilder = new StringBuilder();
             string? metadata;
             var finalEventEmitted = false;
@@ -264,7 +277,13 @@ public sealed class AgentChatService : IAgentChatService
                 {
                     mode = "tool_call",
                     ragEnabled = false,
-                    toolCallMetadata = toolCallResult.MetadataJson
+                    toolCallMetadata = toolCallResult.MetadataJson,
+                    memory = new
+                    {
+                        shortTermSummaryIncluded = !string.IsNullOrWhiteSpace(shortTermSummary),
+                        longTermMemoryCount = recalledMemories.Count,
+                        longTermMemoryIds = recalledMemories.Select(x => x.Id).ToList()
+                    }
                 });
             }
             else
@@ -272,7 +291,12 @@ public sealed class AgentChatService : IAgentChatService
                 await EmitEventAsync(eventStreamOutput, "thought", "分析问题并准备调用模型生成回复。");
 
                 var ragResults = await TrySearchRagAsync(tenantId, agent.Id, request, linkedCts.Token);
-                var llmMessages = BuildLlmMessages(agent, history, ragResults);
+                var llmMessages = BuildLlmMessages(
+                    agent,
+                    history,
+                    ragResults,
+                    shortTermSummary,
+                    recalledMemories);
 
                 var modelConfig = await ResolveModelConfigAsync(tenantId, agent.ModelConfigId, linkedCts.Token);
                 var providerName = modelConfig?.ProviderType;
@@ -311,7 +335,13 @@ public sealed class AgentChatService : IAgentChatService
                         x.DocumentId,
                         x.ChunkId,
                         x.Score
-                    }).ToList()
+                    }).ToList(),
+                    memory = new
+                    {
+                        shortTermSummaryIncluded = !string.IsNullOrWhiteSpace(shortTermSummary),
+                        longTermMemoryCount = recalledMemories.Count,
+                        longTermMemoryIds = recalledMemories.Select(x => x.Id).ToList()
+                    }
                 });
             }
 
@@ -342,6 +372,15 @@ public sealed class AgentChatService : IAgentChatService
                 await _chatMessageRepository.AddAsync(assistantMessageEntity, linkedCts.Token);
                 await _conversationRepository.UpdateAsync(conversation, linkedCts.Token);
             }, linkedCts.Token);
+
+            await SafePersistMemoryAsync(
+                tenantId,
+                userId,
+                agent.Id,
+                conversation.Id,
+                request.Message,
+                assistantContent,
+                linkedCts.Token);
 
             return new AgentChatResponse(
                 conversation.Id,
@@ -377,6 +416,104 @@ public sealed class AgentChatService : IAgentChatService
         }
 
         await eventStreamOutput(new AgentChatStreamEvent(eventType, data));
+    }
+
+    private async Task<string?> SafeGetShortTermSummaryAsync(
+        TenantId tenantId,
+        long conversationId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await _shortTermMemorySummarizationService.GetSummaryAsync(
+                tenantId,
+                conversationId,
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Load short-term memory failed. conversationId={ConversationId}",
+                conversationId);
+            return null;
+        }
+    }
+
+    private async Task<IReadOnlyList<LongTermMemoryRecallItem>> SafeRecallLongTermMemoriesAsync(
+        TenantId tenantId,
+        long userId,
+        long agentId,
+        string message,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await _longTermMemoryExtractionService.RecallAsync(
+                tenantId,
+                userId,
+                agentId,
+                message,
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Recall long-term memories failed. userId={UserId}, agentId={AgentId}",
+                userId,
+                agentId);
+            return [];
+        }
+    }
+
+    private async Task SafePersistMemoryAsync(
+        TenantId tenantId,
+        long userId,
+        long agentId,
+        long conversationId,
+        string userMessage,
+        string assistantMessage,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _longTermMemoryExtractionService.ExtractAsync(
+                tenantId,
+                userId,
+                agentId,
+                conversationId,
+                userMessage,
+                assistantMessage,
+                cancellationToken);
+
+            var allMessages = await _chatMessageRepository.GetAllByConversationAsync(
+                tenantId,
+                conversationId,
+                cancellationToken);
+            var history = allMessages
+                .Select(item => new ChatHistoryMessage(
+                    item.Id,
+                    item.Role,
+                    item.Content,
+                    item.IsContextCleared,
+                    item.CreatedAt))
+                .ToList();
+            await _shortTermMemorySummarizationService.TrySummarizeAsync(
+                tenantId,
+                conversationId,
+                agentId,
+                userId,
+                history,
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Persist conversation memory failed. conversationId={ConversationId}",
+                conversationId);
+        }
     }
 
     private async Task<Conversation> EnsureConversationAsync(
@@ -417,12 +554,32 @@ public sealed class AgentChatService : IAgentChatService
     private static IReadOnlyList<Atlas.Application.AiPlatform.Models.ChatMessage> BuildLlmMessages(
         Agent agent,
         IReadOnlyList<ChatMessageEntity> history,
-        IReadOnlyList<RagSearchResult> ragResults)
+        IReadOnlyList<RagSearchResult> ragResults,
+        string? shortTermSummary,
+        IReadOnlyList<LongTermMemoryRecallItem> longTermMemories)
     {
-        var messages = new List<Atlas.Application.AiPlatform.Models.ChatMessage>(history.Count + 2);
+        var messages = new List<Atlas.Application.AiPlatform.Models.ChatMessage>(history.Count + 4);
         if (!string.IsNullOrWhiteSpace(agent.SystemPrompt))
         {
             messages.Add(new Atlas.Application.AiPlatform.Models.ChatMessage("system", agent.SystemPrompt));
+        }
+
+        if (!string.IsNullOrWhiteSpace(shortTermSummary))
+        {
+            messages.Add(new Atlas.Application.AiPlatform.Models.ChatMessage(
+                "system",
+                $"以下是历史对话摘要，请结合摘要保持上下文连续性：\n{shortTermSummary}"));
+        }
+
+        if (longTermMemories.Count > 0)
+        {
+            var memoryText = string.Join(
+                "\n",
+                longTermMemories.Select((x, index) =>
+                    $"[MEM#{index + 1}] ({x.MemoryKey}, score:{x.Score:F3}) {x.Content}"));
+            messages.Add(new Atlas.Application.AiPlatform.Models.ChatMessage(
+                "system",
+                $"以下是用户长期偏好/画像记忆，请在回答时优先遵循：\n{memoryText}"));
         }
 
         if (ragResults.Count > 0)

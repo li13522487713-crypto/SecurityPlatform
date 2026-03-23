@@ -96,6 +96,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             await EnsureProductizationSchemaAsync(db, cancellationToken);
             await EnsureWorkflowExecutionSchemaAsync(db, cancellationToken);
             await EnsureAiPluginSchemaAsync(db, cancellationToken);
+            await EnsureAiMemorySchemaAsync(db, cancellationToken);
         }
         else
         {
@@ -137,6 +138,8 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             typeof(AgentPluginBinding),
             typeof(Conversation),
             typeof(ChatMessage),
+            typeof(ShortTermMemory),
+            typeof(LongTermMemory),
             typeof(KnowledgeBase),
             typeof(KnowledgeDocument),
             typeof(DocumentChunk),
@@ -1384,6 +1387,20 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         await AddColumnIfMissingAsync(db, "AiPlugin", "AuthConfigJson", "TEXT NOT NULL DEFAULT '{}'", cancellationToken);
         await AddColumnIfMissingAsync(db, "AiPlugin", "ToolSchemaJson", "TEXT NOT NULL DEFAULT '{}'", cancellationToken);
         await AddColumnIfMissingAsync(db, "AiPlugin", "OpenApiSpecJson", "TEXT NOT NULL DEFAULT '{}'", cancellationToken);
+    }
+
+    private static Task EnsureAiMemorySchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
+    {
+        var missingShortTerm = !db.DbMaintenance.IsAnyTable("ShortTermMemory", false);
+        var missingLongTerm = !db.DbMaintenance.IsAnyTable("LongTermMemory", false);
+        if (!missingShortTerm && !missingLongTerm)
+        {
+            return Task.CompletedTask;
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        db.CodeFirst.InitTables<ShortTermMemory, LongTermMemory>();
+        return Task.CompletedTask;
     }
 
     private static async Task EnsureAppManifestSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)

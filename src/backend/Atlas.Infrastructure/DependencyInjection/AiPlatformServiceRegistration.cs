@@ -46,6 +46,8 @@ public static class AiPlatformServiceRegistration
         services.AddScoped<AgentPluginBindingRepository>();
         services.AddScoped<ConversationRepository>();
         services.AddScoped<ChatMessageRepository>();
+        services.AddScoped<ShortTermMemoryRepository>();
+        services.AddScoped<LongTermMemoryRepository>();
         services.AddScoped<KnowledgeBaseRepository>();
         services.AddScoped<KnowledgeDocumentRepository>();
         services.AddScoped<DocumentChunkRepository>();
@@ -74,6 +76,8 @@ public static class AiPlatformServiceRegistration
         services.AddScoped<IConversationService, ConversationService>();
         services.AddScoped<IAgentChatService, AgentChatService>();
         services.AddScoped<IAgentToolCallService, AgentToolCallService>();
+        services.AddScoped<IShortTermMemorySummarizationService, ShortTermMemorySummarizationService>();
+        services.AddScoped<ILongTermMemoryExtractionService, LongTermMemoryExtractionService>();
         services.AddScoped<IKnowledgeBaseService, KnowledgeBaseService>();
         services.AddScoped<IAiDatabaseService, AiDatabaseService>();
         services.AddScoped<IAiVariableService, AiVariableService>();

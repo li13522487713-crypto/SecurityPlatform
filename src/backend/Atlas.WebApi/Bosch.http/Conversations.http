@@ -130,6 +130,25 @@ GET {{baseUrl}}/api/v1/conversations/{{conversationId}}/messages
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
+### 记忆提取验证（写入长期记忆）
+POST {{baseUrl}}/api/v1/agents/{{agentId}}/chat
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "conversationId": {{conversationId}},
+  "message": "请记住我喜欢简洁中文回答，先给结论再解释。",
+  "enableRag": false
+}
+
+### 记忆注入验证（查看 assistant metadata.memory）
+GET {{baseUrl}}/api/v1/conversations/{{conversationId}}/messages?includeContextMarkers=true
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
 ### 清理上下文
 POST {{baseUrl}}/api/v1/conversations/{{conversationId}}/clear-context
 Authorization: Bearer {{accessToken}}
