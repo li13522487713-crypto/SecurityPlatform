@@ -2,34 +2,34 @@
   <div class="query-rule">
     <a-space>
       <a-select
-        v-model:value="modelValue.field"
+        v-model:value="model.field"
         :options="fieldOptions"
         placeholder="请选择字段"
         style="width: 150px"
         @change="handleFieldChange"
       />
       <a-select
-        v-model:value="modelValue.operator"
+        v-model:value="model.operator"
         :options="operatorOptions"
         placeholder="请选择操作符"
         style="width: 120px"
       />
       
-      <template v-if="['in', 'between'].includes(modelValue.operator)">
+      <template v-if="['in', 'between'].includes(model.operator)">
          <a-input v-model:value="arrayStringValue" placeholder="逗号分隔 (例: a,b,c)" style="width: 200px" />
       </template>
       <template v-else-if="currentFieldType === 'Bool'">
-        <a-switch v-model:checked="modelValue.value" />
+        <a-switch v-model:checked="model.value" />
       </template>
       <template v-else-if="currentFieldType === 'Int' || currentFieldType === 'Long' || currentFieldType === 'Decimal'">
-        <a-input-number v-model:value="modelValue.value" style="width: 200px" />
+        <a-input-number v-model:value="model.value" style="width: 200px" />
       </template>
       <template v-else-if="currentFieldType === 'Date' || currentFieldType === 'DateTime'">
-        <a-date-picker v-if="currentFieldType === 'Date'" v-model:value="modelValue.value" value-format="YYYY-MM-DD" style="width: 200px" />
-        <a-date-picker v-else show-time v-model:value="modelValue.value" value-format="YYYY-MM-DD HH:mm:ss" style="width: 200px" />
+        <a-date-picker v-if="currentFieldType === 'Date'" v-model:value="model.value" value-format="YYYY-MM-DD" style="width: 200px" />
+        <a-date-picker v-else show-time v-model:value="model.value" value-format="YYYY-MM-DD HH:mm:ss" style="width: 200px" />
       </template>
       <template v-else>
-        <a-input v-model:value="modelValue.value" placeholder="请输入值" style="width: 200px" />
+        <a-input v-model:value="model.value" placeholder="请输入值" style="width: 200px" />
       </template>
       
       <a-button type="text" danger @click="$emit('delete')">
@@ -45,12 +45,12 @@ import { DeleteOutlined } from '@ant-design/icons-vue';
 import type { QueryRule } from '@/types/advanced-query';
 import type { DynamicFieldDefinition } from '@/types/dynamic-tables';
 
+const model = defineModel<QueryRule>({ required: true });
 const props = defineProps<{
-  modelValue: QueryRule;
   fields: DynamicFieldDefinition[];
 }>();
 
-const emit = defineEmits(['update:modelValue', 'delete']);
+defineEmits(['delete']);
 
 const fieldOptions = computed(() => {
   return props.fields.map(f => ({
@@ -60,7 +60,7 @@ const fieldOptions = computed(() => {
 });
 
 const currentFieldDef = computed(() => {
-  return props.fields.find(f => f.name === props.modelValue.field);
+  return props.fields.find(f => f.name === model.value.field);
 });
 
 const currentFieldType = computed(() => {
@@ -95,19 +95,19 @@ const operatorOptions = computed(() => {
 });
 
 const handleFieldChange = () => {
-  props.modelValue.operator = operatorOptions.value[0].value;
-  props.modelValue.value = null;
+  model.value.operator = operatorOptions.value[0].value;
+  model.value.value = null;
 };
 
 const arrayStringValue = computed({
   get: () => {
-    if (Array.isArray(props.modelValue.value)) {
-      return props.modelValue.value.join(',');
+    if (Array.isArray(model.value.value)) {
+      return model.value.value.join(',');
     }
-    return props.modelValue.value || '';
+    return model.value.value || '';
   },
   set: (val: string) => {
-    props.modelValue.value = val.split(',').map(s => s.trim()).filter(s => s !== '');
+    model.value.value = val.split(',').map(s => s.trim()).filter(s => s !== '');
   }
 });
 </script>

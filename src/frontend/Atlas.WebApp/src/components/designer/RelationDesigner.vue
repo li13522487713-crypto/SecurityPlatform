@@ -205,15 +205,14 @@ function onDrop(e: DragEvent) {
   const x = e.clientX - rect.left;
   const y = e.clientY - rect.top;
 
-  nodes.value = [
-    ...nodes.value,
-    {
-      id: tableKey,
-      type: "tableNode",
-      position: { x, y },
-      data: { table: tbl }
-    }
-  ];
+  const newNode: Node = {
+    id: tableKey,
+    type: "tableNode",
+    position: { x, y },
+    data: { table: tbl }
+  };
+  // @ts-expect-error TS2589: Vue Flow Node generic causes excessively deep type instantiation with Vue reactivity
+  nodes.value.push(newNode);
 }
 
 // ---- 连线触发关系配置弹窗 ----

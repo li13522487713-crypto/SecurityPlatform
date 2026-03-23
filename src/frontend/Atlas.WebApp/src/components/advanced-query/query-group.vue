@@ -1,7 +1,7 @@
 <template>
   <div class="query-group" :class="{ 'is-root': isRoot }">
     <div class="group-header">
-      <a-radio-group v-model:value="modelValue.conjunction" size="small">
+      <a-radio-group v-model:value="model.conjunction" size="small">
         <a-radio-button value="and">AND</a-radio-button>
         <a-radio-button value="or">OR</a-radio-button>
       </a-radio-group>
@@ -18,20 +18,20 @@
       </div>
     </div>
     <div class="group-body">
-      <template v-if="modelValue.rules && modelValue.rules.length > 0">
+      <template v-if="model.rules && model.rules.length > 0">
         <QueryRule
-          v-for="(rule, index) in modelValue.rules"
+          v-for="(rule, index) in model.rules"
           :key="rule.id"
-          v-model="modelValue.rules[index]"
+          v-model="model.rules[index]"
           :fields="fields"
           @delete="removeRule(index)"
         />
       </template>
-      <template v-if="modelValue.groups && modelValue.groups.length > 0">
+      <template v-if="model.groups && model.groups.length > 0">
         <QueryGroup
-          v-for="(group, index) in modelValue.groups"
+          v-for="(group, index) in model.groups"
           :key="group.id"
-          v-model="modelValue.groups[index]"
+          v-model="model.groups[index]"
           :fields="fields"
           :is-root="false"
           @delete="removeGroup(index)"
@@ -51,26 +51,26 @@ import type { QueryGroup as IQueryGroup } from '@/types/advanced-query';
 import type { DynamicFieldDefinition } from '@/types/dynamic-tables';
 import QueryRule from './query-rule.vue';
 
+const model = defineModel<IQueryGroup>({ required: true });
 const props = defineProps<{
-  modelValue: IQueryGroup;
   fields: DynamicFieldDefinition[];
   isRoot?: boolean;
 }>();
 
-const emit = defineEmits(['update:modelValue', 'delete']);
+defineEmits(['delete']);
 
 const generateId = () => typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2);
 
 const isEmpty = computed(() => {
-  return (!props.modelValue.rules || props.modelValue.rules.length === 0) &&
-         (!props.modelValue.groups || props.modelValue.groups.length === 0);
+  return (!model.value.rules || model.value.rules.length === 0) &&
+         (!model.value.groups || model.value.groups.length === 0);
 });
 
 const addRule = () => {
-  if (!props.modelValue.rules) {
-    props.modelValue.rules = [];
+  if (!model.value.rules) {
+    model.value.rules = [];
   }
-  props.modelValue.rules.push({
+  model.value.rules.push({
     id: generateId(),
     field: props.fields.length > 0 ? props.fields[0].name : '',
     operator: 'eq',
@@ -79,10 +79,10 @@ const addRule = () => {
 };
 
 const addGroup = () => {
-  if (!props.modelValue.groups) {
-    props.modelValue.groups = [];
+  if (!model.value.groups) {
+    model.value.groups = [];
   }
-  props.modelValue.groups.push({
+  model.value.groups.push({
     id: generateId(),
     conjunction: 'and',
     rules: [],
@@ -91,14 +91,14 @@ const addGroup = () => {
 };
 
 const removeRule = (index: number) => {
-  if (props.modelValue.rules) {
-    props.modelValue.rules.splice(index, 1);
+  if (model.value.rules) {
+    model.value.rules.splice(index, 1);
   }
 };
 
 const removeGroup = (index: number) => {
-  if (props.modelValue.groups) {
-    props.modelValue.groups.splice(index, 1);
+  if (model.value.groups) {
+    model.value.groups.splice(index, 1);
   }
 };
 </script>

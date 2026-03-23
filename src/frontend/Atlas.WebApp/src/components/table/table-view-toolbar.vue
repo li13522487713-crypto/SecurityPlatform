@@ -66,7 +66,7 @@
         @check="handleTreeCheck"
         @drop="handleTreeDrop"
       >
-        <template #title="{ key, title, pinned, canHide }">
+        <template #title="{ key, title, pinned }">
           <div class="column-item">
             <span class="column-title" :title="title">{{ title }}</span>
             <div class="column-actions">
