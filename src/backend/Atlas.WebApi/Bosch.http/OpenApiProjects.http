@@ -1,0 +1,116 @@
+@baseUrl = http://localhost:5000
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+@projectId = 0
+@appId = 
+@appSecret = 
+@projectAccessToken = 
+
+### 1) 登录获取 JWT
+# @name login
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+###
+@accessToken = {{login.response.body.$.data.accessToken}}
+
+### 2) 获取 CSRF Token
+# @name antiforgery
+GET {{baseUrl}}/api/v1/secure/antiforgery
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+###
+@csrfToken = {{antiforgery.response.body.$.data.token}}
+
+### 3) 创建开放应用（返回 appId/appSecret）
+# @name createOpenProject
+POST {{baseUrl}}/api/v1/open-api-projects
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "name": "Open SDK Demo App",
+  "description": "用于开放平台第三方调用测试",
+  "scopes": ["open:bots:read", "open:chat", "open:knowledge:read", "open:workflow:run", "open:workflow:read", "open:files:read"],
+  "expiresAt": null
+}
+
+###
+@projectId = {{createOpenProject.response.body.$.data.id}}
+@appId = {{createOpenProject.response.body.$.data.appId}}
+@appSecret = {{createOpenProject.response.body.$.data.appSecret}}
+
+### 4) 查询开放应用列表
+GET {{baseUrl}}/api/v1/open-api-projects?pageIndex=1&pageSize=20
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 5) 更新开放应用
+PUT {{baseUrl}}/api/v1/open-api-projects/{{projectId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "name": "Open SDK Demo App V2",
+  "description": "更新 scopes 与描述",
+  "scopes": ["open:*"],
+  "isActive": true,
+  "expiresAt": null
+}
+
+### 6) 轮换 AppSecret（仅返回一次明文）
+# @name rotateSecret
+POST {{baseUrl}}/api/v1/open-api-projects/{{projectId}}/rotate-secret
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+###
+@appSecret = {{rotateSecret.response.body.$.data.appSecret}}
+
+### 7) 使用 AppId/AppSecret 换取访问令牌（无需 JWT）
+# @name exchangeToken
+POST {{baseUrl}}/api/v1/open-api-projects/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "appId": "{{appId}}",
+  "appSecret": "{{appSecret}}"
+}
+
+###
+@projectAccessToken = {{exchangeToken.response.body.$.data.accessToken}}
+
+### 8) 使用开放应用令牌访问 Open Bots
+GET {{baseUrl}}/api/v1/open/bots?PageIndex=1&PageSize=20
+Authorization: Bearer {{projectAccessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 9) 使用开放应用令牌访问 Open Chat
+POST {{baseUrl}}/api/v1/open/chat/completions
+Authorization: Bearer {{projectAccessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "agentId": 1,
+  "message": "你好，请简要介绍你的能力。",
+  "conversationId": null,
+  "enableRag": false
+}

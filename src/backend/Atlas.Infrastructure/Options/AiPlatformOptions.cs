@@ -15,6 +15,8 @@ public sealed class AiPlatformOptions
     public MemoryOption Memory { get; init; } = new();
 
     public AgentPublicationOption Publication { get; init; } = new();
+
+    public OpenApiProjectOption OpenApiProject { get; init; } = new();
 }
 
 public sealed class AiProviderOption
@@ -85,4 +87,9 @@ public sealed class MemoryOption
 public sealed class AgentPublicationOption
 {
     public int EmbedTokenTtlHours { get; init; } = 24 * 30;
+}
+
+public sealed class OpenApiProjectOption
+{
+    public int AccessTokenExpiresMinutes { get; init; } = 60;
 }

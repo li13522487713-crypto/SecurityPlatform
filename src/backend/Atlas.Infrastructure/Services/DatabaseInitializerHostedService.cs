@@ -171,6 +171,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             typeof(AiShortcutCommand),
             typeof(AiBotPopupInfo),
             typeof(PersonalAccessToken),
+            typeof(OpenApiProject),
             typeof(AuthSession),
             typeof(RefreshToken),
             typeof(ApprovalFlowDefinition),

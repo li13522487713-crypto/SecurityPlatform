@@ -402,6 +402,9 @@ builder.Services.AddAuthentication()
     })
     .AddScheme<AuthenticationSchemeOptions, PatAuthenticationHandler>(PatAuthenticationHandler.SchemeName, options =>
     {
+    })
+    .AddScheme<AuthenticationSchemeOptions, OpenProjectAuthenticationHandler>(OpenProjectAuthenticationHandler.SchemeName, options =>
+    {
     });
 
 builder.Services.AddAuthorization(options =>

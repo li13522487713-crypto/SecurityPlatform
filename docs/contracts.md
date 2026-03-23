@@ -2802,3 +2802,66 @@ interface TtsSynthesizeRequest {
 type EvaluationTaskStatus = 0 | 1 | 2 | 3; // Pending / Running / Completed / Failed
 type EvaluationCaseStatus = 0 | 1 | 2 | 3; // Pending / Passed / Failed / Error
 ```
+
+---
+
+## Open API Projects 契约（Phase 3）
+
+### 路由前缀
+
+`api/v1/open-api-projects`
+
+### 管理端点
+
+| 方法 | 路由 | 说明 | 权限 |
+|---|---|---|---|
+| GET | `/` | 分页查询当前用户创建的开放应用 | `pat:view` |
+| POST | `/` | 创建开放应用（返回一次性 `appSecret`） | `pat:create` |
+| PUT | `/{id}` | 更新开放应用（名称/描述/scopes/状态/到期时间） | `pat:update` |
+| POST | `/{id}/rotate-secret` | 轮换 `appSecret`（返回一次性明文） | `pat:update` |
+| DELETE | `/{id}` | 软删除（禁用）开放应用 | `pat:delete` |
+
+### 令牌交换端点
+
+| 方法 | 路由 | 说明 | 鉴权 |
+|---|---|---|---|
+| POST | `/token` | 使用 `AppId + AppSecret` 交换开放平台访问令牌 | 匿名（要求 `X-Tenant-Id`） |
+
+请求体：
+
+```json
+{
+  "appId": "atlas_77b7dce58d6e0a8b",
+  "appSecret": "osk_..."
+}
+```
+
+响应体（`data`）：
+
+```json
+{
+  "accessToken": "eyJhbGciOiJIUzI1NiIs...",
+  "tokenType": "Bearer",
+  "expiresAt": "2026-03-23T12:00:00+00:00",
+  "projectId": 123,
+  "appId": "atlas_77b7dce58d6e0a8b",
+  "scopes": ["open:*"]
+}
+```
+
+### Open 接口鉴权扩展
+
+以下 Open 接口现支持两种 Bearer 令牌：
+
+1. 个人访问令牌（PAT）；
+2. 开放应用访问令牌（由 `/open-api-projects/token` 交换得到）。
+
+适用接口：
+
+- `/api/v1/open/bots`
+- `/api/v1/open/chat/*`
+- `/api/v1/open/knowledge/*`
+- `/api/v1/open/workflows/*`
+- `/api/v1/open/files/*`
+
+两种令牌均继续遵循 scope 校验（如 `open:bots:read`、`open:chat`、`open:*`）。

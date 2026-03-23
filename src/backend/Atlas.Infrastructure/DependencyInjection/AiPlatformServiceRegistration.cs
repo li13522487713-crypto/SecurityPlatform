@@ -70,6 +70,7 @@ public static class AiPlatformServiceRegistration
         services.AddScoped<AiAppResourceCopyTaskRepository>();
         services.AddScoped<AiPromptTemplateRepository>();
         services.AddScoped<PersonalAccessTokenRepository>();
+        services.AddScoped<OpenApiProjectRepository>();
         services.AddScoped<AiProductCategoryRepository>();
         services.AddScoped<AiMarketplaceProductRepository>();
         services.AddScoped<AiMarketplaceFavoriteRepository>();
@@ -93,6 +94,7 @@ public static class AiPlatformServiceRegistration
         services.AddScoped<IAiAppService, AiAppService>();
         services.AddScoped<IAiPromptService, AiPromptService>();
         services.AddScoped<IPersonalAccessTokenService, PersonalAccessTokenService>();
+        services.AddScoped<IOpenApiProjectService, OpenApiProjectService>();
         services.AddScoped<IAiMarketplaceService, AiMarketplaceService>();
         services.AddScoped<IAiSearchService, AiSearchService>();
         services.AddScoped<IAiMemoryService, AiMemoryService>();

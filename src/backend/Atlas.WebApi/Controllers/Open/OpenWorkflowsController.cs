@@ -10,7 +10,7 @@ namespace Atlas.WebApi.Controllers.Open;
 
 [ApiController]
 [Route("api/v1/open/workflows")]
-[Authorize(AuthenticationSchemes = PatAuthenticationHandler.SchemeName)]
+[Authorize(AuthenticationSchemes = $"{PatAuthenticationHandler.SchemeName},{OpenProjectAuthenticationHandler.SchemeName}")]
 public sealed class OpenWorkflowsController : ControllerBase
 {
     private readonly IAiWorkflowExecutionService _executionService;

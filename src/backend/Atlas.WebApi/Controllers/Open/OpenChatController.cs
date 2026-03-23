@@ -11,7 +11,7 @@ namespace Atlas.WebApi.Controllers.Open;
 
 [ApiController]
 [Route("api/v1/open/chat")]
-[Authorize(AuthenticationSchemes = PatAuthenticationHandler.SchemeName)]
+[Authorize(AuthenticationSchemes = $"{PatAuthenticationHandler.SchemeName},{OpenProjectAuthenticationHandler.SchemeName}")]
 public sealed class OpenChatController : ControllerBase
 {
     private readonly IAgentChatService _chatService;
