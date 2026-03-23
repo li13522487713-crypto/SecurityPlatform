@@ -10,6 +10,7 @@ public interface ILongTermMemoryExtractionService
         long userId,
         long agentId,
         string query,
+        int? topK,
         CancellationToken cancellationToken);
 
     Task ExtractAsync(

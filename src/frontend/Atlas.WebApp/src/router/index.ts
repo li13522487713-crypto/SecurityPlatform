@@ -61,6 +61,7 @@ const AiPluginDetailPage = () => import("@/pages/ai/AiPluginDetailPage.vue");
 const AiPluginApiEditorPage = () => import("@/pages/ai/AiPluginApiEditorPage.vue");
 const AgentListPage = () => import("@/pages/ai/AgentListPage.vue");
 const AgentEditorPage = () => import("@/pages/ai/AgentEditorPage.vue");
+const UserMemorySettingsPage = () => import("@/pages/ai/UserMemorySettingsPage.vue");
 const KnowledgeBaseListPage = () => import("@/pages/ai/KnowledgeBaseListPage.vue");
 const KnowledgeBaseDetailPage = () => import("@/pages/ai/KnowledgeBaseDetailPage.vue");
 const KnowledgeBaseTestPage = () => import("@/pages/ai/KnowledgeBaseTestPage.vue");
@@ -140,6 +141,7 @@ const router = createRouter({
     { path: "/apps/:appId/forms/:id/designer", name: "app-workspace-form-designer", component: FormDesignerPage, meta: { requiresAuth: true, title: "表单设计器", titleKey: "route.formDesigner", requiresPermission: "apps:update" } },
     { path: "/apps/:appId/flows", name: "app-workspace-flows", component: AppFlowsPage, meta: { requiresAuth: true, title: "流程管理", titleKey: "route.processManage", requiresPermission: "apps:view" } },
     { path: "/apps/:appId/agents", name: "app-workspace-agents", component: AgentListPage, meta: { requiresAuth: true, title: "Agent 列表", titleKey: "route.aiAgentList", requiresPermission: "apps:view" } },
+    { path: "/apps/:appId/memories", name: "app-workspace-memories", component: UserMemorySettingsPage, meta: { requiresAuth: true, title: "记忆管理", titleKey: "route.aiMemorySettings", requiresPermission: "apps:view" } },
     { path: "/apps/:appId/knowledge-bases", name: "app-workspace-knowledge-bases", component: KnowledgeBaseListPage, meta: { requiresAuth: true, title: "知识库列表", titleKey: "route.knowledgeBaseList", requiresPermission: "apps:view" } },
     { path: "/apps/:appId/knowledge-bases/:id", name: "app-workspace-knowledge-base-detail", component: KnowledgeBaseDetailPage, meta: { requiresAuth: true, title: "知识库详情", titleKey: "route.knowledgeBaseDetail", requiresPermission: "apps:view" } },
     { path: "/apps/:appId/knowledge-bases/:id/test", name: "app-workspace-knowledge-base-test", component: KnowledgeBaseTestPage, meta: { requiresAuth: true, title: "检索测试", titleKey: "route.knowledgeBaseTest", requiresPermission: "apps:view" } },
@@ -183,6 +185,7 @@ const router = createRouter({
     { path: "/ai/shortcuts", name: "ai-shortcuts-static", component: AiShortcutsPage, meta: { requiresAuth: true, title: "快捷命令", titleKey: "route.aiShortcuts" } },
     { path: "/ai/search", name: "ai-search-static", component: AiSearchResultsPage, meta: { requiresAuth: true, title: "统一搜索", titleKey: "route.aiSearch" } },
     { path: "/ai/marketplace", name: "ai-marketplace-static", component: AiMarketplacePage, meta: { requiresAuth: true, title: "应用市场", titleKey: "route.aiMarketplace" } },
+    { path: "/ai/memories", name: "ai-memories-static", component: UserMemorySettingsPage, meta: { requiresAuth: true, title: "记忆管理", titleKey: "route.aiMemorySettings" } },
     { path: "/ai/knowledge-bases", name: "ai-knowledge-bases-static", component: KnowledgeBaseListPage, meta: { requiresAuth: true, title: "知识库列表", titleKey: "route.knowledgeBaseList" } },
     { path: "/ai/knowledge-bases/:id", name: "ai-knowledge-base-detail-static", component: KnowledgeBaseDetailPage, meta: { requiresAuth: true, title: "知识库详情", titleKey: "route.knowledgeBaseDetail" } },
     { path: "/ai/knowledge-bases/:id/test", name: "ai-knowledge-base-test-static", component: KnowledgeBaseTestPage, meta: { requiresAuth: true, title: "检索测试", titleKey: "route.knowledgeBaseTest" } },

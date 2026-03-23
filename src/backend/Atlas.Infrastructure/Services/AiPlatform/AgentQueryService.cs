@@ -69,6 +69,10 @@ public sealed class AgentQueryService : IAgentQueryService
             NullIfEpoch(entity.UpdatedAt),
             NullIfEpoch(entity.PublishedAt),
             entity.PublishVersion,
+            entity.EnableMemory,
+            entity.EnableShortTermMemory,
+            entity.EnableLongTermMemory,
+            entity.LongTermMemoryTopK,
             links.Select(x => x.KnowledgeBaseId).ToArray(),
             bindings.Select(binding => new AgentPluginBindingItem(
                 binding.PluginId,

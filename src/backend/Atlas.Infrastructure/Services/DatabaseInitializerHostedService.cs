@@ -688,6 +688,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             ("Agent 编辑", "/ai/agents/:id/edit", "/ai", 17, "C", "ai/AgentEditorPage", "edit", PermissionCodes.AgentView, null, false, true, "0", "0", PermissionCodes.AgentView, true),
             ("知识库管理", "/ai/knowledge-bases", "/ai", 18, "C", "ai/KnowledgeBaseListPage", "book", PermissionCodes.KnowledgeBaseView, null, false, true, "0", "0", PermissionCodes.KnowledgeBaseView, false),
             ("知识库详情", "/ai/knowledge-bases/:id", "/ai", 19, "C", "ai/KnowledgeBaseDetailPage", "read", PermissionCodes.KnowledgeBaseView, null, false, true, "0", "0", PermissionCodes.KnowledgeBaseView, true),
+            ("记忆管理", "/ai/memories", "/ai", 20, "C", "ai/UserMemorySettingsPage", "history", PermissionCodes.AgentView, null, false, true, "0", "0", PermissionCodes.AgentView, false),
             ("数据库管理", "/ai/databases", "/ai", 20, "C", "ai/AiDatabaseListPage", "database", PermissionCodes.AiDatabaseView, null, false, true, "0", "0", PermissionCodes.AiDatabaseView, false),
             ("数据库详情", "/ai/databases/:id", "/ai", 21, "C", "ai/AiDatabaseDetailPage", "table", PermissionCodes.AiDatabaseView, null, false, true, "0", "0", PermissionCodes.AiDatabaseView, true),
             ("变量管理", "/ai/variables", "/ai", 22, "C", "ai/AiVariablesPage", "code", PermissionCodes.AiVariableView, null, false, true, "0", "0", PermissionCodes.AiVariableView, false),
@@ -985,6 +986,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             "/settings/ai/model-configs",
             "/ai/agents",
             "/ai/knowledge-bases",
+            "/ai/memories",
             "/ai/databases",
             "/ai/variables",
             "/ai/plugins",
@@ -1389,18 +1391,23 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         await AddColumnIfMissingAsync(db, "AiPlugin", "OpenApiSpecJson", "TEXT NOT NULL DEFAULT '{}'", cancellationToken);
     }
 
-    private static Task EnsureAiMemorySchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
+    private static async Task EnsureAiMemorySchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
     {
         var missingShortTerm = !db.DbMaintenance.IsAnyTable("ShortTermMemory", false);
         var missingLongTerm = !db.DbMaintenance.IsAnyTable("LongTermMemory", false);
-        if (!missingShortTerm && !missingLongTerm)
+        if (missingShortTerm || missingLongTerm)
         {
-            return Task.CompletedTask;
+            cancellationToken.ThrowIfCancellationRequested();
+            db.CodeFirst.InitTables<ShortTermMemory, LongTermMemory>();
         }
 
-        cancellationToken.ThrowIfCancellationRequested();
-        db.CodeFirst.InitTables<ShortTermMemory, LongTermMemory>();
-        return Task.CompletedTask;
+        if (db.DbMaintenance.IsAnyTable("Agent", false))
+        {
+            await AddColumnIfMissingAsync(db, "Agent", "EnableMemory", "INTEGER NOT NULL DEFAULT 1", cancellationToken);
+            await AddColumnIfMissingAsync(db, "Agent", "EnableShortTermMemory", "INTEGER NOT NULL DEFAULT 1", cancellationToken);
+            await AddColumnIfMissingAsync(db, "Agent", "EnableLongTermMemory", "INTEGER NOT NULL DEFAULT 1", cancellationToken);
+            await AddColumnIfMissingAsync(db, "Agent", "LongTermMemoryTopK", "INTEGER NOT NULL DEFAULT 3", cancellationToken);
+        }
     }
 
     private static async Task EnsureAppManifestSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)

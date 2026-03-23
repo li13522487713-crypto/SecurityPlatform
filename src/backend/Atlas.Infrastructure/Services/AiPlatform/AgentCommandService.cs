@@ -59,7 +59,11 @@ public sealed class AgentCommandService : IAgentCommandService
             modelConfigId,
             request.ModelName,
             request.Temperature,
-            request.MaxTokens);
+            request.MaxTokens,
+            request.EnableMemory,
+            request.EnableShortTermMemory,
+            request.EnableLongTermMemory,
+            request.LongTermMemoryTopK);
 
         await _agentRepository.AddAsync(entity, cancellationToken);
         return entity.Id;
@@ -79,7 +83,11 @@ public sealed class AgentCommandService : IAgentCommandService
             modelConfigId,
             request.ModelName,
             request.Temperature,
-            request.MaxTokens);
+            request.MaxTokens,
+            request.EnableMemory,
+            request.EnableShortTermMemory,
+            request.EnableLongTermMemory,
+            request.LongTermMemoryTopK);
 
         var knowledgeIds = request.KnowledgeBaseIds?
             .Where(x => x > 0)

@@ -16,6 +16,10 @@ public sealed class Agent : TenantEntity
         UpdatedAt = DateTime.UnixEpoch;
         PublishedAt = DateTime.UnixEpoch;
         Status = AgentStatus.Draft;
+        EnableMemory = true;
+        EnableShortTermMemory = true;
+        EnableLongTermMemory = true;
+        LongTermMemoryTopK = 3;
     }
 
     public Agent(
@@ -32,6 +36,10 @@ public sealed class Agent : TenantEntity
         CreatedAt = DateTime.UtcNow;
         UpdatedAt = CreatedAt;
         PublishedAt = DateTime.UnixEpoch;
+        EnableMemory = true;
+        EnableShortTermMemory = true;
+        EnableLongTermMemory = true;
+        LongTermMemoryTopK = 3;
     }
 
     public string Name { get; private set; }
@@ -48,6 +56,10 @@ public sealed class Agent : TenantEntity
     public DateTime? UpdatedAt { get; private set; }
     public DateTime? PublishedAt { get; private set; }
     public int PublishVersion { get; private set; }
+    public bool EnableMemory { get; private set; }
+    public bool EnableShortTermMemory { get; private set; }
+    public bool EnableLongTermMemory { get; private set; }
+    public int LongTermMemoryTopK { get; private set; }
 
     public void Update(
         string name,
@@ -57,7 +69,11 @@ public sealed class Agent : TenantEntity
         long? modelConfigId,
         string? modelName,
         float? temperature,
-        int? maxTokens)
+        int? maxTokens,
+        bool? enableMemory = null,
+        bool? enableShortTermMemory = null,
+        bool? enableLongTermMemory = null,
+        int? longTermMemoryTopK = null)
     {
         Name = name;
         Description = description ?? string.Empty;
@@ -79,6 +95,26 @@ public sealed class Agent : TenantEntity
         if (!MaxTokens.HasValue)
         {
             MaxTokens = 0;
+        }
+
+        if (enableMemory.HasValue)
+        {
+            EnableMemory = enableMemory.Value;
+        }
+
+        if (enableShortTermMemory.HasValue)
+        {
+            EnableShortTermMemory = enableShortTermMemory.Value;
+        }
+
+        if (enableLongTermMemory.HasValue)
+        {
+            EnableLongTermMemory = enableLongTermMemory.Value;
+        }
+
+        if (longTermMemoryTopK.HasValue && longTermMemoryTopK.Value > 0)
+        {
+            LongTermMemoryTopK = longTermMemoryTopK.Value;
         }
         UpdatedAt = DateTime.UtcNow;
     }
@@ -112,7 +148,11 @@ public sealed class Agent : TenantEntity
             ModelConfigId,
             ModelName,
             Temperature,
-            MaxTokens);
+            MaxTokens,
+            EnableMemory,
+            EnableShortTermMemory,
+            EnableLongTermMemory,
+            LongTermMemoryTopK);
         return duplicate;
     }
 }

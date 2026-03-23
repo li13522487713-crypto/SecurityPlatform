@@ -28,6 +28,10 @@ export interface AgentDetail {
   updatedAt?: string;
   publishedAt?: string;
   publishVersion: number;
+  enableMemory: boolean;
+  enableShortTermMemory: boolean;
+  enableLongTermMemory: boolean;
+  longTermMemoryTopK: number;
   knowledgeBaseIds?: number[];
   pluginBindings?: AgentPluginBindingItem[];
 }
@@ -54,6 +58,10 @@ export interface AgentCreateRequest {
   modelName?: string;
   temperature?: number;
   maxTokens?: number;
+  enableMemory?: boolean;
+  enableShortTermMemory?: boolean;
+  enableLongTermMemory?: boolean;
+  longTermMemoryTopK?: number;
 }
 
 export interface AgentUpdateRequest extends AgentCreateRequest {

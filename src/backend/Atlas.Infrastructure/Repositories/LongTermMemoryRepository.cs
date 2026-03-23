@@ -30,6 +30,40 @@ public sealed class LongTermMemoryRepository : RepositoryBase<LongTermMemory>
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<(List<LongTermMemory> Items, long Total)> GetPagedByUserAsync(
+        TenantId tenantId,
+        long userId,
+        long? agentId,
+        string? keyword,
+        int pageIndex,
+        int pageSize,
+        CancellationToken cancellationToken)
+    {
+        var query = Db.Queryable<LongTermMemory>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.UserId == userId);
+
+        if (agentId.HasValue && agentId.Value > 0)
+        {
+            query = query.Where(x => x.AgentId == agentId.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(keyword))
+        {
+            var normalized = keyword.Trim();
+            query = query.Where(x =>
+                x.Content.Contains(normalized) ||
+                x.MemoryKey.Contains(normalized) ||
+                x.Source.Contains(normalized));
+        }
+
+        var total = await query.CountAsync(cancellationToken);
+        var items = await query
+            .OrderBy(x => x.LastReferencedAt, OrderByType.Desc)
+            .OrderBy(x => x.Id, OrderByType.Desc)
+            .ToPageListAsync(pageIndex, pageSize, cancellationToken);
+        return (items, total);
+    }
+
     public async Task<IReadOnlyList<LongTermMemory>> QueryByKeysAsync(
         TenantId tenantId,
         long userId,
@@ -105,5 +139,32 @@ public sealed class LongTermMemoryRepository : RepositoryBase<LongTermMemory>
         await Db.Deleteable<LongTermMemory>()
             .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(idsToDelete, x.Id))
             .ExecuteCommandAsync(cancellationToken);
+    }
+
+    public Task<int> DeleteByUserAsync(
+        TenantId tenantId,
+        long userId,
+        long memoryId,
+        CancellationToken cancellationToken)
+    {
+        return Db.Deleteable<LongTermMemory>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.UserId == userId && x.Id == memoryId)
+            .ExecuteCommandAsync(cancellationToken);
+    }
+
+    public Task<int> DeleteByUserAndAgentAsync(
+        TenantId tenantId,
+        long userId,
+        long? agentId,
+        CancellationToken cancellationToken)
+    {
+        var delete = Db.Deleteable<LongTermMemory>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.UserId == userId);
+        if (agentId.HasValue && agentId.Value > 0)
+        {
+            delete = delete.Where(x => x.AgentId == agentId.Value);
+        }
+
+        return delete.ExecuteCommandAsync(cancellationToken);
     }
 }

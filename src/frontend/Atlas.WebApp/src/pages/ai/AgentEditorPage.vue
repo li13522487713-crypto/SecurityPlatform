@@ -36,6 +36,31 @@
               <a-input v-model:value="knowledgeBaseInput" :placeholder="t('ai.agent.kbPlaceholder')" />
             </a-form-item>
 
+            <a-form-item :label="t('ai.agent.memoryEnable')">
+              <a-switch v-model:checked="form.enableMemory" />
+            </a-form-item>
+            <a-form-item :label="t('ai.agent.memoryShortTermEnable')">
+              <a-switch
+                v-model:checked="form.enableShortTermMemory"
+                :disabled="!form.enableMemory"
+              />
+            </a-form-item>
+            <a-form-item :label="t('ai.agent.memoryLongTermEnable')">
+              <a-switch
+                v-model:checked="form.enableLongTermMemory"
+                :disabled="!form.enableMemory"
+              />
+            </a-form-item>
+            <a-form-item :label="t('ai.agent.memoryLongTermTopK')">
+              <a-input-number
+                v-model:value="form.longTermMemoryTopK"
+                :min="1"
+                :max="10"
+                style="width: 100%"
+                :disabled="!form.enableMemory || !form.enableLongTermMemory"
+              />
+            </a-form-item>
+
             <a-form-item :label="t('ai.agent.labelPluginBindings')">
               <div class="tool-binding-list">
                 <div v-for="(binding, index) in pluginBindings" :key="binding.rowId" class="tool-binding-row">
@@ -155,7 +180,11 @@ const form = reactive({
   modelConfigId: undefined as number | undefined,
   modelName: "",
   temperature: 1,
-  maxTokens: 2048
+  maxTokens: 2048,
+  enableMemory: true,
+  enableShortTermMemory: true,
+  enableLongTermMemory: true,
+  longTermMemoryTopK: 3
 });
 
 const modelOptions = computed(() =>
@@ -207,7 +236,11 @@ async function loadData() {
       modelConfigId: detail.modelConfigId,
       modelName: detail.modelName || "",
       temperature: detail.temperature ?? 1,
-      maxTokens: detail.maxTokens ?? 2048
+      maxTokens: detail.maxTokens ?? 2048,
+      enableMemory: detail.enableMemory ?? true,
+      enableShortTermMemory: detail.enableShortTermMemory ?? true,
+      enableLongTermMemory: detail.enableLongTermMemory ?? true,
+      longTermMemoryTopK: detail.longTermMemoryTopK ?? 3
     });
     knowledgeBaseInput.value = (detail.knowledgeBaseIds || []).join(",");
     pluginBindings.value = (detail.pluginBindings || []).map((binding, index) => ({
@@ -286,6 +319,10 @@ async function handleSave() {
       modelName: form.modelName || undefined,
       temperature: form.temperature,
       maxTokens: form.maxTokens,
+      enableMemory: form.enableMemory,
+      enableShortTermMemory: form.enableShortTermMemory,
+      enableLongTermMemory: form.enableLongTermMemory,
+      longTermMemoryTopK: form.longTermMemoryTopK,
       knowledgeBaseIds: parseKnowledgeBaseIds(),
       pluginBindings: pluginBindings.value
         .filter((binding) => typeof binding.pluginId === "number" && binding.pluginId > 0)

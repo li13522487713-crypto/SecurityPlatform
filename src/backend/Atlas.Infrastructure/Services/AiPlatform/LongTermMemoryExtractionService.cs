@@ -47,6 +47,7 @@ public sealed class LongTermMemoryExtractionService : ILongTermMemoryExtractionS
         long userId,
         long agentId,
         string query,
+        int? topK,
         CancellationToken cancellationToken)
     {
         if (!_options.Enabled)
@@ -67,6 +68,7 @@ public sealed class LongTermMemoryExtractionService : ILongTermMemoryExtractionS
 
         var normalizedQuery = NormalizeForKey(query);
         var queryTokens = Tokenize(query);
+        var recallTopK = Math.Clamp(topK ?? _options.LongTermRecallTopK, 1, 10);
         var scored = candidates
             .Select(memory => new
             {
@@ -76,7 +78,7 @@ public sealed class LongTermMemoryExtractionService : ILongTermMemoryExtractionS
             .OrderByDescending(x => x.Score)
             .ThenByDescending(x => x.Memory.LastReferencedAt)
             .ThenByDescending(x => x.Memory.Id)
-            .Take(Math.Clamp(_options.LongTermRecallTopK, 1, 10))
+            .Take(recallTopK)
             .ToList();
 
         if (scored.Count == 0)

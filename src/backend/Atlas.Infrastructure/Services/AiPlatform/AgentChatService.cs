@@ -241,13 +241,18 @@ public sealed class AgentChatService : IAgentChatService
                 afterContextClear: true,
                 limit: ContextWindowSize,
                 linkedCts.Token);
-            var shortTermSummary = await SafeGetShortTermSummaryAsync(tenantId, conversation.Id, linkedCts.Token);
-            var recalledMemories = await SafeRecallLongTermMemoriesAsync(
-                tenantId,
-                userId,
-                agent.Id,
-                request.Message,
-                linkedCts.Token);
+            var shortTermSummary = agent.EnableMemory && agent.EnableShortTermMemory
+                ? await SafeGetShortTermSummaryAsync(tenantId, conversation.Id, linkedCts.Token)
+                : null;
+            var recalledMemories = agent.EnableMemory && agent.EnableLongTermMemory
+                ? await SafeRecallLongTermMemoriesAsync(
+                    tenantId,
+                    userId,
+                    agent.Id,
+                    request.Message,
+                    agent.LongTermMemoryTopK,
+                    linkedCts.Token)
+                : [];
             var assistantBuilder = new StringBuilder();
             string? metadata;
             var finalEventEmitted = false;
@@ -380,6 +385,9 @@ public sealed class AgentChatService : IAgentChatService
                 conversation.Id,
                 request.Message,
                 assistantContent,
+                agent.EnableMemory,
+                agent.EnableShortTermMemory,
+                agent.EnableLongTermMemory,
                 linkedCts.Token);
 
             return new AgentChatResponse(
@@ -445,6 +453,7 @@ public sealed class AgentChatService : IAgentChatService
         long userId,
         long agentId,
         string message,
+        int longTermTopK,
         CancellationToken cancellationToken)
     {
         try
@@ -454,6 +463,7 @@ public sealed class AgentChatService : IAgentChatService
                 userId,
                 agentId,
                 message,
+                longTermTopK,
                 cancellationToken);
         }
         catch (Exception ex)
@@ -474,38 +484,52 @@ public sealed class AgentChatService : IAgentChatService
         long conversationId,
         string userMessage,
         string assistantMessage,
+        bool enableMemory,
+        bool enableShortTermMemory,
+        bool enableLongTermMemory,
         CancellationToken cancellationToken)
     {
+        if (!enableMemory)
+        {
+            return;
+        }
+
         try
         {
-            await _longTermMemoryExtractionService.ExtractAsync(
-                tenantId,
-                userId,
-                agentId,
-                conversationId,
-                userMessage,
-                assistantMessage,
-                cancellationToken);
+            if (enableLongTermMemory)
+            {
+                await _longTermMemoryExtractionService.ExtractAsync(
+                    tenantId,
+                    userId,
+                    agentId,
+                    conversationId,
+                    userMessage,
+                    assistantMessage,
+                    cancellationToken);
+            }
 
-            var allMessages = await _chatMessageRepository.GetAllByConversationAsync(
-                tenantId,
-                conversationId,
-                cancellationToken);
-            var history = allMessages
-                .Select(item => new ChatHistoryMessage(
-                    item.Id,
-                    item.Role,
-                    item.Content,
-                    item.IsContextCleared,
-                    item.CreatedAt))
-                .ToList();
-            await _shortTermMemorySummarizationService.TrySummarizeAsync(
-                tenantId,
-                conversationId,
-                agentId,
-                userId,
-                history,
-                cancellationToken);
+            if (enableShortTermMemory)
+            {
+                var allMessages = await _chatMessageRepository.GetAllByConversationAsync(
+                    tenantId,
+                    conversationId,
+                    cancellationToken);
+                var history = allMessages
+                    .Select(item => new ChatHistoryMessage(
+                        item.Id,
+                        item.Role,
+                        item.Content,
+                        item.IsContextCleared,
+                        item.CreatedAt))
+                    .ToList();
+                await _shortTermMemorySummarizationService.TrySummarizeAsync(
+                    tenantId,
+                    conversationId,
+                    agentId,
+                    userId,
+                    history,
+                    cancellationToken);
+            }
         }
         catch (Exception ex)
         {
