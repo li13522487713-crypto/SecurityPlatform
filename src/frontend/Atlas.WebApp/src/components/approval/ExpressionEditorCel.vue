@@ -51,7 +51,7 @@
             placeholder='{"form.amount": "1500", "form.status": "approved"}'
           />
         </div>
-        <a-button type="primary" :loading="tryRunning" @click="runTryRun" style="margin-top: 12px">
+        <a-button type="primary" :loading="tryRunning" style="margin-top: 12px" @click="runTryRun">
           {{ t('approvalDesigner.celBtnExecute') }}
         </a-button>
         <div v-if="tryRunResult !== null" class="try-run-result">

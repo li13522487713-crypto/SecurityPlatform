@@ -17,7 +17,7 @@
         :rows="2"
         :maxlength="1000"
         :placeholder="placeholderText"
-        @pressEnter="onPressEnter"
+        @press-enter="onPressEnter"
       />
       <a-button type="primary" :loading="sending" @click="sendMessage">
         {{ sendText }}

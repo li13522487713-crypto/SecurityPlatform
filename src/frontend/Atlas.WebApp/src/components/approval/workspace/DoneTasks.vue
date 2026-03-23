@@ -39,11 +39,11 @@
             <a-empty v-else :description="t('approvalWorkspace.emptyDone')" style="margin-top: 60px;" />
           </div>
           
-          <div class="pagination-wrapper" v-if="pagination.total && pagination.total > 0">
+          <div v-if="pagination.total && pagination.total > 0" class="pagination-wrapper">
             <a-pagination
               v-model:current="pagination.current"
               :total="pagination.total"
-              :pageSize="pagination.pageSize"
+              :page-size="pagination.pageSize"
               size="small"
               @change="onPageChange"
             />

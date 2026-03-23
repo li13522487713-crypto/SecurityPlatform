@@ -34,8 +34,8 @@
               <span
                 v-if="isTable"
                 class="schema-table-name"
-                @dblclick="insertTableName(tableName)"
                 :title="t('datasource.dblClickInsert')"
+                @dblclick="insertTableName(tableName)"
               >
                 <table-outlined class="schema-icon" /> {{ title }}
               </span>

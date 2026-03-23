@@ -68,13 +68,13 @@
       <a-col :span="24">
         <a-card :title="t('appsSettings.cardAliases')">
           <a-table :data-source="entityAliases" :pagination="false" row-key="entityType" bordered size="small">
-            <a-table-column :title="t('appsSettings.colEntityType')" data-index="entityType" key="entityType" width="180" />
-            <a-table-column :title="t('appsSettings.colSingular')" key="singularAlias">
+            <a-table-column key="entityType" :title="t('appsSettings.colEntityType')" data-index="entityType" width="180" />
+            <a-table-column key="singularAlias" :title="t('appsSettings.colSingular')">
               <template #default="{ record }">
                 <a-input v-model:value="record.singularAlias" />
               </template>
             </a-table-column>
-            <a-table-column :title="t('appsSettings.colPlural')" key="pluralAlias">
+            <a-table-column key="pluralAlias" :title="t('appsSettings.colPlural')">
               <template #default="{ record }">
                 <a-input v-model:value="record.pluralAlias" />
               </template>

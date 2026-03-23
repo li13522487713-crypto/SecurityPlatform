@@ -21,20 +21,20 @@
       <div v-if="visibilityScopeTypeModel !== 'All'">
         <UserRolePicker
           v-if="visibilityScopeTypeModel === 'Department'"
-          mode="department"
           v-model:value="visibilityScopeIdsModel"
+          mode="department"
           :placeholder="t('approvalDesigner.phSelectDept')"
         />
         <UserRolePicker
           v-else-if="visibilityScopeTypeModel === 'Role'"
-          mode="role"
           v-model:value="visibilityScopeIdsModel"
+          mode="role"
           :placeholder="t('approvalDesigner.phSelectRole')"
         />
         <UserRolePicker
           v-else-if="visibilityScopeTypeModel === 'User'"
-          mode="user"
           v-model:value="visibilityScopeIdsModel"
+          mode="user"
           :placeholder="t('approvalDesigner.phSelectUser')"
         />
       </div>

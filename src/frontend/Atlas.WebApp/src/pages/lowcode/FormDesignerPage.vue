@@ -32,8 +32,8 @@
         </a-radio-group>
       </div>
       <div class="toolbar-right">
-        <a-button @click="handleSave" :loading="saving">{{ t("lowcode.formDesigner.save") }}</a-button>
-        <a-button type="primary" @click="handlePublish" :loading="publishing">{{ t("lowcode.formDesigner.publish") }}</a-button>
+        <a-button :loading="saving" @click="handleSave">{{ t("lowcode.formDesigner.save") }}</a-button>
+        <a-button type="primary" :loading="publishing" @click="handlePublish">{{ t("lowcode.formDesigner.publish") }}</a-button>
         <a-dropdown>
           <a-button>{{ t("lowcode.formDesigner.more") }}</a-button>
           <template #overlay>

@@ -1,12 +1,12 @@
 <template>
   <div class="advanced-query-panel">
-    <div class="panel-header" v-if="title">
+    <div v-if="title" class="panel-header">
       <h3>{{ title }}</h3>
     </div>
     <div class="panel-body">
       <QueryGroup :model-value="modelValue.rootGroup" :fields="fields" :is-root="true" />
     </div>
-    <div class="panel-footer" v-if="showActions">
+    <div v-if="showActions" class="panel-footer">
       <a-button type="primary" @click="$emit('search')">查询</a-button>
       <a-button style="margin-left: 8px" @click="resetQuery">重置</a-button>
     </div>

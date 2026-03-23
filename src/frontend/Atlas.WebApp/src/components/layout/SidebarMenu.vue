@@ -5,7 +5,7 @@
       mode="inline"
       :selected-keys="selectedKeys"
       :open-keys="openKeys"
-      @openChange="onOpenChange"
+      @open-change="onOpenChange"
     >
       <SidebarItem
         v-for="item in menuTree"

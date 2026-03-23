@@ -1,19 +1,19 @@
 <template>
   <div class="query-grid-unified-view">
-    <div class="query-panel-container" v-if="showQueryPanel">
+    <div v-if="showQueryPanel" class="query-panel-container">
       <AdvancedQueryPanel
         :model-value="queryConfig"
-        @update:model-value="val => $emit('update:queryConfig', val)"
         :fields="fields"
         :title="queryTitle"
         :show-actions="true"
+        @update:model-value="val => $emit('update:queryConfig', val)"
         @search="handleSearch"
         @reset="handleReset"
       />
     </div>
     
     <div class="table-container">
-      <div class="toolbar" v-if="$slots.toolbar">
+      <div v-if="$slots.toolbar" class="toolbar">
         <slot name="toolbar"></slot>
       </div>
       <ProTable
@@ -25,11 +25,11 @@
         :load-tree-data="loadTreeData"
         @update:config="$emit('update:tableConfig', $event)"
         @change="(pag, fil, sor, ext) => $emit('change', pag, fil, sor, ext)"
-        @columnResize="(key, width) => $emit('columnResize', key, width)"
+        @column-resize="(key, width) => $emit('columnResize', key, width)"
         @expand="(expanded, record) => $emit('expand', expanded, record)"
       >
         <!-- 透传所有的 slot -->
-        <template v-for="(_, name) in slotsToForward" v-slot:[name]="slotData" :key="name">
+        <template v-for="(_, name) in slotsToForward" #[name]="slotData" :key="name">
           <slot :name="name" v-bind="slotData || {}"></slot>
         </template>
       </ProTable>
@@ -61,7 +61,10 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   showQueryPanel: true,
-  queryTitle: '高级查询'
+  queryTitle: '高级查询',
+  pagination: undefined,
+  rowSelection: undefined,
+  loadTreeData: undefined
 });
 
 const emit = defineEmits<{

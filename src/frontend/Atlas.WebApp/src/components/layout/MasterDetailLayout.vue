@@ -16,7 +16,7 @@
 import { computed } from 'vue';
 
 const props = withDefaults(defineProps<{
-  detailVisible: boolean;
+  detailVisible?: boolean;
   masterWidth?: number;
 }>(), {
   detailVisible: false,

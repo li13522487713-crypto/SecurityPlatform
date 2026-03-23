@@ -59,10 +59,10 @@
             <span>{{ t("authPage.brandTitle") }}</span>
           </div>
 
-          <a-tabs v-model:activeKey="activeTab" class="login-tabs" :animated="false">
+          <a-tabs v-model:active-key="activeTab" class="login-tabs" :animated="false">
             <a-tab-pane key="system" :tab="t('authPage.loginTitle')">
               
-              <div class="license-wrapper" v-if="!allowLoginForm">
+              <div v-if="!allowLoginForm" class="license-wrapper">
                 <div v-if="licenseLoading" class="license-status">
                   <a-spin size="small" />
                   <span>{{ t("authPage.loadingLicense") }}</span>
@@ -115,7 +115,7 @@
 
                 <a-form layout="vertical" :model="form" class="login-form" :disabled="loading" @finish="handleSubmit">
                   <a-form-item name="username" :rules="[{ required: true, message: t('authPage.usernameRequired') }]">
-                    <a-input ref="usernameInputRef" v-model:value="form.username" size="large" :placeholder="t('authPage.usernamePlaceholder')" allow-clear autocomplete="username" @focus="errorMessage = ''" :aria-label="t('authPage.ariaUsername')">
+                    <a-input ref="usernameInputRef" v-model:value="form.username" size="large" :placeholder="t('authPage.usernamePlaceholder')" allow-clear autocomplete="username" :aria-label="t('authPage.ariaUsername')" @focus="errorMessage = ''">
                       <template #prefix><user-outlined class="input-icon" /></template>
                     </a-input>
                   </a-form-item>
@@ -129,7 +129,7 @@
 
                   <a-form-item v-if="needsCaptcha" name="captchaCode" :rules="[{ required: true, message: t('authPage.captchaRequired') }]">
                     <div class="captcha-row">
-                      <a-input v-model:value="form.captchaCode" size="large" :placeholder="t('authPage.captchaPlaceholder')" autocomplete="off" @focus="errorMessage = ''" :aria-label="t('authPage.ariaCaptcha')">
+                      <a-input v-model:value="form.captchaCode" size="large" :placeholder="t('authPage.captchaPlaceholder')" autocomplete="off" :aria-label="t('authPage.ariaCaptcha')" @focus="errorMessage = ''">
                         <template #prefix><safety-certificate-outlined class="input-icon" /></template>
                       </a-input>
                       <div class="captcha-img-wrap">
@@ -140,7 +140,7 @@
                   </a-form-item>
 
                   <a-form-item v-if="needsMfa" name="totpCode" :rules="[{ required: true, message: t('authPage.mfaRequired') }]" :help="t('authPage.mfaHelp')">
-                    <a-input v-model:value="form.totpCode" size="large" :placeholder="t('authPage.mfaPlaceholder')" :maxlength="6" autocomplete="off" @focus="errorMessage = ''" :aria-label="t('authPage.ariaMfa')">
+                    <a-input v-model:value="form.totpCode" size="large" :placeholder="t('authPage.mfaPlaceholder')" :maxlength="6" autocomplete="off" :aria-label="t('authPage.ariaMfa')" @focus="errorMessage = ''">
                       <template #prefix><safety-certificate-outlined class="input-icon" /></template>
                     </a-input>
                   </a-form-item>

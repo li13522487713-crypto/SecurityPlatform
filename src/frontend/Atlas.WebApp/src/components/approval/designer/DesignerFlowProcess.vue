@@ -3,7 +3,7 @@
     <ApprovalNodePalette 
       :visible="paletteVisible" 
       @update:visible="$emit('update:paletteVisible', $event)" 
-      @addNode="$emit('addPaletteNode', $event)" 
+      @add-node="$emit('addPaletteNode', $event)" 
     />
     
     <div class="dd-canvas">
@@ -11,13 +11,13 @@
         ref="designerRef"
         :flow-tree="flowTree"
         :selected-node-id="selectedNode?.id ?? null"
-        @selectNode="handleSelectNode"
-        @addNode="handleAddNode"
-        @deleteNode="handleDeleteNode"
-        @addConditionBranch="handleAddConditionBranch"
-        @deleteConditionBranch="handleDeleteConditionBranch"
-        @moveBranch="handleMoveBranch"
-        @updateRouteTarget="handleUpdateRouteTarget"
+        @select-node="handleSelectNode"
+        @add-node="handleAddNode"
+        @delete-node="handleDeleteNode"
+        @add-condition-branch="handleAddConditionBranch"
+        @delete-condition-branch="handleDeleteConditionBranch"
+        @move-branch="handleMoveBranch"
+        @update-route-target="handleUpdateRouteTarget"
         @undo="$emit('undo')"
         @redo="$emit('redo')"
       />

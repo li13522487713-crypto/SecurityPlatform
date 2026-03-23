@@ -1,7 +1,7 @@
 <template>
   <div class="dd-props-panel" :class="{ 'is-open': open }">
     <!-- 面板头部 -->
-    <div class="dd-props-header" v-if="formData">
+    <div v-if="formData" class="dd-props-header">
       <div class="dd-props-header__info">
         <div class="dd-props-header__icon" :class="iconClass">
           <component :is="nodeIcon" />
@@ -36,10 +36,10 @@
     />
 
     <!-- 面板内容 -->
-    <div class="dd-props-body" v-if="formData">
+    <div v-if="formData" class="dd-props-body">
       <!-- ═══ 审批节点 ═══ -->
       <template v-if="approveForm">
-        <a-tabs v-model:activeKey="activeTab" size="small" class="dd-props-tabs">
+        <a-tabs v-model:active-key="activeTab" size="small" class="dd-props-tabs">
           <!-- Tab 1: 审批设置 -->
           <a-tab-pane key="approver" :tab="t('approvalDesigner.propsTabApprover')">
             <a-form layout="vertical" class="dd-props-form">
@@ -56,24 +56,24 @@
               </a-form-item>
 
               <a-form-item
-                :label="t('approvalDesigner.propsLabelPickApprover')"
                 v-if="isPickerAssigneeType(approveForm.assigneeType)"
+                :label="t('approvalDesigner.propsLabelPickApprover')"
               >
                 <UserRolePicker
                   v-if="approveForm.assigneeType === 0"
-                  mode="user"
                   v-model:value="approverTargets"
+                  mode="user"
                   :placeholder="t('approvalDesigner.propsPhPickUser')"
                 />
                 <UserRolePicker
                   v-else
-                  mode="role"
                   v-model:value="approverTargets"
+                  mode="role"
                   :placeholder="t('approvalDesigner.propsPhPickRole')"
                 />
               </a-form-item>
 
-              <a-form-item :label="t('approvalDesigner.propsLabelEscalationMax')" v-else-if="approveForm.assigneeType === 3">
+              <a-form-item v-else-if="approveForm.assigneeType === 3" :label="t('approvalDesigner.propsLabelEscalationMax')">
                 <a-input-number
                   v-model:value="assigneeLevel"
                   :min="1"
@@ -84,7 +84,7 @@
                 <div class="dd-form-hint">{{ t('approvalDesigner.propsHintEscalationLoop') }}</div>
               </a-form-item>
 
-              <a-form-item :label="t('approvalDesigner.propsLabelApproveLevel')" v-else-if="approveForm.assigneeType === 4">
+              <a-form-item v-else-if="approveForm.assigneeType === 4" :label="t('approvalDesigner.propsLabelApproveLevel')">
                 <a-input-number
                   v-model:value="assigneeLevel"
                   :min="1"
@@ -122,8 +122,8 @@
               </template>
 
               <a-form-item
-                :label="t('approvalDesigner.propsLabelExternalField')"
                 v-else-if="approveForm.assigneeType === 10"
+                :label="t('approvalDesigner.propsLabelExternalField')"
               >
                 <a-input
                   v-model:value="assigneeExpression"
@@ -284,9 +284,9 @@
                 <a-form-item :label="t('approvalDesigner.propsLabelAiJson')">
                   <a-textarea 
                     :value="approveForm.aiConfig"
+                    :rows="4"
+                    :placeholder="t('approvalDesigner.propsAiJsonPh')" 
                     @update:value="(val: string) => { if (approveForm) approveForm.aiConfig = val }"
-                    :rows="4" 
-                    :placeholder="t('approvalDesigner.propsAiJsonPh')"
                   />
                 </a-form-item>
               </template>
@@ -350,8 +350,8 @@
         <a-form layout="vertical" class="dd-props-form">
           <a-form-item :label="t('approvalDesigner.propsCopyRecipients')">
             <UserRolePicker
-              mode="user"
               v-model:value="copyForm.copyToUsers"
+              mode="user"
               :placeholder="t('approvalDesigner.propsPhCopyRecipients')"
             />
           </a-form-item>
@@ -387,7 +387,7 @@
         <a-form layout="vertical" class="dd-props-form">
           <a-form-item :label="t('approvalDesigner.propsBranchDefault')">
             <a-switch v-model:checked="branchForm.isDefault" />
-            <span class="dd-switch-hint" v-if="branchForm.isDefault">
+            <span v-if="branchForm.isDefault" class="dd-switch-hint">
               {{ t('approvalDesigner.propsBranchDefaultHint') }}
             </span>
           </a-form-item>
@@ -403,8 +403,8 @@
             </a-form-item>
             <ConditionGroupEditor 
               :model-value="branchForm.conditionGroups ?? []"
-              @update:model-value="(v: ConditionGroup[]) => { if (branchForm) branchForm.conditionGroups = v }"
-              :form-fields="formFields" 
+              :form-fields="formFields"
+              @update:model-value="(v: ConditionGroup[]) => { if (branchForm) branchForm.conditionGroups = v }" 
             />
           </template>
         </a-form>
@@ -454,10 +454,10 @@
               <a-select-option value="date">{{ t('approvalDesigner.propsTimerDateOpt') }}</a-select-option>
             </a-select>
           </a-form-item>
-          <a-form-item :label="t('approvalDesigner.propsLabelWaitSeconds')" v-if="timerForm.timerConfig.type === 'duration'">
+          <a-form-item v-if="timerForm.timerConfig.type === 'duration'" :label="t('approvalDesigner.propsLabelWaitSeconds')">
             <a-input-number v-model:value="timerForm.timerConfig.duration" :min="0" style="width: 100%" />
           </a-form-item>
-          <a-form-item :label="t('approvalDesigner.propsLabelSpecifiedTime')" v-if="timerForm.timerConfig.type === 'date'">
+          <a-form-item v-if="timerForm.timerConfig.type === 'date'" :label="t('approvalDesigner.propsLabelSpecifiedTime')">
             <a-date-picker v-model:value="timerForm.timerConfig.date" show-time value-format="YYYY-MM-DD HH:mm:ss" style="width: 100%" />
           </a-form-item>
         </a-form>
@@ -475,8 +475,8 @@
           <a-form-item :label="t('approvalDesigner.propsTriggerConfigJson')">
             <a-textarea 
               :value="JSON.stringify(triggerForm.triggerConfig, null, 2)"
-              @update:value="(val: string) => applyJsonConfig(val, t('approvalDesigner.propsTriggerConfigJson'), (v) => { if (triggerForm) triggerForm.triggerConfig = v as TriggerNode['triggerConfig'] })"
-              :rows="4" 
+              :rows="4"
+              @update:value="(val: string) => applyJsonConfig(val, t('approvalDesigner.propsTriggerConfigJson'), (v) => { if (triggerForm) triggerForm.triggerConfig = v as TriggerNode['triggerConfig'] })" 
             />
           </a-form-item>
         </a-form>
@@ -493,7 +493,7 @@
     </div>
 
     <!-- 底部按钮 -->
-    <div class="dd-props-footer" v-if="formData">
+    <div v-if="formData" class="dd-props-footer">
       <a-button type="primary" block @click="handleSave">{{ t('approvalDesigner.propsFooterOk') }}</a-button>
     </div>
   </div>

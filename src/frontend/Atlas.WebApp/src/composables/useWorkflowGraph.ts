@@ -61,12 +61,12 @@ export function useWorkflowGraph(
           if (targetCell?.id === WORKFLOW_START_NODE_ID) return false;
           if (sourceCell?.id === WORKFLOW_END_NODE_ID) return false;
           if (sourceCell?.id) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             const outs = graph.getOutgoingEdges(sourceCell as any) ?? [];
             if (outs.length >= 1) return false;
           }
           if (targetCell?.id) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             const ins = graph.getIncomingEdges(targetCell as any) ?? [];
             if (ins.length >= 1) return false;
           }
@@ -149,21 +149,21 @@ export function useWorkflowGraph(
       }
     });
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     graph.on("node:dblclick", ({ node }: any) => {
       if (node?.id === WORKFLOW_START_NODE_ID || node?.id === WORKFLOW_END_NODE_ID) return;
       const data = node.getData() as WorkflowNodeData;
       onNodeSelect({ ...data, cellId: node.id as string });
     });
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     graph.on("node:mouseenter", ({ node }: any) => {
       const ports = containerRef.value?.querySelectorAll(`[data-cell-id="${node.id}"] .x6-port-body`) as NodeListOf<HTMLElement>;
       ports?.forEach((port) => port.setAttribute("visibility", "visible"));
       node.setAttrs({ body: { stroke: "#3296fa", filter: { name: "dropShadow", args: { dx: 0, dy: 0, blur: 6, color: "rgba(50, 150, 250, 0.3)" } } } });
     });
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     graph.on("node:mouseleave", ({ node }: any) => {
       const ports = containerRef.value?.querySelectorAll(`[data-cell-id="${node.id}"] .x6-port-body`) as NodeListOf<HTMLElement>;
       ports?.forEach((port) => port.setAttribute("visibility", "hidden"));

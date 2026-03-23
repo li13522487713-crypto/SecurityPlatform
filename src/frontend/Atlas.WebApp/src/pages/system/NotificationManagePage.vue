@@ -65,7 +65,7 @@
     </template>
 
     <template #form>
-      <a-form :model="formData" :rules="formRules" ref="formRef" layout="vertical">
+      <a-form ref="formRef" :model="formData" :rules="formRules" layout="vertical">
         <a-form-item :label="t('notificationManage.labelType')" name="noticeType">
           <a-radio-group v-model:value="formData.noticeType">
             <a-radio value="System">{{ t("notificationManage.typeSystem") }}</a-radio>

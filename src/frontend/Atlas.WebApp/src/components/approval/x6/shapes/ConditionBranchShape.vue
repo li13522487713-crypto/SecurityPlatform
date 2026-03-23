@@ -9,19 +9,19 @@
         <LeftOutlined
           v-if="!isFirst"
           class="dd-node__move-btn"
-          @click.stop="handleMove('left')"
           :title="t('approvalDesigner.shapeMoveLeftTitle')"
+          @click.stop="handleMove('left')"
         />
       </span>
       <span class="dd-node__title">{{ data.branchName || t('approvalDesigner.nodeWidgetCondition') }}</span>
-      <span class="dd-node__priority" v-if="!data.isDefault">{{ t('approvalDesigner.shapePriority', { index: branchIndex }) }}</span>
-      <span class="dd-node__priority" v-else>{{ t('approvalDesigner.shapeDefaultBranch') }}</span>
+      <span v-if="!data.isDefault" class="dd-node__priority">{{ t('approvalDesigner.shapePriority', { index: branchIndex }) }}</span>
+      <span v-else class="dd-node__priority">{{ t('approvalDesigner.shapeDefaultBranch') }}</span>
       <span class="dd-node__header-actions">
         <RightOutlined
           v-if="!isLast"
           class="dd-node__move-btn"
-          @click.stop="handleMove('right')"
           :title="t('approvalDesigner.shapeMoveRightTitle')"
+          @click.stop="handleMove('right')"
         />
         <CloseOutlined class="dd-node__delete" @click.stop="handleDelete" />
       </span>

@@ -1,6 +1,6 @@
 <template>
   <a-card :title="t('packages.pageTitle')" class="page-card">
-    <a-tabs v-model:activeKey="activeTab">
+    <a-tabs v-model:active-key="activeTab">
       <!-- 导出 -->
       <a-tab-pane key="export" :tab="t('packages.tabExport')">
         <a-form layout="vertical" :model="exportForm" style="max-width: 480px">

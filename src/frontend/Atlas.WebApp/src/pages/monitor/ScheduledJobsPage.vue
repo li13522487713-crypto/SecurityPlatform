@@ -2,7 +2,7 @@
   <div class="page-container">
     <div class="page-header">
       <h2 class="page-title">{{ t("scheduledJobs.title") }}</h2>
-      <a-button @click="load" :loading="loading">{{ t("scheduledJobs.refresh") }}</a-button>
+      <a-button :loading="loading" @click="load">{{ t("scheduledJobs.refresh") }}</a-button>
     </div>
 
     <a-table

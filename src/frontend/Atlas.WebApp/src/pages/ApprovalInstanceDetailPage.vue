@@ -33,7 +33,7 @@
           </a-card>
 
           <a-card :title="t('approvalRuntime.cardFlowStatus')" class="mb-4">
-            <div class="flow-chart-container" ref="flowChartRef">
+            <div ref="flowChartRef" class="flow-chart-container">
               <a-steps
                 v-if="flowSteps.length > 0"
                 direction="vertical"
@@ -62,7 +62,7 @@
                     <span class="timeline-user">{{ event.actorUserId ? t('approvalRuntime.userLabel', { id: event.actorUserId }) : t('approvalRuntime.systemLabel') }}</span>
                     <span class="timeline-action">{{ getEventActionText(event.eventType) }}</span>
                   </div>
-                  <div class="timeline-comment" v-if="event.payloadJson">{{ event.payloadJson }}</div>
+                  <div v-if="event.payloadJson" class="timeline-comment">{{ event.payloadJson }}</div>
                   <div class="timeline-time">{{ formatTime(event.occurredAt) }}</div>
                 </div>
               </a-timeline-item>

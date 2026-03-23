@@ -7,8 +7,8 @@
         <CloseOutlined class="close-btn" @click.stop="handleDelete" />
       </div>
       <div class="content">
-        <span class="text" v-if="node.routeTargetNodeId">{{ t('approvalDesigner.shapeJumpTo', { id: node.routeTargetNodeId }) }}</span>
-        <span class="placeholder" v-else>{{ t('approvalDesigner.shapePickRouteTarget') }}</span>
+        <span v-if="node.routeTargetNodeId" class="text">{{ t('approvalDesigner.shapeJumpTo', { id: node.routeTargetNodeId }) }}</span>
+        <span v-else class="placeholder">{{ t('approvalDesigner.shapePickRouteTarget') }}</span>
       </div>
     </div>
   </div>

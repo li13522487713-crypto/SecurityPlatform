@@ -1,8 +1,8 @@
 ```
 <template>
   <CrudPageLayout
-    :title="t('systemMenus.pageTitle')"
     v-model:keyword="keyword"
+    :title="t('systemMenus.pageTitle')"
     :search-placeholder="t('systemMenus.searchPlaceholder')"
     :drawer-open="formVisible"
     :drawer-title="formMode === 'create' ? t('systemMenus.drawerCreateTitle') : t('systemMenus.drawerEditTitle')"

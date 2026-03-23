@@ -7,7 +7,7 @@
         :node="node"
         @click="handleNodeClick"
         @delete="handleNodeDelete"
-        @addBranch="handleAddBranch"
+        @add-branch="handleAddBranch"
       />
     </div>
 
@@ -26,11 +26,11 @@
         >
             <!-- 分支连线辅助线 -->
             <div class="branch-lines">
-               <div class="line-vertical-top" v-if="index === 0 || index === (node as ConditionNode).conditionNodes.length - 1"></div>
-               <div class="line-horizontal-top" v-if="index > 0 && index < (node as ConditionNode).conditionNodes.length - 1"></div>
+               <div v-if="index === 0 || index === (node as ConditionNode).conditionNodes.length - 1" class="line-vertical-top"></div>
+               <div v-if="index > 0 && index < (node as ConditionNode).conditionNodes.length - 1" class="line-horizontal-top"></div>
                <!-- 左右边界的横线 -->
-               <div class="line-horizontal-left" v-if="index === 0 && (node as ConditionNode).conditionNodes.length > 1"></div>
-               <div class="line-horizontal-right" v-if="index === (node as ConditionNode).conditionNodes.length - 1 && (node as ConditionNode).conditionNodes.length > 1"></div>
+               <div v-if="index === 0 && (node as ConditionNode).conditionNodes.length > 1" class="line-horizontal-left"></div>
+               <div v-if="index === (node as ConditionNode).conditionNodes.length - 1 && (node as ConditionNode).conditionNodes.length > 1" class="line-horizontal-right"></div>
             </div>
 
             <ConditionBranchWidget 
@@ -65,10 +65,10 @@
           class="condition-branch"
         >
           <div class="branch-lines">
-            <div class="line-vertical-top" v-if="index === 0 || index === (parallelNode?.parallelNodes.length ?? 0) - 1"></div>
-            <div class="line-horizontal-top" v-if="index > 0 && index < (parallelNode?.parallelNodes.length ?? 0) - 1"></div>
-            <div class="line-horizontal-left" v-if="index === 0 && (parallelNode?.parallelNodes.length ?? 0) > 1"></div>
-            <div class="line-horizontal-right" v-if="index === (parallelNode?.parallelNodes.length ?? 0) - 1 && (parallelNode?.parallelNodes.length ?? 0) > 1"></div>
+            <div v-if="index === 0 || index === (parallelNode?.parallelNodes.length ?? 0) - 1" class="line-vertical-top"></div>
+            <div v-if="index > 0 && index < (parallelNode?.parallelNodes.length ?? 0) - 1" class="line-horizontal-top"></div>
+            <div v-if="index === 0 && (parallelNode?.parallelNodes.length ?? 0) > 1" class="line-horizontal-left"></div>
+            <div v-if="index === (parallelNode?.parallelNodes.length ?? 0) - 1 && (parallelNode?.parallelNodes.length ?? 0) > 1" class="line-horizontal-right"></div>
           </div>
           <TreeNodeRenderer :node="branch" />
         </div>

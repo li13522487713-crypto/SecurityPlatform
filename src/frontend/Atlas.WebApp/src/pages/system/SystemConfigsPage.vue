@@ -8,7 +8,7 @@
     </div>
 
     <a-spin :spinning="loading">
-      <a-tabs v-model:activeKey="activeGroup" class="group-tabs">
+      <a-tabs v-model:active-key="activeGroup" class="group-tabs">
         <a-tab-pane v-for="tab in groupTabs" :key="tab.key">
           <template #tab>
             {{ tab.title }} ({{ groupedConfigs[tab.key]?.length ?? 0 }})

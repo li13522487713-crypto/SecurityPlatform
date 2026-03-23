@@ -27,7 +27,7 @@ const patched = outputText
   .replace(/exports\.runtimeMessages\s*=\s*/, "globalThis.__RM = ");
 
 const moduleStub = { exports: {} };
-// eslint-disable-next-line no-new-func
+ 
 const run = new Function("exports", "module", "globalThis", `${patched}\nreturn globalThis.__RM;`);
 const runtimeMessages = run(moduleStub.exports, moduleStub, globalThis);
 

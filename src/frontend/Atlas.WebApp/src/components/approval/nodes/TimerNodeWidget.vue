@@ -8,11 +8,11 @@
       </div>
       <div class="content">
         <template v-if="node.timerConfig">
-          <span class="text" v-if="node.timerConfig.type === 'duration'">{{ t('approvalDesigner.shapeTimerWait', { seconds: node.timerConfig.duration }) }}</span>
-          <span class="text" v-else-if="node.timerConfig.type === 'date'">{{ t('approvalDesigner.shapeTimerUntil', { date: node.timerConfig.date }) }}</span>
-          <span class="placeholder" v-else>{{ t('approvalDesigner.shapeTimerConfigure') }}</span>
+          <span v-if="node.timerConfig.type === 'duration'" class="text">{{ t('approvalDesigner.shapeTimerWait', { seconds: node.timerConfig.duration }) }}</span>
+          <span v-else-if="node.timerConfig.type === 'date'" class="text">{{ t('approvalDesigner.shapeTimerUntil', { date: node.timerConfig.date }) }}</span>
+          <span v-else class="placeholder">{{ t('approvalDesigner.shapeTimerConfigure') }}</span>
         </template>
-        <span class="placeholder" v-else>{{ t('approvalDesigner.shapeTimerConfigure') }}</span>
+        <span v-else class="placeholder">{{ t('approvalDesigner.shapeTimerConfigure') }}</span>
       </div>
     </div>
   </div>

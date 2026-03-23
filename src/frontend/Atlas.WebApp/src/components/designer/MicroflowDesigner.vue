@@ -6,7 +6,7 @@
         <a-button type="primary" @click="addStep">
           {{ t("designer.microflow.addStep") }}
         </a-button>
-        <a-button @click="executeFlow" :disabled="steps.length === 0">
+        <a-button :disabled="steps.length === 0" @click="executeFlow">
           {{ t("designer.microflow.execute") }}
         </a-button>
       </a-space>

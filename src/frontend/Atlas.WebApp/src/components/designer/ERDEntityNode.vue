@@ -7,7 +7,7 @@
       </div>
     </div>
     <div class="node-body">
-      <div class="field-item" v-for="field in fields" :key="field.name">
+      <div v-for="field in fields" :key="field.name" class="field-item">
         <div class="field-icon">
           <KeyOutlined v-if="field.isPrimaryKey" class="pk-icon" title="主键" />
           <span v-else class="normal-icon"></span>

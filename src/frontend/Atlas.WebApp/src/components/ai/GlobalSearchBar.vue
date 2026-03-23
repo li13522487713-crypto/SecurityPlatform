@@ -34,7 +34,8 @@ const props = withDefaults(
     width?: string;
   }>(),
   {
-    width: "420px"
+    width: "420px",
+    placeholder: undefined
   }
 );
 

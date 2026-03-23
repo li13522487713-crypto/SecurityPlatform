@@ -86,8 +86,8 @@
     <a-modal
       v-model:open="approveVisible"
       :title="t('approvalRuntime.approveModalTitle')"
-      @ok="handleApprove"
       :confirm-loading="submitting"
+      @ok="handleApprove"
     >
       <a-textarea v-model:value="comment" :placeholder="t('approvalRuntime.approveCommentPlaceholder')" :rows="4" />
     </a-modal>
@@ -95,8 +95,8 @@
     <a-modal
       v-model:open="rejectVisible"
       :title="t('approvalRuntime.rejectModalTitle')"
-      @ok="handleReject"
       :confirm-loading="submitting"
+      @ok="handleReject"
     >
       <a-form-item :label="t('approvalRuntime.rejectReasonLabel')" required>
         <a-textarea v-model:value="comment" :placeholder="t('approvalRuntime.rejectPlaceholder')" :rows="4" />
@@ -106,15 +106,15 @@
     <a-modal
       v-model:open="transferVisible"
       :title="t('approvalRuntime.transferModalTitle')"
-      @ok="handleTransfer"
       :confirm-loading="submitting"
+      @ok="handleTransfer"
       @cancel="resetTransferForm"
     >
       <a-form layout="vertical">
         <a-form-item :label="t('approvalRuntime.transferToLabel')" required>
           <UserRolePicker
-            mode="user"
             v-model:value="transferTargetIds"
+            mode="user"
             :placeholder="t('approvalRuntime.transferUserPlaceholder')"
             style="width: 100%"
           />
@@ -128,15 +128,15 @@
     <a-modal
       v-model:open="delegateVisible"
       :title="t('approvalRuntime.delegateModalTitle')"
-      @ok="handleDelegate"
       :confirm-loading="submitting"
+      @ok="handleDelegate"
       @cancel="resetDelegateForm"
     >
       <a-form layout="vertical">
         <a-form-item :label="t('approvalRuntime.delegateToLabel')" required>
           <UserRolePicker
-            mode="user"
             v-model:value="delegateTargetIds"
+            mode="user"
             :placeholder="t('approvalRuntime.delegateUserPlaceholder')"
             style="width: 100%"
           />

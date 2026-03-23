@@ -26,7 +26,7 @@
 
     <div class="panel-body">
       <a-spin :spinning="loading">
-        <a-tabs v-model:activeKey="activeTab" class="detail-tabs">
+        <a-tabs v-model:active-key="activeTab" class="detail-tabs">
           <a-tab-pane key="form" :tab="t('approvalTaskPanel.tabForm')">
             <div class="form-container">
               <AmisRenderer
@@ -88,18 +88,18 @@
       </a-spin>
     </div>
 
-    <a-modal v-model:open="approveVisible" :title="t('approvalRuntime.approveModalTitle')" @ok="handleApprove" :confirm-loading="submitting">
+    <a-modal v-model:open="approveVisible" :title="t('approvalRuntime.approveModalTitle')" :confirm-loading="submitting" @ok="handleApprove">
       <a-textarea v-model:value="comment" :placeholder="t('approvalRuntime.approveCommentPlaceholder')" :rows="4" />
     </a-modal>
-    <a-modal v-model:open="rejectVisible" :title="t('approvalRuntime.rejectModalTitle')" @ok="handleReject" :confirm-loading="submitting">
+    <a-modal v-model:open="rejectVisible" :title="t('approvalRuntime.rejectModalTitle')" :confirm-loading="submitting" @ok="handleReject">
       <a-form-item :label="t('approvalRuntime.rejectReasonLabel')" required>
         <a-textarea v-model:value="comment" :placeholder="t('approvalRuntime.rejectPlaceholder')" :rows="4" />
       </a-form-item>
     </a-modal>
-    <a-modal v-model:open="transferVisible" :title="t('approvalRuntime.transferModalTitle')" @ok="handleTransfer" :confirm-loading="submitting">
+    <a-modal v-model:open="transferVisible" :title="t('approvalRuntime.transferModalTitle')" :confirm-loading="submitting" @ok="handleTransfer">
       <a-form layout="vertical">
         <a-form-item :label="t('approvalRuntime.transferToLabel')" required>
-          <UserRolePicker mode="user" v-model:value="transferTargetIds" :placeholder="t('approvalRuntime.transferUserPlaceholder')" style="width: 100%" />
+          <UserRolePicker v-model:value="transferTargetIds" mode="user" :placeholder="t('approvalRuntime.transferUserPlaceholder')" style="width: 100%" />
         </a-form-item>
         <a-form-item :label="t('approvalRuntime.remarkLabel')">
           <a-textarea v-model:value="transferComment" :placeholder="t('approvalTaskPanel.transferRemarkPlaceholder')" :rows="3" />
@@ -107,10 +107,10 @@
       </a-form>
     </a-modal>
 
-    <a-modal v-model:open="delegateVisible" :title="t('approvalRuntime.delegateModalTitle')" @ok="handleDelegate" :confirm-loading="submitting">
+    <a-modal v-model:open="delegateVisible" :title="t('approvalRuntime.delegateModalTitle')" :confirm-loading="submitting" @ok="handleDelegate">
       <a-form layout="vertical">
         <a-form-item :label="t('approvalRuntime.delegateToLabel')" required>
-          <UserRolePicker mode="user" v-model:value="delegateTargetIds" :placeholder="t('approvalTaskPanel.delegatePlaceholderTarget')" style="width: 100%" />
+          <UserRolePicker v-model:value="delegateTargetIds" mode="user" :placeholder="t('approvalTaskPanel.delegatePlaceholderTarget')" style="width: 100%" />
         </a-form-item>
         <a-form-item :label="t('approvalRuntime.remarkLabel')">
           <a-textarea v-model:value="delegateComment" :placeholder="t('approvalRuntime.delegateRemarkPlaceholder')" :rows="3" />

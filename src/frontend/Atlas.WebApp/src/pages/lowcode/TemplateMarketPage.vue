@@ -3,9 +3,9 @@
     <a-card :title="t('lowcode.template.title')">
       <div class="toolbar">
         <a-space>
-          <a-input v-model:value="keyword" style="width: 220px" allow-clear :placeholder="t('lowcode.template.phKeyword')" @pressEnter="loadData" />
-          <a-input v-model:value="tags" style="width: 180px" allow-clear :placeholder="t('lowcode.template.phTags')" @pressEnter="loadData" />
-          <a-input v-model:value="version" style="width: 140px" allow-clear :placeholder="t('lowcode.template.phVersion')" @pressEnter="loadData" />
+          <a-input v-model:value="keyword" style="width: 220px" allow-clear :placeholder="t('lowcode.template.phKeyword')" @press-enter="loadData" />
+          <a-input v-model:value="tags" style="width: 180px" allow-clear :placeholder="t('lowcode.template.phTags')" @press-enter="loadData" />
+          <a-input v-model:value="version" style="width: 140px" allow-clear :placeholder="t('lowcode.template.phVersion')" @press-enter="loadData" />
           <a-button type="primary" @click="loadData">{{ t("lowcode.template.search") }}</a-button>
         </a-space>
       </div>

@@ -1,6 +1,6 @@
 <template>
   <div class="message-center-page">
-    <a-tabs v-model:activeKey="activeTab">
+    <a-tabs v-model:active-key="activeTab">
       <a-tab-pane key="templates" :tab="t('lowcode.messageCenter.tabTemplates')">
         <div class="tab-header">
           <a-input-search

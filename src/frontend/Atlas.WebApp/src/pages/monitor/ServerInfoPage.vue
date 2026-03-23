@@ -3,7 +3,7 @@
     <div class="page-header">
       <h2 class="page-title">{{ t("monitorServer.title") }}</h2>
       <div class="header-actions">
-        <a-tag color="green" v-if="!loading">
+        <a-tag v-if="!loading" color="green">
           <ClockCircleOutlined /> {{ t("monitorServer.autoRefresh") }}
         </a-tag>
         <a-button :loading="loading" @click="load">{{ t("monitorServer.refreshNow") }}</a-button>
@@ -11,7 +11,7 @@
     </div>
 
     <a-spin :spinning="loading">
-      <a-row :gutter="[16, 16]" v-if="info">
+      <a-row v-if="info" :gutter="[16, 16]">
         <!-- CPU -->
         <a-col :xs="24" :md="12" :lg="6">
           <a-card :title="t('monitorServer.cardCpu')">
@@ -104,7 +104,7 @@
               <a-tag :color="healthTagColor(healthInfo?.status)">
                 {{ healthInfo?.status ?? t("monitorServer.unknown") }}
               </a-tag>
-              <span class="health-checked-at" v-if="healthInfo?.checkedAt">
+              <span v-if="healthInfo?.checkedAt" class="health-checked-at">
                 {{ t("monitorServer.checkedAt", { time: formatTime(healthInfo.checkedAt) }) }}
               </span>
             </div>

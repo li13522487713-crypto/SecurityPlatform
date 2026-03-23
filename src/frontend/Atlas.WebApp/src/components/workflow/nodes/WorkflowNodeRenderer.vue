@@ -20,19 +20,19 @@
 
     <!-- Selector: two output handles -->
     <template v-if="nodeType === 'Selector'">
-      <Handle type="source" :position="Position.Right" id="true" class="node-handle handle-true">
+      <Handle id="true" type="source" :position="Position.Right" class="node-handle handle-true">
         <span class="handle-label">{{ t("workflowUi.handleTrue") }}</span>
       </Handle>
-      <Handle type="source" :position="Position.Right" id="false" class="node-handle handle-false">
+      <Handle id="false" type="source" :position="Position.Right" class="node-handle handle-false">
         <span class="handle-label">{{ t("workflowUi.handleFalse") }}</span>
       </Handle>
     </template>
     <!-- Loop: two output handles -->
     <template v-else-if="nodeType === 'Loop'">
-      <Handle type="source" :position="Position.Right" id="body" class="node-handle handle-loop-body">
+      <Handle id="body" type="source" :position="Position.Right" class="node-handle handle-loop-body">
         <span class="handle-label">{{ t("workflowUi.handleBody") }}</span>
       </Handle>
-      <Handle type="source" :position="Position.Right" id="done" class="node-handle handle-loop-done">
+      <Handle id="done" type="source" :position="Position.Right" class="node-handle handle-loop-done">
         <span class="handle-label">{{ t("workflowUi.handleDone") }}</span>
       </Handle>
     </template>

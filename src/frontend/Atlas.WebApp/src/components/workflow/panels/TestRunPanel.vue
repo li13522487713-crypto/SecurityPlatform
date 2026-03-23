@@ -46,7 +46,7 @@
           <span>{{ t('wfUi.testRun.execLog') }}</span>
           <a-button type="text" size="small" @click="clearLog">{{ t('wfUi.testRun.clearLog') }}</a-button>
         </div>
-        <div class="log-container" ref="logContainer">
+        <div ref="logContainer" class="log-container">
           <div
             v-for="(event, idx) in executionEvents"
             :key="idx"

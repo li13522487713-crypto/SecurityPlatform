@@ -45,8 +45,8 @@
       :title="t('systemAppsConfig.drawerTitle')"
       placement="right"
       width="520"
-      @close="closeForm"
       destroy-on-close
+      @close="closeForm"
     >
       <a-form ref="formRef" :model="formModel" :rules="formRules" layout="vertical">
         <a-form-item :label="t('systemAppsConfig.labelAppId')">

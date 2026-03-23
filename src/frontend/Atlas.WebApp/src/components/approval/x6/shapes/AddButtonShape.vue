@@ -1,9 +1,9 @@
 <template>
   <div class="dd-add-btn-wrap">
     <a-popover
+      v-model:open="visible"
       placement="rightTop"
       trigger="click"
-      v-model:open="visible"
       :get-popup-container="getContainer"
     >
       <template #content>

@@ -193,7 +193,7 @@ const handleExpand = async (expanded: boolean, record: any) => {
 </script>
 
 <template>
-  <div class="pro-table-wrapper" ref="tableContainerRef">
+  <div ref="tableContainerRef" class="pro-table-wrapper">
     <a-table
       v-bind="antTableProps"
       :data-source="dataSource"
@@ -205,12 +205,12 @@ const handleExpand = async (expanded: boolean, record: any) => {
       @expand="handleExpand"
     >
       <!-- 透传高级嵌套子表展开 -->
-      <template #expandedRowRender="slotProps" v-if="slots.expandedRowRender">
+      <template v-if="slots.expandedRowRender" #expandedRowRender="slotProps">
         <slot name="expandedRowRender" v-bind="slotProps"></slot>
       </template>
 
       <!-- 透传底部聚合栏 summary -->
-      <template #summary="slotProps" v-if="slots.summary">
+      <template v-if="slots.summary" #summary="slotProps">
         <slot name="summary" v-bind="slotProps"></slot>
       </template>
 
@@ -220,7 +220,7 @@ const handleExpand = async (expanded: boolean, record: any) => {
            <span v-if="loadingKeys.has(record.id || record.key)" class="pro-tree-loading">
              <LoadingOutlined />
            </span>
-           <div v-else @click="e => onExpand(record, e)" :class="['ant-table-row-expand-icon', expanded ? 'ant-table-row-expand-icon-expanded' : 'ant-table-row-expand-icon-collapsed']"></div>
+           <div v-else :class="['ant-table-row-expand-icon', expanded ? 'ant-table-row-expand-icon-expanded' : 'ant-table-row-expand-icon-collapsed']" @click="e => onExpand(record, e)"></div>
         </template>
       </template>
 
@@ -264,8 +264,8 @@ const handleExpand = async (expanded: boolean, record: any) => {
       </template>
       
       <!-- 透传其他杂项槽位（如 expandComponent） -->
-      <template v-for="(_, name) in slots" v-slot:[name]="slotData" :key="name">
-         <slot :name="name" v-bind="slotData || {}" v-if="name !== 'headerCell' && name !== 'bodyCell' && !String(name).startsWith('bodyCell-')"></slot>
+      <template v-for="(_, name) in slots" #[name]="slotData" :key="name">
+         <slot v-if="name !== 'headerCell' && name !== 'bodyCell' && !String(name).startsWith('bodyCell-')" :name="name" v-bind="slotData || {}"></slot>
       </template>
     </a-table>
   </div>

@@ -1,8 +1,8 @@
 <template>
   <div>
     <CrudPageLayout
-    :title="t('systemUsers.pageTitle')"
     v-model:keyword="keyword"
+    :title="t('systemUsers.pageTitle')"
     :search-placeholder="t('systemUsers.searchPlaceholder')"
     :drawer-open="formVisible"
     :drawer-title="formMode === 'create' ? t('systemUsers.drawerCreateTitle') : t('systemUsers.drawerEditTitle')"
@@ -27,7 +27,7 @@
     <template #table>
       <a-row :gutter="16" style="height: 100%">
         <a-col :xs="24" :sm="24" :md="6" :lg="5" class="dept-tree-col">
-          <a-card size="small" :bordered="false" class="tree-card" :bodyStyle="{ padding: '12px' }">
+          <a-card size="small" :bordered="false" class="tree-card" :body-style="{ padding: '12px' }">
             <div style="margin-bottom: 12px">
               <a-input
                 v-model:value="treeKeyword"
@@ -42,8 +42,8 @@
                 :selected-keys="selectedTreeKeys"
                 :expanded-keys="expandedTreeKeys"
                 :auto-expand-parent="true"
-                @select="handleTreeSelect"
                 class="dept-tree"
+                @select="handleTreeSelect"
               />
             </a-skeleton>
           </a-card>
@@ -93,7 +93,7 @@
     </template>
 
     <template #form>
-      <a-tabs v-model:activeKey="activeTab">
+      <a-tabs v-model:active-key="activeTab">
         <a-tab-pane key="basic" :tab="t('systemUsers.basicTab')">
           <a-form ref="formRef" :model="formModel" :rules="formRules" layout="vertical">
             <a-form-item v-if="formMode === 'create'" :label="t('systemUsers.username')" name="username">

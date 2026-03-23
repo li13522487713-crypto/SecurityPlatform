@@ -7,9 +7,9 @@
         <CloseOutlined class="close-btn" @click.stop="handleDelete" />
       </div>
       <div class="content">
-        <span class="text" v-if="node.callProcessId">{{ t('approvalDesigner.shapeCallProcessId', { id: node.callProcessId }) }}</span>
-        <span class="placeholder" v-else>{{ t('approvalDesigner.shapeConfigureCallProcess') }}</span>
-        <div class="sub-text" v-if="node.callProcessId">
+        <span v-if="node.callProcessId" class="text">{{ t('approvalDesigner.shapeCallProcessId', { id: node.callProcessId }) }}</span>
+        <span v-else class="placeholder">{{ t('approvalDesigner.shapeConfigureCallProcess') }}</span>
+        <div v-if="node.callProcessId" class="sub-text">
           {{ node.callAsync ? t('approvalDesigner.shapeExecAsync') : t('approvalDesigner.shapeExecSync') }}
         </div>
       </div>

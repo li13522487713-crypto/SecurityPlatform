@@ -7,7 +7,7 @@
     <a-tree
       block-node
       :tree-data="treeData"
-      :selectedKeys="selectedKeys"
+      :selected-keys="selectedKeys"
       @select="onSelect"
     />
   </div>

@@ -3,7 +3,7 @@
     <div class="ai-content">
       <div class="ai-sidebar">
         <h3>{{ t("lowcode.aiAssistant.sidebarTitle") }}</h3>
-        <a-menu v-model:selectedKeys="selectedFunction" mode="inline">
+        <a-menu v-model:selected-keys="selectedFunction" mode="inline">
           <a-menu-item key="form"><template #icon><FormOutlined /></template>{{ t("lowcode.aiAssistant.menuForm") }}</a-menu-item>
           <a-menu-item key="sql"><template #icon><CodeOutlined /></template>{{ t("lowcode.aiAssistant.menuSql") }}</a-menu-item>
           <a-menu-item key="workflow"><template #icon><BranchesOutlined /></template>{{ t("lowcode.aiAssistant.menuWorkflow") }}</a-menu-item>
@@ -11,11 +11,11 @@
       </div>
       <div class="ai-main">
         <div class="ai-chat-area">
-          <div class="chat-messages" ref="chatContainerRef">
+          <div ref="chatContainerRef" class="chat-messages">
             <div v-for="msg in messages" :key="msg.id" :class="['chat-message', msg.role]">
               <div class="message-bubble">
                 <div v-if="msg.role === 'assistant' && msg.resultJson" class="result-section">
-                  <a-button type="primary" size="small" @click="handleApplyResult(msg.resultJson)" style="margin-bottom: 8px">{{ t("lowcode.aiAssistant.applyResult") }}</a-button>
+                  <a-button type="primary" size="small" style="margin-bottom: 8px" @click="handleApplyResult(msg.resultJson)">{{ t("lowcode.aiAssistant.applyResult") }}</a-button>
                   <pre class="result-json">{{ formatJson(msg.resultJson) }}</pre>
                 </div>
                 <div v-else class="message-text">{{ msg.content }}</div>
@@ -27,7 +27,7 @@
           </div>
           <div class="chat-input">
             <a-textarea v-model:value="userInput" :placeholder="inputPlaceholder" :rows="3" @keydown.enter.ctrl="sendMessage" />
-            <a-button type="primary" :loading="generating" @click="sendMessage" style="margin-top: 8px; align-self: flex-end">
+            <a-button type="primary" :loading="generating" style="margin-top: 8px; align-self: flex-end" @click="sendMessage">
               {{ t("lowcode.aiAssistant.send") }}
             </a-button>
           </div>

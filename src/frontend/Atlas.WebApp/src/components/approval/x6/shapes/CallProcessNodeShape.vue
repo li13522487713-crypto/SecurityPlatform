@@ -12,7 +12,7 @@
     <div class="dd-node__body">
       <span v-if="data.callProcessId" class="dd-node__text">{{ t('approvalDesigner.shapeCallProcessId', { id: data.callProcessId }) }}</span>
       <span v-else class="dd-node__placeholder">{{ t('approvalDesigner.shapeConfigureCallProcess') }}</span>
-      <div class="dd-node__sub-text" v-if="data.callProcessId">
+      <div v-if="data.callProcessId" class="dd-node__sub-text">
         {{ data.callAsync ? t('approvalDesigner.shapeExecAsync') : t('approvalDesigner.shapeExecSync') }}
       </div>
       <RightOutlined class="dd-node__arrow" />

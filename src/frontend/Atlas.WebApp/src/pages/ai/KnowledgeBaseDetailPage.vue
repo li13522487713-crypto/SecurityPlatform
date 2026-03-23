@@ -7,7 +7,7 @@
       </a-space>
     </template>
 
-    <a-tabs v-model:activeKey="activeTab">
+    <a-tabs v-model:active-key="activeTab">
       <a-tab-pane key="documents" :tab="t('ai.knowledgeBase.tabDocuments')">
         <div class="toolbar">
           <a-space wrap>

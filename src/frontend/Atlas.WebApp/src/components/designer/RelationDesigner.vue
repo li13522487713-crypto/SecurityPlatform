@@ -16,7 +16,7 @@
           <template #icon><FullscreenExitOutlined /></template>
           {{ t("relationDesigner.fitView") }}
         </a-button>
-        <a-button @click="clearCanvas" danger>
+        <a-button danger @click="clearCanvas">
           {{ t("relationDesigner.clearCanvas") }}
         </a-button>
       </a-space>

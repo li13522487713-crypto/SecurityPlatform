@@ -32,8 +32,8 @@
     <a-modal
       v-model:open="modalVisible"
       :title="editingRecord ? t('apiConnectors.editTitle') : t('apiConnectors.createTitle')"
-      @ok="handleSave"
       :confirm-loading="saving"
+      @ok="handleSave"
     >
       <a-form :model="formState" layout="vertical">
         <a-form-item :label="t('apiConnectors.colName')" required>

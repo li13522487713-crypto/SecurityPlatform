@@ -9,21 +9,21 @@
 
     <!-- 缩放控制栏 -->
     <div class="dd-zoom-toolbar">
-      <button class="dd-zoom-btn" @click="zoomOut" :title="t('approvalDesigner.ctxZoomOutTitle')">
+      <button class="dd-zoom-btn" :title="t('approvalDesigner.ctxZoomOutTitle')" @click="zoomOut">
         <MinusOutlined />
       </button>
       <span class="dd-zoom-value">{{ zoomPercent }}%</span>
-      <button class="dd-zoom-btn" @click="zoomIn" :title="t('approvalDesigner.ctxZoomInTitle')">
+      <button class="dd-zoom-btn" :title="t('approvalDesigner.ctxZoomInTitle')" @click="zoomIn">
         <PlusOutlined />
       </button>
-      <button class="dd-zoom-btn" @click="zoomFit" :title="t('approvalDesigner.ctxZoomFitTitle')">
+      <button class="dd-zoom-btn" :title="t('approvalDesigner.ctxZoomFitTitle')" @click="zoomFit">
         <CompressOutlined />
       </button>
       <button
         class="dd-zoom-btn"
         :class="{ 'dd-zoom-btn--active': minimapVisible }"
-        @click="toggleMinimap"
         :title="t('approvalDesigner.ctxMinimapTitle')"
+        @click="toggleMinimap"
       >
         <BlockOutlined />
       </button>

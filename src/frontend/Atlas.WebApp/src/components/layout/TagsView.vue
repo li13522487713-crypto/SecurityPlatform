@@ -1,6 +1,6 @@
 <template>
   <div class="tags-view-container" data-testid="e2e-tags-view">
-    <div class="tags-scroll-wrapper" ref="scrollWrapper" data-testid="e2e-tags-scroll">
+    <div ref="scrollWrapper" class="tags-scroll-wrapper" data-testid="e2e-tags-scroll">
       <router-link
         v-for="tag in visitedViews"
         :key="tag.path ?? tag.fullPath ?? tag.name"

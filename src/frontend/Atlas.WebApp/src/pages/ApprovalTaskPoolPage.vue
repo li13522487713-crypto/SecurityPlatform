@@ -9,8 +9,8 @@
         :data-source="tasks"
         :loading="loading"
         :pagination="pagination"
-        @change="handleTableChange"
         row-key="id"
+        @change="handleTableChange"
       >
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'action'">

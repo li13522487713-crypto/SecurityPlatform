@@ -1,7 +1,7 @@
 <template>
   <div class="add-node-btn-box">
     <div class="add-node-btn">
-      <a-popover placement="right" trigger="click" v-model:open="visible">
+      <a-popover v-model:open="visible" placement="right" trigger="click">
         <template #content>
           <div class="add-node-popover-body">
             <div class="add-node-popover-item" @click="handleSelect('approve')">

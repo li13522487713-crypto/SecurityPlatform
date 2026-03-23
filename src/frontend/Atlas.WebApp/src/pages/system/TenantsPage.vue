@@ -1,7 +1,7 @@
 <template>
   <CrudPageLayout
-    :title="t('route.tenants')"
     v-model:keyword="searchParams.keyword"
+    :title="t('route.tenants')"
     :search-placeholder="t('systemTenants.keywordPlaceholder')"
     :drawer-open="modalVisible"
     :drawer-title="modalTitle"
@@ -23,7 +23,7 @@
     </template>
 
     <template #toolbar-actions>
-      <a-button type="primary" v-if="hasPermission(profile, 'system:tenant:create')" @click="handleCreate">
+      <a-button v-if="hasPermission(profile, 'system:tenant:create')" type="primary" @click="handleCreate">
         <template #icon><PlusOutlined /></template>
         {{ t("systemTenants.createTenant") }}
       </a-button>
@@ -51,7 +51,7 @@
           </template>
           <template v-else-if="column.key === 'action'">
             <a-space>
-              <a-button type="link" size="small" v-if="hasPermission(profile, 'system:tenant:update')" @click="handleEdit(record)">
+              <a-button v-if="hasPermission(profile, 'system:tenant:update')" type="link" size="small" @click="handleEdit(record)">
                 {{ t("common.edit") }}
               </a-button>
               <a-popconfirm
@@ -61,7 +61,7 @@
                 :disabled="record.id === 1 || record.id === 10000"
                 @confirm="handleDelete(record)"
               >
-                <a-button type="link" size="small" danger v-if="hasPermission(profile, 'system:tenant:delete')" :disabled="record.id === 1 || record.id === 10000">
+                <a-button v-if="hasPermission(profile, 'system:tenant:delete')" type="link" size="small" danger :disabled="record.id === 1 || record.id === 10000">
                   {{ t("common.delete") }}
                 </a-button>
               </a-popconfirm>

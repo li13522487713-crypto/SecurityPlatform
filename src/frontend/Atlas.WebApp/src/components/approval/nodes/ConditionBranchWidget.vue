@@ -3,8 +3,8 @@
     <div class="branch-box" @click="handleClick">
       <div class="branch-title">
         <span class="name">{{ branch.branchName }}</span>
-        <span class="priority" v-if="branch.isDefault">{{ t('approvalDesigner.branchTagDefault') }}</span>
-        <CloseOutlined class="close-btn" @click.stop="handleDelete" v-if="!branch.isDefault" />
+        <span v-if="branch.isDefault" class="priority">{{ t('approvalDesigner.branchTagDefault') }}</span>
+        <CloseOutlined v-if="!branch.isDefault" class="close-btn" @click.stop="handleDelete" />
       </div>
       <div class="branch-content">
         <span v-if="branch.isDefault">{{ t('approvalDesigner.branchElseFlow') }}</span>

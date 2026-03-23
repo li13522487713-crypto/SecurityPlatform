@@ -74,10 +74,10 @@
         </div>
         <div data-testid="e2e-content">
           <a-layout-content class="app-content">
-            <router-view v-slot="{ Component, route }">
+            <router-view v-slot="{ Component, route: slotRoute }">
               <transition name="fade-transform" mode="out-in">
                 <keep-alive :include="cachedViews">
-                  <component :is="Component" :key="route.path" />
+                  <component :is="Component" :key="slotRoute.path" />
                 </keep-alive>
               </transition>
             </router-view>

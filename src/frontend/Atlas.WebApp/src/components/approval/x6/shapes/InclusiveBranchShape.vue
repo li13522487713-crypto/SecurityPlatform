@@ -6,8 +6,8 @@
   >
     <div class="dd-node__header dd-node__header--inclusive">
       <span class="dd-node__title">{{ data.branchName || t('approvalDesigner.shapeInclusiveDefault') }}</span>
-      <span class="dd-node__priority" v-if="!data.isDefault">{{ t('approvalDesigner.shapePriority', { index: branchIndex }) }}</span>
-      <span class="dd-node__priority" v-else>{{ t('approvalDesigner.shapeDefaultBranch') }}</span>
+      <span v-if="!data.isDefault" class="dd-node__priority">{{ t('approvalDesigner.shapePriority', { index: branchIndex }) }}</span>
+      <span v-else class="dd-node__priority">{{ t('approvalDesigner.shapeDefaultBranch') }}</span>
       <CloseOutlined class="dd-node__delete" @click.stop="handleDelete" />
     </div>
     <div class="dd-node__body">

@@ -2,7 +2,7 @@
   <a-card :title="title" class="page-card" :data-testid="`e2e-page-card-${sanitizeTestId(title)}`">
     <div class="crud-search-bar" data-testid="e2e-crud-search-bar">
       <div class="search-form-wrapper">
-        <a-form layout="inline" @submit.prevent="$emit('search')" style="width: 100%; display: flex; flex-wrap: wrap; gap: 0px 0;">
+        <a-form layout="inline" style="width: 100%; display: flex; flex-wrap: wrap; gap: 0px 0;" @submit.prevent="$emit('search')">
           <a-form-item v-if="keywordModel !== undefined">
             <a-input
               v-model:value="keywordModel"

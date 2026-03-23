@@ -1,9 +1,9 @@
 <template>
   <div class="dd-page">
     <DesignerToolbar
-      v-model:flowName="flowName"
-      v-model:activeMenu="activeMenu"
-      v-model:paletteVisible="paletteVisible"
+      v-model:flow-name="flowName"
+      v-model:active-menu="activeMenu"
+      v-model:palette-visible="paletteVisible"
       :flow-version="flowVersion"
       :can-undo="canUndo"
       :can-redo="canRedo"
@@ -24,7 +24,7 @@
     <div class="dd-main-container">
       <div class="dd-sidebar">
         <a-menu
-          v-model:selectedKeys="sidebarKeys"
+          v-model:selected-keys="sidebarKeys"
           mode="vertical"
           style="height: 100%; border-right: 0"
         >
@@ -37,16 +37,16 @@
       <div class="dd-content">
         <div v-show="activeMenu === 'basic'" class="dd-content-panel dd-body--scroll">
           <DesignerBasicInfo
-            v-model:flowName="flowName"
-            v-model:definitionMeta="definitionMeta"
-            v-model:visibilityScopeType="visibilityScopeType"
-            v-model:visibilityScopeIds="visibilityScopeIds"
+            v-model:flow-name="flowName"
+            v-model:definition-meta="definitionMeta"
+            v-model:visibility-scope-type="visibilityScopeType"
+            v-model:visibility-scope-ids="visibilityScopeIds"
           />
         </div>
 
         <div v-show="activeMenu === 'form'" class="dd-content-panel">
           <DesignerFormSchema
-            v-model:schemaText="amisSchemaText"
+            v-model:schema-text="amisSchemaText"
             @apply="applyAmisSchema"
           />
         </div>
@@ -54,20 +54,20 @@
         <div v-show="activeMenu === 'process'" class="dd-content-panel">
           <DesignerFlowProcess
             ref="processRef"
-            v-model:paletteVisible="paletteVisible"
-            v-model:panelOpen="panelOpen"
+            v-model:palette-visible="paletteVisible"
+            v-model:panel-open="panelOpen"
             :flow-tree="flowTree"
             :selected-node="selectedNode"
             :effective-form-fields="effectiveFormFields"
-            @addPaletteNode="handlePaletteAddNode"
-            @selectNode="handleSelectNode"
-            @addNode="addNode"
-            @deleteNode="deleteNode"
-            @addConditionBranch="addConditionBranch"
-            @deleteConditionBranch="deleteConditionBranch"
-            @moveBranch="moveBranch"
-            @updateRouteTarget="handleRouteTargetUpdate"
-            @updateNode="handleNodeUpdate"
+            @add-palette-node="handlePaletteAddNode"
+            @select-node="handleSelectNode"
+            @add-node="addNode"
+            @delete-node="deleteNode"
+            @add-condition-branch="addConditionBranch"
+            @delete-condition-branch="deleteConditionBranch"
+            @move-branch="moveBranch"
+            @update-route-target="handleRouteTargetUpdate"
+            @update-node="handleNodeUpdate"
             @undo="undo"
             @redo="redo"
           />
@@ -85,7 +85,7 @@
     />
 
     <!-- ══ 弹窗：发布确认 ══ -->
-    <a-modal v-model:open="publishModalOpen" :title="t('approvalDesigner.publishConfirmTitle')" :ok-text="t('approvalDesigner.publishOk')" :cancel-text="t('common.cancel')" @ok="handlePublishConfirm" :confirm-loading="publishing">
+    <a-modal v-model:open="publishModalOpen" :title="t('approvalDesigner.publishConfirmTitle')" :ok-text="t('approvalDesigner.publishOk')" :cancel-text="t('common.cancel')" :confirm-loading="publishing" @ok="handlePublishConfirm">
       <a-descriptions :column="1" bordered size="small">
         <a-descriptions-item :label="t('approvalDesigner.labelFlowName')">{{ flowName }}</a-descriptions-item>
         <a-descriptions-item :label="t('approvalDesigner.labelCurrentVersion')">

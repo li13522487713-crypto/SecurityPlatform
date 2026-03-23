@@ -3,7 +3,7 @@
     <div v-show="visible" class="dd-palette">
       <div class="dd-palette__header">
         <span>{{ t('approvalDesigner.palTitle') }}</span>
-        <button class="dd-palette__close" @click="emit('update:visible', false)" :title="t('approvalDesigner.palCloseTitle')">
+        <button class="dd-palette__close" :title="t('approvalDesigner.palCloseTitle')" @click="emit('update:visible', false)">
           <CloseOutlined />
         </button>
       </div>

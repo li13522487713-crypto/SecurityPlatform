@@ -135,7 +135,7 @@
       @ok="submitTypeForm"
       @cancel="closeTypeModal"
     >
-      <a-form :model="typeForm" layout="vertical" :rules="typeRules" ref="typeFormRef">
+      <a-form ref="typeFormRef" :model="typeForm" layout="vertical" :rules="typeRules">
         <a-form-item :label="t('dict.typeCode')" name="code">
           <a-input
             v-model:value="typeForm.code"
@@ -167,7 +167,7 @@
       @ok="submitDataForm"
       @cancel="closeDataModal"
     >
-      <a-form :model="dataForm" layout="vertical" :rules="dataRules" ref="dataFormRef">
+      <a-form ref="dataFormRef" :model="dataForm" layout="vertical" :rules="dataRules">
         <a-form-item :label="t('dict.label')" name="label">
           <a-input v-model:value="dataForm.label" :placeholder="t('dict.labelPlaceholder')" />
         </a-form-item>

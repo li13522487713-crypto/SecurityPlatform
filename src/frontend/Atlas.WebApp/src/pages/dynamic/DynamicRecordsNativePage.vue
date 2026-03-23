@@ -2,20 +2,20 @@
   <a-card :title="pageTitle" class="page-card">
     <template #extra>
       <a-space>
-        <a-button @click="fetchData" :loading="loading">{{ t('dynamic.refresh') }}</a-button>
+        <a-button :loading="loading" @click="fetchData">{{ t('dynamic.refresh') }}</a-button>
         <a-button @click="openAttachmentDrawer"><PaperClipOutlined /> {{ t('dynamic.attachments') }}</a-button>
       </a-space>
     </template>
 
     <QueryGridUnifiedView
-      v-model:queryConfig="advancedQueryConfig"
-      :tableConfig="tableConfig"
+      v-model:query-config="advancedQueryConfig"
+      :table-config="tableConfig"
       :fields="tableFields"
-      :dataSource="flatRecords"
+      :data-source="flatRecords"
       :loading="loading"
       :pagination="pagination"
-      :showQueryPanel="true"
-      :queryTitle="t('dynamic.advancedSearch')"
+      :show-query-panel="true"
+      :query-title="t('dynamic.advancedSearch')"
       @search="handleSearch"
       @reset="handleReset"
       @change="onTableChange"

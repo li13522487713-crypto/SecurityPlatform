@@ -4,7 +4,7 @@
 
     <!-- 全局统计 -->
     <a-row :gutter="16" class="stats-row">
-      <a-col :span="6" v-for="item in globalStatItems" :key="item.key">
+      <a-col v-for="item in globalStatItems" :key="item.key" :span="6">
         <a-statistic :title="statLabel(item.key)" :value="item.value" />
       </a-col>
     </a-row>

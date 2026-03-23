@@ -2,9 +2,9 @@
   <a-modal
     :open="visible"
     :title="t('approvalDesigner.jumpModalTitle')"
+    width="600px"
     @ok="handleOk"
     @cancel="handleCancel"
-    width="600px"
   >
     <div class="node-list">
       <a-radio-group v-model:value="selectedNodeId" style="width: 100%">

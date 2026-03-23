@@ -2,9 +2,9 @@
   <a-switch 
     :checked="modelValue" 
     :loading="loading"
-    @change="handleChange"
     :checked-children="activeLabel"
     :un-checked-children="inactiveLabel"
+    @change="handleChange"
   />
 </template>
 

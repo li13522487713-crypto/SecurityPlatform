@@ -15,7 +15,7 @@
           v-model:value="queryDeptId"
           :placeholder="t('approvalDepartmentLeader.placeholderDeptId')"
           style="width: 200px"
-          @pressEnter="handleQuery"
+          @press-enter="handleQuery"
         />
       </a-form-item>
       <a-form-item>

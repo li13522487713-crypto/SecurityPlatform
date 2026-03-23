@@ -2,16 +2,16 @@
   <a-modal
     :visible="visible"
     :title="t('approvalDesigner.batchTransferTitle')"
+    :confirm-loading="loading"
     @ok="handleOk"
     @cancel="handleCancel"
-    :confirm-loading="loading"
   >
     <a-form layout="vertical">
       <a-form-item :label="t('approvalDesigner.batchFromLabel')">
-        <UserRolePicker mode="user" v-model:value="fromUsers" :max-count="1" :placeholder="t('approvalDesigner.batchPhFrom')" />
+        <UserRolePicker v-model:value="fromUsers" mode="user" :max-count="1" :placeholder="t('approvalDesigner.batchPhFrom')" />
       </a-form-item>
       <a-form-item :label="t('approvalDesigner.batchToLabel')">
-        <UserRolePicker mode="user" v-model:value="toUsers" :max-count="1" :placeholder="t('approvalDesigner.batchPhTo')" />
+        <UserRolePicker v-model:value="toUsers" mode="user" :max-count="1" :placeholder="t('approvalDesigner.batchPhTo')" />
       </a-form-item>
       <a-alert :message="t('approvalDesigner.batchAlertMsg')" type="warning" show-icon />
     </a-form>

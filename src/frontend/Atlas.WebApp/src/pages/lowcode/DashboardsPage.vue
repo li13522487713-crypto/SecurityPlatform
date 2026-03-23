@@ -45,8 +45,8 @@
     <a-modal
       v-model:open="modalVisible"
       :title="editingId ? t('dashboards.editTitle') : t('dashboards.createTitle')"
-      @ok="handleSave"
       :confirm-loading="saving"
+      @ok="handleSave"
     >
       <a-form :model="formState" layout="vertical">
         <a-form-item :label="t('dashboards.colName')" required>

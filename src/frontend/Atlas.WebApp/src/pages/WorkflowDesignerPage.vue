@@ -46,7 +46,7 @@
         width="400"
         @close="handleDrawerClose"
       >
-        <a-form :model="selectedNodeData" layout="vertical" v-if="selectedNodeData">
+        <a-form v-if="selectedNodeData" :model="selectedNodeData" layout="vertical">
           <a-form-item :label="t('workflow.labelNodeName')">
             <a-input v-model:value="selectedNodeData.name" />
           </a-form-item>

@@ -26,7 +26,7 @@
       </template>
       <template v-else-if="currentFieldType === 'Date' || currentFieldType === 'DateTime'">
         <a-date-picker v-if="currentFieldType === 'Date'" v-model:value="model.value" value-format="YYYY-MM-DD" style="width: 200px" />
-        <a-date-picker v-else show-time v-model:value="model.value" value-format="YYYY-MM-DD HH:mm:ss" style="width: 200px" />
+        <a-date-picker v-else v-model:value="model.value" show-time value-format="YYYY-MM-DD HH:mm:ss" style="width: 200px" />
       </template>
       <template v-else>
         <a-input v-model:value="model.value" placeholder="请输入值" style="width: 200px" />

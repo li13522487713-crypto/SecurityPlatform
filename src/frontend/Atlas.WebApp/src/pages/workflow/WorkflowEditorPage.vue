@@ -3,20 +3,20 @@
     <!-- 顶部工具栏 -->
     <div class="editor-header">
       <div class="header-left">
-        <a-button type="text" @click="backToList" style="color:#fff">
+        <a-button type="text" style="color:#fff" @click="backToList">
           <LeftOutlined />
         </a-button>
         <a-input
           v-model:value="workflowName"
           class="name-input"
           @blur="handleNameBlur"
-          @pressEnter="handleNameBlur"
+          @press-enter="handleNameBlur"
         />
       </div>
       <div class="header-right">
         <a-space>
           <a-tag v-if="isDirty" color="orange">{{ t('workflow.editorUnsaved') }}</a-tag>
-          <a-button @click="handleSaveDraft" :loading="saving">{{ t('workflow.saveDraft') }}</a-button>
+          <a-button :loading="saving" @click="handleSaveDraft">{{ t('workflow.saveDraft') }}</a-button>
           <a-button type="primary" @click="showPublishModal = true">{{ t('workflow.publish') }}</a-button>
           <a-button :type="showTestPanel ? 'primary' : 'default'" @click="showTestPanel = !showTestPanel">
             <PlayCircleOutlined />
@@ -39,12 +39,12 @@
           :default-edge-options="defaultEdgeOptions"
           :connection-mode="ConnectionMode.Loose"
           :fit-view-on-init="true"
+          class="workflow-canvas"
           @node-click="handleNodeClick"
           @pane-click="handlePaneClick"
           @connect="handleConnect"
           @nodes-change="handleNodesChange"
           @edges-change="handleEdgesChange"
-          class="workflow-canvas"
         >
           <Controls />
           <MiniMap
@@ -78,10 +78,10 @@
     <a-modal
       v-model:open="showPublishModal"
       :title="t('workflow.publishModalTitle')"
-      @ok="handlePublish"
       :confirm-loading="publishing"
       :ok-text="t('workflow.publishOk')"
       :cancel-text="t('common.cancel')"
+      @ok="handlePublish"
     >
       <a-form layout="vertical">
         <a-form-item :label="t('workflow.labelChangelog')">

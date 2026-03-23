@@ -11,7 +11,7 @@
         <a-button danger @click="$emit('cancel', executionId)">{{ t("ai.runPanel.cancel") }}</a-button>
       </a-form-item>
     </a-form>
-    <div class="run-meta" v-if="executionId">
+    <div v-if="executionId" class="run-meta">
       <span>ExecutionId: {{ executionId }}</span>
       <span>Status: {{ status || "-" }}</span>
     </div>

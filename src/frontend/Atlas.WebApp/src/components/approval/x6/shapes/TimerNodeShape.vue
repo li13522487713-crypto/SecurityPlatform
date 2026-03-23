@@ -11,11 +11,11 @@
     </div>
     <div class="dd-node__body">
       <template v-if="data.timerConfig">
-        <span class="dd-node__text" v-if="timerConfig?.type === 'duration'">{{ t('approvalDesigner.shapeTimerWait', { seconds: timerConfig.duration }) }}</span>
-        <span class="dd-node__text" v-else-if="timerConfig?.type === 'date'">{{ t('approvalDesigner.shapeTimerUntil', { date: timerConfig.date }) }}</span>
-        <span class="dd-node__placeholder" v-else>{{ t('approvalDesigner.shapeTimerConfigure') }}</span>
+        <span v-if="timerConfig?.type === 'duration'" class="dd-node__text">{{ t('approvalDesigner.shapeTimerWait', { seconds: timerConfig.duration }) }}</span>
+        <span v-else-if="timerConfig?.type === 'date'" class="dd-node__text">{{ t('approvalDesigner.shapeTimerUntil', { date: timerConfig.date }) }}</span>
+        <span v-else class="dd-node__placeholder">{{ t('approvalDesigner.shapeTimerConfigure') }}</span>
       </template>
-      <span class="dd-node__placeholder" v-else>{{ t('approvalDesigner.shapeTimerConfigure') }}</span>
+      <span v-else class="dd-node__placeholder">{{ t('approvalDesigner.shapeTimerConfigure') }}</span>
       <RightOutlined class="dd-node__arrow" />
     </div>
   </div>

@@ -38,7 +38,7 @@
         size="small"
         :style="{ width: '100%' }"
         @change="handleSave"
-        @openChange="handleDateOpenChange"
+        @open-change="handleDateOpenChange"
       />
       <template v-else>
         <a-input
@@ -60,7 +60,7 @@
       <slot />
       <div v-if="editable && !saving" class="actions">
         <EditOutlined class="editable-cell-icon" />
-        <UndoOutlined v-if="canUndo" class="editable-cell-icon undo-icon" @click.stop="handleUndo" :title="t('tableUi.undo')" />
+        <UndoOutlined v-if="canUndo" class="editable-cell-icon undo-icon" :title="t('tableUi.undo')" @click.stop="handleUndo" />
       </div>
       <LoadingOutlined v-if="saving" class="editable-cell-icon" />
     </div>
@@ -96,6 +96,7 @@ const props = withDefaults(defineProps<{
   fieldType: 'text',
   editable: true,
   selectOptions: () => [],
+  onSave: undefined,
 })
 
 const emit = defineEmits<{

@@ -87,7 +87,7 @@
         </div>
       </div>
       
-      <a-button type="dashed" block @click="addGroup" style="margin-top: 8px">
+      <a-button type="dashed" block style="margin-top: 8px" @click="addGroup">
         <PlusOutlined /> {{ t('approvalDesigner.condBtnAddGroupOr') }}
       </a-button>
     </div>

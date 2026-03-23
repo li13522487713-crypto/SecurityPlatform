@@ -7,9 +7,9 @@
     :filter-option="false"
     :not-found-content="fetching ? undefined : null"
     :options="options"
+    style="width: 100%"
     @search="handleSearch"
     @change="handleChange"
-    style="width: 100%"
   >
     <template v-if="fetching" #notFoundContent>
       <a-spin size="small" />
@@ -45,6 +45,7 @@ const props = withDefaults(defineProps<{
   multiple?: boolean;
   placeholder?: string;
 }>(), {
+  value: undefined,
   mode: "user",
   multiple: true,
   placeholder: undefined

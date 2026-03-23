@@ -6,8 +6,8 @@
     width="400"
     @close="handleClose"
   >
-    <a-form :model="formData" layout="vertical" v-if="formData">
-      <a-form-item :label="t('approvalDesigner.propsPhNodeName')" v-if="'nodeName' in formData">
+    <a-form v-if="formData" :model="formData" layout="vertical">
+      <a-form-item v-if="'nodeName' in formData" :label="t('approvalDesigner.propsPhNodeName')">
         <a-input v-model:value="formData.nodeName" />
       </a-form-item>
       
@@ -28,8 +28,8 @@
             </a-form-item>
             <a-form-item :label="t('approvalDesigner.drawerApproverList')">
               <a-select
-                mode="tags"
                 v-model:value="approverTargets"
+                mode="tags"
                 :placeholder="t('approvalDesigner.drawerPhApproverIds')"
                 @change="syncApproverTargets"
               />
@@ -84,7 +84,7 @@
 
       <template v-if="copyNode">
         <a-form-item :label="t('approvalDesigner.propsCopyRecipients')">
-           <a-select mode="tags" v-model:value="copyNode.copyToUsers" :placeholder="t('approvalDesigner.drawerPhUserIds')" />
+           <a-select v-model:value="copyNode.copyToUsers" mode="tags" :placeholder="t('approvalDesigner.drawerPhUserIds')" />
         </a-form-item>
       </template>
 

@@ -7,8 +7,8 @@
         <CloseOutlined class="close-btn" @click.stop="handleDelete" />
       </div>
       <div class="content">
-        <span class="text" v-if="node.copyToUsers && node.copyToUsers.length > 0">{{ node.copyToUsers.join(', ') }}</span>
-        <span class="placeholder" v-else>{{ t('approvalDesigner.propsPhCopyRecipients') }}</span>
+        <span v-if="node.copyToUsers && node.copyToUsers.length > 0" class="text">{{ node.copyToUsers.join(', ') }}</span>
+        <span v-else class="placeholder">{{ t('approvalDesigner.propsPhCopyRecipients') }}</span>
       </div>
     </div>
   </div>

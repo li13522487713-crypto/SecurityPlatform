@@ -15,10 +15,10 @@
         <a-input-search
           v-if="showSearch"
           :value="keyword"
-          @update:value="(v: string) => $emit('update:keyword', v)"
           allow-clear
           :placeholder="searchPlaceholder"
           :style="{ width: searchWidth + 'px' }"
+          @update:value="(v: string) => $emit('update:keyword', v)"
           @search="handleSearch"
         />
 

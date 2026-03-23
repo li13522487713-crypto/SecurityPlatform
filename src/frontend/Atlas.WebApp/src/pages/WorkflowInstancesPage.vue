@@ -15,8 +15,8 @@
         :data-source="instances"
         :loading="loading"
         :pagination="tablePagination"
-        @change="handleTableChange"
         :row-key="(record: WorkflowInstanceListItem) => record.id"
+        @change="handleTableChange"
       >
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'status'">
@@ -36,28 +36,28 @@
                 {{ t('workflow.viewDetail') }}
               </a-button>
               <a-button
+                v-if="record.status === 'Runnable' || record.status === 'Running'"
                 type="link"
                 size="small"
-                @click="handleSuspend(record.id)"
-                v-if="record.status === 'Runnable' || record.status === 'Running'"
                 danger
+                @click="handleSuspend(record.id)"
               >
                 {{ t('workflow.suspend') }}
               </a-button>
               <a-button
+                v-if="record.status === 'Suspended'"
                 type="link"
                 size="small"
                 @click="handleResume(record.id)"
-                v-if="record.status === 'Suspended'"
               >
                 {{ t('workflow.resume') }}
               </a-button>
               <a-button
+                v-if="record.status !== 'Complete' && record.status !== 'Terminated'"
                 type="link"
                 size="small"
-                @click="handleTerminate(record.id)"
-                v-if="record.status !== 'Complete' && record.status !== 'Terminated'"
                 danger
+                @click="handleTerminate(record.id)"
               >
                 {{ t('workflow.terminate') }}
               </a-button>
@@ -124,7 +124,7 @@
           </a-timeline>
 
           <a-space style="margin-top: 16px">
-            <a-button @click="handleRefreshPointers" :loading="pointersLoading">
+            <a-button :loading="pointersLoading" @click="handleRefreshPointers">
               <template #icon><ReloadOutlined /></template>
               {{ t('workflow.refreshPointers') }}
             </a-button>

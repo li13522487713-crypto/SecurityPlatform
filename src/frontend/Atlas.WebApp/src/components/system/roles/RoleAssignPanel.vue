@@ -107,7 +107,7 @@
               :description="t('systemRoles.fieldPermNoTableSelected', '请先选择动态表以配置字段权限')"
               style="margin: 32px 0"
             />
-            <div class="table-container" v-if="fieldPermissionTableKey">
+            <div v-if="fieldPermissionTableKey" class="table-container">
               <a-table
                 :data-source="fieldPermissionRows"
                 :loading="fieldPermissionLoading"
@@ -161,14 +161,14 @@
             />
             <a-radio-group v-model:value="assignModel.dataScope" button-style="solid" class="display-block-radio">
               <a-radio-button
-                v-for="scope in dataScopeOptions"
-                :key="scope.value"
-                :value="scope.value"
+                v-for="dataScopeOpt in dataScopeOptions"
+                :key="dataScopeOpt.value"
+                :value="dataScopeOpt.value"
                 style="display: block; width: 100%; text-align: left; margin-bottom: 8px; border-radius: 6px; border-left: 1px solid #d9d9d9;"
               >
                 <div class="scope-radio-content">
-                  <div class="scope-label">{{ scope.label }}</div>
-                  <div class="scope-desc">{{ scope.description }}</div>
+                  <div class="scope-label">{{ dataScopeOpt.label }}</div>
+                  <div class="scope-desc">{{ dataScopeOpt.description }}</div>
                 </div>
               </a-radio-button>
             </a-radio-group>

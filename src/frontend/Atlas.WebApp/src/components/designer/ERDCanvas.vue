@@ -30,17 +30,17 @@
     <div class="erd-main">
       <div class="toolbar">
         <a-space>
-          <a-button @click="saveConnections" type="primary" :loading="saving">保存关联</a-button>
-          <a-button @click="zoomIn" title="放大"><ZoomInOutlined /></a-button>
-          <a-button @click="zoomOut" title="缩小"><ZoomOutOutlined /></a-button>
-          <a-button @click="centerContent" title="居中"><FullscreenExitOutlined /></a-button>
+          <a-button type="primary" :loading="saving" @click="saveConnections">保存关联</a-button>
+          <a-button title="放大" @click="zoomIn"><ZoomInOutlined /></a-button>
+          <a-button title="缩小" @click="zoomOut"><ZoomOutOutlined /></a-button>
+          <a-button title="居中" @click="centerContent"><FullscreenExitOutlined /></a-button>
         </a-space>
       </div>
-      <div class="erd-canvas-container" ref="containerRef"></div>
+      <div ref="containerRef" class="erd-canvas-container"></div>
     </div>
   </div>
 
-  <EntityReferencesDrawer v-model:open="referencesDrawerOpen" :tableKey="selectedTableKey" />
+  <EntityReferencesDrawer v-model:open="referencesDrawerOpen" :table-key="selectedTableKey" />
 </template>
 
 <script setup lang="ts">

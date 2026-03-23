@@ -27,8 +27,8 @@
     </a-form>
 
     <a-space>
-      <a-button @click="handleSaveDraft" :loading="submitting">{{ t('approvalRuntime.saveDraft') }}</a-button>
-      <a-button type="primary" @click="handleStart" :loading="submitting">{{ t('approvalRuntime.submitStart') }}</a-button>
+      <a-button :loading="submitting" @click="handleSaveDraft">{{ t('approvalRuntime.saveDraft') }}</a-button>
+      <a-button type="primary" :loading="submitting" @click="handleStart">{{ t('approvalRuntime.submitStart') }}</a-button>
     </a-space>
   </a-card>
 </template>

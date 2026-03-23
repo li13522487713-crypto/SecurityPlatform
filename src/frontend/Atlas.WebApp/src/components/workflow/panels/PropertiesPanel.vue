@@ -46,7 +46,7 @@
               <a-slider v-model:value="localConfigs.temperature" :min="0" :max="2" :step="0.1" @change="emitUpdate" />
             </a-form-item>
             <a-form-item :label="t('wfUi.properties.llmMaxTokens')">
-              <a-input-number v-model:value="localConfigs.maxTokens" :min="100" :max="8000" @change="emitUpdate" style="width:100%" />
+              <a-input-number v-model:value="localConfigs.maxTokens" :min="100" :max="8000" style="width:100%" @change="emitUpdate" />
             </a-form-item>
             <a-form-item :label="t('wfUi.properties.llmOutVar')">
               <a-input v-model:value="localConfigs.outputKey" placeholder="llm_output" @change="emitUpdate" />
@@ -170,10 +170,10 @@
         <template v-else-if="node.type === 'SubWorkflow'">
           <a-form layout="vertical" size="small">
             <a-form-item :label="t('wfUi.properties.subWorkflowId')">
-              <a-input-number v-model:value="localConfigs.workflowId" @change="emitUpdate" style="width:100%" />
+              <a-input-number v-model:value="localConfigs.workflowId" style="width:100%" @change="emitUpdate" />
             </a-form-item>
             <a-form-item :label="t('wfUi.properties.maxDepth')">
-              <a-input-number v-model:value="localConfigs.maxDepth" :min="1" :max="10" @change="emitUpdate" style="width:100%" />
+              <a-input-number v-model:value="localConfigs.maxDepth" :min="1" :max="10" style="width:100%" @change="emitUpdate" />
             </a-form-item>
             <a-form-item :label="t('wfUi.properties.inheritParent')">
               <a-switch v-model:checked="localConfigs.inheritVariables" @change="emitUpdate" />
@@ -196,8 +196,8 @@
               <a-textarea
                 :value="configsJson"
                 :rows="8"
-                @change="handleRawConfigsChange"
                 style="font-family: monospace; font-size: 12px"
+                @change="handleRawConfigsChange"
               />
             </a-form-item>
           </a-form>
@@ -207,7 +207,7 @@
       <div class="prop-section">
         <div class="section-title">{{ t('wfUi.properties.inputMap') }}</div>
         <div class="mapping-hint">{{ t('wfUi.properties.mapHint') }}</div>
-        <div v-for="(ref, field) in localInputMappings" :key="field" class="mapping-row">
+        <div v-for="(mappingRef, field) in localInputMappings" :key="field" class="mapping-row">
           <a-input :value="field" disabled style="width: 40%" size="small" />
           <span style="color: #9ca3af; padding: 0 8px">→</span>
           <a-input v-model:value="localInputMappings[field]" size="small" style="width: 50%" @change="emitUpdate" />

@@ -7,8 +7,8 @@
         <CloseOutlined class="close-btn" @click.stop="handleDelete" />
       </div>
       <div class="content">
-        <span class="text" v-if="node.assigneeValue || !needsAssigneeValue(node.assigneeType)">{{ getAssigneeLabel(node) }}</span>
-        <span class="placeholder" v-else>{{ t('approvalDesigner.shapePickApprover') }}</span>
+        <span v-if="node.assigneeValue || !needsAssigneeValue(node.assigneeType)" class="text">{{ getAssigneeLabel(node) }}</span>
+        <span v-else class="placeholder">{{ t('approvalDesigner.shapePickApprover') }}</span>
       </div>
     </div>
   </div>

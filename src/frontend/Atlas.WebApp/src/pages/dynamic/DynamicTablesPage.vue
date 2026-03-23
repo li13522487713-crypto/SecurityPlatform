@@ -13,7 +13,7 @@
           @change="handleAppScopeChange"
         />
         <a-button @click="loadSchema">{{ t("dynamic.refresh") }}</a-button>
-        <a-button type="primary" @click="openERDCanvas" v-if="selectedAppId">ERD 模型设计</a-button>
+        <a-button v-if="selectedAppId" type="primary" @click="openERDCanvas">ERD 模型设计</a-button>
       </a-space>
     </template>
     <a-spin :spinning="loading">

@@ -1,6 +1,6 @@
 <template>
   <div class="communication-panel">
-    <div class="msg-list" ref="msgListRef">
+    <div ref="msgListRef" class="msg-list">
       <div v-if="messages.length === 0" class="empty-msg">{{ t('approvalDesigner.commEmpty') }}</div>
       <div v-for="msg in messages" :key="msg.id" class="msg-item" :class="{ 'is-me': msg.senderUserId === currentUserId }">
         <div class="msg-avatar">
@@ -20,10 +20,10 @@
         v-model:value="inputText"
         :placeholder="t('approvalDesigner.commPlaceholder')"
         :auto-size="{ minRows: 2, maxRows: 4 }"
-        @pressEnter.prevent="handleSend"
+        @press-enter.prevent="handleSend"
       />
       <div class="msg-actions">
-        <UserRolePicker mode="user" v-model:value="recipientIds" :placeholder="t('approvalDesigner.commPickRecipients')" style="width: 200px" />
+        <UserRolePicker v-model:value="recipientIds" mode="user" :placeholder="t('approvalDesigner.commPickRecipients')" style="width: 200px" />
         <a-button type="primary" :loading="sending" @click="handleSend">{{ t('approvalDesigner.commSend') }}</a-button>
       </div>
     </div>
