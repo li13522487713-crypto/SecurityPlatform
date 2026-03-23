@@ -88,7 +88,8 @@ export default defineConfig({
     }
   },
   build: {
-    chunkSizeWarningLimit: 8000,
+    // vendor-amis 包含 amis+React+MobX 全家桶，体积约 9 MB，无法进一步拆分（循环依赖），提高上限以消除噪音警告
+    chunkSizeWarningLimit: 10000,
     rollupOptions: {
       input: {
         app: path.resolve(__dirname, "index.html"),
@@ -110,6 +111,14 @@ export default defineConfig({
           warning.code === "EVAL" &&
           (warning.id?.includes("/node_modules/amis/") ||
             warning.id?.includes("/node_modules/vform3-builds/"))
+        ) {
+          return;
+        }
+
+        // monaco-editor 内部 marked.js 使用 CJS module 变量，为第三方库问题，不影响运行
+        if (
+          warning.code === "COMMONJS_VARIABLE_IN_ESM" &&
+          warning.id?.includes("/node_modules/monaco-editor/")
         ) {
           return;
         }
