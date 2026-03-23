@@ -3000,24 +3000,65 @@ export const runtimeMessages: Record<SupportedLocale, MessageTree> = {
         caseStatusDistribution: "状态分布"
       },
       openPlatform: {
-        pageTitle: "Open Platform（PAT）",
-        alert: "先在“个人访问令牌”页面创建 PAT，并赋予 open:* 或对应 open:xxx scope。",
-        labelPat: "PAT Token",
-        patPlaceholder: "pat_xxx...",
-        labelAgentId: "Agent ID（用于 Chat 示例）",
-        btnBots: "请求 /open/bots",
-        btnChat: "请求 /open/chat/completions",
-        dividerCurl: "示例代码（cURL）",
-        dividerResult: "请求结果",
-        emptyResponse: "<empty>",
-        errNoTenant: "缺少租户ID，请先登录",
-        errNoPat: "请先输入 PAT Token",
-        errRequest: "请求失败（{status}）",
-        botsFailed: "调用 open bots 失败",
-        warnAgentId: "请先输入 Agent ID",
-        chatFailed: "调用 open chat 失败",
-        curlDemoMessage: "你好，请简单介绍你的能力",
-        curlDemoMessageShort: "你好"
+        portal: {
+          title: "开放平台开发者门户",
+          tabs: {
+            apps: "开放应用",
+            stats: "调用统计",
+            webhooks: "Webhook",
+            sdk: "SDK 下载"
+          },
+          apps: {
+            searchPlaceholder: "按名称或 AppId 搜索",
+            create: "创建开放应用",
+            name: "应用名称",
+            description: "应用描述",
+            scopes: "权限范围",
+            scopesPlaceholder: "多个 scope 用英文逗号分隔",
+            appId: "AppId",
+            status: "状态",
+            lastUsedAt: "最后调用时间",
+            exchangeToken: "交换令牌",
+            rotateSecret: "轮换密钥",
+            tokenResult: "令牌结果",
+            nameRequired: "请输入应用名称",
+            scopeRequired: "请至少输入一个 scope",
+            enterSecretPrompt: "请输入 AppSecret（不会被保存）",
+            exchangeFailed: "交换令牌失败"
+          },
+          stats: {
+            projectPlaceholder: "选择开放应用（可选）",
+            totalCalls: "总调用次数",
+            successCalls: "成功次数",
+            failedCalls: "失败次数",
+            successRate: "成功率",
+            avgDuration: "平均耗时",
+            maxDuration: "最大耗时"
+          },
+          webhooks: {
+            create: "创建订阅",
+            name: "订阅名称",
+            targetUrl: "回调地址",
+            secret: "签名密钥",
+            events: "订阅事件",
+            eventType: "事件类型",
+            status: "投递状态",
+            responseCode: "响应码",
+            durationMs: "耗时(ms)",
+            lastTriggeredAt: "最后触发时间",
+            deliveries: "投递记录",
+            test: "测试投递",
+            required: "请填写完整订阅信息",
+            testSuccess: "测试投递已触发",
+            testFailed: "测试投递失败"
+          },
+          sdk: {
+            openapi: "下载 OpenAPI 文档",
+            typescript: "下载 TypeScript SDK 包",
+            csharp: "下载 C# SDK 包",
+            downloadFailed: "下载失败"
+          }
+        }
       },
       mockSets: {
         pageTitle: "AI Mock 集",
@@ -7329,24 +7370,65 @@ export const runtimeMessages: Record<SupportedLocale, MessageTree> = {
         caseStatusDistribution: "Status distribution"
       },
       openPlatform: {
-        pageTitle: "Open Platform (PAT)",
-        alert: "Create a PAT on the Personal Access Token page with open:* or open:xxx scopes.",
-        labelPat: "PAT token",
-        patPlaceholder: "pat_xxx...",
-        labelAgentId: "Agent ID (chat example)",
-        btnBots: "GET /open/bots",
-        btnChat: "POST /open/chat/completions",
-        dividerCurl: "cURL example",
-        dividerResult: "Response",
-        emptyResponse: "<empty>",
-        errNoTenant: "Missing tenant ID; sign in first",
-        errNoPat: "Enter PAT token",
-        errRequest: "Request failed ({status})",
-        botsFailed: "open/bots failed",
-        warnAgentId: "Enter agent ID",
-        chatFailed: "open/chat failed",
-        curlDemoMessage: "Hello, please briefly introduce your capabilities",
-        curlDemoMessageShort: "Hello"
+        portal: {
+          title: "Open Platform Developer Portal",
+          tabs: {
+            apps: "Applications",
+            stats: "Usage Stats",
+            webhooks: "Webhooks",
+            sdk: "SDK Downloads"
+          },
+          apps: {
+            searchPlaceholder: "Search by name or AppId",
+            create: "Create app",
+            name: "App name",
+            description: "Description",
+            scopes: "Scopes",
+            scopesPlaceholder: "Comma separated scopes",
+            appId: "AppId",
+            status: "Status",
+            lastUsedAt: "Last used",
+            exchangeToken: "Exchange token",
+            rotateSecret: "Rotate secret",
+            tokenResult: "Token result",
+            nameRequired: "Please enter app name",
+            scopeRequired: "Please provide at least one scope",
+            enterSecretPrompt: "Enter AppSecret (won't be stored)",
+            exchangeFailed: "Token exchange failed"
+          },
+          stats: {
+            projectPlaceholder: "Select application (optional)",
+            totalCalls: "Total calls",
+            successCalls: "Success calls",
+            failedCalls: "Failed calls",
+            successRate: "Success rate",
+            avgDuration: "Average latency",
+            maxDuration: "Max latency"
+          },
+          webhooks: {
+            create: "Create subscription",
+            name: "Name",
+            targetUrl: "Target URL",
+            secret: "Signing secret",
+            events: "Events",
+            eventType: "Event type",
+            status: "Delivery status",
+            responseCode: "Response code",
+            durationMs: "Duration(ms)",
+            lastTriggeredAt: "Last triggered",
+            deliveries: "Deliveries",
+            test: "Test delivery",
+            required: "Please complete the subscription form",
+            testSuccess: "Test delivery triggered",
+            testFailed: "Test delivery failed"
+          },
+          sdk: {
+            openapi: "Download OpenAPI spec",
+            typescript: "Download TypeScript SDK package",
+            csharp: "Download C# SDK package",
+            downloadFailed: "Download failed"
+          }
+        }
       },
       mockSets: {
         pageTitle: "AI mock sets",
