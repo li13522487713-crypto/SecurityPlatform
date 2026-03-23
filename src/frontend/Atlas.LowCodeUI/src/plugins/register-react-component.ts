@@ -59,7 +59,7 @@ export function createReactEditorPlugin(def: CustomReactComponentDef): Record<st
 export async function registerReactEditorPlugin(def: CustomReactComponentDef): Promise<void> {
   try {
     const amisEditorModule = "amis-editor";
-    const { registerEditorPlugin, BasePlugin } = await import(/* @vite-ignore */ amisEditorModule) as {
+    const { registerEditorPlugin, BasePlugin } = await import(amisEditorModule) as {
       registerEditorPlugin: (cls: unknown) => void;
       BasePlugin: new () => Record<string, unknown>;
     };

@@ -1,10 +1,8 @@
 /**
- * Atlas LowCode UI — 统一导出
+ * Atlas LowCode UI — 轻量根入口（类型、Schema builders、工具；不含 Vue 组件默认注册）
  * @packageDocumentation
  */
-import type { App, Plugin } from "vue";
-
-// ========== 样式 ==========
+// ========== 样式（全量主题 + 设计器布局，供 @atlas/lowcode-ui/style.css 单文件消费） ==========
 import "./styles/amis-theme.css";
 import "./styles/designer.css";
 
@@ -29,21 +27,16 @@ export type {
   SchemaHistoryOptions,
 } from "./types/amis";
 
-// ========== 组件导出 ==========
-export { default as AmisRenderer } from "./components/AmisRenderer/index.vue";
-export { default as AmisDesigner } from "./components/AmisDesigner/index.vue";
-export { default as PagePreview } from "./components/PagePreview/index.vue";
-export { default as SchemaJsonEditor } from "./components/SchemaJsonEditor/index.vue";
-export { default as ThemeProvider } from "./components/ThemeProvider/index.vue";
-
-// ========== Composables 导出 ==========
-export { useAmisEnv } from "./composables/useAmisEnv";
-export { useAmisLocale, normalizeAmisLocale, type AmisLocaleValue } from "./composables/useAmisLocale";
-export { useSchemaHistory, type SchemaHistoryReturn } from "./composables/useSchemaHistory";
-
-// ========== Plugins 导出 ==========
-export { registerCustomSdkComponent, createSdkEditorPlugin, registerCustomSdkComponents } from "./plugins/register-custom-sdk";
-export { registerReactComponent, createReactEditorPlugin, registerReactEditorPlugin, registerReactComponents } from "./plugins/register-react-component";
+// ========== Plugins（不含 amis-editor 运行时强依赖的 API） ==========
+export {
+  registerCustomSdkComponent,
+  createSdkEditorPlugin,
+  registerCustomSdkComponents,
+  registerSdkEditorPlugin,
+} from "./plugins/register-custom-sdk";
+export { registerReactComponent, createReactEditorPlugin } from "./plugins/register-react-component";
+export { registerDesignerCustomPluginsOnce } from "./plugins/register-designer-custom-plugins";
+export type { RegisterDesignerCustomPluginsOptions } from "./plugins/register-designer-custom-plugins";
 
 // ========== Utils 导出 ==========
 export * from "./utils/permission-expr";
@@ -80,22 +73,3 @@ export * from "./schemas/datasource/api-config";
 export * from "./schemas/datasource/data-chain";
 export * from "./schemas/datasource/mapping-filter";
 export * from "./schemas/datasource/adapter";
-
-// ========== Vue Plugin ==========
-import AmisRenderer from "./components/AmisRenderer/index.vue";
-import AmisDesigner from "./components/AmisDesigner/index.vue";
-import PagePreview from "./components/PagePreview/index.vue";
-import SchemaJsonEditor from "./components/SchemaJsonEditor/index.vue";
-import ThemeProvider from "./components/ThemeProvider/index.vue";
-
-const AtlasLowCodeUI: Plugin = {
-  install(app: App) {
-    app.component("AmisRenderer", AmisRenderer);
-    app.component("AmisDesigner", AmisDesigner);
-    app.component("PagePreview", PagePreview);
-    app.component("SchemaJsonEditor", SchemaJsonEditor);
-    app.component("ThemeProvider", ThemeProvider);
-  },
-};
-
-export default AtlasLowCodeUI;

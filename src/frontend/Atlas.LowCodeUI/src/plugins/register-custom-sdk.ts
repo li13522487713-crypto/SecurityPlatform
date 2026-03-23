@@ -74,6 +74,43 @@ export function createSdkEditorPlugin(def: CustomSdkComponentDef & {
   };
 }
 
+const registeredSdkEditorPluginTypes = new Set<string>();
+
+/**
+ * 将 SDK custom 组件注册到 amis-editor 左侧组件面板（需已安装 amis-editor）
+ */
+export async function registerSdkEditorPlugin(
+  def: CustomSdkComponentDef & { previewHtml?: string },
+): Promise<void> {
+  if (registeredSdkEditorPluginTypes.has(def.type)) {
+    return;
+  }
+  try {
+    const amisEditorModule = "amis-editor";
+    const { registerEditorPlugin, BasePlugin } = await import(amisEditorModule) as {
+      registerEditorPlugin: (cls: unknown) => void;
+      BasePlugin: new () => Record<string, unknown>;
+    };
+
+    const meta = createSdkEditorPlugin(def);
+
+    class SdkPlugin extends BasePlugin {
+      rendererName = meta.rendererName as string;
+      name = meta.name as string;
+      description = "";
+      tags = meta.tags as string[];
+      icon = meta.icon as string;
+      scaffold = meta.scaffold as Record<string, unknown>;
+      previewSchema = meta.previewSchema as Record<string, unknown>;
+    }
+
+    registerEditorPlugin(SdkPlugin);
+    registeredSdkEditorPluginTypes.add(def.type);
+  } catch (error) {
+    console.warn(`[Atlas LowCodeUI] amis-editor not available, skipping SDK plugin "${def.type}":`, error);
+  }
+}
+
 /**
  * 批量注册多个 SDK 自定义组件
  */

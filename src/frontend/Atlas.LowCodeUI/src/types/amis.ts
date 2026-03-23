@@ -97,6 +97,20 @@ export interface AmisDesignerProps {
   theme?: string;
   /** 画布高度 */
   height?: string;
+  /**
+   * 是否在挂载时立即加载 amis-editor（默认 true，纯拖拽可视化编辑）
+   */
+  autoLoadEditor?: boolean;
+  /**
+   * 是否在浏览器空闲时预取 amis-editor（不阻塞首屏；仅在 autoLoadEditor 为 false 时较有意义）
+   */
+  prefetchEditor?: boolean;
+  /** SDK 自定义（custom 类型）组件定义，注册到左侧组件面板 */
+  sdkComponents?: CustomSdkComponentDef[];
+  /** React 自定义渲染器定义，注册到左侧组件面板 */
+  reactComponents?: CustomReactComponentDef[];
+  /** 额外传递给 amis-editor Editor 的插件类列表（amis-editor PluginClass） */
+  editorPlugins?: unknown[];
 }
 
 /** AmisDesigner 组件 Emits */

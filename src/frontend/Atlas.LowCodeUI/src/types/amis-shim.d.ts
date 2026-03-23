@@ -55,3 +55,7 @@ declare module "amis-editor" {
 
   export function registerEditorPlugin(plugin: unknown): void;
 }
+
+declare module "amis-editor/index" {
+  export * from "amis-editor";
+}

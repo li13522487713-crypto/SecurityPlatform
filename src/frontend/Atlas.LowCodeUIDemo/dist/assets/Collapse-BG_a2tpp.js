@@ -1,0 +1,1 @@
+import{n as e,t}from"./Collapse-BPteadJx.js";export{e as CollapseRenderer,t as default};

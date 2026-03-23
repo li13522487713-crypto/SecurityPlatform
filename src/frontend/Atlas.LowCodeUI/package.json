@@ -3,14 +3,32 @@
   "version": "0.1.0",
   "type": "module",
   "description": "Atlas LowCode UI - AMIS visual low-code designer and renderer Vue 3 component library",
-  "main": "./dist/atlas-lowcode-ui.umd.js",
+  "main": "./dist/atlas-lowcode-ui.cjs.js",
   "module": "./dist/atlas-lowcode-ui.es.js",
   "types": "./dist/index.d.ts",
+  "sideEffects": [
+    "**/*.css"
+  ],
   "exports": {
     ".": {
+      "types": "./dist/index.d.ts",
       "import": "./dist/atlas-lowcode-ui.es.js",
-      "require": "./dist/atlas-lowcode-ui.umd.js",
-      "types": "./dist/index.d.ts"
+      "require": "./dist/atlas-lowcode-ui.cjs.js"
+    },
+    "./renderer": {
+      "types": "./dist/renderer.d.ts",
+      "import": "./dist/atlas-lowcode-ui.renderer.es.js",
+      "require": "./dist/atlas-lowcode-ui.renderer.cjs.js"
+    },
+    "./designer": {
+      "types": "./dist/designer.d.ts",
+      "import": "./dist/atlas-lowcode-ui.designer.es.js",
+      "require": "./dist/atlas-lowcode-ui.designer.cjs.js"
+    },
+    "./plugin": {
+      "types": "./dist/plugin.d.ts",
+      "import": "./dist/atlas-lowcode-ui.plugin.es.js",
+      "require": "./dist/atlas-lowcode-ui.plugin.cjs.js"
     },
     "./style.css": "./dist/lowcode-ui.css"
   },
@@ -25,14 +43,14 @@
   "peerDependencies": {
     "amis": "^6.0.0",
     "amis-core": "^6.0.0",
+    "amis-editor": "^6.0.0",
+    "amis-formula": "^6.0.0",
+    "amis-theme-editor-helper": "*",
+    "amis-ui": "^6.0.0",
+    "i18n-runtime": "*",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "vue": "^3.5.0"
-  },
-  "peerDependenciesMeta": {
-    "amis-editor": {
-      "optional": true
-    }
   },
   "devDependencies": {
     "@types/react": "^19.2.13",
@@ -40,6 +58,11 @@
     "@vitejs/plugin-vue": "^6.0.5",
     "amis": "^6.0.0",
     "amis-core": "^6.0.0",
+    "amis-editor": "^6.0.0",
+    "amis-formula": "^6.0.0",
+    "amis-theme-editor-helper": "*",
+    "amis-ui": "^6.0.0",
+    "i18n-runtime": "*",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "typescript": "~5.9.3",

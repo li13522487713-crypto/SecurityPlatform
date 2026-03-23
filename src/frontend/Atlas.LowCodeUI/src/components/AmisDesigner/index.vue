@@ -33,13 +33,35 @@
         </div>
       </template>
       <template v-else>
-        <!-- 编辑器画布（amis-editor 或 fallback JSON 编辑器） -->
         <div class="atlas-designer-canvas">
-          <div ref="editorContainerRef" class="atlas-designer-editor-mount"></div>
-        </div>
-        <!-- 右侧 JSON 面板 -->
-        <div class="atlas-designer-json-panel" v-if="showJsonPanel">
-          <SchemaJsonEditor v-model="currentSchema" height="100%" @update:model-value="onJsonChange" />
+          <template v-if="!editorActivated">
+            <div class="atlas-designer-idle">
+              <p class="atlas-designer-idle-hint">
+                可视化编辑器未自动加载。点击下方按钮加载 amis-editor（体积较大）。
+              </p>
+              <button type="button" class="atlas-designer-btn atlas-designer-btn--primary" @click="activateVisualEditor">
+                启动可视化编辑器
+              </button>
+            </div>
+          </template>
+          <template v-else>
+            <!-- 错误层与挂载点同层，保证 ref 在失败时仍存在以便重试 -->
+            <div class="atlas-designer-editor-wrap">
+              <div v-if="editorLoadError" class="atlas-designer-error-overlay" role="alert">
+                <div class="atlas-designer-error">
+                  <p class="atlas-designer-error-title">无法加载可视化设计器</p>
+                  <p class="atlas-designer-error-msg">{{ editorLoadError }}</p>
+                  <p class="atlas-designer-error-hint">
+                    请确认已安装 peer 依赖：amis-editor、amis-ui、amis-formula、amis-theme-editor-helper、i18n-runtime（版本需与 amis 6.x 一致）。
+                  </p>
+                  <button type="button" class="atlas-designer-btn atlas-designer-btn--primary" @click="retryMountEditor">
+                    重试
+                  </button>
+                </div>
+              </div>
+              <div ref="editorContainerRef" class="atlas-designer-editor-mount"></div>
+            </div>
+          </template>
         </div>
       </template>
     </div>
@@ -47,17 +69,24 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onBeforeUnmount, toRaw } from "vue";
+import { ref, watch, onMounted, onBeforeUnmount, toRaw, nextTick } from "vue";
+import type { ComponentType } from "react";
+import * as React from "react";
 import type { AmisSchema, AmisDesignerProps } from "@/types/amis";
 import { useSchemaHistory } from "@/composables/useSchemaHistory";
+import { registerDesignerCustomPluginsOnce } from "@/plugins/register-designer-custom-plugins";
 import AmisRenderer from "@/components/AmisRenderer/index.vue";
-import SchemaJsonEditor from "@/components/SchemaJsonEditor/index.vue";
 
 const props = withDefaults(defineProps<AmisDesignerProps>(), {
   preview: false,
   isMobile: false,
   theme: "cxd",
   height: "100%",
+  autoLoadEditor: true,
+  prefetchEditor: false,
+  sdkComponents: () => [],
+  reactComponents: () => [],
+  editorPlugins: () => [],
 });
 
 const emit = defineEmits<{
@@ -67,8 +96,9 @@ const emit = defineEmits<{
 
 const editorContainerRef = ref<HTMLElement | null>(null);
 const showPreview = ref(props.preview);
-const showJsonPanel = ref(true);
 const isMounted = ref(false);
+const editorActivated = ref(props.autoLoadEditor);
+const editorLoadError = ref<string | null>(null);
 
 // Schema 历史管理
 const { current: currentSchema, canUndo, canRedo, push, undo, redo } = useSchemaHistory(props.modelValue);
@@ -92,10 +122,23 @@ watch(currentSchema, (schema) => {
 
 function handleUndo(): void {
   undo();
+  void nextTick(() => {
+    void syncEditorAfterHistoryChange();
+  });
 }
 
 function handleRedo(): void {
   redo();
+  void nextTick(() => {
+    void syncEditorAfterHistoryChange();
+  });
+}
+
+async function syncEditorAfterHistoryChange(): Promise<void> {
+  if (!editorActivated.value || showPreview.value || !isMounted.value) {
+    return;
+  }
+  await mountAmisEditor();
 }
 
 function handleSave(): void {
@@ -104,10 +147,6 @@ function handleSave(): void {
 
 function togglePreview(): void {
   showPreview.value = !showPreview.value;
-}
-
-function onJsonChange(schema: AmisSchema): void {
-  push(schema);
 }
 
 function importJson(): void {
@@ -122,6 +161,9 @@ function importJson(): void {
       try {
         const schema = JSON.parse(reader.result as string) as AmisSchema;
         push(schema);
+        void nextTick(() => {
+          void syncEditorAfterHistoryChange();
+        });
       } catch {
         console.error("[Atlas Designer] Invalid JSON file");
       }
@@ -142,29 +184,68 @@ function exportJson(): void {
   URL.revokeObjectURL(url);
 }
 
-// 尝试挂载 amis-editor
+function schedulePrefetchEditor(): void {
+  const run = (): void => {
+    void import("amis-editor").catch(() => {
+      /* 预取失败仅忽略 */
+    });
+  };
+  if (typeof requestIdleCallback !== "undefined") {
+    requestIdleCallback(run, { timeout: 3000 });
+  } else {
+    setTimeout(run, 1);
+  }
+}
+
+function activateVisualEditor(): void {
+  editorLoadError.value = null;
+  editorActivated.value = true;
+  void nextTick(() => {
+    void mountAmisEditor();
+  });
+}
+
+function retryMountEditor(): void {
+  editorLoadError.value = null;
+  void nextTick(() => {
+    void mountAmisEditor();
+  });
+}
+
+// 挂载 amis-editor（纯拖拽，无 JSON 回退）
 async function mountAmisEditor(): Promise<void> {
   const container = editorContainerRef.value;
   if (!container) return;
 
+  editorLoadError.value = null;
+
   try {
-    const React = await import("react");
+    reactRoot?.unmount();
+    reactRoot = null;
+
+    await registerDesignerCustomPluginsOnce({
+      sdkComponents: props.sdkComponents,
+      reactComponents: props.reactComponents,
+    });
+
     if (!isMounted.value) return;
     const { createRoot } = await import("react-dom/client");
     if (!isMounted.value) return;
 
-    const amisEditorModule = "amis-editor";
-    const { Editor } = await import(/* @vite-ignore */ amisEditorModule);
+    const amisEditorModule = await import("amis-editor");
     if (!isMounted.value) return;
 
-    if (!reactRoot) {
-      reactRoot = createRoot(container) as unknown as { render: (element: unknown) => void; unmount: () => void };
+    const Editor = (amisEditorModule as { Editor?: unknown; default?: unknown }).Editor
+      ?? (amisEditorModule as { default?: unknown }).default;
+    if (!Editor || typeof Editor !== "function") {
+      throw new Error("amis-editor 未导出 Editor 组件");
     }
 
-    // 隐藏 JSON 面板，因为 amis-editor 自己有属性面板
-    showJsonPanel.value = false;
+    reactRoot = createRoot(container) as unknown as { render: (element: unknown) => void; unmount: () => void };
 
-    const editorProps = {
+    const plugins = props.editorPlugins?.length ? props.editorPlugins : undefined;
+
+    const editorProps: Record<string, unknown> = {
       value: JSON.parse(JSON.stringify(toRaw(currentSchema.value))),
       onChange: (value: Record<string, unknown>) => {
         push(value);
@@ -173,15 +254,29 @@ async function mountAmisEditor(): Promise<void> {
       isMobile: props.isMobile,
       theme: props.theme,
     };
+    if (plugins) {
+      editorProps.plugins = plugins;
+    }
 
-    const element = React.createElement(Editor, editorProps);
-    reactRoot!.render(element);
-  } catch {
-    // amis-editor 不可用，使用 JSON 编辑器作为 fallback
-    showJsonPanel.value = true;
-    console.info("[Atlas Designer] amis-editor not available, using JSON editor fallback");
+    const element = React.createElement(Editor as ComponentType<Record<string, unknown>>, editorProps);
+    reactRoot.render(element);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    editorLoadError.value = message;
+    console.error("[Atlas Designer] amis-editor mount failed:", error);
   }
 }
+
+watch(showPreview, (isPreview) => {
+  if (isPreview) {
+    reactRoot?.unmount();
+    reactRoot = null;
+  } else if (editorActivated.value) {
+    void nextTick(() => {
+      void mountAmisEditor();
+    });
+  }
+});
 
 // 键盘快捷键
 function handleKeydown(e: KeyboardEvent): void {
@@ -202,7 +297,15 @@ function handleKeydown(e: KeyboardEvent): void {
 onMounted(() => {
   isMounted.value = true;
   document.addEventListener("keydown", handleKeydown);
-  void mountAmisEditor();
+  if (props.autoLoadEditor) {
+    editorActivated.value = true;
+    void nextTick(() => {
+      void mountAmisEditor();
+    });
+  }
+  if (props.prefetchEditor && !props.autoLoadEditor) {
+    schedulePrefetchEditor();
+  }
 });
 
 onBeforeUnmount(() => {
