@@ -158,7 +158,7 @@ async function mountAmisEditor(): Promise<void> {
     if (!isMounted.value) return;
 
     if (!reactRoot) {
-      reactRoot = createRoot(container);
+      reactRoot = createRoot(container) as unknown as { render: (element: unknown) => void; unmount: () => void };
     }
 
     // 隐藏 JSON 面板，因为 amis-editor 自己有属性面板
@@ -175,7 +175,7 @@ async function mountAmisEditor(): Promise<void> {
     };
 
     const element = React.createElement(Editor, editorProps);
-    reactRoot.render(element);
+    reactRoot!.render(element);
   } catch {
     // amis-editor 不可用，使用 JSON 编辑器作为 fallback
     showJsonPanel.value = true;

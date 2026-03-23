@@ -28,5 +28,5 @@
     /* JSX for React (amis) interop */
     "jsx": "react-jsx"
   },
-  "include": ["src/**/*.ts", "src/**/*.vue", "vite.config.ts"]
+  "include": ["src/**/*.ts", "src/**/*.vue"]
 }

@@ -3,6 +3,12 @@
  * 为缺少类型声明的模块提供基础类型
  */
 
+// CSS 副作用导入声明（支持 noUncheckedSideEffectImports）
+declare module "*.css" {
+  const _: string;
+  export default _;
+}
+
 declare module "amis" {
   import type { ReactElement } from "react";
 

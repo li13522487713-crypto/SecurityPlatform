@@ -79,7 +79,7 @@ async function renderSchema(): Promise<void> {
   if (!reactRoot) {
     const { createRoot } = await import("react-dom/client");
     if (!isMounted.value) return;
-    reactRoot = createRoot(container);
+    reactRoot = createRoot(container) as unknown as { render: (element: unknown) => void; unmount: () => void };
   }
 
   const renderAmis = await loadAmisRender();
@@ -95,7 +95,7 @@ async function renderSchema(): Promise<void> {
     env as unknown as Record<string, unknown>,
   );
 
-  reactRoot.render(element);
+  reactRoot!.render(element);
 }
 
 onMounted(() => {
