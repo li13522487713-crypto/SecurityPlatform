@@ -781,7 +781,7 @@ function tryParseErrorPayload(text: string): ApiErrorPayload | null {
 
   try {
     const payload = JSON.parse(text) as ApiErrorPayload;
-    if (payload && (payload.code || payload.message)) {
+    if (payload && (payload.code || payload.message || payload.errors || payload.title)) {
       return payload;
     }
   } catch {
