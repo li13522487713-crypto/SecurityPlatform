@@ -2569,3 +2569,113 @@ data: {"executionId":"123456","interruptType":"ManualApproval","nodeKey":"approv
 | CodeRunner | 代码执行 | Compute | 5 |
 | JsonSerialization | JSON 序列化 | Transform | 58 |
 | JsonDeserialization | JSON 反序列化 | Transform | 59 |
+
+---
+
+## Multi-Agent Orchestration API 契约（Phase 2）
+
+### 路由前缀
+
+`api/v1/multi-agent-orchestrations`
+
+### 端点列表
+
+| 方法 | 路由 | 说明 | 权限 |
+|---|---|---|---|
+| GET | `/` | 多 Agent 编排分页查询 | `agent:view` |
+| GET | `/{id}` | 编排详情 | `agent:view` |
+| POST | `/` | 创建编排 | `agent:create` |
+| PUT | `/{id}` | 更新编排（含启停状态） | `agent:update` |
+| DELETE | `/{id}` | 删除编排 | `agent:delete` |
+| POST | `/{id}/run` | 同步执行编排 | `agent:update` |
+| POST | `/{id}/stream` | SSE 流式执行编排 | `agent:update` |
+| GET | `/executions/{executionId}` | 查询执行详情 | `agent:view` |
+
+写接口要求：
+
+- `Idempotency-Key`
+- `X-CSRF-TOKEN`
+- `X-Tenant-Id`
+
+### 请求模型
+
+```typescript
+interface MultiAgentMemberInput {
+  agentId: number;
+  alias?: string;
+  sortOrder: number;
+  isEnabled: boolean;
+  promptPrefix?: string;
+}
+
+interface MultiAgentOrchestrationCreateRequest {
+  name: string; // <= 128
+  description?: string; // <= 1024
+  mode: 0 | 1; // 0=Sequential, 1=Parallel
+  members: MultiAgentMemberInput[];
+}
+
+interface MultiAgentOrchestrationUpdateRequest extends MultiAgentOrchestrationCreateRequest {
+  status?: 0 | 1 | 2; // 0=Draft, 1=Active, 2=Disabled
+}
+
+interface MultiAgentRunRequest {
+  message: string; // <= 8000
+  enableRag?: boolean;
+}
+```
+
+### 响应模型
+
+```typescript
+interface MultiAgentOrchestrationListItem {
+  id: number;
+  name: string;
+  description?: string;
+  mode: 0 | 1;
+  status: 0 | 1 | 2;
+  memberCount: number;
+  creatorUserId: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface MultiAgentExecutionStep {
+  agentId: number;
+  agentName: string;
+  alias?: string;
+  inputMessage: string;
+  outputMessage?: string;
+  status: 0 | 1 | 2 | 3 | 4 | 5; // ExecutionStatus
+  errorMessage?: string;
+  startedAt: string;
+  completedAt?: string;
+}
+
+interface MultiAgentExecutionResult {
+  executionId: number;
+  orchestrationId: number;
+  status: 0 | 1 | 2 | 3 | 4 | 5;
+  outputMessage?: string;
+  errorMessage?: string;
+  steps: MultiAgentExecutionStep[];
+  startedAt: string;
+  completedAt?: string;
+}
+```
+
+### SSE 事件格式（`POST /{id}/stream`）
+
+```text
+event: execution_start
+data: {"executionId":1485491907248263168,"orchestrationId":1485491863413592064}
+
+event: agent_start
+data: {"AgentId":1481933398292303872,"Alias":"分析Agent","startedAt":"2026-03-23T04:14:29.8039646Z"}
+
+event: agent_finish
+data: {"AgentId":1481933398292303872,"Status":3,"ErrorMessage":"..."}
+
+event: execution_finish
+data: {"executionId":1485491907248263168,"status":3,"outputMessage":"","errorMessage":"..."}
+```

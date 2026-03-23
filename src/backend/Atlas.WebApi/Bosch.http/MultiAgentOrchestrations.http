@@ -1,0 +1,140 @@
+@baseUrl = http://localhost:5000
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+@agentId1 = 1
+@agentId2 = 2
+@orchestrationId = 0
+
+### 登录获取令牌
+# @name login
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+###
+@accessToken = {{login.response.body.$.data.accessToken}}
+
+### 获取 CSRF Token
+# @name antiforgery
+GET {{baseUrl}}/api/v1/secure/antiforgery
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+###
+@csrfToken = {{antiforgery.response.body.$.data.token}}
+
+### 创建多 Agent 编排
+# @name createOrchestration
+POST {{baseUrl}}/api/v1/multi-agent-orchestrations
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "name": "多Agent安全分析编排",
+  "description": "安全审计 + 修复建议串联",
+  "mode": 0,
+  "members": [
+    {
+      "agentId": {{agentId1}},
+      "alias": "审计分析师",
+      "sortOrder": 0,
+      "isEnabled": true,
+      "promptPrefix": "你负责审计分析，请先提取问题。"
+    },
+    {
+      "agentId": {{agentId2}},
+      "alias": "修复顾问",
+      "sortOrder": 1,
+      "isEnabled": true,
+      "promptPrefix": "你负责修复建议，请基于前一步结果输出整改方案。"
+    }
+  ]
+}
+
+###
+@orchestrationId = {{createOrchestration.response.body.$.data.id}}
+
+### 分页查询编排
+GET {{baseUrl}}/api/v1/multi-agent-orchestrations?pageIndex=1&pageSize=20
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 获取编排详情
+GET {{baseUrl}}/api/v1/multi-agent-orchestrations/{{orchestrationId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 更新为并行模式
+PUT {{baseUrl}}/api/v1/multi-agent-orchestrations/{{orchestrationId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "name": "多Agent安全分析编排（并行）",
+  "description": "并行执行两个子Agent",
+  "mode": 1,
+  "status": 1,
+  "members": [
+    {
+      "agentId": {{agentId1}},
+      "alias": "审计分析师",
+      "sortOrder": 0,
+      "isEnabled": true,
+      "promptPrefix": "审计视角输出问题摘要。"
+    },
+    {
+      "agentId": {{agentId2}},
+      "alias": "修复顾问",
+      "sortOrder": 1,
+      "isEnabled": true,
+      "promptPrefix": "修复视角输出行动建议。"
+    }
+  ]
+}
+
+### 执行编排（同步）
+# @name runOrchestration
+POST {{baseUrl}}/api/v1/multi-agent-orchestrations/{{orchestrationId}}/run
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "message": "请分析资产盘点报告中高危项，并给出整改优先级。",
+  "enableRag": false
+}
+
+###
+@executionId = {{runOrchestration.response.body.$.data.executionId}}
+
+### 查询执行详情
+GET {{baseUrl}}/api/v1/multi-agent-orchestrations/executions/{{executionId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 执行编排（SSE）
+POST {{baseUrl}}/api/v1/multi-agent-orchestrations/{{orchestrationId}}/stream
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "message": "流式执行：输出每个子Agent步骤。",
+  "enableRag": false
+}

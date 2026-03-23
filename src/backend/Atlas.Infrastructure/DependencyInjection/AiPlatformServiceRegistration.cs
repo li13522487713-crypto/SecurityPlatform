@@ -60,6 +60,8 @@ public static class AiPlatformServiceRegistration
         services.AddScoped<AiAppRepository>();
         services.AddScoped<AiAppPublishRecordRepository>();
         services.AddScoped<AgentPublicationRepository>();
+        services.AddScoped<MultiAgentOrchestrationRepository>();
+        services.AddScoped<MultiAgentExecutionRepository>();
         services.AddScoped<AiAppResourceCopyTaskRepository>();
         services.AddScoped<AiPromptTemplateRepository>();
         services.AddScoped<PersonalAccessTokenRepository>();
@@ -90,6 +92,7 @@ public static class AiPlatformServiceRegistration
         services.AddScoped<IAiSearchService, AiSearchService>();
         services.AddScoped<IAiMemoryService, AiMemoryService>();
         services.AddScoped<IAgentPublicationService, AgentPublicationService>();
+        services.AddScoped<IMultiAgentOrchestrationService, MultiAgentOrchestrationService>();
         services.AddScoped<IAdminAiConfigService, AdminAiConfigService>();
         services.AddScoped<IAiWorkspaceService, AiWorkspaceService>();
         services.AddScoped<IAiShortcutCommandService, AiShortcutCommandService>();
@@ -141,6 +144,7 @@ public static class AiPlatformServiceRegistration
         services.AddSingleton<IChunkingService, ChunkingService>();
         services.AddSingleton<BuiltInPluginMetadataProvider>();
         services.AddSingleton<IOpenApiPluginParser, OpenApiPluginParser>();
+        services.AddSingleton<MultiAgentExecutionTracker>();
 
         // ── Workflow V2: DAG Engine ──
         services.AddScoped<IWorkflowMetaRepository, WorkflowMetaRepository>();
