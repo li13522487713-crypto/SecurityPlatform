@@ -2770,3 +2770,35 @@ interface TtsSynthesizeRequest {
 - `message` 与 `attachments` 至少提供一项；
 - 每个附件至少提供 `url/fileId/text` 之一；
 - 附件元数据会进入对话上下文与消息 metadata，供 Agent 推理链路使用。
+
+---
+
+## Evaluation API 契约（Phase 2）
+
+### 路由前缀
+
+`api/v1/evaluations`
+
+### 端点列表
+
+| 方法 | 路由 | 说明 | 权限 |
+|---|---|---|---|
+| POST | `/datasets` | 创建评测数据集 | `agent:create` |
+| GET | `/datasets` | 分页查询数据集 | `agent:view` |
+| POST | `/datasets/{datasetId}/cases` | 添加评测用例 | `agent:update` |
+| GET | `/datasets/{datasetId}/cases` | 查询评测用例 | `agent:view` |
+| POST | `/tasks` | 创建评测任务（Hangfire 入队，开发环境无 Worker 时内联执行） | `agent:update` |
+| GET | `/tasks` | 分页查询评测任务 | `agent:view` |
+| GET | `/tasks/{taskId}` | 查询任务详情 | `agent:view` |
+| GET | `/tasks/{taskId}/results` | 查询任务结果明细 | `agent:view` |
+
+对比接口：
+
+- `GET /api/v1/evaluations/comparisons?leftTaskId=...&rightTaskId=...`
+
+### 核心状态枚举
+
+```typescript
+type EvaluationTaskStatus = 0 | 1 | 2 | 3; // Pending / Running / Completed / Failed
+type EvaluationCaseStatus = 0 | 1 | 2 | 3; // Pending / Passed / Failed / Error
+```
