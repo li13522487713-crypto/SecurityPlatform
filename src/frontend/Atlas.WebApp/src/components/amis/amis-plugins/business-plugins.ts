@@ -140,4 +140,52 @@ export function registerBusinessPlugins(): void {
       }
     }
   });
+
+  registerAmisPlugin({
+    name: "atlas-approval-start-button",
+    displayName: "发起审批按钮",
+    group: "business",
+    icon: "fa fa-paper-plane",
+    description: "点击后将表单数据作为 formData 启动选定的审批流",
+    schema: {
+      type: "button",
+      label: "发起审批",
+      level: "primary",
+      actionType: "ajax",
+      api: {
+        method: "post",
+        url: "/api/v1/approval/instances",
+        data: {
+          definitionId: "${approvalDefinitionId}",
+          title: "新审批申请 - ${DATETIME(NOW(), 'YYYY-MM-DD')}",
+          businessKey: "",
+          formData: "$$"
+        }
+      }
+    },
+    editorConfig: {
+      tags: ["business"],
+      scaffold: {
+        type: "button",
+        label: "发起审批",
+        level: "primary",
+        actionType: "ajax",
+        api: {
+          method: "post",
+          url: "/api/v1/approval/instances",
+          data: {
+            definitionId: "",
+            title: "新审批申请 - ${DATETIME(NOW(), 'YYYY-MM-DD')}",
+            businessKey: "",
+            formData: "$$"
+          }
+        }
+      },
+      previewSchema: {
+        type: "button",
+        label: "发起审批",
+        level: "primary"
+      }
+    }
+  });
 }
