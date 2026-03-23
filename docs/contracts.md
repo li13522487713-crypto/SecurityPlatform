@@ -274,14 +274,42 @@
 - `PUT /api/v2/tenant-app-instances/{id}/entity-aliases`
 - `GET /api/v2/tenant-app-instances/{id}/datasource`
 - `POST /api/v2/tenant-app-instances/{id}/datasource/test`
+- `GET /api/v2/tenant-app-instances/{id}/file-storage`
+- `PUT /api/v2/tenant-app-instances/{id}/file-storage`
   - `PUT /api/v2/tenant-app-instances/{id}` 支持数据源治理字段：
     - `dataSourceId: long?`：绑定或切换目标数据源。
     - `unbindDataSource: bool`：为 `true` 时解绑当前数据源并清空 `dataSourceId`。
+  - `GET /file-storage` 返回 `TenantAppFileStorageSettings`：
+    - `tenantAppInstanceId/appId`
+    - `effectiveBasePath/effectiveMinioBucketName`（当前生效值）
+    - `overrideBasePath/overrideMinioBucketName`（应用级覆盖值）
+    - `inheritBasePath/inheritMinioBucketName`（是否继承平台）
+  - `PUT /file-storage` 请求体 `TenantAppFileStorageSettingsUpdateRequest`：
+    - `inheritBasePath/inheritMinioBucketName`
+    - `overrideBasePath/overrideMinioBucketName`（继承关闭时必填）
+    - `inherit=true` 时服务端删除应用级覆盖配置（恢复平台继承）
   - `PUT /sharing-policy` 与 `PUT /entity-aliases` 的请求体契约沿用 v1：`LowCodeAppSharingPolicyUpdateRequest`、`LowCodeAppEntityAliasesUpdateRequest`。
   - `POST /datasource/test` 返回 `TestConnectionResult`（`success/errorMessage/latencyMs`），应用未绑定数据源时返回 `success=false`。
   - 写接口统一要求 `Idempotency-Key` + `X-CSRF-TOKEN`。
   - `export` 为只读接口，不要求幂等头。
   - `import` 的 `package` 契约沿用 `LowCodeAppExportPackage`，用于兼容窗口内平滑迁移。
+
+#### v1 动态配置中心接口（SystemConfig）
+
+- `GET /api/v1/system-configs?pageIndex=&pageSize=&keyword=`
+- `GET /api/v1/system-configs/by-key/{key}?appId=`
+- `GET /api/v1/system-configs/query?groupName=&appId=&keys=key1,key2`
+- `GET /api/v1/system-configs/feature-flags`
+- `POST /api/v1/system-configs`
+- `PUT /api/v1/system-configs/{id}`
+- `POST /api/v1/system-configs/batch-upsert`
+- `DELETE /api/v1/system-configs/{id}`
+
+字段与行为约束：
+- `SystemConfigDto` 扩展字段：`appId/groupName/isEncrypted/version/configType/targetJson`。
+- `batch-upsert` 请求体：`SystemConfigBatchUpsertRequest`（`items` + 可选 `appId/groupName`）。
+- 批量写入必须走批量查询 + 批量写，禁止循环内数据库往返。
+- 写接口统一要求 `Idempotency-Key` + `X-CSRF-TOKEN`。
 
 #### v2 P0 应用成员与应用角色接口（App-level Isolation）
 

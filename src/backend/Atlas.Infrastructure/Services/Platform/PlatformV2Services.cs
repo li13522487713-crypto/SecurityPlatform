@@ -3,6 +3,7 @@ using Atlas.Application.AiPlatform.Models;
 using Atlas.Application.LowCode.Abstractions;
 using Atlas.Application.Identity;
 using Atlas.Application.LowCode.Models;
+using Atlas.Application.Options;
 using Atlas.Application.Platform.Abstractions;
 using Atlas.Application.Platform.Models;
 using Atlas.Application.System.Abstractions;
@@ -18,6 +19,7 @@ using Atlas.Domain.LowCode.Entities;
 using Atlas.Domain.LowCode.Enums;
 using Atlas.Domain.Platform.Entities;
 using Atlas.Domain.System.Entities;
+using Microsoft.Extensions.Options;
 using SqlSugar;
 using System.Text.Json;
 using TenantAppDataSourceBindingDto = Atlas.Application.Platform.Models.TenantAppDataSourceBinding;
@@ -308,15 +310,21 @@ public sealed class TenantAppInstanceQueryService : ITenantAppInstanceQueryServi
 {
     private readonly ILowCodeAppQueryService _lowCodeAppQueryService;
     private readonly ITenantDataSourceService _tenantDataSourceService;
+    private readonly ISystemConfigQueryService _systemConfigQueryService;
+    private readonly IOptionsMonitor<FileStorageOptions> _fileStorageOptionsMonitor;
     private readonly ISqlSugarClient _db;
 
     public TenantAppInstanceQueryService(
         ILowCodeAppQueryService lowCodeAppQueryService,
         ITenantDataSourceService tenantDataSourceService,
+        ISystemConfigQueryService systemConfigQueryService,
+        IOptionsMonitor<FileStorageOptions> fileStorageOptionsMonitor,
         ISqlSugarClient db)
     {
         _lowCodeAppQueryService = lowCodeAppQueryService;
         _tenantDataSourceService = tenantDataSourceService;
+        _systemConfigQueryService = systemConfigQueryService;
+        _fileStorageOptionsMonitor = fileStorageOptionsMonitor;
         _db = db;
     }
 
@@ -402,6 +410,52 @@ public sealed class TenantAppInstanceQueryService : ITenantAppInstanceQueryServi
             tenantId.Value.ToString(),
             dataSourceId,
             cancellationToken);
+    }
+
+    public async Task<TenantAppFileStorageSettings?> GetFileStorageSettingsAsync(
+        TenantId tenantId,
+        long id,
+        CancellationToken cancellationToken = default)
+    {
+        var app = await _lowCodeAppQueryService.GetByIdAsync(tenantId, id, cancellationToken);
+        if (app is null)
+        {
+            return null;
+        }
+
+        var appId = id.ToString();
+        var options = _fileStorageOptionsMonitor.CurrentValue;
+
+        var basePathConfig = await _systemConfigQueryService.GetByKeyAsync(
+            tenantId,
+            "FileStorage:BasePath",
+            appId,
+            cancellationToken);
+        var bucketConfig = await _systemConfigQueryService.GetByKeyAsync(
+            tenantId,
+            "FileStorage:Minio:BucketName",
+            appId,
+            cancellationToken);
+
+        var overrideBasePath = string.Equals(basePathConfig?.AppId, appId, StringComparison.OrdinalIgnoreCase)
+            ? NormalizeValue(basePathConfig?.ConfigValue)
+            : null;
+        var overrideBucketName = string.Equals(bucketConfig?.AppId, appId, StringComparison.OrdinalIgnoreCase)
+            ? NormalizeValue(bucketConfig?.ConfigValue)
+            : null;
+
+        var effectiveBasePath = NormalizeValue(basePathConfig?.ConfigValue) ?? options.BasePath;
+        var effectiveBucketName = NormalizeValue(bucketConfig?.ConfigValue) ?? options.Minio.BucketName;
+
+        return new TenantAppFileStorageSettings(
+            id.ToString(),
+            appId,
+            effectiveBasePath,
+            effectiveBucketName,
+            overrideBasePath,
+            overrideBucketName,
+            overrideBasePath is null,
+            overrideBucketName is null);
     }
 
     public async Task<IReadOnlyList<TenantAppDataSourceBindingDto>> GetDataSourceBindingsAsync(
@@ -514,19 +568,27 @@ public sealed class TenantAppInstanceQueryService : ITenantAppInstanceQueryServi
             })
             .ToArray();
     }
+
+    private static string? NormalizeValue(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    }
 }
 
 public sealed class TenantAppInstanceCommandService : ITenantAppInstanceCommandService
 {
     private readonly ILowCodeAppCommandService _commandService;
     private readonly ILowCodeAppQueryService _queryService;
+    private readonly ISystemConfigCommandService _systemConfigCommandService;
 
     public TenantAppInstanceCommandService(
         ILowCodeAppCommandService commandService,
-        ILowCodeAppQueryService queryService)
+        ILowCodeAppQueryService queryService,
+        ISystemConfigCommandService systemConfigCommandService)
     {
         _commandService = commandService;
         _queryService = queryService;
+        _systemConfigCommandService = systemConfigCommandService;
     }
 
     public Task<long> CreateAsync(
@@ -565,6 +627,88 @@ public sealed class TenantAppInstanceCommandService : ITenantAppInstanceCommandS
         CancellationToken cancellationToken = default)
     {
         return _commandService.UpdateEntityAliasesAsync(tenantId, userId, id, request, cancellationToken);
+    }
+
+    public async Task UpdateFileStorageSettingsAsync(
+        TenantId tenantId,
+        long userId,
+        long id,
+        TenantAppFileStorageSettingsUpdateRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var app = await _queryService.GetByIdAsync(tenantId, id, cancellationToken);
+        if (app is null)
+        {
+            throw new InvalidOperationException("Tenant app instance not found.");
+        }
+
+        var appId = id.ToString();
+        if (!request.InheritBasePath && string.IsNullOrWhiteSpace(request.OverrideBasePath))
+        {
+            throw new InvalidOperationException("OverrideBasePath is required when inheritance is disabled.");
+        }
+
+        if (!request.InheritMinioBucketName && string.IsNullOrWhiteSpace(request.OverrideMinioBucketName))
+        {
+            throw new InvalidOperationException("OverrideMinioBucketName is required when inheritance is disabled.");
+        }
+
+        var items = new List<SystemConfigBatchUpsertItem>();
+        if (!request.InheritBasePath)
+        {
+            items.Add(new SystemConfigBatchUpsertItem(
+                ConfigKey: "FileStorage:BasePath",
+                ConfigValue: request.OverrideBasePath!.Trim(),
+                ConfigName: "应用级本地存储根目录",
+                Remark: $"app:{appId} override",
+                ConfigType: "Text",
+                TargetJson: null,
+                AppId: appId,
+                GroupName: "FileStorage",
+                IsEncrypted: false,
+                Version: null));
+        }
+
+        if (!request.InheritMinioBucketName)
+        {
+            items.Add(new SystemConfigBatchUpsertItem(
+                ConfigKey: "FileStorage:Minio:BucketName",
+                ConfigValue: request.OverrideMinioBucketName!.Trim(),
+                ConfigName: "应用级 MinIO Bucket",
+                Remark: $"app:{appId} override",
+                ConfigType: "Text",
+                TargetJson: null,
+                AppId: appId,
+                GroupName: "FileStorage",
+                IsEncrypted: false,
+                Version: null));
+        }
+
+        if (items.Count > 0)
+        {
+            await _systemConfigCommandService.BatchUpsertSystemConfigsAsync(
+                tenantId,
+                new SystemConfigBatchUpsertRequest(items),
+                cancellationToken);
+        }
+
+        if (request.InheritBasePath)
+        {
+            await _systemConfigCommandService.DeleteSystemConfigByKeyAsync(
+                tenantId,
+                "FileStorage:BasePath",
+                appId,
+                cancellationToken);
+        }
+
+        if (request.InheritMinioBucketName)
+        {
+            await _systemConfigCommandService.DeleteSystemConfigByKeyAsync(
+                tenantId,
+                "FileStorage:Minio:BucketName",
+                appId,
+                cancellationToken);
+        }
     }
 
     public Task DeleteAsync(

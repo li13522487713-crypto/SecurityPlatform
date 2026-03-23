@@ -80,6 +80,7 @@ const ApprovalInstanceDetailPage = () => import("@/pages/ApprovalInstanceDetailP
 const NotificationsPage = () => import("@/pages/system/NotificationsPage.vue");
 const DictTypesPage = () => import("@/pages/system/DictTypesPage.vue");
 const SystemConfigsPage = () => import("@/pages/system/SystemConfigsPage.vue");
+const AiConfigPage = () => import("@/pages/admin/AiConfigPage.vue");
 const TenantDataSourcesPage = () => import("@/pages/system/TenantDataSourcesPage.vue");
 const TenantsPage = () => import("@/pages/system/TenantsPage.vue");
 const RolesPage = () => import("@/pages/system/RolesPage.vue");
@@ -185,6 +186,7 @@ const router = createRouter({
     { path: "/settings/system/dict-types", name: "settings-system-dict-types", component: DictTypesPage, meta: { requiresAuth: true, title: "字典管理", titleKey: "route.dictTypes", requiresPermission: "dict:type:view" } },
     { path: "/settings/system/datasources", name: "settings-system-datasources", component: TenantDataSourcesPage, meta: { requiresAuth: true, title: "数据源管理", titleKey: "route.datasources", requiresPermission: "system:admin" } },
     { path: "/settings/system/configs", name: "settings-system-configs", component: SystemConfigsPage, meta: { requiresAuth: true, title: "参数配置", titleKey: "route.systemConfigs", requiresPermission: "config:view" } },
+    { path: "/admin/ai-config", name: "admin-ai-config-static", component: AiConfigPage, meta: { requiresAuth: true, title: "AI 管理配置", requiresPermission: "ai-admin-config:view" } },
     { path: "/settings/ai/model-configs", name: "settings-ai-model-configs", component: ModelConfigsPage, meta: { requiresAuth: true, title: "模型配置", titleKey: "route.modelConfigs" } },
     { path: "/ai/variables", name: "ai-variables-static", component: AiVariablesPage, meta: { requiresAuth: true, title: "变量管理", titleKey: "route.aiVariables" } },
     { path: "/ai/open-platform", name: "ai-open-platform-static", component: AiOpenPlatformPage, meta: { requiresAuth: true, title: "开放平台", titleKey: "route.aiOpenPlatform" } },

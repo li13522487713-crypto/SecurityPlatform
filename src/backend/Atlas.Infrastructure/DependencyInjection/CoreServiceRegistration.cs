@@ -1,15 +1,17 @@
-using Amazon.S3;
 using Atlas.Application.Abstractions;
 using Atlas.Application.Options;
 using Atlas.Application.Audit.Abstractions;
 using Atlas.Application.Identity.Abstractions;
 using Atlas.Application.Platform.Abstractions;
+using Atlas.Application.System.Events;
 using Atlas.Application.Identity.Repositories;
 using Atlas.Application.System.Abstractions;
-using Atlas.Application.TableViews.Abstractions;using Atlas.Application.TableViews.Repositories;
+using Atlas.Application.TableViews.Abstractions;
+using Atlas.Application.TableViews.Repositories;
 using Atlas.Core.Abstractions;
 using Atlas.Core.Events;
 using Atlas.Infrastructure.Events;
+using Atlas.Infrastructure.EventHandlers;
 using Atlas.Infrastructure.IdGen;
 using Atlas.Infrastructure.Options;
 using Atlas.Infrastructure.Repositories;
@@ -20,8 +22,6 @@ using Atlas.Infrastructure.Services.Platform;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Options;
-using Minio;
 using ITotpService = Atlas.Application.Abstractions.ITotpService;
 
 namespace Atlas.Infrastructure.DependencyInjection;
@@ -47,6 +47,7 @@ public static class CoreServiceRegistration
 
         // Event Bus (in-process, resolves all IDomainEventHandler<T> registrations)
         services.AddScoped<IEventBus, InProcessEventBus>();
+        services.AddScoped<IDomainEventHandler<SystemConfigChangedEvent>, SystemConfigChangedEventHandler>();
 
         // Outbox (at-least-once integration event delivery)
         services.AddScoped<Atlas.Application.Events.IOutboxRepository, Atlas.Infrastructure.Repositories.OutboxRepository>();
@@ -168,47 +169,16 @@ public static class CoreServiceRegistration
         services.AddScoped<INotificationQueryService, NotificationService>();
         services.AddScoped<INotificationCommandService, NotificationService>();
 
-        // File Storage — object store SDK clients (singleton, lazy-instantiated on first use)
-        services.AddSingleton<IMinioClient>(sp =>
-        {
-            var opts = sp.GetRequiredService<IOptions<FileStorageOptions>>().Value.Minio;
-            return new MinioClient()
-                .WithEndpoint(opts.Endpoint)
-                .WithCredentials(opts.AccessKey, opts.SecretKey)
-                .WithSSL(opts.UseSsl)
-                .Build();
-        });
-        services.AddSingleton<IAmazonS3>(sp =>
-        {
-            var opts = sp.GetRequiredService<IOptions<FileStorageOptions>>().Value.Oss;
-            var config = new AmazonS3Config
-            {
-                ServiceURL = opts.Endpoint,
-                ForcePathStyle = opts.ForcePathStyle,
-                AuthenticationRegion = string.IsNullOrWhiteSpace(opts.Region) ? null : opts.Region
-            };
-            return new AmazonS3Client(opts.AccessKeyId, opts.AccessKeySecret, config);
-        });
-
         services.AddScoped<FileRecordRepository>();
         services.AddScoped<FileUploadSessionRepository>();
         services.AddScoped<FileTusUploadSessionRepository>();
         services.AddScoped<AttachmentBindingRepository>();
         services.AddSingleton<IHostEnvironmentAccessor, HostEnvironmentAccessor>();
+        services.AddScoped<IFileStorageSettingsResolver, FileStorageSettingsResolver>();
         services.AddScoped<LocalObjectStore>();
         services.AddScoped<MinioObjectStore>();
         services.AddScoped<AliyunOssObjectStore>();
-        services.AddScoped<IFileObjectStore>(sp =>
-        {
-            var options = sp.GetRequiredService<IOptions<FileStorageOptions>>().Value;
-            var provider = options.Provider?.Trim().ToLowerInvariant();
-            return provider switch
-            {
-                FileStorageOptions.ProviderMinio => sp.GetRequiredService<MinioObjectStore>(),
-                FileStorageOptions.ProviderOss => sp.GetRequiredService<AliyunOssObjectStore>(),
-                _ => sp.GetRequiredService<LocalObjectStore>()
-            };
-        });
+        services.AddScoped<IFileObjectStore, DynamicFileObjectStore>();
         services.AddScoped<IFileStorageService, LocalFileStorageService>();
         services.AddScoped<IAttachmentService, AttachmentService>();
         services.AddHostedService<ObjectStoreConnectivityService>();

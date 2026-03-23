@@ -29,24 +29,25 @@ public sealed class SandboxedPythonExecutor : ICodeExecutionService
 
     private readonly DockerPythonExecutor _dockerExecutor;
     private readonly DirectPythonExecutor _directExecutor;
-    private readonly CodeExecutionOptions _options;
+    private readonly IOptionsMonitor<CodeExecutionOptions> _optionsMonitor;
     private readonly ILogger<SandboxedPythonExecutor> _logger;
 
     public SandboxedPythonExecutor(
         DockerPythonExecutor dockerExecutor,
         DirectPythonExecutor directExecutor,
-        IOptions<CodeExecutionOptions> options,
+        IOptionsMonitor<CodeExecutionOptions> options,
         ILogger<SandboxedPythonExecutor> logger)
     {
         _dockerExecutor = dockerExecutor;
         _directExecutor = directExecutor;
-        _options = options.Value;
+        _optionsMonitor = options;
         _logger = logger;
     }
 
     public async Task<CodeExecutionResult> ExecuteAsync(CodeExecutionRequest request, CancellationToken cancellationToken)
     {
-        if (!_options.Enabled)
+        var options = _optionsMonitor.CurrentValue;
+        if (!options.Enabled)
         {
             return new CodeExecutionResult(
                 false,
@@ -56,7 +57,7 @@ public sealed class SandboxedPythonExecutor : ICodeExecutionService
                 0);
         }
 
-        var blockedModule = FindBlockedModule(request.Code);
+        var blockedModule = FindBlockedModule(request.Code, options);
         if (blockedModule is not null)
         {
             return new CodeExecutionResult(
@@ -79,20 +80,20 @@ public sealed class SandboxedPythonExecutor : ICodeExecutionService
         }
 
         var timeout = request.TimeoutSeconds > 0
-            ? Math.Min(request.TimeoutSeconds, _options.TimeoutSeconds)
-            : _options.TimeoutSeconds;
+            ? Math.Min(request.TimeoutSeconds, options.TimeoutSeconds)
+            : options.TimeoutSeconds;
         var sandboxRequest = request with { TimeoutSeconds = timeout };
 
         // Direct 模式：直接使用宿主机 Python3，跳过 Docker 检测（恢复旧默认行为）
-        if (string.Equals(_options.Mode, "Direct", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(options.Mode, "Direct", StringComparison.OrdinalIgnoreCase))
         {
             return await _directExecutor.ExecuteAsync(sandboxRequest, cancellationToken);
         }
 
         // Docker 模式：严格 Docker Only，不可用时拒绝执行
-        if (string.Equals(_options.Mode, "Docker", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(options.Mode, "Docker", StringComparison.OrdinalIgnoreCase))
         {
-            var dockerAvailable = _options.Docker.AutoDetect
+            var dockerAvailable = options.Docker.AutoDetect
                 ? await DockerPythonExecutor.IsDockerAvailableAsync()
                 : true;
 
@@ -111,7 +112,7 @@ public sealed class SandboxedPythonExecutor : ICodeExecutionService
         }
 
         // Sandbox 模式：优先 Docker，不可用时回落到宿主机 Python3
-        if (_options.Docker.AutoDetect)
+        if (options.Docker.AutoDetect)
         {
             var dockerAvailable = await DockerPythonExecutor.IsDockerAvailableAsync();
             if (dockerAvailable)
@@ -135,7 +136,7 @@ public sealed class SandboxedPythonExecutor : ICodeExecutionService
         return DangerousCallRegex.IsMatch(code);
     }
 
-    private string? FindBlockedModule(string? code)
+    private static string? FindBlockedModule(string? code, CodeExecutionOptions options)
     {
         if (string.IsNullOrWhiteSpace(code))
         {
@@ -154,7 +155,7 @@ public sealed class SandboxedPythonExecutor : ICodeExecutionService
             }
 
             var root = module.Split('.', 2)[0];
-            if (_options.BlockedModules.Any(x => string.Equals(x, root, StringComparison.OrdinalIgnoreCase)))
+            if (options.BlockedModules.Any(x => string.Equals(x, root, StringComparison.OrdinalIgnoreCase)))
             {
                 return root;
             }

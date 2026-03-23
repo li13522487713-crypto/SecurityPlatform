@@ -47,7 +47,7 @@ public sealed class AuthController : ControllerBase
     private readonly IValidator<UserProfileUpdateViewModel> _profileUpdateValidator;
     private readonly IValidator<RegisterViewModel> _registerValidator;
     private readonly IAuditRecorder _auditRecorder;
-    private readonly SecurityOptions _securityOptions;
+    private readonly IOptionsMonitor<SecurityOptions> _securityOptionsMonitor;
 
     public AuthController(
         IAuthTokenService authTokenService,
@@ -69,7 +69,7 @@ public sealed class AuthController : ControllerBase
         IValidator<UserProfileUpdateViewModel> profileUpdateValidator,
         IValidator<RegisterViewModel> registerValidator,
         IAuditRecorder auditRecorder,
-        IOptions<SecurityOptions> securityOptions)
+        IOptionsMonitor<SecurityOptions> securityOptions)
     {
         _authTokenService = authTokenService;
         _authProfileService = authProfileService;
@@ -90,7 +90,7 @@ public sealed class AuthController : ControllerBase
         _profileUpdateValidator = profileUpdateValidator;
         _registerValidator = registerValidator;
         _auditRecorder = auditRecorder;
-        _securityOptions = securityOptions.Value;
+        _securityOptionsMonitor = securityOptions;
     }
 
     [HttpGet("captcha")]
@@ -119,10 +119,11 @@ public sealed class AuthController : ControllerBase
         _validator.ValidateAndThrow(dto);
 
         // 后端风控：达到失败阈值后必须校验验证码，不能仅依赖前端展示逻辑。
+        var securityOptions = _securityOptionsMonitor.CurrentValue;
         var account = await _userAccountRepository.FindByUsernameAsync(tenantId, dto.Username, cancellationToken);
-        var requireCaptcha = _securityOptions.CaptchaThreshold > 0
+        var requireCaptcha = securityOptions.CaptchaThreshold > 0
             && account is not null
-            && account.FailedLoginCount >= _securityOptions.CaptchaThreshold;
+            && account.FailedLoginCount >= securityOptions.CaptchaThreshold;
 
         if (requireCaptcha)
         {
@@ -299,6 +300,7 @@ public sealed class AuthController : ControllerBase
         var registerSwitch = await _systemConfigQueryService.GetByKeyAsync(
             tenantId,
             "sys.account.register",
+            appId: null,
             cancellationToken);
         if (!string.Equals(registerSwitch?.ConfigValue, "true", StringComparison.OrdinalIgnoreCase))
         {

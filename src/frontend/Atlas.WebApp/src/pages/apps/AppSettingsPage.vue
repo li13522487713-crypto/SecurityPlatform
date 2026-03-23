@@ -85,6 +85,44 @@
           </a-button>
         </a-card>
       </a-col>
+
+      <a-col :span="24">
+        <a-card :title="t('appsSettings.cardFileStorage')">
+          <a-form layout="vertical">
+            <a-form-item :label="t('appsSettings.inheritBasePath')">
+              <a-switch v-model:checked="fileStorageForm.inheritBasePath" />
+            </a-form-item>
+            <a-form-item :label="t('appsSettings.basePath')" :help="t('appsSettings.basePathHelp')">
+              <a-input
+                v-model:value="fileStorageForm.overrideBasePath"
+                :disabled="fileStorageForm.inheritBasePath"
+                :placeholder="t('appsSettings.basePathPlaceholder')"
+              />
+            </a-form-item>
+            <a-form-item :label="t('appsSettings.inheritBucket')">
+              <a-switch v-model:checked="fileStorageForm.inheritMinioBucketName" />
+            </a-form-item>
+            <a-form-item :label="t('appsSettings.minioBucket')" :help="t('appsSettings.bucketHelp')">
+              <a-input
+                v-model:value="fileStorageForm.overrideMinioBucketName"
+                :disabled="fileStorageForm.inheritMinioBucketName"
+                :placeholder="t('appsSettings.bucketPlaceholder')"
+              />
+            </a-form-item>
+            <a-descriptions :column="2" bordered size="small" class="mt12">
+              <a-descriptions-item :label="t('appsSettings.effectiveBasePath')">
+                {{ fileStorageForm.effectiveBasePath || "-" }}
+              </a-descriptions-item>
+              <a-descriptions-item :label="t('appsSettings.effectiveBucket')">
+                {{ fileStorageForm.effectiveMinioBucketName || "-" }}
+              </a-descriptions-item>
+            </a-descriptions>
+            <a-button type="primary" class="mt12" :loading="savingFileStorage" @click="saveFileStorageSettings">
+              {{ t("appsSettings.saveFileStorage") }}
+            </a-button>
+          </a-form>
+        </a-card>
+      </a-col>
     </a-row>
 
     <a-modal
@@ -118,7 +156,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, onUnmounted } from "vue";
+import { computed, onMounted, reactive, ref, onUnmounted } from "vue";
 import { useI18n } from "vue-i18n";
 
 const isMounted = ref(false);
@@ -132,13 +170,15 @@ import type {
   LowCodeAppDataSourceInfo,
   LowCodeAppEntityAliasItem
 } from "@/types/lowcode";
-import type { TenantAppInstanceDetail } from "@/types/platform-v2";
+import type { TenantAppFileStorageSettings, TenantAppInstanceDetail } from "@/types/platform-v2";
 import { getTenantDataSources } from "@/services/api-system";
 import {
   getTenantAppInstanceDataSourceInfo,
   getTenantAppInstanceDetail,
   getTenantAppInstanceEntityAliases,
+  getTenantAppInstanceFileStorageSettings,
   testTenantAppInstanceDataSource,
+  updateTenantAppInstanceFileStorageSettings,
   updateTenantAppInstance,
   updateTenantAppInstanceEntityAliases
 } from "@/services/api-tenant-app-instances";
@@ -159,6 +199,17 @@ const dataSourceSelectionMode = ref<"bind" | "switch">("bind");
 const loadingDataSourceOptions = ref(false);
 const selectedDataSourceId = ref<string>();
 const dataSourceOptions = ref<Array<{ label: string; value: string }>>([]);
+const savingFileStorage = ref(false);
+const fileStorageForm = reactive<TenantAppFileStorageSettings>({
+  tenantAppInstanceId: "",
+  appId: "",
+  effectiveBasePath: "",
+  effectiveMinioBucketName: "",
+  overrideBasePath: "",
+  overrideMinioBucketName: "",
+  inheritBasePath: true,
+  inheritMinioBucketName: true
+});
 
 function defaultEntityAliases(): LowCodeAppEntityAliasItem[] {
   return [
@@ -178,16 +229,18 @@ async function loadSettings() {
   if (!appId.value) return;
 
   try {
-    const [dataSource, aliases, appDetail]  = await Promise.all([
+    const [dataSource, aliases, appDetail, fileStorage]  = await Promise.all([
       getTenantAppInstanceDataSourceInfo(appId.value),
       getTenantAppInstanceEntityAliases(appId.value),
-      getTenantAppInstanceDetail(appId.value)
+      getTenantAppInstanceDetail(appId.value),
+      getTenantAppInstanceFileStorageSettings(appId.value)
     ]);
 
     if (!isMounted.value) return;
 
     dataSourceInfo.value = dataSource;
     tenantAppDetail.value = appDetail;
+    Object.assign(fileStorageForm, fileStorage);
     if (aliases.length > 0) {
       entityAliases.value = aliases;
     } else {
@@ -370,6 +423,40 @@ async function saveEntityAliases() {
     message.error((error as Error).message || t("appsSettings.aliasesSaveFailed"));
   } finally {
     savingAliases.value = false;
+  }
+}
+
+async function saveFileStorageSettings() {
+  if (!appId.value) return;
+  if (!fileStorageForm.inheritBasePath && !fileStorageForm.overrideBasePath?.trim()) {
+    message.warning(t("appsSettings.basePathRequired"));
+    return;
+  }
+
+  if (!fileStorageForm.inheritMinioBucketName && !fileStorageForm.overrideMinioBucketName?.trim()) {
+    message.warning(t("appsSettings.bucketRequired"));
+    return;
+  }
+
+  savingFileStorage.value = true;
+  try {
+    await updateTenantAppInstanceFileStorageSettings(appId.value, {
+      inheritBasePath: fileStorageForm.inheritBasePath,
+      inheritMinioBucketName: fileStorageForm.inheritMinioBucketName,
+      overrideBasePath: fileStorageForm.inheritBasePath ? undefined : fileStorageForm.overrideBasePath?.trim(),
+      overrideMinioBucketName: fileStorageForm.inheritMinioBucketName ? undefined : fileStorageForm.overrideMinioBucketName?.trim()
+    });
+
+    if (!isMounted.value) return;
+    message.success(t("appsSettings.fileStorageSaved"));
+    const latest = await getTenantAppInstanceFileStorageSettings(appId.value);
+
+    if (!isMounted.value) return;
+    Object.assign(fileStorageForm, latest);
+  } catch (error) {
+    message.error((error as Error).message || t("appsSettings.fileStorageSaveFailed"));
+  } finally {
+    savingFileStorage.value = false;
   }
 }
 

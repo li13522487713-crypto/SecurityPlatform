@@ -127,7 +127,8 @@ const menuItemsRaw: RawConsoleMenuItem[] = [
     labelKey: "consoleLayout.groupSystem",
     children: [
       { key: "/settings/system/datasources", labelKey: "route.consoleDatasources", path: "/settings/system/datasources", permission: "system:admin" },
-      { key: "/settings/system/configs", labelKey: "route.systemConfigs", path: "/settings/system/configs", permission: "config:view" }
+      { key: "/settings/system/configs", labelKey: "route.systemConfigs", path: "/settings/system/configs", permission: "config:view" },
+      { key: "/admin/ai-config", labelKey: "route.aiAdminConfig", path: "/admin/ai-config", permission: "ai-admin-config:view" }
     ]
   }
 ];

@@ -12,32 +12,32 @@ public sealed class RagRetrievalService : IRagRetrievalService
 {
     private const string DefaultEmbeddingModel = "text-embedding-3-small";
 
-    private readonly IEmbeddingProvider _embeddingProvider;
+    private readonly ILlmProviderFactory _llmProviderFactory;
     private readonly IVectorStore _vectorStore;
     private readonly DocumentChunkRepository _chunkRepository;
     private readonly KnowledgeDocumentRepository _knowledgeDocumentRepository;
     private readonly BM25RetrievalService _bm25RetrievalService;
     private readonly HybridRetrievalService _hybridRetrievalService;
-    private readonly AiPlatformOptions _options;
+    private readonly IOptionsMonitor<AiPlatformOptions> _optionsMonitor;
     private readonly ILogger<RagRetrievalService> _logger;
 
     public RagRetrievalService(
-        IEmbeddingProvider embeddingProvider,
+        ILlmProviderFactory llmProviderFactory,
         IVectorStore vectorStore,
         DocumentChunkRepository chunkRepository,
         KnowledgeDocumentRepository knowledgeDocumentRepository,
         BM25RetrievalService bm25RetrievalService,
         HybridRetrievalService hybridRetrievalService,
-        IOptions<AiPlatformOptions> options,
+        IOptionsMonitor<AiPlatformOptions> options,
         ILogger<RagRetrievalService> logger)
     {
-        _embeddingProvider = embeddingProvider;
+        _llmProviderFactory = llmProviderFactory;
         _vectorStore = vectorStore;
         _chunkRepository = chunkRepository;
         _knowledgeDocumentRepository = knowledgeDocumentRepository;
         _bm25RetrievalService = bm25RetrievalService;
         _hybridRetrievalService = hybridRetrievalService;
-        _options = options.Value;
+        _optionsMonitor = options;
         _logger = logger;
     }
 
@@ -62,8 +62,9 @@ public sealed class RagRetrievalService : IRagRetrievalService
             return [];
         }
 
-        var vectorTopK = Math.Max(topK, _options.Retrieval.VectorTopK);
-        var bm25TopK = Math.Max(topK, _options.Retrieval.Bm25TopK);
+        var options = _optionsMonitor.CurrentValue;
+        var vectorTopK = Math.Max(topK, options.Retrieval.VectorTopK);
+        var bm25TopK = Math.Max(topK, options.Retrieval.Bm25TopK);
 
         var vectorResults = await SearchVectorAsync(
             tenantId,
@@ -78,7 +79,7 @@ public sealed class RagRetrievalService : IRagRetrievalService
             bm25TopK,
             ct);
 
-        if (_options.Retrieval.EnableHybrid)
+        if (options.Retrieval.EnableHybrid)
         {
             return _hybridRetrievalService.MergeAndRerank(query, vectorResults, bm25Results, topK);
         }
@@ -96,14 +97,15 @@ public sealed class RagRetrievalService : IRagRetrievalService
         int topK,
         CancellationToken ct)
     {
+        var embeddingProvider = _llmProviderFactory.GetEmbeddingProvider();
         EmbeddingResult embedding;
         try
         {
-            embedding = await _embeddingProvider.EmbedAsync(
+            embedding = await embeddingProvider.EmbedAsync(
                 new EmbeddingRequest(
                     Model: DefaultEmbeddingModel,
                     Inputs: [query.Trim()],
-                    Provider: _embeddingProvider.ProviderName),
+                    Provider: embeddingProvider.ProviderName),
                 ct);
         }
         catch (Exception ex)

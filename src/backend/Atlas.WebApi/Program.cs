@@ -34,6 +34,7 @@ using Atlas.WebApi.Mappings;
 using Atlas.WebApi.Security;
 using Atlas.Application.Abstractions;
 using Atlas.Core.Tenancy;
+using Atlas.Infrastructure.Configuration;
 using Microsoft.AspNetCore.Authorization.Policy;
 using Atlas.Core.Models;
 using OpenTelemetry.Metrics;
@@ -42,6 +43,21 @@ using OpenTelemetry.Trace;
 using Microsoft.Extensions.Localization;
 
 var builder = WebApplication.CreateBuilder(args);
+
+DatabaseConfigurationSource? databaseConfigurationSource = null;
+var dbConnectionString = builder.Configuration["Database:ConnectionString"];
+var bootstrapTenantId = builder.Configuration["Security:BootstrapAdmin:TenantId"];
+if (!string.IsNullOrWhiteSpace(dbConnectionString) && !string.IsNullOrWhiteSpace(bootstrapTenantId))
+{
+    var encryptionEnabled = builder.Configuration.GetValue<bool>("Database:Encryption:Enabled");
+    var encryptionKey = builder.Configuration["Database:Encryption:Key"] ?? string.Empty;
+    databaseConfigurationSource = new DatabaseConfigurationSource(
+        dbConnectionString,
+        bootstrapTenantId,
+        encryptionEnabled,
+        encryptionKey);
+    builder.Configuration.Sources.Add(databaseConfigurationSource);
+}
 
 var validateAutoMapperOnStartup = builder.Configuration.GetValue("AutoMapper:ValidateOnStartup", false);
 var runHangfireServer = builder.Configuration.GetValue("Hangfire:RunServer", !builder.Environment.IsDevelopment());
@@ -473,6 +489,15 @@ builder.Services.AddRateLimiter(options =>
 });
 
 builder.Services.AddMemoryCache();
+if (databaseConfigurationSource is not null)
+{
+    builder.Services.AddSingleton<DatabaseConfigurationProvider>(sp =>
+    {
+        var configurationRoot = sp.GetRequiredService<IConfiguration>() as IConfigurationRoot;
+        var provider = configurationRoot?.Providers.OfType<DatabaseConfigurationProvider>().FirstOrDefault();
+        return provider ?? throw new InvalidOperationException("DatabaseConfigurationProvider not found in configuration pipeline.");
+    });
+}
 builder.Services.AddAtlasApplication(
     typeof(AlertMappingProfile).Assembly,
     typeof(ApprovalMappingProfile).Assembly,

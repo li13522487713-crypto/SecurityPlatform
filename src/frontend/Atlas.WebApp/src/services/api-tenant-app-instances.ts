@@ -12,6 +12,8 @@ import type {
   TenantAppInstanceDetail,
   TenantAppInstanceListItem,
   TenantAppDataSourceBinding,
+  TenantAppFileStorageSettings,
+  TenantAppFileStorageSettingsUpdateRequest,
   ResourceCenterGroupItem,
   ResourceCenterDataSourceConsumptionResponse,
   ResourceCenterRepairResult
@@ -107,6 +109,34 @@ export async function testTenantAppInstanceDataSource(
   }
 
   return response.data;
+}
+
+export async function getTenantAppInstanceFileStorageSettings(id: string): Promise<TenantAppFileStorageSettings> {
+  const response = await requestApi<ApiResponse<TenantAppFileStorageSettings>>(
+    `${TENANT_APP_INSTANCE_BASE}/${id}/file-storage`
+  );
+  if (!response.data) {
+    throw new Error(response.message || "查询应用文件存储配置失败");
+  }
+
+  return response.data;
+}
+
+export async function updateTenantAppInstanceFileStorageSettings(
+  id: string,
+  request: TenantAppFileStorageSettingsUpdateRequest
+): Promise<void> {
+  const response = await requestApi<ApiResponse<{ id: string }>>(
+    `${TENANT_APP_INSTANCE_BASE}/${id}/file-storage`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request)
+    }
+  );
+  if (!response.success) {
+    throw new Error(response.message || "更新应用文件存储配置失败");
+  }
 }
 
 export async function createTenantAppInstance(request: LowCodeAppCreateRequest): Promise<{ id: string }> {

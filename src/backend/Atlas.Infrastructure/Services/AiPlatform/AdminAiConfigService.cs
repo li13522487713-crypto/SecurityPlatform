@@ -1,6 +1,8 @@
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
+using Atlas.Application.System.Events;
 using Atlas.Core.Abstractions;
+using Atlas.Core.Events;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.System.Entities;
 using Atlas.Infrastructure.Repositories;
@@ -30,13 +32,16 @@ public sealed class AdminAiConfigService : IAdminAiConfigService
 
     private readonly SystemConfigRepository _systemConfigRepository;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
+    private readonly IEventBus _eventBus;
 
     public AdminAiConfigService(
         SystemConfigRepository systemConfigRepository,
-        IIdGeneratorAccessor idGeneratorAccessor)
+        IIdGeneratorAccessor idGeneratorAccessor,
+        IEventBus eventBus)
     {
         _systemConfigRepository = systemConfigRepository;
         _idGeneratorAccessor = idGeneratorAccessor;
+        _eventBus = eventBus;
     }
 
     public async Task<AdminAiConfigDto> GetAsync(TenantId tenantId, CancellationToken cancellationToken)
@@ -70,14 +75,20 @@ public sealed class AdminAiConfigService : IAdminAiConfigService
         var existingMap = existing.ToDictionary(x => x.ConfigKey, x => x, StringComparer.OrdinalIgnoreCase);
         var inserts = new List<SystemConfig>();
         var updates = new List<SystemConfig>();
+        var changedEvents = new List<SystemConfigChangedEvent>();
 
         foreach (var key in ConfigKeys)
         {
             var desired = desiredMap[key];
             if (existingMap.TryGetValue(key, out var config))
             {
+                var oldValue = config.ConfigValue;
                 config.Update(desired.Value, desired.Name, desired.Remark);
                 updates.Add(config);
+                if (!string.Equals(oldValue, config.ConfigValue, StringComparison.Ordinal))
+                {
+                    changedEvents.Add(new SystemConfigChangedEvent(tenantId, config.ConfigKey, config.AppId, oldValue, config.ConfigValue));
+                }
             }
             else
             {
@@ -90,11 +101,17 @@ public sealed class AdminAiConfigService : IAdminAiConfigService
                     _idGeneratorAccessor.NextId());
                 entity.Update(desired.Value, desired.Name, desired.Remark);
                 inserts.Add(entity);
+                changedEvents.Add(new SystemConfigChangedEvent(tenantId, entity.ConfigKey, entity.AppId, null, entity.ConfigValue));
             }
         }
 
         await _systemConfigRepository.AddRangeAsync(inserts, cancellationToken);
         await _systemConfigRepository.UpdateRangeAsync(updates, cancellationToken);
+
+        foreach (var changedEvent in changedEvents)
+        {
+            await _eventBus.PublishAsync(changedEvent, cancellationToken);
+        }
     }
 
     private static bool ParseBool(IReadOnlyDictionary<string, string> map, string key, bool defaultValue)

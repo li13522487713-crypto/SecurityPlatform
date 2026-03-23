@@ -8,17 +8,13 @@ namespace Atlas.Application.Validators;
 
 public sealed class AuthTokenRequestValidator : AbstractValidator<AuthTokenRequest>
 {
-    private readonly PasswordPolicyOptions _policy;
-
-    public AuthTokenRequestValidator(IOptions<PasswordPolicyOptions> policyOptions)
+    public AuthTokenRequestValidator(IOptionsMonitor<PasswordPolicyOptions> policyOptions)
     {
-        _policy = policyOptions.Value;
-
         RuleFor(x => x.Username).NotEmpty().MaximumLength(64);
         RuleFor(x => x.Password).NotEmpty().MaximumLength(128);
         RuleFor(x => x.Password).Custom((value, context) =>
         {
-            if (!PasswordPolicy.IsCompliant(value, _policy, out var message))
+            if (!PasswordPolicy.IsCompliant(value, policyOptions.CurrentValue, out var message))
             {
                 context.AddFailure(message);
             }

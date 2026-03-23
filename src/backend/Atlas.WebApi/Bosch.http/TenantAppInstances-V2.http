@@ -74,6 +74,39 @@ POST {{baseUrl}}/api/v2/tenant-app-instances/1/datasource/test
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
+### 查询应用级文件存储配置
+GET {{baseUrl}}/api/v2/tenant-app-instances/1/file-storage
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 更新应用级文件存储覆盖（关闭继承）
+PUT {{baseUrl}}/api/v2/tenant-app-instances/1/file-storage
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+X-CSRF-TOKEN: {{csrfToken}}
+Idempotency-Key: {{$guid}}
+Content-Type: application/json
+
+{
+  "inheritBasePath": false,
+  "overrideBasePath": "uploads/app-1001",
+  "inheritMinioBucketName": false,
+  "overrideMinioBucketName": "atlas-app-1001"
+}
+
+### 更新应用级文件存储覆盖（恢复继承）
+PUT {{baseUrl}}/api/v2/tenant-app-instances/1/file-storage
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+X-CSRF-TOKEN: {{csrfToken}}
+Idempotency-Key: {{$guid}}
+Content-Type: application/json
+
+{
+  "inheritBasePath": true,
+  "inheritMinioBucketName": true
+}
+
 ### 查询实例数据源绑定（可选 appIds 过滤）
 # 响应包含 bindingId/bindingType/bindingActive/boundAt/source（支持绑定表与历史字段回填来源）
 GET {{baseUrl}}/api/v2/tenant-app-instances/data-source-bindings?appIds=1&appIds=2

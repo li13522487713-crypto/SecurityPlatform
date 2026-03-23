@@ -10,7 +10,6 @@ using Atlas.Infrastructure.Services.WorkflowEngine;
 using Atlas.Infrastructure.Services.WorkflowEngine.NodeExecutors;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
 
 namespace Atlas.Infrastructure.DependencyInjection;
 
@@ -21,24 +20,6 @@ public static class AiPlatformServiceRegistration
         services.Configure<AiPlatformOptions>(configuration.GetSection("AiPlatform"));
         services.Configure<CodeExecutionOptions>(configuration.GetSection("CodeExecution"));
         services.AddHttpClient("AiPlatform", client => client.Timeout = TimeSpan.FromSeconds(120));
-
-        services.AddSingleton<ILlmProvider>(sp =>
-            CreateProvider(sp, "openai", "https://api.openai.com"));
-        services.AddSingleton<ILlmProvider>(sp =>
-            CreateProvider(sp, "deepseek", "https://api.deepseek.com"));
-        services.AddSingleton<ILlmProvider>(sp =>
-            CreateProvider(sp, "ollama", "http://localhost:11434"));
-
-        services.AddSingleton<IEmbeddingProvider>(sp =>
-        {
-            var options = sp.GetRequiredService<IOptions<AiPlatformOptions>>().Value;
-            if (options.Providers.TryGetValue("openai", out var option) && option.SupportsEmbedding)
-            {
-                return CreateProvider(sp, "openai", "https://api.openai.com");
-            }
-
-            throw new InvalidOperationException("No embedding provider is configured. Please configure AiPlatform:Providers.");
-        });
 
         services.AddScoped<ModelConfigRepository>();
         services.AddScoped<AgentRepository>();
@@ -129,6 +110,8 @@ public static class AiPlatformServiceRegistration
         services.AddTransient<OutputEmitterStep>();
 
         services.AddScoped<ILlmProviderFactory, LlmProviderFactory>();
+        services.AddScoped<IEmbeddingProvider>(sp =>
+            sp.GetRequiredService<ILlmProviderFactory>().GetEmbeddingProvider());
 
         services.AddSingleton<IVectorDbClient, SqliteVectorDbClient>();
         services.AddSingleton<IVectorDbClient, QdrantVectorDbClient>();
@@ -200,26 +183,4 @@ public static class AiPlatformServiceRegistration
         return services;
     }
 
-    private static OpenAiCompatibleProvider CreateProvider(
-        IServiceProvider serviceProvider,
-        string providerName,
-        string defaultBaseUrl)
-    {
-        var logger = serviceProvider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<OpenAiCompatibleProvider>>();
-        var options = serviceProvider.GetRequiredService<IOptions<AiPlatformOptions>>().Value;
-        var factory = serviceProvider.GetRequiredService<IHttpClientFactory>();
-
-        options.Providers.TryGetValue(providerName, out var provider);
-        provider ??= new AiProviderOption();
-        var merged = new AiProviderOption
-        {
-            ApiKey = provider.ApiKey,
-            BaseUrl = string.IsNullOrWhiteSpace(provider.BaseUrl) ? defaultBaseUrl : provider.BaseUrl,
-            DefaultModel = provider.DefaultModel,
-            SupportsEmbedding = provider.SupportsEmbedding
-        };
-
-        var client = factory.CreateClient("AiPlatform");
-        return new OpenAiCompatibleProvider(providerName, merged, client, logger);
-    }
 }

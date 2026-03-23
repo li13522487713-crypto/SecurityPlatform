@@ -2,7 +2,6 @@ using Atlas.Application.Options;
 using Atlas.Application.System.Abstractions;
 using Atlas.Core.Tenancy;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using Minio;
 using Minio.DataModel.Args;
 using Minio.Exceptions;
@@ -11,22 +10,18 @@ namespace Atlas.Infrastructure.Services.FileStorage;
 
 /// <summary>
 /// MinIO 对象存储实现，使用官方 Minio .NET SDK（7.x）。
-/// 通过 IMinioClient（singleton）执行对象操作；bucket 不存在时由
-/// ObjectStoreConnectivityService 在启动阶段自动创建。
+/// 每次请求按当前配置动态创建客户端，支持配置热更新。
 /// </summary>
 public sealed class MinioObjectStore : IFileObjectStore
 {
-    private readonly IMinioClient _client;
-    private readonly string _bucketName;
+    private readonly IFileStorageSettingsResolver _settingsResolver;
     private readonly ILogger<MinioObjectStore> _logger;
 
     public MinioObjectStore(
-        IMinioClient client,
-        IOptions<FileStorageOptions> options,
+        IFileStorageSettingsResolver settingsResolver,
         ILogger<MinioObjectStore> logger)
     {
-        _client = client;
-        _bucketName = options.Value.Minio.BucketName;
+        _settingsResolver = settingsResolver;
         _logger = logger;
     }
 
@@ -37,18 +32,21 @@ public sealed class MinioObjectStore : IFileObjectStore
         string contentType,
         CancellationToken cancellationToken = default)
     {
+        var settings = await _settingsResolver.ResolveAsync(tenantId, cancellationToken);
+        var client = CreateClient(settings.Options.Minio);
+        var bucketName = settings.MinioBucketName;
         var key = BuildKey(tenantId, objectName);
         var size = content.CanSeek ? content.Length - content.Position : -1;
 
         var args = new PutObjectArgs()
-            .WithBucket(_bucketName)
+            .WithBucket(bucketName)
             .WithObject(key)
             .WithStreamData(content)
             .WithObjectSize(size)
             .WithContentType(contentType);
 
-        await _client.PutObjectAsync(args, cancellationToken).ConfigureAwait(false);
-        _logger.LogDebug("MinIO PutObject 成功：bucket={Bucket}, key={Key}", _bucketName, key);
+        await client.PutObjectAsync(args, cancellationToken).ConfigureAwait(false);
+        _logger.LogDebug("MinIO PutObject 成功：bucket={Bucket}, key={Key}", bucketName, key);
     }
 
     public async Task<Stream> OpenReadAsync(
@@ -56,15 +54,18 @@ public sealed class MinioObjectStore : IFileObjectStore
         string objectName,
         CancellationToken cancellationToken = default)
     {
+        var settings = await _settingsResolver.ResolveAsync(tenantId, cancellationToken);
+        var client = CreateClient(settings.Options.Minio);
+        var bucketName = settings.MinioBucketName;
         var key = BuildKey(tenantId, objectName);
         var buffer = new MemoryStream();
 
         var args = new GetObjectArgs()
-            .WithBucket(_bucketName)
+            .WithBucket(bucketName)
             .WithObject(key)
             .WithCallbackStream((stream, ct) => stream.CopyToAsync(buffer, ct));
 
-        await _client.GetObjectAsync(args, cancellationToken).ConfigureAwait(false);
+        await client.GetObjectAsync(args, cancellationToken).ConfigureAwait(false);
         buffer.Position = 0;
         return buffer;
     }
@@ -74,13 +75,16 @@ public sealed class MinioObjectStore : IFileObjectStore
         string objectName,
         CancellationToken cancellationToken = default)
     {
+        var settings = await _settingsResolver.ResolveAsync(tenantId, cancellationToken);
+        var client = CreateClient(settings.Options.Minio);
+        var bucketName = settings.MinioBucketName;
         var key = BuildKey(tenantId, objectName);
         try
         {
             var args = new StatObjectArgs()
-                .WithBucket(_bucketName)
+                .WithBucket(bucketName)
                 .WithObject(key);
-            await _client.StatObjectAsync(args, cancellationToken).ConfigureAwait(false);
+            await client.StatObjectAsync(args, cancellationToken).ConfigureAwait(false);
             return true;
         }
         catch (ObjectNotFoundException)
@@ -98,12 +102,30 @@ public sealed class MinioObjectStore : IFileObjectStore
         string objectName,
         CancellationToken cancellationToken = default)
     {
+        var settings = await _settingsResolver.ResolveAsync(tenantId, cancellationToken);
+        var client = CreateClient(settings.Options.Minio);
+        var bucketName = settings.MinioBucketName;
         var key = BuildKey(tenantId, objectName);
         var args = new RemoveObjectArgs()
-            .WithBucket(_bucketName)
+            .WithBucket(bucketName)
             .WithObject(key);
-        await _client.RemoveObjectAsync(args, cancellationToken).ConfigureAwait(false);
-        _logger.LogDebug("MinIO RemoveObject 成功：bucket={Bucket}, key={Key}", _bucketName, key);
+        await client.RemoveObjectAsync(args, cancellationToken).ConfigureAwait(false);
+        _logger.LogDebug("MinIO RemoveObject 成功：bucket={Bucket}, key={Key}", bucketName, key);
+    }
+
+    private IMinioClient CreateClient(MinioStorageOptions options)
+    {
+        var endpoint = options.Endpoint?.Trim();
+        if (string.IsNullOrWhiteSpace(endpoint))
+        {
+            throw new InvalidOperationException("FileStorage:Minio:Endpoint 未配置。");
+        }
+
+        return new MinioClient()
+            .WithEndpoint(endpoint)
+            .WithCredentials(options.AccessKey, options.SecretKey)
+            .WithSSL(options.UseSsl)
+            .Build();
     }
 
     private static string BuildKey(TenantId tenantId, string objectName) =>

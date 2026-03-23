@@ -11,11 +11,9 @@ namespace Atlas.WebApi.Validators;
 public sealed class RegisterViewModelValidator : AbstractValidator<RegisterViewModel>
 {
     public RegisterViewModelValidator(
-        IOptions<PasswordPolicyOptions> policyOptions,
+        IOptionsMonitor<PasswordPolicyOptions> policyOptions,
         IStringLocalizer<Messages> localizer)
     {
-        var policy = policyOptions.Value;
-
         RuleFor(x => x.Username)
             .NotEmpty().WithMessage(localizer["UsernameRequired"].Value)
             .MaximumLength(64).WithMessage(localizer["UsernameMaxLength", 64].Value)
@@ -32,6 +30,7 @@ public sealed class RegisterViewModelValidator : AbstractValidator<RegisterViewM
 
         RuleFor(x => x.Password).Custom((value, context) =>
         {
+            var policy = policyOptions.CurrentValue;
             if (!PasswordPolicy.IsCompliant(
                     value,
                     policy,

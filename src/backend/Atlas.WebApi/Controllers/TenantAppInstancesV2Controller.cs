@@ -26,6 +26,7 @@ public sealed class TenantAppInstancesV2Controller : ControllerBase
     private readonly IValidator<LowCodeAppUpdateRequest> _updateValidator;
     private readonly IValidator<LowCodeAppImportRequest> _importValidator;
     private readonly IValidator<LowCodeAppEntityAliasesUpdateRequest> _entityAliasesValidator;
+    private readonly IValidator<TenantAppFileStorageSettingsUpdateRequest> _fileStorageSettingsValidator;
 
     public TenantAppInstancesV2Controller(
         ITenantAppInstanceQueryService queryService,
@@ -35,7 +36,8 @@ public sealed class TenantAppInstancesV2Controller : ControllerBase
         IValidator<LowCodeAppCreateRequest> createValidator,
         IValidator<LowCodeAppUpdateRequest> updateValidator,
         IValidator<LowCodeAppImportRequest> importValidator,
-        IValidator<LowCodeAppEntityAliasesUpdateRequest> entityAliasesValidator)
+        IValidator<LowCodeAppEntityAliasesUpdateRequest> entityAliasesValidator,
+        IValidator<TenantAppFileStorageSettingsUpdateRequest> fileStorageSettingsValidator)
     {
         _queryService = queryService;
         _commandService = commandService;
@@ -45,6 +47,7 @@ public sealed class TenantAppInstancesV2Controller : ControllerBase
         _updateValidator = updateValidator;
         _importValidator = importValidator;
         _entityAliasesValidator = entityAliasesValidator;
+        _fileStorageSettingsValidator = fileStorageSettingsValidator;
     }
 
     [HttpGet]
@@ -124,6 +127,41 @@ public sealed class TenantAppInstancesV2Controller : ControllerBase
         }
 
         return Ok(ApiResponse<LowCodeAppDataSourceInfo>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    [HttpGet("{id:long}/file-storage")]
+    [Authorize(Policy = PermissionPolicies.AppsView)]
+    public async Task<ActionResult<ApiResponse<TenantAppFileStorageSettings>>> GetFileStorageSettings(
+        long id,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _queryService.GetFileStorageSettingsAsync(tenantId, id, cancellationToken);
+        if (result is null)
+        {
+            return NotFound(ApiResponse<TenantAppFileStorageSettings>.Fail(ErrorCodes.NotFound, "Tenant app instance not found.", HttpContext.TraceIdentifier));
+        }
+
+        return Ok(ApiResponse<TenantAppFileStorageSettings>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPut("{id:long}/file-storage")]
+    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
+    public async Task<ActionResult<ApiResponse<object>>> UpdateFileStorageSettings(
+        long id,
+        [FromBody] TenantAppFileStorageSettingsUpdateRequest request,
+        CancellationToken cancellationToken)
+    {
+        await _fileStorageSettingsValidator.ValidateAndThrowAsync(request, cancellationToken);
+        var currentUser = _currentUserAccessor.GetCurrentUser();
+        if (currentUser is null)
+        {
+            return Unauthorized(ApiResponse<object>.Fail(ErrorCodes.Unauthorized, "Unauthorized.", HttpContext.TraceIdentifier));
+        }
+
+        var tenantId = _tenantProvider.GetTenantId();
+        await _commandService.UpdateFileStorageSettingsAsync(tenantId, currentUser.UserId, id, request, cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { id = id.ToString() }, HttpContext.TraceIdentifier));
     }
 
     [HttpPost("{id:long}/datasource/test")]

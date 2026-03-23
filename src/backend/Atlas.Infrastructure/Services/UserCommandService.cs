@@ -30,7 +30,7 @@ public sealed class UserCommandService : IUserCommandService
     private readonly IUnitOfWork _unitOfWork;
     private readonly IAuthSessionRepository _authSessionRepository;
     private readonly IRefreshTokenRepository _refreshTokenRepository;
-    private readonly PasswordPolicyOptions _passwordPolicy;
+    private readonly IOptionsMonitor<PasswordPolicyOptions> _passwordPolicyMonitor;
     private readonly IProjectUserRepository _projectUserRepository;
     private readonly Atlas.Core.Identity.IProjectContextAccessor _projectContextAccessor;
     private readonly IAuthCacheService _authCacheService;
@@ -50,7 +50,7 @@ public sealed class UserCommandService : IUserCommandService
         IUnitOfWork unitOfWork,
         IAuthSessionRepository authSessionRepository,
         IRefreshTokenRepository refreshTokenRepository,
-        IOptions<PasswordPolicyOptions> passwordPolicy,
+        IOptionsMonitor<PasswordPolicyOptions> passwordPolicy,
         IProjectUserRepository projectUserRepository,
         Atlas.Core.Identity.IProjectContextAccessor projectContextAccessor,
         IAuthCacheService authCacheService,
@@ -69,7 +69,7 @@ public sealed class UserCommandService : IUserCommandService
         _unitOfWork = unitOfWork;
         _authSessionRepository = authSessionRepository;
         _refreshTokenRepository = refreshTokenRepository;
-        _passwordPolicy = passwordPolicy.Value;
+        _passwordPolicyMonitor = passwordPolicy;
         _projectUserRepository = projectUserRepository;
         _projectContextAccessor = projectContextAccessor;
         _authCacheService = authCacheService;
@@ -82,12 +82,13 @@ public sealed class UserCommandService : IUserCommandService
         long id,
         CancellationToken cancellationToken)
     {
+        var passwordPolicy = _passwordPolicyMonitor.CurrentValue;
         if (await _userRepository.ExistsByUsernameAsync(tenantId, request.Username, cancellationToken))
         {
             throw new BusinessException("Username already exists.", ErrorCodes.ValidationError);
         }
 
-        if (!PasswordPolicy.IsCompliant(request.Password, _passwordPolicy, out _))
+        if (!PasswordPolicy.IsCompliant(request.Password, passwordPolicy, out _))
         {
             throw new BusinessException("Password policy violation.", ErrorCodes.ValidationError);
         }
@@ -316,6 +317,7 @@ public sealed class UserCommandService : IUserCommandService
         string newPassword,
         CancellationToken cancellationToken)
     {
+        var passwordPolicy = _passwordPolicyMonitor.CurrentValue;
         var user = await _userRepository.FindByIdAsync(tenantId, userId, cancellationToken);
         if (user is null)
         {
@@ -345,7 +347,7 @@ public sealed class UserCommandService : IUserCommandService
             }
         }
 
-        if (!PasswordPolicy.IsCompliant(newPassword, _passwordPolicy, out var message))
+        if (!PasswordPolicy.IsCompliant(newPassword, passwordPolicy, out var message))
         {
             throw new BusinessException(message, ErrorCodes.ValidationError);
         }

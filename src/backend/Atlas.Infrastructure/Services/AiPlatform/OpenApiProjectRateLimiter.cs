@@ -7,15 +7,16 @@ namespace Atlas.Infrastructure.Services.AiPlatform;
 public sealed class OpenApiProjectRateLimiter
 {
     private readonly ConcurrentDictionary<string, CounterState> _counters = new(StringComparer.Ordinal);
-    private readonly int _limitPerMinute;
+    private readonly IOptionsMonitor<AiPlatformOptions> _aiOptionsMonitor;
 
-    public OpenApiProjectRateLimiter(IOptions<AiPlatformOptions> aiOptions)
+    public OpenApiProjectRateLimiter(IOptionsMonitor<AiPlatformOptions> aiOptions)
     {
-        _limitPerMinute = Math.Max(1, aiOptions.Value.OpenApiGovernance.ProjectRateLimitPerMinute);
+        _aiOptionsMonitor = aiOptions;
     }
 
     public bool TryAcquire(string key, out int retryAfterSeconds)
     {
+        var limitPerMinute = Math.Max(1, _aiOptionsMonitor.CurrentValue.OpenApiGovernance.ProjectRateLimitPerMinute);
         retryAfterSeconds = 0;
         var now = DateTime.UtcNow;
         var window = new DateTime(now.Year, now.Month, now.Day, now.Hour, now.Minute, 0, DateTimeKind.Utc);
@@ -29,7 +30,7 @@ public sealed class OpenApiProjectRateLimiter
                 state.Count = 0;
             }
 
-            if (state.Count >= _limitPerMinute)
+            if (state.Count >= limitPerMinute)
             {
                 retryAfterSeconds = Math.Max(1, 60 - now.Second);
                 return false;

@@ -24,10 +24,10 @@ namespace Atlas.Infrastructure.Services;
 
 public sealed class JwtAuthTokenService : IAuthTokenService
 {
-    private readonly JwtOptions _jwtOptions;
-    private readonly PasswordPolicyOptions _passwordPolicy;
-    private readonly LockoutPolicyOptions _lockoutPolicy;
-    private readonly SecurityOptions _securityOptions;
+    private readonly IOptionsMonitor<JwtOptions> _jwtOptionsMonitor;
+    private readonly IOptionsMonitor<PasswordPolicyOptions> _passwordPolicyMonitor;
+    private readonly IOptionsMonitor<LockoutPolicyOptions> _lockoutPolicyMonitor;
+    private readonly IOptionsMonitor<SecurityOptions> _securityOptionsMonitor;
     private readonly IUserAccountRepository _userAccountRepository;
     private readonly IPasswordHasher _passwordHasher;
     private readonly IAuditRecorder _auditRecorder;
@@ -42,10 +42,10 @@ public sealed class JwtAuthTokenService : IAuthTokenService
     private readonly IAuthCacheService _authCacheService;
 
     public JwtAuthTokenService(
-        IOptions<JwtOptions> jwtOptions,
-        IOptions<PasswordPolicyOptions> passwordPolicy,
-        IOptions<LockoutPolicyOptions> lockoutPolicy,
-        IOptions<SecurityOptions> securityOptions,
+        IOptionsMonitor<JwtOptions> jwtOptions,
+        IOptionsMonitor<PasswordPolicyOptions> passwordPolicy,
+        IOptionsMonitor<LockoutPolicyOptions> lockoutPolicy,
+        IOptionsMonitor<SecurityOptions> securityOptions,
         IUserAccountRepository userAccountRepository,
         IPasswordHasher passwordHasher,
         IAuditRecorder auditRecorder,
@@ -59,10 +59,10 @@ public sealed class JwtAuthTokenService : IAuthTokenService
         ILoginLogWriteService loginLogWriteService,
         IAuthCacheService authCacheService)
     {
-        _jwtOptions = jwtOptions.Value;
-        _passwordPolicy = passwordPolicy.Value;
-        _lockoutPolicy = lockoutPolicy.Value;
-        _securityOptions = securityOptions.Value;
+        _jwtOptionsMonitor = jwtOptions;
+        _passwordPolicyMonitor = passwordPolicy;
+        _lockoutPolicyMonitor = lockoutPolicy;
+        _securityOptionsMonitor = securityOptions;
         _userAccountRepository = userAccountRepository;
         _passwordHasher = passwordHasher;
         _auditRecorder = auditRecorder;
@@ -83,6 +83,10 @@ public sealed class JwtAuthTokenService : IAuthTokenService
         AuthRequestContext context,
         CancellationToken cancellationToken)
     {
+        var passwordPolicy = _passwordPolicyMonitor.CurrentValue;
+        var lockoutPolicy = _lockoutPolicyMonitor.CurrentValue;
+        var securityOptions = _securityOptionsMonitor.CurrentValue;
+        var jwtOptions = _jwtOptionsMonitor.CurrentValue;
         var now = _timeProvider.GetUtcNow();
         var account = await _userAccountRepository.FindByUsernameAsync(tenantId, request.Username, cancellationToken);
         if (account is null)
@@ -99,7 +103,7 @@ public sealed class JwtAuthTokenService : IAuthTokenService
             throw new BusinessException("InvalidCredentials", ErrorCodes.Forbidden);
         }
 
-        var locked = IsLocked(account, now, out var lockStateChanged);
+        var locked = IsLocked(account, now, lockoutPolicy, out var lockStateChanged);
         if (lockStateChanged)
         {
             await _userAccountRepository.UpdateAsync(account, cancellationToken);
@@ -112,7 +116,7 @@ public sealed class JwtAuthTokenService : IAuthTokenService
             throw new BusinessException("InvalidCredentials", ErrorCodes.AccountLocked);
         }
 
-        var passwordExpiredAt = account.LastPasswordChangeAt.AddDays(_passwordPolicy.ExpirationDays);
+        var passwordExpiredAt = account.LastPasswordChangeAt.AddDays(passwordPolicy.ExpirationDays);
         if (passwordExpiredAt <= now)
         {
             await WriteAuditAsync(tenantId, request.Username, "LOGIN", "PASSWORD_EXPIRED", null, context, cancellationToken);
@@ -123,7 +127,7 @@ public sealed class JwtAuthTokenService : IAuthTokenService
         var passwordValid = _passwordHasher.VerifyHashedPassword(account.PasswordHash, request.Password);
         if (!passwordValid)
         {
-            account.MarkLoginFailure(now, _lockoutPolicy.MaxFailedAttempts, TimeSpan.FromMinutes(_lockoutPolicy.LockoutMinutes));
+            account.MarkLoginFailure(now, lockoutPolicy.MaxFailedAttempts, TimeSpan.FromMinutes(lockoutPolicy.LockoutMinutes));
             await _userAccountRepository.UpdateAsync(account, cancellationToken);
             await WriteAuditAsync(tenantId, request.Username, "LOGIN", "FAILED", null, context, cancellationToken);
             await WriteLoginLogAsync(tenantId, request.Username, context, false, "密码错误", now, cancellationToken);
@@ -142,7 +146,7 @@ public sealed class JwtAuthTokenService : IAuthTokenService
 
             if (!_totpService.ValidateCode(account.MfaSecretKey, request.TotpCode, now))
             {
-                account.MarkLoginFailure(now, _lockoutPolicy.MaxFailedAttempts, TimeSpan.FromMinutes(_lockoutPolicy.LockoutMinutes));
+                account.MarkLoginFailure(now, lockoutPolicy.MaxFailedAttempts, TimeSpan.FromMinutes(lockoutPolicy.LockoutMinutes));
                 await _userAccountRepository.UpdateAsync(account, cancellationToken);
                 await WriteAuditAsync(tenantId, request.Username, "LOGIN", "MFA_FAILED", null, context, cancellationToken);
                 await WriteLoginLogAsync(tenantId, request.Username, context, false, "多因素认证验证码错误", now, cancellationToken);
@@ -156,12 +160,12 @@ public sealed class JwtAuthTokenService : IAuthTokenService
         await WriteLoginLogAsync(tenantId, request.Username, context, true, null, now, cancellationToken);
 
         // Enforce concurrent session limit: revoke oldest sessions if at or over max
-        if (_securityOptions.MaxConcurrentSessions > 0)
+        if (securityOptions.MaxConcurrentSessions > 0)
         {
             var activeCount = await _authSessionRepository.CountActiveByUserIdAsync(tenantId, account.Id, now, cancellationToken);
-            if (activeCount >= _securityOptions.MaxConcurrentSessions)
+            if (activeCount >= securityOptions.MaxConcurrentSessions)
             {
-                var excessCount = activeCount - _securityOptions.MaxConcurrentSessions + 1;
+                var excessCount = activeCount - securityOptions.MaxConcurrentSessions + 1;
                 var oldestSessions = await _authSessionRepository.QueryOldestActiveByUserIdAsync(
                     tenantId, account.Id, now, excessCount, cancellationToken);
                 foreach (var oldSession in oldestSessions)
@@ -173,7 +177,7 @@ public sealed class JwtAuthTokenService : IAuthTokenService
         }
 
         var sessionId = _idGeneratorAccessor.NextId();
-        var sessionExpiresAt = now.AddMinutes(_jwtOptions.SessionExpiresMinutes);
+        var sessionExpiresAt = now.AddMinutes(jwtOptions.SessionExpiresMinutes);
         var clientContext = context.ClientContext;
         var session = new AuthSession(
             tenantId,
@@ -189,11 +193,11 @@ public sealed class JwtAuthTokenService : IAuthTokenService
             sessionId);
         await _authSessionRepository.AddAsync(session, cancellationToken);
 
-        var (refreshToken, refreshExpiresAt, refreshEntity) = CreateRefreshToken(account.Id, tenantId, sessionId, now, request.RememberMe);
+        var (refreshToken, refreshExpiresAt, refreshEntity) = CreateRefreshToken(account.Id, tenantId, sessionId, now, jwtOptions, request.RememberMe);
         await _refreshTokenRepository.AddAsync(refreshEntity, cancellationToken);
 
         var appId = _appContextAccessor.GetAppId();
-        var accessTokenResult = CreateAccessToken(account, tenantId, clientContext, sessionId, now, cancellationToken, appId);
+        var accessTokenResult = CreateAccessToken(account, tenantId, clientContext, sessionId, now, cancellationToken, appId, jwtOptions);
         var accessToken = await accessTokenResult;
         return new AuthTokenResult(accessToken.Token, accessToken.ExpiresAt, refreshToken, refreshExpiresAt, sessionId);
     }
@@ -204,6 +208,9 @@ public sealed class JwtAuthTokenService : IAuthTokenService
         AuthRequestContext context,
         CancellationToken cancellationToken)
     {
+        var passwordPolicy = _passwordPolicyMonitor.CurrentValue;
+        var lockoutPolicy = _lockoutPolicyMonitor.CurrentValue;
+        var jwtOptions = _jwtOptionsMonitor.CurrentValue;
         var now = _timeProvider.GetUtcNow();
         var tokenHash = ComputeTokenHash(request.RefreshToken);
         var storedToken = await _refreshTokenRepository.FindByHashAsync(tenantId, tokenHash, cancellationToken);
@@ -246,7 +253,7 @@ public sealed class JwtAuthTokenService : IAuthTokenService
             throw new BusinessException("AccountSuspended", ErrorCodes.Forbidden);
         }
 
-        var locked = IsLocked(account, now, out var lockStateChanged);
+        var locked = IsLocked(account, now, lockoutPolicy, out var lockStateChanged);
         if (lockStateChanged)
         {
             await _userAccountRepository.UpdateAsync(account, cancellationToken);
@@ -258,7 +265,7 @@ public sealed class JwtAuthTokenService : IAuthTokenService
             throw new BusinessException("InvalidCredentials", ErrorCodes.AccountLocked);
         }
 
-        var passwordExpiredAt = account.LastPasswordChangeAt.AddDays(_passwordPolicy.ExpirationDays);
+        var passwordExpiredAt = account.LastPasswordChangeAt.AddDays(passwordPolicy.ExpirationDays);
         if (passwordExpiredAt <= now)
         {
             await WriteAuditAsync(tenantId, account.Username, "TOKEN_REFRESH", "PASSWORD_EXPIRED", null, context, cancellationToken);
@@ -276,13 +283,13 @@ public sealed class JwtAuthTokenService : IAuthTokenService
         session.MarkSeen(now);
         await _authSessionRepository.UpdateAsync(session, cancellationToken);
 
-        var (refreshToken, refreshExpiresAt, refreshEntity) = CreateRefreshToken(account.Id, tenantId, session.Id, now);
+        var (refreshToken, refreshExpiresAt, refreshEntity) = CreateRefreshToken(account.Id, tenantId, session.Id, now, jwtOptions);
         storedToken.Revoke(now, refreshEntity.Id);
         await _refreshTokenRepository.UpdateAsync(storedToken, cancellationToken);
         await _refreshTokenRepository.AddAsync(refreshEntity, cancellationToken);
 
         var appId = _appContextAccessor.GetAppId();
-        var accessTokenResult = CreateAccessToken(account, tenantId, context.ClientContext, session.Id, now, cancellationToken, appId);
+        var accessTokenResult = CreateAccessToken(account, tenantId, context.ClientContext, session.Id, now, cancellationToken, appId, jwtOptions);
         var accessToken = await accessTokenResult;
         await WriteAuditAsync(tenantId, account.Username, "TOKEN_REFRESH", "SUCCESS", null, context, cancellationToken);
         return new AuthTokenResult(accessToken.Token, accessToken.ExpiresAt, refreshToken, refreshExpiresAt, session.Id);
@@ -343,18 +350,19 @@ public sealed class JwtAuthTokenService : IAuthTokenService
         long sessionId,
         DateTimeOffset now,
         CancellationToken cancellationToken,
-        string appId)
+        string appId,
+        JwtOptions jwtOptions)
     {
-        var expires = now.AddMinutes(_jwtOptions.ExpiresMinutes);
+        var expires = now.AddMinutes(jwtOptions.ExpiresMinutes);
         var roleCodes = await _rbacResolver.GetRoleCodesAsync(account, tenantId, cancellationToken);
         var claims = BuildClaims(account, tenantId, roleCodes, clientContext, sessionId, appId);
 
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtOptions.SigningKey));
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.SigningKey));
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
         var token = new JwtSecurityToken(
-            _jwtOptions.Issuer,
-            _jwtOptions.Audience,
+            jwtOptions.Issuer,
+            jwtOptions.Audience,
             claims,
             notBefore: now.UtcDateTime,
             expires: expires.UtcDateTime,
@@ -370,11 +378,12 @@ public sealed class JwtAuthTokenService : IAuthTokenService
         TenantId tenantId,
         long sessionId,
         DateTimeOffset now,
+        JwtOptions jwtOptions,
         bool rememberMe = false)
     {
         var expiryMinutes = rememberMe
-            ? _jwtOptions.RememberMeRefreshExpiresMinutes
-            : _jwtOptions.RefreshExpiresMinutes;
+            ? jwtOptions.RememberMeRefreshExpiresMinutes
+            : jwtOptions.RefreshExpiresMinutes;
         var refreshExpiresAt = now.AddMinutes(expiryMinutes);
         var tokenBytes = RandomNumberGenerator.GetBytes(64);
         var token = Base64UrlEncoder.Encode(tokenBytes);
@@ -415,12 +424,12 @@ public sealed class JwtAuthTokenService : IAuthTokenService
         await WriteAuditAsync(tenantId, storedToken.UserId.ToString(), "TOKEN_REFRESH", "REVOKED", null, context, cancellationToken);
     }
 
-    private bool IsLocked(UserAccount account, DateTimeOffset now, out bool stateChanged)
+    private static bool IsLocked(UserAccount account, DateTimeOffset now, LockoutPolicyOptions lockoutPolicy, out bool stateChanged)
     {
         stateChanged = false;
         if (account.IsManualLocked && account.ManualLockAt > DateTimeOffset.MinValue)
         {
-            var autoUnlockAt = account.ManualLockAt.AddMinutes(_lockoutPolicy.AutoUnlockMinutes);
+            var autoUnlockAt = account.ManualLockAt.AddMinutes(lockoutPolicy.AutoUnlockMinutes);
             if (now >= autoUnlockAt)
             {
                 account.Unlock();

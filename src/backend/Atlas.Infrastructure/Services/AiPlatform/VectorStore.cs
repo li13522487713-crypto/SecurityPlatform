@@ -8,33 +8,28 @@ namespace Atlas.Infrastructure.Services.AiPlatform;
 
 public sealed class VectorStore : IVectorStore
 {
-    private readonly IVectorDbClient _client;
+    private readonly IReadOnlyDictionary<string, IVectorDbClient> _clients;
+    private readonly IOptionsMonitor<AiPlatformOptions> _optionsMonitor;
+    private readonly ILogger<VectorStore> _logger;
 
     public VectorStore(
         IEnumerable<IVectorDbClient> clients,
-        IOptions<AiPlatformOptions> options,
+        IOptionsMonitor<AiPlatformOptions> options,
         ILogger<VectorStore> logger)
     {
-        var provider = options.Value.VectorDb.Provider;
-        _client = clients.FirstOrDefault(client =>
-                      string.Equals(client.ProviderName, provider, StringComparison.OrdinalIgnoreCase))
-                  ?? clients.FirstOrDefault(client =>
-                      string.Equals(client.ProviderName, "sqlite", StringComparison.OrdinalIgnoreCase))
-                  ?? throw new InvalidOperationException("No vector database client is registered.");
-
-        logger.LogInformation(
-            "VectorStore initialized with provider {Provider}.",
-            _client.ProviderName);
+        _clients = clients.ToDictionary(client => client.ProviderName, client => client, StringComparer.OrdinalIgnoreCase);
+        _optionsMonitor = options;
+        _logger = logger;
     }
 
     public Task EnsureCollectionAsync(string collectionName, int dimensions, CancellationToken ct = default)
     {
-        return _client.EnsureCollectionAsync(collectionName, dimensions, ct);
+        return ResolveClient().EnsureCollectionAsync(collectionName, dimensions, ct);
     }
 
     public Task UpsertAsync(string collectionName, IEnumerable<VectorRecord> records, CancellationToken ct = default)
     {
-        return _client.UpsertAsync(collectionName, records, ct);
+        return ResolveClient().UpsertAsync(collectionName, records, ct);
     }
 
     public Task<IReadOnlyList<VectorSearchResult>> SearchAsync(
@@ -43,11 +38,28 @@ public sealed class VectorStore : IVectorStore
         int topK = 5,
         CancellationToken ct = default)
     {
-        return _client.SearchAsync(collectionName, queryVector, topK, ct);
+        return ResolveClient().SearchAsync(collectionName, queryVector, topK, ct);
     }
 
     public Task DeleteAsync(string collectionName, IEnumerable<string> ids, CancellationToken ct = default)
     {
-        return _client.DeleteAsync(collectionName, ids, ct);
+        return ResolveClient().DeleteAsync(collectionName, ids, ct);
+    }
+
+    private IVectorDbClient ResolveClient()
+    {
+        var provider = _optionsMonitor.CurrentValue.VectorDb.Provider;
+        if (_clients.TryGetValue(provider, out var client))
+        {
+            return client;
+        }
+
+        if (_clients.TryGetValue("sqlite", out var sqlite))
+        {
+            _logger.LogWarning("Vector provider {Provider} not found, fallback to sqlite.", provider);
+            return sqlite;
+        }
+
+        throw new InvalidOperationException("No vector database client is registered.");
     }
 }

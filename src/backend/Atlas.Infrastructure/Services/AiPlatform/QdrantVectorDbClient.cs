@@ -16,15 +16,13 @@ public sealed class QdrantVectorDbClient : IVectorDbClient
     };
 
     private readonly HttpClient _httpClient;
-    private readonly string _baseUrl;
-    private readonly string _apiKey;
+    private readonly IOptionsMonitor<AiPlatformOptions> _optionsMonitor;
 
-    public QdrantVectorDbClient(IHttpClientFactory httpClientFactory, IOptions<AiPlatformOptions> options)
+    public QdrantVectorDbClient(IHttpClientFactory httpClientFactory, IOptionsMonitor<AiPlatformOptions> options)
     {
         ProviderName = "qdrant";
         _httpClient = httpClientFactory.CreateClient("AiPlatform");
-        _baseUrl = options.Value.VectorDb.QdrantUrl.TrimEnd('/');
-        _apiKey = options.Value.VectorDb.QdrantApiKey;
+        _optionsMonitor = options;
     }
 
     public string ProviderName { get; }
@@ -193,10 +191,18 @@ public sealed class QdrantVectorDbClient : IVectorDbClient
 
     private HttpRequestMessage CreateRequest(HttpMethod method, string path)
     {
-        var request = new HttpRequestMessage(method, $"{_baseUrl}{path}");
-        if (!string.IsNullOrWhiteSpace(_apiKey))
+        var options = _optionsMonitor.CurrentValue;
+        var baseUrl = options.VectorDb.QdrantUrl.TrimEnd('/');
+        var apiKey = options.VectorDb.QdrantApiKey;
+        if (string.IsNullOrWhiteSpace(baseUrl))
         {
-            request.Headers.TryAddWithoutValidation("api-key", _apiKey);
+            throw new InvalidOperationException("AiPlatform:VectorDb:QdrantUrl 未配置。");
+        }
+
+        var request = new HttpRequestMessage(method, $"{baseUrl}{path}");
+        if (!string.IsNullOrWhiteSpace(apiKey))
+        {
+            request.Headers.TryAddWithoutValidation("api-key", apiKey);
         }
 
         return request;

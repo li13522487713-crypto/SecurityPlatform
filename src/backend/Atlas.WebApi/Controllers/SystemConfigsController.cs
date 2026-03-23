@@ -28,6 +28,7 @@ public sealed class SystemConfigsController : ControllerBase
     private readonly IAuditRecorder _auditRecorder;
     private readonly IValidator<SystemConfigCreateRequest> _createValidator;
     private readonly IValidator<SystemConfigUpdateRequest> _updateValidator;
+    private readonly IValidator<SystemConfigBatchUpsertRequest> _batchUpsertValidator;
 
     public SystemConfigsController(
         ISystemConfigQueryService queryService,
@@ -37,7 +38,8 @@ public sealed class SystemConfigsController : ControllerBase
         IClientContextAccessor clientContextAccessor,
         IAuditRecorder auditRecorder,
         IValidator<SystemConfigCreateRequest> createValidator,
-        IValidator<SystemConfigUpdateRequest> updateValidator)
+        IValidator<SystemConfigUpdateRequest> updateValidator,
+        IValidator<SystemConfigBatchUpsertRequest> batchUpsertValidator)
     {
         _queryService = queryService;
         _commandService = commandService;
@@ -47,6 +49,7 @@ public sealed class SystemConfigsController : ControllerBase
         _auditRecorder = auditRecorder;
         _createValidator = createValidator;
         _updateValidator = updateValidator;
+        _batchUpsertValidator = batchUpsertValidator;
     }
 
     [HttpGet]
@@ -63,16 +66,38 @@ public sealed class SystemConfigsController : ControllerBase
 
     [HttpGet("by-key/{key}")]
     [Authorize(Policy = PermissionPolicies.ConfigView)]
-    public async Task<ActionResult<ApiResponse<SystemConfigDto>>> GetByKey(string key, CancellationToken cancellationToken)
+    public async Task<ActionResult<ApiResponse<SystemConfigDto>>> GetByKey(
+        string key,
+        [FromQuery] string? appId,
+        CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
-        var result = await _queryService.GetByKeyAsync(tenantId, key, cancellationToken);
+        var result = await _queryService.GetByKeyAsync(tenantId, key, appId, cancellationToken);
         if (result is null)
         {
             return NotFound(ApiResponse<SystemConfigDto>.Fail(ErrorCodes.NotFound, ApiResponseLocalizer.T(HttpContext, "SystemConfigNotFound"), HttpContext.TraceIdentifier));
         }
 
         return Ok(ApiResponse<SystemConfigDto>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    [HttpGet("query")]
+    [Authorize(Policy = PermissionPolicies.ConfigView)]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<SystemConfigDto>>>> Query(
+        [FromQuery] string? groupName,
+        [FromQuery] string? appId,
+        [FromQuery] string? keys,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var parsedKeys = string.IsNullOrWhiteSpace(keys)
+            ? null
+            : keys
+                .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+        var result = await _queryService.ListSystemConfigsAsync(tenantId, groupName, appId, parsedKeys, cancellationToken);
+        return Ok(ApiResponse<IReadOnlyList<SystemConfigDto>>.Ok(result, HttpContext.TraceIdentifier));
     }
 
     [HttpPost]
@@ -102,6 +127,20 @@ public sealed class SystemConfigsController : ControllerBase
 
         await RecordAuditAsync("UPDATE_SYSTEM_CONFIG", id.ToString(), cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost("batch-upsert")]
+    [Authorize(Policy = PermissionPolicies.ConfigUpdate)]
+    public async Task<ActionResult<ApiResponse<object>>> BatchUpsert(
+        [FromBody] SystemConfigBatchUpsertRequest request,
+        CancellationToken cancellationToken)
+    {
+        _batchUpsertValidator.ValidateAndThrow(request);
+        var tenantId = _tenantProvider.GetTenantId();
+        var ids = await _commandService.BatchUpsertSystemConfigsAsync(tenantId, request, cancellationToken);
+
+        await RecordAuditAsync("BATCH_UPSERT_SYSTEM_CONFIG", string.Join(',', ids), cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { Ids = ids.Select(id => id.ToString()).ToArray() }, HttpContext.TraceIdentifier));
     }
 
     [HttpDelete("{id:long}")]

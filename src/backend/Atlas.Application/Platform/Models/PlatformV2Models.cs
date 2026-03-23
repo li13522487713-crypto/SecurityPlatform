@@ -82,6 +82,22 @@ public sealed record TenantAppDataSourceBinding(
     string? BoundAt,
     string? Source);
 
+public sealed record TenantAppFileStorageSettings(
+    string TenantAppInstanceId,
+    string AppId,
+    string EffectiveBasePath,
+    string EffectiveMinioBucketName,
+    string? OverrideBasePath,
+    string? OverrideMinioBucketName,
+    bool InheritBasePath,
+    bool InheritMinioBucketName);
+
+public sealed record TenantAppFileStorageSettingsUpdateRequest(
+    string? OverrideBasePath,
+    string? OverrideMinioBucketName,
+    bool InheritBasePath,
+    bool InheritMinioBucketName);
+
 public sealed record TenantAppMemberListItem(
     string UserId,
     string Username,

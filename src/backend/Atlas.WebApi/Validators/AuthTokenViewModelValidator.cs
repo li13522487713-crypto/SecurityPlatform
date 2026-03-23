@@ -8,17 +8,13 @@ namespace Atlas.WebApi.Validators;
 
 public sealed class AuthTokenViewModelValidator : AbstractValidator<AuthTokenViewModel>
 {
-    private readonly PasswordPolicyOptions _policy;
-
-    public AuthTokenViewModelValidator(IOptions<PasswordPolicyOptions> policyOptions)
+    public AuthTokenViewModelValidator(IOptionsMonitor<PasswordPolicyOptions> policyOptions)
     {
-        _policy = policyOptions.Value;
-
         RuleFor(x => x.Username).NotEmpty().MaximumLength(64);
         RuleFor(x => x.Password).NotEmpty().MaximumLength(128);
         RuleFor(x => x.Password).Custom((value, context) =>
         {
-            if (!PasswordPolicy.IsCompliant(value, _policy, out var message))
+            if (!PasswordPolicy.IsCompliant(value, policyOptions.CurrentValue, out var message))
             {
                 context.AddFailure(message);
             }

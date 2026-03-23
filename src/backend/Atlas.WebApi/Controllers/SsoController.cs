@@ -14,11 +14,11 @@ namespace Atlas.WebApi.Controllers;
 [Route("api/v1/auth/sso")]
 public sealed class SsoController : ControllerBase
 {
-    private readonly OidcOptions _oidcOptions;
+    private readonly IOptionsMonitor<OidcOptions> _oidcOptionsMonitor;
 
-    public SsoController(IOptions<OidcOptions> oidcOptions)
+    public SsoController(IOptionsMonitor<OidcOptions> oidcOptions)
     {
-        _oidcOptions = oidcOptions.Value;
+        _oidcOptionsMonitor = oidcOptions;
     }
 
     /// <summary>
@@ -28,12 +28,13 @@ public sealed class SsoController : ControllerBase
     [AllowAnonymous]
     public ActionResult<ApiResponse<object>> GetProviders()
     {
-        if (!_oidcOptions.Enabled)
+        var oidcOptions = _oidcOptionsMonitor.CurrentValue;
+        if (!oidcOptions.Enabled)
         {
             return Ok(ApiResponse<object>.Ok(Array.Empty<object>(), HttpContext.TraceIdentifier));
         }
 
-        var providers = _oidcOptions.GetEffectiveProviders()
+        var providers = oidcOptions.GetEffectiveProviders()
             .Select(p => new
             {
                 p.ProviderId,
@@ -55,12 +56,13 @@ public sealed class SsoController : ControllerBase
     [AllowAnonymous]
     public IActionResult Login(string providerId, [FromQuery] string? returnUrl = null)
     {
-        if (!_oidcOptions.Enabled)
+        var oidcOptions = _oidcOptionsMonitor.CurrentValue;
+        if (!oidcOptions.Enabled)
         {
             return BadRequest(ApiResponse<object>.Fail("FEATURE_DISABLED", ApiResponseLocalizer.T(HttpContext, "SsoFeatureDisabled"), HttpContext.TraceIdentifier));
         }
 
-        var providers = _oidcOptions.GetEffectiveProviders();
+        var providers = oidcOptions.GetEffectiveProviders();
         var provider = providers.FirstOrDefault(p => string.Equals(p.ProviderId, providerId, StringComparison.OrdinalIgnoreCase));
         if (provider is null)
         {

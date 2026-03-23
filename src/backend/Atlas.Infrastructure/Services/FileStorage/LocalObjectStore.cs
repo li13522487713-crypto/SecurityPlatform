@@ -1,20 +1,18 @@
-using Atlas.Application.Options;
 using Atlas.Application.System.Abstractions;
 using Atlas.Core.Tenancy;
-using Microsoft.Extensions.Options;
 
 namespace Atlas.Infrastructure.Services.FileStorage;
 
 public sealed class LocalObjectStore : IFileObjectStore
 {
-    private readonly FileStorageOptions _options;
+    private readonly IFileStorageSettingsResolver _settingsResolver;
     private readonly IHostEnvironmentAccessor _hostEnvironmentAccessor;
 
     public LocalObjectStore(
-        IOptions<FileStorageOptions> options,
+        IFileStorageSettingsResolver settingsResolver,
         IHostEnvironmentAccessor hostEnvironmentAccessor)
     {
-        _options = options.Value;
+        _settingsResolver = settingsResolver;
         _hostEnvironmentAccessor = hostEnvironmentAccessor;
     }
 
@@ -25,7 +23,7 @@ public sealed class LocalObjectStore : IFileObjectStore
         string contentType,
         CancellationToken cancellationToken = default)
     {
-        var directory = GetTenantDirectory(tenantId);
+        var directory = await GetTenantDirectoryAsync(tenantId, cancellationToken);
         Directory.CreateDirectory(directory);
         var fullPath = Path.Combine(directory, objectName);
         await using var destination = File.Create(fullPath);
@@ -37,44 +35,50 @@ public sealed class LocalObjectStore : IFileObjectStore
         string objectName,
         CancellationToken cancellationToken = default)
     {
-        var fullPath = Path.Combine(GetTenantDirectory(tenantId), objectName);
+        return OpenReadInternalAsync(tenantId, objectName, cancellationToken);
+    }
+
+    public async Task<bool> ExistsAsync(
+        TenantId tenantId,
+        string objectName,
+        CancellationToken cancellationToken = default)
+    {
+        var fullPath = Path.Combine(await GetTenantDirectoryAsync(tenantId, cancellationToken), objectName);
+        return File.Exists(fullPath);
+    }
+
+    public async Task DeleteAsync(
+        TenantId tenantId,
+        string objectName,
+        CancellationToken cancellationToken = default)
+    {
+        var fullPath = Path.Combine(await GetTenantDirectoryAsync(tenantId, cancellationToken), objectName);
+        if (File.Exists(fullPath))
+        {
+            File.Delete(fullPath);
+        }
+    }
+
+    private async Task<Stream> OpenReadInternalAsync(
+        TenantId tenantId,
+        string objectName,
+        CancellationToken cancellationToken)
+    {
+        var fullPath = Path.Combine(await GetTenantDirectoryAsync(tenantId, cancellationToken), objectName);
         if (!File.Exists(fullPath))
         {
             throw new FileNotFoundException($"对象不存在: {objectName}", fullPath);
         }
 
-        Stream stream = File.OpenRead(fullPath);
-        return Task.FromResult(stream);
+        return File.OpenRead(fullPath);
     }
 
-    public Task<bool> ExistsAsync(
-        TenantId tenantId,
-        string objectName,
-        CancellationToken cancellationToken = default)
+    private async Task<string> GetTenantDirectoryAsync(TenantId tenantId, CancellationToken cancellationToken)
     {
-        var fullPath = Path.Combine(GetTenantDirectory(tenantId), objectName);
-        return Task.FromResult(File.Exists(fullPath));
-    }
-
-    public Task DeleteAsync(
-        TenantId tenantId,
-        string objectName,
-        CancellationToken cancellationToken = default)
-    {
-        var fullPath = Path.Combine(GetTenantDirectory(tenantId), objectName);
-        if (File.Exists(fullPath))
-        {
-            File.Delete(fullPath);
-        }
-
-        return Task.CompletedTask;
-    }
-
-    private string GetTenantDirectory(TenantId tenantId)
-    {
+        var settings = await _settingsResolver.ResolveAsync(tenantId, cancellationToken);
         return Path.Combine(
             _hostEnvironmentAccessor.ContentRootPath,
-            _options.BasePath,
+            settings.BasePath,
             tenantId.Value.ToString());
     }
 }

@@ -17,20 +17,21 @@ public sealed class CaptchaService : ICaptchaService
     private const int CodeLength = 4;
 
     private readonly IMemoryCache _cache;
-    private readonly SecurityOptions _securityOptions;
+    private readonly IOptionsMonitor<SecurityOptions> _securityOptionsMonitor;
 
-    public CaptchaService(IMemoryCache cache, IOptions<SecurityOptions> securityOptions)
+    public CaptchaService(IMemoryCache cache, IOptionsMonitor<SecurityOptions> securityOptions)
     {
         _cache = cache;
-        _securityOptions = securityOptions.Value;
+        _securityOptionsMonitor = securityOptions;
     }
 
     public (string CaptchaKey, string Base64Image) Generate()
     {
+        var securityOptions = _securityOptionsMonitor.CurrentValue;
         var code = GenerateCode();
         var key = $"captcha:{Guid.NewGuid():N}";
-        var expiry = TimeSpan.FromSeconds(_securityOptions.CaptchaExpirySeconds > 0
-            ? _securityOptions.CaptchaExpirySeconds
+        var expiry = TimeSpan.FromSeconds(securityOptions.CaptchaExpirySeconds > 0
+            ? securityOptions.CaptchaExpirySeconds
             : 300);
 
         _cache.Set(key, code.ToUpperInvariant(), expiry);

@@ -7,6 +7,7 @@ using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.System.Entities;
 using Atlas.Infrastructure.Repositories;
+using Atlas.Infrastructure.Services.FileStorage;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using System.Security.Cryptography;
@@ -21,7 +22,8 @@ namespace Atlas.Infrastructure.Services;
 public sealed class LocalFileStorageService : IFileStorageService
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
-    private readonly FileStorageOptions _options;
+    private readonly IOptionsMonitor<FileStorageOptions> _optionsMonitor;
+    private readonly IFileStorageSettingsResolver _settingsResolver;
     private readonly FileRecordRepository _fileRecordRepository;
     private readonly FileUploadSessionRepository _fileUploadSessionRepository;
     private readonly FileTusUploadSessionRepository _fileTusUploadSessionRepository;
@@ -31,7 +33,8 @@ public sealed class LocalFileStorageService : IFileStorageService
     private readonly IHostEnvironmentAccessor _hostEnvironmentAccessor;
 
     public LocalFileStorageService(
-        IOptions<FileStorageOptions> options,
+        IOptionsMonitor<FileStorageOptions> optionsMonitor,
+        IFileStorageSettingsResolver settingsResolver,
         FileRecordRepository fileRecordRepository,
         FileUploadSessionRepository fileUploadSessionRepository,
         FileTusUploadSessionRepository fileTusUploadSessionRepository,
@@ -40,7 +43,8 @@ public sealed class LocalFileStorageService : IFileStorageService
         IFileObjectStore fileObjectStore,
         IHostEnvironmentAccessor hostEnvironmentAccessor)
     {
-        _options = options.Value;
+        _optionsMonitor = optionsMonitor;
+        _settingsResolver = settingsResolver;
         _fileRecordRepository = fileRecordRepository;
         _fileUploadSessionRepository = fileUploadSessionRepository;
         _fileTusUploadSessionRepository = fileTusUploadSessionRepository;
@@ -60,12 +64,13 @@ public sealed class LocalFileStorageService : IFileStorageService
         long fileSizeBytes,
         CancellationToken ct = default)
     {
+        var options = _optionsMonitor.CurrentValue;
         ValidateExtension(originalName);
 
-        if (fileSizeBytes > _options.MaxFileSizeBytes)
+        if (fileSizeBytes > options.MaxFileSizeBytes)
         {
             throw new BusinessException(
-                $"文件大小不能超过 {_options.MaxFileSizeBytes / 1024 / 1024} MB。",
+                $"文件大小不能超过 {options.MaxFileSizeBytes / 1024 / 1024} MB。",
                 ErrorCodes.ValidationError);
         }
 
@@ -166,16 +171,17 @@ public sealed class LocalFileStorageService : IFileStorageService
         FileChunkUploadInitRequest request,
         CancellationToken ct = default)
     {
+        var options = _optionsMonitor.CurrentValue;
         ValidateExtension(request.OriginalName);
         if (request.TotalSizeBytes <= 0)
         {
             throw new BusinessException("文件大小无效。", ErrorCodes.ValidationError);
         }
 
-        if (request.TotalSizeBytes > _options.MaxFileSizeBytes)
+        if (request.TotalSizeBytes > options.MaxFileSizeBytes)
         {
             throw new BusinessException(
-                $"文件大小不能超过 {_options.MaxFileSizeBytes / 1024 / 1024} MB。",
+                $"文件大小不能超过 {options.MaxFileSizeBytes / 1024 / 1024} MB。",
                 ErrorCodes.ValidationError);
         }
 
@@ -184,15 +190,15 @@ public sealed class LocalFileStorageService : IFileStorageService
             throw new BusinessException("分片数量必须大于 0。", ErrorCodes.ValidationError);
         }
 
-        var partSize = Math.Max(64 * 1024, _options.ChunkPartSizeBytes);
+        var partSize = Math.Max(64 * 1024, options.ChunkPartSizeBytes);
         var ext = Path.GetExtension(request.OriginalName).ToLowerInvariant();
         var storedName = $"{Guid.NewGuid():N}{ext}";
         var sessionId = _idGeneratorAccessor.NextId();
-        var tenantDirectory = GetTenantDirectory(tenantId);
+        var tenantDirectory = await GetTenantDirectoryAsync(tenantId, ct);
         var tempDirectory = Path.Combine(tenantDirectory, ".chunks", sessionId.ToString());
         Directory.CreateDirectory(tempDirectory);
 
-        var expiresAt = _timeProvider.GetUtcNow().AddMinutes(_options.ChunkSessionExpireMinutes);
+        var expiresAt = _timeProvider.GetUtcNow().AddMinutes(options.ChunkSessionExpireMinutes);
         var session = new FileUploadSession(
             tenantId,
             request.OriginalName,
@@ -347,9 +353,10 @@ public sealed class LocalFileStorageService : IFileStorageService
         var record = await _fileRecordRepository.FindByIdAsync(tenantId, fileId, ct)
             ?? throw new BusinessException("文件不存在或已删除。", ErrorCodes.NotFound);
 
+        var options = _optionsMonitor.CurrentValue;
         var ttl = expiresInSeconds > 0
             ? Math.Min(expiresInSeconds, 24 * 60 * 60)
-            : _options.SignedUrlDefaultExpireSeconds;
+            : options.SignedUrlDefaultExpireSeconds;
         var expiresAt = _timeProvider.GetUtcNow().AddSeconds(ttl);
         var expiresUnixSeconds = expiresAt.ToUnixTimeSeconds();
         var signature = ComputeSignature(tenantId, record.Id, expiresUnixSeconds);
@@ -438,23 +445,24 @@ public sealed class LocalFileStorageService : IFileStorageService
         long totalSizeBytes,
         CancellationToken ct = default)
     {
+        var options = _optionsMonitor.CurrentValue;
         ValidateExtension(originalName);
         if (totalSizeBytes <= 0)
         {
             throw new BusinessException("上传总大小必须大于 0。", ErrorCodes.ValidationError);
         }
 
-        if (totalSizeBytes > _options.MaxFileSizeBytes)
+        if (totalSizeBytes > options.MaxFileSizeBytes)
         {
             throw new BusinessException(
-                $"文件大小不能超过 {_options.MaxFileSizeBytes / 1024 / 1024} MB。",
+                $"文件大小不能超过 {options.MaxFileSizeBytes / 1024 / 1024} MB。",
                 ErrorCodes.ValidationError);
         }
 
         var ext = Path.GetExtension(originalName).ToLowerInvariant();
         var storedName = $"{Guid.NewGuid():N}{ext}";
         var sessionId = _idGeneratorAccessor.NextId();
-        var tempDirectory = GetTusTempDirectory(tenantId);
+        var tempDirectory = await GetTusTempDirectoryAsync(tenantId, ct);
         Directory.CreateDirectory(tempDirectory);
         var tempFilePath = Path.Combine(tempDirectory, $"{sessionId}.upload");
         await using (var _ = File.Create(tempFilePath))
@@ -462,7 +470,7 @@ public sealed class LocalFileStorageService : IFileStorageService
             // create empty file
         }
 
-        var expiresAt = _timeProvider.GetUtcNow().AddMinutes(_options.ChunkSessionExpireMinutes);
+        var expiresAt = _timeProvider.GetUtcNow().AddMinutes(options.ChunkSessionExpireMinutes);
         var session = new FileTusUploadSession(
             tenantId,
             originalName,
@@ -608,32 +616,34 @@ public sealed class LocalFileStorageService : IFileStorageService
 
     private void ValidateExtension(string fileName)
     {
+        var options = _optionsMonitor.CurrentValue;
         var ext = Path.GetExtension(fileName).ToLowerInvariant();
 
         // 明确拒绝危险扩展名
-        if (_options.BlockedExtensions.Contains(ext))
+        if (options.BlockedExtensions.Contains(ext))
         {
             throw new BusinessException(
                 $"不允许上传 '{ext}' 类型的文件。", ErrorCodes.ValidationError);
         }
 
         // 若有白名单配置则必须在白名单内
-        if (_options.AllowedExtensions.Length > 0 && !_options.AllowedExtensions.Contains(ext))
+        if (options.AllowedExtensions.Length > 0 && !options.AllowedExtensions.Contains(ext))
         {
             throw new BusinessException(
                 $"不支持的文件类型 '{ext}'。", ErrorCodes.ValidationError);
         }
     }
 
-    private string GetTenantDirectory(TenantId tenantId)
+    private async Task<string> GetTenantDirectoryAsync(TenantId tenantId, CancellationToken cancellationToken)
     {
+        var settings = await _settingsResolver.ResolveAsync(tenantId, cancellationToken);
         var contentRoot = _hostEnvironmentAccessor.ContentRootPath;
-        return Path.Combine(contentRoot, _options.BasePath, tenantId.Value.ToString());
+        return Path.Combine(contentRoot, settings.BasePath, tenantId.Value.ToString());
     }
 
-    private string GetTusTempDirectory(TenantId tenantId)
+    private async Task<string> GetTusTempDirectoryAsync(TenantId tenantId, CancellationToken cancellationToken)
     {
-        return Path.Combine(GetTenantDirectory(tenantId), ".tus");
+        return Path.Combine(await GetTenantDirectoryAsync(tenantId, cancellationToken), ".tus");
     }
 
     private async Task<FileUploadSession> GetActiveSessionOrThrowAsync(TenantId tenantId, long sessionId, CancellationToken ct)
@@ -671,7 +681,7 @@ public sealed class LocalFileStorageService : IFileStorageService
     private string ComputeSignature(TenantId tenantId, long fileId, long expiresUnixSeconds)
     {
         var payload = $"{tenantId.Value:D}:{fileId}:{expiresUnixSeconds}";
-        var secret = _options.SignedUrlSecret;
+        var secret = _optionsMonitor.CurrentValue.SignedUrlSecret;
         if (string.IsNullOrWhiteSpace(secret))
         {
             throw new InvalidOperationException("FileStorage:SignedUrlSecret 未配置，无法生成签名下载链接。");

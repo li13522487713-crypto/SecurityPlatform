@@ -90,3 +90,27 @@ public sealed class TenantAppRoleAssignPermissionsRequestValidator : AbstractVal
             .MaximumLength(128);
     }
 }
+
+public sealed class TenantAppFileStorageSettingsUpdateRequestValidator : AbstractValidator<TenantAppFileStorageSettingsUpdateRequest>
+{
+    public TenantAppFileStorageSettingsUpdateRequestValidator()
+    {
+        RuleFor(x => x.OverrideBasePath)
+            .MaximumLength(200)
+            .When(x => x.OverrideBasePath is not null);
+
+        RuleFor(x => x.OverrideMinioBucketName)
+            .MaximumLength(128)
+            .When(x => x.OverrideMinioBucketName is not null);
+
+        RuleFor(x => x.OverrideBasePath)
+            .NotEmpty()
+            .When(x => !x.InheritBasePath)
+            .WithMessage("禁用继承时必须提供应用级 BasePath。");
+
+        RuleFor(x => x.OverrideMinioBucketName)
+            .NotEmpty()
+            .When(x => !x.InheritMinioBucketName)
+            .WithMessage("禁用继承时必须提供应用级 MinIO Bucket。");
+    }
+}

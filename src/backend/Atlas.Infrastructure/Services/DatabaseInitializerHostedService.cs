@@ -83,6 +83,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         // 关键兼容迁移：平台管理员标记字段缺失会导致登录链路失败，需始终检查并补齐。
         await EnsureUserAccountSchemaAsync(db, cancellationToken);
         await EnsureAppMembershipSchemaAsync(db, cancellationToken);
+        await EnsureSystemConfigSchemaAsync(db, cancellationToken);
 
         // Schema 迁移检查（兼容历史版本字段结构）
         if (!_initializerOptions.SkipSchemaMigrations)
@@ -1327,6 +1328,28 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         return Task.CompletedTask;
     }
 
+    private static async Task EnsureSystemConfigSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
+    {
+        if (!db.DbMaintenance.IsAnyTable("SystemConfig", false))
+        {
+            return;
+        }
+
+        await AddColumnIfMissingAsync(db, "SystemConfig", "AppId", "TEXT NULL", cancellationToken);
+        await AddColumnIfMissingAsync(db, "SystemConfig", "GroupName", "TEXT NULL", cancellationToken);
+        await AddColumnIfMissingAsync(db, "SystemConfig", "IsEncrypted", "INTEGER NOT NULL DEFAULT 0", cancellationToken);
+        await AddColumnIfMissingAsync(db, "SystemConfig", "Version", "INTEGER NOT NULL DEFAULT 0", cancellationToken);
+
+        if (RequiresNullableColumnFix<SystemConfig>(db, "Remark", "TargetJson", "AppId", "GroupName"))
+        {
+            await RebuildTableViaOrmAsync<SystemConfig>(db, cancellationToken);
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        await db.Ado.ExecuteCommandAsync(
+            "CREATE INDEX IF NOT EXISTS IX_SystemConfig_Tenant_App_Key ON SystemConfig (TenantIdValue, AppId, ConfigKey)");
+    }
+
     private static async Task EnsureAuthSessionSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
     {
         if (!db.DbMaintenance.IsAnyTable("AuthSession", false))
@@ -1688,18 +1711,68 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         TenantId tenantId,
         CancellationToken cancellationToken)
     {
-        var seeds = new (string Key, string Value, string Name, string? Remark)[]
+        var seeds = new (string Key, string Value, string Name, string GroupName, string ConfigType, bool IsEncrypted, string? Remark)[]
         {
-            ("security.password.minLength", "8", "密码最小长度", "内置安全策略参数"),
-            ("security.lockout.maxFailedAttempts", "5", "最大失败次数", "内置安全策略参数"),
-            ("security.lockout.lockMinutes", "15", "锁定时长(分钟)", "内置安全策略参数"),
-            ("sys.account.register", "false", "是否开启自助注册", "内置注册策略参数")
+            // FileStorage
+            ("FileStorage:Provider", "local", "存储提供商", "FileStorage", "Text", false, "可选值: local|minio|oss"),
+            ("FileStorage:BasePath", "uploads", "本地存储根目录", "FileStorage", "Text", false, "仅 Provider=local 时生效"),
+            ("FileStorage:MaxFileSizeBytes", "10485760", "最大文件大小(字节)", "FileStorage", "Number", false, "默认 10MB"),
+            ("FileStorage:AllowedExtensions", "[\".jpg\",\".jpeg\",\".png\",\".gif\",\".webp\",\".pdf\",\".xlsx\",\".xls\",\".docx\",\".doc\",\".txt\",\".csv\",\".zip\"]", "允许扩展名", "FileStorage", "Json", false, "上传白名单"),
+            ("FileStorage:Minio:Endpoint", "http://127.0.0.1:9000", "MinIO 服务地址", "FileStorage", "Text", false, "仅 Provider=minio 生效"),
+            ("FileStorage:Minio:AccessKey", string.Empty, "MinIO AccessKey", "FileStorage", "Text", true, "敏感项，建议通过界面维护"),
+            ("FileStorage:Minio:SecretKey", string.Empty, "MinIO SecretKey", "FileStorage", "Text", true, "敏感项，建议通过界面维护"),
+            ("FileStorage:Minio:BucketName", "atlas-files", "MinIO Bucket", "FileStorage", "Text", false, null),
+            ("FileStorage:Oss:Endpoint", "https://oss-cn-hangzhou.aliyuncs.com", "OSS Endpoint", "FileStorage", "Text", false, "仅 Provider=oss 生效"),
+            ("FileStorage:Oss:AccessKeyId", string.Empty, "OSS AccessKeyId", "FileStorage", "Text", true, "敏感项，建议通过界面维护"),
+            ("FileStorage:Oss:AccessKeySecret", string.Empty, "OSS AccessKeySecret", "FileStorage", "Text", true, "敏感项，建议通过界面维护"),
+            ("FileStorage:Oss:BucketName", "atlas-files", "OSS Bucket", "FileStorage", "Text", false, null),
+
+            // Security
+            ("Security:PasswordPolicy:MinLength", "8", "密码最小长度", "Security", "Number", false, "密码策略"),
+            ("Security:PasswordPolicy:RequireUppercase", "true", "要求大写字母", "Security", "Boolean", false, "密码策略"),
+            ("Security:PasswordPolicy:RequireLowercase", "true", "要求小写字母", "Security", "Boolean", false, "密码策略"),
+            ("Security:PasswordPolicy:RequireDigit", "true", "要求数字", "Security", "Boolean", false, "密码策略"),
+            ("Security:PasswordPolicy:RequireNonAlphanumeric", "true", "要求特殊字符", "Security", "Boolean", false, "密码策略"),
+            ("Security:PasswordPolicy:ExpirationDays", "90", "密码过期天数", "Security", "Number", false, "0 表示不过期"),
+            ("Security:LockoutPolicy:MaxFailedAttempts", "5", "最大失败次数", "Security", "Number", false, null),
+            ("Security:LockoutPolicy:LockoutMinutes", "15", "锁定时长(分钟)", "Security", "Number", false, null),
+            ("Security:LockoutPolicy:AutoUnlockMinutes", "30", "自动解锁时长(分钟)", "Security", "Number", false, null),
+            ("Security:MaxConcurrentSessions", "5", "最大并发会话数", "Security", "Number", false, "0 表示不限制"),
+            ("Security:CaptchaThreshold", "3", "验证码触发阈值", "Security", "Number", false, "0 表示禁用"),
+
+            // AI Platform
+            ("ai.enable-platform", "true", "启用 AI 平台", "AiPlatform", "Boolean", false, null),
+            ("ai.enable-open-platform", "true", "启用开放平台", "AiPlatform", "Boolean", false, null),
+            ("ai.enable-code-sandbox", "false", "启用代码沙箱", "AiPlatform", "Boolean", false, null),
+            ("ai.enable-marketplace", "true", "启用 AI 市场", "AiPlatform", "Boolean", false, null),
+            ("ai.enable-content-moderation", "true", "启用内容审核", "AiPlatform", "Boolean", false, null),
+            ("ai.max-daily-tokens-per-user", "500000", "单用户每日 Token 上限", "AiPlatform", "Number", false, null),
+            ("AiPlatform:DefaultProvider", "openai", "默认 LLM 提供商", "AiPlatform", "Text", false, null),
+            ("AiPlatform:Embedding:Model", "text-embedding-3-small", "Embedding 模型", "AiPlatform", "Text", false, null),
+            ("AiPlatform:Providers:openai:ApiKey", string.Empty, "OpenAI API Key", "AiPlatform", "Text", true, "敏感项，建议通过界面维护"),
+
+            // System Switch
+            ("sys.account.register", "false", "开放自助注册", "SystemSwitch", "Boolean", false, "注册开关"),
+            ("sys.maintenance.mode", "false", "维护模式", "SystemSwitch", "Boolean", false, null),
+            ("Oidc:Enabled", "false", "启用 SSO/OIDC", "SystemSwitch", "Boolean", false, null),
+            ("CodeExecution:Enabled", "false", "启用代码执行", "SystemSwitch", "Boolean", false, null),
+
+            // Backward compatibility keys
+            ("security.password.minLength", "8", "密码最小长度(兼容键)", "Legacy", "Number", false, "旧版本兼容键"),
+            ("security.lockout.maxFailedAttempts", "5", "最大失败次数(兼容键)", "Legacy", "Number", false, "旧版本兼容键"),
+            ("security.lockout.lockMinutes", "15", "锁定时长(分钟)(兼容键)", "Legacy", "Number", false, "旧版本兼容键")
         };
+
+        var seedKeys = seeds.Select(x => x.Key).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        var existing = await repository.GetByKeysAsync(tenantId, seedKeys, cancellationToken);
+        var existingKeys = existing
+            .Select(x => x.ConfigKey)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var inserts = new List<SystemConfig>();
 
         foreach (var seed in seeds)
         {
-            var existing = await repository.FindByKeyAsync(tenantId, seed.Key, cancellationToken);
-            if (existing is not null)
+            if (existingKeys.Contains(seed.Key))
             {
                 continue;
             }
@@ -1710,9 +1783,19 @@ public sealed class DatabaseInitializerHostedService : IHostedService
                 seed.Value,
                 seed.Name,
                 true,
-                idGeneratorAccessor.NextId());
-            entity.Update(seed.Value, seed.Name, seed.Remark);
-            await repository.AddAsync(entity, cancellationToken);
+                idGeneratorAccessor.NextId(),
+                seed.ConfigType,
+                appId: null,
+                seed.GroupName,
+                seed.IsEncrypted,
+                version: 0);
+            entity.Update(seed.Value, seed.Name, seed.Remark, seed.GroupName, seed.IsEncrypted);
+            inserts.Add(entity);
+        }
+
+        if (inserts.Count > 0)
+        {
+            await repository.AddRangeAsync(inserts, cancellationToken);
         }
     }
 

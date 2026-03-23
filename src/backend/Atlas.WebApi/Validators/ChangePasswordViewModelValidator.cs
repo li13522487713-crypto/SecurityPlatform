@@ -10,14 +10,10 @@ namespace Atlas.WebApi.Validators;
 
 public sealed class ChangePasswordViewModelValidator : AbstractValidator<ChangePasswordViewModel>
 {
-    private readonly PasswordPolicyOptions _policy;
-
     public ChangePasswordViewModelValidator(
-        IOptions<PasswordPolicyOptions> policyOptions,
+        IOptionsMonitor<PasswordPolicyOptions> policyOptions,
         IStringLocalizer<Messages> localizer)
     {
-        _policy = policyOptions.Value;
-
         RuleFor(x => x.CurrentPassword)
             .NotEmpty().WithMessage(localizer["CurrentPasswordRequired"].Value)
             .MaximumLength(128).WithMessage(localizer["PasswordMaxLength", 128].Value);
@@ -36,9 +32,10 @@ public sealed class ChangePasswordViewModelValidator : AbstractValidator<ChangeP
 
         RuleFor(x => x.NewPassword).Custom((value, context) =>
         {
+            var policy = policyOptions.CurrentValue;
             if (!PasswordPolicy.IsCompliant(
                     value,
-                    _policy,
+                    policy,
                     (key, args, fallback) =>
                     {
                         var localized = args is { Length: > 0 } ? localizer[key, args] : localizer[key];

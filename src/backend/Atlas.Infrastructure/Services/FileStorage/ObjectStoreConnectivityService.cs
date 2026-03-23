@@ -15,23 +15,21 @@ namespace Atlas.Infrastructure.Services.FileStorage;
 /// </summary>
 public sealed class ObjectStoreConnectivityService : IHostedService
 {
-    private readonly IServiceProvider _sp;
-    private readonly FileStorageOptions _options;
+    private readonly IOptionsMonitor<FileStorageOptions> _optionsMonitor;
     private readonly ILogger<ObjectStoreConnectivityService> _logger;
 
     public ObjectStoreConnectivityService(
-        IServiceProvider sp,
-        IOptions<FileStorageOptions> options,
+        IOptionsMonitor<FileStorageOptions> optionsMonitor,
         ILogger<ObjectStoreConnectivityService> logger)
     {
-        _sp = sp;
-        _options = options.Value;
+        _optionsMonitor = optionsMonitor;
         _logger = logger;
     }
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
-        var provider = _options.Provider?.Trim().ToLowerInvariant();
+        var options = _optionsMonitor.CurrentValue;
+        var provider = options.Provider?.Trim().ToLowerInvariant();
 
         if (provider == FileStorageOptions.ProviderLocal || string.IsNullOrWhiteSpace(provider))
         {
@@ -43,11 +41,11 @@ public sealed class ObjectStoreConnectivityService : IHostedService
         {
             if (provider == FileStorageOptions.ProviderMinio)
             {
-                await CheckMinioAsync(cancellationToken).ConfigureAwait(false);
+                await CheckMinioAsync(options, cancellationToken).ConfigureAwait(false);
             }
             else if (provider == FileStorageOptions.ProviderOss)
             {
-                await CheckOssAsync(cancellationToken).ConfigureAwait(false);
+                await CheckOssAsync(options, cancellationToken).ConfigureAwait(false);
             }
         }
         catch (Exception ex)
@@ -61,11 +59,26 @@ public sealed class ObjectStoreConnectivityService : IHostedService
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
-    private async Task CheckMinioAsync(CancellationToken cancellationToken)
+    private async Task CheckMinioAsync(FileStorageOptions options, CancellationToken cancellationToken)
     {
-        var client = (IMinioClient)_sp.GetService(typeof(IMinioClient))!;
-        var bucketName = _options.Minio.BucketName;
-        var endpoint = _options.Minio.Endpoint;
+        var minioOptions = options.Minio;
+        var endpoint = minioOptions.Endpoint?.Trim();
+        if (string.IsNullOrWhiteSpace(endpoint))
+        {
+            throw new InvalidOperationException("FileStorage:Minio:Endpoint 未配置。");
+        }
+
+        var bucketName = minioOptions.BucketName;
+        if (string.IsNullOrWhiteSpace(bucketName))
+        {
+            throw new InvalidOperationException("FileStorage:Minio:BucketName 未配置。");
+        }
+
+        var client = new MinioClient()
+            .WithEndpoint(endpoint)
+            .WithCredentials(minioOptions.AccessKey, minioOptions.SecretKey)
+            .WithSSL(minioOptions.UseSsl)
+            .Build();
 
         var existsArgs = new BucketExistsArgs().WithBucket(bucketName);
         var exists = await client.BucketExistsAsync(existsArgs, cancellationToken).ConfigureAwait(false);
@@ -85,11 +98,30 @@ public sealed class ObjectStoreConnectivityService : IHostedService
         }
     }
 
-    private async Task CheckOssAsync(CancellationToken cancellationToken)
+    private async Task CheckOssAsync(FileStorageOptions options, CancellationToken cancellationToken)
     {
-        var client = (IAmazonS3)_sp.GetService(typeof(IAmazonS3))!;
-        var bucketName = _options.Oss.BucketName;
-        var endpoint = _options.Oss.Endpoint;
+        var ossOptions = options.Oss;
+        var endpoint = ossOptions.Endpoint?.Trim();
+        if (string.IsNullOrWhiteSpace(endpoint))
+        {
+            throw new InvalidOperationException("FileStorage:Oss:Endpoint 未配置。");
+        }
+
+        var bucketName = ossOptions.BucketName;
+        if (string.IsNullOrWhiteSpace(bucketName))
+        {
+            throw new InvalidOperationException("FileStorage:Oss:BucketName 未配置。");
+        }
+
+        using var client = new AmazonS3Client(
+            ossOptions.AccessKeyId,
+            ossOptions.AccessKeySecret,
+            new AmazonS3Config
+            {
+                ServiceURL = endpoint,
+                ForcePathStyle = ossOptions.ForcePathStyle,
+                AuthenticationRegion = string.IsNullOrWhiteSpace(ossOptions.Region) ? null : ossOptions.Region
+            });
 
         var request = new GetBucketLocationRequest { BucketName = bucketName };
         await client.GetBucketLocationAsync(request, cancellationToken).ConfigureAwait(false);

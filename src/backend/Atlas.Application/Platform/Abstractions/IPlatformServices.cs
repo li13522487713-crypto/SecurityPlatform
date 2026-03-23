@@ -95,6 +95,7 @@ public interface ITenantAppInstanceQueryService
     Task<IReadOnlyList<LowCodeAppEntityAliasItem>> GetEntityAliasesAsync(TenantId tenantId, long id, CancellationToken cancellationToken = default);
     Task<LowCodeAppDataSourceInfo?> GetDataSourceInfoAsync(TenantId tenantId, long id, CancellationToken cancellationToken = default);
     Task<TestConnectionResult> TestDataSourceAsync(TenantId tenantId, long id, CancellationToken cancellationToken = default);
+    Task<TenantAppFileStorageSettings?> GetFileStorageSettingsAsync(TenantId tenantId, long id, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<TenantAppDataSourceBinding>> GetDataSourceBindingsAsync(
         TenantId tenantId,
         IReadOnlyCollection<long>? appInstanceIds,
@@ -127,6 +128,13 @@ public interface ITenantAppInstanceCommandService
         long userId,
         long id,
         LowCodeAppEntityAliasesUpdateRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task UpdateFileStorageSettingsAsync(
+        TenantId tenantId,
+        long userId,
+        long id,
+        TenantAppFileStorageSettingsUpdateRequest request,
         CancellationToken cancellationToken = default);
 
     Task DeleteAsync(

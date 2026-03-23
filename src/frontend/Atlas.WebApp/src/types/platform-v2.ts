@@ -60,6 +60,24 @@ export interface TenantAppDataSourceBinding {
   source?: string;
 }
 
+export interface TenantAppFileStorageSettings {
+  tenantAppInstanceId: string;
+  appId: string;
+  effectiveBasePath: string;
+  effectiveMinioBucketName: string;
+  overrideBasePath?: string;
+  overrideMinioBucketName?: string;
+  inheritBasePath: boolean;
+  inheritMinioBucketName: boolean;
+}
+
+export interface TenantAppFileStorageSettingsUpdateRequest {
+  overrideBasePath?: string;
+  overrideMinioBucketName?: string;
+  inheritBasePath: boolean;
+  inheritMinioBucketName: boolean;
+}
+
 export interface TenantAppMemberListItem {
   userId: string;
   username: string;

@@ -1,12 +1,20 @@
 import { requestApi } from "@/services/api-core";
 import type { ApiResponse, PagedResult } from "@/types/api";
 
+export type SystemConfigType = "Text" | "Number" | "Boolean" | "Json" | "Secret" | "FeatureFlag";
+
 export interface SystemConfigDto {
   id: string;
   configKey: string;
   configValue: string;
   configName: string;
+  appId?: string | null;
+  groupName?: string | null;
+  isEncrypted: boolean;
+  version: number;
   isBuiltIn: boolean;
+  configType: SystemConfigType;
+  targetJson?: string | null;
   remark?: string;
 }
 
@@ -14,13 +22,41 @@ export interface SystemConfigCreateRequest {
   configKey: string;
   configValue: string;
   configName: string;
+  configType?: SystemConfigType;
+  targetJson?: string;
+  appId?: string;
+  groupName?: string;
+  isEncrypted?: boolean;
   remark?: string;
 }
 
 export interface SystemConfigUpdateRequest {
   configValue: string;
   configName: string;
+  targetJson?: string;
+  groupName?: string;
+  isEncrypted?: boolean;
+  version?: number;
   remark?: string;
+}
+
+export interface SystemConfigBatchUpsertItem {
+  configKey: string;
+  configValue: string;
+  configName: string;
+  remark?: string;
+  configType?: SystemConfigType;
+  targetJson?: string;
+  appId?: string;
+  groupName?: string;
+  isEncrypted?: boolean;
+  version?: number;
+}
+
+export interface SystemConfigBatchUpsertRequest {
+  items: SystemConfigBatchUpsertItem[];
+  appId?: string;
+  groupName?: string;
 }
 
 export async function getSystemConfigsPaged(params: {
@@ -37,9 +73,26 @@ export async function getSystemConfigsPaged(params: {
   return response.data;
 }
 
-export async function getSystemConfigByKey(key: string): Promise<SystemConfigDto | null> {
-  const response = await requestApi<ApiResponse<SystemConfigDto>>(`/system-configs/by-key/${encodeURIComponent(key)}`);
+export async function getSystemConfigByKey(key: string, appId?: string): Promise<SystemConfigDto | null> {
+  const query = new URLSearchParams();
+  if (appId) query.set("appId", appId);
+  const suffix = query.size > 0 ? `?${query}` : "";
+  const response = await requestApi<ApiResponse<SystemConfigDto>>(`/system-configs/by-key/${encodeURIComponent(key)}${suffix}`);
   return response.data ?? null;
+}
+
+export async function querySystemConfigs(params: {
+  groupName?: string;
+  appId?: string;
+  keys?: string[];
+}): Promise<SystemConfigDto[]> {
+  const query = new URLSearchParams();
+  if (params.groupName) query.set("groupName", params.groupName);
+  if (params.appId) query.set("appId", params.appId);
+  if (params.keys && params.keys.length > 0) query.set("keys", params.keys.join(","));
+  const suffix = query.size > 0 ? `?${query}` : "";
+  const response = await requestApi<ApiResponse<SystemConfigDto[]>>(`/system-configs/query${suffix}`);
+  return response.data ?? [];
 }
 
 export async function createSystemConfig(request: SystemConfigCreateRequest): Promise<void> {
@@ -65,4 +118,17 @@ export async function deleteSystemConfig(id: string): Promise<void> {
     method: "DELETE"
   });
   if (!response.success) throw new Error(response.message || "删除失败");
+}
+
+export async function batchUpsertSystemConfigs(request: SystemConfigBatchUpsertRequest): Promise<string[]> {
+  const response = await requestApi<ApiResponse<{ ids: string[] }>>("/system-configs/batch-upsert", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request)
+  });
+  if (!response.success) {
+    throw new Error(response.message || "批量保存失败");
+  }
+
+  return response.data?.ids ?? [];
 }
