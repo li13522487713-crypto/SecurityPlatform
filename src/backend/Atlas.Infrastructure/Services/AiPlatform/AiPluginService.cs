@@ -22,6 +22,7 @@ public sealed class AiPluginService : IAiPluginService
     private readonly AiPluginRepository _pluginRepository;
     private readonly AiPluginApiRepository _apiRepository;
     private readonly BuiltInPluginMetadataProvider _metadataProvider;
+    private readonly IOpenApiPluginParser _openApiPluginParser;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly IUnitOfWork _unitOfWork;
 
@@ -29,12 +30,14 @@ public sealed class AiPluginService : IAiPluginService
         AiPluginRepository pluginRepository,
         AiPluginApiRepository apiRepository,
         BuiltInPluginMetadataProvider metadataProvider,
+        IOpenApiPluginParser openApiPluginParser,
         IIdGeneratorAccessor idGeneratorAccessor,
         IUnitOfWork unitOfWork)
     {
         _pluginRepository = pluginRepository;
         _apiRepository = apiRepository;
         _metadataProvider = metadataProvider;
+        _openApiPluginParser = openApiPluginParser;
         _idGeneratorAccessor = idGeneratorAccessor;
         _unitOfWork = unitOfWork;
     }
@@ -213,57 +216,20 @@ public sealed class AiPluginService : IAiPluginService
         var plugin = await GetPluginOrThrowAsync(tenantId, id, cancellationToken);
         EnsureEditable(plugin);
 
-        var openApiNode = JsonNode.Parse(request.OpenApiJson)
-            ?? throw new BusinessException("OpenAPI JSON 不能为空。", ErrorCodes.ValidationError);
-        var pathsNode = openApiNode["paths"] as JsonObject;
-        if (pathsNode is null || pathsNode.Count == 0)
-        {
-            throw new BusinessException("OpenAPI 缺少 paths 定义。", ErrorCodes.ValidationError);
-        }
-
-        var apis = new List<AiPluginApi>();
-        foreach (var pathEntry in pathsNode)
-        {
-            if (pathEntry.Value is not JsonObject methodsNode)
-            {
-                continue;
-            }
-
-            foreach (var methodEntry in methodsNode)
-            {
-                if (!SupportedHttpMethods.Contains(methodEntry.Key))
-                {
-                    continue;
-                }
-
-                var operationNode = methodEntry.Value as JsonObject;
-                var name = operationNode?["summary"]?.GetValue<string>()?.Trim();
-                if (string.IsNullOrWhiteSpace(name))
-                {
-                    name = $"{methodEntry.Key.ToUpperInvariant()} {pathEntry.Key}";
-                }
-
-                var description = operationNode?["description"]?.GetValue<string>()?.Trim();
-                var requestSchema = operationNode?["requestBody"]?.ToJsonString();
-                var responseSchema = operationNode?["responses"]?.ToJsonString();
-                apis.Add(new AiPluginApi(
-                    tenantId,
-                    id,
-                    name,
-                    description,
-                    methodEntry.Key.ToUpperInvariant(),
-                    pathEntry.Key,
-                    requestSchema,
-                    responseSchema,
-                    timeoutSeconds: 30,
-                    _idGeneratorAccessor.NextId()));
-            }
-        }
-
-        if (apis.Count == 0)
-        {
-            throw new BusinessException("OpenAPI 未解析到可导入接口。", ErrorCodes.ValidationError);
-        }
+        var parseResult = await _openApiPluginParser.ParseAsync(request.OpenApiJson, cancellationToken);
+        var apis = parseResult.Tools
+            .Select(tool => new AiPluginApi(
+                tenantId,
+                id,
+                tool.Name,
+                tool.Description,
+                tool.Method,
+                tool.Path,
+                tool.RequestSchemaJson,
+                tool.ResponseSchemaJson,
+                timeoutSeconds: 30,
+                _idGeneratorAccessor.NextId()))
+            .ToArray();
 
         await _unitOfWork.ExecuteInTransactionAsync(async () =>
         {
@@ -273,9 +239,23 @@ public sealed class AiPluginService : IAiPluginService
             }
 
             await _apiRepository.AddRangeAsync(apis, cancellationToken);
+
+            plugin.Update(
+                plugin.Name,
+                plugin.Description,
+                plugin.Icon,
+                plugin.Category,
+                plugin.Type,
+                plugin.DefinitionJson,
+                AiPluginSourceType.OpenApiImport,
+                plugin.AuthType,
+                plugin.AuthConfigJson,
+                parseResult.ToolSchemaJson,
+                parseResult.OpenApiSpecJson);
+            await _pluginRepository.UpdateAsync(plugin, cancellationToken);
         }, cancellationToken);
 
-        return new AiPluginOpenApiImportResult(apis.Count, apis.Select(x => x.Name).ToArray());
+        return new AiPluginOpenApiImportResult(apis.Length, apis.Select(x => x.Name).ToArray());
     }
 
     public async Task<IReadOnlyList<AiPluginBuiltInMetaItem>> GetBuiltInMetadataAsync(CancellationToken cancellationToken)

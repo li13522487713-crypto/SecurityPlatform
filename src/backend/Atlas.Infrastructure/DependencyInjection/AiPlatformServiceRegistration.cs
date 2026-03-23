@@ -125,6 +125,7 @@ public static class AiPlatformServiceRegistration
 
         services.AddSingleton<IChunkingService, FixedSizeChunkingService>();
         services.AddSingleton<BuiltInPluginMetadataProvider>();
+        services.AddSingleton<IOpenApiPluginParser, OpenApiPluginParser>();
 
         // ── Workflow V2: DAG Engine ──
         services.AddScoped<IWorkflowMetaRepository, WorkflowMetaRepository>();
