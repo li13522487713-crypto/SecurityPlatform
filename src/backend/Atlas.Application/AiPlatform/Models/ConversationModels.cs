@@ -24,7 +24,16 @@ public sealed record ChatMessageDto(
 public sealed record AgentChatRequest(
     long? ConversationId,
     string Message,
-    bool? EnableRag);
+    bool? EnableRag,
+    IReadOnlyList<AgentChatAttachment>? Attachments = null);
+
+public sealed record AgentChatAttachment(
+    string Type,
+    string? Url,
+    string? FileId,
+    string? MimeType,
+    string? Name,
+    string? Text);
 
 public sealed record AgentChatResponse(
     long ConversationId,

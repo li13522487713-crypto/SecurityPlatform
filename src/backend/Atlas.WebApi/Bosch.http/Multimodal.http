@@ -1,0 +1,118 @@
+@baseUrl = http://localhost:5000
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+@assetId = 0
+
+### 登录获取令牌
+# @name login
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+###
+@accessToken = {{login.response.body.$.data.accessToken}}
+
+### 获取 CSRF Token
+# @name antiforgery
+GET {{baseUrl}}/api/v1/secure/antiforgery
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+###
+@csrfToken = {{antiforgery.response.body.$.data.token}}
+
+### 创建多模态资产（图片 URL）
+# @name createImageAsset
+POST {{baseUrl}}/api/v1/multimodal/assets
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "assetType": 0,
+  "sourceType": 1,
+  "name": "样例图片资产",
+  "mimeType": "image/png",
+  "sourceUrl": "https://example.com/assets/security-topology.png",
+  "metadataJson": "{\"scene\":\"security-topology\"}"
+}
+
+###
+@assetId = {{createImageAsset.response.body.$.data.id}}
+
+### 查询多模态资产详情
+GET {{baseUrl}}/api/v1/multimodal/assets/{{assetId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 视觉分析
+POST {{baseUrl}}/api/v1/multimodal/vision/analyze
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "assetId": {{assetId}},
+  "prompt": "识别网络拓扑中的高风险区域。"
+}
+
+### 语音转写（URL）
+POST {{baseUrl}}/api/v1/multimodal/asr/transcribe
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "audioUrl": "https://example.com/audio/meeting-001.wav",
+  "languageHint": "zh-CN",
+  "prompt": "重点提取整改建议。"
+}
+
+### 文本转语音
+POST {{baseUrl}}/api/v1/multimodal/tts/synthesize
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "text": "请立即完成高危弱口令整改并提交复核。",
+  "voice": "zh-CN-female-1",
+  "format": "mp3",
+  "language": "zh-CN"
+}
+
+### Agent 对话（含图片附件）
+POST {{baseUrl}}/api/v1/agents/1/chat
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "conversationId": null,
+  "message": "请结合附件图片给出风险摘要",
+  "enableRag": false,
+  "attachments": [
+    {
+      "type": "image",
+      "url": "https://example.com/assets/security-topology.png",
+      "mimeType": "image/png",
+      "name": "network-topology.png"
+    }
+  ]
+}

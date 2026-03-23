@@ -2679,3 +2679,94 @@ data: {"AgentId":1481933398292303872,"Status":3,"ErrorMessage":"..."}
 event: execution_finish
 data: {"executionId":1485491907248263168,"status":3,"outputMessage":"","errorMessage":"..."}
 ```
+
+---
+
+## Multimodal API 契约（Phase 2）
+
+### 路由前缀
+
+`api/v1/multimodal`
+
+### 端点列表
+
+| 方法 | 路由 | 说明 | 权限 |
+|---|---|---|---|
+| POST | `/assets` | 创建多模态资产记录（图片/音频/视频/文本） | `agent:view` |
+| GET | `/assets/{id}` | 查询多模态资产详情 | `agent:view` |
+| POST | `/vision/analyze` | 视觉分析（图像理解） | `agent:view` |
+| POST | `/asr/transcribe` | 语音转写（ASR） | `agent:view` |
+| POST | `/tts/synthesize` | 文本转语音（TTS） | `agent:view` |
+
+写接口要求：
+
+- `Idempotency-Key`
+- `X-CSRF-TOKEN`
+- `X-Tenant-Id`
+
+### 请求与响应模型（简版）
+
+```typescript
+type MultimodalAssetType = 0 | 1 | 2 | 3; // Image/Audio/Video/Text
+type MultimodalSourceType = 0 | 1 | 2; // Upload/Url/Generated
+type MultimodalAssetStatus = 0 | 1 | 2; // Pending/Processed/Failed
+
+interface MultimodalAssetCreateRequest {
+  assetType: MultimodalAssetType;
+  sourceType: MultimodalSourceType;
+  name?: string;
+  mimeType?: string;
+  fileId?: string;
+  sourceUrl?: string;
+  contentText?: string;
+  metadataJson?: string;
+}
+
+interface VisionAnalyzeRequest {
+  assetId?: number;
+  imageUrl?: string;
+  prompt?: string;
+}
+
+interface AsrTranscribeRequest {
+  assetId?: number;
+  audioUrl?: string;
+  languageHint?: string;
+  prompt?: string;
+}
+
+interface TtsSynthesizeRequest {
+  text: string;
+  voice?: string;
+  format?: string; // mp3/wav/ogg
+  language?: string;
+}
+```
+
+### Agent Chat 多模态输入扩展
+
+`POST /api/v1/agents/{agentId}/chat` 与对应 stream/open/embed 接口新增可选 `attachments`：
+
+```json
+{
+  "conversationId": null,
+  "message": "请结合附件说明风险重点",
+  "enableRag": false,
+  "attachments": [
+    {
+      "type": "image",
+      "url": "https://example.com/topology.png",
+      "fileId": null,
+      "mimeType": "image/png",
+      "name": "topology.png",
+      "text": null
+    }
+  ]
+}
+```
+
+约束：
+
+- `message` 与 `attachments` 至少提供一项；
+- 每个附件至少提供 `url/fileId/text` 之一；
+- 附件元数据会进入对话上下文与消息 metadata，供 Agent 推理链路使用。

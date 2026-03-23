@@ -219,12 +219,16 @@ public sealed class AgentChatService : IAgentChatService
 
         try
         {
+            var normalizedMessage = request.Message?.Trim() ?? string.Empty;
+            var normalizedAttachments = NormalizeAttachments(request.Attachments);
+            var inputForModel = BuildUserInput(normalizedMessage, normalizedAttachments);
+            var userMessageContent = string.IsNullOrWhiteSpace(normalizedMessage) ? "[多模态输入]" : normalizedMessage;
             var userMessageEntity = new ChatMessageEntity(
                 tenantId,
                 conversation.Id,
                 "user",
-                request.Message.Trim(),
-                metadata: null,
+                userMessageContent,
+                metadata: BuildAttachmentMetadata(normalizedAttachments),
                 isContextCleared: false,
                 _idGeneratorAccessor.NextId());
 
@@ -249,7 +253,7 @@ public sealed class AgentChatService : IAgentChatService
                     tenantId,
                     userId,
                     agent.Id,
-                    request.Message,
+                    inputForModel,
                     agent.LongTermMemoryTopK,
                     linkedCts.Token)
                 : [];
@@ -260,7 +264,7 @@ public sealed class AgentChatService : IAgentChatService
             var toolCallResult = await _agentToolCallService.TryExecuteAsync(
                 tenantId,
                 agent.Id,
-                request.Message,
+                inputForModel,
                 MaxToolCallIterations,
                 linkedCts.Token);
             if (toolCallResult.Executed && !string.IsNullOrWhiteSpace(toolCallResult.FinalAnswer))
@@ -383,7 +387,7 @@ public sealed class AgentChatService : IAgentChatService
                 userId,
                 agent.Id,
                 conversation.Id,
-                request.Message,
+                inputForModel,
                 assistantContent,
                 agent.EnableMemory,
                 agent.EnableShortTermMemory,
@@ -564,7 +568,7 @@ public sealed class AgentChatService : IAgentChatService
             return existing;
         }
 
-        var title = BuildConversationTitle(request.Message);
+        var title = BuildConversationTitle(BuildUserInput(request.Message?.Trim(), NormalizeAttachments(request.Attachments)));
         var created = new Conversation(
             tenantId,
             agent.Id,
@@ -643,10 +647,11 @@ public sealed class AgentChatService : IAgentChatService
         }
 
         var knowledgeBaseIds = links.Select(x => x.KnowledgeBaseId).Distinct().ToList();
+        var query = BuildUserInput(request.Message?.Trim(), NormalizeAttachments(request.Attachments));
         return await _ragRetrievalService.SearchAsync(
             tenantId,
             knowledgeBaseIds,
-            request.Message,
+            query,
             topK: 5,
             cancellationToken);
     }
@@ -679,9 +684,75 @@ public sealed class AgentChatService : IAgentChatService
         return "gpt-4o-mini";
     }
 
+    private static IReadOnlyList<AgentChatAttachment> NormalizeAttachments(
+        IReadOnlyList<AgentChatAttachment>? attachments)
+    {
+        if (attachments is null || attachments.Count == 0)
+        {
+            return [];
+        }
+
+        return attachments
+            .Where(item => item is not null)
+            .Select(item => new AgentChatAttachment(
+                Type: item.Type?.Trim() ?? string.Empty,
+                Url: string.IsNullOrWhiteSpace(item.Url) ? null : item.Url.Trim(),
+                FileId: string.IsNullOrWhiteSpace(item.FileId) ? null : item.FileId.Trim(),
+                MimeType: string.IsNullOrWhiteSpace(item.MimeType) ? null : item.MimeType.Trim(),
+                Name: string.IsNullOrWhiteSpace(item.Name) ? null : item.Name.Trim(),
+                Text: string.IsNullOrWhiteSpace(item.Text) ? null : item.Text.Trim()))
+            .Where(item => !string.IsNullOrWhiteSpace(item.Type))
+            .ToList();
+    }
+
+    private static string? BuildAttachmentMetadata(IReadOnlyList<AgentChatAttachment> attachments)
+    {
+        if (attachments.Count == 0)
+        {
+            return null;
+        }
+
+        return JsonSerializer.Serialize(new
+        {
+            attachments = attachments.Select(item => new
+            {
+                type = item.Type,
+                url = item.Url,
+                fileId = item.FileId,
+                mimeType = item.MimeType,
+                name = item.Name,
+                text = item.Text
+            }).ToList()
+        });
+    }
+
+    private static string BuildUserInput(string? message, IReadOnlyList<AgentChatAttachment> attachments)
+    {
+        var text = string.IsNullOrWhiteSpace(message) ? string.Empty : message.Trim();
+        if (attachments.Count == 0)
+        {
+            return text;
+        }
+
+        var attachmentText = string.Join(
+            "\n",
+            attachments.Select((item, index) =>
+                $"[Attachment#{index + 1}] type={item.Type}, fileId={item.FileId ?? "-"}, url={item.Url ?? "-"}, name={item.Name ?? "-"}, mimeType={item.MimeType ?? "-"}, text={item.Text ?? "-"}"));
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return attachmentText;
+        }
+
+        return $"{text}\n\n{attachmentText}";
+    }
+
     private static string BuildConversationTitle(string message)
     {
         var normalized = message.Trim();
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return "多模态会话";
+        }
         if (normalized.Length <= 20)
         {
             return normalized;

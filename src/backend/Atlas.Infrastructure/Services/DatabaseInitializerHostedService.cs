@@ -138,6 +138,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             typeof(AgentPublication),
             typeof(MultiAgentOrchestration),
             typeof(MultiAgentExecution),
+            typeof(MultimodalAsset),
             typeof(AgentKnowledgeLink),
             typeof(AgentPluginBinding),
             typeof(Conversation),

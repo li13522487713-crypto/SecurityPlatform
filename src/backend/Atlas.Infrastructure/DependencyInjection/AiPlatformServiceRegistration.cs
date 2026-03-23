@@ -62,6 +62,7 @@ public static class AiPlatformServiceRegistration
         services.AddScoped<AgentPublicationRepository>();
         services.AddScoped<MultiAgentOrchestrationRepository>();
         services.AddScoped<MultiAgentExecutionRepository>();
+        services.AddScoped<MultimodalAssetRepository>();
         services.AddScoped<AiAppResourceCopyTaskRepository>();
         services.AddScoped<AiPromptTemplateRepository>();
         services.AddScoped<PersonalAccessTokenRepository>();
@@ -93,6 +94,7 @@ public static class AiPlatformServiceRegistration
         services.AddScoped<IAiMemoryService, AiMemoryService>();
         services.AddScoped<IAgentPublicationService, AgentPublicationService>();
         services.AddScoped<IMultiAgentOrchestrationService, MultiAgentOrchestrationService>();
+        services.AddScoped<IMultimodalService, MultimodalService>();
         services.AddScoped<IAdminAiConfigService, AdminAiConfigService>();
         services.AddScoped<IAiWorkspaceService, AiWorkspaceService>();
         services.AddScoped<IAiShortcutCommandService, AiShortcutCommandService>();

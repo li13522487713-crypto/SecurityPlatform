@@ -35,7 +35,7 @@ public sealed class EmbedChatController : ControllerBase
             publication.TenantId,
             embedUserId,
             publication.AgentId,
-            new AgentChatRequest(request.ConversationId, request.Message, request.EnableRag),
+            new AgentChatRequest(request.ConversationId, request.Message, request.EnableRag, request.Attachments),
             cancellationToken);
         return Ok(ApiResponse<AgentChatResponse>.Ok(result, HttpContext.TraceIdentifier));
     }
@@ -59,7 +59,7 @@ public sealed class EmbedChatController : ControllerBase
                                publication.TenantId,
                                embedUserId,
                                publication.AgentId,
-                               new AgentChatRequest(request.ConversationId, request.Message, request.EnableRag),
+                               new AgentChatRequest(request.ConversationId, request.Message, request.EnableRag, request.Attachments),
                                cancellationToken))
             {
                 await Response.WriteAsync($"data: {chunk}\n\n", cancellationToken);
@@ -72,7 +72,7 @@ public sealed class EmbedChatController : ControllerBase
                                publication.TenantId,
                                embedUserId,
                                publication.AgentId,
-                               new AgentChatRequest(request.ConversationId, request.Message, request.EnableRag),
+                               new AgentChatRequest(request.ConversationId, request.Message, request.EnableRag, request.Attachments),
                                cancellationToken))
             {
                 await Response.WriteAsync($"event: {evt.EventType}\n", cancellationToken);
@@ -90,7 +90,8 @@ public sealed class EmbedChatController : ControllerBase
         string Message,
         long? ConversationId,
         bool? EnableRag,
-        string? ExternalUserId);
+        string? ExternalUserId,
+        IReadOnlyList<AgentChatAttachment>? Attachments);
 
     private static bool ShouldUseStructuredEvents(HttpRequest request)
     {
