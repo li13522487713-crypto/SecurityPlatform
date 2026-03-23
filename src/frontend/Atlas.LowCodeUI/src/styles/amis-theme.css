@@ -1,0 +1,62 @@
+/**
+ * AMIS 主题变量覆盖
+ * 确保样式隔离不污染宿主项目
+ * 所有选择器以 .atlas-amis-renderer 或 .atlas-amis-designer 为前缀
+ */
+
+/* === Atlas 渲染器内的 AMIS 样式覆盖 === */
+.atlas-amis-renderer {
+  --body-bg: transparent;
+  --panel-bg: var(--atlas-bg-primary, #ffffff);
+  --panel-border-color: var(--atlas-border-color, #f0f0f0);
+  --panel-border-radius: var(--atlas-border-radius, 8px);
+}
+
+.atlas-amis-renderer .cxd-Button {
+  border-radius: var(--atlas-border-radius, 8px);
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.atlas-amis-renderer .cxd-Button--primary {
+  background-color: var(--atlas-color-primary, #0052d9);
+  border-color: var(--atlas-color-primary, #0052d9);
+  color: #fff;
+}
+
+.atlas-amis-renderer .cxd-Button--primary:hover {
+  background-color: var(--atlas-color-primary-hover, #3b82f6);
+  border-color: var(--atlas-color-primary-hover, #3b82f6);
+}
+
+.atlas-amis-renderer .cxd-TextControl-input,
+.atlas-amis-renderer .cxd-Select,
+.atlas-amis-renderer .cxd-DatePicker {
+  border-radius: var(--atlas-border-radius, 8px);
+  border-color: var(--atlas-border-color, #d9d9d9);
+  box-shadow: none;
+  transition: all 0.2s;
+}
+
+.atlas-amis-renderer .cxd-TextControl-input:focus-within,
+.atlas-amis-renderer .cxd-Select.is-opened {
+  border-color: var(--atlas-color-primary, #0052d9);
+  box-shadow: 0 0 0 2px rgba(0, 82, 217, 0.1);
+}
+
+.atlas-amis-renderer .cxd-Table-table {
+  border-radius: var(--atlas-border-radius, 8px);
+  overflow: hidden;
+  border: 1px solid var(--atlas-border-color, #f0f0f0);
+}
+
+.atlas-amis-renderer .cxd-Table-table > thead > tr > th {
+  background-color: var(--atlas-bg-surface, #f4f5f7);
+  color: var(--atlas-text-secondary, #434c5a);
+  font-weight: 500;
+  border-bottom: 1px solid var(--atlas-border-color, #f0f0f0);
+}
+
+.atlas-amis-renderer .cxd-Table-table > tbody > tr > td {
+  border-bottom: 1px solid var(--atlas-border-color, #f0f0f0);
+}
