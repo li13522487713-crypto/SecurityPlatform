@@ -11,6 +11,8 @@ export type WorkflowNodeTypeKey =
   | "Entry"
   | "Exit"
   | "Llm"
+  | "Plugin"
+  | "Agent"
   | "Selector"
   | "SubWorkflow"
   | "TextProcessor"
@@ -27,6 +29,7 @@ export const WORKFLOW_NODE_TYPE_VALUES: Record<WorkflowNodeTypeKey, number> = {
   Entry: 1,
   Exit: 2,
   Llm: 3,
+  Plugin: 4,
   CodeRunner: 5,
   Selector: 8,
   SubWorkflow: 9,
@@ -37,7 +40,8 @@ export const WORKFLOW_NODE_TYPE_VALUES: Record<WorkflowNodeTypeKey, number> = {
   DatabaseQuery: 43,
   HttpRequester: 45,
   JsonSerialization: 58,
-  JsonDeserialization: 59
+  JsonDeserialization: 59,
+  Agent: 60
 }
 
 const NODE_ALIAS_MAP: Record<string, WorkflowNodeTypeKey> = {

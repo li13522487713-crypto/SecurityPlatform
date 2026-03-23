@@ -54,6 +54,46 @@
           </a-form>
         </template>
 
+        <template v-else-if="node.type === 'Agent'">
+          <a-form layout="vertical" size="small">
+            <a-form-item :label="t('wfUi.properties.agentId')">
+              <a-input-number v-model:value="localConfigs.agentId" :min="1" style="width:100%" @change="emitUpdate" />
+            </a-form-item>
+            <a-form-item :label="t('wfUi.properties.agentMessage')">
+              <a-textarea v-model:value="localConfigs.message" :rows="4" @change="emitUpdate" />
+            </a-form-item>
+            <a-form-item :label="t('wfUi.properties.agentConversationId')">
+              <a-input-number v-model:value="localConfigs.conversationId" :min="0" style="width:100%" @change="emitUpdate" />
+            </a-form-item>
+            <a-form-item :label="t('wfUi.properties.agentUserId')">
+              <a-input-number v-model:value="localConfigs.userId" :min="0" style="width:100%" @change="emitUpdate" />
+            </a-form-item>
+            <a-form-item :label="t('wfUi.properties.agentEnableRag')">
+              <a-switch v-model:checked="localConfigs.enableRag" @change="emitUpdate" />
+            </a-form-item>
+            <a-form-item :label="t('wfUi.properties.agentOutputKey')">
+              <a-input v-model:value="localConfigs.outputKey" placeholder="agent_output" @change="emitUpdate" />
+            </a-form-item>
+          </a-form>
+        </template>
+
+        <template v-else-if="node.type === 'Plugin'">
+          <a-form layout="vertical" size="small">
+            <a-form-item :label="t('wfUi.properties.pluginId')">
+              <a-input-number v-model:value="localConfigs.pluginId" :min="1" style="width:100%" @change="emitUpdate" />
+            </a-form-item>
+            <a-form-item :label="t('wfUi.properties.pluginApiId')">
+              <a-input-number v-model:value="localConfigs.apiId" :min="0" style="width:100%" @change="emitUpdate" />
+            </a-form-item>
+            <a-form-item :label="t('wfUi.properties.pluginInputJson')">
+              <a-textarea v-model:value="localConfigs.inputJson" :rows="5" @change="emitUpdate" />
+            </a-form-item>
+            <a-form-item :label="t('wfUi.properties.pluginOutputKey')">
+              <a-input v-model:value="localConfigs.outputKey" placeholder="plugin_output" @change="emitUpdate" />
+            </a-form-item>
+          </a-form>
+        </template>
+
         <template v-else-if="node.type === 'Selector'">
           <a-form layout="vertical" size="small">
             <a-form-item :label="t('wfUi.properties.selExpr')">
@@ -255,6 +295,24 @@ function emitUpdate() {
 }
 
 function applyNodeDefaults(nodeType: string, configs: Record<string, unknown>) {
+  if (nodeType === 'Agent') {
+    configs.agentId ??= 1
+    configs.message ??= '{{input.message}}'
+    configs.conversationId ??= 0
+    configs.userId ??= 0
+    configs.enableRag ??= false
+    configs.outputKey ??= 'agent_output'
+    return
+  }
+
+  if (nodeType === 'Plugin') {
+    configs.pluginId ??= 1
+    configs.apiId ??= 0
+    configs.inputJson ??= '{}'
+    configs.outputKey ??= 'plugin_output'
+    return
+  }
+
   if (nodeType === 'Selector') {
     configs.condition ??= ''
     return

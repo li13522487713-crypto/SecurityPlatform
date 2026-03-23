@@ -67,7 +67,7 @@ const props = defineProps<{ data: NodeData }>()
 const { t } = useI18n()
 
 const KNOWN_NODE_TYPES = new Set([
-  "Entry", "Exit", "Llm", "Selector", "Loop", "SubWorkflow", "HttpRequester", "CodeRunner", "DatabaseQuery",
+  "Entry", "Exit", "Llm", "Agent", "Plugin", "Selector", "Loop", "SubWorkflow", "HttpRequester", "CodeRunner", "DatabaseQuery",
   "AssignVariable", "VariableAggregator", "JsonSerialization", "JsonDeserialization", "TextProcessor", "LLM", "If"
 ])
 
@@ -78,6 +78,8 @@ const NODE_COLORS: Record<string, string> = {
   Entry: '#52c41a',
   Exit: '#ff4d4f',
   Llm: '#6366f1',
+  Agent: '#8b5cf6',
+  Plugin: '#14b8a6',
   Selector: '#f59e0b',
   Loop: '#f59e0b',
   SubWorkflow: '#8b5cf6',
@@ -97,6 +99,8 @@ const NODE_ICONS: Record<string, string> = {
   Entry: '▶',
   Exit: '⏹',
   Llm: '🤖',
+  Agent: '🧠',
+  Plugin: '🔌',
   Selector: '⟟',
   Loop: '↻',
   SubWorkflow: '⊞',

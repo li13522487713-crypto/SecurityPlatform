@@ -71,6 +71,19 @@
         </template>
       </div>
 
+      <div v-if="reactSteps.length > 0" class="react-steps">
+        <a-collapse size="small">
+          <a-collapse-panel key="react" :header="t('ai.chat.reactPanelTitle')">
+            <a-timeline>
+              <a-timeline-item v-for="step in reactSteps" :key="step.id">
+                <div class="react-step-title">{{ formatReActStep(step.eventType) }}</div>
+                <pre class="react-step-content">{{ step.content }}</pre>
+              </a-timeline-item>
+            </a-timeline>
+          </a-collapse-panel>
+        </a-collapse>
+      </div>
+
       <div class="chat-input-area">
         <div class="rag-toggle">
           <a-checkbox v-model:checked="enableRag">{{ t("ai.chat.enableRag") }}</a-checkbox>
@@ -121,6 +134,7 @@ import { useRoute } from "vue-router";
 import { message } from "ant-design-vue";
 import ChatMessage from "@/components/ai/ChatMessage.vue";
 import { useStreamChat } from "@/composables/useStreamChat";
+import type { ReActEventType } from "@/composables/useReActStream";
 import {
   getConversationsPaged,
   createConversation,
@@ -147,12 +161,13 @@ const userInitial = ref("U");
 
 const chatStore = useStreamChat({
   agentId: agentId.value,
-  enableRag: enableRag.value
+  enableRag: () => enableRag.value
 });
 
 const isStreaming = computed(() => chatStore.isStreaming.value);
 const chatMessages = computed(() => chatStore.messages.value);
 const chatError = computed(() => chatStore.error.value);
+const reactSteps = computed(() => chatStore.reactSteps.value);
 
 function formatDate(iso: string) {
   try {
@@ -302,6 +317,21 @@ function handleKeyDown(e: KeyboardEvent) {
   if (e.key === "Enter" && e.ctrlKey) {
     e.preventDefault();
     void handleSend();
+  }
+}
+
+function formatReActStep(eventType: ReActEventType) {
+  switch (eventType) {
+    case "thought":
+      return t("ai.chat.reactThought");
+    case "action":
+      return t("ai.chat.reactAction");
+    case "observation":
+      return t("ai.chat.reactObservation");
+    case "final":
+      return t("ai.chat.reactFinal");
+    default:
+      return eventType;
   }
 }
 
@@ -477,6 +507,24 @@ onMounted(async () => {
   border-top: 1px solid #f0f0f0;
   padding: 12px 16px;
   background: #fff;
+}
+
+.react-steps {
+  border-top: 1px solid #f0f0f0;
+  padding: 8px 16px;
+  background: #fcfcfc;
+}
+
+.react-step-title {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.react-step-content {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 12px;
 }
 
 .rag-toggle {

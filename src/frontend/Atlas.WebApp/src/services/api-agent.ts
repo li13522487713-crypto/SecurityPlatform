@@ -29,6 +29,21 @@ export interface AgentDetail {
   publishedAt?: string;
   publishVersion: number;
   knowledgeBaseIds?: number[];
+  pluginBindings?: AgentPluginBindingItem[];
+}
+
+export interface AgentPluginBindingItem {
+  pluginId: number;
+  sortOrder: number;
+  isEnabled: boolean;
+  toolConfigJson: string;
+}
+
+export interface AgentPluginBindingInput {
+  pluginId: number;
+  sortOrder: number;
+  isEnabled: boolean;
+  toolConfigJson?: string;
 }
 
 export interface AgentCreateRequest {
@@ -44,6 +59,7 @@ export interface AgentCreateRequest {
 export interface AgentUpdateRequest extends AgentCreateRequest {
   avatarUrl?: string;
   knowledgeBaseIds?: number[];
+  pluginBindings?: AgentPluginBindingInput[];
 }
 
 export async function getAgentsPaged(request: PagedRequest, status?: string) {

@@ -3,6 +3,8 @@ import type { ApiResponse, PagedRequest, PagedResult } from "@/types/api";
 
 export type AiPluginType = 0 | 1;
 export type AiPluginStatus = 0 | 1;
+export type AiPluginSourceType = 0 | 1 | 2;
+export type AiPluginAuthType = 0 | 1 | 2 | 3 | 4;
 
 export interface AiPluginListItem {
   id: number;
@@ -11,6 +13,11 @@ export interface AiPluginListItem {
   icon?: string;
   category?: string;
   type: AiPluginType;
+  sourceType: AiPluginSourceType;
+  authType: AiPluginAuthType;
+  authConfigJson: string;
+  toolSchemaJson: string;
+  openApiSpecJson: string;
   status: AiPluginStatus;
   isLocked: boolean;
   createdAt: string;
@@ -44,6 +51,11 @@ export interface AiPluginCreateRequest {
   icon?: string;
   category?: string;
   type: AiPluginType;
+  sourceType: AiPluginSourceType;
+  authType: AiPluginAuthType;
+  authConfigJson?: string;
+  toolSchemaJson?: string;
+  openApiSpecJson?: string;
   definitionJson?: string;
 }
 

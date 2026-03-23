@@ -60,6 +60,8 @@ const NODE_DEFS: ReadonlyArray<{ type: string; desc: string; cat: string }> = [
   { type: 'Entry', desc: 'descEntry', cat: 'catBasic' },
   { type: 'Exit', desc: 'descExit', cat: 'catBasic' },
   { type: 'Llm', desc: 'descLlm', cat: 'catAi' },
+  { type: 'Agent', desc: 'descAgent', cat: 'catAi' },
+  { type: 'Plugin', desc: 'descPlugin', cat: 'catTool' },
   { type: 'Selector', desc: 'descSelector', cat: 'catFlow' },
   { type: 'Loop', desc: 'descLoop', cat: 'catFlow' },
   { type: 'SubWorkflow', desc: 'descSub', cat: 'catFlow' },
@@ -84,6 +86,7 @@ const allNodes = computed<NodeItem[]>(() =>
 
 const NODE_COLORS: Record<string, string> = {
   Entry: '#52c41a', Exit: '#ff4d4f', Llm: '#6366f1', Selector: '#f59e0b',
+  Agent: '#8b5cf6', Plugin: '#14b8a6',
   Loop: '#f59e0b', SubWorkflow: '#8b5cf6', CodeRunner: '#10b981',
   HttpRequester: '#10b981', DatabaseQuery: '#3b82f6',
   AssignVariable: '#d946ef', VariableAggregator: '#d946ef', JsonSerialization: '#84cc16',
@@ -92,6 +95,7 @@ const NODE_COLORS: Record<string, string> = {
 
 const NODE_ICONS: Record<string, string> = {
   Entry: '▶', Exit: '⏹', Llm: '🤖', Selector: '⟟', Loop: '↻',
+  Agent: '🧠', Plugin: '🔌',
   SubWorkflow: '⊞', CodeRunner: '⌨', HttpRequester: '🌐', DatabaseQuery: '🔍',
   AssignVariable: '=', VariableAggregator: '∪', JsonSerialization: '{}',
   JsonDeserialization: '{}', TextProcessor: 'T',

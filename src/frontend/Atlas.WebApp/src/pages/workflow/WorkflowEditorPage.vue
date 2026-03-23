@@ -159,6 +159,8 @@ const nodeTypes: Record<string, Component> = {
   Entry: _nr,
   Exit: _nr,
   Llm: _nr,
+  Agent: _nr,
+  Plugin: _nr,
   Selector: _nr,
   Loop: _nr,
   SubWorkflow: _nr,
