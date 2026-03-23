@@ -4,37 +4,53 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const lowcodeUiDist = path.resolve(__dirname, "../Atlas.LowCodeUI/dist");
+const mobxReactEsm = path.resolve(__dirname, "node_modules/amis-editor-core/node_modules/mobx-react/dist/mobxreact.esm.js");
+const mobxReactLiteEsm = path.resolve(__dirname, "node_modules/amis-editor-core/node_modules/mobx-react/node_modules/mobx-react-lite/es/index.js");
 
 /**
- * 使用 node_modules 中的 @atlas/lowcode-ui（file:../Atlas.LowCodeUI，指向 dist）。
- * 库产物中含 `import("amis-editor")`，解析需以 demo 根目录的 node_modules 为准（避免从 Atlas.LowCodeUI/dist 相对解析失败）。
+ * Demo 直接消费兄弟库 dist 产物，避免 file: 依赖复制出一份带 node_modules 的本地包，
+ * 导致 amis / react / mobx 解析到多套版本。
  */
 export default defineConfig({
   plugins: [vue()],
   resolve: {
+    dedupe: [
+      "react",
+      "react-dom",
+      "mobx",
+      "mobx-react",
+      "mobx-react-lite",
+      "amis",
+      "amis-core",
+      "amis-ui",
+      "amis-formula",
+      "amis-editor",
+      "amis-editor-core",
+      "i18n-runtime"
+    ],
     alias: {
-      // 强制统一走 demo 根依赖，避免 file:../Atlas.LowCodeUI 内部 node_modules 参与解析
-      amis: path.resolve(__dirname, "node_modules/amis"),
-      "amis-core": path.resolve(__dirname, "node_modules/amis-core"),
-      "amis-ui": path.resolve(__dirname, "node_modules/amis-ui"),
-      "amis-formula": path.resolve(__dirname, "node_modules/amis-formula"),
-      "amis-editor": path.resolve(__dirname, "node_modules/amis-editor"),
-      "amis-editor-core": path.resolve(__dirname, "node_modules/amis-editor-core"),
-      "i18n-runtime": path.resolve(__dirname, "node_modules/i18n-runtime"),
-      react: path.resolve(__dirname, "node_modules/react"),
-      "react-dom": path.resolve(__dirname, "node_modules/react-dom"),
-      "mobx-react": path.resolve(__dirname, "node_modules/mobx-react/dist/mobxreact.esm.js"),
-      "mobx-react-lite": path.resolve(__dirname, "node_modules/mobx-react-lite/dist/mobxreactlite.esm.development.js"),
-      "prop-types": path.resolve(__dirname, "node_modules/prop-types")
+      "@atlas/lowcode-ui/style.css": path.resolve(lowcodeUiDist, "lowcode-ui.css"),
+      "@atlas/lowcode-ui/designer": path.resolve(lowcodeUiDist, "atlas-lowcode-ui.designer.es.js"),
+      "@atlas/lowcode-ui/renderer": path.resolve(lowcodeUiDist, "atlas-lowcode-ui.renderer.es.js"),
+      "@atlas/lowcode-ui/plugin": path.resolve(lowcodeUiDist, "atlas-lowcode-ui.plugin.es.js"),
+      "@atlas/lowcode-ui": path.resolve(lowcodeUiDist, "atlas-lowcode-ui.es.js"),
+      "react-frame-component": path.resolve(__dirname, "src/shims/react-frame-component.ts"),
+      "mobx-react": mobxReactEsm,
+      "mobx-react-lite": mobxReactLiteEsm
     }
   },
   optimizeDeps: {
-    // 显式预构建 amis-editor 及其关键依赖，避免浏览器直接加载 CJS（如 prop-types）导致 default export 报错
-    include: ["amis-editor", "amis-editor-core", "mobx-react", "mobx-react-lite", "prop-types"]
+    // 额外预构建 React runtime，避免其作为 CJS 片段被内联进 amis-editor 依赖块后残留 require("react")
+    include: ["amis-editor", "amis-editor-core", "react", "react-dom", "react/jsx-runtime", "react/jsx-dev-runtime"],
+    needsInterop: ["react", "react-dom", "react/jsx-runtime", "react/jsx-dev-runtime"]
   },
   server: {
     host: "0.0.0.0",
-    port: 5174
+    port: 5174,
+    fs: {
+      allow: [__dirname, lowcodeUiDist]
+    }
   },
   build: {
     chunkSizeWarningLimit: 10000
