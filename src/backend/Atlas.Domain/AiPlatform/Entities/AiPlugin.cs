@@ -13,7 +13,11 @@ public sealed class AiPlugin : TenantEntity
         Icon = string.Empty;
         Category = string.Empty;
         DefinitionJson = "{}";
+        AuthConfigJson = "{}";
+        ToolSchemaJson = "{}";
+        OpenApiSpecJson = "{}";
         CreatedAt = DateTime.UtcNow;
+        PublishedAt = DateTime.UnixEpoch;
     }
 
     public AiPlugin(
@@ -24,6 +28,11 @@ public sealed class AiPlugin : TenantEntity
         string? category,
         AiPluginType type,
         string? definitionJson,
+        AiPluginSourceType sourceType,
+        AiPluginAuthType authType,
+        string? authConfigJson,
+        string? toolSchemaJson,
+        string? openApiSpecJson,
         long id)
         : base(tenantId)
     {
@@ -34,9 +43,15 @@ public sealed class AiPlugin : TenantEntity
         Category = category ?? string.Empty;
         Type = type;
         DefinitionJson = string.IsNullOrWhiteSpace(definitionJson) ? "{}" : definitionJson;
+        SourceType = sourceType;
+        AuthType = authType;
+        AuthConfigJson = string.IsNullOrWhiteSpace(authConfigJson) ? "{}" : authConfigJson;
+        ToolSchemaJson = string.IsNullOrWhiteSpace(toolSchemaJson) ? "{}" : toolSchemaJson;
+        OpenApiSpecJson = string.IsNullOrWhiteSpace(openApiSpecJson) ? "{}" : openApiSpecJson;
         Status = AiPluginStatus.Draft;
         CreatedAt = DateTime.UtcNow;
         UpdatedAt = CreatedAt;
+        PublishedAt = DateTime.UnixEpoch;
     }
 
     public string Name { get; private set; }
@@ -44,8 +59,13 @@ public sealed class AiPlugin : TenantEntity
     public string? Icon { get; private set; }
     public string? Category { get; private set; }
     public AiPluginType Type { get; private set; }
+    public AiPluginSourceType SourceType { get; private set; }
+    public AiPluginAuthType AuthType { get; private set; }
     public AiPluginStatus Status { get; private set; }
     public string DefinitionJson { get; private set; }
+    public string AuthConfigJson { get; private set; }
+    public string ToolSchemaJson { get; private set; }
+    public string OpenApiSpecJson { get; private set; }
     public bool IsLocked { get; private set; }
     public DateTime CreatedAt { get; private set; }
     public DateTime? UpdatedAt { get; private set; }
@@ -57,7 +77,12 @@ public sealed class AiPlugin : TenantEntity
         string? icon,
         string? category,
         AiPluginType type,
-        string? definitionJson)
+        string? definitionJson,
+        AiPluginSourceType sourceType,
+        AiPluginAuthType authType,
+        string? authConfigJson,
+        string? toolSchemaJson,
+        string? openApiSpecJson)
     {
         Name = name;
         Description = description ?? string.Empty;
@@ -65,6 +90,11 @@ public sealed class AiPlugin : TenantEntity
         Category = category ?? string.Empty;
         Type = type;
         DefinitionJson = string.IsNullOrWhiteSpace(definitionJson) ? "{}" : definitionJson;
+        SourceType = sourceType;
+        AuthType = authType;
+        AuthConfigJson = string.IsNullOrWhiteSpace(authConfigJson) ? "{}" : authConfigJson;
+        ToolSchemaJson = string.IsNullOrWhiteSpace(toolSchemaJson) ? "{}" : toolSchemaJson;
+        OpenApiSpecJson = string.IsNullOrWhiteSpace(openApiSpecJson) ? "{}" : openApiSpecJson;
         UpdatedAt = DateTime.UtcNow;
     }
 
@@ -92,6 +122,22 @@ public enum AiPluginType
 {
     Custom = 0,
     BuiltIn = 1
+}
+
+public enum AiPluginSourceType
+{
+    Manual = 0,
+    OpenApiImport = 1,
+    BuiltInCatalog = 2
+}
+
+public enum AiPluginAuthType
+{
+    None = 0,
+    ApiKey = 1,
+    BearerToken = 2,
+    Basic = 3,
+    Custom = 4
 }
 
 public enum AiPluginStatus

@@ -2569,3 +2569,360 @@ data: {"executionId":"123456","interruptType":"ManualApproval","nodeKey":"approv
 | CodeRunner | 代码执行 | Compute | 5 |
 | JsonSerialization | JSON 序列化 | Transform | 58 |
 | JsonDeserialization | JSON 反序列化 | Transform | 59 |
+
+---
+
+## Multi-Agent Orchestration API 契约（Phase 2）
+
+### 路由前缀
+
+`api/v1/multi-agent-orchestrations`
+
+### 端点列表
+
+| 方法 | 路由 | 说明 | 权限 |
+|---|---|---|---|
+| GET | `/` | 多 Agent 编排分页查询 | `agent:view` |
+| GET | `/{id}` | 编排详情 | `agent:view` |
+| POST | `/` | 创建编排 | `agent:create` |
+| PUT | `/{id}` | 更新编排（含启停状态） | `agent:update` |
+| DELETE | `/{id}` | 删除编排 | `agent:delete` |
+| POST | `/{id}/run` | 同步执行编排 | `agent:update` |
+| POST | `/{id}/stream` | SSE 流式执行编排 | `agent:update` |
+| GET | `/executions/{executionId}` | 查询执行详情 | `agent:view` |
+
+写接口要求：
+
+- `Idempotency-Key`
+- `X-CSRF-TOKEN`
+- `X-Tenant-Id`
+
+### 请求模型
+
+```typescript
+interface MultiAgentMemberInput {
+  agentId: number;
+  alias?: string;
+  sortOrder: number;
+  isEnabled: boolean;
+  promptPrefix?: string;
+}
+
+interface MultiAgentOrchestrationCreateRequest {
+  name: string; // <= 128
+  description?: string; // <= 1024
+  mode: 0 | 1; // 0=Sequential, 1=Parallel
+  members: MultiAgentMemberInput[];
+}
+
+interface MultiAgentOrchestrationUpdateRequest extends MultiAgentOrchestrationCreateRequest {
+  status?: 0 | 1 | 2; // 0=Draft, 1=Active, 2=Disabled
+}
+
+interface MultiAgentRunRequest {
+  message: string; // <= 8000
+  enableRag?: boolean;
+}
+```
+
+### 响应模型
+
+```typescript
+interface MultiAgentOrchestrationListItem {
+  id: number;
+  name: string;
+  description?: string;
+  mode: 0 | 1;
+  status: 0 | 1 | 2;
+  memberCount: number;
+  creatorUserId: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface MultiAgentExecutionStep {
+  agentId: number;
+  agentName: string;
+  alias?: string;
+  inputMessage: string;
+  outputMessage?: string;
+  status: 0 | 1 | 2 | 3 | 4 | 5; // ExecutionStatus
+  errorMessage?: string;
+  startedAt: string;
+  completedAt?: string;
+}
+
+interface MultiAgentExecutionResult {
+  executionId: number;
+  orchestrationId: number;
+  status: 0 | 1 | 2 | 3 | 4 | 5;
+  outputMessage?: string;
+  errorMessage?: string;
+  steps: MultiAgentExecutionStep[];
+  startedAt: string;
+  completedAt?: string;
+}
+```
+
+### SSE 事件格式（`POST /{id}/stream`）
+
+```text
+event: execution_start
+data: {"executionId":1485491907248263168,"orchestrationId":1485491863413592064}
+
+event: agent_start
+data: {"AgentId":1481933398292303872,"Alias":"分析Agent","startedAt":"2026-03-23T04:14:29.8039646Z"}
+
+event: agent_finish
+data: {"AgentId":1481933398292303872,"Status":3,"ErrorMessage":"..."}
+
+event: execution_finish
+data: {"executionId":1485491907248263168,"status":3,"outputMessage":"","errorMessage":"..."}
+```
+
+---
+
+## Multimodal API 契约（Phase 2）
+
+### 路由前缀
+
+`api/v1/multimodal`
+
+### 端点列表
+
+| 方法 | 路由 | 说明 | 权限 |
+|---|---|---|---|
+| POST | `/assets` | 创建多模态资产记录（图片/音频/视频/文本） | `agent:view` |
+| GET | `/assets/{id}` | 查询多模态资产详情 | `agent:view` |
+| POST | `/vision/analyze` | 视觉分析（图像理解） | `agent:view` |
+| POST | `/asr/transcribe` | 语音转写（ASR） | `agent:view` |
+| POST | `/tts/synthesize` | 文本转语音（TTS） | `agent:view` |
+
+写接口要求：
+
+- `Idempotency-Key`
+- `X-CSRF-TOKEN`
+- `X-Tenant-Id`
+
+### 请求与响应模型（简版）
+
+```typescript
+type MultimodalAssetType = 0 | 1 | 2 | 3; // Image/Audio/Video/Text
+type MultimodalSourceType = 0 | 1 | 2; // Upload/Url/Generated
+type MultimodalAssetStatus = 0 | 1 | 2; // Pending/Processed/Failed
+
+interface MultimodalAssetCreateRequest {
+  assetType: MultimodalAssetType;
+  sourceType: MultimodalSourceType;
+  name?: string;
+  mimeType?: string;
+  fileId?: string;
+  sourceUrl?: string;
+  contentText?: string;
+  metadataJson?: string;
+}
+
+interface VisionAnalyzeRequest {
+  assetId?: number;
+  imageUrl?: string;
+  prompt?: string;
+}
+
+interface AsrTranscribeRequest {
+  assetId?: number;
+  audioUrl?: string;
+  languageHint?: string;
+  prompt?: string;
+}
+
+interface TtsSynthesizeRequest {
+  text: string;
+  voice?: string;
+  format?: string; // mp3/wav/ogg
+  language?: string;
+}
+```
+
+### Agent Chat 多模态输入扩展
+
+`POST /api/v1/agents/{agentId}/chat` 与对应 stream/open/embed 接口新增可选 `attachments`：
+
+```json
+{
+  "conversationId": null,
+  "message": "请结合附件说明风险重点",
+  "enableRag": false,
+  "attachments": [
+    {
+      "type": "image",
+      "url": "https://example.com/topology.png",
+      "fileId": null,
+      "mimeType": "image/png",
+      "name": "topology.png",
+      "text": null
+    }
+  ]
+}
+```
+
+约束：
+
+- `message` 与 `attachments` 至少提供一项；
+- 每个附件至少提供 `url/fileId/text` 之一；
+- 附件元数据会进入对话上下文与消息 metadata，供 Agent 推理链路使用。
+
+---
+
+## Evaluation API 契约（Phase 2）
+
+### 路由前缀
+
+`api/v1/evaluations`
+
+### 端点列表
+
+| 方法 | 路由 | 说明 | 权限 |
+|---|---|---|---|
+| POST | `/datasets` | 创建评测数据集 | `agent:create` |
+| GET | `/datasets` | 分页查询数据集 | `agent:view` |
+| POST | `/datasets/{datasetId}/cases` | 添加评测用例 | `agent:update` |
+| GET | `/datasets/{datasetId}/cases` | 查询评测用例 | `agent:view` |
+| POST | `/tasks` | 创建评测任务（Hangfire 入队，开发环境无 Worker 时内联执行） | `agent:update` |
+| GET | `/tasks` | 分页查询评测任务 | `agent:view` |
+| GET | `/tasks/{taskId}` | 查询任务详情 | `agent:view` |
+| GET | `/tasks/{taskId}/results` | 查询任务结果明细 | `agent:view` |
+
+对比接口：
+
+- `GET /api/v1/evaluations/comparisons?leftTaskId=...&rightTaskId=...`
+
+### 核心状态枚举
+
+```typescript
+type EvaluationTaskStatus = 0 | 1 | 2 | 3; // Pending / Running / Completed / Failed
+type EvaluationCaseStatus = 0 | 1 | 2 | 3; // Pending / Passed / Failed / Error
+```
+
+---
+
+## Open API Projects 契约（Phase 3）
+
+### 路由前缀
+
+`api/v1/open-api-projects`
+
+### 管理端点
+
+| 方法 | 路由 | 说明 | 权限 |
+|---|---|---|---|
+| GET | `/` | 分页查询当前用户创建的开放应用 | `pat:view` |
+| POST | `/` | 创建开放应用（返回一次性 `appSecret`） | `pat:create` |
+| PUT | `/{id}` | 更新开放应用（名称/描述/scopes/状态/到期时间） | `pat:update` |
+| POST | `/{id}/rotate-secret` | 轮换 `appSecret`（返回一次性明文） | `pat:update` |
+| DELETE | `/{id}` | 软删除（禁用）开放应用 | `pat:delete` |
+
+### 令牌交换端点
+
+| 方法 | 路由 | 说明 | 鉴权 |
+|---|---|---|---|
+| POST | `/token` | 使用 `AppId + AppSecret` 交换开放平台访问令牌 | 匿名（要求 `X-Tenant-Id`） |
+
+请求体：
+
+```json
+{
+  "appId": "atlas_77b7dce58d6e0a8b",
+  "appSecret": "osk_..."
+}
+```
+
+响应体（`data`）：
+
+```json
+{
+  "accessToken": "eyJhbGciOiJIUzI1NiIs...",
+  "tokenType": "Bearer",
+  "expiresAt": "2026-03-23T12:00:00+00:00",
+  "projectId": 123,
+  "appId": "atlas_77b7dce58d6e0a8b",
+  "scopes": ["open:*"]
+}
+```
+
+### Open 接口鉴权扩展
+
+以下 Open 接口现支持两种 Bearer 令牌：
+
+1. 个人访问令牌（PAT）；
+2. 开放应用访问令牌（由 `/open-api-projects/token` 交换得到）。
+
+适用接口：
+
+- `/api/v1/open/bots`
+- `/api/v1/open/chat/*`
+- `/api/v1/open/knowledge/*`
+- `/api/v1/open/workflows/*`
+- `/api/v1/open/files/*`
+
+两种令牌均继续遵循 scope 校验（如 `open:bots:read`、`open:chat`、`open:*`）。
+
+### 调用治理与统计
+
+#### 速率限制（开放应用维度）
+
+- 对 `token_type=open_project` 的 Open 接口调用按 `tenant + projectId` 维度限流；
+- 默认阈值由 `AiPlatform:OpenApiGovernance:ProjectRateLimitPerMinute` 控制；
+- 超限返回 HTTP 429，错误码 `RATE_LIMITED`，并附带 `Retry-After` 头。
+
+#### 统计接口
+
+- `GET /api/v1/open-api-stats/summary?projectId=...&fromUtc=...&toUtc=...`
+- 权限：`pat:view`
+
+返回 `data` 示例：
+
+```json
+{
+  "projectId": 123,
+  "fromUtc": null,
+  "toUtc": null,
+  "totalCalls": 200,
+  "successCalls": 190,
+  "failedCalls": 10,
+  "successRate": 0.95,
+  "averageDurationMs": 84.2,
+  "maxDurationMs": 460
+}
+```
+
+### 开放事件 Webhook（Open API）
+
+路由前缀：`api/v1/open-api-webhooks`
+
+| 方法 | 路由 | 说明 | 权限 |
+|---|---|---|---|
+| GET | `/` | 查询订阅列表 | `pat:view` |
+| POST | `/` | 创建订阅 | `pat:create` |
+| PUT | `/{id}` | 更新订阅 | `pat:update` |
+| DELETE | `/{id}` | 删除订阅 | `pat:delete` |
+| GET | `/{id}/deliveries` | 查询投递记录 | `pat:view` |
+| POST | `/{id}/test` | 发送测试事件 | `pat:update` |
+
+支持关键事件类型：
+
+- `workflow.completed`
+- `agent.message`
+
+回调请求头包含：
+
+- `X-Atlas-Signature`（`sha256=...`，HMAC-SHA256）
+- `X-Atlas-Event`（事件类型）
+
+### Open API SDK 下载
+
+路由前缀：`api/v1/open-api-sdk`
+
+| 方法 | 路由 | 说明 | 权限 |
+|---|---|---|---|
+| GET | `/openapi.json` | 下载 OpenAPI 规范 | `pat:view` |
+| GET | `/download?language=typescript|csharp` | 下载 SDK 生成包（`openapi.json` + README） | `pat:view` |

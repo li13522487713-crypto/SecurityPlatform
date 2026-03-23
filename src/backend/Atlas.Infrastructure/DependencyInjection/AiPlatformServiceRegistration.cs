@@ -43,8 +43,11 @@ public static class AiPlatformServiceRegistration
         services.AddScoped<ModelConfigRepository>();
         services.AddScoped<AgentRepository>();
         services.AddScoped<AgentKnowledgeLinkRepository>();
+        services.AddScoped<AgentPluginBindingRepository>();
         services.AddScoped<ConversationRepository>();
         services.AddScoped<ChatMessageRepository>();
+        services.AddScoped<ShortTermMemoryRepository>();
+        services.AddScoped<LongTermMemoryRepository>();
         services.AddScoped<KnowledgeBaseRepository>();
         services.AddScoped<KnowledgeDocumentRepository>();
         services.AddScoped<DocumentChunkRepository>();
@@ -56,9 +59,19 @@ public static class AiPlatformServiceRegistration
         services.AddScoped<AiPluginApiRepository>();
         services.AddScoped<AiAppRepository>();
         services.AddScoped<AiAppPublishRecordRepository>();
+        services.AddScoped<AgentPublicationRepository>();
+        services.AddScoped<MultiAgentOrchestrationRepository>();
+        services.AddScoped<MultiAgentExecutionRepository>();
+        services.AddScoped<MultimodalAssetRepository>();
+        services.AddScoped<EvaluationDatasetRepository>();
+        services.AddScoped<EvaluationCaseRepository>();
+        services.AddScoped<EvaluationTaskRepository>();
+        services.AddScoped<EvaluationResultRepository>();
+        services.AddScoped<ApiCallLogRepository>();
         services.AddScoped<AiAppResourceCopyTaskRepository>();
         services.AddScoped<AiPromptTemplateRepository>();
         services.AddScoped<PersonalAccessTokenRepository>();
+        services.AddScoped<OpenApiProjectRepository>();
         services.AddScoped<AiProductCategoryRepository>();
         services.AddScoped<AiMarketplaceProductRepository>();
         services.AddScoped<AiMarketplaceFavoriteRepository>();
@@ -72,6 +85,9 @@ public static class AiPlatformServiceRegistration
         services.AddScoped<IAgentQueryService, AgentQueryService>();
         services.AddScoped<IConversationService, ConversationService>();
         services.AddScoped<IAgentChatService, AgentChatService>();
+        services.AddScoped<IAgentToolCallService, AgentToolCallService>();
+        services.AddScoped<IShortTermMemorySummarizationService, ShortTermMemorySummarizationService>();
+        services.AddScoped<ILongTermMemoryExtractionService, LongTermMemoryExtractionService>();
         services.AddScoped<IKnowledgeBaseService, KnowledgeBaseService>();
         services.AddScoped<IAiDatabaseService, AiDatabaseService>();
         services.AddScoped<IAiVariableService, AiVariableService>();
@@ -79,13 +95,23 @@ public static class AiPlatformServiceRegistration
         services.AddScoped<IAiAppService, AiAppService>();
         services.AddScoped<IAiPromptService, AiPromptService>();
         services.AddScoped<IPersonalAccessTokenService, PersonalAccessTokenService>();
+        services.AddScoped<IOpenApiProjectService, OpenApiProjectService>();
+        services.AddScoped<IOpenApiCallLogService, OpenApiCallLogService>();
         services.AddScoped<IAiMarketplaceService, AiMarketplaceService>();
         services.AddScoped<IAiSearchService, AiSearchService>();
+        services.AddScoped<IAiMemoryService, AiMemoryService>();
+        services.AddScoped<IAgentPublicationService, AgentPublicationService>();
+        services.AddScoped<IMultiAgentOrchestrationService, MultiAgentOrchestrationService>();
+        services.AddScoped<IMultimodalService, MultimodalService>();
+        services.AddScoped<IEvaluationService, EvaluationService>();
+        services.AddScoped<IEvaluationJobService, EvaluationJobService>();
         services.AddScoped<IAdminAiConfigService, AdminAiConfigService>();
         services.AddScoped<IAiWorkspaceService, AiWorkspaceService>();
         services.AddScoped<IAiShortcutCommandService, AiShortcutCommandService>();
         services.AddScoped<IDocumentService, DocumentService>();
         services.AddScoped<IChunkService, ChunkService>();
+        services.AddScoped<BM25RetrievalService>();
+        services.AddScoped<HybridRetrievalService>();
         services.AddScoped<IRagRetrievalService, RagRetrievalService>();
         services.AddScoped<DocumentProcessingService>();
         services.AddScoped<AiWorkflowDefinitionRepository>();
@@ -104,7 +130,9 @@ public static class AiPlatformServiceRegistration
 
         services.AddScoped<ILlmProviderFactory, LlmProviderFactory>();
 
-        services.AddSingleton<IVectorStore, SqliteVectorStore>();
+        services.AddSingleton<IVectorDbClient, SqliteVectorDbClient>();
+        services.AddSingleton<IVectorDbClient, QdrantVectorDbClient>();
+        services.AddSingleton<IVectorStore, VectorStore>();
 
         services.AddSingleton<TxtDocumentParser>();
         services.AddSingleton<PdfDocumentParser>();
@@ -122,8 +150,14 @@ public static class AiPlatformServiceRegistration
         services.AddSingleton<DocumentParserComposite>();
         services.AddSingleton<IDocumentParser>(sp => sp.GetRequiredService<DocumentParserComposite>());
 
-        services.AddSingleton<IChunkingService, FixedSizeChunkingService>();
+        services.AddSingleton<IChunkingStrategy, FixedSizeChunkingService>();
+        services.AddSingleton<IChunkingStrategy, SemanticChunkingService>();
+        services.AddSingleton<IChunkingStrategy, RecursiveChunkingService>();
+        services.AddSingleton<IChunkingService, ChunkingService>();
         services.AddSingleton<BuiltInPluginMetadataProvider>();
+        services.AddSingleton<IOpenApiPluginParser, OpenApiPluginParser>();
+        services.AddSingleton<MultiAgentExecutionTracker>();
+        services.AddSingleton<OpenApiProjectRateLimiter>();
 
         // ── Workflow V2: DAG Engine ──
         services.AddScoped<IWorkflowMetaRepository, WorkflowMetaRepository>();
@@ -139,6 +173,8 @@ public static class AiPlatformServiceRegistration
         services.AddScoped<INodeExecutor, ExitNodeExecutor>();
         services.AddScoped<INodeExecutor, SelectorNodeExecutor>();
         services.AddScoped<INodeExecutor, LlmNodeExecutor>();
+        services.AddScoped<INodeExecutor, AgentNodeExecutor>();
+        services.AddScoped<INodeExecutor, PluginNodeExecutor>();
         services.AddScoped<INodeExecutor, SubWorkflowNodeExecutor>();
         services.AddScoped<INodeExecutor, LoopNodeExecutor>();
         services.AddScoped<INodeExecutor, CodeRunnerNodeExecutor>();

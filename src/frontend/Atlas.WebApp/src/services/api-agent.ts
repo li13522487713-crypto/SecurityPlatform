@@ -28,7 +28,26 @@ export interface AgentDetail {
   updatedAt?: string;
   publishedAt?: string;
   publishVersion: number;
+  enableMemory: boolean;
+  enableShortTermMemory: boolean;
+  enableLongTermMemory: boolean;
+  longTermMemoryTopK: number;
   knowledgeBaseIds?: number[];
+  pluginBindings?: AgentPluginBindingItem[];
+}
+
+export interface AgentPluginBindingItem {
+  pluginId: number;
+  sortOrder: number;
+  isEnabled: boolean;
+  toolConfigJson: string;
+}
+
+export interface AgentPluginBindingInput {
+  pluginId: number;
+  sortOrder: number;
+  isEnabled: boolean;
+  toolConfigJson?: string;
 }
 
 export interface AgentCreateRequest {
@@ -39,11 +58,16 @@ export interface AgentCreateRequest {
   modelName?: string;
   temperature?: number;
   maxTokens?: number;
+  enableMemory?: boolean;
+  enableShortTermMemory?: boolean;
+  enableLongTermMemory?: boolean;
+  longTermMemoryTopK?: number;
 }
 
 export interface AgentUpdateRequest extends AgentCreateRequest {
   avatarUrl?: string;
   knowledgeBaseIds?: number[];
+  pluginBindings?: AgentPluginBindingInput[];
 }
 
 export async function getAgentsPaged(request: PagedRequest, status?: string) {

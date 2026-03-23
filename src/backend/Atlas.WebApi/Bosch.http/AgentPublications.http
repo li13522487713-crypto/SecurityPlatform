@@ -1,0 +1,71 @@
+@baseUrl = http://localhost:5000
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+@agentId = 1
+
+### 登录获取令牌
+# @name login
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+###
+@accessToken = {{login.response.body.$.data.accessToken}}
+@csrfToken =
+
+### 获取 CSRF Token
+# @name antiforgery
+GET {{baseUrl}}/api/v1/secure/antiforgery
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+###
+@csrfToken = {{antiforgery.response.body.$.data.token}}
+
+### 发布 Agent（生成新版本与 embed token）
+# @name publish
+POST {{baseUrl}}/api/v1/agent-publications/agents/{{agentId}}/publish
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "releaseNote": "首个嵌入版本发布"
+}
+
+###
+@targetVersion = {{publish.response.body.$.data.version}}
+@embedToken = {{publish.response.body.$.data.embedToken}}
+
+### 查询 Agent 发布版本
+GET {{baseUrl}}/api/v1/agent-publications/agents/{{agentId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 回滚到指定版本（会生成新版本）
+POST {{baseUrl}}/api/v1/agent-publications/agents/{{agentId}}/rollback
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "targetVersion": {{targetVersion}},
+  "releaseNote": "回滚验证"
+}
+
+### 重新生成 embed token
+POST {{baseUrl}}/api/v1/agent-publications/agents/{{agentId}}/embed-token
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}

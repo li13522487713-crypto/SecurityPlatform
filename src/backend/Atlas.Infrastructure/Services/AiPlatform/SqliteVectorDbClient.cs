@@ -2,22 +2,34 @@ using System.Text;
 using System.Text.Json;
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
+using Atlas.Infrastructure.Options;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 
 namespace Atlas.Infrastructure.Services.AiPlatform;
 
-public sealed class SqliteVectorStore : IVectorStore
+public sealed class SqliteVectorDbClient : IVectorDbClient
 {
     private const string MetadataTableName = "__vector_collections";
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly string _connectionString;
 
-    public SqliteVectorStore(IHostEnvironment hostEnvironment)
+    public SqliteVectorDbClient(IHostEnvironment hostEnvironment, IOptions<AiPlatformOptions> options)
     {
+        ProviderName = "sqlite";
+        var configured = options.Value.VectorDb.SqliteConnectionString;
+        if (!string.IsNullOrWhiteSpace(configured))
+        {
+            _connectionString = configured;
+            return;
+        }
+
         var dbPath = Path.Combine(hostEnvironment.ContentRootPath, "vectors.db");
         _connectionString = $"Data Source={dbPath}";
     }
+
+    public string ProviderName { get; }
 
     public async Task EnsureCollectionAsync(string collectionName, int dimensions, CancellationToken ct = default)
     {

@@ -36,6 +36,7 @@ public sealed class NodeExecutorRegistry
             WorkflowNodeType.Entry => ("开始", "Flow", "工作流入口节点"),
             WorkflowNodeType.Exit => ("结束", "Flow", "工作流出口节点"),
             WorkflowNodeType.Llm => ("大模型", "AI", "调用大语言模型"),
+            WorkflowNodeType.Agent => ("Agent", "AI", "调用 Agent 进行对话推理"),
             WorkflowNodeType.Plugin => ("插件", "Integration", "调用外部插件或 API"),
             WorkflowNodeType.CodeRunner => ("代码执行", "Compute", "运行代码或脚本"),
             WorkflowNodeType.KnowledgeRetriever => ("知识检索", "RAG", "检索知识库内容"),

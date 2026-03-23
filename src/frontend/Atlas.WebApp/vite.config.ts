@@ -90,6 +90,10 @@ export default defineConfig({
   build: {
     chunkSizeWarningLimit: 8000,
     rollupOptions: {
+      input: {
+        app: path.resolve(__dirname, "index.html"),
+        "embed-chat": path.resolve(__dirname, "src/embed/embed-entry.ts")
+      },
       external: ["amis-editor"],
       onwarn(warning, warn) {
         const warningMessage = warning.message ?? "";
@@ -113,6 +117,13 @@ export default defineConfig({
         warn(warning);
       },
       output: {
+        entryFileNames(chunkInfo) {
+          if (chunkInfo.name === "embed-chat") {
+            return "embed-chat.js";
+          }
+
+          return "assets/[name]-[hash].js";
+        },
         manualChunks(id) {
           if (!id.includes("node_modules")) return undefined;
           const nm = id.replace(/\\/g, "/");

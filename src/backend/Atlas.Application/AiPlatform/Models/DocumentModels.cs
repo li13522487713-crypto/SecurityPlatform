@@ -12,6 +12,14 @@ public sealed record TextChunk(
     int StartOffset,
     int EndOffset);
 
+public enum ChunkingStrategy
+{
+    Fixed = 0,
+    Semantic = 1,
+    Recursive = 2
+}
+
 public sealed record ChunkingOptions(
     int ChunkSize = 500,
-    int Overlap = 50);
+    int Overlap = 50,
+    ChunkingStrategy Strategy = ChunkingStrategy.Fixed);

@@ -1,6 +1,7 @@
 import { ref } from "vue";
-import type { ChatMessageDto } from "@/services/api-conversation";
+import type { AgentChatAttachment, ChatMessageDto } from "@/services/api-conversation";
 import { createAgentChatStream } from "@/services/api-conversation";
+import { useReActStream, type ReActEventType } from "@/composables/useReActStream";
 
 export interface StreamChatMessage {
   id: number;
@@ -12,7 +13,7 @@ export interface StreamChatMessage {
 
 export interface UseStreamChatOptions {
   agentId: number;
-  enableRag?: boolean;
+  enableRag?: () => boolean;
 }
 
 export function useStreamChat(options: UseStreamChatOptions) {
@@ -20,6 +21,7 @@ export function useStreamChat(options: UseStreamChatOptions) {
   const isStreaming = ref(false);
   const error = ref<string | null>(null);
   const currentConversationId = ref<number | null>(null);
+  const reactStream = useReActStream();
 
   let abortController: AbortController | null = null;
 
@@ -40,15 +42,19 @@ export function useStreamChat(options: UseStreamChatOptions) {
     currentConversationId.value = null;
   }
 
-  async function sendMessage(text: string) {
-    if (isStreaming.value || !text.trim()) return;
+  async function sendMessage(text: string, attachments?: AgentChatAttachment[]) {
+    const normalizedText = text.trim();
+    const normalizedAttachments = (attachments ?? [])
+      .filter((item) => item.type && (item.url || item.fileId || item.text));
+    if (isStreaming.value || (!normalizedText && normalizedAttachments.length === 0)) return;
 
     error.value = null;
+    reactStream.reset();
 
     const userMsg: StreamChatMessage = {
       id: Date.now(),
       role: "user",
-      content: text.trim(),
+      content: buildUserDisplayText(normalizedText, normalizedAttachments),
       createdAt: new Date().toISOString()
     };
     messages.value.push(userMsg);
@@ -66,13 +72,15 @@ export function useStreamChat(options: UseStreamChatOptions) {
 
     const request = {
       conversationId: currentConversationId.value ?? undefined,
-      message: text.trim(),
-      enableRag: options.enableRag
+      message: normalizedText,
+      enableRag: options.enableRag?.(),
+      attachments: normalizedAttachments.length > 0 ? normalizedAttachments : undefined
     };
 
     const { fetchPromise, abortController: ac } = createAgentChatStream(
       options.agentId,
-      request
+      request,
+      "react"
     );
     abortController = ac;
 
@@ -89,27 +97,78 @@ export function useStreamChat(options: UseStreamChatOptions) {
       const decoder = new TextDecoder();
       let buffer = "";
       let receivedDone = false;
+      let currentEventType = "data";
+      let currentDataLines: string[] = [];
+
+      const flushCurrentEvent = () => {
+        if (currentDataLines.length === 0) {
+          currentEventType = "data";
+          return;
+        }
+
+        const eventData = currentDataLines.join("\n").trim();
+        currentDataLines = [];
+        const eventType = currentEventType;
+        currentEventType = "data";
+
+        if (!eventData) {
+          return;
+        }
+
+        if (eventData === "[DONE]") {
+          assistantMsg.isStreaming = false;
+          receivedDone = true;
+          return;
+        }
+
+        if (eventType === "thought" || eventType === "action" || eventType === "observation") {
+          reactStream.append(eventType as ReActEventType, eventData);
+          return;
+        }
+
+        if (eventType === "final") {
+          reactStream.append("final", eventData);
+          if (assistantMsg.content.trim()) {
+            assistantMsg.content = eventData;
+          } else {
+            assistantMsg.content += eventData;
+          }
+          return;
+        }
+
+        assistantMsg.content += eventData;
+      };
 
       while (!receivedDone) {
         const { value, done } = await reader.read();
         if (done) break;
 
         buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
+        const lines = buffer.split(/\r?\n/);
         buffer = lines.pop() ?? "";
 
         for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          const data = line.slice(6).trim();
-          if (data === "[DONE]") {
-            assistantMsg.isStreaming = false;
-            receivedDone = true;
-            break;
+          if (line.length === 0) {
+            flushCurrentEvent();
+            if (receivedDone) {
+              break;
+            }
+            continue;
           }
-          if (data) {
-            assistantMsg.content += data;
+
+          if (line.startsWith("event:")) {
+            currentEventType = line.slice("event:".length).trim() || "data";
+            continue;
+          }
+
+          if (line.startsWith("data:")) {
+            currentDataLines.push(line.slice("data:".length).trim());
           }
         }
+      }
+
+      if (!receivedDone) {
+        flushCurrentEvent();
       }
 
       if (receivedDone) {
@@ -144,10 +203,25 @@ export function useStreamChat(options: UseStreamChatOptions) {
     messages,
     isStreaming,
     error,
+    reactSteps: reactStream.steps,
     currentConversationId,
     loadHistory,
     clearMessages,
     sendMessage,
     cancelStream
   };
+}
+
+function buildUserDisplayText(text: string, attachments: AgentChatAttachment[]) {
+  if (attachments.length === 0) {
+    return text;
+  }
+
+  const lines = attachments.map((item, index) =>
+    `[${index + 1}] ${item.type}${item.name ? `(${item.name})` : ""}`);
+  if (!text) {
+    return `📎 ${lines.join(", ")}`;
+  }
+
+  return `${text}\n\n📎 ${lines.join(", ")}`;
 }

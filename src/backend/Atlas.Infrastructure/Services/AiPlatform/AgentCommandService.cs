@@ -13,6 +13,9 @@ public sealed class AgentCommandService : IAgentCommandService
 {
     private readonly AgentRepository _agentRepository;
     private readonly AgentKnowledgeLinkRepository _linkRepository;
+    private readonly AgentPluginBindingRepository _pluginBindingRepository;
+    private readonly AgentPublicationRepository _publicationRepository;
+    private readonly AiPluginRepository _pluginRepository;
     private readonly ModelConfigRepository _modelConfigRepository;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly IUnitOfWork _unitOfWork;
@@ -20,12 +23,18 @@ public sealed class AgentCommandService : IAgentCommandService
     public AgentCommandService(
         AgentRepository agentRepository,
         AgentKnowledgeLinkRepository linkRepository,
+        AgentPluginBindingRepository pluginBindingRepository,
+        AgentPublicationRepository publicationRepository,
+        AiPluginRepository pluginRepository,
         ModelConfigRepository modelConfigRepository,
         IIdGeneratorAccessor idGeneratorAccessor,
         IUnitOfWork unitOfWork)
     {
         _agentRepository = agentRepository;
         _linkRepository = linkRepository;
+        _pluginBindingRepository = pluginBindingRepository;
+        _publicationRepository = publicationRepository;
+        _pluginRepository = pluginRepository;
         _modelConfigRepository = modelConfigRepository;
         _idGeneratorAccessor = idGeneratorAccessor;
         _unitOfWork = unitOfWork;
@@ -53,7 +62,11 @@ public sealed class AgentCommandService : IAgentCommandService
             modelConfigId,
             request.ModelName,
             request.Temperature,
-            request.MaxTokens);
+            request.MaxTokens,
+            request.EnableMemory,
+            request.EnableShortTermMemory,
+            request.EnableLongTermMemory,
+            request.LongTermMemoryTopK);
 
         await _agentRepository.AddAsync(entity, cancellationToken);
         return entity.Id;
@@ -73,27 +86,49 @@ public sealed class AgentCommandService : IAgentCommandService
             modelConfigId,
             request.ModelName,
             request.Temperature,
-            request.MaxTokens);
+            request.MaxTokens,
+            request.EnableMemory,
+            request.EnableShortTermMemory,
+            request.EnableLongTermMemory,
+            request.LongTermMemoryTopK);
+
+        var knowledgeIds = request.KnowledgeBaseIds?
+            .Where(x => x > 0)
+            .Distinct()
+            .ToArray() ?? [];
+
+        var pluginBindings = await BuildValidatedPluginBindingsAsync(
+            tenantId,
+            id,
+            request.PluginBindings,
+            cancellationToken);
 
         await _unitOfWork.ExecuteInTransactionAsync(async () =>
         {
             await _agentRepository.UpdateAsync(entity, cancellationToken);
             await _linkRepository.DeleteByAgentIdAsync(tenantId, id, cancellationToken);
-
-            var knowledgeIds = request.KnowledgeBaseIds?
-                .Where(x => x > 0)
-                .Distinct()
-                .ToArray() ?? [];
             if (knowledgeIds.Length == 0)
             {
+                await _pluginBindingRepository.DeleteByAgentIdAsync(tenantId, id, cancellationToken);
+                if (pluginBindings.Length > 0)
+                {
+                    await _pluginBindingRepository.AddRangeAsync(pluginBindings, cancellationToken);
+                }
+
                 return;
             }
 
-            var entities = knowledgeIds
+            var knowledgeLinks = knowledgeIds
                 .Select(knowledgeBaseId =>
                     new AgentKnowledgeLink(tenantId, id, knowledgeBaseId, _idGeneratorAccessor.NextId()))
                 .ToArray();
-            await _linkRepository.AddRangeAsync(entities, cancellationToken);
+            await _linkRepository.AddRangeAsync(knowledgeLinks, cancellationToken);
+
+            await _pluginBindingRepository.DeleteByAgentIdAsync(tenantId, id, cancellationToken);
+            if (pluginBindings.Length > 0)
+            {
+                await _pluginBindingRepository.AddRangeAsync(pluginBindings, cancellationToken);
+            }
         }, cancellationToken);
     }
 
@@ -105,6 +140,7 @@ public sealed class AgentCommandService : IAgentCommandService
         await _unitOfWork.ExecuteInTransactionAsync(async () =>
         {
             await _linkRepository.DeleteByAgentIdAsync(tenantId, entity.Id, cancellationToken);
+            await _publicationRepository.DeleteByAgentIdAsync(tenantId, entity.Id, cancellationToken);
             await _agentRepository.DeleteAsync(tenantId, entity.Id, cancellationToken);
         }, cancellationToken);
     }
@@ -115,25 +151,39 @@ public sealed class AgentCommandService : IAgentCommandService
             ?? throw new BusinessException("AgentNotFound", ErrorCodes.NotFound);
 
         var links = await _linkRepository.GetByAgentIdAsync(tenantId, id, cancellationToken);
+        var pluginBindings = await _pluginBindingRepository.GetByAgentIdAsync(tenantId, id, cancellationToken);
         var duplicateId = _idGeneratorAccessor.NextId();
         var duplicate = source.CreateDuplicate(duplicateId, $"Copy of {source.Name}", creatorId);
 
         await _unitOfWork.ExecuteInTransactionAsync(async () =>
         {
             await _agentRepository.AddAsync(duplicate, cancellationToken);
-            if (links.Count == 0)
+            if (links.Count > 0)
             {
-                return;
+                var clonedLinks = links
+                    .Select(link => new AgentKnowledgeLink(
+                        tenantId,
+                        duplicateId,
+                        link.KnowledgeBaseId,
+                        _idGeneratorAccessor.NextId()))
+                    .ToArray();
+                await _linkRepository.AddRangeAsync(clonedLinks, cancellationToken);
             }
 
-            var clonedLinks = links
-                .Select(link => new AgentKnowledgeLink(
-                    tenantId,
-                    duplicateId,
-                    link.KnowledgeBaseId,
-                    _idGeneratorAccessor.NextId()))
-                .ToArray();
-            await _linkRepository.AddRangeAsync(clonedLinks, cancellationToken);
+            if (pluginBindings.Count > 0)
+            {
+                var clonedBindings = pluginBindings
+                    .Select(binding => new AgentPluginBinding(
+                        tenantId,
+                        duplicateId,
+                        binding.PluginId,
+                        binding.SortOrder,
+                        binding.IsEnabled,
+                        binding.ToolConfigJson,
+                        _idGeneratorAccessor.NextId()))
+                    .ToArray();
+                await _pluginBindingRepository.AddRangeAsync(clonedBindings, cancellationToken);
+            }
         }, cancellationToken);
 
         return duplicateId;
@@ -166,5 +216,46 @@ public sealed class AgentCommandService : IAgentCommandService
 
         var enabled = await _modelConfigRepository.GetAllEnabledAsync(tenantId, cancellationToken);
         return enabled.FirstOrDefault()?.Id;
+    }
+
+    private async Task<AgentPluginBinding[]> BuildValidatedPluginBindingsAsync(
+        TenantId tenantId,
+        long agentId,
+        IReadOnlyList<AgentPluginBindingInput>? inputs,
+        CancellationToken cancellationToken)
+    {
+        var normalizedInputs = inputs?
+            .Where(x => x.PluginId > 0)
+            .OrderBy(x => x.SortOrder)
+            .ThenBy(x => x.PluginId)
+            .GroupBy(x => x.PluginId)
+            .Select(g => g.First())
+            .ToArray() ?? [];
+
+        if (normalizedInputs.Length == 0)
+        {
+            return [];
+        }
+
+        var pluginIds = normalizedInputs
+            .Select(x => x.PluginId)
+            .Distinct()
+            .ToArray();
+        var existingPlugins = await _pluginRepository.QueryByIdsAsync(tenantId, pluginIds, cancellationToken);
+        if (existingPlugins.Count != pluginIds.Length)
+        {
+            throw new BusinessException("存在无效的插件绑定。", ErrorCodes.ValidationError);
+        }
+
+        return normalizedInputs
+            .Select(binding => new AgentPluginBinding(
+                tenantId,
+                agentId,
+                binding.PluginId,
+                binding.SortOrder,
+                binding.IsEnabled,
+                binding.ToolConfigJson,
+                _idGeneratorAccessor.NextId()))
+            .ToArray();
     }
 }

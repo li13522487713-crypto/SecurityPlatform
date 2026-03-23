@@ -402,6 +402,9 @@ builder.Services.AddAuthentication()
     })
     .AddScheme<AuthenticationSchemeOptions, PatAuthenticationHandler>(PatAuthenticationHandler.SchemeName, options =>
     {
+    })
+    .AddScheme<AuthenticationSchemeOptions, OpenProjectAuthenticationHandler>(OpenProjectAuthenticationHandler.SchemeName, options =>
+    {
     });
 
 builder.Services.AddAuthorization(options =>
@@ -559,6 +562,7 @@ app.UseMiddleware<AppMembershipMiddleware>();
 app.UseMiddleware<ProjectContextMiddleware>();
 app.UseMiddleware<LicenseEnforcementMiddleware>();
 app.UseAuthorization();
+app.UseMiddleware<OpenApiGovernanceMiddleware>();
 
 app.MapControllers();
 

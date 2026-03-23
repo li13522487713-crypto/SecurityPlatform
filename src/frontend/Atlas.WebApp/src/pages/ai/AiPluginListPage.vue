@@ -78,8 +78,23 @@
         <a-form-item :label="t('ai.plugin.labelType')" name="type">
           <a-select v-model:value="form.type" :options="typeOptions" />
         </a-form-item>
+        <a-form-item :label="t('ai.plugin.labelSourceType')" name="sourceType">
+          <a-select v-model:value="form.sourceType" :options="sourceTypeOptions" />
+        </a-form-item>
+        <a-form-item :label="t('ai.plugin.labelAuthType')" name="authType">
+          <a-select v-model:value="form.authType" :options="authTypeOptions" />
+        </a-form-item>
+        <a-form-item :label="t('ai.plugin.labelAuthConfigJson')" name="authConfigJson">
+          <a-textarea v-model:value="form.authConfigJson" :rows="4" />
+        </a-form-item>
         <a-form-item :label="t('ai.plugin.labelDefinitionJson')" name="definitionJson">
           <a-textarea v-model:value="form.definitionJson" :rows="8" />
+        </a-form-item>
+        <a-form-item :label="t('ai.plugin.labelToolSchemaJson')" name="toolSchemaJson">
+          <a-textarea v-model:value="form.toolSchemaJson" :rows="6" />
+        </a-form-item>
+        <a-form-item :label="t('ai.plugin.labelOpenApiSpecJson')" name="openApiSpecJson">
+          <a-textarea v-model:value="form.openApiSpecJson" :rows="6" />
         </a-form-item>
       </a-form>
     </a-modal>
@@ -119,7 +134,9 @@ import {
   getAiPluginsPaged,
   updateAiPlugin,
   type AiPluginBuiltInMetaItem,
+  type AiPluginAuthType,
   type AiPluginListItem,
+  type AiPluginSourceType,
   type AiPluginType
 } from "@/services/api-ai-plugin";
 import { resolveCurrentAppId } from "@/utils/app-context";
@@ -147,6 +164,18 @@ const typeOptions = computed(() => [
   { label: t("ai.plugin.typeCustom"), value: 0 },
   { label: t("ai.plugin.typeBuiltIn"), value: 1 }
 ]);
+const sourceTypeOptions = computed(() => [
+  { label: t("ai.plugin.sourceManual"), value: 0 },
+  { label: t("ai.plugin.sourceOpenApi"), value: 1 },
+  { label: t("ai.plugin.sourceBuiltInCatalog"), value: 2 }
+]);
+const authTypeOptions = computed(() => [
+  { label: t("ai.plugin.authNone"), value: 0 },
+  { label: "API Key", value: 1 },
+  { label: "Bearer Token", value: 2 },
+  { label: "Basic", value: 3 },
+  { label: t("ai.plugin.authCustom"), value: 4 }
+]);
 
 const modalOpen = ref(false);
 const modalLoading = ref(false);
@@ -158,7 +187,12 @@ const form = reactive({
   icon: "",
   category: "",
   type: 0 as AiPluginType,
-  definitionJson: "{}"
+  sourceType: 0 as AiPluginSourceType,
+  authType: 0 as AiPluginAuthType,
+  authConfigJson: "{}",
+  definitionJson: "{}",
+  toolSchemaJson: "[]",
+  openApiSpecJson: "{}"
 });
 const rules = computed(() => ({
   name: [{ required: true, message: t("ai.plugin.ruleName") }]
@@ -215,7 +249,12 @@ function openCreate() {
     icon: "",
     category: "",
     type: 0 as AiPluginType,
-    definitionJson: "{}"
+    sourceType: 0 as AiPluginSourceType,
+    authType: 0 as AiPluginAuthType,
+    authConfigJson: "{}",
+    definitionJson: "{}",
+    toolSchemaJson: "[]",
+    openApiSpecJson: "{}"
   });
   modalOpen.value = true;
 }
@@ -232,7 +271,12 @@ async function openEdit(id: number) {
       icon: detail.icon ?? "",
       category: detail.category ?? "",
       type: detail.type,
-      definitionJson: detail.definitionJson
+      sourceType: detail.sourceType,
+      authType: detail.authType,
+      authConfigJson: detail.authConfigJson,
+      definitionJson: detail.definitionJson,
+      toolSchemaJson: detail.toolSchemaJson,
+      openApiSpecJson: detail.openApiSpecJson
     });
     modalOpen.value = true;
   } catch (error: unknown) {
@@ -262,7 +306,12 @@ async function submitForm() {
       icon: form.icon || undefined,
       category: form.category || undefined,
       type: form.type,
-      definitionJson: form.definitionJson || undefined
+      sourceType: form.sourceType,
+      authType: form.authType,
+      authConfigJson: form.authConfigJson || undefined,
+      definitionJson: form.definitionJson || undefined,
+      toolSchemaJson: form.toolSchemaJson || undefined,
+      openApiSpecJson: form.openApiSpecJson || undefined
     };
 
     if (editingId.value) {

@@ -1,27 +1,35 @@
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
+using Atlas.Application.Integration;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.WebApi.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Text.Json;
 
 namespace Atlas.WebApi.Controllers.Open;
 
 [ApiController]
 [Route("api/v1/open/workflows")]
-[Authorize(AuthenticationSchemes = PatAuthenticationHandler.SchemeName)]
+[Authorize(AuthenticationSchemes = $"{PatAuthenticationHandler.SchemeName},{OpenProjectAuthenticationHandler.SchemeName}")]
 public sealed class OpenWorkflowsController : ControllerBase
 {
     private readonly IAiWorkflowExecutionService _executionService;
     private readonly ITenantProvider _tenantProvider;
+    private readonly IWebhookService _webhookService;
+    private readonly ILogger<OpenWorkflowsController> _logger;
 
     public OpenWorkflowsController(
         IAiWorkflowExecutionService executionService,
-        ITenantProvider tenantProvider)
+        ITenantProvider tenantProvider,
+        IWebhookService webhookService,
+        ILogger<OpenWorkflowsController> logger)
     {
         _executionService = executionService;
         _tenantProvider = tenantProvider;
+        _webhookService = webhookService;
+        _logger = logger;
     }
 
     [HttpPost("{id:long}/run")]
@@ -40,6 +48,7 @@ public sealed class OpenWorkflowsController : ControllerBase
 
         var tenantId = _tenantProvider.GetTenantId();
         var result = await _executionService.RunAsync(tenantId, id, request, cancellationToken);
+        await TryDispatchWorkflowCompletedEventAsync(id, result, cancellationToken);
         return Ok(ApiResponse<AiWorkflowExecutionRunResult>.Ok(result, HttpContext.TraceIdentifier));
     }
 
@@ -65,6 +74,7 @@ public sealed class OpenWorkflowsController : ControllerBase
 
         var tenantId = _tenantProvider.GetTenantId();
         var runResult = await _executionService.RunAsync(tenantId, id, request, cancellationToken);
+        await TryDispatchWorkflowCompletedEventAsync(id, runResult, cancellationToken);
         await Response.WriteAsync($"data: {System.Text.Json.JsonSerializer.Serialize(runResult)}\n\n", cancellationToken);
         await Response.Body.FlushAsync(cancellationToken);
         await Response.WriteAsync("data: [DONE]\n\n", cancellationToken);
@@ -113,5 +123,27 @@ public sealed class OpenWorkflowsController : ControllerBase
         var tenantId = _tenantProvider.GetTenantId();
         var result = await _executionService.GetNodeHistoryAsync(tenantId, executionId, cancellationToken);
         return Ok(ApiResponse<IReadOnlyList<AiWorkflowNodeHistoryItem>>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    private async Task TryDispatchWorkflowCompletedEventAsync(
+        long workflowId,
+        AiWorkflowExecutionRunResult runResult,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var payload = JsonSerializer.Serialize(new
+            {
+                eventType = "workflow.completed",
+                occurredAt = DateTimeOffset.UtcNow,
+                workflowId,
+                executionId = runResult.ExecutionId
+            });
+            await _webhookService.DispatchAsync("workflow.completed", payload, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Open workflow webhook dispatch failed.");
+        }
     }
 }

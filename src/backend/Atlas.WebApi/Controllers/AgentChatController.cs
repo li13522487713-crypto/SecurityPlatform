@@ -62,11 +62,23 @@ public sealed class AgentChatController : ControllerBase
 
         var tenantId = _tenantProvider.GetTenantId();
         var userId = _currentUserAccessor.GetCurrentUserOrThrow().UserId;
+        var useStructuredEvents = ShouldUseStructuredEvents(Request);
 
-        await foreach (var chunk in _agentChatService.ChatStreamAsync(tenantId, userId, agentId, request, cancellationToken))
+        if (!useStructuredEvents)
         {
-            await WriteSseDataEventAsync(Response, chunk, cancellationToken);
-            await Response.Body.FlushAsync(cancellationToken);
+            await foreach (var chunk in _agentChatService.ChatStreamAsync(tenantId, userId, agentId, request, cancellationToken))
+            {
+                await WriteSseDataEventAsync(Response, chunk, cancellationToken);
+                await Response.Body.FlushAsync(cancellationToken);
+            }
+        }
+        else
+        {
+            await foreach (var evt in _agentChatService.ChatEventStreamAsync(tenantId, userId, agentId, request, cancellationToken))
+            {
+                await WriteSseTypedEventAsync(Response, evt.EventType, evt.Data, cancellationToken);
+                await Response.Body.FlushAsync(cancellationToken);
+            }
         }
 
         await Response.WriteAsync("data: [DONE]\n\n", cancellationToken);
@@ -97,5 +109,34 @@ public sealed class AgentChatController : ControllerBase
         }
 
         await response.WriteAsync("\n", cancellationToken);
+    }
+
+    private static async Task WriteSseTypedEventAsync(
+        HttpResponse response,
+        string eventType,
+        string payload,
+        CancellationToken cancellationToken)
+    {
+        await response.WriteAsync($"event: {eventType}\n", cancellationToken);
+        await WriteSseDataEventAsync(response, payload, cancellationToken);
+    }
+
+    private static bool ShouldUseStructuredEvents(HttpRequest request)
+    {
+        if (request.Headers.TryGetValue("X-Stream-Event-Mode", out var mode) &&
+            mode.Count > 0 &&
+            string.Equals(mode[0], "react", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (request.Query.TryGetValue("eventMode", out var eventMode) &&
+            eventMode.Count > 0 &&
+            string.Equals(eventMode[0], "react", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return false;
     }
 }

@@ -32,7 +32,19 @@ export interface AgentChatRequest {
   conversationId?: number;
   message: string;
   enableRag?: boolean;
+  attachments?: AgentChatAttachment[];
 }
+
+export interface AgentChatAttachment {
+  type: string;
+  url?: string;
+  fileId?: string;
+  mimeType?: string;
+  name?: string;
+  text?: string;
+}
+
+export type AgentStreamEventMode = "legacy" | "react";
 
 export async function getConversationsPaged(
   request: PagedRequest,
@@ -180,7 +192,11 @@ export async function cancelAgentChat(agentId: number, conversationId: number) {
  * Create a streaming chat request that returns a ReadableStream of SSE events.
  * Returns both the stream and an abort controller for cancellation.
  */
-export function createAgentChatStream(agentId: number, request: AgentChatRequest) {
+export function createAgentChatStream(
+  agentId: number,
+  request: AgentChatRequest,
+  mode: AgentStreamEventMode = "legacy"
+) {
   const abortController = new AbortController();
 
   const headers: Record<string, string> = {
@@ -199,10 +215,19 @@ export function createAgentChatStream(agentId: number, request: AgentChatRequest
 
   const afToken = getAntiforgeryToken();
   if (afToken) {
-    headers["X-XSRF-TOKEN"] = afToken;
+    headers["X-CSRF-TOKEN"] = afToken;
   }
 
-  const fetchPromise = fetch(`${API_BASE}/agents/${agentId}/chat/stream`, {
+  const streamUrl =
+    mode === "react"
+      ? `${API_BASE}/agents/${agentId}/chat/stream?eventMode=react`
+      : `${API_BASE}/agents/${agentId}/chat/stream`;
+
+  if (mode === "react") {
+    headers["X-Stream-Event-Mode"] = "react";
+  }
+
+  const fetchPromise = fetch(streamUrl, {
     method: "POST",
     headers,
     body: JSON.stringify(request),

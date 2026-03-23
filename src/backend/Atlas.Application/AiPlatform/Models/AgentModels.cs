@@ -26,7 +26,12 @@ public sealed record AgentDetail(
     DateTime? UpdatedAt,
     DateTime? PublishedAt,
     int PublishVersion,
-    IReadOnlyList<long>? KnowledgeBaseIds);
+    bool EnableMemory,
+    bool EnableShortTermMemory,
+    bool EnableLongTermMemory,
+    int LongTermMemoryTopK,
+    IReadOnlyList<long>? KnowledgeBaseIds,
+    IReadOnlyList<AgentPluginBindingItem>? PluginBindings);
 
 public sealed record AgentCreateRequest(
     string Name,
@@ -35,7 +40,11 @@ public sealed record AgentCreateRequest(
     long? ModelConfigId,
     string? ModelName,
     float? Temperature,
-    int? MaxTokens);
+    int? MaxTokens,
+    bool? EnableMemory,
+    bool? EnableShortTermMemory,
+    bool? EnableLongTermMemory,
+    int? LongTermMemoryTopK);
 
 public sealed record AgentUpdateRequest(
     string Name,
@@ -46,4 +55,21 @@ public sealed record AgentUpdateRequest(
     string? ModelName,
     float? Temperature,
     int? MaxTokens,
-    IReadOnlyList<long>? KnowledgeBaseIds);
+    bool? EnableMemory,
+    bool? EnableShortTermMemory,
+    bool? EnableLongTermMemory,
+    int? LongTermMemoryTopK,
+    IReadOnlyList<long>? KnowledgeBaseIds,
+    IReadOnlyList<AgentPluginBindingInput>? PluginBindings);
+
+public sealed record AgentPluginBindingItem(
+    long PluginId,
+    int SortOrder,
+    bool IsEnabled,
+    string ToolConfigJson);
+
+public sealed record AgentPluginBindingInput(
+    long PluginId,
+    int SortOrder,
+    bool IsEnabled,
+    string? ToolConfigJson);

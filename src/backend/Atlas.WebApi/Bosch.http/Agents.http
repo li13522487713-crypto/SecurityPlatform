@@ -69,7 +69,21 @@ X-CSRF-TOKEN: {{csrfToken}}
   "systemPrompt": "你是一个专业安全顾问。",
   "temperature": 0.3,
   "maxTokens": 4096,
-  "knowledgeBaseIds": [1001, 1002]
+  "knowledgeBaseIds": [1001, 1002],
+  "pluginBindings": [
+    {
+      "pluginId": 1,
+      "sortOrder": 0,
+      "isEnabled": true,
+      "toolConfigJson": "{\"timeout\":30}"
+    },
+    {
+      "pluginId": 2,
+      "sortOrder": 1,
+      "isEnabled": true,
+      "toolConfigJson": "{\"timeout\":60}"
+    }
+  ]
 }
 
 ### 复制 Agent

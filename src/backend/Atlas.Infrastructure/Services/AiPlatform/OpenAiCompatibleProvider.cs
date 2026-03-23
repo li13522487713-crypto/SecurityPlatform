@@ -43,10 +43,17 @@ public sealed class OpenAiCompatibleProvider : ILlmProvider, IEmbeddingProvider
     {
         var payload = new OpenAiChatRequest(
             request.Model,
-            request.Messages.Select(m => new OpenAiMessage(m.Role, m.Content)).ToList(),
+            request.Messages.Select(m => new OpenAiMessage(
+                m.Role,
+                m.Content,
+                m.Name,
+                m.ToolCallId,
+                ToolCalls: null)).ToList(),
             request.Temperature,
             request.MaxTokens,
-            Stream: false);
+            Stream: false,
+            Tools: request.Tools?.Select(MapToolDefinition).ToList(),
+            ToolChoice: request.ToolChoice);
 
         using var response = await SendAsync("v1/chat/completions", payload, ct);
         await using var stream = await response.Content.ReadAsStreamAsync(ct);
@@ -64,7 +71,8 @@ public sealed class OpenAiCompatibleProvider : ILlmProvider, IEmbeddingProvider
             first.FinishReason,
             body.Usage?.PromptTokens,
             body.Usage?.CompletionTokens,
-            body.Usage?.TotalTokens);
+            body.Usage?.TotalTokens,
+            first.Message?.ToolCalls?.Select(MapToolCall).ToArray());
     }
 
     public async IAsyncEnumerable<ChatCompletionChunk> ChatStreamAsync(
@@ -73,10 +81,17 @@ public sealed class OpenAiCompatibleProvider : ILlmProvider, IEmbeddingProvider
     {
         var payload = new OpenAiChatRequest(
             request.Model,
-            request.Messages.Select(m => new OpenAiMessage(m.Role, m.Content)).ToList(),
+            request.Messages.Select(m => new OpenAiMessage(
+                m.Role,
+                m.Content,
+                m.Name,
+                m.ToolCallId,
+                ToolCalls: null)).ToList(),
             request.Temperature,
             request.MaxTokens,
-            Stream: true);
+            Stream: true,
+            Tools: request.Tools?.Select(MapToolDefinition).ToList(),
+            ToolChoice: request.ToolChoice);
 
         using var httpRequest = new HttpRequestMessage(HttpMethod.Post, "v1/chat/completions")
         {
@@ -137,12 +152,14 @@ public sealed class OpenAiCompatibleProvider : ILlmProvider, IEmbeddingProvider
 
             var choice = chunk.Choices[0];
             var delta = choice.Delta?.Content ?? string.Empty;
+            var toolCalls = choice.Delta?.ToolCalls?.Select(MapToolCall).ToArray();
             if (delta.Length > 0 || !string.IsNullOrWhiteSpace(choice.FinishReason))
             {
                 yield return new ChatCompletionChunk(
                     delta,
                     !string.IsNullOrWhiteSpace(choice.FinishReason),
-                    choice.FinishReason);
+                    choice.FinishReason,
+                    toolCalls);
             }
         }
     }
@@ -175,6 +192,38 @@ public sealed class OpenAiCompatibleProvider : ILlmProvider, IEmbeddingProvider
             body.Usage?.TotalTokens);
     }
 
+    private static OpenAiTool MapToolDefinition(ChatToolDefinition definition)
+    {
+        JsonElement parameters;
+        try
+        {
+            parameters = JsonSerializer.Deserialize<JsonElement>(definition.ParametersJson);
+        }
+        catch (JsonException)
+        {
+            parameters = JsonSerializer.SerializeToElement(new
+            {
+                type = "object",
+                properties = new { }
+            });
+        }
+
+        return new OpenAiTool(
+            "function",
+            new OpenAiToolFunction(
+                definition.Name,
+                definition.Description,
+                parameters));
+    }
+
+    private static ChatToolCall MapToolCall(OpenAiToolCall call)
+    {
+        return new ChatToolCall(
+            call.Id ?? string.Empty,
+            call.Function?.Name ?? string.Empty,
+            call.Function?.Arguments ?? "{}");
+    }
+
     private async Task<HttpResponseMessage> SendAsync(string relativePath, object payload, CancellationToken ct)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, relativePath)
@@ -204,11 +253,34 @@ public sealed class OpenAiCompatibleProvider : ILlmProvider, IEmbeddingProvider
         [property: JsonPropertyName("messages")] IReadOnlyList<OpenAiMessage> Messages,
         [property: JsonPropertyName("temperature")] float? Temperature,
         [property: JsonPropertyName("max_tokens")] int? MaxTokens,
-        [property: JsonPropertyName("stream")] bool Stream);
+        [property: JsonPropertyName("stream")] bool Stream,
+        [property: JsonPropertyName("tools")] IReadOnlyList<OpenAiTool>? Tools = null,
+        [property: JsonPropertyName("tool_choice")] string? ToolChoice = null);
 
     private sealed record OpenAiMessage(
         [property: JsonPropertyName("role")] string Role,
-        [property: JsonPropertyName("content")] string Content);
+        [property: JsonPropertyName("content")] string Content,
+        [property: JsonPropertyName("name")] string? Name,
+        [property: JsonPropertyName("tool_call_id")] string? ToolCallId,
+        [property: JsonPropertyName("tool_calls")] IReadOnlyList<OpenAiToolCall>? ToolCalls);
+
+    private sealed record OpenAiTool(
+        [property: JsonPropertyName("type")] string Type,
+        [property: JsonPropertyName("function")] OpenAiToolFunction Function);
+
+    private sealed record OpenAiToolFunction(
+        [property: JsonPropertyName("name")] string Name,
+        [property: JsonPropertyName("description")] string Description,
+        [property: JsonPropertyName("parameters")] JsonElement Parameters);
+
+    private sealed record OpenAiToolCall(
+        [property: JsonPropertyName("id")] string? Id,
+        [property: JsonPropertyName("type")] string? Type,
+        [property: JsonPropertyName("function")] OpenAiToolCallFunction? Function);
+
+    private sealed record OpenAiToolCallFunction(
+        [property: JsonPropertyName("name")] string? Name,
+        [property: JsonPropertyName("arguments")] string? Arguments);
 
     private sealed record OpenAiChatResponse(
         [property: JsonPropertyName("model")] string? Model,
@@ -227,7 +299,9 @@ public sealed class OpenAiCompatibleProvider : ILlmProvider, IEmbeddingProvider
         [property: JsonPropertyName("delta")] OpenAiDelta? Delta,
         [property: JsonPropertyName("finish_reason")] string? FinishReason);
 
-    private sealed record OpenAiDelta([property: JsonPropertyName("content")] string? Content);
+    private sealed record OpenAiDelta(
+        [property: JsonPropertyName("content")] string? Content,
+        [property: JsonPropertyName("tool_calls")] IReadOnlyList<OpenAiToolCall>? ToolCalls);
 
     private sealed record OpenAiEmbeddingRequest(
         [property: JsonPropertyName("model")] string Model,

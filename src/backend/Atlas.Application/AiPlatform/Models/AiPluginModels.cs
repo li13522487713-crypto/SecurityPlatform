@@ -9,6 +9,8 @@ public sealed record AiPluginListItem(
     string? Icon,
     string? Category,
     AiPluginType Type,
+    AiPluginSourceType SourceType,
+    AiPluginAuthType AuthType,
     AiPluginStatus Status,
     bool IsLocked,
     DateTime CreatedAt,
@@ -22,8 +24,13 @@ public sealed record AiPluginDetail(
     string? Icon,
     string? Category,
     AiPluginType Type,
+    AiPluginSourceType SourceType,
+    AiPluginAuthType AuthType,
     AiPluginStatus Status,
     string DefinitionJson,
+    string AuthConfigJson,
+    string ToolSchemaJson,
+    string OpenApiSpecJson,
     bool IsLocked,
     DateTime CreatedAt,
     DateTime? UpdatedAt,
@@ -36,7 +43,12 @@ public sealed record AiPluginCreateRequest(
     string? Icon,
     string? Category,
     AiPluginType Type,
-    string? DefinitionJson);
+    string? DefinitionJson,
+    AiPluginSourceType SourceType,
+    AiPluginAuthType AuthType,
+    string? AuthConfigJson,
+    string? ToolSchemaJson,
+    string? OpenApiSpecJson);
 
 public sealed record AiPluginUpdateRequest(
     string Name,
@@ -44,7 +56,12 @@ public sealed record AiPluginUpdateRequest(
     string? Icon,
     string? Category,
     AiPluginType Type,
-    string? DefinitionJson);
+    string? DefinitionJson,
+    AiPluginSourceType SourceType,
+    AiPluginAuthType AuthType,
+    string? AuthConfigJson,
+    string? ToolSchemaJson,
+    string? OpenApiSpecJson);
 
 public sealed record AiPluginLockRequest(bool IsLocked);
 

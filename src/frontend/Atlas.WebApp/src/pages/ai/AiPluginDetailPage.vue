@@ -17,6 +17,12 @@
         <a-descriptions-item :label="t('ai.plugin.labelType')">
           {{ detail?.type === 1 ? t("ai.plugin.typeBuiltIn") : t("ai.plugin.typeCustom") }}
         </a-descriptions-item>
+        <a-descriptions-item :label="t('ai.plugin.labelSourceType')">
+          {{ formatSourceType(detail?.sourceType) }}
+        </a-descriptions-item>
+        <a-descriptions-item :label="t('ai.plugin.labelAuthType')">
+          {{ formatAuthType(detail?.authType) }}
+        </a-descriptions-item>
         <a-descriptions-item :label="t('ai.workflow.colStatus')">
           {{ detail?.status === 1 ? t("ai.plugin.statusPublished") : t("ai.plugin.statusDraft") }}
         </a-descriptions-item>
@@ -27,6 +33,10 @@
 
       <a-divider orientation="left">{{ t("ai.plugin.sectionDefinition") }}</a-divider>
       <pre class="json-block">{{ detail?.definitionJson }}</pre>
+      <a-divider orientation="left">{{ t("ai.plugin.labelToolSchemaJson") }}</a-divider>
+      <pre class="json-block">{{ detail?.toolSchemaJson }}</pre>
+      <a-divider orientation="left">{{ t("ai.plugin.labelAuthConfigJson") }}</a-divider>
+      <pre class="json-block">{{ detail?.authConfigJson }}</pre>
     </a-card>
 
     <a-card :title="t('ai.plugin.apiListTitle')" :bordered="false">
@@ -217,6 +227,33 @@ const debugOutputJson = ref("");
 const debugResultTitle = ref("");
 
 const apiOptions = computed(() => apis.value.map((api) => ({ label: `${api.method} ${api.path}`, value: api.id })));
+
+function formatSourceType(sourceType?: number) {
+  if (sourceType === 1) {
+    return t("ai.plugin.sourceOpenApi");
+  }
+
+  if (sourceType === 2) {
+    return t("ai.plugin.sourceBuiltInCatalog");
+  }
+
+  return t("ai.plugin.sourceManual");
+}
+
+function formatAuthType(authType?: number) {
+  switch (authType) {
+    case 1:
+      return "API Key";
+    case 2:
+      return "Bearer Token";
+    case 3:
+      return "Basic";
+    case 4:
+      return t("ai.plugin.authCustom");
+    default:
+      return t("ai.plugin.authNone");
+  }
+}
 
 function goBack() {
   const currentAppId = resolveCurrentAppId(route);

@@ -24,7 +24,16 @@ public sealed record ChatMessageDto(
 public sealed record AgentChatRequest(
     long? ConversationId,
     string Message,
-    bool? EnableRag);
+    bool? EnableRag,
+    IReadOnlyList<AgentChatAttachment>? Attachments = null);
+
+public sealed record AgentChatAttachment(
+    string Type,
+    string? Url,
+    string? FileId,
+    string? MimeType,
+    string? Name,
+    string? Text);
 
 public sealed record AgentChatResponse(
     long ConversationId,
@@ -33,3 +42,17 @@ public sealed record AgentChatResponse(
     string? Sources);
 
 public sealed record AgentChatCancelRequest(long ConversationId);
+
+public sealed record AgentChatStreamEvent(
+    string EventType,
+    string Data);
+
+public sealed record AgentToolCallStep(
+    string EventType,
+    string Data);
+
+public sealed record AgentToolCallResult(
+    bool Executed,
+    string? FinalAnswer,
+    IReadOnlyList<AgentToolCallStep> Steps,
+    string? MetadataJson);

@@ -35,6 +35,8 @@ public sealed class DocumentResegmentRequestValidator : AbstractValidator<Docume
     {
         RuleFor(x => x.ChunkSize).GreaterThanOrEqualTo(50).LessThanOrEqualTo(4000);
         RuleFor(x => x.Overlap).GreaterThanOrEqualTo(0).LessThan(1000);
+        RuleFor(x => x.Overlap).LessThan(x => x.ChunkSize);
+        RuleFor(x => x.Strategy).IsInEnum();
     }
 }
 

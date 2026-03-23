@@ -95,6 +95,9 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             await EnsureTenantDataSourceSchemaAsync(db, cancellationToken);
             await EnsureProductizationSchemaAsync(db, cancellationToken);
             await EnsureWorkflowExecutionSchemaAsync(db, cancellationToken);
+            await EnsureAiPluginSchemaAsync(db, cancellationToken);
+            await EnsureAiMemorySchemaAsync(db, cancellationToken);
+            await EnsureAgentPublicationSchemaAsync(db, cancellationToken);
         }
         else
         {
@@ -132,9 +135,21 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             typeof(AlertRecord),
             typeof(ModelConfig),
             typeof(Agent),
+            typeof(AgentPublication),
+            typeof(MultiAgentOrchestration),
+            typeof(MultiAgentExecution),
+            typeof(MultimodalAsset),
+            typeof(EvaluationDataset),
+            typeof(EvaluationCase),
+            typeof(EvaluationTask),
+            typeof(EvaluationResult),
+            typeof(ApiCallLog),
             typeof(AgentKnowledgeLink),
+            typeof(AgentPluginBinding),
             typeof(Conversation),
             typeof(ChatMessage),
+            typeof(ShortTermMemory),
+            typeof(LongTermMemory),
             typeof(KnowledgeBase),
             typeof(KnowledgeDocument),
             typeof(DocumentChunk),
@@ -157,6 +172,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             typeof(AiShortcutCommand),
             typeof(AiBotPopupInfo),
             typeof(PersonalAccessToken),
+            typeof(OpenApiProject),
             typeof(AuthSession),
             typeof(RefreshToken),
             typeof(ApprovalFlowDefinition),
@@ -683,6 +699,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             ("Agent 编辑", "/ai/agents/:id/edit", "/ai", 17, "C", "ai/AgentEditorPage", "edit", PermissionCodes.AgentView, null, false, true, "0", "0", PermissionCodes.AgentView, true),
             ("知识库管理", "/ai/knowledge-bases", "/ai", 18, "C", "ai/KnowledgeBaseListPage", "book", PermissionCodes.KnowledgeBaseView, null, false, true, "0", "0", PermissionCodes.KnowledgeBaseView, false),
             ("知识库详情", "/ai/knowledge-bases/:id", "/ai", 19, "C", "ai/KnowledgeBaseDetailPage", "read", PermissionCodes.KnowledgeBaseView, null, false, true, "0", "0", PermissionCodes.KnowledgeBaseView, true),
+            ("记忆管理", "/ai/memories", "/ai", 20, "C", "ai/UserMemorySettingsPage", "history", PermissionCodes.AgentView, null, false, true, "0", "0", PermissionCodes.AgentView, false),
             ("数据库管理", "/ai/databases", "/ai", 20, "C", "ai/AiDatabaseListPage", "database", PermissionCodes.AiDatabaseView, null, false, true, "0", "0", PermissionCodes.AiDatabaseView, false),
             ("数据库详情", "/ai/databases/:id", "/ai", 21, "C", "ai/AiDatabaseDetailPage", "table", PermissionCodes.AiDatabaseView, null, false, true, "0", "0", PermissionCodes.AiDatabaseView, true),
             ("变量管理", "/ai/variables", "/ai", 22, "C", "ai/AiVariablesPage", "code", PermissionCodes.AiVariableView, null, false, true, "0", "0", PermissionCodes.AiVariableView, false),
@@ -980,6 +997,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             "/settings/ai/model-configs",
             "/ai/agents",
             "/ai/knowledge-bases",
+            "/ai/memories",
             "/ai/databases",
             "/ai/variables",
             "/ai/plugins",
@@ -1370,6 +1388,54 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         await RebuildTableViaOrmAsync<WorkflowExecution>(db, cancellationToken);
     }
 
+    private static async Task EnsureAiPluginSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
+    {
+        if (!db.DbMaintenance.IsAnyTable("AiPlugin", false))
+        {
+            return;
+        }
+
+        await AddColumnIfMissingAsync(db, "AiPlugin", "SourceType", "INTEGER NOT NULL DEFAULT 0", cancellationToken);
+        await AddColumnIfMissingAsync(db, "AiPlugin", "AuthType", "INTEGER NOT NULL DEFAULT 0", cancellationToken);
+        await AddColumnIfMissingAsync(db, "AiPlugin", "AuthConfigJson", "TEXT NOT NULL DEFAULT '{}'", cancellationToken);
+        await AddColumnIfMissingAsync(db, "AiPlugin", "ToolSchemaJson", "TEXT NOT NULL DEFAULT '{}'", cancellationToken);
+        await AddColumnIfMissingAsync(db, "AiPlugin", "OpenApiSpecJson", "TEXT NOT NULL DEFAULT '{}'", cancellationToken);
+    }
+
+    private static async Task EnsureAiMemorySchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
+    {
+        var missingShortTerm = !db.DbMaintenance.IsAnyTable("ShortTermMemory", false);
+        var missingLongTerm = !db.DbMaintenance.IsAnyTable("LongTermMemory", false);
+        if (missingShortTerm || missingLongTerm)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            db.CodeFirst.InitTables<ShortTermMemory, LongTermMemory>();
+        }
+
+        if (db.DbMaintenance.IsAnyTable("Agent", false))
+        {
+            await AddColumnIfMissingAsync(db, "Agent", "EnableMemory", "INTEGER NOT NULL DEFAULT 1", cancellationToken);
+            await AddColumnIfMissingAsync(db, "Agent", "EnableShortTermMemory", "INTEGER NOT NULL DEFAULT 1", cancellationToken);
+            await AddColumnIfMissingAsync(db, "Agent", "EnableLongTermMemory", "INTEGER NOT NULL DEFAULT 1", cancellationToken);
+            await AddColumnIfMissingAsync(db, "Agent", "LongTermMemoryTopK", "INTEGER NOT NULL DEFAULT 3", cancellationToken);
+        }
+    }
+
+    private static async Task EnsureAgentPublicationSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
+    {
+        if (!db.DbMaintenance.IsAnyTable("AgentPublication", false))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            db.CodeFirst.InitTables<AgentPublication>();
+            return;
+        }
+
+        if (RequiresNullableColumnFix<AgentPublication>(db, "ReleaseNote", "UpdatedAt", "RevokedAt"))
+        {
+            await RebuildTableViaOrmAsync<AgentPublication>(db, cancellationToken);
+        }
+    }
+
     private static async Task EnsureAppManifestSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
     {
         if (!db.DbMaintenance.IsAnyTable("AppManifest", false)) return;
@@ -1556,6 +1622,25 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         }
 
         return false;
+    }
+
+    private static async Task AddColumnIfMissingAsync(
+        ISqlSugarClient db,
+        string tableName,
+        string columnName,
+        string columnDefinition,
+        CancellationToken cancellationToken)
+    {
+        var columns = db.DbMaintenance.GetColumnInfosByTableName(tableName, false);
+        var hasColumn = columns.Any(c => string.Equals(c.DbColumnName, columnName, StringComparison.OrdinalIgnoreCase));
+        if (hasColumn)
+        {
+            return;
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        await db.Ado.ExecuteCommandAsync(
+            $"ALTER TABLE {tableName} ADD COLUMN {columnName} {columnDefinition}");
     }
 
     private static async Task EnsureRefreshTokenSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)

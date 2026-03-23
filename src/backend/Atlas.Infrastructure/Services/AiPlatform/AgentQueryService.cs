@@ -11,11 +11,16 @@ public sealed class AgentQueryService : IAgentQueryService
 {
     private readonly AgentRepository _agentRepository;
     private readonly AgentKnowledgeLinkRepository _linkRepository;
+    private readonly AgentPluginBindingRepository _pluginBindingRepository;
 
-    public AgentQueryService(AgentRepository agentRepository, AgentKnowledgeLinkRepository linkRepository)
+    public AgentQueryService(
+        AgentRepository agentRepository,
+        AgentKnowledgeLinkRepository linkRepository,
+        AgentPluginBindingRepository pluginBindingRepository)
     {
         _agentRepository = agentRepository;
         _linkRepository = linkRepository;
+        _pluginBindingRepository = pluginBindingRepository;
     }
 
     public async Task<PagedResult<AgentListItem>> GetPagedAsync(
@@ -47,6 +52,7 @@ public sealed class AgentQueryService : IAgentQueryService
         }
 
         var links = await _linkRepository.GetByAgentIdAsync(tenantId, id, cancellationToken);
+        var bindings = await _pluginBindingRepository.GetByAgentIdAsync(tenantId, id, cancellationToken);
         return new AgentDetail(
             entity.Id,
             entity.Name,
@@ -63,7 +69,16 @@ public sealed class AgentQueryService : IAgentQueryService
             NullIfEpoch(entity.UpdatedAt),
             NullIfEpoch(entity.PublishedAt),
             entity.PublishVersion,
-            links.Select(x => x.KnowledgeBaseId).ToArray());
+            entity.EnableMemory,
+            entity.EnableShortTermMemory,
+            entity.EnableLongTermMemory,
+            entity.LongTermMemoryTopK,
+            links.Select(x => x.KnowledgeBaseId).ToArray(),
+            bindings.Select(binding => new AgentPluginBindingItem(
+                binding.PluginId,
+                binding.SortOrder,
+                binding.IsEnabled,
+                binding.ToolConfigJson)).ToArray());
     }
 
     private static AgentListItem MapListItem(Agent entity)

@@ -168,7 +168,7 @@ public sealed class DocumentService : IDocumentService
                 tenantId,
                 knowledgeBaseId,
                 documentId,
-                new ChunkingOptions(request.ChunkSize, request.Overlap),
+                new ChunkingOptions(request.ChunkSize, request.Overlap, request.Strategy),
                 ct);
         });
     }

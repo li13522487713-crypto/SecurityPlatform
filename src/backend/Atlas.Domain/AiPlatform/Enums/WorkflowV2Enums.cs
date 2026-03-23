@@ -33,6 +33,7 @@ public enum WorkflowNodeType
     Exit = 2,
     Llm = 3,
     Plugin = 4,
+    Agent = 60,
     CodeRunner = 5,
     KnowledgeRetriever = 6,
     Selector = 8,
