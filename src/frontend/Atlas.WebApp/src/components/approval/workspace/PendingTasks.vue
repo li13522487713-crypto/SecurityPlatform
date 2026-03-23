@@ -154,7 +154,7 @@ const fetchData = async () => {
       pageIndex: Number(pagination.current ?? 1),
       pageSize: Number(pagination.pageSize ?? 10),
       keyword: keyword.value || undefined
-    }, statusValue);
+    }, statusValue, selectedFlowId.value);
 
     if (!isMounted.value) return;
     dataSource.value = result.items;

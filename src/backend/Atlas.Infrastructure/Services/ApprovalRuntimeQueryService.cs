@@ -147,6 +147,7 @@ public sealed class ApprovalRuntimeQueryService : IApprovalRuntimeQueryService
         long userId,
         PagedRequest request,
         ApprovalTaskStatus? status = null,
+        long? flowDefinitionId = null,
         CancellationToken cancellationToken = default)
     {
         var (items, totalCount) = await _taskRepository.GetPagedByAssigneeAsync(
@@ -155,6 +156,7 @@ public sealed class ApprovalRuntimeQueryService : IApprovalRuntimeQueryService
             request.PageIndex,
             request.PageSize,
             status,
+            flowDefinitionId,
             cancellationToken);
 
         var enrichedItems = await BuildTaskResponsesAsync(tenantId, items, cancellationToken);

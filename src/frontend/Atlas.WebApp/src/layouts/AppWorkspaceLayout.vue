@@ -13,57 +13,57 @@
       </div>
       <div data-testid="e2e-app-workspace-menu">
         <a-menu mode="inline" :selected-keys="selectedKeys" @click="onMenuClick">
-          <a-menu-item :key="dashboardPath">
+          <a-menu-item v-if="canView" :key="dashboardPath">
             <span data-testid="e2e-app-workspace-menu-dashboard">{{ t('appWorkspace.menuDashboard') }}</span>
           </a-menu-item>
-          <a-menu-item :key="builderPath">
+          <a-menu-item v-if="canUpdate" :key="builderPath">
             <span data-testid="e2e-app-workspace-menu-builder">{{ t('appWorkspace.menuBuilder') }}</span>
           </a-menu-item>
-          <a-menu-item :key="pagesPath">
+          <a-menu-item v-if="canView" :key="pagesPath">
             <span data-testid="e2e-app-workspace-menu-pages">{{ t('appWorkspace.menuPages') }}</span>
           </a-menu-item>
-          <a-menu-item :key="formsPath">
+          <a-menu-item v-if="canView" :key="formsPath">
             <span data-testid="e2e-app-workspace-menu-forms">{{ t('appWorkspace.menuForms') }}</span>
           </a-menu-item>
-          <a-menu-item :key="flowsPath">
+          <a-menu-item v-if="canView" :key="flowsPath">
             <span data-testid="e2e-app-workspace-menu-flows">{{ t('appWorkspace.menuFlows') }}</span>
           </a-menu-item>
-          <a-menu-item :key="agentsPath">
+          <a-menu-item v-if="canView" :key="agentsPath">
             <span data-testid="e2e-app-workspace-menu-agents">{{ t('appWorkspace.menuAgents') }}</span>
           </a-menu-item>
-          <a-menu-item :key="workflowsPath">
+          <a-menu-item v-if="canView" :key="workflowsPath">
             <span data-testid="e2e-app-workspace-menu-workflows">{{ t('appWorkspace.menuWorkflows') }}</span>
           </a-menu-item>
-          <a-menu-item :key="promptsPath">
+          <a-menu-item v-if="canView" :key="promptsPath">
             <span data-testid="e2e-app-workspace-menu-prompts">{{ t('appWorkspace.menuPrompts') }}</span>
           </a-menu-item>
-          <a-menu-item :key="pluginsPath">
+          <a-menu-item v-if="canView" :key="pluginsPath">
             <span data-testid="e2e-app-workspace-menu-plugins">{{ t('appWorkspace.menuPlugins') }}</span>
           </a-menu-item>
-          <a-menu-item :key="dataPath">
+          <a-menu-item v-if="canView" :key="dataPath">
             <span data-testid="e2e-app-workspace-menu-data">{{ t('appWorkspace.menuData') }}</span>
           </a-menu-item>
-          <a-sub-menu key="org-sub" :title="t('appWorkspace.menuOrgGroup')">
-            <a-menu-item :key="usersPath">
+          <a-sub-menu v-if="canViewMembers || canViewRoles" key="org-sub" :title="t('appWorkspace.menuOrgGroup')">
+            <a-menu-item v-if="canViewMembers" :key="usersPath">
               <span data-testid="e2e-app-workspace-menu-users">{{ t('appWorkspace.menuUsers') }}</span>
             </a-menu-item>
-            <a-menu-item :key="rolesPath">
+            <a-menu-item v-if="canViewRoles" :key="rolesPath">
               <span data-testid="e2e-app-workspace-menu-roles">{{ t('appWorkspace.menuRoles') }}</span>
             </a-menu-item>
-            <a-menu-item :key="departmentsPath">
+            <a-menu-item v-if="canViewRoles" :key="departmentsPath">
               <span data-testid="e2e-app-workspace-menu-departments">{{ t('appWorkspace.menuDepartments') }}</span>
             </a-menu-item>
-            <a-menu-item :key="positionsPath">
+            <a-menu-item v-if="canViewRoles" :key="positionsPath">
               <span data-testid="e2e-app-workspace-menu-positions">{{ t('appWorkspace.menuPositions') }}</span>
             </a-menu-item>
-            <a-menu-item :key="projectsPath">
+            <a-menu-item v-if="canViewRoles" :key="projectsPath">
               <span data-testid="e2e-app-workspace-menu-projects">{{ t('appWorkspace.menuProjects') }}</span>
             </a-menu-item>
           </a-sub-menu>
-          <a-menu-item :key="runtimeHomePath">
+          <a-menu-item v-if="canView" :key="runtimeHomePath">
             <span data-testid="e2e-app-workspace-menu-runtime">{{ t('appWorkspace.menuRuntime') }}</span>
           </a-menu-item>
-          <a-menu-item :key="settingsPath">
+          <a-menu-item v-if="canView" :key="settingsPath">
             <span data-testid="e2e-app-workspace-menu-settings">{{ t('appWorkspace.menuSettings') }}</span>
           </a-menu-item>
         </a-menu>
@@ -133,6 +133,7 @@ import { getTenantAppInstanceDetail } from "@/services/api-tenant-app-instances"
 import { usePermissionStore } from "@/stores/permission";
 import { useTagsViewStore } from "@/stores/tagsView";
 import { useUserStore } from "@/stores/user";
+import { hasPermission } from "@/utils/auth";
 
 const route = useRoute();
 const router = useRouter();
@@ -221,6 +222,11 @@ const selectedKeys = computed(() => {
 
 const profileDisplayName = computed(() => userStore.profile?.displayName || userStore.profile?.username || "Profile");
 const profileInitials = computed(() => profileDisplayName.value.slice(0, 2));
+
+const canView = computed(() => hasPermission(userStore.profile, "apps:view"));
+const canUpdate = computed(() => hasPermission(userStore.profile, "apps:update"));
+const canViewMembers = computed(() => hasPermission(userStore.profile, "apps:members:view"));
+const canViewRoles = computed(() => hasPermission(userStore.profile, "apps:roles:view"));
 
 function onMenuClick(info: { key: string }) {
   go(info.key);

@@ -95,6 +95,7 @@ public sealed class ApprovalTaskRepository : IApprovalTaskRepository
         int pageIndex,
         int pageSize,
         ApprovalTaskStatus? status = null,
+        long? flowDefinitionId = null,
         CancellationToken cancellationToken = default)
     {
         var query = _db.Queryable<ApprovalTask>()
@@ -105,6 +106,19 @@ public sealed class ApprovalTaskRepository : IApprovalTaskRepository
         if (status.HasValue)
         {
             query = query.Where(x => x.Status == status.Value);
+        }
+
+        if (flowDefinitionId.HasValue)
+        {
+            var matchingInstanceIds = await _db.Queryable<ApprovalProcessInstance>()
+                .Where(i => i.TenantIdValue == tenantId.Value && i.DefinitionId == flowDefinitionId.Value)
+                .Select(i => i.Id)
+                .ToListAsync(cancellationToken);
+
+            if (matchingInstanceIds.Count == 0)
+                return (new List<ApprovalTask>(), 0);
+
+            query = query.Where(x => matchingInstanceIds.Contains(x.InstanceId));
         }
 
         var totalCount = await query.CountAsync(cancellationToken);

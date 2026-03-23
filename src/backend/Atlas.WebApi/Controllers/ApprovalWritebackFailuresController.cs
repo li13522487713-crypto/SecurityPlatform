@@ -34,6 +34,7 @@ public sealed class ApprovalWritebackFailuresController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<WritebackFailureDto>>>> GetUnresolved(
         [FromQuery] int limit = 50,
+        [FromQuery] long? appId = null,
         CancellationToken cancellationToken = default)
     {
         var tenantId = _tenantProvider.GetTenantId();

@@ -132,7 +132,11 @@ const columns = computed(() => [
 const loadData = async () => {
   loading.value = true;
   try {
-    const res = await requestApi<ApiResponse<WritebackFailureDto[]>>("/approval/writeback-failures?limit=100");
+    const params = new URLSearchParams({ limit: "100" });
+    if (selectedAppId.value) {
+      params.set("appId", selectedAppId.value);
+    }
+    const res = await requestApi<ApiResponse<WritebackFailureDto[]>>(`/approval/writeback-failures?${params.toString()}`);
     failureList.value = res.data ?? [];
   } catch (e) {
     message.error((e as Error)?.message || t("lowcode.writeback.loadFailed"));

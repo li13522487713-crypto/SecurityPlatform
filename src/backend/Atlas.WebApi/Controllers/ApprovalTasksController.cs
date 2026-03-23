@@ -92,6 +92,7 @@ public sealed class ApprovalTasksController : ControllerBase
     public async Task<ApiResponse<PagedResult<ApprovalTaskResponse>>> GetMyTasksAsync(
         [FromQuery] PagedRequest request,
         [FromQuery] ApprovalTaskStatus? status = null,
+        [FromQuery] long? flowDefinitionId = null,
         CancellationToken cancellationToken = default)
     {
         var currentUser = _currentUserAccessor.GetCurrentUserOrThrow();
@@ -100,6 +101,7 @@ public sealed class ApprovalTasksController : ControllerBase
             currentUser.UserId,
             request,
             status,
+            flowDefinitionId,
             cancellationToken);
         return ApiResponse<PagedResult<ApprovalTaskResponse>>.Ok(result, HttpContext.TraceIdentifier);
     }

@@ -156,7 +156,9 @@ export async function rollbackFormDefinitionVersion(id: string, versionId: strin
   if (!response.success) throw new Error(response.message || "回滚失败");
 }
 
-// ─── 低代码应用 API ───
+// ─── 低代码应用 API（V2: /api/v2/tenant-app-instances）───
+
+const V2_APP_BASE = "/api/v2/tenant-app-instances";
 
 export async function getLowCodeAppsPaged(
   params: PagedRequest & { category?: string }
@@ -170,7 +172,7 @@ export async function getLowCodeAppsPaged(
     query.set("category", params.category);
   }
   const response = await requestApi<ApiResponse<PagedResult<LowCodeAppListItem>>>(
-    `/lowcode-apps?${query.toString()}`
+    `${V2_APP_BASE}?${query.toString()}`
   );
   if (!response.data) throw new Error(response.message || "查询失败");
   return response.data;
@@ -178,7 +180,7 @@ export async function getLowCodeAppsPaged(
 
 export async function getLowCodeAppDetail(id: string): Promise<LowCodeAppDetail> {
   const response = await requestApi<ApiResponse<LowCodeAppDetail>>(
-    `/lowcode-apps/${id}`
+    `${V2_APP_BASE}/${id}`
   );
   if (!response.data) throw new Error(response.message || "查询失败");
   return response.data;
@@ -254,7 +256,7 @@ export async function getLowCodeAppByKey(appKey: string): Promise<LowCodeAppDeta
 export async function createLowCodeApp(
   request: LowCodeAppCreateRequest
 ): Promise<{ id: string }> {
-  const response = await requestApi<ApiResponse<{ id: string }>>("/lowcode-apps", {
+  const response = await requestApi<ApiResponse<{ id: string }>>(V2_APP_BASE, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(request)
@@ -268,7 +270,7 @@ export async function updateLowCodeApp(
   request: LowCodeAppUpdateRequest
 ): Promise<void> {
   const response = await requestApi<ApiResponse<{ id: string }>>(
-    `/lowcode-apps/${id}`,
+    `${V2_APP_BASE}/${id}`,
     {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -280,7 +282,7 @@ export async function updateLowCodeApp(
 
 export async function getLowCodeAppEntityAliases(id: string): Promise<LowCodeAppEntityAliasItem[]> {
   const response = await requestApi<ApiResponse<LowCodeAppEntityAliasItem[]>>(
-    `/lowcode-apps/${id}/entity-aliases`
+    `${V2_APP_BASE}/${id}/entity-aliases`
   );
   return response.data ?? [];
 }
@@ -290,7 +292,7 @@ export async function updateLowCodeAppEntityAliases(
   request: LowCodeAppEntityAliasesUpdateRequest
 ): Promise<void> {
   const response = await requestApi<ApiResponse<{ id: string }>>(
-    `/lowcode-apps/${id}/entity-aliases`,
+    `${V2_APP_BASE}/${id}/entity-aliases`,
     {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -302,14 +304,14 @@ export async function updateLowCodeAppEntityAliases(
 
 export async function getLowCodeAppDataSourceInfo(id: string): Promise<LowCodeAppDataSourceInfo | null> {
   const response = await requestApi<ApiResponse<LowCodeAppDataSourceInfo | null>>(
-    `/lowcode-apps/${id}/datasource`
+    `${V2_APP_BASE}/${id}/datasource`
   );
   return response.data ?? null;
 }
 
 export async function testLowCodeAppDataSource(id: string): Promise<{ success: boolean; errorMessage?: string | null }> {
   const response = await requestApi<ApiResponse<{ success: boolean; errorMessage?: string | null }>>(
-    `/lowcode-apps/${id}/datasource/test`,
+    `${V2_APP_BASE}/${id}/datasource/test`,
     { method: "POST" }
   );
   if (!response.data) {
@@ -320,7 +322,7 @@ export async function testLowCodeAppDataSource(id: string): Promise<{ success: b
 
 export async function publishLowCodeApp(id: string): Promise<void> {
   const response = await requestApi<ApiResponse<{ id: string }>>(
-    `/lowcode-apps/${id}/publish`,
+    `${V2_APP_BASE}/${id}/publish`,
     { method: "POST" }
   );
   if (!response.success) throw new Error(response.message || "发布失败");
@@ -391,18 +393,18 @@ export async function rollbackLowCodeAppVersion(appId: string, versionId: string
 
 export async function deleteLowCodeApp(id: string): Promise<void> {
   const response = await requestApi<ApiResponse<{ id: string }>>(
-    `/lowcode-apps/${id}`,
+    `${V2_APP_BASE}/${id}`,
     { method: "DELETE" }
   );
   if (!response.success) throw new Error(response.message || "删除失败");
 }
 
 export async function exportLowCodeApp(id: string): Promise<Blob> {
-  return requestApiBlob(`/lowcode-apps/${id}/export`);
+  return requestApiBlob(`${V2_APP_BASE}/${id}/export`);
 }
 
 export async function importLowCodeApp(request: LowCodeAppImportRequest): Promise<LowCodeAppImportResult> {
-  const response = await requestApi<ApiResponse<LowCodeAppImportResult>>("/lowcode-apps/import", {
+  const response = await requestApi<ApiResponse<LowCodeAppImportResult>>(`${V2_APP_BASE}/import`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(request)

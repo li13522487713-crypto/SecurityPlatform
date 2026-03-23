@@ -44,6 +44,7 @@ public interface IApprovalRuntimeQueryService
         long userId,
         PagedRequest request,
         ApprovalTaskStatus? status = null,
+        long? flowDefinitionId = null,
         CancellationToken cancellationToken = default);
 
     Task<PagedResult<ApprovalHistoryEventResponse>> GetHistoryAsync(

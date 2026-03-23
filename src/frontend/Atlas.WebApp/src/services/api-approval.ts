@@ -281,10 +281,13 @@ export async function cancelApprovalInstance(id: string) {
   }
 }
 
-export async function getMyTasksPaged(pagedRequest: PagedRequest, status?: number) {
+export async function getMyTasksPaged(pagedRequest: PagedRequest, status?: number, flowDefinitionId?: string) {
   const params = new URLSearchParams(toQuery(pagedRequest));
   if (status !== undefined) {
     params.append("status", status.toString());
+  }
+  if (flowDefinitionId) {
+    params.append("flowDefinitionId", flowDefinitionId);
   }
   const response = await requestApi<ApiResponse<PagedResult<ApprovalTaskResponse>>>(
     `/approval/tasks/my?${params.toString()}`

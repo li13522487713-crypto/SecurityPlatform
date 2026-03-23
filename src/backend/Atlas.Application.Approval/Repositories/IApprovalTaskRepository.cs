@@ -38,6 +38,7 @@ public interface IApprovalTaskRepository
         int pageIndex,
         int pageSize,
         ApprovalTaskStatus? status = null,
+        long? flowDefinitionId = null,
         CancellationToken cancellationToken = default);
 
     Task<(IReadOnlyList<ApprovalTask> Items, int TotalCount)> GetPagedPoolAsync(
