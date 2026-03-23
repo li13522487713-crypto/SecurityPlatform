@@ -13,6 +13,8 @@ public sealed class AiPlatformOptions
     public RetrievalOption Retrieval { get; init; } = new();
 
     public MemoryOption Memory { get; init; } = new();
+
+    public AgentPublicationOption Publication { get; init; } = new();
 }
 
 public sealed class AiProviderOption
@@ -78,4 +80,9 @@ public sealed class MemoryOption
     public int LongTermCandidateCount { get; init; } = 30;
 
     public int LongTermMaxRecordsPerUserAgent { get; init; } = 200;
+}
+
+public sealed class AgentPublicationOption
+{
+    public int EmbedTokenTtlHours { get; init; } = 24 * 30;
 }

@@ -14,6 +14,7 @@ public sealed class AgentCommandService : IAgentCommandService
     private readonly AgentRepository _agentRepository;
     private readonly AgentKnowledgeLinkRepository _linkRepository;
     private readonly AgentPluginBindingRepository _pluginBindingRepository;
+    private readonly AgentPublicationRepository _publicationRepository;
     private readonly AiPluginRepository _pluginRepository;
     private readonly ModelConfigRepository _modelConfigRepository;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
@@ -23,6 +24,7 @@ public sealed class AgentCommandService : IAgentCommandService
         AgentRepository agentRepository,
         AgentKnowledgeLinkRepository linkRepository,
         AgentPluginBindingRepository pluginBindingRepository,
+        AgentPublicationRepository publicationRepository,
         AiPluginRepository pluginRepository,
         ModelConfigRepository modelConfigRepository,
         IIdGeneratorAccessor idGeneratorAccessor,
@@ -31,6 +33,7 @@ public sealed class AgentCommandService : IAgentCommandService
         _agentRepository = agentRepository;
         _linkRepository = linkRepository;
         _pluginBindingRepository = pluginBindingRepository;
+        _publicationRepository = publicationRepository;
         _pluginRepository = pluginRepository;
         _modelConfigRepository = modelConfigRepository;
         _idGeneratorAccessor = idGeneratorAccessor;
@@ -137,6 +140,7 @@ public sealed class AgentCommandService : IAgentCommandService
         await _unitOfWork.ExecuteInTransactionAsync(async () =>
         {
             await _linkRepository.DeleteByAgentIdAsync(tenantId, entity.Id, cancellationToken);
+            await _publicationRepository.DeleteByAgentIdAsync(tenantId, entity.Id, cancellationToken);
             await _agentRepository.DeleteAsync(tenantId, entity.Id, cancellationToken);
         }, cancellationToken);
     }

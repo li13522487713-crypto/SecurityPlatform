@@ -97,6 +97,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             await EnsureWorkflowExecutionSchemaAsync(db, cancellationToken);
             await EnsureAiPluginSchemaAsync(db, cancellationToken);
             await EnsureAiMemorySchemaAsync(db, cancellationToken);
+            await EnsureAgentPublicationSchemaAsync(db, cancellationToken);
         }
         else
         {
@@ -134,6 +135,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             typeof(AlertRecord),
             typeof(ModelConfig),
             typeof(Agent),
+            typeof(AgentPublication),
             typeof(AgentKnowledgeLink),
             typeof(AgentPluginBinding),
             typeof(Conversation),
@@ -1407,6 +1409,21 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             await AddColumnIfMissingAsync(db, "Agent", "EnableShortTermMemory", "INTEGER NOT NULL DEFAULT 1", cancellationToken);
             await AddColumnIfMissingAsync(db, "Agent", "EnableLongTermMemory", "INTEGER NOT NULL DEFAULT 1", cancellationToken);
             await AddColumnIfMissingAsync(db, "Agent", "LongTermMemoryTopK", "INTEGER NOT NULL DEFAULT 3", cancellationToken);
+        }
+    }
+
+    private static async Task EnsureAgentPublicationSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
+    {
+        if (!db.DbMaintenance.IsAnyTable("AgentPublication", false))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            db.CodeFirst.InitTables<AgentPublication>();
+            return;
+        }
+
+        if (RequiresNullableColumnFix<AgentPublication>(db, "ReleaseNote", "UpdatedAt", "RevokedAt"))
+        {
+            await RebuildTableViaOrmAsync<AgentPublication>(db, cancellationToken);
         }
     }
 

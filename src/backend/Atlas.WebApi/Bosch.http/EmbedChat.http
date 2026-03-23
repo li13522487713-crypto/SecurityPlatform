@@ -1,0 +1,31 @@
+@baseUrl = http://localhost:5000
+@tenantId = 00000000-0000-0000-0000-000000000001
+@embedToken = replace_with_embed_token
+
+### 嵌入聊天（同步）
+POST {{baseUrl}}/api/v1/embed-chat/chat
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+
+{
+  "embedToken": "{{embedToken}}",
+  "externalUserId": "demo-user-1",
+  "message": "你好，请介绍你的能力。",
+  "enableRag": false
+}
+
+### 嵌入聊天（流式 SSE）
+POST {{baseUrl}}/api/v1/embed-chat/stream?eventMode=react
+Content-Type: application/json
+Accept: text/event-stream
+X-Tenant-Id: {{tenantId}}
+X-Stream-Event-Mode: react
+Idempotency-Key: {{$guid}}
+
+{
+  "embedToken": "{{embedToken}}",
+  "externalUserId": "demo-user-1",
+  "message": "请给出三条安全加固建议。",
+  "enableRag": false
+}
