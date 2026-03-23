@@ -58,7 +58,7 @@ public sealed class WebhookService : IWebhookService
             EventTypes = JsonSerializer.Serialize(request.EventTypes),
             TargetUrl = request.TargetUrl,
             Secret = request.Secret,
-            Headers = request.Headers is { Count: > 0 } ? JsonSerializer.Serialize(request.Headers) : null,
+            Headers = request.Headers is { Count: > 0 } ? JsonSerializer.Serialize(request.Headers) : string.Empty,
             IsActive = true,
             CreatedAt = DateTimeOffset.UtcNow,
             LastTriggeredAt = DateTimeOffset.UnixEpoch
@@ -72,7 +72,7 @@ public sealed class WebhookService : IWebhookService
         var tenantId = _tenantProvider.TenantId.Value;
         var headersJson = request.Headers != null && request.Headers.Count > 0
             ? JsonSerializer.Serialize(request.Headers)
-            : null;
+            : string.Empty;
         await _db.Updateable<WebhookSubscription>()
             .SetColumns(s => new WebhookSubscription
             {
