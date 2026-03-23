@@ -134,6 +134,91 @@
         <a-button type="primary" :loading="saving" @click="handleSave">{{ t("common.save") }}</a-button>
       </a-space>
     </div>
+
+    <a-divider />
+
+    <a-row :gutter="16">
+      <a-col :span="14">
+        <a-card size="small" :title="t('ai.agent.pubPanelTitle')">
+          <a-form layout="vertical">
+            <a-form-item :label="t('ai.agent.pubReleaseNote')">
+              <a-textarea v-model:value="publicationNote" :rows="2" />
+            </a-form-item>
+          </a-form>
+          <a-space style="margin-bottom: 12px">
+            <a-button type="primary" :loading="publicationLoading" @click="handlePublishPublication">
+              {{ t("ai.agent.pubPublishBtn") }}
+            </a-button>
+            <a-button :loading="tokenRefreshing" @click="handleRefreshEmbedToken">
+              {{ t("ai.agent.pubRefreshTokenBtn") }}
+            </a-button>
+          </a-space>
+
+          <a-table
+            row-key="id"
+            :columns="publicationColumns"
+            :data-source="publicationItems"
+            :pagination="false"
+            size="small"
+            :locale="{ emptyText: t('ai.agent.pubEmpty') }"
+          >
+            <template #bodyCell="{ column, record }">
+              <template v-if="column.key === 'status'">
+                <a-tag :color="record.isActive ? 'green' : 'default'">
+                  {{ record.isActive ? t("ai.agent.pubStatusActive") : t("ai.agent.pubStatusInactive") }}
+                </a-tag>
+              </template>
+              <template v-if="column.key === 'actions'">
+                <a-popconfirm
+                  :title="t('ai.agent.pubRollbackConfirm', { version: record.version })"
+                  @confirm="handleRollbackPublication(record.version)"
+                >
+                  <a-button
+                    type="link"
+                    size="small"
+                    :disabled="record.isActive"
+                    :loading="rollbackTarget === record.version"
+                  >
+                    {{ t("ai.agent.pubRollbackBtn") }}
+                  </a-button>
+                </a-popconfirm>
+              </template>
+            </template>
+          </a-table>
+        </a-card>
+      </a-col>
+
+      <a-col :span="10">
+        <a-card size="small" :title="t('ai.agent.pubEmbedTitle')">
+          <a-alert
+            type="info"
+            show-icon
+            :message="t('ai.agent.pubEmbedHint')"
+            :description="activePublication?.embedToken || t('ai.agent.pubNoActiveVersion')"
+          />
+
+          <a-divider>{{ t("ai.agent.pubJsSnippet") }}</a-divider>
+          <a-textarea :value="embedJsSnippet" :rows="9" readonly />
+          <a-button
+            block
+            style="margin-top: 8px"
+            @click="copySnippet(embedJsSnippet, t('ai.agent.pubCopySuccess'))"
+          >
+            {{ t("ai.agent.pubCopyJs") }}
+          </a-button>
+
+          <a-divider>{{ t("ai.agent.pubIframeSnippet") }}</a-divider>
+          <a-textarea :value="embedIframeSnippet" :rows="4" readonly />
+          <a-button
+            block
+            style="margin-top: 8px"
+            @click="copySnippet(embedIframeSnippet, t('ai.agent.pubCopySuccess'))"
+          >
+            {{ t("ai.agent.pubCopyIframe") }}
+          </a-button>
+        </a-card>
+      </a-col>
+    </a-row>
   </a-card>
 </template>
 
@@ -155,9 +240,17 @@ import {
   type AgentDetail,
   updateAgent
 } from "@/services/api-agent";
+import {
+  getAgentPublications,
+  publishAgentPublication,
+  regenerateAgentEmbedToken,
+  rollbackAgentPublication,
+  type AgentPublicationItem
+} from "@/services/api-agent-publication";
 import { getAiPluginsPaged, type AiPluginListItem } from "@/services/api-ai-plugin";
 import { getEnabledModelConfigs, type ModelConfigDto } from "@/services/api-model-config";
 import { resolveCurrentAppId } from "@/utils/app-context";
+import { getTenantId } from "@/utils/auth";
 
 const route = useRoute();
 const router = useRouter();
@@ -171,6 +264,11 @@ const knowledgeBaseInput = ref("");
 const pluginSearchLoading = ref(false);
 const pluginSource = ref<AiPluginListItem[]>([]);
 const pluginBindings = ref<PluginBindingRow[]>([]);
+const publicationItems = ref<AgentPublicationItem[]>([]);
+const publicationNote = ref("");
+const publicationLoading = ref(false);
+const tokenRefreshing = ref(false);
+const rollbackTarget = ref<number | null>(null);
 
 const form = reactive({
   name: "",
@@ -200,6 +298,36 @@ const pluginOptions = computed(() =>
     value: item.id
   }))
 );
+const activePublication = computed(() => publicationItems.value.find((item) => item.isActive));
+const publicationColumns = computed(() => [
+  { title: t("ai.agent.pubColVersion"), dataIndex: "version", key: "version", width: 90 },
+  { title: t("ai.agent.pubColStatus"), key: "status", width: 110 },
+  { title: t("ai.agent.pubColTokenExpire"), dataIndex: "embedTokenExpiresAt", key: "embedTokenExpiresAt", width: 180 },
+  { title: t("ai.agent.pubColReleaseNote"), dataIndex: "releaseNote", key: "releaseNote" },
+  { title: t("ai.agent.pubColCreatedAt"), dataIndex: "createdAt", key: "createdAt", width: 180 },
+  { title: t("ai.colActions"), key: "actions", width: 120 }
+]);
+const embedJsSnippet = computed(() => {
+  const token = activePublication.value?.embedToken ?? "";
+  const tenantId = getTenantId() || "";
+  const origin = window.location.origin;
+  return `<div id="atlas-embed-chat"></div>
+<script src="${origin}/embed-chat.js"><\/script>
+<script>
+window.AtlasEmbedChat.mount('#atlas-embed-chat', {
+  apiBaseUrl: '${origin}/api/v1',
+  tenantId: '${tenantId}',
+  embedToken: '${token}',
+  externalUserId: 'demo-user-1'
+});
+<\/script>`;
+});
+const embedIframeSnippet = computed(() => {
+  const token = activePublication.value?.embedToken ?? "";
+  const tenantId = encodeURIComponent(getTenantId() || "");
+  const origin = window.location.origin;
+  return `<iframe src="${origin}/embed-chat.html?tenantId=${tenantId}&embedToken=${token}" style="width:430px;height:620px;border:0;"></iframe>`;
+});
 
 type PluginBindingRow = {
   rowId: string;
@@ -220,9 +348,10 @@ function goBack() {
 
 async function loadData() {
   try {
-    const [detail, models]  = await Promise.all([
+    const [detail, models, publications]  = await Promise.all([
       getAgentById(agentId),
-      getEnabledModelConfigs()
+      getEnabledModelConfigs(),
+      getAgentPublications(agentId)
     ]);
 
     if (!isMounted.value) return;
@@ -243,6 +372,7 @@ async function loadData() {
       longTermMemoryTopK: detail.longTermMemoryTopK ?? 3
     });
     knowledgeBaseInput.value = (detail.knowledgeBaseIds || []).join(",");
+    publicationItems.value = publications;
     pluginBindings.value = (detail.pluginBindings || []).map((binding, index) => ({
       rowId: `${binding.pluginId}-${index}-${Date.now()}`,
       pluginId: binding.pluginId,
@@ -360,6 +490,55 @@ async function handlePublish() {
     message.error((error as Error).message || t("ai.agent.publishFailed"));
   } finally {
     publishing.value = false;
+  }
+}
+
+async function handlePublishPublication() {
+  publicationLoading.value = true;
+  try {
+    await publishAgentPublication(agentId, publicationNote.value || undefined);
+    message.success(t("ai.agent.pubPublishSuccess"));
+    publicationNote.value = "";
+    publicationItems.value = await getAgentPublications(agentId);
+  } catch (error: unknown) {
+    message.error((error as Error).message || t("ai.agent.pubPublishFailed"));
+  } finally {
+    publicationLoading.value = false;
+  }
+}
+
+async function handleRollbackPublication(targetVersion: number) {
+  rollbackTarget.value = targetVersion;
+  try {
+    await rollbackAgentPublication(agentId, targetVersion, publicationNote.value || undefined);
+    message.success(t("ai.agent.pubRollbackSuccess"));
+    publicationItems.value = await getAgentPublications(agentId);
+  } catch (error: unknown) {
+    message.error((error as Error).message || t("ai.agent.pubRollbackFailed"));
+  } finally {
+    rollbackTarget.value = null;
+  }
+}
+
+async function handleRefreshEmbedToken() {
+  tokenRefreshing.value = true;
+  try {
+    await regenerateAgentEmbedToken(agentId);
+    message.success(t("ai.agent.pubTokenRefreshSuccess"));
+    publicationItems.value = await getAgentPublications(agentId);
+  } catch (error: unknown) {
+    message.error((error as Error).message || t("ai.agent.pubTokenRefreshFailed"));
+  } finally {
+    tokenRefreshing.value = false;
+  }
+}
+
+async function copySnippet(text: string, successMessage: string) {
+  try {
+    await navigator.clipboard.writeText(text);
+    message.success(successMessage);
+  } catch (error: unknown) {
+    message.error((error as Error).message || t("crud.copyFailed"));
   }
 }
 
