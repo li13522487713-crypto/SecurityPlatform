@@ -65,6 +65,8 @@ const UserMemorySettingsPage = () => import("@/pages/ai/UserMemorySettingsPage.v
 const KnowledgeBaseListPage = () => import("@/pages/ai/KnowledgeBaseListPage.vue");
 const KnowledgeBaseDetailPage = () => import("@/pages/ai/KnowledgeBaseDetailPage.vue");
 const KnowledgeBaseTestPage = () => import("@/pages/ai/KnowledgeBaseTestPage.vue");
+const MultiAgentOrchestrationListPage = () => import("@/pages/ai/multi-agent/MultiAgentOrchestrationListPage.vue");
+const MultiAgentOrchestrationDetailPage = () => import("@/pages/ai/multi-agent/MultiAgentOrchestrationDetailPage.vue");
 const PageRuntimeRenderer = () => import("@/pages/runtime/PageRuntimeRenderer.vue");
 const AppListPage = () => import("@/pages/lowcode/AppListPage.vue");
 const AppBuilderPage = () => import("@/pages/lowcode/AppBuilderPage.vue");
@@ -141,6 +143,8 @@ const router = createRouter({
     { path: "/apps/:appId/forms/:id/designer", name: "app-workspace-form-designer", component: FormDesignerPage, meta: { requiresAuth: true, title: "表单设计器", titleKey: "route.formDesigner", requiresPermission: "apps:update" } },
     { path: "/apps/:appId/flows", name: "app-workspace-flows", component: AppFlowsPage, meta: { requiresAuth: true, title: "流程管理", titleKey: "route.processManage", requiresPermission: "apps:view" } },
     { path: "/apps/:appId/agents", name: "app-workspace-agents", component: AgentListPage, meta: { requiresAuth: true, title: "Agent 列表", titleKey: "route.aiAgentList", requiresPermission: "apps:view" } },
+    { path: "/apps/:appId/multi-agent", name: "app-workspace-multi-agent-list", component: MultiAgentOrchestrationListPage, meta: { requiresAuth: true, title: "多Agent编排", titleKey: "route.aiMultiAgentList", requiresPermission: "apps:view" } },
+    { path: "/apps/:appId/multi-agent/:id", name: "app-workspace-multi-agent-detail", component: MultiAgentOrchestrationDetailPage, meta: { requiresAuth: true, title: "多Agent编排详情", titleKey: "route.aiMultiAgentDetail", requiresPermission: "apps:view" } },
     { path: "/apps/:appId/memories", name: "app-workspace-memories", component: UserMemorySettingsPage, meta: { requiresAuth: true, title: "记忆管理", titleKey: "route.aiMemorySettings", requiresPermission: "apps:view" } },
     { path: "/apps/:appId/knowledge-bases", name: "app-workspace-knowledge-bases", component: KnowledgeBaseListPage, meta: { requiresAuth: true, title: "知识库列表", titleKey: "route.knowledgeBaseList", requiresPermission: "apps:view" } },
     { path: "/apps/:appId/knowledge-bases/:id", name: "app-workspace-knowledge-base-detail", component: KnowledgeBaseDetailPage, meta: { requiresAuth: true, title: "知识库详情", titleKey: "route.knowledgeBaseDetail", requiresPermission: "apps:view" } },
@@ -185,6 +189,8 @@ const router = createRouter({
     { path: "/ai/shortcuts", name: "ai-shortcuts-static", component: AiShortcutsPage, meta: { requiresAuth: true, title: "快捷命令", titleKey: "route.aiShortcuts" } },
     { path: "/ai/search", name: "ai-search-static", component: AiSearchResultsPage, meta: { requiresAuth: true, title: "统一搜索", titleKey: "route.aiSearch" } },
     { path: "/ai/marketplace", name: "ai-marketplace-static", component: AiMarketplacePage, meta: { requiresAuth: true, title: "应用市场", titleKey: "route.aiMarketplace" } },
+    { path: "/ai/multi-agent", name: "ai-multi-agent-static", component: MultiAgentOrchestrationListPage, meta: { requiresAuth: true, title: "多Agent编排", titleKey: "route.aiMultiAgentList" } },
+    { path: "/ai/multi-agent/:id", name: "ai-multi-agent-detail-static", component: MultiAgentOrchestrationDetailPage, meta: { requiresAuth: true, title: "多Agent编排详情", titleKey: "route.aiMultiAgentDetail" } },
     { path: "/ai/memories", name: "ai-memories-static", component: UserMemorySettingsPage, meta: { requiresAuth: true, title: "记忆管理", titleKey: "route.aiMemorySettings" } },
     { path: "/ai/knowledge-bases", name: "ai-knowledge-bases-static", component: KnowledgeBaseListPage, meta: { requiresAuth: true, title: "知识库列表", titleKey: "route.knowledgeBaseList" } },
     { path: "/ai/knowledge-bases/:id", name: "ai-knowledge-base-detail-static", component: KnowledgeBaseDetailPage, meta: { requiresAuth: true, title: "知识库详情", titleKey: "route.knowledgeBaseDetail" } },
