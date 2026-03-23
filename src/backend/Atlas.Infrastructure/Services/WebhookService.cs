@@ -60,7 +60,8 @@ public sealed class WebhookService : IWebhookService
             Secret = request.Secret,
             Headers = request.Headers is { Count: > 0 } ? JsonSerializer.Serialize(request.Headers) : null,
             IsActive = true,
-            CreatedAt = DateTimeOffset.UtcNow
+            CreatedAt = DateTimeOffset.UtcNow,
+            LastTriggeredAt = DateTimeOffset.UnixEpoch
         };
         await _db.Insertable(subscription).ExecuteCommandAsync(cancellationToken);
         return subscription.Id;
@@ -152,6 +153,8 @@ public sealed class WebhookService : IWebhookService
             SubscriptionId = subscription.Id,
             EventType = eventType,
             Payload = payload,
+            ResponseBody = string.Empty,
+            ErrorMessage = string.Empty,
             CreatedAt = startedAt
         };
 
@@ -186,6 +189,7 @@ public sealed class WebhookService : IWebhookService
             log.ResponseBody = await response.Content.ReadAsStringAsync(cancellationToken);
             log.DurationMs = (int)sw.ElapsedMilliseconds;
             log.Success = response.IsSuccessStatusCode;
+            log.ErrorMessage = string.Empty;
 
             // 更新最后触发时间
             await _db.Updateable<WebhookSubscription>()
@@ -197,6 +201,7 @@ public sealed class WebhookService : IWebhookService
         {
             log.Success = false;
             log.ErrorMessage = ex.Message;
+            log.ResponseBody = string.Empty;
             log.DurationMs = (int)(DateTimeOffset.UtcNow - startedAt).TotalMilliseconds;
             _logger.LogWarning(ex, "Webhook delivery failed for subscription {Id}", subscription.Id);
         }

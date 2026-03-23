@@ -134,3 +134,47 @@ X-Tenant-Id: {{tenantId}}
 GET {{baseUrl}}/api/v1/open/files/{{fileId}}/info
 Authorization: Bearer {{patToken}}
 X-Tenant-Id: {{tenantId}}
+
+### 13) 创建开放 Webhook 订阅（workflow.completed + agent.message）
+# @name createOpenWebhook
+POST {{baseUrl}}/api/v1/open-api-webhooks
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "name": "Open Event Hook",
+  "eventTypes": ["workflow.completed", "agent.message"],
+  "targetUrl": "https://example.com/webhook",
+  "secret": "atlas-open-webhook-secret",
+  "headers": {
+    "X-Env": "dev"
+  }
+}
+
+###
+@openWebhookId = {{createOpenWebhook.response.body.$.data.id}}
+
+### 14) 查询开放 Webhook 列表
+GET {{baseUrl}}/api/v1/open-api-webhooks
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 15) 测试开放 Webhook 投递
+POST {{baseUrl}}/api/v1/open-api-webhooks/{{openWebhookId}}/test
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+### 16) 下载 TypeScript SDK 包模板
+GET {{baseUrl}}/api/v1/open-api-sdk/download?language=typescript
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 17) 下载 C# SDK 包模板
+GET {{baseUrl}}/api/v1/open-api-sdk/download?language=csharp
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}

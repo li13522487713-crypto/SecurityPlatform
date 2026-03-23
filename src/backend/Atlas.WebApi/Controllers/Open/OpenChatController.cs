@@ -1,11 +1,13 @@
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
+using Atlas.Application.Integration;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.WebApi.Helpers;
 using Atlas.WebApi.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Text.Json;
 
 namespace Atlas.WebApi.Controllers.Open;
 
@@ -16,11 +18,19 @@ public sealed class OpenChatController : ControllerBase
 {
     private readonly IAgentChatService _chatService;
     private readonly ITenantProvider _tenantProvider;
+    private readonly IWebhookService _webhookService;
+    private readonly ILogger<OpenChatController> _logger;
 
-    public OpenChatController(IAgentChatService chatService, ITenantProvider tenantProvider)
+    public OpenChatController(
+        IAgentChatService chatService,
+        ITenantProvider tenantProvider,
+        IWebhookService webhookService,
+        ILogger<OpenChatController> logger)
     {
         _chatService = chatService;
         _tenantProvider = tenantProvider;
+        _webhookService = webhookService;
+        _logger = logger;
     }
 
     [HttpPost("completions")]
@@ -45,6 +55,7 @@ public sealed class OpenChatController : ControllerBase
             request.AgentId,
             new AgentChatRequest(request.ConversationId, request.Message, request.EnableRag, request.Attachments),
             cancellationToken);
+        await TryDispatchAgentMessageEventAsync(userId, request, result, cancellationToken);
         return Ok(ApiResponse<AgentChatResponse>.Ok(result, HttpContext.TraceIdentifier));
     }
 
@@ -102,6 +113,7 @@ public sealed class OpenChatController : ControllerBase
 
         await Response.WriteAsync("data: [DONE]\n\n", cancellationToken);
         await Response.Body.FlushAsync(cancellationToken);
+        await TryDispatchAgentMessageEventAsync(userId, request, result: null, cancellationToken);
     }
 
     public sealed record OpenChatRequest(
@@ -128,5 +140,31 @@ public sealed class OpenChatController : ControllerBase
         }
 
         return false;
+    }
+
+    private async Task TryDispatchAgentMessageEventAsync(
+        long userId,
+        OpenChatRequest request,
+        AgentChatResponse? result,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var payload = JsonSerializer.Serialize(new
+            {
+                eventType = "agent.message",
+                occurredAt = DateTimeOffset.UtcNow,
+                agentId = request.AgentId,
+                userId,
+                conversationId = result?.ConversationId ?? request.ConversationId,
+                message = request.Message,
+                responseLength = result?.Content?.Length ?? 0
+            });
+            await _webhookService.DispatchAsync("agent.message", payload, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Open chat webhook dispatch failed.");
+        }
     }
 }

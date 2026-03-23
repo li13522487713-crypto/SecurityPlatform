@@ -2894,3 +2894,35 @@ type EvaluationCaseStatus = 0 | 1 | 2 | 3; // Pending / Passed / Failed / Error
   "maxDurationMs": 460
 }
 ```
+
+### 开放事件 Webhook（Open API）
+
+路由前缀：`api/v1/open-api-webhooks`
+
+| 方法 | 路由 | 说明 | 权限 |
+|---|---|---|---|
+| GET | `/` | 查询订阅列表 | `pat:view` |
+| POST | `/` | 创建订阅 | `pat:create` |
+| PUT | `/{id}` | 更新订阅 | `pat:update` |
+| DELETE | `/{id}` | 删除订阅 | `pat:delete` |
+| GET | `/{id}/deliveries` | 查询投递记录 | `pat:view` |
+| POST | `/{id}/test` | 发送测试事件 | `pat:update` |
+
+支持关键事件类型：
+
+- `workflow.completed`
+- `agent.message`
+
+回调请求头包含：
+
+- `X-Atlas-Signature`（`sha256=...`，HMAC-SHA256）
+- `X-Atlas-Event`（事件类型）
+
+### Open API SDK 下载
+
+路由前缀：`api/v1/open-api-sdk`
+
+| 方法 | 路由 | 说明 | 权限 |
+|---|---|---|---|
+| GET | `/openapi.json` | 下载 OpenAPI 规范 | `pat:view` |
+| GET | `/download?language=typescript|csharp` | 下载 SDK 生成包（`openapi.json` + README） | `pat:view` |
