@@ -97,6 +97,9 @@ export interface FileRecordDto {
   uploadedById: number;
   uploadedByName: string;
   uploadedAt: string;
+  versionNumber: number;
+  isLatestVersion: boolean;
+  previousVersionId?: number | null;
 }
 
 export interface FileUploadResult {
@@ -105,6 +108,48 @@ export interface FileUploadResult {
   contentType: string;
   sizeBytes: number;
   uploadedAt: string;
+  versionNumber: number;
+  isLatestVersion: boolean;
+  previousVersionId?: number | null;
+}
+
+export interface FileVersionHistoryItemDto {
+  id: number;
+  originalName: string;
+  contentType: string;
+  sizeBytes: number;
+  versionNumber: number;
+  isLatestVersion: boolean;
+  previousVersionId?: number | null;
+  uploadedAt: string;
+  uploadedById: number;
+  uploadedByName: string;
+}
+
+export interface AttachmentBindingDto {
+  id: number;
+  fileRecordId: number;
+  entityType: string;
+  entityId: number;
+  fieldKey?: string | null;
+  isPrimary: boolean;
+  createdAt: string;
+  file?: FileRecordDto | null;
+}
+
+export interface AttachmentBindRequest {
+  fileRecordId: number;
+  entityType: string;
+  entityId: number;
+  fieldKey?: string | null;
+  isPrimary?: boolean;
+}
+
+export interface AttachmentUnbindRequest {
+  fileRecordId: number;
+  entityType: string;
+  entityId: number;
+  fieldKey?: string | null;
 }
 
 export interface FileChunkUploadInitRequest {

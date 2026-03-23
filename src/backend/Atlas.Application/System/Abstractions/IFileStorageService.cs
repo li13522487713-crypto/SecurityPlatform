@@ -129,4 +129,12 @@ public interface IFileStorageService
         string fileHashSha256,
         long sizeBytes,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// 获取指定文件的所有历史版本列表（按版本号降序）。
+    /// </summary>
+    Task<IReadOnlyList<FileVersionHistoryItemDto>> GetVersionHistoryAsync(
+        TenantId tenantId,
+        long fileId,
+        CancellationToken ct = default);
 }

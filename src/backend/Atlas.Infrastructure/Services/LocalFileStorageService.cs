@@ -75,15 +75,44 @@ public sealed class LocalFileStorageService : IFileStorageService
         await using var uploadedStream = await _fileObjectStore.OpenReadAsync(tenantId, storedName, ct);
         var fileHashSha256 = await ComputeSha256Async(uploadedStream, ct);
 
+        // 秒传去重：相同内容已存在则删除刚上传的物理文件，直接返回已有记录
+        var existingByHash = await _fileRecordRepository.FindByHashAsync(tenantId, fileHashSha256, fileSizeBytes, ct);
+        if (existingByHash is not null)
+        {
+            await _fileObjectStore.DeleteAsync(tenantId, storedName, ct);
+            return new FileUploadResult(
+                existingByHash.Id,
+                existingByHash.OriginalName,
+                existingByHash.ContentType,
+                existingByHash.SizeBytes,
+                existingByHash.UploadedAt,
+                existingByHash.VersionNumber,
+                existingByHash.IsLatestVersion);
+        }
+
+        // 版本控制：同名文件上传新内容时递增版本号
         var now = _timeProvider.GetUtcNow();
         var id = _idGeneratorAccessor.NextId();
+        int versionNumber = 1;
+        long? previousVersionId = null;
+
+        var latestVersion = await _fileRecordRepository.FindLatestByOriginalNameAsync(tenantId, originalName, ct);
+        if (latestVersion is not null)
+        {
+            versionNumber = latestVersion.VersionNumber + 1;
+            previousVersionId = latestVersion.Id;
+            latestVersion.MarkAsOldVersion();
+            await _fileRecordRepository.UpdateAsync(latestVersion, ct);
+        }
+
         var record = new FileRecord(
             tenantId, originalName, storedName, contentType, fileHashSha256,
-            fileSizeBytes, uploadedById, uploadedByName, now, id);
+            fileSizeBytes, uploadedById, uploadedByName, now, id,
+            versionNumber, isLatestVersion: true, previousVersionId);
 
         await _fileRecordRepository.AddAsync(record, ct);
 
-        return new FileUploadResult(id, originalName, contentType, fileSizeBytes, now);
+        return new FileUploadResult(id, originalName, contentType, fileSizeBytes, now, versionNumber, IsLatestVersion: true);
     }
 
     public async Task<FileDownloadResult> DownloadAsync(
@@ -117,7 +146,8 @@ public sealed class LocalFileStorageService : IFileStorageService
 
         return new FileRecordDto(
             record.Id, record.OriginalName, record.ContentType, record.SizeBytes,
-            record.UploadedById, record.UploadedByName, record.UploadedAt);
+            record.UploadedById, record.UploadedByName, record.UploadedAt,
+            record.VersionNumber, record.IsLatestVersion, record.PreviousVersionId);
     }
 
     public async Task DeleteAsync(TenantId tenantId, long fileId, CancellationToken ct = default)
@@ -378,6 +408,25 @@ public sealed class LocalFileStorageService : IFileStorageService
             record.OriginalName,
             record.ContentType,
             record.SizeBytes);
+    }
+
+    public async Task<IReadOnlyList<FileVersionHistoryItemDto>> GetVersionHistoryAsync(
+        TenantId tenantId,
+        long fileId,
+        CancellationToken ct = default)
+    {
+        var versions = await _fileRecordRepository.ListVersionsByFileIdAsync(tenantId, fileId, ct);
+        return versions.Select(x => new FileVersionHistoryItemDto(
+            x.Id,
+            x.VersionNumber,
+            x.IsLatestVersion,
+            x.OriginalName,
+            x.ContentType,
+            x.SizeBytes,
+            x.UploadedById,
+            x.UploadedByName,
+            x.UploadedAt,
+            x.PreviousVersionId)).ToList();
     }
 
     public async Task<FileTusUploadCreateResult> CreateTusUploadAsync(

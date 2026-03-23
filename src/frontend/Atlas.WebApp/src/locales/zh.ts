@@ -300,12 +300,36 @@ export default {
   },
   fileUpload: {
     upload: "上传附件",
+    uploadAttachment: "上传附件",
     empty: "暂无附件",
     deleteSuccess: "附件已删除",
     deleteFailed: "删除附件失败",
     uploadSuccess: "文件上传成功",
     uploadFailed: "文件上传失败",
     maxCount: "最多上传 {count} 个文件"
+  },
+  attachmentPanel: {
+    title: "附件",
+    upload: "上传文件",
+    empty: "暂无附件",
+    fileName: "文件名",
+    fileSize: "大小",
+    uploadedAt: "上传时间",
+    version: "版本",
+    versionLatest: "最新",
+    versionHistory: "历史版本",
+    versionDrawerTitle: "版本历史 — {name}",
+    versionNo: "版本号",
+    bindSuccess: "附件绑定成功",
+    unbindSuccess: "附件已移除",
+    unbindFailed: "移除附件失败",
+    uploadFailed: "上传失败",
+    loadFailed: "加载附件失败",
+    confirmUnbind: "确认移除该附件？",
+    actions: "操作",
+    remove: "移除",
+    download: "下载",
+    viewHistory: "查看历史"
   },
   lowcodeApp: {
     listTitle: "应用管理",
@@ -462,6 +486,37 @@ export default {
     linkJobsApi: "定时任务 API",
     unknown: "未知",
     coreSuffix: "核"
+  },
+  relationDesigner: {
+    title: "关系设计器",
+    entities: "数据实体",
+    searchPlaceholder: "搜索实体...",
+    save: "保存关系",
+    fitView: "适应画布",
+    clearCanvas: "清空画布",
+    dropHint: "从左侧拖拽实体到此画布",
+    alreadyOnCanvas: "实体已在画布中",
+    loadFailed: "加载实体失败",
+    saveSuccess: "关系保存成功",
+    saveFailed: "保存关系失败"
+  },
+  relationConfigModal: {
+    title: "配置关系",
+    relationType: "关系类型",
+    multiplicity: "基数（Multiplicity）",
+    sourceField: "源字段",
+    targetField: "目标字段（外键）",
+    onDeleteAction: "删除行为",
+    enableRollup: "启用 Rollup 汇总计算",
+    enableRollupHint: "在主记录中自动聚合子记录的数值字段",
+    rollupConfig: "Rollup 规则配置"
+  },
+  rollupConfig: {
+    childField: "子表字段",
+    targetField: "目标字段（主表）",
+    filterExpression: "过滤条件（可选）",
+    addRule: "添加汇总规则",
+    hint: "将 {child} 的字段聚合写入 {master} 的目标字段"
   },
   scheduledJobs: {
     title: "定时任务",

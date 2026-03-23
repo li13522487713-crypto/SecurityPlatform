@@ -392,7 +392,11 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
                 relation.RelationType,
                 relation.CascadeRule,
                 _idGeneratorAccessor.NextId(),
-                now));
+                now,
+                ParseMultiplicity(relation.Multiplicity),
+                ParseOnDeleteAction(relation.OnDeleteAction),
+                relation.EnableRollup,
+                relation.RollupDefinitionsJson));
         }
 
         var tran = await _db.Ado.UseTranAsync(async () =>
@@ -1100,5 +1104,26 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
     private static string BuildFieldPermissionTableKey(string tableKey, long? appId)
     {
         return appId.HasValue ? $"app:{appId.Value}:{tableKey}" : tableKey;
+    }
+
+    private static Atlas.Domain.DynamicTables.Enums.RelationMultiplicity ParseMultiplicity(string? value)
+    {
+        return value?.Trim().ToLowerInvariant() switch
+        {
+            "onetoone" or "1:1" => Atlas.Domain.DynamicTables.Enums.RelationMultiplicity.OneToOne,
+            "manytomany" or "n:n" => Atlas.Domain.DynamicTables.Enums.RelationMultiplicity.ManyToMany,
+            _ => Atlas.Domain.DynamicTables.Enums.RelationMultiplicity.OneToMany
+        };
+    }
+
+    private static Atlas.Domain.DynamicTables.Enums.RelationOnDeleteAction ParseOnDeleteAction(string? value)
+    {
+        return value?.Trim().ToLowerInvariant() switch
+        {
+            "cascade" => Atlas.Domain.DynamicTables.Enums.RelationOnDeleteAction.Cascade,
+            "setnull" => Atlas.Domain.DynamicTables.Enums.RelationOnDeleteAction.SetNull,
+            "restrict" => Atlas.Domain.DynamicTables.Enums.RelationOnDeleteAction.Restrict,
+            _ => Atlas.Domain.DynamicTables.Enums.RelationOnDeleteAction.NoAction
+        };
     }
 }

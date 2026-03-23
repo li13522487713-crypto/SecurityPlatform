@@ -231,6 +231,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             typeof(FileRecord),
             typeof(FileUploadSession),
             typeof(FileTusUploadSession),
+            typeof(AttachmentBinding),
             typeof(TenantDataSource),
             typeof(TenantAppDataSourceBinding),
             typeof(AppMember),

@@ -109,7 +109,11 @@ public sealed record DynamicRelationDefinition(
     string SourceField,
     string TargetField,
     string RelationType,
-    string? CascadeRule);
+    string? CascadeRule,
+    string? Multiplicity = null,
+    string? OnDeleteAction = null,
+    bool EnableRollup = false,
+    string? RollupDefinitionsJson = null);
 
 public sealed record DynamicRelationUpsertRequest(
     IReadOnlyList<DynamicRelationDefinition> Relations);

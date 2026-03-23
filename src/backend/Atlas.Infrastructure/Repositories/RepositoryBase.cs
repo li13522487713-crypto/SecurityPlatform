@@ -42,6 +42,13 @@ public abstract class RepositoryBase<TEntity> where TEntity : TenantEntity, new(
             .ExecuteCommandAsync(cancellationToken);
     }
 
+    public virtual Task DeleteAsync(TEntity entity, CancellationToken cancellationToken)
+    {
+        return Db.Deleteable<TEntity>()
+            .Where(x => x.TenantIdValue == entity.TenantIdValue && x.Id == entity.Id)
+            .ExecuteCommandAsync(cancellationToken);
+    }
+
     public virtual async Task<IReadOnlyList<TEntity>> QueryByIdsAsync(
         TenantId tenantId,
         IReadOnlyList<long> ids,

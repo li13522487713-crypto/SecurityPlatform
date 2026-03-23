@@ -6,8 +6,7 @@ using Atlas.Application.Identity.Abstractions;
 using Atlas.Application.Platform.Abstractions;
 using Atlas.Application.Identity.Repositories;
 using Atlas.Application.System.Abstractions;
-using Atlas.Application.TableViews.Abstractions;
-using Atlas.Application.TableViews.Repositories;
+using Atlas.Application.TableViews.Abstractions;using Atlas.Application.TableViews.Repositories;
 using Atlas.Core.Abstractions;
 using Atlas.Core.Events;
 using Atlas.Infrastructure.Events;
@@ -194,6 +193,7 @@ public static class CoreServiceRegistration
         services.AddScoped<FileRecordRepository>();
         services.AddScoped<FileUploadSessionRepository>();
         services.AddScoped<FileTusUploadSessionRepository>();
+        services.AddScoped<AttachmentBindingRepository>();
         services.AddSingleton<IHostEnvironmentAccessor, HostEnvironmentAccessor>();
         services.AddScoped<LocalObjectStore>();
         services.AddScoped<MinioObjectStore>();
@@ -210,6 +210,7 @@ public static class CoreServiceRegistration
             };
         });
         services.AddScoped<IFileStorageService, LocalFileStorageService>();
+        services.AddScoped<IAttachmentService, AttachmentService>();
         services.AddHostedService<ObjectStoreConnectivityService>();
 
         // Excel Export

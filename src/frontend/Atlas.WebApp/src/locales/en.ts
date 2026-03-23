@@ -300,12 +300,36 @@ export default {
   },
   fileUpload: {
     upload: "Upload Attachment",
+    uploadAttachment: "Upload Attachment",
     empty: "No attachments",
     deleteSuccess: "Attachment deleted",
     deleteFailed: "Failed to delete attachment",
     uploadSuccess: "File uploaded successfully",
     uploadFailed: "File upload failed",
     maxCount: "Up to {count} files"
+  },
+  attachmentPanel: {
+    title: "Attachments",
+    upload: "Upload File",
+    empty: "No attachments",
+    fileName: "File Name",
+    fileSize: "Size",
+    uploadedAt: "Uploaded At",
+    version: "Version",
+    versionLatest: "Latest",
+    versionHistory: "Version History",
+    versionDrawerTitle: "Version History — {name}",
+    versionNo: "Version",
+    bindSuccess: "Attachment bound",
+    unbindSuccess: "Attachment removed",
+    unbindFailed: "Failed to remove attachment",
+    uploadFailed: "Upload failed",
+    loadFailed: "Failed to load attachments",
+    confirmUnbind: "Remove this attachment?",
+    actions: "Actions",
+    remove: "Remove",
+    download: "Download",
+    viewHistory: "History"
   },
   lowcodeApp: {
     listTitle: "App Management",
@@ -462,6 +486,37 @@ export default {
     linkJobsApi: "Scheduled Jobs API",
     unknown: "Unknown",
     coreSuffix: "cores"
+  },
+  relationDesigner: {
+    title: "Relation Designer",
+    entities: "Data Entities",
+    searchPlaceholder: "Search entities...",
+    save: "Save Relations",
+    fitView: "Fit View",
+    clearCanvas: "Clear Canvas",
+    dropHint: "Drag entities from the left panel onto the canvas",
+    alreadyOnCanvas: "Entity already on canvas",
+    loadFailed: "Failed to load entities",
+    saveSuccess: "Relations saved",
+    saveFailed: "Failed to save relations"
+  },
+  relationConfigModal: {
+    title: "Configure Relation",
+    relationType: "Relation Type",
+    multiplicity: "Multiplicity",
+    sourceField: "Source Field",
+    targetField: "Target Field (FK)",
+    onDeleteAction: "On Delete Action",
+    enableRollup: "Enable Rollup Calculation",
+    enableRollupHint: "Automatically aggregate child record values into the master record",
+    rollupConfig: "Rollup Rules"
+  },
+  rollupConfig: {
+    childField: "Child Field",
+    targetField: "Target Field (Master)",
+    filterExpression: "Filter Expression (optional)",
+    addRule: "Add Rollup Rule",
+    hint: "Aggregate {child} fields and write into {master} target fields"
   },
   scheduledJobs: {
     title: "Scheduled Jobs",

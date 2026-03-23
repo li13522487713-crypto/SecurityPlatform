@@ -50,6 +50,10 @@ export interface DynamicRelationDefinition {
   targetField: string;
   relationType: string;
   cascadeRule?: string | null;
+  multiplicity?: "OneToOne" | "OneToMany" | "ManyToMany" | null;
+  onDeleteAction?: "NoAction" | "Cascade" | "SetNull" | "Restrict" | null;
+  enableRollup?: boolean;
+  rollupDefinitionsJson?: string | null;
 }
 
 export interface DynamicRelationUpsertRequest {

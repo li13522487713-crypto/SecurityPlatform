@@ -4,7 +4,7 @@ using Atlas.Core.Tenancy;
 namespace Atlas.Domain.System.Entities;
 
 /// <summary>
-/// 文件记录实体（元数据，物理文件存储在本地磁盘）
+/// 文件记录实体（支持多版本控制与软删除）
 /// </summary>
 public sealed class FileRecord : TenantEntity
 {
@@ -16,6 +16,8 @@ public sealed class FileRecord : TenantEntity
         ContentType = string.Empty;
         FileHashSha256 = string.Empty;
         UploadedByName = string.Empty;
+        VersionNumber = 1;
+        IsLatestVersion = true;
     }
 
     public FileRecord(
@@ -28,7 +30,10 @@ public sealed class FileRecord : TenantEntity
         long uploadedById,
         string uploadedByName,
         DateTimeOffset uploadedAt,
-        long id)
+        long id,
+        int versionNumber = 1,
+        bool isLatestVersion = true,
+        long? previousVersionId = null)
         : base(tenantId)
     {
         Id = id;
@@ -41,6 +46,9 @@ public sealed class FileRecord : TenantEntity
         UploadedByName = uploadedByName;
         UploadedAt = uploadedAt;
         IsDeleted = false;
+        VersionNumber = versionNumber;
+        IsLatestVersion = isLatestVersion;
+        PreviousVersionId = previousVersionId;
     }
 
     public string OriginalName { get; private set; }
@@ -53,5 +61,17 @@ public sealed class FileRecord : TenantEntity
     public DateTimeOffset UploadedAt { get; private set; }
     public bool IsDeleted { get; private set; }
 
+    /// <summary>文件版本号，从 1 开始递增。同名文件每次更新内容后 +1。</summary>
+    public int VersionNumber { get; private set; }
+
+    /// <summary>是否为当前最新版本。每次新版本上传后旧版本置为 false。</summary>
+    public bool IsLatestVersion { get; private set; }
+
+    /// <summary>指向上一版本 FileRecord 的 ID，首版本为 null。</summary>
+    public long? PreviousVersionId { get; private set; }
+
     public void SoftDelete() => IsDeleted = true;
+
+    /// <summary>新版本上传时将当前版本标记为历史版本。</summary>
+    public void MarkAsOldVersion() => IsLatestVersion = false;
 }

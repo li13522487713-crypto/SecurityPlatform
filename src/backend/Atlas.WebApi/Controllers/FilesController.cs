@@ -11,7 +11,6 @@ using Atlas.WebApi.Filters;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Text;
-
 namespace Atlas.WebApi.Controllers;
 
 /// <summary>
@@ -24,6 +23,7 @@ public sealed class FilesController : ControllerBase
 {
     private const string TusResumable = "1.0.0";
     private readonly IFileStorageService _fileStorageService;
+    private readonly IAttachmentService _attachmentService;
     private readonly ITenantProvider _tenantProvider;
     private readonly ICurrentUserAccessor _currentUserAccessor;
     private readonly IClientContextAccessor _clientContextAccessor;
@@ -31,12 +31,14 @@ public sealed class FilesController : ControllerBase
 
     public FilesController(
         IFileStorageService fileStorageService,
+        IAttachmentService attachmentService,
         ITenantProvider tenantProvider,
         ICurrentUserAccessor currentUserAccessor,
         IClientContextAccessor clientContextAccessor,
         IAuditRecorder auditRecorder)
     {
         _fileStorageService = fileStorageService;
+        _attachmentService = attachmentService;
         _tenantProvider = tenantProvider;
         _currentUserAccessor = currentUserAccessor;
         _clientContextAccessor = clientContextAccessor;
@@ -430,6 +432,56 @@ public sealed class FilesController : ControllerBase
             cancellationToken);
         await RecordAuditAsync("COMMIT_IMAGE_UPLOAD", request.OriginalName, cancellationToken);
         return Ok(ApiResponse<FileUploadResult>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>获取文件版本历史列表</summary>
+    [HttpGet("{id:long}/versions")]
+    [Authorize(Policy = PermissionPolicies.FileDownload)]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<FileVersionHistoryItemDto>>>> GetVersionHistory(
+        long id, CancellationToken cancellationToken = default)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var versions = await _fileStorageService.GetVersionHistoryAsync(tenantId, id, cancellationToken);
+        return Ok(ApiResponse<IReadOnlyList<FileVersionHistoryItemDto>>.Ok(versions, HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>获取指定业务实体关联的所有附件（可按 fieldKey 过滤）</summary>
+    [HttpGet("attachments/{entityType}/{entityId:long}")]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<AttachmentBindingDto>>>> GetAttachments(
+        string entityType,
+        long entityId,
+        [FromQuery] string? fieldKey,
+        CancellationToken cancellationToken = default)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _attachmentService.GetAttachmentsAsync(tenantId, entityType, entityId, fieldKey, cancellationToken);
+        return Ok(ApiResponse<IReadOnlyList<AttachmentBindingDto>>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>绑定附件到业务实体</summary>
+    [HttpPost("bind")]
+    [Authorize(Policy = PermissionPolicies.FileUpload)]
+    public async Task<ActionResult<ApiResponse<AttachmentBindingDto>>> BindAttachment(
+        [FromBody] AttachmentBindRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _attachmentService.BindAsync(tenantId, request, cancellationToken);
+        await RecordAuditAsync("BIND_ATTACHMENT", $"{request.EntityType}/{request.EntityId}", cancellationToken);
+        return Ok(ApiResponse<AttachmentBindingDto>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>解绑附件与业务实体的关联</summary>
+    [HttpDelete("unbind")]
+    [Authorize(Policy = PermissionPolicies.FileDelete)]
+    public async Task<ActionResult<ApiResponse<object>>> UnbindAttachment(
+        [FromBody] AttachmentUnbindRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        await _attachmentService.UnbindAsync(tenantId, request, cancellationToken);
+        await RecordAuditAsync("UNBIND_ATTACHMENT", $"{request.EntityType}/{request.EntityId}", cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { }, HttpContext.TraceIdentifier));
     }
 
     private async Task RecordAuditAsync(string action, string target, CancellationToken ct)

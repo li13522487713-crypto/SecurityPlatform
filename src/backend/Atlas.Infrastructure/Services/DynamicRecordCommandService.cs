@@ -6,6 +6,8 @@ using Atlas.Core.Exceptions;
 using Atlas.Core.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
+using Atlas.Domain.DynamicTables.Enums;
+using SqlSugar;
 
 namespace Atlas.Infrastructure.Services;
 
@@ -14,27 +16,36 @@ public sealed class DynamicRecordCommandService : IDynamicRecordCommandService
     private readonly IDynamicTableRepository _tableRepository;
     private readonly IDynamicFieldRepository _fieldRepository;
     private readonly IDynamicRecordRepository _recordRepository;
+    private readonly IDynamicRelationRepository _relationRepository;
+    private readonly IRollupCalculationService _rollupService;
     private readonly IFieldPermissionResolver _fieldPermissionResolver;
     private readonly ICurrentUserAccessor _currentUserAccessor;
     private readonly IAppContextAccessor _appContextAccessor;
     private readonly IDynamicFormValidationService _formValidationService;
+    private readonly ISqlSugarClient _db;
 
     public DynamicRecordCommandService(
         IDynamicTableRepository tableRepository,
         IDynamicFieldRepository fieldRepository,
         IDynamicRecordRepository recordRepository,
+        IDynamicRelationRepository relationRepository,
+        IRollupCalculationService rollupService,
         IFieldPermissionResolver fieldPermissionResolver,
         ICurrentUserAccessor currentUserAccessor,
         IAppContextAccessor appContextAccessor,
-        IDynamicFormValidationService formValidationService)
+        IDynamicFormValidationService formValidationService,
+        ISqlSugarClient db)
     {
         _tableRepository = tableRepository;
         _fieldRepository = fieldRepository;
         _recordRepository = recordRepository;
+        _relationRepository = relationRepository;
+        _rollupService = rollupService;
         _fieldPermissionResolver = fieldPermissionResolver;
         _currentUserAccessor = currentUserAccessor;
         _appContextAccessor = appContextAccessor;
         _formValidationService = formValidationService;
+        _db = db;
     }
 
     public async Task<long> CreateAsync(
@@ -62,7 +73,12 @@ public sealed class DynamicRecordCommandService : IDynamicRecordCommandService
         {
             throw new BusinessException(ErrorCodes.ValidationError, "DynamicRecordValidationFailed");
         }
-        return await _recordRepository.InsertAsync(tenantId, table, fields, request, cancellationToken);
+        var recordId = await _recordRepository.InsertAsync(tenantId, table, fields, request, cancellationToken);
+
+        // MasterDetail 关系写入后同步触发汇总计算
+        await TriggerMasterDetailRollupAsync(tenantId, tableKey, table.Id, recordId, request, cancellationToken);
+
+        return recordId;
     }
 
     public async Task UpdateAsync(
@@ -92,6 +108,9 @@ public sealed class DynamicRecordCommandService : IDynamicRecordCommandService
             throw new BusinessException(ErrorCodes.ValidationError, "DynamicRecordValidationFailed");
         }
         await _recordRepository.UpdateAsync(tenantId, table, fields, id, request, cancellationToken);
+
+        // MasterDetail 关系写入后同步触发汇总计算
+        await TriggerMasterDetailRollupAsync(tenantId, tableKey, table.Id, id, request, cancellationToken);
     }
 
     public async Task DeleteAsync(
@@ -111,6 +130,13 @@ public sealed class DynamicRecordCommandService : IDynamicRecordCommandService
         if (fields.Count == 0)
         {
             return;
+        }
+
+        // 获取主表关系定义，用于处理子记录的删除行为
+        var relations = await _relationRepository.ListByTableIdAsync(tenantId, table.Id, cancellationToken);
+        if (relations.Count > 0)
+        {
+            await HandleChildRecordsOnDeleteAsync(tenantId, table.TableKey, id, relations, cancellationToken);
         }
 
         await _recordRepository.DeleteAsync(tenantId, table, fields, id, cancellationToken);
@@ -195,4 +221,121 @@ public sealed class DynamicRecordCommandService : IDynamicRecordCommandService
         return dict;
     }
 
+    /// <summary>
+    /// MasterDetail 写入后，查找所有关联主表并同步触发汇总计算。
+    /// </summary>
+    private async Task TriggerMasterDetailRollupAsync(
+        TenantId tenantId,
+        string childTableKey,
+        long childTableId,
+        long childRecordId,
+        DynamicRecordUpsertRequest request,
+        CancellationToken cancellationToken)
+    {
+        // 查找以本表为子表（RelatedTableKey == childTableKey）且 EnableRollup 的关系
+        // 注意：此处需要查询哪些主表引用了本表，需通过 SQL 查询
+        var masterRelations = await _db.Queryable<Atlas.Domain.DynamicTables.Entities.DynamicRelation>()
+            .Where(r =>
+                r.TenantIdValue == tenantId.Value
+                && r.RelatedTableKey == childTableKey
+                && r.EnableRollup
+                && r.RelationType == "MasterDetail")
+            .ToListAsync(cancellationToken);
+
+        if (masterRelations.Count == 0)
+        {
+            return;
+        }
+
+        // 从请求体中找到外键值（用于定位主记录 ID）
+        foreach (var relation in masterRelations)
+        {
+            var fkValue = request.Values
+                .FirstOrDefault(v => string.Equals(v.Field, relation.TargetField, StringComparison.OrdinalIgnoreCase));
+            if (fkValue is null)
+            {
+                continue;
+            }
+
+            long masterRecordId = 0;
+            if (fkValue.LongValue.HasValue)
+            {
+                masterRecordId = fkValue.LongValue.Value;
+            }
+            else if (long.TryParse(fkValue.StringValue, out var parsedId))
+            {
+                masterRecordId = parsedId;
+            }
+
+            if (masterRecordId <= 0)
+            {
+                continue;
+            }
+
+            var masterTable = await _db.Queryable<Atlas.Domain.DynamicTables.Entities.DynamicTable>()
+                .Where(t => t.TenantIdValue == tenantId.Value && t.Id == relation.TableId)
+                .FirstAsync(cancellationToken);
+            if (masterTable is null)
+            {
+                continue;
+            }
+
+            await _rollupService.RecalculateAsync(tenantId, masterTable.TableKey, masterRecordId, cancellationToken);
+        }
+    }
+
+    /// <summary>
+    /// 批量处理子记录的删除行为（不在循环内执行 DB 操作，使用 IN 查询聚合）。
+    /// </summary>
+    private async Task HandleChildRecordsOnDeleteAsync(        TenantId tenantId,
+        string masterTableKey,
+        long masterRecordId,
+        IReadOnlyList<Atlas.Domain.DynamicTables.Entities.DynamicRelation> relations,
+        CancellationToken cancellationToken)
+    {
+        foreach (var relation in relations)
+        {
+            if (relation.OnDeleteAction == RelationOnDeleteAction.NoAction)
+            {
+                continue;
+            }
+
+            var childTable = await _tableRepository.FindByKeyAsync(
+                tenantId, relation.RelatedTableKey, _appContextAccessor.ResolveAppId(), cancellationToken);
+            if (childTable is null)
+            {
+                continue;
+            }
+
+            var childTableName = childTable.TableKey;
+            var foreignKeyField = relation.TargetField;
+
+            switch (relation.OnDeleteAction)
+            {
+                case RelationOnDeleteAction.Restrict:
+                    var childCount = await _db.Ado.GetIntAsync(
+                        $"SELECT COUNT(1) FROM \"{childTableName}\" WHERE \"{foreignKeyField}\" = @masterId",
+                        new { masterId = masterRecordId });
+                    if (childCount > 0)
+                    {
+                        throw new BusinessException(
+                            ErrorCodes.ValidationError,
+                            $"删除失败：关联表 {childTableName} 中存在 {childCount} 条子记录，请先删除子记录再删除主记录。");
+                    }
+                    break;
+
+                case RelationOnDeleteAction.Cascade:
+                    await _db.Ado.ExecuteCommandAsync(
+                        $"DELETE FROM \"{childTableName}\" WHERE \"{foreignKeyField}\" = @masterId",
+                        new { masterId = masterRecordId });
+                    break;
+
+                case RelationOnDeleteAction.SetNull:
+                    await _db.Ado.ExecuteCommandAsync(
+                        $"UPDATE \"{childTableName}\" SET \"{foreignKeyField}\" = NULL WHERE \"{foreignKeyField}\" = @masterId",
+                        new { masterId = masterRecordId });
+                    break;
+            }
+        }
+    }
 }

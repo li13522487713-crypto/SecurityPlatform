@@ -5,6 +5,9 @@ import {
 } from "@/services/api-core";
 import type {
   ApiResponse,
+  AttachmentBindingDto,
+  AttachmentBindRequest,
+  AttachmentUnbindRequest,
   FileChunkUploadCompleteRequest,
   FileChunkUploadInitRequest,
   FileChunkUploadInitResult,
@@ -13,6 +16,7 @@ import type {
   FileInstantCheckResult,
   FileUploadResult,
   FileUploadSessionProgressDto,
+  FileVersionHistoryItemDto,
   FileTusStatusResult
 } from "@/types/api";
 import { getAccessToken, getAntiforgeryToken, getTenantId, setAntiforgeryToken } from "@/utils/auth";
@@ -280,4 +284,58 @@ function toBase64(value: string): string {
     binary += String.fromCharCode(byte);
   });
   return window.btoa(binary);
+}
+
+// ---- 版本历史 ----
+
+export async function getFileVersionHistory(id: number): Promise<FileVersionHistoryItemDto[]> {
+  const response = await requestApi<ApiResponse<FileVersionHistoryItemDto[]>>(`/files/${id}/versions`);
+  if (!response.data) {
+    throw new Error(response.message || "查询版本历史失败");
+  }
+  return response.data;
+}
+
+// ---- 附件绑定 ----
+
+export async function listAttachments(
+  entityType: string,
+  entityId: number,
+  fieldKey?: string
+): Promise<AttachmentBindingDto[]> {
+  const params = new URLSearchParams();
+  if (fieldKey) {
+    params.set("fieldKey", fieldKey);
+  }
+  const qs = params.toString() ? `?${params.toString()}` : "";
+  const response = await requestApi<ApiResponse<AttachmentBindingDto[]>>(
+    `/files/attachments/${encodeURIComponent(entityType)}/${entityId}${qs}`
+  );
+  if (!response.data) {
+    throw new Error(response.message || "查询附件绑定失败");
+  }
+  return response.data;
+}
+
+export async function bindAttachment(request: AttachmentBindRequest): Promise<AttachmentBindingDto> {
+  const response = await requestApi<ApiResponse<AttachmentBindingDto>>("/files/bind", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request)
+  });
+  if (!response.data) {
+    throw new Error(response.message || "绑定附件失败");
+  }
+  return response.data;
+}
+
+export async function unbindAttachment(request: AttachmentUnbindRequest): Promise<void> {
+  const response = await requestApi<ApiResponse<object>>("/files/unbind", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request)
+  });
+  if (!response.success) {
+    throw new Error(response.message || "解绑附件失败");
+  }
 }

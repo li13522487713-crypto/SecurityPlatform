@@ -29,6 +29,9 @@ public static class DynamicTableServiceRegistration
         services.AddScoped<IDynamicRecordCommandService, DynamicRecordCommandService>();
         services.AddScoped<IMigrationService, MigrationService>();
         services.AddScoped<IDynamicFormValidationService, DynamicFormValidationService>();
+        services.AddScoped<IRollupCalculationService, RollupCalculationService>();
+        services.AddSingleton<RollupBackgroundWorker>();
+        services.AddHostedService(sp => sp.GetRequiredService<RollupBackgroundWorker>());
 
         return services;
     }

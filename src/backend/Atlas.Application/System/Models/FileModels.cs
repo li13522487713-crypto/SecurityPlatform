@@ -7,14 +7,19 @@ public sealed record FileRecordDto(
     long SizeBytes,
     long UploadedById,
     string UploadedByName,
-    DateTimeOffset UploadedAt);
+    DateTimeOffset UploadedAt,
+    int VersionNumber = 1,
+    bool IsLatestVersion = true,
+    long? PreviousVersionId = null);
 
 public sealed record FileUploadResult(
     long Id,
     string OriginalName,
     string ContentType,
     long SizeBytes,
-    DateTimeOffset UploadedAt);
+    DateTimeOffset UploadedAt,
+    int VersionNumber = 1,
+    bool IsLatestVersion = true);
 
 public sealed record FileDownloadResult(
     Stream Stream,
@@ -94,3 +99,46 @@ public sealed record FileTusUploadPatchResult(
     long UploadLength,
     bool Completed,
     long? FileId);
+
+// ===== 版本历史 =====
+
+public sealed record FileVersionHistoryItemDto(
+    long Id,
+    int VersionNumber,
+    bool IsLatestVersion,
+    string OriginalName,
+    string ContentType,
+    long SizeBytes,
+    long UploadedById,
+    string UploadedByName,
+    DateTimeOffset UploadedAt,
+    long? PreviousVersionId);
+
+// ===== 附件多态绑定 =====
+
+public sealed record AttachmentBindingDto(
+    long Id,
+    long FileRecordId,
+    string EntityType,
+    long EntityId,
+    string? FieldKey,
+    bool IsPrimary,
+    string OriginalName,
+    string ContentType,
+    long SizeBytes,
+    int VersionNumber,
+    bool IsLatestVersion,
+    DateTimeOffset UploadedAt);
+
+public sealed record AttachmentBindRequest(
+    long FileRecordId,
+    string EntityType,
+    long EntityId,
+    string? FieldKey,
+    bool IsPrimary = false);
+
+public sealed record AttachmentUnbindRequest(
+    long FileRecordId,
+    string EntityType,
+    long EntityId,
+    string? FieldKey);

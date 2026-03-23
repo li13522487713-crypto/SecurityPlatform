@@ -217,6 +217,56 @@ X-Tenant-Id: {{tenantId}}
 Idempotency-Key: {{$guid}}
 X-CSRF-TOKEN: {{csrfToken}}
 
+### ===== 版本历史 =====
+
+### 获取文件版本历史列表
+GET {{baseUrl}}/api/v1/files/{{fileId}}/versions
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### ===== 附件多态绑定 =====
+
+### 查询指定业务实体的附件（不过滤字段槽）
+GET {{baseUrl}}/api/v1/files/attachments/DynamicTable_orders/1001
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 查询指定业务实体 + 字段槽的附件
+GET {{baseUrl}}/api/v1/files/attachments/DynamicTable_orders/1001?fieldKey=contract_scan
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 绑定附件到业务实体
+POST {{baseUrl}}/api/v1/files/bind
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+Content-Type: application/json
+
+{
+  "fileRecordId": {{fileId}},
+  "entityType": "DynamicTable_orders",
+  "entityId": 1001,
+  "fieldKey": "contract_scan",
+  "isPrimary": true
+}
+
+### 解绑附件
+DELETE {{baseUrl}}/api/v1/files/unbind
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+Content-Type: application/json
+
+{
+  "fileRecordId": {{fileId}},
+  "entityType": "DynamicTable_orders",
+  "entityId": 1001,
+  "fieldKey": "contract_scan"
+}
+
 ### 安全负例：上传缺少 X-CSRF-TOKEN（预期 403）
 POST {{baseUrl}}/api/v1/files
 Authorization: Bearer {{accessToken}}
