@@ -1,1 +1,0 @@
-import{t as e}from"./chunk-zsgVPwQN.js";import{As as t,Fs as n,Is as r}from"./esm-Bh6F8zu_.js";import{E as i,a,x as o}from"./isEqual-yAw5wih8.js";var s=e(((e,s)=>{var c=r(),l=n(),u=t(),d=o(),f=i(),p=a(),m=Object.prototype.hasOwnProperty;s.exports=u(function(e,t){if(f(t)||d(t)){l(t,p(t),e);return}for(var n in t)m.call(t,n)&&c(e,n,t[n])})}));export{s as t};

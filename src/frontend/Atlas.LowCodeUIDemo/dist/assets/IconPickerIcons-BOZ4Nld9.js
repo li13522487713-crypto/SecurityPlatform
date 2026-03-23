@@ -1,1 +1,0 @@
-var e=[{name:`Font Awesome 4.7`,prefix:`fa fa-`,icons:[`slideshare`,`snapchat`,`snapchat-ghost`,`snapchat-square`,`soundcloud`,`spotify`,`stack-exchange`,`stack-overflow`]}];export{e as t};
