@@ -3,9 +3,11 @@ using Atlas.Application.AiPlatform.Models;
 
 namespace Atlas.Infrastructure.Services.AiPlatform;
 
-public sealed class FixedSizeChunkingService : IChunkingService
+public sealed class FixedSizeChunkingService : IChunkingStrategy
 {
     private static readonly char[] SentenceBoundaries = ['.', '!', '?', '。', '！', '？', '\n'];
+
+    public ChunkingStrategy Strategy => ChunkingStrategy.Fixed;
 
     public IReadOnlyList<TextChunk> Chunk(string text, ChunkingOptions options)
     {

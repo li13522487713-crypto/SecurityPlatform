@@ -68,7 +68,8 @@ public sealed record ChunkUpdateRequest(
 
 public sealed record DocumentResegmentRequest(
     int ChunkSize = 500,
-    int Overlap = 50);
+    int Overlap = 50,
+    ChunkingStrategy Strategy = ChunkingStrategy.Fixed);
 
 public sealed record RagSearchResult(
     long KnowledgeBaseId,

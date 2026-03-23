@@ -128,7 +128,10 @@ public static class AiPlatformServiceRegistration
         services.AddSingleton<DocumentParserComposite>();
         services.AddSingleton<IDocumentParser>(sp => sp.GetRequiredService<DocumentParserComposite>());
 
-        services.AddSingleton<IChunkingService, FixedSizeChunkingService>();
+        services.AddSingleton<IChunkingStrategy, FixedSizeChunkingService>();
+        services.AddSingleton<IChunkingStrategy, SemanticChunkingService>();
+        services.AddSingleton<IChunkingStrategy, RecursiveChunkingService>();
+        services.AddSingleton<IChunkingService, ChunkingService>();
         services.AddSingleton<BuiltInPluginMetadataProvider>();
         services.AddSingleton<IOpenApiPluginParser, OpenApiPluginParser>();
 
