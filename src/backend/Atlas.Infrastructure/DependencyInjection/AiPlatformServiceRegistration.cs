@@ -141,6 +141,8 @@ public static class AiPlatformServiceRegistration
         services.AddScoped<INodeExecutor, ExitNodeExecutor>();
         services.AddScoped<INodeExecutor, SelectorNodeExecutor>();
         services.AddScoped<INodeExecutor, LlmNodeExecutor>();
+        services.AddScoped<INodeExecutor, AgentNodeExecutor>();
+        services.AddScoped<INodeExecutor, PluginNodeExecutor>();
         services.AddScoped<INodeExecutor, SubWorkflowNodeExecutor>();
         services.AddScoped<INodeExecutor, LoopNodeExecutor>();
         services.AddScoped<INodeExecutor, CodeRunnerNodeExecutor>();
