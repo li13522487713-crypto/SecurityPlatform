@@ -17,6 +17,8 @@ public sealed class AiPlatformOptions
     public AgentPublicationOption Publication { get; init; } = new();
 
     public OpenApiProjectOption OpenApiProject { get; init; } = new();
+
+    public OpenApiGovernanceOption OpenApiGovernance { get; init; } = new();
 }
 
 public sealed class AiProviderOption
@@ -92,4 +94,9 @@ public sealed class AgentPublicationOption
 public sealed class OpenApiProjectOption
 {
     public int AccessTokenExpiresMinutes { get; init; } = 60;
+}
+
+public sealed class OpenApiGovernanceOption
+{
+    public int ProjectRateLimitPerMinute { get; init; } = 120;
 }

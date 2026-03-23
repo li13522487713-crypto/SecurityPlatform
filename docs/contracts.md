@@ -2865,3 +2865,32 @@ type EvaluationCaseStatus = 0 | 1 | 2 | 3; // Pending / Passed / Failed / Error
 - `/api/v1/open/files/*`
 
 两种令牌均继续遵循 scope 校验（如 `open:bots:read`、`open:chat`、`open:*`）。
+
+### 调用治理与统计
+
+#### 速率限制（开放应用维度）
+
+- 对 `token_type=open_project` 的 Open 接口调用按 `tenant + projectId` 维度限流；
+- 默认阈值由 `AiPlatform:OpenApiGovernance:ProjectRateLimitPerMinute` 控制；
+- 超限返回 HTTP 429，错误码 `RATE_LIMITED`，并附带 `Retry-After` 头。
+
+#### 统计接口
+
+- `GET /api/v1/open-api-stats/summary?projectId=...&fromUtc=...&toUtc=...`
+- 权限：`pat:view`
+
+返回 `data` 示例：
+
+```json
+{
+  "projectId": 123,
+  "fromUtc": null,
+  "toUtc": null,
+  "totalCalls": 200,
+  "successCalls": 190,
+  "failedCalls": 10,
+  "successRate": 0.95,
+  "averageDurationMs": 84.2,
+  "maxDurationMs": 460
+}
+```

@@ -143,6 +143,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             typeof(EvaluationCase),
             typeof(EvaluationTask),
             typeof(EvaluationResult),
+            typeof(ApiCallLog),
             typeof(AgentKnowledgeLink),
             typeof(AgentPluginBinding),
             typeof(Conversation),

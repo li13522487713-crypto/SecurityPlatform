@@ -114,3 +114,8 @@ Content-Type: application/json
   "conversationId": null,
   "enableRag": false
 }
+
+### 10) 查询开放 API 调用统计
+GET {{baseUrl}}/api/v1/open-api-stats/summary?projectId={{projectId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}

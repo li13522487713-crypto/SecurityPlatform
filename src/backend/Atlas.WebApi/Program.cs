@@ -562,6 +562,7 @@ app.UseMiddleware<AppMembershipMiddleware>();
 app.UseMiddleware<ProjectContextMiddleware>();
 app.UseMiddleware<LicenseEnforcementMiddleware>();
 app.UseAuthorization();
+app.UseMiddleware<OpenApiGovernanceMiddleware>();
 
 app.MapControllers();
 

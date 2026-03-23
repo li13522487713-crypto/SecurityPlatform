@@ -67,6 +67,7 @@ public static class AiPlatformServiceRegistration
         services.AddScoped<EvaluationCaseRepository>();
         services.AddScoped<EvaluationTaskRepository>();
         services.AddScoped<EvaluationResultRepository>();
+        services.AddScoped<ApiCallLogRepository>();
         services.AddScoped<AiAppResourceCopyTaskRepository>();
         services.AddScoped<AiPromptTemplateRepository>();
         services.AddScoped<PersonalAccessTokenRepository>();
@@ -95,6 +96,7 @@ public static class AiPlatformServiceRegistration
         services.AddScoped<IAiPromptService, AiPromptService>();
         services.AddScoped<IPersonalAccessTokenService, PersonalAccessTokenService>();
         services.AddScoped<IOpenApiProjectService, OpenApiProjectService>();
+        services.AddScoped<IOpenApiCallLogService, OpenApiCallLogService>();
         services.AddScoped<IAiMarketplaceService, AiMarketplaceService>();
         services.AddScoped<IAiSearchService, AiSearchService>();
         services.AddScoped<IAiMemoryService, AiMemoryService>();
@@ -155,6 +157,7 @@ public static class AiPlatformServiceRegistration
         services.AddSingleton<BuiltInPluginMetadataProvider>();
         services.AddSingleton<IOpenApiPluginParser, OpenApiPluginParser>();
         services.AddSingleton<MultiAgentExecutionTracker>();
+        services.AddSingleton<OpenApiProjectRateLimiter>();
 
         // ── Workflow V2: DAG Engine ──
         services.AddScoped<IWorkflowMetaRepository, WorkflowMetaRepository>();
