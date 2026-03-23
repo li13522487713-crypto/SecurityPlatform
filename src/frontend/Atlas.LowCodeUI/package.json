@@ -12,7 +12,7 @@
       "require": "./dist/atlas-lowcode-ui.umd.js",
       "types": "./dist/index.d.ts"
     },
-    "./style.css": "./dist/style.css"
+    "./style.css": "./dist/lowcode-ui.css"
   },
   "files": [
     "dist"
@@ -23,11 +23,11 @@
     "typecheck": "vue-tsc --noEmit"
   },
   "peerDependencies": {
-    "vue": "^3.5.0",
     "amis": "^6.0.0",
     "amis-core": "^6.0.0",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "vue": "^3.5.0"
   },
   "peerDependenciesMeta": {
     "amis-editor": {
@@ -35,17 +35,20 @@
     }
   },
   "devDependencies": {
+    "@types/react": "^19.2.13",
+    "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-vue": "^6.0.5",
-    "typescript": "~5.9.3",
-    "vite": "^8.0.0",
-    "vite-plugin-dts": "^4.5.0",
-    "vue": "^3.5.30",
-    "vue-tsc": "^3.2.4",
     "amis": "^6.0.0",
     "amis-core": "^6.0.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "@types/react": "^19.2.13",
-    "@types/react-dom": "^19.2.3"
+    "typescript": "~5.9.3",
+    "vite": "^8.0.0",
+    "vite-plugin-dts": "^4.5.0",
+    "vue": "^3.5.30",
+    "vue-tsc": "^3.2.4"
+  },
+  "dependencies": {
+    "@guolao/vue-monaco-editor": "^1.6.0"
   }
 }

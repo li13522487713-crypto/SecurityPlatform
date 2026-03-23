@@ -34,8 +34,10 @@ export default defineConfig({
         "react-dom",
         "react-dom/client",
         "react/jsx-runtime",
+        "@guolao/vue-monaco-editor",
       ],
       output: {
+        exports: "named",
         globals: {
           vue: "Vue",
           amis: "amis",
@@ -46,6 +48,7 @@ export default defineConfig({
           "react-dom": "ReactDOM",
           "react-dom/client": "ReactDOMClient",
           "react/jsx-runtime": "jsxRuntime",
+          "@guolao/vue-monaco-editor": "VueMonacoEditor",
         },
       },
     },

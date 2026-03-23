@@ -10,20 +10,22 @@
         <button class="atlas-json-editor-btn atlas-json-editor-btn--primary" @click="applyChanges" :disabled="hasError" title="应用">应用</button>
       </div>
     </div>
-    <textarea
-      ref="textareaRef"
-      class="atlas-json-editor-textarea"
-      :value="jsonText"
-      :readonly="readonly"
-      @input="onInput"
-      spellcheck="false"
-    ></textarea>
+    <div class="atlas-json-editor-container">
+      <vue-monaco-editor
+        v-model:value="jsonText"
+        theme="vs-light"
+        language="json"
+        :options="editorOptions"
+        @change="onInput"
+      />
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, watch, onMounted } from "vue";
 import type { AmisSchema } from "@/types/amis";
+import { VueMonacoEditor } from "@guolao/vue-monaco-editor";
 
 interface Props {
   modelValue: AmisSchema;
@@ -40,9 +42,17 @@ const emit = defineEmits<{
   (e: "update:modelValue", schema: AmisSchema): void;
 }>();
 
-const textareaRef = ref<HTMLTextAreaElement | null>(null);
 const jsonText = ref("");
 const hasError = ref(false);
+
+const editorOptions = ref({
+  readOnly: props.readonly,
+  minimap: { enabled: false },
+  formatOnPaste: true,
+  tabSize: 2,
+  scrollBeyondLastLine: false,
+  automaticLayout: true,
+});
 
 function schemaToText(schema: AmisSchema): string {
   return JSON.stringify(schema, null, 2);
@@ -69,12 +79,16 @@ watch(() => props.modelValue, (newSchema) => {
   }
 }, { deep: true });
 
-function onInput(e: Event): void {
-  const target = e.target as HTMLTextAreaElement;
-  jsonText.value = target.value;
+watch(() => props.readonly, (newVal) => {
+  editorOptions.value.readOnly = newVal;
+});
+
+function onInput(value: string | undefined): void {
+  const text = value ?? "";
+  jsonText.value = text;
 
   try {
-    JSON.parse(target.value);
+    JSON.parse(text);
     hasError.value = false;
   } catch {
     hasError.value = true;
@@ -200,21 +214,10 @@ defineExpose({
   border-color: #3b82f6;
 }
 
-.atlas-json-editor-textarea {
+.atlas-json-editor-container {
   flex: 1;
-  font-family: "JetBrains Mono", "Fira Code", "SF Mono", Consolas, monospace;
-  font-size: 13px;
-  line-height: 1.6;
-  padding: 12px;
-  border: none;
-  resize: none;
-  outline: none;
-  color: #1f2329;
-  background: #fff;
-  tab-size: 2;
-}
-
-.atlas-json-editor-textarea:focus {
-  background: #fafbfc;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
 }
 </style>
