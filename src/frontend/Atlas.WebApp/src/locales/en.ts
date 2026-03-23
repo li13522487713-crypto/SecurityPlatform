@@ -220,7 +220,11 @@ export default {
     statusError: "Error",
     recentFilesTitle: "Recent Files",
     noRecentFile: "No downloadable file",
-    currentFileId: "Current File ID"
+    currentFileId: "Current File ID",
+    concurrencyLabel: "Concurrency",
+    speedLimitLabel: "Speed Limit",
+    noLimit: "Unlimited",
+    currentSpeed: "Current Speed"
   },
   systemRoles: {
     assignPanelTitle: "Assign [{roleName} - {roleCode}]",

@@ -1,3 +1,4 @@
+using Amazon.S3;
 using Atlas.Application.Abstractions;
 using Atlas.Application.Options;
 using Atlas.Application.Audit.Abstractions;
@@ -19,7 +20,9 @@ using Atlas.Infrastructure.Services.FileStorage;
 using Atlas.Infrastructure.Services.Platform;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+using Minio;
 using ITotpService = Atlas.Application.Abstractions.ITotpService;
 
 namespace Atlas.Infrastructure.DependencyInjection;
@@ -166,7 +169,28 @@ public static class CoreServiceRegistration
         services.AddScoped<INotificationQueryService, NotificationService>();
         services.AddScoped<INotificationCommandService, NotificationService>();
 
-        // File Storage
+        // File Storage — object store SDK clients (singleton, lazy-instantiated on first use)
+        services.AddSingleton<IMinioClient>(sp =>
+        {
+            var opts = sp.GetRequiredService<IOptions<FileStorageOptions>>().Value.Minio;
+            return new MinioClient()
+                .WithEndpoint(opts.Endpoint)
+                .WithCredentials(opts.AccessKey, opts.SecretKey)
+                .WithSSL(opts.UseSsl)
+                .Build();
+        });
+        services.AddSingleton<IAmazonS3>(sp =>
+        {
+            var opts = sp.GetRequiredService<IOptions<FileStorageOptions>>().Value.Oss;
+            var config = new AmazonS3Config
+            {
+                ServiceURL = opts.Endpoint,
+                ForcePathStyle = opts.ForcePathStyle,
+                AuthenticationRegion = string.IsNullOrWhiteSpace(opts.Region) ? null : opts.Region
+            };
+            return new AmazonS3Client(opts.AccessKeyId, opts.AccessKeySecret, config);
+        });
+
         services.AddScoped<FileRecordRepository>();
         services.AddScoped<FileUploadSessionRepository>();
         services.AddScoped<FileTusUploadSessionRepository>();
@@ -186,6 +210,7 @@ public static class CoreServiceRegistration
             };
         });
         services.AddScoped<IFileStorageService, LocalFileStorageService>();
+        services.AddHostedService<ObjectStoreConnectivityService>();
 
         // Excel Export
         services.AddScoped<IExcelExportService, ClosedXmlExcelExportService>();

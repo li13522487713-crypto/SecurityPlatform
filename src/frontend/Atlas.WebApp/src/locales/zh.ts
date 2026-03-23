@@ -220,7 +220,11 @@ export default {
     statusError: "异常",
     recentFilesTitle: "最近文件",
     noRecentFile: "暂无可下载文件",
-    currentFileId: "当前文件 ID"
+    currentFileId: "当前文件 ID",
+    concurrencyLabel: "并发数",
+    speedLimitLabel: "限速",
+    noLimit: "不限",
+    currentSpeed: "当前速度"
   },
   systemRoles: {
     assignPanelTitle: "分配【{roleName} - {roleCode}】",
