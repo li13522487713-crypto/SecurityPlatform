@@ -134,7 +134,8 @@
               <a-button @click="openLink('/hangfire')">{{ t("monitorServer.linkHangfire") }}</a-button>
               <a-button @click="openLink('/swagger')">{{ t("monitorServer.linkSwagger") }}</a-button>
               <a-button @click="openLink('/api/v1/health')">{{ t("monitorServer.linkHealthApi") }}</a-button>
-              <a-button @click="openLink('/api/v1/scheduled-jobs?pageIndex=1&pageSize=10')">{{ t("monitorServer.linkJobsApi") }}</a-button>
+      <a-button @click="openLink('/api/v1/scheduled-jobs?pageIndex=1&pageSize=10')">{{ t("monitorServer.linkJobsApi") }}</a-button>
+              <a-button type="primary" danger :loading="exportingEvidence" @click="exportEvidencePackage">{{ t("monitorServer.exportEvidencePackage") }}</a-button>
             </a-space>
           </a-card>
         </a-col>
@@ -170,6 +171,7 @@ const loading = ref(false);
 const info = ref<ServerInfo | null>(null);
 const healthLoading = ref(false);
 const healthInfo = ref<HealthStatusPayload | null>(null);
+const exportingEvidence = ref(false);
 const { t } = useI18n();
 let timer: number | undefined;
 const healthColumns = [
@@ -241,6 +243,38 @@ const healthTagColor = (status?: string) => {
 const openLink = (path: string) => {
   const url = `${window.location.origin}${path}`;
   window.open(url, "_blank", "noopener,noreferrer");
+};
+
+const exportEvidencePackage = async () => {
+  exportingEvidence.value = true;
+  try {
+    const baseUrl = (import.meta as { env?: { VITE_API_BASE?: string } }).env?.VITE_API_BASE ?? "";
+    const token = localStorage.getItem("token") ?? "";
+    const tenantId = localStorage.getItem("tenantId") ?? "";
+    const response = await fetch(`${baseUrl}/api/v1/monitor/compliance/evidence-package`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "X-Tenant-Id": tenantId
+      }
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const disposition = response.headers.get("content-disposition") ?? "";
+    const match = /filename="?([^"]+)"?/.exec(disposition);
+    a.download = match?.[1] ?? `compliance-evidence-${new Date().toISOString().slice(0, 10)}.zip`;
+    a.href = url;
+    a.click();
+    URL.revokeObjectURL(url);
+    message.success(t("monitorServer.evidenceExportSuccess"));
+  } catch (e: unknown) {
+    message.error(e instanceof Error ? e.message : t("monitorServer.evidenceExportFailed"));
+  } finally {
+    exportingEvidence.value = false;
+  }
 };
 
 onMounted(() => {

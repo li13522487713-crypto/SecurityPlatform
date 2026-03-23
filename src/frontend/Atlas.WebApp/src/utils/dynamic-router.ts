@@ -81,7 +81,38 @@ const pathComponentFallbackMap: Record<string, string> = {
   "/ai/knowledge-bases/:id": "../pages/ai/KnowledgeBaseDetailPage.vue",
   "/ai/knowledge-bases/:id/test": "../pages/ai/KnowledgeBaseTestPage.vue",
   "/ai/workflows": "../pages/ai/AiWorkflowListPage.vue",
-  "/ai/workflows/:id/edit": "../pages/ai/AiWorkflowEditorPage.vue"
+  "/ai/workflows/:id/edit": "../pages/ai/AiWorkflowEditorPage.vue",
+  // 可视化流程管理
+  "/visualization": "../pages/visualization/VisualizationCenterPage.vue",
+  "/visualization/designer": "../pages/visualization/VisualizationDesignerPage.vue",
+  "/visualization/designer/:id": "../pages/visualization/VisualizationDesignerPage.vue",
+  "/visualization/runtime": "../pages/visualization/VisualizationRuntimePage.vue",
+  "/visualization/governance": "../pages/visualization/VisualizationGovernancePage.vue",
+  // 低代码辅助功能
+  "/lowcode/process-monitor": "../pages/lowcode/ProcessMonitorPage.vue",
+  "/lowcode/messages": "../pages/lowcode/MessageCenterPage.vue",
+  "/lowcode/ai-assistant": "../pages/lowcode/AiAssistantPage.vue",
+  // 审批管理（代理/部门负责人/任务池）
+  "/process/agent-config": "../pages/ApprovalAgentConfigPage.vue",
+  "/process/department-leaders": "../pages/ApprovalDepartmentLeaderPage.vue",
+  "/process/task-pool": "../pages/ApprovalTaskPoolPage.vue",
+  // 监控运维补全
+  "/monitor/server-info": "../pages/monitor/ServerInfoPage.vue",
+  "/monitor/scheduled-jobs": "../pages/monitor/ScheduledJobsPage.vue",
+  "/system/login-logs": "../pages/system/LoginLogsPage.vue",
+  "/system/online-users": "../pages/system/OnlineUsersPage.vue",
+  "/monitor/outbox": "../pages/monitor/OutboxMonitorPage.vue",
+  // License & 模板市场
+  "/settings/license": "../pages/LicensePage.vue",
+  "/lowcode/templates": "../pages/lowcode/TemplateMarketPage.vue",
+  // 低代码管理扩展
+  "/lowcode/migrations": "../pages/lowcode/DynamicMigrationsPage.vue",
+  "/lowcode/packages": "../pages/lowcode/PackagesPage.vue",
+  // 集成连接器
+  "/settings/system/connectors": "../pages/system/ApiConnectorsPage.vue",
+  // 报表和仪表盘
+  "/lowcode/reports": "../pages/lowcode/ReportsPage.vue",
+  "/lowcode/dashboards": "../pages/lowcode/DashboardsPage.vue"
 };
 
 const pathTitleKeyFallbackMap: Record<string, string> = {
@@ -163,7 +194,30 @@ const pathTitleKeyFallbackMap: Record<string, string> = {
   "/ai/knowledge-bases/:id": "route.knowledgeBaseDetail",
   "/ai/knowledge-bases/:id/test": "route.knowledgeBaseTest",
   "/ai/workflows": "route.aiWorkflowListGlobal",
-  "/ai/workflows/:id/edit": "route.aiWorkflowEditor"
+  "/ai/workflows/:id/edit": "route.aiWorkflowEditor",
+  "/visualization": "route.visualizationCenter",
+  "/visualization/designer": "route.visualizationDesigner",
+  "/visualization/designer/:id": "route.visualizationDesigner",
+  "/visualization/runtime": "route.visualizationRuntime",
+  "/visualization/governance": "route.visualizationGovernance",
+  "/lowcode/process-monitor": "route.processMonitor",
+  "/lowcode/messages": "route.messageCenter",
+  "/lowcode/ai-assistant": "route.aiAssistant",
+  "/process/agent-config": "route.approvalAgentConfig",
+  "/process/department-leaders": "route.approvalDepartmentLeaders",
+  "/process/task-pool": "route.approvalTaskPool",
+  "/monitor/server-info": "route.serverInfo",
+  "/monitor/scheduled-jobs": "route.scheduledJobs",
+  "/system/login-logs": "route.loginLogs",
+  "/system/online-users": "route.onlineUsers",
+  "/monitor/outbox": "route.outboxMonitor",
+  "/settings/license": "route.license",
+  "/lowcode/templates": "route.templateMarket",
+  "/lowcode/migrations": "route.dynamicMigrations",
+  "/lowcode/packages": "route.packages",
+  "/settings/system/connectors": "route.apiConnectors",
+  "/lowcode/reports": "route.reports",
+  "/lowcode/dashboards": "route.dashboards"
 };
 
 function resolveByPathFallback(path?: string) {

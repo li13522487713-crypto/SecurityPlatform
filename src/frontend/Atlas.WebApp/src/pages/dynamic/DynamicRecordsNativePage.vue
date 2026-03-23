@@ -3,6 +3,7 @@
     <template #extra>
       <a-space>
         <a-button @click="fetchData" :loading="loading">{{ t('dynamic.refresh') }}</a-button>
+        <a-button @click="openAttachmentDrawer"><PaperClipOutlined /> {{ t('dynamic.attachments') }}</a-button>
       </a-space>
     </template>
 
@@ -19,6 +20,21 @@
       @reset="handleReset"
       @change="onTableChange"
     />
+
+    <!-- 附件管理抽屉（表级附件） -->
+    <a-drawer
+      v-model:open="attachmentDrawerVisible"
+      :title="t('dynamic.attachmentDrawerTitle')"
+      placement="right"
+      :width="480"
+      destroy-on-close
+    >
+      <AttachmentPanel
+        :entity-type="tableKey"
+        :entity-id="0"
+        :allow-multiple="true"
+      />
+    </a-drawer>
   </a-card>
 </template>
 
@@ -28,7 +44,9 @@ import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { message } from 'ant-design-vue';
 import type { TablePaginationConfig } from 'ant-design-vue';
+import { PaperClipOutlined } from '@ant-design/icons-vue';
 import QueryGridUnifiedView from '@/components/table/QueryGridUnifiedView.vue';
+import AttachmentPanel from '@/components/common/attachment-panel.vue';
 import { getDynamicTableDetail, getDynamicTableFields, queryDynamicRecords } from '@/services/dynamic-tables';
 import type { DynamicFieldDefinition, DynamicRecordDto, DynamicColumnDef, DynamicRecordQueryRequest } from '@/types/dynamic-tables';
 import type { AdvancedQueryConfig } from '@/types/advanced-query';
@@ -37,6 +55,12 @@ import { translate } from '@/i18n';
 
 const { t } = useI18n();
 const route = useRoute();
+
+// 附件管理抽屉
+const attachmentDrawerVisible = ref(false);
+const openAttachmentDrawer = () => {
+  attachmentDrawerVisible.value = true;
+};
 
 const tableKey = computed(() => {
   const key = route.params.tableKey;

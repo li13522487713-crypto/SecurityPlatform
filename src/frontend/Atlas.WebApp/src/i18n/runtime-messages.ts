@@ -3161,7 +3161,9 @@ export const runtimeMessages: Record<SupportedLocale, MessageTree> = {
       nativeRecordsTitle: "记录浏览",
       advancedSearch: "高级查询",
       loadPageFailed: "加载页面失败",
-      loadAppsFailed: "加载应用列表失败"
+      loadAppsFailed: "加载应用列表失败",
+      attachments: "附件管理",
+      attachmentDrawerTitle: "表级附件管理"
     },
     erd: {
       viewReferences: "查看引用",
@@ -3172,7 +3174,10 @@ export const runtimeMessages: Record<SupportedLocale, MessageTree> = {
       noApprovalFlow: "未绑定审批流",
       noForms: "无关联表单",
       noPages: "无关联页面",
-      loadReferencesFailed: "加载引用信息失败"
+      loadReferencesFailed: "加载引用信息失败",
+      pageTitle: "ERD 实体设计器",
+      modeErd: "ERD 视图",
+      modeRelation: "关系设计"
     },
     runtimePage: {
       previewBanner: "预览模式",
@@ -7532,7 +7537,9 @@ export const runtimeMessages: Record<SupportedLocale, MessageTree> = {
       nativeRecordsTitle: "Records browser",
       advancedSearch: "Advanced search",
       loadPageFailed: "Failed to load page",
-      loadAppsFailed: "Failed to load apps"
+      loadAppsFailed: "Failed to load apps",
+      attachments: "Attachments",
+      attachmentDrawerTitle: "Table-level attachment management"
     },
     erd: {
       viewReferences: "View references",
@@ -7543,7 +7550,10 @@ export const runtimeMessages: Record<SupportedLocale, MessageTree> = {
       noApprovalFlow: "No approval flow bound",
       noForms: "No forms linked",
       noPages: "No pages linked",
-      loadReferencesFailed: "Failed to load entity references"
+      loadReferencesFailed: "Failed to load entity references",
+      pageTitle: "ERD Entity Designer",
+      modeErd: "ERD View",
+      modeRelation: "Relation Design"
     },
     runtimePage: {
       previewBanner: "Preview mode",

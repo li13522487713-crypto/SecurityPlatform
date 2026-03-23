@@ -123,7 +123,8 @@ const fetchData = async () => {
     const result = await getAlertsPaged({
       pageIndex: pagination.current ?? 1,
       pageSize: pagination.pageSize ?? 10,
-      keyword: keyword.value || undefined
+      keyword: keyword.value || undefined,
+      severity: severityFilter.value !== "all" ? severityFilter.value : undefined
     });
 
     if (!isMounted.value) return;

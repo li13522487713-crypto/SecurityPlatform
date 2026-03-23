@@ -437,8 +437,9 @@ export async function deletePosition(id: string) {
   }
 }
 
-export async function getAlertsPaged(pagedRequest: PagedRequest) {
-  const query = toQuery(pagedRequest);
+export async function getAlertsPaged(pagedRequest: PagedRequest & { severity?: string }) {
+  const { severity, ...paged } = pagedRequest;
+  const query = toQuery(paged, { severity });
   const response = await requestApi<ApiResponse<PagedResult<AlertListItem>>>(`/alert?${query}`);
   if (!response.data) {
     throw new Error(response.message || "查询失败");
