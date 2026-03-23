@@ -51,6 +51,8 @@ const AiOpenPlatformPage = () => import("@/pages/ai/AiOpenPlatformPage.vue");
 const AiWorkspacePage = () => import("@/pages/ai/AiWorkspacePage.vue");
 const AiLibraryPage = () => import("@/pages/ai/AiLibraryPage.vue");
 const AiTestSetsPage = () => import("@/pages/ai/AiTestSetsPage.vue");
+const EvaluationTaskPage = () => import("@/pages/ai/EvaluationTaskPage.vue");
+const EvaluationReportPage = () => import("@/pages/ai/EvaluationReportPage.vue");
 const AiMockSetsPage = () => import("@/pages/ai/AiMockSetsPage.vue");
 const AiShortcutsPage = () => import("@/pages/ai/AiShortcutsPage.vue");
 const AiSearchResultsPage = () => import("@/pages/ai/AiSearchResultsPage.vue");
@@ -145,6 +147,9 @@ const router = createRouter({
     { path: "/apps/:appId/agents", name: "app-workspace-agents", component: AgentListPage, meta: { requiresAuth: true, title: "Agent 列表", titleKey: "route.aiAgentList", requiresPermission: "apps:view" } },
     { path: "/apps/:appId/multi-agent", name: "app-workspace-multi-agent-list", component: MultiAgentOrchestrationListPage, meta: { requiresAuth: true, title: "多Agent编排", titleKey: "route.aiMultiAgentList", requiresPermission: "apps:view" } },
     { path: "/apps/:appId/multi-agent/:id", name: "app-workspace-multi-agent-detail", component: MultiAgentOrchestrationDetailPage, meta: { requiresAuth: true, title: "多Agent编排详情", titleKey: "route.aiMultiAgentDetail", requiresPermission: "apps:view" } },
+    { path: "/apps/:appId/evaluations/datasets", name: "app-workspace-evaluation-datasets", component: AiTestSetsPage, meta: { requiresAuth: true, title: "评测数据集", titleKey: "route.aiTestSets", requiresPermission: "apps:view" } },
+    { path: "/apps/:appId/evaluations/tasks", name: "app-workspace-evaluation-tasks", component: EvaluationTaskPage, meta: { requiresAuth: true, title: "评测任务", titleKey: "route.aiEvaluationTasks", requiresPermission: "apps:view" } },
+    { path: "/apps/:appId/evaluations/reports/:taskId", name: "app-workspace-evaluation-report", component: EvaluationReportPage, meta: { requiresAuth: true, title: "评测报告", titleKey: "route.aiEvaluationReport", requiresPermission: "apps:view" } },
     { path: "/apps/:appId/memories", name: "app-workspace-memories", component: UserMemorySettingsPage, meta: { requiresAuth: true, title: "记忆管理", titleKey: "route.aiMemorySettings", requiresPermission: "apps:view" } },
     { path: "/apps/:appId/knowledge-bases", name: "app-workspace-knowledge-bases", component: KnowledgeBaseListPage, meta: { requiresAuth: true, title: "知识库列表", titleKey: "route.knowledgeBaseList", requiresPermission: "apps:view" } },
     { path: "/apps/:appId/knowledge-bases/:id", name: "app-workspace-knowledge-base-detail", component: KnowledgeBaseDetailPage, meta: { requiresAuth: true, title: "知识库详情", titleKey: "route.knowledgeBaseDetail", requiresPermission: "apps:view" } },
@@ -185,6 +190,8 @@ const router = createRouter({
     { path: "/ai/workspace", name: "ai-workspace-static", component: AiWorkspacePage, meta: { requiresAuth: true, title: "AI 工作台", titleKey: "route.aiWorkspace" } },
     { path: "/ai/library", name: "ai-library-static", component: AiLibraryPage, meta: { requiresAuth: true, title: "资源库", titleKey: "route.aiLibrary" } },
     { path: "/ai/devops/test-sets", name: "ai-test-sets-static", component: AiTestSetsPage, meta: { requiresAuth: true, title: "测试集", titleKey: "route.aiTestSets" } },
+    { path: "/ai/devops/evaluations/tasks", name: "ai-evaluation-tasks-static", component: EvaluationTaskPage, meta: { requiresAuth: true, title: "评测任务", titleKey: "route.aiEvaluationTasks" } },
+    { path: "/ai/devops/evaluations/reports/:taskId", name: "ai-evaluation-report-static", component: EvaluationReportPage, meta: { requiresAuth: true, title: "评测报告", titleKey: "route.aiEvaluationReport" } },
     { path: "/ai/devops/mock-sets", name: "ai-mock-sets-static", component: AiMockSetsPage, meta: { requiresAuth: true, title: "Mock 集", titleKey: "route.aiMockSets" } },
     { path: "/ai/shortcuts", name: "ai-shortcuts-static", component: AiShortcutsPage, meta: { requiresAuth: true, title: "快捷命令", titleKey: "route.aiShortcuts" } },
     { path: "/ai/search", name: "ai-search-static", component: AiSearchResultsPage, meta: { requiresAuth: true, title: "统一搜索", titleKey: "route.aiSearch" } },
