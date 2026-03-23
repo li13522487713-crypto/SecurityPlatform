@@ -33,3 +33,17 @@ public sealed record AgentChatResponse(
     string? Sources);
 
 public sealed record AgentChatCancelRequest(long ConversationId);
+
+public sealed record AgentChatStreamEvent(
+    string EventType,
+    string Data);
+
+public sealed record AgentToolCallStep(
+    string EventType,
+    string Data);
+
+public sealed record AgentToolCallResult(
+    bool Executed,
+    string? FinalAnswer,
+    IReadOnlyList<AgentToolCallStep> Steps,
+    string? MetadataJson);

@@ -19,6 +19,7 @@ namespace Atlas.Infrastructure.Services.AiPlatform;
 public sealed class AgentChatService : IAgentChatService
 {
     private const int ContextWindowSize = 20;
+    private const int MaxToolCallIterations = 3;
     private static readonly ConcurrentDictionary<long, CancellationTokenSource> ConversationCancellationMap = new();
 
     private readonly AgentRepository _agentRepository;
@@ -28,6 +29,7 @@ public sealed class AgentChatService : IAgentChatService
     private readonly ModelConfigRepository _modelConfigRepository;
     private readonly ILlmProviderFactory _llmProviderFactory;
     private readonly IRagRetrievalService _ragRetrievalService;
+    private readonly IAgentToolCallService _agentToolCallService;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<AgentChatService> _logger;
@@ -40,6 +42,7 @@ public sealed class AgentChatService : IAgentChatService
         ModelConfigRepository modelConfigRepository,
         ILlmProviderFactory llmProviderFactory,
         IRagRetrievalService ragRetrievalService,
+        IAgentToolCallService agentToolCallService,
         IIdGeneratorAccessor idGeneratorAccessor,
         IUnitOfWork unitOfWork,
         ILogger<AgentChatService> logger)
@@ -51,6 +54,7 @@ public sealed class AgentChatService : IAgentChatService
         _modelConfigRepository = modelConfigRepository;
         _llmProviderFactory = llmProviderFactory;
         _ragRetrievalService = ragRetrievalService;
+        _agentToolCallService = agentToolCallService;
         _idGeneratorAccessor = idGeneratorAccessor;
         _unitOfWork = unitOfWork;
         _logger = logger;
@@ -68,7 +72,8 @@ public sealed class AgentChatService : IAgentChatService
             userId,
             agentId,
             request,
-            streamOutput: null,
+            textStreamOutput: null,
+            eventStreamOutput: null,
             cancellationToken);
         return result;
     }
@@ -91,6 +96,7 @@ public sealed class AgentChatService : IAgentChatService
                     agentId,
                     request,
                     chunk => channel.Writer.WriteAsync(chunk, cancellationToken),
+                    eventStreamOutput: null,
                     cancellationToken);
                 channel.Writer.TryComplete();
             }
@@ -103,6 +109,42 @@ public sealed class AgentChatService : IAgentChatService
         await foreach (var chunk in channel.Reader.ReadAllAsync(cancellationToken))
         {
             yield return chunk;
+        }
+
+        await producer;
+    }
+
+    public async IAsyncEnumerable<AgentChatStreamEvent> ChatEventStreamAsync(
+        TenantId tenantId,
+        long userId,
+        long agentId,
+        AgentChatRequest request,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        var channel = Channel.CreateUnbounded<AgentChatStreamEvent>();
+        var producer = Task.Run(async () =>
+        {
+            try
+            {
+                await ExecuteAsync(
+                    tenantId,
+                    userId,
+                    agentId,
+                    request,
+                    textStreamOutput: null,
+                    eventStreamOutput: evt => channel.Writer.WriteAsync(evt, cancellationToken),
+                    cancellationToken);
+                channel.Writer.TryComplete();
+            }
+            catch (Exception ex)
+            {
+                channel.Writer.TryComplete(ex);
+            }
+        }, cancellationToken);
+
+        await foreach (var evt in channel.Reader.ReadAllAsync(cancellationToken))
+        {
+            yield return evt;
         }
 
         await producer;
@@ -140,7 +182,8 @@ public sealed class AgentChatService : IAgentChatService
         long userId,
         long agentId,
         AgentChatRequest request,
-        Func<string, ValueTask>? streamOutput,
+        Func<string, ValueTask>? textStreamOutput,
+        Func<AgentChatStreamEvent, ValueTask>? eventStreamOutput,
         CancellationToken cancellationToken)
     {
         var agent = await _agentRepository.FindByIdAsync(tenantId, agentId, cancellationToken)
@@ -192,33 +235,84 @@ public sealed class AgentChatService : IAgentChatService
                 afterContextClear: true,
                 limit: ContextWindowSize,
                 linkedCts.Token);
-            var ragResults = await TrySearchRagAsync(tenantId, agent.Id, request, linkedCts.Token);
-            var llmMessages = BuildLlmMessages(agent, history, ragResults);
-
-            var modelConfig = await ResolveModelConfigAsync(tenantId, agent.ModelConfigId, linkedCts.Token);
-            var providerName = modelConfig?.ProviderType;
-            var modelName = ResolveModelName(agent, modelConfig);
-            var completionRequest = new ChatCompletionRequest(
-                modelName,
-                llmMessages,
-                Temperature: agent.Temperature,
-                MaxTokens: agent.MaxTokens,
-                Provider: providerName);
-            var provider = _llmProviderFactory.GetLlmProvider(providerName);
-
             var assistantBuilder = new StringBuilder();
-            await foreach (var chunk in provider.ChatStreamAsync(completionRequest, linkedCts.Token))
+            string? metadata;
+            var finalEventEmitted = false;
+
+            var toolCallResult = await _agentToolCallService.TryExecuteAsync(
+                tenantId,
+                agent.Id,
+                request.Message,
+                MaxToolCallIterations,
+                linkedCts.Token);
+            if (toolCallResult.Executed && !string.IsNullOrWhiteSpace(toolCallResult.FinalAnswer))
             {
-                if (string.IsNullOrWhiteSpace(chunk.ContentDelta))
+                foreach (var step in toolCallResult.Steps)
                 {
-                    continue;
+                    await EmitEventAsync(eventStreamOutput, step.EventType, step.Data);
+                }
+                finalEventEmitted = toolCallResult.Steps.Any(step =>
+                    string.Equals(step.EventType, "final", StringComparison.OrdinalIgnoreCase));
+
+                assistantBuilder.Append(toolCallResult.FinalAnswer);
+                if (textStreamOutput is not null)
+                {
+                    await textStreamOutput(toolCallResult.FinalAnswer);
                 }
 
-                assistantBuilder.Append(chunk.ContentDelta);
-                if (streamOutput is not null)
+                metadata = JsonSerializer.Serialize(new
                 {
-                    await streamOutput(chunk.ContentDelta);
+                    mode = "tool_call",
+                    ragEnabled = false,
+                    toolCallMetadata = toolCallResult.MetadataJson
+                });
+            }
+            else
+            {
+                await EmitEventAsync(eventStreamOutput, "thought", "分析问题并准备调用模型生成回复。");
+
+                var ragResults = await TrySearchRagAsync(tenantId, agent.Id, request, linkedCts.Token);
+                var llmMessages = BuildLlmMessages(agent, history, ragResults);
+
+                var modelConfig = await ResolveModelConfigAsync(tenantId, agent.ModelConfigId, linkedCts.Token);
+                var providerName = modelConfig?.ProviderType;
+                var modelName = ResolveModelName(agent, modelConfig);
+                var completionRequest = new ChatCompletionRequest(
+                    modelName,
+                    llmMessages,
+                    Temperature: agent.Temperature,
+                    MaxTokens: agent.MaxTokens,
+                    Provider: providerName);
+                var provider = _llmProviderFactory.GetLlmProvider(providerName);
+
+                await foreach (var chunk in provider.ChatStreamAsync(completionRequest, linkedCts.Token))
+                {
+                    if (string.IsNullOrWhiteSpace(chunk.ContentDelta))
+                    {
+                        continue;
+                    }
+
+                    assistantBuilder.Append(chunk.ContentDelta);
+                    if (textStreamOutput is not null)
+                    {
+                        await textStreamOutput(chunk.ContentDelta);
+                    }
                 }
+
+                metadata = JsonSerializer.Serialize(new
+                {
+                    mode = "llm",
+                    provider = provider.ProviderName,
+                    model = modelName,
+                    ragEnabled = request.EnableRag ?? false,
+                    ragSources = ragResults.Select(x => new
+                    {
+                        x.KnowledgeBaseId,
+                        x.DocumentId,
+                        x.ChunkId,
+                        x.Score
+                    }).ToList()
+                });
             }
 
             var assistantContent = assistantBuilder.ToString();
@@ -227,20 +321,12 @@ public sealed class AgentChatService : IAgentChatService
                 throw new BusinessException("ModelEmptyResponse", ErrorCodes.ServerError);
             }
 
-            var assistantMessageId = _idGeneratorAccessor.NextId();
-            var metadata = JsonSerializer.Serialize(new
+            if (!finalEventEmitted)
             {
-                provider = provider.ProviderName,
-                model = modelName,
-                ragEnabled = request.EnableRag ?? false,
-                ragSources = ragResults.Select(x => new
-                {
-                    x.KnowledgeBaseId,
-                    x.DocumentId,
-                    x.ChunkId,
-                    x.Score
-                }).ToList()
-            });
+                await EmitEventAsync(eventStreamOutput, "final", assistantContent);
+            }
+
+            var assistantMessageId = _idGeneratorAccessor.NextId();
             var assistantMessageEntity = new ChatMessageEntity(
                 tenantId,
                 conversation.Id,
@@ -261,9 +347,7 @@ public sealed class AgentChatService : IAgentChatService
                 conversation.Id,
                 assistantMessageId,
                 assistantContent,
-                Sources: ragResults.Count == 0
-                    ? null
-                    : string.Join(", ", ragResults.Select(x => x.DocumentName).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct()));
+                Sources: null);
         }
         catch (OperationCanceledException) when (linkedCts.IsCancellationRequested)
         {
@@ -280,6 +364,19 @@ public sealed class AgentChatService : IAgentChatService
 
             linkedCts.Dispose();
         }
+    }
+
+    private static async ValueTask EmitEventAsync(
+        Func<AgentChatStreamEvent, ValueTask>? eventStreamOutput,
+        string eventType,
+        string data)
+    {
+        if (eventStreamOutput is null)
+        {
+            return;
+        }
+
+        await eventStreamOutput(new AgentChatStreamEvent(eventType, data));
     }
 
     private async Task<Conversation> EnsureConversationAsync(

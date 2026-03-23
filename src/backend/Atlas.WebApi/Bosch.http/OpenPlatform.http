@@ -80,6 +80,20 @@ Content-Type: application/json
   "enableRag": false
 }
 
+### 6.1) Open Chat（SSE-ReAct 结构化事件）
+POST {{baseUrl}}/api/v1/open/chat/stream?eventMode=react
+Authorization: Bearer {{patToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+X-Stream-Event-Mode: react
+
+{
+  "agentId": {{agentId}},
+  "message": "请展示工具调用过程。",
+  "conversationId": null,
+  "enableRag": false
+}
+
 ### 7) Open Knowledge 列表
 GET {{baseUrl}}/api/v1/open/knowledge/bases?PageIndex=1&PageSize=20
 Authorization: Bearer {{patToken}}

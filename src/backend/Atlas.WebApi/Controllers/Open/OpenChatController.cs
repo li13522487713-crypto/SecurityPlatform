@@ -70,16 +70,34 @@ public sealed class OpenChatController : ControllerBase
         var tenantId = _tenantProvider.GetTenantId();
         var userId = ControllerHelper.GetUserIdSafely(User)
             ?? throw new UnauthorizedAccessException("缺少用户标识");
+        var useStructuredEvents = ShouldUseStructuredEvents(Request);
 
-        await foreach (var chunk in _chatService.ChatStreamAsync(
-                           tenantId,
-                           userId,
-                           request.AgentId,
-                           new AgentChatRequest(request.ConversationId, request.Message, request.EnableRag),
-                           cancellationToken))
+        if (!useStructuredEvents)
         {
-            await Response.WriteAsync($"data: {chunk}\n\n", cancellationToken);
-            await Response.Body.FlushAsync(cancellationToken);
+            await foreach (var chunk in _chatService.ChatStreamAsync(
+                               tenantId,
+                               userId,
+                               request.AgentId,
+                               new AgentChatRequest(request.ConversationId, request.Message, request.EnableRag),
+                               cancellationToken))
+            {
+                await Response.WriteAsync($"data: {chunk}\n\n", cancellationToken);
+                await Response.Body.FlushAsync(cancellationToken);
+            }
+        }
+        else
+        {
+            await foreach (var evt in _chatService.ChatEventStreamAsync(
+                               tenantId,
+                               userId,
+                               request.AgentId,
+                               new AgentChatRequest(request.ConversationId, request.Message, request.EnableRag),
+                               cancellationToken))
+            {
+                await Response.WriteAsync($"event: {evt.EventType}\n", cancellationToken);
+                await Response.WriteAsync($"data: {evt.Data}\n\n", cancellationToken);
+                await Response.Body.FlushAsync(cancellationToken);
+            }
         }
 
         await Response.WriteAsync("data: [DONE]\n\n", cancellationToken);
@@ -91,4 +109,23 @@ public sealed class OpenChatController : ControllerBase
         string Message,
         long? ConversationId,
         bool? EnableRag);
+
+    private static bool ShouldUseStructuredEvents(HttpRequest request)
+    {
+        if (request.Headers.TryGetValue("X-Stream-Event-Mode", out var mode) &&
+            mode.Count > 0 &&
+            string.Equals(mode[0], "react", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (request.Query.TryGetValue("eventMode", out var eventMode) &&
+            eventMode.Count > 0 &&
+            string.Equals(eventMode[0], "react", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return false;
+    }
 }

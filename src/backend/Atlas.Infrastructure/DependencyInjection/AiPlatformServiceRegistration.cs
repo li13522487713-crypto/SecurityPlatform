@@ -73,6 +73,7 @@ public static class AiPlatformServiceRegistration
         services.AddScoped<IAgentQueryService, AgentQueryService>();
         services.AddScoped<IConversationService, ConversationService>();
         services.AddScoped<IAgentChatService, AgentChatService>();
+        services.AddScoped<IAgentToolCallService, AgentToolCallService>();
         services.AddScoped<IKnowledgeBaseService, KnowledgeBaseService>();
         services.AddScoped<IAiDatabaseService, AiDatabaseService>();
         services.AddScoped<IAiVariableService, AiVariableService>();

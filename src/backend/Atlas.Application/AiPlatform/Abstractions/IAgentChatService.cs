@@ -19,6 +19,13 @@ public interface IAgentChatService
         AgentChatRequest request,
         CancellationToken cancellationToken);
 
+    IAsyncEnumerable<AgentChatStreamEvent> ChatEventStreamAsync(
+        TenantId tenantId,
+        long userId,
+        long agentId,
+        AgentChatRequest request,
+        CancellationToken cancellationToken);
+
     Task CancelAsync(
         TenantId tenantId,
         long userId,

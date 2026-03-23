@@ -1,13 +1,29 @@
 namespace Atlas.Application.AiPlatform.Models;
 
-public sealed record ChatMessage(string Role, string Content);
+public sealed record ChatMessage(
+    string Role,
+    string Content,
+    string? Name = null,
+    string? ToolCallId = null);
+
+public sealed record ChatToolDefinition(
+    string Name,
+    string Description,
+    string ParametersJson);
+
+public sealed record ChatToolCall(
+    string Id,
+    string Name,
+    string ArgumentsJson);
 
 public sealed record ChatCompletionRequest(
     string Model,
     IReadOnlyList<ChatMessage> Messages,
     float? Temperature = null,
     int? MaxTokens = null,
-    string? Provider = null);
+    string? Provider = null,
+    IReadOnlyList<ChatToolDefinition>? Tools = null,
+    string? ToolChoice = null);
 
 public sealed record ChatCompletionResult(
     string Content,
@@ -16,12 +32,14 @@ public sealed record ChatCompletionResult(
     string? FinishReason = null,
     int? PromptTokens = null,
     int? CompletionTokens = null,
-    int? TotalTokens = null);
+    int? TotalTokens = null,
+    IReadOnlyList<ChatToolCall>? ToolCalls = null);
 
 public sealed record ChatCompletionChunk(
     string ContentDelta,
     bool IsCompleted = false,
-    string? FinishReason = null);
+    string? FinishReason = null,
+    IReadOnlyList<ChatToolCall>? ToolCalls = null);
 
 public sealed record EmbeddingRequest(
     string Model,
