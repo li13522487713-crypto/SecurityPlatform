@@ -71,6 +71,7 @@ const MultiAgentOrchestrationListPage = () => import("@/pages/ai/multi-agent/Mul
 const MultiAgentOrchestrationDetailPage = () => import("@/pages/ai/multi-agent/MultiAgentOrchestrationDetailPage.vue");
 const PageRuntimeRenderer = () => import("@/pages/runtime/PageRuntimeRenderer.vue");
 const AppListPage = () => import("@/pages/lowcode/AppListPage.vue");
+const CustomDesignerMockPage = () => import("@/pages/lowcode/CustomDesignerMockPage.vue");
 const AppBuilderPage = () => import("@/pages/lowcode/AppBuilderPage.vue");
 const FormListPage = () => import("@/pages/lowcode/FormListPage.vue");
 const FormDesignerPage = () => import("@/pages/lowcode/FormDesignerPage.vue");
@@ -217,6 +218,7 @@ const router = createRouter({
 
     { path: "/settings/license", name: "settings-license", component: LicensePage, meta: { requiresAuth: true, title: "授权管理", titleKey: "route.license", requiresPermission: "system:license:view" } },
     { path: "/lowcode/apps", name: "app-list", component: AppListPage, meta: { requiresAuth: true, title: "低代码应用", titleKey: "route.lowcodeApps", requiresPermission: "apps:view" } },
+    { path: "/lowcode/prototype", name: "custom-designer-prototype", component: CustomDesignerMockPage, meta: { requiresAuth: true, title: "自定义设计器 MVP", titleKey: "route.customDesignerMVP" } },
     { path: "/lowcode/forms", name: "apps-form-list", component: FormListPage, meta: { requiresAuth: true, title: "表单管理", titleKey: "route.forms", requiresPermission: "apps:view" } },
     { path: "/lowcode/templates", name: "template-market", component: TemplateMarketPage, meta: { requiresAuth: true, title: "模板市场", titleKey: "route.templateMarket", requiresPermission: "apps:view" } },
     { path: "/monitor/writeback-failures", name: "monitor-writeback-failures", component: WritebackMonitorPage, meta: { requiresAuth: true, title: "回写监控", titleKey: "route.writebackMonitor", requiresPermission: "system:admin" } },
