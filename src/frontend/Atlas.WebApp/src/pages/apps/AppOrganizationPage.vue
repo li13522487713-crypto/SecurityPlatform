@@ -397,8 +397,13 @@
           <a-form-item :label="t('appsDepartments.labelCode')" required>
             <a-input v-model:value="entityForm.code" />
           </a-form-item>
-          <a-form-item :label="t('appsDepartments.labelParent')">
-            <a-select v-model:value="entityForm.parentId" allow-clear :options="departmentParentOptions" />
+          <a-form-item :label="t('appsDepartments.labelParent')" :extra="t('appOrg.parentAutoRootHint')">
+            <a-select
+              v-model:value="entityForm.parentId"
+              allow-clear
+              :placeholder="t('appOrg.parentPlaceholder')"
+              :options="departmentParentOptions"
+            />
           </a-form-item>
           <a-form-item :label="t('appsDepartments.labelSort')">
             <a-input-number v-model:value="entityForm.sortOrder" :min="0" :max="9999" style="width: 100%" />
@@ -968,10 +973,14 @@ async function submitEntity() {
         message.warning(t("appsDepartments.fillNameCode"));
         return;
       }
+      if (editingEntityId.value && entityForm.parentId === editingEntityId.value) {
+        message.warning(t("appOrg.parentCannotSelf"));
+        return;
+      }
       const payload = {
         name: entityForm.name.trim(),
         code: entityForm.code.trim(),
-        parentId: entityForm.parentId,
+        parentId: entityForm.parentId || undefined,
         sortOrder: entityForm.sortOrder
       };
       if (editingEntityId.value) {

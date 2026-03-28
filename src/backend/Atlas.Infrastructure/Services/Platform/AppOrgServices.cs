@@ -94,6 +94,9 @@ public sealed class AppOrgQueryService : IAppOrgQueryService
 
 public sealed class AppOrgCommandService : IAppOrgCommandService
 {
+    private const string RootDepartmentName = "根部门";
+    private const string RootDepartmentCodePrefix = "SYS_ROOT_";
+
     private readonly IAppDepartmentRepository _deptRepo;
     private readonly IAppPositionRepository _posRepo;
     private readonly IAppProjectRepository _projRepo;
@@ -113,7 +116,8 @@ public sealed class AppOrgCommandService : IAppOrgCommandService
 
     public async Task<long> CreateDepartmentAsync(TenantId tenantId, long appId, AppDepartmentCreateRequest request, CancellationToken cancellationToken = default)
     {
-        var entity = new AppDepartment(tenantId, appId, request.Name.Trim(), request.Code.Trim(), request.ParentId, request.SortOrder, _idGen.NextId());
+        var parentId = await ResolveParentDepartmentIdAsync(tenantId, appId, request.ParentId, cancellationToken);
+        var entity = new AppDepartment(tenantId, appId, request.Name.Trim(), request.Code.Trim(), parentId, request.SortOrder, _idGen.NextId());
         await _deptRepo.AddAsync(entity, cancellationToken);
         return entity.Id;
     }
@@ -166,6 +170,48 @@ public sealed class AppOrgCommandService : IAppOrgCommandService
 
     public async Task DeleteProjectAsync(TenantId tenantId, long appId, long id, CancellationToken cancellationToken = default)
         => await _projRepo.DeleteAsync(tenantId, appId, id, cancellationToken);
+
+    private async Task<long?> ResolveParentDepartmentIdAsync(
+        TenantId tenantId,
+        long appId,
+        long? requestedParentId,
+        CancellationToken cancellationToken)
+    {
+        if (requestedParentId.HasValue)
+        {
+            var parent = await _deptRepo.FindByIdAsync(tenantId, appId, requestedParentId.Value, cancellationToken);
+            if (parent is null)
+            {
+                throw new BusinessException(ErrorCodes.ValidationError, "AppOrgParentDepartmentNotFound");
+            }
+
+            return requestedParentId.Value;
+        }
+
+        var departments = await _deptRepo.QueryByAppIdAsync(tenantId, appId, cancellationToken);
+        var root = departments.FirstOrDefault(x =>
+            x.Code.StartsWith(RootDepartmentCodePrefix, StringComparison.OrdinalIgnoreCase)
+            || x.ParentId is null
+            || x.ParentId == x.Id);
+        if (root is not null)
+        {
+            return root.Id;
+        }
+
+        var rootId = _idGen.NextId();
+        var rootDepartment = new AppDepartment(
+            tenantId,
+            appId,
+            RootDepartmentName,
+            $"{RootDepartmentCodePrefix}{appId}",
+            // Historical schema may enforce NOT NULL on ParentId.
+            // Use self reference to represent the logical root node safely.
+            parentId: rootId,
+            sortOrder: 0,
+            id: rootId);
+        await _deptRepo.AddAsync(rootDepartment, cancellationToken);
+        return rootDepartment.Id;
+    }
 }
 
 public sealed class AppRoleAssignmentQueryService : IAppRoleAssignmentQueryService
