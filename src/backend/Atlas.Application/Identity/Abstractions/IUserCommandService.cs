@@ -42,12 +42,27 @@ public interface IUserCommandService
         string newPassword,
         CancellationToken cancellationToken);
 
+    Task ResetPasswordAsync(
+        TenantId tenantId,
+        long userId,
+        string newPassword,
+        CancellationToken cancellationToken);
+
     Task UpdateProfileAsync(
         TenantId tenantId,
         long userId,
         string displayName,
         string? email,
         string? phoneNumber,
+        CancellationToken cancellationToken);
+
+    Task UpdateBasicInfoAsync(
+        TenantId tenantId,
+        long userId,
+        string displayName,
+        string? email,
+        string? phoneNumber,
+        bool isActive,
         CancellationToken cancellationToken);
 
     Task DeleteAsync(

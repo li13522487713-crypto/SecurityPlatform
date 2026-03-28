@@ -494,6 +494,20 @@ public interface IAppOrganizationCommandService
         AppOrganizationUpdateMemberRolesRequest request,
         CancellationToken cancellationToken = default);
 
+    Task ResetMemberPasswordAsync(
+        TenantId tenantId,
+        long appId,
+        string userId,
+        AppOrganizationResetMemberPasswordRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task UpdateMemberProfileAsync(
+        TenantId tenantId,
+        long appId,
+        string userId,
+        AppOrganizationUpdateMemberProfileRequest request,
+        CancellationToken cancellationToken = default);
+
     Task RemoveMemberAsync(
         TenantId tenantId,
         long appId,

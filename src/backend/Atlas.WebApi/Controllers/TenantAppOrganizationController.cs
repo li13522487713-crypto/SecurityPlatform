@@ -112,6 +112,42 @@ public sealed class TenantAppOrganizationController : ControllerBase
         return Ok(ApiResponse<object>.Ok(new { appId = appId.ToString(), userId }, HttpContext.TraceIdentifier));
     }
 
+    [HttpPost("members/{userId}/reset-password")]
+    [Authorize(Policy = PermissionPolicies.AppMembersUpdate)]
+    public async Task<ActionResult<ApiResponse<object>>> ResetMemberPassword(
+        long appId,
+        string userId,
+        [FromBody] AppOrganizationResetMemberPasswordRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.NewPassword))
+        {
+            return BadRequest(ApiResponse<object>.Fail(ErrorCodes.ValidationError, "NewPasswordRequired", HttpContext.TraceIdentifier));
+        }
+
+        var tenantId = _tenantProvider.GetTenantId();
+        await _commandService.ResetMemberPasswordAsync(tenantId, appId, userId, request, cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { appId = appId.ToString(), userId }, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPut("members/{userId}/profile")]
+    [Authorize(Policy = PermissionPolicies.AppMembersUpdate)]
+    public async Task<ActionResult<ApiResponse<object>>> UpdateMemberProfile(
+        long appId,
+        string userId,
+        [FromBody] AppOrganizationUpdateMemberProfileRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.DisplayName))
+        {
+            return BadRequest(ApiResponse<object>.Fail(ErrorCodes.ValidationError, "DisplayNameRequired", HttpContext.TraceIdentifier));
+        }
+
+        var tenantId = _tenantProvider.GetTenantId();
+        await _commandService.UpdateMemberProfileAsync(tenantId, appId, userId, request, cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { appId = appId.ToString(), userId }, HttpContext.TraceIdentifier));
+    }
+
     [HttpPost("roles")]
     [Authorize(Policy = PermissionPolicies.AppRolesUpdate)]
     public async Task<ActionResult<ApiResponse<object>>> CreateRole(

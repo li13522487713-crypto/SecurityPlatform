@@ -104,6 +104,8 @@ public sealed record TenantAppMemberListItem(
     string UserId,
     string Username,
     string DisplayName,
+    string? Email,
+    string? PhoneNumber,
     bool IsActive,
     string JoinedAt,
     IReadOnlyList<string> RoleIds,
@@ -622,6 +624,15 @@ public sealed record AppOrganizationUpdateMemberRolesRequest(
     IReadOnlyList<string>? DepartmentIds,
     IReadOnlyList<string>? PositionIds,
     IReadOnlyList<string>? ProjectIds);
+
+public sealed record AppOrganizationResetMemberPasswordRequest(
+    string NewPassword);
+
+public sealed record AppOrganizationUpdateMemberProfileRequest(
+    string DisplayName,
+    string? Email,
+    string? PhoneNumber,
+    bool IsActive);
 
 public sealed record AppOrganizationCreateRoleRequest(
     string Code,

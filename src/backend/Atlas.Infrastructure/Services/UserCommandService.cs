@@ -381,6 +381,70 @@ public sealed class UserCommandService : IUserCommandService
         await _permissionDecisionService.InvalidateUserAsync(tenantId, userId, cancellationToken);
     }
 
+    public async Task ResetPasswordAsync(
+        TenantId tenantId,
+        long userId,
+        string newPassword,
+        CancellationToken cancellationToken)
+    {
+        var passwordPolicy = _passwordPolicyMonitor.CurrentValue;
+        var user = await _userRepository.FindByIdAsync(tenantId, userId, cancellationToken);
+        if (user is null)
+        {
+            throw new BusinessException("User not found.", ErrorCodes.NotFound);
+        }
+
+        if (_passwordHasher.VerifyHashedPassword(user.PasswordHash, newPassword))
+        {
+            throw new BusinessException("New password must be different from current password.", ErrorCodes.ValidationError);
+        }
+
+        var recentHistories = await _passwordHistoryRepository.GetRecentAsync(
+            tenantId,
+            userId,
+            PasswordHistoryRetention,
+            cancellationToken);
+        foreach (var history in recentHistories)
+        {
+            if (_passwordHasher.VerifyHashedPassword(history.PasswordHash, newPassword))
+            {
+                throw new BusinessException("New password cannot reuse recently used passwords.", ErrorCodes.ValidationError);
+            }
+        }
+
+        if (!PasswordPolicy.IsCompliant(newPassword, passwordPolicy, out var message))
+        {
+            throw new BusinessException(message, ErrorCodes.ValidationError);
+        }
+
+        var oldPasswordHash = user.PasswordHash;
+        var now = DateTimeOffset.UtcNow;
+        var passwordHash = _passwordHasher.HashPassword(newPassword);
+        user.UpdatePassword(passwordHash, now);
+
+        var historyEntry = new PasswordHistory(
+            tenantId,
+            userId,
+            oldPasswordHash,
+            _idGeneratorAccessor.NextId(),
+            now);
+        await _unitOfWork.ExecuteInTransactionAsync(async () =>
+        {
+            await _userRepository.UpdateAsync(user, cancellationToken);
+            await _passwordHistoryRepository.AddAsync(historyEntry, cancellationToken);
+            await _passwordHistoryRepository.DeleteExceptRecentAsync(
+                tenantId,
+                userId,
+                PasswordHistoryRetention,
+                cancellationToken);
+            await _authSessionRepository.RevokeByUserIdAsync(tenantId, userId, now, cancellationToken);
+            await _refreshTokenRepository.RevokeByUserIdAsync(tenantId, userId, now, cancellationToken);
+        }, cancellationToken);
+
+        _authCacheService.InvalidateUser(tenantId, userId);
+        await _permissionDecisionService.InvalidateUserAsync(tenantId, userId, cancellationToken);
+    }
+
     public async Task UpdateProfileAsync(
         TenantId tenantId,
         long userId,
@@ -398,6 +462,39 @@ public sealed class UserCommandService : IUserCommandService
         user.UpdateProfile(displayName, email, phoneNumber);
         await _userRepository.UpdateAsync(user, cancellationToken);
         await _permissionDecisionService.InvalidateUserAsync(tenantId, userId, cancellationToken);
+    }
+
+    public async Task UpdateBasicInfoAsync(
+        TenantId tenantId,
+        long userId,
+        string displayName,
+        string? email,
+        string? phoneNumber,
+        bool isActive,
+        CancellationToken cancellationToken)
+    {
+        var user = await _userRepository.FindByIdAsync(tenantId, userId, cancellationToken);
+        if (user is null)
+        {
+            throw new BusinessException("User not found.", ErrorCodes.NotFound);
+        }
+
+        user.UpdateProfile(displayName, email, phoneNumber);
+        if (isActive)
+        {
+            user.Activate();
+        }
+        else
+        {
+            user.Deactivate();
+        }
+
+        await _userRepository.UpdateAsync(user, cancellationToken);
+        await _permissionDecisionService.InvalidateUserAsync(tenantId, userId, cancellationToken);
+        if (!isActive)
+        {
+            _authCacheService.InvalidateUser(tenantId, userId);
+        }
     }
 
     public async Task DeleteAsync(

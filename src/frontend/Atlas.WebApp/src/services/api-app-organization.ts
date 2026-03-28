@@ -4,6 +4,8 @@ import type {
   AppDepartmentListItem,
   AppOrganizationAssignMembersRequest,
   AppOrganizationCreateMemberUserRequest,
+  AppOrganizationResetMemberPasswordRequest,
+  AppOrganizationUpdateMemberProfileRequest,
   AppOrganizationCreateDepartmentRequest,
   AppOrganizationCreatePositionRequest,
   AppOrganizationCreateProjectRequest,
@@ -78,6 +80,36 @@ export async function removeOrganizationMember(appId: string, userId: string) {
   });
   if (!response.success) {
     throw new Error(response.message || "移除成员失败");
+  }
+}
+
+export async function resetOrganizationMemberPassword(
+  appId: string,
+  userId: string,
+  request: AppOrganizationResetMemberPasswordRequest
+) {
+  const response = await requestApi<ApiResponse<object>>(`${buildOrgBasePath(appId)}/members/${userId}/reset-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request)
+  });
+  if (!response.success) {
+    throw new Error(response.message || "重置密码失败");
+  }
+}
+
+export async function updateOrganizationMemberProfile(
+  appId: string,
+  userId: string,
+  request: AppOrganizationUpdateMemberProfileRequest
+) {
+  const response = await requestApi<ApiResponse<object>>(`${buildOrgBasePath(appId)}/members/${userId}/profile`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request)
+  });
+  if (!response.success) {
+    throw new Error(response.message || "更新成员信息失败");
   }
 }
 

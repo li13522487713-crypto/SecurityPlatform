@@ -350,7 +350,9 @@
 - 成员管理（统一入口）：
   - `POST /api/v2/tenant-app-instances/{appId}/organization/members`
   - `POST /api/v2/tenant-app-instances/{appId}/organization/members/users`（新建账号并加入应用，字段校验与平台级 `POST /api/v1/users` 一致，支持 `projectIds` 多选分配）
+  - `PUT /api/v2/tenant-app-instances/{appId}/organization/members/{userId}/profile`（编辑成员姓名/邮箱/手机号/状态）
   - `PUT /api/v2/tenant-app-instances/{appId}/organization/members/{userId}/roles`（保留原路径，入参扩展为 `roleIds + projectIds`）
+  - `POST /api/v2/tenant-app-instances/{appId}/organization/members/{userId}/reset-password`（管理员重置成员密码）
   - `DELETE /api/v2/tenant-app-instances/{appId}/organization/members/{userId}`
 - 角色管理（统一入口）：
   - `POST /api/v2/tenant-app-instances/{appId}/organization/roles`

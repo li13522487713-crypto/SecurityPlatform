@@ -160,6 +160,8 @@ public sealed class TenantAppMemberQueryService : ITenantAppMemberQueryService
                     member.UserId.ToString(),
                     user?.Username ?? member.UserId.ToString(),
                     user?.DisplayName ?? user?.Username ?? member.UserId.ToString(),
+                    user?.Email,
+                    user?.PhoneNumber,
                     user?.IsActive ?? false,
                     member.JoinedAt.ToString("O"),
                     memberRoleIds.Select(x => x.ToString()).ToArray(),

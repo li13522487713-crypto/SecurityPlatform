@@ -82,6 +82,8 @@ export interface TenantAppMemberListItem {
   userId: string;
   username: string;
   displayName: string;
+  email?: string;
+  phoneNumber?: string;
   isActive: boolean;
   joinedAt: string;
   roleIds: string[];
@@ -562,6 +564,17 @@ export interface AppOrganizationUpdateMemberRolesRequest {
   departmentIds?: string[];
   positionIds?: string[];
   projectIds?: string[];
+}
+
+export interface AppOrganizationResetMemberPasswordRequest {
+  newPassword: string;
+}
+
+export interface AppOrganizationUpdateMemberProfileRequest {
+  displayName: string;
+  email?: string;
+  phoneNumber?: string;
+  isActive: boolean;
 }
 
 export interface AppOrganizationCreateRoleRequest {

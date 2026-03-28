@@ -55,6 +55,7 @@ public sealed class AppOrganizationQueryService : IAppOrganizationQueryService
 
 public sealed class AppOrganizationCommandService : IAppOrganizationCommandService
 {
+    private readonly ITenantAppMemberQueryService _memberQueryService;
     private readonly ITenantAppMemberCommandService _memberCommandService;
     private readonly ITenantAppRoleCommandService _roleCommandService;
     private readonly IAppOrgCommandService _appOrgCommandService;
@@ -62,12 +63,14 @@ public sealed class AppOrganizationCommandService : IAppOrganizationCommandServi
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
 
     public AppOrganizationCommandService(
+        ITenantAppMemberQueryService memberQueryService,
         ITenantAppMemberCommandService memberCommandService,
         ITenantAppRoleCommandService roleCommandService,
         IAppOrgCommandService appOrgCommandService,
         IUserCommandService userCommandService,
         IIdGeneratorAccessor idGeneratorAccessor)
     {
+        _memberQueryService = memberQueryService;
         _memberCommandService = memberCommandService;
         _roleCommandService = roleCommandService;
         _appOrgCommandService = appOrgCommandService;
@@ -149,6 +152,51 @@ public sealed class AppOrganizationCommandService : IAppOrganizationCommandServi
                 ParseNullableIdList(request.DepartmentIds, "departmentIds"),
                 ParseNullableIdList(request.PositionIds, "positionIds"),
                 ParseNullableIdList(request.ProjectIds, "projectIds")),
+            cancellationToken);
+    }
+
+    public async Task ResetMemberPasswordAsync(
+        TenantId tenantId,
+        long appId,
+        string userId,
+        AppOrganizationResetMemberPasswordRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var parsedUserId = ParseId(userId, "userId");
+        var isMember = await _memberQueryService.GetByUserIdAsync(tenantId, appId, parsedUserId, cancellationToken);
+        if (isMember is null)
+        {
+            throw new BusinessException(ErrorCodes.NotFound, "OrganizationMemberNotFound");
+        }
+
+        await _userCommandService.ResetPasswordAsync(
+            tenantId,
+            parsedUserId,
+            request.NewPassword,
+            cancellationToken);
+    }
+
+    public async Task UpdateMemberProfileAsync(
+        TenantId tenantId,
+        long appId,
+        string userId,
+        AppOrganizationUpdateMemberProfileRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var parsedUserId = ParseId(userId, "userId");
+        var member = await _memberQueryService.GetByUserIdAsync(tenantId, appId, parsedUserId, cancellationToken);
+        if (member is null)
+        {
+            throw new BusinessException(ErrorCodes.NotFound, "OrganizationMemberNotFound");
+        }
+
+        await _userCommandService.UpdateBasicInfoAsync(
+            tenantId,
+            parsedUserId,
+            request.DisplayName,
+            request.Email,
+            request.PhoneNumber,
+            request.IsActive,
             cancellationToken);
     }
 

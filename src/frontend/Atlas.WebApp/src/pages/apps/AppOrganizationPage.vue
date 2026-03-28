@@ -244,6 +244,14 @@
                   {{ t("common.edit") }}
                 </a-button>
                 <a-button
+                  v-if="mainPanel === 'members' && canManageMembers"
+                  type="link"
+                  size="small"
+                  @click="openResetPassword(record)"
+                >
+                  {{ t("appOrg.resetPasswordAction") }}
+                </a-button>
+                <a-button
                   v-else-if="mainPanel !== 'members'"
                   type="link"
                   size="small"
@@ -419,8 +427,30 @@
         <a-form-item :label="t('appsUsers.labelMemberUser')">
           <a-input :value="editingMemberDisplayName" disabled />
         </a-form-item>
+        <a-form-item :label="t('systemUsers.displayName')" required>
+          <a-input v-model:value="editMemberDisplayName" />
+        </a-form-item>
+        <a-form-item :label="t('systemUsers.email')">
+          <a-input v-model:value="editMemberEmail" />
+        </a-form-item>
+        <a-form-item :label="t('systemUsers.phoneNumber')">
+          <a-input v-model:value="editMemberPhoneNumber" />
+        </a-form-item>
+        <a-form-item :label="t('systemUsers.status')">
+          <a-switch v-model:checked="editMemberIsActive" />
+        </a-form-item>
         <a-form-item v-if="canViewAppRoles" :label="t('appsUsers.labelRoles')">
-          <a-select v-model:value="editMemberRoleIds" mode="multiple" :options="roleOptions" />
+          <a-select
+            v-model:value="editMemberRoleIds"
+            mode="multiple"
+            show-search
+            :filter-option="false"
+            :options="editMemberRoleOptions"
+            :loading="editMemberRoleOptionsLoading"
+            :placeholder="t('appsUsers.rolePlaceholder')"
+            @search="handleEditMemberRoleSearch"
+            @focus="loadEditMemberRoleOptions()"
+          />
         </a-form-item>
         <a-form-item :label="t('appOrg.sectionDepartments')">
           <a-select
@@ -450,6 +480,24 @@
             @search="handleEditMemberProjectSearch"
             @focus="loadEditMemberProjectOptions()"
           />
+        </a-form-item>
+      </a-form>
+    </a-modal>
+
+    <a-modal
+      v-model:open="resetPasswordOpen"
+      :title="t('appOrg.resetPasswordTitle')"
+      :confirm-loading="submitting"
+      :ok-text="t('appOrg.resetPasswordConfirm')"
+      :cancel-text="t('common.cancel')"
+      @ok="submitResetPassword"
+    >
+      <a-form layout="vertical">
+        <a-form-item :label="t('appsUsers.labelMemberUser')">
+          <a-input :value="editingMemberDisplayName" disabled />
+        </a-form-item>
+        <a-form-item :label="t('appOrg.newPassword')" required>
+          <a-input-password v-model:value="resetPasswordForm.newPassword" />
         </a-form-item>
       </a-form>
     </a-modal>
@@ -567,7 +615,9 @@ import {
   getAppOrganizationWorkspace,
   getDepartmentParentLabel,
   removeOrganizationMember,
+  resetOrganizationMemberPassword,
   updateOrganizationDepartment,
+  updateOrganizationMemberProfile,
   updateOrganizationMemberRoles,
   updateOrganizationPosition,
   updateOrganizationProject,
@@ -615,15 +665,23 @@ const entityDrawerKind = ref<EntityKind>("roles");
 
 const addMemberOpen = ref(false);
 const editMemberRolesOpen = ref(false);
+const resetPasswordOpen = ref(false);
 const entityModalOpen = ref(false);
 const entityModalKind = ref<EntityKind>("roles");
 const editingMemberUserId = ref("");
 const editingMemberDisplayName = ref("");
+const editMemberDisplayName = ref("");
+const editMemberEmail = ref("");
+const editMemberPhoneNumber = ref("");
+const editMemberIsActive = ref(true);
 const editMemberRoleIds = ref<string[]>([]);
 const editMemberDepartmentIds = ref<string[]>([]);
 const editMemberPositionIds = ref<string[]>([]);
 const editMemberProjectIds = ref<string[]>([]);
 const editingEntityId = ref<string | null>(null);
+const resetPasswordForm = reactive({
+  newPassword: ""
+});
 
 const addMemberForm = reactive({
   username: "",
@@ -658,6 +716,8 @@ const positionMemberOptions = computed<SelectOption[]>(() =>
 );
 const addMemberRoleOptions = ref<SelectOption[]>([]);
 const addMemberRoleOptionsLoading = ref(false);
+const editMemberRoleOptions = ref<SelectOption[]>([]);
+const editMemberRoleOptionsLoading = ref(false);
 const addMemberProjectOptions = ref<SelectOption[]>([]);
 const addMemberProjectOptionsLoading = ref(false);
 const editMemberProjectOptions = ref<SelectOption[]>([]);
@@ -1186,6 +1246,39 @@ const handleAddMemberRoleSearch = debounce((value?: string) => {
   void loadAddMemberRoleOptions(value);
 }, 300);
 
+async function loadEditMemberRoleOptions(keywordText?: string) {
+  if (!appId.value || !canViewAppRoles.value) {
+    editMemberRoleOptions.value = [];
+    return;
+  }
+  editMemberRoleOptionsLoading.value = true;
+  try {
+    const page = await getTenantAppRolesPaged(appId.value, {
+      pageIndex: 1,
+      pageSize: 20,
+      keyword: keywordText?.trim() || undefined
+    });
+    const remoteOptions = page.items.map((item) => ({
+      label: `${item.name} (${item.code})`,
+      value: item.id
+    }));
+    const merged = new Map<string, SelectOption>();
+    for (const item of editMemberRoleOptions.value) {
+      merged.set(item.value, item);
+    }
+    for (const item of remoteOptions) {
+      merged.set(item.value, item);
+    }
+    editMemberRoleOptions.value = Array.from(merged.values());
+  } finally {
+    editMemberRoleOptionsLoading.value = false;
+  }
+}
+
+const handleEditMemberRoleSearch = debounce((value?: string) => {
+  void loadEditMemberRoleOptions(value);
+}, 300);
+
 async function loadAddMemberProjectOptions(keywordText?: string) {
   if (!appId.value || !canViewAppProjects.value) {
     addMemberProjectOptions.value = [];
@@ -1247,17 +1340,34 @@ const handleEditMemberProjectSearch = debounce((value?: string) => {
 function openEditMemberRoles(record: TenantAppMemberListItem) {
   editingMemberUserId.value = record.userId;
   editingMemberDisplayName.value = `${record.displayName} (${record.username})`;
+  editMemberDisplayName.value = record.displayName;
+  editMemberEmail.value = record.email ?? "";
+  editMemberPhoneNumber.value = record.phoneNumber ?? "";
+  editMemberIsActive.value = record.isActive;
   editMemberRoleIds.value = [...record.roleIds];
   editMemberDepartmentIds.value = [...record.departmentIds];
   editMemberPositionIds.value = [...record.positionIds];
   editMemberProjectIds.value = [...record.projectIds];
+  // 先用当前行数据注入选项，确保已分配角色在远程分页首屏之外也能回显
+  editMemberRoleOptions.value = record.roleIds.map((id, index) => ({
+    value: id,
+    label: `${record.roleNames[index] ?? id}`
+  }));
   // 先用当前行数据注入选项，确保已分配项目在远程分页首屏之外也能回显
   editMemberProjectOptions.value = record.projectIds.map((id, index) => ({
     value: id,
     label: `${record.projectNames[index] ?? id}`
   }));
   editMemberRolesOpen.value = true;
+  void loadEditMemberRoleOptions();
   void loadEditMemberProjectOptions();
+}
+
+function openResetPassword(record: TenantAppMemberListItem) {
+  editingMemberUserId.value = record.userId;
+  editingMemberDisplayName.value = `${record.displayName} (${record.username})`;
+  resetPasswordForm.newPassword = "";
+  resetPasswordOpen.value = true;
 }
 
 async function submitAddMember() {
@@ -1300,8 +1410,18 @@ async function submitAddMember() {
 
 async function submitEditMemberRoles() {
   if (!appId.value || !editingMemberUserId.value) return;
+  if (!editMemberDisplayName.value.trim()) {
+    message.warning(t("systemUsers.displayNameRequired"));
+    return;
+  }
   submitting.value = true;
   try {
+    await updateOrganizationMemberProfile(appId.value, editingMemberUserId.value, {
+      displayName: editMemberDisplayName.value.trim(),
+      email: editMemberEmail.value.trim() || undefined,
+      phoneNumber: editMemberPhoneNumber.value.trim() || undefined,
+      isActive: editMemberIsActive.value
+    });
     await updateOrganizationMemberRoles(appId.value, editingMemberUserId.value, {
       roleIds: editMemberRoleIds.value,
       departmentIds: editMemberDepartmentIds.value,
@@ -1313,6 +1433,26 @@ async function submitEditMemberRoles() {
     await loadWorkspace();
   } catch (error) {
     message.error((error as Error).message || t("appsUsers.rolesUpdateFailed"));
+  } finally {
+    submitting.value = false;
+  }
+}
+
+async function submitResetPassword() {
+  if (!appId.value || !editingMemberUserId.value) return;
+  if (!resetPasswordForm.newPassword.trim()) {
+    message.warning(t("appOrg.newPasswordRequired"));
+    return;
+  }
+  submitting.value = true;
+  try {
+    await resetOrganizationMemberPassword(appId.value, editingMemberUserId.value, {
+      newPassword: resetPasswordForm.newPassword
+    });
+    resetPasswordOpen.value = false;
+    message.success(t("appOrg.resetPasswordSuccess"));
+  } catch (error) {
+    message.error((error as Error).message || t("appOrg.resetPasswordFailed"));
   } finally {
     submitting.value = false;
   }
