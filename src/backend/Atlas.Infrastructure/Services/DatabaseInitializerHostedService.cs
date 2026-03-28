@@ -241,6 +241,10 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             typeof(AppUserRole),
             typeof(AppRolePermission),
             typeof(AppPermission),
+            typeof(AppRolePage),
+            typeof(AppDepartment),
+            typeof(AppPosition),
+            typeof(AppProject),
             typeof(Tenant),
             // Low code module (types already registered above: LowCodeApp, AppEntityAlias, LowCodePage, FormDefinition)
             typeof(LowCodeAppVersion),
@@ -1318,7 +1322,11 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             || !db.DbMaintenance.IsAnyTable("AppRole", false)
             || !db.DbMaintenance.IsAnyTable("AppUserRole", false)
             || !db.DbMaintenance.IsAnyTable("AppRolePermission", false)
-            || !db.DbMaintenance.IsAnyTable("AppPermission", false);
+            || !db.DbMaintenance.IsAnyTable("AppPermission", false)
+            || !db.DbMaintenance.IsAnyTable("AppRolePage", false)
+            || !db.DbMaintenance.IsAnyTable("AppDepartment", false)
+            || !db.DbMaintenance.IsAnyTable("AppPosition", false)
+            || !db.DbMaintenance.IsAnyTable("AppProject", false);
         if (!missingTables)
         {
             return Task.CompletedTask;
@@ -1326,6 +1334,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
 
         cancellationToken.ThrowIfCancellationRequested();
         db.CodeFirst.InitTables<AppMember, AppRole, AppUserRole, AppRolePermission, AppPermission>();
+        db.CodeFirst.InitTables<AppRolePage, AppDepartment, AppPosition, AppProject>();
         return Task.CompletedTask;
     }
 
