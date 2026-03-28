@@ -196,6 +196,12 @@
             <template v-else-if="mainPanel === 'members' && column.key === 'position'">
               <span class="cell-muted-tag">{{ t("appOrg.positionPending") }}</span>
             </template>
+            <template v-else-if="mainPanel === 'members' && column.key === 'project'">
+              <a-space wrap :size="6">
+                <span v-for="name in record.projectNames" :key="name" class="role-tag-outline">{{ name }}</span>
+                <span v-if="record.projectNames.length === 0" class="cell-placeholder">{{ t("appOrg.projectPending") }}</span>
+              </a-space>
+            </template>
             <template v-else-if="mainPanel === 'members' && column.key === 'roles'">
               <a-space wrap :size="6">
                 <span v-for="name in record.roleNames" :key="name" class="role-tag-outline">{{ name }}</span>
@@ -224,12 +230,12 @@
             <template v-else-if="column.key === 'actions'">
               <a-space>
                 <a-button
-                  v-if="mainPanel === 'members' && canManageMembers && canViewAppRoles"
+                  v-if="mainPanel === 'members' && canManageMembers && (canViewAppRoles || canViewAppProjects)"
                   type="link"
                   size="small"
                   @click="openEditMemberRoles(record)"
                 >
-                  {{ t("appsUsers.assignRoles") }}
+                  {{ t("common.edit") }}
                 </a-button>
                 <a-button
                   v-else-if="mainPanel !== 'members'"
@@ -363,6 +369,19 @@
             @focus="loadAddMemberRoleOptions()"
           />
         </a-form-item>
+        <a-form-item v-if="canViewAppProjects" :label="t('appOrg.sectionProjects')">
+          <a-select
+            v-model:value="addMemberForm.projectIds"
+            mode="multiple"
+            show-search
+            :filter-option="false"
+            :options="addMemberProjectOptions"
+            :loading="addMemberProjectOptionsLoading"
+            :placeholder="t('appOrg.projectPlaceholder')"
+            @search="handleAddMemberProjectSearch"
+            @focus="loadAddMemberProjectOptions()"
+          />
+        </a-form-item>
       </a-form>
     </a-modal>
 
@@ -380,6 +399,19 @@
         </a-form-item>
         <a-form-item v-if="canViewAppRoles" :label="t('appsUsers.labelRoles')">
           <a-select v-model:value="editMemberRoleIds" mode="multiple" :options="roleOptions" />
+        </a-form-item>
+        <a-form-item v-if="canViewAppProjects" :label="t('appOrg.sectionProjects')">
+          <a-select
+            v-model:value="editMemberProjectIds"
+            mode="multiple"
+            show-search
+            :filter-option="false"
+            :options="editMemberProjectOptions"
+            :loading="editMemberProjectOptionsLoading"
+            :placeholder="t('appOrg.projectPlaceholder')"
+            @search="handleEditMemberProjectSearch"
+            @focus="loadEditMemberProjectOptions()"
+          />
         </a-form-item>
       </a-form>
     </a-modal>
@@ -483,7 +515,7 @@ import {
 import { debounce } from "@/utils/common";
 import { isAdminRole } from "@/utils/auth";
 import { useUserStore } from "@/stores/user";
-import { getTenantAppRolesPaged } from "@/services/api-app-members";
+import { getAppProjectsPaged, getTenantAppRolesPaged } from "@/services/api-app-members";
 import {
   createOrganizationMemberUser,
   createOrganizationDepartment,
@@ -550,6 +582,7 @@ const entityModalKind = ref<EntityKind>("roles");
 const editingMemberUserId = ref("");
 const editingMemberDisplayName = ref("");
 const editMemberRoleIds = ref<string[]>([]);
+const editMemberProjectIds = ref<string[]>([]);
 const editingEntityId = ref<string | null>(null);
 
 const addMemberForm = reactive({
@@ -559,7 +592,8 @@ const addMemberForm = reactive({
   email: "",
   phoneNumber: "",
   isActive: true,
-  roleIds: [] as string[]
+  roleIds: [] as string[],
+  projectIds: [] as string[]
 });
 
 const entityForm = reactive({
@@ -576,6 +610,10 @@ const roleOptions = computed<SelectOption[]>(() =>
 );
 const addMemberRoleOptions = ref<SelectOption[]>([]);
 const addMemberRoleOptionsLoading = ref(false);
+const addMemberProjectOptions = ref<SelectOption[]>([]);
+const addMemberProjectOptionsLoading = ref(false);
+const editMemberProjectOptions = ref<SelectOption[]>([]);
+const editMemberProjectOptionsLoading = ref(false);
 
 const departmentParentOptions = computed<SelectOption[]>(() =>
   departments.value
@@ -590,6 +628,12 @@ const canViewAppRoles = computed(
   () =>
     userStore.permissions.includes("apps:roles:view") ||
     userStore.permissions.includes("apps:roles:update") ||
+    isAdminRole(userStore.profile)
+);
+const canViewAppProjects = computed(
+  () =>
+    userStore.permissions.includes("apps:projects:view") ||
+    userStore.permissions.includes("apps:projects:update") ||
     isAdminRole(userStore.profile)
 );
 const canManageRoles = computed(
@@ -799,6 +843,7 @@ const memberColumns = computed<TableColumnsType<TenantAppMemberListItem>>(() => 
   { title: t("appOrg.colBasicInfo"), key: "basic", width: 260 },
   { title: t("appOrg.colDepartment"), key: "department", width: 140 },
   { title: t("appOrg.colPosition"), key: "position", width: 120 },
+  { title: t("appOrg.colProject"), key: "project", minWidth: 180 },
   { title: t("appOrg.colRolePermissions"), key: "roles", minWidth: 200 },
   { title: t("appOrg.colStatus"), key: "status", width: 120 },
   { title: t("appsUsers.colActions"), key: "actions", width: 200, fixed: "right" }
@@ -1060,8 +1105,10 @@ function openAddMemberModal() {
   addMemberForm.phoneNumber = "";
   addMemberForm.isActive = true;
   addMemberForm.roleIds = [];
+  addMemberForm.projectIds = [];
   addMemberOpen.value = true;
   void loadAddMemberRoleOptions();
+  void loadAddMemberProjectOptions();
 }
 
 async function loadAddMemberRoleOptions(keywordText?: string) {
@@ -1089,11 +1136,63 @@ const handleAddMemberRoleSearch = debounce((value?: string) => {
   void loadAddMemberRoleOptions(value);
 }, 300);
 
+async function loadAddMemberProjectOptions(keywordText?: string) {
+  if (!appId.value || !canViewAppProjects.value) {
+    addMemberProjectOptions.value = [];
+    return;
+  }
+  addMemberProjectOptionsLoading.value = true;
+  try {
+    const page = await getAppProjectsPaged(appId.value, {
+      pageIndex: 1,
+      pageSize: 20,
+      keyword: keywordText?.trim() || undefined
+    });
+    addMemberProjectOptions.value = page.items.map((item) => ({
+      label: `${item.name} (${item.code})`,
+      value: item.id
+    }));
+  } finally {
+    addMemberProjectOptionsLoading.value = false;
+  }
+}
+
+const handleAddMemberProjectSearch = debounce((value?: string) => {
+  void loadAddMemberProjectOptions(value);
+}, 300);
+
+async function loadEditMemberProjectOptions(keywordText?: string) {
+  if (!appId.value || !canViewAppProjects.value) {
+    editMemberProjectOptions.value = [];
+    return;
+  }
+  editMemberProjectOptionsLoading.value = true;
+  try {
+    const page = await getAppProjectsPaged(appId.value, {
+      pageIndex: 1,
+      pageSize: 20,
+      keyword: keywordText?.trim() || undefined
+    });
+    editMemberProjectOptions.value = page.items.map((item) => ({
+      label: `${item.name} (${item.code})`,
+      value: item.id
+    }));
+  } finally {
+    editMemberProjectOptionsLoading.value = false;
+  }
+}
+
+const handleEditMemberProjectSearch = debounce((value?: string) => {
+  void loadEditMemberProjectOptions(value);
+}, 300);
+
 function openEditMemberRoles(record: TenantAppMemberListItem) {
   editingMemberUserId.value = record.userId;
   editingMemberDisplayName.value = `${record.displayName} (${record.username})`;
   editMemberRoleIds.value = [...record.roleIds];
+  editMemberProjectIds.value = [...record.projectIds];
   editMemberRolesOpen.value = true;
+  void loadEditMemberProjectOptions();
 }
 
 async function submitAddMember() {
@@ -1119,7 +1218,8 @@ async function submitAddMember() {
       email: addMemberForm.email.trim() || undefined,
       phoneNumber: addMemberForm.phoneNumber.trim() || undefined,
       isActive: addMemberForm.isActive,
-      roleIds: canViewAppRoles.value ? addMemberForm.roleIds : []
+      roleIds: canViewAppRoles.value ? addMemberForm.roleIds : [],
+      projectIds: canViewAppProjects.value ? addMemberForm.projectIds : []
     });
     addMemberOpen.value = false;
     message.success(t("systemUsers.createSuccess"));
@@ -1136,7 +1236,8 @@ async function submitEditMemberRoles() {
   submitting.value = true;
   try {
     await updateOrganizationMemberRoles(appId.value, editingMemberUserId.value, {
-      roleIds: editMemberRoleIds.value
+      roleIds: editMemberRoleIds.value,
+      projectIds: canViewAppProjects.value ? editMemberProjectIds.value : []
     });
     editMemberRolesOpen.value = false;
     message.success(t("appsUsers.rolesUpdated"));

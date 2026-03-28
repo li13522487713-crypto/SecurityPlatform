@@ -24,5 +24,10 @@ public interface IProjectUserRepository
     Task<bool> ExistsAsync(TenantId tenantId, long projectId, long userId, CancellationToken cancellationToken);
     Task DeleteByProjectIdAsync(TenantId tenantId, long projectId, CancellationToken cancellationToken);
     Task DeleteByUserIdAsync(TenantId tenantId, long userId, CancellationToken cancellationToken);
+    Task DeleteByUserAndProjectIdsAsync(
+        TenantId tenantId,
+        long userId,
+        IReadOnlyList<long> projectIds,
+        CancellationToken cancellationToken);
     Task AddRangeAsync(IReadOnlyList<ProjectUser> entities, CancellationToken cancellationToken);
 }

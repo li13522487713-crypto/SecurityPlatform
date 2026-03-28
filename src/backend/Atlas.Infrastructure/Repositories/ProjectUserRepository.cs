@@ -87,6 +87,23 @@ public sealed class ProjectUserRepository : IProjectUserRepository
             .ExecuteCommandAsync(cancellationToken);
     }
 
+    public Task DeleteByUserAndProjectIdsAsync(
+        TenantId tenantId,
+        long userId,
+        IReadOnlyList<long> projectIds,
+        CancellationToken cancellationToken)
+    {
+        if (projectIds.Count == 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        var ids = projectIds.Distinct().ToArray();
+        return _db.Deleteable<ProjectUser>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.UserId == userId && SqlFunc.ContainsArray(ids, x.ProjectId))
+            .ExecuteCommandAsync(cancellationToken);
+    }
+
     public Task AddRangeAsync(IReadOnlyList<ProjectUser> entities, CancellationToken cancellationToken)
     {
         if (entities.Count == 0)

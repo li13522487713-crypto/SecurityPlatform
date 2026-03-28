@@ -145,6 +145,7 @@ export const extraMessages: Record<SupportedLocale, MessageTree> = {
       colBasicInfo: "基本信息",
       colDepartment: "所属部门",
       colPosition: "职位",
+      colProject: "所属项目",
       colRolePermissions: "角色权限",
       colStatus: "状态",
       childCount: "子级数",
@@ -154,6 +155,8 @@ export const extraMessages: Record<SupportedLocale, MessageTree> = {
       parentCannotSelf: "上级部门不能选择自身",
       departmentPending: "未关联",
       positionPending: "未关联",
+      projectPending: "未关联",
+      projectPlaceholder: "搜索并选择项目（可多选）",
       statusNormal: "正常",
       statusDisabled: "停用"
     },
@@ -515,6 +518,7 @@ export const extraMessages: Record<SupportedLocale, MessageTree> = {
       colBasicInfo: "Basic info",
       colDepartment: "Department",
       colPosition: "Position",
+      colProject: "Projects",
       colRolePermissions: "Roles",
       colStatus: "Status",
       childCount: "Children",
@@ -524,6 +528,8 @@ export const extraMessages: Record<SupportedLocale, MessageTree> = {
       parentCannotSelf: "Parent department cannot be itself",
       departmentPending: "—",
       positionPending: "—",
+      projectPending: "—",
+      projectPlaceholder: "Search and select projects (multiple)",
       statusNormal: "Active",
       statusDisabled: "Disabled"
     },

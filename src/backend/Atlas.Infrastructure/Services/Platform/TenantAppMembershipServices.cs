@@ -1,5 +1,6 @@
 using Atlas.Application.Abstractions;
 using Atlas.Application.Audit.Abstractions;
+using Atlas.Application.Identity.Repositories;
 using Atlas.Application.LowCode.Abstractions;
 using Atlas.Application.Platform.Abstractions;
 using Atlas.Application.Platform.Models;
@@ -10,6 +11,7 @@ using Atlas.Core.Exceptions;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Audit.Entities;
+using Atlas.Domain.Identity.Entities;
 using Atlas.Domain.Platform.Entities;
 
 namespace Atlas.Infrastructure.Services.Platform;
@@ -21,19 +23,25 @@ public sealed class TenantAppMemberQueryService : ITenantAppMemberQueryService
     private readonly IUserAccountRepository _userAccountRepository;
     private readonly IAppUserRoleRepository _appUserRoleRepository;
     private readonly IAppRoleRepository _appRoleRepository;
+    private readonly IProjectUserRepository _projectUserRepository;
+    private readonly IAppProjectRepository _appProjectRepository;
 
     public TenantAppMemberQueryService(
         ILowCodeAppRepository lowCodeAppRepository,
         IAppMemberRepository appMemberRepository,
         IUserAccountRepository userAccountRepository,
         IAppUserRoleRepository appUserRoleRepository,
-        IAppRoleRepository appRoleRepository)
+        IAppRoleRepository appRoleRepository,
+        IProjectUserRepository projectUserRepository,
+        IAppProjectRepository appProjectRepository)
     {
         _lowCodeAppRepository = lowCodeAppRepository;
         _appMemberRepository = appMemberRepository;
         _userAccountRepository = userAccountRepository;
         _appUserRoleRepository = appUserRoleRepository;
         _appRoleRepository = appRoleRepository;
+        _projectUserRepository = projectUserRepository;
+        _appProjectRepository = appProjectRepository;
     }
 
     public async Task<PagedResult<TenantAppMemberListItem>> QueryAsync(
@@ -75,6 +83,15 @@ public sealed class TenantAppMemberQueryService : ITenantAppMemberQueryService
             .ToDictionary(
                 group => group.Key,
                 group => group.Select(x => x.RoleId).Distinct().ToArray());
+        var projectMappings = await _projectUserRepository.QueryByUserIdsAsync(tenantId, userIds, cancellationToken);
+        var appProjects = await _appProjectRepository.QueryByAppIdAsync(tenantId, appId, cancellationToken);
+        var appProjectMap = appProjects.ToDictionary(x => x.Id);
+        var projectIdsByUser = projectMappings
+            .Where(x => appProjectMap.ContainsKey(x.ProjectId))
+            .GroupBy(x => x.UserId)
+            .ToDictionary(
+                group => group.Key,
+                group => group.Select(x => x.ProjectId).Distinct().ToArray());
 
         var items = members
             .Select(member =>
@@ -82,8 +99,15 @@ public sealed class TenantAppMemberQueryService : ITenantAppMemberQueryService
                 userMap.TryGetValue(member.UserId, out var user);
                 roleIdsByUser.TryGetValue(member.UserId, out var memberRoleIds);
                 memberRoleIds ??= Array.Empty<long>();
+                projectIdsByUser.TryGetValue(member.UserId, out var memberProjectIds);
+                memberProjectIds ??= Array.Empty<long>();
                 var roleNames = memberRoleIds
                     .Select(roleId => roleMap.TryGetValue(roleId, out var role) ? role.Name : null)
+                    .Where(name => !string.IsNullOrWhiteSpace(name))
+                    .Cast<string>()
+                    .ToArray();
+                var projectNames = memberProjectIds
+                    .Select(projectId => appProjectMap.TryGetValue(projectId, out var project) ? project.Name : null)
                     .Where(name => !string.IsNullOrWhiteSpace(name))
                     .Cast<string>()
                     .ToArray();
@@ -95,7 +119,9 @@ public sealed class TenantAppMemberQueryService : ITenantAppMemberQueryService
                     user?.IsActive ?? false,
                     member.JoinedAt.ToString("O"),
                     memberRoleIds.Select(x => x.ToString()).ToArray(),
-                    roleNames);
+                    roleNames,
+                    memberProjectIds.Select(x => x.ToString()).ToArray(),
+                    projectNames);
             })
             .ToArray();
 
@@ -134,6 +160,18 @@ public sealed class TenantAppMemberQueryService : ITenantAppMemberQueryService
             .Where(name => !string.IsNullOrWhiteSpace(name))
             .Cast<string>()
             .ToArray();
+        var allUserProjectIds = await _projectUserRepository.QueryProjectIdsByUserIdAsync(tenantId, userId, cancellationToken);
+        var appProjects = await _appProjectRepository.QueryByAppIdAsync(tenantId, appId, cancellationToken);
+        var appProjectMap = appProjects.ToDictionary(x => x.Id);
+        var projectIds = allUserProjectIds
+            .Where(projectId => appProjectMap.ContainsKey(projectId))
+            .Distinct()
+            .ToArray();
+        var projectNames = projectIds
+            .Select(projectId => appProjectMap.TryGetValue(projectId, out var project) ? project.Name : null)
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Cast<string>()
+            .ToArray();
 
         return new TenantAppMemberDetail(
             userId.ToString(),
@@ -144,7 +182,9 @@ public sealed class TenantAppMemberQueryService : ITenantAppMemberQueryService
             user?.IsActive ?? false,
             member.JoinedAt.ToString("O"),
             roleIds.Select(x => x.ToString()).ToArray(),
-            roleNames);
+            roleNames,
+            projectIds.Select(x => x.ToString()).ToArray(),
+            projectNames);
     }
 
     private async Task<Atlas.Domain.LowCode.Entities.LowCodeApp> RequireAppAsync(
@@ -170,6 +210,8 @@ public sealed class TenantAppMemberCommandService : ITenantAppMemberCommandServi
     private readonly IAppRoleRepository _appRoleRepository;
     private readonly IUserAccountRepository _userAccountRepository;
     private readonly IAppUserRoleRepository _appUserRoleRepository;
+    private readonly IProjectUserRepository _projectUserRepository;
+    private readonly IAppProjectRepository _appProjectRepository;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly TimeProvider _timeProvider;
     private readonly IAuditWriter _auditWriter;
@@ -181,6 +223,8 @@ public sealed class TenantAppMemberCommandService : ITenantAppMemberCommandServi
         IAppRoleRepository appRoleRepository,
         IUserAccountRepository userAccountRepository,
         IAppUserRoleRepository appUserRoleRepository,
+        IProjectUserRepository projectUserRepository,
+        IAppProjectRepository appProjectRepository,
         IIdGeneratorAccessor idGeneratorAccessor,
         TimeProvider timeProvider,
         IAuditWriter auditWriter,
@@ -191,6 +235,8 @@ public sealed class TenantAppMemberCommandService : ITenantAppMemberCommandServi
         _appRoleRepository = appRoleRepository;
         _userAccountRepository = userAccountRepository;
         _appUserRoleRepository = appUserRoleRepository;
+        _projectUserRepository = projectUserRepository;
+        _appProjectRepository = appProjectRepository;
         _idGeneratorAccessor = idGeneratorAccessor;
         _timeProvider = timeProvider;
         _auditWriter = auditWriter;
@@ -226,6 +272,10 @@ public sealed class TenantAppMemberCommandService : ITenantAppMemberCommandServi
             .Where(x => x > 0)
             .Distinct()
             .ToArray();
+        var projectIds = request.ProjectIds?
+            .Where(x => x > 0)
+            .Distinct()
+            .ToArray() ?? Array.Empty<long>();
         if (roleIds.Length > 0)
         {
 
@@ -233,6 +283,15 @@ public sealed class TenantAppMemberCommandService : ITenantAppMemberCommandServi
             if (roles.Count != roleIds.Length)
             {
                 throw new BusinessException(ErrorCodes.ValidationError, "存在无效的应用角色。");
+            }
+        }
+        if (projectIds.Length > 0)
+        {
+            var appProjects = await _appProjectRepository.QueryByAppIdAsync(tenantId, appId, cancellationToken);
+            var appProjectIdSet = appProjects.Select(x => x.Id).ToHashSet();
+            if (projectIds.Any(projectId => !appProjectIdSet.Contains(projectId)))
+            {
+                throw new BusinessException(ErrorCodes.ValidationError, "存在无效的应用项目。");
             }
         }
 
@@ -251,46 +310,63 @@ public sealed class TenantAppMemberCommandService : ITenantAppMemberCommandServi
             .ToArray();
         await _appMemberRepository.AddRangeAsync(newMembers, cancellationToken);
 
-        if (roleIds.Length == 0)
+        if (roleIds.Length > 0)
         {
-            await WriteAuditAsync(
-                tenantId,
-                ResolveActor(operatorUserId),
-                "Platform.AppMember.Assigned",
-                $"appId={appId};userIds={string.Join(',', userIds)};roleIds=",
-                cancellationToken);
-            return;
-        }
-
-        var existingRoleMappings = await _appUserRoleRepository.QueryByUserIdsAsync(tenantId, appId, userIds, cancellationToken);
-        var mappingSet = existingRoleMappings
-            .Select(x => $"{x.UserId}:{x.RoleId}")
-            .ToHashSet(StringComparer.Ordinal);
-        var mappingsToAdd = new List<AppUserRole>(userIds.Length * roleIds.Length);
-        foreach (var userId in userIds)
-        {
-            foreach (var roleId in roleIds)
+            var existingRoleMappings = await _appUserRoleRepository.QueryByUserIdsAsync(tenantId, appId, userIds, cancellationToken);
+            var mappingSet = existingRoleMappings
+                .Select(x => $"{x.UserId}:{x.RoleId}")
+                .ToHashSet(StringComparer.Ordinal);
+            var mappingsToAdd = new List<AppUserRole>(userIds.Length * roleIds.Length);
+            foreach (var userId in userIds)
             {
-                var key = $"{userId}:{roleId}";
-                if (!mappingSet.Contains(key))
+                foreach (var roleId in roleIds)
                 {
-                    mappingsToAdd.Add(new AppUserRole(
-                        tenantId,
-                        appId,
-                        userId,
-                        roleId,
-                        _idGeneratorAccessor.NextId()));
+                    var key = $"{userId}:{roleId}";
+                    if (!mappingSet.Contains(key))
+                    {
+                        mappingsToAdd.Add(new AppUserRole(
+                            tenantId,
+                            appId,
+                            userId,
+                            roleId,
+                            _idGeneratorAccessor.NextId()));
+                    }
                 }
             }
-        }
 
-        await _appUserRoleRepository.AddRangeAsync(mappingsToAdd, cancellationToken);
+            await _appUserRoleRepository.AddRangeAsync(mappingsToAdd, cancellationToken);
+        }
+        if (projectIds.Length > 0)
+        {
+            var existingProjectMappings = await _projectUserRepository.QueryByUserIdsAsync(tenantId, userIds, cancellationToken);
+            var existingProjectMappingSet = existingProjectMappings
+                .Select(x => $"{x.UserId}:{x.ProjectId}")
+                .ToHashSet(StringComparer.Ordinal);
+            var projectMappingsToAdd = new List<ProjectUser>(userIds.Length * projectIds.Length);
+            foreach (var userId in userIds)
+            {
+                foreach (var projectId in projectIds)
+                {
+                    var key = $"{userId}:{projectId}";
+                    if (!existingProjectMappingSet.Contains(key))
+                    {
+                        projectMappingsToAdd.Add(new ProjectUser(
+                            tenantId,
+                            projectId,
+                            userId,
+                            _idGeneratorAccessor.NextId()));
+                    }
+                }
+            }
+
+            await _projectUserRepository.AddRangeAsync(projectMappingsToAdd, cancellationToken);
+        }
 
         await WriteAuditAsync(
             tenantId,
             ResolveActor(operatorUserId),
             "Platform.AppMember.Assigned",
-            $"appId={appId};userIds={string.Join(',', userIds)};roleIds={string.Join(',', roleIds)}",
+            $"appId={appId};userIds={string.Join(',', userIds)};roleIds={string.Join(',', roleIds)};projectIds={string.Join(',', projectIds)}",
             cancellationToken);
     }
 
@@ -315,6 +391,10 @@ public sealed class TenantAppMemberCommandService : ITenantAppMemberCommandServi
             .Where(x => x > 0)
             .Distinct()
             .ToArray();
+        var projectIds = request.ProjectIds?
+            .Where(x => x > 0)
+            .Distinct()
+            .ToArray() ?? Array.Empty<long>();
         if (roleIds.Length > 0)
         {
             var roles = await _appRoleRepository.QueryByIdsAsync(tenantId, appId, roleIds, cancellationToken);
@@ -323,34 +403,60 @@ public sealed class TenantAppMemberCommandService : ITenantAppMemberCommandServi
                 throw new BusinessException(ErrorCodes.ValidationError, "存在无效的应用角色。");
             }
         }
-
-        await _appUserRoleRepository.DeleteByUserIdAsync(tenantId, appId, userId, cancellationToken);
-        if (roleIds.Length == 0)
+        if (projectIds.Length > 0)
         {
-            await WriteAuditAsync(
-                tenantId,
-                ResolveActor(),
-                "Platform.AppMember.RolesUpdated",
-                $"appId={appId};userId={userId};roleIds=",
-                cancellationToken);
-            return;
+            var appProjects = await _appProjectRepository.QueryByAppIdAsync(tenantId, appId, cancellationToken);
+            var appProjectIdSet = appProjects.Select(x => x.Id).ToHashSet();
+            if (projectIds.Any(projectId => !appProjectIdSet.Contains(projectId)))
+            {
+                throw new BusinessException(ErrorCodes.ValidationError, "存在无效的应用项目。");
+            }
         }
 
-        var mappings = roleIds
-            .Select(roleId => new AppUserRole(
+        await _appUserRoleRepository.DeleteByUserIdAsync(tenantId, appId, userId, cancellationToken);
+        if (roleIds.Length > 0)
+        {
+            var mappings = roleIds
+                .Select(roleId => new AppUserRole(
+                    tenantId,
+                    appId,
+                    userId,
+                    roleId,
+                    _idGeneratorAccessor.NextId()))
+                .ToArray();
+            await _appUserRoleRepository.AddRangeAsync(mappings, cancellationToken);
+        }
+        var allAppProjects = await _appProjectRepository.QueryByAppIdAsync(tenantId, appId, cancellationToken);
+        var allAppProjectIdSet = allAppProjects.Select(x => x.Id).ToHashSet();
+        var existingProjectIdsByUser = await _projectUserRepository.QueryProjectIdsByUserIdAsync(tenantId, userId, cancellationToken);
+        var existingAppProjectIds = existingProjectIdsByUser
+            .Where(projectId => allAppProjectIdSet.Contains(projectId))
+            .Distinct()
+            .ToArray();
+        var projectIdsToDelete = existingAppProjectIds
+            .Where(existingProjectId => !projectIds.Contains(existingProjectId))
+            .ToArray();
+        if (projectIdsToDelete.Length > 0)
+        {
+            await _projectUserRepository.DeleteByUserAndProjectIdsAsync(tenantId, userId, projectIdsToDelete, cancellationToken);
+        }
+
+        var projectIdSet = existingAppProjectIds.ToHashSet();
+        var projectMappingsToAdd = projectIds
+            .Where(projectId => !projectIdSet.Contains(projectId))
+            .Select(projectId => new ProjectUser(
                 tenantId,
-                appId,
+                projectId,
                 userId,
-                roleId,
                 _idGeneratorAccessor.NextId()))
             .ToArray();
-        await _appUserRoleRepository.AddRangeAsync(mappings, cancellationToken);
+        await _projectUserRepository.AddRangeAsync(projectMappingsToAdd, cancellationToken);
 
         await WriteAuditAsync(
             tenantId,
             ResolveActor(),
             "Platform.AppMember.RolesUpdated",
-            $"appId={appId};userId={userId};roleIds={string.Join(',', roleIds)}",
+            $"appId={appId};userId={userId};roleIds={string.Join(',', roleIds)};projectIds={string.Join(',', projectIds)}",
             cancellationToken);
     }
 
@@ -364,6 +470,12 @@ public sealed class TenantAppMemberCommandService : ITenantAppMemberCommandServi
 
 
         await _appUserRoleRepository.DeleteByUserIdAsync(tenantId, appId, userId, cancellationToken);
+        var appProjects = await _appProjectRepository.QueryByAppIdAsync(tenantId, appId, cancellationToken);
+        var appProjectIds = appProjects.Select(project => project.Id).ToArray();
+        if (appProjectIds.Length > 0)
+        {
+            await _projectUserRepository.DeleteByUserAndProjectIdsAsync(tenantId, userId, appProjectIds, cancellationToken);
+        }
         await _appMemberRepository.DeleteAsync(tenantId, appId, userId, cancellationToken);
         await WriteAuditAsync(
             tenantId,

@@ -107,7 +107,9 @@ public sealed record TenantAppMemberListItem(
     bool IsActive,
     string JoinedAt,
     IReadOnlyList<string> RoleIds,
-    IReadOnlyList<string> RoleNames);
+    IReadOnlyList<string> RoleNames,
+    IReadOnlyList<string> ProjectIds,
+    IReadOnlyList<string> ProjectNames);
 
 public sealed record TenantAppMemberDetail(
     string UserId,
@@ -118,14 +120,18 @@ public sealed record TenantAppMemberDetail(
     bool IsActive,
     string JoinedAt,
     IReadOnlyList<string> RoleIds,
-    IReadOnlyList<string> RoleNames);
+    IReadOnlyList<string> RoleNames,
+    IReadOnlyList<string> ProjectIds,
+    IReadOnlyList<string> ProjectNames);
 
 public sealed record TenantAppMemberAssignRequest(
     IReadOnlyList<long> UserIds,
-    IReadOnlyList<long> RoleIds);
+    IReadOnlyList<long> RoleIds,
+    IReadOnlyList<long>? ProjectIds);
 
 public sealed record TenantAppMemberUpdateRolesRequest(
-    IReadOnlyList<long> RoleIds);
+    IReadOnlyList<long> RoleIds,
+    IReadOnlyList<long>? ProjectIds);
 
 public sealed record TenantAppRoleListItem(
     string Id,
@@ -582,7 +588,8 @@ public sealed record AppOrganizationWorkspaceResponse(
 
 public sealed record AppOrganizationAssignMembersRequest(
     IReadOnlyList<string> UserIds,
-    IReadOnlyList<string> RoleIds);
+    IReadOnlyList<string> RoleIds,
+    IReadOnlyList<string>? ProjectIds);
 
 public sealed record AppOrganizationCreateMemberUserRequest(
     string Username,
@@ -591,10 +598,12 @@ public sealed record AppOrganizationCreateMemberUserRequest(
     string? Email,
     string? PhoneNumber,
     bool IsActive,
-    IReadOnlyList<string> RoleIds);
+    IReadOnlyList<string> RoleIds,
+    IReadOnlyList<string>? ProjectIds);
 
 public sealed record AppOrganizationUpdateMemberRolesRequest(
-    IReadOnlyList<string> RoleIds);
+    IReadOnlyList<string> RoleIds,
+    IReadOnlyList<string>? ProjectIds);
 
 public sealed record AppOrganizationCreateRoleRequest(
     string Code,

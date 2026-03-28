@@ -100,11 +100,12 @@ public sealed class AppOrganizationCommandService : IAppOrganizationCommandServi
             cancellationToken);
 
         var roleIds = ParseIdList(request.RoleIds, "roleIds");
+        var projectIds = ParseNullableIdList(request.ProjectIds, "projectIds");
         await _memberCommandService.AddMembersAsync(
             tenantId,
             appId,
             createdUserId,
-            new TenantAppMemberAssignRequest(new[] { createdUserId }, roleIds),
+            new TenantAppMemberAssignRequest(new[] { createdUserId }, roleIds, projectIds),
             cancellationToken);
 
         return createdUserId;
@@ -119,11 +120,12 @@ public sealed class AppOrganizationCommandService : IAppOrganizationCommandServi
     {
         var userIds = ParseIdList(request.UserIds, "userIds");
         var roleIds = ParseIdList(request.RoleIds, "roleIds");
+        var projectIds = ParseNullableIdList(request.ProjectIds, "projectIds");
         await _memberCommandService.AddMembersAsync(
             tenantId,
             appId,
             operatorUserId,
-            new TenantAppMemberAssignRequest(userIds, roleIds),
+            new TenantAppMemberAssignRequest(userIds, roleIds, projectIds),
             cancellationToken);
     }
 
@@ -138,7 +140,9 @@ public sealed class AppOrganizationCommandService : IAppOrganizationCommandServi
             tenantId,
             appId,
             ParseId(userId, "userId"),
-            new TenantAppMemberUpdateRolesRequest(ParseIdList(request.RoleIds, "roleIds")),
+            new TenantAppMemberUpdateRolesRequest(
+                ParseIdList(request.RoleIds, "roleIds"),
+                ParseNullableIdList(request.ProjectIds, "projectIds")),
             cancellationToken);
     }
 
@@ -334,5 +338,15 @@ public sealed class AppOrganizationCommandService : IAppOrganizationCommandServi
             .Select(id => ParseId(id, fieldName))
             .Distinct()
             .ToArray();
+    }
+
+    private static long[]? ParseNullableIdList(IReadOnlyList<string>? rawIds, string fieldName)
+    {
+        if (rawIds is null)
+        {
+            return null;
+        }
+
+        return ParseIdList(rawIds, fieldName);
     }
 }

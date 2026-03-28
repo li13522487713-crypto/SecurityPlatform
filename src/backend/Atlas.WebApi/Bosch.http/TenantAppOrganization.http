@@ -34,7 +34,8 @@ Idempotency-Key: org-members-add-001
 
 {
   "userIds": ["1"],
-  "roleIds": []
+  "roleIds": [],
+  "projectIds": []
 }
 
 ### 新建账号并加入应用成员（统一入口）
@@ -51,7 +52,8 @@ Idempotency-Key: org-members-create-user-001
   "email": "org_new_user_001@example.com",
   "phoneNumber": "13800000001",
   "isActive": true,
-  "roleIds": []
+  "roleIds": [],
+  "projectIds": []
 }
 
 ### 更新成员角色（统一入口）
@@ -62,7 +64,8 @@ Content-Type: application/json
 Idempotency-Key: org-members-role-001
 
 {
-  "roleIds": []
+  "roleIds": [],
+  "projectIds": []
 }
 
 ### 创建角色（统一入口）
