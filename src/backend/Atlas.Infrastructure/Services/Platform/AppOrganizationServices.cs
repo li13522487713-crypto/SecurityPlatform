@@ -1,5 +1,8 @@
 using Atlas.Application.Platform.Abstractions;
 using Atlas.Application.Platform.Models;
+using Atlas.Application.Identity.Abstractions;
+using Atlas.Application.Identity.Models;
+using Atlas.Core.Abstractions;
 using Atlas.Core.Exceptions;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
@@ -55,15 +58,56 @@ public sealed class AppOrganizationCommandService : IAppOrganizationCommandServi
     private readonly ITenantAppMemberCommandService _memberCommandService;
     private readonly ITenantAppRoleCommandService _roleCommandService;
     private readonly IAppOrgCommandService _appOrgCommandService;
+    private readonly IUserCommandService _userCommandService;
+    private readonly IIdGeneratorAccessor _idGeneratorAccessor;
 
     public AppOrganizationCommandService(
         ITenantAppMemberCommandService memberCommandService,
         ITenantAppRoleCommandService roleCommandService,
-        IAppOrgCommandService appOrgCommandService)
+        IAppOrgCommandService appOrgCommandService,
+        IUserCommandService userCommandService,
+        IIdGeneratorAccessor idGeneratorAccessor)
     {
         _memberCommandService = memberCommandService;
         _roleCommandService = roleCommandService;
         _appOrgCommandService = appOrgCommandService;
+        _userCommandService = userCommandService;
+        _idGeneratorAccessor = idGeneratorAccessor;
+    }
+
+    public async Task<long> CreateMemberUserAsync(
+        TenantId tenantId,
+        long appId,
+        AppOrganizationCreateMemberUserRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var userId = _idGeneratorAccessor.NextId();
+        var createUserRequest = new UserCreateRequest(
+            request.Username,
+            request.Password,
+            request.DisplayName,
+            request.Email,
+            request.PhoneNumber,
+            request.IsActive,
+            Array.Empty<long>(),
+            Array.Empty<long>(),
+            Array.Empty<long>());
+
+        var createdUserId = await _userCommandService.CreateAsync(
+            tenantId,
+            createUserRequest,
+            userId,
+            cancellationToken);
+
+        var roleIds = ParseIdList(request.RoleIds, "roleIds");
+        await _memberCommandService.AddMembersAsync(
+            tenantId,
+            appId,
+            createdUserId,
+            new TenantAppMemberAssignRequest(new[] { createdUserId }, roleIds),
+            cancellationToken);
+
+        return createdUserId;
     }
 
     public async Task AddMembersAsync(

@@ -584,6 +584,15 @@ public sealed record AppOrganizationAssignMembersRequest(
     IReadOnlyList<string> UserIds,
     IReadOnlyList<string> RoleIds);
 
+public sealed record AppOrganizationCreateMemberUserRequest(
+    string Username,
+    string Password,
+    string DisplayName,
+    string? Email,
+    string? PhoneNumber,
+    bool IsActive,
+    IReadOnlyList<string> RoleIds);
+
 public sealed record AppOrganizationUpdateMemberRolesRequest(
     IReadOnlyList<string> RoleIds);
 

@@ -349,6 +349,7 @@
     - `roles/departments/positions/projects`：组织分类全量列表（用于左侧导航与弹窗选择）
 - 成员管理（统一入口）：
   - `POST /api/v2/tenant-app-instances/{appId}/organization/members`
+  - `POST /api/v2/tenant-app-instances/{appId}/organization/members/users`（新建账号并加入应用，字段校验与平台级 `POST /api/v1/users` 一致）
   - `PUT /api/v2/tenant-app-instances/{appId}/organization/members/{userId}/roles`
   - `DELETE /api/v2/tenant-app-instances/{appId}/organization/members/{userId}`
 - 角色管理（统一入口）：

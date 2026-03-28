@@ -125,6 +125,7 @@ export const extraMessages: Record<SupportedLocale, MessageTree> = {
     },
     appOrg: {
       pageTitle: "组织与权限",
+      createUserTitle: "新建应用用户",
       navAllEmployees: "全部员工",
       sectionDepartments: "部门",
       sectionRoles: "角色",
@@ -494,6 +495,7 @@ export const extraMessages: Record<SupportedLocale, MessageTree> = {
     },
     appOrg: {
       pageTitle: "Organization & permissions",
+      createUserTitle: "Create app user",
       navAllEmployees: "All employees",
       sectionDepartments: "Departments",
       sectionRoles: "Roles",

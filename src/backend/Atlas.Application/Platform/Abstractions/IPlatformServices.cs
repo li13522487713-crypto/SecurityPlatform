@@ -474,6 +474,12 @@ public interface IAppOrganizationQueryService
 
 public interface IAppOrganizationCommandService
 {
+    Task<long> CreateMemberUserAsync(
+        TenantId tenantId,
+        long appId,
+        AppOrganizationCreateMemberUserRequest request,
+        CancellationToken cancellationToken = default);
+
     Task AddMembersAsync(
         TenantId tenantId,
         long appId,

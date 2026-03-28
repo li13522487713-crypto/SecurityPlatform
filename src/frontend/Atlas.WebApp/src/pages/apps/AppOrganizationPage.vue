@@ -325,27 +325,43 @@
 
     <a-modal
       v-model:open="addMemberOpen"
-      :title="t('appsUsers.modalAddTitle')"
+      :title="t('appOrg.createUserTitle')"
       :confirm-loading="submitting"
-      :ok-text="t('appsUsers.modalAddOk')"
+      :ok-text="t('common.create')"
       :cancel-text="t('common.cancel')"
       @ok="submitAddMember"
     >
       <a-form layout="vertical">
-        <a-form-item :label="t('appsUsers.labelMembers')" required>
+        <a-form-item :label="t('systemUsers.username')" required>
+          <a-input v-model:value="addMemberForm.username" />
+        </a-form-item>
+        <a-form-item :label="t('systemUsers.password')" required>
+          <a-input-password v-model:value="addMemberForm.password" />
+        </a-form-item>
+        <a-form-item :label="t('systemUsers.displayName')" required>
+          <a-input v-model:value="addMemberForm.displayName" />
+        </a-form-item>
+        <a-form-item :label="t('systemUsers.email')">
+          <a-input v-model:value="addMemberForm.email" />
+        </a-form-item>
+        <a-form-item :label="t('systemUsers.phoneNumber')">
+          <a-input v-model:value="addMemberForm.phoneNumber" />
+        </a-form-item>
+        <a-form-item :label="t('systemUsers.status')">
+          <a-switch v-model:checked="addMemberForm.isActive" />
+        </a-form-item>
+        <a-form-item v-if="canViewAppRoles" :label="t('appsUsers.labelAppRoles')">
           <a-select
-            v-model:value="addMemberForm.userIds"
+            v-model:value="addMemberForm.roleIds"
             mode="multiple"
             show-search
             :filter-option="false"
-            :options="userOptions"
-            :loading="userOptionsLoading"
-            @search="handleUserSearch"
-            @focus="loadUserOptions()"
+            :options="addMemberRoleOptions"
+            :loading="addMemberRoleOptionsLoading"
+            :placeholder="t('appsUsers.rolePlaceholder')"
+            @search="handleAddMemberRoleSearch"
+            @focus="loadAddMemberRoleOptions()"
           />
-        </a-form-item>
-        <a-form-item v-if="canViewAppRoles" :label="t('appsUsers.labelAppRoles')">
-          <a-select v-model:value="addMemberForm.roleIds" mode="multiple" :options="roleOptions" />
         </a-form-item>
       </a-form>
     </a-modal>
@@ -467,9 +483,9 @@ import {
 import { debounce } from "@/utils/common";
 import { isAdminRole } from "@/utils/auth";
 import { useUserStore } from "@/stores/user";
-import { getUsersPaged } from "@/services/api-users";
+import { getTenantAppRolesPaged } from "@/services/api-app-members";
 import {
-  addOrganizationMembers,
+  createOrganizationMemberUser,
   createOrganizationDepartment,
   createOrganizationPosition,
   createOrganizationProject,
@@ -537,7 +553,12 @@ const editMemberRoleIds = ref<string[]>([]);
 const editingEntityId = ref<string | null>(null);
 
 const addMemberForm = reactive({
-  userIds: [] as string[],
+  username: "",
+  password: "",
+  displayName: "",
+  email: "",
+  phoneNumber: "",
+  isActive: true,
   roleIds: [] as string[]
 });
 
@@ -550,12 +571,11 @@ const entityForm = reactive({
   isActive: true
 });
 
-const userOptions = ref<SelectOption[]>([]);
-const userOptionsLoading = ref(false);
-
 const roleOptions = computed<SelectOption[]>(() =>
   roles.value.map((role) => ({ label: `${role.name} (${role.code})`, value: role.id }))
 );
+const addMemberRoleOptions = ref<SelectOption[]>([]);
+const addMemberRoleOptionsLoading = ref(false);
 
 const departmentParentOptions = computed<SelectOption[]>(() =>
   departments.value
@@ -1032,33 +1052,42 @@ function handleMainTableChange(page: TablePaginationConfig) {
   }
 }
 
-async function loadUserOptions(keywordText?: string) {
-  userOptionsLoading.value = true;
+function openAddMemberModal() {
+  addMemberForm.username = "";
+  addMemberForm.password = "";
+  addMemberForm.displayName = "";
+  addMemberForm.email = "";
+  addMemberForm.phoneNumber = "";
+  addMemberForm.isActive = true;
+  addMemberForm.roleIds = [];
+  addMemberOpen.value = true;
+  void loadAddMemberRoleOptions();
+}
+
+async function loadAddMemberRoleOptions(keywordText?: string) {
+  if (!appId.value || !canViewAppRoles.value) {
+    addMemberRoleOptions.value = [];
+    return;
+  }
+  addMemberRoleOptionsLoading.value = true;
   try {
-    const result = await getUsersPaged({
+    const page = await getTenantAppRolesPaged(appId.value, {
       pageIndex: 1,
       pageSize: 20,
       keyword: keywordText?.trim() || undefined
     });
-    userOptions.value = result.items.map((item) => ({
-      label: `${item.displayName} (${item.username})`,
+    addMemberRoleOptions.value = page.items.map((item) => ({
+      label: `${item.name} (${item.code})`,
       value: item.id
     }));
   } finally {
-    userOptionsLoading.value = false;
+    addMemberRoleOptionsLoading.value = false;
   }
 }
 
-const handleUserSearch = debounce((value?: string) => {
-  void loadUserOptions(value);
+const handleAddMemberRoleSearch = debounce((value?: string) => {
+  void loadAddMemberRoleOptions(value);
 }, 300);
-
-function openAddMemberModal() {
-  addMemberForm.userIds = [];
-  addMemberForm.roleIds = [];
-  addMemberOpen.value = true;
-  void loadUserOptions();
-}
 
 function openEditMemberRoles(record: TenantAppMemberListItem) {
   editingMemberUserId.value = record.userId;
@@ -1069,21 +1098,34 @@ function openEditMemberRoles(record: TenantAppMemberListItem) {
 
 async function submitAddMember() {
   if (!appId.value) return;
-  if (addMemberForm.userIds.length === 0) {
-    message.warning(t("appsUsers.pickOneUser"));
+  if (!addMemberForm.username.trim()) {
+    message.warning(t("systemUsers.usernameRequired"));
+    return;
+  }
+  if (!addMemberForm.password.trim()) {
+    message.warning(t("systemUsers.passwordRequired"));
+    return;
+  }
+  if (!addMemberForm.displayName.trim()) {
+    message.warning(t("systemUsers.displayNameRequired"));
     return;
   }
   submitting.value = true;
   try {
-    await addOrganizationMembers(appId.value, {
-      userIds: addMemberForm.userIds,
+    await createOrganizationMemberUser(appId.value, {
+      username: addMemberForm.username.trim(),
+      password: addMemberForm.password,
+      displayName: addMemberForm.displayName.trim(),
+      email: addMemberForm.email.trim() || undefined,
+      phoneNumber: addMemberForm.phoneNumber.trim() || undefined,
+      isActive: addMemberForm.isActive,
       roleIds: canViewAppRoles.value ? addMemberForm.roleIds : []
     });
     addMemberOpen.value = false;
-    message.success(t("appsUsers.addSuccess"));
+    message.success(t("systemUsers.createSuccess"));
     await loadWorkspace();
   } catch (error) {
-    message.error((error as Error).message || t("appsUsers.addFailed"));
+    message.error((error as Error).message || t("systemUsers.createFailed"));
   } finally {
     submitting.value = false;
   }

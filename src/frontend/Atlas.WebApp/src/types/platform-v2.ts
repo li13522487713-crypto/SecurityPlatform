@@ -529,6 +529,16 @@ export interface AppOrganizationAssignMembersRequest {
   roleIds: string[];
 }
 
+export interface AppOrganizationCreateMemberUserRequest {
+  username: string;
+  password: string;
+  displayName: string;
+  email?: string;
+  phoneNumber?: string;
+  isActive: boolean;
+  roleIds: string[];
+}
+
 export interface AppOrganizationUpdateMemberRolesRequest {
   roleIds: string[];
 }

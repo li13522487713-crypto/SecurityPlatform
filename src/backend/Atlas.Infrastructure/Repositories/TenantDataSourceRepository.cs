@@ -56,7 +56,9 @@ public sealed class TenantDataSourceRepository
 
     public async Task UpdateAsync(TenantDataSource entity, CancellationToken ct = default)
     {
-        await _db.Updateable(entity).ExecuteCommandAsync(ct);
+        await _db.Updateable(entity)
+            .Where(x => x.Id == entity.Id && x.TenantIdValue == entity.TenantIdValue)
+            .ExecuteCommandAsync(ct);
     }
 
     public async Task<bool> DeleteByTenantAndIdAsync(string tenantId, long id, CancellationToken ct = default)

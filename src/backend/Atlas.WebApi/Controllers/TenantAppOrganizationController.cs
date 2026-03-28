@@ -1,9 +1,11 @@
 using Atlas.Application.Platform.Abstractions;
 using Atlas.Application.Platform.Models;
+using Atlas.Application.Identity.Models;
 using Atlas.Core.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.WebApi.Authorization;
+using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -18,17 +20,20 @@ public sealed class TenantAppOrganizationController : ControllerBase
     private readonly IAppOrganizationCommandService _commandService;
     private readonly ITenantProvider _tenantProvider;
     private readonly ICurrentUserAccessor _currentUserAccessor;
+    private readonly IValidator<UserCreateRequest> _userCreateValidator;
 
     public TenantAppOrganizationController(
         IAppOrganizationQueryService queryService,
         IAppOrganizationCommandService commandService,
         ITenantProvider tenantProvider,
-        ICurrentUserAccessor currentUserAccessor)
+        ICurrentUserAccessor currentUserAccessor,
+        IValidator<UserCreateRequest> userCreateValidator)
     {
         _queryService = queryService;
         _commandService = commandService;
         _tenantProvider = tenantProvider;
         _currentUserAccessor = currentUserAccessor;
+        _userCreateValidator = userCreateValidator;
     }
 
     [HttpGet("workspace")]
@@ -54,6 +59,32 @@ public sealed class TenantAppOrganizationController : ControllerBase
         var currentUser = _currentUserAccessor.GetCurrentUserOrThrow();
         await _commandService.AddMembersAsync(tenantId, appId, currentUser.UserId, request, cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { appId = appId.ToString() }, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost("members/users")]
+    [Authorize(Policy = PermissionPolicies.AppMembersUpdate)]
+    public async Task<ActionResult<ApiResponse<object>>> CreateMemberUser(
+        long appId,
+        [FromBody] AppOrganizationCreateMemberUserRequest request,
+        CancellationToken cancellationToken)
+    {
+        var createUserRequest = new UserCreateRequest(
+            request.Username,
+            request.Password,
+            request.DisplayName,
+            request.Email,
+            request.PhoneNumber,
+            request.IsActive,
+            Array.Empty<long>(),
+            Array.Empty<long>(),
+            Array.Empty<long>());
+        _userCreateValidator.ValidateAndThrow(createUserRequest);
+
+        var tenantId = _tenantProvider.GetTenantId();
+        var userId = await _commandService.CreateMemberUserAsync(tenantId, appId, request, cancellationToken);
+        return Ok(ApiResponse<object>.Ok(
+            new { appId = appId.ToString(), userId = userId.ToString() },
+            HttpContext.TraceIdentifier));
     }
 
     [HttpPut("members/{userId}/roles")]

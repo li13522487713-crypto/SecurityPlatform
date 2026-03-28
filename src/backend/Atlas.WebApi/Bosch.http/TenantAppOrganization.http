@@ -37,6 +37,23 @@ Idempotency-Key: org-members-add-001
   "roleIds": []
 }
 
+### 新建账号并加入应用成员（统一入口）
+POST {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/organization/members/users
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: org-members-create-user-001
+
+{
+  "username": "org_new_user_001",
+  "password": "P@ssw0rd!",
+  "displayName": "组织新用户001",
+  "email": "org_new_user_001@example.com",
+  "phoneNumber": "13800000001",
+  "isActive": true,
+  "roleIds": []
+}
+
 ### 更新成员角色（统一入口）
 PUT {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/organization/members/1/roles
 Authorization: Bearer {{accessToken}}

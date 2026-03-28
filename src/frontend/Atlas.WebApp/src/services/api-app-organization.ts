@@ -3,6 +3,7 @@ import type { ApiResponse, PagedRequest } from "@/types/api";
 import type {
   AppDepartmentListItem,
   AppOrganizationAssignMembersRequest,
+  AppOrganizationCreateMemberUserRequest,
   AppOrganizationCreateDepartmentRequest,
   AppOrganizationCreatePositionRequest,
   AppOrganizationCreateProjectRequest,
@@ -46,6 +47,17 @@ export async function addOrganizationMembers(appId: string, request: AppOrganiza
   });
   if (!response.success) {
     throw new Error(response.message || "添加成员失败");
+  }
+}
+
+export async function createOrganizationMemberUser(appId: string, request: AppOrganizationCreateMemberUserRequest) {
+  const response = await requestApi<ApiResponse<{ userId: string }>>(`${buildOrgBasePath(appId)}/members/users`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request)
+  });
+  if (!response.success) {
+    throw new Error(response.message || "创建用户失败");
   }
 }
 
