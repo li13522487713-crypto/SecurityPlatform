@@ -7,7 +7,7 @@ export type MultiAgentOrchestrationStatus = 0 | 1 | 2;
 export type MultiAgentExecutionStatus = 0 | 1 | 2 | 3 | 4 | 5;
 
 export interface MultiAgentMemberInput {
-  agentId: number;
+  agentId: string;
   alias?: string;
   sortOrder: number;
   isEnabled: boolean;

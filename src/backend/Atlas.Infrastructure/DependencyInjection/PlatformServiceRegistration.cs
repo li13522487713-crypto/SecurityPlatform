@@ -34,6 +34,8 @@ public static class PlatformServiceRegistration
         services.AddScoped<ITenantAppRoleCommandService, TenantAppRoleCommandService>();
         services.AddScoped<IAppOrgQueryService, AppOrgQueryService>();
         services.AddScoped<IAppOrgCommandService, AppOrgCommandService>();
+        services.AddScoped<IAppOrganizationQueryService, AppOrganizationQueryService>();
+        services.AddScoped<IAppOrganizationCommandService, AppOrganizationCommandService>();
         services.AddScoped<IAppRoleAssignmentQueryService, AppRoleAssignmentQueryService>();
         services.AddScoped<IAppRoleAssignmentCommandService, AppRoleAssignmentCommandService>();
         services.AddScoped<IAppPermissionQueryService, AppPermissionQueryService>();

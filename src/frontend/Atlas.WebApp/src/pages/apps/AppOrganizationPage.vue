@@ -1,0 +1,1353 @@
+<template>
+  <div class="app-org-workspace">
+    <aside class="org-sidebar">
+      <div class="sidebar-brand">
+        <span class="sidebar-brand-icon" aria-hidden="true">
+          <TeamOutlined />
+        </span>
+        <span class="sidebar-brand-text">{{ t("appOrg.pageTitle") }}</span>
+      </div>
+
+      <div class="org-nav">
+        <button
+          type="button"
+          class="nav-row"
+          :class="{ active: sidebarKey === 'all' }"
+          @click="selectSidebar('all')"
+        >
+          <UserOutlined class="nav-row-icon" />
+          <span class="nav-row-label">{{ t("appOrg.navAllEmployees") }}</span>
+          <RightOutlined v-if="sidebarKey === 'all'" class="nav-row-chevron" />
+        </button>
+
+        <div class="nav-section">
+          <div class="nav-section-head">
+            <ApartmentOutlined class="nav-section-icon" />
+            <span class="nav-section-title">{{ t("appOrg.sectionDepartments") }}</span>
+            <a-button type="text" size="small" class="nav-section-gear" @click.stop="openEntityDrawer('departments')">
+              <template #icon><SettingOutlined /></template>
+            </a-button>
+          </div>
+          <div class="nav-section-items">
+            <button
+              v-for="d in sortedDepartments"
+              :key="d.id"
+              type="button"
+              class="nav-row nav-row-sub"
+              :class="{ active: sidebarKey === `dept:${d.id}` }"
+              @click="selectSidebar(`dept:${d.id}`)"
+            >
+              <span class="nav-row-label">{{ d.name }}</span>
+              <RightOutlined v-if="sidebarKey === `dept:${d.id}`" class="nav-row-chevron" />
+            </button>
+            <div v-if="sortedDepartments.length === 0" class="nav-empty">{{ t("common.noData") }}</div>
+          </div>
+        </div>
+
+        <div class="nav-section">
+          <div class="nav-section-head">
+            <SafetyOutlined class="nav-section-icon" />
+            <span class="nav-section-title">{{ t("appOrg.sectionRoles") }}</span>
+            <a-button type="text" size="small" class="nav-section-gear" @click.stop="openEntityDrawer('roles')">
+              <template #icon><SettingOutlined /></template>
+            </a-button>
+          </div>
+          <div class="nav-section-items">
+            <button
+              v-for="r in sortedRoles"
+              :key="r.id"
+              type="button"
+              class="nav-row nav-row-sub"
+              :class="{ active: sidebarKey === `role:${r.id}` }"
+              @click="selectSidebar(`role:${r.id}`)"
+            >
+              <span class="nav-row-label">{{ r.name }}</span>
+              <RightOutlined v-if="sidebarKey === `role:${r.id}`" class="nav-row-chevron" />
+            </button>
+            <div v-if="sortedRoles.length === 0" class="nav-empty">{{ t("common.noData") }}</div>
+          </div>
+        </div>
+
+        <div class="nav-section">
+          <div class="nav-section-head">
+            <SolutionOutlined class="nav-section-icon" />
+            <span class="nav-section-title">{{ t("appOrg.sectionPositions") }}</span>
+            <a-button type="text" size="small" class="nav-section-gear" @click.stop="openEntityDrawer('positions')">
+              <template #icon><SettingOutlined /></template>
+            </a-button>
+          </div>
+          <div class="nav-section-items">
+            <button
+              v-for="p in sortedPositions"
+              :key="p.id"
+              type="button"
+              class="nav-row nav-row-sub"
+              :class="{ active: sidebarKey === `pos:${p.id}` }"
+              @click="selectSidebar(`pos:${p.id}`)"
+            >
+              <span class="nav-row-label">{{ p.name }}</span>
+              <RightOutlined v-if="sidebarKey === `pos:${p.id}`" class="nav-row-chevron" />
+            </button>
+            <div v-if="sortedPositions.length === 0" class="nav-empty">{{ t("common.noData") }}</div>
+          </div>
+        </div>
+
+        <div class="nav-section">
+          <div class="nav-section-head">
+            <FolderOutlined class="nav-section-icon" />
+            <span class="nav-section-title">{{ t("appOrg.sectionProjects") }}</span>
+            <a-button type="text" size="small" class="nav-section-gear" @click.stop="openEntityDrawer('projects')">
+              <template #icon><SettingOutlined /></template>
+            </a-button>
+          </div>
+          <div class="nav-section-items">
+            <button
+              v-for="p in sortedProjects"
+              :key="p.id"
+              type="button"
+              class="nav-row nav-row-sub"
+              :class="{ active: sidebarKey === `proj:${p.id}` }"
+              @click="selectSidebar(`proj:${p.id}`)"
+            >
+              <span class="nav-row-label">{{ p.name }}</span>
+              <RightOutlined v-if="sidebarKey === `proj:${p.id}`" class="nav-row-chevron" />
+            </button>
+            <div v-if="sortedProjects.length === 0" class="nav-empty">{{ t("common.noData") }}</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <main class="org-main">
+      <template v-if="mainPanel === 'members'">
+        <div class="main-header">
+          <div>
+            <div class="main-title">{{ memberMainTitle }}</div>
+            <div class="main-subtitle">{{ memberMainSubtitle }}</div>
+          </div>
+          <a-space>
+            <a-button v-if="canManageRoles" @click="openEntityDrawer('roles')">
+              <template #icon><SettingOutlined /></template>
+              {{ t("appOrg.manageRoles") }}
+            </a-button>
+            <a-button v-if="canManageMembers" type="primary" @click="openAddMemberModal">
+              <template #icon><UserAddOutlined /></template>
+              {{ t("appsUsers.addMember") }}
+            </a-button>
+          </a-space>
+        </div>
+
+        <div class="toolbar-row">
+          <a-input
+            v-model:value="keyword"
+            class="org-search"
+            size="large"
+            allow-clear
+            :placeholder="t('appOrg.searchPlaceholder')"
+            @press-enter="onMemberSearch"
+          >
+            <template #prefix>
+              <SearchOutlined class="org-search-icon" />
+            </template>
+          </a-input>
+          <span class="found-count">{{ t("appOrg.foundMembers", { count: memberFoundCount }) }}</span>
+        </div>
+
+        <div class="org-table-wrap">
+          <a-table
+            row-key="userId"
+            :columns="memberColumns"
+            :data-source="displayedMembers"
+            :loading="loading"
+            :pagination="memberTablePagination"
+            :bordered="false"
+            class="org-table"
+            @change="handleMemberTableChange"
+          >
+            <template #bodyCell="{ column, record }">
+              <template v-if="column.key === 'basic'">
+                <div class="cell-basic">
+                  <a-avatar :size="36" class="org-avatar">{{ avatarText(record.displayName) }}</a-avatar>
+                  <div class="cell-basic-text">
+                    <div class="cell-name">{{ record.displayName }}</div>
+                    <div class="cell-handle">@{{ record.username }}</div>
+                  </div>
+                </div>
+              </template>
+              <template v-else-if="column.key === 'department'">
+                <span class="cell-muted-tag">{{ t("appOrg.departmentPending") }}</span>
+              </template>
+              <template v-else-if="column.key === 'position'">
+                <span class="cell-muted-tag">{{ t("appOrg.positionPending") }}</span>
+              </template>
+              <template v-else-if="column.key === 'roles'">
+                <a-space wrap :size="6">
+                  <span
+                    v-for="name in record.roleNames"
+                    :key="name"
+                    class="role-tag-outline"
+                  >{{ name }}</span>
+                  <span v-if="record.roleNames.length === 0" class="cell-placeholder">{{ t("appsUsers.noRoles") }}</span>
+                </a-space>
+              </template>
+              <template v-else-if="column.key === 'status'">
+                <span class="status-cell">
+                  <span :class="['status-dot', record.isActive ? 'on' : 'off']" />
+                  {{ record.isActive ? t("appOrg.statusNormal") : t("appOrg.statusDisabled") }}
+                </span>
+              </template>
+              <template v-else-if="column.key === 'actions'">
+                <a-space>
+                  <a-button
+                    v-if="canManageMembers && canViewAppRoles"
+                    type="link"
+                    size="small"
+                    @click="openEditMemberRoles(record)"
+                  >
+                    {{ t("appsUsers.assignRoles") }}
+                  </a-button>
+                  <a-popconfirm
+                    v-if="canManageMembers"
+                    :title="t('appsUsers.removeConfirm')"
+                    :ok-text="t('common.delete')"
+                    :cancel-text="t('common.cancel')"
+                    @confirm="handleDeleteMember(record)"
+                  >
+                    <a-button type="link" size="small" danger>{{ t("appsUsers.removeOk") }}</a-button>
+                  </a-popconfirm>
+                </a-space>
+              </template>
+            </template>
+          </a-table>
+        </div>
+      </template>
+
+      <template v-else>
+        <div class="main-header">
+          <div>
+            <div class="main-title">{{ projectMainTitle }}</div>
+            <div class="main-subtitle">{{ projectMainSubtitle }}</div>
+          </div>
+          <a-button v-if="canManageProjects" type="primary" @click="openEntityModal('projects')">
+            {{ t("appsProjects.newProject") }}
+          </a-button>
+        </div>
+        <div class="org-table-wrap">
+          <a-table
+            row-key="id"
+            :columns="projectColumns"
+            :data-source="projects"
+            :loading="loading"
+            :pagination="false"
+            :bordered="false"
+            :row-class-name="projectRowClassName"
+            class="org-table"
+          >
+            <template #bodyCell="{ column, record }">
+              <template v-if="column.key === 'isActive'">
+                <a-tag :color="record.isActive ? 'blue' : 'default'">
+                  {{ record.isActive ? t("appsProjects.active") : t("appsProjects.disabled") }}
+                </a-tag>
+              </template>
+              <template v-else-if="column.key === 'actions'">
+                <a-space>
+                  <a-button type="link" size="small" @click="openEntityModal('projects', record)">{{ t("common.edit") }}</a-button>
+                  <a-popconfirm
+                    :title="t('appsProjects.deleteConfirm')"
+                    :ok-text="t('common.delete')"
+                    :cancel-text="t('common.cancel')"
+                    @confirm="handleDeleteProject(record)"
+                  >
+                    <a-button type="link" size="small" danger>{{ t("common.delete") }}</a-button>
+                  </a-popconfirm>
+                </a-space>
+              </template>
+            </template>
+          </a-table>
+        </div>
+      </template>
+    </main>
+
+    <a-drawer
+      v-model:open="entityDrawerOpen"
+      :title="entityDrawerTitle"
+      placement="right"
+      :width="720"
+      destroy-on-close
+      @close="entityDrawerOpen = false"
+    >
+      <a-table
+        row-key="id"
+        :columns="entityDrawerColumns"
+        :data-source="entityDrawerDataSource"
+        :loading="loading"
+        :pagination="false"
+        :bordered="false"
+        size="small"
+      >
+        <template #bodyCell="{ column, record }">
+          <template v-if="entityDrawerKind === 'roles' && column.key === 'isSystem'">
+            <a-tag :color="record.isSystem ? 'purple' : 'blue'">
+              {{ record.isSystem ? t("appsRoles.typeSystem") : t("appsRoles.typeCustom") }}
+            </a-tag>
+          </template>
+          <template v-else-if="entityDrawerKind === 'departments' && column.key === 'parentId'">
+            {{ getDepartmentParentLabel(departments, record.parentId) }}
+          </template>
+          <template v-else-if="entityDrawerKind === 'positions' && column.key === 'isActive'">
+            <a-tag :color="record.isActive ? 'green' : 'default'">
+              {{ record.isActive ? t("common.statusEnabled") : t("common.statusDisabled") }}
+            </a-tag>
+          </template>
+          <template v-else-if="entityDrawerKind === 'projects' && column.key === 'isActive'">
+            <a-tag :color="record.isActive ? 'blue' : 'default'">
+              {{ record.isActive ? t("appsProjects.active") : t("appsProjects.disabled") }}
+            </a-tag>
+          </template>
+          <template v-else-if="column.key === 'actions'">
+            <a-space>
+              <a-button type="link" size="small" @click="openEntityModal(entityDrawerKind, record)">{{ t("common.edit") }}</a-button>
+              <a-popconfirm
+                :title="entityDeleteConfirm(entityDrawerKind)"
+                :ok-text="t('common.delete')"
+                :cancel-text="t('common.cancel')"
+                @confirm="handleDeleteEntity(entityDrawerKind, record)"
+              >
+                <a-button type="link" size="small" danger>{{ t("common.delete") }}</a-button>
+              </a-popconfirm>
+            </a-space>
+          </template>
+        </template>
+      </a-table>
+      <div class="drawer-footer-actions">
+        <a-button type="primary" @click="openEntityModal(entityDrawerKind)">{{ entityDrawerCreateLabel }}</a-button>
+      </div>
+    </a-drawer>
+
+    <a-modal
+      v-model:open="addMemberOpen"
+      :title="t('appsUsers.modalAddTitle')"
+      :confirm-loading="submitting"
+      :ok-text="t('appsUsers.modalAddOk')"
+      :cancel-text="t('common.cancel')"
+      @ok="submitAddMember"
+    >
+      <a-form layout="vertical">
+        <a-form-item :label="t('appsUsers.labelMembers')" required>
+          <a-select
+            v-model:value="addMemberForm.userIds"
+            mode="multiple"
+            show-search
+            :filter-option="false"
+            :options="userOptions"
+            :loading="userOptionsLoading"
+            @search="handleUserSearch"
+            @focus="loadUserOptions()"
+          />
+        </a-form-item>
+        <a-form-item v-if="canViewAppRoles" :label="t('appsUsers.labelAppRoles')">
+          <a-select v-model:value="addMemberForm.roleIds" mode="multiple" :options="roleOptions" />
+        </a-form-item>
+      </a-form>
+    </a-modal>
+
+    <a-modal
+      v-model:open="editMemberRolesOpen"
+      :title="t('appsUsers.modalRolesTitle')"
+      :confirm-loading="submitting"
+      :ok-text="t('common.save')"
+      :cancel-text="t('common.cancel')"
+      @ok="submitEditMemberRoles"
+    >
+      <a-form layout="vertical">
+        <a-form-item :label="t('appsUsers.labelMemberUser')">
+          <a-input :value="editingMemberDisplayName" disabled />
+        </a-form-item>
+        <a-form-item v-if="canViewAppRoles" :label="t('appsUsers.labelRoles')">
+          <a-select v-model:value="editMemberRoleIds" mode="multiple" :options="roleOptions" />
+        </a-form-item>
+      </a-form>
+    </a-modal>
+
+    <a-modal
+      v-model:open="entityModalOpen"
+      :title="entityModalTitle"
+      :confirm-loading="submitting"
+      :ok-text="t('common.save')"
+      :cancel-text="t('common.cancel')"
+      @ok="submitEntity"
+    >
+      <a-form layout="vertical">
+        <template v-if="entityModalKind === 'roles'">
+          <a-form-item :label="t('appsRoles.labelCode')" required>
+            <a-input v-model:value="entityForm.code" :disabled="!!editingEntityId" />
+          </a-form-item>
+          <a-form-item :label="t('appsRoles.labelName')" required>
+            <a-input v-model:value="entityForm.name" />
+          </a-form-item>
+          <a-form-item :label="t('appsRoles.labelDesc')">
+            <a-input v-model:value="entityForm.description" />
+          </a-form-item>
+        </template>
+
+        <template v-if="entityModalKind === 'departments'">
+          <a-form-item :label="t('appsDepartments.labelName')" required>
+            <a-input v-model:value="entityForm.name" />
+          </a-form-item>
+          <a-form-item :label="t('appsDepartments.labelCode')" required>
+            <a-input v-model:value="entityForm.code" />
+          </a-form-item>
+          <a-form-item :label="t('appsDepartments.labelParent')">
+            <a-select v-model:value="entityForm.parentId" allow-clear :options="departmentParentOptions" />
+          </a-form-item>
+          <a-form-item :label="t('appsDepartments.labelSort')">
+            <a-input-number v-model:value="entityForm.sortOrder" :min="0" :max="9999" style="width: 100%" />
+          </a-form-item>
+        </template>
+
+        <template v-if="entityModalKind === 'positions'">
+          <a-form-item :label="t('appsPositions.labelName')" required>
+            <a-input v-model:value="entityForm.name" />
+          </a-form-item>
+          <a-form-item :label="t('appsPositions.labelCode')" required>
+            <a-input v-model:value="entityForm.code" :disabled="!!editingEntityId" />
+          </a-form-item>
+          <a-form-item :label="t('appsPositions.labelDesc')">
+            <a-textarea v-model:value="entityForm.description" :rows="2" />
+          </a-form-item>
+          <a-form-item :label="t('appsPositions.labelStatus')">
+            <a-switch v-model:checked="entityForm.isActive" />
+          </a-form-item>
+          <a-form-item :label="t('appsPositions.labelSort')">
+            <a-input-number v-model:value="entityForm.sortOrder" :min="0" :max="9999" style="width: 100%" />
+          </a-form-item>
+        </template>
+
+        <template v-if="entityModalKind === 'projects'">
+          <a-form-item :label="t('appsProjects.labelName')" required>
+            <a-input v-model:value="entityForm.name" />
+          </a-form-item>
+          <a-form-item :label="t('appsProjects.labelCode')" required>
+            <a-input v-model:value="entityForm.code" :disabled="!!editingEntityId" />
+          </a-form-item>
+          <a-form-item :label="t('appsProjects.labelDesc')">
+            <a-textarea v-model:value="entityForm.description" :rows="2" />
+          </a-form-item>
+          <a-form-item :label="t('appsProjects.labelStatus')">
+            <a-switch v-model:checked="entityForm.isActive" />
+          </a-form-item>
+        </template>
+      </a-form>
+    </a-modal>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { computed, onMounted, reactive, ref } from "vue";
+import { useI18n } from "vue-i18n";
+import { message } from "ant-design-vue";
+import type { TableColumnsType, TablePaginationConfig } from "ant-design-vue";
+import { useRoute } from "vue-router";
+import {
+  ApartmentOutlined,
+  SolutionOutlined,
+  FolderOutlined,
+  RightOutlined,
+  SafetyOutlined,
+  SearchOutlined,
+  SettingOutlined,
+  TeamOutlined,
+  UserAddOutlined,
+  UserOutlined
+} from "@ant-design/icons-vue";
+import { debounce } from "@/utils/common";
+import { isAdminRole } from "@/utils/auth";
+import { useUserStore } from "@/stores/user";
+import { getUsersPaged } from "@/services/api-users";
+import { getTenantAppMembersPaged } from "@/services/api-app-members";
+import {
+  addOrganizationMembers,
+  createOrganizationDepartment,
+  createOrganizationPosition,
+  createOrganizationProject,
+  createOrganizationRole,
+  deleteOrganizationDepartment,
+  deleteOrganizationPosition,
+  deleteOrganizationProject,
+  deleteOrganizationRole,
+  getAppOrganizationWorkspace,
+  getDepartmentParentLabel,
+  removeOrganizationMember,
+  updateOrganizationDepartment,
+  updateOrganizationMemberRoles,
+  updateOrganizationPosition,
+  updateOrganizationProject,
+  updateOrganizationRole
+} from "@/services/api-app-organization";
+import type {
+  AppDepartmentListItem,
+  AppPositionListItem,
+  AppProjectListItem,
+  TenantAppMemberListItem,
+  TenantAppRoleListItem
+} from "@/types/platform-v2";
+
+type EntityKind = "roles" | "departments" | "positions" | "projects";
+type SelectOption = { label: string; value: string };
+
+const ROLE_FETCH_PAGE_SIZE = 5000;
+
+const { t } = useI18n();
+const route = useRoute();
+const userStore = useUserStore();
+const appId = computed(() => String(route.params.appId ?? ""));
+
+const sidebarKey = ref("all");
+const loading = ref(false);
+const submitting = ref(false);
+const keyword = ref("");
+const pagination = reactive<TablePaginationConfig>({
+  current: 1,
+  pageSize: 20,
+  total: 0,
+  showSizeChanger: true
+});
+
+/** server: 服务端分页；client：按角色筛选后前端分页 */
+const memberPageMode = ref<"server" | "client">("server");
+const roleFilteredMembers = ref<TenantAppMemberListItem[]>([]);
+
+const members = ref<TenantAppMemberListItem[]>([]);
+const roles = ref<TenantAppRoleListItem[]>([]);
+const departments = ref<AppDepartmentListItem[]>([]);
+const positions = ref<AppPositionListItem[]>([]);
+const projects = ref<AppProjectListItem[]>([]);
+
+const entityDrawerOpen = ref(false);
+const entityDrawerKind = ref<EntityKind>("roles");
+
+const addMemberOpen = ref(false);
+const editMemberRolesOpen = ref(false);
+const entityModalOpen = ref(false);
+const entityModalKind = ref<EntityKind>("roles");
+const editingMemberUserId = ref("");
+const editingMemberDisplayName = ref("");
+const editMemberRoleIds = ref<string[]>([]);
+const editingEntityId = ref<string | null>(null);
+
+const addMemberForm = reactive({
+  userIds: [] as string[],
+  roleIds: [] as string[]
+});
+
+const entityForm = reactive({
+  code: "",
+  name: "",
+  description: "",
+  parentId: undefined as string | undefined,
+  sortOrder: 0,
+  isActive: true
+});
+
+const userOptions = ref<SelectOption[]>([]);
+const userOptionsLoading = ref(false);
+
+const roleOptions = computed<SelectOption[]>(() =>
+  roles.value.map((role) => ({ label: `${role.name} (${role.code})`, value: role.id }))
+);
+
+const departmentParentOptions = computed<SelectOption[]>(() =>
+  departments.value
+    .filter((item) => item.id !== editingEntityId.value)
+    .map((item) => ({ value: item.id, label: item.name }))
+);
+
+const canManageMembers = computed(
+  () => userStore.permissions.includes("apps:members:update") || isAdminRole(userStore.profile)
+);
+const canViewAppRoles = computed(
+  () =>
+    userStore.permissions.includes("apps:roles:view") ||
+    userStore.permissions.includes("apps:roles:update") ||
+    isAdminRole(userStore.profile)
+);
+const canManageRoles = computed(
+  () => userStore.permissions.includes("apps:roles:update") || isAdminRole(userStore.profile)
+);
+const canManageProjects = computed(
+  () => userStore.permissions.includes("apps:members:update") || isAdminRole(userStore.profile)
+);
+
+const sortedDepartments = computed(() =>
+  [...departments.value].sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
+);
+const sortedRoles = computed(() => [...roles.value].sort((a, b) => a.name.localeCompare(b.name)));
+const sortedPositions = computed(() =>
+  [...positions.value].sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
+);
+const sortedProjects = computed(() => [...projects.value].sort((a, b) => a.name.localeCompare(b.name)));
+
+const mainPanel = computed(() => (sidebarKey.value.startsWith("proj:") ? "projects" : "members"));
+
+const selectedRoleId = computed(() => {
+  const m = /^role:(.+)$/.exec(sidebarKey.value);
+  return m ? m[1] : null;
+});
+const selectedDept = computed(() => {
+  const m = /^dept:(.+)$/.exec(sidebarKey.value);
+  return m ? sortedDepartments.value.find((d) => d.id === m[1]) : undefined;
+});
+const selectedPosition = computed(() => {
+  const m = /^pos:(.+)$/.exec(sidebarKey.value);
+  return m ? sortedPositions.value.find((p) => p.id === m[1]) : undefined;
+});
+const selectedProject = computed(() => {
+  const m = /^proj:(.+)$/.exec(sidebarKey.value);
+  return m ? projects.value.find((p) => p.id === m[1]) : undefined;
+});
+
+const memberMainTitle = computed(() => {
+  if (sidebarKey.value === "all") return t("appOrg.navAllEmployees");
+  if (selectedRoleId.value) {
+    const r = roles.value.find((x) => x.id === selectedRoleId.value);
+    return r?.name ?? t("appOrg.sectionRoles");
+  }
+  if (selectedDept.value) return selectedDept.value.name;
+  if (selectedPosition.value) return selectedPosition.value.name;
+  return t("appOrg.navAllEmployees");
+});
+
+const memberMainSubtitle = computed(() => {
+  if (sidebarKey.value === "all") return t("appOrg.subtitleAll");
+  if (selectedRoleId.value) {
+    const r = roles.value.find((x) => x.id === selectedRoleId.value);
+    return t("appOrg.subtitleByRole", { name: r?.name ?? "" });
+  }
+  if (selectedDept.value) return t("appOrg.subtitleByDepartment", { name: selectedDept.value.name });
+  if (selectedPosition.value) return t("appOrg.subtitleByPosition", { name: selectedPosition.value.name });
+  return t("appOrg.subtitleAll");
+});
+
+const projectMainTitle = computed(() => selectedProject.value?.name ?? t("appOrg.sectionProjects"));
+const projectMainSubtitle = computed(() =>
+  selectedProject.value
+    ? t("appOrg.subtitleProject", { name: selectedProject.value.name })
+    : t("appsProjects.pageSubtitle")
+);
+
+const memberFoundCount = computed(() => {
+  if (memberPageMode.value === "client") return roleFilteredMembers.value.length;
+  return Number(pagination.total ?? 0);
+});
+
+const displayedMembers = computed(() => {
+  if (memberPageMode.value === "client") {
+    const cur = Number(pagination.current ?? 1);
+    const size = Number(pagination.pageSize ?? 20);
+    const start = (cur - 1) * size;
+    return roleFilteredMembers.value.slice(start, start + size);
+  }
+  return members.value;
+});
+
+const memberTablePagination = computed(() => {
+  if (memberPageMode.value === "client") {
+    return {
+      ...pagination,
+      total: roleFilteredMembers.value.length
+    };
+  }
+  return pagination;
+});
+
+const memberColumns = computed<TableColumnsType<TenantAppMemberListItem>>(() => [
+  { title: t("appOrg.colBasicInfo"), key: "basic", width: 260 },
+  { title: t("appOrg.colDepartment"), key: "department", width: 140 },
+  { title: t("appOrg.colPosition"), key: "position", width: 120 },
+  { title: t("appOrg.colRolePermissions"), key: "roles", minWidth: 200 },
+  { title: t("appOrg.colStatus"), key: "status", width: 120 },
+  { title: t("appsUsers.colActions"), key: "actions", width: 200, fixed: "right" }
+]);
+
+const projectColumns = computed<TableColumnsType<AppProjectListItem>>(() => [
+  { title: t("appsProjects.colName"), dataIndex: "name", key: "name" },
+  { title: t("appsProjects.colCode"), dataIndex: "code", key: "code", width: 150 },
+  { title: t("appsProjects.colDesc"), dataIndex: "description", key: "description", ellipsis: true },
+  { title: t("appsProjects.colStatus"), key: "isActive", width: 100 },
+  { title: t("appsProjects.colActions"), key: "actions", width: 140, fixed: "right" }
+]);
+
+function projectRowClassName(record: AppProjectListItem) {
+  const m = /^proj:(.+)$/.exec(sidebarKey.value);
+  return m && record.id === m[1] ? "org-row-selected" : "";
+}
+
+const entityDrawerTitle = computed(() => {
+  if (entityDrawerKind.value === "roles") return t("appsRoles.pageTitle");
+  if (entityDrawerKind.value === "departments") return t("appsDepartments.pageTitle");
+  if (entityDrawerKind.value === "positions") return t("appsPositions.pageTitle");
+  return t("appsProjects.pageTitle");
+});
+
+const entityDrawerCreateLabel = computed(() => {
+  if (entityDrawerKind.value === "roles") return t("appsRoles.newRole");
+  if (entityDrawerKind.value === "departments") return t("appsDepartments.newDept");
+  if (entityDrawerKind.value === "positions") return t("appsPositions.newPosition");
+  return t("appsProjects.newProject");
+});
+
+const entityDrawerDataSource = computed(() => {
+  const k = entityDrawerKind.value;
+  if (k === "roles") return roles.value;
+  if (k === "departments") return departments.value;
+  if (k === "positions") return positions.value;
+  return projects.value;
+});
+
+const entityDrawerColumns = computed<TableColumnsType<Record<string, unknown>>>(() => {
+  const k = entityDrawerKind.value;
+  if (k === "roles") {
+    return [
+      { title: t("appsRoles.colCode"), dataIndex: "code", key: "code", width: 120 },
+      { title: t("appsRoles.colName"), dataIndex: "name", key: "name", width: 140 },
+      { title: t("appsRoles.colType"), key: "isSystem", width: 90 },
+      { title: t("appsRoles.colMembers"), dataIndex: "memberCount", key: "memberCount", width: 80 },
+      { title: t("appsRoles.colDescription"), dataIndex: "description", key: "description", ellipsis: true },
+      { title: t("appsRoles.colActions"), key: "actions", width: 120, fixed: "right" }
+    ];
+  }
+  if (k === "departments") {
+    return [
+      { title: t("appsDepartments.colName"), dataIndex: "name", key: "name" },
+      { title: t("appsDepartments.colCode"), dataIndex: "code", key: "code", width: 120 },
+      { title: t("appsDepartments.colParent"), key: "parentId", width: 140 },
+      { title: t("appsDepartments.colSort"), dataIndex: "sortOrder", key: "sortOrder", width: 72 },
+      { title: t("appsDepartments.colActions"), key: "actions", width: 120, fixed: "right" }
+    ];
+  }
+  if (k === "positions") {
+    return [
+      { title: t("appsPositions.colName"), dataIndex: "name", key: "name" },
+      { title: t("appsPositions.colCode"), dataIndex: "code", key: "code", width: 120 },
+      { title: t("appsPositions.colDesc"), dataIndex: "description", key: "description", ellipsis: true },
+      { title: t("appsPositions.colStatus"), key: "isActive", width: 88 },
+      { title: t("appsPositions.colSort"), dataIndex: "sortOrder", key: "sortOrder", width: 72 },
+      { title: t("appsPositions.colActions"), key: "actions", width: 120, fixed: "right" }
+    ];
+  }
+  return [
+    { title: t("appsProjects.colName"), dataIndex: "name", key: "name" },
+    { title: t("appsProjects.colCode"), dataIndex: "code", key: "code", width: 120 },
+    { title: t("appsProjects.colDesc"), dataIndex: "description", key: "description", ellipsis: true },
+    { title: t("appsProjects.colStatus"), key: "isActive", width: 88 },
+    { title: t("appsProjects.colActions"), key: "actions", width: 120, fixed: "right" }
+  ];
+});
+
+function entityDeleteConfirm(kind: EntityKind) {
+  if (kind === "roles") return t("appsRoles.deleteConfirm");
+  if (kind === "departments") return t("appsDepartments.deleteConfirm");
+  if (kind === "positions") return t("appsPositions.deleteConfirm");
+  return t("appsProjects.deleteConfirm");
+}
+
+const entityModalTitle = computed(() => {
+  const edit = Boolean(editingEntityId.value);
+  const k = entityModalKind.value;
+  if (k === "roles") return edit ? t("appsRoles.modalEditTitle") : t("appsRoles.modalCreateTitle");
+  if (k === "departments") return edit ? t("appsDepartments.modalEdit") : t("appsDepartments.modalCreate");
+  if (k === "positions") return edit ? t("appsPositions.modalEdit") : t("appsPositions.modalCreate");
+  return edit ? t("appsProjects.modalEdit") : t("appsProjects.modalCreate");
+});
+
+function avatarText(name: string) {
+  const s = name?.trim();
+  if (!s) return "?";
+  return s.length > 1 ? s.slice(0, 1) : s;
+}
+
+function selectSidebar(key: string) {
+  sidebarKey.value = key;
+  pagination.current = 1;
+  void loadWorkspace();
+}
+
+function openEntityDrawer(kind: EntityKind) {
+  entityDrawerKind.value = kind;
+  entityDrawerOpen.value = true;
+}
+
+function onMemberSearch() {
+  pagination.current = 1;
+  void loadWorkspace();
+}
+
+async function loadWorkspace() {
+  if (!appId.value) return;
+  loading.value = true;
+  try {
+    const isRoleFilter = /^role:/.test(sidebarKey.value);
+    const roleId = isRoleFilter ? sidebarKey.value.replace(/^role:/, "") : "";
+
+    const result = await getAppOrganizationWorkspace(appId.value, {
+      pageIndex: isRoleFilter ? 1 : Number(pagination.current ?? 1),
+      pageSize: isRoleFilter ? 1 : Number(pagination.pageSize ?? 20),
+      keyword: keyword.value.trim() || undefined
+    });
+
+    roles.value = result.roles;
+    departments.value = result.departments;
+    positions.value = result.positions;
+    projects.value = result.projects;
+
+    if (sidebarKey.value.startsWith("proj:")) {
+      memberPageMode.value = "server";
+      return;
+    }
+
+    if (isRoleFilter && roleId) {
+      memberPageMode.value = "client";
+      const mr = await getTenantAppMembersPaged(appId.value, {
+        pageIndex: 1,
+        pageSize: ROLE_FETCH_PAGE_SIZE,
+        keyword: keyword.value.trim() || undefined
+      });
+      roleFilteredMembers.value = mr.items.filter((m) => m.roleIds.includes(roleId));
+      pagination.total = roleFilteredMembers.value.length;
+      pagination.current = Math.min(
+        Number(pagination.current ?? 1),
+        Math.max(1, Math.ceil(roleFilteredMembers.value.length / Number(pagination.pageSize ?? 20)) || 1)
+      );
+      members.value = [];
+    } else {
+      memberPageMode.value = "server";
+      roleFilteredMembers.value = [];
+      members.value = result.members.items;
+      pagination.total = result.members.total;
+      pagination.current = result.members.pageIndex;
+      pagination.pageSize = result.members.pageSize;
+    }
+  } catch (error) {
+    message.error((error as Error).message || t("crud.loadFailed"));
+  } finally {
+    loading.value = false;
+  }
+}
+
+function handleMemberTableChange(page: TablePaginationConfig) {
+  pagination.current = page.current ?? 1;
+  pagination.pageSize = page.pageSize ?? 20;
+  if (memberPageMode.value === "server") {
+    void loadWorkspace();
+  }
+}
+
+async function loadUserOptions(keywordText?: string) {
+  userOptionsLoading.value = true;
+  try {
+    const result = await getUsersPaged({
+      pageIndex: 1,
+      pageSize: 20,
+      keyword: keywordText?.trim() || undefined
+    });
+    userOptions.value = result.items.map((item) => ({
+      label: `${item.displayName} (${item.username})`,
+      value: item.id
+    }));
+  } finally {
+    userOptionsLoading.value = false;
+  }
+}
+
+const handleUserSearch = debounce((value?: string) => {
+  void loadUserOptions(value);
+}, 300);
+
+function openAddMemberModal() {
+  addMemberForm.userIds = [];
+  addMemberForm.roleIds = [];
+  addMemberOpen.value = true;
+  void loadUserOptions();
+}
+
+function openEditMemberRoles(record: TenantAppMemberListItem) {
+  editingMemberUserId.value = record.userId;
+  editingMemberDisplayName.value = `${record.displayName} (${record.username})`;
+  editMemberRoleIds.value = [...record.roleIds];
+  editMemberRolesOpen.value = true;
+}
+
+async function submitAddMember() {
+  if (!appId.value) return;
+  if (addMemberForm.userIds.length === 0) {
+    message.warning(t("appsUsers.pickOneUser"));
+    return;
+  }
+  submitting.value = true;
+  try {
+    await addOrganizationMembers(appId.value, {
+      userIds: addMemberForm.userIds,
+      roleIds: canViewAppRoles.value ? addMemberForm.roleIds : []
+    });
+    addMemberOpen.value = false;
+    message.success(t("appsUsers.addSuccess"));
+    await loadWorkspace();
+  } catch (error) {
+    message.error((error as Error).message || t("appsUsers.addFailed"));
+  } finally {
+    submitting.value = false;
+  }
+}
+
+async function submitEditMemberRoles() {
+  if (!appId.value || !editingMemberUserId.value) return;
+  submitting.value = true;
+  try {
+    await updateOrganizationMemberRoles(appId.value, editingMemberUserId.value, {
+      roleIds: editMemberRoleIds.value
+    });
+    editMemberRolesOpen.value = false;
+    message.success(t("appsUsers.rolesUpdated"));
+    await loadWorkspace();
+  } catch (error) {
+    message.error((error as Error).message || t("appsUsers.rolesUpdateFailed"));
+  } finally {
+    submitting.value = false;
+  }
+}
+
+function resetEntityForm() {
+  entityForm.code = "";
+  entityForm.name = "";
+  entityForm.description = "";
+  entityForm.parentId = undefined;
+  entityForm.sortOrder = 0;
+  entityForm.isActive = true;
+}
+
+function openEntityModal(kind: EntityKind, record?: AppProjectListItem | TenantAppRoleListItem | AppDepartmentListItem | AppPositionListItem) {
+  entityModalKind.value = kind;
+  editingEntityId.value = record && "id" in record ? String(record.id) : null;
+  resetEntityForm();
+  if (record && "code" in record) {
+    entityForm.code = record.code ?? "";
+    entityForm.name = record.name ?? "";
+    entityForm.description = "description" in record ? (record.description ?? "") : "";
+    entityForm.parentId = "parentId" in record ? record.parentId : undefined;
+    entityForm.sortOrder = "sortOrder" in record ? record.sortOrder ?? 0 : 0;
+    entityForm.isActive = "isActive" in record ? record.isActive ?? true : true;
+  }
+  entityModalOpen.value = true;
+}
+
+async function submitEntity() {
+  if (!appId.value) return;
+  submitting.value = true;
+  try {
+    const k = entityModalKind.value;
+    if (k === "roles") {
+      if (!entityForm.code.trim() || !entityForm.name.trim()) {
+        message.warning(t("appsRoles.fillRequired"));
+        return;
+      }
+      if (editingEntityId.value) {
+        await updateOrganizationRole(appId.value, editingEntityId.value, {
+          name: entityForm.name.trim(),
+          description: entityForm.description.trim() || undefined
+        });
+      } else {
+        await createOrganizationRole(appId.value, {
+          code: entityForm.code.trim(),
+          name: entityForm.name.trim(),
+          description: entityForm.description.trim() || undefined,
+          permissionCodes: []
+        });
+      }
+    } else if (k === "departments") {
+      if (!entityForm.code.trim() || !entityForm.name.trim()) {
+        message.warning(t("appsDepartments.fillNameCode"));
+        return;
+      }
+      const payload = {
+        name: entityForm.name.trim(),
+        code: entityForm.code.trim(),
+        parentId: entityForm.parentId,
+        sortOrder: entityForm.sortOrder
+      };
+      if (editingEntityId.value) {
+        await updateOrganizationDepartment(appId.value, editingEntityId.value, payload);
+      } else {
+        await createOrganizationDepartment(appId.value, payload);
+      }
+    } else if (k === "positions") {
+      if (!entityForm.code.trim() || !entityForm.name.trim()) {
+        message.warning(t("appsPositions.fillNameCode"));
+        return;
+      }
+      const payload = {
+        name: entityForm.name.trim(),
+        code: entityForm.code.trim(),
+        description: entityForm.description.trim() || undefined,
+        isActive: entityForm.isActive,
+        sortOrder: entityForm.sortOrder
+      };
+      if (editingEntityId.value) {
+        await updateOrganizationPosition(appId.value, editingEntityId.value, payload);
+      } else {
+        await createOrganizationPosition(appId.value, payload);
+      }
+    } else {
+      if (!entityForm.code.trim() || !entityForm.name.trim()) {
+        message.warning(t("appsProjects.fillNameCode"));
+        return;
+      }
+      const payload = {
+        code: entityForm.code.trim(),
+        name: entityForm.name.trim(),
+        description: entityForm.description.trim() || undefined,
+        isActive: entityForm.isActive
+      };
+      if (editingEntityId.value) {
+        await updateOrganizationProject(appId.value, editingEntityId.value, payload);
+      } else {
+        await createOrganizationProject(appId.value, payload);
+      }
+    }
+
+    entityModalOpen.value = false;
+    message.success(t("crud.saveSuccess"));
+    await loadWorkspace();
+  } catch (error) {
+    message.error((error as Error).message || t("crud.saveFailed"));
+  } finally {
+    submitting.value = false;
+  }
+}
+
+async function handleDeleteMember(record: TenantAppMemberListItem) {
+  if (!appId.value) return;
+  try {
+    await removeOrganizationMember(appId.value, record.userId);
+    message.success(t("appsUsers.removed"));
+    await loadWorkspace();
+  } catch (error) {
+    message.error((error as Error).message || t("appsUsers.removeFailed"));
+  }
+}
+
+async function handleDeleteEntity(kind: EntityKind, record: { id: string }) {
+  if (!appId.value) return;
+  try {
+    if (kind === "roles") await deleteOrganizationRole(appId.value, record.id);
+    else if (kind === "departments") await deleteOrganizationDepartment(appId.value, record.id);
+    else if (kind === "positions") await deleteOrganizationPosition(appId.value, record.id);
+    else await deleteOrganizationProject(appId.value, record.id);
+    message.success(t("crud.deleteSuccess"));
+    await loadWorkspace();
+  } catch (error) {
+    message.error((error as Error).message || t("crud.deleteFailed"));
+  }
+}
+
+async function handleDeleteProject(record: AppProjectListItem) {
+  await handleDeleteEntity("projects", record);
+}
+
+onMounted(() => {
+  void loadWorkspace();
+});
+</script>
+
+<style scoped>
+.app-org-workspace {
+  display: flex;
+  gap: 0;
+  min-height: calc(100vh - 140px);
+  background: #f5f5f5;
+}
+
+.org-sidebar {
+  width: 268px;
+  flex-shrink: 0;
+  background: #f7f8fa;
+  border-right: 1px solid #e8e8e8;
+  padding: 16px 12px 24px;
+  overflow-y: auto;
+}
+
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+  padding: 0 4px;
+}
+
+.sidebar-brand-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #e6f4ff;
+  color: #1677ff;
+  font-size: 18px;
+}
+
+.sidebar-brand-text {
+  font-size: 16px;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.88);
+}
+
+.org-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.nav-section {
+  margin-top: 8px;
+}
+
+.nav-section-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px 4px;
+  color: rgba(0, 0, 0, 0.45);
+  font-size: 12px;
+}
+
+.nav-section-icon {
+  font-size: 14px;
+  color: #1677ff;
+}
+
+.nav-section-title {
+  flex: 1;
+  font-weight: 500;
+  text-transform: none;
+}
+
+.nav-section-gear {
+  color: rgba(0, 0, 0, 0.45) !important;
+}
+
+.nav-section-items {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.nav-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  margin: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  color: rgba(0, 0, 0, 0.88);
+  font-size: 14px;
+  transition: background 0.15s ease;
+}
+
+.nav-row:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.nav-row.active {
+  background: #e6f4ff;
+  color: #1677ff;
+  font-weight: 500;
+}
+
+.nav-row-sub {
+  padding-left: 28px;
+}
+
+.nav-row-icon {
+  color: #1677ff;
+  font-size: 16px;
+}
+
+.nav-row-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nav-row-chevron {
+  font-size: 11px;
+  color: #1677ff;
+  flex-shrink: 0;
+}
+
+.nav-empty {
+  padding: 8px 12px;
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.35);
+}
+
+.org-main {
+  flex: 1;
+  min-width: 0;
+  padding: 20px 24px 32px;
+  background: #fff;
+}
+
+.main-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.main-title {
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: rgba(0, 0, 0, 0.88);
+}
+
+.main-subtitle {
+  margin-top: 6px;
+  font-size: 13px;
+  color: rgba(0, 0, 0, 0.45);
+  line-height: 1.5;
+}
+
+.toolbar-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.org-search {
+  flex: 1;
+  max-width: 520px;
+  border-radius: 8px;
+}
+
+.org-search-icon {
+  color: rgba(0, 0, 0, 0.35);
+}
+
+.found-count {
+  font-size: 13px;
+  color: rgba(0, 0, 0, 0.45);
+  white-space: nowrap;
+}
+
+.org-table-wrap {
+  background: #fff;
+  border-radius: 8px;
+  border: 1px solid #f0f0f0;
+  overflow: hidden;
+}
+
+.org-table :deep(.ant-table-thead > tr > th) {
+  background: #fafafa !important;
+  font-weight: 500;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.org-table :deep(.ant-table-tbody > tr > td) {
+  border-bottom: 1px solid #f5f5f5;
+}
+
+.org-table :deep(.ant-table-tbody > tr:last-child > td) {
+  border-bottom: none;
+}
+
+.cell-basic {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.org-avatar {
+  background: #1677ff !important;
+  flex-shrink: 0;
+}
+
+.cell-basic-text {
+  min-width: 0;
+}
+
+.cell-name {
+  font-weight: 500;
+  color: rgba(0, 0, 0, 0.88);
+}
+
+.cell-handle {
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.45);
+}
+
+.cell-muted-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.45);
+  background: #f5f5f5;
+  border-radius: 4px;
+}
+
+.role-tag-outline {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.75);
+  background: #fff;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+}
+
+.cell-placeholder {
+  color: #bfbfbf;
+  font-size: 13px;
+}
+
+.status-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.status-dot.on {
+  background: #52c41a;
+}
+
+.status-dot.off {
+  background: #bfbfbf;
+}
+
+:deep(.org-row-selected > td) {
+  background: #f6ffed !important;
+}
+
+.drawer-footer-actions {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid #f0f0f0;
+}
+</style>

@@ -1,3 +1,5 @@
+using Atlas.Core.Models;
+
 namespace Atlas.Application.Platform.Models;
 
 public sealed record ApplicationCatalogListItem(
@@ -566,3 +568,67 @@ public sealed record AppPageListItem(
     long? ParentPageId,
     int SortOrder,
     bool IsPublished);
+
+// ===== 应用组织管理聚合 =====
+
+public sealed record AppOrganizationWorkspaceResponse(
+    string AppId,
+    PagedResult<TenantAppMemberListItem> Members,
+    TenantAppRoleGovernanceOverview RoleGovernance,
+    IReadOnlyList<TenantAppRoleListItem> Roles,
+    IReadOnlyList<AppDepartmentListItem> Departments,
+    IReadOnlyList<AppPositionListItem> Positions,
+    IReadOnlyList<AppProjectListItem> Projects);
+
+public sealed record AppOrganizationAssignMembersRequest(
+    IReadOnlyList<string> UserIds,
+    IReadOnlyList<string> RoleIds);
+
+public sealed record AppOrganizationUpdateMemberRolesRequest(
+    IReadOnlyList<string> RoleIds);
+
+public sealed record AppOrganizationCreateRoleRequest(
+    string Code,
+    string Name,
+    string? Description,
+    IReadOnlyList<string>? PermissionCodes);
+
+public sealed record AppOrganizationUpdateRoleRequest(
+    string Name,
+    string? Description);
+
+public sealed record AppOrganizationCreateDepartmentRequest(
+    string Name,
+    string Code,
+    string? ParentId,
+    int SortOrder);
+
+public sealed record AppOrganizationUpdateDepartmentRequest(
+    string Name,
+    string Code,
+    string? ParentId,
+    int SortOrder);
+
+public sealed record AppOrganizationCreatePositionRequest(
+    string Name,
+    string Code,
+    string? Description,
+    bool IsActive,
+    int SortOrder);
+
+public sealed record AppOrganizationUpdatePositionRequest(
+    string Name,
+    string? Description,
+    bool IsActive,
+    int SortOrder);
+
+public sealed record AppOrganizationCreateProjectRequest(
+    string Code,
+    string Name,
+    string? Description,
+    bool IsActive);
+
+public sealed record AppOrganizationUpdateProjectRequest(
+    string Name,
+    string? Description,
+    bool IsActive);

@@ -339,6 +339,43 @@
   - 平台管理员/系统管理员允许绕过成员校验。
 - 成员与角色绑定操作必须采用批量查询与批量写入，禁止在循环内数据库操作。
 
+#### v2 组织管理聚合接口（Organization Workspace）
+
+- 聚合工作区：
+  - `GET /api/v2/tenant-app-instances/{appId}/organization/workspace?pageIndex=1&pageSize=20&keyword=`
+  - 返回 `AppOrganizationWorkspaceResponse`：
+    - `members`：成员分页数据（`PagedResult<TenantAppMemberListItem>`）
+    - `roleGovernance`：角色治理概览（`TenantAppRoleGovernanceOverview`）
+    - `roles/departments/positions/projects`：组织分类全量列表（用于左侧导航与弹窗选择）
+- 成员管理（统一入口）：
+  - `POST /api/v2/tenant-app-instances/{appId}/organization/members`
+  - `PUT /api/v2/tenant-app-instances/{appId}/organization/members/{userId}/roles`
+  - `DELETE /api/v2/tenant-app-instances/{appId}/organization/members/{userId}`
+- 角色管理（统一入口）：
+  - `POST /api/v2/tenant-app-instances/{appId}/organization/roles`
+  - `PUT /api/v2/tenant-app-instances/{appId}/organization/roles/{roleId}`
+  - `DELETE /api/v2/tenant-app-instances/{appId}/organization/roles/{roleId}`
+- 部门管理（统一入口）：
+  - `POST /api/v2/tenant-app-instances/{appId}/organization/departments`
+  - `PUT /api/v2/tenant-app-instances/{appId}/organization/departments/{id}`
+  - `DELETE /api/v2/tenant-app-instances/{appId}/organization/departments/{id}`
+- 职位管理（统一入口）：
+  - `POST /api/v2/tenant-app-instances/{appId}/organization/positions`
+  - `PUT /api/v2/tenant-app-instances/{appId}/organization/positions/{id}`
+  - `DELETE /api/v2/tenant-app-instances/{appId}/organization/positions/{id}`
+- 项目管理（统一入口）：
+  - `POST /api/v2/tenant-app-instances/{appId}/organization/projects`
+  - `PUT /api/v2/tenant-app-instances/{appId}/organization/projects/{id}`
+  - `DELETE /api/v2/tenant-app-instances/{appId}/organization/projects/{id}`
+- 鉴权策略：
+  - `workspace` 要求 `apps:view`
+  - 成员写接口要求 `apps:members:update`
+  - 角色/部门/职位/项目写接口要求 `apps:roles:update`
+- 入参规范：
+  - 统一入口写接口中的实体 ID 使用字符串表达（前端避免 64 位整型精度问题），服务层强类型转换校验。
+
+> 说明：原 `/members`、`/roles`、`/departments`、`/positions`、`/projects` 分散接口仍保留兼容能力，但组织管理工作台默认使用 `/organization/*` 聚合入口。
+
 #### v2 P2 发布闭环接口（首批）
 
 - `GET /api/v2/release-center/releases`

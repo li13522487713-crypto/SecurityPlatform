@@ -1,0 +1,195 @@
+### 应用组织管理聚合 API 测试
+
+@baseUrl = http://localhost:5000
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+@appId = 1
+
+### 登录
+# @name login
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+###
+@accessToken = {{login.response.body.$.data.accessToken}}
+
+### 组织工作区（成员分页 + 角色治理 + 组织分类）
+GET {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/organization/workspace?pageIndex=1&pageSize=20&keyword=
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 新增成员（统一入口）
+POST {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/organization/members
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: org-members-add-001
+
+{
+  "userIds": ["1"],
+  "roleIds": []
+}
+
+### 更新成员角色（统一入口）
+PUT {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/organization/members/1/roles
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: org-members-role-001
+
+{
+  "roleIds": []
+}
+
+### 创建角色（统一入口）
+# @name createOrgRole
+POST {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/organization/roles
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: org-role-create-001
+
+{
+  "code": "ORG_EDITOR",
+  "name": "组织编辑员",
+  "description": "负责组织管理维护",
+  "permissionCodes": []
+}
+
+###
+@orgRoleId = {{createOrgRole.response.body.$.data.roleId}}
+
+### 更新角色（统一入口）
+PUT {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/organization/roles/{{orgRoleId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: org-role-update-001
+
+{
+  "name": "组织维护员",
+  "description": "负责组织结构与成员维护"
+}
+
+### 创建部门（统一入口）
+# @name createOrgDept
+POST {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/organization/departments
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: org-dept-create-001
+
+{
+  "name": "组织管理部",
+  "code": "ORG",
+  "parentId": null,
+  "sortOrder": 10
+}
+
+###
+@orgDeptId = {{createOrgDept.response.body.$.data.id}}
+
+### 更新部门（统一入口）
+PUT {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/organization/departments/{{orgDeptId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: org-dept-update-001
+
+{
+  "name": "组织治理部",
+  "code": "ORG",
+  "parentId": null,
+  "sortOrder": 12
+}
+
+### 创建职位（统一入口）
+# @name createOrgPosition
+POST {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/organization/positions
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: org-position-create-001
+
+{
+  "name": "组织运营专员",
+  "code": "ORG_OP",
+  "description": "负责组织运营",
+  "isActive": true,
+  "sortOrder": 5
+}
+
+###
+@orgPositionId = {{createOrgPosition.response.body.$.data.id}}
+
+### 更新职位（统一入口）
+PUT {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/organization/positions/{{orgPositionId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: org-position-update-001
+
+{
+  "name": "高级组织运营专员",
+  "description": "负责组织治理与运营",
+  "isActive": true,
+  "sortOrder": 6
+}
+
+### 创建项目（统一入口）
+# @name createOrgProject
+POST {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/organization/projects
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: org-project-create-001
+
+{
+  "code": "ORG-PRJ",
+  "name": "组织升级专项",
+  "description": "组织治理升级项目",
+  "isActive": true
+}
+
+###
+@orgProjectId = {{createOrgProject.response.body.$.data.id}}
+
+### 更新项目（统一入口）
+PUT {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/organization/projects/{{orgProjectId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: org-project-update-001
+
+{
+  "name": "组织升级专项（一期）",
+  "description": "组织治理升级项目一期实施",
+  "isActive": true
+}
+
+### 删除项目（统一入口）
+DELETE {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/organization/projects/{{orgProjectId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 删除职位（统一入口）
+DELETE {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/organization/positions/{{orgPositionId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 删除部门（统一入口）
+DELETE {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/organization/departments/{{orgDeptId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 删除角色（统一入口）
+DELETE {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/organization/roles/{{orgRoleId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}

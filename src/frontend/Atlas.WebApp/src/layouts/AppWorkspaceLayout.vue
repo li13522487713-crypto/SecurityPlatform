@@ -43,23 +43,9 @@
           <a-menu-item v-if="canView" :key="dataPath">
             <span data-testid="e2e-app-workspace-menu-data">{{ t('appWorkspace.menuData') }}</span>
           </a-menu-item>
-          <a-sub-menu v-if="canViewMembers || canViewRoles" key="org-sub" :title="t('appWorkspace.menuOrgGroup')">
-            <a-menu-item v-if="canViewMembers" :key="usersPath">
-              <span data-testid="e2e-app-workspace-menu-users">{{ t('appWorkspace.menuUsers') }}</span>
-            </a-menu-item>
-            <a-menu-item v-if="canViewRoles" :key="rolesPath">
-              <span data-testid="e2e-app-workspace-menu-roles">{{ t('appWorkspace.menuRoles') }}</span>
-            </a-menu-item>
-            <a-menu-item v-if="canViewRoles" :key="departmentsPath">
-              <span data-testid="e2e-app-workspace-menu-departments">{{ t('appWorkspace.menuDepartments') }}</span>
-            </a-menu-item>
-            <a-menu-item v-if="canViewRoles" :key="positionsPath">
-              <span data-testid="e2e-app-workspace-menu-positions">{{ t('appWorkspace.menuPositions') }}</span>
-            </a-menu-item>
-            <a-menu-item v-if="canViewRoles" :key="projectsPath">
-              <span data-testid="e2e-app-workspace-menu-projects">{{ t('appWorkspace.menuProjects') }}</span>
-            </a-menu-item>
-          </a-sub-menu>
+          <a-menu-item v-if="canViewMembers || canViewRoles" :key="orgPath">
+            <span data-testid="e2e-app-workspace-menu-org">{{ t('appWorkspace.menuOrgGroup') }}</span>
+          </a-menu-item>
           <a-menu-item v-if="canView" :key="runtimeHomePath">
             <span data-testid="e2e-app-workspace-menu-runtime">{{ t('appWorkspace.menuRuntime') }}</span>
           </a-menu-item>
@@ -160,11 +146,7 @@ const workflowsPath = computed(() => `/apps/${appId.value}/workflows`);
 const promptsPath = computed(() => `/apps/${appId.value}/prompts`);
 const pluginsPath = computed(() => `/apps/${appId.value}/plugins`);
 const dataPath = computed(() => `/apps/${appId.value}/data`);
-const usersPath = computed(() => `/apps/${appId.value}/users`);
-const rolesPath = computed(() => `/apps/${appId.value}/roles`);
-const departmentsPath = computed(() => `/apps/${appId.value}/departments`);
-const positionsPath = computed(() => `/apps/${appId.value}/positions`);
-const projectsPath = computed(() => `/apps/${appId.value}/projects`);
+const orgPath = computed(() => `/apps/${appId.value}/org`);
 const runtimeHomePath = computed(() => `/apps/${appId.value}/run/home`);
 const settingsPath = computed(() => `/apps/${appId.value}/settings`);
 
@@ -196,20 +178,8 @@ const selectedKeys = computed(() => {
   if (route.path.startsWith(dataPath.value)) {
     return [dataPath.value];
   }
-  if (route.path.startsWith(usersPath.value)) {
-    return [usersPath.value];
-  }
-  if (route.path.startsWith(rolesPath.value)) {
-    return [rolesPath.value];
-  }
-  if (route.path.startsWith(departmentsPath.value)) {
-    return [departmentsPath.value];
-  }
-  if (route.path.startsWith(positionsPath.value)) {
-    return [positionsPath.value];
-  }
-  if (route.path.startsWith(projectsPath.value)) {
-    return [projectsPath.value];
+  if (route.path.startsWith(orgPath.value)) {
+    return [orgPath.value];
   }
   if (route.path.startsWith(`/apps/${appId.value}/run/`)) {
     return [runtimeHomePath.value];

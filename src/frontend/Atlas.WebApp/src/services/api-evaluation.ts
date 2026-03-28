@@ -42,14 +42,14 @@ export interface EvaluationCaseDto {
 export interface EvaluationTaskCreateRequest {
   name: string;
   datasetId: number;
-  agentId: number;
+  agentId: string;
 }
 
 export interface EvaluationTaskDto {
   id: number;
   name: string;
   datasetId: number;
-  agentId: number;
+  agentId: string;
   status: EvaluationTaskStatus;
   totalCases: number;
   completedCases: number;

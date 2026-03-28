@@ -511,3 +511,78 @@ export interface AppPageListItem {
   sortOrder: number;
   isPublished: boolean;
 }
+
+// ===== 组织管理聚合 =====
+
+export interface AppOrganizationWorkspaceResponse {
+  appId: string;
+  members: import("@/types/api").PagedResult<TenantAppMemberListItem>;
+  roleGovernance: TenantAppRoleGovernanceOverview;
+  roles: TenantAppRoleListItem[];
+  departments: AppDepartmentListItem[];
+  positions: AppPositionListItem[];
+  projects: AppProjectListItem[];
+}
+
+export interface AppOrganizationAssignMembersRequest {
+  userIds: string[];
+  roleIds: string[];
+}
+
+export interface AppOrganizationUpdateMemberRolesRequest {
+  roleIds: string[];
+}
+
+export interface AppOrganizationCreateRoleRequest {
+  code: string;
+  name: string;
+  description?: string;
+  permissionCodes?: string[];
+}
+
+export interface AppOrganizationUpdateRoleRequest {
+  name: string;
+  description?: string;
+}
+
+export interface AppOrganizationCreateDepartmentRequest {
+  name: string;
+  code: string;
+  parentId?: string;
+  sortOrder: number;
+}
+
+export interface AppOrganizationUpdateDepartmentRequest {
+  name: string;
+  code: string;
+  parentId?: string;
+  sortOrder: number;
+}
+
+export interface AppOrganizationCreatePositionRequest {
+  name: string;
+  code: string;
+  description?: string;
+  isActive: boolean;
+  sortOrder: number;
+}
+
+export interface AppOrganizationUpdatePositionRequest {
+  name: string;
+  description?: string;
+  isActive: boolean;
+  sortOrder: number;
+}
+
+export interface AppOrganizationCreateProjectRequest {
+  code: string;
+  name: string;
+  description?: string;
+  isActive: boolean;
+}
+
+export interface AppOrganizationUpdateProjectRequest {
+  name: string;
+  description?: string;
+  isActive: boolean;
+}

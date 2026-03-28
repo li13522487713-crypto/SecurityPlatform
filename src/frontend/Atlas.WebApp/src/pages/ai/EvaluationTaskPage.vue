@@ -132,7 +132,7 @@ const formRef = ref<FormInstance>();
 const form = reactive({
   name: "",
   datasetId: undefined as number | undefined,
-  agentId: undefined as number | undefined
+  agentId: undefined as string | undefined
 });
 
 const rules = computed(() => ({
@@ -143,7 +143,7 @@ const rules = computed(() => ({
 
 const datasetOptions = ref<Array<{ label: string; value: number }>>([]);
 const datasetLoading = ref(false);
-const agentOptions = ref<Array<{ label: string; value: number }>>([]);
+const agentOptions = ref<Array<{ label: string; value: string }>>([]);
 const agentLoading = ref(false);
 
 const columns = computed(() => [
@@ -278,7 +278,7 @@ async function handleCreateTask() {
     const taskId = await createEvaluationTask({
       name: form.name.trim(),
       datasetId: form.datasetId as number,
-      agentId: form.agentId as number
+      agentId: form.agentId as string
     });
     message.success(t("crud.createSuccess"));
     createModalOpen.value = false;

@@ -150,7 +150,7 @@ import { resolveCurrentAppId } from "@/utils/app-context";
 
 interface MemberDraft {
   rowKey: string;
-  agentId?: number;
+  agentId?: string;
   alias?: string;
   sortOrder: number;
   isEnabled: boolean;
@@ -200,7 +200,7 @@ const rules = computed(() => ({
   name: [{ required: true, message: t("ai.multiAgent.ruleName") }]
 }));
 
-const agentOptions = ref<Array<{ label: string; value: number }>>([]);
+const agentOptions = ref<Array<{ label: string; value: string }>>([]);
 const agentLoading = ref(false);
 
 function statusText(status: MultiAgentOrchestrationStatus) {
@@ -296,7 +296,7 @@ async function handleCreate() {
   const members = createForm.members
     .filter((item) => item.agentId)
     .map((item, index) => ({
-      agentId: item.agentId as number,
+      agentId: item.agentId as string,
       alias: item.alias?.trim() || undefined,
       sortOrder: item.sortOrder ?? index,
       isEnabled: item.isEnabled,

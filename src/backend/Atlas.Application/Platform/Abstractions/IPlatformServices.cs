@@ -462,3 +462,113 @@ public interface IAppPermissionCommandService
     Task UpdateAsync(TenantId tenantId, long appId, long id, PermissionUpdateRequest request, CancellationToken cancellationToken = default);
     Task DeleteAsync(TenantId tenantId, long appId, long id, CancellationToken cancellationToken = default);
 }
+
+public interface IAppOrganizationQueryService
+{
+    Task<AppOrganizationWorkspaceResponse> GetWorkspaceAsync(
+        TenantId tenantId,
+        long appId,
+        PagedRequest request,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IAppOrganizationCommandService
+{
+    Task AddMembersAsync(
+        TenantId tenantId,
+        long appId,
+        long operatorUserId,
+        AppOrganizationAssignMembersRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task UpdateMemberRolesAsync(
+        TenantId tenantId,
+        long appId,
+        string userId,
+        AppOrganizationUpdateMemberRolesRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task RemoveMemberAsync(
+        TenantId tenantId,
+        long appId,
+        string userId,
+        CancellationToken cancellationToken = default);
+
+    Task<long> CreateRoleAsync(
+        TenantId tenantId,
+        long appId,
+        long operatorUserId,
+        AppOrganizationCreateRoleRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task UpdateRoleAsync(
+        TenantId tenantId,
+        long appId,
+        string roleId,
+        long operatorUserId,
+        AppOrganizationUpdateRoleRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task DeleteRoleAsync(
+        TenantId tenantId,
+        long appId,
+        string roleId,
+        CancellationToken cancellationToken = default);
+
+    Task<long> CreateDepartmentAsync(
+        TenantId tenantId,
+        long appId,
+        AppOrganizationCreateDepartmentRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task UpdateDepartmentAsync(
+        TenantId tenantId,
+        long appId,
+        string id,
+        AppOrganizationUpdateDepartmentRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task DeleteDepartmentAsync(
+        TenantId tenantId,
+        long appId,
+        string id,
+        CancellationToken cancellationToken = default);
+
+    Task<long> CreatePositionAsync(
+        TenantId tenantId,
+        long appId,
+        AppOrganizationCreatePositionRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task UpdatePositionAsync(
+        TenantId tenantId,
+        long appId,
+        string id,
+        AppOrganizationUpdatePositionRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task DeletePositionAsync(
+        TenantId tenantId,
+        long appId,
+        string id,
+        CancellationToken cancellationToken = default);
+
+    Task<long> CreateProjectAsync(
+        TenantId tenantId,
+        long appId,
+        AppOrganizationCreateProjectRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task UpdateProjectAsync(
+        TenantId tenantId,
+        long appId,
+        string id,
+        AppOrganizationUpdateProjectRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task DeleteProjectAsync(
+        TenantId tenantId,
+        long appId,
+        string id,
+        CancellationToken cancellationToken = default);
+}

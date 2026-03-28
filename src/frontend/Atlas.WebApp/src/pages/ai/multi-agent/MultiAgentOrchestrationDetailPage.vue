@@ -108,7 +108,7 @@ import { resolveCurrentAppId } from "@/utils/app-context";
 
 interface MemberDraft {
   rowKey: string;
-  agentId?: number;
+  agentId?: string;
   alias?: string;
   sortOrder: number;
   isEnabled: boolean;
@@ -151,7 +151,7 @@ const memberColumns = computed(() => [
   { title: t("ai.colActions"), key: "action", width: 100 }
 ]);
 
-const agentOptions = ref<Array<{ label: string; value: number }>>([]);
+const agentOptions = ref<Array<{ label: string; value: string }>>([]);
 const agentLoading = ref(false);
 
 async function loadData() {
@@ -226,7 +226,7 @@ async function handleSave() {
   const members = form.members
     .filter((member) => member.agentId)
     .map((member, index) => ({
-      agentId: member.agentId as number,
+      agentId: member.agentId as string,
       alias: member.alias?.trim() || undefined,
       sortOrder: member.sortOrder ?? index,
       isEnabled: member.isEnabled,

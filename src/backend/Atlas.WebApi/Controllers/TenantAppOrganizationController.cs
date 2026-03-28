@@ -1,0 +1,233 @@
+using Atlas.Application.Platform.Abstractions;
+using Atlas.Application.Platform.Models;
+using Atlas.Core.Identity;
+using Atlas.Core.Models;
+using Atlas.Core.Tenancy;
+using Atlas.WebApi.Authorization;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+
+namespace Atlas.WebApi.Controllers;
+
+[ApiController]
+[Route("api/v2/tenant-app-instances/{appId:long}/organization")]
+[Authorize]
+public sealed class TenantAppOrganizationController : ControllerBase
+{
+    private readonly IAppOrganizationQueryService _queryService;
+    private readonly IAppOrganizationCommandService _commandService;
+    private readonly ITenantProvider _tenantProvider;
+    private readonly ICurrentUserAccessor _currentUserAccessor;
+
+    public TenantAppOrganizationController(
+        IAppOrganizationQueryService queryService,
+        IAppOrganizationCommandService commandService,
+        ITenantProvider tenantProvider,
+        ICurrentUserAccessor currentUserAccessor)
+    {
+        _queryService = queryService;
+        _commandService = commandService;
+        _tenantProvider = tenantProvider;
+        _currentUserAccessor = currentUserAccessor;
+    }
+
+    [HttpGet("workspace")]
+    [Authorize(Policy = PermissionPolicies.AppsView)]
+    public async Task<ActionResult<ApiResponse<AppOrganizationWorkspaceResponse>>> GetWorkspace(
+        long appId,
+        [FromQuery] PagedRequest request,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _queryService.GetWorkspaceAsync(tenantId, appId, request, cancellationToken);
+        return Ok(ApiResponse<AppOrganizationWorkspaceResponse>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost("members")]
+    [Authorize(Policy = PermissionPolicies.AppMembersUpdate)]
+    public async Task<ActionResult<ApiResponse<object>>> AddMembers(
+        long appId,
+        [FromBody] AppOrganizationAssignMembersRequest request,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var currentUser = _currentUserAccessor.GetCurrentUserOrThrow();
+        await _commandService.AddMembersAsync(tenantId, appId, currentUser.UserId, request, cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { appId = appId.ToString() }, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPut("members/{userId}/roles")]
+    [Authorize(Policy = PermissionPolicies.AppMembersUpdate)]
+    public async Task<ActionResult<ApiResponse<object>>> UpdateMemberRoles(
+        long appId,
+        string userId,
+        [FromBody] AppOrganizationUpdateMemberRolesRequest request,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        await _commandService.UpdateMemberRolesAsync(tenantId, appId, userId, request, cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { appId = appId.ToString(), userId }, HttpContext.TraceIdentifier));
+    }
+
+    [HttpDelete("members/{userId}")]
+    [Authorize(Policy = PermissionPolicies.AppMembersUpdate)]
+    public async Task<ActionResult<ApiResponse<object>>> RemoveMember(
+        long appId,
+        string userId,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        await _commandService.RemoveMemberAsync(tenantId, appId, userId, cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { appId = appId.ToString(), userId }, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost("roles")]
+    [Authorize(Policy = PermissionPolicies.AppRolesUpdate)]
+    public async Task<ActionResult<ApiResponse<object>>> CreateRole(
+        long appId,
+        [FromBody] AppOrganizationCreateRoleRequest request,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var currentUser = _currentUserAccessor.GetCurrentUserOrThrow();
+        var roleId = await _commandService.CreateRoleAsync(tenantId, appId, currentUser.UserId, request, cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { appId = appId.ToString(), roleId = roleId.ToString() }, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPut("roles/{roleId}")]
+    [Authorize(Policy = PermissionPolicies.AppRolesUpdate)]
+    public async Task<ActionResult<ApiResponse<object>>> UpdateRole(
+        long appId,
+        string roleId,
+        [FromBody] AppOrganizationUpdateRoleRequest request,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var currentUser = _currentUserAccessor.GetCurrentUserOrThrow();
+        await _commandService.UpdateRoleAsync(tenantId, appId, roleId, currentUser.UserId, request, cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { appId = appId.ToString(), roleId }, HttpContext.TraceIdentifier));
+    }
+
+    [HttpDelete("roles/{roleId}")]
+    [Authorize(Policy = PermissionPolicies.AppRolesUpdate)]
+    public async Task<ActionResult<ApiResponse<object>>> DeleteRole(
+        long appId,
+        string roleId,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        await _commandService.DeleteRoleAsync(tenantId, appId, roleId, cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { appId = appId.ToString(), roleId }, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost("departments")]
+    [Authorize(Policy = PermissionPolicies.AppRolesUpdate)]
+    public async Task<ActionResult<ApiResponse<object>>> CreateDepartment(
+        long appId,
+        [FromBody] AppOrganizationCreateDepartmentRequest request,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var id = await _commandService.CreateDepartmentAsync(tenantId, appId, request, cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { appId = appId.ToString(), id = id.ToString() }, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPut("departments/{id}")]
+    [Authorize(Policy = PermissionPolicies.AppRolesUpdate)]
+    public async Task<ActionResult<ApiResponse<object>>> UpdateDepartment(
+        long appId,
+        string id,
+        [FromBody] AppOrganizationUpdateDepartmentRequest request,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        await _commandService.UpdateDepartmentAsync(tenantId, appId, id, request, cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { appId = appId.ToString(), id }, HttpContext.TraceIdentifier));
+    }
+
+    [HttpDelete("departments/{id}")]
+    [Authorize(Policy = PermissionPolicies.AppRolesUpdate)]
+    public async Task<ActionResult<ApiResponse<object>>> DeleteDepartment(
+        long appId,
+        string id,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        await _commandService.DeleteDepartmentAsync(tenantId, appId, id, cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { appId = appId.ToString(), id }, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost("positions")]
+    [Authorize(Policy = PermissionPolicies.AppRolesUpdate)]
+    public async Task<ActionResult<ApiResponse<object>>> CreatePosition(
+        long appId,
+        [FromBody] AppOrganizationCreatePositionRequest request,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var id = await _commandService.CreatePositionAsync(tenantId, appId, request, cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { appId = appId.ToString(), id = id.ToString() }, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPut("positions/{id}")]
+    [Authorize(Policy = PermissionPolicies.AppRolesUpdate)]
+    public async Task<ActionResult<ApiResponse<object>>> UpdatePosition(
+        long appId,
+        string id,
+        [FromBody] AppOrganizationUpdatePositionRequest request,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        await _commandService.UpdatePositionAsync(tenantId, appId, id, request, cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { appId = appId.ToString(), id }, HttpContext.TraceIdentifier));
+    }
+
+    [HttpDelete("positions/{id}")]
+    [Authorize(Policy = PermissionPolicies.AppRolesUpdate)]
+    public async Task<ActionResult<ApiResponse<object>>> DeletePosition(
+        long appId,
+        string id,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        await _commandService.DeletePositionAsync(tenantId, appId, id, cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { appId = appId.ToString(), id }, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost("projects")]
+    [Authorize(Policy = PermissionPolicies.AppRolesUpdate)]
+    public async Task<ActionResult<ApiResponse<object>>> CreateProject(
+        long appId,
+        [FromBody] AppOrganizationCreateProjectRequest request,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var id = await _commandService.CreateProjectAsync(tenantId, appId, request, cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { appId = appId.ToString(), id = id.ToString() }, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPut("projects/{id}")]
+    [Authorize(Policy = PermissionPolicies.AppRolesUpdate)]
+    public async Task<ActionResult<ApiResponse<object>>> UpdateProject(
+        long appId,
+        string id,
+        [FromBody] AppOrganizationUpdateProjectRequest request,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        await _commandService.UpdateProjectAsync(tenantId, appId, id, request, cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { appId = appId.ToString(), id }, HttpContext.TraceIdentifier));
+    }
+
+    [HttpDelete("projects/{id}")]
+    [Authorize(Policy = PermissionPolicies.AppRolesUpdate)]
+    public async Task<ActionResult<ApiResponse<object>>> DeleteProject(
+        long appId,
+        string id,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        await _commandService.DeleteProjectAsync(tenantId, appId, id, cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { appId = appId.ToString(), id }, HttpContext.TraceIdentifier));
+    }
+}
