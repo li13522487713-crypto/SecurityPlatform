@@ -100,12 +100,14 @@ public sealed class AppOrganizationCommandService : IAppOrganizationCommandServi
             cancellationToken);
 
         var roleIds = ParseIdList(request.RoleIds, "roleIds");
+        var departmentIds = ParseNullableIdList(request.DepartmentIds, "departmentIds");
+        var positionIds = ParseNullableIdList(request.PositionIds, "positionIds");
         var projectIds = ParseNullableIdList(request.ProjectIds, "projectIds");
         await _memberCommandService.AddMembersAsync(
             tenantId,
             appId,
             createdUserId,
-            new TenantAppMemberAssignRequest(new[] { createdUserId }, roleIds, projectIds),
+            new TenantAppMemberAssignRequest(new[] { createdUserId }, roleIds, departmentIds, positionIds, projectIds),
             cancellationToken);
 
         return createdUserId;
@@ -120,12 +122,14 @@ public sealed class AppOrganizationCommandService : IAppOrganizationCommandServi
     {
         var userIds = ParseIdList(request.UserIds, "userIds");
         var roleIds = ParseIdList(request.RoleIds, "roleIds");
+        var departmentIds = ParseNullableIdList(request.DepartmentIds, "departmentIds");
+        var positionIds = ParseNullableIdList(request.PositionIds, "positionIds");
         var projectIds = ParseNullableIdList(request.ProjectIds, "projectIds");
         await _memberCommandService.AddMembersAsync(
             tenantId,
             appId,
             operatorUserId,
-            new TenantAppMemberAssignRequest(userIds, roleIds, projectIds),
+            new TenantAppMemberAssignRequest(userIds, roleIds, departmentIds, positionIds, projectIds),
             cancellationToken);
     }
 
@@ -142,6 +146,8 @@ public sealed class AppOrganizationCommandService : IAppOrganizationCommandServi
             ParseId(userId, "userId"),
             new TenantAppMemberUpdateRolesRequest(
                 ParseIdList(request.RoleIds, "roleIds"),
+                ParseNullableIdList(request.DepartmentIds, "departmentIds"),
+                ParseNullableIdList(request.PositionIds, "positionIds"),
                 ParseNullableIdList(request.ProjectIds, "projectIds")),
             cancellationToken);
     }

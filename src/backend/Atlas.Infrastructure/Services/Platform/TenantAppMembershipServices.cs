@@ -23,6 +23,10 @@ public sealed class TenantAppMemberQueryService : ITenantAppMemberQueryService
     private readonly IUserAccountRepository _userAccountRepository;
     private readonly IAppUserRoleRepository _appUserRoleRepository;
     private readonly IAppRoleRepository _appRoleRepository;
+    private readonly IUserDepartmentRepository _userDepartmentRepository;
+    private readonly IUserPositionRepository _userPositionRepository;
+    private readonly IAppDepartmentRepository _appDepartmentRepository;
+    private readonly IAppPositionRepository _appPositionRepository;
     private readonly IProjectUserRepository _projectUserRepository;
     private readonly IAppProjectRepository _appProjectRepository;
 
@@ -32,6 +36,10 @@ public sealed class TenantAppMemberQueryService : ITenantAppMemberQueryService
         IUserAccountRepository userAccountRepository,
         IAppUserRoleRepository appUserRoleRepository,
         IAppRoleRepository appRoleRepository,
+        IUserDepartmentRepository userDepartmentRepository,
+        IUserPositionRepository userPositionRepository,
+        IAppDepartmentRepository appDepartmentRepository,
+        IAppPositionRepository appPositionRepository,
         IProjectUserRepository projectUserRepository,
         IAppProjectRepository appProjectRepository)
     {
@@ -40,6 +48,10 @@ public sealed class TenantAppMemberQueryService : ITenantAppMemberQueryService
         _userAccountRepository = userAccountRepository;
         _appUserRoleRepository = appUserRoleRepository;
         _appRoleRepository = appRoleRepository;
+        _userDepartmentRepository = userDepartmentRepository;
+        _userPositionRepository = userPositionRepository;
+        _appDepartmentRepository = appDepartmentRepository;
+        _appPositionRepository = appPositionRepository;
         _projectUserRepository = projectUserRepository;
         _appProjectRepository = appProjectRepository;
     }
@@ -83,6 +95,24 @@ public sealed class TenantAppMemberQueryService : ITenantAppMemberQueryService
             .ToDictionary(
                 group => group.Key,
                 group => group.Select(x => x.RoleId).Distinct().ToArray());
+        var userDepartments = await _userDepartmentRepository.QueryByUserIdsAsync(tenantId, userIds, cancellationToken);
+        var appDepartments = await _appDepartmentRepository.QueryByAppIdAsync(tenantId, appId, cancellationToken);
+        var appDepartmentMap = appDepartments.ToDictionary(x => x.Id);
+        var departmentIdsByUser = userDepartments
+            .Where(x => appDepartmentMap.ContainsKey(x.DepartmentId))
+            .GroupBy(x => x.UserId)
+            .ToDictionary(
+                group => group.Key,
+                group => group.Select(x => x.DepartmentId).Distinct().ToArray());
+        var userPositions = await _userPositionRepository.QueryByUserIdsAsync(tenantId, userIds, cancellationToken);
+        var appPositions = await _appPositionRepository.QueryByAppIdAsync(tenantId, appId, cancellationToken);
+        var appPositionMap = appPositions.ToDictionary(x => x.Id);
+        var positionIdsByUser = userPositions
+            .Where(x => appPositionMap.ContainsKey(x.PositionId))
+            .GroupBy(x => x.UserId)
+            .ToDictionary(
+                group => group.Key,
+                group => group.Select(x => x.PositionId).Distinct().ToArray());
         var projectMappings = await _projectUserRepository.QueryByUserIdsAsync(tenantId, userIds, cancellationToken);
         var appProjects = await _appProjectRepository.QueryByAppIdAsync(tenantId, appId, cancellationToken);
         var appProjectMap = appProjects.ToDictionary(x => x.Id);
@@ -99,10 +129,24 @@ public sealed class TenantAppMemberQueryService : ITenantAppMemberQueryService
                 userMap.TryGetValue(member.UserId, out var user);
                 roleIdsByUser.TryGetValue(member.UserId, out var memberRoleIds);
                 memberRoleIds ??= Array.Empty<long>();
+                departmentIdsByUser.TryGetValue(member.UserId, out var memberDepartmentIds);
+                memberDepartmentIds ??= Array.Empty<long>();
+                positionIdsByUser.TryGetValue(member.UserId, out var memberPositionIds);
+                memberPositionIds ??= Array.Empty<long>();
                 projectIdsByUser.TryGetValue(member.UserId, out var memberProjectIds);
                 memberProjectIds ??= Array.Empty<long>();
                 var roleNames = memberRoleIds
                     .Select(roleId => roleMap.TryGetValue(roleId, out var role) ? role.Name : null)
+                    .Where(name => !string.IsNullOrWhiteSpace(name))
+                    .Cast<string>()
+                    .ToArray();
+                var departmentNames = memberDepartmentIds
+                    .Select(departmentId => appDepartmentMap.TryGetValue(departmentId, out var department) ? department.Name : null)
+                    .Where(name => !string.IsNullOrWhiteSpace(name))
+                    .Cast<string>()
+                    .ToArray();
+                var positionNames = memberPositionIds
+                    .Select(positionId => appPositionMap.TryGetValue(positionId, out var position) ? position.Name : null)
                     .Where(name => !string.IsNullOrWhiteSpace(name))
                     .Cast<string>()
                     .ToArray();
@@ -120,6 +164,10 @@ public sealed class TenantAppMemberQueryService : ITenantAppMemberQueryService
                     member.JoinedAt.ToString("O"),
                     memberRoleIds.Select(x => x.ToString()).ToArray(),
                     roleNames,
+                    memberDepartmentIds.Select(x => x.ToString()).ToArray(),
+                    departmentNames,
+                    memberPositionIds.Select(x => x.ToString()).ToArray(),
+                    positionNames,
                     memberProjectIds.Select(x => x.ToString()).ToArray(),
                     projectNames);
             })
@@ -160,6 +208,34 @@ public sealed class TenantAppMemberQueryService : ITenantAppMemberQueryService
             .Where(name => !string.IsNullOrWhiteSpace(name))
             .Cast<string>()
             .ToArray();
+        var appDepartments = await _appDepartmentRepository.QueryByAppIdAsync(tenantId, appId, cancellationToken);
+        var appDepartmentMap = appDepartments.ToDictionary(x => x.Id);
+        var allUserDepartmentIds = (await _userDepartmentRepository.QueryByUserIdAsync(tenantId, userId, cancellationToken))
+            .Select(x => x.DepartmentId)
+            .Distinct()
+            .ToArray();
+        var departmentIds = allUserDepartmentIds
+            .Where(departmentId => appDepartmentMap.ContainsKey(departmentId))
+            .ToArray();
+        var departmentNames = departmentIds
+            .Select(departmentId => appDepartmentMap.TryGetValue(departmentId, out var department) ? department.Name : null)
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Cast<string>()
+            .ToArray();
+        var appPositions = await _appPositionRepository.QueryByAppIdAsync(tenantId, appId, cancellationToken);
+        var appPositionMap = appPositions.ToDictionary(x => x.Id);
+        var allUserPositionIds = (await _userPositionRepository.QueryByUserIdAsync(tenantId, userId, cancellationToken))
+            .Select(x => x.PositionId)
+            .Distinct()
+            .ToArray();
+        var positionIds = allUserPositionIds
+            .Where(positionId => appPositionMap.ContainsKey(positionId))
+            .ToArray();
+        var positionNames = positionIds
+            .Select(positionId => appPositionMap.TryGetValue(positionId, out var position) ? position.Name : null)
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Cast<string>()
+            .ToArray();
         var allUserProjectIds = await _projectUserRepository.QueryProjectIdsByUserIdAsync(tenantId, userId, cancellationToken);
         var appProjects = await _appProjectRepository.QueryByAppIdAsync(tenantId, appId, cancellationToken);
         var appProjectMap = appProjects.ToDictionary(x => x.Id);
@@ -183,6 +259,10 @@ public sealed class TenantAppMemberQueryService : ITenantAppMemberQueryService
             member.JoinedAt.ToString("O"),
             roleIds.Select(x => x.ToString()).ToArray(),
             roleNames,
+            departmentIds.Select(x => x.ToString()).ToArray(),
+            departmentNames,
+            positionIds.Select(x => x.ToString()).ToArray(),
+            positionNames,
             projectIds.Select(x => x.ToString()).ToArray(),
             projectNames);
     }
@@ -210,6 +290,10 @@ public sealed class TenantAppMemberCommandService : ITenantAppMemberCommandServi
     private readonly IAppRoleRepository _appRoleRepository;
     private readonly IUserAccountRepository _userAccountRepository;
     private readonly IAppUserRoleRepository _appUserRoleRepository;
+    private readonly IUserDepartmentRepository _userDepartmentRepository;
+    private readonly IUserPositionRepository _userPositionRepository;
+    private readonly IAppDepartmentRepository _appDepartmentRepository;
+    private readonly IAppPositionRepository _appPositionRepository;
     private readonly IProjectUserRepository _projectUserRepository;
     private readonly IAppProjectRepository _appProjectRepository;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
@@ -223,6 +307,10 @@ public sealed class TenantAppMemberCommandService : ITenantAppMemberCommandServi
         IAppRoleRepository appRoleRepository,
         IUserAccountRepository userAccountRepository,
         IAppUserRoleRepository appUserRoleRepository,
+        IUserDepartmentRepository userDepartmentRepository,
+        IUserPositionRepository userPositionRepository,
+        IAppDepartmentRepository appDepartmentRepository,
+        IAppPositionRepository appPositionRepository,
         IProjectUserRepository projectUserRepository,
         IAppProjectRepository appProjectRepository,
         IIdGeneratorAccessor idGeneratorAccessor,
@@ -235,6 +323,10 @@ public sealed class TenantAppMemberCommandService : ITenantAppMemberCommandServi
         _appRoleRepository = appRoleRepository;
         _userAccountRepository = userAccountRepository;
         _appUserRoleRepository = appUserRoleRepository;
+        _userDepartmentRepository = userDepartmentRepository;
+        _userPositionRepository = userPositionRepository;
+        _appDepartmentRepository = appDepartmentRepository;
+        _appPositionRepository = appPositionRepository;
         _projectUserRepository = projectUserRepository;
         _appProjectRepository = appProjectRepository;
         _idGeneratorAccessor = idGeneratorAccessor;
@@ -272,6 +364,14 @@ public sealed class TenantAppMemberCommandService : ITenantAppMemberCommandServi
             .Where(x => x > 0)
             .Distinct()
             .ToArray();
+        var departmentIds = request.DepartmentIds?
+            .Where(x => x > 0)
+            .Distinct()
+            .ToArray() ?? Array.Empty<long>();
+        var positionIds = request.PositionIds?
+            .Where(x => x > 0)
+            .Distinct()
+            .ToArray() ?? Array.Empty<long>();
         var projectIds = request.ProjectIds?
             .Where(x => x > 0)
             .Distinct()
@@ -292,6 +392,23 @@ public sealed class TenantAppMemberCommandService : ITenantAppMemberCommandServi
             if (projectIds.Any(projectId => !appProjectIdSet.Contains(projectId)))
             {
                 throw new BusinessException(ErrorCodes.ValidationError, "存在无效的应用项目。");
+            }
+        }
+        if (departmentIds.Length > 0)
+        {
+            var appDepartments = await _appDepartmentRepository.QueryByIdsAsync(tenantId, appId, departmentIds, cancellationToken);
+            if (appDepartments.Count != departmentIds.Length)
+            {
+                throw new BusinessException(ErrorCodes.ValidationError, "存在无效的应用部门。");
+            }
+        }
+        if (positionIds.Length > 0)
+        {
+            var appPositions = await _appPositionRepository.QueryByAppIdAsync(tenantId, appId, cancellationToken);
+            var appPositionIdSet = appPositions.Select(x => x.Id).ToHashSet();
+            if (positionIds.Any(positionId => !appPositionIdSet.Contains(positionId)))
+            {
+                throw new BusinessException(ErrorCodes.ValidationError, "存在无效的应用职位。");
             }
         }
 
@@ -361,12 +478,64 @@ public sealed class TenantAppMemberCommandService : ITenantAppMemberCommandServi
 
             await _projectUserRepository.AddRangeAsync(projectMappingsToAdd, cancellationToken);
         }
+        if (departmentIds.Length > 0)
+        {
+            var existingDepartmentMappings = await _userDepartmentRepository.QueryByUserIdsAsync(tenantId, userIds, cancellationToken);
+            var existingDepartmentMappingSet = existingDepartmentMappings
+                .Select(x => $"{x.UserId}:{x.DepartmentId}")
+                .ToHashSet(StringComparer.Ordinal);
+            var departmentMappingsToAdd = new List<UserDepartment>(userIds.Length * departmentIds.Length);
+            foreach (var userId in userIds)
+            {
+                foreach (var departmentId in departmentIds)
+                {
+                    var key = $"{userId}:{departmentId}";
+                    if (!existingDepartmentMappingSet.Contains(key))
+                    {
+                        departmentMappingsToAdd.Add(new UserDepartment(
+                            tenantId,
+                            userId,
+                            departmentId,
+                            _idGeneratorAccessor.NextId(),
+                            false));
+                    }
+                }
+            }
+
+            await _userDepartmentRepository.AddRangeAsync(departmentMappingsToAdd, cancellationToken);
+        }
+        if (positionIds.Length > 0)
+        {
+            var existingPositionMappings = await _userPositionRepository.QueryByUserIdsAsync(tenantId, userIds, cancellationToken);
+            var existingPositionMappingSet = existingPositionMappings
+                .Select(x => $"{x.UserId}:{x.PositionId}")
+                .ToHashSet(StringComparer.Ordinal);
+            var positionMappingsToAdd = new List<UserPosition>(userIds.Length * positionIds.Length);
+            foreach (var userId in userIds)
+            {
+                foreach (var positionId in positionIds)
+                {
+                    var key = $"{userId}:{positionId}";
+                    if (!existingPositionMappingSet.Contains(key))
+                    {
+                        positionMappingsToAdd.Add(new UserPosition(
+                            tenantId,
+                            userId,
+                            positionId,
+                            _idGeneratorAccessor.NextId(),
+                            false));
+                    }
+                }
+            }
+
+            await _userPositionRepository.AddRangeAsync(positionMappingsToAdd, cancellationToken);
+        }
 
         await WriteAuditAsync(
             tenantId,
             ResolveActor(operatorUserId),
             "Platform.AppMember.Assigned",
-            $"appId={appId};userIds={string.Join(',', userIds)};roleIds={string.Join(',', roleIds)};projectIds={string.Join(',', projectIds)}",
+            $"appId={appId};userIds={string.Join(',', userIds)};roleIds={string.Join(',', roleIds)};departmentIds={string.Join(',', departmentIds)};positionIds={string.Join(',', positionIds)};projectIds={string.Join(',', projectIds)}",
             cancellationToken);
     }
 
@@ -391,6 +560,14 @@ public sealed class TenantAppMemberCommandService : ITenantAppMemberCommandServi
             .Where(x => x > 0)
             .Distinct()
             .ToArray();
+        var departmentIds = request.DepartmentIds?
+            .Where(x => x > 0)
+            .Distinct()
+            .ToArray() ?? Array.Empty<long>();
+        var positionIds = request.PositionIds?
+            .Where(x => x > 0)
+            .Distinct()
+            .ToArray() ?? Array.Empty<long>();
         var projectIds = request.ProjectIds?
             .Where(x => x > 0)
             .Distinct()
@@ -410,6 +587,23 @@ public sealed class TenantAppMemberCommandService : ITenantAppMemberCommandServi
             if (projectIds.Any(projectId => !appProjectIdSet.Contains(projectId)))
             {
                 throw new BusinessException(ErrorCodes.ValidationError, "存在无效的应用项目。");
+            }
+        }
+        if (departmentIds.Length > 0)
+        {
+            var appDepartments = await _appDepartmentRepository.QueryByIdsAsync(tenantId, appId, departmentIds, cancellationToken);
+            if (appDepartments.Count != departmentIds.Length)
+            {
+                throw new BusinessException(ErrorCodes.ValidationError, "存在无效的应用部门。");
+            }
+        }
+        if (positionIds.Length > 0)
+        {
+            var appPositions = await _appPositionRepository.QueryByAppIdAsync(tenantId, appId, cancellationToken);
+            var appPositionIdSet = appPositions.Select(x => x.Id).ToHashSet();
+            if (positionIds.Any(positionId => !appPositionIdSet.Contains(positionId)))
+            {
+                throw new BusinessException(ErrorCodes.ValidationError, "存在无效的应用职位。");
             }
         }
 
@@ -451,12 +645,68 @@ public sealed class TenantAppMemberCommandService : ITenantAppMemberCommandServi
                 _idGeneratorAccessor.NextId()))
             .ToArray();
         await _projectUserRepository.AddRangeAsync(projectMappingsToAdd, cancellationToken);
+        var allAppDepartments = await _appDepartmentRepository.QueryByAppIdAsync(tenantId, appId, cancellationToken);
+        var allAppDepartmentIdSet = allAppDepartments.Select(x => x.Id).ToHashSet();
+        var existingDepartmentIdsByUser = (await _userDepartmentRepository.QueryByUserIdAsync(tenantId, userId, cancellationToken))
+            .Select(x => x.DepartmentId)
+            .Distinct()
+            .ToArray();
+        var existingAppDepartmentIds = existingDepartmentIdsByUser
+            .Where(departmentId => allAppDepartmentIdSet.Contains(departmentId))
+            .ToArray();
+        var departmentIdsToDelete = existingAppDepartmentIds
+            .Where(existingDepartmentId => !departmentIds.Contains(existingDepartmentId))
+            .ToArray();
+        if (departmentIdsToDelete.Length > 0)
+        {
+            await _userDepartmentRepository.DeleteByUserAndDepartmentIdsAsync(tenantId, userId, departmentIdsToDelete, cancellationToken);
+        }
+
+        var departmentIdSet = existingAppDepartmentIds.ToHashSet();
+        var departmentMappingsToAdd = departmentIds
+            .Where(departmentId => !departmentIdSet.Contains(departmentId))
+            .Select(departmentId => new UserDepartment(
+                tenantId,
+                userId,
+                departmentId,
+                _idGeneratorAccessor.NextId(),
+                false))
+            .ToArray();
+        await _userDepartmentRepository.AddRangeAsync(departmentMappingsToAdd, cancellationToken);
+        var allAppPositions = await _appPositionRepository.QueryByAppIdAsync(tenantId, appId, cancellationToken);
+        var allAppPositionIdSet = allAppPositions.Select(x => x.Id).ToHashSet();
+        var existingPositionIdsByUser = (await _userPositionRepository.QueryByUserIdAsync(tenantId, userId, cancellationToken))
+            .Select(x => x.PositionId)
+            .Distinct()
+            .ToArray();
+        var existingAppPositionIds = existingPositionIdsByUser
+            .Where(positionId => allAppPositionIdSet.Contains(positionId))
+            .ToArray();
+        var positionIdsToDelete = existingAppPositionIds
+            .Where(existingPositionId => !positionIds.Contains(existingPositionId))
+            .ToArray();
+        if (positionIdsToDelete.Length > 0)
+        {
+            await _userPositionRepository.DeleteByUserAndPositionIdsAsync(tenantId, userId, positionIdsToDelete, cancellationToken);
+        }
+
+        var positionIdSet = existingAppPositionIds.ToHashSet();
+        var positionMappingsToAdd = positionIds
+            .Where(positionId => !positionIdSet.Contains(positionId))
+            .Select(positionId => new UserPosition(
+                tenantId,
+                userId,
+                positionId,
+                _idGeneratorAccessor.NextId(),
+                false))
+            .ToArray();
+        await _userPositionRepository.AddRangeAsync(positionMappingsToAdd, cancellationToken);
 
         await WriteAuditAsync(
             tenantId,
             ResolveActor(),
             "Platform.AppMember.RolesUpdated",
-            $"appId={appId};userId={userId};roleIds={string.Join(',', roleIds)};projectIds={string.Join(',', projectIds)}",
+            $"appId={appId};userId={userId};roleIds={string.Join(',', roleIds)};departmentIds={string.Join(',', departmentIds)};positionIds={string.Join(',', positionIds)};projectIds={string.Join(',', projectIds)}",
             cancellationToken);
     }
 
@@ -470,6 +720,18 @@ public sealed class TenantAppMemberCommandService : ITenantAppMemberCommandServi
 
 
         await _appUserRoleRepository.DeleteByUserIdAsync(tenantId, appId, userId, cancellationToken);
+        var appDepartments = await _appDepartmentRepository.QueryByAppIdAsync(tenantId, appId, cancellationToken);
+        var appDepartmentIds = appDepartments.Select(department => department.Id).ToArray();
+        if (appDepartmentIds.Length > 0)
+        {
+            await _userDepartmentRepository.DeleteByUserAndDepartmentIdsAsync(tenantId, userId, appDepartmentIds, cancellationToken);
+        }
+        var appPositions = await _appPositionRepository.QueryByAppIdAsync(tenantId, appId, cancellationToken);
+        var appPositionIds = appPositions.Select(position => position.Id).ToArray();
+        if (appPositionIds.Length > 0)
+        {
+            await _userPositionRepository.DeleteByUserAndPositionIdsAsync(tenantId, userId, appPositionIds, cancellationToken);
+        }
         var appProjects = await _appProjectRepository.QueryByAppIdAsync(tenantId, appId, cancellationToken);
         var appProjectIds = appProjects.Select(project => project.Id).ToArray();
         if (appProjectIds.Length > 0)

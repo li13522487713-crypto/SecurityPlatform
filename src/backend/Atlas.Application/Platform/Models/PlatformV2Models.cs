@@ -108,6 +108,10 @@ public sealed record TenantAppMemberListItem(
     string JoinedAt,
     IReadOnlyList<string> RoleIds,
     IReadOnlyList<string> RoleNames,
+    IReadOnlyList<string> DepartmentIds,
+    IReadOnlyList<string> DepartmentNames,
+    IReadOnlyList<string> PositionIds,
+    IReadOnlyList<string> PositionNames,
     IReadOnlyList<string> ProjectIds,
     IReadOnlyList<string> ProjectNames);
 
@@ -121,16 +125,24 @@ public sealed record TenantAppMemberDetail(
     string JoinedAt,
     IReadOnlyList<string> RoleIds,
     IReadOnlyList<string> RoleNames,
+    IReadOnlyList<string> DepartmentIds,
+    IReadOnlyList<string> DepartmentNames,
+    IReadOnlyList<string> PositionIds,
+    IReadOnlyList<string> PositionNames,
     IReadOnlyList<string> ProjectIds,
     IReadOnlyList<string> ProjectNames);
 
 public sealed record TenantAppMemberAssignRequest(
     IReadOnlyList<long> UserIds,
     IReadOnlyList<long> RoleIds,
+    IReadOnlyList<long>? DepartmentIds,
+    IReadOnlyList<long>? PositionIds,
     IReadOnlyList<long>? ProjectIds);
 
 public sealed record TenantAppMemberUpdateRolesRequest(
     IReadOnlyList<long> RoleIds,
+    IReadOnlyList<long>? DepartmentIds,
+    IReadOnlyList<long>? PositionIds,
     IReadOnlyList<long>? ProjectIds);
 
 public sealed record TenantAppRoleListItem(
@@ -589,6 +601,8 @@ public sealed record AppOrganizationWorkspaceResponse(
 public sealed record AppOrganizationAssignMembersRequest(
     IReadOnlyList<string> UserIds,
     IReadOnlyList<string> RoleIds,
+    IReadOnlyList<string>? DepartmentIds,
+    IReadOnlyList<string>? PositionIds,
     IReadOnlyList<string>? ProjectIds);
 
 public sealed record AppOrganizationCreateMemberUserRequest(
@@ -599,10 +613,14 @@ public sealed record AppOrganizationCreateMemberUserRequest(
     string? PhoneNumber,
     bool IsActive,
     IReadOnlyList<string> RoleIds,
+    IReadOnlyList<string>? DepartmentIds,
+    IReadOnlyList<string>? PositionIds,
     IReadOnlyList<string>? ProjectIds);
 
 public sealed record AppOrganizationUpdateMemberRolesRequest(
     IReadOnlyList<string> RoleIds,
+    IReadOnlyList<string>? DepartmentIds,
+    IReadOnlyList<string>? PositionIds,
     IReadOnlyList<string>? ProjectIds);
 
 public sealed record AppOrganizationCreateRoleRequest(

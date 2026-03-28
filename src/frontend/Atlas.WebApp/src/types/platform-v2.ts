@@ -86,6 +86,10 @@ export interface TenantAppMemberListItem {
   joinedAt: string;
   roleIds: string[];
   roleNames: string[];
+  departmentIds: string[];
+  departmentNames: string[];
+  positionIds: string[];
+  positionNames: string[];
   projectIds: string[];
   projectNames: string[];
 }
@@ -98,11 +102,15 @@ export interface TenantAppMemberDetail extends TenantAppMemberListItem {
 export interface TenantAppMemberAssignRequest {
   userIds: number[];
   roleIds: number[];
+  departmentIds?: number[];
+  positionIds?: number[];
   projectIds?: number[];
 }
 
 export interface TenantAppMemberUpdateRolesRequest {
   roleIds: number[];
+  departmentIds?: number[];
+  positionIds?: number[];
   projectIds?: number[];
 }
 
@@ -531,6 +539,8 @@ export interface AppOrganizationWorkspaceResponse {
 export interface AppOrganizationAssignMembersRequest {
   userIds: string[];
   roleIds: string[];
+  departmentIds?: string[];
+  positionIds?: string[];
   projectIds?: string[];
 }
 
@@ -542,11 +552,15 @@ export interface AppOrganizationCreateMemberUserRequest {
   phoneNumber?: string;
   isActive: boolean;
   roleIds: string[];
+  departmentIds?: string[];
+  positionIds?: string[];
   projectIds?: string[];
 }
 
 export interface AppOrganizationUpdateMemberRolesRequest {
   roleIds: string[];
+  departmentIds?: string[];
+  positionIds?: string[];
   projectIds?: string[];
 }
 

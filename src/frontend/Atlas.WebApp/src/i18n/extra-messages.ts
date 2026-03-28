@@ -156,6 +156,8 @@ export const extraMessages: Record<SupportedLocale, MessageTree> = {
       departmentPending: "未关联",
       positionPending: "未关联",
       projectPending: "未关联",
+      departmentPlaceholder: "选择部门（可多选）",
+      positionPlaceholder: "选择职位（可多选）",
       projectPlaceholder: "搜索并选择项目（可多选）",
       statusNormal: "正常",
       statusDisabled: "停用"
@@ -529,6 +531,8 @@ export const extraMessages: Record<SupportedLocale, MessageTree> = {
       departmentPending: "—",
       positionPending: "—",
       projectPending: "—",
+      departmentPlaceholder: "Select departments (multiple)",
+      positionPlaceholder: "Select positions (multiple)",
       projectPlaceholder: "Search and select projects (multiple)",
       statusNormal: "Active",
       statusDisabled: "Disabled"

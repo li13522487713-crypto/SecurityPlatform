@@ -25,10 +25,44 @@ public sealed class UserPositionRepository : IUserPositionRepository
         return list;
     }
 
+    public async Task<IReadOnlyList<UserPosition>> QueryByUserIdsAsync(
+        TenantId tenantId,
+        IReadOnlyList<long> userIds,
+        CancellationToken cancellationToken)
+    {
+        if (userIds.Count == 0)
+        {
+            return Array.Empty<UserPosition>();
+        }
+
+        var ids = userIds.Distinct().ToArray();
+        var list = await _db.Queryable<UserPosition>()
+            .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(ids, x.UserId))
+            .ToListAsync(cancellationToken);
+        return list;
+    }
+
     public Task DeleteByUserIdAsync(TenantId tenantId, long userId, CancellationToken cancellationToken)
     {
         return _db.Deleteable<UserPosition>()
             .Where(x => x.TenantIdValue == tenantId.Value && x.UserId == userId)
+            .ExecuteCommandAsync(cancellationToken);
+    }
+
+    public Task DeleteByUserAndPositionIdsAsync(
+        TenantId tenantId,
+        long userId,
+        IReadOnlyList<long> positionIds,
+        CancellationToken cancellationToken)
+    {
+        if (positionIds.Count == 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        var ids = positionIds.Distinct().ToArray();
+        return _db.Deleteable<UserPosition>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.UserId == userId && SqlFunc.ContainsArray(ids, x.PositionId))
             .ExecuteCommandAsync(cancellationToken);
     }
 
