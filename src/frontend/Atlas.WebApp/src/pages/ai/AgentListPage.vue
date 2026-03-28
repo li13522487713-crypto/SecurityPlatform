@@ -128,7 +128,7 @@ const formRef = ref<FormInstance>();
 const form = reactive({
   name: "",
   description: "",
-  modelConfigId: undefined as number | undefined
+  modelConfigId: undefined as string | undefined
 });
 
 const rules = computed(() => ({
@@ -187,7 +187,7 @@ function handleModelSearch(value: string) {
   void loadModelConfigs(value);
 }
 
-function goEdit(id: number) {
+function goEdit(id: string) {
   const currentAppId = resolveCurrentAppId(route);
   if (!currentAppId) {
     void router.push("/console/apps");
@@ -236,7 +236,7 @@ async function submitCreate() {
   }
 }
 
-async function handleDuplicate(id: number) {
+async function handleDuplicate(id: string) {
   try {
     await duplicateAgent(id);
 
@@ -250,7 +250,7 @@ async function handleDuplicate(id: number) {
   }
 }
 
-async function handleDelete(id: number) {
+async function handleDelete(id: string) {
   try {
     await deleteAgent(id);
 

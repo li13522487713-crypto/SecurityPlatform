@@ -2,36 +2,36 @@ import { requestApi } from "@/services/api-core";
 import type { ApiResponse } from "@/types/api";
 
 export interface AgentPublicationItem {
-  id: number;
-  agentId: number;
+  id: string;
+  agentId: string;
   version: number;
   isActive: boolean;
   embedToken: string;
   embedTokenExpiresAt: string;
   releaseNote?: string;
-  publishedByUserId: number;
+  publishedByUserId: string;
   createdAt: string;
   updatedAt?: string;
   revokedAt?: string;
 }
 
 export interface AgentPublicationResult {
-  publicationId: number;
-  agentId: number;
+  publicationId: string;
+  agentId: string;
   version: number;
   embedToken: string;
   embedTokenExpiresAt: string;
 }
 
 export interface AgentEmbedTokenResult {
-  publicationId: number;
-  agentId: number;
+  publicationId: string;
+  agentId: string;
   version: number;
   embedToken: string;
   embedTokenExpiresAt: string;
 }
 
-export async function getAgentPublications(agentId: number) {
+export async function getAgentPublications(agentId: string) {
   const response = await requestApi<ApiResponse<AgentPublicationItem[]>>(
     `/agent-publications/agents/${agentId}`
   );
@@ -41,7 +41,7 @@ export async function getAgentPublications(agentId: number) {
   return response.data;
 }
 
-export async function publishAgentPublication(agentId: number, releaseNote?: string) {
+export async function publishAgentPublication(agentId: string, releaseNote?: string) {
   const response = await requestApi<ApiResponse<AgentPublicationResult>>(
     `/agent-publications/agents/${agentId}/publish`,
     {
@@ -57,7 +57,7 @@ export async function publishAgentPublication(agentId: number, releaseNote?: str
 }
 
 export async function rollbackAgentPublication(
-  agentId: number,
+  agentId: string,
   targetVersion: number,
   releaseNote?: string
 ) {
@@ -78,7 +78,7 @@ export async function rollbackAgentPublication(
   return response.data;
 }
 
-export async function regenerateAgentEmbedToken(agentId: number) {
+export async function regenerateAgentEmbedToken(agentId: string) {
   const response = await requestApi<ApiResponse<AgentEmbedTokenResult>>(
     `/agent-publications/agents/${agentId}/embed-token`,
     {

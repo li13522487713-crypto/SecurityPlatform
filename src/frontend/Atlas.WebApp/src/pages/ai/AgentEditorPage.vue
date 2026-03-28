@@ -254,7 +254,7 @@ import { getTenantId } from "@/utils/auth";
 
 const route = useRoute();
 const router = useRouter();
-const agentId = Number(route.params.id);
+const agentId = String(route.params.id ?? "");
 
 const agent = ref<AgentDetail | null>(null);
 const modelConfigs = ref<ModelConfigDto[]>([]);
@@ -275,7 +275,7 @@ const form = reactive({
   description: "",
   avatarUrl: "",
   systemPrompt: "",
-  modelConfigId: undefined as number | undefined,
+  modelConfigId: undefined as string | undefined,
   modelName: "",
   temperature: 1,
   maxTokens: 2048,
@@ -331,7 +331,7 @@ const embedIframeSnippet = computed(() => {
 
 type PluginBindingRow = {
   rowId: string;
-  pluginId?: number;
+  pluginId?: string;
   sortOrder: number;
   isEnabled: boolean;
   toolConfigJson: string;
@@ -347,6 +347,11 @@ function goBack() {
 }
 
 async function loadData() {
+  if (!agentId) {
+    message.error(t("ai.agent.loadAgentFailed"));
+    return;
+  }
+
   try {
     const [detail, models, publications]  = await Promise.all([
       getAgentById(agentId),
@@ -393,8 +398,8 @@ async function loadData() {
 function parseKnowledgeBaseIds() {
   return knowledgeBaseInput.value
     .split(",")
-    .map((item) => Number(item.trim()))
-    .filter((item) => Number.isFinite(item) && item > 0);
+    .map((item) => item.trim())
+    .filter((item) => /^\d+$/.test(item));
 }
 
 async function loadPluginOptions(keyword?: string) {
@@ -433,6 +438,11 @@ function handlePluginSearch(keyword: string) {
 }
 
 async function handleSave() {
+  if (!agentId) {
+    message.error(t("ai.agent.loadAgentFailed"));
+    return;
+  }
+
   if (!form.name.trim()) {
     message.warning(t("ai.agent.warnName"));
     return;
@@ -455,9 +465,9 @@ async function handleSave() {
       longTermMemoryTopK: form.longTermMemoryTopK,
       knowledgeBaseIds: parseKnowledgeBaseIds(),
       pluginBindings: pluginBindings.value
-        .filter((binding) => typeof binding.pluginId === "number" && binding.pluginId > 0)
+        .filter((binding) => typeof binding.pluginId === "string" && /^\d+$/.test(binding.pluginId))
         .map((binding) => ({
-          pluginId: Number(binding.pluginId),
+          pluginId: binding.pluginId as string,
           sortOrder: binding.sortOrder,
           isEnabled: binding.isEnabled,
           toolConfigJson: binding.toolConfigJson || "{}"
@@ -477,6 +487,11 @@ async function handleSave() {
 }
 
 async function handlePublish() {
+  if (!agentId) {
+    message.error(t("ai.agent.loadAgentFailed"));
+    return;
+  }
+
   publishing.value = true;
   try {
     await publishAgent(agentId);
@@ -494,6 +509,11 @@ async function handlePublish() {
 }
 
 async function handlePublishPublication() {
+  if (!agentId) {
+    message.error(t("ai.agent.loadAgentFailed"));
+    return;
+  }
+
   publicationLoading.value = true;
   try {
     await publishAgentPublication(agentId, publicationNote.value || undefined);
@@ -508,6 +528,11 @@ async function handlePublishPublication() {
 }
 
 async function handleRollbackPublication(targetVersion: number) {
+  if (!agentId) {
+    message.error(t("ai.agent.loadAgentFailed"));
+    return;
+  }
+
   rollbackTarget.value = targetVersion;
   try {
     await rollbackAgentPublication(agentId, targetVersion, publicationNote.value || undefined);
@@ -521,6 +546,11 @@ async function handleRollbackPublication(targetVersion: number) {
 }
 
 async function handleRefreshEmbedToken() {
+  if (!agentId) {
+    message.error(t("ai.agent.loadAgentFailed"));
+    return;
+  }
+
   tokenRefreshing.value = true;
   try {
     await regenerateAgentEmbedToken(agentId);

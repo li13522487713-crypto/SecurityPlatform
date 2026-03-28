@@ -93,6 +93,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             await EnsureRefreshTokenSchemaAsync(db, cancellationToken);
             await EnsureApprovalSchemaAsync(db, cancellationToken);
             await EnsureLowCodeAppSchemaAsync(db, cancellationToken);
+            await EnsureFormDefinitionSchemaAsync(db, cancellationToken);
             await EnsureTenantDataSourceSchemaAsync(db, cancellationToken);
             await EnsureProductizationSchemaAsync(db, cancellationToken);
             await EnsureWorkflowExecutionSchemaAsync(db, cancellationToken);
@@ -1394,6 +1395,22 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         }
 
         await RebuildTableViaOrmAsync<LowCodeApp>(db, cancellationToken);
+    }
+
+    private static async Task EnsureFormDefinitionSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
+    {
+        var tableName = db.EntityMaintenance.GetTableName<FormDefinition>();
+        if (!db.DbMaintenance.IsAnyTable(tableName, false))
+        {
+            return;
+        }
+
+        if (!RequiresNullableColumnFix<FormDefinition>(db, "PublishedAt", "PublishedBy"))
+        {
+            return;
+        }
+
+        await RebuildTableViaOrmAsync<FormDefinition>(db, cancellationToken);
     }
 
     private static async Task EnsureTenantDataSourceSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)

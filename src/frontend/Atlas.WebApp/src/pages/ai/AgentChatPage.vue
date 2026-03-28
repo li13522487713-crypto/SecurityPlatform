@@ -476,7 +476,7 @@ watch(
 
 onMounted(async () => {
   try {
-    const agent  = await getAgentById(agentId.value);
+    const agent  = await getAgentById(String(agentId.value));
 
     if (!isMounted.value) return;
     agentName.value = agent.name;

@@ -2,7 +2,7 @@ import { requestApi, toQuery } from "@/services/api-core";
 import type { ApiResponse, PagedRequest, PagedResult } from "@/types/api";
 
 export interface AgentListItem {
-  id: number;
+  id: string;
   name: string;
   description?: string;
   avatarUrl?: string;
@@ -13,17 +13,17 @@ export interface AgentListItem {
 }
 
 export interface AgentDetail {
-  id: number;
+  id: string;
   name: string;
   description?: string;
   avatarUrl?: string;
   systemPrompt?: string;
-  modelConfigId?: number;
+  modelConfigId?: string;
   modelName?: string;
   temperature?: number;
   maxTokens?: number;
   status: string;
-  creatorId: number;
+  creatorId: string;
   createdAt: string;
   updatedAt?: string;
   publishedAt?: string;
@@ -32,19 +32,19 @@ export interface AgentDetail {
   enableShortTermMemory: boolean;
   enableLongTermMemory: boolean;
   longTermMemoryTopK: number;
-  knowledgeBaseIds?: number[];
+  knowledgeBaseIds?: string[];
   pluginBindings?: AgentPluginBindingItem[];
 }
 
 export interface AgentPluginBindingItem {
-  pluginId: number;
+  pluginId: string;
   sortOrder: number;
   isEnabled: boolean;
   toolConfigJson: string;
 }
 
 export interface AgentPluginBindingInput {
-  pluginId: number;
+  pluginId: string;
   sortOrder: number;
   isEnabled: boolean;
   toolConfigJson?: string;
@@ -54,7 +54,7 @@ export interface AgentCreateRequest {
   name: string;
   description?: string;
   systemPrompt?: string;
-  modelConfigId?: number;
+  modelConfigId?: string;
   modelName?: string;
   temperature?: number;
   maxTokens?: number;
@@ -66,7 +66,7 @@ export interface AgentCreateRequest {
 
 export interface AgentUpdateRequest extends AgentCreateRequest {
   avatarUrl?: string;
-  knowledgeBaseIds?: number[];
+  knowledgeBaseIds?: string[];
   pluginBindings?: AgentPluginBindingInput[];
 }
 
@@ -79,7 +79,7 @@ export async function getAgentsPaged(request: PagedRequest, status?: string) {
   return response.data;
 }
 
-export async function getAgentById(id: number) {
+export async function getAgentById(id: string) {
   const response = await requestApi<ApiResponse<AgentDetail>>(`/agents/${id}`);
   if (!response.data) {
     throw new Error(response.message || "查询 Agent 失败");
@@ -98,7 +98,7 @@ export async function createAgent(request: AgentCreateRequest) {
   }
 }
 
-export async function updateAgent(id: number, request: AgentUpdateRequest) {
+export async function updateAgent(id: string, request: AgentUpdateRequest) {
   const response = await requestApi<ApiResponse<{ id: string }>>(`/agents/${id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
@@ -109,7 +109,7 @@ export async function updateAgent(id: number, request: AgentUpdateRequest) {
   }
 }
 
-export async function deleteAgent(id: number) {
+export async function deleteAgent(id: string) {
   const response = await requestApi<ApiResponse<{ id: string }>>(`/agents/${id}`, {
     method: "DELETE"
   });
@@ -118,7 +118,7 @@ export async function deleteAgent(id: number) {
   }
 }
 
-export async function duplicateAgent(id: number) {
+export async function duplicateAgent(id: string) {
   const response = await requestApi<ApiResponse<{ id: string }>>(`/agents/${id}/duplicate`, {
     method: "POST"
   });
@@ -127,7 +127,7 @@ export async function duplicateAgent(id: number) {
   }
 }
 
-export async function publishAgent(id: number) {
+export async function publishAgent(id: string) {
   const response = await requestApi<ApiResponse<{ id: string }>>(`/agents/${id}/publish`, {
     method: "POST"
   });
