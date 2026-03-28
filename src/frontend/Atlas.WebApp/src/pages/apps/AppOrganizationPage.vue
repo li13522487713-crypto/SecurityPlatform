@@ -12,42 +12,43 @@
         <button
           type="button"
           class="nav-row"
-          :class="{ active: sidebarKey === 'all' }"
-          @click="selectSidebar('all')"
+          :class="{ active: sidebarKey === 'members' }"
+          @click="selectSidebar('members')"
         >
           <UserOutlined class="nav-row-icon" />
           <span class="nav-row-label">{{ t("appOrg.navAllEmployees") }}</span>
-          <RightOutlined v-if="sidebarKey === 'all'" class="nav-row-chevron" />
+          <RightOutlined v-if="sidebarKey === 'members'" class="nav-row-chevron" />
         </button>
 
         <div class="nav-section">
           <div class="nav-section-head">
             <ApartmentOutlined class="nav-section-icon" />
-            <span class="nav-section-title">{{ t("appOrg.sectionDepartments") }}</span>
+            <button type="button" class="nav-section-switch" @click="selectSidebar('departments')">
+              {{ t("appOrg.sectionDepartments") }}
+            </button>
             <a-button type="text" size="small" class="nav-section-gear" @click.stop="openEntityDrawer('departments')">
               <template #icon><SettingOutlined /></template>
             </a-button>
           </div>
-          <div class="nav-section-items">
-            <button
-              v-for="d in sortedDepartments"
-              :key="d.id"
-              type="button"
-              class="nav-row nav-row-sub"
-              :class="{ active: sidebarKey === `dept:${d.id}` }"
-              @click="selectSidebar(`dept:${d.id}`)"
-            >
-              <span class="nav-row-label">{{ d.name }}</span>
-              <RightOutlined v-if="sidebarKey === `dept:${d.id}`" class="nav-row-chevron" />
-            </button>
-            <div v-if="sortedDepartments.length === 0" class="nav-empty">{{ t("common.noData") }}</div>
-          </div>
+          <a-tree
+            v-if="departmentTreeData.length > 0"
+            class="dept-tree"
+            block-node
+            :tree-data="departmentTreeData"
+            :selected-keys="departmentSelectedKeys"
+            :expanded-keys="departmentExpandedKeys"
+            @select="onDepartmentTreeSelect"
+            @expand="onDepartmentTreeExpand"
+          />
+          <div v-else class="nav-empty">{{ t("common.noData") }}</div>
         </div>
 
         <div class="nav-section">
           <div class="nav-section-head">
             <SafetyOutlined class="nav-section-icon" />
-            <span class="nav-section-title">{{ t("appOrg.sectionRoles") }}</span>
+            <button type="button" class="nav-section-switch" @click="selectSidebar('roles')">
+              {{ t("appOrg.sectionRoles") }}
+            </button>
             <a-button type="text" size="small" class="nav-section-gear" @click.stop="openEntityDrawer('roles')">
               <template #icon><SettingOutlined /></template>
             </a-button>
@@ -71,7 +72,9 @@
         <div class="nav-section">
           <div class="nav-section-head">
             <SolutionOutlined class="nav-section-icon" />
-            <span class="nav-section-title">{{ t("appOrg.sectionPositions") }}</span>
+            <button type="button" class="nav-section-switch" @click="selectSidebar('positions')">
+              {{ t("appOrg.sectionPositions") }}
+            </button>
             <a-button type="text" size="small" class="nav-section-gear" @click.stop="openEntityDrawer('positions')">
               <template #icon><SettingOutlined /></template>
             </a-button>
@@ -95,7 +98,9 @@
         <div class="nav-section">
           <div class="nav-section-head">
             <FolderOutlined class="nav-section-icon" />
-            <span class="nav-section-title">{{ t("appOrg.sectionProjects") }}</span>
+            <button type="button" class="nav-section-switch" @click="selectSidebar('projects')">
+              {{ t("appOrg.sectionProjects") }}
+            </button>
             <a-button type="text" size="small" class="nav-section-gear" @click.stop="openEntityDrawer('projects')">
               <template #icon><SettingOutlined /></template>
             </a-button>
@@ -119,153 +124,135 @@
     </aside>
 
     <main class="org-main">
-      <template v-if="mainPanel === 'members'">
-        <div class="main-header">
-          <div>
-            <div class="main-title">{{ memberMainTitle }}</div>
-            <div class="main-subtitle">{{ memberMainSubtitle }}</div>
-          </div>
-          <a-space>
-            <a-button v-if="canManageRoles" @click="openEntityDrawer('roles')">
-              <template #icon><SettingOutlined /></template>
-              {{ t("appOrg.manageRoles") }}
-            </a-button>
-            <a-button v-if="canManageMembers" type="primary" @click="openAddMemberModal">
-              <template #icon><UserAddOutlined /></template>
-              {{ t("appsUsers.addMember") }}
-            </a-button>
-          </a-space>
+      <div class="main-header">
+        <div>
+          <div class="main-title">{{ currentMainTitle }}</div>
+          <div class="main-subtitle">{{ currentMainSubtitle }}</div>
         </div>
-
-        <div class="toolbar-row">
-          <a-input
-            v-model:value="keyword"
-            class="org-search"
-            size="large"
-            allow-clear
-            :placeholder="t('appOrg.searchPlaceholder')"
-            @press-enter="onMemberSearch"
-          >
-            <template #prefix>
-              <SearchOutlined class="org-search-icon" />
-            </template>
-          </a-input>
-          <span class="found-count">{{ t("appOrg.foundMembers", { count: memberFoundCount }) }}</span>
-        </div>
-
-        <div class="org-table-wrap">
-          <a-table
-            row-key="userId"
-            :columns="memberColumns"
-            :data-source="displayedMembers"
-            :loading="loading"
-            :pagination="memberTablePagination"
-            :bordered="false"
-            class="org-table"
-            @change="handleMemberTableChange"
-          >
-            <template #bodyCell="{ column, record }">
-              <template v-if="column.key === 'basic'">
-                <div class="cell-basic">
-                  <a-avatar :size="36" class="org-avatar">{{ avatarText(record.displayName) }}</a-avatar>
-                  <div class="cell-basic-text">
-                    <div class="cell-name">{{ record.displayName }}</div>
-                    <div class="cell-handle">@{{ record.username }}</div>
-                  </div>
-                </div>
-              </template>
-              <template v-else-if="column.key === 'department'">
-                <span class="cell-muted-tag">{{ t("appOrg.departmentPending") }}</span>
-              </template>
-              <template v-else-if="column.key === 'position'">
-                <span class="cell-muted-tag">{{ t("appOrg.positionPending") }}</span>
-              </template>
-              <template v-else-if="column.key === 'roles'">
-                <a-space wrap :size="6">
-                  <span
-                    v-for="name in record.roleNames"
-                    :key="name"
-                    class="role-tag-outline"
-                  >{{ name }}</span>
-                  <span v-if="record.roleNames.length === 0" class="cell-placeholder">{{ t("appsUsers.noRoles") }}</span>
-                </a-space>
-              </template>
-              <template v-else-if="column.key === 'status'">
-                <span class="status-cell">
-                  <span :class="['status-dot', record.isActive ? 'on' : 'off']" />
-                  {{ record.isActive ? t("appOrg.statusNormal") : t("appOrg.statusDisabled") }}
-                </span>
-              </template>
-              <template v-else-if="column.key === 'actions'">
-                <a-space>
-                  <a-button
-                    v-if="canManageMembers && canViewAppRoles"
-                    type="link"
-                    size="small"
-                    @click="openEditMemberRoles(record)"
-                  >
-                    {{ t("appsUsers.assignRoles") }}
-                  </a-button>
-                  <a-popconfirm
-                    v-if="canManageMembers"
-                    :title="t('appsUsers.removeConfirm')"
-                    :ok-text="t('common.delete')"
-                    :cancel-text="t('common.cancel')"
-                    @confirm="handleDeleteMember(record)"
-                  >
-                    <a-button type="link" size="small" danger>{{ t("appsUsers.removeOk") }}</a-button>
-                  </a-popconfirm>
-                </a-space>
-              </template>
-            </template>
-          </a-table>
-        </div>
-      </template>
-
-      <template v-else>
-        <div class="main-header">
-          <div>
-            <div class="main-title">{{ projectMainTitle }}</div>
-            <div class="main-subtitle">{{ projectMainSubtitle }}</div>
-          </div>
-          <a-button v-if="canManageProjects" type="primary" @click="openEntityModal('projects')">
+        <a-space>
+          <a-button v-if="mainPanel === 'members' && canManageRoles" @click="openEntityDrawer('roles')">
+            <template #icon><SettingOutlined /></template>
+            {{ t("appOrg.manageRoles") }}
+          </a-button>
+          <a-button v-if="mainPanel === 'members' && canManageMembers" type="primary" @click="openAddMemberModal">
+            <template #icon><UserAddOutlined /></template>
+            {{ t("appsUsers.addMember") }}
+          </a-button>
+          <a-button v-if="mainPanel === 'departments'" type="primary" @click="openEntityModal('departments')">
+            {{ t("appsDepartments.newDept") }}
+          </a-button>
+          <a-button v-if="mainPanel === 'roles'" type="primary" @click="openEntityModal('roles')">
+            {{ t("appsRoles.newRole") }}
+          </a-button>
+          <a-button v-if="mainPanel === 'positions'" type="primary" @click="openEntityModal('positions')">
+            {{ t("appsPositions.newPosition") }}
+          </a-button>
+          <a-button v-if="mainPanel === 'projects'" type="primary" @click="openEntityModal('projects')">
             {{ t("appsProjects.newProject") }}
           </a-button>
-        </div>
-        <div class="org-table-wrap">
-          <a-table
-            row-key="id"
-            :columns="projectColumns"
-            :data-source="projects"
-            :loading="loading"
-            :pagination="false"
-            :bordered="false"
-            :row-class-name="projectRowClassName"
-            class="org-table"
-          >
-            <template #bodyCell="{ column, record }">
-              <template v-if="column.key === 'isActive'">
-                <a-tag :color="record.isActive ? 'blue' : 'default'">
-                  {{ record.isActive ? t("appsProjects.active") : t("appsProjects.disabled") }}
-                </a-tag>
-              </template>
-              <template v-else-if="column.key === 'actions'">
-                <a-space>
-                  <a-button type="link" size="small" @click="openEntityModal('projects', record)">{{ t("common.edit") }}</a-button>
-                  <a-popconfirm
-                    :title="t('appsProjects.deleteConfirm')"
-                    :ok-text="t('common.delete')"
-                    :cancel-text="t('common.cancel')"
-                    @confirm="handleDeleteProject(record)"
-                  >
-                    <a-button type="link" size="small" danger>{{ t("common.delete") }}</a-button>
-                  </a-popconfirm>
-                </a-space>
-              </template>
+        </a-space>
+      </div>
+
+      <div v-if="mainPanel === 'members'" class="toolbar-row">
+        <a-input
+          v-model:value="keyword"
+          class="org-search"
+          size="large"
+          allow-clear
+          :placeholder="t('appOrg.searchPlaceholder')"
+          @press-enter="onMemberSearch"
+        >
+          <template #prefix>
+            <SearchOutlined class="org-search-icon" />
+          </template>
+        </a-input>
+        <span class="found-count">{{ t("appOrg.foundMembers", { count: memberFoundCount }) }}</span>
+      </div>
+
+      <div class="org-table-wrap">
+        <a-table
+          :row-key="mainRowKey"
+          :columns="mainColumns"
+          :data-source="mainDataSource"
+          :loading="loading"
+          :pagination="mainPagination"
+          :bordered="false"
+          class="org-table"
+          @change="handleMainTableChange"
+        >
+          <template #bodyCell="{ column, record }">
+            <template v-if="mainPanel === 'members' && column.key === 'basic'">
+              <div class="cell-basic">
+                <a-avatar :size="36" class="org-avatar">{{ avatarText(record.displayName) }}</a-avatar>
+                <div class="cell-basic-text">
+                  <div class="cell-name">{{ record.displayName }}</div>
+                  <div class="cell-handle">@{{ record.username }}</div>
+                </div>
+              </div>
             </template>
-          </a-table>
-        </div>
-      </template>
+            <template v-else-if="mainPanel === 'members' && column.key === 'department'">
+              <span class="cell-muted-tag">{{ t("appOrg.departmentPending") }}</span>
+            </template>
+            <template v-else-if="mainPanel === 'members' && column.key === 'position'">
+              <span class="cell-muted-tag">{{ t("appOrg.positionPending") }}</span>
+            </template>
+            <template v-else-if="mainPanel === 'members' && column.key === 'roles'">
+              <a-space wrap :size="6">
+                <span v-for="name in record.roleNames" :key="name" class="role-tag-outline">{{ name }}</span>
+                <span v-if="record.roleNames.length === 0" class="cell-placeholder">{{ t("appsUsers.noRoles") }}</span>
+              </a-space>
+            </template>
+            <template v-else-if="mainPanel === 'members' && column.key === 'status'">
+              <span class="status-cell">
+                <span :class="['status-dot', record.isActive ? 'on' : 'off']" />
+                {{ record.isActive ? t("appOrg.statusNormal") : t("appOrg.statusDisabled") }}
+              </span>
+            </template>
+            <template v-else-if="mainPanel === 'departments' && column.key === 'parentId'">
+              {{ record.parentId === record.id ? "-" : getDepartmentParentLabel(departments, record.parentId) }}
+            </template>
+            <template v-else-if="mainPanel === 'positions' && column.key === 'isActive'">
+              <a-tag :color="record.isActive ? 'green' : 'default'">
+                {{ record.isActive ? t("common.statusEnabled") : t("common.statusDisabled") }}
+              </a-tag>
+            </template>
+            <template v-else-if="mainPanel === 'projects' && column.key === 'isActive'">
+              <a-tag :color="record.isActive ? 'blue' : 'default'">
+                {{ record.isActive ? t("appsProjects.active") : t("appsProjects.disabled") }}
+              </a-tag>
+            </template>
+            <template v-else-if="column.key === 'actions'">
+              <a-space>
+                <a-button
+                  v-if="mainPanel === 'members' && canManageMembers && canViewAppRoles"
+                  type="link"
+                  size="small"
+                  @click="openEditMemberRoles(record)"
+                >
+                  {{ t("appsUsers.assignRoles") }}
+                </a-button>
+                <a-button
+                  v-else-if="mainPanel !== 'members'"
+                  type="link"
+                  size="small"
+                  @click="openCurrentEntityModal(record)"
+                >
+                  {{ t("common.edit") }}
+                </a-button>
+                <a-popconfirm
+                  v-if="mainPanel !== 'members' || canManageMembers"
+                  :title="mainDeleteConfirmText"
+                  :ok-text="t('common.delete')"
+                  :cancel-text="t('common.cancel')"
+                  @confirm="handleMainDelete(record)"
+                >
+                  <a-button type="link" size="small" danger>{{ t("common.delete") }}</a-button>
+                </a-popconfirm>
+              </a-space>
+            </template>
+          </template>
+        </a-table>
+      </div>
     </main>
 
     <a-drawer
@@ -282,17 +269,29 @@
         :data-source="entityDrawerDataSource"
         :loading="loading"
         :pagination="false"
-        :bordered="false"
+        :bordered="entityDrawerKind === 'departments'"
+        :scroll="entityDrawerScroll"
+        :indent-size="entityDrawerKind === 'departments' ? 18 : 0"
         size="small"
+        class="entity-drawer-table"
       >
         <template #bodyCell="{ column, record }">
+          <template v-if="entityDrawerKind === 'departments' && column.key === 'name'">
+            <span class="dept-name-cell">
+              <span>{{ record.name }}</span>
+              <a-tag v-if="isRootDepartmentRecord(record)" color="blue">{{ t("appOrg.rootNodeTag") }}</a-tag>
+            </span>
+          </template>
+          <template v-else-if="entityDrawerKind === 'departments' && column.key === 'code'">
+            <span>{{ isRootDepartmentRecord(record) ? "-" : record.code }}</span>
+          </template>
           <template v-if="entityDrawerKind === 'roles' && column.key === 'isSystem'">
             <a-tag :color="record.isSystem ? 'purple' : 'blue'">
               {{ record.isSystem ? t("appsRoles.typeSystem") : t("appsRoles.typeCustom") }}
             </a-tag>
           </template>
           <template v-else-if="entityDrawerKind === 'departments' && column.key === 'parentId'">
-            {{ getDepartmentParentLabel(departments, record.parentId) }}
+            {{ record.parentId === record.id ? "-" : getDepartmentParentLabel(departments, record.parentId) }}
           </template>
           <template v-else-if="entityDrawerKind === 'positions' && column.key === 'isActive'">
             <a-tag :color="record.isActive ? 'green' : 'default'">
@@ -469,7 +468,6 @@ import { debounce } from "@/utils/common";
 import { isAdminRole } from "@/utils/auth";
 import { useUserStore } from "@/stores/user";
 import { getUsersPaged } from "@/services/api-users";
-import { getTenantAppMembersPaged } from "@/services/api-app-members";
 import {
   addOrganizationMembers,
   createOrganizationDepartment,
@@ -499,15 +497,17 @@ import type {
 
 type EntityKind = "roles" | "departments" | "positions" | "projects";
 type SelectOption = { label: string; value: string };
-
-const ROLE_FETCH_PAGE_SIZE = 5000;
+type DepartmentTreeRow = AppDepartmentListItem & {
+  children?: DepartmentTreeRow[];
+  childCount: number;
+};
 
 const { t } = useI18n();
 const route = useRoute();
 const userStore = useUserStore();
 const appId = computed(() => String(route.params.appId ?? ""));
 
-const sidebarKey = ref("all");
+const sidebarKey = ref("members");
 const loading = ref(false);
 const submitting = ref(false);
 const keyword = ref("");
@@ -517,10 +517,6 @@ const pagination = reactive<TablePaginationConfig>({
   total: 0,
   showSizeChanger: true
 });
-
-/** server: 服务端分页；client：按角色筛选后前端分页 */
-const memberPageMode = ref<"server" | "client">("server");
-const roleFilteredMembers = ref<TenantAppMemberListItem[]>([]);
 
 const members = ref<TenantAppMemberListItem[]>([]);
 const roles = ref<TenantAppRoleListItem[]>([]);
@@ -579,9 +575,6 @@ const canViewAppRoles = computed(
 const canManageRoles = computed(
   () => userStore.permissions.includes("apps:roles:update") || isAdminRole(userStore.profile)
 );
-const canManageProjects = computed(
-  () => userStore.permissions.includes("apps:members:update") || isAdminRole(userStore.profile)
-);
 
 const sortedDepartments = computed(() =>
   [...departments.value].sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
@@ -591,16 +584,145 @@ const sortedPositions = computed(() =>
   [...positions.value].sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
 );
 const sortedProjects = computed(() => [...projects.value].sort((a, b) => a.name.localeCompare(b.name)));
+const departmentExpandedKeys = ref<string[]>([]);
 
-const mainPanel = computed(() => (sidebarKey.value.startsWith("proj:") ? "projects" : "members"));
+function toDeptKey(id: string) {
+  return `dept:${id}`;
+}
+
+type OrgTreeNode = {
+  key: string;
+  title: string;
+  children?: OrgTreeNode[];
+};
+
+const departmentSelectedKeys = computed(() => {
+  const m = /^dept:(.+)$/.exec(sidebarKey.value);
+  return m ? [m[1]] : [];
+});
+
+const departmentTreeData = computed<OrgTreeNode[]>(() => {
+  const byParent = new Map<string, AppDepartmentListItem[]>();
+  const allIds = new Set<string>();
+  departments.value.forEach((d) => allIds.add(d.id));
+
+  for (const d of departments.value) {
+    if (!d.parentId || d.parentId === d.id || !allIds.has(d.parentId)) {
+      continue;
+    }
+    const arr = byParent.get(d.parentId) ?? [];
+    arr.push(d);
+    byParent.set(d.parentId, arr);
+  }
+
+  const directChildrenCount = new Map<string, number>();
+  byParent.forEach((children, parentId) => {
+    directChildrenCount.set(parentId, children.length);
+  });
+
+  const roots = sortedDepartments.value.filter((d) => !d.parentId || d.parentId === d.id || !allIds.has(d.parentId));
+  const visiting = new Set<string>();
+
+  const buildNode = (dept: AppDepartmentListItem): OrgTreeNode => {
+    if (visiting.has(dept.id)) {
+      return { key: dept.id, title: dept.name };
+    }
+    visiting.add(dept.id);
+    const children = (byParent.get(dept.id) ?? [])
+      .slice()
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
+      .map((child) => buildNode(child));
+    visiting.delete(dept.id);
+
+    const childCount = directChildrenCount.get(dept.id) ?? 0;
+    return {
+      key: dept.id,
+      title: childCount > 0 ? `${dept.name} (${childCount})` : dept.name,
+      children: children.length > 0 ? children : undefined
+    };
+  };
+
+  return roots.map((root) => buildNode(root));
+});
+
+const departmentChildrenMap = computed(() => {
+  const map = new Map<string, string[]>();
+  const allIds = new Set<string>(departments.value.map((d) => d.id));
+  for (const d of departments.value) {
+    if (!d.parentId || d.parentId === d.id || !allIds.has(d.parentId)) {
+      continue;
+    }
+    const list = map.get(d.parentId) ?? [];
+    list.push(d.id);
+    map.set(d.parentId, list);
+  }
+  return map;
+});
+
+const departmentDirectChildrenCount = computed(() => {
+  const map = new Map<string, number>();
+  departmentChildrenMap.value.forEach((children, parentId) => map.set(parentId, children.length));
+  return map;
+});
+
+const departmentTreeRows = computed<DepartmentTreeRow[]>(() => {
+  const byParent = new Map<string, AppDepartmentListItem[]>();
+  const allIds = new Set<string>();
+  departments.value.forEach((d) => allIds.add(d.id));
+
+  for (const d of departments.value) {
+    if (!d.parentId || d.parentId === d.id || !allIds.has(d.parentId)) {
+      continue;
+    }
+    const arr = byParent.get(d.parentId) ?? [];
+    arr.push(d);
+    byParent.set(d.parentId, arr);
+  }
+
+  const roots = sortedDepartments.value.filter((d) => !d.parentId || d.parentId === d.id || !allIds.has(d.parentId));
+  const visiting = new Set<string>();
+
+  const buildRow = (dept: AppDepartmentListItem): DepartmentTreeRow => {
+    if (visiting.has(dept.id)) {
+      return { ...dept, childCount: 0 };
+    }
+    visiting.add(dept.id);
+    const children = (byParent.get(dept.id) ?? [])
+      .slice()
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
+      .map((child) => buildRow(child));
+    visiting.delete(dept.id);
+    return {
+      ...dept,
+      childCount: departmentDirectChildrenCount.value.get(dept.id) ?? 0,
+      children: children.length > 0 ? children : undefined
+    };
+  };
+
+  return roots.map((root) => buildRow(root));
+});
+
+type MainPanel = "members" | EntityKind;
+
+const mainPanel = computed<MainPanel>(() => {
+  if (sidebarKey.value === "departments" || sidebarKey.value.startsWith("dept:")) return "departments";
+  if (sidebarKey.value === "roles" || sidebarKey.value.startsWith("role:")) return "roles";
+  if (sidebarKey.value === "positions" || sidebarKey.value.startsWith("pos:")) return "positions";
+  if (sidebarKey.value === "projects" || sidebarKey.value.startsWith("proj:")) return "projects";
+  return "members";
+});
 
 const selectedRoleId = computed(() => {
   const m = /^role:(.+)$/.exec(sidebarKey.value);
   return m ? m[1] : null;
 });
-const selectedDept = computed(() => {
+const selectedDeptId = computed(() => {
   const m = /^dept:(.+)$/.exec(sidebarKey.value);
-  return m ? sortedDepartments.value.find((d) => d.id === m[1]) : undefined;
+  return m ? m[1] : null;
+});
+const selectedDept = computed(() => {
+  if (!selectedDeptId.value) return undefined;
+  return sortedDepartments.value.find((d) => d.id === selectedDeptId.value);
 });
 const selectedPosition = computed(() => {
   const m = /^pos:(.+)$/.exec(sidebarKey.value);
@@ -611,59 +733,47 @@ const selectedProject = computed(() => {
   return m ? projects.value.find((p) => p.id === m[1]) : undefined;
 });
 
-const memberMainTitle = computed(() => {
-  if (sidebarKey.value === "all") return t("appOrg.navAllEmployees");
-  if (selectedRoleId.value) {
-    const r = roles.value.find((x) => x.id === selectedRoleId.value);
-    return r?.name ?? t("appOrg.sectionRoles");
+const selectedDepartmentSubtreeIds = computed(() => {
+  if (!selectedDeptId.value) return null;
+  const result = new Set<string>();
+  const stack: string[] = [selectedDeptId.value];
+  while (stack.length > 0) {
+    const id = stack.pop() as string;
+    if (result.has(id)) continue;
+    result.add(id);
+    const children = departmentChildrenMap.value.get(id) ?? [];
+    for (const childId of children) stack.push(childId);
   }
-  if (selectedDept.value) return selectedDept.value.name;
-  if (selectedPosition.value) return selectedPosition.value.name;
-  return t("appOrg.navAllEmployees");
+  return result;
 });
 
-const memberMainSubtitle = computed(() => {
-  if (sidebarKey.value === "all") return t("appOrg.subtitleAll");
-  if (selectedRoleId.value) {
-    const r = roles.value.find((x) => x.id === selectedRoleId.value);
-    return t("appOrg.subtitleByRole", { name: r?.name ?? "" });
-  }
-  if (selectedDept.value) return t("appOrg.subtitleByDepartment", { name: selectedDept.value.name });
-  if (selectedPosition.value) return t("appOrg.subtitleByPosition", { name: selectedPosition.value.name });
-  return t("appOrg.subtitleAll");
+const displayDepartments = computed(() => {
+  if (!selectedDepartmentSubtreeIds.value) return sortedDepartments.value;
+  return sortedDepartments.value.filter((dept) => selectedDepartmentSubtreeIds.value?.has(dept.id));
 });
 
-const projectMainTitle = computed(() => selectedProject.value?.name ?? t("appOrg.sectionProjects"));
-const projectMainSubtitle = computed(() =>
-  selectedProject.value
-    ? t("appOrg.subtitleProject", { name: selectedProject.value.name })
-    : t("appsProjects.pageSubtitle")
-);
+const displayRoles = computed(() => {
+  if (!selectedRoleId.value) return sortedRoles.value;
+  return sortedRoles.value.filter((role) => role.id === selectedRoleId.value);
+});
+
+const displayPositions = computed(() => {
+  if (!selectedPosition.value) return sortedPositions.value;
+  return sortedPositions.value.filter((position) => position.id === selectedPosition.value?.id);
+});
+
+const displayProjects = computed(() => {
+  if (!selectedProject.value) return sortedProjects.value;
+  return sortedProjects.value.filter((project) => project.id === selectedProject.value?.id);
+});
 
 const memberFoundCount = computed(() => {
-  if (memberPageMode.value === "client") return roleFilteredMembers.value.length;
   return Number(pagination.total ?? 0);
 });
 
-const displayedMembers = computed(() => {
-  if (memberPageMode.value === "client") {
-    const cur = Number(pagination.current ?? 1);
-    const size = Number(pagination.pageSize ?? 20);
-    const start = (cur - 1) * size;
-    return roleFilteredMembers.value.slice(start, start + size);
-  }
-  return members.value;
-});
+const displayedMembers = computed(() => members.value);
 
-const memberTablePagination = computed(() => {
-  if (memberPageMode.value === "client") {
-    return {
-      ...pagination,
-      total: roleFilteredMembers.value.length
-    };
-  }
-  return pagination;
-});
+const memberTablePagination = computed(() => pagination);
 
 const memberColumns = computed<TableColumnsType<TenantAppMemberListItem>>(() => [
   { title: t("appOrg.colBasicInfo"), key: "basic", width: 260 },
@@ -674,6 +784,33 @@ const memberColumns = computed<TableColumnsType<TenantAppMemberListItem>>(() => 
   { title: t("appsUsers.colActions"), key: "actions", width: 200, fixed: "right" }
 ]);
 
+const departmentColumns = computed<TableColumnsType<AppDepartmentListItem>>(() => [
+  { title: t("appsDepartments.colName"), dataIndex: "name", key: "name" },
+  { title: t("appsDepartments.colCode"), dataIndex: "code", key: "code", width: 160 },
+  { title: t("appsDepartments.colParent"), key: "parentId", width: 180 },
+  { title: t("appOrg.childCount"), key: "childCount", width: 100 },
+  { title: t("appsDepartments.colSort"), dataIndex: "sortOrder", key: "sortOrder", width: 90 },
+  { title: t("appsDepartments.colActions"), key: "actions", width: 140, fixed: "right" }
+]);
+
+const roleColumns = computed<TableColumnsType<TenantAppRoleListItem>>(() => [
+  { title: t("appsRoles.colCode"), dataIndex: "code", key: "code", width: 150 },
+  { title: t("appsRoles.colName"), dataIndex: "name", key: "name", width: 180 },
+  { title: t("appsRoles.colType"), key: "isSystem", width: 100 },
+  { title: t("appsRoles.colMembers"), dataIndex: "memberCount", key: "memberCount", width: 100 },
+  { title: t("appsRoles.colDescription"), dataIndex: "description", key: "description", ellipsis: true },
+  { title: t("appsRoles.colActions"), key: "actions", width: 140, fixed: "right" }
+]);
+
+const positionColumns = computed<TableColumnsType<AppPositionListItem>>(() => [
+  { title: t("appsPositions.colName"), dataIndex: "name", key: "name" },
+  { title: t("appsPositions.colCode"), dataIndex: "code", key: "code", width: 150 },
+  { title: t("appsPositions.colDesc"), dataIndex: "description", key: "description", ellipsis: true },
+  { title: t("appsPositions.colStatus"), key: "isActive", width: 100 },
+  { title: t("appsPositions.colSort"), dataIndex: "sortOrder", key: "sortOrder", width: 100 },
+  { title: t("appsPositions.colActions"), key: "actions", width: 140, fixed: "right" }
+]);
+
 const projectColumns = computed<TableColumnsType<AppProjectListItem>>(() => [
   { title: t("appsProjects.colName"), dataIndex: "name", key: "name" },
   { title: t("appsProjects.colCode"), dataIndex: "code", key: "code", width: 150 },
@@ -682,10 +819,60 @@ const projectColumns = computed<TableColumnsType<AppProjectListItem>>(() => [
   { title: t("appsProjects.colActions"), key: "actions", width: 140, fixed: "right" }
 ]);
 
-function projectRowClassName(record: AppProjectListItem) {
-  const m = /^proj:(.+)$/.exec(sidebarKey.value);
-  return m && record.id === m[1] ? "org-row-selected" : "";
-}
+const currentMainTitle = computed(() => {
+  if (mainPanel.value === "members") return t("appOrg.navAllEmployees");
+  if (mainPanel.value === "departments") return selectedDept.value?.name ?? t("appOrg.sectionDepartments");
+  if (mainPanel.value === "roles") {
+    const selected = selectedRoleId.value ? roles.value.find((r) => r.id === selectedRoleId.value) : undefined;
+    return selected?.name ?? t("appOrg.sectionRoles");
+  }
+  if (mainPanel.value === "positions") return selectedPosition.value?.name ?? t("appOrg.sectionPositions");
+  return selectedProject.value?.name ?? t("appOrg.sectionProjects");
+});
+
+const currentMainSubtitle = computed(() => {
+  if (mainPanel.value === "members") return t("appOrg.subtitleAll");
+  if (mainPanel.value === "departments") {
+    return selectedDept.value ? t("appOrg.subtitleByDepartment", { name: selectedDept.value.name }) : t("appsDepartments.pageSubtitle");
+  }
+  if (mainPanel.value === "roles") {
+    const selected = selectedRoleId.value ? roles.value.find((r) => r.id === selectedRoleId.value) : undefined;
+    return selected ? t("appOrg.subtitleByRole", { name: selected.name }) : t("appsRoles.pageSubtitle");
+  }
+  if (mainPanel.value === "positions") {
+    return selectedPosition.value ? t("appOrg.subtitleByPosition", { name: selectedPosition.value.name }) : t("appsPositions.pageSubtitle");
+  }
+  return selectedProject.value ? t("appOrg.subtitleProject", { name: selectedProject.value.name }) : t("appsProjects.pageSubtitle");
+});
+
+const mainRowKey = computed(() => (mainPanel.value === "members" ? "userId" : "id"));
+const mainColumns = computed<TableColumnsType<any>>(() => {
+  if (mainPanel.value === "members") return memberColumns.value;
+  if (mainPanel.value === "departments") return departmentColumns.value;
+  if (mainPanel.value === "roles") return roleColumns.value;
+  if (mainPanel.value === "positions") return positionColumns.value;
+  return projectColumns.value;
+});
+const mainDataSource = computed(() => {
+  if (mainPanel.value === "members") return displayedMembers.value;
+  if (mainPanel.value === "departments") {
+    return displayDepartments.value.map((dept) => ({
+      ...dept,
+      childCount: departmentDirectChildrenCount.value.get(dept.id) ?? 0
+    }));
+  }
+  if (mainPanel.value === "roles") return displayRoles.value;
+  if (mainPanel.value === "positions") return displayPositions.value;
+  return displayProjects.value;
+});
+const mainPagination = computed(() => (mainPanel.value === "members" ? memberTablePagination.value : false));
+const mainDeleteConfirmText = computed(() => {
+  if (mainPanel.value === "members") return t("appsUsers.removeConfirm");
+  if (mainPanel.value === "departments") return t("appsDepartments.deleteConfirm");
+  if (mainPanel.value === "roles") return t("appsRoles.deleteConfirm");
+  if (mainPanel.value === "positions") return t("appsPositions.deleteConfirm");
+  return t("appsProjects.deleteConfirm");
+});
 
 const entityDrawerTitle = computed(() => {
   if (entityDrawerKind.value === "roles") return t("appsRoles.pageTitle");
@@ -704,10 +891,12 @@ const entityDrawerCreateLabel = computed(() => {
 const entityDrawerDataSource = computed(() => {
   const k = entityDrawerKind.value;
   if (k === "roles") return roles.value;
-  if (k === "departments") return departments.value;
+  if (k === "departments") return departmentTreeRows.value;
   if (k === "positions") return positions.value;
   return projects.value;
 });
+
+const entityDrawerScroll = computed(() => (entityDrawerKind.value === "departments" ? { x: 860 } : undefined));
 
 const entityDrawerColumns = computed<TableColumnsType<Record<string, unknown>>>(() => {
   const k = entityDrawerKind.value;
@@ -723,9 +912,10 @@ const entityDrawerColumns = computed<TableColumnsType<Record<string, unknown>>>(
   }
   if (k === "departments") {
     return [
-      { title: t("appsDepartments.colName"), dataIndex: "name", key: "name" },
-      { title: t("appsDepartments.colCode"), dataIndex: "code", key: "code", width: 120 },
+      { title: t("appsDepartments.colName"), dataIndex: "name", key: "name", width: 220 },
+      { title: t("appsDepartments.colCode"), dataIndex: "code", key: "code", width: 260 },
       { title: t("appsDepartments.colParent"), key: "parentId", width: 140 },
+      { title: t("appOrg.childCount"), dataIndex: "childCount", key: "childCount", width: 90 },
       { title: t("appsDepartments.colSort"), dataIndex: "sortOrder", key: "sortOrder", width: 72 },
       { title: t("appsDepartments.colActions"), key: "actions", width: 120, fixed: "right" }
     ];
@@ -756,6 +946,13 @@ function entityDeleteConfirm(kind: EntityKind) {
   return t("appsProjects.deleteConfirm");
 }
 
+function isRootDepartmentRecord(record: { id?: string; parentId?: string; code?: string }) {
+  if (!record?.id) {
+    return false;
+  }
+  return record.parentId === record.id || (record.code ?? "").startsWith("SYS_ROOT_");
+}
+
 const entityModalTitle = computed(() => {
   const edit = Boolean(editingEntityId.value);
   const k = entityModalKind.value;
@@ -777,6 +974,18 @@ function selectSidebar(key: string) {
   void loadWorkspace();
 }
 
+function onDepartmentTreeSelect(keys: Array<string | number>) {
+  const selected = keys.length > 0 ? String(keys[0]) : "";
+  if (!selected) {
+    return;
+  }
+  selectSidebar(toDeptKey(selected));
+}
+
+function onDepartmentTreeExpand(keys: Array<string | number>) {
+  departmentExpandedKeys.value = keys.map((key) => String(key));
+}
+
 function openEntityDrawer(kind: EntityKind) {
   entityDrawerKind.value = kind;
   entityDrawerOpen.value = true;
@@ -791,46 +1000,22 @@ async function loadWorkspace() {
   if (!appId.value) return;
   loading.value = true;
   try {
-    const isRoleFilter = /^role:/.test(sidebarKey.value);
-    const roleId = isRoleFilter ? sidebarKey.value.replace(/^role:/, "") : "";
-
     const result = await getAppOrganizationWorkspace(appId.value, {
-      pageIndex: isRoleFilter ? 1 : Number(pagination.current ?? 1),
-      pageSize: isRoleFilter ? 1 : Number(pagination.pageSize ?? 20),
+      pageIndex: Number(pagination.current ?? 1),
+      pageSize: Number(pagination.pageSize ?? 20),
       keyword: keyword.value.trim() || undefined
     });
 
+    members.value = result.members.items;
+    pagination.total = result.members.total;
+    pagination.current = result.members.pageIndex;
+    pagination.pageSize = result.members.pageSize;
     roles.value = result.roles;
     departments.value = result.departments;
     positions.value = result.positions;
     projects.value = result.projects;
-
-    if (sidebarKey.value.startsWith("proj:")) {
-      memberPageMode.value = "server";
-      return;
-    }
-
-    if (isRoleFilter && roleId) {
-      memberPageMode.value = "client";
-      const mr = await getTenantAppMembersPaged(appId.value, {
-        pageIndex: 1,
-        pageSize: ROLE_FETCH_PAGE_SIZE,
-        keyword: keyword.value.trim() || undefined
-      });
-      roleFilteredMembers.value = mr.items.filter((m) => m.roleIds.includes(roleId));
-      pagination.total = roleFilteredMembers.value.length;
-      pagination.current = Math.min(
-        Number(pagination.current ?? 1),
-        Math.max(1, Math.ceil(roleFilteredMembers.value.length / Number(pagination.pageSize ?? 20)) || 1)
-      );
-      members.value = [];
-    } else {
-      memberPageMode.value = "server";
-      roleFilteredMembers.value = [];
-      members.value = result.members.items;
-      pagination.total = result.members.total;
-      pagination.current = result.members.pageIndex;
-      pagination.pageSize = result.members.pageSize;
+    if (departmentExpandedKeys.value.length === 0) {
+      departmentExpandedKeys.value = departments.value.map((dept) => dept.id);
     }
   } catch (error) {
     message.error((error as Error).message || t("crud.loadFailed"));
@@ -839,10 +1024,10 @@ async function loadWorkspace() {
   }
 }
 
-function handleMemberTableChange(page: TablePaginationConfig) {
+function handleMainTableChange(page: TablePaginationConfig) {
   pagination.current = page.current ?? 1;
   pagination.pageSize = page.pageSize ?? 20;
-  if (memberPageMode.value === "server") {
+  if (mainPanel.value === "members") {
     void loadWorkspace();
   }
 }
@@ -945,6 +1130,13 @@ function openEntityModal(kind: EntityKind, record?: AppProjectListItem | TenantA
   entityModalOpen.value = true;
 }
 
+function openCurrentEntityModal(record?: AppProjectListItem | TenantAppRoleListItem | AppDepartmentListItem | AppPositionListItem) {
+  if (mainPanel.value === "members") {
+    return;
+  }
+  openEntityModal(mainPanel.value, record);
+}
+
 async function submitEntity() {
   if (!appId.value) return;
   submitting.value = true;
@@ -1044,6 +1236,14 @@ async function handleDeleteMember(record: TenantAppMemberListItem) {
   }
 }
 
+async function handleMainDelete(record: any) {
+  if (mainPanel.value === "members") {
+    await handleDeleteMember(record as TenantAppMemberListItem);
+    return;
+  }
+  await handleDeleteEntity(mainPanel.value as EntityKind, record as { id: string });
+}
+
 async function handleDeleteEntity(kind: EntityKind, record: { id: string }) {
   if (!appId.value) return;
   try {
@@ -1056,10 +1256,6 @@ async function handleDeleteEntity(kind: EntityKind, record: { id: string }) {
   } catch (error) {
     message.error((error as Error).message || t("crud.deleteFailed"));
   }
-}
-
-async function handleDeleteProject(record: AppProjectListItem) {
-  await handleDeleteEntity("projects", record);
 }
 
 onMounted(() => {
@@ -1140,6 +1336,19 @@ onMounted(() => {
   text-transform: none;
 }
 
+.nav-section-switch {
+  flex: 1;
+  border: none;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+}
+
 .nav-section-gear {
   color: rgba(0, 0, 0, 0.45) !important;
 }
@@ -1204,6 +1413,20 @@ onMounted(() => {
   padding: 8px 12px;
   font-size: 12px;
   color: rgba(0, 0, 0, 0.35);
+}
+
+.dept-tree {
+  margin-top: 2px;
+}
+
+.dept-tree :deep(.ant-tree-node-content-wrapper) {
+  min-height: 34px;
+  line-height: 34px;
+  border-radius: 6px;
+}
+
+.dept-tree :deep(.ant-tree-title) {
+  font-size: 14px;
 }
 
 .org-main {
@@ -1358,5 +1581,19 @@ onMounted(() => {
   margin-top: 16px;
   padding-top: 12px;
   border-top: 1px solid #f0f0f0;
+}
+
+.entity-drawer-table :deep(.ant-table-cell) {
+  white-space: nowrap;
+}
+
+.entity-drawer-table :deep(.ant-table-tbody > tr > td) {
+  vertical-align: middle;
+}
+
+.dept-name-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 </style>
