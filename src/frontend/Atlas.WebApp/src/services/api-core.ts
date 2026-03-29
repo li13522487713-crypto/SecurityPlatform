@@ -85,6 +85,27 @@ interface ApiRequestError extends Error {
   status?: number;
   payload?: ApiErrorPayload | null;
   raw?: string;
+  code?: string;
+  isNetworkError?: boolean;
+  isRetryable?: boolean;
+  cause?: unknown;
+}
+
+export function isApiNetworkError(error: unknown): error is ApiRequestError {
+  const requestError = error as ApiRequestError | undefined;
+  return Boolean(requestError?.isNetworkError);
+}
+
+export function isApiAuthTerminalError(error: unknown): boolean {
+  const requestError = error as ApiRequestError | undefined;
+  if (!requestError) {
+    return false;
+  }
+  if (requestError.status === 401) {
+    return true;
+  }
+  const code = requestError.payload?.code ?? requestError.code ?? "";
+  return code === ErrorCodes.AccountLocked || code === ErrorCodes.PasswordExpired;
 }
 
 export interface ClientErrorReportPayload {
@@ -221,9 +242,10 @@ export async function requestApi<T>(path: string, init?: RequestInit, options?: 
     headers,
     credentials: "include" // 携带httpOnly cookie凭证
   };
+  const networkRetryLimit = shouldRetryableReadMethod(method) ? 2 : 0;
 
   const runRequest = async () => {
-    const response = await fetch(resolveRequestUrl(path), requestInit);
+    const response = await fetchWithRetry(resolveRequestUrl(path), requestInit, path, method, networkRetryLimit);
 
     const shouldAttemptRefresh = !options?.disableAutoRefresh && !options?.isRetry;
     if (response.status === 401 && shouldAttemptRefresh) {
@@ -282,6 +304,9 @@ export async function requestApi<T>(path: string, init?: RequestInit, options?: 
 
   try {
     return await requestPromise;
+  } catch (error) {
+    handleNetworkRequestErrorDisplay(error, options);
+    throw error;
   } finally {
     if (writeRequestSignature) {
       const current = inFlightWriteRequests.get(writeRequestSignature);
@@ -386,8 +411,9 @@ export async function requestApiBlob(path: string, init?: RequestInit, options?:
   }
 
   const requestInit: RequestInit = { ...init, headers, credentials: "include" };
+  const networkRetryLimit = shouldRetryableReadMethod(method) ? 2 : 0;
   const runRequest = async () => {
-    const response = await fetch(resolveRequestUrl(path), requestInit);
+    const response = await fetchWithRetry(resolveRequestUrl(path), requestInit, path, method, networkRetryLimit);
 
     if (response.status === 401) {
       const refreshed = await tryRefreshTokens();
@@ -415,6 +441,9 @@ export async function requestApiBlob(path: string, init?: RequestInit, options?:
   }
   try {
     return await requestPromise;
+  } catch (error) {
+    handleNetworkRequestErrorDisplay(error, options);
+    throw error;
   } finally {
     if (writeRequestSignature) {
       const current = inFlightWriteRequests.get(writeRequestSignature);
@@ -452,6 +481,111 @@ export async function reportClientErrorSilently(payload: ClientErrorReportPayloa
 }
 
 // ─── Internal Helpers ────────────────────────────────────
+
+function shouldRetryableReadMethod(method: string): boolean {
+  return method === "GET" || method === "HEAD";
+}
+
+function isNetworkFailure(error: unknown): boolean {
+  if (typeof DOMException !== "undefined" && error instanceof DOMException && error.name === "AbortError") {
+    return false;
+  }
+
+  if (typeof navigator !== "undefined" && navigator.onLine === false) {
+    return true;
+  }
+
+  if (typeof TypeError !== "undefined" && error instanceof TypeError) {
+    const text = (error.message ?? "").toLowerCase();
+    return text.includes("failed to fetch")
+      || text.includes("network error")
+      || text.includes("fetch failed")
+      || text.includes("load failed")
+      || text.includes("econnreset")
+      || text.includes("enotfound")
+      || text.includes("networkerror");
+  }
+
+  if (error && typeof error === "object") {
+    const maybeError = error as { message?: string; code?: string; name?: string };
+    const normalizedMessage = (maybeError.message ?? "").toLowerCase();
+    const normalizedCode = (maybeError.code ?? "").toLowerCase();
+    if (normalizedCode === "econnreset" || normalizedCode === "enotfound" || normalizedCode === "ecanceled") {
+      return true;
+    }
+    if (normalizedMessage.includes("fetch failed") || normalizedMessage.includes("network")) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function buildNetworkError(path: string, method: string, cause: unknown): ApiRequestError {
+  const isOffline = typeof navigator !== "undefined" && navigator.onLine === false;
+  const messageText = isOffline
+    ? translate("apiCore.networkOffline")
+    : translate("apiCore.networkRequestFailed");
+  const error = new Error(messageText) as ApiRequestError;
+  error.status = 0;
+  error.code = "NETWORK_ERROR";
+  error.payload = {
+    code: "NETWORK_ERROR",
+    message: messageText
+  };
+  error.raw = `${method.toUpperCase()} ${path}`;
+  error.isNetworkError = true;
+  error.isRetryable = true;
+  error.cause = cause;
+  return error;
+}
+
+function shouldRetryNetworkRequest(method: string, attempt: number, maxRetries: number): boolean {
+  if (attempt >= maxRetries) {
+    return false;
+  }
+  return shouldRetryableReadMethod(method.toUpperCase());
+}
+
+async function waitWithBackoff(attempt: number): Promise<void> {
+  const baseDelay = 250;
+  const jitter = Math.floor(Math.random() * 80);
+  const delay = baseDelay * (2 ** attempt) + jitter;
+  await new Promise((resolve) => setTimeout(resolve, delay));
+}
+
+async function fetchWithRetry(
+  url: string,
+  init: RequestInit,
+  path: string,
+  method: string,
+  maxRetries: number
+): Promise<Response> {
+  let attempt = 0;
+  while (true) {
+    try {
+      return await fetch(url, init);
+    } catch (error) {
+      if (!isNetworkFailure(error)) {
+        throw error;
+      }
+      if (!shouldRetryNetworkRequest(method, attempt, maxRetries)) {
+        throw buildNetworkError(path, method, error);
+      }
+      await waitWithBackoff(attempt);
+      attempt += 1;
+    }
+  }
+}
+
+function handleNetworkRequestErrorDisplay(error: unknown, options?: RequestOptions) {
+  if (options?.suppressErrorMessage) {
+    return;
+  }
+  if (isApiNetworkError(error)) {
+    showError(error.message, { longDedupWindow: true });
+  }
+}
 
 function isUnsafeMethod(method: string) {
   return !["GET", "HEAD", "OPTIONS", "TRACE"].includes(method);
@@ -683,7 +817,9 @@ async function ensureFreshTokens(): Promise<boolean> {
       await refreshTokenInternal();
       return true;
     } catch (error) {
-      clearAuthStorage();
+      if (isApiAuthTerminalError(error)) {
+        clearAuthStorage();
+      }
       throw error;
     } finally {
       refreshPromise = null;
@@ -711,6 +847,35 @@ export async function warmupAuthSession(): Promise<void> {
     await ensureFreshTokens();
   } catch {
     // 预热失败不打断页面启动，后续由路由守卫/请求链路兜底处理
+  }
+}
+
+/**
+ * 网络恢复后的轻量会话恢复：
+ * - access_token 缺失且 refresh_token 存在时尝试刷新；
+ * - 刷新失败仅在明确认证失效时触发退出。
+ */
+export async function recoverAuthSession(): Promise<boolean> {
+  if (!getTenantId()) {
+    return false;
+  }
+
+  if (getAccessToken()) {
+    return true;
+  }
+
+  if (!getRefreshToken()) {
+    return false;
+  }
+
+  try {
+    await ensureFreshTokens();
+    return true;
+  } catch (error) {
+    if (isApiAuthTerminalError(error)) {
+      forceLogout(translate("apiCore.sessionExpiredRelogin"));
+    }
+    return false;
   }
 }
 
@@ -795,7 +960,10 @@ function buildApiError(messageText: string, status: number, payload?: ApiErrorPa
   const error = new Error(messageText) as ApiRequestError;
   error.status = status;
   error.payload = payload ?? null;
+  error.code = payload?.code;
   error.raw = raw;
+  error.isNetworkError = false;
+  error.isRetryable = false;
   return error;
 }
 
@@ -900,8 +1068,10 @@ function formatErrorMessage(payload: ApiErrorPayload | null, fallback: string): 
 async function tryRefreshTokens(): Promise<boolean> {
   try {
     return await ensureFreshTokens();
-  } catch {
-    forceLogout(translate("apiCore.sessionExpiredRelogin"));
+  } catch (error) {
+    if (isApiAuthTerminalError(error)) {
+      forceLogout(translate("apiCore.sessionExpiredRelogin"));
+    }
     return false;
   }
 }

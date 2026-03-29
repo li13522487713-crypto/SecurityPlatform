@@ -2,15 +2,21 @@ import { createApp } from "vue";
 import App from "./App.vue";
 import router from "./router";
 import Antd from "ant-design-vue";
+import { message } from "ant-design-vue";
 import "ant-design-vue/dist/reset.css";
 import tinymce from "tinymce/tinymce";
 import "./styles/amis-overrides.css";
 import "./styles/index.css";
 import "./styles/approval-x6.css";
 import { i18n } from "./i18n";
+import { translate } from "@/i18n";
 import { createPinia } from "pinia";
 import { hasPermi, hasRole } from "@/directives/permission";
-import { reportClientErrorSilently, warmupAuthSession } from "@/services/api-core";
+import { isApiAuthTerminalError, isApiNetworkError, recoverAuthSession, reportClientErrorSilently, warmupAuthSession } from "@/services/api-core";
+import { useNetworkStore } from "@/stores/network";
+import { useUserStore } from "@/stores/user";
+import { usePermissionStore } from "@/stores/permission";
+import { getAccessToken, hasAuthSessionSignal } from "@/utils/auth";
 
 const globalTinyMce = (window as Window & { tinymce?: typeof tinymce }).tinymce ?? tinymce;
 globalTinyMce.baseURL = "/tinymce";
@@ -52,8 +58,97 @@ window.addEventListener("unhandledrejection", (event) => {
 
 const app = createApp(App);
 const pinia = createPinia();
+const networkStore = useNetworkStore(pinia);
+const userStore = useUserStore(pinia);
+const permissionStore = usePermissionStore(pinia);
+
+let recoverPromise: Promise<void> | null = null;
+const OFFLINE_MESSAGE_KEY = "network-offline";
+const RECOVER_MESSAGE_KEY = "network-recover";
+
+async function recoverSessionAfterOnline() {
+  if (recoverPromise) {
+    return recoverPromise;
+  }
+
+  recoverPromise = (async () => {
+    if (networkStore.recovering) {
+      return;
+    }
+
+    networkStore.startRecover();
+    let recovered = false;
+    try {
+      if (!hasAuthSessionSignal()) {
+        return;
+      }
+
+      const sessionReady = await recoverAuthSession();
+      if (!sessionReady && !getAccessToken()) {
+        return;
+      }
+
+      if (!userStore.profile) {
+        await userStore.getInfo();
+      }
+
+      if (!permissionStore.routeLoaded) {
+        await permissionStore.generateRoutes();
+        permissionStore.registerRoutes(router);
+      }
+
+      recovered = true;
+      message.open({
+        key: RECOVER_MESSAGE_KEY,
+        type: "success",
+        content: translate("apiCore.networkRecovered"),
+        duration: 2
+      });
+    } catch (error) {
+      if (isApiAuthTerminalError(error)) {
+        await userStore.logout({ skipRemote: true });
+        void router.push({ name: "login" });
+        return;
+      }
+      if (isApiNetworkError(error)) {
+        return;
+      }
+      console.error("[network-recovery] 恢复失败", error);
+    } finally {
+      networkStore.finishRecover(recovered);
+      recoverPromise = null;
+    }
+  })();
+
+  return recoverPromise;
+}
 
 await warmupAuthSession();
+
+if (typeof window !== "undefined") {
+  if (!navigator.onLine) {
+    networkStore.markOffline();
+  }
+
+  window.addEventListener("offline", () => {
+    networkStore.markOffline();
+    message.open({
+      key: OFFLINE_MESSAGE_KEY,
+      type: "warning",
+      content: translate("apiCore.networkOffline"),
+      duration: 2
+    });
+  });
+
+  window.addEventListener("online", () => {
+    const wasOffline = networkStore.offline;
+    networkStore.markOnline();
+    message.destroy(OFFLINE_MESSAGE_KEY);
+    if (wasOffline) {
+      void recoverSessionAfterOnline();
+    }
+  });
+}
 
 app.use(pinia);
 app.use(router);

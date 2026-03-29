@@ -18,6 +18,10 @@ interface UserState {
   avatar: string;
 }
 
+interface LogoutOptions {
+  skipRemote?: boolean;
+}
+
 export const useUserStore = defineStore("user", {
   state: (): UserState => ({
     profile: getAuthProfile(),
@@ -51,9 +55,11 @@ export const useUserStore = defineStore("user", {
       this.permissions = profile?.permissions ?? [];
       this.name = profile?.displayName || profile?.username || "";
     },
-    async logout() {
+    async logout(options?: LogoutOptions) {
       try {
-        await logoutApi();
+        if (!options?.skipRemote) {
+          await logoutApi();
+        }
       } finally {
         this.fedLogOut();
       }

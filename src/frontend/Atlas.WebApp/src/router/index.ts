@@ -14,6 +14,26 @@ NProgress.configure({ showSpinner: false });
 interface ApiRequestErrorLike extends Error {
   status?: number;
   payload?: unknown;
+  code?: string;
+  isNetworkError?: boolean;
+}
+
+function isNetworkErrorLike(error: unknown): boolean {
+  const requestError = error as ApiRequestErrorLike | undefined;
+  return Boolean(requestError?.isNetworkError);
+}
+
+function isAuthTerminalErrorLike(error: unknown): boolean {
+  const requestError = error as ApiRequestErrorLike | undefined;
+  if (!requestError) {
+    return false;
+  }
+  if (requestError.status === 401) {
+    return true;
+  }
+  const payloadCode = (requestError.payload as { code?: string } | undefined)?.code;
+  const code = payloadCode ?? requestError.code ?? "";
+  return code === "ACCOUNT_LOCKED" || code === "PASSWORD_EXPIRED";
 }
 
 const LoginPage = () => import("@/pages/LoginPage.vue");
@@ -342,14 +362,39 @@ router.beforeEach(async (to, from, next) => {
         return;
       } catch (err) {
         console.error(err);
-        await userStore.logout();
         const requestError = err as ApiRequestErrorLike;
         const alreadyHandledByApiCore = typeof requestError?.status === "number" || requestError?.payload !== undefined;
+        if (isAuthTerminalErrorLike(err)) {
+          await userStore.logout({ skipRemote: true });
+          if (!alreadyHandledByApiCore) {
+            message.error(requestError?.message || translate("routerGuard.sessionReloadLogin"));
+          }
+          next({ path: "/login" });
+          NProgress.done();
+          return;
+        }
+
+        if (isNetworkErrorLike(err)) {
+          // 网络异常时不清空登录态，保持当前页面可恢复。
+          userStore.hydrateFromStorage();
+          try {
+            if (!permissionStore.routeLoaded) {
+              await permissionStore.generateRoutes();
+              permissionStore.registerRoutes(router);
+            }
+          } catch (networkRecoveryError) {
+            console.warn("[router] 网络异常兜底恢复失败，等待在线后重试", networkRecoveryError);
+          }
+          next(false);
+          NProgress.done();
+          return;
+        }
+
         if (!alreadyHandledByApiCore) {
           // 仅兜底提示非 API 异常，避免与 api-core 全局错误提示重复弹窗。
           message.error(requestError?.message || translate("routerGuard.sessionReloadLogin"));
         }
-        next({ path: "/login" });
+        next(false);
         NProgress.done();
         return;
       }

@@ -70,6 +70,10 @@ export const setAuthProfile = (profile: AuthProfile) => {
   localStorage.removeItem(PROFILE_KEY);
 };
 
+export const hasAuthSessionSignal = () => {
+  return Boolean(getTenantId() && (getAccessToken() || getRefreshToken()));
+};
+
 export const clearAuthStorage = () => {
   sessionStorage.removeItem(ACCESS_TOKEN_KEY);
   sessionStorage.removeItem(PROFILE_KEY);
