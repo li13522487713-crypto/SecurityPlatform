@@ -126,7 +126,8 @@ public sealed class ModelConfigsController : ControllerBase
         CancellationToken cancellationToken)
     {
         _testValidator.ValidateAndThrow(request);
-        var result = await _commandService.TestConnectionAsync(request, cancellationToken);
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _commandService.TestConnectionAsync(tenantId, request, cancellationToken);
         return Ok(ApiResponse<ModelConfigTestResult>.Ok(result, HttpContext.TraceIdentifier));
     }
 
@@ -137,11 +138,12 @@ public sealed class ModelConfigsController : ControllerBase
         CancellationToken cancellationToken)
     {
         _promptTestValidator.ValidateAndThrow(request);
+        var tenantId = _tenantProvider.GetTenantId();
         Response.ContentType = "text/event-stream";
         Response.Headers.CacheControl = "no-cache";
         Response.Headers.Connection = "keep-alive";
 
-        await foreach (var evt in _commandService.TestPromptStreamAsync(request, cancellationToken))
+        await foreach (var evt in _commandService.TestPromptStreamAsync(tenantId, request, cancellationToken))
         {
             await WriteSseTypedEventAsync(Response, evt.EventType, evt.Data, cancellationToken);
             await Response.Body.FlushAsync(cancellationToken);

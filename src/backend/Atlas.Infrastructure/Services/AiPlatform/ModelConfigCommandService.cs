@@ -79,9 +79,13 @@ public sealed class ModelConfigCommandService : IModelConfigCommandService
             throw new BusinessException($"模型配置名称 '{request.Name}' 已存在。", ErrorCodes.ValidationError);
         }
 
+        var effectiveApiKey = string.IsNullOrWhiteSpace(request.ApiKey)
+            ? entity.ApiKey
+            : request.ApiKey;
+
         entity.Update(
             request.Name,
-            request.ApiKey,
+            effectiveApiKey,
             request.BaseUrl,
             request.DefaultModel,
             request.IsEnabled,
@@ -98,14 +102,21 @@ public sealed class ModelConfigCommandService : IModelConfigCommandService
     }
 
     public async Task<ModelConfigTestResult> TestConnectionAsync(
+        TenantId tenantId,
         ModelConfigTestRequest request,
         CancellationToken cancellationToken)
     {
         try
         {
+            var effectiveApiKey = await ResolveEffectiveApiKeyAsync(
+                tenantId,
+                request.ModelConfigId,
+                request.ApiKey,
+                cancellationToken);
+
             var option = new AiProviderOption
             {
-                ApiKey = request.ApiKey,
+                ApiKey = effectiveApiKey,
                 BaseUrl = request.BaseUrl,
                 DefaultModel = request.Model,
                 SupportsEmbedding = false
@@ -135,16 +146,38 @@ public sealed class ModelConfigCommandService : IModelConfigCommandService
     }
 
     public async IAsyncEnumerable<ModelConfigPromptTestStreamEvent> TestPromptStreamAsync(
+        TenantId tenantId,
         ModelConfigPromptTestRequest request,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
+        string effectiveApiKey = string.Empty;
+        string? apiKeyResolveError = null;
+        try
+        {
+            effectiveApiKey = await ResolveEffectiveApiKeyAsync(
+                tenantId,
+                request.ModelConfigId,
+                request.ApiKey,
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            apiKeyResolveError = ex.Message;
+        }
+
+        if (!string.IsNullOrWhiteSpace(apiKeyResolveError))
+        {
+            yield return new ModelConfigPromptTestStreamEvent("error", apiKeyResolveError);
+            yield break;
+        }
+
         OpenAiCompatibleProvider? provider = null;
         string? initError = null;
         try
         {
             var option = new AiProviderOption
             {
-                ApiKey = request.ApiKey,
+                ApiKey = effectiveApiKey,
                 BaseUrl = request.BaseUrl,
                 DefaultModel = request.Model,
                 SupportsEmbedding = false
@@ -236,6 +269,32 @@ public sealed class ModelConfigCommandService : IModelConfigCommandService
         {
             yield return new ModelConfigPromptTestStreamEvent("error", streamError);
         }
+    }
+
+    private async Task<string> ResolveEffectiveApiKeyAsync(
+        TenantId tenantId,
+        long? modelConfigId,
+        string? incomingApiKey,
+        CancellationToken cancellationToken)
+    {
+        if (!string.IsNullOrWhiteSpace(incomingApiKey))
+        {
+            return incomingApiKey;
+        }
+
+        if (!modelConfigId.HasValue)
+        {
+            throw new BusinessException("ApiKey 不能为空。", ErrorCodes.ValidationError);
+        }
+
+        var entity = await _repository.FindByIdAsync(tenantId, modelConfigId.Value, cancellationToken)
+            ?? throw new BusinessException("模型配置不存在。", ErrorCodes.NotFound);
+        if (string.IsNullOrWhiteSpace(entity.ApiKey))
+        {
+            throw new BusinessException("已保存的 ApiKey 为空，请先填写并保存。", ErrorCodes.ValidationError);
+        }
+
+        return entity.ApiKey;
     }
 
     private sealed class ReasoningStreamSplitter

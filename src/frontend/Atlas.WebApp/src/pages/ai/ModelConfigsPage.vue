@@ -727,6 +727,7 @@ async function handleTestConnection() {
   testResult.value = null;
   try {
     testResult.value = await testModelConfigConnection({
+      modelConfigId: editingId.value ?? undefined,
       providerType: form.providerType,
       apiKey: form.apiKey,
       baseUrl: form.baseUrl,
@@ -762,6 +763,7 @@ async function handlePromptStreamTest() {
   promptTesting.value = true;
 
   const payload: ModelConfigPromptTestRequest = {
+    modelConfigId: editingId.value ?? undefined,
     providerType: form.providerType,
     apiKey: form.apiKey,
     baseUrl: form.baseUrl,

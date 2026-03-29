@@ -28,12 +28,14 @@ public sealed record ModelConfigUpdateRequest(
     bool SupportsEmbedding);
 
 public sealed record ModelConfigTestRequest(
+    long? ModelConfigId,
     string ProviderType,
     string ApiKey,
     string BaseUrl,
     string Model);
 
 public sealed record ModelConfigPromptTestRequest(
+    long? ModelConfigId,
     string ProviderType,
     string ApiKey,
     string BaseUrl,

@@ -33,6 +33,7 @@ export interface ModelConfigUpdateRequest {
 }
 
 export interface ModelConfigTestRequest {
+  modelConfigId?: number;
   providerType: string;
   apiKey: string;
   baseUrl: string;

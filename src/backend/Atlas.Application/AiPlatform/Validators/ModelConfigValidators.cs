@@ -30,7 +30,7 @@ public sealed class ModelConfigUpdateRequestValidator : AbstractValidator<ModelC
     public ModelConfigUpdateRequestValidator(IStringLocalizer<Messages> localizer)
     {
         RuleFor(x => x.Name).NotEmpty().MaximumLength(128);
-        RuleFor(x => x.ApiKey).NotEmpty().MaximumLength(4096);
+        RuleFor(x => x.ApiKey).MaximumLength(4096);
         RuleFor(x => x.BaseUrl).NotEmpty().MaximumLength(512).Must(IsValidAbsoluteUrl).WithMessage(localizer["ModelConfigBaseUrlInvalid"].Value);
         RuleFor(x => x.DefaultModel).NotEmpty().MaximumLength(256);
     }
@@ -44,7 +44,10 @@ public sealed class ModelConfigTestRequestValidator : AbstractValidator<ModelCon
     public ModelConfigTestRequestValidator(IStringLocalizer<Messages> localizer)
     {
         RuleFor(x => x.ProviderType).NotEmpty().MaximumLength(64);
-        RuleFor(x => x.ApiKey).NotEmpty().MaximumLength(4096);
+        RuleFor(x => x.ApiKey).MaximumLength(4096);
+        RuleFor(x => x)
+            .Must(x => !string.IsNullOrWhiteSpace(x.ApiKey) || x.ModelConfigId.HasValue)
+            .WithMessage("ApiKey 不能为空（编辑测试可传 modelConfigId 复用已保存 Key）");
         RuleFor(x => x.BaseUrl).NotEmpty().MaximumLength(512).Must(IsValidAbsoluteUrl).WithMessage(localizer["ModelConfigBaseUrlInvalid"].Value);
         RuleFor(x => x.Model).NotEmpty().MaximumLength(256);
     }
@@ -58,7 +61,10 @@ public sealed class ModelConfigPromptTestRequestValidator : AbstractValidator<Mo
     public ModelConfigPromptTestRequestValidator(IStringLocalizer<Messages> localizer)
     {
         RuleFor(x => x.ProviderType).NotEmpty().MaximumLength(64);
-        RuleFor(x => x.ApiKey).NotEmpty().MaximumLength(4096);
+        RuleFor(x => x.ApiKey).MaximumLength(4096);
+        RuleFor(x => x)
+            .Must(x => !string.IsNullOrWhiteSpace(x.ApiKey) || x.ModelConfigId.HasValue)
+            .WithMessage("ApiKey 不能为空（编辑测试可传 modelConfigId 复用已保存 Key）");
         RuleFor(x => x.BaseUrl).NotEmpty().MaximumLength(512).Must(IsValidAbsoluteUrl).WithMessage(localizer["ModelConfigBaseUrlInvalid"].Value);
         RuleFor(x => x.Model).NotEmpty().MaximumLength(256);
         RuleFor(x => x.Prompt).NotEmpty().MaximumLength(4000);
