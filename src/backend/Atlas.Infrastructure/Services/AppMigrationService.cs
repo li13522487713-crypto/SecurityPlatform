@@ -63,10 +63,12 @@ public sealed class AppMigrationService : IAppMigrationService
         AppMigrationTaskCreateRequest request,
         CancellationToken cancellationToken = default)
     {
-        var dataSourceId = await ResolveDataSourceIdAsync(tenantId, request.AppInstanceId, cancellationToken);
+        var dataSourceId = await ResolveDataSourceIdAsync(tenantId, userId, request.AppInstanceId, cancellationToken);
         if (dataSourceId <= 0)
         {
-            throw new BusinessException(ErrorCodes.ValidationError, "应用实例未绑定主数据源，无法创建迁移任务。");
+            throw new BusinessException(
+                ErrorCodes.ValidationError,
+                $"应用实例未绑定可用数据源，无法创建迁移任务。AppInstanceId={request.AppInstanceId}");
         }
 
         var now = DateTimeOffset.UtcNow;
@@ -557,16 +559,108 @@ public sealed class AppMigrationService : IAppMigrationService
         return new AppMigrationActionResult(true, task.Id.ToString(), task.Status, "已回切到主库");
     }
 
-    private async Task<long> ResolveDataSourceIdAsync(TenantId tenantId, long appInstanceId, CancellationToken cancellationToken)
+    private async Task<long> ResolveDataSourceIdAsync(
+        TenantId tenantId,
+        long userId,
+        long appInstanceId,
+        CancellationToken cancellationToken)
     {
         var binding = await _mainDb.Queryable<TenantAppDataSourceBinding>()
             .Where(x =>
                 x.TenantIdValue == tenantId.Value
                 && x.TenantAppInstanceId == appInstanceId
-                && x.IsActive
+                && x.DataSourceId > 0)
+            .OrderByDescending(x => x.IsActive)
+            .OrderBy(x => x.BindingType)
+            .OrderByDescending(x => x.UpdatedAt ?? x.BoundAt)
+            .FirstAsync(cancellationToken);
+        if (binding?.DataSourceId > 0)
+        {
+            await EnsurePrimaryBindingAsync(tenantId, userId, appInstanceId, binding.DataSourceId, cancellationToken);
+            return binding.DataSourceId;
+        }
+
+        var appDataSourceId = await _mainDb.Queryable<LowCodeApp>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.Id == appInstanceId)
+            .Select(x => x.DataSourceId)
+            .FirstAsync(cancellationToken);
+        if (appDataSourceId.HasValue && appDataSourceId.Value > 0)
+        {
+            await EnsurePrimaryBindingAsync(tenantId, userId, appInstanceId, appDataSourceId.Value, cancellationToken);
+            return appDataSourceId.Value;
+        }
+
+        var tenantAppDataSourceId = await _mainDb.Queryable<TenantApplication>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.AppInstanceId == appInstanceId)
+            .Select(x => x.DataSourceId)
+            .FirstAsync(cancellationToken);
+        if (tenantAppDataSourceId.HasValue && tenantAppDataSourceId.Value > 0)
+        {
+            await EnsurePrimaryBindingAsync(tenantId, userId, appInstanceId, tenantAppDataSourceId.Value, cancellationToken);
+            return tenantAppDataSourceId.Value;
+        }
+
+        var appKey = await _mainDb.Queryable<LowCodeApp>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.Id == appInstanceId)
+            .Select(x => x.AppKey)
+            .FirstAsync(cancellationToken);
+        if (!string.IsNullOrWhiteSpace(appKey))
+        {
+            var manifestDataSourceId = await _mainDb.Queryable<AppManifest>()
+                .Where(x => x.TenantIdValue == tenantId.Value && x.AppKey == appKey)
+                .Select(x => x.DataSourceId)
+                .FirstAsync(cancellationToken);
+            if (manifestDataSourceId.HasValue && manifestDataSourceId.Value > 0)
+            {
+                await EnsurePrimaryBindingAsync(tenantId, userId, appInstanceId, manifestDataSourceId.Value, cancellationToken);
+                return manifestDataSourceId.Value;
+            }
+        }
+
+        return 0;
+    }
+
+    private async Task EnsurePrimaryBindingAsync(
+        TenantId tenantId,
+        long userId,
+        long appInstanceId,
+        long dataSourceId,
+        CancellationToken cancellationToken)
+    {
+        var existingPrimary = await _mainDb.Queryable<TenantAppDataSourceBinding>()
+            .Where(x =>
+                x.TenantIdValue == tenantId.Value
+                && x.TenantAppInstanceId == appInstanceId
                 && x.BindingType == TenantAppDataSourceBindingType.Primary)
             .FirstAsync(cancellationToken);
-        return binding?.DataSourceId ?? 0;
+        if (existingPrimary is null)
+        {
+            var now = DateTimeOffset.UtcNow;
+            var newBinding = new TenantAppDataSourceBinding(
+                tenantId,
+                appInstanceId,
+                dataSourceId,
+                TenantAppDataSourceBindingType.Primary,
+                userId,
+                _idGeneratorAccessor.NextId(),
+                now,
+                "迁移任务创建时自动补齐主数据源绑定");
+            await _mainDb.Insertable(newBinding).ExecuteCommandAsync(cancellationToken);
+            return;
+        }
+
+        if (!existingPrimary.IsActive || existingPrimary.DataSourceId != dataSourceId)
+        {
+            existingPrimary.Rebind(
+                dataSourceId,
+                TenantAppDataSourceBindingType.Primary,
+                userId,
+                DateTimeOffset.UtcNow,
+                "迁移任务创建时自动修复主数据源绑定");
+            await _mainDb.Updateable(existingPrimary)
+                .Where(x => x.Id == existingPrimary.Id && x.TenantIdValue == tenantId.Value)
+                .ExecuteCommandAsync(cancellationToken);
+        }
     }
 
     private async Task<AppMigrationTask?> FindTaskAsync(TenantId tenantId, long taskId, CancellationToken cancellationToken)

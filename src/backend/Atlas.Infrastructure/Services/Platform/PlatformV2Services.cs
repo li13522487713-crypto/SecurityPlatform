@@ -30,10 +30,14 @@ namespace Atlas.Infrastructure.Services.Platform;
 
 public sealed class ApplicationCatalogQueryService : IApplicationCatalogQueryService
 {
+    private readonly ISqlSugarClient _db;
     private readonly IAppManifestQueryService _appManifestQueryService;
 
-    public ApplicationCatalogQueryService(IAppManifestQueryService appManifestQueryService)
+    public ApplicationCatalogQueryService(
+        ISqlSugarClient db,
+        IAppManifestQueryService appManifestQueryService)
     {
+        _db = db;
         _appManifestQueryService = appManifestQueryService;
     }
 
@@ -52,6 +56,19 @@ public sealed class ApplicationCatalogQueryService : IApplicationCatalogQuerySer
             category,
             appKey,
             cancellationToken);
+        var catalogIds = result.Items
+            .Select(item => long.TryParse(item.Id, out var parsedId) ? parsedId : 0)
+            .Where(idValue => idValue > 0)
+            .Distinct()
+            .ToArray();
+        var boundCatalogIds = catalogIds.Length == 0
+            ? new HashSet<long>()
+            : (await _db.Queryable<TenantApplication>()
+                .Where(item => item.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(catalogIds, item.CatalogId))
+                .Select(item => item.CatalogId)
+                .Distinct()
+                .ToListAsync(cancellationToken))
+                .ToHashSet();
         var items = result.Items
             .Select(item => new ApplicationCatalogListItem(
                 item.Id,
@@ -62,7 +79,8 @@ public sealed class ApplicationCatalogQueryService : IApplicationCatalogQuerySer
                 item.Description,
                 item.Category,
                 item.Icon,
-                item.PublishedAt))
+                item.PublishedAt,
+                long.TryParse(item.Id, out var catalogId) && boundCatalogIds.Contains(catalogId)))
             .ToArray();
 
         return new PagedResult<ApplicationCatalogListItem>(items, result.Total, result.PageIndex, result.PageSize);
@@ -78,6 +96,12 @@ public sealed class ApplicationCatalogQueryService : IApplicationCatalogQuerySer
         {
             return null;
         }
+        var isBound = await _db.Queryable<TenantApplication>()
+            .AnyAsync(row => row.TenantIdValue == tenantId.Value && row.CatalogId == id, cancellationToken);
+        var dataSourceId = await _db.Queryable<AppManifest>()
+            .Where(row => row.TenantIdValue == tenantId.Value && row.Id == id)
+            .Select(row => row.DataSourceId)
+            .FirstAsync(cancellationToken);
 
         return new ApplicationCatalogDetail(
             item.Id,
@@ -89,7 +113,126 @@ public sealed class ApplicationCatalogQueryService : IApplicationCatalogQuerySer
             item.Category,
             item.Icon,
             item.PublishedAt,
-            null);
+            dataSourceId?.ToString(),
+            isBound);
+    }
+}
+
+public sealed class ApplicationCatalogCommandService : IApplicationCatalogCommandService
+{
+    private readonly ISqlSugarClient _db;
+    private readonly IAppReleaseCommandService _appReleaseCommandService;
+
+    public ApplicationCatalogCommandService(
+        ISqlSugarClient db,
+        IAppReleaseCommandService appReleaseCommandService)
+    {
+        _db = db;
+        _appReleaseCommandService = appReleaseCommandService;
+    }
+
+    public async Task UpdateAsync(
+        TenantId tenantId,
+        long userId,
+        long id,
+        ApplicationCatalogUpdateRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var name = request.Name?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            throw new BusinessException(ErrorCodes.ValidationError, "目录名称不能为空。");
+        }
+
+        var catalog = await _db.Queryable<AppManifest>()
+            .FirstAsync(row => row.TenantIdValue == tenantId.Value && row.Id == id, cancellationToken);
+        if (catalog is null)
+        {
+            throw new BusinessException(ErrorCodes.NotFound, "应用目录不存在。");
+        }
+
+        catalog.Update(
+            name,
+            request.Description?.Trim(),
+            request.Category?.Trim(),
+            request.Icon?.Trim(),
+            catalog.DataSourceId,
+            userId,
+            DateTimeOffset.UtcNow);
+        await _db.Updateable(catalog)
+            .Where(row => row.Id == catalog.Id && row.TenantIdValue == tenantId.Value)
+            .ExecuteCommandAsync(cancellationToken);
+    }
+
+    public async Task PublishAsync(
+        TenantId tenantId,
+        long userId,
+        long id,
+        ApplicationCatalogPublishRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var exists = await _db.Queryable<AppManifest>()
+            .AnyAsync(row => row.TenantIdValue == tenantId.Value && row.Id == id, cancellationToken);
+        if (!exists)
+        {
+            throw new BusinessException(ErrorCodes.NotFound, "应用目录不存在。");
+        }
+
+        await _appReleaseCommandService.CreateReleaseAsync(
+            tenantId,
+            userId,
+            id,
+            request.ReleaseNote,
+            cancellationToken);
+    }
+
+    public async Task UpdateDataSourceAsync(
+        TenantId tenantId,
+        long userId,
+        long id,
+        ApplicationCatalogDataSourceUpdateRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (!long.TryParse(request.DataSourceId, out var dataSourceId) || dataSourceId <= 0)
+        {
+            throw new BusinessException(ErrorCodes.ValidationError, "数据源ID必须大于0。");
+        }
+
+        var catalog = await _db.Queryable<AppManifest>()
+            .FirstAsync(row => row.TenantIdValue == tenantId.Value && row.Id == id, cancellationToken);
+        if (catalog is null)
+        {
+            throw new BusinessException(ErrorCodes.NotFound, "应用目录不存在。");
+        }
+
+        var hasBinding = await _db.Queryable<TenantApplication>()
+            .AnyAsync(row => row.TenantIdValue == tenantId.Value && row.CatalogId == id, cancellationToken);
+        if (hasBinding)
+        {
+            throw new BusinessException(ErrorCodes.Conflict, "应用目录已绑定租户应用，仅未绑定目录允许修改数据源。");
+        }
+
+        var tenantIdText = tenantId.Value.ToString("D");
+        var dataSourceExists = await _db.Queryable<TenantDataSource>()
+            .AnyAsync(
+                row => row.TenantIdValue == tenantIdText && row.Id == dataSourceId && row.IsActive,
+                cancellationToken);
+        if (!dataSourceExists)
+        {
+            throw new BusinessException(ErrorCodes.ValidationError, "目标数据源不存在或未启用。");
+        }
+
+        catalog.Update(
+            catalog.Name,
+            catalog.Description,
+            catalog.Category,
+            catalog.Icon,
+            dataSourceId,
+            userId,
+            DateTimeOffset.UtcNow);
+        await _db.Updateable(catalog)
+            .Where(row => row.Id == catalog.Id && row.TenantIdValue == tenantId.Value)
+            .ExecuteCommandAsync(cancellationToken);
     }
 }
 

@@ -33,3 +33,36 @@ X-Tenant-Id: {{tenantId}}
 GET {{baseUrl}}/api/v2/application-catalogs/1
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
+
+### 修改目录数据源（仅未绑定目录可修改）
+PUT {{baseUrl}}/api/v2/application-catalogs/1/datasource
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "dataSourceId": "1"
+}
+
+### 编辑目录信息
+PUT {{baseUrl}}/api/v2/application-catalogs/1
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "name": "E2E Workspace App",
+  "description": "更新后的目录描述",
+  "category": "E2E",
+  "icon": "appstore"
+}
+
+### 发布目录
+POST {{baseUrl}}/api/v2/application-catalogs/1/publish
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+
+{
+  "releaseNote": "发布目录版本"
+}

@@ -1,5 +1,6 @@
 using Atlas.Application.Platform.Abstractions;
 using Atlas.Application.Platform.Models;
+using Atlas.Core.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.WebApi.Authorization;
@@ -14,13 +15,19 @@ namespace Atlas.WebApi.Controllers;
 public sealed class ApplicationCatalogsV2Controller : ControllerBase
 {
     private readonly IApplicationCatalogQueryService _queryService;
+    private readonly IApplicationCatalogCommandService _commandService;
+    private readonly ICurrentUserAccessor _currentUserAccessor;
     private readonly ITenantProvider _tenantProvider;
 
     public ApplicationCatalogsV2Controller(
         IApplicationCatalogQueryService queryService,
+        IApplicationCatalogCommandService commandService,
+        ICurrentUserAccessor currentUserAccessor,
         ITenantProvider tenantProvider)
     {
         _queryService = queryService;
+        _commandService = commandService;
+        _currentUserAccessor = currentUserAccessor;
         _tenantProvider = tenantProvider;
     }
 
@@ -52,5 +59,64 @@ public sealed class ApplicationCatalogsV2Controller : ControllerBase
         }
 
         return Ok(ApiResponse<ApplicationCatalogDetail>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPut("{id:long}/datasource")]
+    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
+    public async Task<ActionResult<ApiResponse<object>>> UpdateDataSource(
+        long id,
+        [FromBody] ApplicationCatalogDataSourceUpdateRequest request,
+        CancellationToken cancellationToken)
+    {
+        var currentUser = _currentUserAccessor.GetCurrentUser();
+        if (currentUser is null)
+        {
+            return Unauthorized(ApiResponse<object>.Fail(ErrorCodes.Unauthorized, "未登录", HttpContext.TraceIdentifier));
+        }
+
+        var tenantId = _tenantProvider.GetTenantId();
+        await _commandService.UpdateDataSourceAsync(tenantId, currentUser.UserId, id, request, cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPut("{id:long}")]
+    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
+    public async Task<ActionResult<ApiResponse<object>>> Update(
+        long id,
+        [FromBody] ApplicationCatalogUpdateRequest request,
+        CancellationToken cancellationToken)
+    {
+        var currentUser = _currentUserAccessor.GetCurrentUser();
+        if (currentUser is null)
+        {
+            return Unauthorized(ApiResponse<object>.Fail(ErrorCodes.Unauthorized, "未登录", HttpContext.TraceIdentifier));
+        }
+
+        var tenantId = _tenantProvider.GetTenantId();
+        await _commandService.UpdateAsync(tenantId, currentUser.UserId, id, request, cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost("{id:long}/publish")]
+    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
+    public async Task<ActionResult<ApiResponse<object>>> Publish(
+        long id,
+        [FromBody] ApplicationCatalogPublishRequest? request,
+        CancellationToken cancellationToken)
+    {
+        var currentUser = _currentUserAccessor.GetCurrentUser();
+        if (currentUser is null)
+        {
+            return Unauthorized(ApiResponse<object>.Fail(ErrorCodes.Unauthorized, "未登录", HttpContext.TraceIdentifier));
+        }
+
+        var tenantId = _tenantProvider.GetTenantId();
+        await _commandService.PublishAsync(
+            tenantId,
+            currentUser.UserId,
+            id,
+            request ?? new ApplicationCatalogPublishRequest(null),
+            cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
     }
 }

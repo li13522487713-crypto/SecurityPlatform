@@ -74,6 +74,28 @@ public interface IApplicationCatalogQueryService
     Task<ApplicationCatalogDetail?> GetByIdAsync(TenantId tenantId, long id, CancellationToken cancellationToken = default);
 }
 
+public interface IApplicationCatalogCommandService
+{
+    Task UpdateAsync(
+        TenantId tenantId,
+        long userId,
+        long id,
+        ApplicationCatalogUpdateRequest request,
+        CancellationToken cancellationToken = default);
+    Task PublishAsync(
+        TenantId tenantId,
+        long userId,
+        long id,
+        ApplicationCatalogPublishRequest request,
+        CancellationToken cancellationToken = default);
+    Task UpdateDataSourceAsync(
+        TenantId tenantId,
+        long userId,
+        long id,
+        ApplicationCatalogDataSourceUpdateRequest request,
+        CancellationToken cancellationToken = default);
+}
+
 public interface ITenantApplicationQueryService
 {
     Task<PagedResult<TenantApplicationListItem>> QueryAsync(

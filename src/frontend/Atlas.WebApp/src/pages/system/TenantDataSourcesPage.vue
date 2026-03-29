@@ -4,6 +4,7 @@
       <a-space>
         <a-button type="primary" :disabled="!canManage" @click="openCreate">{{ t("datasource.create") }}</a-button>
         <a-button :loading="loading" @click="loadData">{{ t("common.refresh") }}</a-button>
+        <a-button :disabled="!canViewMigration" @click="goAppMigrations">{{ t("route.consoleAppDbMigrations") }}</a-button>
       </a-space>
     </div>
 
@@ -118,6 +119,7 @@ onUnmounted(() => { isMounted.value = false; });
 import type { FormInstance, Rule } from "ant-design-vue/es/form";
 import { message } from "ant-design-vue";
 import { useI18n } from "vue-i18n";
+import { useRouter } from "vue-router";
 import {
   createTenantDataSource,
   deleteTenantDataSource,
@@ -136,7 +138,9 @@ import AdvancedDataPreviewDrawer from "./AdvancedDataPreviewDrawer.vue";
 
 const profile = getAuthProfile();
 const canManage = computed(() => hasPermission(profile, "system:admin"));
+const canViewMigration = computed(() => hasPermission(profile, "apps:view"));
 const { t } = useI18n();
+const router = useRouter();
 
 const loading = ref(false);
 const saving = ref(false);
@@ -326,6 +330,10 @@ const handleDelete = async (id: string) => {
   } catch (error) {
     message.error(error instanceof Error ? error.message : t("common.failed"));
   }
+};
+
+const goAppMigrations = () => {
+  void router.push("/console/app-db-migrations");
 };
 
 const handleTestById = async (record: TenantDataSourceDto) => {

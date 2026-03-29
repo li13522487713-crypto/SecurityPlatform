@@ -23,6 +23,7 @@ public static class PlatformServiceRegistration
         services.AddScoped<IPlatformQueryService, PlatformQueryService>();
         services.AddScoped<IAppManifestQueryService, AppManifestQueryService>();
         services.AddScoped<IApplicationCatalogQueryService, ApplicationCatalogQueryService>();
+        services.AddScoped<IApplicationCatalogCommandService, ApplicationCatalogCommandService>();
         services.AddScoped<ITenantApplicationQueryService, TenantApplicationQueryService>();
         services.AddScoped<IAppManifestCommandService, AppManifestCommandService>();
         services.AddScoped<IAppReleaseCommandService, AppReleaseCommandService>();

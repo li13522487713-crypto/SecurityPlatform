@@ -24,6 +24,7 @@ export interface ApplicationCatalogListItem {
   category?: string;
   icon?: string;
   publishedAt?: string;
+  isBound: boolean;
 }
 
 export interface ApplicationCatalogDetail extends ApplicationCatalogListItem {

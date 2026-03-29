@@ -11,7 +11,8 @@ public sealed record ApplicationCatalogListItem(
     string? Description,
     string? Category,
     string? Icon,
-    string? PublishedAt);
+    string? PublishedAt,
+    bool IsBound);
 
 public sealed record ApplicationCatalogDetail(
     string Id,
@@ -23,7 +24,20 @@ public sealed record ApplicationCatalogDetail(
     string? Category,
     string? Icon,
     string? PublishedAt,
-    string? DataSourceId);
+    string? DataSourceId,
+    bool IsBound);
+
+public sealed record ApplicationCatalogDataSourceUpdateRequest(
+    string DataSourceId);
+
+public sealed record ApplicationCatalogUpdateRequest(
+    string Name,
+    string? Description,
+    string? Category,
+    string? Icon);
+
+public sealed record ApplicationCatalogPublishRequest(
+    string? ReleaseNote);
 
 public sealed record TenantApplicationListItem(
     string Id,
