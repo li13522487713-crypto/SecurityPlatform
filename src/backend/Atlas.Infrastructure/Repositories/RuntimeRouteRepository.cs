@@ -1,18 +1,23 @@
 using Atlas.Application.Platform.Repositories;
 using Atlas.Core.Tenancy;
+using Atlas.Domain.LowCode.Entities;
 using Atlas.Domain.Platform.Entities;
+using Atlas.Infrastructure.Services;
 using SqlSugar;
 
 namespace Atlas.Infrastructure.Repositories;
 
 public sealed class RuntimeRouteRepository : IRuntimeRouteRepository
 {
-    private readonly ISqlSugarClient _db;
+    private readonly ISqlSugarClient _mainDb;
+    private readonly IAppDbScopeFactory _appDbScopeFactory;
 
-    public RuntimeRouteRepository(ISqlSugarClient db)
+    public RuntimeRouteRepository(ISqlSugarClient db, IAppDbScopeFactory appDbScopeFactory)
     {
-        _db = db;
+        _mainDb = db;
+        _appDbScopeFactory = appDbScopeFactory;
     }
+    public RuntimeRouteRepository(ISqlSugarClient db) : this(db, new MainOnlyAppDbScopeFactory(db)) { }
 
     public async Task<RuntimeRoute?> GetByAppAndPageKeyAsync(
         TenantId tenantId,
@@ -20,7 +25,8 @@ public sealed class RuntimeRouteRepository : IRuntimeRouteRepository
         string pageKey,
         CancellationToken cancellationToken = default)
     {
-        return await _db.Queryable<RuntimeRoute>()
+        var db = await ResolveDbByAppKeyAsync(tenantId, appKey, cancellationToken);
+        return await db.Queryable<RuntimeRoute>()
             .FirstAsync(x =>
                 x.TenantIdValue == tenantId.Value &&
                 x.AppKey == appKey &&
@@ -30,7 +36,9 @@ public sealed class RuntimeRouteRepository : IRuntimeRouteRepository
 
     public async Task UpsertAsync(RuntimeRoute route, CancellationToken cancellationToken = default)
     {
-        var existing = await _db.Queryable<RuntimeRoute>()
+        var tenantId = new TenantId(route.TenantIdValue);
+        var db = await ResolveDbByAppKeyAsync(tenantId, route.AppKey, cancellationToken);
+        var existing = await db.Queryable<RuntimeRoute>()
             .FirstAsync(x =>
                 x.TenantIdValue == route.TenantIdValue &&
                 x.AppKey == route.AppKey &&
@@ -39,7 +47,7 @@ public sealed class RuntimeRouteRepository : IRuntimeRouteRepository
 
         if (existing is null)
         {
-            await _db.Insertable(route).ExecuteCommandAsync(cancellationToken);
+            await db.Insertable(route).ExecuteCommandAsync(cancellationToken);
             return;
         }
 
@@ -53,6 +61,19 @@ public sealed class RuntimeRouteRepository : IRuntimeRouteRepository
             existing.Disable();
         }
 
-        await _db.Updateable(existing).ExecuteCommandAsync(cancellationToken);
+        await db.Updateable(existing).ExecuteCommandAsync(cancellationToken);
+    }
+
+    private async Task<ISqlSugarClient> ResolveDbByAppKeyAsync(TenantId tenantId, string appKey, CancellationToken cancellationToken)
+    {
+        var app = await _mainDb.Queryable<LowCodeApp>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.AppKey == appKey)
+            .FirstAsync(cancellationToken);
+        if (app is not null && app.Id > 0)
+        {
+            return await _appDbScopeFactory.GetAppClientAsync(tenantId, app.Id, cancellationToken);
+        }
+
+        return _mainDb;
     }
 }

@@ -9,6 +9,7 @@ using Atlas.Core.Tenancy;
 using Atlas.Domain.LowCode.Entities;
 using Atlas.Domain.LowCode.Enums;
 using Atlas.Domain.Platform.Entities;
+using Atlas.Infrastructure.Services;
 using SqlSugar;
 using System.IO.Compression;
 using System.Security.Cryptography;
@@ -20,13 +21,23 @@ namespace Atlas.Infrastructure.Services.Governance;
 public sealed class PackageService : IPackageService
 {
     private readonly ISqlSugarClient _db;
+    private readonly IAppDbScopeFactory _appDbScopeFactory;
     private readonly IIdGeneratorAccessor _idGenerator;
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
-    public PackageService(ISqlSugarClient db, IIdGeneratorAccessor idGenerator)
+    public PackageService(
+        ISqlSugarClient db,
+        IAppDbScopeFactory appDbScopeFactory,
+        IIdGeneratorAccessor idGenerator)
     {
         _db = db;
+        _appDbScopeFactory = appDbScopeFactory;
         _idGenerator = idGenerator;
+    }
+
+    public PackageService(ISqlSugarClient db, IIdGeneratorAccessor idGenerator)
+        : this(db, new MainOnlyAppDbScopeFactory(db), idGenerator)
+    {
     }
 
     public async Task<PackageOperationResponse> ExportAsync(TenantId tenantId, long userId, PackageExportRequest request, CancellationToken cancellationToken = default)
@@ -39,8 +50,9 @@ public sealed class PackageService : IPackageService
         var manifest = await _db.Queryable<AppManifest>().FirstAsync(x => x.Id == manifestId, cancellationToken)
             ?? throw new BusinessException(ErrorCodes.NotFound, "应用清单不存在。");
         var releases = await _db.Queryable<AppRelease>().Where(x => x.ManifestId == manifestId).ToListAsync(cancellationToken);
-        var routes = await _db.Queryable<RuntimeRoute>().Where(x => x.ManifestId == manifestId).ToListAsync(cancellationToken);
         var lowCodeApp = await _db.Queryable<LowCodeApp>().FirstAsync(x => x.AppKey == manifest.AppKey, cancellationToken);
+        var runtimeDb = await ResolveRuntimeDbByAppKeyAsync(tenantId, manifest.AppKey, cancellationToken);
+        var routes = await runtimeDb.Queryable<RuntimeRoute>().Where(x => x.ManifestId == manifestId).ToListAsync(cancellationToken);
         var pages = lowCodeApp is null
             ? new List<LowCodePage>()
             : await _db.Queryable<LowCodePage>().Where(x => x.AppId == lowCodeApp.Id).ToListAsync(cancellationToken);
@@ -166,8 +178,8 @@ public sealed class PackageService : IPackageService
         }
 
         await ImportReleasesAsync(targetManifestId, payload.Releases, conflictPolicy, tenantId, userId, cancellationToken);
-        await ImportRuntimeRoutesAsync(targetManifestId, targetAppKey, payload.Routes, conflictPolicy, tenantId, cancellationToken);
         await ImportLowCodeAppAndPagesAsync(targetAppKey, payload.LowCodeApp, payload.Pages, conflictPolicy, tenantId, userId, cancellationToken);
+        await ImportRuntimeRoutesAsync(targetManifestId, targetAppKey, payload.Routes, conflictPolicy, tenantId, cancellationToken);
 
         var entity = new PackageArtifact(
             tenantId,
@@ -246,7 +258,8 @@ public sealed class PackageService : IPackageService
             return;
         }
 
-        var existingRoutes = await _db.Queryable<RuntimeRoute>()
+        var runtimeDb = await ResolveRuntimeDbByAppKeyAsync(tenantId, appKey, cancellationToken);
+        var existingRoutes = await runtimeDb.Queryable<RuntimeRoute>()
             .Where(x => x.AppKey == appKey)
             .ToListAsync(cancellationToken);
         var routeByPageKey = existingRoutes
@@ -312,13 +325,28 @@ public sealed class PackageService : IPackageService
 
         if (toInsert.Count > 0)
         {
-            await _db.Insertable(toInsert).ExecuteCommandAsync(cancellationToken);
+            await runtimeDb.Insertable(toInsert).ExecuteCommandAsync(cancellationToken);
         }
 
         if (toUpdate.Count > 0)
         {
-            await _db.Updateable(toUpdate).ExecuteCommandAsync(cancellationToken);
+            await runtimeDb.Updateable(toUpdate).ExecuteCommandAsync(cancellationToken);
         }
+    }
+
+    private async Task<ISqlSugarClient> ResolveRuntimeDbByAppKeyAsync(
+        TenantId tenantId,
+        string appKey,
+        CancellationToken cancellationToken)
+    {
+        var app = await _db.Queryable<LowCodeApp>()
+            .FirstAsync(x => x.TenantIdValue == tenantId.Value && x.AppKey == appKey, cancellationToken);
+        if (app is not null && app.Id > 0)
+        {
+            return await _appDbScopeFactory.GetAppClientAsync(tenantId, app.Id, cancellationToken);
+        }
+
+        return _db;
     }
 
     private async Task ImportLowCodeAppAndPagesAsync(

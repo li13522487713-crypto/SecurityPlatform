@@ -1,6 +1,7 @@
 using Atlas.Core.Tenancy;
 using Atlas.Domain.DynamicTables.Entities;
 using Atlas.Domain.Platform.Entities;
+using Atlas.Domain.System.Entities;
 using SqlSugar;
 
 namespace Atlas.Infrastructure.Services;
@@ -37,6 +38,10 @@ public sealed class AppDatabaseProvisioningService
             typeof(AppRolePermission),
             typeof(AppPermission),
             typeof(AppRolePage),
-            typeof(RuntimeRoute));
+            typeof(AppDepartment),
+            typeof(AppPosition),
+            typeof(AppProject),
+            typeof(RuntimeRoute),
+            typeof(AppDatabaseSchemaVersion));
     }
 }

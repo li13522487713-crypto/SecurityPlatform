@@ -2,6 +2,8 @@ using Atlas.Application.System.Abstractions;
 using Atlas.Core.Exceptions;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
+using Atlas.Domain.DynamicTables.Entities;
+using Atlas.Domain.Platform.Entities;
 using Atlas.Domain.System.Entities;
 using SqlSugar;
 
@@ -55,7 +57,37 @@ public sealed class AppDbScopeFactory : IAppDbScopeFactory
 
         var db = new SqlSugarClient(config);
         db.QueryFilter.AddTableFilter<Atlas.Core.Abstractions.TenantEntity>(it => it.TenantIdValue == tenantId.Value);
+        EnsureAppSchema(db);
         return db;
+    }
+
+    private static void EnsureAppSchema(ISqlSugarClient db)
+    {
+        // 应用数据面首次切换到新库（或缓存命中空库）时，兜底创建必需表，避免 no such table 异常。
+        if (db.DbMaintenance.IsAnyTable("DynamicTable", false))
+        {
+            return;
+        }
+
+        db.CodeFirst.InitTables(
+            typeof(DynamicTable),
+            typeof(DynamicField),
+            typeof(DynamicIndex),
+            typeof(DynamicRelation),
+            typeof(FieldPermission),
+            typeof(MigrationRecord),
+            typeof(DynamicSchemaMigration),
+            typeof(AppMember),
+            typeof(AppRole),
+            typeof(AppUserRole),
+            typeof(AppRolePermission),
+            typeof(AppPermission),
+            typeof(AppRolePage),
+            typeof(AppDepartment),
+            typeof(AppPosition),
+            typeof(AppProject),
+            typeof(RuntimeRoute),
+            typeof(AppDatabaseSchemaVersion));
     }
 
     private static DbType MapDbType(string? dbType)

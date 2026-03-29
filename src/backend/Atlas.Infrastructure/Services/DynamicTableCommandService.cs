@@ -13,6 +13,7 @@ using Atlas.Domain.DynamicTables.Entities;
 using Atlas.Domain.DynamicTables.Enums;
 using Atlas.Infrastructure.DynamicTables;
 using Atlas.Infrastructure.Services;
+using Microsoft.Extensions.DependencyInjection;
 using SqlSugar;
 using System.Text.RegularExpressions;
 
@@ -49,6 +50,7 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
     private readonly IAppContextAccessor _appContextAccessor;
     private readonly IApprovalRuntimeCommandService? _approvalRuntimeService;
 
+    [ActivatorUtilitiesConstructor]
     public DynamicTableCommandService(
         IDynamicTableRepository tableRepository,
         IDynamicFieldRepository fieldRepository,
@@ -86,7 +88,7 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
         IDynamicRecordRepository recordRepository,
         IDynamicSchemaMigrationRepository? migrationRepository,
         IIdGeneratorAccessor idGeneratorAccessor,
-        ISqlSugarClient db,
+        SqlSugarClient db,
         TimeProvider timeProvider,
         IAppContextAccessor appContextAccessor,
         IApprovalRuntimeCommandService? approvalRuntimeService = null)

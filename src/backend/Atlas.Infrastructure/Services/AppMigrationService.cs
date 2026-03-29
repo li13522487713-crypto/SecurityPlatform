@@ -5,6 +5,7 @@ using Atlas.Core.Exceptions;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.DynamicTables.Entities;
+using Atlas.Domain.LowCode.Entities;
 using Atlas.Domain.Platform.Entities;
 using Atlas.Domain.System.Entities;
 using SqlSugar;
@@ -13,6 +14,28 @@ namespace Atlas.Infrastructure.Services;
 
 public sealed class AppMigrationService : IAppMigrationService
 {
+    private static readonly string[] RequiredAppSchemaTables =
+    {
+        "DynamicTable",
+        "DynamicField",
+        "DynamicIndex",
+        "DynamicRelation",
+        "FieldPermission",
+        "MigrationRecord",
+        "DynamicSchemaMigration",
+        "AppMember",
+        "AppRole",
+        "AppUserRole",
+        "AppRolePermission",
+        "AppPermission",
+        "AppRolePage",
+        "AppDepartment",
+        "AppPosition",
+        "AppProject",
+        "RuntimeRoute",
+        "AppDatabaseSchemaVersion"
+    };
+
     private readonly ISqlSugarClient _mainDb;
     private readonly IAppDbScopeFactory _appDbScopeFactory;
     private readonly ITenantDbConnectionFactory _tenantDbConnectionFactory;
@@ -168,14 +191,17 @@ public sealed class AppMigrationService : IAppMigrationService
         }
 
         var now = DateTimeOffset.UtcNow;
-        task.MarkRunning(userId, now, 9);
+        task.MarkRunning(userId, now, 17);
         await UpdateTaskAsync(task, cancellationToken);
         await AddSnapshotAsync(task, cancellationToken);
 
         try
         {
-            await _provisioningService.EnsureSchemaAsync(tenantId, task.TenantAppInstanceId, cancellationToken);
-            var appDb = await _appDbScopeFactory.GetAppClientAsync(tenantId, task.TenantAppInstanceId, cancellationToken);
+            var appDb = await EnsureSchemaBeforeDataSyncAsync(
+                tenantId,
+                task,
+                userId,
+                cancellationToken);
 
             var completed = 0;
             await CopyDynamicTablesAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
@@ -187,6 +213,13 @@ public sealed class AppMigrationService : IAppMigrationService
             await CopyAppMembersAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
             await CopyAppRolesAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
             await CopyAppPermissionsAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
+            await CopyAppUserRolesAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
+            await CopyAppRolePermissionsAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
+            await CopyAppRolePagesAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
+            await CopyAppDepartmentsAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
+            await CopyAppPositionsAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
+            await CopyAppProjectsAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
+            await CopyRuntimeRoutesAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
 
             task.MarkCutoverReady(userId, DateTimeOffset.UtcNow);
             await UpdateTaskAsync(task, cancellationToken);
@@ -200,6 +233,44 @@ public sealed class AppMigrationService : IAppMigrationService
             await AddSnapshotAsync(task, cancellationToken);
             return new AppMigrationActionResult(false, task.Id.ToString(), task.Status, ex.Message);
         }
+    }
+
+    private async Task<ISqlSugarClient> EnsureSchemaBeforeDataSyncAsync(
+        TenantId tenantId,
+        AppMigrationTask task,
+        long userId,
+        CancellationToken cancellationToken)
+    {
+        task.MarkObjectProgress("SchemaInit", 0, 0, 0, userId, DateTimeOffset.UtcNow);
+        await UpdateTaskAsync(task, cancellationToken);
+        await AddSnapshotAsync(task, cancellationToken);
+
+        await _provisioningService.EnsureSchemaAsync(tenantId, task.TenantAppInstanceId, cancellationToken);
+        var appDb = await _appDbScopeFactory.GetAppClientAsync(tenantId, task.TenantAppInstanceId, cancellationToken);
+        EnsureRequiredTablesReady(appDb);
+
+        task.MarkObjectProgress("SchemaReady", 0, 0, 0, userId, DateTimeOffset.UtcNow);
+        await UpdateTaskAsync(task, cancellationToken);
+        await AddSnapshotAsync(task, cancellationToken);
+        return appDb;
+    }
+
+    private static void EnsureRequiredTablesReady(ISqlSugarClient appDb)
+    {
+        var tableNames = appDb.DbMaintenance.GetTableInfoList(false)
+            .Select(x => x.Name)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var missing = RequiredAppSchemaTables
+            .Where(table => !tableNames.Contains(table))
+            .ToArray();
+        if (missing.Length == 0)
+        {
+            return;
+        }
+
+        throw new BusinessException(
+            ErrorCodes.ServerError,
+            $"应用库结构初始化不完整，缺少表：{string.Join(", ", missing)}");
     }
 
     public async Task<AppMigrationTaskProgress?> GetProgressAsync(
@@ -711,6 +782,185 @@ public sealed class AppMigrationService : IAppMigrationService
         }
 
         task.MarkObjectProgress(nameof(AppPermission), 1, completed, 0, userId, DateTimeOffset.UtcNow);
+        await UpdateTaskAsync(task, cancellationToken);
+        await AddSnapshotAsync(task, cancellationToken);
+    }
+
+    private async Task CopyAppUserRolesAsync(
+        TenantId tenantId,
+        AppMigrationTask task,
+        ISqlSugarClient appDb,
+        long userId,
+        int completed,
+        CancellationToken cancellationToken)
+    {
+        var rows = await _mainDb.Queryable<AppUserRole>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.AppId == task.TenantAppInstanceId)
+            .ToListAsync(cancellationToken);
+        await appDb.Deleteable<AppUserRole>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.AppId == task.TenantAppInstanceId)
+            .ExecuteCommandAsync(cancellationToken);
+        if (rows.Count > 0)
+        {
+            await appDb.Insertable(rows).ExecuteCommandAsync(cancellationToken);
+        }
+
+        task.MarkObjectProgress(nameof(AppUserRole), 1, completed, 0, userId, DateTimeOffset.UtcNow);
+        await UpdateTaskAsync(task, cancellationToken);
+        await AddSnapshotAsync(task, cancellationToken);
+    }
+
+    private async Task CopyAppRolePermissionsAsync(
+        TenantId tenantId,
+        AppMigrationTask task,
+        ISqlSugarClient appDb,
+        long userId,
+        int completed,
+        CancellationToken cancellationToken)
+    {
+        var rows = await _mainDb.Queryable<AppRolePermission>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.AppId == task.TenantAppInstanceId)
+            .ToListAsync(cancellationToken);
+        await appDb.Deleteable<AppRolePermission>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.AppId == task.TenantAppInstanceId)
+            .ExecuteCommandAsync(cancellationToken);
+        if (rows.Count > 0)
+        {
+            await appDb.Insertable(rows).ExecuteCommandAsync(cancellationToken);
+        }
+
+        task.MarkObjectProgress(nameof(AppRolePermission), 1, completed, 0, userId, DateTimeOffset.UtcNow);
+        await UpdateTaskAsync(task, cancellationToken);
+        await AddSnapshotAsync(task, cancellationToken);
+    }
+
+    private async Task CopyAppRolePagesAsync(
+        TenantId tenantId,
+        AppMigrationTask task,
+        ISqlSugarClient appDb,
+        long userId,
+        int completed,
+        CancellationToken cancellationToken)
+    {
+        var rows = await _mainDb.Queryable<AppRolePage>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.AppId == task.TenantAppInstanceId)
+            .ToListAsync(cancellationToken);
+        await appDb.Deleteable<AppRolePage>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.AppId == task.TenantAppInstanceId)
+            .ExecuteCommandAsync(cancellationToken);
+        if (rows.Count > 0)
+        {
+            await appDb.Insertable(rows).ExecuteCommandAsync(cancellationToken);
+        }
+
+        task.MarkObjectProgress(nameof(AppRolePage), 1, completed, 0, userId, DateTimeOffset.UtcNow);
+        await UpdateTaskAsync(task, cancellationToken);
+        await AddSnapshotAsync(task, cancellationToken);
+    }
+
+    private async Task CopyAppDepartmentsAsync(
+        TenantId tenantId,
+        AppMigrationTask task,
+        ISqlSugarClient appDb,
+        long userId,
+        int completed,
+        CancellationToken cancellationToken)
+    {
+        var rows = await _mainDb.Queryable<AppDepartment>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.AppId == task.TenantAppInstanceId)
+            .ToListAsync(cancellationToken);
+        await appDb.Deleteable<AppDepartment>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.AppId == task.TenantAppInstanceId)
+            .ExecuteCommandAsync(cancellationToken);
+        if (rows.Count > 0)
+        {
+            await appDb.Insertable(rows).ExecuteCommandAsync(cancellationToken);
+        }
+
+        task.MarkObjectProgress(nameof(AppDepartment), 1, completed, 0, userId, DateTimeOffset.UtcNow);
+        await UpdateTaskAsync(task, cancellationToken);
+        await AddSnapshotAsync(task, cancellationToken);
+    }
+
+    private async Task CopyAppPositionsAsync(
+        TenantId tenantId,
+        AppMigrationTask task,
+        ISqlSugarClient appDb,
+        long userId,
+        int completed,
+        CancellationToken cancellationToken)
+    {
+        var rows = await _mainDb.Queryable<AppPosition>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.AppId == task.TenantAppInstanceId)
+            .ToListAsync(cancellationToken);
+        await appDb.Deleteable<AppPosition>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.AppId == task.TenantAppInstanceId)
+            .ExecuteCommandAsync(cancellationToken);
+        if (rows.Count > 0)
+        {
+            await appDb.Insertable(rows).ExecuteCommandAsync(cancellationToken);
+        }
+
+        task.MarkObjectProgress(nameof(AppPosition), 1, completed, 0, userId, DateTimeOffset.UtcNow);
+        await UpdateTaskAsync(task, cancellationToken);
+        await AddSnapshotAsync(task, cancellationToken);
+    }
+
+    private async Task CopyAppProjectsAsync(
+        TenantId tenantId,
+        AppMigrationTask task,
+        ISqlSugarClient appDb,
+        long userId,
+        int completed,
+        CancellationToken cancellationToken)
+    {
+        var rows = await _mainDb.Queryable<AppProject>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.AppId == task.TenantAppInstanceId)
+            .ToListAsync(cancellationToken);
+        await appDb.Deleteable<AppProject>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.AppId == task.TenantAppInstanceId)
+            .ExecuteCommandAsync(cancellationToken);
+        if (rows.Count > 0)
+        {
+            await appDb.Insertable(rows).ExecuteCommandAsync(cancellationToken);
+        }
+
+        task.MarkObjectProgress(nameof(AppProject), 1, completed, 0, userId, DateTimeOffset.UtcNow);
+        await UpdateTaskAsync(task, cancellationToken);
+        await AddSnapshotAsync(task, cancellationToken);
+    }
+
+    private async Task CopyRuntimeRoutesAsync(
+        TenantId tenantId,
+        AppMigrationTask task,
+        ISqlSugarClient appDb,
+        long userId,
+        int completed,
+        CancellationToken cancellationToken)
+    {
+        var app = await _mainDb.Queryable<LowCodeApp>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.Id == task.TenantAppInstanceId)
+            .FirstAsync(cancellationToken);
+        if (app is null)
+        {
+            task.MarkObjectProgress(nameof(RuntimeRoute), 1, completed, 0, userId, DateTimeOffset.UtcNow);
+            await UpdateTaskAsync(task, cancellationToken);
+            await AddSnapshotAsync(task, cancellationToken);
+            return;
+        }
+
+        var rows = await _mainDb.Queryable<RuntimeRoute>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.AppKey == app.AppKey)
+            .ToListAsync(cancellationToken);
+        await appDb.Deleteable<RuntimeRoute>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.AppKey == app.AppKey)
+            .ExecuteCommandAsync(cancellationToken);
+        if (rows.Count > 0)
+        {
+            await appDb.Insertable(rows).ExecuteCommandAsync(cancellationToken);
+        }
+
+        task.MarkObjectProgress(nameof(RuntimeRoute), 1, completed, 0, userId, DateTimeOffset.UtcNow);
         await UpdateTaskAsync(task, cancellationToken);
         await AddSnapshotAsync(task, cancellationToken);
     }

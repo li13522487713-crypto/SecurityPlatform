@@ -8,6 +8,7 @@ using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.DynamicTables.Enums;
 using Atlas.Infrastructure.Services;
+using Microsoft.Extensions.DependencyInjection;
 using SqlSugar;
 
 namespace Atlas.Infrastructure.Services;
@@ -25,6 +26,7 @@ public sealed class DynamicRecordCommandService : IDynamicRecordCommandService
     private readonly IDynamicFormValidationService _formValidationService;
     private readonly IAppDbScopeFactory _appDbScopeFactory;
 
+    [ActivatorUtilitiesConstructor]
     public DynamicRecordCommandService(
         IDynamicTableRepository tableRepository,
         IDynamicFieldRepository fieldRepository,
@@ -59,7 +61,7 @@ public sealed class DynamicRecordCommandService : IDynamicRecordCommandService
         ICurrentUserAccessor currentUserAccessor,
         IAppContextAccessor appContextAccessor,
         IDynamicFormValidationService formValidationService,
-        ISqlSugarClient db)
+        SqlSugarClient db)
         : this(
             tableRepository,
             fieldRepository,

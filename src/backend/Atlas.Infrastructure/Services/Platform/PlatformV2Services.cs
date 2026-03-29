@@ -740,11 +740,20 @@ public sealed class TenantAppInstanceCommandService : ITenantAppInstanceCommandS
 
 public sealed class RuntimeContextQueryService : IRuntimeContextQueryService
 {
-    private readonly ISqlSugarClient _db;
+    private readonly ISqlSugarClient _mainDb;
+    private readonly Atlas.Infrastructure.Services.IAppDbScopeFactory _appDbScopeFactory;
+
+    public RuntimeContextQueryService(
+        ISqlSugarClient db,
+        Atlas.Infrastructure.Services.IAppDbScopeFactory appDbScopeFactory)
+    {
+        _mainDb = db;
+        _appDbScopeFactory = appDbScopeFactory;
+    }
 
     public RuntimeContextQueryService(ISqlSugarClient db)
+        : this(db, new Atlas.Infrastructure.Services.MainOnlyAppDbScopeFactory(db))
     {
-        _db = db;
     }
 
     public async Task<RuntimeContextDetail?> GetByIdAsync(
@@ -752,11 +761,7 @@ public sealed class RuntimeContextQueryService : IRuntimeContextQueryService
         long id,
         CancellationToken cancellationToken = default)
     {
-        var tenantValue = tenantId.Value;
-        var route = await _db.Queryable<RuntimeRoute>()
-            .FirstAsync(
-                x => x.TenantIdValue == tenantValue && x.Id == id,
-                cancellationToken);
+        var route = await FindRouteAcrossDbsByIdAsync(tenantId, id, cancellationToken);
         if (route is null)
         {
             return null;
@@ -781,7 +786,8 @@ public sealed class RuntimeContextQueryService : IRuntimeContextQueryService
         var tenantValue = tenantId.Value;
         var pageIndex = request.PageIndex <= 0 ? 1 : request.PageIndex;
         var pageSize = request.PageSize <= 0 ? 10 : request.PageSize;
-        var query = _db.Queryable<RuntimeRoute>()
+        var db = await ResolveRuntimeDbByAppKeyAsync(tenantId, appKey, cancellationToken);
+        var query = db.Queryable<RuntimeRoute>()
             .Where(route => route.TenantIdValue == tenantValue);
         if (!string.IsNullOrWhiteSpace(request.Keyword))
         {
@@ -825,10 +831,9 @@ public sealed class RuntimeContextQueryService : IRuntimeContextQueryService
         CancellationToken cancellationToken = default)
     {
         var tenantValue = tenantId.Value;
-        var route = await _db.Queryable<RuntimeRoute>()
-            .FirstAsync(
-                x => x.TenantIdValue == tenantValue && x.AppKey == appKey && x.PageKey == pageKey,
-                cancellationToken);
+        var db = await ResolveRuntimeDbByAppKeyAsync(tenantId, appKey, cancellationToken);
+        var route = await db.Queryable<RuntimeRoute>()
+            .FirstAsync(x => x.TenantIdValue == tenantValue && x.AppKey == appKey && x.PageKey == pageKey, cancellationToken);
         if (route is null)
         {
             return null;
@@ -842,15 +847,75 @@ public sealed class RuntimeContextQueryService : IRuntimeContextQueryService
             route.EnvironmentCode,
             route.IsActive);
     }
+
+    private async Task<ISqlSugarClient> ResolveRuntimeDbByAppKeyAsync(
+        TenantId tenantId,
+        string? appKey,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(appKey))
+        {
+            return _mainDb;
+        }
+
+        var app = await _mainDb.Queryable<LowCodeApp>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.AppKey == appKey)
+            .FirstAsync(cancellationToken);
+        if (app is not null && app.Id > 0)
+        {
+            return await _appDbScopeFactory.GetAppClientAsync(tenantId, app.Id, cancellationToken);
+        }
+
+        return _mainDb;
+    }
+
+    private async Task<RuntimeRoute?> FindRouteAcrossDbsByIdAsync(
+        TenantId tenantId,
+        long id,
+        CancellationToken cancellationToken)
+    {
+        var route = await _mainDb.Queryable<RuntimeRoute>()
+            .FirstAsync(x => x.TenantIdValue == tenantId.Value && x.Id == id, cancellationToken);
+        if (route is not null)
+        {
+            return route;
+        }
+
+        var appIds = await _mainDb.Queryable<LowCodeApp>()
+            .Where(x => x.TenantIdValue == tenantId.Value)
+            .Select(x => x.Id)
+            .ToListAsync(cancellationToken);
+        foreach (var appId in appIds)
+        {
+            var appDb = await _appDbScopeFactory.GetAppClientAsync(tenantId, appId, cancellationToken);
+            route = await appDb.Queryable<RuntimeRoute>()
+                .FirstAsync(x => x.TenantIdValue == tenantId.Value && x.Id == id, cancellationToken);
+            if (route is not null)
+            {
+                return route;
+            }
+        }
+
+        return null;
+    }
 }
 
 public sealed class RuntimeExecutionQueryService : IRuntimeExecutionQueryService
 {
-    private readonly ISqlSugarClient _db;
+    private readonly ISqlSugarClient _mainDb;
+    private readonly Atlas.Infrastructure.Services.IAppDbScopeFactory _appDbScopeFactory;
+
+    public RuntimeExecutionQueryService(
+        ISqlSugarClient db,
+        Atlas.Infrastructure.Services.IAppDbScopeFactory appDbScopeFactory)
+    {
+        _mainDb = db;
+        _appDbScopeFactory = appDbScopeFactory;
+    }
 
     public RuntimeExecutionQueryService(ISqlSugarClient db)
+        : this(db, new Atlas.Infrastructure.Services.MainOnlyAppDbScopeFactory(db))
     {
-        _db = db;
     }
 
     public async Task<PagedResult<RuntimeExecutionListItem>> QueryAsync(
@@ -886,7 +951,8 @@ public sealed class RuntimeExecutionQueryService : IRuntimeExecutionQueryService
             statusValue = parsedStatus;
         }
 
-        var query = _db.Queryable<WorkflowExecution>()
+        var db = await ResolveExecutionDbAsync(tenantId, appIdValue, cancellationToken);
+        var query = db.Queryable<WorkflowExecution>()
             .Where(execution => execution.TenantIdValue == tenantValue);
 
         if (appIdValue.HasValue)
@@ -958,8 +1024,7 @@ public sealed class RuntimeExecutionQueryService : IRuntimeExecutionQueryService
         CancellationToken cancellationToken = default)
     {
         var tenantValue = tenantId.Value;
-        var execution = await _db.Queryable<WorkflowExecution>()
-            .FirstAsync(item => item.TenantIdValue == tenantValue && item.Id == executionId, cancellationToken);
+        var execution = await FindExecutionAcrossDbsAsync(tenantId, executionId, cancellationToken);
         if (execution is null)
         {
             return null;
@@ -988,11 +1053,10 @@ public sealed class RuntimeExecutionQueryService : IRuntimeExecutionQueryService
         var tenantValue = tenantId.Value;
         var pageIndex = request.PageIndex <= 0 ? 1 : request.PageIndex;
         var pageSize = request.PageSize <= 0 ? 10 : request.PageSize;
-        var execution = await _db.Queryable<WorkflowExecution>()
-            .FirstAsync(item => item.TenantIdValue == tenantValue && item.Id == executionId, cancellationToken);
+        var execution = await FindExecutionAcrossDbsAsync(tenantId, executionId, cancellationToken);
         var targetSet = BuildAuditTargetSet(executionId, execution);
         var auditTargets = targetSet.ToArray();
-        var query = _db.Queryable<AuditRecord>()
+        var query = _mainDb.Queryable<AuditRecord>()
             .Where(item => item.TenantIdValue == tenantValue
                 && SqlFunc.ContainsArray(auditTargets, item.Target));
         if (!string.IsNullOrWhiteSpace(request.Keyword))
@@ -1032,7 +1096,8 @@ public sealed class RuntimeExecutionQueryService : IRuntimeExecutionQueryService
             appIdValue = parsedAppId;
         }
 
-        var query = _db.Queryable<WorkflowExecution>()
+        var db = await ResolveExecutionDbAsync(tenantId, appIdValue, cancellationToken);
+        var query = db.Queryable<WorkflowExecution>()
             .Where(execution => execution.TenantIdValue == tenantValue);
 
         if (appIdValue.HasValue)
@@ -1168,19 +1233,72 @@ public sealed class RuntimeExecutionQueryService : IRuntimeExecutionQueryService
 
         return targetSet;
     }
+
+    private async Task<ISqlSugarClient> ResolveExecutionDbAsync(
+        TenantId tenantId,
+        long? appId,
+        CancellationToken cancellationToken)
+    {
+        if (appId.HasValue && appId.Value > 0)
+        {
+            return await _appDbScopeFactory.GetAppClientAsync(tenantId, appId.Value, cancellationToken);
+        }
+
+        return _mainDb;
+    }
+
+    private async Task<WorkflowExecution?> FindExecutionAcrossDbsAsync(
+        TenantId tenantId,
+        long executionId,
+        CancellationToken cancellationToken)
+    {
+        var execution = await _mainDb.Queryable<WorkflowExecution>()
+            .FirstAsync(item => item.TenantIdValue == tenantId.Value && item.Id == executionId, cancellationToken);
+        if (execution is not null)
+        {
+            return execution;
+        }
+
+        var appIds = await _mainDb.Queryable<LowCodeApp>()
+            .Where(item => item.TenantIdValue == tenantId.Value)
+            .Select(item => item.Id)
+            .ToListAsync(cancellationToken);
+        foreach (var appId in appIds)
+        {
+            var appDb = await _appDbScopeFactory.GetAppClientAsync(tenantId, appId, cancellationToken);
+            execution = await appDb.Queryable<WorkflowExecution>()
+                .FirstAsync(item => item.TenantIdValue == tenantId.Value && item.Id == executionId, cancellationToken);
+            if (execution is not null)
+            {
+                return execution;
+            }
+        }
+
+        return null;
+    }
 }
 
 public sealed class RuntimeExecutionCommandService : IRuntimeExecutionCommandService
 {
-    private readonly ISqlSugarClient _db;
+    private readonly ISqlSugarClient _mainDb;
+    private readonly Atlas.Infrastructure.Services.IAppDbScopeFactory _appDbScopeFactory;
     private readonly IWorkflowV2ExecutionService _workflowExecutionService;
 
     public RuntimeExecutionCommandService(
         ISqlSugarClient db,
+        Atlas.Infrastructure.Services.IAppDbScopeFactory appDbScopeFactory,
         IWorkflowV2ExecutionService workflowExecutionService)
     {
-        _db = db;
+        _mainDb = db;
+        _appDbScopeFactory = appDbScopeFactory;
         _workflowExecutionService = workflowExecutionService;
+    }
+
+    public RuntimeExecutionCommandService(
+        ISqlSugarClient db,
+        IWorkflowV2ExecutionService workflowExecutionService)
+        : this(db, new Atlas.Infrastructure.Services.MainOnlyAppDbScopeFactory(db), workflowExecutionService)
+    {
     }
 
     public async Task<RuntimeExecutionOperationResult> CancelAsync(
@@ -1305,8 +1423,7 @@ public sealed class RuntimeExecutionCommandService : IRuntimeExecutionCommandSer
         long executionId,
         CancellationToken cancellationToken = default)
     {
-        var execution = await _db.Queryable<WorkflowExecution>()
-            .FirstAsync(item => item.TenantIdValue == tenantId.Value && item.Id == executionId, cancellationToken);
+        var execution = await FindExecutionAcrossDbsAsync(tenantId, executionId, cancellationToken);
         if (execution is null)
         {
             return null;
@@ -1365,8 +1482,7 @@ public sealed class RuntimeExecutionCommandService : IRuntimeExecutionCommandSer
         long executionId,
         CancellationToken cancellationToken)
     {
-        return await _db.Queryable<WorkflowExecution>()
-            .FirstAsync(item => item.TenantIdValue == tenantId.Value && item.Id == executionId, cancellationToken)
+        return await FindExecutionAcrossDbsAsync(tenantId, executionId, cancellationToken)
             ?? throw new InvalidOperationException("执行实例不存在。");
     }
 
@@ -1385,17 +1501,56 @@ public sealed class RuntimeExecutionCommandService : IRuntimeExecutionCommandSer
             target,
             null,
             null);
-        await _db.Insertable(audit).ExecuteCommandAsync(cancellationToken);
+        await _mainDb.Insertable(audit).ExecuteCommandAsync(cancellationToken);
+    }
+
+    private async Task<WorkflowExecution?> FindExecutionAcrossDbsAsync(
+        TenantId tenantId,
+        long executionId,
+        CancellationToken cancellationToken)
+    {
+        var execution = await _mainDb.Queryable<WorkflowExecution>()
+            .FirstAsync(item => item.TenantIdValue == tenantId.Value && item.Id == executionId, cancellationToken);
+        if (execution is not null)
+        {
+            return execution;
+        }
+
+        var appIds = await _mainDb.Queryable<LowCodeApp>()
+            .Where(item => item.TenantIdValue == tenantId.Value)
+            .Select(item => item.Id)
+            .ToListAsync(cancellationToken);
+        foreach (var appId in appIds)
+        {
+            var appDb = await _appDbScopeFactory.GetAppClientAsync(tenantId, appId, cancellationToken);
+            execution = await appDb.Queryable<WorkflowExecution>()
+                .FirstAsync(item => item.TenantIdValue == tenantId.Value && item.Id == executionId, cancellationToken);
+            if (execution is not null)
+            {
+                return execution;
+            }
+        }
+
+        return null;
     }
 }
 
 public sealed class ResourceCenterQueryService : IResourceCenterQueryService
 {
-    private readonly ISqlSugarClient _db;
+    private readonly ISqlSugarClient _mainDb;
+    private readonly Atlas.Infrastructure.Services.IAppDbScopeFactory _appDbScopeFactory;
+
+    public ResourceCenterQueryService(
+        ISqlSugarClient db,
+        Atlas.Infrastructure.Services.IAppDbScopeFactory appDbScopeFactory)
+    {
+        _mainDb = db;
+        _appDbScopeFactory = appDbScopeFactory;
+    }
 
     public ResourceCenterQueryService(ISqlSugarClient db)
+        : this(db, new Atlas.Infrastructure.Services.MainOnlyAppDbScopeFactory(db))
     {
-        _db = db;
     }
 
     public async Task<IReadOnlyList<ResourceCenterGroupItem>> GetGroupsAsync(
@@ -1405,36 +1560,27 @@ public sealed class ResourceCenterQueryService : IResourceCenterQueryService
         var tenantIdValue = tenantId.Value;
         var tenantIdText = tenantId.ToString();
 
-        var catalogsTask = _db.Queryable<AppManifest>()
+        var catalogsTask = _mainDb.Queryable<AppManifest>()
             .Where(item => item.TenantIdValue == tenantIdValue)
             .OrderByDescending(item => item.UpdatedAt)
             .ToListAsync(cancellationToken);
-        var tenantApplicationsTask = _db.Queryable<TenantApplication>()
+        var tenantApplicationsTask = _mainDb.Queryable<TenantApplication>()
             .Where(item => item.TenantIdValue == tenantIdValue)
             .OrderByDescending(item => item.UpdatedAt)
             .ToListAsync(cancellationToken);
-        var appInstancesTask = _db.Queryable<LowCodeApp>()
+        var appInstancesTask = _mainDb.Queryable<LowCodeApp>()
             .Where(item => item.TenantIdValue == tenantIdValue)
             .OrderByDescending(item => item.UpdatedAt)
             .ToListAsync(cancellationToken);
-        var dataSourcesTask = _db.Queryable<TenantDataSource>()
+        var dataSourcesTask = _mainDb.Queryable<TenantDataSource>()
             .Where(item => item.TenantIdValue == tenantIdText)
             .OrderByDescending(item => item.UpdatedAt)
             .ToListAsync(cancellationToken);
-        var releasesTask = _db.Queryable<AppRelease>()
+        var releasesTask = _mainDb.Queryable<AppRelease>()
             .Where(item => item.TenantIdValue == tenantIdValue)
             .OrderByDescending(item => item.ReleasedAt)
             .ToListAsync(cancellationToken);
-        var runtimeContextsTask = _db.Queryable<RuntimeRoute>()
-            .Where(item => item.TenantIdValue == tenantIdValue)
-            .OrderByDescending(item => item.Id)
-            .ToListAsync(cancellationToken);
-        var runtimeExecutionsTask = _db.Queryable<WorkflowExecution>()
-            .Where(item => item.TenantIdValue == tenantIdValue)
-            .OrderByDescending(item => item.StartedAt)
-            .Take(200)
-            .ToListAsync(cancellationToken);
-        var auditsTask = _db.Queryable<AuditRecord>()
+        var auditsTask = _mainDb.Queryable<AuditRecord>()
             .Where(item => item.TenantIdValue == tenantIdValue)
             .OrderByDescending(item => item.OccurredAt)
             .Take(200)
@@ -1445,8 +1591,6 @@ public sealed class ResourceCenterQueryService : IResourceCenterQueryService
             appInstancesTask,
             dataSourcesTask,
             releasesTask,
-            runtimeContextsTask,
-            runtimeExecutionsTask,
             auditsTask);
 
         var catalogs = catalogsTask.Result;
@@ -1454,8 +1598,8 @@ public sealed class ResourceCenterQueryService : IResourceCenterQueryService
         var appInstances = appInstancesTask.Result;
         var dataSources = dataSourcesTask.Result;
         var releases = releasesTask.Result;
-        var runtimeContexts = runtimeContextsTask.Result;
-        var runtimeExecutions = runtimeExecutionsTask.Result;
+        var runtimeContexts = await LoadRuntimeRoutesAcrossAppsAsync(tenantId, appInstances, cancellationToken);
+        var runtimeExecutions = await LoadRuntimeExecutionsAcrossAppsAsync(tenantId, appInstances, cancellationToken);
         var audits = auditsTask.Result;
 
         var catalogById = catalogs.ToDictionary(item => item.Id);
@@ -1594,15 +1738,15 @@ public sealed class ResourceCenterQueryService : IResourceCenterQueryService
         var tenantIdValue = tenantId.Value;
         var tenantIdText = tenantIdValue.ToString();
 
-        var dataSourcesTask = _db.Queryable<TenantDataSource>()
+        var dataSourcesTask = _mainDb.Queryable<TenantDataSource>()
             .Where(item => item.TenantIdValue == tenantIdText)
             .OrderByDescending(item => item.UpdatedAt)
             .ToListAsync(cancellationToken);
-        var appInstancesTask = _db.Queryable<LowCodeApp>()
+        var appInstancesTask = _mainDb.Queryable<LowCodeApp>()
             .Where(item => item.TenantIdValue == tenantIdValue)
             .OrderByDescending(item => item.UpdatedAt)
             .ToListAsync(cancellationToken);
-        var bindingsTask = _db.Queryable<TenantAppDataSourceBindingEntity>()
+        var bindingsTask = _mainDb.Queryable<TenantAppDataSourceBindingEntity>()
             .Where(item => item.TenantIdValue == tenantIdValue)
             .OrderByDescending(item => item.UpdatedAt ?? item.BoundAt)
             .ToListAsync(cancellationToken);
@@ -1782,6 +1926,65 @@ public sealed class ResourceCenterQueryService : IResourceCenterQueryService
         DateTimeOffset? BoundAt,
         DateTimeOffset? UpdatedAt,
         string Source);
+
+    private async Task<IReadOnlyList<RuntimeRoute>> LoadRuntimeRoutesAcrossAppsAsync(
+        TenantId tenantId,
+        IReadOnlyList<LowCodeApp> appInstances,
+        CancellationToken cancellationToken)
+    {
+        var tasks = new List<Task<List<RuntimeRoute>>>
+        {
+            _mainDb.Queryable<RuntimeRoute>()
+                .Where(item => item.TenantIdValue == tenantId.Value)
+                .ToListAsync(cancellationToken)
+        };
+        tasks.AddRange(appInstances.Select(async app =>
+        {
+            var appDb = await _appDbScopeFactory.GetAppClientAsync(tenantId, app.Id, cancellationToken);
+            return await appDb.Queryable<RuntimeRoute>()
+                .Where(item => item.TenantIdValue == tenantId.Value)
+                .ToListAsync(cancellationToken);
+        }));
+
+        await Task.WhenAll(tasks);
+        return tasks
+            .SelectMany(task => task.Result)
+            .GroupBy(item => item.Id)
+            .Select(group => group.First())
+            .OrderByDescending(item => item.Id)
+            .ToArray();
+    }
+
+    private async Task<IReadOnlyList<WorkflowExecution>> LoadRuntimeExecutionsAcrossAppsAsync(
+        TenantId tenantId,
+        IReadOnlyList<LowCodeApp> appInstances,
+        CancellationToken cancellationToken)
+    {
+        var tasks = new List<Task<List<WorkflowExecution>>>
+        {
+            _mainDb.Queryable<WorkflowExecution>()
+                .Where(item => item.TenantIdValue == tenantId.Value)
+                .Take(200)
+                .ToListAsync(cancellationToken)
+        };
+        tasks.AddRange(appInstances.Select(async app =>
+        {
+            var appDb = await _appDbScopeFactory.GetAppClientAsync(tenantId, app.Id, cancellationToken);
+            return await appDb.Queryable<WorkflowExecution>()
+                .Where(item => item.TenantIdValue == tenantId.Value)
+                .Take(200)
+                .ToListAsync(cancellationToken);
+        }));
+
+        await Task.WhenAll(tasks);
+        return tasks
+            .SelectMany(task => task.Result)
+            .GroupBy(item => item.Id)
+            .Select(group => group.First())
+            .OrderByDescending(item => item.StartedAt)
+            .Take(200)
+            .ToArray();
+    }
 }
 
 public sealed class ResourceCenterCommandService : IResourceCenterCommandService
@@ -2008,11 +2211,20 @@ public sealed class ResourceCenterCommandService : IResourceCenterCommandService
 
 public sealed class ReleaseCenterQueryService : IReleaseCenterQueryService
 {
-    private readonly ISqlSugarClient _db;
+    private readonly ISqlSugarClient _mainDb;
+    private readonly Atlas.Infrastructure.Services.IAppDbScopeFactory _appDbScopeFactory;
+
+    public ReleaseCenterQueryService(
+        ISqlSugarClient db,
+        Atlas.Infrastructure.Services.IAppDbScopeFactory appDbScopeFactory)
+    {
+        _mainDb = db;
+        _appDbScopeFactory = appDbScopeFactory;
+    }
 
     public ReleaseCenterQueryService(ISqlSugarClient db)
+        : this(db, new Atlas.Infrastructure.Services.MainOnlyAppDbScopeFactory(db))
     {
-        _db = db;
     }
 
     public async Task<PagedResult<ReleaseCenterListItem>> QueryAsync(
@@ -2027,13 +2239,13 @@ public sealed class ReleaseCenterQueryService : IReleaseCenterQueryService
         var pageIndex = request.PageIndex <= 0 ? 1 : request.PageIndex;
         var pageSize = request.PageSize <= 0 ? 10 : request.PageSize;
 
-        var manifestList = await _db.Queryable<AppManifest>()
+        var manifestList = await _mainDb.Queryable<AppManifest>()
             .Where(item => item.TenantIdValue == tenantValue)
             .Select(item => new { item.Id, item.Name, item.AppKey })
             .ToListAsync(cancellationToken);
         var manifestDict = manifestList.ToDictionary(item => item.Id);
 
-        var query = _db.Queryable<AppRelease>()
+        var query = _mainDb.Queryable<AppRelease>()
             .Where(item => item.TenantIdValue == tenantValue);
         if (!string.IsNullOrWhiteSpace(request.Keyword))
         {
@@ -2097,14 +2309,14 @@ public sealed class ReleaseCenterQueryService : IReleaseCenterQueryService
         CancellationToken cancellationToken = default)
     {
         var tenantValue = tenantId.Value;
-        var release = await _db.Queryable<AppRelease>()
+        var release = await _mainDb.Queryable<AppRelease>()
             .FirstAsync(item => item.TenantIdValue == tenantValue && item.Id == releaseId, cancellationToken);
         if (release is null)
         {
             return null;
         }
 
-        var manifest = await _db.Queryable<AppManifest>()
+        var manifest = await _mainDb.Queryable<AppManifest>()
             .FirstAsync(item => item.TenantIdValue == tenantValue && item.Id == release.ManifestId, cancellationToken);
         return new ReleaseCenterDetail(
             release.Id.ToString(),
@@ -2124,14 +2336,14 @@ public sealed class ReleaseCenterQueryService : IReleaseCenterQueryService
         CancellationToken cancellationToken = default)
     {
         var tenantValue = tenantId.Value;
-        var release = await _db.Queryable<AppRelease>()
+        var release = await _mainDb.Queryable<AppRelease>()
             .FirstAsync(item => item.TenantIdValue == tenantValue && item.Id == releaseId, cancellationToken);
         if (release is null)
         {
             return null;
         }
 
-        var baselineRelease = await _db.Queryable<AppRelease>()
+        var baselineRelease = await _mainDb.Queryable<AppRelease>()
             .Where(item => item.TenantIdValue == tenantValue && item.ManifestId == release.ManifestId && item.Id != releaseId)
             .OrderByDescending(item => item.ReleasedAt)
             .FirstAsync(cancellationToken);
@@ -2173,23 +2385,28 @@ public sealed class ReleaseCenterQueryService : IReleaseCenterQueryService
         CancellationToken cancellationToken = default)
     {
         var tenantValue = tenantId.Value;
-        var release = await _db.Queryable<AppRelease>()
+        var release = await _mainDb.Queryable<AppRelease>()
             .FirstAsync(item => item.TenantIdValue == tenantValue && item.Id == releaseId, cancellationToken);
         if (release is null)
         {
             return null;
         }
 
-        var manifest = await _db.Queryable<AppManifest>()
+        var manifest = await _mainDb.Queryable<AppManifest>()
             .FirstAsync(item => item.TenantIdValue == tenantValue && item.Id == release.ManifestId, cancellationToken);
         if (manifest is null)
         {
             return null;
         }
 
-        var routeQuery = _db.Queryable<RuntimeRoute>()
+        var app = await _mainDb.Queryable<LowCodeApp>()
+            .FirstAsync(item => item.TenantIdValue == tenantValue && item.AppKey == manifest.AppKey, cancellationToken);
+        var runtimeDb = app is not null
+            ? await _appDbScopeFactory.GetAppClientAsync(tenantId, app.Id, cancellationToken)
+            : _mainDb;
+        var routeQuery = runtimeDb.Queryable<RuntimeRoute>()
             .Where(item => item.TenantIdValue == tenantValue && item.ManifestId == release.ManifestId);
-        var executionQuery = _db.Queryable<WorkflowExecution>()
+        var executionQuery = runtimeDb.Queryable<WorkflowExecution>()
             .Where(item => item.TenantIdValue == tenantValue && item.ReleaseId == release.Id);
         var since = DateTime.UtcNow.AddHours(-24);
 
@@ -2291,11 +2508,20 @@ public sealed class ReleaseCenterQueryService : IReleaseCenterQueryService
 
 public sealed class CozeMappingQueryService : ICozeMappingQueryService
 {
-    private readonly ISqlSugarClient _db;
+    private readonly ISqlSugarClient _mainDb;
+    private readonly Atlas.Infrastructure.Services.IAppDbScopeFactory _appDbScopeFactory;
+
+    public CozeMappingQueryService(
+        ISqlSugarClient db,
+        Atlas.Infrastructure.Services.IAppDbScopeFactory appDbScopeFactory)
+    {
+        _mainDb = db;
+        _appDbScopeFactory = appDbScopeFactory;
+    }
 
     public CozeMappingQueryService(ISqlSugarClient db)
+        : this(db, new Atlas.Infrastructure.Services.MainOnlyAppDbScopeFactory(db))
     {
-        _db = db;
     }
 
     public async Task<CozeLayerMappingOverview> GetOverviewAsync(
@@ -2303,37 +2529,92 @@ public sealed class CozeMappingQueryService : ICozeMappingQueryService
         CancellationToken cancellationToken = default)
     {
         var tenantValue = tenantId.Value;
-        var catalogsCountTask = _db.Queryable<AppManifest>()
+        var catalogsCountTask = _mainDb.Queryable<AppManifest>()
             .Where(item => item.TenantIdValue == tenantValue)
             .CountAsync(cancellationToken);
-        var appInstancesCountTask = _db.Queryable<LowCodeApp>()
+        var appInstancesCountTask = _mainDb.Queryable<LowCodeApp>()
             .Where(item => item.TenantIdValue == tenantValue)
             .CountAsync(cancellationToken);
-        var releasesCountTask = _db.Queryable<AppRelease>()
+        var releasesCountTask = _mainDb.Queryable<AppRelease>()
             .Where(item => item.TenantIdValue == tenantValue)
             .CountAsync(cancellationToken);
-        var contextsCountTask = _db.Queryable<RuntimeRoute>()
+        var appInstancesTask = _mainDb.Queryable<LowCodeApp>()
+            .Where(item => item.TenantIdValue == tenantValue)
+            .ToListAsync(cancellationToken);
+        var auditCountTask = _mainDb.Queryable<AuditRecord>()
             .Where(item => item.TenantIdValue == tenantValue)
             .CountAsync(cancellationToken);
-        var executionsCountTask = _db.Queryable<WorkflowExecution>()
-            .Where(item => item.TenantIdValue == tenantValue)
-            .CountAsync(cancellationToken);
-        var auditCountTask = _db.Queryable<AuditRecord>()
-            .Where(item => item.TenantIdValue == tenantValue)
-            .CountAsync(cancellationToken);
-        await Task.WhenAll(catalogsCountTask, appInstancesCountTask, releasesCountTask, contextsCountTask, executionsCountTask, auditCountTask);
+        await Task.WhenAll(catalogsCountTask, appInstancesCountTask, releasesCountTask, appInstancesTask, auditCountTask);
+        var runtimeContextCount = await CountRuntimeRoutesAcrossAppsAsync(tenantId, appInstancesTask.Result, cancellationToken);
+        var runtimeExecutionCount = await CountRuntimeExecutionsAcrossAppsAsync(tenantId, appInstancesTask.Result, cancellationToken);
 
         var layers = new[]
         {
             new CozeLayerMappingItem("L1", "应用目录层(ApplicationCatalog)", catalogsCountTask.Result, "平台侧目录定义"),
             new CozeLayerMappingItem("L2", "租户实例层(TenantAppInstance)", appInstancesCountTask.Result, "租户开通后的实例"),
             new CozeLayerMappingItem("L3", "发布层(ReleaseCenter)", releasesCountTask.Result, "发布版本与回滚点"),
-            new CozeLayerMappingItem("L4", "运行上下文层(RuntimeContext)", contextsCountTask.Result, "运行路由与页面上下文"),
-            new CozeLayerMappingItem("L5", "执行层(RuntimeExecution)", executionsCountTask.Result, "运行执行记录与状态"),
+            new CozeLayerMappingItem("L4", "运行上下文层(RuntimeContext)", runtimeContextCount, "运行路由与页面上下文"),
+            new CozeLayerMappingItem("L5", "执行层(RuntimeExecution)", runtimeExecutionCount, "运行执行记录与状态"),
             new CozeLayerMappingItem("L6", "审计层(AuditTrail)", auditCountTask.Result, "操作与执行追溯证据")
         };
 
         return new CozeLayerMappingOverview(layers);
+    }
+
+    private async Task<int> CountRuntimeRoutesAcrossAppsAsync(
+        TenantId tenantId,
+        IReadOnlyList<LowCodeApp> appInstances,
+        CancellationToken cancellationToken)
+    {
+        var tasks = new List<Task<List<long>>>
+        {
+            _mainDb.Queryable<RuntimeRoute>()
+                .Where(item => item.TenantIdValue == tenantId.Value)
+                .Select(item => item.Id)
+                .ToListAsync(cancellationToken)
+        };
+        tasks.AddRange(appInstances.Select(async app =>
+        {
+            var appDb = await _appDbScopeFactory.GetAppClientAsync(tenantId, app.Id, cancellationToken);
+            return await appDb.Queryable<RuntimeRoute>()
+                .Where(item => item.TenantIdValue == tenantId.Value)
+                .Select(item => item.Id)
+                .ToListAsync(cancellationToken);
+        }));
+
+        await Task.WhenAll(tasks);
+        return tasks
+            .SelectMany(task => task.Result)
+            .Distinct()
+            .Count();
+    }
+
+    private async Task<int> CountRuntimeExecutionsAcrossAppsAsync(
+        TenantId tenantId,
+        IReadOnlyList<LowCodeApp> appInstances,
+        CancellationToken cancellationToken)
+    {
+        var tasks = new List<Task<List<long>>>
+        {
+            _mainDb.Queryable<WorkflowExecution>()
+                .Where(item => item.TenantIdValue == tenantId.Value)
+                .Select(item => item.Id)
+                .ToListAsync(cancellationToken)
+        };
+        tasks.AddRange(appInstances.Select(async app =>
+        {
+            var appDb = await _appDbScopeFactory.GetAppClientAsync(tenantId, app.Id, cancellationToken);
+            return await appDb.Queryable<WorkflowExecution>()
+                .Where(item => item.TenantIdValue == tenantId.Value)
+                .Select(item => item.Id)
+                .ToListAsync(cancellationToken);
+        }));
+
+        await Task.WhenAll(tasks);
+        return tasks
+            .SelectMany(task => task.Result)
+            .Distinct()
+            .Count();
     }
 }
 

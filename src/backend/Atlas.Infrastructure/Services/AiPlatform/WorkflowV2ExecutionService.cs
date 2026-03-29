@@ -6,10 +6,12 @@ using Atlas.Application.AiPlatform.Models;
 using Atlas.Application.AiPlatform.Repositories;
 using Atlas.Core.Abstractions;
 using Atlas.Core.Exceptions;
+using Atlas.Core.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.AiPlatform.Entities;
 using Atlas.Domain.AiPlatform.Enums;
+using Atlas.Infrastructure.Services;
 using Atlas.Infrastructure.Services.WorkflowEngine;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -25,6 +27,7 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly WorkflowExecutionCancellationRegistry _cancellationRegistry;
     private readonly IIdGeneratorAccessor _idGenerator;
+    private readonly IAppContextAccessor _appContextAccessor;
     private readonly ILogger<WorkflowV2ExecutionService> _logger;
 
     public WorkflowV2ExecutionService(
@@ -35,6 +38,7 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
         IServiceScopeFactory scopeFactory,
         WorkflowExecutionCancellationRegistry cancellationRegistry,
         IIdGeneratorAccessor idGenerator,
+        IAppContextAccessor appContextAccessor,
         ILogger<WorkflowV2ExecutionService> logger)
     {
         _metaRepo = metaRepo;
@@ -44,7 +48,30 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
         _scopeFactory = scopeFactory;
         _cancellationRegistry = cancellationRegistry;
         _idGenerator = idGenerator;
+        _appContextAccessor = appContextAccessor;
         _logger = logger;
+    }
+
+    public WorkflowV2ExecutionService(
+        IWorkflowMetaRepository metaRepo,
+        IWorkflowDraftRepository draftRepo,
+        IWorkflowExecutionRepository executionRepo,
+        DagExecutor dagExecutor,
+        IServiceScopeFactory scopeFactory,
+        WorkflowExecutionCancellationRegistry cancellationRegistry,
+        IIdGeneratorAccessor idGenerator,
+        ILogger<WorkflowV2ExecutionService> logger)
+        : this(
+            metaRepo,
+            draftRepo,
+            executionRepo,
+            dagExecutor,
+            scopeFactory,
+            cancellationRegistry,
+            idGenerator,
+            NullAppContextAccessor.Instance,
+            logger)
+    {
     }
 
     public async Task<WorkflowV2RunResult> SyncRunAsync(
@@ -152,7 +179,8 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
             });
 
         var inputs = ParseInputs(request.InputsJson);
-        var execution = new WorkflowExecution(tenantId, workflowId, 0, userId, request.InputsJson, _idGenerator.NextId());
+        var appId = _appContextAccessor.ResolveAppId();
+        var execution = new WorkflowExecution(tenantId, workflowId, 0, userId, request.InputsJson, _idGenerator.NextId(), appId);
         await _executionRepo.AddAsync(execution, cancellationToken);
 
         await _dagExecutor.RunAsync(tenantId, execution, debugCanvas, inputs, eventChannel: null, cancellationToken);
@@ -282,7 +310,8 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
             ?? throw new BusinessException("画布 JSON 无效。", ErrorCodes.ValidationError);
 
         var inputs = ParseInputs(request.InputsJson);
-        var execution = new WorkflowExecution(tenantId, workflowId, meta.LatestVersionNumber, userId, request.InputsJson, _idGenerator.NextId());
+        var appId = _appContextAccessor.ResolveAppId();
+        var execution = new WorkflowExecution(tenantId, workflowId, meta.LatestVersionNumber, userId, request.InputsJson, _idGenerator.NextId(), appId);
         await _executionRepo.AddAsync(execution, cancellationToken);
 
         return (execution, canvas, inputs);
