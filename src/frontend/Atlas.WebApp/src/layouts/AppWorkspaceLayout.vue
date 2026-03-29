@@ -96,7 +96,7 @@
           </a-layout-header>
         </div>
         <div data-testid="e2e-app-workspace-content">
-          <a-layout-content class="workspace-content">
+          <a-layout-content :class="['workspace-content', { 'workspace-content--fullbleed': isCanvasEditorRoute }]">
             <router-view />
           </a-layout-content>
         </div>
@@ -197,6 +197,10 @@ const selectedKeys = computed(() => {
   return [dashboardPath.value];
 });
 
+const isCanvasEditorRoute = computed(() =>
+  /^\/apps\/[^/]+\/workflows\/[^/]+\/editor(?:\/)?$/.test(route.path)
+);
+
 const profileDisplayName = computed(() => userStore.profile?.displayName || userStore.profile?.username || "Profile");
 const profileInitials = computed(() => profileDisplayName.value.slice(0, 2));
 
@@ -255,6 +259,7 @@ watch(appId, () => {
 
 <style scoped>
 .workspace-layout {
+  height: 100vh;
   min-height: 100vh;
 }
 
@@ -301,5 +306,12 @@ watch(appId, () => {
 
 .workspace-content {
   margin: var(--spacing-md);
+  min-height: 0;
+}
+
+.workspace-content--fullbleed {
+  margin: 0;
+  height: calc(100vh - var(--header-height));
+  overflow: hidden;
 }
 </style>

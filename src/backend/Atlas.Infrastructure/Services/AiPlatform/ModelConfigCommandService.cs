@@ -1,9 +1,12 @@
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
+using Atlas.Application.Audit.Abstractions;
 using Atlas.Core.Abstractions;
 using Atlas.Core.Exceptions;
+using Atlas.Core.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
+using Atlas.Domain.Audit.Entities;
 using Atlas.Domain.AiPlatform.Entities;
 using Atlas.Infrastructure.Options;
 using Atlas.Infrastructure.Repositories;
@@ -20,17 +23,26 @@ public sealed class ModelConfigCommandService : IModelConfigCommandService
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<OpenAiCompatibleProvider> _providerLogger;
+    private readonly AgentRepository _agentRepository;
+    private readonly IAuditWriter _auditWriter;
+    private readonly ICurrentUserAccessor _currentUserAccessor;
 
     public ModelConfigCommandService(
         ModelConfigRepository repository,
+        AgentRepository agentRepository,
         IIdGeneratorAccessor idGeneratorAccessor,
         IHttpClientFactory httpClientFactory,
-        ILogger<OpenAiCompatibleProvider> providerLogger)
+        ILogger<OpenAiCompatibleProvider> providerLogger,
+        IAuditWriter auditWriter,
+        ICurrentUserAccessor currentUserAccessor)
     {
         _repository = repository;
+        _agentRepository = agentRepository;
         _idGeneratorAccessor = idGeneratorAccessor;
         _httpClientFactory = httpClientFactory;
         _providerLogger = providerLogger;
+        _auditWriter = auditWriter;
+        _currentUserAccessor = currentUserAccessor;
     }
 
     public async Task<long> CreateAsync(
@@ -98,7 +110,36 @@ public sealed class ModelConfigCommandService : IModelConfigCommandService
         var entity = await _repository.FindByIdAsync(tenantId, id, cancellationToken)
             ?? throw new BusinessException("模型配置不存在。", ErrorCodes.NotFound);
 
+        var referenceSummary = await _agentRepository.GetModelConfigReferenceSummaryAsync(
+            tenantId,
+            id,
+            sampleSize: 3,
+            cancellationToken);
+        if (referenceSummary.TotalCount > 0)
+        {
+            var sampleNames = referenceSummary.Samples
+                .Select(x => $"{x.Name}(ID:{x.Id})")
+                .ToArray();
+            var sampleText = sampleNames.Length > 0
+                ? $"，示例：{string.Join("、", sampleNames)}"
+                : string.Empty;
+            var reason = $"模型配置被 {referenceSummary.TotalCount} 个 Agent 引用，禁止删除{sampleText}。请先解除关联后重试。";
+            await WriteAuditAsync(
+                tenantId,
+                "Ai.ModelConfig.DeleteRejected",
+                "REJECTED",
+                $"modelConfigId={id};name={entity.Name};reason=AgentReferences;count={referenceSummary.TotalCount}",
+                cancellationToken);
+            throw new BusinessException(reason, ErrorCodes.ValidationError);
+        }
+
         await _repository.DeleteAsync(tenantId, entity.Id, cancellationToken);
+        await WriteAuditAsync(
+            tenantId,
+            "Ai.ModelConfig.Deleted",
+            "SUCCESS",
+            $"modelConfigId={id};name={entity.Name}",
+            cancellationToken);
     }
 
     public async Task<ModelConfigTestResult> TestConnectionAsync(
@@ -377,5 +418,27 @@ public sealed class ModelConfigCommandService : IModelConfigCommandService
                 ? [new ModelConfigPromptTestStreamEvent("thought", rest)]
                 : [new ModelConfigPromptTestStreamEvent("final", rest)];
         }
+    }
+
+    private async Task WriteAuditAsync(
+        TenantId tenantId,
+        string action,
+        string result,
+        string target,
+        CancellationToken cancellationToken)
+    {
+        var currentUser = _currentUserAccessor.GetCurrentUser();
+        var actor = currentUser is not null
+            ? currentUser.UserId.ToString()
+            : "SYSTEM";
+        var record = new AuditRecord(
+            tenantId,
+            actor,
+            action,
+            result,
+            target,
+            null,
+            null);
+        await _auditWriter.WriteAsync(record, cancellationToken);
     }
 }

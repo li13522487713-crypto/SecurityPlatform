@@ -122,3 +122,11 @@ Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Idempotency-Key: {{$guid}}
 X-CSRF-TOKEN: {{csrfToken}}
+
+### 删除模型配置（被 Agent 引用时阻断）
+# 预期：返回 VALIDATION_ERROR，message 包含“被 N 个 Agent 引用，禁止删除”
+DELETE {{baseUrl}}/api/v1/model-configs/{{modelConfigId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}

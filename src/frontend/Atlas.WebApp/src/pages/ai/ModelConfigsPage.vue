@@ -108,6 +108,7 @@
               </a-tooltip>
               <a-popconfirm
                 :title="t('ai.modelConfig.deleteConfirm')"
+                :description="t('ai.modelConfig.deleteRiskTip')"
                 :ok-text="t('ai.modelConfig.ok')"
                 :cancel-text="t('common.cancel')"
                 @confirm="handleDelete(record.id)"
@@ -718,8 +719,25 @@ async function handleDelete(id: number) {
 
     if (!isMounted.value) return;
   } catch (error: unknown) {
-    message.error((error as Error).message || t("crud.deleteFailed"));
+    message.error(resolveDeleteErrorMessage(error));
   }
+}
+
+function resolveDeleteErrorMessage(error: unknown): string {
+  const requestError = error as {
+    message?: string;
+    payload?: { code?: string; message?: string };
+    code?: string;
+  } | null;
+  const backendMessage = requestError?.payload?.message || requestError?.message || "";
+  if (
+    backendMessage.includes("Agent 引用") ||
+    backendMessage.includes("禁止删除") ||
+    backendMessage.includes("解除关联")
+  ) {
+    return backendMessage;
+  }
+  return backendMessage || t("crud.deleteFailed");
 }
 
 async function handleTestConnection() {

@@ -341,7 +341,7 @@ function applyNodeDefaults(nodeType: string, configs: Record<string, unknown>) {
 
 <style scoped>
 .properties-panel {
-  width: 320px;
+  width: clamp(280px, 24vw, 340px);
   background: #161b22;
   border-left: 1px solid #30363d;
   display: flex;
@@ -367,6 +367,8 @@ function applyNodeDefaults(nodeType: string, configs: Record<string, unknown>) {
   flex: 1;
   overflow-y: auto;
   padding: 0;
+  scrollbar-width: thin;
+  scrollbar-color: #3b4755 #121a23;
 }
 
 .prop-section {
@@ -409,5 +411,19 @@ function applyNodeDefaults(nodeType: string, configs: Record<string, unknown>) {
   background: #0d1117 !important;
   border-color: #30363d !important;
   color: #e6edf3 !important;
+}
+
+.panel-body::-webkit-scrollbar {
+  width: 10px;
+}
+
+.panel-body::-webkit-scrollbar-track {
+  background: #121a23;
+}
+
+.panel-body::-webkit-scrollbar-thumb {
+  background: #3b4755;
+  border-radius: 999px;
+  border: 2px solid #121a23;
 }
 </style>

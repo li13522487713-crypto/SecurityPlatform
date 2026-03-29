@@ -2370,6 +2370,34 @@ JWT Claims（新增）：
 - `maxDailyTokensPerUser`
 - `maxKnowledgeRetrievalCount`
 
+### 模型配置删除治理（严格阻断）
+
+- 删除接口：`DELETE /api/v1/model-configs/{id}`
+- 治理策略：当模型配置被 Agent 强关联（`Agent.ModelConfigId`）引用时，禁止删除并返回业务错误。
+- 强关联阻断范围（当前）：Agent。
+- 阻断响应约定：
+  - `code`: `VALIDATION_ERROR`
+  - `message`: 包含引用数量与示例 Agent（如：`模型配置被 2 个 Agent 引用，禁止删除...请先解除关联后重试。`）
+
+失败示例：
+
+```json
+{
+  "success": false,
+  "code": "VALIDATION_ERROR",
+  "message": "模型配置被 2 个 Agent 引用，禁止删除，示例：客服助手(ID:1001)、流程编排助手(ID:1002)。请先解除关联后重试。",
+  "traceId": "00-..."
+}
+```
+
+#### 运行时弱关联风险说明（非强引用阻断）
+
+- Workflow/LowCode 的部分 AI 运行路径通过 `provider/model` 字符串解析默认模型，不属于 `ModelConfigId` 强引用。
+- 因此“删除阻断”不会覆盖此类弱关联场景；若删除后命中默认回退，可能出现运行时模型变化。
+- 治理建议：
+  - 删除前优先排查 workflow 配置与运行日志中的 provider/model 使用情况；
+  - 发布前在测试环境做回归，确认不存在静默回退导致的行为偏差。
+
 ### 统一搜索（Phase 15）
 
 - `GET /api/v1/ai-search?keyword=&limit=`

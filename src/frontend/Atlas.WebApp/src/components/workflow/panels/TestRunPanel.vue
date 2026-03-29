@@ -407,7 +407,7 @@ async function refreshExecutionDetail(executionId: string) {
 
 <style scoped>
 .test-run-panel {
-  width: 360px;
+  width: clamp(280px, 26vw, 360px);
   background: #161b22;
   border-left: 1px solid #30363d;
   display: flex;
@@ -448,6 +448,8 @@ async function refreshExecutionDetail(executionId: string) {
   flex: 1;
   overflow-y: auto;
   padding: 12px;
+  scrollbar-width: thin;
+  scrollbar-color: #3b4755 #121a23;
 }
 
 .section-title {
@@ -618,4 +620,18 @@ async function refreshExecutionDetail(executionId: string) {
 .version-time { font-size: 11px; color: #7d8590; }
 .version-desc { font-size: 12px; color: #e6edf3; margin-bottom: 4px; }
 .version-stats { font-size: 11px; color: #7d8590; }
+
+.panel-body::-webkit-scrollbar {
+  width: 10px;
+}
+
+.panel-body::-webkit-scrollbar-track {
+  background: #121a23;
+}
+
+.panel-body::-webkit-scrollbar-thumb {
+  background: #3b4755;
+  border-radius: 999px;
+  border: 2px solid #121a23;
+}
 </style>

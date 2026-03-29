@@ -129,9 +129,9 @@ function handleDragStart(nodeType: string) {
 
 <style scoped>
 .node-panel {
-  width: 220px;
-  background: #161b22;
-  border-right: 1px solid #30363d;
+  width: clamp(176px, 16vw, 220px);
+  background: linear-gradient(180deg, #161b22 0%, #111820 100%);
+  border-right: 1px solid #2a3440;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -140,13 +140,17 @@ function handleDragStart(nodeType: string) {
 
 .panel-header {
   padding: 12px;
-  border-bottom: 1px solid #30363d;
+  border-bottom: 1px solid #2a3440;
+  background: rgba(13, 17, 23, 0.75);
+  backdrop-filter: blur(4px);
 }
 
 .panel-body {
   flex: 1;
   overflow-y: auto;
   padding: 8px 0;
+  scrollbar-width: thin;
+  scrollbar-color: #3b4755 #121a23;
 }
 
 .node-category {
@@ -172,13 +176,15 @@ function handleDragStart(nodeType: string) {
   gap: 10px;
   padding: 8px;
   border-radius: 6px;
+  border: 1px solid transparent;
   cursor: grab;
-  transition: background 0.15s;
+  transition: background 0.15s, border-color 0.15s;
   margin-bottom: 2px;
 }
 
 .node-item:hover {
-  background: #1f2937;
+  background: #1b2734;
+  border-color: #2f3b4a;
 }
 
 .node-item:active {
@@ -212,9 +218,46 @@ function handleDragStart(nodeType: string) {
 
 .node-item-desc {
   font-size: 11px;
-  color: #7d8590;
+  color: #8f99a6;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.panel-body::-webkit-scrollbar {
+  width: 10px;
+}
+
+.panel-body::-webkit-scrollbar-track {
+  background: #121a23;
+}
+
+.panel-body::-webkit-scrollbar-thumb {
+  background: #3b4755;
+  border-radius: 999px;
+  border: 2px solid #121a23;
+}
+
+.panel-body::-webkit-scrollbar-thumb:hover {
+  background: #4a5a6c;
+}
+
+:deep(.panel-header .ant-input-affix-wrapper) {
+  background: #0f1822 !important;
+  border-color: #2f3b4a !important;
+  color: #e6edf3 !important;
+}
+
+:deep(.panel-header .ant-input-affix-wrapper .ant-input) {
+  background: transparent !important;
+  color: #e6edf3 !important;
+}
+
+:deep(.panel-header .ant-input-affix-wrapper .ant-input::placeholder) {
+  color: #8f99a6;
+}
+
+:deep(.panel-header .ant-input-prefix) {
+  color: #8f99a6;
 }
 </style>

@@ -149,6 +149,11 @@ export async function requestApi<T>(path: string, init?: RequestInit, options?: 
   const method = (init?.method ?? "GET").toUpperCase();
   const shouldAttachSecurityHeaders = Boolean(token);
 
+  // 对 JSON 字符串请求体兜底补齐内容类型，避免后端返回 415 Unsupported Media Type。
+  if (typeof init?.body === "string" && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json; charset=utf-8");
+  }
+
   if (!headers.has("Accept-Language")) {
     headers.set("Accept-Language", getLocale());
   }

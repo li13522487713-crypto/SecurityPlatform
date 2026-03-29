@@ -475,9 +475,10 @@ onMounted(() => {
 
 <style scoped>
 .workflow-editor-page {
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
   background: #0d1117;
   overflow: hidden;
 }
@@ -486,8 +487,9 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 52px;
-  padding: 0 12px;
+  min-height: 52px;
+  padding: 8px 12px;
+  gap: 8px;
   background: #161b22;
   border-bottom: 1px solid #30363d;
   flex-shrink: 0;
@@ -497,6 +499,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
 }
 
 .name-input {
@@ -505,8 +508,18 @@ onMounted(() => {
   color: #e6edf3;
   font-size: 15px;
   font-weight: 600;
-  width: 240px;
+  width: clamp(180px, 22vw, 320px);
   box-shadow: none;
+}
+
+.header-right {
+  margin-left: auto;
+}
+
+.header-right :deep(.ant-space) {
+  row-gap: 8px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
 }
 
 .name-input:focus,
@@ -517,13 +530,17 @@ onMounted(() => {
 }
 
 .editor-body {
-  display: flex;
-  flex: 1;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: max-content;
+  grid-template-columns: max-content minmax(0, 1fr) max-content;
+  min-height: 0;
   overflow: hidden;
 }
 
 .canvas-container {
   flex: 1;
+  min-width: 0;
   position: relative;
   overflow: hidden;
 }
@@ -566,5 +583,27 @@ onMounted(() => {
 :deep(.vue-flow__minimap) {
   border-radius: 8px;
   overflow: hidden;
+}
+
+@media (max-width: 1366px) {
+  :deep(.node-panel) {
+    width: 196px;
+  }
+
+  :deep(.properties-panel),
+  :deep(.test-run-panel) {
+    width: 300px;
+  }
+}
+
+@media (max-width: 1200px) {
+  :deep(.node-panel) {
+    width: 176px;
+  }
+
+  :deep(.properties-panel),
+  :deep(.test-run-panel) {
+    width: 280px;
+  }
 }
 </style>
