@@ -1,161 +1,270 @@
 {
-  "type": "page",
-  "title": "动态表设计器",
-  "body": [
+  "type": "wizard",
+  "name": "tableWizard",
+  "id": "tableWizardId",
+  "mode": "vertical",
+  "className": "dynamic-table-wizard",
+  "actionPrevLabel": "上一步",
+  "actionNextLabel": "下一步",
+  "actionFinishLabel": "创建数据表",
+  "api": {
+    "method": "post",
+    "url": "/api/v1/dynamic-tables",
+    "data": {
+      "tableKey": "${tableKey}",
+      "displayName": "${displayName}",
+      "description": "${description}",
+      "dbType": "${dbType}",
+      "fields": "${fields}",
+      "indexes": "${indexes}"
+    },
+    "adaptor": "return { status: payload.success ? 0 : 1, msg: payload.message, data: payload.data };"
+  },
+  "steps": [
     {
-      "type": "wizard",
-      "name": "tableWizard",
-      "mode": "horizontal",
-      "api": {
-        "method": "post",
-        "url": "/api/v1/dynamic-tables",
-        "data": {
-          "tableKey": "${tableKey}",
-          "displayName": "${displayName}",
-          "description": "${description}",
-          "dbType": "${dbType}",
-          "fields": "${fields}",
-          "indexes": "${indexes}"
-        },
-        "adaptor": "return { status: payload.success ? 0 : 1, msg: payload.message, data: payload.data };"
-      },
-      "steps": [
+      "title": "基础信息",
+      "body": [
         {
-          "title": "基础信息",
-          "body": [
-            {
-              "type": "input-text",
-              "name": "tableKey",
-              "label": "表标识",
-              "required": true,
-              "description": "仅字母/数字/下划线，且以字母开头。",
-              "validation": {
-                "pattern": "^[A-Za-z][A-Za-z0-9_]{1,63}$",
-                "message": "表标识格式不正确"
-              }
-            },
-            {
-              "type": "input-text",
-              "name": "displayName",
-              "label": "表名称",
-              "required": true
-            },
-            {
-              "type": "textarea",
-              "name": "description",
-              "label": "描述"
-            },
-            {
-              "type": "select",
-              "name": "dbType",
-              "label": "数据库类型",
-              "value": "Sqlite",
-              "options": [
-                { "label": "SQLite", "value": "Sqlite" },
-                { "label": "SQL Server", "value": "SqlServer" },
-                { "label": "MySQL", "value": "MySql" },
-                { "label": "PostgreSQL", "value": "PostgreSql" }
-              ]
-            }
-          ]
-        },
-        {
-          "title": "字段定义",
-          "body": [
-            {
-              "type": "input-table",
-              "name": "fields",
-              "label": "字段定义",
-              "addable": true,
-              "editable": true,
-              "removable": true,
-              "columns": [
+          "type": "input-text",
+          "name": "tableKey",
+          "id": "tableKeyInputId",
+          "label": "表标识",
+          "required": true,
+          "clearable": true,
+          "placeholder": "例如：customer_order",
+          "description": "仅字母/数字/下划线，且以字母开头。",
+          "onEvent": {
+            "change": {
+              "actions": [
                 {
-                  "name": "name",
-                  "label": "字段名",
-                  "type": "input-text",
-                  "required": true,
-                  "validation": {
-                    "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
-                    "message": "字段名格式不正确"
+                  "actionType": "setValue",
+                  "componentId": "tableWizardId",
+                  "args": {
+                    "value": {
+                      "__tableKeyManual": "${!!tableKey}"
+                    }
                   }
-                },
-                {
-                  "name": "displayName",
-                  "label": "显示名",
-                  "type": "input-text"
-                },
-                {
-                  "name": "fieldType",
-                  "label": "类型",
-                  "type": "select",
-                  "required": true,
-                  "options": [
-                    { "label": "Int", "value": "Int" },
-                    { "label": "Long", "value": "Long" },
-                    { "label": "Decimal", "value": "Decimal" },
-                    { "label": "String", "value": "String" },
-                    { "label": "Text", "value": "Text" },
-                    { "label": "Bool", "value": "Bool" },
-                    { "label": "DateTime", "value": "DateTime" },
-                    { "label": "Date", "value": "Date" }
-                  ]
-                },
-                {
-                  "name": "length",
-                  "label": "长度",
-                  "type": "input-number",
-                  "visibleOn": "data.fieldType === 'String'",
-                  "value": 50
-                },
-                {
-                  "name": "precision",
-                  "label": "精度",
-                  "type": "input-number",
-                  "visibleOn": "data.fieldType === 'Decimal'",
-                  "value": 18
-                },
-                {
-                  "name": "scale",
-                  "label": "小数位",
-                  "type": "input-number",
-                  "visibleOn": "data.fieldType === 'Decimal'",
-                  "value": 2
-                },
-                {
-                  "name": "allowNull",
-                  "label": "可为空",
-                  "type": "switch",
-                  "value": true
-                },
-                {
-                  "name": "isPrimaryKey",
-                  "label": "主键",
-                  "type": "checkbox"
-                },
-                {
-                  "name": "isAutoIncrement",
-                  "label": "自增",
-                  "type": "checkbox",
-                  "visibleOn": "data.isPrimaryKey && (data.fieldType === 'Int' || data.fieldType === 'Long')"
-                },
-                {
-                  "name": "isUnique",
-                  "label": "唯一",
-                  "type": "checkbox"
                 }
               ]
             }
+          },
+          "validation": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_]{1,63}$",
+            "message": "表标识格式不正确"
+          }
+        },
+        {
+          "type": "input-text",
+          "name": "displayName",
+          "label": "表名称",
+          "required": true,
+          "clearable": true,
+          "placeholder": "例如：客户订单",
+          "onEvent": {
+            "blur": {
+              "actions": [
+                {
+                  "actionType": "custom",
+                  "expression": "${!__tableKeyManual}",
+                  "script": "const raw = (event.data.displayName || '').trim(); if (!raw) { return; } const normalized = raw.normalize('NFKD').replace(/[\\u0300-\\u036f]/g, ''); const slug = normalized.replace(/[^A-Za-z0-9_\\s-]/g, '').replace(/[\\s-]+/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '').toLowerCase(); const fallback = `table_${Date.now().toString(36)}`; const tableKey = slug || fallback; doAction({ actionType: 'setValue', componentId: 'tableWizardId', args: { value: { tableKey } } });"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "type": "hidden",
+          "name": "__tableKeyManual",
+          "value": false
+        },
+        {
+          "type": "select",
+          "name": "dbType",
+          "label": "数据库类型",
+          "value": "Sqlite",
+          "clearable": false,
+          "options": [
+            { "label": "SQLite", "value": "Sqlite" },
+            { "label": "SQL Server", "value": "SqlServer" },
+            { "label": "MySQL", "value": "MySql" },
+            { "label": "PostgreSQL", "value": "PostgreSql" }
           ]
         },
         {
-          "title": "确认提交",
-          "body": [
+          "type": "textarea",
+          "name": "description",
+          "label": "描述",
+          "placeholder": "可选：补充该数据表用途与约束",
+          "minRows": 2,
+          "maxRows": 4
+        }
+      ]
+    },
+    {
+      "title": "字段定义",
+      "body": [
+        {
+          "type": "alert",
+          "level": "info",
+          "showIcon": true,
+          "body": "已预置主键和常用审计字段（createdAt/createdBy/updatedAt/updatedBy），可按需删除；字符串默认长度 50，金额请使用 Decimal。"
+        },
+        {
+          "type": "input-table",
+          "name": "fields",
+          "label": "字段定义",
+          "addable": true,
+          "addButtonText": "新增字段",
+          "editable": true,
+          "removable": true,
+          "needConfirm": false,
+          "showIndex": true,
+          "minLength": 1,
+          "value": [
             {
-              "type": "tpl",
-              "tpl": "请确认表信息与字段定义后提交。"
+              "name": "id",
+              "displayName": "主键ID",
+              "fieldType": "Long",
+              "allowNull": false,
+              "isPrimaryKey": true,
+              "isAutoIncrement": true,
+              "isUnique": true
+            },
+            {
+              "name": "createdAt",
+              "displayName": "创建时间",
+              "fieldType": "DateTime",
+              "allowNull": true,
+              "isPrimaryKey": false,
+              "isAutoIncrement": false,
+              "isUnique": false
+            },
+            {
+              "name": "createdBy",
+              "displayName": "创建人",
+              "fieldType": "Long",
+              "allowNull": true,
+              "isPrimaryKey": false,
+              "isAutoIncrement": false,
+              "isUnique": false
+            },
+            {
+              "name": "updatedAt",
+              "displayName": "更新时间",
+              "fieldType": "DateTime",
+              "allowNull": true,
+              "isPrimaryKey": false,
+              "isAutoIncrement": false,
+              "isUnique": false
+            },
+            {
+              "name": "updatedBy",
+              "displayName": "更新人",
+              "fieldType": "Long",
+              "allowNull": true,
+              "isPrimaryKey": false,
+              "isAutoIncrement": false,
+              "isUnique": false
+            }
+          ],
+          "columns": [
+            {
+              "name": "name",
+              "label": "字段名",
+              "type": "input-text",
+              "required": true,
+              "placeholder": "例如：orderNo",
+              "validation": {
+                "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
+                "message": "字段名格式不正确"
+              }
+            },
+            {
+              "name": "displayName",
+              "label": "显示名",
+              "type": "input-text",
+              "placeholder": "例如：订单号"
+            },
+            {
+              "name": "fieldType",
+              "label": "类型",
+              "type": "select",
+              "required": true,
+              "value": "String",
+              "options": [
+                { "label": "Int", "value": "Int" },
+                { "label": "Long", "value": "Long" },
+                { "label": "Decimal", "value": "Decimal" },
+                { "label": "String", "value": "String" },
+                { "label": "Text", "value": "Text" },
+                { "label": "Bool", "value": "Bool" },
+                { "label": "DateTime", "value": "DateTime" },
+                { "label": "Date", "value": "Date" }
+              ]
+            },
+            {
+              "name": "length",
+              "label": "长度",
+              "type": "input-number",
+              "visibleOn": "data.fieldType === 'String'",
+              "min": 1,
+              "max": 1024,
+              "value": 50
+            },
+            {
+              "name": "precision",
+              "label": "精度",
+              "type": "input-number",
+              "visibleOn": "data.fieldType === 'Decimal'",
+              "min": 1,
+              "max": 38,
+              "value": 18
+            },
+            {
+              "name": "scale",
+              "label": "小数位",
+              "type": "input-number",
+              "visibleOn": "data.fieldType === 'Decimal'",
+              "min": 0,
+              "max": 18,
+              "value": 2
+            },
+            {
+              "name": "allowNull",
+              "label": "可为空",
+              "type": "switch",
+              "value": true
+            },
+            {
+              "name": "isPrimaryKey",
+              "label": "主键",
+              "type": "checkbox"
+            },
+            {
+              "name": "isAutoIncrement",
+              "label": "自增",
+              "type": "checkbox",
+              "visibleOn": "data.isPrimaryKey && (data.fieldType === 'Int' || data.fieldType === 'Long')"
+            },
+            {
+              "name": "isUnique",
+              "label": "唯一",
+              "type": "checkbox"
             }
           ]
+        }
+      ]
+    },
+    {
+      "title": "确认提交",
+      "body": [
+        {
+          "type": "tpl",
+          "tpl": "表标识：${tableKey || '-'}；表名称：${displayName || '-'}；字段数：${(fields && fields.length) || 0}"
+        },
+        {
+          "type": "tpl",
+          "tpl": "确认后将创建数据表与字段结构，请检查表标识和字段类型。"
         }
       ]
     }

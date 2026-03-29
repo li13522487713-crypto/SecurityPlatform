@@ -43,6 +43,7 @@ const BASE = '/api/v2/workflows'
 const EXEC_BASE = '/api/v2/workflows/executions'
 const DEFAULT_NODE_WIDTH = 160
 const DEFAULT_NODE_HEIGHT = 60
+type IdLike = string | number
 
 // ============ SSE 回调接口 ============
 
@@ -78,7 +79,7 @@ export const workflowV2Api = {
     return requestApi<ApiResponse<PagedResult<WorkflowListItem>>>(`${BASE}?${params}`)
   },
 
-  getDetail(id: number): Promise<ApiResponse<WorkflowDetailResponse>> {
+  getDetail(id: IdLike): Promise<ApiResponse<WorkflowDetailResponse>> {
     return requestApi<ApiResponse<WorkflowDetailResponse>>(`${BASE}/${id}`).then(res => {
       if (res.data?.canvasJson) {
         return {
@@ -94,7 +95,7 @@ export const workflowV2Api = {
     })
   },
 
-  saveDraft(id: number, req: WorkflowSaveRequest): Promise<ApiResponse<boolean>> {
+  saveDraft(id: IdLike, req: WorkflowSaveRequest): Promise<ApiResponse<boolean>> {
     return requestApi<ApiResponse<boolean>>(`${BASE}/${id}/draft`, {
       method: 'PUT',
       body: JSON.stringify({
@@ -104,26 +105,26 @@ export const workflowV2Api = {
     })
   },
 
-  updateMeta(id: number, req: WorkflowUpdateMetaRequest): Promise<ApiResponse<boolean>> {
+  updateMeta(id: IdLike, req: WorkflowUpdateMetaRequest): Promise<ApiResponse<boolean>> {
     return requestApi<ApiResponse<boolean>>(`${BASE}/${id}/meta`, { method: 'PUT', body: JSON.stringify(req) })
   },
 
-  publish(id: number, req: WorkflowPublishRequest): Promise<ApiResponse<{ id: string }>> {
+  publish(id: IdLike, req: WorkflowPublishRequest): Promise<ApiResponse<{ id: string }>> {
     return requestApi<ApiResponse<{ id: string }>>(`${BASE}/${id}/publish`, {
       method: 'POST',
       body: JSON.stringify(req),
     })
   },
 
-  copy(id: number): Promise<ApiResponse<{ id: string }>> {
+  copy(id: IdLike): Promise<ApiResponse<{ id: string }>> {
     return requestApi<ApiResponse<{ id: string }>>(`${BASE}/${id}/copy`, { method: 'POST' })
   },
 
-  delete(id: number): Promise<ApiResponse<boolean>> {
+  delete(id: IdLike): Promise<ApiResponse<boolean>> {
     return requestApi<ApiResponse<boolean>>(`${BASE}/${id}`, { method: 'DELETE' })
   },
 
-  getVersions(id: number): Promise<ApiResponse<WorkflowVersionItem[]>> {
+  getVersions(id: IdLike): Promise<ApiResponse<WorkflowVersionItem[]>> {
     return requestApi<ApiResponse<WorkflowVersionItem[]>>(`${BASE}/${id}/versions`)
   },
 
@@ -131,7 +132,7 @@ export const workflowV2Api = {
     return requestApi<ApiResponse<NodeTypeMetadata[]>>(`${BASE}/node-types`)
   },
 
-  runSync(id: number, req: WorkflowRunRequest): Promise<ApiResponse<WorkflowRunResponse>> {
+  runSync(id: IdLike, req: WorkflowRunRequest): Promise<ApiResponse<WorkflowRunResponse>> {
     const payload = buildRunPayload(req)
     return requestApi<ApiResponse<WorkflowRunResponse>>(`${BASE}/${id}/run`, {
       method: 'POST',
@@ -139,7 +140,7 @@ export const workflowV2Api = {
     })
   },
 
-  runStream(id: number, req: WorkflowRunRequest, callbacks: StreamCallbacks): StreamRunHandle {
+  runStream(id: IdLike, req: WorkflowRunRequest, callbacks: StreamCallbacks): StreamRunHandle {
     const abortController = new AbortController()
     const payload = buildRunPayload(req)
 
@@ -215,40 +216,40 @@ export const workflowV2Api = {
     }
   },
 
-  cancel(executionId: number): Promise<ApiResponse<boolean>> {
+  cancel(executionId: IdLike): Promise<ApiResponse<boolean>> {
     return requestApi<ApiResponse<boolean>>(`${EXEC_BASE}/${executionId}/cancel`, { method: 'POST' })
   },
 
-  getProcess(executionId: number): Promise<ApiResponse<WorkflowProcessResponse>> {
+  getProcess(executionId: IdLike): Promise<ApiResponse<WorkflowProcessResponse>> {
     return requestApi<ApiResponse<WorkflowProcessResponse>>(`${EXEC_BASE}/${executionId}/process`)
   },
 
-  getCheckpoint(executionId: number): Promise<ApiResponse<WorkflowExecutionCheckpointResponse>> {
+  getCheckpoint(executionId: IdLike): Promise<ApiResponse<WorkflowExecutionCheckpointResponse>> {
     return requestApi<ApiResponse<WorkflowExecutionCheckpointResponse>>(
       `${EXEC_BASE}/${executionId}/checkpoint`,
     )
   },
 
-  getNodeDetail(executionId: number, nodeKey: string): Promise<ApiResponse<NodeExecutionDetailResponse>> {
+  getNodeDetail(executionId: IdLike, nodeKey: string): Promise<ApiResponse<NodeExecutionDetailResponse>> {
     return requestApi<ApiResponse<NodeExecutionDetailResponse>>(
       `${EXEC_BASE}/${executionId}/nodes/${encodeURIComponent(nodeKey)}`,
     )
   },
 
-  resume(executionId: number, req: WorkflowResumeRequest): Promise<ApiResponse<boolean>> {
+  resume(executionId: IdLike, req: WorkflowResumeRequest): Promise<ApiResponse<boolean>> {
     void req
     return requestApi<ApiResponse<boolean>>(`${EXEC_BASE}/${executionId}/resume`, {
       method: 'POST',
     })
   },
 
-  recover(executionId: number): Promise<ApiResponse<WorkflowRunResponse>> {
+  recover(executionId: IdLike): Promise<ApiResponse<WorkflowRunResponse>> {
     return requestApi<ApiResponse<WorkflowRunResponse>>(`${EXEC_BASE}/${executionId}/recover`, {
       method: 'POST',
     })
   },
 
-  getDebugView(executionId: number): Promise<ApiResponse<WorkflowExecutionDebugViewResponse>> {
+  getDebugView(executionId: IdLike): Promise<ApiResponse<WorkflowExecutionDebugViewResponse>> {
     return requestApi<ApiResponse<WorkflowExecutionDebugViewResponse>>(
       `${EXEC_BASE}/${executionId}/debug-view`,
     )
@@ -260,7 +261,7 @@ export const workflowV2Api = {
     return requestApi<ApiResponse<PagedResult<WorkflowListItem>>>(`${BASE}/published?${params}`)
   },
 
-  debugNode(workflowId: number, nodeKey: string, req: NodeDebugRequest): Promise<ApiResponse<NodeDebugResponse>> {
+  debugNode(workflowId: IdLike, nodeKey: string, req: NodeDebugRequest): Promise<ApiResponse<NodeDebugResponse>> {
     const payload = {
       nodeKey,
       inputsJson: req.inputsJson ?? JSON.stringify(req.inputs ?? {}),
@@ -274,10 +275,10 @@ export const workflowV2Api = {
 
 // ============ 向后兼容的独立导出 ============
 
-export function createWorkflow(req: WorkflowCreateRequest): Promise<ApiResponse<number>> {
+export function createWorkflow(req: WorkflowCreateRequest): Promise<ApiResponse<string>> {
   return workflowV2Api.create(req).then(res => ({
     ...res,
-    data: res.data?.id ? Number(res.data.id) : undefined,
+    data: res.data?.id,
   }))
 }
 
@@ -285,34 +286,34 @@ export function listWorkflows(pageIndex = 1, pageSize = 20, keyword?: string): P
   return workflowV2Api.list(pageIndex, pageSize, keyword)
 }
 
-export function getWorkflowCanvas(id: number): Promise<ApiResponse<WorkflowDetailResponse>> {
+export function getWorkflowCanvas(id: IdLike): Promise<ApiResponse<WorkflowDetailResponse>> {
   return workflowV2Api.getDetail(id)
 }
 
-export function saveWorkflowDraft(id: number, req: WorkflowSaveRequest): Promise<ApiResponse<boolean>> {
+export function saveWorkflowDraft(id: IdLike, req: WorkflowSaveRequest): Promise<ApiResponse<boolean>> {
   return workflowV2Api.saveDraft(id, req)
 }
 
-export function updateWorkflowMeta(id: number, req: WorkflowUpdateMetaRequest): Promise<ApiResponse<boolean>> {
+export function updateWorkflowMeta(id: IdLike, req: WorkflowUpdateMetaRequest): Promise<ApiResponse<boolean>> {
   return workflowV2Api.updateMeta(id, req)
 }
 
-export function publishWorkflow(id: number, req: WorkflowPublishRequest): Promise<ApiResponse<{ id: string }>> {
+export function publishWorkflow(id: IdLike, req: WorkflowPublishRequest): Promise<ApiResponse<{ id: string }>> {
   return workflowV2Api.publish(id, req)
 }
 
-export function copyWorkflow(id: number): Promise<ApiResponse<number>> {
+export function copyWorkflow(id: IdLike): Promise<ApiResponse<string>> {
   return workflowV2Api.copy(id).then(res => ({
     ...res,
-    data: res.data?.id ? Number(res.data.id) : undefined,
+    data: res.data?.id,
   }))
 }
 
-export function deleteWorkflow(id: number): Promise<ApiResponse<boolean>> {
+export function deleteWorkflow(id: IdLike): Promise<ApiResponse<boolean>> {
   return workflowV2Api.delete(id)
 }
 
-export function listWorkflowVersions(id: number): Promise<ApiResponse<WorkflowVersionItem[]>> {
+export function listWorkflowVersions(id: IdLike): Promise<ApiResponse<WorkflowVersionItem[]>> {
   return workflowV2Api.getVersions(id)
 }
 
@@ -320,42 +321,42 @@ export function getNodeTypes(): Promise<ApiResponse<NodeTypeMetadata[]>> {
   return workflowV2Api.getNodeTypes()
 }
 
-export function syncRunWorkflow(id: number, req: WorkflowRunRequest): Promise<ApiResponse<WorkflowRunResponse>> {
+export function syncRunWorkflow(id: IdLike, req: WorkflowRunRequest): Promise<ApiResponse<WorkflowRunResponse>> {
   return workflowV2Api.runSync(id, req)
 }
 
-export function asyncRunWorkflow(id: number, req: WorkflowRunRequest): Promise<ApiResponse<number>> {
+export function asyncRunWorkflow(id: IdLike, req: WorkflowRunRequest): Promise<ApiResponse<string>> {
   return workflowV2Api.runSync(id, req).then(res => ({
     ...res,
-    data: res.data?.executionId ? Number(res.data.executionId) : undefined,
+    data: res.data?.executionId,
   }))
 }
 
-export function cancelExecution(executionId: number): Promise<ApiResponse<boolean>> {
+export function cancelExecution(executionId: IdLike): Promise<ApiResponse<boolean>> {
   return workflowV2Api.cancel(executionId)
 }
 
-export function getExecutionProcess(executionId: number): Promise<ApiResponse<WorkflowProcessResponse>> {
+export function getExecutionProcess(executionId: IdLike): Promise<ApiResponse<WorkflowProcessResponse>> {
   return workflowV2Api.getProcess(executionId)
 }
 
-export function getExecutionCheckpoint(executionId: number): Promise<ApiResponse<WorkflowExecutionCheckpointResponse>> {
+export function getExecutionCheckpoint(executionId: IdLike): Promise<ApiResponse<WorkflowExecutionCheckpointResponse>> {
   return workflowV2Api.getCheckpoint(executionId)
 }
 
-export function getNodeExecutionDetail(executionId: number, nodeKey: string): Promise<ApiResponse<NodeExecutionDetailResponse>> {
+export function getNodeExecutionDetail(executionId: IdLike, nodeKey: string): Promise<ApiResponse<NodeExecutionDetailResponse>> {
   return workflowV2Api.getNodeDetail(executionId, nodeKey)
 }
 
-export function resumeExecution(executionId: number, req: WorkflowResumeRequest): Promise<ApiResponse<boolean>> {
+export function resumeExecution(executionId: IdLike, req: WorkflowResumeRequest): Promise<ApiResponse<boolean>> {
   return workflowV2Api.resume(executionId, req)
 }
 
-export function recoverExecution(executionId: number): Promise<ApiResponse<WorkflowRunResponse>> {
+export function recoverExecution(executionId: IdLike): Promise<ApiResponse<WorkflowRunResponse>> {
   return workflowV2Api.recover(executionId)
 }
 
-export function getExecutionDebugView(executionId: number): Promise<ApiResponse<WorkflowExecutionDebugViewResponse>> {
+export function getExecutionDebugView(executionId: IdLike): Promise<ApiResponse<WorkflowExecutionDebugViewResponse>> {
   return workflowV2Api.getDebugView(executionId)
 }
 
@@ -367,7 +368,7 @@ export function listPublishedWorkflows(
   return workflowV2Api.listPublished(pageIndex, pageSize, keyword)
 }
 
-export function debugNode(workflowId: number, nodeKey: string, req: NodeDebugRequest): Promise<ApiResponse<NodeDebugResponse>> {
+export function debugNode(workflowId: IdLike, nodeKey: string, req: NodeDebugRequest): Promise<ApiResponse<NodeDebugResponse>> {
   return workflowV2Api.debugNode(workflowId, nodeKey, req)
 }
 

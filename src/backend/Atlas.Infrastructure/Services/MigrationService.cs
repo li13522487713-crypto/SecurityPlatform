@@ -3,6 +3,7 @@ using Atlas.Application.DynamicTables.Models;
 using Atlas.Application.DynamicTables.Repositories;
 using Atlas.Core.Abstractions;
 using Atlas.Core.Exceptions;
+using Atlas.Core.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.DynamicTables.Enums;
@@ -43,7 +44,27 @@ public sealed class MigrationService : IMigrationService
     private readonly IDynamicTableRepository _dynamicTableRepository;
     private readonly IDynamicFieldRepository _dynamicFieldRepository;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
-    private readonly ISqlSugarClient _db;
+    private readonly IAppDbScopeFactory _appDbScopeFactory;
+    private readonly IAppContextAccessor _appContextAccessor;
+    private readonly ISqlSugarClient _mainDb;
+
+    public MigrationService(
+        IMigrationRecordRepository migrationRecordRepository,
+        IDynamicTableRepository dynamicTableRepository,
+        IDynamicFieldRepository dynamicFieldRepository,
+        IIdGeneratorAccessor idGeneratorAccessor,
+        IAppDbScopeFactory appDbScopeFactory,
+        IAppContextAccessor appContextAccessor,
+        ISqlSugarClient mainDb)
+    {
+        _migrationRecordRepository = migrationRecordRepository;
+        _dynamicTableRepository = dynamicTableRepository;
+        _dynamicFieldRepository = dynamicFieldRepository;
+        _idGeneratorAccessor = idGeneratorAccessor;
+        _appDbScopeFactory = appDbScopeFactory;
+        _appContextAccessor = appContextAccessor;
+        _mainDb = mainDb;
+    }
 
     public MigrationService(
         IMigrationRecordRepository migrationRecordRepository,
@@ -51,12 +72,15 @@ public sealed class MigrationService : IMigrationService
         IDynamicFieldRepository dynamicFieldRepository,
         IIdGeneratorAccessor idGeneratorAccessor,
         ISqlSugarClient db)
+        : this(
+            migrationRecordRepository,
+            dynamicTableRepository,
+            dynamicFieldRepository,
+            idGeneratorAccessor,
+            new MainOnlyAppDbScopeFactory(db),
+            NullAppContextAccessor.Instance,
+            db)
     {
-        _migrationRecordRepository = migrationRecordRepository;
-        _dynamicTableRepository = dynamicTableRepository;
-        _dynamicFieldRepository = dynamicFieldRepository;
-        _idGeneratorAccessor = idGeneratorAccessor;
-        _db = db;
     }
 
     public async Task<PagedResult<MigrationRecordListItem>> QueryAsync(
@@ -123,7 +147,11 @@ public sealed class MigrationService : IMigrationService
         MigrationRecordCreateRequest request,
         CancellationToken cancellationToken)
     {
-        var table = await _dynamicTableRepository.FindByKeyAsync(tenantId, request.TableKey, null, cancellationToken);
+        var table = await _dynamicTableRepository.FindByKeyAsync(
+            tenantId,
+            request.TableKey,
+            _appContextAccessor.ResolveAppId(),
+            cancellationToken);
         var dbType = table?.DbType ?? DynamicDbType.Sqlite;
         var validationError = MigrationScriptValidator.Validate(request.UpScript, request.TableKey, dbType);
         if (validationError is not null)
@@ -163,7 +191,11 @@ public sealed class MigrationService : IMigrationService
         DynamicTableAlterRequest request,
         CancellationToken cancellationToken)
     {
-        var table = await _dynamicTableRepository.FindByKeyAsync(tenantId, tableKey, null, cancellationToken);
+        var table = await _dynamicTableRepository.FindByKeyAsync(
+            tenantId,
+            tableKey,
+            _appContextAccessor.ResolveAppId(),
+            cancellationToken);
         if (table is null)
         {
             throw new BusinessException(ErrorCodes.NotFound, "DynamicTableNotFoundForMigration");
@@ -308,7 +340,7 @@ public sealed class MigrationService : IMigrationService
             {
                 // 安全边界：UpScript 已在执行前通过 MigrationScriptValidator 白名单校验，
                 // 仅允许 ALTER TABLE ... ADD COLUMN，禁止 DROP/SELECT/INSERT 等任意 SQL。
-                await ExecuteMigrationUpScriptAsync(table, migration.UpScript, cancellationToken);
+                await ExecuteMigrationUpScriptAsync(tenantId, table, migration.UpScript, cancellationToken);
                 migration.MarkSucceeded(userId, DateTimeOffset.UtcNow);
             }
             catch (Exception ex)
@@ -385,7 +417,11 @@ public sealed class MigrationService : IMigrationService
         return $"ADD COLUMN: {field.Name} ({typeText}, {nullableText})";
     }
 
-    private async Task ExecuteMigrationUpScriptAsync(DynamicTable? table, string upScript, CancellationToken cancellationToken)
+    private async Task ExecuteMigrationUpScriptAsync(
+        TenantId tenantId,
+        DynamicTable? table,
+        string upScript,
+        CancellationToken cancellationToken)
     {
         var lines = upScript
             .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
@@ -428,7 +464,11 @@ public sealed class MigrationService : IMigrationService
 
             var nullClause = notNull ? " NOT NULL" : "";
             var addColumnSql = $"ALTER TABLE \"{tableName}\" ADD COLUMN \"{columnName}\" {columnType}{nullClause}";
-            await _db.Ado.ExecuteCommandAsync(addColumnSql);
+            var appId = _appContextAccessor.ResolveAppId();
+            var db = appId.HasValue && appId.Value > 0
+                ? await _appDbScopeFactory.GetAppClientAsync(tenantId, appId.Value, cancellationToken)
+                : _mainDb;
+            await db.Ado.ExecuteCommandAsync(addColumnSql);
         }
     }
 

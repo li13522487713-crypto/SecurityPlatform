@@ -12,6 +12,7 @@ using Atlas.Core.Tenancy;
 using Atlas.Domain.DynamicTables.Entities;
 using Atlas.Domain.DynamicTables.Enums;
 using Atlas.Infrastructure.DynamicTables;
+using Atlas.Infrastructure.Services;
 using SqlSugar;
 using System.Text.RegularExpressions;
 
@@ -43,10 +44,38 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
     private readonly IDynamicRecordRepository _recordRepository;
     private readonly IDynamicSchemaMigrationRepository? _migrationRepository;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
-    private readonly ISqlSugarClient _db;
+    private readonly IAppDbScopeFactory _appDbScopeFactory;
     private readonly TimeProvider _timeProvider;
     private readonly IAppContextAccessor _appContextAccessor;
     private readonly IApprovalRuntimeCommandService? _approvalRuntimeService;
+
+    public DynamicTableCommandService(
+        IDynamicTableRepository tableRepository,
+        IDynamicFieldRepository fieldRepository,
+        IDynamicIndexRepository indexRepository,
+        IDynamicRelationRepository relationRepository,
+        IFieldPermissionRepository fieldPermissionRepository,
+        IDynamicRecordRepository recordRepository,
+        IDynamicSchemaMigrationRepository? migrationRepository,
+        IIdGeneratorAccessor idGeneratorAccessor,
+        IAppDbScopeFactory appDbScopeFactory,
+        TimeProvider timeProvider,
+        IAppContextAccessor appContextAccessor,
+        IApprovalRuntimeCommandService? approvalRuntimeService = null)
+    {
+        _tableRepository = tableRepository;
+        _fieldRepository = fieldRepository;
+        _indexRepository = indexRepository;
+        _relationRepository = relationRepository;
+        _fieldPermissionRepository = fieldPermissionRepository;
+        _recordRepository = recordRepository;
+        _migrationRepository = migrationRepository;
+        _idGeneratorAccessor = idGeneratorAccessor;
+        _appDbScopeFactory = appDbScopeFactory;
+        _timeProvider = timeProvider;
+        _appContextAccessor = appContextAccessor;
+        _approvalRuntimeService = approvalRuntimeService;
+    }
 
     public DynamicTableCommandService(
         IDynamicTableRepository tableRepository,
@@ -61,19 +90,20 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
         TimeProvider timeProvider,
         IAppContextAccessor appContextAccessor,
         IApprovalRuntimeCommandService? approvalRuntimeService = null)
+        : this(
+            tableRepository,
+            fieldRepository,
+            indexRepository,
+            relationRepository,
+            fieldPermissionRepository,
+            recordRepository,
+            migrationRepository,
+            idGeneratorAccessor,
+            new MainOnlyAppDbScopeFactory(db),
+            timeProvider,
+            appContextAccessor,
+            approvalRuntimeService)
     {
-        _tableRepository = tableRepository;
-        _fieldRepository = fieldRepository;
-        _indexRepository = indexRepository;
-        _relationRepository = relationRepository;
-        _fieldPermissionRepository = fieldPermissionRepository;
-        _recordRepository = recordRepository;
-        _migrationRepository = migrationRepository;
-        _idGeneratorAccessor = idGeneratorAccessor;
-        _db = db;
-        _timeProvider = timeProvider;
-        _appContextAccessor = appContextAccessor;
-        _approvalRuntimeService = approvalRuntimeService;
     }
 
     public async Task<long> CreateAsync(
@@ -111,18 +141,19 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
 
         var createColumns = DynamicSqlBuilder.BuildCreateTableColumns(fields);
         var indexSpecs = DynamicSqlBuilder.BuildCreateIndexSpecs(table, indexes);
+        var appDb = await ResolveAppDbAsync(tenantId, appId, cancellationToken);
 
-        var result = await _db.Ado.UseTranAsync(async () =>
+        var result = await appDb.Ado.UseTranAsync(async () =>
         {
-            _db.DbMaintenance.CreateTable(table.TableKey, createColumns, true);
+            appDb.DbMaintenance.CreateTable(table.TableKey, createColumns, true);
             foreach (var indexSpec in indexSpecs)
             {
-                if (_db.DbMaintenance.IsAnyIndex(indexSpec.IndexName))
+                if (appDb.DbMaintenance.IsAnyIndex(indexSpec.IndexName))
                 {
                     continue;
                 }
 
-                _db.DbMaintenance.CreateIndex(indexSpec.IndexName, indexSpec.Fields.ToArray(), table.TableKey, indexSpec.IsUnique);
+                appDb.DbMaintenance.CreateIndex(indexSpec.IndexName, indexSpec.Fields.ToArray(), table.TableKey, indexSpec.IsUnique);
             }
             await _tableRepository.AddAsync(table, cancellationToken);
             await _fieldRepository.AddRangeAsync(fields, cancellationToken);
@@ -218,19 +249,20 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
             BuildMigrationOperationLogs(newFields, fieldsToUpdate, fieldsToRemove),
             userId,
             now);
-        var result = await _db.Ado.UseTranAsync(async () =>
+        var appDb = await ResolveAppDbAsync(tenantId, table.AppId, cancellationToken);
+        var result = await appDb.Ado.UseTranAsync(async () =>
         {
-            ExecuteDropIndexesSql(indexesToDrop);
-            ExecuteDropColumnsSql(table.TableKey, fieldsToRemove);
+            ExecuteDropIndexesSql(indexesToDrop, appDb);
+            ExecuteDropColumnsSql(table.TableKey, fieldsToRemove, appDb);
 
             foreach (var field in addColumnOperations)
             {
-                _db.DbMaintenance.AddColumn(table.TableKey, DynamicSqlBuilder.BuildAddColumnInfo(field));
+                appDb.DbMaintenance.AddColumn(table.TableKey, DynamicSqlBuilder.BuildAddColumnInfo(field));
             }
 
             foreach (var index in generatedIndexes)
             {
-                if (_db.DbMaintenance.IsAnyIndex(index.Name))
+                if (appDb.DbMaintenance.IsAnyIndex(index.Name))
                 {
                     continue;
                 }
@@ -241,13 +273,13 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
                     continue;
                 }
 
-                _db.DbMaintenance.CreateIndex(index.Name, fields, table.TableKey, index.IsUnique);
+                appDb.DbMaintenance.CreateIndex(index.Name, fields, table.TableKey, index.IsUnique);
             }
 
             await _fieldRepository.AddRangeAsync(newFields, cancellationToken);
             await _fieldRepository.UpdateRangeAsync(fieldsToUpdate, cancellationToken);
             await _indexRepository.AddRangeAsync(generatedIndexes, cancellationToken);
-            await DeleteRemovedMetadataAsync(tenantId, table, fieldsToRemove, indexesToDrop, cancellationToken);
+            await DeleteRemovedMetadataAsync(tenantId, table, fieldsToRemove, indexesToDrop, appDb, cancellationToken);
             await _tableRepository.UpdateAsync(table, cancellationToken);
             if (_migrationRepository is not null)
             {
@@ -312,9 +344,10 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
             return;
         }
 
-        var result = await _db.Ado.UseTranAsync(async () =>
+        var appDb = await ResolveAppDbAsync(tenantId, table.AppId, cancellationToken);
+        var result = await appDb.Ado.UseTranAsync(async () =>
         {
-            _db.DbMaintenance.DropTable(table.TableKey);
+            appDb.DbMaintenance.DropTable(table.TableKey);
             await _fieldRepository.DeleteByTableIdAsync(tenantId, table.Id, cancellationToken);
             await _indexRepository.DeleteByTableIdAsync(tenantId, table.Id, cancellationToken);
             await _relationRepository.DeleteByTableIdAsync(tenantId, table.Id, cancellationToken);
@@ -399,7 +432,8 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
                 relation.RollupDefinitionsJson));
         }
 
-        var tran = await _db.Ado.UseTranAsync(async () =>
+        var appDb = await ResolveAppDbAsync(tenantId, table.AppId, cancellationToken);
+        var tran = await appDb.Ado.UseTranAsync(async () =>
         {
             await _relationRepository.DeleteByTableIdAsync(tenantId, table.Id, cancellationToken);
             await _relationRepository.AddRangeAsync(relationEntities, cancellationToken);
@@ -961,7 +995,7 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
             .ToArray();
     }
 
-    private void ExecuteDropIndexesSql(IReadOnlyList<DynamicIndex> indexesToDrop)
+    private static void ExecuteDropIndexesSql(IReadOnlyList<DynamicIndex> indexesToDrop, ISqlSugarClient db)
     {
         if (indexesToDrop.Count == 0)
         {
@@ -971,10 +1005,10 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
         var sql = string.Join(
             Environment.NewLine,
             indexesToDrop.Select(index => $"DROP INDEX IF EXISTS \"{EscapeIdentifier(index.Name)}\";"));
-        _db.Ado.ExecuteCommand(sql);
+        db.Ado.ExecuteCommand(sql);
     }
 
-    private void ExecuteDropColumnsSql(string tableKey, IReadOnlyList<DynamicField> fieldsToRemove)
+    private static void ExecuteDropColumnsSql(string tableKey, IReadOnlyList<DynamicField> fieldsToRemove, ISqlSugarClient db)
     {
         if (fieldsToRemove.Count == 0)
         {
@@ -985,7 +1019,7 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
         var sql = string.Join(
             Environment.NewLine,
             fieldsToRemove.Select(field => $"ALTER TABLE \"{escapedTable}\" DROP COLUMN \"{EscapeIdentifier(field.Name)}\";"));
-        _db.Ado.ExecuteCommand(sql);
+        db.Ado.ExecuteCommand(sql);
     }
 
     private async Task DeleteRemovedMetadataAsync(
@@ -993,6 +1027,7 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
         DynamicTable table,
         IReadOnlyList<DynamicField> fieldsToRemove,
         IReadOnlyList<DynamicIndex> indexesToDrop,
+        ISqlSugarClient db,
         CancellationToken cancellationToken)
     {
         if (fieldsToRemove.Count > 0)
@@ -1001,15 +1036,15 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
             var fieldNames = fieldsToRemove.Select(x => x.Name).ToArray();
             var scopedTableKey = BuildFieldPermissionTableKey(table.TableKey, table.AppId);
 
-            await _db.Deleteable<DynamicField>()
+            await db.Deleteable<DynamicField>()
                 .Where(x => x.TenantIdValue == tenantId.Value && x.TableId == table.Id && SqlFunc.ContainsArray(fieldIds, x.Id))
                 .ExecuteCommandAsync(cancellationToken);
 
-            await _db.Deleteable<FieldPermission>()
+            await db.Deleteable<FieldPermission>()
                 .Where(x => x.TenantIdValue == tenantId.Value && x.TableKey == scopedTableKey && SqlFunc.ContainsArray(fieldNames, x.FieldName))
                 .ExecuteCommandAsync(cancellationToken);
 
-            await _db.Deleteable<DynamicRelation>()
+            await db.Deleteable<DynamicRelation>()
                 .Where(x =>
                     x.TenantIdValue == tenantId.Value &&
                     ((x.TableId == table.Id && SqlFunc.ContainsArray(fieldNames, x.SourceField))
@@ -1020,7 +1055,7 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
         if (indexesToDrop.Count > 0)
         {
             var indexIds = indexesToDrop.Select(x => x.Id).ToArray();
-            await _db.Deleteable<DynamicIndex>()
+            await db.Deleteable<DynamicIndex>()
                 .Where(x => x.TenantIdValue == tenantId.Value && x.TableId == table.Id && SqlFunc.ContainsArray(indexIds, x.Id))
                 .ExecuteCommandAsync(cancellationToken);
         }
@@ -1062,7 +1097,8 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
             throw new BusinessException(ErrorCodes.NotFound, $"Table '{tableKey}' not found.");
         }
 
-        await _db.Ado.ExecuteCommandAsync(migration.RollbackSql, cancellationToken);
+        var appDb = await ResolveAppDbAsync(tenantId, table.AppId, cancellationToken);
+        await appDb.Ado.ExecuteCommandAsync(migration.RollbackSql, cancellationToken);
 
         var now = _timeProvider.GetUtcNow();
         var rollbackMigration = new DynamicSchemaMigration(
@@ -1099,6 +1135,16 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
             userId,
             _idGeneratorAccessor.NextId(),
             now);
+    }
+
+    private Task<ISqlSugarClient> ResolveAppDbAsync(TenantId tenantId, long? appId, CancellationToken cancellationToken)
+    {
+        if (!appId.HasValue || appId.Value <= 0)
+        {
+            throw new BusinessException(ErrorCodes.AppContextRequired, "缺少应用上下文，无法访问应用级数据库。");
+        }
+
+        return _appDbScopeFactory.GetAppClientAsync(tenantId, appId.Value, cancellationToken);
     }
 
     private static string BuildFieldPermissionTableKey(string tableKey, long? appId)

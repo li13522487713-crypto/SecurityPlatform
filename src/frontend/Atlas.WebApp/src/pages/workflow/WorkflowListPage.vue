@@ -248,7 +248,7 @@ function handleTableChange(pag: { current: number; pageSize: number }) {
   void loadList()
 }
 
-function openEditor(id: number) {
+function openEditor(id: string) {
   const currentAppId = resolveCurrentAppId(route)
   if (!currentAppId) {
     router.push('/console/apps')
@@ -280,7 +280,7 @@ async function handleCreate() {
   }
 }
 
-async function handleCopy(id: number) {
+async function handleCopy(id: string) {
   const res = await copyWorkflow(id)
   if (res.success) {
     message.success(t('workflow.copyOk'))
@@ -288,7 +288,7 @@ async function handleCopy(id: number) {
   }
 }
 
-async function handleDelete(id: number) {
+async function handleDelete(id: string) {
   const res = await deleteWorkflow(id)
   if (res.success) {
     message.success(t('workflow.deleteOk'))

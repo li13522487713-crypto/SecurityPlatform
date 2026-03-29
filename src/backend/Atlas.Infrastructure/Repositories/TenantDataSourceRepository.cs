@@ -49,6 +49,28 @@ public sealed class TenantDataSourceRepository
             .FirstAsync(ct);
     }
 
+    public async Task<TenantDataSource?> FindByTenantAndAppInstanceBindingAsync(
+        Guid tenantId,
+        long appInstanceId,
+        CancellationToken ct = default)
+    {
+        var binding = await _db.Queryable<TenantAppDataSourceBinding>()
+            .Where(x => x.TenantIdValue == tenantId && x.TenantAppInstanceId == appInstanceId && x.IsActive)
+            .OrderBy(x => x.BindingType, OrderByType.Asc)
+            .OrderBy(x => x.UpdatedAt, OrderByType.Desc)
+            .FirstAsync(ct);
+        if (binding is null)
+        {
+            return null;
+        }
+
+        return await _db.Queryable<TenantDataSource>()
+            .Where(x => x.Id == binding.DataSourceId
+                && x.TenantIdValue == tenantId.ToString()
+                && x.IsActive)
+            .FirstAsync(ct);
+    }
+
     public async Task AddAsync(TenantDataSource entity, CancellationToken ct = default)
     {
         await _db.Insertable(entity).ExecuteCommandAsync(ct);

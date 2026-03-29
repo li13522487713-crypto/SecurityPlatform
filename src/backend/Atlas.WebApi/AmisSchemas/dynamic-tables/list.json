@@ -111,7 +111,8 @@
           "actionType": "dialog",
           "dialog": {
             "title": "新建动态表",
-            "size": "xl",
+            "size": "lg",
+            "closeOnEsc": true,
             "body": {
               "type": "service",
               "schemaApi": "get:/api/v1/amis/dynamic-tables/designer"

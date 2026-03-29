@@ -8,6 +8,7 @@ using Microsoft.Extensions.Options;
 using System.Security.Cryptography;
 using System.Text;
 using System.Diagnostics;
+using System.Collections.Concurrent;
 
 namespace Atlas.Infrastructure.Services;
 
@@ -15,13 +16,15 @@ namespace Atlas.Infrastructure.Services;
 /// 租户数据库连接工厂实现（等保2.0 数据隔离）
 /// <para>从数据库读取租户自定义数据源，连接字符串使用 AES-256 加密存储。</para>
 /// </summary>
-public sealed class TenantDbConnectionFactory : ITenantDbConnectionFactory
+public sealed class TenantDbConnectionFactory : ITenantDbConnectionFactory, IAppDbConnectionResolver
 {
     private readonly TenantDataSourceRepository _repository;
     private readonly IMemoryCache _cache;
     private readonly DatabaseEncryptionOptions _encryptionOptions;
-    private const string CacheKeyPrefix = "tenant-conn:";
+    private const string TenantCacheKeyPrefix = "tenant-conn:";
+    private const string AppCacheKeyPrefix = "app-conn:";
     private static readonly TimeSpan CacheDuration = TimeSpan.FromMinutes(10);
+    private readonly ConcurrentDictionary<string, byte> _tenantScopedCacheKeys = new(StringComparer.OrdinalIgnoreCase);
 
     public TenantDbConnectionFactory(
         TenantDataSourceRepository repository,
@@ -41,7 +44,7 @@ public sealed class TenantDbConnectionFactory : ITenantDbConnectionFactory
 
     public async Task<TenantDbConnectionInfo?> GetConnectionInfoAsync(string tenantId, CancellationToken ct = default)
     {
-        var cacheKey = CacheKeyPrefix + tenantId;
+        var cacheKey = TenantCacheKeyPrefix + tenantId;
         if (_cache.TryGetValue(cacheKey, out TenantDbConnectionInfo? cached))
         {
             AtlasMetrics.RecordTenantDatasourceResolve(0, "success", "cache");
@@ -58,6 +61,7 @@ public sealed class TenantDbConnectionFactory : ITenantDbConnectionFactory
             {
                 sourceTag = "not_found";
                 _cache.Set(cacheKey, (TenantDbConnectionInfo?)null, CacheDuration);
+                _tenantScopedCacheKeys.TryAdd(cacheKey, 0);
                 return null;
             }
 
@@ -67,6 +71,7 @@ public sealed class TenantDbConnectionFactory : ITenantDbConnectionFactory
 
             var info = new TenantDbConnectionInfo(connectionString, source.DbType);
             _cache.Set(cacheKey, info, CacheDuration);
+            _tenantScopedCacheKeys.TryAdd(cacheKey, 0);
             return info;
         }
         catch
@@ -80,9 +85,101 @@ public sealed class TenantDbConnectionFactory : ITenantDbConnectionFactory
         }
     }
 
+    public async Task<TenantDbConnectionInfo?> GetConnectionInfoAsync(
+        string tenantId,
+        long tenantAppInstanceId,
+        CancellationToken ct = default)
+    {
+        var cacheKey = $"{AppCacheKeyPrefix}{tenantId}:{tenantAppInstanceId}";
+        if (_cache.TryGetValue(cacheKey, out TenantDbConnectionInfo? cached))
+        {
+            AtlasMetrics.RecordTenantDatasourceResolve(0, "success", "cache");
+            return cached;
+        }
+
+        var stopwatch = Stopwatch.StartNew();
+        var status = "success";
+        var sourceTag = "database";
+        try
+        {
+            if (!Guid.TryParse(tenantId, out var tenantGuid))
+            {
+                sourceTag = "invalid_tenant";
+                _cache.Set(cacheKey, (TenantDbConnectionInfo?)null, CacheDuration);
+                _tenantScopedCacheKeys.TryAdd(cacheKey, 0);
+                return null;
+            }
+
+            var source = await _repository.FindByTenantAndAppInstanceBindingAsync(tenantGuid, tenantAppInstanceId, ct)
+                ?? await _repository.FindByTenantAndAppIdAsync(tenantId, tenantAppInstanceId, ct);
+            if (source is null)
+            {
+                sourceTag = "not_found";
+                _cache.Set(cacheKey, (TenantDbConnectionInfo?)null, CacheDuration);
+                _tenantScopedCacheKeys.TryAdd(cacheKey, 0);
+                return null;
+            }
+
+            var connectionString = _encryptionOptions.Enabled
+                ? Decrypt(source.EncryptedConnectionString, _encryptionOptions.Key)
+                : source.EncryptedConnectionString;
+
+            var info = new TenantDbConnectionInfo(connectionString, source.DbType);
+            _cache.Set(cacheKey, info, CacheDuration);
+            _tenantScopedCacheKeys.TryAdd(cacheKey, 0);
+            return info;
+        }
+        catch
+        {
+            status = "failed";
+            throw;
+        }
+        finally
+        {
+            AtlasMetrics.RecordTenantDatasourceResolve(stopwatch.Elapsed.TotalMilliseconds, status, sourceTag);
+        }
+    }
+
+    public Task<TenantDbConnectionInfo?> ResolveAsync(
+        string tenantId,
+        long tenantAppInstanceId,
+        CancellationToken cancellationToken = default)
+    {
+        return GetConnectionInfoAsync(tenantId, tenantAppInstanceId, cancellationToken);
+    }
+
+    public void Invalidate(string tenantId, long tenantAppInstanceId)
+    {
+        InvalidateCache(tenantId, tenantAppInstanceId);
+    }
+
     public void InvalidateCache(string tenantId)
     {
-        _cache.Remove(CacheKeyPrefix + tenantId);
+        var prefix1 = TenantCacheKeyPrefix + tenantId;
+        var prefix2 = AppCacheKeyPrefix + tenantId + ":";
+        foreach (var cacheKey in _tenantScopedCacheKeys.Keys)
+        {
+            if (!cacheKey.StartsWith(prefix1, StringComparison.OrdinalIgnoreCase)
+                && !cacheKey.StartsWith(prefix2, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            _cache.Remove(cacheKey);
+            _tenantScopedCacheKeys.TryRemove(cacheKey, out _);
+        }
+    }
+
+    public void InvalidateCache(string tenantId, long? tenantAppInstanceId)
+    {
+        if (tenantAppInstanceId.HasValue)
+        {
+            var cacheKey = $"{AppCacheKeyPrefix}{tenantId}:{tenantAppInstanceId.Value}";
+            _cache.Remove(cacheKey);
+            _tenantScopedCacheKeys.TryRemove(cacheKey, out _);
+            return;
+        }
+        InvalidateCache(tenantId);
     }
 
     internal static string Encrypt(string plainText, string key)

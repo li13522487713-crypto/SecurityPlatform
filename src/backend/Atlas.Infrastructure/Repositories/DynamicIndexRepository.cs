@@ -1,17 +1,31 @@
 using Atlas.Application.DynamicTables.Repositories;
+using Atlas.Core.Identity;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.DynamicTables.Entities;
+using Atlas.Infrastructure.Services;
 using SqlSugar;
 
 namespace Atlas.Infrastructure.Repositories;
 
 public sealed class DynamicIndexRepository : IDynamicIndexRepository
 {
-    private readonly ISqlSugarClient _db;
+    private readonly ISqlSugarClient _mainDb;
+    private readonly IAppDbScopeFactory _appDbScopeFactory;
+    private readonly IAppContextAccessor _appContextAccessor;
+
+    public DynamicIndexRepository(
+        ISqlSugarClient mainDb,
+        IAppDbScopeFactory appDbScopeFactory,
+        IAppContextAccessor appContextAccessor)
+    {
+        _mainDb = mainDb;
+        _appDbScopeFactory = appDbScopeFactory;
+        _appContextAccessor = appContextAccessor;
+    }
 
     public DynamicIndexRepository(ISqlSugarClient db)
+        : this(db, new MainOnlyAppDbScopeFactory(db), NullAppContextAccessor.Instance)
     {
-        _db = db;
     }
 
     public async Task<IReadOnlyList<DynamicIndex>> ListByTableIdAsync(
@@ -19,7 +33,8 @@ public sealed class DynamicIndexRepository : IDynamicIndexRepository
         long tableId,
         CancellationToken cancellationToken)
     {
-        var list = await _db.Queryable<DynamicIndex>()
+        var db = await GetDbAsync(tenantId, cancellationToken);
+        var list = await db.Queryable<DynamicIndex>()
             .Where(x => x.TenantIdValue == tenantId.Value && x.TableId == tableId)
             .ToListAsync(cancellationToken);
 
@@ -33,13 +48,39 @@ public sealed class DynamicIndexRepository : IDynamicIndexRepository
             return Task.CompletedTask;
         }
 
-        return _db.Insertable(indexes.ToList()).ExecuteCommandAsync(cancellationToken);
+        return ExecuteInDbAsync(
+            new TenantId(indexes[0].TenantIdValue),
+            db => db.Insertable(indexes.ToList()).ExecuteCommandAsync(cancellationToken),
+            cancellationToken);
     }
 
     public Task DeleteByTableIdAsync(TenantId tenantId, long tableId, CancellationToken cancellationToken)
     {
-        return _db.Deleteable<DynamicIndex>()
-            .Where(x => x.TenantIdValue == tenantId.Value && x.TableId == tableId)
-            .ExecuteCommandAsync(cancellationToken);
+        return ExecuteInDbAsync(
+            tenantId,
+            db => db.Deleteable<DynamicIndex>()
+                .Where(x => x.TenantIdValue == tenantId.Value && x.TableId == tableId)
+                .ExecuteCommandAsync(cancellationToken),
+            cancellationToken);
+    }
+
+    private async Task<ISqlSugarClient> GetDbAsync(TenantId tenantId, CancellationToken cancellationToken)
+    {
+        var appId = _appContextAccessor.ResolveAppId();
+        if (appId.HasValue && appId.Value > 0)
+        {
+            return await _appDbScopeFactory.GetAppClientAsync(tenantId, appId.Value, cancellationToken);
+        }
+
+        return _mainDb;
+    }
+
+    private async Task ExecuteInDbAsync(
+        TenantId tenantId,
+        Func<ISqlSugarClient, Task> operation,
+        CancellationToken cancellationToken)
+    {
+        var db = await GetDbAsync(tenantId, cancellationToken);
+        await operation(db);
     }
 }

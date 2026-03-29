@@ -39,6 +39,7 @@ export * from "@/services/api-tenant-applications";
 export * from "@/services/api-application-catalogs";
 export * from "@/services/api-runtime-contexts";
 export * from "@/services/api-runtime-executions";
+export * from "@/services/api-app-migration";
 export {
   getReleaseCenterPaged,
   getReleaseCenterDetail,

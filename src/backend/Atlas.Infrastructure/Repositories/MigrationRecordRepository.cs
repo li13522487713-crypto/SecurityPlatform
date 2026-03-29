@@ -1,17 +1,31 @@
 using Atlas.Application.DynamicTables.Repositories;
+using Atlas.Core.Identity;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.DynamicTables.Entities;
+using Atlas.Infrastructure.Services;
 using SqlSugar;
 
 namespace Atlas.Infrastructure.Repositories;
 
 public sealed class MigrationRecordRepository : IMigrationRecordRepository
 {
-    private readonly ISqlSugarClient _db;
+    private readonly ISqlSugarClient _mainDb;
+    private readonly IAppDbScopeFactory _appDbScopeFactory;
+    private readonly IAppContextAccessor _appContextAccessor;
+
+    public MigrationRecordRepository(
+        ISqlSugarClient mainDb,
+        IAppDbScopeFactory appDbScopeFactory,
+        IAppContextAccessor appContextAccessor)
+    {
+        _mainDb = mainDb;
+        _appDbScopeFactory = appDbScopeFactory;
+        _appContextAccessor = appContextAccessor;
+    }
 
     public MigrationRecordRepository(ISqlSugarClient db)
+        : this(db, new MainOnlyAppDbScopeFactory(db), NullAppContextAccessor.Instance)
     {
-        _db = db;
     }
 
     public async Task<(IReadOnlyList<MigrationRecord> Items, int TotalCount)> QueryPageAsync(
@@ -22,7 +36,8 @@ public sealed class MigrationRecordRepository : IMigrationRecordRepository
         string? tableKey,
         CancellationToken cancellationToken)
     {
-        var query = _db.Queryable<MigrationRecord>()
+        var db = await GetDbAsync(tenantId, cancellationToken);
+        var query = db.Queryable<MigrationRecord>()
             .Where(x => x.TenantIdValue == tenantId.Value);
 
         if (!string.IsNullOrWhiteSpace(keyword))
@@ -48,7 +63,8 @@ public sealed class MigrationRecordRepository : IMigrationRecordRepository
         long id,
         CancellationToken cancellationToken)
     {
-        return await _db.Queryable<MigrationRecord>()
+        var db = await GetDbAsync(tenantId, cancellationToken);
+        return await db.Queryable<MigrationRecord>()
             .Where(x => x.TenantIdValue == tenantId.Value && x.Id == id)
             .FirstAsync(cancellationToken);
     }
@@ -59,20 +75,47 @@ public sealed class MigrationRecordRepository : IMigrationRecordRepository
         int version,
         CancellationToken cancellationToken)
     {
-        return await _db.Queryable<MigrationRecord>()
+        var db = await GetDbAsync(tenantId, cancellationToken);
+        return await db.Queryable<MigrationRecord>()
             .Where(x => x.TenantIdValue == tenantId.Value && x.TableKey == tableKey && x.Version == version)
             .FirstAsync(cancellationToken);
     }
 
     public Task AddAsync(MigrationRecord entity, CancellationToken cancellationToken)
     {
-        return _db.Insertable(entity).ExecuteCommandAsync(cancellationToken);
+        return ExecuteInDbAsync(
+            new TenantId(entity.TenantIdValue),
+            db => db.Insertable(entity).ExecuteCommandAsync(cancellationToken),
+            cancellationToken);
     }
 
     public Task UpdateAsync(MigrationRecord entity, CancellationToken cancellationToken)
     {
-        return _db.Updateable(entity)
-            .Where(x => x.Id == entity.Id && x.TenantIdValue == entity.TenantIdValue)
-            .ExecuteCommandAsync(cancellationToken);
+        return ExecuteInDbAsync(
+            new TenantId(entity.TenantIdValue),
+            db => db.Updateable(entity)
+                .Where(x => x.Id == entity.Id && x.TenantIdValue == entity.TenantIdValue)
+                .ExecuteCommandAsync(cancellationToken),
+            cancellationToken);
+    }
+
+    private async Task<ISqlSugarClient> GetDbAsync(TenantId tenantId, CancellationToken cancellationToken)
+    {
+        var appId = _appContextAccessor.ResolveAppId();
+        if (appId.HasValue && appId.Value > 0)
+        {
+            return await _appDbScopeFactory.GetAppClientAsync(tenantId, appId.Value, cancellationToken);
+        }
+
+        return _mainDb;
+    }
+
+    private async Task ExecuteInDbAsync(
+        TenantId tenantId,
+        Func<ISqlSugarClient, Task> operation,
+        CancellationToken cancellationToken)
+    {
+        var db = await GetDbAsync(tenantId, cancellationToken);
+        await operation(db);
     }
 }

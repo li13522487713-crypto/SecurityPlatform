@@ -48,6 +48,8 @@
         >
           <Controls />
           <MiniMap
+            :pannable="true"
+            :zoomable="true"
             :node-color="getNodeStatusColor"
             style="background: #0d1117; border: 1px solid #21262d;"
           />
@@ -135,7 +137,7 @@ import type { CanvasSchema, ConnectionSchema, NodeSchema, NodeTypeMetadata, Work
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
-const workflowId = computed(() => Number(route.params.id))
+const workflowId = computed(() => String(route.params.id ?? ''))
 
 const workflowName = ref('')
 const isDirty = ref(false)

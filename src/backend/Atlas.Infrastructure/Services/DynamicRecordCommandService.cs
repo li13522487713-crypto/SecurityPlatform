@@ -7,6 +7,7 @@ using Atlas.Core.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.DynamicTables.Enums;
+using Atlas.Infrastructure.Services;
 using SqlSugar;
 
 namespace Atlas.Infrastructure.Services;
@@ -22,7 +23,31 @@ public sealed class DynamicRecordCommandService : IDynamicRecordCommandService
     private readonly ICurrentUserAccessor _currentUserAccessor;
     private readonly IAppContextAccessor _appContextAccessor;
     private readonly IDynamicFormValidationService _formValidationService;
-    private readonly ISqlSugarClient _db;
+    private readonly IAppDbScopeFactory _appDbScopeFactory;
+
+    public DynamicRecordCommandService(
+        IDynamicTableRepository tableRepository,
+        IDynamicFieldRepository fieldRepository,
+        IDynamicRecordRepository recordRepository,
+        IDynamicRelationRepository relationRepository,
+        IRollupCalculationService rollupService,
+        IFieldPermissionResolver fieldPermissionResolver,
+        ICurrentUserAccessor currentUserAccessor,
+        IAppContextAccessor appContextAccessor,
+        IDynamicFormValidationService formValidationService,
+        IAppDbScopeFactory appDbScopeFactory)
+    {
+        _tableRepository = tableRepository;
+        _fieldRepository = fieldRepository;
+        _recordRepository = recordRepository;
+        _relationRepository = relationRepository;
+        _rollupService = rollupService;
+        _fieldPermissionResolver = fieldPermissionResolver;
+        _currentUserAccessor = currentUserAccessor;
+        _appContextAccessor = appContextAccessor;
+        _formValidationService = formValidationService;
+        _appDbScopeFactory = appDbScopeFactory;
+    }
 
     public DynamicRecordCommandService(
         IDynamicTableRepository tableRepository,
@@ -35,17 +60,18 @@ public sealed class DynamicRecordCommandService : IDynamicRecordCommandService
         IAppContextAccessor appContextAccessor,
         IDynamicFormValidationService formValidationService,
         ISqlSugarClient db)
+        : this(
+            tableRepository,
+            fieldRepository,
+            recordRepository,
+            relationRepository,
+            rollupService,
+            fieldPermissionResolver,
+            currentUserAccessor,
+            appContextAccessor,
+            formValidationService,
+            new MainOnlyAppDbScopeFactory(db))
     {
-        _tableRepository = tableRepository;
-        _fieldRepository = fieldRepository;
-        _recordRepository = recordRepository;
-        _relationRepository = relationRepository;
-        _rollupService = rollupService;
-        _fieldPermissionResolver = fieldPermissionResolver;
-        _currentUserAccessor = currentUserAccessor;
-        _appContextAccessor = appContextAccessor;
-        _formValidationService = formValidationService;
-        _db = db;
     }
 
     public async Task<long> CreateAsync(
@@ -232,9 +258,17 @@ public sealed class DynamicRecordCommandService : IDynamicRecordCommandService
         DynamicRecordUpsertRequest request,
         CancellationToken cancellationToken)
     {
+        var appId = _appContextAccessor.ResolveAppId();
+        if (!appId.HasValue || appId.Value <= 0)
+        {
+            return;
+        }
+
+        var appDb = await _appDbScopeFactory.GetAppClientAsync(tenantId, appId.Value, cancellationToken);
+
         // 查找以本表为子表（RelatedTableKey == childTableKey）且 EnableRollup 的关系
         // 注意：此处需要查询哪些主表引用了本表，需通过 SQL 查询
-        var masterRelations = await _db.Queryable<Atlas.Domain.DynamicTables.Entities.DynamicRelation>()
+        var masterRelations = await appDb.Queryable<Atlas.Domain.DynamicTables.Entities.DynamicRelation>()
             .Where(r =>
                 r.TenantIdValue == tenantId.Value
                 && r.RelatedTableKey == childTableKey
@@ -272,7 +306,7 @@ public sealed class DynamicRecordCommandService : IDynamicRecordCommandService
                 continue;
             }
 
-            var masterTable = await _db.Queryable<Atlas.Domain.DynamicTables.Entities.DynamicTable>()
+            var masterTable = await appDb.Queryable<Atlas.Domain.DynamicTables.Entities.DynamicTable>()
                 .Where(t => t.TenantIdValue == tenantId.Value && t.Id == relation.TableId)
                 .FirstAsync(cancellationToken);
             if (masterTable is null)
@@ -293,6 +327,13 @@ public sealed class DynamicRecordCommandService : IDynamicRecordCommandService
         IReadOnlyList<Atlas.Domain.DynamicTables.Entities.DynamicRelation> relations,
         CancellationToken cancellationToken)
     {
+        var appId = _appContextAccessor.ResolveAppId();
+        if (!appId.HasValue || appId.Value <= 0)
+        {
+            throw new BusinessException(ErrorCodes.AppContextRequired, "缺少应用上下文，无法执行应用级联删除。");
+        }
+        var appDb = await _appDbScopeFactory.GetAppClientAsync(tenantId, appId.Value, cancellationToken);
+
         foreach (var relation in relations)
         {
             if (relation.OnDeleteAction == RelationOnDeleteAction.NoAction)
@@ -313,7 +354,7 @@ public sealed class DynamicRecordCommandService : IDynamicRecordCommandService
             switch (relation.OnDeleteAction)
             {
                 case RelationOnDeleteAction.Restrict:
-                    var childCount = await _db.Ado.GetIntAsync(
+                    var childCount = await appDb.Ado.GetIntAsync(
                         $"SELECT COUNT(1) FROM \"{childTableName}\" WHERE \"{foreignKeyField}\" = @masterId",
                         new { masterId = masterRecordId });
                     if (childCount > 0)
@@ -325,13 +366,13 @@ public sealed class DynamicRecordCommandService : IDynamicRecordCommandService
                     break;
 
                 case RelationOnDeleteAction.Cascade:
-                    await _db.Ado.ExecuteCommandAsync(
+                    await appDb.Ado.ExecuteCommandAsync(
                         $"DELETE FROM \"{childTableName}\" WHERE \"{foreignKeyField}\" = @masterId",
                         new { masterId = masterRecordId });
                     break;
 
                 case RelationOnDeleteAction.SetNull:
-                    await _db.Ado.ExecuteCommandAsync(
+                    await appDb.Ado.ExecuteCommandAsync(
                         $"UPDATE \"{childTableName}\" SET \"{foreignKeyField}\" = NULL WHERE \"{foreignKeyField}\" = @masterId",
                         new { masterId = masterRecordId });
                     break;

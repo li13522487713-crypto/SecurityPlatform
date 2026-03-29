@@ -149,7 +149,7 @@ const STATUS_LABELS: Record<ExecutionStatus, string> = {
 import { workflowV2Api } from '@/services/api-workflow-v2'
 
 const props = defineProps<{
-  workflowId: number
+  workflowId: string
   versions: WorkflowVersionItem[]
 }>()
 
@@ -252,7 +252,7 @@ async function startRun(mode: 'sync' | 'stream') {
       }
       const result = runRes.data
       currentExecutionId.value = result.executionId
-      const processRes = await workflowV2Api.getProcess(Number(result.executionId))
+      const processRes = await workflowV2Api.getProcess(result.executionId)
       if (processRes.success && processRes.data) {
         const proc = processRes.data
         const nodeExecs = proc.nodeExecutions ?? []
@@ -355,7 +355,7 @@ function stopRun() {
 async function submitAnswer() {
   if (!currentExecutionId.value) return
   try {
-    await workflowV2Api.resume(Number(currentExecutionId.value), { data: { answer: interruptAnswer.value } })
+    await workflowV2Api.resume(currentExecutionId.value, { data: { answer: interruptAnswer.value } })
     interruptQuestion.value = ''
     interruptAnswer.value = ''
     addEvent('resumed', t('wfUi.testRun.resumed'))
@@ -383,7 +383,7 @@ function calcExecutionCostMs(startedAt: string, completedAt?: string) {
 }
 
 async function refreshExecutionDetail(executionId: string) {
-  const processRes = await workflowV2Api.getProcess(Number(executionId))
+  const processRes = await workflowV2Api.getProcess(executionId)
   if (!processRes.success || !processRes.data) {
     return
   }

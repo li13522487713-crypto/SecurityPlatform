@@ -1,17 +1,31 @@
 using Atlas.Application.DynamicTables.Repositories;
+using Atlas.Core.Identity;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.DynamicTables.Entities;
+using Atlas.Infrastructure.Services;
 using SqlSugar;
 
 namespace Atlas.Infrastructure.Repositories;
 
 public sealed class FieldPermissionRepository : IFieldPermissionRepository
 {
-    private readonly ISqlSugarClient _db;
+    private readonly ISqlSugarClient _mainDb;
+    private readonly IAppDbScopeFactory _appDbScopeFactory;
+    private readonly IAppContextAccessor _appContextAccessor;
+
+    public FieldPermissionRepository(
+        ISqlSugarClient mainDb,
+        IAppDbScopeFactory appDbScopeFactory,
+        IAppContextAccessor appContextAccessor)
+    {
+        _mainDb = mainDb;
+        _appDbScopeFactory = appDbScopeFactory;
+        _appContextAccessor = appContextAccessor;
+    }
 
     public FieldPermissionRepository(ISqlSugarClient db)
+        : this(db, new MainOnlyAppDbScopeFactory(db), NullAppContextAccessor.Instance)
     {
-        _db = db;
     }
 
     public async Task<IReadOnlyList<FieldPermission>> ListByTableKeyAsync(
@@ -20,8 +34,9 @@ public sealed class FieldPermissionRepository : IFieldPermissionRepository
         long? appId,
         CancellationToken cancellationToken)
     {
+        var db = await GetDbAsync(tenantId, appId, cancellationToken);
         var scopedTableKey = BuildScopedTableKey(tableKey, appId);
-        return await _db.Queryable<FieldPermission>()
+        return await db.Queryable<FieldPermission>()
             .Where(x => x.TenantIdValue == tenantId.Value && x.TableKey == scopedTableKey)
             .ToListAsync(cancellationToken);
     }
@@ -33,16 +48,17 @@ public sealed class FieldPermissionRepository : IFieldPermissionRepository
         IReadOnlyList<FieldPermission> permissions,
         CancellationToken cancellationToken)
     {
+        var db = await GetDbAsync(tenantId, appId, cancellationToken);
         var scopedTableKey = BuildScopedTableKey(tableKey, appId);
-        var result = await _db.Ado.UseTranAsync(async () =>
+        var result = await db.Ado.UseTranAsync(async () =>
         {
-            await _db.Deleteable<FieldPermission>()
+            await db.Deleteable<FieldPermission>()
                 .Where(x => x.TenantIdValue == tenantId.Value && x.TableKey == scopedTableKey)
                 .ExecuteCommandAsync(cancellationToken);
 
             if (permissions.Count > 0)
             {
-                await _db.Insertable(permissions.ToList()).ExecuteCommandAsync(cancellationToken);
+                await db.Insertable(permissions.ToList()).ExecuteCommandAsync(cancellationToken);
             }
         });
 
@@ -63,8 +79,9 @@ public sealed class FieldPermissionRepository : IFieldPermissionRepository
         string roleCode,
         CancellationToken cancellationToken)
     {
+        var db = await GetDbAsync(tenantId, appId, cancellationToken);
         var prefix = $"app:{appId}:";
-        return await _db.Queryable<FieldPermission>()
+        return await db.Queryable<FieldPermission>()
             .Where(x =>
                 x.TenantIdValue == tenantId.Value
                 && x.RoleCode == roleCode
@@ -79,10 +96,11 @@ public sealed class FieldPermissionRepository : IFieldPermissionRepository
         IReadOnlyList<FieldPermission> permissions,
         CancellationToken cancellationToken)
     {
+        var db = await GetDbAsync(tenantId, appId, cancellationToken);
         var prefix = $"app:{appId}:";
-        var result = await _db.Ado.UseTranAsync(async () =>
+        var result = await db.Ado.UseTranAsync(async () =>
         {
-            await _db.Deleteable<FieldPermission>()
+            await db.Deleteable<FieldPermission>()
                 .Where(x =>
                     x.TenantIdValue == tenantId.Value
                     && x.RoleCode == roleCode
@@ -91,7 +109,7 @@ public sealed class FieldPermissionRepository : IFieldPermissionRepository
 
             if (permissions.Count > 0)
             {
-                await _db.Insertable(permissions.ToList()).ExecuteCommandAsync(cancellationToken);
+                await db.Insertable(permissions.ToList()).ExecuteCommandAsync(cancellationToken);
             }
         });
 
@@ -99,5 +117,21 @@ public sealed class FieldPermissionRepository : IFieldPermissionRepository
         {
             throw result.ErrorException ?? new InvalidOperationException("替换角色字段权限失败。");
         }
+    }
+
+    private async Task<ISqlSugarClient> GetDbAsync(TenantId tenantId, long? appId, CancellationToken cancellationToken)
+    {
+        if (appId.HasValue && appId.Value > 0)
+        {
+            return await _appDbScopeFactory.GetAppClientAsync(tenantId, appId.Value, cancellationToken);
+        }
+
+        var contextAppId = _appContextAccessor.ResolveAppId();
+        if (contextAppId.HasValue && contextAppId.Value > 0)
+        {
+            return await _appDbScopeFactory.GetAppClientAsync(tenantId, contextAppId.Value, cancellationToken);
+        }
+
+        return _mainDb;
     }
 }

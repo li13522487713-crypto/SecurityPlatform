@@ -65,7 +65,7 @@ public sealed class TenantDataSourceService : ITenantDataSourceService
             NormalizeConnectionTimeoutSeconds(request.ConnectionTimeoutSeconds));
 
         await _repository.AddAsync(entity, cancellationToken);
-        _tenantDbConnectionFactory.InvalidateCache(tenantIdValue);
+        _tenantDbConnectionFactory.InvalidateCache(tenantIdValue, entity.AppId);
         return entity.Id;
     }
 
@@ -96,7 +96,7 @@ public sealed class TenantDataSourceService : ITenantDataSourceService
             NormalizeMaxPoolSize(request.MaxPoolSize),
             NormalizeConnectionTimeoutSeconds(request.ConnectionTimeoutSeconds));
         await _repository.UpdateAsync(entity, cancellationToken);
-        _tenantDbConnectionFactory.InvalidateCache(entity.TenantIdValue);
+        _tenantDbConnectionFactory.InvalidateCache(entity.TenantIdValue, entity.AppId);
         return true;
     }
 
@@ -109,7 +109,7 @@ public sealed class TenantDataSourceService : ITenantDataSourceService
         }
 
         await _repository.DeleteByTenantAndIdAsync(tenantIdValue, id, cancellationToken);
-        _tenantDbConnectionFactory.InvalidateCache(entity.TenantIdValue);
+        _tenantDbConnectionFactory.InvalidateCache(entity.TenantIdValue, entity.AppId);
         return true;
     }
 

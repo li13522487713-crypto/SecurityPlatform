@@ -158,13 +158,13 @@ export interface WorkflowUpdateMetaRequest {
 }
 
 export interface WorkflowListItem {
-  id: number
+  id: string
   name: string
   description?: string
   mode: WorkflowMode
   status: WorkflowLifecycleStatus
   latestVersionNumber: number
-  creatorId: number
+  creatorId: string
   createdAt: string
   updatedAt: string
   publishedAt?: string
@@ -176,13 +176,13 @@ export interface WorkflowDetailResponse extends WorkflowListItem {
 }
 
 export interface WorkflowVersionItem {
-  id: number
-  workflowId: number
+  id: string
+  workflowId: string
   versionNumber: number
   changeLog?: string
   canvasJson: string
   publishedAt: string
-  publishedByUserId: number
+  publishedByUserId: string
 }
 
 export interface NodeTypeMetadata {
@@ -204,8 +204,8 @@ export interface WorkflowRunResponse {
 }
 
 export interface NodeExecutionItem {
-  id: number
-  executionId: number
+  id: string
+  executionId: string
   nodeKey: string
   nodeType: number
   status: ExecutionStatus
@@ -218,8 +218,8 @@ export interface NodeExecutionItem {
 }
 
 export interface WorkflowProcessResponse {
-  id: number
-  workflowId: number
+  id: string
+  workflowId: string
   versionNumber: number
   status: ExecutionStatus
   inputsJson?: string
@@ -233,8 +233,8 @@ export interface WorkflowProcessResponse {
 export interface NodeExecutionDetailResponse extends NodeExecutionItem {}
 
 export interface WorkflowExecutionCheckpointResponse {
-  executionId: number
-  workflowId: number
+  executionId: string
+  workflowId: string
   status: ExecutionStatus
   lastNodeKey?: string
   startedAt: string

@@ -19,6 +19,17 @@ public interface ITenantDbConnectionFactory
     /// </summary>
     Task<TenantDbConnectionInfo?> GetConnectionInfoAsync(string tenantId, CancellationToken ct = default);
 
+    /// <summary>
+    /// 获取指定租户 + 应用实例的数据源连接信息（连接串 + 数据库类型）。
+    /// 如未配置应用级绑定，返回 null。
+    /// </summary>
+    Task<TenantDbConnectionInfo?> GetConnectionInfoAsync(string tenantId, long tenantAppInstanceId, CancellationToken ct = default);
+
     /// <summary>使连接字符串缓存失效，用于配置变更时</summary>
     void InvalidateCache(string tenantId);
+
+    /// <summary>
+    /// 使指定租户 + 应用实例连接缓存失效。appId 为空时清理该租户所有缓存。
+    /// </summary>
+    void InvalidateCache(string tenantId, long? tenantAppInstanceId);
 }

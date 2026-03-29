@@ -9,6 +9,7 @@ using Atlas.Domain.DynamicTables.Entities;
 using Atlas.Domain.DynamicTables.Enums;
 using Atlas.Infrastructure.DynamicTables;
 using Atlas.Infrastructure.Observability;
+using Atlas.Infrastructure.Services;
 using SqlSugar;
 
 namespace Atlas.Infrastructure.Repositories;
@@ -20,11 +21,20 @@ public sealed class DynamicRecordRepository : IDynamicRecordRepository
         "eq", "ne", "gt", "gte", "lt", "lte", "like", "in", "between"
     };
 
-    private readonly ISqlSugarClient _db;
+    private readonly ISqlSugarClient _mainDb;
+    private readonly IAppDbScopeFactory _appDbScopeFactory;
+
+    public DynamicRecordRepository(
+        ISqlSugarClient mainDb,
+        IAppDbScopeFactory appDbScopeFactory)
+    {
+        _mainDb = mainDb;
+        _appDbScopeFactory = appDbScopeFactory;
+    }
 
     public DynamicRecordRepository(ISqlSugarClient db)
+        : this(db, new MainOnlyAppDbScopeFactory(db))
     {
-        _db = db;
     }
 
     public async Task<long> InsertAsync(
@@ -34,6 +44,7 @@ public sealed class DynamicRecordRepository : IDynamicRecordRepository
         DynamicRecordUpsertRequest request,
         CancellationToken cancellationToken)
     {
+        var db = await GetDbAsync(tenantId, table.AppId, cancellationToken);
         var pk = GetPrimaryKey(fields);
         var values = MapValues(request.Values);
 
@@ -67,11 +78,11 @@ public sealed class DynamicRecordRepository : IDynamicRecordRepository
             throw new BusinessException(Atlas.Core.Models.ErrorCodes.ValidationError, "No writable fields.");
         }
 
-        await _db.Insertable(row).AS(table.TableKey).ExecuteCommandAsync();
+        await db.Insertable(row).AS(table.TableKey).ExecuteCommandAsync();
 
         if (pk.IsAutoIncrement)
         {
-            var latest = await _db.Queryable<object>()
+            var latest = await db.Queryable<object>()
                 .AS(table.TableKey)
                 .OrderBy($"{pk.Name} desc")
                 .Select<long>(pk.Name)
@@ -96,6 +107,7 @@ public sealed class DynamicRecordRepository : IDynamicRecordRepository
         DynamicRecordUpsertRequest request,
         CancellationToken cancellationToken)
     {
+        var db = await GetDbAsync(tenantId, table.AppId, cancellationToken);
         var pk = GetPrimaryKey(fields);
         var values = MapValues(request.Values);
 
@@ -126,13 +138,13 @@ public sealed class DynamicRecordRepository : IDynamicRecordRepository
             return;
         }
 
-        await _db.Updateable(row)
+        await db.Updateable(row)
             .AS(table.TableKey)
             .WhereColumns(pk.Name, DynamicSqlBuilder.TenantColumnName)
             .ExecuteCommandAsync();
     }
 
-    public Task DeleteAsync(
+    public async Task DeleteAsync(
         Atlas.Core.Tenancy.TenantId tenantId,
         DynamicTable table,
         IReadOnlyList<DynamicField> fields,
@@ -140,7 +152,8 @@ public sealed class DynamicRecordRepository : IDynamicRecordRepository
         CancellationToken cancellationToken)
     {
         var pk = GetPrimaryKey(fields);
-        return _db.Deleteable<object>()
+        var db = await GetDbAsync(tenantId, table.AppId, cancellationToken);
+        await db.Deleteable<object>()
             .AS(table.TableKey)
             .Where($"{pk.Name} = @id and {DynamicSqlBuilder.TenantColumnName} = @tenantId", new
             {
@@ -150,7 +163,7 @@ public sealed class DynamicRecordRepository : IDynamicRecordRepository
             .ExecuteCommandAsync();
     }
 
-    public Task DeleteBatchAsync(
+    public async Task DeleteBatchAsync(
         Atlas.Core.Tenancy.TenantId tenantId,
         DynamicTable table,
         IReadOnlyList<DynamicField> fields,
@@ -159,12 +172,13 @@ public sealed class DynamicRecordRepository : IDynamicRecordRepository
     {
         if (ids.Count == 0)
         {
-            return Task.CompletedTask;
+            return;
         }
 
         var pk = GetPrimaryKey(fields);
         var idList = string.Join(", ", ids);
-        return _db.Deleteable<object>()
+        var db = await GetDbAsync(tenantId, table.AppId, cancellationToken);
+        await db.Deleteable<object>()
             .AS(table.TableKey)
             .Where($"{pk.Name} in ({idList}) and {DynamicSqlBuilder.TenantColumnName} = @tenantId", new
             {
@@ -190,7 +204,8 @@ public sealed class DynamicRecordRepository : IDynamicRecordRepository
             }
 
             var where = BuildWhereClause(tenantId, fields, request, out var parameters);
-            var query = _db.Queryable<object>()
+            var db = await GetDbAsync(tenantId, table.AppId, cancellationToken);
+            var query = db.Queryable<object>()
                 .AS(table.TableKey)
                 .Where(where, parameters.ToArray());
             var total = await query.CountAsync();
@@ -229,7 +244,8 @@ public sealed class DynamicRecordRepository : IDynamicRecordRepository
         CancellationToken cancellationToken)
     {
         var pk = GetPrimaryKey(fields);
-        var dataTable = await _db.Queryable<object>()
+        var db = await GetDbAsync(tenantId, table.AppId, cancellationToken);
+        var dataTable = await db.Queryable<object>()
             .AS(table.TableKey)
             .Where($"{pk.Name} = @id and {DynamicSqlBuilder.TenantColumnName} = @tenantId", new
             {
@@ -646,6 +662,19 @@ public sealed class DynamicRecordRepository : IDynamicRecordRepository
             true,
             field.FieldType is DynamicFieldType.String or DynamicFieldType.Text,
             false)).ToArray();
+    }
+
+    private async Task<ISqlSugarClient> GetDbAsync(
+        Atlas.Core.Tenancy.TenantId tenantId,
+        long? appId,
+        CancellationToken cancellationToken)
+    {
+        if (appId.HasValue && appId.Value > 0)
+        {
+            return await _appDbScopeFactory.GetAppClientAsync(tenantId, appId.Value, cancellationToken);
+        }
+
+        return _mainDb;
     }
 
 }

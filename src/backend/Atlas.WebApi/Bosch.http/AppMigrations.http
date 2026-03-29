@@ -1,0 +1,75 @@
+@host = http://localhost:5000
+@tenantId = 00000000-0000-0000-0000-000000000001
+@token = {{login.response.body.data.token}}
+
+### 登录获取 token（可复用现有登录请求）
+# @name login
+POST {{host}}/api/v1/auth/login
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "admin",
+  "password": "P@ssw0rd!"
+}
+
+### 创建迁移任务
+# @name createTask
+POST {{host}}/api/v1/app-migrations
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: app-migration-create-001
+
+{
+  "appInstanceId": 10001,
+  "readOnlyWindow": true,
+  "enableDualWrite": false,
+  "enableRollback": true
+}
+
+### 查询任务列表
+GET {{host}}/api/v1/app-migrations?pageIndex=1&pageSize=20
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### 预检查
+POST {{host}}/api/v1/app-migrations/{{createTask.response.body.data.id}}/precheck
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: app-migration-precheck-001
+
+### 启动迁移
+POST {{host}}/api/v1/app-migrations/{{createTask.response.body.data.id}}/start
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: app-migration-start-001
+
+### 查询进度
+GET {{host}}/api/v1/app-migrations/{{createTask.response.body.data.id}}/progress
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### 完整性校验
+POST {{host}}/api/v1/app-migrations/{{createTask.response.body.data.id}}/validate
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: app-migration-validate-001
+
+### 切换到应用独立库
+POST {{host}}/api/v1/app-migrations/{{createTask.response.body.data.id}}/cutover
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: app-migration-cutover-001
+
+{
+  "enableReadOnlyWindow": true,
+  "enableDualWrite": false
+}
+
+### 回切到主库
+POST {{host}}/api/v1/app-migrations/{{createTask.response.body.data.id}}/rollback
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: app-migration-rollback-001

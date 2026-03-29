@@ -31,8 +31,13 @@ public static class ServiceCollectionExtensions
         services.AddScoped<Atlas.Infrastructure.Repositories.TenantDataSourceRepository>();
         services.AddScoped<Atlas.Application.System.Abstractions.ITenantDataSourceService,
             Atlas.Infrastructure.Services.TenantDataSourceService>();
+        services.AddScoped<Atlas.Application.System.Abstractions.IAppMigrationService, Atlas.Infrastructure.Services.AppMigrationService>();
         services.AddScoped<Atlas.Application.System.Abstractions.ITenantDbConnectionFactory,
             Atlas.Infrastructure.Services.TenantDbConnectionFactory>();
+        services.AddScoped<Atlas.Infrastructure.Services.AppDatabaseProvisioningService>();
+        services.AddScoped<Atlas.Application.System.Abstractions.IAppDbConnectionResolver>(sp =>
+            (Atlas.Application.System.Abstractions.IAppDbConnectionResolver)sp.GetRequiredService<Atlas.Application.System.Abstractions.ITenantDbConnectionFactory>());
+        services.AddScoped<Atlas.Infrastructure.Services.IAppDbScopeFactory, Atlas.Infrastructure.Services.AppDbScopeFactory>();
         services.AddSingleton<IPluginCatalogService, Atlas.Infrastructure.Services.PluginCatalogService>();
         services.AddScoped<Atlas.Application.System.Abstractions.ISqlQueryService, Atlas.Infrastructure.Services.SqlQueryService>();
         services.AddScoped<Atlas.Application.System.Abstractions.IMetadataLinkQueryService, Atlas.Infrastructure.Services.MetadataLinkQueryService>();
@@ -103,7 +108,7 @@ public static class ServiceCollectionExtensions
         // Evidence Chain
         services.AddScoped<Atlas.Infrastructure.Services.EvidenceChainService>();
 
-        // SqlSugar client (shared across all modules)
+        // SqlSugar 主库客户端（控制面）
         services.AddScoped<ISqlSugarClient>(sp =>
         {
             var options = sp.GetRequiredService<IOptions<DatabaseOptions>>().Value;

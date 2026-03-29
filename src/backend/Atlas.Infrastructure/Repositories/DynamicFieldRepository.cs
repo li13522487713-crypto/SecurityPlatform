@@ -1,17 +1,31 @@
 using Atlas.Application.DynamicTables.Repositories;
+using Atlas.Core.Identity;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.DynamicTables.Entities;
+using Atlas.Infrastructure.Services;
 using SqlSugar;
 
 namespace Atlas.Infrastructure.Repositories;
 
 public sealed class DynamicFieldRepository : IDynamicFieldRepository
 {
-    private readonly ISqlSugarClient _db;
+    private readonly ISqlSugarClient _mainDb;
+    private readonly IAppDbScopeFactory _appDbScopeFactory;
+    private readonly IAppContextAccessor _appContextAccessor;
+
+    public DynamicFieldRepository(
+        ISqlSugarClient mainDb,
+        IAppDbScopeFactory appDbScopeFactory,
+        IAppContextAccessor appContextAccessor)
+    {
+        _mainDb = mainDb;
+        _appDbScopeFactory = appDbScopeFactory;
+        _appContextAccessor = appContextAccessor;
+    }
 
     public DynamicFieldRepository(ISqlSugarClient db)
+        : this(db, new MainOnlyAppDbScopeFactory(db), NullAppContextAccessor.Instance)
     {
-        _db = db;
     }
 
     public async Task<IReadOnlyList<DynamicField>> ListByTableIdAsync(
@@ -19,7 +33,8 @@ public sealed class DynamicFieldRepository : IDynamicFieldRepository
         long tableId,
         CancellationToken cancellationToken)
     {
-        var list = await _db.Queryable<DynamicField>()
+        var db = await GetDbAsync(tenantId, cancellationToken);
+        var list = await db.Queryable<DynamicField>()
             .Where(x => x.TenantIdValue == tenantId.Value && x.TableId == tableId)
             .OrderBy(x => x.SortOrder, OrderByType.Asc)
             .ToListAsync(cancellationToken);
@@ -38,7 +53,8 @@ public sealed class DynamicFieldRepository : IDynamicFieldRepository
         }
 
         var ids = tableIds.Distinct().ToArray();
-        return await _db.Queryable<DynamicField>()
+        var db = await GetDbAsync(tenantId, cancellationToken);
+        return await db.Queryable<DynamicField>()
             .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(ids, x.TableId))
             .ToListAsync(cancellationToken);
     }
@@ -50,7 +66,10 @@ public sealed class DynamicFieldRepository : IDynamicFieldRepository
             return Task.CompletedTask;
         }
 
-        return _db.Insertable(fields.ToList()).ExecuteCommandAsync(cancellationToken);
+        return ExecuteInDbAsync(
+            new TenantId(fields[0].TenantIdValue),
+            db => db.Insertable(fields.ToList()).ExecuteCommandAsync(cancellationToken),
+            cancellationToken);
     }
 
     public async Task UpdateRangeAsync(IReadOnlyList<DynamicField> fields, CancellationToken cancellationToken)
@@ -60,7 +79,8 @@ public sealed class DynamicFieldRepository : IDynamicFieldRepository
             return;
         }
 
-        var affected = await _db.Updateable(fields.ToList())
+        var db = await GetDbAsync(new TenantId(fields[0].TenantIdValue), cancellationToken);
+        var affected = await db.Updateable(fields.ToList())
             .WhereColumns(x => new { x.Id, x.TenantIdValue })
             .ExecuteCommandAsync(cancellationToken);
 
@@ -72,8 +92,31 @@ public sealed class DynamicFieldRepository : IDynamicFieldRepository
 
     public Task DeleteByTableIdAsync(TenantId tenantId, long tableId, CancellationToken cancellationToken)
     {
-        return _db.Deleteable<DynamicField>()
-            .Where(x => x.TenantIdValue == tenantId.Value && x.TableId == tableId)
-            .ExecuteCommandAsync(cancellationToken);
+        return ExecuteInDbAsync(
+            tenantId,
+            db => db.Deleteable<DynamicField>()
+                .Where(x => x.TenantIdValue == tenantId.Value && x.TableId == tableId)
+                .ExecuteCommandAsync(cancellationToken),
+            cancellationToken);
+    }
+
+    private async Task<ISqlSugarClient> GetDbAsync(TenantId tenantId, CancellationToken cancellationToken)
+    {
+        var appId = _appContextAccessor.ResolveAppId();
+        if (appId.HasValue && appId.Value > 0)
+        {
+            return await _appDbScopeFactory.GetAppClientAsync(tenantId, appId.Value, cancellationToken);
+        }
+
+        return _mainDb;
+    }
+
+    private async Task ExecuteInDbAsync(
+        TenantId tenantId,
+        Func<ISqlSugarClient, Task> operation,
+        CancellationToken cancellationToken)
+    {
+        var db = await GetDbAsync(tenantId, cancellationToken);
+        await operation(db);
     }
 }
