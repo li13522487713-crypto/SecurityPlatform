@@ -163,6 +163,13 @@ public interface ITenantAppMemberQueryService
         PagedRequest request,
         CancellationToken cancellationToken = default);
 
+    Task<PagedResult<TenantAppMemberListItem>> QueryByRoleAsync(
+        TenantId tenantId,
+        long appId,
+        long roleId,
+        PagedRequest request,
+        CancellationToken cancellationToken = default);
+
     Task<TenantAppMemberDetail?> GetByUserIdAsync(
         TenantId tenantId,
         long appId,
@@ -469,6 +476,7 @@ public interface IAppOrganizationQueryService
         TenantId tenantId,
         long appId,
         PagedRequest request,
+        long? roleId = null,
         CancellationToken cancellationToken = default);
 }
 

@@ -211,6 +211,7 @@ public sealed class TenantAppRolesV2Controller : ControllerBase
         long appId,
         CancellationToken cancellationToken)
     {
+        // 当前阶段以低代码页面作为导航授权载体，不引入独立 app-level menu 实体。
         var tenantId = _tenantProvider.GetTenantId();
         var pages = await _pageRepository.GetByAppIdAsync(tenantId, appId, cancellationToken);
         var result = pages.Select(p => new AppPageListItem(

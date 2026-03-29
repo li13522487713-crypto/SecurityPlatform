@@ -589,6 +589,22 @@ public sealed record AppPageListItem(
     int SortOrder,
     bool IsPublished);
 
+/// <summary>
+/// 导航投影预留模型（P2）：当前阶段角色导航授权仍基于 AppPageListItem 与角色页面分配。
+/// 如后续需要目录分组/外链/隐藏页，可在不改动角色授权主模型的前提下引入该投影层。
+/// </summary>
+public sealed record AppNavigationNode(
+    string Id,
+    string AppId,
+    string? PageId,
+    string? ParentId,
+    string Title,
+    string NodeType,
+    string? RoutePath,
+    string? ExternalUrl,
+    bool IsHidden,
+    int SortOrder);
+
 // ===== 应用组织管理聚合 =====
 
 public sealed record AppOrganizationWorkspaceResponse(

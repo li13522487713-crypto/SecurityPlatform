@@ -25,6 +25,11 @@ GET {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/organization/workspace?pag
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
+### 组织工作区（按角色过滤成员，供角色授权中心成员Tab分页）
+GET {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/organization/workspace?pageIndex=1&pageSize=10&keyword=&roleId=1
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
 ### 新增成员（统一入口）
 POST {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/organization/members
 Authorization: Bearer {{accessToken}}

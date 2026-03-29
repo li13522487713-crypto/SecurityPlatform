@@ -526,6 +526,24 @@ export interface AppPageListItem {
   isPublished: boolean;
 }
 
+/**
+ * 导航投影预留（P2）：
+ * 当前阶段角色导航授权仍绑定 AppPageListItem，不启用独立导航持久化。
+ * 未来如需目录分组/外链/隐藏页能力，可引入此投影层承载 UI 结构。
+ */
+export interface AppNavigationNode {
+  id: string;
+  appId: string;
+  pageId?: string;
+  parentId?: string;
+  title: string;
+  nodeType: "group" | "page" | "external";
+  routePath?: string;
+  externalUrl?: string;
+  isHidden?: boolean;
+  sortOrder: number;
+}
+
 // ===== 组织管理聚合 =====
 
 export interface AppOrganizationWorkspaceResponse {

@@ -79,6 +79,95 @@ public sealed class TenantAppMemberQueryService : ITenantAppMemberQueryService
             return new PagedResult<TenantAppMemberListItem>(Array.Empty<TenantAppMemberListItem>(), totalCount, pageIndex, pageSize);
         }
 
+        var items = await BuildMemberListItemsAsync(tenantId, appId, members, cancellationToken);
+
+        return new PagedResult<TenantAppMemberListItem>(items, totalCount, pageIndex, pageSize);
+    }
+
+    public async Task<PagedResult<TenantAppMemberListItem>> QueryByRoleAsync(
+        TenantId tenantId,
+        long appId,
+        long roleId,
+        PagedRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var app = await RequireAppAsync(tenantId, appId, cancellationToken);
+
+        var roleMappings = await _appUserRoleRepository.QueryByRoleIdsAsync(
+            tenantId,
+            appId,
+            new[] { roleId },
+            cancellationToken);
+        var roleUserIds = roleMappings.Select(x => x.UserId).Distinct().ToArray();
+        var pageIndex = request.PageIndex < 1 ? 1 : request.PageIndex;
+        var pageSize = request.PageSize < 1 ? 10 : request.PageSize;
+        if (roleUserIds.Length == 0)
+        {
+            return new PagedResult<TenantAppMemberListItem>(Array.Empty<TenantAppMemberListItem>(), 0, pageIndex, pageSize);
+        }
+
+        var roleMembers = await _appMemberRepository.QueryByUserIdsAsync(tenantId, appId, roleUserIds, cancellationToken);
+        if (roleMembers.Count == 0)
+        {
+            return new PagedResult<TenantAppMemberListItem>(Array.Empty<TenantAppMemberListItem>(), 0, pageIndex, pageSize);
+        }
+
+        var keyword = request.Keyword?.Trim();
+        IReadOnlyList<AppMember> filteredMembers = roleMembers;
+        if (!string.IsNullOrWhiteSpace(keyword))
+        {
+            var users = await _userAccountRepository.QueryByIdsAsync(
+                tenantId,
+                roleMembers.Select(x => x.UserId).Distinct().ToArray(),
+                cancellationToken);
+            var userMap = users.ToDictionary(x => x.Id);
+            filteredMembers = roleMembers
+                .Where(member =>
+                {
+                    var key = keyword!;
+                    var byUserId = member.UserId.ToString().Contains(key, StringComparison.OrdinalIgnoreCase);
+                    if (byUserId)
+                    {
+                        return true;
+                    }
+
+                    if (!userMap.TryGetValue(member.UserId, out var user))
+                    {
+                        return false;
+                    }
+
+                    return (!string.IsNullOrWhiteSpace(user.Username) && user.Username.Contains(key, StringComparison.OrdinalIgnoreCase))
+                        || (!string.IsNullOrWhiteSpace(user.DisplayName) && user.DisplayName.Contains(key, StringComparison.OrdinalIgnoreCase));
+                })
+                .ToArray();
+        }
+
+        var totalCount = filteredMembers.Count;
+        var pageMembers = filteredMembers
+            .OrderByDescending(x => x.JoinedAt)
+            .Skip((pageIndex - 1) * pageSize)
+            .Take(pageSize)
+            .ToArray();
+        if (pageMembers.Length == 0)
+        {
+            return new PagedResult<TenantAppMemberListItem>(Array.Empty<TenantAppMemberListItem>(), totalCount, pageIndex, pageSize);
+        }
+
+        var items = await BuildMemberListItemsAsync(tenantId, appId, pageMembers, cancellationToken);
+        return new PagedResult<TenantAppMemberListItem>(items, totalCount, pageIndex, pageSize);
+    }
+
+    private async Task<TenantAppMemberListItem[]> BuildMemberListItemsAsync(
+        TenantId tenantId,
+        long appId,
+        IReadOnlyList<AppMember> members,
+        CancellationToken cancellationToken)
+    {
+        if (members.Count == 0)
+        {
+            return Array.Empty<TenantAppMemberListItem>();
+        }
+
         var userIds = members.Select(x => x.UserId).Distinct().ToArray();
         var users = await _userAccountRepository.QueryByIdsAsync(tenantId, userIds, cancellationToken);
         var userMap = users.ToDictionary(x => x.Id);
@@ -123,7 +212,7 @@ public sealed class TenantAppMemberQueryService : ITenantAppMemberQueryService
                 group => group.Key,
                 group => group.Select(x => x.ProjectId).Distinct().ToArray());
 
-        var items = members
+        return members
             .Select(member =>
             {
                 userMap.TryGetValue(member.UserId, out var user);
@@ -136,7 +225,7 @@ public sealed class TenantAppMemberQueryService : ITenantAppMemberQueryService
                 projectIdsByUser.TryGetValue(member.UserId, out var memberProjectIds);
                 memberProjectIds ??= Array.Empty<long>();
                 var roleNames = memberRoleIds
-                    .Select(roleId => roleMap.TryGetValue(roleId, out var role) ? role.Name : null)
+                    .Select(itemRoleId => roleMap.TryGetValue(itemRoleId, out var role) ? role.Name : null)
                     .Where(name => !string.IsNullOrWhiteSpace(name))
                     .Cast<string>()
                     .ToArray();
@@ -174,8 +263,6 @@ public sealed class TenantAppMemberQueryService : ITenantAppMemberQueryService
                     projectNames);
             })
             .ToArray();
-
-        return new PagedResult<TenantAppMemberListItem>(items, totalCount, pageIndex, pageSize);
     }
 
     public async Task<TenantAppMemberDetail?> GetByUserIdAsync(

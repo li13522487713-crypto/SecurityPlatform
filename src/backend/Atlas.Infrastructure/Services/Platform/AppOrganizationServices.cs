@@ -29,10 +29,13 @@ public sealed class AppOrganizationQueryService : IAppOrganizationQueryService
         TenantId tenantId,
         long appId,
         PagedRequest request,
+        long? roleId = null,
         CancellationToken cancellationToken = default)
     {
         var memberQuery = new PagedRequest(request.PageIndex, request.PageSize, request.Keyword);
-        var membersTask = _memberQueryService.QueryAsync(tenantId, appId, memberQuery, cancellationToken);
+        var membersTask = roleId.HasValue
+            ? _memberQueryService.QueryByRoleAsync(tenantId, appId, roleId.Value, memberQuery, cancellationToken)
+            : _memberQueryService.QueryAsync(tenantId, appId, memberQuery, cancellationToken);
         var roleOverviewTask = _roleQueryService.GetGovernanceOverviewAsync(tenantId, appId, cancellationToken);
         var rolesTask = _roleQueryService.QueryAsync(tenantId, appId, new PagedRequest(1, 200, null), cancellationToken);
         var departmentsTask = _appOrgQueryService.GetAllDepartmentsAsync(tenantId, appId, cancellationToken);

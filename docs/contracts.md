@@ -342,7 +342,8 @@
 #### v2 组织管理聚合接口（Organization Workspace）
 
 - 聚合工作区：
-  - `GET /api/v2/tenant-app-instances/{appId}/organization/workspace?pageIndex=1&pageSize=20&keyword=`
+  - `GET /api/v2/tenant-app-instances/{appId}/organization/workspace?pageIndex=1&pageSize=20&keyword=&roleId=`
+  - `roleId` 可选；传入后成员分页仅返回该角色下成员（用于角色授权中心成员 Tab 的服务端分页）
   - 返回 `AppOrganizationWorkspaceResponse`：
     - `members`：成员分页数据（`PagedResult<TenantAppMemberListItem>`）
     - `roleGovernance`：角色治理概览（`TenantAppRoleGovernanceOverview`）
@@ -374,6 +375,10 @@
   - `workspace` 要求 `apps:view`
   - 成员写接口要求 `apps:members:update`
   - 角色/部门/职位/项目写接口要求 `apps:roles:update`
+- 导航授权定版：
+  - 当前阶段“角色菜单/导航授权”统一使用应用页面分配接口（`/roles/available-pages` + `/roles/{roleId}/pages`）。
+  - 不新增独立 app-level menu 表，避免与 permission/page 双模型冲突。
+  - 如后续要支持目录分组、隐藏页、外链，可新增轻量 `AppNavigationNode` 作为导航投影层（不改变角色授权主模型）。
 - 入参规范：
   - 统一入口写接口中的实体 ID 使用字符串表达（前端避免 64 位整型精度问题），服务层强类型转换校验。
 

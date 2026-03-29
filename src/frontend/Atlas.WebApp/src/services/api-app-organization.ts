@@ -22,13 +22,19 @@ function buildOrgBasePath(appId: string) {
   return `/api/v2/tenant-app-instances/${appId}/organization`;
 }
 
-export async function getAppOrganizationWorkspace(appId: string, request: PagedRequest) {
+export async function getAppOrganizationWorkspace(
+  appId: string,
+  request: PagedRequest & { roleId?: string }
+) {
   const query = new URLSearchParams({
     pageIndex: request.pageIndex.toString(),
     pageSize: request.pageSize.toString()
   });
   if (request.keyword) {
     query.set("keyword", request.keyword);
+  }
+  if (request.roleId) {
+    query.set("roleId", request.roleId);
   }
 
   const response = await requestApi<ApiResponse<AppOrganizationWorkspaceResponse>>(

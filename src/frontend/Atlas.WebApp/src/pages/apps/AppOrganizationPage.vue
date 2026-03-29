@@ -134,6 +134,12 @@
             <template #icon><SettingOutlined /></template>
             {{ t("appOrg.manageRoles") }}
           </a-button>
+          <a-button
+            v-if="mainPanel === 'roles' && selectedRoleForAuth"
+            @click="openRoleAuthorization(selectedRoleForAuth)"
+          >
+            {{ t("appOrg.openRoleAuthCenter", "打开角色授权中心") }}
+          </a-button>
           <a-button v-if="mainPanel === 'members' && canManageMembers" type="primary" @click="openAddMemberModal">
             <template #icon><UserAddOutlined /></template>
             {{ t("appsUsers.addMember") }}
@@ -151,6 +157,29 @@
             {{ t("appsProjects.newProject") }}
           </a-button>
         </a-space>
+      </div>
+
+      <div v-if="roleGovernance" class="governance-summary">
+        <a-row :gutter="[10, 10]">
+          <a-col :xs="24" :sm="12" :md="8" :lg="4">
+            <a-statistic :title="t('appsRoles.statTotal')" :value="roleGovernance.totalRoles" />
+          </a-col>
+          <a-col :xs="24" :sm="12" :md="8" :lg="4">
+            <a-statistic :title="t('appsRoles.statSystem')" :value="roleGovernance.systemRoleCount" />
+          </a-col>
+          <a-col :xs="24" :sm="12" :md="8" :lg="4">
+            <a-statistic :title="t('appsRoles.statCustom')" :value="roleGovernance.customRoleCount" />
+          </a-col>
+          <a-col :xs="24" :sm="12" :md="8" :lg="4">
+            <a-statistic :title="t('appsRoles.statMembers')" :value="roleGovernance.totalMembers" />
+          </a-col>
+          <a-col :xs="24" :sm="12" :md="8" :lg="4">
+            <a-statistic :title="t('appsRoles.statCovered')" :value="roleGovernance.coveredMembers" />
+          </a-col>
+          <a-col :xs="24" :sm="12" :md="8" :lg="4">
+            <a-statistic :title="t('appsRoles.statCoverage')" :value="governanceCoverageText" />
+          </a-col>
+        </a-row>
       </div>
 
       <div v-if="mainPanel === 'members'" class="toolbar-row">
@@ -252,7 +281,23 @@
                   {{ t("appOrg.resetPasswordAction") }}
                 </a-button>
                 <a-button
-                  v-else-if="mainPanel !== 'members'"
+                  v-if="mainPanel === 'roles'"
+                  type="link"
+                  size="small"
+                  @click="openRoleAuthorization(record)"
+                >
+                  {{ t("appOrg.openRoleAuthCenter", "打开角色授权中心") }}
+                </a-button>
+                <a-button
+                  v-if="mainPanel === 'roles' && !record.isSystem"
+                  type="link"
+                  size="small"
+                  @click="openCurrentEntityModal(record)"
+                >
+                  {{ t("common.edit") }}
+                </a-button>
+                <a-button
+                  v-else-if="mainPanel !== 'members' && mainPanel !== 'roles'"
                   type="link"
                   size="small"
                   @click="openCurrentEntityModal(record)"
@@ -260,7 +305,7 @@
                   {{ t("common.edit") }}
                 </a-button>
                 <a-popconfirm
-                  v-if="mainPanel !== 'members' || canManageMembers"
+                  v-if="(mainPanel !== 'members' || canManageMembers) && !(mainPanel === 'roles' && record.isSystem)"
                   :title="mainDeleteConfirmText"
                   :ok-text="t('common.delete')"
                   :cancel-text="t('common.cancel')"
@@ -325,8 +370,24 @@
           </template>
           <template v-else-if="column.key === 'actions'">
             <a-space>
-              <a-button type="link" size="small" @click="openEntityModal(entityDrawerKind, record)">{{ t("common.edit") }}</a-button>
+              <a-button
+                v-if="entityDrawerKind === 'roles'"
+                type="link"
+                size="small"
+                @click="openRoleAuthorization(record)"
+              >
+                {{ t("appOrg.openRoleAuthCenter", "打开角色授权中心") }}
+              </a-button>
+              <a-button
+                v-if="!(entityDrawerKind === 'roles' && record.isSystem)"
+                type="link"
+                size="small"
+                @click="openEntityModal(entityDrawerKind, record)"
+              >
+                {{ t("common.edit") }}
+              </a-button>
               <a-popconfirm
+                v-if="!(entityDrawerKind === 'roles' && record.isSystem)"
                 :title="entityDeleteConfirm(entityDrawerKind)"
                 :ok-text="t('common.delete')"
                 :cancel-text="t('common.cancel')"
@@ -342,6 +403,16 @@
         <a-button type="primary" @click="openEntityModal(entityDrawerKind)">{{ entityDrawerCreateLabel }}</a-button>
       </div>
     </a-drawer>
+
+    <AppRoleAuthorizationDrawer
+      :open="roleAuthorizationOpen"
+      :app-id="appId"
+      :role="selectedRoleForAuth"
+      :members="members"
+      :can-manage-roles="canManageRoles"
+      @close="roleAuthorizationOpen = false"
+      @success="handleRoleAuthorizationSaved"
+    />
 
     <a-modal
       v-model:open="addMemberOpen"
@@ -602,6 +673,7 @@ import { debounce } from "@/utils/common";
 import { isAdminRole } from "@/utils/auth";
 import { useUserStore } from "@/stores/user";
 import { getAppProjectsPaged, getTenantAppRolesPaged } from "@/services/api-app-members";
+import AppRoleAuthorizationDrawer from "@/pages/apps/AppRoleAuthorizationDrawer.vue";
 import {
   createOrganizationMemberUser,
   createOrganizationDepartment,
@@ -628,6 +700,7 @@ import type {
   AppPositionListItem,
   AppProjectListItem,
   TenantAppMemberListItem,
+  TenantAppRoleGovernanceOverview,
   TenantAppRoleListItem
 } from "@/types/platform-v2";
 
@@ -659,6 +732,9 @@ const roles = ref<TenantAppRoleListItem[]>([]);
 const departments = ref<AppDepartmentListItem[]>([]);
 const positions = ref<AppPositionListItem[]>([]);
 const projects = ref<AppProjectListItem[]>([]);
+const roleGovernance = ref<TenantAppRoleGovernanceOverview | null>(null);
+const roleAuthorizationOpen = ref(false);
+const roleAuthorizationRoleId = ref<string | null>(null);
 
 const entityDrawerOpen = ref(false);
 const entityDrawerKind = ref<EntityKind>("roles");
@@ -944,6 +1020,21 @@ const memberFoundCount = computed(() => {
 });
 
 const displayedMembers = computed(() => members.value);
+const selectedRoleForAuth = computed(() => {
+  if (roleAuthorizationRoleId.value) {
+    return roles.value.find((item) => item.id === roleAuthorizationRoleId.value) ?? null;
+  }
+  if (selectedRoleId.value) {
+    return roles.value.find((item) => item.id === selectedRoleId.value) ?? null;
+  }
+  return null;
+});
+const governanceCoverageText = computed(() => {
+  if (!roleGovernance.value) {
+    return "0%";
+  }
+  return `${Number(roleGovernance.value.permissionCoverageRate ?? 0).toFixed(2)}%`;
+});
 
 const memberTablePagination = computed(() => pagination);
 
@@ -1010,7 +1101,9 @@ const currentMainSubtitle = computed(() => {
   }
   if (mainPanel.value === "roles") {
     const selected = selectedRoleId.value ? roles.value.find((r) => r.id === selectedRoleId.value) : undefined;
-    return selected ? t("appOrg.subtitleByRole", { name: selected.name }) : t("appsRoles.pageSubtitle");
+    return selected
+      ? t("appOrg.subtitleByRoleAuth", { name: selected.name })
+      : t("appOrg.subtitleRolesPanel", "在组织内维护角色并进入授权中心");
   }
   if (mainPanel.value === "positions") {
     return selectedPosition.value ? t("appOrg.subtitleByPosition", { name: selectedPosition.value.name }) : t("appsPositions.pageSubtitle");
@@ -1187,6 +1280,7 @@ async function loadWorkspace() {
     departments.value = result.departments;
     positions.value = result.positions;
     projects.value = result.projects;
+    roleGovernance.value = result.roleGovernance;
     if (departmentExpandedKeys.value.length === 0) {
       departmentExpandedKeys.value = departments.value.map((dept) => dept.id);
     }
@@ -1195,6 +1289,19 @@ async function loadWorkspace() {
   } finally {
     loading.value = false;
   }
+}
+
+function openRoleAuthorization(record?: TenantAppRoleListItem) {
+  if (!record) {
+    return;
+  }
+  roleAuthorizationRoleId.value = record.id;
+  roleAuthorizationOpen.value = true;
+}
+
+async function handleRoleAuthorizationSaved() {
+  message.success(t("appOrg.roleAuthSavedTip", "角色授权已保存"));
+  await loadWorkspace();
 }
 
 function handleMainTableChange(page: TablePaginationConfig) {
@@ -1794,6 +1901,14 @@ onMounted(() => {
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 16px;
+}
+
+.governance-summary {
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border: 1px solid #f0f0f0;
+  border-radius: 10px;
+  background: #fafcff;
 }
 
 .main-title {

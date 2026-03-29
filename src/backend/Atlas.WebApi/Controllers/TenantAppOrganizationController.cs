@@ -41,10 +41,11 @@ public sealed class TenantAppOrganizationController : ControllerBase
     public async Task<ActionResult<ApiResponse<AppOrganizationWorkspaceResponse>>> GetWorkspace(
         long appId,
         [FromQuery] PagedRequest request,
+        [FromQuery] long? roleId,
         CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
-        var result = await _queryService.GetWorkspaceAsync(tenantId, appId, request, cancellationToken);
+        var result = await _queryService.GetWorkspaceAsync(tenantId, appId, request, roleId, cancellationToken);
         return Ok(ApiResponse<AppOrganizationWorkspaceResponse>.Ok(result, HttpContext.TraceIdentifier));
     }
 

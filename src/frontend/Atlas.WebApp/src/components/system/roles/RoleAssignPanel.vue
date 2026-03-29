@@ -13,6 +13,37 @@
     <div class="panel-content">
       <a-spin :spinning="loading">
         <a-tabs v-model:active-key="activeTab">
+          <a-tab-pane key="basic-info" :tab="t('systemRoles.basicInfoTab', '基本信息')">
+            <a-alert
+              :message="t('systemRoles.basicInfoTabHint', '角色编码不可编辑，名称与描述可维护。')"
+              type="info"
+              show-icon
+              style="margin-bottom: 12px"
+            />
+            <a-form layout="vertical">
+              <a-form-item :label="t('appsRoles.labelCode')">
+                <a-input v-model:value="basicForm.code" disabled />
+              </a-form-item>
+              <a-form-item :label="t('appsRoles.labelName')">
+                <a-input v-model:value="basicForm.name" :disabled="!canAssignPermissions" />
+              </a-form-item>
+              <a-form-item :label="t('appsRoles.labelDesc')">
+                <a-textarea v-model:value="basicForm.description" :rows="3" :disabled="!canAssignPermissions" />
+              </a-form-item>
+              <a-alert
+                type="success"
+                show-icon
+                :message="t('systemRoles.navigationProjectionHint', '页面授权来自应用页面（available-pages），当前阶段不启用独立菜单模型。')"
+              />
+              <a-alert
+                style="margin-top: 10px"
+                type="warning"
+                show-icon
+                :message="t('systemRoles.auditTraceHint', '保存将写入角色授权审计轨迹，请保留 traceId 用于追踪。')"
+              />
+            </a-form>
+          </a-tab-pane>
+
           <a-tab-pane v-if="canAssignPermissions" key="permissions" :tab="t('systemRoles.permissionTab')">
             <a-alert
               :message="t('systemRoles.permissionTabHint')"
@@ -209,6 +240,50 @@
               :message="t('systemRoles.projectScopeConsistencyWarning')"
             />
           </a-tab-pane>
+
+          <a-tab-pane key="members" :tab="t('systemRoles.membersTab', '成员列表')">
+            <a-alert
+              :message="t('systemRoles.membersTabHint', '用于查看当前角色下的应用成员。')"
+              type="info"
+              show-icon
+              style="margin-bottom: 12px"
+            />
+            <a-input-search
+              v-model:value="memberKeyword"
+              :placeholder="t('appOrg.searchPlaceholder')"
+              allow-clear
+              style="margin-bottom: 12px"
+              @search="loadRoleMembers"
+            />
+            <a-table
+              row-key="userId"
+              :data-source="roleMemberRows"
+              :pagination="memberPagination"
+              :loading="memberLoading"
+              size="small"
+              :scroll="{ y: 'calc(100vh - 360px)' }"
+              @change="handleMemberTableChange"
+            >
+              <a-table-column key="displayName" :title="t('systemUsers.displayName')" data-index="displayName" />
+              <a-table-column key="username" :title="t('systemUsers.username')" data-index="username" />
+              <a-table-column key="departmentNames" :title="t('appOrg.sectionDepartments')">
+                <template #default="{ record }">
+                  <a-space wrap :size="4">
+                    <a-tag v-for="name in record.departmentNames" :key="name">{{ name }}</a-tag>
+                    <span v-if="record.departmentNames.length === 0">-</span>
+                  </a-space>
+                </template>
+              </a-table-column>
+              <a-table-column key="positionNames" :title="t('appOrg.sectionPositions')">
+                <template #default="{ record }">
+                  <a-space wrap :size="4">
+                    <a-tag v-for="name in record.positionNames" :key="name">{{ name }}</a-tag>
+                    <span v-if="record.positionNames.length === 0">-</span>
+                  </a-space>
+                </template>
+              </a-table-column>
+            </a-table>
+          </a-tab-pane>
         </a-tabs>
       </a-spin>
     </div>
@@ -236,6 +311,7 @@ import {
 } from '@/services/dynamic-tables';
 import {
   getTenantAppRoleDetail,
+  updateTenantAppRole,
   updateTenantAppRolePermissions,
   getAppRoleDataScope,
   setAppRoleDataScope,
@@ -248,10 +324,11 @@ import {
   setAppRoleFieldPermissions,
   getAppAvailableDynamicTables
 } from '@/services/api-app-members';
+import { getAppOrganizationWorkspace } from "@/services/api-app-organization";
 import { debounce, handleTree, type SelectOption } from '@/utils/common';
 import type { DataNode } from 'ant-design-vue/es/tree';
 import { getProjectScopeEnabled } from "@/utils/auth";
-import type { AppPageListItem, AppRoleFieldPermissionGroup } from '@/types/platform-v2';
+import type { AppPageListItem, AppRoleFieldPermissionGroup, TenantAppMemberListItem } from '@/types/platform-v2';
 
 const { t } = useI18n();
 
@@ -266,6 +343,8 @@ const props = defineProps<{
   scope?: 'platform' | 'app';
   /** 应用 ID，scope=app 时必填 */
   appId?: string;
+  /** 角色关联成员（由外层传入） */
+  members?: TenantAppMemberListItem[];
 }>();
 
 const emit = defineEmits<{
@@ -281,14 +360,29 @@ onBeforeUnmount(() => {
 
 const loading = ref(false);
 const submitting = ref(false);
-const activeTab = ref(
-  props.canAssignPermissions
-    ? 'permissions'
-    : props.canAssignMenus
-      ? 'menus'
-      : 'data-scope'
-);
+const activeTab = ref('basic-info');
 const projectScopeEnabled = getProjectScopeEnabled();
+const basicForm = reactive({
+  code: props.roleCode ?? "",
+  name: props.roleName ?? "",
+  description: ""
+});
+const basicFormSnapshot = ref({
+  name: props.roleName ?? "",
+  description: ""
+});
+const roleMemberRows = computed(() => {
+  if (isAppScope.value) {
+    return roleMembersRemote.value;
+  }
+  if (!props.roleId || !props.members?.length) return [];
+  const roleId = props.roleId;
+  return props.members.filter((member) => member.roleIds.includes(roleId));
+});
+const basicInfoChanged = computed(() => {
+  return basicForm.name.trim() !== basicFormSnapshot.value.name.trim()
+    || basicForm.description.trim() !== basicFormSnapshot.value.description.trim();
+});
 
 const dataScopeOptions = [
   { value: 0, label: t("systemRoles.scopeAllLabel"), description: t("systemRoles.scopeAllDesc") },
@@ -475,6 +569,15 @@ const departmentOptions = ref<SelectOption[]>([]);
 const permissionLoading = ref(false);
 const menuLoading = ref(false);
 const departmentLoading = ref(false);
+const memberLoading = ref(false);
+const memberKeyword = ref("");
+const roleMembersRemote = ref<TenantAppMemberListItem[]>([]);
+const memberPagination = reactive({
+  current: 1,
+  pageSize: 10,
+  total: 0,
+  showSizeChanger: true
+});
 
 // 应用级页面列表（app scope 时用于"页面分配"Tab）
 const appPageListItems = ref<AppPageListItem[]>([]);
@@ -690,16 +793,25 @@ const loadDynamicTableOptions = async (search?: string) => {
   if (!isMounted.value) return;
   dynamicTableLoading.value = true;
   try {
-    const result = await getDynamicTablesPaged({
-      pageIndex: 1,
-      pageSize: 100,
-      keyword: search?.trim() || undefined
-    }, { suppressErrorMessage: true });
-    if (!isMounted.value) return;
-    dynamicTableOptions.value = result.items.map((item) => ({
-      label: `${item.displayName} (${item.tableKey})`,
-      value: item.tableKey
-    }));
+    if (isAppScope.value && props.appId) {
+      const tables = await getAppAvailableDynamicTables(props.appId, search?.trim() || undefined);
+      if (!isMounted.value) return;
+      dynamicTableOptions.value = tables.map((item) => ({
+        label: `${item.displayName || item.tableKey}`,
+        value: item.tableKey
+      }));
+    } else {
+      const result = await getDynamicTablesPaged({
+        pageIndex: 1,
+        pageSize: 100,
+        keyword: search?.trim() || undefined
+      }, { suppressErrorMessage: true });
+      if (!isMounted.value) return;
+      dynamicTableOptions.value = result.items.map((item) => ({
+        label: `${item.displayName} (${item.tableKey})`,
+        value: item.tableKey
+      }));
+    }
   } catch {
     message.warning(t("roleAssign.loadDynamicTablesFailed"));
   } finally {
@@ -778,6 +890,40 @@ const handleFieldEditChange = (fieldName: string, value: boolean) => {
   if (value) target.canView = true;
 };
 
+const loadRoleMembers = async () => {
+  if (!isMounted.value || !isAppScope.value || !props.appId || !props.roleId) {
+    return;
+  }
+  memberLoading.value = true;
+  try {
+    const workspace = await getAppOrganizationWorkspace(props.appId, {
+      pageIndex: Number(memberPagination.current ?? 1),
+      pageSize: Number(memberPagination.pageSize ?? 10),
+      keyword: memberKeyword.value.trim() || undefined,
+      roleId: props.roleId
+    });
+    if (!isMounted.value) return;
+    roleMembersRemote.value = workspace.members.items;
+    memberPagination.total = workspace.members.total;
+    memberPagination.current = workspace.members.pageIndex;
+    memberPagination.pageSize = workspace.members.pageSize;
+  } catch (error) {
+    if (isMounted.value) {
+      message.error((error as Error).message || t("crud.loadFailed"));
+    }
+  } finally {
+    if (isMounted.value) {
+      memberLoading.value = false;
+    }
+  }
+};
+
+const handleMemberTableChange = (page: { current?: number; pageSize?: number }) => {
+  memberPagination.current = page.current ?? 1;
+  memberPagination.pageSize = page.pageSize ?? 10;
+  void loadRoleMembers();
+};
+
 const fetchRoleDetail = async () => {
   if (!props.roleId || !isMounted.value) return;
   
@@ -807,6 +953,13 @@ const fetchRoleDetail = async () => {
       // 应用角色：权限是 codes
       assignModel.permissionCodes = roleDetail.permissionCodes?.slice() ?? [];
       permissionCheckedKeys.value = assignModel.permissionCodes.map(code => `${PERM_CODE_PREFIX}${code}`);
+      basicForm.code = roleDetail.code ?? props.roleCode;
+      basicForm.name = roleDetail.name ?? props.roleName;
+      basicForm.description = roleDetail.description ?? "";
+      basicFormSnapshot.value = {
+        name: basicForm.name,
+        description: basicForm.description
+      };
 
       // 页面分配
       assignModel.menuIds = pageIds.map(Number).filter(Number.isFinite);
@@ -831,6 +984,13 @@ const fetchRoleDetail = async () => {
       if (!isMounted.value) return;
       assignModel.permissionIds = detail.permissionIds?.slice() ?? [];
       assignModel.menuIds = detail.menuIds?.slice() ?? [];
+      basicForm.code = props.roleCode;
+      basicForm.name = props.roleName;
+      basicForm.description = "";
+      basicFormSnapshot.value = {
+        name: basicForm.name,
+        description: basicForm.description
+      };
       // 兼容历史值：CurrentTenant(1) 在前端统一映射为"全部数据(0)"展示。
       assignModel.dataScope = detail.dataScope === 1 ? 0 : (detail.dataScope ?? 0);
       assignModel.deptIds = (detail.deptIds ?? [])
@@ -857,6 +1017,12 @@ const submitAssign = async () => {
 
     if (isAppScope.value && props.appId) {
       // 应用模式：使用应用级 API
+      if (props.canAssignPermissions && basicInfoChanged.value) {
+        tasks.push(updateTenantAppRole(props.appId, props.roleId, {
+          name: basicForm.name.trim(),
+          description: basicForm.description.trim() || undefined
+        }));
+      }
       if (props.canAssignPermissions) {
         tasks.push(updateTenantAppRolePermissions(props.appId, props.roleId, {
           permissionCodes: assignModel.permissionCodes
@@ -935,7 +1101,11 @@ const submitAssign = async () => {
     
     await Promise.all(tasks);
     if (!isMounted.value) return;
-    message.success(t("systemRoles.assignSaveSuccess"));
+    basicFormSnapshot.value = {
+      name: basicForm.name,
+      description: basicForm.description
+    };
+    message.success(`${t("systemRoles.assignSaveSuccess")} [role=${props.roleCode}]`);
     emit('success');
   } catch (error) {
     if (isMounted.value) {
@@ -950,13 +1120,35 @@ const submitAssign = async () => {
 
 watch(() => props.roleId, (newId) => {
   if (newId) {
+    memberPagination.current = 1;
+    roleMembersRemote.value = [];
     fetchRoleDetail();
+    if (activeTab.value === "members") {
+      void loadRoleMembers();
+    }
   }
 }, { immediate: true });
+
+watch(() => props.roleCode, (newCode) => {
+  basicForm.code = newCode ?? "";
+});
+
+watch(() => props.roleName, (newName) => {
+  if (!basicInfoChanged.value) {
+    basicForm.name = newName ?? "";
+    basicFormSnapshot.value.name = newName ?? "";
+  }
+});
 
 watch(() => assignModel.dataScope, (scope) => {
   if (scope !== 2) {
     assignModel.deptIds = [];
+  }
+});
+
+watch(() => activeTab.value, (tab) => {
+  if (tab === "members") {
+    void loadRoleMembers();
   }
 });
 </script>
