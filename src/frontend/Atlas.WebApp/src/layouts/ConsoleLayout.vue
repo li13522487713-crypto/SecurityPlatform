@@ -119,7 +119,8 @@ const menuItemsRaw: RawConsoleMenuItem[] = [
       { key: "/console/tenant-applications", labelKey: "route.consoleTenantApplications", path: "/console/tenant-applications", permission: "apps:view" },
       { key: "/console/catalog", labelKey: "route.consoleCatalog", path: "/console/catalog", permission: "apps:view" },
       { key: "/console/resources", labelKey: "route.consoleResources", path: "/console/resources", permission: "apps:view" },
-      { key: "/console/migration-governance", labelKey: "route.consoleMigrationGovernance", path: "/console/migration-governance", permission: "apps:view" }
+      { key: "/console/migration-governance", labelKey: "route.consoleMigrationGovernance", path: "/console/migration-governance", permission: "apps:view" },
+      { key: "/console/app-db-migrations", labelKey: "route.consoleAppDbMigrations", path: "/console/app-db-migrations", permission: "apps:view" }
     ]
   },
   {

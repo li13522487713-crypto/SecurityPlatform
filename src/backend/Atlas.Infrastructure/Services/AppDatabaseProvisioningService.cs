@@ -1,4 +1,5 @@
 using Atlas.Core.Tenancy;
+using Atlas.Domain.AiPlatform.Entities;
 using Atlas.Domain.DynamicTables.Entities;
 using Atlas.Domain.Platform.Entities;
 using Atlas.Domain.System.Entities;
@@ -42,6 +43,11 @@ public sealed class AppDatabaseProvisioningService
             typeof(AppPosition),
             typeof(AppProject),
             typeof(RuntimeRoute),
+            typeof(WorkflowMeta),
+            typeof(WorkflowDraft),
+            typeof(WorkflowVersion),
+            typeof(WorkflowExecution),
+            typeof(WorkflowNodeExecution),
             typeof(AppDatabaseSchemaVersion));
     }
 }

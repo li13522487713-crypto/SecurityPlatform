@@ -155,7 +155,7 @@ const router = createRouter({
     { path: "/console/releases", name: "console-releases", component: ReleaseCenterPage, meta: { requiresAuth: true, title: "发布中心", titleKey: "route.consoleReleases", requiresPermission: "apps:view" } },
     { path: "/console/debug", name: "console-debug-layer", component: CozeDebugPage, meta: { requiresAuth: true, title: "调试层", titleKey: "route.consoleDebugLayer", requiresPermission: "apps:view" } },
     { path: "/console/migration-governance", name: "console-migration-governance", component: MigrationGovernancePage, meta: { requiresAuth: true, title: "迁移治理", titleKey: "route.consoleMigrationGovernance", requiresPermission: "apps:view" } },
-    { path: "/console/app-db-migrations", name: "console-app-db-migrations", component: AppDatabaseMigrationPage, meta: { requiresAuth: true, title: "应用数据库迁移", requiresPermission: "apps:view" } },
+    { path: "/console/app-db-migrations", name: "console-app-db-migrations", component: AppDatabaseMigrationPage, meta: { requiresAuth: true, title: "应用数据库迁移", titleKey: "route.consoleAppDbMigrations", requiresPermission: "apps:view" } },
     { path: "/console/tools", name: "console-tools", component: ToolsAuthorizationPage, meta: { requiresAuth: true, title: "工具授权中心", titleKey: "route.consoleTools", requiresPermission: "system:admin" } },
     { path: "/apps/:appId", name: "app-workspace-root", redirect: to => `/apps/${to.params.appId}/dashboard`, meta: { requiresAuth: true, title: "应用工作台", titleKey: "route.appWorkspace", requiresPermission: "apps:view" } },
     { path: "/apps/:appId/dashboard", name: "app-workspace-dashboard", component: AppDashboardPage, meta: { requiresAuth: true, title: "应用仪表盘", titleKey: "route.appDashboard", requiresPermission: "apps:view" } },
@@ -334,6 +334,34 @@ function syncAppContextFromRoute(to: { params: Record<string, unknown>; path: st
   }
 }
 
+function consumeRuntimeMigrationBlock(
+  appKey: string
+): { blocked: boolean; message?: string } {
+  if (typeof sessionStorage === "undefined") {
+    return { blocked: false };
+  }
+  const raw = sessionStorage.getItem("atlas_runtime_migration_block");
+  if (!raw) {
+    return { blocked: false };
+  }
+
+  try {
+    const payload = JSON.parse(raw) as { appKey?: string; expiresAt?: number; message?: string };
+    const now = Date.now();
+    if (!payload.appKey || !payload.expiresAt || payload.expiresAt <= now) {
+      sessionStorage.removeItem("atlas_runtime_migration_block");
+      return { blocked: false };
+    }
+    if (payload.appKey !== appKey) {
+      return { blocked: false };
+    }
+    return { blocked: true, message: payload.message };
+  } catch {
+    sessionStorage.removeItem("atlas_runtime_migration_block");
+    return { blocked: false };
+  }
+}
+
 
 router.beforeEach(async (to, from, next) => {
   NProgress.start();
@@ -400,6 +428,23 @@ router.beforeEach(async (to, from, next) => {
         next(false);
         NProgress.done();
         return;
+      }
+    }
+
+    if (to.name === "runtime-delivery-page") {
+      const runtimeAppKey = typeof to.params.appKey === "string" ? to.params.appKey.trim() : "";
+      if (runtimeAppKey) {
+        const blockedState = consumeRuntimeMigrationBlock(runtimeAppKey);
+        if (blockedState.blocked) {
+          message.warning(blockedState.message || translate("apiCore.appMigrationPending"));
+          next({
+            path: "/console/app-db-migrations",
+            query: { appKey: runtimeAppKey, reason: "migration_pending" },
+            replace: true
+          });
+          NProgress.done();
+          return;
+        }
       }
     }
 

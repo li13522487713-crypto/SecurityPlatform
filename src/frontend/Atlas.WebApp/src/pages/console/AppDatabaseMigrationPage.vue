@@ -10,6 +10,24 @@
       </template>
     </a-page-header>
 
+    <a-card class="playbook-card" size="small" title="切库作业顺序（标准流程）">
+      <a-typography-paragraph>
+        1. SchemaInit（建表） -> 2. SchemaReady（结构确认） -> 3. DataSync（数据同步） ->
+        4. IntegrityCheck（一致性校验） -> 5. Cutover（切到 AppOnly）
+      </a-typography-paragraph>
+      <a-typography-text type="secondary">
+        说明：切换与回切都会自动触发租户+应用级连接缓存失效，避免旧策略残留。
+      </a-typography-text>
+      <a-divider style="margin: 12px 0" />
+      <a-typography-paragraph style="margin-bottom: 8px">验收回归清单：</a-typography-paragraph>
+      <a-space direction="vertical" size="small">
+        <a-typography-text>场景A：同步进行中访问旧运行态链接，应重定向到安全入口且不出现 500。</a-typography-text>
+        <a-typography-text>场景B：切换完成后访问旧链接，应正常进入运行页。</a-typography-text>
+        <a-typography-text>场景C：执行回切后访问旧链接，应按主库策略稳定可用。</a-typography-text>
+        <a-typography-text>场景D：多租户并发验证，不应出现跨租户误拦截。</a-typography-text>
+      </a-space>
+    </a-card>
+
     <a-table
       row-key="id"
       :columns="columns"
@@ -156,6 +174,10 @@ onMounted(() => {
 }
 
 .task-table {
+  margin-top: 16px;
+}
+
+.playbook-card {
   margin-top: 16px;
 }
 </style>

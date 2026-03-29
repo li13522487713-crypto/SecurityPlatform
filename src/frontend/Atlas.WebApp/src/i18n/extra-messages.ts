@@ -45,6 +45,7 @@ export const extraMessages: Record<SupportedLocale, MessageTree> = {
       sessionReloadLogin: "登录失败，请重新登录"
     },
     apiCore: {
+      appMigrationPending: "应用正在切库同步中，请稍后重试",
       selectProjectFirst: "请先选择项目",
       projectContextMissing: "缺少项目上下文",
       projectModeSelectProjectFirst: "当前应用已启用项目模式，请先选择项目",
@@ -200,6 +201,7 @@ export const extraMessages: Record<SupportedLocale, MessageTree> = {
       consoleReleases: "发布中心",
       consoleDebugLayer: "调试层",
       consoleMigrationGovernance: "迁移治理",
+      consoleAppDbMigrations: "应用数据库迁移",
       consoleTools: "工具授权中心",
       consoleDatasources: "数据源管理",
       consoleSystemConfigs: "系统设置",
@@ -435,6 +437,7 @@ export const extraMessages: Record<SupportedLocale, MessageTree> = {
       sessionReloadLogin: "Login failed. Please sign in again."
     },
     apiCore: {
+      appMigrationPending: "App data migration is in progress. Please try again later.",
       selectProjectFirst: "Please select a project first",
       projectContextMissing: "Project context is required",
       projectModeSelectProjectFirst: "Project mode is enabled for this app. Please select a project first.",
@@ -590,6 +593,7 @@ export const extraMessages: Record<SupportedLocale, MessageTree> = {
       consoleReleases: "Release Center",
       consoleDebugLayer: "Debug Layer",
       consoleMigrationGovernance: "Migration Governance",
+      consoleAppDbMigrations: "App Database Migration",
       consoleTools: "Tool Authorization Center",
       consoleDatasources: "Datasource Management",
       consoleSystemConfigs: "System Settings",

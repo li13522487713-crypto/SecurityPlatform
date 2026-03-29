@@ -28,7 +28,7 @@ onUnmounted(() => {
   isMounted.value = false;
 });
 
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { message } from "ant-design-vue";
 import AmisRenderer from "@/components/amis/amis-renderer.vue";
 import type { AmisSchema } from "@/types/amis";
@@ -36,6 +36,7 @@ import { getLowCodeAppByKey, getLowCodeAppDetail, getLowCodeRuntimePageSchemaByK
 
 const { t } = useI18n();
 const route = useRoute();
+const router = useRouter();
 const loading = ref(false);
 const schema = ref<AmisSchema | null>(null);
 const pageTitle = ref(t("runtimePage.defaultTitle"));
@@ -101,7 +102,20 @@ async function loadRuntime() {
     schema.value = parsedSchema;
   } catch (error) {
     schema.value = null;
-    message.error((error as Error).message || t("runtimePage.loadFailed"));
+    const requestError = error as { message?: string; payload?: { code?: string; message?: string } };
+    const code = requestError.payload?.code ?? "";
+    if (code === "APP_MIGRATION_PENDING") {
+      message.warning(requestError.payload?.message || t("runtimePage.migrationPending"));
+      void router.replace({
+        path: "/console/app-db-migrations",
+        query: {
+          appKey: appKey.value,
+          reason: "migration_pending"
+        }
+      });
+      return;
+    }
+    message.error(requestError.message || t("runtimePage.loadFailed"));
   } finally {
     loading.value = false;
   }

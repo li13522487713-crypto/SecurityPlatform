@@ -2,6 +2,7 @@ using Atlas.Application.DynamicTables.Abstractions;
 using Atlas.Application.DynamicTables.Models;
 using Atlas.Application.LowCode.Abstractions;
 using Atlas.Application.LowCode.Models;
+using Atlas.Application.Platform.Abstractions;
 using Atlas.Core.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
@@ -23,17 +24,20 @@ public sealed class PageRuntimeController : ControllerBase
 {
     private readonly ILowCodeAppQueryService _queryService;
     private readonly IDynamicRecordCommandService _recordCommandService;
+    private readonly IRuntimeRouteQueryService _runtimeRouteQueryService;
     private readonly ITenantProvider _tenantProvider;
     private readonly ICurrentUserAccessor _currentUserAccessor;
 
     public PageRuntimeController(
         ILowCodeAppQueryService queryService,
         IDynamicRecordCommandService recordCommandService,
+        IRuntimeRouteQueryService runtimeRouteQueryService,
         ITenantProvider tenantProvider,
         ICurrentUserAccessor currentUserAccessor)
     {
         _queryService = queryService;
         _recordCommandService = recordCommandService;
+        _runtimeRouteQueryService = runtimeRouteQueryService;
         _tenantProvider = tenantProvider;
         _currentUserAccessor = currentUserAccessor;
     }
@@ -70,6 +74,7 @@ public sealed class PageRuntimeController : ControllerBase
                 ErrorCodes.ValidationError, "页面 ID 格式无效", HttpContext.TraceIdentifier));
         }
 
+        await _runtimeRouteQueryService.GetRuntimePageAsync(tenantId, appKey, pageKey, cancellationToken);
         var schema = await _queryService.GetRuntimePageSchemaAsync(
             tenantId, pageId, "published", environmentCode, cancellationToken);
 
@@ -118,6 +123,7 @@ public sealed class PageRuntimeController : ControllerBase
                 HttpContext.TraceIdentifier));
         }
 
+        await _runtimeRouteQueryService.GetRuntimePageAsync(tenantId, appKey, pageKey, cancellationToken);
         var request = ParseUpsertRequest(payload);
         var id = await _recordCommandService.CreateAsync(
             tenantId, currentUser.UserId, page.DataTableKey, request, cancellationToken);
@@ -159,6 +165,7 @@ public sealed class PageRuntimeController : ControllerBase
                 ErrorCodes.NotFound, $"页面 {pageKey} 未绑定动态表", HttpContext.TraceIdentifier));
         }
 
+        await _runtimeRouteQueryService.GetRuntimePageAsync(tenantId, appKey, pageKey, cancellationToken);
         var request = ParseUpsertRequest(payload);
         await _recordCommandService.UpdateAsync(
             tenantId, currentUser.UserId, page.DataTableKey, id, request, cancellationToken);

@@ -57,6 +57,7 @@ public sealed class ExceptionHandlingMiddleware
             ErrorCodes.AccountLocked => HttpStatusCode.Forbidden,
             ErrorCodes.PasswordExpired => HttpStatusCode.Forbidden,
             ErrorCodes.MfaRequired => HttpStatusCode.Forbidden,
+            ErrorCodes.AppMigrationPending => HttpStatusCode.Conflict,
             _ => HttpStatusCode.BadRequest
         };
     }
@@ -129,6 +130,7 @@ public sealed class ExceptionHandlingMiddleware
             ErrorCodes.ProjectForbidden => "ProjectForbidden",
             ErrorCodes.CrossTenantForbidden => "CrossTenantForbidden",
             ErrorCodes.AppContextRequired => "AppContextRequired",
+            ErrorCodes.AppMigrationPending => "AppMigrationPending",
             _ => null
         };
 

@@ -22,6 +22,7 @@ const titleKeyByPath: Record<string, string> = {
   "/console/releases": "route.consoleReleases",
   "/console/debug": "route.consoleDebugLayer",
   "/console/migration-governance": "route.consoleMigrationGovernance",
+  "/console/app-db-migrations": "route.consoleAppDbMigrations",
   "/console/tools": "route.consoleTools",
   "/console/datasources": "route.consoleDatasources",
   "/console/settings/system/configs": "route.consoleSystemConfigs",

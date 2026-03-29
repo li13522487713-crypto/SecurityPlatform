@@ -9,6 +9,7 @@ using Atlas.Application.Platform.Models;
 using Atlas.Application.System.Abstractions;
 using Atlas.Application.System.Models;
 using Atlas.Core.Abstractions;
+using Atlas.Core.Exceptions;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.AiPlatform.Entities;
@@ -740,6 +741,14 @@ public sealed class TenantAppInstanceCommandService : ITenantAppInstanceCommandS
 
 public sealed class RuntimeContextQueryService : IRuntimeContextQueryService
 {
+    private static readonly HashSet<string> BlockingMigrationStatuses = new(StringComparer.Ordinal)
+    {
+        AppMigrationTaskStatuses.Pending,
+        AppMigrationTaskStatuses.Prechecking,
+        AppMigrationTaskStatuses.Running,
+        AppMigrationTaskStatuses.Validating
+    };
+
     private readonly ISqlSugarClient _mainDb;
     private readonly Atlas.Infrastructure.Services.IAppDbScopeFactory _appDbScopeFactory;
 
@@ -863,10 +872,30 @@ public sealed class RuntimeContextQueryService : IRuntimeContextQueryService
             .FirstAsync(cancellationToken);
         if (app is not null && app.Id > 0)
         {
+            await EnsureRuntimeReadableAsync(tenantId, app.Id, cancellationToken);
             return await _appDbScopeFactory.GetAppClientAsync(tenantId, app.Id, cancellationToken);
         }
 
         return _mainDb;
+    }
+
+    private async Task EnsureRuntimeReadableAsync(
+        TenantId tenantId,
+        long appInstanceId,
+        CancellationToken cancellationToken)
+    {
+        var latestTask = await _mainDb.Queryable<AppMigrationTask>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.TenantAppInstanceId == appInstanceId)
+            .OrderByDescending(x => x.CreatedAt)
+            .FirstAsync(cancellationToken);
+        if (latestTask is null || !BlockingMigrationStatuses.Contains(latestTask.Status))
+        {
+            return;
+        }
+
+        throw new BusinessException(
+            ErrorCodes.AppMigrationPending,
+            "应用正在切库同步中，请稍后重试。");
     }
 
     private async Task<RuntimeRoute?> FindRouteAcrossDbsByIdAsync(

@@ -11,6 +11,7 @@ using Atlas.Domain.Audit.Entities;
 using Atlas.Domain.Identity.Entities;
 using Atlas.Domain.LowCode.Entities;
 using Atlas.Domain.Platform.Entities;
+using Atlas.Domain.System.Entities;
 using SqlSugar;
 using System.Text.Json;
 
@@ -708,6 +709,14 @@ public sealed class AppReleaseCommandService : IAppReleaseCommandService
 
 public sealed class RuntimeRouteQueryService : IRuntimeRouteQueryService
 {
+    private static readonly HashSet<string> BlockingMigrationStatuses = new(StringComparer.Ordinal)
+    {
+        AppMigrationTaskStatuses.Pending,
+        AppMigrationTaskStatuses.Prechecking,
+        AppMigrationTaskStatuses.Running,
+        AppMigrationTaskStatuses.Validating
+    };
+
     private readonly ISqlSugarClient _mainDb;
     private readonly Atlas.Infrastructure.Services.IAppDbScopeFactory _appDbScopeFactory;
     private readonly IApprovalOperationService _approvalOperationService;
@@ -877,10 +886,30 @@ public sealed class RuntimeRouteQueryService : IRuntimeRouteQueryService
             .FirstAsync(cancellationToken);
         if (app is not null && app.Id > 0)
         {
+            await EnsureRuntimeReadableAsync(tenantId, app.Id, cancellationToken);
             return await _appDbScopeFactory.GetAppClientAsync(tenantId, app.Id, cancellationToken);
         }
 
         return _mainDb;
+    }
+
+    private async Task EnsureRuntimeReadableAsync(
+        TenantId tenantId,
+        long appInstanceId,
+        CancellationToken cancellationToken)
+    {
+        var latestTask = await _mainDb.Queryable<AppMigrationTask>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.TenantAppInstanceId == appInstanceId)
+            .OrderByDescending(x => x.CreatedAt)
+            .FirstAsync(cancellationToken);
+        if (latestTask is null || !BlockingMigrationStatuses.Contains(latestTask.Status))
+        {
+            return;
+        }
+
+        throw new BusinessException(
+            ErrorCodes.AppMigrationPending,
+            "应用正在切库同步中，请稍后重试。");
     }
 }
 

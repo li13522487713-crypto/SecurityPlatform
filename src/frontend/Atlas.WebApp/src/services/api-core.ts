@@ -66,6 +66,7 @@ const ErrorCodes = {
   AntiforgeryTokenInvalid: "ANTIFORGERY_TOKEN_INVALID",
   IdempotencyConflict: "IDEMPOTENCY_CONFLICT",
   IdempotencyInProgress: "IDEMPOTENCY_IN_PROGRESS",
+  AppMigrationPending: "APP_MIGRATION_PENDING",
   ProjectRequired: "PROJECT_REQUIRED",
   ProjectForbidden: "PROJECT_FORBIDDEN",
   CrossTenantForbidden: "CROSS_TENANT_FORBIDDEN"
@@ -293,6 +294,9 @@ export async function requestApi<T>(path: string, init?: RequestInit, options?: 
       const errorText = await response.text();
       const errorPayload = tryParseErrorPayload(errorText);
       const errorMessage = formatErrorMessage(errorPayload, errorText || translate("apiCore.networkRequestFailed"));
+      if (errorPayload?.code === ErrorCodes.AppMigrationPending) {
+        rememberRuntimeMigrationBlock(path, errorPayload.message);
+      }
       if (!options?.suppressErrorMessage) {
         showError(errorMessage);
       }
@@ -1017,6 +1021,9 @@ function toErrorDedupKey(content: string) {
 }
 
 function formatErrorMessage(payload: ApiErrorPayload | null, fallback: string): string {
+  if (payload?.code === ErrorCodes.AppMigrationPending) {
+    return translate("apiCore.appMigrationPending");
+  }
   if (payload?.code === ErrorCodes.IdempotencyInProgress) {
     return translate("apiCore.idempotencyInProgress");
   }
@@ -1068,6 +1075,42 @@ function formatErrorMessage(payload: ApiErrorPayload | null, fallback: string): 
   }
 
   return baseMessage;
+}
+
+function rememberRuntimeMigrationBlock(path: string, messageText?: string): void {
+  const runtimeAppKey = extractRuntimeAppKey(path);
+  if (!runtimeAppKey || typeof window === "undefined" || typeof sessionStorage === "undefined") {
+    return;
+  }
+
+  const now = Date.now();
+  const ttlMs = 2 * 60 * 1000;
+  const payload = {
+    appKey: runtimeAppKey,
+    expiresAt: now + ttlMs,
+    message: messageText ?? ""
+  };
+  sessionStorage.setItem("atlas_runtime_migration_block", JSON.stringify(payload));
+  if (router.currentRoute.value.path.startsWith("/r/")) {
+    const nextQuery: Record<string, string> = {
+      appKey: runtimeAppKey,
+      reason: "migration_pending"
+    };
+    if (payload.message) {
+      nextQuery.message = payload.message;
+    }
+    void router.replace({ path: "/console/app-db-migrations", query: nextQuery });
+  }
+}
+
+function extractRuntimeAppKey(path: string): string | null {
+  const normalized = normalizePathForProjectContext(path);
+  const match = normalized.match(/^\/runtime\/apps\/([^/]+)\//);
+  if (!match || !match[1]) {
+    return null;
+  }
+
+  return decodeURIComponent(match[1]).trim() || null;
 }
 
 async function tryRefreshTokens(): Promise<boolean> {

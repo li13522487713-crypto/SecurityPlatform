@@ -4,6 +4,7 @@ using Atlas.Core.Abstractions;
 using Atlas.Core.Exceptions;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
+using Atlas.Domain.AiPlatform.Entities;
 using Atlas.Domain.DynamicTables.Entities;
 using Atlas.Domain.LowCode.Entities;
 using Atlas.Domain.Platform.Entities;
@@ -191,7 +192,7 @@ public sealed class AppMigrationService : IAppMigrationService
         }
 
         var now = DateTimeOffset.UtcNow;
-        task.MarkRunning(userId, now, 17);
+        task.MarkRunning(userId, now, 21);
         await UpdateTaskAsync(task, cancellationToken);
         await AddSnapshotAsync(task, cancellationToken);
 
@@ -219,6 +220,11 @@ public sealed class AppMigrationService : IAppMigrationService
             await CopyAppDepartmentsAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
             await CopyAppPositionsAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
             await CopyAppProjectsAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
+            await CopyWorkflowMetasAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
+            await CopyWorkflowDraftsAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
+            await CopyWorkflowVersionsAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
+            await CopyWorkflowExecutionsAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
+            await CopyWorkflowNodeExecutionsAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
             await CopyRuntimeRoutesAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
 
             task.MarkCutoverReady(userId, DateTimeOffset.UtcNow);
@@ -343,6 +349,109 @@ public sealed class AppMigrationService : IAppMigrationService
             _idGeneratorAccessor.NextId(),
             DateTimeOffset.UtcNow));
 
+        var executionRows = await _mainDb.Queryable<WorkflowExecution>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.AppId == task.TenantAppInstanceId)
+            .Select(x => new { x.Id, x.WorkflowId })
+            .ToListAsync(cancellationToken);
+        var workflowIdList = executionRows.Select(x => x.WorkflowId).Distinct().ToArray();
+        var executionIdList = executionRows.Select(x => x.Id).Distinct().ToArray();
+
+        var mainWorkflowMetaCount = workflowIdList.Length == 0
+            ? 0
+            : await _mainDb.Queryable<WorkflowMeta>()
+                .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(workflowIdList, x.Id))
+                .CountAsync(cancellationToken);
+        var appWorkflowMetaCount = workflowIdList.Length == 0
+            ? 0
+            : await appDb.Queryable<WorkflowMeta>()
+                .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(workflowIdList, x.Id))
+                .CountAsync(cancellationToken);
+        checks.Add(new AppIntegrityCheckItem(
+            tenantId,
+            0,
+            "RowCount",
+            nameof(WorkflowMeta),
+            mainWorkflowMetaCount == appWorkflowMetaCount,
+            $"main={mainWorkflowMetaCount}, app={appWorkflowMetaCount} (workflowIds={workflowIdList.Length})",
+            _idGeneratorAccessor.NextId(),
+            DateTimeOffset.UtcNow));
+
+        var mainWorkflowDraftCount = workflowIdList.Length == 0
+            ? 0
+            : await _mainDb.Queryable<WorkflowDraft>()
+                .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(workflowIdList, x.WorkflowId))
+                .CountAsync(cancellationToken);
+        var appWorkflowDraftCount = workflowIdList.Length == 0
+            ? 0
+            : await appDb.Queryable<WorkflowDraft>()
+                .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(workflowIdList, x.WorkflowId))
+                .CountAsync(cancellationToken);
+        checks.Add(new AppIntegrityCheckItem(
+            tenantId,
+            0,
+            "RowCount",
+            nameof(WorkflowDraft),
+            mainWorkflowDraftCount == appWorkflowDraftCount,
+            $"main={mainWorkflowDraftCount}, app={appWorkflowDraftCount}",
+            _idGeneratorAccessor.NextId(),
+            DateTimeOffset.UtcNow));
+
+        var mainWorkflowVersionCount = workflowIdList.Length == 0
+            ? 0
+            : await _mainDb.Queryable<WorkflowVersion>()
+                .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(workflowIdList, x.WorkflowId))
+                .CountAsync(cancellationToken);
+        var appWorkflowVersionCount = workflowIdList.Length == 0
+            ? 0
+            : await appDb.Queryable<WorkflowVersion>()
+                .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(workflowIdList, x.WorkflowId))
+                .CountAsync(cancellationToken);
+        checks.Add(new AppIntegrityCheckItem(
+            tenantId,
+            0,
+            "RowCount",
+            nameof(WorkflowVersion),
+            mainWorkflowVersionCount == appWorkflowVersionCount,
+            $"main={mainWorkflowVersionCount}, app={appWorkflowVersionCount}",
+            _idGeneratorAccessor.NextId(),
+            DateTimeOffset.UtcNow));
+
+        var mainWorkflowExecutionCount = await _mainDb.Queryable<WorkflowExecution>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.AppId == task.TenantAppInstanceId)
+            .CountAsync(cancellationToken);
+        var appWorkflowExecutionCount = await appDb.Queryable<WorkflowExecution>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.AppId == task.TenantAppInstanceId)
+            .CountAsync(cancellationToken);
+        checks.Add(new AppIntegrityCheckItem(
+            tenantId,
+            0,
+            "RowCount",
+            nameof(WorkflowExecution),
+            mainWorkflowExecutionCount == appWorkflowExecutionCount,
+            $"main={mainWorkflowExecutionCount}, app={appWorkflowExecutionCount}",
+            _idGeneratorAccessor.NextId(),
+            DateTimeOffset.UtcNow));
+
+        var mainNodeCount = executionIdList.Length == 0
+            ? 0
+            : await _mainDb.Queryable<WorkflowNodeExecution>()
+                .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(executionIdList, x.ExecutionId))
+                .CountAsync(cancellationToken);
+        var appNodeCount = executionIdList.Length == 0
+            ? 0
+            : await appDb.Queryable<WorkflowNodeExecution>()
+                .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(executionIdList, x.ExecutionId))
+                .CountAsync(cancellationToken);
+        checks.Add(new AppIntegrityCheckItem(
+            tenantId,
+            0,
+            "RowCount",
+            nameof(WorkflowNodeExecution),
+            mainNodeCount == appNodeCount,
+            $"main={mainNodeCount}, app={appNodeCount}",
+            _idGeneratorAccessor.NextId(),
+            DateTimeOffset.UtcNow));
+
         var passed = checks.Count(x => x.Status == "Passed");
         var failed = checks.Count - passed;
         var report = new AppDataIntegrityReport(
@@ -420,6 +529,7 @@ public sealed class AppMigrationService : IAppMigrationService
         task.MarkCutoverCompleted(userId, now, request.EnableReadOnlyWindow, request.EnableDualWrite);
         await UpdateTaskAsync(task, cancellationToken);
         await AddSnapshotAsync(task, cancellationToken);
+        _tenantDbConnectionFactory.InvalidateCache(tenantId.Value.ToString("D"), task.TenantAppInstanceId);
         return new AppMigrationActionResult(true, task.Id.ToString(), task.Status, "切换完成");
     }
 
@@ -443,6 +553,7 @@ public sealed class AppMigrationService : IAppMigrationService
         task.MarkRolledBack(userId, DateTimeOffset.UtcNow);
         await UpdateTaskAsync(task, cancellationToken);
         await AddSnapshotAsync(task, cancellationToken);
+        _tenantDbConnectionFactory.InvalidateCache(tenantId.Value.ToString("D"), task.TenantAppInstanceId);
         return new AppMigrationActionResult(true, task.Id.ToString(), task.Status, "已回切到主库");
     }
 
@@ -926,6 +1037,177 @@ public sealed class AppMigrationService : IAppMigrationService
         }
 
         task.MarkObjectProgress(nameof(AppProject), 1, completed, 0, userId, DateTimeOffset.UtcNow);
+        await UpdateTaskAsync(task, cancellationToken);
+        await AddSnapshotAsync(task, cancellationToken);
+    }
+
+    /// <summary>
+    /// 应用库内按租户清空 V2 工作流相关表，避免残留与删除顺序问题；随后由后续步骤自主库写入。
+    /// </summary>
+    private async Task PurgeTenantWorkflowV2InAppAsync(
+        TenantId tenantId,
+        ISqlSugarClient appDb,
+        CancellationToken cancellationToken)
+    {
+        var executionIds = await appDb.Queryable<WorkflowExecution>()
+            .Where(x => x.TenantIdValue == tenantId.Value)
+            .Select(x => x.Id)
+            .ToListAsync(cancellationToken);
+        if (executionIds.Count > 0)
+        {
+            await appDb.Deleteable<WorkflowNodeExecution>()
+                .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(executionIds, x.ExecutionId))
+                .ExecuteCommandAsync(cancellationToken);
+        }
+
+        await appDb.Deleteable<WorkflowExecution>()
+            .Where(x => x.TenantIdValue == tenantId.Value)
+            .ExecuteCommandAsync(cancellationToken);
+        await appDb.Deleteable<WorkflowVersion>()
+            .Where(x => x.TenantIdValue == tenantId.Value)
+            .ExecuteCommandAsync(cancellationToken);
+        await appDb.Deleteable<WorkflowDraft>()
+            .Where(x => x.TenantIdValue == tenantId.Value)
+            .ExecuteCommandAsync(cancellationToken);
+        await appDb.Deleteable<WorkflowMeta>()
+            .Where(x => x.TenantIdValue == tenantId.Value)
+            .ExecuteCommandAsync(cancellationToken);
+    }
+
+    private async Task CopyWorkflowMetasAsync(
+        TenantId tenantId,
+        AppMigrationTask task,
+        ISqlSugarClient appDb,
+        long userId,
+        int completed,
+        CancellationToken cancellationToken)
+    {
+        await PurgeTenantWorkflowV2InAppAsync(tenantId, appDb, cancellationToken);
+
+        var workflowIds = await _mainDb.Queryable<WorkflowExecution>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.AppId == task.TenantAppInstanceId)
+            .Select(x => x.WorkflowId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+        if (workflowIds.Count > 0)
+        {
+            var rows = await _mainDb.Queryable<WorkflowMeta>()
+                .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(workflowIds, x.Id))
+                .ToListAsync(cancellationToken);
+            if (rows.Count > 0)
+            {
+                await appDb.Insertable(rows).ExecuteCommandAsync(cancellationToken);
+            }
+        }
+
+        task.MarkObjectProgress(nameof(WorkflowMeta), 1, completed, 0, userId, DateTimeOffset.UtcNow);
+        await UpdateTaskAsync(task, cancellationToken);
+        await AddSnapshotAsync(task, cancellationToken);
+    }
+
+    private async Task CopyWorkflowDraftsAsync(
+        TenantId tenantId,
+        AppMigrationTask task,
+        ISqlSugarClient appDb,
+        long userId,
+        int completed,
+        CancellationToken cancellationToken)
+    {
+        var workflowIds = await _mainDb.Queryable<WorkflowExecution>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.AppId == task.TenantAppInstanceId)
+            .Select(x => x.WorkflowId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+        if (workflowIds.Count > 0)
+        {
+            var rows = await _mainDb.Queryable<WorkflowDraft>()
+                .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(workflowIds, x.WorkflowId))
+                .ToListAsync(cancellationToken);
+            if (rows.Count > 0)
+            {
+                await appDb.Insertable(rows).ExecuteCommandAsync(cancellationToken);
+            }
+        }
+
+        task.MarkObjectProgress(nameof(WorkflowDraft), 1, completed, 0, userId, DateTimeOffset.UtcNow);
+        await UpdateTaskAsync(task, cancellationToken);
+        await AddSnapshotAsync(task, cancellationToken);
+    }
+
+    private async Task CopyWorkflowVersionsAsync(
+        TenantId tenantId,
+        AppMigrationTask task,
+        ISqlSugarClient appDb,
+        long userId,
+        int completed,
+        CancellationToken cancellationToken)
+    {
+        var workflowIds = await _mainDb.Queryable<WorkflowExecution>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.AppId == task.TenantAppInstanceId)
+            .Select(x => x.WorkflowId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+        if (workflowIds.Count > 0)
+        {
+            var rows = await _mainDb.Queryable<WorkflowVersion>()
+                .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(workflowIds, x.WorkflowId))
+                .ToListAsync(cancellationToken);
+            if (rows.Count > 0)
+            {
+                await appDb.Insertable(rows).ExecuteCommandAsync(cancellationToken);
+            }
+        }
+
+        task.MarkObjectProgress(nameof(WorkflowVersion), 1, completed, 0, userId, DateTimeOffset.UtcNow);
+        await UpdateTaskAsync(task, cancellationToken);
+        await AddSnapshotAsync(task, cancellationToken);
+    }
+
+    private async Task CopyWorkflowExecutionsAsync(
+        TenantId tenantId,
+        AppMigrationTask task,
+        ISqlSugarClient appDb,
+        long userId,
+        int completed,
+        CancellationToken cancellationToken)
+    {
+        var rows = await _mainDb.Queryable<WorkflowExecution>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.AppId == task.TenantAppInstanceId)
+            .ToListAsync(cancellationToken);
+        if (rows.Count > 0)
+        {
+            await appDb.Insertable(rows).ExecuteCommandAsync(cancellationToken);
+        }
+
+        task.MarkObjectProgress(nameof(WorkflowExecution), 1, completed, 0, userId, DateTimeOffset.UtcNow);
+        await UpdateTaskAsync(task, cancellationToken);
+        await AddSnapshotAsync(task, cancellationToken);
+    }
+
+    private async Task CopyWorkflowNodeExecutionsAsync(
+        TenantId tenantId,
+        AppMigrationTask task,
+        ISqlSugarClient appDb,
+        long userId,
+        int completed,
+        CancellationToken cancellationToken)
+    {
+        var executionIds = await _mainDb.Queryable<WorkflowExecution>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.AppId == task.TenantAppInstanceId)
+            .Select(x => x.Id)
+            .ToListAsync(cancellationToken);
+        if (executionIds.Count > 0)
+        {
+            var rows = await _mainDb.Queryable<WorkflowNodeExecution>()
+                .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(executionIds, x.ExecutionId))
+                .ToListAsync(cancellationToken);
+            if (rows.Count > 0)
+            {
+                await appDb.Insertable(rows).ExecuteCommandAsync(cancellationToken);
+            }
+        }
+
+        task.MarkObjectProgress(nameof(WorkflowNodeExecution), 1, completed, 0, userId, DateTimeOffset.UtcNow);
         await UpdateTaskAsync(task, cancellationToken);
         await AddSnapshotAsync(task, cancellationToken);
     }

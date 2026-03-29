@@ -3232,7 +3232,8 @@ export const runtimeMessages: Record<SupportedLocale, MessageTree> = {
       previewDesc: "当前为工作台预览，不计入正式运行记录。",
       emptyNoPage: "未找到可运行页面，请先在设计器发布页面",
       defaultTitle: "运行态页面",
-      loadFailed: "加载运行态页面失败"
+      loadFailed: "加载运行态页面失败",
+      migrationPending: "应用正在切库同步中，已跳转到安全入口"
     },
     designer: {
       dataBinding: {
@@ -7656,7 +7657,8 @@ export const runtimeMessages: Record<SupportedLocale, MessageTree> = {
       previewDesc: "Workbench preview; not counted as production runtime.",
       emptyNoPage: "No runnable page; publish from the designer first.",
       defaultTitle: "Runtime page",
-      loadFailed: "Failed to load runtime page"
+      loadFailed: "Failed to load runtime page",
+      migrationPending: "App data migration is in progress. Redirected to a safe entry."
     },
     designer: {
       dataBinding: {
