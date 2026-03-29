@@ -33,7 +33,7 @@ public sealed class OpenAiCompatibleProvider : ILlmProvider, IEmbeddingProvider
 
         if (!string.IsNullOrWhiteSpace(option.BaseUrl))
         {
-            _httpClient.BaseAddress = new Uri(option.BaseUrl.TrimEnd('/') + "/");
+            _httpClient.BaseAddress = new Uri(option.BaseUrl.TrimEnd('/'), UriKind.Absolute);
         }
     }
 
@@ -93,7 +93,7 @@ public sealed class OpenAiCompatibleProvider : ILlmProvider, IEmbeddingProvider
             Tools: request.Tools?.Select(MapToolDefinition).ToList(),
             ToolChoice: request.ToolChoice);
 
-        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, "v1/chat/completions")
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, BuildEndpointUri("v1/chat/completions"))
         {
             Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json")
         };
@@ -226,7 +226,7 @@ public sealed class OpenAiCompatibleProvider : ILlmProvider, IEmbeddingProvider
 
     private async Task<HttpResponseMessage> SendAsync(string relativePath, object payload, CancellationToken ct)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Post, relativePath)
+        using var request = new HttpRequestMessage(HttpMethod.Post, BuildEndpointUri(relativePath))
         {
             Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json")
         };
@@ -246,6 +246,49 @@ public sealed class OpenAiCompatibleProvider : ILlmProvider, IEmbeddingProvider
         var body = await response.Content.ReadAsStringAsync(ct);
         response.Dispose();
         throw new HttpRequestException($"AI provider '{ProviderName}' request failed: {(int)response.StatusCode} {body}");
+    }
+
+    private string BuildEndpointUri(string relativePath)
+    {
+        var baseUrl = (_option.BaseUrl ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(baseUrl))
+        {
+            return relativePath;
+        }
+
+        if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out var baseUri))
+        {
+            return relativePath;
+        }
+
+        var basePath = (baseUri.AbsolutePath ?? string.Empty).TrimEnd('/').ToLowerInvariant();
+        var endpointPath = relativePath.Trim().TrimStart('/').ToLowerInvariant();
+
+        // 允许直接填写完整 endpoint（例如 .../v4/chat/completions）。
+        if (endpointPath.Contains("chat/completions", StringComparison.Ordinal)
+            && basePath.Contains("/chat/completions", StringComparison.Ordinal))
+        {
+            return baseUri.ToString();
+        }
+        if (endpointPath.Contains("embeddings", StringComparison.Ordinal)
+            && basePath.Contains("/embeddings", StringComparison.Ordinal))
+        {
+            return baseUri.ToString();
+        }
+
+        // 若 BaseUrl 已包含版本前缀（/v1、/v4），避免再拼接重复版本段。
+        var normalizedRelative = relativePath.Trim().TrimStart('/');
+        if ((basePath.EndsWith("/v1", StringComparison.Ordinal) || basePath.EndsWith("/v4", StringComparison.Ordinal))
+            && normalizedRelative.StartsWith("v", StringComparison.OrdinalIgnoreCase))
+        {
+            var slashIndex = normalizedRelative.IndexOf('/');
+            if (slashIndex > 0)
+            {
+                normalizedRelative = normalizedRelative[(slashIndex + 1)..];
+            }
+        }
+
+        return new Uri(baseUri, normalizedRelative).ToString();
     }
 
     private sealed record OpenAiChatRequest(
