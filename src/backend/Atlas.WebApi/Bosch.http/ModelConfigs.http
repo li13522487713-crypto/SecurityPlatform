@@ -75,6 +75,25 @@ X-CSRF-TOKEN: {{csrfToken}}
   "model": "gpt-4o-mini"
 }
 
+### 测试提示词流式输出（正文 + 思维链）
+POST {{baseUrl}}/api/v1/model-configs/test/stream
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+Accept: text/event-stream
+
+{
+  "providerType": "openai",
+  "apiKey": "sk-demo-key",
+  "baseUrl": "https://api.openai.com",
+  "model": "gpt-4o-mini",
+  "prompt": "请分步骤分析如何优化 SQL 查询，并给出最终建议。",
+  "enableReasoning": true,
+  "enableTools": true
+}
+
 ### 根据 ID 查询模型配置
 GET {{baseUrl}}/api/v1/model-configs/{{modelConfigId}}
 Authorization: Bearer {{accessToken}}

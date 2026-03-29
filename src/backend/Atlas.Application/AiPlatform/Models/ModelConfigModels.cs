@@ -33,6 +33,19 @@ public sealed record ModelConfigTestRequest(
     string BaseUrl,
     string Model);
 
+public sealed record ModelConfigPromptTestRequest(
+    string ProviderType,
+    string ApiKey,
+    string BaseUrl,
+    string Model,
+    string Prompt,
+    bool EnableReasoning,
+    bool EnableTools);
+
+public sealed record ModelConfigPromptTestStreamEvent(
+    string EventType,
+    string Data);
+
 public sealed record ModelConfigTestResult(
     bool Success,
     string? ErrorMessage,

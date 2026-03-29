@@ -12,4 +12,8 @@ public interface IModelConfigCommandService
     Task DeleteAsync(TenantId tenantId, long id, CancellationToken cancellationToken);
 
     Task<ModelConfigTestResult> TestConnectionAsync(ModelConfigTestRequest request, CancellationToken cancellationToken);
+
+    IAsyncEnumerable<ModelConfigPromptTestStreamEvent> TestPromptStreamAsync(
+        ModelConfigPromptTestRequest request,
+        CancellationToken cancellationToken);
 }

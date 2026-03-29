@@ -37,6 +37,9 @@
           <a-menu-item v-if="canView" :key="promptsPath">
             <span data-testid="e2e-app-workspace-menu-prompts">{{ t('appWorkspace.menuPrompts') }}</span>
           </a-menu-item>
+          <a-menu-item v-if="canView" :key="modelConfigsPath">
+            <span data-testid="e2e-app-workspace-menu-model-configs">{{ t('appWorkspace.menuModelConfigs') }}</span>
+          </a-menu-item>
           <a-menu-item v-if="canView" :key="pluginsPath">
             <span data-testid="e2e-app-workspace-menu-plugins">{{ t('appWorkspace.menuPlugins') }}</span>
           </a-menu-item>
@@ -144,6 +147,7 @@ const flowsPath = computed(() => `/apps/${appId.value}/flows`);
 const agentsPath = computed(() => `/apps/${appId.value}/agents`);
 const workflowsPath = computed(() => `/apps/${appId.value}/workflows`);
 const promptsPath = computed(() => `/apps/${appId.value}/prompts`);
+const modelConfigsPath = computed(() => `/apps/${appId.value}/model-configs`);
 const pluginsPath = computed(() => `/apps/${appId.value}/plugins`);
 const dataPath = computed(() => `/apps/${appId.value}/data`);
 const orgPath = computed(() => `/apps/${appId.value}/org`);
@@ -171,6 +175,9 @@ const selectedKeys = computed(() => {
   }
   if (route.path.startsWith(promptsPath.value)) {
     return [promptsPath.value];
+  }
+  if (route.path.startsWith(modelConfigsPath.value)) {
+    return [modelConfigsPath.value];
   }
   if (route.path.startsWith(pluginsPath.value)) {
     return [pluginsPath.value];

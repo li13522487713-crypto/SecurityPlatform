@@ -212,12 +212,91 @@
             v-if="testResult"
             :type="testResult.success ? 'success' : 'error'"
             :message="testResult.success ? t('ai.modelConfig.connectOk') : t('ai.modelConfig.connectFail')"
-            :description="testResultDescription"
             show-icon
             closable
             class="test-result"
             @close="testResult = null"
+          >
+            <template #description>
+              <div v-if="testResult.success">
+                {{ testResultDescription }}
+              </div>
+              <ul v-else class="test-error-list">
+                <li v-for="(line, index) in testResultErrorLines" :key="`${index}-${line}`">{{ line }}</li>
+              </ul>
+            </template>
+          </a-alert>
+        </div>
+
+        <a-divider orientation="left">{{ t("ai.modelConfig.sectionPromptTest") }}</a-divider>
+        <div class="prompt-test-section">
+          <a-textarea
+            v-model:value="promptTestInput"
+            :rows="4"
+            :placeholder="t('ai.modelConfig.promptPlaceholder')"
+            :disabled="promptTesting"
           />
+          <a-space wrap>
+            <a-switch v-model:checked="promptTestEnableReasoning" size="small" />
+            <span class="switch-label">{{ t("ai.modelConfig.enableReasoning") }}</span>
+            <a-switch v-model:checked="promptTestEnableTools" size="small" />
+            <span class="switch-label">{{ t("ai.modelConfig.enableTools") }}</span>
+          </a-space>
+          <a-space>
+            <a-button type="primary" :loading="promptTesting" @click="handlePromptStreamTest">
+              {{ t("ai.modelConfig.runPromptTest") }}
+            </a-button>
+            <a-button v-if="promptTesting" danger @click="handleStopPromptStreamTest">
+              {{ t("ai.modelConfig.stopPromptTest") }}
+            </a-button>
+          </a-space>
+          <a-alert
+            v-if="promptTestError"
+            type="error"
+            :message="promptTestError"
+            show-icon
+            closable
+            @close="promptTestError = ''"
+          />
+          <div class="chat-preview">
+            <div class="chat-message-row chat-message-row-user">
+              <div class="chat-bubble chat-bubble-user">
+                <div class="bubble-title">{{ t("ai.modelConfig.promptInput") }}</div>
+                <pre class="bubble-content">{{ promptTestInput || t("ai.modelConfig.emptyOutput") }}</pre>
+              </div>
+            </div>
+            <div class="chat-message-row chat-message-row-assistant">
+              <div class="chat-bubble chat-bubble-assistant">
+                <div class="stream-title stream-title-actions">
+                  <span>{{ t("ai.modelConfig.outputFinal") }}</span>
+                  <a-button size="small" type="link" @click="copyPromptOutput(promptTestFinalOutput)">
+                    {{ t("ai.modelConfig.copyOutput") }}
+                  </a-button>
+                </div>
+                <pre class="bubble-content">{{ promptTestFinalOutput || t("ai.modelConfig.emptyOutput") }}</pre>
+              </div>
+            </div>
+          </div>
+          <a-collapse v-model:active-key="activeThoughtPanels" size="small">
+            <a-collapse-panel key="thought" :header="t('ai.modelConfig.outputThought')">
+              <div class="stream-title stream-title-actions">
+                <span>{{ t("ai.modelConfig.outputThought") }}</span>
+                <a-button size="small" type="link" @click="copyPromptOutput(promptTestThoughtOutput)">
+                  {{ t("ai.modelConfig.copyOutput") }}
+                </a-button>
+              </div>
+              <pre class="stream-content">{{ promptTestThoughtOutput || t("ai.modelConfig.emptyOutput") }}</pre>
+            </a-collapse-panel>
+          </a-collapse>
+          <div class="stream-card">
+            <div class="stream-title stream-title-actions">
+              <span>{{ t("ai.modelConfig.outputTool") }}</span>
+              <a-button size="small" type="link" @click="copyPromptOutput(promptTestToolOutput)">
+                {{ t("ai.modelConfig.copyOutput") }}
+              </a-button>
+            </div>
+            <pre class="stream-content">{{ promptTestToolOutput || t("ai.modelConfig.emptyOutput") }}</pre>
+          </div>
         </div>
       </a-form>
     </template>
@@ -246,6 +325,7 @@ import {
 } from "@ant-design/icons-vue";
 import CrudPageLayout from "@/components/crud/CrudPageLayout.vue";
 import {
+  createModelConfigPromptTestStream,
   createModelConfig,
   deleteModelConfig,
   getModelConfigById,
@@ -254,6 +334,7 @@ import {
   type ModelConfigCreateRequest,
   type ModelConfigDto,
   type ModelConfigStatsDto,
+  type ModelConfigPromptTestRequest,
   type ModelConfigTestResult,
   testModelConfigConnection,
   updateModelConfig
@@ -273,6 +354,16 @@ const loading = ref(false);
 const testing = ref(false);
 const submitting = ref(false);
 const testResult = ref<ModelConfigTestResult | null>(null);
+const promptTesting = ref(false);
+const promptTestInput = ref("");
+const promptTestEnableReasoning = ref(true);
+const promptTestEnableTools = ref(false);
+const promptTestFinalOutput = ref("");
+const promptTestThoughtOutput = ref("");
+const promptTestToolOutput = ref("");
+const promptTestError = ref("");
+const activeThoughtPanels = ref<string[]>([]);
+let promptTestAbortController: AbortController | null = null;
 const statsData = ref<ModelConfigStatsDto>({
   total: 0,
   enabled: 0,
@@ -418,6 +509,28 @@ const testResultDescription = computed(() => {
   return testResult.value.errorMessage || t("ai.modelConfig.connectUnreachable");
 });
 
+const testResultErrorLines = computed(() => {
+  const raw = testResult.value?.errorMessage ?? "";
+  const cleaned = stripTraceId(raw);
+  const normalized = cleaned
+    .replace(/one or more validation errors occurred\.?/ig, "")
+    .replace(/发生一个或多个验证错误。?/g, "")
+    .trim();
+  const tokens = normalized
+    .split(/[;\n；]+/g)
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+  const deduped = Array.from(new Set(tokens));
+  return deduped.length > 0 ? deduped : [t("ai.modelConfig.connectUnreachable")];
+});
+
+function stripTraceId(text: string): string {
+  return text
+    .replace(/（\s*traceId:\s*[^）]+\s*）/gi, "")
+    .replace(/\(\s*traceId:\s*[^)]+\s*\)/gi, "")
+    .trim();
+}
+
 function onProviderChange(value: string) {
   const lastProviderType = previousProviderType.value;
   const suggestedUrl = providerBaseUrls[value];
@@ -496,6 +609,14 @@ function resetForm() {
   });
   previousProviderType.value = form.providerType;
   testResult.value = null;
+  promptTestInput.value = "";
+  promptTestEnableReasoning.value = true;
+  promptTestEnableTools.value = false;
+  promptTestFinalOutput.value = "";
+  promptTestThoughtOutput.value = "";
+  promptTestToolOutput.value = "";
+  promptTestError.value = "";
+  activeThoughtPanels.value = [];
 }
 
 function openCreate() {
@@ -528,6 +649,7 @@ async function openEdit(record: ModelConfigDto) {
 }
 
 function closeDrawer() {
+  handleStopPromptStreamTest();
   drawerVisible.value = false;
   formRef.value?.resetFields();
   testResult.value = null;
@@ -619,6 +741,154 @@ async function handleTestConnection() {
     };
   } finally {
     testing.value = false;
+  }
+}
+
+async function handlePromptStreamTest() {
+  if (promptTesting.value) {
+    return;
+  }
+
+  if (!promptTestInput.value.trim()) {
+    message.warning(t("ai.modelConfig.promptRequired"));
+    return;
+  }
+
+  promptTestFinalOutput.value = "";
+  promptTestThoughtOutput.value = "";
+  promptTestToolOutput.value = "";
+  promptTestError.value = "";
+  activeThoughtPanels.value = [];
+  promptTesting.value = true;
+
+  const payload: ModelConfigPromptTestRequest = {
+    providerType: form.providerType,
+    apiKey: form.apiKey,
+    baseUrl: form.baseUrl,
+    model: form.defaultModel,
+    prompt: promptTestInput.value.trim(),
+    enableReasoning: promptTestEnableReasoning.value,
+    enableTools: promptTestEnableTools.value
+  };
+
+  const { fetchPromise, abortController } = createModelConfigPromptTestStream(payload);
+  promptTestAbortController = abortController;
+
+  try {
+    const response = await fetchPromise;
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    if (!response.body) {
+      throw new Error(t("ai.modelConfig.testFailed"));
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let currentEventType = "data";
+    let currentDataLines: string[] = [];
+    let doneReceived = false;
+
+    const flushEvent = () => {
+      if (currentDataLines.length === 0) {
+        currentEventType = "data";
+        return;
+      }
+
+      const eventType = currentEventType;
+      const eventData = currentDataLines.join("\n");
+      currentDataLines = [];
+      currentEventType = "data";
+
+      if (eventData === "[DONE]" || eventType === "done") {
+        doneReceived = true;
+        return;
+      }
+
+      if (eventType === "thought") {
+        promptTestThoughtOutput.value += eventData;
+        return;
+      }
+
+      if (eventType === "tool") {
+        promptTestToolOutput.value += `${eventData}\n`;
+        return;
+      }
+
+      if (eventType === "error") {
+        promptTestError.value = eventData;
+        return;
+      }
+
+      promptTestFinalOutput.value += eventData;
+    };
+
+    while (!doneReceived) {
+      const { value, done } = await reader.read();
+      if (done) {
+        break;
+      }
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split(/\r?\n/);
+      buffer = lines.pop() ?? "";
+
+      for (const line of lines) {
+        if (line.length === 0) {
+          flushEvent();
+          if (doneReceived) {
+            break;
+          }
+          continue;
+        }
+
+        if (line.startsWith("event:")) {
+          currentEventType = line.slice("event:".length).trim() || "data";
+          continue;
+        }
+
+        if (line.startsWith("data:")) {
+          currentDataLines.push(line.slice("data:".length).trim());
+        }
+      }
+    }
+
+    flushEvent();
+    await reader.cancel();
+  } catch (error: unknown) {
+    if ((error as Error).name !== "AbortError") {
+      promptTestError.value = (error as Error).message || t("ai.modelConfig.testFailed");
+    }
+  } finally {
+    promptTesting.value = false;
+    promptTestAbortController = null;
+  }
+}
+
+function handleStopPromptStreamTest() {
+  if (promptTestAbortController) {
+    promptTestAbortController.abort();
+    promptTestAbortController = null;
+  }
+  promptTesting.value = false;
+}
+
+async function copyPromptOutput(value: string) {
+  const text = value.trim();
+  if (!text) {
+    message.warning(t("ai.modelConfig.emptyOutput"));
+    return;
+  }
+  try {
+    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      message.success(t("ai.modelConfig.copySuccess"));
+      return;
+    }
+    throw new Error("clipboard not supported");
+  } catch {
+    message.error(t("ai.modelConfig.copyFailed"));
   }
 }
 
@@ -723,5 +993,110 @@ onMounted(() => {
 
 .test-result {
   margin-top: 4px;
+}
+
+.prompt-test-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.prompt-stream-row {
+  margin-top: 4px;
+}
+
+.chat-preview {
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-md);
+  padding: 10px;
+  background: var(--color-bg-layout);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.chat-message-row {
+  display: flex;
+}
+
+.chat-message-row-user {
+  justify-content: flex-end;
+}
+
+.chat-message-row-assistant {
+  justify-content: flex-start;
+}
+
+.chat-bubble {
+  max-width: 88%;
+  border-radius: 10px;
+  border: 1px solid var(--color-border);
+  padding: 8px 10px;
+}
+
+.chat-bubble-user {
+  background: #e6f4ff;
+  border-color: #91caff;
+}
+
+.chat-bubble-assistant {
+  background: var(--color-bg-container);
+}
+
+.bubble-title {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  margin-bottom: 4px;
+}
+
+.bubble-content {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 12px;
+  line-height: 1.6;
+  max-height: 260px;
+  overflow: auto;
+}
+
+.stream-card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-md);
+  padding: 8px 10px;
+  background: var(--color-bg-container);
+}
+
+.stream-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  margin-bottom: 6px;
+}
+
+.stream-title-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.stream-content {
+  margin: 0;
+  min-height: 120px;
+  max-height: 260px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--color-text);
+}
+
+.test-error-list {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.test-error-list li {
+  line-height: 1.6;
 }
 </style>
