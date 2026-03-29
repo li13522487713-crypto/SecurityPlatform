@@ -20,6 +20,7 @@
         :loading="loading"
         :pagination="false"
         :row-selection="rowSelection"
+        :custom-row="customRow"
         size="small"
       >
         <template #bodyCell="{ column, record }">
@@ -70,6 +71,19 @@ const rowSelection = computed(() => ({
     selectedRowKeys.value = keys.map((x) => Number(x));
   }
 }));
+
+function customRow(record: AiPromptTemplateListItem) {
+  return {
+    style: { cursor: "pointer" },
+    onClick: () => {
+      selectedRowKeys.value = [record.id];
+    },
+    onDblclick: () => {
+      selectedRowKeys.value = [record.id];
+      handleInsert();
+    }
+  };
+}
 
 async function loadData() {
   loading.value = true;

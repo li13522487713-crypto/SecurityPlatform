@@ -16,7 +16,7 @@
           @press-enter="loadData"
         />
         <a-button @click="handleReset">{{ t("common.reset") }}</a-button>
-        <a-button @click="openInsertPreview">{{ t("ai.promptLib.insertPreview") }}</a-button>
+        <a-button @click="openInsertModal">{{ t("ai.promptLib.insertTemplate") }}</a-button>
         <a-button type="primary" @click="openCreate">{{ t("ai.promptLib.newTemplate") }}</a-button>
       </a-space>
     </div>
@@ -56,55 +56,66 @@
       />
     </div>
 
-    <a-modal
-      v-model:open="modalOpen"
-      :title="editingId ? t('ai.promptLib.modalEdit') : t('ai.promptLib.modalCreate')"
-      :confirm-loading="modalLoading"
-      width="760px"
-      @ok="submitForm"
-      @cancel="closeModal"
+    <a-drawer
+      :open="modalOpen"
+      :title="editingId ? t('ai.promptLib.drawerEdit') : t('ai.promptLib.drawerCreate')"
+      placement="right"
+      :width="860"
+      :destroy-on-close="false"
+      @close="closeModal"
     >
       <a-form ref="formRef" :model="form" layout="vertical" :rules="rules">
-        <a-form-item :label="t('ai.promptLib.colName')" name="name">
-          <a-input v-model:value="form.name" />
-        </a-form-item>
-        <a-form-item :label="t('ai.promptLib.labelDescription')" name="description">
-          <a-textarea v-model:value="form.description" :rows="2" />
-        </a-form-item>
-        <a-form-item :label="t('ai.promptLib.labelCategory')" name="category">
-          <a-input v-model:value="form.category" />
-        </a-form-item>
-        <a-form-item :label="t('ai.promptLib.labelTags')" name="tags">
-          <a-input v-model:value="tagsText" />
-        </a-form-item>
-        <a-form-item :label="t('ai.promptLib.labelContent')" name="content">
-          <a-textarea v-model:value="form.content" :rows="10" />
-        </a-form-item>
-        <a-form-item v-if="!editingId" :label="t('ai.promptLib.labelSystem')">
-          <a-switch v-model:checked="form.isSystem" />
-        </a-form-item>
+        <a-tabs v-model:active-key="activeTab" class="prompt-editor-tabs">
+          <a-tab-pane key="basic" :tab="t('ai.promptLib.tabBasic')">
+            <a-form-item :label="t('ai.promptLib.colName')" name="name">
+              <a-input v-model:value="form.name" />
+            </a-form-item>
+            <a-form-item :label="t('ai.promptLib.labelDescription')" name="description">
+              <a-textarea v-model:value="form.description" :rows="2" />
+            </a-form-item>
+            <a-form-item :label="t('ai.promptLib.labelCategory')" name="category">
+              <a-input v-model:value="form.category" />
+            </a-form-item>
+            <a-form-item :label="t('ai.promptLib.labelTags')" name="tags">
+              <a-input v-model:value="tagsText" />
+            </a-form-item>
+            <a-form-item v-if="!editingId" :label="t('ai.promptLib.labelSystem')">
+              <a-switch v-model:checked="form.isSystem" />
+            </a-form-item>
+          </a-tab-pane>
+          <a-tab-pane key="content" :tab="t('ai.promptLib.tabContent')">
+            <a-space style="margin-bottom: 8px">
+              <a-button size="small" @click="openInsertModal">{{ t("ai.promptLib.insertPromptToContent") }}</a-button>
+            </a-space>
+            <a-form-item :label="t('ai.promptLib.labelContent')" name="content">
+              <a-textarea ref="contentInputRef" v-model:value="form.content" :rows="14" />
+            </a-form-item>
+          </a-tab-pane>
+          <a-tab-pane key="preview" :tab="t('ai.promptLib.tabPreview')">
+            <pre class="preview-block">{{ form.content || t("ai.promptLib.previewEmpty") }}</pre>
+          </a-tab-pane>
+        </a-tabs>
       </a-form>
-    </a-modal>
+      <template #footer>
+        <div class="drawer-footer">
+          <a-space>
+            <a-button @click="closeModal">{{ t("common.cancel") }}</a-button>
+            <a-button type="primary" :loading="modalLoading" @click="submitForm">{{ t("common.confirm") }}</a-button>
+          </a-space>
+        </div>
+      </template>
+    </a-drawer>
 
     <prompt-insert-modal
       :open="insertModalOpen"
       @cancel="insertModalOpen = false"
       @insert="handleInsertPrompt"
     />
-
-    <a-modal
-      v-model:open="insertPreviewOpen"
-      :title="t('ai.promptLib.previewTitle')"
-      :footer="null"
-      width="760px"
-    >
-      <pre class="preview-block">{{ insertedContent }}</pre>
-    </a-modal>
   </a-card>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, onUnmounted } from "vue";
+import { computed, onMounted, reactive, ref, onUnmounted, nextTick } from "vue";
 import { useI18n } from "vue-i18n";
 
 const { t } = useI18n();
@@ -144,7 +155,9 @@ const columns = computed(() => [
 const modalOpen = ref(false);
 const modalLoading = ref(false);
 const editingId = ref<number | null>(null);
+const activeTab = ref("basic");
 const formRef = ref<FormInstance>();
+const contentInputRef = ref<unknown>(null);
 const form = reactive({
   name: "",
   description: "",
@@ -159,8 +172,6 @@ const rules = computed(() => ({
 }));
 
 const insertModalOpen = ref(false);
-const insertPreviewOpen = ref(false);
-const insertedContent = ref("");
 
 async function loadData() {
   loading.value = true;
@@ -189,6 +200,7 @@ function handleReset() {
 
 function openCreate() {
   editingId.value = null;
+  activeTab.value = "basic";
   Object.assign(form, {
     name: "",
     description: "",
@@ -214,6 +226,7 @@ async function openEdit(id: number) {
       isSystem: detail.isSystem
     });
     tagsText.value = detail.tags.join(",");
+    activeTab.value = "basic";
     modalOpen.value = true;
   } catch (error: unknown) {
     message.error((error as Error).message || t("ai.promptLib.loadDetailFailed"));
@@ -222,6 +235,7 @@ async function openEdit(id: number) {
 
 function closeModal() {
   modalOpen.value = false;
+  activeTab.value = "basic";
   formRef.value?.resetFields();
 }
 
@@ -293,14 +307,38 @@ async function handleDelete(id: number) {
   }
 }
 
-function openInsertPreview() {
+function openInsertModal() {
   insertModalOpen.value = true;
 }
 
 function handleInsertPrompt(content: string) {
   insertModalOpen.value = false;
-  insertedContent.value = content;
-  insertPreviewOpen.value = true;
+  const textarea = getContentTextArea();
+  if (!textarea) {
+    form.content = form.content ? `${form.content}\n${content}` : content;
+    activeTab.value = "preview";
+    message.success(t("ai.promptLib.insertedToContent"));
+    return;
+  }
+
+  const start = textarea.selectionStart ?? form.content.length;
+  const end = textarea.selectionEnd ?? start;
+  const before = form.content.slice(0, start);
+  const after = form.content.slice(end);
+  form.content = `${before}${content}${after}`;
+  activeTab.value = "preview";
+  const cursor = start + content.length;
+  void nextTick(() => {
+    const target = getContentTextArea();
+    target?.focus();
+    target?.setSelectionRange(cursor, cursor);
+  });
+  message.success(t("ai.promptLib.insertedToContent"));
+}
+
+function getContentTextArea(): HTMLTextAreaElement | null {
+  const input = contentInputRef.value as { resizableTextArea?: { textArea?: HTMLTextAreaElement } } | null;
+  return input?.resizableTextArea?.textArea ?? null;
 }
 
 onMounted(() => {
@@ -328,5 +366,14 @@ onMounted(() => {
   overflow: auto;
   white-space: pre-wrap;
   word-break: break-all;
+}
+
+.prompt-editor-tabs {
+  min-height: 520px;
+}
+
+.drawer-footer {
+  display: flex;
+  justify-content: flex-end;
 }
 </style>
