@@ -384,9 +384,10 @@ async function handleSubmit(): Promise<void> {
     });
 
     if (!isMounted.value) return;
-    await userStore.getInfo();
-    if (!isMounted.value) return;
-    const routes  = await permissionStore.generateRoutes();
+    const [, routes] = await Promise.all([
+      userStore.getInfo(),
+      permissionStore.generateRoutes()
+    ]);
     if (!isMounted.value) return;
     permissionStore.registerRoutes(router);
     localStorage.setItem(REMEMBER_ME_KEY, String(form.rememberMe));

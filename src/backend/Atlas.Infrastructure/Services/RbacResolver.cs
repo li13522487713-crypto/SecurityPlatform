@@ -98,4 +98,48 @@ public sealed class RbacResolver : IRbacResolver
         var permissions = await _permissionRepository.QueryByIdsAsync(tenantId, permissionIds.ToArray(), cancellationToken);
         return permissions.Select(x => x.Code).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
     }
+
+    public async Task<(IReadOnlyList<string> RoleCodes, IReadOnlyList<string> PermissionCodes)> GetRolesAndPermissionsAsync(
+        UserAccount account,
+        TenantId tenantId,
+        CancellationToken cancellationToken)
+    {
+        var roleCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (!string.IsNullOrWhiteSpace(account.Roles))
+        {
+            foreach (var role in account.Roles.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                roleCodes.Add(role);
+            }
+        }
+
+        // 单次查询 UserRole（原来 GetRoleCodesAsync + GetPermissionCodesAsync 各查一次，共 2 次，现在合并为 1 次）
+        var userRoles = await _userRoleRepository.QueryByUserIdAsync(tenantId, account.Id, cancellationToken);
+        if (userRoles.Count == 0)
+        {
+            return (roleCodes.ToArray(), Array.Empty<string>());
+        }
+
+        var roleIds = userRoles.Select(x => x.RoleId).Distinct().ToArray();
+
+        // 并行：同时拉取 Role 列表和 RolePermission 关联
+        var rolesTask = _roleRepository.QueryByIdsAsync(tenantId, roleIds, cancellationToken);
+        var rolePermsTask = _rolePermissionRepository.QueryByRoleIdsAsync(tenantId, roleIds, cancellationToken);
+        await Task.WhenAll(rolesTask, rolePermsTask);
+
+        foreach (var role in rolesTask.Result)
+        {
+            roleCodes.Add(role.Code);
+        }
+
+        var permissionIds = rolePermsTask.Result.Select(x => x.PermissionId).Distinct().ToArray();
+        if (permissionIds.Length == 0)
+        {
+            return (roleCodes.ToArray(), Array.Empty<string>());
+        }
+
+        var permissions = await _permissionRepository.QueryByIdsAsync(tenantId, permissionIds, cancellationToken);
+        var permCodes = permissions.Select(x => x.Code).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        return (roleCodes.ToArray(), permCodes);
+    }
 }

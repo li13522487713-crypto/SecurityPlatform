@@ -22,6 +22,8 @@ interface LogoutOptions {
   skipRemote?: boolean;
 }
 
+let _getInfoInflight: Promise<AuthProfile> | null = null;
+
 export const useUserStore = defineStore("user", {
   state: (): UserState => ({
     profile: getAuthProfile(),
@@ -39,14 +41,26 @@ export const useUserStore = defineStore("user", {
       setTenantId(normalizedTenantId);
     },
     async getInfo() {
-      const profile = await getCurrentUser();
-      this.profile = profile;
-      this.roles = profile.roles ?? [];
-      this.permissions = profile.permissions ?? [];
-      this.name = profile.displayName || profile.username || "";
-      this.avatar = ""; // 可以配置默认头像或从profile读取
-      setAuthProfile(profile);
-      return profile;
+      if (_getInfoInflight) {
+        return _getInfoInflight;
+      }
+
+      _getInfoInflight = (async () => {
+        const profile = await getCurrentUser();
+        this.profile = profile;
+        this.roles = profile.roles ?? [];
+        this.permissions = profile.permissions ?? [];
+        this.name = profile.displayName || profile.username || "";
+        this.avatar = "";
+        setAuthProfile(profile);
+        return profile;
+      })();
+
+      try {
+        return await _getInfoInflight;
+      } finally {
+        _getInfoInflight = null;
+      }
     },
     hydrateFromStorage() {
       const profile = getAuthProfile();

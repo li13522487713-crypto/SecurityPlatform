@@ -88,13 +88,16 @@ async function recoverSessionAfterOnline() {
         return;
       }
 
-      if (!userStore.profile) {
-        await userStore.getInfo();
-      }
-
-      if (!permissionStore.routeLoaded) {
-        await permissionStore.generateRoutes();
-        permissionStore.registerRoutes(router);
+      const needsProfile = !userStore.profile;
+      const needsRoutes = !permissionStore.routeLoaded;
+      if (needsProfile || needsRoutes) {
+        await Promise.all([
+          needsProfile ? userStore.getInfo() : Promise.resolve(),
+          needsRoutes ? permissionStore.generateRoutes() : Promise.resolve()
+        ]);
+        if (needsRoutes) {
+          permissionStore.registerRoutes(router);
+        }
       }
 
       recovered = true;

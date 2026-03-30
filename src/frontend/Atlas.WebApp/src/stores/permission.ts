@@ -101,9 +101,8 @@ export const usePermissionStore = defineStore("permission", {
         }
       }
 
-      // 深拷贝一份给 sidebar 使用
-      const sdata = normalizeRouters(JSON.parse(JSON.stringify(routers)) as RouterVo[]);
-      const rdata = normalizeRouters(JSON.parse(JSON.stringify(routers)) as RouterVo[]);
+      const sdata = normalizeRouters(structuredClone(routers) as RouterVo[]);
+      const rdata = normalizeRouters(structuredClone(routers) as RouterVo[]);
 
       const sidebarRoutes = buildRoutesFromRouters(sdata, false, false);
       const rewriteRoutes = buildRoutesFromRouters(rdata, false, true);

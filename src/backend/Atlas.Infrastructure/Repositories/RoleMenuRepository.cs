@@ -25,6 +25,23 @@ public sealed class RoleMenuRepository : IRoleMenuRepository
         return list;
     }
 
+    public async Task<IReadOnlyList<RoleMenu>> QueryByRoleIdsAsync(
+        TenantId tenantId,
+        IReadOnlyList<long> roleIds,
+        CancellationToken cancellationToken)
+    {
+        if (roleIds.Count == 0)
+        {
+            return Array.Empty<RoleMenu>();
+        }
+
+        var ids = roleIds.ToList();
+        var list = await _db.Queryable<RoleMenu>()
+            .Where(x => x.TenantIdValue == tenantId.Value && ids.Contains(x.RoleId))
+            .ToListAsync(cancellationToken);
+        return list;
+    }
+
     public Task DeleteByRoleIdAsync(TenantId tenantId, long roleId, CancellationToken cancellationToken)
     {
         return _db.Deleteable<RoleMenu>()

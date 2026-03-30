@@ -4,6 +4,7 @@ using Atlas.Application.Identity.Models;
 using Atlas.Application.Identity.Repositories;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace Atlas.Infrastructure.Services;
 
@@ -11,11 +12,15 @@ public sealed class AppConfigQueryService : IAppConfigQueryService
 {
     private readonly IAppConfigRepository _repository;
     private readonly IMapper _mapper;
+    private readonly IMemoryCache _cache;
 
-    public AppConfigQueryService(IAppConfigRepository repository, IMapper mapper)
+    private static readonly TimeSpan AppConfigCacheTtl = TimeSpan.FromMinutes(2);
+
+    public AppConfigQueryService(IAppConfigRepository repository, IMapper mapper, IMemoryCache cache)
     {
         _repository = repository;
         _mapper = mapper;
+        _cache = cache;
     }
 
     public async Task<PagedResult<AppConfigListItem>> QueryAsync(
@@ -45,7 +50,16 @@ public sealed class AppConfigQueryService : IAppConfigQueryService
 
     public async Task<AppConfigDetail?> GetByAppIdAsync(string appId, TenantId tenantId, CancellationToken cancellationToken)
     {
+        var cacheKey = $"app_config_{tenantId.Value:D}_{appId}";
+        if (_cache.TryGetValue(cacheKey, out AppConfigDetail? cached))
+        {
+            return cached;
+        }
+
         var appConfig = await _repository.FindByAppIdAsync(tenantId, appId, cancellationToken);
-        return appConfig is null ? null : _mapper.Map<AppConfigDetail>(appConfig);
+        var result = appConfig is null ? null : _mapper.Map<AppConfigDetail>(appConfig);
+
+        _cache.Set(cacheKey, result, AppConfigCacheTtl);
+        return result;
     }
 }

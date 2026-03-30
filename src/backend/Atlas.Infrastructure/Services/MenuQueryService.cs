@@ -4,6 +4,7 @@ using Atlas.Application.Identity.Models;
 using Atlas.Application.Identity.Repositories;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace Atlas.Infrastructure.Services;
 
@@ -59,19 +60,24 @@ public sealed class MenuQueryService : IMenuQueryService
     private readonly IRoleMenuRepository _roleMenuRepository;
     private readonly IRoleRepository _roleRepository;
     private readonly IMapper _mapper;
+    private readonly IMemoryCache _cache;
+
+    private static readonly TimeSpan MenuCacheTtl = TimeSpan.FromSeconds(60);
 
     public MenuQueryService(
         IMenuRepository menuRepository,
         IUserRoleRepository userRoleRepository,
         IRoleMenuRepository roleMenuRepository,
         IRoleRepository roleRepository,
-        IMapper mapper)
+        IMapper mapper,
+        IMemoryCache cache)
     {
         _menuRepository = menuRepository;
         _userRoleRepository = userRoleRepository;
         _roleMenuRepository = roleMenuRepository;
         _roleRepository = roleRepository;
         _mapper = mapper;
+        _cache = cache;
     }
 
     public async Task<PagedResult<MenuListItem>> QueryMenusAsync(
@@ -107,6 +113,12 @@ public sealed class MenuQueryService : IMenuQueryService
         long userId,
         CancellationToken cancellationToken)
     {
+        var cacheKey = $"menu_tree_{tenantId.Value:D}_{userId}";
+        if (_cache.TryGetValue(cacheKey, out IReadOnlyList<MenuListItem>? cached))
+        {
+            return cached!;
+        }
+
         var allMenus = await QueryAllAsync(tenantId, cancellationToken);
         var menuCandidates = allMenus
             .Where(x => string.Equals(x.Status, "0", StringComparison.OrdinalIgnoreCase))
@@ -124,52 +136,53 @@ public sealed class MenuQueryService : IMenuQueryService
         var isAdmin = roles.Any(r => string.Equals(r.Code, "Admin", StringComparison.OrdinalIgnoreCase)
             || string.Equals(r.Code, "SuperAdmin", StringComparison.OrdinalIgnoreCase));
 
+        IReadOnlyList<MenuListItem> result;
+
         if (isAdmin)
         {
-            return menuCandidates.Where(x => !string.Equals(x.MenuType, "F", StringComparison.OrdinalIgnoreCase)).ToArray();
+            result = menuCandidates.Where(x => !string.Equals(x.MenuType, "F", StringComparison.OrdinalIgnoreCase)).ToArray();
         }
-
-        var roleMenuEntries = new List<long>();
-        foreach (var roleId in roleIds)
+        else
         {
-            var menus = await _roleMenuRepository.QueryByRoleIdAsync(tenantId, roleId, cancellationToken);
-            roleMenuEntries.AddRange(menus.Select(x => x.MenuId));
-        }
+            // 一次批量查询取代 N 次 per-role 查询
+            var allRoleMenus = await _roleMenuRepository.QueryByRoleIdsAsync(tenantId, roleIds, cancellationToken);
+            var menuIdSet = allRoleMenus.Select(x => x.MenuId).ToHashSet();
 
-        var menuIdSet = roleMenuEntries.ToHashSet();
-        if (menuIdSet.Count == 0)
-        {
-            return Array.Empty<MenuListItem>();
-        }
-
-        var result = menuCandidates
-            .Where(x => menuIdSet.Contains(long.Parse(x.Id)) && !string.Equals(x.MenuType, "F", StringComparison.OrdinalIgnoreCase))
-            .ToList();
-
-        // 递归补全父目录，确保侧边菜单结构完整
-        var byId = menuCandidates.ToDictionary(x => x.Id);
-        var visited = result.Select(x => x.Id).ToHashSet(StringComparer.Ordinal);
-        var queue = new Queue<MenuListItem>(result);
-        while (queue.Count > 0)
-        {
-            var item = queue.Dequeue();
-            if (item.ParentId is null or 0)
+            if (menuIdSet.Count == 0)
             {
-                continue;
+                return Array.Empty<MenuListItem>();
             }
 
-            var parentId = item.ParentId.Value.ToString();
-            if (!visited.Contains(parentId) && byId.TryGetValue(parentId, out var parent))
+            var filtered = menuCandidates
+                .Where(x => menuIdSet.Contains(long.Parse(x.Id)) && !string.Equals(x.MenuType, "F", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            // 递归补全父目录，确保侧边菜单结构完整
+            var byId = menuCandidates.ToDictionary(x => x.Id);
+            var visited = filtered.Select(x => x.Id).ToHashSet(StringComparer.Ordinal);
+            var queue = new Queue<MenuListItem>(filtered);
+            while (queue.Count > 0)
             {
-                visited.Add(parentId);
-                result.Add(parent);
-                queue.Enqueue(parent);
+                var item = queue.Dequeue();
+                if (item.ParentId is null or 0)
+                {
+                    continue;
+                }
+
+                var parentId = item.ParentId.Value.ToString();
+                if (!visited.Contains(parentId) && byId.TryGetValue(parentId, out var parent))
+                {
+                    visited.Add(parentId);
+                    filtered.Add(parent);
+                    queue.Enqueue(parent);
+                }
             }
+
+            result = filtered.OrderBy(x => x.SortOrder).ToArray();
         }
 
-        return result
-            .OrderBy(x => x.SortOrder)
-            .ToArray();
+        _cache.Set(cacheKey, result, MenuCacheTtl);
+        return result;
     }
 
     public IReadOnlyList<RouterVo> BuildMenus(IReadOnlyList<MenuListItem> menus)

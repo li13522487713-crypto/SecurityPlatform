@@ -67,7 +67,8 @@ public sealed class XssProtectionMiddleware
                 kvp => kvp.Key,
                 kvp => new Microsoft.Extensions.Primitives.StringValues(
                     kvp.Value.Select(v => v is null ? v : SanitizeString(v)).ToArray()
-                )
+                ),
+                StringComparer.OrdinalIgnoreCase
             );
 
         context.Request.Query = new Microsoft.AspNetCore.Http.QueryCollection(sanitized);

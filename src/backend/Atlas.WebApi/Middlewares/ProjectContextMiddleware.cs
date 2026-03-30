@@ -39,7 +39,8 @@ public sealed class ProjectContextMiddleware
             || StartsWithAny(path, "/api/auth", "/api/v1/auth")
             || StartsWithAny(path, "/api/apps", "/api/v1/apps")
             || StartsWithAny(path, "/api/projects", "/api/v1/projects")
-            || StartsWithAny(path, "/api/personal-access-tokens", "/api/v1/personal-access-tokens");
+            || StartsWithAny(path, "/api/personal-access-tokens", "/api/v1/personal-access-tokens")
+            || StartsWithAny(path, "/api/notifications", "/api/v1/notifications");
 
         if (string.Equals(
                 context.User?.Identity?.AuthenticationType,

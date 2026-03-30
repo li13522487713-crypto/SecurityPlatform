@@ -3,6 +3,7 @@ using Atlas.Application.Identity.Abstractions;
 using Atlas.Application.Identity.Repositories;
 using Atlas.Application.Models;
 using Atlas.Core.Tenancy;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace Atlas.Infrastructure.Services;
 
@@ -10,13 +11,18 @@ public sealed class AuthProfileService : IAuthProfileService
 {
     private readonly IUserAccountRepository _userRepository;
     private readonly IRbacResolver _rbacResolver;
+    private readonly IMemoryCache _cache;
+
+    private static readonly TimeSpan CacheTtl = TimeSpan.FromSeconds(60);
 
     public AuthProfileService(
         IUserAccountRepository userRepository,
-        IRbacResolver rbacResolver)
+        IRbacResolver rbacResolver,
+        IMemoryCache cache)
     {
         _userRepository = userRepository;
         _rbacResolver = rbacResolver;
+        _cache = cache;
     }
 
     public async Task<AuthProfileResult?> GetProfileAsync(
@@ -24,16 +30,21 @@ public sealed class AuthProfileService : IAuthProfileService
         TenantId tenantId,
         CancellationToken cancellationToken)
     {
+        var cacheKey = $"auth_profile_{tenantId.Value:D}_{userId}";
+        if (_cache.TryGetValue(cacheKey, out AuthProfileResult? cached))
+        {
+            return cached;
+        }
+
         var account = await _userRepository.FindByIdAsync(tenantId, userId, cancellationToken);
         if (account is null)
         {
             return null;
         }
 
-        var roleCodes = await _rbacResolver.GetRoleCodesAsync(account, tenantId, cancellationToken);
-        var permissionCodes = await _rbacResolver.GetPermissionCodesAsync(tenantId, userId, cancellationToken);
+        var (roleCodes, permissionCodes) = await _rbacResolver.GetRolesAndPermissionsAsync(account, tenantId, cancellationToken);
 
-        return new AuthProfileResult(
+        var result = new AuthProfileResult(
             account.Id.ToString(),
             account.Username,
             account.DisplayName,
@@ -42,5 +53,8 @@ public sealed class AuthProfileService : IAuthProfileService
             permissionCodes,
             account.IsPlatformAdmin,
             null);
+
+        _cache.Set(cacheKey, result, CacheTtl);
+        return result;
     }
 }

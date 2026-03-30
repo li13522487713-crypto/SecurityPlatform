@@ -88,6 +88,8 @@ public sealed class PermissionDecisionService : IPermissionDecisionService
     {
         cancellationToken.ThrowIfCancellationRequested();
         _cache.Remove(UserCacheKey(tenantId, userId));
+        _cache.Remove(ProfileCacheKey(tenantId, userId));
+        _cache.Remove(MenuTreeCacheKey(tenantId, userId));
         return Task.CompletedTask;
     }
 
@@ -105,6 +107,8 @@ public sealed class PermissionDecisionService : IPermissionDecisionService
         foreach (var userId in userIds.Distinct())
         {
             _cache.Remove(UserCacheKey(tenantId, userId));
+            _cache.Remove(ProfileCacheKey(tenantId, userId));
+            _cache.Remove(MenuTreeCacheKey(tenantId, userId));
         }
     }
 
@@ -121,6 +125,8 @@ public sealed class PermissionDecisionService : IPermissionDecisionService
                 foreach (var userId in users)
                 {
                     _cache.Remove(UserCacheKey(tenantId, userId));
+                    _cache.Remove(ProfileCacheKey(tenantId, userId));
+                    _cache.Remove(MenuTreeCacheKey(tenantId, userId));
                 }
             }
         }
@@ -148,8 +154,7 @@ public sealed class PermissionDecisionService : IPermissionDecisionService
             return missing;
         }
 
-        var roleCodes = await _rbacResolver.GetRoleCodesAsync(account, tenantId, cancellationToken);
-        var permissionCodes = await _rbacResolver.GetPermissionCodesAsync(tenantId, userId, cancellationToken);
+        var (roleCodes, permissionCodes) = await _rbacResolver.GetRolesAndPermissionsAsync(account, tenantId, cancellationToken);
         var cacheEntry = new PermissionDecisionCacheEntry(
             account.IsActive,
             account.IsPlatformAdmin,
@@ -204,6 +209,12 @@ public sealed class PermissionDecisionService : IPermissionDecisionService
 
     private static string UserCacheKey(TenantId tenantId, long userId)
         => $"perm:u:{tenantId.Value:N}:{userId}";
+
+    private static string ProfileCacheKey(TenantId tenantId, long userId)
+        => $"auth_profile_{tenantId.Value:D}_{userId}";
+
+    private static string MenuTreeCacheKey(TenantId tenantId, long userId)
+        => $"menu_tree_{tenantId.Value:D}_{userId}";
 
     private static string TenantIndexKey(TenantId tenantId)
         => $"perm:t:{tenantId.Value:N}";
