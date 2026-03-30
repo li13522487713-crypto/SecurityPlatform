@@ -51,11 +51,18 @@
       :data-source="tasks"
       :loading="loading"
       :pagination="false"
+      :scroll="{ x: 1680 }"
       class="task-table"
     >
       <template #bodyCell="{ column, record }">
         <template v-if="column.key === 'progress'">
           <a-progress :percent="Number(record.progressPercent || 0)" size="small" />
+        </template>
+        <template v-else-if="column.key === 'schemaRepair'">
+          <a-tooltip v-if="record.schemaRepairLog?.trim()" :title="record.schemaRepairLog">
+            <span class="schema-repair-preview">{{ truncateText(record.schemaRepairLog, 56) }}</span>
+          </a-tooltip>
+          <span v-else class="schema-repair-empty">{{ t("console.appDbMigration.schemaRepairEmpty") }}</span>
         </template>
         <template v-else-if="column.key === 'action'">
           <a-space>
@@ -64,6 +71,9 @@
             <a-button size="small" @click="runValidate(record.id)">{{ t("console.appDbMigration.validate") }}</a-button>
             <a-button size="small" danger @click="runCutover(record.id)">{{ t("console.appDbMigration.cutover") }}</a-button>
             <a-button size="small" @click="runRollback(record.id)">{{ t("console.appDbMigration.rollback") }}</a-button>
+            <a-button size="small" :disabled="record.status !== 'Failed'" @click="runReset(record.id)">
+              {{ t("console.appDbMigration.reset") }}
+            </a-button>
           </a-space>
         </template>
       </template>
@@ -82,6 +92,7 @@ import {
   precheckAppMigrationTask,
   queryAppMigrationTasks,
   repairAppMigrationPrimaryBinding,
+  resetAppMigrationTask,
   rollbackAppMigrationTask,
   startAppMigrationTask,
   validateAppMigrationTask,
@@ -105,9 +116,18 @@ const columns = computed(() => [
   { title: t("console.appDbMigration.colStatus"), dataIndex: "status", key: "status", width: 140 },
   { title: t("console.appDbMigration.colPhase"), dataIndex: "phase", key: "phase", width: 140 },
   { title: t("console.appDbMigration.colProgress"), dataIndex: "progressPercent", key: "progress", width: 200 },
-  { title: t("console.appDbMigration.colErrorSummary"), dataIndex: "errorSummary", key: "errorSummary" },
-  { title: t("console.appDbMigration.colActions"), key: "action", width: 420 }
+  { title: t("console.appDbMigration.colSchemaRepair"), key: "schemaRepair", width: 260 },
+  { title: t("console.appDbMigration.colErrorSummary"), dataIndex: "errorSummary", key: "errorSummary", width: 220 },
+  { title: t("console.appDbMigration.colActions"), key: "action", width: 420, fixed: "right" }
 ]);
+
+function truncateText(value: string, maxLen: number): string {
+  const s = value.trim();
+  if (s.length <= maxLen) {
+    return s;
+  }
+  return `${s.slice(0, maxLen)}…`;
+}
 
 async function loadTasks() {
   loading.value = true;
@@ -253,6 +273,20 @@ async function runRollback(taskId: string) {
   }
 }
 
+async function runReset(taskId: string) {
+  try {
+    const result = await resetAppMigrationTask(taskId);
+    if (!result.success) {
+      message.warning(result.message || t("console.appDbMigration.resetFailed"));
+      return;
+    }
+    message.success(result.message || t("console.appDbMigration.resetSuccess"));
+    await loadTasks();
+  } catch (error) {
+    message.error((error as Error).message || t("console.appDbMigration.resetFailed"));
+  }
+}
+
 onMounted(() => {
   void loadAppInstanceOptions();
   void loadTasks();
@@ -274,5 +308,14 @@ onMounted(() => {
 
 .toolbar-actions {
   justify-content: flex-end;
+}
+
+.schema-repair-preview {
+  cursor: help;
+  word-break: break-all;
+}
+
+.schema-repair-empty {
+  color: rgba(0, 0, 0, 0.25);
 }
 </style>

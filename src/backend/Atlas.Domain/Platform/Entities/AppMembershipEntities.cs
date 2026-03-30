@@ -99,7 +99,8 @@ public sealed class AppRole : TenantEntity
     public void SetDataScope(DataScopeType scope, string? deptIds = null)
     {
         DataScope = scope;
-        DeptIds = scope == DataScopeType.CustomDept ? deptIds : null;
+        // 非自定义部门范围使用空串而非 null，兼容历史 SQLite 将 DeptIds 建成 NOT NULL 的库。
+        DeptIds = scope == DataScopeType.CustomDept ? deptIds : string.Empty;
     }
 }
 

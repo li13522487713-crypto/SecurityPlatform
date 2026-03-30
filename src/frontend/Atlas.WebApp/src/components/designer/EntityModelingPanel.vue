@@ -24,45 +24,46 @@
       row-key="tempId"
       size="small"
       bordered
+      :scroll="{ x: 1180 }"
     >
-      <a-table-column :title="t('designer.entityModeling.fieldName')" data-index="name" width="140px">
+      <a-table-column :title="t('designer.entityModeling.fieldName')" data-index="name" width="220px">
         <template #default="{ record }">
           <a-input v-model:value="record.name" size="small" />
         </template>
       </a-table-column>
-      <a-table-column :title="t('designer.entityModeling.displayName')" data-index="displayName" width="140px">
+      <a-table-column :title="t('designer.entityModeling.displayName')" data-index="displayName" width="220px">
         <template #default="{ record }">
           <a-input v-model:value="record.displayName" size="small" />
         </template>
       </a-table-column>
-      <a-table-column :title="t('designer.entityModeling.fieldType')" data-index="fieldType" width="130px">
+      <a-table-column :title="t('designer.entityModeling.fieldType')" data-index="fieldType" width="160px">
         <template #default="{ record }">
           <a-select v-model:value="record.fieldType" size="small" style="width: 100%">
             <a-select-option v-for="ft in fieldTypes" :key="ft" :value="ft">{{ ft }}</a-select-option>
           </a-select>
         </template>
       </a-table-column>
-      <a-table-column :title="t('designer.entityModeling.length')" data-index="length" width="80px">
+      <a-table-column :title="t('designer.entityModeling.length')" data-index="length" width="110px">
         <template #default="{ record }">
           <a-input-number v-model:value="record.length" size="small" :min="0" style="width: 100%" />
         </template>
       </a-table-column>
-      <a-table-column :title="t('designer.entityModeling.allowNull')" data-index="allowNull" width="70px">
+      <a-table-column :title="t('designer.entityModeling.allowNull')" data-index="allowNull" width="90px">
         <template #default="{ record }">
           <a-checkbox v-model:checked="record.allowNull" />
         </template>
       </a-table-column>
-      <a-table-column :title="t('designer.entityModeling.isPrimaryKey')" data-index="isPrimaryKey" width="60px">
+      <a-table-column :title="t('designer.entityModeling.isPrimaryKey')" data-index="isPrimaryKey" width="80px">
         <template #default="{ record }">
           <a-checkbox v-model:checked="record.isPrimaryKey" />
         </template>
       </a-table-column>
-      <a-table-column :title="t('designer.entityModeling.isUnique')" data-index="isUnique" width="60px">
+      <a-table-column :title="t('designer.entityModeling.isUnique')" data-index="isUnique" width="80px">
         <template #default="{ record }">
           <a-checkbox v-model:checked="record.isUnique" />
         </template>
       </a-table-column>
-      <a-table-column width="60px">
+      <a-table-column width="120px">
         <template #default="{ record }">
           <a-button type="link" danger size="small" @click="removeField(record.tempId)">
             {{ t("designer.entityModeling.removeField") }}

@@ -1,6 +1,7 @@
 using Atlas.Application.System.Abstractions;
 using Atlas.Application.System.Models;
 using Atlas.Core.Abstractions;
+using Atlas.Core.Enums;
 using Atlas.Core.Exceptions;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
@@ -124,7 +125,8 @@ public sealed class AppMigrationService : IAppMigrationService
             x.CreatedAt,
             x.StartedAt,
             x.FinishedAt,
-            x.ErrorSummary)).ToArray();
+            x.ErrorSummary,
+            x.SchemaRepairLog)).ToArray();
         return new PagedResult<AppMigrationTaskListItem>(items, total, request.PageIndex, request.PageSize);
     }
 
@@ -241,10 +243,11 @@ public sealed class AppMigrationService : IAppMigrationService
         }
         catch (Exception ex)
         {
-            task.MarkFailed(userId, DateTimeOffset.UtcNow, ex.Message);
+            var summary = SqliteConstraintErrorFormatter.Format(ex);
+            task.MarkFailed(userId, DateTimeOffset.UtcNow, summary);
             await UpdateTaskAsync(task, cancellationToken);
             await AddSnapshotAsync(task, cancellationToken);
-            return new AppMigrationActionResult(false, task.Id.ToString(), task.Status, ex.Message);
+            return new AppMigrationActionResult(false, task.Id.ToString(), task.Status, summary);
         }
     }
 
@@ -261,7 +264,15 @@ public sealed class AppMigrationService : IAppMigrationService
         await _provisioningService.EnsureSchemaAsync(tenantId, task.TenantAppInstanceId, cancellationToken);
         var appDb = await _appDbScopeFactory.GetAppClientAsync(tenantId, task.TenantAppInstanceId, cancellationToken);
         EnsureRequiredTablesReady(appDb);
-        await RepairLegacyTenantColumnTablesIfNeededAsync(appDb, cancellationToken);
+
+        if (SqliteSchemaAlignment.IsSqlite(appDb))
+        {
+            var report = await SqliteSchemaAlignment.EnsureAppMembershipDomainSchemaAsync(appDb, cancellationToken);
+            var logText = string.Join(" | ", report.Messages);
+            task.SetSchemaRepairLog(logText, userId, DateTimeOffset.UtcNow);
+            await UpdateTaskAsync(task, cancellationToken);
+            await AddSnapshotAsync(task, cancellationToken);
+        }
 
         task.MarkObjectProgress("SchemaReady", 0, 0, 0, userId, DateTimeOffset.UtcNow);
         await UpdateTaskAsync(task, cancellationToken);
@@ -287,47 +298,6 @@ public sealed class AppMigrationService : IAppMigrationService
             $"应用库结构初始化不完整，缺少表：{string.Join(", ", missing)}");
     }
 
-    private async Task RepairLegacyTenantColumnTablesIfNeededAsync(
-        ISqlSugarClient appDb,
-        CancellationToken cancellationToken)
-    {
-        await RepairLegacyTenantColumnTableAsync<AppMember>(appDb, "AppMember", cancellationToken);
-        await RepairLegacyTenantColumnTableAsync<AppRole>(appDb, "AppRole", cancellationToken);
-        await RepairLegacyTenantColumnTableAsync<AppUserRole>(appDb, "AppUserRole", cancellationToken);
-        await RepairLegacyTenantColumnTableAsync<AppRolePermission>(appDb, "AppRolePermission", cancellationToken);
-        await RepairLegacyTenantColumnTableAsync<AppPermission>(appDb, "AppPermission", cancellationToken);
-        await RepairLegacyTenantColumnTableAsync<AppRolePage>(appDb, "AppRolePage", cancellationToken);
-        await RepairLegacyTenantColumnTableAsync<AppDepartment>(appDb, "AppDepartment", cancellationToken);
-        await RepairLegacyTenantColumnTableAsync<AppPosition>(appDb, "AppPosition", cancellationToken);
-        await RepairLegacyTenantColumnTableAsync<AppProject>(appDb, "AppProject", cancellationToken);
-    }
-
-    private static bool HasLegacyTenantColumn(ISqlSugarClient appDb, string tableName)
-    {
-        var columns = appDb.DbMaintenance.GetColumnInfosByTableName(tableName, false);
-        return columns.Any(c => string.Equals(c.DbColumnName, "TenantId", StringComparison.OrdinalIgnoreCase));
-    }
-
-    private async Task RepairLegacyTenantColumnTableAsync<TEntity>(
-        ISqlSugarClient appDb,
-        string tableName,
-        CancellationToken cancellationToken)
-        where TEntity : class, new()
-    {
-        if (!HasLegacyTenantColumn(appDb, tableName))
-        {
-            return;
-        }
-
-        var backupRows = await appDb.Queryable<TEntity>().ToListAsync(cancellationToken);
-        appDb.Ado.ExecuteCommand($"DROP TABLE IF EXISTS \"{tableName}\";");
-        appDb.CodeFirst.InitTables(typeof(TEntity));
-        if (backupRows.Count > 0)
-        {
-            await appDb.Insertable(backupRows).ExecuteCommandAsync(cancellationToken);
-        }
-    }
-
     public async Task<AppMigrationTaskProgress?> GetProgressAsync(
         TenantId tenantId,
         long taskId,
@@ -350,7 +320,8 @@ public sealed class AppMigrationService : IAppMigrationService
             task.CurrentObjectName,
             task.CurrentBatchNo,
             task.UpdatedAt,
-            task.ErrorSummary);
+            task.ErrorSummary,
+            task.SchemaRepairLog);
     }
 
     public async Task<AppIntegrityCheckSummary> ValidateIntegrityAsync(
@@ -606,6 +577,24 @@ public sealed class AppMigrationService : IAppMigrationService
         return new AppMigrationActionResult(true, task.Id.ToString(), task.Status, "已回切到主库");
     }
 
+    public async Task<AppMigrationActionResult> ResetFailedTaskAsync(
+        TenantId tenantId,
+        long userId,
+        long taskId,
+        CancellationToken cancellationToken = default)
+    {
+        var task = await RequireTaskAsync(tenantId, taskId, cancellationToken);
+        if (!string.Equals(task.Status, AppMigrationTaskStatuses.Failed, StringComparison.Ordinal))
+        {
+            return new AppMigrationActionResult(false, task.Id.ToString(), task.Status, "仅失败状态任务允许重置。");
+        }
+
+        task.ResetForRetry(userId, DateTimeOffset.UtcNow);
+        await UpdateTaskAsync(task, cancellationToken);
+        await AddSnapshotAsync(task, cancellationToken);
+        return new AppMigrationActionResult(true, task.Id.ToString(), task.Status, "任务已重置，可重新执行迁移。");
+    }
+
     public async Task<AppMigrationBindingRepairResult> RepairPrimaryBindingAsync(
         TenantId tenantId,
         long userId,
@@ -797,6 +786,7 @@ public sealed class AppMigrationService : IAppMigrationService
             task.CurrentObjectName,
             task.CurrentBatchNo,
             task.ErrorSummary,
+            task.SchemaRepairLog,
             _idGeneratorAccessor.NextId(),
             DateTimeOffset.UtcNow);
         return _mainDb.Insertable(snapshot).ExecuteCommandAsync(cancellationToken);
@@ -823,7 +813,8 @@ public sealed class AppMigrationService : IAppMigrationService
             task.CreatedAt,
             task.StartedAt,
             task.FinishedAt,
-            task.ErrorSummary);
+            task.ErrorSummary,
+            task.SchemaRepairLog);
     }
 
     private async Task CopyDynamicTablesAsync(
@@ -1077,7 +1068,10 @@ public sealed class AppMigrationService : IAppMigrationService
                         row.CreatedAt,
                         row.Id);
                     role.Update(row.Name, row.Description, row.UpdatedBy, row.UpdatedAt);
-                    role.SetDataScope(row.DataScope, row.DeptIds);
+                    var deptIdsForScope = row.DataScope == DataScopeType.CustomDept
+                        ? (string.IsNullOrWhiteSpace(row.DeptIds) ? string.Empty : row.DeptIds)
+                        : null;
+                    role.SetDataScope(row.DataScope, deptIdsForScope);
                     return role;
                 })
                 .ToList();
@@ -1240,14 +1234,19 @@ public sealed class AppMigrationService : IAppMigrationService
         if (rows.Count > 0)
         {
             var insertRows = rows
-                .Select(row => new AppDepartment(
-                    tenantId,
-                    row.AppId,
-                    row.Name,
-                    row.Code,
-                    row.ParentId,
-                    row.SortOrder,
-                    row.Id))
+                .Select(row =>
+                {
+                    // 历史库可能将 ParentId 建成 NOT NULL；逻辑根节点用自引用表示（与 AppOrgServices 一致）。
+                    var parentId = row.ParentId ?? row.Id;
+                    return new AppDepartment(
+                        tenantId,
+                        row.AppId,
+                        row.Name,
+                        row.Code,
+                        parentId,
+                        row.SortOrder,
+                        row.Id);
+                })
                 .ToList();
             await appDb.Insertable(insertRows).ExecuteCommandAsync(cancellationToken);
         }

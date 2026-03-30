@@ -1321,7 +1321,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             "ALTER TABLE UserAccount ADD COLUMN IsPlatformAdmin INTEGER NOT NULL DEFAULT 0");
     }
 
-    private static Task EnsureAppMembershipSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
+    private static async Task EnsureAppMembershipSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
     {
         var missingTables =
             !db.DbMaintenance.IsAnyTable("AppMember", false)
@@ -1333,15 +1333,17 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             || !db.DbMaintenance.IsAnyTable("AppDepartment", false)
             || !db.DbMaintenance.IsAnyTable("AppPosition", false)
             || !db.DbMaintenance.IsAnyTable("AppProject", false);
-        if (!missingTables)
+        if (missingTables)
         {
-            return Task.CompletedTask;
+            cancellationToken.ThrowIfCancellationRequested();
+            db.CodeFirst.InitTables<AppMember, AppRole, AppUserRole, AppRolePermission, AppPermission>();
+            db.CodeFirst.InitTables<AppRolePage, AppDepartment, AppPosition, AppProject>();
         }
 
-        cancellationToken.ThrowIfCancellationRequested();
-        db.CodeFirst.InitTables<AppMember, AppRole, AppUserRole, AppRolePermission, AppPermission>();
-        db.CodeFirst.InitTables<AppRolePage, AppDepartment, AppPosition, AppProject>();
-        return Task.CompletedTask;
+        if (SqliteSchemaAlignment.IsSqlite(db))
+        {
+            await SqliteSchemaAlignment.EnsureAppMembershipDomainSchemaAsync(db, cancellationToken);
+        }
     }
 
     private static async Task EnsureSystemConfigSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
@@ -1650,58 +1652,17 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         await RebuildTableViaOrmAsync<ApprovalCopyRecord>(db, cancellationToken);
     }
 
-    private static async Task RebuildTableViaOrmAsync<TEntity>(ISqlSugarClient db, CancellationToken cancellationToken)
+    private static Task RebuildTableViaOrmAsync<TEntity>(ISqlSugarClient db, CancellationToken cancellationToken)
         where TEntity : class, new()
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        var tableName = db.EntityMaintenance.GetTableName<TEntity>();
-        if (!db.DbMaintenance.IsAnyTable(tableName, false))
-        {
-            return;
-        }
-
-        var data = await db.Queryable<TEntity>().ToListAsync(cancellationToken);
-        db.DbMaintenance.DropTable(tableName);
-        db.CodeFirst.InitTables<TEntity>();
-        if (data.Count > 0)
-        {
-            await db.Insertable(data).ExecuteCommandAsync(cancellationToken);
-        }
-    }
+        => SqliteSchemaAlignment.RebuildTableViaOrmAsync<TEntity>(db, cancellationToken);
 
     private static bool RequiresNullableColumnFix<TEntity>(ISqlSugarClient db, params string[] columnNames)
         where TEntity : class, new()
-    {
-        var tableName = db.EntityMaintenance.GetTableName<TEntity>();
-        var columns = db.DbMaintenance.GetColumnInfosByTableName(tableName, false);
-        foreach (var columnName in columnNames)
-        {
-            var column = columns.FirstOrDefault(c => string.Equals(c.DbColumnName, columnName, StringComparison.OrdinalIgnoreCase));
-            if (column is not null && !column.IsNullable)
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
+        => SqliteSchemaAlignment.RequiresNullableColumnFix<TEntity>(db, columnNames);
 
     private static bool RequiresMissingColumnFix<TEntity>(ISqlSugarClient db, params string[] requiredColumnNames)
         where TEntity : class, new()
-    {
-        var tableName = db.EntityMaintenance.GetTableName<TEntity>();
-        var columns = db.DbMaintenance.GetColumnInfosByTableName(tableName, false);
-        foreach (var columnName in requiredColumnNames)
-        {
-            var hasColumn = columns.Any(c => string.Equals(c.DbColumnName, columnName, StringComparison.OrdinalIgnoreCase));
-            if (!hasColumn)
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
+        => SqliteSchemaAlignment.RequiresMissingColumnFix<TEntity>(db, requiredColumnNames);
 
     private static async Task AddColumnIfMissingAsync(
         ISqlSugarClient db,

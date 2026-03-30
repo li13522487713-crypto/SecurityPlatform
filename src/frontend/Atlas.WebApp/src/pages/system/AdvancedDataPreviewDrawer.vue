@@ -2,7 +2,7 @@
   <a-drawer
     v-model:open="visible"
     :title="t('datasource.advancedPreviewTitle', { name: dataSource?.name || '' })"
-    width="90vw"
+    :width="previewDrawerWidth"
     placement="right"
     @close="handleClose"
   >
@@ -46,8 +46,9 @@
         </div>
       </div>
 
-      <!-- Main Editor Area -->
-      <div class="editor-main">
+      <!-- Main：宽屏下限制可读宽度并居中，避免 SQL/结果横向拉得过开 -->
+      <div class="editor-shell">
+        <div class="editor-main">
         <a-card size="small" :title="t('datasource.sqlExecutor')">
           <template #extra>
             <a-space>
@@ -84,6 +85,7 @@
             :loading="loading"
           />
         </a-card>
+        </div>
       </div>
     </div>
   </a-drawer>
@@ -111,6 +113,9 @@ import {
 import SqlEditor from "./components/SqlEditor.vue";
 import DataPreviewTable from "./components/DataPreviewTable.vue";
 
+/** 抽屉整体宽度：超宽屏不再按 90vw 拉满，避免整块预览过扁过长 */
+const previewDrawerWidth = "min(1280px, 92vw)";
+
 interface HistoryEntry {
   sql: string;
   timeMs: number;
@@ -118,6 +123,7 @@ interface HistoryEntry {
 }
 
 const { t } = useI18n();
+
 const visible = ref(false);
 const dataSource = ref<TenantDataSourceDto | null>(null);
 const sql = ref("SELECT * FROM ");
@@ -260,7 +266,7 @@ defineExpose({ open });
   height: calc(100vh - 100px);
 }
 .schema-sidebar {
-  width: 260px;
+  width: 280px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -300,8 +306,17 @@ defineExpose({ open });
   margin-right: 4px;
   color: #1677ff;
 }
-.editor-main {
+.editor-shell {
   flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow: hidden;
+}
+.editor-main {
+  width: 100%;
+  max-width: min(1080px, 100%);
   display: flex;
   flex-direction: column;
   gap: 12px;

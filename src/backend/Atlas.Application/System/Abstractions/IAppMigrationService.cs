@@ -62,4 +62,10 @@ public interface IAppMigrationService
         long userId,
         AppMigrationBindingRepairRequest request,
         CancellationToken cancellationToken = default);
+
+    Task<AppMigrationActionResult> ResetFailedTaskAsync(
+        TenantId tenantId,
+        long userId,
+        long taskId,
+        CancellationToken cancellationToken = default);
 }

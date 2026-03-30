@@ -57,7 +57,7 @@
     v-model:open="formVisible"
       :title="formMode === 'create' ? t('datasource.create') : t('datasource.edit')"
     placement="right"
-    width="560"
+    :width="760"
     :destroy-on-close="true"
     @close="closeForm"
   >
@@ -68,22 +68,33 @@
       :message="t('datasource.updateHint')"
       style="margin-bottom: 16px"
     />
-    <a-form ref="formRef" :model="formModel" :rules="formRules" layout="vertical">
-      <a-form-item :label="t('datasource.tenantId')" name="tenantIdValue">
-        <a-input v-model:value="formModel.tenantIdValue" :disabled="formMode === 'edit'" />
-      </a-form-item>
-      <a-form-item :label="t('datasource.name')" name="name">
-        <a-input v-model:value="formModel.name" />
-      </a-form-item>
-      <a-form-item :label="t('datasource.dbType')" name="dbType">
-        <a-select v-model:value="formModel.dbType" :options="dbTypeOptions" />
-      </a-form-item>
-      <a-form-item label="连接配置模式" name="mode">
-        <a-radio-group v-model:value="formModel.mode">
-          <a-radio-button value="visual">可视化配置</a-radio-button>
-          <a-radio-button value="raw">连接字符串</a-radio-button>
-        </a-radio-group>
-      </a-form-item>
+    <a-form ref="formRef" :model="formModel" :rules="formRules" layout="vertical" size="small" class="datasource-form">
+      <a-row :gutter="16">
+        <a-col :span="12">
+          <a-form-item :label="t('datasource.tenantId')" name="tenantIdValue">
+            <a-input v-model:value="formModel.tenantIdValue" size="small" :disabled="formMode === 'edit'" />
+          </a-form-item>
+        </a-col>
+        <a-col :span="12">
+          <a-form-item :label="t('datasource.name')" name="name">
+            <a-input v-model:value="formModel.name" size="small" />
+          </a-form-item>
+        </a-col>
+        <a-col :span="12">
+          <a-form-item :label="t('datasource.dbType')" name="dbType">
+            <a-select v-model:value="formModel.dbType" size="small" :options="dbTypeOptions" />
+          </a-form-item>
+        </a-col>
+        <a-col :span="12">
+          <a-form-item label="连接配置模式" name="mode">
+            <a-radio-group v-model:value="formModel.mode" size="small">
+              <a-radio-button value="visual">可视化配置</a-radio-button>
+              <a-radio-button value="raw">连接字符串</a-radio-button>
+            </a-radio-group>
+          </a-form-item>
+        </a-col>
+      </a-row>
+
       <a-alert
         v-if="currentDriver"
         type="info"
@@ -92,48 +103,66 @@
         :message="`Driver: ${currentDriver.displayName}`"
         :description="`示例: ${currentDriver.connectionStringExample}`"
       />
+
       <template v-if="formModel.mode === 'visual'">
-        <a-form-item
-          v-for="field in visualFields"
-          :key="field.key"
-          :label="field.label"
-          :name="['visualConfig', field.key]"
-          :required="field.required"
-        >
-          <a-textarea
-            v-if="field.multiline || field.inputType === 'textarea'"
-            :value="getVisualValue(field.key)"
-            :rows="3"
-            :placeholder="field.placeholder || ''"
-            @update:value="setVisualValue(field.key, $event)"
-          />
-          <a-input
-            v-else
-            :type="field.secret ? 'password' : 'text'"
-            :value="getVisualValue(field.key)"
-            :placeholder="field.placeholder || ''"
-            @update:value="setVisualValue(field.key, $event)"
-          />
-        </a-form-item>
+        <a-row :gutter="16">
+          <a-col
+            v-for="field in visualFields"
+            :key="field.key"
+            :span="field.multiline || field.inputType === 'textarea' ? 24 : 12"
+          >
+            <a-form-item
+              :label="field.label"
+              :name="['visualConfig', field.key]"
+              :required="field.required"
+            >
+              <a-textarea
+                v-if="field.multiline || field.inputType === 'textarea'"
+                :value="getVisualValue(field.key)"
+                :rows="2"
+                :placeholder="field.placeholder || ''"
+                @update:value="setVisualValue(field.key, $event)"
+              />
+              <a-input
+                v-else
+                :type="field.secret ? 'password' : 'text'"
+                :value="getVisualValue(field.key)"
+                size="small"
+                :placeholder="field.placeholder || ''"
+                @update:value="setVisualValue(field.key, $event)"
+              />
+            </a-form-item>
+          </a-col>
+        </a-row>
       </template>
       <a-form-item v-else :label="t('datasource.connectionString')" name="connectionString">
         <a-textarea
           v-model:value="formModel.connectionString"
-          :rows="4"
+          :rows="3"
           :placeholder="currentDriver?.connectionStringExample || t('datasource.connectionString')"
         />
       </a-form-item>
-      <a-form-item :label="t('datasource.maxPoolSize')">
-        <a-input-number v-model:value="formModel.maxPoolSize" :min="1" :max="500" style="width: 100%" />
-      </a-form-item>
-      <a-form-item :label="t('datasource.connectionTimeoutSeconds')">
-        <a-input-number
-          v-model:value="formModel.connectionTimeoutSeconds"
-          :min="1"
-          :max="120"
-          style="width: 100%"
-        />
-      </a-form-item>
+
+      <a-divider style="margin: 8px 0 16px 0" />
+
+      <a-row :gutter="16">
+        <a-col :span="12">
+          <a-form-item :label="t('datasource.maxPoolSize')">
+            <a-input-number v-model:value="formModel.maxPoolSize" size="small" :min="1" :max="500" style="width: 100%" />
+          </a-form-item>
+        </a-col>
+        <a-col :span="12">
+          <a-form-item :label="t('datasource.connectionTimeoutSeconds')">
+            <a-input-number
+              v-model:value="formModel.connectionTimeoutSeconds"
+              size="small"
+              :min="1"
+              :max="120"
+              style="width: 100%"
+            />
+          </a-form-item>
+        </a-col>
+      </a-row>
     </a-form>
     <template #footer>
       <a-space>
@@ -486,5 +515,9 @@ onMounted(() => {
   margin-bottom: 16px;
   display: flex;
   justify-content: space-between;
+}
+
+.datasource-form :deep(.ant-form-item) {
+  margin-bottom: 10px;
 }
 </style>

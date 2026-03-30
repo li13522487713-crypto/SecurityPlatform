@@ -69,6 +69,9 @@ public sealed class AppMigrationTask : TenantEntity
     public bool EnableRollback { get; private set; }
     [SugarColumn(IsNullable = true)]
     public string? ErrorSummary { get; private set; }
+    /// <summary>结构自修复摘要（如 SQLite 列可空/缺列重建），与业务失败 ErrorSummary 分离。</summary>
+    [SugarColumn(IsNullable = true)]
+    public string? SchemaRepairLog { get; private set; }
     public long CreatedBy { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
     public long UpdatedBy { get; private set; }
@@ -108,6 +111,7 @@ public sealed class AppMigrationTask : TenantEntity
         UpdatedBy = userId;
         UpdatedAt = now;
         ErrorSummary = null;
+        SchemaRepairLog = null;
     }
 
     public void MarkObjectProgress(string objectName, int batchNo, int completed, int failed, long userId, DateTimeOffset now)
@@ -165,6 +169,31 @@ public sealed class AppMigrationTask : TenantEntity
     {
         Status = AppMigrationTaskStatuses.RolledBack;
         Phase = "RolledBack";
+        UpdatedBy = userId;
+        UpdatedAt = now;
+    }
+
+    public void ResetForRetry(long userId, DateTimeOffset now)
+    {
+        Status = AppMigrationTaskStatuses.Pending;
+        Phase = "Created";
+        TotalItems = 0;
+        CompletedItems = 0;
+        FailedItems = 0;
+        ProgressPercent = 0;
+        CurrentObjectName = null;
+        CurrentBatchNo = null;
+        ErrorSummary = null;
+        SchemaRepairLog = null;
+        StartedAt = null;
+        FinishedAt = null;
+        UpdatedBy = userId;
+        UpdatedAt = now;
+    }
+
+    public void SetSchemaRepairLog(string? log, long userId, DateTimeOffset now)
+    {
+        SchemaRepairLog = log;
         UpdatedBy = userId;
         UpdatedAt = now;
     }
@@ -247,6 +276,7 @@ public sealed class AppMigrationProgressSnapshot : TenantEntity
         string? currentObjectName,
         int? currentBatchNo,
         string? errorSummary,
+        string? schemaRepairLog,
         long id,
         DateTimeOffset now)
         : base(tenantId)
@@ -262,6 +292,7 @@ public sealed class AppMigrationProgressSnapshot : TenantEntity
         CurrentObjectName = currentObjectName;
         CurrentBatchNo = currentBatchNo;
         ErrorSummary = errorSummary;
+        SchemaRepairLog = schemaRepairLog;
         CreatedAt = now;
     }
 
@@ -278,6 +309,8 @@ public sealed class AppMigrationProgressSnapshot : TenantEntity
     public int? CurrentBatchNo { get; private set; }
     [SugarColumn(IsNullable = true)]
     public string? ErrorSummary { get; private set; }
+    [SugarColumn(IsNullable = true)]
+    public string? SchemaRepairLog { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
 }
 

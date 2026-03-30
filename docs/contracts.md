@@ -796,6 +796,20 @@ JWT Claims（新增）：
 
 - `POST /api/v1/app-migrations`：创建迁移任务（`appInstanceId` 为字符串，避免长整型精度丢失）
 - `POST /api/v1/app-migrations/repair-primary-binding`：显式修复应用实例主数据源绑定（混合模式）
+- `POST /api/v1/app-migrations/{id}/reset`：失败任务重置为可重试状态（仅 `Failed` 状态可执行）
+
+### SQLite 应用库结构自修复（迁移执行阶段）
+
+- 当目标应用数据源为 **SQLite** 时，执行 `POST .../start` 会在数据同步前对应用库内应用域表做 **按需** 结构对齐：检测历史上错误建成 `NOT NULL` 或缺列的字段，与当前实体定义不一致时 **整表按 ORM 重建并回灌数据**（与主库 `DatabaseInitializerHostedService` 共用同一套规则入口）。
+- 首批覆盖表：`AppRole`（如 `DeptIds`）、`AppDepartment`（`ParentId`）、`AppPermission` / `AppPosition` / `AppProject`（`Description` 等可空列）等。
+- 任务实体与进度快照包含 **`schemaRepairLog`**（文本摘要），列表 `GET /api/v1/app-migrations`、详情 `GET /api/v1/app-migrations/{id}`、进度 `GET .../progress` 均可能返回该字段，供控制台「结构自修复」列展示。
+- 迁移失败若由 SQLite 约束引起（如 `NOT NULL constraint failed`），`errorSummary` 中会附带可读的列定位与重试/结构对齐提示。
+
+**回归场景（手工验证建议）：**
+
+1. 应用库为历史 SQLite，`AppRole.DeptIds` 列为 `NOT NULL`：执行迁移 `start` 后应完成结构对齐（`schemaRepairLog` 含 `AppRole`），数据复制不因 `DeptIds` 中断。
+2. 应用库为历史 SQLite，`AppDepartment.ParentId` 为 `NOT NULL`：同上，对齐后根部门复制使用自引用策略，任务可继续。
+3. 多租户下并发创建/执行迁移任务：各租户任务独立；同一应用实例失败 `reset` 后再次 `start`，结构阶段应幂等（已对齐表不重复破坏数据）。
 
 请求示例（修复主绑定）：
 

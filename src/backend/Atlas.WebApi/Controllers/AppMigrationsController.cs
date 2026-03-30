@@ -151,4 +151,16 @@ public sealed class AppMigrationsController : ControllerBase
         var result = await _migrationService.RollbackCutoverAsync(tenantId, user?.UserId ?? 0, id, cancellationToken);
         return Ok(ApiResponse<AppMigrationActionResult>.Ok(result, HttpContext.TraceIdentifier));
     }
+
+    [HttpPost("{id:long}/reset")]
+    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
+    public async Task<ActionResult<ApiResponse<AppMigrationActionResult>>> Reset(
+        long id,
+        CancellationToken cancellationToken = default)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var user = _currentUserAccessor.GetCurrentUser();
+        var result = await _migrationService.ResetFailedTaskAsync(tenantId, user?.UserId ?? 0, id, cancellationToken);
+        return Ok(ApiResponse<AppMigrationActionResult>.Ok(result, HttpContext.TraceIdentifier));
+    }
 }

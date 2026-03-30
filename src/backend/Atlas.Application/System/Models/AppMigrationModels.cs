@@ -21,7 +21,8 @@ public sealed record AppMigrationTaskListItem(
     DateTimeOffset CreatedAt,
     DateTimeOffset? StartedAt,
     DateTimeOffset? FinishedAt,
-    string? ErrorSummary);
+    string? ErrorSummary,
+    string? SchemaRepairLog);
 
 public sealed record AppMigrationTaskDetail(
     string Id,
@@ -42,7 +43,8 @@ public sealed record AppMigrationTaskDetail(
     DateTimeOffset CreatedAt,
     DateTimeOffset? StartedAt,
     DateTimeOffset? FinishedAt,
-    string? ErrorSummary);
+    string? ErrorSummary,
+    string? SchemaRepairLog);
 
 public sealed record AppMigrationTaskProgress(
     string TaskId,
@@ -55,7 +57,8 @@ public sealed record AppMigrationTaskProgress(
     string? CurrentObjectName,
     int? CurrentBatchNo,
     DateTimeOffset UpdatedAt,
-    string? ErrorSummary);
+    string? ErrorSummary,
+    string? SchemaRepairLog);
 
 public sealed record AppMigrationPrecheckResult(
     string TaskId,

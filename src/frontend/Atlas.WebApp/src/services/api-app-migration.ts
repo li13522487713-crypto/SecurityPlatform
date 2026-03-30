@@ -14,6 +14,8 @@ export interface AppMigrationTaskListItem {
   startedAt?: string | null;
   finishedAt?: string | null;
   errorSummary?: string | null;
+  /** SQLite 应用库结构按需对齐摘要（迁移 Schema 阶段写入） */
+  schemaRepairLog?: string | null;
 }
 
 export interface AppMigrationTaskDetail extends AppMigrationTaskListItem {
@@ -37,6 +39,7 @@ export interface AppMigrationTaskProgress {
   currentBatchNo?: number | null;
   updatedAt: string;
   errorSummary?: string | null;
+  schemaRepairLog?: string | null;
 }
 
 export interface AppMigrationPrecheckResult {
@@ -177,6 +180,17 @@ export async function rollbackAppMigrationTask(id: string) {
   );
   if (!response.data) {
     throw new Error(response.message || "执行回切失败");
+  }
+  return response.data;
+}
+
+export async function resetAppMigrationTask(id: string) {
+  const response = await requestApi<ApiResponse<{ success: boolean; taskId: string; status: string; message?: string }>>(
+    `/app-migrations/${id}/reset`,
+    { method: "POST" }
+  );
+  if (!response.data) {
+    throw new Error(response.message || "重置迁移任务失败");
   }
   return response.data;
 }

@@ -39,7 +39,7 @@ Idempotency-Key: app-migration-repair-binding-001
   "appInstanceId": "10001"
 }
 
-### 查询任务列表
+### 查询任务列表（items[].schemaRepairLog：SQLite 结构自修复摘要，执行 start 后写入）
 GET {{host}}/api/v1/app-migrations?pageIndex=1&pageSize=20
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
@@ -84,3 +84,9 @@ POST {{host}}/api/v1/app-migrations/{{createTask.response.body.data.id}}/rollbac
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Idempotency-Key: app-migration-rollback-001
+
+### 失败任务重置（可重试）
+POST {{host}}/api/v1/app-migrations/{{createTask.response.body.data.id}}/reset
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: app-migration-reset-001
