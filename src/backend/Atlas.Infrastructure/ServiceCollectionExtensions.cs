@@ -173,6 +173,12 @@ public static class ServiceCollectionExtensions
                     it => it.TenantIdValue == tenantId.Value);
             }
 
+            // SQLite：启用 WAL 日志模式（读写不互斥）+ 写锁等待 5 s（避免并发写立即报 database is locked）
+            if (dbType == DbType.Sqlite)
+            {
+                db.Ado.ExecuteCommand("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;");
+            }
+
             return db;
         });
 

@@ -158,9 +158,16 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
 
                 appDb.DbMaintenance.CreateIndex(indexSpec.IndexName, indexSpec.Fields.ToArray(), table.TableKey, indexSpec.IsUnique);
             }
-            await _tableRepository.AddAsync(table, cancellationToken);
-            await _fieldRepository.AddRangeAsync(fields, cancellationToken);
-            await _indexRepository.AddRangeAsync(indexes, cancellationToken);
+            await appDb.Insertable(table).ExecuteCommandAsync(cancellationToken);
+            if (fields.Count > 0)
+            {
+                await appDb.Insertable(fields.ToList()).ExecuteCommandAsync(cancellationToken);
+            }
+
+            if (indexes.Count > 0)
+            {
+                await appDb.Insertable(indexes.ToList()).ExecuteCommandAsync(cancellationToken);
+            }
         });
 
         if (!result.IsSuccess)
@@ -279,14 +286,34 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
                 appDb.DbMaintenance.CreateIndex(index.Name, fields, table.TableKey, index.IsUnique);
             }
 
-            await _fieldRepository.AddRangeAsync(newFields, cancellationToken);
-            await _fieldRepository.UpdateRangeAsync(fieldsToUpdate, cancellationToken);
-            await _indexRepository.AddRangeAsync(generatedIndexes, cancellationToken);
+            if (newFields.Count > 0)
+            {
+                await appDb.Insertable(newFields.ToList()).ExecuteCommandAsync(cancellationToken);
+            }
+
+            if (fieldsToUpdate.Count > 0)
+            {
+                var affected = await appDb.Updateable(fieldsToUpdate.ToList())
+                    .WhereColumns(x => new { x.Id, x.TenantIdValue })
+                    .ExecuteCommandAsync(cancellationToken);
+                if (affected == 0)
+                {
+                    throw new InvalidOperationException("批量更新动态字段失败。");
+                }
+            }
+
+            if (generatedIndexes.Count > 0)
+            {
+                await appDb.Insertable(generatedIndexes.ToList()).ExecuteCommandAsync(cancellationToken);
+            }
+
             await DeleteRemovedMetadataAsync(tenantId, table, fieldsToRemove, indexesToDrop, appDb, cancellationToken);
-            await _tableRepository.UpdateAsync(table, cancellationToken);
+            await appDb.Updateable(table)
+                .Where(x => x.Id == table.Id && x.TenantIdValue == table.TenantIdValue)
+                .ExecuteCommandAsync(cancellationToken);
             if (_migrationRepository is not null)
             {
-                await _migrationRepository.AddAsync(migrationRecord, cancellationToken);
+                await appDb.Insertable(migrationRecord).ExecuteCommandAsync(cancellationToken);
             }
         });
 
@@ -351,11 +378,22 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
         var result = await appDb.Ado.UseTranAsync(async () =>
         {
             appDb.DbMaintenance.DropTable(table.TableKey);
-            await _fieldRepository.DeleteByTableIdAsync(tenantId, table.Id, cancellationToken);
-            await _indexRepository.DeleteByTableIdAsync(tenantId, table.Id, cancellationToken);
-            await _relationRepository.DeleteByTableIdAsync(tenantId, table.Id, cancellationToken);
-            await _fieldPermissionRepository.ReplaceByTableKeyAsync(tenantId, tableKey, table.AppId, Array.Empty<FieldPermission>(), cancellationToken);
-            await _tableRepository.DeleteAsync(tenantId, table.Id, cancellationToken);
+            var scopedTableKey = BuildFieldPermissionTableKey(table.TableKey, table.AppId);
+            await appDb.Deleteable<DynamicField>()
+                .Where(x => x.TenantIdValue == tenantId.Value && x.TableId == table.Id)
+                .ExecuteCommandAsync(cancellationToken);
+            await appDb.Deleteable<DynamicIndex>()
+                .Where(x => x.TenantIdValue == tenantId.Value && x.TableId == table.Id)
+                .ExecuteCommandAsync(cancellationToken);
+            await appDb.Deleteable<DynamicRelation>()
+                .Where(x => x.TenantIdValue == tenantId.Value && x.TableId == table.Id)
+                .ExecuteCommandAsync(cancellationToken);
+            await appDb.Deleteable<FieldPermission>()
+                .Where(x => x.TenantIdValue == tenantId.Value && x.TableKey == scopedTableKey)
+                .ExecuteCommandAsync(cancellationToken);
+            await appDb.Deleteable<DynamicTable>()
+                .Where(x => x.TenantIdValue == tenantId.Value && x.Id == table.Id)
+                .ExecuteCommandAsync(cancellationToken);
         });
 
         if (!result.IsSuccess)
@@ -438,8 +476,13 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
         var appDb = await ResolveAppDbAsync(tenantId, table.AppId, cancellationToken);
         var tran = await appDb.Ado.UseTranAsync(async () =>
         {
-            await _relationRepository.DeleteByTableIdAsync(tenantId, table.Id, cancellationToken);
-            await _relationRepository.AddRangeAsync(relationEntities, cancellationToken);
+            await appDb.Deleteable<DynamicRelation>()
+                .Where(x => x.TenantIdValue == tenantId.Value && x.TableId == table.Id)
+                .ExecuteCommandAsync(cancellationToken);
+            if (relationEntities.Count > 0)
+            {
+                await appDb.Insertable(relationEntities.ToList()).ExecuteCommandAsync(cancellationToken);
+            }
         });
 
         if (!tran.IsSuccess)
