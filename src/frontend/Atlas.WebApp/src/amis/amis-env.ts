@@ -217,9 +217,10 @@ export function createAmisEnv(): AmisEnv {
       const payload = await requestApi<ApiResponse<JsonValue>>(finalPath, init, {
         suppressErrorMessage: true
       });
+      const isSuccess = payload.success !== false;
       return {
         data: (payload.data ?? null) as JsonValue,
-        ok: true,
+        ok: isSuccess,
         status: 200,
         msg: payload.message
       };

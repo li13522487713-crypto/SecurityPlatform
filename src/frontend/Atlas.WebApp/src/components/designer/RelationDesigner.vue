@@ -201,7 +201,10 @@ async function loadRelationsForTable(tableKey: string): Promise<DynamicRelationD
 
 /** 当画布上有新表节点时，添加与其他已在画布节点之间的已有关系连线 */
 async function syncEdgesForNewNode(newTableKey: string) {
-  const canvasKeys = new Set(nodes.value.map((n) => n.id));
+  const canvasKeys = new Set<string>();
+  for (const node of nodes.value) {
+    canvasKeys.add(String(node.id));
+  }
 
   // 加载新表的出向关系
   const outgoing = await loadRelationsForTable(newTableKey);
@@ -209,17 +212,15 @@ async function syncEdgesForNewNode(newTableKey: string) {
     if (!canvasKeys.has(rel.relatedTableKey)) continue;
     const edgeId = `${newTableKey}-${rel.relatedTableKey}-existing`;
     if (edges.value.some((e) => e.id === edgeId)) continue;
-    edges.value = [
-      ...edges.value,
-      {
-        id: edgeId,
-        source: newTableKey,
-        target: rel.relatedTableKey,
-        label: buildEdgeLabel(rel),
-        markerEnd: MarkerType.ArrowClosed,
-        data: { definition: rel }
-      }
-    ];
+    const newEdge = {
+      id: edgeId,
+      source: newTableKey,
+      target: rel.relatedTableKey,
+      label: buildEdgeLabel(rel),
+      markerEnd: MarkerType.ArrowClosed,
+      data: { definition: rel }
+    } as Edge;
+    (edges.value as unknown as Edge[]).push(newEdge);
   }
 
   // 检查画布上其他表是否有指向新表的关系
@@ -230,17 +231,15 @@ async function syncEdgesForNewNode(newTableKey: string) {
       if (rel.relatedTableKey !== newTableKey) continue;
       const edgeId = `${key}-${newTableKey}-existing`;
       if (edges.value.some((e) => e.id === edgeId)) continue;
-      edges.value = [
-        ...edges.value,
-        {
-          id: edgeId,
-          source: key,
-          target: newTableKey,
-          label: buildEdgeLabel(rel),
-          markerEnd: MarkerType.ArrowClosed,
-          data: { definition: rel }
-        }
-      ];
+      const newEdge = {
+        id: edgeId,
+        source: key,
+        target: newTableKey,
+        label: buildEdgeLabel(rel),
+        markerEnd: MarkerType.ArrowClosed,
+        data: { definition: rel }
+      } as Edge;
+      (edges.value as unknown as Edge[]).push(newEdge);
     }
   }
 }
@@ -267,14 +266,13 @@ function onDrop(e: DragEvent) {
   const x = e.clientX - rect.left;
   const y = e.clientY - rect.top;
 
-  const newNode: Node = {
+  const newNode = {
     id: tableKey,
     type: "tableNode",
     position: { x, y },
     data: { table: tbl }
-  };
-  // @ts-expect-error TS2589: Vue Flow Node generic causes excessively deep type instantiation with Vue reactivity
-  nodes.value.push(newNode);
+  } as Node;
+  (nodes.value as unknown as Node[]).push(newNode);
   void syncEdgesForNewNode(tableKey);
 }
 
@@ -296,17 +294,15 @@ function onRelationConfirm(definition: DynamicRelationDefinition) {
   if (!pendingEdge.value) return;
 
   const label = buildEdgeLabel(definition);
-  edges.value = [
-    ...edges.value,
-    {
-      id: pendingEdge.value.id,
-      source: pendingEdge.value.sourceTableKey,
-      target: pendingEdge.value.targetTableKey,
-      label,
-      markerEnd: MarkerType.ArrowClosed,
-      data: { definition }
-    }
-  ];
+  const newEdge = {
+    id: pendingEdge.value.id,
+    source: pendingEdge.value.sourceTableKey,
+    target: pendingEdge.value.targetTableKey,
+    label,
+    markerEnd: MarkerType.ArrowClosed,
+    data: { definition }
+  } as Edge;
+  (edges.value as unknown as Edge[]).push(newEdge);
   pendingEdge.value = null;
   configModalOpen.value = false;
 }
@@ -326,15 +322,18 @@ function onEdgeClick(params: { edge: Edge }) {
     definition: edge.data?.definition as DynamicRelationDefinition | undefined
   };
   // 先移除旧边，弹窗确认后重新添加
-  edges.value = edges.value.filter((e) => e.id !== edge.id);
+  const filteredByEdit = (edges.value as unknown as Edge[]).filter((e) => e.id !== edge.id);
+  edges.value = filteredByEdit as typeof edges.value;
   configModalOpen.value = true;
 }
 
 function removeNode(nodeId: string) {
-  nodes.value = nodes.value.filter((n) => n.id !== nodeId);
-  edges.value = edges.value.filter(
+  const filteredNodes = (nodes.value as unknown as Node[]).filter((n) => n.id !== nodeId);
+  const filteredEdges = (edges.value as unknown as Edge[]).filter(
     (e) => e.source !== nodeId && e.target !== nodeId
   );
+  nodes.value = filteredNodes as typeof nodes.value;
+  edges.value = filteredEdges as typeof edges.value;
   relationsCache.value.delete(nodeId);
 }
 
@@ -360,7 +359,10 @@ async function handleSave() {
     }
 
     // 逐表顺序保存，保证失败时可定位到具体表
-    const canvasTableKeys = nodes.value.map((n) => n.id);
+    const canvasTableKeys: string[] = [];
+    for (const node of nodes.value as unknown as Node[]) {
+      canvasTableKeys.push(String(node.id));
+    }
     for (const key of canvasTableKeys) {
       try {
         await setDynamicTableRelations(key, { relations: byTable.get(key) ?? [] });

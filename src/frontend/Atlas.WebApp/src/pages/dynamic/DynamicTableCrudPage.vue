@@ -1,5 +1,8 @@
 <template>
   <a-card :title="pageTitle" class="page-card">
+    <template #extra>
+      <a-button type="primary" ghost @click="openFieldDesign">设计字段</a-button>
+    </template>
     <a-spin :spinning="loading">
       <AmisRenderer v-if="schema" :schema="schema" :data="pageData" />
       <a-empty v-else-if="!loading" :description="t('dynamic.emptyNoPage')" />
@@ -17,13 +20,14 @@ const isMounted = ref(false);
 onMounted(() => { isMounted.value = true; });
 onUnmounted(() => { isMounted.value = false; });
 
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { message } from "ant-design-vue";
 import AmisRenderer from "@/components/amis/amis-renderer.vue";
 import { getDynamicAmisSchema, getDynamicTableDetail } from "@/services/dynamic-tables";
 import type { AmisSchema } from "@/types/amis";
 
 const route = useRoute();
+const router = useRouter();
 const loading = ref(false);
 const schema = ref<AmisSchema | null>(null);
 const pageTitle = ref(t("dynamic.crudTitle"));
@@ -78,6 +82,15 @@ const loadSchema = async () => {
       loading.value = false;
     }
   }
+};
+
+const openFieldDesign = () => {
+  const appId = typeof route.params.appId === "string" ? route.params.appId : "";
+  if (!appId || !tableKey.value) {
+    return;
+  }
+
+  void router.push(`/apps/${encodeURIComponent(appId)}/data/${encodeURIComponent(tableKey.value)}/design`);
 };
 
 onMounted(() => {

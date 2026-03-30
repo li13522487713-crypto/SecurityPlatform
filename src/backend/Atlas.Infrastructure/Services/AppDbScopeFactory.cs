@@ -101,12 +101,6 @@ public sealed class AppDbScopeFactory : IAppDbScopeFactory
             var scope = new SqlSugarScope(config);
             scope.QueryFilter.AddTableFilter<Atlas.Core.Abstractions.TenantEntity>(it => it.TenantIdValue == tenantId.Value);
 
-            // SQLite：启用 WAL 日志模式（读写不互斥）+ 写锁等待 5 s（避免并发写立即报 database is locked）
-            if (dbType == DbType.Sqlite)
-            {
-                scope.Ado.ExecuteCommand("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;");
-            }
-
             return scope;
         });
 
@@ -156,25 +150,27 @@ public sealed class AppDbScopeFactory : IAppDbScopeFactory
 
     private static void EnsureDynamicTableNullableColumns(ISqlSugarClient db)
     {
-        var pragma = db.Ado.GetDataTable("PRAGMA table_info(\"DynamicTable\");");
-        if (pragma is null || pragma.Rows.Count == 0)
+        if (!db.DbMaintenance.IsAnyTable("DynamicTable", false))
         {
             return;
         }
 
-        var columnNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var notNullColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (System.Data.DataRow row in pragma.Rows)
+        var columns = db.DbMaintenance.GetColumnInfosByTableName("DynamicTable", false);
+        if (columns.Count == 0)
         {
-            var name = row["name"]?.ToString();
+            return;
+        }
+
+        var notNullColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var column in columns)
+        {
+            var name = column.DbColumnName;
             if (string.IsNullOrWhiteSpace(name))
             {
                 continue;
             }
 
-            columnNames.Add(name);
-            var notNull = Convert.ToInt32(row["notnull"]) == 1;
-            if (notNull)
+            if (!column.IsNullable)
             {
                 notNullColumns.Add(name);
             }
@@ -191,47 +187,22 @@ public sealed class AppDbScopeFactory : IAppDbScopeFactory
             return;
         }
 
+        var rows = db.Queryable<DynamicTable>().ToList();
+
         var result = db.Ado.UseTran(() =>
         {
-            db.Ado.ExecuteCommand("ALTER TABLE \"DynamicTable\" RENAME TO \"DynamicTable__old\";");
+            db.DbMaintenance.DropTable("DynamicTable");
             db.CodeFirst.InitTables(typeof(DynamicTable));
-
-            var copySql = $@"
-INSERT INTO ""DynamicTable"" (
-    ""TableKey"", ""DisplayName"", ""Description"", ""DbType"", ""Status"", ""CreatedAt"", ""UpdatedAt"",
-    ""CreatedBy"", ""UpdatedBy"", ""AppId"", ""ApprovalFlowDefinitionId"", ""ApprovalStatusField"",
-    ""TenantIdValue"", ""Id""
-)
-SELECT
-    ""TableKey"",
-    ""DisplayName"",
-    {BuildSourceExpression(columnNames, "Description", "NULLIF(\"Description\", '')")},
-    ""DbType"",
-    ""Status"",
-    ""CreatedAt"",
-    ""UpdatedAt"",
-    ""CreatedBy"",
-    ""UpdatedBy"",
-    {BuildSourceExpression(columnNames, "AppId", "NULLIF(\"AppId\", 0)")},
-    {BuildSourceExpression(columnNames, "ApprovalFlowDefinitionId", "NULLIF(\"ApprovalFlowDefinitionId\", 0)")},
-    {BuildSourceExpression(columnNames, "ApprovalStatusField", "NULLIF(\"ApprovalStatusField\", '')")},
-    ""TenantIdValue"",
-    ""Id""
-FROM ""DynamicTable__old"";
-";
-            db.Ado.ExecuteCommand(copySql);
-            db.Ado.ExecuteCommand("DROP TABLE \"DynamicTable__old\";");
+            if (rows.Count > 0)
+            {
+                db.Insertable(rows).ExecuteCommand();
+            }
         });
 
         if (!result.IsSuccess)
         {
             throw result.ErrorException ?? new InvalidOperationException("修复 DynamicTable 兼容结构失败。");
         }
-    }
-
-    private static string BuildSourceExpression(HashSet<string> existingColumns, string columnName, string expression)
-    {
-        return existingColumns.Contains(columnName) ? expression : "NULL";
     }
 
     private static void EnsureDynamicFieldNullableColumns(ISqlSugarClient db)
@@ -241,22 +212,22 @@ FROM ""DynamicTable__old"";
             return;
         }
 
-        var pragma = db.Ado.GetDataTable("PRAGMA table_info(\"DynamicField\");");
-        if (pragma is null || pragma.Rows.Count == 0)
+        var columns = db.DbMaintenance.GetColumnInfosByTableName("DynamicField", false);
+        if (columns.Count == 0)
         {
             return;
         }
 
         var notNullColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (System.Data.DataRow row in pragma.Rows)
+        foreach (var column in columns)
         {
-            var name = row["name"]?.ToString();
+            var name = column.DbColumnName;
             if (string.IsNullOrWhiteSpace(name))
             {
                 continue;
             }
 
-            if (Convert.ToInt32(row["notnull"]) == 1)
+            if (!column.IsNullable)
             {
                 notNullColumns.Add(name);
             }

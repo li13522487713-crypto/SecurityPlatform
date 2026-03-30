@@ -5,6 +5,8 @@ import type {
   DynamicTableCreateRequest,
   DynamicTableUpdateRequest,
   DynamicFieldDefinition,
+  DynamicTableAlterRequest,
+  DynamicTableAlterPreviewResponse,
   DynamicFieldPermissionRule,
   DynamicFieldPermissionUpsertRequest,
   DynamicRelationDefinition,
@@ -207,6 +209,41 @@ export async function getDynamicAmisSchema(path: string): Promise<JsonValue> {
     throw new Error(response.message || "加载 AMIS Schema 失败");
   }
   return response.data;
+}
+
+export async function previewDynamicTableAlter(
+  tableKey: string,
+  request: DynamicTableAlterRequest
+): Promise<DynamicTableAlterPreviewResponse> {
+  const response = await requestApi<ApiResponse<DynamicTableAlterPreviewResponse>>(
+    `/dynamic-tables/${encodeURIComponent(tableKey)}/schema/alter/preview`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request)
+    }
+  );
+  if (!response.data) {
+    throw new Error(response.message || "预览变更失败");
+  }
+  return response.data;
+}
+
+export async function alterDynamicTableSchema(
+  tableKey: string,
+  request: DynamicTableAlterRequest
+): Promise<void> {
+  const response = await requestApi<ApiResponse<{ tableKey: string }>>(
+    `/dynamic-tables/${encodeURIComponent(tableKey)}/schema/alter`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request)
+    }
+  );
+  if (!response.success) {
+    throw new Error(response.message || "应用变更失败");
+  }
 }
 
 // ---- 审批流绑定 ----

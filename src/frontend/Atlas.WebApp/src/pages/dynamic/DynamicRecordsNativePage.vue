@@ -145,6 +145,7 @@ const fetchData = async () => {
     const request: DynamicRecordQueryRequest = {
       pageIndex: pagination.current ?? 1,
       pageSize: pagination.pageSize ?? 20,
+      filters: [],
       advancedQuery: hasAdvancedRules ? advancedQueryConfig.value : undefined
     };
 

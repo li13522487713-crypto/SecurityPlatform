@@ -34,9 +34,6 @@
           "args": {
             "link": "/apps/${appId || currentAppId}/data/${tableKey}"
           }
-        },
-        {
-          "actionType": "closeDrawer"
         }
       ]
     }

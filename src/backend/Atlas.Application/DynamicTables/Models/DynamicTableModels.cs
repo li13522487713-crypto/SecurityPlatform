@@ -155,7 +155,7 @@ public sealed record DynamicRecordQueryRequest(
     string? Keyword,
     string? SortBy,
     bool SortDesc,
-    IReadOnlyList<DynamicFilterCondition> Filters)
+    IReadOnlyList<DynamicFilterCondition>? Filters)
 {
     public AdvancedQueryConfig? AdvancedQuery { get; init; }
 }
@@ -164,7 +164,7 @@ public sealed record DynamicRecordExportRequest(
     string? Keyword,
     string? SortBy,
     bool SortDesc,
-    IReadOnlyList<DynamicFilterCondition> Filters,
+    IReadOnlyList<DynamicFilterCondition>? Filters,
     IReadOnlyList<string>? Fields);
 
 public sealed record DynamicFilterCondition(

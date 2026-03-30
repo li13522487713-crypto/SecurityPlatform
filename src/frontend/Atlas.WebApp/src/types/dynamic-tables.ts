@@ -36,6 +36,13 @@ export interface DynamicFieldDefinition {
   isUnique: boolean;
   defaultValue?: string | null;
   sortOrder: number;
+  validation?: DynamicFieldValidationDefinition | null;
+}
+
+export interface DynamicFieldValidationDefinition {
+  pattern?: string | null;
+  minLength?: number | null;
+  maxLength?: number | null;
 }
 
 export interface DynamicIndexDefinition {
@@ -92,6 +99,32 @@ export interface DynamicTableUpdateRequest {
   displayName: string;
   description?: string | null;
   status: "Draft" | "Active" | "Disabled";
+}
+
+export interface DynamicFieldUpdateDefinition {
+  name: string;
+  displayName?: string | null;
+  length?: number | null;
+  precision?: number | null;
+  scale?: number | null;
+  allowNull?: boolean | null;
+  isUnique?: boolean | null;
+  defaultValue?: string | null;
+  sortOrder?: number | null;
+  validation?: DynamicFieldValidationDefinition | null;
+}
+
+export interface DynamicTableAlterRequest {
+  addFields: DynamicFieldDefinition[];
+  updateFields: DynamicFieldUpdateDefinition[];
+  removeFields: string[];
+}
+
+export interface DynamicTableAlterPreviewResponse {
+  tableKey: string;
+  operationType: string;
+  sqlScripts: string[];
+  rollbackHint?: string | null;
 }
 
 export interface DynamicFieldValueDto {

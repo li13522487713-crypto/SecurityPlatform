@@ -47,6 +47,12 @@
             },
             {
               "type": "button",
+              "label": "设计字段",
+              "actionType": "link",
+              "link": "/apps/${appId || currentAppId}/data/${tableKey}/design"
+            },
+            {
+              "type": "button",
               "label": "绑定审批流",
               "actionType": "dialog",
               "dialog": {

@@ -20,6 +20,7 @@ export interface AmisEnv {
   alert: (msg: string) => void;
   confirm: (msg: string) => Promise<boolean>;
   updateLocation?: (location: string, replace?: boolean) => void;
+  jumpTo?: (to: string, action?: unknown) => void;
   locale?: string;
   data?: Record<string, unknown>;
 }

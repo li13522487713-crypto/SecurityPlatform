@@ -119,10 +119,13 @@ const loadSchema = async () => {
   try {
     schema.value = (await getDynamicAmisSchema("list")) as AmisSchema;
   } catch (error) {
+    if (!isMounted.value) return;
     schema.value = null;
     message.error((error as Error).message || t("dynamic.loadPageFailed", "动态表页面加载失败"));
   } finally {
-    loading.value = false;
+    if (isMounted.value) {
+      loading.value = false;
+    }
   }
 };
 
@@ -156,9 +159,12 @@ const loadAppOptions = async () => {
       value: item.id
     }));
   } catch (error) {
+    if (!isMounted.value) return;
     message.error((error as Error).message || t("dynamic.loadAppsFailed", "应用列表加载失败"));
   } finally {
-    appLoading.value = false;
+    if (isMounted.value) {
+      appLoading.value = false;
+    }
   }
 };
 

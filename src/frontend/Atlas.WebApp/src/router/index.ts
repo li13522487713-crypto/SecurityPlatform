@@ -59,6 +59,7 @@ const AppFlowsPage = () => import("@/pages/ApprovalFlowsPage.vue");
 const AppDataPage = () => import("@/pages/dynamic/DynamicTablesPage.vue");
 const ERDCanvasPage = () => import("@/pages/dynamic/ERDCanvasPage.vue");
 const DynamicTableCrudPage = () => import("@/pages/dynamic/DynamicTableCrudPage.vue");
+const DynamicTableDesignPage = () => import("@/pages/dynamic/DynamicTableDesignPage.vue");
 const DynamicRecordsNativePage = () => import("@/pages/dynamic/DynamicRecordsNativePage.vue");
 const AppOrganizationPage = () => import("@/pages/apps/AppOrganizationPage.vue");
 const AppPermissionsPage = () => import("@/pages/system/PermissionsPage.vue");
@@ -186,6 +187,7 @@ const router = createRouter({
     { path: "/apps/:appId/data", name: "app-workspace-data", component: AppDataPage, meta: { requiresAuth: true, title: "数据管理", titleKey: "route.dataManage", requiresPermission: "apps:view" } },
     { path: "/apps/:appId/data/erd", name: "app-workspace-data-erd", component: ERDCanvasPage, meta: { requiresAuth: true, title: "ERD 设计器", titleKey: "route.dataManage", requiresPermission: "apps:update" } },
     { path: "/apps/:appId/data/:tableKey", name: "app-workspace-data-crud", component: DynamicTableCrudPage, meta: { requiresAuth: true, title: "动态数据管理", titleKey: "route.dataManage", requiresPermission: "apps:view" } },
+    { path: "/apps/:appId/data/:tableKey/design", name: "app-workspace-data-design", component: DynamicTableDesignPage, meta: { requiresAuth: true, title: "字段设计", titleKey: "route.dataManage", requiresPermission: "apps:update" } },
     { path: "/apps/:appId/data/:tableKey/native", name: "app-workspace-data-native", component: DynamicRecordsNativePage, meta: { requiresAuth: true, title: "原生记录视图", titleKey: "route.dataManage", requiresPermission: "apps:view" } },
     { path: "/apps/:appId/org", name: "app-workspace-org", component: AppOrganizationPage, meta: { requiresAuth: true, title: "组织管理", titleKey: "route.appOrganization", requiresPermission: "apps:view" } },
     { path: "/apps/:appId/permissions", name: "app-workspace-permissions", component: AppPermissionsPage, meta: { requiresAuth: true, title: "权限入口", titleKey: "route.permissionsEntry", requiresPermission: "apps:view" } },

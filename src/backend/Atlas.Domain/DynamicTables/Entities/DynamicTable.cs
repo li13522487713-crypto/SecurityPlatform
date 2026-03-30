@@ -50,6 +50,7 @@ public sealed class DynamicTable : TenantEntity
 
     public string TableKey { get; private set; }
     public string DisplayName { get; private set; }
+    [SugarColumn(IsNullable = true)]
     public string? Description { get; private set; }
     public DynamicDbType DbType { get; private set; }
     public DynamicTableStatus Status { get; private set; }
@@ -57,6 +58,7 @@ public sealed class DynamicTable : TenantEntity
     public DateTimeOffset UpdatedAt { get; private set; }
     public long CreatedBy { get; private set; }
     public long UpdatedBy { get; private set; }
+    [SugarColumn(IsNullable = true)]
     public long? AppId { get; private set; }
 
     /// <summary>关联的审批流定义 ID（null 表示未绑定审批流）</summary>
