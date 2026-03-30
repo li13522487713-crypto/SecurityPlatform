@@ -48,7 +48,7 @@ export async function getMyNotifications(
   pageSize = 20,
   isRead?: boolean
 ): Promise<PagedResult<UserNotificationDto>> {
-  const query = new URLSearchParams({ pageIndex: String(pageIndex), pageSize: String(pageSize) });
+  const query = new URLSearchParams({ PageIndex: String(pageIndex), PageSize: String(pageSize) });
   if (typeof isRead === "boolean") query.set("isRead", String(isRead));
   const response = await requestApi<ApiResponse<PagedResult<UserNotificationDto>>>(`/notifications/inbox?${query}`);
   if (!response.data) throw new Error(response.message || "查询失败");
@@ -77,8 +77,8 @@ export async function getNotificationsManage(params: {
   isActive?: boolean;
 }): Promise<PagedResult<NotificationDto>> {
   const query = new URLSearchParams({
-    pageIndex: String(params.pageIndex ?? 1),
-    pageSize: String(params.pageSize ?? 20)
+    PageIndex: String(params.pageIndex ?? 1),
+    PageSize: String(params.pageSize ?? 20)
   });
   if (params.title) query.set("title", params.title);
   if (params.noticeType) query.set("noticeType", params.noticeType);

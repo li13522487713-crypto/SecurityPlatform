@@ -21,6 +21,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
+using System.Diagnostics;
 
 namespace Atlas.WebApi.Controllers;
 
@@ -48,6 +49,7 @@ public sealed class AuthController : ControllerBase
     private readonly IValidator<RegisterViewModel> _registerValidator;
     private readonly IAuditRecorder _auditRecorder;
     private readonly IOptionsMonitor<SecurityOptions> _securityOptionsMonitor;
+    private readonly ILogger<AuthController> _logger;
 
     public AuthController(
         IAuthTokenService authTokenService,
@@ -69,7 +71,8 @@ public sealed class AuthController : ControllerBase
         IValidator<UserProfileUpdateViewModel> profileUpdateValidator,
         IValidator<RegisterViewModel> registerValidator,
         IAuditRecorder auditRecorder,
-        IOptionsMonitor<SecurityOptions> securityOptions)
+        IOptionsMonitor<SecurityOptions> securityOptions,
+        ILogger<AuthController> logger)
     {
         _authTokenService = authTokenService;
         _authProfileService = authProfileService;
@@ -91,6 +94,7 @@ public sealed class AuthController : ControllerBase
         _registerValidator = registerValidator;
         _auditRecorder = auditRecorder;
         _securityOptionsMonitor = securityOptions;
+        _logger = logger;
     }
 
     [HttpGet("captcha")]
@@ -192,11 +196,16 @@ public sealed class AuthController : ControllerBase
     [Authorize]
     public async Task<ActionResult<ApiResponse<AuthProfileResult>>> Me(CancellationToken cancellationToken)
     {
+        var sw = Stopwatch.StartNew();
         var currentUser = _currentUserAccessor.GetCurrentUserOrThrow();
+        _logger.LogInformation("[Auth/Me] 解析CurrentUser 耗时 {Elapsed}ms, UserId={UserId}", sw.ElapsedMilliseconds, currentUser.UserId);
+
         var profile = await _authProfileService.GetProfileAsync(
             currentUser.UserId,
             currentUser.TenantId,
             cancellationToken);
+        _logger.LogInformation("[Auth/Me] GetProfileAsync 耗时 {Elapsed}ms", sw.ElapsedMilliseconds);
+
         if (profile is null)
         {
             return NotFound(ApiResponse<AuthProfileResult>.Fail(ErrorCodes.NotFound, ApiResponseLocalizer.T(HttpContext, "UserNotFound"), HttpContext.TraceIdentifier));
@@ -212,6 +221,7 @@ public sealed class AuthController : ControllerBase
                 clientContext.ClientAgent.ToString())
         };
 
+        _logger.LogInformation("[Auth/Me] 总耗时 {Elapsed}ms", sw.ElapsedMilliseconds);
         return Ok(ApiResponse<AuthProfileResult>.Ok(payloadProfile, HttpContext.TraceIdentifier));
     }
 

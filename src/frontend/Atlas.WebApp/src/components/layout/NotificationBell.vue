@@ -1,8 +1,8 @@
 <template>
-  <a-dropdown trigger="click" placement="bottomRight" :arrow="false" overlay-class-name="notification-dropdown">
+  <a-dropdown trigger="click" placement="bottomRight" :arrow="false" overlay-class-name="notification-dropdown" @visible-change="handlePanelOpen">
     <span data-testid="e2e-notification-bell">
       <a-badge :count="unreadCount > 99 ? '99+' : unreadCount" :offset="[-4, 4]">
-        <a-button type="text" class="bell-btn" @click="refresh">
+        <a-button type="text" class="bell-btn">
           <BellOutlined :style="{ fontSize: '18px' }" />
         </a-button>
       </a-badge>
@@ -71,25 +71,41 @@ const router = useRouter();
 const unreadCount = ref(0);
 const items = ref<UserNotificationDto[]>([]);
 const loading = ref(false);
+let inboxLoaded = false;
 
 let timer: number | undefined;
 
-const refresh = async () => {
+const loadUnreadCount = async () => {
+  try {
+    const count = await getUnreadCount();
+    if (!isMounted.value) return;
+    unreadCount.value = count;
+  } catch {
+    // ignore silently
+  }
+};
+
+const loadInbox = async () => {
+  if (inboxLoaded) return;
   loading.value = true;
   try {
-    const [countResult, listResult]  = await Promise.all([
-      getUnreadCount(),
-      getMyNotifications(1, 5)
-    ]);
-
+    const listResult = await getMyNotifications(1, 5);
     if (!isMounted.value) return;
-    unreadCount.value = countResult;
     items.value = listResult.items;
+    inboxLoaded = true;
   } catch {
     // ignore silently
   } finally {
     loading.value = false;
   }
+};
+
+const handlePanelOpen = async (visible: boolean) => {
+  if (!visible) return;
+  await Promise.all([
+    loadUnreadCount(),
+    loadInbox()
+  ]);
 };
 
 const handleItemClick = async (item: UserNotificationDto) => {
@@ -158,9 +174,9 @@ const formatTime = (iso: string) => {
 const startPolling = () => {
   timer = window.setInterval(async () => {
     try {
-      unreadCount.value = await getUnreadCount();
-
+      const count = await getUnreadCount();
       if (!isMounted.value) return;
+      unreadCount.value = count;
     } catch {
       // ignore
     }
@@ -168,7 +184,7 @@ const startPolling = () => {
 };
 
 onMounted(() => {
-  refresh();
+  void loadUnreadCount();
   startPolling();
 });
 

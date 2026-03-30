@@ -9,6 +9,7 @@ using Atlas.WebApi.Authorization;
 using Atlas.WebApi.Helpers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Diagnostics;
 
 namespace Atlas.WebApi.Controllers;
 
@@ -26,6 +27,7 @@ public sealed class NotificationsController : ControllerBase
     private readonly ICurrentUserAccessor _currentUserAccessor;
     private readonly IClientContextAccessor _clientContextAccessor;
     private readonly IAuditRecorder _auditRecorder;
+    private readonly ILogger<NotificationsController> _logger;
 
     public NotificationsController(
         INotificationQueryService queryService,
@@ -33,7 +35,8 @@ public sealed class NotificationsController : ControllerBase
         ITenantProvider tenantProvider,
         ICurrentUserAccessor currentUserAccessor,
         IClientContextAccessor clientContextAccessor,
-        IAuditRecorder auditRecorder)
+        IAuditRecorder auditRecorder,
+        ILogger<NotificationsController> logger)
     {
         _queryService = queryService;
         _commandService = commandService;
@@ -41,6 +44,7 @@ public sealed class NotificationsController : ControllerBase
         _currentUserAccessor = currentUserAccessor;
         _clientContextAccessor = clientContextAccessor;
         _auditRecorder = auditRecorder;
+        _logger = logger;
     }
 
     // ===== 用户端接口 =====
@@ -53,12 +57,18 @@ public sealed class NotificationsController : ControllerBase
         [FromQuery] bool? isRead = null,
         CancellationToken cancellationToken = default)
     {
+        var sw = Stopwatch.StartNew();
         var tenantId = _tenantProvider.GetTenantId();
         var currentUser = _currentUserAccessor.GetCurrentUser()
             ?? throw new UnauthorizedAccessException();
+        _logger.LogInformation("[Notifications/Inbox] 开始查询 PageIndex={PageIndex} PageSize={PageSize} isRead={IsRead} UserId={UserId}",
+            request.PageIndex, request.PageSize, isRead, currentUser.UserId);
 
         var query = new UserNotificationPagedQuery(request.PageIndex, request.PageSize, isRead);
         var result = await _queryService.GetUserNotificationsAsync(tenantId, currentUser.UserId, query, cancellationToken);
+        _logger.LogInformation("[Notifications/Inbox] 查询完成 共{Total}条 返回{Count}条 耗时{Elapsed}ms",
+            result.Total, result.Items.Count, sw.ElapsedMilliseconds);
+
         return Ok(ApiResponse<PagedResult<UserNotificationDto>>.Ok(result, HttpContext.TraceIdentifier));
     }
 
@@ -66,11 +76,13 @@ public sealed class NotificationsController : ControllerBase
     [HttpGet("unread-count")]
     public async Task<ActionResult<ApiResponse<object>>> GetUnreadCount(CancellationToken cancellationToken = default)
     {
+        var sw = Stopwatch.StartNew();
         var tenantId = _tenantProvider.GetTenantId();
         var currentUser = _currentUserAccessor.GetCurrentUser()
             ?? throw new UnauthorizedAccessException();
 
         var count = await _queryService.GetUnreadCountAsync(tenantId, currentUser.UserId, cancellationToken);
+        _logger.LogInformation("[Notifications/UnreadCount] 未读数={Count} 耗时{Elapsed}ms", count, sw.ElapsedMilliseconds);
         return Ok(ApiResponse<object>.Ok(new { count }, HttpContext.TraceIdentifier));
     }
 

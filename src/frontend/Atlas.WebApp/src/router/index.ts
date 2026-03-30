@@ -380,8 +380,10 @@ router.beforeEach(async (to, from, next) => {
 
     if (!permissionStore.routeLoaded || !userStore.profile) {
       try {
-        await userStore.getInfo();
-        await permissionStore.generateRoutes();
+        await Promise.all([
+          userStore.getInfo(),
+          permissionStore.generateRoutes()
+        ]);
         permissionStore.registerRoutes(router);
         // 仅按 URL 重放，避免携带 not-found 名称导致动态路由注册后仍落入 404。
         next({

@@ -1,12 +1,12 @@
 namespace Atlas.Core.Models;
 
-public sealed record PagedRequest
+public sealed class PagedRequest
 {
-    public int PageIndex { get; init; } = 1;
-    public int PageSize { get; init; } = 20;
-    public string? Keyword { get; init; }
-    public string? SortBy { get; init; }
-    public bool SortDesc { get; init; }
+    public int PageIndex { get; set; } = 1;
+    public int PageSize { get; set; } = 20;
+    public string? Keyword { get; set; }
+    public string? SortBy { get; set; }
+    public bool SortDesc { get; set; }
 
     public PagedRequest()
     {

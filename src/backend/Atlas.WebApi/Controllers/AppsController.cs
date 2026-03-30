@@ -7,6 +7,7 @@ using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Atlas.WebApi.Authorization;
+using System.Diagnostics;
 
 namespace Atlas.WebApi.Controllers;
 
@@ -19,19 +20,22 @@ public sealed class AppsController : ControllerBase
     private readonly ITenantProvider _tenantProvider;
     private readonly IValidator<AppConfigUpdateRequest> _updateValidator;
     private readonly IAppContextAccessor _appContextAccessor;
+    private readonly ILogger<AppsController> _logger;
 
     public AppsController(
         IAppConfigQueryService queryService,
         IAppConfigCommandService commandService,
         ITenantProvider tenantProvider,
         IValidator<AppConfigUpdateRequest> updateValidator,
-        IAppContextAccessor appContextAccessor)
+        IAppContextAccessor appContextAccessor,
+        ILogger<AppsController> logger)
     {
         _queryService = queryService;
         _commandService = commandService;
         _tenantProvider = tenantProvider;
         _updateValidator = updateValidator;
         _appContextAccessor = appContextAccessor;
+        _logger = logger;
     }
 
     [HttpGet]
@@ -49,9 +53,15 @@ public sealed class AppsController : ControllerBase
     [Authorize]
     public async Task<ActionResult<ApiResponse<AppConfigDetail>>> GetCurrent(CancellationToken cancellationToken)
     {
+        var sw = Stopwatch.StartNew();
         var tenantId = _tenantProvider.GetTenantId();
         var appId = _appContextAccessor.GetAppId();
+        _logger.LogInformation("[Apps/Current] 开始查询 AppId={AppId}", appId);
+
         var detail = await _queryService.GetByAppIdAsync(appId, tenantId, cancellationToken);
+        _logger.LogInformation("[Apps/Current] DB查询 耗时{Elapsed}ms AppId={AppId} Found={Found}",
+            sw.ElapsedMilliseconds, appId, detail is not null);
+
         if (detail is null)
         {
             // 对未配置应用返回默认配置，避免前端初始化阶段出现 404 干扰。
@@ -63,9 +73,11 @@ public sealed class AppsController : ControllerBase
                 EnableProjectScope: false,
                 Description: "Default app configuration",
                 SortOrder: 0);
+            _logger.LogInformation("[Apps/Current] 返回默认配置 总耗时{Elapsed}ms", sw.ElapsedMilliseconds);
             return Ok(ApiResponse<AppConfigDetail>.Ok(fallback, HttpContext.TraceIdentifier));
         }
 
+        _logger.LogInformation("[Apps/Current] 总耗时{Elapsed}ms", sw.ElapsedMilliseconds);
         return Ok(ApiResponse<AppConfigDetail>.Ok(detail, HttpContext.TraceIdentifier));
     }
 
