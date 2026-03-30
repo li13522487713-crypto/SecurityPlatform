@@ -398,3 +398,5 @@ src/backend/Atlas.WebApi/*.db-shm
 src/backend/Atlas.WebApi/*.db-wal
 src/backend/Atlas.WebApi/backups/*.db
 src/backend/Atlas.WebApi/backups/*.db.sha256
+/.tmp-build/webapi-check
+/.tmp-build/infra-check
