@@ -81,7 +81,7 @@ public sealed class TenantDataSourceService : ITenantDataSourceService
             NormalizeConnectionTimeoutSeconds(request.ConnectionTimeoutSeconds));
 
         await _repository.AddAsync(entity, cancellationToken);
-        _tenantDbConnectionFactory.InvalidateCache(tenantIdValue, entity.AppId);
+        await InvalidateDataSourceRelatedCachesAsync(tenantIdValue, entity.Id, entity.AppId, cancellationToken);
         return entity.Id;
     }
 
@@ -118,7 +118,7 @@ public sealed class TenantDataSourceService : ITenantDataSourceService
             NormalizeMaxPoolSize(request.MaxPoolSize),
             NormalizeConnectionTimeoutSeconds(request.ConnectionTimeoutSeconds));
         await _repository.UpdateAsync(entity, cancellationToken);
-        _tenantDbConnectionFactory.InvalidateCache(entity.TenantIdValue, entity.AppId);
+        await InvalidateDataSourceRelatedCachesAsync(entity.TenantIdValue, entity.Id, entity.AppId, cancellationToken);
         return true;
     }
 
@@ -131,7 +131,7 @@ public sealed class TenantDataSourceService : ITenantDataSourceService
         }
 
         await _repository.DeleteByTenantAndIdAsync(tenantIdValue, id, cancellationToken);
-        _tenantDbConnectionFactory.InvalidateCache(entity.TenantIdValue, entity.AppId);
+        await InvalidateDataSourceRelatedCachesAsync(entity.TenantIdValue, entity.Id, entity.AppId, cancellationToken);
         return true;
     }
 
@@ -237,6 +237,43 @@ public sealed class TenantDataSourceService : ITenantDataSourceService
         }
 
         return value > 120 ? 120 : value;
+    }
+
+    private async Task InvalidateDataSourceRelatedCachesAsync(
+        string tenantIdValue,
+        long dataSourceId,
+        long? appId,
+        CancellationToken cancellationToken)
+    {
+        if (!Guid.TryParse(tenantIdValue, out var tenantGuid))
+        {
+            _tenantDbConnectionFactory.InvalidateCache(tenantIdValue);
+            return;
+        }
+
+        var boundAppIds = await _db.Queryable<TenantAppDataSourceBinding>()
+            .Where(item =>
+                item.TenantIdValue == tenantGuid
+                && item.DataSourceId == dataSourceId)
+            .Select(item => item.TenantAppInstanceId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+        var affectedAppIds = new HashSet<long>(boundAppIds);
+        if (appId.HasValue && appId.Value > 0)
+        {
+            affectedAppIds.Add(appId.Value);
+        }
+
+        if (affectedAppIds.Count == 0)
+        {
+            _tenantDbConnectionFactory.InvalidateCache(tenantIdValue);
+            return;
+        }
+
+        foreach (var affectedAppId in affectedAppIds)
+        {
+            _tenantDbConnectionFactory.InvalidateCache(tenantIdValue, affectedAppId);
+        }
     }
 
     public async Task<IReadOnlyList<DataSourceConsumerItem>> GetConsumersAsync(

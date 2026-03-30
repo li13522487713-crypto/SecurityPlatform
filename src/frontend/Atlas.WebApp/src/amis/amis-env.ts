@@ -6,6 +6,17 @@ import { getActiveLocale, i18n } from "@/i18n";
 import { useUserStore } from "@/stores/user";
 import { getAccessToken, getTenantId } from "@/utils/auth";
 
+// AMIS 内部 React 组件使用了已废弃的 findDOMNode（第三方技术债，无法在业务层修复）。
+// 在此拦截 console.error，仅屏蔽该特定告警，避免淹没开发日志中真正有意义的错误。
+(function suppressAmisFindDOMNodeWarning() {
+  const _origError = console.error.bind(console);
+  console.error = (...args: unknown[]) => {
+    const first = typeof args[0] === "string" ? args[0] : "";
+    if (first.includes("findDOMNode is deprecated")) return;
+    _origError(...args);
+  };
+})()
+
 const API_BASE = import.meta.env.VITE_API_BASE ?? "/api/v1";
 const globalComposer = i18n.global as unknown as { t: (messageKey: string) => string };
 
@@ -136,6 +147,44 @@ function translate(key: string): string {
   return globalComposer.t(key);
 }
 
+function toCamelCaseKey(key: string): string {
+  if (!key) {
+    return key;
+  }
+  if (key.startsWith("$.") && key.length > 2) {
+    key = key.slice(2);
+  }
+  return key.charAt(0).toLowerCase() + key.slice(1);
+}
+
+function normalizeValidationErrors(errors: Record<string, string[] | string>): Record<string, string> {
+  return Object.entries(errors).reduce<Record<string, string>>((acc, [key, value]) => {
+    if (!value) {
+      return acc;
+    }
+    const items = Array.isArray(value) ? value : [value];
+    const merged = items.join("; ");
+    acc[key] = merged;
+    const camelKey = toCamelCaseKey(key);
+    if (!acc[camelKey]) {
+      acc[camelKey] = merged;
+    }
+    return acc;
+  }, {});
+}
+
+function buildValidationSummary(errors: Record<string, string>): string {
+  const entries = Object.entries(errors);
+  if (entries.length === 0) {
+    return "";
+  }
+  return entries
+    .filter(([key]) => !key.startsWith("$"))
+    .slice(0, 6)
+    .map(([field, text]) => `${field}: ${text}`)
+    .join(" | ");
+}
+
 export function buildGlobalData(): Record<string, unknown> {
   try {
     const userStore = useUserStore();
@@ -188,19 +237,21 @@ export function createAmisEnv(): AmisEnv {
       const payload = errorObject.payload ?? null;
       const msg = payload?.message || payload?.title || errorMessage || defaultError;
       if (payload?.errors) {
-        const errors = Object.entries(payload.errors).reduce<Record<string, string>>((acc, [key, value]) => {
-          if (!value) {
-            return acc;
-          }
-          const items = Array.isArray(value) ? value : [value];
-          acc[key] = items.join("; ");
-          return acc;
-        }, {});
+        const errors = normalizeValidationErrors(payload.errors);
+        const summary = buildValidationSummary(errors);
+        const finalMsg = summary ? `${msg} | ${summary}` : msg;
+        message.error(finalMsg);
+        console.error("[AMIS] request validation failed", {
+          path: finalPath,
+          method,
+          status,
+          payload
+        });
         return {
           data: { errors } as JsonValue,
           ok: false,
           status,
-          msg
+          msg: finalMsg
         };
       }
       const fallback: ApiResponse<JsonValue> = {

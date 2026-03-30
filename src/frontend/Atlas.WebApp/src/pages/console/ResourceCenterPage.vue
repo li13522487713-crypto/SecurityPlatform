@@ -97,7 +97,8 @@ import { getResourceCenterDataSourceConsumption, getResourceCenterGroups } from 
 import type {
   ResourceCenterDataSourceConsumptionResponse,
   ResourceCenterGroupEntry,
-  ResourceCenterGroupItem
+  ResourceCenterGroupItem,
+  ResourceCenterGroupsResponse
 } from "@/types/platform-v2";
 
 const router = useRouter();
@@ -143,7 +144,15 @@ async function loadResourceCenterData() {
     ]);
 
     if (!isMounted.value) return;
-    resourceGroups.value = groups;
+    const groupResponse: ResourceCenterGroupsResponse = groups;
+    resourceGroups.value = groupResponse.groups;
+    if (groupResponse.warnings.length > 0) {
+      message.warning(
+        t("console.resourceCenter.partialWarning", {
+          count: groupResponse.warnings.length
+        })
+      );
+    }
     dataSourceConsumption.value = consumption;
   } catch (error) {
     message.error((error as Error).message || t("console.resourceCenter.loadFailed"));

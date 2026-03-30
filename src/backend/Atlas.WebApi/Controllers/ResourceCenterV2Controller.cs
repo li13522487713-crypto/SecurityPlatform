@@ -33,12 +33,12 @@ public sealed class ResourceCenterV2Controller : ControllerBase
 
     [HttpGet("groups")]
     [Authorize(Policy = PermissionPolicies.AppsView)]
-    public async Task<ActionResult<ApiResponse<IReadOnlyList<ResourceCenterGroupItem>>>> GetGroups(
+    public async Task<ActionResult<ApiResponse<ResourceCenterGroupsResponse>>> GetGroups(
         CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
-        var groups = await _resourceCenterQueryService.GetGroupsAsync(tenantId, cancellationToken);
-        return Ok(ApiResponse<IReadOnlyList<ResourceCenterGroupItem>>.Ok(groups, HttpContext.TraceIdentifier));
+        var response = await _resourceCenterQueryService.GetGroupsAsync(tenantId, cancellationToken);
+        return Ok(ApiResponse<ResourceCenterGroupsResponse>.Ok(response, HttpContext.TraceIdentifier));
     }
 
     [HttpGet("datasource-consumption")]

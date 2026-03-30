@@ -114,8 +114,9 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
         DynamicTableCreateRequest request,
         CancellationToken cancellationToken)
     {
-        var appId = _appContextAccessor.ResolveAppId();
-        var existing = await _tableRepository.FindByKeyAsync(tenantId, request.TableKey, appId, cancellationToken);
+        var normalizedTableKey = request.TableKey.Trim();
+        var appId = ResolveTargetAppId(request.AppId);
+        var existing = await _tableRepository.FindByKeyAsync(tenantId, normalizedTableKey, appId, cancellationToken);
         if (existing is not null)
         {
             throw new BusinessException(ErrorCodes.ValidationError, "DynamicTableKeyExists");
@@ -129,7 +130,7 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
         var now = _timeProvider.GetUtcNow();
         var table = new DynamicTable(
             tenantId,
-            request.TableKey,
+            normalizedTableKey,
             request.DisplayName,
             request.Description,
             dbType,
@@ -1147,6 +1148,18 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
         }
 
         return _appDbScopeFactory.GetAppClientAsync(tenantId, appId.Value, cancellationToken);
+    }
+
+    private long? ResolveTargetAppId(string? requestAppId)
+    {
+        if (!string.IsNullOrWhiteSpace(requestAppId)
+            && long.TryParse(requestAppId, out var parsed)
+            && parsed > 0)
+        {
+            return parsed;
+        }
+
+        return _appContextAccessor.ResolveAppId();
     }
 
     private static string BuildFieldPermissionTableKey(string tableKey, long? appId)

@@ -82,6 +82,7 @@ export interface DynamicTableCreateRequest {
   tableKey: string;
   displayName: string;
   description?: string | null;
+  appId?: string | null;
   dbType: DynamicDbType;
   fields: DynamicFieldDefinition[];
   indexes: DynamicIndexDefinition[];

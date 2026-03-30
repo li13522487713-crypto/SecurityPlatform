@@ -21,6 +21,8 @@ X-Tenant-Id: {{tenantId}}
 
 ### 查询资源中心分组
 # 预期分组：catalogs / tenant-applications / instances / releases / runtime-contexts / runtime-executions / datasources / audit-summary / debug-entries
+# 返回 ResourceCenterGroupsResponse：{ groups: [...], warnings: [...] }
+# 当个别应用实例未绑定可用数据源时，接口仍返回 200，并在 warnings 中给出被跳过实例提示
 GET {{baseUrl}}/api/v2/resource-center/groups
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}

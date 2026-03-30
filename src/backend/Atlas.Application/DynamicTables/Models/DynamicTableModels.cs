@@ -49,7 +49,8 @@ public sealed record DynamicTableCreateRequest(
     string? Description,
     string DbType,
     IReadOnlyList<DynamicFieldDefinition> Fields,
-    IReadOnlyList<DynamicIndexDefinition> Indexes);
+    IReadOnlyList<DynamicIndexDefinition> Indexes,
+    string? AppId = null);
 
 public sealed record DynamicTableUpdateRequest(
     string DisplayName,

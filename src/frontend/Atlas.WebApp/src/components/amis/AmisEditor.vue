@@ -3,14 +3,13 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onBeforeUnmount, ref, watch, toRaw, computed, onUnmounted } from "vue";
+import { onMounted, onBeforeUnmount, ref, watch, toRaw, computed } from "vue";
 import "amis/lib/themes/default.css";
 import "amis/lib/helper.css";
 import "amis/sdk/iconfont.css";
+import type { Root } from "react-dom/client";
 
 const isMounted = ref(false);
-onMounted(() => { isMounted.value = true; });
-onUnmounted(() => { isMounted.value = false; });
 
 import type { JsonValue } from "@/types/api";
 import { translate } from "@/i18n";
@@ -43,8 +42,10 @@ const emit = defineEmits<{
 }>();
 
 const containerRef = ref<HTMLElement | null>(null);
-const rootRef = ref<any>(null);
+const rootRef = ref<Root | null>(null);
 const editorRef = ref<any>(null);
+let renderQueued = false;
+let renderRevision = 0;
 
 const containerStyle = computed(() => ({
   height: props.height,
@@ -76,19 +77,20 @@ const normalizeValue = <T>(value: T): T => {
 const renderEditor = async () => {
   const container = containerRef.value;
   if (!container) return;
+  const currentRevision = ++renderRevision;
 
   try {
     const React  = await import("react");
 
-    if (!isMounted.value) return;
+    if (!isMounted.value || currentRevision !== renderRevision) return;
     const { createRoot }  = await import("react-dom/client");
 
-    if (!isMounted.value) return;
+    if (!isMounted.value || currentRevision !== renderRevision) return;
     // Keep amis-editor optional: avoid Vite pre-bundling scan on a static literal.
     const amisEditorModuleName = "amis-editor";
     const { Editor }  = await import(/* @vite-ignore */ amisEditorModuleName);
 
-    if (!isMounted.value) return;
+    if (!isMounted.value || currentRevision !== renderRevision) return;
 
     if (!rootRef.value) {
       rootRef.value = createRoot(container);
@@ -139,8 +141,24 @@ const renderEditor = async () => {
   } catch (error) {
     // amis-editor might not be installed; fall back to JSON editor
     console.warn("amis-editor not available, falling back to JSON editor:", error);
+    rootRef.value?.unmount();
+    rootRef.value = null;
     renderFallbackEditor(container);
   }
+};
+
+const requestRenderEditor = () => {
+  if (renderQueued) {
+    return;
+  }
+  renderQueued = true;
+  queueMicrotask(() => {
+    renderQueued = false;
+    if (!isMounted.value) {
+      return;
+    }
+    void renderEditor();
+  });
 };
 
 /**
@@ -215,17 +233,21 @@ const renderFallbackEditor = (container: HTMLElement) => {
 };
 
 onMounted(() => {
-  renderEditor();
+  isMounted.value = true;
+  requestRenderEditor();
 });
 
 watch(
-  () => props.preview,
+  () => [props.schema, props.preview, props.isMobile, props.theme, props.plugins],
   () => {
-    renderEditor();
-  }
+    requestRenderEditor();
+  },
+  { deep: true }
 );
 
 onBeforeUnmount(() => {
+  isMounted.value = false;
+  renderRevision += 1;
   rootRef.value?.unmount();
   rootRef.value = null;
   if (containerRef.value) {

@@ -3483,6 +3483,7 @@ export const runtimeMessages: Record<SupportedLocale, MessageTree> = {
         appOptionLabel: "{name}（{appKey}）",
         loadAppsFailed: "加载最近应用失败",
         loadResourceGroupsFailed: "加载资源中心分组失败",
+        resourceGroupsPartialWarning: "资源中心分组已部分加载，已跳过 {count} 个未绑定数据源的应用。",
         loadDataSourceConsumptionFailed: "加载数据源统计失败"
       },
       catalog: {
@@ -3739,6 +3740,7 @@ export const runtimeMessages: Record<SupportedLocale, MessageTree> = {
         colStatus: "状态",
         colDescription: "描述",
         colActions: "操作",
+        partialWarning: "资源中心已部分加载，已跳过 {count} 个未绑定数据源的应用。",
         loadFailed: "加载资源中心数据失败"
       },
       releaseCenter: {
@@ -7982,6 +7984,7 @@ export const runtimeMessages: Record<SupportedLocale, MessageTree> = {
         appOptionLabel: "{name} ({appKey})",
         loadAppsFailed: "Failed to load recent apps",
         loadResourceGroupsFailed: "Failed to load resource groups",
+        resourceGroupsPartialWarning: "Resource groups loaded partially. Skipped {count} apps without an available data source.",
         loadDataSourceConsumptionFailed: "Failed to load data source stats"
       },
       catalog: {
@@ -8238,6 +8241,7 @@ export const runtimeMessages: Record<SupportedLocale, MessageTree> = {
         colStatus: "Status",
         colDescription: "Description",
         colActions: "Actions",
+        partialWarning: "Resource center loaded partially. Skipped {count} apps without an available data source.",
         loadFailed: "Failed to load resource center"
       },
       releaseCenter: {

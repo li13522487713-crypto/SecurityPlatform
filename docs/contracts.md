@@ -244,6 +244,8 @@
 - `GET /api/v2/resource-center/groups`
   - 返回资源中心分组聚合（`catalogs` / `tenant-applications` / `instances` / `releases` / `runtime-contexts` / `runtime-executions` / `datasources` / `audit-summary` / `debug-entries`）。
   - `ResourceCenterGroupEntry` 补充导航关联字段：`navigationPath`、`relatedCatalogId`、`relatedInstanceId`、`relatedReleaseId`、`relatedRuntimeContextId`、`relatedExecutionId`。
+  - 返回模型升级为 `ResourceCenterGroupsResponse`：`groups` + `warnings`。
+  - 容错语义：当个别应用实例未绑定可用数据源时，接口仍返回 `200`；该实例从 `groups` 聚合结果中跳过，并在 `warnings` 中返回 `appInstanceId/appName/errorCode/message`。
   - 要求服务端采用批量查询 + 内存聚合，禁止循环内数据库访问。
 - `GET /api/v2/resource-center/datasource-consumption`
   - 返回数据源双层消费模型：

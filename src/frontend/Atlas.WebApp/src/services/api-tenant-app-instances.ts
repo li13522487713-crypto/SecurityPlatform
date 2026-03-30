@@ -14,7 +14,7 @@ import type {
   TenantAppDataSourceBinding,
   TenantAppFileStorageSettings,
   TenantAppFileStorageSettingsUpdateRequest,
-  ResourceCenterGroupItem,
+  ResourceCenterGroupsResponse,
   ResourceCenterDataSourceConsumptionResponse,
   ResourceCenterRepairResult
 } from "@/types/platform-v2";
@@ -214,8 +214,8 @@ export async function getTenantAppDataSourceBindings(appIds?: string[]): Promise
   return response.data;
 }
 
-export async function getResourceCenterGroups(): Promise<ResourceCenterGroupItem[]> {
-  const response = await requestApi<ApiResponse<ResourceCenterGroupItem[]>>(`${RESOURCE_CENTER_BASE}/groups`);
+export async function getResourceCenterGroups(): Promise<ResourceCenterGroupsResponse> {
+  const response = await requestApi<ApiResponse<ResourceCenterGroupsResponse>>(`${RESOURCE_CENTER_BASE}/groups`);
   if (!response.data) {
     throw new Error(response.message || "查询资源中心分组失败");
   }

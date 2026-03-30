@@ -317,6 +317,16 @@ public sealed record ResourceCenterGroupItem(
     int Total,
     IReadOnlyList<ResourceCenterGroupEntry> Items);
 
+public sealed record ResourceCenterWarningItem(
+    string AppInstanceId,
+    string? AppName,
+    string ErrorCode,
+    string Message);
+
+public sealed record ResourceCenterGroupsResponse(
+    IReadOnlyList<ResourceCenterGroupItem> Groups,
+    IReadOnlyList<ResourceCenterWarningItem> Warnings);
+
 public sealed record TenantAppConsumerItem(
     string TenantAppInstanceId,
     string AppKey,

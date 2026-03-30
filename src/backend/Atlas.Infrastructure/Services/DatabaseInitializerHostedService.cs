@@ -300,6 +300,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         await EnsurePermissionAppIdNullableSchemaAsync(db, cancellationToken);
 
         await EnsureTenantAppDataSourceBindingBackfillAsync(scope.ServiceProvider, appContextAccessor, db, cancellationToken);
+        await EnsureTenantAppDataSourceBindingHealthAsync(scope.ServiceProvider, appContextAccessor, db, cancellationToken);
 
         // 种子数据初始化
         if (_initializerOptions.SkipSeedData)
@@ -1236,6 +1237,139 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             backfillRows.Count);
     }
 
+    private async Task EnsureTenantAppDataSourceBindingHealthAsync(
+        IServiceProvider serviceProvider,
+        IAppContextAccessor appContextAccessor,
+        ISqlSugarClient db,
+        CancellationToken cancellationToken)
+    {
+        if (!db.DbMaintenance.IsAnyTable("TenantAppDataSourceBinding", false)
+            || !db.DbMaintenance.IsAnyTable("LowCodeApp", false)
+            || !db.DbMaintenance.IsAnyTable("TenantDataSource", false))
+        {
+            return;
+        }
+
+        var apps = await db.Queryable<LowCodeApp>()
+            .Select(item => new AppBindingHealthProjection
+            {
+                TenantIdValue = item.TenantIdValue,
+                AppInstanceId = item.Id,
+                DataSourceId = item.DataSourceId,
+                UpdatedBy = item.UpdatedBy,
+                UpdatedAt = item.UpdatedAt
+            })
+            .ToListAsync(cancellationToken);
+        if (apps.Count == 0)
+        {
+            return;
+        }
+
+        var tenantIds = apps.Select(item => item.TenantIdValue).Distinct().ToArray();
+        var appIds = apps.Select(item => item.AppInstanceId).Distinct().ToArray();
+        var dataSources = await db.Queryable<TenantDataSource>()
+            .Where(item => SqlFunc.ContainsArray(tenantIds, item.TenantIdValue))
+            .Select(item => new DataSourceHealthProjection
+            {
+                TenantIdValue = item.TenantIdValue,
+                DataSourceId = item.Id,
+                IsActive = item.IsActive
+            })
+            .ToListAsync(cancellationToken);
+        var bindings = await db.Queryable<TenantAppDataSourceBinding>()
+            .Where(item =>
+                SqlFunc.ContainsArray(tenantIds, item.TenantIdValue)
+                && SqlFunc.ContainsArray(appIds, item.TenantAppInstanceId))
+            .ToListAsync(cancellationToken);
+
+        var appKeySet = apps
+            .Select(item => (item.TenantIdValue, item.AppInstanceId))
+            .ToHashSet();
+        var activeDataSourceSet = dataSources
+            .Where(item => item.IsActive)
+            .Select(item => (item.TenantIdValue, item.DataSourceId))
+            .ToHashSet();
+        var now = DateTimeOffset.UtcNow;
+
+        var invalidBindings = bindings
+            .Where(item =>
+                item.IsActive
+                && (!appKeySet.Contains((item.TenantIdValue, item.TenantAppInstanceId))
+                    || !activeDataSourceSet.Contains((item.TenantIdValue.ToString(), item.DataSourceId))))
+            .ToList();
+        foreach (var binding in invalidBindings)
+        {
+            binding.Deactivate(0, now, "DatabaseInitializer:deactivate-invalid-binding");
+        }
+
+        var activeBindings = bindings
+            .Where(item =>
+                item.IsActive
+                && appKeySet.Contains((item.TenantIdValue, item.TenantAppInstanceId))
+                && activeDataSourceSet.Contains((item.TenantIdValue.ToString(), item.DataSourceId)))
+            .ToList();
+        var promotedBindings = activeBindings
+            .GroupBy(item => (item.TenantIdValue, item.TenantAppInstanceId))
+            .Where(group => group.All(item => item.BindingType != TenantAppDataSourceBindingType.Primary))
+            .Select(group => group
+                .OrderByDescending(item => item.UpdatedAt ?? item.BoundAt)
+                .ThenByDescending(item => item.Id)
+                .First())
+            .ToList();
+        foreach (var binding in promotedBindings)
+        {
+            binding.Rebind(
+                binding.DataSourceId,
+                TenantAppDataSourceBindingType.Primary,
+                0,
+                now,
+                "DatabaseInitializer:promote-primary-binding");
+        }
+
+        var existingActiveBindingKeys = activeBindings
+            .Select(item => (item.TenantIdValue, item.TenantAppInstanceId))
+            .ToHashSet();
+        var idGenerator = serviceProvider.GetRequiredService<IIdGeneratorAccessor>();
+        var recoveryBindings = new List<TenantAppDataSourceBinding>();
+        foreach (var app in apps.Where(item =>
+                     item.DataSourceId.HasValue
+                     && activeDataSourceSet.Contains((item.TenantIdValue.ToString(), item.DataSourceId.Value))
+                     && !existingActiveBindingKeys.Contains((item.TenantIdValue, item.AppInstanceId))))
+        {
+            using var appContextScope = appContextAccessor.BeginScope(
+                CreateSystemContext(appContextAccessor, new TenantId(app.TenantIdValue)));
+            recoveryBindings.Add(new TenantAppDataSourceBinding(
+                new TenantId(app.TenantIdValue),
+                app.AppInstanceId,
+                app.DataSourceId!.Value,
+                TenantAppDataSourceBindingType.Primary,
+                app.UpdatedBy > 0 ? app.UpdatedBy : 0,
+                idGenerator.NextId(),
+                app.UpdatedAt,
+                "DatabaseInitializer:recover-primary-binding"));
+        }
+
+        if (invalidBindings.Count > 0 || promotedBindings.Count > 0)
+        {
+            await db.Updateable(invalidBindings.Concat(promotedBindings).Distinct().ToArray())
+                .ExecuteCommandAsync(cancellationToken);
+        }
+
+        if (recoveryBindings.Count > 0)
+        {
+            await db.Insertable(recoveryBindings).ExecuteCommandAsync(cancellationToken);
+        }
+
+        if (invalidBindings.Count > 0 || promotedBindings.Count > 0 || recoveryBindings.Count > 0)
+        {
+            _logger.LogInformation(
+                "[DatabaseInitializer] TenantAppDataSourceBinding 健康修复完成。Deactivated={Deactivated}, Promoted={Promoted}, Recovered={Recovered}",
+                invalidBindings.Count,
+                promotedBindings.Count,
+                recoveryBindings.Count);
+        }
+    }
+
     private async Task LoadLicenseStatusAsync(IServiceScope scope, CancellationToken cancellationToken)
     {
         try
@@ -1807,6 +1941,28 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         public DateTimeOffset CreatedAt { get; set; }
 
         public DateTimeOffset UpdatedAt { get; set; }
+    }
+
+    private sealed class AppBindingHealthProjection
+    {
+        public Guid TenantIdValue { get; set; }
+
+        public long AppInstanceId { get; set; }
+
+        public long? DataSourceId { get; set; }
+
+        public long UpdatedBy { get; set; }
+
+        public DateTimeOffset UpdatedAt { get; set; }
+    }
+
+    private sealed class DataSourceHealthProjection
+    {
+        public string TenantIdValue { get; set; } = string.Empty;
+
+        public long DataSourceId { get; set; }
+
+        public bool IsActive { get; set; }
     }
 }
 

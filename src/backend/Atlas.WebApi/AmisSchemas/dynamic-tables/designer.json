@@ -10,13 +10,19 @@
   "api": {
     "method": "post",
     "url": "/api/v1/dynamic-tables",
+    "headers": {
+      "X-App-Id": "${appId || currentAppId || ''}",
+      "X-App-Workspace": "1"
+    },
+    "requestAdaptor": "var body = api.data || {}; var appId = body.appId || body.currentAppId || ''; body.appId = appId ? String(appId) : null; var rawIndexes = body.indexes; if (Array.isArray(rawIndexes)) { body.indexes = rawIndexes; } else if (typeof rawIndexes === 'string') { try { var parsed = JSON.parse(rawIndexes); body.indexes = Array.isArray(parsed) ? parsed : []; } catch (e) { body.indexes = []; } } else { body.indexes = []; } body.fields = Array.isArray(body.fields) ? body.fields.map(function(field, idx) { return Object.assign({ sortOrder: idx + 1, allowNull: true, isPrimaryKey: false, isAutoIncrement: false, isUnique: false }, field || {}); }) : []; api.data = body; return api;",
     "data": {
       "tableKey": "${tableKey}",
       "displayName": "${displayName}",
       "description": "${description}",
+      "appId": "${appId || currentAppId || null}",
       "dbType": "${dbType}",
       "fields": "${fields}",
-      "indexes": "${indexes}"
+      "indexes": "${Array.isArray(indexes) ? indexes : []}"
     },
     "adaptor": "return { status: payload.success ? 0 : 1, msg: payload.message, data: payload.data };"
   },
@@ -76,6 +82,11 @@
           "type": "hidden",
           "name": "__tableKeyManual",
           "value": false
+        },
+        {
+          "type": "hidden",
+          "name": "indexes",
+          "value": []
         },
         {
           "type": "select",

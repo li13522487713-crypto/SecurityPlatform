@@ -222,6 +222,7 @@ import {
 } from "@/services/api-tenant-app-instances";
 import { useUserStore } from "@/stores/user";
 import type {
+  ResourceCenterGroupsResponse,
   TenantAppConsumerItem,
   TenantDataSourceBindingRelationItem,
   TenantDataSourceConsumptionItem,
@@ -334,7 +335,14 @@ async function loadApps() {
 async function loadResourceGroups() {
   resourceGroupLoading.value = true;
   try {
-    resourceGroups.value = await getResourceCenterGroups();
+    const response: ResourceCenterGroupsResponse = await getResourceCenterGroups();
+    resourceGroups.value = response.groups;
+    if (response.warnings.length > 0) {
+      const warningMessage = t("console.dashboard.resourceGroupsPartialWarning", {
+        count: response.warnings.length
+      });
+      message.warning(warningMessage);
+    }
 
     if (!isMounted.value) return;
   } catch (error) {

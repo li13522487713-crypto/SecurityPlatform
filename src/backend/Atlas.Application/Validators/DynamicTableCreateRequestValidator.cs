@@ -74,36 +74,42 @@ public sealed class DynamicTableCreateRequestValidator : AbstractValidator<Dynam
         RuleFor(x => x.Fields)
             .Must(AutoIncrementMustBePrimaryKey)
             .WithMessage(localizer["DynamicTableAutoIncrementInvalid"].Value);
+
+        RuleFor(x => x.AppId)
+            .Must(appId => string.IsNullOrWhiteSpace(appId) || (long.TryParse(appId, out var parsed) && parsed > 0))
+            .WithMessage("AppId 格式无效");
     }
 
     private static bool BeValidKey(string key)
     {
-        if (string.IsNullOrWhiteSpace(key))
+        var normalized = key?.Trim();
+        if (string.IsNullOrWhiteSpace(normalized))
         {
             return false;
         }
 
-        if (!KeyPattern.IsMatch(key))
+        if (!KeyPattern.IsMatch(normalized))
         {
             return false;
         }
 
-        return !ReservedNames.Contains(key);
+        return !ReservedNames.Contains(normalized);
     }
 
     private static bool BeValidField(string name)
     {
-        if (string.IsNullOrWhiteSpace(name))
+        var normalized = name?.Trim();
+        if (string.IsNullOrWhiteSpace(normalized))
         {
             return false;
         }
 
-        if (!KeyPattern.IsMatch(name))
+        if (!KeyPattern.IsMatch(normalized))
         {
             return false;
         }
 
-        return !ReservedNames.Contains(name);
+        return !ReservedNames.Contains(normalized);
     }
 
     private static bool ValidateFieldLength(DynamicFieldDefinition field)

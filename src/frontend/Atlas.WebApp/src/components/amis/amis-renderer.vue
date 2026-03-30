@@ -25,6 +25,8 @@ const rootRef = ref<Root | null>(null);
 const amisEnv = createAmisEnv();
 const emptyData: Record<string, JsonValue> = {};
 const isMounted = ref(false);
+let renderQueued = false;
+let renderRevision = 0;
 
 let amisRenderPromise: Promise<typeof import("amis")["render"]> | null = null;
 
@@ -54,36 +56,54 @@ const normalizeValue = <T>(value: T): T => {
 const renderSchema = async () => {
   const container = containerRef.value;
   if (!container) return;
+  const currentRevision = ++renderRevision;
   if (!rootRef.value) {
     rootRef.value = createRoot(container);
   }
   const renderAmis = await loadAmisRender();
-  if (!isMounted.value) return;
+  if (!isMounted.value || currentRevision !== renderRevision) return;
   const rawSchema = normalizeValue(props.schema);
   const data = normalizeValue(props.data ?? emptyData);
   
   // 注入高级变量沙盒预处理器
   const processedSchema = AmisSchemaPreprocessor.process(rawSchema, data as Record<string, any>);
   
+  // amis 内部部分 renderer 仍依赖 findDOMNode（第三方技术债）。
+  // findDOMNode 告警已在 amis-env.ts 模块初始化阶段统一屏蔽，本层无需额外处理。
   const element = renderAmis(processedSchema as unknown as Schema, { data }, amisEnv as unknown as Record<string, unknown>);
   rootRef.value.render(element);
 };
 
+const requestRenderSchema = () => {
+  if (renderQueued) {
+    return;
+  }
+  renderQueued = true;
+  queueMicrotask(() => {
+    renderQueued = false;
+    if (!isMounted.value) {
+      return;
+    }
+    void renderSchema();
+  });
+};
+
 onMounted(() => {
   isMounted.value = true;
-  void renderSchema();
+  requestRenderSchema();
 });
 
 watch(
-  () => props.schema,
+  () => [props.schema, props.data],
   () => {
-    void renderSchema();
+    requestRenderSchema();
   },
   { deep: true }
 );
 
 onBeforeUnmount(() => {
   isMounted.value = false;
+  renderRevision += 1;
   rootRef.value?.unmount();
   rootRef.value = null;
   if (containerRef.value) {

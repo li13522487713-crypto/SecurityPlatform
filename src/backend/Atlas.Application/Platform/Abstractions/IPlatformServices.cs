@@ -359,7 +359,7 @@ public interface IRuntimeExecutionCommandService
 
 public interface IResourceCenterQueryService
 {
-    Task<IReadOnlyList<ResourceCenterGroupItem>> GetGroupsAsync(
+    Task<ResourceCenterGroupsResponse> GetGroupsAsync(
         TenantId tenantId,
         CancellationToken cancellationToken = default);
 

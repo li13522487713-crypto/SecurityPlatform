@@ -215,6 +215,18 @@ export interface ResourceCenterGroupItem {
   items: ResourceCenterGroupEntry[];
 }
 
+export interface ResourceCenterWarningItem {
+  appInstanceId: string;
+  appName?: string;
+  errorCode: string;
+  message: string;
+}
+
+export interface ResourceCenterGroupsResponse {
+  groups: ResourceCenterGroupItem[];
+  warnings: ResourceCenterWarningItem[];
+}
+
 export interface TenantAppConsumerItem {
   tenantAppInstanceId: string;
   appKey: string;

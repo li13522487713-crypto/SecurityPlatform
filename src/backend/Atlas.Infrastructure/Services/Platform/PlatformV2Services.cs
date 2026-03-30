@@ -20,6 +20,8 @@ using Atlas.Domain.LowCode.Entities;
 using Atlas.Domain.LowCode.Enums;
 using Atlas.Domain.Platform.Entities;
 using Atlas.Domain.System.Entities;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using SqlSugar;
 using System.Text.Json;
@@ -1711,21 +1713,27 @@ public sealed class ResourceCenterQueryService : IResourceCenterQueryService
 {
     private readonly ISqlSugarClient _mainDb;
     private readonly Atlas.Infrastructure.Services.IAppDbScopeFactory _appDbScopeFactory;
+    private readonly ILogger<ResourceCenterQueryService> _logger;
 
     public ResourceCenterQueryService(
         ISqlSugarClient db,
-        Atlas.Infrastructure.Services.IAppDbScopeFactory appDbScopeFactory)
+        Atlas.Infrastructure.Services.IAppDbScopeFactory appDbScopeFactory,
+        ILogger<ResourceCenterQueryService> logger)
     {
         _mainDb = db;
         _appDbScopeFactory = appDbScopeFactory;
+        _logger = logger;
     }
 
     public ResourceCenterQueryService(ISqlSugarClient db)
-        : this(db, new Atlas.Infrastructure.Services.MainOnlyAppDbScopeFactory(db))
+        : this(
+            db,
+            new Atlas.Infrastructure.Services.MainOnlyAppDbScopeFactory(db),
+            NullLogger<ResourceCenterQueryService>.Instance)
     {
     }
 
-    public async Task<IReadOnlyList<ResourceCenterGroupItem>> GetGroupsAsync(
+    public async Task<ResourceCenterGroupsResponse> GetGroupsAsync(
         TenantId tenantId,
         CancellationToken cancellationToken = default)
     {
@@ -1770,8 +1778,15 @@ public sealed class ResourceCenterQueryService : IResourceCenterQueryService
         var appInstances = appInstancesTask.Result;
         var dataSources = dataSourcesTask.Result;
         var releases = releasesTask.Result;
-        var runtimeContexts = await LoadRuntimeRoutesAcrossAppsAsync(tenantId, appInstances, cancellationToken);
-        var runtimeExecutions = await LoadRuntimeExecutionsAcrossAppsAsync(tenantId, appInstances, cancellationToken);
+        var runtimeContextResult = await LoadRuntimeRoutesAcrossAppsAsync(tenantId, appInstances, cancellationToken);
+        var runtimeExecutionResult = await LoadRuntimeExecutionsAcrossAppsAsync(tenantId, appInstances, cancellationToken);
+        var runtimeContexts = runtimeContextResult.Items;
+        var runtimeExecutions = runtimeExecutionResult.Items;
+        var warnings = runtimeContextResult.Warnings
+            .Concat(runtimeExecutionResult.Warnings)
+            .GroupBy(item => item.AppInstanceId)
+            .Select(group => group.First())
+            .ToArray();
         var audits = auditsTask.Result;
 
         var catalogById = catalogs.ToDictionary(item => item.Id);
@@ -1889,8 +1904,8 @@ public sealed class ResourceCenterQueryService : IResourceCenterQueryService
                 "/console/debug"))
             .ToArray();
 
-        return
-        [
+        var groups = new[]
+        {
             new ResourceCenterGroupItem("catalogs", "应用目录", catalogItems.Length, catalogItems),
             new ResourceCenterGroupItem("tenant-applications", "租户开通关系", tenantApplicationItems.Length, tenantApplicationItems),
             new ResourceCenterGroupItem("instances", "租户应用实例", appInstanceItems.Length, appInstanceItems),
@@ -1900,7 +1915,15 @@ public sealed class ResourceCenterQueryService : IResourceCenterQueryService
             new ResourceCenterGroupItem("datasources", "租户数据源", dataSourceItems.Length, dataSourceItems),
             new ResourceCenterGroupItem("audit-summary", "审计汇总", auditSummaryItems.Length, auditSummaryItems),
             new ResourceCenterGroupItem("debug-entries", "调试记录", debugEntryItems.Length, debugEntryItems)
-        ];
+        };
+        var warningItems = warnings
+            .Select(item => new ResourceCenterWarningItem(
+                item.AppInstanceId.ToString(),
+                item.AppName,
+                item.ErrorCode,
+                item.Message))
+            .ToArray();
+        return new ResourceCenterGroupsResponse(groups, warningItems);
     }
 
     public async Task<ResourceCenterDataSourceConsumptionResponse> GetDataSourceConsumptionAsync(
@@ -2099,75 +2122,175 @@ public sealed class ResourceCenterQueryService : IResourceCenterQueryService
         DateTimeOffset? UpdatedAt,
         string Source);
 
-    private async Task<IReadOnlyList<RuntimeRoute>> LoadRuntimeRoutesAcrossAppsAsync(
+    private async Task<ResourceCenterAppLoadResult<RuntimeRoute>> LoadRuntimeRoutesAcrossAppsAsync(
         TenantId tenantId,
         IReadOnlyList<LowCodeApp> appInstances,
         CancellationToken cancellationToken)
     {
-        var tasks = new List<Task<List<RuntimeRoute>>>
+        var tasks = new List<Task<ResourceCenterPerAppLoadResult<RuntimeRoute>>>
         {
-            _mainDb.Queryable<RuntimeRoute>()
-                .Where(item => item.TenantIdValue == tenantId.Value)
-                .ToListAsync(cancellationToken)
+            LoadMainDbRoutesAsync(tenantId, cancellationToken)
         };
         tasks.AddRange(appInstances.Select(async app =>
         {
-            var appDb = await _appDbScopeFactory.GetAppClientAsync(tenantId, app.Id, cancellationToken);
-            return await appDb.Queryable<RuntimeRoute>()
-                .Where(item => item.TenantIdValue == tenantId.Value)
-                .ToListAsync(cancellationToken);
+            try
+            {
+                var appDb = await _appDbScopeFactory.GetAppClientAsync(tenantId, app.Id, cancellationToken);
+                var items = await appDb.Queryable<RuntimeRoute>()
+                    .Where(item => item.TenantIdValue == tenantId.Value)
+                    .ToListAsync(cancellationToken);
+                return ResourceCenterPerAppLoadResult<RuntimeRoute>.Success(items);
+            }
+            catch (BusinessException ex) when (ShouldSkipNoDataSource(ex))
+            {
+                _logger.LogWarning(
+                    "资源中心路由聚合跳过未绑定数据源应用。TenantId={TenantId}; AppInstanceId={AppInstanceId}; AppName={AppName}; ErrorCode={ErrorCode}",
+                    tenantId.Value,
+                    app.Id,
+                    app.Name,
+                    ex.Code);
+                return ResourceCenterPerAppLoadResult<RuntimeRoute>.Skipped(
+                    new ResourceCenterAppLoadWarning(
+                        app.Id,
+                        app.Name,
+                        ex.Code,
+                        ex.Message));
+            }
         }));
 
         await Task.WhenAll(tasks);
-        return tasks
-            .SelectMany(task => task.Result)
+        var results = tasks.Select(task => task.Result).ToArray();
+        var items = results
+            .SelectMany(task => task.Items)
             .GroupBy(item => item.Id)
             .Select(group => group.First())
             .OrderByDescending(item => item.Id)
             .ToArray();
+        var warnings = results
+            .Select(item => item.Warning)
+            .Where(item => item is not null)
+            .Select(item => item!)
+            .ToArray();
+        return new ResourceCenterAppLoadResult<RuntimeRoute>(items, warnings);
     }
 
-    private async Task<IReadOnlyList<WorkflowExecution>> LoadRuntimeExecutionsAcrossAppsAsync(
+    private async Task<ResourceCenterAppLoadResult<WorkflowExecution>> LoadRuntimeExecutionsAcrossAppsAsync(
         TenantId tenantId,
         IReadOnlyList<LowCodeApp> appInstances,
         CancellationToken cancellationToken)
     {
-        var tasks = new List<Task<List<WorkflowExecution>>>
+        var tasks = new List<Task<ResourceCenterPerAppLoadResult<WorkflowExecution>>>
         {
-            _mainDb.Queryable<WorkflowExecution>()
-                .Where(item => item.TenantIdValue == tenantId.Value)
-                .Take(200)
-                .ToListAsync(cancellationToken)
+            LoadMainDbExecutionsAsync(tenantId, cancellationToken)
         };
         tasks.AddRange(appInstances.Select(async app =>
         {
-            var appDb = await _appDbScopeFactory.GetAppClientAsync(tenantId, app.Id, cancellationToken);
-            return await appDb.Queryable<WorkflowExecution>()
-                .Where(item => item.TenantIdValue == tenantId.Value)
-                .Take(200)
-                .ToListAsync(cancellationToken);
+            try
+            {
+                var appDb = await _appDbScopeFactory.GetAppClientAsync(tenantId, app.Id, cancellationToken);
+                var items = await appDb.Queryable<WorkflowExecution>()
+                    .Where(item => item.TenantIdValue == tenantId.Value)
+                    .Take(200)
+                    .ToListAsync(cancellationToken);
+                return ResourceCenterPerAppLoadResult<WorkflowExecution>.Success(items);
+            }
+            catch (BusinessException ex) when (ShouldSkipNoDataSource(ex))
+            {
+                _logger.LogWarning(
+                    "资源中心执行聚合跳过未绑定数据源应用。TenantId={TenantId}; AppInstanceId={AppInstanceId}; AppName={AppName}; ErrorCode={ErrorCode}",
+                    tenantId.Value,
+                    app.Id,
+                    app.Name,
+                    ex.Code);
+                return ResourceCenterPerAppLoadResult<WorkflowExecution>.Skipped(
+                    new ResourceCenterAppLoadWarning(
+                        app.Id,
+                        app.Name,
+                        ex.Code,
+                        ex.Message));
+            }
         }));
 
         await Task.WhenAll(tasks);
-        return tasks
-            .SelectMany(task => task.Result)
+        var results = tasks.Select(task => task.Result).ToArray();
+        var items = results
+            .SelectMany(task => task.Items)
             .GroupBy(item => item.Id)
             .Select(group => group.First())
             .OrderByDescending(item => item.StartedAt)
             .Take(200)
             .ToArray();
+        var warnings = results
+            .Select(item => item.Warning)
+            .Where(item => item is not null)
+            .Select(item => item!)
+            .ToArray();
+        return new ResourceCenterAppLoadResult<WorkflowExecution>(items, warnings);
     }
+
+    private async Task<ResourceCenterPerAppLoadResult<RuntimeRoute>> LoadMainDbRoutesAsync(
+        TenantId tenantId,
+        CancellationToken cancellationToken)
+    {
+        var items = await _mainDb.Queryable<RuntimeRoute>()
+            .Where(item => item.TenantIdValue == tenantId.Value)
+            .ToListAsync(cancellationToken);
+        return ResourceCenterPerAppLoadResult<RuntimeRoute>.Success(items);
+    }
+
+    private async Task<ResourceCenterPerAppLoadResult<WorkflowExecution>> LoadMainDbExecutionsAsync(
+        TenantId tenantId,
+        CancellationToken cancellationToken)
+    {
+        var items = await _mainDb.Queryable<WorkflowExecution>()
+            .Where(item => item.TenantIdValue == tenantId.Value)
+            .Take(200)
+            .ToListAsync(cancellationToken);
+        return ResourceCenterPerAppLoadResult<WorkflowExecution>.Success(items);
+    }
+
+    private static bool ShouldSkipNoDataSource(BusinessException ex)
+    {
+        return string.Equals(ex.Code, ErrorCodes.ValidationError, StringComparison.Ordinal)
+            && ex.Message.Contains("未绑定可用数据源", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private sealed record ResourceCenterPerAppLoadResult<T>(
+        IReadOnlyList<T> Items,
+        ResourceCenterAppLoadWarning? Warning)
+    {
+        public static ResourceCenterPerAppLoadResult<T> Success(IReadOnlyList<T> items)
+            => new(items, null);
+
+        public static ResourceCenterPerAppLoadResult<T> Skipped(ResourceCenterAppLoadWarning warning)
+            => new(Array.Empty<T>(), warning);
+    }
+
+    private sealed record ResourceCenterAppLoadResult<T>(
+        IReadOnlyList<T> Items,
+        IReadOnlyList<ResourceCenterAppLoadWarning> Warnings);
+
+    private sealed record ResourceCenterAppLoadWarning(
+        long AppInstanceId,
+        string AppName,
+        string ErrorCode,
+        string Message);
 }
 
 public sealed class ResourceCenterCommandService : IResourceCenterCommandService
 {
     private readonly ISqlSugarClient _db;
     private readonly IIdGeneratorAccessor _idGenerator;
+    private readonly ITenantDbConnectionFactory _tenantDbConnectionFactory;
 
-    public ResourceCenterCommandService(ISqlSugarClient db, IIdGeneratorAccessor idGenerator)
+    public ResourceCenterCommandService(
+        ISqlSugarClient db,
+        IIdGeneratorAccessor idGenerator,
+        ITenantDbConnectionFactory tenantDbConnectionFactory)
     {
         _db = db;
         _idGenerator = idGenerator;
+        _tenantDbConnectionFactory = tenantDbConnectionFactory;
     }
 
     public async Task<ResourceCenterRepairResult> DisableInvalidBindingAsync(
@@ -2211,6 +2334,8 @@ public sealed class ResourceCenterCommandService : IResourceCenterCommandService
         {
             throw transaction.ErrorException ?? new InvalidOperationException("禁用无效绑定失败。");
         }
+
+        _tenantDbConnectionFactory.InvalidateCache(tenantId.Value.ToString("D"), binding.TenantAppInstanceId);
 
         return new ResourceCenterRepairResult("disable-invalid-binding", binding.Id.ToString(), true, "已禁用无效绑定。");
     }
@@ -2312,6 +2437,8 @@ public sealed class ResourceCenterCommandService : IResourceCenterCommandService
             throw transaction.ErrorException ?? new InvalidOperationException("切换主绑定失败。");
         }
 
+        _tenantDbConnectionFactory.InvalidateCache(tenantId.Value.ToString("D"), appInstanceId);
+
         return new ResourceCenterRepairResult(
             "switch-primary-binding",
             targetBinding.Id.ToString(),
@@ -2376,6 +2503,8 @@ public sealed class ResourceCenterCommandService : IResourceCenterCommandService
         {
             throw transaction.ErrorException ?? new InvalidOperationException("解绑孤儿绑定失败。");
         }
+
+        _tenantDbConnectionFactory.InvalidateCache(tenantId.Value.ToString("D"), binding.TenantAppInstanceId);
 
         return new ResourceCenterRepairResult("unbind-orphan-binding", binding.Id.ToString(), true, "孤儿绑定已解绑。");
     }
