@@ -1,6 +1,7 @@
 using Atlas.Core.Abstractions;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.DynamicTables.Enums;
+using SqlSugar;
 
 namespace Atlas.Domain.DynamicTables.Entities;
 
@@ -67,13 +68,22 @@ public sealed class DynamicField : TenantEntity
     public string Name { get; private set; }
     public string DisplayName { get; private set; }
     public DynamicFieldType FieldType { get; private set; }
+
+    /// <summary>仅 String 等类型有意义；Long/Decimal/Bool 等应为 null。</summary>
+    [SugarColumn(IsNullable = true)]
     public int? Length { get; private set; }
+
+    [SugarColumn(IsNullable = true)]
     public int? Precision { get; private set; }
+
+    [SugarColumn(IsNullable = true)]
     public int? Scale { get; private set; }
     public bool AllowNull { get; private set; }
     public bool IsPrimaryKey { get; private set; }
     public bool IsAutoIncrement { get; private set; }
     public bool IsUnique { get; private set; }
+
+    [SugarColumn(IsNullable = true)]
     public string? DefaultValue { get; private set; }
     public int SortOrder { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }

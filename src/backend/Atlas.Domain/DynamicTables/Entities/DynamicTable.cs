@@ -1,6 +1,7 @@
 using Atlas.Core.Abstractions;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.DynamicTables.Enums;
+using SqlSugar;
 
 namespace Atlas.Domain.DynamicTables.Entities;
 
@@ -59,9 +60,11 @@ public sealed class DynamicTable : TenantEntity
     public long? AppId { get; private set; }
 
     /// <summary>关联的审批流定义 ID（null 表示未绑定审批流）</summary>
+    [SugarColumn(IsNullable = true)]
     public long? ApprovalFlowDefinitionId { get; private set; }
 
     /// <summary>审批状态字段名（动态表中用于记录审批状态的字段，如 "status"）</summary>
+    [SugarColumn(IsNullable = true)]
     public string? ApprovalStatusField { get; private set; }
 
     public void UpdateMeta(

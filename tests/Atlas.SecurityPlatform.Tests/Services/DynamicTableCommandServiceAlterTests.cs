@@ -1,16 +1,23 @@
 using Atlas.Application.DynamicTables.Models;
+using Atlas.Application.System.Abstractions;
+using Atlas.Application.System.Models;
 using Atlas.Core.Abstractions;
 using Atlas.Core.Exceptions;
 using Atlas.Core.Identity;
 using Atlas.Core.Tenancy;
+using Atlas.Domain.DynamicTables.Entities;
+using Atlas.Domain.System.Entities;
 using Atlas.Infrastructure.Repositories;
 using Atlas.Infrastructure.Services;
+using Microsoft.Extensions.Caching.Memory;
 using SqlSugar;
 
 namespace Atlas.SecurityPlatform.Tests.Services;
 
 public sealed class DynamicTableCommandServiceAlterTests
 {
+    private const long DefaultAppInstanceId = 1001;
+
     [Fact]
     public async Task AlterAsync_ShouldAddField_AndSupportRecordWrite()
     {
@@ -29,7 +36,7 @@ public sealed class DynamicTableCommandServiceAlterTests
             var recordRepository = new DynamicRecordRepository(db);
             var migrationRepository = new DynamicSchemaMigrationRepository(db);
             var idGenerator = new SequentialIdGenerator(5000);
-            var appContextAccessor = new FakeAppContextAccessor();
+            var appContextAccessor = new FakeAppContextAccessor(DefaultAppInstanceId.ToString());
             var service = new DynamicTableCommandService(
                 tableRepository,
                 fieldRepository,
@@ -57,7 +64,8 @@ public sealed class DynamicTableCommandServiceAlterTests
                         new DynamicFieldDefinition("id", "主键", "Long", null, null, null, false, true, true, true, null, 0),
                         new DynamicFieldDefinition("orderNo", "订单号", "String", 50, null, null, false, false, false, false, null, 1)
                     },
-                    Array.Empty<DynamicIndexDefinition>()),
+                    Array.Empty<DynamicIndexDefinition>(),
+                    DefaultAppInstanceId.ToString()),
                 CancellationToken.None);
 
             await service.AlterAsync(
@@ -73,7 +81,7 @@ public sealed class DynamicTableCommandServiceAlterTests
                     Array.Empty<string>()),
                 CancellationToken.None);
 
-            var table = await tableRepository.FindByKeyAsync(tenantId, "orders_alter", null, CancellationToken.None);
+            var table = await tableRepository.FindByKeyAsync(tenantId, "orders_alter", DefaultAppInstanceId, CancellationToken.None);
             Assert.NotNull(table);
             var fields = await fieldRepository.ListByTableIdAsync(tenantId, table!.Id, CancellationToken.None);
             Assert.Contains(fields, x => x.Name.Equals("remark", StringComparison.OrdinalIgnoreCase));
@@ -122,7 +130,7 @@ public sealed class DynamicTableCommandServiceAlterTests
             var recordRepository = new DynamicRecordRepository(db);
             var migrationRepository = new DynamicSchemaMigrationRepository(db);
             var idGenerator = new SequentialIdGenerator(6000);
-            var appContextAccessor = new FakeAppContextAccessor();
+            var appContextAccessor = new FakeAppContextAccessor(DefaultAppInstanceId.ToString());
             var service = new DynamicTableCommandService(
                 tableRepository,
                 fieldRepository,
@@ -150,7 +158,8 @@ public sealed class DynamicTableCommandServiceAlterTests
                         new DynamicFieldDefinition("id", "主键", "Long", null, null, null, false, true, true, true, null, 0),
                         new DynamicFieldDefinition("orderNo", "订单号", "String", 50, null, null, false, false, false, false, null, 1)
                     },
-                    Array.Empty<DynamicIndexDefinition>()),
+                    Array.Empty<DynamicIndexDefinition>(),
+                    DefaultAppInstanceId.ToString()),
                 CancellationToken.None);
 
             await Assert.ThrowsAsync<BusinessException>(() => service.AlterAsync(
@@ -191,7 +200,7 @@ public sealed class DynamicTableCommandServiceAlterTests
             var recordRepository = new DynamicRecordRepository(db);
             var migrationRepository = new DynamicSchemaMigrationRepository(db);
             var idGenerator = new SequentialIdGenerator(6500);
-            var appContextAccessor = new FakeAppContextAccessor();
+            var appContextAccessor = new FakeAppContextAccessor(DefaultAppInstanceId.ToString());
             var service = new DynamicTableCommandService(
                 tableRepository,
                 fieldRepository,
@@ -219,7 +228,8 @@ public sealed class DynamicTableCommandServiceAlterTests
                         new DynamicFieldDefinition("id", "主键", "Long", null, null, null, false, true, true, true, null, 0),
                         new DynamicFieldDefinition("orderNo", "订单号", "String", 50, null, null, false, false, false, false, null, 1)
                     },
-                    Array.Empty<DynamicIndexDefinition>()),
+                    Array.Empty<DynamicIndexDefinition>(),
+                    DefaultAppInstanceId.ToString()),
                 CancellationToken.None);
 
             await service.AlterAsync(
@@ -235,7 +245,7 @@ public sealed class DynamicTableCommandServiceAlterTests
                     Array.Empty<string>()),
                 CancellationToken.None);
 
-            var table = await tableRepository.FindByKeyAsync(tenantId, "orders_alter_update_meta", null, CancellationToken.None);
+            var table = await tableRepository.FindByKeyAsync(tenantId, "orders_alter_update_meta", DefaultAppInstanceId, CancellationToken.None);
             Assert.NotNull(table);
             var fields = await fieldRepository.ListByTableIdAsync(tenantId, table!.Id, CancellationToken.None);
             var orderNo = fields.Single(x => x.Name == "orderNo");
@@ -267,7 +277,7 @@ public sealed class DynamicTableCommandServiceAlterTests
             var recordRepository = new DynamicRecordRepository(db);
             var migrationRepository = new DynamicSchemaMigrationRepository(db);
             var idGenerator = new SequentialIdGenerator(7000);
-            var appContextAccessor = new FakeAppContextAccessor();
+            var appContextAccessor = new FakeAppContextAccessor(DefaultAppInstanceId.ToString());
             var service = new DynamicTableCommandService(
                 tableRepository,
                 fieldRepository,
@@ -295,7 +305,8 @@ public sealed class DynamicTableCommandServiceAlterTests
                         new DynamicFieldDefinition("id", "主键", "Long", null, null, null, false, true, true, true, null, 0),
                         new DynamicFieldDefinition("orderNo", "订单号", "String", 50, null, null, false, false, false, false, null, 1)
                     },
-                    Array.Empty<DynamicIndexDefinition>()),
+                    Array.Empty<DynamicIndexDefinition>(),
+                    DefaultAppInstanceId.ToString()),
                 CancellationToken.None);
 
             var preview = await service.PreviewAlterAsync(
@@ -315,7 +326,7 @@ public sealed class DynamicTableCommandServiceAlterTests
             Assert.Contains(preview.SqlScripts, script => script.Contains("ADD COLUMN", StringComparison.OrdinalIgnoreCase));
             Assert.Contains(preview.SqlScripts, script => script.Contains("CREATE UNIQUE INDEX", StringComparison.OrdinalIgnoreCase));
 
-            var table = await tableRepository.FindByKeyAsync(tenantId, "orders_preview", null, CancellationToken.None);
+            var table = await tableRepository.FindByKeyAsync(tenantId, "orders_preview", DefaultAppInstanceId, CancellationToken.None);
             Assert.NotNull(table);
             var fields = await fieldRepository.ListByTableIdAsync(tenantId, table!.Id, CancellationToken.None);
             Assert.DoesNotContain(fields, x => x.Name.Equals("remark_preview", StringComparison.OrdinalIgnoreCase));
@@ -324,6 +335,333 @@ public sealed class DynamicTableCommandServiceAlterTests
         {
             db?.Dispose();
             CleanupDbFile(dbPath);
+        }
+    }
+
+    [Fact]
+    public async Task CreateAsync_ShouldPersistNullApprovalBinding_WhenNotBound()
+    {
+        var dbPath = CreateTempDbPath();
+        SqlSugarClient? db = null;
+        try
+        {
+            db = CreateDb(dbPath);
+            await CreateSchemaAsync(db);
+
+            var tableRepository = new DynamicTableRepository(db);
+            var fieldRepository = new DynamicFieldRepository(db);
+            var indexRepository = new DynamicIndexRepository(db);
+            var relationRepository = new DynamicRelationRepository(db);
+            var fieldPermissionRepository = new FieldPermissionRepository(db);
+            var recordRepository = new DynamicRecordRepository(db);
+            var migrationRepository = new DynamicSchemaMigrationRepository(db);
+            var idGenerator = new SequentialIdGenerator(8000);
+            var appContextAccessor = new FakeAppContextAccessor(DefaultAppInstanceId.ToString());
+            var service = new DynamicTableCommandService(
+                tableRepository,
+                fieldRepository,
+                indexRepository,
+                relationRepository,
+                fieldPermissionRepository,
+                recordRepository,
+                migrationRepository,
+                idGenerator,
+                db,
+                TimeProvider.System,
+                appContextAccessor);
+
+            var tenantId = new TenantId(Guid.Parse("91919191-9191-9191-9191-919191919191"));
+            await service.CreateAsync(
+                tenantId,
+                userId: 1,
+                new DynamicTableCreateRequest(
+                    "orders_create_approval_null",
+                    "订单-默认未绑定审批",
+                    null,
+                    "Sqlite",
+                    new[]
+                    {
+                        new DynamicFieldDefinition("id", "主键", "Long", null, null, null, false, true, true, true, null, 0),
+                        new DynamicFieldDefinition("orderNo", "订单号", "String", 50, null, null, false, false, false, false, null, 1),
+                        new DynamicFieldDefinition("approvalStatus", "审批状态", "String", 20, null, null, true, false, false, false, null, 2)
+                    },
+                    Array.Empty<DynamicIndexDefinition>(),
+                    DefaultAppInstanceId.ToString()),
+                CancellationToken.None);
+
+            var table = await tableRepository.FindByKeyAsync(
+                tenantId,
+                "orders_create_approval_null",
+                DefaultAppInstanceId,
+                CancellationToken.None);
+
+            Assert.NotNull(table);
+            Assert.Null(table!.ApprovalFlowDefinitionId);
+            Assert.Null(table.ApprovalStatusField);
+        }
+        finally
+        {
+            db?.Dispose();
+            CleanupDbFile(dbPath);
+        }
+    }
+
+    [Fact]
+    public async Task BindApprovalFlowAsync_ShouldBindAndUnbindSuccessfully()
+    {
+        var dbPath = CreateTempDbPath();
+        SqlSugarClient? db = null;
+        try
+        {
+            db = CreateDb(dbPath);
+            await CreateSchemaAsync(db);
+
+            var tableRepository = new DynamicTableRepository(db);
+            var fieldRepository = new DynamicFieldRepository(db);
+            var indexRepository = new DynamicIndexRepository(db);
+            var relationRepository = new DynamicRelationRepository(db);
+            var fieldPermissionRepository = new FieldPermissionRepository(db);
+            var recordRepository = new DynamicRecordRepository(db);
+            var migrationRepository = new DynamicSchemaMigrationRepository(db);
+            var idGenerator = new SequentialIdGenerator(9000);
+            var appContextAccessor = new FakeAppContextAccessor(DefaultAppInstanceId.ToString());
+            var service = new DynamicTableCommandService(
+                tableRepository,
+                fieldRepository,
+                indexRepository,
+                relationRepository,
+                fieldPermissionRepository,
+                recordRepository,
+                migrationRepository,
+                idGenerator,
+                db,
+                TimeProvider.System,
+                appContextAccessor);
+
+            var tenantId = new TenantId(Guid.Parse("92929292-9292-9292-9292-929292929292"));
+            await service.CreateAsync(
+                tenantId,
+                userId: 1,
+                new DynamicTableCreateRequest(
+                    "orders_bind_unbind",
+                    "订单-绑定解绑审批",
+                    null,
+                    "Sqlite",
+                    new[]
+                    {
+                        new DynamicFieldDefinition("id", "主键", "Long", null, null, null, false, true, true, true, null, 0),
+                        new DynamicFieldDefinition("orderNo", "订单号", "String", 50, null, null, false, false, false, false, null, 1),
+                        new DynamicFieldDefinition("approvalStatus", "审批状态", "String", 20, null, null, true, false, false, false, null, 2)
+                    },
+                    Array.Empty<DynamicIndexDefinition>(),
+                    DefaultAppInstanceId.ToString()),
+                CancellationToken.None);
+
+            await service.BindApprovalFlowAsync(
+                tenantId,
+                userId: 1,
+                tableKey: "orders_bind_unbind",
+                request: new DynamicTableApprovalBindingRequest(20001, "approvalStatus"),
+                cancellationToken: CancellationToken.None);
+
+            var table = await tableRepository.FindByKeyAsync(
+                tenantId,
+                "orders_bind_unbind",
+                DefaultAppInstanceId,
+                CancellationToken.None);
+            Assert.NotNull(table);
+            Assert.Equal(20001, table!.ApprovalFlowDefinitionId);
+            Assert.Equal("approvalStatus", table.ApprovalStatusField);
+
+            await service.BindApprovalFlowAsync(
+                tenantId,
+                userId: 1,
+                tableKey: "orders_bind_unbind",
+                request: new DynamicTableApprovalBindingRequest(null, null),
+                cancellationToken: CancellationToken.None);
+
+            var unbound = await tableRepository.FindByKeyAsync(
+                tenantId,
+                "orders_bind_unbind",
+                DefaultAppInstanceId,
+                CancellationToken.None);
+            Assert.NotNull(unbound);
+            Assert.Null(unbound!.ApprovalFlowDefinitionId);
+            Assert.Null(unbound.ApprovalStatusField);
+        }
+        finally
+        {
+            db?.Dispose();
+            CleanupDbFile(dbPath);
+        }
+    }
+
+    [Fact]
+    public async Task CreateAsync_ShouldAutoRepairLegacyNotNullApprovalColumns()
+    {
+        var mainDbPath = CreateTempDbPath();
+        var appDbPath = CreateTempDbPath();
+        SqlSugarClient? mainDb = null;
+        SqlSugarClient? appDb = null;
+        MemoryCache? cache = null;
+        try
+        {
+            mainDb = CreateDb(mainDbPath);
+            appDb = CreateDb(appDbPath);
+            cache = new MemoryCache(new MemoryCacheOptions());
+
+            mainDb.CodeFirst.InitTables<AppDataRoutePolicy>();
+            await CreateSchemaAsync(appDb);
+            await ForceLegacyDynamicTableApprovalNotNullAsync(appDb);
+
+            Assert.True(IsColumnNotNull(appDb, "DynamicTable", "ApprovalFlowDefinitionId"));
+            Assert.True(IsColumnNotNull(appDb, "DynamicTable", "ApprovalStatusField"));
+
+            var tenantId = new TenantId(Guid.Parse("93939393-9393-9393-9393-939393939393"));
+            const long appInstanceId = 3001;
+            var appContextAccessor = new FakeAppContextAccessor(appInstanceId.ToString());
+            var scopeFactory = new AppDbScopeFactory(
+                new FakeTenantDbConnectionFactory(new TenantDbConnectionInfo($"Data Source={appDbPath}", "Sqlite")),
+                mainDb,
+                cache);
+
+            var tableRepository = new DynamicTableRepository(mainDb, scopeFactory, appContextAccessor);
+            var fieldRepository = new DynamicFieldRepository(mainDb, scopeFactory, appContextAccessor);
+            var indexRepository = new DynamicIndexRepository(mainDb, scopeFactory, appContextAccessor);
+            var relationRepository = new DynamicRelationRepository(mainDb, scopeFactory, appContextAccessor);
+            var fieldPermissionRepository = new FieldPermissionRepository(mainDb, scopeFactory, appContextAccessor);
+            var recordRepository = new DynamicRecordRepository(mainDb, scopeFactory);
+            var migrationRepository = new DynamicSchemaMigrationRepository(mainDb, scopeFactory, appContextAccessor);
+            var idGenerator = new SequentialIdGenerator(10000);
+            var service = new DynamicTableCommandService(
+                tableRepository,
+                fieldRepository,
+                indexRepository,
+                relationRepository,
+                fieldPermissionRepository,
+                recordRepository,
+                migrationRepository,
+                idGenerator,
+                scopeFactory,
+                TimeProvider.System,
+                appContextAccessor);
+
+            await service.CreateAsync(
+                tenantId,
+                userId: 1,
+                new DynamicTableCreateRequest(
+                    "orders_legacy_repair",
+                    "订单-旧结构修复",
+                    null,
+                    "Sqlite",
+                    new[]
+                    {
+                        new DynamicFieldDefinition("id", "主键", "Long", null, null, null, false, true, true, true, null, 0),
+                        new DynamicFieldDefinition("orderNo", "订单号", "String", 50, null, null, false, false, false, false, null, 1)
+                    },
+                    Array.Empty<DynamicIndexDefinition>(),
+                    appInstanceId.ToString()),
+                CancellationToken.None);
+
+            var repairedDb = await scopeFactory.GetAppClientAsync(tenantId, appInstanceId, CancellationToken.None);
+            Assert.False(IsColumnNotNull(repairedDb, "DynamicTable", "ApprovalFlowDefinitionId"));
+            Assert.False(IsColumnNotNull(repairedDb, "DynamicTable", "ApprovalStatusField"));
+
+            var table = await tableRepository.FindByKeyAsync(
+                tenantId,
+                "orders_legacy_repair",
+                appInstanceId,
+                CancellationToken.None);
+            Assert.NotNull(table);
+            Assert.Null(table!.ApprovalFlowDefinitionId);
+            Assert.Null(table.ApprovalStatusField);
+        }
+        finally
+        {
+            cache?.Dispose();
+            mainDb?.Dispose();
+            appDb?.Dispose();
+            CleanupDbFile(mainDbPath);
+            CleanupDbFile(appDbPath);
+        }
+    }
+
+    [Fact]
+    public async Task CreateAsync_ShouldAutoRepairLegacyDynamicFieldLengthNotNull()
+    {
+        var mainDbPath = CreateTempDbPath();
+        var appDbPath = CreateTempDbPath();
+        SqlSugarClient? mainDb = null;
+        SqlSugarClient? appDb = null;
+        MemoryCache? cache = null;
+        try
+        {
+            mainDb = CreateDb(mainDbPath);
+            appDb = CreateDb(appDbPath);
+            cache = new MemoryCache(new MemoryCacheOptions());
+
+            mainDb.CodeFirst.InitTables<AppDataRoutePolicy>();
+            await CreateSchemaAsync(appDb);
+            await ForceLegacyDynamicFieldLengthNotNullAsync(appDb);
+
+            Assert.True(IsColumnNotNull(appDb, "DynamicField", "Length"));
+
+            var tenantId = new TenantId(Guid.Parse("94949494-9494-9494-9494-949494949494"));
+            const long appInstanceId = 3002;
+            var appContextAccessor = new FakeAppContextAccessor(appInstanceId.ToString());
+            var scopeFactory = new AppDbScopeFactory(
+                new FakeTenantDbConnectionFactory(new TenantDbConnectionInfo($"Data Source={appDbPath}", "Sqlite")),
+                mainDb,
+                cache);
+
+            var tableRepository = new DynamicTableRepository(mainDb, scopeFactory, appContextAccessor);
+            var fieldRepository = new DynamicFieldRepository(mainDb, scopeFactory, appContextAccessor);
+            var indexRepository = new DynamicIndexRepository(mainDb, scopeFactory, appContextAccessor);
+            var relationRepository = new DynamicRelationRepository(mainDb, scopeFactory, appContextAccessor);
+            var fieldPermissionRepository = new FieldPermissionRepository(mainDb, scopeFactory, appContextAccessor);
+            var recordRepository = new DynamicRecordRepository(mainDb, scopeFactory);
+            var migrationRepository = new DynamicSchemaMigrationRepository(mainDb, scopeFactory, appContextAccessor);
+            var idGenerator = new SequentialIdGenerator(11000);
+            var service = new DynamicTableCommandService(
+                tableRepository,
+                fieldRepository,
+                indexRepository,
+                relationRepository,
+                fieldPermissionRepository,
+                recordRepository,
+                migrationRepository,
+                idGenerator,
+                scopeFactory,
+                TimeProvider.System,
+                appContextAccessor);
+
+            await service.CreateAsync(
+                tenantId,
+                userId: 1,
+                new DynamicTableCreateRequest(
+                    "orders_field_len_repair",
+                    "订单-Length列修复",
+                    null,
+                    "Sqlite",
+                    new[]
+                    {
+                        new DynamicFieldDefinition("id", "主键", "Long", null, null, null, false, true, true, true, null, 0),
+                        new DynamicFieldDefinition("orderNo", "订单号", "String", 50, null, null, false, false, false, false, null, 1)
+                    },
+                    Array.Empty<DynamicIndexDefinition>(),
+                    appInstanceId.ToString()),
+                CancellationToken.None);
+
+            var repairedDb = await scopeFactory.GetAppClientAsync(tenantId, appInstanceId, CancellationToken.None);
+            Assert.False(IsColumnNotNull(repairedDb, "DynamicField", "Length"));
+        }
+        finally
+        {
+            cache?.Dispose();
+            mainDb?.Dispose();
+            appDb?.Dispose();
+            CleanupDbFile(mainDbPath);
+            CleanupDbFile(appDbPath);
         }
     }
 
@@ -420,6 +758,99 @@ public sealed class DynamicTableCommandServiceAlterTests
         return db.Ado.ExecuteCommandAsync(sql);
     }
 
+    private static Task ForceLegacyDynamicTableApprovalNotNullAsync(SqlSugarClient db)
+    {
+        var sql = """
+                  ALTER TABLE "DynamicTable" RENAME TO "DynamicTable__old";
+
+                  CREATE TABLE "DynamicTable"(
+                    "TenantIdValue" TEXT NOT NULL,
+                    "Id" INTEGER PRIMARY KEY,
+                    "TableKey" TEXT NOT NULL,
+                    "DisplayName" TEXT NOT NULL,
+                    "Description" TEXT NULL,
+                    "DbType" INTEGER NOT NULL,
+                    "Status" INTEGER NOT NULL,
+                    "CreatedAt" TEXT NOT NULL,
+                    "UpdatedAt" TEXT NOT NULL,
+                    "CreatedBy" INTEGER NOT NULL,
+                    "UpdatedBy" INTEGER NOT NULL,
+                    "AppId" INTEGER NULL,
+                    "ApprovalFlowDefinitionId" INTEGER NOT NULL DEFAULT 0,
+                    "ApprovalStatusField" TEXT NOT NULL DEFAULT ''
+                  );
+
+                  INSERT INTO "DynamicTable"(
+                    "TenantIdValue", "Id", "TableKey", "DisplayName", "Description", "DbType", "Status",
+                    "CreatedAt", "UpdatedAt", "CreatedBy", "UpdatedBy", "AppId",
+                    "ApprovalFlowDefinitionId", "ApprovalStatusField")
+                  SELECT
+                    "TenantIdValue", "Id", "TableKey", "DisplayName", "Description", "DbType", "Status",
+                    "CreatedAt", "UpdatedAt", "CreatedBy", "UpdatedBy", "AppId",
+                    COALESCE("ApprovalFlowDefinitionId", 0), COALESCE("ApprovalStatusField", '')
+                  FROM "DynamicTable__old";
+
+                  DROP TABLE "DynamicTable__old";
+                  """;
+        return db.Ado.ExecuteCommandAsync(sql);
+    }
+
+    private static Task ForceLegacyDynamicFieldLengthNotNullAsync(SqlSugarClient db)
+    {
+        var sql = """
+                  ALTER TABLE "DynamicField" RENAME TO "DynamicField__old";
+
+                  CREATE TABLE "DynamicField"(
+                    "TenantIdValue" TEXT NOT NULL,
+                    "Id" INTEGER PRIMARY KEY,
+                    "TableId" INTEGER NOT NULL,
+                    "Name" TEXT NOT NULL,
+                    "DisplayName" TEXT NOT NULL,
+                    "FieldType" INTEGER NOT NULL,
+                    "Length" INTEGER NOT NULL DEFAULT 0,
+                    "Precision" INTEGER NULL,
+                    "Scale" INTEGER NULL,
+                    "AllowNull" INTEGER NOT NULL,
+                    "IsPrimaryKey" INTEGER NOT NULL,
+                    "IsAutoIncrement" INTEGER NOT NULL,
+                    "IsUnique" INTEGER NOT NULL,
+                    "DefaultValue" TEXT NULL,
+                    "SortOrder" INTEGER NOT NULL,
+                    "CreatedAt" TEXT NOT NULL,
+                    "UpdatedAt" TEXT NOT NULL
+                  );
+
+                  INSERT INTO "DynamicField"(
+                    "TenantIdValue", "Id", "TableId", "Name", "DisplayName", "FieldType",
+                    "Length", "Precision", "Scale", "AllowNull", "IsPrimaryKey", "IsAutoIncrement", "IsUnique",
+                    "DefaultValue", "SortOrder", "CreatedAt", "UpdatedAt")
+                  SELECT
+                    "TenantIdValue", "Id", "TableId", "Name", "DisplayName", "FieldType",
+                    COALESCE("Length", 0), "Precision", "Scale", "AllowNull", "IsPrimaryKey", "IsAutoIncrement", "IsUnique",
+                    "DefaultValue", "SortOrder", "CreatedAt", "UpdatedAt"
+                  FROM "DynamicField__old";
+
+                  DROP TABLE "DynamicField__old";
+                  """;
+        return db.Ado.ExecuteCommandAsync(sql);
+    }
+
+    private static bool IsColumnNotNull(ISqlSugarClient db, string tableName, string columnName)
+    {
+        var pragma = db.Ado.GetDataTable($"PRAGMA table_info(\"{tableName}\");");
+        foreach (System.Data.DataRow row in pragma.Rows)
+        {
+            if (!string.Equals(row["name"]?.ToString(), columnName, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            return Convert.ToInt32(row["notnull"]) == 1;
+        }
+
+        return false;
+    }
+
     private static void CleanupDbFile(string dbPath)
     {
         for (var attempt = 0; attempt < 5; attempt++)
@@ -463,13 +894,53 @@ public sealed class DynamicTableCommandServiceAlterTests
         }
     }
 
+    private sealed class FakeTenantDbConnectionFactory : ITenantDbConnectionFactory
+    {
+        private readonly TenantDbConnectionInfo _connectionInfo;
+
+        public FakeTenantDbConnectionFactory(TenantDbConnectionInfo connectionInfo)
+        {
+            _connectionInfo = connectionInfo;
+        }
+
+        public Task<string?> GetConnectionStringAsync(string tenantId, CancellationToken ct = default)
+        {
+            return Task.FromResult<string?>(_connectionInfo.ConnectionString);
+        }
+
+        public Task<TenantDbConnectionInfo?> GetConnectionInfoAsync(string tenantId, CancellationToken ct = default)
+        {
+            return Task.FromResult<TenantDbConnectionInfo?>(_connectionInfo);
+        }
+
+        public Task<TenantDbConnectionInfo?> GetConnectionInfoAsync(string tenantId, long tenantAppInstanceId, CancellationToken ct = default)
+        {
+            return Task.FromResult<TenantDbConnectionInfo?>(_connectionInfo);
+        }
+
+        public void InvalidateCache(string tenantId)
+        {
+        }
+
+        public void InvalidateCache(string tenantId, long? tenantAppInstanceId)
+        {
+        }
+    }
+
     private sealed class FakeAppContextAccessor : IAppContextAccessor
     {
+        private readonly string _appId;
+
+        public FakeAppContextAccessor(string appId = "")
+        {
+            _appId = appId;
+        }
+
         public IAppContext GetCurrent()
         {
             return new AppContextSnapshot(
                 new TenantId(Guid.Empty),
-                "0",
+                _appId,
                 null,
                 new ClientContext(ClientType.Backend, ClientPlatform.Web, ClientChannel.Browser, ClientAgent.Other),
                 null);
@@ -477,7 +948,7 @@ public sealed class DynamicTableCommandServiceAlterTests
 
         public string GetAppId()
         {
-            return string.Empty;
+            return _appId;
         }
 
         public IDisposable BeginScope(IAppContext context)

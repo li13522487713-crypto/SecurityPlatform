@@ -138,6 +138,8 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
             _idGeneratorAccessor.NextId(),
             now);
         table.BindAppScope(appId, userId, now);
+        // 创建时默认不绑定审批流，显式置空避免历史库/ORM 行为差异导致插入歧义。
+        table.UnbindApprovalFlow(userId, now);
 
         var fields = BuildFields(tenantId, table.Id, request.Fields, now);
         var indexes = BuildIndexes(tenantId, table.Id, request.Indexes, now);

@@ -84,6 +84,8 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         await EnsureUserAccountSchemaAsync(db, cancellationToken);
         await EnsureAppMembershipSchemaAsync(db, cancellationToken);
         await EnsureSystemConfigSchemaAsync(db, cancellationToken);
+        await EnsureDynamicTableSchemaAsync(db, cancellationToken);
+        await EnsureDynamicFieldSchemaAsync(db, cancellationToken);
 
         // Schema 迁移检查（兼容历史版本字段结构）
         if (!_initializerOptions.SkipSchemaMigrations)
@@ -1500,6 +1502,38 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         cancellationToken.ThrowIfCancellationRequested();
         await db.Ado.ExecuteCommandAsync(
             "CREATE INDEX IF NOT EXISTS IX_SystemConfig_Tenant_App_Key ON SystemConfig (TenantIdValue, AppId, ConfigKey)");
+    }
+
+    private static async Task EnsureDynamicTableSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
+    {
+        if (!db.DbMaintenance.IsAnyTable("DynamicTable", false))
+        {
+            return;
+        }
+
+        if (!RequiresNullableColumnFix<DynamicTable>(db, "Description", "AppId", "ApprovalFlowDefinitionId", "ApprovalStatusField")
+            && !RequiresMissingColumnFix<DynamicTable>(db, "Description", "AppId", "ApprovalFlowDefinitionId", "ApprovalStatusField"))
+        {
+            return;
+        }
+
+        await RebuildTableViaOrmAsync<DynamicTable>(db, cancellationToken);
+    }
+
+    private static async Task EnsureDynamicFieldSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
+    {
+        if (!db.DbMaintenance.IsAnyTable("DynamicField", false))
+        {
+            return;
+        }
+
+        if (!RequiresNullableColumnFix<DynamicField>(db, "Length", "Precision", "Scale", "DefaultValue")
+            && !RequiresMissingColumnFix<DynamicField>(db, "Length", "Precision", "Scale", "DefaultValue"))
+        {
+            return;
+        }
+
+        await RebuildTableViaOrmAsync<DynamicField>(db, cancellationToken);
     }
 
     private static async Task EnsureAuthSessionSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)

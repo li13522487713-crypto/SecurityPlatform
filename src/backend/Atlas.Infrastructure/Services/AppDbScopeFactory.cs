@@ -28,6 +28,7 @@ public sealed class AppDbScopeFactory : IAppDbScopeFactory
     // 缓存路由策略查询结果，避免每次请求都查主库
     private const string RoutePolicyCachePrefix = "app-route-policy:";
     private static readonly TimeSpan RoutePolicyCacheDuration = TimeSpan.FromMinutes(5);
+    private static int _mainDbSchemaChecked;
 
     public AppDbScopeFactory(
         ITenantDbConnectionFactory connectionFactory,
@@ -61,6 +62,7 @@ public sealed class AppDbScopeFactory : IAppDbScopeFactory
 
         if (isMainOnly)
         {
+            EnsureMainDbSchemaIfNeeded();
             return _mainDb;
         }
 
@@ -147,6 +149,8 @@ public sealed class AppDbScopeFactory : IAppDbScopeFactory
         {
             // 兼容历史库：旧版本可能将 DynamicTable 的可空字段建成 NOT NULL，导致插入/解绑审批流失败。
             EnsureDynamicTableNullableColumns(db);
+            // 兼容历史库：Length/Precision/Scale 应对非 String 等类型为 NULL，旧表若建成 NOT NULL 会导致创建动态表失败。
+            EnsureDynamicFieldNullableColumns(db);
         }
     }
 
@@ -230,8 +234,83 @@ FROM ""DynamicTable__old"";
         return existingColumns.Contains(columnName) ? expression : "NULL";
     }
 
+    private static void EnsureDynamicFieldNullableColumns(ISqlSugarClient db)
+    {
+        if (!db.DbMaintenance.IsAnyTable("DynamicField", false))
+        {
+            return;
+        }
+
+        var pragma = db.Ado.GetDataTable("PRAGMA table_info(\"DynamicField\");");
+        if (pragma is null || pragma.Rows.Count == 0)
+        {
+            return;
+        }
+
+        var notNullColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (System.Data.DataRow row in pragma.Rows)
+        {
+            var name = row["name"]?.ToString();
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                continue;
+            }
+
+            if (Convert.ToInt32(row["notnull"]) == 1)
+            {
+                notNullColumns.Add(name);
+            }
+        }
+
+        var shouldRebuild =
+            notNullColumns.Contains(nameof(DynamicField.Length)) ||
+            notNullColumns.Contains(nameof(DynamicField.Precision)) ||
+            notNullColumns.Contains(nameof(DynamicField.Scale)) ||
+            notNullColumns.Contains(nameof(DynamicField.DefaultValue));
+
+        if (!shouldRebuild)
+        {
+            return;
+        }
+
+        var rows = db.Queryable<DynamicField>().ToList();
+        var result = db.Ado.UseTran(() =>
+        {
+            db.DbMaintenance.DropTable("DynamicField");
+            db.CodeFirst.InitTables(typeof(DynamicField));
+            if (rows.Count > 0)
+            {
+                db.Insertable(rows).ExecuteCommand();
+            }
+        });
+
+        if (!result.IsSuccess)
+        {
+            throw result.ErrorException ?? new InvalidOperationException("修复 DynamicField 兼容结构失败。");
+        }
+    }
+
     private static DbType MapDbType(string? dbType)
     {
         return DataSourceDriverRegistry.ResolveDbType(dbType);
+    }
+
+    private void EnsureMainDbSchemaIfNeeded()
+    {
+        if (Interlocked.CompareExchange(ref _mainDbSchemaChecked, 1, 0) == 1)
+        {
+            return;
+        }
+
+        try
+        {
+            EnsureDynamicTableNullableColumns(_mainDb);
+            EnsureDynamicFieldNullableColumns(_mainDb);
+        }
+        catch
+        {
+            Interlocked.Exchange(ref _mainDbSchemaChecked, 0);
+            throw;
+        }
     }
 }
