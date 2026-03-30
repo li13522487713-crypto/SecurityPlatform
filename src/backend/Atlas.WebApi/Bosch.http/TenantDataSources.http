@@ -38,6 +38,11 @@ GET {{baseUrl}}/api/v1/tenant-datasources
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
+### 查询支持的驱动与可视化字段定义
+GET {{baseUrl}}/api/v1/tenant-datasources/drivers
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
 ### 创建 SQLite 数据源
 POST {{baseUrl}}/api/v1/tenant-datasources
 Authorization: Bearer {{accessToken}}
@@ -50,7 +55,32 @@ X-CSRF-TOKEN: {{csrfToken}}
   "tenantIdValue": "{{tenantId}}",
   "name": "SQLite-DS",
   "connectionString": "Data Source=tenant_a.db",
-  "dbType": "SQLite"
+  "dbType": "SQLite",
+  "mode": "raw"
+}
+
+### 创建 MySQL 数据源（可视化模式）
+POST {{baseUrl}}/api/v1/tenant-datasources
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "tenantIdValue": "{{tenantId}}",
+  "name": "MySQL-DS-Visual",
+  "connectionString": "",
+  "dbType": "MySql",
+  "mode": "visual",
+  "visualConfig": {
+    "host": "127.0.0.1",
+    "port": "3306",
+    "database": "atlas",
+    "username": "root",
+    "password": "root",
+    "extra": "SslMode=none"
+  }
 }
 
 ### 测试 PostgreSQL 数据源连通性（示例）
@@ -63,7 +93,8 @@ X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "connectionString": "Host=127.0.0.1;Port=5432;Database=atlas;Username=postgres;Password=postgres",
-  "dbType": "PostgreSql"
+  "dbType": "PostgreSQL",
+  "mode": "raw"
 }
 
 ### 测试 MySQL 数据源连通性（示例）
@@ -76,7 +107,8 @@ X-CSRF-TOKEN: {{csrfToken}}
 
 {
   "connectionString": "Server=127.0.0.1;Port=3306;Database=atlas;Uid=root;Pwd=root;",
-  "dbType": "MySql"
+  "dbType": "MySql",
+  "mode": "raw"
 }
 
 ### 更新数据源
@@ -90,6 +122,7 @@ X-CSRF-TOKEN: {{csrfToken}}
 {
   "name": "SQLite-DS-Updated",
   "dbType": "SQLite",
+  "mode": "raw",
   "maxPoolSize": 80,
   "connectionTimeoutSeconds": 20
 }

@@ -4,6 +4,8 @@ namespace Atlas.Application.System.Abstractions;
 
 public interface ITenantDataSourceService
 {
+    Task<IReadOnlyList<DataSourceDriverDefinition>> GetDriverDefinitionsAsync(CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<TenantDataSourceDto>> QueryAllAsync(string tenantIdValue, CancellationToken cancellationToken = default);
 
     Task<TenantDataSourceDto?> GetByIdAsync(string tenantIdValue, long id, CancellationToken cancellationToken = default);

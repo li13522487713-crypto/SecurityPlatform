@@ -21,6 +21,8 @@ public sealed record TenantDataSourceCreateRequest(
     string ConnectionString,
     string DbType = "SQLite",
     string? AppId = null,
+    string Mode = "raw",
+    Dictionary<string, string>? VisualConfig = null,
     int MaxPoolSize = 50,
     int ConnectionTimeoutSeconds = 15);
 
@@ -28,10 +30,16 @@ public sealed record TenantDataSourceUpdateRequest(
     string Name,
     string? ConnectionString,
     string DbType,
+    string Mode = "raw",
+    Dictionary<string, string>? VisualConfig = null,
     int MaxPoolSize = 50,
     int ConnectionTimeoutSeconds = 15);
 
-public sealed record TestConnectionRequest(string ConnectionString, string DbType = "SQLite");
+public sealed record TestConnectionRequest(
+    string ConnectionString,
+    string DbType = "SQLite",
+    string Mode = "raw",
+    Dictionary<string, string>? VisualConfig = null);
 
 public sealed record TestConnectionResult(bool Success, string? ErrorMessage = null, int? LatencyMs = null);
 
@@ -52,3 +60,20 @@ public sealed record DataSourceOrphanItem(
     bool IsActive,
     DateTimeOffset CreatedAt,
     DateTimeOffset? LastTestedAt);
+
+public sealed record DataSourceDriverFieldDefinition(
+    string Key,
+    string Label,
+    string InputType,
+    bool Required,
+    bool Secret,
+    bool Multiline,
+    string? Placeholder,
+    string? DefaultValue);
+
+public sealed record DataSourceDriverDefinition(
+    string Code,
+    string DisplayName,
+    bool SupportsVisual,
+    string ConnectionStringExample,
+    IReadOnlyList<DataSourceDriverFieldDefinition> Fields);

@@ -727,6 +727,7 @@ JWT Claims（新增）：
 ### 管理接口
 
 - `GET /api/v1/tenant-datasources`：查询数据源列表
+- `GET /api/v1/tenant-datasources/drivers`：查询驱动定义与可视化字段元数据
 - `POST /api/v1/tenant-datasources`：新增数据源
 - `PUT /api/v1/tenant-datasources/{id}`：更新数据源
 - `DELETE /api/v1/tenant-datasources/{id}`：删除数据源
@@ -738,7 +739,18 @@ JWT Claims（新增）：
 - `SQLite`
 - `SqlServer`
 - `MySql`
-- `PostgreSql`
+- `PostgreSQL`
+- `Oracle`
+- `Dm`
+- `Kdbndp`
+- `Oscar`
+- `Access`
+
+说明：
+
+- 所有驱动均支持 `mode=raw`（直接连接字符串）。
+- 支持可视化模式的驱动可使用 `mode=visual` + `visualConfig` 组装连接串。
+- 推荐通过 `GET /api/v1/tenant-datasources/drivers` 获取前端动态表单字段，避免硬编码。
 
 ### 测试连接
 
@@ -749,7 +761,8 @@ JWT Claims（新增）：
 ```json
 {
   "connectionString": "Host=127.0.0.1;Port=5432;Database=atlas;Username=postgres;Password=postgres",
-  "dbType": "PostgreSql"
+  "dbType": "PostgreSQL",
+  "mode": "raw"
 }
 ```
 
@@ -777,6 +790,37 @@ JWT Claims（新增）：
 
 - `connectionString` 允许留空（或不传），表示保持现有密文连接串不变，仅更新名称/类型/池参数。
 - 若传入 `connectionString`，服务端按配置重新加密后覆盖存储。
+- 当 `mode=visual` 时，服务端使用 `visualConfig` 组装连接串并加密存储（`connectionString` 可为空）。
+
+## 应用数据库迁移契约（补充）
+
+- `POST /api/v1/app-migrations`：创建迁移任务（`appInstanceId` 为字符串，避免长整型精度丢失）
+- `POST /api/v1/app-migrations/repair-primary-binding`：显式修复应用实例主数据源绑定（混合模式）
+
+请求示例（修复主绑定）：
+
+```json
+{
+  "appInstanceId": "1482690002860118000"
+}
+```
+
+响应示例：
+
+```json
+{
+  "success": true,
+  "code": "SUCCESS",
+  "message": "OK",
+  "traceId": "00-...",
+  "data": {
+    "appInstanceId": "1482690002860118000",
+    "dataSourceId": "1482690002868506624",
+    "repaired": true,
+    "message": "主数据源绑定修复成功。"
+  }
+}
+```
 
 ## 通知公告契约
 

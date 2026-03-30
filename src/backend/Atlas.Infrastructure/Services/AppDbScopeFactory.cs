@@ -52,7 +52,17 @@ public sealed class AppDbScopeFactory : IAppDbScopeFactory
         {
             ConnectionString = info.ConnectionString,
             DbType = MapDbType(info.DbType),
-            IsAutoCloseConnection = true
+            IsAutoCloseConnection = true,
+            ConfigureExternalServices = new ConfigureExternalServices
+            {
+                EntityService = (property, column) =>
+                {
+                    if (property.Name == nameof(Atlas.Core.Abstractions.TenantEntity.TenantId))
+                    {
+                        column.IsIgnore = true;
+                    }
+                }
+            }
         };
 
         var db = new SqlSugarClient(config);
@@ -92,18 +102,6 @@ public sealed class AppDbScopeFactory : IAppDbScopeFactory
 
     private static DbType MapDbType(string? dbType)
     {
-        if (string.IsNullOrWhiteSpace(dbType))
-        {
-            return DbType.Sqlite;
-        }
-
-        return dbType.Trim().ToLowerInvariant() switch
-        {
-            "sqlite" => DbType.Sqlite,
-            "sqlserver" => DbType.SqlServer,
-            "mysql" => DbType.MySql,
-            "postgresql" => DbType.PostgreSQL,
-            _ => DbType.Sqlite
-        };
+        return DataSourceDriverRegistry.ResolveDbType(dbType);
     }
 }

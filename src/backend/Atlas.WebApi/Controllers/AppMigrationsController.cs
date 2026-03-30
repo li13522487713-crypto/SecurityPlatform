@@ -57,6 +57,19 @@ public sealed class AppMigrationsController : ControllerBase
         return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
     }
 
+    [HttpPost("repair-primary-binding")]
+    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
+    public async Task<ActionResult<ApiResponse<AppMigrationBindingRepairResult>>> RepairPrimaryBinding(
+        [FromBody] AppMigrationBindingRepairRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var user = _currentUserAccessor.GetCurrentUser();
+        var userId = user?.UserId ?? 0;
+        var result = await _migrationService.RepairPrimaryBindingAsync(tenantId, userId, request, cancellationToken);
+        return Ok(ApiResponse<AppMigrationBindingRepairResult>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
     [HttpGet("{id:long}")]
     [Authorize(Policy = PermissionPolicies.AppsView)]
     public async Task<ActionResult<ApiResponse<AppMigrationTaskDetail?>>> Get(

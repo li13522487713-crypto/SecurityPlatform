@@ -110,8 +110,7 @@ public sealed class TenantDbConnectionFactory : ITenantDbConnectionFactory, IApp
                 return null;
             }
 
-            var source = await _repository.FindByTenantAndAppInstanceBindingAsync(tenantGuid, tenantAppInstanceId, ct)
-                ?? await _repository.FindByTenantAndAppIdAsync(tenantId, tenantAppInstanceId, ct);
+            var source = await _repository.FindByTenantAndAppInstanceBindingAsync(tenantGuid, tenantAppInstanceId, ct);
             if (source is null)
             {
                 sourceTag = "not_found";

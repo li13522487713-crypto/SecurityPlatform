@@ -78,11 +78,49 @@
       <a-form-item :label="t('datasource.dbType')" name="dbType">
         <a-select v-model:value="formModel.dbType" :options="dbTypeOptions" />
       </a-form-item>
-      <a-form-item :label="t('datasource.connectionString')" name="connectionString">
+      <a-form-item label="连接配置模式" name="mode">
+        <a-radio-group v-model:value="formModel.mode">
+          <a-radio-button value="visual">可视化配置</a-radio-button>
+          <a-radio-button value="raw">连接字符串</a-radio-button>
+        </a-radio-group>
+      </a-form-item>
+      <a-alert
+        v-if="currentDriver"
+        type="info"
+        show-icon
+        style="margin-bottom: 12px"
+        :message="`Driver: ${currentDriver.displayName}`"
+        :description="`示例: ${currentDriver.connectionStringExample}`"
+      />
+      <template v-if="formModel.mode === 'visual'">
+        <a-form-item
+          v-for="field in visualFields"
+          :key="field.key"
+          :label="field.label"
+          :name="['visualConfig', field.key]"
+          :required="field.required"
+        >
+          <a-textarea
+            v-if="field.multiline || field.inputType === 'textarea'"
+            :value="getVisualValue(field.key)"
+            :rows="3"
+            :placeholder="field.placeholder || ''"
+            @update:value="setVisualValue(field.key, $event)"
+          />
+          <a-input
+            v-else
+            :type="field.secret ? 'password' : 'text'"
+            :value="getVisualValue(field.key)"
+            :placeholder="field.placeholder || ''"
+            @update:value="setVisualValue(field.key, $event)"
+          />
+        </a-form-item>
+      </template>
+      <a-form-item v-else :label="t('datasource.connectionString')" name="connectionString">
         <a-textarea
           v-model:value="formModel.connectionString"
           :rows="4"
-          :placeholder="t('datasource.connectionString')"
+          :placeholder="currentDriver?.connectionStringExample || t('datasource.connectionString')"
         />
       </a-form-item>
       <a-form-item :label="t('datasource.maxPoolSize')">
@@ -110,7 +148,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, onUnmounted } from "vue";
+import { computed, onMounted, reactive, ref, onUnmounted, watch } from "vue";
 
 const isMounted = ref(false);
 onMounted(() => { isMounted.value = true; });
@@ -124,11 +162,13 @@ import {
   createTenantDataSource,
   deleteTenantDataSource,
   getTenantDataSources,
+  getTenantDataSourceDrivers,
   testTenantDataSourceConnectionById,
   testTenantDataSourceConnection,
   updateTenantDataSource
 } from "@/services/api";
 import type {
+  DataSourceDriverDefinition,
   TenantDataSourceDto,
   TenantDataSourceCreateRequest,
   TenantDataSourceUpdateRequest
@@ -146,6 +186,7 @@ const loading = ref(false);
 const saving = ref(false);
 const testing = ref(false);
 const items = ref<TenantDataSourceDto[]>([]);
+const driverDefinitions = ref<DataSourceDriverDefinition[]>([]);
 
 const formVisible = ref(false);
 const formMode = ref<"create" | "edit">("create");
@@ -157,17 +198,30 @@ const formModel = reactive({
   tenantIdValue: getTenantId() ?? "",
   name: "",
   dbType: "SQLite",
+  mode: "raw" as "raw" | "visual",
   connectionString: "",
+  visualConfig: {} as Record<string, string>,
   maxPoolSize: 50,
   connectionTimeoutSeconds: 15
 });
 
-const dbTypeOptions = [
-  { label: "SQLite", value: "SQLite" },
-  { label: "SqlServer", value: "SqlServer" },
-  { label: "MySql", value: "MySql" },
-  { label: "PostgreSql", value: "PostgreSql" }
-];
+const dbTypeOptions = computed(() => {
+  if (driverDefinitions.value.length === 0) {
+    return [{ label: "SQLite", value: "SQLite" }];
+  }
+  return driverDefinitions.value.map((item) => ({ label: item.displayName, value: item.code }));
+});
+
+const currentDriver = computed(() =>
+  driverDefinitions.value.find((item) => item.code === formModel.dbType) ?? null
+);
+
+const visualFields = computed(() => {
+  if (formModel.mode !== "visual" || !currentDriver.value?.supportsVisual) {
+    return [];
+  }
+  return currentDriver.value.fields;
+});
 
 const formRules: Record<string, Rule[]> = {
   tenantIdValue: [{ required: true, message: "请输入租户ID" }],
@@ -175,6 +229,14 @@ const formRules: Record<string, Rule[]> = {
   dbType: [{ required: true, message: "请选择数据库类型" }],
   connectionString: [{
     validator: async (_, value: string) => {
+      if (formModel.mode === "visual") {
+        for (const field of visualFields.value) {
+          if (field.required && !String(formModel.visualConfig[field.key] ?? "").trim()) {
+            throw new Error(`请填写 ${field.label}`);
+          }
+        }
+        return;
+      }
       if (formMode.value === "create" && !value?.trim()) {
         throw new Error("请输入连接字符串");
       }
@@ -207,11 +269,24 @@ const loadData = async () => {
   }
 };
 
+const loadDriverDefinitions = async () => {
+  try {
+    driverDefinitions.value = await getTenantDataSourceDrivers();
+    if (driverDefinitions.value.length > 0 && !driverDefinitions.value.some((x) => x.code === formModel.dbType)) {
+      formModel.dbType = driverDefinitions.value[0].code;
+    }
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : "加载数据源驱动失败");
+  }
+};
+
 const resetFormModel = () => {
   formModel.tenantIdValue = getTenantId() ?? "";
   formModel.name = "";
   formModel.dbType = "SQLite";
+  formModel.mode = "raw";
   formModel.connectionString = "";
+  formModel.visualConfig = {};
   formModel.maxPoolSize = 50;
   formModel.connectionTimeoutSeconds = 15;
 };
@@ -233,7 +308,9 @@ const openEdit = (record: TenantDataSourceDto) => {
   formModel.tenantIdValue = record.tenantIdValue;
   formModel.name = record.name;
   formModel.dbType = record.dbType;
+  formModel.mode = "raw";
   formModel.connectionString = "";
+  formModel.visualConfig = {};
   formModel.maxPoolSize = record.maxPoolSize ?? 50;
   formModel.connectionTimeoutSeconds = record.connectionTimeoutSeconds ?? 15;
   formVisible.value = true;
@@ -255,7 +332,9 @@ const handleTestConnection = async () => {
       ? await testTenantDataSourceConnectionById(editingId.value)
       : await testTenantDataSourceConnection({
           connectionString: formModel.connectionString,
-          dbType: formModel.dbType
+          dbType: formModel.dbType,
+          mode: formModel.mode,
+          visualConfig: formModel.mode === "visual" ? formModel.visualConfig : undefined
         });
     if (result.success) {
       message.success(result.latencyMs ? `${t("datasource.testSuccess")}（${result.latencyMs}ms）` : t("datasource.testSuccess"));
@@ -287,6 +366,8 @@ const submitForm = async () => {
         name: formModel.name,
         dbType: formModel.dbType,
         connectionString: formModel.connectionString,
+        mode: formModel.mode,
+        visualConfig: formModel.mode === "visual" ? formModel.visualConfig : undefined,
         maxPoolSize: formModel.maxPoolSize,
         connectionTimeoutSeconds: formModel.connectionTimeoutSeconds
       };
@@ -299,6 +380,8 @@ const submitForm = async () => {
         name: formModel.name,
         dbType: formModel.dbType,
         connectionString: formModel.connectionString.trim() ? formModel.connectionString : undefined,
+        mode: formModel.mode,
+        visualConfig: formModel.mode === "visual" ? formModel.visualConfig : undefined,
         maxPoolSize: formModel.maxPoolSize,
         connectionTimeoutSeconds: formModel.connectionTimeoutSeconds
       };
@@ -365,7 +448,35 @@ const formatDateTime = (value: string) => {
   return new Date(value).toLocaleString("zh-CN");
 };
 
+const getVisualValue = (key: string) => String(formModel.visualConfig[key] ?? "");
+const setVisualValue = (key: string, value: string) => {
+  formModel.visualConfig = { ...formModel.visualConfig, [key]: value ?? "" };
+};
+
+watch(
+  () => [formModel.dbType, formModel.mode],
+  () => {
+    if (formModel.mode !== "visual") {
+      return;
+    }
+    const driver = currentDriver.value;
+    if (!driver || !driver.supportsVisual) {
+      formModel.mode = "raw";
+      return;
+    }
+    const next: Record<string, string> = { ...formModel.visualConfig };
+    for (const field of driver.fields) {
+      if (!next[field.key] && field.defaultValue) {
+        next[field.key] = field.defaultValue;
+      }
+    }
+    formModel.visualConfig = next;
+  },
+  { immediate: true }
+);
+
 onMounted(() => {
+  void loadDriverDefinitions();
   void loadData();
 });
 </script>

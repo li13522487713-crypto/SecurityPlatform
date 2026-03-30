@@ -55,6 +55,13 @@ export interface AppIntegrityCheckSummary {
   checkedAt: string;
 }
 
+export interface AppMigrationBindingRepairResult {
+  appInstanceId: string;
+  dataSourceId: string;
+  repaired: boolean;
+  message: string;
+}
+
 interface ApiResponse<T> {
   success: boolean;
   message?: string;
@@ -77,7 +84,7 @@ export async function queryAppMigrationTasks(pageIndex = 1, pageSize = 20, keywo
   return response.data;
 }
 
-export async function createAppMigrationTask(appInstanceId: number) {
+export async function createAppMigrationTask(appInstanceId: string) {
   const response = await requestApi<ApiResponse<{ id: string }>>("/app-migrations", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -85,6 +92,18 @@ export async function createAppMigrationTask(appInstanceId: number) {
   });
   if (!response.data) {
     throw new Error(response.message || "创建迁移任务失败");
+  }
+  return response.data;
+}
+
+export async function repairAppMigrationPrimaryBinding(appInstanceId: string): Promise<AppMigrationBindingRepairResult> {
+  const response = await requestApi<ApiResponse<AppMigrationBindingRepairResult>>("/app-migrations/repair-primary-binding", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ appInstanceId })
+  });
+  if (!response.data) {
+    throw new Error(response.message || "修复主绑定失败");
   }
   return response.data;
 }

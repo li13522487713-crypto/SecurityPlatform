@@ -997,6 +997,8 @@ export interface TenantDataSourceCreateRequest {
   name: string;
   connectionString: string;
   dbType: string;
+  mode?: "raw" | "visual";
+  visualConfig?: Record<string, string>;
   maxPoolSize?: number;
   connectionTimeoutSeconds?: number;
 }
@@ -1005,6 +1007,8 @@ export interface TenantDataSourceUpdateRequest {
   name: string;
   connectionString?: string;
   dbType: string;
+  mode?: "raw" | "visual";
+  visualConfig?: Record<string, string>;
   maxPoolSize?: number;
   connectionTimeoutSeconds?: number;
 }
@@ -1012,12 +1016,33 @@ export interface TenantDataSourceUpdateRequest {
 export interface TenantDataSourceTestConnectionRequest {
   connectionString: string;
   dbType: string;
+  mode?: "raw" | "visual";
+  visualConfig?: Record<string, string>;
 }
 
 export interface TenantDataSourceTestConnectionResult {
   success: boolean;
   errorMessage?: string;
   latencyMs?: number;
+}
+
+export interface DataSourceDriverFieldDefinition {
+  key: string;
+  label: string;
+  inputType: string;
+  required: boolean;
+  secret: boolean;
+  multiline: boolean;
+  placeholder?: string;
+  defaultValue?: string;
+}
+
+export interface DataSourceDriverDefinition {
+  code: string;
+  displayName: string;
+  supportsVisual: boolean;
+  connectionStringExample: string;
+  fields: DataSourceDriverFieldDefinition[];
 }
 
 export interface PositionListItem {

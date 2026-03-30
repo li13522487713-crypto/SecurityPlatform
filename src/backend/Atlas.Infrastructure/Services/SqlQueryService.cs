@@ -200,13 +200,6 @@ public class SqlQueryService : ISqlQueryService
 
     private static SqlSugar.DbType MapDbType(string providerName)
     {
-        return providerName?.ToLowerInvariant() switch
-        {
-            "sqlite" => SqlSugar.DbType.Sqlite,
-            "mysql" => SqlSugar.DbType.MySql,
-            "postgresql" => SqlSugar.DbType.PostgreSQL,
-            "sqlserver" => SqlSugar.DbType.SqlServer,
-            _ => throw new NotSupportedException($"Database provider {providerName} is not supported.")
-        };
+        return DataSourceDriverRegistry.ResolveDbType(providerName);
     }
 }

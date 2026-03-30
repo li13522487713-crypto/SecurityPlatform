@@ -3,7 +3,7 @@ using Atlas.Core.Models;
 namespace Atlas.Application.System.Models;
 
 public sealed record AppMigrationTaskCreateRequest(
-    long AppInstanceId,
+    string AppInstanceId,
     bool ReadOnlyWindow = true,
     bool EnableDualWrite = false,
     bool EnableRollback = true);
@@ -80,3 +80,12 @@ public sealed record AppMigrationActionResult(
     string TaskId,
     string Status,
     string? Message = null);
+
+public sealed record AppMigrationBindingRepairRequest(
+    string AppInstanceId);
+
+public sealed record AppMigrationBindingRepairResult(
+    string AppInstanceId,
+    string DataSourceId,
+    bool Repaired,
+    string Message);

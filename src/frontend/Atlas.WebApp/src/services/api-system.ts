@@ -15,6 +15,7 @@ import type {
   ProjectAssignPositionsRequest,
   TenantDataSourceDto,
   TenantDataSourceCreateRequest,
+  DataSourceDriverDefinition,
   TenantDataSourceUpdateRequest,
   TenantDataSourceTestConnectionRequest,
   TenantDataSourceTestConnectionResult,
@@ -179,6 +180,14 @@ export async function getTenantDataSources(): Promise<TenantDataSourceDto[]> {
   const response = await requestApi<ApiResponse<TenantDataSourceDto[]>>("/tenant-datasources");
   if (!response.data) {
     throw new Error(response.message || "查询数据源失败");
+  }
+  return response.data;
+}
+
+export async function getTenantDataSourceDrivers(): Promise<DataSourceDriverDefinition[]> {
+  const response = await requestApi<ApiResponse<DataSourceDriverDefinition[]>>("/tenant-datasources/drivers");
+  if (!response.data) {
+    throw new Error(response.message || "查询数据源驱动失败");
   }
   return response.data;
 }

@@ -60,6 +60,14 @@ public sealed class TenantDataSourcesController : ControllerBase
         return Ok(ApiResponse<IReadOnlyList<TenantDataSourceDto>>.Ok(dtos, HttpContext.TraceIdentifier));
     }
 
+    [HttpGet("drivers")]
+    [Authorize(Policy = PermissionPolicies.DataSourcesView)]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<DataSourceDriverDefinition>>>> GetDrivers(CancellationToken ct = default)
+    {
+        var result = await _tenantDataSourceService.GetDriverDefinitionsAsync(ct);
+        return Ok(ApiResponse<IReadOnlyList<DataSourceDriverDefinition>>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
     [HttpPost]
     [Authorize(Policy = PermissionPolicies.DataSourcesCreate)]
     public async Task<ActionResult<ApiResponse<object>>> Create(

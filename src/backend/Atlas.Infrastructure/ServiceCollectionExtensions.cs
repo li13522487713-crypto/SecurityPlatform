@@ -2,6 +2,7 @@ using Atlas.Core.Tenancy;
 using Atlas.Application.Plugins.Abstractions;
 using Atlas.Infrastructure.DependencyInjection;
 using Atlas.Infrastructure.Options;
+using Atlas.Infrastructure.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -184,18 +185,13 @@ public static class ServiceCollectionExtensions
 
     private static DbType MapDbType(string? dbType)
     {
-        if (string.IsNullOrWhiteSpace(dbType))
+        try
+        {
+            return DataSourceDriverRegistry.ResolveDbType(dbType);
+        }
+        catch
         {
             return DbType.Sqlite;
         }
-
-        return dbType.Trim().ToLowerInvariant() switch
-        {
-            "sqlite" => DbType.Sqlite,
-            "sqlserver" => DbType.SqlServer,
-            "mysql" => DbType.MySql,
-            "postgresql" => DbType.PostgreSQL,
-            _ => DbType.Sqlite
-        };
     }
 }

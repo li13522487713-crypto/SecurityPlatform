@@ -63,18 +63,23 @@ public sealed class AppMigrationService : IAppMigrationService
         AppMigrationTaskCreateRequest request,
         CancellationToken cancellationToken = default)
     {
-        var dataSourceId = await ResolveDataSourceIdAsync(tenantId, userId, request.AppInstanceId, cancellationToken);
+        if (!long.TryParse(request.AppInstanceId, out var appInstanceId) || appInstanceId <= 0)
+        {
+            throw new BusinessException(ErrorCodes.ValidationError, $"应用实例ID无效。AppInstanceId={request.AppInstanceId}");
+        }
+
+        var dataSourceId = await ResolveDataSourceIdAsync(tenantId, appInstanceId, cancellationToken);
         if (dataSourceId <= 0)
         {
             throw new BusinessException(
                 ErrorCodes.ValidationError,
-                $"应用实例未绑定可用数据源，无法创建迁移任务。AppInstanceId={request.AppInstanceId}");
+                $"应用实例未绑定可用数据源，无法创建迁移任务。AppInstanceId={appInstanceId}");
         }
 
         var now = DateTimeOffset.UtcNow;
         var task = new AppMigrationTask(
             tenantId,
-            request.AppInstanceId,
+            appInstanceId,
             dataSourceId,
             request.ReadOnlyWindow,
             request.EnableDualWrite,
@@ -256,6 +261,7 @@ public sealed class AppMigrationService : IAppMigrationService
         await _provisioningService.EnsureSchemaAsync(tenantId, task.TenantAppInstanceId, cancellationToken);
         var appDb = await _appDbScopeFactory.GetAppClientAsync(tenantId, task.TenantAppInstanceId, cancellationToken);
         EnsureRequiredTablesReady(appDb);
+        await RepairLegacyTenantColumnTablesIfNeededAsync(appDb, cancellationToken);
 
         task.MarkObjectProgress("SchemaReady", 0, 0, 0, userId, DateTimeOffset.UtcNow);
         await UpdateTaskAsync(task, cancellationToken);
@@ -279,6 +285,47 @@ public sealed class AppMigrationService : IAppMigrationService
         throw new BusinessException(
             ErrorCodes.ServerError,
             $"应用库结构初始化不完整，缺少表：{string.Join(", ", missing)}");
+    }
+
+    private async Task RepairLegacyTenantColumnTablesIfNeededAsync(
+        ISqlSugarClient appDb,
+        CancellationToken cancellationToken)
+    {
+        await RepairLegacyTenantColumnTableAsync<AppMember>(appDb, "AppMember", cancellationToken);
+        await RepairLegacyTenantColumnTableAsync<AppRole>(appDb, "AppRole", cancellationToken);
+        await RepairLegacyTenantColumnTableAsync<AppUserRole>(appDb, "AppUserRole", cancellationToken);
+        await RepairLegacyTenantColumnTableAsync<AppRolePermission>(appDb, "AppRolePermission", cancellationToken);
+        await RepairLegacyTenantColumnTableAsync<AppPermission>(appDb, "AppPermission", cancellationToken);
+        await RepairLegacyTenantColumnTableAsync<AppRolePage>(appDb, "AppRolePage", cancellationToken);
+        await RepairLegacyTenantColumnTableAsync<AppDepartment>(appDb, "AppDepartment", cancellationToken);
+        await RepairLegacyTenantColumnTableAsync<AppPosition>(appDb, "AppPosition", cancellationToken);
+        await RepairLegacyTenantColumnTableAsync<AppProject>(appDb, "AppProject", cancellationToken);
+    }
+
+    private static bool HasLegacyTenantColumn(ISqlSugarClient appDb, string tableName)
+    {
+        var columns = appDb.DbMaintenance.GetColumnInfosByTableName(tableName, false);
+        return columns.Any(c => string.Equals(c.DbColumnName, "TenantId", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private async Task RepairLegacyTenantColumnTableAsync<TEntity>(
+        ISqlSugarClient appDb,
+        string tableName,
+        CancellationToken cancellationToken)
+        where TEntity : class, new()
+    {
+        if (!HasLegacyTenantColumn(appDb, tableName))
+        {
+            return;
+        }
+
+        var backupRows = await appDb.Queryable<TEntity>().ToListAsync(cancellationToken);
+        appDb.Ado.ExecuteCommand($"DROP TABLE IF EXISTS \"{tableName}\";");
+        appDb.CodeFirst.InitTables(typeof(TEntity));
+        if (backupRows.Count > 0)
+        {
+            await appDb.Insertable(backupRows).ExecuteCommandAsync(cancellationToken);
+        }
     }
 
     public async Task<AppMigrationTaskProgress?> GetProgressAsync(
@@ -559,9 +606,68 @@ public sealed class AppMigrationService : IAppMigrationService
         return new AppMigrationActionResult(true, task.Id.ToString(), task.Status, "已回切到主库");
     }
 
-    private async Task<long> ResolveDataSourceIdAsync(
+    public async Task<AppMigrationBindingRepairResult> RepairPrimaryBindingAsync(
         TenantId tenantId,
         long userId,
+        AppMigrationBindingRepairRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (!long.TryParse(request.AppInstanceId, out var appInstanceId) || appInstanceId <= 0)
+        {
+            throw new BusinessException(ErrorCodes.ValidationError, $"应用实例ID无效。AppInstanceId={request.AppInstanceId}");
+        }
+
+        var dataSourceId = await ResolveRepairCandidateDataSourceIdAsync(tenantId, appInstanceId, cancellationToken);
+        if (dataSourceId <= 0)
+        {
+            throw new BusinessException(
+                ErrorCodes.ValidationError,
+                $"未找到可用于修复的应用主数据源。AppInstanceId={appInstanceId}");
+        }
+
+        var existingPrimary = await _mainDb.Queryable<TenantAppDataSourceBinding>()
+            .Where(x =>
+                x.TenantIdValue == tenantId.Value
+                && x.TenantAppInstanceId == appInstanceId
+                && x.BindingType == TenantAppDataSourceBindingType.Primary)
+            .FirstAsync(cancellationToken);
+        var now = DateTimeOffset.UtcNow;
+        if (existingPrimary is null)
+        {
+            var binding = new TenantAppDataSourceBinding(
+                tenantId,
+                appInstanceId,
+                dataSourceId,
+                TenantAppDataSourceBindingType.Primary,
+                userId,
+                _idGeneratorAccessor.NextId(),
+                now,
+                "迁移任务显式修复主数据源绑定");
+            await _mainDb.Insertable(binding).ExecuteCommandAsync(cancellationToken);
+        }
+        else
+        {
+            existingPrimary.Rebind(
+                dataSourceId,
+                TenantAppDataSourceBindingType.Primary,
+                userId,
+                now,
+                "迁移任务显式修复主数据源绑定");
+            await _mainDb.Updateable(existingPrimary)
+                .Where(x => x.Id == existingPrimary.Id && x.TenantIdValue == tenantId.Value)
+                .ExecuteCommandAsync(cancellationToken);
+        }
+
+        _tenantDbConnectionFactory.InvalidateCache(tenantId.Value.ToString("D"), appInstanceId);
+        return new AppMigrationBindingRepairResult(
+            appInstanceId.ToString(),
+            dataSourceId.ToString(),
+            true,
+            "主数据源绑定修复成功。");
+    }
+
+    private async Task<long> ResolveDataSourceIdAsync(
+        TenantId tenantId,
         long appInstanceId,
         CancellationToken cancellationToken)
     {
@@ -569,25 +675,41 @@ public sealed class AppMigrationService : IAppMigrationService
             .Where(x =>
                 x.TenantIdValue == tenantId.Value
                 && x.TenantAppInstanceId == appInstanceId
+                && x.IsActive
+                && x.BindingType == TenantAppDataSourceBindingType.Primary
                 && x.DataSourceId > 0)
-            .OrderByDescending(x => x.IsActive)
-            .OrderBy(x => x.BindingType)
             .OrderByDescending(x => x.UpdatedAt ?? x.BoundAt)
             .FirstAsync(cancellationToken);
-        if (binding?.DataSourceId > 0)
+        if (binding is null || binding.DataSourceId <= 0)
         {
-            await EnsurePrimaryBindingAsync(tenantId, userId, appInstanceId, binding.DataSourceId, cancellationToken);
-            return binding.DataSourceId;
+            return 0;
         }
 
+        var tenantIdText = tenantId.Value.ToString("D");
+        var targetDataSource = await _mainDb.Queryable<TenantDataSource>()
+            .Where(x =>
+                x.TenantIdValue == tenantIdText
+                && x.Id == binding.DataSourceId
+                && x.IsActive)
+            .Select(x => x.Id)
+            .FirstAsync(cancellationToken);
+        return targetDataSource;
+    }
+
+    private async Task<long> ResolveRepairCandidateDataSourceIdAsync(
+        TenantId tenantId,
+        long appInstanceId,
+        CancellationToken cancellationToken)
+    {
         var appDataSourceId = await _mainDb.Queryable<LowCodeApp>()
             .Where(x => x.TenantIdValue == tenantId.Value && x.Id == appInstanceId)
             .Select(x => x.DataSourceId)
             .FirstAsync(cancellationToken);
         if (appDataSourceId.HasValue && appDataSourceId.Value > 0)
         {
-            await EnsurePrimaryBindingAsync(tenantId, userId, appInstanceId, appDataSourceId.Value, cancellationToken);
-            return appDataSourceId.Value;
+            return await EnsureDataSourceActiveAsync(tenantId, appDataSourceId.Value, cancellationToken)
+                ? appDataSourceId.Value
+                : 0;
         }
 
         var tenantAppDataSourceId = await _mainDb.Queryable<TenantApplication>()
@@ -596,71 +718,44 @@ public sealed class AppMigrationService : IAppMigrationService
             .FirstAsync(cancellationToken);
         if (tenantAppDataSourceId.HasValue && tenantAppDataSourceId.Value > 0)
         {
-            await EnsurePrimaryBindingAsync(tenantId, userId, appInstanceId, tenantAppDataSourceId.Value, cancellationToken);
-            return tenantAppDataSourceId.Value;
+            return await EnsureDataSourceActiveAsync(tenantId, tenantAppDataSourceId.Value, cancellationToken)
+                ? tenantAppDataSourceId.Value
+                : 0;
         }
 
         var appKey = await _mainDb.Queryable<LowCodeApp>()
             .Where(x => x.TenantIdValue == tenantId.Value && x.Id == appInstanceId)
             .Select(x => x.AppKey)
             .FirstAsync(cancellationToken);
-        if (!string.IsNullOrWhiteSpace(appKey))
+        if (string.IsNullOrWhiteSpace(appKey))
         {
-            var manifestDataSourceId = await _mainDb.Queryable<AppManifest>()
-                .Where(x => x.TenantIdValue == tenantId.Value && x.AppKey == appKey)
-                .Select(x => x.DataSourceId)
-                .FirstAsync(cancellationToken);
-            if (manifestDataSourceId.HasValue && manifestDataSourceId.Value > 0)
-            {
-                await EnsurePrimaryBindingAsync(tenantId, userId, appInstanceId, manifestDataSourceId.Value, cancellationToken);
-                return manifestDataSourceId.Value;
-            }
+            return 0;
         }
 
-        return 0;
+        var manifestDataSourceId = await _mainDb.Queryable<AppManifest>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.AppKey == appKey)
+            .Select(x => x.DataSourceId)
+            .FirstAsync(cancellationToken);
+        if (!manifestDataSourceId.HasValue || manifestDataSourceId.Value <= 0)
+        {
+            return 0;
+        }
+
+        return await EnsureDataSourceActiveAsync(tenantId, manifestDataSourceId.Value, cancellationToken)
+            ? manifestDataSourceId.Value
+            : 0;
     }
 
-    private async Task EnsurePrimaryBindingAsync(
+    private async Task<bool> EnsureDataSourceActiveAsync(
         TenantId tenantId,
-        long userId,
-        long appInstanceId,
         long dataSourceId,
         CancellationToken cancellationToken)
     {
-        var existingPrimary = await _mainDb.Queryable<TenantAppDataSourceBinding>()
-            .Where(x =>
-                x.TenantIdValue == tenantId.Value
-                && x.TenantAppInstanceId == appInstanceId
-                && x.BindingType == TenantAppDataSourceBindingType.Primary)
-            .FirstAsync(cancellationToken);
-        if (existingPrimary is null)
-        {
-            var now = DateTimeOffset.UtcNow;
-            var newBinding = new TenantAppDataSourceBinding(
-                tenantId,
-                appInstanceId,
-                dataSourceId,
-                TenantAppDataSourceBindingType.Primary,
-                userId,
-                _idGeneratorAccessor.NextId(),
-                now,
-                "迁移任务创建时自动补齐主数据源绑定");
-            await _mainDb.Insertable(newBinding).ExecuteCommandAsync(cancellationToken);
-            return;
-        }
-
-        if (!existingPrimary.IsActive || existingPrimary.DataSourceId != dataSourceId)
-        {
-            existingPrimary.Rebind(
-                dataSourceId,
-                TenantAppDataSourceBindingType.Primary,
-                userId,
-                DateTimeOffset.UtcNow,
-                "迁移任务创建时自动修复主数据源绑定");
-            await _mainDb.Updateable(existingPrimary)
-                .Where(x => x.Id == existingPrimary.Id && x.TenantIdValue == tenantId.Value)
-                .ExecuteCommandAsync(cancellationToken);
-        }
+        var tenantIdText = tenantId.Value.ToString("D");
+        return await _mainDb.Queryable<TenantDataSource>()
+            .AnyAsync(
+                x => x.TenantIdValue == tenantIdText && x.Id == dataSourceId && x.IsActive,
+                cancellationToken);
     }
 
     private async Task<AppMigrationTask?> FindTaskAsync(TenantId tenantId, long taskId, CancellationToken cancellationToken)
@@ -935,7 +1030,16 @@ public sealed class AppMigrationService : IAppMigrationService
             .ExecuteCommandAsync(cancellationToken);
         if (rows.Count > 0)
         {
-            await appDb.Insertable(rows).ExecuteCommandAsync(cancellationToken);
+            var insertRows = rows
+                .Select(row => new AppMember(
+                    tenantId,
+                    row.AppId,
+                    row.UserId,
+                    row.JoinedBy,
+                    row.JoinedAt,
+                    row.Id))
+                .ToList();
+            await appDb.Insertable(insertRows).ExecuteCommandAsync(cancellationToken);
         }
 
         task.MarkObjectProgress(nameof(AppMember), 1, completed, 0, userId, DateTimeOffset.UtcNow);
@@ -959,7 +1063,25 @@ public sealed class AppMigrationService : IAppMigrationService
             .ExecuteCommandAsync(cancellationToken);
         if (rows.Count > 0)
         {
-            await appDb.Insertable(rows).ExecuteCommandAsync(cancellationToken);
+            var insertRows = rows
+                .Select(row =>
+                {
+                    var role = new AppRole(
+                        tenantId,
+                        row.AppId,
+                        row.Code,
+                        row.Name,
+                        row.Description,
+                        row.IsSystem,
+                        row.CreatedBy,
+                        row.CreatedAt,
+                        row.Id);
+                    role.Update(row.Name, row.Description, row.UpdatedBy, row.UpdatedAt);
+                    role.SetDataScope(row.DataScope, row.DeptIds);
+                    return role;
+                })
+                .ToList();
+            await appDb.Insertable(insertRows).ExecuteCommandAsync(cancellationToken);
         }
 
         task.MarkObjectProgress(nameof(AppRole), 1, completed, 0, userId, DateTimeOffset.UtcNow);
@@ -983,7 +1105,21 @@ public sealed class AppMigrationService : IAppMigrationService
             .ExecuteCommandAsync(cancellationToken);
         if (rows.Count > 0)
         {
-            await appDb.Insertable(rows).ExecuteCommandAsync(cancellationToken);
+            var insertRows = rows
+                .Select(row =>
+                {
+                    var permission = new AppPermission(
+                        tenantId,
+                        row.AppId,
+                        row.Name,
+                        row.Code,
+                        row.Type,
+                        row.Id);
+                    permission.Update(row.Name, row.Type, row.Description);
+                    return permission;
+                })
+                .ToList();
+            await appDb.Insertable(insertRows).ExecuteCommandAsync(cancellationToken);
         }
 
         task.MarkObjectProgress(nameof(AppPermission), 1, completed, 0, userId, DateTimeOffset.UtcNow);
@@ -1007,7 +1143,15 @@ public sealed class AppMigrationService : IAppMigrationService
             .ExecuteCommandAsync(cancellationToken);
         if (rows.Count > 0)
         {
-            await appDb.Insertable(rows).ExecuteCommandAsync(cancellationToken);
+            var insertRows = rows
+                .Select(row => new AppUserRole(
+                    tenantId,
+                    row.AppId,
+                    row.UserId,
+                    row.RoleId,
+                    row.Id))
+                .ToList();
+            await appDb.Insertable(insertRows).ExecuteCommandAsync(cancellationToken);
         }
 
         task.MarkObjectProgress(nameof(AppUserRole), 1, completed, 0, userId, DateTimeOffset.UtcNow);
@@ -1031,7 +1175,15 @@ public sealed class AppMigrationService : IAppMigrationService
             .ExecuteCommandAsync(cancellationToken);
         if (rows.Count > 0)
         {
-            await appDb.Insertable(rows).ExecuteCommandAsync(cancellationToken);
+            var insertRows = rows
+                .Select(row => new AppRolePermission(
+                    tenantId,
+                    row.AppId,
+                    row.RoleId,
+                    row.PermissionCode,
+                    row.Id))
+                .ToList();
+            await appDb.Insertable(insertRows).ExecuteCommandAsync(cancellationToken);
         }
 
         task.MarkObjectProgress(nameof(AppRolePermission), 1, completed, 0, userId, DateTimeOffset.UtcNow);
@@ -1055,7 +1207,15 @@ public sealed class AppMigrationService : IAppMigrationService
             .ExecuteCommandAsync(cancellationToken);
         if (rows.Count > 0)
         {
-            await appDb.Insertable(rows).ExecuteCommandAsync(cancellationToken);
+            var insertRows = rows
+                .Select(row => new AppRolePage(
+                    tenantId,
+                    row.AppId,
+                    row.RoleId,
+                    row.PageId,
+                    row.Id))
+                .ToList();
+            await appDb.Insertable(insertRows).ExecuteCommandAsync(cancellationToken);
         }
 
         task.MarkObjectProgress(nameof(AppRolePage), 1, completed, 0, userId, DateTimeOffset.UtcNow);
@@ -1079,7 +1239,17 @@ public sealed class AppMigrationService : IAppMigrationService
             .ExecuteCommandAsync(cancellationToken);
         if (rows.Count > 0)
         {
-            await appDb.Insertable(rows).ExecuteCommandAsync(cancellationToken);
+            var insertRows = rows
+                .Select(row => new AppDepartment(
+                    tenantId,
+                    row.AppId,
+                    row.Name,
+                    row.Code,
+                    row.ParentId,
+                    row.SortOrder,
+                    row.Id))
+                .ToList();
+            await appDb.Insertable(insertRows).ExecuteCommandAsync(cancellationToken);
         }
 
         task.MarkObjectProgress(nameof(AppDepartment), 1, completed, 0, userId, DateTimeOffset.UtcNow);
@@ -1103,7 +1273,20 @@ public sealed class AppMigrationService : IAppMigrationService
             .ExecuteCommandAsync(cancellationToken);
         if (rows.Count > 0)
         {
-            await appDb.Insertable(rows).ExecuteCommandAsync(cancellationToken);
+            var insertRows = rows
+                .Select(row =>
+                {
+                    var position = new AppPosition(
+                        tenantId,
+                        row.AppId,
+                        row.Name,
+                        row.Code,
+                        row.Id);
+                    position.Update(row.Name, row.Description, row.IsActive, row.SortOrder);
+                    return position;
+                })
+                .ToList();
+            await appDb.Insertable(insertRows).ExecuteCommandAsync(cancellationToken);
         }
 
         task.MarkObjectProgress(nameof(AppPosition), 1, completed, 0, userId, DateTimeOffset.UtcNow);
@@ -1127,7 +1310,20 @@ public sealed class AppMigrationService : IAppMigrationService
             .ExecuteCommandAsync(cancellationToken);
         if (rows.Count > 0)
         {
-            await appDb.Insertable(rows).ExecuteCommandAsync(cancellationToken);
+            var insertRows = rows
+                .Select(row =>
+                {
+                    var project = new AppProject(
+                        tenantId,
+                        row.AppId,
+                        row.Code,
+                        row.Name,
+                        row.Id);
+                    project.Update(row.Name, row.Description, row.IsActive);
+                    return project;
+                })
+                .ToList();
+            await appDb.Insertable(insertRows).ExecuteCommandAsync(cancellationToken);
         }
 
         task.MarkObjectProgress(nameof(AppProject), 1, completed, 0, userId, DateTimeOffset.UtcNow);

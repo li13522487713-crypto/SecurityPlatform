@@ -16,6 +16,13 @@
             @dropdownVisibleChange="handleAppInstanceDropdownChange"
           />
           <a-button type="primary" :loading="creating" :disabled="!isValidAppInstanceId" @click="handleCreate">{{ t("console.appDbMigration.createTask") }}</a-button>
+          <a-button
+            :loading="repairingBinding"
+            :disabled="!isValidAppInstanceId"
+            @click="handleRepairPrimaryBinding"
+          >
+            {{ t("console.appDbMigration.repairPrimaryBinding") }}
+          </a-button>
           <a-button :loading="loading" @click="loadTasks">{{ t("common.refresh") }}</a-button>
         </a-space>
       </template>
@@ -74,6 +81,7 @@ import {
   cutoverAppMigrationTask,
   precheckAppMigrationTask,
   queryAppMigrationTasks,
+  repairAppMigrationPrimaryBinding,
   rollbackAppMigrationTask,
   startAppMigrationTask,
   validateAppMigrationTask,
@@ -84,11 +92,12 @@ import type { TenantAppInstanceListItem } from "@/types/platform-v2";
 const { t } = useI18n();
 const loading = ref(false);
 const creating = ref(false);
+const repairingBinding = ref(false);
 const appInstanceLoading = ref(false);
 const selectedAppInstanceId = ref<string>();
 const appInstanceOptions = ref<Array<{ label: string; value: string }>>([]);
 const tasks = ref<AppMigrationTaskListItem[]>([]);
-const isValidAppInstanceId = computed(() => Number(selectedAppInstanceId.value) > 0);
+const isValidAppInstanceId = computed(() => /^\d+$/.test((selectedAppInstanceId.value ?? "").trim()));
 
 const columns = computed(() => [
   { title: t("console.appDbMigration.colTaskId"), dataIndex: "id", key: "id", width: 180 },
@@ -165,13 +174,32 @@ async function handleCreate() {
 
   creating.value = true;
   try {
-    await createAppMigrationTask(Number(selectedAppInstanceId.value));
+    await createAppMigrationTask((selectedAppInstanceId.value ?? "").trim());
     message.success(t("console.appDbMigration.createSuccess"));
     await loadTasks();
   } catch (error) {
     message.error((error as Error).message || t("console.appDbMigration.createFailed"));
   } finally {
     creating.value = false;
+  }
+}
+
+async function handleRepairPrimaryBinding() {
+  if (!isValidAppInstanceId.value) {
+    message.warning(t("console.appDbMigration.selectInstanceRequired"));
+    return;
+  }
+
+  const appInstanceId = (selectedAppInstanceId.value ?? "").trim();
+  repairingBinding.value = true;
+  try {
+    const result = await repairAppMigrationPrimaryBinding(appInstanceId);
+    message.success(result.message || t("console.appDbMigration.repairPrimaryBindingSuccess"));
+    await loadAppInstanceOptions();
+  } catch (error) {
+    message.error((error as Error).message || t("console.appDbMigration.repairPrimaryBindingFailed"));
+  } finally {
+    repairingBinding.value = false;
   }
 }
 

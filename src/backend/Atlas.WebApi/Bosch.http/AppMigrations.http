@@ -22,10 +22,21 @@ Content-Type: application/json
 Idempotency-Key: app-migration-create-001
 
 {
-  "appInstanceId": 10001,
+  "appInstanceId": "10001",
   "readOnlyWindow": true,
   "enableDualWrite": false,
   "enableRollback": true
+}
+
+### 显式修复主绑定（混合模式）
+POST {{host}}/api/v1/app-migrations/repair-primary-binding
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: app-migration-repair-binding-001
+
+{
+  "appInstanceId": "10001"
 }
 
 ### 查询任务列表

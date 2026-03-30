@@ -3608,6 +3608,7 @@ export const runtimeMessages: Record<SupportedLocale, MessageTree> = {
         validate: "校验",
         cutover: "切换",
         rollback: "回切",
+        repairPrimaryBinding: "修复主绑定",
         optionLabel: "{name}（{appKey}）#{id}",
         noBoundPrimary: "当前筛选范围内没有可迁移应用（需先绑定主数据源）。",
         selectInstanceRequired: "请先选择有效的应用实例（非数据源ID）",
@@ -3626,7 +3627,9 @@ export const runtimeMessages: Record<SupportedLocale, MessageTree> = {
         cutoverSuccess: "已切换到应用独立库",
         cutoverFailed: "切换失败",
         rollbackSuccess: "已回切到主库",
-        rollbackFailed: "回切失败"
+        rollbackFailed: "回切失败",
+        repairPrimaryBindingSuccess: "主绑定修复成功",
+        repairPrimaryBindingFailed: "主绑定修复失败"
       },
       runtimeExec: {
         title: "运行执行记录",
@@ -8099,6 +8102,7 @@ export const runtimeMessages: Record<SupportedLocale, MessageTree> = {
         validate: "Validate",
         cutover: "Cutover",
         rollback: "Rollback",
+        repairPrimaryBinding: "Repair Primary Binding",
         optionLabel: "{name} ({appKey}) #{id}",
         noBoundPrimary: "No migratable app instances in current scope (bind a primary datasource first).",
         selectInstanceRequired: "Please select a valid app instance ID (not a datasource ID).",
@@ -8117,7 +8121,9 @@ export const runtimeMessages: Record<SupportedLocale, MessageTree> = {
         cutoverSuccess: "Cutover to app-only database completed",
         cutoverFailed: "Cutover failed",
         rollbackSuccess: "Rolled back to main database",
-        rollbackFailed: "Rollback failed"
+        rollbackFailed: "Rollback failed",
+        repairPrimaryBindingSuccess: "Primary binding repaired",
+        repairPrimaryBindingFailed: "Failed to repair primary binding"
       },
       runtimeExec: {
         title: "Runtime executions",

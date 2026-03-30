@@ -39,6 +39,11 @@ public sealed class TenantDataSourceService : ITenantDataSourceService
         return items.Select(MapToDto).ToArray();
     }
 
+    public Task<IReadOnlyList<DataSourceDriverDefinition>> GetDriverDefinitionsAsync(CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(DataSourceDriverRegistry.GetDefinitions());
+    }
+
     public async Task<TenantDataSourceDto?> GetByIdAsync(string tenantIdValue, long id, CancellationToken cancellationToken = default)
     {
         var entity = await _repository.FindByTenantAndIdAsync(tenantIdValue, id, cancellationToken);
@@ -50,15 +55,26 @@ public sealed class TenantDataSourceService : ITenantDataSourceService
         TenantDataSourceCreateRequest request,
         CancellationToken cancellationToken = default)
     {
+        var normalizedDriver = DataSourceDriverRegistry.NormalizeDriverCode(request.DbType);
+        var resolvedConnectionString = DataSourceDriverRegistry.ResolveConnectionString(
+            normalizedDriver,
+            request.Mode,
+            request.ConnectionString,
+            request.VisualConfig);
+        if (string.IsNullOrWhiteSpace(resolvedConnectionString))
+        {
+            throw new InvalidOperationException("连接字符串不能为空。");
+        }
+
         var encryptedConnectionString = _encryptionOptions.Enabled
-            ? TenantDbConnectionFactory.Encrypt(request.ConnectionString, _encryptionOptions.Key)
-            : request.ConnectionString;
+            ? TenantDbConnectionFactory.Encrypt(resolvedConnectionString, _encryptionOptions.Key)
+            : resolvedConnectionString;
 
         var entity = new TenantDataSource(
             tenantIdValue,
             request.Name,
             encryptedConnectionString,
-            request.DbType,
+            normalizedDriver,
             _idGeneratorAccessor.NextId(),
             ParseAppId(request.AppId),
             NormalizeMaxPoolSize(request.MaxPoolSize),
@@ -81,18 +97,24 @@ public sealed class TenantDataSourceService : ITenantDataSourceService
             return false;
         }
 
+        var normalizedDriver = DataSourceDriverRegistry.NormalizeDriverCode(request.DbType);
         var encryptedConnectionString = entity.EncryptedConnectionString;
-        if (!string.IsNullOrWhiteSpace(request.ConnectionString))
+        var resolvedConnectionString = DataSourceDriverRegistry.ResolveConnectionString(
+            normalizedDriver,
+            request.Mode,
+            request.ConnectionString,
+            request.VisualConfig);
+        if (!string.IsNullOrWhiteSpace(resolvedConnectionString))
         {
             encryptedConnectionString = _encryptionOptions.Enabled
-                ? TenantDbConnectionFactory.Encrypt(request.ConnectionString, _encryptionOptions.Key)
-                : request.ConnectionString;
+                ? TenantDbConnectionFactory.Encrypt(resolvedConnectionString, _encryptionOptions.Key)
+                : resolvedConnectionString;
         }
 
         entity.Update(
             request.Name,
             encryptedConnectionString,
-            request.DbType,
+            normalizedDriver,
             NormalizeMaxPoolSize(request.MaxPoolSize),
             NormalizeConnectionTimeoutSeconds(request.ConnectionTimeoutSeconds));
         await _repository.UpdateAsync(entity, cancellationToken);
@@ -118,10 +140,21 @@ public sealed class TenantDataSourceService : ITenantDataSourceService
         var stopwatch = Stopwatch.StartNew();
         try
         {
+            var normalizedDriver = DataSourceDriverRegistry.NormalizeDriverCode(request.DbType);
+            var resolvedConnectionString = DataSourceDriverRegistry.ResolveConnectionString(
+                normalizedDriver,
+                request.Mode,
+                request.ConnectionString,
+                request.VisualConfig);
+            if (string.IsNullOrWhiteSpace(resolvedConnectionString))
+            {
+                throw new InvalidOperationException("连接字符串不能为空。");
+            }
+
             using var client = new SqlSugarClient(new ConnectionConfig
             {
-                ConnectionString = request.ConnectionString,
-                DbType = ParseDbType(request.DbType),
+                ConnectionString = resolvedConnectionString,
+                DbType = DataSourceDriverRegistry.ResolveDbType(normalizedDriver),
                 IsAutoCloseConnection = true
             });
 
@@ -204,18 +237,6 @@ public sealed class TenantDataSourceService : ITenantDataSourceService
         }
 
         return value > 120 ? 120 : value;
-    }
-
-    private static DbType ParseDbType(string dbType)
-    {
-        return dbType.ToLowerInvariant() switch
-        {
-            "sqlite" => DbType.Sqlite,
-            "sqlserver" => DbType.SqlServer,
-            "mysql" => DbType.MySql,
-            "postgresql" => DbType.PostgreSQL,
-            _ => DbType.Sqlite
-        };
     }
 
     public async Task<IReadOnlyList<DataSourceConsumerItem>> GetConsumersAsync(
