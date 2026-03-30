@@ -591,14 +591,16 @@ export default {
     alreadyOnCanvas: "Entity already on canvas",
     loadFailed: "Failed to load entities",
     saveSuccess: "Relations saved",
-    saveFailed: "Failed to save relations"
+    saveFailed: "Failed to save relations",
+    savePartialFailed: "Some tables failed to save: {detail}"
   },
   relationConfigModal: {
     title: "Configure Relation",
     relationType: "Relation Type",
     multiplicity: "Multiplicity",
-    sourceField: "Source Field",
-    targetField: "Target Field (FK)",
+    sourceField: "Source Field (FK in this table)",
+    sourceFieldPlaceholder: "e.g. customerId",
+    targetField: "Target Field (PK in related table)",
     onDeleteAction: "On Delete Action",
     enableRollup: "Enable Rollup Calculation",
     enableRollupHint: "Automatically aggregate child record values into the master record",

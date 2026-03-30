@@ -36,12 +36,12 @@
       <a-row :gutter="12">
         <a-col :span="12">
           <a-form-item :label="`${t('relationConfigModal.sourceField')} (${sourceTableKey})`" name="sourceField">
-            <a-input v-model:value="form.sourceField" placeholder="id" />
+            <a-input v-model:value="form.sourceField" :placeholder="t('relationConfigModal.sourceFieldPlaceholder')" />
           </a-form-item>
         </a-col>
         <a-col :span="12">
           <a-form-item :label="`${t('relationConfigModal.targetField')} (${targetTableKey})`" name="targetField">
-            <a-input v-model:value="form.targetField" :placeholder="`${sourceTableKey}Id`" />
+            <a-input v-model:value="form.targetField" placeholder="id" />
           </a-form-item>
         </a-col>
       </a-row>
@@ -114,8 +114,8 @@ const formRef = ref();
 const defaultForm = (): RelationForm => ({
   relationType: "MasterDetail",
   multiplicity: "OneToMany",
-  sourceField: "id",
-  targetField: `${props.sourceTableKey}Id`,
+  sourceField: "",
+  targetField: "id",
   onDeleteAction: "NoAction",
   enableRollup: false,
   rollupDefinitionsJson: "[]"
@@ -138,7 +138,6 @@ watch(
         form.rollupDefinitionsJson = iv.rollupDefinitionsJson ?? "[]";
       } else {
         Object.assign(form, defaultForm());
-        form.targetField = `${props.sourceTableKey}Id`;
       }
     }
   },

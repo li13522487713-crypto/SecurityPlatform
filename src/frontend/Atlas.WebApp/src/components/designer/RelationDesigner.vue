@@ -166,6 +166,9 @@ const filteredTables = computed(() => {
   );
 });
 
+// 已加载关系缓存：tableKey -> relations
+const relationsCache = ref<Map<string, DynamicRelationDefinition[]>>(new Map());
+
 // ---- 初始化 ----
 onMounted(async () => {
   await loadTables();
@@ -180,6 +183,66 @@ async function loadTables() {
     message.error(t("relationDesigner.loadFailed"));
   } finally {
     loadingTables.value = false;
+  }
+}
+
+/** 加载指定表的已有关系并放入缓存，返回该表的关系列表 */
+async function loadRelationsForTable(tableKey: string): Promise<DynamicRelationDefinition[]> {
+  if (relationsCache.value.has(tableKey)) {
+    return relationsCache.value.get(tableKey)!;
+  }
+  try {
+    const relations = await getDynamicTableRelations(tableKey);
+    relationsCache.value.set(tableKey, relations);
+    return relations;
+  } catch {
+    return [];
+  }
+}
+
+/** 当画布上有新表节点时，添加与其他已在画布节点之间的已有关系连线 */
+async function syncEdgesForNewNode(newTableKey: string) {
+  const canvasKeys = new Set(nodes.value.map((n) => n.id));
+
+  // 加载新表的出向关系
+  const outgoing = await loadRelationsForTable(newTableKey);
+  for (const rel of outgoing) {
+    if (!canvasKeys.has(rel.relatedTableKey)) continue;
+    const edgeId = `${newTableKey}-${rel.relatedTableKey}-existing`;
+    if (edges.value.some((e) => e.id === edgeId)) continue;
+    edges.value = [
+      ...edges.value,
+      {
+        id: edgeId,
+        source: newTableKey,
+        target: rel.relatedTableKey,
+        label: buildEdgeLabel(rel),
+        markerEnd: MarkerType.ArrowClosed,
+        data: { definition: rel }
+      }
+    ];
+  }
+
+  // 检查画布上其他表是否有指向新表的关系
+  for (const key of canvasKeys) {
+    if (key === newTableKey) continue;
+    const rels = await loadRelationsForTable(key);
+    for (const rel of rels) {
+      if (rel.relatedTableKey !== newTableKey) continue;
+      const edgeId = `${key}-${newTableKey}-existing`;
+      if (edges.value.some((e) => e.id === edgeId)) continue;
+      edges.value = [
+        ...edges.value,
+        {
+          id: edgeId,
+          source: key,
+          target: newTableKey,
+          label: buildEdgeLabel(rel),
+          markerEnd: MarkerType.ArrowClosed,
+          data: { definition: rel }
+        }
+      ];
+    }
   }
 }
 
@@ -213,6 +276,7 @@ function onDrop(e: DragEvent) {
   };
   // @ts-expect-error TS2589: Vue Flow Node generic causes excessively deep type instantiation with Vue reactivity
   nodes.value.push(newNode);
+  void syncEdgesForNewNode(tableKey);
 }
 
 // ---- 连线触发关系配置弹窗 ----
@@ -272,39 +336,47 @@ function removeNode(nodeId: string) {
   edges.value = edges.value.filter(
     (e) => e.source !== nodeId && e.target !== nodeId
   );
+  relationsCache.value.delete(nodeId);
 }
 
 function clearCanvas() {
   nodes.value = [];
   edges.value = [];
+  relationsCache.value.clear();
 }
 
 // ---- 保存 ----
 async function handleSave() {
   saving.value = true;
+  const errors: string[] = [];
   try {
     // 按源表聚合关系
     const byTable = new Map<string, DynamicRelationDefinition[]>();
     for (const edge of edges.value) {
-      const def: DynamicRelationDefinition = edge.data?.definition ?? {
-        relatedTableKey: edge.target,
-        sourceField: "id",
-        targetField: `${edge.source}Id`,
-        relationType: "MasterDetail"
-      };
+      const def = edge.data?.definition as DynamicRelationDefinition | undefined;
+      if (!def) continue; // 跳过未配置的边（不应出现，但防御性处理）
       const list = byTable.get(edge.source) ?? [];
       list.push(def);
       byTable.set(edge.source, list);
     }
 
-    // 并发保存（canvas 上出现的表）
+    // 逐表顺序保存，保证失败时可定位到具体表
     const canvasTableKeys = nodes.value.map((n) => n.id);
-    await Promise.all(
-      canvasTableKeys.map((key) =>
-        setDynamicTableRelations(key, { relations: byTable.get(key) ?? [] })
-      )
-    );
-    message.success(t("relationDesigner.saveSuccess"));
+    for (const key of canvasTableKeys) {
+      try {
+        await setDynamicTableRelations(key, { relations: byTable.get(key) ?? [] });
+        // 清除本表缓存，下次重新加载
+        relationsCache.value.delete(key);
+      } catch (err) {
+        errors.push(`${key}: ${(err as Error).message}`);
+      }
+    }
+
+    if (errors.length === 0) {
+      message.success(t("relationDesigner.saveSuccess"));
+    } else {
+      message.error(t("relationDesigner.savePartialFailed", { detail: errors.join(" | ") }));
+    }
   } catch (err) {
     message.error((err as Error).message || t("relationDesigner.saveFailed"));
   } finally {

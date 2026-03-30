@@ -592,14 +592,16 @@ export default {
     alreadyOnCanvas: "实体已在画布中",
     loadFailed: "加载实体失败",
     saveSuccess: "关系保存成功",
-    saveFailed: "保存关系失败"
+    saveFailed: "保存关系失败",
+    savePartialFailed: "部分表关系保存失败：{detail}"
   },
   relationConfigModal: {
     title: "配置关系",
     relationType: "关系类型",
     multiplicity: "基数（Multiplicity）",
-    sourceField: "源字段",
-    targetField: "目标字段（外键）",
+    sourceField: "源字段（当前表 FK）",
+    sourceFieldPlaceholder: "如：customerId",
+    targetField: "目标字段（关联表 PK）",
     onDeleteAction: "删除行为",
     enableRollup: "启用 Rollup 汇总计算",
     enableRollupHint: "在主记录中自动聚合子记录的数值字段",
