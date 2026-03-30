@@ -369,7 +369,7 @@ export function createAmisEnv(): AmisEnv {
       };
     } catch (error) {
       const defaultError = translate("amis.requestFailed");
-      const errorMessage = error instanceof Error ? error.message : defaultError;
+      const errorMessage = error instanceof Error ? error.message?.trim() : "";
       const errorObject = error as {
         status?: number;
         payload?: {
@@ -380,7 +380,8 @@ export function createAmisEnv(): AmisEnv {
       };
       const status = errorObject.status ?? 500;
       const payload = errorObject.payload ?? null;
-      const msg = payload?.message || payload?.title || errorMessage || defaultError;
+      // 优先使用 requestApi 已标准化的异常消息，避免被后端通用 message 覆盖。
+      const msg = errorMessage || payload?.message || payload?.title || defaultError;
       if (payload?.errors) {
         const errors = normalizeValidationErrors(payload.errors);
         const summary = buildValidationSummary(errors);
