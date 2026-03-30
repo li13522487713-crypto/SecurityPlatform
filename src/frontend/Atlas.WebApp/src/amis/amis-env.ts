@@ -4,22 +4,31 @@ import type { AmisEnv, AmisFetcherConfig, AmisFetcherResult } from "@/types/amis
 import { requestApi } from "@/services/api-core";
 import { getActiveLocale, i18n } from "@/i18n";
 import { useUserStore } from "@/stores/user";
-import { getAccessToken, getTenantId } from "@/utils/auth";
+import { getTenantId } from "@/utils/auth";
 import router from "@/router";
 
-// AMIS 内部 React 组件使用了已废弃的 findDOMNode（第三方技术债，无法在业务层修复）。
-// 在此拦截 console.error，仅屏蔽该特定告警，避免淹没开发日志中真正有意义的错误。
-(function suppressAmisFindDOMNodeWarning() {
+// AMIS/三方组件会在开发环境打印已知废弃告警（第三方技术债，业务侧不可直接修复）。
+// 在此仅屏蔽已确认噪音日志，避免淹没真正需要处理的错误。
+(function suppressKnownThirdPartyWarnings() {
   const _origError = console.error.bind(console);
+  const _origWarn = console.warn.bind(console);
   console.error = (...args: unknown[]) => {
     const first = typeof args[0] === "string" ? args[0] : "";
     if (first.includes("findDOMNode is deprecated")) return;
     _origError(...args);
   };
+  console.warn = (...args: unknown[]) => {
+    const first = typeof args[0] === "string" ? args[0] : "";
+    if (first.includes("[ant-design-vue: Dropdown] `onVisibleChange` is deprecated")) return;
+    _origWarn(...args);
+  };
 })()
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "/api/v1";
 const globalComposer = i18n.global as unknown as { t: (messageKey: string) => string };
+const AMIS_ERROR_MESSAGE_KEY = "amis-global-error";
+const AMIS_ERROR_DEDUP_WINDOW_MS = 2500;
+const amisErrorShownAt = new Map<string, number>();
 
 function normalizeUrl(url: string): string {
   if (url.startsWith("http://") || url.startsWith("https://")) {
@@ -119,6 +128,62 @@ function normalizeAmisParams(data: JsonValue): JsonValue {
   return result;
 }
 
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function coercePositiveInt(value: unknown, fallback: number): number {
+  if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+    return Math.floor(value);
+  }
+  if (typeof value === "string") {
+    const n = Number(value);
+    if (Number.isFinite(n) && n > 0) {
+      return Math.floor(n);
+    }
+  }
+  return fallback;
+}
+
+function normalizeDynamicRecordsQueryBody(path: string, method: string, data: JsonValue): JsonValue {
+  if (method !== "POST" || !/\/dynamic-tables\/[^/]+\/records\/query$/i.test(path)) {
+    return data;
+  }
+
+  const payload = isObjectRecord(data) ? { ...data } : {};
+
+  const pageIndex = coercePositiveInt(
+    payload.pageIndex ?? payload.PageIndex ?? payload.page,
+    1
+  );
+  const pageSize = coercePositiveInt(
+    payload.pageSize ?? payload.PageSize ?? payload.perPage,
+    20
+  );
+
+  payload.pageIndex = pageIndex;
+  payload.pageSize = pageSize;
+  payload.filters = Array.isArray(payload.filters)
+    ? payload.filters
+    : (Array.isArray(payload.Filters) ? payload.Filters : []);
+
+  if (payload.sortBy === undefined && payload.orderBy !== undefined) {
+    payload.sortBy = payload.orderBy;
+  }
+  if (payload.sortBy === undefined && payload.OrderBy !== undefined) {
+    payload.sortBy = payload.OrderBy;
+  }
+
+  if (payload.sortDesc === undefined) {
+    const dir = payload.orderDir ?? payload.OrderDir;
+    if (typeof dir === "string") {
+      payload.sortDesc = dir.toLowerCase() === "desc";
+    }
+  }
+
+  return payload as JsonValue;
+}
+
 function appendQuery(url: string, data?: JsonValue): string {
   if (!data || typeof data !== "object" || Array.isArray(data)) {
     return url;
@@ -146,6 +211,70 @@ function appendQuery(url: string, data?: JsonValue): string {
 
 function translate(key: string): string {
   return globalComposer.t(key);
+}
+
+function normalizeErrorDedupKey(content: string): string {
+  return (content || "")
+    .replace(/（\s*traceId:\s*[^）]+\s*）/gi, "")
+    .replace(/\(\s*traceId:\s*[^)]+\s*\)/gi, "")
+    .trim();
+}
+
+function showAmisError(content: string): void {
+  const finalContent = content?.trim() || translate("amis.requestFailed");
+  const dedupKey = normalizeErrorDedupKey(finalContent);
+  const now = Date.now();
+  const lastShownAt = amisErrorShownAt.get(dedupKey) ?? 0;
+  if (now - lastShownAt <= AMIS_ERROR_DEDUP_WINDOW_MS) {
+    return;
+  }
+  amisErrorShownAt.set(dedupKey, now);
+  message.open({
+    key: AMIS_ERROR_MESSAGE_KEY,
+    type: "error",
+    content: finalContent,
+    duration: 4
+  });
+}
+
+function buildSafeRequestBodySnapshot(body: RequestInit["body"]): unknown {
+  if (body === undefined || body === null) {
+    return null;
+  }
+  if (typeof body === "string") {
+    return body;
+  }
+  if (body instanceof URLSearchParams) {
+    return body.toString();
+  }
+  if (typeof FormData !== "undefined" && body instanceof FormData) {
+    return Array.from(body.entries()).map(([key, value]) => [key, typeof value === "string" ? value : `file:${value.name}`]);
+  }
+  if (typeof Blob !== "undefined" && body instanceof Blob) {
+    return { type: body.type, size: body.size };
+  }
+  return "[non-string body]";
+}
+
+function logAmisRequestError(params: {
+  stage: "business-fail" | "validation-fail" | "request-fail";
+  path: string;
+  method: string;
+  status: number;
+  msg: string;
+  payload?: unknown;
+  requestBody?: RequestInit["body"];
+}) {
+  console.error("[AMIS] request error", {
+    stage: params.stage,
+    path: params.path,
+    method: params.method,
+    status: params.status,
+    message: params.msg,
+    traceId: (params.payload as { traceId?: string } | undefined)?.traceId ?? "",
+    payload: params.payload ?? null,
+    requestBody: buildSafeRequestBodySnapshot(params.requestBody)
+  });
 }
 
 function toCamelCaseKey(key: string): string {
@@ -208,7 +337,9 @@ export function createAmisEnv(): AmisEnv {
   const fetcher = async (config: AmisFetcherConfig): Promise<AmisFetcherResult> => {
     const path = normalizeUrl(config.url);
     const method = (config.method ?? "GET").toUpperCase();
-    const normalizedData = method === "GET" ? normalizeAmisParams(config.data ?? null) : config.data;
+    const normalizedData = method === "GET"
+      ? normalizeAmisParams(config.data ?? null)
+      : normalizeDynamicRecordsQueryBody(path, method, config.data ?? null);
     const adaptedConfig = { ...config, data: normalizedData };
     const finalPath = method === "GET" ? appendQuery(path, normalizedData) : path;
     const init = buildRequestInit(adaptedConfig);
@@ -218,11 +349,23 @@ export function createAmisEnv(): AmisEnv {
         suppressErrorMessage: true
       });
       const isSuccess = payload.success !== false;
+      const finalMsg = payload.message?.trim() || translate("amis.requestFailed");
+      if (!isSuccess) {
+        logAmisRequestError({
+          stage: "business-fail",
+          path: finalPath,
+          method,
+          status: 200,
+          msg: finalMsg,
+          payload,
+          requestBody: init.body
+        });
+      }
       return {
         data: (payload.data ?? null) as JsonValue,
         ok: isSuccess,
         status: 200,
-        msg: payload.message
+        msg: finalMsg
       };
     } catch (error) {
       const defaultError = translate("amis.requestFailed");
@@ -242,12 +385,15 @@ export function createAmisEnv(): AmisEnv {
         const errors = normalizeValidationErrors(payload.errors);
         const summary = buildValidationSummary(errors);
         const finalMsg = summary ? `${msg} | ${summary}` : msg;
-        message.error(finalMsg);
-        console.error("[AMIS] request validation failed", {
+        showAmisError(finalMsg);
+        logAmisRequestError({
+          stage: "validation-fail",
           path: finalPath,
           method,
           status,
-          payload
+          msg: finalMsg,
+          payload,
+          requestBody: init.body
         });
         return {
           data: { errors } as JsonValue,
@@ -262,6 +408,16 @@ export function createAmisEnv(): AmisEnv {
         message: msg,
         traceId: ""
       };
+      showAmisError(msg);
+      logAmisRequestError({
+        stage: "request-fail",
+        path: finalPath,
+        method,
+        status,
+        msg,
+        payload,
+        requestBody: init.body
+      });
       return {
         data: (payload ?? fallback) as JsonValue,
         ok: false,
@@ -272,6 +428,10 @@ export function createAmisEnv(): AmisEnv {
   };
 
   const notify = (type: "info" | "success" | "warning" | "error", msg: string) => {
+    if (type === "error") {
+      showAmisError(msg);
+      return;
+    }
     message.open({ type, content: msg, duration: 3 });
   };
 

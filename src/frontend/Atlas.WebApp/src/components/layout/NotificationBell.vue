@@ -1,5 +1,5 @@
 <template>
-  <a-dropdown trigger="click" placement="bottomRight" :arrow="false" overlay-class-name="notification-dropdown" @visible-change="handlePanelOpen">
+  <a-dropdown trigger="click" placement="bottomRight" :arrow="false" overlay-class-name="notification-dropdown" @open-change="handlePanelOpen">
     <span data-testid="e2e-notification-bell">
       <a-badge :count="unreadCount > 99 ? '99+' : unreadCount" :offset="[-4, 4]">
         <a-button type="text" class="bell-btn">

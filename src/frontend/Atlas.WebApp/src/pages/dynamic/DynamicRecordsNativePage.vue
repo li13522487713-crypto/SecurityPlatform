@@ -108,7 +108,8 @@ const tableConfig = computed<TableViewConfig>(() => {
     title: col.label,
     visible: true,
     ellipsis: true,
-    resizable: true
+    resizable: true,
+    width: 160
   }));
   return { columns: cols };
 });

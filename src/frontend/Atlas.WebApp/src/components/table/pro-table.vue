@@ -24,6 +24,9 @@ const emit = defineEmits<{
 
 const slots = useSlots();
 
+/** 叶子列未配置有效 width 时的默认列宽（像素），保证 ant-table 与自定义拖拽均有确定数值 */
+const DEFAULT_LEAF_COLUMN_WIDTH = 160;
+
 // 辅助方法：深拷贝列配置以便转换给 Ant Design Vue
 const mapColumnsToAntd = (columns: TableViewColumnConfig[]): TableProps["columns"] => {
   if (!columns) return [];
@@ -72,18 +75,47 @@ const mapColumnsToAntd = (columns: TableViewColumnConfig[]): TableProps["columns
       };
     };
 
+    const isLeaf = !col.children || col.children.length === 0;
+
+    const normalizedWidth =
+      typeof col.width === "number"
+        ? col.width
+        : (typeof col.width === "string" && col.width.trim().endsWith("px")
+            ? Number.parseInt(col.width, 10)
+            : undefined);
+
+    const resizableEnabled = col.resizable !== false;
+    const leafWidth =
+      typeof normalizedWidth === "number" && Number.isFinite(normalizedWidth)
+        ? normalizedWidth
+        : DEFAULT_LEAF_COLUMN_WIDTH;
+
     const antdCol: any = {
-      ...col,
+      key: col.key,
       title: col.title || col.key,
       dataIndex: col.dataIndex || col.key,
-      width: col.width,
-      minWidth: col.minWidth,
-      maxWidth: col.maxWidth,
+      align: col.align,
+      ellipsis: col.ellipsis,
+      // 内部使用自定义拖拽；显式关闭 vc-table 内置 DragHandle（勿把业务 resizable 透传为 true）
+      __resizable: resizableEnabled,
+      resizable: false,
       fixed: col.pinned === "left" || col.pinned === "right" ? col.pinned : undefined,
-      customHeaderCell: col.resizable !== false ? customHeaderCell : undefined,
-      customCell: customCell,
+      customHeaderCell: resizableEnabled ? customHeaderCell : undefined,
+      customCell,
       children: col.children && col.children.length > 0 ? mapColumnsToAntd(col.children) : undefined,
     };
+
+    if (isLeaf) {
+      antdCol.width = leafWidth;
+    } else if (typeof normalizedWidth === "number" && Number.isFinite(normalizedWidth)) {
+      antdCol.width = normalizedWidth;
+    }
+    if (typeof col.minWidth === "number" && Number.isFinite(col.minWidth)) {
+      antdCol.minWidth = col.minWidth;
+    }
+    if (typeof col.maxWidth === "number" && Number.isFinite(col.maxWidth)) {
+      antdCol.maxWidth = col.maxWidth;
+    }
     if (col.colSpan !== undefined) antdCol.colSpan = col.colSpan;
     if (col.rowSpan !== undefined) antdCol.rowSpan = col.rowSpan;
 
@@ -230,7 +262,7 @@ const handleExpand = async (expanded: boolean, record: any) => {
           <div class="pro-table-header-cell">
             <span class="pro-table-header-title">{{ column.title || column.key }}</span>
             <div 
-              v-if="column.resizable"
+              v-if="column.__resizable"
               class="pro-table-resize-handle"
               @mousedown="startResize(column.key, $event, column.width)"
             ></div>
