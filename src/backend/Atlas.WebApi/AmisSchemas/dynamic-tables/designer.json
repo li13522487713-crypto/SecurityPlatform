@@ -1,12 +1,9 @@
 {
-  "type": "wizard",
-  "name": "tableWizard",
-  "id": "tableWizardId",
-  "mode": "vertical",
-  "className": "dynamic-table-wizard",
-  "actionPrevLabel": "上一步",
-  "actionNextLabel": "下一步",
-  "actionFinishLabel": "创建数据表",
+  "type": "form",
+  "name": "tableForm",
+  "id": "tableFormId",
+  "className": "dynamic-table-form",
+  "title": "",
   "api": {
     "method": "post",
     "url": "/api/v1/dynamic-tables",
@@ -14,21 +11,41 @@
       "X-App-Id": "${appId || currentAppId || ''}",
       "X-App-Workspace": "1"
     },
-    "requestAdaptor": "var body = api.data || {}; var appId = body.appId || body.currentAppId || ''; body.appId = appId ? String(appId) : null; var rawIndexes = body.indexes; if (Array.isArray(rawIndexes)) { body.indexes = rawIndexes; } else if (typeof rawIndexes === 'string') { try { var parsed = JSON.parse(rawIndexes); body.indexes = Array.isArray(parsed) ? parsed : []; } catch (e) { body.indexes = []; } } else { body.indexes = []; } body.fields = Array.isArray(body.fields) ? body.fields.map(function(field, idx) { return Object.assign({ sortOrder: idx + 1, allowNull: true, isPrimaryKey: false, isAutoIncrement: false, isUnique: false }, field || {}); }) : []; api.data = body; return api;",
+    "requestAdaptor": "var body = api.data || {}; var appId = body.appId || body.currentAppId || ''; body.appId = appId ? String(appId) : null; body.indexes = []; body.fields = Array.isArray(body.fields) ? body.fields.map(function(field, idx) { return Object.assign({ sortOrder: idx + 1, allowNull: true, isPrimaryKey: false, isAutoIncrement: false, isUnique: false }, field || {}); }) : []; api.data = body; return api;",
     "data": {
       "tableKey": "${tableKey}",
       "displayName": "${displayName}",
       "description": "${description}",
       "appId": "${appId || currentAppId || null}",
       "dbType": "${dbType}",
-      "fields": "${fields}",
-      "indexes": "${Array.isArray(indexes) ? indexes : []}"
+      "fields": "${fields}"
     },
-    "adaptor": "return { status: payload.success ? 0 : 1, msg: payload.message, data: payload.data };"
+    "adaptor": "return { status: payload.success ? 0 : 1, msg: payload.message || '操作失败', data: payload.data };",
+    "messages": {
+      "success": "动态表保存成功！",
+      "failed": "保存失败：${msg}"
+    }
   },
-  "steps": [
+  "onEvent": {
+    "submitSucc": {
+      "actions": [
+        {
+          "actionType": "link",
+          "args": {
+            "link": "/apps/${appId || currentAppId}/data/${tableKey}"
+          }
+        },
+        {
+          "actionType": "closeDrawer"
+        }
+      ]
+    }
+  },
+  "body": [
     {
+      "type": "fieldset",
       "title": "基础信息",
+      "collapsable": true,
       "body": [
         {
           "type": "input-text",
@@ -44,7 +61,7 @@
               "actions": [
                 {
                   "actionType": "setValue",
-                  "componentId": "tableWizardId",
+                  "componentId": "tableFormId",
                   "args": {
                     "value": {
                       "__tableKeyManual": "${!!tableKey}"
@@ -55,8 +72,8 @@
             }
           },
           "validation": {
-            "pattern": "^[A-Za-z][A-Za-z0-9_]{1,63}$",
-            "message": "表标识格式不正确"
+            "pattern": "^(?!(?i)(select|from|where|table|index|create|drop|delete|update|insert|alter|TenantIdValue)$)[A-Za-z][A-Za-z0-9_]{1,63}$",
+            "message": "表标识格式不正确或使用了保留字"
           }
         },
         {
@@ -72,7 +89,7 @@
                 {
                   "actionType": "custom",
                   "expression": "${!__tableKeyManual}",
-                  "script": "const raw = (event.data.displayName || '').trim(); if (!raw) { return; } const normalized = raw.normalize('NFKD').replace(/[\\u0300-\\u036f]/g, ''); const slug = normalized.replace(/[^A-Za-z0-9_\\s-]/g, '').replace(/[\\s-]+/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '').toLowerCase(); const fallback = `table_${Date.now().toString(36)}`; const tableKey = slug || fallback; doAction({ actionType: 'setValue', componentId: 'tableWizardId', args: { value: { tableKey } } });"
+                  "script": "const raw = (event.data.displayName || '').trim(); if (!raw) { return; } const normalized = raw.normalize('NFKD').replace(/[\\u0300-\\u036f]/g, ''); const slug = normalized.replace(/[^A-Za-z0-9_\\s-]/g, '').replace(/[\\s-]+/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '').toLowerCase(); const fallback = `table_${Date.now().toString(36)}`; const tableKey = slug || fallback; doAction({ actionType: 'setValue', componentId: 'tableFormId', args: { value: { tableKey } } });"
                 }
               ]
             }
@@ -82,11 +99,6 @@
           "type": "hidden",
           "name": "__tableKeyManual",
           "value": false
-        },
-        {
-          "type": "hidden",
-          "name": "indexes",
-          "value": []
         },
         {
           "type": "select",
@@ -112,13 +124,15 @@
       ]
     },
     {
+      "type": "fieldset",
       "title": "字段定义",
+      "collapsable": true,
       "body": [
         {
           "type": "alert",
           "level": "info",
           "showIcon": true,
-          "body": "已预置主键和常用审计字段（createdAt/createdBy/updatedAt/updatedBy），可按需删除；字符串默认长度 50，金额请使用 Decimal。"
+          "body": "已预置主键和常用模板字段（createdAt/createdBy/updatedAt/updatedBy），可按需删除；字符串默认长度 50，金额请使用 Decimal。注意：只能有一个主键字段。"
         },
         {
           "type": "input-table",
@@ -131,6 +145,9 @@
           "needConfirm": false,
           "showIndex": true,
           "minLength": 1,
+          "validation": {
+            "custom": "const pks = (value || []).filter(f => f.isPrimaryKey); if (pks.length > 1) return '只能有一个主键字段'; if (pks.length === 0) return '必须指定一个主键字段'; return '';"
+          },
           "value": [
             {
               "name": "id",
@@ -143,7 +160,7 @@
             },
             {
               "name": "createdAt",
-              "displayName": "创建时间",
+              "displayName": "创建时间(模板)",
               "fieldType": "DateTime",
               "allowNull": true,
               "isPrimaryKey": false,
@@ -152,7 +169,7 @@
             },
             {
               "name": "createdBy",
-              "displayName": "创建人",
+              "displayName": "创建人(模板)",
               "fieldType": "Long",
               "allowNull": true,
               "isPrimaryKey": false,
@@ -161,7 +178,7 @@
             },
             {
               "name": "updatedAt",
-              "displayName": "更新时间",
+              "displayName": "更新时间(模板)",
               "fieldType": "DateTime",
               "allowNull": true,
               "isPrimaryKey": false,
@@ -170,7 +187,7 @@
             },
             {
               "name": "updatedBy",
-              "displayName": "更新人",
+              "displayName": "更新人(模板)",
               "fieldType": "Long",
               "allowNull": true,
               "isPrimaryKey": false,
@@ -184,10 +201,11 @@
               "label": "字段名",
               "type": "input-text",
               "required": true,
+              "unique": true,
               "placeholder": "例如：orderNo",
               "validation": {
-                "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
-                "message": "字段名格式不正确"
+                "pattern": "^(?!(?i)(select|from|where|table|index|create|drop|delete|update|insert|alter|TenantIdValue)$)[A-Za-z][A-Za-z0-9_]{0,63}$",
+                "message": "字段名格式不正确或使用了保留字"
               }
             },
             {
@@ -218,6 +236,7 @@
               "label": "长度",
               "type": "input-number",
               "visibleOn": "data.fieldType === 'String'",
+              "clearValueOnHidden": true,
               "min": 1,
               "max": 1024,
               "value": 50
@@ -227,6 +246,7 @@
               "label": "精度",
               "type": "input-number",
               "visibleOn": "data.fieldType === 'Decimal'",
+              "clearValueOnHidden": true,
               "min": 1,
               "max": 38,
               "value": 18
@@ -236,6 +256,7 @@
               "label": "小数位",
               "type": "input-number",
               "visibleOn": "data.fieldType === 'Decimal'",
+              "clearValueOnHidden": true,
               "min": 0,
               "max": 18,
               "value": 2
@@ -255,7 +276,8 @@
               "name": "isAutoIncrement",
               "label": "自增",
               "type": "checkbox",
-              "visibleOn": "data.isPrimaryKey && (data.fieldType === 'Int' || data.fieldType === 'Long')"
+              "visibleOn": "data.isPrimaryKey && (data.fieldType === 'Int' || data.fieldType === 'Long')",
+              "clearValueOnHidden": true
             },
             {
               "name": "isUnique",
@@ -263,19 +285,6 @@
               "type": "checkbox"
             }
           ]
-        }
-      ]
-    },
-    {
-      "title": "确认提交",
-      "body": [
-        {
-          "type": "tpl",
-          "tpl": "表标识：${tableKey || '-'}；表名称：${displayName || '-'}；字段数：${(fields && fields.length) || 0}"
-        },
-        {
-          "type": "tpl",
-          "tpl": "确认后将创建数据表与字段结构，请检查表标识和字段类型。"
         }
       ]
     }

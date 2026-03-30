@@ -3,9 +3,8 @@
   "title": "动态表设计器",
   "body": [
     {
-      "type": "wizard",
-      "name": "tableWizard",
-      "mode": "horizontal",
+      "type": "form",
+      "name": "tableForm",
       "api": {
         "method": "post",
         "url": "/api/v1/dynamic-tables",
@@ -17,11 +16,17 @@
           "fields": "${fields}",
           "indexes": "${indexes}"
         },
-        "adaptor": "return { status: payload.success ? 0 : 1, msg: payload.message, data: payload.data };"
+        "adaptor": "return { status: payload.success ? 0 : 1, msg: payload.message || '操作失败', data: payload.data };",
+        "messages": {
+          "success": "动态表保存成功！",
+          "failed": "保存失败：${msg}"
+        }
       },
-      "steps": [
+      "body": [
         {
+          "type": "fieldset",
           "title": "基础信息",
+          "collapsable": true,
           "body": [
             {
               "type": "input-text",
@@ -60,7 +65,9 @@
           ]
         },
         {
+          "type": "fieldset",
           "title": "字段定义",
+          "collapsable": true,
           "body": [
             {
               "type": "input-table",
@@ -145,15 +152,6 @@
                   "type": "checkbox"
                 }
               ]
-            }
-          ]
-        },
-        {
-          "title": "确认提交",
-          "body": [
-            {
-              "type": "tpl",
-              "tpl": "请确认表信息与字段定义后提交。"
             }
           ]
         }

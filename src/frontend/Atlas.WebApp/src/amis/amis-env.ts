@@ -5,6 +5,7 @@ import { requestApi } from "@/services/api-core";
 import { getActiveLocale, i18n } from "@/i18n";
 import { useUserStore } from "@/stores/user";
 import { getAccessToken, getTenantId } from "@/utils/auth";
+import router from "@/router";
 
 // AMIS 内部 React 组件使用了已废弃的 findDOMNode（第三方技术债，无法在业务层修复）。
 // 在此拦截 console.error，仅屏蔽该特定告警，避免淹没开发日志中真正有意义的错误。
@@ -295,6 +296,18 @@ export function createAmisEnv(): AmisEnv {
     confirm,
     updateLocation: (location: string, replace?: boolean) => {
       console.debug('[AMIS] updateLocation:', location, replace);
+      if (replace) {
+        void router.replace(location);
+      } else {
+        void router.push(location);
+      }
+    },
+    jumpTo: (to: string, action?: any) => {
+      if (to === 'goBack') {
+        router.back();
+      } else {
+        void router.push(to);
+      }
     },
     locale: getAmisLocale(),
     data: buildGlobalData()

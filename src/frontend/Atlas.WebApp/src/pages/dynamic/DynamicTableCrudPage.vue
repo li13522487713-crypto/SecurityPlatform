@@ -48,22 +48,35 @@ const loadSchema = async () => {
     return;
   }
 
+  // 记录当前请求的 tableKey，防止旧请求覆盖新状态
+  const currentTableKey = tableKey.value;
   loading.value = true;
   try {
-    const [schemaResult, detail]  = await Promise.all([
-      getDynamicAmisSchema(`${tableKey.value}/crud`),
-      getDynamicTableDetail(tableKey.value)
-    ]);
-    if (!isMounted.value) return;
+    const schemaResult = await getDynamicAmisSchema(`${currentTableKey}/crud`);
+    if (!isMounted.value || currentTableKey !== tableKey.value) return;
     schema.value = schemaResult as AmisSchema;
-    tableDisplayName.value = detail?.displayName ?? tableKey.value;
-    pageTitle.value = detail?.displayName ?? t("dynamic.crudTitle");
-    approvalFlowDefinitionId.value = detail?.approvalFlowDefinitionId ?? null;
+    
+    // 非阻断式加载详情
+    getDynamicTableDetail(currentTableKey).then(detail => {
+      if (!isMounted.value || currentTableKey !== tableKey.value) return;
+      tableDisplayName.value = detail?.displayName ?? currentTableKey;
+      pageTitle.value = detail?.displayName ?? t("dynamic.crudTitle");
+      approvalFlowDefinitionId.value = detail?.approvalFlowDefinitionId ?? null;
+    }).catch(err => {
+      console.warn("Failed to load table detail:", err);
+      if (!isMounted.value || currentTableKey !== tableKey.value) return;
+      tableDisplayName.value = currentTableKey;
+      pageTitle.value = currentTableKey;
+    });
+
   } catch (error) {
+    if (!isMounted.value || currentTableKey !== tableKey.value) return;
     schema.value = null;
-    message.error((error as Error).message || t("dynamic.loadPageFailed"));
+    message.error((error as Error).message || t("dynamic.loadPageFailed", "动态表页面加载失败"));
   } finally {
-    loading.value = false;
+    if (isMounted.value && currentTableKey === tableKey.value) {
+      loading.value = false;
+    }
   }
 };
 

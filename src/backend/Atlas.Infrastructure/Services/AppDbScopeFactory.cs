@@ -6,6 +6,8 @@ using Atlas.Domain.DynamicTables.Entities;
 using Atlas.Domain.Platform.Entities;
 using Atlas.Domain.System.Entities;
 using SqlSugar;
+using System.Collections.Concurrent;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace Atlas.Infrastructure.Services;
 
@@ -13,13 +15,24 @@ public sealed class AppDbScopeFactory : IAppDbScopeFactory
 {
     private readonly ITenantDbConnectionFactory _connectionFactory;
     private readonly ISqlSugarClient _mainDb;
+    private readonly IMemoryCache _cache;
+
+    // 缓存已完成 Schema 初始化的 (tenantId:appInstanceId) 组合，进程生命周期内有效
+    private static readonly ConcurrentDictionary<string, bool> _schemaInitializedKeys
+        = new(StringComparer.OrdinalIgnoreCase);
+
+    // 缓存路由策略查询结果，避免每次请求都查主库
+    private const string RoutePolicyCachePrefix = "app-route-policy:";
+    private static readonly TimeSpan RoutePolicyCacheDuration = TimeSpan.FromMinutes(5);
 
     public AppDbScopeFactory(
         ITenantDbConnectionFactory connectionFactory,
-        ISqlSugarClient mainDb)
+        ISqlSugarClient mainDb,
+        IMemoryCache cache)
     {
         _connectionFactory = connectionFactory;
         _mainDb = mainDb;
+        _cache = cache;
     }
 
     public async Task<ISqlSugarClient> GetAppClientAsync(
@@ -32,9 +45,17 @@ public sealed class AppDbScopeFactory : IAppDbScopeFactory
             throw new BusinessException(ErrorCodes.AppContextRequired, "应用上下文缺失，无法解析应用级数据库连接。");
         }
 
-        var policy = await _mainDb.Queryable<AppDataRoutePolicy>()
-            .FirstAsync(x => x.TenantIdValue == tenantId.Value && x.AppInstanceId == appInstanceId, cancellationToken);
-        if (policy is not null && string.Equals(policy.Mode, "MainOnly", StringComparison.OrdinalIgnoreCase))
+        // 缓存路由策略，避免每次查主库
+        var policyCacheKey = $"{RoutePolicyCachePrefix}{tenantId.Value}:{appInstanceId}";
+        if (!_cache.TryGetValue(policyCacheKey, out bool isMainOnly))
+        {
+            var policy = await _mainDb.Queryable<AppDataRoutePolicy>()
+                .FirstAsync(x => x.TenantIdValue == tenantId.Value && x.AppInstanceId == appInstanceId, cancellationToken);
+            isMainOnly = policy is not null && string.Equals(policy.Mode, "MainOnly", StringComparison.OrdinalIgnoreCase);
+            _cache.Set(policyCacheKey, isMainOnly, RoutePolicyCacheDuration);
+        }
+
+        if (isMainOnly)
         {
             return _mainDb;
         }
@@ -67,7 +88,15 @@ public sealed class AppDbScopeFactory : IAppDbScopeFactory
 
         var db = new SqlSugarClient(config);
         db.QueryFilter.AddTableFilter<Atlas.Core.Abstractions.TenantEntity>(it => it.TenantIdValue == tenantId.Value);
-        EnsureAppSchema(db);
+
+        // 只在进程首次访问该应用库时执行 Schema 检查，后续跳过
+        var schemaKey = $"{tenantId.Value}:{appInstanceId}";
+        if (!_schemaInitializedKeys.ContainsKey(schemaKey))
+        {
+            EnsureAppSchema(db);
+            _schemaInitializedKeys.TryAdd(schemaKey, true);
+        }
+
         return db;
     }
 

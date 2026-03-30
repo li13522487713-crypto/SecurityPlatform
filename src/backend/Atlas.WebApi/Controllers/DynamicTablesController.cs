@@ -50,7 +50,7 @@ public sealed class DynamicTablesController : ControllerBase
     }
 
     [HttpGet]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppAdmin)]
     public async Task<ActionResult<ApiResponse<PagedResult<DynamicTableListItem>>>> Get(
         [FromQuery] PagedRequest request,
         CancellationToken cancellationToken)
@@ -61,7 +61,7 @@ public sealed class DynamicTablesController : ControllerBase
     }
 
     [HttpGet("{tableKey}")]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppAdmin)]
     public async Task<ActionResult<ApiResponse<DynamicTableDetail?>>> GetByKey(
         string tableKey,
         CancellationToken cancellationToken)
@@ -80,7 +80,7 @@ public sealed class DynamicTablesController : ControllerBase
     }
 
     [HttpGet("{tableKey}/fields")]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppAdmin)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<DynamicFieldDefinition>>>> GetFields(
         string tableKey,
         CancellationToken cancellationToken)
@@ -99,7 +99,7 @@ public sealed class DynamicTablesController : ControllerBase
     }
 
     [HttpGet("{tableKey}/relations")]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppAdmin)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<DynamicRelationDefinition>>>> GetRelations(
         string tableKey,
         CancellationToken cancellationToken)
@@ -118,7 +118,7 @@ public sealed class DynamicTablesController : ControllerBase
     }
 
     [HttpGet("{tableKey}/field-permissions")]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppAdmin)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<DynamicFieldPermissionRule>>>> GetFieldPermissions(
         string tableKey,
         CancellationToken cancellationToken)
@@ -155,7 +155,7 @@ public sealed class DynamicTablesController : ControllerBase
         var tenantId = _tenantProvider.GetTenantId();
         var id = await _commandService.CreateAsync(tenantId, currentUser.UserId, request, cancellationToken);
         await RecordAuditAsync(currentUser, "CREATE_DYNAMIC_TABLE", request.TableKey, cancellationToken);
-        return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
+        return Ok(ApiResponse<object>.Ok(new { Id = id.ToString(), TableKey = request.TableKey }, HttpContext.TraceIdentifier));
     }
 
     [HttpPut("{tableKey}")]
@@ -304,7 +304,7 @@ public sealed class DynamicTablesController : ControllerBase
     }
 
     [HttpGet("{tableKey}/migrations")]
-    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+    [Authorize(Policy = PermissionPolicies.AppAdmin)]
     public async Task<ActionResult<ApiResponse<PagedResult<DynamicSchemaMigrationItem>>>> GetMigrations(
         string tableKey,
         [FromQuery] int pageIndex = 1,

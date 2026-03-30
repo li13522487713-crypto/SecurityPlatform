@@ -59,10 +59,10 @@
           "type": "button",
           "label": "新建表",
           "level": "primary",
-          "actionType": "dialog",
-          "dialog": {
+          "actionType": "drawer",
+          "drawer": {
             "title": "新建动态表",
-            "size": "xl",
+            "size": "lg",
             "body": {
               "type": "service",
               "schemaApi": "get:/api/v1/amis/dynamic-tables/designer"

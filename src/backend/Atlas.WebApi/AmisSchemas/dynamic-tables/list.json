@@ -108,8 +108,8 @@
           "type": "button",
           "label": "新建表",
           "level": "primary",
-          "actionType": "dialog",
-          "dialog": {
+          "actionType": "drawer",
+          "drawer": {
             "title": "新建动态表",
             "size": "lg",
             "closeOnEsc": true,
