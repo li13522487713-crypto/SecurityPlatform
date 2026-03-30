@@ -125,7 +125,7 @@ import "@vue-flow/core/dist/theme-default.css";
 import "@vue-flow/controls/dist/style.css";
 import "@vue-flow/minimap/dist/style.css";
 import type { DynamicTableListItem, DynamicRelationDefinition } from "@/types/dynamic-tables";
-import { getDynamicTablesPaged, getDynamicTableRelations, setDynamicTableRelations } from "@/services/dynamic-tables";
+import { getAllDynamicTables, getDynamicTableRelations, setDynamicTableRelations } from "@/services/dynamic-tables";
 import TableEntityNode from "./TableEntityNode.vue";
 import RelationConfigModal from "./RelationConfigModal.vue";
 
@@ -177,8 +177,7 @@ onMounted(async () => {
 async function loadTables() {
   loadingTables.value = true;
   try {
-    const res = await getDynamicTablesPaged({ pageIndex: 1, pageSize: 500 });
-    allTables.value = res.items;
+    allTables.value = await getAllDynamicTables();
   } catch {
     message.error(t("relationDesigner.loadFailed"));
   } finally {

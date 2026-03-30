@@ -16,6 +16,29 @@ import type {
 import { requestApi } from "@/services/api-core";
 import type { RequestOptions } from "@/services/api-core";
 
+/** 与后端 PagedRequestValidator 中 PageSize 上限一致 */
+export const DYNAMIC_TABLES_MAX_PAGE_SIZE = 200;
+
+/**
+ * 按页拉取当前应用下全部动态表（多页拼接，每页不超过 {@link DYNAMIC_TABLES_MAX_PAGE_SIZE}）。
+ */
+export async function getAllDynamicTables(keyword?: string, options?: RequestInit & RequestOptions): Promise<DynamicTableListItem[]> {
+  const collected: DynamicTableListItem[] = [];
+  let pageIndex = 1;
+  while (true) {
+    const res = await getDynamicTablesPaged(
+      { pageIndex, pageSize: DYNAMIC_TABLES_MAX_PAGE_SIZE, keyword: keyword ?? "" },
+      options
+    );
+    collected.push(...res.items);
+    if (res.items.length < DYNAMIC_TABLES_MAX_PAGE_SIZE || collected.length >= res.total) {
+      break;
+    }
+    pageIndex += 1;
+  }
+  return collected;
+}
+
 export async function getDynamicTablesPaged(pagedRequest: PagedRequest, options?: RequestInit & RequestOptions) {
   const query = new URLSearchParams({
     PageIndex: pagedRequest.pageIndex.toString(),

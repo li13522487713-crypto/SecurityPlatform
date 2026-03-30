@@ -52,7 +52,7 @@ import { Dnd } from '@antv/x6-plugin-dnd';
 import { register } from '@antv/x6-vue-shape';
 import { message } from 'ant-design-vue';
 import type { DynamicTableListItem } from '@/types/dynamic-tables';
-import { getDynamicTablesPaged, getDynamicTableRelations, setDynamicTableRelations } from '@/services/dynamic-tables';
+import { getAllDynamicTables, getDynamicTableRelations, setDynamicTableRelations } from '@/services/dynamic-tables';
 import ERDEntityNode from './ERDEntityNode.vue';
 import EntityReferencesDrawer from './EntityReferencesDrawer.vue';
 
@@ -116,8 +116,7 @@ onUnmounted(() => {
 const loadTables = async () => {
   loading.value = true;
   try {
-    const res = await getDynamicTablesPaged({ pageIndex: 1, pageSize: 500 });
-    tables.value = res.items;
+    tables.value = await getAllDynamicTables();
   } catch (err) {
     message.error("加载实体列表失败");
   } finally {
