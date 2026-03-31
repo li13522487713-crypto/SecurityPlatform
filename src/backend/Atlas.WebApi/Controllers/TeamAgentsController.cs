@@ -3,6 +3,7 @@ using Atlas.Application.AiPlatform.Models;
 using Atlas.Core.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
+using Atlas.Domain.AiPlatform.Entities;
 using Atlas.WebApi.Authorization;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
@@ -20,12 +21,15 @@ public sealed class TeamAgentsController : ControllerBase
     private readonly IAppContextAccessor _appContextAccessor;
     private readonly IValidator<TeamAgentCreateRequest> _createValidator;
     private readonly IValidator<TeamAgentUpdateRequest> _updateValidator;
+    private readonly IValidator<TeamAgentCreateFromTemplateRequest> _createFromTemplateValidator;
     private readonly IValidator<TeamAgentConversationCreateRequest> _conversationCreateValidator;
     private readonly IValidator<TeamAgentChatRequest> _chatValidator;
     private readonly IValidator<TeamAgentChatCancelRequest> _chatCancelValidator;
     private readonly IValidator<SchemaDraftCreateRequest> _draftCreateValidator;
     private readonly IValidator<SchemaDraftUpdateRequest> _draftUpdateValidator;
     private readonly IValidator<SchemaDraftConfirmationRequest> _draftConfirmationValidator;
+    private readonly IValidator<TeamAgentPublicationPublishRequest> _publishValidator;
+    private readonly IValidator<TeamAgentLegacyMigrationRequest> _legacyMigrationValidator;
 
     public TeamAgentsController(
         ITeamAgentService teamAgentService,
@@ -34,12 +38,15 @@ public sealed class TeamAgentsController : ControllerBase
         IAppContextAccessor appContextAccessor,
         IValidator<TeamAgentCreateRequest> createValidator,
         IValidator<TeamAgentUpdateRequest> updateValidator,
+        IValidator<TeamAgentCreateFromTemplateRequest> createFromTemplateValidator,
         IValidator<TeamAgentConversationCreateRequest> conversationCreateValidator,
         IValidator<TeamAgentChatRequest> chatValidator,
         IValidator<TeamAgentChatCancelRequest> chatCancelValidator,
         IValidator<SchemaDraftCreateRequest> draftCreateValidator,
         IValidator<SchemaDraftUpdateRequest> draftUpdateValidator,
-        IValidator<SchemaDraftConfirmationRequest> draftConfirmationValidator)
+        IValidator<SchemaDraftConfirmationRequest> draftConfirmationValidator,
+        IValidator<TeamAgentPublicationPublishRequest> publishValidator,
+        IValidator<TeamAgentLegacyMigrationRequest> legacyMigrationValidator)
     {
         _teamAgentService = teamAgentService;
         _tenantProvider = tenantProvider;
@@ -47,25 +54,41 @@ public sealed class TeamAgentsController : ControllerBase
         _appContextAccessor = appContextAccessor;
         _createValidator = createValidator;
         _updateValidator = updateValidator;
+        _createFromTemplateValidator = createFromTemplateValidator;
         _conversationCreateValidator = conversationCreateValidator;
         _chatValidator = chatValidator;
         _chatCancelValidator = chatCancelValidator;
         _draftCreateValidator = draftCreateValidator;
         _draftUpdateValidator = draftUpdateValidator;
         _draftConfirmationValidator = draftConfirmationValidator;
+        _publishValidator = publishValidator;
+        _legacyMigrationValidator = legacyMigrationValidator;
     }
 
     [HttpGet]
     [Authorize(Policy = PermissionPolicies.AgentView)]
     public async Task<ActionResult<ApiResponse<PagedResult<TeamAgentListItem>>>> Get(
         [FromQuery] string? keyword,
+        [FromQuery] TeamAgentMode? teamMode,
+        [FromQuery] TeamAgentStatus? status,
+        [FromQuery] string? capabilityTag,
+        [FromQuery] string? defaultEntrySkill,
         [FromQuery] int pageIndex = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken cancellationToken = default)
     {
         var tenantId = _tenantProvider.GetTenantId();
-        var result = await _teamAgentService.GetPagedAsync(tenantId, keyword, pageIndex, pageSize, cancellationToken);
+        var result = await _teamAgentService.GetPagedAsync(tenantId, keyword, teamMode, status, capabilityTag, defaultEntrySkill, pageIndex, pageSize, cancellationToken);
         return Ok(ApiResponse<PagedResult<TeamAgentListItem>>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    [HttpGet("dashboard")]
+    [Authorize(Policy = PermissionPolicies.AgentView)]
+    public async Task<ActionResult<ApiResponse<TeamAgentDashboardDto>>> GetDashboard(CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _teamAgentService.GetDashboardAsync(tenantId, cancellationToken);
+        return Ok(ApiResponse<TeamAgentDashboardDto>.Ok(result, HttpContext.TraceIdentifier));
     }
 
     [HttpGet("{id:long}")]
@@ -119,10 +142,12 @@ public sealed class TeamAgentsController : ControllerBase
 
     [HttpPost("{id:long}/publish")]
     [Authorize(Policy = PermissionPolicies.AgentUpdate)]
-    public async Task<ActionResult<ApiResponse<object>>> Publish(long id, CancellationToken cancellationToken)
+    public async Task<ActionResult<ApiResponse<object>>> Publish(long id, [FromBody] TeamAgentPublicationPublishRequest request, CancellationToken cancellationToken)
     {
+        _publishValidator.ValidateAndThrow(request);
         var tenantId = _tenantProvider.GetTenantId();
-        await _teamAgentService.PublishAsync(tenantId, id, cancellationToken);
+        var userId = _currentUserAccessor.GetCurrentUserOrThrow().UserId;
+        await _teamAgentService.PublishAsync(tenantId, id, userId, request, cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
     }
 
@@ -138,10 +163,24 @@ public sealed class TeamAgentsController : ControllerBase
     [Authorize(Policy = PermissionPolicies.AgentCreate)]
     public async Task<ActionResult<ApiResponse<object>>> CreateFromTemplate([FromBody] TeamAgentCreateFromTemplateRequest request, CancellationToken cancellationToken)
     {
+        _createFromTemplateValidator.ValidateAndThrow(request);
         var tenantId = _tenantProvider.GetTenantId();
         var userId = _currentUserAccessor.GetCurrentUserOrThrow().UserId;
         var id = await _teamAgentService.CreateFromTemplateAsync(tenantId, userId, request, cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost("migrations/multi-agent-orchestrations")]
+    [Authorize(Policy = PermissionPolicies.AgentCreate)]
+    public async Task<ActionResult<ApiResponse<TeamAgentLegacyMigrationResult>>> MigrateLegacy(
+        [FromBody] TeamAgentLegacyMigrationRequest request,
+        CancellationToken cancellationToken)
+    {
+        _legacyMigrationValidator.ValidateAndThrow(request);
+        var tenantId = _tenantProvider.GetTenantId();
+        var userId = _currentUserAccessor.GetCurrentUserOrThrow().UserId;
+        var result = await _teamAgentService.MigrateLegacyAsync(tenantId, userId, request, cancellationToken);
+        return Ok(ApiResponse<TeamAgentLegacyMigrationResult>.Ok(result, HttpContext.TraceIdentifier));
     }
 
     [HttpGet("{id:long}/conversations")]
@@ -231,6 +270,15 @@ public sealed class TeamAgentsController : ControllerBase
         var userId = _currentUserAccessor.GetCurrentUserOrThrow().UserId;
         var draftId = await _teamAgentService.CreateSchemaDraftAsync(tenantId, id, userId, request, _appContextAccessor.GetAppId(), cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = draftId.ToString() }, HttpContext.TraceIdentifier));
+    }
+
+    [HttpGet("{id:long}/schema-drafts")]
+    [Authorize(Policy = PermissionPolicies.AgentView)]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<TeamAgentSchemaDraftListItem>>>> GetSchemaDrafts(long id, CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _teamAgentService.ListSchemaDraftsAsync(tenantId, id, cancellationToken);
+        return Ok(ApiResponse<IReadOnlyList<TeamAgentSchemaDraftListItem>>.Ok(result, HttpContext.TraceIdentifier));
     }
 
     [HttpGet("{id:long}/schema-drafts/{draftId:long}")]

@@ -8,6 +8,7 @@ using Atlas.Core.Tenancy;
 using Atlas.WebApi.Authorization;
 using Atlas.WebApi.Helpers;
 using FluentValidation;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -20,6 +21,7 @@ public sealed class DynamicTableRecordsController : ControllerBase
     private readonly IDynamicRecordQueryService _queryService;
     private readonly IDynamicRecordCommandService _commandService;
     private readonly IDynamicTableCommandService _tableCommandService;
+    private readonly IDynamicRecordImportService _importService;
     private readonly ITenantProvider _tenantProvider;
     private readonly ICurrentUserAccessor _currentUserAccessor;
     private readonly IClientContextAccessor _clientContextAccessor;
@@ -32,6 +34,7 @@ public sealed class DynamicTableRecordsController : ControllerBase
         IDynamicRecordQueryService queryService,
         IDynamicRecordCommandService commandService,
         IDynamicTableCommandService tableCommandService,
+        IDynamicRecordImportService importService,
         ITenantProvider tenantProvider,
         ICurrentUserAccessor currentUserAccessor,
         IClientContextAccessor clientContextAccessor,
@@ -43,6 +46,7 @@ public sealed class DynamicTableRecordsController : ControllerBase
         _queryService = queryService;
         _commandService = commandService;
         _tableCommandService = tableCommandService;
+        _importService = importService;
         _tenantProvider = tenantProvider;
         _currentUserAccessor = currentUserAccessor;
         _clientContextAccessor = clientContextAccessor;
@@ -203,6 +207,124 @@ public sealed class DynamicTableRecordsController : ControllerBase
         var tenantId = _tenantProvider.GetTenantId();
         var result = await _queryService.ExportAsync(tenantId, tableKey, request, cancellationToken);
         return File(result.Content, result.ContentType, result.FileName);
+    }
+
+    [HttpPost("import")]
+    [Authorize(Policy = PermissionPolicies.AppUser)]
+    public async Task<ActionResult<ApiResponse<DynamicRecordImportResult>>> Import(
+        string tableKey,
+        [FromBody] DynamicRecordImportRequest request,
+        CancellationToken cancellationToken)
+    {
+        var currentUser = _currentUserAccessor.GetCurrentUser();
+        if (currentUser is null)
+        {
+            return Unauthorized(ApiResponse<DynamicRecordImportResult>.Fail(
+                ErrorCodes.Unauthorized,
+                ApiResponseLocalizer.T(HttpContext, "UserNotSignedIn"),
+                HttpContext.TraceIdentifier));
+        }
+
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _importService.ImportAsync(tenantId, currentUser.UserId, tableKey, request, cancellationToken);
+        await RecordAuditAsync(currentUser, "IMPORT_DYNAMIC_RECORDS", $"{tableKey}:{result.ImportedRows}", cancellationToken);
+        return Ok(ApiResponse<DynamicRecordImportResult>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost("import/analyze")]
+    [Authorize(Policy = PermissionPolicies.AppUser)]
+    [Consumes("multipart/form-data")]
+    public async Task<ActionResult<ApiResponse<DynamicRecordImportAnalyzeResult>>> AnalyzeImport(
+        string tableKey,
+        [FromForm] IFormFile file,
+        [FromForm] string format,
+        CancellationToken cancellationToken)
+    {
+        var currentUser = _currentUserAccessor.GetCurrentUser();
+        if (currentUser is null)
+        {
+            return Unauthorized(ApiResponse<DynamicRecordImportAnalyzeResult>.Fail(
+                ErrorCodes.Unauthorized,
+                ApiResponseLocalizer.T(HttpContext, "UserNotSignedIn"),
+                HttpContext.TraceIdentifier));
+        }
+
+        if (file is null || file.Length <= 0)
+        {
+            return BadRequest(ApiResponse<DynamicRecordImportAnalyzeResult>.Fail(
+                ErrorCodes.ValidationError,
+                "Import file is required.",
+                HttpContext.TraceIdentifier));
+        }
+
+        string content;
+        var normalizedFormat = (format ?? string.Empty).Trim().ToLowerInvariant();
+        if (normalizedFormat is "xlsx" or "xls")
+        {
+            await using var ms = new MemoryStream();
+            await file.CopyToAsync(ms, cancellationToken);
+            content = Convert.ToBase64String(ms.ToArray());
+            normalizedFormat = "xlsx";
+        }
+        else
+        {
+            using var reader = new StreamReader(file.OpenReadStream());
+            content = await reader.ReadToEndAsync();
+        }
+
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _importService.AnalyzeAsync(
+            tenantId,
+            currentUser.UserId,
+            tableKey,
+            new DynamicRecordImportRequest(normalizedFormat, content, true),
+            cancellationToken);
+        await RecordAuditAsync(currentUser, "ANALYZE_DYNAMIC_RECORD_IMPORT", $"{tableKey}:{result.SessionId}", cancellationToken);
+        return Ok(ApiResponse<DynamicRecordImportAnalyzeResult>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost("import/commit")]
+    [Authorize(Policy = PermissionPolicies.AppUser)]
+    public async Task<ActionResult<ApiResponse<DynamicRecordImportResult>>> CommitImport(
+        string tableKey,
+        [FromBody] DynamicRecordImportCommitRequest request,
+        CancellationToken cancellationToken)
+    {
+        var currentUser = _currentUserAccessor.GetCurrentUser();
+        if (currentUser is null)
+        {
+            return Unauthorized(ApiResponse<DynamicRecordImportResult>.Fail(
+                ErrorCodes.Unauthorized,
+                ApiResponseLocalizer.T(HttpContext, "UserNotSignedIn"),
+                HttpContext.TraceIdentifier));
+        }
+
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _importService.CommitAsync(tenantId, currentUser.UserId, tableKey, request, cancellationToken);
+        await RecordAuditAsync(currentUser, "COMMIT_DYNAMIC_RECORD_IMPORT", $"{tableKey}:{result.ImportedRows}", cancellationToken);
+        return Ok(ApiResponse<DynamicRecordImportResult>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost("excel-paste")]
+    [Authorize(Policy = PermissionPolicies.AppUser)]
+    public async Task<ActionResult<ApiResponse<DynamicRecordImportResult>>> PasteFromExcel(
+        string tableKey,
+        [FromBody] DynamicRecordImportRequest request,
+        CancellationToken cancellationToken)
+    {
+        var currentUser = _currentUserAccessor.GetCurrentUser();
+        if (currentUser is null)
+        {
+            return Unauthorized(ApiResponse<DynamicRecordImportResult>.Fail(
+                ErrorCodes.Unauthorized,
+                ApiResponseLocalizer.T(HttpContext, "UserNotSignedIn"),
+                HttpContext.TraceIdentifier));
+        }
+
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _importService.PasteFromExcelAsync(tenantId, currentUser.UserId, tableKey, request, cancellationToken);
+        await RecordAuditAsync(currentUser, "PASTE_EXCEL_DYNAMIC_RECORDS", $"{tableKey}:{result.ImportedRows}", cancellationToken);
+        return Ok(ApiResponse<DynamicRecordImportResult>.Ok(result, HttpContext.TraceIdentifier));
     }
 
     /// <summary>

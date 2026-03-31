@@ -6,6 +6,7 @@ using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.AiPlatform.Entities;
 using Atlas.Infrastructure.Repositories;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
@@ -27,7 +28,7 @@ public sealed class AgentChatService : IAgentChatService
     private readonly ChatMessageRepository _chatMessageRepository;
     private readonly AgentKnowledgeLinkRepository _agentKnowledgeLinkRepository;
     private readonly ModelConfigRepository _modelConfigRepository;
-    private readonly ILlmProviderFactory _llmProviderFactory;
+    private readonly IChatClientFactory _chatClientFactory;
     private readonly IRagRetrievalService _ragRetrievalService;
     private readonly IAgentToolCallService _agentToolCallService;
     private readonly IShortTermMemorySummarizationService _shortTermMemorySummarizationService;
@@ -42,7 +43,7 @@ public sealed class AgentChatService : IAgentChatService
         ChatMessageRepository chatMessageRepository,
         AgentKnowledgeLinkRepository agentKnowledgeLinkRepository,
         ModelConfigRepository modelConfigRepository,
-        ILlmProviderFactory llmProviderFactory,
+        IChatClientFactory chatClientFactory,
         IRagRetrievalService ragRetrievalService,
         IAgentToolCallService agentToolCallService,
         IShortTermMemorySummarizationService shortTermMemorySummarizationService,
@@ -56,7 +57,7 @@ public sealed class AgentChatService : IAgentChatService
         _chatMessageRepository = chatMessageRepository;
         _agentKnowledgeLinkRepository = agentKnowledgeLinkRepository;
         _modelConfigRepository = modelConfigRepository;
-        _llmProviderFactory = llmProviderFactory;
+        _chatClientFactory = chatClientFactory;
         _ragRetrievalService = ragRetrievalService;
         _agentToolCallService = agentToolCallService;
         _shortTermMemorySummarizationService = shortTermMemorySummarizationService;
@@ -308,34 +309,38 @@ public sealed class AgentChatService : IAgentChatService
                     recalledMemories);
 
                 var modelConfig = await ResolveModelConfigAsync(tenantId, agent.ModelConfigId, linkedCts.Token);
-                var providerName = modelConfig?.ProviderType;
                 var modelName = ResolveModelName(agent, modelConfig);
-                var completionRequest = new ChatCompletionRequest(
-                    modelName,
-                    llmMessages,
-                    Temperature: agent.Temperature,
-                    MaxTokens: agent.MaxTokens,
-                    Provider: providerName);
-                var provider = _llmProviderFactory.GetLlmProvider(providerName);
-
-                await foreach (var chunk in provider.ChatStreamAsync(completionRequest, linkedCts.Token))
+                var chatClient = await _chatClientFactory.CreateAsync(tenantId, agent.ModelConfigId, modelName, linkedCts.Token);
+                var chatOptions = new ChatOptions
                 {
-                    if (string.IsNullOrWhiteSpace(chunk.ContentDelta))
+                    ModelId = modelName,
+                    Temperature = agent.Temperature,
+                    MaxOutputTokens = agent.MaxTokens,
+                    ConversationId = conversation.Id.ToString()
+                };
+
+                await foreach (var chunk in chatClient.GetStreamingResponseAsync(
+                    BuildAiMessages(llmMessages),
+                    chatOptions,
+                    linkedCts.Token))
+                {
+                    var chunkText = chunk.ToString();
+                    if (string.IsNullOrWhiteSpace(chunkText))
                     {
                         continue;
                     }
 
-                    assistantBuilder.Append(chunk.ContentDelta);
+                    assistantBuilder.Append(chunkText);
                     if (textStreamOutput is not null)
                     {
-                        await textStreamOutput(chunk.ContentDelta);
+                        await textStreamOutput(chunkText);
                     }
                 }
 
                 metadata = JsonSerializer.Serialize(new
                 {
                     mode = "llm",
-                    provider = provider.ProviderName,
+                    provider = modelConfig?.ProviderType ?? "default",
                     model = modelName,
                     ragEnabled = request.EnableRag ?? false,
                     ragSources = ragResults.Select(x => new
@@ -628,6 +633,21 @@ public sealed class AgentChatService : IAgentChatService
 
         return messages;
     }
+
+    private static IReadOnlyList<Microsoft.Extensions.AI.ChatMessage> BuildAiMessages(
+        IReadOnlyList<Atlas.Application.AiPlatform.Models.ChatMessage> messages)
+        => messages.Select(message => new Microsoft.Extensions.AI.ChatMessage(
+            MapRole(message.Role),
+            message.Content)).ToList();
+
+    private static ChatRole MapRole(string role)
+        => role.ToLowerInvariant() switch
+        {
+            "system" => ChatRole.System,
+            "assistant" => ChatRole.Assistant,
+            "tool" => ChatRole.Tool,
+            _ => ChatRole.User
+        };
 
     private async Task<IReadOnlyList<RagSearchResult>> TrySearchRagAsync(
         TenantId tenantId,

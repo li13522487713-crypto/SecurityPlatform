@@ -71,6 +71,16 @@ GET {{baseUrl}}/api/v1/team-agents?pageIndex=1&pageSize=20
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
+### 按模式和能力筛选 Team Agent
+GET {{baseUrl}}/api/v1/team-agents?teamMode=GroupChat&capabilityTag=schema_builder&pageIndex=1&pageSize=20
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 获取 Team Agent Dashboard
+GET {{baseUrl}}/api/v1/team-agents/dashboard
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
 ### 获取 Team Agent 详情
 GET {{baseUrl}}/api/v1/team-agents/{{teamAgentId}}
 Authorization: Bearer {{accessToken}}
@@ -111,8 +121,13 @@ X-CSRF-TOKEN: {{csrfToken}}
 POST {{baseUrl}}/api/v1/team-agents/{{teamAgentId}}/publish
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
 Idempotency-Key: {{$guid}}
 X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "releaseNote": "阶段二官方运行时与发布快照"
+}
 
 ### 复制 Team Agent
 POST {{baseUrl}}/api/v1/team-agents/{{teamAgentId}}/duplicate
@@ -132,7 +147,36 @@ X-CSRF-TOKEN: {{csrfToken}}
 {
   "templateKey": "schema_builder",
   "name": "模板创建的数据建模团队",
-  "description": "模板创建示例"
+  "description": "模板创建示例",
+  "memberBindings": [
+    {
+      "roleName": "业务分析 Agent",
+      "agentId": 1,
+      "isEnabled": true
+    },
+    {
+      "roleName": "DBA Agent",
+      "agentId": null,
+      "isEnabled": false
+    }
+  ]
+}
+
+### 获取 Team Agent SchemaDraft 列表
+GET {{baseUrl}}/api/v1/team-agents/{{teamAgentId}}/schema-drafts
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 迁移旧 Multi-Agent 到 Team Agent
+POST {{baseUrl}}/api/v1/team-agents/migrations/multi-agent-orchestrations
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "legacyIds": []
 }
 
 ### 删除 Team Agent

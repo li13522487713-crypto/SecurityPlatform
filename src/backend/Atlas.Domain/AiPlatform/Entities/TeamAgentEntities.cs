@@ -1,6 +1,7 @@
 using Atlas.Core.Abstractions;
 using Atlas.Core.Tenancy;
 using System.Text.Json.Serialization;
+using SqlSugar;
 
 namespace Atlas.Domain.AiPlatform.Entities;
 
@@ -18,6 +19,8 @@ public sealed class TeamAgent : TenantEntity
         BoundDataAssetsJson = "[]";
         MembersJson = "[]";
         SchemaConfigJson = "{}";
+        LegacySourceType = string.Empty;
+        LegacySourceId = string.Empty;
         CreatedAt = DateTime.UtcNow;
         UpdatedAt = CreatedAt;
     }
@@ -46,6 +49,8 @@ public sealed class TeamAgent : TenantEntity
         BoundDataAssetsJson = string.IsNullOrWhiteSpace(boundDataAssetsJson) ? "[]" : boundDataAssetsJson;
         MembersJson = string.IsNullOrWhiteSpace(membersJson) ? "[]" : membersJson;
         SchemaConfigJson = string.IsNullOrWhiteSpace(schemaConfigJson) ? "{}" : schemaConfigJson;
+        LegacySourceType = string.Empty;
+        LegacySourceId = string.Empty;
         CreatorUserId = creatorUserId;
         CreatedAt = DateTime.UtcNow;
         UpdatedAt = CreatedAt;
@@ -62,6 +67,8 @@ public sealed class TeamAgent : TenantEntity
     public string SchemaConfigJson { get; private set; }
     public long CreatorUserId { get; private set; }
     public int PublishVersion { get; private set; }
+    public string? LegacySourceType { get; private set; }
+    public string? LegacySourceId { get; private set; }
     public DateTime CreatedAt { get; private set; }
     public DateTime UpdatedAt { get; private set; }
     public DateTime? PublishedAt { get; private set; }
@@ -100,6 +107,165 @@ public sealed class TeamAgent : TenantEntity
         PublishedAt = DateTime.UtcNow;
         UpdatedAt = PublishedAt.Value;
     }
+
+    public void SetLegacySource(string? legacySourceType, string? legacySourceId)
+    {
+        LegacySourceType = legacySourceType ?? string.Empty;
+        LegacySourceId = legacySourceId ?? string.Empty;
+        UpdatedAt = DateTime.UtcNow;
+    }
+}
+
+public sealed class TeamAgentPublication : TenantEntity
+{
+    public TeamAgentPublication()
+        : base(TenantId.Empty)
+    {
+        SnapshotJson = "{}";
+        ReleaseNote = string.Empty;
+        PublishedAt = DateTime.UtcNow;
+        IsActive = true;
+        RevokedAt = DateTime.UnixEpoch;
+    }
+
+    public TeamAgentPublication(
+        TenantId tenantId,
+        long teamAgentId,
+        int version,
+        string snapshotJson,
+        string? releaseNote,
+        long publishedByUserId,
+        long id)
+        : base(tenantId)
+    {
+        Id = id;
+        TeamAgentId = teamAgentId;
+        Version = version;
+        SnapshotJson = string.IsNullOrWhiteSpace(snapshotJson) ? "{}" : snapshotJson;
+        ReleaseNote = releaseNote ?? string.Empty;
+        PublishedByUserId = publishedByUserId;
+        PublishedAt = DateTime.UtcNow;
+        IsActive = true;
+        RevokedAt = DateTime.UnixEpoch;
+    }
+
+    public long TeamAgentId { get; private set; }
+    public int Version { get; private set; }
+    public string SnapshotJson { get; private set; }
+    public string? ReleaseNote { get; private set; }
+    public long PublishedByUserId { get; private set; }
+    public DateTime PublishedAt { get; private set; }
+    public bool IsActive { get; private set; }
+    public DateTime? RevokedAt { get; private set; }
+
+    public void Deactivate()
+    {
+        if (!IsActive)
+        {
+            return;
+        }
+
+        IsActive = false;
+        RevokedAt = DateTime.UtcNow;
+    }
+}
+
+public sealed class TeamAgentTemplate : TenantEntity
+{
+    public TeamAgentTemplate()
+        : base(TenantId.Empty)
+    {
+        Key = string.Empty;
+        Name = string.Empty;
+        Description = string.Empty;
+        CapabilityTagsJson = "[]";
+        DefaultEntrySkill = string.Empty;
+        CreatedAt = DateTime.UtcNow;
+        UpdatedAt = CreatedAt;
+    }
+
+    public TeamAgentTemplate(
+        TenantId tenantId,
+        string key,
+        string name,
+        string description,
+        TeamAgentMode teamMode,
+        string capabilityTagsJson,
+        string? defaultEntrySkill,
+        bool isSystem,
+        long id)
+        : base(tenantId)
+    {
+        Id = id;
+        Key = key;
+        Name = name;
+        Description = description;
+        TeamMode = teamMode;
+        CapabilityTagsJson = string.IsNullOrWhiteSpace(capabilityTagsJson) ? "[]" : capabilityTagsJson;
+        DefaultEntrySkill = defaultEntrySkill ?? string.Empty;
+        IsSystem = isSystem;
+        CreatedAt = DateTime.UtcNow;
+        UpdatedAt = CreatedAt;
+    }
+
+    public string Key { get; private set; }
+    public string Name { get; private set; }
+    public string Description { get; private set; }
+    public TeamAgentMode TeamMode { get; private set; }
+    public string CapabilityTagsJson { get; private set; }
+    public string? DefaultEntrySkill { get; private set; }
+    public bool IsSystem { get; private set; }
+    public DateTime CreatedAt { get; private set; }
+    public DateTime UpdatedAt { get; private set; }
+}
+
+public sealed class TeamAgentTemplateMember : TenantEntity
+{
+    public TeamAgentTemplateMember()
+        : base(TenantId.Empty)
+    {
+        RoleName = string.Empty;
+        Responsibility = string.Empty;
+        Alias = string.Empty;
+        PromptPrefix = string.Empty;
+        CapabilityTagsJson = "[]";
+        CreatedAt = DateTime.UtcNow;
+    }
+
+    public TeamAgentTemplateMember(
+        TenantId tenantId,
+        long templateId,
+        string roleName,
+        string? responsibility,
+        string? alias,
+        int sortOrder,
+        bool isEnabled,
+        string? promptPrefix,
+        string capabilityTagsJson,
+        long id)
+        : base(tenantId)
+    {
+        Id = id;
+        TemplateId = templateId;
+        RoleName = roleName;
+        Responsibility = responsibility ?? string.Empty;
+        Alias = alias ?? string.Empty;
+        SortOrder = sortOrder;
+        IsEnabled = isEnabled;
+        PromptPrefix = promptPrefix ?? string.Empty;
+        CapabilityTagsJson = string.IsNullOrWhiteSpace(capabilityTagsJson) ? "[]" : capabilityTagsJson;
+        CreatedAt = DateTime.UtcNow;
+    }
+
+    public long TemplateId { get; private set; }
+    public string RoleName { get; private set; }
+    public string? Responsibility { get; private set; }
+    public string? Alias { get; private set; }
+    public int SortOrder { get; private set; }
+    public bool IsEnabled { get; private set; }
+    public string? PromptPrefix { get; private set; }
+    public string CapabilityTagsJson { get; private set; }
+    public DateTime CreatedAt { get; private set; }
 }
 
 public sealed class TeamAgentConversation : TenantEntity
@@ -286,6 +452,65 @@ public sealed class TeamAgentExecution : TenantEntity
         EventTraceJson = string.IsNullOrWhiteSpace(eventTraceJson) ? "[]" : eventTraceJson;
         CompletedAt = DateTime.UtcNow;
     }
+}
+
+[SugarTable("TeamAgentExecutionStep")]
+public sealed class TeamAgentExecutionStepEntity : TenantEntity
+{
+    public TeamAgentExecutionStepEntity()
+        : base(TenantId.Empty)
+    {
+        AgentName = string.Empty;
+        RoleName = string.Empty;
+        Alias = string.Empty;
+        InputMessage = string.Empty;
+        OutputMessage = string.Empty;
+        Status = string.Empty;
+        ErrorMessage = string.Empty;
+        StartedAt = DateTime.UtcNow;
+    }
+
+    public TeamAgentExecutionStepEntity(
+        TenantId tenantId,
+        long executionId,
+        long? agentId,
+        string agentName,
+        string roleName,
+        string? alias,
+        string inputMessage,
+        string? outputMessage,
+        string status,
+        string? errorMessage,
+        DateTime startedAt,
+        DateTime? completedAt,
+        long id)
+        : base(tenantId)
+    {
+        Id = id;
+        ExecutionId = executionId;
+        AgentId = agentId;
+        AgentName = agentName;
+        RoleName = roleName;
+        Alias = alias ?? string.Empty;
+        InputMessage = inputMessage;
+        OutputMessage = outputMessage ?? string.Empty;
+        Status = status;
+        ErrorMessage = errorMessage ?? string.Empty;
+        StartedAt = startedAt;
+        CompletedAt = completedAt;
+    }
+
+    public long ExecutionId { get; private set; }
+    public long? AgentId { get; private set; }
+    public string AgentName { get; private set; }
+    public string RoleName { get; private set; }
+    public string? Alias { get; private set; }
+    public string InputMessage { get; private set; }
+    public string? OutputMessage { get; private set; }
+    public string Status { get; private set; }
+    public string? ErrorMessage { get; private set; }
+    public DateTime StartedAt { get; private set; }
+    public DateTime? CompletedAt { get; private set; }
 }
 
 public sealed class TeamAgentSchemaDraft : TenantEntity

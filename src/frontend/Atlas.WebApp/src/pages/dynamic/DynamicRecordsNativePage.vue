@@ -3,6 +3,8 @@
     <template #extra>
       <a-space>
         <a-button :loading="loading" @click="fetchData">{{ t('dynamic.refresh') }}</a-button>
+        <a-button @click="openImportModal">{{ t('common.import', '导入') }}</a-button>
+        <a-button @click="openPasteModal">{{ t('dynamicDesigner.excelPaste', 'Excel 粘贴') }}</a-button>
         <a-button @click="openAttachmentDrawer"><PaperClipOutlined /> {{ t('dynamic.attachments') }}</a-button>
       </a-space>
     </template>
@@ -35,6 +37,31 @@
         :allow-multiple="true"
       />
     </a-drawer>
+
+    <a-modal v-model:open="importOpen" :title="t('dynamicDesigner.importWizard', '导入向导')" @ok="commitImport">
+      <a-space direction="vertical" style="width: 100%">
+        <a-upload :before-upload="beforeImportUpload" :max-count="1" accept=".csv,.tsv,.xlsx" :show-upload-list="true">
+          <a-button>{{ t('common.selectFile', '选择文件') }}</a-button>
+        </a-upload>
+        <a-button type="primary" @click="analyzeImport">{{ t('dynamicDesigner.analyzeImport', '分析导入') }}</a-button>
+        <a-switch v-model:checked="importDryRun" /> {{ t('dynamicDesigner.dryRun', '仅预检') }}
+        <a-table :data-source="importMappings" :columns="importMappingColumns" row-key="sourceField" size="small" :pagination="false" />
+        <a-alert
+          v-if="importResultSummary"
+          type="info"
+          show-icon
+          :message="importResultSummary"
+        />
+        <a-table v-if="importRowErrors.length > 0" :data-source="importRowErrors" :columns="importErrorColumns" row-key="rowIndex" size="small" :pagination="{ pageSize: 8 }" />
+      </a-space>
+    </a-modal>
+
+    <a-modal v-model:open="pasteOpen" :title="t('dynamicDesigner.excelPaste', 'Excel 粘贴')" @ok="submitPaste">
+      <a-space direction="vertical" style="width: 100%">
+        <a-textarea v-model:value="pasteContent" :rows="10" :placeholder="t('dynamicDesigner.pasteHint', '请粘贴 Excel 复制内容（TSV）')" />
+        <a-switch v-model:checked="pasteDryRun" /> {{ t('dynamicDesigner.dryRun', '仅预检') }}
+      </a-space>
+    </a-modal>
   </a-card>
 </template>
 
@@ -47,7 +74,14 @@ import type { TablePaginationConfig } from 'ant-design-vue';
 import { PaperClipOutlined } from '@ant-design/icons-vue';
 import QueryGridUnifiedView from '@/components/table/QueryGridUnifiedView.vue';
 import AttachmentPanel from '@/components/common/attachment-panel.vue';
-import { getDynamicTableDetail, getDynamicTableFields, queryDynamicRecords } from '@/services/dynamic-tables';
+import {
+  analyzeDynamicRecordImport,
+  commitDynamicRecordImport,
+  getDynamicTableDetail,
+  getDynamicTableFields,
+  pasteExcelToDynamicRecords,
+  queryDynamicRecords
+} from '@/services/dynamic-tables';
 import type { DynamicFieldDefinition, DynamicRecordDto, DynamicColumnDef, DynamicRecordQueryRequest } from '@/types/dynamic-tables';
 import type { AdvancedQueryConfig } from '@/types/advanced-query';
 import type { TableViewConfig, TableViewColumnConfig } from '@/types/api';
@@ -70,6 +104,16 @@ const tableKey = computed(() => {
 const pageTitle = ref(translate('dynamic.nativeRecordsTitle'));
 const loading = ref(false);
 const isMounted = ref(false);
+const importOpen = ref(false);
+const pasteOpen = ref(false);
+const importFile = ref<File | null>(null);
+const importSessionId = ref("");
+const importDryRun = ref(true);
+const pasteDryRun = ref(true);
+const pasteContent = ref("");
+const importMappings = ref<Array<{ sourceField: string; targetField: string }>>([]);
+const importRowErrors = ref<Array<{ rowIndex: number; field?: string | null; errorCode: string; message: string }>>([]);
+const importResultSummary = ref("");
 
 // 动态记录数据
 const rawRecords = ref<DynamicRecordDto[]>([]);
@@ -87,6 +131,18 @@ const pagination = reactive<TablePaginationConfig>({
 const advancedQueryConfig = ref<AdvancedQueryConfig>({
   rootGroup: { id: 'root', conjunction: 'and', rules: [], groups: [] }
 });
+
+const importMappingColumns = [
+  { title: t('dynamicDesigner.sourceField', '源字段'), dataIndex: 'sourceField', key: 'sourceField' },
+  { title: t('dynamicDesigner.targetField', '目标字段'), dataIndex: 'targetField', key: 'targetField' }
+];
+
+const importErrorColumns = [
+  { title: t('dynamicDesigner.rowIndex', '行号'), dataIndex: 'rowIndex', key: 'rowIndex', width: 80 },
+  { title: t('dynamicDesigner.field', '字段'), dataIndex: 'field', key: 'field', width: 140 },
+  { title: t('dynamicDesigner.errorCode', '错误码'), dataIndex: 'errorCode', key: 'errorCode', width: 140 },
+  { title: t('common.description', '说明'), dataIndex: 'message', key: 'message' }
+];
 
 // 将记录值数组展平为 key-value 对象，便于 ProTable 渲染
 const flatRecords = computed(() => {
@@ -181,6 +237,73 @@ const onTableChange = (pager: TablePaginationConfig) => {
   pagination.pageSize = pager.pageSize;
   void fetchData();
 };
+
+function openImportModal() {
+  importOpen.value = true;
+  importFile.value = null;
+  importSessionId.value = "";
+  importMappings.value = [];
+  importRowErrors.value = [];
+  importResultSummary.value = "";
+}
+
+function openPasteModal() {
+  pasteOpen.value = true;
+  pasteContent.value = "";
+}
+
+function beforeImportUpload(file: File) {
+  importFile.value = file;
+  return false;
+}
+
+async function analyzeImport() {
+  if (!tableKey.value || !importFile.value) {
+    message.warning(t('validation.required', '请完善必填项'));
+    return;
+  }
+
+  const format = importFile.value.name.toLowerCase().endsWith('.xlsx')
+    ? 'xlsx'
+    : (importFile.value.name.toLowerCase().endsWith('.tsv') ? 'tsv' : 'csv');
+  const analyze = await analyzeDynamicRecordImport(tableKey.value, importFile.value, format);
+  importSessionId.value = analyze.sessionId;
+  importMappings.value = analyze.suggestedMappings;
+  message.success(t('common.success', '操作成功'));
+}
+
+async function commitImport() {
+  if (!tableKey.value || !importSessionId.value) {
+    message.warning(t('dynamicDesigner.analyzeFirst', '请先执行分析'));
+    return;
+  }
+
+  const result = await commitDynamicRecordImport(tableKey.value, {
+    sessionId: importSessionId.value,
+    dryRun: importDryRun.value,
+    batchSize: 200,
+    mappings: importMappings.value
+  });
+  importRowErrors.value = result.rowErrors ?? [];
+  importResultSummary.value = `total=${result.totalRows}, imported=${result.importedRows}, skipped=${result.skippedRows}`;
+  if (!importDryRun.value) {
+    await fetchData();
+  }
+}
+
+async function submitPaste() {
+  if (!tableKey.value || !pasteContent.value.trim()) {
+    message.warning(t('validation.required', '请完善必填项'));
+    return;
+  }
+
+  const result = await pasteExcelToDynamicRecords(tableKey.value, pasteContent.value, pasteDryRun.value);
+  message.success(`total=${result.totalRows}, imported=${result.importedRows}, skipped=${result.skippedRows}`);
+  pasteOpen.value = false;
+  if (!pasteDryRun.value) {
+    await fetchData();
+  }
+}
 
 onMounted(() => {
   isMounted.value = true;

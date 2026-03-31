@@ -80,6 +80,13 @@ export interface DynamicViewPublishResult {
   checksum: string;
 }
 
+export interface DynamicViewSqlPreviewResult {
+  sql: string;
+  parameters: Array<{ name: string; value: unknown }>;
+  warnings: string[];
+  fullyPushdown: boolean;
+}
+
 export interface DeleteCheckBlocker {
   type: "form" | "page" | "approval" | "relation" | "view" | "etlJob";
   id: string;
@@ -117,3 +124,98 @@ export interface DynamicViewPreviewRequest {
 }
 
 export type DynamicViewQueryResult = DynamicRecordListResult;
+
+export interface DynamicTransformJobDto {
+  id: string;
+  appId?: string | null;
+  jobKey: string;
+  name: string;
+  status: string;
+  cronExpression?: string | null;
+  enabled: boolean;
+  lastRunAt?: string | null;
+  lastRunStatus?: string | null;
+  lastError?: string | null;
+  sourceConfigJson: string;
+  targetConfigJson: string;
+  definitionJson: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DynamicTransformExecutionDto {
+  id: string;
+  jobKey: string;
+  status: string;
+  triggerType: "manual" | "schedule" | string;
+  inputRows: number;
+  outputRows: number;
+  failedRows: number;
+  durationMs: number;
+  errorDetailJson?: string | null;
+  startedBy: number;
+  startedAt: string;
+  endedAt?: string | null;
+  message?: string | null;
+}
+
+export interface DynamicTransformJobUpdateRequest {
+  name: string;
+  definitionJson: string;
+  cronExpression?: string | null;
+  enabled: boolean;
+  sourceConfigJson?: string;
+  targetConfigJson?: string;
+}
+
+export interface DynamicExternalExtractPreviewResult {
+  success: boolean;
+  errorMessage?: string | null;
+  columns: DynamicExternalExtractColumn[];
+  rows: Array<Record<string, unknown>>;
+}
+
+export interface DynamicExternalExtractColumn {
+  name: string;
+  type: string;
+}
+
+export interface DynamicExternalExtractDataSource {
+  id: string;
+  name: string;
+  dbType: string;
+}
+
+export interface DynamicExternalExtractSchemaTable {
+  name: string;
+  columns: DynamicExternalExtractColumn[];
+}
+
+export interface DynamicExternalExtractSchemaResult {
+  dataSourceId: string;
+  tables: DynamicExternalExtractSchemaTable[];
+}
+
+export interface DynamicPhysicalViewPublishResult {
+  viewKey: string;
+  publicationId: string;
+  version: number;
+  physicalViewName: string;
+  dataSourceId?: number | null;
+  status: string;
+  publishedAt: string;
+  success: boolean;
+  message: string;
+}
+
+export interface DynamicPhysicalViewPublication {
+  id: string;
+  viewKey: string;
+  version: number;
+  physicalViewName: string;
+  status: string;
+  comment?: string | null;
+  dataSourceId?: number | null;
+  publishedBy: number;
+  publishedAt: string;
+}

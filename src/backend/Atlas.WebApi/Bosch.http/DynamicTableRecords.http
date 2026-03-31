@@ -99,3 +99,70 @@ X-CSRF-TOKEN: {{csrfToken}}
     client.assert(response.body.code && response.body.code !== "Success", "应返回业务错误码");
   });
 %}
+
+### 批量导入（CSV）
+POST {{baseUrl}}/api/v1/dynamic-tables/{{tableKey}}/records/import
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$randomUUID}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "format": "csv",
+  "content": "orderNo,amount\nIMP-1001,88.80\nIMP-1002,99.90",
+  "dryRun": true
+}
+
+### 导入分析（multipart/form-data）
+POST {{baseUrl}}/api/v1/dynamic-tables/{{tableKey}}/records/import/analyze
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$randomUUID}}
+X-CSRF-TOKEN: {{csrfToken}}
+Content-Type: multipart/form-data; boundary=BoundaryAtlasImport
+
+--BoundaryAtlasImport
+Content-Disposition: form-data; name="format"
+
+csv
+--BoundaryAtlasImport
+Content-Disposition: form-data; name="file"; filename="orders.csv"
+Content-Type: text/csv
+
+orderNo,amount
+IMP-1001,88.80
+IMP-1002,99.90
+--BoundaryAtlasImport--
+
+### 导入提交（analyze -> commit）
+POST {{baseUrl}}/api/v1/dynamic-tables/{{tableKey}}/records/import/commit
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$randomUUID}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "sessionId": "replace-with-analyze-session-id",
+  "dryRun": true,
+  "batchSize": 200,
+  "mappings": [
+    { "sourceField": "orderNo", "targetField": "orderNo" },
+    { "sourceField": "amount", "targetField": "amount" }
+  ]
+}
+
+### Excel 粘贴导入（TSV）
+POST {{baseUrl}}/api/v1/dynamic-tables/{{tableKey}}/records/excel-paste
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$randomUUID}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "format": "excel",
+  "content": "orderNo\tamount\nXL-2001\t120.5\nXL-2002\t130.6",
+  "dryRun": true
+}

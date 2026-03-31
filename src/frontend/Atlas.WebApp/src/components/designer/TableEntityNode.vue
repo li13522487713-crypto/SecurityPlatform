@@ -6,12 +6,16 @@
       <a-button
         type="text"
         size="small"
-        danger
         class="remove-btn"
         @click="emit('remove', id)"
       >
         <template #icon><CloseOutlined /></template>
       </a-button>
+      <a-popconfirm :title="t('dynamic.deleteTableConfirm', '删除数据表？')" @confirm="emit('deleteTable', table.tableKey)">
+        <a-button type="text" size="small" danger class="remove-btn">
+          <template #icon><DeleteOutlined /></template>
+        </a-button>
+      </a-popconfirm>
     </div>
     <div class="node-body">
       <div v-if="loading" class="node-loading">
@@ -35,8 +39,9 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
+import { useI18n } from "vue-i18n";
 import { Handle, Position } from "@vue-flow/core";
-import { TableOutlined, KeyOutlined, CloseOutlined } from "@ant-design/icons-vue";
+import { TableOutlined, KeyOutlined, CloseOutlined, DeleteOutlined } from "@ant-design/icons-vue";
 import type { DynamicFieldDefinition } from "@/types/dynamic-tables";
 import { getDynamicTableFields } from "@/services/dynamic-tables";
 
@@ -47,7 +52,9 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: "remove", id: string): void;
+  (e: "deleteTable", tableKey: string): void;
 }>();
+const { t } = useI18n();
 
 const table = props.data.table;
 const fields = ref<DynamicFieldDefinition[]>([]);

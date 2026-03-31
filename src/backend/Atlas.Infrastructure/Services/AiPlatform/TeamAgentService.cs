@@ -21,10 +21,15 @@ public sealed class TeamAgentService : ITeamAgentService
     private static readonly ConcurrentDictionary<long, CancellationTokenSource> ConversationCancellationMap = new();
 
     private readonly TeamAgentRepository _teamAgentRepository;
+    private readonly TeamAgentPublicationRepository _publicationRepository;
+    private readonly TeamAgentTemplateRepository _templateRepository;
+    private readonly TeamAgentTemplateMemberRepository _templateMemberRepository;
     private readonly TeamAgentConversationRepository _conversationRepository;
     private readonly TeamAgentMessageRepository _messageRepository;
     private readonly TeamAgentExecutionRepository _executionRepository;
+    private readonly TeamAgentExecutionStepRepository _executionStepRepository;
     private readonly TeamAgentSchemaDraftRepository _schemaDraftRepository;
+    private readonly MultiAgentOrchestrationRepository _multiAgentRepository;
     private readonly AgentRepository _agentRepository;
     private readonly ITeamAgentOrchestrationRuntime _orchestrationRuntime;
     private readonly ITeamAgentSchemaDraftComposer _schemaDraftComposer;
@@ -34,10 +39,15 @@ public sealed class TeamAgentService : ITeamAgentService
 
     public TeamAgentService(
         TeamAgentRepository teamAgentRepository,
+        TeamAgentPublicationRepository publicationRepository,
+        TeamAgentTemplateRepository templateRepository,
+        TeamAgentTemplateMemberRepository templateMemberRepository,
         TeamAgentConversationRepository conversationRepository,
         TeamAgentMessageRepository messageRepository,
         TeamAgentExecutionRepository executionRepository,
+        TeamAgentExecutionStepRepository executionStepRepository,
         TeamAgentSchemaDraftRepository schemaDraftRepository,
+        MultiAgentOrchestrationRepository multiAgentRepository,
         AgentRepository agentRepository,
         ITeamAgentOrchestrationRuntime orchestrationRuntime,
         ITeamAgentSchemaDraftComposer schemaDraftComposer,
@@ -46,10 +56,15 @@ public sealed class TeamAgentService : ITeamAgentService
         IUnitOfWork unitOfWork)
     {
         _teamAgentRepository = teamAgentRepository;
+        _publicationRepository = publicationRepository;
+        _templateRepository = templateRepository;
+        _templateMemberRepository = templateMemberRepository;
         _conversationRepository = conversationRepository;
         _messageRepository = messageRepository;
         _executionRepository = executionRepository;
+        _executionStepRepository = executionStepRepository;
         _schemaDraftRepository = schemaDraftRepository;
+        _multiAgentRepository = multiAgentRepository;
         _agentRepository = agentRepository;
         _orchestrationRuntime = orchestrationRuntime;
         _schemaDraftComposer = schemaDraftComposer;
@@ -61,32 +76,89 @@ public sealed class TeamAgentService : ITeamAgentService
     public async Task<PagedResult<TeamAgentListItem>> GetPagedAsync(
         TenantId tenantId,
         string? keyword,
+        TeamAgentMode? teamMode,
+        TeamAgentStatus? status,
+        string? capabilityTag,
+        string? defaultEntrySkill,
         int pageIndex,
         int pageSize,
         CancellationToken cancellationToken)
     {
-        var (items, total) = await _teamAgentRepository.GetPagedAsync(tenantId, keyword, pageIndex, pageSize, cancellationToken);
-        var results = items.Select(item =>
-        {
-            var members = DeserializeMembers(item.MembersJson);
-            return new TeamAgentListItem(
-                item.Id,
-                "team",
-                item.Name,
-                item.Description,
-                item.TeamMode,
-                item.Status,
-                DeserializeStringList(item.CapabilityTagsJson),
-                members.Count,
-                item.DefaultEntrySkill,
-                item.PublishVersion,
-                DeserializeStringList(item.BoundDataAssetsJson),
-                null,
-                item.CreatedAt,
-                item.UpdatedAt);
-        }).ToList();
-
+        var (items, total) = await _teamAgentRepository.GetPagedAsync(
+            tenantId,
+            keyword,
+            teamMode,
+            status,
+            capabilityTag,
+            defaultEntrySkill,
+            pageIndex,
+            pageSize,
+            cancellationToken);
+        var results = items.Select(MapListItem).ToList();
         return new PagedResult<TeamAgentListItem>(results, total, pageIndex, pageSize);
+    }
+
+    public async Task<TeamAgentDashboardDto> GetDashboardAsync(TenantId tenantId, CancellationToken cancellationToken)
+    {
+        var teamAgents = await _teamAgentRepository.GetAllAsync(tenantId, cancellationToken);
+        var recentExecutions = await _executionRepository.GetRecentAsync(tenantId, 10, cancellationToken);
+        var recentConversations = await _conversationRepository.GetRecentAsync(tenantId, 10, cancellationToken);
+        var recentDrafts = await _schemaDraftRepository.GetRecentAsync(tenantId, 10, cancellationToken);
+
+        var distinctBoundMembers = teamAgents
+            .SelectMany(agent => DeserializeMembers(agent.MembersJson))
+            .Where(member => member.IsEnabled && member.AgentId.HasValue && member.AgentId.Value > 0)
+            .Select(member => member.AgentId!.Value)
+            .Distinct()
+            .Count();
+
+        var recentActivities = new List<TeamAgentDashboardActivityItem>();
+        var teamAgentMap = teamAgents.ToDictionary(item => item.Id);
+
+        recentActivities.AddRange(recentConversations.Select(item =>
+        {
+            var team = teamAgentMap.GetValueOrDefault(item.TeamAgentId);
+            return new TeamAgentDashboardActivityItem(
+                "conversation",
+                item.Id,
+                item.TeamAgentId,
+                team?.Name ?? $"TeamAgent-{item.TeamAgentId}",
+                item.Title ?? "团队会话",
+                $"{item.MessageCount} 条消息",
+                item.LastMessageAt > DateTime.UnixEpoch ? item.LastMessageAt : item.CreatedAt);
+        }));
+        recentActivities.AddRange(recentExecutions.Select(item =>
+        {
+            var team = teamAgentMap.GetValueOrDefault(item.TeamAgentId);
+            return new TeamAgentDashboardActivityItem(
+                "execution",
+                item.Id,
+                item.TeamAgentId,
+                team?.Name ?? $"TeamAgent-{item.TeamAgentId}",
+                "团队运行",
+                item.Status == TeamAgentExecutionStatus.Failed ? (item.ErrorMessage ?? "执行失败") : (item.OutputMessage ?? "执行完成"),
+                item.CompletedAt ?? item.StartedAt);
+        }));
+        recentActivities.AddRange(recentDrafts.Select(item =>
+        {
+            var team = teamAgentMap.GetValueOrDefault(item.TeamAgentId);
+            return new TeamAgentDashboardActivityItem(
+                "schema_draft",
+                item.Id,
+                item.TeamAgentId,
+                team?.Name ?? $"TeamAgent-{item.TeamAgentId}",
+                item.Title,
+                item.Requirement,
+                item.UpdatedAt);
+        }));
+
+        return new TeamAgentDashboardDto(
+            teamAgents.Count,
+            teamAgents.Count,
+            distinctBoundMembers,
+            await _executionRepository.CountRecentCompletedAsync(tenantId, DateTime.UtcNow.AddDays(-7), cancellationToken),
+            await _teamAgentRepository.CountByCapabilityTagAsync(tenantId, "schema_builder", cancellationToken),
+            recentActivities.OrderByDescending(item => item.OccurredAt).Take(20).ToList());
     }
 
     public async Task<TeamAgentDetail?> GetByIdAsync(TenantId tenantId, long id, CancellationToken cancellationToken)
@@ -98,7 +170,9 @@ public sealed class TeamAgentService : ITeamAgentService
     public async Task<long> CreateAsync(TenantId tenantId, long creatorUserId, TeamAgentCreateRequest request, CancellationToken cancellationToken)
     {
         var members = NormalizeMembers(request.Members);
+        ValidateMembers(members);
         await EnsureAgentsExistAsync(tenantId, members, cancellationToken);
+
         var entity = new TeamAgent(
             tenantId,
             request.Name.Trim(),
@@ -119,7 +193,9 @@ public sealed class TeamAgentService : ITeamAgentService
     {
         var entity = await RequireTeamAgentAsync(tenantId, id, cancellationToken);
         var members = NormalizeMembers(request.Members);
+        ValidateMembers(members);
         await EnsureAgentsExistAsync(tenantId, members, cancellationToken);
+
         entity.Update(
             request.Name.Trim(),
             request.Description?.Trim(),
@@ -162,15 +238,51 @@ public sealed class TeamAgentService : ITeamAgentService
         return duplicated.Id;
     }
 
-    public async Task PublishAsync(TenantId tenantId, long id, CancellationToken cancellationToken)
+    public async Task PublishAsync(
+        TenantId tenantId,
+        long id,
+        long publisherUserId,
+        TeamAgentPublicationPublishRequest request,
+        CancellationToken cancellationToken)
     {
         var entity = await RequireTeamAgentAsync(tenantId, id, cancellationToken);
-        entity.Publish();
-        await _teamAgentRepository.UpdateAsync(entity, cancellationToken);
+        var nextVersion = await _publicationRepository.GetLatestVersionAsync(tenantId, id, cancellationToken) + 1;
+        var publication = new TeamAgentPublication(
+            tenantId,
+            id,
+            nextVersion,
+            BuildPublicationSnapshot(entity),
+            request.ReleaseNote?.Trim(),
+            publisherUserId,
+            _idGeneratorAccessor.NextId());
+
+        await _unitOfWork.ExecuteInTransactionAsync(async () =>
+        {
+            await _publicationRepository.DeactivateActiveByTeamAgentIdAsync(tenantId, id, cancellationToken);
+            entity.Publish();
+            await _teamAgentRepository.UpdateAsync(entity, cancellationToken);
+            await _publicationRepository.AddAsync(publication, cancellationToken);
+        }, cancellationToken);
     }
 
-    public Task<IReadOnlyList<TeamAgentTemplateItem>> GetTemplatesAsync(CancellationToken cancellationToken)
-        => Task.FromResult<IReadOnlyList<TeamAgentTemplateItem>>(BuildTemplates());
+    public async Task<IReadOnlyList<TeamAgentTemplateItem>> GetTemplatesAsync(CancellationToken cancellationToken)
+    {
+        var systemTenantId = new TenantId(Guid.Parse("00000000-0000-0000-0000-000000000001"));
+        var templates = await _templateRepository.GetAllAsync(systemTenantId, cancellationToken);
+        var members = await _templateMemberRepository.GetByTemplateIdsAsync(systemTenantId, templates.Select(item => item.Id).ToList(), cancellationToken);
+
+        return templates.Select(template => new TeamAgentTemplateItem(
+            template.Key,
+            template.Name,
+            template.Description,
+            template.TeamMode,
+            DeserializeStringList(template.CapabilityTagsJson),
+            template.DefaultEntrySkill ?? string.Empty,
+            members.Where(item => item.TemplateId == template.Id)
+                .OrderBy(item => item.SortOrder)
+                .Select(MapTemplateMember)
+                .ToList())).ToList();
+    }
 
     public async Task<long> CreateFromTemplateAsync(
         TenantId tenantId,
@@ -178,26 +290,99 @@ public sealed class TeamAgentService : ITeamAgentService
         TeamAgentCreateFromTemplateRequest request,
         CancellationToken cancellationToken)
     {
-        var template = BuildTemplates().FirstOrDefault(x => string.Equals(x.Key, request.TemplateKey, StringComparison.OrdinalIgnoreCase))
+        var systemTenantId = new TenantId(Guid.Parse("00000000-0000-0000-0000-000000000001"));
+        var template = await _templateRepository.FindByKeyAsync(systemTenantId, request.TemplateKey.Trim(), cancellationToken)
             ?? throw new BusinessException("团队模板不存在。", ErrorCodes.NotFound);
-        var createRequest = new TeamAgentCreateRequest(
-            request.Name.Trim(),
-            string.IsNullOrWhiteSpace(request.Description) ? template.Description : request.Description.Trim(),
-            template.TeamMode,
-            template.CapabilityTags,
-            template.DefaultEntrySkill,
-            [],
-            template.Members.Select(member => new TeamAgentMemberInput(
-                member.AgentId,
-                member.RoleName,
-                member.Responsibility,
-                member.Alias,
-                member.SortOrder,
-                member.IsEnabled,
-                member.PromptPrefix,
-                member.CapabilityTags)).ToList(),
-            "{}");
-        return await CreateAsync(tenantId, creatorUserId, createRequest, cancellationToken);
+        var templateMembers = await _templateMemberRepository.GetByTemplateIdsAsync(systemTenantId, [template.Id], cancellationToken);
+        var bindings = (request.MemberBindings ?? []).ToDictionary(item => item.RoleName, StringComparer.OrdinalIgnoreCase);
+
+        var members = templateMembers
+            .OrderBy(item => item.SortOrder)
+            .Select(item =>
+            {
+                var binding = bindings.GetValueOrDefault(item.RoleName);
+                var boundAgentId = binding?.AgentId;
+                var isEnabled = binding?.IsEnabled ?? (item.IsEnabled && boundAgentId.HasValue && boundAgentId.Value > 0);
+                return new TeamAgentMemberInput(
+                    boundAgentId,
+                    item.RoleName,
+                    item.Responsibility,
+                    item.Alias,
+                    item.SortOrder,
+                    isEnabled,
+                    item.PromptPrefix,
+                    DeserializeStringList(item.CapabilityTagsJson));
+            }).ToList();
+
+        return await CreateAsync(
+            tenantId,
+            creatorUserId,
+            new TeamAgentCreateRequest(
+                request.Name.Trim(),
+                string.IsNullOrWhiteSpace(request.Description) ? template.Description : request.Description.Trim(),
+                template.TeamMode,
+                DeserializeStringList(template.CapabilityTagsJson),
+                template.DefaultEntrySkill,
+                [],
+                members,
+                "{}"),
+            cancellationToken);
+    }
+
+    public async Task<TeamAgentLegacyMigrationResult> MigrateLegacyAsync(
+        TenantId tenantId,
+        long creatorUserId,
+        TeamAgentLegacyMigrationRequest request,
+        CancellationToken cancellationToken)
+    {
+        var (legacyItems, _) = await _multiAgentRepository.GetPagedAsync(tenantId, null, 1, int.MaxValue, cancellationToken);
+        if (request.LegacyIds is { Count: > 0 })
+        {
+            legacyItems = legacyItems.Where(item => request.LegacyIds.Contains(item.Id)).ToList();
+        }
+
+        var createdTeamAgentIds = new List<long>();
+        foreach (var legacy in legacyItems)
+        {
+            var legacySourceId = legacy.Id.ToString();
+            if (await _teamAgentRepository.FindByLegacySourceAsync(tenantId, "multi-agent-orchestration", legacySourceId, cancellationToken) is not null)
+            {
+                continue;
+            }
+
+            var members = DeserializeLegacyMembers(legacy.MembersJson)
+                .Select((member, index) => new TeamAgentMemberInput(
+                    member.AgentId,
+                    member.Alias ?? $"Member-{index + 1}",
+                    legacy.Mode == MultiAgentOrchestrationMode.Sequential ? "由旧编排迁移的顺序节点" : "由旧编排迁移的并行节点",
+                    member.Alias,
+                    member.SortOrder,
+                    member.IsEnabled,
+                    member.PromptPrefix,
+                    []))
+                .ToList();
+
+            var newId = await CreateAsync(
+                tenantId,
+                creatorUserId,
+                new TeamAgentCreateRequest(
+                    legacy.Name,
+                    legacy.Description,
+                    legacy.Mode == MultiAgentOrchestrationMode.Sequential ? TeamAgentMode.Workflow : TeamAgentMode.GroupChat,
+                    [],
+                    "chat",
+                    [],
+                    members,
+                    "{}"),
+                cancellationToken);
+
+            var created = await RequireTeamAgentAsync(tenantId, newId, cancellationToken);
+            created.SetLegacySource("multi-agent-orchestration", legacySourceId);
+            await _teamAgentRepository.UpdateAsync(created, cancellationToken);
+            createdTeamAgentIds.Add(newId);
+        }
+
+        return new TeamAgentLegacyMigrationResult(legacyItems.Count, createdTeamAgentIds.Count, createdTeamAgentIds);
     }
 
     public async Task<long> CreateConversationAsync(
@@ -297,7 +482,7 @@ public sealed class TeamAgentService : ITeamAgentService
     {
         _ = await RequireConversationAsync(tenantId, userId, conversationId, cancellationToken);
         var items = await _messageRepository.GetAllByConversationAsync(tenantId, conversationId, cancellationToken);
-        var filtered = includeContextMarkers ? items : items.Where(x => !x.IsContextCleared).ToList();
+        var filtered = includeContextMarkers ? items : items.Where(item => !item.IsContextCleared).ToList();
         if (limit.HasValue && limit.Value > 0 && filtered.Count > limit.Value)
         {
             filtered = filtered.Skip(filtered.Count - limit.Value).ToList();
@@ -370,7 +555,13 @@ public sealed class TeamAgentService : ITeamAgentService
     public async Task<TeamAgentExecutionResult?> GetExecutionAsync(TenantId tenantId, long executionId, CancellationToken cancellationToken)
     {
         var execution = await _executionRepository.FindByIdAsync(tenantId, executionId, cancellationToken);
-        return execution is null ? null : MapExecution(execution);
+        if (execution is null)
+        {
+            return null;
+        }
+
+        var steps = await _executionStepRepository.GetByExecutionIdAsync(tenantId, executionId, cancellationToken);
+        return MapExecution(execution, steps);
     }
 
     public async Task<long> CreateSchemaDraftAsync(
@@ -382,7 +573,30 @@ public sealed class TeamAgentService : ITeamAgentService
         CancellationToken cancellationToken)
     {
         var teamAgent = await RequireTeamAgentAsync(tenantId, teamAgentId, cancellationToken);
-        var draft = _schemaDraftComposer.Compose(teamAgent, request.Requirement, [], appId);
+        var contributions = new List<TeamAgentMemberContribution>();
+        if (request.ConversationId.HasValue)
+        {
+            var executions = await _executionRepository.GetRecentAsync(tenantId, 20, cancellationToken);
+            var matchedExecution = executions.FirstOrDefault(item => item.ConversationId == request.ConversationId.Value && item.TeamAgentId == teamAgentId);
+            if (matchedExecution is not null)
+            {
+                var stepEntities = await _executionStepRepository.GetByExecutionIdAsync(tenantId, matchedExecution.Id, cancellationToken);
+                contributions.AddRange(stepEntities
+                    .Where(step => step.AgentId.HasValue && step.AgentId.Value > 0)
+                    .Select((step, index) => new TeamAgentMemberContribution(
+                        step.AgentId!.Value,
+                        step.AgentName,
+                        step.RoleName,
+                        step.Alias,
+                        step.InputMessage,
+                        step.OutputMessage ?? string.Empty,
+                        index + 1,
+                        step.StartedAt,
+                        step.CompletedAt ?? step.StartedAt)));
+            }
+        }
+
+        var draft = _schemaDraftComposer.Compose(teamAgent, request.Requirement, contributions, appId);
         var entity = new TeamAgentSchemaDraft(
             tenantId,
             teamAgentId,
@@ -402,6 +616,25 @@ public sealed class TeamAgentService : ITeamAgentService
     {
         var entity = await _schemaDraftRepository.FindByTeamAgentAndIdAsync(tenantId, teamAgentId, draftId, cancellationToken);
         return entity is null ? null : MapDraft(entity);
+    }
+
+    public async Task<IReadOnlyList<TeamAgentSchemaDraftListItem>> ListSchemaDraftsAsync(
+        TenantId tenantId,
+        long teamAgentId,
+        CancellationToken cancellationToken)
+    {
+        var items = await _schemaDraftRepository.GetByTeamAgentAsync(tenantId, teamAgentId, cancellationToken);
+        return items.Select(item => new TeamAgentSchemaDraftListItem(
+            item.Id,
+            item.TeamAgentId,
+            item.ConversationId,
+            item.Title,
+            item.Requirement,
+            item.Status.ToString().ToLowerInvariant(),
+            item.ConfirmationState.ToString().ToLowerInvariant(),
+            item.CreatedAt,
+            item.UpdatedAt,
+            item.ConfirmedAt)).ToList();
     }
 
     public async Task UpdateSchemaDraftAsync(
@@ -445,11 +678,11 @@ public sealed class TeamAgentService : ITeamAgentService
         var resources = new List<SchemaDraftCreatedResourceDto>();
         foreach (var table in draft.Entities)
         {
-            var fields = draft.Fields.Where(x => string.Equals(x.TableKey, table.TableKey, StringComparison.OrdinalIgnoreCase))
-                .OrderBy(x => x.SortOrder)
+            var fields = draft.Fields.Where(item => string.Equals(item.TableKey, table.TableKey, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(item => item.SortOrder)
                 .Select(MapField)
                 .ToList();
-            var indexes = draft.Indexes.Where(x => string.Equals(x.TableKey, table.TableKey, StringComparison.OrdinalIgnoreCase))
+            var indexes = draft.Indexes.Where(item => string.Equals(item.TableKey, table.TableKey, StringComparison.OrdinalIgnoreCase))
                 .Select(index => new DynamicIndexDefinition(index.Name, index.IsUnique, index.Fields))
                 .ToList();
             var createRequest = new DynamicTableCreateRequest(table.TableKey, table.DisplayName, table.Description, "Sqlite", fields, indexes, entity.AppId);
@@ -459,7 +692,7 @@ public sealed class TeamAgentService : ITeamAgentService
 
         foreach (var table in draft.Entities)
         {
-            var tableRelations = draft.Relations.Where(x => string.Equals(x.SourceTableKey, table.TableKey, StringComparison.OrdinalIgnoreCase))
+            var tableRelations = draft.Relations.Where(item => string.Equals(item.SourceTableKey, table.TableKey, StringComparison.OrdinalIgnoreCase))
                 .Select(relation => new DynamicRelationDefinition(relation.RelatedTableKey, relation.SourceField, relation.TargetField, relation.RelationType, relation.CascadeRule))
                 .ToList();
             if (tableRelations.Count > 0)
@@ -467,7 +700,7 @@ public sealed class TeamAgentService : ITeamAgentService
                 await _dynamicTableCommandService.SetRelationsAsync(tenantId, userId, table.TableKey, new DynamicRelationUpsertRequest(tableRelations), cancellationToken);
             }
 
-            var permissions = draft.SecurityPolicies.Where(x => string.Equals(x.TableKey, table.TableKey, StringComparison.OrdinalIgnoreCase))
+            var permissions = draft.SecurityPolicies.Where(item => string.Equals(item.TableKey, table.TableKey, StringComparison.OrdinalIgnoreCase))
                 .Select(policy => new DynamicFieldPermissionRule(policy.FieldName, policy.RoleCode, policy.CanView, policy.CanEdit))
                 .ToList();
             if (permissions.Count > 0)
@@ -476,9 +709,9 @@ public sealed class TeamAgentService : ITeamAgentService
             }
         }
 
-        entity.Confirm(JsonSerializer.Serialize(resources.Select(x => x.TableKey).ToList(), JsonOptions));
+        entity.Confirm(JsonSerializer.Serialize(resources.Select(item => item.TableKey).ToList(), JsonOptions));
         await _schemaDraftRepository.UpdateAsync(entity, cancellationToken);
-        return new SchemaDraftConfirmationResponse(entity.Id, entity.ConfirmationState.ToString().ToLowerInvariant(), resources.Select(x => x.TableKey).ToList(), resources);
+        return new SchemaDraftConfirmationResponse(entity.Id, entity.ConfirmationState.ToString().ToLowerInvariant(), resources.Select(item => item.TableKey).ToList(), resources);
     }
 
     public async Task DiscardSchemaDraftAsync(TenantId tenantId, long teamAgentId, long draftId, CancellationToken cancellationToken)
@@ -533,76 +766,44 @@ public sealed class TeamAgentService : ITeamAgentService
                 teamAgentId
             })), linkedCts.Token);
 
-            var members = DeserializeMembers(teamAgent.MembersJson).Where(x => x.IsEnabled).OrderBy(x => x.SortOrder).ToList();
+            var members = DeserializeMembers(teamAgent.MembersJson).Where(item => item.IsEnabled).OrderBy(item => item.SortOrder).ToList();
+            ValidateMembers(members);
             await EnsureAgentsExistAsync(tenantId, members, linkedCts.Token);
-            TeamAgentOrchestrationRuntimeResult runtimeResult;
-            try
-            {
-                runtimeResult = await _orchestrationRuntime.ExecuteAsync(
-                    new TeamAgentOrchestrationRuntimeRequest(
+
+            var runtimeResult = await _orchestrationRuntime.ExecuteAsync(
+                new TeamAgentOrchestrationRuntimeRequest(
+                    tenantId,
+                    userId,
+                    teamAgent,
+                    members,
+                    request.Message.Trim(),
+                    request.EnableRag,
+                    appId),
+                evt => AddEventAsync(events, emitAsync, evt, linkedCts.Token),
+                async contribution =>
+                {
+                    var message = new TeamAgentMessage(
                         tenantId,
-                        userId,
-                        teamAgent,
-                        members,
-                        request.Message.Trim(),
-                        request.EnableRag,
-                        appId),
-                    evt => AddEventAsync(events, emitAsync, evt, linkedCts.Token),
-                    async contribution =>
-                    {
-                        var message = new TeamAgentMessage(
-                            tenantId,
-                            conversation.Id,
-                            "assistant",
-                            contribution.OutputMessage,
-                            JsonSerializer.Serialize(new
-                            {
-                                agentId = contribution.AgentId,
-                                agentName = contribution.AgentName,
-                                roleName = contribution.RoleName
-                            }, JsonOptions),
-                            "member.message",
-                            contribution.RoleName,
-                            false,
-                            _idGeneratorAccessor.NextId());
-                        conversation.AddMessage(message.CreatedAt);
-                        await PersistMessageAsync(conversation, message, linkedCts.Token);
-                    },
-                    linkedCts.Token);
-            }
-            catch (TeamAgentOrchestrationExecutionException ex)
-            {
-                foreach (var step in ex.Steps)
-                {
-                    steps.Add(step);
-                }
+                        conversation.Id,
+                        "assistant",
+                        contribution.OutputMessage,
+                        JsonSerializer.Serialize(new
+                        {
+                            contribution.AgentId,
+                            contribution.AgentName,
+                            contribution.RoleName
+                        }, JsonOptions),
+                        "member.message",
+                        contribution.RoleName,
+                        false,
+                        _idGeneratorAccessor.NextId());
+                    conversation.AddMessage(message.CreatedAt);
+                    await PersistMessageAsync(conversation, message, linkedCts.Token);
+                },
+                linkedCts.Token);
 
-                await AddEventAsync(events, emitAsync, new TeamAgentRunEvent("conversation.failed", JsonSerializer.Serialize(new
-                {
-                    executionId = execution.Id,
-                    error = ex.Message
-                })), linkedCts.Token);
-                execution.Fail(ex.Message, JsonSerializer.Serialize(steps, JsonOptions), JsonSerializer.Serialize(events, JsonOptions));
-                await _executionRepository.UpdateAsync(execution, linkedCts.Token);
-                throw ex.InnerException ?? ex;
-            }
-            catch (Exception ex)
-            {
-                await AddEventAsync(events, emitAsync, new TeamAgentRunEvent("conversation.failed", JsonSerializer.Serialize(new
-                {
-                    executionId = execution.Id,
-                    error = ex.Message
-                })), linkedCts.Token);
-                execution.Fail(ex.Message, JsonSerializer.Serialize(steps, JsonOptions), JsonSerializer.Serialize(events, JsonOptions));
-                await _executionRepository.UpdateAsync(execution, linkedCts.Token);
-                throw;
-            }
-
-            foreach (var step in runtimeResult.Steps)
-            {
-                steps.Add(step);
-            }
-
+            steps.AddRange(runtimeResult.Steps);
+            await PersistExecutionStepsAsync(tenantId, execution.Id, steps, linkedCts.Token);
             var currentMessage = runtimeResult.FinalMessage;
 
             if (request.GenerateSchemaDraft == true || string.Equals(teamAgent.DefaultEntrySkill, "schema_builder", StringComparison.OrdinalIgnoreCase))
@@ -611,8 +812,6 @@ public sealed class TeamAgentService : ITeamAgentService
                 await AddEventAsync(events, emitAsync, new TeamAgentRunEvent("schema.draft.updated", JsonSerializer.Serialize(draft, JsonOptions)), linkedCts.Token);
             }
 
-            execution.Complete(currentMessage, JsonSerializer.Serialize(steps, JsonOptions), JsonSerializer.Serialize(events, JsonOptions));
-            await _executionRepository.UpdateAsync(execution, linkedCts.Token);
             await AddEventAsync(events, emitAsync, new TeamAgentRunEvent("conversation.completed", JsonSerializer.Serialize(new
             {
                 executionId = execution.Id,
@@ -620,7 +819,33 @@ public sealed class TeamAgentService : ITeamAgentService
                 content = currentMessage
             })), linkedCts.Token);
 
+            execution.Complete(currentMessage, JsonSerializer.Serialize(steps, JsonOptions), JsonSerializer.Serialize(events, JsonOptions));
+            await _executionRepository.UpdateAsync(execution, linkedCts.Token);
             return new TeamAgentChatResponse(conversation.Id, execution.Id, currentMessage, events, draft);
+        }
+        catch (TeamAgentOrchestrationExecutionException ex)
+        {
+            steps.AddRange(ex.Steps);
+            await PersistExecutionStepsAsync(tenantId, execution.Id, steps, linkedCts.Token);
+            await AddEventAsync(events, emitAsync, new TeamAgentRunEvent("conversation.failed", JsonSerializer.Serialize(new
+            {
+                executionId = execution.Id,
+                error = ex.Message
+            })), linkedCts.Token);
+            execution.Fail(ex.Message, JsonSerializer.Serialize(steps, JsonOptions), JsonSerializer.Serialize(events, JsonOptions));
+            await _executionRepository.UpdateAsync(execution, linkedCts.Token);
+            throw ex.InnerException ?? ex;
+        }
+        catch (Exception ex)
+        {
+            await AddEventAsync(events, emitAsync, new TeamAgentRunEvent("conversation.failed", JsonSerializer.Serialize(new
+            {
+                executionId = execution.Id,
+                error = ex.Message
+            })), linkedCts.Token);
+            execution.Fail(ex.Message, JsonSerializer.Serialize(steps, JsonOptions), JsonSerializer.Serialize(events, JsonOptions));
+            await _executionRepository.UpdateAsync(execution, linkedCts.Token);
+            throw;
         }
         finally
         {
@@ -649,6 +874,33 @@ public sealed class TeamAgentService : ITeamAgentService
             await _messageRepository.AddAsync(message, cancellationToken);
             await _conversationRepository.UpdateAsync(conversation, cancellationToken);
         }, cancellationToken);
+    }
+
+    private async Task PersistExecutionStepsAsync(
+        TenantId tenantId,
+        long executionId,
+        IReadOnlyList<TeamAgentExecutionStep> steps,
+        CancellationToken cancellationToken)
+    {
+        await _executionStepRepository.DeleteByExecutionIdAsync(tenantId, executionId, cancellationToken);
+        foreach (var step in steps)
+        {
+            var entity = new TeamAgentExecutionStepEntity(
+                tenantId,
+                executionId,
+                step.AgentId.HasValue && step.AgentId.Value > 0 ? step.AgentId : null,
+                step.AgentName,
+                step.RoleName,
+                step.Alias,
+                step.InputMessage,
+                step.OutputMessage,
+                step.Status,
+                step.ErrorMessage,
+                step.StartedAt,
+                step.CompletedAt,
+                step.StepId > 0 ? step.StepId : _idGeneratorAccessor.NextId());
+            await _executionStepRepository.AddAsync(entity, cancellationToken);
+        }
     }
 
     private async Task<TeamAgentConversation> EnsureConversationAsync(
@@ -704,18 +956,52 @@ public sealed class TeamAgentService : ITeamAgentService
         IReadOnlyList<TeamAgentMemberItem> members,
         CancellationToken cancellationToken)
     {
-        var ids = members.Select(x => x.AgentId).Where(id => id > 0).Distinct().ToList();
+        var ids = members
+            .Where(member => member.AgentId.HasValue && member.AgentId.Value > 0)
+            .Select(member => member.AgentId!.Value)
+            .Distinct()
+            .ToList();
         if (ids.Count == 0)
         {
             return;
         }
 
         var agents = await _agentRepository.QueryByIdsAsync(tenantId, ids, cancellationToken);
-        var missing = ids.Except(agents.Select(x => x.Id)).FirstOrDefault();
+        var missing = ids.Except(agents.Select(agent => agent.Id)).FirstOrDefault();
         if (missing > 0)
         {
             throw new BusinessException($"团队成员 Agent 不存在: {missing}", ErrorCodes.ValidationError);
         }
+    }
+
+    private static void ValidateMembers(IReadOnlyList<TeamAgentMemberItem> members)
+    {
+        if (members.Count == 0 || !members.Any(member => member.IsEnabled && member.AgentId.HasValue && member.AgentId.Value > 0))
+        {
+            throw new BusinessException("Team Agent 至少需要一个已启用且已绑定单 Agent 的成员。", ErrorCodes.ValidationError);
+        }
+    }
+
+    private static TeamAgentListItem MapListItem(TeamAgent item)
+    {
+        var members = DeserializeMembers(item.MembersJson);
+        return new TeamAgentListItem(
+            item.Id,
+            "team",
+            item.Name,
+            item.Description,
+            item.TeamMode,
+            item.Status,
+            DeserializeStringList(item.CapabilityTagsJson),
+            members.Count,
+            item.DefaultEntrySkill,
+            item.PublishVersion,
+            DeserializeStringList(item.BoundDataAssetsJson),
+            null,
+            item.LegacySourceType,
+            item.LegacySourceId,
+            item.CreatedAt,
+            item.UpdatedAt);
     }
 
     private static TeamAgentDetail MapDetail(TeamAgent entity)
@@ -732,10 +1018,24 @@ public sealed class TeamAgentService : ITeamAgentService
             DeserializeStringList(entity.BoundDataAssetsJson),
             entity.SchemaConfigJson,
             entity.CreatorUserId,
+            entity.LegacySourceType,
+            entity.LegacySourceId,
             entity.CreatedAt,
             entity.UpdatedAt,
             entity.PublishedAt,
             DeserializeMembers(entity.MembersJson));
+
+    private static TeamAgentMemberItem MapTemplateMember(TeamAgentTemplateMember member)
+        => new(
+            null,
+            member.RoleName,
+            member.Responsibility,
+            member.Alias,
+            member.SortOrder,
+            member.IsEnabled,
+            member.PromptPrefix,
+            DeserializeStringList(member.CapabilityTagsJson),
+            "unbound");
 
     private static TeamAgentConversationDto MapConversation(TeamAgentConversation entity)
         => new(
@@ -758,7 +1058,7 @@ public sealed class TeamAgentService : ITeamAgentService
             entity.CreatedAt,
             entity.IsContextCleared);
 
-    private static TeamAgentExecutionResult MapExecution(TeamAgentExecution entity)
+    private static TeamAgentExecutionResult MapExecution(TeamAgentExecution entity, IReadOnlyList<TeamAgentExecutionStepEntity> steps)
         => new(
             entity.Id,
             entity.TeamAgentId,
@@ -766,7 +1066,18 @@ public sealed class TeamAgentService : ITeamAgentService
             entity.Status.ToString().ToLowerInvariant(),
             entity.OutputMessage,
             entity.ErrorMessage,
-            DeserializeSteps(entity.TraceJson),
+            steps.Select(step => new TeamAgentExecutionStep(
+                step.Id,
+                step.AgentId,
+                step.AgentName,
+                step.RoleName,
+                step.Alias,
+                step.InputMessage,
+                step.OutputMessage,
+                step.Status,
+                step.ErrorMessage,
+                step.StartedAt,
+                step.CompletedAt)).ToList(),
             DeserializeEvents(entity.EventTraceJson),
             entity.StartedAt,
             entity.CompletedAt);
@@ -784,46 +1095,30 @@ public sealed class TeamAgentService : ITeamAgentService
             entity.UpdatedAt,
             entity.ConfirmedAt);
 
-    private static IReadOnlyList<TeamAgentTemplateItem> BuildTemplates()
-        => new List<TeamAgentTemplateItem>
+    private static string BuildPublicationSnapshot(TeamAgent entity)
+    {
+        var snapshot = new
         {
-            new(
-                "schema_builder",
-                "数据建模团队",
-                "面向数据管理的建表协作团队",
-                TeamAgentMode.GroupChat,
-                ["schema_builder", "knowledge"],
-                "schema_builder",
-                [
-                    new TeamAgentMemberItem(0, "业务分析 Agent", "拆解业务实体与字段", "analyst", 1, true, "专注业务建模分析。", ["analysis"]),
-                    new TeamAgentMemberItem(0, "DBA Agent", "给出主键、索引与关系建议", "dba", 2, true, "专注数据库设计。", ["schema"]),
-                    new TeamAgentMemberItem(0, "权限策略 Agent", "生成字段权限建议", "security", 3, true, "专注权限与隔离设计。", ["security"])
-                ]),
-            new(
-                "document_review",
-                "文档审查团队",
-                "用于文档审核与风险识别",
-                TeamAgentMode.Workflow,
-                ["knowledge"],
-                "chat",
-                [new TeamAgentMemberItem(0, "审查 Agent", "进行文档审查", "reviewer", 1, true, null, ["review"])]),
-            new(
-                "security_analysis",
-                "安全分析团队",
-                "用于漏洞分析与汇总",
-                TeamAgentMode.Workflow,
-                ["ops"],
-                "ops",
-                [new TeamAgentMemberItem(0, "安全 Agent", "分析安全风险", "security", 1, true, null, ["security"])]),
-            new(
-                "customer_service",
-                "客服协作团队",
-                "用于工单分流与回复",
-                TeamAgentMode.Handoff,
-                ["chat"],
-                "chat",
-                [new TeamAgentMemberItem(0, "客服 Agent", "处理客户请求", "support", 1, true, null, ["support"])])
+            teamAgent = new
+            {
+                entity.Id,
+                entity.Name,
+                entity.Description,
+                entity.TeamMode,
+                entity.Status,
+                entity.DefaultEntrySkill,
+                entity.PublishVersion,
+                entity.LegacySourceType,
+                entity.LegacySourceId
+            },
+            capabilityTags = DeserializeStringList(entity.CapabilityTagsJson),
+            boundDataAssets = DeserializeStringList(entity.BoundDataAssetsJson),
+            members = DeserializeMembers(entity.MembersJson),
+            schemaConfig = entity.SchemaConfigJson,
+            generatedAt = DateTime.UtcNow
         };
+        return JsonSerializer.Serialize(snapshot, JsonOptions);
+    }
 
     private static DynamicFieldDefinition MapField(SchemaDraftFieldDto field)
         => new(
@@ -842,17 +1137,23 @@ public sealed class TeamAgentService : ITeamAgentService
 
     private static List<TeamAgentMemberItem> NormalizeMembers(IReadOnlyList<TeamAgentMemberInput> members)
         => members
-            .Where(x => x.AgentId >= 0)
-            .Select(x => new TeamAgentMemberItem(
-                x.AgentId,
-                string.IsNullOrWhiteSpace(x.RoleName) ? $"Agent-{x.AgentId}" : x.RoleName.Trim(),
-                x.Responsibility?.Trim(),
-                x.Alias?.Trim(),
-                x.SortOrder,
-                x.IsEnabled,
-                x.PromptPrefix?.Trim(),
-                x.CapabilityTags?.Where(tag => !string.IsNullOrWhiteSpace(tag)).Select(tag => tag.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToList() ?? []))
-            .OrderBy(x => x.SortOrder)
+            .Select(member =>
+            {
+                var normalizedAgentId = member.AgentId.HasValue && member.AgentId.Value > 0 ? member.AgentId : null;
+                return new TeamAgentMemberItem(
+                    normalizedAgentId,
+                    string.IsNullOrWhiteSpace(member.RoleName)
+                        ? (normalizedAgentId.HasValue ? $"Agent-{normalizedAgentId.Value}" : "Unbound-Agent")
+                        : member.RoleName.Trim(),
+                    member.Responsibility?.Trim(),
+                    member.Alias?.Trim(),
+                    member.SortOrder,
+                    member.IsEnabled && normalizedAgentId.HasValue,
+                    member.PromptPrefix?.Trim(),
+                    member.CapabilityTags?.Where(tag => !string.IsNullOrWhiteSpace(tag)).Select(tag => tag.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToList() ?? [],
+                    normalizedAgentId.HasValue ? "bound" : "unbound");
+            })
+            .OrderBy(member => member.SortOrder)
             .ToList();
 
     private static string SerializeMembers(IReadOnlyList<TeamAgentMemberItem> members)
@@ -863,18 +1164,18 @@ public sealed class TeamAgentService : ITeamAgentService
             ? []
             : JsonSerializer.Deserialize<List<TeamAgentMemberItem>>(json, JsonOptions) ?? [];
 
+    private static List<MultiAgentMemberItem> DeserializeLegacyMembers(string json)
+        => string.IsNullOrWhiteSpace(json)
+            ? []
+            : JsonSerializer.Deserialize<List<MultiAgentMemberItem>>(json, JsonOptions) ?? [];
+
     private static string SerializeStringList(IReadOnlyList<string>? values)
-        => JsonSerializer.Serialize(values?.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToList() ?? [], JsonOptions);
+        => JsonSerializer.Serialize(values?.Where(value => !string.IsNullOrWhiteSpace(value)).Select(value => value.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToList() ?? [], JsonOptions);
 
     private static List<string> DeserializeStringList(string json)
         => string.IsNullOrWhiteSpace(json)
             ? []
             : JsonSerializer.Deserialize<List<string>>(json, JsonOptions) ?? [];
-
-    private static List<TeamAgentExecutionStep> DeserializeSteps(string json)
-        => string.IsNullOrWhiteSpace(json)
-            ? []
-            : JsonSerializer.Deserialize<List<TeamAgentExecutionStep>>(json, JsonOptions) ?? [];
 
     private static List<TeamAgentRunEvent> DeserializeEvents(string json)
         => string.IsNullOrWhiteSpace(json)

@@ -167,6 +167,46 @@ public sealed record DynamicRecordExportRequest(
     IReadOnlyList<DynamicFilterCondition>? Filters,
     IReadOnlyList<string>? Fields);
 
+public sealed record DynamicRecordImportRequest(
+    string Format,
+    string Content,
+    bool DryRun = true,
+    IReadOnlyList<DynamicRecordImportFieldMapping>? Mappings = null,
+    string? SessionId = null);
+
+public sealed record DynamicRecordImportResult(
+    int TotalRows,
+    int ImportedRows,
+    int SkippedRows,
+    IReadOnlyList<string> Warnings,
+    IReadOnlyList<string> Errors,
+    IReadOnlyList<DynamicRecordImportRowError>? RowErrors = null,
+    string? SessionId = null);
+
+public sealed record DynamicRecordImportAnalyzeResult(
+    string SessionId,
+    string Format,
+    IReadOnlyList<string> Headers,
+    IReadOnlyList<DynamicRecordImportFieldMapping> SuggestedMappings,
+    int PreviewRowCount,
+    IReadOnlyList<Dictionary<string, string?>> PreviewRows);
+
+public sealed record DynamicRecordImportCommitRequest(
+    string SessionId,
+    bool DryRun = false,
+    int BatchSize = 200,
+    IReadOnlyList<DynamicRecordImportFieldMapping>? Mappings = null);
+
+public sealed record DynamicRecordImportFieldMapping(
+    string SourceField,
+    string TargetField);
+
+public sealed record DynamicRecordImportRowError(
+    int RowIndex,
+    string? Field,
+    string ErrorCode,
+    string Message);
+
 public sealed record DynamicFilterCondition(
     string Field,
     string Operator,

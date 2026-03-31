@@ -46,6 +46,11 @@ X-CSRF-TOKEN: {{csrfToken}}
 ###
 @draftId = {{createDraft.response.body.$.data.id}}
 
+### 获取 Schema Draft 列表
+GET {{baseUrl}}/api/v1/team-agents/{{teamAgentId}}/schema-drafts
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
 ### 获取 Schema Draft
 GET {{baseUrl}}/api/v1/team-agents/{{teamAgentId}}/schema-drafts/{{draftId}}
 Authorization: Bearer {{accessToken}}

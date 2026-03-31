@@ -109,6 +109,12 @@ public sealed class DynamicViewQueryService : IDynamicViewQueryService
         return await _runtime.ExecuteAsync(tenantId, appId, plan, query, cancellationToken);
     }
 
+    public Task<DynamicViewSqlPreviewDto> PreviewSqlAsync(TenantId tenantId, long? appId, DynamicViewSqlPreviewRequest request, CancellationToken cancellationToken)
+    {
+        var result = _compiler.BuildSqlPreview(request.Definition);
+        return Task.FromResult(result);
+    }
+
     public async Task<IReadOnlyList<DeleteCheckBlockerDto>> GetReferencesAsync(TenantId tenantId, long? appId, string viewKey, CancellationToken cancellationToken)
     {
         var check = await _deleteCheckService.CheckViewDeleteAsync(tenantId, appId, viewKey, cancellationToken);

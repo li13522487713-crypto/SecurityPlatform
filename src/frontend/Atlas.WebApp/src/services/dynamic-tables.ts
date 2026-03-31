@@ -344,3 +344,123 @@ export async function getDynamicTableDeleteCheck(tableKey: string): Promise<Dele
   }
   return response.data;
 }
+
+export interface DynamicRecordImportRequest {
+  format: "csv" | "tsv" | "excel" | "xlsx";
+  content: string;
+  dryRun?: boolean;
+  mappings?: DynamicRecordImportFieldMapping[];
+  sessionId?: string;
+}
+
+export interface DynamicRecordImportFieldMapping {
+  sourceField: string;
+  targetField: string;
+}
+
+export interface DynamicRecordImportRowError {
+  rowIndex: number;
+  field?: string | null;
+  errorCode: string;
+  message: string;
+}
+
+export interface DynamicRecordImportResult {
+  totalRows: number;
+  importedRows: number;
+  skippedRows: number;
+  warnings: string[];
+  errors: string[];
+  rowErrors?: DynamicRecordImportRowError[];
+  sessionId?: string;
+}
+
+export interface DynamicRecordImportAnalyzeResult {
+  sessionId: string;
+  format: string;
+  headers: string[];
+  suggestedMappings: DynamicRecordImportFieldMapping[];
+  previewRowCount: number;
+  previewRows: Array<Record<string, string | null>>;
+}
+
+export async function importDynamicRecords(
+  tableKey: string,
+  request: DynamicRecordImportRequest
+): Promise<DynamicRecordImportResult> {
+  const response = await requestApi<ApiResponse<DynamicRecordImportResult>>(
+    `/dynamic-tables/${encodeURIComponent(tableKey)}/records/import`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request)
+    }
+  );
+  if (!response.data) {
+    throw new Error(response.message || "导入失败");
+  }
+  return response.data;
+}
+
+export async function analyzeDynamicRecordImport(
+  tableKey: string,
+  file: File,
+  format: "csv" | "tsv" | "xlsx"
+): Promise<DynamicRecordImportAnalyzeResult> {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("format", format);
+  const response = await requestApi<ApiResponse<DynamicRecordImportAnalyzeResult>>(
+    `/dynamic-tables/${encodeURIComponent(tableKey)}/records/import/analyze`,
+    {
+      method: "POST",
+      body: formData
+    }
+  );
+  if (!response.data) {
+    throw new Error(response.message || "导入分析失败");
+  }
+  return response.data;
+}
+
+export async function commitDynamicRecordImport(
+  tableKey: string,
+  request: {
+    sessionId: string;
+    dryRun?: boolean;
+    batchSize?: number;
+    mappings?: DynamicRecordImportFieldMapping[];
+  }
+): Promise<DynamicRecordImportResult> {
+  const response = await requestApi<ApiResponse<DynamicRecordImportResult>>(
+    `/dynamic-tables/${encodeURIComponent(tableKey)}/records/import/commit`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request)
+    }
+  );
+  if (!response.data) {
+    throw new Error(response.message || "导入提交失败");
+  }
+  return response.data;
+}
+
+export async function pasteExcelToDynamicRecords(
+  tableKey: string,
+  content: string,
+  dryRun = true
+): Promise<DynamicRecordImportResult> {
+  const response = await requestApi<ApiResponse<DynamicRecordImportResult>>(
+    `/dynamic-tables/${encodeURIComponent(tableKey)}/records/excel-paste`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ format: "excel", content, dryRun })
+    }
+  );
+  if (!response.data) {
+    throw new Error(response.message || "Excel 粘贴导入失败");
+  }
+  return response.data;
+}

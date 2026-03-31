@@ -3,7 +3,7 @@ using Atlas.Domain.AiPlatform.Entities;
 namespace Atlas.Application.AiPlatform.Models;
 
 public sealed record TeamAgentMemberInput(
-    long AgentId,
+    long? AgentId,
     string RoleName,
     string? Responsibility,
     string? Alias,
@@ -13,14 +13,15 @@ public sealed record TeamAgentMemberInput(
     IReadOnlyList<string>? CapabilityTags);
 
 public sealed record TeamAgentMemberItem(
-    long AgentId,
+    long? AgentId,
     string RoleName,
     string? Responsibility,
     string? Alias,
     int SortOrder,
     bool IsEnabled,
     string? PromptPrefix,
-    IReadOnlyList<string> CapabilityTags);
+    IReadOnlyList<string> CapabilityTags,
+    string BindingState);
 
 public sealed record TeamAgentCreateRequest(
     string Name,
@@ -56,6 +57,8 @@ public sealed record TeamAgentListItem(
     int PublishVersion,
     IReadOnlyList<string> BoundDataAssets,
     string? LastRunStatus,
+    string? LegacySourceType,
+    string? LegacySourceId,
     DateTime CreatedAt,
     DateTime UpdatedAt);
 
@@ -72,6 +75,8 @@ public sealed record TeamAgentDetail(
     IReadOnlyList<string> BoundDataAssets,
     string? SchemaConfigJson,
     long CreatorUserId,
+    string? LegacySourceType,
+    string? LegacySourceId,
     DateTime CreatedAt,
     DateTime UpdatedAt,
     DateTime? PublishedAt,
@@ -86,10 +91,33 @@ public sealed record TeamAgentTemplateItem(
     string DefaultEntrySkill,
     IReadOnlyList<TeamAgentMemberItem> Members);
 
+public sealed record TeamAgentTemplateMemberBindingInput(
+    string RoleName,
+    long? AgentId,
+    bool? IsEnabled);
+
 public sealed record TeamAgentCreateFromTemplateRequest(
     string TemplateKey,
     string Name,
-    string? Description);
+    string? Description,
+    IReadOnlyList<TeamAgentTemplateMemberBindingInput>? MemberBindings);
+
+public sealed record TeamAgentDashboardActivityItem(
+    string ActivityType,
+    long ResourceId,
+    long TeamAgentId,
+    string TeamAgentName,
+    string Title,
+    string Summary,
+    DateTime OccurredAt);
+
+public sealed record TeamAgentDashboardDto(
+    int TotalCount,
+    int TeamCount,
+    int AvailableSubAgentCount,
+    int RecentRunCount,
+    int SchemaBuilderCount,
+    IReadOnlyList<TeamAgentDashboardActivityItem> RecentActivities);
 
 public sealed record TeamAgentConversationDto(
     long Id,
@@ -137,7 +165,8 @@ public sealed record TeamAgentRunEvent(
     string Data);
 
 public sealed record TeamAgentExecutionStep(
-    long AgentId,
+    long StepId,
+    long? AgentId,
     string AgentName,
     string RoleName,
     string? Alias,
@@ -159,6 +188,45 @@ public sealed record TeamAgentExecutionResult(
     IReadOnlyList<TeamAgentRunEvent> Events,
     DateTime StartedAt,
     DateTime? CompletedAt);
+
+public sealed record TeamAgentSchemaDraftListItem(
+    long Id,
+    long TeamAgentId,
+    long? ConversationId,
+    string Title,
+    string Requirement,
+    string Status,
+    string ConfirmationState,
+    DateTime CreatedAt,
+    DateTime UpdatedAt,
+    DateTime? ConfirmedAt);
+
+public sealed record TeamAgentPublicationListItem(
+    long Id,
+    long TeamAgentId,
+    int Version,
+    bool IsActive,
+    string? ReleaseNote,
+    long PublishedByUserId,
+    DateTime PublishedAt,
+    DateTime? RevokedAt);
+
+public sealed record TeamAgentPublicationPublishRequest(
+    string? ReleaseNote);
+
+public sealed record TeamAgentPublicationPublishResult(
+    long Id,
+    long TeamAgentId,
+    int Version,
+    DateTime PublishedAt);
+
+public sealed record TeamAgentLegacyMigrationRequest(
+    IReadOnlyList<long>? LegacyIds);
+
+public sealed record TeamAgentLegacyMigrationResult(
+    int RequestedCount,
+    int MigratedCount,
+    IReadOnlyList<long> TeamAgentIds);
 
 public sealed record SchemaDraftCreateRequest(
     string Requirement,

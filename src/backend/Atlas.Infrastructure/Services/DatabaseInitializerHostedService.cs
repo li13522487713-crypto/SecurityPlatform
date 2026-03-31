@@ -143,9 +143,13 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             typeof(Agent),
             typeof(AgentPublication),
             typeof(TeamAgent),
+            typeof(TeamAgentPublication),
+            typeof(TeamAgentTemplate),
+            typeof(TeamAgentTemplateMember),
             typeof(TeamAgentConversation),
             typeof(TeamAgentMessage),
             typeof(TeamAgentExecution),
+            typeof(TeamAgentExecutionStepEntity),
             typeof(TeamAgentSchemaDraft),
             typeof(MultiAgentOrchestration),
             typeof(MultiAgentExecution),
@@ -213,6 +217,8 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             typeof(DynamicViewDefinition),
             typeof(DynamicViewVersion),
             typeof(DynamicTransformJob),
+            typeof(DynamicTransformExecution),
+            typeof(DynamicPhysicalViewPublication),
             typeof(FieldPermission),
             typeof(MigrationRecord),
             typeof(LowCodeApp),
@@ -313,6 +319,10 @@ public sealed class DatabaseInitializerHostedService : IHostedService
 
         await EnsureTenantAppDataSourceBindingBackfillAsync(scope.ServiceProvider, appContextAccessor, db, cancellationToken);
         await EnsureTenantAppDataSourceBindingHealthAsync(scope.ServiceProvider, appContextAccessor, db, cancellationToken);
+        await EnsureTeamAgentTemplateSeedDataAsync(
+            db,
+            scope.ServiceProvider.GetRequiredService<IIdGeneratorAccessor>(),
+            cancellationToken);
 
         // 种子数据初始化
         if (_initializerOptions.SkipSeedData)
@@ -1699,29 +1709,157 @@ public sealed class DatabaseInitializerHostedService : IHostedService
     {
         var missingTeamAgentTables =
             !db.DbMaintenance.IsAnyTable("TeamAgent", false) ||
+            !db.DbMaintenance.IsAnyTable("TeamAgentPublication", false) ||
+            !db.DbMaintenance.IsAnyTable("TeamAgentTemplate", false) ||
+            !db.DbMaintenance.IsAnyTable("TeamAgentTemplateMember", false) ||
             !db.DbMaintenance.IsAnyTable("TeamAgentConversation", false) ||
             !db.DbMaintenance.IsAnyTable("TeamAgentMessage", false) ||
             !db.DbMaintenance.IsAnyTable("TeamAgentExecution", false) ||
+            !db.DbMaintenance.IsAnyTable("TeamAgentExecutionStep", false) ||
             !db.DbMaintenance.IsAnyTable("TeamAgentSchemaDraft", false);
 
         if (missingTeamAgentTables)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            db.CodeFirst.InitTables<TeamAgent, TeamAgentConversation, TeamAgentMessage, TeamAgentExecution, TeamAgentSchemaDraft>();
+            db.CodeFirst.InitTables<TeamAgent, TeamAgentPublication, TeamAgentTemplate, TeamAgentTemplateMember, TeamAgentConversation>();
+            db.CodeFirst.InitTables<TeamAgentMessage, TeamAgentExecution, TeamAgentExecutionStepEntity, TeamAgentSchemaDraft>();
             return;
         }
 
         if (RequiresNullableColumnFix<TeamAgent>(db, "Description", "DefaultEntrySkill", "PublishedAt")
+            || RequiresNullableColumnFix<TeamAgentPublication>(db, "ReleaseNote", "RevokedAt")
+            || RequiresNullableColumnFix<TeamAgentTemplate>(db, "DefaultEntrySkill")
+            || RequiresNullableColumnFix<TeamAgentTemplateMember>(db, "Responsibility", "Alias", "PromptPrefix")
             || RequiresNullableColumnFix<TeamAgentConversation>(db, "Title")
             || RequiresNullableColumnFix<TeamAgentMessage>(db, "Metadata", "MemberName")
             || RequiresNullableColumnFix<TeamAgentExecution>(db, "OutputMessage", "ErrorMessage", "CompletedAt")
+            || RequiresNullableColumnFix<TeamAgentExecutionStepEntity>(db, "AgentId", "Alias", "OutputMessage", "ErrorMessage", "CompletedAt")
             || RequiresNullableColumnFix<TeamAgentSchemaDraft>(db, "ConversationId", "AppId", "ConfirmedAt", "DiscardedAt"))
         {
             await RebuildTableViaOrmAsync<TeamAgent>(db, cancellationToken);
+            await RebuildTableViaOrmAsync<TeamAgentPublication>(db, cancellationToken);
+            await RebuildTableViaOrmAsync<TeamAgentTemplate>(db, cancellationToken);
+            await RebuildTableViaOrmAsync<TeamAgentTemplateMember>(db, cancellationToken);
             await RebuildTableViaOrmAsync<TeamAgentConversation>(db, cancellationToken);
             await RebuildTableViaOrmAsync<TeamAgentMessage>(db, cancellationToken);
             await RebuildTableViaOrmAsync<TeamAgentExecution>(db, cancellationToken);
+            await RebuildTableViaOrmAsync<TeamAgentExecutionStepEntity>(db, cancellationToken);
             await RebuildTableViaOrmAsync<TeamAgentSchemaDraft>(db, cancellationToken);
+        }
+    }
+
+    private static async Task EnsureTeamAgentTemplateSeedDataAsync(
+        ISqlSugarClient db,
+        IIdGeneratorAccessor idGeneratorAccessor,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = Guid.TryParse("00000000-0000-0000-0000-000000000001", out var seedTenantId)
+            ? seedTenantId
+            : Guid.Empty;
+        if (tenantId == Guid.Empty || !db.DbMaintenance.IsAnyTable("TeamAgentTemplate", false))
+        {
+            return;
+        }
+
+        var existingKeys = await db.Queryable<TeamAgentTemplate>()
+            .Where(x => x.TenantIdValue == tenantId)
+            .Select(x => x.Key)
+            .ToListAsync(cancellationToken);
+        var keySet = existingKeys.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var templates = new[]
+        {
+            new
+            {
+                Key = "schema_builder",
+                Name = "数据建模团队",
+                Description = "面向数据管理的建表协作团队",
+                TeamMode = TeamAgentMode.GroupChat,
+                CapabilityTagsJson = "[\"schema_builder\",\"knowledge\"]",
+                DefaultEntrySkill = "schema_builder",
+                Members = new[]
+                {
+                    new { RoleName = "业务分析 Agent", Responsibility = "拆解业务实体与字段", Alias = "analyst", SortOrder = 1, IsEnabled = true, PromptPrefix = "专注业务建模分析。", CapabilityTagsJson = "[\"analysis\"]" },
+                    new { RoleName = "DBA Agent", Responsibility = "给出主键、索引与关系建议", Alias = "dba", SortOrder = 2, IsEnabled = true, PromptPrefix = "专注数据库设计。", CapabilityTagsJson = "[\"schema\"]" },
+                    new { RoleName = "权限策略 Agent", Responsibility = "生成字段权限建议", Alias = "security", SortOrder = 3, IsEnabled = true, PromptPrefix = "专注权限与隔离设计。", CapabilityTagsJson = "[\"security\"]" }
+                }
+            },
+            new
+            {
+                Key = "document_review",
+                Name = "文档审查团队",
+                Description = "用于文档审核与风险识别",
+                TeamMode = TeamAgentMode.Workflow,
+                CapabilityTagsJson = "[\"knowledge\"]",
+                DefaultEntrySkill = "chat",
+                Members = new[]
+                {
+                    new { RoleName = "审查 Agent", Responsibility = "进行文档审查", Alias = "reviewer", SortOrder = 1, IsEnabled = true, PromptPrefix = "专注文档审查与问题归纳。", CapabilityTagsJson = "[\"review\"]" }
+                }
+            },
+            new
+            {
+                Key = "security_analysis",
+                Name = "安全分析团队",
+                Description = "用于漏洞分析与汇总",
+                TeamMode = TeamAgentMode.Workflow,
+                CapabilityTagsJson = "[\"ops\"]",
+                DefaultEntrySkill = "ops",
+                Members = new[]
+                {
+                    new { RoleName = "安全 Agent", Responsibility = "分析安全风险", Alias = "security", SortOrder = 1, IsEnabled = true, PromptPrefix = "专注漏洞与风险分析。", CapabilityTagsJson = "[\"security\"]" }
+                }
+            },
+            new
+            {
+                Key = "customer_service",
+                Name = "客服协作团队",
+                Description = "用于工单分流与回复",
+                TeamMode = TeamAgentMode.Handoff,
+                CapabilityTagsJson = "[\"chat\"]",
+                DefaultEntrySkill = "chat",
+                Members = new[]
+                {
+                    new { RoleName = "客服 Agent", Responsibility = "处理客户请求", Alias = "support", SortOrder = 1, IsEnabled = true, PromptPrefix = "专注客户响应与问题澄清。", CapabilityTagsJson = "[\"support\"]" }
+                }
+            }
+        };
+
+        foreach (var template in templates)
+        {
+            if (keySet.Contains(template.Key))
+            {
+                continue;
+            }
+
+            var templateId = idGeneratorAccessor.NextId();
+            var templateEntity = new TeamAgentTemplate(
+                new TenantId(tenantId),
+                template.Key,
+                template.Name,
+                template.Description,
+                template.TeamMode,
+                template.CapabilityTagsJson,
+                template.DefaultEntrySkill,
+                true,
+                templateId);
+            await db.Insertable(templateEntity).ExecuteCommandAsync(cancellationToken);
+
+            var members = template.Members.Select(member => new TeamAgentTemplateMember(
+                new TenantId(tenantId),
+                templateId,
+                member.RoleName,
+                member.Responsibility,
+                member.Alias,
+                member.SortOrder,
+                member.IsEnabled,
+                member.PromptPrefix,
+                member.CapabilityTagsJson,
+                idGeneratorAccessor.NextId())).ToList();
+            if (members.Count > 0)
+            {
+                await db.Insertable(members).ExecuteCommandAsync(cancellationToken);
+            }
         }
     }
 

@@ -29,9 +29,13 @@ public static class DynamicTableServiceRegistration
         services.AddScoped<IFieldPermissionResolver, FieldPermissionResolver>();
         services.AddScoped<IDynamicTableQueryService, DynamicTableQueryService>();
         services.AddScoped<IDynamicTableCommandService, DynamicTableCommandService>();
+        services.AddScoped<IDynamicRecordImportService, DynamicRecordImportService>();
         services.AddScoped<IDynamicDeleteCheckService, DynamicDeleteCheckService>();
         services.AddScoped<IDynamicViewQueryService, DynamicViewQueryService>();
         services.AddScoped<IDynamicViewCommandService, DynamicViewCommandService>();
+        services.AddScoped<IDynamicViewP2Service, DynamicViewP2Service>();
+        services.AddScoped<IDynamicTransformJobService, DynamicTransformJobService>();
+        services.AddScoped<DynamicTransformJobExecutor>();
         services.AddScoped<DynamicViewCompiler>();
         services.AddScoped<DynamicViewRuntime>();
         services.AddScoped<DynamicViewVersionService>();

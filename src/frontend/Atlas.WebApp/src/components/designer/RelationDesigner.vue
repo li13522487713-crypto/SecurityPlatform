@@ -103,6 +103,7 @@
             <TableEntityNode
               v-bind="nodeProps"
               @remove="removeNode(nodeProps.id)"
+              @delete-table="handleDeleteTableFromNode"
             />
           </template>
         </VueFlow>
@@ -172,6 +173,21 @@
         :placeholder="t('relationDesigner.createViewNamePlaceholder')"
       />
     </a-modal>
+
+    <a-modal v-model:open="blockerModalOpen" title="删除被阻断" :footer="null" width="720">
+      <a-table :data-source="blockerRows" :pagination="false" size="small" row-key="id">
+        <a-table-column title="类型" data-index="type" key="type" width="120" />
+        <a-table-column title="名称" data-index="name" key="name" />
+        <a-table-column title="路径" data-index="path" key="path" />
+      </a-table>
+      <a-alert
+        v-if="blockerWarnings.length > 0"
+        type="warning"
+        show-icon
+        style="margin-top: 8px"
+        :message="blockerWarnings.join('；')"
+      />
+    </a-modal>
   </div>
 </template>
 
@@ -200,7 +216,9 @@ import "@vue-flow/minimap/dist/style.css";
 import type { DynamicFieldDefinition, DynamicRelationDefinition } from "@/types/dynamic-tables";
 import {
   getAppScopedDynamicTables,
+  deleteDynamicTable,
   getDynamicTableFieldsBatch,
+  getDynamicTableDeleteCheck,
   getDynamicTableRelations,
   setDynamicTableRelations,
   type AppScopedDynamicTableListItem
@@ -243,6 +261,9 @@ const configModalOpen = ref(false);
 const relationDrawerOpen = ref(false);
 const createViewModalOpen = ref(false);
 const newViewName = ref("");
+const blockerModalOpen = ref(false);
+const blockerRows = ref<Array<{ type: string; id: string; name: string; path?: string }>>([]);
+const blockerWarnings = ref<string[]>([]);
 
 // ---- 计算 ----
 const filteredTables = computed(() => {
@@ -852,6 +873,30 @@ function removeNode(nodeId: string) {
   nodes.value = filteredNodes as typeof nodes.value;
   edges.value = filteredEdges as typeof edges.value;
   relationsCache.value.delete(nodeId);
+}
+
+async function handleDeleteTableFromNode(tableKey: string) {
+  try {
+    const check = await getDynamicTableDeleteCheck(tableKey);
+    if (!check.canDelete) {
+      blockerRows.value = check.blockers;
+      blockerWarnings.value = check.warnings;
+      blockerModalOpen.value = true;
+      return;
+    }
+
+    await deleteDynamicTable(tableKey);
+    message.success(t("dynamic.deleteSuccess", "删除成功"));
+
+    removeNode(tableKey);
+    allTables.value = allTables.value.filter(item => item.tableKey !== tableKey);
+    const relationEdgeStore = allRelationEdges.value as unknown as Array<{ source: string; target: string }>;
+    const filteredRelationEdges = relationEdgeStore.filter(edge => edge.source !== tableKey && edge.target !== tableKey);
+    allRelationEdges.value = filteredRelationEdges as unknown as Edge[];
+    relationsCache.value.delete(tableKey);
+  } catch (error) {
+    message.error((error as Error).message || t("dynamic.deleteFailed", "删除失败"));
+  }
 }
 
 function clearCanvas() {

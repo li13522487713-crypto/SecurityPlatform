@@ -1,0 +1,24 @@
+@baseUrl = http://localhost:5000
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+@teamAgentId = 0
+
+### 登录获取令牌
+# @name login
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+###
+@accessToken = {{login.response.body.$.data.accessToken}}
+
+### 查询 Team Agent 发布历史
+GET {{baseUrl}}/api/v1/team-agent-publications/team-agents/{{teamAgentId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}

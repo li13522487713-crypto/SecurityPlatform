@@ -185,6 +185,35 @@ X-CSRF-TOKEN: {{csrfToken}}
   "limit": 100
 }
 
+### Preview Dynamic View SQL
+POST {{baseUrl}}/api/v1/dynamic-views/preview-sql
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$randomUUID}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "definition": {
+    "appId": "{{appId}}",
+    "viewKey": "orders_view",
+    "name": "订单视图",
+    "description": "SQL 预览",
+    "nodes": [
+      {
+        "id": "n1",
+        "type": "sourceTable",
+        "tableKey": "orders"
+      }
+    ],
+    "edges": [],
+    "outputFields": [],
+    "filters": [],
+    "groupBy": [],
+    "sorts": []
+  }
+}
+
 ### Publish Dynamic View
 POST {{baseUrl}}/api/v1/dynamic-views/orders_view/publish
 Content-Type: application/json
@@ -240,6 +269,73 @@ X-Tenant-Id: {{tenantId}}
 GET {{baseUrl}}/api/v1/dynamic-views/orders_view/delete-check
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
+
+### External Extract Preview
+POST {{baseUrl}}/api/v1/dynamic-views/external-extract/preview
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$randomUUID}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "dataSourceId": 1,
+  "sql": "select 1 as id, 'demo' as name",
+  "limit": 50
+}
+
+### Publish Physical View
+POST {{baseUrl}}/api/v1/dynamic-views/orders_view/publish-physical
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+X-App-Id: {{appId}}
+Idempotency-Key: {{$randomUUID}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "replaceIfExists": true,
+  "physicalViewName": "vw_orders_view",
+  "dataSourceId": 1,
+  "comment": "P2 publish"
+}
+
+### List External Extract Data Sources
+GET {{baseUrl}}/api/v1/dynamic-views/external-extract/data-sources
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+X-App-Id: {{appId}}
+
+### Get External Extract Schema
+GET {{baseUrl}}/api/v1/dynamic-views/external-extract/1/schema
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+X-App-Id: {{appId}}
+
+### List Physical Publications
+GET {{baseUrl}}/api/v1/dynamic-views/orders_view/physical-publications
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+X-App-Id: {{appId}}
+
+### Rollback Physical Publication
+POST {{baseUrl}}/api/v1/dynamic-views/orders_view/physical-rollback/1
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+X-App-Id: {{appId}}
+Idempotency-Key: {{$randomUUID}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{}
+
+### Delete Physical Publication
+DELETE {{baseUrl}}/api/v1/dynamic-views/orders_view/physical-publications/1
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+X-App-Id: {{appId}}
+Idempotency-Key: {{$randomUUID}}
+X-CSRF-TOKEN: {{csrfToken}}
 
 ### Delete Dynamic View
 DELETE {{baseUrl}}/api/v1/dynamic-views/orders_view

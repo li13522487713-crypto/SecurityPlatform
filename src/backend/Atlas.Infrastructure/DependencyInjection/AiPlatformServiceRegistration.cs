@@ -29,9 +29,13 @@ public static class AiPlatformServiceRegistration
         services.AddScoped<ConversationRepository>();
         services.AddScoped<ChatMessageRepository>();
         services.AddScoped<TeamAgentRepository>();
+        services.AddScoped<TeamAgentPublicationRepository>();
+        services.AddScoped<TeamAgentTemplateRepository>();
+        services.AddScoped<TeamAgentTemplateMemberRepository>();
         services.AddScoped<TeamAgentConversationRepository>();
         services.AddScoped<TeamAgentMessageRepository>();
         services.AddScoped<TeamAgentExecutionRepository>();
+        services.AddScoped<TeamAgentExecutionStepRepository>();
         services.AddScoped<TeamAgentSchemaDraftRepository>();
         services.AddScoped<ShortTermMemoryRepository>();
         services.AddScoped<LongTermMemoryRepository>();
@@ -72,6 +76,10 @@ public static class AiPlatformServiceRegistration
         services.AddScoped<IAgentQueryService, AgentQueryService>();
         services.AddScoped<IConversationService, ConversationService>();
         services.AddScoped<ITeamAgentService, TeamAgentService>();
+        services.AddScoped<ITeamAgentPublicationService, TeamAgentPublicationService>();
+        services.AddScoped<IChatClientFactory, ChatClientFactory>();
+        services.AddScoped<IKernelFactory, KernelFactory>();
+        services.AddScoped<IAgentRuntimeFactory, AgentRuntimeFactory>();
         services.AddScoped<ITeamAgentOrchestrationRuntime, FrameworkAwareTeamAgentOrchestrationRuntime>();
         services.AddScoped<ITeamAgentSchemaDraftComposer, TeamAgentSchemaDraftComposer>();
         services.AddScoped<IAgentChatService, AgentChatService>();

@@ -1,6 +1,7 @@
 using Atlas.Application.AiPlatform.Models;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
+using Atlas.Domain.AiPlatform.Entities;
 
 namespace Atlas.Application.AiPlatform.Abstractions;
 
@@ -9,8 +10,16 @@ public interface ITeamAgentService
     Task<PagedResult<TeamAgentListItem>> GetPagedAsync(
         TenantId tenantId,
         string? keyword,
+        TeamAgentMode? teamMode,
+        TeamAgentStatus? status,
+        string? capabilityTag,
+        string? defaultEntrySkill,
         int pageIndex,
         int pageSize,
+        CancellationToken cancellationToken);
+
+    Task<TeamAgentDashboardDto> GetDashboardAsync(
+        TenantId tenantId,
         CancellationToken cancellationToken);
 
     Task<TeamAgentDetail?> GetByIdAsync(
@@ -44,6 +53,8 @@ public interface ITeamAgentService
     Task PublishAsync(
         TenantId tenantId,
         long id,
+        long publisherUserId,
+        TeamAgentPublicationPublishRequest request,
         CancellationToken cancellationToken);
 
     Task<IReadOnlyList<TeamAgentTemplateItem>> GetTemplatesAsync(
@@ -53,6 +64,12 @@ public interface ITeamAgentService
         TenantId tenantId,
         long creatorUserId,
         TeamAgentCreateFromTemplateRequest request,
+        CancellationToken cancellationToken);
+
+    Task<TeamAgentLegacyMigrationResult> MigrateLegacyAsync(
+        TenantId tenantId,
+        long creatorUserId,
+        TeamAgentLegacyMigrationRequest request,
         CancellationToken cancellationToken);
 
     Task<long> CreateConversationAsync(
@@ -149,6 +166,11 @@ public interface ITeamAgentService
         TenantId tenantId,
         long teamAgentId,
         long draftId,
+        CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<TeamAgentSchemaDraftListItem>> ListSchemaDraftsAsync(
+        TenantId tenantId,
+        long teamAgentId,
         CancellationToken cancellationToken);
 
     Task UpdateSchemaDraftAsync(

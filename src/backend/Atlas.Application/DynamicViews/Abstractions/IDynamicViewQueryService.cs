@@ -44,6 +44,12 @@ public interface IDynamicViewQueryService
         DynamicViewPreviewRequest request,
         CancellationToken cancellationToken);
 
+    Task<DynamicViewSqlPreviewDto> PreviewSqlAsync(
+        TenantId tenantId,
+        long? appId,
+        DynamicViewSqlPreviewRequest request,
+        CancellationToken cancellationToken);
+
     Task<IReadOnlyList<DeleteCheckBlockerDto>> GetReferencesAsync(
         TenantId tenantId,
         long? appId,

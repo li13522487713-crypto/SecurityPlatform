@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Text.Json;
 using Atlas.Application.DynamicTables.Models;
 using Atlas.Application.DynamicTables.Repositories;
 using Atlas.Application.DynamicViews.Models;
@@ -5,8 +7,6 @@ using Atlas.Core.Exceptions;
 using Atlas.Core.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
-using System.Globalization;
-using System.Text.Json;
 
 namespace Atlas.Infrastructure.Services;
 
@@ -36,16 +36,48 @@ public sealed class DynamicViewRuntime
         DynamicViewRecordsQueryRequest request,
         CancellationToken cancellationToken)
     {
-        var sourceTable = await _tableRepository.FindByKeyAsync(tenantId, plan.SourceTableKey, appId ?? _appContextAccessor.ResolveAppId(), cancellationToken);
-        if (sourceTable is null)
+        var effectiveAppId = appId ?? _appContextAccessor.ResolveAppId();
+        var sourceResult = await QueryTableRowsAsync(tenantId, effectiveAppId, plan.SourceTableKey, request, cancellationToken);
+
+        var items = sourceResult.Items.ToList();
+        if (plan.JoinPlans.Count > 0)
+        {
+            items = await ExecuteJoinsAsync(tenantId, effectiveAppId, items, plan.JoinPlans, cancellationToken);
+        }
+
+        if (plan.UnionPlan is not null && plan.UnionPlan.Inputs.Count > 1)
+        {
+            items = await ExecuteUnionAsync(tenantId, effectiveAppId, plan.UnionPlan, request, items, cancellationToken);
+        }
+
+        var projected = plan.Fields.Count > 0 ? ProjectItems(items, plan.Fields) : items;
+        if (plan.AggregatePlan is not null)
+        {
+            projected = ExecuteAggregate(projected, plan.AggregatePlan);
+        }
+
+        var resultColumns = BuildColumns(projected, plan.Fields);
+        var projectedResult = new DynamicRecordListResult(projected, projected.Count, request.PageIndex, request.PageSize, resultColumns);
+        return ApplyViewPostProcessing(projectedResult, plan);
+    }
+
+    private async Task<DynamicRecordListResult> QueryTableRowsAsync(
+        TenantId tenantId,
+        long? appId,
+        string tableKey,
+        DynamicViewRecordsQueryRequest request,
+        CancellationToken cancellationToken)
+    {
+        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, appId, cancellationToken);
+        if (table is null)
         {
             throw new BusinessException(ErrorCodes.NotFound, "DynamicTableNotFound");
         }
 
-        var fields = await _fieldRepository.ListByTableIdAsync(tenantId, sourceTable.Id, cancellationToken);
+        var fields = await _fieldRepository.ListByTableIdAsync(tenantId, table.Id, cancellationToken);
         var queryRequest = new DynamicRecordQueryRequest(
-            request.PageIndex,
-            request.PageSize,
+            1,
+            Math.Max(1000, request.PageSize),
             request.Keyword,
             request.SortBy,
             request.SortDesc,
@@ -54,30 +86,282 @@ public sealed class DynamicViewRuntime
             AdvancedQuery = request.AdvancedQuery
         };
 
-        var sourceResult = await _recordRepository.QueryAsync(tenantId, sourceTable, fields, queryRequest, cancellationToken);
-        if (plan.Fields.Count == 0)
+        var result = await _recordRepository.QueryAsync(tenantId, table, fields, queryRequest, cancellationToken);
+        return new DynamicRecordListResult(
+            result.Items.Select(item => NormalizeRecord(item, tableKey)).ToArray(),
+            result.Total,
+            result.PageIndex,
+            result.PageSize,
+            result.Columns);
+    }
+
+    private static DynamicRecordDto NormalizeRecord(DynamicRecordDto record, string tableKey)
+    {
+        var values = new List<DynamicFieldValueDto>();
+        var existing = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var value in record.Values)
         {
-            return ApplyViewPostProcessing(sourceResult, plan);
+            values.Add(value);
+            existing.Add(value.Field);
+
+            var qualified = $"{tableKey}.{value.Field}";
+            if (existing.Add(qualified))
+            {
+                values.Add(value with { Field = qualified });
+            }
         }
 
-        var projectedItems = sourceResult.Items
-            .Select(item => new DynamicRecordDto(
-                item.Id,
-                plan.Fields.Select(mapping => ProjectField(item, mapping)).ToArray()))
-            .ToArray();
+        return new DynamicRecordDto(record.Id, values);
+    }
 
-        var columns = plan.Fields
-            .Select(mapping => new DynamicColumnDef(
-                mapping.TargetFieldKey,
-                string.IsNullOrWhiteSpace(mapping.TargetLabel) ? mapping.TargetFieldKey : mapping.TargetLabel,
-                mapping.TargetType,
-                true,
-                true,
-                false))
-            .ToArray();
+    private async Task<List<DynamicRecordDto>> ExecuteJoinsAsync(
+        TenantId tenantId,
+        long? appId,
+        List<DynamicRecordDto> leftRows,
+        IReadOnlyList<DynamicJoinPlanDto> joins,
+        CancellationToken cancellationToken)
+    {
+        var current = leftRows;
+        foreach (var join in joins)
+        {
+            var rightResult = await QueryTableRowsAsync(
+                tenantId,
+                appId,
+                join.RightSource,
+                new DynamicViewRecordsQueryRequest(1, 1000, null, null, false, null),
+                cancellationToken);
 
-        var projected = new DynamicRecordListResult(projectedItems, sourceResult.Total, sourceResult.PageIndex, sourceResult.PageSize, columns);
-        return ApplyViewPostProcessing(projected, plan);
+            current = ApplyJoin(current, rightResult.Items.ToList(), join);
+        }
+
+        return current;
+    }
+
+    private static List<DynamicRecordDto> ApplyJoin(List<DynamicRecordDto> left, List<DynamicRecordDto> right, DynamicJoinPlanDto plan)
+    {
+        var joinType = (plan.JoinType ?? "inner").ToLowerInvariant();
+        var results = new List<DynamicRecordDto>();
+        var matchedRight = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var leftRow in left)
+        {
+            var matches = right.Where(rightRow => MatchJoin(leftRow, rightRow, plan.Conditions)).ToList();
+            if (matches.Count == 0)
+            {
+                if (joinType is "left" or "full")
+                {
+                    results.Add(leftRow);
+                }
+                continue;
+            }
+
+            foreach (var match in matches)
+            {
+                matchedRight.Add(match.Id);
+                results.Add(MergeRows(leftRow, match));
+            }
+        }
+
+        if (joinType is "right" or "full")
+        {
+            var leftFieldTemplate = left.FirstOrDefault()?.Values ?? Array.Empty<DynamicFieldValueDto>();
+            foreach (var rightRow in right.Where(row => !matchedRight.Contains(row.Id)))
+            {
+                results.Add(MergeRows(BuildNullLeftRow(leftFieldTemplate, rightRow.Id), rightRow));
+            }
+        }
+
+        return results;
+    }
+
+    private static DynamicRecordDto BuildNullLeftRow(IReadOnlyList<DynamicFieldValueDto> template, string id)
+    {
+        return new DynamicRecordDto(
+            $"left-null-{id}",
+            template.Select(field => new DynamicFieldValueDto { Field = field.Field, ValueType = field.ValueType }).ToArray());
+    }
+
+    private static bool MatchJoin(DynamicRecordDto left, DynamicRecordDto right, IReadOnlyList<DynamicJoinConditionDto> conditions)
+    {
+        if (conditions.Count == 0)
+        {
+            return true;
+        }
+
+        foreach (var condition in conditions)
+        {
+            var lv = ReadAsString(left.Values.FirstOrDefault(v => string.Equals(v.Field, condition.LeftField, StringComparison.OrdinalIgnoreCase)));
+            var rv = ReadAsString(right.Values.FirstOrDefault(v => string.Equals(v.Field, condition.RightField, StringComparison.OrdinalIgnoreCase)));
+            if (!string.Equals(lv, rv, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static DynamicRecordDto MergeRows(DynamicRecordDto left, DynamicRecordDto right)
+    {
+        var values = new List<DynamicFieldValueDto>();
+        values.AddRange(left.Values);
+        foreach (var value in right.Values)
+        {
+            if (values.All(v => !string.Equals(v.Field, value.Field, StringComparison.OrdinalIgnoreCase)))
+            {
+                values.Add(value);
+            }
+        }
+
+        return new DynamicRecordDto($"{left.Id}|{right.Id}", values);
+    }
+
+    private async Task<List<DynamicRecordDto>> ExecuteUnionAsync(
+        TenantId tenantId,
+        long? appId,
+        DynamicUnionPlanDto unionPlan,
+        DynamicViewRecordsQueryRequest request,
+        List<DynamicRecordDto> current,
+        CancellationToken cancellationToken)
+    {
+        var inputs = new List<List<DynamicRecordDto>> { current };
+        foreach (var table in unionPlan.Inputs.Skip(1))
+        {
+            var result = await QueryTableRowsAsync(tenantId, appId, table, request, cancellationToken);
+            inputs.Add(result.Items.ToList());
+        }
+
+        return string.Equals(unionPlan.Mode, "byPosition", StringComparison.OrdinalIgnoreCase)
+            ? UnionByPosition(inputs)
+            : UnionByName(inputs);
+    }
+
+    private static List<DynamicRecordDto> UnionByName(List<List<DynamicRecordDto>> sets)
+    {
+        var allFields = sets.SelectMany(set => set.SelectMany(row => row.Values.Select(v => v.Field))).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        var rows = new List<DynamicRecordDto>();
+        foreach (var set in sets)
+        {
+            foreach (var row in set)
+            {
+                var values = allFields.Select(field => row.Values.FirstOrDefault(v => string.Equals(v.Field, field, StringComparison.OrdinalIgnoreCase))
+                    ?? new DynamicFieldValueDto { Field = field, ValueType = "String" }).ToArray();
+                rows.Add(new DynamicRecordDto(row.Id, values));
+            }
+        }
+
+        return rows;
+    }
+
+    private static List<DynamicRecordDto> UnionByPosition(List<List<DynamicRecordDto>> sets)
+    {
+        var template = sets.SelectMany(set => set).FirstOrDefault()?.Values.Select(v => v.Field).ToArray() ?? Array.Empty<string>();
+        var rows = new List<DynamicRecordDto>();
+        foreach (var set in sets)
+        {
+            foreach (var row in set)
+            {
+                var ordered = row.Values.ToArray();
+                var mapped = new List<DynamicFieldValueDto>();
+                for (var i = 0; i < template.Length; i++)
+                {
+                    if (i < ordered.Length)
+                    {
+                        mapped.Add(ordered[i] with { Field = template[i] });
+                    }
+                    else
+                    {
+                        mapped.Add(new DynamicFieldValueDto { Field = template[i], ValueType = "String" });
+                    }
+                }
+
+                rows.Add(new DynamicRecordDto(row.Id, mapped));
+            }
+        }
+
+        return rows;
+    }
+
+    private static List<DynamicRecordDto> ExecuteAggregate(List<DynamicRecordDto> items, DynamicAggregatePlanDto plan)
+    {
+        if (plan.GroupBy.Count == 0)
+        {
+            return items;
+        }
+
+        var groups = items.GroupBy(item => string.Join("||", plan.GroupBy.Select(field => ReadField(item, field))));
+        var result = new List<DynamicRecordDto>();
+        foreach (var group in groups)
+        {
+            var values = new List<DynamicFieldValueDto>();
+            var first = group.First();
+            foreach (var groupKey in plan.GroupBy)
+            {
+                var field = first.Values.FirstOrDefault(v => string.Equals(v.Field, groupKey, StringComparison.OrdinalIgnoreCase));
+                if (field is not null)
+                {
+                    values.Add(field);
+                }
+            }
+
+            foreach (var aggregate in plan.Aggregates)
+            {
+                values.Add(ComputeAggregate(group.ToList(), aggregate));
+            }
+
+            result.Add(new DynamicRecordDto(group.Key, values));
+        }
+
+        return result;
+    }
+
+    private static DynamicFieldValueDto ComputeAggregate(List<DynamicRecordDto> group, DynamicAggregateItemDto aggregate)
+    {
+        var fn = aggregate.Function.ToLowerInvariant();
+        var alias = string.IsNullOrWhiteSpace(aggregate.Alias) ? $"{aggregate.Function}_{aggregate.Field}" : aggregate.Alias;
+        var values = group
+            .Select(row => row.Values.FirstOrDefault(v => string.Equals(v.Field, aggregate.Field, StringComparison.OrdinalIgnoreCase)))
+            .Where(x => x is not null)
+            .Select(ReadAsDecimal)
+            .Where(x => x.HasValue)
+            .Select(x => x!.Value)
+            .ToList();
+
+        return fn switch
+        {
+            "count" => new DynamicFieldValueDto { Field = alias, ValueType = "Long", LongValue = group.Count },
+            "sum" => new DynamicFieldValueDto { Field = alias, ValueType = "Decimal", DecimalValue = values.Sum() },
+            "avg" => new DynamicFieldValueDto { Field = alias, ValueType = "Decimal", DecimalValue = values.Count == 0 ? 0 : values.Average() },
+            "min" => new DynamicFieldValueDto { Field = alias, ValueType = "Decimal", DecimalValue = values.Count == 0 ? 0 : values.Min() },
+            "max" => new DynamicFieldValueDto { Field = alias, ValueType = "Decimal", DecimalValue = values.Count == 0 ? 0 : values.Max() },
+            _ => new DynamicFieldValueDto { Field = alias, ValueType = "Long", LongValue = group.Count }
+        };
+    }
+
+    private static decimal? ReadAsDecimal(DynamicFieldValueDto? value)
+    {
+        if (value is null)
+        {
+            return null;
+        }
+        return value.ValueType switch
+        {
+            "Int" => value.IntValue,
+            "Long" => value.LongValue,
+            "Decimal" => value.DecimalValue,
+            "String" or "Text" => decimal.TryParse(value.StringValue, NumberStyles.Any, CultureInfo.InvariantCulture, out var d) ? d : null,
+            _ => null
+        };
+    }
+
+    private static string ReadField(DynamicRecordDto row, string field)
+    {
+        return ReadAsString(row.Values.FirstOrDefault(v => string.Equals(v.Field, field, StringComparison.OrdinalIgnoreCase))) ?? string.Empty;
+    }
+
+    private static List<DynamicRecordDto> ProjectItems(List<DynamicRecordDto> items, IReadOnlyList<DynamicViewFieldPlan> mappings)
+    {
+        return items.Select(item => new DynamicRecordDto(item.Id, mappings.Select(mapping => ProjectField(item, mapping)).ToArray())).ToList();
     }
 
     private static DynamicFieldValueDto ProjectField(DynamicRecordDto item, DynamicViewFieldPlan mapping)
@@ -143,6 +427,7 @@ public sealed class DynamicViewRuntime
             "concat" => ApplyConcat(value, op.Args),
             "expr" => ApplyExpr(value, op.Args),
             "cast" => ApplyCastOp(value, op.Args),
+            "lookup" => ApplyLookup(value, op.Args),
             _ => value
         };
     }
@@ -177,7 +462,6 @@ public sealed class DynamicViewRuntime
             return value;
         }
 
-        // P0：仅支持常量表达式占位，复杂表达式后续由专用引擎接管
         if ((expr.StartsWith('\"') && expr.EndsWith('\"')) || (expr.StartsWith('\'') && expr.EndsWith('\'')))
         {
             return value with { ValueType = "String", StringValue = expr[1..^1] };
@@ -192,6 +476,22 @@ public sealed class DynamicViewRuntime
             ? Convert.ToString(targetTypeObj, CultureInfo.InvariantCulture) ?? "String"
             : "String";
         return CastValue(value, target, null);
+    }
+
+    private static DynamicFieldValueDto ApplyLookup(DynamicFieldValueDto value, Dictionary<string, object?>? args)
+    {
+        var source = ReadAsString(value) ?? string.Empty;
+        if (args is null || !args.TryGetValue("map", out var mapObj) || mapObj is not JsonElement json || json.ValueKind != JsonValueKind.Object)
+        {
+            return value;
+        }
+
+        if (json.TryGetProperty(source, out var matched))
+        {
+            return value with { ValueType = "String", StringValue = matched.ToString() };
+        }
+
+        return value;
     }
 
     private static DynamicFieldValueDto CastValue(DynamicFieldValueDto value, string targetType, string? onError)
@@ -305,8 +605,12 @@ public sealed class DynamicViewRuntime
     private static bool? TryParseBool(string? text) => bool.TryParse(text, out var value) ? value : null;
     private static DateTimeOffset? TryParseDateTime(string? text) => DateTimeOffset.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var value) ? value : null;
 
-    private static string? ReadAsString(DynamicFieldValueDto value)
+    private static string? ReadAsString(DynamicFieldValueDto? value)
     {
+        if (value is null)
+        {
+            return null;
+        }
         return value.ValueType switch
         {
             "String" or "Text" => value.StringValue,
@@ -318,6 +622,22 @@ public sealed class DynamicViewRuntime
             "Date" => value.DateValue?.ToString("O", CultureInfo.InvariantCulture),
             _ => value.StringValue
         };
+    }
+
+    private static IReadOnlyList<DynamicColumnDef> BuildColumns(List<DynamicRecordDto> items, IReadOnlyList<DynamicViewFieldPlan> mappings)
+    {
+        if (mappings.Count > 0)
+        {
+            return mappings.Select(mapping => new DynamicColumnDef(mapping.TargetFieldKey, string.IsNullOrWhiteSpace(mapping.TargetLabel) ? mapping.TargetFieldKey : mapping.TargetLabel, mapping.TargetType, true, true, false)).ToArray();
+        }
+
+        var first = items.FirstOrDefault();
+        if (first is null)
+        {
+            return Array.Empty<DynamicColumnDef>();
+        }
+
+        return first.Values.Select(value => new DynamicColumnDef(value.Field, value.Field, value.ValueType, true, true, false)).ToArray();
     }
 
     private static DynamicRecordListResult ApplyViewPostProcessing(DynamicRecordListResult result, DynamicViewExecutionPlan plan)

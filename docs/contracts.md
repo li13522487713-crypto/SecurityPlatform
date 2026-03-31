@@ -3144,6 +3144,49 @@ type EvaluationCaseStatus = 0 | 1 | 2 | 3; // Pending / Passed / Failed / Error
 - `GET /api/v1/dynamic-tables/{tableKey}/delete-check`
 - `GET /api/v1/dynamic-views/{viewKey}/delete-check`
 
+### Dynamic Views（P1 增量）
+
+- `POST /api/v1/dynamic-views/preview-sql`（需 `Idempotency-Key` + `X-CSRF-TOKEN`）
+- `DynamicViewSqlPreviewDto`
+  - `sql: string`
+  - `parameters: Array<{ name: string; value: unknown }>`
+  - `warnings: string[]`
+  - `fullyPushdown: boolean`
+- 执行语义扩展：
+  - `join` 支持 `inner/left/right/full`（`right/full` 在 SQLite 场景允许运行时补偿）
+  - `union` 支持 `byName/byPosition`
+  - `aggregate` 要求节点配置与 `definition.groupBy` 一致，不一致返回业务错误 `DynamicViewAggregateGroupByMismatch`
+
+### Dynamic Transform Jobs（P2 骨架）
+
+- `GET /api/v1/dynamic-transform-jobs`
+- `POST /api/v1/dynamic-transform-jobs`（需 `Idempotency-Key` + `X-CSRF-TOKEN`）
+- `POST /api/v1/dynamic-transform-jobs/{jobKey}/run`（需 `Idempotency-Key` + `X-CSRF-TOKEN`）
+- `POST /api/v1/dynamic-transform-jobs/{jobKey}/pause`（需 `Idempotency-Key` + `X-CSRF-TOKEN`）
+- `GET /api/v1/dynamic-transform-jobs/{jobKey}/history`
+- DTO：
+  - `DynamicTransformJobDto { id, appId, jobKey, name, status, definitionJson, createdAt, updatedAt }`
+  - `DynamicTransformExecutionDto { id, jobKey, status, startedAt, endedAt, message }`
+
+### 外部数据源抽取（P2 骨架）
+
+- `POST /api/v1/dynamic-views/external-extract/preview`（需 `Idempotency-Key` + `X-CSRF-TOKEN`）
+- 请求：`DynamicExternalExtractPreviewRequest { dataSourceId, sql, limit }`
+- 返回：`DynamicExternalExtractPreviewResult { success, errorMessage, columns[], rows[] }`
+
+### 物理 VIEW 发布（P2 骨架）
+
+- `POST /api/v1/dynamic-views/{viewKey}/publish-physical`（需 `Idempotency-Key` + `X-CSRF-TOKEN`）
+- 请求：`DynamicPhysicalViewPublishRequest { replaceIfExists, physicalViewName }`
+- 返回：`DynamicPhysicalViewPublishResult { viewKey, physicalViewName, success, message }`
+
+### 批量导入 / Excel 粘贴（P2 骨架）
+
+- `POST /api/v1/dynamic-tables/{tableKey}/records/import`（需 `Idempotency-Key` + `X-CSRF-TOKEN`）
+- `POST /api/v1/dynamic-tables/{tableKey}/records/excel-paste`（需 `Idempotency-Key` + `X-CSRF-TOKEN`）
+- 请求：`DynamicRecordImportRequest { format, content, dryRun }`
+- 返回：`DynamicRecordImportResult { totalRows, importedRows, skippedRows, warnings[], errors[] }`
+
 `DeleteCheckResult`:
 
 ```json
@@ -3160,6 +3203,59 @@ type EvaluationCaseStatus = 0 | 1 | 2 | 3; // Pending / Passed / Failed / Error
   "warnings": []
 }
 ```
+
+### Dynamic Transform Jobs（P2 全量）
+
+- `GET /api/v1/dynamic-transform-jobs`
+- `GET /api/v1/dynamic-transform-jobs/{jobKey}`
+- `POST /api/v1/dynamic-transform-jobs`（需 `Idempotency-Key` + `X-CSRF-TOKEN`）
+- `PUT /api/v1/dynamic-transform-jobs/{jobKey}`（需 `Idempotency-Key` + `X-CSRF-TOKEN`）
+- `POST /api/v1/dynamic-transform-jobs/{jobKey}/run`（需 `Idempotency-Key` + `X-CSRF-TOKEN`）
+- `POST /api/v1/dynamic-transform-jobs/{jobKey}/pause`（需 `Idempotency-Key` + `X-CSRF-TOKEN`）
+- `POST /api/v1/dynamic-transform-jobs/{jobKey}/resume`（需 `Idempotency-Key` + `X-CSRF-TOKEN`）
+- `DELETE /api/v1/dynamic-transform-jobs/{jobKey}`（需 `Idempotency-Key` + `X-CSRF-TOKEN`）
+- `GET /api/v1/dynamic-transform-jobs/{jobKey}/history?PageIndex=&PageSize=`
+- `GET /api/v1/dynamic-transform-jobs/{jobKey}/executions/{executionId}`
+- `DynamicTransformJobDto`
+  - `id, appId, jobKey, name, status, cronExpression, enabled, lastRunAt, lastRunStatus, lastError, sourceConfigJson, targetConfigJson, definitionJson, createdAt, updatedAt`
+- `DynamicTransformExecutionDto`
+  - `id, jobKey, status, triggerType, inputRows, outputRows, failedRows, durationMs, errorDetailJson, startedBy, startedAt, endedAt, message`
+
+### 外部数据源抽取（P2 全量）
+
+- `GET /api/v1/dynamic-views/external-extract/data-sources`
+- `GET /api/v1/dynamic-views/external-extract/{dataSourceId}/schema`
+- `POST /api/v1/dynamic-views/external-extract/preview`（需 `Idempotency-Key` + `X-CSRF-TOKEN`）
+- 安全约束：仅允许当前应用绑定且启用的数据源，SQL 仅允许 `SELECT/CTE` 预览。
+- `DynamicExternalExtractPreviewResult`
+  - `success, errorMessage, columns[{name,type}], rows[]`
+
+### 物理 VIEW 发布（P2 全量）
+
+- `POST /api/v1/dynamic-views/{viewKey}/publish-physical`（需 `Idempotency-Key` + `X-CSRF-TOKEN`）
+- `GET /api/v1/dynamic-views/{viewKey}/physical-publications`
+- `POST /api/v1/dynamic-views/{viewKey}/physical-rollback/{version}`（需 `Idempotency-Key` + `X-CSRF-TOKEN`）
+- `DELETE /api/v1/dynamic-views/{viewKey}/physical-publications/{publicationId}`（需 `Idempotency-Key` + `X-CSRF-TOKEN`）
+- 约束：`fullyPushdown=true` 才允许发布物理 VIEW；否则返回业务错误。
+- `DynamicPhysicalViewPublishResult`
+  - `viewKey, publicationId, version, physicalViewName, dataSourceId, status, publishedAt, success, message`
+- `DynamicPhysicalViewPublicationDto`
+  - `id, viewKey, version, physicalViewName, status, comment, dataSourceId, publishedBy, publishedAt`
+
+### 批量导入 / Excel 粘贴（P2 全量）
+
+- `POST /api/v1/dynamic-tables/{tableKey}/records/import/analyze`（`multipart/form-data`，需 `Idempotency-Key` + `X-CSRF-TOKEN`）
+- `POST /api/v1/dynamic-tables/{tableKey}/records/import/commit`（需 `Idempotency-Key` + `X-CSRF-TOKEN`）
+- `POST /api/v1/dynamic-tables/{tableKey}/records/import`（兼容入口）
+- `POST /api/v1/dynamic-tables/{tableKey}/records/excel-paste`（需 `Idempotency-Key` + `X-CSRF-TOKEN`）
+- `DynamicRecordImportAnalyzeResult`
+  - `sessionId, format, headers[], suggestedMappings[], previewRowCount, previewRows[]`
+- `DynamicRecordImportCommitRequest`
+  - `sessionId, dryRun, batchSize, mappings[]`
+- `DynamicRecordImportResult`
+  - `totalRows, importedRows, skippedRows, warnings[], errors[], rowErrors[]`
+- `DynamicRecordImportRowError`
+  - `rowIndex, field, errorCode, message`
 
 错误码建议：
 
@@ -3349,3 +3445,78 @@ type EvaluationCaseStatus = 0 | 1 | 2 | 3; // Pending / Passed / Failed / Error
 - 最后将 `securityPolicies` 映射到 `DynamicFieldPermissionUpsertRequest`
 - `confirm-create` 必须携带 `Idempotency-Key` 与 `X-CSRF-TOKEN`
 - 当 `openQuestions` 非空时，后端必须拒绝确认创建
+
+## Team Agent 第二阶段契约增量
+
+### 列表筛选与工作台聚合
+
+- `GET /api/v1/team-agents`
+  - 新增查询参数：
+    - `teamMode=GroupChat|Workflow|Handoff`
+    - `status=Draft|Active|Disabled`
+    - `capabilityTag=<tag>`
+    - `defaultEntrySkill=<skill>`
+- `GET /api/v1/team-agents/dashboard`
+  - 返回：
+    - `totalCount`
+    - `teamCount`
+    - `availableSubAgentCount`
+    - `recentRunCount`
+    - `schemaBuilderCount`
+    - `recentActivities[]`
+
+### 成员绑定模型
+
+- `TeamAgentMemberInput.agentId` 改为可空。
+- `TeamAgentMemberItem` 新增：
+  - `bindingState: "bound" | "unbound"`
+- 约束：
+  - 启用成员必须绑定单 Agent。
+  - 整个 Team 至少一个启用且已绑定成员。
+
+### 模板创建
+
+- `POST /api/v1/team-agents/from-template`
+  - 新增 `memberBindings[]`
+
+```json
+{
+  "templateKey": "schema_builder",
+  "name": "模板创建的数据建模团队",
+  "description": "模板创建示例",
+  "memberBindings": [
+    {
+      "roleName": "业务分析 Agent",
+      "agentId": 1,
+      "isEnabled": true
+    }
+  ]
+}
+```
+
+### 发布历史
+
+- `POST /api/v1/team-agents/{id}/publish`
+  - 请求体：
+
+```json
+{
+  "releaseNote": "阶段二官方运行时与发布快照"
+}
+```
+
+- `GET /api/v1/team-agent-publications/team-agents/{id}`
+
+### Schema Draft 列表
+
+- `GET /api/v1/team-agents/{id}/schema-drafts`
+
+### 旧 Multi-Agent 迁移
+
+- `POST /api/v1/team-agents/migrations/multi-agent-orchestrations`
+
+```json
+{
+  "legacyIds": [1001, 1002]
+}
+```
