@@ -14,12 +14,25 @@
       layout="vertical"
       :rules="formRules"
     >
+      <a-row :gutter="12">
+        <a-col :span="12">
+          <a-form-item :label="t('relationConfigModal.sourceTable')">
+            <a-input :value="sourceTableKey" readonly />
+          </a-form-item>
+        </a-col>
+        <a-col :span="12">
+          <a-form-item :label="t('relationConfigModal.targetTable')">
+            <a-input :value="targetTableKey" readonly />
+          </a-form-item>
+        </a-col>
+      </a-row>
+
       <!-- 关系类型 -->
       <a-form-item :label="t('relationConfigModal.relationType')" name="relationType">
         <a-select v-model:value="form.relationType" :placeholder="t('common.select')">
-          <a-select-option value="MasterDetail">MasterDetail（主从）</a-select-option>
-          <a-select-option value="Lookup">Lookup（查找）</a-select-option>
-          <a-select-option value="PolymorphicLookup">PolymorphicLookup（多态查找）</a-select-option>
+          <a-select-option value="MasterDetail">{{ t("relationConfigModal.relationTypeMasterDetail") }}</a-select-option>
+          <a-select-option value="Lookup">{{ t("relationConfigModal.relationTypeLookup") }}</a-select-option>
+          <a-select-option value="PolymorphicLookup">{{ t("relationConfigModal.relationTypePolymorphicLookup") }}</a-select-option>
         </a-select>
       </a-form-item>
 
@@ -35,13 +48,25 @@
       <!-- 源字段 -->
       <a-row :gutter="12">
         <a-col :span="12">
-          <a-form-item :label="`${t('relationConfigModal.sourceField')} (${sourceTableKey})`" name="sourceField">
-            <a-input v-model:value="form.sourceField" :placeholder="t('relationConfigModal.sourceFieldPlaceholder')" />
+          <a-form-item :label="t('relationConfigModal.sourceField')" name="sourceField">
+            <a-select
+              v-model:value="form.sourceField"
+              show-search
+              :placeholder="t('relationConfigModal.sourceFieldPlaceholder')"
+              :options="sourceFieldOptions"
+              option-filter-prop="label"
+            />
           </a-form-item>
         </a-col>
         <a-col :span="12">
-          <a-form-item :label="`${t('relationConfigModal.targetField')} (${targetTableKey})`" name="targetField">
-            <a-input v-model:value="form.targetField" placeholder="id" />
+          <a-form-item :label="t('relationConfigModal.targetField')" name="targetField">
+            <a-select
+              v-model:value="form.targetField"
+              show-search
+              :placeholder="t('relationConfigModal.targetFieldPlaceholder')"
+              :options="targetFieldOptions"
+              option-filter-prop="label"
+            />
           </a-form-item>
         </a-col>
       </a-row>
@@ -81,6 +106,7 @@
 import { reactive, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import type { Rule } from "ant-design-vue/es/form";
+import type { DynamicFieldDefinition } from "@/types/dynamic-tables";
 import type { DynamicRelationDefinition } from "@/types/dynamic-tables";
 import RollupConfigPanel from "./RollupConfigPanel.vue";
 
@@ -88,6 +114,8 @@ const props = defineProps<{
   open: boolean;
   sourceTableKey: string;
   targetTableKey: string;
+  sourceFields: DynamicFieldDefinition[];
+  targetFields: DynamicFieldDefinition[];
   initialValue?: DynamicRelationDefinition;
 }>();
 
@@ -123,21 +151,34 @@ const defaultForm = (): RelationForm => ({
 
 const form = reactive<RelationForm>(defaultForm());
 
+const sourceFieldOptions = ref<Array<{ label: string; value: string }>>([]);
+const targetFieldOptions = ref<Array<{ label: string; value: string }>>([]);
+
 watch(
   () => props.open,
   (open) => {
     if (open) {
+      sourceFieldOptions.value = props.sourceFields.map((field) => ({
+        label: `${field.displayName || field.name} (${field.name})`,
+        value: field.name
+      }));
+      targetFieldOptions.value = props.targetFields.map((field) => ({
+        label: `${field.displayName || field.name} (${field.name})`,
+        value: field.name
+      }));
       const iv = props.initialValue;
       if (iv) {
         form.relationType = iv.relationType ?? "MasterDetail";
         form.multiplicity = (iv.multiplicity as RelationForm["multiplicity"]) ?? "OneToMany";
-        form.sourceField = iv.sourceField ?? "id";
-        form.targetField = iv.targetField ?? `${props.sourceTableKey}Id`;
+        form.sourceField = iv.sourceField ?? sourceFieldOptions.value[0]?.value ?? "";
+        form.targetField = iv.targetField ?? targetFieldOptions.value[0]?.value ?? "";
         form.onDeleteAction = (iv.onDeleteAction as RelationForm["onDeleteAction"]) ?? "NoAction";
         form.enableRollup = iv.enableRollup ?? false;
         form.rollupDefinitionsJson = iv.rollupDefinitionsJson ?? "[]";
       } else {
         Object.assign(form, defaultForm());
+        form.sourceField = sourceFieldOptions.value[0]?.value ?? "";
+        form.targetField = targetFieldOptions.value[0]?.value ?? "";
       }
     }
   },

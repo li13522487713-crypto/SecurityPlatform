@@ -17,9 +17,15 @@ import type {
 } from "@/types/dynamic-tables";
 import { requestApi } from "@/services/api-core";
 import type { RequestOptions } from "@/services/api-core";
+import { getAppAvailableDynamicTables } from "@/services/api-app-members";
 
 /** 与后端 PagedRequestValidator 中 PageSize 上限一致 */
 export const DYNAMIC_TABLES_MAX_PAGE_SIZE = 200;
+
+export interface AppScopedDynamicTableListItem {
+  tableKey: string;
+  displayName: string;
+}
 
 /**
  * 按页拉取当前应用下全部动态表（多页拼接，每页不超过 {@link DYNAMIC_TABLES_MAX_PAGE_SIZE}）。
@@ -39,6 +45,20 @@ export async function getAllDynamicTables(keyword?: string, options?: RequestIni
     pageIndex += 1;
   }
   return collected;
+}
+
+/**
+ * 按应用范围查询动态表（用于数据管理工作台 / ERD 设计器）
+ */
+export async function getAppScopedDynamicTables(
+  appId: string,
+  keyword?: string
+): Promise<AppScopedDynamicTableListItem[]> {
+  const tables = await getAppAvailableDynamicTables(appId, keyword);
+  return tables.map((item) => ({
+    tableKey: item.tableKey,
+    displayName: item.displayName
+  }));
 }
 
 export async function getDynamicTablesPaged(pagedRequest: PagedRequest, options?: RequestInit & RequestOptions) {
@@ -67,6 +87,19 @@ export async function getDynamicTableFields(tableKey: string): Promise<DynamicFi
     throw new Error(response.message || "查询失败");
   }
   return response.data;
+}
+
+/**
+ * 批量加载字段定义，避免组件层重复拼接 Promise.all。
+ */
+export async function getDynamicTableFieldsBatch(
+  tableKeys: string[]
+): Promise<Record<string, DynamicFieldDefinition[]>> {
+  const uniqueKeys = Array.from(new Set(tableKeys.filter((key) => key.trim().length > 0)));
+  const pairs = await Promise.all(
+    uniqueKeys.map(async (tableKey) => [tableKey, await getDynamicTableFields(tableKey)] as const)
+  );
+  return Object.fromEntries(pairs);
 }
 
 export async function getDynamicFieldPermissions(tableKey: string): Promise<DynamicFieldPermissionRule[]> {

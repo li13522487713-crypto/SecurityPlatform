@@ -468,14 +468,19 @@ export async function setAppRoleFieldPermissions(appId: string, roleId: string, 
 
 // ===== 应用可用动态表（用于字段权限配置）=====
 
+export interface AppAvailableDynamicTableItem {
+  tableKey: string;
+  displayName: string;
+}
+
 export async function getAppAvailableDynamicTables(
   appId: string,
   keyword?: string
-): Promise<Array<{ tableKey: string; displayName: string }>> {
+): Promise<AppAvailableDynamicTableItem[]> {
   const params = new URLSearchParams();
   if (keyword?.trim()) params.set("keyword", keyword.trim());
   const query = params.toString() ? `?${params.toString()}` : "";
-  const response = await requestApi<ApiResponse<Array<{ tableKey: string; displayName: string }>>>(
+  const response = await requestApi<ApiResponse<AppAvailableDynamicTableItem[]>>(
     `/api/v2/tenant-app-instances/${appId}/roles/available-dynamic-tables${query}`
   );
   if (!response.data) throw new Error(response.message || "获取应用动态表失败");

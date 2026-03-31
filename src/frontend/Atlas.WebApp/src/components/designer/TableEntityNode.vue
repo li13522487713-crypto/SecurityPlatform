@@ -39,12 +39,12 @@
 import { ref, onMounted } from "vue";
 import { Handle, Position } from "@vue-flow/core";
 import { TableOutlined, KeyOutlined, CloseOutlined } from "@ant-design/icons-vue";
-import type { DynamicTableListItem, DynamicFieldDefinition } from "@/types/dynamic-tables";
+import type { DynamicFieldDefinition } from "@/types/dynamic-tables";
 import { getDynamicTableFields } from "@/services/dynamic-tables";
 
 const props = defineProps<{
   id: string;
-  data: { table: DynamicTableListItem };
+  data: { table: { tableKey: string; displayName: string } };
 }>();
 
 const emit = defineEmits<{
