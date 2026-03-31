@@ -3313,6 +3313,9 @@ type EvaluationCaseStatus = 0 | 1 | 2 | 3; // Pending / Passed / Failed / Error
 - `POST /api/v1/team-agents/{id}/publish`
 - `GET /api/v1/team-agents/templates`
 - `POST /api/v1/team-agents/from-template`
+- `GET /api/v1/team-agents/dashboard`
+- `POST /api/v1/team-agents/migrations/multi-agent-orchestrations`
+- `GET /api/v1/team-agents/migrations/multi-agent-orchestrations/status`
 - `GET /api/v1/team-agents/executions/{executionId}`
 
 ### Team Agent 会话接口
@@ -3340,6 +3343,20 @@ type EvaluationCaseStatus = 0 | 1 | 2 | 3; // Pending / Passed / Failed / Error
 - `conversation.completed`
 - `conversation.failed`
 
+### Team Agent SSE 顺序约束
+
+- 所有模式都必须先输出 `orchestration.runtime.selected`，再输出 `conversation.started`。
+- `GroupChat`
+  - 典型顺序：`orchestration.runtime.selected -> conversation.started -> round.started -> member.message -> execution.step -> schema.draft.updated? -> conversation.completed|conversation.failed`
+  - `round.started` 至少出现 1 次，后续可按轮次重复。
+- `Workflow`
+  - 典型顺序：`orchestration.runtime.selected -> conversation.started -> execution.step(按工作流节点顺序重复) -> schema.draft.updated? -> conversation.completed|conversation.failed`
+  - `round.started` 与 `member.message` 可选，不作为必须事件。
+- `Handoff`
+  - 典型顺序：`orchestration.runtime.selected -> conversation.started -> execution.step(按交接链顺序重复) -> conversation.completed|conversation.failed`
+  - 每个 `execution.step` 应能在明细中看出接手成员与上一步产物。
+- 当 `generateSchemaDraft=true` 且团队成功产出草案时，`schema.draft.updated` 应出现在结束事件之前。
+
 ### Team Agent 编排运行时
 
 - `GroupChat` 默认优先走 `Semantic Kernel Agents Orchestration`
@@ -3355,7 +3372,9 @@ type EvaluationCaseStatus = 0 | 1 | 2 | 3; // Pending / Passed / Failed / Error
 ### Schema Draft 接口
 
 - `POST /api/v1/team-agents/{id}/schema-drafts`
+- `GET /api/v1/team-agents/{id}/schema-drafts`
 - `GET /api/v1/team-agents/{id}/schema-drafts/{draftId}`
+- `GET /api/v1/team-agents/{id}/schema-drafts/{draftId}/execution-audits`
 - `PUT /api/v1/team-agents/{id}/schema-drafts/{draftId}`
 - `POST /api/v1/team-agents/{id}/schema-drafts/{draftId}/confirm-create`
 - `POST /api/v1/team-agents/{id}/schema-drafts/{draftId}/discard`
@@ -3445,6 +3464,55 @@ type EvaluationCaseStatus = 0 | 1 | 2 | 3; // Pending / Passed / Failed / Error
 - 最后将 `securityPolicies` 映射到 `DynamicFieldPermissionUpsertRequest`
 - `confirm-create` 必须携带 `Idempotency-Key` 与 `X-CSRF-TOKEN`
 - 当 `openQuestions` 非空时，后端必须拒绝确认创建
+- 当同一 `Idempotency-Key` 对应不同 payload 时，后端必须返回 `409 / IDEMPOTENCY_CONFLICT`
+- 当草案已确认时，后端应直接返回已持久化的 `SchemaDraftConfirmationResponse`，而不是重复创建动态表
+- 动态表创建、关系写入、字段权限写入任一步失败时，后端必须尝试补偿删除已创建表
+- 无论成功、复用已确认结果、失败还是回滚失败，后端都必须写入 `execution-audits` 明细
+
+### Schema Draft 执行审计对象
+
+`GET /api/v1/team-agents/{id}/schema-drafts/{draftId}/execution-audits`
+
+```json
+[
+  {
+    "id": 1,
+    "draftId": 1001,
+    "sequence": 1,
+    "stage": "confirm-create",
+    "action": "create_table",
+    "status": "Success",
+    "resourceKey": "customer_123",
+    "resourceId": "20001",
+    "detail": "动态表创建成功",
+    "createdAt": "2026-04-01T08:00:00Z"
+  },
+  {
+    "id": 2,
+    "draftId": 1001,
+    "sequence": 2,
+    "stage": "confirm-create",
+    "action": "rollback_table",
+    "status": "Success",
+    "resourceKey": "customer_123",
+    "resourceId": "20001",
+    "detail": "创建失败后已回滚",
+    "createdAt": "2026-04-01T08:00:02Z"
+  }
+]
+```
+
+约束：
+
+- `sequence` 按同一草案内递增。
+- `status` 当前最少支持 `Success` / `Failed`。
+- `action` 典型值包括：
+  - `create_table`
+  - `set_relations`
+  - `set_field_permissions`
+  - `reuse_confirmed_result`
+  - `rollback_table`
+  - `rollback_failed`
 
 ## Team Agent 第二阶段契约增量
 
@@ -3514,9 +3582,33 @@ type EvaluationCaseStatus = 0 | 1 | 2 | 3; // Pending / Passed / Failed / Error
 ### 旧 Multi-Agent 迁移
 
 - `POST /api/v1/team-agents/migrations/multi-agent-orchestrations`
+- `GET /api/v1/team-agents/migrations/multi-agent-orchestrations/status`
 
 ```json
 {
   "legacyIds": [1001, 1002]
 }
 ```
+
+迁移状态返回要点：
+
+- `totalCount`
+- `migratedCount`
+- `pendingCount`
+- `items[]`
+  - `legacyId`
+  - `legacyName`
+  - `legacyMode`
+  - `migrationStatus`
+  - `teamAgentId`
+  - `teamAgentName`
+  - `migratedAt`
+  - `replacementApi`
+  - `sunsetAt`
+
+### 旧 Multi-Agent 弃用说明
+
+- `api/v1/multi-agent-orchestrations` 自 `2026-04-01` 起进入弃用窗口。
+- 替代资源为 `api/v1/team-agents`。
+- 当前弃用截止日期为 `2026-10-01`。
+- 弃用窗口内旧接口仅允许安全修复与关键缺陷修复，不再新增产品能力。

@@ -37,6 +37,7 @@ public static class AiPlatformServiceRegistration
         services.AddScoped<TeamAgentExecutionRepository>();
         services.AddScoped<TeamAgentExecutionStepRepository>();
         services.AddScoped<TeamAgentSchemaDraftRepository>();
+        services.AddScoped<TeamAgentSchemaDraftExecutionAuditRepository>();
         services.AddScoped<ShortTermMemoryRepository>();
         services.AddScoped<LongTermMemoryRepository>();
         services.AddScoped<KnowledgeBaseRepository>();

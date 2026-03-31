@@ -4,6 +4,7 @@ using Atlas.Core.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.WebApi.Authorization;
+using Atlas.WebApi.Attributes;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -13,6 +14,8 @@ namespace Atlas.WebApi.Controllers;
 [ApiController]
 [Route("api/v1/multi-agent-orchestrations")]
 [Authorize]
+[DeprecatedApi("multi-agent orchestrations v1 已进入兼容窗口", "/api/v1/team-agents", "2026-10-01")]
+[Obsolete("Deprecated since April 1, 2026. 请迁移到 /api/v1/team-agents 相关接口。")]
 public sealed class MultiAgentOrchestrationsController : ControllerBase
 {
     private readonly IMultiAgentOrchestrationService _service;

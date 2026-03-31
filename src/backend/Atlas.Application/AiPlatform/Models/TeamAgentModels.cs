@@ -201,6 +201,18 @@ public sealed record TeamAgentSchemaDraftListItem(
     DateTime UpdatedAt,
     DateTime? ConfirmedAt);
 
+public sealed record TeamAgentSchemaDraftExecutionAuditItem(
+    long Id,
+    long DraftId,
+    int Sequence,
+    string Stage,
+    string Action,
+    string Status,
+    string? ResourceKey,
+    string? ResourceId,
+    string? Detail,
+    DateTime CreatedAt);
+
 public sealed record TeamAgentPublicationListItem(
     long Id,
     long TeamAgentId,
@@ -227,6 +239,23 @@ public sealed record TeamAgentLegacyMigrationResult(
     int RequestedCount,
     int MigratedCount,
     IReadOnlyList<long> TeamAgentIds);
+
+public sealed record TeamAgentLegacyMigrationStatusItem(
+    long LegacyId,
+    string LegacyName,
+    string LegacyMode,
+    string MigrationStatus,
+    long? TeamAgentId,
+    string? TeamAgentName,
+    DateTime? MigratedAt,
+    string ReplacementApi,
+    string SunsetAt);
+
+public sealed record TeamAgentLegacyMigrationStatusDto(
+    int TotalCount,
+    int MigratedCount,
+    int PendingCount,
+    IReadOnlyList<TeamAgentLegacyMigrationStatusItem> Items);
 
 public sealed record SchemaDraftCreateRequest(
     string Requirement,

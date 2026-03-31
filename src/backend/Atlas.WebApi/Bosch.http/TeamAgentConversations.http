@@ -5,6 +5,16 @@
 @teamAgentId = 1
 @conversationId = 0
 @executionId = 0
+### 请按实际环境替换以下三个 Team Agent Id：
+### groupChatTeamAgentId = GroupChat 团队
+### workflowTeamAgentId = Workflow 团队
+### handoffTeamAgentId = Handoff 团队
+@groupChatTeamAgentId = 1
+@workflowTeamAgentId = 2
+@handoffTeamAgentId = 3
+@groupChatConversationId = 0
+@workflowConversationId = 0
+@handoffConversationId = 0
 
 ### 登录获取令牌
 # @name login
@@ -75,12 +85,12 @@ Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ### 团队聊天 SSE
-# 事件流应至少出现：
-# 1. orchestration.runtime.selected
-# 2. conversation.started
-# 3. round.started / member.message / execution.step
-# 4. schema.draft.updated（当 generateSchemaDraft=true）
-# 5. conversation.completed / conversation.failed
+# 手工验证基线：
+# 1. 所有模式都必须先出现 orchestration.runtime.selected，再出现 conversation.started。
+# 2. GroupChat 应出现 round.started -> member.message -> execution.step 的轮次型顺序。
+# 3. Workflow 应以 execution.step 为主，按节点顺序推进；如启用建表可出现 schema.draft.updated。
+# 4. Handoff 应体现显式交接链，execution.step 顺序应与 handoff 链一致。
+# 5. 结束事件必须是 conversation.completed 或 conversation.failed 二选一。
 POST {{baseUrl}}/api/v1/team-agents/{{teamAgentId}}/chat/stream
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
@@ -91,6 +101,108 @@ X-CSRF-TOKEN: {{csrfToken}}
 {
   "conversationId": {{conversationId}},
   "message": "流式模式下输出团队讨论过程。",
+  "enableRag": false,
+  "generateSchemaDraft": false
+}
+
+### 创建 GroupChat 验证会话
+# @name createGroupChatConversation
+POST {{baseUrl}}/api/v1/team-agents/{{groupChatTeamAgentId}}/conversations
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "title": "GroupChat 运行时验证"
+}
+
+###
+@groupChatConversationId = {{createGroupChatConversation.response.body.$.data.id}}
+
+### GroupChat 模式 SSE 验证
+# 期望顺序：
+# orchestration.runtime.selected -> conversation.started -> round.started
+# -> member.message -> execution.step -> schema.draft.updated(可选) -> conversation.completed|conversation.failed
+POST {{baseUrl}}/api/v1/team-agents/{{groupChatTeamAgentId}}/chat/stream
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "conversationId": {{groupChatConversationId}},
+  "message": "请用群聊模式讨论客户合同回款的数据结构。",
+  "enableRag": false,
+  "generateSchemaDraft": true
+}
+
+### 创建 Workflow 验证会话
+# @name createWorkflowConversation
+POST {{baseUrl}}/api/v1/team-agents/{{workflowTeamAgentId}}/conversations
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "title": "Workflow 运行时验证"
+}
+
+###
+@workflowConversationId = {{createWorkflowConversation.response.body.$.data.id}}
+
+### Workflow 模式 SSE 验证
+# 期望顺序：
+# orchestration.runtime.selected -> conversation.started
+# -> execution.step(按工作流节点顺序) -> schema.draft.updated(可选) -> conversation.completed|conversation.failed
+POST {{baseUrl}}/api/v1/team-agents/{{workflowTeamAgentId}}/chat/stream
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "conversationId": {{workflowConversationId}},
+  "message": "请按工作流顺序拆解客户、合同、回款实体并输出字段建议。",
+  "enableRag": false,
+  "generateSchemaDraft": true
+}
+
+### 创建 Handoff 验证会话
+# @name createHandoffConversation
+POST {{baseUrl}}/api/v1/team-agents/{{handoffTeamAgentId}}/conversations
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "title": "Handoff 运行时验证"
+}
+
+###
+@handoffConversationId = {{createHandoffConversation.response.body.$.data.id}}
+
+### Handoff 模式 SSE 验证
+# 期望顺序：
+# orchestration.runtime.selected -> conversation.started
+# -> execution.step(按 handoff 链路顺序) -> conversation.completed|conversation.failed
+POST {{baseUrl}}/api/v1/team-agents/{{handoffTeamAgentId}}/chat/stream
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "conversationId": {{handoffConversationId}},
+  "message": "请按接力模式完成客户合同回款结构梳理。",
   "enableRag": false,
   "generateSchemaDraft": false
 }

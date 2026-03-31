@@ -4,9 +4,11 @@ using System.Text.Json;
 using System.Threading.Channels;
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
+using Atlas.Application.Audit.Abstractions;
 using Atlas.Application.DynamicTables.Abstractions;
 using Atlas.Application.DynamicTables.Models;
 using Atlas.Core.Abstractions;
+using Atlas.Core.Identity;
 using Atlas.Core.Exceptions;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
@@ -29,11 +31,13 @@ public sealed class TeamAgentService : ITeamAgentService
     private readonly TeamAgentExecutionRepository _executionRepository;
     private readonly TeamAgentExecutionStepRepository _executionStepRepository;
     private readonly TeamAgentSchemaDraftRepository _schemaDraftRepository;
+    private readonly TeamAgentSchemaDraftExecutionAuditRepository _schemaDraftAuditRepository;
     private readonly MultiAgentOrchestrationRepository _multiAgentRepository;
     private readonly AgentRepository _agentRepository;
     private readonly ITeamAgentOrchestrationRuntime _orchestrationRuntime;
     private readonly ITeamAgentSchemaDraftComposer _schemaDraftComposer;
     private readonly IDynamicTableCommandService _dynamicTableCommandService;
+    private readonly IAuditRecorder _auditRecorder;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly IUnitOfWork _unitOfWork;
 
@@ -47,11 +51,13 @@ public sealed class TeamAgentService : ITeamAgentService
         TeamAgentExecutionRepository executionRepository,
         TeamAgentExecutionStepRepository executionStepRepository,
         TeamAgentSchemaDraftRepository schemaDraftRepository,
+        TeamAgentSchemaDraftExecutionAuditRepository schemaDraftAuditRepository,
         MultiAgentOrchestrationRepository multiAgentRepository,
         AgentRepository agentRepository,
         ITeamAgentOrchestrationRuntime orchestrationRuntime,
         ITeamAgentSchemaDraftComposer schemaDraftComposer,
         IDynamicTableCommandService dynamicTableCommandService,
+        IAuditRecorder auditRecorder,
         IIdGeneratorAccessor idGeneratorAccessor,
         IUnitOfWork unitOfWork)
     {
@@ -64,11 +70,13 @@ public sealed class TeamAgentService : ITeamAgentService
         _executionRepository = executionRepository;
         _executionStepRepository = executionStepRepository;
         _schemaDraftRepository = schemaDraftRepository;
+        _schemaDraftAuditRepository = schemaDraftAuditRepository;
         _multiAgentRepository = multiAgentRepository;
         _agentRepository = agentRepository;
         _orchestrationRuntime = orchestrationRuntime;
         _schemaDraftComposer = schemaDraftComposer;
         _dynamicTableCommandService = dynamicTableCommandService;
+        _auditRecorder = auditRecorder;
         _idGeneratorAccessor = idGeneratorAccessor;
         _unitOfWork = unitOfWork;
     }
@@ -385,6 +393,41 @@ public sealed class TeamAgentService : ITeamAgentService
         return new TeamAgentLegacyMigrationResult(legacyItems.Count, createdTeamAgentIds.Count, createdTeamAgentIds);
     }
 
+    public async Task<TeamAgentLegacyMigrationStatusDto> GetLegacyMigrationStatusAsync(
+        TenantId tenantId,
+        CancellationToken cancellationToken)
+    {
+        var (legacyItems, _) = await _multiAgentRepository.GetPagedAsync(tenantId, null, 1, int.MaxValue, cancellationToken);
+        var teamAgents = await _teamAgentRepository.GetAllAsync(tenantId, cancellationToken);
+        var migrationMap = teamAgents
+            .Where(item => string.Equals(item.LegacySourceType, "multi-agent-orchestration", StringComparison.OrdinalIgnoreCase)
+                && !string.IsNullOrWhiteSpace(item.LegacySourceId))
+            .ToDictionary(item => item.LegacySourceId!, StringComparer.OrdinalIgnoreCase);
+
+        var items = legacyItems
+            .Select(legacy =>
+            {
+                var migrated = migrationMap.GetValueOrDefault(legacy.Id.ToString());
+                return new TeamAgentLegacyMigrationStatusItem(
+                    legacy.Id,
+                    legacy.Name,
+                    legacy.Mode.ToString(),
+                    migrated is null ? "pending" : "migrated",
+                    migrated?.Id,
+                    migrated?.Name,
+                    migrated?.CreatedAt,
+                    "/api/v1/team-agents",
+                    "2026-10-01");
+            })
+            .OrderBy(item => item.MigrationStatus, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(item => item.LegacyName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(item => item.LegacyId)
+            .ToList();
+
+        var migratedCount = items.Count(item => string.Equals(item.MigrationStatus, "migrated", StringComparison.OrdinalIgnoreCase));
+        return new TeamAgentLegacyMigrationStatusDto(items.Count, migratedCount, items.Count - migratedCount, items);
+    }
+
     public async Task<long> CreateConversationAsync(
         TenantId tenantId,
         long teamAgentId,
@@ -637,6 +680,27 @@ public sealed class TeamAgentService : ITeamAgentService
             item.ConfirmedAt)).ToList();
     }
 
+    public async Task<IReadOnlyList<TeamAgentSchemaDraftExecutionAuditItem>> GetSchemaDraftExecutionAuditsAsync(
+        TenantId tenantId,
+        long teamAgentId,
+        long draftId,
+        CancellationToken cancellationToken)
+    {
+        _ = await RequireDraftAsync(tenantId, teamAgentId, draftId, cancellationToken);
+        var items = await _schemaDraftAuditRepository.GetByDraftIdAsync(tenantId, draftId, cancellationToken);
+        return items.Select(item => new TeamAgentSchemaDraftExecutionAuditItem(
+            item.Id,
+            item.DraftId,
+            item.Sequence,
+            item.Stage,
+            item.Action,
+            item.Status,
+            item.ResourceKey,
+            item.ResourceId,
+            item.Detail,
+            item.CreatedAt)).ToList();
+    }
+
     public async Task UpdateSchemaDraftAsync(
         TenantId tenantId,
         long teamAgentId,
@@ -647,6 +711,16 @@ public sealed class TeamAgentService : ITeamAgentService
     {
         _ = userId;
         var entity = await RequireDraftAsync(tenantId, teamAgentId, draftId, cancellationToken);
+        if (entity.ConfirmationState == TeamAgentSchemaDraftConfirmationState.Confirmed)
+        {
+            throw new BusinessException("已确认的草案不能再修改。", ErrorCodes.ValidationError);
+        }
+
+        if (entity.Status == TeamAgentSchemaDraftStatus.Discarded)
+        {
+            throw new BusinessException("已废弃的草案不能再修改。", ErrorCodes.ValidationError);
+        }
+
         entity.UpdateDraft(
             request.Title.Trim(),
             request.Requirement.Trim(),
@@ -669,54 +743,205 @@ public sealed class TeamAgentService : ITeamAgentService
         }
 
         var entity = await RequireDraftAsync(tenantId, teamAgentId, draftId, cancellationToken);
+        if (entity.Status == TeamAgentSchemaDraftStatus.Discarded)
+        {
+            throw new BusinessException("已废弃的草案不能再创建。", ErrorCodes.ValidationError);
+        }
+
+        var existingAudits = await _schemaDraftAuditRepository.GetByDraftIdAsync(tenantId, draftId, cancellationToken);
+        var auditSequence = existingAudits.Count;
+        var executionAudits = new List<TeamAgentSchemaDraftExecutionAudit>();
         var draft = DeserializeDraft(entity.DraftJson);
         if (draft.OpenQuestions.Count > 0)
         {
             throw new BusinessException("草案仍存在待确认问题，不能直接创建。", ErrorCodes.ValidationError);
         }
 
+        if (entity.ConfirmationState == TeamAgentSchemaDraftConfirmationState.Confirmed)
+        {
+            var existingResponse = BuildConfirmedDraftResponse(entity);
+            AddSchemaDraftAudit(
+                executionAudits,
+                tenantId,
+                entity.Id,
+                ref auditSequence,
+                "confirm-create",
+                "reuse_confirmed_result",
+                "completed",
+                null,
+                null,
+                "草案已确认，直接返回已创建资源。");
+            await PersistSchemaDraftAuditsAsync(executionAudits, cancellationToken);
+            return existingResponse;
+        }
+
         var resources = new List<SchemaDraftCreatedResourceDto>();
-        foreach (var table in draft.Entities)
+        try
         {
-            var fields = draft.Fields.Where(item => string.Equals(item.TableKey, table.TableKey, StringComparison.OrdinalIgnoreCase))
-                .OrderBy(item => item.SortOrder)
-                .Select(MapField)
-                .ToList();
-            var indexes = draft.Indexes.Where(item => string.Equals(item.TableKey, table.TableKey, StringComparison.OrdinalIgnoreCase))
-                .Select(index => new DynamicIndexDefinition(index.Name, index.IsUnique, index.Fields))
-                .ToList();
-            var createRequest = new DynamicTableCreateRequest(table.TableKey, table.DisplayName, table.Description, "Sqlite", fields, indexes, entity.AppId);
-            var createdId = await _dynamicTableCommandService.CreateAsync(tenantId, userId, createRequest, cancellationToken);
-            resources.Add(new SchemaDraftCreatedResourceDto(table.TableKey, createdId.ToString()));
-        }
+            AddSchemaDraftAudit(
+                executionAudits,
+                tenantId,
+                entity.Id,
+                ref auditSequence,
+                "confirm-create",
+                "validate_draft",
+                "completed",
+                null,
+                null,
+                $"实体数={draft.Entities.Count}, 关系数={draft.Relations.Count}, 权限规则数={draft.SecurityPolicies.Count}");
 
-        foreach (var table in draft.Entities)
-        {
-            var tableRelations = draft.Relations.Where(item => string.Equals(item.SourceTableKey, table.TableKey, StringComparison.OrdinalIgnoreCase))
-                .Select(relation => new DynamicRelationDefinition(relation.RelatedTableKey, relation.SourceField, relation.TargetField, relation.RelationType, relation.CascadeRule))
-                .ToList();
-            if (tableRelations.Count > 0)
+            foreach (var table in draft.Entities)
             {
-                await _dynamicTableCommandService.SetRelationsAsync(tenantId, userId, table.TableKey, new DynamicRelationUpsertRequest(tableRelations), cancellationToken);
+                var fields = draft.Fields.Where(item => string.Equals(item.TableKey, table.TableKey, StringComparison.OrdinalIgnoreCase))
+                    .OrderBy(item => item.SortOrder)
+                    .Select(MapField)
+                    .ToList();
+                var indexes = draft.Indexes.Where(item => string.Equals(item.TableKey, table.TableKey, StringComparison.OrdinalIgnoreCase))
+                    .Select(index => new DynamicIndexDefinition(index.Name, index.IsUnique, index.Fields))
+                    .ToList();
+                var createRequest = new DynamicTableCreateRequest(table.TableKey, table.DisplayName, table.Description, "Sqlite", fields, indexes, entity.AppId);
+                var createdId = await _dynamicTableCommandService.CreateAsync(tenantId, userId, createRequest, cancellationToken);
+                resources.Add(new SchemaDraftCreatedResourceDto(table.TableKey, createdId.ToString()));
+                AddSchemaDraftAudit(
+                    executionAudits,
+                    tenantId,
+                    entity.Id,
+                    ref auditSequence,
+                    "create-table",
+                    "create_dynamic_table",
+                    "completed",
+                    table.TableKey,
+                    createdId.ToString(),
+                    table.DisplayName);
             }
 
-            var permissions = draft.SecurityPolicies.Where(item => string.Equals(item.TableKey, table.TableKey, StringComparison.OrdinalIgnoreCase))
-                .Select(policy => new DynamicFieldPermissionRule(policy.FieldName, policy.RoleCode, policy.CanView, policy.CanEdit))
-                .ToList();
-            if (permissions.Count > 0)
+            foreach (var table in draft.Entities)
             {
-                await _dynamicTableCommandService.SetFieldPermissionsAsync(tenantId, userId, table.TableKey, new DynamicFieldPermissionUpsertRequest(permissions), cancellationToken);
-            }
-        }
+                var tableRelations = draft.Relations.Where(item => string.Equals(item.SourceTableKey, table.TableKey, StringComparison.OrdinalIgnoreCase))
+                    .Select(relation => new DynamicRelationDefinition(relation.RelatedTableKey, relation.SourceField, relation.TargetField, relation.RelationType, relation.CascadeRule))
+                    .ToList();
+                if (tableRelations.Count > 0)
+                {
+                    await _dynamicTableCommandService.SetRelationsAsync(tenantId, userId, table.TableKey, new DynamicRelationUpsertRequest(tableRelations), cancellationToken);
+                    AddSchemaDraftAudit(
+                        executionAudits,
+                        tenantId,
+                        entity.Id,
+                        ref auditSequence,
+                        "set-relations",
+                        "set_dynamic_relations",
+                        "completed",
+                        table.TableKey,
+                        null,
+                        $"关系数={tableRelations.Count}");
+                }
 
-        entity.Confirm(JsonSerializer.Serialize(resources.Select(item => item.TableKey).ToList(), JsonOptions));
-        await _schemaDraftRepository.UpdateAsync(entity, cancellationToken);
-        return new SchemaDraftConfirmationResponse(entity.Id, entity.ConfirmationState.ToString().ToLowerInvariant(), resources.Select(item => item.TableKey).ToList(), resources);
+                var permissions = draft.SecurityPolicies.Where(item => string.Equals(item.TableKey, table.TableKey, StringComparison.OrdinalIgnoreCase))
+                    .Select(policy => new DynamicFieldPermissionRule(policy.FieldName, policy.RoleCode, policy.CanView, policy.CanEdit))
+                    .ToList();
+                if (permissions.Count > 0)
+                {
+                    await _dynamicTableCommandService.SetFieldPermissionsAsync(tenantId, userId, table.TableKey, new DynamicFieldPermissionUpsertRequest(permissions), cancellationToken);
+                    AddSchemaDraftAudit(
+                        executionAudits,
+                        tenantId,
+                        entity.Id,
+                        ref auditSequence,
+                        "set-permissions",
+                        "set_dynamic_field_permissions",
+                        "completed",
+                        table.TableKey,
+                        null,
+                        $"权限规则数={permissions.Count}");
+                }
+            }
+
+            entity.Confirm(
+                JsonSerializer.Serialize(resources.Select(item => item.TableKey).ToList(), JsonOptions),
+                JsonSerializer.Serialize(resources, JsonOptions));
+            AddSchemaDraftAudit(
+                executionAudits,
+                tenantId,
+                entity.Id,
+                ref auditSequence,
+                "confirm-create",
+                "confirm_schema_draft",
+                "completed",
+                null,
+                null,
+                $"已创建 {resources.Count} 张动态表。");
+
+            await _unitOfWork.ExecuteInTransactionAsync(async () =>
+            {
+                await _schemaDraftRepository.UpdateAsync(entity, cancellationToken);
+                await PersistSchemaDraftAuditsAsync(executionAudits, cancellationToken);
+            }, cancellationToken);
+
+            await RecordSchemaDraftAuditAsync(
+                tenantId,
+                userId,
+                "TEAM_AGENT_SCHEMA_DRAFT_CONFIRM_CREATE",
+                "Success",
+                draftId.ToString(),
+                $"TeamAgent={teamAgentId}; Tables={string.Join(',', resources.Select(item => item.TableKey))}",
+                cancellationToken);
+
+            return new SchemaDraftConfirmationResponse(entity.Id, entity.ConfirmationState.ToString().ToLowerInvariant(), resources.Select(item => item.TableKey).ToList(), resources);
+        }
+        catch (Exception ex)
+        {
+            AddSchemaDraftAudit(
+                executionAudits,
+                tenantId,
+                entity.Id,
+                ref auditSequence,
+                "confirm-create",
+                "confirm_schema_draft",
+                "failed",
+                null,
+                null,
+                ex.Message);
+
+            var rollbackFailures = await RollbackCreatedTablesAsync(
+                tenantId,
+                userId,
+                entity.Id,
+                resources,
+                executionAudits,
+                auditSequence,
+                cancellationToken);
+
+            await PersistSchemaDraftAuditsAsync(executionAudits, cancellationToken);
+            await RecordSchemaDraftAuditAsync(
+                tenantId,
+                userId,
+                "TEAM_AGENT_SCHEMA_DRAFT_CONFIRM_CREATE_FAILED",
+                "Failed",
+                draftId.ToString(),
+                rollbackFailures.Count == 0
+                    ? ex.Message
+                    : $"{ex.Message}; rollbackFailed={string.Join(',', rollbackFailures)}",
+                cancellationToken);
+
+            if (rollbackFailures.Count == 0)
+            {
+                throw new BusinessException($"SchemaDraft 创建动态表失败，已回滚：{ex.Message}", ErrorCodes.ServerError);
+            }
+
+            throw new BusinessException(
+                $"SchemaDraft 创建动态表失败，且以下表回滚失败：{string.Join(',', rollbackFailures)}。原始错误：{ex.Message}",
+                ErrorCodes.ServerError);
+        }
     }
 
     public async Task DiscardSchemaDraftAsync(TenantId tenantId, long teamAgentId, long draftId, CancellationToken cancellationToken)
     {
         var entity = await RequireDraftAsync(tenantId, teamAgentId, draftId, cancellationToken);
+        if (entity.ConfirmationState == TeamAgentSchemaDraftConfirmationState.Confirmed)
+        {
+            throw new BusinessException("已确认的草案不能废弃。", ErrorCodes.ValidationError);
+        }
+
         entity.Discard();
         await _schemaDraftRepository.UpdateAsync(entity, cancellationToken);
     }
@@ -883,9 +1108,7 @@ public sealed class TeamAgentService : ITeamAgentService
         CancellationToken cancellationToken)
     {
         await _executionStepRepository.DeleteByExecutionIdAsync(tenantId, executionId, cancellationToken);
-        foreach (var step in steps)
-        {
-            var entity = new TeamAgentExecutionStepEntity(
+        var entities = steps.Select(step => new TeamAgentExecutionStepEntity(
                 tenantId,
                 executionId,
                 step.AgentId.HasValue && step.AgentId.Value > 0 ? step.AgentId : null,
@@ -898,9 +1121,69 @@ public sealed class TeamAgentService : ITeamAgentService
                 step.ErrorMessage,
                 step.StartedAt,
                 step.CompletedAt,
-                step.StepId > 0 ? step.StepId : _idGeneratorAccessor.NextId());
-            await _executionStepRepository.AddAsync(entity, cancellationToken);
+                step.StepId > 0 ? step.StepId : _idGeneratorAccessor.NextId()))
+            .ToList();
+        await _executionStepRepository.AddRangeAsync(entities, cancellationToken);
+    }
+
+    private async Task PersistSchemaDraftAuditsAsync(
+        IReadOnlyList<TeamAgentSchemaDraftExecutionAudit> items,
+        CancellationToken cancellationToken)
+    {
+        if (items.Count == 0)
+        {
+            return;
         }
+
+        await _schemaDraftAuditRepository.AddRangeAsync(items, cancellationToken);
+    }
+
+    private async Task<List<string>> RollbackCreatedTablesAsync(
+        TenantId tenantId,
+        long userId,
+        long draftId,
+        IReadOnlyList<SchemaDraftCreatedResourceDto> resources,
+        List<TeamAgentSchemaDraftExecutionAudit> audits,
+        int auditSequence,
+        CancellationToken cancellationToken)
+    {
+        var failedTableKeys = new List<string>();
+        var currentSequence = auditSequence;
+        foreach (var resource in resources.Reverse())
+        {
+            try
+            {
+                await _dynamicTableCommandService.DeleteAsync(tenantId, userId, resource.TableKey, cancellationToken);
+                AddSchemaDraftAudit(
+                    audits,
+                    tenantId,
+                    draftId,
+                    ref currentSequence,
+                    "rollback",
+                    "delete_dynamic_table",
+                    "completed",
+                    resource.TableKey,
+                    resource.ResourceId,
+                    "已回滚动态表。");
+            }
+            catch (Exception rollbackEx)
+            {
+                failedTableKeys.Add(resource.TableKey);
+                AddSchemaDraftAudit(
+                    audits,
+                    tenantId,
+                    draftId,
+                    ref currentSequence,
+                    "rollback",
+                    "delete_dynamic_table",
+                    "failed",
+                    resource.TableKey,
+                    resource.ResourceId,
+                    rollbackEx.Message);
+            }
+        }
+
+        return failedTableKeys;
     }
 
     private async Task<TeamAgentConversation> EnsureConversationAsync(
@@ -1095,6 +1378,66 @@ public sealed class TeamAgentService : ITeamAgentService
             entity.UpdatedAt,
             entity.ConfirmedAt);
 
+    private void AddSchemaDraftAudit(
+        List<TeamAgentSchemaDraftExecutionAudit> target,
+        TenantId tenantId,
+        long draftId,
+        ref int sequence,
+        string stage,
+        string action,
+        string status,
+        string? resourceKey,
+        string? resourceId,
+        string? detail)
+    {
+        sequence++;
+        target.Add(new TeamAgentSchemaDraftExecutionAudit(
+            tenantId,
+            draftId,
+            sequence,
+            stage,
+            action,
+            status,
+            resourceKey,
+            resourceId,
+            detail,
+            _idGeneratorAccessor.NextId()));
+    }
+
+    private async Task RecordSchemaDraftAuditAsync(
+        TenantId tenantId,
+        long userId,
+        string action,
+        string result,
+        string target,
+        string detail,
+        CancellationToken cancellationToken)
+    {
+        var auditContext = new Atlas.Application.Audit.Models.AuditContext(
+            tenantId,
+            userId.ToString(),
+            action,
+            result,
+            $"{target}:{detail}",
+            null,
+            null,
+            new ClientContext(ClientType.Backend, ClientPlatform.Web, ClientChannel.Browser, ClientAgent.Other));
+        await _auditRecorder.RecordAsync(auditContext, cancellationToken);
+    }
+
+    private static SchemaDraftConfirmationResponse BuildConfirmedDraftResponse(TeamAgentSchemaDraft entity)
+    {
+        var resources = DeserializeCreatedResources(entity.CreatedResourcesJson);
+        var tableKeys = resources.Count > 0
+            ? resources.Select(item => item.TableKey).ToList()
+            : DeserializeStringList(entity.CreatedTableKeysJson);
+        return new SchemaDraftConfirmationResponse(
+            entity.Id,
+            entity.ConfirmationState.ToString().ToLowerInvariant(),
+            tableKeys,
+            resources);
+    }
+
     private static string BuildPublicationSnapshot(TeamAgent entity)
     {
         var snapshot = new
@@ -1181,6 +1524,11 @@ public sealed class TeamAgentService : ITeamAgentService
         => string.IsNullOrWhiteSpace(json)
             ? []
             : JsonSerializer.Deserialize<List<TeamAgentRunEvent>>(json, JsonOptions) ?? [];
+
+    private static List<SchemaDraftCreatedResourceDto> DeserializeCreatedResources(string json)
+        => string.IsNullOrWhiteSpace(json)
+            ? []
+            : JsonSerializer.Deserialize<List<SchemaDraftCreatedResourceDto>>(json, JsonOptions) ?? [];
 
     private static SchemaDraftDto DeserializeDraft(string json)
         => JsonSerializer.Deserialize<SchemaDraftDto>(json, JsonOptions)

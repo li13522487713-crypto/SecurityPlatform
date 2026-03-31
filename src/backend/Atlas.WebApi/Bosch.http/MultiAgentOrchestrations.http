@@ -6,6 +6,13 @@
 @agentId2 = 2
 @orchestrationId = 0
 
+### 弃用说明
+# 此控制器已标记 Deprecated，替代资源为 /api/v1/team-agents。
+# 当前兼容窗口截止 2026-10-01；窗口内仅做安全修复与关键缺陷修复，不再新增功能。
+# 建议在执行迁移前先调用：
+# GET /api/v1/team-agents/migrations/multi-agent-orchestrations/status
+# POST /api/v1/team-agents/migrations/multi-agent-orchestrations
+
 ### 登录获取令牌
 # @name login
 POST {{baseUrl}}/api/v1/auth/token

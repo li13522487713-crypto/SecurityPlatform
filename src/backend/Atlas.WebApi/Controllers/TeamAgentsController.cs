@@ -183,6 +183,15 @@ public sealed class TeamAgentsController : ControllerBase
         return Ok(ApiResponse<TeamAgentLegacyMigrationResult>.Ok(result, HttpContext.TraceIdentifier));
     }
 
+    [HttpGet("migrations/multi-agent-orchestrations/status")]
+    [Authorize(Policy = PermissionPolicies.AgentView)]
+    public async Task<ActionResult<ApiResponse<TeamAgentLegacyMigrationStatusDto>>> GetLegacyMigrationStatus(CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _teamAgentService.GetLegacyMigrationStatusAsync(tenantId, cancellationToken);
+        return Ok(ApiResponse<TeamAgentLegacyMigrationStatusDto>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
     [HttpGet("{id:long}/conversations")]
     [Authorize(Policy = PermissionPolicies.AgentView)]
     public async Task<ActionResult<ApiResponse<PagedResult<TeamAgentConversationDto>>>> GetConversations(
@@ -288,6 +297,18 @@ public sealed class TeamAgentsController : ControllerBase
         var tenantId = _tenantProvider.GetTenantId();
         var result = await _teamAgentService.GetSchemaDraftAsync(tenantId, id, draftId, cancellationToken);
         return Ok(ApiResponse<TeamAgentSchemaDraftDetail?>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    [HttpGet("{id:long}/schema-drafts/{draftId:long}/execution-audits")]
+    [Authorize(Policy = PermissionPolicies.AgentView)]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<TeamAgentSchemaDraftExecutionAuditItem>>>> GetSchemaDraftExecutionAudits(
+        long id,
+        long draftId,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _teamAgentService.GetSchemaDraftExecutionAuditsAsync(tenantId, id, draftId, cancellationToken);
+        return Ok(ApiResponse<IReadOnlyList<TeamAgentSchemaDraftExecutionAuditItem>>.Ok(result, HttpContext.TraceIdentifier));
     }
 
     [HttpPut("{id:long}/schema-drafts/{draftId:long}")]

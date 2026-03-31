@@ -72,6 +72,10 @@ public interface ITeamAgentService
         TeamAgentLegacyMigrationRequest request,
         CancellationToken cancellationToken);
 
+    Task<TeamAgentLegacyMigrationStatusDto> GetLegacyMigrationStatusAsync(
+        TenantId tenantId,
+        CancellationToken cancellationToken);
+
     Task<long> CreateConversationAsync(
         TenantId tenantId,
         long teamAgentId,
@@ -171,6 +175,12 @@ public interface ITeamAgentService
     Task<IReadOnlyList<TeamAgentSchemaDraftListItem>> ListSchemaDraftsAsync(
         TenantId tenantId,
         long teamAgentId,
+        CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<TeamAgentSchemaDraftExecutionAuditItem>> GetSchemaDraftExecutionAuditsAsync(
+        TenantId tenantId,
+        long teamAgentId,
+        long draftId,
         CancellationToken cancellationToken);
 
     Task UpdateSchemaDraftAsync(

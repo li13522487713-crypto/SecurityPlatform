@@ -523,6 +523,7 @@ public sealed class TeamAgentSchemaDraft : TenantEntity
         DraftJson = "{}";
         OpenQuestionsJson = "[]";
         CreatedTableKeysJson = "[]";
+        CreatedResourcesJson = "[]";
         ConfirmationState = TeamAgentSchemaDraftConfirmationState.Pending;
         Status = TeamAgentSchemaDraftStatus.Active;
         CreatedAt = DateTime.UtcNow;
@@ -551,6 +552,7 @@ public sealed class TeamAgentSchemaDraft : TenantEntity
         DraftJson = string.IsNullOrWhiteSpace(draftJson) ? "{}" : draftJson;
         OpenQuestionsJson = string.IsNullOrWhiteSpace(openQuestionsJson) ? "[]" : openQuestionsJson;
         CreatedTableKeysJson = "[]";
+        CreatedResourcesJson = "[]";
         AppId = appId ?? string.Empty;
         ConfirmationState = TeamAgentSchemaDraftConfirmationState.Pending;
         Status = TeamAgentSchemaDraftStatus.Active;
@@ -566,6 +568,7 @@ public sealed class TeamAgentSchemaDraft : TenantEntity
     public string DraftJson { get; private set; }
     public string OpenQuestionsJson { get; private set; }
     public string CreatedTableKeysJson { get; private set; }
+    public string CreatedResourcesJson { get; private set; }
     public string? AppId { get; private set; }
     public TeamAgentSchemaDraftConfirmationState ConfirmationState { get; private set; }
     public TeamAgentSchemaDraftStatus Status { get; private set; }
@@ -583,10 +586,11 @@ public sealed class TeamAgentSchemaDraft : TenantEntity
         UpdatedAt = DateTime.UtcNow;
     }
 
-    public void Confirm(string createdTableKeysJson)
+    public void Confirm(string createdTableKeysJson, string createdResourcesJson)
     {
         ConfirmationState = TeamAgentSchemaDraftConfirmationState.Confirmed;
         CreatedTableKeysJson = string.IsNullOrWhiteSpace(createdTableKeysJson) ? "[]" : createdTableKeysJson;
+        CreatedResourcesJson = string.IsNullOrWhiteSpace(createdResourcesJson) ? "[]" : createdResourcesJson;
         ConfirmedAt = DateTime.UtcNow;
         UpdatedAt = ConfirmedAt.Value;
     }
@@ -598,6 +602,57 @@ public sealed class TeamAgentSchemaDraft : TenantEntity
         DiscardedAt = DateTime.UtcNow;
         UpdatedAt = DiscardedAt.Value;
     }
+}
+
+[SugarTable("TeamAgentSchemaDraftExecutionAudit")]
+public sealed class TeamAgentSchemaDraftExecutionAudit : TenantEntity
+{
+    public TeamAgentSchemaDraftExecutionAudit()
+        : base(TenantId.Empty)
+    {
+        Stage = string.Empty;
+        Action = string.Empty;
+        Status = string.Empty;
+        ResourceKey = string.Empty;
+        ResourceId = string.Empty;
+        Detail = string.Empty;
+        CreatedAt = DateTime.UtcNow;
+    }
+
+    public TeamAgentSchemaDraftExecutionAudit(
+        TenantId tenantId,
+        long draftId,
+        int sequence,
+        string stage,
+        string action,
+        string status,
+        string? resourceKey,
+        string? resourceId,
+        string? detail,
+        long id)
+        : base(tenantId)
+    {
+        Id = id;
+        DraftId = draftId;
+        Sequence = sequence;
+        Stage = stage;
+        Action = action;
+        Status = status;
+        ResourceKey = resourceKey ?? string.Empty;
+        ResourceId = resourceId ?? string.Empty;
+        Detail = detail ?? string.Empty;
+        CreatedAt = DateTime.UtcNow;
+    }
+
+    public long DraftId { get; private set; }
+    public int Sequence { get; private set; }
+    public string Stage { get; private set; }
+    public string Action { get; private set; }
+    public string Status { get; private set; }
+    public string? ResourceKey { get; private set; }
+    public string? ResourceId { get; private set; }
+    public string? Detail { get; private set; }
+    public DateTime CreatedAt { get; private set; }
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter))]

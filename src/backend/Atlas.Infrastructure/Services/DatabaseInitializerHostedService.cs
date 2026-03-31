@@ -151,6 +151,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             typeof(TeamAgentExecution),
             typeof(TeamAgentExecutionStepEntity),
             typeof(TeamAgentSchemaDraft),
+            typeof(TeamAgentSchemaDraftExecutionAudit),
             typeof(MultiAgentOrchestration),
             typeof(MultiAgentExecution),
             typeof(MultimodalAsset),
@@ -1716,13 +1717,14 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             !db.DbMaintenance.IsAnyTable("TeamAgentMessage", false) ||
             !db.DbMaintenance.IsAnyTable("TeamAgentExecution", false) ||
             !db.DbMaintenance.IsAnyTable("TeamAgentExecutionStep", false) ||
-            !db.DbMaintenance.IsAnyTable("TeamAgentSchemaDraft", false);
+            !db.DbMaintenance.IsAnyTable("TeamAgentSchemaDraft", false) ||
+            !db.DbMaintenance.IsAnyTable("TeamAgentSchemaDraftExecutionAudit", false);
 
         if (missingTeamAgentTables)
         {
             cancellationToken.ThrowIfCancellationRequested();
             db.CodeFirst.InitTables<TeamAgent, TeamAgentPublication, TeamAgentTemplate, TeamAgentTemplateMember, TeamAgentConversation>();
-            db.CodeFirst.InitTables<TeamAgentMessage, TeamAgentExecution, TeamAgentExecutionStepEntity, TeamAgentSchemaDraft>();
+            db.CodeFirst.InitTables<TeamAgentMessage, TeamAgentExecution, TeamAgentExecutionStepEntity, TeamAgentSchemaDraft, TeamAgentSchemaDraftExecutionAudit>();
             return;
         }
 
@@ -1734,7 +1736,9 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             || RequiresNullableColumnFix<TeamAgentMessage>(db, "Metadata", "MemberName")
             || RequiresNullableColumnFix<TeamAgentExecution>(db, "OutputMessage", "ErrorMessage", "CompletedAt")
             || RequiresNullableColumnFix<TeamAgentExecutionStepEntity>(db, "AgentId", "Alias", "OutputMessage", "ErrorMessage", "CompletedAt")
-            || RequiresNullableColumnFix<TeamAgentSchemaDraft>(db, "ConversationId", "AppId", "ConfirmedAt", "DiscardedAt"))
+            || RequiresNullableColumnFix<TeamAgentSchemaDraft>(db, "ConversationId", "AppId", "ConfirmedAt", "DiscardedAt")
+            || RequiresNullableColumnFix<TeamAgentSchemaDraftExecutionAudit>(db, "ResourceKey", "ResourceId", "Detail")
+            || RequiresMissingColumnFix<TeamAgentSchemaDraft>(db, "CreatedResourcesJson"))
         {
             await RebuildTableViaOrmAsync<TeamAgent>(db, cancellationToken);
             await RebuildTableViaOrmAsync<TeamAgentPublication>(db, cancellationToken);
@@ -1745,6 +1749,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             await RebuildTableViaOrmAsync<TeamAgentExecution>(db, cancellationToken);
             await RebuildTableViaOrmAsync<TeamAgentExecutionStepEntity>(db, cancellationToken);
             await RebuildTableViaOrmAsync<TeamAgentSchemaDraft>(db, cancellationToken);
+            await RebuildTableViaOrmAsync<TeamAgentSchemaDraftExecutionAudit>(db, cancellationToken);
         }
     }
 

@@ -179,6 +179,13 @@ X-CSRF-TOKEN: {{csrfToken}}
   "legacyIds": []
 }
 
+### 查询旧 Multi-Agent 迁移状态
+# 返回 totalCount / migratedCount / pendingCount 与每条 legacy 编排的迁移映射状态。
+# replacementApi 固定指向 /api/v1/team-agents，sunsetAt 当前为 2026-10-01。
+GET {{baseUrl}}/api/v1/team-agents/migrations/multi-agent-orchestrations/status
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
 ### 删除 Team Agent
 DELETE {{baseUrl}}/api/v1/team-agents/{{teamAgentId}}
 Authorization: Bearer {{accessToken}}

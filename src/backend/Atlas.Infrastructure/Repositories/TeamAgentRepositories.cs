@@ -274,6 +274,16 @@ public sealed class TeamAgentExecutionStepRepository : RepositoryBase<TeamAgentE
         => Db.Deleteable<TeamAgentExecutionStepEntity>()
             .Where(x => x.TenantIdValue == tenantId.Value && x.ExecutionId == executionId)
             .ExecuteCommandAsync(cancellationToken);
+
+    public Task AddRangeAsync(IReadOnlyList<TeamAgentExecutionStepEntity> entities, CancellationToken cancellationToken)
+    {
+        if (entities.Count == 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        return Db.Insertable(entities.ToArray()).ExecuteCommandAsync(cancellationToken);
+    }
 }
 
 public sealed class TeamAgentSchemaDraftRepository : RepositoryBase<TeamAgentSchemaDraft>
@@ -305,4 +315,37 @@ public sealed class TeamAgentSchemaDraftRepository : RepositoryBase<TeamAgentSch
             .OrderBy(x => x.UpdatedAt, OrderByType.Desc)
             .Take(take)
             .ToListAsync(cancellationToken);
+}
+
+public sealed class TeamAgentSchemaDraftExecutionAuditRepository : RepositoryBase<TeamAgentSchemaDraftExecutionAudit>
+{
+    public TeamAgentSchemaDraftExecutionAuditRepository(ISqlSugarClient db)
+        : base(db)
+    {
+    }
+
+    public Task<List<TeamAgentSchemaDraftExecutionAudit>> GetByDraftIdAsync(
+        TenantId tenantId,
+        long draftId,
+        CancellationToken cancellationToken)
+        => Db.Queryable<TeamAgentSchemaDraftExecutionAudit>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.DraftId == draftId)
+            .OrderBy(x => x.Sequence, OrderByType.Asc)
+            .OrderBy(x => x.Id, OrderByType.Asc)
+            .ToListAsync(cancellationToken);
+
+    public Task<int> DeleteByDraftIdAsync(TenantId tenantId, long draftId, CancellationToken cancellationToken)
+        => Db.Deleteable<TeamAgentSchemaDraftExecutionAudit>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.DraftId == draftId)
+            .ExecuteCommandAsync(cancellationToken);
+
+    public Task AddRangeAsync(IReadOnlyList<TeamAgentSchemaDraftExecutionAudit> entities, CancellationToken cancellationToken)
+    {
+        if (entities.Count == 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        return Db.Insertable(entities.ToArray()).ExecuteCommandAsync(cancellationToken);
+    }
 }
