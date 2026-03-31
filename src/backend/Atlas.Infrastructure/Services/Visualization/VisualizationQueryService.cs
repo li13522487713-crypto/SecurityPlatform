@@ -60,9 +60,9 @@ public sealed class VisualizationQueryService : IVisualizationQueryService
     {
         var tenantId = _tenantProvider.GetTenantId();
 
-        var totalFlows = await _flowRepository.GetPagedAsync(tenantId, 1, 1, null, filter.FlowType, cancellationToken);
-        var draftFlows = await _flowRepository.GetPagedAsync(tenantId, 1, 1, ApprovalFlowStatus.Draft, filter.FlowType, cancellationToken);
-        var runningInstances = await _instanceRepository.GetPagedAsync(
+        var totalFlowsTask = _flowRepository.GetPagedAsync(tenantId, 1, 1, null, filter.FlowType, cancellationToken);
+        var draftFlowsTask = _flowRepository.GetPagedAsync(tenantId, 1, 1, ApprovalFlowStatus.Draft, filter.FlowType, cancellationToken);
+        var runningInstancesTask = _instanceRepository.GetPagedAsync(
             tenantId,
             1,
             1,
@@ -73,14 +73,19 @@ public sealed class VisualizationQueryService : IVisualizationQueryService
             businessKey: null,
             status: ApprovalInstanceStatus.Running,
             cancellationToken: cancellationToken);
-
-        var overdueTasks = await _taskRepository.CountByStatusAsync(
+        var overdueTasksTask = _taskRepository.CountByStatusAsync(
             tenantId,
             ApprovalTaskStatus.Pending,
             DateTimeOffset.UtcNow.Subtract(OverdueThreshold),
             cancellationToken);
+        var alertsTodayTask = GetAlertsTodayAsync(tenantId, cancellationToken);
+        await Task.WhenAll(totalFlowsTask, draftFlowsTask, runningInstancesTask, overdueTasksTask, alertsTodayTask);
 
-        var alertsToday = await GetAlertsTodayAsync(tenantId, cancellationToken);
+        var totalFlows = totalFlowsTask.Result;
+        var draftFlows = draftFlowsTask.Result;
+        var runningInstances = runningInstancesTask.Result;
+        var overdueTasks = overdueTasksTask.Result;
+        var alertsToday = alertsTodayTask.Result;
 
         var riskHints = new List<string>();
         if (draftFlows.TotalCount > 0)
@@ -424,9 +429,9 @@ public sealed class VisualizationQueryService : IVisualizationQueryService
     public async Task<VisualizationMetricsResponse> GetMetricsAsync(VisualizationFilterRequest filter, CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
-        var totalFlows = await _flowRepository.GetPagedAsync(tenantId, 1, 1, null, filter.FlowType, cancellationToken);
-        var draftFlows = await _flowRepository.GetPagedAsync(tenantId, 1, 1, ApprovalFlowStatus.Draft, filter.FlowType, cancellationToken);
-        var runningInstances = await _instanceRepository.GetPagedAsync(
+        var totalFlowsTask = _flowRepository.GetPagedAsync(tenantId, 1, 1, null, filter.FlowType, cancellationToken);
+        var draftFlowsTask = _flowRepository.GetPagedAsync(tenantId, 1, 1, ApprovalFlowStatus.Draft, filter.FlowType, cancellationToken);
+        var runningInstancesTask = _instanceRepository.GetPagedAsync(
             tenantId,
             1,
             1,
@@ -437,7 +442,7 @@ public sealed class VisualizationQueryService : IVisualizationQueryService
             businessKey: null,
             status: ApprovalInstanceStatus.Running,
             cancellationToken: cancellationToken);
-        var completedInstances = await _instanceRepository.GetPagedAsync(
+        var completedInstancesTask = _instanceRepository.GetPagedAsync(
             tenantId,
             1,
             1,
@@ -448,15 +453,35 @@ public sealed class VisualizationQueryService : IVisualizationQueryService
             businessKey: null,
             status: ApprovalInstanceStatus.Completed,
             cancellationToken: cancellationToken);
-        var pendingTasks = await _taskRepository.CountByStatusAsync(tenantId, ApprovalTaskStatus.Pending, null, cancellationToken);
-        var overdueTasks = await _taskRepository.CountByStatusAsync(
+        var pendingTasksTask = _taskRepository.CountByStatusAsync(tenantId, ApprovalTaskStatus.Pending, null, cancellationToken);
+        var overdueTasksTask = _taskRepository.CountByStatusAsync(
             tenantId,
             ApprovalTaskStatus.Pending,
             DateTimeOffset.UtcNow.Subtract(OverdueThreshold),
             cancellationToken);
-        var assets = await _assetRepository.QueryPageAsync(1, 1, null, cancellationToken);
-        var alertsToday = await GetAlertsTodayAsync(tenantId, cancellationToken);
-        var auditEventsToday = await GetAuditEventsTodayAsync(tenantId, cancellationToken);
+        var assetsTask = _assetRepository.QueryPageAsync(1, 1, null, cancellationToken);
+        var alertsTodayTask = GetAlertsTodayAsync(tenantId, cancellationToken);
+        var auditEventsTodayTask = GetAuditEventsTodayAsync(tenantId, cancellationToken);
+        await Task.WhenAll(
+            totalFlowsTask,
+            draftFlowsTask,
+            runningInstancesTask,
+            completedInstancesTask,
+            pendingTasksTask,
+            overdueTasksTask,
+            assetsTask,
+            alertsTodayTask,
+            auditEventsTodayTask);
+
+        var totalFlows = totalFlowsTask.Result;
+        var draftFlows = draftFlowsTask.Result;
+        var runningInstances = runningInstancesTask.Result;
+        var completedInstances = completedInstancesTask.Result;
+        var pendingTasks = pendingTasksTask.Result;
+        var overdueTasks = overdueTasksTask.Result;
+        var assets = assetsTask.Result;
+        var alertsToday = alertsTodayTask.Result;
+        var auditEventsToday = auditEventsTodayTask.Result;
 
         return new VisualizationMetricsResponse(
             totalFlows.TotalCount,

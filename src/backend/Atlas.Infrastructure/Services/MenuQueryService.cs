@@ -119,13 +119,17 @@ public sealed class MenuQueryService : IMenuQueryService
             return cached!;
         }
 
-        var allMenus = await QueryAllAsync(tenantId, cancellationToken);
+        var allMenusTask = QueryAllAsync(tenantId, cancellationToken);
+        var userRolesTask = _userRoleRepository.QueryByUserIdAsync(tenantId, userId, cancellationToken);
+        await Task.WhenAll(allMenusTask, userRolesTask);
+
+        var allMenus = allMenusTask.Result;
         var menuCandidates = allMenus
             .Where(x => string.Equals(x.Status, "0", StringComparison.OrdinalIgnoreCase))
             .OrderBy(x => x.SortOrder)
             .ToArray();
 
-        var userRoles = await _userRoleRepository.QueryByUserIdAsync(tenantId, userId, cancellationToken);
+        var userRoles = userRolesTask.Result;
         if (userRoles.Count == 0)
         {
             return Array.Empty<MenuListItem>();

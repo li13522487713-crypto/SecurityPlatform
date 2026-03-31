@@ -88,9 +88,13 @@ const loading = ref(false);
 const loadOverview = async () => {
   try {
     loading.value = true;
-    overview.value = await getVisualizationOverview();
+    const [overviewResult, metricsResult] = await Promise.all([
+      getVisualizationOverview(),
+      getVisualizationMetrics()
+    ]);
     if (!isMounted.value) return;
-    metrics.value = await getVisualizationMetrics();
+    overview.value = overviewResult;
+    metrics.value = metricsResult;
     if (!isMounted.value) return;
   } catch (err) {
     message.error((err as Error).message);

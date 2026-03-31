@@ -157,15 +157,13 @@ const currentFlowStepIndex = computed(() => {
 const fetchDetail = async () => {
   loading.value = true;
   try {
-    const res  = await getApprovalInstanceById(instanceId);
+    const [res, historyRes] = await Promise.all([
+      getApprovalInstanceById(instanceId),
+      getApprovalInstanceHistory(instanceId, { pageIndex: 1, pageSize: 100 })
+    ]);
 
     if (!isMounted.value) return;
     instance.value = res;
-
-    const historyRes  = await getApprovalInstanceHistory(instanceId, { pageIndex: 1, pageSize: 100 });
-
-
-    if (!isMounted.value) return;
     historyEvents.value = historyRes.items;
 
     if (res.definitionId) {

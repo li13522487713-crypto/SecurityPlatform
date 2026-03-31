@@ -17,6 +17,13 @@ public interface IProjectRepository
         TenantId tenantId,
         IReadOnlyList<long> ids,
         CancellationToken cancellationToken);
+    Task<(IReadOnlyList<Project> Items, int TotalCount)> QueryPagedByUserIdAsync(
+        TenantId tenantId,
+        long userId,
+        int pageIndex,
+        int pageSize,
+        string? keyword,
+        CancellationToken cancellationToken);
     Task AddAsync(Project project, CancellationToken cancellationToken);
     Task UpdateAsync(Project project, CancellationToken cancellationToken);
     Task DeleteAsync(TenantId tenantId, long id, CancellationToken cancellationToken);

@@ -56,9 +56,10 @@ public sealed class ProjectQueryService : IProjectQueryService
             return null;
         }
 
-        var userIds = await _projectUserRepository.QueryByProjectIdAsync(tenantId, id, cancellationToken);
-        var departmentIds = await _projectDepartmentRepository.QueryByProjectIdAsync(tenantId, id, cancellationToken);
-        var positionIds = await _projectPositionRepository.QueryByProjectIdAsync(tenantId, id, cancellationToken);
+        var userIdsTask = _projectUserRepository.QueryByProjectIdAsync(tenantId, id, cancellationToken);
+        var departmentIdsTask = _projectDepartmentRepository.QueryByProjectIdAsync(tenantId, id, cancellationToken);
+        var positionIdsTask = _projectPositionRepository.QueryByProjectIdAsync(tenantId, id, cancellationToken);
+        await Task.WhenAll(userIdsTask, departmentIdsTask, positionIdsTask);
 
         return new ProjectDetail(
             project.Id.ToString(),
@@ -67,9 +68,9 @@ public sealed class ProjectQueryService : IProjectQueryService
             project.IsActive,
             project.Description,
             project.SortOrder,
-            userIds.Select(x => x.UserId).ToArray(),
-            departmentIds.Select(x => x.DepartmentId).ToArray(),
-            positionIds.Select(x => x.PositionId).ToArray());
+            userIdsTask.Result.Select(x => x.UserId).ToArray(),
+            departmentIdsTask.Result.Select(x => x.DepartmentId).ToArray(),
+            positionIdsTask.Result.Select(x => x.PositionId).ToArray());
     }
 
     public async Task<IReadOnlyList<ProjectListItem>> QueryMyProjectsAsync(
@@ -99,33 +100,14 @@ public sealed class ProjectQueryService : IProjectQueryService
         var pageIndex = request.PageIndex < 1 ? 1 : request.PageIndex;
         var pageSize = request.PageSize < 1 ? 20 : request.PageSize;
 
-        var projectIds = await _projectUserRepository.QueryProjectIdsByUserIdAsync(
+        var (projects, total) = await _projectRepository.QueryPagedByUserIdAsync(
             tenantId,
             userId,
+            pageIndex,
+            pageSize,
+            request.Keyword,
             cancellationToken);
-        if (projectIds.Count == 0)
-        {
-            return new PagedResult<ProjectListItem>(
-                Array.Empty<ProjectListItem>(),
-                0,
-                pageIndex,
-                pageSize);
-        }
-
-        var projects = await _projectRepository.QueryByIdsAsync(tenantId, projectIds.Distinct().ToArray(), cancellationToken);
-        var query = projects.AsEnumerable();
-        if (!string.IsNullOrWhiteSpace(request.Keyword))
-        {
-            query = query.Where(x =>
-                x.Code.Contains(request.Keyword, StringComparison.OrdinalIgnoreCase)
-                || x.Name.Contains(request.Keyword, StringComparison.OrdinalIgnoreCase));
-        }
-
-        var ordered = query.OrderBy(x => x.SortOrder).ThenBy(x => x.Id).ToArray();
-        var total = ordered.Length;
-        var items = ordered
-            .Skip((pageIndex - 1) * pageSize)
-            .Take(pageSize)
+        var items = projects
             .Select(x => _mapper.Map<ProjectListItem>(x))
             .ToArray();
 

@@ -120,10 +120,10 @@ function handleSearch(nextKeyword: string) {
 }
 
 async function reload() {
-  await loadSearchResult();
-
-  if (!isMounted.value) return;
-  await loadRecent();
+  await Promise.allSettled([
+    loadSearchResult(),
+    loadRecent()
+  ]);
 
   if (!isMounted.value) return;
 }
@@ -149,10 +149,10 @@ async function goPath(path: string) {
 }
 
 onMounted(async () => {
-  await loadSearchResult();
-
-  if (!isMounted.value) return;
-  await loadRecent();
+  await Promise.allSettled([
+    loadSearchResult(),
+    loadRecent()
+  ]);
 
   if (!isMounted.value) return;
 });

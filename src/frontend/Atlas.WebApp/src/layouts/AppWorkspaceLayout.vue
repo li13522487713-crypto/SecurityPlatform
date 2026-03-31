@@ -106,7 +106,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, watch, ref, onUnmounted } from "vue";
+import { computed, onMounted, watch, ref, onUnmounted, onBeforeUnmount } from "vue";
 import { useI18n } from "vue-i18n";
 
 const isMounted = ref(false);
@@ -235,8 +235,13 @@ async function syncTitle() {
     return;
   }
 
+  titleAbortController?.abort();
+  titleAbortController = new AbortController();
+
   try {
-    const detail  = await getTenantAppInstanceDetail(appId.value);
+    const detail  = await getTenantAppInstanceDetail(appId.value, {
+      signal: titleAbortController.signal
+    });
 
     if (!isMounted.value) return;
     if (detail?.name) {
@@ -246,14 +251,22 @@ async function syncTitle() {
         product: t("documentTitle.productName")
       });
     }
-  } catch {
+  } catch (error) {
+    if ((error as DOMException)?.name === "AbortError") {
+      return;
+    }
     // ignore
   }
 }
 
+let titleAbortController: AbortController | null = null;
+
 onMounted(syncTitle);
 watch(appId, () => {
   void syncTitle();
+});
+onBeforeUnmount(() => {
+  titleAbortController?.abort();
 });
 </script>
 

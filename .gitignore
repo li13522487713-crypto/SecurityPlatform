@@ -400,3 +400,4 @@ src/backend/Atlas.WebApi/backups/*.db
 src/backend/Atlas.WebApi/backups/*.db.sha256
 /.tmp-build/webapi-check
 /.tmp-build/infra-check
+SecurityPlatform.zip

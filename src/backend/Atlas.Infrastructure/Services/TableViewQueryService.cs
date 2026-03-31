@@ -18,18 +18,15 @@ public sealed class TableViewQueryService : ITableViewQueryService
     private readonly ITableViewRepository _tableViewRepository;
     private readonly ITableViewDefaultRepository _defaultRepository;
     private readonly ITableViewDefaultConfigProvider _defaultConfigProvider;
-    private readonly TimeProvider _timeProvider;
 
     public TableViewQueryService(
         ITableViewRepository tableViewRepository,
         ITableViewDefaultRepository defaultRepository,
-        ITableViewDefaultConfigProvider defaultConfigProvider,
-        TimeProvider timeProvider)
+        ITableViewDefaultConfigProvider defaultConfigProvider)
     {
         _tableViewRepository = tableViewRepository;
         _defaultRepository = defaultRepository;
         _defaultConfigProvider = defaultConfigProvider;
-        _timeProvider = timeProvider;
     }
 
     public async Task<PagedResult<TableViewListItem>> QueryAsync(
@@ -42,7 +39,7 @@ public sealed class TableViewQueryService : ITableViewQueryService
         var pageIndex = request.PageIndex < 1 ? 1 : request.PageIndex;
         var pageSize = request.PageSize < 1 ? 10 : request.PageSize;
 
-        var (items, total) = await _tableViewRepository.QueryPageAsync(
+        var pageTask = _tableViewRepository.QueryPageAsync(
             tenantId,
             userId,
             tableKey,
@@ -50,12 +47,15 @@ public sealed class TableViewQueryService : ITableViewQueryService
             pageSize,
             request.Keyword,
             cancellationToken);
-
-        var defaultView = await _defaultRepository.FindByTableKeyAsync(
+        var defaultTask = _defaultRepository.FindByTableKeyAsync(
             tenantId,
             userId,
             tableKey,
             cancellationToken);
+        await Task.WhenAll(pageTask, defaultTask);
+
+        var (items, total) = pageTask.Result;
+        var defaultView = defaultTask.Result;
         var defaultViewId = defaultView?.ViewId ?? 0;
 
         var resultItems = items.Select(item => new TableViewListItem(
@@ -90,8 +90,6 @@ public sealed class TableViewQueryService : ITableViewQueryService
         var isDefault = defaultView?.ViewId == view.Id;
 
         var config = DeserializeConfig(view.ConfigJson);
-        view.TouchUsed(_timeProvider.GetUtcNow());
-        await _tableViewRepository.UpdateAsync(view, cancellationToken);
 
         return new TableViewDetail(
             view.Id.ToString(),
@@ -127,8 +125,6 @@ public sealed class TableViewQueryService : ITableViewQueryService
         }
 
         var config = DeserializeConfig(view.ConfigJson);
-        view.TouchUsed(_timeProvider.GetUtcNow());
-        await _tableViewRepository.UpdateAsync(view, cancellationToken);
 
         return new TableViewDetail(
             view.Id.ToString(),

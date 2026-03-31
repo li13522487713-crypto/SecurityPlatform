@@ -539,10 +539,10 @@ async function submitCategory() {
     }
 
     editingCategoryId.value = null;
-    await loadCategories();
-
-    if (!isMounted.value) return;
-    await loadProducts();
+    await Promise.allSettled([
+      loadCategories(),
+      loadProducts()
+    ]);
 
     if (!isMounted.value) return;
   } catch (error: unknown) {
@@ -567,10 +567,10 @@ async function handleDeleteCategory(id: number) {
 }
 
 onMounted(async () => {
-  await loadCategories();
-
-  if (!isMounted.value) return;
-  await loadProducts();
+  await Promise.allSettled([
+    loadCategories(),
+    loadProducts()
+  ]);
 
   if (!isMounted.value) return;
 });

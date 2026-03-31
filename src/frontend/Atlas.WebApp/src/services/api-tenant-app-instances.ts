@@ -47,8 +47,8 @@ export async function getTenantAppInstancesPaged(
   return response.data;
 }
 
-export async function getTenantAppInstanceDetail(id: string): Promise<TenantAppInstanceDetail> {
-  const response = await requestApi<ApiResponse<TenantAppInstanceDetail>>(`${TENANT_APP_INSTANCE_BASE}/${id}`);
+export async function getTenantAppInstanceDetail(id: string, init?: RequestInit): Promise<TenantAppInstanceDetail> {
+  const response = await requestApi<ApiResponse<TenantAppInstanceDetail>>(`${TENANT_APP_INSTANCE_BASE}/${id}`, init);
   if (!response.data) {
     throw new Error(response.message || "查询租户应用实例详情失败");
   }

@@ -55,10 +55,13 @@ let refreshPromise: Promise<boolean> | null = null;
 let antiforgeryPromise: Promise<string | null> | null = null;
 let missingProjectWarningAt = 0;
 const inFlightWriteRequests = new Map<string, Promise<unknown>>();
+const inFlightGetRequests = new Map<string, Promise<unknown>>();
+const getResponseCache = new Map<string, { expiresAt: number; value: unknown }>();
 const globalErrorShownAt = new Map<string, number>();
 const APP_ID_HEADER = "X-App-Id";
 const APP_WORKSPACE_HEADER = "X-App-Workspace";
 const APP_WORKSPACE_HEADER_VALUE = "1";
+const HOT_GET_CACHE_TTL = 3000;
 
 const ErrorCodes = {
   AccountLocked: "ACCOUNT_LOCKED",
@@ -242,13 +245,26 @@ export async function requestApi<T>(path: string, init?: RequestInit, options?: 
       return (await inFlight) as T;
     }
   }
+  const readRequestSignature = shouldEnableReadRequestDeduplication(method, options)
+    ? buildReadRequestSignature(path, method, tenantId, projectId, appId, headers.get("Accept-Language"))
+    : null;
+  if (readRequestSignature) {
+    const cached = getResponseCache.get(readRequestSignature);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.value as T;
+    }
+    const inFlight = inFlightGetRequests.get(readRequestSignature);
+    if (inFlight) {
+      return (await inFlight) as T;
+    }
+  }
 
   const requestInit: RequestInit = {
     ...init,
     headers,
     credentials: "include" // 携带httpOnly cookie凭证
   };
-  const networkRetryLimit = shouldRetryableReadMethod(method) ? 2 : 0;
+  const networkRetryLimit = resolveNetworkRetryLimit(path, method);
 
   const runRequest = async () => {
     const response = await fetchWithRetry(resolveRequestUrl(path), requestInit, path, method, networkRetryLimit);
@@ -310,9 +326,19 @@ export async function requestApi<T>(path: string, init?: RequestInit, options?: 
   if (writeRequestSignature) {
     inFlightWriteRequests.set(writeRequestSignature, requestPromise as Promise<unknown>);
   }
+  if (readRequestSignature) {
+    inFlightGetRequests.set(readRequestSignature, requestPromise as Promise<unknown>);
+  }
 
   try {
-    return await requestPromise;
+    const result = await requestPromise;
+    if (readRequestSignature) {
+      getResponseCache.set(readRequestSignature, {
+        expiresAt: Date.now() + HOT_GET_CACHE_TTL,
+        value: result
+      });
+    }
+    return result;
   } catch (error) {
     handleNetworkRequestErrorDisplay(error, options);
     throw error;
@@ -321,6 +347,12 @@ export async function requestApi<T>(path: string, init?: RequestInit, options?: 
       const current = inFlightWriteRequests.get(writeRequestSignature);
       if (current === requestPromise) {
         inFlightWriteRequests.delete(writeRequestSignature);
+      }
+    }
+    if (readRequestSignature) {
+      const current = inFlightGetRequests.get(readRequestSignature);
+      if (current === requestPromise) {
+        inFlightGetRequests.delete(readRequestSignature);
       }
     }
   }
@@ -420,7 +452,7 @@ export async function requestApiBlob(path: string, init?: RequestInit, options?:
   }
 
   const requestInit: RequestInit = { ...init, headers, credentials: "include" };
-  const networkRetryLimit = shouldRetryableReadMethod(method) ? 2 : 0;
+  const networkRetryLimit = resolveNetworkRetryLimit(path, method);
   const runRequest = async () => {
     const response = await fetchWithRetry(resolveRequestUrl(path), requestInit, path, method, networkRetryLimit);
 
@@ -493,6 +525,38 @@ export async function reportClientErrorSilently(payload: ClientErrorReportPayloa
 
 function shouldRetryableReadMethod(method: string): boolean {
   return method === "GET" || method === "HEAD";
+}
+
+function shouldEnableReadRequestDeduplication(method: string, options?: RequestOptions): boolean {
+  return shouldRetryableReadMethod(method) && !options?.isRetry;
+}
+
+function buildReadRequestSignature(
+  path: string,
+  method: string,
+  tenantId: string | null,
+  projectId: string | null | undefined,
+  appId: string | null,
+  acceptLanguage: string | null
+) {
+  return [
+    method.toUpperCase(),
+    resolveRequestUrl(path),
+    tenantId ?? "",
+    projectId ?? "",
+    appId ?? "",
+    acceptLanguage ?? getLocale()
+  ].join("|");
+}
+
+function resolveNetworkRetryLimit(path: string, method: string): number {
+  if (!shouldRetryableReadMethod(method)) {
+    return 0;
+  }
+  if (path.includes("/notifications/unread-count")) {
+    return 0;
+  }
+  return 1;
 }
 
 function isNetworkFailure(error: unknown): boolean {

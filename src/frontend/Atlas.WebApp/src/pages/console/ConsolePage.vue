@@ -355,10 +355,20 @@ async function loadResourceGroups() {
 async function loadDataSourceConsumption() {
   dataSourceConsumptionLoading.value = true;
   try {
-    dataSourceConsumption.value = await getResourceCenterDataSourceConsumption();
+    const [consumption, appOptions] = await Promise.all([
+      getResourceCenterDataSourceConsumption(),
+      getTenantAppInstancesPaged({
+        pageIndex: 1,
+        pageSize: 20
+      })
+    ]);
 
     if (!isMounted.value) return;
-    await searchAppFilterOptions();
+    dataSourceConsumption.value = consumption;
+    appFilterOptions.value = appOptions.items.map((item) => ({
+      label: t("console.dashboard.appOptionLabel", { name: item.name, appKey: item.appKey }),
+      value: item.id
+    }));
 
     if (!isMounted.value) return;
   } catch (error) {

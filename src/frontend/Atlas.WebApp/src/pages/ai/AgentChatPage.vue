@@ -475,17 +475,17 @@ watch(
 );
 
 onMounted(async () => {
-  try {
-    const agent  = await getAgentById(String(agentId.value));
-
-    if (!isMounted.value) return;
-    agentName.value = agent.name;
-  } catch {
-    agentName.value = t("ai.chat.defaultAgentName");
-  }
-  await loadConversations();
+  const [agentResult] = await Promise.allSettled([
+    getAgentById(String(agentId.value)),
+    loadConversations()
+  ]);
 
   if (!isMounted.value) return;
+  if (agentResult.status === "fulfilled") {
+    agentName.value = agentResult.value.name;
+  } else {
+    agentName.value = t("ai.chat.defaultAgentName");
+  }
   if (conversations.value.length > 0) {
     await selectConversation(conversations.value[0]);
 

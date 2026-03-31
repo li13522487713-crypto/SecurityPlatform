@@ -66,6 +66,35 @@ public sealed class ProjectRepository : IProjectRepository
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<(IReadOnlyList<Project> Items, int TotalCount)> QueryPagedByUserIdAsync(
+        TenantId tenantId,
+        long userId,
+        int pageIndex,
+        int pageSize,
+        string? keyword,
+        CancellationToken cancellationToken)
+    {
+        var query = _db.Queryable<ProjectUser, Project>(
+                (pu, p) => new JoinQueryInfos(JoinType.Inner, pu.ProjectId == p.Id))
+            .Where((pu, p) => pu.TenantIdValue == tenantId.Value
+                && p.TenantIdValue == tenantId.Value
+                && pu.UserId == userId);
+
+        if (!string.IsNullOrWhiteSpace(keyword))
+        {
+            query = query.Where((pu, p) => p.Code.Contains(keyword) || p.Name.Contains(keyword));
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken);
+        var items = await query
+            .OrderBy((pu, p) => p.SortOrder, OrderByType.Asc)
+            .OrderBy((pu, p) => p.Id, OrderByType.Asc)
+            .Select((pu, p) => p)
+            .ToPageListAsync(pageIndex, pageSize, cancellationToken);
+
+        return (items, totalCount);
+    }
+
     public Task AddAsync(Project project, CancellationToken cancellationToken)
     {
         return _db.Insertable(project).ExecuteCommandAsync(cancellationToken);

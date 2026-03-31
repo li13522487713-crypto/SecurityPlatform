@@ -195,10 +195,6 @@ const loadProfile = async () => {
 };
 
 const loadDetail = async () => {
-  if (!profile.value?.id) {
-    return;
-  }
-
   try {
     const detail  = await getProfileDetail();
 
@@ -232,10 +228,10 @@ const submit = async () => {
 
     if (!isMounted.value) return;
     message.success(t("profile.saveSuccess"));
-    await loadProfile();
-
-    if (!isMounted.value) return;
-    await loadDetail();
+    await Promise.allSettled([
+      loadProfile(),
+      loadDetail()
+    ]);
 
     if (!isMounted.value) return;
   } catch (error) {
@@ -383,13 +379,11 @@ const handleDisableMfa = async () => {
 };
 
 onMounted(async () => {
-  await loadProfile();
-
-  if (!isMounted.value) return;
-  await loadDetail();
-
-  if (!isMounted.value) return;
-  await loadMfaStatus();
+  await Promise.allSettled([
+    loadProfile(),
+    loadDetail(),
+    loadMfaStatus()
+  ]);
 
   if (!isMounted.value) return;
 });

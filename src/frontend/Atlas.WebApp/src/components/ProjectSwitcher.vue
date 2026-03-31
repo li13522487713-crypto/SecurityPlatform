@@ -81,9 +81,16 @@ const resolvedAppId = computed(() => {
 const loadProjectContext = async (skipEvent = false) => {
   loading.value = true;
   try {
-    const appConfig  = await getCurrentAppConfig();
+    const [appConfigResult, projectsResult] = await Promise.allSettled([
+      getCurrentAppConfig(),
+      getMyProjectsPaged({
+        pageIndex: 1,
+        pageSize: 20
+      })
+    ]);
 
     if (!isMounted.value) return;
+    const appConfig = appConfigResult.status === "fulfilled" ? appConfigResult.value : null;
     const isEnabled = Boolean(appConfig?.enableProjectScope);
     setProjectScopeEnabled(isEnabled);
     enabled.value = isEnabled;
@@ -96,8 +103,15 @@ const loadProjectContext = async (skipEvent = false) => {
       return;
     }
 
-    await loadProjects();
-
+    if (projectsResult.status === "fulfilled") {
+      options.value = projectsResult.value.items.map((item: ProjectListItem) => ({
+        label: `${item.name} (${item.code})`,
+        value: item.id
+      }));
+    } else {
+      options.value = [];
+      message.error((projectsResult.reason as Error).message || t("projectSwitcher.loadFailed"));
+    }
 
     if (!isMounted.value) return;
 

@@ -186,8 +186,10 @@ const formatDate = (iso: string) =>
   iso ? new Date(iso).toLocaleString(locale.value === "en-US" ? "en-US" : "zh-CN") : "-";
 
 onMounted(async () => {
-  await loadAppOptions();
-  await loadData();
+  await Promise.allSettled([
+    loadAppOptions(),
+    loadData()
+  ]);
 });
 </script>
 
