@@ -18,6 +18,7 @@ public static class AiPlatformServiceRegistration
     public static IServiceCollection AddAiPlatformInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
         services.Configure<AiPlatformOptions>(configuration.GetSection("AiPlatform"));
+        services.Configure<AgentFrameworkOptions>(configuration.GetSection("AgentFramework"));
         services.Configure<CodeExecutionOptions>(configuration.GetSection("CodeExecution"));
         services.AddHttpClient("AiPlatform", client => client.Timeout = TimeSpan.FromSeconds(120));
 
@@ -27,6 +28,11 @@ public static class AiPlatformServiceRegistration
         services.AddScoped<AgentPluginBindingRepository>();
         services.AddScoped<ConversationRepository>();
         services.AddScoped<ChatMessageRepository>();
+        services.AddScoped<TeamAgentRepository>();
+        services.AddScoped<TeamAgentConversationRepository>();
+        services.AddScoped<TeamAgentMessageRepository>();
+        services.AddScoped<TeamAgentExecutionRepository>();
+        services.AddScoped<TeamAgentSchemaDraftRepository>();
         services.AddScoped<ShortTermMemoryRepository>();
         services.AddScoped<LongTermMemoryRepository>();
         services.AddScoped<KnowledgeBaseRepository>();
@@ -65,6 +71,9 @@ public static class AiPlatformServiceRegistration
         services.AddScoped<IAgentCommandService, AgentCommandService>();
         services.AddScoped<IAgentQueryService, AgentQueryService>();
         services.AddScoped<IConversationService, ConversationService>();
+        services.AddScoped<ITeamAgentService, TeamAgentService>();
+        services.AddScoped<ITeamAgentOrchestrationRuntime, FrameworkAwareTeamAgentOrchestrationRuntime>();
+        services.AddScoped<ITeamAgentSchemaDraftComposer, TeamAgentSchemaDraftComposer>();
         services.AddScoped<IAgentChatService, AgentChatService>();
         services.AddScoped<IAgentToolCallService, AgentToolCallService>();
         services.AddScoped<IShortTermMemorySummarizationService, ShortTermMemorySummarizationService>();

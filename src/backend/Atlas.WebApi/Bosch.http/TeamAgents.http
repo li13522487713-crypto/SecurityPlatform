@@ -1,0 +1,143 @@
+@baseUrl = http://localhost:5000
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+@teamAgentId = 0
+
+### 登录获取令牌
+# @name login
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+###
+@accessToken = {{login.response.body.$.data.accessToken}}
+
+### 获取 CSRF Token
+# @name antiforgery
+GET {{baseUrl}}/api/v1/secure/antiforgery
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+###
+@csrfToken = {{antiforgery.response.body.$.data.token}}
+
+### 查询 Team Agent 模板
+GET {{baseUrl}}/api/v1/team-agents/templates
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 创建 Team Agent
+# @name createTeamAgent
+POST {{baseUrl}}/api/v1/team-agents
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "name": "数据建模团队",
+  "description": "面向数据管理的建表协作团队",
+  "teamMode": "GroupChat",
+  "capabilityTags": ["schema_builder", "knowledge"],
+  "defaultEntrySkill": "schema_builder",
+  "boundDataAssets": [],
+  "members": [
+    {
+      "agentId": 1,
+      "roleName": "业务分析 Agent",
+      "responsibility": "拆解业务实体与字段",
+      "alias": "analyst",
+      "sortOrder": 1,
+      "isEnabled": true,
+      "promptPrefix": "你负责业务分析。",
+      "capabilityTags": ["analysis"]
+    }
+  ],
+  "schemaConfigJson": "{}"
+}
+
+###
+@teamAgentId = {{createTeamAgent.response.body.$.data.id}}
+
+### 获取 Team Agent 列表
+GET {{baseUrl}}/api/v1/team-agents?pageIndex=1&pageSize=20
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 获取 Team Agent 详情
+GET {{baseUrl}}/api/v1/team-agents/{{teamAgentId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 更新 Team Agent
+PUT {{baseUrl}}/api/v1/team-agents/{{teamAgentId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "name": "数据建模团队（已发布前）",
+  "description": "升级后的建表协作团队",
+  "teamMode": "Workflow",
+  "status": "Draft",
+  "capabilityTags": ["schema_builder", "ops"],
+  "defaultEntrySkill": "schema_builder",
+  "boundDataAssets": [],
+  "members": [
+    {
+      "agentId": 1,
+      "roleName": "业务分析 Agent",
+      "responsibility": "拆解业务实体与字段",
+      "alias": "analyst",
+      "sortOrder": 1,
+      "isEnabled": true,
+      "promptPrefix": "你负责业务分析。",
+      "capabilityTags": ["analysis"]
+    }
+  ],
+  "schemaConfigJson": "{}"
+}
+
+### 发布 Team Agent
+POST {{baseUrl}}/api/v1/team-agents/{{teamAgentId}}/publish
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+### 复制 Team Agent
+POST {{baseUrl}}/api/v1/team-agents/{{teamAgentId}}/duplicate
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+### 根据模板创建 Team Agent
+POST {{baseUrl}}/api/v1/team-agents/from-template
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "templateKey": "schema_builder",
+  "name": "模板创建的数据建模团队",
+  "description": "模板创建示例"
+}
+
+### 删除 Team Agent
+DELETE {{baseUrl}}/api/v1/team-agents/{{teamAgentId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}

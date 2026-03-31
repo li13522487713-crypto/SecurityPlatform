@@ -1,6 +1,8 @@
 using Atlas.Application.DynamicTables;
 using Atlas.Application.DynamicTables.Abstractions;
 using Atlas.Application.DynamicTables.Repositories;
+using Atlas.Application.DynamicViews.Abstractions;
+using Atlas.Application.DynamicViews.Repositories;
 using Atlas.Infrastructure.Repositories;
 using Atlas.Infrastructure.Services;
 using Microsoft.Extensions.DependencyInjection;
@@ -20,11 +22,19 @@ public static class DynamicTableServiceRegistration
         services.AddScoped<IDynamicRelationRepository, DynamicRelationRepository>();
         services.AddScoped<IFieldPermissionRepository, FieldPermissionRepository>();
         services.AddScoped<IDynamicRecordRepository, DynamicRecordRepository>();
+        services.AddScoped<IDynamicViewRepository, DynamicViewRepository>();
+        services.AddScoped<IDynamicViewVersionRepository, DynamicViewVersionRepository>();
         services.AddScoped<IDynamicSchemaMigrationRepository, DynamicSchemaMigrationRepository>();
         services.AddScoped<IMigrationRecordRepository, MigrationRecordRepository>();
         services.AddScoped<IFieldPermissionResolver, FieldPermissionResolver>();
         services.AddScoped<IDynamicTableQueryService, DynamicTableQueryService>();
         services.AddScoped<IDynamicTableCommandService, DynamicTableCommandService>();
+        services.AddScoped<IDynamicDeleteCheckService, DynamicDeleteCheckService>();
+        services.AddScoped<IDynamicViewQueryService, DynamicViewQueryService>();
+        services.AddScoped<IDynamicViewCommandService, DynamicViewCommandService>();
+        services.AddScoped<DynamicViewCompiler>();
+        services.AddScoped<DynamicViewRuntime>();
+        services.AddScoped<DynamicViewVersionService>();
         services.AddScoped<IDynamicRecordQueryService, DynamicRecordQueryService>();
         services.AddScoped<IDynamicRecordCommandService, DynamicRecordCommandService>();
         services.AddScoped<IMigrationService, MigrationService>();
@@ -36,3 +46,4 @@ public static class DynamicTableServiceRegistration
         return services;
     }
 }
+

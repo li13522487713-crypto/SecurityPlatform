@@ -1,0 +1,249 @@
+@baseUrl = http://localhost:5000
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+@appId = 1482690002860118016
+
+### Login to get token
+# @name login
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+###
+@accessToken = {{login.response.body.$.data.accessToken}}
+
+### Get Anti-Forgery Token
+# @name antiforgery
+GET {{baseUrl}}/api/v1/secure/antiforgery
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+###
+@csrfToken = {{antiforgery.response.body.$.data.token}}
+
+### Create Dynamic View
+POST {{baseUrl}}/api/v1/dynamic-views
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$randomUUID}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "appId": "{{appId}}",
+  "viewKey": "orders_view",
+  "name": "订单视图",
+  "description": "P0 视图样例",
+  "nodes": [
+    {
+      "id": "n1",
+      "type": "sourceTable",
+      "label": "orders",
+      "tableKey": "orders"
+    },
+    {
+      "id": "n2",
+      "type": "limit",
+      "config": {
+        "limit": 100
+      }
+    }
+  ],
+  "edges": [],
+  "outputFields": [
+    {
+      "targetFieldKey": "orderNo",
+      "targetLabel": "订单号",
+      "targetType": "String",
+      "nullable": true,
+      "source": {
+        "nodeId": "n1",
+        "fieldKey": "orderNo"
+      },
+      "pipeline": [
+        {
+          "type": "trim",
+          "args": {}
+        }
+      ],
+      "onError": "null"
+    }
+  ],
+  "filters": [
+    {
+      "field": "orderNo",
+      "operator": "contains",
+      "value": "SO-"
+    }
+  ],
+  "groupBy": [],
+  "sorts": [
+    {
+      "field": "orderNo",
+      "direction": "asc"
+    }
+  ]
+}
+
+### List Dynamic Views
+GET {{baseUrl}}/api/v1/dynamic-views?pageIndex=1&pageSize=20
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### Get Dynamic View
+GET {{baseUrl}}/api/v1/dynamic-views/orders_view
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### Update Dynamic View
+PUT {{baseUrl}}/api/v1/dynamic-views/orders_view
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$randomUUID}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "appId": "{{appId}}",
+  "viewKey": "orders_view",
+  "name": "订单视图-更新",
+  "description": "更新说明",
+  "nodes": [
+    {
+      "id": "n1",
+      "type": "sourceTable",
+      "label": "orders",
+      "tableKey": "orders"
+    }
+  ],
+  "edges": [],
+  "outputFields": [
+    {
+      "targetFieldKey": "orderNo",
+      "targetLabel": "订单号",
+      "targetType": "String",
+      "nullable": true,
+      "source": {
+        "nodeId": "n1",
+        "fieldKey": "orderNo"
+      },
+      "pipeline": [],
+      "onError": "null"
+    }
+  ],
+  "filters": [],
+  "groupBy": [],
+  "sorts": []
+}
+
+### Preview Dynamic View
+POST {{baseUrl}}/api/v1/dynamic-views/preview
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$randomUUID}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "definition": {
+    "appId": "{{appId}}",
+    "viewKey": "orders_view",
+    "name": "订单视图",
+    "description": "预览",
+    "nodes": [
+      {
+        "id": "n1",
+        "type": "sourceTable",
+        "tableKey": "orders"
+      }
+    ],
+    "edges": [],
+    "outputFields": [
+      {
+        "targetFieldKey": "orderNo",
+        "targetLabel": "订单号",
+        "targetType": "String",
+        "nullable": true,
+        "source": {
+          "nodeId": "n1",
+          "fieldKey": "orderNo"
+        },
+        "pipeline": [],
+        "onError": "null"
+      }
+    ],
+    "filters": [],
+    "groupBy": [],
+    "sorts": []
+  },
+  "limit": 100
+}
+
+### Publish Dynamic View
+POST {{baseUrl}}/api/v1/dynamic-views/orders_view/publish
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$randomUUID}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "comment": "P0 publish"
+}
+
+### Get Dynamic View History
+GET {{baseUrl}}/api/v1/dynamic-views/orders_view/history
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### Rollback Dynamic View
+POST {{baseUrl}}/api/v1/dynamic-views/orders_view/rollback/1
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$randomUUID}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "comment": "rollback to v1"
+}
+
+### Query Dynamic View Records
+POST {{baseUrl}}/api/v1/dynamic-views/orders_view/records/query
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$randomUUID}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "pageIndex": 1,
+  "pageSize": 20,
+  "keyword": "",
+  "sortBy": null,
+  "sortDesc": false,
+  "filters": []
+}
+
+### Dynamic View References
+GET {{baseUrl}}/api/v1/dynamic-views/orders_view/references
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### Dynamic View Delete Check
+GET {{baseUrl}}/api/v1/dynamic-views/orders_view/delete-check
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### Delete Dynamic View
+DELETE {{baseUrl}}/api/v1/dynamic-views/orders_view
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$randomUUID}}
+X-CSRF-TOKEN: {{csrfToken}}

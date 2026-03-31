@@ -2,13 +2,14 @@ using Atlas.Application.System.Abstractions;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Approval.Entities;
 using Atlas.Domain.DynamicTables.Entities;
+using Atlas.Domain.DynamicViews.Entities;
 using Atlas.Domain.LowCode.Entities;
 using SqlSugar;
 
 namespace Atlas.Infrastructure.Services;
 
 /// <summary>
-/// Aggregates metadata references across forms, pages, and approval flows for a given dynamic table.
+/// Aggregates metadata references across forms, pages, approval flows, relations and dynamic views for a given dynamic table.
 /// </summary>
 public sealed class MetadataLinkQueryService : IMetadataLinkQueryService
 {
@@ -27,7 +28,6 @@ public sealed class MetadataLinkQueryService : IMetadataLinkQueryService
     {
         var tenantId = _tenantProvider.GetTenantId();
 
-        // Run all three queries in parallel to avoid multiple sequential DB round-trips.
         var formTask = _db.Queryable<FormDefinition>()
             .Where(f => f.TenantIdValue == tenantId.Value && f.DataTableKey == tableKey)
             .Select(f => new FormDefinitionRef(f.Id, f.Name, f.Description, f.Category, f.Status.ToString()))
@@ -40,7 +40,7 @@ public sealed class MetadataLinkQueryService : IMetadataLinkQueryService
 
         var tableTask = _db.Queryable<DynamicTable>()
             .Where(t => t.TenantIdValue == tenantId.Value && t.TableKey == tableKey)
-            .Select(t => new { t.ApprovalFlowDefinitionId })
+            .Select(t => new { t.Id, t.ApprovalFlowDefinitionId })
             .FirstAsync(cancellationToken);
 
         await Task.WhenAll(formTask, pageTask, tableTask);
@@ -52,13 +52,34 @@ public sealed class MetadataLinkQueryService : IMetadataLinkQueryService
         ApprovalFlowRef? approvalFlow = null;
         if (tableRow?.ApprovalFlowDefinitionId is { } flowId)
         {
-            var flow = await _db.Queryable<ApprovalFlowDefinition>()
+            approvalFlow = await _db.Queryable<ApprovalFlowDefinition>()
                 .Where(a => a.TenantIdValue == tenantId.Value && a.Id == flowId)
                 .Select(a => new ApprovalFlowRef(a.Id, a.Name, a.Status.ToString()))
                 .FirstAsync(cancellationToken);
-            approvalFlow = flow;
         }
 
-        return new EntityReferenceResult(tableKey, forms, pages, approvalFlow);
+        IReadOnlyList<DynamicRelationRef> relations = Array.Empty<DynamicRelationRef>();
+        if (tableRow is not null)
+        {
+            relations = await _db.Queryable<DynamicRelation>()
+                .Where(r => r.TenantIdValue == tenantId.Value && (r.TableId == tableRow.Id || r.RelatedTableKey == tableKey))
+                .Select(r => new DynamicRelationRef(r.Id, r.RelatedTableKey, r.SourceField, r.TargetField))
+                .ToListAsync(cancellationToken);
+        }
+
+        var marker = $"\"tableKey\":\"{tableKey}\"";
+        var views = await _db.Queryable<DynamicViewDefinition>()
+            .Where(v => v.TenantIdValue == tenantId.Value && (v.DefinitionJson.Contains(marker) || v.DraftDefinitionJson.Contains(marker)))
+            .Select(v => new DynamicViewRef(v.ViewKey, v.Name))
+            .ToListAsync(cancellationToken);
+
+        return new EntityReferenceResult(
+            tableKey,
+            forms,
+            pages,
+            approvalFlow,
+            relations,
+            views,
+            Array.Empty<TransformJobRef>());
     }
 }

@@ -409,7 +409,9 @@ async function bootstrapRelationEdges() {
       edgeStore.push({
         id: edgeId,
         source: sourceTableKey,
+        sourceHandle: `out-${relation.sourceField}`,
         target: relation.relatedTableKey,
+        targetHandle: `in-${relation.targetField}`,
         label: buildEdgeLabel(relation),
         markerEnd: MarkerType.ArrowClosed,
         data: { definition: relation }
@@ -748,7 +750,9 @@ function onRelationConfirm(definition: DynamicRelationDefinition) {
   const newEdge = {
     id: relationIdentity,
     source: pendingEdge.value.sourceTableKey,
+    sourceHandle: `out-${definition.sourceField}`,
     target: pendingEdge.value.targetTableKey,
+    targetHandle: `in-${definition.targetField}`,
     label,
     markerEnd: MarkerType.ArrowClosed,
     data: { definition }
@@ -1019,3 +1023,8 @@ function emptyRelationDefinition(relatedTableKey: string): DynamicRelationDefini
   user-select: none;
 }
 </style>
+
+
+
+
+

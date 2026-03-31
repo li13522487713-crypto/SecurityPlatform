@@ -321,3 +321,26 @@ export async function submitRecordApproval(
   }
   return response.data;
 }
+
+export interface DeleteCheckBlocker {
+  type: "form" | "page" | "approval" | "relation" | "view" | "etlJob";
+  id: string;
+  name: string;
+  path?: string;
+}
+
+export interface DeleteCheckResult {
+  canDelete: boolean;
+  blockers: DeleteCheckBlocker[];
+  warnings: string[];
+}
+
+export async function getDynamicTableDeleteCheck(tableKey: string): Promise<DeleteCheckResult> {
+  const response = await requestApi<ApiResponse<DeleteCheckResult>>(
+    `/dynamic-tables/${encodeURIComponent(tableKey)}/delete-check`
+  );
+  if (!response.data) {
+    throw new Error(response.message || "删除检查失败");
+  }
+  return response.data;
+}

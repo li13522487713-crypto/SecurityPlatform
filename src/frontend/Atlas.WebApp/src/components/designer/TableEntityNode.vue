@@ -1,9 +1,5 @@
 <template>
   <div class="table-entity-node">
-    <!-- VueFlow 连接点 -->
-    <Handle type="source" :position="Position.Right" />
-    <Handle type="target" :position="Position.Left" />
-
     <div class="node-header">
       <TableOutlined class="node-icon" />
       <span class="node-name" :title="table.tableKey">{{ table.displayName || table.tableKey }}</span>
@@ -26,10 +22,12 @@
         :key="field.name"
         class="field-row"
       >
+        <Handle :id="`in-${field.name}`" type="target" :position="Position.Left" class="field-handle field-handle-in" />
         <KeyOutlined v-if="field.isPrimaryKey" class="pk-icon" />
         <span v-else class="field-dot" />
         <span class="field-name">{{ field.displayName || field.name }}</span>
         <span class="field-type">{{ field.fieldType }}</span>
+        <Handle :id="`out-${field.name}`" type="source" :position="Position.Right" class="field-handle field-handle-out" />
       </div>
     </div>
   </div>
@@ -68,8 +66,8 @@ onMounted(async () => {
 
 <style scoped>
 .table-entity-node {
-  min-width: 200px;
-  max-width: 240px;
+  min-width: 240px;
+  max-width: 280px;
   background: #fff;
   border: 1px solid #d9d9d9;
   border-radius: 6px;
@@ -110,7 +108,7 @@ onMounted(async () => {
 }
 
 .node-body {
-  max-height: 180px;
+  max-height: 220px;
   overflow-y: auto;
 }
 
@@ -120,10 +118,11 @@ onMounted(async () => {
 }
 
 .field-row {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 3px 10px;
+  padding: 4px 16px;
   font-size: 12px;
   border-bottom: 1px solid #f5f5f5;
 }
@@ -159,5 +158,20 @@ onMounted(async () => {
   color: #aaa;
   font-size: 11px;
   flex-shrink: 0;
+}
+
+.field-handle {
+  width: 8px;
+  height: 8px;
+  background: #1677ff;
+  border: 1px solid #fff;
+}
+
+.field-handle-in {
+  left: -5px;
+}
+
+.field-handle-out {
+  right: -5px;
 }
 </style>

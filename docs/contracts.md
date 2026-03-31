@@ -3121,3 +3121,231 @@ type EvaluationCaseStatus = 0 | 1 | 2 | 3; // Pending / Passed / Failed / Error
 |---|---|---|---|
 | GET | `/openapi.json` | 下载 OpenAPI 规范 | `pat:view` |
 | GET | `/download?language=typescript|csharp` | 下载 SDK 生成包（`openapi.json` + README） | `pat:view` |
+
+## Dynamic Views（v1）与删除检查（P0）
+
+### Dynamic Views API
+
+- `GET /api/v1/dynamic-views`
+- `GET /api/v1/dynamic-views/{viewKey}`
+- `POST /api/v1/dynamic-views`（需 `Idempotency-Key` + `X-CSRF-TOKEN`）
+- `PUT /api/v1/dynamic-views/{viewKey}`（需 `Idempotency-Key` + `X-CSRF-TOKEN`）
+- `DELETE /api/v1/dynamic-views/{viewKey}`（需 `Idempotency-Key` + `X-CSRF-TOKEN`，先执行 delete-check）
+- `POST /api/v1/dynamic-views/preview`（需 `Idempotency-Key` + `X-CSRF-TOKEN`）
+- `POST /api/v1/dynamic-views/{viewKey}/publish`（需 `Idempotency-Key` + `X-CSRF-TOKEN`）
+- `GET /api/v1/dynamic-views/{viewKey}/history`
+- `POST /api/v1/dynamic-views/{viewKey}/rollback/{version}`（需 `Idempotency-Key` + `X-CSRF-TOKEN`）
+- `POST /api/v1/dynamic-views/{viewKey}/records/query`（返回 `DynamicRecordListResult`）
+- `GET /api/v1/dynamic-views/{viewKey}/references`
+- `GET /api/v1/dynamic-views/{viewKey}/delete-check`
+
+### Delete Check API
+
+- `GET /api/v1/dynamic-tables/{tableKey}/delete-check`
+- `GET /api/v1/dynamic-views/{viewKey}/delete-check`
+
+`DeleteCheckResult`:
+
+```json
+{
+  "canDelete": false,
+  "blockers": [
+    {
+      "type": "view",
+      "id": "customer_view",
+      "name": "Customer View",
+      "path": "/apps/1001/data/designer?viewKey=customer_view"
+    }
+  ],
+  "warnings": []
+}
+```
+
+错误码建议：
+
+- `DynamicTableDeleteBlocked`
+- `DynamicViewDeleteBlocked`
+- `DynamicViewNotFound`
+- `DynamicViewVersionNotFound`
+- `DynamicViewDefinitionInvalid`
+
+## Team Agent API 契约（Phase 3）
+
+### 路由前缀
+
+- `api/v1/team-agents`
+- `api/v1/team-agent-conversations`
+
+### Team Agent 核心模型
+
+```json
+{
+  "agentType": "team",
+  "id": 1482000000000000000,
+  "name": "数据建模团队",
+  "description": "面向数据管理的建表协作团队",
+  "teamMode": "GroupChat | Workflow | Handoff",
+  "status": "Draft | Active | Disabled",
+  "capabilityTags": ["schema_builder", "knowledge"],
+  "defaultEntrySkill": "schema_builder",
+  "memberCount": 3,
+  "publishedVersion": 1,
+  "boundDataAssets": [],
+  "members": [
+    {
+      "agentId": 1,
+      "roleName": "业务分析 Agent",
+      "responsibility": "拆解业务实体与字段",
+      "alias": "analyst",
+      "sortOrder": 1,
+      "isEnabled": true,
+      "promptPrefix": "你负责业务分析。",
+      "capabilityTags": ["analysis"]
+    }
+  ]
+}
+```
+
+### Team Agent 资源接口
+
+- `GET /api/v1/team-agents`
+- `GET /api/v1/team-agents/{id}`
+- `POST /api/v1/team-agents`
+- `PUT /api/v1/team-agents/{id}`
+- `DELETE /api/v1/team-agents/{id}`
+- `POST /api/v1/team-agents/{id}/duplicate`
+- `POST /api/v1/team-agents/{id}/publish`
+- `GET /api/v1/team-agents/templates`
+- `POST /api/v1/team-agents/from-template`
+- `GET /api/v1/team-agents/executions/{executionId}`
+
+### Team Agent 会话接口
+
+- `GET /api/v1/team-agents/{id}/conversations`
+- `POST /api/v1/team-agents/{id}/conversations`
+- `POST /api/v1/team-agents/{id}/chat`
+- `POST /api/v1/team-agents/{id}/chat/stream`
+- `POST /api/v1/team-agents/{id}/chat/cancel`
+- `GET /api/v1/team-agent-conversations/{conversationId}`
+- `GET /api/v1/team-agent-conversations/{conversationId}/messages`
+- `PUT /api/v1/team-agent-conversations/{conversationId}`
+- `DELETE /api/v1/team-agent-conversations/{conversationId}`
+- `POST /api/v1/team-agent-conversations/{conversationId}/clear-context`
+- `POST /api/v1/team-agent-conversations/{conversationId}/clear-history`
+
+### Team Agent SSE 事件
+
+- `orchestration.runtime.selected`
+- `conversation.started`
+- `round.started`
+- `member.message`
+- `execution.step`
+- `schema.draft.updated`
+- `conversation.completed`
+- `conversation.failed`
+
+### Team Agent 编排运行时
+
+- `GroupChat` 默认优先走 `Semantic Kernel Agents Orchestration`
+- `Workflow` / `Handoff` 默认优先走 `Microsoft Agent Framework`
+- 运行时选择通过配置节 `AgentFramework` 控制
+- 流式事件 `orchestration.runtime.selected` 会返回 `runtimeKey`、`frameworkFamily`、`packageId`、`packageVersion`
+- 当前仓库约定的默认包版本：
+  - `Microsoft.SemanticKernel.Agents.Orchestration`: `1.74.0-preview`
+  - `Microsoft.Agents.AI`: `1.0.0-rc4`
+  - `Microsoft.Agents.AI.OpenAI`: `1.0.0-rc4`
+  - `Microsoft.Agents.AI.Workflows`: `1.0.0-rc4`
+
+### Schema Draft 接口
+
+- `POST /api/v1/team-agents/{id}/schema-drafts`
+- `GET /api/v1/team-agents/{id}/schema-drafts/{draftId}`
+- `PUT /api/v1/team-agents/{id}/schema-drafts/{draftId}`
+- `POST /api/v1/team-agents/{id}/schema-drafts/{draftId}/confirm-create`
+- `POST /api/v1/team-agents/{id}/schema-drafts/{draftId}/discard`
+
+### Schema Draft 最小对象
+
+```json
+{
+  "schemaDraft": "根据需求生成的草案，建议创建 客户表、合同表、回款表。",
+  "entities": [
+    {
+      "tableKey": "customer_123",
+      "displayName": "客户表",
+      "description": "客户主数据"
+    },
+    {
+      "tableKey": "contract_123",
+      "displayName": "合同表",
+      "description": "合同主表"
+    }
+  ],
+  "fields": [
+    {
+      "tableKey": "customer_123",
+      "name": "Id",
+      "displayName": "主键",
+      "fieldType": "Long",
+      "allowNull": false,
+      "isPrimaryKey": true,
+      "isAutoIncrement": true,
+      "isUnique": true,
+      "sortOrder": 1
+    },
+    {
+      "tableKey": "contract_123",
+      "name": "CustomerId",
+      "displayName": "客户",
+      "fieldType": "Long",
+      "allowNull": false,
+      "isPrimaryKey": false,
+      "isAutoIncrement": false,
+      "isUnique": false,
+      "sortOrder": 11
+    }
+  ],
+  "relations": [
+    {
+      "sourceTableKey": "contract_123",
+      "sourceField": "CustomerId",
+      "relatedTableKey": "customer_123",
+      "targetField": "Id",
+      "relationType": "ManyToOne",
+      "cascadeRule": "Restrict"
+    }
+  ],
+  "indexes": [
+    {
+      "tableKey": "contract_123",
+      "name": "UX_contract_123_ContractNo",
+      "isUnique": true,
+      "fields": ["ContractNo"]
+    }
+  ],
+  "securityPolicies": [
+    {
+      "tableKey": "contract_123",
+      "fieldName": "TenantId",
+      "roleCode": "tenant_admin",
+      "canView": true,
+      "canEdit": false
+    }
+  ],
+  "openQuestions": [
+    {
+      "code": "approval_flow",
+      "question": "合同是否需要审批流状态字段与审批历史？"
+    }
+  ],
+  "confirmationState": "Pending | Confirmed | Discarded"
+}
+```
+
+### confirm-create 映射说明
+
+- 先将 `entities + fields + indexes` 映射到 `DynamicTableCreateRequest`
+- 再将 `relations` 映射到 `DynamicRelationUpsertRequest`
+- 最后将 `securityPolicies` 映射到 `DynamicFieldPermissionUpsertRequest`
+- `confirm-create` 必须携带 `Idempotency-Key` 与 `X-CSRF-TOKEN`
+- 当 `openQuestions` 非空时，后端必须拒绝确认创建

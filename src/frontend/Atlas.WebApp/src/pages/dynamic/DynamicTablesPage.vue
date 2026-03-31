@@ -19,10 +19,17 @@
           <template #icon><ReloadOutlined /></template>
           {{ t("dynamic.refresh") }}
         </a-button>
+        <a-button type="primary" :disabled="!selectedAppId" @click="openDataDesigner()">
+          <template #icon><PartitionOutlined /></template>
+          {{ t("dynamicDesigner.centerTitle") }}
+        </a-button>
         <a-button type="primary" :disabled="!selectedAppId" @click="openCreateTableModal()">
           <template #icon><PlusOutlined /></template>
           {{ t("dynamic.createTable") }}
         </a-button>
+        <a-button :disabled="!selectedAppId" @click="openERDCanvas()">{{ t("dynamicDesigner.modeRelation") }}</a-button>
+        <a-button :disabled="!selectedAppId" @click="openDataDesigner('view')">{{ t("dynamicDesigner.modeView") }}</a-button>
+        <a-button :disabled="!selectedAppId" @click="openDataDesigner('transform')">{{ t("dynamicDesigner.modeTransform") }}</a-button>
       </div>
     </div>
 
@@ -129,6 +136,16 @@
                 <template #icon><ProfileOutlined /></template>
                 {{ t("dynamic.openNativeView") }}
               </a-button>
+              <a-popconfirm
+                :title="t('dynamic.deleteTableConfirm', '确认删除该数据表？')"
+                :ok-text="t('common.confirm', '确定')"
+                :cancel-text="t('common.cancel', '取消')"
+                @confirm="handleDeleteTable(selectedTable.tableKey)"
+              >
+                <a-button danger>
+                  {{ t("common.delete", "删除") }}
+                </a-button>
+              </a-popconfirm>
               <a-dropdown>
                 <template #overlay>
                   <a-menu>
@@ -222,6 +239,31 @@
       </a-form-item>
     </a-form>
   </a-modal>
+
+  <a-modal
+    v-model:open="blockerModalOpen"
+    :title="t('dynamic.deleteBlockedTitle', '删除被阻断')"
+    :footer="null"
+    width="680px"
+  >
+    <div style="margin-bottom: 12px;">
+      {{ t("dynamic.deleteBlockedHint", "检测到以下引用，请先解除后再删除：") }}
+    </div>
+    <a-table
+      :dataSource="blockerRows"
+      :columns="blockerColumns"
+      :pagination="false"
+      size="small"
+      rowKey="id"
+    />
+    <div v-if="deleteWarnings.length > 0" style="margin-top: 12px;">
+      <a-alert
+        type="warning"
+        show-icon
+        :message="deleteWarnings.join('；')"
+      />
+    </div>
+  </a-modal>
 </template>
 
 <script setup lang="ts">
@@ -244,13 +286,16 @@ import {
 import type { Rule } from "ant-design-vue/es/form";
 import {
   createDynamicTable,
+  deleteDynamicTable,
   getAppScopedDynamicTables,
+  getDynamicTableDeleteCheck,
   getDynamicTableDetail,
   type AppScopedDynamicTableListItem
 } from "@/services/dynamic-tables";
 import { getLowCodeAppsPaged } from "@/services/lowcode";
 import { getCurrentAppIdFromStorage, setCurrentAppIdToStorage } from "@/utils/app-context";
 import type { DynamicTableDetail } from "@/types/dynamic-tables";
+import type { DeleteCheckBlocker } from "@/services/dynamic-tables";
 
 const { t } = useI18n();
 const route = useRoute();
@@ -278,6 +323,9 @@ const appOptions = ref<Array<{ label: string; value: string }>>([]);
 const tableDirectory = ref<AppScopedDynamicTableListItem[]>([]);
 const selectedTableDetail = ref<DynamicTableDetail | null>(null);
 const relationViewItems = ref<Array<{ id: string; name: string; nodeCount: number }>>([]);
+const blockerModalOpen = ref(false);
+const blockerRows = ref<DeleteCheckBlocker[]>([]);
+const deleteWarnings = ref<string[]>([]);
 
 const filteredTables = computed(() => {
   const kw = sidebarKeyword.value.trim().toLowerCase();
@@ -300,6 +348,12 @@ const fieldColumns = computed(() => [
   { title: t("designer.entityModeling.displayName"), dataIndex: "displayName", key: "displayName" },
   { title: t("designer.entityModeling.fieldType"), dataIndex: "fieldType", key: "fieldType" },
   { title: t("designer.entityModeling.allowNull"), dataIndex: "allowNull", key: "allowNull", width: 100 }
+]);
+
+const blockerColumns = computed(() => [
+  { title: t("dynamic.blockerType", "类型"), dataIndex: "type", key: "type", width: 120 },
+  { title: t("dynamic.blockerName", "名称"), dataIndex: "name", key: "name" },
+  { title: t("dynamic.blockerPath", "路径"), dataIndex: "path", key: "path" }
 ]);
 
 const createModalOpen = ref(false);
@@ -480,7 +534,7 @@ const openTableCrud = (tableKey: string) => {
   if (!selectedAppId.value || !tableKey) {
     return;
   }
-  void router.push(`/apps/${selectedAppId.value}/data/${encodeURIComponent(tableKey)}`);
+  void router.push(`/apps/${selectedAppId.value}/data/${encodeURIComponent(tableKey)}?tab=data`);
 };
 
 const openTableNative = (tableKey: string) => {
@@ -495,6 +549,16 @@ const openTableDesign = (tableKey: string) => {
     return;
   }
   void router.push(`/apps/${selectedAppId.value}/data/${encodeURIComponent(tableKey)}/design`);
+};
+
+
+const openDataDesigner = (mode?: "view" | "transform") => {
+  if (!selectedAppId.value) {
+    return;
+  }
+
+  const query = mode ? `?mode=${mode}` : "";
+  void router.push(`/apps/${selectedAppId.value}/data/designer${query}`);
 };
 
 const openERDCanvas = (viewId?: string) => {
@@ -575,6 +639,31 @@ const handleCreateTable = async () => {
     message.error((error as Error).message || t("dynamic.createTableFailed"));
   } finally {
     creating.value = false;
+  }
+};
+
+const handleDeleteTable = async (tableKey: string) => {
+  if (!selectedAppId.value || !tableKey) {
+    return;
+  }
+
+  try {
+    const check = await getDynamicTableDeleteCheck(tableKey);
+    if (!check.canDelete) {
+      blockerRows.value = check.blockers;
+      deleteWarnings.value = check.warnings;
+      blockerModalOpen.value = true;
+      message.warning(t("dynamic.deleteBlockedTip", "删除被引用阻断，请先解除引用。"));
+      return;
+    }
+
+    await deleteDynamicTable(tableKey);
+    message.success(t("dynamic.deleteSuccess", "删除成功"));
+    await loadTableDirectory();
+    await loadSelectedTableDetail();
+    loadRelationViewItems();
+  } catch (error) {
+    message.error((error as Error).message || t("dynamic.deleteFailed", "删除失败"));
   }
 };
 
@@ -833,3 +922,7 @@ watch([selectedAppId, tableDirectory], () => {
   font-size: 13px;
 }
 </style>
+
+
+
+

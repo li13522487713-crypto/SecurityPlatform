@@ -365,6 +365,11 @@ X-Tenant-Id: {{tenantId}}
 Idempotency-Key: {{$randomUUID}}
 X-CSRF-TOKEN: {{csrfToken}}
 
+### Delete Check Dynamic Table（删除前引用检查）
+GET {{baseUrl}}/api/v1/dynamic-tables/orders/delete-check
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
 ### 安全负例：创建动态表缺少 X-CSRF-TOKEN（应返回 403）
 POST {{baseUrl}}/api/v1/dynamic-tables
 Content-Type: application/json

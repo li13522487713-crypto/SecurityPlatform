@@ -12,6 +12,7 @@ using Atlas.Domain.Approval.Entities;
 using Atlas.Domain.Assets.Entities;
 using Atlas.Domain.Audit.Entities;
 using Atlas.Domain.DynamicTables.Entities;
+using Atlas.Domain.DynamicViews.Entities;
 using Atlas.Domain.Identity.Entities;
 using Atlas.Domain.LowCode.Entities;
 using Atlas.Domain.Platform.Entities;
@@ -102,6 +103,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             await EnsureAiPluginSchemaAsync(db, cancellationToken);
             await EnsureAiMemorySchemaAsync(db, cancellationToken);
             await EnsureAgentPublicationSchemaAsync(db, cancellationToken);
+            await EnsureTeamAgentSchemaAsync(db, cancellationToken);
         }
         else
         {
@@ -140,6 +142,11 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             typeof(ModelConfig),
             typeof(Agent),
             typeof(AgentPublication),
+            typeof(TeamAgent),
+            typeof(TeamAgentConversation),
+            typeof(TeamAgentMessage),
+            typeof(TeamAgentExecution),
+            typeof(TeamAgentSchemaDraft),
             typeof(MultiAgentOrchestration),
             typeof(MultiAgentExecution),
             typeof(MultimodalAsset),
@@ -203,6 +210,9 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             typeof(DynamicField),
             typeof(DynamicIndex),
             typeof(DynamicRelation),
+            typeof(DynamicViewDefinition),
+            typeof(DynamicViewVersion),
+            typeof(DynamicTransformJob),
             typeof(FieldPermission),
             typeof(MigrationRecord),
             typeof(LowCodeApp),
@@ -1682,6 +1692,36 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         if (RequiresNullableColumnFix<AgentPublication>(db, "ReleaseNote", "UpdatedAt", "RevokedAt"))
         {
             await RebuildTableViaOrmAsync<AgentPublication>(db, cancellationToken);
+        }
+    }
+
+    private static async Task EnsureTeamAgentSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
+    {
+        var missingTeamAgentTables =
+            !db.DbMaintenance.IsAnyTable("TeamAgent", false) ||
+            !db.DbMaintenance.IsAnyTable("TeamAgentConversation", false) ||
+            !db.DbMaintenance.IsAnyTable("TeamAgentMessage", false) ||
+            !db.DbMaintenance.IsAnyTable("TeamAgentExecution", false) ||
+            !db.DbMaintenance.IsAnyTable("TeamAgentSchemaDraft", false);
+
+        if (missingTeamAgentTables)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            db.CodeFirst.InitTables<TeamAgent, TeamAgentConversation, TeamAgentMessage, TeamAgentExecution, TeamAgentSchemaDraft>();
+            return;
+        }
+
+        if (RequiresNullableColumnFix<TeamAgent>(db, "Description", "DefaultEntrySkill", "PublishedAt")
+            || RequiresNullableColumnFix<TeamAgentConversation>(db, "Title")
+            || RequiresNullableColumnFix<TeamAgentMessage>(db, "Metadata", "MemberName")
+            || RequiresNullableColumnFix<TeamAgentExecution>(db, "OutputMessage", "ErrorMessage", "CompletedAt")
+            || RequiresNullableColumnFix<TeamAgentSchemaDraft>(db, "ConversationId", "AppId", "ConfirmedAt", "DiscardedAt"))
+        {
+            await RebuildTableViaOrmAsync<TeamAgent>(db, cancellationToken);
+            await RebuildTableViaOrmAsync<TeamAgentConversation>(db, cancellationToken);
+            await RebuildTableViaOrmAsync<TeamAgentMessage>(db, cancellationToken);
+            await RebuildTableViaOrmAsync<TeamAgentExecution>(db, cancellationToken);
+            await RebuildTableViaOrmAsync<TeamAgentSchemaDraft>(db, cancellationToken);
         }
     }
 

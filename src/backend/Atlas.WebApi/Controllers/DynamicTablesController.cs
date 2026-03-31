@@ -1,5 +1,7 @@
 using Atlas.Application.DynamicTables.Abstractions;
 using Atlas.Application.DynamicTables.Models;
+using Atlas.Application.DynamicViews.Abstractions;
+using Atlas.Application.DynamicViews.Models;
 using Atlas.Application.Audit.Abstractions;
 using Atlas.Application.Audit.Models;
 using Atlas.Core.Identity;
@@ -26,6 +28,7 @@ public sealed class DynamicTablesController : ControllerBase
     private readonly IAuditRecorder _auditRecorder;
     private readonly IValidator<DynamicTableCreateRequest> _createValidator;
     private readonly IValidator<DynamicTableUpdateRequest> _updateValidator;
+    private readonly IDynamicDeleteCheckService _deleteCheckService;
 
     public DynamicTablesController(
         IDynamicTableQueryService queryService,
@@ -36,7 +39,8 @@ public sealed class DynamicTablesController : ControllerBase
         IClientContextAccessor clientContextAccessor,
         IAuditRecorder auditRecorder,
         IValidator<DynamicTableCreateRequest> createValidator,
-        IValidator<DynamicTableUpdateRequest> updateValidator)
+        IValidator<DynamicTableUpdateRequest> updateValidator,
+        IDynamicDeleteCheckService deleteCheckService)
     {
         _queryService = queryService;
         _commandService = commandService;
@@ -47,6 +51,7 @@ public sealed class DynamicTablesController : ControllerBase
         _auditRecorder = auditRecorder;
         _createValidator = createValidator;
         _updateValidator = updateValidator;
+        _deleteCheckService = deleteCheckService;
     }
 
     [HttpGet]
@@ -236,7 +241,17 @@ public sealed class DynamicTablesController : ControllerBase
         return Ok(ApiResponse<object>.Ok(new { TableKey = tableKey }, HttpContext.TraceIdentifier));
     }
 
-    [HttpPut("{tableKey}/relations")]
+
+    [HttpGet("{tableKey}/delete-check")]
+    [Authorize(Policy = PermissionPolicies.AppAdmin)]
+    public async Task<ActionResult<ApiResponse<DeleteCheckResultDto>>> DeleteCheck(
+        string tableKey,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _deleteCheckService.CheckTableDeleteAsync(tenantId, _appContextAccessor.ResolveAppId(), tableKey, cancellationToken);
+        return Ok(ApiResponse<DeleteCheckResultDto>.Ok(result, HttpContext.TraceIdentifier));
+    }    [HttpPut("{tableKey}/relations")]
     [Authorize(Policy = PermissionPolicies.AppAdmin)]
     public async Task<ActionResult<ApiResponse<object>>> SetRelations(
         string tableKey,
@@ -360,3 +375,5 @@ public sealed class DynamicTablesController : ControllerBase
     }
 
 }
+
+

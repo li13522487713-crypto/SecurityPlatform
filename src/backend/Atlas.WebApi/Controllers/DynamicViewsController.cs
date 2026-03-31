@@ -1,0 +1,183 @@
+using Atlas.Application.DynamicViews.Abstractions;
+using Atlas.Application.DynamicViews.Models;
+using Atlas.Core.Identity;
+using Atlas.Core.Models;
+using Atlas.Core.Tenancy;
+using Atlas.WebApi.Authorization;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+
+namespace Atlas.WebApi.Controllers;
+
+[ApiController]
+[Route("api/v1/dynamic-views")]
+public sealed class DynamicViewsController : ControllerBase
+{
+    private readonly IDynamicViewQueryService _queryService;
+    private readonly IDynamicViewCommandService _commandService;
+    private readonly IDynamicDeleteCheckService _deleteCheckService;
+    private readonly ITenantProvider _tenantProvider;
+    private readonly IAppContextAccessor _appContextAccessor;
+    private readonly ICurrentUserAccessor _currentUserAccessor;
+
+    public DynamicViewsController(
+        IDynamicViewQueryService queryService,
+        IDynamicViewCommandService commandService,
+        IDynamicDeleteCheckService deleteCheckService,
+        ITenantProvider tenantProvider,
+        IAppContextAccessor appContextAccessor,
+        ICurrentUserAccessor currentUserAccessor)
+    {
+        _queryService = queryService;
+        _commandService = commandService;
+        _deleteCheckService = deleteCheckService;
+        _tenantProvider = tenantProvider;
+        _appContextAccessor = appContextAccessor;
+        _currentUserAccessor = currentUserAccessor;
+    }
+
+    [HttpGet]
+    [Authorize(Policy = PermissionPolicies.AppAdmin)]
+    public async Task<ActionResult<ApiResponse<PagedResult<DynamicViewListItem>>>> Get(
+        [FromQuery] PagedRequest request,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _queryService.QueryAsync(tenantId, _appContextAccessor.ResolveAppId(), request, cancellationToken);
+        return Ok(ApiResponse<PagedResult<DynamicViewListItem>>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    [HttpGet("{viewKey}")]
+    [Authorize(Policy = PermissionPolicies.AppAdmin)]
+    public async Task<ActionResult<ApiResponse<DynamicViewDefinitionDto?>>> GetByKey(string viewKey, CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _queryService.GetByKeyAsync(tenantId, _appContextAccessor.ResolveAppId(), viewKey, cancellationToken);
+        return Ok(ApiResponse<DynamicViewDefinitionDto?>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost]
+    [Authorize(Policy = PermissionPolicies.AppAdmin)]
+    public async Task<ActionResult<ApiResponse<object>>> Create([FromBody] DynamicViewCreateOrUpdateRequest request, CancellationToken cancellationToken)
+    {
+        var user = _currentUserAccessor.GetCurrentUser();
+        if (user is null)
+        {
+            return Unauthorized(ApiResponse<object>.Fail(ErrorCodes.Unauthorized, ApiResponseLocalizer.T(HttpContext, "UserNotSignedIn"), HttpContext.TraceIdentifier));
+        }
+
+        var tenantId = _tenantProvider.GetTenantId();
+        var viewKey = await _commandService.CreateAsync(tenantId, user.UserId, request, cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { ViewKey = viewKey }, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPut("{viewKey}")]
+    [Authorize(Policy = PermissionPolicies.AppAdmin)]
+    public async Task<ActionResult<ApiResponse<object>>> Update(string viewKey, [FromBody] DynamicViewCreateOrUpdateRequest request, CancellationToken cancellationToken)
+    {
+        var user = _currentUserAccessor.GetCurrentUser();
+        if (user is null)
+        {
+            return Unauthorized(ApiResponse<object>.Fail(ErrorCodes.Unauthorized, ApiResponseLocalizer.T(HttpContext, "UserNotSignedIn"), HttpContext.TraceIdentifier));
+        }
+
+        var tenantId = _tenantProvider.GetTenantId();
+        await _commandService.UpdateAsync(tenantId, user.UserId, viewKey, request, cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { ViewKey = viewKey }, HttpContext.TraceIdentifier));
+    }
+
+    [HttpDelete("{viewKey}")]
+    [Authorize(Policy = PermissionPolicies.AppAdmin)]
+    public async Task<ActionResult<ApiResponse<object>>> Delete(string viewKey, CancellationToken cancellationToken)
+    {
+        var user = _currentUserAccessor.GetCurrentUser();
+        if (user is null)
+        {
+            return Unauthorized(ApiResponse<object>.Fail(ErrorCodes.Unauthorized, ApiResponseLocalizer.T(HttpContext, "UserNotSignedIn"), HttpContext.TraceIdentifier));
+        }
+
+        var tenantId = _tenantProvider.GetTenantId();
+        await _commandService.DeleteAsync(tenantId, user.UserId, _appContextAccessor.ResolveAppId(), viewKey, cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { ViewKey = viewKey }, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost("preview")]
+    [Authorize(Policy = PermissionPolicies.AppAdmin)]
+    public async Task<ActionResult<ApiResponse<Atlas.Application.DynamicTables.Models.DynamicRecordListResult>>> Preview([FromBody] DynamicViewPreviewRequest request, CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _queryService.PreviewAsync(tenantId, _appContextAccessor.ResolveAppId(), request, cancellationToken);
+        return Ok(ApiResponse<Atlas.Application.DynamicTables.Models.DynamicRecordListResult>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost("{viewKey}/publish")]
+    [Authorize(Policy = PermissionPolicies.AppAdmin)]
+    public async Task<ActionResult<ApiResponse<DynamicViewPublishResultDto>>> Publish(string viewKey, [FromBody] Dictionary<string, string?>? body, CancellationToken cancellationToken)
+    {
+        var user = _currentUserAccessor.GetCurrentUser();
+        if (user is null)
+        {
+            return Unauthorized(ApiResponse<DynamicViewPublishResultDto>.Fail(ErrorCodes.Unauthorized, ApiResponseLocalizer.T(HttpContext, "UserNotSignedIn"), HttpContext.TraceIdentifier));
+        }
+
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _commandService.PublishAsync(tenantId, user.UserId, _appContextAccessor.ResolveAppId(), viewKey, body?.GetValueOrDefault("comment"), cancellationToken);
+        return Ok(ApiResponse<DynamicViewPublishResultDto>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    [HttpGet("{viewKey}/history")]
+    [Authorize(Policy = PermissionPolicies.AppAdmin)]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<DynamicViewHistoryItemDto>>>> History(string viewKey, CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _queryService.GetHistoryAsync(tenantId, _appContextAccessor.ResolveAppId(), viewKey, cancellationToken);
+        return Ok(ApiResponse<IReadOnlyList<DynamicViewHistoryItemDto>>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost("{viewKey}/rollback/{version:int}")]
+    [Authorize(Policy = PermissionPolicies.AppAdmin)]
+    public async Task<ActionResult<ApiResponse<DynamicViewPublishResultDto>>> Rollback(string viewKey, int version, [FromBody] Dictionary<string, string?>? body, CancellationToken cancellationToken)
+    {
+        var user = _currentUserAccessor.GetCurrentUser();
+        if (user is null)
+        {
+            return Unauthorized(ApiResponse<DynamicViewPublishResultDto>.Fail(ErrorCodes.Unauthorized, ApiResponseLocalizer.T(HttpContext, "UserNotSignedIn"), HttpContext.TraceIdentifier));
+        }
+
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _commandService.RollbackAsync(tenantId, user.UserId, _appContextAccessor.ResolveAppId(), viewKey, version, body?.GetValueOrDefault("comment"), cancellationToken);
+        return Ok(ApiResponse<DynamicViewPublishResultDto>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost("{viewKey}/records/query")]
+    [Authorize(Policy = PermissionPolicies.AppUser)]
+    public async Task<ActionResult<ApiResponse<Atlas.Application.DynamicTables.Models.DynamicRecordListResult>>> QueryRecords(
+        string viewKey,
+        [FromBody] DynamicViewRecordsQueryRequest request,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _queryService.QueryRecordsAsync(tenantId, _appContextAccessor.ResolveAppId(), viewKey, request, cancellationToken);
+        return Ok(ApiResponse<Atlas.Application.DynamicTables.Models.DynamicRecordListResult>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    [HttpGet("{viewKey}/references")]
+    [Authorize(Policy = PermissionPolicies.AppAdmin)]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<DeleteCheckBlockerDto>>>> References(string viewKey, CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _queryService.GetReferencesAsync(tenantId, _appContextAccessor.ResolveAppId(), viewKey, cancellationToken);
+        return Ok(ApiResponse<IReadOnlyList<DeleteCheckBlockerDto>>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    [HttpGet("{viewKey}/delete-check")]
+    [Authorize(Policy = PermissionPolicies.AppAdmin)]
+    public async Task<ActionResult<ApiResponse<DeleteCheckResultDto>>> DeleteCheck(string viewKey, CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _deleteCheckService.CheckViewDeleteAsync(tenantId, _appContextAccessor.ResolveAppId(), viewKey, cancellationToken);
+        return Ok(ApiResponse<DeleteCheckResultDto>.Ok(result, HttpContext.TraceIdentifier));
+    }
+}
+
+

@@ -1,0 +1,155 @@
+@baseUrl = http://localhost:5000
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+@teamAgentId = 1
+@draftId = 0
+
+### 登录获取令牌
+# @name login
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+###
+@accessToken = {{login.response.body.$.data.accessToken}}
+
+### 获取 CSRF Token
+# @name antiforgery
+GET {{baseUrl}}/api/v1/secure/antiforgery
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+###
+@csrfToken = {{antiforgery.response.body.$.data.token}}
+
+### 创建 Schema Draft
+# @name createDraft
+POST {{baseUrl}}/api/v1/team-agents/{{teamAgentId}}/schema-drafts
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "title": "客户合同表草案",
+  "requirement": "我要做客户合同管理，需要客户、合同、回款记录。",
+  "conversationId": null
+}
+
+###
+@draftId = {{createDraft.response.body.$.data.id}}
+
+### 获取 Schema Draft
+GET {{baseUrl}}/api/v1/team-agents/{{teamAgentId}}/schema-drafts/{{draftId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 更新 Schema Draft
+PUT {{baseUrl}}/api/v1/team-agents/{{teamAgentId}}/schema-drafts/{{draftId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "title": "客户合同表草案（修订）",
+  "requirement": "我要做客户合同管理，需要客户、合同、回款记录。",
+  "schemaDraft": {
+    "schemaDraft": "根据需求生成的草案，建议创建 客户表、合同表、回款表。",
+    "entities": [
+      {
+        "tableKey": "customer_1",
+        "displayName": "客户表",
+        "description": "客户主数据"
+      },
+      {
+        "tableKey": "contract_1",
+        "displayName": "合同表",
+        "description": "合同主表"
+      }
+    ],
+    "fields": [
+      {
+        "tableKey": "customer_1",
+        "name": "Id",
+        "displayName": "主键",
+        "fieldType": "Long",
+        "allowNull": false,
+        "isPrimaryKey": true,
+        "isAutoIncrement": true,
+        "isUnique": true,
+        "sortOrder": 1
+      },
+      {
+        "tableKey": "contract_1",
+        "name": "CustomerId",
+        "displayName": "客户",
+        "fieldType": "Long",
+        "allowNull": false,
+        "isPrimaryKey": false,
+        "isAutoIncrement": false,
+        "isUnique": false,
+        "sortOrder": 11
+      }
+    ],
+    "relations": [
+      {
+        "sourceTableKey": "contract_1",
+        "sourceField": "CustomerId",
+        "relatedTableKey": "customer_1",
+        "targetField": "Id",
+        "relationType": "ManyToOne",
+        "cascadeRule": "Restrict"
+      }
+    ],
+    "indexes": [
+      {
+        "tableKey": "contract_1",
+        "name": "UX_contract_1_ContractNo",
+        "isUnique": true,
+        "fields": ["ContractNo"]
+      }
+    ],
+    "securityPolicies": [
+      {
+        "tableKey": "contract_1",
+        "fieldName": "TenantId",
+        "roleCode": "tenant_admin",
+        "canView": true,
+        "canEdit": false
+      }
+    ],
+    "openQuestions": [],
+    "confirmationState": "pending"
+  },
+  "openQuestions": []
+}
+
+### 确认并创建表
+# 注意：只有当 schemaDraft.openQuestions 为空时，此请求才会成功。
+POST {{baseUrl}}/api/v1/team-agents/{{teamAgentId}}/schema-drafts/{{draftId}}/confirm-create
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "confirmed": true,
+  "notes": "确认创建动态表"
+}
+
+### 废弃 Schema Draft
+POST {{baseUrl}}/api/v1/team-agents/{{teamAgentId}}/schema-drafts/{{draftId}}/discard
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}

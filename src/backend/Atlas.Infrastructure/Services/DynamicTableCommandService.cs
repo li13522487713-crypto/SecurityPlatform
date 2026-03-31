@@ -4,6 +4,7 @@ using Atlas.Application.Approval.Models;
 using Atlas.Application.DynamicTables.Abstractions;
 using Atlas.Application.DynamicTables.Models;
 using Atlas.Application.DynamicTables.Repositories;
+using Atlas.Application.DynamicViews.Abstractions;
 using Atlas.Core.Abstractions;
 using Atlas.Core.Exceptions;
 using Atlas.Core.Identity;
@@ -49,6 +50,7 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
     private readonly TimeProvider _timeProvider;
     private readonly IAppContextAccessor _appContextAccessor;
     private readonly IApprovalRuntimeCommandService? _approvalRuntimeService;
+    private readonly IDynamicDeleteCheckService? _deleteCheckService;
 
     [ActivatorUtilitiesConstructor]
     public DynamicTableCommandService(
@@ -63,7 +65,8 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
         IAppDbScopeFactory appDbScopeFactory,
         TimeProvider timeProvider,
         IAppContextAccessor appContextAccessor,
-        IApprovalRuntimeCommandService? approvalRuntimeService = null)
+        IApprovalRuntimeCommandService? approvalRuntimeService = null,
+        IDynamicDeleteCheckService? deleteCheckService = null)
     {
         _tableRepository = tableRepository;
         _fieldRepository = fieldRepository;
@@ -77,6 +80,7 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
         _timeProvider = timeProvider;
         _appContextAccessor = appContextAccessor;
         _approvalRuntimeService = approvalRuntimeService;
+        _deleteCheckService = deleteCheckService;
     }
 
     public DynamicTableCommandService(
@@ -91,7 +95,8 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
         SqlSugarClient db,
         TimeProvider timeProvider,
         IAppContextAccessor appContextAccessor,
-        IApprovalRuntimeCommandService? approvalRuntimeService = null)
+        IApprovalRuntimeCommandService? approvalRuntimeService = null,
+        IDynamicDeleteCheckService? deleteCheckService = null)
         : this(
             tableRepository,
             fieldRepository,
@@ -104,7 +109,8 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
             new MainOnlyAppDbScopeFactory(db),
             timeProvider,
             appContextAccessor,
-            approvalRuntimeService)
+            approvalRuntimeService,
+            deleteCheckService)
     {
     }
 
@@ -370,6 +376,15 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
         string tableKey,
         CancellationToken cancellationToken)
     {
+        if (_deleteCheckService is not null)
+        {
+            var check = await _deleteCheckService.CheckTableDeleteAsync(tenantId, _appContextAccessor.ResolveAppId(), tableKey, cancellationToken);
+            if (!check.CanDelete)
+            {
+                throw new BusinessException(ErrorCodes.ValidationError, "DynamicTableDeleteBlocked");
+            }
+        }
+
         var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, _appContextAccessor.ResolveAppId(), cancellationToken);
         if (table is null)
         {
@@ -1233,3 +1248,9 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
         };
     }
 }
+
+
+
+
+
+

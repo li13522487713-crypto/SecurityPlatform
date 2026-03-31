@@ -1,0 +1,151 @@
+@baseUrl = http://localhost:5000
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+@teamAgentId = 1
+@conversationId = 0
+@executionId = 0
+
+### 登录获取令牌
+# @name login
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+###
+@accessToken = {{login.response.body.$.data.accessToken}}
+
+### 获取 CSRF Token
+# @name antiforgery
+GET {{baseUrl}}/api/v1/secure/antiforgery
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+###
+@csrfToken = {{antiforgery.response.body.$.data.token}}
+
+### 创建团队会话
+# @name createConversation
+POST {{baseUrl}}/api/v1/team-agents/{{teamAgentId}}/conversations
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "title": "客户合同管理建模"
+}
+
+###
+@conversationId = {{createConversation.response.body.$.data.id}}
+
+### 查询团队会话列表
+GET {{baseUrl}}/api/v1/team-agents/{{teamAgentId}}/conversations?pageIndex=1&pageSize=20
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 团队聊天
+# @name teamChat
+POST {{baseUrl}}/api/v1/team-agents/{{teamAgentId}}/chat
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "conversationId": {{conversationId}},
+  "message": "我要做一个客户合同回款管理的数据结构，需要客户、合同、回款记录。",
+  "enableRag": false,
+  "generateSchemaDraft": true
+}
+
+###
+@executionId = {{teamChat.response.body.$.data.executionId}}
+
+### 获取团队执行结果
+GET {{baseUrl}}/api/v1/team-agents/executions/{{executionId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 团队聊天 SSE
+# 事件流应至少出现：
+# 1. orchestration.runtime.selected
+# 2. conversation.started
+# 3. round.started / member.message / execution.step
+# 4. schema.draft.updated（当 generateSchemaDraft=true）
+# 5. conversation.completed / conversation.failed
+POST {{baseUrl}}/api/v1/team-agents/{{teamAgentId}}/chat/stream
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "conversationId": {{conversationId}},
+  "message": "流式模式下输出团队讨论过程。",
+  "enableRag": false,
+  "generateSchemaDraft": false
+}
+
+### 取消团队聊天
+POST {{baseUrl}}/api/v1/team-agents/{{teamAgentId}}/chat/cancel
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "conversationId": {{conversationId}}
+}
+
+### 获取团队会话详情
+GET {{baseUrl}}/api/v1/team-agent-conversations/{{conversationId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 获取团队会话消息
+GET {{baseUrl}}/api/v1/team-agent-conversations/{{conversationId}}/messages?includeContextMarkers=true
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 更新团队会话标题
+PUT {{baseUrl}}/api/v1/team-agent-conversations/{{conversationId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "title": "客户合同管理建模会话"
+}
+
+### 清空团队会话上下文
+POST {{baseUrl}}/api/v1/team-agent-conversations/{{conversationId}}/clear-context
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+### 清空团队会话历史
+POST {{baseUrl}}/api/v1/team-agent-conversations/{{conversationId}}/clear-history
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+### 删除团队会话
+DELETE {{baseUrl}}/api/v1/team-agent-conversations/{{conversationId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}

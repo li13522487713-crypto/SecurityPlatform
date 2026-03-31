@@ -59,6 +59,8 @@ const AppFlowsPage = () => import("@/pages/ApprovalFlowsPage.vue");
 const AppDataPage = () => import("@/pages/dynamic/DynamicTablesPage.vue");
 const ERDCanvasPage = () => import("@/pages/dynamic/ERDCanvasPage.vue");
 const DynamicTableCrudPage = () => import("@/pages/dynamic/DynamicTableCrudPage.vue");
+const DynamicDataWorkbenchPage = () => import("@/pages/dynamic/DynamicDataWorkbenchPage.vue");
+const DataDesignerPage = () => import("@/pages/dynamic/DataDesignerPage.vue");
 const DynamicTableDesignPage = () => import("@/pages/dynamic/DynamicTableDesignPage.vue");
 const DynamicRecordsNativePage = () => import("@/pages/dynamic/DynamicRecordsNativePage.vue");
 const AppOrganizationPage = () => import("@/pages/apps/AppOrganizationPage.vue");
@@ -81,6 +83,7 @@ const AiPluginDetailPage = () => import("@/pages/ai/AiPluginDetailPage.vue");
 const AiPluginApiEditorPage = () => import("@/pages/ai/AiPluginApiEditorPage.vue");
 const AgentListPage = () => import("@/pages/ai/AgentListPage.vue");
 const AgentEditorPage = () => import("@/pages/ai/AgentEditorPage.vue");
+const AgentWorkspaceChatPage = () => import("@/pages/ai/AgentWorkspaceChatPage.vue");
 const UserMemorySettingsPage = () => import("@/pages/ai/UserMemorySettingsPage.vue");
 const KnowledgeBaseListPage = () => import("@/pages/ai/KnowledgeBaseListPage.vue");
 const KnowledgeBaseDetailPage = () => import("@/pages/ai/KnowledgeBaseDetailPage.vue");
@@ -184,9 +187,12 @@ const router = createRouter({
     { path: "/apps/:appId/plugins/:id/apis/:apiId", name: "app-workspace-plugin-api-editor", component: AiPluginApiEditorPage, meta: { requiresAuth: true, title: "插件 API 编辑器", titleKey: "route.aiPluginApiEditor", requiresPermission: "apps:update" } },
     { path: "/apps/:appId/workflows/:id/editor", name: "app-workspace-workflow-editor", component: WorkflowEditorPage, meta: { requiresAuth: true, title: "工作流设计器", titleKey: "route.workflowEditor" } },
     { path: "/apps/:appId/agents/:id/edit", name: "app-workspace-agent-editor", component: AgentEditorPage, meta: { requiresAuth: true, title: "Agent 编辑", titleKey: "route.aiAgentEdit" } },
+    { path: "/apps/:appId/agents/:agentId/chat", name: "app-workspace-agent-chat", component: AgentWorkspaceChatPage, meta: { requiresAuth: true, title: "Agent 对话", titleKey: "route.agentChat" } },
     { path: "/apps/:appId/data", name: "app-workspace-data", component: AppDataPage, meta: { requiresAuth: true, title: "数据管理", titleKey: "route.dataManage", requiresPermission: "apps:view" } },
     { path: "/apps/:appId/data/erd", name: "app-workspace-data-erd", component: ERDCanvasPage, meta: { requiresAuth: true, title: "ERD 设计器", titleKey: "route.dataManage", requiresPermission: "apps:update" } },
-    { path: "/apps/:appId/data/:tableKey", name: "app-workspace-data-crud", component: DynamicTableCrudPage, meta: { requiresAuth: true, title: "动态数据管理", titleKey: "route.dataManage", requiresPermission: "apps:view" } },
+    { path: "/apps/:appId/data/designer", name: "app-workspace-data-designer", component: DataDesignerPage, meta: { requiresAuth: true, title: "数据设计中心", titleKey: "route.dataManage", requiresPermission: "apps:update" } },
+    { path: "/apps/:appId/data/:tableKey", name: "app-workspace-data-crud", component: DynamicDataWorkbenchPage, meta: { requiresAuth: true, title: "数据工作台", titleKey: "route.dataManage", requiresPermission: "apps:view" } },
+    { path: "/apps/:appId/data/:tableKey/amis", name: "app-workspace-data-amis-crud", component: DynamicTableCrudPage, meta: { requiresAuth: true, title: "动态数据管理(兼容)", titleKey: "route.dataManage", requiresPermission: "apps:view" } },
     { path: "/apps/:appId/data/:tableKey/design", name: "app-workspace-data-design", component: DynamicTableDesignPage, meta: { requiresAuth: true, title: "字段设计", titleKey: "route.dataManage", requiresPermission: "apps:update" } },
     { path: "/apps/:appId/data/:tableKey/native", name: "app-workspace-data-native", component: DynamicRecordsNativePage, meta: { requiresAuth: true, title: "原生记录视图", titleKey: "route.dataManage", requiresPermission: "apps:view" } },
     { path: "/apps/:appId/org", name: "app-workspace-org", component: AppOrganizationPage, meta: { requiresAuth: true, title: "组织管理", titleKey: "route.appOrganization", requiresPermission: "apps:view" } },
@@ -490,3 +496,6 @@ router.afterEach(() => {
 });
 
 export default router;
+
+
+
