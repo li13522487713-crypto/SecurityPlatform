@@ -11,6 +11,12 @@ namespace Atlas.Infrastructure.Services.AiPlatform;
 
 public sealed class OpenAiCompatibleProvider : ILlmProvider, IEmbeddingProvider
 {
+    /// <summary>
+    /// 多数 OpenAI 兼容端点（含 DeepSeek）要求 max_tokens 落在 [1, 8192]；
+    /// UI/配置可能写入 0（表示“默认”），序列化后会被对方拒绝，需省略或截断。
+    /// </summary>
+    private const int OpenAiCompatibleMaxTokensUpperBound = 8192;
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true
@@ -45,7 +51,7 @@ public sealed class OpenAiCompatibleProvider : ILlmProvider, IEmbeddingProvider
             request.Model,
             request.Messages.Select(MapMessage).ToList(),
             request.Temperature,
-            request.MaxTokens,
+            NormalizeMaxTokensForOpenAiCompatible(request.MaxTokens),
             Stream: false,
             Tools: request.Tools?.Select(MapToolDefinition).ToList(),
             ToolChoice: MapToolChoice(request.ToolChoice),
@@ -79,7 +85,7 @@ public sealed class OpenAiCompatibleProvider : ILlmProvider, IEmbeddingProvider
             request.Model,
             request.Messages.Select(MapMessage).ToList(),
             request.Temperature,
-            request.MaxTokens,
+            NormalizeMaxTokensForOpenAiCompatible(request.MaxTokens),
             Stream: true,
             Tools: request.Tools?.Select(MapToolDefinition).ToList(),
             ToolChoice: MapToolChoice(request.ToolChoice),
@@ -214,6 +220,16 @@ public sealed class OpenAiCompatibleProvider : ILlmProvider, IEmbeddingProvider
             call.Id ?? string.Empty,
             call.Function?.Name ?? string.Empty,
             call.Function?.Arguments ?? "{}");
+    }
+
+    private static int? NormalizeMaxTokensForOpenAiCompatible(int? maxTokens)
+    {
+        if (maxTokens is null or <= 0)
+        {
+            return null;
+        }
+
+        return Math.Min(maxTokens.Value, OpenAiCompatibleMaxTokensUpperBound);
     }
 
     private static OpenAiMessage MapMessage(ChatMessage message)
