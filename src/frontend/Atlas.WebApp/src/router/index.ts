@@ -90,6 +90,10 @@ const KnowledgeBaseDetailPage = () => import("@/pages/ai/KnowledgeBaseDetailPage
 const KnowledgeBaseTestPage = () => import("@/pages/ai/KnowledgeBaseTestPage.vue");
 const MultiAgentOrchestrationListPage = () => import("@/pages/ai/multi-agent/MultiAgentOrchestrationListPage.vue");
 const MultiAgentOrchestrationDetailPage = () => import("@/pages/ai/multi-agent/MultiAgentOrchestrationDetailPage.vue");
+const AgentTeamDebugPage = () => import("@/pages/ai/multi-agent/AgentTeamDebugPage.vue");
+const AgentTeamRunPage = () => import("@/pages/ai/multi-agent/AgentTeamRunPage.vue");
+const AgentTeamRunDetailPage = () => import("@/pages/ai/multi-agent/AgentTeamRunDetailPage.vue");
+const AgentTeamVersionPage = () => import("@/pages/ai/multi-agent/AgentTeamVersionPage.vue");
 const PageRuntimeRenderer = () => import("@/pages/runtime/PageRuntimeRenderer.vue");
 const AppListPage = () => import("@/pages/lowcode/AppListPage.vue");
 const CustomDesignerMockPage = () => import("@/pages/lowcode/CustomDesignerMockPage.vue");
@@ -172,6 +176,10 @@ const router = createRouter({
     { path: "/apps/:appId/agents", name: "app-workspace-agents", component: AgentListPage, meta: { requiresAuth: true, title: "Agent 列表", titleKey: "route.aiAgentList", requiresPermission: "apps:view" } },
     { path: "/apps/:appId/multi-agent", name: "app-workspace-multi-agent-list", component: MultiAgentOrchestrationListPage, meta: { requiresAuth: true, title: "多Agent编排", titleKey: "route.aiMultiAgentList", requiresPermission: "apps:view" } },
     { path: "/apps/:appId/multi-agent/:id", name: "app-workspace-multi-agent-detail", component: MultiAgentOrchestrationDetailPage, meta: { requiresAuth: true, title: "多Agent编排详情", titleKey: "route.aiMultiAgentDetail", requiresPermission: "apps:view" } },
+    { path: "/apps/:appId/multi-agent/:id/debug", name: "app-workspace-multi-agent-debug", component: AgentTeamDebugPage, meta: { requiresAuth: true, title: "Agent团队调试", requiresPermission: "apps:view" } },
+    { path: "/apps/:appId/multi-agent/:id/run", name: "app-workspace-multi-agent-run", component: AgentTeamRunPage, meta: { requiresAuth: true, title: "Agent团队运行", requiresPermission: "apps:view" } },
+    { path: "/apps/:appId/multi-agent/:id/run/detail", name: "app-workspace-multi-agent-run-detail", component: AgentTeamRunDetailPage, meta: { requiresAuth: true, title: "Agent团队执行详情", requiresPermission: "apps:view" } },
+    { path: "/apps/:appId/multi-agent/:id/versions", name: "app-workspace-multi-agent-versions", component: AgentTeamVersionPage, meta: { requiresAuth: true, title: "Agent团队版本发布", requiresPermission: "apps:view" } },
     { path: "/apps/:appId/evaluations/datasets", name: "app-workspace-evaluation-datasets", component: AiTestSetsPage, meta: { requiresAuth: true, title: "评测数据集", titleKey: "route.aiTestSets", requiresPermission: "apps:view" } },
     { path: "/apps/:appId/evaluations/tasks", name: "app-workspace-evaluation-tasks", component: EvaluationTaskPage, meta: { requiresAuth: true, title: "评测任务", titleKey: "route.aiEvaluationTasks", requiresPermission: "apps:view" } },
     { path: "/apps/:appId/evaluations/reports/:taskId", name: "app-workspace-evaluation-report", component: EvaluationReportPage, meta: { requiresAuth: true, title: "评测报告", titleKey: "route.aiEvaluationReport", requiresPermission: "apps:view" } },
@@ -225,6 +233,10 @@ const router = createRouter({
     { path: "/ai/marketplace", name: "ai-marketplace-static", component: AiMarketplacePage, meta: { requiresAuth: true, title: "应用市场", titleKey: "route.aiMarketplace" } },
     { path: "/ai/multi-agent", name: "ai-multi-agent-static", component: MultiAgentOrchestrationListPage, meta: { requiresAuth: true, title: "多Agent编排", titleKey: "route.aiMultiAgentList" } },
     { path: "/ai/multi-agent/:id", name: "ai-multi-agent-detail-static", component: MultiAgentOrchestrationDetailPage, meta: { requiresAuth: true, title: "多Agent编排详情", titleKey: "route.aiMultiAgentDetail" } },
+    { path: "/ai/multi-agent/:id/debug", name: "ai-multi-agent-debug-static", component: AgentTeamDebugPage, meta: { requiresAuth: true, title: "Agent团队调试" } },
+    { path: "/ai/multi-agent/:id/run", name: "ai-multi-agent-run-static", component: AgentTeamRunPage, meta: { requiresAuth: true, title: "Agent团队运行" } },
+    { path: "/ai/multi-agent/:id/run/detail", name: "ai-multi-agent-run-detail-static", component: AgentTeamRunDetailPage, meta: { requiresAuth: true, title: "Agent团队执行详情" } },
+    { path: "/ai/multi-agent/:id/versions", name: "ai-multi-agent-versions-static", component: AgentTeamVersionPage, meta: { requiresAuth: true, title: "Agent团队版本发布" } },
     { path: "/ai/memories", name: "ai-memories-static", component: UserMemorySettingsPage, meta: { requiresAuth: true, title: "记忆管理", titleKey: "route.aiMemorySettings" } },
     { path: "/ai/knowledge-bases", name: "ai-knowledge-bases-static", component: KnowledgeBaseListPage, meta: { requiresAuth: true, title: "知识库列表", titleKey: "route.knowledgeBaseList" } },
     { path: "/ai/knowledge-bases/:id", name: "ai-knowledge-base-detail-static", component: KnowledgeBaseDetailPage, meta: { requiresAuth: true, title: "知识库详情", titleKey: "route.knowledgeBaseDetail" } },

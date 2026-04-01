@@ -30,6 +30,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Atlas.Application.AgentTeam\Atlas.Application.AgentTeam.csproj" />
     <ProjectReference Include="..\Atlas.Application\Atlas.Application.csproj" />
     <ProjectReference Include="..\Atlas.Application.Alert\Atlas.Application.Alert.csproj" />
     <ProjectReference Include="..\Atlas.Application.Approval\Atlas.Application.Approval.csproj" />

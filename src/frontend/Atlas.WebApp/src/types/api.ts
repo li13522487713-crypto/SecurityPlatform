@@ -1348,3 +1348,31 @@ export interface EntityReferenceResult {
   boundApprovalFlow?: ApprovalFlowRef | null;
 }
 
+// Agent Team
+export type AgentTeamStatus = "Draft" | "Ready" | "Published" | "Disabled" | "Archived";
+export type AgentTeamPublishStatus = "Unpublished" | "PendingApproval" | "Published";
+export type AgentTeamRiskLevel = "Low" | "Medium" | "High";
+
+export interface AgentTeamListItemDto {
+  id: number;
+  teamName: string;
+  description?: string;
+  owner: string;
+  status: AgentTeamStatus;
+  publishStatus: AgentTeamPublishStatus;
+  publishedVersionId?: number;
+  riskLevel: AgentTeamRiskLevel;
+  version: number;
+  updatedAt: string;
+}
+
+export interface AgentTeamVersionDto {
+  id: number;
+  teamId: number;
+  versionNo: string;
+  publishStatus: AgentTeamPublishStatus;
+  publishedBy?: string;
+  publishedAt?: string;
+  rollbackFromVersionId?: number;
+}
+

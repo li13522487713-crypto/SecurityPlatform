@@ -3639,3 +3639,66 @@ type EvaluationCaseStatus = 0 | 1 | 2 | 3; // Pending / Passed / Failed / Error
 - 替代资源为 `api/v1/team-agents`。
 - 当前弃用截止日期为 `2026-10-01`。
 - 弃用窗口内旧接口仅允许安全修复与关键缺陷修复，不再新增产品能力。
+
+## Agent Team 协同系统（MVP）
+
+### 核心资源
+
+- 团队定义：`AgentTeamDefinition`
+- 子代理：`SubAgentDefinition`
+- 编排节点：`OrchestrationNodeDefinition`
+- 发布版本：`TeamVersion`
+- 执行实例：`ExecutionRun`
+- 节点执行：`NodeRun`
+
+### 团队管理
+
+- `GET /api/v1/agent-teams`
+- `POST /api/v1/agent-teams`
+- `GET /api/v1/agent-teams/{id}`
+- `PUT /api/v1/agent-teams/{id}`
+- `DELETE /api/v1/agent-teams/{id}`（仅 Draft）
+- `POST /api/v1/agent-teams/{id}/duplicate`
+- `POST /api/v1/agent-teams/{id}/disable`
+- `POST /api/v1/agent-teams/{id}/enable`
+
+### 子代理管理
+
+- `GET /api/v1/agent-teams/{teamId}/sub-agents`
+- `POST /api/v1/agent-teams/{teamId}/sub-agents`
+- `PUT /api/v1/agent-teams/{teamId}/sub-agents/{subAgentId}`
+- `DELETE /api/v1/agent-teams/{teamId}/sub-agents/{subAgentId}`
+
+### 编排节点管理
+
+- `GET /api/v1/agent-teams/{teamId}/nodes`
+- `POST /api/v1/agent-teams/{teamId}/nodes`
+- `PUT /api/v1/agent-teams/{teamId}/nodes/{nodeId}`
+- `DELETE /api/v1/agent-teams/{teamId}/nodes/{nodeId}`
+- `POST /api/v1/agent-teams/{teamId}/nodes/validate`
+
+### 发布与版本
+
+- `POST /api/v1/agent-teams/{id}/publish`
+- `GET /api/v1/agent-teams/{id}/versions`
+- `POST /api/v1/agent-teams/{id}/rollback/{versionId}`
+
+### 运行与介入
+
+- `POST /api/v1/agent-team-runs`
+- `GET /api/v1/agent-team-runs/{runId}`
+- `GET /api/v1/agent-team-runs/{runId}/nodes`
+- `GET /api/v1/agent-team-runs/{runId}/interventions`
+- `POST /api/v1/agent-team-runs/{runId}/cancel`
+- `POST /api/v1/agent-team-runs/{runId}/nodes/{nodeRunId}/intervene`
+
+### 调试
+
+- `POST /api/v1/agent-teams/{id}/debug`
+- `POST /api/v1/agent-teams/{id}/sub-agents/{agentId}/debug`
+
+### 状态枚举（MVP）
+
+- 团队状态：`Draft | Ready | Published | Disabled | Archived`
+- 执行状态：`Pending | Planning | Dispatching | Running | WaitingTool | WaitingHuman | Retrying | PartiallyFailed | Failed | Completed | Cancelled | TimedOut`
+- 节点状态：`Idle | Ready | WaitingDependency | Assigned | Running | WaitingInput | WaitingTool | WaitingApproval | Retrying | Succeeded | Failed | Skipped | Cancelled`

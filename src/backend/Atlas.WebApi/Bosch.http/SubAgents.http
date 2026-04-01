@@ -1,0 +1,99 @@
+@baseUrl = http://localhost:5000
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+@teamId = 0
+@subAgentId = 0
+
+### 登录获取令牌
+# @name login
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+###
+@accessToken = {{login.response.body.$.data.accessToken}}
+
+### 获取 CSRF Token
+# @name antiforgery
+GET {{baseUrl}}/api/v1/secure/antiforgery
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+###
+@csrfToken = {{antiforgery.response.body.$.data.token}}
+
+### 创建子代理
+# @name createSubAgent
+POST {{baseUrl}}/api/v1/agent-teams/{{teamId}}/sub-agents
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "agentName": "研究员Agent",
+  "role": "researcher",
+  "goal": "收集证据并输出结构化摘要",
+  "boundaries": "不执行外发动作",
+  "promptTemplate": "你是研究员子代理。",
+  "modelConfigJson": "{\"model\":\"gpt-4.1-mini\"}",
+  "toolPermissionsJson": "[\"kb.search\"]",
+  "knowledgeScopesJson": "[\"risk-docs\"]",
+  "inputSchemaJson": "{\"type\":\"object\"}",
+  "outputSchemaJson": "{\"type\":\"object\"}",
+  "memoryPolicyJson": "{\"mode\":\"task\"}",
+  "timeoutPolicyJson": "{\"maxSeconds\":120}",
+  "retryPolicyJson": "{\"maxRetries\":1}",
+  "fallbackPolicyJson": "{}",
+  "visibilityPolicyJson": "{}",
+  "status": "Configured"
+}
+
+###
+@subAgentId = {{createSubAgent.response.body.$.data.id}}
+
+### 查询子代理列表
+GET {{baseUrl}}/api/v1/agent-teams/{{teamId}}/sub-agents
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 更新子代理
+PUT {{baseUrl}}/api/v1/agent-teams/{{teamId}}/sub-agents/{{subAgentId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "agentName": "研究员Agent-更新",
+  "role": "researcher",
+  "goal": "收集证据并产出可审计结果",
+  "boundaries": "禁止写库与外发",
+  "promptTemplate": "你是研究员子代理，输出必须给出来源。",
+  "modelConfigJson": "{\"model\":\"gpt-4.1\"}",
+  "toolPermissionsJson": "[\"kb.search\",\"report.summarize\"]",
+  "knowledgeScopesJson": "[\"risk-docs\",\"policy-docs\"]",
+  "inputSchemaJson": "{\"type\":\"object\"}",
+  "outputSchemaJson": "{\"type\":\"object\"}",
+  "memoryPolicyJson": "{\"mode\":\"task\"}",
+  "timeoutPolicyJson": "{\"maxSeconds\":180}",
+  "retryPolicyJson": "{\"maxRetries\":2}",
+  "fallbackPolicyJson": "{}",
+  "visibilityPolicyJson": "{}",
+  "status": "Configured"
+}
+
+### 删除子代理
+DELETE {{baseUrl}}/api/v1/agent-teams/{{teamId}}/sub-agents/{{subAgentId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}

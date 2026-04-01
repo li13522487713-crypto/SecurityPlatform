@@ -245,6 +245,7 @@ builder.Services.AddValidatorsFromAssemblies([
     typeof(Atlas.Application.Assets.Validators.AssetValidator).Assembly,             // Atlas.Application.Assets
     typeof(Atlas.Application.Alert.Validators.AlertRecordValidator).Assembly,        // Atlas.Application.Alert
     typeof(Atlas.Application.Audit.Validators.AuditRecordValidator).Assembly,        // Atlas.Application.Audit
+    typeof(Atlas.Application.AgentTeam.Validators.AgentTeamCreateRequestValidator).Assembly, // Atlas.Application.AgentTeam
     typeof(Atlas.Application.Workflow.Validators.PublishEventRequestValidator).Assembly, // Atlas.Application.Workflow
     typeof(Atlas.WebApi.Validators.ChangePasswordViewModelValidator).Assembly,       // Atlas.WebApi
 ]);

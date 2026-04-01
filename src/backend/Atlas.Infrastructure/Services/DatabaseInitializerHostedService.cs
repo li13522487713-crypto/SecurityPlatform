@@ -8,6 +8,7 @@ using Atlas.Core.Identity;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Alert.Entities;
 using Atlas.Domain.AiPlatform.Entities;
+using Atlas.Domain.AgentTeam.Entities;
 using Atlas.Domain.Approval.Entities;
 using Atlas.Domain.Assets.Entities;
 using Atlas.Domain.Audit.Entities;
@@ -104,6 +105,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             await EnsureAiMemorySchemaAsync(db, cancellationToken);
             await EnsureAgentPublicationSchemaAsync(db, cancellationToken);
             await EnsureTeamAgentSchemaAsync(db, cancellationToken);
+            await EnsureAgentTeamSchemaAsync(db, cancellationToken);
         }
         else
         {
@@ -152,6 +154,12 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             typeof(TeamAgentExecutionStepEntity),
             typeof(TeamAgentSchemaDraft),
             typeof(TeamAgentSchemaDraftExecutionAudit),
+            typeof(AgentTeamDefinition),
+            typeof(SubAgentDefinition),
+            typeof(OrchestrationNodeDefinition),
+            typeof(TeamVersion),
+            typeof(ExecutionRun),
+            typeof(NodeRun),
             typeof(MultiAgentOrchestration),
             typeof(MultiAgentExecution),
             typeof(MultimodalAsset),
@@ -1751,6 +1759,24 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             await RebuildTableViaOrmAsync<TeamAgentSchemaDraftExecutionAudit>(db, cancellationToken);
         }
 
+    }
+
+    private static async Task EnsureAgentTeamSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
+    {
+        var missing =
+            !db.DbMaintenance.IsAnyTable("AgentTeamDefinition", false) ||
+            !db.DbMaintenance.IsAnyTable("SubAgentDefinition", false) ||
+            !db.DbMaintenance.IsAnyTable("OrchestrationNodeDefinition", false) ||
+            !db.DbMaintenance.IsAnyTable("TeamVersion", false) ||
+            !db.DbMaintenance.IsAnyTable("ExecutionRun", false) ||
+            !db.DbMaintenance.IsAnyTable("NodeRun", false);
+
+        if (missing)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            db.CodeFirst.InitTables<AgentTeamDefinition, SubAgentDefinition, OrchestrationNodeDefinition>();
+            db.CodeFirst.InitTables<TeamVersion, ExecutionRun, NodeRun>();
+        }
     }
 
     private static async Task EnsureTeamAgentTemplateSeedDataAsync(

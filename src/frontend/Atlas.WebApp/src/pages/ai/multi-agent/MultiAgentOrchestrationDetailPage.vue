@@ -1,283 +1,279 @@
 <template>
-  <a-card :title="t('ai.multiAgent.detailTitle')" :bordered="false">
-    <template #extra>
-      <a-space>
-        <a-button @click="goBack">{{ t("common.cancel") }}</a-button>
-        <a-button type="primary" :loading="saving" @click="handleSave">
-          {{ t("common.save") }}
-        </a-button>
-      </a-space>
-    </template>
-
-    <a-spin :spinning="loading">
-      <a-form ref="formRef" :model="form" layout="vertical" :rules="rules">
-        <a-row :gutter="16">
-          <a-col :span="8">
-            <a-form-item :label="t('ai.multiAgent.formName')" name="name">
-              <a-input v-model:value="form.name" />
-            </a-form-item>
-          </a-col>
-          <a-col :span="8">
-            <a-form-item :label="t('ai.multiAgent.formMode')" name="mode">
-              <a-radio-group v-model:value="form.mode">
-                <a-radio :value="0">{{ t("ai.multiAgent.modeSequential") }}</a-radio>
-                <a-radio :value="1">{{ t("ai.multiAgent.modeParallel") }}</a-radio>
-              </a-radio-group>
-            </a-form-item>
-          </a-col>
-          <a-col :span="8">
-            <a-form-item :label="t('ai.multiAgent.formStatus')" name="status">
-              <a-select v-model:value="form.status" :options="statusOptions" />
-            </a-form-item>
-          </a-col>
-        </a-row>
-
-        <a-form-item :label="t('ai.multiAgent.formDescription')" name="description">
-          <a-textarea v-model:value="form.description" :rows="2" />
-        </a-form-item>
-
-        <a-divider />
-        <div class="member-header">
-          <span>{{ t("ai.multiAgent.memberList") }}</span>
-          <a-button type="dashed" size="small" @click="addMember">
-            {{ t("ai.multiAgent.addMember") }}
-          </a-button>
+  <div class="workspace">
+    <a-card class="top-bar" :bordered="false">
+      <div class="top-content">
+        <div>
+          <h3>Agent 团队编辑工作台</h3>
+          <div class="sub">团队ID: {{ teamId }}</div>
         </div>
-        <a-table
-          row-key="rowKey"
-          size="small"
-          :columns="memberColumns"
-          :data-source="form.members"
-          :pagination="false"
-        >
-          <template #bodyCell="{ column, record, index }">
-            <template v-if="column.key === 'agentId'">
-              <a-select
-                v-model:value="record.agentId"
-                show-search
-                :filter-option="false"
-                :options="agentOptions"
-                :placeholder="t('ai.multiAgent.selectAgent')"
-                style="width: 220px"
-                :not-found-content="agentLoading ? t('common.loading') : undefined"
-                @search="handleSearchAgents"
-              />
-            </template>
-            <template v-else-if="column.key === 'alias'">
-              <a-input v-model:value="record.alias" :placeholder="t('ai.multiAgent.aliasPlaceholder')" />
-            </template>
-            <template v-else-if="column.key === 'sortOrder'">
-              <a-input-number v-model:value="record.sortOrder" :min="0" style="width: 100%" />
-            </template>
-            <template v-else-if="column.key === 'isEnabled'">
-              <a-switch v-model:checked="record.isEnabled" />
-            </template>
-            <template v-else-if="column.key === 'promptPrefix'">
-              <a-input v-model:value="record.promptPrefix" :placeholder="t('ai.multiAgent.promptPrefixPlaceholder')" />
-            </template>
-            <template v-else-if="column.key === 'action'">
-              <a-button type="link" danger @click="removeMember(index)">
-                {{ t("common.delete") }}
-              </a-button>
-            </template>
-          </template>
-        </a-table>
-      </a-form>
-    </a-spin>
-  </a-card>
+        <a-space>
+          <a-button @click="goBack">返回</a-button>
+          <a-button :loading="validating" @click="validate">校验</a-button>
+          <a-button @click="goDebug">调试</a-button>
+          <a-button @click="goRun">运行</a-button>
+          <a-button type="primary" :loading="saving" @click="saveTeam">保存</a-button>
+          <a-button type="primary" ghost :loading="publishing" @click="publishTeam">发布</a-button>
+        </a-space>
+      </div>
+    </a-card>
 
-  <a-card style="margin-top: 16px" :bordered="false">
-    <MultiAgentRunPanel :orchestration-id="orchestrationId" />
-  </a-card>
+    <div class="main-grid">
+      <a-card class="left" title="结构树" size="small">
+        <a-space direction="vertical" style="width: 100%">
+          <a-button block @click="openSubAgentDrawer">新增子代理</a-button>
+          <a-divider style="margin: 8px 0" />
+          <div class="section-title">子代理列表</div>
+          <a-list size="small" :data-source="subAgents">
+            <template #renderItem="{ item }">
+              <a-list-item>
+                <a-space>
+                  <span>{{ item.agentName }}</span>
+                  <a-tag>{{ item.status }}</a-tag>
+                </a-space>
+              </a-list-item>
+            </template>
+          </a-list>
+          <a-divider style="margin: 8px 0" />
+          <div class="section-title">节点列表</div>
+          <a-list size="small" :data-source="nodes">
+            <template #renderItem="{ item }">
+              <a-list-item>
+                <a-space>
+                  <span>{{ item.nodeName }}</span>
+                  <a-tag>{{ item.executionMode }}</a-tag>
+                </a-space>
+              </a-list-item>
+            </template>
+          </a-list>
+        </a-space>
+      </a-card>
+
+      <a-card class="center" title="编排视图（基础模式）" size="small">
+        <a-empty v-if="nodes.length === 0" description="暂无节点，可先创建子代理后配置节点" />
+        <a-steps v-else direction="vertical" size="small">
+          <a-step v-for="node in nodes" :key="node.id" :title="node.nodeName" :description="node.executionMode" />
+        </a-steps>
+      </a-card>
+
+      <a-card class="right" title="团队配置面板" size="small">
+        <a-form layout="vertical">
+          <a-form-item label="团队名称">
+            <a-input v-model:value="teamForm.teamName" />
+          </a-form-item>
+          <a-form-item label="负责人">
+            <a-input v-model:value="teamForm.owner" />
+          </a-form-item>
+          <a-form-item label="描述">
+            <a-textarea v-model:value="teamForm.description" :rows="3" />
+          </a-form-item>
+          <a-form-item label="风险等级">
+            <a-select v-model:value="teamForm.riskLevel">
+              <a-select-option value="Low">Low</a-select-option>
+              <a-select-option value="Medium">Medium</a-select-option>
+              <a-select-option value="High">High</a-select-option>
+            </a-select>
+          </a-form-item>
+          <a-form-item label="标签（逗号分隔）">
+            <a-input v-model:value="tagsRaw" />
+          </a-form-item>
+        </a-form>
+      </a-card>
+    </div>
+
+    <a-card class="bottom" title="校验 / 日志区" size="small">
+      <a-alert v-if="validationMessage" type="info" :message="validationMessage" show-icon />
+    </a-card>
+
+    <SubAgentConfigDrawer
+      :open="subAgentDrawerOpen"
+      :team-id="teamId"
+      @close="subAgentDrawerOpen = false"
+      @saved="reloadSubAgents"
+    />
+  </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
-import type { FormInstance } from "ant-design-vue";
 import { message } from "ant-design-vue";
-import { useI18n } from "vue-i18n";
 import { useRoute, useRouter } from "vue-router";
 import {
-  getMultiAgentOrchestrationById,
-  updateMultiAgentOrchestration,
-  type MultiAgentOrchestrationStatus
-} from "@/services/api-multi-agent";
-import { getAgentsPaged } from "@/services/api-agent";
-import MultiAgentRunPanel from "@/components/multi-agent/MultiAgentRunPanel.vue";
+  getAgentTeamDetail,
+  getOrchestrationNodes,
+  getSubAgents,
+  publishAgentTeam,
+  updateAgentTeam,
+  validateOrchestration,
+  type OrchestrationNodeItem,
+  type SubAgentItem
+} from "@/services/api-agent-team";
+import SubAgentConfigDrawer from "@/components/ai/SubAgentConfigDrawer.vue";
 import { resolveCurrentAppId } from "@/utils/app-context";
 
-interface MemberDraft {
-  rowKey: string;
-  agentId?: string;
-  alias?: string;
-  sortOrder: number;
-  isEnabled: boolean;
-  promptPrefix?: string;
-}
-
-const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
-
-const orchestrationId = computed(() => Number(route.params.id || 0));
-const loading = ref(false);
+const teamId = computed(() => Number(route.params.id || 0));
 const saving = ref(false);
-const formRef = ref<FormInstance>();
+const publishing = ref(false);
+const validating = ref(false);
+const validationMessage = ref("");
+const subAgentDrawerOpen = ref(false);
 
-const form = reactive({
-  name: "",
+const subAgents = ref<SubAgentItem[]>([]);
+const nodes = ref<OrchestrationNodeItem[]>([]);
+
+const teamForm = reactive({
+  teamName: "",
+  owner: "",
   description: "",
-  mode: 0 as 0 | 1,
-  status: 0 as MultiAgentOrchestrationStatus,
-  members: [] as MemberDraft[]
+  riskLevel: "Low" as "Low" | "Medium" | "High",
+  collaborators: [] as string[]
 });
+const tagsRaw = ref("");
 
-const rules = computed(() => ({
-  name: [{ required: true, message: t("ai.multiAgent.ruleName") }]
-}));
-
-const statusOptions = computed(() => [
-  { label: t("ai.multiAgent.statusDraft"), value: 0 },
-  { label: t("ai.multiAgent.statusActive"), value: 1 },
-  { label: t("ai.multiAgent.statusDisabled"), value: 2 }
-]);
-
-const memberColumns = computed(() => [
-  { title: t("ai.multiAgent.memberAgent"), dataIndex: "agentId", key: "agentId", width: 240 },
-  { title: t("ai.multiAgent.memberAlias"), dataIndex: "alias", key: "alias", width: 140 },
-  { title: t("ai.multiAgent.memberSort"), dataIndex: "sortOrder", key: "sortOrder", width: 100 },
-  { title: t("ai.multiAgent.memberEnabled"), dataIndex: "isEnabled", key: "isEnabled", width: 100 },
-  { title: t("ai.multiAgent.memberPromptPrefix"), dataIndex: "promptPrefix", key: "promptPrefix" },
-  { title: t("ai.colActions"), key: "action", width: 100 }
-]);
-
-const agentOptions = ref<Array<{ label: string; value: string }>>([]);
-const agentLoading = ref(false);
-
-async function loadData() {
-  if (!orchestrationId.value) {
-    return;
-  }
-
-  loading.value = true;
-  try {
-    const detail = await getMultiAgentOrchestrationById(orchestrationId.value);
-    form.name = detail.name;
-    form.description = detail.description || "";
-    form.mode = detail.mode;
-    form.status = detail.status;
-    form.members = detail.members.map((member, index) => ({
-      rowKey: `${member.agentId}-${index}`,
-      agentId: member.agentId,
-      alias: member.alias,
-      sortOrder: member.sortOrder,
-      isEnabled: member.isEnabled,
-      promptPrefix: member.promptPrefix
-    }));
-  } catch (err: unknown) {
-    message.error((err as Error).message || t("ai.multiAgent.loadDetailFailed"));
-  } finally {
-    loading.value = false;
-  }
+function basePath() {
+  const appId = resolveCurrentAppId(route);
+  return appId ? `/apps/${appId}/multi-agent` : "/ai/multi-agent";
 }
 
-async function handleSearchAgents(searchText: string) {
-  agentLoading.value = true;
-  try {
-    const result = await getAgentsPaged({
-      pageIndex: 1,
-      pageSize: 20,
-      keyword: searchText || undefined
-    });
-    agentOptions.value = result.items.map((item) => ({
-      label: `${item.name} (#${item.id})`,
-      value: item.id
-    }));
-  } catch {
-    agentOptions.value = [];
-  } finally {
-    agentLoading.value = false;
-  }
+function goBack() {
+  void router.push(basePath());
 }
 
-function addMember() {
-  form.members.push({
-    rowKey: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    sortOrder: form.members.length,
-    isEnabled: true
-  });
+function goDebug() {
+  void router.push(`${basePath()}/${teamId.value}/debug`);
 }
 
-function removeMember(index: number) {
-  form.members.splice(index, 1);
+function goRun() {
+  void router.push(`${basePath()}/${teamId.value}/run`);
 }
 
-async function handleSave() {
-  if (!orchestrationId.value) {
-    return;
-  }
+function openSubAgentDrawer() {
+  subAgentDrawerOpen.value = true;
+}
 
-  try {
-    await formRef.value?.validate();
-  } catch {
-    return;
-  }
+async function loadTeam() {
+  if (!teamId.value) return;
+  const detail = await getAgentTeamDetail(teamId.value);
+  teamForm.teamName = detail.teamName;
+  teamForm.owner = detail.owner;
+  teamForm.description = detail.description || "";
+  teamForm.riskLevel = detail.riskLevel;
+  teamForm.collaborators = detail.collaborators || [];
+  tagsRaw.value = (detail.tags || []).join(",");
+}
 
-  const members = form.members
-    .filter((member) => member.agentId)
-    .map((member, index) => ({
-      agentId: member.agentId as string,
-      alias: member.alias?.trim() || undefined,
-      sortOrder: member.sortOrder ?? index,
-      isEnabled: member.isEnabled,
-      promptPrefix: member.promptPrefix?.trim() || undefined
-    }));
+async function reloadSubAgents() {
+  if (!teamId.value) return;
+  subAgents.value = await getSubAgents(teamId.value);
+}
 
-  if (!members.some((item) => item.isEnabled)) {
-    message.warning(t("ai.multiAgent.memberRequired"));
+async function reloadNodes() {
+  if (!teamId.value) return;
+  nodes.value = await getOrchestrationNodes(teamId.value);
+}
+
+async function saveTeam() {
+  if (!teamId.value) return;
+  if (!teamForm.teamName.trim() || !teamForm.owner.trim()) {
+    message.warning("请填写团队名称和负责人");
     return;
   }
 
   saving.value = true;
   try {
-    await updateMultiAgentOrchestration(orchestrationId.value, {
-      name: form.name.trim(),
-      description: form.description.trim() || undefined,
-      mode: form.mode,
-      status: form.status,
-      members
+    await updateAgentTeam(teamId.value, {
+      teamName: teamForm.teamName.trim(),
+      owner: teamForm.owner.trim(),
+      description: teamForm.description.trim() || undefined,
+      collaborators: teamForm.collaborators,
+      riskLevel: teamForm.riskLevel,
+      tags: tagsRaw.value.split(",").map(x => x.trim()).filter(Boolean),
+      defaultModelPolicyJson: "{}",
+      budgetPolicyJson: "{}",
+      permissionScopeJson: "{}"
     });
-    message.success(t("crud.updateSuccess"));
-    await loadData();
-  } catch (err: unknown) {
-    message.error((err as Error).message || t("crud.submitFailed"));
+    message.success("保存成功");
+    await loadTeam();
+  } catch (err) {
+    message.error((err as Error).message || "保存失败");
   } finally {
     saving.value = false;
   }
 }
 
-function goBack() {
-  const currentAppId = resolveCurrentAppId(route);
-  if (currentAppId) {
-    void router.push(`/apps/${currentAppId}/multi-agent`);
-    return;
+async function validate() {
+  if (!teamId.value) return;
+  validating.value = true;
+  try {
+    await validateOrchestration(teamId.value);
+    validationMessage.value = "结构校验通过";
+    message.success("编排校验通过");
+  } catch (err) {
+    validationMessage.value = (err as Error).message || "校验失败";
+    message.error(validationMessage.value);
+  } finally {
+    validating.value = false;
   }
-
-  void router.push("/ai/multi-agent");
 }
 
-onMounted(() => {
-  void handleSearchAgents("");
-  void loadData();
+async function publishTeam() {
+  if (!teamId.value) return;
+  publishing.value = true;
+  try {
+    await publishAgentTeam(teamId.value, { releaseNote: "发布 Agent 团队版本" });
+    message.success("发布成功");
+  } catch (err) {
+    message.error((err as Error).message || "发布失败");
+  } finally {
+    publishing.value = false;
+  }
+}
+
+onMounted(async () => {
+  try {
+    await Promise.all([loadTeam(), reloadSubAgents(), reloadNodes()]);
+  } catch (err) {
+    message.error((err as Error).message || "加载失败");
+  }
 });
 </script>
 
 <style scoped>
-.member-header {
+.workspace {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.top-content {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 10px;
-  font-weight: 500;
+}
+
+.sub {
+  color: #888;
+  font-size: 12px;
+}
+
+.main-grid {
+  display: grid;
+  grid-template-columns: 280px 1fr 360px;
+  gap: 12px;
+  min-height: 520px;
+}
+
+.left,
+.center,
+.right,
+.bottom,
+.top-bar {
+  height: 100%;
+}
+
+.section-title {
+  font-size: 12px;
+  color: #888;
 }
 </style>

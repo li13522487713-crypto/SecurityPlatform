@@ -1,5 +1,6 @@
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Repositories;
+using Atlas.Application.AgentTeam.Abstractions;
 using Atlas.Infrastructure.Options;
 using Atlas.Infrastructure.Repositories;
 using Atlas.Infrastructure.Services.AiPlatform;
@@ -8,6 +9,7 @@ using Atlas.Infrastructure.Services.AiPlatform.WorkflowSteps;
 using Atlas.Infrastructure.Services.AiPlatform.Parsers;
 using Atlas.Infrastructure.Services.WorkflowEngine;
 using Atlas.Infrastructure.Services.WorkflowEngine.NodeExecutors;
+using Atlas.Infrastructure.Services.AgentTeam;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -70,6 +72,18 @@ public static class AiPlatformServiceRegistration
         services.AddScoped<AiWorkspaceRepository>();
         services.AddScoped<AiShortcutCommandRepository>();
         services.AddScoped<AiBotPopupInfoRepository>();
+        services.AddScoped<AgentTeamRepository>();
+        services.AddScoped<SubAgentRepository>();
+        services.AddScoped<OrchestrationNodeRepository>();
+        services.AddScoped<TeamVersionRepository>();
+        services.AddScoped<ExecutionRunRepository>();
+        services.AddScoped<NodeRunRepository>();
+        services.AddScoped<IAgentTeamRepository>(sp => sp.GetRequiredService<AgentTeamRepository>());
+        services.AddScoped<ISubAgentRepository>(sp => sp.GetRequiredService<SubAgentRepository>());
+        services.AddScoped<IOrchestrationNodeRepository>(sp => sp.GetRequiredService<OrchestrationNodeRepository>());
+        services.AddScoped<ITeamVersionRepository>(sp => sp.GetRequiredService<TeamVersionRepository>());
+        services.AddScoped<IExecutionRunRepository>(sp => sp.GetRequiredService<ExecutionRunRepository>());
+        services.AddScoped<INodeRunRepository>(sp => sp.GetRequiredService<NodeRunRepository>());
         services.AddScoped<IModelConfigCommandService, ModelConfigCommandService>();
         services.AddScoped<IModelConfigQueryService, ModelConfigQueryService>();
         services.AddScoped<IAgentCommandService, AgentCommandService>();
@@ -100,6 +114,8 @@ public static class AiPlatformServiceRegistration
         services.AddScoped<IAiMemoryService, AiMemoryService>();
         services.AddScoped<IAgentPublicationService, AgentPublicationService>();
         services.AddScoped<IMultiAgentOrchestrationService, MultiAgentOrchestrationService>();
+        services.AddScoped<IAgentTeamQueryService, AgentTeamService>();
+        services.AddScoped<IAgentTeamCommandService, AgentTeamService>();
         services.AddScoped<IMultimodalService, MultimodalService>();
         services.AddScoped<IEvaluationService, EvaluationService>();
         services.AddScoped<IEvaluationJobService, EvaluationJobService>();
