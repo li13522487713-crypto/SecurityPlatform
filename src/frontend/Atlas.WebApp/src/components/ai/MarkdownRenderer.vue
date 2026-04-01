@@ -4,13 +4,62 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, watch, ref, onMounted } from "vue";
 import DOMPurify from "dompurify";
+import { marked } from "marked";
+import hljs from "highlight.js";
+import "highlight.js/styles/github.css";
 
 const props = defineProps<{ content: string }>();
-const MARKDOWN_ALLOWED_TAGS = ["p", "h1", "h2", "h3", "strong", "em", "code", "pre", "ul", "ol", "li", "blockquote", "hr", "a", "br"];
-const MARKDOWN_ALLOWED_ATTR = ["href", "target", "rel", "class"];
+
+const rendered = ref("");
+
+// Configure marked to use highlight.js
+marked.setOptions({
+  highlight: function (code, lang) {
+    if (lang && hljs.getLanguage(lang)) {
+      try {
+        return hljs.highlight(code, { language: lang }).value;
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    return code; // use external default escaping
+  },
+  breaks: true,
+  gfm: true
+});
+
+const MARKDOWN_ALLOWED_TAGS = [
+  "p", "h1", "h2", "h3", "h4", "h5", "h6", 
+  "strong", "em", "code", "pre", "ul", "ol", "li", 
+  "blockquote", "hr", "a", "br", "span", "div", 
+  "table", "thead", "tbody", "tr", "th", "td"
+];
+const MARKDOWN_ALLOWED_ATTR = ["href", "target", "rel", "class", "style"];
 const SAFE_URI_REGEXP = /^(?:(?:https?|mailto|tel):|[/?#]|\.{1,2}\/)/i;
+
+async function renderMarkdown(md: string) {
+  if (!md) {
+    rendered.value = "";
+    return;
+  }
+  
+  try {
+    // Parse markdown to HTML
+    const rawHtml = await marked.parse(md);
+    
+    // Sanitize the HTML
+    rendered.value = DOMPurify.sanitize(rawHtml, {
+      ALLOWED_TAGS: MARKDOWN_ALLOWED_TAGS,
+      ALLOWED_ATTR: MARKDOWN_ALLOWED_ATTR,
+      ALLOWED_URI_REGEXP: SAFE_URI_REGEXP
+    });
+  } catch (e) {
+    console.error("Error rendering markdown:", e);
+    rendered.value = escapeHtml(md);
+  }
+}
 
 function escapeHtml(text: string): string {
   return text
@@ -20,103 +69,15 @@ function escapeHtml(text: string): string {
     .replace(/"/g, "&quot;");
 }
 
-function renderMarkdown(md: string): string {
-  let html = escapeHtml(md);
+watch(() => props.content, (newContent) => {
+  renderMarkdown(newContent);
+}, { immediate: true });
 
-  // Code blocks ```lang\n...\n```
-  html = html.replace(
-    /```(\w*)\n([\s\S]*?)```/g,
-    (_, lang, code) =>
-      `<pre><code class="language-${lang || "text"}">${code}</code></pre>`
-  );
-
-  // Inline code
-  html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
-
-  // Bold
-  html = html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
-
-  // Italic
-  html = html.replace(/\*(.+?)\*/g, "<em>$1</em>");
-
-  // Headers
-  html = html.replace(/^### (.+)$/gm, "<h3>$1</h3>");
-  html = html.replace(/^## (.+)$/gm, "<h2>$1</h2>");
-  html = html.replace(/^# (.+)$/gm, "<h1>$1</h1>");
-
-  // Unordered list items
-  html = html.replace(/^[*-] (.+)$/gm, "<li>$1</li>");
-  html = html.replace(/(<li>.*<\/li>)/s, "<ul>$1</ul>");
-
-  // Numbered list items
-  html = html.replace(/^\d+\. (.+)$/gm, "<li>$1</li>");
-
-  // Horizontal rule
-  html = html.replace(/^---$/gm, "<hr/>");
-
-  // Blockquote
-  html = html.replace(/^&gt; (.+)$/gm, "<blockquote>$1</blockquote>");
-
-  const sanitizeHref = (href: string): string => {
-    const normalized = href.replace(/&amp;/g, "&").trim();
-    if (!normalized) {
-      return "#";
-    }
-
-    if (normalized.startsWith("//")) {
-      return "#";
-    }
-    if (normalized.startsWith("/") || normalized.startsWith("#") || normalized.startsWith("?")) {
-      return normalized;
-    }
-
-    try {
-      const parsed = new URL(normalized);
-      if (["http:", "https:", "mailto:", "tel:"].includes(parsed.protocol)) {
-        return normalized;
-      }
-    } catch {
-      // ignore invalid url
-    }
-
-    return "#";
-  };
-
-  // Links
-  html = html.replace(
-    /\[([^\]]+)\]\(([^)]+)\)/g,
-    (_, text, href) => `<a href="${sanitizeHref(href)}" target="_blank" rel="noopener noreferrer">${text}</a>`
-  );
-
-  // Paragraphs: wrap lines separated by blank lines
-  html = html
-    .split(/\n{2,}/)
-    .map((block) => {
-      const trimmed = block.trim();
-      if (!trimmed) return "";
-      if (
-        trimmed.startsWith("<h") ||
-        trimmed.startsWith("<pre") ||
-        trimmed.startsWith("<ul") ||
-        trimmed.startsWith("<ol") ||
-        trimmed.startsWith("<li") ||
-        trimmed.startsWith("<blockquote") ||
-        trimmed.startsWith("<hr")
-      ) {
-        return trimmed;
-      }
-      return `<p>${trimmed.replace(/\n/g, "<br/>")}</p>`;
-    })
-    .join("\n");
-
-  return DOMPurify.sanitize(html, {
-    ALLOWED_TAGS: MARKDOWN_ALLOWED_TAGS,
-    ALLOWED_ATTR: MARKDOWN_ALLOWED_ATTR,
-    ALLOWED_URI_REGEXP: SAFE_URI_REGEXP
-  });
-}
-
-const rendered = computed(() => renderMarkdown(props.content));
+onMounted(() => {
+  if (!rendered.value && props.content) {
+    renderMarkdown(props.content);
+  }
+});
 </script>
 
 <style scoped>
@@ -127,10 +88,10 @@ const rendered = computed(() => renderMarkdown(props.content));
 
 .markdown-body :deep(pre) {
   background: #f5f5f5;
-  border-radius: 4px;
+  border-radius: 6px;
   padding: 12px;
   overflow-x: auto;
-  margin: 8px 0;
+  margin: 12px 0;
 }
 
 .markdown-body :deep(code) {
@@ -144,38 +105,74 @@ const rendered = computed(() => renderMarkdown(props.content));
 .markdown-body :deep(pre code) {
   background: transparent;
   padding: 0;
+  border-radius: 0;
 }
 
 .markdown-body :deep(h1),
 .markdown-body :deep(h2),
-.markdown-body :deep(h3) {
-  margin-top: 12px;
-  margin-bottom: 6px;
+.markdown-body :deep(h3),
+.markdown-body :deep(h4),
+.markdown-body :deep(h5) {
+  margin-top: 16px;
+  margin-bottom: 8px;
+  font-weight: 600;
 }
+
+.markdown-body :deep(h1) { font-size: 1.5em; }
+.markdown-body :deep(h2) { font-size: 1.3em; }
+.markdown-body :deep(h3) { font-size: 1.1em; }
 
 .markdown-body :deep(blockquote) {
   border-left: 4px solid #d9d9d9;
-  margin: 8px 0;
+  margin: 12px 0;
   padding-left: 12px;
   color: rgba(0, 0, 0, 0.55);
 }
 
 .markdown-body :deep(ul),
 .markdown-body :deep(ol) {
-  padding-left: 20px;
+  padding-left: 24px;
+  margin: 8px 0;
+}
+
+.markdown-body :deep(li) {
+  margin-bottom: 4px;
 }
 
 .markdown-body :deep(p) {
-  margin: 6px 0;
+  margin: 8px 0;
 }
 
 .markdown-body :deep(a) {
   color: #1677ff;
+  text-decoration: none;
+}
+
+.markdown-body :deep(a:hover) {
+  text-decoration: underline;
 }
 
 .markdown-body :deep(hr) {
   border: none;
   border-top: 1px solid #e8e8e8;
-  margin: 8px 0;
+  margin: 16px 0;
+}
+
+.markdown-body :deep(table) {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 12px 0;
+}
+
+.markdown-body :deep(th),
+.markdown-body :deep(td) {
+  border: 1px solid #e8e8e8;
+  padding: 8px 12px;
+  text-align: left;
+}
+
+.markdown-body :deep(th) {
+  background: #fafafa;
+  font-weight: 600;
 }
 </style>

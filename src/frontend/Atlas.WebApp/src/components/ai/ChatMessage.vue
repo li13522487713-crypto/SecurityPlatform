@@ -23,7 +23,9 @@
                 <a-timeline>
                   <a-timeline-item v-for="step in reactSteps" :key="step.id">
                     <div class="react-step-title">{{ formatReActStep(step.eventType) }}</div>
-                    <pre class="react-step-content">{{ step.content }}</pre>
+                    <div class="react-step-content">
+                      <MarkdownRenderer :content="step.content" />
+                    </div>
                   </a-timeline-item>
                 </a-timeline>
               </a-collapse-panel>
@@ -173,13 +175,20 @@ function formatReActStep(eventType: ReActEventType) {
 
 .react-step-content {
   margin: 0;
-  white-space: pre-wrap;
-  word-break: break-word;
   font-size: 12px;
   color: rgba(0, 0, 0, 0.65);
   background: #f5f5f5;
   padding: 8px 12px;
   border-radius: 6px;
+}
+
+.react-step-content :deep(.markdown-body) {
+  font-size: inherit;
+}
+
+.react-step-content :deep(.markdown-body pre) {
+  background: #fff;
+  border: 1px solid #e8e8e8;
 }
 
 @keyframes blink {
