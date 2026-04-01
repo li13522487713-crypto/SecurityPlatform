@@ -164,7 +164,6 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             typeof(AgentPluginBinding),
             typeof(Conversation),
             typeof(ChatMessage),
-            typeof(ShortTermMemory),
             typeof(LongTermMemory),
             typeof(KnowledgeBase),
             typeof(KnowledgeDocument),
@@ -1674,12 +1673,11 @@ public sealed class DatabaseInitializerHostedService : IHostedService
 
     private static async Task EnsureAiMemorySchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
     {
-        var missingShortTerm = !db.DbMaintenance.IsAnyTable("ShortTermMemory", false);
         var missingLongTerm = !db.DbMaintenance.IsAnyTable("LongTermMemory", false);
-        if (missingShortTerm || missingLongTerm)
+        if (missingLongTerm)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            db.CodeFirst.InitTables<ShortTermMemory, LongTermMemory>();
+            db.CodeFirst.InitTables<LongTermMemory>();
         }
 
         if (db.DbMaintenance.IsAnyTable("Agent", false))
@@ -1751,6 +1749,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             await RebuildTableViaOrmAsync<TeamAgentSchemaDraft>(db, cancellationToken);
             await RebuildTableViaOrmAsync<TeamAgentSchemaDraftExecutionAudit>(db, cancellationToken);
         }
+
     }
 
     private static async Task EnsureTeamAgentTemplateSeedDataAsync(

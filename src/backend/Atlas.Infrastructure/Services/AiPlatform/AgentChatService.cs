@@ -1,25 +1,32 @@
+#pragma warning disable SKEXP0001, SKEXP0110, SKEXP0130
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
 using Atlas.Core.Abstractions;
 using Atlas.Core.Exceptions;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
-using Atlas.Domain.AiPlatform.Entities;
+using Atlas.Infrastructure.Options;
 using Atlas.Infrastructure.Repositories;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Microsoft.SemanticKernel;
+using Microsoft.SemanticKernel.Agents;
+using Microsoft.SemanticKernel.ChatCompletion;
+using Microsoft.SemanticKernel.Memory;
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Channels;
+using DomainAgent = Atlas.Domain.AiPlatform.Entities.Agent;
 using ChatMessageEntity = Atlas.Domain.AiPlatform.Entities.ChatMessage;
+using Atlas.Domain.AiPlatform.Entities;
 
 namespace Atlas.Infrastructure.Services.AiPlatform;
 
 public sealed class AgentChatService : IAgentChatService
 {
-    private const int ContextWindowSize = 20;
     private const int MaxToolCallIterations = 3;
     private static readonly ConcurrentDictionary<long, CancellationTokenSource> ConversationCancellationMap = new();
 
@@ -29,12 +36,13 @@ public sealed class AgentChatService : IAgentChatService
     private readonly AgentKnowledgeLinkRepository _agentKnowledgeLinkRepository;
     private readonly ModelConfigRepository _modelConfigRepository;
     private readonly IChatClientFactory _chatClientFactory;
+    private readonly IKernelFactory _kernelFactory;
     private readonly IRagRetrievalService _ragRetrievalService;
     private readonly IAgentToolCallService _agentToolCallService;
-    private readonly IShortTermMemorySummarizationService _shortTermMemorySummarizationService;
     private readonly ILongTermMemoryExtractionService _longTermMemoryExtractionService;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IOptionsMonitor<AgentFrameworkOptions> _optionsMonitor;
     private readonly ILogger<AgentChatService> _logger;
 
     public AgentChatService(
@@ -44,12 +52,13 @@ public sealed class AgentChatService : IAgentChatService
         AgentKnowledgeLinkRepository agentKnowledgeLinkRepository,
         ModelConfigRepository modelConfigRepository,
         IChatClientFactory chatClientFactory,
+        IKernelFactory kernelFactory,
         IRagRetrievalService ragRetrievalService,
         IAgentToolCallService agentToolCallService,
-        IShortTermMemorySummarizationService shortTermMemorySummarizationService,
         ILongTermMemoryExtractionService longTermMemoryExtractionService,
         IIdGeneratorAccessor idGeneratorAccessor,
         IUnitOfWork unitOfWork,
+        IOptionsMonitor<AgentFrameworkOptions> optionsMonitor,
         ILogger<AgentChatService> logger)
     {
         _agentRepository = agentRepository;
@@ -58,12 +67,13 @@ public sealed class AgentChatService : IAgentChatService
         _agentKnowledgeLinkRepository = agentKnowledgeLinkRepository;
         _modelConfigRepository = modelConfigRepository;
         _chatClientFactory = chatClientFactory;
+        _kernelFactory = kernelFactory;
         _ragRetrievalService = ragRetrievalService;
         _agentToolCallService = agentToolCallService;
-        _shortTermMemorySummarizationService = shortTermMemorySummarizationService;
         _longTermMemoryExtractionService = longTermMemoryExtractionService;
         _idGeneratorAccessor = idGeneratorAccessor;
         _unitOfWork = unitOfWork;
+        _optionsMonitor = optionsMonitor;
         _logger = logger;
     }
 
@@ -244,11 +254,8 @@ public sealed class AgentChatService : IAgentChatService
                 tenantId,
                 conversation.Id,
                 afterContextClear: true,
-                limit: ContextWindowSize,
+                limit: null,
                 linkedCts.Token);
-            var shortTermSummary = agent.EnableMemory && agent.EnableShortTermMemory
-                ? await SafeGetShortTermSummaryAsync(tenantId, conversation.Id, linkedCts.Token)
-                : null;
             var recalledMemories = agent.EnableMemory && agent.EnableLongTermMemory
                 ? await SafeRecallLongTermMemoriesAsync(
                     tenantId,
@@ -290,7 +297,8 @@ public sealed class AgentChatService : IAgentChatService
                     toolCallMetadata = toolCallResult.MetadataJson,
                     memory = new
                     {
-                        shortTermSummaryIncluded = !string.IsNullOrWhiteSpace(shortTermSummary),
+                        reducer = "semantic-kernel.truncation",
+                        whiteboardEnabled = agent.EnableMemory && agent.EnableShortTermMemory && _optionsMonitor.CurrentValue.EnableWhiteboardMemory,
                         longTermMemoryCount = recalledMemories.Count,
                         longTermMemoryIds = recalledMemories.Select(x => x.Id).ToList()
                     }
@@ -300,46 +308,52 @@ public sealed class AgentChatService : IAgentChatService
             {
                 await EmitEventAsync(eventStreamOutput, "thought", "分析问题并准备调用模型生成回复。");
 
-                var ragResults = await TrySearchRagAsync(tenantId, agent.Id, request, linkedCts.Token);
-                var llmMessages = BuildLlmMessages(
-                    agent,
-                    history,
-                    ragResults,
-                    shortTermSummary,
-                    recalledMemories);
-
                 var modelConfig = await ResolveModelConfigAsync(tenantId, agent.ModelConfigId, linkedCts.Token);
                 var modelName = ResolveModelName(agent, modelConfig);
+                var ragResults = await TrySearchRagAsync(tenantId, agent.Id, request, linkedCts.Token);
+                var kernel = await _kernelFactory.CreateAsync(tenantId, agent.ModelConfigId, modelName, linkedCts.Token);
                 var chatClient = await _chatClientFactory.CreateAsync(tenantId, agent.ModelConfigId, modelName, linkedCts.Token);
-                var chatOptions = new ChatOptions
+                var reducedHistory = await BuildReducedChatHistoryAsync(
+                    history,
+                    ragResults,
+                    recalledMemories,
+                    userMessageEntity.Id,
+                    linkedCts.Token);
+                var agentThread = new ChatHistoryAgentThread(reducedHistory);
+                if (agent.EnableMemory && agent.EnableShortTermMemory && _optionsMonitor.CurrentValue.EnableWhiteboardMemory)
                 {
-                    ModelId = modelName,
-                    Temperature = agent.Temperature,
-                    MaxOutputTokens = agent.MaxTokens,
-                    ConversationId = conversation.Id.ToString()
+                    agentThread.AIContextProviders.Add(new WhiteboardProvider(chatClient));
+                }
+
+                var skAgent = new ChatCompletionAgent
+                {
+                    Name = agent.Name,
+                    Instructions = string.IsNullOrWhiteSpace(agent.SystemPrompt) ? "你是一个有帮助的智能助手。" : agent.SystemPrompt,
+                    Kernel = kernel
                 };
 
-                await foreach (var chunk in chatClient.GetStreamingResponseAsync(
-                    BuildAiMessages(llmMessages),
-                    chatOptions,
-                    linkedCts.Token))
+        await foreach (var response in skAgent.InvokeAsync(
+                    new ChatMessageContent(AuthorRole.User, inputForModel),
+                    agentThread))
                 {
-                    var chunkText = chunk.ToString();
+                    var chunkText = NormalizeAgentResponse(response.Message);
                     if (string.IsNullOrWhiteSpace(chunkText))
                     {
                         continue;
                     }
 
+                    assistantBuilder.Clear();
                     assistantBuilder.Append(chunkText);
-                    if (textStreamOutput is not null)
-                    {
-                        await textStreamOutput(chunkText);
-                    }
+                }
+
+                if (assistantBuilder.Length > 0 && textStreamOutput is not null)
+                {
+                    await textStreamOutput(assistantBuilder.ToString());
                 }
 
                 metadata = JsonSerializer.Serialize(new
                 {
-                    mode = "llm",
+                    mode = "semantic-kernel.agent",
                     provider = modelConfig?.ProviderType ?? "default",
                     model = modelName,
                     ragEnabled = request.EnableRag ?? false,
@@ -352,7 +366,8 @@ public sealed class AgentChatService : IAgentChatService
                     }).ToList(),
                     memory = new
                     {
-                        shortTermSummaryIncluded = !string.IsNullOrWhiteSpace(shortTermSummary),
+                        reducer = "semantic-kernel.truncation",
+                        whiteboardEnabled = agent.EnableMemory && agent.EnableShortTermMemory && _optionsMonitor.CurrentValue.EnableWhiteboardMemory,
                         longTermMemoryCount = recalledMemories.Count,
                         longTermMemoryIds = recalledMemories.Select(x => x.Id).ToList()
                     }
@@ -395,7 +410,6 @@ public sealed class AgentChatService : IAgentChatService
                 inputForModel,
                 assistantContent,
                 agent.EnableMemory,
-                agent.EnableShortTermMemory,
                 agent.EnableLongTermMemory,
                 linkedCts.Token);
 
@@ -435,28 +449,6 @@ public sealed class AgentChatService : IAgentChatService
         await eventStreamOutput(new AgentChatStreamEvent(eventType, data));
     }
 
-    private async Task<string?> SafeGetShortTermSummaryAsync(
-        TenantId tenantId,
-        long conversationId,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            return await _shortTermMemorySummarizationService.GetSummaryAsync(
-                tenantId,
-                conversationId,
-                cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(
-                ex,
-                "Load short-term memory failed. conversationId={ConversationId}",
-                conversationId);
-            return null;
-        }
-    }
-
     private async Task<IReadOnlyList<LongTermMemoryRecallItem>> SafeRecallLongTermMemoriesAsync(
         TenantId tenantId,
         long userId,
@@ -494,7 +486,6 @@ public sealed class AgentChatService : IAgentChatService
         string userMessage,
         string assistantMessage,
         bool enableMemory,
-        bool enableShortTermMemory,
         bool enableLongTermMemory,
         CancellationToken cancellationToken)
     {
@@ -516,29 +507,6 @@ public sealed class AgentChatService : IAgentChatService
                     assistantMessage,
                     cancellationToken);
             }
-
-            if (enableShortTermMemory)
-            {
-                var allMessages = await _chatMessageRepository.GetAllByConversationAsync(
-                    tenantId,
-                    conversationId,
-                    cancellationToken);
-                var history = allMessages
-                    .Select(item => new ChatHistoryMessage(
-                        item.Id,
-                        item.Role,
-                        item.Content,
-                        item.IsContextCleared,
-                        item.CreatedAt))
-                    .ToList();
-                await _shortTermMemorySummarizationService.TrySummarizeAsync(
-                    tenantId,
-                    conversationId,
-                    agentId,
-                    userId,
-                    history,
-                    cancellationToken);
-            }
         }
         catch (Exception ex)
         {
@@ -552,7 +520,7 @@ public sealed class AgentChatService : IAgentChatService
     private async Task<Conversation> EnsureConversationAsync(
         TenantId tenantId,
         long userId,
-        Agent agent,
+        DomainAgent agent,
         AgentChatRequest request,
         CancellationToken cancellationToken)
     {
@@ -584,69 +552,64 @@ public sealed class AgentChatService : IAgentChatService
         return created;
     }
 
-    private static IReadOnlyList<Atlas.Application.AiPlatform.Models.ChatMessage> BuildLlmMessages(
-        Agent agent,
+    private async Task<ChatHistory> BuildReducedChatHistoryAsync(
         IReadOnlyList<ChatMessageEntity> history,
         IReadOnlyList<RagSearchResult> ragResults,
-        string? shortTermSummary,
-        IReadOnlyList<LongTermMemoryRecallItem> longTermMemories)
+        IReadOnlyList<LongTermMemoryRecallItem> longTermMemories,
+        long pendingUserMessageId,
+        CancellationToken cancellationToken)
     {
-        var messages = new List<Atlas.Application.AiPlatform.Models.ChatMessage>(history.Count + 4);
-        if (!string.IsNullOrWhiteSpace(agent.SystemPrompt))
-        {
-            messages.Add(new Atlas.Application.AiPlatform.Models.ChatMessage("system", agent.SystemPrompt));
-        }
-
-        if (!string.IsNullOrWhiteSpace(shortTermSummary))
-        {
-            messages.Add(new Atlas.Application.AiPlatform.Models.ChatMessage(
-                "system",
-                $"以下是历史对话摘要，请结合摘要保持上下文连续性：\n{shortTermSummary}"));
-        }
+        var chatHistory = new ChatHistory();
 
         if (longTermMemories.Count > 0)
         {
             var memoryText = string.Join(
                 "\n",
-                longTermMemories.Select((x, index) =>
-                    $"[MEM#{index + 1}] ({x.MemoryKey}, score:{x.Score:F3}) {x.Content}"));
-            messages.Add(new Atlas.Application.AiPlatform.Models.ChatMessage(
-                "system",
-                $"以下是用户长期偏好/画像记忆，请在回答时优先遵循：\n{memoryText}"));
+                longTermMemories.Select((item, index) =>
+                    $"[MEM#{index + 1}] ({item.MemoryKey}, score:{item.Score:F3}) {item.Content}"));
+            chatHistory.AddMessage(
+                AuthorRole.System,
+                $"以下是用户长期偏好/画像记忆，请在回答时优先遵循：\n{memoryText}");
         }
 
         if (ragResults.Count > 0)
         {
             var contextText = string.Join(
                 "\n\n",
-                ragResults.Select((x, i) =>
-                    $"[RAG#{i + 1}] (kb:{x.KnowledgeBaseId}, doc:{x.DocumentId}, chunk:{x.ChunkId}, score:{x.Score:F4})\n{x.Content}"));
-            messages.Add(new Atlas.Application.AiPlatform.Models.ChatMessage(
-                "system",
-                $"你可以参考以下知识库检索结果来回答用户问题。请优先使用其中事实，并在适当时给出简短来源说明。\n\n{contextText}"));
+                ragResults.Select((item, index) =>
+                    $"[RAG#{index + 1}] (kb:{item.KnowledgeBaseId}, doc:{item.DocumentId}, chunk:{item.ChunkId}, score:{item.Score:F4})\n{item.Content}"));
+            chatHistory.AddMessage(
+                AuthorRole.System,
+                $"你可以参考以下知识库检索结果来回答用户问题。请优先使用其中事实，并在适当时给出简短来源说明。\n\n{contextText}");
         }
 
-        foreach (var item in history)
+        foreach (var item in history.Where(item => item.Id != pendingUserMessageId))
         {
-            messages.Add(new Atlas.Application.AiPlatform.Models.ChatMessage(item.Role, item.Content));
+            chatHistory.AddMessage(MapAuthorRole(item.Role), item.Content);
         }
 
-        return messages;
+        var reducer = new ChatHistoryTruncationReducer(_optionsMonitor.CurrentValue.SingleAgentReducerTargetCount);
+        var reducedMessages = await reducer.ReduceAsync(chatHistory, cancellationToken);
+        if (reducedMessages is not null)
+        {
+            chatHistory = new ChatHistory(reducedMessages);
+        }
+
+        return chatHistory;
     }
 
-    private static IReadOnlyList<Microsoft.Extensions.AI.ChatMessage> BuildAiMessages(
-        IReadOnlyList<Atlas.Application.AiPlatform.Models.ChatMessage> messages)
-        => messages.Select(message => new Microsoft.Extensions.AI.ChatMessage(
-            MapRole(message.Role),
-            message.Content)).ToList();
+    private static string NormalizeAgentResponse(ChatMessageContent response)
+        => string.IsNullOrWhiteSpace(response.Content)
+            ? response.ToString()?.Trim() ?? string.Empty
+            : response.Content.Trim();
 
-    private static ChatRole MapRole(string role)
+    private static AuthorRole MapAuthorRole(string role)
         => role.ToLowerInvariant() switch
         {
-            "system" => ChatRole.System,
-            "assistant" => ChatRole.Assistant,
-            "tool" => ChatRole.Tool,
-            _ => ChatRole.User
+            "system" => AuthorRole.System,
+            "assistant" => AuthorRole.Assistant,
+            "tool" => AuthorRole.Tool,
+            _ => AuthorRole.User
         };
 
     private async Task<IReadOnlyList<RagSearchResult>> TrySearchRagAsync(
@@ -689,7 +652,7 @@ public sealed class AgentChatService : IAgentChatService
         return await _modelConfigRepository.FindByIdAsync(tenantId, modelConfigId.Value, cancellationToken);
     }
 
-    private static string ResolveModelName(Agent agent, ModelConfig? modelConfig)
+    private static string ResolveModelName(DomainAgent agent, ModelConfig? modelConfig)
     {
         if (!string.IsNullOrWhiteSpace(agent.ModelName))
         {

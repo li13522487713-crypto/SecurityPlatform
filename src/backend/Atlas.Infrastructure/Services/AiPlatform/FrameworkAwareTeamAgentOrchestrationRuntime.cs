@@ -7,14 +7,14 @@ using Atlas.Core.Exceptions;
 using Atlas.Core.Models;
 using Atlas.Infrastructure.Options;
 using Atlas.Infrastructure.Repositories;
-using Microsoft.Agents.AI;
-using Microsoft.Agents.AI.Workflows;
-using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Agents;
+using Microsoft.SemanticKernel.Agents.Orchestration;
 using Microsoft.SemanticKernel.Agents.Orchestration.GroupChat;
+using Microsoft.SemanticKernel.Agents.Orchestration.Handoff;
+using Microsoft.SemanticKernel.Agents.Orchestration.Sequential;
 using Microsoft.SemanticKernel.Agents.Runtime.InProcess;
 using Microsoft.SemanticKernel.ChatCompletion;
 using DomainAgent = Atlas.Domain.AiPlatform.Entities.Agent;
@@ -27,7 +27,6 @@ public sealed class FrameworkAwareTeamAgentOrchestrationRuntime : ITeamAgentOrch
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     private readonly AgentRepository _agentRepository;
-    private readonly IChatClientFactory _chatClientFactory;
     private readonly IKernelFactory _kernelFactory;
     private readonly IAgentRuntimeFactory _agentRuntimeFactory;
     private readonly IOptionsMonitor<AgentFrameworkOptions> _optionsMonitor;
@@ -35,14 +34,12 @@ public sealed class FrameworkAwareTeamAgentOrchestrationRuntime : ITeamAgentOrch
 
     public FrameworkAwareTeamAgentOrchestrationRuntime(
         AgentRepository agentRepository,
-        IChatClientFactory chatClientFactory,
         IKernelFactory kernelFactory,
         IAgentRuntimeFactory agentRuntimeFactory,
         IOptionsMonitor<AgentFrameworkOptions> optionsMonitor,
         ILogger<FrameworkAwareTeamAgentOrchestrationRuntime> logger)
     {
         _agentRepository = agentRepository;
-        _chatClientFactory = chatClientFactory;
         _kernelFactory = kernelFactory;
         _agentRuntimeFactory = agentRuntimeFactory;
         _optionsMonitor = optionsMonitor;
@@ -132,100 +129,24 @@ public sealed class FrameworkAwareTeamAgentOrchestrationRuntime : ITeamAgentOrch
         Func<TeamAgentMemberContribution, Task> onContributionAsync,
         CancellationToken cancellationToken)
     {
-        var participantMap = new Dictionary<string, (TeamAgentMemberItem Member, DomainAgent Agent)>(StringComparer.OrdinalIgnoreCase);
-        var participants = new List<ChatCompletionAgent>(members.Count);
-
-        foreach (var member in members)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var agent = agentMap[member.AgentId!.Value];
-            var kernel = await _kernelFactory.CreateAsync(request.TenantId, agent.ModelConfigId, agent.ModelName, cancellationToken);
-            participants.Add(new ChatCompletionAgent
-            {
-                Name = member.RoleName,
-                Description = string.IsNullOrWhiteSpace(member.Responsibility) ? member.RoleName : member.Responsibility,
-                Instructions = BuildAgentInstructions(member, request.TeamAgent.TeamMode),
-                Kernel = kernel
-            });
-            participantMap[member.RoleName] = (member, agent);
-        }
-
-        var steps = new List<TeamAgentExecutionStep>(members.Count);
-        var contributions = new List<TeamAgentMemberContribution>(members.Count);
-        var roundCounter = 0;
-        var sharedInput = request.Message.Trim();
-
-        async ValueTask HandleResponseAsync(ChatMessageContent message)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            var authorName = message.AuthorName ?? string.Empty;
-            if (!participantMap.TryGetValue(authorName, out var participant))
-            {
-                _logger.LogDebug("GroupChat 返回了未映射成员: {AuthorName}", authorName);
-                return;
-            }
-
-            roundCounter++;
-            var output = ExtractText(message);
-            var startedAt = DateTime.UtcNow;
-            var completedAt = DateTime.UtcNow;
-
-            await onEventAsync(new TeamAgentRunEvent("round.started", JsonSerializer.Serialize(new
-            {
-                round = roundCounter,
-                member = participant.Member.RoleName,
-                runtime = runtime.RuntimeKey
-            }, JsonOptions)));
-
-            var step = new TeamAgentExecutionStep(
-                0,
-                participant.Member.AgentId,
-                participant.Agent.Name,
-                participant.Member.RoleName,
-                participant.Member.Alias,
-                sharedInput,
-                output,
-                "completed",
-                null,
-                startedAt,
-                completedAt);
-            steps.Add(step);
-
-            var contribution = new TeamAgentMemberContribution(
-                participant.Member.AgentId!.Value,
-                participant.Agent.Name,
-                participant.Member.RoleName,
-                participant.Member.Alias,
-                sharedInput,
-                output,
-                roundCounter,
-                startedAt,
-                completedAt);
-            contributions.Add(contribution);
-
-            await onContributionAsync(contribution);
-            await onEventAsync(new TeamAgentRunEvent("member.message", JsonSerializer.Serialize(new
-            {
-                round = roundCounter,
-                member = participant.Member.RoleName,
-                agentId = participant.Member.AgentId,
-                agentName = participant.Agent.Name,
-                content = output
-            }, JsonOptions)));
-            await onEventAsync(new TeamAgentRunEvent("execution.step", JsonSerializer.Serialize(step, JsonOptions)));
-
-            sharedInput = UpdateCurrentMessage(request.TeamAgent.TeamMode, sharedInput, participant.Member.RoleName, output);
-        }
+        var builtAgents = await BuildAgentsAsync(request, members, agentMap, cancellationToken);
+        var observer = CreateResponseObserver(
+            request.TeamAgent.TeamMode,
+            runtime,
+            builtAgents,
+            onEventAsync,
+            onContributionAsync,
+            cancellationToken);
+        observer.InitializeInput(request.Message.Trim());
 
         var orchestration = new GroupChatOrchestration(
-            new Microsoft.SemanticKernel.Agents.Orchestration.GroupChat.RoundRobinGroupChatManager
+            new RoundRobinGroupChatManager
             {
                 MaximumInvocationCount = Math.Max(members.Count, _optionsMonitor.CurrentValue.GroupChatMaximumRounds)
             },
-            participants.ToArray())
+            builtAgents.Select(item => item.RuntimeAgent).ToArray())
         {
-            ResponseCallback = HandleResponseAsync
+            ResponseCallback = observer.HandleResponseAsync
         };
 
         var runtimeHost = new InProcessRuntime();
@@ -233,7 +154,7 @@ public sealed class FrameworkAwareTeamAgentOrchestrationRuntime : ITeamAgentOrch
         var result = await orchestration.InvokeAsync(request.Message.Trim(), runtimeHost);
         var finalMessage = NormalizeText(await result.GetValueAsync());
 
-        return new TeamAgentOrchestrationRuntimeResult(finalMessage, steps, contributions, runtime);
+        return observer.BuildResult(finalMessage);
     }
 
     private async Task<TeamAgentOrchestrationRuntimeResult> ExecuteWorkflowAsync(
@@ -245,19 +166,27 @@ public sealed class FrameworkAwareTeamAgentOrchestrationRuntime : ITeamAgentOrch
         Func<TeamAgentMemberContribution, Task> onContributionAsync,
         CancellationToken cancellationToken)
     {
-        var builtAgents = await BuildWorkflowAgentsAsync(request, members, agentMap, cancellationToken);
-        var workflow = AgentWorkflowBuilder.BuildSequential(
-            $"team-agent-{request.TeamAgent.Id}-workflow",
-            builtAgents.Select(item => item.RuntimeAgent).ToArray());
-        return await ExecuteWorkflowRunAsync(
-            request,
-            members,
+        var builtAgents = await BuildAgentsAsync(request, members, agentMap, cancellationToken);
+        var observer = CreateResponseObserver(
+            request.TeamAgent.TeamMode,
             runtime,
-            workflow,
-            builtAgents.ToDictionary(item => item.ExecutorId, StringComparer.OrdinalIgnoreCase),
+            builtAgents,
             onEventAsync,
             onContributionAsync,
             cancellationToken);
+        observer.InitializeInput(request.Message.Trim());
+
+        var orchestration = new SequentialOrchestration(builtAgents.Select(item => item.RuntimeAgent).ToArray())
+        {
+            ResponseCallback = observer.HandleResponseAsync
+        };
+
+        var runtimeHost = new InProcessRuntime();
+        await runtimeHost.StartAsync();
+        var result = await orchestration.InvokeAsync(request.Message.Trim(), runtimeHost);
+        var finalMessage = NormalizeText(await result.GetValueAsync());
+
+        return observer.BuildResult(finalMessage);
     }
 
     private async Task<TeamAgentOrchestrationRuntimeResult> ExecuteHandoffAsync(
@@ -269,191 +198,99 @@ public sealed class FrameworkAwareTeamAgentOrchestrationRuntime : ITeamAgentOrch
         Func<TeamAgentMemberContribution, Task> onContributionAsync,
         CancellationToken cancellationToken)
     {
-        var builtAgents = await BuildWorkflowAgentsAsync(request, members, agentMap, cancellationToken);
+        var builtAgents = await BuildAgentsAsync(request, members, agentMap, cancellationToken);
         if (builtAgents.Count == 0)
         {
             throw new BusinessException("Team Agent 至少需要一个启用成员。", ErrorCodes.ValidationError);
         }
 
-        var builder = AgentWorkflowBuilder.CreateHandoffBuilderWith(builtAgents[0].RuntimeAgent);
+        var handoffs = OrchestrationHandoffs.StartWith(builtAgents[0].RuntimeAgent);
         for (var index = 0; index < builtAgents.Count - 1; index++)
         {
-            builder = builder.WithHandoff(
+            handoffs = handoffs.Add(
                 builtAgents[index].RuntimeAgent,
                 builtAgents[index + 1].RuntimeAgent,
-                $"由 {builtAgents[index].Member.RoleName} 交接给 {builtAgents[index + 1].Member.RoleName}");
+                $"Transfer to {builtAgents[index + 1].Member.RoleName} when the next specialized step is required.");
         }
 
-        return await ExecuteWorkflowRunAsync(
-            request,
-            members,
+        var observer = CreateResponseObserver(
+            request.TeamAgent.TeamMode,
             runtime,
-            builder.Build(),
-            builtAgents.ToDictionary(item => item.ExecutorId, StringComparer.OrdinalIgnoreCase),
+            builtAgents,
             onEventAsync,
             onContributionAsync,
             cancellationToken);
-    }
+        observer.InitializeInput(request.Message.Trim());
 
-    private static async Task<TeamAgentOrchestrationRuntimeResult> ExecuteWorkflowRunAsync(
-        TeamAgentOrchestrationRuntimeRequest request,
-        IReadOnlyList<TeamAgentMemberItem> members,
-        TeamAgentRuntimeDescriptor runtime,
-        Microsoft.Agents.AI.Workflows.Workflow workflow,
-        IReadOnlyDictionary<string, BuiltWorkflowAgent> participantMap,
-        Func<TeamAgentRunEvent, Task> onEventAsync,
-        Func<TeamAgentMemberContribution, Task> onContributionAsync,
-        CancellationToken cancellationToken)
-    {
-        var steps = new List<TeamAgentExecutionStep>(members.Count);
-        var contributions = new List<TeamAgentMemberContribution>(members.Count);
-        var stepCounter = 0;
-        var currentInput = request.Message.Trim();
-        var startedAtByExecutorId = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
-        var finalMessage = currentInput;
-
-        await using var execution = await InProcessExecution.RunAsync(
-            workflow,
-            request.Message.Trim(),
-            $"team-agent-{request.TeamAgent.Id}",
-            cancellationToken);
-
-        foreach (var workflowEvent in execution.NewEvents)
+        var orchestration = new HandoffOrchestration(
+            handoffs,
+            builtAgents.Select(item => item.RuntimeAgent).ToArray())
         {
-            cancellationToken.ThrowIfCancellationRequested();
+            ResponseCallback = observer.HandleResponseAsync
+        };
 
-            switch (workflowEvent)
-            {
-                case ExecutorInvokedEvent invokedEvent:
-                    startedAtByExecutorId[invokedEvent.ExecutorId] = DateTime.UtcNow;
-                    if (participantMap.TryGetValue(invokedEvent.ExecutorId, out var startedParticipant))
-                    {
-                        await onEventAsync(new TeamAgentRunEvent("round.started", JsonSerializer.Serialize(new
-                        {
-                            round = stepCounter + 1,
-                            member = startedParticipant.Member.RoleName,
-                            runtime = runtime.RuntimeKey
-                        }, JsonOptions)));
-                    }
-                    break;
+        var runtimeHost = new InProcessRuntime();
+        await runtimeHost.StartAsync();
+        var result = await orchestration.InvokeAsync(request.Message.Trim(), runtimeHost);
+        var finalMessage = NormalizeText(await result.GetValueAsync());
 
-                case AgentResponseEvent responseEvent:
-                    if (!participantMap.TryGetValue(responseEvent.ExecutorId, out var participant))
-                    {
-                        break;
-                    }
-
-                    stepCounter++;
-                    var output = ExtractText(responseEvent.Response.Messages);
-                    var startedAt = startedAtByExecutorId.TryGetValue(responseEvent.ExecutorId, out var trackedStartedAt)
-                        ? trackedStartedAt
-                        : DateTime.UtcNow;
-                    var completedAt = DateTime.UtcNow;
-                    var step = new TeamAgentExecutionStep(
-                        0,
-                        participant.Member.AgentId,
-                        participant.Agent.Name,
-                        participant.Member.RoleName,
-                        participant.Member.Alias,
-                        currentInput,
-                        output,
-                        "completed",
-                        null,
-                        startedAt,
-                        completedAt);
-                    steps.Add(step);
-
-                    var contribution = new TeamAgentMemberContribution(
-                        participant.Member.AgentId!.Value,
-                        participant.Agent.Name,
-                        participant.Member.RoleName,
-                        participant.Member.Alias,
-                        currentInput,
-                        output,
-                        stepCounter,
-                        startedAt,
-                        completedAt);
-                    contributions.Add(contribution);
-
-                    await onContributionAsync(contribution);
-                    await onEventAsync(new TeamAgentRunEvent("member.message", JsonSerializer.Serialize(new
-                    {
-                        round = stepCounter,
-                        member = participant.Member.RoleName,
-                        agentId = participant.Member.AgentId,
-                        agentName = participant.Agent.Name,
-                        content = output
-                    }, JsonOptions)));
-                    await onEventAsync(new TeamAgentRunEvent("execution.step", JsonSerializer.Serialize(step, JsonOptions)));
-
-                    currentInput = UpdateCurrentMessage(request.TeamAgent.TeamMode, currentInput, participant.Member.RoleName, output);
-                    break;
-
-                case ExecutorFailedEvent failedEvent:
-                    throw new TeamAgentOrchestrationExecutionException(
-                        failedEvent.Data?.Message ?? "Team Agent 工作流执行失败。",
-                        steps,
-                        contributions,
-                        failedEvent.Data ?? new InvalidOperationException("Team Agent 工作流执行失败。"));
-
-                case WorkflowErrorEvent errorEvent:
-                    throw new TeamAgentOrchestrationExecutionException(
-                        errorEvent.Exception?.Message ?? "Team Agent 工作流执行失败。",
-                        steps,
-                        contributions,
-                        errorEvent.Exception ?? new InvalidOperationException("Team Agent 工作流执行失败。"));
-
-                case WorkflowOutputEvent outputEvent:
-                    finalMessage = NormalizeText(outputEvent.Data);
-                    break;
-            }
-        }
-
-        return new TeamAgentOrchestrationRuntimeResult(finalMessage, steps, contributions, runtime);
+        return observer.BuildResult(finalMessage);
     }
 
-    private async Task<List<BuiltWorkflowAgent>> BuildWorkflowAgentsAsync(
+    private async Task<List<BuiltAgent>> BuildAgentsAsync(
         TeamAgentOrchestrationRuntimeRequest request,
         IReadOnlyList<TeamAgentMemberItem> members,
         IReadOnlyDictionary<long, DomainAgent> agentMap,
         CancellationToken cancellationToken)
     {
-        var built = new List<BuiltWorkflowAgent>(members.Count);
-        for (var index = 0; index < members.Count; index++)
+        var built = new List<BuiltAgent>(members.Count);
+        foreach (var member in members)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var member = members[index];
             var agent = agentMap[member.AgentId!.Value];
-            var chatClient = await _chatClientFactory.CreateAsync(request.TenantId, agent.ModelConfigId, agent.ModelName, cancellationToken);
-            var executorId = BuildExecutorId(member, index);
-            var runtimeAgent = new ChatClientAgent(
-                chatClient,
-                new ChatClientAgentOptions
+            var kernel = await _kernelFactory.CreateAsync(request.TenantId, agent.ModelConfigId, agent.ModelName, cancellationToken);
+            built.Add(new BuiltAgent(
+                member,
+                agent,
+                new ChatCompletionAgent
                 {
-                    Id = executorId,
                     Name = member.RoleName,
                     Description = string.IsNullOrWhiteSpace(member.Responsibility) ? member.RoleName : member.Responsibility,
-                    ChatOptions = new ChatOptions
-                    {
-                        Instructions = BuildAgentInstructions(member, request.TeamAgent.TeamMode)
-                    }
-                });
-
-            built.Add(new BuiltWorkflowAgent(executorId, member, agent, runtimeAgent));
+                    Instructions = BuildAgentInstructions(member, request.TeamAgent.TeamMode),
+                    Kernel = kernel
+                }));
         }
 
         return built;
     }
 
-    private static string BuildAgentInstructions(TeamAgentMemberItem member, TeamAgentMode mode)
+    private ResponseObserver CreateResponseObserver(
+        TeamAgentMode mode,
+        TeamAgentRuntimeDescriptor runtime,
+        IReadOnlyList<BuiltAgent> builtAgents,
+        Func<TeamAgentRunEvent, Task> onEventAsync,
+        Func<TeamAgentMemberContribution, Task> onContributionAsync,
+        CancellationToken cancellationToken)
+        => new(
+            mode,
+            runtime,
+            builtAgents.ToDictionary(item => item.Member.RoleName, StringComparer.OrdinalIgnoreCase),
+            onEventAsync,
+            onContributionAsync,
+            _logger,
+            cancellationToken);
+
+    private static string BuildAgentInstructions(
+        TeamAgentMemberItem member,
+        TeamAgentMode mode)
     {
         var prefix = string.IsNullOrWhiteSpace(member.PromptPrefix) ? string.Empty : $"{member.PromptPrefix.Trim()}\n";
         var modeInstructions = mode switch
         {
-            TeamAgentMode.GroupChat => "你是团队群聊中的固定成员。请结合已有讨论继续推进，不要重复前一位成员的内容。",
-            TeamAgentMode.Workflow => "你是工作流中的执行节点。请输出可直接被下一节点消费的结构化结论。",
-            TeamAgentMode.Handoff => "你处于接力协作链路中。请完成当前任务，并输出明确交接摘要、风险和下一步建议。",
+            TeamAgentMode.GroupChat => "你是团队群聊中的固定成员。请基于当前线程上下文继续推进任务，不要重复前面成员已经确认的结论。",
+            TeamAgentMode.Workflow => "你是顺序编排中的执行节点。请产出可直接被下一节点消费的明确结论。",
+            TeamAgentMode.Handoff => "你处于接力编排中。请完成当前子任务，并在需要时把控制权交给下一位更合适的成员。",
             _ => "请根据输入完成当前任务。"
         };
 
@@ -461,52 +298,8 @@ public sealed class FrameworkAwareTeamAgentOrchestrationRuntime : ITeamAgentOrch
             ? "无显式能力标签"
             : string.Join("、", member.CapabilityTags);
 
-        return $"{prefix}角色：{member.RoleName}\n职责：{member.Responsibility ?? "未提供"}\n能力标签：{capabilityText}\n{modeInstructions}";
-    }
-
-    private static string BuildExecutorId(TeamAgentMemberItem member, int index)
-        => $"member-{index + 1}-{Slugify(member.RoleName)}";
-
-    private static string Slugify(string value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return "agent";
-        }
-
-        var builder = new StringBuilder(value.Length);
-        foreach (var ch in value.Trim().ToLowerInvariant())
-        {
-            if (char.IsLetterOrDigit(ch))
-            {
-                builder.Append(ch);
-            }
-            else if (builder.Length == 0 || builder[^1] != '-')
-            {
-                builder.Append('-');
-            }
-        }
-
-        return builder.ToString().Trim('-');
-    }
-
-    private static string UpdateCurrentMessage(TeamAgentMode mode, string currentMessage, string roleName, string output)
-        => mode switch
-        {
-            TeamAgentMode.GroupChat => $"{currentMessage}\n\n[{roleName}] {output}",
-            TeamAgentMode.Handoff => $"上一环节成员：{roleName}\n交接摘要：{output}",
-            _ => output
-        };
-
-    private static string ExtractText(IEnumerable<Microsoft.Extensions.AI.ChatMessage> messages)
-    {
-        var content = string.Join(
-            "\n",
-            messages
-                .Select(NormalizeText)
-                .Where(item => !string.IsNullOrWhiteSpace(item)));
-
-        return string.IsNullOrWhiteSpace(content) ? "已完成当前环节，但未返回文本内容。" : content.Trim();
+        return
+            $"{prefix}角色：{member.RoleName}\n职责：{member.Responsibility ?? "未提供"}\n能力标签：{capabilityText}\n{modeInstructions}";
     }
 
     private static string ExtractText(ChatMessageContent message)
@@ -529,9 +322,119 @@ public sealed class FrameworkAwareTeamAgentOrchestrationRuntime : ITeamAgentOrch
             : value.ToString()!.Trim();
     }
 
-    private sealed record BuiltWorkflowAgent(
-        string ExecutorId,
+    private sealed class ResponseObserver
+    {
+        private readonly TeamAgentMode _mode;
+        private readonly TeamAgentRuntimeDescriptor _runtime;
+        private readonly IReadOnlyDictionary<string, BuiltAgent> _participantMap;
+        private readonly Func<TeamAgentRunEvent, Task> _onEventAsync;
+        private readonly Func<TeamAgentMemberContribution, Task> _onContributionAsync;
+        private readonly ILogger _logger;
+        private readonly CancellationToken _cancellationToken;
+        private readonly List<TeamAgentExecutionStep> _steps = [];
+        private readonly List<TeamAgentMemberContribution> _contributions = [];
+        private int _roundCounter;
+        private string _currentInput = string.Empty;
+
+        public ResponseObserver(
+            TeamAgentMode mode,
+            TeamAgentRuntimeDescriptor runtime,
+            IReadOnlyDictionary<string, BuiltAgent> participantMap,
+            Func<TeamAgentRunEvent, Task> onEventAsync,
+            Func<TeamAgentMemberContribution, Task> onContributionAsync,
+            ILogger logger,
+            CancellationToken cancellationToken)
+        {
+            _mode = mode;
+            _runtime = runtime;
+            _participantMap = participantMap;
+            _onEventAsync = onEventAsync;
+            _onContributionAsync = onContributionAsync;
+            _logger = logger;
+            _cancellationToken = cancellationToken;
+        }
+
+        public async ValueTask HandleResponseAsync(ChatMessageContent message)
+        {
+            _cancellationToken.ThrowIfCancellationRequested();
+
+            if (string.IsNullOrWhiteSpace(_currentInput))
+            {
+                _currentInput = string.Empty;
+            }
+
+            var authorName = message.AuthorName ?? string.Empty;
+            if (!_participantMap.TryGetValue(authorName, out var participant))
+            {
+                _logger.LogDebug("编排返回了未映射成员: {AuthorName}", authorName);
+                return;
+            }
+
+            _roundCounter++;
+            var output = ExtractText(message);
+            var startedAt = DateTime.UtcNow;
+            var completedAt = DateTime.UtcNow;
+
+            await _onEventAsync(new TeamAgentRunEvent("round.started", JsonSerializer.Serialize(new
+            {
+                round = _roundCounter,
+                member = participant.Member.RoleName,
+                runtime = _runtime.RuntimeKey
+            }, JsonOptions)));
+
+            var step = new TeamAgentExecutionStep(
+                0,
+                participant.Member.AgentId,
+                participant.Agent.Name,
+                participant.Member.RoleName,
+                participant.Member.Alias,
+                _currentInput,
+                output,
+                "completed",
+                null,
+                startedAt,
+                completedAt);
+            _steps.Add(step);
+
+            var contribution = new TeamAgentMemberContribution(
+                participant.Member.AgentId!.Value,
+                participant.Agent.Name,
+                participant.Member.RoleName,
+                participant.Member.Alias,
+                _currentInput,
+                output,
+                _roundCounter,
+                startedAt,
+                completedAt);
+            _contributions.Add(contribution);
+
+            await _onContributionAsync(contribution);
+            await _onEventAsync(new TeamAgentRunEvent("member.message", JsonSerializer.Serialize(new
+            {
+                round = _roundCounter,
+                member = participant.Member.RoleName,
+                agentId = participant.Member.AgentId,
+                agentName = participant.Agent.Name,
+                content = output
+            }, JsonOptions)));
+            await _onEventAsync(new TeamAgentRunEvent("execution.step", JsonSerializer.Serialize(step, JsonOptions)));
+
+            _currentInput = _mode == TeamAgentMode.GroupChat
+                ? $"{_currentInput}\n\n[{participant.Member.RoleName}] {output}".Trim()
+                : output;
+        }
+
+        public TeamAgentOrchestrationRuntimeResult BuildResult(string finalMessage)
+            => new(finalMessage, _steps, _contributions, _runtime);
+
+        public void InitializeInput(string input)
+        {
+            _currentInput = input;
+        }
+    }
+
+    private sealed record BuiltAgent(
         TeamAgentMemberItem Member,
         DomainAgent Agent,
-        AIAgent RuntimeAgent);
+        ChatCompletionAgent RuntimeAgent);
 }

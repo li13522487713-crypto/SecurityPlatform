@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
 using Atlas.Core.Abstractions;
@@ -8,7 +9,6 @@ using Atlas.Domain.AiPlatform.Entities;
 using Atlas.Domain.AiPlatform.Enums;
 using Atlas.Infrastructure.Repositories;
 using Microsoft.Extensions.Logging;
-using System.Text.Json;
 
 namespace Atlas.Infrastructure.Services.AiPlatform;
 
@@ -17,7 +17,7 @@ public sealed class MultiAgentOrchestrationService : IMultiAgentOrchestrationSer
     private readonly MultiAgentOrchestrationRepository _orchestrationRepository;
     private readonly MultiAgentExecutionRepository _executionRepository;
     private readonly AgentRepository _agentRepository;
-    private readonly IAgentChatService _agentChatService;
+    private readonly ITeamAgentOrchestrationRuntime _teamRuntime;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly MultiAgentExecutionTracker _executionTracker;
     private readonly ILogger<MultiAgentOrchestrationService> _logger;
@@ -26,7 +26,7 @@ public sealed class MultiAgentOrchestrationService : IMultiAgentOrchestrationSer
         MultiAgentOrchestrationRepository orchestrationRepository,
         MultiAgentExecutionRepository executionRepository,
         AgentRepository agentRepository,
-        IAgentChatService agentChatService,
+        ITeamAgentOrchestrationRuntime teamRuntime,
         IIdGeneratorAccessor idGeneratorAccessor,
         MultiAgentExecutionTracker executionTracker,
         ILogger<MultiAgentOrchestrationService> logger)
@@ -34,7 +34,7 @@ public sealed class MultiAgentOrchestrationService : IMultiAgentOrchestrationSer
         _orchestrationRepository = orchestrationRepository;
         _executionRepository = executionRepository;
         _agentRepository = agentRepository;
-        _agentChatService = agentChatService;
+        _teamRuntime = teamRuntime;
         _idGeneratorAccessor = idGeneratorAccessor;
         _executionTracker = executionTracker;
         _logger = logger;
@@ -167,15 +167,7 @@ public sealed class MultiAgentOrchestrationService : IMultiAgentOrchestrationSer
     {
         var orchestration = await LoadOrchestrationOrThrowAsync(tenantId, orchestrationId, cancellationToken);
         var execution = await CreateExecutionAsync(tenantId, orchestrationId, userId, request.Message, cancellationToken);
-        var result = await ExecuteCoreAsync(
-            tenantId,
-            userId,
-            orchestration,
-            execution,
-            request,
-            null,
-            cancellationToken);
-        return result;
+        return await ExecuteCoreAsync(tenantId, userId, orchestration, execution, request, null, cancellationToken);
     }
 
     public async IAsyncEnumerable<MultiAgentStreamEvent> StreamRunAsync(
@@ -239,10 +231,8 @@ public sealed class MultiAgentOrchestrationService : IMultiAgentOrchestrationSer
         TenantId tenantId,
         long orchestrationId,
         CancellationToken cancellationToken)
-    {
-        return await _orchestrationRepository.FindByIdAsync(tenantId, orchestrationId, cancellationToken)
+        => await _orchestrationRepository.FindByIdAsync(tenantId, orchestrationId, cancellationToken)
             ?? throw new BusinessException("编排不存在。", ErrorCodes.NotFound);
-    }
 
     private async Task<MultiAgentExecution> CreateExecutionAsync(
         TenantId tenantId,
@@ -282,37 +272,81 @@ public sealed class MultiAgentOrchestrationService : IMultiAgentOrchestrationSer
             })));
         }
 
-        var members = DeserializeMembers(orchestration.MembersJson)
-            .Where(x => x.IsEnabled)
-            .OrderBy(x => x.SortOrder)
+        var legacyMembers = DeserializeMembers(orchestration.MembersJson)
+            .Where(item => item.IsEnabled)
+            .OrderBy(item => item.SortOrder)
             .ToList();
-        if (members.Count == 0)
+        if (legacyMembers.Count == 0)
         {
             throw new BusinessException("编排内至少需要一个启用成员。", ErrorCodes.ValidationError);
         }
 
-        await EnsureAgentsExistAsync(tenantId, members, cancellationToken);
-        var agentIds = members.Select(x => x.AgentId).Distinct().ToList();
-        var agents = await _agentRepository.QueryByIdsAsync(tenantId, agentIds, cancellationToken);
-        var agentNameMap = agents.ToDictionary(x => x.Id, x => x.Name);
-        var steps = orchestration.Mode == MultiAgentOrchestrationMode.Sequential
-            ? await ExecuteSequentialAsync(tenantId, userId, members, request, agentNameMap, emitAsync, cancellationToken)
-            : await ExecuteParallelAsync(tenantId, userId, members, request, agentNameMap, emitAsync, cancellationToken);
+        await EnsureAgentsExistAsync(tenantId, legacyMembers, cancellationToken);
+        var agents = await _agentRepository.QueryByIdsAsync(
+            tenantId,
+            legacyMembers.Select(item => item.AgentId).Distinct().ToList(),
+            cancellationToken);
+        var agentMap = agents.ToDictionary(item => item.Id);
 
-        var failedStep = steps.FirstOrDefault(x => x.Status == ExecutionStatus.Failed);
-        if (failedStep is null)
+        var teamMembers = legacyMembers
+            .Select((member, index) =>
+            {
+                var agent = agentMap[member.AgentId];
+                var roleName = string.IsNullOrWhiteSpace(member.Alias) ? agent.Name : member.Alias!;
+                return new TeamAgentMemberItem(
+                    member.AgentId,
+                    roleName,
+                    orchestration.Mode == MultiAgentOrchestrationMode.Sequential ? "顺序旧编排成员" : "兼容旧编排成员",
+                    member.Alias,
+                    index,
+                    member.IsEnabled,
+                    member.PromptPrefix,
+                    [],
+                    "bound");
+            })
+            .ToList();
+
+        var runtimeTeam = new TeamAgent(
+            tenantId,
+            orchestration.Name,
+            orchestration.Description,
+            orchestration.Mode == MultiAgentOrchestrationMode.Sequential ? TeamAgentMode.Workflow : TeamAgentMode.GroupChat,
+            "[]",
+            "chat",
+            "[]",
+            "[]",
+            "{}",
+            userId,
+            orchestration.Id);
+
+        TeamAgentOrchestrationRuntimeResult runtimeResult;
+        try
         {
-            var finalOutput = orchestration.Mode == MultiAgentOrchestrationMode.Sequential
-                ? steps.Last().OutputMessage ?? string.Empty
-                : string.Join(Environment.NewLine + Environment.NewLine, steps.Select(x =>
-                    $"[{x.Alias ?? x.AgentName}] {x.OutputMessage}"));
-            execution.MarkCompleted(finalOutput, SerializeSteps(steps));
+            runtimeResult = await _teamRuntime.ExecuteAsync(
+                new TeamAgentOrchestrationRuntimeRequest(
+                    tenantId,
+                    userId,
+                    runtimeTeam,
+                    teamMembers,
+                    request.Message,
+                    request.EnableRag,
+                    null),
+                evt => emitAsync is null
+                    ? Task.CompletedTask
+                    : emitAsync(new MultiAgentStreamEvent(evt.EventType, evt.Data)),
+                _ => Task.CompletedTask,
+                cancellationToken);
         }
-        else
+        catch (TeamAgentOrchestrationExecutionException ex)
         {
-            execution.MarkFailed(failedStep.ErrorMessage ?? "执行失败", SerializeSteps(steps));
+            var failedSteps = ex.Steps.Select(MapStep).ToList();
+            execution.MarkFailed(ex.Message, SerializeSteps(failedSteps));
+            await _executionRepository.UpdateAsync(execution, cancellationToken);
+            return ToExecutionResult(execution, failedSteps);
         }
 
+        var steps = runtimeResult.Steps.Select(MapStep).ToList();
+        execution.MarkCompleted(runtimeResult.FinalMessage, SerializeSteps(steps));
         await _executionRepository.UpdateAsync(execution, cancellationToken);
 
         var result = ToExecutionResult(execution, steps);
@@ -330,146 +364,19 @@ public sealed class MultiAgentOrchestrationService : IMultiAgentOrchestrationSer
         return result;
     }
 
-    private async Task<List<MultiAgentExecutionStep>> ExecuteSequentialAsync(
-        TenantId tenantId,
-        long userId,
-        IReadOnlyList<MultiAgentMemberItem> members,
-        MultiAgentRunRequest request,
-        IReadOnlyDictionary<long, string> agentNameMap,
-        Func<MultiAgentStreamEvent, Task>? emitAsync,
-        CancellationToken cancellationToken)
-    {
-        var steps = new List<MultiAgentExecutionStep>(members.Count);
-        var currentMessage = request.Message;
-        foreach (var member in members)
-        {
-            var step = await ExecuteMemberAsync(
-                tenantId,
-                userId,
-                member,
-                currentMessage,
-                request.EnableRag,
-                agentNameMap,
-                emitAsync,
-                cancellationToken);
-            steps.Add(step);
-            if (step.Status == ExecutionStatus.Failed)
-            {
-                break;
-            }
-
-            currentMessage = step.OutputMessage ?? currentMessage;
-        }
-
-        return steps;
-    }
-
-    private async Task<List<MultiAgentExecutionStep>> ExecuteParallelAsync(
-        TenantId tenantId,
-        long userId,
-        IReadOnlyList<MultiAgentMemberItem> members,
-        MultiAgentRunRequest request,
-        IReadOnlyDictionary<long, string> agentNameMap,
-        Func<MultiAgentStreamEvent, Task>? emitAsync,
-        CancellationToken cancellationToken)
-    {
-        var tasks = members.Select(member =>
-            ExecuteMemberAsync(
-                tenantId,
-                userId,
-                member,
-                request.Message,
-                request.EnableRag,
-                agentNameMap,
-                emitAsync,
-                cancellationToken)).ToList();
-        var steps = await Task.WhenAll(tasks);
-        return steps.OrderBy(x => x.StartedAt).ToList();
-    }
-
-    private async Task<MultiAgentExecutionStep> ExecuteMemberAsync(
-        TenantId tenantId,
-        long userId,
-        MultiAgentMemberItem member,
-        string inputMessage,
-        bool? enableRag,
-        IReadOnlyDictionary<long, string> agentNameMap,
-        Func<MultiAgentStreamEvent, Task>? emitAsync,
-        CancellationToken cancellationToken)
-    {
-        var startedAt = DateTime.UtcNow;
-        var agentName = agentNameMap.TryGetValue(member.AgentId, out var mapped) ? mapped : $"Agent-{member.AgentId}";
-        if (emitAsync is not null)
-        {
-            await emitAsync(new MultiAgentStreamEvent("agent_start", JsonSerializer.Serialize(new
-            {
-                member.AgentId,
-                member.Alias,
-                startedAt
-            })));
-        }
-
-        try
-        {
-            var prompt = BuildPrompt(member.PromptPrefix, inputMessage);
-            var response = await _agentChatService.ChatAsync(
-                tenantId,
-                userId,
-                member.AgentId,
-                new AgentChatRequest(null, prompt, enableRag),
-                cancellationToken);
-            var completedAt = DateTime.UtcNow;
-            var step = new MultiAgentExecutionStep(
-                member.AgentId,
-                agentName,
-                member.Alias,
-                inputMessage,
-                response.Content,
-                ExecutionStatus.Completed,
-                null,
-                startedAt,
-                completedAt);
-
-            if (emitAsync is not null)
-            {
-                await emitAsync(new MultiAgentStreamEvent("agent_finish", JsonSerializer.Serialize(step)));
-            }
-
-            return step;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "multi agent member failed, agentId={AgentId}", member.AgentId);
-            var completedAt = DateTime.UtcNow;
-            var step = new MultiAgentExecutionStep(
-                member.AgentId,
-                agentName,
-                member.Alias,
-                inputMessage,
-                null,
-                ExecutionStatus.Failed,
-                ex.Message,
-                startedAt,
-                completedAt);
-
-            if (emitAsync is not null)
-            {
-                await emitAsync(new MultiAgentStreamEvent("agent_finish", JsonSerializer.Serialize(step)));
-            }
-
-            return step;
-        }
-    }
-
-    private static string BuildPrompt(string? promptPrefix, string inputMessage)
-    {
-        if (string.IsNullOrWhiteSpace(promptPrefix))
-        {
-            return inputMessage;
-        }
-
-        return $"{promptPrefix.Trim()}{Environment.NewLine}{Environment.NewLine}{inputMessage}";
-    }
+    private static MultiAgentExecutionStep MapStep(TeamAgentExecutionStep step)
+        => new(
+            step.AgentId ?? 0,
+            step.AgentName,
+            step.Alias,
+            step.InputMessage,
+            step.OutputMessage,
+            string.Equals(step.Status, "completed", StringComparison.OrdinalIgnoreCase)
+                ? ExecutionStatus.Completed
+                : ExecutionStatus.Failed,
+            step.ErrorMessage,
+            step.StartedAt,
+            step.CompletedAt);
 
     private async Task EnsureAgentsExistAsync(
         TenantId tenantId,

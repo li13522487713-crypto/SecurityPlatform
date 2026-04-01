@@ -3359,15 +3359,13 @@ type EvaluationCaseStatus = 0 | 1 | 2 | 3; // Pending / Passed / Failed / Error
 
 ### Team Agent 编排运行时
 
-- `GroupChat` 默认优先走 `Semantic Kernel Agents Orchestration`
-- `Workflow` / `Handoff` 默认优先走 `Microsoft Agent Framework`
-- 运行时选择通过配置节 `AgentFramework` 控制
+- `GroupChat`、`Workflow`、`Handoff` 统一走 `Semantic Kernel Agents Orchestration`
+- 运行时选择通过配置节 `AgentFramework` 控制，当前仅保留 Semantic Kernel 原生运行时
 - 流式事件 `orchestration.runtime.selected` 会返回 `runtimeKey`、`frameworkFamily`、`packageId`、`packageVersion`
 - 当前仓库约定的默认包版本：
   - `Microsoft.SemanticKernel.Agents.Orchestration`: `1.74.0-preview`
-  - `Microsoft.Agents.AI`: `1.0.0-rc4`
-  - `Microsoft.Agents.AI.OpenAI`: `1.0.0-rc4`
-  - `Microsoft.Agents.AI.Workflows`: `1.0.0-rc4`
+  - `Microsoft.SemanticKernel.Agents.Core`: `1.74.0-preview`
+  - `Microsoft.SemanticKernel`: `1.74.0-preview`
 
 ### Schema Draft 接口
 

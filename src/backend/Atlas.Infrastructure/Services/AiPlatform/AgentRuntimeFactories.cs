@@ -166,17 +166,17 @@ internal sealed class AgentRuntimeFactory : IAgentRuntimeFactory
                 options.Packages.SemanticKernelOrchestration.PackageId,
                 options.Packages.SemanticKernelOrchestration.Version),
             TeamAgentMode.Workflow => new TeamAgentRuntimeDescriptor(
-                "microsoft-agent-framework.workflow",
-                "Microsoft Agent Framework Workflow",
-                "Microsoft Agent Framework",
-                options.Packages.MicrosoftAgentFrameworkWorkflows.PackageId,
-                options.Packages.MicrosoftAgentFrameworkWorkflows.Version),
+                "semantic-kernel.sequential",
+                "Semantic Kernel Sequential Orchestration",
+                "Semantic Kernel",
+                options.Packages.SemanticKernelOrchestration.PackageId,
+                options.Packages.SemanticKernelOrchestration.Version),
             _ => new TeamAgentRuntimeDescriptor(
-                "microsoft-agent-framework.handoff",
-                "Microsoft Agent Framework Handoff",
-                "Microsoft Agent Framework",
-                options.Packages.MicrosoftAgentFrameworkWorkflows.PackageId,
-                options.Packages.MicrosoftAgentFrameworkWorkflows.Version)
+                "semantic-kernel.handoff",
+                "Semantic Kernel Handoff Orchestration",
+                "Semantic Kernel",
+                options.Packages.SemanticKernelOrchestration.PackageId,
+                options.Packages.SemanticKernelOrchestration.Version)
         };
         return Task.FromResult(descriptor);
     }

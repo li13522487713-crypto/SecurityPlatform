@@ -38,7 +38,6 @@ public static class AiPlatformServiceRegistration
         services.AddScoped<TeamAgentExecutionStepRepository>();
         services.AddScoped<TeamAgentSchemaDraftRepository>();
         services.AddScoped<TeamAgentSchemaDraftExecutionAuditRepository>();
-        services.AddScoped<ShortTermMemoryRepository>();
         services.AddScoped<LongTermMemoryRepository>();
         services.AddScoped<KnowledgeBaseRepository>();
         services.AddScoped<KnowledgeDocumentRepository>();
@@ -85,7 +84,6 @@ public static class AiPlatformServiceRegistration
         services.AddScoped<ITeamAgentSchemaDraftComposer, TeamAgentSchemaDraftComposer>();
         services.AddScoped<IAgentChatService, AgentChatService>();
         services.AddScoped<IAgentToolCallService, AgentToolCallService>();
-        services.AddScoped<IShortTermMemorySummarizationService, ShortTermMemorySummarizationService>();
         services.AddScoped<ILongTermMemoryExtractionService, LongTermMemoryExtractionService>();
         services.AddScoped<IKnowledgeBaseService, KnowledgeBaseService>();
         services.AddScoped<IAiDatabaseService, AiDatabaseService>();

@@ -15,9 +15,6 @@
     <PackageReference Include="Hangfire.Storage.SQLite" Version="0.4.3" />
     <PackageReference Include="JiebaNet.Segmenter" Version="1.0.6" />
     <PackageReference Include="Lucene.Net" Version="4.8.0-beta00017" />
-    <PackageReference Include="Microsoft.Agents.AI" Version="1.0.0-rc4" />
-    <PackageReference Include="Microsoft.Agents.AI.OpenAI" Version="1.0.0-rc4" />
-    <PackageReference Include="Microsoft.Agents.AI.Workflows" Version="1.0.0-rc4" />
     <PackageReference Include="Microsoft.Extensions.AI" Version="10.4.0" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.3" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.0" />

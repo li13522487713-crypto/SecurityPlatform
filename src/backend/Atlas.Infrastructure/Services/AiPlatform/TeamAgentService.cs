@@ -1046,6 +1046,7 @@ public sealed class TeamAgentService : ITeamAgentService
 
             execution.Complete(currentMessage, JsonSerializer.Serialize(steps, JsonOptions), JsonSerializer.Serialize(events, JsonOptions));
             await _executionRepository.UpdateAsync(execution, linkedCts.Token);
+
             return new TeamAgentChatResponse(conversation.Id, execution.Id, currentMessage, events, draft);
         }
         catch (TeamAgentOrchestrationExecutionException ex)
@@ -1101,6 +1102,10 @@ public sealed class TeamAgentService : ITeamAgentService
         }, cancellationToken);
     }
 
+    /// <summary>
+    /// 编排完成后在后台触发增量摘要更新，失败时仅记录警告，不影响主流程。
+    /// 使用新的 CancellationToken（不受主请求取消影响），保证摘要入库成功。
+    /// </summary>
     private async Task PersistExecutionStepsAsync(
         TenantId tenantId,
         long executionId,
