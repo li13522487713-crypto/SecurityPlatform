@@ -10,6 +10,8 @@ interface TagsViewState {
   cachedViews: string[];
 }
 
+const MAX_CACHE_VIEWS = 8;
+
 export const useTagsViewStore = defineStore("tagsView", {
   state: (): TagsViewState => ({
     visitedViews: [],
@@ -29,9 +31,19 @@ export const useTagsViewStore = defineStore("tagsView", {
       );
     },
     addCachedView(view: TagView) {
-      if (this.cachedViews.includes(view.name as string)) return;
-      if (!view.meta?.noCache) {
-        this.cachedViews.push(view.name as string);
+      const name = view.name as string | undefined;
+      if (!name || view.meta?.noCache) {
+        return;
+      }
+
+      const index = this.cachedViews.indexOf(name);
+      if (index > -1) {
+        this.cachedViews.splice(index, 1);
+      }
+
+      this.cachedViews.push(name);
+      while (this.cachedViews.length > MAX_CACHE_VIEWS) {
+        this.cachedViews.shift();
       }
     },
     delView(view: TagView) {

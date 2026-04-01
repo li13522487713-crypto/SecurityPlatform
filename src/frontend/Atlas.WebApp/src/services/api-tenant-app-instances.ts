@@ -15,7 +15,9 @@ import type {
   TenantAppFileStorageSettings,
   TenantAppFileStorageSettingsUpdateRequest,
   ResourceCenterGroupsResponse,
+  ResourceCenterGroupsSummaryResponse,
   ResourceCenterDataSourceConsumptionResponse,
+  ResourceCenterDataSourceConsumptionSummaryResponse,
   ResourceCenterRepairResult
 } from "@/types/platform-v2";
 import { requestApi, requestApiBlob } from "@/services/api-core";
@@ -24,7 +26,8 @@ const TENANT_APP_INSTANCE_BASE = "/api/v2/tenant-app-instances";
 const RESOURCE_CENTER_BASE = "/api/v2/resource-center";
 
 export async function getTenantAppInstancesPaged(
-  params: PagedRequest & { category?: string }
+  params: PagedRequest & { category?: string },
+  init?: RequestInit
 ): Promise<PagedResult<TenantAppInstanceListItem>> {
   const query = new URLSearchParams({
     pageIndex: params.pageIndex.toString(),
@@ -38,7 +41,8 @@ export async function getTenantAppInstancesPaged(
   }
 
   const response = await requestApi<ApiResponse<PagedResult<TenantAppInstanceListItem>>>(
-    `${TENANT_APP_INSTANCE_BASE}?${query.toString()}`
+    `${TENANT_APP_INSTANCE_BASE}?${query.toString()}`,
+    init
   );
   if (!response.data) {
     throw new Error(response.message || "查询租户应用实例失败");
@@ -214,8 +218,8 @@ export async function getTenantAppDataSourceBindings(appIds?: string[]): Promise
   return response.data;
 }
 
-export async function getResourceCenterGroups(): Promise<ResourceCenterGroupsResponse> {
-  const response = await requestApi<ApiResponse<ResourceCenterGroupsResponse>>(`${RESOURCE_CENTER_BASE}/groups`);
+export async function getResourceCenterGroups(init?: RequestInit): Promise<ResourceCenterGroupsResponse> {
+  const response = await requestApi<ApiResponse<ResourceCenterGroupsResponse>>(`${RESOURCE_CENTER_BASE}/groups`, init);
   if (!response.data) {
     throw new Error(response.message || "查询资源中心分组失败");
   }
@@ -223,12 +227,39 @@ export async function getResourceCenterGroups(): Promise<ResourceCenterGroupsRes
   return response.data;
 }
 
-export async function getResourceCenterDataSourceConsumption(): Promise<ResourceCenterDataSourceConsumptionResponse> {
+export async function getResourceCenterGroupsSummary(init?: RequestInit): Promise<ResourceCenterGroupsSummaryResponse> {
+  const response = await requestApi<ApiResponse<ResourceCenterGroupsSummaryResponse>>(
+    `${RESOURCE_CENTER_BASE}/groups/summary`,
+    init
+  );
+  if (!response.data) {
+    throw new Error(response.message || "查询资源中心分组摘要失败");
+  }
+
+  return response.data;
+}
+
+export async function getResourceCenterDataSourceConsumption(init?: RequestInit): Promise<ResourceCenterDataSourceConsumptionResponse> {
   const response = await requestApi<ApiResponse<ResourceCenterDataSourceConsumptionResponse>>(
-    `${RESOURCE_CENTER_BASE}/datasource-consumption`
+    `${RESOURCE_CENTER_BASE}/datasource-consumption`,
+    init
   );
   if (!response.data) {
     throw new Error(response.message || "查询数据源消费模型失败");
+  }
+
+  return response.data;
+}
+
+export async function getResourceCenterDataSourceConsumptionSummary(
+  init?: RequestInit
+): Promise<ResourceCenterDataSourceConsumptionSummaryResponse> {
+  const response = await requestApi<ApiResponse<ResourceCenterDataSourceConsumptionSummaryResponse>>(
+    `${RESOURCE_CENTER_BASE}/datasource-consumption/summary`,
+    init
+  );
+  if (!response.data) {
+    throw new Error(response.message || "查询数据源消费摘要失败");
   }
 
   return response.data;

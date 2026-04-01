@@ -16,7 +16,9 @@ import { AmisSchemaPreprocessor } from "@/utils/AmisSchemaPreprocessor";
 
 interface Props {
   schema: AmisSchema;
+  schemaRevision?: number;
   data?: Record<string, JsonValue>;
+  dataRevision?: number;
 }
 
 const props = defineProps<Props>();
@@ -37,21 +39,7 @@ function loadAmisRender() {
   return amisRenderPromise;
 }
 
-const normalizeValue = <T>(value: T): T => {
-  const raw = toRaw(value) as T;
-  if (typeof structuredClone === "function") {
-    try {
-      return structuredClone(raw);
-    } catch {
-      return raw;
-    }
-  }
-  try {
-    return JSON.parse(JSON.stringify(raw)) as T;
-  } catch {
-    return raw;
-  }
-};
+const normalizeValue = <T>(value: T): T => toRaw(value) as T;
 
 const renderSchema = async () => {
   const container = containerRef.value;
@@ -94,11 +82,10 @@ onMounted(() => {
 });
 
 watch(
-  () => [props.schema, props.data],
+  () => [props.schemaRevision, props.dataRevision, props.schema, props.data],
   () => {
     requestRenderSchema();
-  },
-  { deep: true }
+  }
 );
 
 onBeforeUnmount(() => {

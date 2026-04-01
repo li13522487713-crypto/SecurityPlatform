@@ -56,6 +56,15 @@ public sealed record RuntimePageResponse(
     int SchemaVersion,
     bool IsActive);
 
+public sealed record RuntimePageDescriptor(
+    long AppId,
+    long PageId,
+    string AppKey,
+    string PageKey,
+    string PageName,
+    string? DataTableKey,
+    bool IsPublished);
+
 public sealed record RuntimeTaskListItem(
     string Id,
     string Type,

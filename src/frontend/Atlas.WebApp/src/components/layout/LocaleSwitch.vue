@@ -35,7 +35,7 @@ function switchLocale(locale: SupportedLocale) {
   if (locale === currentLocale.value) {
     return;
   }
-  setLocale(locale);
+  void setLocale(locale);
 }
 </script>
 

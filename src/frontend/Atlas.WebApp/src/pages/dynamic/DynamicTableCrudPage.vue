@@ -4,14 +4,21 @@
       <a-button type="primary" ghost @click="openFieldDesign">设计字段</a-button>
     </template>
     <a-spin :spinning="loading">
-      <AmisRenderer v-if="schema" :schema="schema" :data="pageData" />
+      <component
+        :is="AmisRenderer"
+        v-if="schema"
+        :schema="schema"
+        :schema-revision="schemaRevision"
+        :data="pageData"
+        :data-revision="dataRevision"
+      />
       <a-empty v-else-if="!loading" :description="t('dynamic.emptyNoPage')" />
     </a-spin>
   </a-card>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch, onUnmounted } from "vue";
+import { computed, defineAsyncComponent, markRaw, onMounted, ref, shallowRef, watch, onUnmounted } from "vue";
 import { useI18n } from "vue-i18n";
 
 const { t } = useI18n();
@@ -22,14 +29,16 @@ onUnmounted(() => { isMounted.value = false; });
 
 import { useRoute, useRouter } from "vue-router";
 import { message } from "ant-design-vue";
-import AmisRenderer from "@/components/amis/amis-renderer.vue";
 import { getDynamicAmisSchema, getDynamicTableDetail } from "@/services/dynamic-tables";
 import type { AmisSchema } from "@/types/amis";
 
 const route = useRoute();
 const router = useRouter();
 const loading = ref(false);
-const schema = ref<AmisSchema | null>(null);
+const AmisRenderer = defineAsyncComponent(() => import("@/components/amis/amis-renderer.vue"));
+const schema = shallowRef<AmisSchema | null>(null);
+const schemaRevision = ref(0);
+const dataRevision = ref(0);
 const pageTitle = ref(t("dynamic.crudTitle"));
 const tableDisplayName = ref<string | null>(null);
 
@@ -58,7 +67,8 @@ const loadSchema = async () => {
   try {
     const schemaResult = await getDynamicAmisSchema(`${currentTableKey}/crud`);
     if (!isMounted.value || currentTableKey !== tableKey.value) return;
-    schema.value = schemaResult as AmisSchema;
+    schema.value = markRaw(schemaResult as AmisSchema);
+    schemaRevision.value += 1;
     
     // 非阻断式加载详情
     getDynamicTableDetail(currentTableKey).then(detail => {
@@ -66,11 +76,13 @@ const loadSchema = async () => {
       tableDisplayName.value = detail?.displayName ?? currentTableKey;
       pageTitle.value = detail?.displayName ?? t("dynamic.crudTitle");
       approvalFlowDefinitionId.value = detail?.approvalFlowDefinitionId ?? null;
+      dataRevision.value += 1;
     }).catch(err => {
       console.warn("Failed to load table detail:", err);
       if (!isMounted.value || currentTableKey !== tableKey.value) return;
       tableDisplayName.value = currentTableKey;
       pageTitle.value = currentTableKey;
+      dataRevision.value += 1;
     });
 
   } catch (error) {

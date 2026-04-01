@@ -106,7 +106,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, watch, ref, onUnmounted, onBeforeUnmount } from "vue";
+import { computed, onMounted, ref, onUnmounted } from "vue";
 import { useI18n } from "vue-i18n";
 
 const isMounted = ref(false);
@@ -118,11 +118,11 @@ const { t } = useI18n();
 import { useRoute, useRouter } from "vue-router";
 import NotificationBell from "@/components/layout/NotificationBell.vue";
 import UnifiedContextBar from "@/components/context/UnifiedContextBar.vue";
-import { getTenantAppInstanceDetail } from "@/services/api-tenant-app-instances";
 import { usePermissionStore } from "@/stores/permission";
 import { useTagsViewStore } from "@/stores/tagsView";
 import { useUserStore } from "@/stores/user";
 import { hasPermission } from "@/utils/auth";
+import { getCachedAppMeta } from "@/utils/app-meta-cache";
 
 const route = useRoute();
 const router = useRouter();
@@ -131,6 +131,10 @@ const permissionStore = usePermissionStore();
 const tagsViewStore = useTagsViewStore();
 
 const appName = computed(() => {
+  const cachedAppMeta = getCachedAppMeta(appId.value);
+  if (cachedAppMeta?.name) {
+    return cachedAppMeta.name;
+  }
   const metaName = route.meta?.title;
   if (typeof metaName === "string" && metaName.trim()) {
     return metaName;
@@ -229,45 +233,6 @@ async function logout() {
   tagsViewStore.delAllViews();
   router.push("/login");
 }
-
-async function syncTitle() {
-  if (!appId.value) {
-    return;
-  }
-
-  titleAbortController?.abort();
-  titleAbortController = new AbortController();
-
-  try {
-    const detail  = await getTenantAppInstanceDetail(appId.value, {
-      signal: titleAbortController.signal
-    });
-
-    if (!isMounted.value) return;
-    if (detail?.name) {
-      document.title = t("documentTitle.appWithWorkspace", {
-        app: detail.name,
-        workspace: t("documentTitle.workspaceSegment"),
-        product: t("documentTitle.productName")
-      });
-    }
-  } catch (error) {
-    if ((error as DOMException)?.name === "AbortError") {
-      return;
-    }
-    // ignore
-  }
-}
-
-let titleAbortController: AbortController | null = null;
-
-onMounted(syncTitle);
-watch(appId, () => {
-  void syncTitle();
-});
-onBeforeUnmount(() => {
-  titleAbortController?.abort();
-});
 </script>
 
 <style scoped>

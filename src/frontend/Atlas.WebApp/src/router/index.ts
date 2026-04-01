@@ -386,23 +386,20 @@ router.beforeEach(async (to, from, next) => {
       return;
     }
 
-    if (!permissionStore.routeLoaded || !userStore.profile) {
-      try {
-        await Promise.all([
-          userStore.getInfo(),
-          permissionStore.generateRoutes()
-        ]);
-        permissionStore.registerRoutes(router);
-        // 仅按 URL 重放，避免携带 not-found 名称导致动态路由注册后仍落入 404。
-        next({
-          path: to.path,
-          query: to.query,
-          hash: to.hash,
-          replace: true
-        });
-        return;
-      } catch (err) {
-        console.error(err);
+    if (!permissionStore.routeLoaded) {
+      permissionStore.hydrateFromLocalCache();
+      permissionStore.registerRoutes(router);
+      void permissionStore.refreshRoutes(router).catch((err) => {
+        if (!isNetworkErrorLike(err)) {
+          console.error("[router] 后台刷新动态路由失败", err);
+        }
+      });
+    }
+
+    if (!userStore.profile) {
+      userStore.hydrateFromStorage();
+      void userStore.getInfo().catch(async (err) => {
+        console.error("[router] 后台刷新用户信息失败", err);
         const requestError = err as ApiRequestErrorLike;
         const alreadyHandledByApiCore = typeof requestError?.status === "number" || requestError?.payload !== undefined;
         if (isAuthTerminalErrorLike(err)) {
@@ -410,35 +407,31 @@ router.beforeEach(async (to, from, next) => {
           if (!alreadyHandledByApiCore) {
             message.error(requestError?.message || translate("routerGuard.sessionReloadLogin"));
           }
-          next({ path: "/login" });
-          NProgress.done();
-          return;
-        }
-
-        if (isNetworkErrorLike(err)) {
-          // 网络异常时不清空登录态，保持当前页面可恢复。
-          userStore.hydrateFromStorage();
-          try {
-            if (!permissionStore.routeLoaded) {
-              await permissionStore.generateRoutes();
-              permissionStore.registerRoutes(router);
-            }
-          } catch (networkRecoveryError) {
-            console.warn("[router] 网络异常兜底恢复失败，等待在线后重试", networkRecoveryError);
+          if (router.currentRoute.value.name !== "login") {
+            await router.replace({ path: "/login", query: { redirect: to.fullPath } });
           }
-          next(false);
-          NProgress.done();
           return;
         }
-
-        if (!alreadyHandledByApiCore) {
-          // 仅兜底提示非 API 异常，避免与 api-core 全局错误提示重复弹窗。
+        if (!isNetworkErrorLike(err) && !alreadyHandledByApiCore) {
           message.error(requestError?.message || translate("routerGuard.sessionReloadLogin"));
         }
-        next(false);
-        NProgress.done();
-        return;
-      }
+      });
+    }
+
+    if (to.matched.some((record) => record.meta.requiresAuth) && !permissionStore.routeLoaded) {
+      next({
+        path: to.path,
+        query: to.query,
+        hash: to.hash,
+        replace: true
+      });
+      return;
+    }
+
+    if (to.matched.some((record) => record.meta.requiresAuth) && !userStore.profile && !userStore.permissions.length) {
+      syncAppContextFromRoute(to);
+      next();
+      return;
     }
 
     if (to.name === "runtime-delivery-page") {

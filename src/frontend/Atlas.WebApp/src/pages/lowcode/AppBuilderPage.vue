@@ -77,9 +77,11 @@
           </div>
         </div>
         <div :style="{ maxWidth: devicePreview === 'mobile' ? '375px' : devicePreview === 'tablet' ? '768px' : '100%', margin: '0 auto' }">
-          <AmisEditor
+          <component
+            :is="AmisEditor"
             ref="pageEditorRef"
             :schema="currentSchema"
+            :schema-revision="currentSchemaRevision"
             :is-mobile="devicePreview === 'mobile'"
             height="calc(100vh - 112px)"
             @change="handlePageSchemaChange"
@@ -284,11 +286,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, reactive, ref } from "vue";
+import { computed, defineAsyncComponent, markRaw, onMounted, onUnmounted, reactive, ref, shallowRef } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { message, Modal } from "ant-design-vue";
 import { useI18n } from "vue-i18n";
-import AmisEditor from "@/components/amis/AmisEditor.vue";
 import { useSchemaHistoryStore } from "@/stores/schemaHistory";
 import type {
   LowCodeAppDetail,
@@ -323,13 +324,23 @@ import { createTemplate } from "@/services/templates";
 const route = useRoute();
 const router = useRouter();
 const { t, locale } = useI18n();
+const AmisEditor = defineAsyncComponent(() => import("@/components/amis/AmisEditor.vue"));
 const appId = computed(() => String(route.params.id ?? route.params.appId ?? ""));
+const MAX_PAGE_SCHEMA_CACHE = 3;
 
 const schemaHistory = useSchemaHistoryStore();
 const isMounted = ref(false);
+let historyTimer: number | undefined;
 onUnmounted(() => {
   isMounted.value = false;
   document.removeEventListener("keydown", handleKeyDown);
+  if (historyTimer) {
+    window.clearTimeout(historyTimer);
+    historyTimer = undefined;
+  }
+  schemaHistory.reset();
+  pageSchemas.value = {};
+  pageSchemaRevisions.value = {};
 });
 
 function handleKeyDown(e: KeyboardEvent) {
@@ -346,14 +357,14 @@ function handleKeyDown(e: KeyboardEvent) {
 function handleUndo() {
   const prev = schemaHistory.undo();
   if (prev && selectedPageId.value) {
-    pageSchemas.value[selectedPageId.value] = prev;
+    rememberPageSchema(selectedPageId.value, prev);
   }
 }
 
 function handleRedo() {
   const next = schemaHistory.redo();
   if (next && selectedPageId.value) {
-    pageSchemas.value[selectedPageId.value] = next;
+    rememberPageSchema(selectedPageId.value, next);
   }
 }
 
@@ -364,7 +375,7 @@ const publishing = ref(false);
 const appDetail = ref<LowCodeAppDetail | null>(null);
 const pages = ref<LowCodePageListItem[]>([]);
 const selectedPageId = ref<string | null>(null);
-const pageEditorRef = ref<InstanceType<typeof AmisEditor> | null>(null);
+const pageEditorRef = ref<{ getSchema: () => Record<string, unknown> } | null>(null);
 const appVersionDrawerVisible = ref(false);
 const appVersionLoading = ref(false);
 const appVersionItems = ref<LowCodeAppVersionListItem[]>([]);
@@ -383,12 +394,19 @@ const appVersionColumns = computed(() => [
 ]);
 
 // Page schemas cache
-const pageSchemas = ref<Record<string, Record<string, unknown>>>({});
+const pageSchemas = shallowRef<Record<string, Record<string, unknown>>>({});
 const pageDepthMap = ref<Record<string, number>>({});
+const pageSchemaRevisions = ref<Record<string, number>>({});
 
 const currentSchema = computed(() => {
   if (!selectedPageId.value) return null;
   return pageSchemas.value[selectedPageId.value] ?? null;
+});
+const currentSchemaRevision = computed(() => {
+  if (!selectedPageId.value) {
+    return 0;
+  }
+  return pageSchemaRevisions.value[selectedPageId.value] ?? 0;
 });
 
 const currentPageName = computed(() => {
@@ -514,6 +532,46 @@ const parseSchemaJson = (schemaJson: string | null | undefined): Record<string, 
   }
 };
 
+const rememberPageSchema = (pageId: string, schema: Record<string, unknown>) => {
+  const nextSchemas = {
+    ...pageSchemas.value,
+    [pageId]: markRaw(schema)
+  };
+
+  const lruKeys = Object.keys(nextSchemas);
+  while (lruKeys.length > MAX_PAGE_SCHEMA_CACHE) {
+    const evictKey = lruKeys.find((key) => key !== pageId);
+    if (!evictKey) {
+      break;
+    }
+    delete nextSchemas[evictKey];
+    const nextRevisions = { ...pageSchemaRevisions.value };
+    delete nextRevisions[evictKey];
+    pageSchemaRevisions.value = nextRevisions;
+    lruKeys.splice(lruKeys.indexOf(evictKey), 1);
+  }
+
+  pageSchemas.value = nextSchemas;
+  pageSchemaRevisions.value = {
+    ...pageSchemaRevisions.value,
+    [pageId]: (pageSchemaRevisions.value[pageId] ?? 0) + 1
+  };
+};
+
+const dropPageSchema = (pageId: string) => {
+  if (!pageSchemas.value[pageId]) {
+    return;
+  }
+
+  const nextSchemas = { ...pageSchemas.value };
+  delete nextSchemas[pageId];
+  pageSchemas.value = nextSchemas;
+
+  const nextRevisions = { ...pageSchemaRevisions.value };
+  delete nextRevisions[pageId];
+  pageSchemaRevisions.value = nextRevisions;
+};
+
 const flattenPageTree = (
   treeNodes: LowCodePageTreeNode[],
   depth = 0,
@@ -576,10 +634,13 @@ const selectPage = async (pageId: string) => {
         ]);
 
         if (!isMounted.value) return;
-        pageSchemas.value[pageId] = parseSchemaJson(runtime.schemaJson)
-          ?? generateDefaultSchema(detail.pageType, detail.name);
+        rememberPageSchema(
+          pageId,
+          parseSchemaJson(runtime.schemaJson)
+          ?? generateDefaultSchema(detail.pageType, detail.name)
+        );
       } catch {
-        pageSchemas.value[pageId] = { type: "page", title: page.name, body: [] };
+        rememberPageSchema(pageId, { type: "page", title: page.name, body: [] });
       }
     }
   }
@@ -647,7 +708,7 @@ const handlePageFormSubmit = async () => {
         if (!isMounted.value) return;
         currentSchema = parseSchemaJson(pageDetail.schemaJson)
           ?? generateDefaultSchema(pageDetail.pageType, pageDetail.name);
-        pageSchemas.value[editingPageId.value] = currentSchema;
+        rememberPageSchema(editingPageId.value, currentSchema);
       }
       await updateLowCodePage(editingPageId.value, {
         name: pageForm.name,
@@ -672,8 +733,13 @@ const handlePageFormSubmit = async () => {
 
 const handlePageSchemaChange = (newSchema: Record<string, unknown>) => {
   if (selectedPageId.value) {
-    pageSchemas.value[selectedPageId.value] = newSchema;
-    schemaHistory.pushState(newSchema);
+    rememberPageSchema(selectedPageId.value, newSchema);
+    if (historyTimer) {
+      window.clearTimeout(historyTimer);
+    }
+    historyTimer = window.setTimeout(() => {
+      schemaHistory.pushState(newSchema);
+    }, 400);
   }
 };
 
@@ -781,6 +847,7 @@ const handleRollbackPageVersion = async (versionId: string) => {
       message.success(t("lowcode.appBuilder.rollbackSuccess"));
       versionModalVisible.value = false;
       pageSchemas.value = {};
+      pageSchemaRevisions.value = {};
       await loadApp();
 
       if (!isMounted.value) return;
@@ -797,7 +864,7 @@ const handleEnvironmentChange = async () => {
   if (!selectedPageId.value) {
     return;
   }
-  delete pageSchemas.value[selectedPageId.value];
+  dropPageSchema(selectedPageId.value);
   await selectPage(selectedPageId.value);
 
   if (!isMounted.value) return;
@@ -892,7 +959,7 @@ const submitEnvironmentForm = async () => {
       selectedEnvironmentCode.value = environments.value.find(item => item.isDefault)?.code;
     }
     if (selectedPageId.value) {
-      delete pageSchemas.value[selectedPageId.value];
+      dropPageSchema(selectedPageId.value);
       await selectPage(selectedPageId.value);
 
       if (!isMounted.value) return;
@@ -920,7 +987,7 @@ const handleDeleteEnvironment = (id: string) => {
         selectedEnvironmentCode.value = environments.value.find(item => item.isDefault)?.code;
       }
       if (selectedPageId.value) {
-        delete pageSchemas.value[selectedPageId.value];
+        dropPageSchema(selectedPageId.value);
         await selectPage(selectedPageId.value);
 
         if (!isMounted.value) return;
@@ -937,7 +1004,7 @@ const handleDeletePage = async (pageId: string) => {
     if (selectedPageId.value === pageId) {
       selectedPageId.value = null;
     }
-    delete pageSchemas.value[pageId];
+    dropPageSchema(pageId);
     message.success(t("lowcodeBuilder.deleteSuccess"));
     await loadApp();
 

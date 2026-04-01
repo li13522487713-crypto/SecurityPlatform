@@ -54,6 +54,32 @@ X-Tenant-Id: {{tenantId}}
   });
 %}
 
+### 导出记录（流式 CSV）
+POST {{baseUrl}}/api/v1/dynamic-tables/{{tableKey}}/records/export
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$randomUUID}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "keyword": "REC-",
+  "sortBy": "id",
+  "sortDesc": true,
+  "filters": [],
+  "fields": ["orderNo", "amount"]
+}
+
+> {%
+  client.test("导出返回 CSV 文件流", function () {
+    client.assert(response.status === 200, "状态码应为 200");
+    const contentType = (response.headers.valueOf("content-type") || "").toLowerCase();
+    client.assert(contentType.includes("text/csv"), "content-type 应包含 text/csv");
+    const disposition = response.headers.valueOf("content-disposition") || "";
+    client.assert(disposition.toLowerCase().includes("attachment"), "应返回 attachment");
+  });
+%}
+
 ### 关键写操作：创建动态表记录
 POST {{baseUrl}}/api/v1/dynamic-tables/{{tableKey}}/records
 Content-Type: application/json

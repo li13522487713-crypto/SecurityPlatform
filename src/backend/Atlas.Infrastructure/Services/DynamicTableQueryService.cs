@@ -112,6 +112,41 @@ public sealed class DynamicTableQueryService : IDynamicTableQueryService
             table.ApprovalStatusField);
     }
 
+    public async Task<DynamicTableSummary?> GetSummaryAsync(
+        TenantId tenantId,
+        string tableKey,
+        long? appId,
+        CancellationToken cancellationToken)
+    {
+        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, appId, cancellationToken);
+        if (table is null)
+        {
+            return null;
+        }
+
+        var fields = await _fieldRepository.ListByTableIdAsync(tenantId, table.Id, cancellationToken);
+        fields = await FilterFieldsByPermissionAsync(tenantId, table.TableKey, table.AppId, fields, cancellationToken);
+        var indexes = await _indexRepository.ListByTableIdAsync(tenantId, table.Id, cancellationToken);
+
+        return new DynamicTableSummary(
+            table.Id.ToString(),
+            table.AppId?.ToString(),
+            table.TableKey,
+            table.DisplayName,
+            table.Description,
+            table.DbType.ToString(),
+            table.Status.ToString(),
+            fields.Count,
+            indexes.Count,
+            table.ApprovalFlowDefinitionId,
+            table.ApprovalStatusField,
+            fields
+                .OrderBy(field => field.SortOrder)
+                .Take(20)
+                .Select(ToFieldSummary)
+                .ToArray());
+    }
+
     public async Task<IReadOnlyList<DynamicFieldDefinition>> GetFieldsAsync(
         TenantId tenantId,
         string tableKey,
@@ -271,6 +306,16 @@ public sealed class DynamicTableQueryService : IDynamicTableQueryService
     {
         var fields = DeserializeFields(index.FieldsJson);
         return new DynamicIndexDefinition(index.Name, index.IsUnique, fields);
+    }
+
+    private static DynamicTableFieldSummary ToFieldSummary(DynamicField field)
+    {
+        return new DynamicTableFieldSummary(
+            field.Name,
+            string.IsNullOrWhiteSpace(field.DisplayName) ? null : field.DisplayName,
+            field.FieldType.ToString(),
+            field.AllowNull,
+            field.IsPrimaryKey);
     }
 
     private static IReadOnlyList<string> DeserializeFields(string json)

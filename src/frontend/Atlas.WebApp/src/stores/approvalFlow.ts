@@ -32,7 +32,7 @@ import { ApprovalTreeValidator } from '@/utils/approval-tree-validator';
 import type { ApprovalTreeValidationIssue } from '@/utils/approval-tree-validator';
 
 // ── 常量 ──
-const MAX_HISTORY = 50;
+const MAX_HISTORY = 10;
 
 // ── 类型 ──
 type NodeOrBranch = TreeNode | ConditionBranch;

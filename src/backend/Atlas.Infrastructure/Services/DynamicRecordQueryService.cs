@@ -9,6 +9,7 @@ using Atlas.Core.Tenancy;
 using Atlas.Core.Utilities;
 using Atlas.Domain.DynamicTables.Entities;
 using Atlas.Domain.DynamicTables.Enums;
+using System.Text;
 using System.Text.Json;
 
 namespace Atlas.Infrastructure.Services;
@@ -149,39 +150,115 @@ public sealed class DynamicRecordQueryService : IDynamicRecordQueryService
             request.SortBy,
             request.SortDesc,
             request.Filters ?? Array.Empty<DynamicFilterCondition>());
+        var selectedFields = ResolveExportFields(fields, request.Fields);
+        var fileName = $"{tableKey}-{DateTimeOffset.UtcNow:yyyyMMddHHmmss}.csv";
         DynamicRecordQueryRequest effectiveRequest = baseRequest;
         if (ownerFilterId.HasValue)
         {
             var ownerField = ResolveOwnerField(fields);
             if (ownerField is null)
             {
+                await using var headerOnlyStream = new MemoryStream();
+                await using (var writer = new StreamWriter(headerOnlyStream, new UTF8Encoding(true), leaveOpen: true))
+                {
+                    await writer.WriteLineAsync(string.Join(",", selectedFields.Select(x => CsvUtility.EscapeField(
+                        string.IsNullOrWhiteSpace(x.DisplayName) ? x.Name : x.DisplayName!))));
+                    await writer.FlushAsync(cancellationToken);
+                }
                 return new DynamicRecordExportResult(
-                    $"{tableKey}-{DateTimeOffset.UtcNow:yyyyMMddHHmmss}.csv",
+                    fileName,
                     "text/csv; charset=utf-8",
-                    BuildCsv(ResolveExportFields(fields, request.Fields), Array.Empty<DynamicRecordDto>()));
+                    headerOnlyStream.ToArray());
             }
 
             effectiveRequest = AppendOwnerFilter(baseRequest, ownerField.Name, ownerFilterId.Value);
         }
 
-        var selectedFields = ResolveExportFields(fields, request.Fields);
-        var records = await FetchExportRecordsPaginatedAsync(tenantId, table, fields, effectiveRequest, cancellationToken);
-        var content = BuildCsv(selectedFields, records);
-        var fileName = $"{tableKey}-{DateTimeOffset.UtcNow:yyyyMMddHHmmss}.csv";
-        return new DynamicRecordExportResult(fileName, "text/csv; charset=utf-8", content);
+        await using var stream = new MemoryStream();
+        await WriteCsvRowsAsync(
+            tenantId,
+            table,
+            fields,
+            selectedFields,
+            effectiveRequest,
+            stream,
+            cancellationToken);
+        return new DynamicRecordExportResult(fileName, "text/csv; charset=utf-8", stream.ToArray());
     }
 
-    private async Task<IReadOnlyList<DynamicRecordDto>> FetchExportRecordsPaginatedAsync(
+    public async Task<string> WriteCsvAsync(
+        TenantId tenantId,
+        string tableKey,
+        DynamicRecordExportRequest request,
+        Stream output,
+        CancellationToken cancellationToken)
+    {
+        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, _appContextAccessor.ResolveAppId(), cancellationToken);
+        if (table is null)
+        {
+            throw new BusinessException(ErrorCodes.NotFound, "动态表不存在。");
+        }
+
+        var fields = await _fieldRepository.ListByTableIdAsync(tenantId, table.Id, cancellationToken);
+        fields = await FilterFieldsByPermissionAsync(tenantId, tableKey, table.AppId, fields, cancellationToken);
+        if (fields.Count == 0)
+        {
+            throw new BusinessException(ErrorCodes.Forbidden, "无可访问字段。");
+        }
+
+        var ownerFilterId = await _dataScopeFilter.GetOwnerFilterIdAsync(cancellationToken);
+        var baseRequest = new DynamicRecordQueryRequest(
+            1,
+            ExportPageSize,
+            request.Keyword,
+            request.SortBy,
+            request.SortDesc,
+            request.Filters ?? Array.Empty<DynamicFilterCondition>());
+        var selectedFields = ResolveExportFields(fields, request.Fields);
+        var effectiveRequest = baseRequest;
+        if (ownerFilterId.HasValue)
+        {
+            var ownerField = ResolveOwnerField(fields);
+            if (ownerField is null)
+            {
+                await using var writer = new StreamWriter(output, new UTF8Encoding(true), leaveOpen: true);
+                await writer.WriteLineAsync(string.Join(",", selectedFields.Select(x => CsvUtility.EscapeField(
+                    string.IsNullOrWhiteSpace(x.DisplayName) ? x.Name : x.DisplayName!))));
+                await writer.FlushAsync(cancellationToken);
+                return $"{tableKey}-{DateTimeOffset.UtcNow:yyyyMMddHHmmss}.csv";
+            }
+
+            effectiveRequest = AppendOwnerFilter(baseRequest, ownerField.Name, ownerFilterId.Value);
+        }
+
+        await WriteCsvRowsAsync(
+            tenantId,
+            table,
+            fields,
+            selectedFields,
+            effectiveRequest,
+            output,
+            cancellationToken);
+        return $"{tableKey}-{DateTimeOffset.UtcNow:yyyyMMddHHmmss}.csv";
+    }
+
+    private async Task WriteCsvRowsAsync(
         TenantId tenantId,
         DynamicTable table,
         IReadOnlyList<DynamicField> fields,
+        IReadOnlyList<DynamicField> selectedFields,
         DynamicRecordQueryRequest baseRequest,
+        Stream output,
         CancellationToken cancellationToken)
     {
-        var allRecords = new List<DynamicRecordDto>();
-        var pageIndex = 1;
+        await using var writer = new StreamWriter(output, new UTF8Encoding(true), leaveOpen: true);
+        await writer.WriteLineAsync(string.Join(",", selectedFields.Select(x => CsvUtility.EscapeField(
+            string.IsNullOrWhiteSpace(x.DisplayName) ? x.Name : x.DisplayName!))));
 
-        while (allRecords.Count < MaxExportRows)
+        var pageIndex = 1;
+        var exportedCount = 0;
+
+        while (exportedCount < MaxExportRows)
         {
             var request = new DynamicRecordQueryRequest(
                 pageIndex,
@@ -193,25 +270,39 @@ public sealed class DynamicRecordQueryService : IDynamicRecordQueryService
 
             var result = await _recordRepository.QueryAsync(tenantId, table, fields, request, cancellationToken);
 
-            foreach (var item in result.Items)
+            foreach (var record in result.Items)
             {
-                if (allRecords.Count >= MaxExportRows)
+                if (exportedCount >= MaxExportRows)
                 {
                     break;
                 }
 
-                allRecords.Add(item);
+                var valueMap = record.Values.ToDictionary(x => x.Field, StringComparer.OrdinalIgnoreCase);
+                var row = new List<string>(selectedFields.Count);
+                foreach (var field in selectedFields)
+                {
+                    if (!valueMap.TryGetValue(field.Name, out var value))
+                    {
+                        row.Add(string.Empty);
+                        continue;
+                    }
+
+                    row.Add(CsvUtility.EscapeField(ResolveCsvValue(value)));
+                }
+
+                await writer.WriteLineAsync(string.Join(",", row));
+                exportedCount++;
             }
 
-            if (result.Items.Count < ExportPageSize || allRecords.Count >= MaxExportRows)
+            await writer.FlushAsync(cancellationToken);
+
+            if (result.Items.Count < ExportPageSize || exportedCount >= MaxExportRows)
             {
                 break;
             }
 
             pageIndex++;
         }
-
-        return allRecords;
     }
 
     private static DynamicRecordListResult BuildEmptyResult(
@@ -319,35 +410,6 @@ public sealed class DynamicRecordQueryService : IDynamicRecordQueryService
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         var selected = fields.Where(x => fieldSet.Contains(x.Name)).OrderBy(x => x.SortOrder).ToArray();
         return selected.Length == 0 ? fields.OrderBy(x => x.SortOrder).ToArray() : selected;
-    }
-
-    private static byte[] BuildCsv(
-        IReadOnlyList<DynamicField> selectedFields,
-        IReadOnlyList<DynamicRecordDto> records)
-    {
-        var builder = new System.Text.StringBuilder();
-        builder.AppendLine(string.Join(",", selectedFields.Select(x => CsvUtility.EscapeField(string.IsNullOrWhiteSpace(x.DisplayName) ? x.Name : x.DisplayName!))));
-
-        foreach (var record in records)
-        {
-            var valueMap = record.Values.ToDictionary(x => x.Field, StringComparer.OrdinalIgnoreCase);
-            var row = new List<string>(selectedFields.Count);
-            foreach (var field in selectedFields)
-            {
-                if (!valueMap.TryGetValue(field.Name, out var value))
-                {
-                    row.Add(string.Empty);
-                    continue;
-                }
-
-                row.Add(CsvUtility.EscapeField(ResolveCsvValue(value)));
-            }
-
-            builder.AppendLine(string.Join(",", row));
-        }
-
-        var csvContent = builder.ToString();
-        return CsvUtility.GetUtf8BytesWithBom(csvContent);
     }
 
     /// <summary>

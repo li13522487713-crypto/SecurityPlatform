@@ -41,6 +41,16 @@ public sealed class ResourceCenterV2Controller : ControllerBase
         return Ok(ApiResponse<ResourceCenterGroupsResponse>.Ok(response, HttpContext.TraceIdentifier));
     }
 
+    [HttpGet("groups/summary")]
+    [Authorize(Policy = PermissionPolicies.AppsView)]
+    public async Task<ActionResult<ApiResponse<ResourceCenterGroupsSummaryResponse>>> GetGroupsSummary(
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var response = await _resourceCenterQueryService.GetGroupsSummaryAsync(tenantId, cancellationToken);
+        return Ok(ApiResponse<ResourceCenterGroupsSummaryResponse>.Ok(response, HttpContext.TraceIdentifier));
+    }
+
     [HttpGet("datasource-consumption")]
     [Authorize(Policy = PermissionPolicies.AppsView)]
     public async Task<ActionResult<ApiResponse<ResourceCenterDataSourceConsumptionResponse>>> GetDataSourceConsumption(
@@ -49,6 +59,16 @@ public sealed class ResourceCenterV2Controller : ControllerBase
         var tenantId = _tenantProvider.GetTenantId();
         var response = await _resourceCenterQueryService.GetDataSourceConsumptionAsync(tenantId, cancellationToken);
         return Ok(ApiResponse<ResourceCenterDataSourceConsumptionResponse>.Ok(response, HttpContext.TraceIdentifier));
+    }
+
+    [HttpGet("datasource-consumption/summary")]
+    [Authorize(Policy = PermissionPolicies.AppsView)]
+    public async Task<ActionResult<ApiResponse<ResourceCenterDataSourceConsumptionSummaryResponse>>> GetDataSourceConsumptionSummary(
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var response = await _resourceCenterQueryService.GetDataSourceConsumptionSummaryAsync(tenantId, cancellationToken);
+        return Ok(ApiResponse<ResourceCenterDataSourceConsumptionSummaryResponse>.Ok(response, HttpContext.TraceIdentifier));
     }
 
     [HttpPost("datasource-consumption/repair/disable-invalid-binding")]

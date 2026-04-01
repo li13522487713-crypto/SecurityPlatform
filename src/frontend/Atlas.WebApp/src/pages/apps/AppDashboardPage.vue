@@ -10,7 +10,7 @@
     <a-row :gutter="16" style="margin-top: 12px">
       <a-col :span="8">
         <a-card>
-          <a-statistic :title="t('appsDashboard.statPages')" :value="appDetail?.pages?.length ?? 0" />
+          <a-statistic :title="t('appsDashboard.statPages')" :value="appDetail?.pageCount ?? 0" />
         </a-card>
       </a-col>
       <a-col :span="8">
@@ -49,13 +49,14 @@ onUnmounted(() => { isMounted.value = false; });
 
 import { useRoute, useRouter } from "vue-router";
 import { message } from "ant-design-vue";
-import type { LowCodeAppDetail } from "@/types/lowcode";
-import { getLowCodeAppDetail } from "@/services/lowcode";
+import type { TenantAppInstanceDetail } from "@/types/platform-v2";
+import { getTenantAppInstanceDetail } from "@/services/api-tenant-app-instances";
+import { rememberAppMeta } from "@/utils/app-meta-cache";
 
 const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
-const appDetail = ref<LowCodeAppDetail | null>(null);
+const appDetail = ref<TenantAppInstanceDetail | null>(null);
 const appId = computed(() => String(route.params.appId ?? ""));
 
 async function loadDetail() {
@@ -63,7 +64,14 @@ async function loadDetail() {
     return;
   }
   try {
-    appDetail.value = await getLowCodeAppDetail(appId.value);
+    appDetail.value = await getTenantAppInstanceDetail(appId.value);
+    if (appDetail.value) {
+      rememberAppMeta([{
+        id: appDetail.value.id,
+        name: appDetail.value.name,
+        appKey: appDetail.value.appKey
+      }]);
+    }
 
     if (!isMounted.value) return;
   } catch (error) {

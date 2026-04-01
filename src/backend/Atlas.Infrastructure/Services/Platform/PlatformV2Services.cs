@@ -501,23 +501,30 @@ public sealed class TenantAppInstanceQueryService : ITenantAppInstanceQueryServi
         long id,
         CancellationToken cancellationToken = default)
     {
-        var item = await _lowCodeAppQueryService.GetByIdAsync(tenantId, id, cancellationToken);
+        var tenantValue = tenantId.Value;
+        var item = await _db.Queryable<LowCodeApp>()
+            .Where(app => app.TenantIdValue == tenantValue && app.Id == id)
+            .Select(app => new TenantAppInstanceDetail(
+                app.Id.ToString(),
+                app.AppKey,
+                app.Name,
+                app.Status.ToString(),
+                app.Version,
+                app.Description,
+                app.Category,
+                app.Icon,
+                app.PublishedAt == null ? null : app.PublishedAt.Value.ToString("O"),
+                app.DataSourceId == null ? null : app.DataSourceId.Value.ToString(),
+                SqlFunc.Subqueryable<LowCodePage>()
+                    .Where(page => page.TenantIdValue == tenantValue && page.AppId == app.Id)
+                    .Count()))
+            .FirstAsync(cancellationToken);
         if (item is null)
         {
             return null;
         }
 
-        return new TenantAppInstanceDetail(
-            item.Id,
-            item.AppKey,
-            item.Name,
-            item.Status,
-            item.Version,
-            item.Description,
-            item.Category,
-            item.Icon,
-            item.PublishedAt?.ToString("O"),
-            item.DataSourceId);
+        return item;
     }
 
     public Task<IReadOnlyList<LowCodeAppEntityAliasItem>> GetEntityAliasesAsync(
@@ -572,16 +579,19 @@ public sealed class TenantAppInstanceQueryService : ITenantAppInstanceQueryServi
         var appId = id.ToString();
         var options = _fileStorageOptionsMonitor.CurrentValue;
 
-        var basePathConfig = await _systemConfigQueryService.GetByKeyAsync(
+        var basePathTask = _systemConfigQueryService.GetByKeyAsync(
             tenantId,
             "FileStorage:BasePath",
             appId,
             cancellationToken);
-        var bucketConfig = await _systemConfigQueryService.GetByKeyAsync(
+        var bucketTask = _systemConfigQueryService.GetByKeyAsync(
             tenantId,
             "FileStorage:Minio:BucketName",
             appId,
             cancellationToken);
+        await Task.WhenAll(basePathTask, bucketTask);
+        var basePathConfig = await basePathTask;
+        var bucketConfig = await bucketTask;
 
         var overrideBasePath = string.Equals(basePathConfig?.AppId, appId, StringComparison.OrdinalIgnoreCase)
             ? NormalizeValue(basePathConfig?.ConfigValue)
@@ -1711,6 +1721,7 @@ public sealed class RuntimeExecutionCommandService : IRuntimeExecutionCommandSer
 
 public sealed class ResourceCenterQueryService : IResourceCenterQueryService
 {
+    private const int ResourceCenterPerAppConcurrency = 4;
     private readonly ISqlSugarClient _mainDb;
     private readonly Atlas.Infrastructure.Services.IAppDbScopeFactory _appDbScopeFactory;
     private readonly ILogger<ResourceCenterQueryService> _logger;
@@ -1926,6 +1937,23 @@ public sealed class ResourceCenterQueryService : IResourceCenterQueryService
         return new ResourceCenterGroupsResponse(groups, warningItems);
     }
 
+    public async Task<ResourceCenterGroupsSummaryResponse> GetGroupsSummaryAsync(
+        TenantId tenantId,
+        CancellationToken cancellationToken = default)
+    {
+        var detail = await GetGroupsAsync(tenantId, cancellationToken);
+        var groups = detail.Groups
+            .Select(group => new ResourceCenterGroupSummaryItem(
+                group.GroupKey,
+                group.GroupName,
+                group.Total))
+            .ToArray();
+        return new ResourceCenterGroupsSummaryResponse(
+            groups,
+            detail.Warnings.Count,
+            DateTimeOffset.UtcNow.ToString("O"));
+    }
+
     public async Task<ResourceCenterDataSourceConsumptionResponse> GetDataSourceConsumptionAsync(
         TenantId tenantId,
         CancellationToken cancellationToken = default)
@@ -2103,6 +2131,25 @@ public sealed class ResourceCenterQueryService : IResourceCenterQueryService
             unboundTenantApps);
     }
 
+    public async Task<ResourceCenterDataSourceConsumptionSummaryResponse> GetDataSourceConsumptionSummaryAsync(
+        TenantId tenantId,
+        CancellationToken cancellationToken = default)
+    {
+        var detail = await GetDataSourceConsumptionAsync(tenantId, cancellationToken);
+        return new ResourceCenterDataSourceConsumptionSummaryResponse(
+            detail.PlatformDataSourceTotal,
+            detail.AppScopedDataSourceTotal,
+            detail.UnboundTenantAppTotal,
+            detail.PlatformDataSources
+                .Select(MapDataSourceSummary)
+                .ToArray(),
+            detail.AppScopedDataSources
+                .Select(MapDataSourceSummary)
+                .ToArray(),
+            detail.UnboundTenantApps,
+            DateTimeOffset.UtcNow.ToString("O"));
+    }
+
     private static TenantAppConsumerItem MapAppConsumer(LowCodeApp app)
     {
         return new TenantAppConsumerItem(
@@ -2110,6 +2157,24 @@ public sealed class ResourceCenterQueryService : IResourceCenterQueryService
             app.AppKey,
             app.Name,
             app.Status.ToString());
+    }
+
+    private static TenantDataSourceConsumptionSummaryItem MapDataSourceSummary(TenantDataSourceConsumptionItem item)
+    {
+        return new TenantDataSourceConsumptionSummaryItem(
+            item.DataSourceId,
+            item.Name,
+            item.DbType,
+            item.Scope,
+            item.ScopeAppId,
+            item.ScopeAppName,
+            item.BoundTenantAppCount,
+            item.BoundTenantApps,
+            item.LastTestedAt,
+            item.IsOrphan,
+            item.IsDuplicate,
+            item.IsInvalid,
+            item.IsUnbound);
     }
 
     private sealed record DataSourceBindingRelation(
@@ -2127,12 +2192,14 @@ public sealed class ResourceCenterQueryService : IResourceCenterQueryService
         IReadOnlyList<LowCodeApp> appInstances,
         CancellationToken cancellationToken)
     {
+        using var gate = new SemaphoreSlim(ResourceCenterPerAppConcurrency);
         var tasks = new List<Task<ResourceCenterPerAppLoadResult<RuntimeRoute>>>
         {
             LoadMainDbRoutesAsync(tenantId, cancellationToken)
         };
         tasks.AddRange(appInstances.Select(async app =>
         {
+            await gate.WaitAsync(cancellationToken);
             try
             {
                 var appDb = await _appDbScopeFactory.GetAppClientAsync(tenantId, app.Id, cancellationToken);
@@ -2155,6 +2222,10 @@ public sealed class ResourceCenterQueryService : IResourceCenterQueryService
                         app.Name,
                         ex.Code,
                         ex.Message));
+            }
+            finally
+            {
+                gate.Release();
             }
         }));
 
@@ -2179,12 +2250,14 @@ public sealed class ResourceCenterQueryService : IResourceCenterQueryService
         IReadOnlyList<LowCodeApp> appInstances,
         CancellationToken cancellationToken)
     {
+        using var gate = new SemaphoreSlim(ResourceCenterPerAppConcurrency);
         var tasks = new List<Task<ResourceCenterPerAppLoadResult<WorkflowExecution>>>
         {
             LoadMainDbExecutionsAsync(tenantId, cancellationToken)
         };
         tasks.AddRange(appInstances.Select(async app =>
         {
+            await gate.WaitAsync(cancellationToken);
             try
             {
                 var appDb = await _appDbScopeFactory.GetAppClientAsync(tenantId, app.Id, cancellationToken);
@@ -2208,6 +2281,10 @@ public sealed class ResourceCenterQueryService : IResourceCenterQueryService
                         app.Name,
                         ex.Code,
                         ex.Message));
+            }
+            finally
+            {
+                gate.Release();
             }
         }));
 

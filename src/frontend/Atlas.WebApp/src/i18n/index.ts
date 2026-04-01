@@ -2,12 +2,7 @@ import { createI18n } from "vue-i18n";
 import type { Locale as AntdLocale } from "ant-design-vue/es/locale";
 import antdEnUS from "ant-design-vue/es/locale/en_US";
 import antdZhCN from "ant-design-vue/es/locale/zh_CN";
-import legacyEnUS from "../locales/en";
-import legacyZhCN from "../locales/zh";
 import { extraMessages } from "./extra-messages";
-import platformEnUS from "./en-US";
-import platformZhCN from "./zh-CN";
-import { runtimeMessages } from "./runtime-messages";
 
 export type SupportedLocale = "zh-CN" | "en-US";
 
@@ -17,6 +12,7 @@ export const DEFAULT_LOCALE: SupportedLocale = "zh-CN";
 export const SUPPORTED_LOCALES: readonly SupportedLocale[] = ["zh-CN", "en-US"] as const;
 
 const LOCALE_STORAGE_KEY = "atlas_locale";
+const loadedLocaleMessages = new Map<SupportedLocale, MessageTree>();
 
 function deepMergeMessages(target: MessageTree, source: MessageTree): MessageTree {
   const merged: MessageTree = { ...target };
@@ -70,13 +66,62 @@ export function getActiveLocale(): SupportedLocale {
     : normalizeLocale(localeSource.value);
 }
 
-export function setLocale(locale: SupportedLocale): void {
+async function loadLocaleMessages(locale: SupportedLocale): Promise<MessageTree> {
+  const cached = loadedLocaleMessages.get(locale);
+  if (cached) {
+    return cached;
+  }
+
+  const [legacyModule, platformModule, runtimeModule] = await Promise.all(
+    locale === "en-US"
+      ? [
+        import("../locales/en"),
+        import("./en-US"),
+        import("./runtime-messages.en-US")
+      ]
+      : [
+        import("../locales/zh"),
+        import("./zh-CN"),
+        import("./runtime-messages.zh-CN")
+      ]
+  );
+
+  const legacyMessages = legacyModule.default as MessageTree;
+  const platformMessages = platformModule.default as MessageTree;
+  const runtimeMessages = runtimeModule.default as MessageTree;
+  const merged = deepMergeMessages(
+    deepMergeMessages(
+      deepMergeMessages(legacyMessages, platformMessages),
+      extraMessages[locale]
+    ),
+    runtimeMessages
+  );
+
+  loadedLocaleMessages.set(locale, merged);
+  return merged;
+}
+
+export async function ensureLocaleMessages(locale: SupportedLocale): Promise<void> {
   const nextLocale = normalizeLocale(locale);
+  if (i18n.global.availableLocales.includes(nextLocale)) {
+    return;
+  }
+
+  const messages = await loadLocaleMessages(nextLocale);
+  i18n.global.setLocaleMessage(nextLocale, messages as never);
+}
+
+export async function setLocale(locale: SupportedLocale): Promise<void> {
+  const nextLocale = normalizeLocale(locale);
+  await ensureLocaleMessages(nextLocale);
   if (typeof localStorage !== "undefined") {
     localStorage.setItem(LOCALE_STORAGE_KEY, nextLocale);
   }
   (i18n.global.locale as unknown as { value: SupportedLocale }).value = nextLocale;
   applyDocumentLocale(nextLocale);
+  if (nextLocale !== DEFAULT_LOCALE) {
+    void ensureLocaleMessages(DEFAULT_LOCALE);
+  }
 }
 
 export function getLocaleLabel(locale: SupportedLocale): string {
@@ -94,30 +139,13 @@ export function translate(key: string, params?: Record<string, unknown>): string
   return translator.t(key, params);
 }
 
-const messages = {
-  "zh-CN": deepMergeMessages(
-    deepMergeMessages(
-      deepMergeMessages(legacyZhCN as MessageTree, platformZhCN as MessageTree),
-      extraMessages["zh-CN"]
-    ),
-    runtimeMessages["zh-CN"]
-  ),
-  "en-US": deepMergeMessages(
-    deepMergeMessages(
-      deepMergeMessages(legacyEnUS as MessageTree, platformEnUS as MessageTree),
-      extraMessages["en-US"]
-    ),
-    runtimeMessages["en-US"]
-  )
-};
-
 export const i18n = createI18n({
   legacy: false,
   locale: getLocale(),
   fallbackLocale: DEFAULT_LOCALE,
-  messages: messages as never
+  messages: {} as never
 });
 
-applyDocumentLocale(getActiveLocale());
+applyDocumentLocale(getLocale());
 
 export default i18n;

@@ -53,30 +53,16 @@ public sealed class PageRuntimeController : ControllerBase
         CancellationToken cancellationToken = default)
     {
         var tenantId = _tenantProvider.GetTenantId();
-        var app = await _queryService.GetByKeyAsync(tenantId, appKey, cancellationToken);
-        if (app is null)
+        var descriptor = await _queryService.GetRuntimePageDescriptorAsync(tenantId, appKey, pageKey, cancellationToken);
+        if (descriptor is null)
         {
             return NotFound(ApiResponse<LowCodePageRuntimeSchema?>.Fail(
-                ErrorCodes.NotFound, $"应用 {appKey} 不存在", HttpContext.TraceIdentifier));
+                ErrorCodes.NotFound, $"页面 {appKey}/{pageKey} 不存在", HttpContext.TraceIdentifier));
         }
 
-        var page = app.Pages.FirstOrDefault(p =>
-            string.Equals(p.PageKey, pageKey, StringComparison.OrdinalIgnoreCase));
-        if (page is null)
-        {
-            return NotFound(ApiResponse<LowCodePageRuntimeSchema?>.Fail(
-                ErrorCodes.NotFound, $"页面 {pageKey} 不存在", HttpContext.TraceIdentifier));
-        }
-
-        if (!long.TryParse(page.Id, out var pageId))
-        {
-            return BadRequest(ApiResponse<LowCodePageRuntimeSchema?>.Fail(
-                ErrorCodes.ValidationError, "页面 ID 格式无效", HttpContext.TraceIdentifier));
-        }
-
-        await _runtimeRouteQueryService.GetRuntimePageAsync(tenantId, appKey, pageKey, cancellationToken);
+        await _runtimeRouteQueryService.GetRuntimePageAsync(tenantId, descriptor.AppId, appKey, pageKey, cancellationToken);
         var schema = await _queryService.GetRuntimePageSchemaAsync(
-            tenantId, pageId, "published", environmentCode, cancellationToken);
+            tenantId, descriptor.PageId, "published", environmentCode, cancellationToken);
 
         return Ok(ApiResponse<LowCodePageRuntimeSchema?>.Ok(schema, HttpContext.TraceIdentifier));
     }
@@ -100,22 +86,14 @@ public sealed class PageRuntimeController : ControllerBase
         }
 
         var tenantId = _tenantProvider.GetTenantId();
-        var app = await _queryService.GetByKeyAsync(tenantId, appKey, cancellationToken);
-        if (app is null)
+        var descriptor = await _queryService.GetRuntimePageDescriptorAsync(tenantId, appKey, pageKey, cancellationToken);
+        if (descriptor is null)
         {
             return NotFound(ApiResponse<object>.Fail(
-                ErrorCodes.NotFound, $"应用 {appKey} 不存在", HttpContext.TraceIdentifier));
+                ErrorCodes.NotFound, $"页面 {appKey}/{pageKey} 不存在", HttpContext.TraceIdentifier));
         }
 
-        var page = app.Pages.FirstOrDefault(p =>
-            string.Equals(p.PageKey, pageKey, StringComparison.OrdinalIgnoreCase));
-        if (page is null)
-        {
-            return NotFound(ApiResponse<object>.Fail(
-                ErrorCodes.NotFound, $"页面 {pageKey} 不存在", HttpContext.TraceIdentifier));
-        }
-
-        if (string.IsNullOrWhiteSpace(page.DataTableKey))
+        if (string.IsNullOrWhiteSpace(descriptor.DataTableKey))
         {
             return BadRequest(ApiResponse<object>.Fail(
                 ErrorCodes.ValidationError,
@@ -123,10 +101,10 @@ public sealed class PageRuntimeController : ControllerBase
                 HttpContext.TraceIdentifier));
         }
 
-        await _runtimeRouteQueryService.GetRuntimePageAsync(tenantId, appKey, pageKey, cancellationToken);
+        await _runtimeRouteQueryService.GetRuntimePageAsync(tenantId, descriptor.AppId, appKey, pageKey, cancellationToken);
         var request = ParseUpsertRequest(payload);
         var id = await _recordCommandService.CreateAsync(
-            tenantId, currentUser.UserId, page.DataTableKey, request, cancellationToken);
+            tenantId, currentUser.UserId, descriptor.DataTableKey, request, cancellationToken);
 
         return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
     }
@@ -150,25 +128,23 @@ public sealed class PageRuntimeController : ControllerBase
         }
 
         var tenantId = _tenantProvider.GetTenantId();
-        var app = await _queryService.GetByKeyAsync(tenantId, appKey, cancellationToken);
-        if (app is null)
+        var descriptor = await _queryService.GetRuntimePageDescriptorAsync(tenantId, appKey, pageKey, cancellationToken);
+        if (descriptor is null)
         {
             return NotFound(ApiResponse<object>.Fail(
-                ErrorCodes.NotFound, $"应用 {appKey} 不存在", HttpContext.TraceIdentifier));
+                ErrorCodes.NotFound, $"页面 {appKey}/{pageKey} 不存在", HttpContext.TraceIdentifier));
         }
 
-        var page = app.Pages.FirstOrDefault(p =>
-            string.Equals(p.PageKey, pageKey, StringComparison.OrdinalIgnoreCase));
-        if (page is null || string.IsNullOrWhiteSpace(page.DataTableKey))
+        if (string.IsNullOrWhiteSpace(descriptor.DataTableKey))
         {
             return NotFound(ApiResponse<object>.Fail(
                 ErrorCodes.NotFound, $"页面 {pageKey} 未绑定动态表", HttpContext.TraceIdentifier));
         }
 
-        await _runtimeRouteQueryService.GetRuntimePageAsync(tenantId, appKey, pageKey, cancellationToken);
+        await _runtimeRouteQueryService.GetRuntimePageAsync(tenantId, descriptor.AppId, appKey, pageKey, cancellationToken);
         var request = ParseUpsertRequest(payload);
         await _recordCommandService.UpdateAsync(
-            tenantId, currentUser.UserId, page.DataTableKey, id, request, cancellationToken);
+            tenantId, currentUser.UserId, descriptor.DataTableKey, id, request, cancellationToken);
 
         return Ok(ApiResponse<object>.Ok(new { Id = id.ToString() }, HttpContext.TraceIdentifier));
     }

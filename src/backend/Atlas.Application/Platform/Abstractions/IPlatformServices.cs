@@ -56,6 +56,7 @@ public interface IAppDesignerSnapshotService
 public interface IRuntimeRouteQueryService
 {
     Task<RuntimePageResponse?> GetRuntimePageAsync(TenantId tenantId, string appKey, string pageKey, CancellationToken cancellationToken = default);
+    Task<RuntimePageResponse?> GetRuntimePageAsync(TenantId tenantId, long appId, string appKey, string pageKey, CancellationToken cancellationToken = default);
     Task<PagedResult<RuntimeTaskListItem>> GetRuntimeTasksAsync(TenantId tenantId, long userId, PagedRequest request, CancellationToken cancellationToken = default);
     Task<PagedResult<RuntimeTaskListItem>> GetRuntimeDoneTasksAsync(TenantId tenantId, long userId, PagedRequest request, CancellationToken cancellationToken = default);
     Task<RuntimeMenuResponse> GetRuntimeMenuAsync(TenantId tenantId, string appKey, CancellationToken cancellationToken = default);
@@ -363,7 +364,15 @@ public interface IResourceCenterQueryService
         TenantId tenantId,
         CancellationToken cancellationToken = default);
 
+    Task<ResourceCenterGroupsSummaryResponse> GetGroupsSummaryAsync(
+        TenantId tenantId,
+        CancellationToken cancellationToken = default);
+
     Task<ResourceCenterDataSourceConsumptionResponse> GetDataSourceConsumptionAsync(
+        TenantId tenantId,
+        CancellationToken cancellationToken = default);
+
+    Task<ResourceCenterDataSourceConsumptionSummaryResponse> GetDataSourceConsumptionSummaryAsync(
         TenantId tenantId,
         CancellationToken cancellationToken = default);
 }

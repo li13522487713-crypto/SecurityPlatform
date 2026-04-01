@@ -12,6 +12,7 @@ export interface TenantAppInstanceListItem {
 
 export interface TenantAppInstanceDetail extends TenantAppInstanceListItem {
   dataSourceId?: string;
+  pageCount: number;
 }
 
 export interface ApplicationCatalogListItem {
@@ -227,6 +228,18 @@ export interface ResourceCenterGroupsResponse {
   warnings: ResourceCenterWarningItem[];
 }
 
+export interface ResourceCenterGroupSummaryItem {
+  groupKey: string;
+  groupName: string;
+  total: number;
+}
+
+export interface ResourceCenterGroupsSummaryResponse {
+  groups: ResourceCenterGroupSummaryItem[];
+  warningCount: number;
+  lastUpdatedAt: string;
+}
+
 export interface TenantAppConsumerItem {
   tenantAppInstanceId: string;
   appKey: string;
@@ -273,6 +286,32 @@ export interface ResourceCenterDataSourceConsumptionResponse {
   platformDataSources: TenantDataSourceConsumptionItem[];
   appScopedDataSources: TenantDataSourceConsumptionItem[];
   unboundTenantApps: TenantAppConsumerItem[];
+}
+
+export interface TenantDataSourceConsumptionSummaryItem {
+  dataSourceId: string;
+  name: string;
+  dbType: string;
+  scope: "Platform" | "AppScoped";
+  scopeAppId?: string;
+  scopeAppName?: string;
+  boundTenantAppCount: number;
+  boundTenantApps: TenantAppConsumerItem[];
+  lastTestedAt?: string;
+  isOrphan: boolean;
+  isDuplicate: boolean;
+  isInvalid: boolean;
+  isUnbound: boolean;
+}
+
+export interface ResourceCenterDataSourceConsumptionSummaryResponse {
+  platformDataSourceTotal: number;
+  appScopedDataSourceTotal: number;
+  unboundTenantAppTotal: number;
+  platformDataSources: TenantDataSourceConsumptionSummaryItem[];
+  appScopedDataSources: TenantDataSourceConsumptionSummaryItem[];
+  unboundTenantApps: TenantAppConsumerItem[];
+  lastUpdatedAt: string;
 }
 
 export interface ResourceCenterRepairResult {

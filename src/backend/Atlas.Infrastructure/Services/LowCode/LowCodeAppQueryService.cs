@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Atlas.Application.LowCode.Abstractions;
 using Atlas.Application.LowCode.Models;
+using Atlas.Application.Platform.Models;
 using Atlas.Core.Exceptions;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
@@ -305,6 +306,33 @@ public sealed class LowCodeAppQueryService : ILowCodeAppQueryService
             schema,
             version,
             usePublished ? "published" : "draft");
+    }
+
+    public async Task<RuntimePageDescriptor?> GetRuntimePageDescriptorAsync(
+        TenantId tenantId,
+        string appKey,
+        string pageKey,
+        CancellationToken cancellationToken = default)
+    {
+        var tenantValue = tenantId.Value;
+        return await _db.Queryable<LowCodePage, LowCodeApp>(
+                (page, app) => new JoinQueryInfos(
+                    JoinType.Inner,
+                    page.AppId == app.Id && page.TenantIdValue == app.TenantIdValue))
+            .Where((page, app) =>
+                page.TenantIdValue == tenantValue &&
+                app.TenantIdValue == tenantValue &&
+                app.AppKey == appKey &&
+                page.PageKey == pageKey)
+            .Select((page, app) => new RuntimePageDescriptor(
+                app.Id,
+                page.Id,
+                app.AppKey,
+                page.PageKey,
+                page.Name,
+                page.DataTableKey,
+                page.IsPublished))
+            .FirstAsync(cancellationToken);
     }
 
     private static string ReplaceVariables(string schema, string variablesJson)

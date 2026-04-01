@@ -1,5 +1,6 @@
 using Atlas.Application.DynamicTables.Models;
 using Atlas.Core.Tenancy;
+using System.IO;
 
 namespace Atlas.Application.DynamicTables.Abstractions;
 
@@ -21,6 +22,13 @@ public interface IDynamicRecordQueryService
         TenantId tenantId,
         string tableKey,
         DynamicRecordExportRequest request,
+        CancellationToken cancellationToken);
+
+    Task<string> WriteCsvAsync(
+        TenantId tenantId,
+        string tableKey,
+        DynamicRecordExportRequest request,
+        Stream output,
         CancellationToken cancellationToken);
 
     Task<DynamicRecordListResult> GetRelatedRecordsAsync(

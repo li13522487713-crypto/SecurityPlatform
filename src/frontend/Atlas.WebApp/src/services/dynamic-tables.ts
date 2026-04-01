@@ -2,6 +2,7 @@ import type { ApiResponse, PagedRequest, PagedResult, JsonValue } from "@/types/
 import type {
   DynamicTableListItem,
   DynamicTableDetail,
+  DynamicTableSummary,
   DynamicTableCreateRequest,
   DynamicTableUpdateRequest,
   DynamicFieldDefinition,
@@ -76,6 +77,13 @@ export async function getDynamicTablesPaged(pagedRequest: PagedRequest, options?
 
 export async function getDynamicTableDetail(tableKey: string) {
   const response = await requestApi<ApiResponse<DynamicTableDetail | null>>(`/dynamic-tables/${encodeURIComponent(tableKey)}`);
+  return response.data ?? null;
+}
+
+export async function getDynamicTableSummary(tableKey: string): Promise<DynamicTableSummary | null> {
+  const response = await requestApi<ApiResponse<DynamicTableSummary | null>>(
+    `/dynamic-tables/${encodeURIComponent(tableKey)}/summary`
+  );
   return response.data ?? null;
 }
 

@@ -27,6 +27,7 @@ Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ### 查询实例详情
+# 预期 data.pageCount 为整数（应用页面数量）
 GET {{baseUrl}}/api/v2/tenant-app-instances/1
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}

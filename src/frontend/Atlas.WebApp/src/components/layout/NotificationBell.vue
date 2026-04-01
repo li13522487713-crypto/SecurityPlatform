@@ -72,21 +72,32 @@ const unreadCount = ref(0);
 const items = ref<UserNotificationDto[]>([]);
 const loading = ref(false);
 let inboxLoaded = false;
+const panelOpen = ref(false);
+let unreadRequestInflight = false;
+let nextPollDelay = 30_000;
 
 let timer: number | undefined;
 
 const loadUnreadCount = async () => {
+  if (unreadRequestInflight || document.visibilityState !== "visible") {
+    return;
+  }
+
+  unreadRequestInflight = true;
   try {
     const count = await getUnreadCount();
     if (!isMounted.value) return;
     unreadCount.value = count;
+    nextPollDelay = 30_000;
   } catch {
-    // ignore silently
+    nextPollDelay = Math.min(nextPollDelay * 2, 120_000);
+  } finally {
+    unreadRequestInflight = false;
   }
 };
 
 const loadInbox = async () => {
-  if (inboxLoaded) return;
+  if (!panelOpen.value || inboxLoaded) return;
   loading.value = true;
   try {
     const listResult = await getMyNotifications(1, 5);
@@ -101,11 +112,12 @@ const loadInbox = async () => {
 };
 
 const handlePanelOpen = async (visible: boolean) => {
-  if (!visible) return;
-  await Promise.all([
-    loadUnreadCount(),
-    loadInbox()
-  ]);
+  panelOpen.value = visible;
+  if (!visible) {
+    return;
+  }
+  await loadUnreadCount();
+  await loadInbox();
 };
 
 const handleItemClick = async (item: UserNotificationDto) => {
@@ -172,24 +184,45 @@ const formatTime = (iso: string) => {
 };
 
 const startPolling = () => {
-  timer = window.setInterval(async () => {
-    try {
-      const count = await getUnreadCount();
-      if (!isMounted.value) return;
-      unreadCount.value = count;
-    } catch {
-      // ignore
-    }
-  }, 30_000); // 每 30 秒轮询一次未读数
+  stopPolling();
+  const scheduleNext = () => {
+    timer = window.setTimeout(async () => {
+      await loadUnreadCount();
+      if (isMounted.value) {
+        scheduleNext();
+      }
+    }, nextPollDelay);
+  };
+  scheduleNext();
+};
+
+const stopPolling = () => {
+  if (timer) {
+    window.clearTimeout(timer);
+    timer = undefined;
+  }
+};
+
+const handleVisibilityChange = () => {
+  if (document.visibilityState === "visible") {
+    void loadUnreadCount();
+    startPolling();
+    return;
+  }
+  stopPolling();
 };
 
 onMounted(() => {
-  void loadUnreadCount();
-  startPolling();
+  if (document.visibilityState === "visible") {
+    void loadUnreadCount();
+    startPolling();
+  }
+  document.addEventListener("visibilitychange", handleVisibilityChange);
 });
 
 onUnmounted(() => {
-  window.clearInterval(timer);
+  document.removeEventListener("visibilitychange", handleVisibilityChange);
+  stopPolling();
 });
 </script>
 

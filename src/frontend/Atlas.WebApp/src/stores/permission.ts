@@ -48,6 +48,20 @@ interface PermissionState {
   routerLoadFailed: boolean;
 }
 
+function buildRouteState(routers: RouterVo[]) {
+  const normalized = normalizeRouters(routers);
+  const sidebarRoutes = buildRoutesFromRouters(normalized, false, false);
+  const rewriteRoutes = buildRoutesFromRouters(normalized, false, true);
+
+  return {
+    sidebarRouters: normalized,
+    addRoutes: rewriteRoutes,
+    routes: rewriteRoutes,
+    defaultRoutes: sidebarRoutes,
+    topbarRouters: sidebarRoutes
+  };
+}
+
 export const usePermissionStore = defineStore("permission", {
   state: (): PermissionState => ({
     routes: [],
@@ -69,61 +83,66 @@ export const usePermissionStore = defineStore("permission", {
       this.routerLoadFailed = false;
       generateRoutesInflight = null;
     },
-    async generateRoutes() {
+    hydrateFromLocalCache() {
+      let routers: RouterVo[] | null = null;
+
+      try {
+        const cached = localStorage.getItem(ROUTER_CACHE_KEY);
+        if (cached) {
+          routers = JSON.parse(cached) as RouterVo[];
+        }
+      } catch {
+        routers = null;
+      }
+
+      if (!routers || !Array.isArray(routers) || routers.length === 0) {
+        routers = buildMinimalFallbackRouters();
+      }
+
+      const routeState = buildRouteState(routers);
+      this.sidebarRouters = routeState.sidebarRouters;
+      this.addRoutes = routeState.addRoutes;
+      this.routes = routeState.routes;
+      this.defaultRoutes = routeState.defaultRoutes;
+      this.topbarRouters = routeState.topbarRouters;
+      this.routeLoaded = true;
+    },
+    async refreshRoutes(router?: Router) {
       if (generateRoutesInflight) {
         return await generateRoutesInflight;
       }
 
       generateRoutesInflight = (async () => {
-        let routers: RouterVo[] | null = null;
-
         try {
-          routers = await getRouters();
-          // 成功后缓存到 localStorage
+          const routers = await getRouters();
           try {
             localStorage.setItem(ROUTER_CACHE_KEY, JSON.stringify(routers));
           } catch {
-            // 存储失败不影响正常流程
+            // 忽略缓存写入失败
           }
+          const routeState = buildRouteState(routers);
+          this.sidebarRouters = routeState.sidebarRouters;
+          this.addRoutes = routeState.addRoutes;
+          this.routes = routeState.routes;
+          this.defaultRoutes = routeState.defaultRoutes;
+          this.topbarRouters = routeState.topbarRouters;
+          this.routeLoaded = true;
           this.routerLoadFailed = false;
+          if (router) {
+            this.registerRoutes(router);
+          }
+          return routeState.addRoutes;
         } catch (err) {
-          console.error("[permission] getRouters 失败，尝试使用本地缓存或最小菜单兜底", err);
+          console.error("[permission] getRouters 失败，保留当前缓存路由", err);
           this.routerLoadFailed = true;
-
-          // 优先使用上次成功的路由缓存
-          try {
-            const cached = localStorage.getItem(ROUTER_CACHE_KEY);
-            if (cached) {
-              routers = JSON.parse(cached) as RouterVo[];
-              console.warn("[permission] 使用本地缓存路由兜底");
+          if (!this.routeLoaded) {
+            this.hydrateFromLocalCache();
+            if (router) {
+              this.registerRoutes(router);
             }
-          } catch {
-            routers = null;
           }
-
-          // 无缓存时使用平台最小可用菜单
-          if (!routers || !Array.isArray(routers) || routers.length === 0) {
-            routers = buildMinimalFallbackRouters();
-            console.warn("[permission] 无路由缓存，使用最小菜单兜底（首页+工作台）");
-          }
+          return this.addRoutes;
         }
-
-        const sdata = normalizeRouters(structuredClone(routers) as RouterVo[]);
-        const rdata = normalizeRouters(structuredClone(routers) as RouterVo[]);
-
-        const sidebarRoutes = buildRoutesFromRouters(sdata, false, false);
-        const rewriteRoutes = buildRoutesFromRouters(rdata, false, true);
-
-        // Vue Router v4 statically registers the 404 catch-all, no need to push dynamically
-
-        this.sidebarRouters = sdata;
-        this.addRoutes = rewriteRoutes;
-        this.routes = rewriteRoutes;
-        this.defaultRoutes = sidebarRoutes;
-        this.topbarRouters = sidebarRoutes;
-
-        this.routeLoaded = true;
-        return rewriteRoutes;
       })();
 
       try {
@@ -131,6 +150,9 @@ export const usePermissionStore = defineStore("permission", {
       } finally {
         generateRoutesInflight = null;
       }
+    },
+    async generateRoutes(router?: Router) {
+      return await this.refreshRoutes(router);
     },
     registerRoutes(router: Router) {
       // 收集已注册路由的 path 集合，防止动态路由与静态路由产生 path 冲突

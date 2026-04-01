@@ -229,6 +229,7 @@
 - `GET /api/v2/tenant-applications/{id}`
 - `GET /api/v2/tenant-app-instances`
 - `GET /api/v2/tenant-app-instances/{id}`
+  - `TenantAppInstanceDetail` 新增 `pageCount` 字段，直接返回页面数量，前端不再依赖 `pages.length` 推断。
 - `GET /api/v2/runtime-contexts`
 - `GET /api/v2/runtime-contexts/{id}`
 - `GET /api/v2/runtime-contexts/{appKey}/{pageKey}`
@@ -247,6 +248,11 @@
   - 返回模型升级为 `ResourceCenterGroupsResponse`：`groups` + `warnings`。
   - 容错语义：当个别应用实例未绑定可用数据源时，接口仍返回 `200`；该实例从 `groups` 聚合结果中跳过，并在 `warnings` 中返回 `appInstanceId/appName/errorCode/message`。
   - 要求服务端采用批量查询 + 内存聚合，禁止循环内数据库访问。
+- `GET /api/v2/resource-center/groups/summary`
+  - 首页卡片摘要接口，返回 `ResourceCenterGroupsSummaryResponse`：
+    - `groups`：仅包含 `groupKey/groupName/total`
+    - `warningCount`：告警计数
+    - `lastUpdatedAt`：汇总生成时间（ISO 8601）
 - `GET /api/v2/resource-center/datasource-consumption`
   - 返回数据源双层消费模型：
     - 平台级数据源（`Platform`）
@@ -255,6 +261,11 @@
   - 响应包含每个数据源的绑定应用数量、绑定应用列表与 `bindingRelations`（绑定关系明细：`bindingId/tenantAppInstanceId/dataSourceId/bindingType/isActive/boundAt/updatedAt/source`）。
   - 响应补充治理字段：`isOrphan/isDuplicate/isInvalid/isUnbound/impactScope/repairSuggestion`。
   - 服务端实现必须通过批量查询 + 字典聚合完成，禁止循环内数据库访问。
+- `GET /api/v2/resource-center/datasource-consumption/summary`
+  - 首页卡片摘要接口，返回 `ResourceCenterDataSourceConsumptionSummaryResponse`：
+    - 保留 `Platform/AppScoped/Unbound` 总量与列表
+    - 列表项仅包含首页展示所需字段（不返回 `bindingRelations/repairSuggestion` 等明细字段）
+    - `lastUpdatedAt`：汇总生成时间（ISO 8601）
 - `POST /api/v2/resource-center/datasource-consumption/repair/disable-invalid-binding`
 - `POST /api/v2/resource-center/datasource-consumption/repair/switch-primary-binding`
 - `POST /api/v2/resource-center/datasource-consumption/repair/unbind-orphan-binding`
@@ -1682,6 +1693,7 @@ JWT Claims（新增）：
 
 - `GET /api/v1/dynamic-tables`：分页查询动态表
 - `GET /api/v1/dynamic-tables/{tableKey}`：动态表详情
+- `GET /api/v1/dynamic-tables/{tableKey}/summary`：动态表概览（轻量字段计数与预览）
 - `POST /api/v1/dynamic-tables`：新建动态表（需幂等 + CSRF）
 - `PUT /api/v1/dynamic-tables/{tableKey}`：更新表元数据（需幂等 + CSRF）
 - `POST /api/v1/dynamic-tables/{tableKey}/schema/alter`：变更字段（需幂等 + CSRF）
@@ -1772,7 +1784,7 @@ JWT Claims（新增）：
 - `PUT /api/v1/dynamic-tables/{tableKey}/records/{id}`：更新记录（需幂等 + CSRF）
 - `DELETE /api/v1/dynamic-tables/{tableKey}/records/{id}`：删除记录（需幂等 + CSRF）
 - `POST /api/v1/dynamic-tables/{tableKey}/records/query`：复杂筛选（支持 `eq/ne/gt/gte/lt/lte/like/in/between`，需幂等 + CSRF）
-- `POST /api/v1/dynamic-tables/{tableKey}/records/export`：按筛选条件导出 CSV（需幂等 + CSRF，单次最多 10,000 条，分批查询避免 OOM）
+- `POST /api/v1/dynamic-tables/{tableKey}/records/export`：按筛选条件导出 CSV（需幂等 + CSRF，单次最多 10,000 条，分批查询并流式写出避免 OOM）
 - `POST /api/v1/dynamic-tables/{tableKey}/records/batch`：批量新增（需幂等 + CSRF）
 - `DELETE /api/v1/dynamic-tables/{tableKey}/records`：批量删除（需幂等 + CSRF）
 
@@ -1781,6 +1793,7 @@ JWT Claims（新增）：
 - 当目标表配置了字段级权限规则时，查询/详情/导出将按当前用户角色自动裁剪可见字段；
 - 写入（create/update）会校验可编辑字段，越权字段写入将返回 `FORBIDDEN`。
 - 当当前角色数据权限为“仅本人”时，动态记录查询/详情/导出将自动注入 owner 过滤（基于 `ownerId/createdBy/creatorId` 字段约定）。
+- `records/export` 响应为文件流（`text/csv; charset=utf-8` + `Content-Disposition`），不包装 `ApiResponse<T>`。
 
 ### AMIS Schema 接口
 
@@ -1795,13 +1808,25 @@ JWT Claims（新增）：
 ```json
 {
   "id": "1001",
+  "appId": "2001",
   "tableKey": "orders",
   "displayName": "订单",
   "description": "订单主表",
   "dbType": "Sqlite",
   "status": "Active",
-  "createdAt": "2026-01-31T10:00:00Z",
-  "createdBy": "10001"
+  "fieldCount": 18,
+  "indexCount": 4,
+  "approvalFlowDefinitionId": 3001,
+  "approvalStatusField": "approvalStatus",
+  "previewFields": [
+    {
+      "name": "id",
+      "displayName": "主键",
+      "fieldType": "Long",
+      "allowNull": false,
+      "isPrimaryKey": true
+    }
+  ]
 }
 ```
 

@@ -1,5 +1,5 @@
 /**
- * 对比 runtime-messages.ts 中 zh-CN 与 en-US 的词条路径差集。
+ * 对比 runtime-messages.zh-CN.ts 与 runtime-messages.en-US.ts 的词条路径差集。
  * 用法：在 Atlas.WebApp 目录执行 `node scripts/i18n-runtime-key-diff.mjs`
  */
 import fs from "node:fs";
@@ -9,27 +9,27 @@ import ts from "typescript";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const appRoot = path.resolve(__dirname, "..");
-const filePath = path.join(appRoot, "src", "i18n", "runtime-messages.ts");
-const source = fs.readFileSync(filePath, "utf8");
+const zhFilePath = path.join(appRoot, "src", "i18n", "runtime-messages.zh-CN.ts");
+const enFilePath = path.join(appRoot, "src", "i18n", "runtime-messages.en-US.ts");
 
-const { outputText } = ts.transpileModule(source, {
-  compilerOptions: {
-    module: ts.ModuleKind.CommonJS,
-    target: ts.ScriptTarget.ES2022,
-    esModuleInterop: true
-  },
-  fileName: filePath
-});
+function loadDefaultExport(filePath) {
+  const source = fs.readFileSync(filePath, "utf8");
+  const { outputText } = ts.transpileModule(source, {
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2022,
+      esModuleInterop: true
+    },
+    fileName: filePath
+  });
 
-const patched = outputText
-  .replace(/^\s*["']use strict["'];\s*/m, "")
-  .replace(/exports\.runtimeMessages\s*=\s*void\s*0;?\s*/g, "")
-  .replace(/exports\.runtimeMessages\s*=\s*/, "globalThis.__RM = ");
+  const moduleStub = { exports: {} };
+  const run = new Function("exports", "module", `${outputText}\nreturn module.exports.default ?? module.exports;`);
+  return run(moduleStub.exports, moduleStub);
+}
 
-const moduleStub = { exports: {} };
- 
-const run = new Function("exports", "module", "globalThis", `${patched}\nreturn globalThis.__RM;`);
-const runtimeMessages = run(moduleStub.exports, moduleStub, globalThis);
+const zh = loadDefaultExport(zhFilePath);
+const en = loadDefaultExport(enFilePath);
 
 function collectKeys(obj, prefix = "") {
   /** @type {string[]} */
@@ -48,10 +48,8 @@ function collectKeys(obj, prefix = "") {
   return keys;
 }
 
-const zh = runtimeMessages["zh-CN"];
-const en = runtimeMessages["en-US"];
 if (!zh || !en) {
-  console.error("Missing zh-CN or en-US root in runtimeMessages");
+  console.error("Missing zh-CN or en-US runtime message root.");
   process.exit(1);
 }
 

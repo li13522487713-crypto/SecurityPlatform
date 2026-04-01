@@ -21,6 +21,7 @@ registerBusinessPlugins();
 
 interface Props {
   schema: Record<string, unknown>;
+  schemaRevision?: number;
   height?: string;
   preview?: boolean;
   isMobile?: boolean;
@@ -30,6 +31,7 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   height: "100%",
+  schemaRevision: 0,
   preview: false,
   isMobile: false,
   theme: "cxd",
@@ -53,21 +55,7 @@ const containerStyle = computed(() => ({
   overflow: "hidden"
 }));
 
-const normalizeValue = <T>(value: T): T => {
-  const raw = toRaw(value) as T;
-  if (typeof structuredClone === "function") {
-    try {
-      return structuredClone(raw);
-    } catch {
-      return raw;
-    }
-  }
-  try {
-    return JSON.parse(JSON.stringify(raw)) as T;
-  } catch {
-    return raw;
-  }
-};
+const normalizeValue = <T>(value: T): T => toRaw(value) as T;
 
 /**
  * Dynamically import amis-editor (React-based) and render into the container.
@@ -238,11 +226,10 @@ onMounted(() => {
 });
 
 watch(
-  () => [props.schema, props.preview, props.isMobile, props.theme, props.plugins],
+  () => [props.schemaRevision, props.schema, props.preview, props.isMobile, props.theme, props.plugins.length],
   () => {
     requestRenderEditor();
-  },
-  { deep: true }
+  }
 );
 
 onBeforeUnmount(() => {

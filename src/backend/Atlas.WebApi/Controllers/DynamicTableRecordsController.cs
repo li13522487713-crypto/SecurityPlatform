@@ -205,8 +205,16 @@ public sealed class DynamicTableRecordsController : ControllerBase
     {
         _exportValidator.ValidateAndThrow(request);
         var tenantId = _tenantProvider.GetTenantId();
-        var result = await _queryService.ExportAsync(tenantId, tableKey, request, cancellationToken);
-        return File(result.Content, result.ContentType, result.FileName);
+        var fileName = $"{tableKey}-{DateTimeOffset.UtcNow:yyyyMMddHHmmss}.csv";
+        Response.ContentType = "text/csv; charset=utf-8";
+        Response.Headers.ContentDisposition = $"attachment; filename=\"{fileName}\"";
+        await _queryService.WriteCsvAsync(
+            tenantId,
+            tableKey,
+            request,
+            Response.Body,
+            cancellationToken);
+        return new EmptyResult();
     }
 
     [HttpPost("import")]

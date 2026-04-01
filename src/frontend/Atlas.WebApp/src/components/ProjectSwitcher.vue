@@ -49,6 +49,14 @@ const options = ref<{ label: string; value: string }[]>([]);
 const selectedProjectId = ref<string | undefined>(undefined);
 const route = useRoute();
 let searchTimer: number | undefined;
+const PROJECT_CONTEXT_CACHE_TTL = 60_000;
+let projectContextCache:
+  | {
+    expiresAt: number;
+    enabled: boolean;
+    options: { label: string; value: string }[];
+  }
+  | null = null;
 
 const loadProjects = async (keyword?: string) => {
   const result  = await getMyProjectsPaged({
@@ -79,6 +87,21 @@ const resolvedAppId = computed(() => {
 });
 
 const loadProjectContext = async (skipEvent = false) => {
+  const cached = projectContextCache;
+  if (cached && cached.expiresAt > Date.now()) {
+    enabled.value = cached.enabled;
+    options.value = cached.options;
+    setProjectScopeEnabled(cached.enabled);
+    if (!cached.enabled) {
+      clearProjectId();
+      selectedProjectId.value = undefined;
+      if (!skipEvent) {
+        emitProjectChanged(null);
+      }
+      return;
+    }
+  }
+
   loading.value = true;
   try {
     const [appConfigResult, projectsResult] = await Promise.allSettled([
@@ -100,6 +123,11 @@ const loadProjectContext = async (skipEvent = false) => {
       selectedProjectId.value = undefined;
       options.value = [];
       if (!skipEvent) emitProjectChanged(null);
+      projectContextCache = {
+        expiresAt: Date.now() + PROJECT_CONTEXT_CACHE_TTL,
+        enabled: false,
+        options: []
+      };
       return;
     }
 
@@ -129,6 +157,12 @@ const loadProjectContext = async (skipEvent = false) => {
       selectedProjectId.value = undefined;
       if (!skipEvent) emitProjectChanged(null);
     }
+
+    projectContextCache = {
+      expiresAt: Date.now() + PROJECT_CONTEXT_CACHE_TTL,
+      enabled: isEnabled,
+      options: [...options.value]
+    };
   } catch (error) {
     message.error((error as Error).message || t("projectSwitcher.loadFailed"));
   } finally {
@@ -193,7 +227,24 @@ const handleChange = (value?: string) => {
 };
 
 const handleAppConfigChanged = () => {
+  projectContextCache = null;
   void loadProjectContext();
+};
+
+const tryLoadProjectContext = () => {
+  if (document.visibilityState !== "visible") {
+    return;
+  }
+  void loadProjectContext();
+};
+
+const handleVisibilityChange = () => {
+  if (document.visibilityState !== "visible") {
+    return;
+  }
+  if (!projectContextCache || projectContextCache.expiresAt <= Date.now()) {
+    void loadProjectContext();
+  }
 };
 
 let isFirstAppIdLoad = true;
@@ -202,17 +253,21 @@ watch(
   () => {
     const skipEvent = isFirstAppIdLoad;
     isFirstAppIdLoad = false;
-    void loadProjectContext(skipEvent);
-  },
-  { immediate: true }
+    if (document.visibilityState === "visible") {
+      void loadProjectContext(skipEvent);
+    }
+  }
 );
 
 onMounted(() => {
   window.addEventListener("app-config-changed", handleAppConfigChanged);
+  document.addEventListener("visibilitychange", handleVisibilityChange);
+  tryLoadProjectContext();
 });
 
 onUnmounted(() => {
   window.removeEventListener("app-config-changed", handleAppConfigChanged);
+  document.removeEventListener("visibilitychange", handleVisibilityChange);
   if (searchTimer) {
     window.clearTimeout(searchTimer);
     searchTimer = undefined;

@@ -85,6 +85,29 @@ export interface DynamicTableDetail extends DynamicTableListItem {
   indexes: DynamicIndexDefinition[];
 }
 
+export interface DynamicTableFieldSummary {
+  name: string;
+  displayName?: string | null;
+  fieldType: DynamicFieldType;
+  allowNull: boolean;
+  isPrimaryKey: boolean;
+}
+
+export interface DynamicTableSummary {
+  id: string;
+  appId?: string | null;
+  tableKey: string;
+  displayName: string;
+  description?: string | null;
+  dbType: DynamicDbType;
+  status: "Draft" | "Active" | "Disabled";
+  fieldCount: number;
+  indexCount: number;
+  approvalFlowDefinitionId?: number | null;
+  approvalStatusField?: string | null;
+  previewFields: DynamicTableFieldSummary[];
+}
+
 export interface DynamicTableCreateRequest {
   tableKey: string;
   displayName: string;

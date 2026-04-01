@@ -18,6 +18,12 @@ public interface IDynamicTableQueryService
         long? appId,
         CancellationToken cancellationToken);
 
+    Task<DynamicTableSummary?> GetSummaryAsync(
+        TenantId tenantId,
+        string tableKey,
+        long? appId,
+        CancellationToken cancellationToken);
+
     Task<IReadOnlyList<DynamicFieldDefinition>> GetFieldsAsync(
         TenantId tenantId,
         string tableKey,

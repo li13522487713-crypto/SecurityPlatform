@@ -217,17 +217,20 @@ import type { TableColumnsType } from "ant-design-vue";
 import AppCreateWizard from "@/pages/console/components/AppCreateWizard.vue";
 import {
   getResourceCenterDataSourceConsumption,
-  getResourceCenterGroups,
+  getResourceCenterDataSourceConsumptionSummary,
+  getResourceCenterGroupsSummary,
   getTenantAppInstancesPaged
 } from "@/services/api-tenant-app-instances";
 import { useUserStore } from "@/stores/user";
+import { rememberAppMeta } from "@/utils/app-meta-cache";
 import type {
-  ResourceCenterGroupsResponse,
+  ResourceCenterGroupsSummaryResponse,
   TenantAppConsumerItem,
   TenantDataSourceBindingRelationItem,
   TenantDataSourceConsumptionItem,
-  ResourceCenterDataSourceConsumptionResponse,
-  ResourceCenterGroupItem,
+  TenantDataSourceConsumptionSummaryItem,
+  ResourceCenterDataSourceConsumptionSummaryResponse,
+  ResourceCenterGroupSummaryItem,
   TenantAppInstanceListItem
 } from "@/types/platform-v2";
 
@@ -239,23 +242,24 @@ const resourceGroupLoading = ref(false);
 const dataSourceConsumptionLoading = ref(false);
 const keyword = ref("");
 const apps = ref<TenantAppInstanceListItem[]>([]);
-const resourceGroups = ref<ResourceCenterGroupItem[]>([]);
-const dataSourceConsumption = ref<ResourceCenterDataSourceConsumptionResponse | null>(null);
+const resourceGroups = ref<ResourceCenterGroupSummaryItem[]>([]);
+const dataSourceConsumption = ref<ResourceCenterDataSourceConsumptionSummaryResponse | null>(null);
 const createWizardVisible = ref(false);
 const dataSourceKeyword = ref("");
 const selectedAppId = ref<string>();
 const appFilterOptions = ref<Array<{ label: string; value: string }>>([]);
 const bindingDetailVisible = ref(false);
 const selectedDataSource = ref<TenantDataSourceConsumptionItem | null>(null);
+let pageAbortController: AbortController | null = null;
 
-const dataSourceColumns = computed<TableColumnsType<TenantDataSourceConsumptionItem>>(() => [
+const dataSourceColumns = computed<TableColumnsType<TenantDataSourceConsumptionSummaryItem>>(() => [
   { title: t("console.dashboard.tableColName"), dataIndex: "name", key: "name", width: 220 },
   { title: t("console.dashboard.tableColType"), dataIndex: "dbType", key: "dbType", width: 120 },
   { title: t("console.dashboard.tableColBoundApps"), dataIndex: "boundTenantAppCount", key: "boundTenantAppCount", width: 120 },
   { title: t("console.dashboard.tableColLastTest"), dataIndex: "lastTestedAt", key: "lastTestedAt", width: 180 },
   { title: t("console.dashboard.tableColActions"), key: "actions", width: 120 }
 ]);
-const appScopedDataSourceColumns = computed<TableColumnsType<TenantDataSourceConsumptionItem>>(() => [
+const appScopedDataSourceColumns = computed<TableColumnsType<TenantDataSourceConsumptionSummaryItem>>(() => [
   { title: t("console.dashboard.tableColName"), dataIndex: "name", key: "name", width: 220 },
   { title: t("console.dashboard.tableColScopeApp"), dataIndex: "scopeAppName", key: "scopeAppName", width: 180 },
   { title: t("console.dashboard.tableColBoundApps"), dataIndex: "boundTenantAppCount", key: "boundTenantAppCount", width: 120 },
@@ -315,17 +319,30 @@ const todayDate = computed(() =>
 );
 
 async function loadApps() {
+  const signal = pageAbortController?.signal;
   loading.value = true;
   try {
     const result  = await getTenantAppInstancesPaged({
       pageIndex: 1,
       pageSize: 60,
       keyword: keyword.value || undefined
-    });
+    }, signal ? { signal } : undefined);
 
     if (!isMounted.value) return;
     apps.value = result.items;
+    appFilterOptions.value = result.items.slice(0, 20).map((item) => ({
+      label: t("console.dashboard.appOptionLabel", { name: item.name, appKey: item.appKey }),
+      value: item.id
+    }));
+    rememberAppMeta(result.items.map((item) => ({
+      id: item.id,
+      name: item.name,
+      appKey: item.appKey
+    })));
   } catch (error) {
+    if ((error as DOMException)?.name === "AbortError") {
+      return;
+    }
     message.error((error as Error).message || t("console.dashboard.loadAppsFailed"));
   } finally {
     loading.value = false;
@@ -333,19 +350,23 @@ async function loadApps() {
 }
 
 async function loadResourceGroups() {
+  const signal = pageAbortController?.signal;
   resourceGroupLoading.value = true;
   try {
-    const response: ResourceCenterGroupsResponse = await getResourceCenterGroups();
+    const response: ResourceCenterGroupsSummaryResponse = await getResourceCenterGroupsSummary(signal ? { signal } : undefined);
     resourceGroups.value = response.groups;
-    if (response.warnings.length > 0) {
+    if (response.warningCount > 0) {
       const warningMessage = t("console.dashboard.resourceGroupsPartialWarning", {
-        count: response.warnings.length
+        count: response.warningCount
       });
       message.warning(warningMessage);
     }
 
     if (!isMounted.value) return;
   } catch (error) {
+    if ((error as DOMException)?.name === "AbortError") {
+      return;
+    }
     message.error((error as Error).message || t("console.dashboard.loadResourceGroupsFailed"));
   } finally {
     resourceGroupLoading.value = false;
@@ -353,25 +374,17 @@ async function loadResourceGroups() {
 }
 
 async function loadDataSourceConsumption() {
+  const signal = pageAbortController?.signal;
   dataSourceConsumptionLoading.value = true;
   try {
-    const [consumption, appOptions] = await Promise.all([
-      getResourceCenterDataSourceConsumption(),
-      getTenantAppInstancesPaged({
-        pageIndex: 1,
-        pageSize: 20
-      })
-    ]);
+    const consumption = await getResourceCenterDataSourceConsumptionSummary(signal ? { signal } : undefined);
 
     if (!isMounted.value) return;
     dataSourceConsumption.value = consumption;
-    appFilterOptions.value = appOptions.items.map((item) => ({
-      label: t("console.dashboard.appOptionLabel", { name: item.name, appKey: item.appKey }),
-      value: item.id
-    }));
-
-    if (!isMounted.value) return;
   } catch (error) {
+    if ((error as DOMException)?.name === "AbortError") {
+      return;
+    }
     message.error((error as Error).message || t("console.dashboard.loadDataSourceConsumptionFailed"));
   } finally {
     dataSourceConsumptionLoading.value = false;
@@ -409,9 +422,21 @@ function formatLastTest(value?: string) {
   return date.toLocaleString(locale.value === "en-US" ? "en-US" : "zh-CN");
 }
 
-function showDataSourceDetails(item: TenantDataSourceConsumptionItem) {
-  selectedDataSource.value = item;
-  bindingDetailVisible.value = true;
+async function showDataSourceDetails(item: TenantDataSourceConsumptionSummaryItem) {
+  try {
+    const detail = await getResourceCenterDataSourceConsumption();
+    const selected = [...detail.platformDataSources, ...detail.appScopedDataSources]
+      .find((entry) => entry.dataSourceId === item.dataSourceId);
+    if (!selected) {
+      message.warning(t("console.dashboard.loadDataSourceConsumptionFailed"));
+      return;
+    }
+
+    selectedDataSource.value = selected;
+    bindingDetailVisible.value = true;
+  } catch (error) {
+    message.error((error as Error).message || t("console.dashboard.loadDataSourceConsumptionFailed"));
+  }
 }
 
 function openApp(id: string) {
@@ -430,9 +455,20 @@ function openResourceGroup(groupKey: string) {
 }
 
 onMounted(() => {
+  pageAbortController = new AbortController();
   void loadApps();
-  void loadResourceGroups();
-  void loadDataSourceConsumption();
+  requestAnimationFrame(() => {
+    if (!isMounted.value) {
+      return;
+    }
+    void loadResourceGroups();
+    void loadDataSourceConsumption();
+  });
+});
+
+onUnmounted(() => {
+  pageAbortController?.abort();
+  pageAbortController = null;
 });
 </script>
 

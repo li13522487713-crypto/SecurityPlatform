@@ -36,11 +36,13 @@ using Atlas.Application.Abstractions;
 using Atlas.Core.Tenancy;
 using Atlas.Infrastructure.Configuration;
 using Microsoft.AspNetCore.Authorization.Policy;
+using Microsoft.AspNetCore.ResponseCompression;
 using Atlas.Core.Models;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Microsoft.Extensions.Localization;
+using System.IO.Compression;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -488,6 +490,22 @@ builder.Services.AddRateLimiter(options =>
     });
 });
 
+builder.Services.AddResponseCompression(options =>
+{
+    options.EnableForHttps = true;
+    options.MimeTypes = ResponseCompressionDefaults.MimeTypes.Concat(["application/json"]);
+    options.Providers.Add<BrotliCompressionProvider>();
+    options.Providers.Add<GzipCompressionProvider>();
+});
+builder.Services.Configure<BrotliCompressionProviderOptions>(options =>
+{
+    options.Level = CompressionLevel.Fastest;
+});
+builder.Services.Configure<GzipCompressionProviderOptions>(options =>
+{
+    options.Level = CompressionLevel.Fastest;
+});
+
 builder.Services.AddMemoryCache();
 if (databaseConfigurationSource is not null)
 {
@@ -599,6 +617,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors("WebAppCors");
+app.UseResponseCompression();
 app.UseMiddleware<ClientContextMiddleware>();
 app.UseRouting();
 app.UseAuthentication();

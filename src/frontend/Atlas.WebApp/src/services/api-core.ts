@@ -61,7 +61,8 @@ const globalErrorShownAt = new Map<string, number>();
 const APP_ID_HEADER = "X-App-Id";
 const APP_WORKSPACE_HEADER = "X-App-Workspace";
 const APP_WORKSPACE_HEADER_VALUE = "1";
-const HOT_GET_CACHE_TTL = 3000;
+const DEFAULT_HOT_GET_CACHE_TTL = 3000;
+const HOT_GET_CACHE_MAX_ENTRIES = 100;
 
 const ErrorCodes = {
   AccountLocked: "ACCOUNT_LOCKED",
@@ -250,8 +251,11 @@ export async function requestApi<T>(path: string, init?: RequestInit, options?: 
     : null;
   if (readRequestSignature) {
     const cached = getResponseCache.get(readRequestSignature);
-    if (cached && cached.expiresAt > Date.now()) {
-      return cached.value as T;
+    if (cached) {
+      if (cached.expiresAt > Date.now()) {
+        return cached.value as T;
+      }
+      getResponseCache.delete(readRequestSignature);
     }
     const inFlight = inFlightGetRequests.get(readRequestSignature);
     if (inFlight) {
@@ -333,10 +337,10 @@ export async function requestApi<T>(path: string, init?: RequestInit, options?: 
   try {
     const result = await requestPromise;
     if (readRequestSignature) {
-      getResponseCache.set(readRequestSignature, {
-        expiresAt: Date.now() + HOT_GET_CACHE_TTL,
-        value: result
-      });
+      const ttl = resolveHotGetCacheTtl(path);
+      if (ttl > 0) {
+        rememberHotGetCache(readRequestSignature, result, ttl);
+      }
     }
     return result;
   } catch (error) {
@@ -557,6 +561,69 @@ function resolveNetworkRetryLimit(path: string, method: string): number {
     return 0;
   }
   return 1;
+}
+
+function resolveHotGetCacheTtl(path: string): number {
+  const normalized = normalizeRequestUrlForCache(path);
+  if (normalized === "/auth/profile") {
+    return 60_000;
+  }
+  if (normalized === "/auth/routers") {
+    return 60_000;
+  }
+  if (normalized === "/apps/current") {
+    return 120_000;
+  }
+  if (normalized === "/notifications/unread-count") {
+    return 15_000;
+  }
+  if (normalized.startsWith("/projects/my/paged") && normalized.includes("pagesize=20")) {
+    return 30_000;
+  }
+  if (/^\/api\/v2\/tenant-app-instances\/[^/]+$/i.test(normalized)) {
+    return 60_000;
+  }
+  return DEFAULT_HOT_GET_CACHE_TTL;
+}
+
+function normalizeRequestUrlForCache(path: string): string {
+  let normalized = resolveRequestUrl(path);
+  if (normalized.startsWith("http://") || normalized.startsWith("https://")) {
+    try {
+      const requestUrl = new URL(normalized);
+      normalized = `${requestUrl.pathname}${requestUrl.search}`;
+    } catch {
+      normalized = path;
+    }
+  }
+
+  const lowerCased = normalized.toLowerCase();
+  return lowerCased.replace(/\?(.*)/, (_match, query) => `?${String(query).toLowerCase()}`);
+}
+
+function rememberHotGetCache(signature: string, value: unknown, ttl: number): void {
+  pruneHotGetCache();
+  getResponseCache.set(signature, {
+    expiresAt: Date.now() + ttl,
+    value
+  });
+
+  while (getResponseCache.size > HOT_GET_CACHE_MAX_ENTRIES) {
+    const oldestKey = getResponseCache.keys().next().value as string | undefined;
+    if (!oldestKey) {
+      break;
+    }
+    getResponseCache.delete(oldestKey);
+  }
+}
+
+function pruneHotGetCache(): void {
+  const now = Date.now();
+  for (const [key, entry] of getResponseCache.entries()) {
+    if (entry.expiresAt <= now) {
+      getResponseCache.delete(key);
+    }
+  }
 }
 
 function isNetworkFailure(error: unknown): boolean {
@@ -985,18 +1052,22 @@ async function parseSuccessResponse<T>(response: Response): Promise<T> {
     return {} as T;
   }
 
-  const bodyText = await response.text();
-  if (!bodyText || !bodyText.trim()) {
-    return {} as T;
-  }
-
   if (!isJsonContentType(response.headers.get("content-type"))) {
+    const bodyText = await response.text();
+    if (!bodyText || !bodyText.trim()) {
+      return {} as T;
+    }
     throw buildApiError(translate("apiCore.responseNotJson"), response.status, null, bodyText);
   }
 
+  const clonedResponse = response.clone();
   try {
-    return JSON.parse(bodyText) as T;
+    return await response.json() as T;
   } catch {
+    const bodyText = await clonedResponse.text();
+    if (!bodyText || !bodyText.trim()) {
+      return {} as T;
+    }
     throw buildApiError(translate("apiCore.responseInvalidJson"), response.status, null, bodyText);
   }
 }

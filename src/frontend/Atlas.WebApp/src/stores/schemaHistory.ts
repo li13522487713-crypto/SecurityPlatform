@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
 
-const MAX_HISTORY = 50;
+const MAX_HISTORY = 10;
 
 function deepClone<T>(value: T): T {
   if (typeof structuredClone === "function") {

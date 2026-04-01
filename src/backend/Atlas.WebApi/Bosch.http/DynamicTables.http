@@ -154,6 +154,12 @@ GET {{baseUrl}}/api/v1/dynamic-tables/orders
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
+### Get Dynamic Table Summary
+# 轻量概览：fieldCount/indexCount/approvalFlowDefinitionId/previewFields
+GET {{baseUrl}}/api/v1/dynamic-tables/orders/summary
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
 ### Set Dynamic Table Relations
 PUT {{baseUrl}}/api/v1/dynamic-tables/orders/relations
 Content-Type: application/json

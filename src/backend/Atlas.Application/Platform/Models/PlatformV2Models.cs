@@ -83,7 +83,8 @@ public sealed record TenantAppInstanceDetail(
     string? Category,
     string? Icon,
     string? PublishedAt,
-    string? DataSourceId);
+    string? DataSourceId,
+    int PageCount);
 
 public sealed record TenantAppDataSourceBinding(
     string TenantAppInstanceId,
@@ -327,6 +328,16 @@ public sealed record ResourceCenterGroupsResponse(
     IReadOnlyList<ResourceCenterGroupItem> Groups,
     IReadOnlyList<ResourceCenterWarningItem> Warnings);
 
+public sealed record ResourceCenterGroupSummaryItem(
+    string GroupKey,
+    string GroupName,
+    int Total);
+
+public sealed record ResourceCenterGroupsSummaryResponse(
+    IReadOnlyList<ResourceCenterGroupSummaryItem> Groups,
+    int WarningCount,
+    string LastUpdatedAt);
+
 public sealed record TenantAppConsumerItem(
     string TenantAppInstanceId,
     string AppKey,
@@ -370,6 +381,30 @@ public sealed record ResourceCenterDataSourceConsumptionResponse(
     IReadOnlyList<TenantDataSourceConsumptionItem> PlatformDataSources,
     IReadOnlyList<TenantDataSourceConsumptionItem> AppScopedDataSources,
     IReadOnlyList<TenantAppConsumerItem> UnboundTenantApps);
+
+public sealed record TenantDataSourceConsumptionSummaryItem(
+    string DataSourceId,
+    string Name,
+    string DbType,
+    string Scope,
+    string? ScopeAppId,
+    string? ScopeAppName,
+    int BoundTenantAppCount,
+    IReadOnlyList<TenantAppConsumerItem> BoundTenantApps,
+    string? LastTestedAt,
+    bool IsOrphan,
+    bool IsDuplicate,
+    bool IsInvalid,
+    bool IsUnbound);
+
+public sealed record ResourceCenterDataSourceConsumptionSummaryResponse(
+    int PlatformDataSourceTotal,
+    int AppScopedDataSourceTotal,
+    int UnboundTenantAppTotal,
+    IReadOnlyList<TenantDataSourceConsumptionSummaryItem> PlatformDataSources,
+    IReadOnlyList<TenantDataSourceConsumptionSummaryItem> AppScopedDataSources,
+    IReadOnlyList<TenantAppConsumerItem> UnboundTenantApps,
+    string LastUpdatedAt);
 
 public sealed record DisableInvalidBindingRequest(
     string BindingId);

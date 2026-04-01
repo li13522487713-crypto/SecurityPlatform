@@ -32,6 +32,27 @@ public sealed record DynamicTableDetail(
     long? ApprovalFlowDefinitionId = null,
     string? ApprovalStatusField = null);
 
+public sealed record DynamicTableFieldSummary(
+    string Name,
+    string? DisplayName,
+    string FieldType,
+    bool AllowNull,
+    bool IsPrimaryKey);
+
+public sealed record DynamicTableSummary(
+    string Id,
+    string? AppId,
+    string TableKey,
+    string DisplayName,
+    string? Description,
+    string DbType,
+    string Status,
+    int FieldCount,
+    int IndexCount,
+    long? ApprovalFlowDefinitionId,
+    string? ApprovalStatusField,
+    IReadOnlyList<DynamicTableFieldSummary> PreviewFields);
+
 public sealed record DynamicSchemaMigrationListItem(
     string Id,
     string TableId,

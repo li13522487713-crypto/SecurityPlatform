@@ -84,6 +84,25 @@ public sealed class DynamicTablesController : ControllerBase
         return Ok(ApiResponse<DynamicTableDetail?>.Ok(detail, HttpContext.TraceIdentifier));
     }
 
+    [HttpGet("{tableKey}/summary")]
+    [Authorize(Policy = PermissionPolicies.AppAdmin)]
+    public async Task<ActionResult<ApiResponse<DynamicTableSummary?>>> GetSummary(
+        string tableKey,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(tableKey))
+        {
+            return BadRequest(ApiResponse<DynamicTableSummary?>.Fail(
+                ErrorCodes.ValidationError,
+                ApiResponseLocalizer.T(HttpContext, "TableViewKeyRequired"),
+                HttpContext.TraceIdentifier));
+        }
+
+        var tenantId = _tenantProvider.GetTenantId();
+        var summary = await _queryService.GetSummaryAsync(tenantId, tableKey, _appContextAccessor.ResolveAppId(), cancellationToken);
+        return Ok(ApiResponse<DynamicTableSummary?>.Ok(summary, HttpContext.TraceIdentifier));
+    }
+
     [HttpGet("{tableKey}/fields")]
     [Authorize(Policy = PermissionPolicies.AppAdmin)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<DynamicFieldDefinition>>>> GetFields(
@@ -251,7 +270,9 @@ public sealed class DynamicTablesController : ControllerBase
         var tenantId = _tenantProvider.GetTenantId();
         var result = await _deleteCheckService.CheckTableDeleteAsync(tenantId, _appContextAccessor.ResolveAppId(), tableKey, cancellationToken);
         return Ok(ApiResponse<DeleteCheckResultDto>.Ok(result, HttpContext.TraceIdentifier));
-    }    [HttpPut("{tableKey}/relations")]
+    }
+
+    [HttpPut("{tableKey}/relations")]
     [Authorize(Policy = PermissionPolicies.AppAdmin)]
     public async Task<ActionResult<ApiResponse<object>>> SetRelations(
         string tableKey,

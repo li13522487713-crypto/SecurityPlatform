@@ -743,6 +743,23 @@ public sealed class RuntimeRouteQueryService : IRuntimeRouteQueryService
             : new RuntimePageResponse(route.AppKey, route.PageKey, route.SchemaVersion, route.IsActive);
     }
 
+    public async Task<RuntimePageResponse?> GetRuntimePageAsync(
+        TenantId tenantId,
+        long appId,
+        string appKey,
+        string pageKey,
+        CancellationToken cancellationToken = default)
+    {
+        var db = await ResolveRuntimeDbByAppIdAsync(tenantId, appId, cancellationToken);
+        var route = await db.Queryable<RuntimeRoute>()
+            .FirstAsync(
+                x => x.TenantIdValue == tenantId.Value && x.AppKey == appKey && x.PageKey == pageKey && x.IsActive,
+                cancellationToken);
+        return route is null
+            ? null
+            : new RuntimePageResponse(route.AppKey, route.PageKey, route.SchemaVersion, route.IsActive);
+    }
+
     public async Task<PagedResult<RuntimeTaskListItem>> GetRuntimeTasksAsync(
         TenantId tenantId,
         long userId,
@@ -888,6 +905,20 @@ public sealed class RuntimeRouteQueryService : IRuntimeRouteQueryService
         {
             await EnsureRuntimeReadableAsync(tenantId, app.Id, cancellationToken);
             return await _appDbScopeFactory.GetAppClientAsync(tenantId, app.Id, cancellationToken);
+        }
+
+        return _mainDb;
+    }
+
+    private async Task<ISqlSugarClient> ResolveRuntimeDbByAppIdAsync(
+        TenantId tenantId,
+        long appId,
+        CancellationToken cancellationToken)
+    {
+        if (appId > 0)
+        {
+            await EnsureRuntimeReadableAsync(tenantId, appId, cancellationToken);
+            return await _appDbScopeFactory.GetAppClientAsync(tenantId, appId, cancellationToken);
         }
 
         return _mainDb;

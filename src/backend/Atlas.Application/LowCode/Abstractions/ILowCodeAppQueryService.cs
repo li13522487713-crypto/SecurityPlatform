@@ -1,4 +1,5 @@
 using Atlas.Application.LowCode.Models;
+using Atlas.Application.Platform.Models;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 
@@ -45,5 +46,11 @@ public interface ILowCodeAppQueryService
         long pageId,
         string mode,
         string? environmentCode,
+        CancellationToken cancellationToken = default);
+
+    Task<RuntimePageDescriptor?> GetRuntimePageDescriptorAsync(
+        TenantId tenantId,
+        string appKey,
+        string pageKey,
         CancellationToken cancellationToken = default);
 }

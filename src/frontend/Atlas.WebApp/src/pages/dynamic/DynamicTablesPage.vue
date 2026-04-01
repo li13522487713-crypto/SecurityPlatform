@@ -10,8 +10,9 @@
           :options="appOptions"
           :loading="appLoading"
           show-search
-          :filter-option="filterAppOption"
+          :filter-option="false"
           :placeholder="t('dynamic.selectAppScope')"
+          @search="handleAppSearch"
           @change="handleAppScopeChange"
         />
         <a-divider type="vertical" />
@@ -192,7 +193,7 @@
                 <div class="section-title">{{ t('dynamic.fieldListOverview') }}</div>
                 <a-table
                   v-if="selectedTableDetail"
-                  :dataSource="selectedTableDetail.fields"
+                  :dataSource="selectedTableDetail.previewFields"
                   :columns="fieldColumns"
                   size="small"
                   :pagination="{ pageSize: 10 }"
@@ -289,12 +290,12 @@ import {
   deleteDynamicTable,
   getAppScopedDynamicTables,
   getDynamicTableDeleteCheck,
-  getDynamicTableDetail,
+  getDynamicTableSummary,
   type AppScopedDynamicTableListItem
 } from "@/services/dynamic-tables";
 import { getLowCodeAppsPaged } from "@/services/lowcode";
 import { getCurrentAppIdFromStorage, setCurrentAppIdToStorage } from "@/utils/app-context";
-import type { DynamicTableDetail } from "@/types/dynamic-tables";
+import type { DynamicTableSummary } from "@/types/dynamic-tables";
 import type { DeleteCheckBlocker } from "@/services/dynamic-tables";
 
 const { t } = useI18n();
@@ -321,7 +322,7 @@ const selectedAppId = ref<string | undefined>(
 const selectedTableKey = ref("");
 const appOptions = ref<Array<{ label: string; value: string }>>([]);
 const tableDirectory = ref<AppScopedDynamicTableListItem[]>([]);
-const selectedTableDetail = ref<DynamicTableDetail | null>(null);
+const selectedTableDetail = ref<DynamicTableSummary | null>(null);
 const relationViewItems = ref<Array<{ id: string; name: string; nodeCount: number }>>([]);
 const blockerModalOpen = ref(false);
 const blockerRows = ref<DeleteCheckBlocker[]>([]);
@@ -379,8 +380,8 @@ const selectedTable = computed(() => {
   return tableDirectory.value.find((item) => item.tableKey === selectedTableKey.value) ?? tableDirectory.value[0];
 });
 
-const selectedFieldCount = computed(() => selectedTableDetail.value?.fields.length ?? 0);
-const selectedIndexCount = computed(() => selectedTableDetail.value?.indexes.length ?? 0);
+const selectedFieldCount = computed(() => selectedTableDetail.value?.fieldCount ?? 0);
+const selectedIndexCount = computed(() => selectedTableDetail.value?.indexCount ?? 0);
 const selectedDbType = computed(() => selectedTableDetail.value?.dbType ?? "Sqlite");
 const selectedApprovalBound = computed(() => !!selectedTableDetail.value?.approvalFlowDefinitionId);
 
@@ -392,15 +393,10 @@ const createFormRules: Record<string, Rule[]> = {
   displayName: [{ required: true, message: t("validation.required") }]
 };
 
-const filterAppOption = (input: string, option: { label?: string; value?: string }) => {
-  const label = (option.label ?? "").toString().toLowerCase();
-  return label.includes(input.toLowerCase());
-};
-
-const loadAppOptions = async () => {
+const loadAppOptions = async (keyword?: string) => {
   appLoading.value = true;
   try {
-    const result = await getLowCodeAppsPaged({ pageIndex: 1, pageSize: 200 });
+    const result = await getLowCodeAppsPaged({ pageIndex: 1, pageSize: 20, keyword });
     if (!isMounted.value) {
       return;
     }
@@ -462,7 +458,7 @@ const loadSelectedTableDetail = async () => {
   }
   detailLoading.value = true;
   try {
-    const detail = await getDynamicTableDetail(tableKey);
+    const detail = await getDynamicTableSummary(tableKey);
     if (!isMounted.value || selectedTableKey.value !== tableKey) {
       return;
     }
@@ -505,8 +501,10 @@ const loadRelationViewItems = () => {
 
 const refreshAll = async () => {
   await loadTableDirectory();
-  await loadSelectedTableDetail();
-  loadRelationViewItems();
+  await Promise.all([
+    loadSelectedTableDetail(),
+    Promise.resolve(loadRelationViewItems())
+  ]);
 };
 
 const selectTable = (tableKey: string) => {
@@ -665,6 +663,10 @@ const handleDeleteTable = async (tableKey: string) => {
   } catch (error) {
     message.error((error as Error).message || t("dynamic.deleteFailed", "删除失败"));
   }
+};
+
+const handleAppSearch = (keyword: string) => {
+  void loadAppOptions(keyword.trim() || undefined);
 };
 
 onMounted(() => {

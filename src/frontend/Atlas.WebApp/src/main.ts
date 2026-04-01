@@ -4,11 +4,10 @@ import router from "./router";
 import Antd from "ant-design-vue";
 import { message } from "ant-design-vue";
 import "ant-design-vue/dist/reset.css";
-import tinymce from "tinymce/tinymce";
 import "./styles/amis-overrides.css";
 import "./styles/index.css";
 import "./styles/approval-x6.css";
-import { i18n } from "./i18n";
+import { ensureLocaleMessages, getLocale, i18n } from "./i18n";
 import { translate } from "@/i18n";
 import { createPinia } from "pinia";
 import { hasPermi, hasRole } from "@/directives/permission";
@@ -17,11 +16,6 @@ import { useNetworkStore } from "@/stores/network";
 import { useUserStore } from "@/stores/user";
 import { usePermissionStore } from "@/stores/permission";
 import { getAccessToken, hasAuthSessionSignal } from "@/utils/auth";
-
-const globalTinyMce = (window as Window & { tinymce?: typeof tinymce }).tinymce ?? tinymce;
-globalTinyMce.baseURL = "/tinymce";
-globalTinyMce.suffix = ".min";
-(window as Window & { tinymce?: typeof tinymce }).tinymce = globalTinyMce;
 
 // 默认租户ID：用于本地开发/体验时免输入（后端仍会校验租户头）
 // 建议在 .env.local 中配置 VITE_DEFAULT_TENANT_ID
@@ -126,7 +120,7 @@ async function recoverSessionAfterOnline() {
   return recoverPromise;
 }
 
-await warmupAuthSession();
+await ensureLocaleMessages(getLocale());
 
 if (typeof window !== "undefined") {
   if (!navigator.onLine) {
@@ -161,3 +155,5 @@ app.directive("hasPermi", hasPermi);
 app.directive("hasRole", hasRole);
 
 app.mount("#app");
+
+void warmupAuthSession();
