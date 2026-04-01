@@ -3836,3 +3836,27 @@ type EvaluationCaseStatus = 0 | 1 | 2 | 3; // Pending / Passed / Failed / Error
 - `Medium` — 中风险（修改字段属性）
 - `High` — 高风险（删除字段/修改主键/缩窄类型）
 
+---
+
+## 后台逻辑处理增强引擎（进度实施中）
+
+> **状态**：占位章节。详细 Case 与交付节奏见 [plan-backend-logic-engine-progress.md](./plan-backend-logic-engine-progress.md)。实施过程中将按 Track 在此补充 **URI 前缀、请求头、统一响应、分页、错误码、幂等与 CSRF** 等与全篇契约一致的约定。
+
+### 计划增补小节（标题占位）
+
+| 小节 | 内容概要 |
+|------|----------|
+| 动态建模发布与迁移 | 发布快照、兼容性检查、DDL 预览、Expand/Migrate/Contract；与 `DynamicTables`/`SchemaDraft` 路由关系 |
+| 表达式与函数 | 函数定义 CRUD、校验、求值与调试接口；与 `ExpressionsController` 演进关系 |
+| 节点类型与注册表 | 节点元数据、分类、UI 元数据、模板查询 |
+| 逻辑流与执行 | 逻辑流定义 CRUD、校验、编译、手动触发执行、执行与节点运行查询、取消/重试 |
+| 批处理与死信 | 批任务定义与执行、分片/批次状态、死信查询与人工重试 |
+| 治理与插件 | 配额/灰度/版本冻结、插件注册与 SPI 能力声明 |
+
+### 契约同步检查项（实施时勾选）
+
+- [ ] 所有新路由使用 `api/v1`（或项目统一版本前缀），与本文「控制器规范」一致
+- [ ] 写操作同时约定 `Idempotency-Key` 与 `X-CSRF-TOKEN`（浏览器调用场景）
+- [ ] 新增错误码写入「通用响应模型」错误码表，并避免与现有码冲突
+- [ ] 更新本文后同步前端 `api.ts` / 生成类型 / i18n
+
