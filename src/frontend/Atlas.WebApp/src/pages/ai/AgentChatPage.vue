@@ -199,11 +199,12 @@ import {
 import { getAgentById } from "@/services/api-agent";
 
 const route = useRoute();
-const agentId = computed(() => Number(route.params["agentId"]));
+/** 路由中的雪花 ID 必须用字符串，Number() 会丢失超过 MAX_SAFE_INTEGER 的精度 */
+const agentId = computed(() => String(route.params["agentId"] ?? ""));
 
 const agentName = ref("");
 const conversations = ref<ConversationDto[]>([]);
-const currentConvId = ref<number | null>(null);
+const currentConvId = ref<string | null>(null);
 const loadingConversations = ref(false);
 const loadingMessages = ref(false);
 const inputText = ref("");
@@ -215,7 +216,7 @@ const pendingAttachments = ref<AgentChatAttachment[]>([]);
 const audioRecorder = useAudioRecorder();
 
 const chatStore = useStreamChat({
-  agentId: agentId.value,
+  agentId: () => agentId.value,
   enableRag: () => enableRag.value
 });
 
@@ -476,7 +477,7 @@ watch(
 
 onMounted(async () => {
   const [agentResult] = await Promise.allSettled([
-    getAgentById(String(agentId.value)),
+    getAgentById(agentId.value),
     loadConversations()
   ]);
 

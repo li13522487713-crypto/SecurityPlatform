@@ -4,7 +4,8 @@ import { createAgentChatStream } from "@/services/api-conversation";
 import { useReActStream, type ReActEventType } from "@/composables/useReActStream";
 
 export interface StreamChatMessage {
-  id: number;
+  /** 本地临时消息可用 number；服务端雪花 ID 为 string */
+  id: number | string;
   role: "user" | "assistant" | "system";
   content: string;
   createdAt: string;
@@ -12,7 +13,8 @@ export interface StreamChatMessage {
 }
 
 export interface UseStreamChatOptions {
-  agentId: number;
+  /** 使用 getter 以便路由参数变化时仍指向正确 Agent（且避免大整数精度丢失） */
+  agentId: () => string;
   enableRag?: () => boolean;
 }
 
@@ -20,7 +22,7 @@ export function useStreamChat(options: UseStreamChatOptions) {
   const messages = ref<StreamChatMessage[]>([]);
   const isStreaming = ref(false);
   const error = ref<string | null>(null);
-  const currentConversationId = ref<number | null>(null);
+  const currentConversationId = ref<string | null>(null);
   const reactStream = useReActStream();
 
   let abortController: AbortController | null = null;
@@ -78,7 +80,7 @@ export function useStreamChat(options: UseStreamChatOptions) {
     };
 
     const { fetchPromise, abortController: ac } = createAgentChatStream(
-      options.agentId,
+      options.agentId(),
       request,
       "react"
     );

@@ -2,10 +2,13 @@ import { requestApi, toQuery, API_BASE } from "@/services/api-core";
 import type { ApiResponse, PagedRequest, PagedResult } from "@/types/api";
 import { getAccessToken, getTenantId, getAntiforgeryToken } from "@/utils/auth";
 
+/** 雪花 long ID：禁止用 JS number，避免超过 MAX_SAFE_INTEGER 时精度丢失 */
+export type SnowflakeId = string;
+
 export interface ConversationDto {
-  id: number;
-  agentId: number;
-  userId: number;
+  id: SnowflakeId;
+  agentId: SnowflakeId;
+  userId: SnowflakeId;
   title?: string;
   createdAt: string;
   lastMessageAt?: string;
@@ -13,7 +16,7 @@ export interface ConversationDto {
 }
 
 export interface ChatMessageDto {
-  id: number;
+  id: SnowflakeId;
   role: "system" | "user" | "assistant";
   content: string;
   metadata?: string;
@@ -22,14 +25,14 @@ export interface ChatMessageDto {
 }
 
 export interface AgentChatResponse {
-  conversationId: number;
-  messageId: number;
+  conversationId: SnowflakeId;
+  messageId: SnowflakeId;
   content: string;
   sources?: string;
 }
 
 export interface AgentChatRequest {
-  conversationId?: number;
+  conversationId?: SnowflakeId;
   message: string;
   enableRag?: boolean;
   attachments?: AgentChatAttachment[];
@@ -48,9 +51,9 @@ export type AgentStreamEventMode = "legacy" | "react";
 
 export async function getConversationsPaged(
   request: PagedRequest,
-  agentId?: number
+  agentId?: SnowflakeId
 ) {
-  const query = toQuery(request, { agentId: agentId?.toString() });
+  const query = toQuery(request, { agentId: agentId || undefined });
   const response = await requestApi<ApiResponse<PagedResult<ConversationDto>>>(
     `/conversations?${query}`
   );
@@ -60,7 +63,7 @@ export async function getConversationsPaged(
   return response.data;
 }
 
-export async function getConversationById(id: number) {
+export async function getConversationById(id: SnowflakeId) {
   const response = await requestApi<ApiResponse<ConversationDto>>(
     `/conversations/${id}`
   );
@@ -70,7 +73,7 @@ export async function getConversationById(id: number) {
   return response.data;
 }
 
-export async function createConversation(agentId: number, title?: string) {
+export async function createConversation(agentId: SnowflakeId, title?: string) {
   const response = await requestApi<ApiResponse<{ id: string }>>(
     "/conversations",
     {
@@ -82,10 +85,10 @@ export async function createConversation(agentId: number, title?: string) {
   if (!response.success || !response.data) {
     throw new Error(response.message || "创建会话失败");
   }
-  return Number(response.data.id);
+  return response.data.id;
 }
 
-export async function updateConversation(id: number, title: string) {
+export async function updateConversation(id: SnowflakeId, title: string) {
   const response = await requestApi<ApiResponse<object>>(`/conversations/${id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
@@ -96,7 +99,7 @@ export async function updateConversation(id: number, title: string) {
   }
 }
 
-export async function deleteConversation(id: number) {
+export async function deleteConversation(id: SnowflakeId) {
   const response = await requestApi<ApiResponse<object>>(`/conversations/${id}`, {
     method: "DELETE"
   });
@@ -105,7 +108,7 @@ export async function deleteConversation(id: number) {
   }
 }
 
-export async function clearConversationContext(id: number) {
+export async function clearConversationContext(id: SnowflakeId) {
   const response = await requestApi<ApiResponse<object>>(
     `/conversations/${id}/clear-context`,
     { method: "POST" }
@@ -115,7 +118,7 @@ export async function clearConversationContext(id: number) {
   }
 }
 
-export async function clearConversationHistory(id: number) {
+export async function clearConversationHistory(id: SnowflakeId) {
   const response = await requestApi<ApiResponse<object>>(
     `/conversations/${id}/clear-history`,
     { method: "POST" }
@@ -126,7 +129,7 @@ export async function clearConversationHistory(id: number) {
 }
 
 export async function getMessages(
-  conversationId: number,
+  conversationId: SnowflakeId,
   options?: { includeContextMarkers?: boolean; limit?: number }
 ) {
   const params = new URLSearchParams();
@@ -146,7 +149,7 @@ export async function getMessages(
   return response.data;
 }
 
-export async function deleteMessage(conversationId: number, messageId: number) {
+export async function deleteMessage(conversationId: SnowflakeId, messageId: SnowflakeId) {
   const response = await requestApi<ApiResponse<object>>(
     `/conversations/${conversationId}/messages/${messageId}`,
     { method: "DELETE" }
@@ -157,7 +160,7 @@ export async function deleteMessage(conversationId: number, messageId: number) {
 }
 
 export async function agentChat(
-  agentId: number,
+  agentId: SnowflakeId,
   request: AgentChatRequest
 ): Promise<AgentChatResponse> {
   const response = await requestApi<ApiResponse<AgentChatResponse>>(
@@ -174,7 +177,7 @@ export async function agentChat(
   return response.data;
 }
 
-export async function cancelAgentChat(agentId: number, conversationId: number) {
+export async function cancelAgentChat(agentId: SnowflakeId, conversationId: SnowflakeId) {
   const response = await requestApi<ApiResponse<object>>(
     `/agents/${agentId}/chat/cancel`,
     {
@@ -193,7 +196,7 @@ export async function cancelAgentChat(agentId: number, conversationId: number) {
  * Returns both the stream and an abort controller for cancellation.
  */
 export function createAgentChatStream(
-  agentId: number,
+  agentId: SnowflakeId,
   request: AgentChatRequest,
   mode: AgentStreamEventMode = "legacy"
 ) {
