@@ -81,6 +81,7 @@ Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ### 更新为并行模式
+# mode=1 当前由兼容层映射到 Semantic Kernel Concurrent Orchestration
 PUT {{baseUrl}}/api/v1/multi-agent-orchestrations/{{orchestrationId}}
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}

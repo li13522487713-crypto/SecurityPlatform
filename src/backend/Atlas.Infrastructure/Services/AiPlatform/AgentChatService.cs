@@ -7,12 +7,12 @@ using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Infrastructure.Options;
 using Atlas.Infrastructure.Repositories;
-using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Agents;
 using Microsoft.SemanticKernel.ChatCompletion;
+using Microsoft.SemanticKernel.Connectors.OpenAI;
 using Microsoft.SemanticKernel.Memory;
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
@@ -27,18 +27,15 @@ namespace Atlas.Infrastructure.Services.AiPlatform;
 
 public sealed class AgentChatService : IAgentChatService
 {
-    private const int MaxToolCallIterations = 3;
     private static readonly ConcurrentDictionary<long, CancellationTokenSource> ConversationCancellationMap = new();
 
     private readonly AgentRepository _agentRepository;
     private readonly ConversationRepository _conversationRepository;
     private readonly ChatMessageRepository _chatMessageRepository;
-    private readonly AgentKnowledgeLinkRepository _agentKnowledgeLinkRepository;
     private readonly ModelConfigRepository _modelConfigRepository;
     private readonly IChatClientFactory _chatClientFactory;
     private readonly IKernelFactory _kernelFactory;
-    private readonly IRagRetrievalService _ragRetrievalService;
-    private readonly IAgentToolCallService _agentToolCallService;
+    private readonly AgentKernelAugmentationService _agentKernelAugmentationService;
     private readonly ILongTermMemoryExtractionService _longTermMemoryExtractionService;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly IUnitOfWork _unitOfWork;
@@ -49,12 +46,10 @@ public sealed class AgentChatService : IAgentChatService
         AgentRepository agentRepository,
         ConversationRepository conversationRepository,
         ChatMessageRepository chatMessageRepository,
-        AgentKnowledgeLinkRepository agentKnowledgeLinkRepository,
         ModelConfigRepository modelConfigRepository,
         IChatClientFactory chatClientFactory,
         IKernelFactory kernelFactory,
-        IRagRetrievalService ragRetrievalService,
-        IAgentToolCallService agentToolCallService,
+        AgentKernelAugmentationService agentKernelAugmentationService,
         ILongTermMemoryExtractionService longTermMemoryExtractionService,
         IIdGeneratorAccessor idGeneratorAccessor,
         IUnitOfWork unitOfWork,
@@ -64,12 +59,10 @@ public sealed class AgentChatService : IAgentChatService
         _agentRepository = agentRepository;
         _conversationRepository = conversationRepository;
         _chatMessageRepository = chatMessageRepository;
-        _agentKnowledgeLinkRepository = agentKnowledgeLinkRepository;
         _modelConfigRepository = modelConfigRepository;
         _chatClientFactory = chatClientFactory;
         _kernelFactory = kernelFactory;
-        _ragRetrievalService = ragRetrievalService;
-        _agentToolCallService = agentToolCallService;
+        _agentKernelAugmentationService = agentKernelAugmentationService;
         _longTermMemoryExtractionService = longTermMemoryExtractionService;
         _idGeneratorAccessor = idGeneratorAccessor;
         _unitOfWork = unitOfWork;
@@ -269,110 +262,84 @@ public sealed class AgentChatService : IAgentChatService
             string? metadata;
             var finalEventEmitted = false;
 
-            var toolCallResult = await _agentToolCallService.TryExecuteAsync(
+            await EmitEventAsync(eventStreamOutput, "thought", "分析问题并准备调用 Semantic Kernel 原生 Agent 与函数能力。");
+
+            var modelConfig = await ResolveModelConfigAsync(tenantId, agent.ModelConfigId, linkedCts.Token);
+            var modelName = ResolveModelName(agent, modelConfig);
+            var kernel = await _kernelFactory.CreateAsync(tenantId, agent.ModelConfigId, modelName, linkedCts.Token);
+            var chatClient = await _chatClientFactory.CreateAsync(tenantId, agent.ModelConfigId, modelName, linkedCts.Token);
+            var augmentationResult = await _agentKernelAugmentationService.ConfigureAsync(
                 tenantId,
                 agent.Id,
-                inputForModel,
-                MaxToolCallIterations,
+                kernel,
+                request.EnableRag ?? false,
                 linkedCts.Token);
-            if (toolCallResult.Executed && !string.IsNullOrWhiteSpace(toolCallResult.FinalAnswer))
+            var reducedHistory = await BuildReducedChatHistoryAsync(
+                history,
+                recalledMemories,
+                userMessageEntity.Id,
+                linkedCts.Token);
+            var agentThread = new ChatHistoryAgentThread(reducedHistory);
+            if (agent.EnableMemory && agent.EnableShortTermMemory && _optionsMonitor.CurrentValue.EnableWhiteboardMemory)
             {
-                foreach (var step in toolCallResult.Steps)
-                {
-                    await EmitEventAsync(eventStreamOutput, step.EventType, step.Data);
-                }
-                finalEventEmitted = toolCallResult.Steps.Any(step =>
-                    string.Equals(step.EventType, "final", StringComparison.OrdinalIgnoreCase));
-
-                assistantBuilder.Append(toolCallResult.FinalAnswer);
-                if (textStreamOutput is not null)
-                {
-                    await textStreamOutput(toolCallResult.FinalAnswer);
-                }
-
-                metadata = JsonSerializer.Serialize(new
-                {
-                    mode = "tool_call",
-                    ragEnabled = false,
-                    toolCallMetadata = toolCallResult.MetadataJson,
-                    memory = new
-                    {
-                        reducer = "semantic-kernel.truncation",
-                        whiteboardEnabled = agent.EnableMemory && agent.EnableShortTermMemory && _optionsMonitor.CurrentValue.EnableWhiteboardMemory,
-                        longTermMemoryCount = recalledMemories.Count,
-                        longTermMemoryIds = recalledMemories.Select(x => x.Id).ToList()
-                    }
-                });
+                agentThread.AIContextProviders.Add(new WhiteboardProvider(chatClient));
             }
-            else
+
+            var skAgent = new ChatCompletionAgent
             {
-                await EmitEventAsync(eventStreamOutput, "thought", "分析问题并准备调用模型生成回复。");
-
-                var modelConfig = await ResolveModelConfigAsync(tenantId, agent.ModelConfigId, linkedCts.Token);
-                var modelName = ResolveModelName(agent, modelConfig);
-                var ragResults = await TrySearchRagAsync(tenantId, agent.Id, request, linkedCts.Token);
-                var kernel = await _kernelFactory.CreateAsync(tenantId, agent.ModelConfigId, modelName, linkedCts.Token);
-                var chatClient = await _chatClientFactory.CreateAsync(tenantId, agent.ModelConfigId, modelName, linkedCts.Token);
-                var reducedHistory = await BuildReducedChatHistoryAsync(
-                    history,
-                    ragResults,
-                    recalledMemories,
-                    userMessageEntity.Id,
-                    linkedCts.Token);
-                var agentThread = new ChatHistoryAgentThread(reducedHistory);
-                if (agent.EnableMemory && agent.EnableShortTermMemory && _optionsMonitor.CurrentValue.EnableWhiteboardMemory)
+                Name = agent.Name,
+                Instructions = string.IsNullOrWhiteSpace(agent.SystemPrompt) ? "你是一个有帮助的智能助手。" : agent.SystemPrompt,
+                Kernel = kernel,
+                Arguments = new KernelArguments(new OpenAIPromptExecutionSettings
                 {
-                    agentThread.AIContextProviders.Add(new WhiteboardProvider(chatClient));
+                    Temperature = agent.Temperature ?? 0,
+                    MaxTokens = agent.MaxTokens ?? 0,
+                    FunctionChoiceBehavior = FunctionChoiceBehavior.Auto(
+                        functions: null,
+                        autoInvoke: true,
+                        options: new FunctionChoiceBehaviorOptions
+                        {
+                            AllowParallelCalls = true,
+                            AllowConcurrentInvocation = true
+                        })
+                })
+            };
+
+            await foreach (var response in skAgent.InvokeAsync(
+                new ChatMessageContent(AuthorRole.User, inputForModel),
+                agentThread))
+            {
+                var chunkText = NormalizeAgentResponse(response.Message);
+                if (string.IsNullOrWhiteSpace(chunkText))
+                {
+                    continue;
                 }
 
-                var skAgent = new ChatCompletionAgent
-                {
-                    Name = agent.Name,
-                    Instructions = string.IsNullOrWhiteSpace(agent.SystemPrompt) ? "你是一个有帮助的智能助手。" : agent.SystemPrompt,
-                    Kernel = kernel
-                };
-
-        await foreach (var response in skAgent.InvokeAsync(
-                    new ChatMessageContent(AuthorRole.User, inputForModel),
-                    agentThread))
-                {
-                    var chunkText = NormalizeAgentResponse(response.Message);
-                    if (string.IsNullOrWhiteSpace(chunkText))
-                    {
-                        continue;
-                    }
-
-                    assistantBuilder.Clear();
-                    assistantBuilder.Append(chunkText);
-                }
-
-                if (assistantBuilder.Length > 0 && textStreamOutput is not null)
-                {
-                    await textStreamOutput(assistantBuilder.ToString());
-                }
-
-                metadata = JsonSerializer.Serialize(new
-                {
-                    mode = "semantic-kernel.agent",
-                    provider = modelConfig?.ProviderType ?? "default",
-                    model = modelName,
-                    ragEnabled = request.EnableRag ?? false,
-                    ragSources = ragResults.Select(x => new
-                    {
-                        x.KnowledgeBaseId,
-                        x.DocumentId,
-                        x.ChunkId,
-                        x.Score
-                    }).ToList(),
-                    memory = new
-                    {
-                        reducer = "semantic-kernel.truncation",
-                        whiteboardEnabled = agent.EnableMemory && agent.EnableShortTermMemory && _optionsMonitor.CurrentValue.EnableWhiteboardMemory,
-                        longTermMemoryCount = recalledMemories.Count,
-                        longTermMemoryIds = recalledMemories.Select(x => x.Id).ToList()
-                    }
-                });
+                assistantBuilder.Clear();
+                assistantBuilder.Append(chunkText);
             }
+
+            if (assistantBuilder.Length > 0 && textStreamOutput is not null)
+            {
+                await textStreamOutput(assistantBuilder.ToString());
+            }
+
+            metadata = JsonSerializer.Serialize(new
+            {
+                mode = "semantic-kernel.agent",
+                provider = modelConfig?.ProviderType ?? "default",
+                model = modelName,
+                functionCalling = "semantic-kernel.auto",
+                boundToolFunctionCount = augmentationResult.BoundToolFunctionCount,
+                knowledgePluginEnabled = augmentationResult.KnowledgePluginEnabled,
+                memory = new
+                {
+                    reducer = "semantic-kernel.truncation",
+                    whiteboardEnabled = agent.EnableMemory && agent.EnableShortTermMemory && _optionsMonitor.CurrentValue.EnableWhiteboardMemory,
+                    longTermMemoryCount = recalledMemories.Count,
+                    longTermMemoryIds = recalledMemories.Select(x => x.Id).ToList()
+                }
+            });
 
             var assistantContent = assistantBuilder.ToString();
             if (string.IsNullOrWhiteSpace(assistantContent))
@@ -554,7 +521,6 @@ public sealed class AgentChatService : IAgentChatService
 
     private async Task<ChatHistory> BuildReducedChatHistoryAsync(
         IReadOnlyList<ChatMessageEntity> history,
-        IReadOnlyList<RagSearchResult> ragResults,
         IReadOnlyList<LongTermMemoryRecallItem> longTermMemories,
         long pendingUserMessageId,
         CancellationToken cancellationToken)
@@ -570,17 +536,6 @@ public sealed class AgentChatService : IAgentChatService
             chatHistory.AddMessage(
                 AuthorRole.System,
                 $"以下是用户长期偏好/画像记忆，请在回答时优先遵循：\n{memoryText}");
-        }
-
-        if (ragResults.Count > 0)
-        {
-            var contextText = string.Join(
-                "\n\n",
-                ragResults.Select((item, index) =>
-                    $"[RAG#{index + 1}] (kb:{item.KnowledgeBaseId}, doc:{item.DocumentId}, chunk:{item.ChunkId}, score:{item.Score:F4})\n{item.Content}"));
-            chatHistory.AddMessage(
-                AuthorRole.System,
-                $"你可以参考以下知识库检索结果来回答用户问题。请优先使用其中事实，并在适当时给出简短来源说明。\n\n{contextText}");
         }
 
         foreach (var item in history.Where(item => item.Id != pendingUserMessageId))
@@ -611,33 +566,6 @@ public sealed class AgentChatService : IAgentChatService
             "tool" => AuthorRole.Tool,
             _ => AuthorRole.User
         };
-
-    private async Task<IReadOnlyList<RagSearchResult>> TrySearchRagAsync(
-        TenantId tenantId,
-        long agentId,
-        AgentChatRequest request,
-        CancellationToken cancellationToken)
-    {
-        if (!(request.EnableRag ?? false))
-        {
-            return [];
-        }
-
-        var links = await _agentKnowledgeLinkRepository.GetByAgentIdAsync(tenantId, agentId, cancellationToken);
-        if (links.Count == 0)
-        {
-            return [];
-        }
-
-        var knowledgeBaseIds = links.Select(x => x.KnowledgeBaseId).Distinct().ToList();
-        var query = BuildUserInput(request.Message?.Trim(), NormalizeAttachments(request.Attachments));
-        return await _ragRetrievalService.SearchAsync(
-            tenantId,
-            knowledgeBaseIds,
-            query,
-            topK: 5,
-            cancellationToken);
-    }
 
     private async Task<ModelConfig?> ResolveModelConfigAsync(
         TenantId tenantId,

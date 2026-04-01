@@ -10,6 +10,12 @@ public sealed record TeamAgentRuntimeDescriptor(
     string PackageId,
     string PackageVersion);
 
+public enum TeamAgentRuntimePattern
+{
+    Default = 0,
+    Concurrent = 1
+}
+
 public sealed record TeamAgentMemberContribution(
     long AgentId,
     string AgentName,
@@ -28,7 +34,8 @@ public sealed record TeamAgentOrchestrationRuntimeRequest(
     IReadOnlyList<TeamAgentMemberItem> Members,
     string Message,
     bool? EnableRag,
-    string? AppId);
+    string? AppId,
+    TeamAgentRuntimePattern RuntimePattern = TeamAgentRuntimePattern.Default);
 
 public sealed record TeamAgentOrchestrationRuntimeResult(
     string FinalMessage,

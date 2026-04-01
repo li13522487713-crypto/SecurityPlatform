@@ -43,17 +43,13 @@ public sealed class OpenAiCompatibleProvider : ILlmProvider, IEmbeddingProvider
     {
         var payload = new OpenAiChatRequest(
             request.Model,
-            request.Messages.Select(m => new OpenAiMessage(
-                m.Role,
-                m.Content,
-                m.Name,
-                m.ToolCallId,
-                ToolCalls: null)).ToList(),
+            request.Messages.Select(MapMessage).ToList(),
             request.Temperature,
             request.MaxTokens,
             Stream: false,
             Tools: request.Tools?.Select(MapToolDefinition).ToList(),
-            ToolChoice: request.ToolChoice);
+            ToolChoice: MapToolChoice(request.ToolChoice),
+            ParallelToolCalls: request.AllowParallelToolCalls);
 
         using var response = await SendAsync("v1/chat/completions", payload, ct);
         await using var stream = await response.Content.ReadAsStreamAsync(ct);
@@ -81,17 +77,13 @@ public sealed class OpenAiCompatibleProvider : ILlmProvider, IEmbeddingProvider
     {
         var payload = new OpenAiChatRequest(
             request.Model,
-            request.Messages.Select(m => new OpenAiMessage(
-                m.Role,
-                m.Content,
-                m.Name,
-                m.ToolCallId,
-                ToolCalls: null)).ToList(),
+            request.Messages.Select(MapMessage).ToList(),
             request.Temperature,
             request.MaxTokens,
             Stream: true,
             Tools: request.Tools?.Select(MapToolDefinition).ToList(),
-            ToolChoice: request.ToolChoice);
+            ToolChoice: MapToolChoice(request.ToolChoice),
+            ParallelToolCalls: request.AllowParallelToolCalls);
 
         using var httpRequest = new HttpRequestMessage(HttpMethod.Post, BuildEndpointUri("v1/chat/completions"))
         {
@@ -224,6 +216,65 @@ public sealed class OpenAiCompatibleProvider : ILlmProvider, IEmbeddingProvider
             call.Function?.Arguments ?? "{}");
     }
 
+    private static OpenAiMessage MapMessage(ChatMessage message)
+    {
+        return new OpenAiMessage(
+            message.Role,
+            message.Content,
+            message.Name,
+            message.ToolCallId,
+            message.ToolCalls?.Select(call => new OpenAiToolCall(
+                call.Id,
+                "function",
+                new OpenAiToolCallFunction(call.Name, call.ArgumentsJson))).ToList());
+    }
+
+    private static object? MapToolChoice(string? toolChoice)
+    {
+        if (string.IsNullOrWhiteSpace(toolChoice))
+        {
+            return null;
+        }
+
+        var normalized = toolChoice.Trim();
+        if (string.Equals(normalized, "auto", StringComparison.OrdinalIgnoreCase))
+        {
+            return "auto";
+        }
+
+        if (string.Equals(normalized, "none", StringComparison.OrdinalIgnoreCase))
+        {
+            return "none";
+        }
+
+        if (string.Equals(normalized, "required", StringComparison.OrdinalIgnoreCase))
+        {
+            return "required";
+        }
+
+        const string requiredPrefix = "required:";
+        const string functionPrefix = "function:";
+        if (normalized.StartsWith(requiredPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            normalized = normalized[requiredPrefix.Length..].Trim();
+        }
+        else if (normalized.StartsWith(functionPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            normalized = normalized[functionPrefix.Length..].Trim();
+        }
+
+        return string.IsNullOrWhiteSpace(normalized)
+            ? "required"
+            : new
+            {
+                type = "function",
+                function = new
+                {
+                    name = normalized
+                }
+            };
+    }
+
     private async Task<HttpResponseMessage> SendAsync(string relativePath, object payload, CancellationToken ct)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, BuildEndpointUri(relativePath))
@@ -298,11 +349,12 @@ public sealed class OpenAiCompatibleProvider : ILlmProvider, IEmbeddingProvider
         [property: JsonPropertyName("max_tokens")] int? MaxTokens,
         [property: JsonPropertyName("stream")] bool Stream,
         [property: JsonPropertyName("tools")] IReadOnlyList<OpenAiTool>? Tools = null,
-        [property: JsonPropertyName("tool_choice")] string? ToolChoice = null);
+        [property: JsonPropertyName("tool_choice")] object? ToolChoice = null,
+        [property: JsonPropertyName("parallel_tool_calls")] bool? ParallelToolCalls = null);
 
     private sealed record OpenAiMessage(
         [property: JsonPropertyName("role")] string Role,
-        [property: JsonPropertyName("content")] string Content,
+        [property: JsonPropertyName("content")] string? Content,
         [property: JsonPropertyName("name")] string? Name,
         [property: JsonPropertyName("tool_call_id")] string? ToolCallId,
         [property: JsonPropertyName("tool_calls")] IReadOnlyList<OpenAiToolCall>? ToolCalls);

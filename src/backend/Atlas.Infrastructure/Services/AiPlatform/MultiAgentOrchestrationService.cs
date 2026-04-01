@@ -318,6 +318,9 @@ public sealed class MultiAgentOrchestrationService : IMultiAgentOrchestrationSer
             "{}",
             userId,
             orchestration.Id);
+        var runtimePattern = orchestration.Mode == MultiAgentOrchestrationMode.Parallel
+            ? TeamAgentRuntimePattern.Concurrent
+            : TeamAgentRuntimePattern.Default;
 
         TeamAgentOrchestrationRuntimeResult runtimeResult;
         try
@@ -330,7 +333,8 @@ public sealed class MultiAgentOrchestrationService : IMultiAgentOrchestrationSer
                     teamMembers,
                     request.Message,
                     request.EnableRag,
-                    null),
+                    null,
+                    runtimePattern),
                 evt => emitAsync is null
                     ? Task.CompletedTask
                     : emitAsync(new MultiAgentStreamEvent(evt.EventType, evt.Data)),

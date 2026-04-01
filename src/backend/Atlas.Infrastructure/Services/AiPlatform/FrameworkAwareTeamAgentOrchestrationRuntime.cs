@@ -1,5 +1,4 @@
 #pragma warning disable SKEXP0110
-using System.Text;
 using System.Text.Json;
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
@@ -12,11 +11,13 @@ using Microsoft.Extensions.Options;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Agents;
 using Microsoft.SemanticKernel.Agents.Orchestration;
+using Microsoft.SemanticKernel.Agents.Orchestration.Concurrent;
 using Microsoft.SemanticKernel.Agents.Orchestration.GroupChat;
 using Microsoft.SemanticKernel.Agents.Orchestration.Handoff;
 using Microsoft.SemanticKernel.Agents.Orchestration.Sequential;
 using Microsoft.SemanticKernel.Agents.Runtime.InProcess;
 using Microsoft.SemanticKernel.ChatCompletion;
+using Microsoft.SemanticKernel.Connectors.OpenAI;
 using DomainAgent = Atlas.Domain.AiPlatform.Entities.Agent;
 using TeamAgentMode = Atlas.Domain.AiPlatform.Entities.TeamAgentMode;
 
@@ -28,6 +29,7 @@ public sealed class FrameworkAwareTeamAgentOrchestrationRuntime : ITeamAgentOrch
 
     private readonly AgentRepository _agentRepository;
     private readonly IKernelFactory _kernelFactory;
+    private readonly AgentKernelAugmentationService _agentKernelAugmentationService;
     private readonly IAgentRuntimeFactory _agentRuntimeFactory;
     private readonly IOptionsMonitor<AgentFrameworkOptions> _optionsMonitor;
     private readonly ILogger<FrameworkAwareTeamAgentOrchestrationRuntime> _logger;
@@ -35,12 +37,14 @@ public sealed class FrameworkAwareTeamAgentOrchestrationRuntime : ITeamAgentOrch
     public FrameworkAwareTeamAgentOrchestrationRuntime(
         AgentRepository agentRepository,
         IKernelFactory kernelFactory,
+        AgentKernelAugmentationService agentKernelAugmentationService,
         IAgentRuntimeFactory agentRuntimeFactory,
         IOptionsMonitor<AgentFrameworkOptions> optionsMonitor,
         ILogger<FrameworkAwareTeamAgentOrchestrationRuntime> logger)
     {
         _agentRepository = agentRepository;
         _kernelFactory = kernelFactory;
+        _agentKernelAugmentationService = agentKernelAugmentationService;
         _agentRuntimeFactory = agentRuntimeFactory;
         _optionsMonitor = optionsMonitor;
         _logger = logger;
@@ -63,6 +67,7 @@ public sealed class FrameworkAwareTeamAgentOrchestrationRuntime : ITeamAgentOrch
         var runtime = await _agentRuntimeFactory.ResolveRuntimeAsync(
             request.TenantId,
             request.TeamAgent.TeamMode,
+            request.RuntimePattern,
             request.Members,
             cancellationToken);
 
@@ -111,6 +116,11 @@ public sealed class FrameworkAwareTeamAgentOrchestrationRuntime : ITeamAgentOrch
             }
         }
 
+        if (request.RuntimePattern == TeamAgentRuntimePattern.Concurrent)
+        {
+            return await ExecuteConcurrentAsync(request, enabledMembers, agentMap, runtime, onEventAsync, onContributionAsync, cancellationToken);
+        }
+
         return request.TeamAgent.TeamMode switch
         {
             TeamAgentMode.GroupChat => await ExecuteGroupChatAsync(request, enabledMembers, agentMap, runtime, onEventAsync, onContributionAsync, cancellationToken),
@@ -153,6 +163,39 @@ public sealed class FrameworkAwareTeamAgentOrchestrationRuntime : ITeamAgentOrch
         await runtimeHost.StartAsync();
         var result = await orchestration.InvokeAsync(request.Message.Trim(), runtimeHost);
         var finalMessage = NormalizeText(await result.GetValueAsync());
+
+        return observer.BuildResult(finalMessage);
+    }
+
+    private async Task<TeamAgentOrchestrationRuntimeResult> ExecuteConcurrentAsync(
+        TeamAgentOrchestrationRuntimeRequest request,
+        IReadOnlyList<TeamAgentMemberItem> members,
+        IReadOnlyDictionary<long, DomainAgent> agentMap,
+        TeamAgentRuntimeDescriptor runtime,
+        Func<TeamAgentRunEvent, Task> onEventAsync,
+        Func<TeamAgentMemberContribution, Task> onContributionAsync,
+        CancellationToken cancellationToken)
+    {
+        var builtAgents = await BuildAgentsAsync(request, members, agentMap, cancellationToken);
+        var observer = CreateResponseObserver(
+            request.TeamAgent.TeamMode,
+            runtime,
+            builtAgents,
+            onEventAsync,
+            onContributionAsync,
+            cancellationToken);
+        observer.InitializeInput(request.Message.Trim());
+
+        var orchestration = new ConcurrentOrchestration(builtAgents.Select(item => item.RuntimeAgent).ToArray())
+        {
+            ResponseCallback = observer.HandleResponseAsync
+        };
+
+        var runtimeHost = new InProcessRuntime();
+        await runtimeHost.StartAsync();
+        var result = await orchestration.InvokeAsync(request.Message.Trim(), runtimeHost);
+        var finalOutputs = await result.GetValueAsync();
+        var finalMessage = NormalizeConcurrentText(finalOutputs);
 
         return observer.BuildResult(finalMessage);
     }
@@ -250,6 +293,12 @@ public sealed class FrameworkAwareTeamAgentOrchestrationRuntime : ITeamAgentOrch
 
             var agent = agentMap[member.AgentId!.Value];
             var kernel = await _kernelFactory.CreateAsync(request.TenantId, agent.ModelConfigId, agent.ModelName, cancellationToken);
+            await _agentKernelAugmentationService.ConfigureAsync(
+                request.TenantId,
+                agent.Id,
+                kernel,
+                request.EnableRag ?? false,
+                cancellationToken);
             built.Add(new BuiltAgent(
                 member,
                 agent,
@@ -258,7 +307,20 @@ public sealed class FrameworkAwareTeamAgentOrchestrationRuntime : ITeamAgentOrch
                     Name = member.RoleName,
                     Description = string.IsNullOrWhiteSpace(member.Responsibility) ? member.RoleName : member.Responsibility,
                     Instructions = BuildAgentInstructions(member, request.TeamAgent.TeamMode),
-                    Kernel = kernel
+                    Kernel = kernel,
+                    Arguments = new KernelArguments(new OpenAIPromptExecutionSettings
+                    {
+                        Temperature = agent.Temperature ?? 0,
+                        MaxTokens = agent.MaxTokens ?? 0,
+                        FunctionChoiceBehavior = FunctionChoiceBehavior.Auto(
+                            functions: null,
+                            autoInvoke: true,
+                            options: new FunctionChoiceBehaviorOptions
+                            {
+                                AllowParallelCalls = true,
+                                AllowConcurrentInvocation = true
+                            })
+                    })
                 }));
         }
 
@@ -320,6 +382,27 @@ public sealed class FrameworkAwareTeamAgentOrchestrationRuntime : ITeamAgentOrch
         return string.IsNullOrWhiteSpace(value.ToString())
             ? "已完成当前环节，但未返回文本内容。"
             : value.ToString()!.Trim();
+    }
+
+    private static string NormalizeConcurrentText(object? value)
+    {
+        if (value is null)
+        {
+            return "已完成并行编排，但未返回文本内容。";
+        }
+
+        if (value is IEnumerable<string> texts)
+        {
+            var normalized = texts
+                .Select(NormalizeText)
+                .Where(text => !string.IsNullOrWhiteSpace(text))
+                .ToList();
+            return normalized.Count == 0
+                ? "已完成并行编排，但未返回文本内容。"
+                : string.Join("\n\n", normalized);
+        }
+
+        return NormalizeText(value);
     }
 
     private sealed class ResponseObserver

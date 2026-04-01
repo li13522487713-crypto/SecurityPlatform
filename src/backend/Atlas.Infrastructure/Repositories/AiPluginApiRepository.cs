@@ -22,6 +22,24 @@ public sealed class AiPluginApiRepository : RepositoryBase<AiPluginApi>
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<AiPluginApi>> GetByPluginIdsAsync(
+        TenantId tenantId,
+        IReadOnlyCollection<long> pluginIds,
+        CancellationToken cancellationToken)
+    {
+        if (pluginIds.Count == 0)
+        {
+            return Array.Empty<AiPluginApi>();
+        }
+
+        var idArray = pluginIds.Distinct().ToArray();
+        return await Db.Queryable<AiPluginApi>()
+            .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(idArray, x.PluginId))
+            .OrderBy(x => x.PluginId, OrderByType.Asc)
+            .OrderBy(x => x.CreatedAt, OrderByType.Asc)
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<AiPluginApi?> FindByPluginAndIdAsync(
         TenantId tenantId,
         long pluginId,

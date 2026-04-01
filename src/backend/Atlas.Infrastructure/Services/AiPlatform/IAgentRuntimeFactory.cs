@@ -9,6 +9,7 @@ public interface IAgentRuntimeFactory
     Task<TeamAgentRuntimeDescriptor> ResolveRuntimeAsync(
         TenantId tenantId,
         TeamAgentMode mode,
+        TeamAgentRuntimePattern runtimePattern,
         IReadOnlyList<TeamAgentMemberItem> members,
         CancellationToken cancellationToken);
 }

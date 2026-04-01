@@ -80,10 +80,11 @@ public static class AiPlatformServiceRegistration
         services.AddScoped<IChatClientFactory, ChatClientFactory>();
         services.AddScoped<IKernelFactory, KernelFactory>();
         services.AddScoped<IAgentRuntimeFactory, AgentRuntimeFactory>();
+        services.AddScoped<AiPluginRuntimeExecutor>();
+        services.AddScoped<AgentKernelAugmentationService>();
         services.AddScoped<ITeamAgentOrchestrationRuntime, FrameworkAwareTeamAgentOrchestrationRuntime>();
         services.AddScoped<ITeamAgentSchemaDraftComposer, TeamAgentSchemaDraftComposer>();
         services.AddScoped<IAgentChatService, AgentChatService>();
-        services.AddScoped<IAgentToolCallService, AgentToolCallService>();
         services.AddScoped<ILongTermMemoryExtractionService, LongTermMemoryExtractionService>();
         services.AddScoped<IKnowledgeBaseService, KnowledgeBaseService>();
         services.AddScoped<IAiDatabaseService, AiDatabaseService>();

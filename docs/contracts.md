@@ -3360,12 +3360,16 @@ type EvaluationCaseStatus = 0 | 1 | 2 | 3; // Pending / Passed / Failed / Error
 ### Team Agent 编排运行时
 
 - `GroupChat`、`Workflow`、`Handoff` 统一走 `Semantic Kernel Agents Orchestration`
+- 旧 `Multi-Agent` 兼容运行时中，`mode=Parallel` 统一映射到 `Semantic Kernel Concurrent Orchestration`
 - 运行时选择通过配置节 `AgentFramework` 控制，当前仅保留 Semantic Kernel 原生运行时
 - 流式事件 `orchestration.runtime.selected` 会返回 `runtimeKey`、`frameworkFamily`、`packageId`、`packageVersion`
+- 单 Agent 与 Team Agent 成员统一启用 `FunctionChoiceBehavior.Auto(autoInvoke=true)`，并开启 `AllowParallelCalls`、`AllowConcurrentInvocation`
+- Agent 绑定插件会在运行时挂载为 Semantic Kernel `KernelPlugin`；知识库检索通过 `knowledge_search.search_knowledge` 函数暴露，不再在业务层预先拼接 RAG system message
+- 会话压缩统一使用 `ChatHistoryAgentThread` + `WhiteboardProvider` + `ChatHistoryTruncationReducer`，不再保留自定义工具选择或锚点摘要协议
 - 当前仓库约定的默认包版本：
   - `Microsoft.SemanticKernel.Agents.Orchestration`: `1.74.0-preview`
-  - `Microsoft.SemanticKernel.Agents.Core`: `1.74.0-preview`
-  - `Microsoft.SemanticKernel`: `1.74.0-preview`
+  - `Microsoft.SemanticKernel.Agents.Core`: `1.74.0`
+  - `Microsoft.SemanticKernel`: `1.74.0`
 
 ### Schema Draft 接口
 

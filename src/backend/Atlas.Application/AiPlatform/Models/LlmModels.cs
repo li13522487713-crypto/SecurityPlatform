@@ -2,9 +2,10 @@ namespace Atlas.Application.AiPlatform.Models;
 
 public sealed record ChatMessage(
     string Role,
-    string Content,
+    string? Content,
     string? Name = null,
-    string? ToolCallId = null);
+    string? ToolCallId = null,
+    IReadOnlyList<ChatToolCall>? ToolCalls = null);
 
 public sealed record ChatToolDefinition(
     string Name,
@@ -23,7 +24,8 @@ public sealed record ChatCompletionRequest(
     int? MaxTokens = null,
     string? Provider = null,
     IReadOnlyList<ChatToolDefinition>? Tools = null,
-    string? ToolChoice = null);
+    string? ToolChoice = null,
+    bool? AllowParallelToolCalls = null);
 
 public sealed record ChatCompletionResult(
     string Content,

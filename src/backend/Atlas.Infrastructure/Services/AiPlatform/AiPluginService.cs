@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Atlas.Application.AiPlatform.Abstractions;
@@ -23,6 +22,7 @@ public sealed class AiPluginService : IAiPluginService
     private readonly AiPluginApiRepository _apiRepository;
     private readonly BuiltInPluginMetadataProvider _metadataProvider;
     private readonly IOpenApiPluginParser _openApiPluginParser;
+    private readonly AiPluginRuntimeExecutor _runtimeExecutor;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly IUnitOfWork _unitOfWork;
 
@@ -31,6 +31,7 @@ public sealed class AiPluginService : IAiPluginService
         AiPluginApiRepository apiRepository,
         BuiltInPluginMetadataProvider metadataProvider,
         IOpenApiPluginParser openApiPluginParser,
+        AiPluginRuntimeExecutor runtimeExecutor,
         IIdGeneratorAccessor idGeneratorAccessor,
         IUnitOfWork unitOfWork)
     {
@@ -38,6 +39,7 @@ public sealed class AiPluginService : IAiPluginService
         _apiRepository = apiRepository;
         _metadataProvider = metadataProvider;
         _openApiPluginParser = openApiPluginParser;
+        _runtimeExecutor = runtimeExecutor;
         _idGeneratorAccessor = idGeneratorAccessor;
         _unitOfWork = unitOfWork;
     }
@@ -178,33 +180,36 @@ public sealed class AiPluginService : IAiPluginService
         AiPluginDebugRequest request,
         CancellationToken cancellationToken)
     {
-        var watch = Stopwatch.StartNew();
         var plugin = await GetPluginOrThrowAsync(tenantId, id, cancellationToken);
+        ValidateJsonPayload(request.InputJson, "调试输入");
+
         AiPluginApi? api = null;
         if (request.ApiId.HasValue && request.ApiId.Value > 0)
         {
             api = await _apiRepository.FindByPluginAndIdAsync(tenantId, id, request.ApiId.Value, cancellationToken);
-            if (api is null)
-            {
-                throw new BusinessException("调试接口不存在。", ErrorCodes.NotFound);
-            }
+        }
+        else
+        {
+            var apis = await _apiRepository.GetByPluginIdAsync(tenantId, id, cancellationToken);
+            api = apis.FirstOrDefault(item => item.IsEnabled);
         }
 
-        ValidateJsonPayload(request.InputJson, "调试输入");
-        var output = new
+        if (api is null)
         {
-            pluginId = plugin.Id,
-            pluginName = plugin.Name,
-            apiId = api?.Id,
-            apiName = api?.Name,
-            echoedInput = request.InputJson
-        };
-        watch.Stop();
+            throw new BusinessException("调试接口不存在。", ErrorCodes.NotFound);
+        }
+
+        var executionResult = await _runtimeExecutor.ExecuteAsync(
+            tenantId,
+            plugin,
+            api,
+            request.InputJson,
+            cancellationToken);
         return new AiPluginDebugResult(
-            true,
-            JsonSerializer.Serialize(output),
-            null,
-            watch.ElapsedMilliseconds);
+            executionResult.Success,
+            executionResult.OutputJson,
+            executionResult.ErrorMessage,
+            executionResult.DurationMs);
     }
 
     public async Task<AiPluginOpenApiImportResult> ImportOpenApiAsync(
