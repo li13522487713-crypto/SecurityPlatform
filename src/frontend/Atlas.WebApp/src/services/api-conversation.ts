@@ -1,6 +1,18 @@
 import { requestApi, toQuery, API_BASE } from "@/services/api-core";
 import type { ApiResponse, PagedRequest, PagedResult } from "@/types/api";
 import { getAccessToken, getTenantId, getAntiforgeryToken } from "@/utils/auth";
+import { getCurrentAppIdFromStorage } from "@/utils/app-context";
+
+/** 与 api-core.requestApi 一致：工作台 URL 优先带 X-App-Id */
+function resolveAppIdForFetch(): string | null {
+  if (typeof window !== "undefined") {
+    const match = window.location.pathname.match(/^\/apps\/([^/]+)/);
+    if (match?.[1]) {
+      return decodeURIComponent(match[1]);
+    }
+  }
+  return getCurrentAppIdFromStorage();
+}
 
 /** 雪花 long ID：禁止用 JS number，避免超过 MAX_SAFE_INTEGER 时精度丢失 */
 export type SnowflakeId = string;
@@ -203,7 +215,9 @@ export function createAgentChatStream(
   const abortController = new AbortController();
 
   const headers: Record<string, string> = {
-    "Content-Type": "application/json"
+    "Content-Type": "application/json",
+    Accept: "text/event-stream",
+    "Idempotency-Key": crypto.randomUUID()
   };
 
   const token = getAccessToken();
@@ -214,6 +228,12 @@ export function createAgentChatStream(
   const tenantId = getTenantId();
   if (tenantId) {
     headers["X-Tenant-Id"] = tenantId;
+  }
+
+  const appId = resolveAppIdForFetch();
+  if (appId) {
+    headers["X-App-Id"] = appId;
+    headers["X-App-Workspace"] = "1";
   }
 
   const afToken = getAntiforgeryToken();
@@ -232,6 +252,7 @@ export function createAgentChatStream(
 
   const fetchPromise = fetch(streamUrl, {
     method: "POST",
+    credentials: "include",
     headers,
     body: JSON.stringify(request),
     signal: abortController.signal
