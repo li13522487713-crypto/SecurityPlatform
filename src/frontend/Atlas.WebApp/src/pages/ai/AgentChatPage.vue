@@ -54,112 +54,118 @@
       </div>
 
       <div ref="messagesContainer" class="chat-messages">
-        <div v-if="!currentConvId" class="chat-empty">
-          <a-empty :description="t('ai.chat.emptySelect')" />
-        </div>
-        <template v-else>
-          <a-spin v-if="loadingMessages" />
-          <ChatMessage
-            v-for="msg in chatMessages"
-            :key="msg.id"
-            :message="msg"
-            :user-initial="userInitial"
-          />
-          <div v-if="chatError" class="chat-error">
-            <a-alert type="error" :message="chatError" show-icon />
+        <div class="chat-messages-inner">
+          <div v-if="!currentConvId" class="chat-empty">
+            <a-empty :description="t('ai.chat.emptySelect')" />
           </div>
-        </template>
-      </div>
-
-      <div v-if="reactSteps.length > 0" class="react-steps">
-        <a-collapse size="small">
-          <a-collapse-panel key="react" :header="t('ai.chat.reactPanelTitle')">
-            <a-timeline>
-              <a-timeline-item v-for="step in reactSteps" :key="step.id">
-                <div class="react-step-title">{{ formatReActStep(step.eventType) }}</div>
-                <pre class="react-step-content">{{ step.content }}</pre>
-              </a-timeline-item>
-            </a-timeline>
-          </a-collapse-panel>
-        </a-collapse>
+          <template v-else>
+            <a-spin v-if="loadingMessages" />
+            <ChatMessage
+              v-for="(msg, index) in chatMessages"
+              :key="msg.id"
+              :message="msg"
+              :react-steps="index === chatMessages.length - 1 && msg.role === 'assistant' ? reactSteps : undefined"
+            />
+            <div v-if="chatError" class="chat-error">
+              <a-alert type="error" :message="chatError" show-icon />
+            </div>
+          </template>
+        </div>
       </div>
 
       <div class="chat-input-area">
-        <div class="toolbar-row">
-          <div class="rag-toggle">
-            <a-checkbox v-model:checked="enableRag">{{ t("ai.chat.enableRag") }}</a-checkbox>
+        <div class="chat-input-container">
+          <div v-if="pendingAttachments.length > 0" class="attachment-list">
+            <a-tag
+              v-for="(attachment, index) in pendingAttachments"
+              :key="`${attachment.type}-${index}`"
+              closable
+              @close.prevent="removeAttachment(index)"
+            >
+              {{ attachment.type }}{{ attachment.name ? `: ${attachment.name}` : "" }}
+            </a-tag>
           </div>
-          <a-space wrap>
-            <input
-              ref="imageInputRef"
-              type="file"
-              accept="image/*"
-              style="display: none"
-              @change="handleImageSelected"
-            />
-            <a-button size="small" :disabled="isStreaming" @click="triggerImageUpload">
-              {{ t("ai.chat.attachImage") }}
-            </a-button>
-            <a-button
-              size="small"
-              :disabled="isStreaming || !audioRecorder.isSupported.value"
-              @click="handleToggleRecord"
-            >
-              {{ audioRecorder.isRecording.value ? t("ai.chat.stopRecord") : t("ai.chat.startRecord") }}
-            </a-button>
-            <a-button
-              size="small"
-              :disabled="isStreaming || pendingAttachments.length === 0"
-              @click="clearAttachments"
-            >
-              {{ t("ai.chat.clearAttachments") }}
-            </a-button>
-          </a-space>
-        </div>
-        <div v-if="pendingAttachments.length > 0" class="attachment-list">
-          <a-tag
-            v-for="(attachment, index) in pendingAttachments"
-            :key="`${attachment.type}-${index}`"
-            closable
-            @close.prevent="removeAttachment(index)"
-          >
-            {{ attachment.type }}{{ attachment.name ? `: ${attachment.name}` : "" }}
-          </a-tag>
-        </div>
-        <audio
-          v-if="audioRecorder.audioUrl.value"
-          :src="audioRecorder.audioUrl.value"
-          class="audio-preview"
-          controls
-        />
-        <div v-if="audioRecorder.error.value" class="recorder-error">
-          <a-alert type="warning" show-icon :message="audioRecorder.error.value" />
-        </div>
-        <div class="input-row">
-          <a-textarea
-            v-model:value="inputText"
-            :rows="3"
-            :placeholder="isStreaming ? t('ai.chat.placeholderStreaming') : t('ai.chat.placeholderInput')"
-            :disabled="!currentConvId || isStreaming"
-            @keydown="handleKeyDown"
+          <audio
+            v-if="audioRecorder.audioUrl.value"
+            :src="audioRecorder.audioUrl.value"
+            class="audio-preview"
+            controls
           />
-          <div class="input-actions">
-            <a-button
-              v-if="isStreaming"
-              type="default"
-              danger
-              @click="handleCancel"
-            >
-              {{ t("ai.chat.stop") }}
-            </a-button>
-            <a-button
-              v-else
-              type="primary"
-              :disabled="!currentConvId || (!inputText.trim() && pendingAttachments.length === 0)"
-              @click="handleSend"
-            >
-              {{ t("ai.chat.send") }}
-            </a-button>
+          <div v-if="audioRecorder.error.value" class="recorder-error">
+            <a-alert type="warning" show-icon :message="audioRecorder.error.value" />
+          </div>
+          
+          <div class="input-row">
+            <a-textarea
+              v-model:value="inputText"
+              :auto-size="{ minRows: 1, maxRows: 6 }"
+              :placeholder="isStreaming ? t('ai.chat.placeholderStreaming') : t('ai.chat.placeholderInput')"
+              :disabled="!currentConvId || isStreaming"
+              :bordered="false"
+              class="chat-textarea"
+              @keydown="handleKeyDown"
+            />
+            <div class="input-actions">
+              <a-button
+                v-if="isStreaming"
+                type="primary"
+                danger
+                shape="circle"
+                @click="handleCancel"
+              >
+                <template #icon><StopOutlined /></template>
+              </a-button>
+              <a-button
+                v-else
+                type="primary"
+                shape="circle"
+                :disabled="!currentConvId || (!inputText.trim() && pendingAttachments.length === 0)"
+                @click="handleSend"
+              >
+                <template #icon><SendOutlined /></template>
+              </a-button>
+            </div>
+          </div>
+          
+          <div class="toolbar-row">
+            <a-space :size="4">
+              <input
+                ref="imageInputRef"
+                type="file"
+                accept="image/*"
+                style="display: none"
+                @change="handleImageSelected"
+              />
+              <a-tooltip :title="t('ai.chat.attachImage')">
+                <a-button type="text" size="small" :disabled="isStreaming" @click="triggerImageUpload">
+                  <template #icon><PaperClipOutlined /></template>
+                </a-button>
+              </a-tooltip>
+              <a-tooltip :title="audioRecorder.isRecording.value ? t('ai.chat.stopRecord') : t('ai.chat.startRecord')">
+                <a-button
+                  type="text"
+                  size="small"
+                  :disabled="isStreaming || !audioRecorder.isSupported.value"
+                  :danger="audioRecorder.isRecording.value"
+                  @click="handleToggleRecord"
+                >
+                  <template #icon><AudioOutlined /></template>
+                </a-button>
+              </a-tooltip>
+              <a-tooltip v-if="pendingAttachments.length > 0" :title="t('ai.chat.clearAttachments')">
+                <a-button
+                  type="text"
+                  size="small"
+                  :disabled="isStreaming"
+                  @click="clearAttachments"
+                >
+                  <template #icon><DeleteOutlined /></template>
+                </a-button>
+              </a-tooltip>
+            </a-space>
+            <div class="rag-toggle">
+              <a-checkbox v-model:checked="enableRag">{{ t("ai.chat.enableRag") }}</a-checkbox>
+            </div>
           </div>
         </div>
       </div>
@@ -170,6 +176,7 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted, watch, onUnmounted } from "vue";
 import { useI18n } from "vue-i18n";
+import { PaperClipOutlined, AudioOutlined, SendOutlined, StopOutlined, DeleteOutlined } from "@ant-design/icons-vue";
 
 const { t, locale } = useI18n();
 
@@ -185,7 +192,6 @@ import { message } from "ant-design-vue";
 import ChatMessage from "@/components/ai/ChatMessage.vue";
 import { useStreamChat } from "@/composables/useStreamChat";
 import { useAudioRecorder } from "@/composables/useAudioRecorder";
-import type { ReActEventType } from "@/composables/useReActStream";
 import {
   getConversationsPaged,
   createConversation,
@@ -211,7 +217,6 @@ const inputText = ref("");
 const enableRag = ref(false);
 const messagesContainer = ref<HTMLElement | null>(null);
 const imageInputRef = ref<HTMLInputElement | null>(null);
-const userInitial = ref("U");
 const pendingAttachments = ref<AgentChatAttachment[]>([]);
 const audioRecorder = useAudioRecorder();
 
@@ -442,21 +447,6 @@ function handleKeyDown(e: KeyboardEvent) {
   }
 }
 
-function formatReActStep(eventType: ReActEventType) {
-  switch (eventType) {
-    case "thought":
-      return t("ai.chat.reactThought");
-    case "action":
-      return t("ai.chat.reactAction");
-    case "observation":
-      return t("ai.chat.reactObservation");
-    case "final":
-      return t("ai.chat.reactFinal");
-    default:
-      return eventType;
-  }
-}
-
 async function scrollToBottom() {
   await nextTick();
 
@@ -591,6 +581,8 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  background: #f9f9f9;
+  position: relative;
 }
 
 .chat-header {
@@ -599,6 +591,8 @@ onMounted(async () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  background: #fff;
+  z-index: 10;
 }
 
 .agent-name {
@@ -609,7 +603,15 @@ onMounted(async () => {
 .chat-messages {
   flex: 1;
   overflow-y: auto;
-  padding: 16px;
+  padding: 24px 16px 120px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.chat-messages-inner {
+  width: 100%;
+  max-width: 800px;
   display: flex;
   flex-direction: column;
 }
@@ -619,42 +621,72 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: center;
+  min-height: 300px;
 }
 
 .chat-error {
   margin-top: 8px;
+  width: 100%;
 }
 
 .chat-input-area {
-  border-top: 1px solid #f0f0f0;
-  padding: 12px 16px;
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 0 16px 24px;
+  background: linear-gradient(180deg, transparent, #f9f9f9 20%);
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.chat-input-container {
+  width: 100%;
+  max-width: 800px;
   background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  padding: 12px 16px;
+  border: 1px solid #f0f0f0;
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.input-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  margin-bottom: 8px;
+}
+
+.chat-textarea {
+  flex: 1;
+  padding: 0;
+  resize: none;
+  font-size: 14px;
+  line-height: 1.5;
+  box-shadow: none !important;
+}
+
+.chat-textarea:focus {
+  box-shadow: none !important;
+}
+
+.input-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-bottom: 2px;
 }
 
 .toolbar-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-
-.react-steps {
-  border-top: 1px solid #f0f0f0;
-  padding: 8px 16px;
-  background: #fcfcfc;
-}
-
-.react-step-title {
-  font-weight: 600;
-  margin-bottom: 4px;
-}
-
-.react-step-content {
-  margin: 0;
-  white-space: pre-wrap;
-  word-break: break-word;
-  font-size: 12px;
+  border-top: 1px solid #f5f5f5;
+  padding-top: 8px;
 }
 
 .rag-toggle {
@@ -668,27 +700,10 @@ onMounted(async () => {
 .audio-preview {
   width: 100%;
   margin-bottom: 8px;
+  height: 32px;
 }
 
 .recorder-error {
   margin-bottom: 8px;
-}
-
-.input-row {
-  display: flex;
-  gap: 8px;
-  align-items: flex-end;
-}
-
-.input-row :deep(.ant-input) {
-  flex: 1;
-  resize: none;
-}
-
-.input-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding-bottom: 2px;
 }
 </style>
