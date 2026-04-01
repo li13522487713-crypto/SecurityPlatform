@@ -1,60 +1,64 @@
 import { defineStore } from "pinia";
+import {
+  applyStructuralPatch,
+  cloneStructuralValue,
+  createStructuralPatchPair,
+  type StructuralPatchOperation,
+} from "@/utils/structuralPatch";
 
 const MAX_HISTORY = 10;
 
-function deepClone<T>(value: T): T {
-  if (typeof structuredClone === "function") {
-    try {
-      return structuredClone(value);
-    } catch {
-      /* fall through */
-    }
-  }
-  return JSON.parse(JSON.stringify(value)) as T;
+interface SchemaPatchEntry {
+  forward: StructuralPatchOperation[];
+  backward: StructuralPatchOperation[];
 }
 
 interface SchemaHistoryState {
-  stack: string[];
+  baseSchema: Record<string, unknown> | null;
+  currentSchemaValue: Record<string, unknown> | null;
+  stack: SchemaPatchEntry[];
   pointer: number;
 }
 
 export const useSchemaHistoryStore = defineStore("schemaHistory", {
   state: (): SchemaHistoryState => ({
+    baseSchema: null,
+    currentSchemaValue: null,
     stack: [],
     pointer: -1,
   }),
 
   getters: {
-    canUndo: (state): boolean => state.pointer > 0,
+    canUndo: (state): boolean => state.pointer >= 0,
     canRedo: (state): boolean => state.pointer < state.stack.length - 1,
-    currentSchema: (state): Record<string, unknown> | null => {
-      if (state.pointer < 0 || state.pointer >= state.stack.length) {
-        return null;
-      }
-      try {
-        return JSON.parse(state.stack[state.pointer]) as Record<string, unknown>;
-      } catch {
-        return null;
-      }
-    },
+    currentSchema: (state): Record<string, unknown> | null =>
+      state.currentSchemaValue ? cloneStructuralValue(state.currentSchemaValue) : null,
   },
 
   actions: {
     reset() {
+      this.baseSchema = null;
+      this.currentSchemaValue = null;
       this.stack = [];
       this.pointer = -1;
     },
 
     init(schema: Record<string, unknown>) {
-      const json = JSON.stringify(deepClone(schema));
-      this.stack = [json];
-      this.pointer = 0;
+      const initial = cloneStructuralValue(schema);
+      this.baseSchema = initial;
+      this.currentSchemaValue = cloneStructuralValue(initial);
+      this.stack = [];
+      this.pointer = -1;
     },
 
     pushState(schema: Record<string, unknown>) {
-      const json = JSON.stringify(deepClone(schema));
+      if (!this.currentSchemaValue || !this.baseSchema) {
+        this.init(schema);
+        return;
+      }
 
-      if (this.pointer >= 0 && this.stack[this.pointer] === json) {
+      const patchEntry = createStructuralPatchPair(this.currentSchemaValue, schema);
+      if (patchEntry.forward.length === 0) {
         return;
       }
 
@@ -62,29 +66,40 @@ export const useSchemaHistoryStore = defineStore("schemaHistory", {
         this.stack = this.stack.slice(0, this.pointer + 1);
       }
 
-      this.stack.push(json);
+      this.stack.push(patchEntry);
+      this.pointer += 1;
+
+      this.currentSchemaValue = applyStructuralPatch(this.currentSchemaValue, patchEntry.forward);
 
       if (this.stack.length > MAX_HISTORY) {
-        this.stack = this.stack.slice(this.stack.length - MAX_HISTORY);
+        const removed = this.stack.shift();
+        if (removed) {
+          this.baseSchema = applyStructuralPatch(this.baseSchema, removed.forward);
+          this.pointer = Math.max(this.pointer - 1, -1);
+        }
       }
-
-      this.pointer = this.stack.length - 1;
     },
 
     undo(): Record<string, unknown> | null {
-      if (!this.canUndo) {
+      if (!this.canUndo || !this.currentSchemaValue) {
         return null;
       }
+
+      const entry = this.stack[this.pointer];
+      this.currentSchemaValue = applyStructuralPatch(this.currentSchemaValue, entry.backward);
       this.pointer -= 1;
-      return this.currentSchema;
+      return cloneStructuralValue(this.currentSchemaValue);
     },
 
     redo(): Record<string, unknown> | null {
-      if (!this.canRedo) {
+      if (!this.canRedo || !this.currentSchemaValue) {
         return null;
       }
+
+      const entry = this.stack[this.pointer + 1];
+      this.currentSchemaValue = applyStructuralPatch(this.currentSchemaValue, entry.forward);
       this.pointer += 1;
-      return this.currentSchema;
+      return cloneStructuralValue(this.currentSchemaValue);
     },
   },
 });

@@ -526,15 +526,38 @@ const loadRelationViewItems = () => {
 const refreshAll = async () => {
   const appIdSnapshot = selectedAppId.value;
   const requestId = ++refreshRequestId;
+
+  // 先加载关系视图列表，避免目录请求完成前侧栏空白。
+  loadRelationViewItems();
+
   await loadTableDirectory(appIdSnapshot);
   if (requestId !== refreshRequestId || appIdSnapshot !== selectedAppId.value) {
     return;
   }
+
   loadRelationViewItems();
   if (requestId !== refreshRequestId || appIdSnapshot !== selectedAppId.value) {
     return;
   }
-  await loadSelectedTableDetail(selectedTableKey.value, appIdSnapshot);
+
+  const tableKeySnapshot = selectedTableKey.value;
+  if (!tableKeySnapshot) {
+    selectedTableDetail.value = null;
+    return;
+  }
+
+  // 目录稳定后下一拍并发触发表详情加载，避免 refreshAll 串行阻塞。
+  queueMicrotask(() => {
+    if (
+      requestId !== refreshRequestId ||
+      appIdSnapshot !== selectedAppId.value ||
+      selectedTableKey.value !== tableKeySnapshot
+    ) {
+      return;
+    }
+
+    void loadSelectedTableDetail(tableKeySnapshot, appIdSnapshot);
+  });
 };
 
 const selectTable = (tableKey: string) => {

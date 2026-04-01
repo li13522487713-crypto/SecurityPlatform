@@ -82,10 +82,26 @@ onMounted(() => {
 });
 
 watch(
-  () => [props.schemaRevision, props.dataRevision, props.schema, props.data],
+  () => [props.schemaRevision, props.dataRevision],
   () => {
     requestRenderSchema();
   }
+);
+
+watch(
+  () => props.schema,
+  () => {
+    requestRenderSchema();
+  },
+  { deep: false }
+);
+
+watch(
+  () => props.data,
+  () => {
+    requestRenderSchema();
+  },
+  { deep: false }
 );
 
 onBeforeUnmount(() => {

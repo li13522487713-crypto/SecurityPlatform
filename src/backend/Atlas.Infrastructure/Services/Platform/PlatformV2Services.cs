@@ -2887,6 +2887,7 @@ public sealed class ReleaseCenterQueryService : IReleaseCenterQueryService
 
 public sealed class CozeMappingQueryService : ICozeMappingQueryService
 {
+    private const int CozePerAppConcurrency = 4;
     private readonly ISqlSugarClient _mainDb;
     private readonly Atlas.Infrastructure.Services.IAppDbScopeFactory _appDbScopeFactory;
 
@@ -2945,6 +2946,7 @@ public sealed class CozeMappingQueryService : ICozeMappingQueryService
         IReadOnlyList<LowCodeApp> appInstances,
         CancellationToken cancellationToken)
     {
+        using var gate = new SemaphoreSlim(CozePerAppConcurrency);
         var tasks = new List<Task<List<long>>>
         {
             _mainDb.Queryable<RuntimeRoute>()
@@ -2954,11 +2956,23 @@ public sealed class CozeMappingQueryService : ICozeMappingQueryService
         };
         tasks.AddRange(appInstances.Select(async app =>
         {
-            var appDb = await _appDbScopeFactory.GetAppClientAsync(tenantId, app.Id, cancellationToken);
-            return await appDb.Queryable<RuntimeRoute>()
-                .Where(item => item.TenantIdValue == tenantId.Value)
-                .Select(item => item.Id)
-                .ToListAsync(cancellationToken);
+            await gate.WaitAsync(cancellationToken);
+            try
+            {
+                var appDb = await _appDbScopeFactory.GetAppClientAsync(tenantId, app.Id, cancellationToken);
+                return await appDb.Queryable<RuntimeRoute>()
+                    .Where(item => item.TenantIdValue == tenantId.Value)
+                    .Select(item => item.Id)
+                    .ToListAsync(cancellationToken);
+            }
+            catch (BusinessException ex) when (ShouldSkipNoDataSource(ex))
+            {
+                return [];
+            }
+            finally
+            {
+                gate.Release();
+            }
         }));
 
         await Task.WhenAll(tasks);
@@ -2973,6 +2987,7 @@ public sealed class CozeMappingQueryService : ICozeMappingQueryService
         IReadOnlyList<LowCodeApp> appInstances,
         CancellationToken cancellationToken)
     {
+        using var gate = new SemaphoreSlim(CozePerAppConcurrency);
         var tasks = new List<Task<List<long>>>
         {
             _mainDb.Queryable<WorkflowExecution>()
@@ -2982,11 +2997,23 @@ public sealed class CozeMappingQueryService : ICozeMappingQueryService
         };
         tasks.AddRange(appInstances.Select(async app =>
         {
-            var appDb = await _appDbScopeFactory.GetAppClientAsync(tenantId, app.Id, cancellationToken);
-            return await appDb.Queryable<WorkflowExecution>()
-                .Where(item => item.TenantIdValue == tenantId.Value)
-                .Select(item => item.Id)
-                .ToListAsync(cancellationToken);
+            await gate.WaitAsync(cancellationToken);
+            try
+            {
+                var appDb = await _appDbScopeFactory.GetAppClientAsync(tenantId, app.Id, cancellationToken);
+                return await appDb.Queryable<WorkflowExecution>()
+                    .Where(item => item.TenantIdValue == tenantId.Value)
+                    .Select(item => item.Id)
+                    .ToListAsync(cancellationToken);
+            }
+            catch (BusinessException ex) when (ShouldSkipNoDataSource(ex))
+            {
+                return [];
+            }
+            finally
+            {
+                gate.Release();
+            }
         }));
 
         await Task.WhenAll(tasks);
@@ -2994,6 +3021,12 @@ public sealed class CozeMappingQueryService : ICozeMappingQueryService
             .SelectMany(task => task.Result)
             .Distinct()
             .Count();
+    }
+
+    private static bool ShouldSkipNoDataSource(BusinessException ex)
+    {
+        return string.Equals(ex.Code, ErrorCodes.ValidationError, StringComparison.Ordinal)
+            && ex.Message.Contains("未绑定可用数据源", StringComparison.OrdinalIgnoreCase);
     }
 }
 

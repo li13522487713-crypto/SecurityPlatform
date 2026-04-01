@@ -11,6 +11,12 @@
  */
 import { defineStore } from 'pinia';
 import { nanoid } from 'nanoid';
+import {
+  applyStructuralPatch,
+  cloneStructuralValue,
+  createStructuralPatchPair,
+  type StructuralPatchOperation,
+} from '@/utils/structuralPatch';
 import type {
   ApprovalFlowTree,
   TreeNode,
@@ -81,10 +87,6 @@ function createDefaultTree(): ApprovalFlowTree {
       },
     },
   };
-}
-
-function deepClone<T>(obj: T): T {
-  return JSON.parse(JSON.stringify(obj));
 }
 
 /** 类型守卫：检查节点是否可包含 childNode */
@@ -409,7 +411,14 @@ interface ApprovalFlowState {
   /** 是否有未保存的修改 */
   isDirty: boolean;
   /** 撤销/重做历史栈 */
-  _history: string[];
+  _history: Array<{
+    forward: StructuralPatchOperation[];
+    backward: StructuralPatchOperation[];
+  }>;
+  /** 历史基线（当超过上限移除旧记录时推进） */
+  _historyBase: any;
+  /** 当前历史快照（用于计算 diff） */
+  _historyCurrent: any;
   /** 当前历史索引 */
   _historyIndex: number;
   /** 是否正在进行撤销/重做操作（防止重复推栈） */
@@ -423,6 +432,8 @@ export const useApprovalFlowStore = defineStore('approvalFlow', {
     validationErrors: {},
     isDirty: false,
     _history: [],
+    _historyBase: createDefaultTree(),
+    _historyCurrent: createDefaultTree(),
     _historyIndex: -1,
     _isUndoRedoing: false,
   }),
@@ -441,7 +452,7 @@ export const useApprovalFlowStore = defineStore('approvalFlow', {
 
     /** 是否可撤销 */
     canUndo(): boolean {
-      return this._historyIndex > 0;
+      return this._historyIndex >= 0;
     },
 
     /** 是否可重做 */
@@ -500,19 +511,27 @@ export const useApprovalFlowStore = defineStore('approvalFlow', {
     _pushHistory() {
       if (this._isUndoRedoing) return;
 
+      const patch = createStructuralPatchPair(this._historyCurrent, this.flowTree);
+      if (patch.forward.length === 0) {
+        return;
+      }
+
       // 截断当前索引之后的历史
       if (this._historyIndex < this._history.length - 1) {
         this._history = this._history.slice(0, this._historyIndex + 1);
       }
 
-      const snapshot = JSON.stringify(this.flowTree);
-      this._history.push(snapshot);
+      this._history.push(patch);
       this._historyIndex++;
+      this._historyCurrent = applyStructuralPatch(this._historyCurrent, patch.forward);
 
       // 限制历史数量
       if (this._history.length > MAX_HISTORY) {
-        this._history.shift();
-        this._historyIndex--;
+        const removed = this._history.shift();
+        if (removed) {
+          this._historyBase = applyStructuralPatch(this._historyBase, removed.forward);
+          this._historyIndex = Math.max(this._historyIndex - 1, -1);
+        }
       }
 
       this.isDirty = true;
@@ -546,31 +565,40 @@ export const useApprovalFlowStore = defineStore('approvalFlow', {
     undo() {
       if (!this.canUndo) return;
       this._isUndoRedoing = true;
-      this._historyIndex--;
-      this.flowTree = JSON.parse(this._history[this._historyIndex]);
+      const patch = this._history[this._historyIndex];
+      this._historyCurrent = applyStructuralPatch(this._historyCurrent, patch.backward);
+      this.flowTree = cloneStructuralValue(this._historyCurrent);
+      this._historyIndex -= 1;
       this._isUndoRedoing = false;
+      this._runRealtimeValidation();
     },
 
     /** 重做 */
     redo() {
       if (!this.canRedo) return;
       this._isUndoRedoing = true;
-      this._historyIndex++;
-      this.flowTree = JSON.parse(this._history[this._historyIndex]);
+      const patch = this._history[this._historyIndex + 1];
+      this._historyCurrent = applyStructuralPatch(this._historyCurrent, patch.forward);
+      this.flowTree = cloneStructuralValue(this._historyCurrent);
+      this._historyIndex += 1;
       this._isUndoRedoing = false;
+      this._runRealtimeValidation();
     },
 
     // ── 状态初始化 ──
 
     /** 初始化/加载流程树 */
     initFlowTree(tree: ApprovalFlowTree) {
-      this.flowTree = deepClone(tree);
+      this.flowTree = cloneStructuralValue(tree);
       this.selectedNodeId = null;
       this.validationErrors = {};
       this.isDirty = false;
-      this._history = [JSON.stringify(this.flowTree)];
-      this._historyIndex = 0;
+      this._historyBase = cloneStructuralValue(this.flowTree);
+      this._historyCurrent = cloneStructuralValue(this.flowTree);
+      this._history = [];
+      this._historyIndex = -1;
       this._isUndoRedoing = false;
+      this._runRealtimeValidation();
     },
 
     /** 重置为默认空树 */

@@ -1,23 +1,23 @@
 <template>
   <a-card :title="pageTitle" class="page-card">
-    <a-tabs v-model:activeKey="activeTab" @change="handleTabChange">
+    <a-tabs v-model:activeKey="activeTab" :destroy-inactive-tab-pane="true" @change="handleTabChange">
       <a-tab-pane key="data" :tab="t('dynamicWorkbench.tabData')">
-        <component :is="tabComponents.data" />
+        <component v-if="activeTab === 'data'" :is="tabComponents.data" />
       </a-tab-pane>
       <a-tab-pane key="fields" :tab="t('dynamicWorkbench.tabFields')">
-        <component :is="tabComponents.fields" />
+        <component v-if="activeTab === 'fields'" :is="tabComponents.fields" />
       </a-tab-pane>
       <a-tab-pane key="relations" :tab="t('dynamicWorkbench.tabRelations')">
-        <component :is="tabComponents.relations" :app-id="appId" />
+        <component v-if="activeTab === 'relations'" :is="tabComponents.relations" :app-id="appId" />
       </a-tab-pane>
       <a-tab-pane key="views" :tab="t('dynamicWorkbench.tabViews')">
-        <component :is="tabComponents.views" :app-id="appId" />
+        <component v-if="activeTab === 'views'" :is="tabComponents.views" :app-id="appId" />
       </a-tab-pane>
       <a-tab-pane key="transform" :tab="t('dynamicWorkbench.tabTransform')">
-        <component :is="tabComponents.transform" />
+        <component v-if="activeTab === 'transform'" :is="tabComponents.transform" />
       </a-tab-pane>
       <a-tab-pane key="migrations" :tab="t('dynamicWorkbench.tabMigrations')">
-        <component :is="tabComponents.migrations" />
+        <component v-if="activeTab === 'migrations'" :is="tabComponents.migrations" />
       </a-tab-pane>
     </a-tabs>
   </a-card>

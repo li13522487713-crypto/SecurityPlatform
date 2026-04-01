@@ -35,7 +35,10 @@ import type { AmisSchema } from "@/types/amis";
 const route = useRoute();
 const router = useRouter();
 const loading = ref(false);
-const AmisRenderer = defineAsyncComponent(() => import("@/components/amis/amis-renderer.vue"));
+const AmisRenderer = defineAsyncComponent({
+  loader: () => import("@/components/amis/amis-renderer.vue"),
+  suspensible: false
+});
 const schema = shallowRef<AmisSchema | null>(null);
 const schemaRevision = ref(0);
 const dataRevision = ref(0);

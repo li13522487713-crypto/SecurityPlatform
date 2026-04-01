@@ -256,11 +256,6 @@ public sealed record DynamicRecordListResult(
     int PageSize,
     IReadOnlyList<DynamicColumnDef> Columns);
 
-public sealed record DynamicRecordExportResult(
-    string FileName,
-    string ContentType,
-    byte[] Content);
-
 public sealed record DynamicColumnDef(
     string Name,
     string Label,

@@ -226,10 +226,18 @@ onMounted(() => {
 });
 
 watch(
-  () => [props.schemaRevision, props.schema, props.preview, props.isMobile, props.theme, props.plugins.length],
+  () => [props.schemaRevision, props.preview, props.isMobile, props.theme, props.plugins.length],
   () => {
     requestRenderEditor();
   }
+);
+
+watch(
+  () => props.schema,
+  () => {
+    requestRenderEditor();
+  },
+  { deep: false }
 );
 
 onBeforeUnmount(() => {
