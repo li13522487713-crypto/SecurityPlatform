@@ -2,40 +2,9 @@
 import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
 import path from "node:path";
-import { viteStaticCopy } from "vite-plugin-static-copy";
 
 export default defineConfig({
-  plugins: [
-    vue(),
-    viteStaticCopy({
-      targets: [
-        {
-          src: "node_modules/tinymce/skins/**/*",
-          dest: "tinymce/skins"
-        },
-        {
-          src: "node_modules/tinymce/themes/**/*",
-          dest: "tinymce/themes"
-        },
-        {
-          src: "node_modules/tinymce/plugins/**/*",
-          dest: "tinymce/plugins"
-        },
-        {
-          src: "node_modules/tinymce/icons/**/*",
-          dest: "tinymce/icons"
-        },
-        {
-          src: "node_modules/tinymce/models/**/*",
-          dest: "tinymce/models"
-        },
-        {
-          src: "node_modules/tinymce/tinymce.min.js",
-          dest: "tinymce"
-        }
-      ]
-    })
-  ],
+  plugins: [vue()],
   test: {
     environment: "node",
     include: ["src/**/*.spec.ts"],
@@ -81,7 +50,7 @@ export default defineConfig({
     open: true,
     proxy: {
       "/api": {
-        target: "http://localhost:5000",
+        target: "http://127.0.0.1:5000",
         changeOrigin: true,
         secure: false
       }
@@ -143,7 +112,6 @@ export default defineConfig({
           if (pkg("monaco-editor")) return "vendor-monaco";
           if (pkg("echarts", "zrender")) return "vendor-echarts";
           if (pkg("exceljs", "xlsx", "codepage")) return "vendor-excel";
-          if (pkg("tinymce")) return "vendor-tinymce";
           if (pkg("hls.js")) return "vendor-hls";
           if (pkg("moment", "moment-timezone")) return "vendor-moment";
           if (pkg("codemirror")) return "vendor-codemirror";

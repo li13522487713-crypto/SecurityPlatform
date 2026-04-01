@@ -3,10 +3,9 @@ import type { Locale as AntdLocale } from "ant-design-vue/es/locale";
 import antdEnUS from "ant-design-vue/es/locale/en_US";
 import antdZhCN from "ant-design-vue/es/locale/zh_CN";
 import { extraMessages } from "./extra-messages";
+import type { MessageTree } from "./runtime-message-types";
 
 export type SupportedLocale = "zh-CN" | "en-US";
-
-type MessageTree = Record<string, unknown>;
 
 export const DEFAULT_LOCALE: SupportedLocale = "zh-CN";
 export const SUPPORTED_LOCALES: readonly SupportedLocale[] = ["zh-CN", "en-US"] as const;

@@ -11,7 +11,7 @@ using Microsoft.Extensions.Caching.Memory;
 
 namespace Atlas.Infrastructure.Services;
 
-public sealed class AppDbScopeFactory : IAppDbScopeFactory
+public sealed class AppDbScopeFactory : IAppDbScopeFactory, IDisposable
 {
     private const string AppClientCachePrefix = "app-db-client:";
     private const int AppClientCacheLimit = 128;
@@ -21,14 +21,13 @@ public sealed class AppDbScopeFactory : IAppDbScopeFactory
     private readonly ITenantDbConnectionFactory _connectionFactory;
     private readonly ISqlSugarClient _mainDb;
     private readonly IMemoryCache _cache;
+    private readonly MemoryCache _appClientCache;
 
     // 缓存已完成 Schema 初始化的 (tenantId:appInstanceId) 组合，进程生命周期内有效
     private static readonly ConcurrentDictionary<string, bool> _schemaInitializedKeys
         = new(StringComparer.OrdinalIgnoreCase);
 
     // 按 (tenantId:appId) 缓存 SqlSugarScope（线程安全单例），避免并发请求对同一 SQLite 文件各自建连接导致写锁冲突
-    private static readonly ConcurrentDictionary<string, DateTimeOffset> _clientCacheAccessTimes
-        = new(StringComparer.OrdinalIgnoreCase);
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> _clientCacheLocks
         = new(StringComparer.OrdinalIgnoreCase);
 
@@ -45,6 +44,10 @@ public sealed class AppDbScopeFactory : IAppDbScopeFactory
         _connectionFactory = connectionFactory;
         _mainDb = mainDb;
         _cache = cache;
+        _appClientCache = new MemoryCache(new MemoryCacheOptions
+        {
+            SizeLimit = AppClientCacheLimit
+        });
     }
 
     public async Task<ISqlSugarClient> GetAppClientAsync(
@@ -86,9 +89,8 @@ public sealed class AppDbScopeFactory : IAppDbScopeFactory
         var schemaKey = $"{tenantId.Value}:{appInstanceId}";
         var clientCacheKey = $"{AppClientCachePrefix}{schemaKey}";
 
-        if (_cache.TryGetValue(clientCacheKey, out ISqlSugarClient? cachedClient) && cachedClient is not null)
+        if (_appClientCache.TryGetValue(clientCacheKey, out ISqlSugarClient? cachedClient) && cachedClient is not null)
         {
-            _clientCacheAccessTimes[schemaKey] = DateTimeOffset.UtcNow;
             return cachedClient;
         }
 
@@ -97,7 +99,7 @@ public sealed class AppDbScopeFactory : IAppDbScopeFactory
         ISqlSugarClient db;
         try
         {
-            if (_cache.TryGetValue(clientCacheKey, out cachedClient) && cachedClient is not null)
+            if (_appClientCache.TryGetValue(clientCacheKey, out cachedClient) && cachedClient is not null)
             {
                 db = cachedClient;
             }
@@ -123,11 +125,12 @@ public sealed class AppDbScopeFactory : IAppDbScopeFactory
                 var scope = new SqlSugarScope(config);
                 scope.QueryFilter.AddTableFilter<Atlas.Core.Abstractions.TenantEntity>(it => it.TenantIdValue == tenantId.Value);
                 db = scope;
-                _cache.Set(
+                _appClientCache.Set(
                     clientCacheKey,
                     db,
                     new MemoryCacheEntryOptions
                     {
+                        Size = 1,
                         SlidingExpiration = AppClientSlidingExpiration,
                         AbsoluteExpirationRelativeToNow = AppClientAbsoluteExpiration
                     }.RegisterPostEvictionCallback(static (key, value, reason, state) =>
@@ -138,7 +141,6 @@ public sealed class AppDbScopeFactory : IAppDbScopeFactory
                         }
 
                         var schemaKey = cacheKey[AppClientCachePrefix.Length..];
-                        _clientCacheAccessTimes.TryRemove(schemaKey, out _);
                         if (_clientCacheLocks.TryRemove(schemaKey, out var removedLock))
                         {
                             removedLock.Dispose();
@@ -156,9 +158,6 @@ public sealed class AppDbScopeFactory : IAppDbScopeFactory
             cacheLock.Release();
         }
 
-        _clientCacheAccessTimes[schemaKey] = DateTimeOffset.UtcNow;
-        TrimAppClientCacheIfNeeded();
-
         // 只在进程首次访问该应用库时执行 Schema 检查，后续跳过
         if (!_schemaInitializedKeys.ContainsKey(schemaKey))
         {
@@ -169,21 +168,9 @@ public sealed class AppDbScopeFactory : IAppDbScopeFactory
         return db;
     }
 
-    private void TrimAppClientCacheIfNeeded()
+    public void Dispose()
     {
-        while (_clientCacheAccessTimes.Count > AppClientCacheLimit)
-        {
-            var oldest = _clientCacheAccessTimes
-                .OrderBy(item => item.Value)
-                .Select(item => item.Key)
-                .FirstOrDefault();
-            if (string.IsNullOrWhiteSpace(oldest))
-            {
-                return;
-            }
-
-            _cache.Remove($"{AppClientCachePrefix}{oldest}");
-        }
+        _appClientCache.Dispose();
     }
 
     private static void EnsureAppSchema(ISqlSugarClient db)

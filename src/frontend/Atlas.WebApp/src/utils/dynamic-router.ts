@@ -304,49 +304,52 @@ export function buildRoutesFromRouters(
   lastRouter: RouterVo | false = false,
   type = false
 ): RouteRecordRaw[] {
+  void lastRouter;
   return routers
     .filter((item) => item.path && item.name)
     .map((item) => {
-      const normalizedItem = type && item.children
-        ? { ...item, children: filterChildren(item.children, item) }
-        : item;
+      const normalizedItem: RouterVo = {
+        ...item,
+        children: type && item.children
+          ? filterChildren(item.children, item)
+          : item.children
+      };
       return toRouteRecord(normalizedItem, type);
     })
     .filter((item): item is RouteRecordRaw => !!item);
 }
 
 function filterChildren(childrenMap: RouterVo[], lastRouter: RouterVo | false = false): RouterVo[] {
-  let children: RouterVo[] = [];
-  childrenMap.forEach((el) => {
-    if (el.children && el.children.length) {
-      if (el.component === "ParentView") {
-        el.children.forEach((c) => {
-          const child = {
-            ...c,
-            path: joinRoutePath(el.path, c.path)
-          };
-          if (c.children && c.children.length) {
-            children = children.concat(filterChildren(c.children, child));
-            return;
-          }
-          children.push(child);
-        });
-        return;
-      }
-    }
-    if (lastRouter) {
-      children = children.concat({
-        ...el,
-        path: joinRoutePath(lastRouter.path, el.path)
+  return childrenMap.flatMap((node) => {
+    if (node.children && node.children.length && node.component === "ParentView") {
+      return node.children.flatMap((childNode) => {
+        const mergedChild: RouterVo = {
+          ...childNode,
+          path: joinRoutePath(node.path, childNode.path)
+        };
+        if (childNode.children && childNode.children.length) {
+          return filterChildren(childNode.children, mergedChild);
+        }
+        return [mergedChild];
       });
-      return;
     }
-    children = children.concat({
-      ...el,
-      children: el.children ? filterChildren(el.children) : el.children
-    });
+
+    if (lastRouter) {
+      return [
+        {
+          ...node,
+          path: joinRoutePath(lastRouter.path, node.path)
+        }
+      ];
+    }
+
+    return [
+      {
+        ...node,
+        children: node.children ? filterChildren(node.children) : node.children
+      }
+    ];
   });
-  return children;
 }
 
 function toRouteRecord(item: RouterVo, type: boolean): RouteRecordRaw | null {

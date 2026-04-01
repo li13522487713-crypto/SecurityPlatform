@@ -61,7 +61,7 @@ const globalErrorShownAt = new Map<string, number>();
 const APP_ID_HEADER = "X-App-Id";
 const APP_WORKSPACE_HEADER = "X-App-Workspace";
 const APP_WORKSPACE_HEADER_VALUE = "1";
-const DEFAULT_HOT_GET_CACHE_TTL = 3000;
+const DEFAULT_HOT_GET_CACHE_TTL = 0;
 const HOT_GET_CACHE_MAX_ENTRIES = 100;
 
 const ErrorCodes = {

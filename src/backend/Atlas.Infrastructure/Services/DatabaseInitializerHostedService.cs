@@ -321,6 +321,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         await EnsureTenantAppDataSourceBindingHealthAsync(scope.ServiceProvider, appContextAccessor, db, cancellationToken);
         await EnsureTeamAgentTemplateSeedDataAsync(
             db,
+            appContextAccessor,
             scope.ServiceProvider.GetRequiredService<IIdGeneratorAccessor>(),
             cancellationToken);
 
@@ -1754,6 +1755,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
 
     private static async Task EnsureTeamAgentTemplateSeedDataAsync(
         ISqlSugarClient db,
+        IAppContextAccessor appContextAccessor,
         IIdGeneratorAccessor idGeneratorAccessor,
         CancellationToken cancellationToken)
     {
@@ -1764,6 +1766,8 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         {
             return;
         }
+        using var appContextScope = appContextAccessor.BeginScope(
+            CreateSystemContext(appContextAccessor, new TenantId(tenantId)));
 
         var existingKeys = await db.Queryable<TeamAgentTemplate>()
             .Where(x => x.TenantIdValue == tenantId)

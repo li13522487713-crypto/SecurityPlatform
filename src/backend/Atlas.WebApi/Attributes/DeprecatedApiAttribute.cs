@@ -25,26 +25,27 @@ public sealed class DeprecatedApiAttribute : ActionFilterAttribute
 
     public override void OnActionExecuting(ActionExecutingContext context)
     {
-        var headers = context.HttpContext.Response.Headers;
-        headers["Deprecation"] = "true";
-        headers["Sunset"] = _sunset;
-        headers["Warning"] = $"299 - \"Deprecated API: {_message}. Use {_replacement}.\"";
-        headers["X-Api-Deprecated"] = "true";
-        headers["X-Api-Replacement"] = _replacement;
+        ApplyDeprecationHeaders(context.HttpContext.Response.Headers);
         base.OnActionExecuting(context);
     }
 
     public override async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
     {
-        var headers = context.HttpContext.Response.Headers;
-        headers["Deprecation"] = "true";
-        headers["Sunset"] = _sunset;
-        headers["Warning"] = $"299 - \"Deprecated API: {_message}. Use {_replacement}.\"";
-        headers["X-Api-Deprecated"] = "true";
-        headers["X-Api-Replacement"] = _replacement;
+        ApplyDeprecationHeaders(context.HttpContext.Response.Headers);
 
         await RecordDeprecatedUsageAsync(context);
         await next();
+    }
+
+    private void ApplyDeprecationHeaders(IHeaderDictionary headers)
+    {
+        headers["Deprecation"] = "true";
+        headers["Sunset"] = _sunset;
+        var headerMessage = ToAsciiHeaderValue(_message);
+        var headerReplacement = ToAsciiHeaderValue(_replacement);
+        headers["Warning"] = $"299 - \"Deprecated API: {headerMessage}. Use {headerReplacement}.\"";
+        headers["X-Api-Deprecated"] = "true";
+        headers["X-Api-Replacement"] = headerReplacement;
     }
 
     private async Task RecordDeprecatedUsageAsync(ActionExecutingContext context)
@@ -97,5 +98,33 @@ public sealed class DeprecatedApiAttribute : ActionFilterAttribute
         return DateTimeOffset.TryParse(sunset, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var parsed)
             ? parsed.UtcDateTime.ToString("R", CultureInfo.InvariantCulture)
             : sunset;
+    }
+
+    private static string ToAsciiHeaderValue(string value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return "N/A";
+        }
+
+        Span<char> buffer = stackalloc char[value.Length];
+        var count = 0;
+        foreach (var ch in value)
+        {
+            if (ch is >= (char)0x20 and <= (char)0x7E)
+            {
+                buffer[count++] = ch;
+            }
+            else if (ch == '\t')
+            {
+                buffer[count++] = ' ';
+            }
+            else
+            {
+                buffer[count++] = '?';
+            }
+        }
+
+        return new string(buffer[..count]).Trim();
     }
 }

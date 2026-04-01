@@ -296,21 +296,6 @@ X-CSRF-TOKEN: {{csrfToken}}
   "fields": ["orderNo", "amount"]
 }
 
-{
-  "pageIndex": 1,
-  "pageSize": 10,
-  "keyword": "SO",
-  "sortBy": "id",
-  "sortDesc": true,
-  "filters": [
-    {
-      "field": "orderNo",
-      "operator": "like",
-      "value": "SO-1"
-    }
-  ]
-}
-
 ### Update Record
 PUT {{baseUrl}}/api/v1/dynamic-tables/orders/records/1
 Content-Type: application/json
@@ -469,12 +454,12 @@ X-CSRF-TOKEN: {{csrfToken}}
 
 ### 查询动态表迁移历史
 GET {{baseUrl}}/api/v1/dynamic-tables/test_table/migrations?pageIndex=1&pageSize=20
-Authorization: Bearer {{token}}
+Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ### 回滚迁移（替换为实际 migrationId）
 POST {{baseUrl}}/api/v1/dynamic-tables/test_table/migrations/12345/rollback
-Authorization: Bearer {{token}}
+Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Idempotency-Key: rollback-migration-001
 X-CSRF-TOKEN: {{csrfToken}}

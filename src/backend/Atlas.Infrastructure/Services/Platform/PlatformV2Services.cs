@@ -504,27 +504,28 @@ public sealed class TenantAppInstanceQueryService : ITenantAppInstanceQueryServi
         var tenantValue = tenantId.Value;
         var item = await _db.Queryable<LowCodeApp>()
             .Where(app => app.TenantIdValue == tenantValue && app.Id == id)
-            .Select(app => new TenantAppInstanceDetail(
-                app.Id.ToString(),
-                app.AppKey,
-                app.Name,
-                app.Status.ToString(),
-                app.Version,
-                app.Description,
-                app.Category,
-                app.Icon,
-                app.PublishedAt == null ? null : app.PublishedAt.Value.ToString("O"),
-                app.DataSourceId == null ? null : app.DataSourceId.Value.ToString(),
-                SqlFunc.Subqueryable<LowCodePage>()
-                    .Where(page => page.TenantIdValue == tenantValue && page.AppId == app.Id)
-                    .Count()))
             .FirstAsync(cancellationToken);
         if (item is null)
         {
             return null;
         }
 
-        return item;
+        var pageCount = await _db.Queryable<LowCodePage>()
+            .Where(page => page.TenantIdValue == tenantValue && page.AppId == id)
+            .CountAsync(cancellationToken);
+
+        return new TenantAppInstanceDetail(
+            item.Id.ToString(),
+            item.AppKey,
+            item.Name,
+            item.Status.ToString(),
+            item.Version,
+            item.Description,
+            item.Category,
+            item.Icon,
+            item.PublishedAt?.ToString("O"),
+            item.DataSourceId?.ToString(),
+            pageCount);
     }
 
     public Task<IReadOnlyList<LowCodeAppEntityAliasItem>> GetEntityAliasesAsync(

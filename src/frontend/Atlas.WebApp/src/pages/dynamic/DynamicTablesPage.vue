@@ -302,10 +302,7 @@ const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
 
-const isMounted = ref(false);
-onMounted(() => {
-  isMounted.value = true;
-});
+const isMounted = ref(true);
 onUnmounted(() => {
   isMounted.value = false;
 });
@@ -324,6 +321,11 @@ const appOptions = ref<Array<{ label: string; value: string }>>([]);
 const tableDirectory = ref<AppScopedDynamicTableListItem[]>([]);
 const selectedTableDetail = ref<DynamicTableSummary | null>(null);
 const relationViewItems = ref<Array<{ id: string; name: string; nodeCount: number }>>([]);
+type RelationViewItem = { id: string; name: string; nodeCount: number };
+type RelationViewStorageItem = { id: string; name: string; layout?: { nodes?: unknown[] } };
+const RELATION_VIEW_KEY_PREFIX = "atlas_relation_views_";
+const relationViewCache = new Map<string, { raw: string | null; items: RelationViewItem[] }>();
+let refreshRequestId = 0;
 const blockerModalOpen = ref(false);
 const blockerRows = ref<DeleteCheckBlocker[]>([]);
 const deleteWarnings = ref<string[]>([]);
@@ -416,8 +418,8 @@ const loadAppOptions = async (keyword?: string) => {
   }
 };
 
-const loadTableDirectory = async () => {
-  if (!selectedAppId.value) {
+const loadTableDirectory = async (appIdSnapshot: string | undefined = selectedAppId.value) => {
+  if (!appIdSnapshot) {
     tableDirectory.value = [];
     selectedTableKey.value = "";
     selectedTableDetail.value = null;
@@ -425,8 +427,8 @@ const loadTableDirectory = async () => {
   }
   tableLoading.value = true;
   try {
-    const result = await getAppScopedDynamicTables(selectedAppId.value);
-    if (!isMounted.value) {
+    const result = await getAppScopedDynamicTables(appIdSnapshot);
+    if (!isMounted.value || selectedAppId.value !== appIdSnapshot) {
       return;
     }
     tableDirectory.value = result;
@@ -450,8 +452,11 @@ const loadTableDirectory = async () => {
   }
 };
 
-const loadSelectedTableDetail = async () => {
-  const tableKey = selectedTableKey.value;
+const loadSelectedTableDetail = async (
+  tableKeySnapshot: string = selectedTableKey.value,
+  appIdSnapshot: string | undefined = selectedAppId.value
+) => {
+  const tableKey = tableKeySnapshot;
   if (!tableKey) {
     selectedTableDetail.value = null;
     return;
@@ -459,7 +464,7 @@ const loadSelectedTableDetail = async () => {
   detailLoading.value = true;
   try {
     const detail = await getDynamicTableSummary(tableKey);
-    if (!isMounted.value || selectedTableKey.value !== tableKey) {
+    if (!isMounted.value || selectedTableKey.value !== tableKey || selectedAppId.value !== appIdSnapshot) {
       return;
     }
     selectedTableDetail.value = detail;
@@ -476,39 +481,65 @@ const loadSelectedTableDetail = async () => {
   }
 };
 
+const parseRelationViewItems = (raw: string | null): RelationViewItem[] => {
+  if (!raw) {
+    return [];
+  }
+
+  try {
+    const customViews = JSON.parse(raw) as RelationViewStorageItem[];
+    if (!Array.isArray(customViews)) {
+      return [];
+    }
+
+    return customViews
+      .filter((item) => item && typeof item.id === "string" && typeof item.name === "string")
+      .map((item) => ({
+        id: item.id,
+        name: item.name,
+        nodeCount: Array.isArray(item.layout?.nodes) ? item.layout.nodes.length : 0
+      }));
+  } catch {
+    return [];
+  }
+};
+
 const loadRelationViewItems = () => {
   relationViewItems.value = [];
   const appId = selectedAppId.value;
   if (!appId) {
     return;
   }
-  try {
-    const key = `atlas_relation_views_${appId}`;
-    const raw = localStorage.getItem(key);
-    const customViews = raw ? (JSON.parse(raw) as Array<{ id: string; name: string; layout?: { nodes?: unknown[] } }>) : [];
-    const items = customViews
-      .filter((item) => item && typeof item.id === "string" && typeof item.name === "string")
-      .map((item) => ({
-        id: item.id,
-        name: item.name,
-        nodeCount: Array.isArray(item.layout?.nodes) ? item.layout!.nodes!.length : 0
-      }));
-    relationViewItems.value = [{ id: "__overview__", name: t("dynamic.overviewViewName"), nodeCount: tableDirectory.value.length }, ...items];
-  } catch {
-    relationViewItems.value = [{ id: "__overview__", name: t("dynamic.overviewViewName"), nodeCount: tableDirectory.value.length }];
+
+  const key = `${RELATION_VIEW_KEY_PREFIX}${appId}`;
+  const raw = localStorage.getItem(key);
+  const cached = relationViewCache.get(appId);
+  const items = cached && cached.raw === raw ? cached.items : parseRelationViewItems(raw);
+
+  if (!cached || cached.raw !== raw) {
+    relationViewCache.set(appId, { raw, items });
   }
+
+  relationViewItems.value = [{ id: "__overview__", name: t("dynamic.overviewViewName"), nodeCount: tableDirectory.value.length }, ...items];
 };
 
 const refreshAll = async () => {
-  await loadTableDirectory();
-  await Promise.all([
-    loadSelectedTableDetail(),
-    Promise.resolve(loadRelationViewItems())
-  ]);
+  const appIdSnapshot = selectedAppId.value;
+  const requestId = ++refreshRequestId;
+  await loadTableDirectory(appIdSnapshot);
+  if (requestId !== refreshRequestId || appIdSnapshot !== selectedAppId.value) {
+    return;
+  }
+  loadRelationViewItems();
+  if (requestId !== refreshRequestId || appIdSnapshot !== selectedAppId.value) {
+    return;
+  }
+  await loadSelectedTableDetail(selectedTableKey.value, appIdSnapshot);
 };
 
 const selectTable = (tableKey: string) => {
   selectedTableKey.value = tableKey;
+  void loadSelectedTableDetail();
 };
 
 const syncSelectedAppFromRoute = () => {
@@ -520,12 +551,11 @@ const syncSelectedAppFromRoute = () => {
 };
 
 const handleAppScopeChange = (value: string | undefined) => {
+  selectedAppId.value = value;
   setCurrentAppIdToStorage(value);
   if (value && value !== route.params.appId) {
     void router.push(`/apps/${value}/data`);
-    return;
   }
-  void refreshAll();
 };
 
 const openTableCrud = (tableKey: string) => {
@@ -669,26 +699,48 @@ const handleAppSearch = (keyword: string) => {
   void loadAppOptions(keyword.trim() || undefined);
 };
 
+const handleStorageChange = (event: StorageEvent) => {
+  if (!event.key || !event.key.startsWith(RELATION_VIEW_KEY_PREFIX)) {
+    return;
+  }
+
+  const appId = event.key.slice(RELATION_VIEW_KEY_PREFIX.length);
+  relationViewCache.delete(appId);
+
+  if (appId && appId === selectedAppId.value) {
+    loadRelationViewItems();
+  }
+};
+
 onMounted(() => {
+  window.addEventListener("storage", handleStorageChange);
+  syncSelectedAppFromRoute();
   void loadAppOptions();
-  void refreshAll();
+});
+
+onUnmounted(() => {
+  window.removeEventListener("storage", handleStorageChange);
 });
 
 watch(
   () => route.params.appId,
   () => {
     syncSelectedAppFromRoute();
-    void refreshAll();
   }
 );
 
-watch(selectedTableKey, () => {
-  void loadSelectedTableDetail();
-});
-
-watch([selectedAppId, tableDirectory], () => {
-  loadRelationViewItems();
-});
+watch(
+  selectedAppId,
+  (next, previous) => {
+    if (next === previous) {
+      return;
+    }
+    selectedTableKey.value = "";
+    selectedTableDetail.value = null;
+    void refreshAll();
+  },
+  { immediate: true }
+);
 </script>
 
 <style scoped>

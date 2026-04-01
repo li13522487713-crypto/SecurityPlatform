@@ -1,4 +1,4 @@
-import type { MessageTree } from "./runtime-messages";
+import type { MessageTree } from "./runtime-message-types";
 
 const runtimeMessagesEnUS: MessageTree = 
 {
