@@ -51,6 +51,7 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
     private readonly IAppContextAccessor _appContextAccessor;
     private readonly IApprovalRuntimeCommandService? _approvalRuntimeService;
     private readonly IDynamicDeleteCheckService? _deleteCheckService;
+    private readonly IDynamicTableApprovalBindingRepository? _approvalBindingRepository;
 
     [ActivatorUtilitiesConstructor]
     public DynamicTableCommandService(
@@ -66,7 +67,8 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
         TimeProvider timeProvider,
         IAppContextAccessor appContextAccessor,
         IApprovalRuntimeCommandService? approvalRuntimeService = null,
-        IDynamicDeleteCheckService? deleteCheckService = null)
+        IDynamicDeleteCheckService? deleteCheckService = null,
+        IDynamicTableApprovalBindingRepository? approvalBindingRepository = null)
     {
         _tableRepository = tableRepository;
         _fieldRepository = fieldRepository;
@@ -81,6 +83,7 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
         _appContextAccessor = appContextAccessor;
         _approvalRuntimeService = approvalRuntimeService;
         _deleteCheckService = deleteCheckService;
+        _approvalBindingRepository = approvalBindingRepository;
     }
 
     public DynamicTableCommandService(
@@ -1247,10 +1250,86 @@ public sealed class DynamicTableCommandService : IDynamicTableCommandService
             _ => Atlas.Domain.DynamicTables.Enums.RelationOnDeleteAction.NoAction
         };
     }
+
+    public async Task ArchiveAsync(
+        TenantId tenantId,
+        long userId,
+        string tableKey,
+        CancellationToken cancellationToken)
+    {
+        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, _appContextAccessor.ResolveAppId(), cancellationToken);
+        if (table is null)
+        {
+            throw new BusinessException(ErrorCodes.NotFound, "DynamicTableNotFound");
+        }
+
+        if (_deleteCheckService is not null)
+        {
+            var check = await _deleteCheckService.CheckTableDeleteAsync(tenantId, _appContextAccessor.ResolveAppId(), tableKey, cancellationToken);
+            if (!check.CanDelete)
+            {
+                throw new BusinessException(ErrorCodes.ValidationError, "DynamicTableDeleteBlocked");
+            }
+        }
+
+        table.Archive(userId, DateTimeOffset.UtcNow);
+        await _tableRepository.UpdateAsync(table, cancellationToken);
+    }
+
+    public async Task RestoreAsync(
+        TenantId tenantId,
+        long userId,
+        string tableKey,
+        CancellationToken cancellationToken)
+    {
+        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, _appContextAccessor.ResolveAppId(), cancellationToken);
+        if (table is null)
+        {
+            throw new BusinessException(ErrorCodes.NotFound, "DynamicTableNotFound");
+        }
+
+        if (table.Status != DynamicTableStatus.Archived)
+        {
+            throw new BusinessException(ErrorCodes.ValidationError, "DynamicTableNotArchived");
+        }
+
+        table.Restore(userId, DateTimeOffset.UtcNow);
+        await _tableRepository.UpdateAsync(table, cancellationToken);
+    }
+
+    public async Task UpdateApprovalBindingAsync(
+        TenantId tenantId,
+        long userId,
+        string tableKey,
+        DynamicTableApprovalBindingUpdateRequest request,
+        CancellationToken cancellationToken)
+    {
+        var table = await _tableRepository.FindByKeyAsync(tenantId, tableKey, _appContextAccessor.ResolveAppId(), cancellationToken);
+        if (table is null)
+        {
+            throw new BusinessException(ErrorCodes.NotFound, "DynamicTableNotFound");
+        }
+
+        if (_approvalBindingRepository is null)
+        {
+            throw new BusinessException(ErrorCodes.ServerError, "ApprovalBindingRepositoryNotAvailable");
+        }
+
+        var existing = await _approvalBindingRepository.FindByTableKeyAsync(tenantId, tableKey, cancellationToken);
+        var now = DateTimeOffset.UtcNow;
+
+        if (existing is null)
+        {
+            var id = _idGeneratorAccessor.NextId();
+            var binding = new DynamicTableApprovalBinding(tenantId, table.Id, tableKey, userId, id, now);
+            binding.Update(request.CreateFlowId, request.UpdateFlowId, request.DeleteFlowId, request.SubmitFlowId, userId, now);
+            await _approvalBindingRepository.UpsertAsync(binding, cancellationToken);
+        }
+        else
+        {
+            existing.Update(request.CreateFlowId, request.UpdateFlowId, request.DeleteFlowId, request.SubmitFlowId, userId, now);
+            await _approvalBindingRepository.UpsertAsync(existing, cancellationToken);
+        }
+    }
 }
-
-
-
-
-
 

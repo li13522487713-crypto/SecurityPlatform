@@ -115,4 +115,28 @@ public sealed class DynamicTable : TenantEntity
         UpdatedBy = updatedBy;
         UpdatedAt = now;
     }
+
+    public void Archive(long updatedBy, DateTimeOffset now)
+    {
+        Status = DynamicTableStatus.Archived;
+        UpdatedBy = updatedBy;
+        UpdatedAt = now;
+    }
+
+    public void Restore(long updatedBy, DateTimeOffset now)
+    {
+        Status = DynamicTableStatus.Active;
+        UpdatedBy = updatedBy;
+        UpdatedAt = now;
+    }
+
+    public void MarkUnpublishedChanges(long updatedBy, DateTimeOffset now)
+    {
+        if (Status == DynamicTableStatus.Active)
+        {
+            Status = DynamicTableStatus.HasUnpublishedChanges;
+            UpdatedBy = updatedBy;
+            UpdatedAt = now;
+        }
+    }
 }

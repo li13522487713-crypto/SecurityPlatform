@@ -467,3 +467,57 @@ X-CSRF-TOKEN: {{csrfToken}}
 ### 未认证查询动态表（应返回 401）
 GET {{baseUrl}}/api/v1/dynamic-tables?pageIndex=1&pageSize=20
 X-Tenant-Id: {{tenantId}}
+
+### ==== 归档/恢复 ====
+
+### 归档数据表
+PATCH {{baseUrl}}/api/v1/dynamic-tables/orders/archive
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$randomUUID}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+###
+
+### 恢复已归档数据表
+PATCH {{baseUrl}}/api/v1/dynamic-tables/orders/restore
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$randomUUID}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+###
+
+### ==== 多操作审批绑定 ====
+
+### 查询多操作审批绑定详情
+GET {{baseUrl}}/api/v1/dynamic-tables/orders/approval-binding
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+###
+
+### 更新多操作审批绑定（PATCH）
+PATCH {{baseUrl}}/api/v1/dynamic-tables/orders/approval-binding
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$randomUUID}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "createFlowId": null,
+  "updateFlowId": null,
+  "deleteFlowId": null,
+  "submitFlowId": null
+}
+
+###
+
+### ==== 影响分析 ====
+
+### 查询数据表影响分析
+GET {{baseUrl}}/api/v1/dynamic-tables/orders/impact-analysis
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+

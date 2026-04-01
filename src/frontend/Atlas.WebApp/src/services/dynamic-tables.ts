@@ -18,14 +18,13 @@ import type {
 } from "@/types/dynamic-tables";
 import { requestApi } from "@/services/api-core";
 import type { RequestOptions } from "@/services/api-core";
-import { getAppAvailableDynamicTables } from "@/services/api-app-members";
-
 /** 与后端 PagedRequestValidator 中 PageSize 上限一致 */
 export const DYNAMIC_TABLES_MAX_PAGE_SIZE = 200;
 
 export interface AppScopedDynamicTableListItem {
   tableKey: string;
   displayName: string;
+  status?: string;
 }
 
 /**
@@ -55,10 +54,11 @@ export async function getAppScopedDynamicTables(
   appId: string,
   keyword?: string
 ): Promise<AppScopedDynamicTableListItem[]> {
-  const tables = await getAppAvailableDynamicTables(appId, keyword);
+  const tables = await getAllDynamicTables(keyword);
   return tables.map((item) => ({
     tableKey: item.tableKey,
-    displayName: item.displayName
+    displayName: item.displayName,
+    status: item.status
   }));
 }
 
@@ -294,6 +294,51 @@ export interface ApprovalBindingRequest {
   approvalStatusField: string | null;
 }
 
+export interface MultiActionApprovalBindingDetail {
+  tableKey: string;
+  createFlowId: number | null;
+  updateFlowId: number | null;
+  deleteFlowId: number | null;
+  submitFlowId: number | null;
+  boundActionCount: number;
+  updatedAt?: string | null;
+}
+
+export interface MultiActionApprovalBindingUpdateRequest {
+  createFlowId: number | null;
+  updateFlowId: number | null;
+  deleteFlowId: number | null;
+  submitFlowId: number | null;
+}
+
+export async function getMultiActionApprovalBinding(tableKey: string): Promise<MultiActionApprovalBindingDetail | null> {
+  try {
+    const response = await requestApi<ApiResponse<MultiActionApprovalBindingDetail>>(
+      `/dynamic-tables/${encodeURIComponent(tableKey)}/approval-binding`
+    );
+    return response.data ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function updateMultiActionApprovalBinding(
+  tableKey: string,
+  request: MultiActionApprovalBindingUpdateRequest
+): Promise<void> {
+  const response = await requestApi<ApiResponse<null>>(
+    `/dynamic-tables/${encodeURIComponent(tableKey)}/approval-binding`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request)
+    }
+  );
+  if (!response.success) {
+    throw new Error(response.message || "更新审批绑定失败");
+  }
+}
+
 export interface ApprovalSubmitResponse {
   instanceId: string;
   recordId: string;
@@ -452,6 +497,20 @@ export async function commitDynamicRecordImport(
     throw new Error(response.message || "导入提交失败");
   }
   return response.data;
+}
+
+export async function archiveDynamicTable(tableKey: string): Promise<void> {
+  await requestApi<ApiResponse<null>>(
+    `/dynamic-tables/${encodeURIComponent(tableKey)}/archive`,
+    { method: "PATCH" }
+  );
+}
+
+export async function restoreDynamicTable(tableKey: string): Promise<void> {
+  await requestApi<ApiResponse<null>>(
+    `/dynamic-tables/${encodeURIComponent(tableKey)}/restore`,
+    { method: "PATCH" }
+  );
 }
 
 export async function pasteExcelToDynamicRecords(

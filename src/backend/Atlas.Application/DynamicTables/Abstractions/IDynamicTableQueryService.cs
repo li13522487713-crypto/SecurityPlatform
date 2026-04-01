@@ -52,4 +52,9 @@ public interface IDynamicTableQueryService
         int pageIndex,
         int pageSize,
         CancellationToken cancellationToken);
+
+    Task<DynamicTableApprovalBindingDetailResponse?> GetApprovalBindingAsync(
+        TenantId tenantId,
+        string tableKey,
+        CancellationToken cancellationToken);
 }

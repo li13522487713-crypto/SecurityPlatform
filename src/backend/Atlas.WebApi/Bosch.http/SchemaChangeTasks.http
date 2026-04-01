@@ -1,0 +1,65 @@
+@baseUrl = http://localhost:5000
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+@appId = 1
+
+### Login to get token (Execute this first)
+# @name login
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+###
+@accessToken = {{login.response.body.$.data.accessToken}}
+
+### Get Anti-Forgery Token
+# @name antiforgery
+GET {{baseUrl}}/api/v1/secure/antiforgery
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+###
+@csrfToken = {{antiforgery.response.body.$.data.token}}
+
+### List Schema Change Tasks
+GET {{baseUrl}}/api/v1/apps/{{appId}}/schema-change-tasks
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+###
+
+### Create & Execute Schema Change Task
+# @name createTask
+POST {{baseUrl}}/api/v1/apps/{{appId}}/schema-change-tasks
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$randomUUID}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "draftIds": []
+}
+
+###
+@taskId = {{createTask.response.body.$.data.id}}
+
+### Get Schema Change Task by ID
+GET {{baseUrl}}/api/v1/apps/{{appId}}/schema-change-tasks/{{taskId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+###
+
+### Cancel Schema Change Task
+POST {{baseUrl}}/api/v1/apps/{{appId}}/schema-change-tasks/{{taskId}}/cancel
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$randomUUID}}
+X-CSRF-TOKEN: {{csrfToken}}

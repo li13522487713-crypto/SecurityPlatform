@@ -26,6 +26,12 @@ public static class DynamicTableServiceRegistration
         services.AddScoped<IDynamicViewVersionRepository, DynamicViewVersionRepository>();
         services.AddScoped<IDynamicSchemaMigrationRepository, DynamicSchemaMigrationRepository>();
         services.AddScoped<IMigrationRecordRepository, MigrationRecordRepository>();
+        services.AddScoped<IDynamicTableApprovalBindingRepository, DynamicTableApprovalBindingRepository>();
+        services.AddScoped<ISchemaDraftRepository, SchemaDraftRepository>();
+        services.AddScoped<ISchemaChangeTaskRepository, SchemaChangeTaskRepository>();
+        services.AddScoped<ISchemaDraftService, SchemaDraftService>();
+        services.AddScoped<ISchemaChangeTaskService, SchemaChangeTaskService>();
+        services.AddScoped<IDynamicImpactAnalysisService, DynamicImpactAnalysisService>();
         services.AddScoped<IFieldPermissionResolver, FieldPermissionResolver>();
         services.AddScoped<IDynamicTableQueryService, DynamicTableQueryService>();
         services.AddScoped<IDynamicTableCommandService, DynamicTableCommandService>();

@@ -49,6 +49,8 @@ public sealed record DynamicTableSummary(
     string Status,
     int FieldCount,
     int IndexCount,
+    int RelationCount,
+    int ReferenceCount,
     long? ApprovalFlowDefinitionId,
     string? ApprovalStatusField,
     IReadOnlyList<DynamicTableFieldSummary> PreviewFields);
@@ -286,3 +288,32 @@ public sealed record DynamicSchemaMigrationItem(
     string Status,
     long CreatedBy,
     DateTimeOffset CreatedAt);
+
+/// <summary>
+/// 多操作级别审批绑定响应
+/// </summary>
+public sealed record DynamicTableApprovalBindingDetailResponse(
+    string TableKey,
+    long? CreateFlowId,
+    long? UpdateFlowId,
+    long? DeleteFlowId,
+    long? SubmitFlowId,
+    int BoundActionCount,
+    DateTimeOffset? UpdatedAt);
+
+/// <summary>
+/// 多操作级别审批绑定请求
+/// </summary>
+public sealed record DynamicTableApprovalBindingUpdateRequest(
+    long? CreateFlowId,
+    long? UpdateFlowId,
+    long? DeleteFlowId,
+    long? SubmitFlowId);
+
+/// <summary>
+/// 审批绑定摘要（嵌入 DynamicTableSummary 中使用）
+/// </summary>
+public sealed record ApprovalBindingSummary(
+    int BoundActionCount,
+    long? DefaultFlowId,
+    DateTimeOffset? UpdatedAt);

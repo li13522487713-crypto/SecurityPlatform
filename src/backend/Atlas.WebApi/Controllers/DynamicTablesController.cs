@@ -29,6 +29,7 @@ public sealed class DynamicTablesController : ControllerBase
     private readonly IValidator<DynamicTableCreateRequest> _createValidator;
     private readonly IValidator<DynamicTableUpdateRequest> _updateValidator;
     private readonly IDynamicDeleteCheckService _deleteCheckService;
+    private readonly IDynamicImpactAnalysisService _impactAnalysisService;
 
     public DynamicTablesController(
         IDynamicTableQueryService queryService,
@@ -40,7 +41,8 @@ public sealed class DynamicTablesController : ControllerBase
         IAuditRecorder auditRecorder,
         IValidator<DynamicTableCreateRequest> createValidator,
         IValidator<DynamicTableUpdateRequest> updateValidator,
-        IDynamicDeleteCheckService deleteCheckService)
+        IDynamicDeleteCheckService deleteCheckService,
+        IDynamicImpactAnalysisService impactAnalysisService)
     {
         _queryService = queryService;
         _commandService = commandService;
@@ -52,6 +54,7 @@ public sealed class DynamicTablesController : ControllerBase
         _createValidator = createValidator;
         _updateValidator = updateValidator;
         _deleteCheckService = deleteCheckService;
+        _impactAnalysisService = impactAnalysisService;
     }
 
     [HttpGet]
@@ -372,6 +375,95 @@ public sealed class DynamicTablesController : ControllerBase
         await _commandService.RollbackMigrationAsync(tenantId, currentUser.UserId, tableKey, migrationId, cancellationToken);
         await RecordAuditAsync(currentUser, "ROLLBACK_DYNAMIC_TABLE_SCHEMA", tableKey, cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { TableKey = tableKey, MigrationId = migrationId.ToString() }, HttpContext.TraceIdentifier));
+    }
+
+    [HttpGet("{tableKey}/approval-binding")]
+    [Authorize(Policy = PermissionPolicies.AppAdmin)]
+    public async Task<ActionResult<ApiResponse<DynamicTableApprovalBindingDetailResponse?>>> GetApprovalBinding(
+        string tableKey,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _queryService.GetApprovalBindingAsync(tenantId, tableKey, cancellationToken);
+        return Ok(ApiResponse<DynamicTableApprovalBindingDetailResponse?>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>
+    /// 多操作级别审批绑定（每个操作可绑定不同流程）
+    /// </summary>
+    [HttpPatch("{tableKey}/approval-binding")]
+    [Authorize(Policy = PermissionPolicies.AppAdmin)]
+    public async Task<ActionResult<ApiResponse<object>>> UpdateApprovalBinding(
+        string tableKey,
+        [FromBody] DynamicTableApprovalBindingUpdateRequest request,
+        CancellationToken cancellationToken)
+    {
+        var currentUser = _currentUserAccessor.GetCurrentUser();
+        if (currentUser is null)
+        {
+            return Unauthorized(ApiResponse<object>.Fail(
+                ErrorCodes.Unauthorized,
+                ApiResponseLocalizer.T(HttpContext, "UserNotSignedIn"),
+                HttpContext.TraceIdentifier));
+        }
+
+        var tenantId = _tenantProvider.GetTenantId();
+        await _commandService.UpdateApprovalBindingAsync(tenantId, currentUser.UserId, tableKey, request, cancellationToken);
+        await RecordAuditAsync(currentUser, "UPDATE_DYNAMIC_TABLE_APPROVAL_BINDING", tableKey, cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { TableKey = tableKey }, HttpContext.TraceIdentifier));
+    }
+
+    [HttpGet("{tableKey}/impact-analysis")]
+    [Authorize(Policy = PermissionPolicies.AppAdmin)]
+    public async Task<ActionResult<ApiResponse<DynamicImpactAnalysisResult>>> GetImpactAnalysis(
+        string tableKey,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _impactAnalysisService.AnalyzeAsync(tenantId, tableKey, null, cancellationToken);
+        return Ok(ApiResponse<DynamicImpactAnalysisResult>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPatch("{tableKey}/archive")]
+    [Authorize(Policy = PermissionPolicies.AppAdmin)]
+    public async Task<ActionResult<ApiResponse<object>>> Archive(
+        string tableKey,
+        CancellationToken cancellationToken)
+    {
+        var currentUser = _currentUserAccessor.GetCurrentUser();
+        if (currentUser is null)
+        {
+            return Unauthorized(ApiResponse<object>.Fail(
+                ErrorCodes.Unauthorized,
+                ApiResponseLocalizer.T(HttpContext, "UserNotSignedIn"),
+                HttpContext.TraceIdentifier));
+        }
+
+        var tenantId = _tenantProvider.GetTenantId();
+        await _commandService.ArchiveAsync(tenantId, currentUser.UserId, tableKey, cancellationToken);
+        await RecordAuditAsync(currentUser, "ARCHIVE_DYNAMIC_TABLE", tableKey, cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { TableKey = tableKey }, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPatch("{tableKey}/restore")]
+    [Authorize(Policy = PermissionPolicies.AppAdmin)]
+    public async Task<ActionResult<ApiResponse<object>>> Restore(
+        string tableKey,
+        CancellationToken cancellationToken)
+    {
+        var currentUser = _currentUserAccessor.GetCurrentUser();
+        if (currentUser is null)
+        {
+            return Unauthorized(ApiResponse<object>.Fail(
+                ErrorCodes.Unauthorized,
+                ApiResponseLocalizer.T(HttpContext, "UserNotSignedIn"),
+                HttpContext.TraceIdentifier));
+        }
+
+        var tenantId = _tenantProvider.GetTenantId();
+        await _commandService.RestoreAsync(tenantId, currentUser.UserId, tableKey, cancellationToken);
+        await RecordAuditAsync(currentUser, "RESTORE_DYNAMIC_TABLE", tableKey, cancellationToken);
+        return Ok(ApiResponse<object>.Ok(new { TableKey = tableKey }, HttpContext.TraceIdentifier));
     }
 
     private Task RecordAuditAsync(

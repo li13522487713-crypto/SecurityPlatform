@@ -1,9 +1,12 @@
 using Atlas.Application.DynamicViews.Abstractions;
 using Atlas.Application.DynamicViews.Models;
+using Atlas.Application.Audit.Abstractions;
+using Atlas.Application.Audit.Models;
 using Atlas.Core.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.WebApi.Authorization;
+using Atlas.WebApi.Helpers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -20,6 +23,8 @@ public sealed class DynamicViewsController : ControllerBase
     private readonly ITenantProvider _tenantProvider;
     private readonly IAppContextAccessor _appContextAccessor;
     private readonly ICurrentUserAccessor _currentUserAccessor;
+    private readonly IClientContextAccessor _clientContextAccessor;
+    private readonly IAuditRecorder _auditRecorder;
 
     public DynamicViewsController(
         IDynamicViewQueryService queryService,
@@ -28,7 +33,9 @@ public sealed class DynamicViewsController : ControllerBase
         IDynamicViewP2Service p2Service,
         ITenantProvider tenantProvider,
         IAppContextAccessor appContextAccessor,
-        ICurrentUserAccessor currentUserAccessor)
+        ICurrentUserAccessor currentUserAccessor,
+        IClientContextAccessor clientContextAccessor,
+        IAuditRecorder auditRecorder)
     {
         _queryService = queryService;
         _commandService = commandService;
@@ -37,6 +44,8 @@ public sealed class DynamicViewsController : ControllerBase
         _tenantProvider = tenantProvider;
         _appContextAccessor = appContextAccessor;
         _currentUserAccessor = currentUserAccessor;
+        _clientContextAccessor = clientContextAccessor;
+        _auditRecorder = auditRecorder;
     }
 
     [HttpGet]
@@ -71,6 +80,7 @@ public sealed class DynamicViewsController : ControllerBase
 
         var tenantId = _tenantProvider.GetTenantId();
         var viewKey = await _commandService.CreateAsync(tenantId, user.UserId, request, cancellationToken);
+        await RecordAuditAsync(user, "CREATE_DYNAMIC_VIEW", viewKey, cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { ViewKey = viewKey }, HttpContext.TraceIdentifier));
     }
 
@@ -86,6 +96,7 @@ public sealed class DynamicViewsController : ControllerBase
 
         var tenantId = _tenantProvider.GetTenantId();
         await _commandService.UpdateAsync(tenantId, user.UserId, viewKey, request, cancellationToken);
+        await RecordAuditAsync(user, "UPDATE_DYNAMIC_VIEW", viewKey, cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { ViewKey = viewKey }, HttpContext.TraceIdentifier));
     }
 
@@ -101,6 +112,7 @@ public sealed class DynamicViewsController : ControllerBase
 
         var tenantId = _tenantProvider.GetTenantId();
         await _commandService.DeleteAsync(tenantId, user.UserId, _appContextAccessor.ResolveAppId(), viewKey, cancellationToken);
+        await RecordAuditAsync(user, "DELETE_DYNAMIC_VIEW", viewKey, cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { ViewKey = viewKey }, HttpContext.TraceIdentifier));
     }
 
@@ -134,6 +146,7 @@ public sealed class DynamicViewsController : ControllerBase
 
         var tenantId = _tenantProvider.GetTenantId();
         var result = await _commandService.PublishAsync(tenantId, user.UserId, _appContextAccessor.ResolveAppId(), viewKey, body?.GetValueOrDefault("comment"), cancellationToken);
+        await RecordAuditAsync(user, "PUBLISH_DYNAMIC_VIEW", viewKey, cancellationToken);
         return Ok(ApiResponse<DynamicViewPublishResultDto>.Ok(result, HttpContext.TraceIdentifier));
     }
 
@@ -309,6 +322,26 @@ public sealed class DynamicViewsController : ControllerBase
         await _p2Service.DeletePhysicalPublicationAsync(tenantId, user.UserId, _appContextAccessor.ResolveAppId(), viewKey, publicationId, cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { ViewKey = viewKey, PublicationId = publicationId }, HttpContext.TraceIdentifier));
     }
-}
 
+    private Task RecordAuditAsync(
+        CurrentUserInfo currentUser,
+        string action,
+        string target,
+        CancellationToken cancellationToken)
+    {
+        var actor = string.IsNullOrWhiteSpace(currentUser.Username)
+            ? currentUser.UserId.ToString()
+            : currentUser.Username;
+        var context = new AuditContext(
+            currentUser.TenantId,
+            actor,
+            action,
+            "SUCCESS",
+            target,
+            ControllerHelper.GetIpAddress(HttpContext),
+            ControllerHelper.GetUserAgent(HttpContext),
+            _clientContextAccessor.GetCurrent());
+        return _auditRecorder.RecordAsync(context, cancellationToken);
+    }
+}
 

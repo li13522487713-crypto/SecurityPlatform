@@ -24,6 +24,7 @@ public sealed class DynamicTableQueryService : IDynamicTableQueryService
     private readonly IFieldPermissionResolver _fieldPermissionResolver;
     private readonly ICurrentUserAccessor _currentUserAccessor;
     private readonly IDynamicSchemaMigrationRepository _migrationRepository;
+    private readonly IDynamicTableApprovalBindingRepository _approvalBindingRepository;
 
     public DynamicTableQueryService(
         IDynamicTableRepository tableRepository,
@@ -33,7 +34,8 @@ public sealed class DynamicTableQueryService : IDynamicTableQueryService
         IFieldPermissionRepository fieldPermissionRepository,
         IFieldPermissionResolver fieldPermissionResolver,
         ICurrentUserAccessor currentUserAccessor,
-        IDynamicSchemaMigrationRepository migrationRepository)
+        IDynamicSchemaMigrationRepository migrationRepository,
+        IDynamicTableApprovalBindingRepository approvalBindingRepository)
     {
         _tableRepository = tableRepository;
         _fieldRepository = fieldRepository;
@@ -43,6 +45,7 @@ public sealed class DynamicTableQueryService : IDynamicTableQueryService
         _fieldPermissionResolver = fieldPermissionResolver;
         _currentUserAccessor = currentUserAccessor;
         _migrationRepository = migrationRepository;
+        _approvalBindingRepository = approvalBindingRepository;
     }
 
     public async Task<PagedResult<DynamicTableListItem>> QueryAsync(
@@ -127,6 +130,7 @@ public sealed class DynamicTableQueryService : IDynamicTableQueryService
         var fields = await _fieldRepository.ListByTableIdAsync(tenantId, table.Id, cancellationToken);
         fields = await FilterFieldsByPermissionAsync(tenantId, table.TableKey, table.AppId, fields, cancellationToken);
         var indexes = await _indexRepository.ListByTableIdAsync(tenantId, table.Id, cancellationToken);
+        var relations = await _relationRepository.ListByTableIdAsync(tenantId, table.Id, cancellationToken);
 
         return new DynamicTableSummary(
             table.Id.ToString(),
@@ -138,6 +142,8 @@ public sealed class DynamicTableQueryService : IDynamicTableQueryService
             table.Status.ToString(),
             fields.Count,
             indexes.Count,
+            relations.Count,
+            0,
             table.ApprovalFlowDefinitionId,
             table.ApprovalStatusField,
             fields
@@ -333,5 +339,27 @@ public sealed class DynamicTableQueryService : IDynamicTableQueryService
         {
             return Array.Empty<string>();
         }
+    }
+
+    public async Task<DynamicTableApprovalBindingDetailResponse?> GetApprovalBindingAsync(
+        TenantId tenantId,
+        string tableKey,
+        CancellationToken cancellationToken)
+    {
+        var binding = await _approvalBindingRepository.FindByTableKeyAsync(tenantId, tableKey, cancellationToken);
+        if (binding is null)
+        {
+            return new DynamicTableApprovalBindingDetailResponse(
+                tableKey, null, null, null, null, 0, null);
+        }
+
+        return new DynamicTableApprovalBindingDetailResponse(
+            binding.TableKey,
+            binding.CreateFlowId,
+            binding.UpdateFlowId,
+            binding.DeleteFlowId,
+            binding.SubmitFlowId,
+            binding.BoundActionCount(),
+            binding.UpdatedAt);
     }
 }

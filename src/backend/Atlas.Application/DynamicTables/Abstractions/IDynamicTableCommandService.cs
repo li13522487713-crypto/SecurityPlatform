@@ -77,4 +77,23 @@ public interface IDynamicTableCommandService
         string tableKey,
         long migrationId,
         CancellationToken cancellationToken);
+
+    Task ArchiveAsync(
+        TenantId tenantId,
+        long userId,
+        string tableKey,
+        CancellationToken cancellationToken);
+
+    Task RestoreAsync(
+        TenantId tenantId,
+        long userId,
+        string tableKey,
+        CancellationToken cancellationToken);
+
+    Task UpdateApprovalBindingAsync(
+        TenantId tenantId,
+        long userId,
+        string tableKey,
+        DynamicTableApprovalBindingUpdateRequest request,
+        CancellationToken cancellationToken);
 }

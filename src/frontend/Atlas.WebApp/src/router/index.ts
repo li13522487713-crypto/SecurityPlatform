@@ -62,6 +62,12 @@ const DynamicTableCrudPage = () => import("@/pages/dynamic/DynamicTableCrudPage.
 const DynamicDataWorkbenchPage = () => import("@/pages/dynamic/DynamicDataWorkbenchPage.vue");
 const DataDesignerPage = () => import("@/pages/dynamic/DataDesignerPage.vue");
 const DynamicTableDesignPage = () => import("@/pages/dynamic/DynamicTableDesignPage.vue");
+const RelationDesignPage = () => import("@/pages/dynamic/RelationDesignPage.vue");
+const LogicalViewDesignPage = () => import("@/pages/dynamic/LogicalViewDesignPage.vue");
+const SchemaChangePage = () => import("@/pages/dynamic/SchemaChangePage.vue");
+const CrudConfigPage = () => import("@/pages/dynamic/CrudConfigPage.vue");
+const DataPreviewPage = () => import("@/pages/dynamic/DataPreviewPage.vue");
+const ApprovalBindingPage = () => import("@/pages/dynamic/ApprovalBindingPage.vue");
 const DynamicRecordsNativePage = () => import("@/pages/dynamic/DynamicRecordsNativePage.vue");
 const AppOrganizationPage = () => import("@/pages/apps/AppOrganizationPage.vue");
 const AppPermissionsPage = () => import("@/pages/system/PermissionsPage.vue");
@@ -202,6 +208,12 @@ const router = createRouter({
     { path: "/apps/:appId/data/:tableKey", name: "app-workspace-data-crud", component: DynamicDataWorkbenchPage, meta: { requiresAuth: true, title: "数据工作台", titleKey: "route.dataManage", requiresPermission: "apps:view" } },
     { path: "/apps/:appId/data/:tableKey/amis", name: "app-workspace-data-amis-crud", component: DynamicTableCrudPage, meta: { requiresAuth: true, title: "动态数据管理(兼容)", titleKey: "route.dataManage", requiresPermission: "apps:view" } },
     { path: "/apps/:appId/data/:tableKey/design", name: "app-workspace-data-design", component: DynamicTableDesignPage, meta: { requiresAuth: true, title: "字段设计", titleKey: "route.dataManage", requiresPermission: "apps:update" } },
+    { path: "/apps/:appId/data/:tableKey/relations", name: "app-workspace-data-relations", component: RelationDesignPage, meta: { requiresAuth: true, title: "关系设计", titleKey: "route.dataManage", requiresPermission: "apps:update" } },
+    { path: "/apps/:appId/data/views", name: "app-workspace-data-views", component: LogicalViewDesignPage, meta: { requiresAuth: true, title: "数据视图", titleKey: "route.dataManage", requiresPermission: "apps:view" } },
+    { path: "/apps/:appId/data/changes", name: "app-workspace-data-changes", component: SchemaChangePage, meta: { requiresAuth: true, title: "变更记录", titleKey: "route.dataManage", requiresPermission: "apps:update" } },
+    { path: "/apps/:appId/data/:tableKey/crud-config", name: "app-workspace-data-crud-config", component: CrudConfigPage, meta: { requiresAuth: true, title: "CRUD配置", titleKey: "route.dataManage", requiresPermission: "apps:update" } },
+    { path: "/apps/:appId/data/:tableKey/preview", name: "app-workspace-data-preview", component: DataPreviewPage, meta: { requiresAuth: true, title: "数据预览", titleKey: "route.dataManage", requiresPermission: "apps:view" } },
+    { path: "/apps/:appId/data/:tableKey/approval", name: "app-workspace-data-approval", component: ApprovalBindingPage, meta: { requiresAuth: true, title: "审批绑定", titleKey: "route.dataManage", requiresPermission: "apps:update" } },
     { path: "/apps/:appId/data/:tableKey/native", name: "app-workspace-data-native", component: DynamicRecordsNativePage, meta: { requiresAuth: true, title: "原生记录视图", titleKey: "route.dataManage", requiresPermission: "apps:view" } },
     { path: "/apps/:appId/org", name: "app-workspace-org", component: AppOrganizationPage, meta: { requiresAuth: true, title: "组织管理", titleKey: "route.appOrganization", requiresPermission: "apps:view" } },
     { path: "/apps/:appId/permissions", name: "app-workspace-permissions", component: AppPermissionsPage, meta: { requiresAuth: true, title: "权限入口", titleKey: "route.permissionsEntry", requiresPermission: "apps:view" } },

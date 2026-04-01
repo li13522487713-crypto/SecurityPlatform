@@ -16,7 +16,7 @@ export interface DynamicTableListItem {
   displayName: string;
   description?: string | null;
   dbType: DynamicDbType;
-  status: "Draft" | "Active" | "Disabled";
+  status: "Draft" | "Active" | "Disabled" | "HasUnpublishedChanges" | "Archived";
   createdAt: string;
   createdBy: number;
   approvalFlowDefinitionId?: number | null;
@@ -51,7 +51,10 @@ export interface DynamicIndexDefinition {
   fields: string[];
 }
 
+export type DynamicRelationType = "OneToOne" | "OneToMany" | "ManyToMany";
+
 export interface DynamicRelationDefinition {
+  id?: string | null;
   relatedTableKey: string;
   sourceField: string;
   targetField: string;
@@ -61,6 +64,8 @@ export interface DynamicRelationDefinition {
   onDeleteAction?: "NoAction" | "Cascade" | "SetNull" | "Restrict" | null;
   enableRollup?: boolean;
   rollupDefinitionsJson?: string | null;
+  displayName?: string | null;
+  description?: string | null;
 }
 
 export interface DynamicRelationUpsertRequest {
@@ -100,9 +105,11 @@ export interface DynamicTableSummary {
   displayName: string;
   description?: string | null;
   dbType: DynamicDbType;
-  status: "Draft" | "Active" | "Disabled";
+  status: "Draft" | "Active" | "Disabled" | "HasUnpublishedChanges" | "Archived";
   fieldCount: number;
   indexCount: number;
+  relationCount: number;
+  referenceCount: number;
   approvalFlowDefinitionId?: number | null;
   approvalStatusField?: string | null;
   previewFields: DynamicTableFieldSummary[];

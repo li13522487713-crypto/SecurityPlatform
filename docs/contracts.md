@@ -3702,3 +3702,137 @@ type EvaluationCaseStatus = 0 | 1 | 2 | 3; // Pending / Passed / Failed / Error
 - 团队状态：`Draft | Ready | Published | Disabled | Archived`
 - 执行状态：`Pending | Planning | Dispatching | Running | WaitingTool | WaitingHuman | Retrying | PartiallyFailed | Failed | Completed | Cancelled | TimedOut`
 - 节点状态：`Idle | Ready | WaitingDependency | Assigned | Running | WaitingInput | WaitingTool | WaitingApproval | Retrying | Succeeded | Failed | Skipped | Cancelled`
+
+---
+
+## 数据模型工作台（Data Model Workbench）
+
+### 概述
+
+应用数据模型工作台是整个平台的定义态上游模块，为页面、表单、流程、Agent、运行态提供统一的数据对象基础。
+所有结构变更均进入草稿态（SchemaDraft），正式生效通过 SchemaChangeTask 执行。
+
+### 核心 API
+
+#### 数据表管理
+
+- `GET /api/v1/dynamic-tables` — 查询数据表列表
+- `GET /api/v1/dynamic-tables/{tableKey}` — 获取数据表详情
+- `GET /api/v1/dynamic-tables/{tableKey}/summary` — 获取表摘要（含 relationCount/referenceCount）
+- `POST /api/v1/dynamic-tables` — 创建数据表
+- `PUT /api/v1/dynamic-tables/{tableKey}` — 更新数据表基本信息
+- `DELETE /api/v1/dynamic-tables/{tableKey}` — 删除数据表（高风险）
+- `PATCH /api/v1/dynamic-tables/{tableKey}/archive` — 归档数据表
+- `PATCH /api/v1/dynamic-tables/{tableKey}/restore` — 恢复归档表
+
+#### 多操作审批绑定
+
+- `GET /api/v1/dynamic-tables/{tableKey}/approval-binding` — 获取 4 类操作审批绑定详情
+- `PATCH /api/v1/dynamic-tables/{tableKey}/approval-binding` — 更新 4 类操作审批绑定
+
+**审批绑定响应示例：**
+```json
+{
+  "tableKey": "orders",
+  "createFlowId": 12345,
+  "updateFlowId": null,
+  "deleteFlowId": null,
+  "submitFlowId": null,
+  "boundActionCount": 1,
+  "updatedAt": "2026-04-01T12:00:00Z"
+}
+```
+
+#### 影响分析
+
+- `GET /api/v1/dynamic-tables/{tableKey}/impact-analysis` — 分析表被哪些页面/表单引用
+
+**影响分析响应示例：**
+```json
+{
+  "tableKey": "orders",
+  "referencedPages": [{ "id": "1", "name": "订单列表" }],
+  "referencedForms": [{ "id": "2", "name": "订单表单" }],
+  "totalReferenceCount": 2,
+  "hasBlockingReferences": false
+}
+```
+
+#### 模型草稿（SchemaDraft）
+
+路由前缀：`/api/v1/apps/{appId}/schema-drafts`
+
+- `GET /api/v1/apps/{appId}/schema-drafts` — 列举草稿
+- `GET /api/v1/apps/{appId}/schema-drafts/{draftId}` — 获取草稿详情
+- `POST /api/v1/apps/{appId}/schema-drafts` — 创建草稿
+- `POST /api/v1/apps/{appId}/schema-drafts/{draftId}/validate` — 校验草稿
+- `POST /api/v1/apps/{appId}/schema-drafts/publish` — 发布所有已校验草稿
+- `POST /api/v1/apps/{appId}/schema-drafts/{draftId}/abandon` — 废弃草稿
+
+**草稿状态机：** `Pending → Validated → Published` / `Pending → Abandoned`
+
+**SchemaDraftListItem 结构：**
+```json
+{
+  "id": "12345",
+  "objectType": "Field",
+  "objectId": "orders__new_field",
+  "objectKey": "new_field",
+  "changeType": "Create",
+  "riskLevel": "Low",
+  "status": "Validated",
+  "validationMessage": null,
+  "createdAt": "2026-04-01T12:00:00Z",
+  "createdBy": 1
+}
+```
+
+#### 变更任务（SchemaChangeTask）
+
+路由前缀：`/api/v1/apps/{appId}/schema-change-tasks`
+
+- `GET /api/v1/apps/{appId}/schema-change-tasks` — 列举变更任务
+- `GET /api/v1/apps/{appId}/schema-change-tasks/{taskId}` — 获取任务详情
+- `POST /api/v1/apps/{appId}/schema-change-tasks` — 创建并执行变更任务
+- `POST /api/v1/apps/{appId}/schema-change-tasks/{taskId}/cancel` — 取消变更任务
+
+**任务状态机：** `Pending → Validating → WaitingApproval → Applying → Applied`
+  失败分支：`→ Failed → RolledBack`
+  取消：`→ Cancelled`
+
+### 审计日志事件清单
+
+以下 11 类数据模型操作必须通过 `IAuditRecorder` 记录审计事件：
+
+| 审计动作 | 触发场景 |
+|---|---|
+| `CREATE_DYNAMIC_TABLE` | 创建数据表 |
+| `UPDATE_DYNAMIC_TABLE` | 更新表基本信息 |
+| `ALTER_DYNAMIC_TABLE_SCHEMA` | 直接修改表结构（DDL 执行）|
+| `DELETE_DYNAMIC_TABLE` | 删除数据表 |
+| `ARCHIVE_DYNAMIC_TABLE` | 归档数据表 |
+| `RESTORE_DYNAMIC_TABLE` | 恢复归档表 |
+| `UPDATE_DYNAMIC_TABLE_APPROVAL_BINDING` | 更新审批绑定 |
+| `CREATE_SCHEMA_DRAFT` | 创建模型草稿 |
+| `PUBLISH_SCHEMA_DRAFTS` | 发布模型草稿 |
+| `ABANDON_SCHEMA_DRAFT` | 废弃草稿 |
+| `CREATE_SCHEMA_CHANGE_TASK` | 创建变更任务 |
+| `CANCEL_SCHEMA_CHANGE_TASK` | 取消变更任务 |
+| `CREATE_DYNAMIC_VIEW` | 创建数据视图 |
+| `UPDATE_DYNAMIC_VIEW` | 修改数据视图 |
+| `DELETE_DYNAMIC_VIEW` | 删除数据视图 |
+| `PUBLISH_DYNAMIC_VIEW` | 发布数据视图 |
+
+### 表对象状态枚举
+
+- `Draft` — 草稿
+- `Active` — 已发布激活
+- `HasUnpublishedChanges` — 有未发布变更
+- `Archived` — 已归档
+
+### 草稿风险级别
+
+- `Low` — 低风险（新增字段/关系）
+- `Medium` — 中风险（修改字段属性）
+- `High` — 高风险（删除字段/修改主键/缩窄类型）
+
