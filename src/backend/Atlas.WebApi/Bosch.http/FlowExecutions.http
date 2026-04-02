@@ -1,0 +1,112 @@
+@host = http://localhost:5000
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+@clientType = WebH5
+@clientPlatform = Web
+@clientChannel = Browser
+@clientAgent = Chrome
+@localeZh = zh-CN
+
+### Login
+# @name login
+POST {{host}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+X-Client-Type: {{clientType}}
+X-Client-Platform: {{clientPlatform}}
+X-Client-Channel: {{clientChannel}}
+X-Client-Agent: {{clientAgent}}
+Accept-Language: {{localeZh}}
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+###
+@token = {{login.response.body.$.data.accessToken}}
+
+### Get CSRF Token
+# @name antiforgery
+GET {{host}}/api/v1/secure/antiforgery
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+###
+@csrfToken = {{antiforgery.response.body.$.data.token}}
+
+### List flow executions (paged)
+GET {{host}}/api/v1/flow-executions?pageIndex=1&pageSize=10
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Accept-Language: {{localeZh}}
+
+### List by flow definition and status (Running=1)
+GET {{host}}/api/v1/flow-executions?pageIndex=1&pageSize=10&flowDefinitionId=1&status=1
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Accept-Language: {{localeZh}}
+
+### Get execution by id
+GET {{host}}/api/v1/flow-executions/1
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Accept-Language: {{localeZh}}
+
+### List node runs for execution
+GET {{host}}/api/v1/flow-executions/1/node-runs
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Accept-Language: {{localeZh}}
+
+### Trigger new execution
+# @name triggerExecution
+POST {{host}}/api/v1/flow-executions/trigger
+Content-Type: application/json
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+X-CSRF-TOKEN: {{csrfToken}}
+Idempotency-Key: {{$guid}}
+Accept-Language: {{localeZh}}
+
+{
+  "flowDefinitionId": 1,
+  "inputDataJson": "{}",
+  "correlationId": "http-test-001"
+}
+
+###
+@executionId = {{triggerExecution.response.body.$.data.executionId}}
+
+### Cancel execution
+POST {{host}}/api/v1/flow-executions/{{executionId}}/cancel
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+X-CSRF-TOKEN: {{csrfToken}}
+Idempotency-Key: {{$guid}}
+Accept-Language: {{localeZh}}
+
+### Pause execution
+POST {{host}}/api/v1/flow-executions/{{executionId}}/pause
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+X-CSRF-TOKEN: {{csrfToken}}
+Idempotency-Key: {{$guid}}
+Accept-Language: {{localeZh}}
+
+### Resume execution
+POST {{host}}/api/v1/flow-executions/{{executionId}}/resume
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+X-CSRF-TOKEN: {{csrfToken}}
+Idempotency-Key: {{$guid}}
+Accept-Language: {{localeZh}}
+
+### Retry execution
+POST {{host}}/api/v1/flow-executions/{{executionId}}/retry
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+X-CSRF-TOKEN: {{csrfToken}}
+Idempotency-Key: {{$guid}}
+Accept-Language: {{localeZh}}

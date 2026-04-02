@@ -698,7 +698,7 @@ const handleCreateTable = async () => {
         {
           name: "sort_order",
           displayName: "排序",
-          fieldType: "Integer",
+          fieldType: "Int",
           allowNull: true,
           isPrimaryKey: false,
           isAutoIncrement: false,
@@ -761,7 +761,7 @@ const handleCreateTable = async () => {
         {
           name: "is_deleted",
           displayName: "已删除",
-          fieldType: "Boolean",
+          fieldType: "Bool",
           allowNull: false,
           isPrimaryKey: false,
           isAutoIncrement: false,

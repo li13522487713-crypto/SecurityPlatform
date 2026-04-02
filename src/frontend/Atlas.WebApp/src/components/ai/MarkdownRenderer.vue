@@ -4,9 +4,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, watch, ref, onMounted } from "vue";
+import { watch, ref, onMounted } from "vue";
 import DOMPurify from "dompurify";
-import { marked } from "marked";
+import { marked, type Tokens } from "marked";
 import hljs from "highlight.js";
 import "highlight.js/styles/github.css";
 
@@ -14,20 +14,26 @@ const props = defineProps<{ content: string }>();
 
 const rendered = ref("");
 
-// Configure marked to use highlight.js
-marked.setOptions({
-  highlight: function (code, lang) {
-    if (lang && hljs.getLanguage(lang)) {
+// marked@17 已移除 highlight 选项，使用 renderer.code 接管高亮渲染
+marked.use({
+  gfm: true,
+  breaks: true,
+  renderer: {
+    code(token: Tokens.Code): string {
+      const code = token.text ?? "";
+      const lang = (token.lang ?? "").trim();
       try {
-        return hljs.highlight(code, { language: lang }).value;
+        const highlighted = lang && hljs.getLanguage(lang)
+          ? hljs.highlight(code, { language: lang }).value
+          : hljs.highlightAuto(code).value;
+        const languageClass = lang ? `language-${lang}` : "";
+        return `<pre><code class="hljs ${languageClass}">${highlighted}</code></pre>`;
       } catch (e) {
         console.error(e);
+        return `<pre><code>${escapeHtml(code)}</code></pre>`;
       }
     }
-    return code; // use external default escaping
-  },
-  breaks: true,
-  gfm: true
+  }
 });
 
 const MARKDOWN_ALLOWED_TAGS = [

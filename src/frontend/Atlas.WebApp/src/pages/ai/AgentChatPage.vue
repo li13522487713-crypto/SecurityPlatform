@@ -273,7 +273,7 @@ async function selectConversation(conv: ConversationDto) {
   if (!isMounted.value) return;
 }
 
-async function loadMessages(convId: number) {
+async function loadMessages(convId: string) {
   loadingMessages.value = true;
   try {
     const msgs  = await getMessages(convId, { limit: 50 });
@@ -312,7 +312,7 @@ async function handleNewConversation() {
   }
 }
 
-async function handleDeleteConversation(id: number) {
+async function handleDeleteConversation(id: string) {
   try {
     await deleteConversation(id);
 

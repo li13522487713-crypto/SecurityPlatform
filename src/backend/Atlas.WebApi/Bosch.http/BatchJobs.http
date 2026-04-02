@@ -1,0 +1,166 @@
+@baseUrl = http://localhost:5000
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+@clientType = WebH5
+@clientPlatform = Web
+@clientChannel = Browser
+@clientAgent = Chrome
+@localeZh = zh-CN
+
+### Login
+# @name login
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+X-Client-Type: {{clientType}}
+X-Client-Platform: {{clientPlatform}}
+X-Client-Channel: {{clientChannel}}
+X-Client-Agent: {{clientAgent}}
+Accept-Language: {{localeZh}}
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+###
+@accessToken = {{login.response.body.$.data.accessToken}}
+
+### Get CSRF Token
+# @name antiforgery
+GET {{baseUrl}}/api/v1/secure/antiforgery
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+###
+@csrfToken = {{antiforgery.response.body.$.data.token}}
+
+### List Batch Jobs (Paged)
+GET {{baseUrl}}/api/v1/batch-jobs?pageIndex=1&pageSize=10
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Accept-Language: {{localeZh}}
+
+### List Batch Jobs by Status
+GET {{baseUrl}}/api/v1/batch-jobs?pageIndex=1&pageSize=10&status=1
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Accept-Language: {{localeZh}}
+
+### Get Batch Job by ID
+GET {{baseUrl}}/api/v1/batch-jobs/1
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Accept-Language: {{localeZh}}
+
+### Create Batch Job
+# @name createJob
+POST {{baseUrl}}/api/v1/batch-jobs
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+X-CSRF-TOKEN: {{csrfToken}}
+Idempotency-Key: {{$guid}}
+Accept-Language: {{localeZh}}
+
+{
+  "name": "测试批任务-001",
+  "description": "用于测试的批处理任务定义",
+  "dataSourceType": "DynamicTable",
+  "dataSourceConfig": "{\"tableName\":\"test_data\",\"keyColumn\":\"Id\"}",
+  "shardStrategyType": 0,
+  "shardConfig": "{\"desiredShardCount\":4}",
+  "batchSize": 100,
+  "maxConcurrency": 4,
+  "retryPolicy": "{\"maxRetries\":3,\"retryDelayMs\":1000}",
+  "timeoutSeconds": 3600
+}
+
+###
+@jobId = {{createJob.response.body.$.data.id}}
+
+### Update Batch Job
+PUT {{baseUrl}}/api/v1/batch-jobs/{{jobId}}
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+X-CSRF-TOKEN: {{csrfToken}}
+Idempotency-Key: {{$guid}}
+Accept-Language: {{localeZh}}
+
+{
+  "name": "测试批任务-001-更新",
+  "description": "更新后的批处理任务",
+  "dataSourceType": "DynamicTable",
+  "dataSourceConfig": "{\"tableName\":\"test_data\",\"keyColumn\":\"Id\"}",
+  "shardStrategyType": 0,
+  "shardConfig": "{\"desiredShardCount\":8}",
+  "batchSize": 200,
+  "maxConcurrency": 8,
+  "retryPolicy": "{\"maxRetries\":5,\"retryDelayMs\":2000}",
+  "timeoutSeconds": 7200,
+  "cronExpression": "0 0 2 * * ?"
+}
+
+### Activate Batch Job
+POST {{baseUrl}}/api/v1/batch-jobs/{{jobId}}/activate
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+X-CSRF-TOKEN: {{csrfToken}}
+Idempotency-Key: {{$guid}}
+Accept-Language: {{localeZh}}
+
+### Trigger Batch Job Execution
+# @name triggerExecution
+POST {{baseUrl}}/api/v1/batch-jobs/{{jobId}}/trigger
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+X-CSRF-TOKEN: {{csrfToken}}
+Idempotency-Key: {{$guid}}
+Accept-Language: {{localeZh}}
+
+###
+@executionId = {{triggerExecution.response.body.$.data.executionId}}
+
+### List Executions for a Job
+GET {{baseUrl}}/api/v1/batch-jobs/{{jobId}}/executions?pageIndex=1&pageSize=10
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Accept-Language: {{localeZh}}
+
+### Get Execution Detail
+GET {{baseUrl}}/api/v1/batch-jobs/executions/{{executionId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Accept-Language: {{localeZh}}
+
+### Get Execution Shards
+GET {{baseUrl}}/api/v1/batch-jobs/executions/{{executionId}}/shards
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Accept-Language: {{localeZh}}
+
+### Cancel Execution
+POST {{baseUrl}}/api/v1/batch-jobs/executions/{{executionId}}/cancel
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+X-CSRF-TOKEN: {{csrfToken}}
+Idempotency-Key: {{$guid}}
+Accept-Language: {{localeZh}}
+
+### Pause Batch Job
+POST {{baseUrl}}/api/v1/batch-jobs/{{jobId}}/pause
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+X-CSRF-TOKEN: {{csrfToken}}
+Idempotency-Key: {{$guid}}
+Accept-Language: {{localeZh}}
+
+### Archive Batch Job
+POST {{baseUrl}}/api/v1/batch-jobs/{{jobId}}/archive
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+X-CSRF-TOKEN: {{csrfToken}}
+Idempotency-Key: {{$guid}}
+Accept-Language: {{localeZh}}

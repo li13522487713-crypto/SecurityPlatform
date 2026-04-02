@@ -137,7 +137,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             typeof(RoleMenu),
             typeof(TableView),
             typeof(UserTableViewDefault),
-            typeof(IdempotencyRecord),
+            typeof(Atlas.Domain.Identity.Entities.IdempotencyRecord),
             typeof(AuditRecord),
             typeof(Asset),
             typeof(AlertRecord),
@@ -285,7 +285,10 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             typeof(LowCodeAppVersion),
             typeof(FormDefinitionVersion),
             // Events / Outbox
-            typeof(OutboxMessage),
+            typeof(Atlas.Domain.Events.OutboxMessage),
+            typeof(Atlas.Core.Messaging.InboxMessage),
+            typeof(Atlas.Core.Messaging.OutboxMessage),
+            typeof(Atlas.Core.Messaging.IdempotencyRecord),
             // Plugin configuration
             typeof(PluginConfig),
             // Plugin market
@@ -317,7 +320,30 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             typeof(PackageArtifact),
             typeof(LicenseGrant),
             typeof(ToolAuthorizationPolicy),
-            typeof(AppDesignerSnapshot));
+            typeof(AppDesignerSnapshot),
+            // Logic flow entities
+            typeof(Atlas.Domain.LogicFlow.Flows.LogicFlowDefinition),
+            typeof(Atlas.Domain.LogicFlow.Flows.FlowNodeBinding),
+            typeof(Atlas.Domain.LogicFlow.Flows.FlowEdgeDefinition),
+            typeof(Atlas.Domain.LogicFlow.Flows.FlowExecution),
+            typeof(Atlas.Domain.LogicFlow.Flows.NodeRun),
+            typeof(Atlas.Domain.LogicFlow.Expressions.FunctionDefinition),
+            typeof(Atlas.Domain.LogicFlow.Expressions.DecisionTableDefinition),
+            typeof(Atlas.Domain.LogicFlow.Expressions.RuleChainDefinition),
+            typeof(Atlas.Domain.LogicFlow.Nodes.NodeTypeDefinition),
+            typeof(Atlas.Domain.LogicFlow.Nodes.NodeTemplate),
+            typeof(Atlas.Domain.LogicFlow.Nodes.BusinessTemplateBlock),
+            // Batch process entities
+            typeof(Atlas.Domain.BatchProcess.Entities.BatchJobDefinition),
+            typeof(Atlas.Domain.BatchProcess.Entities.BatchJobExecution),
+            typeof(Atlas.Domain.BatchProcess.Entities.ShardExecution),
+            typeof(Atlas.Domain.BatchProcess.Entities.BatchExecution),
+            typeof(Atlas.Domain.BatchProcess.Entities.BatchDeadLetter),
+            typeof(Atlas.Domain.BatchProcess.Entities.BatchCheckpoint),
+            typeof(Atlas.Domain.LogicFlow.Flows.LfExecutionLog),
+            typeof(Atlas.Domain.LogicFlow.Governance.SysQuota),
+            typeof(Atlas.Domain.LogicFlow.Governance.SysCanaryRelease),
+            typeof(Atlas.Domain.LogicFlow.Governance.SysVersionFreeze));
         // 结束 CodeFirst.InitTables 块
         }
         else

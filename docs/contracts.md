@@ -3842,21 +3842,356 @@ type EvaluationCaseStatus = 0 | 1 | 2 | 3; // Pending / Passed / Failed / Error
 
 > **状态**：占位章节。详细 Case 与交付节奏见 [plan-backend-logic-engine-progress.md](./plan-backend-logic-engine-progress.md)。实施过程中将按 Track 在此补充 **URI 前缀、请求头、统一响应、分页、错误码、幂等与 CSRF** 等与全篇契约一致的约定。
 
-### 计划增补小节（标题占位）
+### 表达式与函数（Track-03，已实现）
 
-| 小节 | 内容概要 |
-|------|----------|
-| 动态建模发布与迁移 | 发布快照、兼容性检查、DDL 预览、Expand/Migrate/Contract；与 `DynamicTables`/`SchemaDraft` 路由关系 |
-| 表达式与函数 | 函数定义 CRUD、校验、求值与调试接口；与 `ExpressionsController` 演进关系 |
-| 节点类型与注册表 | 节点元数据、分类、UI 元数据、模板查询 |
-| 逻辑流与执行 | 逻辑流定义 CRUD、校验、编译、手动触发执行、执行与节点运行查询、取消/重试 |
-| 批处理与死信 | 批任务定义与执行、分片/批次状态、死信查询与人工重试 |
-| 治理与插件 | 配额/灰度/版本冻结、插件注册与 SPI 能力声明 |
+**URI 前缀**：`api/v1`
+
+#### 函数定义 CRUD
+
+| 方法 | 路径 | 说明 | 请求/响应 |
+|------|------|------|-----------|
+| GET | `/function-definitions` | 分页查询 | query: `pageIndex`, `pageSize`, `keyword?`, `category?` → `PagedResult<FunctionDefinitionListItem>` |
+| GET | `/function-definitions/all` | 全量列表 | → `FunctionDefinitionListItem[]` |
+| GET | `/function-definitions/{id}` | 详情 | → `FunctionDefinitionResponse` |
+| POST | `/function-definitions` | 创建 | `FunctionDefinitionCreateRequest` → `long (id)` |
+| PUT | `/function-definitions/{id}` | 更新 | `FunctionDefinitionUpdateRequest` |
+| DELETE | `/function-definitions/{id}` | 删除 | 内置函数不可删除 |
+
+**FunctionDefinitionListItem**: `id`, `name`, `displayName`, `category`(枚举), `returnType`(枚举), `isBuiltin`, `isEnabled`, `sortOrder`
+
+**FunctionCategory 枚举**: String=1, Numeric=2, Date=3, Conversion=4, Collection=5, Aggregate=6, Window=7, Logic=8, Custom=99
+
+#### 决策表 CRUD + 执行
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/decision-tables` | 分页查询 |
+| GET | `/decision-tables/{id}` | 详情 |
+| POST | `/decision-tables` | 创建 |
+| PUT | `/decision-tables/{id}` | 更新 |
+| DELETE | `/decision-tables/{id}` | 删除 |
+| POST | `/decision-tables/execute` | 执行决策表 → `DecisionTableExecuteResponse` |
+
+**DecisionHitPolicy 枚举**: First=1, Collect=2, RuleOrder=3
+
+#### 规则链 CRUD + 执行
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/rule-chains` | 分页查询 |
+| GET | `/rule-chains/{id}` | 详情 |
+| POST | `/rule-chains` | 创建 |
+| PUT | `/rule-chains/{id}` | 更新 |
+| DELETE | `/rule-chains/{id}` | 删除 |
+| POST | `/rule-chains/execute` | 执行规则链 → `RuleChainExecuteResponse` |
+
+#### 表达式引擎核心（已有 + 扩展）
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/expressions/validate` | 静态校验表达式 |
+| POST | `/expressions/evaluate` | 带上下文求值 |
+
+**类型系统 (ExprType)**: Null=0, Boolean=1, Integer=2, Long=3, Double=4, Decimal=5, String=6, DateTime=7, Duration=8, List=20, Map=21, Record=22, Function=30, Any=98, Void=99, Error=100
+
+#### 错误码
+
+| 错误码 | 说明 |
+|--------|------|
+| DUPLICATE_NAME | 函数名/规则名重复 |
+| FORBIDDEN | 内置函数不可修改/删除 |
+| NOT_FOUND | 资源不存在 |
+
+### 节点类型与注册表
+
+前缀 `api/v1/node-types`，全部需 `Authorization: Bearer {token}` + `X-Tenant-Id`。
+
+#### 路由
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/node-types` | 分页查询节点类型定义（`?pageIndex&pageSize&keyword&category&isBuiltIn`） |
+| GET | `/node-types/{id}` | 按 ID 查询详情 |
+| GET | `/node-types/by-key/{typeKey}` | 按 TypeKey 查询详情 |
+| GET | `/node-types/categories` | 获取分类列表 `NodeCategoryInfo[]` |
+| GET | `/node-types/registry` | 获取内存注册表中所有内置节点声明（`?category`） |
+| POST | `/node-types` | 创建自定义节点类型（`Idempotency-Key` + `X-CSRF-TOKEN`） |
+| PUT | `/node-types/{id}` | 更新自定义节点类型（`Idempotency-Key` + `X-CSRF-TOKEN`） |
+| DELETE | `/node-types/{id}` | 删除自定义节点类型（`Idempotency-Key` + `X-CSRF-TOKEN`） |
+
+#### 节点分类枚举 (NodeCategory)
+
+| 值 | 名称 | 说明 |
+|----|------|------|
+| 0 | Trigger | 触发类 |
+| 1 | DataRead | 数据读取类 |
+| 2 | DataTransform | 数据变换类 |
+| 3 | ControlFlow | 控制流类 |
+| 4 | Transaction | 事务与可靠性类 |
+| 5 | SystemIntegration | 系统联动类 |
+
+#### 端口类型 (PortType)
+
+| 值 | 名称 |
+|----|------|
+| 0 | Control |
+| 1 | Data |
+| 2 | Error |
+| 3 | Compensation |
+
+#### 节点数据类型 (NodeDataType)
+
+| 值 | 名称 |
+|----|------|
+| 0 | Any |
+| 1 | String |
+| 2 | Number |
+| 3 | Boolean |
+| 4 | DateTime |
+| 5 | Record |
+| 6 | Array |
+| 7 | DatasetHandle |
+| 8 | Expression |
+| 9 | Binary |
+| 10 | Json |
+
+#### 节点执行状态枚举 (NodeExecutionStatus, 13 态)
+
+Pending=0, Ready=1, Running=2, Paused=3, Completed=4, Failed=5, Skipped=6, Cancelled=7, TimedOut=8, WaitingForRetry=9, Compensating=10, Compensated=11, Unknown=12
+
+#### 模型
+
+**NodeRegistryItem**（注册表返回）
+
+```json
+{
+  "typeKey": "trigger.manual",
+  "category": 0,
+  "displayName": "手动触发",
+  "description": "由用户手动触发逻辑流执行",
+  "ports": [{ "portKey": "out", "displayName": "输出", "direction": 1, "portType": 0, "dataType": 0, "isRequired": false, "maxConnections": 1 }],
+  "capabilities": { "supportsRetry": false, "supportsTimeout": false, "supportsBreakpoint": true, "maxInputPorts": 1, "maxOutputPorts": 1 },
+  "uiMetadata": { "shape": "rounded", "icon": "PlayCircleOutlined", "color": "#52c41a" }
+}
+```
+
+**NodeTypeCreateRequest**
+
+| 字段 | 类型 | 必填 | 校验 |
+|------|------|------|------|
+| typeKey | string | ✓ | 1~128，`^[a-z][a-z0-9]*(\.[a-z][a-z0-9]*)*$` |
+| category | int(enum) | ✓ | 0~5 |
+| displayName | string | ✓ | 1~200 |
+| description | string? | | ≤1000 |
+| ports | PortDefinition[]? | | |
+| configSchema | NodeConfigSchema? | | 五层配置 |
+| capabilities | NodeCapability? | | |
+| uiMetadata | NodeUiMetadata? | | |
+
+**NodeConfigSchema（五层配置模型）**
+
+```
+Basic   → fields[]（字段键/显示名/类型/必填/默认值/选项）
+Binding → inputBindings[] / outputBindings[]（端口+表达式/静态值）
+Advanced → maxRetries / timeoutSeconds / maxParallelism / enableCache
+Error   → errorStrategy / fallbackNodeKey / enableErrorPort
+Debug   → enableBreakpoint / logInput / logOutput / mockDataJson
+```
+
+#### 内置节点种子
+
+| 分类 | TypeKey | 名称 |
+|------|---------|------|
+| Trigger | trigger.manual | 手动触发 |
+| Trigger | trigger.schedule | 定时触发 |
+| Trigger | trigger.webhook | Webhook 触发 |
+| Trigger | trigger.event | 事件触发 |
+| DataRead | data.table_query | 表查询 |
+| DataRead | data.sql_query | SQL 查询 |
+| DataRead | data.api_call | API 调用 |
+| DataTransform | transform.field_mapping | 字段映射 |
+| DataTransform | transform.filter | 数据过滤 |
+| DataTransform | transform.sort | 数据排序 |
+| DataTransform | transform.aggregate | 数据聚合 |
+| DataTransform | transform.expression | 表达式转换 |
+| ControlFlow | control.condition | 条件分支 |
+| ControlFlow | control.switch | 多路分支 |
+| ControlFlow | control.foreach | 循环 |
+| ControlFlow | control.parallel | 并行 |
+| ControlFlow | control.wait | 等待 |
+| ControlFlow | control.merge | 合并 |
+| Transaction | tx.transaction | 事务 |
+| Transaction | tx.retry | 重试 |
+| Transaction | tx.compensate | 补偿 |
+| Transaction | tx.checkpoint | 检查点 |
+| SystemIntegration | sys.http_request | HTTP 请求 |
+| SystemIntegration | sys.message_send | 消息发送 |
+| SystemIntegration | sys.notification | 通知 |
+| SystemIntegration | sys.data_sync | 数据同步 |
+
+#### 错误码
+
+| 错误码 | 说明 |
+|--------|------|
+| NODE_TYPE_EXISTS | 节点类型 TypeKey 已存在 |
+| FORBIDDEN | 内置节点类型不可修改/删除 |
+| NOT_FOUND | 节点类型/模板不存在 |
+
+### 逻辑流与执行（Track-05，已落地）
+
+前缀：`api/v1`，需 `Authorization: Bearer {token}` + `X-Tenant-Id`。
+
+#### 逻辑流定义
+
+| Method | Path | 说明 |
+|--------|------|------|
+| GET | `/logic-flows` | 分页查询（`?pageIndex&pageSize&keyword&status`） |
+| GET | `/logic-flows/{id}` | 获取逻辑流详情 |
+| POST | `/logic-flows` | 创建逻辑流（写操作要求 `Idempotency-Key` + `X-CSRF-TOKEN`） |
+| PUT | `/logic-flows/{id}` | 更新逻辑流（写操作要求 `Idempotency-Key` + `X-CSRF-TOKEN`） |
+| POST | `/logic-flows/{id}/publish` | 发布逻辑流 |
+| POST | `/logic-flows/{id}/archive` | 归档逻辑流 |
+| DELETE | `/logic-flows/{id}` | 删除逻辑流 |
+
+#### 执行与运行记录
+
+| Method | Path | 说明 |
+|--------|------|------|
+| GET | `/flow-executions` | 分页查询执行实例（`?pageIndex&pageSize&flowDefinitionId&status`） |
+| GET | `/flow-executions/{id}` | 获取执行详情 |
+| GET | `/flow-executions/{id}/node-runs` | 获取节点运行记录 |
+| POST | `/flow-executions/trigger` | 手动触发执行 |
+| POST | `/flow-executions/{id}/cancel` | 取消执行 |
+| POST | `/flow-executions/{id}/pause` | 暂停执行 |
+| POST | `/flow-executions/{id}/resume` | 恢复执行 |
+| POST | `/flow-executions/{id}/retry` | 重试执行（创建新 execution） |
+
+#### 状态枚举
+
+**FlowStatus**：`0=Draft` / `1=Published` / `2=Archived` / `3=Disabled`  
+**ExecutionStatus**：`0=Pending` / `1=Running` / `2=Completed` / `3=Failed` / `4=Cancelled` / `5=TimedOut` / `6=Compensating` / `7=Compensated` / `8=Paused`
+
+#### 逻辑流错误码
+
+| 错误码 | 说明 |
+|--------|------|
+| NOT_FOUND | 逻辑流或执行实例不存在 |
+| LOGIC_FLOW_NOT_PUBLISHED | 逻辑流未发布或未启用，无法触发/重试 |
+| INVALID_STATE | 当前状态不允许此操作 |
+
+### 批处理与死信（Track-06，已实现）
+
+#### 批处理任务定义
+
+| Method | Path | 说明 |
+|--------|------|------|
+| GET | `/batch-jobs` | 分页查询批处理任务定义（`?pageIndex&pageSize&keyword&status`） |
+| GET | `/batch-jobs/{id}` | 获取批处理任务详情 |
+| POST | `/batch-jobs` | 创建批处理任务定义（`Idempotency-Key` + `X-CSRF-TOKEN`） |
+| PUT | `/batch-jobs/{id}` | 更新批处理任务定义（仅 Draft/Paused 态可编辑） |
+| POST | `/batch-jobs/{id}/activate` | 激活任务 |
+| POST | `/batch-jobs/{id}/pause` | 暂停任务 |
+| POST | `/batch-jobs/{id}/archive` | 归档任务 |
+| POST | `/batch-jobs/{id}/trigger` | 触发执行（仅 Active 态可触发） |
+
+#### 批处理执行与分片
+
+| Method | Path | 说明 |
+|--------|------|------|
+| GET | `/batch-jobs/{id}/executions` | 分页查询执行实例（`?pageIndex&pageSize&status`） |
+| GET | `/batch-jobs/executions/{executionId}` | 获取执行实例详情 |
+| GET | `/batch-jobs/executions/{executionId}/shards` | 获取分片列表 |
+| POST | `/batch-jobs/executions/{executionId}/cancel` | 取消执行 |
+
+#### 死信队列
+
+| Method | Path | 说明 |
+|--------|------|------|
+| GET | `/batch-dead-letters` | 分页查询死信（`?pageIndex&pageSize&jobExecutionId&status`） |
+| GET | `/batch-dead-letters/{id}` | 获取死信详情 |
+| POST | `/batch-dead-letters/{id}/retry` | 重试单条死信 |
+| POST | `/batch-dead-letters/batch-retry` | 批量重试（Body: `{ ids: [1,2,3] }`） |
+| POST | `/batch-dead-letters/{id}/abandon` | 放弃单条死信 |
+| POST | `/batch-dead-letters/batch-abandon` | 批量放弃 |
+
+#### 批处理任务定义 DTO
+
+```json
+{
+  "name": "string",
+  "description": "string?",
+  "dataSourceType": "string",
+  "dataSourceConfig": "string (JSON)",
+  "shardStrategyType": 0,
+  "shardConfig": "string (JSON)",
+  "batchSize": 100,
+  "maxConcurrency": 4,
+  "retryPolicy": "string (JSON)",
+  "timeoutSeconds": 3600,
+  "cronExpression": "string?"
+}
+```
+
+**ShardStrategy 枚举**：`0=PrimaryKeyRange` / `1=TimeWindow`
+
+**BatchJobStatus 枚举**：`0=Draft` / `1=Active` / `2=Paused` / `3=Archived`
+
+**JobExecutionStatus 枚举**：`0=Pending` / `1=Running` / `2=Completed` / `3=Failed` / `4=Cancelled`
+
+**DeadLetterStatus 枚举**：`0=Pending` / `1=Retrying` / `2=Resolved` / `3=Abandoned`
+
+#### 批处理错误码
+
+| 错误码 | 说明 |
+|--------|------|
+| NOT_FOUND | 批处理任务/执行/死信不存在 |
+| INVALID_STATE | 当前状态不允许此操作（如非 Active 态触发执行） |
+
+#### 前端路由
+
+| 路径 | 名称 | 说明 |
+|------|------|------|
+| `/apps/:appId/logic-flow/batch-jobs` | `app-batch-designer` | 批处理设计器 |
+| `/apps/:appId/logic-flow/batch-monitor` | `app-batch-monitor` | 批处理监控 |
+| `/apps/:appId/logic-flow/batch-dead-letters` | `app-batch-dead-letters` | 死信管理 |
+
+### 治理与插件（Track-10，已落地）
+
+前缀：`api/v1`，需 `Authorization: Bearer {token}` + `X-Tenant-Id`。
+
+#### 治理接口（`/governance`）
+
+| Method | Path | 说明 |
+|--------|------|------|
+| GET | `/governance/quotas` | 查询配额（可按 `resourceType` 过滤） |
+| POST | `/governance/quotas/{resourceType}/consume` | 消耗配额 |
+| GET | `/governance/canary-releases` | 查询灰度发布配置 |
+| PUT | `/governance/canary-releases/{featureKey}` | 设置灰度百分比 |
+| GET | `/governance/version-freezes` | 查询冻结记录 |
+| POST | `/governance/version-freezes` | 冻结版本 |
+| DELETE | `/governance/version-freezes/{resourceType}/{resourceId}` | 解除冻结 |
+
+#### 插件注册表（`/logic-flow/plugins`）
+
+| Method | Path | 说明 |
+|--------|------|------|
+| GET | `/logic-flow/plugins` | 查询全部插件 |
+| GET | `/logic-flow/plugins/nodes` | 查询节点插件 |
+| GET | `/logic-flow/plugins/functions` | 查询函数插件 |
+| GET | `/logic-flow/plugins/data-sources` | 查询数据源插件 |
+| GET | `/logic-flow/plugins/templates` | 查询模板插件 |
+
+#### 治理与插件错误码
+
+| 错误码 | 说明 |
+|--------|------|
+| NOT_FOUND | 资源不存在 |
+| INVALID_STATE | 当前状态不允许此操作 |
 
 ### 契约同步检查项（实施时勾选）
 
-- [ ] 所有新路由使用 `api/v1`（或项目统一版本前缀），与本文「控制器规范」一致
-- [ ] 写操作同时约定 `Idempotency-Key` 与 `X-CSRF-TOKEN`（浏览器调用场景）
+- [x] 所有新路由使用 `api/v1`（或项目统一版本前缀），与本文「控制器规范」一致
+- [x] 写操作同时约定 `Idempotency-Key` 与 `X-CSRF-TOKEN`（浏览器调用场景）
 - [ ] 新增错误码写入「通用响应模型」错误码表，并避免与现有码冲突
-- [ ] 更新本文后同步前端 `api.ts` / 生成类型 / i18n
+- [x] 更新本文后同步前端 `api.ts` / 生成类型 / i18n
 

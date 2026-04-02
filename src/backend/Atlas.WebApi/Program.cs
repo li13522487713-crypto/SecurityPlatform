@@ -521,6 +521,8 @@ builder.Services.AddAtlasApplication(
     typeof(AlertMappingProfile).Assembly,
     typeof(ApprovalMappingProfile).Assembly,
     typeof(AssetsMappingProfile).Assembly,
+    typeof(Atlas.Application.LogicFlow.Flows.Mappings.LogicFlowMappingProfile).Assembly,
+    typeof(Atlas.Application.BatchProcess.Mappings.BatchProcessMappingProfile).Assembly,
     typeof(WebApiMappingProfile).Assembly);
 builder.Services.AddAtlasInfrastructure(builder.Configuration);
 

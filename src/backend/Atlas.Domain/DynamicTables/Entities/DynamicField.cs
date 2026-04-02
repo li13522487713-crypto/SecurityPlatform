@@ -25,6 +25,10 @@ public sealed class DynamicField : TenantEntity
         SortOrder = 0;
         CreatedAt = DateTimeOffset.MinValue;
         UpdatedAt = DateTimeOffset.MinValue;
+        IsComputed = false;
+        ComputedExprId = null;
+        IsStatusField = false;
+        IsRowVersionField = false;
     }
 
     public DynamicField(
@@ -62,6 +66,10 @@ public sealed class DynamicField : TenantEntity
         SortOrder = sortOrder;
         CreatedAt = now;
         UpdatedAt = now;
+        IsComputed = false;
+        ComputedExprId = null;
+        IsStatusField = false;
+        IsRowVersionField = false;
     }
 
     public long TableId { get; private set; }
@@ -88,6 +96,38 @@ public sealed class DynamicField : TenantEntity
     public int SortOrder { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset UpdatedAt { get; private set; }
+
+    /// <summary>是否为计算字段（由表达式引擎求值）</summary>
+    public bool IsComputed { get; private set; }
+
+    /// <summary>关联的计算表达式 ID（仅 IsComputed=true 时有效）</summary>
+    [SugarColumn(IsNullable = true)]
+    public long? ComputedExprId { get; private set; }
+
+    /// <summary>是否为状态字段（用于审批流等业务状态追踪）</summary>
+    public bool IsStatusField { get; private set; }
+
+    /// <summary>是否为行版本字段（用于乐观并发控制）</summary>
+    public bool IsRowVersionField { get; private set; }
+
+    public void SetComputed(long? exprId, DateTimeOffset now)
+    {
+        IsComputed = exprId.HasValue;
+        ComputedExprId = exprId;
+        UpdatedAt = now;
+    }
+
+    public void SetStatusField(bool isStatus, DateTimeOffset now)
+    {
+        IsStatusField = isStatus;
+        UpdatedAt = now;
+    }
+
+    public void SetRowVersionField(bool isRowVersion, DateTimeOffset now)
+    {
+        IsRowVersionField = isRowVersion;
+        UpdatedAt = now;
+    }
 
     public void Update(
         string displayName,

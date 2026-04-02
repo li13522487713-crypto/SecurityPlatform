@@ -1,0 +1,116 @@
+@host = http://localhost:5000
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+@clientType = WebH5
+@clientPlatform = Web
+@clientChannel = Browser
+@clientAgent = Chrome
+@localeZh = zh-CN
+
+### Login
+# @name login
+POST {{host}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+X-Client-Type: {{clientType}}
+X-Client-Platform: {{clientPlatform}}
+X-Client-Channel: {{clientChannel}}
+X-Client-Agent: {{clientAgent}}
+Accept-Language: {{localeZh}}
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+###
+@token = {{login.response.body.$.data.accessToken}}
+
+### Get CSRF Token
+# @name antiforgery
+GET {{host}}/api/v1/secure/antiforgery
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+###
+@csrfToken = {{antiforgery.response.body.$.data.token}}
+
+### Governance — quotas (list)
+GET {{host}}/api/v1/governance/quotas
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Accept-Language: {{localeZh}}
+
+### Governance — quota by resource type
+GET {{host}}/api/v1/governance/quotas?resourceType=logic_flow_executions
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Accept-Language: {{localeZh}}
+
+### Governance — consume quota
+POST {{host}}/api/v1/governance/quotas/logic_flow_executions/consume
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+X-CSRF-TOKEN: {{csrfToken}}
+Idempotency-Key: {{$guid}}
+Content-Type: application/json
+Accept-Language: {{localeZh}}
+
+{
+  "amount": 1
+}
+
+### Governance — canary releases (list)
+GET {{host}}/api/v1/governance/canary-releases
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Accept-Language: {{localeZh}}
+
+### Governance — set canary rollout
+PUT {{host}}/api/v1/governance/canary-releases/my_feature
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+X-CSRF-TOKEN: {{csrfToken}}
+Idempotency-Key: {{$guid}}
+Content-Type: application/json
+Accept-Language: {{localeZh}}
+
+{
+  "rolloutPercentage": 25
+}
+
+### Governance — version freezes (list)
+GET {{host}}/api/v1/governance/version-freezes
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Accept-Language: {{localeZh}}
+
+### Governance — version freezes (filtered)
+GET {{host}}/api/v1/governance/version-freezes?resourceType=logic_flow&resourceId=1
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Accept-Language: {{localeZh}}
+
+### Governance — freeze version
+POST {{host}}/api/v1/governance/version-freezes
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+X-CSRF-TOKEN: {{csrfToken}}
+Idempotency-Key: {{$guid}}
+Content-Type: application/json
+Accept-Language: {{localeZh}}
+
+{
+  "resourceType": "logic_flow",
+  "resourceId": 1,
+  "reason": "release freeze"
+}
+
+### Governance — unfreeze version
+DELETE {{host}}/api/v1/governance/version-freezes/logic_flow/1
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+X-CSRF-TOKEN: {{csrfToken}}
+Idempotency-Key: {{$guid}}
+Accept-Language: {{localeZh}}

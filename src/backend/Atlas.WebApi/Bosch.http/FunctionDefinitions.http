@@ -1,0 +1,87 @@
+@host = http://localhost:5000
+@tenantId = 00000000-0000-0000-0000-000000000001
+
+### 登录获取 token
+# @name login
+POST {{host}}/api/v1/auth/login
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "admin",
+  "password": "P@ssw0rd!"
+}
+
+###
+@token = {{login.response.body.$.data.accessToken}}
+
+### 分页查询函数定义
+GET {{host}}/api/v1/function-definitions?pageIndex=1&pageSize=20
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### 按分类查询函数定义
+GET {{host}}/api/v1/function-definitions?pageIndex=1&pageSize=20&category=1
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### 查询所有函数定义
+GET {{host}}/api/v1/function-definitions/all
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### 创建自定义函数
+# @name createFn
+POST {{host}}/api/v1/function-definitions
+Content-Type: application/json
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: fn-create-001
+X-CSRF-TOKEN: test
+
+{
+  "name": "MY_CUSTOM_FN",
+  "displayName": "自定义计算函数",
+  "description": "将两个数值相加并乘以系数",
+  "category": 99,
+  "parametersJson": "[{\"name\":\"a\",\"type\":\"Double\",\"isRequired\":true},{\"name\":\"b\",\"type\":\"Double\",\"isRequired\":true},{\"name\":\"factor\",\"type\":\"Double\",\"isRequired\":false}]",
+  "returnType": 4,
+  "bodyExpression": "(a + b) * (factor ?? 1.0)",
+  "sortOrder": 0
+}
+
+###
+@fnId = {{createFn.response.body.$.data}}
+
+### 查询单个函数定义
+GET {{host}}/api/v1/function-definitions/{{fnId}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### 更新函数定义
+PUT {{host}}/api/v1/function-definitions/{{fnId}}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: fn-update-001
+X-CSRF-TOKEN: test
+
+{
+  "id": {{fnId}},
+  "name": "MY_CUSTOM_FN",
+  "displayName": "自定义计算函数（已更新）",
+  "description": "将两个数值相加并乘以系数",
+  "category": 99,
+  "parametersJson": "[{\"name\":\"a\",\"type\":\"Double\",\"isRequired\":true},{\"name\":\"b\",\"type\":\"Double\",\"isRequired\":true},{\"name\":\"factor\",\"type\":\"Double\",\"isRequired\":false}]",
+  "returnType": 4,
+  "bodyExpression": "(a + b) * (factor ?? 1.0)",
+  "isEnabled": true,
+  "sortOrder": 0
+}
+
+### 删除函数定义
+DELETE {{host}}/api/v1/function-definitions/{{fnId}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: fn-delete-001
+X-CSRF-TOKEN: test

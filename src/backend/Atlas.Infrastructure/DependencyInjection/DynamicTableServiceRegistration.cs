@@ -29,8 +29,18 @@ public static class DynamicTableServiceRegistration
         services.AddScoped<IDynamicTableApprovalBindingRepository, DynamicTableApprovalBindingRepository>();
         services.AddScoped<ISchemaDraftRepository, SchemaDraftRepository>();
         services.AddScoped<ISchemaChangeTaskRepository, SchemaChangeTaskRepository>();
+        services.AddScoped<ISchemaPublishSnapshotRepository, SchemaPublishSnapshotRepository>();
         services.AddScoped<ISchemaDraftService, SchemaDraftService>();
         services.AddScoped<ISchemaChangeTaskService, SchemaChangeTaskService>();
+        services.AddScoped<ISchemaPublishSnapshotQueryService, SchemaPublishSnapshotQueryService>();
+        services.AddScoped<ISchemaPublishSnapshotCommandService, SchemaPublishSnapshotCommandService>();
+        services.AddScoped<IAuditFieldTemplateService, AuditFieldTemplateService>();
+        services.AddScoped<ISchemaCompatibilityChecker, SchemaCompatibilityChecker>();
+        services.AddScoped<IDdlPreviewService, DdlPreviewService>();
+        services.AddScoped<IExpandMigrateContractService, ExpandMigrateContractService>();
+        services.AddScoped<ISchemaImpactAnalysisService, SchemaImpactAnalysisService>();
+        services.AddScoped<IDependencyGraphService, DependencyGraphService>();
+        services.AddScoped<IComputedFieldBindingService, ComputedFieldBindingService>();
         services.AddScoped<IDynamicImpactAnalysisService, DynamicImpactAnalysisService>();
         services.AddScoped<IFieldPermissionResolver, FieldPermissionResolver>();
         services.AddScoped<IDynamicTableQueryService, DynamicTableQueryService>();

@@ -11,6 +11,7 @@
     <PackageReference Include="AWSSDK.S3" Version="4.0.19.1" />
     <PackageReference Include="ClosedXML" Version="0.105.0" />
     <PackageReference Include="DocumentFormat.OpenXml" Version="3.4.1" />
+    <PackageReference Include="FluentValidation" Version="11.4.0" />
     <PackageReference Include="Hangfire.Core" Version="1.8.23" />
     <PackageReference Include="Hangfire.Storage.SQLite" Version="0.4.3" />
     <PackageReference Include="JiebaNet.Segmenter" Version="1.0.6" />
@@ -45,6 +46,12 @@
     <ProjectReference Include="..\Atlas.Application.Assets\Atlas.Application.Assets.csproj" />
     <ProjectReference Include="..\Atlas.Application.Audit\Atlas.Application.Audit.csproj" />
     <ProjectReference Include="..\Atlas.Application.Workflow\Atlas.Application.Workflow.csproj" />
+    <ProjectReference Include="..\Atlas.Application.LogicFlow\Atlas.Application.LogicFlow.csproj" />
+    <ProjectReference Include="..\Atlas.Application.BatchProcess\Atlas.Application.BatchProcess.csproj" />
+    <ProjectReference Include="..\Atlas.Domain.LogicFlow\Atlas.Domain.LogicFlow.csproj" />
+    <ProjectReference Include="..\Atlas.Domain.BatchProcess\Atlas.Domain.BatchProcess.csproj" />
+    <ProjectReference Include="..\Atlas.Infrastructure.LogicFlow\Atlas.Infrastructure.LogicFlow.csproj" />
+    <ProjectReference Include="..\Atlas.Infrastructure.BatchProcess\Atlas.Infrastructure.BatchProcess.csproj" />
     <ProjectReference Include="..\Atlas.Domain.AgentTeam\Atlas.Domain.AgentTeam.csproj" />
     <ProjectReference Include="..\Atlas.Domain\Atlas.Domain.csproj" />
     <ProjectReference Include="..\Atlas.Domain.Workflow\Atlas.Domain.Workflow.csproj" />

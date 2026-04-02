@@ -313,7 +313,18 @@ export const extraMessages: Record<SupportedLocale, MessageTree> = {
       knowledgeBaseDetail: "知识库详情",
       aiWorkflowListGlobal: "AI 工作流",
       aiWorkflowEditor: "AI 工作流设计器",
-      agentChat: "Agent 对话"
+      agentChat: "Agent 对话",
+      logicFlowDesigner: "逻辑流设计器",
+      logicFlowExecutions: "流程执行监控",
+      backendCapabilityStudio: "后台能力工作室",
+      logicFlowExecutionDetail: "流程执行详情",
+      logicFlowExecutionTimeline: "执行时间线",
+      logicFlowGovernance: "资源治理",
+      logicFlowPlugins: "逻辑流插件",
+      viewDesigner: "视图设计器",
+      batchDesigner: "批处理设计器",
+      batchMonitor: "批处理监控",
+      batchDeadLetters: "死信管理"
     },
     authPage: {
       brandTitle: "Atlas 安全平台",
@@ -705,7 +716,18 @@ export const extraMessages: Record<SupportedLocale, MessageTree> = {
       knowledgeBaseDetail: "Knowledge Base Detail",
       aiWorkflowListGlobal: "AI Workflows",
       aiWorkflowEditor: "AI Workflow Designer",
-      agentChat: "Agent Chat"
+      agentChat: "Agent Chat",
+      logicFlowDesigner: "Logic Flow Designer",
+      logicFlowExecutions: "Flow Execution Monitor",
+      backendCapabilityStudio: "Backend Capability Studio",
+      logicFlowExecutionDetail: "Flow Execution Detail",
+      logicFlowExecutionTimeline: "Execution Timeline",
+      logicFlowGovernance: "Resource governance",
+      logicFlowPlugins: "Logic flow plugins",
+      viewDesigner: "View Designer",
+      batchDesigner: "Batch Designer",
+      batchMonitor: "Batch Monitor",
+      batchDeadLetters: "Dead Letter Management"
     },
     authPage: {
       brandTitle: "Atlas Security Platform",

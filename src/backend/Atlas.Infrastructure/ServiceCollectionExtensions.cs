@@ -1,8 +1,13 @@
+using Atlas.Core.Governance;
+using Atlas.Core.Observability;
+using Atlas.Core.Plugins;
 using Atlas.Core.Tenancy;
 using Atlas.Application.Plugins.Abstractions;
 using Atlas.Infrastructure.DependencyInjection;
 using Atlas.Infrastructure.Options;
 using Atlas.Infrastructure.Services;
+using Atlas.Infrastructure.LogicFlow;
+using Atlas.Infrastructure.BatchProcess;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -27,6 +32,25 @@ public static class ServiceCollectionExtensions
         services.AddLicenseInfrastructure(configuration);
         services.AddPlatformInfrastructure();
         services.AddGovernanceInfrastructure();
+        services.AddLogicFlowInfrastructure();
+        services.AddBatchProcessInfrastructure();
+
+        services.AddSingleton<INodeMetricsCollector, Atlas.Infrastructure.Observability.InMemoryNodeMetricsCollector>();
+        services.AddSingleton<ITraceCorrelator, Atlas.Infrastructure.Observability.ActivityTraceCorrelator>();
+        services.AddSingleton<IPluginRegistry, Atlas.Infrastructure.Plugins.PluginRegistry>();
+        services.AddScoped<IExecutionLogger, Atlas.Infrastructure.Observability.ExecutionLogger>();
+        services.AddScoped<IQuotaService, Atlas.Infrastructure.Governance.QuotaService>();
+        services.AddScoped<ICanaryReleaseService, Atlas.Infrastructure.Governance.CanaryReleaseService>();
+        services.AddScoped<IVersionFreezeService, Atlas.Infrastructure.Governance.VersionFreezeService>();
+
+        services.AddSingleton<Atlas.Core.Resilience.IErrorClassifier, Atlas.Infrastructure.Resilience.ErrorClassifier>();
+        services.AddSingleton<Atlas.Core.Resilience.ICircuitBreaker, Atlas.Infrastructure.Resilience.SimpleCircuitBreaker>();
+        services.AddSingleton<Atlas.Core.Resilience.IRateLimiter, Atlas.Infrastructure.Resilience.InMemoryRateLimiter>();
+        services.AddScoped<Atlas.Application.Resilience.IInboxService, Atlas.Infrastructure.Resilience.InboxService>();
+        services.AddScoped<Atlas.Application.Resilience.IOutboxService, Atlas.Infrastructure.Resilience.OutboxService>();
+        services.AddScoped<Atlas.Application.Resilience.ICompensationService, Atlas.Infrastructure.Resilience.CompensationService>();
+        services.AddScoped<Atlas.Application.Resilience.IReconciliationService, Atlas.Infrastructure.Resilience.ReconciliationService>();
+        services.AddScoped<Atlas.Application.Resilience.IIdempotencyService, Atlas.Infrastructure.Resilience.IdempotencyService>();
 
         // 注册多数据源相关服务
         services.AddScoped<Atlas.Infrastructure.Repositories.TenantDataSourceRepository>();

@@ -69,6 +69,22 @@ const CrudConfigPage = () => import("@/pages/dynamic/CrudConfigPage.vue");
 const DataPreviewPage = () => import("@/pages/dynamic/DataPreviewPage.vue");
 const ApprovalBindingPage = () => import("@/pages/dynamic/ApprovalBindingPage.vue");
 const DynamicRecordsNativePage = () => import("@/pages/dynamic/DynamicRecordsNativePage.vue");
+const SchemaSnapshotsPage = () => import("@/pages/dynamic/SchemaSnapshotsPage.vue");
+const DdlPreviewPage = () => import("@/pages/dynamic/DdlPreviewPage.vue");
+const FunctionDesignerPage = () => import("@/pages/logic-flow/FunctionDesignerPage.vue");
+const FormulaBuilderPage = () => import("@/pages/logic-flow/FormulaBuilderPage.vue");
+const NodePanelPage = () => import("@/pages/logic-flow/NodePanelPage.vue");
+const LogicFlowDesignerPage = () => import("@/pages/logic-flow/LogicFlowDesignerPage.vue");
+const FlowExecutionMonitorPage = () => import("@/pages/logic-flow/FlowExecutionMonitorPage.vue");
+const BatchJobDesignerPage = () => import("@/pages/logic-flow/BatchJobDesignerPage.vue");
+const BatchMonitorPage = () => import("@/pages/logic-flow/BatchMonitorPage.vue");
+const BatchDeadLetterPage = () => import("@/pages/logic-flow/BatchDeadLetterPage.vue");
+const BackendCapabilityStudioPage = () => import("@/pages/logic-flow/BackendCapabilityStudioPage.vue");
+const ExecutionDetailPage = () => import("@/pages/logic-flow/ExecutionDetailPage.vue");
+const ExecutionTimelinePage = () => import("@/pages/logic-flow/ExecutionTimelinePage.vue");
+const ResourceGovernancePage = () => import("@/pages/logic-flow/ResourceGovernancePage.vue");
+const PluginManagementPage = () => import("@/pages/logic-flow/PluginManagementPage.vue");
+const ViewDesignerPage = () => import("@/pages/dynamic/ViewDesignerPage.vue");
 const AppOrganizationPage = () => import("@/pages/apps/AppOrganizationPage.vue");
 const AppPermissionsPage = () => import("@/pages/system/PermissionsPage.vue");
 const ModelConfigsPage = () => import("@/pages/ai/ModelConfigsPage.vue");
@@ -215,6 +231,22 @@ const router = createRouter({
     { path: "/apps/:appId/data/:tableKey/preview", name: "app-workspace-data-preview", component: DataPreviewPage, meta: { requiresAuth: true, title: "数据预览", titleKey: "route.dataManage", requiresPermission: "apps:view" } },
     { path: "/apps/:appId/data/:tableKey/approval", name: "app-workspace-data-approval", component: ApprovalBindingPage, meta: { requiresAuth: true, title: "审批绑定", titleKey: "route.dataManage", requiresPermission: "apps:update" } },
     { path: "/apps/:appId/data/:tableKey/native", name: "app-workspace-data-native", component: DynamicRecordsNativePage, meta: { requiresAuth: true, title: "原生记录视图", titleKey: "route.dataManage", requiresPermission: "apps:view" } },
+    { path: "/apps/:appId/data/:tableKey/snapshots", name: "app-workspace-data-snapshots", component: SchemaSnapshotsPage, meta: { requiresAuth: true, title: "发布快照", titleKey: "route.dataManage", requiresPermission: "apps:update" } },
+    { path: "/apps/:appId/data/:tableKey/ddl-preview", name: "app-workspace-data-ddl-preview", component: DdlPreviewPage, meta: { requiresAuth: true, title: "DDL预览", titleKey: "route.dataManage", requiresPermission: "apps:update" } },
+    { path: "/apps/:appId/logic-flow/functions", name: "app-logic-flow-functions", component: FunctionDesignerPage, meta: { requiresAuth: true, title: "函数设计器", titleKey: "route.functionDesigner", requiresPermission: "apps:update" } },
+    { path: "/apps/:appId/logic-flow/formula-builder", name: "app-logic-flow-formula-builder", component: FormulaBuilderPage, meta: { requiresAuth: true, title: "公式构造器", titleKey: "route.formulaBuilder", requiresPermission: "apps:update" } },
+    { path: "/apps/:appId/logic-flow/nodes", name: "app-logic-flow-nodes", component: NodePanelPage, meta: { requiresAuth: true, title: "节点面板", titleKey: "route.nodePanel", requiresPermission: "apps:update" } },
+    { path: "/apps/:appId/logic-flow/designer", name: "app-logic-flow-designer", component: LogicFlowDesignerPage, meta: { requiresAuth: true, title: "逻辑流设计器", titleKey: "route.logicFlowDesigner", requiresPermission: "apps:update" } },
+    { path: "/apps/:appId/logic-flow/executions", name: "app-logic-flow-executions", component: FlowExecutionMonitorPage, meta: { requiresAuth: true, title: "流程执行监控", titleKey: "route.logicFlowExecutions", requiresPermission: "apps:view" } },
+    { path: "/apps/:appId/logic-flow/batch-jobs", name: "app-batch-designer", component: BatchJobDesignerPage, meta: { requiresAuth: true, title: "批处理设计器", titleKey: "route.batchDesigner", requiresPermission: "apps:update" } },
+    { path: "/apps/:appId/logic-flow/batch-monitor", name: "app-batch-monitor", component: BatchMonitorPage, meta: { requiresAuth: true, title: "批处理监控", titleKey: "route.batchMonitor", requiresPermission: "apps:view" } },
+    { path: "/apps/:appId/logic-flow/batch-dead-letters", name: "app-batch-dead-letters", component: BatchDeadLetterPage, meta: { requiresAuth: true, title: "死信管理", titleKey: "route.batchDeadLetters", requiresPermission: "apps:update" } },
+    { path: "/apps/:appId/logic-flow/studio", name: "app-logic-flow-studio", component: BackendCapabilityStudioPage, meta: { requiresAuth: true, title: "后台能力工作室", titleKey: "route.backendCapabilityStudio", requiresPermission: "apps:update" } },
+    { path: "/apps/:appId/logic-flow/executions/:id", name: "app-logic-flow-execution-detail", component: ExecutionDetailPage, meta: { requiresAuth: true, title: "流程执行详情", titleKey: "route.logicFlowExecutionDetail", requiresPermission: "apps:view" } },
+    { path: "/apps/:appId/logic-flow/executions/:id/timeline", name: "app-logic-flow-execution-timeline", component: ExecutionTimelinePage, meta: { requiresAuth: true, title: "执行时间线", titleKey: "route.logicFlowExecutionTimeline", requiresPermission: "apps:view" } },
+    { path: "/apps/:appId/logic-flow/governance", name: "app-logic-flow-governance", component: ResourceGovernancePage, meta: { requiresAuth: true, title: "资源治理", titleKey: "route.logicFlowGovernance", requiresPermission: "apps:update" } },
+    { path: "/apps/:appId/logic-flow/plugins", name: "app-logic-flow-plugins-mgmt", component: PluginManagementPage, meta: { requiresAuth: true, title: "插件管理", titleKey: "route.logicFlowPlugins", requiresPermission: "apps:update" } },
+    { path: "/apps/:appId/data/views/designer", name: "app-data-view-designer", component: ViewDesignerPage, meta: { requiresAuth: true, title: "视图设计器", titleKey: "route.viewDesigner", requiresPermission: "apps:update" } },
     { path: "/apps/:appId/org", name: "app-workspace-org", component: AppOrganizationPage, meta: { requiresAuth: true, title: "组织管理", titleKey: "route.appOrganization", requiresPermission: "apps:view" } },
     { path: "/apps/:appId/permissions", name: "app-workspace-permissions", component: AppPermissionsPage, meta: { requiresAuth: true, title: "权限入口", titleKey: "route.permissionsEntry", requiresPermission: "apps:view" } },
     { path: "/r/:appKey/:pageKey", name: "runtime-delivery-page", component: PageRuntimeRenderer, meta: { requiresAuth: true, title: "运行交付面", titleKey: "route.runtimeDelivery" } },

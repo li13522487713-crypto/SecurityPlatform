@@ -1,0 +1,114 @@
+using Atlas.Application.LogicFlow.Expressions.Abstractions;
+using Atlas.Application.LogicFlow.Expressions.Models;
+using Atlas.Core.Identity;
+using Atlas.Core.Models;
+using Atlas.Core.Tenancy;
+using FluentValidation;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+
+namespace Atlas.WebApi.Controllers;
+
+[ApiController]
+[Route("api/v1/function-definitions")]
+[Authorize]
+public sealed class FunctionDefinitionsController : ControllerBase
+{
+    private readonly IFunctionDefinitionQueryService _queryService;
+    private readonly IFunctionDefinitionCommandService _commandService;
+    private readonly ICurrentUserAccessor _currentUser;
+    private readonly ITenantProvider _tenantProvider;
+    private readonly IValidator<FunctionDefinitionCreateRequest> _createValidator;
+    private readonly IValidator<FunctionDefinitionUpdateRequest> _updateValidator;
+
+    public FunctionDefinitionsController(
+        IFunctionDefinitionQueryService queryService,
+        IFunctionDefinitionCommandService commandService,
+        ICurrentUserAccessor currentUser,
+        ITenantProvider tenantProvider,
+        IValidator<FunctionDefinitionCreateRequest> createValidator,
+        IValidator<FunctionDefinitionUpdateRequest> updateValidator)
+    {
+        _queryService = queryService;
+        _commandService = commandService;
+        _currentUser = currentUser;
+        _tenantProvider = tenantProvider;
+        _createValidator = createValidator;
+        _updateValidator = updateValidator;
+    }
+
+    [HttpGet]
+    public async Task<ActionResult<ApiResponse<PagedResult<FunctionDefinitionListItem>>>> GetPaged(
+        [FromQuery] int pageIndex = 1, [FromQuery] int pageSize = 20,
+        [FromQuery] string? keyword = null, [FromQuery] int? category = null,
+        CancellationToken cancellationToken = default)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _queryService.GetPagedAsync(
+            new PagedRequest { PageIndex = pageIndex, PageSize = pageSize },
+            tenantId,
+            keyword,
+            category,
+            cancellationToken);
+        return Ok(ApiResponse<PagedResult<FunctionDefinitionListItem>>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    [HttpGet("all")]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<FunctionDefinitionListItem>>>> GetAll(CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _queryService.GetAllAsync(tenantId, cancellationToken);
+        return Ok(ApiResponse<IReadOnlyList<FunctionDefinitionListItem>>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    [HttpGet("{id:long}")]
+    public async Task<ActionResult<ApiResponse<FunctionDefinitionResponse>>> GetById(long id, CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _queryService.GetByIdAsync(id, tenantId, cancellationToken);
+        if (result == null)
+            return NotFound(ApiResponse<FunctionDefinitionResponse>.Fail("NOT_FOUND",
+                ApiResponseLocalizer.T(HttpContext, "ResourceNotFound"), HttpContext.TraceIdentifier));
+        return Ok(ApiResponse<FunctionDefinitionResponse>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost]
+    public async Task<ActionResult<ApiResponse<long>>> Create([FromBody] FunctionDefinitionCreateRequest request, CancellationToken cancellationToken)
+    {
+        var validation = await _createValidator.ValidateAsync(request, cancellationToken);
+        if (!validation.IsValid)
+            return BadRequest(ApiResponse<long>.Fail("VALIDATION_ERROR",
+                string.Join("; ", validation.Errors.Select(e => e.ErrorMessage)), HttpContext.TraceIdentifier));
+
+        var user = _currentUser.GetCurrentUserOrThrow();
+        var tenantId = _tenantProvider.GetTenantId();
+        var id = await _commandService.CreateAsync(request, tenantId, user.Username, cancellationToken);
+        return Ok(ApiResponse<long>.Ok(id, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPut("{id:long}")]
+    public async Task<ActionResult<ApiResponse<object>>> Update(long id, [FromBody] FunctionDefinitionUpdateRequest request, CancellationToken cancellationToken)
+    {
+        if (id != request.Id)
+            return BadRequest(ApiResponse<object>.Fail("VALIDATION_ERROR",
+                ApiResponseLocalizer.T(HttpContext, "IdMismatch"), HttpContext.TraceIdentifier));
+
+        var validation = await _updateValidator.ValidateAsync(request, cancellationToken);
+        if (!validation.IsValid)
+            return BadRequest(ApiResponse<object>.Fail("VALIDATION_ERROR",
+                string.Join("; ", validation.Errors.Select(e => e.ErrorMessage)), HttpContext.TraceIdentifier));
+
+        var user = _currentUser.GetCurrentUserOrThrow();
+        var tenantId = _tenantProvider.GetTenantId();
+        await _commandService.UpdateAsync(request, tenantId, user.Username, cancellationToken);
+        return Ok(ApiResponse<object>.Ok(null, HttpContext.TraceIdentifier));
+    }
+
+    [HttpDelete("{id:long}")]
+    public async Task<ActionResult<ApiResponse<object>>> Delete(long id, CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        await _commandService.DeleteAsync(id, tenantId, cancellationToken);
+        return Ok(ApiResponse<object>.Ok(null, HttpContext.TraceIdentifier));
+    }
+}

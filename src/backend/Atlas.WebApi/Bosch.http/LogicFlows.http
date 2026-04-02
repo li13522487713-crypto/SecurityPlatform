@@ -1,0 +1,136 @@
+@host = http://localhost:5000
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+@clientType = WebH5
+@clientPlatform = Web
+@clientChannel = Browser
+@clientAgent = Chrome
+@localeZh = zh-CN
+
+### Login
+# @name login
+POST {{host}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+X-Client-Type: {{clientType}}
+X-Client-Platform: {{clientPlatform}}
+X-Client-Channel: {{clientChannel}}
+X-Client-Agent: {{clientAgent}}
+Accept-Language: {{localeZh}}
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+###
+@token = {{login.response.body.$.data.accessToken}}
+
+### Get CSRF Token
+# @name antiforgery
+GET {{host}}/api/v1/secure/antiforgery
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+###
+@csrfToken = {{antiforgery.response.body.$.data.token}}
+
+### List logic flows (paged)
+GET {{host}}/api/v1/logic-flows?pageIndex=1&pageSize=10
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Accept-Language: {{localeZh}}
+
+### List logic flows with keyword and status (Draft=0)
+GET {{host}}/api/v1/logic-flows?pageIndex=1&pageSize=10&keyword=demo&status=0
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Accept-Language: {{localeZh}}
+
+### Get logic flow by id
+GET {{host}}/api/v1/logic-flows/1
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Accept-Language: {{localeZh}}
+
+### Create logic flow
+# @name createLogicFlow
+POST {{host}}/api/v1/logic-flows
+Content-Type: application/json
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+X-CSRF-TOKEN: {{csrfToken}}
+Idempotency-Key: {{$guid}}
+Accept-Language: {{localeZh}}
+
+{
+  "flow": {
+    "name": "demo-flow",
+    "displayName": "演示流程",
+    "description": "HTTP 测试用",
+    "version": "1.0.0",
+    "triggerType": 0,
+    "triggerConfigJson": "{}",
+    "inputSchemaJson": "{}",
+    "outputSchemaJson": "{}",
+    "maxRetries": 3,
+    "timeoutSeconds": 300
+  },
+  "nodes": [],
+  "edges": []
+}
+
+###
+@logicFlowId = {{createLogicFlow.response.body.$.data.id}}
+
+### Update logic flow
+PUT {{host}}/api/v1/logic-flows/{{logicFlowId}}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+X-CSRF-TOKEN: {{csrfToken}}
+Idempotency-Key: {{$guid}}
+Accept-Language: {{localeZh}}
+
+{
+  "flow": {
+    "name": "demo-flow",
+    "displayName": "演示流程（已改）",
+    "description": "更新测试",
+    "version": "1.0.0",
+    "triggerType": 0,
+    "triggerConfigJson": "{}",
+    "inputSchemaJson": "{}",
+    "outputSchemaJson": "{}",
+    "maxRetries": 3,
+    "timeoutSeconds": 300,
+    "isEnabled": true
+  },
+  "nodes": [],
+  "edges": []
+}
+
+### Publish logic flow
+POST {{host}}/api/v1/logic-flows/{{logicFlowId}}/publish
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+X-CSRF-TOKEN: {{csrfToken}}
+Idempotency-Key: {{$guid}}
+Accept-Language: {{localeZh}}
+
+### Archive logic flow
+POST {{host}}/api/v1/logic-flows/{{logicFlowId}}/archive
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+X-CSRF-TOKEN: {{csrfToken}}
+Idempotency-Key: {{$guid}}
+Accept-Language: {{localeZh}}
+
+### Delete logic flow
+DELETE {{host}}/api/v1/logic-flows/{{logicFlowId}}
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+X-CSRF-TOKEN: {{csrfToken}}
+Idempotency-Key: {{$guid}}
+Accept-Language: {{localeZh}}

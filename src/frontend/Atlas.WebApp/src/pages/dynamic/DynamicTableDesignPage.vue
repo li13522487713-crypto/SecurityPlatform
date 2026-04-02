@@ -313,12 +313,12 @@ interface FieldRow {
 const fieldTypeOptions: { label: string; value: DynamicFieldType }[] = [
   { label: "String", value: "String" },
   { label: "Text", value: "Text" },
-  { label: "Integer", value: "Integer" },
+  { label: "Int", value: "Int" },
   { label: "Long", value: "Long" },
   { label: "Decimal", value: "Decimal" },
-  { label: "Boolean", value: "Boolean" },
+  { label: "Bool", value: "Bool" },
   { label: "DateTime", value: "DateTime" },
-  { label: "Json", value: "Json" }
+  { label: "Date", value: "Date" }
 ];
 
 const protectedFieldSet = new Set(["id", "createdat", "createdby", "updatedat", "updatedby", "tenantidvalue"]);
@@ -373,12 +373,12 @@ const fieldTypeColor = (type: DynamicFieldType): string => {
   const map: Partial<Record<DynamicFieldType, string>> = {
     String: "blue",
     Text: "cyan",
-    Integer: "purple",
+    Int: "purple",
     Long: "purple",
     Decimal: "orange",
-    Boolean: "green",
+    Bool: "green",
     DateTime: "geekblue",
-    Json: "magenta"
+    Date: "magenta"
   };
   return map[type] ?? "default";
 };

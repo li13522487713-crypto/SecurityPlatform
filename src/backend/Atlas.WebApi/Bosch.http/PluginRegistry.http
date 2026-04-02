@@ -1,0 +1,58 @@
+@host = http://localhost:5000
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+@clientType = WebH5
+@clientPlatform = Web
+@clientChannel = Browser
+@clientAgent = Chrome
+@localeZh = zh-CN
+
+### Login
+# @name login
+POST {{host}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+X-Client-Type: {{clientType}}
+X-Client-Platform: {{clientPlatform}}
+X-Client-Channel: {{clientChannel}}
+X-Client-Agent: {{clientAgent}}
+Accept-Language: {{localeZh}}
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+###
+@token = {{login.response.body.$.data.accessToken}}
+
+### Logic Flow SPI plugin registry — all
+GET {{host}}/api/v1/logic-flow/plugins
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Accept-Language: {{localeZh}}
+
+### Logic Flow SPI plugin registry — nodes
+GET {{host}}/api/v1/logic-flow/plugins/nodes
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Accept-Language: {{localeZh}}
+
+### Logic Flow SPI plugin registry — functions
+GET {{host}}/api/v1/logic-flow/plugins/functions
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Accept-Language: {{localeZh}}
+
+### Logic Flow SPI plugin registry — data sources
+GET {{host}}/api/v1/logic-flow/plugins/data-sources
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Accept-Language: {{localeZh}}
+
+### Logic Flow SPI plugin registry — templates
+GET {{host}}/api/v1/logic-flow/plugins/templates
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+Accept-Language: {{localeZh}}

@@ -68,3 +68,5 @@ export {
   resumeExecution,
   debugNode,
 } from "@/services/api-workflow-v2";
+export * from "@/services/api-logic-flow";
+export * from "@/services/api-batch-process";

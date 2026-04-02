@@ -22,6 +22,9 @@ public sealed class DynamicTable : TenantEntity
         ApprovalFlowDefinitionId = null;
         ApprovalStatusField = null;
         AppId = null;
+        SchemaVersion = 0;
+        CompatibilityMode = null;
+        ExtensionPolicy = null;
     }
 
     public DynamicTable(
@@ -46,6 +49,9 @@ public sealed class DynamicTable : TenantEntity
         CreatedBy = createdBy;
         UpdatedBy = createdBy;
         AppId = null;
+        SchemaVersion = 1;
+        CompatibilityMode = null;
+        ExtensionPolicy = null;
     }
 
     public string TableKey { get; private set; }
@@ -68,6 +74,17 @@ public sealed class DynamicTable : TenantEntity
     /// <summary>审批状态字段名（动态表中用于记录审批状态的字段，如 "status"）</summary>
     [SugarColumn(IsNullable = true)]
     public string? ApprovalStatusField { get; private set; }
+
+    /// <summary>当前已发布的 Schema 版本号（每次发布快照时递增）</summary>
+    public int SchemaVersion { get; private set; }
+
+    /// <summary>兼容性模式：None / BackwardOnly / Full，控制结构变更的兼容策略</summary>
+    [SugarColumn(IsNullable = true, Length = 32)]
+    public string? CompatibilityMode { get; private set; }
+
+    /// <summary>扩展策略 JSON，控制审计字段注入、行版本等自动增强行为</summary>
+    [SugarColumn(IsNullable = true, ColumnDataType = "text")]
+    public string? ExtensionPolicy { get; private set; }
 
     public void UpdateMeta(
         string displayName,
@@ -138,5 +155,26 @@ public sealed class DynamicTable : TenantEntity
             UpdatedBy = updatedBy;
             UpdatedAt = now;
         }
+    }
+
+    public void IncrementSchemaVersion(long updatedBy, DateTimeOffset now)
+    {
+        SchemaVersion++;
+        UpdatedBy = updatedBy;
+        UpdatedAt = now;
+    }
+
+    public void SetCompatibilityMode(string? mode, long updatedBy, DateTimeOffset now)
+    {
+        CompatibilityMode = mode;
+        UpdatedBy = updatedBy;
+        UpdatedAt = now;
+    }
+
+    public void SetExtensionPolicy(string? policyJson, long updatedBy, DateTimeOffset now)
+    {
+        ExtensionPolicy = policyJson;
+        UpdatedBy = updatedBy;
+        UpdatedAt = now;
     }
 }
