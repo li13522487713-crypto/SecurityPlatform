@@ -15,14 +15,14 @@ public sealed class SchemaPublishSnapshotCommandService : ISchemaPublishSnapshot
     private readonly IDynamicTableRepository _tableRepository;
     private readonly IDynamicFieldRepository _fieldRepository;
     private readonly IDynamicIndexRepository _indexRepository;
-    private readonly IIdGenerator _idGenerator;
+    private readonly IIdGeneratorAccessor _idGenerator;
 
     public SchemaPublishSnapshotCommandService(
         ISchemaPublishSnapshotRepository snapshotRepository,
         IDynamicTableRepository tableRepository,
         IDynamicFieldRepository fieldRepository,
         IDynamicIndexRepository indexRepository,
-        IIdGenerator idGenerator)
+        IIdGeneratorAccessor idGenerator)
     {
         _snapshotRepository = snapshotRepository;
         _tableRepository = tableRepository;

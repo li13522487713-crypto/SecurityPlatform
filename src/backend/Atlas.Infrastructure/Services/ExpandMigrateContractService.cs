@@ -20,14 +20,14 @@ public sealed class ExpandMigrateContractService : IExpandMigrateContractService
     private readonly IDynamicTableRepository _tableRepo;
     private readonly IDynamicFieldRepository _fieldRepo;
     private readonly IDynamicSchemaMigrationRepository _migrationRepo;
-    private readonly IIdGenerator _idGenerator;
+    private readonly IIdGeneratorAccessor _idGenerator;
     private readonly ISqlSugarClient _db;
 
     public ExpandMigrateContractService(
         IDynamicTableRepository tableRepo,
         IDynamicFieldRepository fieldRepo,
         IDynamicSchemaMigrationRepository migrationRepo,
-        IIdGenerator idGenerator,
+        IIdGeneratorAccessor idGenerator,
         ISqlSugarClient db)
     {
         _tableRepo = tableRepo;

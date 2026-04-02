@@ -153,7 +153,8 @@ public static class ServiceCollectionExtensions
                 {
                     EntityService = (property, column) =>
                     {
-                        if (property.Name == nameof(Atlas.Core.Abstractions.TenantEntity.TenantId))
+                        if (property.DeclaringType == typeof(Atlas.Core.Abstractions.TenantEntity)
+                            && property.Name == nameof(Atlas.Core.Abstractions.TenantEntity.TenantId))
                         {
                             column.IsIgnore = true;
                         }

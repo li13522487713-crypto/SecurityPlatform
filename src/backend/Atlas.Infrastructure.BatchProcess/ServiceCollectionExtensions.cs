@@ -34,7 +34,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IPrimaryKeyRangeSharder, PrimaryKeyRangeSharder>();
         services.AddSingleton<ITimeWindowSharder, TimeWindowSharder>();
         services.AddSingleton<IBatchSplitter, BatchSplitter>();
-        services.AddSingleton<IWorkerPool, WorkerPool>();
+        services.AddSingleton<IWorkerPool>(_ => new WorkerPool(Math.Max(1, Environment.ProcessorCount)));
         services.AddSingleton<IBackpressurePolicy, BackpressurePolicy>();
 
         services.AddScoped<IShardRecoveryService, ShardRecoveryService>();
