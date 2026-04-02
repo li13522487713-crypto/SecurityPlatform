@@ -68,4 +68,10 @@ public interface IAppMigrationService
         long userId,
         long taskId,
         CancellationToken cancellationToken = default);
+
+    Task<AppMigrationActionResult> RecoverCorruptedTaskAsync(
+        TenantId tenantId,
+        long userId,
+        long taskId,
+        CancellationToken cancellationToken = default);
 }

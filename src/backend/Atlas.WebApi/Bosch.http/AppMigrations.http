@@ -39,7 +39,7 @@ Idempotency-Key: app-migration-repair-binding-001
   "appInstanceId": "10001"
 }
 
-### 查询任务列表（items[].schemaRepairLog：SQLite 结构自修复摘要，执行 start 后写入）
+### 查询任务列表（items[].schemaRepairLog：SQLite 结构/容灾自修复摘要，执行 start 或 recover 后写入）
 GET {{host}}/api/v1/app-migrations?pageIndex=1&pageSize=20
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
@@ -90,3 +90,8 @@ POST {{host}}/api/v1/app-migrations/{{createTask.response.body.data.id}}/reset
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 Idempotency-Key: app-migration-reset-001
+
+### 失败任务容灾恢复（自动重置 + 重跑；SkipIdempotency，无需 Idempotency-Key）
+POST {{host}}/api/v1/app-migrations/{{createTask.response.body.data.id}}/recover
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}

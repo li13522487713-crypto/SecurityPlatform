@@ -4,6 +4,7 @@ using Atlas.Core.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Identity.Entities;
+using Atlas.Infrastructure.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -54,145 +55,157 @@ public sealed class IdempotencyFilter : IAsyncActionFilter
 
     public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
     {
-        if (ShouldSkip(context))
+        try
         {
-            await next();
-            return;
-        }
-
-        var currentUser = _currentUserAccessor.GetCurrentUser();
-        if (currentUser is null)
-        {
-            await next();
-            return;
-        }
-
-        var headerName = string.IsNullOrWhiteSpace(_options.HeaderName)
-            ? "Idempotency-Key"
-            : _options.HeaderName;
-        if (!context.HttpContext.Request.Headers.TryGetValue(headerName, out var keyValues))
-        {
-            context.Result = BuildErrorResult(ErrorCodes.IdempotencyRequired, "缺少幂等键", StatusCodes.Status400BadRequest, context.HttpContext.TraceIdentifier);
-            return;
-        }
-
-        var idempotencyKey = keyValues.ToString().Trim();
-        if (string.IsNullOrWhiteSpace(idempotencyKey))
-        {
-            context.Result = BuildErrorResult(ErrorCodes.IdempotencyRequired, "幂等键不能为空", StatusCodes.Status400BadRequest, context.HttpContext.TraceIdentifier);
-            return;
-        }
-
-        if (_options.MaxKeyLength > 0 && idempotencyKey.Length > _options.MaxKeyLength)
-        {
-            context.Result = BuildErrorResult(ErrorCodes.IdempotencyRequired, "幂等键长度超出限制", StatusCodes.Status400BadRequest, context.HttpContext.TraceIdentifier);
-            return;
-        }
-
-        var tenantId = _tenantProvider.GetTenantId();
-        if (tenantId.IsEmpty)
-        {
-            context.Result = BuildErrorResult(ErrorCodes.ValidationError, "缺少租户标识", StatusCodes.Status400BadRequest, context.HttpContext.TraceIdentifier);
-            return;
-        }
-
-        var apiName = ResolveApiName(context.HttpContext);
-        var requestHash = await ComputeRequestHashAsync(context.HttpContext);
-        var now = _timeProvider.GetUtcNow();
-        var existing = await _repository.FindActiveAsync(
-            tenantId,
-            currentUser.UserId,
-            apiName,
-            idempotencyKey,
-            now,
-            context.HttpContext.RequestAborted);
-
-        if (existing is not null)
-        {
-            if (!string.Equals(existing.RequestHash, requestHash, StringComparison.Ordinal))
+            if (ShouldSkip(context))
             {
-                context.Result = BuildErrorResult(ErrorCodes.IdempotencyConflict, "幂等键冲突", StatusCodes.Status409Conflict, context.HttpContext.TraceIdentifier);
+                await next();
                 return;
             }
 
-            if (existing.Status != IdempotencyStatus.Completed)
+            var currentUser = _currentUserAccessor.GetCurrentUser();
+            if (currentUser is null)
             {
-                context.Result = BuildErrorResult(ErrorCodes.IdempotencyInProgress, "幂等键处理中，请稍后重试", StatusCodes.Status409Conflict, context.HttpContext.TraceIdentifier);
+                await next();
                 return;
             }
 
-            context.Result = new ContentResult
+            var headerName = string.IsNullOrWhiteSpace(_options.HeaderName)
+                ? "Idempotency-Key"
+                : _options.HeaderName;
+            if (!context.HttpContext.Request.Headers.TryGetValue(headerName, out var keyValues))
             {
-                StatusCode = existing.StatusCode > 0 ? existing.StatusCode : StatusCodes.Status200OK,
-                ContentType = string.IsNullOrWhiteSpace(existing.ResponseContentType) ? "application/json" : existing.ResponseContentType,
-                Content = existing.ResponseBody
-            };
-            return;
-        }
+                context.Result = BuildErrorResult(ErrorCodes.IdempotencyRequired, "缺少幂等键", StatusCodes.Status400BadRequest, context.HttpContext.TraceIdentifier);
+                return;
+            }
 
-        var expiresAt = now.Add(TimeSpan.FromHours(Math.Max(1, _options.RetentionHours)));
-        var record = new IdempotencyRecord(
-            tenantId,
-            currentUser.UserId,
-            apiName,
-            idempotencyKey,
-            requestHash,
-            now,
-            expiresAt,
-            _idGeneratorAccessor.NextId());
+            var idempotencyKey = keyValues.ToString().Trim();
+            if (string.IsNullOrWhiteSpace(idempotencyKey))
+            {
+                context.Result = BuildErrorResult(ErrorCodes.IdempotencyRequired, "幂等键不能为空", StatusCodes.Status400BadRequest, context.HttpContext.TraceIdentifier);
+                return;
+            }
 
-        var inserted = await _repository.TryAddAsync(record, context.HttpContext.RequestAborted);
-        if (!inserted)
-        {
-            var concurrent = await _repository.FindActiveAsync(
+            if (_options.MaxKeyLength > 0 && idempotencyKey.Length > _options.MaxKeyLength)
+            {
+                context.Result = BuildErrorResult(ErrorCodes.IdempotencyRequired, "幂等键长度超出限制", StatusCodes.Status400BadRequest, context.HttpContext.TraceIdentifier);
+                return;
+            }
+
+            var tenantId = _tenantProvider.GetTenantId();
+            if (tenantId.IsEmpty)
+            {
+                context.Result = BuildErrorResult(ErrorCodes.ValidationError, "缺少租户标识", StatusCodes.Status400BadRequest, context.HttpContext.TraceIdentifier);
+                return;
+            }
+
+            var apiName = ResolveApiName(context.HttpContext);
+            var requestHash = await ComputeRequestHashAsync(context.HttpContext);
+            var now = _timeProvider.GetUtcNow();
+            var existing = await _repository.FindActiveAsync(
                 tenantId,
                 currentUser.UserId,
                 apiName,
                 idempotencyKey,
                 now,
                 context.HttpContext.RequestAborted);
-            if (concurrent is not null)
+
+            if (existing is not null)
             {
-                if (!string.Equals(concurrent.RequestHash, requestHash, StringComparison.Ordinal))
+                if (!string.Equals(existing.RequestHash, requestHash, StringComparison.Ordinal))
                 {
                     context.Result = BuildErrorResult(ErrorCodes.IdempotencyConflict, "幂等键冲突", StatusCodes.Status409Conflict, context.HttpContext.TraceIdentifier);
                     return;
                 }
 
-                context.Result = BuildErrorResult(ErrorCodes.IdempotencyInProgress, "幂等键处理中，请稍后重试", StatusCodes.Status409Conflict, context.HttpContext.TraceIdentifier);
+                if (existing.Status != IdempotencyStatus.Completed)
+                {
+                    context.Result = BuildErrorResult(ErrorCodes.IdempotencyInProgress, "幂等键处理中，请稍后重试", StatusCodes.Status409Conflict, context.HttpContext.TraceIdentifier);
+                    return;
+                }
+
+                context.Result = new ContentResult
+                {
+                    StatusCode = existing.StatusCode > 0 ? existing.StatusCode : StatusCodes.Status200OK,
+                    ContentType = string.IsNullOrWhiteSpace(existing.ResponseContentType) ? "application/json" : existing.ResponseContentType,
+                    Content = existing.ResponseBody
+                };
                 return;
             }
-        }
 
-        ActionExecutedContext? executedContext = null;
-        try
-        {
-            executedContext = await next();
-        }
-        catch
-        {
-            await _repository.DeleteAsync(tenantId, record.Id, context.HttpContext.RequestAborted);
-            throw;
-        }
+            var expiresAt = now.Add(TimeSpan.FromHours(Math.Max(1, _options.RetentionHours)));
+            var record = new IdempotencyRecord(
+                tenantId,
+                currentUser.UserId,
+                apiName,
+                idempotencyKey,
+                requestHash,
+                now,
+                expiresAt,
+                _idGeneratorAccessor.NextId());
 
-        if (executedContext.Exception is not null && !executedContext.ExceptionHandled)
-        {
+            var inserted = await _repository.TryAddAsync(record, context.HttpContext.RequestAborted);
+            if (!inserted)
+            {
+                var concurrent = await _repository.FindActiveAsync(
+                    tenantId,
+                    currentUser.UserId,
+                    apiName,
+                    idempotencyKey,
+                    now,
+                    context.HttpContext.RequestAborted);
+                if (concurrent is not null)
+                {
+                    if (!string.Equals(concurrent.RequestHash, requestHash, StringComparison.Ordinal))
+                    {
+                        context.Result = BuildErrorResult(ErrorCodes.IdempotencyConflict, "幂等键冲突", StatusCodes.Status409Conflict, context.HttpContext.TraceIdentifier);
+                        return;
+                    }
+
+                    context.Result = BuildErrorResult(ErrorCodes.IdempotencyInProgress, "幂等键处理中，请稍后重试", StatusCodes.Status409Conflict, context.HttpContext.TraceIdentifier);
+                    return;
+                }
+            }
+
+            ActionExecutedContext? executedContext = null;
+            try
+            {
+                executedContext = await next();
+            }
+            catch
+            {
+                await _repository.DeleteAsync(tenantId, record.Id, context.HttpContext.RequestAborted);
+                throw;
+            }
+
+            if (executedContext.Exception is not null && !executedContext.ExceptionHandled)
+            {
+                await _repository.DeleteAsync(tenantId, record.Id, context.HttpContext.RequestAborted);
+                return;
+            }
+
+            if (TryGetResultPayload(executedContext.Result, out var statusCode, out var responseBody, out var contentType))
+            {
+                if (statusCode >= 200 && statusCode < 300)
+                {
+                    var resourceId = ExtractResourceId(responseBody);
+                    record.Complete(statusCode, responseBody, contentType, resourceId, _timeProvider.GetUtcNow());
+                    await _repository.UpdateAsync(record, context.HttpContext.RequestAborted);
+                    return;
+                }
+            }
+
             await _repository.DeleteAsync(tenantId, record.Id, context.HttpContext.RequestAborted);
+        }
+        catch (Exception ex) when (SqliteDisasterRecoveryClassifier.IsCorruption(ex))
+        {
+            context.Result = BuildErrorResult(
+                ErrorCodes.DatabaseCorrupted,
+                "检测到数据库文件损坏，系统正在自动恢复，请稍后重试并查看迁移任务进度。",
+                StatusCodes.Status503ServiceUnavailable,
+                context.HttpContext.TraceIdentifier);
             return;
         }
-
-        if (TryGetResultPayload(executedContext.Result, out var statusCode, out var responseBody, out var contentType))
-        {
-            if (statusCode >= 200 && statusCode < 300)
-            {
-                var resourceId = ExtractResourceId(responseBody);
-                record.Complete(statusCode, responseBody, contentType, resourceId, _timeProvider.GetUtcNow());
-                await _repository.UpdateAsync(record, context.HttpContext.RequestAborted);
-                return;
-            }
-        }
-
-        await _repository.DeleteAsync(tenantId, record.Id, context.HttpContext.RequestAborted);
     }
 
     private static bool ShouldSkip(ActionExecutingContext context)

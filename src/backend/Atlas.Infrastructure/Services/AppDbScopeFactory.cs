@@ -169,6 +169,22 @@ public sealed class AppDbScopeFactory : IAppDbScopeFactory, IDisposable
         return db;
     }
 
+    public void InvalidateAppClientCache(TenantId tenantId, long appInstanceId)
+    {
+        if (appInstanceId <= 0)
+        {
+            return;
+        }
+
+        var schemaKey = $"{tenantId.Value}:{appInstanceId}";
+        var clientCacheKey = $"{AppClientCachePrefix}{schemaKey}";
+        _appClientCache.Remove(clientCacheKey);
+        _schemaInitializedKeys.TryRemove(schemaKey, out _);
+
+        var policyCacheKey = $"{RoutePolicyCachePrefix}{tenantId.Value}:{appInstanceId}";
+        _cache.Remove(policyCacheKey);
+    }
+
     public void Dispose()
     {
         _appClientCache.Dispose();

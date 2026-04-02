@@ -22,6 +22,7 @@ public static class ErrorCodes
     public const string IdempotencyRequired = "IDEMPOTENCY_REQUIRED";
     public const string IdempotencyConflict = "IDEMPOTENCY_CONFLICT";
     public const string IdempotencyInProgress = "IDEMPOTENCY_IN_PROGRESS";
+    public const string DatabaseCorrupted = "DATABASE_CORRUPTED";
     public const string AntiforgeryTokenInvalid = "ANTIFORGERY_TOKEN_INVALID";
     public const string MfaRequired = "MFA_REQUIRED";
     public const string LicenseExpired = "LICENSE_EXPIRED";

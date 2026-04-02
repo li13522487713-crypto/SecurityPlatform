@@ -568,6 +568,7 @@
 - `IDEMPOTENCY_REQUIRED`：缺少幂等键
 - `IDEMPOTENCY_CONFLICT`：幂等键冲突
 - `IDEMPOTENCY_IN_PROGRESS`：幂等键处理中
+- `DATABASE_CORRUPTED`：数据库文件损坏（服务自动恢复中）
 - `ANTIFORGERY_TOKEN_INVALID`：CSRF 校验失败
 - `CROSS_TENANT_FORBIDDEN`：跨租户访问被拒绝
 - `SENSITIVE_DATA_POLICY_VIOLATION`：敏感数据策略违规
@@ -811,6 +812,7 @@ JWT Claims（新增）：
 - `POST /api/v1/app-migrations`：创建迁移任务（`appInstanceId` 为字符串，避免长整型精度丢失）
 - `POST /api/v1/app-migrations/repair-primary-binding`：显式修复应用实例主数据源绑定（混合模式）
 - `POST /api/v1/app-migrations/{id}/reset`：失败任务重置为可重试状态（仅 `Failed` 状态可执行）
+- `POST /api/v1/app-migrations/{id}/recover`：失败任务一键恢复（自动重置 + 重新执行迁移，接口标记 `SkipIdempotency`）
 
 ### SQLite 应用库结构自修复（迁移执行阶段）
 
@@ -819,12 +821,17 @@ JWT Claims（新增）：
 - 首批覆盖表：`AppRole`（如 `DeptIds`）、`AppDepartment`（`ParentId`）、`AppPermission` / `AppPosition` / `AppProject`（`Description` 等可空列）等；其中 `AppDepartment` 与 `AppPermission` 使用 SQL 清洗回灌以兼容历史脏类型数据。
 - 任务实体与进度快照包含 **`schemaRepairLog`**（文本摘要），列表 `GET /api/v1/app-migrations`、详情 `GET /api/v1/app-migrations/{id}`、进度 `GET .../progress` 均可能返回该字段，供控制台「结构自修复」列展示。
 - 迁移失败若由 SQLite 约束引起（如 `NOT NULL constraint failed`），`errorSummary` 中会附带可读的列定位与重试/结构对齐提示。
+- 若检测到 **SQLite 物理损坏**（`database disk image is malformed`），迁移器会自动进入容灾分支：`失效缓存 -> 隔离损坏库（*.corrupt.<timestamp>） -> 重建空库 -> 单次自动重跑迁移`。
+- 自动容灾过程会将阶段日志写入 `schemaRepairLog`（`DisasterRecovery:*`），便于列表/详情/进度接口展示恢复轨迹。
+- 幂等过滤器在数据库损坏场景会返回 `503 + DATABASE_CORRUPTED`，提示查看迁移任务进度并稍后重试。
 
 **回归场景（手工验证建议）：**
 
 1. 应用库为历史 SQLite，`AppRole.DeptIds` 列为 `NOT NULL`：执行迁移 `start` 后应完成结构对齐（`schemaRepairLog` 含 `AppRole`），数据复制不因 `DeptIds` 中断。
 2. 应用库为历史 SQLite，`AppDepartment.ParentId` 为 `NOT NULL`：同上，对齐后根部门复制使用自引用策略，任务可继续。
 3. 多租户下并发创建/执行迁移任务：各租户任务独立；同一应用实例失败 `reset` 后再次 `start`，结构阶段应幂等（已对齐表不重复破坏数据）。
+4. 人工注入应用库损坏（`database disk image is malformed`）后执行 `start`：任务应自动触发容灾重建并尝试重跑，`schemaRepairLog` 含 `DisasterRecovery` 阶段摘要。
+5. 任务处于 `Failed` 状态时调用 `POST /api/v1/app-migrations/{id}/recover`：应直接重试迁移且不要求 `Idempotency-Key`。
 
 请求示例（修复主绑定）：
 

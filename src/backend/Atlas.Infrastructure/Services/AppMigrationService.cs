@@ -10,6 +10,10 @@ using Atlas.Domain.DynamicTables.Entities;
 using Atlas.Domain.LowCode.Entities;
 using Atlas.Domain.Platform.Entities;
 using Atlas.Domain.System.Entities;
+using Atlas.Infrastructure.Options;
+using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using SqlSugar;
 
 namespace Atlas.Infrastructure.Services;
@@ -43,19 +47,25 @@ public sealed class AppMigrationService : IAppMigrationService
     private readonly ITenantDbConnectionFactory _tenantDbConnectionFactory;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly AppDatabaseProvisioningService _provisioningService;
+    private readonly SqliteDisasterRecoveryOptions _sqliteDisasterRecoveryOptions;
+    private readonly ILogger<AppMigrationService> _logger;
 
     public AppMigrationService(
         ISqlSugarClient mainDb,
         IAppDbScopeFactory appDbScopeFactory,
         ITenantDbConnectionFactory tenantDbConnectionFactory,
         IIdGeneratorAccessor idGeneratorAccessor,
-        AppDatabaseProvisioningService provisioningService)
+        AppDatabaseProvisioningService provisioningService,
+        IOptions<SqliteDisasterRecoveryOptions> sqliteDisasterRecoveryOptions,
+        ILogger<AppMigrationService> logger)
     {
         _mainDb = mainDb;
         _appDbScopeFactory = appDbScopeFactory;
         _tenantDbConnectionFactory = tenantDbConnectionFactory;
         _idGeneratorAccessor = idGeneratorAccessor;
         _provisioningService = provisioningService;
+        _sqliteDisasterRecoveryOptions = sqliteDisasterRecoveryOptions.Value;
+        _logger = logger;
     }
 
     public async Task<long> CreateTaskAsync(
@@ -207,47 +217,168 @@ public sealed class AppMigrationService : IAppMigrationService
 
         try
         {
-            var appDb = await EnsureSchemaBeforeDataSyncAsync(
+            return await RunMigrationPipelineAsync(
                 tenantId,
                 task,
                 userId,
                 cancellationToken);
-
-            var completed = 0;
-            await CopyDynamicTablesAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
-            await CopyDynamicFieldsAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
-            await CopyDynamicIndexesAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
-            await CopyDynamicRelationsAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
-            await CopyFieldPermissionsAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
-            await CopyMigrationRecordsAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
-            await CopyAppMembersAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
-            await CopyAppRolesAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
-            await CopyAppPermissionsAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
-            await CopyAppUserRolesAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
-            await CopyAppRolePermissionsAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
-            await CopyAppRolePagesAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
-            await CopyAppDepartmentsAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
-            await CopyAppPositionsAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
-            await CopyAppProjectsAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
-            await CopyWorkflowMetasAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
-            await CopyWorkflowDraftsAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
-            await CopyWorkflowVersionsAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
-            await CopyWorkflowExecutionsAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
-            await CopyWorkflowNodeExecutionsAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
-            await CopyRuntimeRoutesAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
-
-            task.MarkCutoverReady(userId, DateTimeOffset.UtcNow);
-            await UpdateTaskAsync(task, cancellationToken);
-            await AddSnapshotAsync(task, cancellationToken);
-            return new AppMigrationActionResult(true, task.Id.ToString(), task.Status, "迁移完成，等待切换");
         }
         catch (Exception ex)
         {
-            var summary = SqliteConstraintErrorFormatter.Format(ex);
+            var recoveryResult = await TryAutoRecoverAndRetryAsync(
+                tenantId,
+                task,
+                userId,
+                ex,
+                cancellationToken);
+            if (recoveryResult.Success)
+            {
+                return new AppMigrationActionResult(true, task.Id.ToString(), task.Status, "迁移完成，等待切换");
+            }
+
+            var summary = recoveryResult.Attempted
+                ? (recoveryResult.FailureSummary ?? SqliteConstraintErrorFormatter.Format(ex))
+                : SqliteConstraintErrorFormatter.Format(ex);
             task.MarkFailed(userId, DateTimeOffset.UtcNow, summary);
             await UpdateTaskAsync(task, cancellationToken);
             await AddSnapshotAsync(task, cancellationToken);
             return new AppMigrationActionResult(false, task.Id.ToString(), task.Status, summary);
+        }
+    }
+
+    private async Task<AppMigrationActionResult> RunMigrationPipelineAsync(
+        TenantId tenantId,
+        AppMigrationTask task,
+        long userId,
+        CancellationToken cancellationToken)
+    {
+        var appDb = await EnsureSchemaBeforeDataSyncAsync(
+            tenantId,
+            task,
+            userId,
+            cancellationToken);
+
+        var completed = 0;
+        await CopyDynamicTablesAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
+        await CopyDynamicFieldsAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
+        await CopyDynamicIndexesAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
+        await CopyDynamicRelationsAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
+        await CopyFieldPermissionsAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
+        await CopyMigrationRecordsAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
+        await CopyAppMembersAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
+        await CopyAppRolesAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
+        await CopyAppPermissionsAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
+        await CopyAppUserRolesAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
+        await CopyAppRolePermissionsAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
+        await CopyAppRolePagesAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
+        await CopyAppDepartmentsAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
+        await CopyAppPositionsAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
+        await CopyAppProjectsAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
+        await CopyWorkflowMetasAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
+        await CopyWorkflowDraftsAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
+        await CopyWorkflowVersionsAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
+        await CopyWorkflowExecutionsAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
+        await CopyWorkflowNodeExecutionsAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
+        await CopyRuntimeRoutesAsync(tenantId, task, appDb, userId, ++completed, cancellationToken);
+
+        task.MarkCutoverReady(userId, DateTimeOffset.UtcNow);
+        await UpdateTaskAsync(task, cancellationToken);
+        await AddSnapshotAsync(task, cancellationToken);
+        return new AppMigrationActionResult(true, task.Id.ToString(), task.Status, "迁移完成，等待切换");
+    }
+
+    private async Task<SqliteRecoveryResult> TryAutoRecoverAndRetryAsync(
+        TenantId tenantId,
+        AppMigrationTask task,
+        long userId,
+        Exception originalException,
+        CancellationToken cancellationToken)
+    {
+        if (!_sqliteDisasterRecoveryOptions.Enabled || _sqliteDisasterRecoveryOptions.MaxAutoRetryCount < 1)
+        {
+            return SqliteRecoveryResult.NotAttempted();
+        }
+
+        if (SqliteDisasterRecoveryClassifier.Classify(originalException) != SqliteFailureKind.DiskImageMalformed)
+        {
+            return SqliteRecoveryResult.NotAttempted();
+        }
+
+        var tenantIdText = tenantId.Value.ToString("D");
+        var connectionInfo = await _tenantDbConnectionFactory.GetConnectionInfoAsync(
+            tenantIdText,
+            task.TenantAppInstanceId,
+            cancellationToken);
+        if (connectionInfo is null || !string.Equals(connectionInfo.DbType, "SQLite", StringComparison.OrdinalIgnoreCase))
+        {
+            return SqliteRecoveryResult.NotAttempted();
+        }
+
+        if (!TryGetSqliteDatabasePath(connectionInfo.ConnectionString, out var dbPath))
+        {
+            return SqliteRecoveryResult.NotAttempted();
+        }
+
+        _logger.LogWarning(
+            originalException,
+            "检测到应用库 SQLite 损坏，开始自动容灾重建。tenantId={TenantId} appInstanceId={AppInstanceId} taskId={TaskId} recoveryAttempt={RecoveryAttempt}",
+            tenantIdText,
+            task.TenantAppInstanceId,
+            task.Id,
+            1);
+
+        await AppendSchemaRepairLogAsync(
+            task,
+            $"DisasterRecovery: corruption-detected at {DateTimeOffset.UtcNow:O}",
+            userId,
+            cancellationToken);
+
+        try
+        {
+            _tenantDbConnectionFactory.InvalidateCache(tenantIdText, task.TenantAppInstanceId);
+            _appDbScopeFactory.InvalidateAppClientCache(tenantId, task.TenantAppInstanceId);
+            SqliteConnection.ClearAllPools();
+
+            QuarantineCorruptedSqliteFiles(dbPath);
+            await AppendSchemaRepairLogAsync(
+                task,
+                $"DisasterRecovery: quarantine completed, path={dbPath}",
+                userId,
+                cancellationToken);
+
+            await _provisioningService.EnsureSchemaAsync(tenantId, task.TenantAppInstanceId, cancellationToken);
+            _appDbScopeFactory.InvalidateAppClientCache(tenantId, task.TenantAppInstanceId);
+            await AppendSchemaRepairLogAsync(
+                task,
+                "DisasterRecovery: empty schema recreated",
+                userId,
+                cancellationToken);
+
+            await RunMigrationPipelineAsync(tenantId, task, userId, cancellationToken);
+            await AppendSchemaRepairLogAsync(
+                task,
+                "DisasterRecovery: rerun succeeded",
+                userId,
+                cancellationToken);
+
+            return SqliteRecoveryResult.Succeeded();
+        }
+        catch (Exception recoveryException)
+        {
+            _logger.LogError(
+                recoveryException,
+                "应用库自动容灾重建失败。tenantId={TenantId} appInstanceId={AppInstanceId} taskId={TaskId}",
+                tenantIdText,
+                task.TenantAppInstanceId,
+                task.Id);
+
+            var summary = SqliteConstraintErrorFormatter.Format(recoveryException);
+            await AppendSchemaRepairLogAsync(
+                task,
+                $"DisasterRecovery: rerun failed, summary={summary}",
+                userId,
+                cancellationToken);
+            return SqliteRecoveryResult.Failed(summary);
         }
     }
 
@@ -269,7 +400,7 @@ public sealed class AppMigrationService : IAppMigrationService
         {
             var report = await SqliteSchemaAlignment.EnsureAppMembershipDomainSchemaAsync(appDb, cancellationToken);
             var logText = string.Join(" | ", report.Messages);
-            task.SetSchemaRepairLog(logText, userId, DateTimeOffset.UtcNow);
+            task.SetSchemaRepairLog(MergeSchemaRepairLog(task.SchemaRepairLog, logText), userId, DateTimeOffset.UtcNow);
             await UpdateTaskAsync(task, cancellationToken);
             await AddSnapshotAsync(task, cancellationToken);
         }
@@ -296,6 +427,98 @@ public sealed class AppMigrationService : IAppMigrationService
         throw new BusinessException(
             ErrorCodes.ServerError,
             $"应用库结构初始化不完整，缺少表：{string.Join(", ", missing)}");
+    }
+
+    private async Task AppendSchemaRepairLogAsync(
+        AppMigrationTask task,
+        string message,
+        long userId,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return;
+        }
+
+        task.SetSchemaRepairLog(MergeSchemaRepairLog(task.SchemaRepairLog, message), userId, DateTimeOffset.UtcNow);
+        await UpdateTaskAsync(task, cancellationToken);
+        await AddSnapshotAsync(task, cancellationToken);
+    }
+
+    private static string MergeSchemaRepairLog(string? original, string appended)
+    {
+        if (string.IsNullOrWhiteSpace(original))
+        {
+            return appended;
+        }
+
+        return $"{original} | {appended}";
+    }
+
+    private static bool TryGetSqliteDatabasePath(string connectionString, out string databasePath)
+    {
+        databasePath = string.Empty;
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            return false;
+        }
+
+        var parts = connectionString.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        foreach (var part in parts)
+        {
+            if (!part.StartsWith("Data Source=", StringComparison.OrdinalIgnoreCase)
+                && !part.StartsWith("DataSource=", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var value = part.Split('=', 2)[1].Trim();
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return false;
+            }
+
+            databasePath = Path.GetFullPath(value);
+            return true;
+        }
+
+        return false;
+    }
+
+    private void QuarantineCorruptedSqliteFiles(string databasePath)
+    {
+        var targetBaseDirectory = _sqliteDisasterRecoveryOptions.KeepCorruptedFiles
+            ? Path.GetFullPath(_sqliteDisasterRecoveryOptions.QuarantineDirectory)
+            : Path.GetDirectoryName(databasePath) ?? Directory.GetCurrentDirectory();
+        Directory.CreateDirectory(targetBaseDirectory);
+
+        var timestamp = DateTimeOffset.UtcNow.ToString("yyyyMMddHHmmss");
+        MoveOrDeleteSqliteArtifact(databasePath, targetBaseDirectory, timestamp);
+        MoveOrDeleteSqliteArtifact($"{databasePath}-wal", targetBaseDirectory, timestamp);
+        MoveOrDeleteSqliteArtifact($"{databasePath}-shm", targetBaseDirectory, timestamp);
+    }
+
+    private void MoveOrDeleteSqliteArtifact(string sourcePath, string targetDirectory, string timestamp)
+    {
+        if (!File.Exists(sourcePath))
+        {
+            return;
+        }
+
+        if (!_sqliteDisasterRecoveryOptions.KeepCorruptedFiles)
+        {
+            File.Delete(sourcePath);
+            return;
+        }
+
+        var fileName = Path.GetFileName(sourcePath);
+        var targetPath = Path.Combine(targetDirectory, $"{fileName}.corrupt.{timestamp}");
+        if (File.Exists(targetPath))
+        {
+            File.Delete(targetPath);
+        }
+
+        File.Move(sourcePath, targetPath);
     }
 
     public async Task<AppMigrationTaskProgress?> GetProgressAsync(
@@ -593,6 +816,24 @@ public sealed class AppMigrationService : IAppMigrationService
         await UpdateTaskAsync(task, cancellationToken);
         await AddSnapshotAsync(task, cancellationToken);
         return new AppMigrationActionResult(true, task.Id.ToString(), task.Status, "任务已重置，可重新执行迁移。");
+    }
+
+    public async Task<AppMigrationActionResult> RecoverCorruptedTaskAsync(
+        TenantId tenantId,
+        long userId,
+        long taskId,
+        CancellationToken cancellationToken = default)
+    {
+        var task = await RequireTaskAsync(tenantId, taskId, cancellationToken);
+        if (!string.Equals(task.Status, AppMigrationTaskStatuses.Failed, StringComparison.Ordinal))
+        {
+            return new AppMigrationActionResult(false, task.Id.ToString(), task.Status, "仅失败状态任务允许执行恢复。");
+        }
+
+        task.ResetForRetry(userId, DateTimeOffset.UtcNow);
+        await UpdateTaskAsync(task, cancellationToken);
+        await AddSnapshotAsync(task, cancellationToken);
+        return await StartAsync(tenantId, userId, taskId, cancellationToken);
     }
 
     public async Task<AppMigrationBindingRepairResult> RepairPrimaryBindingAsync(
@@ -1534,5 +1775,14 @@ public sealed class AppMigrationService : IAppMigrationService
         task.MarkObjectProgress(nameof(RuntimeRoute), 1, completed, 0, userId, DateTimeOffset.UtcNow);
         await UpdateTaskAsync(task, cancellationToken);
         await AddSnapshotAsync(task, cancellationToken);
+    }
+
+    private sealed record SqliteRecoveryResult(bool Attempted, bool Success, string? FailureSummary)
+    {
+        public static SqliteRecoveryResult NotAttempted() => new(false, false, null);
+
+        public static SqliteRecoveryResult Succeeded() => new(true, true, null);
+
+        public static SqliteRecoveryResult Failed(string failureSummary) => new(true, false, failureSummary);
     }
 }

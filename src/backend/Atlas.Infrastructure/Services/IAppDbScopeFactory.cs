@@ -9,4 +9,6 @@ namespace Atlas.Infrastructure.Services;
 public interface IAppDbScopeFactory
 {
     Task<ISqlSugarClient> GetAppClientAsync(TenantId tenantId, long appInstanceId, CancellationToken cancellationToken = default);
+
+    void InvalidateAppClientCache(TenantId tenantId, long appInstanceId);
 }

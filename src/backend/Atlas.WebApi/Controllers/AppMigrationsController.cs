@@ -4,6 +4,7 @@ using Atlas.Core.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.WebApi.Authorization;
+using Atlas.WebApi.Filters;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -161,6 +162,19 @@ public sealed class AppMigrationsController : ControllerBase
         var tenantId = _tenantProvider.GetTenantId();
         var user = _currentUserAccessor.GetCurrentUser();
         var result = await _migrationService.ResetFailedTaskAsync(tenantId, user?.UserId ?? 0, id, cancellationToken);
+        return Ok(ApiResponse<AppMigrationActionResult>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost("{id:long}/recover")]
+    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
+    [SkipIdempotency]
+    public async Task<ActionResult<ApiResponse<AppMigrationActionResult>>> Recover(
+        long id,
+        CancellationToken cancellationToken = default)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var user = _currentUserAccessor.GetCurrentUser();
+        var result = await _migrationService.RecoverCorruptedTaskAsync(tenantId, user?.UserId ?? 0, id, cancellationToken);
         return Ok(ApiResponse<AppMigrationActionResult>.Ok(result, HttpContext.TraceIdentifier));
     }
 }

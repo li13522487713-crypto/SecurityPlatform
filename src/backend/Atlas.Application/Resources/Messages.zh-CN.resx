@@ -193,6 +193,7 @@
   <data name="IdempotencyRequired" xml:space="preserve"><value>幂等键不能为空。</value></data>
   <data name="IdempotencyConflict" xml:space="preserve"><value>幂等键冲突，请勿重复提交。</value></data>
   <data name="IdempotencyInProgress" xml:space="preserve"><value>请求正在处理中，请稍后重试。</value></data>
+  <data name="DatabaseCorrupted" xml:space="preserve"><value>检测到数据库文件损坏，系统正在尝试自动恢复，请稍后重试并查看迁移任务进度。</value></data>
   <data name="AntiforgeryTokenInvalid" xml:space="preserve"><value>CSRF 令牌无效，请刷新页面后重试。</value></data>
   <!-- License -->
   <data name="LicenseExpired" xml:space="preserve"><value>许可证已过期。</value></data>

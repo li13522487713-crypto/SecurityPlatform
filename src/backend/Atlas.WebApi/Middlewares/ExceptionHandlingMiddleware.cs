@@ -58,6 +58,7 @@ public sealed class ExceptionHandlingMiddleware
             ErrorCodes.PasswordExpired => HttpStatusCode.Forbidden,
             ErrorCodes.MfaRequired => HttpStatusCode.Forbidden,
             ErrorCodes.AppMigrationPending => HttpStatusCode.Conflict,
+            ErrorCodes.DatabaseCorrupted => HttpStatusCode.ServiceUnavailable,
             _ => HttpStatusCode.BadRequest
         };
     }
@@ -119,6 +120,7 @@ public sealed class ExceptionHandlingMiddleware
             ErrorCodes.IdempotencyRequired => "IdempotencyRequired",
             ErrorCodes.IdempotencyConflict => "IdempotencyConflict",
             ErrorCodes.IdempotencyInProgress => "IdempotencyInProgress",
+            ErrorCodes.DatabaseCorrupted => "DatabaseCorrupted",
             ErrorCodes.AntiforgeryTokenInvalid => "AntiforgeryTokenInvalid",
             ErrorCodes.MfaRequired => "MfaCodeRequired",
             ErrorCodes.LicenseExpired => "LicenseExpired",

@@ -37,6 +37,7 @@ public static class CoreServiceRegistration
         services.Configure<DatabaseOptions>(configuration.GetSection("Database"));
         services.Configure<DatabaseBackupOptions>(configuration.GetSection("Database:Backup"));
         services.Configure<DatabaseEncryptionOptions>(configuration.GetSection("Database:Encryption"));
+        services.Configure<SqliteDisasterRecoveryOptions>(configuration.GetSection("Database:SqliteDisasterRecovery"));
         services.Configure<SnowflakeOptions>(configuration.GetSection("Snowflake"));
         services.Configure<IdGeneratorMappingOptions>(configuration.GetSection("IdGenerator"));
 

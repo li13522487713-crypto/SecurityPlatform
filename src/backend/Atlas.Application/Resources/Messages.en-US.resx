@@ -193,6 +193,7 @@
   <data name="IdempotencyRequired" xml:space="preserve"><value>Idempotency key is required.</value></data>
   <data name="IdempotencyConflict" xml:space="preserve"><value>Idempotency key conflict. Please do not submit duplicate requests.</value></data>
   <data name="IdempotencyInProgress" xml:space="preserve"><value>Request is being processed. Please try again later.</value></data>
+  <data name="DatabaseCorrupted" xml:space="preserve"><value>Database corruption detected. Automatic recovery is in progress. Please retry later and check migration task progress.</value></data>
   <data name="AntiforgeryTokenInvalid" xml:space="preserve"><value>CSRF token is invalid. Please refresh the page and try again.</value></data>
   <!-- License -->
   <data name="LicenseExpired" xml:space="preserve"><value>License has expired.</value></data>
