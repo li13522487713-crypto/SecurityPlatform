@@ -50,7 +50,6 @@ public static class ServiceCollectionExtensions
         services.AddScoped<Atlas.Application.Resilience.IOutboxService, Atlas.Infrastructure.Resilience.OutboxService>();
         services.AddScoped<Atlas.Application.Resilience.ICompensationService, Atlas.Infrastructure.Resilience.CompensationService>();
         services.AddScoped<Atlas.Application.Resilience.IReconciliationService, Atlas.Infrastructure.Resilience.ReconciliationService>();
-        services.AddScoped<Atlas.Application.Resilience.IIdempotencyService, Atlas.Infrastructure.Resilience.IdempotencyService>();
 
         // 注册多数据源相关服务
         services.AddScoped<Atlas.Infrastructure.Repositories.TenantDataSourceRepository>();
@@ -153,8 +152,8 @@ public static class ServiceCollectionExtensions
                 {
                     EntityService = (property, column) =>
                     {
-                        if (property.DeclaringType == typeof(Atlas.Core.Abstractions.TenantEntity)
-                            && property.Name == nameof(Atlas.Core.Abstractions.TenantEntity.TenantId))
+                        if (property.Name == nameof(Atlas.Core.Abstractions.TenantEntity.TenantId)
+                            && property.PropertyType == typeof(Atlas.Core.Tenancy.TenantId))
                         {
                             column.IsIgnore = true;
                         }
@@ -201,7 +200,16 @@ public static class ServiceCollectionExtensions
             // SQLite：启用 WAL 日志模式（读写不互斥）+ 写锁等待 5 s（避免并发写立即报 database is locked）
             if (dbType == DbType.Sqlite)
             {
-                db.Ado.ExecuteCommand("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;");
+                try
+                {
+                    db.Ado.ExecuteCommand("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;");
+                }
+                catch (Exception ex) when (ex.Message.Contains("malformed database schema", StringComparison.OrdinalIgnoreCase))
+                {
+                    // 历史异常数据可能误写入 sqlite_master，统一走 SqliteSchemaAlignment 清理。
+                    SqliteSchemaAlignment.CleanupBrokenSchemaEntries(db);
+                    db.Ado.ExecuteCommand("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;");
+                }
             }
 
             return db;

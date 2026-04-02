@@ -84,7 +84,22 @@ public sealed class DatabaseInitializerHostedService : IHostedService
 
         // 关键兼容迁移：平台管理员标记字段缺失会导致登录链路失败，需始终检查并补齐。
         await EnsureUserAccountSchemaAsync(db, cancellationToken);
-        await EnsureAppMembershipSchemaAsync(db, cancellationToken);
+        var appMembershipAlignment = await EnsureAppMembershipSchemaAsync(db, cancellationToken);
+        if (appMembershipAlignment is not null)
+        {
+            var repairedCount = appMembershipAlignment.RepairedTables.Count;
+            if (repairedCount > 0)
+            {
+                _logger.LogWarning(
+                    "[DatabaseInitializer] SQLite 应用域结构已自动清理/重建，repairedTables={RepairedCount}",
+                    repairedCount);
+            }
+
+            foreach (var alignmentMessage in appMembershipAlignment.Messages)
+            {
+                _logger.LogInformation("[DatabaseInitializer][SqliteAlignment] {Message}", alignmentMessage);
+            }
+        }
         await EnsureSystemConfigSchemaAsync(db, cancellationToken);
         await EnsureDynamicTableSchemaAsync(db, cancellationToken);
         await EnsureDynamicFieldSchemaAsync(db, cancellationToken);
@@ -288,7 +303,6 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             typeof(Atlas.Domain.Events.OutboxMessage),
             typeof(Atlas.Core.Messaging.InboxMessage),
             typeof(Atlas.Core.Messaging.OutboxMessage),
-            typeof(Atlas.Core.Messaging.IdempotencyRecord),
             // Plugin configuration
             typeof(PluginConfig),
             // Plugin market
@@ -1515,7 +1529,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             "ALTER TABLE UserAccount ADD COLUMN IsPlatformAdmin INTEGER NOT NULL DEFAULT 0");
     }
 
-    private static async Task EnsureAppMembershipSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
+    private static async Task<SchemaAlignmentReport?> EnsureAppMembershipSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
     {
         var missingTables =
             !db.DbMaintenance.IsAnyTable("AppMember", false)
@@ -1536,8 +1550,10 @@ public sealed class DatabaseInitializerHostedService : IHostedService
 
         if (SqliteSchemaAlignment.IsSqlite(db))
         {
-            await SqliteSchemaAlignment.EnsureAppMembershipDomainSchemaAsync(db, cancellationToken);
+            return await SqliteSchemaAlignment.EnsureAppMembershipDomainSchemaAsync(db, cancellationToken);
         }
+
+        return null;
     }
 
     private static async Task EnsureSystemConfigSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)

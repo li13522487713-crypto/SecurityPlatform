@@ -20,7 +20,7 @@ public sealed class DynamicTableCreateRequestValidator : AbstractValidator<Dynam
     private static readonly HashSet<string> ReservedNames = new(StringComparer.OrdinalIgnoreCase)
     {
         "select", "from", "where", "table", "index", "create", "drop", "delete", "update", "insert", "alter",
-        "TenantIdValue"
+        "TenantIdValue", "sqlite_master", "sqlite_schema"
     };
 
     public DynamicTableCreateRequestValidator(IStringLocalizer<Messages> localizer)
@@ -74,6 +74,18 @@ public sealed class DynamicTableCreateRequestValidator : AbstractValidator<Dynam
         RuleFor(x => x.Fields)
             .Must(AutoIncrementMustBePrimaryKey)
             .WithMessage(localizer["DynamicTableAutoIncrementInvalid"].Value);
+
+        RuleForEach(x => x.Indexes)
+            .Must(index => BeValidKey(index.Name))
+            .WithMessage(localizer["DynamicTableFieldNameInvalid"].Value);
+
+        RuleForEach(x => x.Indexes)
+            .Must(index => index.Fields.Count > 0 && index.Fields.All(BeValidField))
+            .WithMessage(localizer["DynamicTableFieldNameInvalid"].Value);
+
+        RuleFor(x => x.Indexes)
+            .Must(HaveUniqueIndexNames)
+            .WithMessage(localizer["DynamicTableFieldNamesDuplicated"].Value);
 
         RuleFor(x => x.AppId)
             .Must(appId => string.IsNullOrWhiteSpace(appId) || (long.TryParse(appId, out var parsed) && parsed > 0))
@@ -227,6 +239,20 @@ public sealed class DynamicTableCreateRequestValidator : AbstractValidator<Dynam
             var isInt = field.FieldType.Equals("Int", StringComparison.OrdinalIgnoreCase);
             var isLong = field.FieldType.Equals("Long", StringComparison.OrdinalIgnoreCase);
             if (!isInt && !isLong)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool HaveUniqueIndexNames(IReadOnlyList<DynamicIndexDefinition> indexes)
+    {
+        var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var index in indexes)
+        {
+            if (!set.Add(index.Name))
             {
                 return false;
             }

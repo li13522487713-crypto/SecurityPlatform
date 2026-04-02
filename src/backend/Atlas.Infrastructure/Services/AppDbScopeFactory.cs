@@ -114,7 +114,8 @@ public sealed class AppDbScopeFactory : IAppDbScopeFactory, IDisposable
                     {
                         EntityService = (property, column) =>
                         {
-                            if (property.Name == nameof(Atlas.Core.Abstractions.TenantEntity.TenantId))
+                            if (property.Name == nameof(Atlas.Core.Abstractions.TenantEntity.TenantId)
+                                && property.PropertyType == typeof(Atlas.Core.Tenancy.TenantId))
                             {
                                 column.IsIgnore = true;
                             }

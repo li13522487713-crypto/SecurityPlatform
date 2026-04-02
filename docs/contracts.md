@@ -518,6 +518,7 @@
 - 首次请求成功后保存处理结果（状态 + 资源ID/响应摘要）；重复请求返回相同业务结果。
 - 同一幂等键但 payload 不一致返回 `IDEMPOTENCY_CONFLICT`。
 - 幂等记录保留 N 小时/天后过期（按配置清理）。
+- 幂等记录统一落库到身份域模型 `IdempotencyRecord`（租户列 `TenantIdValue`）；SQLite 初始化阶段会自动清理历史脏 schema 后再建表。
 
 ### Anti-Forgery Token
 
@@ -813,8 +814,9 @@ JWT Claims（新增）：
 
 ### SQLite 应用库结构自修复（迁移执行阶段）
 
-- 当目标应用数据源为 **SQLite** 时，执行 `POST .../start` 会在数据同步前对应用库内应用域表做 **按需** 结构对齐：检测历史上错误建成 `NOT NULL` 或缺列的字段，与当前实体定义不一致时 **整表按 ORM 重建并回灌数据**（与主库 `DatabaseInitializerHostedService` 共用同一套规则入口）。
-- 首批覆盖表：`AppRole`（如 `DeptIds`）、`AppDepartment`（`ParentId`）、`AppPermission` / `AppPosition` / `AppProject`（`Description` 等可空列）等。
+- 当目标应用数据源为 **SQLite** 时，执行 `POST .../start` 会在数据同步前对应用库内应用域表做 **按需** 结构对齐；迁移器先执行 `sqlite_master` 自动清理（非法 type、HTTP 路由误写、重复元数据），再进入重建流程。
+- 结构对齐采用“模板化重建”流程：`备份表准备 -> InitTables -> SQL 回灌清洗 -> 删除备份表`；减少按表分叉逻辑并保证重复执行幂等。
+- 首批覆盖表：`AppRole`（如 `DeptIds`）、`AppDepartment`（`ParentId`）、`AppPermission` / `AppPosition` / `AppProject`（`Description` 等可空列）等；其中 `AppDepartment` 与 `AppPermission` 使用 SQL 清洗回灌以兼容历史脏类型数据。
 - 任务实体与进度快照包含 **`schemaRepairLog`**（文本摘要），列表 `GET /api/v1/app-migrations`、详情 `GET /api/v1/app-migrations/{id}`、进度 `GET .../progress` 均可能返回该字段，供控制台「结构自修复」列展示。
 - 迁移失败若由 SQLite 约束引起（如 `NOT NULL constraint failed`），`errorSummary` 中会附带可读的列定位与重试/结构对齐提示。
 
