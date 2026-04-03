@@ -1,13 +1,9 @@
-using Atlas.Core.Governance;
 using Atlas.Core.Observability;
 using Atlas.Core.Plugins;
 using Atlas.Core.Tenancy;
-using Atlas.Application.Plugins.Abstractions;
 using Atlas.Infrastructure.DependencyInjection;
 using Atlas.Infrastructure.Options;
 using Atlas.Infrastructure.Services;
-using Atlas.Infrastructure.LogicFlow;
-using Atlas.Infrastructure.BatchProcess;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -17,83 +13,25 @@ namespace Atlas.Infrastructure;
 
 public static class ServiceCollectionExtensions
 {
-    public static IServiceCollection AddAtlasInfrastructure(this IServiceCollection services, IConfiguration configuration)
+    public static IServiceCollection AddAtlasInfrastructureShared(this IServiceCollection services, IConfiguration configuration)
     {
         services.Configure<PluginCatalogOptions>(configuration.GetSection("Plugins"));
 
-        // Register modular services
         services.AddCoreInfrastructure(configuration);
         services.AddAssetInfrastructure();
-        services.AddDynamicTableInfrastructure();
-        services.AddApprovalInfrastructure();
-        services.AddWorkflowInfrastructure();
-        services.AddLowCodeInfrastructure();
-        services.AddAiPlatformInfrastructure(configuration);
-        services.AddLicenseInfrastructure(configuration);
-        services.AddPlatformInfrastructure();
-        services.AddGovernanceInfrastructure();
-        services.AddLogicFlowInfrastructure();
-        services.AddBatchProcessInfrastructure();
 
         services.AddSingleton<INodeMetricsCollector, Atlas.Infrastructure.Observability.InMemoryNodeMetricsCollector>();
         services.AddSingleton<ITraceCorrelator, Atlas.Infrastructure.Observability.ActivityTraceCorrelator>();
         services.AddSingleton<IPluginRegistry, Atlas.Infrastructure.Plugins.PluginRegistry>();
         services.AddScoped<IExecutionLogger, Atlas.Infrastructure.Observability.ExecutionLogger>();
-        services.AddScoped<IQuotaService, Atlas.Infrastructure.Governance.QuotaService>();
-        services.AddScoped<ICanaryReleaseService, Atlas.Infrastructure.Governance.CanaryReleaseService>();
-        services.AddScoped<IVersionFreezeService, Atlas.Infrastructure.Governance.VersionFreezeService>();
 
         services.AddSingleton<Atlas.Core.Resilience.IErrorClassifier, Atlas.Infrastructure.Resilience.ErrorClassifier>();
         services.AddSingleton<Atlas.Core.Resilience.ICircuitBreaker, Atlas.Infrastructure.Resilience.SimpleCircuitBreaker>();
         services.AddSingleton<Atlas.Core.Resilience.IRateLimiter, Atlas.Infrastructure.Resilience.InMemoryRateLimiter>();
         services.AddScoped<Atlas.Application.Resilience.IInboxService, Atlas.Infrastructure.Resilience.InboxService>();
         services.AddScoped<Atlas.Application.Resilience.IOutboxService, Atlas.Infrastructure.Resilience.OutboxService>();
-        services.AddScoped<Atlas.Application.Resilience.ICompensationService, Atlas.Infrastructure.Resilience.CompensationService>();
         services.AddScoped<Atlas.Application.Resilience.IReconciliationService, Atlas.Infrastructure.Resilience.ReconciliationService>();
 
-        // 注册多数据源相关服务
-        services.AddScoped<Atlas.Infrastructure.Repositories.TenantDataSourceRepository>();
-        services.AddScoped<Atlas.Application.System.Abstractions.ITenantDataSourceService,
-            Atlas.Infrastructure.Services.TenantDataSourceService>();
-        services.AddScoped<Atlas.Application.System.Abstractions.IAppMigrationService, Atlas.Infrastructure.Services.AppMigrationService>();
-        services.AddScoped<Atlas.Application.System.Abstractions.ITenantDbConnectionFactory,
-            Atlas.Infrastructure.Services.TenantDbConnectionFactory>();
-        services.AddScoped<Atlas.Infrastructure.Services.AppDatabaseProvisioningService>();
-        services.AddScoped<Atlas.Application.System.Abstractions.IAppDbConnectionResolver>(sp =>
-            (Atlas.Application.System.Abstractions.IAppDbConnectionResolver)sp.GetRequiredService<Atlas.Application.System.Abstractions.ITenantDbConnectionFactory>());
-        services.AddScoped<Atlas.Infrastructure.Services.IAppDbScopeFactory, Atlas.Infrastructure.Services.AppDbScopeFactory>();
-        services.AddSingleton<IPluginCatalogService, Atlas.Infrastructure.Services.PluginCatalogService>();
-        services.AddScoped<Atlas.Application.System.Abstractions.ISqlQueryService, Atlas.Infrastructure.Services.SqlQueryService>();
-        services.AddScoped<Atlas.Application.System.Abstractions.IMetadataLinkQueryService, Atlas.Infrastructure.Services.MetadataLinkQueryService>();
-
-        // Plugin Configuration
-        services.AddScoped<Atlas.Application.Plugins.Repositories.IPluginConfigRepository, Atlas.Infrastructure.Repositories.PluginConfigRepository>();
-        services.AddScoped<Atlas.Application.Plugins.Abstractions.IPluginConfigService, Atlas.Infrastructure.Services.PluginConfigService>();
-
-        // Plugin Package (install from .atpkg upload)
-        services.AddScoped<Atlas.Infrastructure.Plugins.PluginPackageService>();
-
-        // Plugin Market
-        services.AddScoped<Atlas.Application.Plugins.Abstractions.IPluginMarketQueryService, Atlas.Infrastructure.Services.PluginMarketQueryService>();
-        services.AddScoped<Atlas.Application.Plugins.Abstractions.IPluginMarketCommandService, Atlas.Infrastructure.Services.PluginMarketCommandService>();
-
-        // Component Templates
-        services.AddScoped<Atlas.Application.Templates.IComponentTemplateQueryService, Atlas.Infrastructure.Services.ComponentTemplateQueryService>();
-        services.AddScoped<Atlas.Application.Templates.IComponentTemplateCommandService, Atlas.Infrastructure.Services.ComponentTemplateCommandService>();
-        services.AddScoped<Atlas.Infrastructure.Services.TemplateSeedDataService>();
-
-        // Webhooks
-        services.AddScoped<Atlas.Application.Integration.IWebhookService, Atlas.Infrastructure.Services.WebhookService>();
-        services.AddHttpClient("Webhook").ConfigureHttpClient(c => c.Timeout = TimeSpan.FromSeconds(30));
-
-        // API Connectors
-        services.AddScoped<Atlas.Application.Integration.IApiConnectorService, Atlas.Infrastructure.Services.ApiConnectorService>();
-
-        // Integration API Key validation
-        services.AddScoped<Atlas.Application.Integration.IIntegrationApiKeyRepository, Atlas.Infrastructure.Repositories.IntegrationApiKeyRepository>();
-        services.AddScoped<Atlas.Application.Integration.IApiKeyValidationService, Atlas.Infrastructure.Services.ApiKeyValidationService>();
-
-        // Data Source Connector Registry (singleton for lifetime of app)
         services.AddSingleton<Atlas.Application.DataSource.IDataSourceConnectorRegistry>(sp =>
         {
             var registry = new Atlas.Infrastructure.DataSource.DataSourceConnectorRegistry();
@@ -101,38 +39,12 @@ public static class ServiceCollectionExtensions
             return registry;
         });
 
-        // Message Queue (SQLite-backed)
-        services.AddScoped<Atlas.Core.Messaging.IMessageQueue, Atlas.Infrastructure.Messaging.SqliteMessageQueue>();
-        services.AddHostedService<Atlas.Infrastructure.Messaging.MessageQueueProcessorHostedService>();
-
-        // Approval Event Consumer (async mode, activated when Messaging:ApprovalEvents:AsyncEnabled = true)
-        services.AddScoped<Atlas.Infrastructure.Messaging.IQueueMessageHandler, Atlas.Infrastructure.Services.ApprovalFlow.ApprovalEventConsumer>();
-
-        // Saga Orchestrator
         services.AddScoped<Atlas.Core.Saga.ISagaOrchestrator, Atlas.Infrastructure.Saga.SagaOrchestrator>();
-
-        // Event Subscriptions
         services.AddScoped<Atlas.Application.Events.IEventSubscriptionService, Atlas.Infrastructure.Events.EventSubscriptionService>();
         services.AddScoped<Atlas.Application.Events.IPlatformEventService, Atlas.Infrastructure.Events.PlatformEventService>();
-
-        // Metering
         services.AddScoped<Atlas.Application.Metering.IMeteringService, Atlas.Infrastructure.Services.Metering.MeteringService>();
-
-        // Subscription & Plans
-        services.AddScoped<Atlas.Application.Subscription.IPlanQueryService, Atlas.Infrastructure.Services.Subscription.PlanService>();
-        services.AddScoped<Atlas.Application.Subscription.IPlanCommandService, Atlas.Infrastructure.Services.Subscription.PlanService>();
-        services.AddScoped<Atlas.Application.Subscription.ISubscriptionService, Atlas.Infrastructure.Services.Subscription.SubscriptionService>();
-
-        // Observability - Alert Rules
-        services.AddScoped<Atlas.Application.Observability.IAlertRuleService, Atlas.Infrastructure.Observability.AlertRuleService>();
-
-        // Plugin Metrics
         services.AddSingleton<Atlas.Infrastructure.Plugins.PluginMetricsStore>();
 
-        // Evidence Chain
-        services.AddScoped<Atlas.Infrastructure.Services.EvidenceChainService>();
-
-        // SqlSugar 主库客户端（控制面）
         services.AddScoped<ISqlSugarClient>(sp =>
         {
             var options = sp.GetRequiredService<IOptions<DatabaseOptions>>().Value;
@@ -215,11 +127,18 @@ public static class ServiceCollectionExtensions
             return db;
         });
 
-        // JWT 认证缓存（减少热路径 DB 查询，TTL 60 秒）
         services.AddSingleton<Atlas.Application.Identity.Abstractions.IAuthCacheService,
             Atlas.Infrastructure.Security.MemoryAuthCacheService>();
 
         return services;
+    }
+
+    public static IServiceCollection AddAtlasInfrastructure(this IServiceCollection services, IConfiguration configuration)
+    {
+        return services
+            .AddAtlasInfrastructureShared(configuration)
+            .AddAtlasInfrastructurePlatform(configuration)
+            .AddAtlasInfrastructureAppRuntime(configuration);
     }
 
     private static DbType MapDbType(string? dbType)

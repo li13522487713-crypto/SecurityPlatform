@@ -517,14 +517,18 @@ if (databaseConfigurationSource is not null)
         return provider ?? throw new InvalidOperationException("DatabaseConfigurationProvider not found in configuration pipeline.");
     });
 }
-builder.Services.AddAtlasApplication(
+builder.Services.AddAtlasApplicationShared(
     typeof(AlertMappingProfile).Assembly,
     typeof(ApprovalMappingProfile).Assembly,
     typeof(AssetsMappingProfile).Assembly,
     typeof(Atlas.Application.LogicFlow.Flows.Mappings.LogicFlowMappingProfile).Assembly,
     typeof(Atlas.Application.BatchProcess.Mappings.BatchProcessMappingProfile).Assembly,
-    typeof(WebApiMappingProfile).Assembly);
-builder.Services.AddAtlasInfrastructure(builder.Configuration);
+    typeof(WebApiMappingProfile).Assembly)
+    .AddAtlasApplicationPlatform()
+    .AddAtlasApplicationRuntime();
+builder.Services.AddAtlasInfrastructureShared(builder.Configuration)
+    .AddAtlasInfrastructurePlatform(builder.Configuration)
+    .AddAtlasInfrastructureAppRuntime(builder.Configuration);
 
 // 国际化（i18n）：支持中文和英文
 builder.Services.AddScoped<Atlas.Application.System.Abstractions.ITenantService, Atlas.Infrastructure.Services.TenantService>();

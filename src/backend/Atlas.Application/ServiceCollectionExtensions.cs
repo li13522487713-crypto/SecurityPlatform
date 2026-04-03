@@ -18,7 +18,7 @@ public static class ServiceCollectionExtensions
         typeof(WorkflowMappingProfile).Assembly
     ];
 
-    public static IServiceCollection AddAtlasApplication(
+    public static IServiceCollection AddAtlasApplicationShared(
         this IServiceCollection services,
         params Assembly[] additionalMappingAssemblies)
     {
@@ -31,9 +31,29 @@ public static class ServiceCollectionExtensions
 
         services.AddAutoMapper(mappingAssemblies);
 
+        return services;
+    }
+
+    public static IServiceCollection AddAtlasApplicationPlatform(this IServiceCollection services)
+    {
+        return services;
+    }
+
+    public static IServiceCollection AddAtlasApplicationRuntime(this IServiceCollection services)
+    {
         services.AddWorkflowApplication();
         services.AddVisualizationApplication();
 
         return services;
+    }
+
+    public static IServiceCollection AddAtlasApplication(
+        this IServiceCollection services,
+        params Assembly[] additionalMappingAssemblies)
+    {
+        return services
+            .AddAtlasApplicationShared(additionalMappingAssemblies)
+            .AddAtlasApplicationPlatform()
+            .AddAtlasApplicationRuntime();
     }
 }

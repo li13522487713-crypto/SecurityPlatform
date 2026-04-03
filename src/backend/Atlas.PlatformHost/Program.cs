@@ -1,11 +1,29 @@
 using Atlas.Application;
+using Atlas.Infrastructure;
+using Atlas.PlatformHost;
+using Atlas.Core.Identity;
+using Atlas.Core.Tenancy;
 using FluentValidation.AspNetCore;
+using Hangfire;
+using Hangfire.Storage.SQLite;
 using NLog.Web;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 
 var builder = WebApplication.CreateBuilder(args);
+var legacyConfigRoot = Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, "..", "Atlas.WebApi"));
+
+builder.Configuration
+    .AddJsonFile(Path.Combine(legacyConfigRoot, "appsettings.json"), optional: true, reloadOnChange: false)
+    .AddJsonFile(
+        Path.Combine(legacyConfigRoot, $"appsettings.{builder.Environment.EnvironmentName}.json"),
+        optional: true,
+        reloadOnChange: false);
+builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+{
+    ["Database:ConnectionString"] = $"Data Source={Path.Combine(legacyConfigRoot, "atlas.db")}"
+});
 
 if (builder.Environment.IsDevelopment())
 {
@@ -17,6 +35,8 @@ builder.Host.UseNLog();
 
 builder.Services.AddControllers();
 builder.Services.AddHealthChecks();
+builder.Services.AddMemoryCache();
+builder.Services.AddHttpContextAccessor();
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("PlatformHostCors", policy =>
@@ -35,7 +55,20 @@ builder.Services.AddOpenApiDocument(config =>
     config.Description = "Atlas PlatformHost skeleton for PR-1.";
 });
 builder.Services.AddReverseProxy();
-builder.Services.AddAtlasApplication();
+builder.Services.AddHangfire(config =>
+    config.UseSQLiteStorage("hangfire-platformhost.db", new SQLiteStorageOptions
+    {
+        JournalMode = SQLiteStorageOptions.JournalModes.WAL
+    }));
+builder.Services.AddAtlasApplicationShared()
+    .AddAtlasApplicationPlatform();
+builder.Services.AddAtlasInfrastructureShared(builder.Configuration)
+    .AddAtlasInfrastructurePlatform(builder.Configuration);
+builder.Services.AddScoped<ITenantProvider>(_ => new TenantContext(TenantId.Empty));
+builder.Services.AddScoped<ICurrentUserAccessor, PlatformHostCurrentUserAccessor>();
+builder.Services.AddScoped<IAppContextAccessor, PlatformHostAppContextAccessor>();
+builder.Services.AddScoped<IProjectContextAccessor, PlatformHostProjectContextAccessor>();
+builder.Services.AddScoped<IClientContextAccessor, PlatformHostClientContextAccessor>();
 
 var serviceName = "Atlas.PlatformHost";
 var serviceVersion = typeof(Program).Assembly.GetName().Version?.ToString() ?? "1.0.0";

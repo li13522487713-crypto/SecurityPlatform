@@ -27,18 +27,6 @@ public static class PlatformServiceRegistration
         services.AddScoped<ITenantApplicationQueryService, TenantApplicationQueryService>();
         services.AddScoped<IAppManifestCommandService, AppManifestCommandService>();
         services.AddScoped<IAppReleaseCommandService, AppReleaseCommandService>();
-        services.AddScoped<ITenantAppInstanceQueryService, TenantAppInstanceQueryService>();
-        services.AddScoped<ITenantAppInstanceCommandService, TenantAppInstanceCommandService>();
-        services.AddScoped<ITenantAppMemberQueryService, TenantAppMemberQueryService>();
-        services.AddScoped<ITenantAppMemberCommandService, TenantAppMemberCommandService>();
-        services.AddScoped<ITenantAppRoleQueryService, TenantAppRoleQueryService>();
-        services.AddScoped<ITenantAppRoleCommandService, TenantAppRoleCommandService>();
-        services.AddScoped<IAppOrgQueryService, AppOrgQueryService>();
-        services.AddScoped<IAppOrgCommandService, AppOrgCommandService>();
-        services.AddScoped<IAppOrganizationQueryService, AppOrganizationQueryService>();
-        services.AddScoped<IAppOrganizationCommandService, AppOrganizationCommandService>();
-        services.AddScoped<IAppRoleAssignmentQueryService, AppRoleAssignmentQueryService>();
-        services.AddScoped<IAppRoleAssignmentCommandService, AppRoleAssignmentCommandService>();
         services.AddScoped<IAppPermissionQueryService, AppPermissionQueryService>();
         services.AddScoped<IAppPermissionCommandService, AppPermissionCommandService>();
         services.AddScoped<IResourceCenterQueryService, ResourceCenterQueryService>();
@@ -48,8 +36,6 @@ public static class PlatformServiceRegistration
         services.AddScoped<IDebugLayerQueryService, DebugLayerQueryService>();
         services.AddScoped<IRuntimeContextQueryService, RuntimeContextQueryService>();
         services.AddScoped<IRuntimeExecutionQueryService, RuntimeExecutionQueryService>();
-        services.AddScoped<IRuntimeExecutionCommandService, RuntimeExecutionCommandService>();
-        services.AddScoped<IRuntimeRouteQueryService, RuntimeRouteQueryService>();
         services.AddScoped<IAppDesignerSnapshotService, AppDesignerSnapshotService>();
         return services;
     }
