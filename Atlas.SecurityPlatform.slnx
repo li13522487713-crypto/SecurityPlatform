@@ -1,6 +1,8 @@
 <Solution>
   <Folder Name="/src/" />
   <Folder Name="/src/backend/">
+    <Project Path="src/backend/Atlas.AppHost/Atlas.AppHost.csproj" />
+    <Project Path="src/backend/Atlas.AppHost.Sdk/Atlas.AppHost.Sdk.csproj" />
     <Project Path="src/backend/Atlas.Application.AgentTeam/Atlas.Application.AgentTeam.csproj" />
     <Project Path="src/backend/Atlas.Application.Alert/Atlas.Application.Alert.csproj" />
     <Project Path="src/backend/Atlas.Application.Approval/Atlas.Application.Approval.csproj" />
@@ -22,7 +24,9 @@
     <Project Path="src/backend/Atlas.Infrastructure/Atlas.Infrastructure.csproj" />
     <Project Path="src/backend/Atlas.Infrastructure.LogicFlow/Atlas.Infrastructure.LogicFlow.csproj" />
     <Project Path="src/backend/Atlas.Infrastructure.BatchProcess/Atlas.Infrastructure.BatchProcess.csproj" />
+    <Project Path="src/backend/Atlas.PlatformHost/Atlas.PlatformHost.csproj" />
     <Project Path="src/backend/Atlas.Sdk.LogicFlowPlugins/Atlas.Sdk.LogicFlowPlugins.csproj" />
+    <Project Path="src/backend/Atlas.Shared.Contracts/Atlas.Shared.Contracts.csproj" />
     <Project Path="src/backend/Atlas.WebApi/Atlas.WebApi.csproj" />
     <Project Path="src/backend/Atlas.WorkflowCore.DSL/Atlas.WorkflowCore.DSL.csproj" />
     <Project Path="src/backend/Atlas.WorkflowCore/Atlas.WorkflowCore.csproj" />

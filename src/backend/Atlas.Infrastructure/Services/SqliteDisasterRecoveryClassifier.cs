@@ -2,7 +2,7 @@ using Microsoft.Data.Sqlite;
 
 namespace Atlas.Infrastructure.Services;
 
-internal enum SqliteFailureKind
+public enum SqliteFailureKind
 {
     None = 0,
     DiskImageMalformed = 1,
@@ -11,7 +11,7 @@ internal enum SqliteFailureKind
     Other = 4
 }
 
-internal static class SqliteDisasterRecoveryClassifier
+public static class SqliteDisasterRecoveryClassifier
 {
     public static SqliteFailureKind Classify(Exception ex)
     {

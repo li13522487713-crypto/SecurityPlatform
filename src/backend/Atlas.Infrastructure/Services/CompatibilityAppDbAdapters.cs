@@ -20,6 +20,10 @@ internal sealed class MainOnlyAppDbScopeFactory : IAppDbScopeFactory
     {
         return Task.FromResult(_mainDb);
     }
+
+    public void InvalidateAppClientCache(TenantId tenantId, long appInstanceId)
+    {
+    }
 }
 
 internal sealed class NullAppContextAccessor : IAppContextAccessor
