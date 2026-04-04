@@ -8,11 +8,13 @@ using Atlas.Domain.Assets.Entities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Atlas.WebApi.Authorization;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
 [Route("api/v1/assets")]
+[PlatformOnly]
 public sealed class AssetsController : ControllerBase
 {
     private readonly IAssetQueryService _assetQueryService;

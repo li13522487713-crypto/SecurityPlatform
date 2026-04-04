@@ -9,11 +9,13 @@ using Atlas.WebApi.Authorization;
 using Atlas.WebApi.Helpers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
 [Route("api/v1/apps/{appId:long}/schema-change-tasks")]
+[PlatformOnly]
 public sealed class SchemaChangeTasksController : ControllerBase
 {
     private readonly ISchemaChangeTaskService _taskService;

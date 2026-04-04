@@ -9,11 +9,13 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Atlas.WebApi.Authorization;
 using Atlas.WebApi.Models;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
 [Route("api/v1/audit")]
+[PlatformOnly]
 public sealed class AuditController : ControllerBase
 {
     private readonly IAuditQueryService _auditQueryService;

@@ -6,6 +6,7 @@ using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
@@ -15,6 +16,7 @@ namespace Atlas.WebApi.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/v1/integration/approvals")]
+[PlatformOnly]
 public sealed class IntegrationApprovalController : ControllerBase
 {
     private readonly IApprovalRuntimeCommandService _commandService;

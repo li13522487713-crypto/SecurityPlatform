@@ -7,11 +7,13 @@ using Atlas.WebApi.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Hosting;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
 [Route("api/v1/amis/dynamic-tables")]
+[PlatformOnly]
 public sealed class DynamicAmisController : ControllerBase
 {
     private readonly IDynamicTableQueryService _queryService;

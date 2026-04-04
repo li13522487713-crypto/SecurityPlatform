@@ -7,11 +7,13 @@ using Atlas.WebApi.Authorization;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
 [Route("api/v1/agents/{agentId:long}/chat")]
+[AppRuntimeOnly]
 public sealed class AgentChatController : ControllerBase
 {
     private readonly IAgentChatService _agentChatService;

@@ -7,6 +7,7 @@ using Atlas.WebApi.Attributes;
 using Atlas.WebApi.Helpers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
@@ -14,6 +15,7 @@ namespace Atlas.WebApi.Controllers;
 [Route("api/v1/app-manifests")]
 [DeprecatedApi("app-manifests v1 is in compatibility window", "/api/v2/application-catalogs")]
 [Authorize]
+[PlatformOnly]
 public sealed class AppManifestsController : ControllerBase
 {
     private readonly IAppManifestQueryService _queryService;

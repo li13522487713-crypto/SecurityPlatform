@@ -6,12 +6,14 @@ using Atlas.Domain.LogicFlow.Flows;
 using Atlas.WebApi.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
 [Route("api/v1/flow-executions")]
 [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+[AppRuntimeOnly]
 public sealed class FlowExecutionsController : ControllerBase
 {
     private readonly IFlowExecutionQueryService _queryService;

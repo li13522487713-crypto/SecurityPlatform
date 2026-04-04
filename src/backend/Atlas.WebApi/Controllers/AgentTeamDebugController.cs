@@ -6,11 +6,13 @@ using Atlas.WebApi.Authorization;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
 [Route("api/v1/agent-teams")]
+[AppRuntimeOnly]
 public sealed class AgentTeamDebugController : ControllerBase
 {
     private readonly IAgentTeamCommandService _commandService;

@@ -4,6 +4,7 @@ using Atlas.Core.Models;
 using Atlas.WebApi.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
@@ -13,6 +14,7 @@ namespace Atlas.WebApi.Controllers;
 [ApiController]
 [Route("api/v1/workflows")]
 [Authorize]
+[PlatformOnly]
 public sealed class WorkflowController : ControllerBase
 {
     private readonly IWorkflowQueryService _queryService;

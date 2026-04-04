@@ -1,5 +1,7 @@
 using Atlas.Application.Plugins.Abstractions;
 using Atlas.Core.Governance;
+using Atlas.Infrastructure.DataScopes.AppRuntime;
+using Atlas.Infrastructure.DataScopes.Platform;
 using Atlas.Infrastructure.DependencyInjection;
 using Atlas.Infrastructure.Services.PlatformRuntime;
 using Microsoft.Extensions.Configuration;
@@ -29,6 +31,8 @@ public static class PlatformServiceCollectionExtensions
         services.AddScoped<Atlas.Application.System.Abstractions.IAppDbConnectionResolver>(sp =>
             (Atlas.Application.System.Abstractions.IAppDbConnectionResolver)sp.GetRequiredService<Atlas.Application.System.Abstractions.ITenantDbConnectionFactory>());
         services.AddScoped<Atlas.Infrastructure.Services.IAppDbScopeFactory, Atlas.Infrastructure.Services.AppDbScopeFactory>();
+        services.AddScoped<IPlatformSqlSugarScopeFactory, PlatformSqlSugarScopeFactory>();
+        services.AddScoped<IAppSqlSugarScopeFactory, AppSqlSugarScopeFactory>();
         services.AddSingleton<IPluginCatalogService, Atlas.Infrastructure.Services.PluginCatalogService>();
         services.AddScoped<Atlas.Application.System.Abstractions.ISqlQueryService, Atlas.Infrastructure.Services.SqlQueryService>();
         services.AddScoped<Atlas.Application.System.Abstractions.IMetadataLinkQueryService, Atlas.Infrastructure.Services.MetadataLinkQueryService>();
@@ -61,6 +65,7 @@ public static class PlatformServiceCollectionExtensions
         services.AddSingleton<Atlas.Application.Platform.Abstractions.IAppIngressResolver, DefaultAppIngressResolver>();
         services.AddSingleton<Atlas.Application.Platform.Abstractions.IAppLoginEntryResolver, DefaultAppLoginEntryResolver>();
         services.AddSingleton<Atlas.Application.Platform.Abstractions.IAppRuntimeSupervisor, AppRuntimeSupervisor>();
+        services.AddHostedService<AppRuntimeSupervisorHostedService>();
 
         return services;
     }

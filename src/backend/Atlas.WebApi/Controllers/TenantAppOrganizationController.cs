@@ -8,12 +8,14 @@ using Atlas.WebApi.Authorization;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
 [Route("api/v2/tenant-app-instances/{appId:long}/organization")]
 [Authorize]
+[PlatformOnly]
 public sealed class TenantAppOrganizationController : ControllerBase
 {
     private readonly IAppOrganizationQueryService _queryService;

@@ -11,11 +11,13 @@ using Atlas.WebApi.Helpers;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
 [Route("api/v1/form-definitions")]
+[PlatformOnly]
 public sealed class FormDefinitionsController : ControllerBase
 {
     private readonly IFormDefinitionQueryService _queryService;

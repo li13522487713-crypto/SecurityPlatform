@@ -5,12 +5,14 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Cryptography;
 using System.Text;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
 [Route("api/v1/embed-chat")]
 [AllowAnonymous]
+[AppRuntimeOnly]
 public sealed class EmbedChatController : ControllerBase
 {
     private readonly IAgentPublicationService _publicationService;

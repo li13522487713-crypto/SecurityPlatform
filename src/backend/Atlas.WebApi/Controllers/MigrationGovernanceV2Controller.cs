@@ -4,12 +4,14 @@ using Atlas.WebApi.Authorization;
 using Atlas.WebApi.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
 [Route("api/v2/migration-governance")]
 [Authorize]
+[PlatformOnly]
 public sealed class MigrationGovernanceV2Controller : ControllerBase
 {
     private readonly MigrationGovernanceMetricsStore _metricsStore;

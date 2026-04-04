@@ -5,6 +5,7 @@ using Atlas.Core.Tenancy;
 using Atlas.WebApi.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
@@ -13,6 +14,7 @@ namespace Atlas.WebApi.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/v1/login-logs")]
+[PlatformOnly]
 public sealed class LoginLogsController : ControllerBase
 {
     private readonly ILoginLogQueryService _queryService;

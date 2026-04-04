@@ -3,12 +3,14 @@ using Atlas.Core.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
 [Route("api/v1/license")]
 [Obsolete("Deprecated since Sprint 1. Please migrate to api/v1/licenses endpoints.")]
+[PlatformOnly]
 public sealed class LicenseController : ControllerBase
 {
     private readonly ILicenseService _licenseService;

@@ -9,6 +9,7 @@ using Atlas.WebApi.Helpers;
 using Atlas.WebApi.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
@@ -18,6 +19,7 @@ namespace Atlas.WebApi.Controllers;
 [ApiController]
 [Route("api/v1/visualization")]
 [Authorize]
+[AppRuntimeOnly]
 public sealed class VisualizationController : ControllerBase
 {
     private readonly IVisualizationQueryService _queryService;

@@ -22,11 +22,13 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
 using System.Diagnostics;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
 [Route("api/v1/auth")]
+[PlatformOnly]
 public sealed class AuthController : ControllerBase
 {
     private readonly IAuthTokenService _authTokenService;

@@ -8,11 +8,13 @@ using Atlas.WebApi.Authorization;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
 [Route("api/v1/knowledge-bases")]
+[PlatformOnly]
 public sealed class KnowledgeBasesController : ControllerBase
 {
     private readonly IKnowledgeBaseService _knowledgeBaseService;

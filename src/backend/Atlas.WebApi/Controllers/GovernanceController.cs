@@ -4,12 +4,14 @@ using Atlas.Core.Tenancy;
 using Atlas.WebApi.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
 [Route("api/v1/governance")]
 [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+[PlatformOnly]
 public sealed class GovernanceController : ControllerBase
 {
     private readonly IQuotaService _quotaService;

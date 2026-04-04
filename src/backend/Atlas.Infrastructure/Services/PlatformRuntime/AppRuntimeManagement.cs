@@ -148,6 +148,52 @@ public sealed class FileSystemAppInstanceRegistry : IAppInstanceRegistry
         return Task.FromResult(normalized);
     }
 
+    public Task<IReadOnlyList<(TenantId TenantId, TenantAppInstanceRuntimeInfo RuntimeInfo)>> GetAllRunningAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var results = new List<(TenantId, TenantAppInstanceRuntimeInfo)>();
+
+        if (!Directory.Exists(instanceRoot))
+        {
+            return Task.FromResult<IReadOnlyList<(TenantId, TenantAppInstanceRuntimeInfo)>>(results);
+        }
+
+        foreach (var tenantDirectory in Directory.EnumerateDirectories(instanceRoot, "tenant-*"))
+        {
+            var dirName = Path.GetFileName(tenantDirectory);
+            if (!Guid.TryParse(dirName.AsSpan("tenant-".Length), out var tenantGuid))
+            {
+                continue;
+            }
+
+            var tenantId = new TenantId(tenantGuid);
+            foreach (var instanceDirectory in Directory.EnumerateDirectories(tenantDirectory, "app-*"))
+            {
+                var statePath = Path.Combine(instanceDirectory, "runtime-state.json");
+                if (!File.Exists(statePath))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    var state = JsonSerializer.Deserialize<TenantAppInstanceRuntimeInfo>(
+                        File.ReadAllText(statePath), SerializerOptions);
+                    if (state is not null && state.RuntimeStatus is RuntimeStates.Running or RuntimeStates.Starting)
+                    {
+                        results.Add((tenantId, state));
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "无法读取运行时状态文件：{Path}", statePath);
+                }
+            }
+        }
+
+        return Task.FromResult<IReadOnlyList<(TenantId, TenantAppInstanceRuntimeInfo)>>(results);
+    }
+
     private TenantAppInstanceRuntimeInfo? LoadState(TenantId tenantId, long appInstanceId)
     {
         var tenantDirectory = Path.Combine(instanceRoot, $"tenant-{tenantId.Value:D}");
@@ -299,16 +345,22 @@ public sealed class LocalChildProcessManager : IAppProcessManager
         TenantAppInstanceRuntimeInfo runtimeInfo,
         CancellationToken cancellationToken = default)
     {
+        int? exitCode = null;
+
         if (runtimeInfo.CurrentPid is int pid && IsProcessAlive(pid))
         {
             using var process = Process.GetProcessById(pid);
             process.Kill(entireProcessTree: true);
-            process.WaitForExit(5000);
+            if (process.WaitForExit(5000))
+            {
+                exitCode = process.ExitCode;
+            }
 
             logger.LogInformation(
-                "已停止 AppHost 子进程。AppInstanceId={AppInstanceId}; Pid={Pid}",
+                "已停止 AppHost 子进程。AppInstanceId={AppInstanceId}; Pid={Pid}; ExitCode={ExitCode}",
                 runtimeInfo.InstanceId,
-                pid);
+                pid,
+                exitCode);
         }
 
         return Task.FromResult(runtimeInfo with
@@ -317,7 +369,8 @@ public sealed class LocalChildProcessManager : IAppProcessManager
             HealthStatus = HealthStates.Unknown,
             CurrentPid = null,
             StoppedAt = DateTimeOffset.UtcNow.ToString("O"),
-            LastHealthCheckedAt = DateTimeOffset.UtcNow.ToString("O")
+            LastHealthCheckedAt = DateTimeOffset.UtcNow.ToString("O"),
+            LastExitCode = exitCode
         });
     }
 

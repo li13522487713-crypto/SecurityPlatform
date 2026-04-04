@@ -15,11 +15,17 @@ using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SqlSugar;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace Atlas.Infrastructure.Services;
 
 public sealed class AppMigrationService : IAppMigrationService
 {
+    private const string SchemaMigrationScopeApp = "app";
+    private const string AppSqlScriptRoot = "sql/app";
+    private const string AppSqlScriptLegacyRoot = "sql/app/common";
+
     private static readonly string[] RequiredAppSchemaTables =
     {
         "DynamicTable",
@@ -40,6 +46,16 @@ public sealed class AppMigrationService : IAppMigrationService
         "AppProject",
         "RuntimeRoute",
         "AppDatabaseSchemaVersion"
+    };
+
+    private static readonly (string Table, string Column)[] RequiredAppSchemaColumns =
+    {
+        ("RuntimeRoute", "AppKey"),
+        ("RuntimeRoute", "PageKey"),
+        ("RuntimeRoute", "SchemaVersion"),
+        ("AppMember", "AppId"),
+        ("AppRole", "DataScope"),
+        ("AppPermission", "Code")
     };
 
     private readonly ISqlSugarClient _mainDb;
@@ -394,7 +410,9 @@ public sealed class AppMigrationService : IAppMigrationService
 
         await _provisioningService.EnsureSchemaAsync(tenantId, task.TenantAppInstanceId, cancellationToken);
         var appDb = await _appDbScopeFactory.GetAppClientAsync(tenantId, task.TenantAppInstanceId, cancellationToken);
+        await ExecutePendingSqlScriptsAsync(tenantId, task, appDb, userId, cancellationToken);
         EnsureRequiredTablesReady(appDb);
+        EnsureRequiredColumnsReady(appDb);
 
         if (SqliteSchemaAlignment.IsSqlite(appDb))
         {
@@ -409,6 +427,63 @@ public sealed class AppMigrationService : IAppMigrationService
         await UpdateTaskAsync(task, cancellationToken);
         await AddSnapshotAsync(task, cancellationToken);
         return appDb;
+    }
+
+    private async Task ExecutePendingSqlScriptsAsync(
+        TenantId tenantId,
+        AppMigrationTask task,
+        ISqlSugarClient appDb,
+        long userId,
+        CancellationToken cancellationToken)
+    {
+        await EnsureSchemaMigrationsTableAsync(appDb, cancellationToken);
+
+        var scriptFiles = DiscoverAppSqlScripts();
+        if (scriptFiles.Count == 0)
+        {
+            await AppendSchemaRepairLogAsync(task, "SqlMigration: no app sql scripts found, skip.", userId, cancellationToken);
+            return;
+        }
+
+        var targetKey = $"{tenantId.Value:D}:{task.TenantAppInstanceId}";
+        var appliedScriptNames = await appDb.Queryable<SchemaMigrationEntry>()
+            .Where(item => item.Scope == SchemaMigrationScopeApp && item.TargetKey == targetKey)
+            .Select(item => item.ScriptName)
+            .ToListAsync(cancellationToken);
+        var appliedSet = appliedScriptNames.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var script in scriptFiles)
+        {
+            if (appliedSet.Contains(script.FileName))
+            {
+                continue;
+            }
+
+            var content = await File.ReadAllTextAsync(script.FullPath, cancellationToken);
+            if (string.IsNullOrWhiteSpace(content))
+            {
+                continue;
+            }
+
+            var checksum = ComputeSha256(content);
+            await appDb.Ado.ExecuteCommandAsync(content);
+
+            var record = new SchemaMigrationEntry
+            {
+                Scope = SchemaMigrationScopeApp,
+                TargetKey = targetKey,
+                ScriptName = script.FileName,
+                ChecksumSha256 = checksum,
+                ExecutedAt = DateTimeOffset.UtcNow,
+                ExecutedBy = userId > 0 ? userId.ToString() : "system"
+            };
+            await appDb.Insertable(record).ExecuteCommandAsync(cancellationToken);
+            await AppendSchemaRepairLogAsync(
+                task,
+                $"SqlMigration: applied {script.FileName} (sha256={checksum})",
+                userId,
+                cancellationToken);
+        }
     }
 
     private static void EnsureRequiredTablesReady(ISqlSugarClient appDb)
@@ -427,6 +502,93 @@ public sealed class AppMigrationService : IAppMigrationService
         throw new BusinessException(
             ErrorCodes.ServerError,
             $"应用库结构初始化不完整，缺少表：{string.Join(", ", missing)}");
+    }
+
+    private static void EnsureRequiredColumnsReady(ISqlSugarClient appDb)
+    {
+        foreach (var group in RequiredAppSchemaColumns.GroupBy(item => item.Table, StringComparer.OrdinalIgnoreCase))
+        {
+            if (!appDb.DbMaintenance.IsAnyTable(group.Key, false))
+            {
+                continue;
+            }
+
+            var existingColumns = appDb.DbMaintenance.GetColumnInfosByTableName(group.Key, false)
+                .Select(item => item.DbColumnName)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var missingColumns = group
+                .Select(item => item.Column)
+                .Where(column => !existingColumns.Contains(column))
+                .ToArray();
+            if (missingColumns.Length > 0)
+            {
+                throw new BusinessException(
+                    ErrorCodes.ServerError,
+                    $"应用库结构校验失败，表 {group.Key} 缺少列：{string.Join(", ", missingColumns)}");
+            }
+        }
+    }
+
+    private static IReadOnlyList<SqlScriptDescriptor> DiscoverAppSqlScripts()
+    {
+        var repoRoot = ResolveRepoRoot();
+        var scriptRoots = new[]
+        {
+            Path.Combine(repoRoot, AppSqlScriptRoot),
+            Path.Combine(repoRoot, AppSqlScriptLegacyRoot)
+        };
+        var list = new List<SqlScriptDescriptor>();
+        foreach (var root in scriptRoots)
+        {
+            if (!Directory.Exists(root))
+            {
+                continue;
+            }
+
+            var files = Directory.GetFiles(root, "*.sql", SearchOption.TopDirectoryOnly)
+                .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+                .Select(path => new SqlScriptDescriptor(Path.GetFileName(path), path));
+            list.AddRange(files);
+        }
+
+        return list;
+    }
+
+    private static string ResolveRepoRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            var backendPath = Path.Combine(directory.FullName, "src", "backend");
+            if (Directory.Exists(backendPath))
+            {
+                return directory.FullName;
+            }
+
+            directory = directory.Parent;
+        }
+
+        return Directory.GetCurrentDirectory();
+    }
+
+    private static string ComputeSha256(string content)
+    {
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(content));
+        return Convert.ToHexString(bytes).ToLowerInvariant();
+    }
+
+    private static Task EnsureSchemaMigrationsTableAsync(
+        ISqlSugarClient appDb,
+        CancellationToken cancellationToken)
+    {
+        if (!appDb.DbMaintenance.IsAnyTable("SchemaMigrations", false))
+        {
+            appDb.CodeFirst.InitTables<SchemaMigrationEntry>();
+            return Task.CompletedTask;
+        }
+
+        _ = cancellationToken;
+        return Task.CompletedTask;
     }
 
     private async Task AppendSchemaRepairLogAsync(
@@ -1775,6 +1937,32 @@ public sealed class AppMigrationService : IAppMigrationService
         task.MarkObjectProgress(nameof(RuntimeRoute), 1, completed, 0, userId, DateTimeOffset.UtcNow);
         await UpdateTaskAsync(task, cancellationToken);
         await AddSnapshotAsync(task, cancellationToken);
+    }
+
+    private sealed record SqlScriptDescriptor(string FileName, string FullPath);
+
+    [SugarTable("SchemaMigrations")]
+    private sealed class SchemaMigrationEntry
+    {
+        [SugarColumn(IsPrimaryKey = true, IsIdentity = true)]
+        public long Id { get; set; }
+
+        [SugarColumn(Length = 16)]
+        public string Scope { get; set; } = string.Empty;
+
+        [SugarColumn(Length = 128)]
+        public string TargetKey { get; set; } = string.Empty;
+
+        [SugarColumn(Length = 256)]
+        public string ScriptName { get; set; } = string.Empty;
+
+        [SugarColumn(Length = 64)]
+        public string ChecksumSha256 { get; set; } = string.Empty;
+
+        public DateTimeOffset ExecutedAt { get; set; }
+
+        [SugarColumn(Length = 64)]
+        public string ExecutedBy { get; set; } = string.Empty;
     }
 
     private sealed record SqliteRecoveryResult(bool Attempted, bool Success, string? FailureSummary)

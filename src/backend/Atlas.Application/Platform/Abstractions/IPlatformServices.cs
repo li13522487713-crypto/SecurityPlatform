@@ -219,6 +219,9 @@ public interface IAppInstanceRegistry
         TenantId tenantId,
         TenantAppInstanceRuntimeInfo runtimeInfo,
         CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<(TenantId TenantId, TenantAppInstanceRuntimeInfo RuntimeInfo)>> GetAllRunningAsync(
+        CancellationToken cancellationToken = default);
 }
 
 public interface IAppProcessManager

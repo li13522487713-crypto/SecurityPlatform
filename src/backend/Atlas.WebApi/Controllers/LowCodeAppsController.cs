@@ -12,6 +12,7 @@ using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
@@ -19,6 +20,7 @@ namespace Atlas.WebApi.Controllers;
 [Route("api/v1/lowcode-apps")]
 [DeprecatedApi("lowcode-apps v1 is in compatibility window", "/api/v2/tenant-app-instances")]
 [Obsolete("Deprecated since Sprint 1. Please migrate to api/v1/app-manifests and api/v1/packages endpoints.")]
+[PlatformOnly]
 public sealed class LowCodeAppsController : ControllerBase
 {
     private readonly ILowCodeAppQueryService _queryService;

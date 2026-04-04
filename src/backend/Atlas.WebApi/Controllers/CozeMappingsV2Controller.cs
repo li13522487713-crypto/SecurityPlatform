@@ -5,12 +5,14 @@ using Atlas.Core.Tenancy;
 using Atlas.WebApi.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
 [Route("api/v2/coze-mappings")]
 [Authorize]
+[PlatformOnly]
 public sealed class CozeMappingsV2Controller : ControllerBase
 {
     private readonly ICozeMappingQueryService _queryService;

@@ -10,12 +10,14 @@ using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
 [Route("api/v2/tenant-app-instances")]
 [Authorize]
+[PlatformOnly]
 public sealed class TenantAppInstancesV2Controller : ControllerBase
 {
     private readonly ITenantAppInstanceQueryService _queryService;

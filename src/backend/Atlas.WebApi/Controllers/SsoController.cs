@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
@@ -12,6 +13,7 @@ namespace Atlas.WebApi.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/v1/auth/sso")]
+[PlatformOnly]
 public sealed class SsoController : ControllerBase
 {
     private readonly IOptionsMonitor<OidcOptions> _oidcOptionsMonitor;

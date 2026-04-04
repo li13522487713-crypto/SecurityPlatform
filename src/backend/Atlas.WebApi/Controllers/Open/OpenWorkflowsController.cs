@@ -7,12 +7,14 @@ using Atlas.WebApi.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers.Open;
 
 [ApiController]
 [Route("api/v1/open/workflows")]
 [Authorize(AuthenticationSchemes = $"{PatAuthenticationHandler.SchemeName},{OpenProjectAuthenticationHandler.SchemeName}")]
+[AppRuntimeOnly]
 public sealed class OpenWorkflowsController : ControllerBase
 {
     private readonly IAiWorkflowExecutionService _executionService;

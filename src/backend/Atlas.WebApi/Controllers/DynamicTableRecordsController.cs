@@ -11,11 +11,13 @@ using FluentValidation;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
 [Route("api/v1/dynamic-tables/{tableKey}/records")]
+[AppRuntimeOnly]
 public sealed class DynamicTableRecordsController : ControllerBase
 {
     private readonly IDynamicRecordQueryService _queryService;

@@ -6,12 +6,14 @@ using Atlas.Core.Tenancy;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
 [Route("api/v1/rule-chains")]
 [Authorize]
+[PlatformOnly]
 public sealed class RuleChainsController : ControllerBase
 {
     private readonly IRuleChainQueryService _queryService;

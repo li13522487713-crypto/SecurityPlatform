@@ -4,12 +4,14 @@ using Atlas.Core.Models;
 using Atlas.WebApi.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
 [Route("api/v1/open-api-sdk")]
 [Authorize]
+[AppRuntimeOnly]
 public sealed class OpenApiSdkController : ControllerBase
 {
     private readonly IHttpClientFactory _httpClientFactory;

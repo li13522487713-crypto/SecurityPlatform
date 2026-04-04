@@ -13,6 +13,7 @@ namespace Atlas.WebApi.Controllers;
 [ApiController]
 [Route("api/v1/app-migrations")]
 [Authorize]
+[PlatformOnly]
 public sealed class AppMigrationsController : ControllerBase
 {
     private readonly IAppMigrationService _migrationService;

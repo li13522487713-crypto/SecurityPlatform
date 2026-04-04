@@ -5,12 +5,14 @@ using Atlas.Core.Tenancy;
 using Atlas.WebApi.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
 [Route("api/v1/platform")]
 [Authorize]
+[PlatformOnly]
 public sealed class PlatformController : ControllerBase
 {
     private readonly IPlatformQueryService _platformQueryService;

@@ -1,0 +1,48 @@
+@appHostUrl = http://localhost:5002
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+@localeZh = zh-CN
+
+### AppHost Root
+GET {{appHostUrl}}/
+
+### AppHost Health Live
+GET {{appHostUrl}}/internal/health/live
+
+### AppHost Health Ready
+GET {{appHostUrl}}/internal/health/ready
+
+### AppHost Health Live Report
+GET {{appHostUrl}}/internal/health/live-report
+
+### AppHost Health Ready Report
+GET {{appHostUrl}}/internal/health/ready-report
+
+### AppHost Login (via AppAuthController)
+# @name appLogin
+POST {{appHostUrl}}/auth/app/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+Accept-Language: {{localeZh}}
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+###
+@appToken = {{appLogin.response.body.$.data.accessToken}}
+
+### AppHost - Me
+GET {{appHostUrl}}/auth/app/me
+Authorization: Bearer {{appToken}}
+X-Tenant-Id: {{tenantId}}
+
+### AppHost - Logout
+POST {{appHostUrl}}/auth/app/logout
+Authorization: Bearer {{appToken}}
+X-Tenant-Id: {{tenantId}}
+
+### AppHost Swagger
+GET {{appHostUrl}}/swagger/v1/swagger.json

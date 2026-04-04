@@ -8,11 +8,13 @@ using Atlas.WebApi.Helpers;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
 [Route("api/v1/dynamic-migrations")]
+[PlatformOnly]
 public sealed class DynamicMigrationsController : ControllerBase
 {
     private readonly IMigrationService _migrationService;

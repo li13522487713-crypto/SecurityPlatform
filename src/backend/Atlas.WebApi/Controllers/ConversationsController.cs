@@ -7,11 +7,13 @@ using Atlas.WebApi.Authorization;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
 [Route("api/v1/conversations")]
+[AppRuntimeOnly]
 public sealed class ConversationsController : ControllerBase
 {
     private readonly IConversationService _conversationService;

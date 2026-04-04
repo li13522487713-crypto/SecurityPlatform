@@ -123,7 +123,9 @@ public sealed record TenantAppInstanceRuntimeInfo(
     string? ConfigPath,
     string? StartedAt,
     string? StoppedAt,
-    string? LastHealthCheckedAt);
+    string? LastHealthCheckedAt,
+    int? LastExitCode = null,
+    string? CurrentReleaseVersion = null);
 
 public sealed record TenantAppInstanceHealthInfo(
     string InstanceId,
@@ -611,6 +613,13 @@ public sealed record RuntimeExecutionAuditTrailItem(
     string Result,
     string Target,
     string OccurredAt);
+
+public sealed record RuntimeRouteQuery(
+    string? AppKey,
+    string? PageKey,
+    bool? IsActive,
+    int PageIndex = 1,
+    int PageSize = 20);
 
 public sealed record CozeLayerMappingItem(
     string LayerKey,

@@ -3,6 +3,7 @@ using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
@@ -12,6 +13,7 @@ namespace Atlas.WebApi.Controllers;
 [ApiController]
 [Route("api/v1/plans")]
 [Authorize]
+[PlatformOnly]
 public sealed class PlansController : ControllerBase
 {
     private readonly IPlanQueryService _queryService;
@@ -66,6 +68,7 @@ public sealed class PlansController : ControllerBase
 [ApiController]
 [Route("api/v1/subscriptions")]
 [Authorize]
+[PlatformOnly]
 public sealed class SubscriptionsController : ControllerBase
 {
     private readonly ISubscriptionService _service;

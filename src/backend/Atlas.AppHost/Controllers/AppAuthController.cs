@@ -2,6 +2,7 @@ using Atlas.Application.Abstractions;
 using Atlas.Application.Models;
 using Atlas.Core.Identity;
 using Atlas.Core.Models;
+using Atlas.Core.Tenancy;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -14,15 +15,48 @@ public sealed class AppAuthController : ControllerBase
     private readonly ICurrentUserAccessor currentUserAccessor;
     private readonly IClientContextAccessor clientContextAccessor;
     private readonly IAuthTokenService authTokenService;
+    private readonly ITenantProvider tenantProvider;
 
     public AppAuthController(
         ICurrentUserAccessor currentUserAccessor,
         IClientContextAccessor clientContextAccessor,
-        IAuthTokenService authTokenService)
+        IAuthTokenService authTokenService,
+        ITenantProvider tenantProvider)
     {
         this.currentUserAccessor = currentUserAccessor;
         this.clientContextAccessor = clientContextAccessor;
         this.authTokenService = authTokenService;
+        this.tenantProvider = tenantProvider;
+    }
+
+    [HttpPost("token")]
+    [AllowAnonymous]
+    public async Task<ActionResult<ApiResponse<AuthTokenResult>>> Token(
+        [FromBody] AuthTokenRequest request,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = tenantProvider.GetTenantId();
+        var context = new AuthRequestContext(
+            HttpContext.Connection.RemoteIpAddress?.ToString(),
+            HttpContext.Request.Headers.UserAgent.ToString(),
+            clientContextAccessor.GetCurrent());
+        var result = await authTokenService.CreateTokenAsync(request, tenantId, context, cancellationToken);
+        return Ok(ApiResponse<AuthTokenResult>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost("refresh")]
+    [AllowAnonymous]
+    public async Task<ActionResult<ApiResponse<AuthTokenResult>>> Refresh(
+        [FromBody] AuthRefreshRequest request,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = tenantProvider.GetTenantId();
+        var context = new AuthRequestContext(
+            HttpContext.Connection.RemoteIpAddress?.ToString(),
+            HttpContext.Request.Headers.UserAgent.ToString(),
+            clientContextAccessor.GetCurrent());
+        var result = await authTokenService.RefreshTokenAsync(request, tenantId, context, cancellationToken);
+        return Ok(ApiResponse<AuthTokenResult>.Ok(result, HttpContext.TraceIdentifier));
     }
 
     [HttpGet("callback")]

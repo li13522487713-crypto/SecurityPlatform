@@ -7,12 +7,14 @@ using Atlas.WebApi.Authorization;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
 [Route("api/v1/ai-shortcuts")]
 [Authorize]
+[PlatformOnly]
 public sealed class AiShortcutsController : ControllerBase
 {
     private readonly IAiShortcutCommandService _service;

@@ -5,6 +5,7 @@ using Atlas.WebApi.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SqlSugar;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
@@ -14,6 +15,7 @@ namespace Atlas.WebApi.Controllers;
 [ApiController]
 [Route("api/v1/admin/message-queue")]
 [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+[PlatformOnly]
 public sealed class MessageQueueController : ControllerBase
 {
     private readonly IMessageQueue _queue;

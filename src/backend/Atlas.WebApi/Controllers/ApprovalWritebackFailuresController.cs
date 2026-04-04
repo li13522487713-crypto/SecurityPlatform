@@ -6,12 +6,14 @@ using Atlas.Infrastructure.Services.ApprovalFlow;
 using Atlas.WebApi.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
 [Route("api/v1/approval/writeback-failures")]
 [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+[PlatformOnly]
 public sealed class ApprovalWritebackFailuresController : ControllerBase
 {
     private readonly IApprovalWritebackFailureRepository _repository;

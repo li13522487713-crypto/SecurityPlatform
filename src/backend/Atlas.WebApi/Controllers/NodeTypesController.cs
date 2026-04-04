@@ -6,12 +6,14 @@ using Atlas.Domain.LogicFlow.Nodes;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
 [Route("api/v1/node-types")]
 [Authorize]
+[PlatformOnly]
 public sealed class NodeTypesController : ControllerBase
 {
     private readonly INodeTypeQueryService _queryService;

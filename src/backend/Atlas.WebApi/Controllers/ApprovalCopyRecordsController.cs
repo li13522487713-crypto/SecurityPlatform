@@ -4,6 +4,7 @@ using Atlas.Application.Approval.Abstractions;
 using Atlas.Application.Approval.Models;
 using Atlas.Core.Identity;
 using Atlas.Core.Models;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
@@ -13,6 +14,7 @@ namespace Atlas.WebApi.Controllers;
 [ApiController]
 [Route("api/v1/approval/copy-records")]
 [Authorize]
+[PlatformOnly]
 public sealed class ApprovalCopyRecordsController : ControllerBase
 {
     private readonly IApprovalRuntimeQueryService _queryService;

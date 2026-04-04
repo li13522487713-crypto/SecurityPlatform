@@ -7,12 +7,14 @@ using Atlas.WebApi.Authorization;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
 [Route("api/v2/tenant-app-instances/{appId:long}/members")]
 [Authorize]
+[PlatformOnly]
 public sealed class TenantAppMembersV2Controller : ControllerBase
 {
     private readonly ITenantAppMemberQueryService _queryService;

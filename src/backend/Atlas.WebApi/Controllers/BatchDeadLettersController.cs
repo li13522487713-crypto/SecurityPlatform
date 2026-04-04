@@ -6,11 +6,13 @@ using Atlas.Domain.BatchProcess.Enums;
 using Atlas.WebApi.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
 [Route("api/v1/batch-dead-letters")]
+[PlatformOnly]
 public sealed class BatchDeadLettersController : ControllerBase
 {
     private readonly IBatchDeadLetterQueryService _queryService;

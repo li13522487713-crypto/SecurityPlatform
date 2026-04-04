@@ -5,6 +5,8 @@ using Atlas.WebApi.Authorization;
 using Atlas.WebApi.Helpers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Atlas.WebApi.Filters;
+
 namespace Atlas.WebApi.Controllers;
 
 /// <summary>
@@ -13,6 +15,7 @@ namespace Atlas.WebApi.Controllers;
 [ApiController]
 [Route("api/v1/tenants")]
 [Authorize]
+[PlatformOnly]
 public sealed class TenantsController : ControllerBase
 {
     private readonly ITenantService _tenantService;

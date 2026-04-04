@@ -6,12 +6,14 @@ using Atlas.Core.Tenancy;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
 [Route("api/v1/decision-tables")]
 [Authorize]
+[PlatformOnly]
 public sealed class DecisionTablesController : ControllerBase
 {
     private readonly IDecisionTableQueryService _queryService;

@@ -15,6 +15,7 @@ using Atlas.Domain.Approval.Enums;
 using FluentValidation;
 using Atlas.WebApi.Authorization;
 using Atlas.WebApi.Helpers;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
@@ -24,6 +25,7 @@ namespace Atlas.WebApi.Controllers;
 [ApiController]
 [Route("api/v1/approval/tasks")]
 [Authorize]
+[PlatformOnly]
 public sealed class ApprovalTasksController : ControllerBase
 {
     private readonly IApprovalRuntimeQueryService _queryService;

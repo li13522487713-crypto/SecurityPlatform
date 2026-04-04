@@ -7,12 +7,14 @@ using Atlas.WebApi.Authorization;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
 [Route("api/v1/open-api-projects")]
 [Authorize]
+[PlatformOnly]
 public sealed class OpenApiProjectsController : ControllerBase
 {
     private readonly IOpenApiProjectService _service;

@@ -2,6 +2,7 @@ using Atlas.Application.Events;
 using Atlas.Core.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
@@ -11,6 +12,7 @@ namespace Atlas.WebApi.Controllers;
 [ApiController]
 [Route("api/v1/event-subscriptions")]
 [Authorize]
+[PlatformOnly]
 public sealed class EventSubscriptionsController : ControllerBase
 {
     private readonly IEventSubscriptionService _service;

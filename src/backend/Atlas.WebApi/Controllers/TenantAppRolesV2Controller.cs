@@ -9,12 +9,14 @@ using Atlas.WebApi.Authorization;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
 [Route("api/v2/tenant-app-instances/{appId:long}/roles")]
 [Authorize]
+[PlatformOnly]
 public sealed class TenantAppRolesV2Controller : ControllerBase
 {
     private readonly ITenantAppRoleQueryService _queryService;

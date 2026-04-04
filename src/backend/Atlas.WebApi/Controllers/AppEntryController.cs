@@ -4,11 +4,13 @@ using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
 [Route("api/platform/app-entry")]
+[PlatformOnly]
 public sealed class AppEntryController : ControllerBase
 {
     private readonly IAppEntryQueryService appEntryQueryService;

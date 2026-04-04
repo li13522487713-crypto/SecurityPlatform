@@ -3,12 +3,14 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Diagnostics;
 using System.Text.Json;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
 [Route("api/v1/lowcode-actions")]
 [Authorize]
+[PlatformOnly]
 public sealed class LowCodeActionsController : ControllerBase
 {
     private readonly IHttpClientFactory _httpClientFactory;

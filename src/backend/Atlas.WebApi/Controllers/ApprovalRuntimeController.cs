@@ -14,6 +14,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Atlas.WebApi.Helpers;
 using System.Text;
 using Atlas.Application.Identity.Abstractions;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
@@ -23,6 +24,7 @@ namespace Atlas.WebApi.Controllers;
 [ApiController]
 [Route("api/v1/approval/instances")]
 [Authorize]
+[AppRuntimeOnly]
 public sealed class ApprovalRuntimeController : ControllerBase
 {
     private readonly IApprovalRuntimeQueryService _queryService;

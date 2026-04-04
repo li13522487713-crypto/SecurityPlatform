@@ -31,8 +31,17 @@ const entryMap: Record<string, { input: string; outDir: string; entryName: strin
   }
 };
 
+const devPortMap: Record<string, number> = {
+  "platform-console": 5173,
+  "app-runtime": 5174,
+  "app-studio": 5175,
+  "app-login": 5176,
+  "embed-chat": 5177
+};
+
 export default defineConfig(({ mode }) => {
   const selectedEntry = entryMap[mode] ?? entryMap["platform-console"];
+  const devPort = devPortMap[mode] ?? 5173;
 
   return {
   plugins: [vue()],
@@ -77,11 +86,16 @@ export default defineConfig(({ mode }) => {
   },
   server: {
     host: "0.0.0.0",
-    port: 5173,
+    port: devPort,
     open: true,
     proxy: {
       "/api": {
-        target: "http://127.0.0.1:5000",
+        target: "http://127.0.0.1:5001",
+        changeOrigin: true,
+        secure: false
+      },
+      "/app-host": {
+        target: "http://127.0.0.1:5001",
         changeOrigin: true,
         secure: false
       }

@@ -3,6 +3,7 @@ using Atlas.Core.Models;
 using Atlas.Domain.Templates;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
@@ -12,6 +13,7 @@ namespace Atlas.WebApi.Controllers;
 [ApiController]
 [Route("api/v1/templates")]
 [Authorize]
+[PlatformOnly]
 public sealed class TemplatesController : ControllerBase
 {
     private readonly IComponentTemplateQueryService _queryService;

@@ -7,11 +7,13 @@ using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Atlas.WebApi.Authorization;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
 [Route("api/v1/team-agent-conversations")]
+[AppRuntimeOnly]
 public sealed class TeamAgentConversationsController : ControllerBase
 {
     private readonly ITeamAgentService _teamAgentService;

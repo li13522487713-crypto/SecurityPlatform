@@ -8,11 +8,13 @@ using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Atlas.WebApi.Authorization;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
 [Route("api/v1/roles")]
+[PlatformOnly]
 public sealed class RolesController : ControllerBase
 {
     private readonly IRoleQueryService _roleQueryService;

@@ -2,12 +2,14 @@ using Atlas.Core.Expressions;
 using Atlas.Core.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
 [Route("api/v1/expressions")]
 [Authorize]
+[PlatformOnly]
 public sealed class ExpressionsController : ControllerBase
 {
     private readonly IExpressionEngine _engine;

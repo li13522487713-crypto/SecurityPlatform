@@ -34,8 +34,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Build the solution (must have 0 errors, 0 warnings)
 dotnet build
 
-# Run the Web API (starts on http://localhost:5000)
+# Run the Web API (legacy monolith, starts on http://localhost:5000)
 dotnet run --project src/backend/Atlas.WebApi
+
+# Run PlatformHost (platform control plane, starts on http://localhost:5001)
+dotnet run --project src/backend/Atlas.PlatformHost
+
+# Run AppHost (application runtime data plane, starts on http://localhost:5002)
+dotnet run --project src/backend/Atlas.AppHost
 
 # Restore dependencies
 dotnet restore
@@ -49,11 +55,20 @@ cd src/frontend/Atlas.WebApp
 # Install dependencies
 npm install
 
-# Start dev server (runs on http://localhost:5173 with hot reload)
+# Start dev server (default, platform-console on http://localhost:5173)
 npm run dev
+
+# Start specific entry dev servers
+npm run dev:platform-console   # :5173
+npm run dev:app-runtime        # :5174
+npm run dev:app-studio         # :5175
+npm run dev:app-login          # :5176
 
 # Build for production (includes TypeScript type checking)
 npm run build
+
+# Build all entries separately
+npm run build:entries
 
 # Preview production build
 npm run preview
@@ -64,6 +79,21 @@ npm run lint
 # Format code with Prettier
 npm run format
 ```
+
+### Multi-Host Port Allocation
+
+| Service | Port | Description |
+|---|---|---|
+| PlatformHost | 5001 | Control plane + YARP gateway |
+| AppHost | 5002 | Application runtime data plane |
+| WebApi | 5000 | Legacy monolith (backward compat) |
+| platform-console | 5173 | Frontend: platform management |
+| app-runtime | 5174 | Frontend: application runtime |
+| app-studio | 5175 | Frontend: application designer |
+| app-login | 5176 | Frontend: application login |
+
+All frontend dev servers proxy `/api` and `/app-host` to PlatformHost:5001.
+PlatformHost proxies `/app-host/{appKey}/*` to AppHost:5002 via YARP.
 
 ### API Testing
 - Use `.http` files in `src/backend/Atlas.WebApi/Bosch.http/` for testing endpoints
@@ -275,7 +305,7 @@ This project must comply with GB/T 22239-2019 (等保2.0) Level 3 requirements. 
 ### Frontend Integration
 - API client in `src/frontend/Atlas.WebApp/src/services/api.ts`
 - Token stored in `localStorage`
-- Vite dev proxy forwards `/api/*` to `http://localhost:5000`
+- Vite dev proxy forwards `/api/*` and `/app-host/*` to `http://localhost:5001` (PlatformHost)
 
 ## Development Workflow
 
@@ -367,8 +397,8 @@ This project must comply with GB/T 22239-2019 (等保2.0) Level 3 requirements. 
 - Format: `timestamp|level|logger|message`
 
 ### vite.config.ts
-- Dev server: `http://0.0.0.0:5173`
-- Proxy: `/api/*` → `http://localhost:5000`
+- Dev server: dynamic port per entry (5173–5177)
+- Proxy: `/api/*` and `/app-host/*` → `http://localhost:5001` (PlatformHost)
 - Path alias: `@` → `src/`
 
 ## Important Notes

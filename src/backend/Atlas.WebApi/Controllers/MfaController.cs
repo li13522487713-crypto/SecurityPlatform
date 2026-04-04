@@ -5,12 +5,14 @@ using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
 [Route("api/v1/mfa")]
 [Authorize]
+[PlatformOnly]
 public sealed class MfaController : ControllerBase
 {
     private readonly ITotpService _totpService;

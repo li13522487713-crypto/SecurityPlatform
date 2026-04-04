@@ -8,11 +8,13 @@ using Atlas.WebApi.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
 [Route("api/v1/plugins")]
+[PlatformOnly]
 public sealed class PluginsController : ControllerBase
 {
     private readonly IPluginCatalogService _pluginCatalogService;

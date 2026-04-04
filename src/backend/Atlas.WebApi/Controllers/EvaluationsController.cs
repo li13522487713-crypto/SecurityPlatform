@@ -7,12 +7,14 @@ using Atlas.WebApi.Authorization;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
 [Route("api/v1/evaluations")]
 [Authorize]
+[PlatformOnly]
 public sealed class EvaluationsController : ControllerBase
 {
     private readonly IEvaluationService _evaluationService;

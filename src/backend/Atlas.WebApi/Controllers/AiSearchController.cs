@@ -7,12 +7,14 @@ using Atlas.WebApi.Authorization;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
 [Route("api/v1/ai-search")]
 [Authorize]
+[PlatformOnly]
 public sealed class AiSearchController : ControllerBase
 {
     private readonly IAiSearchService _service;

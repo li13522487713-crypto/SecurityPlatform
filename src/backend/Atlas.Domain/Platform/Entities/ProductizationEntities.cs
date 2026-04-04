@@ -268,6 +268,15 @@ public sealed class AppRelease : TenantEntity
     public long ReleasedBy { get; private set; }
     public DateTimeOffset ReleasedAt { get; private set; }
 
+    [SugarColumn(IsNullable = true)]
+    public string? ArtifactId { get; private set; }
+    [SugarColumn(IsNullable = true)]
+    public string? Checksum { get; private set; }
+    [SugarColumn(IsNullable = true, ColumnDataType = "TEXT")]
+    public string? InstallSpec { get; private set; }
+    [SugarColumn(IsNullable = true, ColumnDataType = "TEXT")]
+    public string? RollbackMetadata { get; private set; }
+
     public void MarkRolledBack(long rollbackPointId)
     {
         RollbackPointId = rollbackPointId;
@@ -296,6 +305,22 @@ public sealed class AppRelease : TenantEntity
     public void SetReleaseNote(string note)
     {
         ReleaseNote = note ?? string.Empty;
+    }
+
+    public void SetArtifact(string artifactId, string? checksum)
+    {
+        ArtifactId = artifactId;
+        Checksum = checksum;
+    }
+
+    public void SetInstallSpec(string? installSpec)
+    {
+        InstallSpec = installSpec;
+    }
+
+    public void SetRollbackMetadata(string? rollbackMetadata)
+    {
+        RollbackMetadata = rollbackMetadata;
     }
 }
 

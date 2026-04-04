@@ -6,12 +6,14 @@ using Atlas.Core.Tenancy;
 using Atlas.WebApi.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
 [Route("api/v2/runtime-executions")]
 [Authorize]
+[AppRuntimeOnly]
 public sealed class RuntimeExecutionsV2Controller : ControllerBase
 {
     private readonly IRuntimeExecutionQueryService _queryService;

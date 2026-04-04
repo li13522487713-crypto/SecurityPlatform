@@ -6,12 +6,14 @@ using Atlas.WebApi.Authorization;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
 [Route("api/v1/admin/ai-config")]
 [Authorize]
+[PlatformOnly]
 public sealed class AdminAiConfigController : ControllerBase
 {
     private readonly IAdminAiConfigService _service;

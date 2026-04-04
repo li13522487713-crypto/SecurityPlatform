@@ -7,11 +7,13 @@ using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Atlas.WebApi.Authorization;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
 [Route("api/v1/permissions")]
+[PlatformOnly]
 public sealed class PermissionsController : ControllerBase
 {
     private readonly IPermissionQueryService _permissionQueryService;

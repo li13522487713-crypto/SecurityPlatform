@@ -7,12 +7,14 @@ using Atlas.WebApi.Helpers;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
 [Route("api/v1/ai-databases")]
 [Authorize]
+[PlatformOnly]
 public sealed class AiDatabasesController : ControllerBase
 {
     private readonly IAiDatabaseService _service;

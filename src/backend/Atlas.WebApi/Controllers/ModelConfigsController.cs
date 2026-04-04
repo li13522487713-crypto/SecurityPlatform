@@ -6,11 +6,13 @@ using Atlas.WebApi.Authorization;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
 [Route("api/v1/model-configs")]
+[PlatformOnly]
 public sealed class ModelConfigsController : ControllerBase
 {
     private readonly IModelConfigQueryService _queryService;

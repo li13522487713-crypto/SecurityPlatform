@@ -10,6 +10,7 @@ using Atlas.Domain.Approval.Enums;
 using Atlas.WebApi.Authorization;
 using Atlas.WebApi.Helpers;
 using FluentValidation;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
@@ -19,6 +20,7 @@ namespace Atlas.WebApi.Controllers;
 [ApiController]
 [Route("api/v1/approval/flows")]
 [Authorize]
+[PlatformOnly]
 public sealed class ApprovalFlowsController : ControllerBase
 {
     private readonly IApprovalFlowQueryService _queryService;

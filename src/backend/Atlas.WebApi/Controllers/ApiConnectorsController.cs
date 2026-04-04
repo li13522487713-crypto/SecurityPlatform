@@ -2,6 +2,7 @@ using Atlas.Application.Integration;
 using Atlas.Core.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
@@ -11,6 +12,7 @@ namespace Atlas.WebApi.Controllers;
 [ApiController]
 [Route("api/v1/connectors")]
 [Authorize]
+[PlatformOnly]
 public sealed class ApiConnectorsController : ControllerBase
 {
     private readonly IApiConnectorService _service;

@@ -13,6 +13,7 @@ using Atlas.Core.Tenancy;
 using Atlas.Domain.Approval.Entities;
 using Atlas.WebApi.Authorization;
 using Atlas.WebApi.Helpers;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
@@ -22,6 +23,7 @@ namespace Atlas.WebApi.Controllers;
 [ApiController]
 [Route("api/v1/approval/agents")]
 [Authorize]
+[PlatformOnly]
 public sealed class ApprovalAgentController : ControllerBase
 {
     private readonly ICurrentUserAccessor _currentUserAccessor;

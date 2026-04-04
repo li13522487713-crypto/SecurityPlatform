@@ -9,6 +9,7 @@ using Atlas.WebApi.Authorization;
 using Atlas.WebApi.Helpers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
@@ -18,6 +19,7 @@ namespace Atlas.WebApi.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/v1/schema")]
+[PlatformOnly]
 public sealed class SchemaPublishController : ControllerBase
 {
     private readonly ISchemaPublishSnapshotQueryService _snapshotQuery;

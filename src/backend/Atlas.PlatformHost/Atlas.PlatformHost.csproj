@@ -3,11 +3,15 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <!-- 引用 Atlas.WebApi 程序集（共享控制器/中间件），两个 Web SDK 项目各自的顶层语句
+         均生成 internal partial class Program，CS0436 类型冲突为预期行为，安全抑制。 -->
+    <NoWarn>$(NoWarn);CS0436</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="FluentValidation.AspNetCore" Version="11.3.1" />
     <PackageReference Include="Hangfire.AspNetCore" Version="1.8.23" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.Certificate" Version="10.0.2" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.2" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="10.0.3" />
     <PackageReference Include="NLog.Web.AspNetCore" Version="5.3.11" />
@@ -22,7 +26,15 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Atlas.WebApi\Atlas.WebApi.csproj" />
     <ProjectReference Include="..\Atlas.Application\Atlas.Application.csproj" />
+    <ProjectReference Include="..\Atlas.Application.AgentTeam\Atlas.Application.AgentTeam.csproj" />
+    <ProjectReference Include="..\Atlas.Application.Alert\Atlas.Application.Alert.csproj" />
+    <ProjectReference Include="..\Atlas.Application.Approval\Atlas.Application.Approval.csproj" />
+    <ProjectReference Include="..\Atlas.Application.Assets\Atlas.Application.Assets.csproj" />
+    <ProjectReference Include="..\Atlas.Application.Audit\Atlas.Application.Audit.csproj" />
+    <ProjectReference Include="..\Atlas.Application.Workflow\Atlas.Application.Workflow.csproj" />
+    <ProjectReference Include="..\Atlas.Application.LogicFlow\Atlas.Application.LogicFlow.csproj" />
     <ProjectReference Include="..\Atlas.Infrastructure\Atlas.Infrastructure.csproj" />
     <ProjectReference Include="..\Atlas.Core\Atlas.Core.csproj" />
     <ProjectReference Include="..\Atlas.Shared.Contracts\Atlas.Shared.Contracts.csproj" />

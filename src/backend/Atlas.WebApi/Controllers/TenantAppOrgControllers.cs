@@ -5,6 +5,7 @@ using Atlas.Core.Tenancy;
 using Atlas.WebApi.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
@@ -12,6 +13,7 @@ namespace Atlas.WebApi.Controllers;
 [ApiController]
 [Route("api/v2/tenant-app-instances/{appId:long}/departments")]
 [Authorize]
+[PlatformOnly]
 public sealed class TenantAppDepartmentsController : ControllerBase
 {
     private readonly IAppOrgQueryService _queryService;
@@ -98,6 +100,7 @@ public sealed class TenantAppDepartmentsController : ControllerBase
 [ApiController]
 [Route("api/v2/tenant-app-instances/{appId:long}/positions")]
 [Authorize]
+[PlatformOnly]
 public sealed class TenantAppPositionsController : ControllerBase
 {
     private readonly IAppOrgQueryService _queryService;
@@ -181,6 +184,7 @@ public sealed class TenantAppPositionsController : ControllerBase
 [ApiController]
 [Route("api/v2/tenant-app-instances/{appId:long}/projects")]
 [Authorize]
+[PlatformOnly]
 public sealed class TenantAppProjectsController : ControllerBase
 {
     private readonly IAppOrgQueryService _queryService;

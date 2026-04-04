@@ -4,6 +4,7 @@ using Atlas.Core.Plugins;
 using Atlas.WebApi.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
@@ -13,6 +14,7 @@ namespace Atlas.WebApi.Controllers;
 [ApiController]
 [Route("api/v1/plugin-market")]
 [Authorize]
+[PlatformOnly]
 public sealed class PluginMarketController : ControllerBase
 {
     private readonly IPluginMarketQueryService _queryService;

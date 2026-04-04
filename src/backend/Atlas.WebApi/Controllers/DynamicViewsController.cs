@@ -9,11 +9,13 @@ using Atlas.WebApi.Authorization;
 using Atlas.WebApi.Helpers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
 [Route("api/v1/dynamic-views")]
+[PlatformOnly]
 public sealed class DynamicViewsController : ControllerBase
 {
     private readonly IDynamicViewQueryService _queryService;

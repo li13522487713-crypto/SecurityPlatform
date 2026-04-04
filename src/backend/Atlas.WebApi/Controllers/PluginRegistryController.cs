@@ -3,12 +3,14 @@ using Atlas.Core.Plugins;
 using Atlas.WebApi.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
 [Route("api/v1/logic-flow/plugins")]
 [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+[PlatformOnly]
 public sealed class PluginRegistryController : ControllerBase
 {
     private readonly IPluginRegistry _registry;

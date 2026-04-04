@@ -8,11 +8,13 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Atlas.WebApi.Authorization;
 using ClosedXML.Excel;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
 [Route("api/v1/users")]
+[PlatformOnly]
 public sealed class UsersController : ControllerBase
 {
     private readonly IUserQueryService _userQueryService;

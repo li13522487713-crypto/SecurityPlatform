@@ -4,12 +4,14 @@ using Atlas.Core.Tenancy;
 using Atlas.Infrastructure.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
 [Route("api/v1/evidence-chain")]
 [Authorize]
+[PlatformOnly]
 public sealed class EvidenceChainController : ControllerBase
 {
     private readonly EvidenceChainService _service;

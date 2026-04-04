@@ -7,6 +7,7 @@ using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.WebApi.Authorization;
 using FluentValidation;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
@@ -16,6 +17,7 @@ namespace Atlas.WebApi.Controllers;
 [ApiController]
 [Route("api/v1/approval/department-leaders")]
 [Authorize(Policy = PermissionPolicies.SystemAdmin)]
+[PlatformOnly]
 public sealed class ApprovalDepartmentLeadersController : ControllerBase
 {
     private readonly IApprovalDepartmentLeaderService _leaderService;

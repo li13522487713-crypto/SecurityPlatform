@@ -10,6 +10,7 @@ using Atlas.WebApi.Helpers;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
@@ -18,6 +19,7 @@ namespace Atlas.WebApi.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/v1/system-configs")]
+[PlatformOnly]
 public sealed class SystemConfigsController : ControllerBase
 {
     private readonly ISystemConfigQueryService _queryService;

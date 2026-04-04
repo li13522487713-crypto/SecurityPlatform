@@ -4,11 +4,13 @@ using Atlas.Core.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Text.RegularExpressions;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
 [Route("api/v1/amis/pages")]
+[PlatformOnly]
 public sealed class AmisPagesController : ControllerBase
 {
     private static readonly Regex KeyPattern = new(

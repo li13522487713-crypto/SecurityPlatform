@@ -8,11 +8,13 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Atlas.WebApi.Authorization;
 using Atlas.Core.Identity;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
 [Route("api/v1/projects")]
+[PlatformOnly]
 public sealed class ProjectsController : ControllerBase
 {
     private readonly IProjectQueryService _queryService;

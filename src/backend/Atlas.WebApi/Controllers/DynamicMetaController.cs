@@ -4,11 +4,13 @@ using Atlas.Core.Models;
 using Atlas.WebApi.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Atlas.WebApi.Filters;
 
 namespace Atlas.WebApi.Controllers;
 
 [ApiController]
 [Route("api/v1/dynamic/meta")]
+[PlatformOnly]
 public sealed class DynamicMetaController : ControllerBase
 {
     private readonly IDynamicTableQueryService _queryService;
