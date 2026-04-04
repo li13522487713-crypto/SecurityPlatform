@@ -3,7 +3,38 @@ import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
 import path from "node:path";
 
-export default defineConfig({
+const entryMap: Record<string, { input: string; outDir: string; entryName: string }> = {
+  "platform-console": {
+    input: "platform-console.html",
+    outDir: "dist/platform-console",
+    entryName: "platform-console"
+  },
+  "app-studio": {
+    input: "app-studio.html",
+    outDir: "dist/app-studio",
+    entryName: "app-studio"
+  },
+  "app-runtime": {
+    input: "app-runtime.html",
+    outDir: "dist/app-runtime",
+    entryName: "app-runtime"
+  },
+  "app-login": {
+    input: "app-login.html",
+    outDir: "dist/app-login",
+    entryName: "app-login"
+  },
+  "embed-chat": {
+    input: "index.html",
+    outDir: "dist/embed-chat",
+    entryName: "embed-chat"
+  }
+};
+
+export default defineConfig(({ mode }) => {
+  const selectedEntry = entryMap[mode] ?? entryMap["platform-console"];
+
+  return {
   plugins: [vue()],
   test: {
     environment: "node",
@@ -57,13 +88,11 @@ export default defineConfig({
     }
   },
   build: {
+    outDir: selectedEntry.outDir,
     // vendor-amis 包含 amis+React+MobX 全家桶，体积约 9 MB，无法进一步拆分（循环依赖），提高上限以消除噪音警告
     chunkSizeWarningLimit: 10000,
     rollupOptions: {
-      input: {
-        app: path.resolve(__dirname, "index.html"),
-        "embed-chat": path.resolve(__dirname, "src/embed/embed-entry.ts")
-      },
+      input: path.resolve(__dirname, selectedEntry.input),
       external: ["amis-editor"],
       onwarn(warning, warn) {
         const warningMessage = warning.message ?? "";
@@ -156,4 +185,5 @@ export default defineConfig({
       }
     }
   }
+  };
 });

@@ -173,6 +173,12 @@ builder.Services.AddCors(options =>
             .AllowCredentials(); // 允许携带凭证（cookies）
     });
 });
+builder.Services.AddHttpClient("app-runtime-proxy", client =>
+{
+    var baseUrl = builder.Configuration["Atlas:Runtime:AppHostBaseUrl"] ?? "http://localhost:5002";
+    client.BaseAddress = new Uri(baseUrl);
+    client.Timeout = TimeSpan.FromSeconds(30);
+});
 
 builder.Services.AddHttpLogging(options =>
 {

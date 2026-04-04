@@ -1,15 +1,11 @@
 using System.Net.Http.Headers;
-using Atlas.WebApi.Attributes;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
-namespace Atlas.WebApi.Controllers;
+namespace Atlas.PlatformHost.Controllers.Compatibility;
 
 [ApiController]
 [Route("api/v1/runtime")]
-[DeprecatedApi("runtime v1 endpoints are in compatibility window", "/api/v2/runtime-contexts and /api/v2/runtime-executions")]
-[Authorize]
-public sealed class PageRuntimeController : ControllerBase
+public sealed class LegacyPageRuntimeProxyController : ControllerBase
 {
     private static readonly string[] ForwardedHeaders =
     [
@@ -23,54 +19,37 @@ public sealed class PageRuntimeController : ControllerBase
 
     private readonly IHttpClientFactory httpClientFactory;
 
-    public PageRuntimeController(IHttpClientFactory httpClientFactory)
+    public LegacyPageRuntimeProxyController(IHttpClientFactory httpClientFactory)
     {
         this.httpClientFactory = httpClientFactory;
     }
 
     [HttpGet("apps/{appKey}/pages/{pageKey}/schema")]
-    public Task<IActionResult> GetSchema(
-        string appKey,
-        string pageKey,
-        CancellationToken cancellationToken = default)
+    public Task<IActionResult> GetSchema(string appKey, string pageKey, CancellationToken cancellationToken)
     {
         return ProxyAsync(HttpMethod.Get, BuildTargetPath(pageKey, "schema"), cancellationToken);
     }
 
     [HttpGet("apps/{appKey}/pages/{pageKey}/records")]
-    public Task<IActionResult> QueryRecords(
-        string appKey,
-        string pageKey,
-        CancellationToken cancellationToken = default)
+    public Task<IActionResult> QueryRecords(string appKey, string pageKey, CancellationToken cancellationToken)
     {
         return ProxyAsync(HttpMethod.Get, BuildTargetPath(pageKey, "records"), cancellationToken);
     }
 
     [HttpGet("apps/{appKey}/pages/{pageKey}/records/{id:long}")]
-    public Task<IActionResult> GetRecord(
-        string appKey,
-        string pageKey,
-        long id,
-        CancellationToken cancellationToken = default)
+    public Task<IActionResult> GetRecord(string appKey, string pageKey, long id, CancellationToken cancellationToken)
     {
         return ProxyAsync(HttpMethod.Get, BuildTargetPath(pageKey, $"records/{id}"), cancellationToken);
     }
 
     [HttpPost("apps/{appKey}/pages/{pageKey}/records")]
-    public Task<IActionResult> CreateRecord(
-        string appKey,
-        string pageKey,
-        CancellationToken cancellationToken = default)
+    public Task<IActionResult> CreateRecord(string appKey, string pageKey, CancellationToken cancellationToken)
     {
         return ProxyAsync(HttpMethod.Post, BuildTargetPath(pageKey, "records"), cancellationToken);
     }
 
     [HttpPut("apps/{appKey}/pages/{pageKey}/records/{id:long}")]
-    public Task<IActionResult> UpdateRecord(
-        string appKey,
-        string pageKey,
-        long id,
-        CancellationToken cancellationToken = default)
+    public Task<IActionResult> UpdateRecord(string appKey, string pageKey, long id, CancellationToken cancellationToken)
     {
         return ProxyAsync(HttpMethod.Put, BuildTargetPath(pageKey, $"records/{id}"), cancellationToken);
     }

@@ -5,7 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vue-tsc --noEmit && node --max-old-space-size=8192 node_modules/vite/bin/vite.js build",
+    "build:platform-console": "node --max-old-space-size=8192 node_modules/vite/bin/vite.js build --mode platform-console",
+    "build:app-studio": "node --max-old-space-size=8192 node_modules/vite/bin/vite.js build --mode app-studio",
+    "build:app-runtime": "node --max-old-space-size=8192 node_modules/vite/bin/vite.js build --mode app-runtime",
+    "build:app-login": "node --max-old-space-size=8192 node_modules/vite/bin/vite.js build --mode app-login",
+    "build:entries": "npm run build:platform-console && npm run build:app-studio && npm run build:app-runtime && npm run build:app-login",
+    "build": "vue-tsc --noEmit && npm run build:entries",
     "preview": "vite preview",
     "e2e": "playwright test",
     "e2e:headed": "playwright test --headed",

@@ -55,6 +55,12 @@ builder.Services.AddOpenApiDocument(config =>
     config.Description = "Atlas PlatformHost skeleton for PR-1.";
 });
 builder.Services.AddReverseProxy();
+builder.Services.AddHttpClient("app-runtime-proxy", client =>
+{
+    var baseUrl = builder.Configuration["Atlas:Runtime:AppHostBaseUrl"] ?? "http://localhost:5002";
+    client.BaseAddress = new Uri(baseUrl);
+    client.Timeout = TimeSpan.FromSeconds(30);
+});
 builder.Services.AddHangfire(config =>
     config.UseSQLiteStorage("hangfire-platformhost.db", new SQLiteStorageOptions
     {
