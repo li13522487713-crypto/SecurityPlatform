@@ -35,7 +35,8 @@ builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
     ["Database:ConnectionString"] = $"Data Source={Path.Combine(legacyConfigRoot, "atlas.db")}"
 });
 
-if (builder.Environment.IsDevelopment())
+if (builder.Environment.IsDevelopment()
+    && string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("ASPNETCORE_URLS")))
 {
     builder.WebHost.UseUrls("http://localhost:5002");
 }

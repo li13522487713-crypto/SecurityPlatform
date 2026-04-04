@@ -58,6 +58,7 @@
     <ProjectReference Include="..\Atlas.WorkflowCore\Atlas.WorkflowCore.csproj" />
     <ProjectReference Include="..\Atlas.WorkflowCore.DSL\Atlas.WorkflowCore.DSL.csproj" />
     <ProjectReference Include="..\Atlas.Core\Atlas.Core.csproj" />
+    <ProjectReference Include="..\Atlas.Shared.Contracts\Atlas.Shared.Contracts.csproj" />
   </ItemGroup>
 
   <ItemGroup>

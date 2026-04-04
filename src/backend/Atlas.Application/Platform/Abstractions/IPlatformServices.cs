@@ -115,6 +115,8 @@ public interface ITenantAppInstanceQueryService
 {
     Task<PagedResult<TenantAppInstanceListItem>> QueryAsync(TenantId tenantId, PagedRequest request, CancellationToken cancellationToken = default);
     Task<TenantAppInstanceDetail?> GetByIdAsync(TenantId tenantId, long id, CancellationToken cancellationToken = default);
+    Task<TenantAppInstanceRuntimeInfo?> GetRuntimeInfoAsync(TenantId tenantId, long id, CancellationToken cancellationToken = default);
+    Task<TenantAppInstanceHealthInfo?> GetHealthAsync(TenantId tenantId, long id, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<LowCodeAppEntityAliasItem>> GetEntityAliasesAsync(TenantId tenantId, long id, CancellationToken cancellationToken = default);
     Task<LowCodeAppDataSourceInfo?> GetDataSourceInfoAsync(TenantId tenantId, long id, CancellationToken cancellationToken = default);
     Task<TestConnectionResult> TestDataSourceAsync(TenantId tenantId, long id, CancellationToken cancellationToken = default);
@@ -127,6 +129,24 @@ public interface ITenantAppInstanceQueryService
 
 public interface ITenantAppInstanceCommandService
 {
+    Task<TenantAppInstanceRuntimeInfo> StartAsync(
+        TenantId tenantId,
+        long userId,
+        long id,
+        CancellationToken cancellationToken = default);
+
+    Task<TenantAppInstanceRuntimeInfo> StopAsync(
+        TenantId tenantId,
+        long userId,
+        long id,
+        CancellationToken cancellationToken = default);
+
+    Task<TenantAppInstanceRuntimeInfo> RestartAsync(
+        TenantId tenantId,
+        long userId,
+        long id,
+        CancellationToken cancellationToken = default);
+
     Task<long> CreateAsync(
         TenantId tenantId,
         long userId,
@@ -175,6 +195,90 @@ public interface ITenantAppInstanceCommandService
         TenantId tenantId,
         long userId,
         LowCodeAppImportRequest request,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IAppInstanceRegistry
+{
+    Task<TenantAppInstanceRuntimeInfo> EnsureAsync(
+        TenantId tenantId,
+        TenantAppInstanceRuntimeRegistration registration,
+        CancellationToken cancellationToken = default);
+
+    Task<TenantAppInstanceRuntimeInfo?> GetAsync(
+        TenantId tenantId,
+        long appInstanceId,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyDictionary<long, TenantAppInstanceRuntimeInfo>> GetManyAsync(
+        TenantId tenantId,
+        IReadOnlyCollection<long> appInstanceIds,
+        CancellationToken cancellationToken = default);
+
+    Task<TenantAppInstanceRuntimeInfo> SaveAsync(
+        TenantId tenantId,
+        TenantAppInstanceRuntimeInfo runtimeInfo,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IAppProcessManager
+{
+    Task<TenantAppInstanceRuntimeInfo> StartAsync(
+        TenantAppInstanceRuntimeInfo runtimeInfo,
+        CancellationToken cancellationToken = default);
+
+    Task<TenantAppInstanceRuntimeInfo> StopAsync(
+        TenantAppInstanceRuntimeInfo runtimeInfo,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IAppHealthProbe
+{
+    Task<TenantAppInstanceHealthInfo> ProbeAsync(
+        TenantAppInstanceRuntimeInfo runtimeInfo,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IAppIngressResolver
+{
+    string ResolveIngressUrl(TenantAppInstanceRuntimeInfo runtimeInfo);
+}
+
+public interface IAppLoginEntryResolver
+{
+    string ResolveLoginUrl(TenantAppInstanceRuntimeInfo runtimeInfo);
+}
+
+public interface IAppRuntimeSupervisor
+{
+    Task<IReadOnlyDictionary<long, TenantAppInstanceRuntimeInfo>> GetRuntimeSnapshotMapAsync(
+        TenantId tenantId,
+        IReadOnlyCollection<long> appInstanceIds,
+        CancellationToken cancellationToken = default);
+
+    Task<TenantAppInstanceRuntimeInfo?> GetRuntimeInfoAsync(
+        TenantId tenantId,
+        long appInstanceId,
+        CancellationToken cancellationToken = default);
+
+    Task<TenantAppInstanceHealthInfo?> GetHealthAsync(
+        TenantId tenantId,
+        long appInstanceId,
+        CancellationToken cancellationToken = default);
+
+    Task<TenantAppInstanceRuntimeInfo> StartAsync(
+        TenantId tenantId,
+        TenantAppInstanceRuntimeRegistration registration,
+        CancellationToken cancellationToken = default);
+
+    Task<TenantAppInstanceRuntimeInfo> StopAsync(
+        TenantId tenantId,
+        TenantAppInstanceRuntimeRegistration registration,
+        CancellationToken cancellationToken = default);
+
+    Task<TenantAppInstanceRuntimeInfo> RestartAsync(
+        TenantId tenantId,
+        TenantAppInstanceRuntimeRegistration registration,
         CancellationToken cancellationToken = default);
 }
 

@@ -230,6 +230,33 @@
 - `GET /api/v2/tenant-app-instances`
 - `GET /api/v2/tenant-app-instances/{id}`
   - `TenantAppInstanceDetail` 新增 `pageCount` 字段，直接返回页面数量，前端不再依赖 `pages.length` 推断。
+  - `TenantAppInstanceListItem` / `TenantAppInstanceDetail` 补充运行态字段：
+    - `currentArtifactId`
+    - `runtimeStatus`
+    - `healthStatus`
+    - `assignedPort`
+    - `currentPid`
+    - `ingressUrl`
+  - `TenantAppInstanceDetail` 额外补充：
+    - `loginUrl`
+    - `instanceHome`
+    - `lastStartedAt`
+    - `lastHealthCheckedAt`
+- `GET /api/v2/tenant-app-instances/{id}/runtime-info`
+  - 返回 `TenantAppInstanceRuntimeInfo`：
+    - `instanceId/appKey`
+    - `runtimeStatus/healthStatus`
+    - `assignedPort/currentPid/currentArtifactId`
+    - `ingressUrl/loginUrl`
+    - `instanceHome/configPath`
+    - `startedAt/stoppedAt/lastHealthCheckedAt`
+- `GET /api/v2/tenant-app-instances/{id}/health`
+  - 返回 `TenantAppInstanceHealthInfo`：
+    - `instanceId`
+    - `runtimeStatus/healthStatus`
+    - `live/ready`
+    - `version/message`
+    - `checkedAt/ingressUrl`
 - `GET /api/v2/runtime-contexts`
 - `GET /api/v2/runtime-contexts/{id}`
 - `GET /api/v2/runtime-contexts/{appKey}/{pageKey}`
@@ -289,6 +316,17 @@
 - `POST /api/v2/tenant-app-instances/{id}/datasource/test`
 - `GET /api/v2/tenant-app-instances/{id}/file-storage`
 - `PUT /api/v2/tenant-app-instances/{id}/file-storage`
+- `POST /api/v2/tenant-app-instances/{id}/start`
+- `POST /api/v2/tenant-app-instances/{id}/stop`
+- `POST /api/v2/tenant-app-instances/{id}/restart`
+  - 三个动作接口统一返回 `TenantAppInstanceRuntimeInfo`。
+  - 响应字段至少包含：
+    - `instanceId`
+    - `runtimeStatus`
+    - `currentPid`
+    - `assignedPort`
+    - `currentArtifactId`
+    - `healthStatus`
   - `PUT /api/v2/tenant-app-instances/{id}` 支持数据源治理字段：
     - `dataSourceId: long?`：绑定或切换目标数据源。
     - `unbindDataSource: bool`：为 `true` 时解绑当前数据源并清空 `dataSourceId`。

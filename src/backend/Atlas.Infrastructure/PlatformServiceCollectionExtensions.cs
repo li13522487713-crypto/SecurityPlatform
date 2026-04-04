@@ -1,6 +1,7 @@
 using Atlas.Application.Plugins.Abstractions;
 using Atlas.Core.Governance;
 using Atlas.Infrastructure.DependencyInjection;
+using Atlas.Infrastructure.Services.PlatformRuntime;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -46,6 +47,16 @@ public static class PlatformServiceCollectionExtensions
         services.AddScoped<Atlas.Application.Subscription.IPlanCommandService, Atlas.Infrastructure.Services.Subscription.PlanService>();
         services.AddScoped<Atlas.Application.Subscription.ISubscriptionService, Atlas.Infrastructure.Services.Subscription.SubscriptionService>();
         services.AddScoped<Atlas.Application.Observability.IAlertRuleService, Atlas.Infrastructure.Observability.AlertRuleService>();
+        services.AddHttpClient("app-runtime-health", client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(3);
+        });
+        services.AddSingleton<Atlas.Application.Platform.Abstractions.IAppInstanceRegistry, FileSystemAppInstanceRegistry>();
+        services.AddSingleton<Atlas.Application.Platform.Abstractions.IAppProcessManager, LocalChildProcessManager>();
+        services.AddSingleton<Atlas.Application.Platform.Abstractions.IAppHealthProbe, HttpAppHealthProbe>();
+        services.AddSingleton<Atlas.Application.Platform.Abstractions.IAppIngressResolver, DefaultAppIngressResolver>();
+        services.AddSingleton<Atlas.Application.Platform.Abstractions.IAppLoginEntryResolver, DefaultAppLoginEntryResolver>();
+        services.AddSingleton<Atlas.Application.Platform.Abstractions.IAppRuntimeSupervisor, AppRuntimeSupervisor>();
 
         return services;
     }

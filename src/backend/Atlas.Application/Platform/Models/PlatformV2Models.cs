@@ -71,7 +71,13 @@ public sealed record TenantAppInstanceListItem(
     string? Description,
     string? Category,
     string? Icon,
-    string? PublishedAt);
+    string? PublishedAt,
+    string? CurrentArtifactId,
+    string? RuntimeStatus,
+    string? HealthStatus,
+    int? AssignedPort,
+    int? CurrentPid,
+    string? IngressUrl);
 
 public sealed record TenantAppInstanceDetail(
     string Id,
@@ -84,7 +90,51 @@ public sealed record TenantAppInstanceDetail(
     string? Icon,
     string? PublishedAt,
     string? DataSourceId,
-    int PageCount);
+    int PageCount,
+    string? CurrentArtifactId,
+    string? RuntimeStatus,
+    string? HealthStatus,
+    int? AssignedPort,
+    int? CurrentPid,
+    string? IngressUrl,
+    string? LoginUrl,
+    string? InstanceHome,
+    string? LastStartedAt,
+    string? LastHealthCheckedAt);
+
+public sealed record TenantAppInstanceRuntimeRegistration(
+    string AppInstanceId,
+    string AppKey,
+    string Name,
+    int Version,
+    string? CurrentArtifactId);
+
+public sealed record TenantAppInstanceRuntimeInfo(
+    string InstanceId,
+    string AppKey,
+    string RuntimeStatus,
+    string HealthStatus,
+    int? AssignedPort,
+    int? CurrentPid,
+    string? CurrentArtifactId,
+    string? IngressUrl,
+    string? LoginUrl,
+    string? InstanceHome,
+    string? ConfigPath,
+    string? StartedAt,
+    string? StoppedAt,
+    string? LastHealthCheckedAt);
+
+public sealed record TenantAppInstanceHealthInfo(
+    string InstanceId,
+    string RuntimeStatus,
+    string HealthStatus,
+    bool Live,
+    bool Ready,
+    string? Version,
+    string? Message,
+    string CheckedAt,
+    string? IngressUrl);
 
 public sealed record TenantAppDataSourceBinding(
     string TenantAppInstanceId,

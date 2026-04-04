@@ -77,6 +77,50 @@ public sealed class TenantAppInstancesV2Controller : ControllerBase
         return Ok(ApiResponse<TenantAppInstanceDetail>.Ok(result, HttpContext.TraceIdentifier));
     }
 
+    [HttpGet("{id:long}/runtime-info")]
+    [Authorize(Policy = PermissionPolicies.AppsView)]
+    public async Task<ActionResult<ApiResponse<TenantAppInstanceRuntimeInfo>>> GetRuntimeInfo(
+        long id,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var detail = await _queryService.GetByIdAsync(tenantId, id, cancellationToken);
+        if (detail is null)
+        {
+            return NotFound(ApiResponse<TenantAppInstanceRuntimeInfo>.Fail(ErrorCodes.NotFound, "Tenant app instance not found.", HttpContext.TraceIdentifier));
+        }
+
+        var runtimeInfo = await _queryService.GetRuntimeInfoAsync(tenantId, id, cancellationToken);
+        if (runtimeInfo is null)
+        {
+            return NotFound(ApiResponse<TenantAppInstanceRuntimeInfo>.Fail(ErrorCodes.NotFound, "Tenant app runtime info not found.", HttpContext.TraceIdentifier));
+        }
+
+        return Ok(ApiResponse<TenantAppInstanceRuntimeInfo>.Ok(runtimeInfo, HttpContext.TraceIdentifier));
+    }
+
+    [HttpGet("{id:long}/health")]
+    [Authorize(Policy = PermissionPolicies.AppsView)]
+    public async Task<ActionResult<ApiResponse<TenantAppInstanceHealthInfo>>> GetHealth(
+        long id,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var detail = await _queryService.GetByIdAsync(tenantId, id, cancellationToken);
+        if (detail is null)
+        {
+            return NotFound(ApiResponse<TenantAppInstanceHealthInfo>.Fail(ErrorCodes.NotFound, "Tenant app instance not found.", HttpContext.TraceIdentifier));
+        }
+
+        var healthInfo = await _queryService.GetHealthAsync(tenantId, id, cancellationToken);
+        if (healthInfo is null)
+        {
+            return NotFound(ApiResponse<TenantAppInstanceHealthInfo>.Fail(ErrorCodes.NotFound, "Tenant app health info not found.", HttpContext.TraceIdentifier));
+        }
+
+        return Ok(ApiResponse<TenantAppInstanceHealthInfo>.Ok(healthInfo, HttpContext.TraceIdentifier));
+    }
+
     [HttpGet("{id:long}/entity-aliases")]
     [Authorize(Policy = PermissionPolicies.AppsView)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<LowCodeAppEntityAliasItem>>>> GetEntityAliases(
@@ -258,6 +302,75 @@ public sealed class TenantAppInstancesV2Controller : ControllerBase
             id,
             cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { id = id.ToString() }, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost("{id:long}/start")]
+    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
+    public async Task<ActionResult<ApiResponse<TenantAppInstanceRuntimeInfo>>> Start(
+        long id,
+        CancellationToken cancellationToken)
+    {
+        var currentUser = _currentUserAccessor.GetCurrentUser();
+        if (currentUser is null)
+        {
+            return Unauthorized(ApiResponse<TenantAppInstanceRuntimeInfo>.Fail(ErrorCodes.Unauthorized, "Unauthorized.", HttpContext.TraceIdentifier));
+        }
+
+        var tenantId = _tenantProvider.GetTenantId();
+        var detail = await _queryService.GetByIdAsync(tenantId, id, cancellationToken);
+        if (detail is null)
+        {
+            return NotFound(ApiResponse<TenantAppInstanceRuntimeInfo>.Fail(ErrorCodes.NotFound, "Tenant app instance not found.", HttpContext.TraceIdentifier));
+        }
+
+        var result = await _commandService.StartAsync(tenantId, currentUser.UserId, id, cancellationToken);
+        return Ok(ApiResponse<TenantAppInstanceRuntimeInfo>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost("{id:long}/stop")]
+    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
+    public async Task<ActionResult<ApiResponse<TenantAppInstanceRuntimeInfo>>> Stop(
+        long id,
+        CancellationToken cancellationToken)
+    {
+        var currentUser = _currentUserAccessor.GetCurrentUser();
+        if (currentUser is null)
+        {
+            return Unauthorized(ApiResponse<TenantAppInstanceRuntimeInfo>.Fail(ErrorCodes.Unauthorized, "Unauthorized.", HttpContext.TraceIdentifier));
+        }
+
+        var tenantId = _tenantProvider.GetTenantId();
+        var detail = await _queryService.GetByIdAsync(tenantId, id, cancellationToken);
+        if (detail is null)
+        {
+            return NotFound(ApiResponse<TenantAppInstanceRuntimeInfo>.Fail(ErrorCodes.NotFound, "Tenant app instance not found.", HttpContext.TraceIdentifier));
+        }
+
+        var result = await _commandService.StopAsync(tenantId, currentUser.UserId, id, cancellationToken);
+        return Ok(ApiResponse<TenantAppInstanceRuntimeInfo>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost("{id:long}/restart")]
+    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
+    public async Task<ActionResult<ApiResponse<TenantAppInstanceRuntimeInfo>>> Restart(
+        long id,
+        CancellationToken cancellationToken)
+    {
+        var currentUser = _currentUserAccessor.GetCurrentUser();
+        if (currentUser is null)
+        {
+            return Unauthorized(ApiResponse<TenantAppInstanceRuntimeInfo>.Fail(ErrorCodes.Unauthorized, "Unauthorized.", HttpContext.TraceIdentifier));
+        }
+
+        var tenantId = _tenantProvider.GetTenantId();
+        var detail = await _queryService.GetByIdAsync(tenantId, id, cancellationToken);
+        if (detail is null)
+        {
+            return NotFound(ApiResponse<TenantAppInstanceRuntimeInfo>.Fail(ErrorCodes.NotFound, "Tenant app instance not found.", HttpContext.TraceIdentifier));
+        }
+
+        var result = await _commandService.RestartAsync(tenantId, currentUser.UserId, id, cancellationToken);
+        return Ok(ApiResponse<TenantAppInstanceRuntimeInfo>.Ok(result, HttpContext.TraceIdentifier));
     }
 
     [HttpDelete("{id:long}")]

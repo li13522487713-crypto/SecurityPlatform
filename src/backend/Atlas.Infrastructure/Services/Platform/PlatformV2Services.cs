@@ -458,6 +458,7 @@ public sealed class TenantAppInstanceQueryService : ITenantAppInstanceQueryServi
     private readonly ITenantDataSourceService _tenantDataSourceService;
     private readonly ISystemConfigQueryService _systemConfigQueryService;
     private readonly IOptionsMonitor<FileStorageOptions> _fileStorageOptionsMonitor;
+    private readonly IAppRuntimeSupervisor _appRuntimeSupervisor;
     private readonly ISqlSugarClient _db;
 
     public TenantAppInstanceQueryService(
@@ -465,12 +466,14 @@ public sealed class TenantAppInstanceQueryService : ITenantAppInstanceQueryServi
         ITenantDataSourceService tenantDataSourceService,
         ISystemConfigQueryService systemConfigQueryService,
         IOptionsMonitor<FileStorageOptions> fileStorageOptionsMonitor,
+        IAppRuntimeSupervisor appRuntimeSupervisor,
         ISqlSugarClient db)
     {
         _lowCodeAppQueryService = lowCodeAppQueryService;
         _tenantDataSourceService = tenantDataSourceService;
         _systemConfigQueryService = systemConfigQueryService;
         _fileStorageOptionsMonitor = fileStorageOptionsMonitor;
+        _appRuntimeSupervisor = appRuntimeSupervisor;
         _db = db;
     }
 
@@ -480,17 +483,35 @@ public sealed class TenantAppInstanceQueryService : ITenantAppInstanceQueryServi
         CancellationToken cancellationToken = default)
     {
         var result = await _lowCodeAppQueryService.QueryAsync(request, tenantId, null, cancellationToken);
+        var appInstanceIds = result.Items
+            .Select(item => long.TryParse(item.Id, out var parsedId) ? parsedId : 0L)
+            .Where(idValue => idValue > 0)
+            .ToArray();
+        var runtimeSnapshots = appInstanceIds.Length == 0
+            ? new Dictionary<long, TenantAppInstanceRuntimeInfo>()
+            : new Dictionary<long, TenantAppInstanceRuntimeInfo>(
+                await _appRuntimeSupervisor.GetRuntimeSnapshotMapAsync(tenantId, appInstanceIds, cancellationToken));
         var items = result.Items
-            .Select(item => new TenantAppInstanceListItem(
-                item.Id,
-                item.AppKey,
-                item.Name,
-                item.Status,
-                item.Version,
-                item.Description,
-                item.Category,
-                item.Icon,
-                item.PublishedAt?.ToString("O")))
+            .Select(item =>
+            {
+                runtimeSnapshots.TryGetValue(long.Parse(item.Id), out var runtimeInfo);
+                return new TenantAppInstanceListItem(
+                    item.Id,
+                    item.AppKey,
+                    item.Name,
+                    item.Status,
+                    item.Version,
+                    item.Description,
+                    item.Category,
+                    item.Icon,
+                    item.PublishedAt?.ToString("O"),
+                    runtimeInfo?.CurrentArtifactId,
+                    runtimeInfo?.RuntimeStatus,
+                    runtimeInfo?.HealthStatus,
+                    runtimeInfo?.AssignedPort,
+                    runtimeInfo?.CurrentPid,
+                    runtimeInfo?.IngressUrl);
+            })
             .ToArray();
 
         return new PagedResult<TenantAppInstanceListItem>(items, result.Total, result.PageIndex, result.PageSize);
@@ -513,6 +534,7 @@ public sealed class TenantAppInstanceQueryService : ITenantAppInstanceQueryServi
         var pageCount = await _db.Queryable<LowCodePage>()
             .Where(page => page.TenantIdValue == tenantValue && page.AppId == id)
             .CountAsync(cancellationToken);
+        var runtimeInfo = await _appRuntimeSupervisor.GetRuntimeInfoAsync(tenantId, id, cancellationToken);
 
         return new TenantAppInstanceDetail(
             item.Id.ToString(),
@@ -525,7 +547,33 @@ public sealed class TenantAppInstanceQueryService : ITenantAppInstanceQueryServi
             item.Icon,
             item.PublishedAt?.ToString("O"),
             item.DataSourceId?.ToString(),
-            pageCount);
+            pageCount,
+            runtimeInfo?.CurrentArtifactId,
+            runtimeInfo?.RuntimeStatus,
+            runtimeInfo?.HealthStatus,
+            runtimeInfo?.AssignedPort,
+            runtimeInfo?.CurrentPid,
+            runtimeInfo?.IngressUrl,
+            runtimeInfo?.LoginUrl,
+            runtimeInfo?.InstanceHome,
+            runtimeInfo?.StartedAt,
+            runtimeInfo?.LastHealthCheckedAt);
+    }
+
+    public Task<TenantAppInstanceRuntimeInfo?> GetRuntimeInfoAsync(
+        TenantId tenantId,
+        long id,
+        CancellationToken cancellationToken = default)
+    {
+        return _appRuntimeSupervisor.GetRuntimeInfoAsync(tenantId, id, cancellationToken);
+    }
+
+    public Task<TenantAppInstanceHealthInfo?> GetHealthAsync(
+        TenantId tenantId,
+        long id,
+        CancellationToken cancellationToken = default)
+    {
+        return _appRuntimeSupervisor.GetHealthAsync(tenantId, id, cancellationToken);
     }
 
     public Task<IReadOnlyList<LowCodeAppEntityAliasItem>> GetEntityAliasesAsync(
@@ -737,15 +785,54 @@ public sealed class TenantAppInstanceCommandService : ITenantAppInstanceCommandS
     private readonly ILowCodeAppCommandService _commandService;
     private readonly ILowCodeAppQueryService _queryService;
     private readonly ISystemConfigCommandService _systemConfigCommandService;
+    private readonly IAppRuntimeSupervisor _appRuntimeSupervisor;
+    private readonly ISqlSugarClient _db;
 
     public TenantAppInstanceCommandService(
         ILowCodeAppCommandService commandService,
         ILowCodeAppQueryService queryService,
-        ISystemConfigCommandService systemConfigCommandService)
+        ISystemConfigCommandService systemConfigCommandService,
+        IAppRuntimeSupervisor appRuntimeSupervisor,
+        ISqlSugarClient db)
     {
         _commandService = commandService;
         _queryService = queryService;
         _systemConfigCommandService = systemConfigCommandService;
+        _appRuntimeSupervisor = appRuntimeSupervisor;
+        _db = db;
+    }
+
+    public async Task<TenantAppInstanceRuntimeInfo> StartAsync(
+        TenantId tenantId,
+        long userId,
+        long id,
+        CancellationToken cancellationToken = default)
+    {
+        _ = userId;
+        var registration = await BuildRuntimeRegistrationAsync(tenantId, id, cancellationToken);
+        return await _appRuntimeSupervisor.StartAsync(tenantId, registration, cancellationToken);
+    }
+
+    public async Task<TenantAppInstanceRuntimeInfo> StopAsync(
+        TenantId tenantId,
+        long userId,
+        long id,
+        CancellationToken cancellationToken = default)
+    {
+        _ = userId;
+        var registration = await BuildRuntimeRegistrationAsync(tenantId, id, cancellationToken);
+        return await _appRuntimeSupervisor.StopAsync(tenantId, registration, cancellationToken);
+    }
+
+    public async Task<TenantAppInstanceRuntimeInfo> RestartAsync(
+        TenantId tenantId,
+        long userId,
+        long id,
+        CancellationToken cancellationToken = default)
+    {
+        _ = userId;
+        var registration = await BuildRuntimeRegistrationAsync(tenantId, id, cancellationToken);
+        return await _appRuntimeSupervisor.RestartAsync(tenantId, registration, cancellationToken);
     }
 
     public Task<long> CreateAsync(
@@ -892,6 +979,27 @@ public sealed class TenantAppInstanceCommandService : ITenantAppInstanceCommandS
         CancellationToken cancellationToken = default)
     {
         return _commandService.ImportAsync(tenantId, userId, request, cancellationToken);
+    }
+
+    private async Task<TenantAppInstanceRuntimeRegistration> BuildRuntimeRegistrationAsync(
+        TenantId tenantId,
+        long id,
+        CancellationToken cancellationToken)
+    {
+        var app = await _db.Queryable<LowCodeApp>()
+            .Where(row => row.TenantIdValue == tenantId.Value && row.Id == id)
+            .FirstAsync(cancellationToken);
+        if (app is null)
+        {
+            throw new InvalidOperationException("Tenant app instance not found.");
+        }
+
+        return new TenantAppInstanceRuntimeRegistration(
+            app.Id.ToString(),
+            app.AppKey,
+            app.Name,
+            app.Version,
+            $"release-v{app.Version}");
     }
 }
 
