@@ -33,7 +33,7 @@ export const router = createRouter({
         {
           path: "profile",
           name: "profile",
-          component: () => import("@/pages/ProfilePlaceholder.vue")
+          component: () => import("@/pages/ProfilePage.vue")
         },
         {
           path: "console/catalog",
@@ -212,6 +212,7 @@ export const router = createRouter({
         { path: "apps/:appId/workflows", name: "app-workflows", component: () => import("@/pages/workflow/WorkflowListPage.vue") },
         { path: "apps/:appId/workflows/:id/editor", name: "app-workflow-editor", component: () => import("@/pages/workflow/WorkflowEditorPage.vue") },
         { path: "ai/agents", name: "ai-agents", component: () => import("@/pages/ai/AgentListPage.vue") },
+        { path: "ai/agents/:agentId/chat", name: "ai-agent-chat", component: () => import("@/pages/ai/AgentChatPage.vue") },
         { path: "ai/agents/:id/edit", name: "ai-agent-edit", component: () => import("@/pages/ai/AgentEditorPage.vue") },
         { path: "ai/model-configs", name: "ai-model-configs", component: () => import("@/pages/ai/ModelConfigsPage.vue") },
         { path: "ai/workspace", name: "ai-workspace", component: () => import("@/pages/ai/AiWorkspacePage.vue") },

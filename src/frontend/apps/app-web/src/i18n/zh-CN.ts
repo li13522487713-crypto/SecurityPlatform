@@ -38,6 +38,60 @@ export default {
   appRuntime: {
     pageTitle: "运行时页面"
   },
+  amis: {
+    notice: "提示",
+    confirmTitle: "请确认",
+    requestFailed: "请求失败"
+  },
+  runtimePage: {
+    emptyNoPage: "未找到可运行页面，请先在设计器发布页面",
+    defaultTitle: "运行态页面",
+    loadFailed: "加载运行态页面失败"
+  },
+  crud: {
+    deleteSuccess: "删除成功",
+    deleteFailed: "删除失败"
+  },
+  ai: {
+    chat: {
+      avatarAssistant: "AI",
+      avatarUser: "用户",
+      convList: "对话列表",
+      newConv: "+ 新建",
+      newConvTitle: "新对话",
+      deleteConvConfirm: "确认删除该对话？",
+      emptyConv: "暂无对话，点击「新建」开始",
+      defaultAgentName: "Agent 对话",
+      clearContextTip: "清除上下文（保留历史，但新消息不使用旧上下文）",
+      clearContext: "清除上下文",
+      clearHistoryTip: "清除全部历史消息",
+      clearHistory: "清除历史",
+      emptySelect: "选择或新建一个对话开始聊天",
+      enableRag: "启用知识库 (RAG)",
+      attachImage: "上传图片",
+      startRecord: "开始录音",
+      stopRecord: "结束录音",
+      clearAttachments: "清空附件",
+      recordUnsupported: "当前浏览器不支持录音",
+      recordAttachmentHint: "请优先识别这段语音内容",
+      placeholderStreaming: "正在回复中…",
+      placeholderInput: "输入消息，Ctrl+Enter 发送",
+      newConversationTitle: "新对话",
+      loadConvFailed: "加载对话列表失败",
+      loadMsgFailed: "加载消息失败",
+      createConvFailed: "创建对话失败",
+      clearContextOk: "上下文已清除",
+      clearHistoryOk: "历史已清除",
+      opFailed: "操作失败",
+      reactPanelTitle: "ReAct 执行过程",
+      reactThought: "思考（Thought）",
+      reactAction: "行动（Action）",
+      reactObservation: "观察（Observation）",
+      reactFinal: "最终回答（Final）",
+      missingAgentTitle: "缺少 Agent",
+      missingAgentDesc: "请在地址中提供有效的 Agent ID，例如：/apps/{应用}/ai/chat/{AgentId}"
+    }
+  },
   layout: {
     backToLogin: "返回登录",
     profile: "个人中心",

@@ -2,7 +2,9 @@ export type {
   ApiResponse,
   AuthProfile,
   AuthTokenResult,
-  PagedRequest
+  JsonValue,
+  PagedRequest,
+  PagedResult
 } from "@atlas/shared-core";
 
 export interface RuntimeMenuItem {

@@ -179,6 +179,9 @@ importers:
 
   apps/app-web:
     dependencies:
+      '@ant-design/icons-vue':
+        specifier: ^7.0.1
+        version: 7.0.1(vue@3.5.32(typescript@5.9.3))
       '@atlas/ai-core':
         specifier: workspace:*
         version: link:../../packages/ai-core
@@ -188,12 +191,27 @@ importers:
       '@atlas/shared-ui':
         specifier: workspace:*
         version: link:../../packages/shared-ui
+      amis:
+        specifier: ^6.0.0
+        version: 6.13.0(@types/react@19.2.14)(amis-core@6.13.0(@types/react@19.2.14)(amis-formula@6.13.0)(react-dom@18.3.1(react@18.3.1))(react-is@18.3.1)(react@18.3.1))(amis-ui@6.13.0(@types/react@19.2.14)(amis-core@6.13.0(@types/react@19.2.14)(amis-formula@6.13.0)(react-dom@18.3.1(react@18.3.1))(react-is@18.3.1)(react@18.3.1))(amis-formula@6.13.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(office-viewer@0.3.14(echarts@5.5.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      amis-core:
+        specifier: 6.13.0
+        version: 6.13.0(@types/react@19.2.14)(amis-formula@6.13.0)(react-dom@18.3.1(react@18.3.1))(react-is@18.3.1)(react@18.3.1)
       ant-design-vue:
         specifier: ^4.2.6
         version: 4.2.6(vue@3.5.32(typescript@5.9.3))
       pinia:
         specifier: ^3.0.3
         version: 3.0.4(typescript@5.9.3)(vue@3.5.32(typescript@5.9.3))
+      react:
+        specifier: ^18.2.0
+        version: 18.3.1
+      react-dom:
+        specifier: ^18.2.0
+        version: 18.3.1(react@18.3.1)
+      react-is:
+        specifier: ^18.2.0
+        version: 18.3.1
       vue:
         specifier: ^3.5.30
         version: 3.5.32(typescript@5.9.3)
@@ -207,6 +225,12 @@ importers:
       '@types/node':
         specifier: ^25.5.0
         version: 25.5.2
+      '@types/react':
+        specifier: ^19.2.13
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: ^19.2.3
+        version: 19.2.3(@types/react@19.2.14)
       '@vitejs/plugin-vue':
         specifier: ^6.0.5
         version: 6.0.5(vite@8.0.3(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@types/node@25.5.2))(vue@3.5.32(typescript@5.9.3))
@@ -286,20 +310,28 @@ importers:
       vue:
         specifier: ^3.5.0
         version: 3.5.32(typescript@5.9.3)
+    devDependencies:
+      ant-design-vue:
+        specifier: 4.2.6
+        version: 4.2.6(vue@3.5.32(typescript@5.9.3))
 
   packages/shared-ui:
     dependencies:
       '@atlas/shared-core':
         specifier: workspace:*
         version: link:../shared-core
-      ant-design-vue:
-        specifier: ^4.2.0
-        version: 4.2.6(vue@3.5.32(typescript@5.9.3))
       vue:
         specifier: ^3.5.0
         version: 3.5.32(typescript@5.9.3)
+    devDependencies:
+      '@ant-design/icons-vue':
+        specifier: 7.0.1
+        version: 7.0.1(vue@3.5.32(typescript@5.9.3))
+      ant-design-vue:
+        specifier: 4.2.6
+        version: 4.2.6(vue@3.5.32(typescript@5.9.3))
       vue-i18n:
-        specifier: ^9.14.0
+        specifier: 9.14.5
         version: 9.14.5(vue@3.5.32(typescript@5.9.3))
 
 packages:
@@ -3646,6 +3678,53 @@ snapshots:
       - react-native
       - supports-color
 
+  amis@6.13.0(@types/react@19.2.14)(amis-core@6.13.0(@types/react@19.2.14)(amis-formula@6.13.0)(react-dom@18.3.1(react@18.3.1))(react-is@18.3.1)(react@18.3.1))(amis-ui@6.13.0(@types/react@19.2.14)(amis-core@6.13.0(@types/react@19.2.14)(amis-formula@6.13.0)(react-dom@18.3.1(react@18.3.1))(react-is@18.3.1)(react@18.3.1))(amis-formula@6.13.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(office-viewer@0.3.14(echarts@5.5.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
+    dependencies:
+      amis-core: 6.13.0(@types/react@19.2.14)(amis-formula@6.13.0)(react-dom@18.3.1(react@18.3.1))(react-is@18.3.1)(react@18.3.1)
+      amis-ui: 6.13.0(@types/react@19.2.14)(amis-core@6.13.0(@types/react@19.2.14)(amis-formula@6.13.0)(react-dom@18.3.1(react@18.3.1))(react-is@18.3.1)(react@18.3.1))(amis-formula@6.13.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      attr-accept: 2.2.2
+      blueimp-canvastoblob: 2.1.0
+      classnames: 2.3.2
+      downshift: 6.1.12(react@18.3.1)
+      echarts: 5.5.1
+      echarts-stat: 1.2.0
+      echarts-wordcloud: 2.1.0(echarts@5.5.1)
+      exceljs: 4.4.0
+      file-saver: 2.0.5
+      file64: 1.0.5
+      hls.js: 1.1.3
+      hoist-non-react-statics: 3.3.2
+      hotkeys-js: 3.13.15
+      immutability-helper: 3.1.1
+      jsbarcode: 3.12.3
+      keycode: 2.2.1
+      lodash: 4.18.1
+      match-sorter: 6.3.4
+      mobx: 4.15.7
+      mobx-react: 6.3.1(mobx@4.15.7)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      mobx-state-tree: 3.17.3(mobx@4.15.7)
+      moment: 2.30.1
+      moment-timezone: 0.5.48
+      mpegts.js: 1.8.0
+      office-viewer: 0.3.14(echarts@5.5.1)
+      prop-types: 15.8.1
+      qrcode-react-next: 1.0.0(react@18.3.1)
+      react: 18.3.1
+      react-cropper: 2.3.3(react@18.3.1)
+      react-dom: 18.3.1(react@18.3.1)
+      react-dropzone: 11.7.1(react@18.3.1)
+      react-intersection-observer: 9.5.2(react@18.3.1)
+      react-json-view: 1.21.3(@types/react@19.2.14)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      react-transition-group: 4.4.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      sortablejs: 1.15.0
+      tslib: 2.8.1
+      video-react: 0.15.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      xlsx: 0.18.5
+    transitivePeerDependencies:
+      - '@types/react'
+      - encoding
+      - react-native
+
   amis@6.13.0(@types/react@19.2.14)(amis-core@6.13.0(@types/react@19.2.14)(amis-formula@6.13.0)(react-dom@18.3.1(react@18.3.1))(react-is@18.3.1)(react@18.3.1))(amis-ui@6.13.0(@types/react@19.2.14)(amis-core@6.13.0(@types/react@19.2.14)(amis-formula@6.13.0)(react-dom@18.3.1(react@18.3.1))(react-is@18.3.1)(react@18.3.1))(amis-formula@6.13.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(office-viewer@0.3.14(echarts@5.6.0))(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
     dependencies:
       amis-core: 6.13.0(@types/react@19.2.14)(amis-formula@6.13.0)(react-dom@18.3.1(react@18.3.1))(react-is@18.3.1)(react@18.3.1)
@@ -4723,6 +4802,13 @@ snapshots:
   object-assign@4.1.1: {}
 
   obug@2.1.1: {}
+
+  office-viewer@0.3.14(echarts@5.5.1):
+    dependencies:
+      echarts: 5.5.1
+      numfmt: 2.5.2
+      papaparse: 5.5.3
+      tslib: 2.8.1
 
   office-viewer@0.3.14(echarts@5.6.0):
     dependencies:

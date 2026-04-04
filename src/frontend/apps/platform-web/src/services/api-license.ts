@@ -1,6 +1,10 @@
-import type { ApiResponse } from "@atlas/shared-core";
-import { requestApi } from "./api-core";
-import type { LicenseStatus, LicenseActivateResult } from "@/types/api";
+import type {
+  ApiResponse,
+  LicenseActivateResult,
+  LicenseFingerprintResult,
+  LicenseStatus
+} from "@atlas/shared-core";
+import { requestApi } from "@/services/api-core";
 
 interface ApiRequestErrorLike extends Error {
   payload?: {
@@ -10,10 +14,13 @@ interface ApiRequestErrorLike extends Error {
   } | null;
 }
 
+/** 获取当前授权状态（无需租户上下文，证书为全局资源） */
 export async function getLicenseStatus(): Promise<LicenseStatus> {
   const resp = await requestApi<ApiResponse<LicenseStatus>>(
     "/license/status",
-    { method: "GET" },
+    {
+      method: "GET"
+    },
     { disableAutoRefresh: true, suppressErrorMessage: true }
   );
   return (
@@ -34,6 +41,19 @@ export async function getLicenseStatus(): Promise<LicenseStatus> {
   );
 }
 
+/** 获取当前机器码（离线授权时提供给颁发方） */
+export async function getMachineFingerprint(): Promise<string> {
+  const resp = await requestApi<ApiResponse<LicenseFingerprintResult>>(
+    "/license/fingerprint",
+    {
+      method: "GET"
+    },
+    { disableAutoRefresh: true, suppressErrorMessage: true }
+  );
+  return resp.data?.fingerprint ?? "";
+}
+
+/** 上传授权证书激活（无需租户上下文，支持在登录前调用） */
 export async function activateLicense(
   licenseContent: string
 ): Promise<ApiResponse<LicenseActivateResult>> {
@@ -42,18 +62,23 @@ export async function activateLicense(
       "/license/activate",
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json"
+        },
         body: JSON.stringify({ licenseContent })
       },
-      { disableAutoRefresh: true, suppressErrorMessage: true }
+      {
+        disableAutoRefresh: true,
+        suppressErrorMessage: true
+      }
     );
   } catch (error) {
-    const reqErr = error as ApiRequestErrorLike;
-    const payload = reqErr?.payload ?? null;
+    const requestError = error as ApiRequestErrorLike;
+    const payload = requestError?.payload ?? null;
     return {
       success: false,
       code: payload?.code ?? "LICENSE_ACTIVATE_FAILED",
-      message: payload?.message ?? reqErr?.message ?? "证书激活失败",
+      message: payload?.message ?? requestError?.message ?? "证书激活失败",
       traceId: payload?.traceId ?? ""
     };
   }

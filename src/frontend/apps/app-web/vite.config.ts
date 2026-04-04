@@ -4,6 +4,11 @@ import path from "node:path";
 
 export default defineConfig({
   plugins: [vue()],
+  css: {
+    lightningcss: {
+      errorRecovery: true
+    }
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "src")

@@ -402,3 +402,7 @@ src/backend/Atlas.WebApi/backups/*.db.sha256
 /.tmp-build/infra-check
 SecurityPlatform.zip
 /SecurityPlatform-source-docs.zip
+
+# Frontend build artifacts
+**/dist/
+**/dist-ssr/

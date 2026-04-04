@@ -172,6 +172,69 @@ export async function requestApi<T>(path: string, init?: RequestInit, options?: 
   return await response.json() as T;
 }
 
+export async function requestApiBlob(path: string, init?: RequestInit, options?: RequestOptions): Promise<Blob> {
+  const headers = new Headers(init?.headers ?? {});
+  const token = getAccessToken();
+  const tenantId = getTenantId();
+  const method = (init?.method ?? "GET").toUpperCase();
+  const shouldAttachSecurityHeaders = Boolean(token);
+
+  if (typeof init?.body === "string" && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json; charset=utf-8");
+  }
+
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+  if (tenantId && !headers.has("X-Tenant-Id")) headers.set("X-Tenant-Id", tenantId);
+
+  const clientHeaders = getClientContextHeaders();
+  (Object.entries(clientHeaders) as [string, string][]).forEach(([key, value]) => {
+    if (value && !headers.has(key)) headers.set(key, value);
+  });
+
+  const projectScopeEnabled = getProjectScopeEnabled();
+  const projectId = getProjectId();
+  if (projectScopeEnabled && projectId && !headers.has("X-Project-Id")) {
+    headers.set("X-Project-Id", projectId);
+  }
+
+  if (shouldAttachSecurityHeaders && isUnsafeMethod(method)) {
+    const idempotencyKey = options?.idempotencyKey ?? generateIdempotencyKey();
+    headers.set("Idempotency-Key", idempotencyKey);
+    const csrfToken = options?.antiforgeryToken ?? (await ensureAntiforgeryToken()) ?? undefined;
+    if (csrfToken) headers.set("X-CSRF-TOKEN", csrfToken);
+  }
+
+  const requestInit: RequestInit = { ...init, headers, credentials: "include" };
+  const response = await fetch(resolveRequestUrl(path), requestInit);
+
+  if (response.status === 401 && !options?.disableAutoRefresh && !options?.isRetry) {
+    const refreshed = await tryRefreshTokens();
+    if (refreshed) {
+      return requestApiBlob(path, init, { ...(options ?? {}), isRetry: true });
+    }
+    forceLogout();
+    throw new Error("Session expired");
+  }
+
+  if (response.status === 403) {
+    const errorText = await response.text();
+    const payload = tryParsePayload(errorText);
+    if (payload?.code === "ANTIFORGERY_TOKEN_INVALID" && !options?.antiforgeryRetry) {
+      clearAntiforgeryToken();
+      return requestApiBlob(path, init, { ...(options ?? {}), antiforgeryRetry: true, antiforgeryToken: undefined });
+    }
+    throw new Error(payload?.message ?? errorText ?? "Forbidden");
+  }
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    const payload = tryParsePayload(errorText);
+    throw new Error(payload?.message ?? payload?.title ?? errorText ?? "Request failed");
+  }
+
+  return response.blob();
+}
+
 function tryParsePayload(text: string): { code?: string; message?: string; title?: string } | null {
   if (!text) return null;
   try {
@@ -195,4 +258,75 @@ export function toQuery(pagedRequest: PagedRequest, extra?: Record<string, strin
     });
   }
   return query.toString();
+}
+
+export async function requestPagedApi<T>(
+  path: string,
+  params: PagedRequest,
+  extra?: Record<string, string | undefined>,
+  options?: RequestOptions
+): Promise<{ items: T[]; total: number; pageIndex: number; pageSize: number }> {
+  const qs = toQuery(params, extra);
+  const response = await requestApi<ApiResponse<{ items: T[]; total: number; pageIndex: number; pageSize: number }>>(
+    `${path}?${qs}`,
+    undefined,
+    options
+  );
+  if (!response.data) {
+    throw new Error(response.message || "Query failed");
+  }
+  return response.data;
+}
+
+export async function uploadFile(
+  path: string,
+  file: File,
+  options?: RequestOptions
+): Promise<ApiResponse<{ id: number; originalName: string }>> {
+  const formData = new FormData();
+  formData.append("file", file);
+  return requestApi<ApiResponse<{ id: number; originalName: string }>>(
+    path,
+    { method: "POST", body: formData },
+    options
+  );
+}
+
+export async function downloadFile(path: string): Promise<void> {
+  const headers: Record<string, string> = {};
+  const token = getAccessToken();
+  const tenantId = getTenantId();
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  if (tenantId) headers["X-Tenant-Id"] = tenantId;
+
+  const clientHeaders = getClientContextHeaders();
+  Object.assign(headers, clientHeaders);
+
+  const response = await fetch(resolveRequestUrl(path), {
+    headers,
+    credentials: "include",
+  });
+
+  if (!response.ok) {
+    throw new Error("Download failed");
+  }
+
+  const blob = await response.blob();
+  const disposition = response.headers.get("Content-Disposition");
+  let filename = "download";
+  if (disposition) {
+    const match = disposition.match(/filename\*?=['"]?(?:UTF-8'')?([^;'"]+)/i);
+    if (match) {
+      filename = decodeURIComponent(match[1]);
+    }
+  }
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
