@@ -39,6 +39,19 @@ X-Tenant-Id: {{tenantId}}
   });
 %}
 
+### 列表查询：应用运行宿主快照（Phase3 可观测）
+GET {{baseUrl}}/api/v1/monitor/app-runtime-hosts?pageIndex=1&pageSize=20
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+> {%
+  client.test("应用运行宿主快照查询成功", function () {
+    client.assert(response.status === 200, "状态码应为 200");
+    client.assert(response.body.success === true, "success 应为 true");
+    client.assert(response.body.data.items !== undefined, "应返回实例列表 items");
+  });
+%}
+
 ### 详情查询：导出等保证据包（文件流）
 GET {{baseUrl}}/api/v1/monitor/compliance/evidence-package
 Authorization: Bearer {{accessToken}}

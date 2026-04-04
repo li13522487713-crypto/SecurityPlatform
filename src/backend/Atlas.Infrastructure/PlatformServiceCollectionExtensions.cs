@@ -47,6 +47,10 @@ public static class PlatformServiceCollectionExtensions
         services.AddScoped<Atlas.Application.Subscription.IPlanCommandService, Atlas.Infrastructure.Services.Subscription.PlanService>();
         services.AddScoped<Atlas.Application.Subscription.ISubscriptionService, Atlas.Infrastructure.Services.Subscription.SubscriptionService>();
         services.AddScoped<Atlas.Application.Observability.IAlertRuleService, Atlas.Infrastructure.Observability.AlertRuleService>();
+        services.AddScoped<Atlas.Application.Platform.Abstractions.IAppPackageBuilder, FileSystemAppPackageBuilder>();
+        services.AddScoped<Atlas.Application.Platform.Abstractions.IAppPackageInstaller, FileSystemAppPackageInstaller>();
+        services.AddScoped<Atlas.Application.Platform.Abstractions.IAppReleaseOrchestrator, DefaultAppReleaseOrchestrator>();
+        services.AddScoped<Atlas.Application.Platform.Abstractions.IAppEntryQueryService, AppEntryQueryService>();
         services.AddHttpClient("app-runtime-health", client =>
         {
             client.Timeout = TimeSpan.FromSeconds(3);

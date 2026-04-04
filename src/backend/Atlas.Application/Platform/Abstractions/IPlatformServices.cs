@@ -526,6 +526,75 @@ public interface IReleaseCenterQueryService
         TenantId tenantId,
         long releaseId,
         CancellationToken cancellationToken = default);
+
+    Task<ReleaseInstallStatusInfo?> GetInstallStatusAsync(
+        TenantId tenantId,
+        long releaseId,
+        long tenantAppInstanceId,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IAppPackageBuilder
+{
+    Task<AppPackageBuildResult> BuildAsync(
+        TenantId tenantId,
+        long releaseId,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IAppPackageInstaller
+{
+    Task<ReleaseInstallResult> InstallAsync(
+        TenantId tenantId,
+        long releaseId,
+        long tenantAppInstanceId,
+        CancellationToken cancellationToken = default);
+
+    Task<ReleaseInstallResult> RollbackAsync(
+        TenantId tenantId,
+        long releaseId,
+        long tenantAppInstanceId,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IAppReleaseOrchestrator
+{
+    Task<ReleaseInstallResult> InstallAsync(
+        TenantId tenantId,
+        long releaseId,
+        long tenantAppInstanceId,
+        CancellationToken cancellationToken = default);
+
+    Task<ReleaseInstallResult> RollbackAsync(
+        TenantId tenantId,
+        long releaseId,
+        long tenantAppInstanceId,
+        CancellationToken cancellationToken = default);
+
+    Task<ReleaseInstallStatusInfo?> GetInstallStatusAsync(
+        TenantId tenantId,
+        long releaseId,
+        long tenantAppInstanceId,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IAppEntryQueryService
+{
+    Task<AppEntryInfo?> GetEntryAsync(
+        TenantId tenantId,
+        string appKey,
+        CancellationToken cancellationToken = default);
+
+    Task<AppEntryLoginBeginResult?> BeginLoginAsync(
+        TenantId tenantId,
+        string appKey,
+        string? redirectUri,
+        CancellationToken cancellationToken = default);
+
+    Task<AppEntryLoginOptions?> GetLoginOptionsAsync(
+        TenantId tenantId,
+        string appKey,
+        CancellationToken cancellationToken = default);
 }
 
 public interface ICozeMappingQueryService

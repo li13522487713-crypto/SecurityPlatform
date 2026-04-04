@@ -1,0 +1,81 @@
+using Atlas.Application.Abstractions;
+using Atlas.Application.Models;
+using Atlas.Core.Identity;
+using Atlas.Core.Models;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+
+namespace Atlas.AppHost.Controllers;
+
+[ApiController]
+[Route("auth/app")]
+public sealed class AppAuthController : ControllerBase
+{
+    private readonly ICurrentUserAccessor currentUserAccessor;
+    private readonly IClientContextAccessor clientContextAccessor;
+    private readonly IAuthTokenService authTokenService;
+
+    public AppAuthController(
+        ICurrentUserAccessor currentUserAccessor,
+        IClientContextAccessor clientContextAccessor,
+        IAuthTokenService authTokenService)
+    {
+        this.currentUserAccessor = currentUserAccessor;
+        this.clientContextAccessor = clientContextAccessor;
+        this.authTokenService = authTokenService;
+    }
+
+    [HttpGet("callback")]
+    [AllowAnonymous]
+    public ActionResult<ApiResponse<object>> Callback([FromQuery] string? redirect)
+    {
+        var safeRedirect = NormalizeRedirect(redirect) ?? "/";
+        return Ok(ApiResponse<object>.Ok(new
+        {
+            success = true,
+            redirect = safeRedirect
+        }, HttpContext.TraceIdentifier));
+    }
+
+    [HttpGet("me")]
+    [Authorize]
+    public ActionResult<ApiResponse<object>> Me()
+    {
+        var user = currentUserAccessor.GetCurrentUserOrThrow();
+        return Ok(ApiResponse<object>.Ok(new
+        {
+            userId = user.UserId,
+            username = user.Username,
+            tenantId = user.TenantId.ToString(),
+            sessionId = user.SessionId
+        }, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost("logout")]
+    [Authorize]
+    public async Task<ActionResult<ApiResponse<object>>> Logout(CancellationToken cancellationToken)
+    {
+        var user = currentUserAccessor.GetCurrentUserOrThrow();
+        if (user.SessionId > 0)
+        {
+            var context = new AuthRequestContext(
+                HttpContext.Connection.RemoteIpAddress?.ToString(),
+                HttpContext.Request.Headers.UserAgent.ToString(),
+                clientContextAccessor.GetCurrent());
+            await authTokenService.RevokeSessionAsync(user.UserId, user.TenantId, user.SessionId, context, cancellationToken);
+        }
+
+        return Ok(ApiResponse<object>.Ok(new { success = true }, HttpContext.TraceIdentifier));
+    }
+
+    private static string? NormalizeRedirect(string? redirect)
+    {
+        if (string.IsNullOrWhiteSpace(redirect))
+        {
+            return null;
+        }
+
+        var trimmed = redirect.Trim();
+        return trimmed.StartsWith("/", StringComparison.Ordinal) ? trimmed : null;
+    }
+}

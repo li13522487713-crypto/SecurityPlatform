@@ -539,6 +539,71 @@ public sealed record ReleasePreCheckResult(
         => new(false, pageCount, tableCount, routeCount, reason);
 }
 
+public sealed record AppPackageBuildResult(
+    string ArtifactId,
+    string ArtifactSha256,
+    string PackagePath,
+    string ManifestPath,
+    string BuiltAt);
+
+public sealed record ReleaseInstallResult(
+    string ReleaseId,
+    string TenantAppInstanceId,
+    string InstallStatus,
+    string RuntimeStatus,
+    string HealthStatus,
+    int? AssignedPort,
+    int? CurrentPid,
+    string? IngressUrl,
+    string? LoginUrl,
+    string? ArtifactId,
+    string? ArtifactSha256,
+    string InstalledAt,
+    string? Message);
+
+public sealed record ReleaseInstallStatusInfo(
+    string ReleaseId,
+    string TenantAppInstanceId,
+    string InstallStatus,
+    string RuntimeStatus,
+    string HealthStatus,
+    int? AssignedPort,
+    int? CurrentPid,
+    string? IngressUrl,
+    string? LoginUrl,
+    string? ArtifactId,
+    string? ArtifactSha256,
+    string LastUpdatedAt,
+    string? Message);
+
+public sealed record AppEntryInfo(
+    string AppKey,
+    string AppName,
+    string? LogoUrl,
+    string Theme,
+    string LoginTitle,
+    string AuthMode,
+    string CallbackUrl,
+    string RuntimeUrl,
+    string LoginUrl);
+
+public sealed record AppEntryLoginBeginRequest(
+    string? RedirectUri);
+
+public sealed record AppEntryLoginBeginResult(
+    string AppKey,
+    string LoginUrl,
+    string RuntimeUrl,
+    string CallbackUrl,
+    string? RedirectUri);
+
+public sealed record AppEntryLoginOptions(
+    string AppKey,
+    string AuthMode,
+    string LoginTitle,
+    string? LogoUrl,
+    string Theme);
+
 public sealed record RuntimeExecutionAuditTrailItem(
     string AuditId,
     string Actor,

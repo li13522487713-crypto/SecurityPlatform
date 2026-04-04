@@ -58,3 +58,22 @@ Idempotency-Key: {{$guid}}
 GET {{baseUrl}}/api/v2/release-center/releases/precheck/1
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
+
+### 安装指定发布到租户应用实例
+POST {{baseUrl}}/api/v2/release-center/releases/1/install/1
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+X-CSRF-TOKEN: {{login.response.headers.X-CSRF-TOKEN}}
+Idempotency-Key: {{$guid}}
+
+### 按实例回滚指定发布
+POST {{baseUrl}}/api/v2/release-center/releases/1/rollback/1
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+X-CSRF-TOKEN: {{login.response.headers.X-CSRF-TOKEN}}
+Idempotency-Key: {{$guid}}
+
+### 查询发布安装状态
+GET {{baseUrl}}/api/v2/release-center/releases/1/install-status/1
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}

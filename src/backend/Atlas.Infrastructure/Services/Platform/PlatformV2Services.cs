@@ -2700,18 +2700,16 @@ public sealed class ReleaseCenterQueryService : IReleaseCenterQueryService
 {
     private readonly ISqlSugarClient _mainDb;
     private readonly Atlas.Infrastructure.Services.IAppDbScopeFactory _appDbScopeFactory;
+    private readonly IAppReleaseOrchestrator _appReleaseOrchestrator;
 
     public ReleaseCenterQueryService(
         ISqlSugarClient db,
-        Atlas.Infrastructure.Services.IAppDbScopeFactory appDbScopeFactory)
+        Atlas.Infrastructure.Services.IAppDbScopeFactory appDbScopeFactory,
+        IAppReleaseOrchestrator appReleaseOrchestrator)
     {
         _mainDb = db;
         _appDbScopeFactory = appDbScopeFactory;
-    }
-
-    public ReleaseCenterQueryService(ISqlSugarClient db)
-        : this(db, new Atlas.Infrastructure.Services.MainOnlyAppDbScopeFactory(db))
-    {
+        _appReleaseOrchestrator = appReleaseOrchestrator;
     }
 
     public async Task<PagedResult<ReleaseCenterListItem>> QueryAsync(
@@ -2920,6 +2918,15 @@ public sealed class ReleaseCenterQueryService : IReleaseCenterQueryService
             recentExecutionCountTask.Result,
             runningExecutionCountTask.Result,
             failedExecutionCountTask.Result);
+    }
+
+    public Task<ReleaseInstallStatusInfo?> GetInstallStatusAsync(
+        TenantId tenantId,
+        long releaseId,
+        long tenantAppInstanceId,
+        CancellationToken cancellationToken = default)
+    {
+        return _appReleaseOrchestrator.GetInstallStatusAsync(tenantId, releaseId, tenantAppInstanceId, cancellationToken);
     }
 
     private static Dictionary<string, string> FlattenSnapshot(string snapshotJson)

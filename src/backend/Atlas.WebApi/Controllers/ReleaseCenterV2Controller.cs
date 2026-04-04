@@ -16,17 +16,20 @@ public sealed class ReleaseCenterV2Controller : ControllerBase
 {
     private readonly IReleaseCenterQueryService _queryService;
     private readonly IAppReleaseCommandService _appReleaseCommandService;
+    private readonly IAppReleaseOrchestrator _appReleaseOrchestrator;
     private readonly ITenantProvider _tenantProvider;
     private readonly ICurrentUserAccessor _currentUserAccessor;
 
     public ReleaseCenterV2Controller(
         IReleaseCenterQueryService queryService,
         IAppReleaseCommandService appReleaseCommandService,
+        IAppReleaseOrchestrator appReleaseOrchestrator,
         ITenantProvider tenantProvider,
         ICurrentUserAccessor currentUserAccessor)
     {
         _queryService = queryService;
         _appReleaseCommandService = appReleaseCommandService;
+        _appReleaseOrchestrator = appReleaseOrchestrator;
         _tenantProvider = tenantProvider;
         _currentUserAccessor = currentUserAccessor;
     }
@@ -130,5 +133,58 @@ public sealed class ReleaseCenterV2Controller : ControllerBase
         var tenantId = _tenantProvider.GetTenantId();
         var result = await _appReleaseCommandService.PreCheckAsync(tenantId, manifestId, cancellationToken);
         return Ok(ApiResponse<ReleasePreCheckResult>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost("{id:long}/install/{tenantAppInstanceId:long}")]
+    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
+    public async Task<ActionResult<ApiResponse<ReleaseInstallResult>>> Install(
+        long id,
+        long tenantAppInstanceId,
+        CancellationToken cancellationToken)
+    {
+        var currentUser = _currentUserAccessor.GetCurrentUser();
+        if (currentUser is null)
+        {
+            return Unauthorized(ApiResponse<ReleaseInstallResult>.Fail(ErrorCodes.Unauthorized, "Unauthorized.", HttpContext.TraceIdentifier));
+        }
+
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _appReleaseOrchestrator.InstallAsync(tenantId, id, tenantAppInstanceId, cancellationToken);
+        return Ok(ApiResponse<ReleaseInstallResult>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost("{id:long}/rollback/{tenantAppInstanceId:long}")]
+    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
+    public async Task<ActionResult<ApiResponse<ReleaseInstallResult>>> RollbackByInstance(
+        long id,
+        long tenantAppInstanceId,
+        CancellationToken cancellationToken)
+    {
+        var currentUser = _currentUserAccessor.GetCurrentUser();
+        if (currentUser is null)
+        {
+            return Unauthorized(ApiResponse<ReleaseInstallResult>.Fail(ErrorCodes.Unauthorized, "Unauthorized.", HttpContext.TraceIdentifier));
+        }
+
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _appReleaseOrchestrator.RollbackAsync(tenantId, id, tenantAppInstanceId, cancellationToken);
+        return Ok(ApiResponse<ReleaseInstallResult>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    [HttpGet("{id:long}/install-status/{tenantAppInstanceId:long}")]
+    [Authorize(Policy = PermissionPolicies.AppsView)]
+    public async Task<ActionResult<ApiResponse<ReleaseInstallStatusInfo>>> GetInstallStatus(
+        long id,
+        long tenantAppInstanceId,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var status = await _queryService.GetInstallStatusAsync(tenantId, id, tenantAppInstanceId, cancellationToken);
+        if (status is null)
+        {
+            return NotFound(ApiResponse<ReleaseInstallStatusInfo>.Fail(ErrorCodes.NotFound, "Install status not found.", HttpContext.TraceIdentifier));
+        }
+
+        return Ok(ApiResponse<ReleaseInstallStatusInfo>.Ok(status, HttpContext.TraceIdentifier));
     }
 }

@@ -132,9 +132,21 @@ internal static class SqliteSchemaAlignment
 
             return new SqliteCatalogCleanupResult(invalidTypeRows, httpRouteRows, duplicateRows);
         }
+        catch (Exception ex) when (IsWritableSchemaRestricted(ex))
+        {
+            // 部分 SQLite 运行环境（只读/受限模式）不允许改写 sqlite_master。
+            // 这里降级为“跳过清理”以避免阻断宿主启动。
+            return new SqliteCatalogCleanupResult(0, 0, 0);
+        }
         finally
         {
-            db.Ado.ExecuteCommand("PRAGMA writable_schema=OFF;");
+            try
+            {
+                db.Ado.ExecuteCommand("PRAGMA writable_schema=OFF;");
+            }
+            catch (Exception ex) when (IsWritableSchemaRestricted(ex))
+            {
+            }
         }
     }
 
@@ -310,6 +322,13 @@ internal static class SqliteSchemaAlignment
         var message = ex.Message ?? string.Empty;
         return message.Contains("after rename", StringComparison.OrdinalIgnoreCase)
                && message.Contains("already exists", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsWritableSchemaRestricted(Exception ex)
+    {
+        var message = ex.Message ?? string.Empty;
+        return message.Contains("sqlite_master", StringComparison.OrdinalIgnoreCase)
+               && message.Contains("may not be modified", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
