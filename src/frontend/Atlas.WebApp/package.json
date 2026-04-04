@@ -2,6 +2,7 @@
   "name": "atlas-webapp",
   "private": true,
   "version": "0.0.0",
+  "deprecated": "This project is being replaced by atlas-platform-web and atlas-app-web. See apps/platform-web and apps/app-web.",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -51,6 +52,9 @@
     "vue-tsc": "^3.2.4"
   },
   "dependencies": {
+    "@atlas/shared-core": "workspace:*",
+    "@atlas/ai-core": "workspace:*",
+    "@atlas/shared-ui": "workspace:*",
     "@antv/x6": "^2.19.2",
     "@antv/x6-plugin-clipboard": "^2.1.6",
     "@antv/x6-plugin-dnd": "^2.1.1",

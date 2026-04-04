@@ -1,0 +1,1 @@
+import{t as e}from"./api-core-DSZkKNll.js";async function t(t){return(await e(`/api/v1/runtime/apps/${encodeURIComponent(t)}/menu`)).data??{appKey:t,items:[]}}export{t};

@@ -14,7 +14,8 @@ public static class AppRuntimeServiceCollectionExtensions
         services.AddApprovalInfrastructure();
         services.AddWorkflowInfrastructure();
         services.AddLowCodeInfrastructure();
-        services.AddAiPlatformInfrastructure(configuration);
+        services.AddAiCoreInfrastructure(configuration);
+        services.AddAiRuntimeInfrastructure();
         services.AddLogicFlowInfrastructure();
         services.AddBatchProcessInfrastructure();
 

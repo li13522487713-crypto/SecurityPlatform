@@ -1,0 +1,29 @@
+{
+  "name": "atlas-app-web",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "lint": "echo 'app-web: lint not configured yet'"
+  },
+  "dependencies": {
+    "@atlas/shared-core": "workspace:*",
+    "@atlas/shared-ui": "workspace:*",
+    "@atlas/ai-core": "workspace:*",
+    "ant-design-vue": "^4.2.6",
+    "pinia": "^3.0.3",
+    "vue": "^3.5.30",
+    "vue-i18n": "^9.14.5",
+    "vue-router": "^4.6.4"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "@vitejs/plugin-vue": "^6.0.5",
+    "typescript": "~5.9.3",
+    "vite": "^8.0.0",
+    "vue-tsc": "^3.2.4"
+  }
+}

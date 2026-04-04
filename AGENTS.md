@@ -29,7 +29,20 @@ dotnet run --project src/backend/Atlas.WebApi   # API 运行于 http://localhost
 dotnet restore
 ```
 
-### 前端
+### 前端（pnpm monorepo）
+```bash
+cd src/frontend
+pnpm install                    # 安装所有 workspace 依赖
+pnpm run dev:platform-web       # PlatformWeb 开发服务器 http://localhost:5180
+pnpm run dev:app-web            # AppWeb 开发服务器 http://localhost:5181
+pnpm run build                  # 构建所有前端项目
+pnpm run build:platform-web     # 仅构建 PlatformWeb
+pnpm run build:app-web          # 仅构建 AppWeb
+pnpm run lint                   # Lint 所有项目
+pnpm run format                 # 格式化所有项目
+```
+
+### 前端（Legacy — 即将废弃）
 ```bash
 cd src/frontend/Atlas.WebApp
 npm install
@@ -152,7 +165,11 @@ npm run i18n:diff-runtime   # 可选：对比 runtime-messages zh/en 叶子 key 
 | 服务 | 端口 | 启动命令 |
 |---|---|---|
 | 后端 API (Atlas.WebApi) | 5000 | `dotnet run --project src/backend/Atlas.WebApi` |
-| 前端开发服务器 (Atlas.WebApp) | 5173 | `cd src/frontend/Atlas.WebApp && npm run dev` |
+| PlatformHost | 5001 | `dotnet run --project src/backend/Atlas.PlatformHost` |
+| AppHost | 5002 | `dotnet run --project src/backend/Atlas.AppHost` |
+| PlatformWeb 开发服务器 | 5180 | `cd src/frontend && pnpm run dev:platform-web` |
+| AppWeb 开发服务器 | 5181 | `cd src/frontend && pnpm run dev:app-web` |
+| 前端 Legacy (Atlas.WebApp) | 5173 | `cd src/frontend/Atlas.WebApp && npm run dev` |
 
 数据库为嵌入式 SQLite（`atlas.db`），无需外部数据库服务。Hangfire（`hangfire.db`）同样为嵌入式 SQLite 存储。首次启动时会自动创建数据库并初始化 BootstrapAdmin 账号。
 

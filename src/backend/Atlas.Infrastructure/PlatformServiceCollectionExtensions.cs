@@ -16,6 +16,7 @@ public static class PlatformServiceCollectionExtensions
         services.AddLicenseInfrastructure(configuration);
         services.AddPlatformInfrastructure();
         services.AddGovernanceInfrastructure();
+        services.AddAiPlatformDesignInfrastructure(configuration);
 
         services.AddScoped<IQuotaService, Atlas.Infrastructure.Governance.QuotaService>();
         services.AddScoped<ICanaryReleaseService, Atlas.Infrastructure.Governance.CanaryReleaseService>();

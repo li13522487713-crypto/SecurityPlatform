@@ -47,31 +47,38 @@ dotnet run --project src/backend/Atlas.AppHost
 dotnet restore
 ```
 
-### Frontend (Vue)
+### Frontend (pnpm monorepo)
 ```bash
-# Navigate to frontend directory
+# Navigate to frontend workspace root
+cd src/frontend
+
+# Install all workspace dependencies
+pnpm install
+
+# Start new independent frontend projects
+pnpm run dev:platform-web      # PlatformWeb on :5180
+pnpm run dev:app-web           # AppWeb on :5181
+
+# Build all frontend projects
+pnpm run build
+pnpm run build:platform-web    # PlatformWeb only
+pnpm run build:app-web         # AppWeb only
+
+# Lint / format all projects
+pnpm run lint
+pnpm run format
+```
+
+### Frontend (Legacy — Atlas.WebApp, deprecated)
+```bash
 cd src/frontend/Atlas.WebApp
-
-# Install dependencies
 npm install
-
-# Start dev server (default, platform-console on http://localhost:5173)
-npm run dev
-
-# Start specific entry dev servers
+npm run dev                    # :5173
 npm run dev:platform-console   # :5173
 npm run dev:app-runtime        # :5174
 npm run dev:app-studio         # :5175
 npm run dev:app-login          # :5176
-
-# Build for production (includes TypeScript type checking)
 npm run build
-
-# Build all entries separately
-npm run build:entries
-
-# Preview production build
-npm run preview
 
 # Run ESLint
 npm run lint
@@ -87,10 +94,12 @@ npm run format
 | PlatformHost | 5001 | Control plane + YARP gateway |
 | AppHost | 5002 | Application runtime data plane |
 | WebApi | 5000 | Legacy monolith (backward compat) |
-| platform-console | 5173 | Frontend: platform management |
-| app-runtime | 5174 | Frontend: application runtime |
-| app-studio | 5175 | Frontend: application designer |
-| app-login | 5176 | Frontend: application login |
+| **PlatformWeb** | **5180** | **New: Independent platform frontend** |
+| **AppWeb** | **5181** | **New: Independent application frontend** |
+| platform-console (legacy) | 5173 | Legacy: platform management |
+| app-runtime (legacy) | 5174 | Legacy: application runtime |
+| app-studio (legacy) | 5175 | Legacy: application designer |
+| app-login (legacy) | 5176 | Legacy: application login |
 
 All frontend dev servers proxy `/api` and `/app-host` to PlatformHost:5001.
 PlatformHost proxies `/app-host/{appKey}/*` to AppHost:5002 via YARP.
@@ -194,19 +203,45 @@ src/
 │       ├── nlog.config                  # Logging setup
 │       └── Bosch.http/                  # REST Client test files
 │
-└── frontend/
-    └── Atlas.WebApp/
+└── frontend/                              # pnpm monorepo workspace
+    ├── package.json                       # Workspace root scripts
+    ├── pnpm-workspace.yaml                # Workspace config
+    ├── tsconfig.base.json                 # Shared TS base config
+    ├── packages/
+    │   ├── shared-core/                   # @atlas/shared-core (auth, types, utils)
+    │   ├── ai-core/                       # @atlas/ai-core (chat types, SSE, markdown)
+    │   └── shared-ui/                     # @atlas/shared-ui (common UI components)
+    ├── apps/
+    │   ├── platform-web/                  # Atlas.PlatformWeb (port 5180)
+    │   │   ├── src/
+    │   │   │   ├── pages/                 # Platform pages (console, system, ai, etc.)
+    │   │   │   ├── layouts/               # ConsoleLayout
+    │   │   │   ├── services/              # Platform API client
+    │   │   │   ├── stores/                # Platform state management
+    │   │   │   ├── i18n/                  # Platform i18n
+    │   │   │   └── router/                # Platform routes
+    │   │   └── vite.config.ts
+    │   └── app-web/                       # Atlas.AppWeb (port 5181)
+    │       ├── src/
+    │       │   ├── pages/                 # App pages (runtime, ai, approval, etc.)
+    │       │   ├── layouts/               # AppRuntimeLayout
+    │       │   ├── services/              # App API client
+    │       │   ├── stores/                # App state management
+    │       │   ├── i18n/                  # App i18n
+    │       │   └── router/                # App routes
+    │       └── vite.config.ts
+    └── Atlas.WebApp/                      # Legacy (deprecated, to be removed)
         ├── src/
-        │   ├── main.ts                  # Vue app entry
-        │   ├── App.vue                  # Root component
-        │   ├── layouts/                 # Layout components
-        │   ├── pages/                   # Feature pages
-        │   ├── router/                  # Route configuration
-        │   ├── services/                # API client (api.ts)
-        │   ├── types/                   # TypeScript interfaces
-        │   └── styles/                  # CSS
-        ├── vite.config.ts               # Vite config with dev proxy
-        └── package.json                 # npm scripts
+        │   ├── main.ts
+        │   ├── App.vue
+        │   ├── layouts/
+        │   ├── pages/
+        │   ├── router/
+        │   ├── services/
+        │   ├── types/
+        │   └── styles/
+        ├── vite.config.ts
+        └── package.json
 ```
 
 ## Coding Standards
@@ -303,9 +338,12 @@ This project must comply with GB/T 22239-2019 (等保2.0) Level 3 requirements. 
 - `X-Tenant-Id: <guid>` - Required for all requests (matches JWT claim)
 
 ### Frontend Integration
-- API client in `src/frontend/Atlas.WebApp/src/services/api.ts`
-- Token stored in `localStorage`
+- **PlatformWeb** API client: `src/frontend/apps/platform-web/src/services/api-core.ts`
+- **AppWeb** API client: `src/frontend/apps/app-web/src/services/api-core.ts`
+- **Shared auth utilities**: `src/frontend/packages/shared-core/src/utils/auth.ts`
+- Token stored in `localStorage` (managed by `@atlas/shared-core`)
 - Vite dev proxy forwards `/api/*` and `/app-host/*` to `http://localhost:5001` (PlatformHost)
+- Legacy API client: `src/frontend/Atlas.WebApp/src/services/api.ts` (deprecated)
 
 ## Development Workflow
 
