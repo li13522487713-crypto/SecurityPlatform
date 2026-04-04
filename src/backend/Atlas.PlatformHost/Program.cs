@@ -8,10 +8,10 @@ using Atlas.Application.Assets.Mappings;
 using Atlas.Application.Options;
 using Atlas.Application.Resources;
 using Atlas.Infrastructure;
-using Atlas.WebApi.Middlewares;
+using Atlas.Presentation.Shared.Middlewares;
 using Hangfire;
 using Hangfire.Storage.SQLite;
-using Atlas.WebApi.Tenancy;
+using Atlas.Presentation.Shared.Tenancy;
 using Atlas.WorkflowCore;
 using Atlas.WorkflowCore.DSL;
 using Microsoft.AspNetCore.Authentication;
@@ -26,10 +26,10 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using System.Threading.RateLimiting;
-using Atlas.WebApi.Authorization;
-using Atlas.WebApi.Filters;
-using Atlas.WebApi.Mappings;
-using Atlas.WebApi.Security;
+using Atlas.Presentation.Shared.Authorization;
+using Atlas.Presentation.Shared.Filters;
+using Atlas.Presentation.Shared.Mappings;
+using Atlas.Presentation.Shared.Security;
 using Atlas.Application.Abstractions;
 using Atlas.Core.Tenancy;
 using Atlas.Infrastructure.Configuration;
@@ -46,17 +46,11 @@ using Yarp.ReverseProxy.Configuration;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ─── 配置来源：复用 WebApi 的 appsettings + atlas.db ───
-var legacyConfigRoot = Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, "..", "Atlas.WebApi"));
-builder.Configuration
-    .AddJsonFile(Path.Combine(legacyConfigRoot, "appsettings.json"), optional: true, reloadOnChange: false)
-    .AddJsonFile(
-        Path.Combine(legacyConfigRoot, $"appsettings.{builder.Environment.EnvironmentName}.json"),
-        optional: true,
-        reloadOnChange: false);
+// ─── 配置来源 ───
+var dbPath = Path.Combine(builder.Environment.ContentRootPath, "atlas.db");
 builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
 {
-    ["Database:ConnectionString"] = $"Data Source={Path.Combine(legacyConfigRoot, "atlas.db")}"
+    ["Database:ConnectionString"] = $"Data Source={dbPath}"
 });
 
 DatabaseConfigurationSource? databaseConfigurationSource = null;
@@ -89,20 +83,17 @@ if (builder.Environment.IsDevelopment())
 builder.Logging.ClearProviders();
 builder.Host.UseNLog();
 
-// ─── Controllers + WebApi ApplicationPart ───
+// ─── Controllers ───
 var mvcBuilder = builder.Services.AddControllers(options =>
 {
     options.Filters.Add<IdempotencyFilter>();
 })
-.AddApplicationPart(typeof(Atlas.WebApi.Controllers.AuthController).Assembly)
 .AddJsonOptions(options =>
 {
-    options.JsonSerializerOptions.Converters.Add(new Atlas.WebApi.Json.FlexibleLongJsonConverter());
-    options.JsonSerializerOptions.Converters.Add(new Atlas.WebApi.Json.FlexibleNullableLongJsonConverter());
-    options.JsonSerializerOptions.Converters.Add(new Atlas.WebApi.Json.SensitiveObjectConverterFactory());
+    options.JsonSerializerOptions.Converters.Add(new Atlas.Presentation.Shared.Json.FlexibleLongJsonConverter());
+    options.JsonSerializerOptions.Converters.Add(new Atlas.Presentation.Shared.Json.FlexibleNullableLongJsonConverter());
+    options.JsonSerializerOptions.Converters.Add(new Atlas.Presentation.Shared.Json.SensitiveObjectConverterFactory());
 });
-mvcBuilder.PartManager.FeatureProviders.Add(
-    new Atlas.WebApi.Filters.HostControllerFeatureProvider(Atlas.WebApi.Filters.HostType.PlatformHost));
 
 builder.Services.AddOpenApiDocument(config =>
 {
@@ -124,7 +115,7 @@ builder.Services.Configure<ApprovalSeedDataOptions>(builder.Configuration.GetSec
 builder.Services.Configure<TenancyOptions>(builder.Configuration.GetSection("Tenancy"));
 builder.Services.Configure<IdempotencyOptions>(builder.Configuration.GetSection("Idempotency"));
 builder.Services.Configure<TableViewDefaultOptions>(builder.Configuration.GetSection("TableViewDefaults"));
-builder.Services.Configure<Atlas.WebApi.Identity.AppOptions>(builder.Configuration.GetSection("App"));
+builder.Services.Configure<Atlas.Presentation.Shared.Identity.AppOptions>(builder.Configuration.GetSection("App"));
 builder.Services.Configure<Atlas.Application.Options.DatabaseInitializerOptions>(builder.Configuration.GetSection("DatabaseInitializer"));
 
 // ─── OIDC/SSO ───
@@ -249,10 +240,10 @@ builder.Services.AddOpenTelemetry()
 // ─── DI：HttpContext-based identity/tenant ───
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ITenantProvider, HttpContextTenantProvider>();
-builder.Services.AddScoped<Atlas.Core.Identity.ICurrentUserAccessor, Atlas.WebApi.Identity.HttpContextCurrentUserAccessor>();
-builder.Services.AddScoped<Atlas.Core.Identity.IClientContextAccessor, Atlas.WebApi.Identity.HttpContextClientContextAccessor>();
-builder.Services.AddScoped<Atlas.Core.Identity.IAppContextAccessor, Atlas.WebApi.Identity.HttpContextAppContextAccessor>();
-builder.Services.AddScoped<Atlas.Core.Identity.IProjectContextAccessor, Atlas.WebApi.Identity.HttpContextProjectContextAccessor>();
+builder.Services.AddScoped<Atlas.Core.Identity.ICurrentUserAccessor, Atlas.Presentation.Shared.Identity.HttpContextCurrentUserAccessor>();
+builder.Services.AddScoped<Atlas.Core.Identity.IClientContextAccessor, Atlas.Presentation.Shared.Identity.HttpContextClientContextAccessor>();
+builder.Services.AddScoped<Atlas.Core.Identity.IAppContextAccessor, Atlas.Presentation.Shared.Identity.HttpContextAppContextAccessor>();
+builder.Services.AddScoped<Atlas.Core.Identity.IProjectContextAccessor, Atlas.Presentation.Shared.Identity.HttpContextProjectContextAccessor>();
 builder.Services.AddScoped<IdempotencyFilter>();
 
 // ─── FluentValidation ───
@@ -265,7 +256,7 @@ builder.Services.AddValidatorsFromAssemblies([
     typeof(Atlas.Application.Audit.Validators.AuditRecordValidator).Assembly,
     typeof(Atlas.Application.AgentTeam.Validators.AgentTeamCreateRequestValidator).Assembly,
     typeof(Atlas.Application.Workflow.Validators.PublishEventRequestValidator).Assembly,
-    typeof(Atlas.WebApi.Validators.ChangePasswordViewModelValidator).Assembly,
+    typeof(Atlas.Presentation.Shared.Validators.ChangePasswordViewModelValidator).Assembly,
 ]);
 
 // ─── Security validation (production) ───
@@ -467,7 +458,7 @@ builder.Services.AddAuthorization(options =>
 builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
 builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
 builder.Services.AddSingleton<IAuthorizationMiddlewareResultHandler, ApiAuthorizationMiddlewareResultHandler>();
-builder.Services.AddSingleton<Atlas.WebApi.Services.MigrationGovernanceMetricsStore>();
+builder.Services.AddSingleton<Atlas.Presentation.Shared.Services.MigrationGovernanceMetricsStore>();
 
 // ─── Rate Limiter ───
 builder.Services.AddRateLimiter(options =>

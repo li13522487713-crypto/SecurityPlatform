@@ -1,0 +1,10 @@
+global using Atlas.Presentation.Shared.Authorization;
+global using Atlas.Presentation.Shared.Filters;
+global using Atlas.Presentation.Shared.Helpers;
+global using Atlas.Presentation.Shared.Identity;
+global using Atlas.Presentation.Shared.Json;
+global using Atlas.Presentation.Shared.Middlewares;
+global using Atlas.Presentation.Shared.Models;
+global using Atlas.Presentation.Shared.Security;
+global using Atlas.Presentation.Shared.Tenancy;
+global using Atlas.Presentation.Shared.Attributes;

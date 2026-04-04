@@ -14,9 +14,9 @@ using Atlas.Application.Resources;
 using Atlas.Core.Identity;
 using Atlas.Core.Tenancy;
 using Atlas.Infrastructure;
-using Atlas.WebApi.Filters;
-using Atlas.WebApi.Mappings;
-using Atlas.WebApi.Middlewares;
+using Atlas.Presentation.Shared.Filters;
+using Atlas.Presentation.Shared.Mappings;
+using Atlas.Presentation.Shared.Middlewares;
 using Atlas.WorkflowCore;
 using Atlas.WorkflowCore.DSL;
 using FluentValidation;
@@ -33,17 +33,18 @@ using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 
 var builder = WebApplication.CreateBuilder(args);
-var legacyConfigRoot = Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, "..", "Atlas.WebApi"));
+var platformConfigRoot = Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, "..", "Atlas.PlatformHost"));
 
 builder.Configuration
-    .AddJsonFile(Path.Combine(legacyConfigRoot, "appsettings.json"), optional: true, reloadOnChange: false)
+    .AddJsonFile(Path.Combine(platformConfigRoot, "appsettings.json"), optional: true, reloadOnChange: false)
     .AddJsonFile(
-        Path.Combine(legacyConfigRoot, $"appsettings.{builder.Environment.EnvironmentName}.json"),
+        Path.Combine(platformConfigRoot, $"appsettings.{builder.Environment.EnvironmentName}.json"),
         optional: true,
         reloadOnChange: false);
+var dbPath = Path.Combine(platformConfigRoot, "atlas.db");
 builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
 {
-    ["Database:ConnectionString"] = $"Data Source={Path.Combine(legacyConfigRoot, "atlas.db")}"
+    ["Database:ConnectionString"] = $"Data Source={dbPath}"
 });
 
 if (builder.Environment.IsDevelopment()
@@ -64,26 +65,23 @@ builder.Services.Configure<PasswordPolicyOptions>(builder.Configuration.GetSecti
 builder.Services.Configure<LockoutPolicyOptions>(builder.Configuration.GetSection("Security:LockoutPolicy"));
 builder.Services.Configure<BootstrapAdminOptions>(builder.Configuration.GetSection("Security:BootstrapAdmin"));
 builder.Services.Configure<ApprovalSeedDataOptions>(builder.Configuration.GetSection("Approval:SeedData"));
-builder.Services.Configure<Atlas.WebApi.Tenancy.TenancyOptions>(builder.Configuration.GetSection("Tenancy"));
+builder.Services.Configure<Atlas.Presentation.Shared.Tenancy.TenancyOptions>(builder.Configuration.GetSection("Tenancy"));
 builder.Services.Configure<IdempotencyOptions>(builder.Configuration.GetSection("Idempotency"));
 builder.Services.Configure<TableViewDefaultOptions>(builder.Configuration.GetSection("TableViewDefaults"));
-builder.Services.Configure<Atlas.WebApi.Identity.AppOptions>(builder.Configuration.GetSection("App"));
+builder.Services.Configure<Atlas.Presentation.Shared.Identity.AppOptions>(builder.Configuration.GetSection("App"));
 builder.Services.Configure<Atlas.Application.Options.DatabaseInitializerOptions>(builder.Configuration.GetSection("DatabaseInitializer"));
 
-// ─── Controllers + WebApi ApplicationPart ───
+// ─── Controllers ───
 var mvcBuilder = builder.Services.AddControllers(options =>
 {
     options.Filters.Add<IdempotencyFilter>();
 })
-.AddApplicationPart(typeof(Atlas.WebApi.Controllers.AuthController).Assembly)
 .AddJsonOptions(options =>
 {
-    options.JsonSerializerOptions.Converters.Add(new Atlas.WebApi.Json.FlexibleLongJsonConverter());
-    options.JsonSerializerOptions.Converters.Add(new Atlas.WebApi.Json.FlexibleNullableLongJsonConverter());
-    options.JsonSerializerOptions.Converters.Add(new Atlas.WebApi.Json.SensitiveObjectConverterFactory());
+    options.JsonSerializerOptions.Converters.Add(new Atlas.Presentation.Shared.Json.FlexibleLongJsonConverter());
+    options.JsonSerializerOptions.Converters.Add(new Atlas.Presentation.Shared.Json.FlexibleNullableLongJsonConverter());
+    options.JsonSerializerOptions.Converters.Add(new Atlas.Presentation.Shared.Json.SensitiveObjectConverterFactory());
 });
-mvcBuilder.PartManager.FeatureProviders.Add(
-    new Atlas.WebApi.Filters.HostControllerFeatureProvider(Atlas.WebApi.Filters.HostType.AppHost));
 
 builder.Services.AddOpenApiDocument(config =>
 {
@@ -142,7 +140,7 @@ builder.Services.AddValidatorsFromAssemblies([
     typeof(Atlas.Application.Audit.Validators.AuditRecordValidator).Assembly,
     typeof(Atlas.Application.AgentTeam.Validators.AgentTeamCreateRequestValidator).Assembly,
     typeof(Atlas.Application.Workflow.Validators.PublishEventRequestValidator).Assembly,
-    typeof(Atlas.WebApi.Validators.ChangePasswordViewModelValidator).Assembly,
+    typeof(Atlas.Presentation.Shared.Validators.ChangePasswordViewModelValidator).Assembly,
 ]);
 
 // ─── AppHost SDK ───

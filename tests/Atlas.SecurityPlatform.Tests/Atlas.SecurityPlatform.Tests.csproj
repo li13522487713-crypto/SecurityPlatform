@@ -22,7 +22,8 @@
     <ProjectReference Include="..\..\src\backend\Atlas.Application\Atlas.Application.csproj" />
     <ProjectReference Include="..\..\src\backend\Atlas.Application.Audit\Atlas.Application.Audit.csproj" />
     <ProjectReference Include="..\..\src\backend\Atlas.Infrastructure\Atlas.Infrastructure.csproj" />
-    <ProjectReference Include="..\..\src\backend\Atlas.WebApi\Atlas.WebApi.csproj" />
+    <ProjectReference Include="..\..\src\backend\Atlas.Presentation.Shared\Atlas.Presentation.Shared.csproj" />
+    <ProjectReference Include="..\..\src\backend\Atlas.PlatformHost\Atlas.PlatformHost.csproj" />
   </ItemGroup>
 
   <ItemGroup>

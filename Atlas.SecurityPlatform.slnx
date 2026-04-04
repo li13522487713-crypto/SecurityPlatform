@@ -27,7 +27,7 @@
     <Project Path="src/backend/Atlas.PlatformHost/Atlas.PlatformHost.csproj" />
     <Project Path="src/backend/Atlas.Sdk.LogicFlowPlugins/Atlas.Sdk.LogicFlowPlugins.csproj" />
     <Project Path="src/backend/Atlas.Shared.Contracts/Atlas.Shared.Contracts.csproj" />
-    <Project Path="src/backend/Atlas.WebApi/Atlas.WebApi.csproj" />
+    <Project Path="src/backend/Atlas.Presentation.Shared/Atlas.Presentation.Shared.csproj" />
     <Project Path="src/backend/Atlas.WorkflowCore.DSL/Atlas.WorkflowCore.DSL.csproj" />
     <Project Path="src/backend/Atlas.WorkflowCore/Atlas.WorkflowCore.csproj" />
   </Folder>

@@ -3,9 +3,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <!-- 引用 Atlas.WebApi 程序集（共享控制器/中间件），两个 Web SDK 项目各自的顶层语句
-         均生成 internal partial class Program，CS0436 类型冲突为预期行为，安全抑制。 -->
-    <NoWarn>$(NoWarn);CS0436</NoWarn>
+    <EnableDefaultContentItems>false</EnableDefaultContentItems>
   </PropertyGroup>
 
   <ItemGroup>
@@ -26,7 +24,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Atlas.WebApi\Atlas.WebApi.csproj" />
+    <ProjectReference Include="..\Atlas.Presentation.Shared\Atlas.Presentation.Shared.csproj" />
     <ProjectReference Include="..\Atlas.Application\Atlas.Application.csproj" />
     <ProjectReference Include="..\Atlas.Application.AgentTeam\Atlas.Application.AgentTeam.csproj" />
     <ProjectReference Include="..\Atlas.Application.Alert\Atlas.Application.Alert.csproj" />
@@ -38,5 +36,19 @@
     <ProjectReference Include="..\Atlas.Infrastructure\Atlas.Infrastructure.csproj" />
     <ProjectReference Include="..\Atlas.Core\Atlas.Core.csproj" />
     <ProjectReference Include="..\Atlas.Shared.Contracts\Atlas.Shared.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="nlog.config" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="AmisSchemas\**\*.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="appsettings.json" CopyToOutputDirectory="Always" />
+    <Content Include="appsettings.*.json" CopyToOutputDirectory="Always" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="Bosch.http\*.http" />
   </ItemGroup>
 </Project>
