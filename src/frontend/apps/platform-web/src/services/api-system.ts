@@ -1,5 +1,6 @@
 import type {
   ApiResponse,
+  AuditListItem,
   PagedRequest,
   PagedResult,
   AppConfigListItem,
@@ -23,6 +24,24 @@ import type {
   DataSourceSchemaResult,
 } from "@atlas/shared-core";
 import { requestApi, toQuery } from "./api-core";
+
+export interface AlertListItem {
+  id: string;
+  title: string;
+  severity?: string;
+  status?: string;
+  source?: string;
+  createdAt: string;
+}
+
+export interface AssetListItem {
+  id: string;
+  name: string;
+  type?: string;
+  status?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
 
 export async function getAppConfigsPaged(pagedRequest: PagedRequest) {
   const query = toQuery(pagedRequest);
@@ -123,6 +142,31 @@ export async function getMyProjects() {
 export async function getMyProjectsPaged(pagedRequest: PagedRequest) {
   const query = toQuery(pagedRequest);
   const response = await requestApi<ApiResponse<PagedResult<ProjectListItem>>>(`/projects/my/paged?${query}`);
+  if (!response.data) throw new Error(response.message || "查询失败");
+  return response.data;
+}
+
+export async function getAssetsPaged(pagedRequest: PagedRequest) {
+  const query = toQuery(pagedRequest);
+  const response = await requestApi<ApiResponse<PagedResult<AssetListItem>>>(`/assets?${query}`);
+  if (!response.data) throw new Error(response.message || "查询失败");
+  return response.data;
+}
+
+export async function getAuditsPaged(
+  pagedRequest: PagedRequest,
+  extra?: { action?: string; result?: string }
+) {
+  const query = toQuery(pagedRequest, { action: extra?.action, result: extra?.result });
+  const response = await requestApi<ApiResponse<PagedResult<AuditListItem>>>(`/audit?${query}`);
+  if (!response.data) throw new Error(response.message || "查询失败");
+  return response.data;
+}
+
+export async function getAlertsPaged(pagedRequest: PagedRequest & { severity?: string }) {
+  const { severity, ...paged } = pagedRequest;
+  const query = toQuery(paged, { severity });
+  const response = await requestApi<ApiResponse<PagedResult<AlertListItem>>>(`/alert?${query}`);
   if (!response.data) throw new Error(response.message || "查询失败");
   return response.data;
 }

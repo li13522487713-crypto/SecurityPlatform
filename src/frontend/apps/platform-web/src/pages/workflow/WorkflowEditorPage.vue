@@ -1,12 +1,611 @@
 <template>
-  <div style="padding: 24px;">
-    <a-card>
-      <a-result status="info" :title="t('route.workflowEditor')" sub-title="Page migration pending..." />
-    </a-card>
+  <div class="workflow-editor-page">
+    <!-- 顶部工具栏 -->
+    <div class="editor-header">
+      <div class="header-left">
+        <a-button type="text" style="color:#fff" @click="backToList">
+          <LeftOutlined />
+        </a-button>
+        <a-input
+          v-model:value="workflowName"
+          class="name-input"
+          @blur="handleNameBlur"
+          @press-enter="handleNameBlur"
+        />
+      </div>
+      <div class="header-right">
+        <a-space>
+          <a-tag v-if="isDirty" color="orange">{{ t('workflow.editorUnsaved') }}</a-tag>
+          <a-button :loading="saving" @click="handleSaveDraft">{{ t('workflow.saveDraft') }}</a-button>
+          <a-button type="primary" @click="showPublishModal = true">{{ t('workflow.publish') }}</a-button>
+          <a-button :type="showTestPanel ? 'primary' : 'default'" @click="showTestPanel = !showTestPanel">
+            <PlayCircleOutlined />
+            {{ t('workflow.testRunToolbar') }}
+          </a-button>
+        </a-space>
+      </div>
+    </div>
+
+    <div class="editor-body">
+      <!-- 左侧节点面板 -->
+      <NodePanel @drag-start="handleNodeDragStart" />
+
+      <!-- 中央 Vue Flow 画布 -->
+      <div class="canvas-container" @dragover.prevent @drop="handleDrop">
+        <VueFlow
+          v-model:nodes="vfNodes"
+          v-model:edges="vfEdges"
+          :node-types="nodeTypes"
+          :default-edge-options="defaultEdgeOptions"
+          :connection-mode="ConnectionMode.Loose"
+          :fit-view-on-init="true"
+          class="workflow-canvas"
+          @node-click="handleNodeClick"
+          @pane-click="handlePaneClick"
+          @connect="handleConnect"
+          @nodes-change="handleNodesChange"
+          @edges-change="handleEdgesChange"
+        >
+          <Controls />
+          <MiniMap
+            :pannable="true"
+            :zoomable="true"
+            :node-color="getNodeStatusColor"
+            style="background: #0d1117; border: 1px solid #21262d;"
+          />
+        </VueFlow>
+      </div>
+
+      <!-- 右侧属性面板（节点未选中且未开测试时不显示） -->
+      <PropertiesPanel
+        v-if="selectedNode && !showTestPanel"
+        :node="selectedNode"
+        :node-types-metadata="nodeTypesMetadata"
+        @update="handleNodeConfigUpdate"
+        @close="selectedNode = null"
+      />
+
+      <!-- 右侧测试运行面板 -->
+      <TestRunPanel
+        v-if="showTestPanel"
+        :workflow-id="workflowId"
+        :versions="workflowVersions"
+        @close="showTestPanel = false"
+        @publish="showPublishModal = true"
+        @node-status-update="handleNodeStatusUpdate"
+      />
+    </div>
+
+    <!-- 发布弹窗 -->
+    <a-modal
+      v-model:open="showPublishModal"
+      :title="t('workflow.publishModalTitle')"
+      :confirm-loading="publishing"
+      :ok-text="t('workflow.publishOk')"
+      :cancel-text="t('common.cancel')"
+      @ok="handlePublish"
+    >
+      <a-form layout="vertical">
+        <a-form-item :label="t('workflow.labelChangelog')">
+          <a-textarea v-model:value="changeLog" :rows="3" :placeholder="t('workflow.phChangelog')" />
+        </a-form-item>
+      </a-form>
+    </a-modal>
   </div>
 </template>
 
 <script setup lang="ts">
-import { useI18n } from "vue-i18n";
-const { t } = useI18n();
+import { ref, computed, onMounted, markRaw, type Component, onUnmounted } from 'vue'
+import { useI18n } from 'vue-i18n'
+
+const isMounted = ref(false);
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
+
+import { useRoute, useRouter } from 'vue-router'
+import { message } from 'ant-design-vue'
+import {
+  LeftOutlined,
+  PlayCircleOutlined,
+} from '@ant-design/icons-vue'
+import {
+  VueFlow,
+  type Node as VfNode,
+  type Edge as VfEdge,
+  ConnectionMode,
+  type Connection,
+  type NodeChange,
+  type EdgeChange,
+} from '@vue-flow/core'
+import { Controls } from '@vue-flow/controls'
+import { MiniMap } from '@vue-flow/minimap'
+import '@vue-flow/core/dist/style.css'
+import '@vue-flow/core/dist/theme-default.css'
+import '@vue-flow/controls/dist/style.css'
+import '@vue-flow/minimap/dist/style.css'
+
+import NodePanel from '@/components/workflow/panels/NodePanel.vue'
+import PropertiesPanel from '@/components/workflow/panels/PropertiesPanel.vue'
+import TestRunPanel from '@/components/workflow/panels/TestRunPanel.vue'
+import WorkflowNodeRenderer from '@/components/workflow/nodes/WorkflowNodeRenderer.vue'
+
+import { workflowV2Api } from '@/services/api-workflow-v2'
+import { resolveCurrentAppId } from '@/utils/app-context'
+import { normalizeNodeTypeKey } from '@/types/workflow-v2'
+import type { CanvasSchema, ConnectionSchema, NodeSchema, NodeTypeMetadata, WorkflowVersionItem } from '@/types/workflow-v2'
+
+const { t } = useI18n()
+const route = useRoute()
+const router = useRouter()
+const workflowId = computed(() => String(route.params.id ?? ''))
+
+const workflowName = ref('')
+const isDirty = ref(false)
+const saving = ref(false)
+const publishing = ref(false)
+const showPublishModal = ref(false)
+const showTestPanel = ref(false)
+const changeLog = ref('')
+const selectedNode = ref<NodeSchema | null>(null)
+const nodeTypesMetadata = ref<NodeTypeMetadata[]>([])
+const workflowVersions = ref<WorkflowVersionItem[]>([])
+
+const vfNodes = ref<VfNode[]>([])
+const vfEdges = ref<VfEdge[]>([])
+
+// 节点执行状态（key → status string）
+const nodeRunStatus = ref<Record<string, string>>({})
+
+const _nr = markRaw(WorkflowNodeRenderer) as Component
+const nodeTypes: Record<string, Component> = {
+  Entry: _nr,
+  Exit: _nr,
+  Llm: _nr,
+  Agent: _nr,
+  Plugin: _nr,
+  Selector: _nr,
+  Loop: _nr,
+  SubWorkflow: _nr,
+  CodeRunner: _nr,
+  HttpRequester: _nr,
+  DatabaseQuery: _nr,
+  AssignVariable: _nr,
+  VariableAggregator: _nr,
+  JsonSerialization: _nr,
+  JsonDeserialization: _nr,
+  TextProcessor: _nr,
+  // 兼容历史草稿中的旧键名
+  LLM: _nr,
+  If: _nr,
+}
+
+const defaultEdgeOptions = {
+  type: 'smoothstep',
+  animated: false,
+  style: { stroke: '#4b5563', strokeWidth: 2 },
+}
+
+let draggingNodeType: string | null = null
+
+function backToList() {
+  const currentAppId = resolveCurrentAppId(route)
+  if (!currentAppId) {
+    router.push('/console/apps')
+    return
+  }
+  router.push(`/apps/${currentAppId}/workflows`)
+}
+
+const currentCanvas = computed<CanvasSchema>(() => {
+  const nodes: NodeSchema[] = vfNodes.value.map(n => ({
+    key: n.id,
+    type: (n.type ?? 'Unknown') as NodeSchema['type'],
+    title: (n.data?.title as string) ?? n.type ?? '',
+    layout: { x: n.position.x, y: n.position.y, width: 160, height: 60 },
+    configs: (n.data?.configs as Record<string, unknown>) ?? {},
+    inputMappings: (n.data?.inputMappings as Record<string, string>) ?? {},
+  }))
+
+  const connections: ConnectionSchema[] = vfEdges.value.map((e, i) => ({
+    fromNode: e.source,
+    fromPort: e.sourceHandle ?? 'output',
+    toNode: e.target,
+    toPort: e.targetHandle ?? 'input',
+    condition: null,
+  }))
+
+  return { nodes, connections }
+})
+
+async function loadWorkflow() {
+  try {
+    const res = await workflowV2Api.getDetail(workflowId.value)
+    if (res.success && res.data) {
+      workflowName.value = res.data.name
+      if (res.data.canvasJson) {
+        const canvas = JSON.parse(res.data.canvasJson) as CanvasSchema
+        applyCanvasToVueFlow(canvas)
+      } else {
+        initDefaultCanvas()
+      }
+    }
+    // 加载版本列表
+    const vRes = await workflowV2Api.getVersions(workflowId.value)
+    if (vRes.success && vRes.data) {
+      workflowVersions.value = vRes.data
+    }
+  } catch {
+    workflowName.value = t('workflow.defaultName')
+    initDefaultCanvas()
+  }
+}
+
+async function loadNodeTypes() {
+  try {
+    const res = await workflowV2Api.getNodeTypes()
+    if (res.success && res.data) {
+      nodeTypesMetadata.value = res.data
+    }
+  } catch {
+    // ignore
+  }
+}
+
+function applyCanvasToVueFlow(canvas: CanvasSchema) {
+  const toVfNode = (n: NodeSchema): VfNode => {
+    const nodeType = String(n.type)
+    return {
+      id: n.key,
+      type: nodeType,
+      position: { x: n.layout?.x ?? 0, y: n.layout?.y ?? 0 },
+      data: {
+        title: n.title,
+        configs: n.configs,
+        inputMappings: n.inputMappings,
+        nodeType,
+        __status: nodeRunStatus.value[n.key] ?? '',
+      },
+    }
+  }
+
+  const toVfEdge = (c: ConnectionSchema, i: number): VfEdge => ({
+    id: `e-${c.fromNode}-${c.toNode}-${i}`,
+    source: c.fromNode,
+    sourceHandle: c.fromPort ?? 'output',
+    target: c.toNode,
+    targetHandle: c.toPort ?? 'input',
+    type: 'smoothstep',
+    style: { stroke: '#4b5563', strokeWidth: 2 },
+  })
+
+  vfNodes.value = canvas.nodes.map(toVfNode)
+  vfEdges.value = canvas.connections.map(toVfEdge)
+
+  isDirty.value = false
+}
+
+function initDefaultCanvas() {
+  vfNodes.value = [
+    {
+      id: 'entry_1',
+      type: 'Entry',
+      position: { x: 100, y: 200 },
+      data: { title: t('workflow.nodeStart'), configs: {}, inputMappings: {}, nodeType: 'Entry', __status: '' },
+    },
+    {
+      id: 'exit_1',
+      type: 'Exit',
+      position: { x: 600, y: 200 },
+      data: { title: t('workflow.nodeEnd'), configs: {}, inputMappings: {}, nodeType: 'Exit', __status: '' },
+    },
+  ]
+  vfEdges.value = [
+    {
+      id: 'e-entry-exit',
+      source: 'entry_1',
+      target: 'exit_1',
+      type: 'smoothstep',
+      style: { stroke: '#4b5563', strokeWidth: 2 },
+    },
+  ]
+  isDirty.value = false
+}
+
+async function handleSaveDraft() {
+  saving.value = true
+  try {
+    const canvasJson = JSON.stringify(currentCanvas.value)
+    const res = await workflowV2Api.saveDraft(workflowId.value, { canvasJson })
+    if (res.success) {
+      isDirty.value = false
+      message.success(t('workflow.draftSaved'))
+    }
+  } finally {
+    saving.value = false
+  }
+}
+
+async function handlePublish() {
+  publishing.value = true
+  try {
+    const canvasJson = JSON.stringify(currentCanvas.value)
+    await workflowV2Api.saveDraft(workflowId.value, { canvasJson })
+
+    const res = await workflowV2Api.publish(workflowId.value, { changeLog: changeLog.value })
+    if (res.success) {
+      showPublishModal.value = false
+      message.success(t('workflow.publishSuccess'))
+      changeLog.value = ''
+      // 刷新版本列表
+      const vRes = await workflowV2Api.getVersions(workflowId.value)
+      if (vRes.success && vRes.data) {
+        workflowVersions.value = vRes.data
+      }
+    }
+  } finally {
+    publishing.value = false
+  }
+}
+
+async function handleNameBlur() {
+  if (!workflowName.value.trim()) return
+  await workflowV2Api.updateMeta(workflowId.value, {
+    name: workflowName.value,
+    description: '',
+  })
+}
+
+function handleNodeClick(event: { node: VfNode }) {
+  const vfNode = event.node
+  selectedNode.value = {
+    key: vfNode.id,
+    type: (vfNode.type ?? 'Unknown') as NodeSchema['type'],
+    title: (vfNode.data?.title as string) ?? '',
+    layout: { x: vfNode.position.x, y: vfNode.position.y, width: 160, height: 60 },
+    configs: (vfNode.data?.configs as Record<string, unknown>) ?? {},
+    inputMappings: (vfNode.data?.inputMappings as Record<string, string>) ?? {},
+  }
+}
+
+function handlePaneClick() {
+  selectedNode.value = null
+}
+
+function handleConnect(params: Connection) {
+  const newEdge: VfEdge = {
+    id: `e-${params.source}-${params.target}-${Date.now()}`,
+    source: params.source!,
+    sourceHandle: params.sourceHandle,
+    target: params.target!,
+    targetHandle: params.targetHandle,
+    type: 'smoothstep',
+    style: { stroke: '#4b5563', strokeWidth: 2 },
+  }
+  vfEdges.value.push(newEdge as any)
+  isDirty.value = true
+}
+
+function handleNodesChange(changes: NodeChange[]) {
+  if (changes.some(c => c.type !== 'select' && c.type !== 'dimensions')) {
+    isDirty.value = true
+  }
+}
+
+function handleEdgesChange(changes: EdgeChange[]) {
+  if (changes.some(c => c.type !== 'select')) {
+    isDirty.value = true
+  }
+}
+
+function handleNodeDragStart(nodeType: string) {
+  draggingNodeType = nodeType
+}
+
+function handleDrop(event: DragEvent) {
+  if (!draggingNodeType) return
+  const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
+  const x = event.clientX - rect.left - 80
+  const y = event.clientY - rect.top - 30
+  const nodeKey = `${draggingNodeType.toLowerCase()}_${Date.now()}`
+
+  const normalizedDraggingType = normalizeNodeTypeKey(draggingNodeType)
+  const meta = nodeTypesMetadata.value.find(m => normalizeNodeTypeKey(String(m.key)) === normalizedDraggingType)
+  const title = meta?.name ?? draggingNodeType
+
+  vfNodes.value = vfNodes.value.concat({
+    id: nodeKey,
+    type: normalizedDraggingType,
+    position: { x, y },
+    data: { title, configs: {}, inputMappings: {}, nodeType: normalizedDraggingType, __status: '' },
+  })
+
+  isDirty.value = true
+  draggingNodeType = null
+}
+
+function handleNodeConfigUpdate(
+  nodeKey: string,
+  configs: Record<string, unknown>,
+  inputMappings: Record<string, string>,
+  title: string
+) {
+  const idx = vfNodes.value.findIndex(n => n.id === nodeKey)
+  if (idx !== -1) {
+    const updated = [...vfNodes.value]
+    updated[idx] = {
+      ...updated[idx],
+      data: { ...updated[idx].data, configs, inputMappings, title },
+    }
+    vfNodes.value = updated
+
+    // 同步更新 selectedNode
+    if (selectedNode.value?.key === nodeKey) {
+      selectedNode.value = { ...selectedNode.value, configs, inputMappings, title }
+    }
+    isDirty.value = true
+  }
+}
+
+// 测试执行时高亮节点状态
+function handleNodeStatusUpdate(nodeKey: string, status: string) {
+  nodeRunStatus.value = { ...nodeRunStatus.value, [nodeKey]: status }
+  const idx = vfNodes.value.findIndex(n => n.id === nodeKey)
+  if (idx !== -1) {
+    const updated = [...vfNodes.value]
+    updated[idx] = {
+      ...updated[idx],
+      data: { ...updated[idx].data, __status: status },
+    }
+    vfNodes.value = updated
+  }
+}
+
+function getNodeStatusColor(node: VfNode): string {
+  const status = (node.data as Record<string, unknown>)?.__status as string
+  if (status === 'running') return '#1677ff'
+  if (status === 'success') return '#52c41a'
+  if (status === 'failed') return '#ff4d4f'
+  if (status === 'interrupted') return '#faad14'
+  return '#374151'
+}
+
+onMounted(() => {
+  loadWorkflow()
+  loadNodeTypes()
+})
 </script>
+
+<style scoped>
+.workflow-editor-page {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+  background: #0d1117;
+  overflow: hidden;
+}
+
+.editor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 52px;
+  padding: 8px 12px;
+  gap: 8px;
+  background: #161b22;
+  border-bottom: 1px solid #30363d;
+  flex-shrink: 0;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.name-input {
+  background: transparent;
+  border: none;
+  color: #e6edf3;
+  font-size: 15px;
+  font-weight: 600;
+  width: clamp(180px, 22vw, 320px);
+  box-shadow: none;
+}
+
+.header-right {
+  margin-left: auto;
+}
+
+.header-right :deep(.ant-space) {
+  row-gap: 8px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.name-input:focus,
+:deep(.name-input input:focus) {
+  background: rgba(255,255,255,0.05);
+  box-shadow: none;
+  border-color: #388bfd !important;
+}
+
+.editor-body {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: max-content;
+  grid-template-columns: max-content minmax(0, 1fr) max-content;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.canvas-container {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.workflow-canvas {
+  width: 100%;
+  height: 100%;
+}
+
+:deep(.vue-flow__background) {
+  background: #0d1117;
+}
+
+:deep(.vue-flow__edge-path) {
+  stroke: #4b5563;
+  stroke-width: 2;
+}
+
+:deep(.vue-flow__edge.selected .vue-flow__edge-path) {
+  stroke: #388bfd;
+}
+
+:deep(.vue-flow__controls) {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+:deep(.vue-flow__controls-button) {
+  background: #161b22;
+  border-color: #30363d;
+  color: #e6edf3;
+}
+
+:deep(.vue-flow__controls-button:hover) {
+  background: #1f2937;
+}
+
+:deep(.vue-flow__minimap) {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+@media (max-width: 1366px) {
+  :deep(.node-panel) {
+    width: 196px;
+  }
+
+  :deep(.properties-panel),
+  :deep(.test-run-panel) {
+    width: 300px;
+  }
+}
+
+@media (max-width: 1200px) {
+  :deep(.node-panel) {
+    width: 176px;
+  }
+
+  :deep(.properties-panel),
+  :deep(.test-run-panel) {
+    width: 280px;
+  }
+}
+</style>

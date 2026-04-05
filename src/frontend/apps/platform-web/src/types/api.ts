@@ -1,3 +1,4 @@
+export * from "@atlas/shared-core";
 export type {
   ApiResponse,
   AuthProfile,

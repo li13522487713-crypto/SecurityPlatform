@@ -21,6 +21,52 @@ export interface TenantAppInstanceDetail extends TenantAppInstanceListItem {
   pageCount: number;
 }
 
+export interface MigrationGovernanceOverview {
+  windowStartedAt: string;
+  totalApiHits: number;
+  legacyRouteHits: number;
+  rewriteHits: number;
+  v1EntryHits: number;
+  v2EntryHits: number;
+  notFoundCount: number;
+  fallbackCount: number;
+  notFoundRate: number;
+  newEntryCoverageRate: number;
+}
+
+export interface RuntimeContextListItem {
+  id: string;
+  appKey: string;
+  pageKey: string;
+  schemaVersion: number;
+  environmentCode: string;
+  isActive: boolean;
+}
+
+export interface RuntimeContextDetail extends RuntimeContextListItem {}
+
+export interface LowCodePageListItem {
+  id: string;
+  appId: string;
+  pageKey: string;
+  name: string;
+  pageType: string;
+  routePath?: string;
+  description?: string;
+  icon?: string;
+  sortOrder: number;
+  parentPageId?: string;
+  version: number;
+  isPublished: boolean;
+  createdAt: string;
+  permissionCode?: string;
+  dataTableKey?: string;
+}
+
+export interface LowCodeAppDetail extends TenantAppInstanceDetail {
+  pages: LowCodePageListItem[];
+}
+
 // ─── 应用目录 / 租户开通 ───
 
 export interface ApplicationCatalogListItem {
@@ -214,6 +260,107 @@ export interface ResourceCenterRepairResult {
   resourceId: string;
   success: boolean;
   message: string;
+}
+
+// ─── 发布中心 ───
+
+export interface ReleaseCenterListItem {
+  releaseId: string;
+  applicationCatalogId: string;
+  applicationCatalogName: string;
+  appKey: string;
+  version: number;
+  status: string;
+  releasedAt: string;
+  releaseNote?: string;
+}
+
+export interface ReleaseCenterDetail extends ReleaseCenterListItem {
+  snapshotJson: string;
+}
+
+export interface ReleaseDiffSummary {
+  releaseId: string;
+  baselineReleaseId?: string;
+  addedCount: number;
+  removedCount: number;
+  changedCount: number;
+  addedKeys: string[];
+  removedKeys: string[];
+  changedKeys: string[];
+}
+
+export interface ReleaseImpactSummary {
+  releaseId: string;
+  appKey: string;
+  runtimeRouteCount: number;
+  activeRuntimeRouteCount: number;
+  runtimeContextCount: number;
+  recentExecutionCount: number;
+  runningExecutionCount: number;
+  failedExecutionCount: number;
+}
+
+export interface ReleaseRollbackResult {
+  manifestId: string;
+  targetReleaseId: string;
+  targetVersion: number;
+  previousReleaseId?: string;
+  previousVersion?: number;
+  switched: boolean;
+  reboundRouteCount: number;
+  result: string;
+  message?: string;
+}
+
+export interface RuntimeExecutionAuditTrailItem {
+  auditId: string;
+  actor: string;
+  action: string;
+  result: string;
+  target: string;
+  occurredAt: string;
+}
+
+export interface RuntimeExecutionListItem {
+  id: string;
+  workflowId: string;
+  runtimeContextId?: string;
+  releaseId?: string;
+  appId?: string;
+  status: string;
+  startedAt: string;
+  completedAt?: string;
+  errorMessage?: string;
+}
+
+export interface RuntimeExecutionDetail extends RuntimeExecutionListItem {
+  inputsJson?: string;
+  outputsJson?: string;
+}
+
+export interface RuntimeExecutionDebugRequest {
+  nodeKey: string;
+  inputsJson?: string;
+}
+
+export interface RuntimeExecutionOperationResult {
+  action: string;
+  executionId: string;
+  status: string;
+  message: string;
+  newExecutionId?: string;
+}
+
+export interface RuntimeExecutionTimeoutDiagnosis {
+  executionId: string;
+  status: string;
+  startedAt: string;
+  completedAt?: string;
+  elapsedSeconds: number;
+  timeoutRisk: boolean;
+  diagnosis: string;
+  suggestions: string[];
 }
 
 // ─── 低代码应用（租户应用实例 API 使用）───

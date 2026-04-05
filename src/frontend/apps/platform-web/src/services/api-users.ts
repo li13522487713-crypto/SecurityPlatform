@@ -43,9 +43,18 @@ export interface AlertListItem {
   createdAt: string;
 }
 
+export interface AssetListItem {
+  id: string;
+  name: string;
+  type?: string;
+  status?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export async function getAssetsPaged(pagedRequest: PagedRequest) {
   const query = toQuery(pagedRequest);
-  const response = await requestApi<ApiResponse<PagedResult<{ id: string; name: string }>>>(`/assets?${query}`);
+  const response = await requestApi<ApiResponse<PagedResult<AssetListItem>>>(`/assets?${query}`);
   if (!response.data) throw new Error(response.message || "查询失败");
   return response.data;
 }
