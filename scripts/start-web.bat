@@ -6,12 +6,15 @@ call "%~dp0stop-web.bat"
 
 timeout /t 2 /nobreak >nul
 
-echo Starting backend...
-start "Atlas.WebApi" cmd /k "cd /d ""%ROOT%"" && dotnet run --project src\backend\Atlas.WebApi"
+echo Starting PlatformHost backend...
+start "Atlas.PlatformHost" cmd /k "cd /d ""%ROOT%"" && dotnet run --project src\backend\Atlas.PlatformHost"
 
-echo Starting frontend...
-start "Atlas.WebApp" cmd /k "cd /d ""%ROOT%\src\frontend\Atlas.WebApp"" && npm run dev"
+echo Starting AppHost backend...
+start "Atlas.AppHost" cmd /k "cd /d ""%ROOT%"" && dotnet run --project src\backend\Atlas.AppHost"
+
+echo Starting PlatformWeb frontend...
+start "Atlas.PlatformWeb" cmd /k "cd /d ""%ROOT%\src\frontend"" && pnpm run dev:platform-web"
 
 echo.
-echo Both services are starting in separate windows.
+echo All services are starting in separate windows.
 endlocal

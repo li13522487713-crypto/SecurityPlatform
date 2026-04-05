@@ -2,14 +2,19 @@
   "install": "bash scripts/cursor-cloud-install.sh",
   "terminals": [
     {
-      "name": "Backend API",
-      "command": "dotnet run --project src/backend/Atlas.WebApi/Atlas.WebApi.csproj",
-      "description": "启动 .NET Web API 后端服务"
+      "name": "PlatformHost",
+      "command": "dotnet run --project src/backend/Atlas.PlatformHost",
+      "description": "启动平台后端服务 (:5001)"
     },
     {
-      "name": "Frontend Dev",
-      "command": "npm run dev --prefix src/frontend/Atlas.WebApp",
-      "description": "启动 Vue+Vite 前端开发服务器"
+      "name": "AppHost",
+      "command": "dotnet run --project src/backend/Atlas.AppHost",
+      "description": "启动应用后端服务 (:5002)"
+    },
+    {
+      "name": "PlatformWeb Dev",
+      "command": "pnpm run dev:platform-web --prefix src/frontend",
+      "description": "启动平台前端开发服务器 (:5180)"
     }
   ]
 }

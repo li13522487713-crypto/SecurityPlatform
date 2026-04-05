@@ -106,5 +106,28 @@ export default {
     reports: "报表",
     dashboards: "仪表盘",
     visualization: "可视化"
+  },
+  approvalWorkspace: {
+    pageTitle: "审批工作台",
+    tabPending: "待办",
+    tabDone: "已办",
+    tabRequests: "我发起",
+    tabCc: "抄送我",
+    colTitle: "标题",
+    colFlow: "流程",
+    colNode: "当前节点",
+    colStatus: "状态",
+    colTime: "时间",
+    colRead: "已读",
+    statusPending: "待处理",
+    statusApproved: "已通过",
+    statusRejected: "已驳回",
+    statusRunning: "进行中",
+    statusCompleted: "已完成",
+    statusCancelled: "已取消",
+    readYes: "已读",
+    readNo: "未读",
+    empty: "暂无数据",
+    loadFailed: "加载失败"
   }
 };

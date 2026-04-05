@@ -106,5 +106,28 @@ export default {
     reports: "Reports",
     dashboards: "Dashboards",
     visualization: "Visualization"
+  },
+  approvalWorkspace: {
+    pageTitle: "Approval Workspace",
+    tabPending: "Pending",
+    tabDone: "Done",
+    tabRequests: "My Requests",
+    tabCc: "CC to Me",
+    colTitle: "Title",
+    colFlow: "Flow",
+    colNode: "Current Node",
+    colStatus: "Status",
+    colTime: "Time",
+    colRead: "Read",
+    statusPending: "Pending",
+    statusApproved: "Approved",
+    statusRejected: "Rejected",
+    statusRunning: "Running",
+    statusCompleted: "Completed",
+    statusCancelled: "Cancelled",
+    readYes: "Read",
+    readNo: "Unread",
+    empty: "No data",
+    loadFailed: "Failed to load"
   }
 };

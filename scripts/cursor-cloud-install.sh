@@ -4,7 +4,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-FRONTEND_DIR="$ROOT_DIR/src/frontend/Atlas.WebApp"
+FRONTEND_DIR="$ROOT_DIR/src/frontend"
 
 # 同步子模块（如有），确保代码完整（幂等）
 if [[ -f "$ROOT_DIR/.gitmodules" ]]; then
@@ -27,5 +27,11 @@ if ! command -v dotnet >/dev/null 2>&1; then
   exit 1
 fi
 
+if ! command -v pnpm >/dev/null 2>&1; then
+  echo "Installing pnpm via corepack..." >&2
+  corepack enable
+  corepack prepare pnpm@latest --activate
+fi
+
 dotnet restore "$ROOT_DIR/Atlas.SecurityPlatform.slnx"
-npm install --prefix "$FRONTEND_DIR"
+cd "$FRONTEND_DIR" && pnpm install
