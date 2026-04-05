@@ -220,20 +220,27 @@ public sealed class JwtAuthTokenService : IAuthTokenService
             throw new BusinessException("RefreshTokenInvalid", ErrorCodes.Unauthorized);
         }
 
+        var storedTokenIssuedAtUtc = NormalizeStoredTimestamp(storedToken.IssuedAt);
+        var storedTokenExpiresAtUtc = NormalizeStoredTimestamp(storedToken.ExpiresAt);
+
         if (storedToken.RevokedAt.HasValue)
         {
             await HandleTokenReuseAsync(tenantId, storedToken, context, cancellationToken);
             throw new BusinessException("RefreshTokenRevoked", ErrorCodes.Unauthorized);
         }
 
-        if (storedToken.ExpiresAt <= now)
+        if (storedTokenExpiresAtUtc <= now)
         {
             await WriteAuditAsync(tenantId, storedToken.UserId.ToString(), "TOKEN_REFRESH", "EXPIRED", null, context, cancellationToken);
             throw new BusinessException("RefreshTokenExpired", ErrorCodes.TokenExpired);
         }
 
         var session = await _authSessionRepository.FindByIdAsync(tenantId, storedToken.SessionId, cancellationToken);
-        if (session is null || session.RevokedAt.HasValue || session.ExpiresAt <= now)
+        var sessionExpiresAtUtc = session is null
+            ? DateTimeOffset.MinValue
+            : NormalizeStoredTimestamp(session.ExpiresAt);
+
+        if (session is null || session.RevokedAt.HasValue || sessionExpiresAtUtc <= now)
         {
             await _refreshTokenRepository.RevokeBySessionAsync(tenantId, storedToken.SessionId, now, cancellationToken);
             await WriteAuditAsync(tenantId, storedToken.UserId.ToString(), "TOKEN_REFRESH", "SESSION_INVALID", null, context, cancellationToken);
@@ -272,7 +279,7 @@ public sealed class JwtAuthTokenService : IAuthTokenService
             throw new BusinessException("InvalidCredentials", ErrorCodes.PasswordExpired);
         }
 
-        if (storedToken.IssuedAt < account.LastPasswordChangeAt)
+        if (storedTokenIssuedAtUtc < account.LastPasswordChangeAt)
         {
             await _authSessionRepository.RevokeByUserIdAsync(tenantId, account.Id, now, cancellationToken);
             await _refreshTokenRepository.RevokeByUserIdAsync(tenantId, account.Id, now, cancellationToken);
@@ -404,6 +411,11 @@ public sealed class JwtAuthTokenService : IAuthTokenService
         var bytes = Encoding.UTF8.GetBytes(token);
         var hash = SHA256.HashData(bytes);
         return Convert.ToHexString(hash);
+    }
+
+    private static DateTimeOffset NormalizeStoredTimestamp(DateTimeOffset value)
+    {
+        return new DateTimeOffset(DateTime.SpecifyKind(value.DateTime, DateTimeKind.Utc));
     }
 
     private async Task HandleTokenReuseAsync(
