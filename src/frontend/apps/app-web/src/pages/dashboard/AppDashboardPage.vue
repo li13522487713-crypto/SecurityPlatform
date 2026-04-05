@@ -10,17 +10,32 @@
       </a-col>
       <a-col :xs="24" :sm="12" :md="6">
         <a-card>
-          <a-statistic :title="t('dashboard.statApproval')" value="—" />
+          <a-spin :spinning="statsLoading.approval" size="small">
+            <a-statistic
+              :title="t('dashboard.statApproval')"
+              :value="approvalCount ?? '—'"
+            />
+          </a-spin>
         </a-card>
       </a-col>
       <a-col :xs="24" :sm="12" :md="6">
         <a-card>
-          <a-statistic :title="t('dashboard.statReports')" value="—" />
+          <a-spin :spinning="statsLoading.reports" size="small">
+            <a-statistic
+              :title="t('dashboard.statReports')"
+              :value="reportCount ?? '—'"
+            />
+          </a-spin>
         </a-card>
       </a-col>
       <a-col :xs="24" :sm="12" :md="6">
         <a-card>
-          <a-statistic :title="t('dashboard.statAI')" value="—" />
+          <a-spin :spinning="statsLoading.dashboards" size="small">
+            <a-statistic
+              :title="t('dashboard.statDashboards')"
+              :value="dashboardCount ?? '—'"
+            />
+          </a-spin>
         </a-card>
       </a-col>
     </a-row>
@@ -49,7 +64,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
+import { ref, reactive, computed, onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import {
@@ -59,6 +74,11 @@ import {
   RobotOutlined
 } from "@ant-design/icons-vue";
 import { getRuntimeMenu } from "@/services/api-runtime";
+import {
+  getApprovalPendingCount,
+  getReportCount,
+  getDashboardCount
+} from "@/services/api-dashboard-stats";
 
 const { t } = useI18n();
 const route = useRoute();
@@ -66,19 +86,61 @@ const router = useRouter();
 
 const appKey = computed(() => String(route.params.appKey ?? ""));
 const runtimePageCount = ref(0);
+const approvalCount = ref<number | null>(null);
+const reportCount = ref<number | null>(null);
+const dashboardCount = ref<number | null>(null);
+
+const statsLoading = reactive({
+  approval: false,
+  reports: false,
+  dashboards: false
+});
 
 function goTo(suffix: string) {
   void router.push(`/apps/${encodeURIComponent(appKey.value)}/${suffix}`);
 }
 
+async function loadStats() {
+  const key = appKey.value;
+  if (!key) return;
+
+  statsLoading.approval = true;
+  statsLoading.reports = true;
+  statsLoading.dashboards = true;
+
+  const results = await Promise.allSettled([
+    getApprovalPendingCount(),
+    getReportCount(key),
+    getDashboardCount(key)
+  ]);
+
+  if (results[0].status === "fulfilled") {
+    approvalCount.value = results[0].value;
+  }
+  statsLoading.approval = false;
+
+  if (results[1].status === "fulfilled") {
+    reportCount.value = results[1].value;
+  }
+  statsLoading.reports = false;
+
+  if (results[2].status === "fulfilled") {
+    dashboardCount.value = results[2].value;
+  }
+  statsLoading.dashboards = false;
+}
+
 onMounted(async () => {
   if (!appKey.value) return;
+
   try {
     const menu = await getRuntimeMenu(appKey.value);
     runtimePageCount.value = menu.items.length;
   } catch {
     runtimePageCount.value = 0;
   }
+
+  void loadStats();
 });
 </script>
 

@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from "vue-router";
 import { getAccessToken } from "@atlas/shared-core";
+import { useAppUserStore } from "@/stores/user";
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -96,16 +97,14 @@ export const router = createRouter({
   ]
 });
 
-router.beforeEach((to, _from, next) => {
+router.beforeEach(async (to, _from, next) => {
   if (to.meta.requiresAuth !== true) {
     next();
     return;
   }
 
   const token = getAccessToken();
-  if (token) {
-    next();
-  } else {
+  if (!token) {
     const appKey = typeof to.params.appKey === "string" ? to.params.appKey : "";
     if (appKey) {
       next({
@@ -116,5 +115,17 @@ router.beforeEach((to, _from, next) => {
     } else {
       next({ name: "home" });
     }
+    return;
   }
+
+  const userStore = useAppUserStore();
+  if (!userStore.profile) {
+    try {
+      await userStore.getInfo();
+    } catch {
+      userStore.hydrateFromStorage();
+    }
+  }
+
+  next();
 });

@@ -34,7 +34,7 @@
           </a-menu-item>
         </a-sub-menu>
 
-        <a-menu-item key="org">
+        <a-menu-item v-if="hasPermission(APP_PERMISSIONS.APP_MEMBERS_VIEW)" key="org">
           <template #icon><TeamOutlined /></template>
           {{ t("workspace.menuOrg") }}
         </a-menu-item>
@@ -70,7 +70,7 @@
           {{ t("workspace.menuVisualization") }}
         </a-menu-item>
 
-        <a-menu-item key="settings">
+        <a-menu-item v-if="hasPermission(APP_PERMISSIONS.APPS_UPDATE)" key="settings">
           <template #icon><SettingOutlined /></template>
           {{ t("workspace.menuSettings") }}
         </a-menu-item>
@@ -89,7 +89,7 @@
           <a-dropdown>
             <a-button type="text" size="small">
               <UserOutlined />
-              <span class="user-label">{{ t("workspace.user") }}</span>
+              <span class="user-label">{{ displayName }}</span>
             </a-button>
             <template #overlay>
               <a-menu @click="handleUserMenuClick">
@@ -127,6 +127,8 @@ import {
   LogoutOutlined
 } from "@ant-design/icons-vue";
 import { useAppUserStore } from "@/stores/user";
+import { usePermission } from "@/composables/usePermission";
+import { APP_PERMISSIONS } from "@/constants/permissions";
 import { getRuntimeMenu } from "@/services/api-runtime";
 import type { RuntimeMenuItem } from "@/types/api";
 
@@ -135,9 +137,12 @@ const route = useRoute();
 const router = useRouter();
 const userStore = useAppUserStore();
 
+const { hasPermission } = usePermission();
+
 const collapsed = ref(false);
 const runtimeMenuItems = ref<RuntimeMenuItem[]>([]);
 const appKey = computed(() => String(route.params.appKey ?? ""));
+const displayName = computed(() => userStore.name || t("workspace.user"));
 
 const menuKeyToRoute: Record<string, string> = {
   dashboard: "dashboard",

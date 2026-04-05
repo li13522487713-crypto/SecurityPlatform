@@ -41,7 +41,7 @@
               </a-select>
             </a-space>
             <a-space>
-              <a-button type="primary" @click="openAddMemberModal">
+              <a-button v-if="canManageMembers" type="primary" @click="openAddMemberModal">
                 {{ t('org.member.addTitle') }}
               </a-button>
             </a-space>
@@ -67,16 +67,17 @@
               </template>
               <template v-if="column.dataIndex === 'actions'">
                 <a-space>
-                  <a-button type="link" size="small" @click="openEditRolesDrawer(record)">
+                  <a-button v-if="canManageMembers" type="link" size="small" @click="openEditRolesDrawer(record)">
                     {{ t('org.member.editRoles') }}
                   </a-button>
-                  <a-button type="link" size="small" @click="openEditProfileDrawer(record)">
+                  <a-button v-if="canManageMembers" type="link" size="small" @click="openEditProfileDrawer(record)">
                     {{ t('org.member.editProfile') }}
                   </a-button>
-                  <a-button type="link" size="small" @click="openResetPasswordModal(record)">
+                  <a-button v-if="canManageMembers" type="link" size="small" @click="openResetPasswordModal(record)">
                     {{ t('org.member.resetPassword') }}
                   </a-button>
                   <a-popconfirm
+                    v-if="canManageMembers"
                     :title="t('org.member.removeConfirm')"
                     @confirm="handleRemoveMember(record)"
                   >
@@ -94,7 +95,7 @@
         <a-tab-pane key="roles" :tab="t('org.tabRoles')">
           <div class="tab-toolbar">
             <span />
-            <a-button type="primary" @click="openRoleDrawer()">
+            <a-button v-if="canManageRoles" type="primary" @click="openRoleDrawer()">
               {{ t('common.create') }}
             </a-button>
           </div>
@@ -134,7 +135,7 @@
         <a-tab-pane key="departments" :tab="t('org.tabDepartments')">
           <div class="tab-toolbar">
             <span />
-            <a-button type="primary" @click="openDeptDrawer()">
+            <a-button v-if="canManageMembers" type="primary" @click="openDeptDrawer()">
               {{ t('common.create') }}
             </a-button>
           </div>
@@ -173,7 +174,7 @@
         <a-tab-pane key="positions" :tab="t('org.tabPositions')">
           <div class="tab-toolbar">
             <span />
-            <a-button type="primary" @click="openPosDrawer()">
+            <a-button v-if="canManageMembers" type="primary" @click="openPosDrawer()">
               {{ t('common.create') }}
             </a-button>
           </div>
@@ -214,7 +215,7 @@
         <a-tab-pane key="projects" :tab="t('org.tabProjects')">
           <div class="tab-toolbar">
             <span />
-            <a-button type="primary" @click="openProjDrawer()">
+            <a-button v-if="canManageMembers" type="primary" @click="openProjDrawer()">
               {{ t('common.create') }}
             </a-button>
           </div>
@@ -263,6 +264,19 @@
       <a-tabs v-model:activeKey="addMemberMode">
         <a-tab-pane key="existing" :tab="t('org.member.addExisting')">
           <a-form layout="vertical">
+            <a-form-item :label="t('org.member.selectUsers')" required>
+              <a-select
+                v-model:value="addMemberForm.userIds"
+                mode="multiple"
+                :placeholder="t('org.member.searchUserPlaceholder')"
+                show-search
+                :filter-option="false"
+                :options="userSearchOptions"
+                :loading="userSearchLoading"
+                @search="handleUserSearch"
+                :not-found-content="userSearchLoading ? undefined : null"
+              />
+            </a-form-item>
             <a-form-item :label="t('org.member.selectRoles')">
               <a-select
                 v-model:value="addMemberForm.roleIds"
@@ -613,6 +627,9 @@
 import { ref, reactive, computed, onMounted, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { message } from "ant-design-vue";
+import { searchTenantUsers } from "@/services/api-users";
+import { usePermission } from "@/composables/usePermission";
+import { APP_PERMISSIONS } from "@/constants/permissions";
 import type { TablePaginationConfig } from "ant-design-vue";
 import type { FormInstance } from "ant-design-vue/es/form";
 import { useAppContext } from "@/composables/useAppContext";
@@ -648,6 +665,9 @@ import type {
 
 const { t } = useI18n();
 const { appId } = useAppContext();
+const { hasPermission } = usePermission();
+const canManageMembers = hasPermission(APP_PERMISSIONS.APP_MEMBERS_UPDATE);
+const canManageRoles = hasPermission(APP_PERMISSIONS.APP_ROLES_UPDATE);
 
 const activeTab = ref("members");
 const initialLoading = ref(false);
@@ -821,12 +841,39 @@ const createMemberRules = computed(() => ({
   displayName: [{ required: true, message: t("org.member.displayNameRequired") }]
 }));
 
+const userSearchOptions = ref<Array<{ value: string; label: string }>>([]);
+const userSearchLoading = ref(false);
+let userSearchTimer: ReturnType<typeof setTimeout> | null = null;
+
+function handleUserSearch(keyword: string) {
+  if (userSearchTimer) clearTimeout(userSearchTimer);
+  if (!keyword.trim()) {
+    userSearchOptions.value = [];
+    return;
+  }
+  userSearchTimer = setTimeout(async () => {
+    userSearchLoading.value = true;
+    try {
+      const result = await searchTenantUsers(keyword, 20);
+      userSearchOptions.value = (result.items ?? []).map((u) => ({
+        value: u.id,
+        label: `${u.displayName || u.username} (${u.username})`
+      }));
+    } catch {
+      userSearchOptions.value = [];
+    } finally {
+      userSearchLoading.value = false;
+    }
+  }, 300);
+}
+
 function openAddMemberModal() {
   addMemberMode.value = "existing";
   addMemberForm.userIds = [];
   addMemberForm.roleIds = [];
   addMemberForm.departmentIds = [];
   addMemberForm.positionIds = [];
+  userSearchOptions.value = [];
   createMemberForm.username = "";
   createMemberForm.password = "";
   createMemberForm.displayName = "";
@@ -855,6 +902,11 @@ async function handleAddMemberSubmit() {
       });
       message.success(t("org.member.createSuccess"));
     } else {
+      if (addMemberForm.userIds.length === 0) {
+        message.warning(t("org.member.userRequired"));
+        addMemberSubmitting.value = false;
+        return;
+      }
       if (addMemberForm.roleIds.length === 0) {
         message.warning(t("org.member.roleIdsRequired"));
         addMemberSubmitting.value = false;
