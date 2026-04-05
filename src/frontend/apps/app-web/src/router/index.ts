@@ -24,13 +24,27 @@ export const router = createRouter({
     },
     {
       path: "/apps/:appKey",
-      component: () => import("@/layouts/AppRuntimeLayout.vue"),
+      component: () => import("@/layouts/AppWorkspaceLayout.vue"),
       meta: { requiresAuth: true },
       children: [
+        {
+          path: "",
+          redirect: (to) => `/apps/${String(to.params.appKey)}/dashboard`
+        },
+        {
+          path: "dashboard",
+          name: "app-dashboard",
+          component: () => import("@/pages/dashboard/AppDashboardPage.vue")
+        },
         {
           path: "r/:pageKey",
           name: "app-runtime-page",
           component: () => import("@/pages/runtime/PageRuntimeRenderer.vue")
+        },
+        {
+          path: "org",
+          name: "app-org",
+          component: () => import("@/pages/org/AppOrganizationPage.vue")
         },
         {
           path: "ai/chat/:agentId?",
@@ -66,6 +80,11 @@ export const router = createRouter({
           path: "visualization",
           name: "app-visualization",
           component: () => import("@/pages/visualization/VisualizationRuntimePage.vue")
+        },
+        {
+          path: "settings",
+          name: "app-settings",
+          component: () => import("@/pages/settings/AppSettingsPage.vue")
         }
       ]
     },

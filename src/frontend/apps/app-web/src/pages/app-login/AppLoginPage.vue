@@ -79,7 +79,7 @@ async function handleSubmit() {
     const redirect =
       typeof rawRedirect === "string" && rawRedirect.startsWith("/")
         ? rawRedirect
-        : `/apps/${encodeURIComponent(appKey)}/entry`;
+        : `/apps/${encodeURIComponent(appKey)}/dashboard`;
     await router.replace(redirect);
   } catch (error) {
     errorMessage.value =
