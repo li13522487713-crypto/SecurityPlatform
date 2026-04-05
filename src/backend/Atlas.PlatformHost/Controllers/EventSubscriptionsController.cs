@@ -1,5 +1,6 @@
 using Atlas.Application.Events;
 using Atlas.Core.Models;
+using Atlas.Presentation.Shared.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Atlas.Presentation.Shared.Filters;
@@ -11,7 +12,6 @@ namespace Atlas.PlatformHost.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/v1/event-subscriptions")]
-[Authorize]
 public sealed class EventSubscriptionsController : ControllerBase
 {
     private readonly IEventSubscriptionService _service;
@@ -22,6 +22,7 @@ public sealed class EventSubscriptionsController : ControllerBase
     }
 
     [HttpGet]
+    [Authorize(Policy = PermissionPolicies.EventSubscriptionsView)]
     public async Task<ActionResult<ApiResponse<object>>> GetAll(CancellationToken cancellationToken = default)
     {
         var subs = await _service.GetAllAsync(cancellationToken);
@@ -29,6 +30,7 @@ public sealed class EventSubscriptionsController : ControllerBase
     }
 
     [HttpGet("{id:long}")]
+    [Authorize(Policy = PermissionPolicies.EventSubscriptionsView)]
     public async Task<ActionResult<ApiResponse<object>>> GetById(long id, CancellationToken cancellationToken = default)
     {
         var sub = await _service.GetByIdAsync(id, cancellationToken);
@@ -41,6 +43,7 @@ public sealed class EventSubscriptionsController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = PermissionPolicies.EventSubscriptionsCreate)]
     public async Task<ActionResult<ApiResponse<object>>> Create(
         [FromBody] CreateEventSubscriptionRequest request,
         CancellationToken cancellationToken = default)
@@ -50,6 +53,7 @@ public sealed class EventSubscriptionsController : ControllerBase
     }
 
     [HttpPut("{id:long}")]
+    [Authorize(Policy = PermissionPolicies.EventSubscriptionsUpdate)]
     public async Task<ActionResult<ApiResponse<object>>> Update(
         long id,
         [FromBody] UpdateEventSubscriptionRequest request,
@@ -60,6 +64,7 @@ public sealed class EventSubscriptionsController : ControllerBase
     }
 
     [HttpDelete("{id:long}")]
+    [Authorize(Policy = PermissionPolicies.EventSubscriptionsDelete)]
     public async Task<ActionResult<ApiResponse<object>>> Delete(long id, CancellationToken cancellationToken = default)
     {
         await _service.DeleteAsync(id, cancellationToken);

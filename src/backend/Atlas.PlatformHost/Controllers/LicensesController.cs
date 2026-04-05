@@ -3,6 +3,7 @@ using Atlas.Application.Governance.Models;
 using Atlas.Core.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
+using Atlas.Presentation.Shared.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Atlas.Presentation.Shared.Filters;
@@ -11,7 +12,6 @@ namespace Atlas.PlatformHost.Controllers;
 
 [ApiController]
 [Route("api/v1/licenses")]
-[Authorize]
 public sealed class LicensesController : ControllerBase
 {
     private readonly ILicenseGrantService _service;
@@ -29,6 +29,7 @@ public sealed class LicensesController : ControllerBase
     }
 
     [HttpPost("offline-request")]
+    [Authorize(Policy = PermissionPolicies.LicenseManage)]
     public async Task<ActionResult<ApiResponse<object>>> CreateOfflineRequest(
         [FromBody] LicenseOfflineRequest request,
         CancellationToken cancellationToken)
@@ -45,6 +46,7 @@ public sealed class LicensesController : ControllerBase
     }
 
     [HttpPost("import")]
+    [Authorize(Policy = PermissionPolicies.LicenseManage)]
     public async Task<ActionResult<ApiResponse<LicenseValidateResponse>>> Import(
         [FromBody] LicenseImportRequest request,
         CancellationToken cancellationToken)
@@ -61,6 +63,7 @@ public sealed class LicensesController : ControllerBase
     }
 
     [HttpGet("validate")]
+    [Authorize(Policy = PermissionPolicies.LicenseView)]
     public async Task<ActionResult<ApiResponse<LicenseValidateResponse>>> Validate(CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
@@ -69,6 +72,7 @@ public sealed class LicensesController : ControllerBase
     }
 
     [HttpPost("renew")]
+    [Authorize(Policy = PermissionPolicies.LicenseManage)]
     public async Task<ActionResult<ApiResponse<LicenseValidateResponse>>> Renew(
         [FromBody] LicenseImportRequest request,
         CancellationToken cancellationToken)
@@ -85,6 +89,7 @@ public sealed class LicensesController : ControllerBase
     }
 
     [HttpGet("audit")]
+    [Authorize(Policy = PermissionPolicies.LicenseView)]
     public ActionResult<ApiResponse<object>> Audit()
     {
         return Ok(ApiResponse<object>.Ok(new

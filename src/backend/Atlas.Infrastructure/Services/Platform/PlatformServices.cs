@@ -396,11 +396,13 @@ public sealed class AppManifestCommandService : IAppManifestCommandService
 {
     private readonly ISqlSugarClient _db;
     private readonly IIdGeneratorAccessor _idGenerator;
+    private readonly IAppBootstrapService _appBootstrapService;
 
-    public AppManifestCommandService(ISqlSugarClient db, IIdGeneratorAccessor idGenerator)
+    public AppManifestCommandService(ISqlSugarClient db, IIdGeneratorAccessor idGenerator, IAppBootstrapService appBootstrapService)
     {
         _db = db;
         _idGenerator = idGenerator;
+        _appBootstrapService = appBootstrapService;
     }
 
     public async Task<long> CreateAsync(TenantId tenantId, long userId, AppManifestCreateRequest request, CancellationToken cancellationToken = default)
@@ -415,6 +417,9 @@ public sealed class AppManifestCommandService : IAppManifestCommandService
         var entity = new AppManifest(tenantId, _idGenerator.NextId(), request.AppKey, request.Name, userId, DateTimeOffset.UtcNow);
         entity.Update(request.Name, request.Description, request.Category, request.Icon, request.DataSourceId, userId, DateTimeOffset.UtcNow);
         await _db.Insertable(entity).ExecuteCommandAsync(cancellationToken);
+
+        await _appBootstrapService.BootstrapAsync(tenantId, entity.Id, userId, cancellationToken);
+
         return entity.Id;
     }
 

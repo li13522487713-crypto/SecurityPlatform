@@ -13,7 +13,6 @@ namespace Atlas.AppHost.Controllers;
 
 [ApiController]
 [Route("api/v1/multimodal")]
-[Authorize]
 public sealed class MultimodalController : ControllerBase
 {
     private readonly IMultimodalService _multimodalService;

@@ -14,7 +14,6 @@ namespace Atlas.AppHost.Controllers;
 
 [ApiController]
 [Route("api/v1/multi-agent-orchestrations")]
-[Authorize]
 [DeprecatedApi("multi-agent orchestrations v1 已进入兼容窗口", "/api/v1/team-agents", "2026-10-01")]
 [Obsolete("Deprecated since April 1, 2026. 请迁移到 /api/v1/team-agents 相关接口。")]
 public sealed class MultiAgentOrchestrationsController : ControllerBase

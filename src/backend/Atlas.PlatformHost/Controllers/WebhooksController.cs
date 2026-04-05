@@ -1,5 +1,6 @@
 using Atlas.Application.Integration;
 using Atlas.Core.Models;
+using Atlas.Presentation.Shared.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Atlas.Presentation.Shared.Filters;
@@ -11,7 +12,6 @@ namespace Atlas.PlatformHost.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/v1/webhooks")]
-[Authorize]
 public sealed class WebhooksController : ControllerBase
 {
     private readonly IWebhookService _webhookService;
@@ -23,6 +23,7 @@ public sealed class WebhooksController : ControllerBase
 
     /// <summary>获取所有 Webhook 订阅</summary>
     [HttpGet]
+    [Authorize(Policy = PermissionPolicies.WebhooksView)]
     public async Task<ActionResult<ApiResponse<object>>> GetAll(CancellationToken cancellationToken = default)
     {
         var subs = await _webhookService.GetAllAsync(cancellationToken);
@@ -31,6 +32,7 @@ public sealed class WebhooksController : ControllerBase
 
     /// <summary>获取指定订阅</summary>
     [HttpGet("{id:long}")]
+    [Authorize(Policy = PermissionPolicies.WebhooksView)]
     public async Task<ActionResult<ApiResponse<object>>> GetById(long id, CancellationToken cancellationToken = default)
     {
         var sub = await _webhookService.GetByIdAsync(id, cancellationToken);
@@ -44,6 +46,7 @@ public sealed class WebhooksController : ControllerBase
 
     /// <summary>创建 Webhook 订阅</summary>
     [HttpPost]
+    [Authorize(Policy = PermissionPolicies.WebhooksCreate)]
     public async Task<ActionResult<ApiResponse<object>>> Create(
         [FromBody] CreateWebhookRequest request,
         CancellationToken cancellationToken = default)
@@ -54,6 +57,7 @@ public sealed class WebhooksController : ControllerBase
 
     /// <summary>更新 Webhook 订阅</summary>
     [HttpPut("{id:long}")]
+    [Authorize(Policy = PermissionPolicies.WebhooksUpdate)]
     public async Task<ActionResult<ApiResponse<object>>> Update(
         long id,
         [FromBody] UpdateWebhookRequest request,
@@ -65,6 +69,7 @@ public sealed class WebhooksController : ControllerBase
 
     /// <summary>删除 Webhook 订阅</summary>
     [HttpDelete("{id:long}")]
+    [Authorize(Policy = PermissionPolicies.WebhooksDelete)]
     public async Task<ActionResult<ApiResponse<object>>> Delete(long id, CancellationToken cancellationToken = default)
     {
         await _webhookService.DeleteAsync(id, cancellationToken);
@@ -73,6 +78,7 @@ public sealed class WebhooksController : ControllerBase
 
     /// <summary>获取投递记录</summary>
     [HttpGet("{id:long}/deliveries")]
+    [Authorize(Policy = PermissionPolicies.WebhooksView)]
     public async Task<ActionResult<ApiResponse<object>>> GetDeliveries(
         long id,
         [FromQuery] int pageSize = 50,
@@ -84,6 +90,7 @@ public sealed class WebhooksController : ControllerBase
 
     /// <summary>测试投递</summary>
     [HttpPost("{id:long}/test")]
+    [Authorize(Policy = PermissionPolicies.WebhooksTest)]
     public async Task<ActionResult<ApiResponse<object>>> Test(long id, CancellationToken cancellationToken = default)
     {
         await _webhookService.TestDeliveryAsync(id, cancellationToken);

@@ -627,28 +627,155 @@
     <a-drawer
       v-model:open="permDrawerVisible"
       :title="t('org.role.permissionsTitle', { name: permRoleName })"
-      :width="520"
+      :width="720"
       destroy-on-close
     >
       <a-spin :spinning="permLoading">
-        <a-checkbox-group
-          v-model:value="permSelectedCodes"
-          style="width: 100%"
-        >
-          <a-row :gutter="[0, 8]">
-            <a-col
-              v-for="perm in allPermissions"
-              :key="perm.code"
-              :span="24"
+        <a-tabs v-model:active-key="permInnerTab">
+          <a-tab-pane key="permissions" :tab="t('org.role.tabPermissions')">
+            <a-checkbox-group
+              v-model:value="permSelectedCodes"
+              style="width: 100%"
             >
-              <a-checkbox :value="perm.code">
-                <span>{{ perm.name }}</span>
-                <span v-if="perm.description" class="perm-desc"> — {{ perm.description }}</span>
-              </a-checkbox>
-            </a-col>
-          </a-row>
-        </a-checkbox-group>
-        <a-empty v-if="allPermissions.length === 0 && !permLoading" />
+              <a-row :gutter="[0, 8]">
+                <a-col
+                  v-for="perm in allPermissions"
+                  :key="perm.code"
+                  :span="24"
+                >
+                  <a-checkbox :value="perm.code">
+                    <span>{{ perm.name }}</span>
+                    <span v-if="perm.description" class="perm-desc"> — {{ perm.description }}</span>
+                  </a-checkbox>
+                </a-col>
+              </a-row>
+            </a-checkbox-group>
+            <a-empty v-if="allPermissions.length === 0 && !permLoading" />
+          </a-tab-pane>
+
+          <a-tab-pane key="dataScope" :tab="t('org.role.tabDataScope')">
+            <a-alert
+              type="info"
+              show-icon
+              :message="t('org.role.dataScopeHint')"
+              style="margin-bottom: 12px"
+            />
+            <a-form layout="vertical">
+              <a-form-item :label="t('org.role.dataScopeLabel')">
+                <a-radio-group v-model:value="permDataScope" class="data-scope-radio-group">
+                  <a-space direction="vertical">
+                    <a-radio :value="0">{{ t("org.role.dataScopeAll") }}</a-radio>
+                    <a-radio :value="1">{{ t("org.role.dataScopeCurrentTenant") }}</a-radio>
+                    <a-radio :value="2">{{ t("org.role.dataScopeCustomDept") }}</a-radio>
+                    <a-radio :value="3">{{ t("org.role.dataScopeCurrentDept") }}</a-radio>
+                    <a-radio :value="4">{{ t("org.role.dataScopeCurrentDeptAndBelow") }}</a-radio>
+                    <a-radio :value="5">{{ t("org.role.dataScopeOnlySelf") }}</a-radio>
+                  </a-space>
+                </a-radio-group>
+              </a-form-item>
+              <a-form-item
+                v-if="permDataScope === 2"
+                :label="t('org.role.customDeptSelect')"
+              >
+                <a-tree-select
+                  v-model:value="permDeptIds"
+                  :tree-data="deptTreeDataForScope"
+                  tree-checkable
+                  show-checked-strategy="SHOW_ALL"
+                  allow-clear
+                  tree-node-filter-prop="title"
+                  style="width: 100%"
+                  :placeholder="t('org.role.customDeptPlaceholder')"
+                />
+              </a-form-item>
+            </a-form>
+          </a-tab-pane>
+
+          <a-tab-pane key="pages" :tab="t('org.role.tabPagePermissions')">
+            <a-alert
+              type="info"
+              show-icon
+              :message="t('org.role.pagePermHint')"
+              style="margin-bottom: 12px"
+            />
+            <a-tree
+              v-if="pageTreeData.length > 0"
+              v-model:checked-keys="pageCheckedKeys"
+              checkable
+              check-strictly
+              :tree-data="pageTreeData"
+              :selectable="false"
+              default-expand-all
+              class="page-perm-tree"
+            />
+            <a-empty v-else :description="t('org.role.noPagesAvailable')" />
+          </a-tab-pane>
+
+          <a-tab-pane key="fieldPermissions" :tab="t('org.role.tabFieldPermissions')">
+            <a-alert
+              type="info"
+              show-icon
+              :message="t('org.role.fieldPermHint')"
+              style="margin-bottom: 12px"
+            />
+            <a-select
+              v-model:value="selectedFieldTableKey"
+              style="width: 100%; margin-bottom: 12px"
+              :placeholder="t('org.role.selectDynamicTable')"
+              :options="dynamicTableSelectOptions"
+              :loading="dynamicTablesLoading"
+              show-search
+              :filter-option="false"
+              allow-clear
+              @search="handleDynamicTableSearch"
+              @focus="handleDynamicTableFocus"
+            />
+            <a-empty
+              v-if="!selectedFieldTableKey"
+              :description="t('org.role.fieldPermNoTableSelected')"
+            />
+            <a-table
+              v-else
+              :data-source="fieldPermRows"
+              :loading="fieldDefinitionsLoading"
+              :pagination="false"
+              row-key="fieldName"
+              size="small"
+              class="field-perm-table"
+            >
+              <a-table-column
+                key="label"
+                :title="t('org.role.fieldColumnLabel')"
+                data-index="label"
+              />
+              <a-table-column key="canView" align="center" width="120">
+                <template #title>
+                  <span>{{ t("org.role.fieldColumnVisible") }}</span>
+                </template>
+                <template #default="{ record }">
+                  <a-switch
+                    :checked="record.canView"
+                    size="small"
+                    @change="(v: boolean) => onFieldViewChange(record.fieldName, v)"
+                  />
+                </template>
+              </a-table-column>
+              <a-table-column key="canEdit" align="center" width="120">
+                <template #title>
+                  <span>{{ t("org.role.fieldColumnEditable") }}</span>
+                </template>
+                <template #default="{ record }">
+                  <a-switch
+                    :checked="record.canEdit"
+                    size="small"
+                    :disabled="!record.canView"
+                    @change="(v: boolean) => onFieldEditChange(record.fieldName, v)"
+                  />
+                </template>
+              </a-table-column>
+            </a-table>
+          </a-tab-pane>
+        </a-tabs>
       </a-spin>
       <template #footer>
         <a-space>
@@ -671,6 +798,7 @@ import { usePermission } from "@/composables/usePermission";
 import { APP_PERMISSIONS } from "@/constants/permissions";
 import type { TablePaginationConfig } from "ant-design-vue";
 import type { FormInstance } from "ant-design-vue/es/form";
+import type { DataNode } from "ant-design-vue/es/tree";
 import { useAppContext } from "@/composables/useAppContext";
 import {
   getOrganizationWorkspace,
@@ -694,9 +822,23 @@ import {
   deleteProject as deleteProjApi,
   getAppPermissions,
   getRoleDetail,
-  updateRolePermissions
+  updateRolePermissions,
+  getAppRoleDataScope,
+  updateAppRoleDataScope,
+  getAvailableAppPages,
+  getRolePageIds,
+  updateRolePages,
+  getRoleFieldPermissions,
+  updateRoleFieldPermissions,
+  getAvailableDynamicTables,
+  getAppDynamicTableFields
 } from "@/services/api-organization";
-import type { PermissionListItem as AppPermissionItem } from "@/services/api-organization";
+import type {
+  PermissionListItem as AppPermissionItem,
+  AppPageListItem,
+  AppRoleFieldPermissionGroupDto,
+  AppAvailableDynamicTableItem
+} from "@/services/api-organization";
 import type {
   AppOrganizationWorkspaceResponse,
   TenantAppMemberListItem,
@@ -1393,6 +1535,13 @@ async function handleDeleteProj(record: AppProjectListItem) {
 }
 
 // ==================== Permission Assignment ====================
+interface FieldPermRow {
+  fieldName: string;
+  label: string;
+  canView: boolean;
+  canEdit: boolean;
+}
+
 const permDrawerVisible = ref(false);
 const permLoading = ref(false);
 const permSaving = ref(false);
@@ -1400,29 +1549,263 @@ const permRoleId = ref("");
 const permRoleName = ref("");
 const allPermissions = ref<AppPermissionItem[]>([]);
 const permSelectedCodes = ref<string[]>([]);
+const permInnerTab = ref("permissions");
+const permDataScope = ref(0);
+const permDeptIds = ref<string[]>([]);
+const permAvailablePages = ref<AppPageListItem[]>([]);
+const pageCheckedKeys = ref<(string | number)[]>([]);
+const fieldGroupsDraft = ref<AppRoleFieldPermissionGroupDto[]>([]);
+const selectedFieldTableKey = ref<string | undefined>(undefined);
+const fieldPermRows = ref<FieldPermRow[]>([]);
+const fieldDefinitionsLoading = ref(false);
+const dynamicTableOptionsList = ref<AppAvailableDynamicTableItem[]>([]);
+const dynamicTablesLoading = ref(false);
+const fieldTableWatchSuspended = ref(false);
+let dynamicTableSearchTimer: ReturnType<typeof setTimeout> | null = null;
+
+const deptTreeDataForScope = computed<DataNode[]>(() =>
+  buildDepartmentTreeNodes(workspaceData.value?.departments ?? [])
+);
+
+const pageTreeData = computed<DataNode[]>(() => buildPageTreeFromItems(permAvailablePages.value));
+
+const dynamicTableSelectOptions = computed(() =>
+  dynamicTableOptionsList.value.map((item) => ({
+    value: item.tableKey,
+    label: `${item.displayName} (${item.tableKey})`
+  }))
+);
+
+function cloneFieldGroups(src: AppRoleFieldPermissionGroupDto[]): AppRoleFieldPermissionGroupDto[] {
+  return src.map((g) => ({
+    tableKey: g.tableKey,
+    fields: g.fields.map((f) => ({ ...f }))
+  }));
+}
+
+function buildDepartmentTreeNodes(depts: AppDepartmentListItem[]): DataNode[] {
+  const sorted = [...depts].sort((a, b) => a.sortOrder - b.sortOrder);
+  const map = new Map<string, DataNode>();
+  for (const d of sorted) {
+    map.set(d.id, { title: d.name, value: d.id, key: d.id, children: [] });
+  }
+  const roots: DataNode[] = [];
+  for (const d of sorted) {
+    const node = map.get(d.id);
+    if (!node) continue;
+    const pid = d.parentId;
+    if (pid && map.has(pid)) {
+      const parent = map.get(pid)!;
+      if (!parent.children) parent.children = [];
+      (parent.children as DataNode[]).push(node);
+    } else {
+      roots.push(node);
+    }
+  }
+  const stripEmptyChildren = (nodes: DataNode[]): DataNode[] =>
+    nodes.map((n) => {
+      const ch = n.children as DataNode[] | undefined;
+      if (ch?.length) {
+        return { ...n, children: stripEmptyChildren(ch) };
+      }
+      const { children: _c, ...rest } = n;
+      return rest;
+    });
+  return stripEmptyChildren(roots);
+}
+
+function buildPageTreeFromItems(pages: AppPageListItem[]): DataNode[] {
+  const sorted = [...pages].sort((a, b) => a.sortOrder - b.sortOrder);
+  const map = new Map<number, DataNode>();
+  for (const p of sorted) {
+    const id = Number(p.id);
+    if (!Number.isFinite(id)) continue;
+    map.set(id, { title: p.name, key: id, children: [] });
+  }
+  const roots: DataNode[] = [];
+  for (const p of sorted) {
+    const id = Number(p.id);
+    if (!Number.isFinite(id)) continue;
+    const node = map.get(id);
+    if (!node) continue;
+    const pid = p.parentPageId;
+    if (pid != null && map.has(pid)) {
+      const parent = map.get(pid)!;
+      if (!parent.children) parent.children = [];
+      (parent.children as DataNode[]).push(node);
+    } else {
+      roots.push(node);
+    }
+  }
+  const stripEmptyChildren = (nodes: DataNode[]): DataNode[] =>
+    nodes.map((n) => {
+      const ch = n.children as DataNode[] | undefined;
+      if (ch?.length) {
+        return { ...n, children: stripEmptyChildren(ch) };
+      }
+      const { children: _c, ...rest } = n;
+      return rest;
+    });
+  return stripEmptyChildren(roots);
+}
+
+function filterNumericPageKeys(keys: (string | number)[]): number[] {
+  return keys
+    .map((k) => (typeof k === "number" ? k : Number(k)))
+    .filter((n): n is number => Number.isFinite(n) && !Number.isNaN(n) && n > 0);
+}
+
+function persistCurrentFieldTableToDraft() {
+  const tk = selectedFieldTableKey.value;
+  if (!tk || fieldPermRows.value.length === 0) return;
+  const fields = fieldPermRows.value.map((r) => ({
+    fieldName: r.fieldName,
+    canView: r.canView,
+    canEdit: r.canEdit
+  }));
+  const draft = [...fieldGroupsDraft.value];
+  const i = draft.findIndex((g) => g.tableKey === tk);
+  const group: AppRoleFieldPermissionGroupDto = { tableKey: tk, fields };
+  if (i >= 0) draft[i] = group;
+  else draft.push(group);
+  fieldGroupsDraft.value = draft;
+}
+
+async function loadFieldEditorForTable(tableKey: string) {
+  fieldDefinitionsLoading.value = true;
+  fieldPermRows.value = [];
+  try {
+    const defs = await getAppDynamicTableFields(tableKey);
+    const existing = fieldGroupsDraft.value.find((g) => g.tableKey === tableKey);
+    fieldPermRows.value = defs.map((f) => {
+      const rule = existing?.fields.find((x) => x.fieldName === f.name);
+      return {
+        fieldName: f.name,
+        label: f.displayName || f.name,
+        canView: rule?.canView ?? false,
+        canEdit: rule?.canEdit ?? false
+      };
+    });
+  } catch (e) {
+    message.error(e instanceof Error ? e.message : t("org.role.loadFieldsFailed"));
+  } finally {
+    fieldDefinitionsLoading.value = false;
+  }
+}
+
+watch(selectedFieldTableKey, async (newKey, oldKey) => {
+  if (fieldTableWatchSuspended.value) return;
+  if (oldKey !== undefined && oldKey !== "" && fieldPermRows.value.length > 0) {
+    const fields = fieldPermRows.value.map((r) => ({
+      fieldName: r.fieldName,
+      canView: r.canView,
+      canEdit: r.canEdit
+    }));
+    const draft = [...fieldGroupsDraft.value];
+    const i = draft.findIndex((g) => g.tableKey === oldKey);
+    const group: AppRoleFieldPermissionGroupDto = { tableKey: oldKey, fields };
+    if (i >= 0) draft[i] = group;
+    else draft.push(group);
+    fieldGroupsDraft.value = draft;
+  }
+  if (!newKey) {
+    fieldPermRows.value = [];
+    return;
+  }
+  await loadFieldEditorForTable(newKey);
+});
+
+function onFieldViewChange(fieldName: string, checked: boolean) {
+  const row = fieldPermRows.value.find((r) => r.fieldName === fieldName);
+  if (!row) return;
+  row.canView = checked;
+  if (!checked) row.canEdit = false;
+}
+
+function onFieldEditChange(fieldName: string, checked: boolean) {
+  const row = fieldPermRows.value.find((r) => r.fieldName === fieldName);
+  if (!row) return;
+  row.canEdit = checked;
+  if (checked) row.canView = true;
+}
+
+async function handleDynamicTableFocus() {
+  const id = appId.value;
+  if (!id || dynamicTableOptionsList.value.length > 0) return;
+  dynamicTablesLoading.value = true;
+  try {
+    dynamicTableOptionsList.value = await getAvailableDynamicTables(id);
+  } catch {
+    message.warning(t("org.role.loadDynamicTablesFailed"));
+  } finally {
+    dynamicTablesLoading.value = false;
+  }
+}
+
+function handleDynamicTableSearch(keyword: string) {
+  const id = appId.value;
+  if (!id) return;
+  if (dynamicTableSearchTimer) clearTimeout(dynamicTableSearchTimer);
+  dynamicTableSearchTimer = setTimeout(async () => {
+    dynamicTablesLoading.value = true;
+    try {
+      dynamicTableOptionsList.value = await getAvailableDynamicTables(
+        id,
+        keyword.trim() || undefined
+      );
+    } catch {
+      dynamicTableOptionsList.value = [];
+    } finally {
+      dynamicTablesLoading.value = false;
+    }
+  }, 300);
+}
 
 async function openPermissionDrawer(record: TenantAppRoleListItem) {
   const id = appId.value;
   if (!id) return;
 
+  fieldTableWatchSuspended.value = true;
   permRoleId.value = record.id;
   permRoleName.value = record.name;
+  permInnerTab.value = "permissions";
   permSelectedCodes.value = [];
   allPermissions.value = [];
+  permDataScope.value = 0;
+  permDeptIds.value = [];
+  permAvailablePages.value = [];
+  pageCheckedKeys.value = [];
+  fieldGroupsDraft.value = [];
+  selectedFieldTableKey.value = undefined;
+  fieldPermRows.value = [];
+  dynamicTableOptionsList.value = [];
+
   permDrawerVisible.value = true;
   permLoading.value = true;
 
   try {
-    const [perms, detail] = await Promise.all([
+    const [perms, detail, dataScopeDetail, pages, rolePageIds, fieldGroups, dynTables] = await Promise.all([
       getAppPermissions(id),
-      getRoleDetail(id, record.id)
+      getRoleDetail(id, record.id),
+      getAppRoleDataScope(id, record.id),
+      getAvailableAppPages(id),
+      getRolePageIds(id, record.id),
+      getRoleFieldPermissions(id, record.id),
+      getAvailableDynamicTables(id)
     ]);
     allPermissions.value = perms;
     permSelectedCodes.value = [...detail.permissionCodes];
+    permDataScope.value = dataScopeDetail.dataScope;
+    permDeptIds.value = [...dataScopeDetail.deptIds];
+    permAvailablePages.value = pages;
+    pageCheckedKeys.value = [...rolePageIds];
+    fieldGroupsDraft.value = cloneFieldGroups(fieldGroups);
+    dynamicTableOptionsList.value = dynTables;
   } catch (e) {
     message.error(e instanceof Error ? e.message : t("org.role.loadPermFailed"));
   } finally {
     permLoading.value = false;
+    fieldTableWatchSuspended.value = false;
   }
 }
 
@@ -1430,13 +1813,34 @@ async function handleSavePermissions() {
   const id = appId.value;
   if (!id) return;
 
+  if (permDataScope.value === 2 && permDeptIds.value.length === 0) {
+    message.warning(t("org.role.deptRequiredForCustomScope"));
+    return;
+  }
+
+  persistCurrentFieldTableToDraft();
+
   permSaving.value = true;
   try {
-    await updateRolePermissions(id, permRoleId.value, permSelectedCodes.value);
-    message.success(t("org.role.permSaveSuccess"));
+    const pageIds = filterNumericPageKeys(pageCheckedKeys.value);
+    const deptIds =
+      permDataScope.value === 2
+        ? permDeptIds.value.map((x) => Number(x)).filter((n) => Number.isFinite(n) && n > 0)
+        : undefined;
+
+    await Promise.all([
+      updateRolePermissions(id, permRoleId.value, permSelectedCodes.value),
+      updateAppRoleDataScope(id, permRoleId.value, {
+        dataScope: permDataScope.value,
+        deptIds
+      }),
+      updateRolePages(id, permRoleId.value, pageIds),
+      updateRoleFieldPermissions(id, permRoleId.value, fieldGroupsDraft.value)
+    ]);
+    message.success(t("org.role.roleConfigSaveSuccess"));
     permDrawerVisible.value = false;
   } catch (e) {
-    message.error(e instanceof Error ? e.message : t("org.role.permSaveFailed"));
+    message.error(e instanceof Error ? e.message : t("org.role.roleConfigSaveFailed"));
   } finally {
     permSaving.value = false;
   }
@@ -1462,5 +1866,21 @@ async function handleSavePermissions() {
 .perm-desc {
   color: rgba(0, 0, 0, 0.45);
   font-size: 12px;
+}
+
+.data-scope-radio-group {
+  width: 100%;
+}
+
+.page-perm-tree {
+  max-height: 420px;
+  overflow-y: auto;
+  padding: 8px 0;
+  border: 1px solid #f0f0f0;
+  border-radius: 6px;
+}
+
+.field-perm-table {
+  margin-top: 4px;
 }
 </style>

@@ -95,6 +95,7 @@ import {
   restartApp
 } from "@/services/api-app-instance";
 import type { TenantAppInstanceDetail } from "@/services/api-app-instance";
+import { APP_PERMISSIONS } from "@/constants/permissions";
 import { useAppUserStore } from "@/stores/user";
 
 const { t } = useI18n();
@@ -125,7 +126,7 @@ function checkPermission() {
   if (profile?.isPlatformAdmin) { canEdit.value = true; return; }
   if (perms.includes("*:*:*")) { canEdit.value = true; return; }
   if (userStore.roles.some((r) => ["admin", "superadmin"].includes(r.toLowerCase()))) { canEdit.value = true; return; }
-  canEdit.value = perms.includes("Permission:apps:update");
+  canEdit.value = perms.includes(APP_PERMISSIONS.APPS_UPDATE);
 }
 
 function statusColor(status?: string | null): string {

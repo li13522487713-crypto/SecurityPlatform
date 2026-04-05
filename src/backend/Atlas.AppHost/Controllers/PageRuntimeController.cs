@@ -9,6 +9,7 @@ using Atlas.AppHost.Sdk.Hosting;
 using Atlas.Core.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
+using Atlas.Presentation.Shared.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -16,7 +17,7 @@ namespace Atlas.AppHost.Controllers;
 
 [ApiController]
 [Route("api/app/runtime")]
-[Authorize]
+[Authorize(Policy = PermissionPolicies.AppUser)]
 public sealed class PageRuntimeController : ControllerBase
 {
     private readonly ILowCodeAppQueryService queryService;

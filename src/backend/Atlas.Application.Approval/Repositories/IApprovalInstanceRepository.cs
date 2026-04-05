@@ -31,6 +31,7 @@ public interface IApprovalInstanceRepository
         int pageIndex,
         int pageSize,
         ApprovalInstanceStatus? status = null,
+        IReadOnlyList<long>? restrictInitiatorUserIds = null,
         CancellationToken cancellationToken = default);
 
     Task<(IReadOnlyList<ApprovalProcessInstance> Items, int TotalCount)> GetPagedAsync(
@@ -43,5 +44,6 @@ public interface IApprovalInstanceRepository
         DateTimeOffset? startedTo = null,
         string? businessKey = null,
         ApprovalInstanceStatus? status = null,
+        IReadOnlyList<long>? restrictInitiatorUserIds = null,
         CancellationToken cancellationToken = default);
 }

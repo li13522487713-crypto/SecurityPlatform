@@ -39,6 +39,15 @@ public interface IAppManifestCommandService
     Task ArchiveAsync(TenantId tenantId, long userId, long id, CancellationToken cancellationToken = default);
 }
 
+/// <summary>
+/// 应用 Bootstrap 服务：创建应用时自动播种默认角色/权限/组织根节点，
+/// 确保新应用无需手动配置即可投入使用。
+/// </summary>
+public interface IAppBootstrapService
+{
+    Task BootstrapAsync(TenantId tenantId, long appId, long creatorUserId, CancellationToken cancellationToken = default);
+}
+
 public interface IAppReleaseCommandService
 {
     Task<long> CreateReleaseAsync(TenantId tenantId, long userId, long manifestId, string? releaseNote, CancellationToken cancellationToken = default);

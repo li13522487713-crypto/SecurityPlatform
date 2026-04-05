@@ -12,7 +12,6 @@ namespace Atlas.PlatformHost.Controllers;
 
 [ApiController]
 [Route("api/v2/application-catalogs")]
-[Authorize]
 public sealed class ApplicationCatalogsV2Controller : ControllerBase
 {
     private readonly IApplicationCatalogQueryService _queryService;

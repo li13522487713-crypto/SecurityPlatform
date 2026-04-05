@@ -1,4 +1,5 @@
 using Atlas.Core.Models;
+using Atlas.Presentation.Shared.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Diagnostics;
@@ -9,7 +10,7 @@ namespace Atlas.PlatformHost.Controllers;
 
 [ApiController]
 [Route("api/v1/lowcode-actions")]
-[Authorize]
+[Authorize(Policy = PermissionPolicies.SystemAdmin)]
 public sealed class LowCodeActionsController : ControllerBase
 {
     private readonly IHttpClientFactory _httpClientFactory;

@@ -2,6 +2,7 @@ using Atlas.Application.DynamicTables.Abstractions;
 using Atlas.Application.DynamicTables.Models;
 using Atlas.Application.DynamicTables.Repositories;
 using Atlas.Application.Identity.Abstractions;
+using Atlas.Application.Platform.Abstractions;
 using Atlas.Core.Exceptions;
 using Atlas.Core.Identity;
 using Atlas.Core.Models;
@@ -24,6 +25,7 @@ public sealed class DynamicRecordQueryService : IDynamicRecordQueryService
     private readonly ICurrentUserAccessor _currentUserAccessor;
     private readonly IAppContextAccessor _appContextAccessor;
     private readonly ITenantDataScopeFilter _dataScopeFilter;
+    private readonly IAppDataScopeFilter _appDataScopeFilter;
     private static readonly string[] OwnerFieldCandidates = ["ownerid", "createdby", "creatorid", "owner_id", "created_by"];
     private const int ExportPageSize = 1000;
     private const int MaxExportRows = 10_000;
@@ -36,7 +38,8 @@ public sealed class DynamicRecordQueryService : IDynamicRecordQueryService
         IFieldPermissionResolver fieldPermissionResolver,
         ICurrentUserAccessor currentUserAccessor,
         IAppContextAccessor appContextAccessor,
-        ITenantDataScopeFilter dataScopeFilter)
+        ITenantDataScopeFilter dataScopeFilter,
+        IAppDataScopeFilter appDataScopeFilter)
     {
         _tableRepository = tableRepository;
         _fieldRepository = fieldRepository;
@@ -46,6 +49,7 @@ public sealed class DynamicRecordQueryService : IDynamicRecordQueryService
         _currentUserAccessor = currentUserAccessor;
         _appContextAccessor = appContextAccessor;
         _dataScopeFilter = dataScopeFilter;
+        _appDataScopeFilter = appDataScopeFilter;
     }
 
     public async Task<DynamicRecordListResult> QueryAsync(
@@ -67,7 +71,7 @@ public sealed class DynamicRecordQueryService : IDynamicRecordQueryService
             throw new BusinessException(ErrorCodes.Forbidden, "无可访问字段。");
         }
 
-        var ownerFilterId = await _dataScopeFilter.GetOwnerFilterIdAsync(cancellationToken);
+        var ownerFilterId = await ResolveOwnerFilterIdAsync(table.AppId, cancellationToken);
         var effectiveRequest = request;
         if (ownerFilterId.HasValue)
         {
@@ -108,7 +112,7 @@ public sealed class DynamicRecordQueryService : IDynamicRecordQueryService
             return null;
         }
 
-        var ownerFilterId = await _dataScopeFilter.GetOwnerFilterIdAsync(cancellationToken);
+        var ownerFilterId = await ResolveOwnerFilterIdAsync(table.AppId, cancellationToken);
         if (!ownerFilterId.HasValue)
         {
             return record;
@@ -143,7 +147,7 @@ public sealed class DynamicRecordQueryService : IDynamicRecordQueryService
             throw new BusinessException(ErrorCodes.Forbidden, "无可访问字段。");
         }
 
-        var ownerFilterId = await _dataScopeFilter.GetOwnerFilterIdAsync(cancellationToken);
+        var ownerFilterId = await ResolveOwnerFilterIdAsync(table.AppId, cancellationToken);
         var baseRequest = new DynamicRecordQueryRequest(
             1,
             ExportPageSize,
@@ -258,6 +262,16 @@ public sealed class DynamicRecordQueryService : IDynamicRecordQueryService
                 true,
                 field.FieldType is DynamicFieldType.String or DynamicFieldType.Text,
                 false)).ToArray());
+    }
+
+    private async Task<long?> ResolveOwnerFilterIdAsync(long? appId, CancellationToken cancellationToken)
+    {
+        if (appId is > 0)
+        {
+            return await _appDataScopeFilter.GetOwnerFilterIdAsync(appId.Value, cancellationToken);
+        }
+
+        return await _dataScopeFilter.GetOwnerFilterIdAsync(cancellationToken);
     }
 
     private static DynamicField? ResolveOwnerField(IReadOnlyList<DynamicField> fields)

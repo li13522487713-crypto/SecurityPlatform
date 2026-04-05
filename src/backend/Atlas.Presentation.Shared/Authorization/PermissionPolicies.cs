@@ -11,6 +11,50 @@ public static class PermissionPolicies
 
     public const string SystemAdmin = "Permission:system:admin";
     public const string WorkflowDesign = "Permission:workflow:design";
+    public const string WorkflowView = "Permission:workflow:view";
+
+    public const string WebhooksView = "Permission:webhooks:view";
+    public const string WebhooksCreate = "Permission:webhooks:create";
+    public const string WebhooksUpdate = "Permission:webhooks:update";
+    public const string WebhooksDelete = "Permission:webhooks:delete";
+    public const string WebhooksTest = "Permission:webhooks:test";
+
+    public const string EventSubscriptionsView = "Permission:event-subscriptions:view";
+    public const string EventSubscriptionsCreate = "Permission:event-subscriptions:create";
+    public const string EventSubscriptionsUpdate = "Permission:event-subscriptions:update";
+    public const string EventSubscriptionsDelete = "Permission:event-subscriptions:delete";
+
+    public const string TemplatesView = "Permission:templates:view";
+    public const string TemplatesCreate = "Permission:templates:create";
+    public const string TemplatesUpdate = "Permission:templates:update";
+    public const string TemplatesDelete = "Permission:templates:delete";
+    public const string TemplatesInstantiate = "Permission:templates:instantiate";
+
+    public const string ConnectorsView = "Permission:connectors:view";
+    public const string ConnectorsCreate = "Permission:connectors:create";
+    public const string ConnectorsUpdate = "Permission:connectors:update";
+    public const string ConnectorsDelete = "Permission:connectors:delete";
+    public const string ConnectorsSync = "Permission:connectors:sync";
+    public const string ConnectorsExecute = "Permission:connectors:execute";
+
+    public const string PlatformEventsView = "Permission:platform-events:view";
+
+    public const string PackagesExport = "Permission:packages:export";
+    public const string PackagesImport = "Permission:packages:import";
+    public const string PackagesAnalyze = "Permission:packages:analyze";
+
+    public const string AlertRulesView = "Permission:alert-rules:view";
+    public const string AlertRulesCreate = "Permission:alert-rules:create";
+    public const string AlertRulesUpdate = "Permission:alert-rules:update";
+    public const string AlertRulesDelete = "Permission:alert-rules:delete";
+
+    public const string MeteringView = "Permission:metering:view";
+    public const string MeteringUpdate = "Permission:metering:update";
+
+    public const string LicenseView = "Permission:license:view";
+    public const string LicenseManage = "Permission:license:manage";
+
+    public const string ToolPoliciesView = "Permission:tool-policies:view";
 
     public const string TenantsView = "Permission:system:tenant:query";
     public const string TenantsCreate = "Permission:system:tenant:create";

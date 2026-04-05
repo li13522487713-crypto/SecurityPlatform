@@ -4,6 +4,50 @@ public static class PermissionCodes
 {
     public const string SystemAdmin = "system:admin";
     public const string WorkflowDesign = "workflow:design";
+    public const string WorkflowView = "workflow:view";
+
+    public const string WebhooksView = "webhooks:view";
+    public const string WebhooksCreate = "webhooks:create";
+    public const string WebhooksUpdate = "webhooks:update";
+    public const string WebhooksDelete = "webhooks:delete";
+    public const string WebhooksTest = "webhooks:test";
+
+    public const string EventSubscriptionsView = "event-subscriptions:view";
+    public const string EventSubscriptionsCreate = "event-subscriptions:create";
+    public const string EventSubscriptionsUpdate = "event-subscriptions:update";
+    public const string EventSubscriptionsDelete = "event-subscriptions:delete";
+
+    public const string TemplatesView = "templates:view";
+    public const string TemplatesCreate = "templates:create";
+    public const string TemplatesUpdate = "templates:update";
+    public const string TemplatesDelete = "templates:delete";
+    public const string TemplatesInstantiate = "templates:instantiate";
+
+    public const string ConnectorsView = "connectors:view";
+    public const string ConnectorsCreate = "connectors:create";
+    public const string ConnectorsUpdate = "connectors:update";
+    public const string ConnectorsDelete = "connectors:delete";
+    public const string ConnectorsSync = "connectors:sync";
+    public const string ConnectorsExecute = "connectors:execute";
+
+    public const string PlatformEventsView = "platform-events:view";
+
+    public const string PackagesExport = "packages:export";
+    public const string PackagesImport = "packages:import";
+    public const string PackagesAnalyze = "packages:analyze";
+
+    public const string AlertRulesView = "alert-rules:view";
+    public const string AlertRulesCreate = "alert-rules:create";
+    public const string AlertRulesUpdate = "alert-rules:update";
+    public const string AlertRulesDelete = "alert-rules:delete";
+
+    public const string MeteringView = "metering:view";
+    public const string MeteringUpdate = "metering:update";
+
+    public const string LicenseView = "license:view";
+    public const string LicenseManage = "license:manage";
+
+    public const string ToolPoliciesView = "tool-policies:view";
 
     public const string UsersView = "users:view";
     public const string UsersCreate = "users:create";

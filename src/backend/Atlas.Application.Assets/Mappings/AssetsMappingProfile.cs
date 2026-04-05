@@ -20,6 +20,7 @@ public sealed class AssetsMappingProfile : Profile
                 return new Asset(tenantId, src.Name, id);
             })
             .ForMember(dest => dest.Id, opt => opt.Ignore())
-            .ForMember(dest => dest.TenantIdValue, opt => opt.Ignore());
+            .ForMember(dest => dest.TenantIdValue, opt => opt.Ignore())
+            .ForMember(dest => dest.CreatedByUserId, opt => opt.Ignore());
     }
 }

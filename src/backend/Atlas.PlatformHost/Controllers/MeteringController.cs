@@ -2,6 +2,7 @@ using Atlas.Application.Metering;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Metering;
+using Atlas.Presentation.Shared.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Atlas.Presentation.Shared.Filters;
@@ -13,7 +14,6 @@ namespace Atlas.PlatformHost.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/v1/metering")]
-[Authorize]
 public sealed class MeteringController : ControllerBase
 {
     private readonly IMeteringService _service;
@@ -27,6 +27,7 @@ public sealed class MeteringController : ControllerBase
 
     /// <summary>获取当前租户所有配额配置</summary>
     [HttpGet("quotas")]
+    [Authorize(Policy = PermissionPolicies.MeteringView)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<TenantQuota>>>> GetQuotas(CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
@@ -36,6 +37,7 @@ public sealed class MeteringController : ControllerBase
 
     /// <summary>设置/更新配额</summary>
     [HttpPut("quotas/{resourceType}")]
+    [Authorize(Policy = PermissionPolicies.MeteringUpdate)]
     public async Task<ActionResult<ApiResponse<object>>> SetQuota(
         string resourceType,
         [FromBody] SetQuotaRequest request,
@@ -48,6 +50,7 @@ public sealed class MeteringController : ControllerBase
 
     /// <summary>查询指定时间段内的累计用量</summary>
     [HttpGet("usage/{resourceType}")]
+    [Authorize(Policy = PermissionPolicies.MeteringView)]
     public async Task<ActionResult<ApiResponse<object>>> GetUsage(
         string resourceType,
         [FromQuery] DateTimeOffset from,

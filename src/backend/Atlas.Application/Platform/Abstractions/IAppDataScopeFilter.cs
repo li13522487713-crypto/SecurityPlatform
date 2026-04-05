@@ -12,4 +12,6 @@ public interface IAppDataScopeFilter
     Task<long?> GetOwnerFilterIdAsync(long appId, CancellationToken ct = default);
 
     Task<IReadOnlyList<long>?> GetDeptFilterIdsAsync(long appId, CancellationToken ct = default);
+
+    Task<IReadOnlyList<long>?> GetProjectFilterIdsAsync(long appId, CancellationToken ct = default);
 }

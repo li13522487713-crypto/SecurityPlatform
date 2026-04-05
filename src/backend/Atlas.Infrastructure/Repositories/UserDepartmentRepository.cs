@@ -14,6 +14,24 @@ public sealed class UserDepartmentRepository : IUserDepartmentRepository
         _db = db;
     }
 
+    public async Task<IReadOnlyList<long>> QueryUserIdsByDepartmentIdsAsync(
+        TenantId tenantId,
+        IReadOnlyList<long> departmentIds,
+        CancellationToken cancellationToken)
+    {
+        if (departmentIds.Count == 0)
+        {
+            return Array.Empty<long>();
+        }
+
+        var ids = departmentIds.Distinct().ToArray();
+        var list = await _db.Queryable<UserDepartment>()
+            .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(ids, x.DepartmentId))
+            .Select(x => x.UserId)
+            .ToListAsync(cancellationToken);
+        return list.Distinct().ToArray();
+    }
+
     public async Task<IReadOnlyList<UserDepartment>> QueryByUserIdAsync(
         TenantId tenantId,
         long userId,

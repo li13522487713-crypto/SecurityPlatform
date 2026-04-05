@@ -18,7 +18,6 @@ namespace Atlas.PlatformHost.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/v1/scheduled-jobs")]
-[Authorize]
 public sealed class ScheduledJobsController : ControllerBase
 {
     private readonly IScheduledJobService _jobService;

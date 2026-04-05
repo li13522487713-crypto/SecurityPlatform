@@ -10,7 +10,6 @@ namespace Atlas.AppHost.Controllers;
 
 [ApiController]
 [Route("api/v1/open-api-sdk")]
-[Authorize]
 public sealed class OpenApiSdkController : ControllerBase
 {
     private readonly IHttpClientFactory _httpClientFactory;

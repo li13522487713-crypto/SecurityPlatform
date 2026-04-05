@@ -2,6 +2,11 @@ using AutoMapper;
 using Atlas.Application.Approval.Abstractions;
 using Atlas.Application.Approval.Models;
 using Atlas.Application.Approval.Repositories;
+using Atlas.Application.Identity.Abstractions;
+using Atlas.Application.Identity.Repositories;
+using Atlas.Application.Platform.Abstractions;
+using Atlas.Application.Platform.Repositories;
+using Atlas.Core.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Approval.Entities;
@@ -20,6 +25,12 @@ public sealed class ApprovalRuntimeQueryService : IApprovalRuntimeQueryService
     private readonly IApprovalHistoryRepository _historyRepository;
     private readonly IApprovalCopyRecordRepository _copyRecordRepository;
     private readonly IApprovalTimeoutReminderRepository _timeoutReminderRepository;
+    private readonly ITenantDataScopeFilter _dataScopeFilter;
+    private readonly IUserDepartmentRepository _userDepartmentRepository;
+    private readonly IProjectUserRepository _projectUserRepository;
+    private readonly IAppContextAccessor _appContextAccessor;
+    private readonly IAppDataScopeFilter _appDataScopeFilter;
+    private readonly IAppMemberDepartmentRepository _appMemberDepartmentRepository;
     private readonly IMapper _mapper;
 
     public ApprovalRuntimeQueryService(
@@ -29,6 +40,12 @@ public sealed class ApprovalRuntimeQueryService : IApprovalRuntimeQueryService
         IApprovalHistoryRepository historyRepository,
         IApprovalCopyRecordRepository copyRecordRepository,
         IApprovalTimeoutReminderRepository timeoutReminderRepository,
+        ITenantDataScopeFilter dataScopeFilter,
+        IUserDepartmentRepository userDepartmentRepository,
+        IProjectUserRepository projectUserRepository,
+        IAppContextAccessor appContextAccessor,
+        IAppDataScopeFilter appDataScopeFilter,
+        IAppMemberDepartmentRepository appMemberDepartmentRepository,
         IMapper mapper)
     {
         _instanceRepository = instanceRepository;
@@ -37,6 +54,12 @@ public sealed class ApprovalRuntimeQueryService : IApprovalRuntimeQueryService
         _historyRepository = historyRepository;
         _copyRecordRepository = copyRecordRepository;
         _timeoutReminderRepository = timeoutReminderRepository;
+        _dataScopeFilter = dataScopeFilter;
+        _userDepartmentRepository = userDepartmentRepository;
+        _projectUserRepository = projectUserRepository;
+        _appContextAccessor = appContextAccessor;
+        _appDataScopeFilter = appDataScopeFilter;
+        _appMemberDepartmentRepository = appMemberDepartmentRepository;
         _mapper = mapper;
     }
 
@@ -47,6 +70,12 @@ public sealed class ApprovalRuntimeQueryService : IApprovalRuntimeQueryService
     {
         var entity = await _instanceRepository.GetByIdAsync(tenantId, instanceId, cancellationToken);
         if (entity == null)
+        {
+            return null;
+        }
+
+        var initiatorRestriction = await ResolveInitiatorUserRestrictionAsync(tenantId, cancellationToken);
+        if (initiatorRestriction is not null && !initiatorRestriction.Contains(entity.InitiatorUserId))
         {
             return null;
         }
@@ -71,12 +100,23 @@ public sealed class ApprovalRuntimeQueryService : IApprovalRuntimeQueryService
         ApprovalInstanceStatus? status = null,
         CancellationToken cancellationToken = default)
     {
+        var initiatorRestriction = await ResolveInitiatorUserRestrictionAsync(tenantId, cancellationToken);
+        if (initiatorRestriction is not null && !initiatorRestriction.Contains(initiatorUserId))
+        {
+            return new PagedResult<ApprovalInstanceListItem>(
+                Array.Empty<ApprovalInstanceListItem>(),
+                0,
+                request.PageIndex,
+                request.PageSize);
+        }
+
         var (items, totalCount) = await _instanceRepository.GetPagedByInitiatorAsync(
             tenantId,
             initiatorUserId,
             request.PageIndex,
             request.PageSize,
             status,
+            restrictInitiatorUserIds: null,
             cancellationToken);
 
         var listItems = await BuildInstanceListItemsAsync(tenantId, items, cancellationToken);
@@ -99,6 +139,17 @@ public sealed class ApprovalRuntimeQueryService : IApprovalRuntimeQueryService
         ApprovalInstanceStatus? status = null,
         CancellationToken cancellationToken = default)
     {
+        var initiatorRestriction = await ResolveInitiatorUserRestrictionAsync(tenantId, cancellationToken);
+        if (initiatorUserId.HasValue && initiatorRestriction is not null
+            && !initiatorRestriction.Contains(initiatorUserId.Value))
+        {
+            return new PagedResult<ApprovalInstanceListItem>(
+                Array.Empty<ApprovalInstanceListItem>(),
+                0,
+                request.PageIndex,
+                request.PageSize);
+        }
+
         var (items, totalCount) = await _instanceRepository.GetPagedAsync(
             tenantId,
             request.PageIndex,
@@ -109,6 +160,7 @@ public sealed class ApprovalRuntimeQueryService : IApprovalRuntimeQueryService
             startedTo,
             businessKey,
             status,
+            initiatorRestriction,
             cancellationToken);
 
         var listItems = await BuildInstanceListItemsAsync(tenantId, items, cancellationToken);
@@ -345,5 +397,79 @@ public sealed class ApprovalRuntimeQueryService : IApprovalRuntimeQueryService
 
         var remainingMinutes = (int)Math.Floor((nearest.ExpectedCompleteTime - DateTimeOffset.UtcNow).TotalMinutes);
         return (nearest.ExpectedCompleteTime, remainingMinutes);
+    }
+
+    /// <summary>
+    /// 按数据权限解析允许查看的审批发起人用户 ID；null 表示不限制。
+    /// </summary>
+    private async Task<long[]?> ResolveInitiatorUserRestrictionAsync(
+        TenantId tenantId,
+        CancellationToken cancellationToken)
+    {
+        var resolvedAppId = _appContextAccessor.ResolveAppId();
+        if (resolvedAppId is > 0)
+        {
+            var appOwnerId = await _appDataScopeFilter.GetOwnerFilterIdAsync(resolvedAppId.Value, cancellationToken);
+            if (appOwnerId.HasValue)
+            {
+                return new[] { appOwnerId.Value };
+            }
+
+            var appDeptIds = await _appDataScopeFilter.GetDeptFilterIdsAsync(resolvedAppId.Value, cancellationToken);
+            if (appDeptIds is not null)
+            {
+                if (appDeptIds.Count == 0)
+                {
+                    return Array.Empty<long>();
+                }
+
+                var appDeptUserIds = await _appMemberDepartmentRepository.QueryUserIdsByDepartmentIdsAsync(
+                    tenantId,
+                    resolvedAppId.Value,
+                    appDeptIds,
+                    cancellationToken);
+                return appDeptUserIds.Distinct().ToArray();
+            }
+
+            return null;
+        }
+
+        var ownerId = await _dataScopeFilter.GetOwnerFilterIdAsync(cancellationToken);
+        if (ownerId.HasValue)
+        {
+            return new[] { ownerId.Value };
+        }
+
+        var deptIds = await _dataScopeFilter.GetDeptFilterIdsAsync(cancellationToken);
+        if (deptIds is not null)
+        {
+            if (deptIds.Count == 0)
+            {
+                return Array.Empty<long>();
+            }
+
+            var userIds = await _userDepartmentRepository.QueryUserIdsByDepartmentIdsAsync(
+                tenantId,
+                deptIds,
+                cancellationToken);
+            return userIds.Distinct().ToArray();
+        }
+
+        var projectIds = await _dataScopeFilter.GetProjectFilterIdsAsync(cancellationToken);
+        if (projectIds is not null)
+        {
+            if (projectIds.Count == 0)
+            {
+                return Array.Empty<long>();
+            }
+
+            var userIds = await _projectUserRepository.QueryUserIdsByProjectIdsAsync(
+                tenantId,
+                projectIds,
+                cancellationToken);
+            return userIds.Distinct().ToArray();
+        }
+
+        return null;
     }
 }

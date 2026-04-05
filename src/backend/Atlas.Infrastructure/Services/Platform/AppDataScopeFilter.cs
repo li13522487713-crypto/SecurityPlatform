@@ -2,26 +2,36 @@ using Atlas.Application.Platform.Abstractions;
 using Atlas.Application.Platform.Repositories;
 using Atlas.Core.Enums;
 using Atlas.Core.Identity;
+using Atlas.Domain.Platform.Entities;
 
 namespace Atlas.Infrastructure.Services.Platform;
 
 /// <summary>
-/// 应用级数据权限过滤器实现（基于 AppRole + AppDepartment，等保2.0 最小化授权）
+/// 应用级数据权限过滤器实现（基于 AppRole + AppDepartment + AppMemberDepartment，等保2.0 最小化授权）
 /// </summary>
 public sealed class AppDataScopeFilter : IAppDataScopeFilter
 {
     private readonly ICurrentUserAccessor _currentUserAccessor;
     private readonly IAppUserRoleRepository _appUserRoleRepository;
     private readonly IAppRoleRepository _appRoleRepository;
+    private readonly IAppMemberDepartmentRepository _appMemberDeptRepository;
+    private readonly IAppDepartmentRepository _appDepartmentRepository;
+    private readonly IAppProjectUserRepository _appProjectUserRepository;
 
     public AppDataScopeFilter(
         ICurrentUserAccessor currentUserAccessor,
         IAppUserRoleRepository appUserRoleRepository,
-        IAppRoleRepository appRoleRepository)
+        IAppRoleRepository appRoleRepository,
+        IAppMemberDepartmentRepository appMemberDeptRepository,
+        IAppDepartmentRepository appDepartmentRepository,
+        IAppProjectUserRepository appProjectUserRepository)
     {
         _currentUserAccessor = currentUserAccessor;
         _appUserRoleRepository = appUserRoleRepository;
         _appRoleRepository = appRoleRepository;
+        _appMemberDeptRepository = appMemberDeptRepository;
+        _appDepartmentRepository = appDepartmentRepository;
+        _appProjectUserRepository = appProjectUserRepository;
     }
 
     public async Task<DataScopeType> GetEffectiveScopeAsync(long appId, CancellationToken ct = default)
@@ -57,7 +67,6 @@ public sealed class AppDataScopeFilter : IAppDataScopeFilter
     public async Task<IReadOnlyList<long>?> GetDeptFilterIdsAsync(long appId, CancellationToken ct = default)
     {
         var user = _currentUserAccessor.GetCurrentUser();
-        // null = 不限制；空集合 = 严格限制为无可访问部门（例如未识别到当前用户）
         if (user is null) return Array.Empty<long>();
 
         var scope = await GetEffectiveScopeAsync(appId, ct);
@@ -84,8 +93,80 @@ public sealed class AppDataScopeFilter : IAppDataScopeFilter
             return deptIds;
         }
 
-        // CurrentDept / CurrentDeptAndBelow: requires AppMemberDepartment relationship
-        // (not yet implemented). Fall back to no restriction to avoid data loss.
+        if (scope is DataScopeType.CurrentDept or DataScopeType.CurrentDeptAndBelow)
+        {
+            var memberDepts = await _appMemberDeptRepository.QueryByUserIdAsync(
+                user.TenantId, appId, user.UserId, ct);
+            var myDeptIds = memberDepts.Select(md => md.DepartmentId).Distinct().ToArray();
+
+            if (myDeptIds.Length == 0) return Array.Empty<long>();
+
+            if (scope == DataScopeType.CurrentDept)
+            {
+                return myDeptIds;
+            }
+
+            var allDepts = await _appDepartmentRepository.QueryByAppIdAsync(user.TenantId, appId, ct);
+            return ExpandDeptAndBelow(myDeptIds, allDepts);
+        }
+
         return null;
+    }
+
+    public async Task<IReadOnlyList<long>?> GetProjectFilterIdsAsync(long appId, CancellationToken ct = default)
+    {
+        var user = _currentUserAccessor.GetCurrentUser();
+        if (user is null)
+        {
+            return Array.Empty<long>();
+        }
+
+        var scope = await GetEffectiveScopeAsync(appId, ct);
+        if (scope is DataScopeType.All or DataScopeType.CurrentTenant)
+        {
+            return null;
+        }
+
+        if (scope != DataScopeType.Project)
+        {
+            return null;
+        }
+
+        var rows = await _appProjectUserRepository.QueryByUserIdAsync(user.TenantId, appId, user.UserId, ct);
+        return rows.Select(r => r.ProjectId).Distinct().ToArray();
+    }
+
+    private static long[] ExpandDeptAndBelow(long[] rootDeptIds, IReadOnlyList<AppDepartment> allDepts)
+    {
+        var childrenByParent = new Dictionary<long, List<long>>();
+        foreach (var dept in allDepts)
+        {
+            if (dept.ParentId is > 0)
+            {
+                if (!childrenByParent.TryGetValue(dept.ParentId.Value, out var children))
+                {
+                    children = [];
+                    childrenByParent[dept.ParentId.Value] = children;
+                }
+                children.Add(dept.Id);
+            }
+        }
+
+        var result = new HashSet<long>(rootDeptIds);
+        var queue = new Queue<long>(rootDeptIds);
+        while (queue.Count > 0)
+        {
+            var current = queue.Dequeue();
+            if (!childrenByParent.TryGetValue(current, out var kids)) continue;
+            foreach (var kid in kids)
+            {
+                if (result.Add(kid))
+                {
+                    queue.Enqueue(kid);
+                }
+            }
+        }
+
+        return [.. result];
     }
 }

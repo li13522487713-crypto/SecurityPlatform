@@ -18,7 +18,6 @@ namespace Atlas.AppHost.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/v1/files")]
-[Authorize]
 public sealed class FilesController : ControllerBase
 {
     private const string TusResumable = "1.0.0";
@@ -216,6 +215,7 @@ public sealed class FilesController : ControllerBase
 
     /// <summary>获取文件元数据</summary>
     [HttpGet("{id:long}/info")]
+    [Authorize(Policy = PermissionPolicies.FileDownload)]
     public async Task<ActionResult<ApiResponse<FileRecordDto>>> GetInfo(
         long id, CancellationToken cancellationToken = default)
     {
@@ -447,6 +447,7 @@ public sealed class FilesController : ControllerBase
 
     /// <summary>获取指定业务实体关联的所有附件（可按 fieldKey 过滤）</summary>
     [HttpGet("attachments/{entityType}/{entityId:long}")]
+    [Authorize(Policy = PermissionPolicies.FileDownload)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<AttachmentBindingDto>>>> GetAttachments(
         string entityType,
         long entityId,

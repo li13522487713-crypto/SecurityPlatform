@@ -11,7 +11,6 @@ namespace Atlas.AppHost.Controllers;
 
 [ApiController]
 [Route("api/v2/runtime-contexts")]
-[Authorize]
 public sealed class RuntimeContextsV2Controller : ControllerBase
 {
     private readonly IRuntimeContextQueryService _queryService;

@@ -12,7 +12,6 @@ namespace Atlas.AppHost.Controllers;
 
 [ApiController]
 [Route("api/v2/runtime-executions")]
-[Authorize]
 public sealed class RuntimeExecutionsV2Controller : ControllerBase
 {
     private readonly IRuntimeExecutionQueryService _queryService;

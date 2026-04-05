@@ -4,6 +4,7 @@ using Atlas.Core.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Presentation.Shared.Attributes;
+using Atlas.Presentation.Shared.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Atlas.Presentation.Shared.Filters;
@@ -13,7 +14,6 @@ namespace Atlas.AppHost.Controllers;
 [ApiController]
 [Route("api/v1/runtime")]
 [DeprecatedApi("runtime v1 endpoints are in compatibility window", "/api/v2/runtime-contexts and /api/v2/runtime-executions")]
-[Authorize]
 public sealed class RuntimeTasksController : ControllerBase
 {
     private readonly IRuntimeRouteQueryService _runtimeService;
@@ -31,6 +31,7 @@ public sealed class RuntimeTasksController : ControllerBase
     }
 
     [HttpGet("apps/{appKey}/pages/{pageKey}")]
+    [Authorize(Policy = PermissionPolicies.AppsView)]
     public async Task<ActionResult<ApiResponse<RuntimePageResponse?>>> GetRuntimePage(
         string appKey,
         string pageKey,
@@ -42,6 +43,7 @@ public sealed class RuntimeTasksController : ControllerBase
     }
 
     [HttpGet("tasks")]
+    [Authorize(Policy = PermissionPolicies.AppsView)]
     public async Task<ActionResult<ApiResponse<PagedResult<RuntimeTaskListItem>>>> GetTasks(
         [FromQuery] PagedRequest request,
         CancellationToken cancellationToken)
@@ -58,11 +60,13 @@ public sealed class RuntimeTasksController : ControllerBase
     }
 
     [HttpGet("tasks/inbox")]
+    [Authorize(Policy = PermissionPolicies.AppsView)]
     public Task<ActionResult<ApiResponse<PagedResult<RuntimeTaskListItem>>>> GetInboxTasks(
         [FromQuery] PagedRequest request,
         CancellationToken cancellationToken) => GetTasks(request, cancellationToken);
 
     [HttpGet("tasks/done")]
+    [Authorize(Policy = PermissionPolicies.AppsView)]
     public async Task<ActionResult<ApiResponse<PagedResult<RuntimeTaskListItem>>>> GetDoneTasks(
         [FromQuery] PagedRequest request,
         CancellationToken cancellationToken)
@@ -79,6 +83,7 @@ public sealed class RuntimeTasksController : ControllerBase
     }
 
     [HttpGet("apps/{appKey}/menu")]
+    [Authorize(Policy = PermissionPolicies.AppsView)]
     public async Task<ActionResult<ApiResponse<RuntimeMenuResponse>>> GetRuntimeMenu(
         string appKey,
         CancellationToken cancellationToken)
@@ -89,6 +94,7 @@ public sealed class RuntimeTasksController : ControllerBase
     }
 
     [HttpPost("tasks/{taskId:long}/actions")]
+    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
     public async Task<ActionResult<ApiResponse<object>>> ExecuteTaskAction(
         long taskId,
         [FromBody] RuntimeTaskActionRequest request,
@@ -106,6 +112,7 @@ public sealed class RuntimeTasksController : ControllerBase
     }
 
     [HttpPost("apps/{appKey}/pages/{pageKey}/actions")]
+    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
     public async Task<ActionResult<ApiResponse<object>>> ExecutePageTaskAction(
         string appKey,
         string pageKey,

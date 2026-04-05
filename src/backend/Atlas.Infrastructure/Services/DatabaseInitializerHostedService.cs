@@ -4,6 +4,7 @@ using Atlas.Application.Options;
 using Atlas.Application.Security;
 using Atlas.Application.Identity;
 using Atlas.Core.Abstractions;
+using Atlas.Core.Enums;
 using Atlas.Core.Identity;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Alert.Entities;
@@ -101,6 +102,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             }
         }
         await EnsureSystemConfigSchemaAsync(db, cancellationToken);
+        await EnsureAssetSchemaAsync(db, cancellationToken);
         await EnsureDynamicTableSchemaAsync(db, cancellationToken);
         await EnsureDynamicFieldSchemaAsync(db, cancellationToken);
 
@@ -287,6 +289,8 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             typeof(AppIntegrityCheckItem),
             typeof(AppDataRoutePolicy),
             typeof(AppMember),
+            typeof(AppMemberDepartment),
+            typeof(AppMemberPosition),
             typeof(AppRole),
             typeof(AppUserRole),
             typeof(AppRolePermission),
@@ -295,6 +299,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             typeof(AppDepartment),
             typeof(AppPosition),
             typeof(AppProject),
+            typeof(AppProjectUser),
             typeof(Tenant),
             // Low code module (types already registered above: LowCodeApp, AppEntityAlias, LowCodePage, FormDefinition)
             typeof(LowCodeAppVersion),
@@ -525,6 +530,11 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             var description = roleSeedMap.TryGetValue(roleCode, out seed) ? seed.Description : roleCode;
             var role = new Role(tenantId, displayName, roleCode, idGeneratorAccessor.NextId());
             role.Update(displayName, description);
+            if (string.Equals(roleCode, "SuperAdmin", StringComparison.OrdinalIgnoreCase))
+            {
+                role.SetDataScope(DataScopeType.All);
+            }
+
             if (roleCodeSet.Contains(roleCode) || (roleSeedMap.TryGetValue(roleCode, out seed) && seed.IsSystem))
             {
                 role.MarkSystemRole();
@@ -538,6 +548,8 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             await roleRepository.AddRangeAsync(rolesToInsert, cancellationToken);
         }
 
+        await EnsureBootstrapRoleDataScopesAsync(roleRepository, roleMap, allRoleCodes, cancellationToken);
+
         var roleIds = roleCodesArray
             .Select(roleCode => roleMap[roleCode].Id)
             .Distinct()
@@ -547,6 +559,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         {
             (PermissionCodes.SystemAdmin, "System Admin", "Api"),
             (PermissionCodes.WorkflowDesign, "Workflow Designer", "Menu"),
+            (PermissionCodes.WorkflowView, "Workflow View", "Api"),
             (PermissionCodes.UsersView, "Users View", "Api"),
             (PermissionCodes.UsersCreate, "Users Create", "Api"),
             (PermissionCodes.UsersUpdate, "Users Update", "Api"),
@@ -699,6 +712,39 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             (PermissionCodes.JobDelete, "Job Delete", "Api"),
             (PermissionCodes.JobTrigger, "Job Trigger", "Api"),
             (PermissionCodes.DataScopeManage, "Data Scope Manage", "Api"),
+            (PermissionCodes.ToolPoliciesView, "Tool Policies View", "Api"),
+            (PermissionCodes.WebhooksView, "Webhooks View", "Api"),
+            (PermissionCodes.WebhooksCreate, "Webhooks Create", "Api"),
+            (PermissionCodes.WebhooksUpdate, "Webhooks Update", "Api"),
+            (PermissionCodes.WebhooksDelete, "Webhooks Delete", "Api"),
+            (PermissionCodes.WebhooksTest, "Webhooks Test", "Api"),
+            (PermissionCodes.EventSubscriptionsView, "Event Subscriptions View", "Api"),
+            (PermissionCodes.EventSubscriptionsCreate, "Event Subscriptions Create", "Api"),
+            (PermissionCodes.EventSubscriptionsUpdate, "Event Subscriptions Update", "Api"),
+            (PermissionCodes.EventSubscriptionsDelete, "Event Subscriptions Delete", "Api"),
+            (PermissionCodes.TemplatesView, "Templates View", "Api"),
+            (PermissionCodes.TemplatesCreate, "Templates Create", "Api"),
+            (PermissionCodes.TemplatesUpdate, "Templates Update", "Api"),
+            (PermissionCodes.TemplatesDelete, "Templates Delete", "Api"),
+            (PermissionCodes.TemplatesInstantiate, "Templates Instantiate", "Api"),
+            (PermissionCodes.ConnectorsView, "Connectors View", "Api"),
+            (PermissionCodes.ConnectorsCreate, "Connectors Create", "Api"),
+            (PermissionCodes.ConnectorsUpdate, "Connectors Update", "Api"),
+            (PermissionCodes.ConnectorsDelete, "Connectors Delete", "Api"),
+            (PermissionCodes.ConnectorsSync, "Connectors Sync", "Api"),
+            (PermissionCodes.ConnectorsExecute, "Connectors Execute", "Api"),
+            (PermissionCodes.PlatformEventsView, "Platform Events View", "Api"),
+            (PermissionCodes.PackagesExport, "Packages Export", "Api"),
+            (PermissionCodes.PackagesImport, "Packages Import", "Api"),
+            (PermissionCodes.PackagesAnalyze, "Packages Analyze", "Api"),
+            (PermissionCodes.AlertRulesView, "Alert Rules View", "Api"),
+            (PermissionCodes.AlertRulesCreate, "Alert Rules Create", "Api"),
+            (PermissionCodes.AlertRulesUpdate, "Alert Rules Update", "Api"),
+            (PermissionCodes.AlertRulesDelete, "Alert Rules Delete", "Api"),
+            (PermissionCodes.MeteringView, "Metering View", "Api"),
+            (PermissionCodes.MeteringUpdate, "Metering Update", "Api"),
+            (PermissionCodes.LicenseView, "License View", "Api"),
+            (PermissionCodes.LicenseManage, "License Manage", "Api"),
             (PermissionCodes.FileUpload, "File Upload", "Api"),
             (PermissionCodes.FileDownload, "File Download", "Api"),
             (PermissionCodes.FileDelete, "File Delete", "Api")
@@ -1069,7 +1115,6 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             await db.Insertable(positionsToInsert).ExecuteCommandAsync(cancellationToken);
         }
 
-        var permissionIds = permissionIdMap.Values.Distinct().ToArray();
         var existingRolePermissions = await rolePermissionRepository.QueryByRoleIdsAsync(
             tenantId,
             roleIds,
@@ -1079,16 +1124,27 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             .ToHashSet();
 
         var rolePermissionsToInsert = new List<RolePermission>();
-        foreach (var roleId in roleIds)
+        foreach (var roleCode in roleCodesArray)
         {
-            foreach (var permissionId in permissionIds)
+            if (!roleMap.TryGetValue(roleCode, out var roleForPermissions))
             {
-                if (existingRolePermissionSet.Contains((roleId, permissionId)))
+                continue;
+            }
+
+            foreach (var permissionCode in EnumerateBootstrapRoleSeedPermissionCodes(roleCode, permissionIdMap))
+            {
+                if (!permissionIdMap.TryGetValue(permissionCode, out var permissionId))
                 {
                     continue;
                 }
 
-                rolePermissionsToInsert.Add(new RolePermission(tenantId, roleId, permissionId, idGeneratorAccessor.NextId()));
+                if (existingRolePermissionSet.Contains((roleForPermissions.Id, permissionId)))
+                {
+                    continue;
+                }
+
+                rolePermissionsToInsert.Add(
+                    new RolePermission(tenantId, roleForPermissions.Id, permissionId, idGeneratorAccessor.NextId()));
             }
         }
 
@@ -1540,12 +1596,16 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             || !db.DbMaintenance.IsAnyTable("AppRolePage", false)
             || !db.DbMaintenance.IsAnyTable("AppDepartment", false)
             || !db.DbMaintenance.IsAnyTable("AppPosition", false)
-            || !db.DbMaintenance.IsAnyTable("AppProject", false);
+            || !db.DbMaintenance.IsAnyTable("AppProject", false)
+            || !db.DbMaintenance.IsAnyTable("AppProjectUser", false)
+            || !db.DbMaintenance.IsAnyTable("AppMemberDepartment", false)
+            || !db.DbMaintenance.IsAnyTable("AppMemberPosition", false);
         if (missingTables)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            db.CodeFirst.InitTables<AppMember, AppRole, AppUserRole, AppRolePermission, AppPermission>();
-            db.CodeFirst.InitTables<AppRolePage, AppDepartment, AppPosition, AppProject>();
+            db.CodeFirst.InitTables<AppMember, AppMemberDepartment, AppMemberPosition>();
+            db.CodeFirst.InitTables<AppRole, AppUserRole, AppRolePermission, AppPermission>();
+            db.CodeFirst.InitTables<AppRolePage, AppDepartment, AppPosition, AppProject, AppProjectUser>();
         }
 
         if (SqliteSchemaAlignment.IsSqlite(db))
@@ -1554,6 +1614,16 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         }
 
         return null;
+    }
+
+    private static async Task EnsureAssetSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
+    {
+        if (!db.DbMaintenance.IsAnyTable("Asset", false))
+        {
+            return;
+        }
+
+        await AddColumnIfMissingAsync(db, "Asset", "CreatedByUserId", "INTEGER NULL", cancellationToken);
     }
 
     private static async Task EnsureSystemConfigSchemaAsync(ISqlSugarClient db, CancellationToken cancellationToken)
@@ -2214,6 +2284,191 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         if (inserts.Count > 0)
         {
             await repository.AddRangeAsync(inserts, cancellationToken);
+        }
+    }
+
+    /// <summary>平台种子角色与权限码的映射（等保最小化授权）；未列出的引导角色码按租户管理员子集处理（不含 system:admin）。</summary>
+    private static IEnumerable<string> EnumerateBootstrapRoleSeedPermissionCodes(
+        string roleCode,
+        IReadOnlyDictionary<string, long> permissionIdMap)
+    {
+        var comparer = StringComparer.OrdinalIgnoreCase;
+        if (string.IsNullOrWhiteSpace(roleCode))
+        {
+            yield break;
+        }
+
+        if (comparer.Equals(roleCode, "SuperAdmin"))
+        {
+            foreach (var code in permissionIdMap.Keys)
+            {
+                yield return code;
+            }
+
+            yield break;
+        }
+
+        if (comparer.Equals(roleCode, "Admin") || comparer.Equals(roleCode, "TenantAdmin"))
+        {
+            foreach (var code in permissionIdMap.Keys)
+            {
+                if (!comparer.Equals(code, PermissionCodes.SystemAdmin))
+                {
+                    yield return code;
+                }
+            }
+
+            yield break;
+        }
+
+        if (comparer.Equals(roleCode, "SecurityAdmin"))
+        {
+            foreach (var code in SecurityAdminSeedPermissionCodes)
+            {
+                if (permissionIdMap.ContainsKey(code))
+                {
+                    yield return code;
+                }
+            }
+
+            yield break;
+        }
+
+        if (comparer.Equals(roleCode, "AuditAdmin") || comparer.Equals(roleCode, "Auditor"))
+        {
+            foreach (var code in AuditAdminSeedPermissionCodes)
+            {
+                if (permissionIdMap.ContainsKey(code))
+                {
+                    yield return code;
+                }
+            }
+
+            yield break;
+        }
+
+        if (comparer.Equals(roleCode, "AssetAdmin"))
+        {
+            foreach (var code in AssetAdminSeedPermissionCodes)
+            {
+                if (permissionIdMap.ContainsKey(code))
+                {
+                    yield return code;
+                }
+            }
+
+            yield break;
+        }
+
+        if (comparer.Equals(roleCode, "ApprovalAdmin"))
+        {
+            foreach (var code in ApprovalAdminSeedPermissionCodes)
+            {
+                if (permissionIdMap.ContainsKey(code))
+                {
+                    yield return code;
+                }
+            }
+
+            yield break;
+        }
+
+        foreach (var code in permissionIdMap.Keys)
+        {
+            if (!comparer.Equals(code, PermissionCodes.SystemAdmin))
+            {
+                yield return code;
+            }
+        }
+    }
+
+    private static readonly string[] SecurityAdminSeedPermissionCodes =
+    [
+        PermissionCodes.UsersView,
+        PermissionCodes.UsersCreate,
+        PermissionCodes.UsersUpdate,
+        PermissionCodes.UsersDelete,
+        PermissionCodes.UsersAssignRoles,
+        PermissionCodes.UsersAssignDepartments,
+        PermissionCodes.UsersAssignPositions,
+        PermissionCodes.RolesView,
+        PermissionCodes.RolesCreate,
+        PermissionCodes.RolesUpdate,
+        PermissionCodes.RolesDelete,
+        PermissionCodes.RolesAssignPermissions,
+        PermissionCodes.RolesAssignMenus,
+        PermissionCodes.PermissionsView,
+        PermissionCodes.PermissionsCreate,
+        PermissionCodes.PermissionsUpdate,
+        PermissionCodes.DepartmentsView,
+        PermissionCodes.DepartmentsAll,
+        PermissionCodes.DepartmentsCreate,
+        PermissionCodes.DepartmentsUpdate,
+        PermissionCodes.DepartmentsDelete,
+        PermissionCodes.PositionsView,
+        PermissionCodes.PositionsCreate,
+        PermissionCodes.PositionsUpdate,
+        PermissionCodes.PositionsDelete,
+        PermissionCodes.MenusView,
+        PermissionCodes.MenusAll,
+        PermissionCodes.MenusCreate,
+        PermissionCodes.MenusUpdate,
+        PermissionCodes.MenusDelete,
+        PermissionCodes.DataScopeManage
+    ];
+
+    private static readonly string[] AuditAdminSeedPermissionCodes =
+    [
+        PermissionCodes.AuditView,
+        PermissionCodes.LoginLogView
+    ];
+
+    private static readonly string[] AssetAdminSeedPermissionCodes =
+    [
+        PermissionCodes.AssetsView,
+        PermissionCodes.AssetsCreate,
+        PermissionCodes.FileUpload,
+        PermissionCodes.FileDownload,
+        PermissionCodes.FileDelete
+    ];
+
+    private static readonly string[] ApprovalAdminSeedPermissionCodes =
+    [
+        PermissionCodes.WorkflowDesign,
+        PermissionCodes.WorkflowView,
+        PermissionCodes.ApprovalFlowView,
+        PermissionCodes.ApprovalFlowManage,
+        PermissionCodes.ApprovalFlowCreate,
+        PermissionCodes.ApprovalFlowUpdate,
+        PermissionCodes.ApprovalFlowPublish,
+        PermissionCodes.ApprovalFlowDelete,
+        PermissionCodes.ApprovalFlowDisable
+    ];
+
+    private static async Task EnsureBootstrapRoleDataScopesAsync(
+        IRoleRepository roleRepository,
+        IReadOnlyDictionary<string, Role> roleMap,
+        IReadOnlyList<string> allRoleCodes,
+        CancellationToken cancellationToken)
+    {
+        foreach (var roleCode in allRoleCodes)
+        {
+            if (!roleMap.TryGetValue(roleCode, out var role))
+            {
+                continue;
+            }
+
+            var expected = string.Equals(roleCode, "SuperAdmin", StringComparison.OrdinalIgnoreCase)
+                ? DataScopeType.All
+                : DataScopeType.CurrentTenant;
+
+            if (role.DataScope == expected)
+            {
+                continue;
+            }
+
+            role.SetDataScope(expected);
+            await roleRepository.UpdateAsync(role, cancellationToken);
         }
     }
 

@@ -37,6 +37,24 @@ public sealed class ProjectDepartmentRepository : IProjectDepartmentRepository
         return list;
     }
 
+    public async Task<IReadOnlyList<long>> QueryProjectIdsByDepartmentIdsAsync(
+        TenantId tenantId,
+        IReadOnlyList<long> departmentIds,
+        CancellationToken cancellationToken)
+    {
+        if (departmentIds.Count == 0)
+        {
+            return Array.Empty<long>();
+        }
+
+        var ids = departmentIds.Distinct().ToArray();
+        var list = await _db.Queryable<ProjectDepartment>()
+            .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(ids, x.DepartmentId))
+            .Select(x => x.ProjectId)
+            .ToListAsync(cancellationToken);
+        return list.Distinct().ToArray();
+    }
+
     public Task DeleteByProjectIdAsync(TenantId tenantId, long projectId, CancellationToken cancellationToken)
     {
         return _db.Deleteable<ProjectDepartment>()

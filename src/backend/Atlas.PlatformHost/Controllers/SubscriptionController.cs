@@ -1,6 +1,7 @@
 using Atlas.Application.Subscription;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
+using Atlas.Presentation.Shared.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Atlas.Presentation.Shared.Filters;
@@ -12,7 +13,7 @@ namespace Atlas.PlatformHost.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/v1/plans")]
-[Authorize]
+[Authorize(Policy = PermissionPolicies.SystemAdmin)]
 public sealed class PlansController : ControllerBase
 {
     private readonly IPlanQueryService _queryService;

@@ -707,7 +707,10 @@ public sealed class DynamicTableCommandServiceAlterTests
                     "UpdatedBy" INTEGER NOT NULL,
                     "AppId" INTEGER NULL,
                     "ApprovalFlowDefinitionId" INTEGER NULL,
-                    "ApprovalStatusField" TEXT NULL
+                    "ApprovalStatusField" TEXT NULL,
+                    "SchemaVersion" INTEGER NOT NULL DEFAULT 1,
+                    "CompatibilityMode" TEXT NULL,
+                    "ExtensionPolicy" TEXT NULL
                   );
 
                   CREATE TABLE "DynamicField"(
@@ -727,7 +730,11 @@ public sealed class DynamicTableCommandServiceAlterTests
                     "DefaultValue" TEXT NULL,
                     "SortOrder" INTEGER NOT NULL,
                     "CreatedAt" TEXT NOT NULL,
-                    "UpdatedAt" TEXT NOT NULL
+                    "UpdatedAt" TEXT NOT NULL,
+                    "IsComputed" INTEGER NOT NULL DEFAULT 0,
+                    "ComputedExprId" INTEGER NULL,
+                    "IsStatusField" INTEGER NOT NULL DEFAULT 0,
+                    "IsRowVersionField" INTEGER NOT NULL DEFAULT 0
                   );
 
                   CREATE TABLE "DynamicIndex"(
@@ -777,17 +784,22 @@ public sealed class DynamicTableCommandServiceAlterTests
                     "UpdatedBy" INTEGER NOT NULL,
                     "AppId" INTEGER NULL,
                     "ApprovalFlowDefinitionId" INTEGER NOT NULL DEFAULT 0,
-                    "ApprovalStatusField" TEXT NOT NULL DEFAULT ''
+                    "ApprovalStatusField" TEXT NOT NULL DEFAULT '',
+                    "SchemaVersion" INTEGER NOT NULL DEFAULT 1,
+                    "CompatibilityMode" TEXT NULL,
+                    "ExtensionPolicy" TEXT NULL
                   );
 
                   INSERT INTO "DynamicTable"(
                     "TenantIdValue", "Id", "TableKey", "DisplayName", "Description", "DbType", "Status",
                     "CreatedAt", "UpdatedAt", "CreatedBy", "UpdatedBy", "AppId",
-                    "ApprovalFlowDefinitionId", "ApprovalStatusField")
+                    "ApprovalFlowDefinitionId", "ApprovalStatusField",
+                    "SchemaVersion", "CompatibilityMode", "ExtensionPolicy")
                   SELECT
                     "TenantIdValue", "Id", "TableKey", "DisplayName", "Description", "DbType", "Status",
                     "CreatedAt", "UpdatedAt", "CreatedBy", "UpdatedBy", "AppId",
-                    COALESCE("ApprovalFlowDefinitionId", 0), COALESCE("ApprovalStatusField", '')
+                    COALESCE("ApprovalFlowDefinitionId", 0), COALESCE("ApprovalStatusField", ''),
+                    1, NULL, NULL
                   FROM "DynamicTable__old";
 
                   DROP TABLE "DynamicTable__old";
@@ -817,17 +829,23 @@ public sealed class DynamicTableCommandServiceAlterTests
                     "DefaultValue" TEXT NULL,
                     "SortOrder" INTEGER NOT NULL,
                     "CreatedAt" TEXT NOT NULL,
-                    "UpdatedAt" TEXT NOT NULL
+                    "UpdatedAt" TEXT NOT NULL,
+                    "IsComputed" INTEGER NOT NULL DEFAULT 0,
+                    "ComputedExprId" INTEGER NULL,
+                    "IsStatusField" INTEGER NOT NULL DEFAULT 0,
+                    "IsRowVersionField" INTEGER NOT NULL DEFAULT 0
                   );
 
                   INSERT INTO "DynamicField"(
                     "TenantIdValue", "Id", "TableId", "Name", "DisplayName", "FieldType",
                     "Length", "Precision", "Scale", "AllowNull", "IsPrimaryKey", "IsAutoIncrement", "IsUnique",
-                    "DefaultValue", "SortOrder", "CreatedAt", "UpdatedAt")
+                    "DefaultValue", "SortOrder", "CreatedAt", "UpdatedAt",
+                    "IsComputed", "ComputedExprId", "IsStatusField", "IsRowVersionField")
                   SELECT
                     "TenantIdValue", "Id", "TableId", "Name", "DisplayName", "FieldType",
                     COALESCE("Length", 0), "Precision", "Scale", "AllowNull", "IsPrimaryKey", "IsAutoIncrement", "IsUnique",
-                    "DefaultValue", "SortOrder", "CreatedAt", "UpdatedAt"
+                    "DefaultValue", "SortOrder", "CreatedAt", "UpdatedAt",
+                    0, NULL, 0, 0
                   FROM "DynamicField__old";
 
                   DROP TABLE "DynamicField__old";
@@ -837,15 +855,19 @@ public sealed class DynamicTableCommandServiceAlterTests
 
     private static bool IsColumnNotNull(ISqlSugarClient db, string tableName, string columnName)
     {
-        var pragma = db.Ado.GetDataTable($"PRAGMA table_info(\"{tableName}\");");
-        foreach (System.Data.DataRow row in pragma.Rows)
+        db.Ado.Open();
+        using var cmd = db.Ado.Connection.CreateCommand();
+        var escaped = tableName.Replace("\"", "\"\"", StringComparison.Ordinal);
+        cmd.CommandText = $"PRAGMA table_info(\"{escaped}\");";
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
         {
-            if (!string.Equals(row["name"]?.ToString(), columnName, StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(reader.GetString(1), columnName, StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
 
-            return Convert.ToInt32(row["notnull"]) == 1;
+            return reader.GetInt64(3) == 1;
         }
 
         return false;

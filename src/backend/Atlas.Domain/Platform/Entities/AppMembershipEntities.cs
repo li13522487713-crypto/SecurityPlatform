@@ -200,6 +200,81 @@ public sealed class AppPermission : TenantEntity
     }
 }
 
+/// <summary>
+/// 应用成员 ↔ 应用部门关联（对应平台级的 UserDepartment）。
+/// 确保应用级数据范围（CurrentDept/CurrentDeptAndBelow）可基于应用组织独立计算。
+/// </summary>
+public sealed class AppMemberDepartment : TenantEntity
+{
+    public AppMemberDepartment()
+        : base(TenantId.Empty)
+    {
+    }
+
+    public AppMemberDepartment(
+        TenantId tenantId,
+        long appId,
+        long userId,
+        long departmentId,
+        bool isPrimary,
+        long id)
+        : base(tenantId)
+    {
+        Id = id;
+        AppId = appId;
+        UserId = userId;
+        DepartmentId = departmentId;
+        IsPrimary = isPrimary;
+    }
+
+    public long AppId { get; private set; }
+    public long UserId { get; private set; }
+    public long DepartmentId { get; private set; }
+    public bool IsPrimary { get; private set; }
+
+    public void SetPrimary(bool isPrimary)
+    {
+        IsPrimary = isPrimary;
+    }
+}
+
+/// <summary>
+/// 应用成员 ↔ 应用职位关联（对应平台级的 UserPosition）。
+/// </summary>
+public sealed class AppMemberPosition : TenantEntity
+{
+    public AppMemberPosition()
+        : base(TenantId.Empty)
+    {
+    }
+
+    public AppMemberPosition(
+        TenantId tenantId,
+        long appId,
+        long userId,
+        long positionId,
+        bool isPrimary,
+        long id)
+        : base(tenantId)
+    {
+        Id = id;
+        AppId = appId;
+        UserId = userId;
+        PositionId = positionId;
+        IsPrimary = isPrimary;
+    }
+
+    public long AppId { get; private set; }
+    public long UserId { get; private set; }
+    public long PositionId { get; private set; }
+    public bool IsPrimary { get; private set; }
+
+    public void SetPrimary(bool isPrimary)
+    {
+        IsPrimary = isPrimary;
+    }
+}
+
 /// <summary>应用角色 ↔ 低代码页面关联（对应平台级的 RoleMenu）</summary>
 public sealed class AppRolePage : TenantEntity
 {

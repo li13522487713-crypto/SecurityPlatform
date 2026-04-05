@@ -1,5 +1,6 @@
 using Atlas.Core.Expressions;
 using Atlas.Core.Models;
+using Atlas.Presentation.Shared.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Atlas.Presentation.Shared.Filters;
@@ -8,7 +9,6 @@ namespace Atlas.PlatformHost.Controllers;
 
 [ApiController]
 [Route("api/v1/expressions")]
-[Authorize]
 public sealed class ExpressionsController : ControllerBase
 {
     private readonly IExpressionEngine _engine;
@@ -22,6 +22,7 @@ public sealed class ExpressionsController : ControllerBase
     /// 静态校验表达式语法（不求值）
     /// </summary>
     [HttpPost("validate")]
+    [Authorize(Policy = PermissionPolicies.AppsView)]
     public ActionResult<ApiResponse<ExpressionValidateResponse>> Validate([FromBody] ExpressionValidateRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.Expression))
@@ -41,6 +42,7 @@ public sealed class ExpressionsController : ControllerBase
     /// 带上下文对表达式求值（沙箱模式，仅用于调试/试运行）
     /// </summary>
     [HttpPost("evaluate")]
+    [Authorize(Policy = PermissionPolicies.DebugRun)]
     public ActionResult<ApiResponse<ExpressionEvaluateResponse>> Evaluate([FromBody] ExpressionEvaluateRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.Expression))

@@ -12,6 +12,7 @@ public interface IProjectRepository
         int pageIndex,
         int pageSize,
         string? keyword,
+        IReadOnlyList<long>? restrictToProjectIds,
         CancellationToken cancellationToken);
     Task<IReadOnlyList<Project>> QueryByIdsAsync(
         TenantId tenantId,
@@ -23,6 +24,7 @@ public interface IProjectRepository
         int pageIndex,
         int pageSize,
         string? keyword,
+        IReadOnlyList<long>? restrictToProjectIds,
         CancellationToken cancellationToken);
     Task AddAsync(Project project, CancellationToken cancellationToken);
     Task UpdateAsync(Project project, CancellationToken cancellationToken);

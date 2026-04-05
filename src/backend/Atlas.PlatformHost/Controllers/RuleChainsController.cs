@@ -3,6 +3,7 @@ using Atlas.Application.LogicFlow.Expressions.Models;
 using Atlas.Core.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
+using Atlas.Presentation.Shared.Authorization;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -12,7 +13,7 @@ namespace Atlas.PlatformHost.Controllers;
 
 [ApiController]
 [Route("api/v1/rule-chains")]
-[Authorize]
+[Authorize(Policy = PermissionPolicies.SystemAdmin)]
 public sealed class RuleChainsController : ControllerBase
 {
     private readonly IRuleChainQueryService _queryService;

@@ -1,6 +1,9 @@
+using Atlas.Application.Identity.Abstractions;
 using Atlas.Application.LowCode.Abstractions;
 using Atlas.Application.LowCode.Models;
+using Atlas.Application.Platform.Abstractions;
 using Atlas.Core.Abstractions;
+using Atlas.Core.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.LowCode.Entities;
@@ -12,11 +15,22 @@ public sealed class ReportService : IReportService
 {
     private readonly ISqlSugarClient _db;
     private readonly IIdGeneratorAccessor _idGenerator;
+    private readonly IAppContextAccessor _appContextAccessor;
+    private readonly ITenantDataScopeFilter _tenantDataScopeFilter;
+    private readonly IAppDataScopeFilter _appDataScopeFilter;
 
-    public ReportService(ISqlSugarClient db, IIdGeneratorAccessor idGenerator)
+    public ReportService(
+        ISqlSugarClient db,
+        IIdGeneratorAccessor idGenerator,
+        IAppContextAccessor appContextAccessor,
+        ITenantDataScopeFilter tenantDataScopeFilter,
+        IAppDataScopeFilter appDataScopeFilter)
     {
         _db = db;
         _idGenerator = idGenerator;
+        _appContextAccessor = appContextAccessor;
+        _tenantDataScopeFilter = tenantDataScopeFilter;
+        _appDataScopeFilter = appDataScopeFilter;
     }
 
     public async Task<PagedResult<ReportDefinitionListItem>> QueryAsync(
@@ -24,6 +38,12 @@ public sealed class ReportService : IReportService
     {
         var query = _db.Queryable<ReportDefinition>()
             .Where(x => x.TenantIdValue == tenantId.Value);
+
+        var ownerFilter = await ResolveCreatedByOwnerFilterAsync(cancellationToken);
+        if (ownerFilter.HasValue)
+        {
+            query = query.Where(x => x.CreatedBy == ownerFilter.Value);
+        }
 
         if (!string.IsNullOrWhiteSpace(request.Keyword))
         {
@@ -46,9 +66,15 @@ public sealed class ReportService : IReportService
     public async Task<ReportDefinitionDetail?> GetByIdAsync(
         TenantId tenantId, long id, CancellationToken cancellationToken = default)
     {
-        var e = await _db.Queryable<ReportDefinition>()
-            .Where(x => x.TenantIdValue == tenantId.Value && x.Id == id)
-            .FirstAsync(cancellationToken);
+        var query = _db.Queryable<ReportDefinition>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.Id == id);
+        var ownerFilter = await ResolveCreatedByOwnerFilterAsync(cancellationToken);
+        if (ownerFilter.HasValue)
+        {
+            query = query.Where(x => x.CreatedBy == ownerFilter.Value);
+        }
+
+        var e = await query.FirstAsync(cancellationToken);
 
         if (e is null) return null;
 
@@ -103,5 +129,16 @@ public sealed class ReportService : IReportService
         await _db.Deleteable<ReportDefinition>()
             .Where(x => x.TenantIdValue == tenantId.Value && x.Id == id)
             .ExecuteCommandAsync(cancellationToken);
+    }
+
+    private async Task<long?> ResolveCreatedByOwnerFilterAsync(CancellationToken cancellationToken)
+    {
+        var appId = _appContextAccessor.ResolveAppId();
+        if (appId is > 0)
+        {
+            return await _appDataScopeFilter.GetOwnerFilterIdAsync(appId.Value, cancellationToken);
+        }
+
+        return await _tenantDataScopeFilter.GetOwnerFilterIdAsync(cancellationToken);
     }
 }

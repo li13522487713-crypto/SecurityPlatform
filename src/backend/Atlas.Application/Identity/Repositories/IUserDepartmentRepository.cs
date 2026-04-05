@@ -5,6 +5,11 @@ namespace Atlas.Application.Identity.Repositories;
 
 public interface IUserDepartmentRepository
 {
+    Task<IReadOnlyList<long>> QueryUserIdsByDepartmentIdsAsync(
+        TenantId tenantId,
+        IReadOnlyList<long> departmentIds,
+        CancellationToken cancellationToken);
+
     Task<IReadOnlyList<UserDepartment>> QueryByUserIdAsync(TenantId tenantId, long userId, CancellationToken cancellationToken);
     Task<IReadOnlyList<UserDepartment>> QueryByUserIdsAsync(TenantId tenantId, IReadOnlyList<long> userIds, CancellationToken cancellationToken);
     Task DeleteByUserIdAsync(TenantId tenantId, long userId, CancellationToken cancellationToken);

@@ -515,6 +515,217 @@ public sealed class AppRolePermissionRepository : IAppRolePermissionRepository
     }
 }
 
+public sealed class AppMemberDepartmentRepository : IAppMemberDepartmentRepository
+{
+    private readonly ISqlSugarClient _mainDb;
+    private readonly IAppDbScopeFactory _appDbScopeFactory;
+
+    public AppMemberDepartmentRepository(ISqlSugarClient db, IAppDbScopeFactory appDbScopeFactory)
+    {
+        _mainDb = db;
+        _appDbScopeFactory = appDbScopeFactory;
+    }
+    public AppMemberDepartmentRepository(ISqlSugarClient db) : this(db, new MainOnlyAppDbScopeFactory(db)) { }
+
+    public async Task<IReadOnlyList<AppMemberDepartment>> QueryByAppIdAsync(
+        TenantId tenantId, long appId, CancellationToken cancellationToken = default)
+    {
+        var db = await ResolveDbAsync(tenantId, appId, cancellationToken);
+        var list = await db.Queryable<AppMemberDepartment>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.AppId == appId)
+            .ToListAsync(cancellationToken);
+        return list;
+    }
+
+    public async Task<IReadOnlyList<AppMemberDepartment>> QueryByUserIdAsync(
+        TenantId tenantId, long appId, long userId, CancellationToken cancellationToken = default)
+    {
+        var db = await ResolveDbAsync(tenantId, appId, cancellationToken);
+        var list = await db.Queryable<AppMemberDepartment>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.AppId == appId && x.UserId == userId)
+            .ToListAsync(cancellationToken);
+        return list;
+    }
+
+    public async Task<IReadOnlyList<AppMemberDepartment>> QueryByDepartmentIdAsync(
+        TenantId tenantId, long appId, long departmentId, CancellationToken cancellationToken = default)
+    {
+        var db = await ResolveDbAsync(tenantId, appId, cancellationToken);
+        var list = await db.Queryable<AppMemberDepartment>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.AppId == appId && x.DepartmentId == departmentId)
+            .ToListAsync(cancellationToken);
+        return list;
+    }
+
+    public async Task<IReadOnlyList<long>> QueryUserIdsByDepartmentIdsAsync(
+        TenantId tenantId,
+        long appId,
+        IReadOnlyList<long> departmentIds,
+        CancellationToken cancellationToken = default)
+    {
+        if (departmentIds.Count == 0)
+        {
+            return Array.Empty<long>();
+        }
+
+        var ids = departmentIds.Distinct().ToArray();
+        var db = await ResolveDbAsync(tenantId, appId, cancellationToken);
+        var list = await db.Queryable<AppMemberDepartment>()
+            .Where(x =>
+                x.TenantIdValue == tenantId.Value
+                && x.AppId == appId
+                && SqlFunc.ContainsArray(ids, x.DepartmentId))
+            .Select(x => x.UserId)
+            .ToListAsync(cancellationToken);
+        return list.Distinct().ToArray();
+    }
+
+    public async Task AddRangeAsync(IReadOnlyList<AppMemberDepartment> entities, CancellationToken cancellationToken = default)
+    {
+        if (entities.Count == 0) return;
+        var db = await ResolveDbAsync(new TenantId(entities[0].TenantIdValue), entities[0].AppId, cancellationToken);
+        await db.Insertable(entities.ToList()).ExecuteCommandAsync(cancellationToken);
+    }
+
+    public async Task DeleteByUserIdAsync(TenantId tenantId, long appId, long userId, CancellationToken cancellationToken = default)
+    {
+        var db = await ResolveDbAsync(tenantId, appId, cancellationToken);
+        await db.Deleteable<AppMemberDepartment>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.AppId == appId && x.UserId == userId)
+            .ExecuteCommandAsync(cancellationToken);
+    }
+
+    public async Task DeleteByDepartmentIdAsync(TenantId tenantId, long appId, long departmentId, CancellationToken cancellationToken = default)
+    {
+        var db = await ResolveDbAsync(tenantId, appId, cancellationToken);
+        await db.Deleteable<AppMemberDepartment>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.AppId == appId && x.DepartmentId == departmentId)
+            .ExecuteCommandAsync(cancellationToken);
+    }
+
+    private async Task<ISqlSugarClient> ResolveDbAsync(TenantId tenantId, long appId, CancellationToken cancellationToken)
+    {
+        if (appId > 0)
+        {
+            return await _appDbScopeFactory.GetAppClientAsync(tenantId, appId, cancellationToken);
+        }
+
+        return _mainDb;
+    }
+}
+
+public sealed class AppProjectUserRepository : IAppProjectUserRepository
+{
+    private readonly ISqlSugarClient _mainDb;
+    private readonly IAppDbScopeFactory _appDbScopeFactory;
+
+    public AppProjectUserRepository(ISqlSugarClient db, IAppDbScopeFactory appDbScopeFactory)
+    {
+        _mainDb = db;
+        _appDbScopeFactory = appDbScopeFactory;
+    }
+
+    public AppProjectUserRepository(ISqlSugarClient db) : this(db, new MainOnlyAppDbScopeFactory(db)) { }
+
+    public async Task<IReadOnlyList<AppProjectUser>> QueryByUserIdAsync(
+        TenantId tenantId, long appId, long userId, CancellationToken cancellationToken = default)
+    {
+        var db = await ResolveDbAsync(tenantId, appId, cancellationToken);
+        var list = await db.Queryable<AppProjectUser>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.AppId == appId && x.UserId == userId)
+            .ToListAsync(cancellationToken);
+        return list;
+    }
+
+    public async Task<IReadOnlyList<AppProjectUser>> QueryByProjectIdAsync(
+        TenantId tenantId, long appId, long projectId, CancellationToken cancellationToken = default)
+    {
+        var db = await ResolveDbAsync(tenantId, appId, cancellationToken);
+        var list = await db.Queryable<AppProjectUser>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.AppId == appId && x.ProjectId == projectId)
+            .ToListAsync(cancellationToken);
+        return list;
+    }
+
+    public async Task AddRangeAsync(IReadOnlyList<AppProjectUser> entities, CancellationToken cancellationToken = default)
+    {
+        if (entities.Count == 0)
+        {
+            return;
+        }
+
+        var db = await ResolveDbAsync(new TenantId(entities[0].TenantIdValue), entities[0].AppId, cancellationToken);
+        await db.Insertable(entities.ToList()).ExecuteCommandAsync(cancellationToken);
+    }
+
+    public async Task DeleteByUserIdAsync(
+        TenantId tenantId, long appId, long userId, CancellationToken cancellationToken = default)
+    {
+        var db = await ResolveDbAsync(tenantId, appId, cancellationToken);
+        await db.Deleteable<AppProjectUser>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.AppId == appId && x.UserId == userId)
+            .ExecuteCommandAsync(cancellationToken);
+    }
+
+    private async Task<ISqlSugarClient> ResolveDbAsync(TenantId tenantId, long appId, CancellationToken cancellationToken)
+    {
+        if (appId > 0)
+        {
+            return await _appDbScopeFactory.GetAppClientAsync(tenantId, appId, cancellationToken);
+        }
+
+        return _mainDb;
+    }
+}
+
+public sealed class AppMemberPositionRepository : IAppMemberPositionRepository
+{
+    private readonly ISqlSugarClient _mainDb;
+    private readonly IAppDbScopeFactory _appDbScopeFactory;
+
+    public AppMemberPositionRepository(ISqlSugarClient db, IAppDbScopeFactory appDbScopeFactory)
+    {
+        _mainDb = db;
+        _appDbScopeFactory = appDbScopeFactory;
+    }
+    public AppMemberPositionRepository(ISqlSugarClient db) : this(db, new MainOnlyAppDbScopeFactory(db)) { }
+
+    public async Task<IReadOnlyList<AppMemberPosition>> QueryByUserIdAsync(
+        TenantId tenantId, long appId, long userId, CancellationToken cancellationToken = default)
+    {
+        var db = await ResolveDbAsync(tenantId, appId, cancellationToken);
+        var list = await db.Queryable<AppMemberPosition>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.AppId == appId && x.UserId == userId)
+            .ToListAsync(cancellationToken);
+        return list;
+    }
+
+    public async Task AddRangeAsync(IReadOnlyList<AppMemberPosition> entities, CancellationToken cancellationToken = default)
+    {
+        if (entities.Count == 0) return;
+        var db = await ResolveDbAsync(new TenantId(entities[0].TenantIdValue), entities[0].AppId, cancellationToken);
+        await db.Insertable(entities.ToList()).ExecuteCommandAsync(cancellationToken);
+    }
+
+    public async Task DeleteByUserIdAsync(TenantId tenantId, long appId, long userId, CancellationToken cancellationToken = default)
+    {
+        var db = await ResolveDbAsync(tenantId, appId, cancellationToken);
+        await db.Deleteable<AppMemberPosition>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.AppId == appId && x.UserId == userId)
+            .ExecuteCommandAsync(cancellationToken);
+    }
+
+    private async Task<ISqlSugarClient> ResolveDbAsync(TenantId tenantId, long appId, CancellationToken cancellationToken)
+    {
+        if (appId > 0)
+        {
+            return await _appDbScopeFactory.GetAppClientAsync(tenantId, appId, cancellationToken);
+        }
+
+        return _mainDb;
+    }
+}
+
 public sealed class AppPermissionRepository : IAppPermissionRepository
 {
     private readonly ISqlSugarClient _mainDb;

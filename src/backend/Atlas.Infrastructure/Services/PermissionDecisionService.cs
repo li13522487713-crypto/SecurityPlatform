@@ -53,6 +53,12 @@ public sealed class PermissionDecisionService : IPermissionDecisionService
             return true;
         }
 
+        if (string.Equals(permissionCode, PermissionCodes.WorkflowView, StringComparison.OrdinalIgnoreCase)
+            && cacheEntry.PermissionCodes.Contains(PermissionCodes.WorkflowDesign, StringComparer.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
         return cacheEntry.PermissionCodes.Contains(permissionCode, StringComparer.OrdinalIgnoreCase);
     }
 

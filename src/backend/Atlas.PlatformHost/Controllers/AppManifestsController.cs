@@ -4,6 +4,7 @@ using Atlas.Core.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Presentation.Shared.Attributes;
+using Atlas.Presentation.Shared.Authorization;
 using Atlas.Presentation.Shared.Helpers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -14,7 +15,6 @@ namespace Atlas.PlatformHost.Controllers;
 [ApiController]
 [Route("api/v1/app-manifests")]
 [DeprecatedApi("app-manifests v1 is in compatibility window", "/api/v2/application-catalogs")]
-[Authorize]
 public sealed class AppManifestsController : ControllerBase
 {
     private readonly IAppManifestQueryService _queryService;
@@ -41,6 +41,7 @@ public sealed class AppManifestsController : ControllerBase
     }
 
     [HttpGet]
+    [Authorize(Policy = PermissionPolicies.AppsView)]
     public async Task<ActionResult<ApiResponse<PagedResult<AppManifestResponse>>>> Query(
         [FromQuery] PagedRequest request,
         CancellationToken cancellationToken)
@@ -51,6 +52,7 @@ public sealed class AppManifestsController : ControllerBase
     }
 
     [HttpGet("{id:long}")]
+    [Authorize(Policy = PermissionPolicies.AppsView)]
     public async Task<ActionResult<ApiResponse<AppManifestResponse?>>> GetById(long id, CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
@@ -59,6 +61,7 @@ public sealed class AppManifestsController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
     public async Task<ActionResult<ApiResponse<object>>> Create(
         [FromBody] AppManifestCreateRequest request,
         CancellationToken cancellationToken)
@@ -75,6 +78,7 @@ public sealed class AppManifestsController : ControllerBase
     }
 
     [HttpPut("{id:long}")]
+    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
     public async Task<ActionResult<ApiResponse<object>>> Update(
         long id,
         [FromBody] AppManifestUpdateRequest request,
@@ -92,6 +96,7 @@ public sealed class AppManifestsController : ControllerBase
     }
 
     [HttpDelete("{id:long}")]
+    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
     public async Task<ActionResult<ApiResponse<object>>> Archive(long id, CancellationToken cancellationToken)
     {
         var currentUser = _currentUserAccessor.GetCurrentUser();
@@ -106,6 +111,7 @@ public sealed class AppManifestsController : ControllerBase
     }
 
     [HttpPost("{id:long}/releases")]
+    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
     public async Task<ActionResult<ApiResponse<object>>> CreateRelease(
         long id,
         [FromBody] Dictionary<string, string?>? request,
@@ -125,6 +131,7 @@ public sealed class AppManifestsController : ControllerBase
     }
 
     [HttpPost("{id:long}/releases/{releaseId:long}/rollback")]
+    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
     public async Task<ActionResult<ApiResponse<object>>> Rollback(
         long id,
         long releaseId,
@@ -142,6 +149,7 @@ public sealed class AppManifestsController : ControllerBase
     }
 
     [HttpGet("{id:long}/workspace/overview")]
+    [Authorize(Policy = PermissionPolicies.AppsView)]
     public async Task<ActionResult<ApiResponse<WorkspaceOverviewResponse>>> GetWorkspaceOverview(long id, CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
@@ -150,6 +158,7 @@ public sealed class AppManifestsController : ControllerBase
     }
 
     [HttpGet("{id:long}/workspace/pages")]
+    [Authorize(Policy = PermissionPolicies.AppsView)]
     public async Task<ActionResult<ApiResponse<PagedResult<object>>>> GetWorkspacePages(long id, [FromQuery] PagedRequest request, CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
@@ -158,6 +167,7 @@ public sealed class AppManifestsController : ControllerBase
     }
 
     [HttpGet("{id:long}/workspace/forms")]
+    [Authorize(Policy = PermissionPolicies.AppsView)]
     public async Task<ActionResult<ApiResponse<PagedResult<object>>>> GetWorkspaceForms(long id, [FromQuery] PagedRequest request, CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
@@ -166,6 +176,7 @@ public sealed class AppManifestsController : ControllerBase
     }
 
     [HttpGet("{id:long}/workspace/flows")]
+    [Authorize(Policy = PermissionPolicies.AppsView)]
     public async Task<ActionResult<ApiResponse<PagedResult<object>>>> GetWorkspaceFlows(long id, [FromQuery] PagedRequest request, CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
@@ -174,6 +185,7 @@ public sealed class AppManifestsController : ControllerBase
     }
 
     [HttpGet("{id:long}/workspace/data")]
+    [Authorize(Policy = PermissionPolicies.AppsView)]
     public async Task<ActionResult<ApiResponse<PagedResult<object>>>> GetWorkspaceData(long id, [FromQuery] PagedRequest request, CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
@@ -182,6 +194,7 @@ public sealed class AppManifestsController : ControllerBase
     }
 
     [HttpGet("{id:long}/workspace/permissions")]
+    [Authorize(Policy = PermissionPolicies.AppsView)]
     public async Task<ActionResult<ApiResponse<WorkspacePermissionResponse>>> GetWorkspacePermissions(long id, CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
@@ -190,6 +203,7 @@ public sealed class AppManifestsController : ControllerBase
     }
 
     [HttpGet("{id:long}/impact-analysis")]
+    [Authorize(Policy = PermissionPolicies.AppsView)]
     public ActionResult<ApiResponse<object>> GetImpactAnalysis(long id)
     {
         return StatusCode(501, ApiResponse<object>.Fail(
@@ -199,6 +213,7 @@ public sealed class AppManifestsController : ControllerBase
     }
 
     [HttpGet("{id:long}/workspace/designers/{type}/{itemId:long}")]
+    [Authorize(Policy = PermissionPolicies.AppsView)]
     public async Task<ActionResult<ApiResponse<DesignerSnapshotResponse>>> GetDesignerSnapshot(
         long id, string type, long itemId, CancellationToken cancellationToken)
     {
@@ -213,6 +228,7 @@ public sealed class AppManifestsController : ControllerBase
     }
 
     [HttpGet("{id:long}/workspace/designers/{type}/{itemId:long}/history")]
+    [Authorize(Policy = PermissionPolicies.AppsView)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<DesignerSnapshotHistoryItem>>>> GetDesignerSnapshotHistory(
         long id, string type, long itemId, CancellationToken cancellationToken)
     {
@@ -222,6 +238,7 @@ public sealed class AppManifestsController : ControllerBase
     }
 
     [HttpPut("{id:long}/workspace/designers/{type}/{itemId:long}")]
+    [Authorize(Policy = PermissionPolicies.AppsUpdate)]
     public async Task<ActionResult<ApiResponse<object>>> SaveDesignerSnapshot(
         long id, string type, long itemId,
         [FromBody] DesignerSnapshotSaveRequest request,

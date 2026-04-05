@@ -1,5 +1,6 @@
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
+using Atlas.Presentation.Shared.Authorization;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -18,7 +19,7 @@ public sealed class SecureController : ControllerBase
     }
 
     [HttpGet("ping")]
-    [Authorize]
+    [Authorize(Policy = PermissionPolicies.AppUser)]
     public ActionResult<ApiResponse<object>> Ping()
     {
         var tenantId = _tenantProvider.GetTenantId();
@@ -28,7 +29,7 @@ public sealed class SecureController : ControllerBase
     }
 
     [HttpGet("antiforgery")]
-    [Authorize]
+    [Authorize(Policy = PermissionPolicies.AppUser)]
     public ActionResult<ApiResponse<object>> GetAntiforgeryToken([FromServices] IAntiforgery antiforgery)
     {
         var tokens = antiforgery.GetAndStoreTokens(HttpContext);

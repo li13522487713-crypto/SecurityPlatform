@@ -1,5 +1,6 @@
 using Atlas.Application.Integration;
 using Atlas.Core.Models;
+using Atlas.Presentation.Shared.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Atlas.Presentation.Shared.Filters;
@@ -11,7 +12,6 @@ namespace Atlas.PlatformHost.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/v1/connectors")]
-[Authorize]
 public sealed class ApiConnectorsController : ControllerBase
 {
     private readonly IApiConnectorService _service;
@@ -22,6 +22,7 @@ public sealed class ApiConnectorsController : ControllerBase
     }
 
     [HttpGet]
+    [Authorize(Policy = PermissionPolicies.ConnectorsView)]
     public async Task<ActionResult<ApiResponse<object>>> GetAll(CancellationToken cancellationToken = default)
     {
         var connectors = await _service.GetAllAsync(cancellationToken);
@@ -29,6 +30,7 @@ public sealed class ApiConnectorsController : ControllerBase
     }
 
     [HttpGet("{id:long}")]
+    [Authorize(Policy = PermissionPolicies.ConnectorsView)]
     public async Task<ActionResult<ApiResponse<object>>> GetById(long id, CancellationToken cancellationToken = default)
     {
         var connector = await _service.GetByIdAsync(id, cancellationToken);
@@ -41,6 +43,7 @@ public sealed class ApiConnectorsController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = PermissionPolicies.ConnectorsCreate)]
     public async Task<ActionResult<ApiResponse<object>>> Create(
         [FromBody] CreateApiConnectorRequest request,
         CancellationToken cancellationToken = default)
@@ -50,6 +53,7 @@ public sealed class ApiConnectorsController : ControllerBase
     }
 
     [HttpPut("{id:long}")]
+    [Authorize(Policy = PermissionPolicies.ConnectorsUpdate)]
     public async Task<ActionResult<ApiResponse<object>>> Update(
         long id,
         [FromBody] UpdateApiConnectorRequest request,
@@ -60,6 +64,7 @@ public sealed class ApiConnectorsController : ControllerBase
     }
 
     [HttpDelete("{id:long}")]
+    [Authorize(Policy = PermissionPolicies.ConnectorsDelete)]
     public async Task<ActionResult<ApiResponse<object>>> Delete(long id, CancellationToken cancellationToken = default)
     {
         await _service.DeleteAsync(id, cancellationToken);
@@ -67,6 +72,7 @@ public sealed class ApiConnectorsController : ControllerBase
     }
 
     [HttpGet("{id:long}/operations")]
+    [Authorize(Policy = PermissionPolicies.ConnectorsView)]
     public async Task<ActionResult<ApiResponse<object>>> GetOperations(long id, CancellationToken cancellationToken = default)
     {
         var ops = await _service.GetOperationsAsync(id, cancellationToken);
@@ -74,6 +80,7 @@ public sealed class ApiConnectorsController : ControllerBase
     }
 
     [HttpPost("{id:long}/sync")]
+    [Authorize(Policy = PermissionPolicies.ConnectorsSync)]
     public async Task<ActionResult<ApiResponse<object>>> SyncSpec(long id, CancellationToken cancellationToken = default)
     {
         await _service.SyncFromSpecAsync(id, cancellationToken);
@@ -82,6 +89,7 @@ public sealed class ApiConnectorsController : ControllerBase
     }
 
     [HttpPost("{id:long}/operations/{operationId}/execute")]
+    [Authorize(Policy = PermissionPolicies.ConnectorsExecute)]
     public async Task<ActionResult<ApiResponse<object>>> Execute(
         long id,
         string operationId,
@@ -99,6 +107,7 @@ public sealed class ApiConnectorsController : ControllerBase
     }
 
     [HttpGet("{id:long}/health")]
+    [Authorize(Policy = PermissionPolicies.ConnectorsView)]
     public async Task<ActionResult<ApiResponse<object>>> Health(long id, CancellationToken cancellationToken = default)
     {
         var healthy = await _service.HealthCheckAsync(id, cancellationToken);

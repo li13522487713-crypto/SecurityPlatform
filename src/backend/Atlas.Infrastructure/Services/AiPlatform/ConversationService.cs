@@ -1,7 +1,10 @@
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
+using Atlas.Application.Identity.Abstractions;
+using Atlas.Application.Platform.Abstractions;
 using Atlas.Core.Abstractions;
 using Atlas.Core.Exceptions;
+using Atlas.Core.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.AiPlatform.Entities;
@@ -17,19 +20,28 @@ public sealed class ConversationService : IConversationService
     private readonly AgentRepository _agentRepository;
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IAppContextAccessor _appContextAccessor;
+    private readonly ITenantDataScopeFilter _tenantDataScopeFilter;
+    private readonly IAppDataScopeFilter _appDataScopeFilter;
 
     public ConversationService(
         ConversationRepository conversationRepository,
         ChatMessageRepository chatMessageRepository,
         AgentRepository agentRepository,
         IIdGeneratorAccessor idGeneratorAccessor,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        IAppContextAccessor appContextAccessor,
+        ITenantDataScopeFilter tenantDataScopeFilter,
+        IAppDataScopeFilter appDataScopeFilter)
     {
         _conversationRepository = conversationRepository;
         _chatMessageRepository = chatMessageRepository;
         _agentRepository = agentRepository;
         _idGeneratorAccessor = idGeneratorAccessor;
         _unitOfWork = unitOfWork;
+        _appContextAccessor = appContextAccessor;
+        _tenantDataScopeFilter = tenantDataScopeFilter;
+        _appDataScopeFilter = appDataScopeFilter;
     }
 
     public async Task<long> CreateAsync(
@@ -66,10 +78,11 @@ public sealed class ConversationService : IConversationService
         int pageSize,
         CancellationToken cancellationToken)
     {
+        var effectiveUserId = await RequireEffectiveConversationUserIdAsync(userId, cancellationToken);
         var (items, total) = await _conversationRepository.GetPagedByAgentAsync(
             tenantId,
             agentId,
-            userId,
+            effectiveUserId,
             pageIndex,
             pageSize,
             cancellationToken);
@@ -83,9 +96,10 @@ public sealed class ConversationService : IConversationService
         int pageSize,
         CancellationToken cancellationToken)
     {
+        var effectiveUserId = await RequireEffectiveConversationUserIdAsync(userId, cancellationToken);
         var (items, total) = await _conversationRepository.GetPagedByUserAsync(
             tenantId,
-            userId,
+            effectiveUserId,
             pageIndex,
             pageSize,
             cancellationToken);
@@ -98,8 +112,9 @@ public sealed class ConversationService : IConversationService
         long conversationId,
         CancellationToken cancellationToken)
     {
+        var effectiveUserId = await RequireEffectiveConversationUserIdAsync(userId, cancellationToken);
         var entity = await _conversationRepository.FindByIdAsync(tenantId, conversationId, cancellationToken);
-        if (entity is not null && entity.UserId != userId)
+        if (entity is not null && entity.UserId != effectiveUserId)
         {
             throw new BusinessException("NoPermissionAccessConversation", ErrorCodes.Forbidden);
         }
@@ -219,14 +234,41 @@ public sealed class ConversationService : IConversationService
         long conversationId,
         CancellationToken cancellationToken)
     {
+        var effectiveUserId = await RequireEffectiveConversationUserIdAsync(userId, cancellationToken);
         var conversation = await _conversationRepository.FindByIdAsync(tenantId, conversationId, cancellationToken)
             ?? throw new BusinessException("ConversationNotFound", ErrorCodes.NotFound);
-        if (conversation.UserId != userId)
+        if (conversation.UserId != effectiveUserId)
         {
             throw new BusinessException("NoPermissionAccessConversation", ErrorCodes.Forbidden);
         }
 
         return conversation;
+    }
+
+    private async Task<long?> ResolveDataScopeOwnerUserIdAsync(CancellationToken cancellationToken)
+    {
+        var appId = _appContextAccessor.ResolveAppId();
+        if (appId is > 0)
+        {
+            return await _appDataScopeFilter.GetOwnerFilterIdAsync(appId.Value, cancellationToken);
+        }
+
+        return await _tenantDataScopeFilter.GetOwnerFilterIdAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// 平台级 <see cref="ITenantDataScopeFilter"/> 与应用级 <see cref="IAppDataScopeFilter"/> 的仅本人范围需与请求用户一致；
+    /// 命中时查询与校验均使用数据权限要求的用户 ID（对话创建者 <see cref="Conversation.UserId"/>）。
+    /// </summary>
+    private async Task<long> RequireEffectiveConversationUserIdAsync(long userId, CancellationToken cancellationToken)
+    {
+        var ownerFilter = await ResolveDataScopeOwnerUserIdAsync(cancellationToken);
+        if (ownerFilter.HasValue && userId != ownerFilter.Value)
+        {
+            throw new BusinessException("NoPermissionAccessConversation", ErrorCodes.Forbidden);
+        }
+
+        return ownerFilter ?? userId;
     }
 
     private static ConversationDto MapConversation(Conversation entity)

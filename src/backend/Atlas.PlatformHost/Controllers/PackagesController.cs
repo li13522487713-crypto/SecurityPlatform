@@ -3,6 +3,7 @@ using Atlas.Application.Governance.Models;
 using Atlas.Core.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
+using Atlas.Presentation.Shared.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Atlas.Presentation.Shared.Filters;
@@ -11,7 +12,6 @@ namespace Atlas.PlatformHost.Controllers;
 
 [ApiController]
 [Route("api/v1/packages")]
-[Authorize]
 public sealed class PackagesController : ControllerBase
 {
     private readonly IPackageService _service;
@@ -26,6 +26,7 @@ public sealed class PackagesController : ControllerBase
     }
 
     [HttpPost("export")]
+    [Authorize(Policy = PermissionPolicies.PackagesExport)]
     public async Task<ActionResult<ApiResponse<PackageOperationResponse>>> Export([FromBody] PackageExportRequest request, CancellationToken cancellationToken)
     {
         var currentUser = _currentUserAccessor.GetCurrentUser();
@@ -40,6 +41,7 @@ public sealed class PackagesController : ControllerBase
     }
 
     [HttpPost("import")]
+    [Authorize(Policy = PermissionPolicies.PackagesImport)]
     public async Task<ActionResult<ApiResponse<PackageOperationResponse>>> Import([FromBody] PackageImportRequest request, CancellationToken cancellationToken)
     {
         var currentUser = _currentUserAccessor.GetCurrentUser();
@@ -54,6 +56,7 @@ public sealed class PackagesController : ControllerBase
     }
 
     [HttpPost("analyze")]
+    [Authorize(Policy = PermissionPolicies.PackagesAnalyze)]
     public async Task<ActionResult<ApiResponse<PackageOperationResponse>>> Analyze([FromBody] PackageAnalyzeRequest request, CancellationToken cancellationToken)
     {
         var currentUser = _currentUserAccessor.GetCurrentUser();

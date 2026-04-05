@@ -23,7 +23,6 @@ namespace Atlas.AppHost.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/v1/approval/instances")]
-[Authorize]
 public sealed class ApprovalRuntimeController : ControllerBase
 {
     private readonly IApprovalRuntimeQueryService _queryService;
@@ -59,6 +58,7 @@ public sealed class ApprovalRuntimeController : ControllerBase
     /// 发起流程实例
     /// </summary>
     [HttpPost]
+    [Authorize(Policy = PermissionPolicies.ApprovalFlowView)]
     public async Task<ApiResponse<ApprovalInstanceResponse>> StartAsync(
         ApprovalStartRequest request,
         CancellationToken cancellationToken = default)
@@ -360,6 +360,7 @@ public sealed class ApprovalRuntimeController : ControllerBase
     /// 暂存草稿
     /// </summary>
     [HttpPost("draft")]
+    [Authorize(Policy = PermissionPolicies.ApprovalFlowView)]
     public async Task<ApiResponse<ApprovalInstanceResponse>> SaveDraftAsync(
         ApprovalStartRequest request,
         CancellationToken cancellationToken = default)
@@ -414,6 +415,7 @@ public sealed class ApprovalRuntimeController : ControllerBase
     /// 执行运行时操作（撤回、转办、加签、打回修改、退回任意节点、撤销同意等）
     /// </summary>
     [HttpPost("{instanceId:long}/operations")]
+    [Authorize(Policy = PermissionPolicies.ApprovalFlowView)]
     public async Task<ApiResponse<string>> ExecuteOperationAsync(
         long instanceId,
         [FromBody] Atlas.Application.Approval.Models.ApprovalOperationRequest request,

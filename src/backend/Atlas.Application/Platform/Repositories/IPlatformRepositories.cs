@@ -69,6 +69,43 @@ public interface IAppMemberRepository
         CancellationToken cancellationToken = default);
 }
 
+public interface IAppMemberDepartmentRepository
+{
+    Task<IReadOnlyList<AppMemberDepartment>> QueryByAppIdAsync(
+        TenantId tenantId, long appId, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<AppMemberDepartment>> QueryByUserIdAsync(
+        TenantId tenantId, long appId, long userId, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<AppMemberDepartment>> QueryByDepartmentIdAsync(
+        TenantId tenantId, long appId, long departmentId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 单次查询：返回在任一指定应用部门下的成员用户 ID（去重）。
+    /// </summary>
+    Task<IReadOnlyList<long>> QueryUserIdsByDepartmentIdsAsync(
+        TenantId tenantId,
+        long appId,
+        IReadOnlyList<long> departmentIds,
+        CancellationToken cancellationToken = default);
+
+    Task AddRangeAsync(IReadOnlyList<AppMemberDepartment> entities, CancellationToken cancellationToken = default);
+
+    Task DeleteByUserIdAsync(TenantId tenantId, long appId, long userId, CancellationToken cancellationToken = default);
+
+    Task DeleteByDepartmentIdAsync(TenantId tenantId, long appId, long departmentId, CancellationToken cancellationToken = default);
+}
+
+public interface IAppMemberPositionRepository
+{
+    Task<IReadOnlyList<AppMemberPosition>> QueryByUserIdAsync(
+        TenantId tenantId, long appId, long userId, CancellationToken cancellationToken = default);
+
+    Task AddRangeAsync(IReadOnlyList<AppMemberPosition> entities, CancellationToken cancellationToken = default);
+
+    Task DeleteByUserIdAsync(TenantId tenantId, long appId, long userId, CancellationToken cancellationToken = default);
+}
+
 public interface IAppRoleRepository
 {
     Task<(IReadOnlyList<AppRole> Items, int TotalCount)> QueryPageAsync(
@@ -215,4 +252,17 @@ public interface IAppProjectRepository
     Task AddAsync(AppProject entity, CancellationToken cancellationToken = default);
     Task UpdateAsync(AppProject entity, CancellationToken cancellationToken = default);
     Task DeleteAsync(TenantId tenantId, long appId, long id, CancellationToken cancellationToken = default);
+}
+
+public interface IAppProjectUserRepository
+{
+    Task<IReadOnlyList<AppProjectUser>> QueryByUserIdAsync(
+        TenantId tenantId, long appId, long userId, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<AppProjectUser>> QueryByProjectIdAsync(
+        TenantId tenantId, long appId, long projectId, CancellationToken cancellationToken = default);
+
+    Task AddRangeAsync(IReadOnlyList<AppProjectUser> entities, CancellationToken cancellationToken = default);
+
+    Task DeleteByUserIdAsync(TenantId tenantId, long appId, long userId, CancellationToken cancellationToken = default);
 }

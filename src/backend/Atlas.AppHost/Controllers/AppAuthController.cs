@@ -3,6 +3,7 @@ using Atlas.Application.Models;
 using Atlas.Core.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
+using Atlas.Presentation.Shared.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -72,7 +73,7 @@ public sealed class AppAuthController : ControllerBase
     }
 
     [HttpGet("me")]
-    [Authorize]
+    [Authorize(Policy = PermissionPolicies.AppUser)]
     public ActionResult<ApiResponse<object>> Me()
     {
         var user = currentUserAccessor.GetCurrentUserOrThrow();
@@ -86,7 +87,7 @@ public sealed class AppAuthController : ControllerBase
     }
 
     [HttpPost("logout")]
-    [Authorize]
+    [Authorize(Policy = PermissionPolicies.AppUser)]
     public async Task<ActionResult<ApiResponse<object>>> Logout(CancellationToken cancellationToken)
     {
         var user = currentUserAccessor.GetCurrentUserOrThrow();

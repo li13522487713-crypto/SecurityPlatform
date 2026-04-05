@@ -2,6 +2,7 @@ using AutoMapper;
 using FluentValidation;
 using Atlas.Application.Assets.Abstractions;
 using Atlas.Application.Assets.Models;
+using Atlas.Core.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Assets.Entities;
@@ -19,6 +20,7 @@ public sealed class AssetsController : ControllerBase
     private readonly IAssetQueryService _assetQueryService;
     private readonly IAssetCommandService _assetCommandService;
     private readonly ITenantProvider _tenantProvider;
+    private readonly ICurrentUserAccessor _currentUserAccessor;
     private readonly IMapper _mapper;
     private readonly IValidator<Asset> _entityValidator;
     private readonly Atlas.Core.Abstractions.IIdGeneratorAccessor _idGeneratorAccessor;
@@ -27,6 +29,7 @@ public sealed class AssetsController : ControllerBase
         IAssetQueryService assetQueryService,
         IAssetCommandService assetCommandService,
         ITenantProvider tenantProvider,
+        ICurrentUserAccessor currentUserAccessor,
         IMapper mapper,
         IValidator<Asset> entityValidator,
         Atlas.Core.Abstractions.IIdGeneratorAccessor idGeneratorAccessor)
@@ -34,6 +37,7 @@ public sealed class AssetsController : ControllerBase
         _assetQueryService = assetQueryService;
         _assetCommandService = assetCommandService;
         _tenantProvider = tenantProvider;
+        _currentUserAccessor = currentUserAccessor;
         _mapper = mapper;
         _entityValidator = entityValidator;
         _idGeneratorAccessor = idGeneratorAccessor;
@@ -63,6 +67,12 @@ public sealed class AssetsController : ControllerBase
             opt.Items["TenantId"] = tenantId;
             opt.Items["Id"] = _idGeneratorAccessor.NextId();
         });
+
+        var currentUser = _currentUserAccessor.GetCurrentUser();
+        if (currentUser is not null)
+        {
+            asset.SetCreatedByUserId(currentUser.UserId);
+        }
 
         _entityValidator.ValidateAndThrow(asset);
 

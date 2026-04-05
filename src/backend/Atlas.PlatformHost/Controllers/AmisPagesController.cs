@@ -1,6 +1,7 @@
 using Atlas.Application.Amis.Abstractions;
 using Atlas.Application.Amis.Models;
 using Atlas.Core.Models;
+using Atlas.Presentation.Shared.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Text.RegularExpressions;
@@ -24,7 +25,7 @@ public sealed class AmisPagesController : ControllerBase
     }
 
     [HttpGet("{key}")]
-    [Authorize]
+    [Authorize(Policy = PermissionPolicies.AppsView)]
     public async Task<ActionResult<ApiResponse<AmisPageDefinition>>> GetByKey(
         string key,
         CancellationToken cancellationToken)

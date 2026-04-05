@@ -1,6 +1,7 @@
 using Atlas.Application.Templates;
 using Atlas.Core.Models;
 using Atlas.Domain.Templates;
+using Atlas.Presentation.Shared.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Atlas.Presentation.Shared.Filters;
@@ -12,7 +13,6 @@ namespace Atlas.PlatformHost.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/v1/templates")]
-[Authorize]
 public sealed class TemplatesController : ControllerBase
 {
     private readonly IComponentTemplateQueryService _queryService;
@@ -28,6 +28,7 @@ public sealed class TemplatesController : ControllerBase
 
     /// <summary>分页查询模板列表（支持 keyword/category 筛选）</summary>
     [HttpGet]
+    [Authorize(Policy = PermissionPolicies.TemplatesView)]
     public async Task<ActionResult<ApiResponse<object>>> Search(
         [FromQuery] PagedRequest request,
         [FromQuery] string? keyword = null,
@@ -48,6 +49,7 @@ public sealed class TemplatesController : ControllerBase
 
     /// <summary>获取模板详情</summary>
     [HttpGet("{id:long}")]
+    [Authorize(Policy = PermissionPolicies.TemplatesView)]
     public async Task<ActionResult<ApiResponse<ComponentTemplate>>> GetById(
         long id,
         CancellationToken cancellationToken = default)
@@ -63,6 +65,7 @@ public sealed class TemplatesController : ControllerBase
 
     /// <summary>创建模板</summary>
     [HttpPost]
+    [Authorize(Policy = PermissionPolicies.TemplatesCreate)]
     public async Task<ActionResult<ApiResponse<object>>> Create(
         [FromBody] CreateTemplateRequest request,
         CancellationToken cancellationToken = default)
@@ -73,6 +76,7 @@ public sealed class TemplatesController : ControllerBase
 
     /// <summary>更新模板</summary>
     [HttpPut("{id:long}")]
+    [Authorize(Policy = PermissionPolicies.TemplatesUpdate)]
     public async Task<ActionResult<ApiResponse<object>>> Update(
         long id,
         [FromBody] UpdateTemplateRequest request,
@@ -84,6 +88,7 @@ public sealed class TemplatesController : ControllerBase
 
     /// <summary>删除模板</summary>
     [HttpDelete("{id:long}")]
+    [Authorize(Policy = PermissionPolicies.TemplatesDelete)]
     public async Task<ActionResult<ApiResponse<object>>> Delete(
         long id,
         CancellationToken cancellationToken = default)
@@ -94,6 +99,7 @@ public sealed class TemplatesController : ControllerBase
 
     /// <summary>从模板实例化（返回 Schema JSON）</summary>
     [HttpPost("{id:long}/instantiate")]
+    [Authorize(Policy = PermissionPolicies.TemplatesInstantiate)]
     public async Task<ActionResult<ApiResponse<object>>> Instantiate(
         long id,
         CancellationToken cancellationToken = default)

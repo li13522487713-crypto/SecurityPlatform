@@ -1,6 +1,7 @@
 using Atlas.Application.Events;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
+using Atlas.Presentation.Shared.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Atlas.Presentation.Shared.Filters;
@@ -12,7 +13,6 @@ namespace Atlas.PlatformHost.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/v1/platform-events")]
-[Authorize]
 public sealed class PlatformEventsController : ControllerBase
 {
     private readonly IPlatformEventService _service;
@@ -25,6 +25,7 @@ public sealed class PlatformEventsController : ControllerBase
     }
 
     [HttpGet]
+    [Authorize(Policy = PermissionPolicies.PlatformEventsView)]
     public async Task<ActionResult<ApiResponse<object>>> Query(
         [FromQuery] string? eventType,
         [FromQuery] bool? isProcessed,

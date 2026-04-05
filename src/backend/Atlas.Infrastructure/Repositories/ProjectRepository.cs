@@ -33,13 +33,25 @@ public sealed class ProjectRepository : IProjectRepository
         int pageIndex,
         int pageSize,
         string? keyword,
+        IReadOnlyList<long>? restrictToProjectIds,
         CancellationToken cancellationToken)
     {
+        if (restrictToProjectIds is not null && restrictToProjectIds.Count == 0)
+        {
+            return (Array.Empty<Project>(), 0);
+        }
+
         var query = _db.Queryable<Project>()
             .Where(x => x.TenantIdValue == tenantId.Value);
         if (!string.IsNullOrWhiteSpace(keyword))
         {
             query = query.Where(x => x.Code.Contains(keyword) || x.Name.Contains(keyword));
+        }
+
+        if (restrictToProjectIds is not null)
+        {
+            var pidArray = restrictToProjectIds.Distinct().ToArray();
+            query = query.Where(x => SqlFunc.ContainsArray(pidArray, x.Id));
         }
 
         var totalCount = await query.CountAsync(cancellationToken);
@@ -72,8 +84,14 @@ public sealed class ProjectRepository : IProjectRepository
         int pageIndex,
         int pageSize,
         string? keyword,
+        IReadOnlyList<long>? restrictToProjectIds,
         CancellationToken cancellationToken)
     {
+        if (restrictToProjectIds is not null && restrictToProjectIds.Count == 0)
+        {
+            return (Array.Empty<Project>(), 0);
+        }
+
         var query = _db.Queryable<ProjectUser, Project>(
                 (pu, p) => new JoinQueryInfos(JoinType.Inner, pu.ProjectId == p.Id))
             .Where((pu, p) => pu.TenantIdValue == tenantId.Value
@@ -83,6 +101,12 @@ public sealed class ProjectRepository : IProjectRepository
         if (!string.IsNullOrWhiteSpace(keyword))
         {
             query = query.Where((pu, p) => p.Code.Contains(keyword) || p.Name.Contains(keyword));
+        }
+
+        if (restrictToProjectIds is not null)
+        {
+            var pidArray = restrictToProjectIds.Distinct().ToArray();
+            query = query.Where((pu, p) => SqlFunc.ContainsArray(pidArray, p.Id));
         }
 
         var totalCount = await query.CountAsync(cancellationToken);

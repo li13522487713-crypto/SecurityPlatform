@@ -360,7 +360,37 @@ export default {
       permissionsTitle: "{name} - Permissions",
       loadPermFailed: "Failed to load permissions",
       permSaveSuccess: "Permissions updated",
-      permSaveFailed: "Failed to update permissions"
+      permSaveFailed: "Failed to update permissions",
+      tabPermissions: "Permissions",
+      tabDataScope: "Data scope",
+      tabPagePermissions: "Pages",
+      tabFieldPermissions: "Field permissions",
+      dataScopeHint:
+        "Data scope defines which data this role can access in the app; changes are saved to the server when you confirm.",
+      dataScopeLabel: "Data scope",
+      dataScopeAll: "All data",
+      dataScopeCurrentTenant: "Current tenant",
+      dataScopeCustomDept: "Custom departments",
+      dataScopeCurrentDept: "Current department",
+      dataScopeCurrentDeptAndBelow: "Current department and below",
+      dataScopeOnlySelf: "Self only",
+      customDeptSelect: "Departments",
+      customDeptPlaceholder: "Select departments (multi-select)",
+      pagePermHint:
+        "Select low-code pages this role may access; saving replaces the role page assignment.",
+      noPagesAvailable: "No pages available to assign",
+      fieldPermHint:
+        "Configure field visibility and editability per dynamic table; saving replaces the role field permissions.",
+      selectDynamicTable: "Select dynamic table",
+      fieldPermNoTableSelected: "Select a dynamic table to configure field permissions",
+      fieldColumnLabel: "Field",
+      fieldColumnVisible: "Visible",
+      fieldColumnEditable: "Editable",
+      deptRequiredForCustomScope: "When using custom departments, select at least one department",
+      roleConfigSaveSuccess: "Role configuration saved",
+      roleConfigSaveFailed: "Failed to save role configuration",
+      loadFieldsFailed: "Failed to load field definitions",
+      loadDynamicTablesFailed: "Failed to load dynamic tables"
     },
     department: {
       name: "Department Name",

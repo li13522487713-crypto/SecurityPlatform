@@ -72,6 +72,7 @@ public sealed class VisualizationQueryService : IVisualizationQueryService
             startedTo: null,
             businessKey: null,
             status: ApprovalInstanceStatus.Running,
+            restrictInitiatorUserIds: null,
             cancellationToken: cancellationToken);
         var overdueTasksTask = _taskRepository.CountByStatusAsync(
             tenantId,
@@ -180,6 +181,7 @@ public sealed class VisualizationQueryService : IVisualizationQueryService
             startedTo: null,
             businessKey: null,
             status: status,
+            restrictInitiatorUserIds: null,
             cancellationToken: cancellationToken);
 
         var definitionIds = items.Select(x => x.DefinitionId).Distinct().ToArray();
@@ -441,6 +443,7 @@ public sealed class VisualizationQueryService : IVisualizationQueryService
             startedTo: null,
             businessKey: null,
             status: ApprovalInstanceStatus.Running,
+            restrictInitiatorUserIds: null,
             cancellationToken: cancellationToken);
         var completedInstancesTask = _instanceRepository.GetPagedAsync(
             tenantId,
@@ -452,6 +455,7 @@ public sealed class VisualizationQueryService : IVisualizationQueryService
             startedTo: null,
             businessKey: null,
             status: ApprovalInstanceStatus.Completed,
+            restrictInitiatorUserIds: null,
             cancellationToken: cancellationToken);
         var pendingTasksTask = _taskRepository.CountByStatusAsync(tenantId, ApprovalTaskStatus.Pending, null, cancellationToken);
         var overdueTasksTask = _taskRepository.CountByStatusAsync(
@@ -459,7 +463,7 @@ public sealed class VisualizationQueryService : IVisualizationQueryService
             ApprovalTaskStatus.Pending,
             DateTimeOffset.UtcNow.Subtract(OverdueThreshold),
             cancellationToken);
-        var assetsTask = _assetRepository.QueryPageAsync(1, 1, null, cancellationToken);
+        var assetsTask = _assetRepository.QueryPageAsync(tenantId, 1, 1, null, null, null, cancellationToken);
         var alertsTodayTask = GetAlertsTodayAsync(tenantId, cancellationToken);
         var auditEventsTodayTask = GetAuditEventsTodayAsync(tenantId, cancellationToken);
         await Task.WhenAll(

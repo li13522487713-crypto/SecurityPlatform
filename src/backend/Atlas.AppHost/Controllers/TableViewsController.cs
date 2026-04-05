@@ -3,6 +3,7 @@ using Atlas.Application.TableViews.Models;
 using Atlas.Core.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
+using Atlas.Presentation.Shared.Authorization;
 using Atlas.Presentation.Shared.Helpers;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
@@ -47,7 +48,7 @@ public sealed class TableViewsController : ControllerBase
     }
 
     [HttpGet]
-    [Authorize]
+    [Authorize(Policy = PermissionPolicies.AppUser)]
     public async Task<ActionResult<ApiResponse<PagedResult<TableViewListItem>>>> Get(
         [FromQuery] PagedRequest request,
         [FromQuery] string tableKey,
@@ -76,7 +77,7 @@ public sealed class TableViewsController : ControllerBase
     }
 
     [HttpGet("default")]
-    [Authorize]
+    [Authorize(Policy = PermissionPolicies.AppUser)]
     public async Task<ActionResult<ApiResponse<TableViewDetail?>>> GetDefault(
         [FromQuery] string tableKey,
         CancellationToken cancellationToken)
@@ -104,7 +105,7 @@ public sealed class TableViewsController : ControllerBase
     }
 
     [HttpGet("default-config")]
-    [Authorize]
+    [Authorize(Policy = PermissionPolicies.AppUser)]
     public async Task<ActionResult<ApiResponse<TableViewConfig>>> GetDefaultConfig(
         [FromQuery] string tableKey,
         CancellationToken cancellationToken)
@@ -132,7 +133,7 @@ public sealed class TableViewsController : ControllerBase
     }
 
     [HttpGet("{id:long}")]
-    [Authorize]
+    [Authorize(Policy = PermissionPolicies.AppUser)]
     public async Task<ActionResult<ApiResponse<TableViewDetail>>> GetById(
         long id,
         CancellationToken cancellationToken)
@@ -160,7 +161,7 @@ public sealed class TableViewsController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize]
+    [Authorize(Policy = PermissionPolicies.AppUser)]
     public async Task<ActionResult<ApiResponse<object>>> Create(
         [FromBody] TableViewCreateRequest request,
         CancellationToken cancellationToken)
@@ -182,7 +183,7 @@ public sealed class TableViewsController : ControllerBase
     }
 
     [HttpPut("{id:long}")]
-    [Authorize]
+    [Authorize(Policy = PermissionPolicies.AppUser)]
     public async Task<ActionResult<ApiResponse<object>>> Update(
         long id,
         [FromBody] TableViewUpdateRequest request,
@@ -204,7 +205,7 @@ public sealed class TableViewsController : ControllerBase
     }
 
     [HttpPatch("{id:long}/config")]
-    [Authorize]
+    [Authorize(Policy = PermissionPolicies.AppUser)]
     public async Task<ActionResult<ApiResponse<object>>> UpdateConfig(
         long id,
         [FromBody] TableViewConfigUpdateRequest request,
@@ -226,7 +227,7 @@ public sealed class TableViewsController : ControllerBase
     }
 
     [HttpPost("{id:long}/set-default")]
-    [Authorize]
+    [Authorize(Policy = PermissionPolicies.AppUser)]
     public async Task<ActionResult<ApiResponse<object>>> SetDefault(
         long id,
         CancellationToken cancellationToken)
@@ -246,7 +247,7 @@ public sealed class TableViewsController : ControllerBase
     }
 
     [HttpPost("{id:long}/duplicate")]
-    [Authorize]
+    [Authorize(Policy = PermissionPolicies.AppUser)]
     public async Task<ActionResult<ApiResponse<object>>> Duplicate(
         long id,
         [FromBody] TableViewDuplicateRequest request,
@@ -269,7 +270,7 @@ public sealed class TableViewsController : ControllerBase
     }
 
     [HttpDelete("{id:long}")]
-    [Authorize]
+    [Authorize(Policy = PermissionPolicies.AppUser)]
     public async Task<ActionResult<ApiResponse<object>>> Delete(
         long id,
         CancellationToken cancellationToken)

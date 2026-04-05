@@ -140,3 +140,32 @@ public sealed class AppProject : TenantEntity
         IsActive = isActive;
     }
 }
+
+/// <summary>
+/// 应用成员 ↔ 应用项目关联（对应平台级的 ProjectUser）。
+/// </summary>
+public sealed class AppProjectUser : TenantEntity
+{
+    public AppProjectUser()
+        : base(TenantId.Empty)
+    {
+    }
+
+    public AppProjectUser(
+        TenantId tenantId,
+        long appId,
+        long projectId,
+        long userId,
+        long id)
+        : base(tenantId)
+    {
+        Id = id;
+        AppId = appId;
+        ProjectId = projectId;
+        UserId = userId;
+    }
+
+    public long AppId { get; private set; }
+    public long ProjectId { get; private set; }
+    public long UserId { get; private set; }
+}

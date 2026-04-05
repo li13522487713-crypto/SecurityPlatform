@@ -1,6 +1,7 @@
 using Atlas.Application.Observability;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
+using Atlas.Presentation.Shared.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Atlas.Presentation.Shared.Filters;
@@ -12,7 +13,6 @@ namespace Atlas.PlatformHost.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/v1/alert-rules")]
-[Authorize]
 public sealed class AlertRulesController : ControllerBase
 {
     private readonly IAlertRuleService _service;
@@ -25,6 +25,7 @@ public sealed class AlertRulesController : ControllerBase
     }
 
     [HttpGet]
+    [Authorize(Policy = PermissionPolicies.AlertRulesView)]
     public async Task<ActionResult<ApiResponse<object>>> GetAll(CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
@@ -33,6 +34,7 @@ public sealed class AlertRulesController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = PermissionPolicies.AlertRulesCreate)]
     public async Task<ActionResult<ApiResponse<object>>> Create(
         [FromBody] CreateAlertRuleRequest request,
         CancellationToken cancellationToken)
@@ -43,6 +45,7 @@ public sealed class AlertRulesController : ControllerBase
     }
 
     [HttpPut("{id:long}")]
+    [Authorize(Policy = PermissionPolicies.AlertRulesUpdate)]
     public async Task<ActionResult<ApiResponse<object>>> Update(
         long id,
         [FromBody] UpdateAlertRuleRequest request,
@@ -54,6 +57,7 @@ public sealed class AlertRulesController : ControllerBase
     }
 
     [HttpDelete("{id:long}")]
+    [Authorize(Policy = PermissionPolicies.AlertRulesDelete)]
     public async Task<ActionResult<ApiResponse<object>>> Delete(long id, CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();

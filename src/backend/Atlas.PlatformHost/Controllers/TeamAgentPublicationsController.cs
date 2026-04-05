@@ -11,7 +11,7 @@ namespace Atlas.PlatformHost.Controllers;
 
 [ApiController]
 [Route("api/v1/team-agent-publications")]
-[Authorize]
+[Authorize(Policy = PermissionPolicies.AgentView)]
 public sealed class TeamAgentPublicationsController : ControllerBase
 {
     private readonly ITeamAgentPublicationService _publicationService;
@@ -26,7 +26,6 @@ public sealed class TeamAgentPublicationsController : ControllerBase
     }
 
     [HttpGet("team-agents/{teamAgentId:long}")]
-    [Authorize(Policy = PermissionPolicies.AgentView)]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<TeamAgentPublicationListItem>>>> GetByTeamAgent(
         long teamAgentId,
         CancellationToken cancellationToken)

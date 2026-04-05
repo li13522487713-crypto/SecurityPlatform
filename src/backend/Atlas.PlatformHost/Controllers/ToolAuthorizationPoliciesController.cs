@@ -13,7 +13,6 @@ namespace Atlas.PlatformHost.Controllers;
 
 [ApiController]
 [Route("api/v1/tools")]
-[Authorize]
 public sealed class ToolAuthorizationPoliciesController : ControllerBase
 {
     private readonly IToolAuthorizationService _service;
@@ -31,6 +30,7 @@ public sealed class ToolAuthorizationPoliciesController : ControllerBase
     }
 
     [HttpGet("authorization-policies")]
+    [Authorize(Policy = PermissionPolicies.ToolPoliciesView)]
     public async Task<ActionResult<ApiResponse<PagedResult<ToolAuthorizationPolicyResponse>>>> Query(
         [FromQuery] PagedRequest request,
         CancellationToken cancellationToken)
@@ -76,6 +76,7 @@ public sealed class ToolAuthorizationPoliciesController : ControllerBase
     }
 
     [HttpPost("simulate")]
+    [Authorize(Policy = PermissionPolicies.SystemAdmin)]
     public async Task<ActionResult<ApiResponse<ToolAuthorizationSimulateResponse>>> Simulate(
         [FromBody] ToolAuthorizationSimulateRequest request,
         CancellationToken cancellationToken)
@@ -86,6 +87,7 @@ public sealed class ToolAuthorizationPoliciesController : ControllerBase
     }
 
     [HttpGet("audit")]
+    [Authorize(Policy = PermissionPolicies.ToolPoliciesView)]
     public ActionResult<ApiResponse<object>> Audit()
     {
         return Ok(ApiResponse<object>.Ok(new { Message = ApiResponseLocalizer.T(HttpContext, "ToolAuditQueryPlaceholder") }, HttpContext.TraceIdentifier));

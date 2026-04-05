@@ -69,10 +69,22 @@ public sealed class ApprovalInstanceRepository : IApprovalInstanceRepository
         int pageIndex,
         int pageSize,
         ApprovalInstanceStatus? status = null,
+        IReadOnlyList<long>? restrictInitiatorUserIds = null,
         CancellationToken cancellationToken = default)
     {
+        if (restrictInitiatorUserIds is not null && restrictInitiatorUserIds.Count == 0)
+        {
+            return (Array.Empty<ApprovalProcessInstance>(), 0);
+        }
+
         var query = _db.Queryable<ApprovalProcessInstance>()
             .Where(x => x.TenantIdValue == tenantId.Value && x.InitiatorUserId == initiatorUserId);
+
+        if (restrictInitiatorUserIds is not null)
+        {
+            var uidArray = restrictInitiatorUserIds.Distinct().ToArray();
+            query = query.Where(x => SqlFunc.ContainsArray(uidArray, x.InitiatorUserId));
+        }
 
         if (status.HasValue)
         {
@@ -97,8 +109,14 @@ public sealed class ApprovalInstanceRepository : IApprovalInstanceRepository
         DateTimeOffset? startedTo = null,
         string? businessKey = null,
         ApprovalInstanceStatus? status = null,
+        IReadOnlyList<long>? restrictInitiatorUserIds = null,
         CancellationToken cancellationToken = default)
     {
+        if (restrictInitiatorUserIds is not null && restrictInitiatorUserIds.Count == 0)
+        {
+            return (Array.Empty<ApprovalProcessInstance>(), 0);
+        }
+
         var query = _db.Queryable<ApprovalProcessInstance>()
             .Where(x => x.TenantIdValue == tenantId.Value);
 
@@ -110,6 +128,12 @@ public sealed class ApprovalInstanceRepository : IApprovalInstanceRepository
         if (initiatorUserId.HasValue)
         {
             query = query.Where(x => x.InitiatorUserId == initiatorUserId.Value);
+        }
+
+        if (restrictInitiatorUserIds is not null)
+        {
+            var uidArray = restrictInitiatorUserIds.Distinct().ToArray();
+            query = query.Where(x => SqlFunc.ContainsArray(uidArray, x.InitiatorUserId));
         }
 
         if (startedFrom.HasValue)

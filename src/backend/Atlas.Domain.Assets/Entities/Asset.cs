@@ -25,4 +25,9 @@ public sealed class Asset : TenantEntity
     }
 
     public string Name { get; private set; }
+
+    /// <summary>创建人用户 ID（用于数据范围过滤，等保访问控制）</summary>
+    public long? CreatedByUserId { get; private set; }
+
+    public void SetCreatedByUserId(long userId) => CreatedByUserId = userId;
 }

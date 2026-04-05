@@ -18,7 +18,6 @@ namespace Atlas.AppHost.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/v1/visualization")]
-[Authorize]
 public sealed class VisualizationController : ControllerBase
 {
     private readonly IVisualizationQueryService _queryService;
@@ -116,6 +115,7 @@ public sealed class VisualizationController : ControllerBase
     }
 
     [HttpPost("processes/validation")]
+    [Authorize(Policy = PermissionPolicies.VisualizationView)]
     public async Task<ActionResult<ApiResponse<VisualizationValidationResponse>>> ValidateProcess(
         [FromBody] ValidateVisualizationRequest request,
         CancellationToken cancellationToken)

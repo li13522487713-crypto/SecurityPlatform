@@ -23,6 +23,10 @@ function orgBase(appId: string): string {
   return `${V2_BASE}/${encodeURIComponent(appId)}/organization`;
 }
 
+function rolesV2Base(appId: string): string {
+  return `${V2_BASE}/${encodeURIComponent(appId)}/roles`;
+}
+
 export async function getOrganizationWorkspace(
   appId: string,
   params: PagedRequest,
@@ -250,4 +254,126 @@ export async function updateRolePermissions(appId: string, roleId: string, permi
     `${V2_BASE}/${encodeURIComponent(appId)}/roles/${encodeURIComponent(roleId)}/permissions`,
     { method: "PUT", body: JSON.stringify({ permissionCodes }) }
   );
+}
+
+// ===== 应用角色：数据范围 / 页面 / 字段权限（TenantAppRolesV2Controller）=====
+
+export interface AppRoleAssignmentDetail {
+  roleId: string;
+  roleCode: string;
+  roleName: string;
+  dataScope: number;
+  deptIds: string[];
+}
+
+export interface AppPageListItem {
+  id: string;
+  pageKey: string;
+  name: string;
+  description: string | null;
+  routePath: string | null;
+  parentPageId: number | null;
+  sortOrder: number;
+  isPublished: boolean;
+}
+
+export interface AppRoleFieldPermissionItemDto {
+  fieldName: string;
+  canView: boolean;
+  canEdit: boolean;
+}
+
+export interface AppRoleFieldPermissionGroupDto {
+  tableKey: string;
+  fields: AppRoleFieldPermissionItemDto[];
+}
+
+export interface AppAvailableDynamicTableItem {
+  tableKey: string;
+  displayName: string;
+}
+
+export interface AppDynamicFieldItem {
+  name: string;
+  displayName: string | null;
+}
+
+export async function getAppRoleDataScope(appId: string, roleId: string): Promise<AppRoleAssignmentDetail> {
+  const resp = await requestApi<ApiResponse<AppRoleAssignmentDetail>>(
+    `${rolesV2Base(appId)}/${encodeURIComponent(roleId)}/data-scope`
+  );
+  if (!resp.data) throw new Error(resp.message ?? "Failed to load data scope");
+  return resp.data;
+}
+
+export async function updateAppRoleDataScope(
+  appId: string,
+  roleId: string,
+  body: { dataScope: number; deptIds?: number[] }
+): Promise<void> {
+  await requestApi<ApiResponse<unknown>>(
+    `${rolesV2Base(appId)}/${encodeURIComponent(roleId)}/data-scope`,
+    { method: "PUT", body: JSON.stringify(body) }
+  );
+}
+
+export async function getAvailableAppPages(appId: string): Promise<AppPageListItem[]> {
+  const resp = await requestApi<ApiResponse<AppPageListItem[]>>(
+    `${rolesV2Base(appId)}/available-pages`
+  );
+  return resp.data ?? [];
+}
+
+export async function getRolePageIds(appId: string, roleId: string): Promise<number[]> {
+  const resp = await requestApi<ApiResponse<number[]>>(
+    `${rolesV2Base(appId)}/${encodeURIComponent(roleId)}/pages`
+  );
+  return resp.data ?? [];
+}
+
+export async function updateRolePages(appId: string, roleId: string, pageIds: number[]): Promise<void> {
+  await requestApi<ApiResponse<unknown>>(
+    `${rolesV2Base(appId)}/${encodeURIComponent(roleId)}/pages`,
+    { method: "PUT", body: JSON.stringify({ pageIds }) }
+  );
+}
+
+export async function getAvailableDynamicTables(
+  appId: string,
+  keyword?: string
+): Promise<AppAvailableDynamicTableItem[]> {
+  const qs = keyword?.trim() ? `?keyword=${encodeURIComponent(keyword.trim())}` : "";
+  const resp = await requestApi<ApiResponse<AppAvailableDynamicTableItem[]>>(
+    `${rolesV2Base(appId)}/available-dynamic-tables${qs}`
+  );
+  return resp.data ?? [];
+}
+
+export async function getRoleFieldPermissions(
+  appId: string,
+  roleId: string
+): Promise<AppRoleFieldPermissionGroupDto[]> {
+  const resp = await requestApi<ApiResponse<AppRoleFieldPermissionGroupDto[]>>(
+    `${rolesV2Base(appId)}/${encodeURIComponent(roleId)}/field-permissions`
+  );
+  return resp.data ?? [];
+}
+
+export async function updateRoleFieldPermissions(
+  appId: string,
+  roleId: string,
+  groups: AppRoleFieldPermissionGroupDto[]
+): Promise<void> {
+  await requestApi<ApiResponse<unknown>>(
+    `${rolesV2Base(appId)}/${encodeURIComponent(roleId)}/field-permissions`,
+    { method: "PUT", body: JSON.stringify({ groups }) }
+  );
+}
+
+/** 解析应用内动态表字段（依赖当前请求的 App 上下文，通常为应用 JWT 的 app_id） */
+export async function getAppDynamicTableFields(tableKey: string): Promise<AppDynamicFieldItem[]> {
+  const resp = await requestApi<ApiResponse<AppDynamicFieldItem[]>>(
+    `/dynamic-tables/${encodeURIComponent(tableKey)}/fields`
+  );
+  return resp.data ?? [];
 }

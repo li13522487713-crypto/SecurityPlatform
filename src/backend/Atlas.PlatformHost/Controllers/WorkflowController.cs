@@ -13,7 +13,6 @@ namespace Atlas.PlatformHost.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/v1/workflows")]
-[Authorize]
 public sealed class WorkflowController : ControllerBase
 {
     private readonly IWorkflowQueryService _queryService;
@@ -31,6 +30,7 @@ public sealed class WorkflowController : ControllerBase
     /// 获取所有已注册的工作流定义
     /// </summary>
     [HttpGet("definitions")]
+    [Authorize(Policy = PermissionPolicies.WorkflowView)]
     public async Task<ActionResult<ApiResponse<IEnumerable<WorkflowDefinitionResponse>>>> GetDefinitions(
         CancellationToken cancellationToken)
     {
@@ -43,6 +43,7 @@ public sealed class WorkflowController : ControllerBase
     /// 获取指定工作流定义
     /// </summary>
     [HttpGet("definitions/{workflowId}")]
+    [Authorize(Policy = PermissionPolicies.WorkflowView)]
     public async Task<ActionResult<ApiResponse<WorkflowDefinitionResponse>>> GetDefinition(
         string workflowId,
         [FromQuery] int? version,
@@ -80,6 +81,7 @@ public sealed class WorkflowController : ControllerBase
     /// 获取工作流实例详情
     /// </summary>
     [HttpGet("instances/{instanceId}")]
+    [Authorize(Policy = PermissionPolicies.WorkflowView)]
     public async Task<ActionResult<ApiResponse<WorkflowInstanceResponse>>> GetInstance(
         string instanceId,
         CancellationToken cancellationToken)
@@ -102,6 +104,7 @@ public sealed class WorkflowController : ControllerBase
     /// 分页查询工作流实例列表
     /// </summary>
     [HttpGet("instances")]
+    [Authorize(Policy = PermissionPolicies.WorkflowView)]
     public async Task<ActionResult<ApiResponse<PagedResult<WorkflowInstanceListItem>>>> GetInstances(
         [FromQuery] PagedRequest request,
         CancellationToken cancellationToken)
@@ -212,6 +215,7 @@ public sealed class WorkflowController : ControllerBase
     /// 获取工作流执行指针详情（步骤级监控）
     /// </summary>
     [HttpGet("instances/{instanceId}/pointers")]
+    [Authorize(Policy = PermissionPolicies.WorkflowView)]
     public async Task<ActionResult<ApiResponse<IEnumerable<ExecutionPointerResponse>>>> GetExecutionPointers(
         string instanceId,
         CancellationToken cancellationToken)
@@ -225,6 +229,7 @@ public sealed class WorkflowController : ControllerBase
     /// 获取所有可用的步骤类型
     /// </summary>
     [HttpGet("step-types")]
+    [Authorize(Policy = PermissionPolicies.WorkflowView)]
     public ActionResult<ApiResponse<IEnumerable<StepTypeMetadata>>> GetStepTypes()
     {
         var stepTypes = new List<StepTypeMetadata>
