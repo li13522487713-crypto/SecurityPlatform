@@ -45,7 +45,7 @@ export interface AiProductCategoryCreateRequest {
   sortOrder: number;
 }
 
-export interface AiProductCategoryUpdateRequest extends AiProductCategoryCreateRequest {}
+export type AiProductCategoryUpdateRequest = AiProductCategoryCreateRequest;
 
 export interface AiMarketplaceProductCreateRequest {
   categoryId: number;
@@ -58,7 +58,7 @@ export interface AiMarketplaceProductCreateRequest {
   sourceResourceId?: number;
 }
 
-export interface AiMarketplaceProductUpdateRequest extends AiMarketplaceProductCreateRequest {}
+export type AiMarketplaceProductUpdateRequest = AiMarketplaceProductCreateRequest;
 
 export interface AiMarketplaceProductPublishRequest {
   version: string;

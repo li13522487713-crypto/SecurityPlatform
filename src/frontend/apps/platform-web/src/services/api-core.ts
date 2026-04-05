@@ -99,7 +99,7 @@ async function tryRefreshTokens(): Promise<boolean> {
   return refreshPromise;
 }
 
-function forceLogout(messageText?: string) {
+function forceLogout() {
   clearAuthStorage();
   if (router.currentRoute.value.name !== "login") {
     void router.push({ name: "login" });

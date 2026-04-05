@@ -964,7 +964,7 @@ export interface KnowledgeBaseCreateRequest {
   type: KnowledgeBaseType;
 }
 
-export interface KnowledgeBaseUpdateRequest extends KnowledgeBaseCreateRequest {}
+export type KnowledgeBaseUpdateRequest = KnowledgeBaseCreateRequest;
 
 export interface DocumentCreateRequest {
   fileId: number;
@@ -985,7 +985,7 @@ export interface KnowledgeRetrievalConfigDto {
   rrfK: number;
 }
 
-export interface KnowledgeRetrievalConfigUpdateRequest extends KnowledgeRetrievalConfigDto {}
+export type KnowledgeRetrievalConfigUpdateRequest = KnowledgeRetrievalConfigDto;
 
 export interface KnowledgeRetrievalTestRequest {
   query: string;

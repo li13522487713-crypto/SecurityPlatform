@@ -230,7 +230,7 @@ export interface WorkflowProcessResponse {
   nodeExecutions: NodeExecutionItem[]
 }
 
-export interface NodeExecutionDetailResponse extends NodeExecutionItem {}
+export type NodeExecutionDetailResponse = NodeExecutionItem
 
 export interface WorkflowExecutionCheckpointResponse {
   executionId: string
@@ -260,7 +260,7 @@ export interface NodeDebugRequest {
   inputsJson?: string
 }
 
-export interface NodeDebugResponse extends WorkflowRunResponse {}
+export type NodeDebugResponse = WorkflowRunResponse
 
 // ============ SSE 事件 ============
 

@@ -206,7 +206,7 @@ const currentCanvas = computed<CanvasSchema>(() => {
     inputMappings: (n.data?.inputMappings as Record<string, string>) ?? {},
   }))
 
-  const connections: ConnectionSchema[] = vfEdges.value.map((e, i) => ({
+  const connections: ConnectionSchema[] = vfEdges.value.map((e) => ({
     fromNode: e.source,
     fromPort: e.sourceHandle ?? 'output',
     toNode: e.target,
@@ -381,7 +381,8 @@ function handleConnect(params: Connection) {
     type: 'smoothstep',
     style: { stroke: '#4b5563', strokeWidth: 2 },
   }
-  vfEdges.value.push(newEdge as any)
+  // @ts-expect-error VueFlow Edge 泛型在 vue-tsc 中会触发深度推导错误（TS2589）
+  vfEdges.value.push(newEdge)
   isDirty.value = true
 }
 

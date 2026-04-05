@@ -59,7 +59,7 @@ export interface AiPluginCreateRequest {
   definitionJson?: string;
 }
 
-export interface AiPluginUpdateRequest extends AiPluginCreateRequest {}
+export type AiPluginUpdateRequest = AiPluginCreateRequest;
 
 export interface AiPluginDebugRequest {
   apiId?: number;

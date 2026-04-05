@@ -49,7 +49,7 @@ export interface WatchRow {
   value: string;
 }
 
-const props = withDefaults(
+withDefaults(
   defineProps<{
     logRows?: DebugLogRow[];
     watchRows?: WatchRow[];

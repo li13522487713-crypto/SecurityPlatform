@@ -43,7 +43,7 @@ export interface RuntimeContextListItem {
   isActive: boolean;
 }
 
-export interface RuntimeContextDetail extends RuntimeContextListItem {}
+export type RuntimeContextDetail = RuntimeContextListItem;
 
 export interface LowCodePageListItem {
   id: string;

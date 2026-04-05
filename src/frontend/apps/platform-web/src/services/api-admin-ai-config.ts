@@ -11,7 +11,7 @@ export interface AdminAiConfigDto {
   maxKnowledgeRetrievalCount: number;
 }
 
-export interface AdminAiConfigUpdateRequest extends AdminAiConfigDto {}
+export type AdminAiConfigUpdateRequest = AdminAiConfigDto;
 
 export async function getAdminAiConfig() {
   const response = await requestApi<ApiResponse<AdminAiConfigDto>>("/admin/ai-config");

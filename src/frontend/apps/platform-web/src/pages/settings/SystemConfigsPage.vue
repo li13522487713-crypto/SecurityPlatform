@@ -257,7 +257,7 @@ const createForm = reactive({
 const createRules = {
   configKey: [
     { required: true, message: t("systemConfig.keyRequired") },
-    { pattern: /^[a-zA-Z][a-zA-Z0-9_.:\-]{0,127}$/, message: t("systemConfig.keyPattern") }
+    { pattern: /^[a-zA-Z][a-zA-Z0-9_.:-]{0,127}$/, message: t("systemConfig.keyPattern") }
   ],
   configName: [{ required: true, message: t("systemConfig.nameRequired") }],
   configValue: [{ required: true, message: t("systemConfig.valueRequired") }]

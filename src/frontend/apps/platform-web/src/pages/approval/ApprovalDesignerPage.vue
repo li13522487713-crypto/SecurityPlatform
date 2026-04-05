@@ -171,7 +171,7 @@ import ValidationErrorPanel from '@/components/approval/designer/ValidationError
 import { useApprovalTree } from '@/composables/useApprovalTree';
 import { ApprovalTreeConverter } from '@/utils/approval-tree-converter';
 import { extractAmisFields } from '@/utils/amis-field-extractor';
-import type { ApprovalDefinitionMeta, LfFormField, LfFormPayload, FormJson, VisibilityScope } from '@/types/approval-definition';
+import type { ApprovalDefinitionMeta, LfFormField, VisibilityScope } from '@/types/approval-definition';
 import type { TreeNode, ConditionBranch } from '@/types/approval-tree';
 import type { ApprovalFlowValidationIssue, ApprovalFlowValidationResult, ApprovalFlowVersionListItem } from '@atlas/shared-core';
 import {
