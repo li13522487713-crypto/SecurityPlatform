@@ -355,7 +355,12 @@ export default {
       saveFailed: "保存角色失败",
       deleteSuccess: "角色删除成功",
       deleteFailed: "删除角色失败",
-      systemCannotDelete: "系统角色不可删除"
+      systemCannotDelete: "系统角色不可删除",
+      permissions: "权限",
+      permissionsTitle: "{name} - 权限管理",
+      loadPermFailed: "加载权限列表失败",
+      permSaveSuccess: "权限更新成功",
+      permSaveFailed: "权限更新失败"
     },
     department: {
       name: "部门名称",
@@ -425,5 +430,35 @@ export default {
     errWithMsg: "生成失败：{msg}",
     copyOk: "结果已复制到剪贴板",
     copyFail: "复制失败，请手动复制"
+  },
+  notification: {
+    title: "通知",
+    markAllRead: "全部已读",
+    empty: "暂无通知"
+  },
+  error: {
+    forbidden: "无访问权限",
+    forbiddenDesc: "您没有权限访问此页面，请联系管理员。",
+    goBack: "返回上页",
+    goHome: "回到首页"
+  },
+  profile: {
+    title: "个人信息",
+    changePassword: "修改密码",
+    currentPassword: "当前密码",
+    newPassword: "新密码",
+    confirmPassword: "确认密码",
+    currentPasswordRequired: "请输入当前密码",
+    newPasswordRequired: "请输入新密码",
+    confirmPasswordRequired: "请确认新密码",
+    passwordMismatch: "两次输入的密码不一致",
+    changePasswordSuccess: "密码修改成功，请重新登录",
+    changePasswordFailed: "密码修改失败",
+    username: "用户名",
+    displayName: "显示名",
+    email: "邮箱",
+    phone: "手机号",
+    roles: "角色",
+    tenant: "租户"
   }
 };

@@ -1211,11 +1211,10 @@ export default {
     shortcuts: "快捷入口",
     linkPageDesigner: "页面设计器",
     linkSettings: "应用设置",
-    linkAgents: "Agent 管理",
+    linkPages: "页面管理",
     linkWorkflows: "工作流",
-    linkPrompts: "提示词",
-    linkPlugins: "插件管理",
-    linkMembers: "成员管理",
+    linkData: "数据管理",
+    linkApprovalFlows: "审批流",
     loadFailed: "加载应用详情失败"
   },
   appsPages: {
@@ -1227,7 +1226,6 @@ export default {
     draft: "草稿",
     design: "设计",
     runtimePreview: "运行预览",
-    goProduction: "生产访问",
     colName: "页面名称",
     colPageKey: "页面 Key",
     colRoute: "路由",
@@ -1704,30 +1702,20 @@ export default {
   validation: {
     required: "请输入必填项"
   },
-  semanticBridge: {
-    visualizationCenterDesc: "可视化中心已从错误映射页切换为语义导航页，请从下方入口前往对应能力。",
-    visualizationDesignerDesc: "当前可视化设计能力正在拆分中，建议先从应用构建器或可视化中心进入。",
-    visualizationGovernanceDesc: "可视化治理涉及资源治理与执行审计，推荐从资源中心或执行记录查看。",
-    visualizationRuntimeDesc: "可视化运行时已与运行引擎收敛，请从执行记录或上下文页查看实时状态。",
-    aiDatabaseListDesc: "AI 数据库模块已与知识库能力解耦，当前入口引导至知识库与 AI 工作台。",
-    aiDatabaseDetailDesc: "AI 数据库详情页已移除错误映射，请通过知识库或 AI 插件入口继续操作。",
-    approvalWorkspaceDesc: "审批工作台与流程列表已解耦，请通过发起入口或任务池进入工作台闭环。",
-    approvalFlowManageDesc: "审批流程管理页已切换为语义导航，请进入设计器或代理配置继续管理。",
-    approvalInstanceManageDesc: "审批实例管理页已切换为语义导航，请从任务池或工作台进入实例处理。",
-    goVisualizationRuntime: "进入可视化运行时",
-    goRuntimeExecutions: "查看运行执行记录",
-    goRuntimeContexts: "查看运行上下文",
-    goVisualizationCenter: "进入可视化中心",
-    goResourceCenter: "进入资源中心",
-    goAppBuilder: "进入应用构建器",
-    goKnowledgeBases: "进入知识库",
-    goAiWorkspace: "进入 AI 工作台",
-    goAiPluginList: "进入 AI 插件列表",
-    goApprovalStart: "发起审批",
-    goApprovalTaskPool: "进入审批任务池",
-    goApprovalWorkspace: "进入审批工作台",
-    goApprovalDesigner: "进入审批设计器",
-    goApprovalAgentConfig: "进入审批代理配置"
+  featurePlaceholder: {
+    comingSoonDesc: "该功能正在开发中，敬请期待。",
+    backDefault: "返回"
+  },
+  appWorkspace: {
+    consoleHome: "控制台",
+    defaultAppName: "应用",
+    menuDashboard: "仪表盘",
+    menuPages: "页面管理",
+    menuBuilder: "页面设计器",
+    menuData: "数据管理",
+    menuWorkflows: "工作流",
+    menuApprovalFlows: "审批流",
+    menuSettings: "应用设置"
   },
   designer: {
     entityModeling: {

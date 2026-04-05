@@ -355,7 +355,12 @@ export default {
       saveFailed: "Failed to save role",
       deleteSuccess: "Role deleted",
       deleteFailed: "Failed to delete role",
-      systemCannotDelete: "System roles cannot be deleted"
+      systemCannotDelete: "System roles cannot be deleted",
+      permissions: "Permissions",
+      permissionsTitle: "{name} - Permissions",
+      loadPermFailed: "Failed to load permissions",
+      permSaveSuccess: "Permissions updated",
+      permSaveFailed: "Failed to update permissions"
     },
     department: {
       name: "Department Name",
@@ -425,5 +430,35 @@ export default {
     errWithMsg: "Generation failed: {msg}",
     copyOk: "Result copied to clipboard",
     copyFail: "Copy failed, please copy manually"
+  },
+  notification: {
+    title: "Notifications",
+    markAllRead: "Mark All Read",
+    empty: "No notifications"
+  },
+  error: {
+    forbidden: "Access Denied",
+    forbiddenDesc: "You do not have permission to access this page. Please contact the administrator.",
+    goBack: "Go Back",
+    goHome: "Go Home"
+  },
+  profile: {
+    title: "Profile",
+    changePassword: "Change Password",
+    currentPassword: "Current Password",
+    newPassword: "New Password",
+    confirmPassword: "Confirm Password",
+    currentPasswordRequired: "Please enter current password",
+    newPasswordRequired: "Please enter new password",
+    confirmPasswordRequired: "Please confirm new password",
+    passwordMismatch: "Passwords do not match",
+    changePasswordSuccess: "Password changed successfully, please login again",
+    changePasswordFailed: "Failed to change password",
+    username: "Username",
+    displayName: "Display Name",
+    email: "Email",
+    phone: "Phone",
+    roles: "Roles",
+    tenant: "Tenant"
   }
 };

@@ -12,6 +12,7 @@ export interface StreamChatMessage {
 }
 
 export interface UseStreamChatOptions {
+  appKey: () => string;
   agentId: () => string;
   enableRag?: () => boolean;
 }
@@ -78,6 +79,7 @@ export function useStreamChat(options: UseStreamChatOptions) {
     };
 
     const { fetchPromise, abortController: ac } = createAgentChatStream(
+      options.appKey(),
       options.agentId(),
       request,
       "react"

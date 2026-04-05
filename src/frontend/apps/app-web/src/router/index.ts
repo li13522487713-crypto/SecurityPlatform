@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from "vue-router";
 import { getAccessToken } from "@atlas/shared-core";
 import { useAppUserStore } from "@/stores/user";
+import { APP_PERMISSIONS } from "@/constants/permissions";
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -18,12 +19,6 @@ export const router = createRouter({
       meta: { requiresAuth: false }
     },
     {
-      path: "/apps/:appKey/entry",
-      name: "app-entry",
-      component: () => import("@/pages/app-entry/AppEntryGatewayPage.vue"),
-      meta: { requiresAuth: true }
-    },
-    {
       path: "/apps/:appKey",
       component: () => import("@/layouts/AppWorkspaceLayout.vue"),
       meta: { requiresAuth: true },
@@ -31,6 +26,11 @@ export const router = createRouter({
         {
           path: "",
           redirect: (to) => `/apps/${String(to.params.appKey)}/dashboard`
+        },
+        {
+          path: "entry",
+          name: "app-entry",
+          component: () => import("@/pages/app-entry/AppEntryGatewayPage.vue")
         },
         {
           path: "dashboard",
@@ -45,7 +45,8 @@ export const router = createRouter({
         {
           path: "org",
           name: "app-org",
-          component: () => import("@/pages/org/AppOrganizationPage.vue")
+          component: () => import("@/pages/org/AppOrganizationPage.vue"),
+          meta: { requiredPermission: APP_PERMISSIONS.APP_MEMBERS_VIEW }
         },
         {
           path: "ai/chat/:agentId?",
@@ -85,7 +86,13 @@ export const router = createRouter({
         {
           path: "settings",
           name: "app-settings",
-          component: () => import("@/pages/settings/AppSettingsPage.vue")
+          component: () => import("@/pages/settings/AppSettingsPage.vue"),
+          meta: { requiredPermission: APP_PERMISSIONS.APPS_UPDATE }
+        },
+        {
+          path: "forbidden",
+          name: "app-forbidden",
+          component: () => import("@/pages/ForbiddenPage.vue")
         }
       ]
     },
@@ -96,6 +103,14 @@ export const router = createRouter({
     }
   ]
 });
+
+function checkPermission(permission: string | undefined, userStore: ReturnType<typeof useAppUserStore>): boolean {
+  if (!permission) return true;
+  if (userStore.profile?.isPlatformAdmin) return true;
+  if (userStore.permissions.includes("*:*:*")) return true;
+  if (userStore.roles.some((r) => ["admin", "superadmin"].includes(r.toLowerCase()))) return true;
+  return userStore.permissions.includes(permission);
+}
 
 router.beforeEach(async (to, _from, next) => {
   if (to.meta.requiresAuth !== true) {
@@ -125,6 +140,13 @@ router.beforeEach(async (to, _from, next) => {
     } catch {
       userStore.hydrateFromStorage();
     }
+  }
+
+  const requiredPermission = to.meta.requiredPermission as string | undefined;
+  if (requiredPermission && !checkPermission(requiredPermission, userStore)) {
+    const appKey = typeof to.params.appKey === "string" ? to.params.appKey : "";
+    next({ name: "app-forbidden", params: { appKey } });
+    return;
   }
 
   next();

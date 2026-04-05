@@ -29,18 +29,11 @@
             <a-space>
               <a-button type="link" @click="go(`/apps/${appId}/builder`)">{{ t("appsPages.design") }}</a-button>
               <a-button
-                v-if="record.pageKey"
-                type="link"
-                @click="go(`/apps/${appId}/run/${record.pageKey}`)"
-              >
-                {{ t("appsPages.runtimePreview") }}
-              </a-button>
-              <a-button
                 v-if="record.pageKey && appDetail?.appKey"
                 type="link"
-                @click="go(`/r/${appDetail.appKey}/${record.pageKey}`)"
+                @click="openAppWebPreview(appDetail.appKey, record.pageKey)"
               >
-                {{ t("appsPages.goProduction") }}
+                {{ t("appsPages.runtimePreview") }}
               </a-button>
             </a-space>
           </template>
@@ -99,6 +92,11 @@ async function loadPages() {
 
 function go(path: string) {
   void router.push(path);
+}
+
+function openAppWebPreview(appKey: string, pageKey: string) {
+  const appWebOrigin = window.location.origin.replace(":5180", ":5181");
+  window.open(`${appWebOrigin}/apps/${appKey}/r/${pageKey}`, "_blank");
 }
 
 onMounted(() => {

@@ -86,6 +86,11 @@
           <a-button type="link" size="small" @click="openPlatform">
             {{ t("layout.backToPlatform") }}
           </a-button>
+          <a-badge :count="unreadCount" :offset="[-4, 4]" size="small">
+            <a-button type="text" size="small" @click="notificationVisible = true">
+              <BellOutlined />
+            </a-button>
+          </a-badge>
           <a-dropdown>
             <a-button type="text" size="small">
               <UserOutlined />
@@ -93,6 +98,15 @@
             </a-button>
             <template #overlay>
               <a-menu @click="handleUserMenuClick">
+                <a-menu-item key="profile">
+                  <UserOutlined />
+                  {{ t("profile.title") }}
+                </a-menu-item>
+                <a-menu-item key="changePassword">
+                  <LockOutlined />
+                  {{ t("profile.changePassword") }}
+                </a-menu-item>
+                <a-menu-divider />
                 <a-menu-item key="logout">
                   <LogoutOutlined />
                   {{ t("auth.logout") }}
@@ -107,12 +121,96 @@
       </a-layout-content>
     </a-layout>
   </a-layout>
+
+  <!-- Profile Drawer -->
+  <a-drawer
+    v-model:open="profileVisible"
+    :title="t('profile.title')"
+    :width="400"
+    destroy-on-close
+  >
+    <a-descriptions :column="1" bordered size="small">
+      <a-descriptions-item :label="t('profile.username')">
+        {{ userStore.profile?.username ?? '—' }}
+      </a-descriptions-item>
+      <a-descriptions-item :label="t('profile.displayName')">
+        {{ userStore.profile?.displayName ?? '—' }}
+      </a-descriptions-item>
+      <a-descriptions-item :label="t('profile.roles')">
+        <a-tag v-for="role in userStore.roles" :key="role" color="blue">{{ role }}</a-tag>
+        <span v-if="userStore.roles.length === 0">—</span>
+      </a-descriptions-item>
+      <a-descriptions-item :label="t('profile.tenant')">
+        {{ userStore.profile?.tenantId ?? '—' }}
+      </a-descriptions-item>
+    </a-descriptions>
+  </a-drawer>
+
+  <!-- Notifications Drawer -->
+  <a-drawer
+    v-model:open="notificationVisible"
+    :title="t('notification.title')"
+    :width="420"
+    destroy-on-close
+  >
+    <template #extra>
+      <a-button type="link" size="small" @click="handleMarkAllRead">
+        {{ t("notification.markAllRead") }}
+      </a-button>
+    </template>
+    <a-spin :spinning="notificationsLoading">
+      <a-list
+        :data-source="notifications"
+        :locale="{ emptyText: t('notification.empty') }"
+      >
+        <template #renderItem="{ item }">
+          <a-list-item>
+            <a-list-item-meta
+              :title="item.title"
+              :description="item.content"
+            >
+              <template #avatar>
+                <a-badge :dot="!item.isRead" :offset="[0, 0]">
+                  <BellOutlined style="font-size: 18px; color: #1677ff" />
+                </a-badge>
+              </template>
+            </a-list-item-meta>
+            <template #extra>
+              <span class="notification-time">{{ item.createdAt }}</span>
+            </template>
+          </a-list-item>
+        </template>
+      </a-list>
+    </a-spin>
+  </a-drawer>
+
+  <!-- Change Password Modal -->
+  <a-modal
+    v-model:open="changePwdVisible"
+    :title="t('profile.changePassword')"
+    :confirm-loading="changePwdSubmitting"
+    @ok="handleChangePassword"
+  >
+    <a-form layout="vertical" :model="changePwdForm">
+      <a-form-item :label="t('profile.currentPassword')" required>
+        <a-input-password v-model:value="changePwdForm.currentPassword" />
+      </a-form-item>
+      <a-form-item :label="t('profile.newPassword')" required>
+        <a-input-password v-model:value="changePwdForm.newPassword" />
+      </a-form-item>
+      <a-form-item :label="t('profile.confirmPassword')" required>
+        <a-input-password v-model:value="changePwdForm.confirmPassword" />
+      </a-form-item>
+    </a-form>
+  </a-modal>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
+import { reactive } from "vue";
+import { message } from "ant-design-vue";
 import {
   DashboardOutlined,
   AppstoreOutlined,
@@ -124,8 +222,17 @@ import {
   MonitorOutlined,
   SettingOutlined,
   UserOutlined,
-  LogoutOutlined
+  LogoutOutlined,
+  LockOutlined,
+  BellOutlined
 } from "@ant-design/icons-vue";
+import { changePassword } from "@/services/api-profile";
+import {
+  getUnreadCount,
+  getNotifications,
+  markAllAsRead
+} from "@/services/api-notifications";
+import type { UserNotificationItem } from "@/services/api-notifications";
 import { useAppUserStore } from "@/stores/user";
 import { usePermission } from "@/composables/usePermission";
 import { APP_PERMISSIONS } from "@/constants/permissions";
@@ -217,15 +324,90 @@ function openPlatform() {
   window.open(url, "_blank", "noopener,noreferrer");
 }
 
+const profileVisible = ref(false);
+const changePwdVisible = ref(false);
+const changePwdSubmitting = ref(false);
+const changePwdForm = reactive({
+  currentPassword: "",
+  newPassword: "",
+  confirmPassword: ""
+});
+
 function handleUserMenuClick(info: { key: string }) {
   if (info.key === "logout") {
     void handleLogout();
+  } else if (info.key === "profile") {
+    profileVisible.value = true;
+  } else if (info.key === "changePassword") {
+    changePwdForm.currentPassword = "";
+    changePwdForm.newPassword = "";
+    changePwdForm.confirmPassword = "";
+    changePwdVisible.value = true;
+  }
+}
+
+async function handleChangePassword() {
+  if (!changePwdForm.currentPassword.trim()) {
+    message.warning(t("profile.currentPasswordRequired"));
+    return;
+  }
+  if (!changePwdForm.newPassword.trim()) {
+    message.warning(t("profile.newPasswordRequired"));
+    return;
+  }
+  if (changePwdForm.newPassword !== changePwdForm.confirmPassword) {
+    message.warning(t("profile.passwordMismatch"));
+    return;
+  }
+
+  changePwdSubmitting.value = true;
+  try {
+    await changePassword(changePwdForm.currentPassword, changePwdForm.newPassword);
+    message.success(t("profile.changePasswordSuccess"));
+    changePwdVisible.value = false;
+    await userStore.logout();
+    void router.push({ name: "app-login", params: { appKey: appKey.value } });
+  } catch (e) {
+    message.error(e instanceof Error ? e.message : t("profile.changePasswordFailed"));
+  } finally {
+    changePwdSubmitting.value = false;
   }
 }
 
 async function handleLogout() {
   await userStore.logout();
   void router.push({ name: "app-login", params: { appKey: appKey.value } });
+}
+
+const unreadCount = ref(0);
+const notificationVisible = ref(false);
+const notificationsLoading = ref(false);
+const notifications = ref<UserNotificationItem[]>([]);
+
+async function loadUnreadCount() {
+  unreadCount.value = await getUnreadCount();
+}
+
+async function loadNotifications() {
+  notificationsLoading.value = true;
+  try {
+    const result = await getNotifications(1, 50);
+    notifications.value = result.items ?? [];
+  } catch {
+    notifications.value = [];
+  } finally {
+    notificationsLoading.value = false;
+  }
+}
+
+async function handleMarkAllRead() {
+  try {
+    await markAllAsRead();
+    notifications.value = notifications.value.map((n) => ({ ...n, isRead: true }));
+    unreadCount.value = 0;
+  } catch {
+    message.error(t("common.error"));
+  }
 }
 
 async function loadRuntimeMenu() {
@@ -241,8 +423,13 @@ async function loadRuntimeMenu() {
   }
 }
 
+watch(notificationVisible, (open) => {
+  if (open) void loadNotifications();
+});
+
 onMounted(() => {
   void loadRuntimeMenu();
+  void loadUnreadCount();
 });
 </script>
 
@@ -318,5 +505,11 @@ onMounted(() => {
   padding: 16px;
   min-height: 280px;
   background: #f5f5f5;
+}
+
+.notification-time {
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.45);
+  white-space: nowrap;
 }
 </style>

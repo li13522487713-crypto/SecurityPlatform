@@ -62,6 +62,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, reactive, ref } from "vue";
+import { useRoute } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { message } from "ant-design-vue";
 import { BranchesOutlined, CodeOutlined, FormOutlined } from "@ant-design/icons-vue";
@@ -69,6 +70,9 @@ import {
   generateByAiAssistant,
   type AiAssistantFunctionType,
 } from "@/services/api-ai-assistant";
+
+const route = useRoute();
+const appKey = computed(() => String(route.params.appKey ?? ""));
 
 interface ChatMessage {
   id: string;
@@ -140,7 +144,7 @@ const sendMessage = async () => {
 
   try {
     const type = selectedFunction.value[0] || "form";
-    const result = await generateByAiAssistant(type, text);
+    const result = await generateByAiAssistant(appKey.value, type, text);
     if (result) {
       messages.push({
         id: createMessageId(),

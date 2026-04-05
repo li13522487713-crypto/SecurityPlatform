@@ -15,7 +15,7 @@
             </div>
           </template>
           <template #extra>
-            <a-button type="link" @click="$router.push('/console/approval/workspace?tab=pending')">{{ t("home.viewAll") }}</a-button>
+            <a-button type="link" @click="$router.push('/approval/flows')">{{ t("home.viewAll") }}</a-button>
           </template>
           <a-skeleton :loading="loadingTasks" active :paragraph="{ rows: 3 }">
             <a-list

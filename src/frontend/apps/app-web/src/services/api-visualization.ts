@@ -1,5 +1,5 @@
 import type { ApiResponse, PagedRequest, PagedResult } from "@atlas/shared-core";
-import { requestApi, toQuery } from "./api-core";
+import { requestApi, toQuery, resolveAppHostPrefix } from "./api-core";
 
 export interface VisualizationInstanceSummary {
   id: string;
@@ -30,26 +30,27 @@ export interface VisualizationInstanceDetail {
   riskHints: string[];
 }
 
+function vizBase(appKey: string): string {
+  return `${resolveAppHostPrefix(appKey)}/api/v1/visualization`;
+}
+
 export async function getVisualizationInstances(
+  appKey: string,
   request: PagedRequest,
   filters?: { processId?: string; status?: string }
 ): Promise<PagedResult<VisualizationInstanceSummary>> {
   const response = await requestApi<ApiResponse<PagedResult<VisualizationInstanceSummary>>>(
-    `/visualization/instances?${toQuery(request, {
+    `${vizBase(appKey)}/instances?${toQuery(request, {
       processId: filters?.processId,
       status: filters?.status,
     })}`
   );
-  if (!response.data) {
-    throw new Error(response.message || "Request failed");
-  }
+  if (!response.data) throw new Error(response.message || "Request failed");
   return response.data;
 }
 
-export async function getVisualizationInstanceDetail(id: string): Promise<VisualizationInstanceDetail> {
-  const response = await requestApi<ApiResponse<VisualizationInstanceDetail>>(`/visualization/instances/${id}`);
-  if (!response.data) {
-    throw new Error(response.message || "Request failed");
-  }
+export async function getVisualizationInstanceDetail(appKey: string, id: string): Promise<VisualizationInstanceDetail> {
+  const response = await requestApi<ApiResponse<VisualizationInstanceDetail>>(`${vizBase(appKey)}/instances/${id}`);
+  if (!response.data) throw new Error(response.message || "Request failed");
   return response.data;
 }

@@ -1213,11 +1213,10 @@ export default {
     shortcuts: "Shortcuts",
     linkPageDesigner: "Page designer",
     linkSettings: "App settings",
-    linkAgents: "Agent management",
+    linkPages: "Pages",
     linkWorkflows: "Workflows",
-    linkPrompts: "Prompts",
-    linkPlugins: "Plugins",
-    linkMembers: "Members",
+    linkData: "Data",
+    linkApprovalFlows: "Approval flows",
     loadFailed: "Failed to load app detail"
   },
   appsPages: {
@@ -1229,7 +1228,6 @@ export default {
     draft: "Draft",
     design: "Design",
     runtimePreview: "Runtime preview",
-    goProduction: "Open production",
     colName: "Page name",
     colPageKey: "Page key",
     colRoute: "Route path",
@@ -1706,30 +1704,20 @@ export default {
   validation: {
     required: "This field is required"
   },
-  semanticBridge: {
-    visualizationCenterDesc: "Visualization Center has been replaced with a semantic navigation page. Use the entries below.",
-    visualizationDesignerDesc: "Visualization design is being separated into dedicated modules. Use App Builder or Center first.",
-    visualizationGovernanceDesc: "Visualization governance now aligns with resource governance and execution audits.",
-    visualizationRuntimeDesc: "Visualization runtime has been aligned with runtime engine pages for operational status.",
-    aiDatabaseListDesc: "AI Database list is no longer mapped to Knowledge Base directly; use the dedicated entries below.",
-    aiDatabaseDetailDesc: "AI Database detail no longer points to unrelated pages. Continue from KB or plugin entries.",
-    approvalWorkspaceDesc: "Approval workspace is decoupled from flow list. Enter from start flow or task pool.",
-    approvalFlowManageDesc: "Approval flow management now uses semantic navigation to designer and agent config.",
-    approvalInstanceManageDesc: "Approval instance management now routes to task pool and workspace actions.",
-    goVisualizationRuntime: "Open Visualization Runtime",
-    goRuntimeExecutions: "Open Runtime Executions",
-    goRuntimeContexts: "Open Runtime Contexts",
-    goVisualizationCenter: "Open Visualization Center",
-    goResourceCenter: "Open Resource Center",
-    goAppBuilder: "Open App Builder",
-    goKnowledgeBases: "Open Knowledge Bases",
-    goAiWorkspace: "Open AI Workspace",
-    goAiPluginList: "Open AI Plugins",
-    goApprovalStart: "Start Approval",
-    goApprovalTaskPool: "Open Task Pool",
-    goApprovalWorkspace: "Open Workspace",
-    goApprovalDesigner: "Open Approval Designer",
-    goApprovalAgentConfig: "Open Agent Config"
+  featurePlaceholder: {
+    comingSoonDesc: "This feature is under development. Stay tuned.",
+    backDefault: "Go back"
+  },
+  appWorkspace: {
+    consoleHome: "Console",
+    defaultAppName: "Application",
+    menuDashboard: "Dashboard",
+    menuPages: "Pages",
+    menuBuilder: "Page Designer",
+    menuData: "Data",
+    menuWorkflows: "Workflows",
+    menuApprovalFlows: "Approval Flows",
+    menuSettings: "Settings"
   },
   designer: {
     entityModeling: {

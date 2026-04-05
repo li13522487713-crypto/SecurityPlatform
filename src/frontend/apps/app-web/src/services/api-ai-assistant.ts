@@ -1,5 +1,5 @@
 import type { ApiResponse } from "@atlas/shared-core";
-import { requestApi } from "./api-core";
+import { requestApi, resolveAppHostPrefix } from "./api-core";
 
 export type AiAssistantFunctionType = "form" | "sql" | "workflow";
 
@@ -9,24 +9,24 @@ export interface AiAssistantGenerateResponse {
 }
 
 const endpointMap: Record<AiAssistantFunctionType, string> = {
-  form: "/ai/generate-form",
-  sql: "/ai/generate-sql",
-  workflow: "/ai/suggest-workflow",
+  form: "/api/v1/ai/generate-form",
+  sql: "/api/v1/ai/generate-sql",
+  workflow: "/api/v1/ai/suggest-workflow",
 };
 
 export async function generateByAiAssistant(
+  appKey: string,
   type: AiAssistantFunctionType,
   description: string
 ): Promise<AiAssistantGenerateResponse | null> {
-  const response = await requestApi<ApiResponse<AiAssistantGenerateResponse>>(endpointMap[type], {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ description }),
-  });
-
-  if (!response.success) {
-    throw new Error(response.message || "Request failed");
-  }
-
+  const base = resolveAppHostPrefix(appKey);
+  const response = await requestApi<ApiResponse<AiAssistantGenerateResponse>>(
+    `${base}${endpointMap[type]}`,
+    {
+      method: "POST",
+      body: JSON.stringify({ description }),
+    }
+  );
+  if (!response.success) throw new Error(response.message || "Request failed");
   return response.data ?? null;
 }

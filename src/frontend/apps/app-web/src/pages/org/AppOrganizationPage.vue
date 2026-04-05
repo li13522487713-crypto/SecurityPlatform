@@ -113,6 +113,9 @@
               </template>
               <template v-if="column.dataIndex === 'actions'">
                 <a-space>
+                  <a-button v-if="canManageRoles" type="link" size="small" @click="openPermissionDrawer(record)">
+                    {{ t('org.role.permissions') }}
+                  </a-button>
                   <a-button type="link" size="small" @click="openRoleDrawer(record)">
                     {{ t('common.edit') }}
                   </a-button>
@@ -620,6 +623,42 @@
         </a-space>
       </template>
     </a-drawer>
+    <!-- ==================== Permission Drawer ==================== -->
+    <a-drawer
+      v-model:open="permDrawerVisible"
+      :title="t('org.role.permissionsTitle', { name: permRoleName })"
+      :width="520"
+      destroy-on-close
+    >
+      <a-spin :spinning="permLoading">
+        <a-checkbox-group
+          v-model:value="permSelectedCodes"
+          style="width: 100%"
+        >
+          <a-row :gutter="[0, 8]">
+            <a-col
+              v-for="perm in allPermissions"
+              :key="perm.code"
+              :span="24"
+            >
+              <a-checkbox :value="perm.code">
+                <span>{{ perm.name }}</span>
+                <span v-if="perm.description" class="perm-desc"> — {{ perm.description }}</span>
+              </a-checkbox>
+            </a-col>
+          </a-row>
+        </a-checkbox-group>
+        <a-empty v-if="allPermissions.length === 0 && !permLoading" />
+      </a-spin>
+      <template #footer>
+        <a-space>
+          <a-button @click="permDrawerVisible = false">{{ t('common.cancel') }}</a-button>
+          <a-button type="primary" :loading="permSaving" @click="handleSavePermissions">
+            {{ t('common.ok') }}
+          </a-button>
+        </a-space>
+      </template>
+    </a-drawer>
   </div>
 </template>
 
@@ -652,8 +691,12 @@ import {
   deletePosition as deletePosApi,
   createProject,
   updateProject,
-  deleteProject as deleteProjApi
+  deleteProject as deleteProjApi,
+  getAppPermissions,
+  getRoleDetail,
+  updateRolePermissions
 } from "@/services/api-organization";
+import type { PermissionListItem as AppPermissionItem } from "@/services/api-organization";
 import type {
   AppOrganizationWorkspaceResponse,
   TenantAppMemberListItem,
@@ -706,7 +749,7 @@ const roleColumns = computed(() => [
   { title: t("org.role.description"), dataIndex: "description", ellipsis: true },
   { title: t("org.role.isSystem"), dataIndex: "isSystem", width: 100 },
   { title: t("org.role.memberCount"), dataIndex: "memberCount", width: 100 },
-  { title: t("common.actions"), dataIndex: "actions", width: 150, fixed: "right" as const }
+  { title: t("common.actions"), dataIndex: "actions", width: 220, fixed: "right" as const }
 ]);
 
 const deptColumns = computed(() => [
@@ -1348,6 +1391,56 @@ async function handleDeleteProj(record: AppProjectListItem) {
     message.error(e instanceof Error ? e.message : t("org.project.deleteFailed"));
   }
 }
+
+// ==================== Permission Assignment ====================
+const permDrawerVisible = ref(false);
+const permLoading = ref(false);
+const permSaving = ref(false);
+const permRoleId = ref("");
+const permRoleName = ref("");
+const allPermissions = ref<AppPermissionItem[]>([]);
+const permSelectedCodes = ref<string[]>([]);
+
+async function openPermissionDrawer(record: TenantAppRoleListItem) {
+  const id = appId.value;
+  if (!id) return;
+
+  permRoleId.value = record.id;
+  permRoleName.value = record.name;
+  permSelectedCodes.value = [];
+  allPermissions.value = [];
+  permDrawerVisible.value = true;
+  permLoading.value = true;
+
+  try {
+    const [perms, detail] = await Promise.all([
+      getAppPermissions(id),
+      getRoleDetail(id, record.id)
+    ]);
+    allPermissions.value = perms;
+    permSelectedCodes.value = [...detail.permissionCodes];
+  } catch (e) {
+    message.error(e instanceof Error ? e.message : t("org.role.loadPermFailed"));
+  } finally {
+    permLoading.value = false;
+  }
+}
+
+async function handleSavePermissions() {
+  const id = appId.value;
+  if (!id) return;
+
+  permSaving.value = true;
+  try {
+    await updateRolePermissions(id, permRoleId.value, permSelectedCodes.value);
+    message.success(t("org.role.permSaveSuccess"));
+    permDrawerVisible.value = false;
+  } catch (e) {
+    message.error(e instanceof Error ? e.message : t("org.role.permSaveFailed"));
+  } finally {
+    permSaving.value = false;
+  }
+}
 </script>
 
 <style scoped>
@@ -1364,5 +1457,10 @@ async function handleDeleteProj(record: AppProjectListItem) {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 16px;
+}
+
+.perm-desc {
+  color: rgba(0, 0, 0, 0.45);
+  font-size: 12px;
 }
 </style>

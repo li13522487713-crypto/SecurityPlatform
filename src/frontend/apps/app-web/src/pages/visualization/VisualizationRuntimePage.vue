@@ -87,6 +87,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
+import { useRoute } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { message } from "ant-design-vue";
 import type { TablePaginationConfig } from "ant-design-vue";
@@ -98,6 +99,8 @@ import {
 } from "@/services/api-visualization";
 
 const { t, locale } = useI18n();
+const route = useRoute();
+const appKey = computed(() => String(route.params.appKey ?? ""));
 
 const columns = computed(() => [
   { title: t("visualization.colInstanceId"), dataIndex: "id", key: "id" },
@@ -166,6 +169,7 @@ const fetchData = async () => {
   loading.value = true;
   try {
     const result = await getVisualizationInstances(
+      appKey.value,
       {
         pageIndex: pagination.current ?? 1,
         pageSize: pagination.pageSize ?? 10,
@@ -201,7 +205,7 @@ const openDetail = async (id: string) => {
   detailVisible.value = true;
   detail.value = null;
   try {
-    detail.value = await getVisualizationInstanceDetail(id);
+    detail.value = await getVisualizationInstanceDetail(appKey.value, id);
   } catch (error) {
     message.error((error as Error).message || t("visualization.loadDetailFailed"));
   }

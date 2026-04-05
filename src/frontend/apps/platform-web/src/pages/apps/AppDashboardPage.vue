@@ -29,11 +29,10 @@
       <a-space wrap>
         <a-button @click="go(`/apps/${appId}/builder`)">{{ t("appsDashboard.linkPageDesigner") }}</a-button>
         <a-button @click="go(`/apps/${appId}/settings`)">{{ t("appsDashboard.linkSettings") }}</a-button>
-        <a-button @click="go(`/apps/${appId}/agents`)">{{ t("appsDashboard.linkAgents") }}</a-button>
+        <a-button @click="go(`/apps/${appId}/pages`)">{{ t("appsDashboard.linkPages") }}</a-button>
         <a-button @click="go(`/apps/${appId}/workflows`)">{{ t("appsDashboard.linkWorkflows") }}</a-button>
-        <a-button @click="go(`/apps/${appId}/prompts`)">{{ t("appsDashboard.linkPrompts") }}</a-button>
-        <a-button @click="go(`/apps/${appId}/plugins`)">{{ t("appsDashboard.linkPlugins") }}</a-button>
-        <a-button @click="go(`/apps/${appId}/users`)">{{ t("appsDashboard.linkMembers") }}</a-button>
+        <a-button @click="go(`/apps/${appId}/data`)">{{ t("appsDashboard.linkData") }}</a-button>
+        <a-button @click="go(`/apps/${appId}/flows`)">{{ t("appsDashboard.linkApprovalFlows") }}</a-button>
       </a-space>
     </a-card>
   </div>

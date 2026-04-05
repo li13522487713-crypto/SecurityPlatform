@@ -211,7 +211,7 @@ import {
 import { getAgentById } from "@/services/api-agent";
 
 const route = useRoute();
-/** 路由中的雪花 ID 必须用字符串，Number() 会丢失超过 MAX_SAFE_INTEGER 的精度 */
+const appKey = computed(() => String(route.params.appKey ?? ""));
 const agentId = computed(() => String(route.params["agentId"] ?? ""));
 
 const agentName = ref("");
@@ -227,6 +227,7 @@ const pendingAttachments = ref<AgentChatAttachment[]>([]);
 const audioRecorder = useAudioRecorder();
 
 const chatStore = useStreamChat({
+  appKey: () => appKey.value,
   agentId: () => agentId.value,
   enableRag: () => enableRag.value
 });
@@ -254,6 +255,7 @@ async function loadConversations() {
   loadingConversations.value = true;
   try {
     const result  = await getConversationsPaged(
+      appKey.value,
       { pageIndex: 1, pageSize: 50 },
       agentId.value
     );
@@ -282,7 +284,7 @@ async function selectConversation(conv: ConversationDto) {
 async function loadMessages(convId: string) {
   loadingMessages.value = true;
   try {
-    const msgs  = await getMessages(convId, { limit: 50 });
+    const msgs  = await getMessages(appKey.value, convId, { limit: 50 });
 
     if (!isMounted.value) return;
     chatStore.loadHistory(msgs);
@@ -298,7 +300,7 @@ async function loadMessages(convId: string) {
 
 async function handleNewConversation() {
   try {
-    const id  = await createConversation(agentId.value, t("ai.chat.newConversationTitle"));
+    const id  = await createConversation(appKey.value, agentId.value, t("ai.chat.newConversationTitle"));
 
     if (!isMounted.value) return;
     await loadConversations();
@@ -320,7 +322,7 @@ async function handleNewConversation() {
 
 async function handleDeleteConversation(id: string) {
   try {
-    await deleteConversation(id);
+    await deleteConversation(appKey.value, id);
 
     if (!isMounted.value) return;
     if (currentConvId.value === id) {
@@ -339,7 +341,7 @@ async function handleDeleteConversation(id: string) {
 async function handleClearContext() {
   if (!currentConvId.value) return;
   try {
-    await clearConversationContext(currentConvId.value);
+    await clearConversationContext(appKey.value, currentConvId.value);
 
     if (!isMounted.value) return;
     message.success(t("ai.chat.clearContextOk"));
@@ -351,7 +353,7 @@ async function handleClearContext() {
 async function handleClearHistory() {
   if (!currentConvId.value) return;
   try {
-    await clearConversationHistory(currentConvId.value);
+    await clearConversationHistory(appKey.value, currentConvId.value);
 
     if (!isMounted.value) return;
     chatStore.clearMessages();

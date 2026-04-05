@@ -210,12 +210,13 @@ const primaryMenuItems = computed<MenuItem[]>(() => {
     "/console",
     "/console/catalog",
     "/console/tenant-applications",
-    "/lowcode/apps",
     "/settings/org/users",
-    "/settings/org/departments",
-    "/console/runtime-contexts",
+    "/settings/auth/roles",
     "/ai/agents",
-    "/approval/workspace"
+    "/approval/flows",
+    "/monitor/server-info",
+    "/assets",
+    "/settings/system/configs"
   ];
   const items: MenuItem[] = [];
   preferredPaths.forEach((path) => {

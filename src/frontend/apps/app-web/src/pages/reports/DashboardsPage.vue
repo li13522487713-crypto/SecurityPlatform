@@ -65,6 +65,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
+import { useRoute } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { message } from "ant-design-vue";
 import type { TablePaginationConfig } from "ant-design-vue";
@@ -77,6 +78,8 @@ import {
 } from "@/services/api-reports";
 
 const { t, locale } = useI18n();
+const route = useRoute();
+const appKey = computed(() => String(route.params.appKey ?? ""));
 
 const columns = computed(() => [
   { title: t("dashboards.colName"), dataIndex: "name", key: "name" },
@@ -109,7 +112,7 @@ const formatTime = (iso: string) => {
 const fetchData = async () => {
   loading.value = true;
   try {
-    const result = await getDashboardsPaged({
+    const result = await getDashboardsPaged(appKey.value, {
       pageIndex: pagination.current ?? 1,
       pageSize: pagination.pageSize ?? 20,
       keyword: keyword.value.trim() || undefined,
@@ -163,13 +166,13 @@ const handleSave = async () => {
   saving.value = true;
   try {
     if (editingId.value) {
-      await updateDashboard(editingId.value, {
+      await updateDashboard(appKey.value, editingId.value, {
         name: formState.name.trim(),
         description: formState.description.trim() || undefined,
         isDefault: formState.isDefault,
       });
     } else {
-      await createDashboard({
+      await createDashboard(appKey.value, {
         name: formState.name.trim(),
         description: formState.description.trim() || undefined,
         isDefault: formState.isDefault,
@@ -187,7 +190,7 @@ const handleSave = async () => {
 
 const handleDelete = async (id: string) => {
   try {
-    await deleteDashboard(id);
+    await deleteDashboard(appKey.value, id);
     message.success(t("dashboards.deleteSuccess"));
     await fetchData();
   } catch (error) {

@@ -209,3 +209,45 @@ export async function deleteProject(appId: string, id: string): Promise<void> {
     { method: "DELETE" }
   );
 }
+
+// ===== Permissions =====
+
+export interface PermissionListItem {
+  id: string;
+  name: string;
+  code: string;
+  type: string;
+  description: string | null;
+}
+
+export interface RoleDetailWithPermissions {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  isSystem: boolean;
+  permissionCodes: string[];
+}
+
+export async function getAppPermissions(appId: string): Promise<PermissionListItem[]> {
+  const qs = new URLSearchParams({ PageIndex: "1", PageSize: "500" });
+  const resp = await requestApi<ApiResponse<{ items: PermissionListItem[] }>>(
+    `${V2_BASE}/${encodeURIComponent(appId)}/permissions?${qs.toString()}`
+  );
+  return resp.data?.items ?? [];
+}
+
+export async function getRoleDetail(appId: string, roleId: string): Promise<RoleDetailWithPermissions> {
+  const resp = await requestApi<ApiResponse<RoleDetailWithPermissions>>(
+    `${V2_BASE}/${encodeURIComponent(appId)}/roles/${encodeURIComponent(roleId)}`
+  );
+  if (!resp.data) throw new Error(resp.message ?? "获取角色详情失败");
+  return resp.data;
+}
+
+export async function updateRolePermissions(appId: string, roleId: string, permissionCodes: string[]): Promise<void> {
+  await requestApi<ApiResponse<unknown>>(
+    `${V2_BASE}/${encodeURIComponent(appId)}/roles/${encodeURIComponent(roleId)}/permissions`,
+    { method: "PUT", body: JSON.stringify({ permissionCodes }) }
+  );
+}
