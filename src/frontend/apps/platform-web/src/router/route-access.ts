@@ -21,8 +21,14 @@ const permissionRules: Array<{ prefix: string; permission: string }> = [
 ];
 
 export function resolveRequiredPermission(path: string): string | undefined {
+  const normalizedPath = path.length > 1 && path.endsWith("/") ? path.slice(0, -1) : path;
   const matched = permissionRules
-    .filter((rule) => path === rule.prefix || path.startsWith(`${rule.prefix}/`) || path.startsWith(rule.prefix))
+    .filter((rule) => {
+      const normalizedPrefix = rule.prefix.length > 1 && rule.prefix.endsWith("/")
+        ? rule.prefix.slice(0, -1)
+        : rule.prefix;
+      return normalizedPath === normalizedPrefix || normalizedPath.startsWith(`${normalizedPrefix}/`);
+    })
     .sort((a, b) => b.prefix.length - a.prefix.length)[0];
   return matched?.permission;
 }
@@ -33,4 +39,3 @@ export function applyPermissionMetaToRoutePath(path: string, meta: Record<string
     meta.requiresPermission = required;
   }
 }
-

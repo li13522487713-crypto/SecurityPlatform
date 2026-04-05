@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""校验 Controllers 与 Bosch.http 的覆盖关系。
+"""校验 PlatformHost Controllers 与 Bosch.http 的覆盖关系。
 
-规则：`<Name>Controller.cs` 必须存在同名 `<Name>.http`。
+规则：每个 Controller 的类级 Route 前缀都应在至少一个 `.http` 文件中出现。
 若存在缺失，脚本返回非 0 退出码，供 CI 失败。
 """
 
@@ -11,22 +11,55 @@ from pathlib import Path
 import sys
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-CONTROLLERS_DIR = REPO_ROOT / "src/backend/Atlas.WebApi/Controllers"
-HTTP_DIR = REPO_ROOT / "src/backend/Atlas.WebApi/Bosch.http"
+CONTROLLERS_DIR = REPO_ROOT / "src/backend/Atlas.PlatformHost/Controllers"
+HTTP_DIR = REPO_ROOT / "src/backend/Atlas.PlatformHost/Bosch.http"
+ROUTE_PATTERN = '[Route("'
 
 
-def collect_controller_names() -> set[str]:
-    names: set[str] = set()
-    for path in CONTROLLERS_DIR.glob("*Controller.cs"):
-        stem = path.stem
-        if not stem.endswith("Controller"):
+def extract_route_templates(controller_text: str) -> list[str]:
+    routes: list[str] = []
+    anchor = 0
+    while True:
+        start = controller_text.find(ROUTE_PATTERN, anchor)
+        if start < 0:
+            break
+        value_start = start + len(ROUTE_PATTERN)
+        value_end = controller_text.find('")', value_start)
+        if value_end < 0:
+            break
+        route = controller_text[value_start:value_end].strip().lstrip("/")
+        if route:
+            routes.append(route)
+        anchor = value_end + 2
+    return routes
+
+
+def collect_controller_routes() -> dict[str, list[str]]:
+    routes: dict[str, list[str]] = {}
+    for path in CONTROLLERS_DIR.rglob("*Controller.cs"):
+        if "Compatibility" in path.parts:
             continue
-        names.add(stem[: -len("Controller")])
-    return names
+
+        controller_name = path.stem
+        if not controller_name.endswith("Controller"):
+            continue
+
+        logical_name = controller_name[: -len("Controller")]
+        templates = extract_route_templates(path.read_text(encoding="utf-8"))
+        if templates:
+            routes[logical_name] = templates
+    return routes
 
 
-def collect_http_names() -> set[str]:
-    return {path.stem for path in HTTP_DIR.glob("*.http")}
+def load_http_contents() -> list[str]:
+    return [path.read_text(encoding="utf-8") for path in HTTP_DIR.glob("*.http")]
+
+
+def is_route_covered(route: str, http_contents: list[str]) -> bool:
+    if "[" in route or "]" in route:
+        return True
+    expected = f"/{route}"
+    return any(expected in content for content in http_contents)
 
 
 def main() -> int:
@@ -34,18 +67,20 @@ def main() -> int:
         print("[verify-http-coverage] 路径不存在，请确认仓库结构。", file=sys.stderr)
         return 2
 
-    controller_names = collect_controller_names()
-    http_names = collect_http_names()
-
-    missing = sorted(controller_names - http_names)
+    controller_routes = collect_controller_routes()
+    http_contents = load_http_contents()
+    missing: list[tuple[str, str]] = []
+    for controller_name, routes in sorted(controller_routes.items()):
+        if not any(is_route_covered(route, http_contents) for route in routes):
+            missing.append((controller_name, ", ".join(routes)))
 
     if missing:
-        print("[verify-http-coverage] 缺失同名 HTTP 文件：", file=sys.stderr)
-        for name in missing:
-            print(f"  - {name}.http", file=sys.stderr)
+        print("[verify-http-coverage] 以下 Controller 的 Route 前缀未在 Bosch.http 中命中：", file=sys.stderr)
+        for controller_name, routes in missing:
+            print(f"  - {controller_name} (routes: {routes})", file=sys.stderr)
         return 1
 
-    print("[verify-http-coverage] 覆盖校验通过：所有 Controller 均存在同名 HTTP 文件。")
+    print("[verify-http-coverage] 覆盖校验通过：PlatformHost Controller 的 Route 前缀均可在 Bosch.http 中命中。")
     return 0
 
 

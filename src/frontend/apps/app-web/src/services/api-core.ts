@@ -14,11 +14,27 @@ import type { ApiResponse, AuthTokenResult, PagedRequest } from "@atlas/shared-c
 import { router } from "@/router";
 
 export const API_BASE = import.meta.env.VITE_API_BASE ?? "/api/v1";
+export type AppRuntimeMode = "platform" | "direct";
+
+const APP_RUNTIME_MODE: AppRuntimeMode = (() => {
+  const rawMode = String(import.meta.env.VITE_APP_RUNTIME_MODE ?? "platform")
+    .trim()
+    .toLowerCase();
+  return rawMode === "direct" ? "direct" : "platform";
+})();
 
 function resolveRequestUrl(path: string): string {
   if (path.startsWith("http://") || path.startsWith("https://")) return path;
   if (path.startsWith("/api/") || path.startsWith("/app-host/")) return path;
   return `${API_BASE}${path}`;
+}
+
+export function getAppRuntimeMode(): AppRuntimeMode {
+  return APP_RUNTIME_MODE;
+}
+
+export function isDirectRuntimeMode(): boolean {
+  return APP_RUNTIME_MODE === "direct";
 }
 
 export interface RequestOptions {
@@ -195,6 +211,10 @@ export function toQuery(pagedRequest: PagedRequest, extra?: Record<string, strin
 }
 
 export function resolveAppHostPrefix(appKey?: string): string {
+  if (isDirectRuntimeMode()) {
+    return "";
+  }
+
   const normalizedAppKey = appKey?.trim();
   if (normalizedAppKey) {
     return `/app-host/${encodeURIComponent(normalizedAppKey)}`;
@@ -202,6 +222,15 @@ export function resolveAppHostPrefix(appKey?: string): string {
 
   if (typeof window === "undefined") return "";
 
-  const match = window.location.pathname.match(/^\/app-host\/([^/]+)/);
-  return match ? `/app-host/${match[1]}` : "";
+  const appHostMatch = window.location.pathname.match(/^\/app-host\/([^/]+)/);
+  if (appHostMatch) {
+    return `/app-host/${appHostMatch[1]}`;
+  }
+
+  const appRouteMatch = window.location.pathname.match(/^\/apps\/([^/]+)/);
+  if (appRouteMatch) {
+    return `/app-host/${encodeURIComponent(decodeURIComponent(appRouteMatch[1]))}`;
+  }
+
+  return "";
 }

@@ -22,6 +22,7 @@
 - `docs/contracts.md` — 接口契约
 - `docs/前后端DTO对齐清单.md` — DTO 对齐追踪
 - `docs/联调验收清单.md` — 联调验收项
+- `docs/联调双模式启动手册.md` — 平台集成/应用直连双模式启动指南
 - `等保2.0要求清单.md` — 等保2.0 合规清单
 
 ## 目录结构
@@ -53,8 +54,21 @@ dotnet run --project src/backend/Atlas.WebApi --urls http://127.0.0.1:5000
 ```bash
 cd src/frontend
 pnpm install
+pnpm run dev:platform-web
+pnpm run dev:app-web
+pnpm run dev:app-web:direct
 pnpm run build:platform-web
 pnpm run build:app-web
+```
+
+联调一键脚本（PowerShell）：
+
+```powershell
+# 平台集成模式：PlatformHost + AppHost + PlatformWeb + AppWeb
+powershell -ExecutionPolicy Bypass -File .\scripts\dev-start-integration.ps1
+
+# 应用直连模式：AppHost + AppWeb（direct）
+powershell -ExecutionPolicy Bypass -File .\scripts\dev-start-app-direct.ps1
 ```
 
 ### Docker Compose 部署（封板基线）

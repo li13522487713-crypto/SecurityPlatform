@@ -57,6 +57,17 @@
       width="680"
       :destroy-on-close="true"
     >
+      <template #extra>
+        <a-button
+          type="primary"
+          ghost
+          size="small"
+          :disabled="!detail?.appKey"
+          @click="openAppRuntime(detail?.appKey)"
+        >
+          {{ t("console.tenantApps.openRuntime") }}
+        </a-button>
+      </template>
       <a-descriptions :column="2" bordered size="small">
         <a-descriptions-item :label="t('console.catalog.labelId')">{{ detail?.id || "-" }}</a-descriptions-item>
         <a-descriptions-item :label="t('console.tenantApps.labelCatalogId')">{{

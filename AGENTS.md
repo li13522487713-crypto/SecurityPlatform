@@ -15,7 +15,7 @@
 ## 架构与目录
 
 - 方案：`Atlas.SecurityPlatform.slnx`，代码位于 `src/backend/`、`src/frontend/`
-- 分层：Core → Domain → Application → Infrastructure → WebApi
+- 分层：Core → Domain → Application → Infrastructure → PlatformHost/AppHost
 - 共享契约：`docs/contracts.md` 定义统一响应、分页与接口模型
 
 完整结构与依赖说明见 `CLAUDE.md` 的 Architecture Overview、Project Structure 章节。
@@ -25,7 +25,8 @@
 ### 后端
 ```bash
 dotnet build                                    # 必须 0 错误 0 警告
-dotnet run --project src/backend/Atlas.WebApi   # API 运行于 http://localhost:5000
+dotnet run --project src/backend/Atlas.PlatformHost   # 平台后端 http://localhost:5001
+dotnet run --project src/backend/Atlas.AppHost        # 应用后端 http://localhost:5002
 dotnet restore
 ```
 
@@ -46,7 +47,7 @@ pnpm run format                 # 格式化所有项目
 `Atlas.WebApp` 已删除（2026-04-05），不再支持 Legacy 启动与构建命令。
 
 ### API 测试
-- 使用 `src/backend/Atlas.WebApi/Bosch.http/` 下的 `.http` 文件
+- 使用 `src/backend/Atlas.PlatformHost/Bosch.http/` 下的 `.http` 文件
 - 每个新增或修改的接口需创建/更新对应 `.http` 文件
 
 ## 编码规范与约定
@@ -137,7 +138,7 @@ pnpm run format                 # 格式化所有项目
 
 - 员工/角色/权限/菜单/部门/职位/项目/应用管理页面均已接入 Ant Design Vue `a-table` 的个人视图能力（见 `docs/contracts.md` “表格视图（个人）”章节）。
 - 视图只绑定当前登录用户（后台以 `tenant_id + user_id` 识别，前端不可传递用户标识），对每个 `tableKey` 仅保存用户自己的视图与默认映射。
-- `TableViewConfig` 支持列配置、密度、分页等项，所有写接口（POST/PUT/PATCH/DELETE 等）要求 `Idempotency-Key` + `X-CSRF-TOKEN`，相关 HTTP 测试存在于 `src/backend/Atlas.WebApi/Bosch.http/TableViews.http`。
+- `TableViewConfig` 支持列配置、密度、分页等项，所有写接口（POST/PUT/PATCH/DELETE 等）要求 `Idempotency-Key` + `X-CSRF-TOKEN`，相关 HTTP 测试存在于 `src/backend/Atlas.PlatformHost/Bosch.http/TableViews.http`。
 - 默认配置由 `TableViewDefaultOptions`（`appsettings.json` 的 `TableViewDefaults` 节）定义，需要调整请同步更新后端配置与 `docs/contracts.md` 的描述。
 
 ## 登录页 UX 规范
@@ -156,7 +157,6 @@ pnpm run format                 # 格式化所有项目
 
 | 服务 | 端口 | 启动命令 |
 |---|---|---|
-| 后端 API (Atlas.WebApi) | 5000 | `dotnet run --project src/backend/Atlas.WebApi` |
 | PlatformHost | 5001 | `dotnet run --project src/backend/Atlas.PlatformHost` |
 | AppHost | 5002 | `dotnet run --project src/backend/Atlas.AppHost` |
 | PlatformWeb 开发服务器 | 5180 | `cd src/frontend && pnpm run dev:platform-web` |
@@ -169,7 +169,9 @@ pnpm run format                 # 格式化所有项目
 后端在 `Development` 模式下运行，配置来自 `appsettings.Development.json`。标准启动命令：
 
 ```bash
-dotnet run --project src/backend/Atlas.WebApi
+dotnet run --project src/backend/Atlas.PlatformHost
+# 如需运行应用数据面服务，再启动：
+dotnet run --project src/backend/Atlas.AppHost
 ```
 
 ### 开发默认账号

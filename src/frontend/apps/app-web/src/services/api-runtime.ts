@@ -1,23 +1,49 @@
 import type { ApiResponse } from "@atlas/shared-core";
 import type { RuntimeMenuResponse } from "@/types/api";
 import type { LowCodePageRuntimeSchema } from "@/types/lowcode-runtime";
-import { requestApi, resolveAppHostPrefix } from "./api-core";
+import { isDirectRuntimeMode, requestApi, resolveAppHostPrefix } from "./api-core";
+
+function resolveAppKeyFromPath(): string | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const appRouteMatch = window.location.pathname.match(/^\/apps\/([^/]+)/);
+  return appRouteMatch?.[1] ? decodeURIComponent(appRouteMatch[1]) : null;
+}
+
+function resolveRuntimeAppKey(inputAppKey?: string): string | null {
+  const normalized = inputAppKey?.trim();
+  return normalized && normalized.length > 0 ? normalized : resolveAppKeyFromPath();
+}
 
 export async function getRuntimeMenu(appKey: string): Promise<RuntimeMenuResponse> {
+  const requestPath = `${resolveAppHostPrefix(appKey)}/api/v1/runtime/apps/${encodeURIComponent(appKey)}/menu`;
   const response = await requestApi<ApiResponse<RuntimeMenuResponse>>(
-    `/api/v1/runtime/apps/${encodeURIComponent(appKey)}/menu`
+    requestPath
   );
   return response.data ?? { appKey, items: [] };
 }
 
 export function buildRuntimeRecordsUrl(pageKey: string, appKey?: string): string {
-  return `${resolveAppHostPrefix(appKey)}/api/app/runtime/pages/${encodeURIComponent(pageKey)}/records`;
+  const encodedPageKey = encodeURIComponent(pageKey);
+  const runtimeAppKey = resolveRuntimeAppKey(appKey);
+  if (isDirectRuntimeMode() || !runtimeAppKey) {
+    return `/api/app/runtime/pages/${encodedPageKey}/records`;
+  }
+
+  return `${resolveAppHostPrefix(runtimeAppKey)}/api/app/runtime/pages/${encodedPageKey}/records`;
 }
 
 export async function getRuntimePageSchema(pageKey: string, appKey?: string): Promise<LowCodePageRuntimeSchema> {
-  const prefix = resolveAppHostPrefix(appKey);
+  const encodedPageKey = encodeURIComponent(pageKey);
+  const runtimeAppKey = resolveRuntimeAppKey(appKey);
+  const requestPath = isDirectRuntimeMode() || !runtimeAppKey
+    ? `/api/app/runtime/pages/${encodedPageKey}/schema`
+    : `${resolveAppHostPrefix(runtimeAppKey)}/api/app/runtime/pages/${encodedPageKey}/schema`;
+
   const response = await requestApi<ApiResponse<LowCodePageRuntimeSchema>>(
-    `${prefix}/api/app/runtime/pages/${encodeURIComponent(pageKey)}/schema`
+    requestPath
   );
   if (!response.data) {
     throw new Error(response.message || "加载运行时页面失败");

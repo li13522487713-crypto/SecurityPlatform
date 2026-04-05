@@ -24,6 +24,24 @@ public sealed class AppInstanceConfigurationLoader
             return fromSection;
         }
 
+        var legacySection = configuration.GetSection("Atlas:AppHost");
+        if (legacySection.Exists())
+        {
+            var legacyAppKey = legacySection["AppKey"]?.Trim();
+            if (!string.IsNullOrWhiteSpace(legacyAppKey))
+            {
+                return new AppInstanceConfig
+                {
+                    AppKey = legacyAppKey,
+                    InstanceId = legacySection["InstanceId"]?.Trim() ?? string.Empty,
+                    EnvironmentName = legacySection["EnvironmentName"]?.Trim() ?? "Development",
+                    BaseUrl = legacySection["BaseUrl"]?.Trim() ?? string.Empty,
+                    LoginUrl = legacySection["LoginUrl"]?.Trim() ?? string.Empty,
+                    Port = TryParsePort(legacySection["Port"])
+                };
+            }
+        }
+
         var filePath = configuration["AppInstance:ConfigPath"];
         if (!string.IsNullOrWhiteSpace(filePath) && File.Exists(filePath))
         {
@@ -36,5 +54,12 @@ public sealed class AppInstanceConfigurationLoader
         }
 
         return new AppInstanceConfig();
+    }
+
+    private static int TryParsePort(string? rawPort)
+    {
+        return int.TryParse(rawPort, out var parsedPort) && parsedPort > 0
+            ? parsedPort
+            : 0;
     }
 }

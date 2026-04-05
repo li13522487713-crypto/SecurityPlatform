@@ -34,9 +34,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Build the solution (must have 0 errors, 0 warnings)
 dotnet build
 
-# Run the Web API (legacy monolith, starts on http://localhost:5000)
-dotnet run --project src/backend/Atlas.WebApi
-
 # Run PlatformHost (platform control plane, starts on http://localhost:5001)
 dotnet run --project src/backend/Atlas.PlatformHost
 
@@ -78,7 +75,6 @@ pnpm run format
 |---|---|---|
 | PlatformHost | 5001 | Control plane + YARP gateway |
 | AppHost | 5002 | Application runtime data plane |
-| WebApi | 5000 | Legacy monolith (backward compat) |
 | **PlatformWeb** | **5180** | **New: Independent platform frontend** |
 | **AppWeb** | **5181** | **New: Independent application frontend** |
 
@@ -86,7 +82,7 @@ All frontend dev servers proxy `/api` and `/app-host` to PlatformHost:5001.
 PlatformHost proxies `/app-host/{appKey}/*` to AppHost:5002 via YARP.
 
 ### API Testing
-- Use `.http` files in `src/backend/Atlas.WebApi/Bosch.http/` for testing endpoints
+- Use `.http` files in `src/backend/Atlas.PlatformHost/Bosch.http/` for testing endpoints
 - Format: REST Client syntax with variable extraction and request chaining
 - **Required:** Create or update `.http` files for every new/modified endpoint
 
@@ -103,7 +99,7 @@ Atlas.Application + Module.Application (DTOs, Validators, Mappings)
   ↑
 Atlas.Infrastructure (Service Implementations, Repositories, SqlSugar)
   ↑
-Atlas.WebApi (Controllers, Middleware, API Layer)
+Atlas.PlatformHost / Atlas.AppHost (Controllers, Middleware, Host API Layer)
 ```
 
 **Dependency Rule:** Dependencies flow inward toward Core. Outer layers depend on inner layers, never vice versa.
@@ -114,7 +110,7 @@ Each major feature is organized as a separate bounded context with:
 - **Domain Layer:** `Atlas.Domain.{Context}` - Entities inheriting from `TenantEntity`
 - **Application Layer:** `Atlas.Application.{Context}` - DTOs, validators, AutoMapper profiles, service interfaces
 - **Infrastructure:** Service implementations in `Atlas.Infrastructure/Services/{Context}*Service.cs`
-- **Presentation:** Controllers in `Atlas.WebApi/Controllers/{Context}Controller.cs`
+- **Presentation:** Controllers in `Atlas.PlatformHost/Controllers/` 或 `Atlas.AppHost/Controllers/`
 
 **Current Contexts:** Assets, Audit, Alert, plus cross-cutting concerns (Auth, Users, Roles, Permissions, Departments, Menus)
 
@@ -175,14 +171,17 @@ src/
 │   │   ├── Security/                    # Pbkdf2PasswordHasher
 │   │   └── Options/                     # Configuration classes
 │   │
-│   └── Atlas.WebApi/                    # Presentation layer
-│       ├── Controllers/                 # API endpoints
-│       ├── Middlewares/                 # ExceptionHandling, TenantContext
-│       ├── Models/                      # API-specific view models
-│       ├── Mappings/                    # API response mappings
-│       ├── appsettings.json             # Configuration
-│       ├── nlog.config                  # Logging setup
-│       └── Bosch.http/                  # REST Client test files
+│   ├── Atlas.PlatformHost/              # Platform control plane host
+│   │   ├── Controllers/                 # Platform API endpoints
+│   │   ├── ReverseProxy/                # YARP app-host proxy config
+│   │   ├── appsettings.json             # Platform host configuration
+│   │   ├── nlog.config                  # Logging setup
+│   │   └── Bosch.http/                  # REST Client test files
+│   ├── Atlas.AppHost/                   # App runtime data plane host
+│   │   ├── Controllers/                 # Runtime APIs
+│   │   ├── appsettings.json             # App host configuration
+│   │   └── nlog.config                  # Logging setup
+│   └── Atlas.Presentation.Shared/       # Shared presentation middleware/filters
 │
 └── frontend/                              # pnpm monorepo workspace
     ├── package.json                       # Workspace root scripts
@@ -344,12 +343,12 @@ This project must comply with GB/T 22239-2019 (等保2.0) Level 3 requirements. 
 8. **Register Services** in `Atlas.Infrastructure/ServiceCollectionExtensions.cs`
    - Add repository and service DI registrations
 
-9. **Add Controller** in `Atlas.WebApi/Controllers/`
+9. **Add Controller** in `Atlas.PlatformHost/Controllers/` or `Atlas.AppHost/Controllers/`
    - `{Entity}Controller : ControllerBase`
    - Use `[Authorize]` attributes for access control
    - Inject query/command services via constructor
 
-10. **Create Test File** in `Atlas.WebApi/Bosch.http/`
+10. **Create Test File** in `Atlas.PlatformHost/Bosch.http/`
     - `{Entity}.http` with sample requests for all endpoints
 
 11. **Update Frontend** (if needed)
@@ -419,7 +418,7 @@ This project must comply with GB/T 22239-2019 (等保2.0) Level 3 requirements. 
 - Update `AGENTS.md` and `docs/contracts.md` if architecture changes
 
 ### Database Operations
-- Database file: `atlas.db` in WebApi directory
+- Database file: `atlas.db` in PlatformHost directory (`src/backend/Atlas.PlatformHost/atlas.db`)
 - Backups: `backups/` directory (daily, 30-day retention)
 - Schema initialization: `DatabaseInitializerHostedService` runs on startup
 - Migrations: Not using EF Core migrations (SqlSugar code-first)

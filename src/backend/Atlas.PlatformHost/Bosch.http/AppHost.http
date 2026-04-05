@@ -44,5 +44,40 @@ POST {{appHostUrl}}/auth/app/logout
 Authorization: Bearer {{appToken}}
 X-Tenant-Id: {{tenantId}}
 
+### AppHost Login (API v1 compatibility)
+# @name appLoginCompat
+POST {{appHostUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+Accept-Language: {{localeZh}}
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+###
+@appTokenCompat = {{appLoginCompat.response.body.$.data.accessToken}}
+@refreshTokenCompat = {{appLoginCompat.response.body.$.data.refreshToken}}
+
+### AppHost Refresh (API v1 compatibility)
+POST {{appHostUrl}}/api/v1/auth/refresh
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "refreshToken": "{{refreshTokenCompat}}"
+}
+
+### AppHost Me (API v1 compatibility)
+GET {{appHostUrl}}/api/v1/auth/me
+Authorization: Bearer {{appTokenCompat}}
+X-Tenant-Id: {{tenantId}}
+
+### AppHost Logout (API v1 compatibility)
+POST {{appHostUrl}}/api/v1/auth/logout
+Authorization: Bearer {{appTokenCompat}}
+X-Tenant-Id: {{tenantId}}
+
 ### AppHost Swagger
 GET {{appHostUrl}}/swagger/v1/swagger.json

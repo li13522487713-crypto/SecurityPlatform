@@ -21,6 +21,7 @@
     <Project Path="src/backend/Atlas.Domain.BatchProcess/Atlas.Domain.BatchProcess.csproj" />
     <Project Path="src/backend/Atlas.Application.LogicFlow/Atlas.Application.LogicFlow.csproj" />
     <Project Path="src/backend/Atlas.Application.BatchProcess/Atlas.Application.BatchProcess.csproj" />
+    <Project Path="src/backend/Atlas.Application.Workflow/Atlas.Application.Workflow.csproj" />
     <Project Path="src/backend/Atlas.Infrastructure/Atlas.Infrastructure.csproj" />
     <Project Path="src/backend/Atlas.Infrastructure.LogicFlow/Atlas.Infrastructure.LogicFlow.csproj" />
     <Project Path="src/backend/Atlas.Infrastructure.BatchProcess/Atlas.Infrastructure.BatchProcess.csproj" />

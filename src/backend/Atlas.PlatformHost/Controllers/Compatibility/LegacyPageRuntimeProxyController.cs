@@ -1,10 +1,13 @@
 using System.Net.Http.Headers;
+using Atlas.Presentation.Shared.Attributes;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Atlas.PlatformHost.Controllers.Compatibility;
 
 [ApiController]
 [Route("api/v1/runtime")]
+[Obsolete("Legacy runtime compatibility API will be removed after migration to /app-host/{appKey}/* routes.")]
+[DeprecatedApi("legacy runtime proxy endpoints are in compatibility window", "/app-host/{appKey}/api/app/runtime/*", "2026-10-31T00:00:00Z")]
 public sealed class LegacyPageRuntimeProxyController : ControllerBase
 {
     private static readonly string[] ForwardedHeaders =
@@ -28,6 +31,12 @@ public sealed class LegacyPageRuntimeProxyController : ControllerBase
     public Task<IActionResult> GetSchema(string appKey, string pageKey, CancellationToken cancellationToken)
     {
         return ProxyAsync(HttpMethod.Get, BuildTargetPath(pageKey, "schema"), cancellationToken);
+    }
+
+    [HttpGet("apps/{appKey}/menu")]
+    public Task<IActionResult> GetRuntimeMenu(string appKey, CancellationToken cancellationToken)
+    {
+        return ProxyAsync(HttpMethod.Get, BuildRuntimeMenuTargetPath(appKey), cancellationToken);
     }
 
     [HttpGet("apps/{appKey}/pages/{pageKey}/records")]
@@ -95,5 +104,10 @@ public sealed class LegacyPageRuntimeProxyController : ControllerBase
     private static string BuildTargetPath(string pageKey, string suffix)
     {
         return $"/api/app/runtime/pages/{Uri.EscapeDataString(pageKey)}/{suffix}";
+    }
+
+    private static string BuildRuntimeMenuTargetPath(string appKey)
+    {
+        return $"/api/v1/runtime/apps/{Uri.EscapeDataString(appKey)}/menu";
     }
 }

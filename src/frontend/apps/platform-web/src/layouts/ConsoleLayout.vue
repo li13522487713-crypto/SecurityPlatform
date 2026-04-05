@@ -206,7 +206,17 @@ const allNavigableRoutes = computed<RouteNavigatorItem[]>(() => {
 });
 
 const primaryMenuItems = computed<MenuItem[]>(() => {
-  const preferredPaths = ["/console", "/console/catalog", "/console/tenant-applications", "/console/runtime-contexts", "/ai/agents", "/approval/workspace"];
+  const preferredPaths = [
+    "/console",
+    "/console/catalog",
+    "/console/tenant-applications",
+    "/lowcode/apps",
+    "/settings/org/users",
+    "/settings/org/departments",
+    "/console/runtime-contexts",
+    "/ai/agents",
+    "/approval/workspace"
+  ];
   const items: MenuItem[] = [];
   preferredPaths.forEach((path) => {
     const matched = allNavigableRoutes.value.find((item) => item.path === path);
