@@ -40,7 +40,12 @@
             {{ formatDate(record.openedAt) }}
           </template>
           <template v-if="column.key === 'actions'">
-            <a-button type="link" size="small" @click="viewDetail(record.id)">{{ t("console.tenantApps.view") }}</a-button>
+            <a-space>
+              <a-button type="link" size="small" @click="viewDetail(record.id)">{{ t("console.tenantApps.view") }}</a-button>
+              <a-button type="link" size="small" :disabled="!record.appKey" @click="openAppRuntime(record.appKey)">
+                {{ t("console.tenantApps.openRuntime") }}
+              </a-button>
+            </a-space>
           </template>
         </template>
       </a-table>
@@ -122,6 +127,17 @@ const pagination = ref<TablePaginationConfig>({
   showTotal: (all) => t("crud.totalItems", { total: all })
 });
 
+function resolveAppWebOrigin(): string {
+  const configured = String(import.meta.env.VITE_APP_WEB_ORIGIN ?? "").trim();
+  if (configured) return configured;
+  if (typeof window === "undefined") return "http://localhost:5181";
+  const current = new URL(window.location.origin);
+  if (current.port === "5180") {
+    current.port = "5181";
+  }
+  return current.origin;
+}
+
 const statusOptions = computed(() => [
   { label: t("console.tenantApps.statusProvisioning"), value: "Provisioning" },
   { label: t("console.tenantApps.statusActive"), value: "Active" },
@@ -193,6 +209,12 @@ function handleTableChange(page: TablePaginationConfig) {
   pageIndex.value = page.current ?? 1;
   pageSize.value = page.pageSize ?? 10;
   void loadTenantApplications();
+}
+
+function openAppRuntime(appKey?: string) {
+  if (!appKey) return;
+  const targetUrl = `${resolveAppWebOrigin()}/apps/${encodeURIComponent(appKey)}/entry`;
+  window.open(targetUrl, "_blank", "noopener,noreferrer");
 }
 
 async function viewDetail(id: string) {

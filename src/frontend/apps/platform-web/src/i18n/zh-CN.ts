@@ -52,7 +52,16 @@ export default {
     menuAppManagement: "应用管理",
     groupRuntime: "运行引擎",
     groupTenant: "租户与治理",
-    groupSystem: "系统管理"
+    groupSystem: "系统管理",
+    groupAi: "AI 能力",
+    groupApproval: "审批中心",
+    groupApplicationDesign: "应用与设计",
+    groupOther: "其他功能",
+    routeNavigator: "功能导航",
+    searchRoute: "搜索路由或页面名称",
+    routeNeedContext: "需要上下文参数",
+    routeNoPermission: "无权限",
+    routeOpen: "打开"
   },
   layoutChrome: {
     notifications: "通知",
@@ -127,7 +136,16 @@ export default {
     aiPlugins: "AI 插件",
     multiAgent: "多Agent编排",
     aiMarketplace: "AI 市场",
-    aiConfig: "AI 配置"
+    aiConfig: "AI 配置",
+    visualizationCenter: "可视化中心",
+    visualizationDesigner: "可视化设计器",
+    visualizationGovernance: "可视化治理",
+    visualizationRuntime: "可视化运行时",
+    aiDatabaseList: "AI 数据库列表",
+    aiDatabaseDetail: "AI 数据库详情",
+    approvalWorkspace: "审批工作台",
+    approvalFlowManage: "审批流程管理",
+    approvalInstanceManage: "审批实例管理"
   },
   settings: {
     pat: {
@@ -1457,6 +1475,7 @@ export default {
       phSearch: "按目录名或 AppKey 检索",
       reset: "重置",
       view: "查看",
+      openRuntime: "打开运行时",
       drawerTitle: "租户开通关系详情",
       labelCatalogId: "目录ID",
       labelCatalogName: "目录名称",
@@ -1684,6 +1703,31 @@ export default {
   },
   validation: {
     required: "请输入必填项"
+  },
+  semanticBridge: {
+    visualizationCenterDesc: "可视化中心已从错误映射页切换为语义导航页，请从下方入口前往对应能力。",
+    visualizationDesignerDesc: "当前可视化设计能力正在拆分中，建议先从应用构建器或可视化中心进入。",
+    visualizationGovernanceDesc: "可视化治理涉及资源治理与执行审计，推荐从资源中心或执行记录查看。",
+    visualizationRuntimeDesc: "可视化运行时已与运行引擎收敛，请从执行记录或上下文页查看实时状态。",
+    aiDatabaseListDesc: "AI 数据库模块已与知识库能力解耦，当前入口引导至知识库与 AI 工作台。",
+    aiDatabaseDetailDesc: "AI 数据库详情页已移除错误映射，请通过知识库或 AI 插件入口继续操作。",
+    approvalWorkspaceDesc: "审批工作台与流程列表已解耦，请通过发起入口或任务池进入工作台闭环。",
+    approvalFlowManageDesc: "审批流程管理页已切换为语义导航，请进入设计器或代理配置继续管理。",
+    approvalInstanceManageDesc: "审批实例管理页已切换为语义导航，请从任务池或工作台进入实例处理。",
+    goVisualizationRuntime: "进入可视化运行时",
+    goRuntimeExecutions: "查看运行执行记录",
+    goRuntimeContexts: "查看运行上下文",
+    goVisualizationCenter: "进入可视化中心",
+    goResourceCenter: "进入资源中心",
+    goAppBuilder: "进入应用构建器",
+    goKnowledgeBases: "进入知识库",
+    goAiWorkspace: "进入 AI 工作台",
+    goAiPluginList: "进入 AI 插件列表",
+    goApprovalStart: "发起审批",
+    goApprovalTaskPool: "进入审批任务池",
+    goApprovalWorkspace: "进入审批工作台",
+    goApprovalDesigner: "进入审批设计器",
+    goApprovalAgentConfig: "进入审批代理配置"
   },
   designer: {
     entityModeling: {

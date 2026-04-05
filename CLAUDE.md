@@ -69,23 +69,8 @@ pnpm run lint
 pnpm run format
 ```
 
-### Frontend (Legacy — Atlas.WebApp, deprecated)
-```bash
-cd src/frontend/Atlas.WebApp
-npm install
-npm run dev                    # :5173
-npm run dev:platform-console   # :5173
-npm run dev:app-runtime        # :5174
-npm run dev:app-studio         # :5175
-npm run dev:app-login          # :5176
-npm run build
-
-# Run ESLint
-npm run lint
-
-# Format code with Prettier
-npm run format
-```
+### Frontend (Legacy)
+`Atlas.WebApp` 已删除（2026-04-05），请仅使用 `src/frontend` 下的 pnpm monorepo（`apps/platform-web`、`apps/app-web`）。
 
 ### Multi-Host Port Allocation
 
@@ -96,10 +81,6 @@ npm run format
 | WebApi | 5000 | Legacy monolith (backward compat) |
 | **PlatformWeb** | **5180** | **New: Independent platform frontend** |
 | **AppWeb** | **5181** | **New: Independent application frontend** |
-| platform-console (legacy) | 5173 | Legacy: platform management |
-| app-runtime (legacy) | 5174 | Legacy: application runtime |
-| app-studio (legacy) | 5175 | Legacy: application designer |
-| app-login (legacy) | 5176 | Legacy: application login |
 
 All frontend dev servers proxy `/api` and `/app-host` to PlatformHost:5001.
 PlatformHost proxies `/app-host/{appKey}/*` to AppHost:5002 via YARP.
@@ -230,18 +211,6 @@ src/
     │       │   ├── i18n/                  # App i18n
     │       │   └── router/                # App routes
     │       └── vite.config.ts
-    └── Atlas.WebApp/                      # Legacy (deprecated, to be removed)
-        ├── src/
-        │   ├── main.ts
-        │   ├── App.vue
-        │   ├── layouts/
-        │   ├── pages/
-        │   ├── router/
-        │   ├── services/
-        │   ├── types/
-        │   └── styles/
-        ├── vite.config.ts
-        └── package.json
 ```
 
 ## Coding Standards
@@ -341,9 +310,8 @@ This project must comply with GB/T 22239-2019 (等保2.0) Level 3 requirements. 
 - **PlatformWeb** API client: `src/frontend/apps/platform-web/src/services/api-core.ts`
 - **AppWeb** API client: `src/frontend/apps/app-web/src/services/api-core.ts`
 - **Shared auth utilities**: `src/frontend/packages/shared-core/src/utils/auth.ts`
-- Token stored in `localStorage` (managed by `@atlas/shared-core`)
+- Token stored in namespaced storage (managed by `@atlas/shared-core`, Platform/App 已隔离)
 - Vite dev proxy forwards `/api/*` and `/app-host/*` to `http://localhost:5001` (PlatformHost)
-- Legacy API client: `src/frontend/Atlas.WebApp/src/services/api.ts` (deprecated)
 
 ## Development Workflow
 
@@ -385,10 +353,9 @@ This project must comply with GB/T 22239-2019 (等保2.0) Level 3 requirements. 
     - `{Entity}.http` with sample requests for all endpoints
 
 11. **Update Frontend** (if needed)
-    - Add API functions in `src/frontend/Atlas.WebApp/src/services/api.ts`
-    - Create page component in `src/pages/`
-    - Add route in `src/router/`
-    - Update types in `src/types/api.ts`
+    - Platform capability: update `src/frontend/apps/platform-web`（services/pages/router/types）
+    - App runtime capability: update `src/frontend/apps/app-web`（services/pages/router/types）
+    - Shared contract/util: update `src/frontend/packages/*`
 
 ### Modifying Existing Code
 
@@ -424,7 +391,7 @@ This project must comply with GB/T 22239-2019 (等保2.0) Level 3 requirements. 
     "HeaderName": "X-Tenant-Id"
   },
   "Cors": {
-    "AllowedOrigins": ["http://localhost:5173"]
+    "AllowedOrigins": ["http://localhost:5180", "http://localhost:5181"]
   }
 }
 ```
@@ -435,7 +402,7 @@ This project must comply with GB/T 22239-2019 (等保2.0) Level 3 requirements. 
 - Format: `timestamp|level|logger|message`
 
 ### vite.config.ts
-- Dev server: dynamic port per entry (5173–5177)
+- Dev server: PlatformWeb (5180), AppWeb (5181)
 - Proxy: `/api/*` and `/app-host/*` → `http://localhost:5001` (PlatformHost)
 - Path alias: `@` → `src/`
 

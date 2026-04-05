@@ -42,16 +42,8 @@ pnpm run lint                   # Lint 所有项目
 pnpm run format                 # 格式化所有项目
 ```
 
-### 前端（Legacy — 即将废弃）
-```bash
-cd src/frontend/Atlas.WebApp
-npm install
-npm run dev      # 开发服务器 http://localhost:5173，代理 /api → localhost:5000
-npm run build    # 生产构建（含 TypeScript 检查）
-npm run lint
-npm run format
-npm run i18n:diff-runtime   # 可选：对比 runtime-messages zh/en 叶子 key 差集
-```
+### 前端（Legacy）
+`Atlas.WebApp` 已删除（2026-04-05），不再支持 Legacy 启动与构建命令。
 
 ### API 测试
 - 使用 `src/backend/Atlas.WebApi/Bosch.http/` 下的 `.http` 文件
@@ -88,9 +80,9 @@ npm run i18n:diff-runtime   # 可选：对比 runtime-messages zh/en 叶子 key 
 
 ### 前端界面语言与排查
 
-- 语言持久化在浏览器 `localStorage` 键 **`atlas_locale`**，取值为 **`zh-CN`** 或 **`en-US`**（实现见 `src/frontend/Atlas.WebApp/src/i18n/index.ts`）。
+- 语言持久化在浏览器 `localStorage` 键 **`atlas_locale`**，取值为 **`zh-CN`** 或 **`en-US`**（实现见 `src/frontend/apps/platform-web/src/i18n/index.ts` 与 `src/frontend/apps/app-web/src/i18n/index.ts`）。
 - **中英混杂**：先确认 `atlas_locale` 与语言切换器一致；再确认线上/本地使用的是否为最新 **`npm run build`** 产物（避免旧 bundle 缺少新版词条）。
-- **`runtime-messages` 中英键对齐**：在 `src/frontend/Atlas.WebApp` 执行 **`npm run i18n:diff-runtime`**，输出仅存在于单一语言的叶子 key 路径。
+- **中英键对齐**：在各应用目录下对比 `zh-CN.ts` / `en-US.ts` 是否同步更新，避免新增 key 漏翻。
 - 未使用 `useI18n` 的 `.vue` 审计清单见 **`docs/frontend-i18n-vue-without-useI18n.md`**。
 
 ## 前后端约束
@@ -158,7 +150,7 @@ npm run i18n:diff-runtime   # 可选：对比 runtime-messages zh/en 叶子 key 
 
 - **后端：** 需要 .NET 10 SDK（`dotnet-sdk-10.0`），Ubuntu 24.04 可通过 `sudo apt-get install -y dotnet-sdk-10.0` 安装。
 - **前端：** Node.js 22 + npm 10（环境已预装），使用 `npm install` 安装依赖。
-- **Cloud 预装：** 仓库提供 `.cursor/environment.json`，启动时执行 `scripts/cursor-cloud-install.sh`，自动校验 Node 22 并预装 `src/frontend/Atlas.WebApp` 依赖。
+- **Cloud 预装：** 仓库提供 `.cursor/environment.json`，启动时执行 `scripts/cursor-cloud-install.sh`，自动校验 Node 22 并预装 `src/frontend` workspace 依赖。
 
 ### 服务概览
 
@@ -169,7 +161,6 @@ npm run i18n:diff-runtime   # 可选：对比 runtime-messages zh/en 叶子 key 
 | AppHost | 5002 | `dotnet run --project src/backend/Atlas.AppHost` |
 | PlatformWeb 开发服务器 | 5180 | `cd src/frontend && pnpm run dev:platform-web` |
 | AppWeb 开发服务器 | 5181 | `cd src/frontend && pnpm run dev:app-web` |
-| 前端 Legacy (Atlas.WebApp) | 5173 | `cd src/frontend/Atlas.WebApp && npm run dev` |
 
 数据库为嵌入式 SQLite（`atlas.db`），无需外部数据库服务。Hangfire（`hangfire.db`）同样为嵌入式 SQLite 存储。首次启动时会自动创建数据库并初始化 BootstrapAdmin 账号。
 

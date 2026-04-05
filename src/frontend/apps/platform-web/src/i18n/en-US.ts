@@ -52,7 +52,16 @@ export default {
     menuAppManagement: "Applications",
     groupRuntime: "Runtime Engine",
     groupTenant: "Tenant & Governance",
-    groupSystem: "System"
+    groupSystem: "System",
+    groupAi: "AI",
+    groupApproval: "Approvals",
+    groupApplicationDesign: "App & Design",
+    groupOther: "Other",
+    routeNavigator: "Route Navigator",
+    searchRoute: "Search by route or page name",
+    routeNeedContext: "Context required",
+    routeNoPermission: "No permission",
+    routeOpen: "Open"
   },
   layoutChrome: {
     notifications: "Notifications",
@@ -127,7 +136,16 @@ export default {
     aiPlugins: "AI Plugins",
     multiAgent: "Multi-Agent",
     aiMarketplace: "AI Marketplace",
-    aiConfig: "AI Config"
+    aiConfig: "AI Config",
+    visualizationCenter: "Visualization Center",
+    visualizationDesigner: "Visualization Designer",
+    visualizationGovernance: "Visualization Governance",
+    visualizationRuntime: "Visualization Runtime",
+    aiDatabaseList: "AI Database List",
+    aiDatabaseDetail: "AI Database Detail",
+    approvalWorkspace: "Approval Workspace",
+    approvalFlowManage: "Approval Flow Management",
+    approvalInstanceManage: "Approval Instance Management"
   },
   settings: {
     pat: {
@@ -1459,6 +1477,7 @@ export default {
       phSearch: "Search by catalog name or AppKey",
       reset: "Reset",
       view: "View",
+      openRuntime: "Open Runtime",
       drawerTitle: "Subscription detail",
       labelCatalogId: "Catalog ID",
       labelCatalogName: "Catalog name",
@@ -1686,6 +1705,31 @@ export default {
   },
   validation: {
     required: "This field is required"
+  },
+  semanticBridge: {
+    visualizationCenterDesc: "Visualization Center has been replaced with a semantic navigation page. Use the entries below.",
+    visualizationDesignerDesc: "Visualization design is being separated into dedicated modules. Use App Builder or Center first.",
+    visualizationGovernanceDesc: "Visualization governance now aligns with resource governance and execution audits.",
+    visualizationRuntimeDesc: "Visualization runtime has been aligned with runtime engine pages for operational status.",
+    aiDatabaseListDesc: "AI Database list is no longer mapped to Knowledge Base directly; use the dedicated entries below.",
+    aiDatabaseDetailDesc: "AI Database detail no longer points to unrelated pages. Continue from KB or plugin entries.",
+    approvalWorkspaceDesc: "Approval workspace is decoupled from flow list. Enter from start flow or task pool.",
+    approvalFlowManageDesc: "Approval flow management now uses semantic navigation to designer and agent config.",
+    approvalInstanceManageDesc: "Approval instance management now routes to task pool and workspace actions.",
+    goVisualizationRuntime: "Open Visualization Runtime",
+    goRuntimeExecutions: "Open Runtime Executions",
+    goRuntimeContexts: "Open Runtime Contexts",
+    goVisualizationCenter: "Open Visualization Center",
+    goResourceCenter: "Open Resource Center",
+    goAppBuilder: "Open App Builder",
+    goKnowledgeBases: "Open Knowledge Bases",
+    goAiWorkspace: "Open AI Workspace",
+    goAiPluginList: "Open AI Plugins",
+    goApprovalStart: "Start Approval",
+    goApprovalTaskPool: "Open Task Pool",
+    goApprovalWorkspace: "Open Workspace",
+    goApprovalDesigner: "Open Approval Designer",
+    goApprovalAgentConfig: "Open Agent Config"
   },
   designer: {
     entityModeling: {

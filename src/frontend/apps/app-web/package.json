@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
-    "lint": "echo 'app-web: lint not configured yet'"
+    "lint": "pnpm exec eslint \"src/**/*.{ts,vue}\""
   },
   "dependencies": {
     "@atlas/shared-core": "workspace:*",

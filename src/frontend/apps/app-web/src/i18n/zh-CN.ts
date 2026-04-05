@@ -102,7 +102,8 @@ export default {
   layout: {
     backToLogin: "返回登录",
     profile: "个人中心",
-    appRuntime: "应用运行时"
+    appRuntime: "应用运行时",
+    backToPlatform: "返回平台"
   },
   route: {
     home: "首页",

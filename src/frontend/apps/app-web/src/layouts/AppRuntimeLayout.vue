@@ -15,7 +15,10 @@
         <a-space>
           <span>{{ t("layout.appRuntime") }}</span>
         </a-space>
-        <a-button type="link" @click="handleLogout">{{ t("auth.logout") }}</a-button>
+        <a-space>
+          <a-button type="link" @click="openPlatform">{{ t("layout.backToPlatform") }}</a-button>
+          <a-button type="link" @click="handleLogout">{{ t("auth.logout") }}</a-button>
+        </a-space>
       </a-layout-header>
       <a-layout-content class="runtime-content">
         <router-view />
@@ -58,6 +61,22 @@ async function loadMenu() {
 function handleMenuClick(info: { key: string | number }) {
   const key = String(info.key);
   void router.push(`/apps/${encodeURIComponent(appKey.value)}/r/${encodeURIComponent(key)}`);
+}
+
+function resolvePlatformWebOrigin(): string {
+  const configured = String(import.meta.env.VITE_PLATFORM_WEB_ORIGIN ?? "").trim();
+  if (configured) return configured;
+  if (typeof window === "undefined") return "http://localhost:5180";
+  const current = new URL(window.location.origin);
+  if (current.port === "5181") {
+    current.port = "5180";
+  }
+  return current.origin;
+}
+
+function openPlatform() {
+  const url = `${resolvePlatformWebOrigin()}/console/tenant-applications?appKey=${encodeURIComponent(appKey.value)}`;
+  window.open(url, "_blank", "noopener,noreferrer");
 }
 
 async function handleLogout() {

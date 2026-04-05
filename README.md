@@ -51,9 +51,10 @@ dotnet run --project src/backend/Atlas.WebApi --urls http://127.0.0.1:5000
 前端：
 
 ```bash
-cd src/frontend/Atlas.WebApp
-npm ci
-npm run build
+cd src/frontend
+pnpm install
+pnpm run build:platform-web
+pnpm run build:app-web
 ```
 
 ### Docker Compose 部署（封板基线）

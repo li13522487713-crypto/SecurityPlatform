@@ -102,7 +102,8 @@ export default {
   layout: {
     backToLogin: "Back to Login",
     profile: "Profile",
-    appRuntime: "App Runtime"
+    appRuntime: "App Runtime",
+    backToPlatform: "Back to Platform"
   },
   route: {
     home: "Home",

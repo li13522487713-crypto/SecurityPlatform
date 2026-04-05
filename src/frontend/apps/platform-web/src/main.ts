@@ -2,9 +2,12 @@ import { createApp } from "vue";
 import { createPinia } from "pinia";
 import Antd from "ant-design-vue";
 import "ant-design-vue/dist/reset.css";
+import { setAuthStorageNamespace } from "@atlas/shared-core";
 import App from "./App.vue";
 import { router } from "./router";
 import { i18n } from "./i18n";
+
+setAuthStorageNamespace("atlas_platform");
 
 const app = createApp(App);
 app.use(createPinia());

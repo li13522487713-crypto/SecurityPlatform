@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from "vue-router";
 import { getAccessToken } from "@atlas/shared-core";
+import { applyPermissionMetaToRoutePath } from "./route-access";
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -314,7 +315,16 @@ export const router = createRouter({
   ]
 });
 
+router.getRoutes().forEach((routeRecord) => {
+  const routeMeta = (routeRecord.meta ?? {}) as Record<string, unknown>;
+  applyPermissionMetaToRoutePath(routeRecord.path, routeMeta);
+  routeRecord.meta = routeMeta;
+});
+
 router.beforeEach((to, _from, next) => {
+  const toMeta = (to.meta ?? {}) as Record<string, unknown>;
+  applyPermissionMetaToRoutePath(to.path, toMeta);
+  to.meta = toMeta;
   const token = getAccessToken();
   if (to.meta.requiresAuth !== false && !token) {
     next({ name: "login", query: { redirect: to.fullPath } });
