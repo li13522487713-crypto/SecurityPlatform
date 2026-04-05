@@ -1,4 +1,3 @@
 packages:
-  - "Atlas.WebApp"
   - "packages/*"
   - "apps/*"

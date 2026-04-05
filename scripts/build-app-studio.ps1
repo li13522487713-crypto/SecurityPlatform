@@ -2,12 +2,12 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
-$webRoot = Join-Path $repoRoot "src\\frontend\\Atlas.WebApp"
+$frontendRoot = Join-Path $repoRoot "src\\frontend"
 
-Push-Location $webRoot
+Push-Location $frontendRoot
 try {
-  Write-Host "Running: npm run build:app-studio" -ForegroundColor Cyan
-  & npm run build:app-studio
+  Write-Host "Running: pnpm run build:platform-web" -ForegroundColor Cyan
+  & pnpm run build:platform-web
   exit $LASTEXITCODE
 }
 finally {

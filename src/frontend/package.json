@@ -8,7 +8,6 @@
     "build": "pnpm -r run build",
     "build:platform-web": "pnpm --filter atlas-platform-web run build",
     "build:app-web": "pnpm --filter atlas-app-web run build",
-    "build:legacy": "pnpm --filter atlas-webapp run build",
     "lint": "pnpm -r run lint",
     "format": "pnpm -r run format"
   },

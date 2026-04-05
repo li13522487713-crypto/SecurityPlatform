@@ -13,7 +13,8 @@ $artifactDir = Join-Path $outRoot $artifactId
 $zipPath = Join-Path $outRoot "$artifactId.zip"
 $tempDir = Join-Path $repoRoot "tmp\\app-package-build\\$artifactId"
 $appHostProject = Join-Path $repoRoot "src\\backend\\Atlas.AppHost\\Atlas.AppHost.csproj"
-$webRoot = Join-Path $repoRoot "src\\frontend\\Atlas.WebApp"
+$frontendRoot = Join-Path $repoRoot "src\\frontend"
+$appWebDist = Join-Path $frontendRoot "apps\\app-web\\dist"
 
 New-Item -ItemType Directory -Force -Path $artifactDir | Out-Null
 New-Item -ItemType Directory -Force -Path $tempDir | Out-Null
@@ -26,14 +27,20 @@ Write-Host "Building AppHost publish output..." -ForegroundColor Cyan
 dotnet publish $appHostProject -c Release -o (Join-Path $tempDir "publish") | Out-Host
 
 Write-Host "Building runtime/login frontend entries..." -ForegroundColor Cyan
-Push-Location $webRoot
+Push-Location $frontendRoot
 try {
-  npm run build:app-runtime | Out-Host
-  npm run build:app-login | Out-Host
+  pnpm run build:app-web | Out-Host
 }
 finally {
   Pop-Location
 }
+
+if (-not (Test-Path $appWebDist)) {
+  throw "AppWeb dist not found: $appWebDist"
+}
+
+Copy-Item -Path (Join-Path $appWebDist "*") -Destination (Join-Path $artifactDir "frontend\\runtime") -Recurse -Force
+Copy-Item -Path (Join-Path $appWebDist "*") -Destination (Join-Path $artifactDir "frontend\\login") -Recurse -Force
 
 Copy-Item -Path (Join-Path $tempDir "publish\\*") -Destination (Join-Path $artifactDir "backend\\Atlas.AppHost") -Recurse -Force
 

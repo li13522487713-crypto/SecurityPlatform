@@ -50,7 +50,7 @@ function extractSeedPaths() {
 }
 
 function extractStaticRouterPaths() {
-  const filePath = join(ROOT, 'src/frontend/Atlas.WebApp/src/router/index.ts');
+  const filePath = join(ROOT, 'src/frontend/apps/platform-web/src/router/index.ts');
   const content = readFileSync(filePath, 'utf-8');
   const paths = new Set();
 
@@ -68,8 +68,13 @@ function extractStaticRouterPaths() {
 }
 
 function extractFallbackMapPaths() {
-  const filePath = join(ROOT, 'src/frontend/Atlas.WebApp/src/utils/dynamic-router.ts');
-  const content = readFileSync(filePath, 'utf-8');
+  const filePath = join(ROOT, 'src/frontend/apps/platform-web/src/utils/dynamic-router.ts');
+  let content = '';
+  try {
+    content = readFileSync(filePath, 'utf-8');
+  } catch {
+    return new Set();
+  }
   const paths = new Set();
 
   // 匹配 pathComponentFallbackMap 中的键
@@ -108,7 +113,7 @@ if (seedNotInFallback.length > 0) {
 // 检查2：静态路由中的 Deprecated 路由（带有 Deprecated 关键字的）
 const deprecatedRoutes = [...staticPaths].filter(p => {
   // 在文件中查找对应路由定义是否包含 Deprecated
-  const content = readFileSync(join(ROOT, 'src/frontend/Atlas.WebApp/src/router/index.ts'), 'utf-8');
+  const content = readFileSync(join(ROOT, 'src/frontend/apps/platform-web/src/router/index.ts'), 'utf-8');
   const escapedPath = p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const regex = new RegExp(`path:\\s*["']${escapedPath}["'][^}]+Deprecated`);
   return regex.test(content);
