@@ -1,4 +1,5 @@
 using Atlas.Core.Messaging;
+using Atlas.Core.Setup;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -12,18 +13,22 @@ public sealed class MessageQueueProcessorHostedService : BackgroundService
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<MessageQueueProcessorHostedService> _logger;
+    private readonly ISetupStateProvider _setupStateProvider;
     private static readonly TimeSpan PollingInterval = TimeSpan.FromSeconds(5);
 
     public MessageQueueProcessorHostedService(
         IServiceProvider serviceProvider,
-        ILogger<MessageQueueProcessorHostedService> logger)
+        ILogger<MessageQueueProcessorHostedService> logger,
+        ISetupStateProvider setupStateProvider)
     {
         _serviceProvider = serviceProvider;
         _logger = logger;
+        _setupStateProvider = setupStateProvider;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        await _setupStateProvider.WaitForReadyAsync(stoppingToken);
         _logger.LogInformation("MessageQueueProcessor started");
 
         while (!stoppingToken.IsCancellationRequested)

@@ -1,4 +1,5 @@
 using Atlas.Application.System.Abstractions;
+using Atlas.Core.Setup;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -13,18 +14,23 @@ public sealed class TenantExpirationHostedService : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<TenantExpirationHostedService> _logger;
+    private readonly ISetupStateProvider _setupStateProvider;
     private static readonly TimeSpan CheckInterval = TimeSpan.FromHours(24);
 
     public TenantExpirationHostedService(
         IServiceScopeFactory scopeFactory,
-        ILogger<TenantExpirationHostedService> logger)
+        ILogger<TenantExpirationHostedService> logger,
+        ISetupStateProvider setupStateProvider)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
+        _setupStateProvider = setupStateProvider;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        await _setupStateProvider.WaitForReadyAsync(stoppingToken);
+
         _logger.LogInformation("TenantExpirationHostedService started, check interval: {Hours}h", CheckInterval.TotalHours);
 
         // 启动后延迟 5 分钟再执行，避免争抢 DB 初始化

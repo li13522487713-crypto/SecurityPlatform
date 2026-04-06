@@ -2,10 +2,20 @@ import { createRouter, createWebHistory } from "vue-router";
 import { getAccessToken } from "@atlas/shared-core";
 import { useAppUserStore } from "@/stores/user";
 import { APP_PERMISSIONS } from "@/constants/permissions";
+import { getSetupState } from "@/services/api-setup";
+
+let setupChecked = false;
+let platformReady = true;
 
 export const router = createRouter({
   history: createWebHistory(),
   routes: [
+    {
+      path: "/platform-not-ready",
+      name: "platform-not-ready",
+      component: () => import("@/pages/PlatformNotReadyPage.vue"),
+      meta: { requiresAuth: false }
+    },
     {
       path: "/",
       name: "home",
@@ -113,6 +123,26 @@ function checkPermission(permission: string | undefined, userStore: ReturnType<t
 }
 
 router.beforeEach(async (to, _from, next) => {
+  if (!setupChecked) {
+    try {
+      const resp = await getSetupState();
+      platformReady = resp.success && resp.data?.status === "Ready";
+    } catch {
+      platformReady = false;
+    }
+    setupChecked = true;
+  }
+
+  if (!platformReady && to.name !== "platform-not-ready") {
+    next({ name: "platform-not-ready" });
+    return;
+  }
+
+  if (platformReady && to.name === "platform-not-ready") {
+    next({ name: "home" });
+    return;
+  }
+
   if (to.meta.requiresAuth !== true) {
     next();
     return;

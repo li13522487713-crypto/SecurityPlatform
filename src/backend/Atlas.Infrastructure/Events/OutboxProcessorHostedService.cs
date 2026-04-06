@@ -1,5 +1,6 @@
 using Atlas.Application.Events;
 using Atlas.Core.Events;
+using Atlas.Core.Setup;
 using Atlas.Domain.Events;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -18,17 +19,22 @@ public sealed class OutboxProcessorHostedService : BackgroundService
 
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<OutboxProcessorHostedService> _logger;
+    private readonly ISetupStateProvider _setupStateProvider;
 
     public OutboxProcessorHostedService(
         IServiceScopeFactory scopeFactory,
-        ILogger<OutboxProcessorHostedService> logger)
+        ILogger<OutboxProcessorHostedService> logger,
+        ISetupStateProvider setupStateProvider)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
+        _setupStateProvider = setupStateProvider;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        await _setupStateProvider.WaitForReadyAsync(stoppingToken);
+
         _logger.LogInformation("OutboxProcessorHostedService started, polling every {Interval}s", PollingInterval.TotalSeconds);
 
         while (!stoppingToken.IsCancellationRequested)

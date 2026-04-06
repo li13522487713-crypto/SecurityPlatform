@@ -279,7 +279,19 @@ export default {
     runtimeInfo: "Runtime Information",
     runtimeStatus: "Runtime Status",
     healthStatus: "Health Status",
-    version: "Version"
+    version: "Version",
+    databaseTab: "Database",
+    dbInfo: "Database Info",
+    dbType: "Database Type",
+    journalMode: "Journal Mode",
+    dbFileSize: "File Size",
+    connStr: "Connection String",
+    testConn: "Test Connection",
+    backups: "Backups",
+    backupNow: "Backup Now",
+    fileName: "File Name",
+    fileSize: "Size",
+    createdAt: "Created At"
   },
   org: {
     pageTitle: "Organization Management",
@@ -490,5 +502,10 @@ export default {
     phone: "Phone",
     roles: "Roles",
     tenant: "Tenant"
+  },
+  setup: {
+    platformNotReady: "Platform Not Initialized",
+    platformNotReadyDesc: "Please complete the setup wizard on the platform admin first, then refresh this page.",
+    retry: "Refresh & Retry"
   }
 };

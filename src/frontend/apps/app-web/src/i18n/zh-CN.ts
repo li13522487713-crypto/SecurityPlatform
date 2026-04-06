@@ -279,7 +279,19 @@ export default {
     runtimeInfo: "运行时信息",
     runtimeStatus: "运行状态",
     healthStatus: "健康状态",
-    version: "版本"
+    version: "版本",
+    databaseTab: "数据库运维",
+    dbInfo: "数据库信息",
+    dbType: "数据库类型",
+    journalMode: "日志模式",
+    dbFileSize: "文件大小",
+    connStr: "连接字符串",
+    testConn: "测试连接",
+    backups: "备份管理",
+    backupNow: "立即备份",
+    fileName: "文件名",
+    fileSize: "大小",
+    createdAt: "创建时间"
   },
   org: {
     pageTitle: "组织管理",
@@ -487,5 +499,10 @@ export default {
     phone: "手机号",
     roles: "角色",
     tenant: "租户"
+  },
+  setup: {
+    platformNotReady: "平台尚未完成初始化",
+    platformNotReadyDesc: "请先到平台管理端完成安装向导，然后刷新此页面。",
+    retry: "刷新重试"
   }
 };

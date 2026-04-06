@@ -1,5 +1,6 @@
 using Atlas.Application.Approval.Abstractions;
 using Atlas.Application.Approval.Repositories;
+using Atlas.Core.Setup;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Approval.Entities;
 using Atlas.Domain.Approval.Enums;
@@ -18,19 +19,23 @@ public sealed class ApprovalTimeoutReminderHostedService : BackgroundService
     private readonly ILogger<ApprovalTimeoutReminderHostedService> _logger;
     private readonly TimeProvider _timeProvider;
     private readonly TimeSpan _scanInterval = TimeSpan.FromMinutes(5); // 每5分钟扫描一次
+    private readonly ISetupStateProvider _setupStateProvider;
 
     public ApprovalTimeoutReminderHostedService(
         IServiceProvider serviceProvider,
         ILogger<ApprovalTimeoutReminderHostedService> logger,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        ISetupStateProvider setupStateProvider)
     {
         _serviceProvider = serviceProvider;
         _logger = logger;
         _timeProvider = timeProvider;
+        _setupStateProvider = setupStateProvider;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        await _setupStateProvider.WaitForReadyAsync(stoppingToken);
         _logger.LogInformation("审批超时提醒服务已启动");
 
         while (!stoppingToken.IsCancellationRequested)

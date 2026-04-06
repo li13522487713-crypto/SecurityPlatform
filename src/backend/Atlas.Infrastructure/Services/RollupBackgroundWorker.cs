@@ -1,4 +1,5 @@
 using Atlas.Application.DynamicTables.Abstractions;
+using Atlas.Core.Setup;
 using Atlas.Core.Tenancy;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -16,13 +17,16 @@ public sealed class RollupBackgroundWorker : BackgroundService
     private readonly Channel<RollupTask> _queue;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<RollupBackgroundWorker> _logger;
+    private readonly ISetupStateProvider _setupStateProvider;
 
     public RollupBackgroundWorker(
         IServiceScopeFactory scopeFactory,
-        ILogger<RollupBackgroundWorker> logger)
+        ILogger<RollupBackgroundWorker> logger,
+        ISetupStateProvider setupStateProvider)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
+        _setupStateProvider = setupStateProvider;
         _queue = Channel.CreateBounded<RollupTask>(new BoundedChannelOptions(500)
         {
             FullMode = BoundedChannelFullMode.DropOldest,
@@ -40,6 +44,7 @@ public sealed class RollupBackgroundWorker : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        await _setupStateProvider.WaitForReadyAsync(stoppingToken);
         _logger.LogInformation("[RollupWorker] 后台汇总计算工作者已启动。");
 
         await foreach (var task in _queue.Reader.ReadAllAsync(stoppingToken))

@@ -6,6 +6,7 @@ using Atlas.Application.Identity;
 using Atlas.Core.Abstractions;
 using Atlas.Core.Enums;
 using Atlas.Core.Identity;
+using Atlas.Core.Setup;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Alert.Entities;
 using Atlas.Domain.AiPlatform.Entities;
@@ -40,6 +41,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
     private readonly DatabaseEncryptionOptions _encryptionOptions;
     private readonly DatabaseInitializerOptions _initializerOptions;
     private readonly IHostEnvironment _environment;
+    private readonly ISetupStateProvider _setupStateProvider;
     private readonly ILogger<DatabaseInitializerHostedService> _logger;
 
     public DatabaseInitializerHostedService(
@@ -49,6 +51,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         IOptions<DatabaseEncryptionOptions> encryptionOptions,
         IOptions<DatabaseInitializerOptions> initializerOptions,
         IHostEnvironment environment,
+        ISetupStateProvider setupStateProvider,
         ILogger<DatabaseInitializerHostedService> logger)
     {
         _scopeFactory = scopeFactory;
@@ -57,10 +60,30 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         _encryptionOptions = encryptionOptions.Value;
         _initializerOptions = initializerOptions.Value;
         _environment = environment;
+        _setupStateProvider = setupStateProvider;
         _logger = logger;
     }
 
+    /// <summary>
+    /// 供安装向导（SetupController）直接调用的初始化入口。
+    /// </summary>
+    public Task RunInitializationAsync(CancellationToken cancellationToken)
+    {
+        return RunCoreAsync(cancellationToken);
+    }
+
     public async Task StartAsync(CancellationToken cancellationToken)
+    {
+        if (!_setupStateProvider.IsReady)
+        {
+            _logger.LogInformation("[DatabaseInitializer] Setup 未完成，跳过自动数据库初始化（将由安装向导触发）");
+            return;
+        }
+
+        await RunCoreAsync(cancellationToken);
+    }
+
+    private async Task RunCoreAsync(CancellationToken cancellationToken)
     {
         if (_encryptionOptions.Enabled && string.IsNullOrWhiteSpace(_encryptionOptions.Key))
         {

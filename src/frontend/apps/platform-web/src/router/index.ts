@@ -1,12 +1,27 @@
 import { createRouter, createWebHistory } from "vue-router";
 import { getAccessToken } from "@atlas/shared-core";
 import { applyPermissionMetaToRoutePath } from "./route-access";
+import { getSetupState } from "@/services/api-setup";
 
 const Placeholder = () => import("@/components/common/FeaturePlaceholder.vue");
+
+let setupChecked = false;
+let setupReady = true;
+
+export function markSetupComplete() {
+  setupReady = true;
+  setupChecked = true;
+}
 
 export const router = createRouter({
   history: createWebHistory(),
   routes: [
+    {
+      path: "/setup",
+      name: "setup",
+      component: () => import("@/pages/SetupWizardPage.vue"),
+      meta: { requiresAuth: false }
+    },
     {
       path: "/login",
       name: "login",
@@ -46,6 +61,7 @@ export const router = createRouter({
         { path: "settings/system/dict-types", name: "settings-dict", component: () => import("@/pages/settings/DictTypesPage.vue") },
         { path: "settings/system/datasources", name: "settings-datasources", component: () => import("@/pages/settings/DataSourcesPage.vue") },
         { path: "settings/system/configs", name: "settings-configs", component: () => import("@/pages/settings/SystemConfigsPage.vue") },
+        { path: "settings/system/database", name: "settings-database", component: () => import("@/pages/settings/DatabaseMaintenancePage.vue") },
         { path: "settings/system/plugins", name: "settings-plugins", component: () => import("@/pages/settings/PluginManagePage.vue") },
         { path: "settings/system/webhooks", name: "settings-webhooks", component: () => import("@/pages/settings/WebhooksPage.vue") },
         { path: "settings/projects", name: "settings-projects", component: () => import("@/pages/settings/ProjectsPage.vue") },
@@ -115,10 +131,31 @@ router.getRoutes().forEach((routeRecord) => {
   routeRecord.meta = routeMeta;
 });
 
-router.beforeEach((to, _from, next) => {
+router.beforeEach(async (to, _from, next) => {
   const toMeta = (to.meta ?? {}) as Record<string, unknown>;
   applyPermissionMetaToRoutePath(to.path, toMeta);
   to.meta = toMeta;
+
+  if (!setupChecked) {
+    try {
+      const resp = await getSetupState();
+      setupReady = resp.success && resp.data?.status === "Ready";
+    } catch {
+      setupReady = false;
+    }
+    setupChecked = true;
+  }
+
+  if (!setupReady && to.name !== "setup") {
+    next({ name: "setup" });
+    return;
+  }
+
+  if (setupReady && to.name === "setup") {
+    next({ path: "/login" });
+    return;
+  }
+
   const token = getAccessToken();
   if (to.meta.requiresAuth !== false && !token) {
     next({ name: "login", query: { redirect: to.fullPath } });

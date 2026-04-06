@@ -3,7 +3,7 @@ using SqlSugar;
 
 namespace Atlas.Infrastructure.Services;
 
-internal static class DataSourceDriverRegistry
+public static class DataSourceDriverRegistry
 {
     private static readonly IReadOnlyList<DataSourceDriverDefinition> Definitions =
     [

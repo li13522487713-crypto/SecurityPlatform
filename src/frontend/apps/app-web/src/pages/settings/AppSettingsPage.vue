@@ -2,82 +2,90 @@
   <div class="app-settings">
     <a-page-header :title="t('settings.pageTitle')" />
 
-    <a-spin :spinning="loading">
-      <a-alert
-        v-if="loadError"
-        type="error"
-        show-icon
-        :message="loadError"
-        closable
-        style="margin-bottom: 16px"
-      />
+    <a-tabs v-model:activeKey="activeTab">
+      <a-tab-pane key="general" :tab="t('settings.basicInfo')">
+        <a-spin :spinning="loading">
+          <a-alert
+            v-if="loadError"
+            type="error"
+            show-icon
+            :message="loadError"
+            closable
+            style="margin-bottom: 16px"
+          />
 
-      <a-row :gutter="[16, 16]">
-        <a-col :span="24" :lg="14">
-          <a-card :title="t('settings.basicInfo')">
-            <a-form layout="vertical" :model="form">
-              <a-form-item :label="t('settings.appName')" required>
-                <a-input v-model:value="form.name" :disabled="!canEdit" />
-              </a-form-item>
-              <a-form-item :label="t('settings.appDescription')">
-                <a-textarea v-model:value="form.description" :rows="3" :disabled="!canEdit" />
-              </a-form-item>
-              <a-form-item :label="t('settings.appCategory')">
-                <a-input v-model:value="form.category" :disabled="!canEdit" />
-              </a-form-item>
-              <a-form-item :label="t('settings.appIcon')">
-                <a-input v-model:value="form.icon" :disabled="!canEdit" />
-              </a-form-item>
-              <a-form-item v-if="canEdit">
-                <a-button type="primary" :loading="saving" @click="handleSave">
-                  {{ t('settings.save') }}
-                </a-button>
-              </a-form-item>
-            </a-form>
-          </a-card>
-        </a-col>
+          <a-row :gutter="[16, 16]">
+            <a-col :span="24" :lg="14">
+              <a-card :title="t('settings.basicInfo')">
+                <a-form layout="vertical" :model="form">
+                  <a-form-item :label="t('settings.appName')" required>
+                    <a-input v-model:value="form.name" :disabled="!canEdit" />
+                  </a-form-item>
+                  <a-form-item :label="t('settings.appDescription')">
+                    <a-textarea v-model:value="form.description" :rows="3" :disabled="!canEdit" />
+                  </a-form-item>
+                  <a-form-item :label="t('settings.appCategory')">
+                    <a-input v-model:value="form.category" :disabled="!canEdit" />
+                  </a-form-item>
+                  <a-form-item :label="t('settings.appIcon')">
+                    <a-input v-model:value="form.icon" :disabled="!canEdit" />
+                  </a-form-item>
+                  <a-form-item v-if="canEdit">
+                    <a-button type="primary" :loading="saving" @click="handleSave">
+                      {{ t('settings.save') }}
+                    </a-button>
+                  </a-form-item>
+                </a-form>
+              </a-card>
+            </a-col>
 
-        <a-col :span="24" :lg="10">
-          <a-card :title="t('settings.statusManagement')">
-            <a-descriptions :column="1" bordered size="small">
-              <a-descriptions-item :label="t('settings.currentStatus')">
-                <a-tag :color="statusColor(detail?.status)">
-                  {{ detail?.status ?? '—' }}
-                </a-tag>
-              </a-descriptions-item>
-              <a-descriptions-item :label="t('settings.version')">
-                {{ detail?.version ?? '—' }}
-              </a-descriptions-item>
-              <a-descriptions-item :label="t('settings.runtimeStatus')">
-                <a-tag :color="statusColor(detail?.runtimeStatus)">
-                  {{ detail?.runtimeStatus ?? '—' }}
-                </a-tag>
-              </a-descriptions-item>
-              <a-descriptions-item :label="t('settings.healthStatus')">
-                {{ detail?.healthStatus ?? '—' }}
-              </a-descriptions-item>
-            </a-descriptions>
+            <a-col :span="24" :lg="10">
+              <a-card :title="t('settings.statusManagement')">
+                <a-descriptions :column="1" bordered size="small">
+                  <a-descriptions-item :label="t('settings.currentStatus')">
+                    <a-tag :color="statusColor(detail?.status)">
+                      {{ detail?.status ?? '—' }}
+                    </a-tag>
+                  </a-descriptions-item>
+                  <a-descriptions-item :label="t('settings.version')">
+                    {{ detail?.version ?? '—' }}
+                  </a-descriptions-item>
+                  <a-descriptions-item :label="t('settings.runtimeStatus')">
+                    <a-tag :color="statusColor(detail?.runtimeStatus)">
+                      {{ detail?.runtimeStatus ?? '—' }}
+                    </a-tag>
+                  </a-descriptions-item>
+                  <a-descriptions-item :label="t('settings.healthStatus')">
+                    {{ detail?.healthStatus ?? '—' }}
+                  </a-descriptions-item>
+                </a-descriptions>
 
-            <a-divider />
+                <a-divider />
 
-            <a-space v-if="canEdit" wrap>
-              <a-popconfirm :title="t('settings.confirmPublish')" @confirm="handlePublish">
-                <a-button :loading="publishing">{{ t('settings.publish') }}</a-button>
-              </a-popconfirm>
-              <a-popconfirm :title="t('settings.confirmStart')" @confirm="handleStart">
-                <a-button type="primary" :loading="starting">{{ t('settings.start') }}</a-button>
-              </a-popconfirm>
-              <a-popconfirm :title="t('settings.confirmStop')" @confirm="handleStop">
-                <a-button danger :loading="stopping">{{ t('settings.stop') }}</a-button>
-              </a-popconfirm>
-              <a-popconfirm :title="t('settings.confirmRestart')" @confirm="handleRestart">
-                <a-button :loading="restarting">{{ t('settings.restart') }}</a-button>
-              </a-popconfirm>
-            </a-space>
-          </a-card>
-        </a-col>
-      </a-row>
-    </a-spin>
+                <a-space v-if="canEdit" wrap>
+                  <a-popconfirm :title="t('settings.confirmPublish')" @confirm="handlePublish">
+                    <a-button :loading="publishing">{{ t('settings.publish') }}</a-button>
+                  </a-popconfirm>
+                  <a-popconfirm :title="t('settings.confirmStart')" @confirm="handleStart">
+                    <a-button type="primary" :loading="starting">{{ t('settings.start') }}</a-button>
+                  </a-popconfirm>
+                  <a-popconfirm :title="t('settings.confirmStop')" @confirm="handleStop">
+                    <a-button danger :loading="stopping">{{ t('settings.stop') }}</a-button>
+                  </a-popconfirm>
+                  <a-popconfirm :title="t('settings.confirmRestart')" @confirm="handleRestart">
+                    <a-button :loading="restarting">{{ t('settings.restart') }}</a-button>
+                  </a-popconfirm>
+                </a-space>
+              </a-card>
+            </a-col>
+          </a-row>
+        </a-spin>
+      </a-tab-pane>
+
+      <a-tab-pane key="database" :tab="t('settings.databaseTab')">
+        <AppDatabaseMaintenanceTab />
+      </a-tab-pane>
+    </a-tabs>
   </div>
 </template>
 
@@ -86,6 +94,7 @@ import { ref, reactive, watch, onMounted } from "vue";
 import { useI18n } from "vue-i18n";
 import { message } from "ant-design-vue";
 import { useAppContext } from "@/composables/useAppContext";
+import AppDatabaseMaintenanceTab from "./AppDatabaseMaintenanceTab.vue";
 import {
   getAppInstanceDetail,
   updateAppInstance,
@@ -102,6 +111,7 @@ const { t } = useI18n();
 const { appId } = useAppContext();
 const userStore = useAppUserStore();
 
+const activeTab = ref("general");
 const loading = ref(false);
 const loadError = ref("");
 const detail = ref<TenantAppInstanceDetail | null>(null);

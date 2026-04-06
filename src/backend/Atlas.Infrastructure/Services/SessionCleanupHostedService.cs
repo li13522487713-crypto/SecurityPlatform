@@ -1,3 +1,4 @@
+using Atlas.Core.Setup;
 using Atlas.Domain.Identity.Entities;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -15,6 +16,7 @@ public sealed class SessionCleanupHostedService : BackgroundService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<SessionCleanupHostedService> _logger;
     private readonly TimeProvider _timeProvider;
+    private readonly ISetupStateProvider _setupStateProvider;
 
     /// <summary>
     /// Keep expired/revoked records for this many days before deleting (grace period for debugging).
@@ -29,15 +31,19 @@ public sealed class SessionCleanupHostedService : BackgroundService
     public SessionCleanupHostedService(
         IServiceScopeFactory scopeFactory,
         ILogger<SessionCleanupHostedService> logger,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        ISetupStateProvider setupStateProvider)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
         _timeProvider = timeProvider;
+        _setupStateProvider = setupStateProvider;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        await _setupStateProvider.WaitForReadyAsync(stoppingToken);
+
         _logger.LogInformation("SessionCleanupHostedService started. Grace period: {Days} days, Check interval: {Hours}h",
             GracePeriodDays, CheckInterval.TotalHours);
 

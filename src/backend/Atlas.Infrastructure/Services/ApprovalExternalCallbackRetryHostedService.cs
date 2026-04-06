@@ -1,4 +1,5 @@
 using Atlas.Application.Approval.Repositories;
+using Atlas.Core.Setup;
 using Atlas.Core.Tenancy;
 using Atlas.Infrastructure.Services.ApprovalFlow;
 using Microsoft.Extensions.DependencyInjection;
@@ -16,19 +17,23 @@ public sealed class ApprovalExternalCallbackRetryHostedService : BackgroundServi
     private readonly ILogger<ApprovalExternalCallbackRetryHostedService> _logger;
     private readonly TimeProvider _timeProvider;
     private readonly TimeSpan _scanInterval = TimeSpan.FromMinutes(5); // 每5分钟扫描一次
+    private readonly ISetupStateProvider _setupStateProvider;
 
     public ApprovalExternalCallbackRetryHostedService(
         IServiceProvider serviceProvider,
         ILogger<ApprovalExternalCallbackRetryHostedService> logger,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        ISetupStateProvider setupStateProvider)
     {
         _serviceProvider = serviceProvider;
         _logger = logger;
         _timeProvider = timeProvider;
+        _setupStateProvider = setupStateProvider;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        await _setupStateProvider.WaitForReadyAsync(stoppingToken);
         _logger.LogInformation("外部回调重试服务已启动");
 
         while (!stoppingToken.IsCancellationRequested)

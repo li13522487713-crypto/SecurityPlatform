@@ -10,6 +10,7 @@ using Atlas.Application.TableViews.Abstractions;
 using Atlas.Application.TableViews.Repositories;
 using Atlas.Core.Abstractions;
 using Atlas.Core.Events;
+using Atlas.Core.Setup;
 using Atlas.Infrastructure.Events;
 using Atlas.Infrastructure.EventHandlers;
 using Atlas.Infrastructure.IdGen;
@@ -19,6 +20,7 @@ using Atlas.Infrastructure.Security;
 using Atlas.Infrastructure.Services;
 using Atlas.Infrastructure.Services.FileStorage;
 using Atlas.Infrastructure.Services.Platform;
+using Atlas.Infrastructure.Setup;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -33,6 +35,10 @@ public static class CoreServiceRegistration
 {
     public static IServiceCollection AddCoreInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
+        // Setup State (must be registered before anything that depends on DB)
+        services.AddSingleton<ISetupStateProvider, FileBasedSetupStateProvider>();
+        services.AddScoped<Atlas.Application.Setup.IDatabaseMaintenanceService, DatabaseMaintenanceService>();
+
         // Options
         services.Configure<DatabaseOptions>(configuration.GetSection("Database"));
         services.Configure<DatabaseBackupOptions>(configuration.GetSection("Database:Backup"));
@@ -54,7 +60,6 @@ public static class CoreServiceRegistration
         services.AddScoped<Atlas.Application.Events.IOutboxRepository, Atlas.Infrastructure.Repositories.OutboxRepository>();
         services.AddScoped<Atlas.Application.Events.IOutboxManagementService, Atlas.Infrastructure.Events.OutboxManagementService>();
         services.AddScoped<Atlas.Infrastructure.Events.OutboxPublisher>();
-        services.AddHostedService<Atlas.Infrastructure.Events.OutboxProcessorHostedService>();
 
         // Unit of Work
         services.AddScoped<IUnitOfWork, SqlSugarUnitOfWork>();
@@ -62,11 +67,15 @@ public static class CoreServiceRegistration
         // Background Work Queue (replaces unsafe Task.Run pattern for fire-and-forget)
         services.AddSingleton<BackgroundWorkQueue>();
         services.AddSingleton<IBackgroundWorkQueue>(sp => sp.GetRequiredService<BackgroundWorkQueue>());
-        services.AddHostedService<BackgroundWorkQueueProcessor>();
 
-        // Hosted Services (order matters: DB init first)
-        services.AddHostedService<DatabaseInitializerHostedService>();
+        // Hosted Services (order: DB init → backup → outbox → work queue → cleanup)
+        // All gated by ISetupStateProvider.WaitForReadyAsync — safe to register early.
+        // DatabaseInitializerHostedService registered as both singleton (for SetupController injection) and hosted service.
+        services.AddSingleton<DatabaseInitializerHostedService>();
+        services.AddHostedService(sp => sp.GetRequiredService<DatabaseInitializerHostedService>());
         services.AddHostedService<DatabaseBackupHostedService>();
+        services.AddHostedService<Atlas.Infrastructure.Events.OutboxProcessorHostedService>();
+        services.AddHostedService<BackgroundWorkQueueProcessor>();
         services.AddHostedService<AuditRetentionHostedService>();
         services.AddHostedService<TenantExpirationHostedService>();
         services.AddHostedService<SessionCleanupHostedService>();

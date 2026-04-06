@@ -1,3 +1,4 @@
+using Atlas.Core.Setup;
 using Atlas.Infrastructure.Services.ApprovalFlow.Jobs;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -14,17 +15,21 @@ public sealed class ApprovalTimerNodeHostedService : BackgroundService
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<ApprovalTimerNodeHostedService> _logger;
     private readonly TimeSpan _scanInterval = TimeSpan.FromSeconds(60);
+    private readonly ISetupStateProvider _setupStateProvider;
 
     public ApprovalTimerNodeHostedService(
         IServiceProvider serviceProvider,
-        ILogger<ApprovalTimerNodeHostedService> logger)
+        ILogger<ApprovalTimerNodeHostedService> logger,
+        ISetupStateProvider setupStateProvider)
     {
         _serviceProvider = serviceProvider;
         _logger = logger;
+        _setupStateProvider = setupStateProvider;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        await _setupStateProvider.WaitForReadyAsync(stoppingToken);
         _logger.LogInformation("审批定时器节点后台服务已启动");
 
         while (!stoppingToken.IsCancellationRequested)

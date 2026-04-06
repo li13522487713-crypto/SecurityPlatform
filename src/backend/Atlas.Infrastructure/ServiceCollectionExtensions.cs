@@ -1,5 +1,6 @@
 using Atlas.Core.Observability;
 using Atlas.Core.Plugins;
+using Atlas.Core.Setup;
 using Atlas.Core.Tenancy;
 using Atlas.Infrastructure.DependencyInjection;
 using Atlas.Infrastructure.Options;
@@ -47,6 +48,14 @@ public static class ServiceCollectionExtensions
 
         services.AddScoped<ISqlSugarClient>(sp =>
         {
+            var setupState = sp.GetRequiredService<ISetupStateProvider>();
+            if (!setupState.IsReady)
+            {
+                throw new InvalidOperationException(
+                    "数据库尚未配置。请先完成平台安装向导（Setup Wizard）。" +
+                    "ISqlSugarClient 仅在 setup 完成后可用。");
+            }
+
             var options = sp.GetRequiredService<IOptions<DatabaseOptions>>().Value;
             var configuration = sp.GetRequiredService<IConfiguration>();
             var tenantProvider = sp.GetRequiredService<ITenantProvider>();

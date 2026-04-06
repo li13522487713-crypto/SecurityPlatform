@@ -1,75 +1,205 @@
-@baseUrl = http://localhost:5000
-@tenantId = 00000000-0000-0000-0000-000000000001
-@username = admin
-@password = P@ssw0rd!
+### 平台权限策略验证（SuperAdmin 正向 / 无角色用户 403 / 未认证 401）
+### 覆盖：用户、角色、权限定义、资产列表等需显式 Permission Policy 的只读接口。
+### 前置：PlatformHost 默认租户与 Bootstrap 管理员（见 appsettings.Development.json）。
+### 执行顺序：自上而下；创建无权限用户若报用户名冲突，请修改 @noPermUsername 后重试。
 
-### Login to get token (Execute this first)
-# @name login
+@baseUrl = http://localhost:5001
+@tenantId = 00000000-0000-0000-0000-000000000001
+@adminUser = admin
+@adminPassword = P@ssw0rd!
+@noPermUsername = http_perm_no_role
+@noPermPassword = P@ssw0rd!2026
+@clientType = WebH5
+@clientPlatform = Web
+@clientChannel = Browser
+@clientAgent = Chrome
+@localeZh = zh-CN
+
+### 管理员登录（SuperAdmin / 全量平台权限）
+# @name adminLogin
 POST {{baseUrl}}/api/v1/auth/token
 Content-Type: application/json
 X-Tenant-Id: {{tenantId}}
+X-Client-Type: {{clientType}}
+X-Client-Platform: {{clientPlatform}}
+X-Client-Channel: {{clientChannel}}
+X-Client-Agent: {{clientAgent}}
+Accept-Language: {{localeZh}}
 
 {
-  "username": "{{username}}",
-  "password": "{{password}}"
+  "username": "{{adminUser}}",
+  "password": "{{adminPassword}}"
 }
 
 ###
-@accessToken = {{login.response.body.$.data.accessToken}}
+@adminToken = {{adminLogin.response.body.$.data.accessToken}}
 
-### Get Anti-Forgery Token
+### 获取 CSRF（后续管理员写操作需要）
 # @name antiforgery
 GET {{baseUrl}}/api/v1/secure/antiforgery
-Authorization: Bearer {{accessToken}}
+Authorization: Bearer {{adminToken}}
 X-Tenant-Id: {{tenantId}}
+X-Client-Type: {{clientType}}
+X-Client-Platform: {{clientPlatform}}
+X-Client-Channel: {{clientChannel}}
+X-Client-Agent: {{clientAgent}}
 
 ###
 @csrfToken = {{antiforgery.response.body.$.data.token}}
 
-### Get Permissions (Paged)
-GET {{baseUrl}}/api/v1/permissions?pageIndex=1&pageSize=10&type=Api
-Authorization: Bearer {{accessToken}}
-X-Tenant-Id: {{tenantId}}
-
-### Get Permissions by extended type (Page)
-GET {{baseUrl}}/api/v1/permissions?pageIndex=1&pageSize=10&type=Page
-Authorization: Bearer {{accessToken}}
-X-Tenant-Id: {{tenantId}}
-
-### Get Permission Detail
-GET {{baseUrl}}/api/v1/permissions/1
-Authorization: Bearer {{accessToken}}
-X-Tenant-Id: {{tenantId}}
-
-### Create Permission
-# @name createPermission
-POST {{baseUrl}}/api/v1/permissions
+### 准备：创建无任何平台角色的用户（用于 403 反向用例）
+# @name createNoPermUser
+POST {{baseUrl}}/api/v1/users
 Content-Type: application/json
-Authorization: Bearer {{accessToken}}
+Authorization: Bearer {{adminToken}}
 X-Tenant-Id: {{tenantId}}
 Idempotency-Key: {{$guid}}
 X-CSRF-TOKEN: {{csrfToken}}
 
 {
-  "name": "客户列表页面访问",
-  "code": "crm:customer-list:page",
-  "type": "Page",
-  "description": "CRM 客户列表页面访问权限"
+  "username": "{{noPermUsername}}",
+  "password": "{{noPermPassword}}",
+  "displayName": "HTTP 无权限探测账号",
+  "email": "http.perm.no-role@atlas.local",
+  "phoneNumber": "13800000001",
+  "isActive": true,
+  "roleIds": [],
+  "departmentIds": [],
+  "positionIds": []
 }
 
 ###
-@permissionId = {{createPermission.response.body.$.data.id}}
+@noPermUserId = {{createNoPermUser.response.body.$.data.id}}
 
-### Update Permission
-PUT {{baseUrl}}/api/v1/permissions/{{permissionId}}
+### 无权限用户登录
+# @name noPermLogin
+POST {{baseUrl}}/api/v1/auth/token
 Content-Type: application/json
-Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+X-Client-Type: {{clientType}}
+X-Client-Platform: {{clientPlatform}}
+X-Client-Channel: {{clientChannel}}
+X-Client-Agent: {{clientAgent}}
+
+{
+  "username": "{{noPermUsername}}",
+  "password": "{{noPermPassword}}"
+}
+
+###
+@noPermToken = {{noPermLogin.response.body.$.data.accessToken}}
+
+### [正向] 管理员 — 用户列表（需 Permission:users:view）
+GET {{baseUrl}}/api/v1/users?pageIndex=1&pageSize=10
+Authorization: Bearer {{adminToken}}
+X-Tenant-Id: {{tenantId}}
+
+### [正向] 管理员 — 角色列表（需 Permission:roles:view）
+GET {{baseUrl}}/api/v1/roles?pageIndex=1&pageSize=10
+Authorization: Bearer {{adminToken}}
+X-Tenant-Id: {{tenantId}}
+
+### [正向] 管理员 — 权限定义分页（需 Permission:permissions:view）
+GET {{baseUrl}}/api/v1/permissions?pageIndex=1&pageSize=10&type=Api
+Authorization: Bearer {{adminToken}}
+X-Tenant-Id: {{tenantId}}
+
+### [正向] 管理员 — 资产列表（需 Permission:assets:view）
+GET {{baseUrl}}/api/v1/assets?pageIndex=1&pageSize=10
+Authorization: Bearer {{adminToken}}
+X-Tenant-Id: {{tenantId}}
+
+### [反向 403] 无角色用户 — 用户列表
+# @expected-status 403
+GET {{baseUrl}}/api/v1/users?pageIndex=1&pageSize=10
+Authorization: Bearer {{noPermToken}}
+X-Tenant-Id: {{tenantId}}
+
+### [反向 403] 无角色用户 — 角色列表
+# @expected-status 403
+GET {{baseUrl}}/api/v1/roles?pageIndex=1&pageSize=10
+Authorization: Bearer {{noPermToken}}
+X-Tenant-Id: {{tenantId}}
+
+### [反向 403] 无角色用户 — 权限定义
+# @expected-status 403
+GET {{baseUrl}}/api/v1/permissions?pageIndex=1&pageSize=10&type=Api
+Authorization: Bearer {{noPermToken}}
+X-Tenant-Id: {{tenantId}}
+
+### [反向 403] 无角色用户 — 资产列表
+# @expected-status 403
+GET {{baseUrl}}/api/v1/assets?pageIndex=1&pageSize=10
+Authorization: Bearer {{noPermToken}}
+X-Tenant-Id: {{tenantId}}
+
+### [反向 401] 未携带 Bearer — 用户列表
+# @expected-status 401
+GET {{baseUrl}}/api/v1/users?pageIndex=1&pageSize=10
+X-Tenant-Id: {{tenantId}}
+
+### [反向 403] 无角色用户 — 创建角色（需 Permission:roles:create）
+# @expected-status 403
+POST {{baseUrl}}/api/v1/roles
+Content-Type: application/json
+Authorization: Bearer {{noPermToken}}
 X-Tenant-Id: {{tenantId}}
 Idempotency-Key: {{$guid}}
 X-CSRF-TOKEN: {{csrfToken}}
 
 {
-  "name": "客户列表页面访问（更新）",
+  "name": "不应创建成功",
+  "code": "SHOULD_FAIL",
+  "description": "权限探测"
+}
+
+### —— 以下为权限定义 CRUD 示例（管理员），与 DataScope / 角色分配无关时可单独执行 ——
+
+### [正向] 创建自定义权限（Page 类型）
+# @name createPermission
+POST {{baseUrl}}/api/v1/permissions
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "name": "HTTP 测试页面权限",
+  "code": "http:test:page",
   "type": "Page",
-  "description": "CRM 客户列表页面访问权限（更新）"
+  "description": "Permissions.http 探测用"
+}
+
+###
+@demoPermissionId = {{createPermission.response.body.$.data.id}}
+
+### [正向] 更新权限
+PUT {{baseUrl}}/api/v1/permissions/{{demoPermissionId}}
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "name": "HTTP 测试页面权限（更新）",
+  "type": "Page",
+  "description": "Permissions.http 探测用（更新）"
+}
+
+### [反向 403] 无角色用户 — 创建权限
+# @expected-status 403
+POST {{baseUrl}}/api/v1/permissions
+Content-Type: application/json
+Authorization: Bearer {{noPermToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "name": "不应创建",
+  "code": "http:fail",
+  "type": "Api",
+  "description": "应 403"
 }

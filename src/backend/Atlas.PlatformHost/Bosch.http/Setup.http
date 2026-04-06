@@ -1,0 +1,46 @@
+### 获取安装状态
+GET http://localhost:5001/api/v1/setup/state
+Accept: application/json
+
+### 获取可用数据库驱动列表
+GET http://localhost:5001/api/v1/setup/drivers
+Accept: application/json
+
+### 测试 SQLite 连接（raw 模式）
+POST http://localhost:5001/api/v1/setup/test-connection
+Content-Type: application/json
+
+{
+  "driverCode": "SQLite",
+  "mode": "raw",
+  "connectionString": "Data Source=atlas.db"
+}
+
+### 测试 SQLite 连接（visual 模式）
+POST http://localhost:5001/api/v1/setup/test-connection
+Content-Type: application/json
+
+{
+  "driverCode": "SQLite",
+  "mode": "visual",
+  "visualConfig": {
+    "database": "atlas.db"
+  }
+}
+
+### 执行完整初始化（SQLite）
+POST http://localhost:5001/api/v1/setup/initialize
+Content-Type: application/json
+
+{
+  "database": {
+    "driverCode": "SQLite",
+    "mode": "raw",
+    "connectionString": "Data Source=atlas.db"
+  },
+  "admin": {
+    "tenantId": "00000000-0000-0000-0000-000000000001",
+    "username": "admin",
+    "password": "P@ssw0rd!"
+  }
+}

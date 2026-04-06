@@ -1,4 +1,5 @@
 using Atlas.Application.Abstractions;
+using Atlas.Core.Setup;
 using Atlas.Application.Options;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -14,21 +15,26 @@ public sealed class IdempotencyCleanupHostedService : BackgroundService
     private readonly TimeProvider _timeProvider;
     private readonly IOptions<IdempotencyOptions> _options;
     private readonly ILogger<IdempotencyCleanupHostedService> _logger;
+    private readonly ISetupStateProvider _setupStateProvider;
 
     public IdempotencyCleanupHostedService(
         IServiceScopeFactory scopeFactory,
         TimeProvider timeProvider,
         IOptions<IdempotencyOptions> options,
-        ILogger<IdempotencyCleanupHostedService> logger)
+        ILogger<IdempotencyCleanupHostedService> logger,
+        ISetupStateProvider setupStateProvider)
     {
         _scopeFactory = scopeFactory;
         _timeProvider = timeProvider;
         _options = options;
         _logger = logger;
+        _setupStateProvider = setupStateProvider;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        await _setupStateProvider.WaitForReadyAsync(stoppingToken);
+
         while (!stoppingToken.IsCancellationRequested)
         {
             var interval = ResolveCleanupInterval();

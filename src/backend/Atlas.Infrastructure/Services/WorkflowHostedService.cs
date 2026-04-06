@@ -1,3 +1,4 @@
+using Atlas.Core.Setup;
 using Atlas.WorkflowCore.Abstractions;
 using Microsoft.Extensions.Hosting;
 
@@ -9,10 +10,12 @@ namespace Atlas.Infrastructure.Services;
 public class WorkflowHostedService : IHostedService
 {
     private readonly IWorkflowHost _workflowHost;
+    private readonly ISetupStateProvider _setupStateProvider;
 
-    public WorkflowHostedService(IWorkflowHost workflowHost)
+    public WorkflowHostedService(IWorkflowHost workflowHost, ISetupStateProvider setupStateProvider)
     {
         _workflowHost = workflowHost;
+        _setupStateProvider = setupStateProvider;
     }
 
     /// <summary>
@@ -20,6 +23,11 @@ public class WorkflowHostedService : IHostedService
     /// </summary>
     public async Task StartAsync(CancellationToken cancellationToken)
     {
+        if (!_setupStateProvider.IsReady)
+        {
+            await _setupStateProvider.WaitForReadyAsync(cancellationToken);
+        }
+
         await _workflowHost.StartAsync(cancellationToken);
     }
 

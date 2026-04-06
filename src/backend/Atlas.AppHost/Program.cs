@@ -45,9 +45,11 @@ builder.Configuration
         optional: true,
         reloadOnChange: false);
 var dbPath = Path.Combine(platformConfigRoot, "atlas.db");
+var platformSetupStatePath = Path.Combine(platformConfigRoot, "setup-state.json");
 builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
 {
-    ["Database:ConnectionString"] = $"Data Source={dbPath}"
+    ["Database:ConnectionString"] = $"Data Source={dbPath}",
+    ["Setup:StateFilePath"] = platformSetupStatePath
 });
 
 if (builder.Environment.IsDevelopment()
@@ -240,12 +242,22 @@ builder.Services.AddResponseCompression(options =>
 builder.Services.Configure<BrotliCompressionProviderOptions>(options => options.Level = CompressionLevel.Fastest);
 builder.Services.Configure<GzipCompressionProviderOptions>(options => options.Level = CompressionLevel.Fastest);
 
-// ─── Hangfire (client only, no server in AppHost) ───
-builder.Services.AddHangfire(config =>
-    config.UseSQLiteStorage("hangfire-apphost.db", new SQLiteStorageOptions
-    {
-        JournalMode = SQLiteStorageOptions.JournalModes.WAL
-    }));
+// ─── Hangfire (client only, no server in AppHost; gated by platform setup state) ───
+var appHangfireReady = File.Exists(platformSetupStatePath) &&
+    File.ReadAllText(platformSetupStatePath).Contains("\"Ready\"", StringComparison.OrdinalIgnoreCase);
+
+if (appHangfireReady)
+{
+    builder.Services.AddHangfire(config =>
+        config.UseSQLiteStorage("hangfire-apphost.db", new SQLiteStorageOptions
+        {
+            JournalMode = SQLiteStorageOptions.JournalModes.WAL
+        }));
+}
+else
+{
+    builder.Services.AddHangfire(config => { });
+}
 
 // ─── WorkflowCore ───
 builder.Services.AddWorkflowCore();
@@ -299,6 +311,7 @@ var version = System.Reflection.Assembly.GetEntryAssembly()?.GetName().Version?.
 
 // ─── Middleware pipeline ───
 app.UseMiddleware<ExceptionHandlingMiddleware>();
+app.UseMiddleware<SetupModeMiddleware>();
 app.UseMiddleware<XssProtectionMiddleware>();
 
 if (app.Environment.IsDevelopment())

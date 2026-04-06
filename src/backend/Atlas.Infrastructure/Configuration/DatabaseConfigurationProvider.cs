@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Atlas.Infrastructure.Services;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Configuration;
@@ -6,6 +7,7 @@ namespace Atlas.Infrastructure.Configuration;
 
 /// <summary>
 /// 读取数据库中平台级（AppId 为空）系统参数并注入 IConfiguration。
+/// setup 未完成时跳过 Load，避免在数据库未就绪时尝试连接。
 /// </summary>
 public sealed class DatabaseConfigurationProvider : ConfigurationProvider
 {
@@ -13,17 +15,20 @@ public sealed class DatabaseConfigurationProvider : ConfigurationProvider
     private readonly string _platformTenantId;
     private readonly bool _encryptionEnabled;
     private readonly string _encryptionKey;
+    private readonly string? _setupStateFilePath;
 
     public DatabaseConfigurationProvider(
         string connectionString,
         string platformTenantId,
         bool encryptionEnabled,
-        string encryptionKey)
+        string encryptionKey,
+        string? setupStateFilePath = null)
     {
         _connectionString = connectionString;
         _platformTenantId = platformTenantId;
         _encryptionEnabled = encryptionEnabled;
         _encryptionKey = encryptionKey;
+        _setupStateFilePath = setupStateFilePath;
     }
 
     public override void Load()
@@ -34,7 +39,41 @@ public sealed class DatabaseConfigurationProvider : ConfigurationProvider
             return;
         }
 
+        if (!IsSetupReady())
+        {
+            Data = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+            return;
+        }
+
         Data = LoadData();
+    }
+
+    private bool IsSetupReady()
+    {
+        if (string.IsNullOrWhiteSpace(_setupStateFilePath))
+        {
+            return true;
+        }
+
+        try
+        {
+            if (!File.Exists(_setupStateFilePath))
+            {
+                return false;
+            }
+
+            var json = File.ReadAllText(_setupStateFilePath);
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.TryGetProperty("status", out var statusProp))
+            {
+                return string.Equals(statusProp.GetString(), "Ready", StringComparison.OrdinalIgnoreCase);
+            }
+            return false;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     public void ReloadFromDatabase()

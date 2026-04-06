@@ -1,3 +1,4 @@
+using Atlas.Core.Setup;
 using Atlas.Infrastructure.Options;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Hosting;
@@ -13,21 +14,26 @@ public sealed class DatabaseBackupHostedService : BackgroundService
     private readonly DatabaseBackupOptions _backupOptions;
     private readonly ILogger<DatabaseBackupHostedService> _logger;
     private readonly TimeProvider _timeProvider;
+    private readonly ISetupStateProvider _setupStateProvider;
 
     public DatabaseBackupHostedService(
         IOptions<DatabaseOptions> databaseOptions,
         IOptions<DatabaseBackupOptions> backupOptions,
         ILogger<DatabaseBackupHostedService> logger,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        ISetupStateProvider setupStateProvider)
     {
         _databaseOptions = databaseOptions.Value;
         _backupOptions = backupOptions.Value;
         _logger = logger;
         _timeProvider = timeProvider;
+        _setupStateProvider = setupStateProvider;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        await _setupStateProvider.WaitForReadyAsync(stoppingToken);
+
         if (!_backupOptions.Enabled)
         {
             return;

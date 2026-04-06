@@ -1,3 +1,4 @@
+using Atlas.Core.Setup;
 using Atlas.Domain.Audit.Entities;
 using Atlas.Infrastructure.Options;
 using Microsoft.Extensions.DependencyInjection;
@@ -17,6 +18,7 @@ public sealed class AuditRetentionHostedService : BackgroundService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<AuditRetentionHostedService> _logger;
     private readonly TimeProvider _timeProvider;
+    private readonly ISetupStateProvider _setupStateProvider;
 
     /// <summary>
     /// Retention period in days. Defaults to 180 (6 months).
@@ -31,15 +33,19 @@ public sealed class AuditRetentionHostedService : BackgroundService
     public AuditRetentionHostedService(
         IServiceScopeFactory scopeFactory,
         ILogger<AuditRetentionHostedService> logger,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        ISetupStateProvider setupStateProvider)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
         _timeProvider = timeProvider;
+        _setupStateProvider = setupStateProvider;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        await _setupStateProvider.WaitForReadyAsync(stoppingToken);
+
         _logger.LogInformation("AuditRetentionHostedService started. Retention: {Days} days, Check interval: {Hours}h",
             RetentionDays, CheckInterval.TotalHours);
 

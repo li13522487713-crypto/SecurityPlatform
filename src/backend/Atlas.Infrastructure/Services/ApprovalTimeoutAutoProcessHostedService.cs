@@ -1,5 +1,6 @@
 using Atlas.Application.Approval.Abstractions;
 using Atlas.Application.Approval.Repositories;
+using Atlas.Core.Setup;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Approval.Entities;
 using Atlas.Domain.Approval.Enums;
@@ -21,19 +22,23 @@ public sealed class ApprovalTimeoutAutoProcessHostedService : BackgroundService
     private readonly ILogger<ApprovalTimeoutAutoProcessHostedService> _logger;
     private readonly TimeProvider _timeProvider;
     private readonly TimeSpan _scanInterval = TimeSpan.FromMinutes(2);
+    private readonly ISetupStateProvider _setupStateProvider;
 
     public ApprovalTimeoutAutoProcessHostedService(
         IServiceProvider serviceProvider,
         ILogger<ApprovalTimeoutAutoProcessHostedService> logger,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        ISetupStateProvider setupStateProvider)
     {
         _serviceProvider = serviceProvider;
         _logger = logger;
         _timeProvider = timeProvider;
+        _setupStateProvider = setupStateProvider;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        await _setupStateProvider.WaitForReadyAsync(stoppingToken);
         _logger.LogInformation("Approval timeout auto-processing service started.");
 
         while (!stoppingToken.IsCancellationRequested)

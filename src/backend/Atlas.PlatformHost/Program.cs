@@ -60,11 +60,13 @@ if (!string.IsNullOrWhiteSpace(dbConnectionString) && !string.IsNullOrWhiteSpace
 {
     var encryptionEnabled = builder.Configuration.GetValue<bool>("Database:Encryption:Enabled");
     var encryptionKey = builder.Configuration["Database:Encryption:Key"] ?? string.Empty;
+    var setupStateFilePath = Path.Combine(builder.Environment.ContentRootPath, "setup-state.json");
     databaseConfigurationSource = new DatabaseConfigurationSource(
         dbConnectionString,
         bootstrapTenantId,
         encryptionEnabled,
-        encryptionKey);
+        encryptionKey,
+        setupStateFilePath);
     builder.Configuration.Sources.Add(databaseConfigurationSource);
 }
 
@@ -537,21 +539,32 @@ builder.Services.Configure<Microsoft.AspNetCore.Builder.RequestLocalizationOptio
     opts.ApplyCurrentCultureToResponseHeaders = true;
 });
 
-// ─── Hangfire ───
-builder.Services.AddHangfire(config =>
-    config.UseSQLiteStorage("hangfire-platformhost.db", new SQLiteStorageOptions
-    {
-        JournalMode = SQLiteStorageOptions.JournalModes.WAL,
-        QueuePollInterval = TimeSpan.FromSeconds(hangfireQueuePollIntervalSeconds),
-        JobExpirationCheckInterval = TimeSpan.FromMinutes(hangfireJobExpirationCheckIntervalMinutes)
-    }));
-if (runHangfireServer)
+// ─── Hangfire (only register when setup is completed to avoid premature DB creation) ───
+var setupStateForHangfire = Path.Combine(builder.Environment.ContentRootPath, "setup-state.json");
+var hangfireSetupReady = File.Exists(setupStateForHangfire) &&
+    File.ReadAllText(setupStateForHangfire).Contains("\"Ready\"", StringComparison.OrdinalIgnoreCase);
+
+if (hangfireSetupReady)
 {
-    builder.Services.AddHangfireServer(options =>
+    builder.Services.AddHangfire(config =>
+        config.UseSQLiteStorage("hangfire-platformhost.db", new SQLiteStorageOptions
+        {
+            JournalMode = SQLiteStorageOptions.JournalModes.WAL,
+            QueuePollInterval = TimeSpan.FromSeconds(hangfireQueuePollIntervalSeconds),
+            JobExpirationCheckInterval = TimeSpan.FromMinutes(hangfireJobExpirationCheckIntervalMinutes)
+        }));
+    if (runHangfireServer)
     {
-        options.WorkerCount = hangfireWorkerCount;
-        options.SchedulePollingInterval = TimeSpan.FromSeconds(hangfireSchedulePollingIntervalSeconds);
-    });
+        builder.Services.AddHangfireServer(options =>
+        {
+            options.WorkerCount = hangfireWorkerCount;
+            options.SchedulePollingInterval = TimeSpan.FromSeconds(hangfireSchedulePollingIntervalSeconds);
+        });
+    }
+}
+else
+{
+    builder.Services.AddHangfire(config => { });
 }
 
 // ─── WorkflowCore ───
@@ -607,6 +620,7 @@ app.UseSecurityHeaders();
 app.UseHttpLogging();
 app.UseRequestLocalization();
 app.UseMiddleware<ExceptionHandlingMiddleware>();
+app.UseMiddleware<SetupModeMiddleware>();
 app.UseMiddleware<XssProtectionMiddleware>();
 app.UseRateLimiter();
 app.UseMiddleware<ApiVersionRewriteMiddleware>();

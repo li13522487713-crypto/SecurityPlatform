@@ -1,5 +1,6 @@
 using Atlas.Application.Platform.Abstractions;
 using Atlas.Application.Platform.Models;
+using Atlas.Core.Setup;
 using Atlas.Core.Tenancy;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
@@ -27,6 +28,7 @@ public sealed class AppRuntimeSupervisorHostedService : BackgroundService
     private readonly ILogger<AppRuntimeSupervisorHostedService> logger;
 
     private readonly Dictionary<string, int> failureCounters = new();
+    private readonly ISetupStateProvider _setupStateProvider;
 
     public AppRuntimeSupervisorHostedService(
         IAppInstanceRegistry registry,
@@ -35,7 +37,8 @@ public sealed class AppRuntimeSupervisorHostedService : BackgroundService
         IAppIngressResolver ingressResolver,
         IAppLoginEntryResolver loginEntryResolver,
         IConfiguration configuration,
-        ILogger<AppRuntimeSupervisorHostedService> logger)
+        ILogger<AppRuntimeSupervisorHostedService> logger,
+        ISetupStateProvider setupStateProvider)
     {
         this.registry = registry;
         this.processManager = processManager;
@@ -44,10 +47,12 @@ public sealed class AppRuntimeSupervisorHostedService : BackgroundService
         this.loginEntryResolver = loginEntryResolver;
         this.configuration = configuration;
         this.logger = logger;
+        _setupStateProvider = setupStateProvider;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        await _setupStateProvider.WaitForReadyAsync(stoppingToken);
         var enabled = configuration.GetValue("Atlas:Runtime:SupervisorEnabled", true);
         if (!enabled)
         {

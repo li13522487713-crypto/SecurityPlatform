@@ -1,3 +1,4 @@
+using Atlas.Core.Setup;
 using Atlas.Domain.System.Entities;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -15,19 +16,24 @@ public sealed class FileUploadSessionCleanupHostedService : BackgroundService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<FileUploadSessionCleanupHostedService> _logger;
+    private readonly ISetupStateProvider _setupStateProvider;
 
     public FileUploadSessionCleanupHostedService(
         IServiceScopeFactory scopeFactory,
         TimeProvider timeProvider,
-        ILogger<FileUploadSessionCleanupHostedService> logger)
+        ILogger<FileUploadSessionCleanupHostedService> logger,
+        ISetupStateProvider setupStateProvider)
     {
         _scopeFactory = scopeFactory;
         _timeProvider = timeProvider;
         _logger = logger;
+        _setupStateProvider = setupStateProvider;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        await _setupStateProvider.WaitForReadyAsync(stoppingToken);
+
         await Task.Delay(TimeSpan.FromMinutes(3), stoppingToken);
         while (!stoppingToken.IsCancellationRequested)
         {

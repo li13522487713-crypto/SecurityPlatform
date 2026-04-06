@@ -1,3 +1,4 @@
+using Atlas.Core.Setup;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -14,19 +15,24 @@ public sealed class BackgroundWorkQueueProcessor : BackgroundService
     private readonly BackgroundWorkQueue _queue;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<BackgroundWorkQueueProcessor> _logger;
+    private readonly ISetupStateProvider _setupStateProvider;
 
     public BackgroundWorkQueueProcessor(
         BackgroundWorkQueue queue,
         IServiceScopeFactory scopeFactory,
-        ILogger<BackgroundWorkQueueProcessor> logger)
+        ILogger<BackgroundWorkQueueProcessor> logger,
+        ISetupStateProvider setupStateProvider)
     {
         _queue = queue;
         _scopeFactory = scopeFactory;
         _logger = logger;
+        _setupStateProvider = setupStateProvider;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        await _setupStateProvider.WaitForReadyAsync(stoppingToken);
+
         _logger.LogInformation("Background work queue processor started.");
 
         await foreach (var workItem in _queue.Reader.ReadAllAsync(stoppingToken))

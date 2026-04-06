@@ -1,6 +1,7 @@
 using Amazon.S3;
 using Amazon.S3.Model;
 using Atlas.Application.Options;
+using Atlas.Core.Setup;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -17,17 +18,25 @@ public sealed class ObjectStoreConnectivityService : IHostedService
 {
     private readonly IOptionsMonitor<FileStorageOptions> _optionsMonitor;
     private readonly ILogger<ObjectStoreConnectivityService> _logger;
+    private readonly ISetupStateProvider _setupStateProvider;
 
     public ObjectStoreConnectivityService(
         IOptionsMonitor<FileStorageOptions> optionsMonitor,
-        ILogger<ObjectStoreConnectivityService> logger)
+        ILogger<ObjectStoreConnectivityService> logger,
+        ISetupStateProvider setupStateProvider)
     {
         _optionsMonitor = optionsMonitor;
         _logger = logger;
+        _setupStateProvider = setupStateProvider;
     }
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
+        if (!_setupStateProvider.IsReady)
+        {
+            return;
+        }
+
         var options = _optionsMonitor.CurrentValue;
         var provider = options.Provider?.Trim().ToLowerInvariant();
 

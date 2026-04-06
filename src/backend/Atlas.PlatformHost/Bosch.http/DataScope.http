@@ -1,0 +1,220 @@
+### 租户级 DataScope 与列表结果集（ITenantDataScopeFilter）
+### 说明：创建仅含「查询类」平台权限的角色，数据范围设为 OnlySelf(5)，绑定测试用户后，
+###       对用户/资产/审计/项目列表的可见范围应窄于管理员（对比 data.total 或 items 条数）。
+### DataScope 枚举：All=0, CurrentTenant=1, CustomDept=2, CurrentDept=3, CurrentDeptAndBelow=4, OnlySelf=5, Project=6
+### 若角色 Code 冲突，请修改 @dsRoleCode；若测试用户已存在，请修改 @dsUsername。
+
+@baseUrl = http://localhost:5001
+@tenantId = 00000000-0000-0000-0000-000000000001
+@adminUser = admin
+@adminPassword = P@ssw0rd!
+@dsRoleCode = HTTP_DS_ONLY_SELF
+@dsUsername = http_ds_scope_user
+@dsPassword = P@ssw0rd!2026
+@clientType = WebH5
+@clientPlatform = Web
+@clientChannel = Browser
+@clientAgent = Chrome
+@localeZh = zh-CN
+
+### 管理员登录
+# @name adminLogin
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+X-Client-Type: {{clientType}}
+X-Client-Platform: {{clientPlatform}}
+X-Client-Channel: {{clientChannel}}
+X-Client-Agent: {{clientAgent}}
+Accept-Language: {{localeZh}}
+
+{
+  "username": "{{adminUser}}",
+  "password": "{{adminPassword}}"
+}
+
+###
+@adminToken = {{adminLogin.response.body.$.data.accessToken}}
+
+### CSRF
+# @name antiforgery
+GET {{baseUrl}}/api/v1/secure/antiforgery
+Authorization: Bearer {{adminToken}}
+X-Tenant-Id: {{tenantId}}
+X-Client-Type: {{clientType}}
+X-Client-Platform: {{clientPlatform}}
+X-Client-Channel: {{clientChannel}}
+X-Client-Agent: {{clientAgent}}
+
+###
+@csrfToken = {{antiforgery.response.body.$.data.token}}
+
+### 解析 Permission:users:view 的 Id（用于绑定到测试角色）
+# @name resolveUsersViewPerm
+GET {{baseUrl}}/api/v1/permissions?pageIndex=1&pageSize=5&keyword=Permission:users:view
+Authorization: Bearer {{adminToken}}
+X-Tenant-Id: {{tenantId}}
+
+###
+@permUsersViewId = {{resolveUsersViewPerm.response.body.$.data.items[0].id}}
+
+### 解析 Permission:assets:view
+# @name resolveAssetsViewPerm
+GET {{baseUrl}}/api/v1/permissions?pageIndex=1&pageSize=5&keyword=Permission:assets:view
+Authorization: Bearer {{adminToken}}
+X-Tenant-Id: {{tenantId}}
+
+###
+@permAssetsViewId = {{resolveAssetsViewPerm.response.body.$.data.items[0].id}}
+
+### 解析 Permission:audit:view
+# @name resolveAuditViewPerm
+GET {{baseUrl}}/api/v1/permissions?pageIndex=1&pageSize=5&keyword=Permission:audit:view
+Authorization: Bearer {{adminToken}}
+X-Tenant-Id: {{tenantId}}
+
+###
+@permAuditViewId = {{resolveAuditViewPerm.response.body.$.data.items[0].id}}
+
+### 解析 Permission:projects:view
+# @name resolveProjectsViewPerm
+GET {{baseUrl}}/api/v1/permissions?pageIndex=1&pageSize=5&keyword=Permission:projects:view
+Authorization: Bearer {{adminToken}}
+X-Tenant-Id: {{tenantId}}
+
+###
+@permProjectsViewId = {{resolveProjectsViewPerm.response.body.$.data.items[0].id}}
+
+### 创建「仅查询 + DataScope」测试角色
+# @name createDsRole
+POST {{baseUrl}}/api/v1/roles
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "name": "HTTP DataScope 测试",
+  "code": "{{dsRoleCode}}",
+  "description": "仅含列表查询权限，用于 DataScope 验证"
+}
+
+###
+@dsRoleId = {{createDsRole.response.body.$.data.id}}
+
+### 为测试角色分配查询类权限（不含 users:create 等写权限）
+PUT {{baseUrl}}/api/v1/roles/{{dsRoleId}}/permissions
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "permissionIds": [{{permUsersViewId}}, {{permAssetsViewId}}, {{permAuditViewId}}, {{permProjectsViewId}}]
+}
+
+### 设置角色数据范围为「仅本人」OnlySelf = 5
+PUT {{baseUrl}}/api/v1/roles/{{dsRoleId}}/data-scope
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "dataScope": 5,
+  "deptIds": []
+}
+
+### 创建测试用户并绑定上述角色
+# @name createDsUser
+POST {{baseUrl}}/api/v1/users
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+X-Tenant-Id: {{tenantId}}
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "username": "{{dsUsername}}",
+  "password": "{{dsPassword}}",
+  "displayName": "HTTP DataScope 用户",
+  "email": "http.ds.scope@atlas.local",
+  "phoneNumber": "13800000002",
+  "isActive": true,
+  "roleIds": [{{dsRoleId}}],
+  "departmentIds": [],
+  "positionIds": []
+}
+
+###
+@dsUserId = {{createDsUser.response.body.$.data.id}}
+
+### [基线] 管理员 — 用户列表（通常为租户全量或策略内全量）
+# @name adminUsersPage
+GET {{baseUrl}}/api/v1/users?pageIndex=1&pageSize=50
+Authorization: Bearer {{adminToken}}
+X-Tenant-Id: {{tenantId}}
+
+### [基线] 管理员 — 资产列表
+# @name adminAssetsPage
+GET {{baseUrl}}/api/v1/assets?pageIndex=1&pageSize=50
+Authorization: Bearer {{adminToken}}
+X-Tenant-Id: {{tenantId}}
+
+### [基线] 管理员 — 审计列表
+# @name adminAuditPage
+GET {{baseUrl}}/api/v1/audit?pageIndex=1&pageSize=50
+Authorization: Bearer {{adminToken}}
+X-Tenant-Id: {{tenantId}}
+
+### [基线] 管理员 — 项目列表
+# @name adminProjectsPage
+GET {{baseUrl}}/api/v1/projects?pageIndex=1&pageSize=50
+Authorization: Bearer {{adminToken}}
+X-Tenant-Id: {{tenantId}}
+
+### DataScope 用户登录
+# @name dsUserLogin
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+X-Client-Type: {{clientType}}
+X-Client-Platform: {{clientPlatform}}
+X-Client-Channel: {{clientChannel}}
+X-Client-Agent: {{clientAgent}}
+
+{
+  "username": "{{dsUsername}}",
+  "password": "{{dsPassword}}"
+}
+
+###
+@dsToken = {{dsUserLogin.response.body.$.data.accessToken}}
+
+### [DataScope] 受限用户 — 用户列表（预期 total 显著小于管理员基线，多数场景仅本人）
+GET {{baseUrl}}/api/v1/users?pageIndex=1&pageSize=50
+Authorization: Bearer {{dsToken}}
+X-Tenant-Id: {{tenantId}}
+
+### [DataScope] 受限用户 — 资产列表
+GET {{baseUrl}}/api/v1/assets?pageIndex=1&pageSize=50
+Authorization: Bearer {{dsToken}}
+X-Tenant-Id: {{tenantId}}
+
+### [DataScope] 受限用户 — 审计列表
+GET {{baseUrl}}/api/v1/audit?pageIndex=1&pageSize=50
+Authorization: Bearer {{dsToken}}
+X-Tenant-Id: {{tenantId}}
+
+### [DataScope] 受限用户 — 项目列表
+GET {{baseUrl}}/api/v1/projects?pageIndex=1&pageSize=50
+Authorization: Bearer {{dsToken}}
+X-Tenant-Id: {{tenantId}}
+
+### [反向 401] 未认证 — 用户列表
+# @expected-status 401
+GET {{baseUrl}}/api/v1/users?pageIndex=1&pageSize=10
+X-Tenant-Id: {{tenantId}}
