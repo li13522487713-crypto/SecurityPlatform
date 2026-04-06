@@ -1,4 +1,5 @@
 import type { ApiResponse, PagedRequest, PagedResult } from "@atlas/shared-core";
+import { getProjectId } from "@atlas/shared-core";
 import { requestApi } from "./api-core";
 import type { RequestOptions } from "./api-core";
 import type {
@@ -38,11 +39,15 @@ export async function getDynamicTablesPaged(
   pagedRequest: PagedRequest,
   options?: RequestInit & RequestOptions
 ) {
-  const query = new URLSearchParams({
+  const queryParams = new URLSearchParams({
     PageIndex: pagedRequest.pageIndex.toString(),
-    PageSize: pagedRequest.pageSize.toString(),
-    Keyword: pagedRequest.keyword ?? ""
-  }).toString();
+    PageSize: pagedRequest.pageSize.toString()
+  });
+  const keyword = pagedRequest.keyword?.trim();
+  if (keyword) {
+    queryParams.set("Keyword", keyword);
+  }
+  const query = queryParams.toString();
   const response = await requestApi<ApiResponse<PagedResult<DynamicTableListItem>>>(
     `/dynamic-tables?${query}`,
     undefined,
@@ -78,13 +83,32 @@ export async function getAppScopedDynamicTables(
   appId: string,
   keyword?: string
 ): Promise<AppScopedDynamicTableListItem[]> {
-  void appId;
-  const tables = await getAllDynamicTables(keyword);
-  return tables.map((item) => ({
+  const parsedAppId = Number(appId);
+  if (!Number.isFinite(parsedAppId) || parsedAppId <= 0) {
+    return [];
+  }
+  const queryParams = new URLSearchParams();
+  const normalizedKeyword = keyword?.trim();
+  if (normalizedKeyword) {
+    queryParams.set("keyword", normalizedKeyword);
+  }
+  const query = queryParams.toString();
+  const endpoint = `/api/v2/tenant-app-instances/${parsedAppId}/roles/available-dynamic-tables${query ? `?${query}` : ""}`;
+  const response = await requestApi<ApiResponse<Array<{ tableKey: string; displayName: string }>>>(endpoint);
+  const items = response.data ?? [];
+  return items.map((item) => ({
     tableKey: item.tableKey,
-    displayName: item.displayName,
-    status: item.status
+    displayName: item.displayName
   }));
+}
+
+export function getCurrentProjectAppId(): string | null {
+  const projectId = getProjectId();
+  if (!projectId) {
+    return null;
+  }
+  const normalized = projectId.trim();
+  return normalized.length > 0 ? normalized : null;
 }
 
 export async function getDynamicTableSummary(tableKey: string): Promise<DynamicTableSummary | null> {

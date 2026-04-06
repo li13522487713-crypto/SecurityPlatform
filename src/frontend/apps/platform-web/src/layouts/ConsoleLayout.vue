@@ -10,9 +10,14 @@
           style="border-bottom: none; line-height: 54px; border: none;"
           @click="onPrimaryMenuClick"
         >
-          <a-menu-item v-for="item in primaryMenuItems" :key="item.path">
+          <a-menu-item v-for="item in visibleMenuItems" :key="item.path">
             {{ item.label }}
           </a-menu-item>
+          <a-sub-menu v-if="overflowMenuItems.length > 0" key="__more__" :title="t('consoleLayout.menuMore')">
+            <a-menu-item v-for="item in overflowMenuItems" :key="item.path">
+              {{ item.label }}
+            </a-menu-item>
+          </a-sub-menu>
         </a-menu>
       </div>
       <div class="right">
@@ -207,27 +212,34 @@ const allNavigableRoutes = computed<RouteNavigatorItem[]>(() => {
   return [...deduplicated.values()].sort((a, b) => a.path.localeCompare(b.path));
 });
 
-const primaryMenuItems = computed<MenuItem[]>(() => {
-  const preferredPaths = [
-    "/console",
-    "/console/catalog",
-    "/console/tenant-applications",
-    "/settings/org/users",
-    "/settings/auth/roles",
-    "/ai/agents",
-    "/approval/flows",
-    "/monitor/server-info",
-    "/assets",
-    "/settings/system/configs"
-  ];
-  const items: MenuItem[] = [];
-  preferredPaths.forEach((path) => {
-    const matched = allNavigableRoutes.value.find((item) => item.path === path);
-    if (!matched || !matched.allowed) return;
-    items.push({ path: matched.path, label: matched.label });
-  });
-  return items;
-});
+interface NavEntry {
+  path: string;
+  labelKey: string;
+  permissionCode?: string;
+}
+
+const MAX_VISIBLE_ITEMS = 5;
+
+const allNavEntries: NavEntry[] = [
+  { path: "/console", labelKey: "consoleLayout.menuConsoleHome" },
+  { path: "/console/catalog", labelKey: "consoleLayout.menuApps" },
+  { path: "/settings/org/users", labelKey: "consoleLayout.menuUsers", permissionCode: "users:view" },
+  { path: "/settings/auth/roles", labelKey: "consoleLayout.menuRoles", permissionCode: "roles:view" },
+  { path: "/ai/agents", labelKey: "consoleLayout.menuAI" },
+  { path: "/approval/flows", labelKey: "consoleLayout.menuApproval" },
+  { path: "/monitor/server-info", labelKey: "consoleLayout.menuMonitor" },
+  { path: "/assets", labelKey: "consoleLayout.menuAssets", permissionCode: "assets:view" },
+  { path: "/settings/system/configs", labelKey: "consoleLayout.menuConfigs" }
+];
+
+const primaryMenuItems = computed<MenuItem[]>(() =>
+  allNavEntries
+    .filter((entry) => hasPermission(entry.permissionCode))
+    .map((entry) => ({ path: entry.path, label: t(entry.labelKey) }))
+);
+
+const visibleMenuItems = computed(() => primaryMenuItems.value.slice(0, MAX_VISIBLE_ITEMS));
+const overflowMenuItems = computed(() => primaryMenuItems.value.slice(MAX_VISIBLE_ITEMS));
 
 const groupedRoutes = computed(() => {
   const keyword = routeSearch.value.trim().toLowerCase();

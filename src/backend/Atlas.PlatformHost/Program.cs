@@ -669,13 +669,18 @@ app.UseResponseCompression();
 app.UseMiddleware<ClientContextMiddleware>();
 app.UseRouting();
 app.UseAuthentication();
+
+if (setupReadyForRegistration)
+{
+    app.UseMiddleware<TenantContextMiddleware>();
+}
+
 app.UseAuthorization();
 
 if (setupReadyForRegistration)
 {
     app.UseMiddleware<AppContextMiddleware>();
     app.UseMiddleware<AntiforgeryValidationMiddleware>();
-    app.UseMiddleware<TenantContextMiddleware>();
     app.UseMiddleware<AppMembershipMiddleware>();
     app.UseMiddleware<ProjectContextMiddleware>();
     app.UseMiddleware<LicenseEnforcementMiddleware>();

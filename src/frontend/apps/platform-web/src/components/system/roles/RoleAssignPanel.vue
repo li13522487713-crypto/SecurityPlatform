@@ -276,7 +276,8 @@ import {
   getDepartmentsAll
 } from "@/services/api-users";
 import {
-  getDynamicTablesPaged,
+  getAppScopedDynamicTables,
+  getCurrentProjectAppId,
   getDynamicTableFields,
   getDynamicFieldPermissions,
   setDynamicFieldPermissions
@@ -630,18 +631,16 @@ const loadDepartmentOptions = async (keyword?: string) => {
 
 const loadDynamicTableOptions = async (search?: string) => {
   if (!isMounted.value) return;
+  const appId = getCurrentProjectAppId();
+  if (!appId) {
+    dynamicTableOptions.value = [];
+    return;
+  }
   dynamicTableLoading.value = true;
   try {
-    const result = await getDynamicTablesPaged(
-      {
-        pageIndex: 1,
-        pageSize: 100,
-        keyword: search?.trim() || undefined
-      },
-      { suppressErrorMessage: true }
-    );
+    const result = await getAppScopedDynamicTables(appId, search?.trim() || undefined);
     if (!isMounted.value) return;
-    dynamicTableOptions.value = result.items.map((item) => ({
+    dynamicTableOptions.value = result.map((item) => ({
       label: `${item.displayName} (${item.tableKey})`,
       value: item.tableKey
     }));
