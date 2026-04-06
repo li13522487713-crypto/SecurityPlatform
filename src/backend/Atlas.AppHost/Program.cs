@@ -4,6 +4,7 @@ using System.Security.Claims;
 using System.Text;
 using Atlas.AppHost;
 using Atlas.AppHost.Sdk.Health;
+using Atlas.Core.Setup;
 using Atlas.AppHost.Sdk.Hosting;
 using Atlas.Application;
 using Atlas.Application.Alert.Mappings;
@@ -71,6 +72,9 @@ var appSetupStatePath = Path.Combine(builder.Environment.ContentRootPath, "app-s
 var appSetupReadyForRegistration = File.Exists(appSetupStatePath) &&
     File.ReadAllText(appSetupStatePath).Contains("\"Ready\"", StringComparison.OrdinalIgnoreCase);
 var runtimeReadyForRegistration = platformSetupReadyForRegistration && appSetupReadyForRegistration;
+
+// 供中间件检测：启动时是否完整注册了全量业务服务
+builder.Services.AddSingleton(new AppRuntimeRegistrationMarker(runtimeReadyForRegistration));
 
 // 仅当运行时配置未提供数据库连接串时才使用默认路径
 if (string.IsNullOrWhiteSpace(builder.Configuration["Database:ConnectionString"]))

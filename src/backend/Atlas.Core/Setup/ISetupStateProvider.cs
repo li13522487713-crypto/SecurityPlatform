@@ -9,6 +9,12 @@ public interface ISetupStateProvider
     /// <summary>当前是否已完成安装（Ready 状态）。</summary>
     bool IsReady { get; }
 
+    /// <summary>
+    /// 当前是否正在执行安装过程（Configuring/Migrating/Seeding 状态）。
+    /// 供 ISqlSugarClient 工厂在 setup 期间豁免门禁使用。
+    /// </summary>
+    bool IsSetupInProgress { get; }
+
     /// <summary>获取当前安装状态快照。</summary>
     SetupStateInfo GetState();
 

@@ -33,6 +33,11 @@ export default defineConfig(({ mode }) => {
       port: 5181,
       open: true,
       proxy: {
+        "/api/v1/setup": {
+          target: appHostTarget,
+          changeOrigin: true,
+          secure: false
+        },
         "/api": {
           target: apiTarget,
           changeOrigin: true,

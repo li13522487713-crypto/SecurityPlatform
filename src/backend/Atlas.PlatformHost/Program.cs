@@ -45,7 +45,11 @@ using Atlas.PlatformHost.ReverseProxy;
 using Yarp.ReverseProxy.Configuration;
 
 var builder = WebApplication.CreateBuilder(args);
-var setupStateFilePath = Path.Combine(builder.Environment.ContentRootPath, "setup-state.json");
+var setupStateFilePath = builder.Configuration["Setup:StateFilePath"];
+if (string.IsNullOrWhiteSpace(setupStateFilePath))
+{
+    setupStateFilePath = Path.Combine(builder.Environment.ContentRootPath, "setup-state.json");
+}
 var setupReadyForRegistration = File.Exists(setupStateFilePath) &&
     File.ReadAllText(setupStateFilePath).Contains("\"Ready\"", StringComparison.OrdinalIgnoreCase);
 

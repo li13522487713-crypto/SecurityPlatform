@@ -34,9 +34,30 @@
         :sub-title="t('setup.appSetupCompleteDesc')"
       >
         <template #extra>
-          <a-button type="primary" size="large" @click="enterWorkspace">
-            {{ t("setup.enterWorkspace") }}
-          </a-button>
+          <div class="setup-report">
+            <a-descriptions v-if="initReport" bordered :column="1" size="small" style="margin-bottom: 16px">
+              <a-descriptions-item :label="t('setup.dbConnected')">
+                <a-tag :color="initReport.databaseConnected ? 'green' : 'red'">
+                  {{ initReport.databaseConnected ? t('common.success') : t('common.error') }}
+                </a-tag>
+              </a-descriptions-item>
+              <a-descriptions-item :label="t('setup.coreTablesVerified')">
+                <a-tag :color="initReport.coreTablesVerified ? 'green' : 'red'">
+                  {{ initReport.coreTablesVerified ? t('common.success') : t('common.error') }}
+                </a-tag>
+              </a-descriptions-item>
+            </a-descriptions>
+            <a-alert
+              :message="t('setup.restartRequired')"
+              :description="t('setup.restartRequiredDesc')"
+              type="warning"
+              show-icon
+              style="margin-bottom: 16px"
+            />
+            <a-button type="primary" size="large" @click="enterWorkspace">
+              {{ t("setup.enterWorkspace") }}
+            </a-button>
+          </div>
         </template>
       </a-result>
 
@@ -57,7 +78,7 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
 import { useI18n } from "vue-i18n";
-import { initializeApp } from "@/services/api-setup";
+import { initializeApp, type AppSetupInitializeResponse } from "@/services/api-setup";
 
 const { t } = useI18n();
 
@@ -69,6 +90,7 @@ const form = ref({
 const initializing = ref(false);
 const completed = ref(false);
 const setupError = ref<string | null>(null);
+const initReport = ref<AppSetupInitializeResponse | null>(null);
 
 const formValid = computed(
   () => form.value.appName.trim() !== "" && form.value.adminUsername.trim() !== "" && !initializing.value
@@ -83,6 +105,7 @@ async function handleInitialize() {
       adminUsername: form.value.adminUsername
     });
     if (resp.success) {
+      initReport.value = resp.data ?? null;
       completed.value = true;
     } else {
       setupError.value = resp.message || t("setup.appSetupFailed");

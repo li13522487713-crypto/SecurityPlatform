@@ -48,6 +48,8 @@ public sealed class FileBasedSetupStateProvider : ISetupStateProvider
 
     public bool IsReady => _state.Status == SetupState.Ready;
 
+    public bool IsSetupInProgress => _state.Status is SetupState.Configuring or SetupState.Migrating or SetupState.Seeding;
+
     public SetupStateInfo GetState() => _state;
 
     public async Task TransitionAsync(SetupState target, string? failureMessage = null, CancellationToken cancellationToken = default)

@@ -513,8 +513,12 @@ export default {
     startSetup: "开始初始化",
     initializing: "正在初始化...",
     appSetupComplete: "应用初始化完成",
-    appSetupCompleteDesc: "应用已完成初始化，可以开始使用。",
+    appSetupCompleteDesc: "应用已完成初始化，需要重启应用服务后方可正常使用。",
     appSetupFailed: "应用初始化失败",
-    enterWorkspace: "进入工作台"
+    enterWorkspace: "进入工作台",
+    dbConnected: "数据库连接",
+    coreTablesVerified: "核心表验证",
+    restartRequired: "需要重启应用服务",
+    restartRequiredDesc: "应用初始化已完成，但需要重启 AppHost 服务以加载全量业务功能。重启后方可正常登录和使用应用。"
   }
 };

@@ -29,17 +29,20 @@ public sealed class HealthController : ControllerBase
     private readonly AppInstanceConfigurationLoader configLoader;
     private readonly ITenantProvider tenantProvider;
     private readonly ISetupStateProvider setupStateProvider;
+    private readonly IAppSetupStateProvider appSetupStateProvider;
 
     public HealthController(
         IPlatformSqlSugarScopeFactory platformDbFactory,
         AppInstanceConfigurationLoader configLoader,
         ITenantProvider tenantProvider,
-        ISetupStateProvider setupStateProvider)
+        ISetupStateProvider setupStateProvider,
+        IAppSetupStateProvider appSetupStateProvider)
     {
         this.platformDbFactory = platformDbFactory;
         this.configLoader = configLoader;
         this.tenantProvider = tenantProvider;
         this.setupStateProvider = setupStateProvider;
+        this.appSetupStateProvider = appSetupStateProvider;
     }
 
     /// <summary>
@@ -67,14 +70,14 @@ public sealed class HealthController : ControllerBase
     {
         if (!setupStateProvider.IsReady)
         {
-            var notReadyResponse = new
-            {
-                ready = false,
-                reason = "setup_not_completed",
-                timestamp = DateTimeOffset.UtcNow.ToString("O")
-            };
             return StatusCode(503, ApiResponse<object>.Fail(
                 ErrorCodes.ServerError, "Platform setup not completed.", HttpContext.TraceIdentifier));
+        }
+
+        if (!appSetupStateProvider.IsReady)
+        {
+            return StatusCode(503, ApiResponse<object>.Fail(
+                ErrorCodes.ServerError, "Application setup not completed.", HttpContext.TraceIdentifier));
         }
 
         var dbHealthy = await CheckDatabaseConnectionAsync(cancellationToken);
@@ -106,15 +109,18 @@ public sealed class HealthController : ControllerBase
         var tenantId = tenantProvider.GetTenantId();
         var version = typeof(HealthController).Assembly.GetName().Version?.ToString() ?? "1.0.0";
 
-        if (!setupStateProvider.IsReady)
+        if (!setupStateProvider.IsReady || !appSetupStateProvider.IsReady)
         {
+            var setupMessage = !setupStateProvider.IsReady
+                ? "Platform setup not completed."
+                : "Application setup not completed.";
             var report = new AppHealthReport
             {
                 Status = AppProcessStatus.Unknown,
                 Live = true,
                 Ready = false,
                 Version = version,
-                Message = "Platform setup not completed.",
+                Message = setupMessage,
                 CheckedAt = DateTimeOffset.UtcNow,
                 AppKey = config.AppKey,
                 InstanceId = config.InstanceId,

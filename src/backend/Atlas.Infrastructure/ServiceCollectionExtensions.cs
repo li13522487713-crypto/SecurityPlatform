@@ -49,11 +49,11 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ISqlSugarClient>(sp =>
         {
             var setupState = sp.GetRequiredService<ISetupStateProvider>();
-            if (!setupState.IsReady)
+            if (!setupState.IsReady && !setupState.IsSetupInProgress)
             {
                 throw new InvalidOperationException(
                     "数据库尚未配置。请先完成平台安装向导（Setup Wizard）。" +
-                    "ISqlSugarClient 仅在 setup 完成后可用。");
+                    "ISqlSugarClient 仅在 setup 完成或 setup 进行中时可用。");
             }
 
             var options = sp.GetRequiredService<IOptions<DatabaseOptions>>().Value;

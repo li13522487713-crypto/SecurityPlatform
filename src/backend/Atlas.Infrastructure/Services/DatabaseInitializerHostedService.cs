@@ -188,20 +188,22 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         report.MigrationsApplied = !effectiveInitializer.SkipSchemaMigrations;
         if (!effectiveInitializer.SkipSchemaMigrations)
         {
+            var migrationCount = 0;
             _logger.LogInformation("[DatabaseInitializer] 开始执行 Schema 迁移检查...");
-            await EnsureAuthSessionSchemaAsync(db, cancellationToken);
-            await EnsureRefreshTokenSchemaAsync(db, cancellationToken);
-            await EnsureApprovalSchemaAsync(db, cancellationToken);
-            await EnsureLowCodeAppSchemaAsync(db, cancellationToken);
-            await EnsureFormDefinitionSchemaAsync(db, cancellationToken);
-            await EnsureTenantDataSourceSchemaAsync(db, cancellationToken);
-            await EnsureProductizationSchemaAsync(db, cancellationToken);
-            await EnsureWorkflowExecutionSchemaAsync(db, cancellationToken);
-            await EnsureAiPluginSchemaAsync(db, cancellationToken);
-            await EnsureAiMemorySchemaAsync(db, cancellationToken);
-            await EnsureAgentPublicationSchemaAsync(db, cancellationToken);
-            await EnsureTeamAgentSchemaAsync(db, cancellationToken);
-            await EnsureAgentTeamSchemaAsync(db, cancellationToken);
+            await EnsureAuthSessionSchemaAsync(db, cancellationToken); migrationCount++;
+            await EnsureRefreshTokenSchemaAsync(db, cancellationToken); migrationCount++;
+            await EnsureApprovalSchemaAsync(db, cancellationToken); migrationCount++;
+            await EnsureLowCodeAppSchemaAsync(db, cancellationToken); migrationCount++;
+            await EnsureFormDefinitionSchemaAsync(db, cancellationToken); migrationCount++;
+            await EnsureTenantDataSourceSchemaAsync(db, cancellationToken); migrationCount++;
+            await EnsureProductizationSchemaAsync(db, cancellationToken); migrationCount++;
+            await EnsureWorkflowExecutionSchemaAsync(db, cancellationToken); migrationCount++;
+            await EnsureAiPluginSchemaAsync(db, cancellationToken); migrationCount++;
+            await EnsureAiMemorySchemaAsync(db, cancellationToken); migrationCount++;
+            await EnsureAgentPublicationSchemaAsync(db, cancellationToken); migrationCount++;
+            await EnsureTeamAgentSchemaAsync(db, cancellationToken); migrationCount++;
+            await EnsureAgentTeamSchemaAsync(db, cancellationToken); migrationCount++;
+            report.MigrationCount = migrationCount;
         }
         else
         {
@@ -212,7 +214,8 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         if (!effectiveInitializer.SkipSchemaInit)
         {
             _logger.LogInformation("[DatabaseInitializer] 开始执行 Schema 初始化（CodeFirst.InitTables）...");
-            db.CodeFirst.InitTables(
+            var entityTypes = new Type[]
+            {
         typeof(UserAccount),
         typeof(Role),
         typeof(Permission),
@@ -441,8 +444,10 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             typeof(Atlas.Domain.LogicFlow.Flows.LfExecutionLog),
             typeof(Atlas.Domain.LogicFlow.Governance.SysQuota),
             typeof(Atlas.Domain.LogicFlow.Governance.SysCanaryRelease),
-            typeof(Atlas.Domain.LogicFlow.Governance.SysVersionFreeze));
-        // 结束 CodeFirst.InitTables 块
+            typeof(Atlas.Domain.LogicFlow.Governance.SysVersionFreeze)
+            };
+            db.CodeFirst.InitTables(entityTypes);
+            report.TablesCreated = entityTypes.Length;
             report.SchemaInitialized = true;
         }
         else

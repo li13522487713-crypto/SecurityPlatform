@@ -7,6 +7,16 @@ export interface SetupStateResponse {
   appSetupCompleted: boolean;
 }
 
+export interface AppSetupInitializeResponse {
+  platformStatus: string;
+  platformSetupCompleted: boolean;
+  appStatus: string;
+  appSetupCompleted: boolean;
+  databaseConnected: boolean;
+  coreTablesVerified: boolean;
+  errors: string[];
+}
+
 export interface AppSetupInitializeRequest {
   appName: string;
   adminUsername: string;
@@ -29,8 +39,8 @@ export async function getSetupState(): Promise<ApiResponse<SetupStateResponse>> 
 
 export async function initializeApp(
   request: AppSetupInitializeRequest
-): Promise<ApiResponse<SetupStateResponse>> {
-  return fetchJson<ApiResponse<SetupStateResponse>>("/api/v1/setup/initialize", {
+): Promise<ApiResponse<AppSetupInitializeResponse>> {
+  return fetchJson<ApiResponse<AppSetupInitializeResponse>>("/api/v1/setup/initialize", {
     method: "POST",
     body: JSON.stringify(request)
   });

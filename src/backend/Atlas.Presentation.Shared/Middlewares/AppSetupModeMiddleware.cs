@@ -38,11 +38,31 @@ public sealed class AppSetupModeMiddleware
     public async Task InvokeAsync(
         HttpContext context,
         ISetupStateProvider platformSetupStateProvider,
-        IAppSetupStateProvider appSetupStateProvider)
+        IAppSetupStateProvider appSetupStateProvider,
+        AppRuntimeRegistrationMarker registrationMarker)
     {
         if (platformSetupStateProvider.IsReady && appSetupStateProvider.IsReady)
         {
-            await _next(context);
+            if (registrationMarker.FullyRegistered)
+            {
+                await _next(context);
+                return;
+            }
+
+            var path2 = context.Request.Path.Value ?? string.Empty;
+            if (IsAllowedPath(path2) || !path2.StartsWith("/api/", StringComparison.OrdinalIgnoreCase))
+            {
+                await _next(context);
+                return;
+            }
+
+            context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+            context.Response.ContentType = "application/json; charset=utf-8";
+            var restartResponse = ApiResponse<object>.Fail(
+                "APP_RESTART_REQUIRED",
+                "Application setup completed but the AppHost service must be restarted to load all business services.",
+                context.TraceIdentifier);
+            await context.Response.WriteAsync(JsonSerializer.Serialize(restartResponse, JsonOptions));
             return;
         }
 

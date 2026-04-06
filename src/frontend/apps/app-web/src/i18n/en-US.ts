@@ -516,8 +516,12 @@ export default {
     startSetup: "Start Initialization",
     initializing: "Initializing...",
     appSetupComplete: "Application Setup Complete",
-    appSetupCompleteDesc: "The application has been initialized and is ready for use.",
+    appSetupCompleteDesc: "The application has been initialized. An AppHost restart is required before full functionality is available.",
     appSetupFailed: "Application Setup Failed",
-    enterWorkspace: "Enter Workspace"
+    enterWorkspace: "Enter Workspace",
+    dbConnected: "Database Connection",
+    coreTablesVerified: "Core Tables Verified",
+    restartRequired: "AppHost Restart Required",
+    restartRequiredDesc: "Application initialization is complete, but the AppHost service must be restarted to load all business services. Login and full functionality will be available after the restart."
   }
 };
