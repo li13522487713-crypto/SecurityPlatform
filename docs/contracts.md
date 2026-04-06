@@ -121,10 +121,31 @@
     "mode": "raw",
     "connectionString": "Data Source=../Atlas.PlatformHost/atlas.db"
   },
-  "appName": "Demo App",
-  "adminUsername": "admin"
+  "admin": {
+    "appName": "Demo App",
+    "adminUsername": "admin"
+  },
+  "roles": {
+    "selectedRoleCodes": ["SecurityAdmin", "AuditAdmin"]
+  },
+  "organization": {
+    "departments": [
+      { "name": "总部", "code": "HQ", "parentCode": null, "sortOrder": 0 }
+    ],
+    "positions": [
+      { "name": "系统管理员", "code": "SYS_ADMIN", "description": "系统配置与运维管理", "sortOrder": 10 }
+    ]
+  }
 }
 ```
+
+说明：
+
+- 应用向导步骤与平台对齐为：`数据库 -> 管理员 -> 角色 -> 部门/岗位 -> 完成`。
+- `admin.appName` 并入“管理员”步骤；`admin.adminUsername` 必须是已存在的平台用户。
+- 当 `adminUsername` 不存在时返回业务错误：`APP_ADMIN_NOT_FOUND`。
+- 若当前 `AppKey` 未命中应用实例，后端会自动创建应用实例后再执行应用级组织播种。
+- 应用首批组织数据写入应用级实体（`AppRole/AppDepartment/AppPosition`），不复用平台级组织表。
 
 #### AppSetupInitializeResponse（应用）
 
@@ -133,6 +154,8 @@
 - `platformStatus/platformSetupCompleted`
 - `appStatus/appSetupCompleted`
 - `databaseConnected/coreTablesVerified`
+- `rolesCreated/departmentsCreated/positionsCreated`（本次新增数量）
+- `adminBound`（管理员是否已绑定到应用成员与管理员角色）
 - `errors[]`
 
 ## 平台统一规则（封板基线）

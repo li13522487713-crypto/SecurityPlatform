@@ -114,6 +114,44 @@ Content-Type: application/json
     "mode": "raw",
     "connectionString": "Data Source=../Atlas.PlatformHost/atlas.db"
   },
-  "appName": "Demo App",
-  "adminUsername": "admin"
+  "admin": {
+    "appName": "Demo App",
+    "adminUsername": "admin"
+  },
+  "roles": {
+    "selectedRoleCodes": [
+      "SecurityAdmin",
+      "AuditAdmin"
+    ]
+  },
+  "organization": {
+    "departments": [
+      {
+        "name": "总部",
+        "code": "HQ",
+        "parentCode": null,
+        "sortOrder": 0
+      },
+      {
+        "name": "研发部",
+        "code": "RD",
+        "parentCode": "HQ",
+        "sortOrder": 10
+      }
+    ],
+    "positions": [
+      {
+        "name": "系统管理员",
+        "code": "SYS_ADMIN",
+        "description": "系统配置与运维管理",
+        "sortOrder": 10
+      },
+      {
+        "name": "安全负责人",
+        "code": "SEC_LEAD",
+        "description": "安全策略与风险管理负责人",
+        "sortOrder": 20
+      }
+    ]
+  }
 }

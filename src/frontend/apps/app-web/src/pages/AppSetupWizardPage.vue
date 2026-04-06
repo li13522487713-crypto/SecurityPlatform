@@ -6,7 +6,9 @@
 
       <a-steps :current="currentStep" class="setup-steps">
         <a-step :title="t('setup.stepDatabase')" />
-        <a-step :title="t('setup.stepAppInfo')" />
+        <a-step :title="t('setup.stepAdmin')" />
+        <a-step :title="t('setup.stepRoles')" />
+        <a-step :title="t('setup.stepOrganization')" />
         <a-step :title="t('setup.stepComplete')" />
       </a-steps>
 
@@ -97,18 +99,18 @@
         </div>
       </div>
 
-      <div v-if="currentStep === 1 && !completed && !setupError" class="step-app-info">
+      <div v-if="currentStep === 1" class="step-admin">
         <a-form :label-col="{ span: 6 }" :wrapper-col="{ span: 16 }">
           <a-form-item :label="t('setup.appName')" required>
             <a-input
-              v-model:value="form.appName"
+              v-model:value="adminForm.appName"
               data-testid="app-setup-name"
               :placeholder="t('setup.appNamePlaceholder')"
             />
           </a-form-item>
           <a-form-item :label="t('setup.adminUsername')" required>
             <a-input
-              v-model:value="form.adminUsername"
+              v-model:value="adminForm.adminUsername"
               data-testid="app-setup-admin-username"
               :placeholder="t('setup.adminUsernamePlaceholder')"
             />
@@ -118,20 +120,151 @@
         <div class="step-actions">
           <a-button data-testid="app-setup-prev-step" @click="currentStep = 0">{{ t("setup.prev") }}</a-button>
           <a-button
+            data-testid="app-setup-next-to-roles"
+            type="primary"
+            :disabled="!adminFormValid"
+            @click="currentStep = 2"
+          >
+            {{ t("setup.next") }}
+          </a-button>
+        </div>
+      </div>
+
+      <div v-if="currentStep === 2" class="step-roles">
+        <a-alert type="info" show-icon :message="t('setup.requiredRolesHint')" style="margin-bottom: 16px" />
+        <div class="required-role-list">
+          <a-tag data-testid="app-setup-role-required-app-admin" color="processing">AppAdmin</a-tag>
+          <a-tag data-testid="app-setup-role-required-app-member" color="processing">AppMember</a-tag>
+        </div>
+
+        <div class="optional-role-block">
+          <div class="section-title">{{ t("setup.optionalRolesTitle") }}</div>
+          <div class="field-hint">{{ t("setup.optionalRolesDesc") }}</div>
+          <a-checkbox-group v-model:value="rolesForm.selectedRoleCodes">
+            <div class="role-grid">
+              <label v-for="role in optionalRoleTemplates" :key="role.code" class="role-card">
+                <a-checkbox :value="role.code" :data-testid="`app-setup-role-${role.code}`">
+                  {{ t(role.labelKey) }}
+                </a-checkbox>
+                <div class="field-hint">{{ t(role.descKey) }}</div>
+              </label>
+            </div>
+          </a-checkbox-group>
+        </div>
+
+        <div class="step-actions">
+          <a-button data-testid="app-setup-back-to-admin" @click="currentStep = 1">{{ t("setup.prev") }}</a-button>
+          <a-button data-testid="app-setup-next-to-org" type="primary" @click="currentStep = 3">
+            {{ t("setup.next") }}
+          </a-button>
+        </div>
+      </div>
+
+      <div v-if="currentStep === 3" class="step-organization">
+        <div class="org-section">
+          <div class="section-header">
+            <div>
+              <div class="section-title">{{ t("setup.departmentSectionTitle") }}</div>
+              <div class="field-hint">{{ t("setup.departmentSectionDesc") }}</div>
+            </div>
+            <a-button data-testid="app-setup-add-department" @click="addDepartment">
+              {{ t("setup.addDepartment") }}
+            </a-button>
+          </div>
+
+          <div v-for="(department, index) in organizationForm.departments" :key="`department-${index}`" class="config-row">
+            <a-input
+              v-model:value="department.name"
+              :data-testid="`app-setup-department-name-${index}`"
+              :placeholder="t('setup.departmentNamePlaceholder')"
+            />
+            <a-input
+              v-model:value="department.code"
+              :data-testid="`app-setup-department-code-${index}`"
+              :placeholder="t('setup.departmentCodePlaceholder')"
+            />
+            <a-input
+              v-model:value="department.parentCode"
+              :data-testid="`app-setup-department-parent-${index}`"
+              :placeholder="t('setup.departmentParentPlaceholder')"
+            />
+            <a-input-number
+              v-model:value="department.sortOrder"
+              :min="0"
+              :controls="false"
+              :data-testid="`app-setup-department-sort-${index}`"
+            />
+            <a-button
+              v-if="organizationForm.departments.length > 1"
+              danger
+              :data-testid="`app-setup-remove-department-${index}`"
+              @click="removeDepartment(index)"
+            >
+              {{ t("setup.removeRow") }}
+            </a-button>
+          </div>
+        </div>
+
+        <div class="org-section">
+          <div class="section-header">
+            <div>
+              <div class="section-title">{{ t("setup.positionSectionTitle") }}</div>
+              <div class="field-hint">{{ t("setup.positionSectionDesc") }}</div>
+            </div>
+            <a-button data-testid="app-setup-add-position" @click="addPosition">
+              {{ t("setup.addPosition") }}
+            </a-button>
+          </div>
+
+          <div v-for="(position, index) in organizationForm.positions" :key="`position-${index}`" class="config-row">
+            <a-input
+              v-model:value="position.name"
+              :data-testid="`app-setup-position-name-${index}`"
+              :placeholder="t('setup.positionNamePlaceholder')"
+            />
+            <a-input
+              v-model:value="position.code"
+              :data-testid="`app-setup-position-code-${index}`"
+              :placeholder="t('setup.positionCodePlaceholder')"
+            />
+            <a-input
+              v-model:value="position.description"
+              :data-testid="`app-setup-position-description-${index}`"
+              :placeholder="t('setup.positionDescriptionPlaceholder')"
+            />
+            <a-input-number
+              v-model:value="position.sortOrder"
+              :min="0"
+              :controls="false"
+              :data-testid="`app-setup-position-sort-${index}`"
+            />
+            <a-button
+              v-if="organizationForm.positions.length > 1"
+              danger
+              :data-testid="`app-setup-remove-position-${index}`"
+              @click="removePosition(index)"
+            >
+              {{ t("setup.removeRow") }}
+            </a-button>
+          </div>
+        </div>
+
+        <div class="step-actions">
+          <a-button data-testid="app-setup-back-to-roles" @click="currentStep = 2">{{ t("setup.prev") }}</a-button>
+          <a-button
             data-testid="app-setup-initialize"
             type="primary"
-            size="large"
+            :disabled="!organizationFormValid"
             :loading="initializing"
-            :disabled="!formValid"
             @click="handleInitialize"
           >
-            {{ initializing ? t("setup.initializing") : t("setup.startSetup") }}
+            {{ initializing ? t("setup.initializing") : t("setup.startInitialization") }}
           </a-button>
         </div>
       </div>
 
       <a-result
-        v-if="completed"
+        v-if="currentStep === 4 && completed"
         data-testid="app-setup-success"
         status="success"
         :title="t('setup.appSetupComplete')"
@@ -147,25 +280,25 @@
                 <span data-testid="app-setup-report-app-status">{{ initReport.appStatus }}</span>
               </a-descriptions-item>
               <a-descriptions-item :label="t('setup.appSetupCompleted')">
-                <span data-testid="app-setup-report-app-completed">
-                  {{ formatBooleanFlag(initReport.appSetupCompleted) }}
-                </span>
+                <span data-testid="app-setup-report-app-completed">{{ formatBooleanFlag(initReport.appSetupCompleted) }}</span>
               </a-descriptions-item>
               <a-descriptions-item :label="t('setup.dbConnected')">
-                <a-tag :color="initReport.databaseConnected ? 'green' : 'red'">
-                  {{ initReport.databaseConnected ? t('common.success') : t('common.error') }}
-                </a-tag>
-                <span class="report-flag" data-testid="app-setup-report-db-connected">
-                  {{ formatBooleanFlag(initReport.databaseConnected) }}
-                </span>
+                <span data-testid="app-setup-report-db-connected">{{ formatBooleanFlag(initReport.databaseConnected) }}</span>
               </a-descriptions-item>
               <a-descriptions-item :label="t('setup.coreTablesVerified')">
-                <a-tag :color="initReport.coreTablesVerified ? 'green' : 'red'">
-                  {{ initReport.coreTablesVerified ? t('common.success') : t('common.error') }}
-                </a-tag>
-                <span class="report-flag" data-testid="app-setup-report-core-tables">
-                  {{ formatBooleanFlag(initReport.coreTablesVerified) }}
-                </span>
+                <span data-testid="app-setup-report-core-tables">{{ formatBooleanFlag(initReport.coreTablesVerified) }}</span>
+              </a-descriptions-item>
+              <a-descriptions-item :label="t('setup.reportRoles')">
+                <span data-testid="app-setup-report-roles-created">{{ initReport.rolesCreated }}</span>
+              </a-descriptions-item>
+              <a-descriptions-item :label="t('setup.reportDepartments')">
+                <span data-testid="app-setup-report-departments-created">{{ initReport.departmentsCreated }}</span>
+              </a-descriptions-item>
+              <a-descriptions-item :label="t('setup.reportPositions')">
+                <span data-testid="app-setup-report-positions-created">{{ initReport.positionsCreated }}</span>
+              </a-descriptions-item>
+              <a-descriptions-item :label="t('setup.reportAdmin')">
+                <span data-testid="app-setup-report-admin-bound">{{ formatBooleanFlag(initReport.adminBound) }}</span>
               </a-descriptions-item>
             </a-descriptions>
             <a-alert
@@ -183,7 +316,7 @@
       </a-result>
 
       <a-result
-        v-if="setupError"
+        v-if="currentStep === 4 && setupError"
         data-testid="app-setup-failed"
         status="error"
         :title="t('setup.appSetupFailed')"
@@ -204,9 +337,24 @@ import {
   getDrivers,
   initializeApp,
   testConnection,
+  type AppSetupDepartmentConfig,
   type AppSetupInitializeResponse,
+  type AppSetupPositionConfig,
   type DriverDefinition
 } from "@/services/api-setup";
+
+type OptionalRoleTemplate = {
+  code: string;
+  labelKey: string;
+  descKey: string;
+};
+
+const optionalRoleTemplates: OptionalRoleTemplate[] = [
+  { code: "SecurityAdmin", labelKey: "setup.roleSecurityAdmin", descKey: "setup.roleSecurityAdminDesc" },
+  { code: "AuditAdmin", labelKey: "setup.roleAuditAdmin", descKey: "setup.roleAuditAdminDesc" },
+  { code: "AssetAdmin", labelKey: "setup.roleAssetAdmin", descKey: "setup.roleAssetAdminDesc" },
+  { code: "ApprovalAdmin", labelKey: "setup.roleApprovalAdmin", descKey: "setup.roleApprovalAdminDesc" }
+];
 
 const { t } = useI18n();
 
@@ -230,9 +378,18 @@ const dbForm = ref<SetupDbForm>({
   visualConfig: {}
 });
 
-const form = ref({
+const adminForm = ref({
   appName: "",
   adminUsername: "admin"
+});
+
+const rolesForm = ref({
+  selectedRoleCodes: [] as string[]
+});
+
+const organizationForm = ref({
+  departments: buildDefaultDepartments(),
+  positions: buildDefaultPositions()
 });
 
 const initializing = ref(false);
@@ -241,10 +398,21 @@ const setupError = ref<string | null>(null);
 const initReport = ref<AppSetupInitializeResponse | null>(null);
 
 const selectedDriver = computed(() => drivers.value.find((driver) => driver.code === dbForm.value.driverCode));
-
-const formValid = computed(
-  () => form.value.appName.trim() !== "" && form.value.adminUsername.trim() !== "" && !initializing.value
+const adminFormValid = computed(
+  () => adminForm.value.appName.trim() !== "" && adminForm.value.adminUsername.trim() !== "" && !initializing.value
 );
+const organizationFormValid = computed(() => {
+  const departmentsValid =
+    organizationForm.value.departments.length > 0 &&
+    organizationForm.value.departments.every(
+      (department) => department.name.trim() !== "" && (department.code?.trim() ?? "") !== ""
+    );
+  const positionsValid =
+    organizationForm.value.positions.length > 0 &&
+    organizationForm.value.positions.every((position) => position.name.trim() !== "" && position.code.trim() !== "");
+
+  return departmentsValid && positionsValid && !initializing.value;
+});
 
 onMounted(async () => {
   try {
@@ -270,10 +438,7 @@ function onDriverChange() {
   if (driver.supportsVisual) {
     for (const field of driver.fields) {
       if (field.defaultValue) {
-        dbForm.value.visualConfig = {
-          ...dbForm.value.visualConfig,
-          [field.code]: field.defaultValue
-        };
+        dbForm.value.visualConfig[field.code] = field.defaultValue;
       }
     }
   } else {
@@ -314,23 +479,93 @@ async function handleInitialize() {
         connectionString: dbForm.value.mode === "raw" ? dbForm.value.connectionString : undefined,
         visualConfig: dbForm.value.mode === "visual" ? dbForm.value.visualConfig : undefined
       },
-      appName: form.value.appName,
-      adminUsername: form.value.adminUsername
+      admin: {
+        appName: adminForm.value.appName.trim(),
+        adminUsername: adminForm.value.adminUsername.trim()
+      },
+      roles: {
+        selectedRoleCodes: rolesForm.value.selectedRoleCodes
+      },
+      organization: {
+        departments: organizationForm.value.departments.map((department) => ({
+          name: department.name.trim(),
+          code: department.code?.trim() || undefined,
+          parentCode: department.parentCode?.trim() || undefined,
+          sortOrder: department.sortOrder ?? 0
+        })),
+        positions: organizationForm.value.positions.map((position) => ({
+          name: position.name.trim(),
+          code: position.code.trim(),
+          description: position.description?.trim() || undefined,
+          sortOrder: position.sortOrder ?? 0
+        }))
+      }
     });
     if (resp.success) {
       initReport.value = resp.data ?? null;
       completed.value = true;
-      currentStep.value = 2;
+      currentStep.value = 4;
     } else {
       setupError.value = resp.message || t("setup.appSetupFailed");
-      currentStep.value = 2;
+      currentStep.value = 4;
     }
   } catch (error: unknown) {
     setupError.value = error instanceof Error ? error.message : String(error);
-    currentStep.value = 2;
+    currentStep.value = 4;
   } finally {
     initializing.value = false;
   }
+}
+
+function addDepartment() {
+  organizationForm.value.departments.push({
+    name: "",
+    code: "",
+    parentCode: "",
+    sortOrder: organizationForm.value.departments.length * 10
+  });
+}
+
+function buildDefaultDepartments(): AppSetupDepartmentConfig[] {
+  return [
+    { name: t("setup.defaultDepartmentHq"), code: "HQ", parentCode: "", sortOrder: 0 },
+    { name: t("setup.defaultDepartmentRd"), code: "RD", parentCode: "HQ", sortOrder: 10 },
+    { name: t("setup.defaultDepartmentSecOps"), code: "SECOPS", parentCode: "HQ", sortOrder: 20 }
+  ];
+}
+
+function buildDefaultPositions(): AppSetupPositionConfig[] {
+  return [
+    {
+      name: t("setup.defaultPositionSysAdmin"),
+      code: "SYS_ADMIN",
+      description: t("setup.defaultPositionSysAdminDesc"),
+      sortOrder: 10
+    },
+    {
+      name: t("setup.defaultPositionSecLead"),
+      code: "SEC_LEAD",
+      description: t("setup.defaultPositionSecLeadDesc"),
+      sortOrder: 20
+    }
+  ];
+}
+
+function removeDepartment(index: number) {
+  organizationForm.value.departments.splice(index, 1);
+}
+
+function addPosition() {
+  organizationForm.value.positions.push({
+    name: "",
+    code: "",
+    description: "",
+    sortOrder: organizationForm.value.positions.length * 10
+  });
+}
+
+function removePosition(index: number) {
+  organizationForm.value.positions.splice(index, 1);
 }
 
 function retrySetup() {
@@ -362,7 +597,7 @@ function formatBooleanFlag(value: boolean): string {
   background: #fff;
   border-radius: 12px;
   padding: 48px;
-  max-width: 760px;
+  max-width: 960px;
   width: 100%;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
 }
@@ -393,13 +628,79 @@ function formatBooleanFlag(value: boolean): string {
   border-top: 1px solid #f0f0f0;
 }
 
+.field-hint {
+  color: #999;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.required-role-list {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.optional-role-block {
+  border: 1px solid #f0f0f0;
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.role-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.role-card {
+  display: block;
+  padding: 16px;
+  border: 1px solid #f0f0f0;
+  border-radius: 10px;
+}
+
+.org-section {
+  margin-bottom: 24px;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.section-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1a1a2e;
+}
+
+.config-row {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr 1fr 120px auto;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
 .setup-report {
   text-align: left;
 }
 
-.report-flag {
-  margin-left: 8px;
-  color: #666;
-  font-size: 13px;
+@media (max-width: 900px) {
+  .app-setup-card {
+    padding: 28px 20px;
+  }
+
+  .config-row {
+    grid-template-columns: 1fr;
+  }
+
+  .section-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 }
 </style>

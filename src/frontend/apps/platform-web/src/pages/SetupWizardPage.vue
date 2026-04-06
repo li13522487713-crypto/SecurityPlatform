@@ -416,17 +416,6 @@ const optionalRoleTemplates: OptionalRoleTemplate[] = [
   { code: "ApprovalAdmin", labelKey: "setup.roleApprovalAdmin", descKey: "setup.roleApprovalAdminDesc" }
 ];
 
-const defaultDepartments: SetupDepartmentConfig[] = [
-  { name: "总部", code: "HQ", parentCode: "", sortOrder: 0 },
-  { name: "研发部", code: "RD", parentCode: "HQ", sortOrder: 10 },
-  { name: "安全运营部", code: "SECOPS", parentCode: "HQ", sortOrder: 20 }
-];
-
-const defaultPositions: SetupPositionConfig[] = [
-  { name: "系统管理员", code: "SYS_ADMIN", description: "系统配置与运维管理", sortOrder: 10 },
-  { name: "安全负责人", code: "SEC_LEAD", description: "安全策略与风险管理负责人", sortOrder: 20 }
-];
-
 const { t } = useI18n();
 const router = useRouter();
 
@@ -458,8 +447,8 @@ const rolesForm = ref({
 });
 
 const organizationForm = ref({
-  departments: defaultDepartments.map((item) => ({ ...item })),
-  positions: defaultPositions.map((item) => ({ ...item }))
+  departments: buildDefaultDepartments(),
+  positions: buildDefaultPositions()
 });
 
 const selectedDriver = computed(() => drivers.value.find((driver) => driver.code === dbForm.value.driverCode));
@@ -604,6 +593,31 @@ function addDepartment() {
     parentCode: "",
     sortOrder: organizationForm.value.departments.length * 10
   });
+}
+
+function buildDefaultDepartments(): SetupDepartmentConfig[] {
+  return [
+    { name: t("setup.defaultDepartmentHq"), code: "HQ", parentCode: "", sortOrder: 0 },
+    { name: t("setup.defaultDepartmentRd"), code: "RD", parentCode: "HQ", sortOrder: 10 },
+    { name: t("setup.defaultDepartmentSecOps"), code: "SECOPS", parentCode: "HQ", sortOrder: 20 }
+  ];
+}
+
+function buildDefaultPositions(): SetupPositionConfig[] {
+  return [
+    {
+      name: t("setup.defaultPositionSysAdmin"),
+      code: "SYS_ADMIN",
+      description: t("setup.defaultPositionSysAdminDesc"),
+      sortOrder: 10
+    },
+    {
+      name: t("setup.defaultPositionSecLead"),
+      code: "SEC_LEAD",
+      description: t("setup.defaultPositionSecLeadDesc"),
+      sortOrder: 20
+    }
+  ];
 }
 
 function removeDepartment(index: number) {

@@ -239,12 +239,12 @@ async function main() {
   );
 
   await startServices();
-  await runPlaywrightPhase(["--grep", "platform setup happy path"], "平台 setup E2E");
+  await runPlaywrightPhase(["--grep", "\\[platform\\]"], "平台 setup E2E");
 
   log("平台 setup 已完成，重启服务后继续执行应用 setup E2E");
   await cleanup();
   await startServices();
-  await runPlaywrightPhase(["--grep-invert", "platform setup happy path"], "应用 setup E2E");
+  await runPlaywrightPhase(["--grep", "\\[app\\]"], "应用 setup E2E");
 
   await cleanupOnce();
   process.exit(0);

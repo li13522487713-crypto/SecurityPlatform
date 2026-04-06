@@ -45,13 +45,40 @@ export interface AppSetupInitializeResponse {
   appSetupCompleted: boolean;
   databaseConnected: boolean;
   coreTablesVerified: boolean;
+  rolesCreated: number;
+  departmentsCreated: number;
+  positionsCreated: number;
+  adminBound: boolean;
   errors: string[];
+}
+
+export interface AppSetupDepartmentConfig {
+  name: string;
+  code?: string;
+  parentCode?: string;
+  sortOrder: number;
+}
+
+export interface AppSetupPositionConfig {
+  name: string;
+  code: string;
+  description?: string;
+  sortOrder: number;
 }
 
 export interface AppSetupInitializeRequest {
   database: AppSetupDatabaseConfig;
-  appName: string;
-  adminUsername: string;
+  admin: {
+    appName: string;
+    adminUsername: string;
+  };
+  roles?: {
+    selectedRoleCodes?: string[];
+  };
+  organization?: {
+    departments?: AppSetupDepartmentConfig[];
+    positions?: AppSetupPositionConfig[];
+  };
 }
 
 async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
