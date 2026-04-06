@@ -18,6 +18,11 @@ GET {{host}}/api/v1/database-maintenance/test-connection
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 
+### 获取数据库运维能力矩阵
+GET {{host}}/api/v1/database-maintenance/capabilities
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
 ### 获取数据库信息
 GET {{host}}/api/v1/database-maintenance/info
 Authorization: Bearer {{token}}

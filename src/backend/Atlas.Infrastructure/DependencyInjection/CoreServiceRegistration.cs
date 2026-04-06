@@ -37,6 +37,8 @@ public static class CoreServiceRegistration
     {
         // Setup State (must be registered before anything that depends on DB)
         services.AddSingleton<ISetupStateProvider, FileBasedSetupStateProvider>();
+        services.AddSingleton<IAppSetupStateProvider, FileBasedAppSetupStateProvider>();
+        services.AddSingleton<ISetupDbClientFactory, SetupDbClientFactory>();
         services.AddScoped<Atlas.Application.Setup.IDatabaseMaintenanceService, DatabaseMaintenanceService>();
 
         // Options

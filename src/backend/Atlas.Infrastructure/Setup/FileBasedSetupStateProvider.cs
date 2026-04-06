@@ -86,7 +86,7 @@ public sealed class FileBasedSetupStateProvider : ISetupStateProvider
         }
     }
 
-    public async Task CompleteSetupAsync(SetupDatabaseInfo databaseInfo, CancellationToken cancellationToken = default)
+    public async Task CompleteSetupAsync(CancellationToken cancellationToken = default)
     {
         await _lock.WaitAsync(cancellationToken);
         try
@@ -94,13 +94,12 @@ public sealed class FileBasedSetupStateProvider : ISetupStateProvider
             _state.Status = SetupState.Ready;
             _state.CompletedAt = DateTimeOffset.UtcNow;
             _state.PlatformSetupCompleted = true;
-            _state.Database = databaseInfo;
             _state.FailureMessage = null;
             _state.FailedAt = null;
 
             await SaveToFileAsync(cancellationToken);
 
-            _logger.LogInformation("[Setup] 安装完成，状态转为 Ready，数据库类型: {DbType}", databaseInfo.DbType);
+            _logger.LogInformation("[Setup] 安装完成，状态转为 Ready");
 
             _readySignal.TrySetResult();
         }

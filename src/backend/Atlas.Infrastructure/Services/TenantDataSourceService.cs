@@ -69,6 +69,7 @@ public sealed class TenantDataSourceService : ITenantDataSourceService
         var encryptedConnectionString = _encryptionOptions.Enabled
             ? TenantDbConnectionFactory.Encrypt(resolvedConnectionString, _encryptionOptions.Key)
             : resolvedConnectionString;
+        var ownerAppId = ResolveOwnerAppId(request.OwnershipScope, request.OwnerAppInstanceId, request.AppId);
 
         var entity = new TenantDataSource(
             tenantIdValue,
@@ -76,7 +77,7 @@ public sealed class TenantDataSourceService : ITenantDataSourceService
             encryptedConnectionString,
             normalizedDriver,
             _idGeneratorAccessor.NextId(),
-            ParseAppId(request.AppId),
+            ownerAppId,
             NormalizeMaxPoolSize(request.MaxPoolSize),
             NormalizeConnectionTimeoutSeconds(request.ConnectionTimeoutSeconds));
 
@@ -99,6 +100,7 @@ public sealed class TenantDataSourceService : ITenantDataSourceService
 
         var normalizedDriver = DataSourceDriverRegistry.NormalizeDriverCode(request.DbType);
         var encryptedConnectionString = entity.EncryptedConnectionString;
+        var ownerAppId = ResolveOwnerAppIdForUpdate(request.OwnershipScope, request.OwnerAppInstanceId, request.AppId, entity.AppId);
         var resolvedConnectionString = DataSourceDriverRegistry.ResolveConnectionString(
             normalizedDriver,
             request.Mode,
@@ -115,6 +117,7 @@ public sealed class TenantDataSourceService : ITenantDataSourceService
             request.Name,
             encryptedConnectionString,
             normalizedDriver,
+            ownerAppId,
             NormalizeMaxPoolSize(request.MaxPoolSize),
             NormalizeConnectionTimeoutSeconds(request.ConnectionTimeoutSeconds));
         await _repository.UpdateAsync(entity, cancellationToken);
@@ -196,6 +199,8 @@ public sealed class TenantDataSourceService : ITenantDataSourceService
             entity.TenantIdValue,
             entity.Name,
             entity.DbType,
+            entity.AppId.HasValue ? TenantDataSourceOwnershipScopes.AppScoped : TenantDataSourceOwnershipScopes.Platform,
+            entity.AppId?.ToString(),
             entity.AppId?.ToString(),
             entity.MaxPoolSize,
             entity.ConnectionTimeoutSeconds,
@@ -217,6 +222,68 @@ public sealed class TenantDataSourceService : ITenantDataSourceService
         return long.TryParse(appId, out var parsed) && parsed > 0
             ? parsed
             : throw new InvalidOperationException("AppId 格式无效");
+    }
+
+    private static long? ResolveOwnerAppId(string? ownershipScope, string? ownerAppInstanceId, string? appId)
+    {
+        var hasLegacyAppId = !string.IsNullOrWhiteSpace(appId);
+        var hasOwnerAppInstanceId = !string.IsNullOrWhiteSpace(ownerAppInstanceId);
+
+        if (hasLegacyAppId && hasOwnerAppInstanceId)
+        {
+            throw new InvalidOperationException("appId 与 ownerAppInstanceId 不能同时提供。");
+        }
+
+        if (hasOwnerAppInstanceId)
+        {
+            return ParseAppId(ownerAppInstanceId);
+        }
+
+        if (hasLegacyAppId)
+        {
+            return ParseAppId(appId);
+        }
+
+        var normalizedScope = NormalizeOwnershipScope(ownershipScope);
+        return string.Equals(normalizedScope, TenantDataSourceOwnershipScopes.Platform, StringComparison.OrdinalIgnoreCase)
+            ? null
+            : throw new InvalidOperationException("应用级数据源必须提供 ownerAppInstanceId。");
+    }
+
+    private static long? ResolveOwnerAppIdForUpdate(
+        string? ownershipScope,
+        string? ownerAppInstanceId,
+        string? appId,
+        long? currentAppId)
+    {
+        if (string.IsNullOrWhiteSpace(ownershipScope)
+            && string.IsNullOrWhiteSpace(ownerAppInstanceId)
+            && string.IsNullOrWhiteSpace(appId))
+        {
+            return currentAppId;
+        }
+
+        return ResolveOwnerAppId(ownershipScope, ownerAppInstanceId, appId);
+    }
+
+    private static string NormalizeOwnershipScope(string? scope)
+    {
+        if (string.IsNullOrWhiteSpace(scope))
+        {
+            return TenantDataSourceOwnershipScopes.Platform;
+        }
+
+        if (string.Equals(scope, TenantDataSourceOwnershipScopes.Platform, StringComparison.OrdinalIgnoreCase))
+        {
+            return TenantDataSourceOwnershipScopes.Platform;
+        }
+
+        if (string.Equals(scope, TenantDataSourceOwnershipScopes.AppScoped, StringComparison.OrdinalIgnoreCase))
+        {
+            return TenantDataSourceOwnershipScopes.AppScoped;
+        }
+
+        throw new InvalidOperationException("ownershipScope 仅支持 Platform 或 AppScoped。");
     }
 
     private static int NormalizeMaxPoolSize(int value)

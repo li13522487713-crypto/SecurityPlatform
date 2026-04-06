@@ -1,13 +1,37 @@
 import type { ApiResponse } from "@atlas/shared-core";
 
 export interface SetupStateResponse {
-  status: string;
+  platformStatus: string;
   platformSetupCompleted: boolean;
+  appStatus: string;
+  appSetupCompleted: boolean;
+}
+
+export interface AppSetupInitializeRequest {
+  appName: string;
+  adminUsername: string;
+}
+
+async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(options?.headers ?? {})
+    }
+  });
+  return response.json() as Promise<T>;
 }
 
 export async function getSetupState(): Promise<ApiResponse<SetupStateResponse>> {
-  const resp = await fetch("/api/v1/setup/state", {
-    headers: { "Content-Type": "application/json" }
+  return fetchJson<ApiResponse<SetupStateResponse>>("/api/v1/setup/state");
+}
+
+export async function initializeApp(
+  request: AppSetupInitializeRequest
+): Promise<ApiResponse<SetupStateResponse>> {
+  return fetchJson<ApiResponse<SetupStateResponse>>("/api/v1/setup/initialize", {
+    method: "POST",
+    body: JSON.stringify(request)
   });
-  return resp.json() as Promise<ApiResponse<SetupStateResponse>>;
 }

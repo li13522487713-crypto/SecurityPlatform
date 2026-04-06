@@ -99,7 +99,7 @@ public sealed class SetupController : ControllerBase
 
     /// <summary>执行完整初始化（建表/迁移/种子/管理员）并标记安装完成</summary>
     [HttpPost("initialize")]
-    public async Task<ActionResult<ApiResponse<SetupStateResponse>>> Initialize(
+    public async Task<ActionResult<ApiResponse<SetupInitializeResponse>>> Initialize(
         [FromBody] SetupInitializeRequest request,
         CancellationToken cancellationToken)
     {
@@ -116,7 +116,6 @@ public sealed class SetupController : ControllerBase
 
             await _setupStateProvider.TransitionAsync(SetupState.Configuring, cancellationToken: cancellationToken);
 
-            // 写入数据库配置到 appsettings 覆盖（通过内存配置 + setup-state.json 持久化）
             var dbPath = connectionString;
             if (string.Equals(driverCode, "SQLite", StringComparison.OrdinalIgnoreCase))
             {
@@ -128,58 +127,77 @@ public sealed class SetupController : ControllerBase
                 dbPath = $"Data Source={source}";
             }
 
-            // 将管理员配置写入内存配置供 DatabaseInitializer 使用
+            // 构建显式参数，不再依赖 AddInMemoryCollection + 冻结的 IOptions
+            var bootstrapParams = new SetupBootstrapParams
+            {
+                ConnectionString = dbPath,
+                DbType = driverCode,
+                TenantId = request.Admin.TenantId ?? "00000000-0000-0000-0000-000000000001",
+                AdminUsername = request.Admin.Username,
+                AdminPassword = request.Admin.Password,
+                AdminRoles = "Admin",
+                IsPlatformAdmin = true,
+                SkipSchemaInit = false,
+                SkipSeedData = false,
+                SkipSchemaMigrations = false
+            };
+
+            // 同时更新内存配置，使后续服务（如 DatabaseOptions）也能读到正确的连接串
             var configData = new Dictionary<string, string?>
             {
                 ["Database:ConnectionString"] = dbPath,
-                ["Database:DbType"] = driverCode,
-                ["Security:BootstrapAdmin:Enabled"] = "true",
-                ["Security:BootstrapAdmin:TenantId"] = request.Admin.TenantId ?? "00000000-0000-0000-0000-000000000001",
-                ["Security:BootstrapAdmin:Username"] = request.Admin.Username,
-                ["Security:BootstrapAdmin:Password"] = request.Admin.Password,
-                ["Security:BootstrapAdmin:Roles"] = "Admin",
-                ["Security:BootstrapAdmin:IsPlatformAdmin"] = "true",
-                ["DatabaseInitializer:SkipSchemaInit"] = "false",
-                ["DatabaseInitializer:SkipSeedData"] = "false",
-                ["DatabaseInitializer:SkipSchemaMigrations"] = "false"
+                ["Database:DbType"] = driverCode
             };
-
             ((IConfigurationBuilder)_configuration).AddInMemoryCollection(configData);
 
             await _setupStateProvider.TransitionAsync(SetupState.Migrating, cancellationToken: cancellationToken);
 
-            // 执行数据库初始化（建表/迁移/种子/管理员）
-            await _databaseInitializer.RunInitializationAsync(cancellationToken);
+            var report = await _databaseInitializer.RunInitializationAsync(bootstrapParams, cancellationToken);
 
             await _setupStateProvider.TransitionAsync(SetupState.Seeding, cancellationToken: cancellationToken);
 
-            // 标记安装完成
-            var dbInfo = new SetupDatabaseInfo
-            {
-                DbType = driverCode,
-                ConnectionString = dbPath
-            };
-            await _setupStateProvider.CompleteSetupAsync(dbInfo, cancellationToken);
+            // 持久化数据库配置到 appsettings.runtime.json（重启后回灌）
+            await PersistRuntimeConfigAsync(dbPath, driverCode, cancellationToken);
 
-            var state = _setupStateProvider.GetState();
-            var response = new SetupStateResponse(
-                state.Status.ToString(),
-                state.PlatformSetupCompleted,
-                state.CompletedAt,
-                state.FailureMessage);
+            // 标记安装完成（数据库配置已持久化到 appsettings.runtime.json）
+            await _setupStateProvider.CompleteSetupAsync(cancellationToken);
 
             _logger.LogInformation("[Setup] 平台安装完成，数据库类型: {DbType}", driverCode);
 
-            return Ok(ApiResponse<SetupStateResponse>.Ok(response, HttpContext.TraceIdentifier));
+            return Ok(ApiResponse<SetupInitializeResponse>.Ok(
+                new SetupInitializeResponse(
+                    "Ready",
+                    true,
+                    report.SchemaInitialized,
+                    report.TablesCreated,
+                    report.MigrationsApplied,
+                    report.MigrationCount,
+                    report.SeedCompleted,
+                    report.SeedSummary,
+                    report.AdminCreated,
+                    report.AdminUsername,
+                    report.Errors),
+                HttpContext.TraceIdentifier));
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "[Setup] 平台初始化失败");
             await _setupStateProvider.TransitionAsync(SetupState.Failed, ex.Message, cancellationToken);
 
-            return StatusCode(500, ApiResponse<SetupStateResponse>.Fail(
+            return StatusCode(500, ApiResponse<SetupInitializeResponse>.Fail(
                 "SETUP_FAILED", ex.Message, HttpContext.TraceIdentifier));
         }
+    }
+
+    private async Task PersistRuntimeConfigAsync(string connectionString, string dbType, CancellationToken cancellationToken)
+    {
+        var runtimeConfigPath = Path.Combine(_environment.ContentRootPath, "appsettings.runtime.json");
+        var json = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            Database = new { ConnectionString = connectionString, DbType = dbType }
+        }, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+        await System.IO.File.WriteAllTextAsync(runtimeConfigPath, json, cancellationToken);
+        _logger.LogInformation("[Setup] 数据库配置已持久化到 {Path}", runtimeConfigPath);
     }
 
     private static string ResolveConnectionString(SetupTestConnectionRequest request)
@@ -253,3 +271,16 @@ public sealed record SetupAdminConfigRequest(
     string? TenantId,
     string Username,
     string Password);
+
+public sealed record SetupInitializeResponse(
+    string Status,
+    bool PlatformSetupCompleted,
+    bool SchemaInitialized,
+    int TablesCreated,
+    bool MigrationsApplied,
+    int MigrationCount,
+    bool SeedCompleted,
+    string SeedSummary,
+    bool AdminCreated,
+    string? AdminUsername,
+    List<string> Errors);

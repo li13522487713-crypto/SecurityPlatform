@@ -235,7 +235,7 @@ public sealed class FileSystemAppInstanceRegistry : IAppInstanceRegistry
         }
 
         var repoRoot = ResolveRepoRoot();
-        return Path.Combine(repoRoot, "src", "backend", "Atlas.PlatformHost", "runtime-instances");
+        return Path.Combine(repoRoot, "runtime", "instances");
     }
 
     private static string ResolveRepoRoot()

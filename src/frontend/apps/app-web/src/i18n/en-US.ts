@@ -506,6 +506,18 @@ export default {
   setup: {
     platformNotReady: "Platform Not Initialized",
     platformNotReadyDesc: "Please complete the setup wizard on the platform admin first, then refresh this page.",
-    retry: "Refresh & Retry"
+    retry: "Refresh & Retry",
+    appSetupTitle: "Application Setup Wizard",
+    appSetupSubtitle: "First-time use requires basic application configuration",
+    appName: "Application Name",
+    appNamePlaceholder: "Enter application name",
+    adminUsername: "Admin Username",
+    adminUsernamePlaceholder: "Reuse platform admin or create new",
+    startSetup: "Start Initialization",
+    initializing: "Initializing...",
+    appSetupComplete: "Application Setup Complete",
+    appSetupCompleteDesc: "The application has been initialized and is ready for use.",
+    appSetupFailed: "Application Setup Failed",
+    enterWorkspace: "Enter Workspace"
   }
 };

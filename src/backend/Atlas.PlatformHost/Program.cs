@@ -45,13 +45,24 @@ using Atlas.PlatformHost.ReverseProxy;
 using Yarp.ReverseProxy.Configuration;
 
 var builder = WebApplication.CreateBuilder(args);
+var setupStateFilePath = Path.Combine(builder.Environment.ContentRootPath, "setup-state.json");
+var setupReadyForRegistration = File.Exists(setupStateFilePath) &&
+    File.ReadAllText(setupStateFilePath).Contains("\"Ready\"", StringComparison.OrdinalIgnoreCase);
 
 // ─── 配置来源 ───
-var dbPath = Path.Combine(builder.Environment.ContentRootPath, "atlas.db");
-builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+// 优先加载 setup 完成后持久化的运行时配置（包含用户选定的数据库连接信息）
+var runtimeConfigPath = Path.Combine(builder.Environment.ContentRootPath, "appsettings.runtime.json");
+builder.Configuration.AddJsonFile(runtimeConfigPath, optional: true, reloadOnChange: false);
+
+// 仅当 appsettings.runtime.json 未提供数据库配置时才使用默认 atlas.db
+if (string.IsNullOrWhiteSpace(builder.Configuration["Database:ConnectionString"]))
 {
-    ["Database:ConnectionString"] = $"Data Source={dbPath}"
-});
+    var dbPath = Path.Combine(builder.Environment.ContentRootPath, "atlas.db");
+    builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+    {
+        ["Database:ConnectionString"] = $"Data Source={dbPath}"
+    });
+}
 
 DatabaseConfigurationSource? databaseConfigurationSource = null;
 var dbConnectionString = builder.Configuration["Database:ConnectionString"];
@@ -60,7 +71,6 @@ if (!string.IsNullOrWhiteSpace(dbConnectionString) && !string.IsNullOrWhiteSpace
 {
     var encryptionEnabled = builder.Configuration.GetValue<bool>("Database:Encryption:Enabled");
     var encryptionKey = builder.Configuration["Database:Encryption:Key"] ?? string.Empty;
-    var setupStateFilePath = Path.Combine(builder.Environment.ContentRootPath, "setup-state.json");
     databaseConfigurationSource = new DatabaseConfigurationSource(
         dbConnectionString,
         bootstrapTenantId,
@@ -513,19 +523,26 @@ if (databaseConfigurationSource is not null)
     });
 }
 
-// ─── Application + Infrastructure (full) ───
-builder.Services.AddAtlasApplicationShared(
+// ─── Application + Infrastructure ───
+var appServices = builder.Services.AddAtlasApplicationShared(
     typeof(AlertMappingProfile).Assembly,
     typeof(ApprovalMappingProfile).Assembly,
     typeof(AssetsMappingProfile).Assembly,
     typeof(Atlas.Application.LogicFlow.Flows.Mappings.LogicFlowMappingProfile).Assembly,
     typeof(Atlas.Application.BatchProcess.Mappings.BatchProcessMappingProfile).Assembly,
     typeof(WebApiMappingProfile).Assembly)
-    .AddAtlasApplicationPlatform()
-    .AddAtlasApplicationRuntime();
-builder.Services.AddAtlasInfrastructureShared(builder.Configuration)
-    .AddAtlasInfrastructurePlatform(builder.Configuration)
-    .AddAtlasInfrastructureAppRuntime(builder.Configuration);
+    .AddAtlasApplicationPlatform();
+if (setupReadyForRegistration)
+{
+    appServices.AddAtlasApplicationRuntime();
+    builder.Services.AddAtlasInfrastructureShared(builder.Configuration)
+        .AddAtlasInfrastructurePlatform(builder.Configuration)
+        .AddAtlasInfrastructureAppRuntime(builder.Configuration);
+}
+else
+{
+    builder.Services.AddAtlasInfrastructureShared(builder.Configuration);
+}
 
 // ─── i18n ───
 builder.Services.AddScoped<Atlas.Application.System.Abstractions.ITenantService, Atlas.Infrastructure.Services.TenantService>();
@@ -540,11 +557,7 @@ builder.Services.Configure<Microsoft.AspNetCore.Builder.RequestLocalizationOptio
 });
 
 // ─── Hangfire (only register when setup is completed to avoid premature DB creation) ───
-var setupStateForHangfire = Path.Combine(builder.Environment.ContentRootPath, "setup-state.json");
-var hangfireSetupReady = File.Exists(setupStateForHangfire) &&
-    File.ReadAllText(setupStateForHangfire).Contains("\"Ready\"", StringComparison.OrdinalIgnoreCase);
-
-if (hangfireSetupReady)
+if (setupReadyForRegistration)
 {
     builder.Services.AddHangfire(config =>
         config.UseSQLiteStorage("hangfire-platformhost.db", new SQLiteStorageOptions
@@ -568,12 +581,15 @@ else
 }
 
 // ─── WorkflowCore ───
-builder.Services.AddWorkflowCore();
-builder.Services.AddWorkflowCoreDsl(options =>
+if (setupReadyForRegistration)
 {
-    options.AddNamespace("Atlas.WorkflowCore.Primitives");
-});
-builder.Services.AddHostedService<Atlas.Infrastructure.Services.WorkflowHostedService>();
+    builder.Services.AddWorkflowCore();
+    builder.Services.AddWorkflowCoreDsl(options =>
+    {
+        options.AddNamespace("Atlas.WorkflowCore.Primitives");
+    });
+    builder.Services.AddHostedService<Atlas.Infrastructure.Services.WorkflowHostedService>();
+}
 
 // ─── YARP Reverse Proxy ───
 builder.Services.AddSingleton<AppHostProxyConfigProvider>();
@@ -656,24 +672,55 @@ app.MapGet("/", () => Results.Ok(new
     environment = app.Environment.EnvironmentName
 }));
 
+var startupLogo = """
+    ___  _______ _        ___   _____
+   / _ |/ __/ _ | |      / _ | / ___/
+  / __ / _// __ | |__   / __ |/ /__
+ /_/ |_/___/_/ |_|____/ /_/ |_|\___/
+Atlas Security Platform
+""";
+
 app.Lifetime.ApplicationStarted.Register(() =>
 {
-    var addresses = app.Urls
+    var addresses = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    foreach (var address in app.Urls)
+    {
+        if (!string.IsNullOrWhiteSpace(address))
+        {
+            addresses.Add(address);
+        }
+    }
+
+    var server = app.Services.GetRequiredService<Microsoft.AspNetCore.Hosting.Server.IServer>();
+    var serverAddresses = server.Features.Get<Microsoft.AspNetCore.Hosting.Server.Features.IServerAddressesFeature>()?.Addresses;
+    if (serverAddresses is not null)
+    {
+        foreach (var address in serverAddresses)
+        {
+            if (!string.IsNullOrWhiteSpace(address))
+            {
+                addresses.Add(address);
+            }
+        }
+    }
+
+    var orderedAddresses = addresses
         .OrderBy(static address => address, StringComparer.OrdinalIgnoreCase)
         .ToArray();
 
     Console.WriteLine();
+    Console.WriteLine(startupLogo);
     Console.WriteLine("Atlas PlatformHost 启动成功");
     Console.WriteLine($"环境: {app.Environment.EnvironmentName}");
 
-    foreach (var address in addresses)
+    foreach (var address in orderedAddresses)
     {
-        Console.WriteLine($"启动地址: {address}");
+        Console.WriteLine($"监听地址: {address}");
     }
 
     if (app.Environment.IsDevelopment())
     {
-        foreach (var address in addresses)
+        foreach (var address in orderedAddresses)
         {
             Console.WriteLine($"Swagger: {address.TrimEnd('/')}/swagger");
         }

@@ -16,9 +16,10 @@ public interface ISetupStateProvider
     Task TransitionAsync(SetupState target, string? failureMessage = null, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// 在 setup 完成时设置数据库信息并转到 Ready。
+    /// 标记安装完成并转到 Ready 状态。
+    /// 数据库配置已持久化至 appsettings.runtime.json，不再通过此方法传递。
     /// </summary>
-    Task CompleteSetupAsync(SetupDatabaseInfo databaseInfo, CancellationToken cancellationToken = default);
+    Task CompleteSetupAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
     /// 阻塞等待直到进入 Ready 状态或取消。

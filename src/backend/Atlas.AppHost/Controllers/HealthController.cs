@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Atlas.AppHost.Sdk.Hosting;
 using Atlas.Core.Tenancy;
 using Atlas.Core.Models;
+using Atlas.Core.Setup;
 using Atlas.Shared.Contracts.Health;
 using Atlas.Shared.Contracts.Process;
 using Atlas.Infrastructure.DataScopes.Platform;
@@ -27,15 +28,18 @@ public sealed class HealthController : ControllerBase
     private readonly IPlatformSqlSugarScopeFactory platformDbFactory;
     private readonly AppInstanceConfigurationLoader configLoader;
     private readonly ITenantProvider tenantProvider;
+    private readonly ISetupStateProvider setupStateProvider;
 
     public HealthController(
         IPlatformSqlSugarScopeFactory platformDbFactory,
         AppInstanceConfigurationLoader configLoader,
-        ITenantProvider tenantProvider)
+        ITenantProvider tenantProvider,
+        ISetupStateProvider setupStateProvider)
     {
         this.platformDbFactory = platformDbFactory;
         this.configLoader = configLoader;
         this.tenantProvider = tenantProvider;
+        this.setupStateProvider = setupStateProvider;
     }
 
     /// <summary>
@@ -61,6 +65,18 @@ public sealed class HealthController : ControllerBase
     [AllowAnonymous]
     public async Task<ActionResult<ApiResponse<object>>> Ready(CancellationToken cancellationToken)
     {
+        if (!setupStateProvider.IsReady)
+        {
+            var notReadyResponse = new
+            {
+                ready = false,
+                reason = "setup_not_completed",
+                timestamp = DateTimeOffset.UtcNow.ToString("O")
+            };
+            return StatusCode(503, ApiResponse<object>.Fail(
+                ErrorCodes.ServerError, "Platform setup not completed.", HttpContext.TraceIdentifier));
+        }
+
         var dbHealthy = await CheckDatabaseConnectionAsync(cancellationToken);
         var migrationHealthy = await CheckMigrationStatusAsync(cancellationToken);
         var ready = dbHealthy && migrationHealthy;
@@ -90,10 +106,30 @@ public sealed class HealthController : ControllerBase
         var tenantId = tenantProvider.GetTenantId();
         var version = typeof(HealthController).Assembly.GetName().Version?.ToString() ?? "1.0.0";
 
+        if (!setupStateProvider.IsReady)
+        {
+            var report = new AppHealthReport
+            {
+                Status = AppProcessStatus.Unknown,
+                Live = true,
+                Ready = false,
+                Version = version,
+                Message = "Platform setup not completed.",
+                CheckedAt = DateTimeOffset.UtcNow,
+                AppKey = config.AppKey,
+                InstanceId = config.InstanceId,
+                TenantId = tenantId.ToString(),
+                UptimeSeconds = UptimeStopwatch.Elapsed.TotalSeconds,
+                DbConnected = false,
+                MigrationStatus = "Unknown"
+            };
+            return Ok(ApiResponse<AppHealthReport>.Ok(report, HttpContext.TraceIdentifier));
+        }
+
         var dbConnected = await CheckDatabaseConnectionAsync(cancellationToken);
         var migrationInfo = await GetMigrationStatusAsync(cancellationToken);
 
-        var report = new AppHealthReport
+        var fullReport = new AppHealthReport
         {
             Status = dbConnected ? AppProcessStatus.Running : AppProcessStatus.Failed,
             Live = true,
@@ -109,7 +145,7 @@ public sealed class HealthController : ControllerBase
             MigrationStatus = migrationInfo
         };
 
-        return Ok(ApiResponse<AppHealthReport>.Ok(report, HttpContext.TraceIdentifier));
+        return Ok(ApiResponse<AppHealthReport>.Ok(fullReport, HttpContext.TraceIdentifier));
     }
 
     private async Task<bool> CheckDatabaseConnectionAsync(CancellationToken cancellationToken)

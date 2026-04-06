@@ -115,7 +115,46 @@
           <a-result v-if="!initError" status="success" :title="t('setup.completeTitle')"
             :sub-title="t('setup.completeDesc')">
             <template #extra>
-              <a-button type="primary" size="large" @click="goToLogin">
+              <div v-if="bootstrapReport" class="bootstrap-report">
+                <a-descriptions bordered :column="1" size="small" class="report-descriptions">
+                  <a-descriptions-item :label="t('setup.reportSchema')">
+                    <a-tag :color="bootstrapReport.schemaInitialized ? 'success' : 'default'">
+                      {{ bootstrapReport.schemaInitialized ? t('setup.reportDone') : t('setup.reportSkipped') }}
+                    </a-tag>
+                  </a-descriptions-item>
+                  <a-descriptions-item :label="t('setup.reportMigrations')">
+                    <a-tag :color="bootstrapReport.migrationsApplied ? 'success' : 'default'">
+                      {{ bootstrapReport.migrationsApplied ? t('setup.reportDone') : t('setup.reportSkipped') }}
+                    </a-tag>
+                  </a-descriptions-item>
+                  <a-descriptions-item :label="t('setup.reportSeed')">
+                    <a-tag :color="bootstrapReport.seedCompleted ? 'success' : 'default'">
+                      {{ bootstrapReport.seedCompleted ? t('setup.reportDone') : t('setup.reportSkipped') }}
+                    </a-tag>
+                    <span v-if="bootstrapReport.seedSummary" class="seed-summary">
+                      {{ bootstrapReport.seedSummary }}
+                    </span>
+                  </a-descriptions-item>
+                  <a-descriptions-item :label="t('setup.reportAdmin')">
+                    <a-tag :color="bootstrapReport.adminCreated ? 'success' : 'warning'">
+                      {{ bootstrapReport.adminCreated ? t('setup.reportDone') : t('setup.reportSkipped') }}
+                    </a-tag>
+                    <span v-if="bootstrapReport.adminUsername" class="admin-name">
+                      {{ bootstrapReport.adminUsername }}
+                    </span>
+                  </a-descriptions-item>
+                </a-descriptions>
+                <div v-if="bootstrapReport.errors.length > 0" class="report-errors">
+                  <a-alert type="warning" :message="t('setup.reportErrors')">
+                    <template #description>
+                      <ul>
+                        <li v-for="(err, idx) in bootstrapReport.errors" :key="idx">{{ err }}</li>
+                      </ul>
+                    </template>
+                  </a-alert>
+                </div>
+              </div>
+              <a-button type="primary" size="large" style="margin-top: 16px" @click="goToLogin">
                 {{ t("setup.goToLogin") }}
               </a-button>
             </template>
@@ -139,7 +178,8 @@ import {
   getDrivers,
   testConnection,
   initializePlatform,
-  type DriverDefinition
+  type DriverDefinition,
+  type InitializeResponse
 } from "@/services/api-setup";
 import { markSetupComplete } from "@/router";
 
@@ -153,6 +193,7 @@ const connectionTestResult = ref<boolean | null>(null);
 const connectionTestMessage = ref("");
 const initializing = ref(false);
 const initError = ref<string | null>(null);
+const bootstrapReport = ref<InitializeResponse | null>(null);
 
 const dbForm = ref({
   driverCode: "SQLite",
@@ -254,7 +295,8 @@ async function handleInitialize() {
         password: adminForm.value.password
       }
     });
-    if (resp.success) {
+    if (resp.success && resp.data) {
+      bootstrapReport.value = resp.data;
       currentStep.value = 3;
     } else {
       initError.value = resp.message || t("setup.initFailed");
@@ -333,5 +375,30 @@ function goToLogin() {
   color: #ff4d4f;
   font-size: 12px;
   margin-top: 4px;
+}
+
+.bootstrap-report {
+  text-align: left;
+  margin-bottom: 8px;
+}
+
+.report-descriptions {
+  margin-bottom: 12px;
+}
+
+.seed-summary,
+.admin-name {
+  margin-left: 8px;
+  color: #666;
+  font-size: 13px;
+}
+
+.report-errors {
+  margin-top: 12px;
+}
+
+.report-errors ul {
+  margin: 0;
+  padding-left: 20px;
 }
 </style>

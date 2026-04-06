@@ -152,7 +152,7 @@ public sealed class FileSystemAppPackageBuilder : IAppPackageBuilder
         }
 
         var repoRoot = ResolveRepoRoot();
-        return Path.Combine(repoRoot, "src", "backend", "Atlas.PlatformHost", "runtime-artifacts");
+        return Path.Combine(repoRoot, "runtime", "artifacts");
     }
 
     private static string ResolveRepoRoot()

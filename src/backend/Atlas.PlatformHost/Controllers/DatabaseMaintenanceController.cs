@@ -12,7 +12,7 @@ namespace Atlas.PlatformHost.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/v1/database-maintenance")]
-[Authorize]
+[Authorize(Policy = PermissionPolicies.SystemAdmin)]
 public sealed class DatabaseMaintenanceController : ControllerBase
 {
     private readonly IDatabaseMaintenanceService _maintenanceService;
@@ -20,6 +20,14 @@ public sealed class DatabaseMaintenanceController : ControllerBase
     public DatabaseMaintenanceController(IDatabaseMaintenanceService maintenanceService)
     {
         _maintenanceService = maintenanceService;
+    }
+
+    /// <summary>获取当前数据库运维能力矩阵</summary>
+    [HttpGet("capabilities")]
+    public async Task<ActionResult<ApiResponse<DatabaseMaintenanceCapability>>> GetCapabilities(CancellationToken cancellationToken)
+    {
+        var capability = await _maintenanceService.GetCapabilityAsync(cancellationToken);
+        return Ok(ApiResponse<DatabaseMaintenanceCapability>.Ok(capability, HttpContext.TraceIdentifier));
     }
 
     /// <summary>测试当前数据库连接</summary>

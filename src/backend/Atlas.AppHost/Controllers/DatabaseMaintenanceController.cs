@@ -1,5 +1,6 @@
 using Atlas.Application.Setup;
 using Atlas.Core.Models;
+using Atlas.Presentation.Shared.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -10,7 +11,7 @@ namespace Atlas.AppHost.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/v1/database-maintenance")]
-[Authorize]
+[Authorize(Policy = PermissionPolicies.SystemAdmin)]
 public sealed class DatabaseMaintenanceController : ControllerBase
 {
     private readonly IDatabaseMaintenanceService _maintenanceService;
@@ -18,6 +19,13 @@ public sealed class DatabaseMaintenanceController : ControllerBase
     public DatabaseMaintenanceController(IDatabaseMaintenanceService maintenanceService)
     {
         _maintenanceService = maintenanceService;
+    }
+
+    [HttpGet("capabilities")]
+    public async Task<ActionResult<ApiResponse<DatabaseMaintenanceCapability>>> GetCapabilities(CancellationToken ct)
+    {
+        var capability = await _maintenanceService.GetCapabilityAsync(ct);
+        return Ok(ApiResponse<DatabaseMaintenanceCapability>.Ok(capability, HttpContext.TraceIdentifier));
     }
 
     [HttpGet("test-connection")]

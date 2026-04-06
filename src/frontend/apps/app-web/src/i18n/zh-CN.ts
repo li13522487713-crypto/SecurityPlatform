@@ -503,6 +503,18 @@ export default {
   setup: {
     platformNotReady: "平台尚未完成初始化",
     platformNotReadyDesc: "请先到平台管理端完成安装向导，然后刷新此页面。",
-    retry: "刷新重试"
+    retry: "刷新重试",
+    appSetupTitle: "应用初始化向导",
+    appSetupSubtitle: "首次使用需要完成应用基础配置",
+    appName: "应用名称",
+    appNamePlaceholder: "请输入应用名称",
+    adminUsername: "管理员用户名",
+    adminUsernamePlaceholder: "可复用平台管理员或新建",
+    startSetup: "开始初始化",
+    initializing: "正在初始化...",
+    appSetupComplete: "应用初始化完成",
+    appSetupCompleteDesc: "应用已完成初始化，可以开始使用。",
+    appSetupFailed: "应用初始化失败",
+    enterWorkspace: "进入工作台"
   }
 };

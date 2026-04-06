@@ -5,6 +5,8 @@ public sealed record TenantDataSourceDto(
     string TenantIdValue,
     string Name,
     string DbType,
+    string OwnershipScope,
+    string? OwnerAppInstanceId,
     string? AppId,
     int MaxPoolSize,
     int ConnectionTimeoutSeconds,
@@ -20,6 +22,8 @@ public sealed record TenantDataSourceCreateRequest(
     string Name,
     string ConnectionString,
     string DbType = "SQLite",
+    string OwnershipScope = TenantDataSourceOwnershipScopes.Platform,
+    string? OwnerAppInstanceId = null,
     string? AppId = null,
     string Mode = "raw",
     Dictionary<string, string>? VisualConfig = null,
@@ -30,6 +34,9 @@ public sealed record TenantDataSourceUpdateRequest(
     string Name,
     string? ConnectionString,
     string DbType,
+    string? OwnershipScope = null,
+    string? OwnerAppInstanceId = null,
+    string? AppId = null,
     string Mode = "raw",
     Dictionary<string, string>? VisualConfig = null,
     int MaxPoolSize = 50,
@@ -77,3 +84,9 @@ public sealed record DataSourceDriverDefinition(
     bool SupportsVisual,
     string ConnectionStringExample,
     IReadOnlyList<DataSourceDriverFieldDefinition> Fields);
+
+public static class TenantDataSourceOwnershipScopes
+{
+    public const string Platform = "Platform";
+    public const string AppScoped = "AppScoped";
+}

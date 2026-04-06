@@ -42,7 +42,14 @@ public sealed class DatabaseInitializerHostedService : IHostedService
     private readonly DatabaseInitializerOptions _initializerOptions;
     private readonly IHostEnvironment _environment;
     private readonly ISetupStateProvider _setupStateProvider;
+    private readonly ISetupDbClientFactory _setupDbClientFactory;
     private readonly ILogger<DatabaseInitializerHostedService> _logger;
+
+    /// <summary>
+    /// Setup 模式下由 SetupController 设置的显式参数。
+    /// 为 null 时使用启动期冻结的 IOptions 值（正常启动态）。
+    /// </summary>
+    private SetupBootstrapParams? _activeBootstrapParams;
 
     public DatabaseInitializerHostedService(
         IServiceScopeFactory scopeFactory,
@@ -52,6 +59,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         IOptions<DatabaseInitializerOptions> initializerOptions,
         IHostEnvironment environment,
         ISetupStateProvider setupStateProvider,
+        ISetupDbClientFactory setupDbClientFactory,
         ILogger<DatabaseInitializerHostedService> logger)
     {
         _scopeFactory = scopeFactory;
@@ -61,15 +69,25 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         _initializerOptions = initializerOptions.Value;
         _environment = environment;
         _setupStateProvider = setupStateProvider;
+        _setupDbClientFactory = setupDbClientFactory;
         _logger = logger;
     }
 
     /// <summary>
     /// 供安装向导（SetupController）直接调用的初始化入口。
+    /// 传入显式参数以绕过启动期冻结的 IOptions 和 ISqlSugarClient 门禁。
     /// </summary>
-    public Task RunInitializationAsync(CancellationToken cancellationToken)
+    public async Task<BootstrapReport> RunInitializationAsync(SetupBootstrapParams? bootstrapParams, CancellationToken cancellationToken)
     {
-        return RunCoreAsync(cancellationToken);
+        _activeBootstrapParams = bootstrapParams;
+        try
+        {
+            return await RunCoreAsync(cancellationToken);
+        }
+        finally
+        {
+            _activeBootstrapParams = null;
+        }
     }
 
     public async Task StartAsync(CancellationToken cancellationToken)
@@ -83,28 +101,65 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         await RunCoreAsync(cancellationToken);
     }
 
-    private async Task RunCoreAsync(CancellationToken cancellationToken)
+    private BootstrapAdminOptions GetEffectiveBootstrapOptions()
     {
+        if (_activeBootstrapParams is null) return _bootstrapOptions;
+        return new BootstrapAdminOptions
+        {
+            Enabled = true,
+            TenantId = _activeBootstrapParams.TenantId,
+            Username = _activeBootstrapParams.AdminUsername,
+            Password = _activeBootstrapParams.AdminPassword,
+            Roles = _activeBootstrapParams.AdminRoles,
+            IsPlatformAdmin = _activeBootstrapParams.IsPlatformAdmin
+        };
+    }
+
+    private DatabaseInitializerOptions GetEffectiveInitializerOptions()
+    {
+        if (_activeBootstrapParams is null) return _initializerOptions;
+        return new DatabaseInitializerOptions
+        {
+            SkipSchemaInit = _activeBootstrapParams.SkipSchemaInit,
+            SkipSeedData = _activeBootstrapParams.SkipSeedData,
+            SkipSchemaMigrations = _activeBootstrapParams.SkipSchemaMigrations
+        };
+    }
+
+    private async Task<BootstrapReport> RunCoreAsync(CancellationToken cancellationToken)
+    {
+        var report = new BootstrapReport();
+
         if (_encryptionOptions.Enabled && string.IsNullOrWhiteSpace(_encryptionOptions.Key))
         {
-            if (_environment.IsProduction())
-            {
-                // 生产环境：数据库加密已启用但密钥未配置，必须阻止启动
-                throw new InvalidOperationException(
-                    "生产环境已启用数据库加密（Database:Encryption:Enabled=true）但未配置密钥（Database:Encryption:Key）。" +
-                    "请通过环境变量 Database__Encryption__Key 提供密钥，或将 Database:Encryption:Enabled 设为 false。");
-            }
-
-            // 非生产环境：输出警告并降级为不加密，不阻止启动
             _logger.LogWarning(
                 "[DatabaseInitializer] Database:Encryption:Enabled=true 但 Key 未配置，" +
-                "非生产环境下自动降级为不加密运行。若为误配置，请检查环境变量 Database__Encryption__Enabled。");
+                "当前将自动降级为不加密运行。若为误配置，请检查环境变量 Database__Encryption__Enabled。");
         }
-
 
         using var scope = _scopeFactory.CreateScope();
         var appContextAccessor = scope.ServiceProvider.GetRequiredService<IAppContextAccessor>();
-        var db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+
+        // Setup 模式：使用 ISetupDbClientFactory 绕过 ISqlSugarClient 的 IsReady 门禁
+        ISqlSugarClient db;
+        ISqlSugarClient? setupOwnedDb = null;
+        if (_activeBootstrapParams is not null)
+        {
+            setupOwnedDb = _setupDbClientFactory.Create(
+                _activeBootstrapParams.ConnectionString,
+                _activeBootstrapParams.DbType);
+            db = setupOwnedDb;
+            _logger.LogInformation("[DatabaseInitializer] 使用 setup 专用数据库连接");
+        }
+        else
+        {
+            db = scope.ServiceProvider.GetRequiredService<ISqlSugarClient>();
+        }
+
+        try
+        {
+        var effectiveBootstrap = GetEffectiveBootstrapOptions();
+        var effectiveInitializer = GetEffectiveInitializerOptions();
 
         // 关键兼容迁移：平台管理员标记字段缺失会导致登录链路失败，需始终检查并补齐。
         await EnsureUserAccountSchemaAsync(db, cancellationToken);
@@ -130,7 +185,8 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         await EnsureDynamicFieldSchemaAsync(db, cancellationToken);
 
         // Schema 迁移检查（兼容历史版本字段结构）
-        if (!_initializerOptions.SkipSchemaMigrations)
+        report.MigrationsApplied = !effectiveInitializer.SkipSchemaMigrations;
+        if (!effectiveInitializer.SkipSchemaMigrations)
         {
             _logger.LogInformation("[DatabaseInitializer] 开始执行 Schema 迁移检查...");
             await EnsureAuthSessionSchemaAsync(db, cancellationToken);
@@ -153,7 +209,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         }
 
         // Schema 初始化（CodeFirst.InitTables）
-        if (!_initializerOptions.SkipSchemaInit)
+        if (!effectiveInitializer.SkipSchemaInit)
         {
             _logger.LogInformation("[DatabaseInitializer] 开始执行 Schema 初始化（CodeFirst.InitTables）...");
             db.CodeFirst.InitTables(
@@ -387,6 +443,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             typeof(Atlas.Domain.LogicFlow.Governance.SysCanaryRelease),
             typeof(Atlas.Domain.LogicFlow.Governance.SysVersionFreeze));
         // 结束 CodeFirst.InitTables 块
+            report.SchemaInitialized = true;
         }
         else
         {
@@ -405,32 +462,27 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             cancellationToken);
 
         // 种子数据初始化
-        if (_initializerOptions.SkipSeedData)
+        if (effectiveInitializer.SkipSeedData)
         {
-            // 首次运行自动检测：若 Menu 表为空（新环境/重建 DB），自动忽略 SkipSeedData 标志执行播种
-            // 这样无需手动修改配置即可在全新环境中正常启动
             var menuCount = await db.Queryable<Menu>().CountAsync(cancellationToken);
             if (menuCount == 0)
             {
                 _logger.LogWarning(
                     "[DatabaseInitializer] 检测到 Menu 表为空（新环境或重建 DB），" +
-                    "自动忽略 SkipSeedData=true 配置，执行首次种子数据播种。" +
-                    "如需永久跳过播种，请在播种完成后确认 DatabaseInitializer:SkipSeedData=true 并保持数据库不删除。");
+                    "自动忽略 SkipSeedData=true 配置，执行首次种子数据播种。");
             }
             else
             {
                 _logger.LogInformation("[DatabaseInitializer] 已跳过种子数据初始化（DatabaseInitializer:SkipSeedData=true）");
                 await EnsureBootstrapAdminPlatformFlagAsync(scope, appContextAccessor, cancellationToken);
-                // 始终加载 License 状态，不受 SkipSeedData 影响
                 await LoadLicenseStatusAsync(scope, cancellationToken);
-                return;
+                return report;
             }
         }
 
         _logger.LogInformation("[DatabaseInitializer] 开始执行种子数据初始化...");
 
-        // 初始化审批模块种子数据（使用 BootstrapAdmin 的 TenantId）
-        if (Guid.TryParse(_bootstrapOptions.TenantId, out var seedTenantGuid))
+        if (Guid.TryParse(effectiveBootstrap.TenantId, out var seedTenantGuid))
         {
             var approvalSeedService = scope.ServiceProvider.GetRequiredService<ApprovalSeedDataService>();
             var templateSeedDataService = scope.ServiceProvider.GetRequiredService<TemplateSeedDataService>();
@@ -440,7 +492,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             await templateSeedDataService.InitializeBuiltInTemplatesAsync(seedTenantId, cancellationToken);
         }
 
-        if (Guid.TryParse(_bootstrapOptions.TenantId, out var appTenantGuid))
+        if (Guid.TryParse(effectiveBootstrap.TenantId, out var appTenantGuid))
         {
             var appTenantId = new TenantId(appTenantGuid);
             using var appConfigScope = appContextAccessor.BeginScope(CreateSystemContext(appContextAccessor, appTenantId));
@@ -456,7 +508,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             }
         }
 
-        if (Guid.TryParse(_bootstrapOptions.TenantId, out var configTenantGuid))
+        if (Guid.TryParse(effectiveBootstrap.TenantId, out var configTenantGuid))
         {
             var configTenantId = new TenantId(configTenantGuid);
             using var configScope = appContextAccessor.BeginScope(CreateSystemContext(appContextAccessor, configTenantId));
@@ -467,31 +519,33 @@ public sealed class DatabaseInitializerHostedService : IHostedService
                 cancellationToken);
         }
 
-        // 启动时加载授权证书状态到内存（不阻塞启动）
+        report.SeedCompleted = true;
+        report.SeedSummary = "审批/模板/应用配置/系统配置种子数据已播种";
+
         await LoadLicenseStatusAsync(scope, cancellationToken);
 
-        if (!_bootstrapOptions.Enabled)
+        if (!effectiveBootstrap.Enabled)
         {
-            return;
+            return report;
         }
 
-        if (string.IsNullOrWhiteSpace(_bootstrapOptions.Password))
+        if (string.IsNullOrWhiteSpace(effectiveBootstrap.Password))
         {
             if (_environment.IsDevelopment())
             {
                 _logger.LogWarning("未配置BootstrapAdmin密码，已跳过创建默认管理员。");
-                return;
+                return report;
             }
 
             throw new InvalidOperationException("生产环境必须配置BootstrapAdmin密码。");
         }
 
-        if (!PasswordPolicy.IsCompliant(_bootstrapOptions.Password, _passwordPolicy, out var message))
+        if (!PasswordPolicy.IsCompliant(effectiveBootstrap.Password, _passwordPolicy, out var message))
         {
             throw new InvalidOperationException($"BootstrapAdmin密码不符合策略：{message}");
         }
 
-        if (!Guid.TryParse(_bootstrapOptions.TenantId, out var tenantGuid))
+        if (!Guid.TryParse(effectiveBootstrap.TenantId, out var tenantGuid))
         {
             throw new InvalidOperationException("BootstrapAdmin TenantId格式错误。");
         }
@@ -522,7 +576,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         var roleSeedMap = requiredRoleDefinitions
             .Concat(optionalRoleDefinitions)
             .ToDictionary(x => x.Code, x => x, StringComparer.OrdinalIgnoreCase);
-        var roleCodes = _bootstrapOptions.Roles.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+        var roleCodes = effectiveBootstrap.Roles.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
         if (!roleCodes.Contains("SuperAdmin", StringComparer.OrdinalIgnoreCase))
@@ -1275,11 +1329,11 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             await roleMenuRepository.AddRangeAsync(roleMenusToInsert, cancellationToken);
         }
 
-        var existing = await userRepository.FindByUsernameAsync(tenantId, _bootstrapOptions.Username, cancellationToken);
+        var existing = await userRepository.FindByUsernameAsync(tenantId, effectiveBootstrap.Username, cancellationToken);
         if (existing is not null)
         {
             existing.UpdateRoles(string.Join(',', roleCodes));
-            if (_bootstrapOptions.IsPlatformAdmin)
+            if (effectiveBootstrap.IsPlatformAdmin)
             {
                 existing.MarkPlatformAdmin();
             }
@@ -1293,14 +1347,16 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             await userRoleRepository.AddRangeAsync(
                 roleIds.Select(roleId => new UserRole(tenantId, existing.Id, roleId, idGeneratorAccessor.NextId())).ToArray(),
                 cancellationToken);
-            return;
+            report.AdminCreated = true;
+            report.AdminUsername = effectiveBootstrap.Username;
+            return report;
         }
 
-        var hashed = passwordHasher.HashPassword(_bootstrapOptions.Password);
-        var account = new UserAccount(tenantId, _bootstrapOptions.Username, _bootstrapOptions.Username, hashed, idGeneratorAccessor.NextId());
+        var hashed = passwordHasher.HashPassword(effectiveBootstrap.Password);
+        var account = new UserAccount(tenantId, effectiveBootstrap.Username, effectiveBootstrap.Username, hashed, idGeneratorAccessor.NextId());
         account.UpdateRoles(string.Join(',', roleCodes));
         account.MarkSystemAccount();
-        if (_bootstrapOptions.IsPlatformAdmin)
+        if (effectiveBootstrap.IsPlatformAdmin)
         {
             account.MarkPlatformAdmin();
         }
@@ -1308,7 +1364,19 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         await userRoleRepository.AddRangeAsync(
             roleIds.Select(roleId => new UserRole(tenantId, account.Id, roleId, idGeneratorAccessor.NextId())).ToArray(),
             cancellationToken);
-        _logger.LogInformation("已创建BootstrapAdmin账号：{Username}", _bootstrapOptions.Username);
+        report.AdminCreated = true;
+        report.AdminUsername = effectiveBootstrap.Username;
+        _logger.LogInformation("已创建BootstrapAdmin账号：{Username}", effectiveBootstrap.Username);
+
+        return report;
+        }
+        finally
+        {
+            if (setupOwnedDb is IDisposable disposableDb)
+            {
+                disposableDb.Dispose();
+            }
+        }
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;

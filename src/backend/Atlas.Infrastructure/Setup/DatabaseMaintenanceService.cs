@@ -2,10 +2,12 @@ using System.Diagnostics;
 using System.Security.Cryptography;
 using Atlas.Application.Setup;
 using Atlas.Infrastructure.Options;
+using Atlas.Infrastructure.Services;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using SqlSugar;
 
 namespace Atlas.Infrastructure.Setup;
 
@@ -33,11 +35,25 @@ public sealed class DatabaseMaintenanceService : IDatabaseMaintenanceService
         var sw = Stopwatch.StartNew();
         try
         {
-            await using var conn = new SqliteConnection(_databaseOptions.ConnectionString);
-            await conn.OpenAsync(cancellationToken);
-            await using var cmd = conn.CreateCommand();
-            cmd.CommandText = "SELECT 1;";
-            await cmd.ExecuteScalarAsync(cancellationToken);
+            if (IsSqlite())
+            {
+                await using var conn = new SqliteConnection(_databaseOptions.ConnectionString);
+                await conn.OpenAsync(cancellationToken);
+                await using var cmd = conn.CreateCommand();
+                cmd.CommandText = "SELECT 1;";
+                await cmd.ExecuteScalarAsync(cancellationToken);
+            }
+            else
+            {
+                using var db = new SqlSugarClient(new ConnectionConfig
+                {
+                    ConnectionString = _databaseOptions.ConnectionString,
+                    DbType = DataSourceDriverRegistry.ResolveDbType(_databaseOptions.DbType),
+                    IsAutoCloseConnection = true
+                });
+                await db.Ado.GetScalarAsync("SELECT 1", cancellationToken);
+            }
+
             sw.Stop();
             return new DatabaseConnectionStatus(true, "OK", sw.ElapsedMilliseconds);
         }
@@ -49,8 +65,37 @@ public sealed class DatabaseMaintenanceService : IDatabaseMaintenanceService
         }
     }
 
+    public Task<DatabaseMaintenanceCapability> GetCapabilityAsync(CancellationToken cancellationToken)
+    {
+        _ = cancellationToken;
+        var dbType = string.IsNullOrWhiteSpace(_databaseOptions.DbType) ? "SQLite" : _databaseOptions.DbType;
+        if (IsSqlite())
+        {
+            return Task.FromResult(new DatabaseMaintenanceCapability(
+                dbType,
+                SupportsConnectionTest: true,
+                SupportsBackup: true,
+                SupportsRestore: true,
+                SupportsEngineDiagnostics: true,
+                Notes: "SQLite 提供完整闭环：连通性检测、备份、恢复与引擎诊断。"));
+        }
+
+        return Task.FromResult(new DatabaseMaintenanceCapability(
+            dbType,
+            SupportsConnectionTest: true,
+            SupportsBackup: false,
+            SupportsRestore: false,
+            SupportsEngineDiagnostics: false,
+            Notes: "当前版本对非 SQLite 提供连通性检测；备份/恢复/引擎诊断请使用数据库原生运维方案。"));
+    }
+
     public Task<BackupResult> BackupNowAsync(CancellationToken cancellationToken)
     {
+        if (!IsSqlite())
+        {
+            return Task.FromResult(new BackupResult(false, null, "当前数据库驱动暂不支持平台内置备份。", null));
+        }
+
         try
         {
             if (!TryGetDatabaseFilePath(_databaseOptions.ConnectionString, out var dbPath))
@@ -85,6 +130,11 @@ public sealed class DatabaseMaintenanceService : IDatabaseMaintenanceService
 
     public Task RestoreFromBackupAsync(string backupFileName, CancellationToken cancellationToken)
     {
+        if (!IsSqlite())
+        {
+            throw new NotSupportedException("当前数据库驱动暂不支持平台内置恢复。");
+        }
+
         if (!TryGetDatabaseFilePath(_databaseOptions.ConnectionString, out var dbPath))
         {
             throw new InvalidOperationException("无法解析数据库文件路径");
@@ -113,6 +163,11 @@ public sealed class DatabaseMaintenanceService : IDatabaseMaintenanceService
 
     public Task<IReadOnlyList<BackupFileInfo>> ListBackupsAsync(CancellationToken cancellationToken)
     {
+        if (!IsSqlite())
+        {
+            return Task.FromResult<IReadOnlyList<BackupFileInfo>>(Array.Empty<BackupFileInfo>());
+        }
+
         var backupDir = Path.GetFullPath(
             Path.IsPathRooted(_backupOptions.BackupDirectory)
                 ? _backupOptions.BackupDirectory
@@ -149,25 +204,28 @@ public sealed class DatabaseMaintenanceService : IDatabaseMaintenanceService
         long? pageCount = null;
         long? pageSize = null;
 
-        if (TryGetDatabaseFilePath(_databaseOptions.ConnectionString, out var dbPath) && File.Exists(dbPath))
+        if (IsSqlite() && TryGetDatabaseFilePath(_databaseOptions.ConnectionString, out var dbPath) && File.Exists(dbPath))
         {
             fileSize = new FileInfo(dbPath).Length;
         }
 
         try
         {
-            using var conn = new SqliteConnection(_databaseOptions.ConnectionString);
-            conn.Open();
+            if (IsSqlite())
+            {
+                using var conn = new SqliteConnection(_databaseOptions.ConnectionString);
+                conn.Open();
 
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = "PRAGMA journal_mode;";
-            journalMode = cmd.ExecuteScalar()?.ToString();
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = "PRAGMA journal_mode;";
+                journalMode = cmd.ExecuteScalar()?.ToString();
 
-            cmd.CommandText = "PRAGMA page_count;";
-            pageCount = Convert.ToInt64(cmd.ExecuteScalar());
+                cmd.CommandText = "PRAGMA page_count;";
+                pageCount = Convert.ToInt64(cmd.ExecuteScalar());
 
-            cmd.CommandText = "PRAGMA page_size;";
-            pageSize = Convert.ToInt64(cmd.ExecuteScalar());
+                cmd.CommandText = "PRAGMA page_size;";
+                pageSize = Convert.ToInt64(cmd.ExecuteScalar());
+            }
         }
         catch (Exception ex)
         {
@@ -181,6 +239,13 @@ public sealed class DatabaseMaintenanceService : IDatabaseMaintenanceService
             journalMode,
             pageCount,
             pageSize));
+    }
+
+    private bool IsSqlite()
+    {
+        var dbType = _databaseOptions.DbType ?? string.Empty;
+        return string.Equals(dbType, "sqlite", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(dbType, "sqlite3", StringComparison.OrdinalIgnoreCase);
     }
 
     private static void VerifyIntegrity(string dbPath)

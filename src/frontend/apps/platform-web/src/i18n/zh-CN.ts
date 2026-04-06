@@ -2145,6 +2145,31 @@ export default {
     restore: "恢复",
     restoreConfirm: "确定要从此备份恢复？当前数据将被覆盖！"
   },
+  migration: {
+    title: "数据库迁移向导",
+    subtitle: "管理动态表和应用数据库的迁移操作",
+    dynamicTab: "动态表迁移",
+    appTab: "应用迁移",
+    tableKey: "表标识",
+    tableKeyPlaceholder: "输入目标表的 Key",
+    migrationId: "迁移 ID",
+    detect: "检测变更",
+    detectSuccess: "变更检测成功",
+    detectFailed: "变更检测失败",
+    load: "加载",
+    id: "ID",
+    status: "状态",
+    precheck: "预检查",
+    execute: "执行迁移",
+    executeSuccess: "迁移执行成功",
+    executeFailed: "迁移执行失败",
+    retry: "重试",
+    start: "开始迁移",
+    startSuccess: "迁移已启动",
+    progress: "查看进度",
+    rollback: "回滚",
+    rollbackSuccess: "回滚成功"
+  },
   setup: {
     title: "Atlas 平台安装向导",
     subtitle: "首次使用需要完成平台初始化配置",
@@ -2179,6 +2204,13 @@ export default {
     passwordMismatch: "两次输入的密码不一致",
     fieldRequired: "此项为必填",
     initFailed: "初始化失败",
-    alreadyConfigured: "平台已完成安装配置"
+    alreadyConfigured: "平台已完成安装配置",
+    reportSchema: "Schema 初始化",
+    reportMigrations: "迁移检查",
+    reportSeed: "种子数据",
+    reportAdmin: "管理员账户",
+    reportDone: "已完成",
+    reportSkipped: "已跳过",
+    reportErrors: "初始化过程中产生的警告"
   }
 };

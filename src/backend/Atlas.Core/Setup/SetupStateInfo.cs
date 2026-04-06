@@ -20,6 +20,10 @@ public sealed class SetupStateInfo
     [JsonPropertyName("failureMessage")]
     public string? FailureMessage { get; set; }
 
+    /// <summary>
+    /// 历史遗留字段，仅用于诊断。运行时数据库配置已迁移至 appsettings.runtime.json。
+    /// </summary>
+    [Obsolete("数据库配置已迁移至 appsettings.runtime.json，此字段仅保留用于诊断。")]
     [JsonPropertyName("database")]
     public SetupDatabaseInfo? Database { get; set; }
 

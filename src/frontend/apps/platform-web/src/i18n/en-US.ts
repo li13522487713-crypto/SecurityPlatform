@@ -2148,6 +2148,31 @@ export default {
     restore: "Restore",
     restoreConfirm: "Are you sure you want to restore from this backup? Current data will be overwritten!"
   },
+  migration: {
+    title: "Database Migration Wizard",
+    subtitle: "Manage dynamic table and application database migrations",
+    dynamicTab: "Dynamic Table Migrations",
+    appTab: "App Migrations",
+    tableKey: "Table Key",
+    tableKeyPlaceholder: "Enter target table key",
+    migrationId: "Migration ID",
+    detect: "Detect Changes",
+    detectSuccess: "Changes detected successfully",
+    detectFailed: "Failed to detect changes",
+    load: "Load",
+    id: "ID",
+    status: "Status",
+    precheck: "Precheck",
+    execute: "Execute Migration",
+    executeSuccess: "Migration executed successfully",
+    executeFailed: "Migration execution failed",
+    retry: "Retry",
+    start: "Start Migration",
+    startSuccess: "Migration started",
+    progress: "View Progress",
+    rollback: "Rollback",
+    rollbackSuccess: "Rollback successful"
+  },
   setup: {
     title: "Atlas Platform Setup Wizard",
     subtitle: "First-time setup is required to initialize the platform",
@@ -2182,6 +2207,13 @@ export default {
     passwordMismatch: "Passwords do not match",
     fieldRequired: "This field is required",
     initFailed: "Initialization failed",
-    alreadyConfigured: "Platform setup has already been completed"
+    alreadyConfigured: "Platform setup has already been completed",
+    reportSchema: "Schema Init",
+    reportMigrations: "Migrations",
+    reportSeed: "Seed Data",
+    reportAdmin: "Admin Account",
+    reportDone: "Done",
+    reportSkipped: "Skipped",
+    reportErrors: "Warnings during initialization"
   }
 };

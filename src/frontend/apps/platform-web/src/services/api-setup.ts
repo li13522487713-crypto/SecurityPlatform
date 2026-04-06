@@ -82,10 +82,24 @@ export async function testConnection(
   });
 }
 
+export interface InitializeResponse {
+  status: string;
+  platformSetupCompleted: boolean;
+  schemaInitialized: boolean;
+  tablesCreated: number;
+  migrationsApplied: boolean;
+  migrationCount: number;
+  seedCompleted: boolean;
+  seedSummary: string;
+  adminCreated: boolean;
+  adminUsername: string | null;
+  errors: string[];
+}
+
 export async function initializePlatform(
   request: InitializeRequest
-): Promise<ApiResponse<SetupStateResponse>> {
-  return fetchJson<ApiResponse<SetupStateResponse>>(BASE + "/initialize", {
+): Promise<ApiResponse<InitializeResponse>> {
+  return fetchJson<ApiResponse<InitializeResponse>>(BASE + "/initialize", {
     method: "POST",
     body: JSON.stringify(request)
   });

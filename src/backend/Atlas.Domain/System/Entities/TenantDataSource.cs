@@ -77,12 +77,14 @@ public sealed class TenantDataSource : EntityBase
         string name,
         string encryptedConnectionString,
         string dbType,
+        long? appId,
         int maxPoolSize,
         int connectionTimeoutSeconds)
     {
         Name = name;
         EncryptedConnectionString = encryptedConnectionString;
         DbType = dbType;
+        AppId = appId;
         MaxPoolSize = maxPoolSize;
         ConnectionTimeoutSeconds = connectionTimeoutSeconds;
         UpdatedAt = DateTimeOffset.UtcNow;

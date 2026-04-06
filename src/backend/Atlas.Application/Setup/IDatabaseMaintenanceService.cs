@@ -2,6 +2,8 @@ namespace Atlas.Application.Setup;
 
 public interface IDatabaseMaintenanceService
 {
+    Task<DatabaseMaintenanceCapability> GetCapabilityAsync(CancellationToken cancellationToken = default);
+
     Task<DatabaseConnectionStatus> TestConnectionAsync(CancellationToken cancellationToken = default);
 
     Task<BackupResult> BackupNowAsync(CancellationToken cancellationToken = default);
@@ -14,6 +16,14 @@ public interface IDatabaseMaintenanceService
 }
 
 public sealed record DatabaseConnectionStatus(bool Connected, string Message, long? LatencyMs);
+
+public sealed record DatabaseMaintenanceCapability(
+    string DbType,
+    bool SupportsConnectionTest,
+    bool SupportsBackup,
+    bool SupportsRestore,
+    bool SupportsEngineDiagnostics,
+    string Notes);
 
 public sealed record BackupResult(bool Success, string? FileName, string? Message, long? SizeBytes);
 

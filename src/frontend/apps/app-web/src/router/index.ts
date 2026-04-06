@@ -6,6 +6,7 @@ import { getSetupState } from "@/services/api-setup";
 
 let setupChecked = false;
 let platformReady = true;
+let appReady = true;
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -14,6 +15,12 @@ export const router = createRouter({
       path: "/platform-not-ready",
       name: "platform-not-ready",
       component: () => import("@/pages/PlatformNotReadyPage.vue"),
+      meta: { requiresAuth: false }
+    },
+    {
+      path: "/app-setup",
+      name: "app-setup",
+      component: () => import("@/pages/AppSetupWizardPage.vue"),
       meta: { requiresAuth: false }
     },
     {
@@ -126,9 +133,11 @@ router.beforeEach(async (to, _from, next) => {
   if (!setupChecked) {
     try {
       const resp = await getSetupState();
-      platformReady = resp.success && resp.data?.status === "Ready";
+      platformReady = resp.success && resp.data?.platformStatus === "Ready";
+      appReady = resp.success && resp.data?.appSetupCompleted === true;
     } catch {
       platformReady = false;
+      appReady = false;
     }
     setupChecked = true;
   }
@@ -139,6 +148,20 @@ router.beforeEach(async (to, _from, next) => {
   }
 
   if (platformReady && to.name === "platform-not-ready") {
+    if (!appReady) {
+      next({ name: "app-setup" });
+    } else {
+      next({ name: "home" });
+    }
+    return;
+  }
+
+  if (platformReady && !appReady && to.name !== "app-setup") {
+    next({ name: "app-setup" });
+    return;
+  }
+
+  if (appReady && to.name === "app-setup") {
     next({ name: "home" });
     return;
   }

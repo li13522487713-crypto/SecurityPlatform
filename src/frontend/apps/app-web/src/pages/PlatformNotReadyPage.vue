@@ -22,7 +22,7 @@ async function handleRetry() {
   checking.value = true;
   try {
     const resp = await getSetupState();
-    if (resp.success && resp.data?.status === "Ready") {
+    if (resp.success && resp.data?.platformStatus === "Ready") {
       window.location.reload();
     }
   } finally {

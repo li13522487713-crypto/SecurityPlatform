@@ -62,6 +62,7 @@ export const router = createRouter({
         { path: "settings/system/datasources", name: "settings-datasources", component: () => import("@/pages/settings/DataSourcesPage.vue") },
         { path: "settings/system/configs", name: "settings-configs", component: () => import("@/pages/settings/SystemConfigsPage.vue") },
         { path: "settings/system/database", name: "settings-database", component: () => import("@/pages/settings/DatabaseMaintenancePage.vue") },
+        { path: "settings/system/migrations", name: "settings-migrations", component: () => import("@/pages/settings/DatabaseMigrationPage.vue") },
         { path: "settings/system/plugins", name: "settings-plugins", component: () => import("@/pages/settings/PluginManagePage.vue") },
         { path: "settings/system/webhooks", name: "settings-webhooks", component: () => import("@/pages/settings/WebhooksPage.vue") },
         { path: "settings/projects", name: "settings-projects", component: () => import("@/pages/settings/ProjectsPage.vue") },

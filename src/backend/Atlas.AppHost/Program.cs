@@ -36,7 +36,18 @@ using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 
 var builder = WebApplication.CreateBuilder(args);
-var platformConfigRoot = Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, "..", "Atlas.PlatformHost"));
+
+// 平台配置根目录：支持通过环境变量 ATLAS_PLATFORM_CONFIG_ROOT 覆盖，
+// 默认值兼容开发环境的相对目录布局。
+var platformConfigRoot = Environment.GetEnvironmentVariable("ATLAS_PLATFORM_CONFIG_ROOT");
+if (string.IsNullOrWhiteSpace(platformConfigRoot))
+{
+    platformConfigRoot = builder.Configuration["Atlas:Runtime:PlatformConfigRoot"];
+}
+if (string.IsNullOrWhiteSpace(platformConfigRoot))
+{
+    platformConfigRoot = Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, "..", "Atlas.PlatformHost"));
+}
 
 builder.Configuration
     .AddJsonFile(Path.Combine(platformConfigRoot, "appsettings.json"), optional: true, reloadOnChange: false)
@@ -44,11 +55,35 @@ builder.Configuration
         Path.Combine(platformConfigRoot, $"appsettings.{builder.Environment.EnvironmentName}.json"),
         optional: true,
         reloadOnChange: false);
-var dbPath = Path.Combine(platformConfigRoot, "atlas.db");
+
+// 加载平台 setup 完成后持久化的运行时配置（如有）
+var platformRuntimeConfigPath = Path.Combine(platformConfigRoot, "appsettings.runtime.json");
+builder.Configuration.AddJsonFile(platformRuntimeConfigPath, optional: true, reloadOnChange: false);
+
+// 也加载 AppHost 自身的运行时配置（优先级更高，允许独立覆盖）
+var appRuntimeConfigPath = Path.Combine(builder.Environment.ContentRootPath, "appsettings.runtime.json");
+builder.Configuration.AddJsonFile(appRuntimeConfigPath, optional: true, reloadOnChange: false);
+
 var platformSetupStatePath = Path.Combine(platformConfigRoot, "setup-state.json");
+var platformSetupReadyForRegistration = File.Exists(platformSetupStatePath) &&
+    File.ReadAllText(platformSetupStatePath).Contains("\"Ready\"", StringComparison.OrdinalIgnoreCase);
+var appSetupStatePath = Path.Combine(builder.Environment.ContentRootPath, "app-setup-state.json");
+var appSetupReadyForRegistration = File.Exists(appSetupStatePath) &&
+    File.ReadAllText(appSetupStatePath).Contains("\"Ready\"", StringComparison.OrdinalIgnoreCase);
+var runtimeReadyForRegistration = platformSetupReadyForRegistration && appSetupReadyForRegistration;
+
+// 仅当运行时配置未提供数据库连接串时才使用默认路径
+if (string.IsNullOrWhiteSpace(builder.Configuration["Database:ConnectionString"]))
+{
+    var dbPath = Path.Combine(platformConfigRoot, "atlas.db");
+    builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+    {
+        ["Database:ConnectionString"] = $"Data Source={dbPath}"
+    });
+}
+
 builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
 {
-    ["Database:ConnectionString"] = $"Data Source={dbPath}",
     ["Setup:StateFilePath"] = platformSetupStatePath
 });
 
@@ -151,19 +186,26 @@ builder.Services.AddValidatorsFromAssemblies([
 // ─── AppHost SDK ───
 builder.Services.AddAtlasAppHostSupport(builder.Configuration);
 
-// ─── Application + Infrastructure (full) ───
-builder.Services.AddAtlasApplicationShared(
+// ─── Application + Infrastructure ───
+var appServices = builder.Services.AddAtlasApplicationShared(
     typeof(AlertMappingProfile).Assembly,
     typeof(ApprovalMappingProfile).Assembly,
     typeof(AssetsMappingProfile).Assembly,
     typeof(Atlas.Application.LogicFlow.Flows.Mappings.LogicFlowMappingProfile).Assembly,
     typeof(Atlas.Application.BatchProcess.Mappings.BatchProcessMappingProfile).Assembly,
     typeof(WebApiMappingProfile).Assembly)
-    .AddAtlasApplicationPlatform()
-    .AddAtlasApplicationRuntime();
-builder.Services.AddAtlasInfrastructureShared(builder.Configuration)
-    .AddAtlasInfrastructurePlatform(builder.Configuration)
-    .AddAtlasInfrastructureAppRuntime(builder.Configuration);
+    .AddAtlasApplicationPlatform();
+if (runtimeReadyForRegistration)
+{
+    appServices.AddAtlasApplicationRuntime();
+    builder.Services.AddAtlasInfrastructureShared(builder.Configuration)
+        .AddAtlasInfrastructurePlatform(builder.Configuration)
+        .AddAtlasInfrastructureAppRuntime(builder.Configuration);
+}
+else
+{
+    builder.Services.AddAtlasInfrastructureShared(builder.Configuration);
+}
 
 // ─── DI：AppHost-specific context accessors ───
 builder.Services.AddScoped<ITenantProvider, AppHostTenantProvider>();
@@ -242,11 +284,8 @@ builder.Services.AddResponseCompression(options =>
 builder.Services.Configure<BrotliCompressionProviderOptions>(options => options.Level = CompressionLevel.Fastest);
 builder.Services.Configure<GzipCompressionProviderOptions>(options => options.Level = CompressionLevel.Fastest);
 
-// ─── Hangfire (client only, no server in AppHost; gated by platform setup state) ───
-var appHangfireReady = File.Exists(platformSetupStatePath) &&
-    File.ReadAllText(platformSetupStatePath).Contains("\"Ready\"", StringComparison.OrdinalIgnoreCase);
-
-if (appHangfireReady)
+// ─── Hangfire (client only, no server in AppHost; gated by setup state) ───
+if (runtimeReadyForRegistration)
 {
     builder.Services.AddHangfire(config =>
         config.UseSQLiteStorage("hangfire-apphost.db", new SQLiteStorageOptions
@@ -260,12 +299,15 @@ else
 }
 
 // ─── WorkflowCore ───
-builder.Services.AddWorkflowCore();
-builder.Services.AddWorkflowCoreDsl(options =>
+if (runtimeReadyForRegistration)
 {
-    options.AddNamespace("Atlas.WorkflowCore.Primitives");
-});
-builder.Services.AddHostedService<Atlas.Infrastructure.Services.WorkflowHostedService>();
+    builder.Services.AddWorkflowCore();
+    builder.Services.AddWorkflowCoreDsl(options =>
+    {
+        options.AddNamespace("Atlas.WorkflowCore.Primitives");
+    });
+    builder.Services.AddHostedService<Atlas.Infrastructure.Services.WorkflowHostedService>();
+}
 
 // ─── OpenTelemetry ───
 var serviceName = "Atlas.AppHost";
@@ -311,7 +353,7 @@ var version = System.Reflection.Assembly.GetEntryAssembly()?.GetName().Version?.
 
 // ─── Middleware pipeline ───
 app.UseMiddleware<ExceptionHandlingMiddleware>();
-app.UseMiddleware<SetupModeMiddleware>();
+app.UseMiddleware<AppSetupModeMiddleware>();
 app.UseMiddleware<XssProtectionMiddleware>();
 
 if (app.Environment.IsDevelopment())
@@ -346,25 +388,56 @@ app.MapGet("/", () => Results.Ok(new
 }));
 app.MapControllers();
 
+var startupLogo = """
+    ___  _______ _        ___   _____
+   / _ |/ __/ _ | |      / _ | / ___/
+  / __ / _// __ | |__   / __ |/ /__
+ /_/ |_/___/_/ |_|____/ /_/ |_|\___/
+Atlas Security Platform
+""";
+
 app.Lifetime.ApplicationStarted.Register(() =>
 {
-    var addresses = app.Urls
+    var addresses = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    foreach (var address in app.Urls)
+    {
+        if (!string.IsNullOrWhiteSpace(address))
+        {
+            addresses.Add(address);
+        }
+    }
+
+    var server = app.Services.GetRequiredService<Microsoft.AspNetCore.Hosting.Server.IServer>();
+    var serverAddresses = server.Features.Get<Microsoft.AspNetCore.Hosting.Server.Features.IServerAddressesFeature>()?.Addresses;
+    if (serverAddresses is not null)
+    {
+        foreach (var address in serverAddresses)
+        {
+            if (!string.IsNullOrWhiteSpace(address))
+            {
+                addresses.Add(address);
+            }
+        }
+    }
+
+    var orderedAddresses = addresses
         .OrderBy(static address => address, StringComparer.OrdinalIgnoreCase)
         .ToArray();
 
     Console.WriteLine();
+    Console.WriteLine(startupLogo);
     Console.WriteLine("Atlas AppHost 启动成功");
     Console.WriteLine($"环境: {app.Environment.EnvironmentName}");
     Console.WriteLine($"应用: {instanceConfig.AppKey} / 实例: {instanceConfig.InstanceId}");
 
-    foreach (var address in addresses)
+    foreach (var address in orderedAddresses)
     {
-        Console.WriteLine($"启动地址: {address}");
+        Console.WriteLine($"监听地址: {address}");
     }
 
     if (app.Environment.IsDevelopment())
     {
-        foreach (var address in addresses)
+        foreach (var address in orderedAddresses)
         {
             Console.WriteLine($"Swagger: {address.TrimEnd('/')}/swagger");
         }

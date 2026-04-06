@@ -787,6 +787,13 @@ JWT Claims（新增）：
 - `POST /api/v1/tenant-datasources/test`：测试数据源连接
 - `POST /api/v1/tenant-datasources/{id}/test`：测试已保存数据源连接（无需回传明文连接串）
 
+### 数据源归属显性字段（控制面主库 / 应用数据面分库）
+
+- `ownershipScope`：`Platform | AppScoped`
+- `ownerAppInstanceId`：当 `ownershipScope=AppScoped` 时必填，指向租户应用实例 ID
+- 兼容字段：`appId` 仍可传入，作为 `ownerAppInstanceId` 的兼容别名；`appId` 与 `ownerAppInstanceId` 不可同时传入
+- 返回 DTO 同时包含：`ownershipScope`、`ownerAppInstanceId`、`appId`（兼容）
+
 ### 数据源类型
 
 - `SQLite`
@@ -835,6 +842,20 @@ JWT Claims（新增）：
 }
 ```
 
+### 创建数据源（应用级归属示例）
+
+```json
+{
+  "tenantIdValue": "00000000-0000-0000-0000-000000000001",
+  "name": "app-orders-postgres",
+  "connectionString": "Host=127.0.0.1;Port=5432;Database=orders;Username=postgres;Password=postgres",
+  "dbType": "PostgreSQL",
+  "ownershipScope": "AppScoped",
+  "ownerAppInstanceId": "1482690002860118000",
+  "mode": "raw"
+}
+```
+
 ### 更新数据源（连接串可选）
 
 `PUT /api/v1/tenant-datasources/{id}`
@@ -844,6 +865,12 @@ JWT Claims（新增）：
 - `connectionString` 允许留空（或不传），表示保持现有密文连接串不变，仅更新名称/类型/池参数。
 - 若传入 `connectionString`，服务端按配置重新加密后覆盖存储。
 - 当 `mode=visual` 时，服务端使用 `visualConfig` 组装连接串并加密存储（`connectionString` 可为空）。
+
+## 数据库运维能力契约（多数据库）
+
+- `GET /api/v1/database-maintenance/capabilities`：返回当前数据库驱动能力矩阵
+  - 字段：`dbType`、`supportsConnectionTest`、`supportsBackup`、`supportsRestore`、`supportsEngineDiagnostics`、`notes`
+- 对非 SQLite 驱动：`test-connection` 保持可用，`backups/restore` 返回“不支持内置运维”的明确结果
 
 ## 应用数据库迁移契约（补充）
 
