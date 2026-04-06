@@ -15,6 +15,7 @@ public sealed class AppHostProxyConfigProvider : IProxyConfigProvider, IDisposab
     private readonly ILogger<AppHostProxyConfigProvider> logger;
     private readonly CancellationTokenSource cts = new();
     private readonly object syncLock = new();
+    private int disposed;
 
     private volatile AppHostProxySnapshot currentSnapshot;
 
@@ -24,7 +25,7 @@ public sealed class AppHostProxyConfigProvider : IProxyConfigProvider, IDisposab
     {
         this.registry = registry;
         this.logger = logger;
-        currentSnapshot = new AppHostProxySnapshot([], [], new CancellationChangeToken(cts.Token));
+        currentSnapshot = new AppHostProxySnapshot([], [], cts);
 
         _ = Task.Run(PollLoopAsync);
     }
@@ -33,7 +34,20 @@ public sealed class AppHostProxyConfigProvider : IProxyConfigProvider, IDisposab
 
     public void Dispose()
     {
-        cts.Cancel();
+        if (Interlocked.Exchange(ref disposed, 1) != 0)
+        {
+            return;
+        }
+
+        try
+        {
+            cts.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+            // 允许宿主在重复释放时平滑退出。
+        }
+
         cts.Dispose();
     }
 
@@ -115,7 +129,7 @@ public sealed class AppHostProxyConfigProvider : IProxyConfigProvider, IDisposab
         {
             var oldSnapshot = currentSnapshot;
             var newCts = new CancellationTokenSource();
-            currentSnapshot = new AppHostProxySnapshot(routes, clusters, new CancellationChangeToken(newCts.Token));
+            currentSnapshot = new AppHostProxySnapshot(routes, clusters, newCts);
 
             oldSnapshot.SignalChange();
         }
@@ -126,16 +140,17 @@ public sealed class AppHostProxyConfigProvider : IProxyConfigProvider, IDisposab
 
 internal sealed class AppHostProxySnapshot : IProxyConfig
 {
-    private readonly CancellationTokenSource changeCts = new();
+    private readonly CancellationTokenSource changeCts;
 
     public AppHostProxySnapshot(
         IReadOnlyList<RouteConfig> routes,
         IReadOnlyList<ClusterConfig> clusters,
-        IChangeToken changeToken)
+        CancellationTokenSource changeCts)
     {
         Routes = routes;
         Clusters = clusters;
-        ChangeToken = changeToken;
+        this.changeCts = changeCts;
+        ChangeToken = new CancellationChangeToken(changeCts.Token);
     }
 
     public IReadOnlyList<RouteConfig> Routes { get; }

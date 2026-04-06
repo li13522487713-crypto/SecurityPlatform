@@ -30,11 +30,35 @@ public sealed class SetupModeMiddleware
         _next = next;
     }
 
-    public async Task InvokeAsync(HttpContext context, ISetupStateProvider setupStateProvider)
+    public async Task InvokeAsync(
+        HttpContext context,
+        ISetupStateProvider setupStateProvider,
+        PlatformRuntimeRegistrationMarker registrationMarker)
     {
         if (setupStateProvider.IsReady)
         {
-            await _next(context);
+            if (registrationMarker.FullyRegistered)
+            {
+                await _next(context);
+                return;
+            }
+
+            var path2 = context.Request.Path.Value ?? string.Empty;
+            if (IsAllowedPath(path2) || !path2.StartsWith("/api/", StringComparison.OrdinalIgnoreCase))
+            {
+                await _next(context);
+                return;
+            }
+
+            context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+            context.Response.ContentType = "application/json; charset=utf-8";
+
+            var restartResponse = ApiResponse<object>.Fail(
+                "PLATFORM_RESTART_REQUIRED",
+                "Platform setup completed but the PlatformHost service must be restarted to load all business services.",
+                context.TraceIdentifier);
+
+            await context.Response.WriteAsync(JsonSerializer.Serialize(restartResponse, JsonOptions));
             return;
         }
 

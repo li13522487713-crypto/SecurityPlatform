@@ -11,6 +11,9 @@ public sealed class BootstrapReport
     public int MigrationCount { get; set; }
     public bool SeedCompleted { get; set; }
     public string SeedSummary { get; set; } = string.Empty;
+    public int RolesCreated { get; set; }
+    public int DepartmentsCreated { get; set; }
+    public int PositionsCreated { get; set; }
     public bool AdminCreated { get; set; }
     public string? AdminUsername { get; set; }
     public List<string> Errors { get; set; } = [];

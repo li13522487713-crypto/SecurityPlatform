@@ -208,7 +208,7 @@ if (runtimeReadyForRegistration)
 }
 else
 {
-    builder.Services.AddAtlasInfrastructureShared(builder.Configuration);
+    builder.Services.AddAtlasInfrastructureShared(builder.Configuration, includeAppRuntimeServices: false);
 }
 
 // ─── DI：AppHost-specific context accessors ───
@@ -233,48 +233,57 @@ builder.Services.AddAntiforgery(options =>
         : CookieSecurePolicy.None;
 });
 
-// ─── Authentication: JWT (with cookie fallback) ───
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
-    {
-        options.RequireHttpsMetadata = securityOptions.EnforceHttps && !builder.Environment.IsDevelopment();
-        options.MapInboundClaims = false;
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateIssuerSigningKey = true,
-            ValidateLifetime = true,
-            ValidIssuer = jwtOptions.Issuer,
-            ValidAudience = jwtOptions.Audience,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.SigningKey)),
-            NameClaimType = JwtRegisteredClaimNames.Sub,
-            RoleClaimType = ClaimTypes.Role,
-            ClockSkew = TimeSpan.FromMinutes(1)
-        };
-        options.Events = new JwtBearerEvents
-        {
-            OnMessageReceived = context =>
-            {
-                var accessToken = context.Request.Cookies["access_token"];
-                if (!string.IsNullOrEmpty(accessToken))
-                {
-                    context.Token = accessToken;
-                }
-                return Task.CompletedTask;
-            }
-        };
-    });
-builder.Services.AddAuthorization(options =>
+// ─── Authentication / Authorization ───
+if (runtimeReadyForRegistration)
 {
-    options.DefaultPolicy = new AuthorizationPolicyBuilder(
-            JwtBearerDefaults.AuthenticationScheme)
-        .RequireAuthenticatedUser()
-        .Build();
-});
-builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
-builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
-builder.Services.AddSingleton<IAuthorizationMiddlewareResultHandler, ApiAuthorizationMiddlewareResultHandler>();
+    builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+        .AddJwtBearer(options =>
+        {
+            options.RequireHttpsMetadata = securityOptions.EnforceHttps && !builder.Environment.IsDevelopment();
+            options.MapInboundClaims = false;
+            options.TokenValidationParameters = new TokenValidationParameters
+            {
+                ValidateIssuer = true,
+                ValidateAudience = true,
+                ValidateIssuerSigningKey = true,
+                ValidateLifetime = true,
+                ValidIssuer = jwtOptions.Issuer,
+                ValidAudience = jwtOptions.Audience,
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.SigningKey)),
+                NameClaimType = JwtRegisteredClaimNames.Sub,
+                RoleClaimType = ClaimTypes.Role,
+                ClockSkew = TimeSpan.FromMinutes(1)
+            };
+            options.Events = new JwtBearerEvents
+            {
+                OnMessageReceived = context =>
+                {
+                    var accessToken = context.Request.Cookies["access_token"];
+                    if (!string.IsNullOrEmpty(accessToken))
+                    {
+                        context.Token = accessToken;
+                    }
+                    return Task.CompletedTask;
+                }
+            };
+        });
+    builder.Services.AddAuthorization(options =>
+    {
+        options.DefaultPolicy = new AuthorizationPolicyBuilder(
+                JwtBearerDefaults.AuthenticationScheme)
+            .RequireAuthenticatedUser()
+            .Build();
+    });
+    builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
+    builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
+    builder.Services.AddSingleton<IAuthorizationMiddlewareResultHandler, ApiAuthorizationMiddlewareResultHandler>();
+}
+else
+{
+    builder.Services.AddAuthentication();
+    builder.Services.AddAuthorization();
+}
+
 builder.Services.AddSingleton<Atlas.Presentation.Shared.Services.MigrationGovernanceMetricsStore>();
 
 // ─── Response Compression ───
@@ -372,11 +381,15 @@ app.UseRequestLocalization();
 app.UseMiddleware<ClientContextMiddleware>();
 app.UseRouting();
 app.UseAuthentication();
-app.UseMiddleware<AppContextMiddleware>();
-app.UseMiddleware<AntiforgeryValidationMiddleware>();
-app.UseMiddleware<TenantContextMiddleware>();
-app.UseMiddleware<ApiVersionRewriteMiddleware>();
-app.UseAuthorization();
+
+if (runtimeReadyForRegistration)
+{
+    app.UseMiddleware<AppContextMiddleware>();
+    app.UseMiddleware<AntiforgeryValidationMiddleware>();
+    app.UseMiddleware<TenantContextMiddleware>();
+    app.UseMiddleware<ApiVersionRewriteMiddleware>();
+    app.UseAuthorization();
+}
 
 app.MapHealthChecks("/internal/health/live");
 app.MapHealthChecks("/internal/health/ready");

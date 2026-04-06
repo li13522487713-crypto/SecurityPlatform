@@ -51,7 +51,7 @@ public sealed class DatabaseMaintenanceService : IDatabaseMaintenanceService
                     DbType = DataSourceDriverRegistry.ResolveDbType(_databaseOptions.DbType),
                     IsAutoCloseConnection = true
                 });
-                await db.Ado.GetScalarAsync("SELECT 1", cancellationToken);
+                await db.Ado.GetScalarAsync("SELECT 1");
             }
 
             sw.Stop();

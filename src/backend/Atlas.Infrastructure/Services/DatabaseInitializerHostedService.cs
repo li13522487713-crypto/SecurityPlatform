@@ -525,7 +525,8 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         }
 
         report.SeedCompleted = true;
-        report.SeedSummary = "审批/模板/应用配置/系统配置种子数据已播种";
+        report.SeedSummary =
+            $"系统元数据已播种，新增角色 {report.RolesCreated} 个、部门 {report.DepartmentsCreated} 个、岗位 {report.PositionsCreated} 个。";
 
         await LoadLicenseStatusAsync(scope, cancellationToken);
 
@@ -629,6 +630,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         {
             await roleRepository.AddRangeAsync(rolesToInsert, cancellationToken);
         }
+        report.RolesCreated = rolesToInsert.Count;
 
         await EnsureBootstrapRoleDataScopesAsync(roleRepository, roleMap, allRoleCodes, cancellationToken);
 
@@ -1115,86 +1117,77 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             await db.Insertable(menusToInsert).ExecuteCommandAsync(cancellationToken);
         }
 
-        var departmentSeeds = new (string Name, string? ParentName, int SortOrder)[]
+        var departmentSeeds = ResolveDepartmentSeeds();
+        if (departmentSeeds.Count > 0)
         {
-            ("总部", null, 0),
-            ("研发部", "总部", 10),
-            ("安全运营部", "总部", 20),
-            ("运维部", "总部", 30),
-            ("人力资源部", "总部", 40),
-            ("财务部", "总部", 50)
-        };
+            var departmentNameList = departmentSeeds.Select(x => x.Name).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            var existingDepartments = await db.Queryable<Department>()
+                .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(departmentNameList, x.Name))
+                .ToListAsync(cancellationToken);
+            var departmentIdMap = existingDepartments.ToDictionary(x => x.Code, x => x.Id, StringComparer.OrdinalIgnoreCase);
 
-        var departmentNameList = departmentSeeds.Select(x => x.Name).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
-        var existingDepartments = await db.Queryable<Department>()
-            .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(departmentNameList, x.Name))
-            .ToListAsync(cancellationToken);
-        var departmentIdMap = existingDepartments.ToDictionary(x => x.Name, x => x.Id, StringComparer.OrdinalIgnoreCase);
-
-        var departmentsToInsert = new List<Department>();
-        foreach (var seed in departmentSeeds)
-        {
-            if (departmentIdMap.ContainsKey(seed.Name))
+            var departmentsToInsert = new List<Department>();
+            foreach (var seed in departmentSeeds)
             {
-                continue;
+                if (departmentIdMap.ContainsKey(seed.Code))
+                {
+                    continue;
+                }
+
+                var parentId = 0L;
+                if (!string.IsNullOrWhiteSpace(seed.ParentCode) &&
+                    departmentIdMap.TryGetValue(seed.ParentCode, out var resolvedParentId))
+                {
+                    parentId = resolvedParentId;
+                }
+
+                var department = new Department(tenantId, seed.Name, seed.Code, idGeneratorAccessor.NextId(), parentId, seed.SortOrder);
+                departmentsToInsert.Add(department);
+                departmentIdMap[seed.Code] = department.Id;
             }
 
-            var parentId = 0L;
-            if (!string.IsNullOrWhiteSpace(seed.ParentName) &&
-                departmentIdMap.TryGetValue(seed.ParentName, out var resolvedParentId))
+            if (departmentsToInsert.Count > 0)
             {
-                parentId = resolvedParentId;
+                await db.Insertable(departmentsToInsert).ExecuteCommandAsync(cancellationToken);
             }
 
-            // Defaulting code to name for seed data
-            var department = new Department(tenantId, seed.Name, seed.Name, idGeneratorAccessor.NextId(), parentId, seed.SortOrder);
-            departmentsToInsert.Add(department);
-            departmentIdMap[seed.Name] = department.Id;
+            report.DepartmentsCreated = departmentsToInsert.Count;
         }
 
-        if (departmentsToInsert.Count > 0)
+        var positionSeeds = ResolvePositionSeeds();
+        if (positionSeeds.Count > 0)
         {
-            await db.Insertable(departmentsToInsert).ExecuteCommandAsync(cancellationToken);
-        }
+            var positionCodeList = positionSeeds.Select(x => x.Code).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            var existingPositions = await db.Queryable<Position>()
+                .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(positionCodeList, x.Code))
+                .ToListAsync(cancellationToken);
+            var positionCodeMap = existingPositions.ToDictionary(x => x.Code, x => x.Id, StringComparer.OrdinalIgnoreCase);
 
-        var positionSeeds = new (string Name, string Code, string Description, bool IsSystem, int SortOrder)[]
-        {
-            ("安全负责人", "SEC_LEAD", "安全策略与风险管理负责人", true, 10),
-            ("安全工程师", "SEC_ENG", "安全工程与检测响应", false, 20),
-            ("审计专员", "AUDITOR", "审计与合规执行", false, 30),
-            ("资产管理员", "ASSET_ADMIN", "资产台账与生命周期管理", false, 40),
-            ("系统管理员", "SYS_ADMIN", "系统配置与运维管理", true, 50),
-            ("运维工程师", "OPS_ENG", "平台运维与监控", false, 60)
-        };
-
-        var positionCodeList = positionSeeds.Select(x => x.Code).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
-        var existingPositions = await db.Queryable<Position>()
-            .Where(x => x.TenantIdValue == tenantId.Value && SqlFunc.ContainsArray(positionCodeList, x.Code))
-            .ToListAsync(cancellationToken);
-        var positionCodeMap = existingPositions.ToDictionary(x => x.Code, x => x.Id, StringComparer.OrdinalIgnoreCase);
-
-        var positionsToInsert = new List<Position>();
-        foreach (var seed in positionSeeds)
-        {
-            if (positionCodeMap.ContainsKey(seed.Code))
+            var positionsToInsert = new List<Position>();
+            foreach (var seed in positionSeeds)
             {
-                continue;
+                if (positionCodeMap.ContainsKey(seed.Code))
+                {
+                    continue;
+                }
+
+                var position = new Position(tenantId, seed.Name, seed.Code, idGeneratorAccessor.NextId());
+                position.Update(seed.Name, seed.Description, true, seed.SortOrder);
+                if (seed.IsSystem)
+                {
+                    position.MarkSystem();
+                }
+
+                positionsToInsert.Add(position);
+                positionCodeMap[seed.Code] = position.Id;
             }
 
-            var position = new Position(tenantId, seed.Name, seed.Code, idGeneratorAccessor.NextId());
-            position.Update(seed.Name, seed.Description, true, seed.SortOrder);
-            if (seed.IsSystem)
+            if (positionsToInsert.Count > 0)
             {
-                position.MarkSystem();
+                await db.Insertable(positionsToInsert).ExecuteCommandAsync(cancellationToken);
             }
 
-            positionsToInsert.Add(position);
-            positionCodeMap[seed.Code] = position.Id;
-        }
-
-        if (positionsToInsert.Count > 0)
-        {
-            await db.Insertable(positionsToInsert).ExecuteCommandAsync(cancellationToken);
+            report.PositionsCreated = positionsToInsert.Count;
         }
 
         var existingRolePermissions = await rolePermissionRepository.QueryByRoleIdsAsync(
@@ -2568,6 +2561,36 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         }
     }
 
+    private IReadOnlyList<SetupDepartmentSeed> ResolveDepartmentSeeds()
+    {
+        if (_activeBootstrapParams is not null)
+        {
+            return _activeBootstrapParams.InitialDepartments
+                .Where(seed => !string.IsNullOrWhiteSpace(seed.Name) && !string.IsNullOrWhiteSpace(seed.Code))
+                .ToArray();
+        }
+
+        return [];
+    }
+
+    private IReadOnlyList<ResolvedPositionSeed> ResolvePositionSeeds()
+    {
+        if (_activeBootstrapParams is not null)
+        {
+            return _activeBootstrapParams.InitialPositions
+                .Where(seed => !string.IsNullOrWhiteSpace(seed.Name) && !string.IsNullOrWhiteSpace(seed.Code))
+                .Select(seed => new ResolvedPositionSeed(
+                    seed.Name,
+                    seed.Code,
+                    seed.Description ?? string.Empty,
+                    false,
+                    seed.SortOrder))
+                .ToArray();
+        }
+
+        return [];
+    }
+
     private sealed class LegacyAppBindingProjection
     {
         public Guid TenantIdValue { get; set; }
@@ -2606,6 +2629,13 @@ public sealed class DatabaseInitializerHostedService : IHostedService
 
         public bool IsActive { get; set; }
     }
+
+    private sealed record ResolvedPositionSeed(
+        string Name,
+        string Code,
+        string Description,
+        bool IsSystem,
+        int SortOrder);
 }
 
 

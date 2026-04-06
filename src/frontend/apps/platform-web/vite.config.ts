@@ -12,7 +12,7 @@ export default defineConfig({
   server: {
     host: "0.0.0.0",
     port: 5180,
-    open: true,
+    open: process.env.PLAYWRIGHT_E2E !== "1",
     proxy: {
       "/api": {
         target: "http://127.0.0.1:5001",

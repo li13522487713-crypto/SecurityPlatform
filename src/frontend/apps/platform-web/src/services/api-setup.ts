@@ -52,6 +52,27 @@ export interface InitializeRequest {
     username: string;
     password: string;
   };
+  roles?: {
+    selectedRoleCodes?: string[];
+  };
+  organization?: {
+    departments?: SetupDepartmentConfig[];
+    positions?: SetupPositionConfig[];
+  };
+}
+
+export interface SetupDepartmentConfig {
+  name: string;
+  code?: string;
+  parentCode?: string;
+  sortOrder: number;
+}
+
+export interface SetupPositionConfig {
+  name: string;
+  code: string;
+  description?: string;
+  sortOrder: number;
 }
 
 async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
@@ -91,6 +112,9 @@ export interface InitializeResponse {
   migrationCount: number;
   seedCompleted: boolean;
   seedSummary: string;
+  rolesCreated: number;
+  departmentsCreated: number;
+  positionsCreated: number;
   adminCreated: boolean;
   adminUsername: string | null;
   errors: string[];

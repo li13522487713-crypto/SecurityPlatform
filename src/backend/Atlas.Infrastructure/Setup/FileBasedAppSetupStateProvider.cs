@@ -44,9 +44,13 @@ public sealed class FileBasedAppSetupStateProvider : IAppSetupStateProvider
         }
     }
 
-    public bool IsReady => _state.Status == AppSetupState.Ready;
+    public bool IsReady => GetState().Status == AppSetupState.Ready;
 
-    public AppSetupStateInfo GetState() => _state;
+    public AppSetupStateInfo GetState()
+    {
+        _state = LoadFromFile();
+        return _state;
+    }
 
     public async Task TransitionAsync(AppSetupState target, string? failureMessage = null, CancellationToken cancellationToken = default)
     {

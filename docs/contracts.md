@@ -20,6 +20,121 @@
 - `X-CSRF-TOKEN: <token>`：已登录 Web 写请求必填，需先获取 Anti-Forgery Token。
 - `Accept-Language: zh-CN | en-US`：界面与 API 国际化语言标识。前端语言切换后必须同步发送该请求头。
 
+## 初始化向导（Setup）契约
+
+> 适用范围：平台首次安装与应用宿主首次安装。  
+> 设计边界：**系统底座元数据**（Schema、迁移、菜单、权限码、系统配置、必要模板）由后端自动初始化；**租户首批组织数据**（管理员、角色、部门、岗位）由向导显式提交。
+
+### 公共约束
+
+- 路由统一使用 `api/v1/setup/*`。
+- setup 接口允许匿名访问（安装前无登录态）。
+- `SetupState=Ready` 后再次调用初始化接口，返回业务失败 `ALREADY_CONFIGURED`。
+- 数据库连接参数统一使用：
+  - `driverCode`：如 `SQLite`、`SqlServer`、`PostgreSQL`、`MySql`。
+  - `mode`：`raw | visual`。
+  - `connectionString`：`mode=raw` 时使用。
+  - `visualConfig`：`mode=visual` 时使用键值配置。
+
+### 平台宿主（PlatformHost:5001）
+
+- `GET /api/v1/setup/state`
+  - 响应：`SetupStateResponse`
+  - 字段：`status/platformSetupCompleted/completedAt/failureMessage`
+- `GET /api/v1/setup/drivers`
+  - 响应：`DataSourceDriverDefinition[]`
+- `POST /api/v1/setup/test-connection`
+  - 请求：`SetupTestConnectionRequest`
+  - 响应：`SetupTestConnectionResponse`
+  - 字段：`connected/message`
+- `POST /api/v1/setup/initialize`
+  - 请求：`SetupInitializeRequest`
+  - 响应：`SetupInitializeResponse`
+
+#### SetupInitializeRequest（平台）
+
+```json
+{
+  "database": {
+    "driverCode": "SQLite",
+    "mode": "raw",
+    "connectionString": "Data Source=atlas.db",
+    "visualConfig": { "database": "atlas.db" }
+  },
+  "admin": {
+    "tenantId": "00000000-0000-0000-0000-000000000001",
+    "username": "admin",
+    "password": "P@ssw0rd!"
+  },
+  "roles": {
+    "selectedRoleCodes": ["SecurityAdmin", "AuditAdmin", "AssetAdmin", "ApprovalAdmin"]
+  },
+  "organization": {
+    "departments": [
+      { "name": "总部", "code": "HQ", "parentCode": null, "sortOrder": 0 }
+    ],
+    "positions": [
+      { "name": "系统管理员", "code": "SYS_ADMIN", "description": "系统配置与运维管理", "sortOrder": 10 }
+    ]
+  }
+}
+```
+
+说明：
+
+- `roles.selectedRoleCodes` 仅接收可选引导角色；`SuperAdmin/Admin` 由系统保底处理。
+- `organization.departments/positions` 即平台“首批组织数据”；不再由默认固定模板自动回填。
+
+#### SetupInitializeResponse（平台）
+
+关键字段：
+
+- `status/platformSetupCompleted`
+- `schemaInitialized/tablesCreated`
+- `migrationsApplied/migrationCount`
+- `seedCompleted/seedSummary`
+- `rolesCreated/departmentsCreated/positionsCreated`
+- `adminCreated/adminUsername`
+- `errors[]`
+
+### 应用宿主（AppHost:5002）
+
+- `GET /api/v1/setup/state`
+  - 响应：`AppHostSetupStateResponse`
+  - 字段：`platformStatus/platformSetupCompleted/appStatus/appSetupCompleted`
+- `GET /api/v1/setup/drivers`
+  - 响应：`DataSourceDriverDefinition[]`
+- `POST /api/v1/setup/test-connection`
+  - 请求：`AppSetupTestConnectionRequest`
+  - 响应：`SetupTestConnectionResponse`
+  - 字段：`connected/message`
+- `POST /api/v1/setup/initialize`
+  - 请求：`AppSetupInitializeRequest`
+  - 响应：`AppSetupInitializeResponse`
+
+#### AppSetupInitializeRequest（应用）
+
+```json
+{
+  "database": {
+    "driverCode": "SQLite",
+    "mode": "raw",
+    "connectionString": "Data Source=../Atlas.PlatformHost/atlas.db"
+  },
+  "appName": "Demo App",
+  "adminUsername": "admin"
+}
+```
+
+#### AppSetupInitializeResponse（应用）
+
+关键字段：
+
+- `platformStatus/platformSetupCompleted`
+- `appStatus/appSetupCompleted`
+- `databaseConnected/coreTablesVerified`
+- `errors[]`
+
 ## 平台统一规则（封板基线）
 
 - Schema 主路线：AMIS；`LF(vform3)` 仅保留历史兼容，不再扩展新功能。

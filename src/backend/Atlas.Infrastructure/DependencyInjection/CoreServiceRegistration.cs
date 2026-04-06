@@ -33,7 +33,10 @@ namespace Atlas.Infrastructure.DependencyInjection;
 /// </summary>
 public static class CoreServiceRegistration
 {
-    public static IServiceCollection AddCoreInfrastructure(this IServiceCollection services, IConfiguration configuration)
+    public static IServiceCollection AddCoreInfrastructure(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        bool includeAppRuntimeServices = true)
     {
         // Setup State (must be registered before anything that depends on DB)
         services.AddSingleton<ISetupStateProvider, FileBasedSetupStateProvider>();
@@ -83,6 +86,8 @@ public static class CoreServiceRegistration
         services.AddHostedService<SessionCleanupHostedService>();
         services.AddHostedService<IdempotencyCleanupHostedService>();
         services.AddHostedService<FileUploadSessionCleanupHostedService>();
+        services.AddScoped<ApprovalSeedDataService>();
+        services.AddScoped<TemplateSeedDataService>();
 
         // Security
         services.AddScoped<IAuthTokenService, JwtAuthTokenService>();
@@ -207,7 +212,10 @@ public static class CoreServiceRegistration
 
         // Data Scope Filter (等保2.0 数据权限)
         services.AddScoped<ITenantDataScopeFilter, TenantDataScopeFilter>();
-        services.AddScoped<IAppDataScopeFilter, AppDataScopeFilter>();
+        if (includeAppRuntimeServices)
+        {
+            services.AddScoped<IAppDataScopeFilter, AppDataScopeFilter>();
+        }
 
         return services;
     }

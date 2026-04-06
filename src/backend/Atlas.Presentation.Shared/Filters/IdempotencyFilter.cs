@@ -27,28 +27,16 @@ public sealed class IdempotencyFilter : IAsyncActionFilter
         HttpMethods.Trace
     };
 
-    private readonly IIdempotencyRecordRepository _repository;
-    private readonly ITenantProvider _tenantProvider;
-    private readonly ICurrentUserAccessor _currentUserAccessor;
-    private readonly Atlas.Core.Abstractions.IIdGeneratorAccessor _idGeneratorAccessor;
-    private readonly TimeProvider _timeProvider;
+    private readonly IServiceProvider _serviceProvider;
     private readonly IdempotencyOptions _options;
     private readonly JsonSerializerOptions _jsonOptions;
 
     public IdempotencyFilter(
-        IIdempotencyRecordRepository repository,
-        ITenantProvider tenantProvider,
-        ICurrentUserAccessor currentUserAccessor,
-        Atlas.Core.Abstractions.IIdGeneratorAccessor idGeneratorAccessor,
-        TimeProvider timeProvider,
+        IServiceProvider serviceProvider,
         IOptions<IdempotencyOptions> options,
         IOptions<JsonOptions> jsonOptions)
     {
-        _repository = repository;
-        _tenantProvider = tenantProvider;
-        _currentUserAccessor = currentUserAccessor;
-        _idGeneratorAccessor = idGeneratorAccessor;
-        _timeProvider = timeProvider;
+        _serviceProvider = serviceProvider;
         _options = options.Value;
         _jsonOptions = jsonOptions.Value.JsonSerializerOptions;
     }
@@ -63,12 +51,18 @@ public sealed class IdempotencyFilter : IAsyncActionFilter
                 return;
             }
 
-            var currentUser = _currentUserAccessor.GetCurrentUser();
+            var currentUserAccessor = _serviceProvider.GetRequiredService<ICurrentUserAccessor>();
+            var currentUser = currentUserAccessor.GetCurrentUser();
             if (currentUser is null)
             {
                 await next();
                 return;
             }
+
+            var repository = _serviceProvider.GetRequiredService<IIdempotencyRecordRepository>();
+            var tenantProvider = _serviceProvider.GetRequiredService<ITenantProvider>();
+            var idGeneratorAccessor = _serviceProvider.GetRequiredService<Atlas.Core.Abstractions.IIdGeneratorAccessor>();
+            var timeProvider = _serviceProvider.GetRequiredService<TimeProvider>();
 
             var headerName = string.IsNullOrWhiteSpace(_options.HeaderName)
                 ? "Idempotency-Key"
@@ -92,7 +86,7 @@ public sealed class IdempotencyFilter : IAsyncActionFilter
                 return;
             }
 
-            var tenantId = _tenantProvider.GetTenantId();
+            var tenantId = tenantProvider.GetTenantId();
             if (tenantId.IsEmpty)
             {
                 context.Result = BuildErrorResult(ErrorCodes.ValidationError, "缺少租户标识", StatusCodes.Status400BadRequest, context.HttpContext.TraceIdentifier);
@@ -101,8 +95,8 @@ public sealed class IdempotencyFilter : IAsyncActionFilter
 
             var apiName = ResolveApiName(context.HttpContext);
             var requestHash = await ComputeRequestHashAsync(context.HttpContext);
-            var now = _timeProvider.GetUtcNow();
-            var existing = await _repository.FindActiveAsync(
+            var now = timeProvider.GetUtcNow();
+            var existing = await repository.FindActiveAsync(
                 tenantId,
                 currentUser.UserId,
                 apiName,
@@ -142,12 +136,12 @@ public sealed class IdempotencyFilter : IAsyncActionFilter
                 requestHash,
                 now,
                 expiresAt,
-                _idGeneratorAccessor.NextId());
+                idGeneratorAccessor.NextId());
 
-            var inserted = await _repository.TryAddAsync(record, context.HttpContext.RequestAborted);
+            var inserted = await repository.TryAddAsync(record, context.HttpContext.RequestAborted);
             if (!inserted)
             {
-                var concurrent = await _repository.FindActiveAsync(
+                var concurrent = await repository.FindActiveAsync(
                     tenantId,
                     currentUser.UserId,
                     apiName,
@@ -174,13 +168,13 @@ public sealed class IdempotencyFilter : IAsyncActionFilter
             }
             catch
             {
-                await _repository.DeleteAsync(tenantId, record.Id, context.HttpContext.RequestAborted);
+                await repository.DeleteAsync(tenantId, record.Id, context.HttpContext.RequestAborted);
                 throw;
             }
 
             if (executedContext.Exception is not null && !executedContext.ExceptionHandled)
             {
-                await _repository.DeleteAsync(tenantId, record.Id, context.HttpContext.RequestAborted);
+                await repository.DeleteAsync(tenantId, record.Id, context.HttpContext.RequestAborted);
                 return;
             }
 
@@ -189,13 +183,13 @@ public sealed class IdempotencyFilter : IAsyncActionFilter
                 if (statusCode >= 200 && statusCode < 300)
                 {
                     var resourceId = ExtractResourceId(responseBody);
-                    record.Complete(statusCode, responseBody, contentType, resourceId, _timeProvider.GetUtcNow());
-                    await _repository.UpdateAsync(record, context.HttpContext.RequestAborted);
+                    record.Complete(statusCode, responseBody, contentType, resourceId, timeProvider.GetUtcNow());
+                    await repository.UpdateAsync(record, context.HttpContext.RequestAborted);
                     return;
                 }
             }
 
-            await _repository.DeleteAsync(tenantId, record.Id, context.HttpContext.RequestAborted);
+            await repository.DeleteAsync(tenantId, record.Id, context.HttpContext.RequestAborted);
         }
         catch (Exception ex) when (SqliteDisasterRecoveryClassifier.IsCorruption(ex))
         {

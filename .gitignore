@@ -406,3 +406,5 @@ SecurityPlatform.zip
 # Frontend build artifacts
 **/dist/
 **/dist-ssr/
+src/frontend/playwright-report/
+src/frontend/test-results/

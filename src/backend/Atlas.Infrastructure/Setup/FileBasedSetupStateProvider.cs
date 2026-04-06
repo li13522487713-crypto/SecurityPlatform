@@ -46,11 +46,15 @@ public sealed class FileBasedSetupStateProvider : ISetupStateProvider
         }
     }
 
-    public bool IsReady => _state.Status == SetupState.Ready;
+    public bool IsReady => GetState().Status == SetupState.Ready;
 
-    public bool IsSetupInProgress => _state.Status is SetupState.Configuring or SetupState.Migrating or SetupState.Seeding;
+    public bool IsSetupInProgress => GetState().Status is SetupState.Configuring or SetupState.Migrating or SetupState.Seeding;
 
-    public SetupStateInfo GetState() => _state;
+    public SetupStateInfo GetState()
+    {
+        RefreshFromFile();
+        return _state;
+    }
 
     public async Task TransitionAsync(SetupState target, string? failureMessage = null, CancellationToken cancellationToken = default)
     {
@@ -148,6 +152,17 @@ public sealed class FileBasedSetupStateProvider : ISetupStateProvider
         {
             _logger.LogError(ex, "[Setup] 读取 setup-state.json 失败，视为 NotConfigured");
             return new SetupStateInfo();
+        }
+    }
+
+    private void RefreshFromFile()
+    {
+        var latest = LoadFromFile();
+        _state = latest;
+
+        if (_state.Status == SetupState.Ready)
+        {
+            _readySignal.TrySetResult();
         }
     }
 

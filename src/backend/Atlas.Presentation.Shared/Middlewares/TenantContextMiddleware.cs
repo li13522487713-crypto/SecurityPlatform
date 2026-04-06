@@ -26,12 +26,15 @@ public sealed class TenantContextMiddleware
         var endpoint = context.GetEndpoint();
         var allowAnonymous = endpoint?.Metadata.GetMetadata<IAllowAnonymous>() is not null;
         var path = context.Request.Path.Value ?? string.Empty;
-        var skipTenantCheck = allowAnonymous
-            && (path.StartsWith("/health", StringComparison.OrdinalIgnoreCase)
+        var skipTenantCheck =
+            path.StartsWith("/internal/health", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("/api/v1/setup", StringComparison.OrdinalIgnoreCase)
+            || (allowAnonymous
+                && (path.StartsWith("/health", StringComparison.OrdinalIgnoreCase)
                 || path.StartsWith("/api/v1/health", StringComparison.OrdinalIgnoreCase)
                 || path.StartsWith("/openapi", StringComparison.OrdinalIgnoreCase)
                 || path.StartsWith("/api/v1/license/", StringComparison.OrdinalIgnoreCase)
-                || path.StartsWith("/api/v1/files/signed", StringComparison.OrdinalIgnoreCase));
+                || path.StartsWith("/api/v1/files/signed", StringComparison.OrdinalIgnoreCase)));
 
         if (skipTenantCheck)
         {

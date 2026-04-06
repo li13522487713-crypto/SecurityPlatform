@@ -11,9 +11,12 @@
     "build:platform-web": "pnpm --filter atlas-platform-web run build",
     "build:app-web": "pnpm --filter atlas-app-web run build",
     "lint": "pnpm -r run lint",
-    "format": "pnpm -r run format"
+    "format": "pnpm -r run format",
+    "test:e2e:setup": "node ./scripts/reset-setup-state.mjs && node ./scripts/run-setup-e2e.mjs",
+    "test:e2e:setup:headed": "node ./scripts/reset-setup-state.mjs && node ./scripts/run-setup-e2e.mjs --headed"
   },
   "devDependencies": {
+    "@playwright/test": "^1.55.0",
     "@eslint/js": "^9.39.1",
     "eslint": "^9.39.1",
     "eslint-plugin-vue": "^10.5.1",

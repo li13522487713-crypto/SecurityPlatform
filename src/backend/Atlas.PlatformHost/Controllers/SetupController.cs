@@ -135,8 +135,10 @@ public sealed class SetupController : ControllerBase
                 TenantId = request.Admin.TenantId ?? "00000000-0000-0000-0000-000000000001",
                 AdminUsername = request.Admin.Username,
                 AdminPassword = request.Admin.Password,
-                AdminRoles = "Admin",
+                AdminRoles = string.Join(',', BuildAdminRoleCodes(request.Roles?.SelectedRoleCodes)),
                 IsPlatformAdmin = true,
+                InitialDepartments = SanitizeDepartments(request.Organization?.Departments),
+                InitialPositions = SanitizePositions(request.Organization?.Positions),
                 SkipSchemaInit = false,
                 SkipSeedData = false,
                 SkipSchemaMigrations = false
@@ -174,6 +176,9 @@ public sealed class SetupController : ControllerBase
                     report.MigrationCount,
                     report.SeedCompleted,
                     report.SeedSummary,
+                    report.RolesCreated,
+                    report.DepartmentsCreated,
+                    report.PositionsCreated,
                     report.AdminCreated,
                     report.AdminUsername,
                     report.Errors),
@@ -237,8 +242,106 @@ public sealed class SetupController : ControllerBase
         };
 
         using var db = new SqlSugarScope(config);
-        await db.Ado.GetScalarAsync("SELECT 1", cancellationToken);
+        await db.Ado.GetScalarAsync("SELECT 1");
     }
+
+    private static IReadOnlyList<string> BuildAdminRoleCodes(IReadOnlyList<string>? selectedRoleCodes)
+    {
+        var roleCodes = new List<string> { "Admin" };
+        if (selectedRoleCodes is null)
+        {
+            return roleCodes;
+        }
+
+        foreach (var roleCode in selectedRoleCodes)
+        {
+            if (string.IsNullOrWhiteSpace(roleCode))
+            {
+                continue;
+            }
+
+            var normalized = roleCode.Trim();
+            if (!AllowedSetupRoleCodes.Contains(normalized))
+            {
+                continue;
+            }
+
+            if (!roleCodes.Contains(normalized, StringComparer.OrdinalIgnoreCase))
+            {
+                roleCodes.Add(normalized);
+            }
+        }
+
+        return roleCodes;
+    }
+
+    private static IReadOnlyList<SetupDepartmentSeed> SanitizeDepartments(IReadOnlyList<SetupDepartmentConfigRequest>? departments)
+    {
+        if (departments is null || departments.Count == 0)
+        {
+            return [];
+        }
+
+        var sanitized = new List<SetupDepartmentSeed>(departments.Count);
+        foreach (var department in departments)
+        {
+            var name = department.Name.Trim();
+            var code = string.IsNullOrWhiteSpace(department.Code) ? name : department.Code.Trim();
+            if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(code))
+            {
+                continue;
+            }
+
+            sanitized.Add(new SetupDepartmentSeed(
+                name,
+                code,
+                string.IsNullOrWhiteSpace(department.ParentCode) ? null : department.ParentCode.Trim(),
+                department.SortOrder));
+        }
+
+        return sanitized
+            .GroupBy(item => item.Code, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .ToArray();
+    }
+
+    private static IReadOnlyList<SetupPositionSeed> SanitizePositions(IReadOnlyList<SetupPositionConfigRequest>? positions)
+    {
+        if (positions is null || positions.Count == 0)
+        {
+            return [];
+        }
+
+        var sanitized = new List<SetupPositionSeed>(positions.Count);
+        foreach (var position in positions)
+        {
+            var name = position.Name.Trim();
+            var code = position.Code.Trim();
+            if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(code))
+            {
+                continue;
+            }
+
+            sanitized.Add(new SetupPositionSeed(
+                name,
+                code,
+                string.IsNullOrWhiteSpace(position.Description) ? null : position.Description.Trim(),
+                position.SortOrder));
+        }
+
+        return sanitized
+            .GroupBy(item => item.Code, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .ToArray();
+    }
+
+    private static readonly HashSet<string> AllowedSetupRoleCodes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "SecurityAdmin",
+        "AuditAdmin",
+        "AssetAdmin",
+        "ApprovalAdmin"
+    };
 }
 
 // --- Request/Response DTOs ---
@@ -259,7 +362,9 @@ public sealed record SetupTestConnectionResponse(bool Connected, string Message)
 
 public sealed record SetupInitializeRequest(
     SetupDatabaseConfigRequest Database,
-    SetupAdminConfigRequest Admin);
+    SetupAdminConfigRequest Admin,
+    SetupRoleConfigRequest? Roles,
+    SetupOrganizationConfigRequest? Organization);
 
 public sealed record SetupDatabaseConfigRequest(
     string DriverCode,
@@ -272,6 +377,25 @@ public sealed record SetupAdminConfigRequest(
     string Username,
     string Password);
 
+public sealed record SetupRoleConfigRequest(
+    IReadOnlyList<string>? SelectedRoleCodes);
+
+public sealed record SetupOrganizationConfigRequest(
+    IReadOnlyList<SetupDepartmentConfigRequest>? Departments,
+    IReadOnlyList<SetupPositionConfigRequest>? Positions);
+
+public sealed record SetupDepartmentConfigRequest(
+    string Name,
+    string? Code,
+    string? ParentCode,
+    int SortOrder);
+
+public sealed record SetupPositionConfigRequest(
+    string Name,
+    string Code,
+    string? Description,
+    int SortOrder);
+
 public sealed record SetupInitializeResponse(
     string Status,
     bool PlatformSetupCompleted,
@@ -281,6 +405,9 @@ public sealed record SetupInitializeResponse(
     int MigrationCount,
     bool SeedCompleted,
     string SeedSummary,
+    int RolesCreated,
+    int DepartmentsCreated,
+    int PositionsCreated,
     bool AdminCreated,
     string? AdminUsername,
     List<string> Errors);

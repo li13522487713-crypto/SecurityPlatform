@@ -31,7 +31,7 @@ export default defineConfig(({ mode }) => {
     server: {
       host: "0.0.0.0",
       port: 5181,
-      open: true,
+      open: process.env.PLAYWRIGHT_E2E !== "1",
       proxy: {
         "/api/v1/setup": {
           target: appHostTarget,

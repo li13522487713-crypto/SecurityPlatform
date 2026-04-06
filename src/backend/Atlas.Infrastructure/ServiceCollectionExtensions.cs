@@ -14,11 +14,14 @@ namespace Atlas.Infrastructure;
 
 public static class ServiceCollectionExtensions
 {
-    public static IServiceCollection AddAtlasInfrastructureShared(this IServiceCollection services, IConfiguration configuration)
+    public static IServiceCollection AddAtlasInfrastructureShared(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        bool includeAppRuntimeServices = true)
     {
         services.Configure<PluginCatalogOptions>(configuration.GetSection("Plugins"));
 
-        services.AddCoreInfrastructure(configuration);
+        services.AddCoreInfrastructure(configuration, includeAppRuntimeServices);
         services.AddAssetInfrastructure();
 
         services.AddSingleton<INodeMetricsCollector, Atlas.Infrastructure.Observability.InMemoryNodeMetricsCollector>();

@@ -133,7 +133,7 @@ router.beforeEach(async (to, _from, next) => {
   if (!setupChecked) {
     try {
       const resp = await getSetupState();
-      platformReady = resp.success && resp.data?.platformStatus === "Ready";
+      platformReady = resp.success;
       appReady = resp.success && resp.data?.appSetupCompleted === true;
     } catch {
       platformReady = false;

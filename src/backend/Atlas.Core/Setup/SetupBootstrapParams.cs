@@ -12,7 +12,21 @@ public sealed class SetupBootstrapParams
     public required string AdminPassword { get; init; }
     public string AdminRoles { get; init; } = "Admin";
     public bool IsPlatformAdmin { get; init; } = true;
+    public IReadOnlyList<SetupDepartmentSeed> InitialDepartments { get; init; } = [];
+    public IReadOnlyList<SetupPositionSeed> InitialPositions { get; init; } = [];
     public bool SkipSchemaInit { get; init; }
     public bool SkipSeedData { get; init; }
     public bool SkipSchemaMigrations { get; init; }
 }
+
+public sealed record SetupDepartmentSeed(
+    string Name,
+    string Code,
+    string? ParentCode,
+    int SortOrder);
+
+public sealed record SetupPositionSeed(
+    string Name,
+    string Code,
+    string? Description,
+    int SortOrder);
