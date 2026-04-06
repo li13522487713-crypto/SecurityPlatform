@@ -103,7 +103,8 @@ export default {
     backToLogin: "Back to Login",
     profile: "Profile",
     appRuntime: "App Runtime",
-    backToPlatform: "Back to Platform"
+    backToPlatform: "Back to Platform",
+    switchLanguage: "Switch language"
   },
   route: {
     home: "Home",

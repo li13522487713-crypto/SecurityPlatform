@@ -83,6 +83,7 @@
           <span class="header-title">{{ t("workspace.title") }}</span>
         </div>
         <div class="header-right">
+          <LocaleSwitch />
           <a-button type="link" size="small" @click="openPlatform">
             {{ t("layout.backToPlatform") }}
           </a-button>
@@ -226,6 +227,7 @@ import {
   LockOutlined,
   BellOutlined
 } from "@ant-design/icons-vue";
+import LocaleSwitch from "@/components/layout/LocaleSwitch.vue";
 import { changePassword } from "@/services/api-profile";
 import {
   getUnreadCount,

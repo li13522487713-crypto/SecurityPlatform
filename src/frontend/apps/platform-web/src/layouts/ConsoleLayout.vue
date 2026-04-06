@@ -17,6 +17,7 @@
       </div>
       <div class="right">
         <a-button class="route-nav-btn" @click="routeDrawerOpen = true">{{ t("consoleLayout.routeNavigator") }}</a-button>
+        <LocaleSwitch />
         <UnifiedContextBar />
         <NotificationBell />
         <a-dropdown trigger="click">
@@ -101,6 +102,7 @@ import { useUserStore } from "@/stores/user";
 import { usePermissionStore } from "@/stores/permission";
 import { useTagsViewStore } from "@/stores/tagsView";
 import NotificationBell from "@/components/layout/NotificationBell.vue";
+import LocaleSwitch from "@/components/layout/LocaleSwitch.vue";
 import UnifiedContextBar from "@/components/context/UnifiedContextBar.vue";
 import { resolveRequiredPermission } from "@/router/route-access";
 

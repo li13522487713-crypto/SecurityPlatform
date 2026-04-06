@@ -1,5 +1,8 @@
 <template>
   <div class="app-login">
+    <div class="locale-switch-wrapper">
+      <LocaleSwitch />
+    </div>
     <a-card class="app-login-card" :title="`${t('appLogin.title')} · ${appKey}`">
       <a-alert
         v-if="errorMessage"
@@ -53,6 +56,7 @@ import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { getTenantId } from "@atlas/shared-core";
 import { useAppUserStore } from "@/stores/user";
+import LocaleSwitch from "@/components/layout/LocaleSwitch.vue";
 
 const { t } = useI18n();
 const route = useRoute();
@@ -98,6 +102,14 @@ async function handleSubmit() {
   justify-content: center;
   background: linear-gradient(180deg, #f5f7fb 0%, #e8edf7 100%);
   padding: 24px;
+  position: relative;
+}
+
+.locale-switch-wrapper {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  z-index: 10;
 }
 
 .app-login-card {

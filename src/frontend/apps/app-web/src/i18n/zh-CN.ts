@@ -103,7 +103,8 @@ export default {
     backToLogin: "返回登录",
     profile: "个人中心",
     appRuntime: "应用运行时",
-    backToPlatform: "返回平台"
+    backToPlatform: "返回平台",
+    switchLanguage: "切换语言"
   },
   route: {
     home: "首页",

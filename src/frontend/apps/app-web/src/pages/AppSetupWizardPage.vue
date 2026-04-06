@@ -1,5 +1,8 @@
 <template>
   <div class="app-setup-container">
+    <div class="locale-switch-wrapper">
+      <LocaleSwitch />
+    </div>
     <div class="app-setup-card">
       <h1 class="setup-title">{{ t("setup.appSetupTitle") }}</h1>
       <p class="setup-subtitle">{{ t("setup.appSetupSubtitle") }}</p>
@@ -342,6 +345,7 @@ import {
   type AppSetupPositionConfig,
   type DriverDefinition
 } from "@/services/api-setup";
+import LocaleSwitch from "@/components/layout/LocaleSwitch.vue";
 
 type OptionalRoleTemplate = {
   code: string;
@@ -591,6 +595,14 @@ function formatBooleanFlag(value: boolean): string {
   justify-content: center;
   background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
   padding: 24px;
+  position: relative;
+}
+
+.locale-switch-wrapper {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  z-index: 10;
 }
 
 .app-setup-card {
