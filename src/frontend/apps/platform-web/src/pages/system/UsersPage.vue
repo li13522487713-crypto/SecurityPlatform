@@ -37,6 +37,16 @@
         <a-row :gutter="16" style="height: 100%">
           <a-col :xs="24" :sm="24" :md="6" :lg="5" class="dept-tree-col">
             <a-card size="small" :bordered="false" class="tree-card" :body-style="{ padding: '12px' }">
+              <template #extra>
+                <a-button
+                  v-if="canManageDepartments"
+                  type="link"
+                  size="small"
+                  @click="$router.push('/settings/org/departments')"
+                >
+                  {{ t("systemUsers.manageDepartments") }}
+                </a-button>
+              </template>
               <div style="margin-bottom: 12px">
                 <a-input
                   v-model:value="treeKeyword"
@@ -238,7 +248,7 @@ import { useI18n } from "vue-i18n";
 import { ExportOutlined, ImportOutlined, UserAddOutlined } from "@ant-design/icons-vue";
 import { CrudPageLayout, TableViewToolbar } from "@atlas/shared-ui";
 import StatusSwitch from "@/components/common/StatusSwitch.vue";
-import { useCrudPage } from "@atlas/shared-core";
+import { useCrudPage, getAuthProfile, hasPermission as checkPermission } from "@atlas/shared-core";
 import { useSelectOptions } from "@/composables/useSelectOptions";
 import { useExcelExport, type ImportResult } from "@/composables/useExcelExport";
 import {
@@ -561,6 +571,10 @@ const {
 const canAssignRoles = crud.hasPermissionFor("assignRoles");
 const canAssignDepartments = crud.hasPermissionFor("assignDepartments");
 const canAssignPositions = crud.hasPermissionFor("assignPositions");
+
+const authProfile = getAuthProfile();
+const canManageDepartments = checkPermission(authProfile, "departments:create")
+  || checkPermission(authProfile, "departments:update");
 
 const handleOpenCreate = () => {
   activeTab.value = "basic";

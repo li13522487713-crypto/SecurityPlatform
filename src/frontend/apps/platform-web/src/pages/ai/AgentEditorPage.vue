@@ -208,12 +208,12 @@
               </a-row>
               <a-row :gutter="12">
                 <a-col :span="12">
-                  <a-form-item label="Temperature">
+                  <a-form-item :label="t('ai.agent.labelTemperature')">
                     <a-slider v-model:value="singleForm.temperature" :min="0" :max="2" :step="0.1" />
                   </a-form-item>
                 </a-col>
                 <a-col :span="12">
-                  <a-form-item label="MaxTokens">
+                  <a-form-item :label="t('ai.agent.labelMaxTokens')">
                     <a-input-number v-model:value="singleForm.maxTokens" :min="1" :max="128000" style="width: 100%" />
                   </a-form-item>
                 </a-col>

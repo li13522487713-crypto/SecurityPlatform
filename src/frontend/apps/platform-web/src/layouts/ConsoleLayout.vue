@@ -183,6 +183,7 @@ import type { Component } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute, useRouter, type RouteRecordNormalized } from "vue-router";
 import {
+  ApiOutlined,
   AppstoreOutlined,
   HomeOutlined,
   InboxOutlined,
@@ -259,6 +260,7 @@ const mainNavItemsSource: SidebarNavItem[] = [
 
 const monitorNavItemsSource: SidebarNavItem[] = [
   { path: "/ai/agents", label: "", icon: RobotOutlined, badge: "New" },
+  { path: "/ai/model-configs", label: "", icon: ApiOutlined },
   { path: "/monitor/server-info", label: "", icon: DashboardOutlined },
   { path: "/settings/system/datasources", label: "", icon: DatabaseOutlined },
 ];
