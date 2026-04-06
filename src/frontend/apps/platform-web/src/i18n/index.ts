@@ -63,7 +63,9 @@ export const i18n = createI18n({
   locale: getLocale(),
   fallbackLocale: DEFAULT_LOCALE,
   messages: {
+    zh: zhCN as MessageTree,
     "zh-CN": zhCN as MessageTree,
+    en: enUS as MessageTree,
     "en-US": enUS as MessageTree
   } as never
 });

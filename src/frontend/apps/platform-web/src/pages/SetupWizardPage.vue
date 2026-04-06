@@ -286,9 +286,9 @@
           <a-result
             v-if="!initError"
             data-testid="platform-setup-success"
-            status="success"
-            :title="t('setup.completeTitle')"
-            :sub-title="t('setup.completeDesc')"
+            :status="setupCompleteResultStatus"
+            :title="setupCompleteResultTitle"
+            :sub-title="setupCompleteResultSubtitle"
           >
             <template #extra>
               <div v-if="bootstrapReport" class="bootstrap-report">
@@ -347,6 +347,22 @@
                     </span>
                     <span v-if="bootstrapReport.adminUsername" class="admin-name">
                       {{ bootstrapReport.adminUsername }}
+                    </span>
+                  </a-descriptions-item>
+                  <a-descriptions-item :label="t('setup.reportEffectiveAdminRoles')">
+                    <span data-testid="platform-setup-report-effective-admin-roles">
+                      {{ formatRoleList(bootstrapReport.effectiveAdminRoles) }}
+                    </span>
+                  </a-descriptions-item>
+                  <a-descriptions-item :label="t('setup.reportAdminPermissionCheck')">
+                    <a-tag :color="bootstrapReport.adminPermissionCheckPassed ? 'success' : 'warning'">
+                      {{ bootstrapReport.adminPermissionCheckPassed ? t('setup.reportDone') : t('setup.reportNeedsFix') }}
+                    </a-tag>
+                    <span class="report-flag" data-testid="platform-setup-report-admin-permission-check">
+                      {{ formatBooleanFlag(bootstrapReport.adminPermissionCheckPassed) }}
+                    </span>
+                    <span class="seed-summary">
+                      {{ bootstrapReport.adminPermissionCheckMessage }}
                     </span>
                   </a-descriptions-item>
                 </a-descriptions>
@@ -479,6 +495,27 @@ const organizationFormValid = computed(() => {
     organizationForm.value.positions.every((position) => position.name.trim() !== "" && position.code.trim() !== "");
 
   return departmentsValid && positionsValid && !initializing.value;
+});
+
+const setupCompleteResultStatus = computed(() => {
+  if (bootstrapReport.value?.adminPermissionCheckPassed === false) {
+    return "warning";
+  }
+  return "success";
+});
+
+const setupCompleteResultTitle = computed(() => {
+  if (bootstrapReport.value?.adminPermissionCheckPassed === false) {
+    return t("setup.completePartialTitle");
+  }
+  return t("setup.completeTitle");
+});
+
+const setupCompleteResultSubtitle = computed(() => {
+  if (bootstrapReport.value?.adminPermissionCheckPassed === false) {
+    return bootstrapReport.value.adminPermissionCheckMessage || t("setup.completePartialDesc");
+  }
+  return t("setup.completeDesc");
 });
 
 onMounted(async () => {
@@ -644,6 +681,13 @@ function goToLogin() {
 
 function formatBooleanFlag(value: boolean): string {
   return value ? "true" : "false";
+}
+
+function formatRoleList(roles: string[]): string {
+  if (roles.length === 0) {
+    return t("common.none");
+  }
+  return roles.join(", ");
 }
 </script>
 

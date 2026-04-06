@@ -2,6 +2,7 @@ using Atlas.Core.Models;
 using Atlas.Application.Options;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using SqlSugar;
 using Hangfire;
@@ -15,15 +16,18 @@ public sealed class HealthController : ControllerBase
     private readonly ISqlSugarClient _db;
     private readonly FileStorageOptions _fileStorageOptions;
     private readonly IHostEnvironment _hostEnvironment;
+    private readonly bool _hangfireRunServer;
 
     public HealthController(
         ISqlSugarClient db,
         IOptions<FileStorageOptions> fileStorageOptions,
-        IHostEnvironment hostEnvironment)
+        IHostEnvironment hostEnvironment,
+        IConfiguration configuration)
     {
         _db = db;
         _fileStorageOptions = fileStorageOptions.Value;
         _hostEnvironment = hostEnvironment;
+        _hangfireRunServer = configuration.GetValue("Hangfire:RunServer", !_hostEnvironment.IsDevelopment());
     }
 
     [HttpGet]
@@ -66,8 +70,13 @@ public sealed class HealthController : ControllerBase
         }
     }
 
-    private static HealthDependencyStatus CheckHangfire()
+    private HealthDependencyStatus CheckHangfire()
     {
+        if (!_hangfireRunServer)
+        {
+            return new HealthDependencyStatus("Hangfire", true, "开发配置未启用 Hangfire Server。");
+        }
+
         try
         {
             var monitoringApi = JobStorage.Current.GetMonitoringApi();
@@ -84,7 +93,15 @@ public sealed class HealthController : ControllerBase
     {
         try
         {
-            var path = _fileStorageOptions.BasePath;
+            var provider = (_fileStorageOptions.Provider ?? FileStorageOptions.ProviderLocal).Trim();
+            if (!string.Equals(provider, FileStorageOptions.ProviderLocal, StringComparison.OrdinalIgnoreCase))
+            {
+                return new HealthDependencyStatus("FileStorage", true, $"对象存储模式：{provider}");
+            }
+
+            var path = string.IsNullOrWhiteSpace(_fileStorageOptions.BasePath)
+                ? "uploads"
+                : _fileStorageOptions.BasePath.Trim();
             var resolvedPath = Path.IsPathRooted(path)
                 ? path
                 : Path.Combine(_hostEnvironment.ContentRootPath, path);

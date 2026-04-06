@@ -181,6 +181,9 @@ public sealed class SetupController : ControllerBase
                     report.PositionsCreated,
                     report.AdminCreated,
                     report.AdminUsername,
+                    report.EffectiveAdminRoles,
+                    report.AdminPermissionCheckPassed,
+                    report.AdminPermissionCheckMessage,
                     report.Errors),
                 HttpContext.TraceIdentifier));
         }
@@ -247,7 +250,7 @@ public sealed class SetupController : ControllerBase
 
     private static IReadOnlyList<string> BuildAdminRoleCodes(IReadOnlyList<string>? selectedRoleCodes)
     {
-        var roleCodes = new List<string> { "Admin" };
+        var roleCodes = new List<string> { "SuperAdmin", "Admin" };
         if (selectedRoleCodes is null)
         {
             return roleCodes;
@@ -410,4 +413,7 @@ public sealed record SetupInitializeResponse(
     int PositionsCreated,
     bool AdminCreated,
     string? AdminUsername,
+    IReadOnlyList<string> EffectiveAdminRoles,
+    bool AdminPermissionCheckPassed,
+    string AdminPermissionCheckMessage,
     List<string> Errors);

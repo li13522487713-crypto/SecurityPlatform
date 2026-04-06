@@ -479,7 +479,13 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             else
             {
                 _logger.LogInformation("[DatabaseInitializer] 已跳过种子数据初始化（DatabaseInitializer:SkipSeedData=true）");
-                await EnsureBootstrapAdminPlatformFlagAsync(scope, appContextAccessor, cancellationToken);
+                var adminPermissionCheck = await EnsureBootstrapAdminMaxPermissionsAsync(
+                    scope,
+                    appContextAccessor,
+                    db,
+                    effectiveBootstrap,
+                    cancellationToken);
+                ApplyAdminPermissionCheckReport(report, adminPermissionCheck);
                 await LoadLicenseStatusAsync(scope, cancellationToken);
                 return report;
             }
@@ -532,6 +538,9 @@ public sealed class DatabaseInitializerHostedService : IHostedService
 
         if (!effectiveBootstrap.Enabled)
         {
+            ApplyAdminPermissionCheckReport(
+                report,
+                BootstrapAdminPermissionCheckResult.Success([], "BootstrapAdmin 已禁用，跳过超管权限一致性校验。"));
             return report;
         }
 
@@ -540,6 +549,13 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             if (_environment.IsDevelopment())
             {
                 _logger.LogWarning("未配置BootstrapAdmin密码，已跳过创建默认管理员。");
+                var adminPermissionCheck = await EnsureBootstrapAdminMaxPermissionsAsync(
+                    scope,
+                    appContextAccessor,
+                    db,
+                    effectiveBootstrap,
+                    cancellationToken);
+                ApplyAdminPermissionCheckReport(report, adminPermissionCheck);
                 return report;
             }
 
@@ -1347,6 +1363,13 @@ public sealed class DatabaseInitializerHostedService : IHostedService
                 cancellationToken);
             report.AdminCreated = true;
             report.AdminUsername = effectiveBootstrap.Username;
+            var existingAdminPermissionCheckResult = await EnsureBootstrapAdminMaxPermissionsAsync(
+                scope,
+                appContextAccessor,
+                db,
+                effectiveBootstrap,
+                cancellationToken);
+            ApplyAdminPermissionCheckReport(report, existingAdminPermissionCheckResult);
             return report;
         }
 
@@ -1365,6 +1388,14 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         report.AdminCreated = true;
         report.AdminUsername = effectiveBootstrap.Username;
         _logger.LogInformation("已创建BootstrapAdmin账号：{Username}", effectiveBootstrap.Username);
+
+        var adminPermissionCheckResult = await EnsureBootstrapAdminMaxPermissionsAsync(
+            scope,
+            appContextAccessor,
+            db,
+            effectiveBootstrap,
+            cancellationToken);
+        ApplyAdminPermissionCheckReport(report, adminPermissionCheckResult);
 
         return report;
         }
@@ -1605,44 +1636,181 @@ public sealed class DatabaseInitializerHostedService : IHostedService
         }
     }
 
-    private async Task EnsureBootstrapAdminPlatformFlagAsync(
+    private async Task<BootstrapAdminPermissionCheckResult> EnsureBootstrapAdminMaxPermissionsAsync(
         IServiceScope scope,
         IAppContextAccessor appContextAccessor,
+        ISqlSugarClient db,
+        BootstrapAdminOptions bootstrapOptions,
         CancellationToken cancellationToken)
     {
-        if (!_bootstrapOptions.Enabled)
+        if (!bootstrapOptions.Enabled)
         {
-            return;
+            return BootstrapAdminPermissionCheckResult.Success([], "BootstrapAdmin 已禁用，跳过超管权限一致性校验。");
         }
 
-        if (!Guid.TryParse(_bootstrapOptions.TenantId, out var tenantGuid))
+        if (!Guid.TryParse(bootstrapOptions.TenantId, out var tenantGuid))
         {
-            _logger.LogWarning("BootstrapAdmin TenantId 配置无效，跳过平台管理员标记检查。");
-            return;
+            return BootstrapAdminPermissionCheckResult.Fail("BootstrapAdmin TenantId 配置无效，无法执行超管权限一致性校验。");
         }
 
         var tenantId = new TenantId(tenantGuid);
         using var appContextScope = appContextAccessor.BeginScope(CreateSystemContext(appContextAccessor, tenantId));
+        var idGeneratorAccessor = scope.ServiceProvider.GetRequiredService<IIdGeneratorAccessor>();
         var userRepository = scope.ServiceProvider.GetRequiredService<IUserAccountRepository>();
-        var account = await userRepository.FindByUsernameAsync(tenantId, _bootstrapOptions.Username, cancellationToken);
+        var roleRepository = scope.ServiceProvider.GetRequiredService<IRoleRepository>();
+        var userRoleRepository = scope.ServiceProvider.GetRequiredService<IUserRoleRepository>();
+        var rolePermissionRepository = scope.ServiceProvider.GetRequiredService<IRolePermissionRepository>();
+        var roleMenuRepository = scope.ServiceProvider.GetRequiredService<IRoleMenuRepository>();
+
+        var account = await userRepository.FindByUsernameAsync(tenantId, bootstrapOptions.Username, cancellationToken);
         if (account is null)
         {
-            return;
+            return BootstrapAdminPermissionCheckResult.Fail($"未找到 BootstrapAdmin 用户：{bootstrapOptions.Username}。");
         }
 
-        if (_bootstrapOptions.IsPlatformAdmin && !account.IsPlatformAdmin)
+        var superAdminRole = (await roleRepository.QueryByCodesAsync(tenantId, ["SuperAdmin"], cancellationToken))
+            .FirstOrDefault();
+
+        if (superAdminRole is null)
+        {
+            superAdminRole = new Role(tenantId, "超级管理员", "SuperAdmin", idGeneratorAccessor.NextId());
+            superAdminRole.Update("超级管理员", "平台超级管理员（全量权限）");
+            superAdminRole.SetDataScope(DataScopeType.All);
+            superAdminRole.MarkSystemRole();
+            await roleRepository.AddRangeAsync([superAdminRole], cancellationToken);
+        }
+        else
+        {
+            var roleUpdated = false;
+            if (superAdminRole.DataScope != DataScopeType.All)
+            {
+                superAdminRole.SetDataScope(DataScopeType.All);
+                roleUpdated = true;
+            }
+
+            if (!superAdminRole.IsSystem)
+            {
+                superAdminRole.MarkSystemRole();
+                roleUpdated = true;
+            }
+
+            if (roleUpdated)
+            {
+                await roleRepository.UpdateAsync(superAdminRole, cancellationToken);
+            }
+        }
+
+        if (!account.IsPlatformAdmin)
         {
             account.MarkPlatformAdmin();
             await userRepository.UpdateAsync(account, cancellationToken);
-            _logger.LogInformation("已补齐 BootstrapAdmin 平台管理员标记：{Username}", _bootstrapOptions.Username);
-            return;
         }
 
-        if (!_bootstrapOptions.IsPlatformAdmin && account.IsPlatformAdmin)
+        var userRoleIds = (await userRoleRepository.QueryByUserIdAsync(tenantId, account.Id, cancellationToken))
+            .Select(item => item.RoleId)
+            .ToHashSet();
+        if (!userRoleIds.Contains(superAdminRole.Id))
         {
-            account.UnmarkPlatformAdmin();
-            await userRepository.UpdateAsync(account, cancellationToken);
-            _logger.LogInformation("已移除 BootstrapAdmin 平台管理员标记：{Username}", _bootstrapOptions.Username);
+            await userRoleRepository.AddRangeAsync(
+                [new UserRole(tenantId, account.Id, superAdminRole.Id, idGeneratorAccessor.NextId())],
+                cancellationToken);
+        }
+
+        var permissionIds = await db.Queryable<Permission>()
+            .Where(item => item.TenantIdValue == tenantId.Value)
+            .Select(item => item.Id)
+            .ToListAsync(cancellationToken);
+        if (permissionIds.Count > 0)
+        {
+            var existingRolePermissionIds = (await rolePermissionRepository.QueryByRoleIdsAsync(
+                    tenantId,
+                    [superAdminRole.Id],
+                    cancellationToken))
+                .Where(item => item.RoleId == superAdminRole.Id)
+                .Select(item => item.PermissionId)
+                .ToHashSet();
+            var missingRolePermissions = permissionIds
+                .Where(permissionId => !existingRolePermissionIds.Contains(permissionId))
+                .Select(permissionId => new RolePermission(tenantId, superAdminRole.Id, permissionId, idGeneratorAccessor.NextId()))
+                .ToArray();
+            if (missingRolePermissions.Length > 0)
+            {
+                await rolePermissionRepository.AddRangeAsync(missingRolePermissions, cancellationToken);
+            }
+        }
+
+        var menuIds = await db.Queryable<Menu>()
+            .Where(item => item.TenantIdValue == tenantId.Value)
+            .Select(item => item.Id)
+            .ToListAsync(cancellationToken);
+        if (menuIds.Count > 0)
+        {
+            var existingRoleMenuIds = await db.Queryable<RoleMenu>()
+                .Where(item => item.TenantIdValue == tenantId.Value
+                    && item.RoleId == superAdminRole.Id
+                    && SqlFunc.ContainsArray(menuIds.ToArray(), item.MenuId))
+                .Select(item => item.MenuId)
+                .ToListAsync(cancellationToken);
+            var existingRoleMenuSet = existingRoleMenuIds.ToHashSet();
+            var missingRoleMenus = menuIds
+                .Where(menuId => !existingRoleMenuSet.Contains(menuId))
+                .Select(menuId => new RoleMenu(tenantId, superAdminRole.Id, menuId, idGeneratorAccessor.NextId()))
+                .ToArray();
+            if (missingRoleMenus.Length > 0)
+            {
+                await roleMenuRepository.AddRangeAsync(missingRoleMenus, cancellationToken);
+            }
+        }
+
+        var effectiveAdminRoles = await db.Queryable<UserRole, Role>((ur, role) => ur.RoleId == role.Id)
+            .Where((ur, role) => ur.TenantIdValue == tenantId.Value
+                && role.TenantIdValue == tenantId.Value
+                && ur.UserId == account.Id)
+            .Select((ur, role) => role.Code)
+            .ToListAsync(cancellationToken);
+        effectiveAdminRoles = effectiveAdminRoles
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(item => item, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var hasSuperAdmin = effectiveAdminRoles.Any(code => string.Equals(code, "SuperAdmin", StringComparison.OrdinalIgnoreCase));
+        var checkPassed = hasSuperAdmin && account.IsPlatformAdmin;
+        var checkMessage = checkPassed
+            ? "BootstrapAdmin 已拥有 SuperAdmin、平台管理员标记及全量权限菜单绑定。"
+            : "BootstrapAdmin 最大权限校验未通过，请检查用户角色与平台管理员标记。";
+
+        return checkPassed
+            ? BootstrapAdminPermissionCheckResult.Success(effectiveAdminRoles, checkMessage)
+            : BootstrapAdminPermissionCheckResult.Fail(checkMessage, effectiveAdminRoles);
+    }
+
+    private static void ApplyAdminPermissionCheckReport(BootstrapReport report, BootstrapAdminPermissionCheckResult result)
+    {
+        report.EffectiveAdminRoles = result.EffectiveAdminRoles;
+        report.AdminPermissionCheckPassed = result.Passed;
+        report.AdminPermissionCheckMessage = result.Message;
+    }
+
+    private sealed record BootstrapAdminPermissionCheckResult(
+        bool Passed,
+        List<string> EffectiveAdminRoles,
+        string Message)
+    {
+        public static BootstrapAdminPermissionCheckResult Success(
+            IReadOnlyCollection<string> effectiveAdminRoles,
+            string message)
+        {
+            return new BootstrapAdminPermissionCheckResult(true, effectiveAdminRoles.ToList(), message);
+        }
+
+        public static BootstrapAdminPermissionCheckResult Fail(
+            string message,
+            IReadOnlyCollection<string>? effectiveAdminRoles = null)
+        {
+            return new BootstrapAdminPermissionCheckResult(
+                false,
+                effectiveAdminRoles?.ToList() ?? [],
+                message);
         }
     }
 

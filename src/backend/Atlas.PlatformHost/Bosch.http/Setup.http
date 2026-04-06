@@ -84,6 +84,11 @@ Content-Type: application/json
   }
 }
 
+### 期望响应字段（超管强制与校验）
+# data.effectiveAdminRoles 必须包含 "SuperAdmin"
+# data.adminPermissionCheckPassed 应为 true
+# data.adminPermissionCheckMessage 返回超管权限一致性校验结果说明
+
 ### 应用 setup - 获取状态
 GET {{appHost}}/api/v1/setup/state
 Accept: application/json

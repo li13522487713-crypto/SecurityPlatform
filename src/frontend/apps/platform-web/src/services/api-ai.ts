@@ -503,27 +503,224 @@ export interface MultiAgentStreamEvent {
   parsed?: unknown;
 }
 
+type TeamAgentMode = "GroupChat" | "Workflow" | "Handoff";
+type TeamAgentStatus = "Draft" | "Active" | "Disabled";
+type TeamAgentExecutionStatus = "Pending" | "Running" | "Completed" | "Failed";
+
+interface TeamAgentMemberInput {
+  agentId: number | null;
+  roleName: string;
+  responsibility?: string;
+  alias?: string;
+  sortOrder: number;
+  isEnabled: boolean;
+  promptPrefix?: string;
+  capabilityTags?: string[];
+}
+
+interface TeamAgentMemberItem {
+  agentId: number | null;
+  roleName: string;
+  responsibility?: string;
+  alias?: string;
+  sortOrder: number;
+  isEnabled: boolean;
+  promptPrefix?: string;
+  capabilityTags?: string[];
+  bindingState?: string;
+}
+
+interface TeamAgentListItem {
+  id: number;
+  agentType: string;
+  name: string;
+  description?: string;
+  teamMode: TeamAgentMode;
+  status: TeamAgentStatus;
+  capabilityTags?: string[];
+  memberCount: number;
+  defaultEntrySkill?: string;
+  publishVersion: number;
+  boundDataAssets?: string[];
+  lastRunStatus?: string;
+  legacySourceType?: string;
+  legacySourceId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface TeamAgentDetail extends TeamAgentListItem {
+  schemaConfigJson?: string;
+  creatorUserId: number;
+  publishedAt?: string;
+  members: TeamAgentMemberItem[];
+}
+
+interface TeamAgentChatResponse {
+  conversationId: number;
+  executionId: number;
+  content: string;
+}
+
+interface TeamAgentExecutionStep {
+  stepId: number;
+  agentId: number | null;
+  agentName: string;
+  roleName: string;
+  alias?: string;
+  inputMessage: string;
+  outputMessage?: string;
+  status: TeamAgentExecutionStatus;
+  errorMessage?: string;
+  startedAt: string;
+  completedAt?: string;
+}
+
+interface TeamAgentExecutionResult {
+  executionId: number;
+  teamAgentId: number;
+  conversationId: number;
+  status: TeamAgentExecutionStatus;
+  outputMessage?: string;
+  errorMessage?: string;
+  steps: TeamAgentExecutionStep[];
+  startedAt: string;
+  completedAt?: string;
+}
+
+function toTeamMode(mode: MultiAgentOrchestrationMode): TeamAgentMode {
+  return mode === 1 ? "Workflow" : "GroupChat";
+}
+
+function toLegacyMode(mode: TeamAgentMode): MultiAgentOrchestrationMode {
+  return mode === "Workflow" ? 1 : 0;
+}
+
+function toTeamStatus(status?: MultiAgentOrchestrationStatus): TeamAgentStatus | undefined {
+  if (status === undefined) return undefined;
+  if (status === 1) return "Active";
+  if (status === 2) return "Disabled";
+  return "Draft";
+}
+
+function toLegacyStatus(status: TeamAgentStatus): MultiAgentOrchestrationStatus {
+  if (status === "Active") return 1;
+  if (status === "Disabled") return 2;
+  return 0;
+}
+
+function toLegacyExecutionStatus(status: TeamAgentExecutionStatus): MultiAgentExecutionStatus {
+  if (status === "Running") return 1;
+  if (status === "Completed") return 2;
+  if (status === "Failed") return 3;
+  return 0;
+}
+
+function normalizeAgentId(raw: string): number | null {
+  const parsed = Number(raw);
+  if (Number.isInteger(parsed) && parsed > 0) {
+    return parsed;
+  }
+  return null;
+}
+
+function toTeamMemberInput(member: MultiAgentMemberInput, index: number): TeamAgentMemberInput {
+  const alias = member.alias?.trim();
+  return {
+    agentId: normalizeAgentId(member.agentId),
+    roleName: alias && alias.length > 0 ? alias : `成员${index + 1}`,
+    responsibility: undefined,
+    alias,
+    sortOrder: member.sortOrder ?? index,
+    isEnabled: member.isEnabled,
+    promptPrefix: member.promptPrefix?.trim() || undefined,
+    capabilityTags: []
+  };
+}
+
+function mapTeamAgentItem(item: TeamAgentListItem): MultiAgentOrchestrationListItem {
+  return {
+    id: item.id,
+    name: item.name,
+    description: item.description,
+    mode: toLegacyMode(item.teamMode),
+    status: toLegacyStatus(item.status),
+    memberCount: item.memberCount,
+    creatorUserId: 0,
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt
+  };
+}
+
+function mapTeamAgentDetail(item: TeamAgentDetail): MultiAgentOrchestrationDetail {
+  return {
+    ...mapTeamAgentItem(item),
+    creatorUserId: item.creatorUserId,
+    members: item.members.map((member) => ({
+      agentId: member.agentId ? String(member.agentId) : "",
+      alias: member.alias,
+      sortOrder: member.sortOrder,
+      isEnabled: member.isEnabled,
+      promptPrefix: member.promptPrefix
+    }))
+  };
+}
+
+function mapExecution(result: TeamAgentExecutionResult): MultiAgentExecutionResult {
+  return {
+    executionId: result.executionId,
+    orchestrationId: result.teamAgentId,
+    status: toLegacyExecutionStatus(result.status),
+    outputMessage: result.outputMessage,
+    errorMessage: result.errorMessage,
+    steps: result.steps.map((step) => ({
+      agentId: step.agentId ?? 0,
+      agentName: step.agentName,
+      alias: step.alias,
+      inputMessage: step.inputMessage,
+      outputMessage: step.outputMessage,
+      status: toLegacyExecutionStatus(step.status),
+      errorMessage: step.errorMessage,
+      startedAt: step.startedAt,
+      completedAt: step.completedAt
+    })),
+    startedAt: result.startedAt,
+    completedAt: result.completedAt
+  };
+}
+
 export async function getMultiAgentOrchestrationsPaged(request: PagedRequest) {
-  const query = toQuery(request);
-  const response = await requestApi<ApiResponse<PagedResult<MultiAgentOrchestrationListItem>>>(
-    `/multi-agent-orchestrations?${query}`
+  const query = new URLSearchParams({
+    pageIndex: String(request.pageIndex),
+    pageSize: String(request.pageSize),
+    keyword: request.keyword ?? "",
+    teamMode: "",
+    status: "",
+    capabilityTag: "",
+    defaultEntrySkill: ""
+  });
+  const response = await requestApi<ApiResponse<PagedResult<TeamAgentListItem>>>(
+    `/team-agents?${query.toString()}`
   );
   if (!response.data) {
     throw new Error(response.message || "查询多 Agent 编排失败");
   }
 
-  return response.data;
+  return {
+    ...response.data,
+    items: response.data.items.map(mapTeamAgentItem)
+  };
 }
 
 export async function getMultiAgentOrchestrationById(id: number) {
-  const response = await requestApi<ApiResponse<MultiAgentOrchestrationDetail>>(
-    `/multi-agent-orchestrations/${id}`
+  const response = await requestApi<ApiResponse<TeamAgentDetail>>(
+    `/team-agents/${id}`
   );
   if (!response.data) {
     throw new Error(response.message || "查询多 Agent 编排详情失败");
   }
 
-  return response.data;
+  return mapTeamAgentDetail(response.data);
 }
 
 export async function createMultiAgentOrchestration(request: {
@@ -532,10 +729,18 @@ export async function createMultiAgentOrchestration(request: {
   mode: MultiAgentOrchestrationMode;
   members: MultiAgentMemberInput[];
 }) {
-  const response = await requestApi<ApiResponse<{ id: string }>>("/multi-agent-orchestrations", {
+  const response = await requestApi<ApiResponse<{ id: string }>>("/team-agents", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(request)
+    body: JSON.stringify({
+      name: request.name,
+      description: request.description,
+      teamMode: toTeamMode(request.mode),
+      members: request.members.map(toTeamMemberInput),
+      capabilityTags: [],
+      defaultEntrySkill: "automation",
+      boundDataAssets: []
+    })
   });
   if (!response.success) {
     throw new Error(response.message || "创建多 Agent 编排失败");
@@ -554,10 +759,19 @@ export async function updateMultiAgentOrchestration(
     status?: MultiAgentOrchestrationStatus;
   }
 ) {
-  const response = await requestApi<ApiResponse<{ id: string }>>(`/multi-agent-orchestrations/${id}`, {
+  const response = await requestApi<ApiResponse<{ id: string }>>(`/team-agents/${id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(request)
+    body: JSON.stringify({
+      name: request.name,
+      description: request.description,
+      teamMode: toTeamMode(request.mode),
+      status: toTeamStatus(request.status),
+      members: request.members.map(toTeamMemberInput),
+      capabilityTags: [],
+      defaultEntrySkill: "automation",
+      boundDataAssets: []
+    })
   });
   if (!response.success) {
     throw new Error(response.message || "更新多 Agent 编排失败");
@@ -565,7 +779,7 @@ export async function updateMultiAgentOrchestration(
 }
 
 export async function deleteMultiAgentOrchestration(id: number) {
-  const response = await requestApi<ApiResponse<{ id: string }>>(`/multi-agent-orchestrations/${id}`, {
+  const response = await requestApi<ApiResponse<{ id: string }>>(`/team-agents/${id}`, {
     method: "DELETE"
   });
   if (!response.success) {
@@ -574,30 +788,34 @@ export async function deleteMultiAgentOrchestration(id: number) {
 }
 
 export async function runMultiAgentOrchestration(id: number, request: MultiAgentRunRequest) {
-  const response = await requestApi<ApiResponse<MultiAgentExecutionResult>>(
-    `/multi-agent-orchestrations/${id}/run`,
+  const chatResponse = await requestApi<ApiResponse<TeamAgentChatResponse>>(
+    `/team-agents/${id}/chat`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(request)
+      body: JSON.stringify({
+        message: request.message,
+        enableRag: request.enableRag
+      })
     }
   );
-  if (!response.data) {
-    throw new Error(response.message || "执行多 Agent 编排失败");
+  if (!chatResponse.data) {
+    throw new Error(chatResponse.message || "执行多 Agent 编排失败");
   }
 
-  return response.data;
+  const execution = await getMultiAgentExecutionById(chatResponse.data.executionId);
+  return execution;
 }
 
 export async function getMultiAgentExecutionById(executionId: number) {
-  const response = await requestApi<ApiResponse<MultiAgentExecutionResult>>(
-    `/multi-agent-orchestrations/executions/${executionId}`
+  const response = await requestApi<ApiResponse<TeamAgentExecutionResult>>(
+    `/team-agents/executions/${executionId}`
   );
   if (!response.data) {
     throw new Error(response.message || "查询多 Agent 执行结果失败");
   }
 
-  return response.data;
+  return mapExecution(response.data);
 }
 
 export async function streamMultiAgentOrchestration(
@@ -627,11 +845,14 @@ export async function streamMultiAgentOrchestration(
     headers.set("X-CSRF-TOKEN", csrfToken);
   }
 
-  const response = await fetch(`${API_BASE}/multi-agent-orchestrations/${id}/stream`, {
+  const response = await fetch(`${API_BASE}/team-agents/${id}/chat/stream`, {
     method: "POST",
     credentials: "include",
     headers,
-    body: JSON.stringify(request),
+    body: JSON.stringify({
+      message: request.message,
+      enableRag: request.enableRag
+    }),
     signal
   });
 

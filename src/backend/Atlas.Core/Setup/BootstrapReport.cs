@@ -16,6 +16,9 @@ public sealed class BootstrapReport
     public int PositionsCreated { get; set; }
     public bool AdminCreated { get; set; }
     public string? AdminUsername { get; set; }
+    public List<string> EffectiveAdminRoles { get; set; } = [];
+    public bool AdminPermissionCheckPassed { get; set; } = true;
+    public string AdminPermissionCheckMessage { get; set; } = string.Empty;
     public List<string> Errors { get; set; } = [];
     public bool Success => Errors.Count == 0;
 }

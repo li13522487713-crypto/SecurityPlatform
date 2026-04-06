@@ -846,7 +846,7 @@ function goEdit(card: WorkspaceAgentCard) {
 
 function goChat(card: WorkspaceAgentCard, entrySkill?: string) {
   if (card.agentType === "team") {
-    void router.push({ name: "ai-multi-agent" });
+    void router.push({ name: "ai-agent-edit", params: { id: String(card.id) } });
     return;
   }
   if (entrySkill) {

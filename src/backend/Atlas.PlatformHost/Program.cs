@@ -322,6 +322,15 @@ if (!builder.Environment.IsDevelopment())
     }
 }
 
+if (string.Equals(storageProvider, FileStorageOptions.ProviderLocal, StringComparison.OrdinalIgnoreCase))
+{
+    var localBasePath = string.IsNullOrWhiteSpace(fileStorage.BasePath) ? "uploads" : fileStorage.BasePath.Trim();
+    var resolvedStoragePath = Path.IsPathRooted(localBasePath)
+        ? localBasePath
+        : Path.Combine(builder.Environment.ContentRootPath, localBasePath);
+    Directory.CreateDirectory(resolvedStoragePath);
+}
+
 // ─── Antiforgery ───
 builder.Services.AddAntiforgery(options =>
 {

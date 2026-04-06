@@ -117,6 +117,9 @@ export interface InitializeResponse {
   positionsCreated: number;
   adminCreated: boolean;
   adminUsername: string | null;
+  effectiveAdminRoles: string[];
+  adminPermissionCheckPassed: boolean;
+  adminPermissionCheckMessage: string;
   errors: string[];
 }
 

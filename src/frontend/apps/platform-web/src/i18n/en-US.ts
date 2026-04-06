@@ -81,6 +81,7 @@ export default {
     sidebar_settings_auth_roles: "Roles & Permissions",
     sidebar_ai_agents: "AI Agents",
     sidebar_monitor_server_info: "System Monitor",
+    "sidebar_monitor_server-info": "System Monitor",
     sidebar_settings_system_datasources: "Data Sources"
   },
   layoutChrome: {
@@ -2304,6 +2305,8 @@ export default {
     startInitialization: "Start Initialization",
     completeTitle: "Setup Complete",
     completeDesc: "Platform initialization is complete. You can now log in with the admin account.",
+    completePartialTitle: "Initialization Complete (Needs Attention)",
+    completePartialDesc: "Platform initialization finished, but super admin permission verification did not pass. The system has attempted auto-repair.",
     goToLogin: "Go to Login",
     next: "Next",
     prev: "Previous",
@@ -2321,7 +2324,10 @@ export default {
     reportDepartments: "Departments Created",
     reportPositions: "Positions Created",
     reportAdmin: "Admin Account",
+    reportEffectiveAdminRoles: "Effective Admin Roles",
+    reportAdminPermissionCheck: "Super Admin Permission Check",
     reportDone: "Done",
+    reportNeedsFix: "Needs Fix",
     reportSkipped: "Skipped",
     reportErrors: "Warnings during initialization"
   }

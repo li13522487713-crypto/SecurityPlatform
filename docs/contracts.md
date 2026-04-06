@@ -82,7 +82,7 @@
 
 说明：
 
-- `roles.selectedRoleCodes` 仅接收可选引导角色；`SuperAdmin/Admin` 由系统保底处理。
+- `roles.selectedRoleCodes` 仅接收可选引导角色；`SuperAdmin/Admin` 由系统强制保底处理，向导提交时不可移除。
 - `organization.departments/positions` 即平台“首批组织数据”；不再由默认固定模板自动回填。
 
 #### SetupInitializeResponse（平台）
@@ -95,6 +95,8 @@
 - `seedCompleted/seedSummary`
 - `rolesCreated/departmentsCreated/positionsCreated`
 - `adminCreated/adminUsername`
+- `effectiveAdminRoles`（管理员最终生效角色列表）
+- `adminPermissionCheckPassed/adminPermissionCheckMessage`（超管最大权限校验与自动补齐结果）
 - `errors[]`
 
 ### 应用宿主（AppHost:5002）

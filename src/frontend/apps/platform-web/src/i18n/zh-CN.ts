@@ -81,6 +81,7 @@ export default {
     sidebar_settings_auth_roles: "角色与权限",
     sidebar_ai_agents: "AI 助理",
     sidebar_monitor_server_info: "系统监控",
+    "sidebar_monitor_server-info": "系统监控",
     sidebar_settings_system_datasources: "数据源管理"
   },
   layoutChrome: {
@@ -2301,6 +2302,8 @@ export default {
     startInitialization: "开始初始化",
     completeTitle: "安装完成",
     completeDesc: "平台初始化已完成，现在可以使用管理员账户登录系统。",
+    completePartialTitle: "初始化完成（需要补齐）",
+    completePartialDesc: "平台初始化已完成，但超级管理员权限校验未通过，系统已尝试自动修复。",
     goToLogin: "进入登录页",
     next: "下一步",
     prev: "上一步",
@@ -2318,7 +2321,10 @@ export default {
     reportDepartments: "新增部门数",
     reportPositions: "新增岗位数",
     reportAdmin: "管理员账户",
+    reportEffectiveAdminRoles: "管理员生效角色",
+    reportAdminPermissionCheck: "超管权限校验",
     reportDone: "已完成",
+    reportNeedsFix: "待修复",
     reportSkipped: "已跳过",
     reportErrors: "初始化过程中产生的警告"
   }
