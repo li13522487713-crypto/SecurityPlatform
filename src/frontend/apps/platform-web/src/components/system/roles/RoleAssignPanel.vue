@@ -336,9 +336,9 @@ const dataScopeOptions = [
 
 const assignModel = reactive({
   permissionIds: [] as number[],
-  menuIds: [] as number[],
+  menuIds: [] as string[],
   dataScope: 0 as number,
-  deptIds: [] as number[]
+  deptIds: [] as string[]
 });
 
 const permissionTreeData = ref<DataNode[]>([]);
@@ -405,7 +405,7 @@ const menuSelectedCount = computed(() => {
   const keys = Array.isArray(menuCheckedKeys.value)
     ? menuCheckedKeys.value
     : (menuCheckedKeys.value?.checked ?? []);
-  return keys.filter((k): k is number => typeof k === "number").length;
+  return keys.filter((k): k is string => typeof k === "string").length;
 });
 
 const selectedDeptNames = computed(() => {
@@ -413,7 +413,7 @@ const selectedDeptNames = computed(() => {
   const findNames = (nodes: DataNode[]): string[] => {
     const names: string[] = [];
     for (const node of nodes) {
-      if (assignModel.deptIds.includes(node.key as number)) {
+      if (assignModel.deptIds.includes(String(node.key))) {
         names.push(node.title as string);
       }
       if (node.children) names.push(...findNames(node.children as DataNode[]));
@@ -470,6 +470,8 @@ const toggleAllEdit = (checked: boolean) => {
 
 const filterNumericKeys = (keys: (number | string)[]) =>
   keys.filter((k): k is number => typeof k === "number" && !Number.isNaN(k));
+const filterStringKeys = (keys: (number | string)[]) =>
+  keys.filter((k): k is string => typeof k === "string" && k.trim().length > 0);
 
 const collectTreeKeys = (nodes: DataNode[]): (number | string)[] => {
   let keys: (number | string)[] = [];
@@ -505,9 +507,9 @@ watch(permissionCheckedKeys, (val) => {
 
 watch(menuCheckedKeys, (val) => {
   if (Array.isArray(val)) {
-    assignModel.menuIds = filterNumericKeys(val);
+    assignModel.menuIds = filterStringKeys(val);
   } else if (val && val.checked) {
-    assignModel.menuIds = filterNumericKeys(val.checked);
+    assignModel.menuIds = filterStringKeys(val.checked);
   }
 });
 
@@ -529,7 +531,7 @@ watch(
   (newVal) => {
     if (
       Array.isArray(newVal) &&
-      (!Array.isArray(menuCheckedKeys.value) || newVal.join(",") !== (menuCheckedKeys.value as number[]).join(","))
+      (!Array.isArray(menuCheckedKeys.value) || newVal.join(",") !== (menuCheckedKeys.value as string[]).join(","))
     ) {
       menuCheckedKeys.value = [...newVal];
     }
@@ -576,20 +578,21 @@ const loadMenuOptions = async (keyword?: string) => {
     if (!isMounted.value) return;
     const formatted = items.map((item) => ({
       ...item,
-      key: Number(item.id),
-      value: Number(item.id),
+      key: item.id,
+      value: item.id,
       title: item.name,
       nodePath: item.path || undefined,
-      id: Number(item.id),
-      parentId: item.parentId ? Number(item.parentId) : 0
+      id: item.id,
+      parentId: item.parentId || "0"
     }));
     const keywordTrimmed = keyword?.trim().toLowerCase();
     const filtered = keywordTrimmed
       ? formatted.filter((f) => (f.title as string).toLowerCase().includes(keywordTrimmed))
       : formatted;
     menuTreeData.value = handleTree(filtered, "id", "parentId", "children");
-  } catch {
-    message.warning(t("roleAssign.loadMenusFailed"));
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "";
+    message.warning(reason || t("roleAssign.loadMenusFailed"));
   }
 };
 
@@ -613,19 +616,20 @@ const loadDepartmentOptions = async (keyword?: string) => {
     if (!isMounted.value) return;
     const formatted = items.map((item) => ({
       ...item,
-      key: Number(item.id),
-      value: Number(item.id),
+      key: item.id,
+      value: item.id,
       title: item.name,
-      id: Number(item.id),
-      parentId: item.parentId ? Number(item.parentId) : 0
+      id: item.id,
+      parentId: item.parentId || "0"
     }));
     const keywordTrimmed = keyword?.trim().toLowerCase();
     const filtered = keywordTrimmed
       ? formatted.filter((f) => (f.title as string).toLowerCase().includes(keywordTrimmed))
       : formatted;
     departmentTreeData.value = handleTree(filtered, "id", "parentId", "children");
-  } catch {
-    message.warning(t("roleAssign.loadDepartmentsFailed"));
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "";
+    message.warning(reason || t("roleAssign.loadDepartmentsFailed"));
   }
 };
 
@@ -743,7 +747,7 @@ const fetchRoleDetail = async () => {
     const detail = await getRoleDetail(props.roleId);
     if (!isMounted.value) return;
     assignModel.permissionIds = detail.permissionIds?.slice() ?? [];
-    assignModel.menuIds = detail.menuIds?.slice() ?? [];
+    assignModel.menuIds = (detail.menuIds ?? []).map((value) => String(value));
     basicForm.code = props.roleCode;
     basicForm.name = props.roleName;
     basicForm.description = detail.description ?? "";
@@ -752,9 +756,7 @@ const fetchRoleDetail = async () => {
       description: basicForm.description
     };
     assignModel.dataScope = detail.dataScope === 1 ? 0 : (detail.dataScope ?? 0);
-    assignModel.deptIds = (detail.deptIds ?? [])
-      .map((value) => Number(value))
-      .filter((value) => Number.isFinite(value));
+    assignModel.deptIds = (detail.deptIds ?? []).map((value) => String(value));
   } catch (error) {
     if (isMounted.value) {
       message.error((error as Error).message || t("systemRoles.loadRoleDetailFailed"));
@@ -778,7 +780,7 @@ const submitAssign = async () => {
     }
 
     if (props.canAssignMenus) {
-      tasks.push(updateRoleMenus(props.roleId, { menuIds: assignModel.menuIds }));
+      tasks.push(updateRoleMenus(props.roleId, { menuIds: assignModel.menuIds as unknown as number[] }));
     }
 
     if (props.canManageDataScope) {
@@ -786,7 +788,7 @@ const submitAssign = async () => {
         setRoleDataScope(
           props.roleId,
           assignModel.dataScope,
-          assignModel.dataScope === 2 ? assignModel.deptIds : undefined
+          assignModel.dataScope === 2 ? (assignModel.deptIds as unknown as number[]) : undefined
         )
       );
     }

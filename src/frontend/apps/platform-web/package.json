@@ -11,15 +11,17 @@
   },
   "dependencies": {
     "@ant-design/icons-vue": "^7.0.1",
+    "@atlas/ai-core": "workspace:*",
     "@atlas/shared-core": "workspace:*",
     "@atlas/shared-ui": "workspace:*",
-    "@atlas/ai-core": "workspace:*",
     "@vue-flow/controls": "^1.1.2",
     "@vue-flow/core": "^1.47.0",
     "@vue-flow/minimap": "^1.5.3",
     "ant-design-vue": "^4.2.6",
+    "echarts": "^6.0.0",
     "pinia": "^3.0.3",
     "vue": "^3.5.30",
+    "vue-echarts": "^8.0.1",
     "vue-i18n": "^9.14.5",
     "vue-router": "^4.6.4"
   },

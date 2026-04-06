@@ -1,136 +1,98 @@
 <template>
-  <div class="workbench">
-    <!-- 顶栏：问候 + 指标卡片，一行展示 -->
-    <div class="workbench-top">
-      <div class="top-greeting">
-        <h1 class="greeting-text">{{ t("home.welcomeBack", { name: welcomeName }) }}</h1>
-        <span class="greeting-date">{{ todayDate }}</span>
-      </div>
-      <div class="metrics-skeleton">
-      <a-skeleton :loading="loadingMetrics" active :paragraph="false">
-        <div class="metrics-row">
-          <div class="metric-tile metric-tile--blue">
-            <DatabaseOutlined class="metric-icon" />
-            <span class="metric-value">{{ metrics?.assetsTotal ?? 0 }}</span>
-            <span class="metric-label">{{ t("home.statAssetsTotal") }}</span>
-          </div>
-          <div class="metric-tile metric-tile--red">
-            <AlertOutlined class="metric-icon" />
-            <span class="metric-value metric-value--alert">{{ metrics?.alertsToday ?? 0 }}</span>
-            <span class="metric-label">{{ t("home.statAlertsToday") }}</span>
-          </div>
-          <div class="metric-tile metric-tile--teal">
-            <FileSearchOutlined class="metric-icon" />
-            <span class="metric-value">{{ metrics?.auditEventsToday ?? 0 }}</span>
-            <span class="metric-label">{{ t("home.statAuditToday") }}</span>
-          </div>
-          <div class="metric-tile metric-tile--amber">
-            <ThunderboltOutlined class="metric-icon" />
-            <span class="metric-value">{{ metrics?.runningInstances ?? 0 }}</span>
-            <span class="metric-label">{{ t("home.statRunningFlows") }}</span>
-          </div>
-        </div>
-      </a-skeleton>
-      </div>
-    </div>
-
-    <!-- 主内容：三栏平铺 -->
-    <div class="workbench-body">
-      <!-- 左：待审批 -->
-      <div class="dd-card">
-        <div class="dd-card-head">
-          <div class="card-title-row">
-            <span>{{ t("home.pendingApprovals") }}</span>
-            <a-badge :count="pendingTasks.length" :overflow-count="99" />
-          </div>
-          <a-button type="link" size="small" @click="$router.push('/approval/flows')">{{ t("home.viewAll") }}</a-button>
-        </div>
-        <div class="dd-card-body">
-          <a-skeleton :loading="loadingTasks" active :paragraph="{ rows: 3 }">
-            <a-list v-if="pendingTasks.length > 0" :data-source="pendingTasks" size="small" :split="false">
-              <template #renderItem="{ item }">
-                <a-list-item>
-                  <a-list-item-meta :title="item.flowName" :description="item.applicantName" />
-                  <template #actions>
-                    <span class="task-time">{{ formatRelativeTime(item.createdAt) }}</span>
-                  </template>
-                </a-list-item>
-              </template>
-            </a-list>
-            <a-empty v-else :description="t('home.emptyPendingTasks')" :image="emptyImage" />
-          </a-skeleton>
-        </div>
-      </div>
-
-      <!-- 中：告警 + 最近活动 -->
-      <div class="body-center">
-        <div class="dd-card dd-card--half">
-          <div class="dd-card-head">
-            <div class="card-title-row">
-              <span>{{ t("home.alertsPendingTitle") }}</span>
-              <a-badge :count="recentAlerts.length" :overflow-count="99" />
-            </div>
-            <a-button type="link" size="small" @click="$router.push('/console/alert')">{{ t("home.viewAll") }}</a-button>
-          </div>
-          <div class="dd-card-body">
-            <a-skeleton :loading="loadingAlerts" active :paragraph="{ rows: 2 }">
-              <a-list v-if="recentAlerts.length > 0" :data-source="recentAlerts" size="small" :split="false">
-                <template #renderItem="{ item }">
-                  <a-list-item>
-                    <a-list-item-meta>
-                      <template #title>
-                        <a-space>
-                          <a-tag :color="severityColor(item.severity)" style="margin: 0;">{{ item.severity }}</a-tag>
-                          <span>{{ item.title }}</span>
-                        </a-space>
-                      </template>
-                    </a-list-item-meta>
-                    <template #actions>
-                      <span class="task-time">{{ formatRelativeTime(item.createdAt) }}</span>
-                    </template>
-                  </a-list-item>
-                </template>
-              </a-list>
-              <a-empty v-else :description="t('home.emptyAlerts')" :image="emptyImage" />
-            </a-skeleton>
-          </div>
-        </div>
-        <div class="dd-card dd-card--half">
-          <div class="dd-card-head">
-            <span class="dd-card-title">{{ t("home.recentActivity") }}</span>
-          </div>
-          <div class="dd-card-body">
-            <a-skeleton :loading="loadingAudits" active :paragraph="{ rows: 2 }">
-              <a-timeline v-if="recentAudits.length > 0" class="compact-timeline">
-                <a-timeline-item v-for="audit in recentAudits" :key="audit.id">
-                  <span class="audit-time">{{ formatTime(audit.createdAt) }}</span>
-                  {{ audit.actorName }} {{ audit.action }} {{ audit.targetDescription }}
-                </a-timeline-item>
-              </a-timeline>
-              <a-empty v-else :description="t('home.emptyActivity')" :image="emptyImage" />
-            </a-skeleton>
-          </div>
-        </div>
-      </div>
-
-      <!-- 右：快捷入口 -->
-      <div class="dd-card">
-        <div class="dd-card-head">
-          <span class="dd-card-title">{{ t("home.quickLinks") }}</span>
-        </div>
-        <div class="dd-card-body quick-links-body">
-          <button
-            v-for="entry in quickEntries"
-            :key="entry.path"
-            type="button"
-            class="quick-link-tile"
-            @click="$router.push(entry.path)"
-          >
-            <span class="quick-link-icon-wrap" aria-hidden="true">
-              <component :is="entry.icon" class="quick-link-icon" />
+  <div class="console-overview">
+    <div class="console-overview__container">
+      <!-- Hero Section -->
+      <div class="hero-section">
+        <div class="hero-section__left">
+          <h1 class="hero-section__greeting">
+            {{ greetingPrefix }}{{ t("home.heroComma") }}<span class="hero-section__name">{{ welcomeName }}</span> 👋
+          </h1>
+          <p class="hero-section__status">
+            <span class="hero-section__pulse">
+              <span class="hero-section__pulse-ring" />
+              <span class="hero-section__pulse-dot" />
             </span>
-            <span class="quick-link-label">{{ entry.label }}</span>
+            {{ t("home.systemHealthy") }}
+          </p>
+        </div>
+        <div class="hero-section__actions">
+          <button type="button" class="hero-btn hero-btn--outline" @click="$router.push('/console/audit')">
+            <FileTextOutlined class="hero-btn__icon" />
+            {{ t("home.exportReport") }}
           </button>
+          <button type="button" class="hero-btn hero-btn--primary" @click="$router.push('/console/catalog')">
+            <PlusOutlined class="hero-btn__icon" />
+            {{ t("home.newResource") }}
+          </button>
+        </div>
+      </div>
+
+      <!-- Metrics Grid -->
+      <div class="metrics-grid">
+        <a-skeleton :loading="loadingMetrics" active :paragraph="{ rows: 2 }">
+          <div class="metrics-grid__row">
+            <StatCard
+              :title="t('home.statAssetsTotal')"
+              :value="metrics?.assetsTotal ?? 0"
+              :trend="12.5"
+              :trend-label="t('home.trendVsLastMonth')"
+              :icon="CloudServerOutlined"
+              color="blue"
+              :sparkline-data="[400, 300, 550, 400, 700]"
+            />
+            <StatCard
+              :title="t('home.statAlertsToday')"
+              :value="metrics?.alertsToday ?? 0"
+              :trend="-100"
+              :trend-label="t('home.trendVsYesterday')"
+              :icon="ExclamationCircleOutlined"
+              color="emerald"
+              :sparkline-data="[100, 120, 90, 60, 40]"
+            />
+            <StatCard
+              :title="t('home.statAuditToday')"
+              :value="metrics?.auditEventsToday ?? 0"
+              :trend="5.2"
+              :trend-label="t('home.trendVsYesterday')"
+              :icon="FileTextOutlined"
+              color="purple"
+              :sparkline-data="[20, 50, 100, 120, 150]"
+            />
+            <StatCard
+              :title="t('home.statRunningFlows')"
+              :value="metrics?.runningInstances ?? 0"
+              :trend="-2.4"
+              :trend-label="t('home.trendVsLastWeek')"
+              :icon="ThunderboltOutlined"
+              color="orange"
+              :sparkline-data="[80, 60, 90, 110, 130]"
+            />
+          </div>
+        </a-skeleton>
+      </div>
+
+      <!-- Main Content Grid -->
+      <div class="main-grid">
+        <!-- Left Column -->
+        <div class="main-grid__left">
+          <SystemLoadChart />
+          <CoreAppsGrid />
+        </div>
+
+        <!-- Right Column -->
+        <div class="main-grid__right">
+          <ActionCenter
+            :tasks="pendingTaskItems"
+            :alerts="alertItems"
+            :task-count="pendingTasks.length"
+            :alert-count="recentAlerts.length"
+            :loading="loadingTasks || loadingAlerts"
+          />
+          <ActivityTimeline
+            :items="timelineItems"
+            :loading="loadingAudits"
+            @view-all="$router.push('/console/audit')"
+          />
         </div>
       </div>
     </div>
@@ -139,39 +101,30 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, onUnmounted } from "vue";
-import type { Component } from "vue";
 import { useI18n } from "vue-i18n";
-import { Empty, message } from "ant-design-vue";
+import { message } from "ant-design-vue";
 import {
-  AlertOutlined,
-  ApartmentOutlined,
-  AppstoreOutlined,
-  BellOutlined,
-  DatabaseOutlined,
-  FileSearchOutlined,
-  FormOutlined,
-  MenuOutlined,
-  ProjectOutlined,
-  SafetyCertificateOutlined,
+  CloudServerOutlined,
+  ExclamationCircleOutlined,
+  FileTextOutlined,
+  PlusOutlined,
   ThunderboltOutlined,
-  UserOutlined
 } from "@ant-design/icons-vue";
 import { getAuthProfile, hasPermission } from "@atlas/shared-core";
 import type { VisualizationMetricsResponse } from "@atlas/shared-core";
-import { getAlertsPaged } from "@/services/api-users";
-import { getAuditsPaged } from "@/services/api-users";
+import { getAlertsPaged, getAuditsPaged } from "@/services/api-users";
 import { getMyTasksPaged, getVisualizationMetrics } from "@/services/api-dashboard";
+import StatCard from "@/components/console/StatCard.vue";
+import SystemLoadChart from "@/components/console/SystemLoadChart.vue";
+import CoreAppsGrid from "@/components/console/CoreAppsGrid.vue";
+import ActionCenter from "@/components/console/ActionCenter.vue";
+import ActivityTimeline from "@/components/console/ActivityTimeline.vue";
 
 const { t, locale } = useI18n();
-const emptyImage = Empty.PRESENTED_IMAGE_SIMPLE;
 
 const isMounted = ref(false);
-onMounted(() => {
-  isMounted.value = true;
-});
-onUnmounted(() => {
-  isMounted.value = false;
-});
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
 
 const loadingTasks = ref(false);
 const loadingAlerts = ref(false);
@@ -190,65 +143,45 @@ const welcomeName = computed(() => {
   return name && name.length > 0 ? name : t("home.welcomeFallbackName");
 });
 
-type QuickEntrySource = {
-  titleKey: string;
-  path: string;
-  permissions: string[];
-  icon: Component;
-};
+const greetingPrefix = computed(() => {
+  const hour = new Date().getHours();
+  if (hour < 12) return t("home.greetingMorning");
+  if (hour < 18) return t("home.greetingAfternoon");
+  return t("home.greetingEvening");
+});
 
-const organizationEntriesSource: QuickEntrySource[] = [
-  { titleKey: "home.quickUsersTitle", path: "/console/settings/org/users", permissions: ["users:view"], icon: UserOutlined },
-  { titleKey: "home.quickRolesTitle", path: "/console/settings/auth/roles", permissions: ["roles:view"], icon: SafetyCertificateOutlined },
-  { titleKey: "home.quickMenusTitle", path: "/console/settings/auth/menus", permissions: ["menus:view"], icon: MenuOutlined },
-  { titleKey: "home.quickProjectsTitle", path: "/console/settings/projects", permissions: ["projects:view"], icon: ProjectOutlined }
-];
-
-const businessEntriesSource: QuickEntrySource[] = [
-  { titleKey: "home.quickDatasourcesTitle", path: "/console/settings/system/datasources", permissions: ["*:*:*"], icon: DatabaseOutlined },
-  { titleKey: "home.quickWorkflowTitle", path: "/console/workflow/designer", permissions: ["workflow:view"], icon: ApartmentOutlined }
-];
-
-const securityEntriesSource: QuickEntrySource[] = [
-  { titleKey: "home.quickAssetsTitle", path: "/console/assets", permissions: ["assets:view"], icon: AppstoreOutlined },
-  { titleKey: "home.quickAuditTitle", path: "/console/audit", permissions: ["audit:view"], icon: FileSearchOutlined },
-  { titleKey: "home.quickAlertCenterTitle", path: "/console/alert", permissions: ["alert:view"], icon: BellOutlined },
-  { titleKey: "home.quickApprovalTitle", path: "/console/approval/flows", permissions: ["approval:flow:view", "approval:flow:create"], icon: FormOutlined }
-];
-
-const canAccess = (permissions: string[]) => permissions.some((code) => hasPermission(profile.value, code));
-
-const quickEntries = computed(() =>
-  [...organizationEntriesSource.filter((e) => canAccess(e.permissions)), ...businessEntriesSource.filter((e) => canAccess(e.permissions)), ...securityEntriesSource.filter((e) => canAccess(e.permissions))]
-    .slice(0, 8)
-    .map((entry) => ({ label: t(entry.titleKey), path: entry.path, icon: entry.icon }))
+const pendingTaskItems = computed(() =>
+  pendingTasks.value.map((task) => ({
+    id: task.id,
+    title: task.flowName,
+    assignee: task.applicantName,
+  }))
 );
 
-const todayDate = computed(() => new Date().toLocaleDateString(locale.value === "en-US" ? "en-US" : "zh-CN", { weekday: "long", year: "numeric", month: "long", day: "numeric" }));
+const alertItems = computed(() =>
+  recentAlerts.value.map((alert) => ({
+    id: alert.id,
+    title: alert.title,
+    severity: alert.severity,
+  }))
+);
 
-const severityColor = (severity: string) => {
-  const s = severity.toLowerCase();
-  if (s.includes("critical") || s.includes("high")) return "red";
-  if (s.includes("medium")) return "orange";
-  if (s.includes("low")) return "blue";
-  return "default";
-};
-
-const formatRelativeTime = (value: string) => {
-  const now = Date.now();
-  const then = new Date(value).getTime();
-  if (Number.isNaN(then)) return value;
-  const diff = Math.max(0, Math.floor((now - then) / 1000));
-  if (diff < 60) return t("home.relativeJustNow");
-  if (diff < 3600) return t("home.relativeMinutesAgo", { n: Math.floor(diff / 60) });
-  if (diff < 86400) return t("home.relativeHoursAgo", { n: Math.floor(diff / 3600) });
-  return t("home.relativeDaysAgo", { n: Math.floor(diff / 86400) });
-};
+const timelineItems = computed(() =>
+  recentAudits.value.map((audit) => ({
+    id: audit.id,
+    title: `${audit.action} ${audit.targetDescription}`,
+    user: audit.actorName,
+    time: formatTime(audit.createdAt),
+  }))
+);
 
 const formatTime = (value: string) => {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString(locale.value === "en-US" ? "en-US" : "zh-CN");
+  return date.toLocaleTimeString(locale.value === "en-US" ? "en-US" : "zh-CN", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 };
 
 const loadPendingTasks = async () => {
@@ -264,7 +197,7 @@ const loadPendingTasks = async () => {
       id: String(item.id),
       flowName: item.title,
       applicantName: String(item.assigneeValue ?? "-"),
-      createdAt: item.createdAt
+      createdAt: item.createdAt,
     }));
   } catch (error) {
     message.error((error as Error).message || t("home.loadTasksFailed"));
@@ -287,7 +220,7 @@ const loadRecentAlerts = async () => {
       title: String(item.title ?? t("home.unnamedAlert")),
       severity: String(item.severity ?? t("home.unknownSeverity")),
       source: String(item.source ?? "-"),
-      createdAt: String(item.createdAt ?? new Date().toISOString())
+      createdAt: String(item.createdAt ?? new Date().toISOString()),
     }));
   } catch (error) {
     message.error((error as Error).message || t("home.loadAlertsFailed"));
@@ -310,7 +243,7 @@ const loadRecentAudits = async () => {
       actorName: item.actor,
       action: item.action,
       targetDescription: item.target,
-      createdAt: item.occurredAt
+      createdAt: item.occurredAt,
     }));
   } catch (error) {
     message.error((error as Error).message || t("home.loadAuditsFailed"));
@@ -344,240 +277,209 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.workbench {
-  display: flex;
-  flex-direction: column;
-  height: calc(100vh - 56px);
-  margin: 0;
-  padding: 16px 20px;
-  background: #f2f3f5;
-  overflow: hidden;
-  box-sizing: border-box;
+.console-overview {
+  background: #f4f7f9;
+  padding: 16px 24px;
 }
 
-/* ── 顶栏：问候 + 指标，一行横排 ── */
-.workbench-top {
+@media (min-width: 768px) {
+  .console-overview {
+    padding: 24px 32px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .console-overview {
+    padding: 32px;
+  }
+}
+
+.console-overview__container {
+  max-width: 1280px;
+  margin: 0 auto;
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 24px;
-  flex-shrink: 0;
-  margin-bottom: 12px;
 }
 
-.top-greeting {
-  flex-shrink: 0;
-  min-width: 0;
-}
-
-.greeting-text {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 600;
-  line-height: 1.4;
-  color: var(--color-text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.greeting-date {
-  font-size: 12px;
-  color: var(--color-text-tertiary);
-  white-space: nowrap;
-}
-
-.metrics-skeleton {
-  flex: 1;
-  min-width: 0;
-}
-
-.metrics-row {
+/* ── Hero Section ── */
+.hero-section {
   display: flex;
-  gap: 12px;
-  flex: 1;
-  min-width: 0;
-}
-
-.metric-tile {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
-  min-width: 0;
-}
-
-.metric-icon {
-  font-size: 20px;
-  flex-shrink: 0;
-}
-
-.metric-tile--blue .metric-icon { color: #1677ff; }
-.metric-tile--red .metric-icon { color: #ff4d4f; }
-.metric-tile--teal .metric-icon { color: #13c2c2; }
-.metric-tile--amber .metric-icon { color: #fa8c16; }
-
-.metric-value {
-  font-size: 20px;
-  font-weight: 600;
-  line-height: 1;
-  color: var(--color-text);
-  flex-shrink: 0;
-}
-
-.metric-value--alert { color: #cf1322; }
-
-.metric-label {
-  font-size: 12px;
-  color: var(--color-text-secondary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  min-width: 0;
-}
-
-/* ── 主体：三栏 flex 平铺撑满剩余高度 ── */
-.workbench-body {
-  display: flex;
-  gap: 12px;
-  flex: 1;
-  min-height: 0;
-}
-
-.workbench-body > .dd-card {
-  flex: 1;
-}
-
-.body-center {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  min-height: 0;
-}
-
-.dd-card {
-  display: flex;
-  flex-direction: column;
-  background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 2px 8px rgba(15, 23, 42, 0.04);
-  min-height: 0;
-}
-
-.dd-card--half {
-  flex: 1;
-  min-height: 0;
-}
-
-.dd-card-head {
-  display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: space-between;
-  padding: 10px 16px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  gap: 16px;
+  padding-bottom: 8px;
+}
+
+.hero-section__greeting {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+  color: #111827;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+}
+
+@media (min-width: 640px) {
+  .hero-section__greeting {
+    font-size: 30px;
+  }
+}
+
+.hero-section__name {
+  color: #4f46e5;
+}
+
+.hero-section__status {
+  margin: 4px 0 0;
+  font-size: 14px;
+  color: #6b7280;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hero-section__pulse {
+  position: relative;
+  display: inline-flex;
+  width: 8px;
+  height: 8px;
+}
+
+.hero-section__pulse-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: #34d399;
+  opacity: 0.75;
+  animation: hero-ping 1s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+.hero-section__pulse-dot {
+  position: relative;
+  display: inline-flex;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #10b981;
+}
+
+@keyframes hero-ping {
+  75%, 100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+
+.hero-section__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   flex-shrink: 0;
 }
 
-.dd-card-title {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--color-text);
-}
-
-.dd-card-body {
-  flex: 1;
-  padding: 8px 16px 12px;
-  overflow-y: auto;
-  min-height: 0;
-}
-
-.card-title-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--color-text);
-}
-
-.task-time {
-  color: var(--color-text-tertiary);
-  font-size: 12px;
-}
-
-.audit-time {
-  color: var(--color-text-tertiary);
-  margin-right: 6px;
-  font-size: 12px;
-}
-
-.compact-timeline {
-  padding-top: 4px;
-}
-
-:deep(.compact-timeline .ant-timeline-item) {
-  padding-bottom: 10px;
-  font-size: 13px;
-}
-
-/* ── 快捷入口 2x4 网格 ── */
-.quick-links-body {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
-  padding-top: 10px;
-}
-
-.quick-link-tile {
-  display: flex;
-  flex-direction: column;
+.hero-btn {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 10px 4px;
-  margin: 0;
-  border: none;
+  gap: 8px;
   border-radius: 8px;
-  background: #fafafa;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
-  font: inherit;
-  color: var(--color-text);
-  transition: background 0.2s ease, box-shadow 0.2s ease;
+  font-family: inherit;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  line-height: 1.5;
 }
 
-.quick-link-tile:hover {
-  background: #e6f4ff;
-  box-shadow: 0 1px 2px rgba(22, 119, 255, 0.12);
+.hero-btn__icon {
+  font-size: 14px;
 }
 
-.quick-link-tile:focus-visible {
-  outline: 2px solid #1677ff;
+.hero-btn--outline {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  color: #374151;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.hero-btn--outline:hover {
+  background: #f9fafb;
+}
+
+.hero-btn--outline:focus-visible {
+  outline: 2px solid #4f46e5;
   outline-offset: 2px;
 }
 
-.quick-link-icon-wrap {
+.hero-btn--primary {
+  background: #4f46e5;
+  border: 1px solid transparent;
+  color: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.hero-btn--primary:hover {
+  background: #4338ca;
+}
+
+.hero-btn--primary:focus-visible {
+  outline: 2px solid #4f46e5;
+  outline-offset: 2px;
+}
+
+/* ── Metrics Grid ── */
+.metrics-grid__row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 24px;
+}
+
+/* ── Main Content Grid ── */
+.main-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 24px;
+}
+
+.main-grid__left {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 4px;
+  flex-direction: column;
+  gap: 24px;
 }
 
-.quick-link-icon {
-  font-size: 22px;
-  color: #1677ff;
+.main-grid__right {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
 }
 
-.quick-link-label {
-  font-size: 11px;
-  line-height: 1.3;
-  text-align: center;
-  word-break: break-word;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+/* ── Responsive ── */
+@media (max-width: 1024px) {
+  .console-overview {
+    padding: 16px;
+  }
+
+  .metrics-grid__row {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+
+  .main-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-section {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 640px) {
+  .metrics-grid__row {
+    grid-template-columns: 1fr;
+  }
 }
 </style>
