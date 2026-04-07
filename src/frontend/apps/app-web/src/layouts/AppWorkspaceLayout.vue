@@ -1,127 +1,19 @@
 <template>
-  <a-layout class="app-workspace-layout">
-    <a-layout-sider
-      :width="240"
-      theme="light"
-      collapsible
-      v-model:collapsed="collapsed"
-      class="workspace-sider"
-    >
-      <div class="sider-logo">
-        <h3 v-if="!collapsed" class="app-title">{{ appKey }}</h3>
-        <span v-else class="app-title-collapsed">{{ appKey.charAt(0).toUpperCase() }}</span>
-      </div>
-      <a-menu
-        mode="inline"
-        :selectedKeys="selectedKeys"
-        :openKeys="openKeys"
-        @click="handleMenuClick"
-        @openChange="handleOpenChange"
-      >
-        <a-menu-item key="dashboard">
-          <template #icon><DashboardOutlined /></template>
-          {{ t("workspace.menuDashboard") }}
-        </a-menu-item>
-
-        <a-sub-menu v-if="runtimeMenuItems.length > 0" key="runtime">
-          <template #icon><AppstoreOutlined /></template>
-          <template #title>{{ t("workspace.menuRuntime") }}</template>
-          <a-menu-item
-            v-for="item in runtimeMenuItems"
-            :key="`runtime:${item.pageKey}`"
-          >
-            {{ item.title }}
-          </a-menu-item>
-        </a-sub-menu>
-
-        <a-menu-item v-if="hasPermission(APP_PERMISSIONS.APP_MEMBERS_VIEW)" key="org">
-          <template #icon><TeamOutlined /></template>
-          {{ t("workspace.menuOrg") }}
-        </a-menu-item>
-
-        <a-menu-item key="approval">
-          <template #icon><AuditOutlined /></template>
-          {{ t("workspace.menuApproval") }}
-        </a-menu-item>
-
-        <a-sub-menu key="ai-group">
-          <template #icon><RobotOutlined /></template>
-          <template #title>{{ t("workspace.menuAI") }}</template>
-          <a-menu-item key="ai-chat">
-            {{ t("workspace.menuAIChat") }}
-          </a-menu-item>
-          <a-menu-item key="ai-assistant">
-            {{ t("workspace.menuAIAssistant") }}
-          </a-menu-item>
-        </a-sub-menu>
-
-        <a-menu-item key="reports">
-          <template #icon><BarChartOutlined /></template>
-          {{ t("workspace.menuReports") }}
-        </a-menu-item>
-
-        <a-menu-item key="dashboards-mgmt">
-          <template #icon><FundOutlined /></template>
-          {{ t("workspace.menuDashboards") }}
-        </a-menu-item>
-
-        <a-menu-item key="visualization">
-          <template #icon><MonitorOutlined /></template>
-          {{ t("workspace.menuVisualization") }}
-        </a-menu-item>
-
-        <a-menu-item v-if="hasPermission(APP_PERMISSIONS.APPS_UPDATE)" key="settings">
-          <template #icon><SettingOutlined /></template>
-          {{ t("workspace.menuSettings") }}
-        </a-menu-item>
-      </a-menu>
-    </a-layout-sider>
-
-    <a-layout>
-      <a-layout-header class="workspace-header">
-        <div class="header-left">
-          <span class="header-title">{{ t("workspace.title") }}</span>
-        </div>
-        <div class="header-right">
-          <LocaleSwitch />
-          <a-button v-if="showBackToPlatform" type="link" size="small" @click="openPlatform">
-            {{ t("layout.backToPlatform") }}
-          </a-button>
-          <a-badge :count="unreadCount" :offset="[-4, 4]" size="small">
-            <a-button type="text" size="small" @click="notificationVisible = true">
-              <BellOutlined />
-            </a-button>
-          </a-badge>
-          <a-dropdown>
-            <a-button type="text" size="small">
-              <UserOutlined />
-              <span class="user-label">{{ displayName }}</span>
-            </a-button>
-            <template #overlay>
-              <a-menu @click="handleUserMenuClick">
-                <a-menu-item key="profile">
-                  <UserOutlined />
-                  {{ t("profile.title") }}
-                </a-menu-item>
-                <a-menu-item key="changePassword">
-                  <LockOutlined />
-                  {{ t("profile.changePassword") }}
-                </a-menu-item>
-                <a-menu-divider />
-                <a-menu-item key="logout">
-                  <LogoutOutlined />
-                  {{ t("auth.logout") }}
-                </a-menu-item>
-              </a-menu>
-            </template>
-          </a-dropdown>
-        </div>
-      </a-layout-header>
-      <a-layout-content class="workspace-content">
+  <div class="app-workspace-layout">
+    <AppSidebar :app-key="appKey" />
+    <div class="workspace-main">
+      <AppHeader
+        :display-name="displayName"
+        :unread-count="unreadCount"
+        :tenant-display="tenantDisplay"
+        @notification-click="notificationVisible = true"
+        @user-menu-click="handleUserMenuClick"
+      />
+      <main class="workspace-content">
         <router-view />
-      </a-layout-content>
-    </a-layout>
-  </a-layout>
+      </main>
+    </div>
+  </div>
 
   <!-- Profile Drawer -->
   <a-drawer
@@ -172,7 +64,7 @@
             >
               <template #avatar>
                 <a-badge :dot="!item.isRead" :offset="[0, 0]">
-                  <BellOutlined style="font-size: 18px; color: #1677ff" />
+                  <BellOutlined style="font-size: 18px; color: #4f46e5" />
                 </a-badge>
               </template>
             </a-list-item-meta>
@@ -212,22 +104,9 @@ import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { reactive } from "vue";
 import { message } from "ant-design-vue";
-import {
-  DashboardOutlined,
-  AppstoreOutlined,
-  TeamOutlined,
-  AuditOutlined,
-  RobotOutlined,
-  BarChartOutlined,
-  FundOutlined,
-  MonitorOutlined,
-  SettingOutlined,
-  UserOutlined,
-  LogoutOutlined,
-  LockOutlined,
-  BellOutlined
-} from "@ant-design/icons-vue";
-import LocaleSwitch from "@/components/layout/LocaleSwitch.vue";
+import { BellOutlined } from "@ant-design/icons-vue";
+import AppSidebar from "@/components/layout/AppSidebar.vue";
+import AppHeader from "@/components/layout/AppHeader.vue";
 import { changePassword } from "@/services/api-profile";
 import {
   getUnreadCount,
@@ -236,8 +115,6 @@ import {
 } from "@/services/api-notifications";
 import type { UserNotificationItem } from "@/services/api-notifications";
 import { useAppUserStore } from "@/stores/user";
-import { usePermission } from "@/composables/usePermission";
-import { APP_PERMISSIONS } from "@/constants/permissions";
 import { getRuntimeMenu } from "@/services/api-runtime";
 import type { RuntimeMenuItem } from "@/types/api";
 
@@ -245,106 +122,16 @@ const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const userStore = useAppUserStore();
-const showBackToPlatform = ref(false);
-const PLATFORM_SOURCE_STORAGE_KEY = "atlas_app_from_platform";
 
-const { hasPermission } = usePermission();
-
-const collapsed = ref(false);
-const runtimeMenuItems = ref<RuntimeMenuItem[]>([]);
 const appKey = computed(() => String(route.params.appKey ?? ""));
 const displayName = computed(() => userStore.name || t("workspace.user"));
-
-const menuKeyToRoute: Record<string, string> = {
-  dashboard: "dashboard",
-  org: "org",
-  approval: "approval",
-  "ai-chat": "ai/chat",
-  "ai-assistant": "ai/assistant",
-  reports: "reports",
-  "dashboards-mgmt": "dashboards",
-  visualization: "visualization",
-  settings: "settings"
-};
-
-const selectedKeys = computed(() => {
-  const path = route.path;
-  const base = `/apps/${appKey.value}`;
-
-  for (const item of runtimeMenuItems.value) {
-    if (path === `${base}/r/${item.pageKey}`) {
-      return [`runtime:${item.pageKey}`];
-    }
-  }
-
-  if (path.startsWith(`${base}/ai/assistant`)) return ["ai-assistant"];
-  if (path.startsWith(`${base}/ai/chat`)) return ["ai-chat"];
-  if (path.startsWith(`${base}/approval`)) return ["approval"];
-  if (path.startsWith(`${base}/reports`)) return ["reports"];
-  if (path.startsWith(`${base}/dashboards`)) return ["dashboards-mgmt"];
-  if (path.startsWith(`${base}/visualization`)) return ["visualization"];
-  if (path.startsWith(`${base}/settings`)) return ["settings"];
-  if (path.startsWith(`${base}/org`)) return ["org"];
-  if (path.startsWith(`${base}/r/`)) return [];
-  if (path === base || path === `${base}/` || path.startsWith(`${base}/dashboard`)) return ["dashboard"];
-  return [];
+const tenantDisplay = computed(() => {
+  const tid = userStore.profile?.tenantId ?? "";
+  if (tid.length > 8) return tid.slice(0, 4);
+  return tid || "0001";
 });
 
-const openKeys = ref<string[]>([]);
-
-function handleOpenChange(keys: string[]) {
-  openKeys.value = keys;
-}
-
-function handleMenuClick(info: { key: string }) {
-  const key = String(info.key);
-  const encodedAppKey = encodeURIComponent(appKey.value);
-
-  if (key.startsWith("runtime:")) {
-    const pageKey = key.slice("runtime:".length);
-    void router.push(`/apps/${encodedAppKey}/r/${encodeURIComponent(pageKey)}`);
-    return;
-  }
-
-  const routeSuffix = menuKeyToRoute[key];
-  if (routeSuffix) {
-    void router.push(`/apps/${encodedAppKey}/${routeSuffix}`);
-  }
-}
-
-function resolvePlatformWebOrigin(): string {
-  const configured = String(import.meta.env.VITE_PLATFORM_WEB_ORIGIN ?? "").trim();
-  if (configured) return configured;
-  if (typeof window === "undefined") return "http://localhost:5180";
-  const current = new URL(window.location.origin);
-  if (current.port === "5181") {
-    current.port = "5180";
-  }
-  return current.origin;
-}
-
-function openPlatform() {
-  const url = `${resolvePlatformWebOrigin()}/console/tenant-applications?appKey=${encodeURIComponent(appKey.value)}`;
-  window.open(url, "_blank", "noopener,noreferrer");
-}
-
-function syncBackToPlatformVisibility() {
-  const querySource = String(route.query.from ?? "").trim().toLowerCase();
-  if (querySource === "platform") {
-    showBackToPlatform.value = true;
-    if (typeof window !== "undefined") {
-      sessionStorage.setItem(PLATFORM_SOURCE_STORAGE_KEY, "1");
-    }
-    return;
-  }
-
-  if (typeof window === "undefined") {
-    showBackToPlatform.value = false;
-    return;
-  }
-
-  showBackToPlatform.value = sessionStorage.getItem(PLATFORM_SOURCE_STORAGE_KEY) === "1";
-}
+const runtimeMenuItems = ref<RuntimeMenuItem[]>([]);
 
 const profileVisible = ref(false);
 const changePwdVisible = ref(false);
@@ -437,9 +224,6 @@ async function loadRuntimeMenu() {
   try {
     const menu = await getRuntimeMenu(appKey.value);
     runtimeMenuItems.value = menu.items;
-    if (menu.items.length > 0) {
-      openKeys.value = ["runtime"];
-    }
   } catch {
     runtimeMenuItems.value = [];
   }
@@ -449,16 +233,7 @@ watch(notificationVisible, (open) => {
   if (open) void loadNotifications();
 });
 
-watch(
-  () => route.query.from,
-  () => {
-    syncBackToPlatformVisibility();
-  },
-  { immediate: true }
-);
-
 onMounted(() => {
-  syncBackToPlatformVisibility();
   void loadRuntimeMenu();
   void loadUnreadCount();
 });
@@ -466,76 +241,24 @@ onMounted(() => {
 
 <style scoped>
 .app-workspace-layout {
-  min-height: 100vh;
-}
-
-.workspace-sider {
-  border-right: 1px solid #f0f0f0;
-}
-
-.sider-logo {
-  height: 48px;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  border-bottom: 1px solid #f0f0f0;
-  padding: 0 16px;
+  height: 100vh;
   overflow: hidden;
+  background: #f3f4f6;
 }
 
-.app-title {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 600;
-  white-space: nowrap;
+.workspace-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
   overflow: hidden;
-  text-overflow: ellipsis;
-  color: #1677ff;
-}
-
-.app-title-collapsed {
-  font-size: 18px;
-  font-weight: 700;
-  color: #1677ff;
-}
-
-.workspace-header {
-  background: #fff;
-  padding: 0 20px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border-bottom: 1px solid #f0f0f0;
-  height: 48px;
-  line-height: 48px;
-}
-
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.header-title {
-  font-size: 14px;
-  font-weight: 500;
-  color: rgba(0, 0, 0, 0.85);
-}
-
-.header-right {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.user-label {
-  margin-left: 4px;
 }
 
 .workspace-content {
-  padding: 16px;
-  min-height: 280px;
-  background: #f5f5f5;
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 16px 24px 32px;
 }
 
 .notification-time {

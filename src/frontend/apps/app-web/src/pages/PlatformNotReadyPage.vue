@@ -2,9 +2,14 @@
   <div class="not-ready-container">
     <a-result status="warning" :title="t('setup.platformNotReady')" :sub-title="t('setup.platformNotReadyDesc')">
       <template #extra>
-        <a-button type="primary" :loading="checking" @click="handleRetry">
-          {{ t("setup.retry") }}
-        </a-button>
+        <a-space>
+          <a-button type="primary" @click="goToAppSetup">
+            {{ t("setup.goToAppSetup") }}
+          </a-button>
+          <a-button :loading="checking" @click="handleRetry">
+            {{ t("setup.retry") }}
+          </a-button>
+        </a-space>
       </template>
     </a-result>
   </div>
@@ -58,6 +63,10 @@ function clearRetryTimer() {
     window.clearTimeout(retryTimer);
     retryTimer = null;
   }
+}
+
+function goToAppSetup() {
+  window.location.href = "/app-setup";
 }
 </script>
 

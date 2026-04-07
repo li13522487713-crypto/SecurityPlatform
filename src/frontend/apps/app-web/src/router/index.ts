@@ -111,6 +111,60 @@ export const router = createRouter({
           component: () => import("@/pages/visualization/VisualizationRuntimePage.vue")
         },
         {
+          path: "builder",
+          name: "app-builder",
+          component: () => import("@/pages/PlaceholderPage.vue"),
+          props: { title: "应用设计器" }
+        },
+        {
+          path: "permissions",
+          name: "app-permissions",
+          component: () => import("@/pages/PlaceholderPage.vue"),
+          props: { title: "角色与权限" }
+        },
+        {
+          path: "multi-agent",
+          name: "app-multi-agent",
+          component: () => import("@/pages/PlaceholderPage.vue"),
+          props: { title: "多 Agent 编排" }
+        },
+        {
+          path: "workflows",
+          name: "app-workflows",
+          component: () => import("@/pages/PlaceholderPage.vue"),
+          props: { title: "工作流管理" }
+        },
+        {
+          path: "logic-flow",
+          name: "app-logic-flow",
+          component: () => import("@/pages/PlaceholderPage.vue"),
+          props: { title: "逻辑与批处理" }
+        },
+        {
+          path: "knowledge-bases",
+          name: "app-knowledge-bases",
+          component: () => import("@/pages/PlaceholderPage.vue"),
+          props: { title: "知识库配置" }
+        },
+        {
+          path: "prompts",
+          name: "app-prompts",
+          component: () => import("@/pages/PlaceholderPage.vue"),
+          props: { title: "Prompt 资源" }
+        },
+        {
+          path: "evaluations",
+          name: "app-evaluations",
+          component: () => import("@/pages/PlaceholderPage.vue"),
+          props: { title: "模型与评测" }
+        },
+        {
+          path: "data",
+          name: "app-data",
+          component: () => import("@/pages/PlaceholderPage.vue"),
+          props: { title: "表单与数据" }
+        },
+        {
           path: "settings",
           name: "app-settings",
           component: () => import("@/pages/settings/AppSettingsPage.vue"),
