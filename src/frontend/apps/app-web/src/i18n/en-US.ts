@@ -40,7 +40,8 @@ export default {
     passwordRequired: "Please enter password",
     invalidTenantId: "Please enter a valid tenant ID",
     accountLocked: "Account is locked. Please try again later or contact administrator.",
-    passwordExpired: "Password has expired. Please contact administrator to reset."
+    passwordExpired: "Password has expired. Please contact administrator to reset.",
+    devModeHint: "Dev Mode — Default credentials pre-filled"
   },
   appEntry: {
     entering: "Entering application",

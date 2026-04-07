@@ -7,7 +7,7 @@ import {
   getTenantId,
   clearAuthStorage
 } from "@atlas/shared-core";
-import { requestApi, persistTokenResult } from "./api-core";
+import { API_BASE, requestApi, persistTokenResult } from "./api-core";
 
 const TENANT_ID_REGEX =
   /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
@@ -25,8 +25,9 @@ export async function loginByAppEntry(
 ): Promise<void> {
   const normalizedTenantId = tenantId.trim();
   assertTenantId(normalizedTenantId);
+  const tokenEndpoint = `${API_BASE}/auth/token`;
 
-  const response = await fetch("/api/v1/auth/token", {
+  const response = await fetch(tokenEndpoint, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -36,14 +37,31 @@ export async function loginByAppEntry(
     body: JSON.stringify({ username, password })
   });
 
-  const payload = (await response.json()) as ApiResponse<AuthTokenResult>;
+  const payload = await parseApiResponse<AuthTokenResult>(response);
   if (!response.ok || !payload.data) {
-    throw new Error(payload.message || "登录失败");
+    throw new Error(payload.message || `登录失败（HTTP ${response.status}）`);
   }
 
   setTenantId(normalizedTenantId);
   setAccessToken(payload.data.accessToken);
   setRefreshToken(payload.data.refreshToken);
+}
+
+async function parseApiResponse<T>(response: Response): Promise<ApiResponse<T>> {
+  if (response.status === 204 || response.status === 205) {
+    return {} as ApiResponse<T>;
+  }
+
+  const raw = await response.text();
+  if (!raw.trim()) {
+    return {} as ApiResponse<T>;
+  }
+
+  try {
+    return JSON.parse(raw) as ApiResponse<T>;
+  } catch {
+    return { message: raw } as ApiResponse<T>;
+  }
 }
 
 export async function refreshToken(): Promise<boolean> {

@@ -40,7 +40,8 @@ export default {
     passwordRequired: "请输入密码",
     invalidTenantId: "请输入有效的租户 ID",
     accountLocked: "账户已锁定，请稍后再试或联系管理员",
-    passwordExpired: "密码已过期，请联系管理员重置密码"
+    passwordExpired: "密码已过期，请联系管理员重置密码",
+    devModeHint: "开发模式 — 已自动填入默认凭证"
   },
   appEntry: {
     entering: "正在进入应用",

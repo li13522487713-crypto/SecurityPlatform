@@ -63,6 +63,24 @@
           </div>
 
           <a-alert
+            v-if="isDev && defaultTenantId"
+            type="info"
+            show-icon
+            class="login-dev-hint"
+          >
+            <template #message>
+              {{ t("appLogin.devModeHint") }}
+            </template>
+            <template #description>
+              <div class="dev-credentials">
+                <span>Tenant: <code>{{ defaultTenantId }}</code></span>
+                <span v-if="defaultUsername">User: <code>{{ defaultUsername }}</code></span>
+                <span>Password: <code>P@ssw0rd!</code></span>
+              </div>
+            </template>
+          </a-alert>
+
+          <a-alert
             v-if="errorMessage"
             type="error"
             show-icon
@@ -164,9 +182,19 @@ const isMounted = ref(false);
 onMounted(() => { isMounted.value = true; });
 onUnmounted(() => { isMounted.value = false; });
 
+const isDev = import.meta.env.DEV;
+const defaultTenantId = String(import.meta.env.VITE_DEFAULT_TENANT_ID ?? "").trim();
+const defaultUsername = String(import.meta.env.VITE_DEFAULT_USERNAME ?? "").trim();
+
+function resolveInitialTenantId(): string {
+  const stored = getTenantId();
+  if (stored) return stored;
+  return defaultTenantId;
+}
+
 const form = reactive({
-  tenantId: getTenantId() ?? "",
-  username: "",
+  tenantId: resolveInitialTenantId(),
+  username: isDev && defaultUsername ? defaultUsername : "",
   password: ""
 });
 
@@ -390,6 +418,25 @@ async function handleSubmit() {
   font-size: 13px;
   font-weight: 500;
   margin-bottom: 24px;
+}
+
+.login-dev-hint {
+  margin-bottom: 16px;
+}
+
+.dev-credentials {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 4px;
+  font-size: 12px;
+}
+
+.dev-credentials code {
+  background: rgba(0, 0, 0, 0.06);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 11px;
 }
 
 .login-error {
