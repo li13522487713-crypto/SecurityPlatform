@@ -1,7 +1,5 @@
 <template>
   <div class="app-organization">
-    <a-page-header :title="t('org.pageTitle')" />
-
     <a-spin :spinning="initialLoading">
       <a-alert
         v-if="loadError"
@@ -12,43 +10,147 @@
         class="org-error"
       />
 
-      <a-tabs v-model:activeKey="activeTab" @change="handleTabChange">
-        <!-- ==================== Members Tab ==================== -->
-        <a-tab-pane key="members" :tab="t('org.tabMembers')">
-          <div class="tab-toolbar">
-            <a-space>
-              <a-input-search
-                v-model:value="memberKeyword"
-                :placeholder="t('org.member.searchPlaceholder')"
-                style="width: 260px"
-                allow-clear
-                @search="handleMemberSearch"
+      <a-layout class="org-layout">
+        <!-- ==================== LEFT SIDEBAR ==================== -->
+        <a-layout-sider :width="280" theme="light" class="org-sidebar">
+          <div class="sidebar-header">
+            <TeamOutlined class="sidebar-icon" />
+            <span class="sidebar-title">{{ t('org.sidebarTitle') }}</span>
+          </div>
+
+          <div
+            class="sidebar-nav-item sidebar-nav-all"
+            :class="{ active: activeNav.type === 'all' }"
+            @click="setActiveNav('all')"
+          >
+            <UserOutlined />
+            <span>{{ t('org.allMembers') }}</span>
+          </div>
+
+          <!-- Department group -->
+          <div class="sidebar-category-group">
+            <div class="sidebar-category-header">
+              <span class="sidebar-category-label">{{ t('org.tabDepartments') }}</span>
+              <PlusOutlined
+                v-if="canManageMembers"
+                class="sidebar-category-add"
+                @click.stop="openDeptDrawer()"
               />
-              <a-select
-                v-model:value="memberRoleFilter"
-                :placeholder="t('org.member.roles')"
-                allow-clear
-                style="width: 180px"
-                @change="handleMemberSearch"
-              >
-                <a-select-option
-                  v-for="role in workspaceData?.roles ?? []"
-                  :key="role.id"
-                  :value="role.id"
-                >
-                  {{ role.name }}
-                </a-select-option>
-              </a-select>
-            </a-space>
+            </div>
+            <div
+              v-for="dept in workspaceData?.departments ?? []"
+              :key="dept.id"
+              class="sidebar-nav-item sidebar-nav-sub"
+              :class="{ active: activeNav.type === 'depts' && activeNav.value === dept.id }"
+              @click="setActiveNav('depts', dept.id, dept.name)"
+            >
+              <span class="nav-item-text">{{ dept.name }}</span>
+            </div>
+          </div>
+
+          <!-- Role group -->
+          <div class="sidebar-category-group">
+            <div class="sidebar-category-header">
+              <span class="sidebar-category-label">{{ t('org.tabRoles') }}</span>
+              <PlusOutlined
+                v-if="canManageRoles"
+                class="sidebar-category-add"
+                @click.stop="openRoleDrawer()"
+              />
+            </div>
+            <div
+              v-for="role in workspaceData?.roles ?? []"
+              :key="role.id"
+              class="sidebar-nav-item sidebar-nav-sub"
+              :class="{ active: activeNav.type === 'roles' && activeNav.value === role.id }"
+              @click="setActiveNav('roles', role.id, role.name)"
+            >
+              <span class="nav-item-text">{{ role.name }}</span>
+              <a-tag v-if="role.isSystem" size="small" color="default" class="nav-item-tag">{{ t('org.role.isSystem') }}</a-tag>
+            </div>
+          </div>
+
+          <!-- Position group -->
+          <div class="sidebar-category-group">
+            <div class="sidebar-category-header">
+              <span class="sidebar-category-label">{{ t('org.tabPositions') }}</span>
+              <PlusOutlined
+                v-if="canManageMembers"
+                class="sidebar-category-add"
+                @click.stop="openPosDrawer()"
+              />
+            </div>
+            <div
+              v-for="pos in workspaceData?.positions ?? []"
+              :key="pos.id"
+              class="sidebar-nav-item sidebar-nav-sub"
+              :class="{ active: activeNav.type === 'positions' && activeNav.value === pos.id }"
+              @click="setActiveNav('positions', pos.id, pos.name)"
+            >
+              <span class="nav-item-text">{{ pos.name }}</span>
+            </div>
+          </div>
+
+          <!-- Project group -->
+          <div class="sidebar-category-group">
+            <div class="sidebar-category-header">
+              <span class="sidebar-category-label">{{ t('org.tabProjects') }}</span>
+              <PlusOutlined
+                v-if="canManageMembers"
+                class="sidebar-category-add"
+                @click.stop="openProjDrawer()"
+              />
+            </div>
+            <div
+              v-for="proj in workspaceData?.projects ?? []"
+              :key="proj.id"
+              class="sidebar-nav-item sidebar-nav-sub"
+              :class="{ active: activeNav.type === 'projects' && activeNav.value === proj.id }"
+              @click="setActiveNav('projects', proj.id, proj.name)"
+            >
+              <span class="nav-item-text">{{ proj.name }}</span>
+            </div>
+          </div>
+        </a-layout-sider>
+
+        <!-- ==================== MAIN CONTENT ==================== -->
+        <a-layout-content class="org-content">
+          <!-- Page Header -->
+          <div class="content-header">
+            <div class="content-header-info">
+              <h2 class="content-title">{{ headerTitle }}</h2>
+              <p v-if="headerSubtitle" class="content-subtitle">{{ headerSubtitle }}</p>
+            </div>
             <a-space>
+              <a-button
+                v-if="activeNav.type !== 'all' && canManageCategory"
+                @click="openManageCategoryAction"
+              >
+                {{ t('org.manageCategory', { type: activeCategoryLabel }) }}
+              </a-button>
               <a-button v-if="canManageMembers" type="primary" @click="openAddMemberModal">
                 {{ t('org.member.addTitle') }}
               </a-button>
             </a-space>
           </div>
 
+          <!-- Search & Filter bar -->
+          <div class="content-search-bar">
+            <a-input-search
+              v-model:value="memberKeyword"
+              :placeholder="t('org.member.searchPlaceholder')"
+              style="width: 320px"
+              allow-clear
+              @search="handleMemberSearch"
+            />
+            <span class="search-result-count">
+              {{ t('org.foundMembers', { count: memberPagination.total ?? 0 }) }}
+            </span>
+          </div>
+
+          <!-- Members Table -->
           <a-table
-            :columns="memberColumns"
+            :columns="memberColumnsNew"
             :data-source="memberList"
             :loading="memberLoading"
             :pagination="memberPagination"
@@ -57,204 +159,59 @@
             @change="handleMemberTableChange"
           >
             <template #bodyCell="{ column, record }">
-              <template v-if="column.dataIndex === 'isActive'">
-                <a-tag :color="record.isActive ? 'green' : 'default'">
-                  {{ record.isActive ? t('org.member.active') : t('org.member.inactive') }}
-                </a-tag>
+              <template v-if="column.dataIndex === 'displayName'">
+                <div class="member-info-cell">
+                  <a-avatar :size="32" class="member-avatar">
+                    {{ (record.displayName || record.username || '?')[0].toUpperCase() }}
+                  </a-avatar>
+                  <div class="member-info-text">
+                    <span class="member-name">{{ record.displayName || record.username }}</span>
+                    <span class="member-account">@{{ record.username }}</span>
+                  </div>
+                </div>
+              </template>
+              <template v-if="column.dataIndex === 'departmentNames'">
+                {{ (record.departmentNames ?? []).join(', ') || '—' }}
+              </template>
+              <template v-if="column.dataIndex === 'positionNames'">
+                {{ (record.positionNames ?? []).join(', ') || '—' }}
               </template>
               <template v-if="column.dataIndex === 'roleNames'">
                 <a-tag v-for="name in record.roleNames" :key="name" color="blue">{{ name }}</a-tag>
               </template>
-              <template v-if="column.dataIndex === 'actions'">
-                <a-space>
-                  <a-button v-if="canManageMembers" type="link" size="small" @click="openEditRolesDrawer(record)">
-                    {{ t('org.member.editRoles') }}
-                  </a-button>
-                  <a-button v-if="canManageMembers" type="link" size="small" @click="openEditProfileDrawer(record)">
-                    {{ t('org.member.editProfile') }}
-                  </a-button>
-                  <a-button v-if="canManageMembers" type="link" size="small" @click="openResetPasswordModal(record)">
-                    {{ t('org.member.resetPassword') }}
-                  </a-button>
-                  <a-popconfirm
-                    v-if="canManageMembers"
-                    :title="t('org.member.removeConfirm')"
-                    @confirm="handleRemoveMember(record)"
-                  >
-                    <a-button type="link" size="small" danger>
-                      {{ t('common.delete') }}
-                    </a-button>
-                  </a-popconfirm>
-                </a-space>
-              </template>
-            </template>
-          </a-table>
-        </a-tab-pane>
-
-        <!-- ==================== Roles Tab ==================== -->
-        <a-tab-pane key="roles" :tab="t('org.tabRoles')">
-          <div class="tab-toolbar">
-            <span />
-            <a-button v-if="canManageRoles" type="primary" @click="openRoleDrawer()">
-              {{ t('common.create') }}
-            </a-button>
-          </div>
-
-          <a-table
-            :columns="roleColumns"
-            :data-source="workspaceData?.roles ?? []"
-            row-key="id"
-            size="middle"
-            :pagination="false"
-          >
-            <template #bodyCell="{ column, record }">
-              <template v-if="column.dataIndex === 'isSystem'">
-                {{ record.isSystem ? t('org.role.yes') : t('org.role.no') }}
-              </template>
-              <template v-if="column.dataIndex === 'actions'">
-                <a-space>
-                  <a-button v-if="canManageRoles" type="link" size="small" @click="openPermissionDrawer(record)">
-                    {{ t('org.role.permissions') }}
-                  </a-button>
-                  <a-button type="link" size="small" @click="openRoleDrawer(record)">
-                    {{ t('common.edit') }}
-                  </a-button>
-                  <a-popconfirm
-                    v-if="!record.isSystem"
-                    :title="t('org.role.deleteConfirm')"
-                    @confirm="handleDeleteRole(record)"
-                  >
-                    <a-button type="link" size="small" danger>
-                      {{ t('common.delete') }}
-                    </a-button>
-                  </a-popconfirm>
-                </a-space>
-              </template>
-            </template>
-          </a-table>
-        </a-tab-pane>
-
-        <!-- ==================== Departments Tab ==================== -->
-        <a-tab-pane key="departments" :tab="t('org.tabDepartments')">
-          <div class="tab-toolbar">
-            <span />
-            <a-button v-if="canManageMembers" type="primary" @click="openDeptDrawer()">
-              {{ t('common.create') }}
-            </a-button>
-          </div>
-
-          <a-table
-            :columns="deptColumns"
-            :data-source="workspaceData?.departments ?? []"
-            row-key="id"
-            size="middle"
-            :pagination="false"
-          >
-            <template #bodyCell="{ column, record }">
-              <template v-if="column.dataIndex === 'parentId'">
-                {{ resolveDeptParentName(record.parentId) }}
-              </template>
-              <template v-if="column.dataIndex === 'actions'">
-                <a-space>
-                  <a-button type="link" size="small" @click="openDeptDrawer(record)">
-                    {{ t('common.edit') }}
-                  </a-button>
-                  <a-popconfirm
-                    :title="t('org.department.deleteConfirm')"
-                    @confirm="handleDeleteDept(record)"
-                  >
-                    <a-button type="link" size="small" danger>
-                      {{ t('common.delete') }}
-                    </a-button>
-                  </a-popconfirm>
-                </a-space>
-              </template>
-            </template>
-          </a-table>
-        </a-tab-pane>
-
-        <!-- ==================== Positions Tab ==================== -->
-        <a-tab-pane key="positions" :tab="t('org.tabPositions')">
-          <div class="tab-toolbar">
-            <span />
-            <a-button v-if="canManageMembers" type="primary" @click="openPosDrawer()">
-              {{ t('common.create') }}
-            </a-button>
-          </div>
-
-          <a-table
-            :columns="posColumns"
-            :data-source="workspaceData?.positions ?? []"
-            row-key="id"
-            size="middle"
-            :pagination="false"
-          >
-            <template #bodyCell="{ column, record }">
               <template v-if="column.dataIndex === 'isActive'">
-                <a-tag :color="record.isActive ? 'green' : 'default'">
-                  {{ record.isActive ? t('org.position.active') : t('org.position.inactive') }}
-                </a-tag>
+                <span class="status-dot" :class="record.isActive ? 'status-active' : 'status-disabled'" />
+                {{ record.isActive ? t('org.statusNormal') : t('org.statusDisabled') }}
               </template>
               <template v-if="column.dataIndex === 'actions'">
-                <a-space>
-                  <a-button type="link" size="small" @click="openPosDrawer(record)">
-                    {{ t('common.edit') }}
+                <a-dropdown :trigger="['click']">
+                  <a-button type="link" size="small">
+                    {{ t('common.actions') }}
+                    <DownOutlined />
                   </a-button>
-                  <a-popconfirm
-                    :title="t('org.position.deleteConfirm')"
-                    @confirm="handleDeletePos(record)"
-                  >
-                    <a-button type="link" size="small" danger>
-                      {{ t('common.delete') }}
-                    </a-button>
-                  </a-popconfirm>
-                </a-space>
+                  <template #overlay>
+                    <a-menu>
+                      <a-menu-item v-if="canManageMembers" @click="openEditRolesDrawer(record)">
+                        {{ t('org.member.editRoles') }}
+                      </a-menu-item>
+                      <a-menu-item v-if="canManageMembers" @click="openEditProfileDrawer(record)">
+                        {{ t('org.member.editProfile') }}
+                      </a-menu-item>
+                      <a-menu-item v-if="canManageMembers" @click="openResetPasswordModal(record)">
+                        {{ t('org.member.resetPassword') }}
+                      </a-menu-item>
+                      <a-menu-divider v-if="canManageMembers" />
+                      <a-menu-item v-if="canManageMembers" danger @click="confirmRemoveMember(record)">
+                        {{ t('common.delete') }}
+                      </a-menu-item>
+                    </a-menu>
+                  </template>
+                </a-dropdown>
               </template>
             </template>
           </a-table>
-        </a-tab-pane>
-
-        <!-- ==================== Projects Tab ==================== -->
-        <a-tab-pane key="projects" :tab="t('org.tabProjects')">
-          <div class="tab-toolbar">
-            <span />
-            <a-button v-if="canManageMembers" type="primary" @click="openProjDrawer()">
-              {{ t('common.create') }}
-            </a-button>
-          </div>
-
-          <a-table
-            :columns="projColumns"
-            :data-source="workspaceData?.projects ?? []"
-            row-key="id"
-            size="middle"
-            :pagination="false"
-          >
-            <template #bodyCell="{ column, record }">
-              <template v-if="column.dataIndex === 'isActive'">
-                <a-tag :color="record.isActive ? 'green' : 'default'">
-                  {{ record.isActive ? t('org.project.active') : t('org.project.inactive') }}
-                </a-tag>
-              </template>
-              <template v-if="column.dataIndex === 'actions'">
-                <a-space>
-                  <a-button type="link" size="small" @click="openProjDrawer(record)">
-                    {{ t('common.edit') }}
-                  </a-button>
-                  <a-popconfirm
-                    :title="t('org.project.deleteConfirm')"
-                    @confirm="handleDeleteProj(record)"
-                  >
-                    <a-button type="link" size="small" danger>
-                      {{ t('common.delete') }}
-                    </a-button>
-                  </a-popconfirm>
-                </a-space>
-              </template>
-            </template>
-          </a-table>
-        </a-tab-pane>
-      </a-tabs>
+        </a-layout-content>
+      </a-layout>
     </a-spin>
 
     <!-- ==================== Add Member Modal ==================== -->
@@ -792,7 +749,13 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import { message } from "ant-design-vue";
+import { message, Modal } from "ant-design-vue";
+import {
+  TeamOutlined,
+  UserOutlined,
+  PlusOutlined,
+  DownOutlined
+} from "@ant-design/icons-vue";
 import { searchTenantUsers } from "@/services/api-users";
 import { usePermission } from "@/composables/usePermission";
 import { APP_PERMISSIONS } from "@/constants/permissions";
@@ -854,10 +817,92 @@ const { hasPermission } = usePermission();
 const canManageMembers = hasPermission(APP_PERMISSIONS.APP_MEMBERS_UPDATE);
 const canManageRoles = hasPermission(APP_PERMISSIONS.APP_ROLES_UPDATE);
 
-const activeTab = ref("members");
+interface ActiveNavState {
+  type: "all" | "depts" | "roles" | "positions" | "projects";
+  value: string;
+  label: string;
+}
+
+const activeNav = ref<ActiveNavState>({ type: "all", value: "", label: "" });
 const initialLoading = ref(false);
 const loadError = ref("");
 const workspaceData = ref<AppOrganizationWorkspaceResponse | null>(null);
+
+function setActiveNav(type: ActiveNavState["type"], value = "", label = "") {
+  activeNav.value = { type, value, label };
+  memberRoleFilter.value = type === "roles" ? value : undefined;
+  memberKeyword.value = "";
+  memberPagination.current = 1;
+  void refreshMembers();
+}
+
+const headerTitle = computed(() => {
+  const nav = activeNav.value;
+  if (nav.type === "all") return t("org.allMembers");
+  return nav.label || t("org.allMembers");
+});
+
+const headerSubtitle = computed(() => {
+  const nav = activeNav.value;
+  if (nav.type === "all") return t("org.allMembersDesc");
+  const typeLabels: Record<string, string> = {
+    depts: t("org.tabDepartments"),
+    roles: t("org.tabRoles"),
+    positions: t("org.tabPositions"),
+    projects: t("org.tabProjects")
+  };
+  return t("org.categoryFilterDesc", { value: nav.label, type: typeLabels[nav.type] ?? "" });
+});
+
+const activeCategoryLabel = computed(() => {
+  const typeLabels: Record<string, string> = {
+    depts: t("org.tabDepartments"),
+    roles: t("org.tabRoles"),
+    positions: t("org.tabPositions"),
+    projects: t("org.tabProjects")
+  };
+  return typeLabels[activeNav.value.type] ?? "";
+});
+
+const canManageCategory = computed(() => {
+  const nav = activeNav.value;
+  if (nav.type === "roles") return canManageRoles;
+  return canManageMembers;
+});
+
+function openManageCategoryAction() {
+  const nav = activeNav.value;
+  if (!nav.value) return;
+  switch (nav.type) {
+    case "depts": {
+      const dept = workspaceData.value?.departments?.find((d) => d.id === nav.value);
+      if (dept) openDeptDrawer(dept);
+      break;
+    }
+    case "roles": {
+      const role = workspaceData.value?.roles?.find((r) => r.id === nav.value);
+      if (role) openPermissionDrawer(role);
+      break;
+    }
+    case "positions": {
+      const pos = workspaceData.value?.positions?.find((p) => p.id === nav.value);
+      if (pos) openPosDrawer(pos);
+      break;
+    }
+    case "projects": {
+      const proj = workspaceData.value?.projects?.find((p) => p.id === nav.value);
+      if (proj) openProjDrawer(proj);
+      break;
+    }
+  }
+}
+
+function confirmRemoveMember(record: TenantAppMemberListItem) {
+  Modal.confirm({
+    title: t("org.member.removeConfirm"),
+    onOk: () => handleRemoveMember(record)
+  });
+}
 
 const memberKeyword = ref("");
 const memberRoleFilter = ref<string | undefined>(undefined);
@@ -883,6 +928,15 @@ const memberColumns = computed(() => [
   { title: t("org.member.roles"), dataIndex: "roleNames", width: 200 },
   { title: t("org.member.joinedAt"), dataIndex: "joinedAt", width: 160 },
   { title: t("common.actions"), dataIndex: "actions", width: 280, fixed: "right" as const }
+]);
+
+const memberColumnsNew = computed(() => [
+  { title: t("org.memberInfo"), dataIndex: "displayName", width: 220 },
+  { title: t("org.memberDept"), dataIndex: "departmentNames", width: 160 },
+  { title: t("org.memberPosition"), dataIndex: "positionNames", width: 140 },
+  { title: t("org.memberRoles"), dataIndex: "roleNames", width: 200 },
+  { title: t("org.memberStatusCol"), dataIndex: "isActive", width: 100 },
+  { title: t("common.actions"), dataIndex: "actions", width: 100, fixed: "right" as const }
 ]);
 
 const roleColumns = computed(() => [
@@ -981,10 +1035,6 @@ function handleMemberTableChange(pag: TablePaginationConfig) {
   memberPagination.current = pag.current ?? 1;
   memberPagination.pageSize = pag.pageSize ?? 20;
   void refreshMembers();
-}
-
-function handleTabChange() {
-  // workspace 数据已加载，tab 切换无需额外请求
 }
 
 function resolveDeptParentName(parentId: string | null): string {
@@ -1849,18 +1899,207 @@ async function handleSavePermissions() {
 
 <style scoped>
 .app-organization {
-  max-width: 1400px;
+  height: 100%;
 }
 
 .org-error {
   margin-bottom: 16px;
 }
 
-.tab-toolbar {
+.org-layout {
+  height: calc(100vh - 64px);
+  background: #fff;
+}
+
+.org-sidebar {
+  border-right: 1px solid #f0f0f0;
+  overflow-y: auto;
+  padding: 0;
+}
+
+.org-sidebar :deep(.ant-layout-sider-children) {
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 20px 16px 12px;
+  font-size: 16px;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.85);
+}
+
+.sidebar-icon {
+  font-size: 18px;
+  color: #1677ff;
+}
+
+.sidebar-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  cursor: pointer;
+  color: rgba(0, 0, 0, 0.65);
+  border-radius: 6px;
+  margin: 2px 8px;
+  transition: background 0.2s, color 0.2s;
+}
+
+.sidebar-nav-item:hover {
+  background: #f5f5f5;
+}
+
+.sidebar-nav-item.active {
+  background: #e6f4ff;
+  color: #1677ff;
+  font-weight: 500;
+}
+
+.sidebar-nav-all {
+  font-weight: 500;
+  padding: 10px 16px;
+  margin: 4px 8px 8px;
+}
+
+.sidebar-nav-sub {
+  padding-left: 24px;
+  font-size: 13px;
+}
+
+.nav-item-text {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nav-item-tag {
+  flex-shrink: 0;
+  font-size: 11px;
+}
+
+.sidebar-category-group {
+  margin-top: 4px;
+}
+
+.sidebar-category-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding: 8px 16px 4px;
+}
+
+.sidebar-category-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.45);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.sidebar-category-add {
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s, color 0.2s;
+}
+
+.sidebar-category-header:hover .sidebar-category-add {
+  opacity: 1;
+}
+
+.sidebar-category-add:hover {
+  color: #1677ff;
+}
+
+.org-content {
+  padding: 20px 24px;
+  overflow-y: auto;
+  background: #fff;
+}
+
+.content-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 20px;
+}
+
+.content-header-info {
+  flex: 1;
+}
+
+.content-title {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0 0 4px;
+  color: rgba(0, 0, 0, 0.85);
+}
+
+.content-subtitle {
+  font-size: 13px;
+  color: rgba(0, 0, 0, 0.45);
+  margin: 0;
+}
+
+.content-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
   margin-bottom: 16px;
+}
+
+.search-result-count {
+  font-size: 13px;
+  color: rgba(0, 0, 0, 0.45);
+}
+
+.member-info-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.member-avatar {
+  background: #1677ff;
+  flex-shrink: 0;
+}
+
+.member-info-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.4;
+}
+
+.member-name {
+  font-weight: 500;
+  color: rgba(0, 0, 0, 0.85);
+}
+
+.member-account {
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.45);
+}
+
+.status-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin-right: 6px;
+}
+
+.status-active {
+  background: #52c41a;
+}
+
+.status-disabled {
+  background: #d9d9d9;
 }
 
 .perm-desc {

@@ -25,4 +25,7 @@ public sealed class AppSetupStateInfo
 
     [JsonPropertyName("adminUsername")]
     public string? AdminUsername { get; set; }
+
+    [JsonPropertyName("appKey")]
+    public string? AppKey { get; set; }
 }

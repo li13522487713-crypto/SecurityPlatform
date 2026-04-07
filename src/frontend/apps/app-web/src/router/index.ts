@@ -7,10 +7,15 @@ import { getSetupState } from "@/services/api-setup";
 let setupChecked = false;
 let platformReady = true;
 let appReady = true;
+let configuredAppKey = "";
 
 export function markAppSetupComplete() {
   appReady = true;
   setupChecked = true;
+}
+
+export function getConfiguredAppKey(): string {
+  return configuredAppKey;
 }
 
 export const router = createRouter({
@@ -140,6 +145,9 @@ router.beforeEach(async (to, _from, next) => {
       const resp = await getSetupState();
       platformReady = resp.success;
       appReady = resp.success && resp.data?.appSetupCompleted === true;
+      if (resp.success && resp.data?.appKey) {
+        configuredAppKey = resp.data.appKey;
+      }
     } catch {
       platformReady = false;
       appReady = false;

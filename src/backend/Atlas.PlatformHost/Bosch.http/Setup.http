@@ -89,7 +89,7 @@ Content-Type: application/json
 # data.adminPermissionCheckPassed 应为 true
 # data.adminPermissionCheckMessage 返回超管权限一致性校验结果说明
 
-### 应用 setup - 获取状态
+### 应用 setup - 获取状态（返回 appKey 字段）
 GET {{appHost}}/api/v1/setup/state
 Accept: application/json
 
@@ -121,7 +121,8 @@ Content-Type: application/json
   },
   "admin": {
     "appName": "Demo App",
-    "adminUsername": "admin"
+    "adminUsername": "admin",
+    "appKey": "demo-app"
   },
   "roles": {
     "selectedRoleCodes": [

@@ -118,6 +118,13 @@
               :placeholder="t('setup.adminUsernamePlaceholder')"
             />
           </a-form-item>
+          <a-form-item :label="t('setup.appKey')" required>
+            <a-input
+              v-model:value="adminForm.appKey"
+              data-testid="app-setup-app-key"
+              :placeholder="t('setup.appKeyPlaceholder')"
+            />
+          </a-form-item>
         </a-form>
 
         <div class="step-actions">
@@ -388,7 +395,8 @@ const dbForm = ref<SetupDbForm>({
 
 const adminForm = ref({
   appName: "",
-  adminUsername: "admin"
+  adminUsername: "admin",
+  appKey: "app-default"
 });
 
 const rolesForm = ref({
@@ -407,7 +415,11 @@ const initReport = ref<AppSetupInitializeResponse | null>(null);
 
 const selectedDriver = computed(() => drivers.value.find((driver) => driver.code === dbForm.value.driverCode));
 const adminFormValid = computed(
-  () => adminForm.value.appName.trim() !== "" && adminForm.value.adminUsername.trim() !== "" && !initializing.value
+  () =>
+    adminForm.value.appName.trim() !== "" &&
+    adminForm.value.adminUsername.trim() !== "" &&
+    adminForm.value.appKey.trim() !== "" &&
+    !initializing.value
 );
 const organizationFormValid = computed(() => {
   const departmentsValid =
@@ -489,7 +501,8 @@ async function handleInitialize() {
       },
       admin: {
         appName: adminForm.value.appName.trim(),
-        adminUsername: adminForm.value.adminUsername.trim()
+        adminUsername: adminForm.value.adminUsername.trim(),
+        appKey: adminForm.value.appKey.trim() || undefined
       },
       roles: {
         selectedRoleCodes: rolesForm.value.selectedRoleCodes
@@ -583,8 +596,11 @@ function retrySetup() {
 }
 
 function enterWorkspace() {
+  const resolvedAppKey =
+    initReport.value?.appKey || adminForm.value.appKey.trim() || "app-default";
+  localStorage.setItem("atlas_app_last_appkey", resolvedAppKey);
   markAppSetupComplete();
-  void router.push("/");
+  void router.push(`/apps/${encodeURIComponent(resolvedAppKey)}/login`);
 }
 
 function formatBooleanFlag(value: boolean): string {

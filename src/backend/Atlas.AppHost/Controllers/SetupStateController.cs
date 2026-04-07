@@ -70,7 +70,8 @@ public sealed class SetupStateController : ControllerBase
                 platformState.Status.ToString(),
                 platformState.PlatformSetupCompleted,
                 appState.Status.ToString(),
-                _appSetupStateProvider.IsReady),
+                _appSetupStateProvider.IsReady,
+                appState.AppKey),
             HttpContext.TraceIdentifier));
     }
 
@@ -260,7 +261,9 @@ public sealed class SetupStateController : ControllerBase
             var tenantId = ResolveTenantId();
             var adminUsername = request.Admin.AdminUsername.Trim();
             var appName = request.Admin.AppName.Trim();
-            var appKey = ResolveSetupAppKey();
+            var appKey = !string.IsNullOrWhiteSpace(request.Admin.AppKey)
+                ? request.Admin.AppKey.Trim()
+                : ResolveSetupAppKey();
 
             var adminUser = await db.Queryable<UserAccount>()
                 .FirstAsync(
@@ -302,7 +305,7 @@ public sealed class SetupStateController : ControllerBase
             adminBound = seedResult.AdminBound;
 
             await PersistRuntimeConfigAsync(runtimeConnectionString, requestedDbType, cancellationToken);
-            await _appSetupStateProvider.CompleteSetupAsync(appName, adminUsername, cancellationToken);
+            await _appSetupStateProvider.CompleteSetupAsync(appName, adminUsername, appKey, cancellationToken);
 
             _logger.LogInformation(
                 "[AppSetup] 应用安装完成，AppName={AppName}, AppId={AppId}, RolesCreated={RolesCreated}, DepartmentsCreated={DepartmentsCreated}, PositionsCreated={PositionsCreated}, AdminBound={AdminBound}",
@@ -327,7 +330,8 @@ public sealed class SetupStateController : ControllerBase
                     departmentsCreated,
                     positionsCreated,
                     adminBound,
-                    verificationErrors),
+                    verificationErrors,
+                    appKey),
                 HttpContext.TraceIdentifier));
         }
         catch (Exception ex)
@@ -966,7 +970,8 @@ public sealed record AppHostSetupStateResponse(
     string PlatformStatus,
     bool PlatformSetupCompleted,
     string AppStatus,
-    bool AppSetupCompleted);
+    bool AppSetupCompleted,
+    string? AppKey);
 
 public sealed record AppSetupInitializeResponse(
     string PlatformStatus,
@@ -979,7 +984,8 @@ public sealed record AppSetupInitializeResponse(
     int DepartmentsCreated,
     int PositionsCreated,
     bool AdminBound,
-    List<string> Errors);
+    List<string> Errors,
+    string? AppKey);
 
 public sealed record AppSetupInitializeRequest(
     AppSetupDatabaseConfigRequest Database,
@@ -995,7 +1001,8 @@ public sealed record AppSetupDatabaseConfigRequest(
 
 public sealed record AppSetupAdminConfigRequest(
     string AppName,
-    string AdminUsername);
+    string AdminUsername,
+    string? AppKey);
 
 public sealed record AppSetupRoleConfigRequest(
     IReadOnlyList<string>? SelectedRoleCodes);

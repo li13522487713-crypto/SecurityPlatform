@@ -11,5 +11,5 @@ public interface IAppSetupStateProvider
 
     Task TransitionAsync(AppSetupState target, string? failureMessage = null, CancellationToken cancellationToken = default);
 
-    Task CompleteSetupAsync(string appName, string adminUsername, CancellationToken cancellationToken = default);
+    Task CompleteSetupAsync(string appName, string adminUsername, string? appKey = null, CancellationToken cancellationToken = default);
 }

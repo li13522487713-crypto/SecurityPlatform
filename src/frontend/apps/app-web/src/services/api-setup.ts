@@ -5,6 +5,7 @@ export interface SetupStateResponse {
   platformSetupCompleted: boolean;
   appStatus: string;
   appSetupCompleted: boolean;
+  appKey: string | null;
 }
 
 export interface DriverFieldDefinition {
@@ -50,6 +51,7 @@ export interface AppSetupInitializeResponse {
   positionsCreated: number;
   adminBound: boolean;
   errors: string[];
+  appKey: string | null;
 }
 
 export interface AppSetupDepartmentConfig {
@@ -71,6 +73,7 @@ export interface AppSetupInitializeRequest {
   admin: {
     appName: string;
     adminUsername: string;
+    appKey?: string;
   };
   roles?: {
     selectedRoleCodes?: string[];

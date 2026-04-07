@@ -38,6 +38,7 @@ import { useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { getAccessToken } from "@atlas/shared-core";
 import { useAppUserStore } from "@/stores/user";
+import { getSetupState } from "@/services/api-setup";
 
 const { t } = useI18n();
 const router = useRouter();
@@ -60,21 +61,35 @@ function enterApp() {
   void router.push(`/apps/${encodeURIComponent(appKey)}/login`);
 }
 
-onMounted(() => {
+onMounted(async () => {
   const token = getAccessToken();
   hasToken.value = Boolean(token);
 
-  if (token) {
-    const appKey = userStore.appKey || getStoredAppKey();
-    if (appKey) {
-      void router.replace(`/apps/${encodeURIComponent(appKey)}/dashboard`);
-      return;
+  let configuredAppKey = "";
+  try {
+    const resp = await getSetupState();
+    if (resp.success && resp.data?.appKey) {
+      configuredAppKey = resp.data.appKey;
+      localStorage.setItem(APP_KEY_STORAGE, configuredAppKey);
     }
+  } catch {
+    // setup state 不可用时回退到 localStorage
   }
 
-  const storedKey = getStoredAppKey();
-  if (storedKey) {
-    inputAppKey.value = storedKey;
+  const effectiveAppKey =
+    (token ? userStore.appKey : "") || configuredAppKey || getStoredAppKey();
+
+  if (effectiveAppKey) {
+    if (token) {
+      void router.replace(
+        `/apps/${encodeURIComponent(effectiveAppKey)}/dashboard`
+      );
+    } else {
+      void router.replace(
+        `/apps/${encodeURIComponent(effectiveAppKey)}/login`
+      );
+    }
+    return;
   }
 
   resolving.value = false;

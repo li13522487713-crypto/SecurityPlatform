@@ -78,7 +78,7 @@ public sealed class FileBasedAppSetupStateProvider : IAppSetupStateProvider
         }
     }
 
-    public async Task CompleteSetupAsync(string appName, string adminUsername, CancellationToken cancellationToken = default)
+    public async Task CompleteSetupAsync(string appName, string adminUsername, string? appKey = null, CancellationToken cancellationToken = default)
     {
         await _lock.WaitAsync(cancellationToken);
         try
@@ -87,10 +87,11 @@ public sealed class FileBasedAppSetupStateProvider : IAppSetupStateProvider
             _state.CompletedAt = DateTimeOffset.UtcNow;
             _state.AppName = appName;
             _state.AdminUsername = adminUsername;
+            _state.AppKey = appKey;
             _state.FailureMessage = null;
             _state.FailedAt = null;
             await SaveToFileAsync(cancellationToken);
-            _logger.LogInformation("[AppSetup] 应用安装完成，AppName={AppName}", appName);
+            _logger.LogInformation("[AppSetup] 应用安装完成，AppName={AppName}, AppKey={AppKey}", appName, appKey);
         }
         finally
         {
