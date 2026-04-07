@@ -8,6 +8,7 @@ let setupChecked = false;
 let platformReady = true;
 let appReady = true;
 let configuredAppKey = "";
+const LAST_APP_KEY_STORAGE = "atlas_app_last_appkey";
 
 export function markAppSetupComplete() {
   appReady = true;
@@ -15,7 +16,26 @@ export function markAppSetupComplete() {
 }
 
 export function getConfiguredAppKey(): string {
+  if (!configuredAppKey && typeof window !== "undefined") {
+    configuredAppKey = localStorage.getItem(LAST_APP_KEY_STORAGE) ?? "";
+  }
   return configuredAppKey;
+}
+
+function rememberConfiguredAppKey(appKey?: string | null) {
+  const normalized = String(appKey ?? "").trim();
+  if (!normalized) {
+    return;
+  }
+
+  configuredAppKey = normalized;
+  if (typeof window !== "undefined") {
+    localStorage.setItem(LAST_APP_KEY_STORAGE, normalized);
+  }
+}
+
+function normalizeAppRoutePath(path: string, appKey: string): string {
+  return path.replace(/^\/apps\/[^/]+/, `/apps/${encodeURIComponent(appKey)}`);
 }
 
 export const router = createRouter({
@@ -71,8 +91,24 @@ export const router = createRouter({
         },
         {
           path: "org",
-          name: "app-org",
-          component: () => import("@/pages/org/AppOrganizationPage.vue"),
+          redirect: (to) => `/apps/${String(to.params.appKey)}/users`
+        },
+        {
+          path: "users",
+          name: "app-users",
+          component: () => import("@/pages/system/AppUsersPage.vue"),
+          meta: { requiredPermission: APP_PERMISSIONS.APP_MEMBERS_VIEW }
+        },
+        {
+          path: "departments",
+          name: "app-departments",
+          component: () => import("@/pages/system/AppDepartmentsPage.vue"),
+          meta: { requiredPermission: APP_PERMISSIONS.APP_MEMBERS_VIEW }
+        },
+        {
+          path: "positions",
+          name: "app-positions",
+          component: () => import("@/pages/system/AppPositionsPage.vue"),
           meta: { requiredPermission: APP_PERMISSIONS.APP_MEMBERS_VIEW }
         },
         {
@@ -117,10 +153,10 @@ export const router = createRouter({
           props: { title: "应用设计器" }
         },
         {
-          path: "permissions",
-          name: "app-permissions",
-          component: () => import("@/pages/PlaceholderPage.vue"),
-          props: { title: "角色与权限" }
+          path: "roles",
+          name: "app-roles",
+          component: () => import("@/pages/system/AppRolesPage.vue"),
+          meta: { requiredPermission: APP_PERMISSIONS.APP_ROLES_VIEW }
         },
         {
           path: "multi-agent",
@@ -165,6 +201,11 @@ export const router = createRouter({
           props: { title: "表单与数据" }
         },
         {
+          path: "profile",
+          name: "app-profile",
+          component: () => import("@/pages/profile/ProfilePage.vue")
+        },
+        {
           path: "settings",
           name: "app-settings",
           component: () => import("@/pages/settings/AppSettingsPage.vue"),
@@ -199,9 +240,7 @@ router.beforeEach(async (to, _from, next) => {
       const resp = await getSetupState();
       platformReady = resp.success;
       appReady = resp.success && resp.data?.appSetupCompleted === true;
-      if (resp.success && resp.data?.appKey) {
-        configuredAppKey = resp.data.appKey;
-      }
+      if (resp.success) rememberConfiguredAppKey(resp.data?.appKey);
     } catch {
       platformReady = false;
       appReady = false;
@@ -225,6 +264,16 @@ router.beforeEach(async (to, _from, next) => {
 
   if (platformReady && !appReady && to.name !== "app-setup") {
     next({ name: "app-setup" });
+    return;
+  }
+
+  const routeAppKey = typeof to.params.appKey === "string" ? to.params.appKey.trim() : "";
+  const canonicalAppKey = getConfiguredAppKey().trim();
+  if (routeAppKey && canonicalAppKey && routeAppKey !== canonicalAppKey) {
+    next({
+      path: normalizeAppRoutePath(to.fullPath, canonicalAppKey),
+      replace: true
+    });
     return;
   }
 

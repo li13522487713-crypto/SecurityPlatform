@@ -23,6 +23,6 @@ export async function searchTenantUsers(
   const response = await requestApi<ApiResponse<PagedResult<UserListItem>>>(
     `/users?${params.toString()}`
   );
-  if (!response.data) throw new Error(response.message || "搜索用户失败");
+  if (!response.data) throw new Error(response.message || "Failed to search users");
   return response.data;
 }

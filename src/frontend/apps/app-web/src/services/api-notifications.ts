@@ -34,7 +34,7 @@ export async function getNotifications(
   const response = await requestApi<ApiResponse<PagedResult<UserNotificationItem>>>(
     `/notifications/inbox?${params.toString()}`
   );
-  if (!response.data) throw new Error(response.message || "获取通知失败");
+  if (!response.data) throw new Error(response.message || "Failed to fetch notifications");
   return response.data;
 }
 

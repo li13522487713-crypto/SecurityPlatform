@@ -60,6 +60,8 @@ import {
   AppstoreOutlined,
   TeamOutlined,
   SafetyCertificateOutlined,
+  ApartmentOutlined,
+  IdcardOutlined,
   RobotOutlined,
   ClusterOutlined,
   PartitionOutlined,
@@ -85,7 +87,10 @@ const currentKey = computed(() => {
   const path = route.path;
   const base = basePath.value;
   if (path.startsWith(`${base}/builder`)) return "builder";
-  if (path.startsWith(`${base}/permissions`)) return "permissions";
+  if (path.startsWith(`${base}/roles`)) return "roles";
+  if (path.startsWith(`${base}/users`)) return "users";
+  if (path.startsWith(`${base}/departments`)) return "departments";
+  if (path.startsWith(`${base}/positions`)) return "positions";
   if (path.startsWith(`${base}/agents`) || path.startsWith(`${base}/ai/chat`)) return "agents";
   if (path.startsWith(`${base}/multi-agent`)) return "multi-agent";
   if (path.startsWith(`${base}/workflows`)) return "workflows";
@@ -106,8 +111,10 @@ const navGroups = computed(() => [
     items: [
       { key: "dashboard", name: t("sidebar.overview"), path: `${basePath.value}/dashboard`, icon: DashboardOutlined },
       { key: "builder", name: t("sidebar.appBuilder"), path: `${basePath.value}/builder`, icon: AppstoreOutlined },
-      { key: "org", name: t("sidebar.usersOrg"), path: `${basePath.value}/org`, icon: TeamOutlined },
-      { key: "permissions", name: t("sidebar.rolesPermissions"), path: `${basePath.value}/permissions`, icon: SafetyCertificateOutlined },
+      { key: "users", name: t("sidebar.userManagement"), path: `${basePath.value}/users`, icon: TeamOutlined },
+      { key: "roles", name: t("sidebar.roleManagement"), path: `${basePath.value}/roles`, icon: SafetyCertificateOutlined },
+      { key: "departments", name: t("sidebar.departmentManagement"), path: `${basePath.value}/departments`, icon: ApartmentOutlined },
+      { key: "positions", name: t("sidebar.positionManagement"), path: `${basePath.value}/positions`, icon: IdcardOutlined },
     ]
   },
   {

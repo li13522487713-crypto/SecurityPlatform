@@ -46,7 +46,7 @@ export async function getRuntimePageSchema(pageKey: string, appKey?: string): Pr
     requestPath
   );
   if (!response.data) {
-    throw new Error(response.message || "加载运行时页面失败");
+    throw new Error(response.message || "Failed to load runtime page");
   }
   return response.data;
 }

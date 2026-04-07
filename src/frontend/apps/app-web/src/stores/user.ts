@@ -23,11 +23,20 @@ interface AppUserState {
 }
 
 let _getInfoInflight: Promise<AuthProfile> | null = null;
+const LAST_APP_KEY_STORAGE = "atlas_app_last_appkey";
+
+function getInitialAppKey(): string {
+  if (typeof window === "undefined") {
+    return "";
+  }
+
+  return localStorage.getItem(LAST_APP_KEY_STORAGE) ?? "";
+}
 
 export const useAppUserStore = defineStore("app-user", {
   state: (): AppUserState => ({
     isAuthenticated: Boolean(getAccessToken()),
-    appKey: "",
+    appKey: getInitialAppKey(),
     profile: getAuthProfile(),
     roles: getAuthProfile()?.roles ?? [],
     permissions: getAuthProfile()?.permissions ?? [],
@@ -37,6 +46,9 @@ export const useAppUserStore = defineStore("app-user", {
   actions: {
     setAppKey(appKey: string) {
       this.appKey = appKey;
+      if (typeof window !== "undefined") {
+        localStorage.setItem(LAST_APP_KEY_STORAGE, appKey);
+      }
     },
 
     async login(tenantId: string, username: string, password: string) {

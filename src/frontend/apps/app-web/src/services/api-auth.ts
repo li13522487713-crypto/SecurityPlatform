@@ -14,7 +14,7 @@ const TENANT_ID_REGEX =
 
 function assertTenantId(tenantId: string): void {
   if (!TENANT_ID_REGEX.test(tenantId)) {
-    throw new Error("请输入有效的租户 ID。");
+    throw new Error("Invalid tenant ID format");
   }
 }
 
@@ -39,7 +39,7 @@ export async function loginByAppEntry(
 
   const payload = await parseApiResponse<AuthTokenResult>(response);
   if (!response.ok || !payload.data) {
-    throw new Error(payload.message || `登录失败（HTTP ${response.status}）`);
+    throw new Error(payload.message || `Login failed (HTTP ${response.status})`);
   }
 
   setTenantId(normalizedTenantId);

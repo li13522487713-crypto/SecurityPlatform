@@ -12,7 +12,7 @@ export interface AgentDetail {
 export async function getAgentById(id: string): Promise<AgentDetail> {
   const response = await requestApi<ApiResponse<AgentDetail>>(`/agents/${id}`);
   if (!response.data) {
-    throw new Error(response.message || "查询 Agent 失败");
+    throw new Error(response.message || "Failed to query agent");
   }
   return response.data;
 }

@@ -69,7 +69,7 @@ export async function getConversationsPaged(
   const response = await requestApi<ApiResponse<PagedResult<ConversationDto>>>(
     `${convBase(appKey)}?${query}`
   );
-  if (!response.data) throw new Error(response.message || "查询会话列表失败");
+  if (!response.data) throw new Error(response.message || "Failed to query conversations");
   return response.data;
 }
 
@@ -81,7 +81,7 @@ export async function createConversation(appKey: string, agentId: SnowflakeId, t
       body: JSON.stringify({ agentId, title })
     }
   );
-  if (!response.success || !response.data) throw new Error(response.message || "创建会话失败");
+  if (!response.success || !response.data) throw new Error(response.message || "Failed to create conversation");
   return response.data.id;
 }
 
@@ -89,7 +89,7 @@ export async function deleteConversation(appKey: string, id: SnowflakeId): Promi
   const response = await requestApi<ApiResponse<object>>(`${convBase(appKey)}/${id}`, {
     method: "DELETE"
   });
-  if (!response.success) throw new Error(response.message || "删除会话失败");
+  if (!response.success) throw new Error(response.message || "Failed to delete conversation");
 }
 
 export async function clearConversationContext(appKey: string, id: SnowflakeId): Promise<void> {
@@ -97,7 +97,7 @@ export async function clearConversationContext(appKey: string, id: SnowflakeId):
     `${convBase(appKey)}/${id}/clear-context`,
     { method: "POST" }
   );
-  if (!response.success) throw new Error(response.message || "清除上下文失败");
+  if (!response.success) throw new Error(response.message || "Failed to clear context");
 }
 
 export async function clearConversationHistory(appKey: string, id: SnowflakeId): Promise<void> {
@@ -105,7 +105,7 @@ export async function clearConversationHistory(appKey: string, id: SnowflakeId):
     `${convBase(appKey)}/${id}/clear-history`,
     { method: "POST" }
   );
-  if (!response.success) throw new Error(response.message || "清除历史失败");
+  if (!response.success) throw new Error(response.message || "Failed to clear history");
 }
 
 export async function getMessages(
@@ -124,7 +124,7 @@ export async function getMessages(
   const response = await requestApi<ApiResponse<ChatMessageDto[]>>(
     `${convBase(appKey)}/${conversationId}/messages${query ? `?${query}` : ""}`
   );
-  if (!response.data) throw new Error(response.message || "查询消息失败");
+  if (!response.data) throw new Error(response.message || "Failed to query messages");
   return response.data;
 }
 

@@ -15,30 +15,6 @@
     </div>
   </div>
 
-  <!-- Profile Drawer -->
-  <a-drawer
-    v-model:open="profileVisible"
-    :title="t('profile.title')"
-    :width="400"
-    destroy-on-close
-  >
-    <a-descriptions :column="1" bordered size="small">
-      <a-descriptions-item :label="t('profile.username')">
-        {{ userStore.profile?.username ?? '—' }}
-      </a-descriptions-item>
-      <a-descriptions-item :label="t('profile.displayName')">
-        {{ userStore.profile?.displayName ?? '—' }}
-      </a-descriptions-item>
-      <a-descriptions-item :label="t('profile.roles')">
-        <a-tag v-for="role in userStore.roles" :key="role" color="blue">{{ role }}</a-tag>
-        <span v-if="userStore.roles.length === 0">—</span>
-      </a-descriptions-item>
-      <a-descriptions-item :label="t('profile.tenant')">
-        {{ userStore.profile?.tenantId ?? '—' }}
-      </a-descriptions-item>
-    </a-descriptions>
-  </a-drawer>
-
   <!-- Notifications Drawer -->
   <a-drawer
     v-model:open="notificationVisible"
@@ -133,7 +109,6 @@ const tenantDisplay = computed(() => {
 
 const runtimeMenuItems = ref<RuntimeMenuItem[]>([]);
 
-const profileVisible = ref(false);
 const changePwdVisible = ref(false);
 const changePwdSubmitting = ref(false);
 const changePwdForm = reactive({
@@ -146,7 +121,7 @@ function handleUserMenuClick(info: { key: string }) {
   if (info.key === "logout") {
     void handleLogout();
   } else if (info.key === "profile") {
-    profileVisible.value = true;
+    void router.push({ name: "app-profile", params: { appKey: appKey.value } });
   } else if (info.key === "changePassword") {
     changePwdForm.currentPassword = "";
     changePwdForm.newPassword = "";
@@ -171,7 +146,11 @@ async function handleChangePassword() {
 
   changePwdSubmitting.value = true;
   try {
-    await changePassword(changePwdForm.currentPassword, changePwdForm.newPassword);
+    await changePassword({
+      currentPassword: changePwdForm.currentPassword,
+      newPassword: changePwdForm.newPassword,
+      confirmPassword: changePwdForm.confirmPassword
+    });
     message.success(t("profile.changePasswordSuccess"));
     changePwdVisible.value = false;
     await userStore.logout();

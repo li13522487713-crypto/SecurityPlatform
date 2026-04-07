@@ -14,6 +14,7 @@ import type { ApiResponse, AuthTokenResult, PagedRequest } from "@atlas/shared-c
 import { router } from "@/router";
 
 export type AppRuntimeMode = "platform" | "direct";
+const LAST_APP_KEY_STORAGE = "atlas_app_last_appkey";
 
 const APP_RUNTIME_MODE: AppRuntimeMode = (() => {
   const rawMode = String(import.meta.env.VITE_APP_RUNTIME_MODE ?? "platform")
@@ -131,7 +132,15 @@ function forceLogout() {
 
 function getAppKeyFromRoute(): string {
   const params = router.currentRoute.value.params;
-  return typeof params.appKey === "string" ? params.appKey : "";
+  if (typeof params.appKey === "string" && params.appKey.trim()) {
+    return params.appKey;
+  }
+
+  if (typeof window !== "undefined") {
+    return localStorage.getItem(LAST_APP_KEY_STORAGE) ?? "";
+  }
+
+  return "";
 }
 
 export async function requestApi<T>(path: string, init?: RequestInit, options?: RequestOptions): Promise<T> {

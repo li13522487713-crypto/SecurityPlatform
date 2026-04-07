@@ -48,7 +48,7 @@ export async function getAppInstanceDetail(appId: string): Promise<TenantAppInst
   const response = await requestApi<ApiResponse<TenantAppInstanceDetail>>(
     `${V2_BASE}/${appId}`
   );
-  if (!response.data) throw new Error(response.message || "获取应用详情失败");
+  if (!response.data) throw new Error(response.message || "Failed to fetch app detail");
   return response.data;
 }
 
@@ -63,7 +63,7 @@ export async function updateAppInstance(
       body: JSON.stringify(data)
     }
   );
-  if (!response.success) throw new Error(response.message || "更新应用失败");
+  if (!response.success) throw new Error(response.message || "Failed to update app");
 }
 
 export async function publishApp(appId: string): Promise<void> {
@@ -71,7 +71,7 @@ export async function publishApp(appId: string): Promise<void> {
     `${V2_BASE}/${appId}/publish`,
     { method: "POST" }
   );
-  if (!response.success) throw new Error(response.message || "发布失败");
+  if (!response.success) throw new Error(response.message || "Failed to publish");
 }
 
 export async function startApp(appId: string): Promise<TenantAppInstanceRuntimeInfo> {
@@ -79,7 +79,7 @@ export async function startApp(appId: string): Promise<TenantAppInstanceRuntimeI
     `${V2_BASE}/${appId}/start`,
     { method: "POST" }
   );
-  if (!response.data) throw new Error(response.message || "启动失败");
+  if (!response.data) throw new Error(response.message || "Failed to start app");
   return response.data;
 }
 
@@ -88,7 +88,7 @@ export async function stopApp(appId: string): Promise<TenantAppInstanceRuntimeIn
     `${V2_BASE}/${appId}/stop`,
     { method: "POST" }
   );
-  if (!response.data) throw new Error(response.message || "停止失败");
+  if (!response.data) throw new Error(response.message || "Failed to stop app");
   return response.data;
 }
 
@@ -97,6 +97,6 @@ export async function restartApp(appId: string): Promise<TenantAppInstanceRuntim
     `${V2_BASE}/${appId}/restart`,
     { method: "POST" }
   );
-  if (!response.data) throw new Error(response.message || "重启失败");
+  if (!response.data) throw new Error(response.message || "Failed to restart app");
   return response.data;
 }

@@ -245,7 +245,7 @@ export async function getRoleDetail(appId: string, roleId: string): Promise<Role
   const resp = await requestApi<ApiResponse<RoleDetailWithPermissions>>(
     `${V2_BASE}/${encodeURIComponent(appId)}/roles/${encodeURIComponent(roleId)}`
   );
-  if (!resp.data) throw new Error(resp.message ?? "获取角色详情失败");
+  if (!resp.data) throw new Error(resp.message ?? "Failed to fetch role detail");
   return resp.data;
 }
 
@@ -256,7 +256,7 @@ export async function updateRolePermissions(appId: string, roleId: string, permi
   );
 }
 
-// ===== 应用角色：数据范围 / 页面 / 字段权限（TenantAppRolesV2Controller）=====
+// ===== App Roles: Data Scope / Pages / Field Permissions (TenantAppRolesV2Controller) =====
 
 export interface AppRoleAssignmentDetail {
   roleId: string;
@@ -370,7 +370,7 @@ export async function updateRoleFieldPermissions(
   );
 }
 
-/** 解析应用内动态表字段（依赖当前请求的 App 上下文，通常为应用 JWT 的 app_id） */
+/** Resolve dynamic table fields within app context (requires app JWT's app_id) */
 export async function getAppDynamicTableFields(tableKey: string): Promise<AppDynamicFieldItem[]> {
   const resp = await requestApi<ApiResponse<AppDynamicFieldItem[]>>(
     `/dynamic-tables/${encodeURIComponent(tableKey)}/fields`

@@ -1,6 +1,6 @@
 /**
- * 低代码运行态 API（平台网关 /api/v1），用于按 appKey + pageKey 拉取 Schema 等。
- * 应用宿主内直连场景优先使用 api-runtime 中的 getRuntimePageSchema。
+ * Low-code runtime API (platform gateway /api/v1) for fetching Schema by appKey + pageKey.
+ * For app-host direct connections, prefer getRuntimePageSchema in api-runtime.
  */
 import type { ApiResponse } from "@atlas/shared-core";
 import type { LowCodeAppDetail, LowCodePageRuntimeSchema } from "@/types/lowcode-runtime";
@@ -22,7 +22,7 @@ export async function getLowCodeRuntimePageSchemaByKey(
     }`
   );
   if (!response.data) {
-    throw new Error(response.message || "查询失败");
+    throw new Error(response.message || "Query failed");
   }
   return response.data;
 }
@@ -32,7 +32,7 @@ export async function getLowCodeAppByKey(appKey: string): Promise<LowCodeAppDeta
     `/lowcode-apps/by-key/${encodeURIComponent(appKey)}`
   );
   if (!response.data) {
-    throw new Error(response.message || "查询失败");
+    throw new Error(response.message || "Query failed");
   }
   return response.data;
 }
@@ -42,7 +42,7 @@ const V2_APP_BASE = "/api/v2/tenant-app-instances";
 export async function getLowCodeAppDetail(id: string): Promise<LowCodeAppDetail> {
   const response = await requestApi<ApiResponse<LowCodeAppDetail>>(`${V2_APP_BASE}/${id}`);
   if (!response.data) {
-    throw new Error(response.message || "查询失败");
+    throw new Error(response.message || "Query failed");
   }
   return response.data;
 }

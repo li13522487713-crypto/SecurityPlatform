@@ -53,7 +53,7 @@ export async function getMyTasksPaged(pagedRequest: PagedRequest, status?: numbe
   const params = new URLSearchParams(toQuery(pagedRequest));
   if (status !== undefined) params.append("status", status.toString());
   const response = await requestApi<ApiResponse<PagedResult<ApprovalTaskItem>>>(`/approval/tasks/my?${params}`);
-  if (!response.data) throw new Error(response.message || "查询失败");
+  if (!response.data) throw new Error(response.message || "Query failed");
   return response.data;
 }
 
@@ -61,7 +61,7 @@ export async function getMyInstancesPaged(pagedRequest: PagedRequest, status?: n
   const params = new URLSearchParams(toQuery(pagedRequest));
   if (status !== undefined) params.append("status", status.toString());
   const response = await requestApi<ApiResponse<PagedResult<ApprovalInstanceItem>>>(`/approval/instances/my?${params}`);
-  if (!response.data) throw new Error(response.message || "查询失败");
+  if (!response.data) throw new Error(response.message || "Query failed");
   return response.data;
 }
 
@@ -69,13 +69,13 @@ export async function getMyCopyRecordsPaged(pagedRequest: PagedRequest, isRead?:
   const params = new URLSearchParams(toQuery(pagedRequest));
   if (isRead !== undefined) params.append("isRead", String(isRead));
   const response = await requestApi<ApiResponse<PagedResult<ApprovalCopyRecord>>>(`/approval/copy-records/my-copies?${params}`);
-  if (!response.data) throw new Error(response.message || "查询失败");
+  if (!response.data) throw new Error(response.message || "Query failed");
   return response.data;
 }
 
 export async function getApprovalInstanceById(id: string): Promise<ApprovalInstanceDetail> {
   const response = await requestApi<ApiResponse<ApprovalInstanceDetail>>(`/approval/instances/${id}`);
-  if (!response.data) throw new Error(response.message || "查询失败");
+  if (!response.data) throw new Error(response.message || "Query failed");
   return response.data;
 }
 
@@ -87,7 +87,7 @@ export async function getApprovalInstanceHistory(
   const response = await requestApi<ApiResponse<PagedResult<ApprovalHistoryEvent>>>(
     `/approval/instances/${id}/history?${params.toString()}`
   );
-  if (!response.data) throw new Error(response.message || "查询失败");
+  if (!response.data) throw new Error(response.message || "Query failed");
   return response.data;
 }
 
@@ -95,19 +95,19 @@ export async function cancelApprovalInstance(id: string): Promise<void> {
   const response = await requestApi<ApiResponse<void>>(`/approval/instances/${id}/cancellation`, {
     method: "POST"
   });
-  if (!response.success) throw new Error(response.message || "取消失败");
+  if (!response.success) throw new Error(response.message || "Cancel failed");
 }
 
 export async function suspendInstance(id: string): Promise<void> {
   const response = await requestApi<ApiResponse<void>>(`/approval/instances/${id}/suspension`, {
     method: "POST"
   });
-  if (!response.success) throw new Error(response.message || "挂起失败");
+  if (!response.success) throw new Error(response.message || "Suspend failed");
 }
 
 export async function activateInstance(id: string): Promise<void> {
   const response = await requestApi<ApiResponse<void>>(`/approval/instances/${id}/activation`, {
     method: "POST"
   });
-  if (!response.success) throw new Error(response.message || "激活失败");
+  if (!response.success) throw new Error(response.message || "Activate failed");
 }

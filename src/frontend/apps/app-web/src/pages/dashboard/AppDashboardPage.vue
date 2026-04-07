@@ -27,9 +27,9 @@
     <!-- Stats Grid -->
     <div class="stats-grid">
       <StatCard
-        :title="t('dashboard.statAssets')"
-        value="12,480"
-        :change="'12.5%'"
+        :title="t('dashboard.statRuntime')"
+        :value="formatNumber(stats.runtimePages)"
+        :change="'—'"
         trend="up"
         :icon="DatabaseOutlined"
         icon-color="#3b82f6"
@@ -37,19 +37,19 @@
         :chart-data="[10, 15, 12, 20, 25, 22, 30]"
       />
       <StatCard
-        :title="t('dashboard.statAlerts')"
-        value="0"
-        :change="'100%'"
-        trend="down"
+        :title="t('dashboard.statApproval')"
+        :value="formatNumber(stats.pendingApprovals)"
+        :change="'—'"
+        :trend="stats.pendingApprovals > 0 ? 'up' : 'down'"
         :icon="AlertOutlined"
-        icon-color="#10b981"
-        icon-bg="#d1fae5"
+        :icon-color="stats.pendingApprovals > 0 ? '#f43f5e' : '#10b981'"
+        :icon-bg="stats.pendingApprovals > 0 ? '#ffe4e6' : '#d1fae5'"
         :chart-data="[30, 25, 28, 20, 18, 15, 10]"
       />
       <StatCard
-        :title="t('dashboard.statAuditEvents')"
-        value="3,210"
-        :change="'5.2%'"
+        :title="t('dashboard.statReports')"
+        :value="formatNumber(stats.reports)"
+        :change="'—'"
         trend="up"
         :icon="HistoryOutlined"
         icon-color="#a855f7"
@@ -57,10 +57,10 @@
         :chart-data="[5, 8, 12, 10, 15, 18, 22]"
       />
       <StatCard
-        :title="t('dashboard.statActiveFlows')"
-        value="42"
-        :change="'2.4%'"
-        trend="down"
+        :title="t('dashboard.statDashboards')"
+        :value="formatNumber(stats.dashboards)"
+        :change="'—'"
+        trend="up"
         :icon="ThunderboltOutlined"
         icon-color="#f43f5e"
         icon-bg="#ffe4e6"
@@ -156,24 +156,57 @@
         <!-- Todo Widget -->
         <div class="card todo-card">
           <div class="todo-tabs">
-            <button class="todo-tab active">
+            <button class="todo-tab" :class="{ active: todoTab === 'pending' }" @click="todoTab = 'pending'">
               {{ t('dashboard.todoPending') }}
-              <span class="todo-tab-badge">0</span>
+              <span class="todo-tab-badge">{{ stats.pendingApprovals }}</span>
             </button>
-            <button class="todo-tab">
+            <button class="todo-tab" :class="{ active: todoTab === 'alerts' }" @click="todoTab = 'alerts'">
               {{ t('dashboard.todoAlerts') }}
-              <span class="todo-tab-badge alert">0</span>
+              <span class="todo-tab-badge alert">{{ stats.unreadNotifications }}</span>
             </button>
           </div>
-          <div class="todo-empty">
-            <div class="todo-empty-icon">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M5 13l4 4L19 7" />
-              </svg>
+          <!-- Pending approvals tab -->
+          <template v-if="todoTab === 'pending'">
+            <div v-if="pendingTasks.length === 0" class="todo-empty">
+              <div class="todo-empty-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <h4 class="todo-empty-title">{{ t('dashboard.noTodos') }}</h4>
+              <p class="todo-empty-desc">{{ t('dashboard.noTodosDesc') }}</p>
             </div>
-            <h4 class="todo-empty-title">{{ t('dashboard.noTodos') }}</h4>
-            <p class="todo-empty-desc">{{ t('dashboard.noTodosDesc') }}</p>
-          </div>
+            <div v-else class="todo-list">
+              <div v-for="task in pendingTasks" :key="task.id" class="todo-item" @click="goToApproval(task.instanceId)">
+                <div class="todo-item-left">
+                  <p class="todo-item-title">{{ task.title || task.flowName }}</p>
+                  <span class="todo-item-node">{{ task.currentNodeName }}</span>
+                </div>
+                <span class="todo-item-time">{{ formatTime(task.createdAt) }}</span>
+              </div>
+            </div>
+          </template>
+          <!-- Notifications tab -->
+          <template v-if="todoTab === 'alerts'">
+            <div v-if="recentNotifications.length === 0" class="todo-empty">
+              <div class="todo-empty-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <h4 class="todo-empty-title">{{ t('dashboard.noAlerts') }}</h4>
+              <p class="todo-empty-desc">{{ t('dashboard.noAlertsDesc') }}</p>
+            </div>
+            <div v-else class="todo-list">
+              <div v-for="n in recentNotifications" :key="n.id" class="todo-item">
+                <div class="todo-item-left">
+                  <p class="todo-item-title">{{ n.title }}</p>
+                  <span class="todo-item-node">{{ n.content }}</span>
+                </div>
+                <span class="todo-item-time">{{ formatTime(n.createdAt) }}</span>
+              </div>
+            </div>
+          </template>
         </div>
 
         <!-- Recent Activity -->
@@ -185,33 +218,22 @@
             </button>
           </div>
           <div class="activity-list">
-            <ActivityItem
-              :title="t('dashboard.actRefreshToken')"
-              user="admin"
-              time="15:16"
-              dot-color="#6366f1"
-            />
-            <ActivityItem
-              :title="t('dashboard.actLogin')"
-              user="admin"
-              time="14:59"
-              dot-color="#10b981"
-            />
-            <ActivityItem
-              :title="t('dashboard.actExportReport')"
-              user="system"
-              time="11:20"
-              dot-color="#d1d5db"
-            />
-            <ActivityItem
-              :title="t('dashboard.actEditPermission')"
-              user="admin"
-              time="09:30"
-              dot-color="#d1d5db"
-              :is-last="true"
-            />
+            <template v-if="activityItems.length > 0">
+              <ActivityItem
+                v-for="(item, idx) in activityItems"
+                :key="item.id"
+                :title="item.title"
+                :user="item.user"
+                :time="item.time"
+                :dot-color="activityDotColor(idx)"
+                :is-last="idx === activityItems.length - 1"
+              />
+            </template>
+            <div v-else class="activity-empty">
+              <p>{{ t('dashboard.noActivity') }}</p>
+            </div>
           </div>
-          <button class="view-all-btn">
+          <button class="view-all-btn" @click="goTo('approval')">
             {{ t('dashboard.viewFullLog') }}
           </button>
         </div>
@@ -221,8 +243,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
-import { useRoute } from "vue-router";
+import { ref, reactive, computed, onMounted } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import VChart from "vue-echarts";
 import {
@@ -240,15 +262,83 @@ import {
   EllipsisOutlined
 } from "@ant-design/icons-vue";
 import { useAppUserStore } from "@/stores/user";
+import { getRuntimeMenu } from "@/services/api-runtime";
+import {
+  getApprovalPendingCount,
+  getReportCount,
+  getDashboardCount
+} from "@/services/api-dashboard-stats";
+import { getUnreadCount, getNotifications } from "@/services/api-notifications";
+import type { UserNotificationItem } from "@/services/api-notifications";
+import { getMyTasksPaged } from "@/services/api-approval";
+import type { ApprovalTaskItem } from "@/services/api-approval";
 import StatCard from "@/components/dashboard/StatCard.vue";
 import AppCard from "@/components/dashboard/AppCard.vue";
 import ActivityItem from "@/components/dashboard/ActivityItem.vue";
 
 const { t } = useI18n();
 const route = useRoute();
+const router = useRouter();
 const userStore = useAppUserStore();
 
+const appKey = computed(() => String(route.params.appKey ?? ""));
 const displayName = computed(() => userStore.name || "Admin");
+const todoTab = ref<"pending" | "alerts">("pending");
+
+const stats = reactive({
+  runtimePages: 0,
+  pendingApprovals: 0,
+  reports: 0,
+  dashboards: 0,
+  unreadNotifications: 0
+});
+
+const pendingTasks = ref<ApprovalTaskItem[]>([]);
+const recentNotifications = ref<UserNotificationItem[]>([]);
+
+interface ActivityDisplay {
+  id: string;
+  title: string;
+  user: string;
+  time: string;
+}
+
+const activityItems = computed<ActivityDisplay[]>(() => {
+  return recentNotifications.value.slice(0, 5).map((n) => ({
+    id: n.id,
+    title: n.title,
+    user: n.type || "system",
+    time: formatTime(n.createdAt)
+  }));
+});
+
+const ACTIVITY_DOT_COLORS = ["#6366f1", "#10b981", "#f59e0b", "#d1d5db"];
+
+function activityDotColor(idx: number): string {
+  return ACTIVITY_DOT_COLORS[idx] ?? "#d1d5db";
+}
+
+function formatNumber(n: number): string {
+  return n.toLocaleString();
+}
+
+function formatTime(dateStr: string): string {
+  if (!dateStr) return "";
+  try {
+    const d = new Date(dateStr);
+    return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  } catch {
+    return dateStr;
+  }
+}
+
+function goTo(suffix: string) {
+  void router.push(`/apps/${encodeURIComponent(appKey.value)}/${suffix}`);
+}
+
+function goToApproval(instanceId: string) {
+  void router.push(`/apps/${encodeURIComponent(appKey.value)}/approval/${instanceId}`);
+}
 
 const greeting = computed(() => {
   const hour = new Date().getHours();
@@ -302,6 +392,49 @@ const areaChartOption = computed(() => ({
   }],
   animation: false,
 }));
+
+async function loadAllStats() {
+  const key = appKey.value;
+  if (!key) return;
+
+  const results = await Promise.allSettled([
+    getRuntimeMenu(key).then((m) => m.items.length),
+    getApprovalPendingCount(),
+    getReportCount(key),
+    getDashboardCount(key),
+    getUnreadCount()
+  ]);
+
+  if (results[0].status === "fulfilled") stats.runtimePages = results[0].value;
+  if (results[1].status === "fulfilled") stats.pendingApprovals = results[1].value;
+  if (results[2].status === "fulfilled") stats.reports = results[2].value;
+  if (results[3].status === "fulfilled") stats.dashboards = results[3].value;
+  if (results[4].status === "fulfilled") stats.unreadNotifications = results[4].value;
+}
+
+async function loadPendingTasks() {
+  try {
+    const result = await getMyTasksPaged({ pageIndex: 1, pageSize: 5 }, 0);
+    pendingTasks.value = result.items ?? [];
+  } catch {
+    pendingTasks.value = [];
+  }
+}
+
+async function loadRecentNotifications() {
+  try {
+    const result = await getNotifications(1, 5);
+    recentNotifications.value = result.items ?? [];
+  } catch {
+    recentNotifications.value = [];
+  }
+}
+
+onMounted(() => {
+  void loadAllStats();
+  void loadPendingTasks();
+  void loadRecentNotifications();
+});
 </script>
 
 <style scoped>
@@ -627,9 +760,78 @@ const areaChartOption = computed(() => ({
   margin: 0;
 }
 
+/* Todo List */
+.todo-list {
+  padding: 12px 16px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.todo-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 10px 0;
+  border-bottom: 1px solid #f3f4f6;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.todo-item:last-child {
+  border-bottom: none;
+}
+
+.todo-item:hover {
+  background: #f9fafb;
+  margin: 0 -8px;
+  padding-left: 8px;
+  padding-right: 8px;
+  border-radius: 8px;
+}
+
+.todo-item-left {
+  flex: 1;
+  min-width: 0;
+}
+
+.todo-item-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: #111827;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.todo-item-node {
+  font-size: 12px;
+  color: #9ca3af;
+  margin-top: 2px;
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.todo-item-time {
+  font-size: 12px;
+  color: #9ca3af;
+  white-space: nowrap;
+  margin-left: 12px;
+  flex-shrink: 0;
+}
+
 /* Activity */
 .activity-list {
   padding-top: 8px;
+}
+
+.activity-empty {
+  padding: 24px;
+  text-align: center;
+  color: #9ca3af;
+  font-size: 14px;
 }
 
 .icon-more-btn {
