@@ -49,6 +49,10 @@ if (string.IsNullOrWhiteSpace(platformConfigRoot))
 {
     platformConfigRoot = Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, "..", "Atlas.PlatformHost"));
 }
+else
+{
+    platformConfigRoot = ResolvePlatformConfigRoot(platformConfigRoot, builder.Environment.ContentRootPath);
+}
 
 builder.Configuration
     .AddJsonFile(Path.Combine(platformConfigRoot, "appsettings.json"), optional: true, reloadOnChange: false)
@@ -464,3 +468,31 @@ app.Lifetime.ApplicationStarted.Register(() =>
 });
 
 app.Run();
+
+static string ResolvePlatformConfigRoot(string configuredRoot, string contentRootPath)
+{
+    var fallbackRoot = Path.GetFullPath(Path.Combine(contentRootPath, "..", "Atlas.PlatformHost"));
+    var candidates = new List<string>();
+
+    if (Path.IsPathRooted(configuredRoot))
+    {
+        candidates.Add(configuredRoot);
+    }
+    else
+    {
+        candidates.Add(Path.GetFullPath(configuredRoot));
+        candidates.Add(Path.GetFullPath(Path.Combine(contentRootPath, configuredRoot)));
+    }
+
+    candidates.Add(fallbackRoot);
+
+    foreach (var candidate in candidates)
+    {
+        if (Directory.Exists(candidate))
+        {
+            return candidate;
+        }
+    }
+
+    return fallbackRoot;
+}

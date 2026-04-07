@@ -26,13 +26,21 @@ export default {
   },
   appLogin: {
     title: "应用登录",
+    brandTitle: "Atlas AppWeb",
+    heroTitle: "安全可靠的应用运行平台",
+    heroSubtitle: "基于等保2.0标准，为企业提供安全、合规、高效的应用运行时环境。",
+    heroPoint1: "等保2.0合规安全保障",
+    heroPoint2: "多应用实例隔离运行",
+    heroPoint3: "细粒度权限与审计追踪",
     tenantIdPlaceholder: "00000000-0000-0000-0000-000000000001",
     usernamePlaceholder: "请输入用户名",
     passwordPlaceholder: "请输入密码",
     tenantIdRequired: "请输入租户 ID",
     usernameRequired: "请输入用户名",
     passwordRequired: "请输入密码",
-    invalidTenantId: "请输入有效的租户 ID"
+    invalidTenantId: "请输入有效的租户 ID",
+    accountLocked: "账户已锁定，请稍后再试或联系管理员",
+    passwordExpired: "密码已过期，请联系管理员重置密码"
   },
   appEntry: {
     entering: "正在进入应用",
@@ -105,6 +113,13 @@ export default {
     appRuntime: "应用运行时",
     backToPlatform: "返回平台",
     switchLanguage: "切换语言"
+  },
+  home: {
+    resolving: "正在跳转...",
+    subtitle: "应用运行时入口",
+    appKeyLabel: "应用标识 (App Key)",
+    appKeyPlaceholder: "请输入应用标识，例如 dev-app",
+    enterApp: "进入应用"
   },
   route: {
     home: "首页",
@@ -563,6 +578,7 @@ export default {
     appSetupCompleteDesc: "应用已完成初始化，需要重启应用服务后方可正常使用。",
     appSetupFailed: "应用初始化失败",
     enterWorkspace: "进入工作台",
+    goToLogin: "去登录",
     platformStatus: "平台状态",
     appStatus: "应用状态",
     appSetupCompleted: "应用初始化完成",

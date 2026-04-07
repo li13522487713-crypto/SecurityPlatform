@@ -26,13 +26,21 @@ export default {
   },
   appLogin: {
     title: "App Login",
+    brandTitle: "Atlas AppWeb",
+    heroTitle: "Secure Application Runtime",
+    heroSubtitle: "Enterprise-grade application runtime environment built on compliance and security standards.",
+    heroPoint1: "Security compliance assurance",
+    heroPoint2: "Multi-app instance isolation",
+    heroPoint3: "Fine-grained permissions & audit",
     tenantIdPlaceholder: "00000000-0000-0000-0000-000000000001",
     usernamePlaceholder: "Enter username",
     passwordPlaceholder: "Enter password",
     tenantIdRequired: "Please enter tenant ID",
     usernameRequired: "Please enter username",
     passwordRequired: "Please enter password",
-    invalidTenantId: "Please enter a valid tenant ID"
+    invalidTenantId: "Please enter a valid tenant ID",
+    accountLocked: "Account is locked. Please try again later or contact administrator.",
+    passwordExpired: "Password has expired. Please contact administrator to reset."
   },
   appEntry: {
     entering: "Entering application",
@@ -105,6 +113,13 @@ export default {
     appRuntime: "App Runtime",
     backToPlatform: "Back to Platform",
     switchLanguage: "Switch language"
+  },
+  home: {
+    resolving: "Redirecting...",
+    subtitle: "Application Runtime Gateway",
+    appKeyLabel: "App Key",
+    appKeyPlaceholder: "Enter app key, e.g. dev-app",
+    enterApp: "Enter App"
   },
   route: {
     home: "Home",
@@ -566,6 +581,7 @@ export default {
     appSetupCompleteDesc: "The application has been initialized. An AppHost restart is required before full functionality is available.",
     appSetupFailed: "Application Setup Failed",
     enterWorkspace: "Enter Workspace",
+    goToLogin: "Go to Login",
     platformStatus: "Platform Status",
     appStatus: "App Status",
     appSetupCompleted: "Application Setup Completed",

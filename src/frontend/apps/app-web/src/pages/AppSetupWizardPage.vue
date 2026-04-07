@@ -312,7 +312,7 @@
               style="margin-bottom: 16px"
             />
             <a-button data-testid="app-setup-enter-workspace" type="primary" size="large" @click="enterWorkspace">
-              {{ t("setup.enterWorkspace") }}
+              {{ t("setup.goToLogin") }}
             </a-button>
           </div>
         </template>
@@ -336,6 +336,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
+import { useRouter } from "vue-router";
 import {
   getDrivers,
   initializeApp,
@@ -345,7 +346,10 @@ import {
   type AppSetupPositionConfig,
   type DriverDefinition
 } from "@/services/api-setup";
+import { markAppSetupComplete } from "@/router";
 import LocaleSwitch from "@/components/layout/LocaleSwitch.vue";
+
+const router = useRouter();
 
 type OptionalRoleTemplate = {
   code: string;
@@ -579,7 +583,8 @@ function retrySetup() {
 }
 
 function enterWorkspace() {
-  window.location.href = "/";
+  markAppSetupComplete();
+  void router.push("/");
 }
 
 function formatBooleanFlag(value: boolean): string {

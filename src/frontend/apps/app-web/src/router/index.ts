@@ -8,6 +8,11 @@ let setupChecked = false;
 let platformReady = true;
 let appReady = true;
 
+export function markAppSetupComplete() {
+  appReady = true;
+  setupChecked = true;
+}
+
 export const router = createRouter({
   history: createWebHistory(),
   routes: [
