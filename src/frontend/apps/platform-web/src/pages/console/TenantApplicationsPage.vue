@@ -224,7 +224,7 @@ function handleTableChange(page: TablePaginationConfig) {
 
 function openAppRuntime(appKey?: string) {
   if (!appKey) return;
-  const targetUrl = `${resolveAppWebOrigin()}/apps/${encodeURIComponent(appKey)}/entry`;
+  const targetUrl = `${resolveAppWebOrigin()}/apps/${encodeURIComponent(appKey)}/entry?from=platform`;
   window.open(targetUrl, "_blank", "noopener,noreferrer");
 }
 

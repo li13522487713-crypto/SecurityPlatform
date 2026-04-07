@@ -46,9 +46,10 @@ async function enterApp() {
       return;
     }
 
-    await router.replace(
-      `/apps/${encodeURIComponent(appKey)}/r/${encodeURIComponent(firstPage.pageKey)}`
-    );
+    await router.replace({
+      path: `/apps/${encodeURIComponent(appKey)}/r/${encodeURIComponent(firstPage.pageKey)}`,
+      query: route.query
+    });
   } catch (error) {
     errorMessage.value =
       error instanceof Error ? error.message : t("appEntry.enterFailed");

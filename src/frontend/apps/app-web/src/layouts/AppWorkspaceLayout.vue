@@ -84,7 +84,7 @@
         </div>
         <div class="header-right">
           <LocaleSwitch />
-          <a-button type="link" size="small" @click="openPlatform">
+          <a-button v-if="showBackToPlatform" type="link" size="small" @click="openPlatform">
             {{ t("layout.backToPlatform") }}
           </a-button>
           <a-badge :count="unreadCount" :offset="[-4, 4]" size="small">
@@ -245,6 +245,8 @@ const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const userStore = useAppUserStore();
+const showBackToPlatform = ref(false);
+const PLATFORM_SOURCE_STORAGE_KEY = "atlas_app_from_platform";
 
 const { hasPermission } = usePermission();
 
@@ -324,6 +326,24 @@ function resolvePlatformWebOrigin(): string {
 function openPlatform() {
   const url = `${resolvePlatformWebOrigin()}/console/tenant-applications?appKey=${encodeURIComponent(appKey.value)}`;
   window.open(url, "_blank", "noopener,noreferrer");
+}
+
+function syncBackToPlatformVisibility() {
+  const querySource = String(route.query.from ?? "").trim().toLowerCase();
+  if (querySource === "platform") {
+    showBackToPlatform.value = true;
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem(PLATFORM_SOURCE_STORAGE_KEY, "1");
+    }
+    return;
+  }
+
+  if (typeof window === "undefined") {
+    showBackToPlatform.value = false;
+    return;
+  }
+
+  showBackToPlatform.value = sessionStorage.getItem(PLATFORM_SOURCE_STORAGE_KEY) === "1";
 }
 
 const profileVisible = ref(false);
@@ -429,7 +449,16 @@ watch(notificationVisible, (open) => {
   if (open) void loadNotifications();
 });
 
+watch(
+  () => route.query.from,
+  () => {
+    syncBackToPlatformVisibility();
+  },
+  { immediate: true }
+);
+
 onMounted(() => {
+  syncBackToPlatformVisibility();
   void loadRuntimeMenu();
   void loadUnreadCount();
 });

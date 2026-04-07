@@ -37,4 +37,8 @@
     <ProjectReference Include="..\Atlas.Infrastructure\Atlas.Infrastructure.csproj" />
     <ProjectReference Include="..\Atlas.Shared.Contracts\Atlas.Shared.Contracts.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <None Include="nlog.config" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

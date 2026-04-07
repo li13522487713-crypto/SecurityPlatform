@@ -13,7 +13,6 @@ import {
 import type { ApiResponse, AuthTokenResult, PagedRequest } from "@atlas/shared-core";
 import { router } from "@/router";
 
-export const API_BASE = import.meta.env.VITE_API_BASE ?? "/api/v1";
 export type AppRuntimeMode = "platform" | "direct";
 
 const APP_RUNTIME_MODE: AppRuntimeMode = (() => {
@@ -22,6 +21,16 @@ const APP_RUNTIME_MODE: AppRuntimeMode = (() => {
     .toLowerCase();
   return rawMode === "direct" ? "direct" : "platform";
 })();
+
+const APP_HOST_TARGET = String(import.meta.env.VITE_APP_HOST_TARGET ?? "http://127.0.0.1:5002")
+  .trim()
+  .replace(/\/+$/, "");
+
+export const API_BASE = import.meta.env.VITE_API_BASE ?? (
+  APP_RUNTIME_MODE === "direct"
+    ? `${APP_HOST_TARGET}/api/v1`
+    : "/api/v1"
+);
 
 function resolveRequestUrl(path: string): string {
   if (path.startsWith("http://") || path.startsWith("https://")) return path;

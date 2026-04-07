@@ -24,11 +24,14 @@ using FluentValidation;
 using FluentValidation.AspNetCore;
 using Hangfire;
 using Hangfire.Storage.SQLite;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Certificate;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authorization.Policy;
 using Microsoft.AspNetCore.ResponseCompression;
 using Atlas.Presentation.Shared.Authorization;
+using Atlas.Presentation.Shared.Security;
 using Microsoft.Extensions.Localization;
 using Microsoft.IdentityModel.Tokens;
 using NLog.Web;
@@ -240,7 +243,7 @@ builder.Services.AddAntiforgery(options =>
 // ─── Authentication / Authorization ───
 if (runtimeReadyForRegistration)
 {
-    builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    builder.Services.AddAuthentication()
         .AddJwtBearer(options =>
         {
             options.RequireHttpsMetadata = securityOptions.EnforceHttps && !builder.Environment.IsDevelopment();
@@ -270,11 +273,19 @@ if (runtimeReadyForRegistration)
                     return Task.CompletedTask;
                 }
             };
-        });
+        })
+        .AddCertificate(options =>
+        {
+            options.AllowedCertificateTypes = CertificateTypes.All;
+        })
+        .AddScheme<AuthenticationSchemeOptions, PatAuthenticationHandler>(PatAuthenticationHandler.SchemeName, _ => { })
+        .AddScheme<AuthenticationSchemeOptions, OpenProjectAuthenticationHandler>(OpenProjectAuthenticationHandler.SchemeName, _ => { });
     builder.Services.AddAuthorization(options =>
     {
         options.DefaultPolicy = new AuthorizationPolicyBuilder(
-                JwtBearerDefaults.AuthenticationScheme)
+                JwtBearerDefaults.AuthenticationScheme,
+                CertificateAuthenticationDefaults.AuthenticationScheme,
+                PatAuthenticationHandler.SchemeName)
             .RequireAuthenticatedUser()
             .Build();
     });
