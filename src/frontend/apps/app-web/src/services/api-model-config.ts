@@ -7,8 +7,20 @@ export interface ModelConfigDto {
   providerType: string;
   baseUrl: string;
   defaultModel: string;
+  modelId: string;
+  systemPrompt?: string;
   isEnabled: boolean;
   supportsEmbedding: boolean;
+  enableStreaming: boolean;
+  enableReasoning: boolean;
+  enableTools: boolean;
+  enableVision: boolean;
+  enableJsonMode: boolean;
+  temperature?: number;
+  maxTokens?: number;
+  topP?: number;
+  frequencyPenalty?: number;
+  presencePenalty?: number;
   apiKeyMasked?: string;
   createdAt: string;
 }
@@ -20,6 +32,18 @@ export interface ModelConfigCreateRequest {
   baseUrl: string;
   defaultModel: string;
   supportsEmbedding: boolean;
+  modelId?: string;
+  systemPrompt?: string;
+  enableStreaming?: boolean;
+  enableReasoning?: boolean;
+  enableTools?: boolean;
+  enableVision?: boolean;
+  enableJsonMode?: boolean;
+  temperature?: number;
+  maxTokens?: number;
+  topP?: number;
+  frequencyPenalty?: number;
+  presencePenalty?: number;
 }
 
 export interface ModelConfigUpdateRequest {
@@ -29,6 +53,18 @@ export interface ModelConfigUpdateRequest {
   defaultModel: string;
   isEnabled: boolean;
   supportsEmbedding: boolean;
+  modelId?: string;
+  systemPrompt?: string;
+  enableStreaming?: boolean;
+  enableReasoning?: boolean;
+  enableTools?: boolean;
+  enableVision?: boolean;
+  enableJsonMode?: boolean;
+  temperature?: number;
+  maxTokens?: number;
+  topP?: number;
+  frequencyPenalty?: number;
+  presencePenalty?: number;
 }
 
 export interface ModelConfigStatsDto {
@@ -44,11 +80,17 @@ export interface ModelConfigTestResult {
   latencyMs?: number;
 }
 
-export interface ModelConfigUiPreferences {
-  enableStreamingTypewriter?: boolean;
+export interface ModelConfigPromptTestRequest {
+  modelConfigId?: number;
+  providerType: string;
+  apiKey: string;
+  baseUrl: string;
+  model: string;
+  prompt: string;
+  enableReasoning: boolean;
+  enableTools: boolean;
+  enableStreaming?: boolean;
 }
-
-const MODEL_CONFIG_UI_PREFS_KEY = "atlas_model_config_ui_prefs";
 
 export async function getModelConfigsPaged(request: PagedRequest): Promise<PagedResult<ModelConfigDto>> {
   const query = toQuery(request);
@@ -118,41 +160,24 @@ export async function testModelConfigConnection(request: {
   return response.data;
 }
 
-export function getModelConfigUiPreferences(modelConfigId: string | number | null | undefined): ModelConfigUiPreferences {
-  if (modelConfigId === null || modelConfigId === undefined) {
-    return {};
-  }
+export function createModelConfigPromptTestStream(request: ModelConfigPromptTestRequest) {
+  const abortController = new AbortController();
+  const token = localStorage.getItem("atlas_app_token");
+  const tenantId = localStorage.getItem("atlas_app_tenant_id") || "";
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Accept: "text/event-stream"
+  };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  if (tenantId) headers["X-Tenant-Id"] = tenantId;
 
-  try {
-    const raw = localStorage.getItem(MODEL_CONFIG_UI_PREFS_KEY);
-    if (!raw) {
-      return {};
-    }
-
-    const parsed = JSON.parse(raw) as Record<string, ModelConfigUiPreferences>;
-    return parsed[String(modelConfigId)] ?? {};
-  } catch {
-    return {};
-  }
-}
-
-export function setModelConfigUiPreferences(
-  modelConfigId: string | number | null | undefined,
-  preferences: ModelConfigUiPreferences
-): void {
-  if (modelConfigId === null || modelConfigId === undefined) {
-    return;
-  }
-
-  try {
-    const raw = localStorage.getItem(MODEL_CONFIG_UI_PREFS_KEY);
-    const parsed = raw ? (JSON.parse(raw) as Record<string, ModelConfigUiPreferences>) : {};
-    parsed[String(modelConfigId)] = {
-      ...parsed[String(modelConfigId)],
-      ...preferences
-    };
-    localStorage.setItem(MODEL_CONFIG_UI_PREFS_KEY, JSON.stringify(parsed));
-  } catch {
-    // ignore storage write errors
-  }
+  const baseUrl = import.meta.env.VITE_API_BASE_URL || "/api/v1";
+  const fetchPromise = fetch(`${baseUrl}/model-configs/test/stream`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(request),
+    signal: abortController.signal,
+    credentials: "include"
+  });
+  return { fetchPromise, abortController };
 }

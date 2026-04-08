@@ -1,297 +1,477 @@
 <template>
-  <div class="mc-page">
-    <!-- Left Panel: Model List -->
-    <div class="mc-list-panel">
-      <div class="mc-list-header">
-        <h2 class="mc-list-title">{{ t("modelConfig.listTitle") }}</h2>
-        <button class="mc-add-btn" @click="handleCreate">
-          <PlusOutlined />
-        </button>
+  <div class="model-configs-page">
+    <!-- Left Panel: Provider & Model Tree -->
+    <div class="left-panel">
+      <div class="left-header">
+        <h2 class="left-title">{{ t("modelConfig.providerPanelTitle") }}</h2>
+        <a-button type="text" size="small" class="add-btn" @click="openCreateDrawer">
+          <template #icon><PlusOutlined /></template>
+        </a-button>
       </div>
-      <div class="mc-list-search">
+      <div class="search-box">
         <a-input
-          v-model:value="keyword"
-          :placeholder="t('modelConfig.searchListPlaceholder')"
+          v-model:value="searchKeyword"
+          :placeholder="t('modelConfig.providerSearchPlaceholder')"
           allow-clear
-          @change="handleSearch"
+          size="small"
         >
-          <template #prefix><SearchOutlined style="color: rgba(16,24,40,0.4)" /></template>
+          <template #prefix><SearchOutlined style="color: rgba(16,24,40,0.5)" /></template>
         </a-input>
       </div>
-      <div class="mc-list-items">
-        <a-spin v-if="loading" style="display: flex; justify-content: center; padding: 24px" />
-        <div
-          v-for="item in dataList"
-          :key="item.id"
-          :class="['mc-card', { 'mc-card--active': selectedId === item.id }]"
-          @click="handleSelect(item)"
-        >
-          <div :class="['mc-card-icon', { 'mc-card-icon--active': selectedId === item.id }]">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-            </svg>
-          </div>
-          <div class="mc-card-body">
-            <div class="mc-card-top">
-              <span class="mc-card-name">{{ item.name }}</span>
-              <span v-if="isDefault(item)" class="mc-card-default">{{ t("modelConfig.defaultBadge") }}</span>
+      <div class="tree-list">
+        <div v-for="group in filteredProviderGroups" :key="group.providerType" class="provider-group">
+          <div
+            class="provider-row"
+            :class="{ 'provider-row--selected': selectedType === 'provider' && selectedProviderType === group.providerType }"
+            @click="selectProvider(group.providerType)"
+          >
+            <a-button type="text" size="small" class="expand-btn" @click.stop="toggleExpand(group.providerType)">
+              <template #icon><RightOutlined :class="{ 'expand-icon--open': expandedProviders.has(group.providerType) }" /></template>
+            </a-button>
+            <div class="provider-icon-wrapper">
+              <component :is="providerMeta(group.providerType).icon" />
             </div>
-            <div class="mc-card-provider">{{ providerLabel(item.providerType) }}</div>
-            <div class="mc-card-caps">
-              <span :class="['mc-status-dot', item.isEnabled ? 'mc-status-dot--on' : 'mc-status-dot--off']" />
-              <span class="mc-caps-text">{{ providerCapabilities(item.providerType) }}</span>
+            <span class="provider-name">{{ group.label }}</span>
+            <span class="provider-status-dot" :class="group.hasEnabledModels ? 'dot--online' : 'dot--offline'" />
+          </div>
+          <div v-if="expandedProviders.has(group.providerType)" class="model-list">
+            <div
+              v-for="model in group.models"
+              :key="model.id"
+              class="model-row"
+              :class="{ 'model-row--selected': selectedType === 'model' && selectedModelId === model.id }"
+              @click="selectModel(model)"
+            >
+              <span class="model-dot" :class="model.isEnabled ? 'dot--online' : 'dot--offline'" />
+              <span class="model-name">{{ model.name }}</span>
+              <a-tag v-if="isDefaultModel(model, group)" color="purple" class="default-tag">{{ t("modelConfig.badgeDefault") }}</a-tag>
             </div>
           </div>
-        </div>
-        <div v-if="!loading && dataList.length === 0" class="mc-list-empty">
-          {{ t("modelConfig.emptyDetail") }}
         </div>
       </div>
     </div>
 
-    <!-- Right Panel: Detail / Edit -->
-    <div class="mc-detail-panel">
-      <template v-if="selectedId || isCreating">
-        <!-- Detail Header -->
-        <div class="mc-detail-header">
-          <div class="mc-detail-header-left">
-            <div class="mc-detail-icon">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-              </svg>
+    <!-- Right Panel -->
+    <div class="right-panel">
+      <!-- Provider View -->
+      <template v-if="selectedType === 'provider' && currentProviderGroup">
+        <div class="detail-header">
+          <div class="detail-header-left">
+            <div class="detail-icon provider-detail-icon">
+              <component :is="providerMeta(currentProviderGroup.providerType).icon" />
             </div>
-            <div class="mc-detail-info">
-              <div class="mc-detail-name-row">
-                <span class="mc-detail-name">{{ form.name || t("modelConfig.newModel") }}</span>
-                <span v-if="selectedId" :class="['mc-status-badge', form.isEnabled ? 'mc-status-badge--active' : 'mc-status-badge--inactive']">
-                  {{ form.isEnabled ? t("modelConfig.active") : t("modelConfig.inactive") }}
-                </span>
+            <div class="detail-header-info">
+              <div class="detail-header-title-row">
+                <h2 class="detail-title">{{ currentProviderGroup.label }} {{ t("modelConfig.providerConfigTitle", { name: "" }).replace(" ", "") }}</h2>
+                <a-tag color="green" class="active-badge">{{ t("modelConfig.badgeActive") }}</a-tag>
               </div>
-              <div class="mc-detail-sub">
-                {{ t("modelConfig.providerLabel") }}: <strong>{{ providerLabel(form.providerType) }}</strong>
-                <template v-if="form.providerType"> | {{ providerCapabilities(form.providerType) }}</template>
+              <p class="detail-desc">{{ t("modelConfig.providerConfigDesc") }}</p>
+            </div>
+          </div>
+          <a-button type="primary" :loading="providerSaving" @click="saveProviderConfig">
+            <template #icon><SaveOutlined /></template>
+            {{ t("modelConfig.saveConfig") }}
+          </a-button>
+        </div>
+
+        <div class="detail-body">
+          <div class="config-section">
+            <h3 class="section-title">{{ t("modelConfig.providerApiAuth") }}</h3>
+            <a-form layout="vertical">
+              <a-form-item :label="t('modelConfig.providerApiBaseUrl')">
+                <a-input v-model:value="providerForm.baseUrl" :placeholder="providerBaseUrls[currentProviderGroup.providerType]" />
+              </a-form-item>
+              <a-form-item :label="t('modelConfig.providerApiKey')">
+                <a-input-password v-model:value="providerForm.apiKey" :placeholder="t('modelConfig.apiKeyPlaceholderEdit')" />
+              </a-form-item>
+            </a-form>
+            <a-button type="default" :loading="providerTesting" class="test-conn-btn" @click="handleProviderTestConnection">
+              <template #icon><ThunderboltOutlined /></template>
+              {{ t("modelConfig.providerTestConnection") }}
+            </a-button>
+            <a-alert
+              v-if="providerTestResult"
+              :type="providerTestResult.success ? 'success' : 'error'"
+              :message="providerTestResult.success ? t('modelConfig.connectOk') : t('modelConfig.connectFail')"
+              show-icon
+              closable
+              style="margin-top: 12px"
+              @close="providerTestResult = null"
+            />
+          </div>
+
+          <div class="config-section">
+            <div class="section-header-row">
+              <h3 class="section-title">{{ t("modelConfig.providerSupportedModels") }} ({{ currentProviderGroup.models.length }})</h3>
+              <a-button type="link" size="small" @click="openCreateDrawer">
+                <template #icon><PlusOutlined /></template>
+                {{ t("modelConfig.providerAddModel") }}
+              </a-button>
+            </div>
+            <div class="model-cards">
+              <div
+                v-for="model in currentProviderGroup.models"
+                :key="model.id"
+                class="model-card"
+                @click="selectModel(model)"
+              >
+                <div class="model-card-info">
+                  <span class="model-card-name">{{ model.name }}</span>
+                  <a-tag v-if="isDefaultModel(model, currentProviderGroup)" color="purple" size="small">{{ t("modelConfig.badgeDefault") }}</a-tag>
+                </div>
+                <div class="model-card-caps">
+                  <span class="cap-label">{{ t("modelConfig.capabilityChat") }}</span>
+                  <span v-if="model.enableReasoning" class="cap-label">, {{ t("modelConfig.capabilityReasoning") }}</span>
+                  <span v-if="model.enableVision" class="cap-label">, {{ t("modelConfig.capabilityVision") }}</span>
+                  <span v-if="model.supportsEmbedding" class="cap-label">, {{ t("modelConfig.capabilityEmbedding") }}</span>
+                </div>
+                <RightOutlined class="model-card-arrow" />
               </div>
             </div>
           </div>
-          <div class="mc-detail-header-right">
-            <a-popconfirm
-              v-if="selectedId"
-              :title="t('modelConfig.deleteConfirm')"
-              :description="t('modelConfig.deleteRiskTip')"
-              :ok-text="t('modelConfig.ok')"
-              placement="bottomRight"
-              @confirm="handleDelete"
-            >
-              <a-button danger size="small" type="text">
+        </div>
+      </template>
+
+      <!-- Model Detail View -->
+      <template v-else-if="selectedType === 'model' && currentModel">
+        <div class="detail-header">
+          <div class="detail-header-left">
+            <div class="detail-icon model-detail-icon">
+              <component :is="providerMeta(currentModel.providerType).icon" />
+            </div>
+            <div class="detail-header-info">
+              <div class="detail-header-title-row">
+                <h2 class="detail-title">{{ currentModel.name }}</h2>
+                <a-tag color="green" class="active-badge">{{ t("modelConfig.badgeActive") }}</a-tag>
+              </div>
+              <p class="detail-desc">
+                {{ t("modelConfig.modelDetailProvider", { provider: providerMeta(currentModel.providerType).label }) }}
+                <span class="cap-separator">|</span>
+                <span class="cap-label">{{ t("modelConfig.capabilityChat") }}</span>
+                <span v-if="currentModel.enableReasoning" class="cap-label">, {{ t("modelConfig.capabilityReasoning") }}</span>
+              </p>
+            </div>
+          </div>
+          <div class="detail-header-actions">
+            <a-popconfirm :title="t('modelConfig.deleteModelConfirm')" @confirm="handleDeleteModel(currentModel.id)">
+              <a-button type="text" danger size="small">
                 <template #icon><DeleteOutlined /></template>
               </a-button>
             </a-popconfirm>
-            <a-button type="primary" :loading="submitting" class="mc-save-btn" @click="handleSave">
+            <a-button type="primary" :loading="modelSaving" @click="saveModelConfig">
               <template #icon><SaveOutlined /></template>
               {{ t("modelConfig.saveConfig") }}
             </a-button>
           </div>
         </div>
 
-        <!-- Tab Navigation -->
-        <div class="mc-tabs-bar">
-          <button
-            v-for="tab in tabs"
-            :key="tab.key"
-            :class="['mc-tab', { 'mc-tab--active': activeTab === tab.key }]"
-            @click="activeTab = tab.key"
-          >
-            <component :is="tab.icon" style="font-size: 16px" />
-            {{ tab.label }}
-          </button>
-        </div>
-
-        <!-- Tab Content (scrollable) -->
-        <div class="mc-tab-content">
-          <!-- Basic Settings Tab -->
-          <template v-if="activeTab === 'basic'">
-            <a-form ref="formRef" :model="form" layout="vertical" :rules="currentRules">
-              <!-- API Auth Card -->
-              <div class="mc-section-card">
-                <h3 class="mc-section-title">{{ t("modelConfig.apiAuthTitle") }}</h3>
-
-                <template v-if="isCreating">
-                  <a-form-item :label="t('modelConfig.labelName')" name="name">
-                    <a-input v-model:value="form.name" :placeholder="t('modelConfig.namePlaceholder')" />
-                  </a-form-item>
-                  <a-form-item :label="t('modelConfig.labelProvider')" name="providerType">
-                    <a-select v-model:value="form.providerType" :options="providerOptions" @change="onProviderChange" />
-                  </a-form-item>
-                </template>
-
-                <a-form-item :label="t('modelConfig.labelBaseUrl')" name="baseUrl">
-                  <a-input v-model:value="form.baseUrl" class="mc-input" />
-                </a-form-item>
-
-                <a-form-item :label="t('modelConfig.labelApiKey')" name="apiKey">
-                  <a-input-password v-model:value="form.apiKey" class="mc-input" :placeholder="selectedId ? t('modelConfig.apiKeyPlaceholderEdit') : t('modelConfig.apiKeyPlaceholderCreate')" />
-                </a-form-item>
-                <div class="mc-hint">{{ t("modelConfig.apiKeyHintSecurity") }}</div>
-
-                <button class="mc-test-btn" :disabled="testing" @click="handleTestConnection">
-                  <ThunderboltOutlined />
-                  {{ testing ? "..." : t("modelConfig.testConnectivity") }}
-                </button>
-                <a-alert
-                  v-if="testResult"
-                  :type="testResult.success ? 'success' : 'error'"
-                  :message="testResult.success ? t('modelConfig.connectOk') : t('modelConfig.connectFail')"
-                  show-icon
-                  closable
-                  style="margin-top: 12px"
-                  @close="testResult = null"
-                >
-                  <template #description>
-                    <span v-if="testResult.success">{{ t("modelConfig.latency", { ms: testResult.latencyMs ?? 0 }) }}</span>
-                    <span v-else>{{ testResult.errorMessage || t("modelConfig.connectUnreachable") }}</span>
-                  </template>
-                </a-alert>
-              </div>
-
-              <!-- Default Model Card -->
-              <div v-if="isCreating" class="mc-section-card">
-                <h3 class="mc-section-title">{{ t("modelConfig.labelDefaultModel") }}</h3>
-                <a-form-item name="defaultModel">
-                  <a-auto-complete
-                    v-model:value="form.defaultModel"
-                    :options="suggestedModels"
-                    :placeholder="t('modelConfig.defaultModelPlaceholder')"
-                    :filter-option="filterModelOption"
-                    class="mc-input"
-                  />
-                </a-form-item>
-              </div>
-
-              <!-- System Prompt Card -->
-              <div class="mc-section-card">
-                <h3 class="mc-section-title">{{ t("modelConfig.systemPromptTitle") }}</h3>
-                <a-textarea
-                  v-model:value="form.systemPrompt"
-                  :rows="5"
-                  :placeholder="t('modelConfig.systemPromptPlaceholder')"
-                  class="mc-textarea"
-                />
-              </div>
-            </a-form>
-          </template>
-
-          <!-- Advanced Tab -->
-          <template v-if="activeTab === 'advanced'">
-            <a-form layout="vertical">
-              <div class="mc-section-card">
-                <h3 class="mc-section-title">{{ t("modelConfig.sectionFeatures") }}</h3>
-                <a-form-item v-if="isCreating" :label="t('modelConfig.labelName')" style="margin-bottom: 16px">
-                  <a-input v-model:value="form.name" :placeholder="t('modelConfig.namePlaceholder')" />
-                </a-form-item>
-                <a-row :gutter="24">
+        <a-tabs v-model:activeKey="activeTab" class="model-tabs">
+          <!-- Tab 1: Basic Info -->
+          <a-tab-pane key="basic" :tab="tabLabel('basic')">
+            <div class="tab-content">
+              <h3 class="section-title">{{ t("modelConfig.modelBasicSettings") }}</h3>
+              <a-form layout="vertical">
+                <a-row :gutter="16">
                   <a-col :span="12">
-                    <a-form-item :label="t('modelConfig.labelEmbedding')">
-                      <a-switch v-model:checked="form.supportsEmbedding" />
-                      <span class="mc-switch-label">{{ form.supportsEmbedding ? t("modelConfig.switchOn") : t("modelConfig.switchOff") }}</span>
-                    </a-form-item>
-                  </a-col>
-                  <a-col v-if="selectedId" :span="12">
-                    <a-form-item :label="t('modelConfig.labelEnabled')">
-                      <a-switch v-model:checked="form.isEnabled" />
-                      <span class="mc-switch-label">{{ form.isEnabled ? t("modelConfig.enabledOn") : t("modelConfig.enabledOff") }}</span>
+                    <a-form-item :label="t('modelConfig.labelDisplayName')">
+                      <a-input v-model:value="modelForm.name" />
                     </a-form-item>
                   </a-col>
                   <a-col :span="12">
-                    <a-form-item :label="t('modelConfig.labelStreamingTypewriter')">
-                      <a-switch v-model:checked="form.enableStreamingTypewriter" />
-                      <span class="mc-switch-label">{{ form.enableStreamingTypewriter ? t("modelConfig.switchOn") : t("modelConfig.switchOff") }}</span>
+                    <a-form-item :label="t('modelConfig.labelModelId')">
+                      <a-input v-model:value="modelForm.modelId" />
                     </a-form-item>
                   </a-col>
                 </a-row>
-                <a-form-item v-if="!isCreating" :label="t('modelConfig.labelDefaultModel')">
-                  <a-auto-complete
-                    v-model:value="form.defaultModel"
-                    :options="suggestedModels"
-                    :placeholder="t('modelConfig.defaultModelPlaceholder')"
-                    :filter-option="filterModelOption"
-                    class="mc-input"
+                <a-form-item :label="t('modelConfig.labelSystemPrompt')">
+                  <a-textarea
+                    v-model:value="modelForm.systemPrompt"
+                    :rows="6"
+                    :placeholder="t('modelConfig.systemPromptPlaceholder')"
                   />
                 </a-form-item>
-              </div>
-            </a-form>
-          </template>
-
-          <!-- Test Tab -->
-          <template v-if="activeTab === 'test'">
-            <div class="mc-section-card">
-              <h3 class="mc-section-title">{{ t("modelConfig.sectionTest") }}</h3>
-              <p class="mc-hint">{{ t("modelConfig.testConnectivity") }}</p>
-              <a-button :loading="testing" type="primary" @click="handleTestConnection">
-                <template #icon><ApiOutlined /></template>
-                {{ t("modelConfig.testConnection") }}
-              </a-button>
-              <a-alert
-                v-if="testResult"
-                :type="testResult.success ? 'success' : 'error'"
-                :message="testResult.success ? t('modelConfig.connectOk') : t('modelConfig.connectFail')"
-                show-icon
-                closable
-                style="margin-top: 12px"
-                @close="testResult = null"
-              >
-                <template #description>
-                  <span v-if="testResult.success">{{ t("modelConfig.latency", { ms: testResult.latencyMs ?? 0 }) }}</span>
-                  <span v-else>{{ testResult.errorMessage || t("modelConfig.connectUnreachable") }}</span>
-                </template>
-              </a-alert>
+              </a-form>
             </div>
-          </template>
-        </div>
+          </a-tab-pane>
+
+          <!-- Tab 2: Advanced -->
+          <a-tab-pane key="advanced" :tab="tabLabel('advanced')">
+            <div class="tab-content tab-content-scroll">
+              <h3 class="section-title">{{ t("modelConfig.sectionFeaturesStatus") }}</h3>
+              <a-row :gutter="16" style="margin-bottom: 24px">
+                <a-col :span="8">
+                  <div class="status-item">
+                    <span class="status-label">{{ t("modelConfig.labelEmbedding") }}</span>
+                    <a-switch v-model:checked="modelForm.supportsEmbedding" />
+                    <span class="status-value">{{ modelForm.supportsEmbedding ? t("modelConfig.switchOn") : t("modelConfig.switchOff") }}</span>
+                  </div>
+                </a-col>
+                <a-col :span="8">
+                  <div class="status-item">
+                    <span class="status-label">{{ t("modelConfig.labelEnabled") }}</span>
+                    <a-switch v-model:checked="modelForm.isEnabled" />
+                    <span class="status-value">{{ modelForm.isEnabled ? t("modelConfig.enabledOn") : t("modelConfig.enabledOff") }}</span>
+                  </div>
+                </a-col>
+                <a-col :span="8">
+                  <div class="status-item">
+                    <span class="status-label">{{ t("modelConfig.labelDefaultModel") }}</span>
+                    <a-auto-complete
+                      v-model:value="modelForm.defaultModel"
+                      :options="suggestedModels"
+                      size="small"
+                      style="width: 100%"
+                    />
+                  </div>
+                </a-col>
+              </a-row>
+
+              <h3 class="section-title section-title-icon">
+                {{ t("modelConfig.sectionFeatureToggles") }}
+              </h3>
+              <div class="feature-toggles-grid">
+                <div class="feature-card" :class="{ 'feature-card--active': modelForm.enableReasoning }">
+                  <div class="feature-card-header">
+                    <div class="feature-card-icon" :class="modelForm.enableReasoning ? 'fci--active' : ''">
+                      <BulbOutlined />
+                    </div>
+                    <div class="feature-card-title">{{ t("modelConfig.toggleCoT") }}<br>{{ t("modelConfig.toggleCoTSuffix") }}</div>
+                    <a-switch v-model:checked="modelForm.enableReasoning" />
+                  </div>
+                  <p class="feature-card-desc">{{ t("modelConfig.toggleCoTDesc") }}</p>
+                </div>
+
+                <div class="feature-card" :class="{ 'feature-card--active': modelForm.enableTools }">
+                  <div class="feature-card-header">
+                    <div class="feature-card-icon" :class="modelForm.enableTools ? 'fci--active' : ''">
+                      <ToolOutlined />
+                    </div>
+                    <div class="feature-card-title">{{ t("modelConfig.toggleTools") }}<br>{{ t("modelConfig.toggleToolsSuffix") }}</div>
+                    <a-switch v-model:checked="modelForm.enableTools" />
+                  </div>
+                  <p class="feature-card-desc">{{ t("modelConfig.toggleToolsDesc") }}</p>
+                </div>
+
+                <div class="feature-card" :class="{ 'feature-card--active': modelForm.enableVision }">
+                  <div class="feature-card-header">
+                    <div class="feature-card-icon" :class="modelForm.enableVision ? 'fci--active' : ''">
+                      <EyeOutlined />
+                    </div>
+                    <div class="feature-card-title">{{ t("modelConfig.toggleVision") }}<br>{{ t("modelConfig.toggleVisionSuffix") }}</div>
+                    <a-switch v-model:checked="modelForm.enableVision" />
+                  </div>
+                  <p class="feature-card-desc">{{ t("modelConfig.toggleVisionDesc") }}</p>
+                </div>
+
+                <div class="feature-card" :class="{ 'feature-card--active': modelForm.enableJsonMode }">
+                  <div class="feature-card-header">
+                    <div class="feature-card-icon" :class="modelForm.enableJsonMode ? 'fci--active' : ''">
+                      <CodeOutlined />
+                    </div>
+                    <div class="feature-card-title">{{ t("modelConfig.toggleJsonMode") }}<br>{{ t("modelConfig.toggleJsonModeSuffix") }}</div>
+                    <a-switch v-model:checked="modelForm.enableJsonMode" />
+                  </div>
+                  <p class="feature-card-desc">{{ t("modelConfig.toggleJsonModeDesc") }}</p>
+                </div>
+
+                <div class="feature-card" :class="{ 'feature-card--active': modelForm.enableStreaming }">
+                  <div class="feature-card-header">
+                    <div class="feature-card-icon" :class="modelForm.enableStreaming ? 'fci--active' : ''">
+                      <ThunderboltOutlined />
+                    </div>
+                    <div class="feature-card-title">{{ t("modelConfig.toggleStreaming") }}<br>{{ t("modelConfig.toggleStreamingSuffix") }}</div>
+                    <a-switch v-model:checked="modelForm.enableStreaming" />
+                  </div>
+                  <p class="feature-card-desc">{{ t("modelConfig.toggleStreamingDesc") }}</p>
+                </div>
+              </div>
+
+              <h3 class="section-title section-title-icon" style="margin-top: 32px">
+                {{ t("modelConfig.sectionParameters") }}
+              </h3>
+              <div class="params-grid">
+                <div class="param-item">
+                  <span class="param-label">{{ t("modelConfig.paramTemperature") }}</span>
+                  <a-slider v-model:value="temperatureValue" :min="0" :max="200" :step="1" style="flex: 1" />
+                  <a-input-number v-model:value="temperatureValue" :min="0" :max="200" size="small" style="width: 70px" />
+                </div>
+                <div class="param-item">
+                  <span class="param-label">{{ t("modelConfig.paramMaxTokens") }}</span>
+                  <a-input-number v-model:value="modelForm.maxTokens" :min="1" :max="1000000" size="small" style="width: 120px" />
+                </div>
+                <div class="param-item">
+                  <span class="param-label">{{ t("modelConfig.paramTopP") }}</span>
+                  <a-slider v-model:value="topPValue" :min="0" :max="100" :step="1" style="flex: 1" />
+                  <a-input-number v-model:value="topPValue" :min="0" :max="100" size="small" style="width: 70px" />
+                </div>
+                <div class="param-item">
+                  <span class="param-label">{{ t("modelConfig.paramFrequencyPenalty") }}</span>
+                  <a-slider v-model:value="frequencyPenaltyValue" :min="-200" :max="200" :step="1" style="flex: 1" />
+                  <a-input-number v-model:value="frequencyPenaltyValue" :min="-200" :max="200" size="small" style="width: 70px" />
+                </div>
+                <div class="param-item">
+                  <span class="param-label">{{ t("modelConfig.paramPresencePenalty") }}</span>
+                  <a-slider v-model:value="presencePenaltyValue" :min="-200" :max="200" :step="1" style="flex: 1" />
+                  <a-input-number v-model:value="presencePenaltyValue" :min="-200" :max="200" size="small" style="width: 70px" />
+                </div>
+              </div>
+            </div>
+          </a-tab-pane>
+
+          <!-- Tab 3: Model Test -->
+          <a-tab-pane key="test" :tab="tabLabel('test')">
+            <div class="tab-content tab-test">
+              <div class="debug-console">
+                <div class="debug-console-header">
+                  <span class="debug-console-title">
+                    <CaretRightOutlined style="margin-right: 6px" />
+                    {{ t("modelConfig.debugConsoleTitle", { name: currentModel.name }) }}
+                  </span>
+                  <div class="debug-console-stats">
+                    <span class="stat-item stat-latency">{{ t("modelConfig.debugConsoleLatency") }} <span class="stat-val">{{ testLatency ?? "-" }}</span></span>
+                    <span class="stat-item stat-tokens">{{ t("modelConfig.debugConsoleTokens") }} <span class="stat-val">{{ testTokens ?? "0" }}</span></span>
+                  </div>
+                </div>
+                <div class="debug-console-body" ref="debugBodyRef">
+                  <div v-if="testMessages.length === 0" class="debug-empty">
+                    <div class="debug-empty-icon">
+                      <FileTextOutlined style="font-size: 32px; color: rgba(255,255,255,0.3)" />
+                    </div>
+                    <p class="debug-empty-text">{{ t("modelConfig.debugConsoleEmpty") }}</p>
+                  </div>
+                  <div v-for="(msg, idx) in testMessages" :key="idx" class="debug-message" :class="`debug-message--${msg.role}`">
+                    <div class="debug-msg-content">
+                      <pre v-if="msg.role === 'user'" class="debug-msg-pre">{{ msg.content }}</pre>
+                      <div v-else class="debug-msg-stream" v-html="msg.content" />
+                    </div>
+                  </div>
+                  <div v-if="testStreaming" class="debug-cursor-blink" />
+                </div>
+              </div>
+              <div class="debug-input-row">
+                <a-input
+                  v-model:value="testPromptInput"
+                  :placeholder="t('modelConfig.debugConsolePlaceholder')"
+                  size="large"
+                  @press-enter="handleSendTest"
+                />
+                <a-button
+                  type="primary"
+                  size="large"
+                  class="send-btn"
+                  :loading="testStreaming"
+                  @click="handleSendTest"
+                >
+                  <template #icon><SendOutlined /></template>
+                  {{ t("modelConfig.debugConsoleSend") }}
+                </a-button>
+              </div>
+            </div>
+          </a-tab-pane>
+        </a-tabs>
       </template>
 
-      <!-- Empty State -->
+      <!-- Empty state -->
       <template v-else>
-        <div class="mc-empty-state">
-          <div class="mc-empty-icon">
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-            </svg>
-          </div>
-          <p class="mc-empty-text">{{ t("modelConfig.emptyDetail") }}</p>
+        <div class="empty-state">
+          <a-empty :description="t('modelConfig.emptyDetail')" />
         </div>
       </template>
     </div>
+
+    <!-- Create Model Drawer -->
+    <a-drawer
+      v-model:open="createDrawerVisible"
+      :title="t('modelConfig.drawerCreate')"
+      :width="480"
+      @close="closeCreateDrawer"
+    >
+      <a-form ref="createFormRef" :model="createForm" layout="vertical" :rules="createRules">
+        <a-form-item :label="t('modelConfig.labelName')" name="name">
+          <a-input v-model:value="createForm.name" :placeholder="t('modelConfig.namePlaceholder')" />
+        </a-form-item>
+        <a-form-item :label="t('modelConfig.labelProvider')" name="providerType">
+          <a-select v-model:value="createForm.providerType" :options="providerOptions" @change="onCreateProviderChange" />
+        </a-form-item>
+        <a-form-item :label="t('modelConfig.labelApiKey')" name="apiKey">
+          <a-input-password v-model:value="createForm.apiKey" :placeholder="t('modelConfig.apiKeyPlaceholderCreate')" />
+        </a-form-item>
+        <a-form-item :label="t('modelConfig.labelBaseUrl')" name="baseUrl">
+          <a-input v-model:value="createForm.baseUrl" />
+        </a-form-item>
+        <a-form-item :label="t('modelConfig.labelDefaultModel')" name="defaultModel">
+          <a-auto-complete
+            v-model:value="createForm.defaultModel"
+            :options="createSuggestedModels"
+            :placeholder="t('modelConfig.defaultModelPlaceholder')"
+          />
+        </a-form-item>
+      </a-form>
+      <template #footer>
+        <a-space>
+          <a-button @click="closeCreateDrawer">{{ t("common.cancel") }}</a-button>
+          <a-button type="primary" :loading="createSubmitting" @click="handleCreateSubmit">{{ t("modelConfig.ok") }}</a-button>
+        </a-space>
+      </template>
+    </a-drawer>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, reactive, ref } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, h } from "vue";
 import { useI18n } from "vue-i18n";
 import type { FormInstance } from "ant-design-vue";
 import { message } from "ant-design-vue";
 import {
   PlusOutlined,
   SearchOutlined,
-  DeleteOutlined,
+  RightOutlined,
   SaveOutlined,
-  SettingOutlined,
-  SlidersOutlined,
-  PlayCircleOutlined,
+  DeleteOutlined,
   ThunderboltOutlined,
-  ApiOutlined
+  CloudOutlined,
+  RobotOutlined,
+  ToolOutlined,
+  BulbOutlined,
+  EyeOutlined,
+  CodeOutlined,
+  CaretRightOutlined,
+  FileTextOutlined,
+  SendOutlined,
+  SettingOutlined,
+  ExperimentOutlined,
+  PlayCircleOutlined
 } from "@ant-design/icons-vue";
 import {
   createModelConfig,
+  createModelConfigPromptTestStream,
   deleteModelConfig,
-  getModelConfigUiPreferences,
-  getModelConfigById,
   getModelConfigsPaged,
-  setModelConfigUiPreferences,
   testModelConfigConnection,
   updateModelConfig,
+  type ModelConfigCreateRequest,
   type ModelConfigDto,
-  type ModelConfigTestResult
+  type ModelConfigPromptTestRequest,
+  type ModelConfigTestResult as TestResult
 } from "@/services/api-model-config";
+
+interface ProviderInfo {
+  label: string;
+  color: string;
+  icon: typeof CloudOutlined;
+}
+
+interface ProviderGroup {
+  providerType: string;
+  label: string;
+  hasEnabledModels: boolean;
+  models: ModelConfigDto[];
+}
+
+interface TestMessage {
+  role: "user" | "assistant";
+  content: string;
+}
 
 const { t } = useI18n();
 
@@ -299,34 +479,14 @@ const isMounted = ref(false);
 onMounted(() => { isMounted.value = true; });
 onUnmounted(() => { isMounted.value = false; });
 
-const keyword = ref("");
-const dataList = ref<ModelConfigDto[]>([]);
+const allModels = ref<ModelConfigDto[]>([]);
 const loading = ref(false);
-const testing = ref(false);
-const submitting = ref(false);
-const testResult = ref<ModelConfigTestResult | null>(null);
-const selectedId = ref<number | null>(null);
-const isCreating = ref(false);
-const activeTab = ref<"basic" | "advanced" | "test">("basic");
-const formRef = ref<FormInstance>();
-
-const form = reactive({
-  name: "",
-  providerType: "openai",
-  apiKey: "",
-  baseUrl: "",
-  defaultModel: "",
-  supportsEmbedding: true,
-  enableStreamingTypewriter: false,
-  isEnabled: true,
-  systemPrompt: ""
-});
-
-const tabs = computed(() => [
-  { key: "basic" as const, label: t("modelConfig.tabBasic"), icon: SettingOutlined },
-  { key: "advanced" as const, label: t("modelConfig.tabAdvanced"), icon: SlidersOutlined },
-  { key: "test" as const, label: t("modelConfig.tabTest"), icon: PlayCircleOutlined }
-]);
+const searchKeyword = ref("");
+const expandedProviders = ref(new Set<string>());
+const selectedType = ref<"provider" | "model" | null>(null);
+const selectedProviderType = ref("");
+const selectedModelId = ref<number | null>(null);
+const activeTab = ref("basic");
 
 const providerOptions = [
   { label: "OpenAI", value: "openai" },
@@ -337,10 +497,10 @@ const providerOptions = [
 ];
 
 const providerModelSuggestions: Record<string, string[]> = {
-  openai: ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo", "text-embedding-3-small"],
+  openai: ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo", "text-embedding-3-small", "text-embedding-3-large"],
   deepseek: ["deepseek-chat", "deepseek-coder", "deepseek-reasoner"],
   anthropic: ["claude-3.5-sonnet", "claude-3-opus", "claude-3-haiku"],
-  ollama: ["llama3", "mistral", "codellama", "nomic-embed-text", "qwen2.5:72b"],
+  ollama: ["llama3", "llama3:70b", "mistral", "codellama", "nomic-embed-text"],
   custom: []
 };
 
@@ -352,71 +512,471 @@ const providerBaseUrls: Record<string, string> = {
   custom: ""
 };
 
-const providerCaps: Record<string, string> = {
-  openai: "Chat, Vision, Tool",
-  deepseek: "Chat, Reasoning",
-  anthropic: "Chat, Coding, Vision",
-  ollama: "Chat, Open Source",
-  custom: "Chat"
-};
-
-function providerLabel(type: string): string {
-  const map: Record<string, string> = {
-    openai: "OpenAI", deepseek: "DeepSeek", anthropic: "Anthropic",
-    ollama: "Local/vLLM", custom: "Custom"
+function providerMeta(type: string): ProviderInfo {
+  const map: Record<string, ProviderInfo> = {
+    openai: { label: "OpenAI", color: "green", icon: CloudOutlined },
+    deepseek: { label: "DeepSeek", color: "blue", icon: ThunderboltOutlined },
+    anthropic: { label: "Anthropic", color: "purple", icon: CloudOutlined },
+    ollama: { label: "Ollama", color: "orange", icon: RobotOutlined },
+    custom: { label: "Custom", color: "default", icon: ToolOutlined }
   };
-  return map[type] ?? type;
+  return map[type] ?? map.custom;
 }
 
-function providerCapabilities(type: string): string {
-  return providerCaps[type] ?? "Chat";
-}
+const providerGroups = computed<ProviderGroup[]>(() => {
+  const map = new Map<string, ModelConfigDto[]>();
+  for (const model of allModels.value) {
+    const key = model.providerType;
+    if (!map.has(key)) map.set(key, []);
+    map.get(key)!.push(model);
+  }
 
-function isDefault(item: ModelConfigDto): boolean {
-  return dataList.value.indexOf(item) === 0 && item.isEnabled;
-}
+  const order = ["deepseek", "openai", "anthropic", "ollama", "custom"];
+  const allTypes = new Set([...order, ...map.keys()]);
 
-const suggestedModels = computed(() =>
-  (providerModelSuggestions[form.providerType] ?? []).map((m) => ({ value: m }))
+  const result: ProviderGroup[] = [];
+  for (const type of allTypes) {
+    if (!map.has(type)) continue;
+    const models = map.get(type)!;
+    result.push({
+      providerType: type,
+      label: providerMeta(type).label,
+      hasEnabledModels: models.some((m) => m.isEnabled),
+      models
+    });
+  }
+  return result;
+});
+
+const filteredProviderGroups = computed(() => {
+  const kw = searchKeyword.value.toLowerCase().trim();
+  if (!kw) return providerGroups.value;
+  return providerGroups.value
+    .map((g) => ({
+      ...g,
+      models: g.models.filter(
+        (m) => m.name.toLowerCase().includes(kw) || g.label.toLowerCase().includes(kw)
+      )
+    }))
+    .filter((g) => g.models.length > 0 || g.label.toLowerCase().includes(kw));
+});
+
+const currentProviderGroup = computed(() =>
+  providerGroups.value.find((g) => g.providerType === selectedProviderType.value)
 );
 
-function filterModelOption(input: string, option: { value: string }) {
-  return option.value.toLowerCase().includes(input.toLowerCase());
+const currentModel = computed(() =>
+  allModels.value.find((m) => m.id === selectedModelId.value)
+);
+
+function isDefaultModel(model: ModelConfigDto, group: ProviderGroup): boolean {
+  return group.models.indexOf(model) === 0;
 }
 
-const baseRules = computed(() => ({
+const suggestedModels = computed(() => {
+  if (!currentModel.value) return [];
+  return (providerModelSuggestions[currentModel.value.providerType] ?? []).map((m) => ({ value: m }));
+});
+
+function toggleExpand(providerType: string) {
+  const set = new Set(expandedProviders.value);
+  if (set.has(providerType)) set.delete(providerType);
+  else set.add(providerType);
+  expandedProviders.value = set;
+}
+
+function selectProvider(providerType: string) {
+  selectedType.value = "provider";
+  selectedProviderType.value = providerType;
+  selectedModelId.value = null;
+  const set = new Set(expandedProviders.value);
+  set.add(providerType);
+  expandedProviders.value = set;
+
+  const group = providerGroups.value.find((g) => g.providerType === providerType);
+  if (group && group.models.length > 0) {
+    providerForm.baseUrl = group.models[0].baseUrl;
+    providerForm.apiKey = "";
+  }
+}
+
+function selectModel(model: ModelConfigDto) {
+  selectedType.value = "model";
+  selectedModelId.value = model.id;
+  selectedProviderType.value = model.providerType;
+  activeTab.value = "basic";
+  loadModelForm(model);
+}
+
+function tabLabel(key: string) {
+  const iconMap: Record<string, typeof SettingOutlined> = {
+    basic: SettingOutlined,
+    advanced: ExperimentOutlined,
+    test: PlayCircleOutlined
+  };
+  const labelMap: Record<string, string> = {
+    basic: t("modelConfig.tabBasicInfo"),
+    advanced: t("modelConfig.tabAdvanced"),
+    test: t("modelConfig.tabModelTest")
+  };
+  return h("span", {}, [h(iconMap[key], { style: "margin-right: 6px" }), labelMap[key]]);
+}
+
+// ── Provider form ──
+const providerForm = reactive({ baseUrl: "", apiKey: "" });
+const providerSaving = ref(false);
+const providerTesting = ref(false);
+const providerTestResult = ref<TestResult | null>(null);
+
+async function handleProviderTestConnection() {
+  const group = currentProviderGroup.value;
+  if (!group || group.models.length === 0) return;
+  const firstModel = group.models[0];
+  providerTesting.value = true;
+  providerTestResult.value = null;
+  try {
+    providerTestResult.value = await testModelConfigConnection({
+      modelConfigId: firstModel.id,
+      providerType: firstModel.providerType,
+      apiKey: providerForm.apiKey,
+      baseUrl: providerForm.baseUrl || firstModel.baseUrl,
+      model: firstModel.defaultModel
+    });
+  } catch (error: unknown) {
+    providerTestResult.value = { success: false, errorMessage: (error as Error).message };
+  } finally {
+    providerTesting.value = false;
+  }
+}
+
+async function saveProviderConfig() {
+  const group = currentProviderGroup.value;
+  if (!group) return;
+  providerSaving.value = true;
+  try {
+    for (const model of group.models) {
+      await updateModelConfig(model.id, {
+        name: model.name,
+        apiKey: providerForm.apiKey,
+        baseUrl: providerForm.baseUrl || model.baseUrl,
+        defaultModel: model.defaultModel,
+        isEnabled: model.isEnabled,
+        supportsEmbedding: model.supportsEmbedding
+      });
+    }
+    message.success(t("crud.updateSuccess"));
+    await loadData();
+  } catch (error: unknown) {
+    message.error((error as Error).message || t("crud.submitFailed"));
+  } finally {
+    providerSaving.value = false;
+  }
+}
+
+// ── Model form ──
+const modelForm = reactive({
+  name: "",
+  modelId: "",
+  systemPrompt: "",
+  defaultModel: "",
+  isEnabled: true,
+  supportsEmbedding: true,
+  enableStreaming: true,
+  enableReasoning: false,
+  enableTools: false,
+  enableVision: false,
+  enableJsonMode: false,
+  maxTokens: undefined as number | undefined
+});
+
+const temperatureValue = ref(20);
+const topPValue = ref(100);
+const frequencyPenaltyValue = ref(0);
+const presencePenaltyValue = ref(0);
+
+function loadModelForm(model: ModelConfigDto) {
+  modelForm.name = model.name;
+  modelForm.modelId = model.modelId || model.defaultModel;
+  modelForm.systemPrompt = model.systemPrompt || "";
+  modelForm.defaultModel = model.defaultModel;
+  modelForm.isEnabled = model.isEnabled;
+  modelForm.supportsEmbedding = model.supportsEmbedding;
+  modelForm.enableStreaming = model.enableStreaming;
+  modelForm.enableReasoning = model.enableReasoning;
+  modelForm.enableTools = model.enableTools;
+  modelForm.enableVision = model.enableVision;
+  modelForm.enableJsonMode = model.enableJsonMode;
+  modelForm.maxTokens = model.maxTokens ?? undefined;
+  temperatureValue.value = Math.round((model.temperature ?? 0.2) * 100);
+  topPValue.value = Math.round((model.topP ?? 1) * 100);
+  frequencyPenaltyValue.value = Math.round((model.frequencyPenalty ?? 0) * 100);
+  presencePenaltyValue.value = Math.round((model.presencePenalty ?? 0) * 100);
+}
+
+const modelSaving = ref(false);
+
+async function saveModelConfig() {
+  if (!currentModel.value) return;
+  modelSaving.value = true;
+  try {
+    await updateModelConfig(currentModel.value.id, {
+      name: modelForm.name,
+      apiKey: "",
+      baseUrl: currentModel.value.baseUrl,
+      defaultModel: modelForm.defaultModel,
+      isEnabled: modelForm.isEnabled,
+      supportsEmbedding: modelForm.supportsEmbedding,
+      modelId: modelForm.modelId,
+      systemPrompt: modelForm.systemPrompt || undefined,
+      enableStreaming: modelForm.enableStreaming,
+      enableReasoning: modelForm.enableReasoning,
+      enableTools: modelForm.enableTools,
+      enableVision: modelForm.enableVision,
+      enableJsonMode: modelForm.enableJsonMode,
+      temperature: temperatureValue.value / 100,
+      maxTokens: modelForm.maxTokens ?? undefined,
+      topP: topPValue.value / 100,
+      frequencyPenalty: frequencyPenaltyValue.value / 100,
+      presencePenalty: presencePenaltyValue.value / 100
+    });
+    message.success(t("crud.updateSuccess"));
+    await loadData();
+    const updated = allModels.value.find((m) => m.id === currentModel.value!.id);
+    if (updated) loadModelForm(updated);
+  } catch (error: unknown) {
+    message.error((error as Error).message || t("crud.submitFailed"));
+  } finally {
+    modelSaving.value = false;
+  }
+}
+
+async function handleDeleteModel(id: number) {
+  try {
+    await deleteModelConfig(id);
+    message.success(t("crud.deleteSuccess"));
+    selectedType.value = null;
+    selectedModelId.value = null;
+    await loadData();
+  } catch (error: unknown) {
+    message.error((error as Error).message || t("crud.deleteFailed"));
+  }
+}
+
+// ── Create Drawer ──
+const createDrawerVisible = ref(false);
+const createFormRef = ref<FormInstance>();
+const createSubmitting = ref(false);
+const createForm = reactive({
+  name: "",
+  providerType: "openai",
+  apiKey: "",
+  baseUrl: "https://api.openai.com/v1",
+  defaultModel: ""
+});
+
+const createRules = computed(() => ({
   name: [{ required: true, message: t("modelConfig.ruleName") }],
   providerType: [{ required: true, message: t("modelConfig.ruleProvider") }],
+  apiKey: [{ required: true, message: t("modelConfig.ruleApiKey") }],
   baseUrl: [{ required: true, message: t("modelConfig.ruleBaseUrl") }],
   defaultModel: [{ required: true, message: t("modelConfig.ruleDefaultModel") }]
 }));
 
-const createRules = computed(() => ({
-  ...baseRules.value,
-  apiKey: [{ required: true, message: t("modelConfig.ruleApiKey") }]
-}));
+const createSuggestedModels = computed(() =>
+  (providerModelSuggestions[createForm.providerType] ?? []).map((m) => ({ value: m }))
+);
 
-const currentRules = computed(() => (isCreating.value ? createRules.value : baseRules.value));
-
-function onProviderChange(value: string) {
-  const suggestedUrl = providerBaseUrls[value];
-  if (!form.baseUrl || Object.values(providerBaseUrls).includes(form.baseUrl)) {
-    form.baseUrl = suggestedUrl ?? "";
-  }
-  form.defaultModel = "";
-  testResult.value = null;
+function onCreateProviderChange(value: string) {
+  createForm.baseUrl = providerBaseUrls[value] ?? "";
+  createForm.defaultModel = "";
 }
 
+function openCreateDrawer() {
+  Object.assign(createForm, {
+    name: "",
+    providerType: selectedProviderType.value || "openai",
+    apiKey: "",
+    baseUrl: providerBaseUrls[selectedProviderType.value || "openai"] ?? "",
+    defaultModel: ""
+  });
+  createDrawerVisible.value = true;
+}
+
+function closeCreateDrawer() {
+  createDrawerVisible.value = false;
+}
+
+async function handleCreateSubmit() {
+  try {
+    await createFormRef.value?.validate();
+  } catch {
+    return;
+  }
+  createSubmitting.value = true;
+  try {
+    const payload: ModelConfigCreateRequest = {
+      name: createForm.name,
+      providerType: createForm.providerType,
+      apiKey: createForm.apiKey,
+      baseUrl: createForm.baseUrl,
+      defaultModel: createForm.defaultModel,
+      supportsEmbedding: true,
+      modelId: createForm.defaultModel,
+      enableStreaming: true
+    };
+    await createModelConfig(payload);
+    message.success(t("crud.createSuccess"));
+    createDrawerVisible.value = false;
+    await loadData();
+  } catch (error: unknown) {
+    message.error((error as Error).message || t("crud.submitFailed"));
+  } finally {
+    createSubmitting.value = false;
+  }
+}
+
+// ── Model Test (Debug Console) ──
+const testPromptInput = ref("");
+const testStreaming = ref(false);
+const testMessages = ref<TestMessage[]>([]);
+const testLatency = ref<number | null>(null);
+const testTokens = ref<number | null>(null);
+const debugBodyRef = ref<HTMLElement>();
+let testAbortController: AbortController | null = null;
+
+async function handleSendTest() {
+  if (!currentModel.value || testStreaming.value) return;
+  const prompt = testPromptInput.value.trim();
+  if (!prompt) {
+    message.warning(t("modelConfig.promptRequired"));
+    return;
+  }
+
+  testMessages.value.push({ role: "user", content: prompt });
+  testMessages.value.push({ role: "assistant", content: "" });
+  testPromptInput.value = "";
+  testStreaming.value = true;
+  testLatency.value = null;
+  testTokens.value = null;
+
+  const startTime = Date.now();
+  const model = currentModel.value;
+
+  const payload: ModelConfigPromptTestRequest = {
+    modelConfigId: model.id,
+    providerType: model.providerType,
+    apiKey: "",
+    baseUrl: model.baseUrl,
+    model: modelForm.modelId || model.defaultModel,
+    prompt,
+    enableReasoning: modelForm.enableReasoning,
+    enableTools: modelForm.enableTools,
+    enableStreaming: modelForm.enableStreaming
+  };
+
+  const { fetchPromise, abortController } = createModelConfigPromptTestStream(payload);
+  testAbortController = abortController;
+
+  try {
+    const response = await fetchPromise;
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    if (!response.body) throw new Error("Empty body");
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let currentEventType = "data";
+    let currentDataLines: string[] = [];
+    let totalContent = "";
+
+    const flushEvent = () => {
+      if (currentDataLines.length === 0) { currentEventType = "data"; return; }
+      const eventType = currentEventType;
+      const eventData = currentDataLines.join("\n");
+      currentDataLines = [];
+      currentEventType = "data";
+      if (eventData === "[DONE]" || eventType === "done") return;
+
+      if (eventType === "final" || eventType === "data") {
+        totalContent += eventData;
+        const lastMsg = testMessages.value[testMessages.value.length - 1];
+        if (lastMsg && lastMsg.role === "assistant") {
+          lastMsg.content = escapeHtml(totalContent);
+        }
+        scrollDebug();
+      } else if (eventType === "thought") {
+        totalContent += eventData;
+        const lastMsg = testMessages.value[testMessages.value.length - 1];
+        if (lastMsg && lastMsg.role === "assistant") {
+          lastMsg.content = `<span class="thought-text">${escapeHtml(totalContent)}</span>`;
+        }
+        scrollDebug();
+      } else if (eventType === "error") {
+        const lastMsg = testMessages.value[testMessages.value.length - 1];
+        if (lastMsg && lastMsg.role === "assistant") {
+          lastMsg.content = `<span class="error-text">${escapeHtml(eventData)}</span>`;
+        }
+      }
+    };
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split(/\r?\n/);
+      buffer = lines.pop() ?? "";
+      for (const line of lines) {
+        if (line.length === 0) { flushEvent(); continue; }
+        if (line.startsWith("event:")) { currentEventType = line.slice("event:".length).trim() || "data"; continue; }
+        if (line.startsWith("data:")) { currentDataLines.push(line.slice("data:".length).trim()); }
+      }
+    }
+    flushEvent();
+    await reader.cancel();
+
+    testLatency.value = Date.now() - startTime;
+    testTokens.value = Math.ceil(totalContent.length / 4);
+  } catch (error: unknown) {
+    if ((error as Error).name !== "AbortError") {
+      const lastMsg = testMessages.value[testMessages.value.length - 1];
+      if (lastMsg && lastMsg.role === "assistant") {
+        lastMsg.content = `<span class="error-text">${escapeHtml((error as Error).message)}</span>`;
+      }
+    }
+  } finally {
+    testStreaming.value = false;
+    testAbortController = null;
+  }
+}
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\n/g, "<br>");
+}
+
+function scrollDebug() {
+  void nextTick(() => {
+    if (debugBodyRef.value) {
+      debugBodyRef.value.scrollTop = debugBodyRef.value.scrollHeight;
+    }
+  });
+}
+
+// ── Data loading ──
 async function loadData() {
   loading.value = true;
   try {
-    const result = await getModelConfigsPaged({
-      pageIndex: 1,
-      pageSize: 100,
-      keyword: keyword.value || undefined
-    });
+    const result = await getModelConfigsPaged({ pageIndex: 1, pageSize: 200 });
     if (!isMounted.value) return;
-    dataList.value = result.items;
+    allModels.value = result.items;
+
+    if (providerGroups.value.length > 0 && !selectedType.value) {
+      const first = providerGroups.value[0];
+      selectProvider(first.providerType);
+    }
   } catch (error: unknown) {
     message.error((error as Error).message || t("crud.queryFailed"));
   } finally {
@@ -424,178 +984,26 @@ async function loadData() {
   }
 }
 
-let searchTimer: ReturnType<typeof setTimeout> | null = null;
-function handleSearch() {
-  if (searchTimer) clearTimeout(searchTimer);
-  searchTimer = setTimeout(() => { void loadData(); }, 300);
-}
+onMounted(() => { void loadData(); });
 
-function resetForm() {
-  Object.assign(form, {
-    name: "", providerType: "openai", apiKey: "", baseUrl: "",
-    defaultModel: "", supportsEmbedding: true, enableStreamingTypewriter: false, isEnabled: true, systemPrompt: ""
-  });
-  testResult.value = null;
-}
-
-function handleCreate() {
-  selectedId.value = null;
-  isCreating.value = true;
-  activeTab.value = "basic";
-  resetForm();
-}
-
-async function handleSelect(item: ModelConfigDto) {
-  if (selectedId.value === item.id && !isCreating.value) return;
-  isCreating.value = false;
-  selectedId.value = item.id;
-  activeTab.value = "basic";
-  testResult.value = null;
-
-  try {
-    const detail = await getModelConfigById(item.id);
-    if (!isMounted.value) return;
-    Object.assign(form, {
-      name: detail.name,
-      providerType: detail.providerType,
-      apiKey: "",
-      baseUrl: detail.baseUrl,
-      defaultModel: detail.defaultModel,
-      supportsEmbedding: detail.supportsEmbedding,
-      enableStreamingTypewriter: getModelConfigUiPreferences(item.id).enableStreamingTypewriter ?? false,
-      isEnabled: detail.isEnabled,
-      systemPrompt: ""
-    });
-  } catch (error: unknown) {
-    message.error((error as Error).message || t("crud.queryFailed"));
-  }
-}
-
-async function handleSave() {
-  if (submitting.value) return;
-
-  if (activeTab.value === "basic" && formRef.value) {
-    try {
-      await formRef.value.validate();
-      if (!isMounted.value) return;
-    } catch { return; }
-  }
-
-  submitting.value = true;
-  try {
-    let savedId = selectedId.value;
-    if (isCreating.value) {
-      const createdId = await createModelConfig({
-        name: form.name,
-        providerType: form.providerType,
-        apiKey: form.apiKey,
-        baseUrl: form.baseUrl,
-        defaultModel: form.defaultModel,
-        supportsEmbedding: form.supportsEmbedding
-      });
-      savedId = Number(createdId);
-      if (Number.isNaN(savedId)) {
-        savedId = null;
-      }
-      if (!isMounted.value) return;
-      message.success(t("crud.createSuccess"));
-      isCreating.value = false;
-    } else if (selectedId.value) {
-      await updateModelConfig(selectedId.value, {
-        name: form.name,
-        apiKey: form.apiKey,
-        baseUrl: form.baseUrl,
-        defaultModel: form.defaultModel,
-        isEnabled: form.isEnabled,
-        supportsEmbedding: form.supportsEmbedding
-      });
-      if (!isMounted.value) return;
-      message.success(t("crud.updateSuccess"));
-    }
-
-    if (savedId !== null) {
-      setModelConfigUiPreferences(savedId, {
-        enableStreamingTypewriter: form.enableStreamingTypewriter
-      });
-    }
-
-    await loadData();
-    if (!isMounted.value) return;
-
-    if (!isCreating.value && dataList.value.length > 0) {
-      const match = dataList.value.find((d) => d.id === savedId);
-      if (match) {
-        selectedId.value = match.id;
-        await handleSelect(match);
-      } else {
-        await handleSelect(dataList.value[0]);
-      }
-    }
-  } catch (error: unknown) {
-    message.error((error as Error).message || t("crud.submitFailed"));
-  } finally {
-    submitting.value = false;
-  }
-}
-
-async function handleDelete() {
-  if (!selectedId.value) return;
-  try {
-    await deleteModelConfig(selectedId.value);
-    if (!isMounted.value) return;
-    message.success(t("crud.deleteSuccess"));
-    selectedId.value = null;
-    isCreating.value = false;
-    resetForm();
-    await loadData();
-    if (!isMounted.value) return;
-    if (dataList.value.length > 0) {
-      await handleSelect(dataList.value[0]);
-    }
-  } catch (error: unknown) {
-    message.error((error as Error).message || t("crud.deleteFailed"));
-  }
-}
-
-async function handleTestConnection() {
-  testing.value = true;
-  testResult.value = null;
-  try {
-    testResult.value = await testModelConfigConnection({
-      modelConfigId: selectedId.value ?? undefined,
-      providerType: form.providerType,
-      apiKey: form.apiKey,
-      baseUrl: form.baseUrl,
-      model: form.defaultModel
-    });
-    if (!isMounted.value) return;
-  } catch (error: unknown) {
-    testResult.value = { success: false, errorMessage: (error as Error).message || t("modelConfig.testFailed") };
-  } finally {
-    testing.value = false;
-  }
-}
-
-onMounted(async () => {
-  await loadData();
-  if (!isMounted.value) return;
-  if (dataList.value.length > 0) {
-    await handleSelect(dataList.value[0]);
+onUnmounted(() => {
+  if (testAbortController) {
+    testAbortController.abort();
   }
 });
 </script>
 
 <style scoped>
-.mc-page {
+.model-configs-page {
   display: flex;
   gap: 24px;
-  height: calc(100vh - 96px);
-  padding: 32px;
-  background: #f4f7f9;
+  height: 100%;
+  min-height: 0;
+  box-sizing: border-box;
 }
 
 /* ── Left Panel ── */
-.mc-list-panel {
+.left-panel {
   width: 320px;
   min-width: 320px;
   background: #fff;
@@ -607,173 +1015,170 @@ onMounted(async () => {
   overflow: hidden;
 }
 
-.mc-list-header {
+.left-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px;
-  background: rgba(249, 250, 251, 0.3);
-  border-bottom: 0.8px solid rgba(243, 244, 246, 0.8);
+  padding: 16px 16px 0;
 }
 
-.mc-list-title {
+.left-title {
   font-size: 20px;
   font-weight: 700;
   color: #101828;
   margin: 0;
+  line-height: 30px;
 }
 
-.mc-add-btn {
+.add-btn {
   width: 28px;
   height: 28px;
   border-radius: 8px;
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #6a7282;
-  transition: all 0.15s;
 }
 
-.mc-add-btn:hover {
-  background: #f3f4f6;
-  color: #4f39f6;
+.search-box {
+  padding: 12px 12px 0;
 }
 
-.mc-list-search {
-  padding: 12px;
-  border-bottom: 0.8px solid rgba(243, 244, 246, 0.8);
-}
-
-.mc-list-search :deep(.ant-input-affix-wrapper) {
+.search-box :deep(.ant-input-affix-wrapper) {
   border-radius: 10px;
   background: #f9fafb;
   border-color: transparent;
 }
 
-.mc-list-items {
+.tree-list {
   flex: 1;
   overflow-y: auto;
-  padding: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.provider-group {
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
-.mc-card {
-  display: flex;
-  gap: 12px;
-  padding: 12.8px;
-  border-radius: 14px;
-  border: 0.8px solid transparent;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.mc-card:hover {
-  background: #f9fafb;
-}
-
-.mc-card--active {
-  background: rgba(238, 242, 255, 0.5);
-  border-color: #c6d2ff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.1);
-}
-
-.mc-card-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  background: #f3f4f6;
-  border: 0.8px solid #e5e7eb;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  color: #6a7282;
-}
-
-.mc-card-icon--active {
-  background: #4f39f6;
-  border-color: #432dd7;
-  color: #fff;
-}
-
-.mc-card-body {
-  flex: 1;
-  min-width: 0;
-}
-
-.mc-card-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.mc-card-name {
-  font-size: 14px;
-  font-weight: 600;
-  color: #101828;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.mc-card--active .mc-card-name {
-  color: #312c85;
-}
-
-.mc-card-default {
-  background: #e0e7ff;
-  color: #432dd7;
-  font-size: 10px;
-  font-weight: 700;
-  padding: 2px 6px;
-  border-radius: 4px;
-  flex-shrink: 0;
-}
-
-.mc-card-provider {
-  font-size: 12px;
-  font-weight: 500;
-  color: #6a7282;
-  margin-top: 2px;
-}
-
-.mc-card-caps {
+.provider-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-top: 4px;
+  padding: 8px;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: background 0.15s;
 }
 
-.mc-status-dot {
+.provider-row:hover {
+  background: #f9fafb;
+}
+
+.provider-row--selected {
+  background: #f0f0ff;
+}
+
+.expand-btn {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.expand-icon--open {
+  transform: rotate(90deg);
+  transition: transform 0.2s;
+}
+
+.provider-icon-wrapper {
+  width: 28px;
+  height: 28px;
+  border-radius: 10px;
+  border: 0.8px solid #e5e7eb;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+
+.provider-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #364153;
+  flex: 1;
+}
+
+.provider-status-dot,
+.model-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  flex-shrink: 0;
 }
 
-.mc-status-dot--on { background: #00bc7d; }
-.mc-status-dot--off { background: #99a1af; }
-
-.mc-caps-text {
-  font-size: 11px;
-  font-weight: 500;
-  color: #99a1af;
+.dot--online {
+  background: #00bc7d;
 }
 
-.mc-list-empty {
-  padding: 32px 16px;
-  text-align: center;
-  color: #9ca3af;
+.dot--offline {
+  background: #d1d5dc;
+}
+
+.model-list {
+  padding-left: 36px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.model-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.model-row:hover {
+  background: #f9fafb;
+}
+
+.model-row--selected {
+  background: #fff;
+  border: 0.8px solid #c6d2ff;
+  box-shadow: 0 0 0 0 rgba(97, 95, 255, 0.2), 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.model-row--selected .model-name {
+  color: #432dd7;
+  font-weight: 700;
+}
+
+.model-name {
   font-size: 13px;
+  font-weight: 500;
+  color: #4a5565;
+  flex: 1;
+}
+
+.default-tag {
+  font-size: 10px;
+  line-height: 15px;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: #e0e7ff;
+  color: #432dd7;
+  border: none;
+  font-weight: 700;
 }
 
 /* ── Right Panel ── */
-.mc-detail-panel {
+.right-panel {
   flex: 1;
   min-width: 0;
   background: #fff;
@@ -785,251 +1190,478 @@ onMounted(async () => {
   overflow: hidden;
 }
 
-.mc-detail-header {
+.detail-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   padding: 20px 24px;
-  border-bottom: 0.8px solid #f3f4f6;
-  flex-shrink: 0;
+  border-bottom: 0.8px solid rgba(243, 244, 246, 0.8);
+  background: rgba(249, 250, 251, 0.3);
 }
 
-.mc-detail-header-left {
+.detail-header-left {
   display: flex;
-  gap: 16px;
-  align-items: center;
+  gap: 12px;
+  align-items: flex-start;
 }
 
-.mc-detail-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 14px;
-  background: #4f39f6;
-  border: 0.8px solid rgba(67, 45, 215, 0.2);
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.1);
+.detail-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
+  font-size: 20px;
   flex-shrink: 0;
 }
 
-.mc-detail-info {
+.provider-detail-icon {
+  background: #e0e7ff;
+  color: #4f39f6;
+}
+
+.model-detail-icon {
+  background: #e0e7ff;
+  color: #4f39f6;
+}
+
+.detail-header-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.detail-header-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.detail-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #101828;
+  margin: 0;
+}
+
+.active-badge {
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 4px;
+}
+
+.detail-desc {
+  font-size: 13px;
+  color: #6a7282;
+  margin: 0;
+}
+
+.detail-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cap-separator {
+  margin: 0 6px;
+  color: #d1d5dc;
+}
+
+.cap-label {
+  color: #6a7282;
+}
+
+/* ── Detail body ── */
+.detail-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.config-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.section-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #101828;
+  margin: 0;
+}
+
+.section-title-icon {
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+}
+
+.section-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.test-conn-btn {
+  align-self: flex-start;
+}
+
+/* ── Model cards ── */
+.model-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.model-card {
+  flex: 0 0 calc(50% - 6px);
+  padding: 12px 16px;
+  border: 0.8px solid #e5e7eb;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.model-card:hover {
+  border-color: #c6d2ff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.model-card-info {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
-.mc-detail-name-row {
+.model-card-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #101828;
+}
+
+.model-card-caps {
+  font-size: 12px;
+  color: #6a7282;
+}
+
+.model-card-arrow {
+  font-size: 12px;
+  color: #d1d5dc;
+}
+
+/* ── Tabs ── */
+.model-tabs {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.model-tabs :deep(.ant-tabs-nav) {
+  margin: 0;
+  padding: 0 24px;
+  border-bottom: 0.8px solid rgba(243, 244, 246, 0.8);
+}
+
+.model-tabs :deep(.ant-tabs-content-holder) {
+  flex: 1;
+  overflow: hidden;
+}
+
+.model-tabs :deep(.ant-tabs-content) {
+  height: 100%;
+}
+
+.model-tabs :deep(.ant-tabs-tabpane) {
+  height: 100%;
+  overflow: hidden;
+}
+
+.tab-content {
+  padding: 24px;
+  overflow-y: auto;
+  height: 100%;
+}
+
+.tab-content-scroll {
+  overflow-y: auto;
+}
+
+/* ── Features & Status ── */
+.status-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.status-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #364153;
+}
+
+.status-value {
+  font-size: 12px;
+  color: #6a7282;
+}
+
+/* ── Feature Toggles ── */
+.feature-toggles-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.feature-card {
+  border: 0.8px solid rgba(229, 231, 235, 0.8);
+  border-radius: 14px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: all 0.15s;
+}
+
+.feature-card--active {
+  background: rgba(238, 242, 255, 0.3);
+  border-color: #c6d2ff;
+}
+
+.feature-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.feature-card-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: #f3f4f6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: #6a7282;
+}
+
+.fci--active {
+  background: #e0e7ff;
+  color: #4f39f6;
+}
+
+.feature-card-title {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 600;
+  color: #101828;
+  line-height: 1.3;
+}
+
+.feature-card-desc {
+  font-size: 12px;
+  line-height: 19.5px;
+  color: #6a7282;
+  margin: 0;
+}
+
+/* ── Parameters ── */
+.params-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.param-item {
   display: flex;
   align-items: center;
   gap: 12px;
 }
 
-.mc-detail-name {
-  font-size: 20px;
-  font-weight: 700;
-  color: #101828;
-  letter-spacing: -0.5px;
-}
-
-.mc-status-badge {
-  font-size: 10px;
-  font-weight: 700;
-  padding: 2.8px 8.8px;
-  border-radius: 8px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.mc-status-badge--active {
-  background: #ecfdf5;
-  border: 0.8px solid rgba(164, 244, 207, 0.6);
-  color: #007a55;
-}
-
-.mc-status-badge--inactive {
-  background: #f3f4f6;
-  border: 0.8px solid #e5e7eb;
-  color: #6a7282;
-}
-
-.mc-detail-sub {
-  font-size: 14px;
-  color: #6a7282;
-}
-
-.mc-detail-sub strong {
-  color: #364153;
-  font-weight: 500;
-}
-
-.mc-detail-header-right {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.mc-save-btn {
-  background: #4f39f6;
-  border-color: transparent;
-  border-radius: 10px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.1);
-}
-
-.mc-save-btn:hover {
-  background: #432dd7 !important;
-}
-
-/* ── Tabs ── */
-.mc-tabs-bar {
-  display: flex;
-  gap: 4px;
-  padding: 0 24px 16px;
-  flex-shrink: 0;
-}
-
-.mc-tabs-bar {
-  padding: 12px 24px;
-  background: transparent;
-}
-
-.mc-tab {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 20px;
-  border-radius: 8px;
-  border: none;
-  background: transparent;
-  font-size: 14px;
-  font-weight: 500;
-  color: #6a7282;
-  cursor: pointer;
-  transition: all 0.15s;
-  height: 32px;
-}
-
-.mc-tab:hover {
-  background: rgba(243, 244, 246, 0.5);
-}
-
-.mc-tab--active {
-  background: #fff;
-  color: #101828;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.1);
-}
-
-/* Tab bar background strip */
-.mc-tabs-bar {
-  background: rgba(243, 244, 246, 0.8);
-  border-radius: 10px;
-  margin: 0 24px 0;
-  padding: 4px;
-}
-
-/* ── Tab Content ── */
-.mc-tab-content {
-  flex: 1;
-  overflow-y: auto;
-  padding: 24px;
-  background: rgba(249, 250, 251, 0.3);
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-}
-
-.mc-section-card {
-  background: #fff;
-  border: 0.8px solid rgba(229, 231, 235, 0.6);
-  border-radius: 14px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.1);
-  padding: 20px;
-}
-
-.mc-section-title {
-  font-size: 18px;
-  font-weight: 600;
-  color: #101828;
-  margin: 0 0 16px;
-  padding-bottom: 12px;
-  border-bottom: 0.8px solid #f3f4f6;
-}
-
-.mc-input {
-  border-radius: 10px;
-}
-
-.mc-input :deep(.ant-input) {
-  border-radius: 10px;
-}
-
-.mc-textarea {
-  border-radius: 10px;
-  background: rgba(249, 250, 251, 0.5);
-}
-
-.mc-hint {
-  font-size: 12px;
-  color: #6a7282;
-  margin-bottom: 16px;
-}
-
-.mc-test-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  border-radius: 10px;
-  background: #ecfdf5;
-  border: 0.8px solid #a4f4cf;
-  color: #007a55;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.1);
-  transition: all 0.15s;
-}
-
-.mc-test-btn:hover {
-  background: #d1fae5;
-}
-
-.mc-test-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.mc-switch-label {
-  margin-left: 8px;
-  color: #6a7282;
+.param-label {
+  min-width: 140px;
   font-size: 13px;
+  font-weight: 600;
+  color: #364153;
 }
 
-/* ── Empty State ── */
-.mc-empty-state {
-  flex: 1;
+/* ── Debug Console ── */
+.tab-test {
   display: flex;
   flex-direction: column;
+  gap: 0;
+  padding: 0;
+}
+
+.debug-console {
+  flex: 1;
+  background: #1a1a2e;
+  border-radius: 12px;
+  margin: 16px 16px 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.debug-console-header {
+  display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.debug-console-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.7);
+  font-family: "SF Mono", "Fira Code", monospace;
+}
+
+.debug-console-stats {
+  display: flex;
   gap: 16px;
 }
 
-.mc-empty-icon {
-  width: 72px;
-  height: 72px;
-  border-radius: 20px;
-  background: #f3f4f6;
+.stat-item {
+  font-size: 11px;
+  font-family: "SF Mono", "Fira Code", monospace;
+}
+
+.stat-latency {
+  color: #00bc7d;
+}
+
+.stat-tokens {
+  color: #818cf8;
+}
+
+.stat-val {
+  font-weight: 700;
+}
+
+.debug-console-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 200px;
+}
+
+.debug-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  gap: 12px;
+}
+
+.debug-empty-text {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.debug-message {
+  display: flex;
+}
+
+.debug-message--user {
+  justify-content: flex-end;
+}
+
+.debug-message--user .debug-msg-content {
+  background: #3730a3;
+  border-radius: 12px 12px 4px 12px;
+}
+
+.debug-message--assistant .debug-msg-content {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px 12px 12px 4px;
+}
+
+.debug-msg-content {
+  max-width: 85%;
+  padding: 10px 14px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.debug-msg-pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.9);
+  font-family: inherit;
+}
+
+.debug-msg-stream {
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.debug-msg-stream :deep(.thought-text) {
+  color: #818cf8;
+  font-style: italic;
+}
+
+.debug-msg-stream :deep(.error-text) {
+  color: #f87171;
+}
+
+.debug-cursor-blink {
+  width: 8px;
+  height: 16px;
+  background: #818cf8;
+  animation: blink 1s step-end infinite;
+  margin-left: 16px;
+}
+
+@keyframes blink {
+  50% { opacity: 0; }
+}
+
+.debug-input-row {
+  display: flex;
+  gap: 12px;
+  padding: 16px;
+  align-items: stretch;
+}
+
+.debug-input-row :deep(.ant-input) {
+  border-radius: 12px;
+}
+
+.send-btn {
+  border-radius: 12px;
+  min-width: 80px;
+  background: #4f39f6;
+  border-color: #4f39f6;
+}
+
+.send-btn:hover {
+  background: #3730a3;
+  border-color: #3730a3;
+}
+
+/* ── Empty state ── */
+.empty-state {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #9ca3af;
-}
-
-.mc-empty-text {
-  font-size: 14px;
-  color: #9ca3af;
-  margin: 0;
+  height: 100%;
 }
 </style>

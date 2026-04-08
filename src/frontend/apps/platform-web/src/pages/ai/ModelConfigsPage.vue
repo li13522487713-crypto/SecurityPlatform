@@ -1000,6 +1000,8 @@ onUnmounted(() => {
   gap: 24px;
   height: 100%;
   min-height: 0;
+  padding: 24px;
+  box-sizing: border-box;
 }
 
 /* ── Left Panel ── */
