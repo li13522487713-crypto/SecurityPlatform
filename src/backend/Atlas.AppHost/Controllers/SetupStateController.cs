@@ -299,10 +299,13 @@ public sealed class SetupStateController : ControllerBase
         var requestedConnectionString = ResolveConnectionString(request.Database);
         var requestedDbType = DataSourceDriverRegistry.NormalizeDriverCode(request.Database.DriverCode);
         var runtimeConnectionString = ResolveRuntimeConnectionString(requestedConnectionString, requestedDbType);
+        var configuredPlatformDatabase = TryResolveConfiguredDatabase();
+        var platformConnectionString = configuredPlatformDatabase?.ConnectionString ?? runtimeConnectionString;
+        var platformDbType = configuredPlatformDatabase?.DbType ?? requestedDbType;
 
         var platformState = await EnsurePlatformStateReadyAsync(
-            runtimeConnectionString,
-            requestedDbType,
+            platformConnectionString,
+            platformDbType,
             request.Admin.AdminUsername,
             cancellationToken);
         if (!IsPlatformReady(platformState))
@@ -330,30 +333,64 @@ public sealed class SetupStateController : ControllerBase
             var adminBound = false;
 
             using var db = _setupDbClientFactory.Create(runtimeConnectionString, requestedDbType);
+            using var platformDb = _setupDbClientFactory.Create(platformConnectionString, platformDbType);
 
             try
             {
                 await db.Ado.GetScalarAsync("SELECT 1");
                 dbConnected = true;
-                _logger.LogInformation("[AppSetup] 数据库连接验证成功");
+                _logger.LogInformation("[AppSetup] 应用数据库连接验证成功");
             }
             catch (Exception dbEx)
             {
                 verificationErrors.Add($"Database connection failed: {dbEx.Message}");
-                _logger.LogError(dbEx, "[AppSetup] 数据库连接验证失败");
+                _logger.LogError(dbEx, "[AppSetup] 应用数据库连接验证失败");
             }
 
             if (dbConnected)
             {
                 try
                 {
-                    var tables = db.DbMaintenance.GetTableInfoList();
+                    db.CodeFirst.InitTables(
+                        typeof(LowCodeApp),
+                        typeof(AppDataRoutePolicy),
+                        typeof(AppRole),
+                        typeof(AppDepartment),
+                        typeof(AppPosition),
+                        typeof(AppMember),
+                        typeof(AppUserRole),
+                        typeof(AppMemberDepartment),
+                        typeof(AppMemberPosition));
+                    _logger.LogInformation("[AppSetup] 应用核心表初始化完成");
+                }
+                catch (Exception appSchemaEx)
+                {
+                    verificationErrors.Add($"App schema initialization failed: {appSchemaEx.Message}");
+                    _logger.LogError(appSchemaEx, "[AppSetup] 应用核心表初始化失败");
+                }
+            }
+
+            try
+            {
+                await platformDb.Ado.GetScalarAsync("SELECT 1");
+            }
+            catch (Exception platformDbEx)
+            {
+                verificationErrors.Add($"Platform database connection failed: {platformDbEx.Message}");
+                _logger.LogError(platformDbEx, "[AppSetup] 平台数据库连接验证失败");
+            }
+
+            if (verificationErrors.Count == 0)
+            {
+                try
+                {
+                    var tables = platformDb.DbMaintenance.GetTableInfoList();
                     var tableNames = tables
                         .Select(t => t.Name)
                         .Where(name => !string.IsNullOrWhiteSpace(name))
                         .ToHashSet(StringComparer.OrdinalIgnoreCase);
-                    var userTableName = db.EntityMaintenance.GetTableName<UserAccount>();
-                    var roleTableName = db.EntityMaintenance.GetTableName<Role>();
+                    var userTableName = platformDb.EntityMaintenance.GetTableName<UserAccount>();
+                    var roleTableName = platformDb.EntityMaintenance.GetTableName<Role>();
                     coreTablesVerified =
                         tableNames.Contains(userTableName) &&
                         tableNames.Contains(roleTableName);
@@ -361,7 +398,7 @@ public sealed class SetupStateController : ControllerBase
                     if (!coreTablesVerified)
                     {
                         verificationErrors.Add(
-                            $"Core tables ({userTableName}, {roleTableName}) not found. Platform initialization may be incomplete.");
+                            $"Core tables ({userTableName}, {roleTableName}) not found in platform database. Platform initialization may be incomplete.");
                     }
                     else
                     {
@@ -370,7 +407,7 @@ public sealed class SetupStateController : ControllerBase
                 }
                 catch (Exception tableEx)
                 {
-                    verificationErrors.Add($"Table verification failed: {tableEx.Message}");
+                    verificationErrors.Add($"Platform table verification failed: {tableEx.Message}");
                     _logger.LogError(tableEx, "[AppSetup] 平台核心表验证失败");
                 }
             }
@@ -394,7 +431,7 @@ public sealed class SetupStateController : ControllerBase
                 ? request.Admin.AppKey.Trim()
                 : ResolveSetupAppKey();
 
-            var adminUser = await db.Queryable<UserAccount>()
+            var adminUser = await platformDb.Queryable<UserAccount>()
                 .FirstAsync(
                     user => user.TenantIdValue == tenantId.Value && user.Username == adminUsername,
                     cancellationToken);
