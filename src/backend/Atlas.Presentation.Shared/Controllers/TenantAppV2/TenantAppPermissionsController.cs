@@ -8,8 +8,9 @@ using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Atlas.Presentation.Shared.Filters;
+using Atlas.Presentation.Shared.Helpers;
 
-namespace Atlas.PlatformHost.Controllers;
+namespace Atlas.Presentation.Shared.Controllers.TenantAppV2;
 
 /// <summary>应用级功能权限管理（独立于平台级权限）</summary>
 [ApiController]
@@ -108,3 +109,6 @@ public sealed class TenantAppPermissionsController : ControllerBase
         return Ok(ApiResponse<object>.Ok(new { id = id.ToString(), appId = appId.ToString() }, HttpContext.TraceIdentifier));
     }
 }
+
+
+

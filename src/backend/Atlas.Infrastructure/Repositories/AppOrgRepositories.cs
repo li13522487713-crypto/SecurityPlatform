@@ -66,7 +66,9 @@ public sealed class AppDepartmentRepository : IAppDepartmentRepository
     public async Task UpdateAsync(AppDepartment entity, CancellationToken cancellationToken = default)
     {
         var db = await ResolveDbAsync(tenantId: new TenantId(entity.TenantIdValue), appId: entity.AppId, cancellationToken);
-        await db.Updateable(entity).ExecuteCommandAsync(cancellationToken);
+        await db.Updateable(entity)
+            .Where(x => x.TenantIdValue == entity.TenantIdValue && x.AppId == entity.AppId && x.Id == entity.Id)
+            .ExecuteCommandAsync(cancellationToken);
     }
 
     public async Task DeleteAsync(TenantId tenantId, long appId, long id, CancellationToken cancellationToken = default)
@@ -138,7 +140,9 @@ public sealed class AppPositionRepository : IAppPositionRepository
     public async Task UpdateAsync(AppPosition entity, CancellationToken cancellationToken = default)
     {
         var db = await ResolveDbAsync(new TenantId(entity.TenantIdValue), entity.AppId, cancellationToken);
-        await db.Updateable(entity).ExecuteCommandAsync(cancellationToken);
+        await db.Updateable(entity)
+            .Where(x => x.TenantIdValue == entity.TenantIdValue && x.AppId == entity.AppId && x.Id == entity.Id)
+            .ExecuteCommandAsync(cancellationToken);
     }
 
     public async Task DeleteAsync(TenantId tenantId, long appId, long id, CancellationToken cancellationToken = default)
@@ -209,7 +213,9 @@ public sealed class AppProjectRepository : IAppProjectRepository
     public async Task UpdateAsync(AppProject entity, CancellationToken cancellationToken = default)
     {
         var db = await ResolveDbAsync(new TenantId(entity.TenantIdValue), entity.AppId, cancellationToken);
-        await db.Updateable(entity).ExecuteCommandAsync(cancellationToken);
+        await db.Updateable(entity)
+            .Where(x => x.TenantIdValue == entity.TenantIdValue && x.AppId == entity.AppId && x.Id == entity.Id)
+            .ExecuteCommandAsync(cancellationToken);
     }
 
     public async Task DeleteAsync(TenantId tenantId, long appId, long id, CancellationToken cancellationToken = default)

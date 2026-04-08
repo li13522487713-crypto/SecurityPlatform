@@ -11,8 +11,9 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
 using Atlas.Presentation.Shared.Filters;
+using Atlas.Presentation.Shared.Helpers;
 
-namespace Atlas.PlatformHost.Controllers;
+namespace Atlas.Presentation.Shared.Controllers.TenantAppV2;
 
 [ApiController]
 [Route("api/v2/tenant-app-instances")]
@@ -435,3 +436,6 @@ public sealed class TenantAppInstancesV2Controller : ControllerBase
         return Ok(ApiResponse<LowCodeAppImportResult>.Ok(result, HttpContext.TraceIdentifier));
     }
 }
+
+
+

@@ -9,8 +9,9 @@ using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Atlas.Presentation.Shared.Filters;
+using Atlas.Presentation.Shared.Helpers;
 
-namespace Atlas.PlatformHost.Controllers;
+namespace Atlas.Presentation.Shared.Controllers.TenantAppV2;
 
 [ApiController]
 [Route("api/v2/tenant-app-instances/{appId:long}/organization")]
@@ -300,3 +301,6 @@ public sealed class TenantAppOrganizationController : ControllerBase
         return Ok(ApiResponse<object>.Ok(new { appId = appId.ToString(), id }, HttpContext.TraceIdentifier));
     }
 }
+
+
+

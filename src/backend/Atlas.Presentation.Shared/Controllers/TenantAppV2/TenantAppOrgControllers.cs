@@ -6,8 +6,9 @@ using Atlas.Presentation.Shared.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Atlas.Presentation.Shared.Filters;
+using Atlas.Presentation.Shared.Helpers;
 
-namespace Atlas.PlatformHost.Controllers;
+namespace Atlas.Presentation.Shared.Controllers.TenantAppV2;
 
 /// <summary>应用级部门管理</summary>
 [ApiController]
@@ -260,3 +261,6 @@ public sealed class TenantAppProjectsController : ControllerBase
         return Ok(ApiResponse<object>.Ok(new { id = id.ToString() }, HttpContext.TraceIdentifier));
     }
 }
+
+
+

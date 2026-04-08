@@ -1,0 +1,108 @@
+### AppHost 直连模式 TenantAppInstances V2 API 验证
+@baseUrl = http://localhost:5002
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+@appId = 1
+
+### 登录
+# @name login
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+###
+@accessToken = {{login.response.body.$.data.accessToken}}
+
+### 获取 CSRF Token
+# @name antiforgery
+GET {{baseUrl}}/api/v1/secure/antiforgery
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+###
+@csrfToken = {{antiforgery.response.body.$.data.token}}
+
+### 实例列表（用于确认 appId）
+GET {{baseUrl}}/api/v2/tenant-app-instances?pageIndex=1&pageSize=10
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 设置页：查询实例详情
+GET {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 组织管理：查询角色列表
+GET {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/roles?pageIndex=1&pageSize=10&keyword=&sortBy=&sortDesc=false
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 组织管理：查询部门列表
+GET {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/departments?pageIndex=1&pageSize=20&keyword=&sortBy=&sortDesc=false
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 组织管理：查询部门全量
+GET {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/departments/all
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 组织管理：查询职位列表
+GET {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/positions?pageIndex=1&pageSize=10&keyword=&sortBy=&sortDesc=false
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 组织管理：查询组织工作区
+GET {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/organization/workspace?pageIndex=1&pageSize=10&keyword=
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 设置页：更新实例
+PUT {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+X-CSRF-TOKEN: {{csrfToken}}
+Idempotency-Key: {{$guid}}
+Content-Type: application/json
+
+{
+  "name": "Direct 模式联调应用",
+  "description": "用于验证 AppHost v2 组织与设置链路",
+  "category": "DEV",
+  "icon": "*"
+}
+
+### 设置页：发布实例
+POST {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/publish
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+X-CSRF-TOKEN: {{csrfToken}}
+Idempotency-Key: {{$guid}}
+
+### 设置页：启动实例
+POST {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/start
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+X-CSRF-TOKEN: {{csrfToken}}
+Idempotency-Key: {{$guid}}
+
+### 设置页：停止实例
+POST {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/stop
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+X-CSRF-TOKEN: {{csrfToken}}
+Idempotency-Key: {{$guid}}
+
+### 设置页：重启实例
+POST {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/restart
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+X-CSRF-TOKEN: {{csrfToken}}
+Idempotency-Key: {{$guid}}
+
