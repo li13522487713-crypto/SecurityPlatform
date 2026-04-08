@@ -147,7 +147,7 @@ import type { TablePaginationConfig } from "ant-design-vue";
 const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
-const { appKey } = useAppContext();
+const { appKey, appId } = useAppContext();
 
 const tableKey = computed(() => String(route.params.tableKey ?? ""));
 const loading = ref(false);
@@ -230,7 +230,7 @@ const loadRecords = async () => {
       pageIndex: pagination.current ?? 1,
       pageSize: pagination.pageSize ?? 20,
       keyword: keyword.value.trim() || undefined
-    });
+    }, appId.value ?? undefined);
     columns.value = result.columns;
     records.value = result.items.map(flattenRecord);
     pagination.total = result.total;
@@ -293,10 +293,10 @@ const handleSubmitRecord = async () => {
   try {
     const values = buildFieldValues();
     if (editingId.value) {
-      await updateDynamicRecord(appKey.value, tableKey.value, editingId.value, { values });
+      await updateDynamicRecord(appKey.value, tableKey.value, editingId.value, { values }, appId.value ?? undefined);
       message.success(t("dynamicTable.updateRecordSuccess"));
     } else {
-      await createDynamicRecord(appKey.value, tableKey.value, { values });
+      await createDynamicRecord(appKey.value, tableKey.value, { values }, appId.value ?? undefined);
       message.success(t("dynamicTable.createRecordSuccess"));
     }
     formVisible.value = false;
@@ -314,7 +314,7 @@ const handleSubmitRecord = async () => {
 const handleDeleteRecord = async (id: string) => {
   if (!appKey.value || !tableKey.value) return;
   try {
-    await deleteDynamicRecord(appKey.value, tableKey.value, id);
+    await deleteDynamicRecord(appKey.value, tableKey.value, id, appId.value ?? undefined);
     message.success(t("dynamicTable.deleteRecordSuccess"));
     void loadRecords();
   } catch (error) {
@@ -330,7 +330,7 @@ const handleBatchDelete = () => {
     onOk: async () => {
       if (!appKey.value || !tableKey.value) return;
       try {
-        await deleteDynamicRecordsBatch(appKey.value, tableKey.value, selectedRowKeys.value);
+        await deleteDynamicRecordsBatch(appKey.value, tableKey.value, selectedRowKeys.value, appId.value ?? undefined);
         message.success(t("dynamicTable.batchDeleteSuccess"));
         void loadRecords();
       } catch (error) {
@@ -340,16 +340,29 @@ const handleBatchDelete = () => {
   });
 };
 
+const initialAppIdReady = ref(!!appId.value);
+
 onMounted(() => {
   void loadSummary();
-  void loadRecords();
+  if (appId.value) {
+    void loadRecords();
+  }
 });
 
 watch(tableKey, () => {
   pagination.current = 1;
   keyword.value = "";
   void loadSummary();
-  void loadRecords();
+  if (appId.value) {
+    void loadRecords();
+  }
+});
+
+watch(appId, (next) => {
+  if (next && !initialAppIdReady.value) {
+    initialAppIdReady.value = true;
+    void loadRecords();
+  }
 });
 </script>
 

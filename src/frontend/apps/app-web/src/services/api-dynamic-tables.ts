@@ -169,21 +169,39 @@ export async function alterDynamicTable(
 // Record CRUD (AppHost: /api/v1/dynamic-tables/:tableKey/records)
 // ---------------------------------------------------------------------------
 
-function recordsBase(appKey: string, tableKey: string): string {
-  const prefix = resolveAppHostPrefix(appKey);
-  return `${prefix}/api/v1/dynamic-tables/${encodeURIComponent(tableKey)}/records`;
+interface RecordContext {
+  appKey: string;
+  tableKey: string;
+  appId?: string;
+}
+
+function recordsBase(ctx: RecordContext): string {
+  const prefix = resolveAppHostPrefix(ctx.appKey);
+  return `${prefix}/api/v1/dynamic-tables/${encodeURIComponent(ctx.tableKey)}/records`;
+}
+
+function buildAppIdHeaders(appId?: string): Record<string, string> {
+  const headers: Record<string, string> = {};
+  const trimmed = appId?.trim();
+  if (trimmed && /^\d+$/.test(trimmed) && trimmed !== "0") {
+    headers["X-App-Id"] = trimmed;
+    headers["X-App-Workspace"] = "1";
+  }
+  return headers;
 }
 
 export async function queryDynamicRecords(
   appKey: string,
   tableKey: string,
-  request: DynamicRecordQueryRequest
+  request: DynamicRecordQueryRequest,
+  appId?: string
 ): Promise<DynamicRecordListResult> {
+  const ctx: RecordContext = { appKey, tableKey, appId };
   const response = await requestApi<ApiResponse<DynamicRecordListResult>>(
-    `${recordsBase(appKey, tableKey)}/query`,
+    `${recordsBase(ctx)}/query`,
     {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...buildAppIdHeaders(appId) },
       body: JSON.stringify(request)
     }
   );
@@ -194,10 +212,13 @@ export async function queryDynamicRecords(
 export async function getDynamicRecord(
   appKey: string,
   tableKey: string,
-  id: string
+  id: string,
+  appId?: string
 ): Promise<DynamicRecordDto | null> {
+  const ctx: RecordContext = { appKey, tableKey, appId };
   const response = await requestApi<ApiResponse<DynamicRecordDto | null>>(
-    `${recordsBase(appKey, tableKey)}/${encodeURIComponent(id)}`
+    `${recordsBase(ctx)}/${encodeURIComponent(id)}`,
+    { headers: { ...buildAppIdHeaders(appId) } }
   );
   return response.data ?? null;
 }
@@ -205,13 +226,15 @@ export async function getDynamicRecord(
 export async function createDynamicRecord(
   appKey: string,
   tableKey: string,
-  request: DynamicRecordUpsertRequest
+  request: DynamicRecordUpsertRequest,
+  appId?: string
 ): Promise<{ id: string }> {
+  const ctx: RecordContext = { appKey, tableKey, appId };
   const response = await requestApi<ApiResponse<{ id: string }>>(
-    recordsBase(appKey, tableKey),
+    recordsBase(ctx),
     {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...buildAppIdHeaders(appId) },
       body: JSON.stringify(request)
     }
   );
@@ -223,13 +246,15 @@ export async function updateDynamicRecord(
   appKey: string,
   tableKey: string,
   id: string,
-  request: DynamicRecordUpsertRequest
+  request: DynamicRecordUpsertRequest,
+  appId?: string
 ): Promise<void> {
+  const ctx: RecordContext = { appKey, tableKey, appId };
   const response = await requestApi<ApiResponse<unknown>>(
-    `${recordsBase(appKey, tableKey)}/${encodeURIComponent(id)}`,
+    `${recordsBase(ctx)}/${encodeURIComponent(id)}`,
     {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...buildAppIdHeaders(appId) },
       body: JSON.stringify(request)
     }
   );
@@ -239,11 +264,13 @@ export async function updateDynamicRecord(
 export async function deleteDynamicRecord(
   appKey: string,
   tableKey: string,
-  id: string
+  id: string,
+  appId?: string
 ): Promise<void> {
+  const ctx: RecordContext = { appKey, tableKey, appId };
   const response = await requestApi<ApiResponse<unknown>>(
-    `${recordsBase(appKey, tableKey)}/${encodeURIComponent(id)}`,
-    { method: "DELETE" }
+    `${recordsBase(ctx)}/${encodeURIComponent(id)}`,
+    { method: "DELETE", headers: { ...buildAppIdHeaders(appId) } }
   );
   if (!response.success) throw new Error(response.message || "删除失败");
 }
@@ -251,13 +278,15 @@ export async function deleteDynamicRecord(
 export async function deleteDynamicRecordsBatch(
   appKey: string,
   tableKey: string,
-  ids: string[]
+  ids: string[],
+  appId?: string
 ): Promise<void> {
+  const ctx: RecordContext = { appKey, tableKey, appId };
   const response = await requestApi<ApiResponse<unknown>>(
-    recordsBase(appKey, tableKey),
+    recordsBase(ctx),
     {
       method: "DELETE",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...buildAppIdHeaders(appId) },
       body: JSON.stringify({ ids: ids.map(Number) })
     }
   );
