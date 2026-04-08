@@ -17,7 +17,9 @@ export default {
     statusDisabled: "停用",
     statusUpdateSuccess: "状态更新成功",
     statusUpdateFailed: "状态更新失败",
-    none: "无"
+    none: "无",
+    save: "保存",
+    failed: "失败"
   },
   auth: {
     login: "登录",
@@ -70,6 +72,10 @@ export default {
     loadFailed: "加载运行态页面失败"
   },
   crud: {
+    search: "查询",
+    reset: "重置",
+    cancel: "取消",
+    save: "保存",
     deleteSuccess: "删除成功",
     deleteFailed: "删除失败",
     createSuccess: "创建成功",
@@ -78,6 +84,28 @@ export default {
     operationFailed: "操作失败",
     submitFailed: "提交失败",
     totalItems: "共 {total} 条"
+  },
+  tableView: {
+    columns: "列",
+    columnsTitle: "列设置",
+    defaultSuffix: "（默认）",
+    density: "密度",
+    densityComfortable: "舒适",
+    densityCompact: "紧凑",
+    densityDefault: "标准",
+    enterViewName: "请输入视图名称",
+    pinLeft: "固定到左侧",
+    pinNone: "不固定",
+    pinRight: "固定到右侧",
+    resetCurrent: "重置当前视图",
+    resetDefault: "恢复默认视图",
+    save: "保存",
+    saveAs: "另存为",
+    saveAsView: "另存为视图",
+    savedViewPlaceholder: "选择已保存视图",
+    searchColumns: "搜索列",
+    setDefault: "设为默认",
+    viewName: "视图名称"
   },
   ai: {
     chat: {

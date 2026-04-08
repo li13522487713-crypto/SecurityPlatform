@@ -2,6 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import {
   clearAuthStorage,
   ensureAppSetup,
+  expectNoI18nKeyLeak,
   loginApp
 } from "./helpers";
 
@@ -14,6 +15,7 @@ async function clickSidebarAndAssertPage(
   await page.getByTestId(sidebarItemTestId).click();
   await page.waitForURL(new RegExp(`/apps/[^/]+/${routeSuffix}(?:\\?.*)?$`), { timeout: 20_000 });
   await expect(page.getByTestId(pageRootTestId)).toBeVisible({ timeout: 20_000 });
+  await expectNoI18nKeyLeak(page, pageRootTestId);
 }
 
 test.describe.serial("@smoke App Navigation", () => {
@@ -42,5 +44,6 @@ test.describe.serial("@smoke App Navigation", () => {
     await page.getByTestId("app-header-user-menu").click();
     await page.getByTestId("app-header-menu-profile").click();
     await expect(page.getByTestId("app-profile-page")).toBeVisible();
+    await expectNoI18nKeyLeak(page, "app-profile-page");
   });
 });

@@ -4,6 +4,7 @@ import antdEnUS from "ant-design-vue/es/locale/en_US";
 import antdZhCN from "ant-design-vue/es/locale/zh_CN";
 import zhCN from "./zh-CN";
 import enUS from "./en-US";
+import { formatMissingI18nKey } from "./missing";
 
 export type SupportedLocale = "zh-CN" | "en-US";
 
@@ -62,6 +63,7 @@ export const i18n = createI18n({
   legacy: false,
   locale: getLocale(),
   fallbackLocale: DEFAULT_LOCALE,
+  missing: (locale, key) => formatMissingI18nKey(String(locale), key),
   messages: {
     zh: zhCN as MessageTree,
     "zh-CN": zhCN as MessageTree,

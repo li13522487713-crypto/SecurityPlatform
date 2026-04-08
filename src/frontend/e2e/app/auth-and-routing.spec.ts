@@ -4,6 +4,7 @@ import {
   clearAuthStorage,
   ensureAppDashboard,
   ensureAppSetup,
+  expectNoI18nKeyLeak,
   loginApp,
   resolveCanonicalAppKey,
   seedLocale
@@ -26,6 +27,7 @@ test.describe.serial("@smoke App Auth And Routing", () => {
   test("login success should enter dashboard", async ({ page }) => {
     await loginApp(page, appKey);
     await ensureAppDashboard(page, appKey);
+    await expectNoI18nKeyLeak(page, "app-dashboard-page");
   });
 
   test("wrong password should stay at login", async ({ page }) => {
@@ -48,7 +50,9 @@ test.describe.serial("@smoke App Auth And Routing", () => {
     await seedLocale(page, "en-US");
     await page.goto(`${appBaseUrl}/apps/${encodeURIComponent(appKey)}/login`);
     await expect(page.getByTestId("app-login-submit")).toContainText("Login");
+    await expectNoI18nKeyLeak(page, "app-login-page");
     await page.reload();
     await expect(page.getByTestId("app-login-submit")).toContainText("Login");
+    await expectNoI18nKeyLeak(page, "app-login-page");
   });
 });

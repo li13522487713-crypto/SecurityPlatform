@@ -17,7 +17,9 @@ export default {
     statusDisabled: "Disabled",
     statusUpdateSuccess: "Status updated",
     statusUpdateFailed: "Failed to update status",
-    none: "None"
+    none: "None",
+    save: "Save",
+    failed: "Failed"
   },
   auth: {
     login: "Login",
@@ -70,6 +72,10 @@ export default {
     loadFailed: "Failed to load runtime page"
   },
   crud: {
+    search: "Search",
+    reset: "Reset",
+    cancel: "Cancel",
+    save: "Save",
     deleteSuccess: "Deleted successfully",
     deleteFailed: "Delete failed",
     createSuccess: "Created successfully",
@@ -78,6 +84,28 @@ export default {
     operationFailed: "Operation failed",
     submitFailed: "Submit failed",
     totalItems: "{total} items total"
+  },
+  tableView: {
+    columns: "Columns",
+    columnsTitle: "Column Settings",
+    defaultSuffix: "(Default)",
+    density: "Density",
+    densityComfortable: "Comfortable",
+    densityCompact: "Compact",
+    densityDefault: "Standard",
+    enterViewName: "Please enter a view name",
+    pinLeft: "Pin Left",
+    pinNone: "Unpin",
+    pinRight: "Pin Right",
+    resetCurrent: "Reset Current View",
+    resetDefault: "Reset to Default View",
+    save: "Save",
+    saveAs: "Save As",
+    saveAsView: "Save as View",
+    savedViewPlaceholder: "Select saved view",
+    searchColumns: "Search columns",
+    setDefault: "Set as default",
+    viewName: "View Name"
   },
   ai: {
     chat: {

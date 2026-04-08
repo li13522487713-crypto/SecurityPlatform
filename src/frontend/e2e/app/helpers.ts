@@ -365,3 +365,16 @@ export async function ensureAppDashboard(page: Page, appKey: string) {
 export function uniqueName(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 }
+
+export async function expectNoI18nKeyLeak(page: Page, rootTestId?: string) {
+  const textContent = await page.evaluate((testId) => {
+    const root = testId ? document.querySelector(`[data-testid="${testId}"]`) : document.body;
+    return root?.textContent ?? "";
+  }, rootTestId);
+
+  const leakedKeys = Array.from(
+    textContent.match(/\b[a-z][a-z0-9]*(?:\.[a-z][a-z0-9]*)+\b/g) ?? []
+  ).filter((candidate) => !candidate.startsWith("http.") && !candidate.startsWith("https."));
+
+  expect(leakedKeys, `检测到 i18n key 泄漏: ${leakedKeys.join(", ")}`).toEqual([]);
+}

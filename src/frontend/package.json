@@ -16,7 +16,10 @@
     "test:e2e:setup:headed": "node ./scripts/reset-setup-state.mjs && node ./scripts/run-setup-e2e.mjs --headed",
     "test:e2e:app": "node ./scripts/reset-setup-state.mjs && node ./scripts/run-app-e2e.mjs",
     "test:e2e:app:headed": "node ./scripts/reset-setup-state.mjs && node ./scripts/run-app-e2e.mjs --headed",
-    "test:e2e:app:smoke": "node ./scripts/reset-setup-state.mjs && node ./scripts/run-app-e2e.mjs --grep @smoke"
+    "test:e2e:app:smoke": "node ./scripts/reset-setup-state.mjs && node ./scripts/run-app-e2e.mjs --grep @smoke",
+    "i18n:check:app": "node ./scripts/i18n-audit.mjs --target app-web --strict",
+    "i18n:check:platform": "node ./scripts/i18n-audit.mjs --target platform-web --allow-auto-fill",
+    "i18n:check": "pnpm run i18n:check:app && pnpm run i18n:check:platform"
   },
   "devDependencies": {
     "@playwright/test": "^1.55.0",
