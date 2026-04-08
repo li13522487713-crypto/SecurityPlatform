@@ -36,8 +36,20 @@ export interface ModelConfigDto {
   providerType: string;
   baseUrl: string;
   defaultModel: string;
+  modelId: string;
+  systemPrompt?: string;
   isEnabled: boolean;
   supportsEmbedding: boolean;
+  enableStreaming: boolean;
+  enableReasoning: boolean;
+  enableTools: boolean;
+  enableVision: boolean;
+  enableJsonMode: boolean;
+  temperature?: number;
+  maxTokens?: number;
+  topP?: number;
+  frequencyPenalty?: number;
+  presencePenalty?: number;
   apiKeyMasked?: string;
   createdAt: string;
 }
@@ -49,6 +61,18 @@ export interface ModelConfigCreateRequest {
   baseUrl: string;
   defaultModel: string;
   supportsEmbedding: boolean;
+  modelId?: string;
+  systemPrompt?: string;
+  enableStreaming?: boolean;
+  enableReasoning?: boolean;
+  enableTools?: boolean;
+  enableVision?: boolean;
+  enableJsonMode?: boolean;
+  temperature?: number;
+  maxTokens?: number;
+  topP?: number;
+  frequencyPenalty?: number;
+  presencePenalty?: number;
 }
 
 export interface ModelConfigUpdateRequest {
@@ -58,6 +82,18 @@ export interface ModelConfigUpdateRequest {
   defaultModel: string;
   isEnabled: boolean;
   supportsEmbedding: boolean;
+  modelId?: string;
+  systemPrompt?: string;
+  enableStreaming?: boolean;
+  enableReasoning?: boolean;
+  enableTools?: boolean;
+  enableVision?: boolean;
+  enableJsonMode?: boolean;
+  temperature?: number;
+  maxTokens?: number;
+  topP?: number;
+  frequencyPenalty?: number;
+  presencePenalty?: number;
 }
 
 export interface ModelConfigTestRequest {
@@ -72,6 +108,7 @@ export interface ModelConfigPromptTestRequest extends ModelConfigTestRequest {
   prompt: string;
   enableReasoning: boolean;
   enableTools: boolean;
+  enableStreaming?: boolean;
 }
 
 export interface ModelConfigTestResult {

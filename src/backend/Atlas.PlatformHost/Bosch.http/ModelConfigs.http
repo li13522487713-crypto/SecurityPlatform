@@ -57,7 +57,19 @@ X-CSRF-TOKEN: {{csrfToken}}
   "apiKey": "sk-demo-key",
   "baseUrl": "https://api.openai.com",
   "defaultModel": "gpt-4o-mini",
-  "supportsEmbedding": true
+  "supportsEmbedding": true,
+  "modelId": "gpt-4o-mini",
+  "systemPrompt": null,
+  "enableStreaming": true,
+  "enableReasoning": false,
+  "enableTools": false,
+  "enableVision": false,
+  "enableJsonMode": false,
+  "temperature": 0.2,
+  "maxTokens": 2048,
+  "topP": 1.0,
+  "frequencyPenalty": 0,
+  "presencePenalty": 0
 }
 
 ### 测试模型连接
@@ -91,7 +103,28 @@ Accept: text/event-stream
   "model": "gpt-4o-mini",
   "prompt": "请分步骤分析如何优化 SQL 查询，并给出最终建议。",
   "enableReasoning": true,
-  "enableTools": true
+  "enableTools": true,
+  "enableStreaming": true
+}
+
+### 测试提示词非流式输出
+POST {{baseUrl}}/api/v1/model-configs/test/stream
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: {{$guid}}
+X-CSRF-TOKEN: {{csrfToken}}
+Accept: text/event-stream
+
+{
+  "providerType": "openai",
+  "apiKey": "sk-demo-key",
+  "baseUrl": "https://api.openai.com",
+  "model": "gpt-4o-mini",
+  "prompt": "你好，请简单介绍自己。",
+  "enableReasoning": false,
+  "enableTools": false,
+  "enableStreaming": false
 }
 
 ### 根据 ID 查询模型配置
@@ -113,7 +146,19 @@ X-CSRF-TOKEN: {{csrfToken}}
   "baseUrl": "https://api.openai.com",
   "defaultModel": "gpt-4o",
   "isEnabled": true,
-  "supportsEmbedding": true
+  "supportsEmbedding": true,
+  "modelId": "gpt-4o",
+  "systemPrompt": "You are a helpful assistant.",
+  "enableStreaming": true,
+  "enableReasoning": false,
+  "enableTools": true,
+  "enableVision": true,
+  "enableJsonMode": false,
+  "temperature": 0.5,
+  "maxTokens": 4096,
+  "topP": 0.9,
+  "frequencyPenalty": 0.1,
+  "presencePenalty": 0.1
 }
 
 ### 删除模型配置

@@ -2697,6 +2697,52 @@ JWT Claims（新增）：
   - 删除前优先排查 workflow 配置与运行日志中的 provider/model 使用情况；
   - 发布前在测试环境做回归，确认不存在静默回退导致的行为偏差。
 
+### 模型配置数据模型（ModelConfigDto）
+
+| 字段               | 类型      | 说明                                                                        |
+|-------------------|-----------|---------------------------------------------------------------------------|
+| id                | long      | 唯一标识                                                                     |
+| name              | string    | 模型显示名称                                                                   |
+| providerType      | string    | 供应商类型（`openai` / `deepseek` / `ollama` / `custom`）                       |
+| baseUrl           | string    | API Base URL                                                               |
+| defaultModel      | string    | 默认模型名称                                                                   |
+| modelId           | string    | 模型调用 ID (API Value)，如 `gpt-4o`、`deepseek-r1`                              |
+| systemPrompt      | string?   | 全局系统提示词 (System Prompt)                                                  |
+| isEnabled         | bool      | 启用状态                                                                     |
+| supportsEmbedding | bool      | 是否支持 Embedding                                                            |
+| enableStreaming    | bool      | 是否开启流式输出（传给底层模型驱动）                                                  |
+| enableReasoning   | bool      | 深度思考引擎 CoT                                                               |
+| enableTools       | bool      | 函数调用与插件 (Tool Calling)                                                   |
+| enableVision      | bool      | 视觉多模态 (Vision)                                                           |
+| enableJsonMode    | bool      | 结构化输出 JSON Mode                                                          |
+| temperature       | float?    | 温度参数（0.0 ~ 2.0）                                                          |
+| maxTokens         | int?      | 最大 Token 数                                                                |
+| topP              | float?    | Top P 参数（0.0 ~ 1.0）                                                       |
+| frequencyPenalty  | float?    | 频率惩罚（-2.0 ~ 2.0）                                                         |
+| presencePenalty   | float?    | 存在惩罚（-2.0 ~ 2.0）                                                         |
+| apiKeyMasked      | string?   | 脱敏后的 API Key                                                              |
+| createdAt         | DateTime  | 创建时间                                                                     |
+
+- `ModelConfigCreateRequest` 与 `ModelConfigUpdateRequest` 包含上述所有可写字段（`id`、`apiKeyMasked`、`createdAt` 除外）。
+- 创建时 `providerType` 与 `apiKey` 为必填；更新时 `apiKey` 留空表示不修改。
+- `enableStreaming` 默认 `true`；其余特性开关默认 `false`。
+
+#### 模型提示词测试请求（ModelConfigPromptTestRequest）
+
+| 字段             | 类型    | 说明                          |
+|-----------------|---------|-------------------------------|
+| modelConfigId   | long?   | 复用已保存的 API Key             |
+| providerType    | string  | 供应商类型                       |
+| apiKey          | string  | API Key（或留空复用已保存的）         |
+| baseUrl         | string  | API Base URL                   |
+| model           | string  | 模型名称                         |
+| prompt          | string  | 测试提示词                       |
+| enableReasoning | bool    | 是否启用思维链输出                   |
+| enableTools     | bool    | 是否启用工具能力                     |
+| enableStreaming  | bool    | 是否启用流式输出（默认 true）          |
+
+当 `enableStreaming = false` 时，后端调用非流式 `ChatAsync` 并以单个 `final` 事件返回全部内容。
+
 ### 统一搜索（Phase 15）
 
 - `GET /api/v1/ai-search?keyword=&limit=`

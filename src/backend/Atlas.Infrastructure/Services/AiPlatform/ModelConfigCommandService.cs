@@ -70,7 +70,19 @@ public sealed class ModelConfigCommandService : IModelConfigCommandService
             request.BaseUrl,
             request.DefaultModel,
             isEnabled: true,
-            request.SupportsEmbedding);
+            request.SupportsEmbedding,
+            modelId: request.ModelId ?? request.DefaultModel,
+            systemPrompt: request.SystemPrompt,
+            enableStreaming: request.EnableStreaming,
+            enableReasoning: request.EnableReasoning,
+            enableTools: request.EnableTools,
+            enableVision: request.EnableVision,
+            enableJsonMode: request.EnableJsonMode,
+            temperature: request.Temperature,
+            maxTokens: request.MaxTokens,
+            topP: request.TopP,
+            frequencyPenalty: request.FrequencyPenalty,
+            presencePenalty: request.PresencePenalty);
 
         await _repository.AddAsync(entity, cancellationToken);
         return entity.Id;
@@ -101,7 +113,19 @@ public sealed class ModelConfigCommandService : IModelConfigCommandService
             request.BaseUrl,
             request.DefaultModel,
             request.IsEnabled,
-            request.SupportsEmbedding);
+            request.SupportsEmbedding,
+            modelId: request.ModelId,
+            systemPrompt: request.SystemPrompt,
+            enableStreaming: request.EnableStreaming,
+            enableReasoning: request.EnableReasoning,
+            enableTools: request.EnableTools,
+            enableVision: request.EnableVision,
+            enableJsonMode: request.EnableJsonMode,
+            temperature: request.Temperature,
+            maxTokens: request.MaxTokens,
+            topP: request.TopP,
+            frequencyPenalty: request.FrequencyPenalty,
+            presencePenalty: request.PresencePenalty);
         await _repository.UpdateAsync(entity, cancellationToken);
     }
 
@@ -258,6 +282,37 @@ public sealed class ModelConfigCommandService : IModelConfigCommandService
             MaxTokens: 2048,
             Tools: toolDefinitions,
             ToolChoice: request.EnableTools ? "auto" : null);
+
+        if (!request.EnableStreaming)
+        {
+            string? nonStreamError = null;
+            ChatCompletionResult? chatResult = null;
+            try
+            {
+                chatResult = await provider.ChatAsync(llmRequest, cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                yield break;
+            }
+            catch (Exception ex)
+            {
+                nonStreamError = ex.Message;
+            }
+
+            if (!string.IsNullOrWhiteSpace(nonStreamError))
+            {
+                yield return new ModelConfigPromptTestStreamEvent("error", nonStreamError);
+                yield break;
+            }
+
+            if (chatResult is not null && !string.IsNullOrEmpty(chatResult.Content))
+            {
+                yield return new ModelConfigPromptTestStreamEvent("final", chatResult.Content);
+            }
+
+            yield break;
+        }
 
         var reasoningSplitter = new ReasoningStreamSplitter();
         string? streamError = null;

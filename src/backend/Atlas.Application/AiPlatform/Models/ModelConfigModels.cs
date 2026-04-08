@@ -6,8 +6,20 @@ public sealed record ModelConfigDto(
     string ProviderType,
     string BaseUrl,
     string DefaultModel,
+    string ModelId,
+    string? SystemPrompt,
     bool IsEnabled,
     bool SupportsEmbedding,
+    bool EnableStreaming,
+    bool EnableReasoning,
+    bool EnableTools,
+    bool EnableVision,
+    bool EnableJsonMode,
+    float? Temperature,
+    int? MaxTokens,
+    float? TopP,
+    float? FrequencyPenalty,
+    float? PresencePenalty,
     string? ApiKeyMasked,
     DateTime CreatedAt);
 
@@ -17,7 +29,19 @@ public sealed record ModelConfigCreateRequest(
     string ApiKey,
     string BaseUrl,
     string DefaultModel,
-    bool SupportsEmbedding);
+    bool SupportsEmbedding,
+    string? ModelId = null,
+    string? SystemPrompt = null,
+    bool EnableStreaming = true,
+    bool EnableReasoning = false,
+    bool EnableTools = false,
+    bool EnableVision = false,
+    bool EnableJsonMode = false,
+    float? Temperature = null,
+    int? MaxTokens = null,
+    float? TopP = null,
+    float? FrequencyPenalty = null,
+    float? PresencePenalty = null);
 
 public sealed record ModelConfigUpdateRequest(
     string Name,
@@ -25,7 +49,19 @@ public sealed record ModelConfigUpdateRequest(
     string BaseUrl,
     string DefaultModel,
     bool IsEnabled,
-    bool SupportsEmbedding);
+    bool SupportsEmbedding,
+    string? ModelId = null,
+    string? SystemPrompt = null,
+    bool? EnableStreaming = null,
+    bool? EnableReasoning = null,
+    bool? EnableTools = null,
+    bool? EnableVision = null,
+    bool? EnableJsonMode = null,
+    float? Temperature = null,
+    int? MaxTokens = null,
+    float? TopP = null,
+    float? FrequencyPenalty = null,
+    float? PresencePenalty = null);
 
 public sealed record ModelConfigTestRequest(
     long? ModelConfigId,
@@ -42,7 +78,8 @@ public sealed record ModelConfigPromptTestRequest(
     string Model,
     string Prompt,
     bool EnableReasoning,
-    bool EnableTools);
+    bool EnableTools,
+    bool EnableStreaming = true);
 
 public sealed record ModelConfigPromptTestStreamEvent(
     string EventType,

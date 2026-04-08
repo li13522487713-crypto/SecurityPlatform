@@ -1,333 +1,458 @@
 <template>
-  <CrudPageLayout
-    v-model:keyword="keyword"
-    v-model:drawer-open="drawerVisible"
-    :title="t('ai.modelConfig.pageTitle')"
-    :search-placeholder="t('ai.modelConfig.searchPlaceholder')"
-    :drawer-title="drawerTitle"
-    :drawer-width="560"
-    :submit-loading="submitting"
-    :submit-disabled="submitting"
-    @search="handleSearch"
-    @reset="handleReset"
-    @close-form="closeDrawer"
-    @submit="submitForm"
-  >
-    <template #toolbar-actions>
-      <a-button type="primary" @click="openCreate">
-        <template #icon><PlusOutlined /></template>
-        {{ t("ai.modelConfig.newModel") }}
-      </a-button>
-    </template>
-
-    <template #table>
-      <a-row :gutter="16" class="stats-row">
-        <a-col :span="6">
-          <div class="stat-card">
-            <div class="stat-value">{{ stats.total }}</div>
-            <div class="stat-label">{{ t("ai.modelConfig.statTotal") }}</div>
-          </div>
-        </a-col>
-        <a-col :span="6">
-          <div class="stat-card stat-card--success">
-            <div class="stat-value">{{ stats.enabled }}</div>
-            <div class="stat-label">{{ t("ai.modelConfig.statEnabled") }}</div>
-          </div>
-        </a-col>
-        <a-col :span="6">
-          <div class="stat-card stat-card--warning">
-            <div class="stat-value">{{ stats.disabled }}</div>
-            <div class="stat-label">{{ t("ai.modelConfig.statDisabled") }}</div>
-          </div>
-        </a-col>
-        <a-col :span="6">
-          <div class="stat-card stat-card--info">
-            <div class="stat-value">{{ stats.embeddingCount }}</div>
-            <div class="stat-label">{{ t("ai.modelConfig.statEmbedding") }}</div>
-          </div>
-        </a-col>
-      </a-row>
-
-      <a-table
-        row-key="id"
-        :columns="columns"
-        :data-source="dataList"
-        :loading="loading"
-        :pagination="pagination"
-        size="middle"
-        @change="onTableChange"
-      >
-        <template #bodyCell="{ column, record }">
-          <template v-if="column.key === 'name'">
-            <div class="cell-name">
-              <span class="name-text">{{ record.name }}</span>
-              <a-tag v-if="record.supportsEmbedding" color="purple" class="embed-tag">
-                {{ t("ai.modelConfig.badgeEmbedding") }}
-              </a-tag>
+  <div class="model-configs-page">
+    <!-- Left Panel: Provider & Model Tree -->
+    <div class="left-panel">
+      <div class="left-header">
+        <h2 class="left-title">{{ t("ai.modelConfig.providerPanelTitle") }}</h2>
+        <a-button type="text" size="small" class="add-btn" @click="openCreateDrawer">
+          <template #icon><PlusOutlined /></template>
+        </a-button>
+      </div>
+      <div class="search-box">
+        <a-input
+          v-model:value="searchKeyword"
+          :placeholder="t('ai.modelConfig.providerSearchPlaceholder')"
+          allow-clear
+          size="small"
+        >
+          <template #prefix><SearchOutlined style="color: rgba(16,24,40,0.5)" /></template>
+        </a-input>
+      </div>
+      <div class="tree-list">
+        <div v-for="group in filteredProviderGroups" :key="group.providerType" class="provider-group">
+          <div
+            class="provider-row"
+            :class="{ 'provider-row--selected': selectedType === 'provider' && selectedProviderType === group.providerType }"
+            @click="selectProvider(group.providerType)"
+          >
+            <a-button type="text" size="small" class="expand-btn" @click.stop="toggleExpand(group.providerType)">
+              <template #icon><RightOutlined :class="{ 'expand-icon--open': expandedProviders.has(group.providerType) }" /></template>
+            </a-button>
+            <div class="provider-icon-wrapper">
+              <component :is="providerMeta(group.providerType).icon" />
             </div>
-          </template>
+            <span class="provider-name">{{ group.label }}</span>
+            <span class="provider-status-dot" :class="group.hasEnabledModels ? 'dot--online' : 'dot--offline'" />
+          </div>
+          <div v-if="expandedProviders.has(group.providerType)" class="model-list">
+            <div
+              v-for="model in group.models"
+              :key="model.id"
+              class="model-row"
+              :class="{ 'model-row--selected': selectedType === 'model' && selectedModelId === model.id }"
+              @click="selectModel(model)"
+            >
+              <span class="model-dot" :class="model.isEnabled ? 'dot--online' : 'dot--offline'" />
+              <span class="model-name">{{ model.name }}</span>
+              <a-tag v-if="isDefaultModel(model, group)" color="purple" class="default-tag">{{ t("ai.modelConfig.badgeDefault") }}</a-tag>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
 
-          <template v-if="column.key === 'providerType'">
-            <a-tag :color="providerMeta(record.providerType).color">
-              <component :is="providerMeta(record.providerType).icon" style="margin-right: 4px" />
-              {{ providerMeta(record.providerType).label }}
-            </a-tag>
-          </template>
-
-          <template v-if="column.key === 'baseUrl'">
-            <a-typography-text :content="record.baseUrl" :ellipsis="{ tooltip: record.baseUrl }" class="url-text" />
-          </template>
-
-          <template v-if="column.key === 'defaultModel'">
-            <a-tag>{{ record.defaultModel }}</a-tag>
-          </template>
-
-          <template v-if="column.key === 'apiKeyMasked'">
-            <span class="api-key-masked">{{ record.apiKeyMasked || "••••••••" }}</span>
-          </template>
-
-          <template v-if="column.key === 'isEnabled'">
-            <a-badge
-              :status="record.isEnabled ? 'success' : 'default'"
-              :text="record.isEnabled ? t('ai.modelConfig.enabled') : t('ai.modelConfig.disabled')"
-            />
-          </template>
-
-          <template v-if="column.key === 'createdAt'">
-            <span class="date-text">{{ formatDate(record.createdAt) }}</span>
-          </template>
-
-          <template v-if="column.key === 'actions'">
-            <a-space>
-              <a-tooltip :title="t('ai.modelConfig.editTooltip')">
-                <a-button type="link" size="small" @click="openEdit(record)">
-                  <template #icon><EditOutlined /></template>
-                </a-button>
-              </a-tooltip>
-              <a-popconfirm
-                :title="t('ai.modelConfig.deleteConfirm')"
-                :description="t('ai.modelConfig.deleteRiskTip')"
-                :ok-text="t('ai.modelConfig.ok')"
-                :cancel-text="t('common.cancel')"
-                @confirm="handleDelete(record.id)"
-              >
-                <a-tooltip :title="t('ai.modelConfig.deleteTooltip')">
-                  <a-button type="link" danger size="small">
-                    <template #icon><DeleteOutlined /></template>
-                  </a-button>
-                </a-tooltip>
-              </a-popconfirm>
-            </a-space>
-          </template>
-        </template>
-      </a-table>
-    </template>
-
-    <template #form>
-      <a-form ref="formRef" :model="form" layout="vertical" :rules="currentRules">
-        <a-divider orientation="left" style="margin-top: 0">{{ t("ai.modelConfig.sectionBasic") }}</a-divider>
-
-        <a-form-item :label="t('ai.modelConfig.labelName')" name="name">
-          <a-input v-model:value="form.name" :placeholder="t('ai.modelConfig.namePlaceholder')" />
-        </a-form-item>
-
-        <a-form-item :label="t('ai.modelConfig.labelProvider')" name="providerType">
-          <a-select
-            v-model:value="form.providerType"
-            :options="providerOptions"
-            :disabled="!!editingId"
-            @change="onProviderChange"
-          >
-            <template #option="{ label, value: val }">
-              <a-space>
-                <component :is="providerMeta(val).icon" />
-                <span>{{ label }}</span>
-              </a-space>
-            </template>
-          </a-select>
-        </a-form-item>
-
-        <a-divider orientation="left">{{ t("ai.modelConfig.sectionConnection") }}</a-divider>
-
-        <a-form-item :label="t('ai.modelConfig.labelApiKey')" name="apiKey">
-          <a-input-password
-            v-model:value="form.apiKey"
-            :placeholder="editingId ? t('ai.modelConfig.apiKeyPlaceholderEdit') : t('ai.modelConfig.apiKeyPlaceholderCreate')"
-          />
-          <template #extra>
-            <span class="field-hint">{{ providerHints.apiKeyHint }}</span>
-          </template>
-        </a-form-item>
-
-        <a-form-item :label="t('ai.modelConfig.labelBaseUrl')" name="baseUrl">
-          <a-input v-model:value="form.baseUrl" :placeholder="providerHints.baseUrlPlaceholder" />
-          <template #extra>
-            <span class="field-hint">{{ providerHints.baseUrlHint }}</span>
-          </template>
-        </a-form-item>
-
-        <a-form-item :label="t('ai.modelConfig.labelDefaultModel')" name="defaultModel">
-          <a-auto-complete
-            v-model:value="form.defaultModel"
-            :options="suggestedModels"
-            :placeholder="t('ai.modelConfig.defaultModelPlaceholder')"
-            :filter-option="filterModelOption"
-          />
-          <template #extra>
-            <span class="field-hint">{{ t("ai.modelConfig.defaultModelHint") }}</span>
-          </template>
-        </a-form-item>
-
-        <a-divider orientation="left">{{ t("ai.modelConfig.sectionFeatures") }}</a-divider>
-
-        <a-row :gutter="24">
-          <a-col :span="12">
-            <a-form-item :label="t('ai.modelConfig.labelEmbedding')">
-              <a-switch v-model:checked="form.supportsEmbedding" />
-              <span class="switch-label">{{ form.supportsEmbedding ? t("ai.modelConfig.switchOn") : t("ai.modelConfig.switchOff") }}</span>
-            </a-form-item>
-          </a-col>
-          <a-col v-if="editingId" :span="12">
-            <a-form-item :label="t('ai.modelConfig.labelEnabled')">
-              <a-switch v-model:checked="form.isEnabled" />
-              <span class="switch-label">{{ form.isEnabled ? t("ai.modelConfig.enabledOn") : t("ai.modelConfig.enabledOff") }}</span>
-            </a-form-item>
-          </a-col>
-        </a-row>
-
-        <a-divider orientation="left">{{ t("ai.modelConfig.sectionTest") }}</a-divider>
-
-        <div class="test-section">
-          <a-button type="default" :loading="testing" @click="handleTestConnection">
-            <template #icon><ApiOutlined /></template>
-            {{ t("ai.modelConfig.testConnection") }}
-          </a-button>
-
-          <a-alert
-            v-if="testResult"
-            :type="testResult.success ? 'success' : 'error'"
-            :message="testResult.success ? t('ai.modelConfig.connectOk') : t('ai.modelConfig.connectFail')"
-            show-icon
-            closable
-            class="test-result"
-            @close="testResult = null"
-          >
-            <template #description>
-              <div v-if="testResult.success">
-                {{ testResultDescription }}
+    <!-- Right Panel -->
+    <div class="right-panel">
+      <!-- Provider View -->
+      <template v-if="selectedType === 'provider' && currentProviderGroup">
+        <div class="detail-header">
+          <div class="detail-header-left">
+            <div class="detail-icon provider-detail-icon">
+              <component :is="providerMeta(currentProviderGroup.providerType).icon" />
+            </div>
+            <div class="detail-header-info">
+              <div class="detail-header-title-row">
+                <h2 class="detail-title">{{ currentProviderGroup.label }} {{ t("ai.modelConfig.providerConfigTitle", { name: "" }).replace(" ", "") }}</h2>
+                <a-tag color="green" class="active-badge">{{ t("ai.modelConfig.badgeActive") }}</a-tag>
               </div>
-              <ul v-else class="test-error-list">
-                <li v-for="(line, index) in testResultErrorLines" :key="`${index}-${line}`">{{ line }}</li>
-              </ul>
-            </template>
-          </a-alert>
+              <p class="detail-desc">{{ t("ai.modelConfig.providerConfigDesc") }}</p>
+            </div>
+          </div>
+          <a-button type="primary" :loading="providerSaving" @click="saveProviderConfig">
+            <template #icon><SaveOutlined /></template>
+            {{ t("ai.modelConfig.saveConfig") }}
+          </a-button>
         </div>
 
-        <a-divider orientation="left">{{ t("ai.modelConfig.sectionPromptTest") }}</a-divider>
-        <div class="prompt-test-section">
-          <a-textarea
-            v-model:value="promptTestInput"
-            :rows="4"
-            :placeholder="t('ai.modelConfig.promptPlaceholder')"
-            :disabled="promptTesting"
-          />
-          <a-space wrap>
-            <a-switch v-model:checked="promptTestEnableReasoning" size="small" />
-            <span class="switch-label">{{ t("ai.modelConfig.enableReasoning") }}</span>
-            <a-switch v-model:checked="promptTestEnableTools" size="small" />
-            <span class="switch-label">{{ t("ai.modelConfig.enableTools") }}</span>
-          </a-space>
-          <a-space>
-            <a-button type="primary" :loading="promptTesting" @click="handlePromptStreamTest">
-              {{ t("ai.modelConfig.runPromptTest") }}
+        <div class="detail-body">
+          <div class="config-section">
+            <h3 class="section-title">{{ t("ai.modelConfig.providerApiAuth") }}</h3>
+            <a-form layout="vertical">
+              <a-form-item :label="t('ai.modelConfig.providerApiBaseUrl')">
+                <a-input v-model:value="providerForm.baseUrl" :placeholder="providerBaseUrls[currentProviderGroup.providerType]" />
+              </a-form-item>
+              <a-form-item :label="t('ai.modelConfig.providerApiKey')">
+                <a-input-password v-model:value="providerForm.apiKey" :placeholder="t('ai.modelConfig.apiKeyPlaceholderEdit')" />
+              </a-form-item>
+            </a-form>
+            <a-button type="default" :loading="providerTesting" class="test-conn-btn" @click="handleProviderTestConnection">
+              <template #icon><ThunderboltOutlined /></template>
+              {{ t("ai.modelConfig.providerTestConnection") }}
             </a-button>
-            <a-button v-if="promptTesting" danger @click="handleStopPromptStreamTest">
-              {{ t("ai.modelConfig.stopPromptTest") }}
-            </a-button>
-          </a-space>
-          <a-alert
-            v-if="promptTestError"
-            type="error"
-            :message="promptTestError"
-            show-icon
-            closable
-            @close="promptTestError = ''"
-          />
-          <div class="chat-preview">
-            <div class="chat-message-row chat-message-row-user">
-              <div class="chat-bubble chat-bubble-user">
-                <div class="bubble-title">{{ t("ai.modelConfig.promptInput") }}</div>
-                <pre class="bubble-content">{{ promptTestInput || t("ai.modelConfig.emptyOutput") }}</pre>
-              </div>
-            </div>
-            <div class="chat-message-row chat-message-row-assistant">
-              <div class="chat-bubble chat-bubble-assistant">
-                <div class="stream-title stream-title-actions">
-                  <span>{{ t("ai.modelConfig.outputFinal") }}</span>
-                  <a-button size="small" type="link" @click="copyPromptOutput(promptTestFinalOutput)">
-                    {{ t("ai.modelConfig.copyOutput") }}
-                  </a-button>
-                </div>
-                <pre class="bubble-content">{{ promptTestFinalOutput || t("ai.modelConfig.emptyOutput") }}</pre>
-              </div>
-            </div>
+            <a-alert
+              v-if="providerTestResult"
+              :type="providerTestResult.success ? 'success' : 'error'"
+              :message="providerTestResult.success ? t('ai.modelConfig.connectOk') : t('ai.modelConfig.connectFail')"
+              show-icon
+              closable
+              style="margin-top: 12px"
+              @close="providerTestResult = null"
+            />
           </div>
-          <a-collapse v-model:active-key="activeThoughtPanels" size="small">
-            <a-collapse-panel key="thought" :header="t('ai.modelConfig.outputThought')">
-              <div class="stream-title stream-title-actions">
-                <span>{{ t("ai.modelConfig.outputThought") }}</span>
-                <a-button size="small" type="link" @click="copyPromptOutput(promptTestThoughtOutput)">
-                  {{ t("ai.modelConfig.copyOutput") }}
-                </a-button>
-              </div>
-              <pre class="stream-content">{{ promptTestThoughtOutput || t("ai.modelConfig.emptyOutput") }}</pre>
-            </a-collapse-panel>
-          </a-collapse>
-          <div class="stream-card">
-            <div class="stream-title stream-title-actions">
-              <span>{{ t("ai.modelConfig.outputTool") }}</span>
-              <a-button size="small" type="link" @click="copyPromptOutput(promptTestToolOutput)">
-                {{ t("ai.modelConfig.copyOutput") }}
+
+          <div class="config-section">
+            <div class="section-header-row">
+              <h3 class="section-title">{{ t("ai.modelConfig.providerSupportedModels") }} ({{ currentProviderGroup.models.length }})</h3>
+              <a-button type="link" size="small" @click="openCreateDrawer">
+                <template #icon><PlusOutlined /></template>
+                {{ t("ai.modelConfig.providerAddModel") }}
               </a-button>
             </div>
-            <pre class="stream-content">{{ promptTestToolOutput || t("ai.modelConfig.emptyOutput") }}</pre>
+            <div class="model-cards">
+              <div
+                v-for="model in currentProviderGroup.models"
+                :key="model.id"
+                class="model-card"
+                @click="selectModel(model)"
+              >
+                <div class="model-card-info">
+                  <span class="model-card-name">{{ model.name }}</span>
+                  <a-tag v-if="isDefaultModel(model, currentProviderGroup)" color="purple" size="small">{{ t("ai.modelConfig.badgeDefault") }}</a-tag>
+                </div>
+                <div class="model-card-caps">
+                  <span class="cap-label">{{ t("ai.modelConfig.capabilityChat") }}</span>
+                  <span v-if="model.enableReasoning" class="cap-label">, {{ t("ai.modelConfig.capabilityReasoning") }}</span>
+                  <span v-if="model.enableVision" class="cap-label">, {{ t("ai.modelConfig.capabilityVision") }}</span>
+                  <span v-if="model.supportsEmbedding" class="cap-label">, {{ t("ai.modelConfig.capabilityEmbedding") }}</span>
+                </div>
+                <RightOutlined class="model-card-arrow" />
+              </div>
+            </div>
           </div>
         </div>
+      </template>
+
+      <!-- Model Detail View -->
+      <template v-else-if="selectedType === 'model' && currentModel">
+        <div class="detail-header">
+          <div class="detail-header-left">
+            <div class="detail-icon model-detail-icon">
+              <component :is="providerMeta(currentModel.providerType).icon" />
+            </div>
+            <div class="detail-header-info">
+              <div class="detail-header-title-row">
+                <h2 class="detail-title">{{ currentModel.name }}</h2>
+                <a-tag color="green" class="active-badge">{{ t("ai.modelConfig.badgeActive") }}</a-tag>
+              </div>
+              <p class="detail-desc">
+                {{ t("ai.modelConfig.modelDetailProvider", { provider: providerMeta(currentModel.providerType).label }) }}
+                <span class="cap-separator">|</span>
+                <span class="cap-label">{{ t("ai.modelConfig.capabilityChat") }}</span>
+                <span v-if="currentModel.enableReasoning" class="cap-label">, {{ t("ai.modelConfig.capabilityReasoning") }}</span>
+              </p>
+            </div>
+          </div>
+          <div class="detail-header-actions">
+            <a-popconfirm :title="t('ai.modelConfig.deleteModelConfirm')" @confirm="handleDeleteModel(currentModel.id)">
+              <a-button type="text" danger size="small">
+                <template #icon><DeleteOutlined /></template>
+              </a-button>
+            </a-popconfirm>
+            <a-button type="primary" :loading="modelSaving" @click="saveModelConfig">
+              <template #icon><SaveOutlined /></template>
+              {{ t("ai.modelConfig.saveConfig") }}
+            </a-button>
+          </div>
+        </div>
+
+        <a-tabs v-model:activeKey="activeTab" class="model-tabs">
+          <!-- Tab 1: Basic Info -->
+          <a-tab-pane key="basic" :tab="tabLabel('basic')">
+            <div class="tab-content">
+              <h3 class="section-title">{{ t("ai.modelConfig.modelBasicSettings") }}</h3>
+              <a-form layout="vertical">
+                <a-row :gutter="16">
+                  <a-col :span="12">
+                    <a-form-item :label="t('ai.modelConfig.labelDisplayName')">
+                      <a-input v-model:value="modelForm.name" />
+                    </a-form-item>
+                  </a-col>
+                  <a-col :span="12">
+                    <a-form-item :label="t('ai.modelConfig.labelModelId')">
+                      <a-input v-model:value="modelForm.modelId" />
+                    </a-form-item>
+                  </a-col>
+                </a-row>
+                <a-form-item :label="t('ai.modelConfig.labelSystemPrompt')">
+                  <a-textarea
+                    v-model:value="modelForm.systemPrompt"
+                    :rows="6"
+                    :placeholder="t('ai.modelConfig.systemPromptPlaceholder')"
+                  />
+                </a-form-item>
+              </a-form>
+            </div>
+          </a-tab-pane>
+
+          <!-- Tab 2: Advanced -->
+          <a-tab-pane key="advanced" :tab="tabLabel('advanced')">
+            <div class="tab-content tab-content-scroll">
+              <h3 class="section-title">{{ t("ai.modelConfig.sectionFeaturesStatus") }}</h3>
+              <a-row :gutter="16" style="margin-bottom: 24px">
+                <a-col :span="8">
+                  <div class="status-item">
+                    <span class="status-label">{{ t("ai.modelConfig.labelEmbedding") }}</span>
+                    <a-switch v-model:checked="modelForm.supportsEmbedding" />
+                    <span class="status-value">{{ modelForm.supportsEmbedding ? t("ai.modelConfig.switchOn") : t("ai.modelConfig.switchOff") }}</span>
+                  </div>
+                </a-col>
+                <a-col :span="8">
+                  <div class="status-item">
+                    <span class="status-label">{{ t("ai.modelConfig.labelEnabled") }}</span>
+                    <a-switch v-model:checked="modelForm.isEnabled" />
+                    <span class="status-value">{{ modelForm.isEnabled ? t("ai.modelConfig.enabledOn") : t("ai.modelConfig.enabledOff") }}</span>
+                  </div>
+                </a-col>
+                <a-col :span="8">
+                  <div class="status-item">
+                    <span class="status-label">{{ t("ai.modelConfig.labelDefaultModel") }}</span>
+                    <a-auto-complete
+                      v-model:value="modelForm.defaultModel"
+                      :options="suggestedModels"
+                      size="small"
+                      style="width: 100%"
+                    />
+                  </div>
+                </a-col>
+              </a-row>
+
+              <h3 class="section-title section-title-icon">
+                {{ t("ai.modelConfig.sectionFeatureToggles") }}
+              </h3>
+              <div class="feature-toggles-grid">
+                <div class="feature-card" :class="{ 'feature-card--active': modelForm.enableReasoning }">
+                  <div class="feature-card-header">
+                    <div class="feature-card-icon" :class="modelForm.enableReasoning ? 'fci--active' : ''">
+                      <BulbOutlined />
+                    </div>
+                    <div class="feature-card-title">{{ t("ai.modelConfig.toggleCoT") }}<br>{{ t("ai.modelConfig.toggleCoTSuffix") }}</div>
+                    <a-switch v-model:checked="modelForm.enableReasoning" />
+                  </div>
+                  <p class="feature-card-desc">{{ t("ai.modelConfig.toggleCoTDesc") }}</p>
+                </div>
+
+                <div class="feature-card" :class="{ 'feature-card--active': modelForm.enableTools }">
+                  <div class="feature-card-header">
+                    <div class="feature-card-icon" :class="modelForm.enableTools ? 'fci--active' : ''">
+                      <ToolOutlined />
+                    </div>
+                    <div class="feature-card-title">{{ t("ai.modelConfig.toggleTools") }}<br>{{ t("ai.modelConfig.toggleToolsSuffix") }}</div>
+                    <a-switch v-model:checked="modelForm.enableTools" />
+                  </div>
+                  <p class="feature-card-desc">{{ t("ai.modelConfig.toggleToolsDesc") }}</p>
+                </div>
+
+                <div class="feature-card" :class="{ 'feature-card--active': modelForm.enableVision }">
+                  <div class="feature-card-header">
+                    <div class="feature-card-icon" :class="modelForm.enableVision ? 'fci--active' : ''">
+                      <EyeOutlined />
+                    </div>
+                    <div class="feature-card-title">{{ t("ai.modelConfig.toggleVision") }}<br>{{ t("ai.modelConfig.toggleVisionSuffix") }}</div>
+                    <a-switch v-model:checked="modelForm.enableVision" />
+                  </div>
+                  <p class="feature-card-desc">{{ t("ai.modelConfig.toggleVisionDesc") }}</p>
+                </div>
+
+                <div class="feature-card" :class="{ 'feature-card--active': modelForm.enableJsonMode }">
+                  <div class="feature-card-header">
+                    <div class="feature-card-icon" :class="modelForm.enableJsonMode ? 'fci--active' : ''">
+                      <CodeOutlined />
+                    </div>
+                    <div class="feature-card-title">{{ t("ai.modelConfig.toggleJsonMode") }}<br>{{ t("ai.modelConfig.toggleJsonModeSuffix") }}</div>
+                    <a-switch v-model:checked="modelForm.enableJsonMode" />
+                  </div>
+                  <p class="feature-card-desc">{{ t("ai.modelConfig.toggleJsonModeDesc") }}</p>
+                </div>
+
+                <div class="feature-card" :class="{ 'feature-card--active': modelForm.enableStreaming }">
+                  <div class="feature-card-header">
+                    <div class="feature-card-icon" :class="modelForm.enableStreaming ? 'fci--active' : ''">
+                      <ThunderboltOutlined />
+                    </div>
+                    <div class="feature-card-title">{{ t("ai.modelConfig.toggleStreaming") }}<br>{{ t("ai.modelConfig.toggleStreamingSuffix") }}</div>
+                    <a-switch v-model:checked="modelForm.enableStreaming" />
+                  </div>
+                  <p class="feature-card-desc">{{ t("ai.modelConfig.toggleStreamingDesc") }}</p>
+                </div>
+              </div>
+
+              <h3 class="section-title section-title-icon" style="margin-top: 32px">
+                {{ t("ai.modelConfig.sectionParameters") }}
+              </h3>
+              <div class="params-grid">
+                <div class="param-item">
+                  <span class="param-label">{{ t("ai.modelConfig.paramTemperature") }}</span>
+                  <a-slider v-model:value="temperatureValue" :min="0" :max="200" :step="1" style="flex: 1" />
+                  <a-input-number v-model:value="temperatureValue" :min="0" :max="200" size="small" style="width: 70px" />
+                </div>
+                <div class="param-item">
+                  <span class="param-label">{{ t("ai.modelConfig.paramMaxTokens") }}</span>
+                  <a-input-number v-model:value="modelForm.maxTokens" :min="1" :max="1000000" size="small" style="width: 120px" />
+                </div>
+                <div class="param-item">
+                  <span class="param-label">{{ t("ai.modelConfig.paramTopP") }}</span>
+                  <a-slider v-model:value="topPValue" :min="0" :max="100" :step="1" style="flex: 1" />
+                  <a-input-number v-model:value="topPValue" :min="0" :max="100" size="small" style="width: 70px" />
+                </div>
+                <div class="param-item">
+                  <span class="param-label">{{ t("ai.modelConfig.paramFrequencyPenalty") }}</span>
+                  <a-slider v-model:value="frequencyPenaltyValue" :min="-200" :max="200" :step="1" style="flex: 1" />
+                  <a-input-number v-model:value="frequencyPenaltyValue" :min="-200" :max="200" size="small" style="width: 70px" />
+                </div>
+                <div class="param-item">
+                  <span class="param-label">{{ t("ai.modelConfig.paramPresencePenalty") }}</span>
+                  <a-slider v-model:value="presencePenaltyValue" :min="-200" :max="200" :step="1" style="flex: 1" />
+                  <a-input-number v-model:value="presencePenaltyValue" :min="-200" :max="200" size="small" style="width: 70px" />
+                </div>
+              </div>
+            </div>
+          </a-tab-pane>
+
+          <!-- Tab 3: Model Test -->
+          <a-tab-pane key="test" :tab="tabLabel('test')">
+            <div class="tab-content tab-test">
+              <div class="debug-console">
+                <div class="debug-console-header">
+                  <span class="debug-console-title">
+                    <CaretRightOutlined style="margin-right: 6px" />
+                    {{ t("ai.modelConfig.debugConsoleTitle", { name: currentModel.name }) }}
+                  </span>
+                  <div class="debug-console-stats">
+                    <span class="stat-item stat-latency">{{ t("ai.modelConfig.debugConsoleLatency") }} <span class="stat-val">{{ testLatency ?? "-" }}</span></span>
+                    <span class="stat-item stat-tokens">{{ t("ai.modelConfig.debugConsoleTokens") }} <span class="stat-val">{{ testTokens ?? "0" }}</span></span>
+                  </div>
+                </div>
+                <div class="debug-console-body" ref="debugBodyRef">
+                  <div v-if="testMessages.length === 0" class="debug-empty">
+                    <div class="debug-empty-icon">
+                      <FileTextOutlined style="font-size: 32px; color: rgba(255,255,255,0.3)" />
+                    </div>
+                    <p class="debug-empty-text">{{ t("ai.modelConfig.debugConsoleEmpty") }}</p>
+                  </div>
+                  <div v-for="(msg, idx) in testMessages" :key="idx" class="debug-message" :class="`debug-message--${msg.role}`">
+                    <div class="debug-msg-content">
+                      <pre v-if="msg.role === 'user'" class="debug-msg-pre">{{ msg.content }}</pre>
+                      <div v-else class="debug-msg-stream" v-html="msg.content" />
+                    </div>
+                  </div>
+                  <div v-if="testStreaming" class="debug-cursor-blink" />
+                </div>
+              </div>
+              <div class="debug-input-row">
+                <a-input
+                  v-model:value="testPromptInput"
+                  :placeholder="t('ai.modelConfig.debugConsolePlaceholder')"
+                  size="large"
+                  @press-enter="handleSendTest"
+                />
+                <a-button
+                  type="primary"
+                  size="large"
+                  class="send-btn"
+                  :loading="testStreaming"
+                  @click="handleSendTest"
+                >
+                  <template #icon><SendOutlined /></template>
+                  {{ t("ai.modelConfig.debugConsoleSend") }}
+                </a-button>
+              </div>
+            </div>
+          </a-tab-pane>
+        </a-tabs>
+      </template>
+
+      <!-- Empty state -->
+      <template v-else>
+        <div class="empty-state">
+          <a-empty :description="t('ai.modelConfig.providerSearchPlaceholder')" />
+        </div>
+      </template>
+    </div>
+
+    <!-- Create Model Drawer -->
+    <a-drawer
+      v-model:open="createDrawerVisible"
+      :title="t('ai.modelConfig.drawerCreate')"
+      :width="480"
+      @close="closeCreateDrawer"
+    >
+      <a-form ref="createFormRef" :model="createForm" layout="vertical" :rules="createRules">
+        <a-form-item :label="t('ai.modelConfig.labelName')" name="name">
+          <a-input v-model:value="createForm.name" :placeholder="t('ai.modelConfig.namePlaceholder')" />
+        </a-form-item>
+        <a-form-item :label="t('ai.modelConfig.labelProvider')" name="providerType">
+          <a-select v-model:value="createForm.providerType" :options="providerOptions" @change="onCreateProviderChange" />
+        </a-form-item>
+        <a-form-item :label="t('ai.modelConfig.labelApiKey')" name="apiKey">
+          <a-input-password v-model:value="createForm.apiKey" :placeholder="t('ai.modelConfig.apiKeyPlaceholderCreate')" />
+        </a-form-item>
+        <a-form-item :label="t('ai.modelConfig.labelBaseUrl')" name="baseUrl">
+          <a-input v-model:value="createForm.baseUrl" />
+        </a-form-item>
+        <a-form-item :label="t('ai.modelConfig.labelDefaultModel')" name="defaultModel">
+          <a-auto-complete
+            v-model:value="createForm.defaultModel"
+            :options="createSuggestedModels"
+            :placeholder="t('ai.modelConfig.defaultModelPlaceholder')"
+          />
+        </a-form-item>
       </a-form>
-    </template>
-  </CrudPageLayout>
+      <template #footer>
+        <a-space>
+          <a-button @click="closeCreateDrawer">{{ t("common.cancel") }}</a-button>
+          <a-button type="primary" :loading="createSubmitting" @click="handleCreateSubmit">{{ t("ai.modelConfig.ok") }}</a-button>
+        </a-space>
+      </template>
+    </a-drawer>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, reactive, ref } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, h } from "vue";
 import { useI18n } from "vue-i18n";
-import type { FormInstance, TablePaginationConfig } from "ant-design-vue";
+import type { FormInstance } from "ant-design-vue";
 import { message } from "ant-design-vue";
 import {
   PlusOutlined,
-  EditOutlined,
+  SearchOutlined,
+  RightOutlined,
+  SaveOutlined,
   DeleteOutlined,
-  ApiOutlined,
-  CloudOutlined,
   ThunderboltOutlined,
+  CloudOutlined,
   RobotOutlined,
-  ToolOutlined
+  ToolOutlined,
+  BulbOutlined,
+  EyeOutlined,
+  CodeOutlined,
+  CaretRightOutlined,
+  FileTextOutlined,
+  SendOutlined,
+  SettingOutlined,
+  ExperimentOutlined,
+  PlayCircleOutlined
 } from "@ant-design/icons-vue";
-import { CrudPageLayout } from "@atlas/shared-ui";
 import {
-  createModelConfigPromptTestStream,
   createModelConfig,
+  createModelConfigPromptTestStream,
   deleteModelConfig,
-  getModelConfigById,
   getModelConfigsPaged,
-  getModelConfigStats,
   testModelConfigConnection,
   updateModelConfig,
   type ModelConfigCreateRequest,
   type ModelConfigDto,
   type ModelConfigPromptTestRequest,
-  type ModelConfigStatsDto,
-  type ModelConfigTestResult
+  type ModelConfigTestResult as TestResult
 } from "@/services/api-ai";
 
 interface ProviderInfo {
@@ -336,61 +461,35 @@ interface ProviderInfo {
   icon: typeof CloudOutlined;
 }
 
+interface ProviderGroup {
+  providerType: string;
+  label: string;
+  hasEnabledModels: boolean;
+  models: ModelConfigDto[];
+}
+
+interface TestMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
 const { t } = useI18n();
 
 const isMounted = ref(false);
-onMounted(() => {
-  isMounted.value = true;
-});
-onUnmounted(() => {
-  isMounted.value = false;
-});
+onMounted(() => { isMounted.value = true; });
+onUnmounted(() => { isMounted.value = false; });
 
-const keyword = ref("");
-const dataList = ref<ModelConfigDto[]>([]);
+// ── Data ──
+const allModels = ref<ModelConfigDto[]>([]);
 const loading = ref(false);
-const testing = ref(false);
-const submitting = ref(false);
-const testResult = ref<ModelConfigTestResult | null>(null);
-const promptTesting = ref(false);
-const promptTestInput = ref("");
-const promptTestEnableReasoning = ref(true);
-const promptTestEnableTools = ref(false);
-const promptTestFinalOutput = ref("");
-const promptTestThoughtOutput = ref("");
-const promptTestToolOutput = ref("");
-const promptTestError = ref("");
-const activeThoughtPanels = ref<string[]>([]);
-let promptTestAbortController: AbortController | null = null;
-const statsData = ref<ModelConfigStatsDto>({
-  total: 0,
-  enabled: 0,
-  disabled: 0,
-  embeddingCount: 0
-});
+const searchKeyword = ref("");
+const expandedProviders = ref(new Set<string>());
+const selectedType = ref<"provider" | "model" | null>(null);
+const selectedProviderType = ref("");
+const selectedModelId = ref<number | null>(null);
+const activeTab = ref("basic");
 
-const pagination = reactive<TablePaginationConfig>({
-  current: 1,
-  pageSize: 20,
-  total: 0,
-  showSizeChanger: true,
-  pageSizeOptions: ["10", "20", "50"],
-  showTotal: (total: number) => t("crud.totalItems", { total })
-});
-
-const stats = computed(() => statsData.value);
-
-const columns = computed(() => [
-  { title: t("ai.promptLib.colName"), dataIndex: "name", key: "name", width: 200 },
-  { title: t("ai.modelConfig.colProvider"), dataIndex: "providerType", key: "providerType", width: 130 },
-  { title: t("ai.modelConfig.labelBaseUrl"), dataIndex: "baseUrl", key: "baseUrl", ellipsis: true },
-  { title: t("ai.modelConfig.labelDefaultModel"), dataIndex: "defaultModel", key: "defaultModel", width: 160 },
-  { title: t("ai.modelConfig.colApiKey"), dataIndex: "apiKeyMasked", key: "apiKeyMasked", width: 120 },
-  { title: t("ai.knowledgeBase.colStatus"), key: "isEnabled", width: 90 },
-  { title: t("ai.knowledgeBase.colCreatedAt"), dataIndex: "createdAt", key: "createdAt", width: 110 },
-  { title: t("ai.colActions"), key: "actions", width: 100, fixed: "right" as const }
-]);
-
+// ── Provider metadata ──
 const providerOptions = [
   { label: "OpenAI", value: "openai" },
   { label: "DeepSeek", value: "deepseek" },
@@ -422,153 +521,463 @@ function providerMeta(type: string): ProviderInfo {
   return map[type] ?? map.custom;
 }
 
-const providerHints = computed(() => {
-  const type = form.providerType;
-  const hints: Record<string, { baseUrlPlaceholder: string; baseUrlHint: string; apiKeyHint: string }> = {
-    openai: {
-      baseUrlPlaceholder: "https://api.openai.com/v1",
-      baseUrlHint: t("ai.modelConfig.hintOpenaiBase"),
-      apiKeyHint: t("ai.modelConfig.hintOpenaiKey")
-    },
-    deepseek: {
-      baseUrlPlaceholder: "https://api.deepseek.com/v1",
-      baseUrlHint: t("ai.modelConfig.hintDeepseekBase"),
-      apiKeyHint: t("ai.modelConfig.hintDeepseekKey")
-    },
-    ollama: {
-      baseUrlPlaceholder: "http://localhost:11434/v1",
-      baseUrlHint: t("ai.modelConfig.hintOllamaBase"),
-      apiKeyHint: t("ai.modelConfig.hintOllamaKey")
-    },
-    custom: {
-      baseUrlPlaceholder: "https://your-api-endpoint.com/v1",
-      baseUrlHint: t("ai.modelConfig.hintCustomBase"),
-      apiKeyHint: t("ai.modelConfig.hintCustomKey")
-    }
-  };
-  return hints[type] ?? hints.custom;
+// ── Provider Groups ──
+const providerGroups = computed<ProviderGroup[]>(() => {
+  const map = new Map<string, ModelConfigDto[]>();
+  for (const model of allModels.value) {
+    const key = model.providerType;
+    if (!map.has(key)) map.set(key, []);
+    map.get(key)!.push(model);
+  }
+
+  const order = ["deepseek", "openai", "ollama", "custom"];
+  const allTypes = new Set([...order, ...map.keys()]);
+
+  const result: ProviderGroup[] = [];
+  for (const type of allTypes) {
+    if (!map.has(type)) continue;
+    const models = map.get(type)!;
+    result.push({
+      providerType: type,
+      label: providerMeta(type).label,
+      hasEnabledModels: models.some((m) => m.isEnabled),
+      models
+    });
+  }
+  return result;
 });
 
-const suggestedModels = computed(() =>
-  (providerModelSuggestions[form.providerType] ?? []).map((m) => ({ value: m }))
+const filteredProviderGroups = computed(() => {
+  const kw = searchKeyword.value.toLowerCase().trim();
+  if (!kw) return providerGroups.value;
+  return providerGroups.value
+    .map((g) => ({
+      ...g,
+      models: g.models.filter(
+        (m) => m.name.toLowerCase().includes(kw) || g.label.toLowerCase().includes(kw)
+      )
+    }))
+    .filter((g) => g.models.length > 0 || g.label.toLowerCase().includes(kw));
+});
+
+const currentProviderGroup = computed(() =>
+  providerGroups.value.find((g) => g.providerType === selectedProviderType.value)
 );
 
-function filterModelOption(input: string, option: { value: string }) {
-  return option.value.toLowerCase().includes(input.toLowerCase());
+const currentModel = computed(() =>
+  allModels.value.find((m) => m.id === selectedModelId.value)
+);
+
+function isDefaultModel(model: ModelConfigDto, group: ProviderGroup): boolean {
+  return group.models.indexOf(model) === 0;
 }
 
-const drawerVisible = ref(false);
-const editingId = ref<number | null>(null);
+const suggestedModels = computed(() => {
+  if (!currentModel.value) return [];
+  return (providerModelSuggestions[currentModel.value.providerType] ?? []).map((m) => ({ value: m }));
+});
 
-const drawerTitle = computed(() =>
-  editingId.value ? t("ai.modelConfig.drawerEdit") : t("ai.modelConfig.drawerCreate")
-);
+// ── Tree interaction ──
+function toggleExpand(providerType: string) {
+  const set = new Set(expandedProviders.value);
+  if (set.has(providerType)) set.delete(providerType);
+  else set.add(providerType);
+  expandedProviders.value = set;
+}
 
-const formRef = ref<FormInstance>();
-const form = reactive({
+function selectProvider(providerType: string) {
+  selectedType.value = "provider";
+  selectedProviderType.value = providerType;
+  selectedModelId.value = null;
+  const set = new Set(expandedProviders.value);
+  set.add(providerType);
+  expandedProviders.value = set;
+
+  const group = providerGroups.value.find((g) => g.providerType === providerType);
+  if (group && group.models.length > 0) {
+    providerForm.baseUrl = group.models[0].baseUrl;
+    providerForm.apiKey = "";
+  }
+}
+
+function selectModel(model: ModelConfigDto) {
+  selectedType.value = "model";
+  selectedModelId.value = model.id;
+  selectedProviderType.value = model.providerType;
+  activeTab.value = "basic";
+  loadModelForm(model);
+}
+
+// ── Tab label helper ──
+function tabLabel(key: string) {
+  const iconMap: Record<string, typeof SettingOutlined> = {
+    basic: SettingOutlined,
+    advanced: ExperimentOutlined,
+    test: PlayCircleOutlined
+  };
+  const labelMap: Record<string, string> = {
+    basic: t("ai.modelConfig.tabBasicInfo"),
+    advanced: t("ai.modelConfig.tabAdvanced"),
+    test: t("ai.modelConfig.tabModelTest")
+  };
+  return h("span", {}, [h(iconMap[key], { style: "margin-right: 6px" }), labelMap[key]]);
+}
+
+// ── Provider form ──
+const providerForm = reactive({ baseUrl: "", apiKey: "" });
+const providerSaving = ref(false);
+const providerTesting = ref(false);
+const providerTestResult = ref<TestResult | null>(null);
+
+async function handleProviderTestConnection() {
+  const group = currentProviderGroup.value;
+  if (!group || group.models.length === 0) return;
+  const firstModel = group.models[0];
+  providerTesting.value = true;
+  providerTestResult.value = null;
+  try {
+    providerTestResult.value = await testModelConfigConnection({
+      modelConfigId: firstModel.id,
+      providerType: firstModel.providerType,
+      apiKey: providerForm.apiKey,
+      baseUrl: providerForm.baseUrl || firstModel.baseUrl,
+      model: firstModel.defaultModel
+    });
+  } catch (error: unknown) {
+    providerTestResult.value = { success: false, errorMessage: (error as Error).message };
+  } finally {
+    providerTesting.value = false;
+  }
+}
+
+async function saveProviderConfig() {
+  const group = currentProviderGroup.value;
+  if (!group) return;
+  providerSaving.value = true;
+  try {
+    for (const model of group.models) {
+      await updateModelConfig(model.id, {
+        name: model.name,
+        apiKey: providerForm.apiKey,
+        baseUrl: providerForm.baseUrl || model.baseUrl,
+        defaultModel: model.defaultModel,
+        isEnabled: model.isEnabled,
+        supportsEmbedding: model.supportsEmbedding
+      });
+    }
+    message.success(t("crud.updateSuccess"));
+    await loadData();
+  } catch (error: unknown) {
+    message.error((error as Error).message || t("crud.submitFailed"));
+  } finally {
+    providerSaving.value = false;
+  }
+}
+
+// ── Model form ──
+const modelForm = reactive({
+  name: "",
+  modelId: "",
+  systemPrompt: "",
+  defaultModel: "",
+  isEnabled: true,
+  supportsEmbedding: true,
+  enableStreaming: true,
+  enableReasoning: false,
+  enableTools: false,
+  enableVision: false,
+  enableJsonMode: false,
+  maxTokens: undefined as number | undefined
+});
+
+const temperatureValue = ref(20);
+const topPValue = ref(100);
+const frequencyPenaltyValue = ref(0);
+const presencePenaltyValue = ref(0);
+
+function loadModelForm(model: ModelConfigDto) {
+  modelForm.name = model.name;
+  modelForm.modelId = model.modelId || model.defaultModel;
+  modelForm.systemPrompt = model.systemPrompt || "";
+  modelForm.defaultModel = model.defaultModel;
+  modelForm.isEnabled = model.isEnabled;
+  modelForm.supportsEmbedding = model.supportsEmbedding;
+  modelForm.enableStreaming = model.enableStreaming;
+  modelForm.enableReasoning = model.enableReasoning;
+  modelForm.enableTools = model.enableTools;
+  modelForm.enableVision = model.enableVision;
+  modelForm.enableJsonMode = model.enableJsonMode;
+  modelForm.maxTokens = model.maxTokens ?? undefined;
+  temperatureValue.value = Math.round((model.temperature ?? 0.2) * 100);
+  topPValue.value = Math.round((model.topP ?? 1) * 100);
+  frequencyPenaltyValue.value = Math.round((model.frequencyPenalty ?? 0) * 100);
+  presencePenaltyValue.value = Math.round((model.presencePenalty ?? 0) * 100);
+}
+
+const modelSaving = ref(false);
+
+async function saveModelConfig() {
+  if (!currentModel.value) return;
+  modelSaving.value = true;
+  try {
+    await updateModelConfig(currentModel.value.id, {
+      name: modelForm.name,
+      apiKey: "",
+      baseUrl: currentModel.value.baseUrl,
+      defaultModel: modelForm.defaultModel,
+      isEnabled: modelForm.isEnabled,
+      supportsEmbedding: modelForm.supportsEmbedding,
+      modelId: modelForm.modelId,
+      systemPrompt: modelForm.systemPrompt || undefined,
+      enableStreaming: modelForm.enableStreaming,
+      enableReasoning: modelForm.enableReasoning,
+      enableTools: modelForm.enableTools,
+      enableVision: modelForm.enableVision,
+      enableJsonMode: modelForm.enableJsonMode,
+      temperature: temperatureValue.value / 100,
+      maxTokens: modelForm.maxTokens ?? undefined,
+      topP: topPValue.value / 100,
+      frequencyPenalty: frequencyPenaltyValue.value / 100,
+      presencePenalty: presencePenaltyValue.value / 100
+    });
+    message.success(t("crud.updateSuccess"));
+    await loadData();
+    const updated = allModels.value.find((m) => m.id === currentModel.value!.id);
+    if (updated) loadModelForm(updated);
+  } catch (error: unknown) {
+    message.error((error as Error).message || t("crud.submitFailed"));
+  } finally {
+    modelSaving.value = false;
+  }
+}
+
+async function handleDeleteModel(id: number) {
+  try {
+    await deleteModelConfig(id);
+    message.success(t("crud.deleteSuccess"));
+    selectedType.value = null;
+    selectedModelId.value = null;
+    await loadData();
+  } catch (error: unknown) {
+    message.error((error as Error).message || t("crud.deleteFailed"));
+  }
+}
+
+// ── Create Drawer ──
+const createDrawerVisible = ref(false);
+const createFormRef = ref<FormInstance>();
+const createSubmitting = ref(false);
+const createForm = reactive({
   name: "",
   providerType: "openai",
   apiKey: "",
-  baseUrl: "",
-  defaultModel: "",
-  supportsEmbedding: true,
-  isEnabled: true
+  baseUrl: "https://api.openai.com/v1",
+  defaultModel: ""
 });
-const previousProviderType = ref(form.providerType);
 
-const baseRules = computed(() => ({
+const createRules = computed(() => ({
   name: [{ required: true, message: t("ai.modelConfig.ruleName") }],
   providerType: [{ required: true, message: t("ai.modelConfig.ruleProvider") }],
+  apiKey: [{ required: true, message: t("ai.modelConfig.ruleApiKey") }],
   baseUrl: [{ required: true, message: t("ai.modelConfig.ruleBaseUrl") }],
   defaultModel: [{ required: true, message: t("ai.modelConfig.ruleDefaultModel") }]
 }));
 
-const createRules = computed(() => ({
-  ...baseRules.value,
-  apiKey: [{ required: true, message: t("ai.modelConfig.ruleApiKey") }]
-}));
+const createSuggestedModels = computed(() =>
+  (providerModelSuggestions[createForm.providerType] ?? []).map((m) => ({ value: m }))
+);
 
-const currentRules = computed(() => (editingId.value ? baseRules.value : createRules.value));
-
-function formatDate(dateStr: string) {
-  if (!dateStr) return "-";
-  const d = new Date(dateStr);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+function onCreateProviderChange(value: string) {
+  createForm.baseUrl = providerBaseUrls[value] ?? "";
+  createForm.defaultModel = "";
 }
 
-const testResultDescription = computed(() => {
-  if (!testResult.value) return "";
-  if (testResult.value.success) {
-    return t("ai.modelConfig.latency", { ms: testResult.value.latencyMs ?? 0 });
+function openCreateDrawer() {
+  Object.assign(createForm, {
+    name: "",
+    providerType: selectedProviderType.value || "openai",
+    apiKey: "",
+    baseUrl: providerBaseUrls[selectedProviderType.value || "openai"] ?? "",
+    defaultModel: ""
+  });
+  createDrawerVisible.value = true;
+}
+
+function closeCreateDrawer() {
+  createDrawerVisible.value = false;
+}
+
+async function handleCreateSubmit() {
+  try {
+    await createFormRef.value?.validate();
+  } catch {
+    return;
   }
-  return testResult.value.errorMessage || t("ai.modelConfig.connectUnreachable");
-});
+  createSubmitting.value = true;
+  try {
+    const payload: ModelConfigCreateRequest = {
+      name: createForm.name,
+      providerType: createForm.providerType,
+      apiKey: createForm.apiKey,
+      baseUrl: createForm.baseUrl,
+      defaultModel: createForm.defaultModel,
+      supportsEmbedding: true,
+      modelId: createForm.defaultModel,
+      enableStreaming: true
+    };
+    await createModelConfig(payload);
+    message.success(t("crud.createSuccess"));
+    createDrawerVisible.value = false;
+    await loadData();
+  } catch (error: unknown) {
+    message.error((error as Error).message || t("crud.submitFailed"));
+  } finally {
+    createSubmitting.value = false;
+  }
+}
 
-const testResultErrorLines = computed(() => {
-  const raw = testResult.value?.errorMessage ?? "";
-  const cleaned = stripTraceId(raw);
-  const normalized = cleaned
-    .replace(/one or more validation errors occurred\.?/gi, "")
-    .replace(/发生一个或多个验证错误。?/g, "")
-    .trim();
-  const tokens = normalized
-    .split(/[;\n；]+/g)
-    .map((item) => item.trim())
-    .filter((item) => item.length > 0);
-  const deduped = Array.from(new Set(tokens));
-  return deduped.length > 0 ? deduped : [t("ai.modelConfig.connectUnreachable")];
-});
+// ── Model Test (Debug Console) ──
+const testPromptInput = ref("");
+const testStreaming = ref(false);
+const testMessages = ref<TestMessage[]>([]);
+const testLatency = ref<number | null>(null);
+const testTokens = ref<number | null>(null);
+const debugBodyRef = ref<HTMLElement>();
+let testAbortController: AbortController | null = null;
 
-function stripTraceId(text: string): string {
+async function handleSendTest() {
+  if (!currentModel.value || testStreaming.value) return;
+  const prompt = testPromptInput.value.trim();
+  if (!prompt) {
+    message.warning(t("ai.modelConfig.promptRequired"));
+    return;
+  }
+
+  testMessages.value.push({ role: "user", content: prompt });
+  testMessages.value.push({ role: "assistant", content: "" });
+  testPromptInput.value = "";
+  testStreaming.value = true;
+  testLatency.value = null;
+  testTokens.value = null;
+
+  const startTime = Date.now();
+  const model = currentModel.value;
+
+  const payload: ModelConfigPromptTestRequest = {
+    modelConfigId: model.id,
+    providerType: model.providerType,
+    apiKey: "",
+    baseUrl: model.baseUrl,
+    model: modelForm.modelId || model.defaultModel,
+    prompt,
+    enableReasoning: modelForm.enableReasoning,
+    enableTools: modelForm.enableTools,
+    enableStreaming: modelForm.enableStreaming
+  };
+
+  const { fetchPromise, abortController } = createModelConfigPromptTestStream(payload);
+  testAbortController = abortController;
+
+  try {
+    const response = await fetchPromise;
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    if (!response.body) throw new Error("Empty body");
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let currentEventType = "data";
+    let currentDataLines: string[] = [];
+    let totalContent = "";
+
+    const flushEvent = () => {
+      if (currentDataLines.length === 0) { currentEventType = "data"; return; }
+      const eventType = currentEventType;
+      const eventData = currentDataLines.join("\n");
+      currentDataLines = [];
+      currentEventType = "data";
+      if (eventData === "[DONE]" || eventType === "done") return;
+
+      if (eventType === "final" || eventType === "data") {
+        totalContent += eventData;
+        const lastMsg = testMessages.value[testMessages.value.length - 1];
+        if (lastMsg && lastMsg.role === "assistant") {
+          lastMsg.content = escapeHtml(totalContent);
+        }
+        scrollDebug();
+      } else if (eventType === "thought") {
+        totalContent += eventData;
+        const lastMsg = testMessages.value[testMessages.value.length - 1];
+        if (lastMsg && lastMsg.role === "assistant") {
+          lastMsg.content = `<span class="thought-text">${escapeHtml(totalContent)}</span>`;
+        }
+        scrollDebug();
+      } else if (eventType === "error") {
+        const lastMsg = testMessages.value[testMessages.value.length - 1];
+        if (lastMsg && lastMsg.role === "assistant") {
+          lastMsg.content = `<span class="error-text">${escapeHtml(eventData)}</span>`;
+        }
+      }
+    };
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split(/\r?\n/);
+      buffer = lines.pop() ?? "";
+      for (const line of lines) {
+        if (line.length === 0) { flushEvent(); continue; }
+        if (line.startsWith("event:")) { currentEventType = line.slice("event:".length).trim() || "data"; continue; }
+        if (line.startsWith("data:")) { currentDataLines.push(line.slice("data:".length).trim()); }
+      }
+    }
+    flushEvent();
+    await reader.cancel();
+
+    testLatency.value = Date.now() - startTime;
+    testTokens.value = Math.ceil(totalContent.length / 4);
+  } catch (error: unknown) {
+    if ((error as Error).name !== "AbortError") {
+      const lastMsg = testMessages.value[testMessages.value.length - 1];
+      if (lastMsg && lastMsg.role === "assistant") {
+        lastMsg.content = `<span class="error-text">${escapeHtml((error as Error).message)}</span>`;
+      }
+    }
+  } finally {
+    testStreaming.value = false;
+    testAbortController = null;
+  }
+}
+
+function escapeHtml(text: string): string {
   return text
-    .replace(/（\s*traceId:\s*[^）]+\s*）/gi, "")
-    .replace(/\(\s*traceId:\s*[^)]+\s*\)/gi, "")
-    .trim();
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\n/g, "<br>");
 }
 
-function onProviderChange(value: string) {
-  const lastProviderType = previousProviderType.value;
-  const suggestedUrl = providerBaseUrls[value];
-  const previousProviderUrl = providerBaseUrls[lastProviderType];
-
-  if (!form.baseUrl || (previousProviderUrl && form.baseUrl === previousProviderUrl)) {
-    form.baseUrl = suggestedUrl ?? "";
-  }
-
-  const previousModels = providerModelSuggestions[lastProviderType] ?? [];
-  const normalizedCurrentModel = form.defaultModel.trim().toLowerCase();
-  const usesPreviousProviderModel = previousModels.some(
-    (model) => model.toLowerCase() === normalizedCurrentModel
-  );
-
-  if (!normalizedCurrentModel || usesPreviousProviderModel) {
-    form.defaultModel = "";
-  }
-
-  previousProviderType.value = value;
-  testResult.value = null;
+function scrollDebug() {
+  void nextTick(() => {
+    if (debugBodyRef.value) {
+      debugBodyRef.value.scrollTop = debugBodyRef.value.scrollHeight;
+    }
+  });
 }
 
+// ── Data loading ──
 async function loadData() {
   loading.value = true;
   try {
-    const currentKeyword = keyword.value || undefined;
-    const [pagedResult, statsResult] = await Promise.all([
-      getModelConfigsPaged({
-        pageIndex: pagination.current ?? 1,
-        pageSize: pagination.pageSize ?? 20,
-        keyword: currentKeyword
-      }),
-      getModelConfigStats(currentKeyword)
-    ]);
-
+    const result = await getModelConfigsPaged({ pageIndex: 1, pageSize: 200 });
     if (!isMounted.value) return;
-    dataList.value = pagedResult.items;
-    pagination.total = Number(pagedResult.total);
-    statsData.value = statsResult;
+    allModels.value = result.items;
+
+    if (providerGroups.value.length > 0 && !selectedType.value) {
+      const first = providerGroups.value[0];
+      selectProvider(first.providerType);
+    }
   } catch (error: unknown) {
     message.error((error as Error).message || t("crud.queryFailed"));
   } finally {
@@ -576,538 +985,683 @@ async function loadData() {
   }
 }
 
-function onTableChange(page: TablePaginationConfig) {
-  pagination.current = page.current ?? 1;
-  pagination.pageSize = page.pageSize ?? 20;
-  void loadData();
-}
+onMounted(() => { void loadData(); });
 
-function handleSearch() {
-  pagination.current = 1;
-  void loadData();
-}
-
-function handleReset() {
-  keyword.value = "";
-  pagination.current = 1;
-  void loadData();
-}
-
-function resetForm() {
-  Object.assign(form, {
-    name: "",
-    providerType: "openai",
-    apiKey: "",
-    baseUrl: "",
-    defaultModel: "",
-    supportsEmbedding: true,
-    isEnabled: true
-  });
-  previousProviderType.value = form.providerType;
-  testResult.value = null;
-  promptTestInput.value = "";
-  promptTestEnableReasoning.value = true;
-  promptTestEnableTools.value = false;
-  promptTestFinalOutput.value = "";
-  promptTestThoughtOutput.value = "";
-  promptTestToolOutput.value = "";
-  promptTestError.value = "";
-  activeThoughtPanels.value = [];
-}
-
-function openCreate() {
-  editingId.value = null;
-  resetForm();
-  drawerVisible.value = true;
-}
-
-async function openEdit(record: ModelConfigDto) {
-  try {
-    const detail = await getModelConfigById(record.id);
-
-    if (!isMounted.value) return;
-    editingId.value = record.id;
-    Object.assign(form, {
-      name: detail.name,
-      providerType: detail.providerType,
-      apiKey: "",
-      baseUrl: detail.baseUrl,
-      defaultModel: detail.defaultModel,
-      supportsEmbedding: detail.supportsEmbedding,
-      isEnabled: detail.isEnabled
-    });
-    previousProviderType.value = detail.providerType;
-    testResult.value = null;
-    drawerVisible.value = true;
-  } catch (error: unknown) {
-    message.error((error as Error).message || t("crud.loadDetailFailed"));
+onUnmounted(() => {
+  if (testAbortController) {
+    testAbortController.abort();
   }
-}
-
-function closeDrawer() {
-  handleStopPromptStreamTest();
-  drawerVisible.value = false;
-  formRef.value?.resetFields();
-  testResult.value = null;
-}
-
-async function submitForm() {
-  if (submitting.value) {
-    return;
-  }
-
-  try {
-    await formRef.value?.validate();
-
-    if (!isMounted.value) return;
-  } catch {
-    return;
-  }
-
-  submitting.value = true;
-  try {
-    if (editingId.value) {
-      await updateModelConfig(editingId.value, {
-        name: form.name,
-        apiKey: form.apiKey,
-        baseUrl: form.baseUrl,
-        defaultModel: form.defaultModel,
-        isEnabled: form.isEnabled,
-        supportsEmbedding: form.supportsEmbedding
-      });
-
-      if (!isMounted.value) return;
-      message.success(t("crud.updateSuccess"));
-    } else {
-      const payload: ModelConfigCreateRequest = {
-        name: form.name,
-        providerType: form.providerType,
-        apiKey: form.apiKey,
-        baseUrl: form.baseUrl,
-        defaultModel: form.defaultModel,
-        supportsEmbedding: form.supportsEmbedding
-      };
-      await createModelConfig(payload);
-
-      if (!isMounted.value) return;
-      message.success(t("crud.createSuccess"));
-    }
-
-    drawerVisible.value = false;
-    await loadData();
-
-    if (!isMounted.value) return;
-  } catch (error: unknown) {
-    message.error((error as Error).message || t("crud.submitFailed"));
-  } finally {
-    submitting.value = false;
-  }
-}
-
-async function handleDelete(id: number) {
-  try {
-    await deleteModelConfig(id);
-
-    if (!isMounted.value) return;
-    message.success(t("crud.deleteSuccess"));
-    await loadData();
-
-    if (!isMounted.value) return;
-  } catch (error: unknown) {
-    message.error(resolveDeleteErrorMessage(error));
-  }
-}
-
-function resolveDeleteErrorMessage(error: unknown): string {
-  const requestError = error as {
-    message?: string;
-    payload?: { code?: string; message?: string };
-    code?: string;
-  } | null;
-  const backendMessage = requestError?.payload?.message || requestError?.message || "";
-  if (
-    backendMessage.includes("Agent 引用") ||
-    backendMessage.includes("禁止删除") ||
-    backendMessage.includes("解除关联")
-  ) {
-    return backendMessage;
-  }
-  return backendMessage || t("crud.deleteFailed");
-}
-
-async function handleTestConnection() {
-  testing.value = true;
-  testResult.value = null;
-  try {
-    testResult.value = await testModelConfigConnection({
-      modelConfigId: editingId.value ?? undefined,
-      providerType: form.providerType,
-      apiKey: form.apiKey,
-      baseUrl: form.baseUrl,
-      model: form.defaultModel
-    });
-
-    if (!isMounted.value) return;
-  } catch (error: unknown) {
-    testResult.value = {
-      success: false,
-      errorMessage: (error as Error).message || t("ai.modelConfig.testFailed")
-    };
-  } finally {
-    testing.value = false;
-  }
-}
-
-async function handlePromptStreamTest() {
-  if (promptTesting.value) {
-    return;
-  }
-
-  if (!promptTestInput.value.trim()) {
-    message.warning(t("ai.modelConfig.promptRequired"));
-    return;
-  }
-
-  promptTestFinalOutput.value = "";
-  promptTestThoughtOutput.value = "";
-  promptTestToolOutput.value = "";
-  promptTestError.value = "";
-  activeThoughtPanels.value = [];
-  promptTesting.value = true;
-
-  const payload: ModelConfigPromptTestRequest = {
-    modelConfigId: editingId.value ?? undefined,
-    providerType: form.providerType,
-    apiKey: form.apiKey,
-    baseUrl: form.baseUrl,
-    model: form.defaultModel,
-    prompt: promptTestInput.value.trim(),
-    enableReasoning: promptTestEnableReasoning.value,
-    enableTools: promptTestEnableTools.value
-  };
-
-  const { fetchPromise, abortController } = createModelConfigPromptTestStream(payload);
-  promptTestAbortController = abortController;
-
-  try {
-    const response = await fetchPromise;
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-    if (!response.body) {
-      throw new Error(t("ai.modelConfig.testFailed"));
-    }
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-    let currentEventType = "data";
-    let currentDataLines: string[] = [];
-    let doneReceived = false;
-
-    const flushEvent = () => {
-      if (currentDataLines.length === 0) {
-        currentEventType = "data";
-        return;
-      }
-
-      const eventType = currentEventType;
-      const eventData = currentDataLines.join("\n");
-      currentDataLines = [];
-      currentEventType = "data";
-
-      if (eventData === "[DONE]" || eventType === "done") {
-        doneReceived = true;
-        return;
-      }
-
-      if (eventType === "thought") {
-        promptTestThoughtOutput.value += eventData;
-        return;
-      }
-
-      if (eventType === "tool") {
-        promptTestToolOutput.value += `${eventData}\n`;
-        return;
-      }
-
-      if (eventType === "error") {
-        promptTestError.value = eventData;
-        return;
-      }
-
-      promptTestFinalOutput.value += eventData;
-    };
-
-    while (!doneReceived) {
-      const { value, done } = await reader.read();
-      if (done) {
-        break;
-      }
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split(/\r?\n/);
-      buffer = lines.pop() ?? "";
-
-      for (const line of lines) {
-        if (line.length === 0) {
-          flushEvent();
-          if (doneReceived) {
-            break;
-          }
-          continue;
-        }
-
-        if (line.startsWith("event:")) {
-          currentEventType = line.slice("event:".length).trim() || "data";
-          continue;
-        }
-
-        if (line.startsWith("data:")) {
-          currentDataLines.push(line.slice("data:".length).trim());
-        }
-      }
-    }
-
-    flushEvent();
-    await reader.cancel();
-  } catch (error: unknown) {
-    if ((error as Error).name !== "AbortError") {
-      promptTestError.value = (error as Error).message || t("ai.modelConfig.testFailed");
-    }
-  } finally {
-    promptTesting.value = false;
-    promptTestAbortController = null;
-  }
-}
-
-function handleStopPromptStreamTest() {
-  if (promptTestAbortController) {
-    promptTestAbortController.abort();
-    promptTestAbortController = null;
-  }
-  promptTesting.value = false;
-}
-
-async function copyPromptOutput(value: string) {
-  const text = value.trim();
-  if (!text) {
-    message.warning(t("ai.modelConfig.emptyOutput"));
-    return;
-  }
-  try {
-    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(text);
-      message.success(t("ai.modelConfig.copySuccess"));
-      return;
-    }
-    throw new Error("clipboard not supported");
-  } catch {
-    message.error(t("ai.modelConfig.copyFailed"));
-  }
-}
-
-onMounted(() => {
-  void loadData();
 });
 </script>
 
 <style scoped>
-.stats-row {
-  margin-bottom: 16px;
+.model-configs-page {
+  display: flex;
+  gap: 24px;
+  height: 100%;
+  min-height: 0;
 }
 
-.stat-card {
-  background: var(--color-bg-container);
-  border: 1px solid var(--color-border);
-  border-radius: var(--border-radius-md);
-  padding: 12px 16px;
-  text-align: center;
-  transition: box-shadow 0.2s;
+/* ── Left Panel ── */
+.left-panel {
+  width: 320px;
+  min-width: 320px;
+  background: #fff;
+  border: 0.8px solid rgba(229, 231, 235, 0.8);
+  border-radius: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
-.stat-card:hover {
-  box-shadow: var(--shadow-sm);
-}
-
-.stat-card--success {
-  border-left: 3px solid var(--color-success);
-}
-
-.stat-card--warning {
-  border-left: 3px solid var(--color-warning);
-}
-
-.stat-card--info {
-  border-left: 3px solid #722ed1;
-}
-
-.stat-value {
-  font-size: 24px;
-  font-weight: 600;
-  color: var(--color-text-primary);
-  line-height: 1.4;
-}
-
-.stat-label {
-  font-size: 13px;
-  color: var(--color-text-tertiary);
-  margin-top: 2px;
-}
-
-.cell-name {
+.left-header {
   display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: space-between;
+  padding: 16px 16px 0;
 }
 
-.name-text {
-  font-weight: 500;
-}
-
-.embed-tag {
-  font-size: 11px;
-  line-height: 18px;
-  padding: 0 4px;
-}
-
-.url-text {
-  font-size: 12px;
-  color: var(--color-text-tertiary);
-  font-family: "SF Mono", "Fira Code", monospace;
-}
-
-.api-key-masked {
-  font-family: "SF Mono", "Fira Code", monospace;
-  color: var(--color-text-quaternary);
-  font-size: 12px;
-  letter-spacing: 1px;
-}
-
-.date-text {
-  font-size: 13px;
-  color: var(--color-text-tertiary);
-}
-
-.field-hint {
-  font-size: 12px;
-  color: var(--color-text-tertiary);
-}
-
-.switch-label {
-  margin-left: 8px;
-  color: var(--color-text-secondary);
-  font-size: 13px;
-}
-
-.test-section {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.test-result {
-  margin-top: 4px;
-}
-
-.prompt-test-section {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.chat-preview {
-  border: 1px solid var(--color-border);
-  border-radius: var(--border-radius-md);
-  padding: 10px;
-  background: var(--color-bg-layout);
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.chat-message-row {
-  display: flex;
-}
-
-.chat-message-row-user {
-  justify-content: flex-end;
-}
-
-.chat-message-row-assistant {
-  justify-content: flex-start;
-}
-
-.chat-bubble {
-  max-width: 88%;
-  border-radius: 10px;
-  border: 1px solid var(--color-border);
-  padding: 8px 10px;
-}
-
-.chat-bubble-user {
-  background: #e6f4ff;
-  border-color: #91caff;
-}
-
-.chat-bubble-assistant {
-  background: var(--color-bg-container);
-}
-
-.bubble-title {
-  font-size: 12px;
-  color: var(--color-text-secondary);
-  margin-bottom: 4px;
-}
-
-.bubble-content {
+.left-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #101828;
   margin: 0;
-  white-space: pre-wrap;
-  word-break: break-word;
-  font-size: 12px;
-  line-height: 1.6;
-  max-height: 260px;
-  overflow: auto;
+  line-height: 30px;
 }
 
-.stream-card {
-  border: 1px solid var(--color-border);
-  border-radius: var(--border-radius-md);
-  padding: 8px 10px;
-  background: var(--color-bg-container);
+.add-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
 }
 
-.stream-title {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--color-text-secondary);
-  margin-bottom: 6px;
+.search-box {
+  padding: 12px 12px 0;
 }
 
-.stream-title-actions {
+.search-box :deep(.ant-input-affix-wrapper) {
+  border-radius: 10px;
+  background: #f9fafb;
+  border-color: transparent;
+}
+
+.tree-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.provider-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.provider-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.provider-row:hover {
+  background: #f9fafb;
+}
+
+.provider-row--selected {
+  background: #f0f0ff;
+}
+
+.expand-btn {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.expand-icon--open {
+  transform: rotate(90deg);
+  transition: transform 0.2s;
+}
+
+.provider-icon-wrapper {
+  width: 28px;
+  height: 28px;
+  border-radius: 10px;
+  border: 0.8px solid #e5e7eb;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+
+.provider-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #364153;
+  flex: 1;
+}
+
+.provider-status-dot,
+.model-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.dot--online {
+  background: #00bc7d;
+}
+
+.dot--offline {
+  background: #d1d5dc;
+}
+
+.model-list {
+  padding-left: 36px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.model-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.model-row:hover {
+  background: #f9fafb;
+}
+
+.model-row--selected {
+  background: #fff;
+  border: 0.8px solid #c6d2ff;
+  box-shadow: 0 0 0 0 rgba(97, 95, 255, 0.2), 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.model-row--selected .model-name {
+  color: #432dd7;
+  font-weight: 700;
+}
+
+.model-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: #4a5565;
+  flex: 1;
+}
+
+.default-tag {
+  font-size: 10px;
+  line-height: 15px;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: #e0e7ff;
+  color: #432dd7;
+  border: none;
+  font-weight: 700;
+}
+
+/* ── Right Panel ── */
+.right-panel {
+  flex: 1;
+  min-width: 0;
+  background: #fff;
+  border: 0.8px solid rgba(229, 231, 235, 0.8);
+  border-radius: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.detail-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 0.8px solid rgba(243, 244, 246, 0.8);
+  background: rgba(249, 250, 251, 0.3);
+}
+
+.detail-header-left {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.detail-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.provider-detail-icon {
+  background: #e0e7ff;
+  color: #4f39f6;
+}
+
+.model-detail-icon {
+  background: #e0e7ff;
+  color: #4f39f6;
+}
+
+.detail-header-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.detail-header-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.detail-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #101828;
+  margin: 0;
+}
+
+.active-badge {
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 4px;
+}
+
+.detail-desc {
+  font-size: 13px;
+  color: #6a7282;
+  margin: 0;
+}
+
+.detail-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cap-separator {
+  margin: 0 6px;
+  color: #d1d5dc;
+}
+
+.cap-label {
+  color: #6a7282;
+}
+
+/* ── Detail body ── */
+.detail-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.config-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.section-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #101828;
+  margin: 0;
+}
+
+.section-title-icon {
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+}
+
+.section-header-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
-.stream-content {
+.test-conn-btn {
+  align-self: flex-start;
+}
+
+/* ── Model cards ── */
+.model-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.model-card {
+  flex: 0 0 calc(50% - 6px);
+  padding: 12px 16px;
+  border: 0.8px solid #e5e7eb;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.model-card:hover {
+  border-color: #c6d2ff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.model-card-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.model-card-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #101828;
+}
+
+.model-card-caps {
+  font-size: 12px;
+  color: #6a7282;
+}
+
+.model-card-arrow {
+  font-size: 12px;
+  color: #d1d5dc;
+}
+
+/* ── Tabs ── */
+.model-tabs {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.model-tabs :deep(.ant-tabs-nav) {
   margin: 0;
-  min-height: 120px;
-  max-height: 260px;
-  overflow: auto;
+  padding: 0 24px;
+  border-bottom: 0.8px solid rgba(243, 244, 246, 0.8);
+}
+
+.model-tabs :deep(.ant-tabs-content-holder) {
+  flex: 1;
+  overflow: hidden;
+}
+
+.model-tabs :deep(.ant-tabs-content) {
+  height: 100%;
+}
+
+.model-tabs :deep(.ant-tabs-tabpane) {
+  height: 100%;
+  overflow: hidden;
+}
+
+.tab-content {
+  padding: 24px;
+  overflow-y: auto;
+  height: 100%;
+}
+
+.tab-content-scroll {
+  overflow-y: auto;
+}
+
+/* ── Features & Status ── */
+.status-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.status-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #364153;
+}
+
+.status-value {
+  font-size: 12px;
+  color: #6a7282;
+}
+
+/* ── Feature Toggles ── */
+.feature-toggles-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.feature-card {
+  border: 0.8px solid rgba(229, 231, 235, 0.8);
+  border-radius: 14px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: all 0.15s;
+}
+
+.feature-card--active {
+  background: rgba(238, 242, 255, 0.3);
+  border-color: #c6d2ff;
+}
+
+.feature-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.feature-card-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: #f3f4f6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: #6a7282;
+}
+
+.fci--active {
+  background: #e0e7ff;
+  color: #4f39f6;
+}
+
+.feature-card-title {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 600;
+  color: #101828;
+  line-height: 1.3;
+}
+
+.feature-card-desc {
+  font-size: 12px;
+  line-height: 19.5px;
+  color: #6a7282;
+  margin: 0;
+}
+
+/* ── Parameters ── */
+.params-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.param-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.param-label {
+  min-width: 140px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #364153;
+}
+
+/* ── Debug Console ── */
+.tab-test {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+}
+
+.debug-console {
+  flex: 1;
+  background: #1a1a2e;
+  border-radius: 12px;
+  margin: 16px 16px 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.debug-console-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.debug-console-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.7);
+  font-family: "SF Mono", "Fira Code", monospace;
+}
+
+.debug-console-stats {
+  display: flex;
+  gap: 16px;
+}
+
+.stat-item {
+  font-size: 11px;
+  font-family: "SF Mono", "Fira Code", monospace;
+}
+
+.stat-latency {
+  color: #00bc7d;
+}
+
+.stat-tokens {
+  color: #818cf8;
+}
+
+.stat-val {
+  font-weight: 700;
+}
+
+.debug-console-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 200px;
+}
+
+.debug-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  gap: 12px;
+}
+
+.debug-empty-text {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.debug-message {
+  display: flex;
+}
+
+.debug-message--user {
+  justify-content: flex-end;
+}
+
+.debug-message--user .debug-msg-content {
+  background: #3730a3;
+  border-radius: 12px 12px 4px 12px;
+}
+
+.debug-message--assistant .debug-msg-content {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px 12px 12px 4px;
+}
+
+.debug-msg-content {
+  max-width: 85%;
+  padding: 10px 14px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.debug-msg-pre {
+  margin: 0;
   white-space: pre-wrap;
   word-break: break-word;
-  font-size: 12px;
-  line-height: 1.6;
-  color: var(--color-text);
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.9);
+  font-family: inherit;
 }
 
-.test-error-list {
-  margin: 0;
-  padding-left: 18px;
+.debug-msg-stream {
+  font-size: 13px;
+  line-height: 1.6;
 }
 
-.test-error-list li {
-  line-height: 1.6;
+.debug-msg-stream :deep(.thought-text) {
+  color: #818cf8;
+  font-style: italic;
+}
+
+.debug-msg-stream :deep(.error-text) {
+  color: #f87171;
+}
+
+.debug-cursor-blink {
+  width: 8px;
+  height: 16px;
+  background: #818cf8;
+  animation: blink 1s step-end infinite;
+  margin-left: 16px;
+}
+
+@keyframes blink {
+  50% { opacity: 0; }
+}
+
+.debug-input-row {
+  display: flex;
+  gap: 12px;
+  padding: 16px;
+  align-items: stretch;
+}
+
+.debug-input-row :deep(.ant-input) {
+  border-radius: 12px;
+}
+
+.send-btn {
+  border-radius: 12px;
+  min-width: 80px;
+  background: #4f39f6;
+  border-color: #4f39f6;
+}
+
+.send-btn:hover {
+  background: #3730a3;
+  border-color: #3730a3;
+}
+
+/* ── Empty state ── */
+.empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
 }
 </style>
