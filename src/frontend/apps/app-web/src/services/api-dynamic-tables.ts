@@ -18,6 +18,16 @@ import type {
 
 const DYNAMIC_TABLES_MAX_PAGE_SIZE = 200;
 
+function buildAppIdHeaders(appId?: string): Record<string, string> {
+  const headers: Record<string, string> = {};
+  const trimmed = appId?.trim();
+  if (trimmed && /^\d+$/.test(trimmed) && trimmed !== "0") {
+    headers["X-App-Id"] = trimmed;
+    headers["X-App-Workspace"] = "1";
+  }
+  return headers;
+}
+
 // ---------------------------------------------------------------------------
 // Table metadata (AppHost: /api/v1/dynamic-tables)
 // ---------------------------------------------------------------------------
@@ -77,16 +87,18 @@ export async function getAppScopedDynamicTables(
   }));
 }
 
-export async function getDynamicTableSummary(tableKey: string): Promise<DynamicTableSummary | null> {
+export async function getDynamicTableSummary(tableKey: string, appId?: string): Promise<DynamicTableSummary | null> {
   const response = await requestApi<ApiResponse<DynamicTableSummary | null>>(
-    `/dynamic-tables/${encodeURIComponent(tableKey)}/summary`
+    `/dynamic-tables/${encodeURIComponent(tableKey)}/summary`,
+    { headers: { ...buildAppIdHeaders(appId) } }
   );
   return response.data ?? null;
 }
 
-export async function getDynamicTableFields(tableKey: string): Promise<DynamicFieldDefinition[]> {
+export async function getDynamicTableFields(tableKey: string, appId?: string): Promise<DynamicFieldDefinition[]> {
   const response = await requestApi<ApiResponse<DynamicFieldDefinition[]>>(
-    `/dynamic-tables/${encodeURIComponent(tableKey)}/fields`
+    `/dynamic-tables/${encodeURIComponent(tableKey)}/fields`,
+    { headers: { ...buildAppIdHeaders(appId) } }
   );
   if (!response.data) throw new Error(response.message || "查询失败");
   return response.data;
@@ -136,13 +148,14 @@ export async function restoreDynamicTable(tableKey: string): Promise<void> {
 
 export async function alterDynamicTablePreview(
   tableKey: string,
-  request: DynamicTableAlterRequest
+  request: DynamicTableAlterRequest,
+  appId?: string
 ): Promise<DynamicTableAlterPreviewResponse> {
   const response = await requestApi<ApiResponse<DynamicTableAlterPreviewResponse>>(
     `/dynamic-tables/${encodeURIComponent(tableKey)}/schema/alter-preview`,
     {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...buildAppIdHeaders(appId) },
       body: JSON.stringify(request)
     }
   );
@@ -152,13 +165,14 @@ export async function alterDynamicTablePreview(
 
 export async function alterDynamicTable(
   tableKey: string,
-  request: DynamicTableAlterRequest
+  request: DynamicTableAlterRequest,
+  appId?: string
 ): Promise<void> {
   const response = await requestApi<ApiResponse<unknown>>(
     `/dynamic-tables/${encodeURIComponent(tableKey)}/schema/alter`,
     {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...buildAppIdHeaders(appId) },
       body: JSON.stringify(request)
     }
   );
@@ -178,16 +192,6 @@ interface RecordContext {
 function recordsBase(ctx: RecordContext): string {
   const prefix = resolveAppHostPrefix(ctx.appKey);
   return `${prefix}/api/v1/dynamic-tables/${encodeURIComponent(ctx.tableKey)}/records`;
-}
-
-function buildAppIdHeaders(appId?: string): Record<string, string> {
-  const headers: Record<string, string> = {};
-  const trimmed = appId?.trim();
-  if (trimmed && /^\d+$/.test(trimmed) && trimmed !== "0") {
-    headers["X-App-Id"] = trimmed;
-    headers["X-App-Workspace"] = "1";
-  }
-  return headers;
 }
 
 export async function queryDynamicRecords(

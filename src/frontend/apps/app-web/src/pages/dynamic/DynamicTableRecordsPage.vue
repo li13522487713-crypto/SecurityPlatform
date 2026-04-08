@@ -338,7 +338,7 @@ const loadRecords = async () => {
 const loadSummary = async () => {
   if (!tableKey.value) return;
   try {
-    tableSummary.value = await getDynamicTableSummary(tableKey.value);
+    tableSummary.value = await getDynamicTableSummary(tableKey.value, appId.value ?? undefined);
   } catch {
     tableSummary.value = null;
   }

@@ -454,7 +454,7 @@ const loadSelectedTableDetail = async (tableKeySnapshot: string = selectedTableK
   }
   detailLoading.value = true;
   try {
-    const detail = await getDynamicTableSummary(tableKeySnapshot);
+    const detail = await getDynamicTableSummary(tableKeySnapshot, appId.value ?? undefined);
     if (!isMounted.value || selectedTableKey.value !== tableKeySnapshot) return;
     selectedTableDetail.value = detail;
   } catch (error) {

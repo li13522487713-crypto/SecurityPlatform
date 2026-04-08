@@ -174,7 +174,7 @@ import type {
 const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
-const { appKey } = useAppContext();
+const { appKey, appId } = useAppContext();
 
 const tableKey = computed(() => String(route.params.tableKey ?? ""));
 const loading = ref(false);
@@ -218,7 +218,7 @@ const loadFields = async () => {
   if (!tableKey.value) return;
   loading.value = true;
   try {
-    fields.value = await getDynamicTableFields(tableKey.value);
+    fields.value = await getDynamicTableFields(tableKey.value, appId.value ?? undefined);
     addedFields.length = 0;
     removedFields.length = 0;
     modifiedFieldNames.clear();
@@ -232,7 +232,7 @@ const loadFields = async () => {
 const loadSummary = async () => {
   if (!tableKey.value) return;
   try {
-    tableSummary.value = await getDynamicTableSummary(tableKey.value);
+    tableSummary.value = await getDynamicTableSummary(tableKey.value, appId.value ?? undefined);
   } catch {
     tableSummary.value = null;
   }
@@ -283,7 +283,7 @@ const buildAlterRequest = () => ({
 const previewChanges = async () => {
   if (!tableKey.value) return;
   try {
-    previewData.value = await alterDynamicTablePreview(tableKey.value, buildAlterRequest());
+    previewData.value = await alterDynamicTablePreview(tableKey.value, buildAlterRequest(), appId.value ?? undefined);
     previewVisible.value = true;
   } catch (error) {
     message.error((error as Error).message || t("dynamicTable.alterFailed"));
@@ -294,7 +294,7 @@ const applyChanges = async () => {
   if (!tableKey.value) return;
   applying.value = true;
   try {
-    await alterDynamicTable(tableKey.value, buildAlterRequest());
+    await alterDynamicTable(tableKey.value, buildAlterRequest(), appId.value ?? undefined);
     message.success(t("dynamicTable.alterSuccess"));
     void loadFields();
     void loadSummary();

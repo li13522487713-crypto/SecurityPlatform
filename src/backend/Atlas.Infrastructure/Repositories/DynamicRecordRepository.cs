@@ -21,6 +21,11 @@ public sealed class DynamicRecordRepository : IDynamicRecordRepository
         "eq", "ne", "gt", "gte", "lt", "lte", "like", "in", "between"
     };
 
+    private static readonly HashSet<string> SystemManagedFields = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "created_at", "updated_at", "created_by", "updated_by", "is_deleted"
+    };
+
     private readonly ISqlSugarClient _mainDb;
     private readonly IAppDbScopeFactory _appDbScopeFactory;
 
@@ -62,6 +67,11 @@ public sealed class DynamicRecordRepository : IDynamicRecordRepository
 
             if (!values.TryGetValue(field.Name, out var valueDto))
             {
+                if (SystemManagedFields.Contains(field.Name))
+                {
+                    row[field.Name] = ResolveSystemDefault(field);
+                    continue;
+                }
                 if (!field.AllowNull)
                 {
                     throw new BusinessException(Atlas.Core.Models.ErrorCodes.ValidationError, $"Field '{field.Name}' is required.");
@@ -289,6 +299,18 @@ public sealed class DynamicRecordRepository : IDynamicRecordRepository
             DynamicFieldType.DateTime => value.DateTimeValue?.UtcDateTime,
             DynamicFieldType.Date => value.DateValue?.UtcDateTime.Date,
             _ => value.StringValue
+        };
+    }
+
+    private static object ResolveSystemDefault(DynamicField field)
+    {
+        return field.FieldType switch
+        {
+            DynamicFieldType.DateTime or DynamicFieldType.Date => DateTime.UtcNow,
+            DynamicFieldType.Bool => false,
+            DynamicFieldType.Long or DynamicFieldType.Int => 0L,
+            DynamicFieldType.String or DynamicFieldType.Text => string.Empty,
+            _ => DBNull.Value
         };
     }
 

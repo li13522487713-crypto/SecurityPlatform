@@ -12,6 +12,11 @@ namespace Atlas.Infrastructure.Services;
 /// </summary>
 public sealed class DynamicFormValidationService : IDynamicFormValidationService
 {
+    private static readonly HashSet<string> SystemManagedFields = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "created_at", "updated_at", "created_by", "updated_by", "is_deleted"
+    };
+
     private readonly IDynamicTableRepository _tableRepository;
     private readonly IDynamicFieldRepository _fieldRepository;
     private readonly ITenantProvider _tenantProvider;
@@ -54,6 +59,11 @@ public sealed class DynamicFormValidationService : IDynamicFormValidationService
         foreach (var field in fields)
         {
             if (field.IsPrimaryKey || field.IsAutoIncrement)
+            {
+                continue;
+            }
+
+            if (SystemManagedFields.Contains(field.Name))
             {
                 continue;
             }
