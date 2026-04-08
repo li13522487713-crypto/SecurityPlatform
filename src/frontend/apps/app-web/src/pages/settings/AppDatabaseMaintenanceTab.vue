@@ -1,5 +1,5 @@
 <template>
-  <div class="db-maintenance-tab">
+  <div class="db-maintenance-tab" data-testid="app-settings-db-tab">
     <!-- Database Info -->
     <a-card :title="t('settings.dbInfo')" :loading="loadingInfo" size="small" style="margin-bottom: 16px">
       <a-descriptions bordered :column="2" size="small">
@@ -12,10 +12,10 @@
       </a-descriptions>
       <template #extra>
         <a-space>
-          <a-button size="small" :loading="testingConn" @click="handleTestConn">
+          <a-button size="small" data-testid="app-settings-db-test-connection" :loading="testingConn" @click="handleTestConn">
             {{ t("settings.testConn") }}
           </a-button>
-          <a-tag v-if="connResult !== null" :color="connResult.connected ? 'success' : 'error'">
+          <a-tag v-if="connResult !== null" data-testid="app-settings-db-connection-result" :color="connResult.connected ? 'success' : 'error'">
             {{ connResult.connected ? `OK (${connResult.latencyMs}ms)` : connResult.message }}
           </a-tag>
         </a-space>
@@ -25,12 +25,12 @@
     <!-- Backup List -->
     <a-card :title="t('settings.backups')" size="small">
       <template #extra>
-        <a-button type="primary" size="small" :loading="backingUp" @click="handleBackup">
+        <a-button type="primary" size="small" data-testid="app-settings-db-backup-now" :loading="backingUp" @click="handleBackup">
           {{ t("settings.backupNow") }}
         </a-button>
       </template>
 
-      <a-table :data-source="backups" :columns="cols" :loading="loadingBackups"
+      <a-table data-testid="app-settings-db-backup-table" :data-source="backups" :columns="cols" :loading="loadingBackups"
         :pagination="false" row-key="fileName" size="small">
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'sizeBytes'">{{ formatSize(record.sizeBytes) }}</template>

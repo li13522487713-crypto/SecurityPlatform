@@ -1,5 +1,6 @@
 <template>
   <CrudPageLayout
+    data-testid="app-departments-page"
     v-model:keyword="keyword"
     :title="t('systemDepartments.pageTitle')"
     :search-placeholder="t('systemDepartments.searchPlaceholder')"
@@ -13,7 +14,7 @@
     @submit="submitForm"
   >
     <template #toolbar-actions>
-      <a-button v-if="canCreate" type="primary" @click="openCreate">
+      <a-button v-if="canCreate" type="primary" data-testid="app-departments-create" @click="openCreate">
         {{ t("systemDepartments.addDepartment") }}
       </a-button>
     </template>
@@ -42,6 +43,7 @@
         </a-col>
         <a-col :span="18">
           <a-table
+            data-testid="app-departments-table"
             :columns="tableColumns"
             :data-source="tableData"
             :pagination="pagination"
@@ -56,7 +58,7 @@
               </template>
               <template v-else-if="column.key === 'actions'">
                 <a-space>
-                  <a-button v-if="canUpdate" type="link" @click="openEdit(record)">{{ t("common.edit") }}</a-button>
+                  <a-button v-if="canUpdate" type="link" :data-testid="`app-departments-edit-${record.id}`" @click="openEdit(record)">{{ t("common.edit") }}</a-button>
                   <a-popconfirm
                     v-if="canDelete"
                     :title="t('systemDepartments.deleteConfirm')"
@@ -64,7 +66,7 @@
                     :cancel-text="t('common.cancel')"
                     @confirm="handleDeleteDept(record.id)"
                   >
-                    <a-button type="link" danger>{{ t("common.delete") }}</a-button>
+                    <a-button type="link" danger :data-testid="`app-departments-delete-${record.id}`">{{ t("common.delete") }}</a-button>
                   </a-popconfirm>
                 </a-space>
               </template>
@@ -77,10 +79,10 @@
     <template #form>
       <a-form ref="formRef" :model="formModel" :rules="formRules" layout="vertical">
         <a-form-item :label="t('systemDepartments.departmentName')" name="name">
-          <a-input v-model:value="formModel.name" />
+          <a-input v-model:value="formModel.name" data-testid="app-departments-form-name" />
         </a-form-item>
         <a-form-item :label="t('systemDepartments.departmentCode')" name="code">
-          <a-input v-model:value="formModel.code" />
+          <a-input v-model:value="formModel.code" data-testid="app-departments-form-code" />
         </a-form-item>
         <a-form-item :label="t('systemDepartments.parentDepartment')" name="parentId">
           <a-select

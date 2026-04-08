@@ -1,5 +1,5 @@
 <template>
-  <div class="profile-page">
+  <div class="profile-page" data-testid="app-profile-page">
     <a-card :title="t('profile.pageTitle')" :bordered="false">
       <a-row :gutter="[16, 16]">
         <a-col :xs="24" :lg="12">
@@ -40,7 +40,7 @@
               <a-input v-model:value="formModel.phoneNumber" :placeholder="t('profile.placeholderPhone')" />
             </a-form-item>
             <a-space>
-              <a-button type="primary" :loading="saving" @click="submit">{{ t("profile.save") }}</a-button>
+              <a-button type="primary" data-testid="app-profile-save" :loading="saving" @click="submit">{{ t("profile.save") }}</a-button>
               <a-button :disabled="saving" @click="resetForm">{{ t("profile.reset") }}</a-button>
             </a-space>
           </a-form>
@@ -68,7 +68,7 @@
           </a-col>
         </a-row>
         <a-space>
-          <a-button type="primary" :loading="changing" @click="submitPassword">{{ t("profile.updatePassword") }}</a-button>
+          <a-button type="primary" data-testid="app-profile-password-submit" :loading="changing" @click="submitPassword">{{ t("profile.updatePassword") }}</a-button>
           <a-button :disabled="changing" @click="resetPasswordForm">{{ t("profile.resetPassword") }}</a-button>
         </a-space>
       </a-form>

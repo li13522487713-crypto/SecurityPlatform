@@ -91,12 +91,17 @@ public sealed class ReportService : IReportService
     {
         var id = _idGenerator.NextId();
         var now = DateTimeOffset.UtcNow;
-        var entity = new ReportDefinition(tenantId, request.Name, request.Description, request.Category, request.ConfigJson, userId, id, now);
+        var entity = new ReportDefinition(
+            tenantId,
+            request.Name,
+            request.Description ?? string.Empty,
+            request.Category ?? string.Empty,
+            request.ConfigJson,
+            userId,
+            id,
+            now);
 
-        if (!string.IsNullOrWhiteSpace(request.DataSourceJson))
-        {
-            entity.SetDataSource(request.DataSourceJson, userId, now);
-        }
+        entity.SetDataSource(request.DataSourceJson ?? string.Empty, userId, now);
 
         await _db.Insertable(entity).ExecuteCommandAsync(cancellationToken);
         return id;
@@ -112,12 +117,16 @@ public sealed class ReportService : IReportService
             ?? throw new InvalidOperationException($"报表定义 ID={id} 不存在");
 
         var now = DateTimeOffset.UtcNow;
-        entity.Update(request.Name, request.Description, request.Category, request.ConfigJson, userId, now);
+        entity.Update(
+            request.Name,
+            request.Description ?? string.Empty,
+            request.Category ?? string.Empty,
+            request.ConfigJson,
+            userId,
+            now);
 
-        if (request.DataSourceJson != null)
-            entity.SetDataSource(request.DataSourceJson, userId, now);
-        if (request.PrintTemplateJson != null)
-            entity.UpdatePrintTemplate(request.PrintTemplateJson, userId, now);
+        entity.SetDataSource(request.DataSourceJson ?? string.Empty, userId, now);
+        entity.UpdatePrintTemplate(request.PrintTemplateJson ?? string.Empty, userId, now);
 
         await _db.Updateable(entity)
             .Where(x => x.Id == entity.Id && x.TenantIdValue == entity.TenantIdValue)

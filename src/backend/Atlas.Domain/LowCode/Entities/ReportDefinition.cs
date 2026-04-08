@@ -6,11 +6,25 @@ namespace Atlas.Domain.LowCode.Entities;
 
 public sealed class ReportDefinition : TenantEntity
 {
-    public ReportDefinition() : base(TenantId.Empty) { Name = string.Empty; ConfigJson = string.Empty; }
+    public ReportDefinition() : base(TenantId.Empty)
+    {
+        Name = string.Empty;
+        Description = string.Empty;
+        Category = string.Empty;
+        ConfigJson = string.Empty;
+        DataSourceJson = string.Empty;
+        PrintTemplateJson = string.Empty;
+    }
 
     public ReportDefinition(TenantId tenantId, string name, string? description, string? category, string configJson, long createdBy, long id, DateTimeOffset now) : base(tenantId)
     {
-        Id = id; Name = name; Description = description; Category = category; ConfigJson = configJson;
+        Id = id;
+        Name = name;
+        Description = description ?? string.Empty;
+        Category = category ?? string.Empty;
+        ConfigJson = configJson;
+        DataSourceJson = string.Empty;
+        PrintTemplateJson = string.Empty;
         Version = 1; Status = FormDefinitionStatus.Draft;
         CreatedAt = now; UpdatedAt = now; CreatedBy = createdBy; UpdatedBy = createdBy;
     }
@@ -30,7 +44,10 @@ public sealed class ReportDefinition : TenantEntity
 
     public void Update(string name, string? description, string? category, string configJson, long updatedBy, DateTimeOffset now)
     {
-        Name = name; Description = description; Category = category; ConfigJson = configJson;
+        Name = name;
+        Description = description ?? string.Empty;
+        Category = category ?? string.Empty;
+        ConfigJson = configJson;
         Version += 1; UpdatedBy = updatedBy; UpdatedAt = now;
     }
 

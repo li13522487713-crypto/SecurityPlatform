@@ -6,11 +6,23 @@ namespace Atlas.Domain.LowCode.Entities;
 
 public sealed class DashboardDefinition : TenantEntity
 {
-    public DashboardDefinition() : base(TenantId.Empty) { Name = string.Empty; LayoutJson = string.Empty; }
+    public DashboardDefinition() : base(TenantId.Empty)
+    {
+        Name = string.Empty;
+        Description = string.Empty;
+        Category = string.Empty;
+        LayoutJson = string.Empty;
+        ThemeJson = string.Empty;
+    }
 
     public DashboardDefinition(TenantId tenantId, string name, string? description, string? category, string layoutJson, long createdBy, long id, DateTimeOffset now) : base(tenantId)
     {
-        Id = id; Name = name; Description = description; Category = category; LayoutJson = layoutJson;
+        Id = id;
+        Name = name;
+        Description = description ?? string.Empty;
+        Category = category ?? string.Empty;
+        LayoutJson = layoutJson;
+        ThemeJson = string.Empty;
         Version = 1; Status = FormDefinitionStatus.Draft; IsLargeScreen = false;
         CreatedAt = now; UpdatedAt = now; CreatedBy = createdBy; UpdatedBy = createdBy;
     }
@@ -32,7 +44,10 @@ public sealed class DashboardDefinition : TenantEntity
 
     public void Update(string name, string? description, string? category, string layoutJson, long updatedBy, DateTimeOffset now)
     {
-        Name = name; Description = description; Category = category; LayoutJson = layoutJson;
+        Name = name;
+        Description = description ?? string.Empty;
+        Category = category ?? string.Empty;
+        LayoutJson = layoutJson;
         Version += 1; UpdatedBy = updatedBy; UpdatedAt = now;
     }
 

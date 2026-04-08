@@ -1,0 +1,367 @@
+import path from "node:path";
+import { expect, type APIRequestContext, type Page } from "@playwright/test";
+
+export const platformBaseUrl = "http://127.0.0.1:5180";
+export const appBaseUrl = "http://127.0.0.1:5181";
+export const platformApiBase = "http://127.0.0.1:5001";
+export const appApiBase = "http://127.0.0.1:5002";
+
+export const defaultTenantId = "00000000-0000-0000-0000-000000000001";
+export const defaultUsername = "admin";
+export const defaultPassword = "P@ssw0rd!";
+
+const platformDatabasePath = "Data Source=atlas.app.e2e.db";
+const appDatabasePath = `Data Source=${path.resolve(process.cwd(), "../backend/Atlas.PlatformHost/atlas.app.e2e.db")}`;
+const appName = "App E2E Regression";
+const e2eDataSourceName = "App E2E DataSource";
+
+interface ApiResponse<T> {
+  success?: boolean;
+  message?: string;
+  data?: T;
+}
+
+interface AuthTokenData {
+  accessToken: string;
+}
+
+interface PagedResult<T> {
+  items: T[];
+}
+
+interface TenantAppInstanceListItem {
+  id: string;
+  appKey: string;
+  name: string;
+}
+
+interface TenantAppInstanceDetail {
+  id: string;
+  name: string;
+  description?: string | null;
+  category?: string | null;
+  icon?: string | null;
+  dataSourceId?: string | null;
+}
+
+interface TenantDataSourceDto {
+  id: string;
+  name: string;
+  isActive?: boolean;
+}
+
+function idempotencyKey(prefix: string): string {
+  return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1_000_000)}`;
+}
+
+function toHeaders(accessToken: string, withIdempotencyPrefix?: string): Record<string, string> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${accessToken}`,
+    "X-Tenant-Id": defaultTenantId
+  };
+  if (withIdempotencyPrefix) {
+    headers["Idempotency-Key"] = idempotencyKey(withIdempotencyPrefix);
+  }
+  return headers;
+}
+
+async function loginPlatformApi(request: APIRequestContext): Promise<string> {
+  const tokenResp = await request.post(`${platformApiBase}/api/v1/auth/token`, {
+    headers: {
+      "Content-Type": "application/json",
+      "X-Tenant-Id": defaultTenantId
+    },
+    data: {
+      username: defaultUsername,
+      password: defaultPassword
+    }
+  });
+  const tokenPayload = (await tokenResp.json()) as ApiResponse<AuthTokenData>;
+  expect(tokenResp.ok()).toBeTruthy();
+  expect(tokenPayload?.data?.accessToken).toBeTruthy();
+  return tokenPayload.data!.accessToken;
+}
+
+async function ensureTenantDataSource(request: APIRequestContext, accessToken: string): Promise<number> {
+  const listResp = await request.get(`${platformApiBase}/api/v1/tenant-datasources`, {
+    headers: toHeaders(accessToken)
+  });
+  const listPayload = (await listResp.json()) as ApiResponse<TenantDataSourceDto[]>;
+  expect(listResp.ok()).toBeTruthy();
+
+  const dataSources = listPayload.data ?? [];
+  const existing =
+    dataSources.find((item) => item.name === e2eDataSourceName) ??
+    dataSources.find((item) => item.isActive !== false) ??
+    dataSources[0];
+  if (existing) {
+    return Number(existing.id);
+  }
+
+  const createResp = await request.post(`${platformApiBase}/api/v1/tenant-datasources`, {
+    headers: toHeaders(accessToken, "app-e2e-ds-create"),
+    data: {
+      tenantIdValue: defaultTenantId,
+      name: e2eDataSourceName,
+      connectionString: appDatabasePath,
+      dbType: "SQLite",
+      ownershipScope: "Platform",
+      mode: "raw",
+      maxPoolSize: 50,
+      connectionTimeoutSeconds: 15
+    }
+  });
+  const createPayload = (await createResp.json()) as ApiResponse<{ Id?: string; id?: string }>;
+  if (!createResp.ok() && createResp.status() === 403) {
+    const fallbackListResp = await request.get(`${platformApiBase}/api/v1/tenant-datasources`, {
+      headers: toHeaders(accessToken)
+    });
+    const fallbackListPayload = (await fallbackListResp.json()) as ApiResponse<TenantDataSourceDto[]>;
+    const fallbackDataSource = fallbackListPayload.data?.find((item) => item.isActive !== false) ?? fallbackListPayload.data?.[0];
+    if (fallbackDataSource) {
+      return Number(fallbackDataSource.id);
+    }
+  }
+  expect(createResp.ok()).toBeTruthy();
+  expect(createPayload.success).toBeTruthy();
+  const rawId = createPayload.data?.Id ?? createPayload.data?.id;
+  expect(rawId).toBeTruthy();
+  return Number(rawId);
+}
+
+async function getAppInstanceByKey(
+  request: APIRequestContext,
+  accessToken: string,
+  appKey: string
+): Promise<TenantAppInstanceListItem> {
+  const listResp = await request.get(`${platformApiBase}/api/v2/tenant-app-instances?pageIndex=1&pageSize=200`, {
+    headers: toHeaders(accessToken)
+  });
+  const listPayload = (await listResp.json()) as ApiResponse<PagedResult<TenantAppInstanceListItem>>;
+  expect(listResp.ok()).toBeTruthy();
+
+  const matched = (listPayload.data?.items ?? []).find((item) => item.appKey === appKey);
+  expect(matched).toBeTruthy();
+  return matched!;
+}
+
+async function ensureAppDataSourceBinding(
+  request: APIRequestContext,
+  appKey: string
+): Promise<void> {
+  const accessToken = await loginPlatformApi(request);
+  const dataSourceId = await ensureTenantDataSource(request, accessToken);
+  const appInstance = await getAppInstanceByKey(request, accessToken, appKey);
+
+  const detailResp = await request.get(`${platformApiBase}/api/v2/tenant-app-instances/${appInstance.id}`, {
+    headers: toHeaders(accessToken)
+  });
+  const detailPayload = (await detailResp.json()) as ApiResponse<TenantAppInstanceDetail>;
+  expect(detailResp.ok()).toBeTruthy();
+  expect(detailPayload.success).toBeTruthy();
+
+  if (detailPayload.data?.dataSourceId === String(dataSourceId)) {
+    return;
+  }
+
+  const updateResp = await request.put(`${platformApiBase}/api/v2/tenant-app-instances/${appInstance.id}`, {
+    headers: toHeaders(accessToken, "app-e2e-app-bind-datasource"),
+    data: {
+      name: detailPayload.data?.name ?? appInstance.name,
+      description: detailPayload.data?.description ?? null,
+      category: detailPayload.data?.category ?? null,
+      icon: detailPayload.data?.icon ?? null,
+      dataSourceId,
+      unbindDataSource: false
+    }
+  });
+  const updatePayload = (await updateResp.json()) as ApiResponse<{ id?: string; Id?: string }>;
+  expect(updateResp.ok()).toBeTruthy();
+  expect(updatePayload.success).toBeTruthy();
+
+  await expect
+    .poll(
+      async () => {
+        const verifyResp = await request.get(`${platformApiBase}/api/v2/tenant-app-instances/${appInstance.id}`, {
+          headers: toHeaders(accessToken)
+        });
+        const verifyPayload = (await verifyResp.json()) as ApiResponse<TenantAppInstanceDetail>;
+        return verifyPayload.data?.dataSourceId ?? "";
+      },
+      { timeout: 30_000 }
+    )
+    .toBe(String(dataSourceId));
+}
+
+async function clearStorageForOrigin(page: Page, url: string) {
+  let lastError: unknown = null;
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await page.goto(url, { waitUntil: "domcontentloaded" });
+    await page.waitForLoadState("domcontentloaded");
+
+    try {
+      await page.evaluate(() => {
+        window.localStorage.clear();
+        window.sessionStorage.clear();
+      });
+      return;
+    } catch (error) {
+      lastError = error;
+      const message = error instanceof Error ? error.message : String(error);
+      if (!message.includes("Execution context was destroyed")) {
+        throw error;
+      }
+      await page.waitForTimeout(200);
+    }
+  }
+
+  if (lastError) {
+    throw lastError;
+  }
+}
+
+export async function clearAuthStorage(page: Page) {
+  await page.context().clearCookies();
+  await clearStorageForOrigin(page, platformBaseUrl);
+  await clearStorageForOrigin(page, appBaseUrl);
+}
+
+export async function seedLocale(page: Page, locale: "zh-CN" | "en-US") {
+  await page.addInitScript((nextLocale) => {
+    window.localStorage.setItem("atlas_locale", nextLocale);
+  }, locale);
+}
+
+export async function ensurePlatformSetup(request: APIRequestContext) {
+  const stateResp = await request.get(`${platformApiBase}/api/v1/setup/state`);
+  const statePayload = await stateResp.json();
+  if (statePayload?.success && statePayload?.data?.status === "Ready") {
+    return;
+  }
+
+  const initializeResp = await request.post(`${platformApiBase}/api/v1/setup/initialize`, {
+    data: {
+      database: {
+        driverCode: "SQLite",
+        mode: "raw",
+        connectionString: platformDatabasePath
+      },
+      admin: {
+        tenantId: defaultTenantId,
+        username: defaultUsername,
+        password: defaultPassword
+      },
+      roles: {
+        selectedRoleCodes: ["SecurityAdmin", "AssetAdmin"]
+      },
+      organization: {
+        departments: [{ name: "总部", code: "HQ", parentCode: null, sortOrder: 0 }],
+        positions: [{ name: "系统管理员", code: "SYS_ADMIN", description: "系统配置与运维管理", sortOrder: 10 }]
+      }
+    }
+  });
+
+  const initializePayload = await initializeResp.json();
+  const initialized =
+    (initializeResp.ok() && initializePayload?.success) ||
+    initializePayload?.code === "ALREADY_CONFIGURED";
+  expect(initialized).toBeTruthy();
+
+  await expect
+    .poll(async () => {
+      const response = await request.get(`${platformApiBase}/api/v1/setup/state`);
+      const payload = await response.json();
+      return payload?.data?.status;
+    }, { timeout: 45_000 })
+    .toBe("Ready");
+}
+
+export async function ensureAppSetup(request: APIRequestContext): Promise<string> {
+  await ensurePlatformSetup(request);
+
+  const stateResp = await request.get(`${appApiBase}/api/v1/setup/state`);
+  const statePayload = await stateResp.json();
+  if (statePayload?.success && statePayload?.data?.appSetupCompleted === true && statePayload?.data?.appKey) {
+    return statePayload.data.appKey;
+  }
+
+  const initializeResp = await request.post(`${appApiBase}/api/v1/setup/initialize`, {
+    data: {
+      database: {
+        driverCode: "SQLite",
+        mode: "raw",
+        connectionString: appDatabasePath
+      },
+      admin: {
+        appName,
+        adminUsername: defaultUsername
+      },
+      roles: {
+        selectedRoleCodes: ["SecurityAdmin"]
+      },
+      organization: {
+        departments: [{ name: "总部", code: "HQ", parentCode: null, sortOrder: 0 }],
+        positions: [{ name: "系统管理员", code: "SYS_ADMIN", description: "系统配置与运维管理", sortOrder: 10 }]
+      }
+    }
+  });
+
+  const initializePayload = await initializeResp.json();
+  const initialized =
+    (initializeResp.ok() && initializePayload?.success) ||
+    initializePayload?.code === "ALREADY_CONFIGURED";
+  expect(initialized).toBeTruthy();
+
+  await expect
+    .poll(async () => {
+      const response = await request.get(`${appApiBase}/api/v1/setup/state`);
+      const payload = await response.json();
+      return payload?.data?.appSetupCompleted;
+    }, { timeout: 45_000 })
+    .toBeTruthy();
+
+  const latestStateResp = await request.get(`${appApiBase}/api/v1/setup/state`);
+  const latestStatePayload = await latestStateResp.json();
+  const resolvedAppKey = String(latestStatePayload?.data?.appKey ?? process.env.PLAYWRIGHT_APP_KEY ?? "dev-app");
+  return resolvedAppKey;
+}
+
+export async function resolveCanonicalAppKey(request: APIRequestContext): Promise<string> {
+  const response = await request.get(`${appApiBase}/api/v1/setup/state`);
+  const payload = await response.json();
+  const appKey = String(payload?.data?.appKey ?? "").trim();
+  if (appKey) return appKey;
+  return String(process.env.PLAYWRIGHT_APP_KEY ?? "dev-app");
+}
+
+export async function loginApp(
+  page: Page,
+  appKey: string,
+  password = defaultPassword,
+  options?: { expectSuccess?: boolean }
+) {
+  const expectSuccess = options?.expectSuccess ?? true;
+  await page.goto(`${appBaseUrl}/apps/${encodeURIComponent(appKey)}/login`);
+  await page.getByTestId("app-login-tenant").fill(defaultTenantId);
+  await page.getByTestId("app-login-username").fill(defaultUsername);
+  await page.getByTestId("app-login-password").fill(password);
+  await page.getByTestId("app-login-submit").click();
+
+  if (!expectSuccess) {
+    return;
+  }
+
+  await page.waitForURL(new RegExp(`/apps/${encodeURIComponent(appKey)}/`), { timeout: 30_000 });
+  await expect(page.getByTestId("app-sidebar")).toBeVisible({ timeout: 30_000 });
+}
+
+export async function ensureAppDashboard(page: Page, appKey: string) {
+  await page.waitForURL(new RegExp(`/apps/${appKey}/dashboard`), { timeout: 45_000 });
+  await expect(page.getByTestId("app-dashboard-page")).toBeVisible();
+}
+
+export function uniqueName(prefix: string): string {
+  return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+}

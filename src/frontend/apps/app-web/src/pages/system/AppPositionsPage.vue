@@ -1,5 +1,6 @@
 <template>
   <CrudPageLayout
+    data-testid="app-positions-page"
     v-model:keyword="searchParams.keyword"
     :title="t('systemPositions.pageTitle')"
     :search-placeholder="t('systemPositions.searchPlaceholder')"
@@ -14,7 +15,7 @@
     @submit="handleSubmit"
   >
     <template #toolbar-actions>
-      <a-button v-if="canCreate" type="primary" @click="openCreate">
+      <a-button v-if="canCreate" type="primary" data-testid="app-positions-create" @click="openCreate">
         <template #icon><PlusOutlined /></template>
         {{ t("systemPositions.addPosition") }}
       </a-button>
@@ -22,6 +23,7 @@
 
     <template #table>
       <a-table
+        data-testid="app-positions-table"
         :columns="columns"
         :data-source="tableData"
         :loading="loading"
@@ -37,7 +39,7 @@
           </template>
           <template v-else-if="column.key === 'action'">
             <a-space>
-              <a-button v-if="canUpdate" type="link" size="small" @click="openEdit(record)">
+              <a-button v-if="canUpdate" type="link" size="small" :data-testid="`app-positions-edit-${record.id}`" @click="openEdit(record)">
                 {{ t("common.edit") }}
               </a-button>
               <a-popconfirm
@@ -45,7 +47,7 @@
                 :title="t('systemPositions.deleteConfirm')"
                 @confirm="handleDelete(record.id)"
               >
-                <a-button type="link" size="small" danger>{{ t("common.delete") }}</a-button>
+                <a-button type="link" size="small" danger :data-testid="`app-positions-delete-${record.id}`">{{ t("common.delete") }}</a-button>
               </a-popconfirm>
             </a-space>
           </template>
@@ -56,10 +58,10 @@
     <template #form>
       <a-form ref="formRef" :model="formState" :rules="rules" layout="vertical">
         <a-form-item :label="t('systemPositions.positionName')" name="name">
-          <a-input v-model:value="formState.name" />
+          <a-input v-model:value="formState.name" data-testid="app-positions-form-name" />
         </a-form-item>
         <a-form-item :label="t('systemPositions.code')" name="code">
-          <a-input v-model:value="formState.code" :disabled="isEdit" />
+          <a-input v-model:value="formState.code" data-testid="app-positions-form-code" :disabled="isEdit" />
         </a-form-item>
         <a-form-item :label="t('systemPositions.description')" name="description">
           <a-textarea v-model:value="formState.description" :rows="3" />

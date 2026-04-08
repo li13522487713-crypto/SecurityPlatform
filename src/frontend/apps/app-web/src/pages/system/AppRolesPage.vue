@@ -1,5 +1,6 @@
 <template>
   <CrudPageLayout
+    data-testid="app-roles-page"
     v-model:keyword="keyword"
     :title="t('systemRoles.pageTitle')"
     :search-placeholder="t('systemRoles.searchPlaceholder')"
@@ -14,7 +15,7 @@
     @submit="submitForm"
   >
     <template #toolbar-actions>
-      <a-button v-if="canCreate" type="primary" @click="openCreate">
+      <a-button v-if="canCreate" type="primary" data-testid="app-roles-create" @click="openCreate">
         <template #icon><PlusOutlined /></template>
         {{ t("systemRoles.addRole") }}
       </a-button>
@@ -27,7 +28,7 @@
         :cancel-text="t('common.cancel')"
         @confirm="handleBatchDelete"
       >
-        <a-button danger :disabled="!selectedRowKeys.length">{{ t("systemRoles.batchDelete") }}</a-button>
+        <a-button danger data-testid="app-roles-batch-delete" :disabled="!selectedRowKeys.length">{{ t("systemRoles.batchDelete") }}</a-button>
       </a-popconfirm>
     </template>
 
@@ -46,6 +47,7 @@
       <MasterDetailLayout :detail-visible="isDetailVisible" :master-width="700">
         <template #master>
           <a-table
+            data-testid="app-roles-table"
             :columns="tableColumns"
             :data-source="tableData"
             :pagination="pagination"
@@ -62,8 +64,8 @@
               </template>
               <template v-if="column.key === 'actions'">
                 <a-space @click.stop>
-                  <a-button v-if="canUpdate" type="link" @click="openEdit(record)">{{ t("common.edit") }}</a-button>
-                  <a-button v-if="canUpdate" type="link" @click="openAssign(record)">
+                  <a-button v-if="canUpdate" type="link" :data-testid="`app-roles-edit-${record.id}`" @click="openEdit(record)">{{ t("common.edit") }}</a-button>
+                  <a-button v-if="canUpdate" type="link" :data-testid="`app-roles-assign-${record.id}`" @click="openAssign(record)">
                     {{ t("systemRoles.assignPermissions") }}
                   </a-button>
                   <a-popconfirm
@@ -73,7 +75,7 @@
                     :cancel-text="t('common.cancel')"
                     @confirm="handleDeleteRole(record.id)"
                   >
-                    <a-button type="link" danger>{{ t("common.delete") }}</a-button>
+                    <a-button type="link" danger :data-testid="`app-roles-delete-${record.id}`">{{ t("common.delete") }}</a-button>
                   </a-popconfirm>
                 </a-space>
               </template>
@@ -99,11 +101,12 @@
       <div class="form-wrapper">
         <a-form ref="formRef" :model="formModel" :rules="formRules" layout="vertical">
           <a-form-item :label="t('systemRoles.roleName')" name="name">
-            <a-input v-model:value="formModel.name" :placeholder="t('systemRoles.roleNamePlaceholder')" />
+            <a-input v-model:value="formModel.name" data-testid="app-roles-form-name" :placeholder="t('systemRoles.roleNamePlaceholder')" />
           </a-form-item>
           <a-form-item :label="t('systemRoles.roleCode')" name="code">
             <a-input
               v-model:value="formModel.code"
+              data-testid="app-roles-form-code"
               :placeholder="t('systemRoles.roleCodePlaceholder')"
               :disabled="formMode === 'edit'"
             />

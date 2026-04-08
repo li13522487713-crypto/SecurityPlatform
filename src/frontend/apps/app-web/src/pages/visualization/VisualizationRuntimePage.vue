@@ -1,5 +1,5 @@
 <template>
-  <a-card :title="t('visualization.runtimeTitle')" class="page-card">
+  <a-card :title="t('visualization.runtimeTitle')" class="page-card" data-testid="app-visualization-page">
     <template #extra>
       <a-space>
         <a-select
@@ -18,6 +18,7 @@
     </template>
 
     <a-table
+      data-testid="app-visualization-table"
       :columns="columns"
       :data-source="instances"
       :pagination="pagination"
@@ -34,7 +35,7 @@
           {{ record.durationMinutes ?? "-" }}
         </template>
         <template v-else-if="column.key === 'action'">
-          <a-button type="link" size="small" @click="openDetail(record.id)">
+          <a-button type="link" size="small" :data-testid="`app-visualization-open-detail-${record.id}`" @click="openDetail(record.id)">
             {{ t("visualization.openDetail") }}
           </a-button>
         </template>
@@ -43,6 +44,7 @@
 
     <a-drawer
       v-model:open="detailVisible"
+      data-testid="app-visualization-detail-drawer"
       :title="detail?.flowName || t('visualization.detailTitle')"
       width="520"
       destroy-on-close

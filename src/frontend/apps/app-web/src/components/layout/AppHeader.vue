@@ -1,11 +1,12 @@
 <template>
-  <header class="app-header">
+  <header class="app-header" data-testid="app-header">
     <div class="header-search-area">
       <div class="search-box">
         <SearchOutlined class="search-icon" />
         <input
           type="text"
           class="search-input"
+          data-testid="app-header-search"
           :placeholder="t('header.searchPlaceholder')"
         />
         <kbd class="search-shortcut">⌘K</kbd>
@@ -13,13 +14,13 @@
     </div>
 
     <div class="header-actions">
-      <div class="tenant-badge">
+      <div class="tenant-badge" data-testid="app-header-tenant">
         <span class="tenant-dot"></span>
         <span class="tenant-label">{{ t('header.tenant') }}: {{ tenantDisplay }}</span>
       </div>
 
       <a-badge :count="unreadCount" :offset="[-2, 2]" :number-style="{ display: unreadCount > 0 ? '' : 'none' }">
-        <button class="icon-btn" @click="$emit('notificationClick')">
+        <button class="icon-btn" data-testid="app-header-notification" @click="$emit('notificationClick')">
           <BellOutlined />
           <span v-if="unreadCount > 0" class="notification-dot"></span>
         </button>
@@ -28,7 +29,7 @@
       <div class="header-divider"></div>
 
       <a-dropdown :trigger="['click']">
-        <div class="user-area">
+        <div class="user-area" data-testid="app-header-user-menu">
           <div class="user-avatar">
             <UserOutlined />
           </div>
@@ -36,16 +37,16 @@
         </div>
         <template #overlay>
           <a-menu @click="(info: { key: string }) => $emit('userMenuClick', info)">
-            <a-menu-item key="profile">
+            <a-menu-item key="profile" data-testid="app-header-menu-profile">
               <UserOutlined />
               <span style="margin-left: 8px">{{ t('profile.title') }}</span>
             </a-menu-item>
-            <a-menu-item key="changePassword">
+            <a-menu-item key="changePassword" data-testid="app-header-menu-change-password">
               <LockOutlined />
               <span style="margin-left: 8px">{{ t('profile.changePassword') }}</span>
             </a-menu-item>
             <a-menu-divider />
-            <a-menu-item key="logout">
+            <a-menu-item key="logout" data-testid="app-header-menu-logout">
               <LogoutOutlined />
               <span style="margin-left: 8px">{{ t('auth.logout') }}</span>
             </a-menu-item>

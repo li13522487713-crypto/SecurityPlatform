@@ -1,5 +1,6 @@
 <template>
   <CrudPageLayout
+    data-testid="app-users-page"
     v-model:keyword="keyword"
     :title="t('systemUsers.pageTitle')"
     :search-placeholder="t('systemUsers.searchPlaceholder')"
@@ -14,11 +15,11 @@
     @submit="handleSubmit"
   >
     <template #toolbar-actions>
-      <a-button v-if="canCreate" type="primary" @click="openCreateUser">
+      <a-button v-if="canCreate" type="primary" data-testid="app-users-create" @click="openCreateUser">
         <template #icon><PlusOutlined /></template>
         {{ t("systemUsers.addUser") }}
       </a-button>
-      <a-button v-if="canCreate" @click="openAddExistingMember">
+      <a-button v-if="canCreate" data-testid="app-users-add-existing" @click="openAddExistingMember">
         <template #icon><UserAddOutlined /></template>
         {{ t("systemUsers.addExistingMember") }}
       </a-button>
@@ -46,6 +47,7 @@
         </a-col>
         <a-col :span="19">
           <a-table
+            data-testid="app-users-table"
             :columns="columns"
             :data-source="tableData"
             :loading="loading"
@@ -66,10 +68,10 @@
               </template>
               <template v-else-if="column.key === 'actions'">
                 <a-space>
-                  <a-button v-if="canUpdate" type="link" size="small" @click="openEditMember(record)">
+                  <a-button v-if="canUpdate" type="link" size="small" :data-testid="`app-users-edit-${record.userId}`" @click="openEditMember(record)">
                     {{ t("common.edit") }}
                   </a-button>
-                  <a-button v-if="canUpdate" type="link" size="small" @click="openResetPassword(record)">
+                  <a-button v-if="canUpdate" type="link" size="small" :data-testid="`app-users-reset-password-${record.userId}`" @click="openResetPassword(record)">
                     {{ t("systemUsers.resetPassword") }}
                   </a-button>
                   <a-popconfirm
@@ -77,7 +79,7 @@
                     :title="t('systemUsers.removeMemberConfirm')"
                     @confirm="handleRemoveMember(record.userId)"
                   >
-                    <a-button type="link" size="small" danger>{{ t("systemUsers.removeMember") }}</a-button>
+                    <a-button type="link" size="small" danger :data-testid="`app-users-remove-${record.userId}`">{{ t("systemUsers.removeMember") }}</a-button>
                   </a-popconfirm>
                 </a-space>
               </template>
@@ -92,13 +94,13 @@
       <template v-if="formMode === 'create'">
         <a-form ref="createFormRef" :model="createForm" :rules="createRules" layout="vertical">
           <a-form-item :label="t('systemUsers.username')" name="username">
-            <a-input v-model:value="createForm.username" />
+            <a-input v-model:value="createForm.username" data-testid="app-users-form-username" />
           </a-form-item>
           <a-form-item :label="t('systemUsers.password')" name="password">
-            <a-input-password v-model:value="createForm.password" />
+            <a-input-password v-model:value="createForm.password" data-testid="app-users-form-password" />
           </a-form-item>
           <a-form-item :label="t('systemUsers.displayName')" name="displayName">
-            <a-input v-model:value="createForm.displayName" />
+            <a-input v-model:value="createForm.displayName" data-testid="app-users-form-display-name" />
           </a-form-item>
           <a-form-item :label="t('systemUsers.email')" name="email">
             <a-input v-model:value="createForm.email" />
@@ -186,7 +188,7 @@
           <a-tab-pane key="profile" :tab="t('systemUsers.tabProfile')">
             <a-form ref="editFormRef" :model="editForm" :rules="editRules" layout="vertical">
               <a-form-item :label="t('systemUsers.displayName')" name="displayName">
-                <a-input v-model:value="editForm.displayName" />
+                <a-input v-model:value="editForm.displayName" data-testid="app-users-edit-display-name" />
               </a-form-item>
               <a-form-item :label="t('systemUsers.email')" name="email">
                 <a-input v-model:value="editForm.email" />
@@ -245,7 +247,7 @@
       <template v-else-if="formMode === 'resetPassword'">
         <a-form ref="resetPwdFormRef" :model="resetPwdForm" :rules="resetPwdRules" layout="vertical">
           <a-form-item :label="t('systemUsers.newPassword')" name="newPassword">
-            <a-input-password v-model:value="resetPwdForm.newPassword" />
+            <a-input-password v-model:value="resetPwdForm.newPassword" data-testid="app-users-reset-password-input" />
           </a-form-item>
         </a-form>
       </template>

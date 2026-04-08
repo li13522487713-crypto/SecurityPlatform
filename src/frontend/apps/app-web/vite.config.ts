@@ -44,9 +44,10 @@ export default defineConfig(({ mode }) => {
           secure: false
         },
         "/app-host": {
-          target: runtimeMode === "direct" ? appHostTarget : platformHostTarget,
+          target: appHostTarget,
           changeOrigin: true,
-          secure: false
+          secure: false,
+          rewrite: (path) => path.replace(/^\/app-host\/[^/]+/, "")
         }
       }
     },

@@ -1,8 +1,8 @@
 <template>
-  <div class="app-settings">
+  <div class="app-settings" data-testid="app-settings-page">
     <a-page-header :title="t('settings.pageTitle')" />
 
-    <a-tabs v-model:activeKey="activeTab">
+    <a-tabs v-model:activeKey="activeTab" data-testid="app-settings-tabs">
       <a-tab-pane key="general" :tab="t('settings.basicInfo')">
         <a-spin :spinning="loading">
           <a-alert
@@ -31,7 +31,7 @@
                     <a-input v-model:value="form.icon" :disabled="!canEdit" />
                   </a-form-item>
                   <a-form-item v-if="canEdit">
-                    <a-button type="primary" :loading="saving" @click="handleSave">
+                    <a-button type="primary" data-testid="app-settings-save" :loading="saving" @click="handleSave">
                       {{ t('settings.save') }}
                     </a-button>
                   </a-form-item>
@@ -64,16 +64,16 @@
 
                 <a-space v-if="canEdit" wrap>
                   <a-popconfirm :title="t('settings.confirmPublish')" @confirm="handlePublish">
-                    <a-button :loading="publishing">{{ t('settings.publish') }}</a-button>
+                    <a-button data-testid="app-settings-publish" :loading="publishing">{{ t('settings.publish') }}</a-button>
                   </a-popconfirm>
                   <a-popconfirm :title="t('settings.confirmStart')" @confirm="handleStart">
-                    <a-button type="primary" :loading="starting">{{ t('settings.start') }}</a-button>
+                    <a-button type="primary" data-testid="app-settings-start" :loading="starting">{{ t('settings.start') }}</a-button>
                   </a-popconfirm>
                   <a-popconfirm :title="t('settings.confirmStop')" @confirm="handleStop">
-                    <a-button danger :loading="stopping">{{ t('settings.stop') }}</a-button>
+                    <a-button danger data-testid="app-settings-stop" :loading="stopping">{{ t('settings.stop') }}</a-button>
                   </a-popconfirm>
                   <a-popconfirm :title="t('settings.confirmRestart')" @confirm="handleRestart">
-                    <a-button :loading="restarting">{{ t('settings.restart') }}</a-button>
+                    <a-button data-testid="app-settings-restart" :loading="restarting">{{ t('settings.restart') }}</a-button>
                   </a-popconfirm>
                 </a-space>
               </a-card>

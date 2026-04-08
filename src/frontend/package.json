@@ -13,7 +13,10 @@
     "lint": "pnpm -r run lint",
     "format": "pnpm -r run format",
     "test:e2e:setup": "node ./scripts/reset-setup-state.mjs && node ./scripts/run-setup-e2e.mjs",
-    "test:e2e:setup:headed": "node ./scripts/reset-setup-state.mjs && node ./scripts/run-setup-e2e.mjs --headed"
+    "test:e2e:setup:headed": "node ./scripts/reset-setup-state.mjs && node ./scripts/run-setup-e2e.mjs --headed",
+    "test:e2e:app": "node ./scripts/reset-setup-state.mjs && node ./scripts/run-app-e2e.mjs",
+    "test:e2e:app:headed": "node ./scripts/reset-setup-state.mjs && node ./scripts/run-app-e2e.mjs --headed",
+    "test:e2e:app:smoke": "node ./scripts/reset-setup-state.mjs && node ./scripts/run-app-e2e.mjs --grep @smoke"
   },
   "devDependencies": {
     "@playwright/test": "^1.55.0",

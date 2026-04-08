@@ -12,6 +12,9 @@ const cleanupTargets = [
   "src/backend/Atlas.PlatformHost/atlas.e2e.db",
   "src/backend/Atlas.PlatformHost/atlas.e2e.db-shm",
   "src/backend/Atlas.PlatformHost/atlas.e2e.db-wal",
+  "src/backend/Atlas.PlatformHost/atlas.app.e2e.db",
+  "src/backend/Atlas.PlatformHost/atlas.app.e2e.db-shm",
+  "src/backend/Atlas.PlatformHost/atlas.app.e2e.db-wal",
   "src/backend/Atlas.PlatformHost/hangfire-platformhost.db",
   "src/backend/Atlas.PlatformHost/hangfire-platformhost.db-shm",
   "src/backend/Atlas.PlatformHost/hangfire-platformhost.db-wal",
@@ -42,13 +45,19 @@ if ($processes) {
   Write-Host ('[reset-setup-state] stopped process count: ' + $processes.Count)
 }
 `;
-  try {
-    execFileSync("powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", command], {
-      stdio: "inherit"
-    });
-  } catch {
-    console.warn("[reset-setup-state] process shutdown probe failed, continuing with file cleanup.");
+  const shells = ["C:\\Program Files\\PowerShell\\7\\pwsh.exe", "pwsh", "powershell"];
+  for (const shell of shells) {
+    try {
+      execFileSync(shell, ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", command], {
+        stdio: "inherit"
+      });
+      return;
+    } catch {
+      // try next shell
+    }
   }
+
+  console.warn("[reset-setup-state] process shutdown probe failed, continuing with file cleanup.");
 }
 
 function removeFile(relativePath) {
@@ -66,6 +75,12 @@ function removeFile(relativePath) {
     console.log(`[reset-setup-state] removed file: ${relativePath}`);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    const code = typeof error === "object" && error !== null && "code" in error ? String(error.code) : "";
+    if (code === "EPERM" || code === "EBUSY") {
+      console.warn(`[reset-setup-state] skip locked file: ${relativePath} (${code})`);
+      return;
+    }
+
     throw new Error(`Failed to remove ${relativePath}: ${message}`);
   }
 }

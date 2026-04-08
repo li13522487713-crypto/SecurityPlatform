@@ -65,12 +65,22 @@ public sealed class DashboardService : IDashboardService
     {
         var id = _idGenerator.NextId();
         var now = DateTimeOffset.UtcNow;
-        var entity = new DashboardDefinition(tenantId, request.Name, request.Description, request.Category, request.LayoutJson, userId, id, now);
+        var entity = new DashboardDefinition(
+            tenantId,
+            request.Name,
+            request.Description ?? string.Empty,
+            request.Category ?? string.Empty,
+            request.LayoutJson,
+            userId,
+            id,
+            now);
 
         if (request.IsLargeScreen)
         {
             entity.SetLargeScreenMode(true, request.CanvasWidth, request.CanvasHeight, userId, now);
         }
+
+        entity.SetTheme(string.Empty, userId, now);
 
         await _db.Insertable(entity).ExecuteCommandAsync(cancellationToken);
         return id;
@@ -86,13 +96,15 @@ public sealed class DashboardService : IDashboardService
             ?? throw new InvalidOperationException($"仪表盘定义 ID={id} 不存在");
 
         var now = DateTimeOffset.UtcNow;
-        entity.Update(request.Name, request.Description, request.Category, request.LayoutJson, userId, now);
+        entity.Update(
+            request.Name,
+            request.Description ?? string.Empty,
+            request.Category ?? string.Empty,
+            request.LayoutJson,
+            userId,
+            now);
         entity.SetLargeScreenMode(request.IsLargeScreen, request.CanvasWidth, request.CanvasHeight, userId, now);
-
-        if (!string.IsNullOrWhiteSpace(request.ThemeJson))
-        {
-            entity.SetTheme(request.ThemeJson, userId, now);
-        }
+        entity.SetTheme(request.ThemeJson ?? string.Empty, userId, now);
 
         await _db.Updateable(entity)
             .Where(x => x.Id == entity.Id && x.TenantIdValue == entity.TenantIdValue)

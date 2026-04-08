@@ -1,13 +1,14 @@
 <template>
-  <div style="padding: 24px;">
+  <div style="padding: 24px;" data-testid="app-approval-page">
     <a-card>
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
         <h3 style="margin: 0;">{{ t("approvalWorkspace.pageTitle") }}</h3>
       </div>
 
-      <a-tabs v-model:active-key="activeTab" @change="handleTabChange">
+      <a-tabs v-model:active-key="activeTab" data-testid="app-approval-tabs" @change="handleTabChange">
         <a-tab-pane key="pending" :tab="t('approvalWorkspace.tabPending')">
           <a-table
+            data-testid="app-approval-pending-table"
             :columns="taskColumns"
             :data-source="pendingList"
             :loading="loading"
@@ -28,6 +29,7 @@
 
         <a-tab-pane key="done" :tab="t('approvalWorkspace.tabDone')">
           <a-table
+            data-testid="app-approval-done-table"
             :columns="taskColumns"
             :data-source="doneList"
             :loading="loading"
@@ -48,6 +50,7 @@
 
         <a-tab-pane key="requests" :tab="t('approvalWorkspace.tabRequests')">
           <a-table
+            data-testid="app-approval-requests-table"
             :columns="instanceColumns"
             :data-source="requestsList"
             :loading="loading"
@@ -68,6 +71,7 @@
 
         <a-tab-pane key="cc" :tab="t('approvalWorkspace.tabCc')">
           <a-table
+            data-testid="app-approval-cc-table"
             :columns="ccColumns"
             :data-source="ccList"
             :loading="loading"

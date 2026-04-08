@@ -1,7 +1,7 @@
 <template>
-  <a-card :title="t('dashboards.pageTitle')" class="page-card">
+  <a-card :title="t('dashboards.pageTitle')" class="page-card" data-testid="app-dashboards-page">
     <template #extra>
-      <a-button type="primary" @click="handleCreate">{{ t("common.create") }}</a-button>
+      <a-button type="primary" data-testid="app-dashboards-create" @click="handleCreate">{{ t("common.create") }}</a-button>
     </template>
 
     <div class="toolbar">
@@ -17,6 +17,7 @@
     </div>
 
     <a-table
+      data-testid="app-dashboards-table"
       :columns="columns"
       :data-source="dataSource"
       :pagination="pagination"
@@ -33,9 +34,9 @@
         <template v-else-if="column.key === 'createdAt'">{{ formatTime(record.createdAt) }}</template>
         <template v-else-if="column.key === 'action'">
           <a-space>
-            <a-button type="link" size="small" @click="handleEdit(record)">{{ t("common.edit") }}</a-button>
+            <a-button type="link" size="small" :data-testid="`app-dashboards-edit-${record.id}`" @click="handleEdit(record)">{{ t("common.edit") }}</a-button>
             <a-popconfirm :title="t('dashboards.deleteConfirm')" @confirm="handleDelete(record.id)">
-              <a-button type="link" size="small" danger>{{ t("common.delete") }}</a-button>
+              <a-button type="link" size="small" danger :data-testid="`app-dashboards-delete-${record.id}`">{{ t("common.delete") }}</a-button>
             </a-popconfirm>
           </a-space>
         </template>
@@ -50,7 +51,7 @@
     >
       <a-form :model="formState" layout="vertical">
         <a-form-item :label="t('dashboards.colName')" required>
-          <a-input v-model:value="formState.name" />
+          <a-input v-model:value="formState.name" data-testid="app-dashboards-form-name" />
         </a-form-item>
         <a-form-item :label="t('dashboards.colDescription')">
           <a-textarea v-model:value="formState.description" :rows="3" />
@@ -103,6 +104,10 @@ const modalVisible = ref(false);
 const saving = ref(false);
 const editingId = ref<string | null>(null);
 const formState = reactive({ name: "", description: "", isDefault: false });
+const defaultDashboardLayoutJson = JSON.stringify({
+  type: "grid",
+  widgets: []
+});
 
 const formatTime = (iso: string) => {
   const language = locale.value === "en-US" ? "en-US" : "zh-CN";
@@ -168,14 +173,26 @@ const handleSave = async () => {
     if (editingId.value) {
       await updateDashboard(appKey.value, editingId.value, {
         name: formState.name.trim(),
-        description: formState.description.trim() || undefined,
+        description: formState.description.trim(),
+        category: "e2e",
+        layoutJson: defaultDashboardLayoutJson,
         isDefault: formState.isDefault,
+        isLargeScreen: true,
+        canvasWidth: 1920,
+        canvasHeight: 1080,
+        themeJson: "",
       });
     } else {
       await createDashboard(appKey.value, {
         name: formState.name.trim(),
-        description: formState.description.trim() || undefined,
+        description: formState.description.trim(),
+        category: "e2e",
+        layoutJson: defaultDashboardLayoutJson,
         isDefault: formState.isDefault,
+        isLargeScreen: true,
+        canvasWidth: 1920,
+        canvasHeight: 1080,
+        themeJson: "",
       });
     }
     modalVisible.value = false;

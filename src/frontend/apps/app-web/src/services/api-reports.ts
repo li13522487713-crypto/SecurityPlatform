@@ -19,12 +19,21 @@ export interface DashboardItem {
 export interface SaveReportRequest {
   name: string;
   description?: string;
+  category?: string;
+  configJson: string;
+  dataSourceJson?: string;
 }
 
 export interface SaveDashboardRequest {
   name: string;
   description?: string;
+  category?: string;
+  layoutJson: string;
   isDefault: boolean;
+  isLargeScreen: boolean;
+  canvasWidth?: number;
+  canvasHeight?: number;
+  themeJson?: string;
 }
 
 function reportsBase(appKey: string): string {

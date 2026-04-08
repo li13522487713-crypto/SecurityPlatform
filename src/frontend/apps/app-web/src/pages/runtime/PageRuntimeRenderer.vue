@@ -1,5 +1,5 @@
 <template>
-  <a-card :title="pageTitle">
+  <a-card :title="pageTitle" data-testid="app-runtime-page">
     <a-spin :spinning="loading">
       <AmisRenderer v-if="schema" :schema="schema" />
       <a-empty v-else :description="t('runtimePage.emptyNoPage')" />

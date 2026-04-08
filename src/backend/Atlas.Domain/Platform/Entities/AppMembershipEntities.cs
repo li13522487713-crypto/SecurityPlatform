@@ -66,6 +66,8 @@ public sealed class AppRole : TenantEntity
         CreatedAt = createdAt;
         UpdatedBy = createdBy;
         UpdatedAt = createdAt;
+        // 兼容历史 SQLite 表结构中 DeptIds 被建为 NOT NULL 的场景。
+        DeptIds = string.Empty;
     }
 
     public long AppId { get; private set; }

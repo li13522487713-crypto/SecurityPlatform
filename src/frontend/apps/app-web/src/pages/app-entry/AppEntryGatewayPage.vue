@@ -1,14 +1,16 @@
 <template>
-  <div class="entry-gateway">
-    <a-spin :spinning="loading">
+  <div class="entry-gateway" data-testid="app-entry-gateway-page">
+    <a-spin :spinning="loading" data-testid="app-entry-gateway-spin">
       <a-result
         v-if="errorMessage"
+        data-testid="app-entry-gateway-warning"
         status="warning"
         :title="t('appEntry.unavailable')"
         :sub-title="errorMessage"
       />
       <a-result
         v-else
+        data-testid="app-entry-gateway-info"
         status="info"
         :title="t('appEntry.entering')"
         :sub-title="t('appEntry.resolving')"

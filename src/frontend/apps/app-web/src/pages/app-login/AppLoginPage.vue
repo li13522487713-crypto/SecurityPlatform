@@ -1,5 +1,5 @@
 <template>
-  <div class="login-wrapper">
+  <div class="login-wrapper" data-testid="app-login-page">
     <div class="login-split">
       <aside class="login-split__left">
         <div class="tech-bg">
@@ -99,6 +99,7 @@
               <a-input
                 v-model:value="form.tenantId"
                 size="large"
+                data-testid="app-login-tenant"
                 :placeholder="t('appLogin.tenantIdPlaceholder')"
               >
                 <template #prefix><bank-outlined /></template>
@@ -113,6 +114,7 @@
               <a-input
                 v-model:value="form.username"
                 size="large"
+                data-testid="app-login-username"
                 :placeholder="t('appLogin.usernamePlaceholder')"
               >
                 <template #prefix><user-outlined /></template>
@@ -127,6 +129,7 @@
               <a-input-password
                 v-model:value="form.password"
                 size="large"
+                data-testid="app-login-password"
                 :placeholder="t('appLogin.passwordPlaceholder')"
               >
                 <template #prefix><lock-outlined /></template>
@@ -138,6 +141,7 @@
               html-type="submit"
               block
               size="large"
+              data-testid="app-login-submit"
               :loading="submitting"
               class="login-submit-btn"
             >

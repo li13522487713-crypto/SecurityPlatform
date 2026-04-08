@@ -1,5 +1,5 @@
 <template>
-  <div class="dashboard-page">
+  <div class="dashboard-page" data-testid="app-dashboard-page">
     <!-- Header Section -->
     <div class="dashboard-header">
       <div>
