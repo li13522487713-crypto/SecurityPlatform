@@ -19,6 +19,8 @@
         <span class="tenant-label">{{ t('header.tenant') }}: {{ tenantDisplay }}</span>
       </div>
 
+      <LocaleSwitch />
+
       <a-badge :count="unreadCount" :offset="[-2, 2]" :number-style="{ display: unreadCount > 0 ? '' : 'none' }">
         <button class="icon-btn" data-testid="app-header-notification" @click="$emit('notificationClick')">
           <BellOutlined />
@@ -66,6 +68,7 @@ import {
   LockOutlined,
   LogoutOutlined
 } from "@ant-design/icons-vue";
+import LocaleSwitch from "@/components/layout/LocaleSwitch.vue";
 
 const { t } = useI18n();
 

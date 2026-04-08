@@ -33,10 +33,22 @@ export const API_BASE = import.meta.env.VITE_API_BASE ?? (
     : "/api/v1"
 );
 
+function normalizeApiPath(path: string): string {
+  if (!path) return "/";
+  if (path.startsWith("/api/v1/")) {
+    return `/${path.slice("/api/v1/".length)}`;
+  }
+  if (path === "/api/v1") {
+    return "/";
+  }
+  return path.startsWith("/") ? path : `/${path}`;
+}
+
 function resolveRequestUrl(path: string): string {
   if (path.startsWith("http://") || path.startsWith("https://")) return path;
-  if (path.startsWith("/api/") || path.startsWith("/app-host/")) return path;
-  return `${API_BASE}${path}`;
+  if (path.startsWith("/app-host/")) return path;
+  if (path.startsWith("/api/")) return path;
+  return `${API_BASE}${normalizeApiPath(path)}`;
 }
 
 export function getAppRuntimeMode(): AppRuntimeMode {

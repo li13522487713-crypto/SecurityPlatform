@@ -150,7 +150,7 @@ export default {
       reactObservation: "观察（Observation）",
       reactFinal: "最终回答（Final）",
       missingAgentTitle: "缺少 Agent",
-      missingAgentDesc: "请在地址中提供有效的 Agent ID，例如：/apps/{应用}/ai/chat/{AgentId}"
+      missingAgentDesc: "请在地址中提供有效的 Agent ID，例如：/apps/<appKey>/ai/chat/<agentId>"
     }
   },
   layout: {

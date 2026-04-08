@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -6,6 +7,13 @@ const frontendRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 
 const repoRoot = path.resolve(frontendRoot, "..", "..");
 const platformHostRoot = path.resolve(repoRoot, "src", "backend", "Atlas.PlatformHost");
 const appHostRoot = path.resolve(repoRoot, "src", "backend", "Atlas.AppHost");
+const platformHostProject = path.resolve(platformHostRoot, "Atlas.PlatformHost.csproj");
+const appHostProject = path.resolve(appHostRoot, "Atlas.AppHost.csproj");
+const e2eBuildRoot = path.resolve(repoRoot, "artifacts", "e2e");
+const platformHostBuildDir = path.resolve(e2eBuildRoot, "Atlas.PlatformHost");
+const appHostBuildDir = path.resolve(e2eBuildRoot, "Atlas.AppHost");
+const platformHostDll = path.resolve(platformHostBuildDir, "Atlas.PlatformHost.dll");
+const appHostDll = path.resolve(appHostBuildDir, "Atlas.AppHost.dll");
 const isWindows = process.platform === "win32";
 const playwrightArgs = ["test", "-c", "playwright.app.config.ts", ...process.argv.slice(2)];
 const platformApiBase = "http://127.0.0.1:5001";
@@ -26,11 +34,9 @@ const serviceProcesses = new Map();
 const services = [
   {
     name: "PlatformHost",
-    command: isWindows ? "cmd.exe" : "dotnet",
-    args: isWindows
-      ? ["/d", "/s", "/c", "dotnet run --project ..\\backend\\Atlas.PlatformHost --no-launch-profile --no-build -p:UseAppHost=false"]
-      : ["run", "--project", "../backend/Atlas.PlatformHost", "--no-launch-profile", "--no-build", "-p:UseAppHost=false"],
-    cwd: frontendRoot,
+    command: "dotnet",
+    args: [platformHostDll],
+    cwd: platformHostRoot,
     url: "http://127.0.0.1:5001/internal/health/live",
     env: {
       ASPNETCORE_ENVIRONMENT: "Development",
@@ -41,11 +47,9 @@ const services = [
   },
   {
     name: "AppHost",
-    command: isWindows ? "cmd.exe" : "dotnet",
-    args: isWindows
-      ? ["/d", "/s", "/c", "dotnet run --project ..\\backend\\Atlas.AppHost --no-launch-profile --no-build -p:UseAppHost=false"]
-      : ["run", "--project", "../backend/Atlas.AppHost", "--no-launch-profile", "--no-build", "-p:UseAppHost=false"],
-    cwd: frontendRoot,
+    command: "dotnet",
+    args: [appHostDll],
+    cwd: appHostRoot,
     url: "http://127.0.0.1:5002/internal/health/live",
     env: {
       ASPNETCORE_ENVIRONMENT: "Development",
@@ -84,6 +88,11 @@ const appWebService = services[3];
 
 function log(message) {
   process.stdout.write(`[run-app-e2e] ${message}\n`);
+}
+
+function ensureBuildDirectories() {
+  fs.mkdirSync(platformHostBuildDir, { recursive: true });
+  fs.mkdirSync(appHostBuildDir, { recursive: true });
 }
 
 function sleep(milliseconds) {
@@ -315,12 +324,23 @@ function terminateProcessTree(child) {
 async function restartService(service) {
   log(`重启 ${service.name}`);
   const current = serviceProcesses.get(service.name);
+  let shouldSpawnAfterStop = true;
   if (current) {
     terminateProcessTree(current);
-    await waitForUrlUnavailable(service.url, 30_000, service.name);
+    try {
+      await waitForUrlUnavailable(service.url, 30_000, service.name);
+    } catch (error) {
+      // 端口仍存活通常意味着外部已有同服务进程在监听（例如 IDE 启动），
+      // 这时复用该进程继续执行 E2E，避免启动流程直接失败。
+      shouldSpawnAfterStop = false;
+      const message = error instanceof Error ? error.message : String(error);
+      log(`${service.name} 未完全停止，复用现有监听服务: ${message}`);
+    }
   }
 
-  spawnService(service);
+  if (shouldSpawnAfterStop) {
+    spawnService(service);
+  }
   await waitForUrl(service.url, 180_000, service.name);
 }
 
@@ -386,11 +406,19 @@ async function runPlaywright() {
 }
 
 async function main() {
+  ensureBuildDirectories();
+
   await runCommand(
-    isWindows ? "cmd.exe" : "dotnet",
-    isWindows
-      ? ["/d", "/s", "/c", "dotnet build ..\\backend\\Atlas.PlatformHost --no-restore -m:1 -nr:false /p:UseAppHost=false"]
-      : ["build", "../backend/Atlas.PlatformHost", "--no-restore", "-m:1", "-nr:false", "/p:UseAppHost=false"],
+    "dotnet",
+    [
+      "build",
+      platformHostProject,
+      "--no-restore",
+      "-m:1",
+      "-nr:false",
+      "/p:UseAppHost=false",
+      `/p:OutDir=${platformHostBuildDir}${path.sep}`
+    ],
     frontendRoot,
     {
       ASPNETCORE_ENVIRONMENT: "Development",
@@ -400,10 +428,16 @@ async function main() {
   );
 
   await runCommand(
-    isWindows ? "cmd.exe" : "dotnet",
-    isWindows
-      ? ["/d", "/s", "/c", "dotnet build ..\\backend\\Atlas.AppHost --no-restore -m:1 -nr:false /p:UseAppHost=false"]
-      : ["build", "../backend/Atlas.AppHost", "--no-restore", "-m:1", "-nr:false", "/p:UseAppHost=false"],
+    "dotnet",
+    [
+      "build",
+      appHostProject,
+      "--no-restore",
+      "-m:1",
+      "-nr:false",
+      "/p:UseAppHost=false",
+      `/p:OutDir=${appHostBuildDir}${path.sep}`
+    ],
     frontendRoot,
     {
       ASPNETCORE_ENVIRONMENT: "Development",

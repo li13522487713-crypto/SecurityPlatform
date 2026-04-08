@@ -150,7 +150,7 @@ export default {
       reactObservation: "Observation",
       reactFinal: "Final answer",
       missingAgentTitle: "Agent required",
-      missingAgentDesc: "Provide a valid Agent ID in the URL, e.g. /apps/{app}/ai/chat/{agentId}"
+      missingAgentDesc: "Provide a valid Agent ID in the URL, for example: /apps/<appKey>/ai/chat/<agentId>"
     }
   },
   layout: {

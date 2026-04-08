@@ -1,5 +1,5 @@
 import path from "node:path";
-import { expect, type APIRequestContext, type Page } from "@playwright/test";
+import { expect, type APIRequestContext, type Page, type TestInfo } from "@playwright/test";
 
 export const platformBaseUrl = "http://127.0.0.1:5180";
 export const appBaseUrl = "http://127.0.0.1:5181";
@@ -377,4 +377,23 @@ export async function expectNoI18nKeyLeak(page: Page, rootTestId?: string) {
   ).filter((candidate) => !candidate.startsWith("http.") && !candidate.startsWith("https."));
 
   expect(leakedKeys, `检测到 i18n key 泄漏: ${leakedKeys.join(", ")}`).toEqual([]);
+}
+
+export async function captureEvidenceScreenshot(
+  page: Page,
+  testInfo: TestInfo,
+  name: string
+) {
+  const normalizedName = name
+    .trim()
+    .replace(/[^a-zA-Z0-9-_]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .toLowerCase();
+  const relativePath = `${normalizedName || "e2e-screenshot"}.png`;
+  const screenshotPath = testInfo.outputPath(relativePath);
+  await page.screenshot({ path: screenshotPath, fullPage: true });
+  await testInfo.attach(`screenshot:${normalizedName || "e2e-screenshot"}`, {
+    path: screenshotPath,
+    contentType: "image/png"
+  });
 }

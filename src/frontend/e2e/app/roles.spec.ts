@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import {
+  captureEvidenceScreenshot,
   clearAuthStorage,
   ensureAppSetup,
   loginApp,
@@ -20,7 +21,7 @@ test.describe.serial("App Roles CRUD", () => {
     await expect(page.getByTestId("app-roles-page")).toBeVisible();
   });
 
-  test("create role and update role name", async ({ page }) => {
+  test("create/update/delete role should work", async ({ page }, testInfo) => {
     const roleName = uniqueName("E2ERole");
     const roleCode = uniqueName("E2E_ROLE").replace(/-/g, "_").toUpperCase();
     const updatedRoleName = `${roleName}_edit`;
@@ -30,12 +31,21 @@ test.describe.serial("App Roles CRUD", () => {
     await page.getByTestId("app-roles-form-code").fill(roleCode);
     await page.getByTestId("e2e-crud-drawer-submit").click();
     await expect(page.getByTestId("app-roles-table")).toContainText(roleName);
+    await captureEvidenceScreenshot(page, testInfo, "roles-created");
 
-    const row = page.locator(".ant-table-row", { hasText: roleCode }).first();
-    await expect(row).toBeVisible();
-    await row.locator('[data-testid^="app-roles-edit-"]').first().click();
+    const createdRow = page.locator(".ant-table-row", { hasText: roleName }).first();
+    await expect(createdRow).toBeVisible();
+    await createdRow.locator('[data-testid^="app-roles-edit-"]').first().click();
     await page.getByTestId("app-roles-form-name").fill(updatedRoleName);
     await page.getByTestId("e2e-crud-drawer-submit").click();
     await expect(page.getByTestId("app-roles-table")).toContainText(updatedRoleName);
+
+    const editedRow = page.locator(".ant-table-row", { hasText: updatedRoleName }).first();
+    await expect(editedRow).toBeVisible();
+    await editedRow.locator('[data-testid^="app-roles-delete-"]').first().click();
+    await page.locator(".ant-popconfirm-buttons .ant-btn-primary").last().click();
+
+    await expect(page.getByTestId("app-roles-table")).not.toContainText(updatedRoleName);
+    await captureEvidenceScreenshot(page, testInfo, "roles-deleted");
   });
 });

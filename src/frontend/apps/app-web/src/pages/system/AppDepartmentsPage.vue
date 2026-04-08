@@ -188,7 +188,8 @@ function buildDepartmentTree(items: AppDepartmentListItem[]): DeptTreeNode[] {
   items.forEach((item) => {
     const node = nodeMap.get(item.id);
     if (!node) return;
-    if (item.parentId) {
+    // 历史数据中根节点可能使用 parentId=self 表示，需按根节点处理，避免整棵树丢失。
+    if (item.parentId && item.parentId !== item.id) {
       const parent = nodeMap.get(item.parentId);
       if (parent) {
         parent.children = parent.children ?? [];

@@ -36,13 +36,33 @@ function stopRelevantProcesses() {
 
   const command = `
 $ErrorActionPreference = 'SilentlyContinue'
-$processes = Get-CimInstance Win32_Process | Where-Object {
+$namedProcesses = Get-CimInstance Win32_Process | Where-Object {
   (($_.Name -eq 'dotnet.exe' -or $_.Name -eq 'dotnet') -and $_.CommandLine -and ($_.CommandLine -match 'Atlas\\.PlatformHost|Atlas\\.AppHost')) -or
   (($_.Name -eq 'node.exe' -or $_.Name -eq 'node') -and $_.CommandLine -and ($_.CommandLine -match 'dev:platform-web|dev:app-web|apps\\\\platform-web|apps\\\\app-web|vite'))
 }
-if ($processes) {
-  $processes | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
-  Write-Host ('[reset-setup-state] stopped process count: ' + $processes.Count)
+$targetPorts = @(5001, 5002, 5180, 5181)
+$portPids = @()
+foreach ($port in $targetPorts) {
+  $listeners = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
+  if ($listeners) {
+    $portPids += ($listeners | Select-Object -ExpandProperty OwningProcess)
+  }
+}
+
+$targetProcessIds = @()
+if ($namedProcesses) {
+  $targetProcessIds += ($namedProcesses | Select-Object -ExpandProperty ProcessId)
+}
+if ($portPids) {
+  $targetProcessIds += $portPids
+}
+
+$targetProcessIds = $targetProcessIds | Where-Object { $_ -and $_ -ne $PID } | Select-Object -Unique
+if ($targetProcessIds) {
+  foreach ($targetProcessId in $targetProcessIds) {
+    Stop-Process -Id $targetProcessId -Force -ErrorAction SilentlyContinue
+  }
+  Write-Host ('[reset-setup-state] stopped process count: ' + $targetProcessIds.Count)
 }
 `;
   const shells = ["C:\\Program Files\\PowerShell\\7\\pwsh.exe", "pwsh", "powershell"];
