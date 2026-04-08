@@ -2,6 +2,18 @@
  * 前端表达式相关类型，与后端 ExpressionsController 契约对齐。
  */
 
+import type { ValueMap } from "../types/base-types";
+
+export interface RuntimeExpressionContext {
+  record?: ValueMap;
+  user?: ValueMap;
+  page?: ValueMap;
+  app?: ValueMap;
+  tenant?: ValueMap;
+  global?: ValueMap;
+  form?: ValueMap;
+}
+
 export interface ExpressionValidateRequest {
   expression: string;
 }
@@ -15,17 +27,18 @@ export interface ExpressionValidateResponse {
 
 export interface ExpressionEvaluateRequest {
   expression: string;
-  record?: Record<string, unknown>;
-  user?: Record<string, unknown>;
-  page?: Record<string, unknown>;
-  app?: Record<string, unknown>;
-  tenant?: Record<string, unknown>;
-  global?: Record<string, unknown>;
+  record?: ValueMap;
+  user?: ValueMap;
+  page?: ValueMap;
+  app?: ValueMap;
+  tenant?: ValueMap;
+  global?: ValueMap;
+  form?: ValueMap;
 }
 
 export interface ExpressionEvaluateResponse {
   success: boolean;
-  resultValue?: string;
-  resultBool?: boolean;
-  error?: string;
+  resultValue?: string | null;
+  resultBool?: boolean | null;
+  error?: string | null;
 }

@@ -14,6 +14,7 @@ import { useRuntimeContextStore } from "../context/runtime-context-store";
 import { loadRuntimeManifest } from "./runtime-manifest-loader";
 import { registerBuiltinHandlers } from "../actions/builtin-handlers";
 import type { RuntimeManifest } from "../release/runtime-release-types";
+import type { RuntimeEntryMode } from "../types/base-types";
 
 let handlersRegistered = false;
 
@@ -27,6 +28,10 @@ function generateExecutionId(): string {
     return crypto.randomUUID();
   }
   return `exec-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function resolveEntryMode(route: RouteLocationNormalizedLoaded): RuntimeEntryMode {
+  return route.path.startsWith("/r/") ? "public-runtime" : "workspace-runtime";
 }
 
 export async function bootstrapRuntime(
@@ -48,29 +53,33 @@ export async function bootstrapRuntime(
   const executionId = generateExecutionId();
   const profile = getAuthProfile();
   const tenantId = getTenantId() ?? "";
+  const locale = typeof navigator !== "undefined" ? navigator.language : "zh-CN";
 
   const store = useRuntimeContextStore();
   store.initContext({
     app: {
       appKey,
-      name: manifest.pageTitle,
+      name: manifest.pageName ?? manifest.pageTitle,
       releaseId: manifest.releaseId,
       releaseVersion: manifest.releaseVersion,
     },
     page: {
       pageKey,
+      pageName: manifest.pageName,
       title: manifest.pageTitle,
       pageType: manifest.pageType,
       mode: "view",
     },
     user: {
       id: profile?.id,
-      name: profile?.displayName || profile?.username || "",
+      name: profile?.username ?? "",
+      displayName: profile?.displayName || profile?.username || "",
       roles: profile?.roles ?? [],
       permissions: profile?.permissions ?? [],
     },
     route: {
-      path: route.fullPath,
+      path: route.path,
+      fullPath: route.fullPath,
       params: Object.fromEntries(
         Object.entries(route.params).map(([k, v]) => [k, String(v ?? "")]),
       ),
@@ -79,14 +88,20 @@ export async function bootstrapRuntime(
       ),
     },
     env: {
+      entryMode: resolveEntryMode(route),
       runtimeExecutionId: executionId,
       releaseId: manifest.releaseId,
       releaseVersion: manifest.releaseVersion,
+      locale,
     },
     global: {
       tenantId,
     },
   });
+
+  if (manifest.initialContextPatch) {
+    store.patchContext(manifest.initialContextPatch);
+  }
 
   return { manifest, executionId };
 }

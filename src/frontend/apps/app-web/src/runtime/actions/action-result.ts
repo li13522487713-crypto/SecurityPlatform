@@ -2,16 +2,28 @@
  * 动作执行结果。
  */
 
+import type { Id } from "../types/base-types";
+import type { RuntimeAction } from "./action-types";
+
 export interface ActionResult {
+  actionId?: Id;
+  actionType?: RuntimeAction["type"];
   success: boolean;
   data?: unknown;
+  message?: string;
   error?: string;
+  errorCode?: string;
 }
 
-export function actionOk(data?: unknown): ActionResult {
-  return { success: true, data };
+export interface ActionExecutionSummary {
+  success: boolean;
+  results: ActionResult[];
 }
 
-export function actionFail(error: string): ActionResult {
-  return { success: false, error };
+export function actionOk(data?: unknown, actionType?: RuntimeAction["type"]): ActionResult {
+  return { success: true, data, actionType };
+}
+
+export function actionFail(error: string, actionType?: RuntimeAction["type"]): ActionResult {
+  return { success: false, error, actionType };
 }

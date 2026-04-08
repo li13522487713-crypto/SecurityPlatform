@@ -18,7 +18,6 @@ export interface AmisEvent {
 
 /**
  * 将 AMIS 事件转换为 RuntimeAction。
- * 当前仅做基础映射，Phase 2 扩展更复杂的动作类型。
  */
 export function mapAmisEventToAction(event: AmisEvent): RuntimeAction | null {
   switch (event.type) {
@@ -26,7 +25,13 @@ export function mapAmisEventToAction(event: AmisEvent): RuntimeAction | null {
     case "url": {
       const pageKey = event.data?.["pageKey"] ?? event.data?.["link"];
       if (typeof pageKey === "string") {
-        return { type: "navigate", pageKey, params: event.data };
+        return {
+          type: "navigate",
+          input: {
+            pageKey,
+            params: event.data as Record<string, unknown> | undefined,
+          },
+        };
       }
       return null;
     }
@@ -37,35 +42,46 @@ export function mapAmisEventToAction(event: AmisEvent): RuntimeAction | null {
         : "";
       return {
         type: "openDialog",
-        dialogKey: String(dialogKey),
-        payload: event.data,
+        input: {
+          dialogKey: String(dialogKey),
+          payload: event.data,
+        },
       };
     }
     case "submit": {
       return {
         type: "submitForm",
-        formKey: event.data?.["formKey"] as string | undefined,
+        input: {
+          formKey: event.data?.["formKey"] as string | undefined,
+        },
       };
     }
     case "ajax": {
       const url = event.data?.["api"] ?? event.data?.["url"];
       return {
         type: "callApi",
-        apiKey: String(url ?? ""),
-        method: event.data?.["method"] as string | undefined,
-        input: event.data,
+        input: {
+          apiKey: String(url ?? ""),
+          method: event.data?.["method"] as "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | undefined,
+          body: event.data,
+        },
       };
     }
     case "reload": {
       return {
         type: "refresh",
-        target: event.data?.["target"] as string | undefined,
+        input: {
+          target: event.data?.["target"] as string | undefined,
+        },
       };
     }
     case "setValue": {
       const name = event.data?.["name"];
       if (typeof name === "string") {
-        return { type: "setVar", name, value: event.data?.["value"] };
+        return {
+          type: "setVar",
+          input: { name, value: event.data?.["value"] },
+        };
       }
       return null;
     }

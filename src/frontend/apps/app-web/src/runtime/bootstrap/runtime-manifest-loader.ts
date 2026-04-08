@@ -15,12 +15,15 @@ export async function loadRuntimeManifest(
   ]);
 
   const matchedPage = runtimeMenu.items.find((item) => item.pageKey === pageKey);
+  const pageName = matchedPage?.title;
+  const pageTitle = pageName ?? `${appKey} / ${pageKey}`;
 
   return {
     appKey,
     pageKey,
     schemaJson: runtimeSchema.schemaJson,
-    pageTitle: matchedPage?.title ?? `${appKey} / ${pageKey}`,
+    pageName,
+    pageTitle,
     pageType: runtimeSchema.mode,
     releaseId: undefined,
     releaseVersion: runtimeSchema.version,

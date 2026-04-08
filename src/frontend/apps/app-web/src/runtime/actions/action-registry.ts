@@ -2,7 +2,6 @@
  * 动作处理器注册表。
  *
  * 每种 RuntimeAction.type 对应一个 ActionHandler。
- * Phase 1 实现基础类型，Phase 3 扩展 workflow/agent。
  */
 
 import type { RuntimeAction } from "./action-types";

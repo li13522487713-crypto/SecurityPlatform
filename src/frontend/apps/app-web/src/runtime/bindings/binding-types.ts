@@ -2,36 +2,49 @@
  * 数据绑定类型定义。
  *
  * 从"字符串 URL 注入"升级为模型驱动的 Binding 声明。
- * Phase 1 先实现基础 List/Record/Form binding，
- * Phase 2 扩展 filter/sort/pagination 参数化。
  */
+
+import type { Key, RuntimePageMode } from "../types/base-types";
 
 export interface ListBinding {
   kind: "list";
-  entityKey: string;
-  queryKey?: string;
+  key: Key;
+  entityKey: Key;
+  queryKey?: Key;
   filters?: unknown;
+  sort?: unknown;
   pageSize?: number;
   apiUrl: string;
 }
 
 export interface RecordBinding {
   kind: "record";
-  entityKey: string;
+  key: Key;
+  entityKey: Key;
   idExpr: string;
   apiUrl: string;
 }
 
 export interface FormBinding {
   kind: "form";
-  entityKey: string;
-  mode: "create" | "edit" | "view";
+  key: Key;
+  entityKey: Key;
+  mode: RuntimePageMode;
   recordIdExpr?: string;
+  initialValueExpr?: string;
   submitUrl: string;
   initUrl?: string;
 }
 
-export type DataBinding = ListBinding | RecordBinding | FormBinding;
+export interface QueryBinding {
+  kind: "query";
+  key: Key;
+  source: "api" | "flow" | "workflow" | "agent";
+  sourceKey: Key;
+  inputExpr?: string;
+}
+
+export type DataBinding = ListBinding | RecordBinding | FormBinding | QueryBinding;
 
 export interface SchemaBindingMap {
   bindings: DataBinding[];

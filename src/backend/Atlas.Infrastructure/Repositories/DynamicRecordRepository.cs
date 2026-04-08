@@ -658,7 +658,7 @@ public sealed class DynamicRecordRepository : IDynamicRecordRepository
         return fields.Select(field => new DynamicColumnDef(
             field.Name,
             string.IsNullOrWhiteSpace(field.DisplayName) ? field.Name : field.DisplayName,
-            field.FieldType == DynamicFieldType.Bool ? "status" : "text",
+            field.FieldType.ToString(),
             true,
             field.FieldType is DynamicFieldType.String or DynamicFieldType.Text,
             false)).ToArray();

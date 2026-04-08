@@ -8,56 +8,78 @@
  * 支持相同六层：Global / Tenant / App / Page / User / Record。
  */
 
+import type {
+  Id,
+  Key,
+  StringMap,
+  ValueMap,
+  RuntimeEntryMode,
+  RuntimePageMode,
+} from "../types/base-types";
+
+export type { RuntimePageMode };
+
 export interface RuntimeTenantInfo {
-  id: string;
+  id: Id;
   code?: string;
+  name?: string;
 }
 
 export interface RuntimeAppInfo {
-  id?: string;
-  appKey: string;
+  id?: Id;
+  appKey: Key;
+  appCode?: string;
   name?: string;
-  releaseId?: string;
+  releaseId?: Id;
   releaseVersion?: number;
 }
 
 export interface RuntimePageInfo {
-  id?: string;
-  pageKey: string;
+  id?: Id;
+  pageKey: Key;
+  pageName?: string;
   title?: string;
   pageType?: string;
-  mode?: "view" | "edit" | "create";
+  mode?: RuntimePageMode;
 }
 
 export interface RuntimeUserInfo {
-  id?: string;
+  id?: Id;
   name?: string;
+  displayName?: string;
   roles: string[];
   permissions: string[];
+  departmentIds?: Id[];
 }
 
 export interface RuntimeRouteInfo {
   path: string;
-  params: Record<string, string>;
-  query: Record<string, string>;
+  fullPath?: string;
+  params: StringMap;
+  query: StringMap;
 }
 
 export interface RuntimeProjectInfo {
-  id?: string;
+  id?: Id;
   code?: string;
+  name?: string;
 }
 
 export interface RuntimeRecordInfo {
-  id?: string;
-  data?: Record<string, unknown>;
+  id?: Id;
+  entityKey?: Key;
+  data?: ValueMap;
 }
 
 export interface RuntimeEnvInfo {
-  traceId?: string;
-  runtimeExecutionId?: string;
-  releaseId?: string;
-  releaseVersion?: number;
+  entryMode?: RuntimeEntryMode;
   directRuntimeMode?: boolean;
+  traceId?: string;
+  runtimeExecutionId?: Id;
+  releaseId?: Id;
+  releaseVersion?: number;
+  locale?: string;
+  timezone?: string;
 }
 
 export interface RuntimeContext {
@@ -68,8 +90,8 @@ export interface RuntimeContext {
   route: RuntimeRouteInfo;
   project?: RuntimeProjectInfo;
   record?: RuntimeRecordInfo;
-  selection?: Array<Record<string, unknown>>;
-  global: Record<string, unknown>;
+  selection?: ValueMap[];
+  global: ValueMap;
   env: RuntimeEnvInfo;
 }
 
@@ -78,24 +100,28 @@ export interface RuntimeContext {
  * 六层字典结构（Record/User/Page/App/Tenant/Global）。
  */
 export function flattenContextForExpression(ctx: RuntimeContext): {
-  record: Record<string, unknown>;
-  user: Record<string, unknown>;
-  page: Record<string, unknown>;
-  app: Record<string, unknown>;
-  tenant: Record<string, unknown>;
-  global: Record<string, unknown>;
+  record: ValueMap;
+  user: ValueMap;
+  page: ValueMap;
+  app: ValueMap;
+  tenant: ValueMap;
+  global: ValueMap;
+  form: ValueMap;
 } {
   return {
     record: ctx.record?.data ?? {},
     user: {
       id: ctx.user.id ?? "",
       name: ctx.user.name ?? "",
+      displayName: ctx.user.displayName ?? "",
       roles: ctx.user.roles,
       permissions: ctx.user.permissions,
+      departmentIds: ctx.user.departmentIds ?? [],
     },
     page: {
       id: ctx.page.id ?? "",
       pageKey: ctx.page.pageKey,
+      pageName: ctx.page.pageName ?? "",
       title: ctx.page.title ?? "",
       pageType: ctx.page.pageType ?? "",
       mode: ctx.page.mode ?? "view",
@@ -103,6 +129,7 @@ export function flattenContextForExpression(ctx: RuntimeContext): {
     app: {
       id: ctx.app.id ?? "",
       appKey: ctx.app.appKey,
+      appCode: ctx.app.appCode ?? "",
       name: ctx.app.name ?? "",
       releaseId: ctx.app.releaseId ?? "",
       releaseVersion: ctx.app.releaseVersion ?? 0,
@@ -110,8 +137,10 @@ export function flattenContextForExpression(ctx: RuntimeContext): {
     tenant: {
       id: ctx.tenant.id,
       code: ctx.tenant.code ?? "",
+      name: ctx.tenant.name ?? "",
     },
     global: { ...ctx.global },
+    form: {},
   };
 }
 

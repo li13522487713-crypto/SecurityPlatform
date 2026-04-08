@@ -1,28 +1,32 @@
 /**
  * 运行时审计事件采集与上报。
  *
- * 采集关键动作（页面进入/表单提交/API 调用/错误），
+ * 采集关键动作（页面进入/离开/动作执行/绑定加载/错误），
  * 批量上报后端审计 API。
  */
 
-export interface RuntimeAuditEvent {
-  executionId: string;
-  appKey: string;
-  pageKey: string;
-  eventType: "page_enter" | "page_leave" | "action_execute" | "form_submit" | "api_call" | "error";
-  detail?: Record<string, unknown>;
-  timestamp: string;
-}
+import type { RuntimeAuditEvent, RuntimeAuditEventType } from "../release/runtime-release-types";
+import type { ValueMap } from "../types/base-types";
+
+export type { RuntimeAuditEvent, RuntimeAuditEventType };
 
 const eventQueue: RuntimeAuditEvent[] = [];
 const FLUSH_INTERVAL_MS = 5000;
 const MAX_QUEUE_SIZE = 50;
 let flushTimer: ReturnType<typeof setInterval> | null = null;
 
-export function reportAuditEvent(event: Omit<RuntimeAuditEvent, "timestamp">): void {
+export function reportAuditEvent(event: {
+  executionId: string;
+  eventType: RuntimeAuditEventType;
+  traceId?: string;
+  payload?: ValueMap;
+}): void {
   eventQueue.push({
-    ...event,
+    executionId: event.executionId,
+    traceId: event.traceId,
+    eventType: event.eventType,
     timestamp: new Date().toISOString(),
+    payload: event.payload,
   });
 
   if (eventQueue.length >= MAX_QUEUE_SIZE) {
@@ -55,7 +59,6 @@ async function flushEvents(): Promise<void> {
       console.debug("[RuntimeAudit] flushing", batch.length, "events");
     }
   } catch {
-    // 审计上报失败不阻断业务
     eventQueue.unshift(...batch);
   }
 }

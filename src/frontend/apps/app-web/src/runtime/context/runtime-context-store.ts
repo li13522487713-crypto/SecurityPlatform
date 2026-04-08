@@ -7,11 +7,13 @@ import type {
   RuntimeUserInfo,
   RuntimeRouteInfo,
   RuntimeEnvInfo,
+  RuntimeRecordInfo,
 } from "./runtime-context-types";
 import {
   createEmptyRuntimeContext,
   flattenContextForExpression,
 } from "./runtime-context-types";
+import type { ValueMap, RuntimePageMode } from "../types/base-types";
 
 interface RuntimeContextState {
   context: RuntimeContext;
@@ -42,7 +44,7 @@ export const useRuntimeContextStore = defineStore("runtime-context", {
       user: RuntimeUserInfo;
       route: RuntimeRouteInfo;
       env: RuntimeEnvInfo;
-      global?: Record<string, unknown>;
+      global?: ValueMap;
     }) {
       this.context = {
         tenant: { id: getTenantId() ?? "" },
@@ -57,21 +59,37 @@ export const useRuntimeContextStore = defineStore("runtime-context", {
     },
 
     /**
+     * 部分更新上下文（manifest 携带 initialContextPatch 时使用）。
+     */
+    patchContext(patch: Partial<RuntimeContext>) {
+      if (patch.tenant) Object.assign(this.context.tenant, patch.tenant);
+      if (patch.app) Object.assign(this.context.app, patch.app);
+      if (patch.page) Object.assign(this.context.page, patch.page);
+      if (patch.user) Object.assign(this.context.user, patch.user);
+      if (patch.route) Object.assign(this.context.route, patch.route);
+      if (patch.project) this.context.project = { ...this.context.project, ...patch.project };
+      if (patch.record !== undefined) this.context.record = patch.record;
+      if (patch.selection !== undefined) this.context.selection = patch.selection;
+      if (patch.global) Object.assign(this.context.global, patch.global);
+      if (patch.env) Object.assign(this.context.env, patch.env);
+    },
+
+    /**
      * 更新当前记录数据（form 场景）。
      */
-    setRecord(data: Record<string, unknown>, id?: string) {
-      this.context.record = { id, data };
+    setRecord(record?: RuntimeRecordInfo) {
+      this.context.record = record;
     },
 
     /**
      * 更新当前选中行（crud 多选场景）。
      */
-    setSelection(rows: Array<Record<string, unknown>>) {
-      this.context.selection = rows;
+    setSelection(selection?: ValueMap[]) {
+      this.context.selection = selection;
     },
 
     /**
-     * 更新全局变量。
+     * 更新单个全局变量。
      */
     setGlobalVar(name: string, value: unknown) {
       this.context.global[name] = value;
@@ -80,7 +98,7 @@ export const useRuntimeContextStore = defineStore("runtime-context", {
     /**
      * 更新页面模式（view/edit/create）。
      */
-    setPageMode(mode: "view" | "edit" | "create") {
+    setPageMode(mode: RuntimePageMode) {
       this.context.page.mode = mode;
     },
 

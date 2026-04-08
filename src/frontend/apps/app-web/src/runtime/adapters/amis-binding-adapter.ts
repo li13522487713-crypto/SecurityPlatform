@@ -7,7 +7,7 @@
  */
 
 import type { AmisSchema } from "@/types/amis";
-import type { SchemaBindingMap } from "../bindings/binding-types";
+import type { SchemaBindingMap, FormBinding, ListBinding } from "../bindings/binding-types";
 
 /**
  * 将已解析的 bindings 应用到 AMIS schema 上。
@@ -29,8 +29,8 @@ function applyBindingsToNode(
   const obj = node as Record<string, unknown>;
 
   if (obj.type === "form") {
-    const formBinding = bindingMap.bindings.find((b) => b.kind === "form");
-    if (formBinding && formBinding.kind === "form") {
+    const formBinding = bindingMap.bindings.find((b): b is FormBinding => b.kind === "form");
+    if (formBinding) {
       if (!obj.api) {
         obj.api = formBinding.submitUrl;
       }
@@ -41,8 +41,8 @@ function applyBindingsToNode(
   }
 
   if (obj.type === "crud") {
-    const listBinding = bindingMap.bindings.find((b) => b.kind === "list");
-    if (listBinding && listBinding.kind === "list") {
+    const listBinding = bindingMap.bindings.find((b): b is ListBinding => b.kind === "list");
+    if (listBinding) {
       if (!obj.api) {
         obj.api = listBinding.apiUrl;
       }

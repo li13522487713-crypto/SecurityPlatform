@@ -27,23 +27,24 @@ async function handleRunWorkflow(
   action: RuntimeAction,
   context: RuntimeContext,
 ) {
-  if (action.type !== "runWorkflow") return actionFail("Invalid action type");
+  if (action.type !== "runWorkflow") return actionFail("Invalid action type", "runWorkflow");
 
+  const input = action.input;
   const prefix = resolvePrefix(context.app.appKey);
   try {
     const resp = await requestApi<ApiResponse<unknown>>(
-      `${prefix}/api/app/workflows/${encodeURIComponent(action.workflowKey)}/execute`,
+      `${prefix}/api/app/workflows/${encodeURIComponent(input?.workflowKey ?? "")}/execute`,
       {
         method: "POST",
         body: JSON.stringify({
-          input: action.input ?? {},
+          input: input?.input ?? {},
           executionId: context.env.runtimeExecutionId,
         }),
       },
     );
-    return actionOk(resp.data);
+    return actionOk(resp.data, "runWorkflow");
   } catch (error) {
-    return actionFail(error instanceof Error ? error.message : "Workflow execution failed");
+    return actionFail(error instanceof Error ? error.message : "Workflow execution failed", "runWorkflow");
   }
 }
 
@@ -51,8 +52,9 @@ async function handleRunApproval(
   action: RuntimeAction,
   context: RuntimeContext,
 ) {
-  if (action.type !== "runWorkflow") return actionFail("Invalid action type");
+  if (action.type !== "runApproval") return actionFail("Invalid action type", "runApproval");
 
+  const input = action.input;
   const prefix = resolvePrefix(context.app.appKey);
   try {
     const resp = await requestApi<ApiResponse<unknown>>(
@@ -60,14 +62,14 @@ async function handleRunApproval(
       {
         method: "POST",
         body: JSON.stringify({
-          ...(typeof action.input === "object" ? action.input : {}),
+          ...(typeof input === "object" ? input : {}),
           executionId: context.env.runtimeExecutionId,
         }),
       },
     );
-    return actionOk(resp.data);
+    return actionOk(resp.data, "runApproval");
   } catch (error) {
-    return actionFail(error instanceof Error ? error.message : "Approval submission failed");
+    return actionFail(error instanceof Error ? error.message : "Approval submission failed", "runApproval");
   }
 }
 
@@ -75,16 +77,17 @@ async function handleRunAgent(
   action: RuntimeAction,
   context: RuntimeContext,
 ) {
-  if (action.type !== "runAgent") return actionFail("Invalid action type");
+  if (action.type !== "runAgent") return actionFail("Invalid action type", "runAgent");
 
+  const input = action.input;
   const prefix = resolvePrefix(context.app.appKey);
   try {
     const resp = await requestApi<ApiResponse<unknown>>(
-      `${prefix}/api/app/agents/${encodeURIComponent(action.agentKey)}/invoke`,
+      `${prefix}/api/app/agents/${encodeURIComponent(input?.agentKey ?? "")}/invoke`,
       {
         method: "POST",
         body: JSON.stringify({
-          input: action.input ?? {},
+          input: input?.input ?? {},
           context: {
             executionId: context.env.runtimeExecutionId,
             pageKey: context.page.pageKey,
@@ -93,9 +96,9 @@ async function handleRunAgent(
         }),
       },
     );
-    return actionOk(resp.data);
+    return actionOk(resp.data, "runAgent");
   } catch (error) {
-    return actionFail(error instanceof Error ? error.message : "Agent invocation failed");
+    return actionFail(error instanceof Error ? error.message : "Agent invocation failed", "runAgent");
   }
 }
 
@@ -103,22 +106,23 @@ async function handleRunFlow(
   action: RuntimeAction,
   context: RuntimeContext,
 ) {
-  if (action.type !== "runFlow") return actionFail("Invalid action type");
+  if (action.type !== "runFlow") return actionFail("Invalid action type", "runFlow");
 
+  const input = action.input;
   const prefix = resolvePrefix(context.app.appKey);
   try {
     const resp = await requestApi<ApiResponse<unknown>>(
-      `${prefix}/api/app/flows/${encodeURIComponent(action.flowKey)}/execute`,
+      `${prefix}/api/app/flows/${encodeURIComponent(input?.flowKey ?? "")}/execute`,
       {
         method: "POST",
         body: JSON.stringify({
-          input: action.input ?? {},
+          input: input?.input ?? {},
           executionId: context.env.runtimeExecutionId,
         }),
       },
     );
-    return actionOk(resp.data);
+    return actionOk(resp.data, "runFlow");
   } catch (error) {
-    return actionFail(error instanceof Error ? error.message : "Flow execution failed");
+    return actionFail(error instanceof Error ? error.message : "Flow execution failed", "runFlow");
   }
 }

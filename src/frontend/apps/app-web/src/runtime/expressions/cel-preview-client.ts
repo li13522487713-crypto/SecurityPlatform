@@ -13,6 +13,7 @@ import type {
   ExpressionValidateResponse,
   ExpressionEvaluateRequest,
   ExpressionEvaluateResponse,
+  RuntimeExpressionContext,
 } from "./expression-types";
 
 const EXPRESSIONS_BASE = "/expressions";
@@ -41,14 +42,7 @@ export async function validateExpression(
 
 export async function evaluateExpression(
   expression: string,
-  variables: {
-    record?: Record<string, unknown>;
-    user?: Record<string, unknown>;
-    page?: Record<string, unknown>;
-    app?: Record<string, unknown>;
-    tenant?: Record<string, unknown>;
-    global?: Record<string, unknown>;
-  },
+  variables: RuntimeExpressionContext,
 ): Promise<ExpressionEvaluateResponse> {
   const body: ExpressionEvaluateRequest = {
     expression,
@@ -74,7 +68,7 @@ export async function evaluateExpression(
 /**
  * Mustache 变量占位符替换（纯本地，不执行表达式）。
  *
- * 仅做 {{ varName }} → 变量值 的简单替换，
+ * 仅做 {{ varName }} -> 变量值 的简单替换，
  * 不调用 new Function / eval，符合安全封板要求。
  */
 export function resolveVariablePlaceholders(

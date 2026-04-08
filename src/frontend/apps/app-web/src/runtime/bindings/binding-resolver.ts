@@ -10,11 +10,19 @@ import { buildRuntimeRecordsUrl } from "@/services/api-runtime";
 import type { AmisSchema } from "@/types/amis";
 import type { DataBinding, SchemaBindingMap } from "./binding-types";
 
+let bindingCounter = 0;
+
+function nextBindingKey(prefix: string): string {
+  bindingCounter += 1;
+  return `${prefix}_${bindingCounter}`;
+}
+
 export function resolveBindings(
   schema: AmisSchema,
   pageKey: string,
   appKey: string,
 ): SchemaBindingMap {
+  bindingCounter = 0;
   const bindings: DataBinding[] = [];
   collectBindings(schema, pageKey, appKey, bindings);
   return { bindings };
@@ -32,24 +40,28 @@ function collectBindings(
   const baseUrl = buildRuntimeRecordsUrl(pageKey, appKey);
 
   if (obj.type === "form") {
+    const entityKey = String(obj.dataTableKey ?? pageKey);
     const binding: DataBinding = {
       kind: "form",
-      entityKey: String(obj.dataTableKey ?? pageKey),
+      key: nextBindingKey("form"),
+      entityKey,
       mode: "create",
       submitUrl: `post:${baseUrl}`,
     };
 
     if (obj.dataTableKey) {
-      binding.initUrl = `get:${baseUrl}/\${id}`;
+      (binding as { initUrl?: string }).initUrl = `get:${baseUrl}/\${id}`;
     }
 
     bindings.push(binding);
   }
 
   if (obj.type === "crud") {
+    const entityKey = String(obj.dataTableKey ?? pageKey);
     bindings.push({
       kind: "list",
-      entityKey: String(obj.dataTableKey ?? pageKey),
+      key: nextBindingKey("list"),
+      entityKey,
       apiUrl: baseUrl,
     });
   }

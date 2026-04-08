@@ -1267,6 +1267,7 @@ export default {
     batchDeleteFailed: "批量删除失败",
     loadRecordsFailed: "加载记录失败",
     recordFormTitle: "记录详情",
-    fieldValueRequired: "此字段必填"
+    fieldValueRequired: "此字段必填",
+    inlineSave: "保存"
   }
 };

@@ -1270,6 +1270,7 @@ export default {
     batchDeleteFailed: "Batch delete failed",
     loadRecordsFailed: "Failed to load records",
     recordFormTitle: "Record Details",
-    fieldValueRequired: "This field is required"
+    fieldValueRequired: "This field is required",
+    inlineSave: "Save"
   }
 };
