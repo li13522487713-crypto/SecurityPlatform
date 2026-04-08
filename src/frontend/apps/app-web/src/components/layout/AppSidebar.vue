@@ -30,7 +30,7 @@
             >
               <component :is="item.icon" class="nav-item-icon" />
               <span class="nav-item-label">{{ item.name }}</span>
-              <span v-if="item.isNew" class="nav-item-badge">New</span>
+              <span v-if="item.badgeText" class="nav-item-badge">{{ item.badgeText }}</span>
             </div>
           </router-link>
         </div>
@@ -72,7 +72,8 @@ import {
   MessageOutlined,
   ExperimentOutlined,
   FileTextOutlined,
-  SettingOutlined
+  SettingOutlined,
+  ControlOutlined
 } from "@ant-design/icons-vue";
 
 const { t } = useI18n();
@@ -99,6 +100,7 @@ const currentKey = computed(() => {
   if (path.startsWith(`${base}/logic-flow`)) return "logic-flow";
   if (path.startsWith(`${base}/knowledge-bases`)) return "knowledge-bases";
   if (path.startsWith(`${base}/prompts`)) return "prompts";
+  if (path.startsWith(`${base}/model-configs`)) return "model-configs";
   if (path.startsWith(`${base}/evaluations`)) return "evaluations";
   if (path.startsWith(`${base}/data`)) return "data";
   if (path.startsWith(`${base}/org`)) return "org";
@@ -122,7 +124,7 @@ const navGroups = computed(() => [
   {
     title: t("sidebar.groupAI"),
     items: [
-      { key: "agents", name: t("sidebar.aiAssistant"), path: `${basePath.value}/ai/chat`, icon: RobotOutlined, isNew: true },
+      { key: "agents", name: t("sidebar.aiAssistant"), path: `${basePath.value}/ai/chat`, icon: RobotOutlined, badgeText: "R1" },
       { key: "multi-agent", name: t("sidebar.multiAgent"), path: `${basePath.value}/multi-agent`, icon: ClusterOutlined },
       { key: "workflows", name: t("sidebar.workflows"), path: `${basePath.value}/workflows`, icon: PartitionOutlined },
       { key: "logic-flow", name: t("sidebar.logicFlow"), path: `${basePath.value}/logic-flow`, icon: ThunderboltOutlined },
@@ -133,6 +135,7 @@ const navGroups = computed(() => [
     items: [
       { key: "knowledge-bases", name: t("sidebar.knowledgeBases"), path: `${basePath.value}/knowledge-bases`, icon: DatabaseOutlined },
       { key: "prompts", name: t("sidebar.prompts"), path: `${basePath.value}/prompts`, icon: MessageOutlined },
+      { key: "model-configs", name: t("sidebar.modelConfigs"), path: `${basePath.value}/model-configs`, icon: ControlOutlined },
       { key: "evaluations", name: t("sidebar.evaluations"), path: `${basePath.value}/evaluations`, icon: ExperimentOutlined },
       { key: "data", name: t("sidebar.formsData"), path: `${basePath.value}/data`, icon: FileTextOutlined },
     ]

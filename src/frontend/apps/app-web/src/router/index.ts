@@ -189,6 +189,11 @@ export const router = createRouter({
           props: { title: "Prompt 资源" }
         },
         {
+          path: "model-configs",
+          name: "app-model-configs",
+          component: () => import("@/pages/ai/AppModelConfigsPage.vue")
+        },
+        {
           path: "evaluations",
           name: "app-evaluations",
           component: () => import("@/pages/PlaceholderPage.vue"),
