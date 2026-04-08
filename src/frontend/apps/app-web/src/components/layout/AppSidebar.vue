@@ -94,6 +94,7 @@ const currentKey = computed(() => {
   if (path.startsWith(`${base}/users`)) return "users";
   if (path.startsWith(`${base}/departments`)) return "departments";
   if (path.startsWith(`${base}/positions`)) return "positions";
+  if (path.startsWith(`${base}/ai/agents`)) return "agent-management";
   if (path.startsWith(`${base}/agents`) || path.startsWith(`${base}/ai/chat`) || path.startsWith(`${base}/ai/assistant`)) return "agents";
   if (path.startsWith(`${base}/multi-agent`)) return "multi-agent";
   if (path.startsWith(`${base}/workflows`)) return "workflows";
@@ -124,6 +125,7 @@ const navGroups = computed(() => [
   {
     title: t("sidebar.groupAI"),
     items: [
+      { key: "agent-management", name: t("sidebar.agentManagement"), path: `${basePath.value}/ai/agents`, icon: RobotOutlined },
       { key: "agents", name: t("sidebar.aiAssistant"), path: `${basePath.value}/ai/chat`, icon: RobotOutlined, badgeText: "R1" },
       { key: "multi-agent", name: t("sidebar.multiAgent"), path: `${basePath.value}/multi-agent`, icon: ClusterOutlined },
       { key: "workflows", name: t("sidebar.workflows"), path: `${basePath.value}/workflows`, icon: PartitionOutlined },

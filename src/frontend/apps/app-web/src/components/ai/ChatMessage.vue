@@ -21,7 +21,7 @@
         </div>
         <div class="msg-text msg-text--ai">
           <MarkdownRenderer :content="message.content" />
-          <span v-if="message.isStreaming" class="typing-cursor">▋</span>
+          <span v-if="showTypingCursor && message.isStreaming" class="typing-cursor">▋</span>
         </div>
       </div>
     </template>
@@ -47,6 +47,7 @@ const { t } = useI18n();
 defineProps<{
   message: StreamChatMessage;
   reactSteps?: ReActStep[];
+  showTypingCursor?: boolean;
 }>();
 
 const thinkExpanded = ref(false);

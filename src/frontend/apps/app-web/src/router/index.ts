@@ -112,6 +112,11 @@ export const router = createRouter({
           meta: { requiredPermission: APP_PERMISSIONS.APP_MEMBERS_VIEW }
         },
         {
+          path: "ai/agents",
+          name: "app-ai-agents",
+          component: () => import("@/pages/ai/AgentManagePage.vue")
+        },
+        {
           path: "ai/chat/:agentId?",
           name: "app-ai-chat",
           component: () => import("@/pages/ai/AgentChatPage.vue")

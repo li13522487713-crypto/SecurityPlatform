@@ -44,6 +44,12 @@ export interface ModelConfigTestResult {
   latencyMs?: number;
 }
 
+export interface ModelConfigUiPreferences {
+  enableStreamingTypewriter?: boolean;
+}
+
+const MODEL_CONFIG_UI_PREFS_KEY = "atlas_model_config_ui_prefs";
+
 export async function getModelConfigsPaged(request: PagedRequest): Promise<PagedResult<ModelConfigDto>> {
   const query = toQuery(request);
   const response = await requestApi<ApiResponse<PagedResult<ModelConfigDto>>>(`/model-configs?${query}`);
@@ -66,13 +72,14 @@ export async function getModelConfigStats(keyword?: string): Promise<ModelConfig
   return response.data;
 }
 
-export async function createModelConfig(request: ModelConfigCreateRequest): Promise<void> {
+export async function createModelConfig(request: ModelConfigCreateRequest): Promise<string> {
   const response = await requestApi<ApiResponse<{ id: string }>>("/model-configs", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(request)
   });
-  if (!response.success) throw new Error(response.message || "Failed to create model config");
+  if (!response.success || !response.data?.id) throw new Error(response.message || "Failed to create model config");
+  return response.data.id;
 }
 
 export async function updateModelConfig(id: number, request: ModelConfigUpdateRequest): Promise<void> {
@@ -109,4 +116,43 @@ export async function testModelConfigConnection(request: {
   );
   if (!response.data) throw new Error(response.message || "Test connection failed");
   return response.data;
+}
+
+export function getModelConfigUiPreferences(modelConfigId: string | number | null | undefined): ModelConfigUiPreferences {
+  if (modelConfigId === null || modelConfigId === undefined) {
+    return {};
+  }
+
+  try {
+    const raw = localStorage.getItem(MODEL_CONFIG_UI_PREFS_KEY);
+    if (!raw) {
+      return {};
+    }
+
+    const parsed = JSON.parse(raw) as Record<string, ModelConfigUiPreferences>;
+    return parsed[String(modelConfigId)] ?? {};
+  } catch {
+    return {};
+  }
+}
+
+export function setModelConfigUiPreferences(
+  modelConfigId: string | number | null | undefined,
+  preferences: ModelConfigUiPreferences
+): void {
+  if (modelConfigId === null || modelConfigId === undefined) {
+    return;
+  }
+
+  try {
+    const raw = localStorage.getItem(MODEL_CONFIG_UI_PREFS_KEY);
+    const parsed = raw ? (JSON.parse(raw) as Record<string, ModelConfigUiPreferences>) : {};
+    parsed[String(modelConfigId)] = {
+      ...parsed[String(modelConfigId)],
+      ...preferences
+    };
+    localStorage.setItem(MODEL_CONFIG_UI_PREFS_KEY, JSON.stringify(parsed));
+  } catch {
+    // ignore storage write errors
+  }
 }

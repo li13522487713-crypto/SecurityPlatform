@@ -1,238 +1,263 @@
 <template>
-  <div v-if="!agentId" class="agent-chat-missing">
-    <a-card class="agent-selector-card" :bordered="false">
-      <a-space direction="vertical" size="middle" class="agent-selector-body">
-        <div class="agent-selector-header">
-          <h3 class="agent-selector-title">{{ t("ai.chat.selectAgentTitle") }}</h3>
-          <p class="agent-selector-desc">{{ t("ai.chat.selectAgentDesc") }}</p>
-        </div>
-
-        <a-select
-          v-model:value="selectedAgentId"
-          show-search
-          :loading="loadingAgents"
-          :placeholder="t('ai.chat.selectAgentPlaceholder')"
-          :options="availableAgents.map((item) => ({ value: item.id, label: item.name }))"
-          :filter-option="false"
-          @focus="availableAgents.length === 0 ? loadAgents() : undefined"
-        />
-
-        <a-button type="primary" :loading="loadingAgents" @click="enterChatWithSelectedAgent">
-          {{ t("ai.chat.enterChat") }}
-        </a-button>
-
-        <a-empty
-          v-if="!loadingAgents && availableAgents.length === 0"
-          :description="t('ai.chat.noAgents')"
-        />
-      </a-space>
-    </a-card>
-  </div>
-  <div v-else class="immersive-chat">
-    <div class="chat-bg-gradient" />
-
-    <div class="chat-topbar">
-      <div class="topbar-left">
-        <span class="topbar-agent-name">{{ agentName }}</span>
+  <div class="ai-chat-shell">
+    <aside class="agent-sidebar">
+      <div class="agent-sidebar-header">
+        <h3 class="agent-sidebar-title">{{ t("ai.chat.agentListTitle") }}</h3>
+        <p class="agent-sidebar-desc">{{ t("ai.chat.agentListDesc") }}</p>
       </div>
-      <div class="topbar-right">
-        <a-button size="small" type="text" class="conv-drawer-trigger" @click="convDrawerVisible = true">
-          <template #icon><HistoryOutlined /></template>
-          {{ t("ai.chat.convList") }}
-        </a-button>
-        <a-button size="small" type="text" @click="handleNewConversation">
-          <template #icon><PlusOutlined /></template>
-          {{ t("ai.chat.newConv") }}
-        </a-button>
-        <a-dropdown v-if="currentConvId" :trigger="['click']">
-          <a-button size="small" type="text">
-            <template #icon><MoreOutlined /></template>
-          </a-button>
-          <template #overlay>
-            <a-menu>
-              <a-menu-item key="clear-ctx" @click="handleClearContext">
-                {{ t("ai.chat.clearContext") }}
-              </a-menu-item>
-              <a-menu-item key="clear-hist" danger @click="handleClearHistory">
-                {{ t("ai.chat.clearHistory") }}
-              </a-menu-item>
-            </a-menu>
-          </template>
-        </a-dropdown>
-      </div>
-    </div>
-
-    <a-drawer
-      v-model:open="convDrawerVisible"
-      :title="t('ai.chat.convList')"
-      placement="right"
-      :width="320"
-      :body-style="{ padding: '0' }"
-    >
-      <template #extra>
-        <a-button type="primary" size="small" @click="handleNewConversation">
-          {{ t("ai.chat.newConv") }}
-        </a-button>
-      </template>
-      <a-spin :spinning="loadingConversations">
-        <div class="conv-drawer-list">
-          <div
-            v-for="conv in conversations"
-            :key="conv.id"
-            :class="['conv-drawer-item', { 'conv-drawer-item--active': currentConvId === conv.id }]"
-            @click="onDrawerConvClick(conv)"
+      <a-input
+        v-model:value="agentSearchKeyword"
+        allow-clear
+        :placeholder="t('ai.chat.searchAgentPlaceholder')"
+        class="agent-sidebar-search"
+      />
+      <a-spin :spinning="loadingAgents" class="agent-sidebar-spin">
+        <div class="agent-sidebar-list">
+          <button
+            v-for="agent in filteredAgents"
+            :key="agent.id"
+            type="button"
+            :class="['agent-sidebar-item', { 'agent-sidebar-item--active': agent.id === agentId }]"
+            @click="selectAgent(agent.id)"
           >
-            <div class="conv-drawer-item-body">
-              <div class="conv-drawer-item-title">{{ conv.title || t("ai.chat.newConvTitle") }}</div>
-              <div class="conv-drawer-item-meta">
-                <span>{{ conv.messageCount }} {{ t("ai.chat.messagesUnit") }}</span>
-                <span>{{ formatDate(conv.lastMessageAt || conv.createdAt) }}</span>
-              </div>
+            <div class="agent-sidebar-item-name">{{ agent.name }}</div>
+            <div class="agent-sidebar-item-meta">
+              {{ agent.modelName || agent.description || t("ai.chat.defaultAgentName") }}
             </div>
-            <a-popconfirm
-              :title="t('ai.chat.deleteConvConfirm')"
-              placement="left"
-              @confirm.stop="handleDeleteConversation(conv.id)"
-            >
-              <a-button
-                class="conv-drawer-item-delete"
-                type="text"
-                size="small"
-                danger
-                @click.stop
-              >
-                <template #icon><DeleteOutlined /></template>
-              </a-button>
-            </a-popconfirm>
-          </div>
-          <div v-if="conversations.length === 0 && !loadingConversations" class="conv-drawer-empty">
-            {{ t("ai.chat.emptyConv") }}
-          </div>
+          </button>
+          <a-empty
+            v-if="!loadingAgents && filteredAgents.length === 0"
+            :description="t('ai.chat.agentListEmpty')"
+            class="agent-sidebar-empty"
+          />
         </div>
       </a-spin>
-    </a-drawer>
+    </aside>
 
-    <div ref="messagesContainer" class="chat-messages-area">
-      <div class="chat-messages-center">
-        <div v-if="!currentConvId && !loadingConversations" class="chat-welcome">
-          <div class="welcome-icon">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-            </svg>
-          </div>
-          <h2 class="welcome-title">{{ agentName || t("ai.chat.defaultAgentName") }}</h2>
-          <p class="welcome-desc">{{ t("ai.chat.emptySelect") }}</p>
-        </div>
-
-        <template v-if="currentConvId">
-          <a-spin v-if="loadingMessages" class="messages-spinner" />
-          <ChatMessage
-            v-for="(msg, index) in chatMessages"
-            :key="msg.id"
-            :message="msg"
-            :react-steps="index === chatMessages.length - 1 && msg.role === 'assistant' ? reactSteps : undefined"
-          />
-          <div v-if="chatError" class="chat-error">
-            <a-alert type="error" :message="chatError" show-icon />
-          </div>
-        </template>
-      </div>
-    </div>
-
-    <div class="chat-input-wrapper">
-      <div class="chat-input-fade" />
-      <div class="chat-input-card">
-        <div v-if="pendingAttachments.length > 0" class="attachment-strip">
-          <a-tag
-            v-for="(attachment, index) in pendingAttachments"
-            :key="`${attachment.type}-${index}`"
-            closable
-            @close.prevent="removeAttachment(index)"
+    <main class="ai-chat-main">
+      <div v-if="!agentId" class="agent-chat-empty">
+        <div class="agent-chat-empty-hero">
+          <div class="agent-chat-empty-badge">AI</div>
+          <h2 class="agent-chat-empty-title">{{ t("ai.chat.selectAgentTitle") }}</h2>
+          <p class="agent-chat-empty-desc">{{ t("ai.chat.selectAgentDesc") }}</p>
+          <a-button
+            type="primary"
+            size="large"
+            :disabled="!selectedAgentId"
+            @click="enterChatWithSelectedAgent"
           >
-            {{ attachment.type }}{{ attachment.name ? `: ${attachment.name}` : "" }}
-          </a-tag>
+            {{ t("ai.chat.enterChat") }}
+          </a-button>
         </div>
-        <audio
-          v-if="audioRecorder.audioUrl.value"
-          :src="audioRecorder.audioUrl.value"
-          class="audio-preview"
-          controls
-        />
-        <div v-if="audioRecorder.error.value" class="recorder-error">
-          <a-alert type="warning" show-icon :message="audioRecorder.error.value" />
-        </div>
+      </div>
+      <div v-else class="immersive-chat">
+        <div class="chat-bg-gradient" />
 
-        <div class="input-main">
-          <a-textarea
-            v-model:value="inputText"
-            :auto-size="{ minRows: 1, maxRows: 6 }"
-            :placeholder="isStreaming ? t('ai.chat.placeholderStreaming') : t('ai.chat.immersivePlaceholder')"
-            :disabled="!currentConvId || isStreaming"
-            :bordered="false"
-            class="chat-textarea"
-            @keydown="handleKeyDown"
-          />
-        </div>
-
-        <div class="input-bottom-bar">
-          <div class="input-bottom-left">
-            <input
-              ref="imageInputRef"
-              type="file"
-              accept="image/*"
-              style="display: none"
-              @change="handleImageSelected"
-            />
-            <a-tooltip :title="t('ai.chat.attachImage')">
-              <a-button type="text" size="small" :disabled="isStreaming" @click="triggerImageUpload">
-                <template #icon><PaperClipOutlined /></template>
+        <div class="chat-topbar">
+          <div class="topbar-left">
+            <span class="topbar-agent-name">{{ agentName }}</span>
+          </div>
+          <div class="topbar-right">
+            <a-button size="small" type="text" class="conv-drawer-trigger" @click="convDrawerVisible = true">
+              <template #icon><HistoryOutlined /></template>
+              {{ t("ai.chat.convList") }}
+            </a-button>
+            <a-button size="small" type="text" @click="handleNewConversation">
+              <template #icon><PlusOutlined /></template>
+              {{ t("ai.chat.newConv") }}
+            </a-button>
+            <a-dropdown v-if="currentConvId" :trigger="['click']">
+              <a-button size="small" type="text">
+                <template #icon><MoreOutlined /></template>
               </a-button>
-            </a-tooltip>
-            <div class="bar-divider" />
-            <a-button
-              :class="['feature-btn', { 'feature-btn--active': deepThinkEnabled }]"
-              size="small"
-              @click="deepThinkEnabled = !deepThinkEnabled"
-            >
-              {{ t("ai.chat.deepThink") }}
-            </a-button>
-            <a-button
-              :class="['feature-btn', { 'feature-btn--active': webSearchEnabled }]"
-              size="small"
-              @click="webSearchEnabled = !webSearchEnabled"
-            >
-              {{ t("ai.chat.webSearch") }}
-            </a-button>
+              <template #overlay>
+                <a-menu>
+                  <a-menu-item key="clear-ctx" @click="handleClearContext">
+                    {{ t("ai.chat.clearContext") }}
+                  </a-menu-item>
+                  <a-menu-item key="clear-hist" danger @click="handleClearHistory">
+                    {{ t("ai.chat.clearHistory") }}
+                  </a-menu-item>
+                </a-menu>
+              </template>
+            </a-dropdown>
           </div>
-          <div class="input-bottom-right">
-            <a-button
-              v-if="isStreaming"
-              shape="circle"
-              size="small"
-              danger
-              class="send-btn"
-              @click="handleCancel"
-            >
-              <template #icon><StopOutlined /></template>
+        </div>
+
+        <a-drawer
+          v-model:open="convDrawerVisible"
+          :title="t('ai.chat.convList')"
+          placement="right"
+          :width="320"
+          :body-style="{ padding: '0' }"
+        >
+          <template #extra>
+            <a-button type="primary" size="small" @click="handleNewConversation">
+              {{ t("ai.chat.newConv") }}
             </a-button>
-            <a-button
-              v-else
-              shape="circle"
-              size="small"
-              class="send-btn"
-              :class="{ 'send-btn--ready': canSend }"
-              :disabled="!canSend"
-              @click="handleSend"
-            >
-              <template #icon><SendOutlined /></template>
-            </a-button>
+          </template>
+          <a-spin :spinning="loadingConversations">
+            <div class="conv-drawer-list">
+              <div
+                v-for="conv in conversations"
+                :key="conv.id"
+                :class="['conv-drawer-item', { 'conv-drawer-item--active': currentConvId === conv.id }]"
+                @click="onDrawerConvClick(conv)"
+              >
+                <div class="conv-drawer-item-body">
+                  <div class="conv-drawer-item-title">{{ conv.title || t("ai.chat.newConvTitle") }}</div>
+                  <div class="conv-drawer-item-meta">
+                    <span>{{ conv.messageCount }} {{ t("ai.chat.messagesUnit") }}</span>
+                    <span>{{ formatDate(conv.lastMessageAt || conv.createdAt) }}</span>
+                  </div>
+                </div>
+                <a-popconfirm
+                  :title="t('ai.chat.deleteConvConfirm')"
+                  placement="left"
+                  @confirm.stop="handleDeleteConversation(conv.id)"
+                >
+                  <a-button
+                    class="conv-drawer-item-delete"
+                    type="text"
+                    size="small"
+                    danger
+                    @click.stop
+                  >
+                    <template #icon><DeleteOutlined /></template>
+                  </a-button>
+                </a-popconfirm>
+              </div>
+              <div v-if="conversations.length === 0 && !loadingConversations" class="conv-drawer-empty">
+                {{ t("ai.chat.emptyConv") }}
+              </div>
+            </div>
+          </a-spin>
+        </a-drawer>
+
+        <div ref="messagesContainer" class="chat-messages-area">
+          <div class="chat-messages-center">
+            <div v-if="!currentConvId && !loadingConversations" class="chat-welcome">
+              <div class="welcome-icon">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                  <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                </svg>
+              </div>
+              <h2 class="welcome-title">{{ agentName || t("ai.chat.defaultAgentName") }}</h2>
+              <p class="welcome-desc">{{ t("ai.chat.emptySelect") }}</p>
+            </div>
+
+            <template v-if="currentConvId">
+              <a-spin v-if="loadingMessages" class="messages-spinner" />
+              <ChatMessage
+                v-for="(msg, index) in chatMessages"
+                :key="msg.id"
+                :message="msg"
+                :react-steps="index === chatMessages.length - 1 && msg.role === 'assistant' ? reactSteps : undefined"
+                :show-typing-cursor="index === chatMessages.length - 1 && msg.role === 'assistant' && isStreaming"
+              />
+              <div v-if="chatError" class="chat-error">
+                <a-alert type="error" :message="chatError" show-icon />
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <div class="chat-input-wrapper">
+          <div class="chat-input-fade" />
+          <div class="chat-input-card">
+            <div v-if="pendingAttachments.length > 0" class="attachment-strip">
+              <a-tag
+                v-for="(attachment, index) in pendingAttachments"
+                :key="`${attachment.type}-${index}`"
+                closable
+                @close.prevent="removeAttachment(index)"
+              >
+                {{ attachment.type }}{{ attachment.name ? `: ${attachment.name}` : "" }}
+              </a-tag>
+            </div>
+            <audio
+              v-if="audioRecorder.audioUrl.value"
+              :src="audioRecorder.audioUrl.value"
+              class="audio-preview"
+              controls
+            />
+            <div v-if="audioRecorder.error.value" class="recorder-error">
+              <a-alert type="warning" show-icon :message="audioRecorder.error.value" />
+            </div>
+
+            <div class="input-main">
+              <a-textarea
+                v-model:value="inputText"
+                :auto-size="{ minRows: 1, maxRows: 6 }"
+                :placeholder="isStreaming ? t('ai.chat.placeholderStreaming') : t('ai.chat.immersivePlaceholder')"
+                :disabled="!currentConvId || isStreaming"
+                :bordered="false"
+                class="chat-textarea"
+                @keydown="handleKeyDown"
+              />
+            </div>
+
+            <div class="input-bottom-bar">
+              <div class="input-bottom-left">
+                <input
+                  ref="imageInputRef"
+                  type="file"
+                  accept="image/*"
+                  style="display: none"
+                  @change="handleImageSelected"
+                />
+                <a-tooltip :title="t('ai.chat.attachImage')">
+                  <a-button type="text" size="small" :disabled="isStreaming" @click="triggerImageUpload">
+                    <template #icon><PaperClipOutlined /></template>
+                  </a-button>
+                </a-tooltip>
+                <div class="bar-divider" />
+                <a-button
+                  :class="['feature-btn', { 'feature-btn--active': deepThinkEnabled }]"
+                  size="small"
+                  @click="deepThinkEnabled = !deepThinkEnabled"
+                >
+                  {{ t("ai.chat.deepThink") }}
+                </a-button>
+                <a-button
+                  :class="['feature-btn', { 'feature-btn--active': webSearchEnabled }]"
+                  size="small"
+                  @click="webSearchEnabled = !webSearchEnabled"
+                >
+                  {{ t("ai.chat.webSearch") }}
+                </a-button>
+              </div>
+              <div class="input-bottom-right">
+                <a-button
+                  v-if="isStreaming"
+                  shape="circle"
+                  size="small"
+                  danger
+                  class="send-btn"
+                  @click="handleCancel"
+                >
+                  <template #icon><StopOutlined /></template>
+                </a-button>
+                <a-button
+                  v-else
+                  shape="circle"
+                  size="small"
+                  class="send-btn"
+                  :class="{ 'send-btn--ready': canSend }"
+                  :disabled="!canSend"
+                  @click="handleSend"
+                >
+                  <template #icon><SendOutlined /></template>
+                </a-button>
+              </div>
+            </div>
+          </div>
+          <div class="chat-disclaimer">
+            {{ t("ai.chat.disclaimer") }}
           </div>
         </div>
       </div>
-      <div class="chat-disclaimer">
-        {{ t("ai.chat.disclaimer") }}
-      </div>
-    </div>
+    </main>
   </div>
 </template>
 
@@ -283,6 +308,7 @@ const agentName = ref("");
 const availableAgents = ref<AgentListItem[]>([]);
 const loadingAgents = ref(false);
 const selectedAgentId = ref("");
+const agentSearchKeyword = ref("");
 const conversations = ref<ConversationDto[]>([]);
 const currentConvId = ref<string | null>(null);
 const loadingConversations = ref(false);
@@ -312,13 +338,29 @@ const canSend = computed(
   () => currentConvId.value && (inputText.value.trim() || pendingAttachments.value.length > 0) && !isStreaming.value
 );
 
+const filteredAgents = computed(() => {
+  const keyword = agentSearchKeyword.value.trim().toLowerCase();
+  if (!keyword) {
+    return availableAgents.value;
+  }
+
+  return availableAgents.value.filter((item) => {
+    const name = item.name.toLowerCase();
+    const desc = (item.description ?? "").toLowerCase();
+    const model = (item.modelName ?? "").toLowerCase();
+    return name.includes(keyword) || desc.includes(keyword) || model.includes(keyword);
+  });
+});
+
 async function loadAgents() {
   loadingAgents.value = true;
   try {
     const result = await getAgentsPaged({ pageIndex: 1, pageSize: 20 });
     if (!isMounted.value) return;
     availableAgents.value = result.items;
-    if (!selectedAgentId.value && result.items.length > 0) {
+    if (agentId.value && result.items.some((item) => item.id === agentId.value)) {
+      selectedAgentId.value = agentId.value;
+    } else if (!selectedAgentId.value && result.items.length > 0) {
       selectedAgentId.value = result.items[0].id;
     }
   } catch (err: unknown) {
@@ -328,18 +370,27 @@ async function loadAgents() {
   }
 }
 
+async function selectAgent(id: string) {
+  selectedAgentId.value = id;
+  if (id === agentId.value) {
+    return;
+  }
+
+  await router.push({
+    name: "app-ai-chat",
+    params: {
+      appKey: appKey.value,
+      agentId: id
+    }
+  });
+}
+
 async function enterChatWithSelectedAgent() {
   if (!selectedAgentId.value) {
     message.warning(t("ai.chat.selectAgentRequired"));
     return;
   }
-  await router.push({
-    name: "app-ai-chat",
-    params: {
-      appKey: appKey.value,
-      agentId: selectedAgentId.value
-    }
-  });
+  await selectAgent(selectedAgentId.value);
 }
 
 function formatDate(iso: string) {
@@ -544,9 +595,15 @@ function resetAgentChatState() {
 }
 
 async function initializeAgentChatPage() {
+  await loadAgents();
+  if (!isMounted.value) return;
+
+  resetAgentChatState();
+
   if (!agentId.value) {
-    resetAgentChatState();
-    await loadAgents();
+    if (availableAgents.value.length > 0 && !selectedAgentId.value) {
+      selectedAgentId.value = availableAgents.value[0].id;
+    }
     return;
   }
 
@@ -587,11 +644,156 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.ai-chat-shell {
+  display: flex;
+  height: calc(100vh - 64px);
+  background: #f5f7fb;
+}
+
+.agent-sidebar {
+  width: 280px;
+  min-width: 280px;
+  border-right: 1px solid #e5e7eb;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  gap: 12px;
+}
+
+.agent-sidebar-header {
+  margin-bottom: 4px;
+}
+
+.agent-sidebar-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.agent-sidebar-desc {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.agent-sidebar-search {
+  flex-shrink: 0;
+}
+
+.agent-sidebar-spin {
+  flex: 1;
+  min-height: 0;
+}
+
+.agent-sidebar-list {
+  height: 100%;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-right: 2px;
+}
+
+.agent-sidebar-item {
+  text-align: left;
+  width: 100%;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  border-radius: 12px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.agent-sidebar-item:hover {
+  border-color: #c7d2fe;
+  background: #f8faff;
+}
+
+.agent-sidebar-item--active {
+  border-color: #4f46e5;
+  background: #eef2ff;
+}
+
+.agent-sidebar-item-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #111827;
+  line-height: 1.4;
+}
+
+.agent-sidebar-item-meta {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #6b7280;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.agent-sidebar-empty {
+  margin-top: 40px;
+}
+
+.ai-chat-main {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+}
+
+.agent-chat-empty {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.agent-chat-empty-hero {
+  width: 100%;
+  max-width: 680px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #ffffff 0%, #f9fbff 100%);
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+  padding: 40px;
+}
+
+.agent-chat-empty-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #4338ca;
+  font-size: 12px;
+  font-weight: 700;
+  margin-bottom: 16px;
+}
+
+.agent-chat-empty-title {
+  margin: 0;
+  font-size: 32px;
+  line-height: 1.25;
+  color: #111827;
+  font-weight: 700;
+}
+
+.agent-chat-empty-desc {
+  margin: 12px 0 28px;
+  color: #6b7280;
+  font-size: 15px;
+}
+
 .immersive-chat {
   position: relative;
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 64px);
+  height: 100%;
   background: #fbfcfd;
   overflow: hidden;
 }
@@ -888,39 +1090,55 @@ onMounted(async () => {
   margin-bottom: 8px;
 }
 
-.agent-chat-missing {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: calc(100vh - 64px);
-  padding: 24px;
+@media (max-width: 1200px) {
+  .agent-sidebar {
+    width: 240px;
+    min-width: 240px;
+  }
+
+  .agent-chat-empty-hero {
+    padding: 28px;
+  }
+
+  .agent-chat-empty-title {
+    font-size: 26px;
+  }
 }
 
-.agent-selector-card {
-  width: 100%;
-  max-width: 560px;
-  border-radius: 16px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
-}
+@media (max-width: 900px) {
+  .ai-chat-shell {
+    flex-direction: column;
+    height: auto;
+    min-height: calc(100vh - 64px);
+  }
 
-.agent-selector-body {
-  width: 100%;
-}
+  .agent-sidebar {
+    width: 100%;
+    min-width: 0;
+    border-right: none;
+    border-bottom: 1px solid #e5e7eb;
+    max-height: 280px;
+  }
 
-.agent-selector-header {
-  margin-bottom: 8px;
-}
+  .ai-chat-main {
+    min-height: 0;
+    flex: 1;
+  }
 
-.agent-selector-title {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 600;
-  color: #111827;
-}
+  .agent-chat-empty {
+    padding: 16px;
+  }
 
-.agent-selector-desc {
-  margin: 8px 0 0;
-  color: #6b7280;
-  font-size: 14px;
+  .agent-chat-empty-title {
+    font-size: 22px;
+  }
+
+  .chat-topbar {
+    padding: 10px 12px;
+  }
+
+  .chat-messages-area {
+    padding: 0 12px 140px;
+  }
 }
 </style>

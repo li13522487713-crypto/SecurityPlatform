@@ -201,6 +201,12 @@
                       <span class="mc-switch-label">{{ form.isEnabled ? t("modelConfig.enabledOn") : t("modelConfig.enabledOff") }}</span>
                     </a-form-item>
                   </a-col>
+                  <a-col :span="12">
+                    <a-form-item :label="t('modelConfig.labelStreamingTypewriter')">
+                      <a-switch v-model:checked="form.enableStreamingTypewriter" />
+                      <span class="mc-switch-label">{{ form.enableStreamingTypewriter ? t("modelConfig.switchOn") : t("modelConfig.switchOff") }}</span>
+                    </a-form-item>
+                  </a-col>
                 </a-row>
                 <a-form-item v-if="!isCreating" :label="t('modelConfig.labelDefaultModel')">
                   <a-auto-complete
@@ -277,8 +283,10 @@ import {
 import {
   createModelConfig,
   deleteModelConfig,
+  getModelConfigUiPreferences,
   getModelConfigById,
   getModelConfigsPaged,
+  setModelConfigUiPreferences,
   testModelConfigConnection,
   updateModelConfig,
   type ModelConfigDto,
@@ -309,6 +317,7 @@ const form = reactive({
   baseUrl: "",
   defaultModel: "",
   supportsEmbedding: true,
+  enableStreamingTypewriter: false,
   isEnabled: true,
   systemPrompt: ""
 });
@@ -424,7 +433,7 @@ function handleSearch() {
 function resetForm() {
   Object.assign(form, {
     name: "", providerType: "openai", apiKey: "", baseUrl: "",
-    defaultModel: "", supportsEmbedding: true, isEnabled: true, systemPrompt: ""
+    defaultModel: "", supportsEmbedding: true, enableStreamingTypewriter: false, isEnabled: true, systemPrompt: ""
   });
   testResult.value = null;
 }
@@ -453,6 +462,7 @@ async function handleSelect(item: ModelConfigDto) {
       baseUrl: detail.baseUrl,
       defaultModel: detail.defaultModel,
       supportsEmbedding: detail.supportsEmbedding,
+      enableStreamingTypewriter: getModelConfigUiPreferences(item.id).enableStreamingTypewriter ?? false,
       isEnabled: detail.isEnabled,
       systemPrompt: ""
     });
@@ -473,8 +483,9 @@ async function handleSave() {
 
   submitting.value = true;
   try {
+    let savedId = selectedId.value;
     if (isCreating.value) {
-      await createModelConfig({
+      const createdId = await createModelConfig({
         name: form.name,
         providerType: form.providerType,
         apiKey: form.apiKey,
@@ -482,6 +493,10 @@ async function handleSave() {
         defaultModel: form.defaultModel,
         supportsEmbedding: form.supportsEmbedding
       });
+      savedId = Number(createdId);
+      if (Number.isNaN(savedId)) {
+        savedId = null;
+      }
       if (!isMounted.value) return;
       message.success(t("crud.createSuccess"));
       isCreating.value = false;
@@ -497,12 +512,20 @@ async function handleSave() {
       if (!isMounted.value) return;
       message.success(t("crud.updateSuccess"));
     }
+
+    if (savedId !== null) {
+      setModelConfigUiPreferences(savedId, {
+        enableStreamingTypewriter: form.enableStreamingTypewriter
+      });
+    }
+
     await loadData();
     if (!isMounted.value) return;
 
     if (!isCreating.value && dataList.value.length > 0) {
-      const match = dataList.value.find((d) => d.id === selectedId.value);
+      const match = dataList.value.find((d) => d.id === savedId);
       if (match) {
+        selectedId.value = match.id;
         await handleSelect(match);
       } else {
         await handleSelect(dataList.value[0]);

@@ -108,6 +108,23 @@ export default {
     viewName: "视图名称"
   },
   ai: {
+    agentMgmt: {
+      title: "Agent 管理",
+      searchPlaceholder: "搜索 Agent 名称",
+      createTitle: "新建 Agent",
+      editTitle: "编辑 Agent",
+      deleteConfirm: "确认删除该 Agent？",
+      formName: "名称",
+      formDescription: "描述",
+      formModelConfig: "模型配置",
+      formModelConfigPlaceholder: "请选择模型配置",
+      formModelName: "模型名称（可选）",
+      colName: "名称",
+      colModel: "模型",
+      colStatus: "状态",
+      colCreatedAt: "创建时间",
+      nameRequired: "请输入 Agent 名称"
+    },
     chat: {
       avatarAssistant: "AI",
       avatarUser: "用户",
@@ -156,6 +173,10 @@ export default {
       enterChat: "进入对话",
       noAgents: "暂无可用 Agent，请先创建或发布 Agent",
       loadAgentsFailed: "加载 Agent 列表失败",
+      agentListTitle: "Agent 列表",
+      agentListDesc: "选择一个 Agent 开始对话",
+      searchAgentPlaceholder: "搜索 Agent 名称或模型",
+      agentListEmpty: "暂无匹配的 Agent",
       missingAgentTitle: "缺少 Agent",
       missingAgentDesc: "请在地址中提供有效的 Agent ID，例如：/apps/<appKey>/ai/chat/<agentId>"
     }
@@ -176,6 +197,7 @@ export default {
   },
   route: {
     home: "首页",
+    agentManagement: "Agent 管理",
     agentChat: "Agent 聊天",
     aiAssistant: "AI 助手",
     approvalWorkspace: "审批工作台",
@@ -315,6 +337,7 @@ export default {
     departmentManagement: "部门管理",
     positionManagement: "职位管理",
     groupAI: "智能监控",
+    agentManagement: "Agent 管理",
     aiAssistant: "AI 助手",
     multiAgent: "多 Agent 编排",
     workflows: "工作流管理",
@@ -667,6 +690,7 @@ export default {
     defaultModelHint: "可手动输入或从建议列表中选择",
     sectionFeatures: "功能与状态",
     labelEmbedding: "支持 Embedding",
+    labelStreamingTypewriter: "流式打印机回复",
     switchOn: "已开启",
     switchOff: "已关闭",
     labelEnabled: "启用状态",

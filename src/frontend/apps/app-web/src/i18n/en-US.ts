@@ -108,6 +108,23 @@ export default {
     viewName: "View Name"
   },
   ai: {
+    agentMgmt: {
+      title: "Agent Management",
+      searchPlaceholder: "Search agent name",
+      createTitle: "Create Agent",
+      editTitle: "Edit Agent",
+      deleteConfirm: "Delete this agent?",
+      formName: "Name",
+      formDescription: "Description",
+      formModelConfig: "Model Config",
+      formModelConfigPlaceholder: "Select model config",
+      formModelName: "Model Name (Optional)",
+      colName: "Name",
+      colModel: "Model",
+      colStatus: "Status",
+      colCreatedAt: "Created At",
+      nameRequired: "Please enter agent name"
+    },
     chat: {
       avatarAssistant: "AI",
       avatarUser: "User",
@@ -156,6 +173,10 @@ export default {
       enterChat: "Enter Chat",
       noAgents: "No available agents. Please create or publish one first.",
       loadAgentsFailed: "Failed to load agent list",
+      agentListTitle: "Agent List",
+      agentListDesc: "Choose an agent to start chatting",
+      searchAgentPlaceholder: "Search by agent name or model",
+      agentListEmpty: "No matching agents",
       missingAgentTitle: "Agent required",
       missingAgentDesc: "Provide a valid Agent ID in the URL, for example: /apps/<appKey>/ai/chat/<agentId>"
     }
@@ -176,6 +197,7 @@ export default {
   },
   route: {
     home: "Home",
+    agentManagement: "Agent Management",
     agentChat: "Agent Chat",
     aiAssistant: "AI Assistant",
     approvalWorkspace: "Approval Workspace",
@@ -315,6 +337,7 @@ export default {
     departmentManagement: "Departments",
     positionManagement: "Positions",
     groupAI: "AI & Monitoring",
+    agentManagement: "Agent Management",
     aiAssistant: "AI Assistant",
     multiAgent: "Multi-Agent",
     workflows: "Workflows",
@@ -670,6 +693,7 @@ export default {
     defaultModelHint: "Type manually or choose from suggestions",
     sectionFeatures: "Features & Status",
     labelEmbedding: "Embedding Support",
+    labelStreamingTypewriter: "Streaming Typewriter Reply",
     switchOn: "On",
     switchOff: "Off",
     labelEnabled: "Status",
