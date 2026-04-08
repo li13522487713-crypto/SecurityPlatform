@@ -3,6 +3,7 @@
     data-testid="app-roles-page"
     v-model:keyword="keyword"
     :title="t('systemRoles.pageTitle')"
+    :subtitle="t('systemRoles.pageSubtitle')"
     :search-placeholder="t('systemRoles.searchPlaceholder')"
     :drawer-open="formVisible"
     :drawer-title="formMode === 'create' ? t('systemRoles.drawerCreateTitle') : t('systemRoles.drawerEditTitle')"
@@ -14,22 +15,17 @@
     @close-form="closeForm"
     @submit="submitForm"
   >
-    <template #toolbar-actions>
-      <a-button v-if="canCreate" type="primary" data-testid="app-roles-create" @click="openCreate">
+    <template #card-extra>
+      <a-button
+        v-if="canCreate"
+        type="primary"
+        class="roles-add-btn"
+        data-testid="app-roles-create"
+        @click="openCreate"
+      >
         <template #icon><PlusOutlined /></template>
         {{ t("systemRoles.addRole") }}
       </a-button>
-    </template>
-    <template #toolbar-right>
-      <a-popconfirm
-        v-if="canDelete"
-        :title="t('systemRoles.batchDeleteConfirm')"
-        :ok-text="t('common.delete')"
-        :cancel-text="t('common.cancel')"
-        @confirm="handleBatchDelete"
-      >
-        <a-button danger data-testid="app-roles-batch-delete" :disabled="!selectedRowKeys.length">{{ t("systemRoles.batchDelete") }}</a-button>
-      </a-popconfirm>
     </template>
 
     <template #search-filters>
@@ -44,64 +40,84 @@
     </template>
 
     <template #table>
-      <MasterDetailLayout :detail-visible="isDetailVisible" :master-width="700">
-        <template #master>
-          <a-table
-            data-testid="app-roles-table"
-            :columns="tableColumns"
-            :data-source="tableData"
-            :pagination="pagination"
-            :loading="loading"
-            :row-selection="rowSelection"
-            :custom-row="customRow"
-            row-key="id"
-            @change="onTableChange"
-          >
-            <template #bodyCell="{ column, record }">
-              <template v-if="column.key === 'isSystem'">
-                <a-tag v-if="record.isSystem" color="blue">{{ t("systemRoles.systemTag") }}</a-tag>
-                <span v-else>-</span>
-              </template>
-              <template v-if="column.key === 'actions'">
-                <a-space @click.stop>
-                  <a-button v-if="canUpdate" type="link" :data-testid="`app-roles-edit-${record.id}`" @click="openEdit(record)">{{ t("common.edit") }}</a-button>
-                  <a-button v-if="canUpdate" type="link" :data-testid="`app-roles-assign-${record.id}`" @click="openAssign(record)">
-                    {{ t("systemRoles.assignPermissions") }}
-                  </a-button>
-                  <a-popconfirm
-                    v-if="canDelete"
-                    :title="t('systemRoles.deleteConfirm')"
-                    :ok-text="t('common.delete')"
-                    :cancel-text="t('common.cancel')"
-                    @confirm="handleDeleteRole(record.id)"
-                  >
-                    <a-button type="link" danger :data-testid="`app-roles-delete-${record.id}`">{{ t("common.delete") }}</a-button>
-                  </a-popconfirm>
-                </a-space>
-              </template>
-            </template>
-          </a-table>
+      <a-table
+        data-testid="app-roles-table"
+        :columns="tableColumns"
+        :data-source="tableData"
+        :pagination="pagination"
+        :loading="loading"
+        row-key="id"
+        :scroll="{ x: 'max-content' }"
+        @change="onTableChange"
+      >
+        <template #bodyCell="{ column, record }">
+          <template v-if="column.key === 'roleName'">
+            <a-space align="center" :size="8" wrap>
+              <span class="role-icon-wrap" aria-hidden="true">
+                <SafetyCertificateOutlined />
+              </span>
+              <span class="role-name-text">{{ record.name }}</span>
+              <a-tag v-if="record.isSystem" color="blue">{{ t("systemRoles.systemTag") }}</a-tag>
+            </a-space>
+          </template>
+          <template v-else-if="column.key === 'description'">
+            <span class="role-description-text">
+              {{ record.description?.trim() ? record.description : t("common.none") }}
+            </span>
+          </template>
+          <template v-else-if="column.key === 'linkedUsers'">
+            <a-space :size="6">
+              <TeamOutlined class="role-linked-users-icon" aria-hidden="true" />
+              <span>{{ t("systemRoles.linkedUsersCount", { count: record.memberCount }) }}</span>
+            </a-space>
+          </template>
+          <template v-else-if="column.key === 'roleStatus'">
+            <a-tag v-if="record.isSystem" color="blue">{{ t("systemRoles.systemTag") }}</a-tag>
+          </template>
+          <template v-else-if="column.key === 'actions'">
+            <a-space @click.stop>
+              <a-button
+                v-if="canUpdate"
+                type="link"
+                :data-testid="`app-roles-edit-${record.id}`"
+                @click="openEdit(record)"
+              >
+                {{ t("common.edit") }}
+              </a-button>
+              <a-button
+                v-if="canUpdate"
+                type="link"
+                :data-testid="`app-roles-assign-${record.id}`"
+                @click="openAssign(record)"
+              >
+                {{ t("systemRoles.assignPermissions") }}
+              </a-button>
+              <a-popconfirm
+                v-if="canDelete"
+                :title="t('systemRoles.deleteConfirm')"
+                :ok-text="t('common.delete')"
+                :cancel-text="t('common.cancel')"
+                @confirm="handleDeleteRole(record.id)"
+              >
+                <a-button type="link" danger :data-testid="`app-roles-delete-${record.id}`">
+                  {{ t("common.delete") }}
+                </a-button>
+              </a-popconfirm>
+            </a-space>
+          </template>
         </template>
-        <template #detail>
-          <AppRoleAssignPanel
-            v-if="selectedItem"
-            :app-id="appId ?? ''"
-            :role-id="selectedItem.id"
-            :role-code="selectedItem.code"
-            :role-name="selectedItem.name"
-            :can-assign-permissions="canUpdate"
-            :can-manage-data-scope="canUpdate"
-            @success="handleAssignSuccess"
-          />
-        </template>
-      </MasterDetailLayout>
+      </a-table>
     </template>
 
     <template #form>
       <div class="form-wrapper">
         <a-form ref="formRef" :model="formModel" :rules="formRules" layout="vertical">
           <a-form-item :label="t('systemRoles.roleName')" name="name">
-            <a-input v-model:value="formModel.name" data-testid="app-roles-form-name" :placeholder="t('systemRoles.roleNamePlaceholder')" />
+            <a-input
+              v-model:value="formModel.name"
+              data-testid="app-roles-form-name"
+              :placeholder="t('systemRoles.roleNamePlaceholder')"
+            />
           </a-form-item>
           <a-form-item :label="t('systemRoles.roleCode')" name="code">
             <a-input
@@ -121,19 +137,42 @@
         </a-form>
       </div>
     </template>
+
+    <template #extra-drawers>
+      <a-drawer
+        v-model:open="assignDrawerOpen"
+        :title="t('systemRoles.assignPermissions')"
+        placement="right"
+        :width="assignDrawerWidth"
+        destroy-on-close
+        :footer="null"
+        data-testid="app-roles-assign-drawer"
+        @close="closeAssignDrawer"
+      >
+        <AppRoleAssignPanel
+          v-if="assignRole && appId"
+          :app-id="appId"
+          :role-id="assignRole.id"
+          :role-code="assignRole.code"
+          :role-name="assignRole.name"
+          :can-assign-permissions="canUpdate"
+          :can-manage-data-scope="canUpdate"
+          @success="handleAssignSuccess"
+        />
+      </a-drawer>
+    </template>
   </CrudPageLayout>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
 import type { FormInstance, TablePaginationConfig } from "ant-design-vue";
+import type { ColumnType } from "ant-design-vue/es/table";
 import { message } from "ant-design-vue";
-import { PlusOutlined } from "@ant-design/icons-vue";
+import { PlusOutlined, SafetyCertificateOutlined, TeamOutlined } from "@ant-design/icons-vue";
 import { useI18n } from "vue-i18n";
 import { CrudPageLayout } from "@atlas/shared-ui";
-import MasterDetailLayout from "@/components/layout/MasterDetailLayout.vue";
 import AppRoleAssignPanel from "@/components/system/roles/AppRoleAssignPanel.vue";
-import { useMasterDetail } from "@/composables/useMasterDetail";
 import { usePermission } from "@/composables/usePermission";
 import { APP_PERMISSIONS } from "@/constants/permissions";
 import { useAppContext } from "@/composables/useAppContext";
@@ -160,12 +199,15 @@ const keyword = ref("");
 const loading = ref(false);
 const tableData = ref<TenantAppRoleListItem[]>([]);
 const systemFilter = ref<"all" | "system" | "custom">("all");
-const selectedRowKeys = ref<string[]>([]);
+
+const assignDrawerOpen = ref(false);
+const assignRole = ref<TenantAppRoleListItem | null>(null);
+const assignDrawerWidth = "min(960px, 100vw)";
 
 const systemOptions = computed(() => [
   { label: t("systemRoles.filterAll"), value: "all" },
   { label: t("systemRoles.filterSystem"), value: "system" },
-  { label: t("systemRoles.filterCustom"), value: "custom" }
+  { label: t("systemRoles.filterCustom"), value: "custom" },
 ]);
 
 const pagination = reactive<TablePaginationConfig>({
@@ -173,39 +215,41 @@ const pagination = reactive<TablePaginationConfig>({
   pageSize: 10,
   total: 0,
   showSizeChanger: true,
-  showTotal: (total: number) => t("crud.totalItems", { total })
+  showTotal: (total: number) => t("crud.totalItems", { total }),
 });
 
-const tableColumns = computed(() => [
-  { title: t("systemRoles.colRoleName"), dataIndex: "name", key: "name" },
-  { title: t("systemRoles.colRoleCode"), dataIndex: "code", key: "code" },
-  { title: t("systemRoles.colMemberCount"), dataIndex: "memberCount", key: "memberCount", width: 100 },
-  { title: t("systemRoles.colSystem"), key: "isSystem", width: 100 },
-  { title: t("systemRoles.colActions"), key: "actions", width: 250 }
+const tableColumns = computed((): ColumnType<TenantAppRoleListItem>[] => [
+  {
+    title: t("systemRoles.colRoleName"),
+    key: "roleName",
+    dataIndex: "name",
+    ellipsis: true,
+  },
+  {
+    title: t("systemRoles.description"),
+    key: "description",
+    dataIndex: "description",
+    ellipsis: true,
+  },
+  {
+    title: t("systemRoles.colMemberCount"),
+    key: "linkedUsers",
+    dataIndex: "memberCount",
+    width: 140,
+  },
+  {
+    title: t("systemUsers.colStatus"),
+    key: "roleStatus",
+    width: 120,
+  },
+  {
+    title: t("systemRoles.colActions"),
+    key: "actions",
+    width: 260,
+    fixed: "right",
+  },
 ]);
 
-const rowSelection = computed(() => {
-  if (!canDelete) return undefined;
-  return {
-    selectedRowKeys: selectedRowKeys.value,
-    onChange: (keys: (string | number)[]) => {
-      selectedRowKeys.value = keys.map(String);
-    }
-  };
-});
-
-// Master-detail
-const { selectedItem, isDetailVisible, selectItem } = useMasterDetail<TenantAppRoleListItem>();
-
-const customRow = (record: TenantAppRoleListItem) => ({
-  onClick: () => { void selectItem(record); },
-  style: {
-    cursor: "pointer",
-    backgroundColor: selectedItem.value?.id === record.id ? "var(--color-primary-bg)" : undefined
-  }
-});
-
-// Form state
 const formVisible = ref(false);
 const formMode = ref<FormMode>("create");
 const formRef = ref<FormInstance>();
@@ -214,7 +258,7 @@ const currentRoleId = ref<string | null>(null);
 const formModel = reactive({ name: "", code: "", description: "" });
 const formRules = {
   name: [{ required: true, message: t("systemRoles.nameRequired") }],
-  code: [{ required: true, message: t("systemRoles.codeRequired") }]
+  code: [{ required: true, message: t("systemRoles.codeRequired") }],
 };
 
 async function fetchData() {
@@ -227,7 +271,7 @@ async function fetchData() {
       pageIndex: pagination.current ?? 1,
       pageSize: pagination.pageSize ?? 10,
       keyword: keyword.value?.trim() || undefined,
-      isSystem: systemFilter.value === "all" ? undefined : systemFilter.value === "system"
+      isSystem: systemFilter.value === "all" ? undefined : systemFilter.value === "system",
     };
     const result = await getRolesPaged(id, params);
     tableData.value = result.items;
@@ -246,7 +290,6 @@ function onTableChange(pag: TablePaginationConfig) {
 }
 
 function handleSearch() {
-  selectedRowKeys.value = [];
   pagination.current = 1;
   void fetchData();
 }
@@ -254,7 +297,6 @@ function handleSearch() {
 function handleReset() {
   keyword.value = "";
   systemFilter.value = "all";
-  selectedRowKeys.value = [];
   pagination.current = 1;
   void fetchData();
 }
@@ -278,7 +320,13 @@ function openEdit(record: TenantAppRoleListItem) {
 }
 
 function openAssign(record: TenantAppRoleListItem) {
-  void selectItem(record);
+  assignRole.value = record;
+  assignDrawerOpen.value = true;
+}
+
+function closeAssignDrawer() {
+  assignDrawerOpen.value = false;
+  assignRole.value = null;
 }
 
 function closeForm() {
@@ -301,13 +349,13 @@ async function submitForm() {
       await createRole(id, {
         code: formModel.code,
         name: formModel.name,
-        description: formModel.description || undefined
+        description: formModel.description || undefined,
       });
       message.success(t("crud.createSuccess"));
     } else if (currentRoleId.value) {
       await updateRole(id, currentRoleId.value, {
         name: formModel.name,
-        description: formModel.description || undefined
+        description: formModel.description || undefined,
       });
       message.success(t("crud.updateSuccess"));
     }
@@ -333,20 +381,6 @@ async function handleDeleteRole(roleId: string) {
   }
 }
 
-async function handleBatchDelete() {
-  const id = appId.value;
-  if (!id || !selectedRowKeys.value.length) return;
-
-  try {
-    await Promise.all(selectedRowKeys.value.map((roleId) => deleteRole(id, roleId)));
-    message.success(t("systemRoles.batchDeleteSuccess", { count: selectedRowKeys.value.length }));
-    selectedRowKeys.value = [];
-    void fetchData();
-  } catch (e: unknown) {
-    message.error(e instanceof Error ? e.message : t("systemRoles.batchDeleteFailed"));
-  }
-}
-
 function handleAssignSuccess() {
   void fetchData();
 }
@@ -357,6 +391,42 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.roles-add-btn {
+  background: #722ed1 !important;
+  border-color: #722ed1 !important;
+}
+
+.roles-add-btn:hover,
+.roles-add-btn:focus {
+  background: #9254de !important;
+  border-color: #9254de !important;
+}
+
+.role-icon-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--color-primary-bg, #f9f0ff);
+  color: #722ed1;
+  font-size: 16px;
+}
+
+.role-name-text {
+  font-weight: 600;
+  color: var(--color-text, rgba(0, 0, 0, 0.88));
+}
+
+.role-description-text {
+  color: var(--color-text-secondary, rgba(0, 0, 0, 0.45));
+}
+
+.role-linked-users-icon {
+  color: var(--color-text-secondary, rgba(0, 0, 0, 0.45));
+}
+
 .form-wrapper {
   padding-right: 8px;
 }

@@ -157,6 +157,71 @@ public sealed class TenantAppMemberQueryService : ITenantAppMemberQueryService
         return new PagedResult<TenantAppMemberListItem>(items, totalCount, pageIndex, pageSize);
     }
 
+    public async Task<PagedResult<TenantAppMemberListItem>> QueryByDepartmentAsync(
+        TenantId tenantId,
+        long appId,
+        long departmentId,
+        PagedRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var app = await RequireAppAsync(tenantId, appId, cancellationToken);
+
+        var deptUserIds = (await _userDepartmentRepository.QueryUserIdsByDepartmentIdsAsync(
+            tenantId,
+            new[] { departmentId },
+            cancellationToken)).Distinct().ToArray();
+        var pageIndex = request.PageIndex < 1 ? 1 : request.PageIndex;
+        var pageSize = request.PageSize < 1 ? 10 : request.PageSize;
+        if (deptUserIds.Length == 0)
+        {
+            return new PagedResult<TenantAppMemberListItem>(Array.Empty<TenantAppMemberListItem>(), 0, pageIndex, pageSize);
+        }
+
+        var deptMembers = await _appMemberRepository.QueryByUserIdsAsync(tenantId, appId, deptUserIds, cancellationToken);
+        if (deptMembers.Count == 0)
+        {
+            return new PagedResult<TenantAppMemberListItem>(Array.Empty<TenantAppMemberListItem>(), 0, pageIndex, pageSize);
+        }
+
+        var keyword = request.Keyword?.Trim();
+        IReadOnlyList<AppMember> filteredMembers = deptMembers;
+        if (!string.IsNullOrWhiteSpace(keyword))
+        {
+            var users = await _userAccountRepository.QueryByIdsAsync(
+                tenantId,
+                deptMembers.Select(x => x.UserId).Distinct().ToArray(),
+                cancellationToken);
+            var userMap = users.ToDictionary(x => x.Id);
+            filteredMembers = deptMembers
+                .Where(member =>
+                {
+                    var key = keyword!;
+                    if (!userMap.TryGetValue(member.UserId, out var user))
+                    {
+                        return false;
+                    }
+
+                    return (!string.IsNullOrWhiteSpace(user.Username) && user.Username.Contains(key, StringComparison.OrdinalIgnoreCase))
+                        || (!string.IsNullOrWhiteSpace(user.DisplayName) && user.DisplayName.Contains(key, StringComparison.OrdinalIgnoreCase));
+                })
+                .ToArray();
+        }
+
+        var totalCount = filteredMembers.Count;
+        var pageMembers = filteredMembers
+            .OrderByDescending(x => x.JoinedAt)
+            .Skip((pageIndex - 1) * pageSize)
+            .Take(pageSize)
+            .ToArray();
+        if (pageMembers.Length == 0)
+        {
+            return new PagedResult<TenantAppMemberListItem>(Array.Empty<TenantAppMemberListItem>(), totalCount, pageIndex, pageSize);
+        }
+
+        var items = await BuildMemberListItemsAsync(tenantId, appId, pageMembers, cancellationToken);
+        return new PagedResult<TenantAppMemberListItem>(items, totalCount, pageIndex, pageSize);
+    }
+
     private async Task<TenantAppMemberListItem[]> BuildMemberListItemsAsync(
         TenantId tenantId,
         long appId,
@@ -908,6 +973,7 @@ public sealed class TenantAppRoleQueryService : ITenantAppRoleQueryService
         TenantId tenantId,
         long appId,
         PagedRequest request,
+        bool? isSystem = null,
         CancellationToken cancellationToken = default)
     {
         var app = await RequireAppAsync(tenantId, appId, cancellationToken);
@@ -921,6 +987,7 @@ public sealed class TenantAppRoleQueryService : ITenantAppRoleQueryService
             pageIndex,
             pageSize,
             request.Keyword,
+            isSystem,
             cancellationToken);
         if (roles.Count == 0)
         {

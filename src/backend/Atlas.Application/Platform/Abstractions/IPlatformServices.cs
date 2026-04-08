@@ -309,6 +309,13 @@ public interface ITenantAppMemberQueryService
         PagedRequest request,
         CancellationToken cancellationToken = default);
 
+    Task<PagedResult<TenantAppMemberListItem>> QueryByDepartmentAsync(
+        TenantId tenantId,
+        long appId,
+        long departmentId,
+        PagedRequest request,
+        CancellationToken cancellationToken = default);
+
     Task<TenantAppMemberDetail?> GetByUserIdAsync(
         TenantId tenantId,
         long appId,
@@ -345,6 +352,7 @@ public interface ITenantAppRoleQueryService
         TenantId tenantId,
         long appId,
         PagedRequest request,
+        bool? isSystem = null,
         CancellationToken cancellationToken = default);
 
     Task<TenantAppRoleDetail?> GetByIdAsync(

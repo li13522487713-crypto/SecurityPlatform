@@ -1,9 +1,12 @@
 import type { ApiResponse, PagedRequest, PagedResult } from "@atlas/shared-core";
 import type {
   TenantAppMemberListItem,
+  TenantAppMemberDetail,
   TenantAppRoleListItem,
+  TenantAppRoleDetail,
   AppDepartmentListItem,
   AppPositionListItem,
+  AppPositionDetail,
   AppOrganizationCreateRoleRequest,
   AppOrganizationUpdateRoleRequest,
   AppOrganizationCreateDepartmentRequest,
@@ -44,6 +47,7 @@ function membersBase(appId: string): string {
 
 export interface MemberQueryRequest extends PagedRequest {
   roleId?: string;
+  departmentId?: string;
 }
 
 export async function getMembersPaged(
@@ -64,8 +68,8 @@ export async function getMembersPaged(
 export async function getMemberDetail(
   appId: string,
   userId: string
-): Promise<TenantAppMemberListItem> {
-  const resp = await requestApi<ApiResponse<TenantAppMemberListItem>>(
+): Promise<TenantAppMemberDetail> {
+  const resp = await requestApi<ApiResponse<TenantAppMemberDetail>>(
     `${membersBase(appId)}/${encodeURIComponent(userId)}`
   );
   if (!resp.data) throw new Error(resp.message ?? "Failed to query member detail");
@@ -166,6 +170,17 @@ export async function updateRole(appId: string, roleId: string, req: AppOrganiza
   );
 }
 
+export async function getRoleDetail(
+  appId: string,
+  roleId: string
+): Promise<TenantAppRoleDetail> {
+  const resp = await requestApi<ApiResponse<TenantAppRoleDetail>>(
+    `${rolesBase(appId)}/${encodeURIComponent(roleId)}`
+  );
+  if (!resp.data) throw new Error(resp.message ?? "Failed to query role detail");
+  return resp.data;
+}
+
 export async function deleteRole(appId: string, roleId: string): Promise<void> {
   await requestApi<ApiResponse<unknown>>(
     `${orgBase(appId)}/roles/${encodeURIComponent(roleId)}`,
@@ -240,11 +255,19 @@ export async function getPositionsPaged(
 export async function getPositionDetail(
   appId: string,
   id: string
-): Promise<AppPositionListItem> {
-  const resp = await requestApi<ApiResponse<AppPositionListItem>>(
+): Promise<AppPositionDetail> {
+  const resp = await requestApi<ApiResponse<AppPositionDetail>>(
     `${positionsBase(appId)}/${encodeURIComponent(id)}`
   );
   if (!resp.data) throw new Error(resp.message ?? "Failed to query position detail");
+  return resp.data;
+}
+
+export async function getPositionsAll(appId: string): Promise<AppPositionListItem[]> {
+  const resp = await requestApi<ApiResponse<AppPositionListItem[]>>(
+    `${positionsBase(appId)}/all`
+  );
+  if (!resp.data) throw new Error(resp.message ?? "Failed to query positions");
   return resp.data;
 }
 

@@ -61,10 +61,11 @@ public sealed class TenantAppRolesV2Controller : ControllerBase
     public async Task<ActionResult<ApiResponse<PagedResult<TenantAppRoleListItem>>>> Get(
         long appId,
         [FromQuery] PagedRequest request,
+        [FromQuery] bool? isSystem,
         CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
-        var result = await _queryService.QueryAsync(tenantId, appId, request, cancellationToken);
+        var result = await _queryService.QueryAsync(tenantId, appId, request, isSystem, cancellationToken);
         return Ok(ApiResponse<PagedResult<TenantAppRoleListItem>>.Ok(result, HttpContext.TraceIdentifier));
     }
 

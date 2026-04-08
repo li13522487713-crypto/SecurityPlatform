@@ -14,27 +14,17 @@
     @close-form="closeDrawer"
     @submit="handleSubmit"
   >
-    <template #toolbar-actions>
-      <a-button v-if="canCreate" type="primary" data-testid="app-users-create" @click="openCreateUser">
-        <template #icon><PlusOutlined /></template>
-        {{ t("systemUsers.addUser") }}
-      </a-button>
-      <a-button v-if="canCreate" data-testid="app-users-add-existing" @click="openAddExistingMember">
-        <template #icon><UserAddOutlined /></template>
-        {{ t("systemUsers.addExistingMember") }}
-      </a-button>
-    </template>
+    <template #toolbar-actions />
 
     <template #table>
-      <a-row :gutter="16" style="flex: 1; overflow: hidden;">
+      <a-row :gutter="16" class="app-users-layout">
         <a-col :span="5">
-          <a-card size="small" :title="t('systemUsers.departmentTree')" style="height: 100%; overflow-y: auto;">
+          <div class="app-users-tree-card">
             <a-input
               v-model:value="treeKeyword"
               :placeholder="t('systemUsers.treeSearch')"
               allow-clear
-              size="small"
-              style="margin-bottom: 12px"
+              class="app-users-tree-search"
             />
             <a-tree
               :tree-data="deptTreeData"
@@ -43,9 +33,36 @@
               :auto-expand-parent="true"
               @select="handleDeptSelect"
             />
-          </a-card>
+          </div>
         </a-col>
-        <a-col :span="19">
+        <a-col :span="19" class="app-users-main-col">
+          <div class="app-users-right-header">
+            <div class="app-users-right-header-text">
+              <div class="app-users-dept-title">{{ selectedDeptName }}</div>
+              <div class="app-users-dept-stat">{{ memberStatText }}</div>
+            </div>
+            <a-space>
+              <a-button
+                v-if="canCreate"
+                data-testid="app-users-add-existing"
+                class="app-users-outline-btn"
+                @click="openAddExistingMember"
+              >
+                <template #icon><UserAddOutlined /></template>
+                {{ t("systemUsers.batchImport") }}
+              </a-button>
+              <a-button
+                v-if="canCreate"
+                type="primary"
+                data-testid="app-users-create"
+                class="app-users-create-btn"
+                @click="openCreateUser"
+              >
+                <template #icon><PlusOutlined /></template>
+                {{ t("systemUsers.addUser") }}
+              </a-button>
+            </a-space>
+          </div>
           <a-table
             data-testid="app-users-table"
             :columns="columns"
@@ -56,22 +73,66 @@
             @change="handleTableChange"
           >
             <template #bodyCell="{ column, record }">
-              <template v-if="column.key === 'isActive'">
+              <template v-if="column.key === 'userInfo'">
+                <div style="display: flex; align-items: center; gap: 12px">
+                  <a-avatar :size="40" style="background-color: #4f39f6; flex-shrink: 0">
+                    {{ (record.displayName || record.username || "?").charAt(0) }}
+                  </a-avatar>
+                  <div>
+                    <div style="font-weight: 600; color: #101828">
+                      {{ record.displayName || record.username }}
+                    </div>
+                    <div style="font-size: 12px; color: #6a7282">{{ record.username }}</div>
+                  </div>
+                </div>
+              </template>
+              <template v-else-if="column.key === 'contact'">
+                <div style="display: flex; flex-direction: column; gap: 4px">
+                  <div
+                    v-if="record.email"
+                    style="display: flex; align-items: center; gap: 6px; color: #364153"
+                  >
+                    <MailOutlined style="color: #9ca3af" />
+                    <span>{{ record.email }}</span>
+                  </div>
+                  <div
+                    v-if="record.phoneNumber"
+                    style="display: flex; align-items: center; gap: 6px; color: #364153"
+                  >
+                    <PhoneOutlined style="color: #9ca3af" />
+                    <span>{{ record.phoneNumber }}</span>
+                  </div>
+                  <span v-if="!record.email && !record.phoneNumber" style="color: #9ca3af">-</span>
+                </div>
+              </template>
+              <template v-else-if="column.key === 'isActive'">
                 <a-tag :color="record.isActive ? 'green' : 'red'">
                   {{ record.isActive ? t("common.statusEnabled") : t("common.statusDisabled") }}
                 </a-tag>
               </template>
               <template v-else-if="column.key === 'roles'">
-                <a-tag v-for="name in record.roleNames" :key="name" color="blue" style="margin: 2px;">
+                <a-tag v-for="name in record.roleNames ?? []" :key="name" color="blue" class="app-users-role-tag">
                   {{ name }}
                 </a-tag>
               </template>
               <template v-else-if="column.key === 'actions'">
                 <a-space>
-                  <a-button v-if="canUpdate" type="link" size="small" :data-testid="`app-users-edit-${record.userId}`" @click="openEditMember(record)">
+                  <a-button
+                    v-if="canUpdate"
+                    type="link"
+                    size="small"
+                    :data-testid="`app-users-edit-${record.userId}`"
+                    @click="openEditMember(record)"
+                  >
                     {{ t("common.edit") }}
                   </a-button>
-                  <a-button v-if="canUpdate" type="link" size="small" :data-testid="`app-users-reset-password-${record.userId}`" @click="openResetPassword(record)">
+                  <a-button
+                    v-if="canUpdate"
+                    type="link"
+                    size="small"
+                    :data-testid="`app-users-reset-password-${record.userId}`"
+                    @click="openResetPassword(record)"
+                  >
                     {{ t("systemUsers.resetPassword") }}
                   </a-button>
                   <a-popconfirm
@@ -79,7 +140,9 @@
                     :title="t('systemUsers.removeMemberConfirm')"
                     @confirm="handleRemoveMember(record.userId)"
                   >
-                    <a-button type="link" size="small" danger :data-testid="`app-users-remove-${record.userId}`">{{ t("systemUsers.removeMember") }}</a-button>
+                    <a-button type="link" size="small" danger :data-testid="`app-users-remove-${record.userId}`">
+                      {{ t("systemUsers.removeMember") }}
+                    </a-button>
                   </a-popconfirm>
                 </a-space>
               </template>
@@ -258,7 +321,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, ref } from "vue";
 import { message } from "ant-design-vue";
-import { PlusOutlined, UserAddOutlined } from "@ant-design/icons-vue";
+import { MailOutlined, PhoneOutlined, PlusOutlined, UserAddOutlined } from "@ant-design/icons-vue";
 import type { FormInstance, TablePaginationConfig } from "ant-design-vue";
 import { useI18n } from "vue-i18n";
 import { CrudPageLayout } from "@atlas/shared-ui";
@@ -305,17 +368,15 @@ const pagination = reactive<TablePaginationConfig>({
   pageSize: 10,
   total: 0,
   showSizeChanger: true,
-  showTotal: (total: number) => t("crud.totalItems", { total })
+  showTotal: (total: number) => t("crud.totalItems", { total }),
 });
 
 const columns = computed(() => [
-  { title: t("systemUsers.colUsername"), dataIndex: "username", key: "username" },
-  { title: t("systemUsers.colDisplayName"), dataIndex: "displayName", key: "displayName" },
-  { title: t("systemUsers.colEmail"), dataIndex: "email", key: "email", ellipsis: true },
-  { title: t("systemUsers.colPhone"), dataIndex: "phoneNumber", key: "phoneNumber" },
-  { title: t("systemUsers.colStatus"), key: "isActive", width: 100 },
+  { title: t("systemUsers.colDisplayName"), key: "userInfo", width: 200 },
+  { title: t("systemUsers.colEmail"), key: "contact", width: 220 },
+  { title: t("systemUsers.colStatus"), key: "isActive", width: 80 },
   { title: t("systemUsers.colRoles"), key: "roles", width: 200 },
-  { title: t("systemUsers.colActions"), key: "actions", width: 200, fixed: "right" as const }
+  { title: t("systemUsers.colActions"), key: "actions", width: 200, fixed: "right" as const },
 ]);
 
 // Department tree
@@ -326,7 +387,11 @@ const expandedDeptKeys = computed(() => {
   return allDepts.value.map((d) => d.id);
 });
 
-interface TreeNode { key: string; title: string; children?: TreeNode[] }
+interface TreeNode {
+  key: string;
+  title: string;
+  children?: TreeNode[];
+}
 
 const buildDeptTree = (items: AppDepartmentListItem[]): TreeNode[] => {
   const map = new Map<string, TreeNode>();
@@ -336,7 +401,10 @@ const buildDeptTree = (items: AppDepartmentListItem[]): TreeNode[] => {
     const node = map.get(item.id)!;
     if (item.parentId) {
       const parent = map.get(item.parentId);
-      if (parent) { parent.children!.push(node); return; }
+      if (parent) {
+        parent.children!.push(node);
+        return;
+      }
     }
     roots.push(node);
   });
@@ -358,6 +426,19 @@ const filterTree = (nodes: TreeNode[], kw: string): TreeNode[] => {
 
 const deptTreeData = computed(() => filterTree(buildDeptTree(allDepts.value), treeKeyword.value));
 
+const selectedDeptName = computed(() => {
+  if (!selectedDeptId.value) return t("systemUsers.allDepartments");
+  const d = allDepts.value.find((x) => x.id === selectedDeptId.value);
+  return d?.name ?? t("systemUsers.allDepartments");
+});
+
+const memberStatText = computed(() => {
+  const total = Number(pagination.total ?? 0);
+  return selectedDeptId.value
+    ? t("systemUsers.formalMembersUnderDepartment", { count: total })
+    : t("systemUsers.formalMembersAll", { count: total });
+});
+
 const handleDeptSelect = (keys: (string | number)[]) => {
   selectedDeptId.value = keys.length ? String(keys[0]) : undefined;
   pagination.current = 1;
@@ -373,11 +454,16 @@ const currentUserId = ref<string | null>(null);
 
 const drawerTitle = computed(() => {
   switch (formMode.value) {
-    case "create": return t("systemUsers.drawerCreateTitle");
-    case "addExisting": return t("systemUsers.drawerAddExistingTitle");
-    case "edit": return t("systemUsers.drawerEditTitle");
-    case "resetPassword": return t("systemUsers.drawerResetPasswordTitle");
-    default: return "";
+    case "create":
+      return t("systemUsers.drawerCreateTitle");
+    case "addExisting":
+      return t("systemUsers.drawerAddExistingTitle");
+    case "edit":
+      return t("systemUsers.drawerEditTitle");
+    case "resetPassword":
+      return t("systemUsers.drawerResetPasswordTitle");
+    default:
+      return "";
   }
 });
 
@@ -392,23 +478,23 @@ const createForm = reactive({
   isActive: true,
   roleIds: [] as string[],
   departmentIds: [] as string[],
-  positionIds: [] as string[]
+  positionIds: [] as string[],
 });
 const createRules = {
   username: [{ required: true, message: t("systemUsers.usernameRequired") }],
   password: [{ required: true, message: t("systemUsers.passwordRequired"), min: 8 }],
-  displayName: [{ required: true, message: t("systemUsers.displayNameRequired") }]
+  displayName: [{ required: true, message: t("systemUsers.displayNameRequired") }],
 };
 
 // Add existing form
 const addExistingFormRef = ref<FormInstance>();
 const addExistingForm = reactive({
   userIds: [] as string[],
-  roleIds: [] as string[]
+  roleIds: [] as string[],
 });
 const addExistingRules = {
   userIds: [{ required: true, message: t("systemUsers.selectUsersRequired"), type: "array" as const }],
-  roleIds: [{ required: true, message: t("systemUsers.selectRolesRequired"), type: "array" as const }]
+  roleIds: [{ required: true, message: t("systemUsers.selectRolesRequired"), type: "array" as const }],
 };
 
 // Edit form
@@ -417,10 +503,10 @@ const editForm = reactive({
   displayName: "",
   email: "",
   phoneNumber: "",
-  isActive: true
+  isActive: true,
 });
 const editRules = {
-  displayName: [{ required: true, message: t("systemUsers.displayNameRequired") }]
+  displayName: [{ required: true, message: t("systemUsers.displayNameRequired") }],
 };
 const editRoleIds = ref<string[]>([]);
 const editDeptIds = ref<string[]>([]);
@@ -430,7 +516,7 @@ const editPositionIds = ref<string[]>([]);
 const resetPwdFormRef = ref<FormInstance>();
 const resetPwdForm = reactive({ newPassword: "" });
 const resetPwdRules = {
-  newPassword: [{ required: true, message: t("systemUsers.newPasswordRequired"), min: 8 }]
+  newPassword: [{ required: true, message: t("systemUsers.newPasswordRequired"), min: 8 }],
 };
 
 // Select options
@@ -489,7 +575,7 @@ const loadTenantUsers = async (kw?: string) => {
     if (!isMounted.value) return;
     tenantUserOptions.value = result.items.map((u) => ({
       label: `${u.displayName} (${u.username})`,
-      value: u.id
+      value: u.id,
     }));
   } finally {
     if (isMounted.value) tenantUserLoading.value = false;
@@ -512,7 +598,7 @@ async function fetchData() {
       pageIndex: pagination.current ?? 1,
       pageSize: pagination.pageSize ?? 10,
       keyword: keyword.value?.trim() || undefined,
-      departmentId: selectedDeptId.value
+      departmentId: selectedDeptId.value,
     });
     tableData.value = result.items;
     pagination.total = result.total;
@@ -529,7 +615,9 @@ async function loadDeptTree() {
   try {
     const { getDepartmentsAll } = await import("@/services/api-org-management");
     allDepts.value = await getDepartmentsAll(id);
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 }
 
 function handleTableChange(pag: TablePaginationConfig) {
@@ -599,11 +687,7 @@ async function openEditMember(record: TenantAppMemberListItem) {
   }
 }
 
-function ensureOptionsExist(
-  optionsRef: import("vue").Ref<SelectOption[]>,
-  ids: string[],
-  names: string[]
-) {
+function ensureOptionsExist(optionsRef: import("vue").Ref<SelectOption[]>, ids: string[], names: string[]) {
   ids.forEach((id, idx) => {
     if (!optionsRef.value.some((o) => o.value === id)) {
       optionsRef.value.push({ label: names[idx] ?? id, value: id });
@@ -639,14 +723,14 @@ async function handleSubmit() {
         isActive: createForm.isActive,
         roleIds: createForm.roleIds,
         departmentIds: createForm.departmentIds.length ? createForm.departmentIds : undefined,
-        positionIds: createForm.positionIds.length ? createForm.positionIds : undefined
+        positionIds: createForm.positionIds.length ? createForm.positionIds : undefined,
       });
       message.success(t("crud.createSuccess"));
     } else if (formMode.value === "addExisting") {
       await addExistingFormRef.value?.validate();
       await addMembers(id, {
         userIds: addExistingForm.userIds,
-        roleIds: addExistingForm.roleIds
+        roleIds: addExistingForm.roleIds,
       });
       message.success(t("systemUsers.addExistingSuccess"));
     } else if (formMode.value === "edit" && currentUserId.value) {
@@ -656,19 +740,19 @@ async function handleSubmit() {
           displayName: editForm.displayName,
           email: editForm.email || undefined,
           phoneNumber: editForm.phoneNumber || undefined,
-          isActive: editForm.isActive
+          isActive: editForm.isActive,
         }),
         updateMemberRoles(id, currentUserId.value, {
           roleIds: editRoleIds.value,
           departmentIds: editDeptIds.value.length ? editDeptIds.value : undefined,
-          positionIds: editPositionIds.value.length ? editPositionIds.value : undefined
-        })
+          positionIds: editPositionIds.value.length ? editPositionIds.value : undefined,
+        }),
       ]);
       message.success(t("crud.updateSuccess"));
     } else if (formMode.value === "resetPassword" && currentUserId.value) {
       await resetPwdFormRef.value?.validate();
       await resetMemberPassword(id, currentUserId.value, {
-        newPassword: resetPwdForm.newPassword
+        newPassword: resetPwdForm.newPassword,
       });
       message.success(t("systemUsers.resetPasswordSuccess"));
     }
@@ -709,3 +793,72 @@ onUnmounted(() => {
   isMounted.value = false;
 });
 </script>
+
+<style scoped>
+.app-users-layout {
+  flex: 1;
+  overflow: hidden;
+}
+
+.app-users-tree-card {
+  height: 100%;
+  overflow-y: auto;
+  padding: 16px;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.06);
+  border: 1px solid #e5e7eb;
+}
+
+.app-users-tree-search {
+  margin-bottom: 12px;
+}
+
+.app-users-main-col {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.app-users-right-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+  flex-shrink: 0;
+}
+
+.app-users-dept-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #101828;
+  line-height: 1.3;
+}
+
+.app-users-dept-stat {
+  margin-top: 4px;
+  font-size: 14px;
+  color: #6a7282;
+}
+
+.app-users-outline-btn {
+  border-color: #d0d5dd;
+  color: #364153;
+}
+
+.app-users-create-btn {
+  background-color: #4f39f6 !important;
+  border-color: #4f39f6 !important;
+}
+
+.app-users-create-btn:hover {
+  background-color: #4338ca !important;
+  border-color: #4338ca !important;
+}
+
+.app-users-role-tag {
+  margin: 2px;
+}
+</style>

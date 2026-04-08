@@ -67,6 +67,57 @@ export interface AppPositionListItem {
   sortOrder: number;
 }
 
+export interface AppPositionDetail {
+  id: string;
+  appId: string;
+  name: string;
+  code: string;
+  description: string | null;
+  isActive: boolean;
+  sortOrder: number;
+}
+
+export interface TenantAppMemberDetail {
+  userId: string;
+  username: string;
+  displayName: string;
+  email: string | null;
+  phoneNumber: string | null;
+  isActive: boolean;
+  joinedAt: string;
+  roleIds: string[];
+  roleNames: string[];
+  departmentIds: string[];
+  departmentNames: string[];
+  positionIds: string[];
+  positionNames: string[];
+  projectIds: string[];
+  projectNames: string[];
+}
+
+export interface TenantAppRoleDetail {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  isSystem: boolean;
+  createdAt: string;
+  updatedAt: string;
+  memberCount: number;
+  permissionCodes: string[];
+}
+
+export interface AppDepartmentDetail {
+  id: string;
+  appId: string;
+  name: string;
+  code: string;
+  parentId: string | null;
+  sortOrder: number;
+  memberCount: number;
+  managerName: string | null;
+}
+
 export interface AppProjectListItem {
   id: string;
   code: string;

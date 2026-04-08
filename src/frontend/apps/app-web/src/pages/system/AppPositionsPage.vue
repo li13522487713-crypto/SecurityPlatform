@@ -3,6 +3,7 @@
     data-testid="app-positions-page"
     v-model:keyword="searchParams.keyword"
     :title="t('systemPositions.pageTitle')"
+    :subtitle="t('systemPositions.pageSubtitle')"
     :search-placeholder="t('systemPositions.searchPlaceholder')"
     :drawer-open="drawerVisible"
     :drawer-title="isEdit ? t('systemPositions.drawerEditTitle') : t('systemPositions.drawerCreateTitle')"
@@ -14,8 +15,8 @@
     @close-form="closeDrawer"
     @submit="handleSubmit"
   >
-    <template #toolbar-actions>
-      <a-button v-if="canCreate" type="primary" data-testid="app-positions-create" @click="openCreate">
+    <template v-if="canCreate" #card-extra>
+      <a-button type="primary" class="app-positions-create-btn" data-testid="app-positions-create" @click="openCreate">
         <template #icon><PlusOutlined /></template>
         {{ t("systemPositions.addPosition") }}
       </a-button>
@@ -32,7 +33,20 @@
         @change="handleTableChange"
       >
         <template #bodyCell="{ column, record }">
-          <template v-if="column.key === 'isActive'">
+          <template v-if="column.key === 'name'">
+            <span style="font-weight: 600">{{ record.name }}</span>
+          </template>
+          <template v-else-if="column.key === 'code'">
+            <a-tag color="default" style="background: #f3f4f6; border: none; font-family: monospace">{{ record.code }}</a-tag>
+          </template>
+          <template v-else-if="column.key === 'description'">
+            <span
+              class="app-positions-desc-ellipsis"
+              style="color: #6a7282"
+              :title="record.description || undefined"
+            >{{ record.description || "-" }}</span>
+          </template>
+          <template v-else-if="column.key === 'isActive'">
             <a-tag :color="record.isActive ? 'green' : 'red'">
               {{ record.isActive ? t("common.statusEnabled") : t("common.statusDisabled") }}
             </a-tag>
@@ -282,3 +296,24 @@ async function handleDelete(posId: string) {
   }
 }
 </script>
+
+<style scoped>
+.app-positions-create-btn {
+  background: #722ed1 !important;
+  border-color: #722ed1 !important;
+}
+
+.app-positions-create-btn:hover,
+.app-positions-create-btn:focus {
+  background: #9254de !important;
+  border-color: #9254de !important;
+}
+
+.app-positions-desc-ellipsis {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+</style>

@@ -1,7 +1,7 @@
 ### 应用级组织管理 API 测试
 ### TenantAppDepartments / TenantAppPositions / TenantAppProjects / AppRoles DataScope
 
-@baseUrl = http://localhost:5000
+@baseUrl = http://localhost:5001
 @tenantId = 00000000-0000-0000-0000-000000000001
 @username = admin
 @password = P@ssw0rd!
@@ -20,6 +20,110 @@ X-Tenant-Id: {{tenantId}}
 ###
 @accessToken = {{login.response.body.$.data.accessToken}}
 @appId = 1
+
+# ====================================================
+# 应用级成员管理 (TenantAppMembers V2)
+# ====================================================
+
+### 查询成员列表（分页）
+GET {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/members?pageIndex=1&pageSize=20
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 按角色过滤成员
+GET {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/members?pageIndex=1&pageSize=20&roleId=1
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 按部门过滤成员
+GET {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/members?pageIndex=1&pageSize=20&departmentId=1
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 按关键字搜索成员
+GET {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/members?pageIndex=1&pageSize=20&keyword=admin
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 查询单个成员详情
+GET {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/members/1
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+# ====================================================
+# 应用级角色管理 (TenantAppRoles V2)
+# ====================================================
+
+### 查询角色列表（分页）
+GET {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/roles?pageIndex=1&pageSize=20
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 按 isSystem 过滤角色
+GET {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/roles?pageIndex=1&pageSize=20&isSystem=true
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 按关键字搜索角色
+GET {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/roles?pageIndex=1&pageSize=20&keyword=admin
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 查询单个角色
+GET {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/roles/1
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 查询角色治理概览
+GET {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/roles/governance-overview
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 新建角色
+# @name createRole
+POST {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/roles
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: role-create-001
+
+{
+  "code": "TESTER",
+  "name": "测试工程师",
+  "description": "负责功能测试与质量保障",
+  "permissionCodes": ["assets:view"]
+}
+
+###
+@newRoleId = {{createRole.response.body.$.data.roleId}}
+
+### 更新角色
+PUT {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/roles/{{newRoleId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: role-update-001
+
+{
+  "name": "高级测试工程师",
+  "description": "负责功能与自动化测试"
+}
+
+### 更新角色权限
+PUT {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/roles/{{newRoleId}}/permissions
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+Content-Type: application/json
+Idempotency-Key: role-perm-001
+
+{
+  "permissionCodes": ["assets:view", "assets:create"]
+}
+
+### 删除角色
+DELETE {{baseUrl}}/api/v2/tenant-app-instances/{{appId}}/roles/{{newRoleId}}
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
 
 # ====================================================
 # 应用级部门管理 (TenantAppDepartments)

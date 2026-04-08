@@ -44,10 +44,26 @@ public sealed class TenantAppMembersV2Controller : ControllerBase
     public async Task<ActionResult<ApiResponse<PagedResult<TenantAppMemberListItem>>>> Get(
         long appId,
         [FromQuery] PagedRequest request,
+        [FromQuery] long? roleId,
+        [FromQuery] long? departmentId,
         CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
-        var result = await _queryService.QueryAsync(tenantId, appId, request, cancellationToken);
+
+        PagedResult<TenantAppMemberListItem> result;
+        if (roleId.HasValue && roleId.Value > 0)
+        {
+            result = await _queryService.QueryByRoleAsync(tenantId, appId, roleId.Value, request, cancellationToken);
+        }
+        else if (departmentId.HasValue && departmentId.Value > 0)
+        {
+            result = await _queryService.QueryByDepartmentAsync(tenantId, appId, departmentId.Value, request, cancellationToken);
+        }
+        else
+        {
+            result = await _queryService.QueryAsync(tenantId, appId, request, cancellationToken);
+        }
+
         return Ok(ApiResponse<PagedResult<TenantAppMemberListItem>>.Ok(result, HttpContext.TraceIdentifier));
     }
 

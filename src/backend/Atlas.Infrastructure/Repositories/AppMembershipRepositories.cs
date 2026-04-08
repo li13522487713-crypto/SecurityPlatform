@@ -164,6 +164,7 @@ public sealed class AppRoleRepository : IAppRoleRepository
         int pageIndex,
         int pageSize,
         string? keyword,
+        bool? isSystem = null,
         CancellationToken cancellationToken = default)
     {
         var db = await ResolveDbAsync(tenantId, appId, cancellationToken);
@@ -174,6 +175,11 @@ public sealed class AppRoleRepository : IAppRoleRepository
         {
             var trimmed = keyword.Trim();
             query = query.Where(x => x.Code.Contains(trimmed) || x.Name.Contains(trimmed));
+        }
+
+        if (isSystem.HasValue)
+        {
+            query = query.Where(x => x.IsSystem == isSystem.Value);
         }
 
         var total = await query.CountAsync(cancellationToken);

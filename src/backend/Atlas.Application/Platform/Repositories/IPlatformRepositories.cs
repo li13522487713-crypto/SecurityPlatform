@@ -114,6 +114,7 @@ public interface IAppRoleRepository
         int pageIndex,
         int pageSize,
         string? keyword,
+        bool? isSystem = null,
         CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<AppRole>> QueryByIdsAsync(

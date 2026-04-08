@@ -37,7 +37,7 @@ public sealed class AppOrganizationQueryService : IAppOrganizationQueryService
             ? _memberQueryService.QueryByRoleAsync(tenantId, appId, roleId.Value, memberQuery, cancellationToken)
             : _memberQueryService.QueryAsync(tenantId, appId, memberQuery, cancellationToken);
         var roleOverviewTask = _roleQueryService.GetGovernanceOverviewAsync(tenantId, appId, cancellationToken);
-        var rolesTask = _roleQueryService.QueryAsync(tenantId, appId, new PagedRequest(1, 200, null), cancellationToken);
+        var rolesTask = _roleQueryService.QueryAsync(tenantId, appId, new PagedRequest(1, 200, null), isSystem: null, cancellationToken);
         var departmentsTask = _appOrgQueryService.GetAllDepartmentsAsync(tenantId, appId, cancellationToken);
         var positionsTask = _appOrgQueryService.GetAllPositionsAsync(tenantId, appId, cancellationToken);
         var projectsTask = _appOrgQueryService.GetAllProjectsAsync(tenantId, appId, cancellationToken);
