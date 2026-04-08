@@ -4,28 +4,28 @@ overview: 将 app-web 从"AMIS Schema 渲染壳"升级为"统一应用运行时�
 todos:
   - id: p1-context-store
     content: "Phase 1.1: 新建 runtime/context/ — RuntimeContext 类型定义 + Pinia store + provide/inject"
-    status: pending
+    status: completed
   - id: p1-cel-client
     content: "Phase 1.2: 新建 runtime/expressions/ — CelPreviewClient + 标记 ExpressionEngine deprecated + 后端 ExpressionsController 扩展全量变量域"
-    status: pending
+    status: completed
   - id: p1-page-host
     content: "Phase 1.3: 新建 runtime/hosts/RuntimePageHost.vue + bootstrap-runtime.ts，替代 PageRuntimeRenderer.vue，新增公共态路由"
-    status: pending
+    status: completed
   - id: p1-event-bridge
     content: "Phase 1.4: 新建 runtime/adapters/amis-event-bridge.ts + runtime/actions/，AMIS 事件转 RuntimeAction + ActionExecutor"
-    status: pending
+    status: completed
   - id: p1-binding
     content: "Phase 1.5: 新建 runtime/bindings/ — BindingResolver + amis-binding-adapter，替代 applyRuntimeApis"
-    status: pending
+    status: completed
   - id: p1-execution
     content: "Phase 1.6: 新建 runtime/release/ + runtime/audit/ — RuntimeExecution 追踪 + 审计上报 + 后端 execution API"
-    status: pending
+    status: completed
   - id: p2-model-binding
     content: "Phase 2: 模型驱动数据绑定 — Entity metadata + RuntimeDataService 升级 + 配置化 binding 生成"
-    status: pending
+    status: completed
   - id: p3-workflow-ai
     content: "Phase 3: 流程/审批/AI 接入 — runWorkflow/runApproval/runAgent + 生命周期 hook + SSE 异步执行态"
-    status: pending
+    status: completed
 isProject: false
 ---
 

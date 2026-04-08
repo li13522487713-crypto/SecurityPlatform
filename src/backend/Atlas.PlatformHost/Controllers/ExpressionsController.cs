@@ -56,7 +56,10 @@ public sealed class ExpressionsController : ControllerBase
         {
             Record = request.Record ?? new Dictionary<string, object?>(),
             User = request.User ?? new Dictionary<string, object?>(),
-            Page = request.Page ?? new Dictionary<string, object?>()
+            Page = request.Page ?? new Dictionary<string, object?>(),
+            App = request.App ?? new Dictionary<string, object?>(),
+            Tenant = request.Tenant ?? new Dictionary<string, object?>(),
+            Global = request.Global ?? new Dictionary<string, object?>()
         };
 
         try
@@ -92,7 +95,10 @@ public sealed record ExpressionEvaluateRequest(
     string Expression,
     IReadOnlyDictionary<string, object?>? Record,
     IReadOnlyDictionary<string, object?>? User,
-    IReadOnlyDictionary<string, object?>? Page);
+    IReadOnlyDictionary<string, object?>? Page,
+    IReadOnlyDictionary<string, object?>? App = null,
+    IReadOnlyDictionary<string, object?>? Tenant = null,
+    IReadOnlyDictionary<string, object?>? Global = null);
 
 public sealed record ExpressionEvaluateResponse(
     bool Success,

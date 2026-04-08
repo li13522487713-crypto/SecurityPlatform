@@ -1,5 +1,12 @@
 /**
- * 安全的 JavaScript 表达式沙盒执行引擎
+ * @deprecated 此模块已废弃。新代码请使用 runtime/expressions/cel-preview-client.ts
+ * 所有表达式统一走后端 CelExpressionEngine（POST /api/v1/expressions/evaluate）。
+ * 参见 docs/platform-unified-schema-and-expression.md 封板规则：
+ * "禁止绕过 CEL 的独立表达式执行器"。
+ *
+ * 保留仅为历史兼容，将在 Phase 2 完全移除。
+ *
+ * 原说明：安全的 JavaScript 表达式沙盒执行引擎，
  * 拦截对全局对象（如 window、document）的访问，防止恶意代码执行。
  */
 

@@ -87,7 +87,7 @@ export const router = createRouter({
         {
           path: "r/:pageKey",
           name: "app-runtime-page",
-          component: () => import("@/pages/runtime/PageRuntimeRenderer.vue")
+          component: () => import("@/runtime/hosts/RuntimePageHost.vue")
         },
         {
           path: "org",
@@ -236,6 +236,12 @@ export const router = createRouter({
           component: () => import("@/pages/ForbiddenPage.vue")
         }
       ]
+    },
+    {
+      path: "/r/:appKey/:pageKey",
+      name: "public-runtime-page",
+      component: () => import("@/runtime/hosts/RuntimePageHost.vue"),
+      meta: { requiresAuth: true }
     },
     {
       path: "/:pathMatch(.*)*",

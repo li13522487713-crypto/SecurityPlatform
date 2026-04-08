@@ -1,0 +1,126 @@
+<template>
+  <a-card :title="pageTitle" data-testid="app-runtime-page">
+    <a-spin :spinning="loading">
+      <AmisRenderer v-if="schema" :schema="schema" />
+      <a-empty v-else :description="t('runtimePage.emptyNoPage')" />
+    </a-spin>
+  </a-card>
+</template>
+
+<script setup lang="ts">
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
+import { message } from "ant-design-vue";
+import { useRoute } from "vue-router";
+import AmisRenderer from "@/components/amis/amis-renderer.vue";
+import { provideRuntimeContext } from "@/runtime/context/runtime-context-provider";
+import { useRuntimeContextStore } from "@/runtime/context/runtime-context-store";
+import { bootstrapRuntime } from "@/runtime/bootstrap/bootstrap-runtime";
+import { resolveBindings } from "@/runtime/bindings/binding-resolver";
+import { applyAmisBindings } from "@/runtime/adapters/amis-binding-adapter";
+import {
+  createExecution,
+  completeExecution,
+  removeExecution,
+} from "@/runtime/release/runtime-execution-tracker";
+import { reportAuditEvent, startAuditReporter, stopAuditReporter } from "@/runtime/audit/runtime-audit-reporter";
+import type { AmisSchema } from "@/types/amis";
+
+const { t } = useI18n();
+const route = useRoute();
+provideRuntimeContext();
+const contextStore = useRuntimeContextStore();
+
+const isMounted = ref(false);
+const currentExecutionId = ref<string | null>(null);
+
+onMounted(() => {
+  isMounted.value = true;
+  startAuditReporter();
+});
+onUnmounted(() => {
+  isMounted.value = false;
+  if (currentExecutionId.value) {
+    completeExecution(currentExecutionId.value, "success");
+    reportAuditEvent({
+      executionId: currentExecutionId.value,
+      appKey: appKey.value,
+      pageKey: pageKey.value,
+      eventType: "page_leave",
+    });
+    removeExecution(currentExecutionId.value);
+  }
+  contextStore.resetContext();
+  stopAuditReporter();
+});
+
+const loading = ref(false);
+const schema = ref<AmisSchema | null>(null);
+const pageTitle = ref(t("runtimePage.defaultTitle"));
+
+const appKey = computed(() => String(route.params.appKey ?? ""));
+const pageKey = computed(() => String(route.params.pageKey ?? ""));
+
+async function loadRuntime() {
+  if (!appKey.value || !pageKey.value) {
+    schema.value = null;
+    return;
+  }
+
+  if (currentExecutionId.value) {
+    completeExecution(currentExecutionId.value, "success");
+    removeExecution(currentExecutionId.value);
+  }
+
+  loading.value = true;
+  try {
+    const { manifest, executionId } = await bootstrapRuntime(route);
+    currentExecutionId.value = executionId;
+
+    createExecution(executionId, appKey.value, pageKey.value, manifest.releaseId);
+    reportAuditEvent({
+      executionId,
+      appKey: appKey.value,
+      pageKey: pageKey.value,
+      eventType: "page_enter",
+    });
+
+    if (!isMounted.value) return;
+
+    pageTitle.value = manifest.pageTitle ?? `${appKey.value} / ${pageKey.value}`;
+
+    const parsedSchema = JSON.parse(manifest.schemaJson) as AmisSchema;
+    const bindings = resolveBindings(parsedSchema, pageKey.value, appKey.value);
+    applyAmisBindings(parsedSchema, bindings);
+    schema.value = parsedSchema;
+  } catch (error) {
+    schema.value = null;
+    if (currentExecutionId.value) {
+      completeExecution(currentExecutionId.value, "failed", {
+        message: error instanceof Error ? error.message : "Unknown error",
+      });
+      reportAuditEvent({
+        executionId: currentExecutionId.value,
+        appKey: appKey.value,
+        pageKey: pageKey.value,
+        eventType: "error",
+        detail: { error: error instanceof Error ? error.message : "Unknown error" },
+      });
+    }
+    message.error(
+      error instanceof Error ? error.message : t("runtimePage.loadFailed"),
+    );
+  } finally {
+    loading.value = false;
+  }
+}
+
+onMounted(() => {
+  void loadRuntime();
+});
+
+watch([appKey, pageKey], () => {
+  contextStore.resetContext();
+  void loadRuntime();
+});
+</script>

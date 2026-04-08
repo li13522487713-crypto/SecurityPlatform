@@ -33,6 +33,7 @@ export const API_BASE = import.meta.env.VITE_API_BASE ?? (
     : "/api/v1"
 );
 
+
 function normalizeApiPath(path: string): string {
   if (!path) return "/";
   if (path.startsWith("/api/v1/")) {

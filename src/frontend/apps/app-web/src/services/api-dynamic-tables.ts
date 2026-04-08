@@ -19,7 +19,7 @@ import type {
 const DYNAMIC_TABLES_MAX_PAGE_SIZE = 200;
 
 // ---------------------------------------------------------------------------
-// Table metadata (PlatformHost: /api/v1/dynamic-tables)
+// Table metadata (AppHost: /api/v1/dynamic-tables)
 // ---------------------------------------------------------------------------
 
 export async function getDynamicTablesPaged(
@@ -63,13 +63,13 @@ export async function getAppScopedDynamicTables(
   appId: string,
   keyword?: string
 ): Promise<AppScopedDynamicTableListItem[]> {
-  const parsedAppId = Number(appId);
-  if (!Number.isFinite(parsedAppId) || parsedAppId <= 0) return [];
+  const trimmedAppId = appId?.trim();
+  if (!trimmedAppId || !/^\d+$/.test(trimmedAppId) || trimmedAppId === "0") return [];
   const queryParams = new URLSearchParams();
   const normalizedKeyword = keyword?.trim();
   if (normalizedKeyword) queryParams.set("keyword", normalizedKeyword);
   const query = queryParams.toString();
-  const endpoint = `/api/v2/tenant-app-instances/${parsedAppId}/roles/available-dynamic-tables${query ? `?${query}` : ""}`;
+  const endpoint = `/api/v2/tenant-app-instances/${trimmedAppId}/roles/available-dynamic-tables${query ? `?${query}` : ""}`;
   const response = await requestApi<ApiResponse<Array<{ tableKey: string; displayName: string }>>>(endpoint);
   return (response.data ?? []).map((item) => ({
     tableKey: item.tableKey,
@@ -166,7 +166,7 @@ export async function alterDynamicTable(
 }
 
 // ---------------------------------------------------------------------------
-// Record CRUD (AppHost via YARP: /app-host/:appKey/api/v1/dynamic-tables/:tableKey/records)
+// Record CRUD (AppHost: /api/v1/dynamic-tables/:tableKey/records)
 // ---------------------------------------------------------------------------
 
 function recordsBase(appKey: string, tableKey: string): string {
