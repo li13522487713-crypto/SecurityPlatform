@@ -62,14 +62,28 @@ public sealed class SetupStateController : ControllerBase
 
     /// <summary>获取平台和应用两级 setup 状态</summary>
     [HttpGet("state")]
-    public ActionResult<ApiResponse<AppHostSetupStateResponse>> GetState()
+    public async Task<ActionResult<ApiResponse<AppHostSetupStateResponse>>> GetState(CancellationToken cancellationToken)
     {
         var platformState = ResolvePlatformState();
+        if (!IsPlatformReady(platformState))
+        {
+            var configuredDatabase = TryResolveConfiguredDatabase();
+            if (configuredDatabase is not null)
+            {
+                platformState = await EnsurePlatformStateReadyAsync(
+                    configuredDatabase.Value.ConnectionString,
+                    configuredDatabase.Value.DbType,
+                    preferredAdminUsername: null,
+                    cancellationToken);
+            }
+        }
+
+        var platformReady = IsPlatformReady(platformState);
         var appState = _appSetupStateProvider.GetState();
         return Ok(ApiResponse<AppHostSetupStateResponse>.Ok(
             new AppHostSetupStateResponse(
-                platformState.Status.ToString(),
-                platformState.PlatformSetupCompleted,
+                platformReady ? SetupState.Ready.ToString() : platformState.Status.ToString(),
+                platformReady,
                 appState.Status.ToString(),
                 _appSetupStateProvider.IsReady,
                 appState.AppKey),
@@ -156,6 +170,116 @@ public sealed class SetupStateController : ControllerBase
         }
     }
 
+    private static bool IsPlatformReady(SetupStateInfo state)
+    {
+        return state.Status == SetupState.Ready || state.PlatformSetupCompleted;
+    }
+
+    private (string ConnectionString, string DbType)? TryResolveConfiguredDatabase()
+    {
+        var connectionString = _configuration["Database:ConnectionString"];
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            return null;
+        }
+
+        var dbType = string.IsNullOrWhiteSpace(_configuration["Database:DbType"])
+            ? "SQLite"
+            : _configuration["Database:DbType"]!;
+        var runtimeConnectionString = ResolveRuntimeConnectionString(connectionString, dbType);
+        return (runtimeConnectionString, DataSourceDriverRegistry.NormalizeDriverCode(dbType));
+    }
+
+    private async Task<SetupStateInfo> EnsurePlatformStateReadyAsync(
+        string connectionString,
+        string dbType,
+        string? preferredAdminUsername,
+        CancellationToken cancellationToken)
+    {
+        var platformState = ResolvePlatformState();
+        if (IsPlatformReady(platformState))
+        {
+            return platformState;
+        }
+
+        var inferencePassed = await CanInferPlatformReadyAsync(connectionString, dbType, preferredAdminUsername, cancellationToken);
+        if (!inferencePassed)
+        {
+            return platformState;
+        }
+
+        _logger.LogWarning(
+            "[AppSetup] 检测到平台 setup-state 未就绪，但数据库已具备平台初始化条件，尝试自动修复为 Ready。");
+
+        try
+        {
+            await _platformSetupStateProvider.CompleteSetupAsync(cancellationToken);
+            var repairedState = ResolvePlatformState();
+            if (IsPlatformReady(repairedState))
+            {
+                _logger.LogInformation("[AppSetup] 平台 setup-state 自动修复成功。");
+                return repairedState;
+            }
+
+            _logger.LogWarning("[AppSetup] 平台 setup-state 自动修复后仍非 Ready，将按未就绪处理。");
+            return repairedState;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "[AppSetup] 平台 setup-state 自动修复失败");
+            return platformState;
+        }
+    }
+
+    private async Task<bool> CanInferPlatformReadyAsync(
+        string connectionString,
+        string dbType,
+        string? preferredAdminUsername,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var db = _setupDbClientFactory.Create(connectionString, dbType);
+            await db.Ado.GetScalarAsync("SELECT 1");
+
+            var tables = db.DbMaintenance.GetTableInfoList();
+            var tableNames = tables
+                .Select(t => t.Name)
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var userTableName = db.EntityMaintenance.GetTableName<UserAccount>();
+            var roleTableName = db.EntityMaintenance.GetTableName<Role>();
+            if (!tableNames.Contains(userTableName) || !tableNames.Contains(roleTableName))
+            {
+                return false;
+            }
+
+            var tenantId = ResolveTenantId();
+            var userQuery = db.Queryable<UserAccount>()
+                .Where(user => user.TenantIdValue == tenantId.Value);
+            if (!string.IsNullOrWhiteSpace(preferredAdminUsername))
+            {
+                var normalizedUsername = preferredAdminUsername.Trim();
+                userQuery = userQuery.Where(user => user.Username == normalizedUsername);
+            }
+
+            var hasAdminUser = await userQuery.AnyAsync();
+            if (!hasAdminUser)
+            {
+                return false;
+            }
+
+            var hasRoles = await db.Queryable<Role>()
+                .AnyAsync(role => role.TenantIdValue == tenantId.Value, cancellationToken);
+            return hasRoles;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "[AppSetup] 平台状态推断失败");
+            return false;
+        }
+    }
+
     /// <summary>
     /// 执行应用级初始化：验证数据库连接、确认平台已初始化、创建/绑定应用实例并播种应用组织数据。
     /// </summary>
@@ -172,8 +296,16 @@ public sealed class SetupStateController : ControllerBase
                 HttpContext.TraceIdentifier));
         }
 
-        var platformState = ResolvePlatformState();
-        if (platformState.Status != SetupState.Ready)
+        var requestedConnectionString = ResolveConnectionString(request.Database);
+        var requestedDbType = DataSourceDriverRegistry.NormalizeDriverCode(request.Database.DriverCode);
+        var runtimeConnectionString = ResolveRuntimeConnectionString(requestedConnectionString, requestedDbType);
+
+        var platformState = await EnsurePlatformStateReadyAsync(
+            runtimeConnectionString,
+            requestedDbType,
+            request.Admin.AdminUsername,
+            cancellationToken);
+        if (!IsPlatformReady(platformState))
         {
             return BadRequest(ApiResponse<AppSetupInitializeResponse>.Fail(
                 "PLATFORM_NOT_READY", "Platform setup must be completed first.", HttpContext.TraceIdentifier));
@@ -184,10 +316,6 @@ public sealed class SetupStateController : ControllerBase
             return BadRequest(ApiResponse<AppSetupInitializeResponse>.Fail(
                 "ALREADY_CONFIGURED", "Application setup has already been completed.", HttpContext.TraceIdentifier));
         }
-
-        var requestedConnectionString = ResolveConnectionString(request.Database);
-        var requestedDbType = DataSourceDriverRegistry.NormalizeDriverCode(request.Database.DriverCode);
-        var runtimeConnectionString = ResolveRuntimeConnectionString(requestedConnectionString, requestedDbType);
 
         try
         {
@@ -319,11 +447,12 @@ public sealed class SetupStateController : ControllerBase
                 adminBound);
 
             platformState = ResolvePlatformState();
+            var platformReady = IsPlatformReady(platformState);
             var appState = _appSetupStateProvider.GetState();
             return Ok(ApiResponse<AppSetupInitializeResponse>.Ok(
                 new AppSetupInitializeResponse(
-                    platformState.Status.ToString(),
-                    platformState.PlatformSetupCompleted,
+                    platformReady ? SetupState.Ready.ToString() : platformState.Status.ToString(),
+                    platformReady,
                     appState.Status.ToString(),
                     true,
                     dbConnected,

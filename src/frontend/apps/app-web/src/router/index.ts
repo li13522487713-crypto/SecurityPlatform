@@ -243,8 +243,10 @@ router.beforeEach(async (to, _from, next) => {
   if (!setupChecked) {
     try {
       const resp = await getSetupState();
-      platformReady = resp.success;
-      appReady = resp.success && resp.data?.appSetupCompleted === true;
+      const platformStatus = String(resp.data?.platformStatus ?? "").trim();
+      const platformSetupCompleted = resp.data?.platformSetupCompleted === true;
+      platformReady = resp.success && (platformSetupCompleted || platformStatus === "Ready");
+      appReady = platformReady && resp.data?.appSetupCompleted === true;
       if (resp.success) rememberConfiguredAppKey(resp.data?.appKey);
     } catch {
       platformReady = false;
@@ -253,7 +255,7 @@ router.beforeEach(async (to, _from, next) => {
     setupChecked = true;
   }
 
-  if (!platformReady && to.name !== "platform-not-ready") {
+  if (!platformReady && to.name !== "platform-not-ready" && to.name !== "app-setup") {
     next({ name: "platform-not-ready" });
     return;
   }
