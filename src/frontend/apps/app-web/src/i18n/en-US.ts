@@ -81,6 +81,7 @@ export default {
     createSuccess: "Created successfully",
     updateSuccess: "Updated successfully",
     queryFailed: "Query failed",
+    loadDetailFailed: "Failed to load detail",
     operationFailed: "Operation failed",
     submitFailed: "Submit failed",
     totalItems: "{total} items total"
@@ -729,7 +730,6 @@ export default {
     labelDisplayName: "Display Name",
     labelModelId: "Model ID (API Value)",
     labelSystemPrompt: "System Prompt",
-    systemPromptPlaceholder: "Configure a global system prompt for this model...",
     sectionFeaturesStatus: "Features & Status",
     sectionFeatureToggles: "Feature Toggles",
     sectionParameters: "Parameters",
@@ -775,8 +775,7 @@ export default {
     deleteProviderModelsFirst: "Please delete all models under this provider first",
     enableReasoning: "Enable reasoning stream",
     enableTools: "Enable tool calls",
-    promptRequired: "Enter a test prompt",
-    testFailed: "Connection test failed"
+    promptRequired: "Enter a test prompt"
   },
   aiAssistant: {
     sidebarTitle: "AI Capabilities",

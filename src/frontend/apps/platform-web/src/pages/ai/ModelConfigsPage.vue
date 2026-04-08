@@ -332,7 +332,7 @@
                     <span class="stat-item stat-tokens">{{ t("ai.modelConfig.debugConsoleTokens") }} <span class="stat-val">{{ testTokens ?? "0" }}</span></span>
                   </div>
                 </div>
-                <div class="debug-console-body" ref="debugBodyRef">
+                <div class="debug-console-body" ref="debugBodyRef" @scroll="handleDebugScroll">
                   <div v-if="testMessages.length === 0" class="debug-empty">
                     <div class="debug-empty-icon">
                       <FileTextOutlined style="font-size: 32px; color: rgba(255,255,255,0.3)" />
@@ -342,10 +342,20 @@
                   <div v-for="(msg, idx) in testMessages" :key="idx" class="debug-message" :class="`debug-message--${msg.role}`">
                     <div class="debug-msg-content">
                       <pre v-if="msg.role === 'user'" class="debug-msg-pre">{{ msg.content }}</pre>
-                      <div v-else class="debug-msg-stream" v-html="msg.content" />
+                      <div v-else-if="msg.isError" class="debug-msg-error">{{ msg.content }}</div>
+                      <DualStreamMessage
+                        v-else
+                        class="debug-msg-stream"
+                        :content="msg.content"
+                        :reasoning-text="msg.reasoningText"
+                        :react-steps="msg.reactSteps ?? []"
+                        :is-streaming="msg.isStreaming"
+                        :show-typing-cursor="testStreaming && idx === testMessages.length - 1"
+                        :reasoning-title="t('ai.chat.thinkPanelTitle')"
+                        :step-labels="chatStepLabels"
+                      />
                     </div>
                   </div>
-                  <div v-if="testStreaming" class="debug-cursor-blink" />
                 </div>
               </div>
               <div class="debug-input-row">
@@ -423,6 +433,11 @@ import { useI18n } from "vue-i18n";
 import type { FormInstance } from "ant-design-vue";
 import { message } from "ant-design-vue";
 import {
+  DualStreamMessage,
+  useDualStreamRenderer,
+  type StreamChatMessage
+} from "@atlas/ai-core";
+import {
   PlusOutlined,
   SearchOutlined,
   RightOutlined,
@@ -468,12 +483,18 @@ interface ProviderGroup {
   models: ModelConfigDto[];
 }
 
-interface TestMessage {
-  role: "user" | "assistant";
-  content: string;
+interface TestMessage extends StreamChatMessage {
+  isError?: boolean;
 }
 
 const { t } = useI18n();
+
+const chatStepLabels = computed(() => ({
+  thought: t("ai.chat.reactThought"),
+  action: t("ai.chat.reactAction"),
+  observation: t("ai.chat.reactObservation"),
+  final: t("ai.chat.reactFinal")
+}));
 
 const isMounted = ref(false);
 onMounted(() => { isMounted.value = true; });
@@ -843,6 +864,7 @@ const testMessages = ref<TestMessage[]>([]);
 const testLatency = ref<number | null>(null);
 const testTokens = ref<number | null>(null);
 const debugBodyRef = ref<HTMLElement>();
+const debugShouldAutoScroll = ref(true);
 let testAbortController: AbortController | null = null;
 
 async function handleSendTest() {
@@ -853,12 +875,37 @@ async function handleSendTest() {
     return;
   }
 
-  testMessages.value.push({ role: "user", content: prompt });
-  testMessages.value.push({ role: "assistant", content: "" });
+  testMessages.value.push({
+    id: `user-${Date.now()}`,
+    role: "user",
+    content: prompt,
+    createdAt: new Date().toISOString(),
+    reasoningText: "",
+    reactSteps: [],
+    isStreaming: false,
+    isReasoningStreaming: false,
+    isAnswerStreaming: false,
+    streamPhase: "completed"
+  });
+  const assistantMessage: TestMessage = {
+    id: `assistant-${Date.now()}`,
+    role: "assistant",
+    content: "",
+    createdAt: new Date().toISOString(),
+    reasoningText: "",
+    reactSteps: [],
+    isStreaming: true,
+    isReasoningStreaming: true,
+    isAnswerStreaming: false,
+    streamPhase: "reasoning",
+    isError: false
+  };
+  testMessages.value.push(assistantMessage);
   testPromptInput.value = "";
   testStreaming.value = true;
   testLatency.value = null;
   testTokens.value = null;
+  await scrollDebug(true);
 
   const startTime = Date.now();
   const model = currentModel.value;
@@ -878,90 +925,69 @@ async function handleSendTest() {
   const { fetchPromise, abortController } = createModelConfigPromptTestStream(payload);
   testAbortController = abortController;
 
+  const streamRenderer = useDualStreamRenderer({
+    onFlush: (state) => {
+      assistantMessage.content = state.answerText;
+      assistantMessage.reasoningText = state.reasoningText;
+      assistantMessage.reactSteps = [...state.reactSteps];
+      assistantMessage.isStreaming = state.isStreaming;
+      assistantMessage.isReasoningStreaming = state.isReasoningStreaming;
+      assistantMessage.isAnswerStreaming = state.isAnswerStreaming;
+      assistantMessage.streamPhase = state.streamPhase;
+      void scrollDebug(false);
+    }
+  });
+
   try {
     const response = await fetchPromise;
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     if (!response.body) throw new Error("Empty body");
 
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-    let currentEventType = "data";
-    let currentDataLines: string[] = [];
-    let totalContent = "";
+    await streamRenderer.consumeStream(response.body);
 
-    const flushEvent = () => {
-      if (currentDataLines.length === 0) { currentEventType = "data"; return; }
-      const eventType = currentEventType;
-      const eventData = currentDataLines.join("\n");
-      currentDataLines = [];
-      currentEventType = "data";
-      if (eventData === "[DONE]" || eventType === "done") return;
-
-      if (eventType === "final" || eventType === "data") {
-        totalContent += eventData;
-        const lastMsg = testMessages.value[testMessages.value.length - 1];
-        if (lastMsg && lastMsg.role === "assistant") {
-          lastMsg.content = escapeHtml(totalContent);
-        }
-        scrollDebug();
-      } else if (eventType === "thought") {
-        totalContent += eventData;
-        const lastMsg = testMessages.value[testMessages.value.length - 1];
-        if (lastMsg && lastMsg.role === "assistant") {
-          lastMsg.content = `<span class="thought-text">${escapeHtml(totalContent)}</span>`;
-        }
-        scrollDebug();
-      } else if (eventType === "error") {
-        const lastMsg = testMessages.value[testMessages.value.length - 1];
-        if (lastMsg && lastMsg.role === "assistant") {
-          lastMsg.content = `<span class="error-text">${escapeHtml(eventData)}</span>`;
-        }
-      }
-    };
-
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split(/\r?\n/);
-      buffer = lines.pop() ?? "";
-      for (const line of lines) {
-        if (line.length === 0) { flushEvent(); continue; }
-        if (line.startsWith("event:")) { currentEventType = line.slice("event:".length).trim() || "data"; continue; }
-        if (line.startsWith("data:")) { currentDataLines.push(line.slice("data:".length).trim()); }
-      }
+    if (streamRenderer.eventError.value) {
+      throw new Error(streamRenderer.eventError.value);
     }
-    flushEvent();
-    await reader.cancel();
 
     testLatency.value = Date.now() - startTime;
-    testTokens.value = Math.ceil(totalContent.length / 4);
+    testTokens.value = Math.ceil((assistantMessage.content.length + (assistantMessage.reasoningText?.length ?? 0)) / 4);
   } catch (error: unknown) {
+    await streamRenderer.stop();
     if ((error as Error).name !== "AbortError") {
-      const lastMsg = testMessages.value[testMessages.value.length - 1];
-      if (lastMsg && lastMsg.role === "assistant") {
-        lastMsg.content = `<span class="error-text">${escapeHtml((error as Error).message)}</span>`;
-      }
+      assistantMessage.isError = true;
+      assistantMessage.content = (error as Error).message;
+      assistantMessage.reasoningText = "";
+      assistantMessage.reactSteps = [];
     }
   } finally {
+    assistantMessage.isStreaming = false;
+    assistantMessage.isReasoningStreaming = false;
+    assistantMessage.isAnswerStreaming = false;
+    assistantMessage.streamPhase = "completed";
     testStreaming.value = false;
     testAbortController = null;
   }
 }
 
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/\n/g, "<br>");
+function handleDebugScroll() {
+  if (!debugBodyRef.value) {
+    return;
+  }
+  debugShouldAutoScroll.value = isNearDebugBottom(debugBodyRef.value);
 }
 
-function scrollDebug() {
+function isNearDebugBottom(container: HTMLElement) {
+  return container.scrollHeight - container.scrollTop - container.clientHeight < 120;
+}
+
+function scrollDebug(force = false) {
   void nextTick(() => {
     if (debugBodyRef.value) {
+      if (!force && !debugShouldAutoScroll.value) {
+        return;
+      }
       debugBodyRef.value.scrollTop = debugBodyRef.value.scrollHeight;
+      debugShouldAutoScroll.value = true;
     }
   });
 }
@@ -1615,25 +1641,72 @@ onUnmounted(() => {
   line-height: 1.6;
 }
 
-.debug-msg-stream :deep(.thought-text) {
+.debug-msg-stream :deep(.dual-stream-message__reasoning) {
+  background: rgba(110, 231, 183, 0.08);
+  border-color: rgba(110, 231, 183, 0.18);
+}
+
+.debug-msg-stream :deep(.dual-stream-message__toggle) {
+  color: #6ee7b7;
+}
+
+.debug-msg-stream :deep(.dual-stream-message__reasoning-text .markdown-body) {
+  color: rgba(226, 232, 240, 0.78);
+}
+
+.debug-msg-stream :deep(.dual-stream-message__step-label) {
+  color: #6ee7b7;
+}
+
+.debug-msg-stream :deep(.dual-stream-message__cursor) {
   color: #818cf8;
-  font-style: italic;
 }
 
-.debug-msg-stream :deep(.error-text) {
+.debug-msg-stream :deep(.dual-stream-message__step) {
+  border-top-color: rgba(110, 231, 183, 0.12);
+}
+
+.debug-msg-stream :deep(.markdown-body) {
+  color: #f8fafc;
+}
+
+.debug-msg-stream :deep(.markdown-body pre) {
+  background: rgba(15, 23, 42, 0.92);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.debug-msg-stream :deep(.markdown-body a) {
+  color: #93c5fd;
+}
+
+.debug-msg-stream :deep(.markdown-body code) {
+  background: rgba(148, 163, 184, 0.14);
+  color: #f8fafc;
+}
+
+.debug-msg-stream :deep(.markdown-body blockquote) {
+  border-left-color: rgba(148, 163, 184, 0.3);
+  color: rgba(226, 232, 240, 0.72);
+}
+
+.debug-msg-stream :deep(.markdown-body th),
+.debug-msg-stream :deep(.markdown-body td) {
+  border-color: rgba(148, 163, 184, 0.16);
+}
+
+.debug-msg-stream :deep(.markdown-body th) {
+  background: rgba(15, 23, 42, 0.65);
+}
+
+.debug-msg-stream :deep(.markdown-body hr) {
+  border-top-color: rgba(148, 163, 184, 0.18);
+}
+
+.debug-msg-error {
   color: #f87171;
-}
-
-.debug-cursor-blink {
-  width: 8px;
-  height: 16px;
-  background: #818cf8;
-  animation: blink 1s step-end infinite;
-  margin-left: 16px;
-}
-
-@keyframes blink {
-  50% { opacity: 0; }
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.7;
 }
 
 .debug-input-row {

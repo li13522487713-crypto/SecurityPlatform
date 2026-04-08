@@ -2341,6 +2341,7 @@ export default {
       clearHistoryOk: "History cleared",
       opFailed: "Operation failed",
       reactPanelTitle: "ReAct trace",
+      thinkPanelTitle: "Deep thinking completed",
       reactThought: "Thought",
       reactAction: "Action",
       reactObservation: "Observation",

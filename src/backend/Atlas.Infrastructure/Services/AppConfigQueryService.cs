@@ -4,7 +4,7 @@ using Atlas.Application.Identity.Models;
 using Atlas.Application.Identity.Repositories;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
-using Microsoft.Extensions.Caching.Memory;
+using Atlas.Infrastructure.Caching;
 
 namespace Atlas.Infrastructure.Services;
 
@@ -12,11 +12,11 @@ public sealed class AppConfigQueryService : IAppConfigQueryService
 {
     private readonly IAppConfigRepository _repository;
     private readonly IMapper _mapper;
-    private readonly IMemoryCache _cache;
+    private readonly IAtlasHybridCache _cache;
 
     private static readonly TimeSpan AppConfigCacheTtl = TimeSpan.FromMinutes(2);
 
-    public AppConfigQueryService(IAppConfigRepository repository, IMapper mapper, IMemoryCache cache)
+    public AppConfigQueryService(IAppConfigRepository repository, IMapper mapper, IAtlasHybridCache cache)
     {
         _repository = repository;
         _mapper = mapper;
@@ -50,16 +50,16 @@ public sealed class AppConfigQueryService : IAppConfigQueryService
 
     public async Task<AppConfigDetail?> GetByAppIdAsync(string appId, TenantId tenantId, CancellationToken cancellationToken)
     {
-        var cacheKey = $"app_config_{tenantId.Value:D}_{appId}";
-        if (_cache.TryGetValue(cacheKey, out AppConfigDetail? cached))
-        {
-            return cached;
-        }
-
-        var appConfig = await _repository.FindByAppIdAsync(tenantId, appId, cancellationToken);
-        var result = appConfig is null ? null : _mapper.Map<AppConfigDetail>(appConfig);
-
-        _cache.Set(cacheKey, result, AppConfigCacheTtl);
-        return result;
+        var cacheKey = AtlasCacheKeys.AppConfig.ByAppId(tenantId, appId);
+        return await _cache.GetOrCreateAsync(
+            cacheKey,
+            async ct =>
+            {
+                var appConfig = await _repository.FindByAppIdAsync(tenantId, appId, ct);
+                return appConfig is null ? null : _mapper.Map<AppConfigDetail>(appConfig);
+            },
+            AppConfigCacheTtl,
+            [AtlasCacheTags.AppConfigTenant(tenantId)],
+            cancellationToken: cancellationToken);
     }
 }

@@ -3,7 +3,7 @@ using Atlas.Application.Identity.Abstractions;
 using Atlas.Application.Identity.Repositories;
 using Atlas.Application.Models;
 using Atlas.Core.Tenancy;
-using Microsoft.Extensions.Caching.Memory;
+using Atlas.Infrastructure.Caching;
 
 namespace Atlas.Infrastructure.Services;
 
@@ -11,14 +11,14 @@ public sealed class AuthProfileService : IAuthProfileService
 {
     private readonly IUserAccountRepository _userRepository;
     private readonly IRbacResolver _rbacResolver;
-    private readonly IMemoryCache _cache;
+    private readonly IAtlasHybridCache _cache;
 
     private static readonly TimeSpan CacheTtl = TimeSpan.FromSeconds(60);
 
     public AuthProfileService(
         IUserAccountRepository userRepository,
         IRbacResolver rbacResolver,
-        IMemoryCache cache)
+        IAtlasHybridCache cache)
     {
         _userRepository = userRepository;
         _rbacResolver = rbacResolver;
@@ -30,10 +30,11 @@ public sealed class AuthProfileService : IAuthProfileService
         TenantId tenantId,
         CancellationToken cancellationToken)
     {
-        var cacheKey = $"auth_profile_{tenantId.Value:D}_{userId}";
-        if (_cache.TryGetValue(cacheKey, out AuthProfileResult? cached))
+        var cacheKey = AtlasCacheKeys.Identity.AuthProfile(tenantId, userId);
+        var cached = await _cache.TryGetAsync<AuthProfileResult>(cacheKey, cancellationToken: cancellationToken);
+        if (cached.Found)
         {
-            return cached;
+            return cached.Value;
         }
 
         var account = await _userRepository.FindByIdAsync(tenantId, userId, cancellationToken);
@@ -54,7 +55,12 @@ public sealed class AuthProfileService : IAuthProfileService
             account.IsPlatformAdmin,
             null);
 
-        _cache.Set(cacheKey, result, CacheTtl);
+        await _cache.SetAsync(
+            cacheKey,
+            result,
+            CacheTtl,
+            [AtlasCacheTags.IdentityUser(tenantId, userId), AtlasCacheTags.IdentityTenant(tenantId)],
+            cancellationToken: cancellationToken);
         return result;
     }
 }

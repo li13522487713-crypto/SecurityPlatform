@@ -17,7 +17,9 @@
     <PackageReference Include="JiebaNet.Segmenter" Version="1.0.6" />
     <PackageReference Include="Lucene.Net" Version="4.8.0-beta00017" />
     <PackageReference Include="Microsoft.Extensions.AI" Version="10.4.0" />
+    <PackageReference Include="Microsoft.Extensions.Caching.Hybrid" Version="10.0.0" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.3" />
+    <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.0.0" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.0" />
     <PackageReference Include="Microsoft.SemanticKernel" Version="1.74.0" />
     <PackageReference Include="Microsoft.SemanticKernel.Agents.Core" Version="1.74.0" />

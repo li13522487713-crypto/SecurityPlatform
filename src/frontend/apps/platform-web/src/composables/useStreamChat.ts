@@ -1,17 +1,11 @@
 import { ref } from "vue";
 import type { AgentChatAttachment, ChatMessageDto } from "@/services/api-ai";
 import { createAgentChatStream } from "@/services/api-ai";
-import { useReActStream } from "@atlas/ai-core";
-import type { ReActEventType } from "@atlas/ai-core/types";
-
-export interface StreamChatMessage {
-  /** 本地临时消息可用 number；服务端雪花 ID 为 string */
-  id: number | string;
-  role: "user" | "assistant" | "system";
-  content: string;
-  createdAt: string;
-  isStreaming?: boolean;
-}
+import {
+  useDualStreamRenderer,
+  type StreamChatMessage,
+  type StreamPhase
+} from "@atlas/ai-core";
 
 export interface UseStreamChatOptions {
   /** 使用 getter 以便路由参数变化时仍指向正确 Agent（且避免大整数精度丢失） */
@@ -24,7 +18,10 @@ export function useStreamChat(options: UseStreamChatOptions) {
   const isStreaming = ref(false);
   const error = ref<string | null>(null);
   const currentConversationId = ref<string | null>(null);
-  const reactStream = useReActStream();
+  const reasoningText = ref("");
+  const answerText = ref("");
+  const reactSteps = ref<StreamChatMessage["reactSteps"]>([]);
+  const streamPhase = ref<StreamPhase>("idle");
 
   let abortController: AbortController | null = null;
 
@@ -36,13 +33,22 @@ export function useStreamChat(options: UseStreamChatOptions) {
         role: m.role as "user" | "assistant",
         content: m.content,
         createdAt: m.createdAt,
-        isStreaming: false
+        reasoningText: "",
+        reactSteps: [],
+        isStreaming: false,
+        isReasoningStreaming: false,
+        isAnswerStreaming: false,
+        streamPhase: "completed"
       }));
   }
 
   function clearMessages() {
     messages.value = [];
     currentConversationId.value = null;
+    reasoningText.value = "";
+    answerText.value = "";
+    reactSteps.value = [];
+    streamPhase.value = "idle";
   }
 
   async function sendMessage(text: string, attachments?: AgentChatAttachment[]) {
@@ -52,7 +58,10 @@ export function useStreamChat(options: UseStreamChatOptions) {
     if (isStreaming.value || (!normalizedText && normalizedAttachments.length === 0)) return;
 
     error.value = null;
-    reactStream.reset();
+    reasoningText.value = "";
+    answerText.value = "";
+    reactSteps.value = [];
+    streamPhase.value = "idle";
 
     const userMsg: StreamChatMessage = {
       id: Date.now(),
@@ -67,11 +76,32 @@ export function useStreamChat(options: UseStreamChatOptions) {
       role: "assistant",
       content: "",
       createdAt: new Date().toISOString(),
-      isStreaming: true
+      reasoningText: "",
+      reactSteps: [],
+      isStreaming: true,
+      isReasoningStreaming: true,
+      isAnswerStreaming: false,
+      streamPhase: "reasoning"
     };
     messages.value.push(assistantMsg);
 
     isStreaming.value = true;
+
+    const streamRenderer = useDualStreamRenderer({
+      onFlush: (state) => {
+        assistantMsg.content = state.answerText;
+        assistantMsg.reasoningText = state.reasoningText;
+        assistantMsg.reactSteps = [...state.reactSteps];
+        assistantMsg.isStreaming = state.isStreaming;
+        assistantMsg.isReasoningStreaming = state.isReasoningStreaming;
+        assistantMsg.isAnswerStreaming = state.isAnswerStreaming;
+        assistantMsg.streamPhase = state.streamPhase;
+        reasoningText.value = state.reasoningText;
+        answerText.value = state.answerText;
+        reactSteps.value = [...state.reactSteps];
+        streamPhase.value = state.streamPhase;
+      }
+    });
 
     const request = {
       conversationId: currentConversationId.value ?? undefined,
@@ -96,100 +126,28 @@ export function useStreamChat(options: UseStreamChatOptions) {
         throw new Error("Response body is null");
       }
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-      let receivedDone = false;
-      let currentEventType = "data";
-      let currentDataLines: string[] = [];
+      await streamRenderer.consumeStream(response.body);
 
-      const flushCurrentEvent = () => {
-        if (currentDataLines.length === 0) {
-          currentEventType = "data";
-          return;
-        }
-
-        const eventData = currentDataLines.join("\n").trim();
-        currentDataLines = [];
-        const eventType = currentEventType;
-        currentEventType = "data";
-
-        if (!eventData) {
-          return;
-        }
-
-        if (eventData === "[DONE]") {
-          assistantMsg.isStreaming = false;
-          receivedDone = true;
-          return;
-        }
-
-        if (eventType === "thought" || eventType === "action" || eventType === "observation") {
-          reactStream.append(eventType as ReActEventType, eventData);
-          return;
-        }
-
-        if (eventType === "final") {
-          reactStream.append("final", eventData);
-          if (assistantMsg.content.trim()) {
-            assistantMsg.content = eventData;
-          } else {
-            assistantMsg.content += eventData;
-          }
-          return;
-        }
-
-        assistantMsg.content += eventData;
-      };
-
-      while (!receivedDone) {
-        const { value, done } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split(/\r?\n/);
-        buffer = lines.pop() ?? "";
-
-        for (const line of lines) {
-          if (line.length === 0) {
-            flushCurrentEvent();
-            if (receivedDone) {
-              break;
-            }
-            continue;
-          }
-
-          if (line.startsWith("event:")) {
-            currentEventType = line.slice("event:".length).trim() || "data";
-            continue;
-          }
-
-          if (line.startsWith("data:")) {
-            currentDataLines.push(line.slice("data:".length).trim());
-          }
-        }
+      if (streamRenderer.eventError.value) {
+        throw new Error(streamRenderer.eventError.value);
       }
-
-      if (!receivedDone) {
-        flushCurrentEvent();
-      }
-
-      if (receivedDone) {
-        await reader.cancel();
-      }
-
-      assistantMsg.isStreaming = false;
     } catch (err: unknown) {
-      assistantMsg.isStreaming = false;
       if ((err as Error).name === "AbortError") {
-        if (!assistantMsg.content) {
+        await streamRenderer.stop();
+        if (!assistantMsg.content && !assistantMsg.reasoningText && (assistantMsg.reactSteps?.length ?? 0) === 0) {
           messages.value.pop();
         }
       } else {
+        await streamRenderer.stop();
         error.value = (err as Error).message || "发送失败";
         messages.value.pop();
       }
     } finally {
+      assistantMsg.isStreaming = false;
+      assistantMsg.isReasoningStreaming = false;
+      assistantMsg.isAnswerStreaming = false;
+      assistantMsg.streamPhase = "completed";
+      streamPhase.value = "completed";
       isStreaming.value = false;
       abortController = null;
     }
@@ -206,7 +164,10 @@ export function useStreamChat(options: UseStreamChatOptions) {
     messages,
     isStreaming,
     error,
-    reactSteps: reactStream.steps,
+    reasoningText,
+    answerText,
+    reactSteps,
+    streamPhase,
     currentConversationId,
     loadHistory,
     clearMessages,

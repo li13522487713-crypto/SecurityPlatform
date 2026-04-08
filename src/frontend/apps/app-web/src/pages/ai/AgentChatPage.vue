@@ -134,7 +134,7 @@
           </a-spin>
         </a-drawer>
 
-        <div ref="messagesContainer" class="chat-messages-area">
+        <div ref="messagesContainer" class="chat-messages-area" @scroll="handleMessagesScroll">
           <div class="chat-messages-center">
             <div v-if="!currentConvId && !loadingConversations" class="chat-welcome">
               <div class="welcome-icon">
@@ -152,7 +152,7 @@
                 v-for="(msg, index) in chatMessages"
                 :key="msg.id"
                 :message="msg"
-                :react-steps="index === chatMessages.length - 1 && msg.role === 'assistant' ? reactSteps : undefined"
+                :react-steps="msg.reactSteps"
                 :show-typing-cursor="index === chatMessages.length - 1 && msg.role === 'assistant' && isStreaming"
               />
               <div v-if="chatError" class="chat-error">
@@ -319,6 +319,7 @@ const deepThinkEnabled = ref(true);
 const webSearchEnabled = ref(false);
 const convDrawerVisible = ref(false);
 const messagesContainer = ref<HTMLElement | null>(null);
+const shouldAutoScroll = ref(true);
 const imageInputRef = ref<HTMLInputElement | null>(null);
 const pendingAttachments = ref<AgentChatAttachment[]>([]);
 const audioRecorder = useAudioRecorder();
@@ -332,7 +333,6 @@ const chatStore = useStreamChat({
 const isStreaming = computed(() => chatStore.isStreaming.value);
 const chatMessages = computed(() => chatStore.messages.value);
 const chatError = computed(() => chatStore.error.value);
-const reactSteps = computed(() => chatStore.reactSteps.value);
 
 const canSend = computed(
   () => currentConvId.value && (inputText.value.trim() || pendingAttachments.value.length > 0) && !isStreaming.value
@@ -442,7 +442,7 @@ async function loadMessages(convId: string) {
     const msgs = await getMessages(appKey.value, convId, { limit: 50 });
     if (!isMounted.value) return;
     chatStore.loadHistory(msgs);
-    await scrollToBottom();
+    await scrollToBottom(true);
     if (!isMounted.value) return;
   } catch (err: unknown) {
     message.error((err as Error).message || t("ai.chat.loadMsgFailed"));
@@ -524,7 +524,7 @@ async function handleSend() {
   audioRecorder.clear();
   await chatStore.sendMessage(text, attachments);
   if (!isMounted.value) return;
-  await scrollToBottom();
+  await scrollToBottom(true);
   if (!isMounted.value) return;
   await loadConversations();
   if (!isMounted.value) return;
@@ -576,12 +576,32 @@ function handleKeyDown(e: KeyboardEvent) {
   }
 }
 
-async function scrollToBottom() {
+function handleMessagesScroll() {
+  const container = messagesContainer.value;
+  if (!container) {
+    return;
+  }
+  shouldAutoScroll.value = isNearBottom(container);
+}
+
+function isNearBottom(container: HTMLElement) {
+  return container.scrollHeight - container.scrollTop - container.clientHeight < 120;
+}
+
+async function scrollToBottomInternal(force: boolean) {
   await nextTick();
   if (!isMounted.value) return;
   if (messagesContainer.value) {
+    if (!force && !shouldAutoScroll.value) {
+      return;
+    }
     messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
+    shouldAutoScroll.value = true;
   }
+}
+
+async function scrollToBottom(force = false) {
+  await scrollToBottomInternal(force);
 }
 
 function resetAgentChatState() {
@@ -627,7 +647,19 @@ async function initializeAgentChatPage() {
 watch(
   () => chatStore.messages.value.length,
   async () => {
-    await scrollToBottom();
+    await scrollToBottomInternal(false);
+    if (!isMounted.value) return;
+  }
+);
+
+watch(
+  () => [
+    chatStore.reasoningText.value,
+    chatStore.answerText.value,
+    chatStore.streamPhase.value
+  ],
+  async () => {
+    await scrollToBottomInternal(false);
     if (!isMounted.value) return;
   }
 );

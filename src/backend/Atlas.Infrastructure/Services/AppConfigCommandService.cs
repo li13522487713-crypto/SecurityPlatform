@@ -4,16 +4,19 @@ using Atlas.Application.Identity.Repositories;
 using Atlas.Core.Exceptions;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
+using Atlas.Infrastructure.Caching;
 
 namespace Atlas.Infrastructure.Services;
 
 public sealed class AppConfigCommandService : IAppConfigCommandService
 {
     private readonly IAppConfigRepository _repository;
+    private readonly IAtlasHybridCache _cache;
 
-    public AppConfigCommandService(IAppConfigRepository repository)
+    public AppConfigCommandService(IAppConfigRepository repository, IAtlasHybridCache cache)
     {
         _repository = repository;
+        _cache = cache;
     }
 
     public async Task UpdateAsync(
@@ -36,5 +39,6 @@ public sealed class AppConfigCommandService : IAppConfigCommandService
             request.SortOrder);
 
         await _repository.UpdateAsync(appConfig, cancellationToken);
+        await _cache.RemoveByTagAsync(AtlasCacheTags.AppConfigTenant(tenantId), cancellationToken);
     }
 }

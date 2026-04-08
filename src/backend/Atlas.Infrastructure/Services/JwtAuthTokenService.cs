@@ -313,7 +313,7 @@ public sealed class JwtAuthTokenService : IAuthTokenService
         await _authSessionRepository.RevokeAsync(tenantId, sessionId, now, cancellationToken);
         await _refreshTokenRepository.RevokeBySessionAsync(tenantId, sessionId, now, cancellationToken);
         // 退出登录后立即清除该 session 的认证缓存
-        _authCacheService.InvalidateSession(tenantId, sessionId);
+        await _authCacheService.InvalidateSessionAsync(tenantId, sessionId);
         await WriteAuditAsync(tenantId, userId.ToString(), "TOKEN_REVOKE", "SUCCESS", null, context, cancellationToken);
     }
 

@@ -17,22 +17,16 @@
       </div>
       <div class="chat-message__bubble">
         <template v-if="message.role === 'assistant'">
-          <div v-if="reactSteps && reactSteps.length > 0" class="inline-react-steps">
-            <a-collapse size="small" :bordered="false" class="react-collapse">
-              <a-collapse-panel key="react" :header="t('ai.chat.reactPanelTitle')">
-                <a-timeline>
-                  <a-timeline-item v-for="step in reactSteps" :key="step.id">
-                    <div class="react-step-title">{{ formatReActStep(step.eventType) }}</div>
-                    <div class="react-step-content">
-                      <MarkdownRenderer :content="step.content" />
-                    </div>
-                  </a-timeline-item>
-                </a-timeline>
-              </a-collapse-panel>
-            </a-collapse>
-          </div>
-          <MarkdownRenderer :content="message.content" />
-          <span v-if="message.isStreaming" class="typing-cursor">▋</span>
+          <DualStreamMessage
+            class="chat-message__stream"
+            :content="message.content"
+            :reasoning-text="message.reasoningText"
+            :react-steps="effectiveReactSteps"
+            :is-streaming="message.isStreaming"
+            :show-typing-cursor="showTypingCursor"
+            :reasoning-title="t('ai.chat.thinkPanelTitle')"
+            :step-labels="stepLabels"
+          />
         </template>
         <template v-else>
           <div class="user-text">{{ message.content }}</div>
@@ -45,17 +39,20 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
-import { MarkdownRenderer } from "@atlas/ai-core/components";
-import type { StreamChatMessage } from "@/composables/useStreamChat";
-import type { ReActStep, ReActEventType } from "@atlas/ai-core/types";
+import {
+  DualStreamMessage,
+  type ReActStep,
+  type StreamChatMessage
+} from "@atlas/ai-core";
 import { useUserStore } from "@/stores/user";
 
 const { t, locale } = useI18n();
 const userStore = useUserStore();
 
-defineProps<{
+const props = defineProps<{
   message: StreamChatMessage;
   reactSteps?: ReActStep[];
+  showTypingCursor?: boolean;
 }>();
 
 const userInitial = computed(() => {
@@ -67,6 +64,15 @@ const userName = computed(() => {
   return userStore.name || t("ai.chat.avatarUser");
 });
 
+const effectiveReactSteps = computed(() => props.reactSteps ?? props.message.reactSteps ?? []);
+
+const stepLabels = computed(() => ({
+  thought: t("ai.chat.reactThought"),
+  action: t("ai.chat.reactAction"),
+  observation: t("ai.chat.reactObservation"),
+  final: t("ai.chat.reactFinal")
+}));
+
 function formatTime(iso: string): string {
   try {
     const date = new Date(iso);
@@ -77,21 +83,6 @@ function formatTime(iso: string): string {
     });
   } catch {
     return "";
-  }
-}
-
-function formatReActStep(eventType: ReActEventType) {
-  switch (eventType) {
-    case "thought":
-      return t("ai.chat.reactThought");
-    case "action":
-      return t("ai.chat.reactAction");
-    case "observation":
-      return t("ai.chat.reactObservation");
-    case "final":
-      return t("ai.chat.reactFinal");
-    default:
-      return eventType;
   }
 }
 </script>
@@ -146,58 +137,25 @@ function formatReActStep(eventType: ReActEventType) {
   word-break: break-word;
 }
 
-.inline-react-steps {
-  margin-bottom: 12px;
+.chat-message__stream :deep(.dual-stream-message__reasoning) {
+  background: rgba(82, 196, 26, 0.06);
+  border-color: rgba(82, 196, 26, 0.16);
 }
 
-.react-collapse {
-  background: transparent;
+.chat-message__stream :deep(.dual-stream-message__toggle) {
+  color: #389e0d;
 }
 
-.react-collapse :deep(.ant-collapse-header) {
-  padding: 4px 0 !important;
-  color: rgba(0, 0, 0, 0.45) !important;
+.chat-message__stream :deep(.dual-stream-message__reasoning-text .markdown-body) {
+  color: rgba(0, 0, 0, 0.65);
   font-size: 13px;
 }
 
-.react-collapse :deep(.ant-collapse-content-box) {
-  padding: 8px 0 0 0 !important;
+.chat-message__stream :deep(.dual-stream-message__step-label) {
+  color: #389e0d;
 }
 
-.react-step-title {
-  font-weight: 600;
-  margin-bottom: 4px;
-  font-size: 13px;
-  color: rgba(0, 0, 0, 0.65);
-}
-
-.react-step-content {
-  margin: 0;
-  font-size: 12px;
-  color: rgba(0, 0, 0, 0.65);
-  background: #f5f5f5;
-  padding: 8px 12px;
-  border-radius: 6px;
-}
-
-.react-step-content :deep(.markdown-body) {
-  font-size: inherit;
-}
-
-.react-step-content :deep(.markdown-body pre) {
-  background: #fff;
-  border: 1px solid #e8e8e8;
-}
-
-@keyframes blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0; }
-}
-
-.typing-cursor {
-  display: inline-block;
-  animation: blink 1s infinite;
+.chat-message__stream :deep(.dual-stream-message__cursor) {
   color: #52c41a;
-  vertical-align: baseline;
 }
 </style>

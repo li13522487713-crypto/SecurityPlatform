@@ -2,9 +2,11 @@ using Atlas.Core.Observability;
 using Atlas.Core.Plugins;
 using Atlas.Core.Setup;
 using Atlas.Core.Tenancy;
+using Atlas.Infrastructure.Caching;
 using Atlas.Infrastructure.DependencyInjection;
 using Atlas.Infrastructure.Options;
 using Atlas.Infrastructure.Services;
+using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -20,6 +22,23 @@ public static class ServiceCollectionExtensions
         bool includeAppRuntimeServices = true)
     {
         services.Configure<PluginCatalogOptions>(configuration.GetSection("Plugins"));
+        services.Configure<AtlasHybridCacheOptions>(configuration.GetSection("HybridCache"));
+
+        var atlasHybridCacheOptions = configuration.GetSection("HybridCache").Get<AtlasHybridCacheOptions>()
+            ?? new AtlasHybridCacheOptions();
+
+        if (atlasHybridCacheOptions.Redis.Enabled
+            && !string.IsNullOrWhiteSpace(atlasHybridCacheOptions.Redis.Configuration))
+        {
+            services.AddStackExchangeRedisCache(options =>
+            {
+                options.Configuration = atlasHybridCacheOptions.Redis.Configuration;
+                options.InstanceName = atlasHybridCacheOptions.Redis.InstanceName;
+            });
+        }
+
+        services.AddHybridCache();
+        services.AddSingleton<IAtlasHybridCache, AtlasHybridCache>();
 
         services.AddCoreInfrastructure(configuration, includeAppRuntimeServices);
         services.AddAssetInfrastructure();
@@ -140,7 +159,7 @@ public static class ServiceCollectionExtensions
         });
 
         services.AddSingleton<Atlas.Application.Identity.Abstractions.IAuthCacheService,
-            Atlas.Infrastructure.Security.MemoryAuthCacheService>();
+            Atlas.Infrastructure.Security.HybridAuthCacheService>();
 
         return services;
     }

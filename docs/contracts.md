@@ -4455,3 +4455,20 @@ Debug   → enableBreakpoint / logInput / logOutput / mockDataJson
 - [ ] 新增错误码写入「通用响应模型」错误码表，并避免与现有码冲突
 - [x] 更新本文后同步前端 `api.ts` / 生成类型 / i18n
 
+## HybridCache 配置（平台级 + 应用级）
+
+后端统一采用 `HybridCache` 提供平台级与应用级缓存能力，配置项如下（支持环境变量覆盖）：
+
+| 配置键 | 说明 |
+|---|---|
+| `HybridCache:Redis:Enabled` | 是否启用 Redis 作为分布式缓存后端 |
+| `HybridCache:Redis:Configuration` | Redis 连接串 |
+| `HybridCache:Redis:InstanceName` | Redis 键前缀 |
+| `HybridCache:FallbackToLocalWhenRedisUnavailable` | Redis 不可用时是否自动回退到本地缓存 |
+
+约定：
+
+- 平台级缓存覆盖套餐/订阅、身份权限与菜单等读密集场景；写操作通过标签失效统一清理。
+- 应用级缓存覆盖应用配置、租户数据源连接与应用路由策略等场景。
+- `AppDbScopeFactory` 的 `ISqlSugarClient` 对象实例缓存保持进程内本地缓存，不进入分布式缓存。
+

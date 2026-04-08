@@ -3,24 +3,24 @@ using Atlas.Application.Identity;
 using Atlas.Application.Identity.Abstractions;
 using Atlas.Application.Identity.Repositories;
 using Atlas.Core.Tenancy;
-using Microsoft.Extensions.Caching.Memory;
+using Atlas.Infrastructure.Caching;
 
 namespace Atlas.Infrastructure.Services;
 
 /// <summary>
-/// 基于 IMemoryCache 的统一权限决策服务。
+/// 基于 HybridCache 的统一权限决策服务。
 /// </summary>
 public sealed class PermissionDecisionService : IPermissionDecisionService
 {
     private static readonly TimeSpan CacheTtl = TimeSpan.FromSeconds(60);
 
-    private readonly IMemoryCache _cache;
+    private readonly IAtlasHybridCache _cache;
     private readonly IUserAccountRepository _userAccountRepository;
     private readonly IUserRoleRepository _userRoleRepository;
     private readonly IRbacResolver _rbacResolver;
 
     public PermissionDecisionService(
-        IMemoryCache cache,
+        IAtlasHybridCache cache,
         IUserAccountRepository userAccountRepository,
         IUserRoleRepository userRoleRepository,
         IRbacResolver rbacResolver)
@@ -92,11 +92,7 @@ public sealed class PermissionDecisionService : IPermissionDecisionService
         long userId,
         CancellationToken cancellationToken = default)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-        _cache.Remove(UserCacheKey(tenantId, userId));
-        _cache.Remove(ProfileCacheKey(tenantId, userId));
-        _cache.Remove(MenuTreeCacheKey(tenantId, userId));
-        return Task.CompletedTask;
+        return _cache.RemoveByTagAsync(AtlasCacheTags.IdentityUser(tenantId, userId), cancellationToken).AsTask();
     }
 
     public async Task InvalidateRoleAsync(
@@ -112,9 +108,7 @@ public sealed class PermissionDecisionService : IPermissionDecisionService
 
         foreach (var userId in userIds.Distinct())
         {
-            _cache.Remove(UserCacheKey(tenantId, userId));
-            _cache.Remove(ProfileCacheKey(tenantId, userId));
-            _cache.Remove(MenuTreeCacheKey(tenantId, userId));
+            await _cache.RemoveByTagAsync(AtlasCacheTags.IdentityUser(tenantId, userId), cancellationToken);
         }
     }
 
@@ -122,23 +116,7 @@ public sealed class PermissionDecisionService : IPermissionDecisionService
         TenantId tenantId,
         CancellationToken cancellationToken = default)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-        var tenantKey = TenantIndexKey(tenantId);
-        if (_cache.TryGetValue(tenantKey, out HashSet<long>? users) && users is not null)
-        {
-            lock (users)
-            {
-                foreach (var userId in users)
-                {
-                    _cache.Remove(UserCacheKey(tenantId, userId));
-                    _cache.Remove(ProfileCacheKey(tenantId, userId));
-                    _cache.Remove(MenuTreeCacheKey(tenantId, userId));
-                }
-            }
-        }
-
-        _cache.Remove(tenantKey);
-        return Task.CompletedTask;
+        return _cache.RemoveByTagAsync(AtlasCacheTags.IdentityTenant(tenantId), cancellationToken).AsTask();
     }
 
     private async Task<PermissionDecisionCacheEntry> GetOrCreateAsync(
@@ -146,84 +124,30 @@ public sealed class PermissionDecisionService : IPermissionDecisionService
         long userId,
         CancellationToken cancellationToken)
     {
-        var cacheKey = UserCacheKey(tenantId, userId);
-        if (_cache.TryGetValue(cacheKey, out PermissionDecisionCacheEntry? cached) && cached is not null)
-        {
-            return cached;
-        }
-
-        var account = await _userAccountRepository.FindByIdAsync(tenantId, userId, cancellationToken);
-        if (account is null)
-        {
-            var missing = PermissionDecisionCacheEntry.Empty;
-            SetCacheEntry(tenantId, userId, missing);
-            return missing;
-        }
-
-        var (roleCodes, permissionCodes) = await _rbacResolver.GetRolesAndPermissionsAsync(account, tenantId, cancellationToken);
-        var cacheEntry = new PermissionDecisionCacheEntry(
-            account.IsActive,
-            account.IsPlatformAdmin,
-            roleCodes,
-            permissionCodes);
-        SetCacheEntry(tenantId, userId, cacheEntry);
-        return cacheEntry;
-    }
-
-    private void SetCacheEntry(
-        TenantId tenantId,
-        long userId,
-        PermissionDecisionCacheEntry entry)
-    {
-        var cacheKey = UserCacheKey(tenantId, userId);
-        _cache.Set(cacheKey, entry, new MemoryCacheEntryOptions
-        {
-            AbsoluteExpirationRelativeToNow = CacheTtl,
-            PostEvictionCallbacks =
+        var cacheKey = AtlasCacheKeys.Identity.PermissionDecision(tenantId, userId);
+        var result = await _cache.GetOrCreateAsync(
+            cacheKey,
+            async ct =>
             {
-                new PostEvictionCallbackRegistration
+                var account = await _userAccountRepository.FindByIdAsync(tenantId, userId, ct);
+                if (account is null)
                 {
-                    EvictionCallback = (_, _, _, _) => RemoveUserFromTenantIndex(tenantId, userId)
+                    return PermissionDecisionCacheEntry.Empty;
                 }
-            }
-        });
 
-        AddUserToTenantIndex(tenantId, userId);
+                var (roleCodes, permissionCodes) = await _rbacResolver.GetRolesAndPermissionsAsync(account, tenantId, ct);
+                return new PermissionDecisionCacheEntry(
+                    account.IsActive,
+                    account.IsPlatformAdmin,
+                    roleCodes,
+                    permissionCodes);
+            },
+            CacheTtl,
+            [AtlasCacheTags.IdentityUser(tenantId, userId), AtlasCacheTags.IdentityTenant(tenantId)],
+            cancellationToken: cancellationToken);
+
+        return result ?? PermissionDecisionCacheEntry.Empty;
     }
-
-    private void AddUserToTenantIndex(TenantId tenantId, long userId)
-    {
-        var tenantKey = TenantIndexKey(tenantId);
-        var users = _cache.GetOrCreate(tenantKey, _ => new HashSet<long>())!;
-        lock (users)
-        {
-            users.Add(userId);
-        }
-    }
-
-    private void RemoveUserFromTenantIndex(TenantId tenantId, long userId)
-    {
-        var tenantKey = TenantIndexKey(tenantId);
-        if (_cache.TryGetValue(tenantKey, out HashSet<long>? users) && users is not null)
-        {
-            lock (users)
-            {
-                users.Remove(userId);
-            }
-        }
-    }
-
-    private static string UserCacheKey(TenantId tenantId, long userId)
-        => $"perm:u:{tenantId.Value:N}:{userId}";
-
-    private static string ProfileCacheKey(TenantId tenantId, long userId)
-        => $"auth_profile_{tenantId.Value:D}_{userId}";
-
-    private static string MenuTreeCacheKey(TenantId tenantId, long userId)
-        => $"menu_tree_{tenantId.Value:D}_{userId}";
-
-    private static string TenantIndexKey(TenantId tenantId)
-        => $"perm:t:{tenantId.Value:N}";
 
     private sealed record PermissionDecisionCacheEntry(
         bool IsActive,

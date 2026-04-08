@@ -1,5 +1,5 @@
-using Microsoft.Extensions.Caching.Memory;
 using Atlas.Domain.Approval.Entities;
+using Atlas.Infrastructure.Caching;
 
 namespace Atlas.Infrastructure.Services.ApprovalFlow;
 
@@ -8,26 +8,25 @@ namespace Atlas.Infrastructure.Services.ApprovalFlow;
 /// </summary>
 public sealed class ProcessModelCache
 {
-    private readonly IMemoryCache _cache;
+    private readonly IAtlasHybridCache _cache;
 
-    public ProcessModelCache(IMemoryCache cache)
+    public ProcessModelCache(IAtlasHybridCache cache)
     {
         _cache = cache;
     }
 
     public FlowDefinition GetOrAdd(ApprovalFlowDefinition flowDef)
     {
-        var key = $"FlowDefinition:{flowDef.Id}:{flowDef.Version}";
-        return _cache.GetOrCreate(key, entry =>
-        {
-            entry.SlidingExpiration = TimeSpan.FromHours(1);
-            return FlowDefinitionParser.Parse(flowDef.DefinitionJson);
-        })!;
+        var key = $"approval:flow-definition:{flowDef.Id}:{flowDef.Version}";
+        return HybridCacheSyncBridge.Run(_cache.GetOrCreateAsync(
+                   key,
+                   _ => new ValueTask<FlowDefinition?>(FlowDefinitionParser.Parse(flowDef.DefinitionJson)),
+                   TimeSpan.FromHours(1)))!;
     }
 
     public void Remove(long flowId, int version)
     {
-        var key = $"FlowDefinition:{flowId}:{version}";
-        _cache.Remove(key);
+        var key = $"approval:flow-definition:{flowId}:{version}";
+        HybridCacheSyncBridge.Run(_cache.RemoveAsync(key));
     }
 }

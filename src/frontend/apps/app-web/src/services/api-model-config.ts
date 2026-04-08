@@ -1,5 +1,6 @@
-import { requestApi, toQuery } from "@/services/api-core";
+import { requestApi, toQuery, API_BASE } from "@/services/api-core";
 import type { ApiResponse, PagedRequest, PagedResult } from "@atlas/shared-core";
+import { getAccessToken, getTenantId, getAntiforgeryToken } from "@atlas/shared-core";
 
 export interface ModelConfigDto {
   id: number;
@@ -162,17 +163,22 @@ export async function testModelConfigConnection(request: {
 
 export function createModelConfigPromptTestStream(request: ModelConfigPromptTestRequest) {
   const abortController = new AbortController();
-  const token = localStorage.getItem("atlas_app_token");
-  const tenantId = localStorage.getItem("atlas_app_tenant_id") || "";
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    Accept: "text/event-stream"
+    Accept: "text/event-stream",
+    "Idempotency-Key": crypto.randomUUID?.() ?? `idem-${Date.now()}-${Math.random().toString(16).slice(2)}`
   };
-  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  const accessToken = getAccessToken();
+  if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
+
+  const tenantId = getTenantId();
   if (tenantId) headers["X-Tenant-Id"] = tenantId;
 
-  const baseUrl = import.meta.env.VITE_API_BASE_URL || "/api/v1";
-  const fetchPromise = fetch(`${baseUrl}/model-configs/test/stream`, {
+  const csrfToken = getAntiforgeryToken();
+  if (csrfToken) headers["X-CSRF-TOKEN"] = csrfToken;
+
+  const fetchPromise = fetch(`${API_BASE}/model-configs/test/stream`, {
     method: "POST",
     headers,
     body: JSON.stringify(request),

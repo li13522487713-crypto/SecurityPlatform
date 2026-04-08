@@ -4,7 +4,7 @@ using Atlas.Application.Identity.Models;
 using Atlas.Application.Identity.Repositories;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
-using Microsoft.Extensions.Caching.Memory;
+using Atlas.Infrastructure.Caching;
 
 namespace Atlas.Infrastructure.Services;
 
@@ -60,7 +60,7 @@ public sealed class MenuQueryService : IMenuQueryService
     private readonly IRoleMenuRepository _roleMenuRepository;
     private readonly IRoleRepository _roleRepository;
     private readonly IMapper _mapper;
-    private readonly IMemoryCache _cache;
+    private readonly IAtlasHybridCache _cache;
 
     private static readonly TimeSpan MenuCacheTtl = TimeSpan.FromSeconds(60);
 
@@ -70,7 +70,7 @@ public sealed class MenuQueryService : IMenuQueryService
         IRoleMenuRepository roleMenuRepository,
         IRoleRepository roleRepository,
         IMapper mapper,
-        IMemoryCache cache)
+        IAtlasHybridCache cache)
     {
         _menuRepository = menuRepository;
         _userRoleRepository = userRoleRepository;
@@ -113,10 +113,11 @@ public sealed class MenuQueryService : IMenuQueryService
         long userId,
         CancellationToken cancellationToken)
     {
-        var cacheKey = $"menu_tree_{tenantId.Value:D}_{userId}";
-        if (_cache.TryGetValue(cacheKey, out IReadOnlyList<MenuListItem>? cached))
+        var cacheKey = AtlasCacheKeys.Identity.MenuTree(tenantId, userId);
+        var cached = await _cache.TryGetAsync<MenuListItem[]>(cacheKey, cancellationToken: cancellationToken);
+        if (cached.Found && cached.Value is not null)
         {
-            return cached!;
+            return cached.Value;
         }
 
         var allMenusTask = QueryAllAsync(tenantId, cancellationToken);
@@ -185,7 +186,12 @@ public sealed class MenuQueryService : IMenuQueryService
             result = filtered.OrderBy(x => x.SortOrder).ToArray();
         }
 
-        _cache.Set(cacheKey, result, MenuCacheTtl);
+        await _cache.SetAsync(
+            cacheKey,
+            result.ToArray(),
+            MenuCacheTtl,
+            [AtlasCacheTags.IdentityUser(tenantId, userId), AtlasCacheTags.IdentityTenant(tenantId)],
+            cancellationToken: cancellationToken);
         return result;
     }
 

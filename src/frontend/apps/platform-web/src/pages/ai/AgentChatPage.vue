@@ -53,7 +53,7 @@
         </a-space>
       </div>
 
-      <div ref="messagesContainer" class="chat-messages">
+      <div ref="messagesContainer" class="chat-messages" @scroll="handleMessagesScroll">
         <div class="chat-messages-inner">
           <div v-if="!currentConvId" class="chat-empty">
             <a-empty :description="t('ai.chat.emptySelect')" />
@@ -64,7 +64,8 @@
               v-for="(msg, index) in chatMessages"
               :key="msg.id"
               :message="msg"
-              :react-steps="index === chatMessages.length - 1 && msg.role === 'assistant' ? reactSteps : undefined"
+              :react-steps="msg.reactSteps"
+              :show-typing-cursor="index === chatMessages.length - 1 && msg.role === 'assistant' && isStreaming"
             />
             <div v-if="chatError" class="chat-error">
               <a-alert type="error" :message="chatError" show-icon />
@@ -215,6 +216,7 @@ const loadingMessages = ref(false);
 const inputText = ref("");
 const enableRag = ref(false);
 const messagesContainer = ref<HTMLElement | null>(null);
+const shouldAutoScroll = ref(true);
 const imageInputRef = ref<HTMLInputElement | null>(null);
 const pendingAttachments = ref<AgentChatAttachment[]>([]);
 const audioRecorder = useAudioRecorder();
@@ -227,7 +229,6 @@ const chatStore = useStreamChat({
 const isStreaming = computed(() => chatStore.isStreaming.value);
 const chatMessages = computed(() => chatStore.messages.value);
 const chatError = computed(() => chatStore.error.value);
-const reactSteps = computed(() => chatStore.reactSteps.value);
 
 function formatDate(iso: string) {
   try {
@@ -279,7 +280,7 @@ async function loadMessages(convId: string) {
 
     if (!isMounted.value) return;
     chatStore.loadHistory(msgs);
-    await scrollToBottom();
+    await scrollToBottom(true);
 
     if (!isMounted.value) return;
   } catch (err: unknown) {
@@ -304,6 +305,7 @@ async function handleNewConversation() {
       if (!isMounted.value) return;
     } else {
       currentConvId.value = id;
+      chatStore.currentConversationId.value = id;
       chatStore.clearMessages();
     }
   } catch (err: unknown) {
@@ -364,7 +366,7 @@ async function handleSend() {
   await chatStore.sendMessage(text, attachments);
 
   if (!isMounted.value) return;
-  await scrollToBottom();
+  await scrollToBottom(true);
 
   if (!isMounted.value) return;
   await loadConversations();
@@ -446,17 +448,46 @@ function handleKeyDown(e: KeyboardEvent) {
   }
 }
 
-async function scrollToBottom() {
+function handleMessagesScroll() {
+  const container = messagesContainer.value;
+  if (!container) {
+    return;
+  }
+  shouldAutoScroll.value = isNearBottom(container);
+}
+
+function isNearBottom(container: HTMLElement) {
+  return container.scrollHeight - container.scrollTop - container.clientHeight < 120;
+}
+
+async function scrollToBottom(force = false) {
   await nextTick();
 
   if (!isMounted.value) return;
   if (messagesContainer.value) {
+    if (!force && !shouldAutoScroll.value) {
+      return;
+    }
     messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
+    shouldAutoScroll.value = true;
   }
 }
 
 watch(
   () => chatStore.messages.value.length,
+  async () => {
+    await scrollToBottom();
+
+    if (!isMounted.value) return;
+  }
+);
+
+watch(
+  () => [
+    chatStore.reasoningText.value,
+    chatStore.answerText.value,
+    chatStore.streamPhase.value
+  ],
   async () => {
     await scrollToBottom();
 

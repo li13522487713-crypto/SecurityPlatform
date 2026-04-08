@@ -1,14 +1,13 @@
 using Atlas.Application.System.Abstractions;
 using Atlas.Application.System.Models;
+using Atlas.Infrastructure.Caching;
 using Atlas.Infrastructure.Observability;
 using Atlas.Infrastructure.Options;
 using Atlas.Infrastructure.Repositories;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
+using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
-using System.Diagnostics;
-using System.Collections.Concurrent;
 
 namespace Atlas.Infrastructure.Services;
 
@@ -18,17 +17,15 @@ namespace Atlas.Infrastructure.Services;
 /// </summary>
 public sealed class TenantDbConnectionFactory : ITenantDbConnectionFactory, IAppDbConnectionResolver
 {
-    private readonly TenantDataSourceRepository _repository;
-    private readonly IMemoryCache _cache;
-    private readonly DatabaseEncryptionOptions _encryptionOptions;
-    private const string TenantCacheKeyPrefix = "tenant-conn:";
-    private const string AppCacheKeyPrefix = "app-conn:";
     private static readonly TimeSpan CacheDuration = TimeSpan.FromMinutes(10);
-    private readonly ConcurrentDictionary<string, byte> _tenantScopedCacheKeys = new(StringComparer.OrdinalIgnoreCase);
+
+    private readonly TenantDataSourceRepository _repository;
+    private readonly IAtlasHybridCache _cache;
+    private readonly DatabaseEncryptionOptions _encryptionOptions;
 
     public TenantDbConnectionFactory(
         TenantDataSourceRepository repository,
-        IMemoryCache cache,
+        IAtlasHybridCache cache,
         IOptions<DatabaseEncryptionOptions> encryptionOptions)
     {
         _repository = repository;
@@ -44,11 +41,12 @@ public sealed class TenantDbConnectionFactory : ITenantDbConnectionFactory, IApp
 
     public async Task<TenantDbConnectionInfo?> GetConnectionInfoAsync(string tenantId, CancellationToken ct = default)
     {
-        var cacheKey = TenantCacheKeyPrefix + tenantId;
-        if (_cache.TryGetValue(cacheKey, out TenantDbConnectionInfo? cached))
+        var cacheKey = AtlasCacheKeys.TenantConnection.TenantInfo(tenantId);
+        var cached = await _cache.TryGetAsync<TenantDbConnectionInfo?>(cacheKey, cancellationToken: ct);
+        if (cached.Found)
         {
             AtlasMetrics.RecordTenantDatasourceResolve(0, "success", "cache");
-            return cached;
+            return cached.Value;
         }
 
         var stopwatch = Stopwatch.StartNew();
@@ -60,8 +58,12 @@ public sealed class TenantDbConnectionFactory : ITenantDbConnectionFactory, IApp
             if (source is null)
             {
                 sourceTag = "not_found";
-                _cache.Set(cacheKey, (TenantDbConnectionInfo?)null, CacheDuration);
-                _tenantScopedCacheKeys.TryAdd(cacheKey, 0);
+                await _cache.SetAsync<TenantDbConnectionInfo?>(
+                    cacheKey,
+                    value: null,
+                    CacheDuration,
+                    [AtlasCacheTags.TenantConnectionTenant(tenantId)],
+                    cancellationToken: ct);
                 return null;
             }
 
@@ -70,8 +72,12 @@ public sealed class TenantDbConnectionFactory : ITenantDbConnectionFactory, IApp
                 : source.EncryptedConnectionString;
 
             var info = new TenantDbConnectionInfo(connectionString, source.DbType);
-            _cache.Set(cacheKey, info, CacheDuration);
-            _tenantScopedCacheKeys.TryAdd(cacheKey, 0);
+            await _cache.SetAsync(
+                cacheKey,
+                info,
+                CacheDuration,
+                [AtlasCacheTags.TenantConnectionTenant(tenantId)],
+                cancellationToken: ct);
             return info;
         }
         catch
@@ -90,11 +96,12 @@ public sealed class TenantDbConnectionFactory : ITenantDbConnectionFactory, IApp
         long tenantAppInstanceId,
         CancellationToken ct = default)
     {
-        var cacheKey = $"{AppCacheKeyPrefix}{tenantId}:{tenantAppInstanceId}";
-        if (_cache.TryGetValue(cacheKey, out TenantDbConnectionInfo? cached))
+        var cacheKey = AtlasCacheKeys.TenantConnection.AppInfo(tenantId, tenantAppInstanceId);
+        var cached = await _cache.TryGetAsync<TenantDbConnectionInfo?>(cacheKey, cancellationToken: ct);
+        if (cached.Found)
         {
             AtlasMetrics.RecordTenantDatasourceResolve(0, "success", "cache");
-            return cached;
+            return cached.Value;
         }
 
         var stopwatch = Stopwatch.StartNew();
@@ -105,8 +112,12 @@ public sealed class TenantDbConnectionFactory : ITenantDbConnectionFactory, IApp
             if (!Guid.TryParse(tenantId, out var tenantGuid))
             {
                 sourceTag = "invalid_tenant";
-                _cache.Set(cacheKey, (TenantDbConnectionInfo?)null, CacheDuration);
-                _tenantScopedCacheKeys.TryAdd(cacheKey, 0);
+                await _cache.SetAsync<TenantDbConnectionInfo?>(
+                    cacheKey,
+                    value: null,
+                    CacheDuration,
+                    [AtlasCacheTags.TenantConnectionTenant(tenantId), AtlasCacheTags.TenantConnectionApp(tenantId, tenantAppInstanceId)],
+                    cancellationToken: ct);
                 return null;
             }
 
@@ -114,8 +125,12 @@ public sealed class TenantDbConnectionFactory : ITenantDbConnectionFactory, IApp
             if (source is null)
             {
                 sourceTag = "not_found";
-                _cache.Set(cacheKey, (TenantDbConnectionInfo?)null, CacheDuration);
-                _tenantScopedCacheKeys.TryAdd(cacheKey, 0);
+                await _cache.SetAsync<TenantDbConnectionInfo?>(
+                    cacheKey,
+                    value: null,
+                    CacheDuration,
+                    [AtlasCacheTags.TenantConnectionTenant(tenantId), AtlasCacheTags.TenantConnectionApp(tenantId, tenantAppInstanceId)],
+                    cancellationToken: ct);
                 return null;
             }
 
@@ -124,8 +139,12 @@ public sealed class TenantDbConnectionFactory : ITenantDbConnectionFactory, IApp
                 : source.EncryptedConnectionString;
 
             var info = new TenantDbConnectionInfo(connectionString, source.DbType);
-            _cache.Set(cacheKey, info, CacheDuration);
-            _tenantScopedCacheKeys.TryAdd(cacheKey, 0);
+            await _cache.SetAsync(
+                cacheKey,
+                info,
+                CacheDuration,
+                [AtlasCacheTags.TenantConnectionTenant(tenantId), AtlasCacheTags.TenantConnectionApp(tenantId, tenantAppInstanceId)],
+                cancellationToken: ct);
             return info;
         }
         catch
@@ -154,30 +173,18 @@ public sealed class TenantDbConnectionFactory : ITenantDbConnectionFactory, IApp
 
     public void InvalidateCache(string tenantId)
     {
-        var prefix1 = TenantCacheKeyPrefix + tenantId;
-        var prefix2 = AppCacheKeyPrefix + tenantId + ":";
-        foreach (var cacheKey in _tenantScopedCacheKeys.Keys)
-        {
-            if (!cacheKey.StartsWith(prefix1, StringComparison.OrdinalIgnoreCase)
-                && !cacheKey.StartsWith(prefix2, StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            _cache.Remove(cacheKey);
-            _tenantScopedCacheKeys.TryRemove(cacheKey, out _);
-        }
+        HybridCacheSyncBridge.Run(_cache.RemoveByTagAsync(AtlasCacheTags.TenantConnectionTenant(tenantId)));
     }
 
     public void InvalidateCache(string tenantId, long? tenantAppInstanceId)
     {
         if (tenantAppInstanceId.HasValue)
         {
-            var cacheKey = $"{AppCacheKeyPrefix}{tenantId}:{tenantAppInstanceId.Value}";
-            _cache.Remove(cacheKey);
-            _tenantScopedCacheKeys.TryRemove(cacheKey, out _);
+            HybridCacheSyncBridge.Run(
+                _cache.RemoveByTagAsync(AtlasCacheTags.TenantConnectionApp(tenantId, tenantAppInstanceId.Value)));
             return;
         }
+
         InvalidateCache(tenantId);
     }
 

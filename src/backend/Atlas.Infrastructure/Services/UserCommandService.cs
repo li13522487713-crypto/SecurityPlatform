@@ -220,7 +220,7 @@ public sealed class UserCommandService : IUserCommandService
         // 若用户被禁用，立即使其所有认证缓存失效，确保已颁发的 JWT 下次请求时被拒绝
         if (!request.IsActive)
         {
-            _authCacheService.InvalidateUser(tenantId, userId);
+            await _authCacheService.InvalidateUserAsync(tenantId, userId);
         }
     }
 
@@ -377,7 +377,7 @@ public sealed class UserCommandService : IUserCommandService
         }, cancellationToken);
 
         // 密码变更后撤销所有会话，同步清除认证缓存
-        _authCacheService.InvalidateUser(tenantId, userId);
+        await _authCacheService.InvalidateUserAsync(tenantId, userId);
         await _permissionDecisionService.InvalidateUserAsync(tenantId, userId, cancellationToken);
     }
 
@@ -441,7 +441,7 @@ public sealed class UserCommandService : IUserCommandService
             await _refreshTokenRepository.RevokeByUserIdAsync(tenantId, userId, now, cancellationToken);
         }, cancellationToken);
 
-        _authCacheService.InvalidateUser(tenantId, userId);
+        await _authCacheService.InvalidateUserAsync(tenantId, userId);
         await _permissionDecisionService.InvalidateUserAsync(tenantId, userId, cancellationToken);
     }
 
@@ -493,7 +493,7 @@ public sealed class UserCommandService : IUserCommandService
         await _permissionDecisionService.InvalidateUserAsync(tenantId, userId, cancellationToken);
         if (!isActive)
         {
-            _authCacheService.InvalidateUser(tenantId, userId);
+            await _authCacheService.InvalidateUserAsync(tenantId, userId);
         }
     }
 

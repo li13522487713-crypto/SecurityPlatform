@@ -81,6 +81,7 @@ export default {
     createSuccess: "创建成功",
     updateSuccess: "更新成功",
     queryFailed: "查询失败",
+    loadDetailFailed: "加载详情失败",
     operationFailed: "操作失败",
     submitFailed: "提交失败",
     totalItems: "共 {total} 条"

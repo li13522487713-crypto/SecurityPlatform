@@ -11,24 +11,24 @@ public interface IAuthCacheService
     /// <summary>
     /// 获取缓存的认证验证结果。若未命中，返回 null。
     /// </summary>
-    AuthValidationCacheEntry? Get(TenantId tenantId, long userId, long sessionId);
+    Task<AuthValidationCacheEntry?> GetAsync(TenantId tenantId, long userId, long sessionId);
 
     /// <summary>
     /// 将认证验证结果写入缓存，TTL 由实现方决定（≤ 60 秒）。
     /// </summary>
-    void Set(TenantId tenantId, long userId, long sessionId, AuthValidationCacheEntry entry);
+    Task SetAsync(TenantId tenantId, long userId, long sessionId, AuthValidationCacheEntry entry);
 
     /// <summary>
     /// 使指定 session 的缓存条目失效。
     /// 用户退出登录、会话被撤销时必须调用。
     /// </summary>
-    void InvalidateSession(TenantId tenantId, long sessionId);
+    Task InvalidateSessionAsync(TenantId tenantId, long sessionId);
 
     /// <summary>
     /// 使指定用户的所有缓存条目失效。
     /// 用户被禁用、密码变更、批量撤销会话时必须调用。
     /// </summary>
-    void InvalidateUser(TenantId tenantId, long userId);
+    Task InvalidateUserAsync(TenantId tenantId, long userId);
 }
 
 /// <summary>

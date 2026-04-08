@@ -422,7 +422,7 @@ if (setupReadyForRegistration)
 
                     var authCache = context.HttpContext.RequestServices
                         .GetRequiredService<Atlas.Application.Identity.Abstractions.IAuthCacheService>();
-                    var cached = authCache.Get(tenantId, userId, sessionId);
+                    var cached = await authCache.GetAsync(tenantId, userId, sessionId);
 
                     if (cached is not null)
                     {
@@ -460,7 +460,7 @@ if (setupReadyForRegistration)
                         return;
                     }
 
-                    authCache.Set(tenantId, userId, sessionId, new Atlas.Application.Identity.Abstractions.AuthValidationCacheEntry(
+                    await authCache.SetAsync(tenantId, userId, sessionId, new Atlas.Application.Identity.Abstractions.AuthValidationCacheEntry(
                         IsUserActive: account.IsActive,
                         UserId: userId,
                         SessionId: sessionId,

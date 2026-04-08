@@ -2338,6 +2338,7 @@ export default {
       clearHistoryOk: "历史已清除",
       opFailed: "操作失败",
       reactPanelTitle: "ReAct 执行过程",
+      thinkPanelTitle: "已深度思考",
       reactThought: "思考（Thought）",
       reactAction: "行动（Action）",
       reactObservation: "观察（Observation）",

@@ -177,7 +177,7 @@ public static class CoreServiceRegistration
         services.AddScoped<ILoginLogWriteService, LoginLogWriteService>();
         services.AddScoped<ILoginLogQueryService, LoginLogQueryService>();
 
-        // Captcha (requires IMemoryCache registered in Program.cs via AddMemoryCache)
+        // Captcha（使用 HybridCache，本地缓存模式）
         services.AddSingleton<ICaptchaService, CaptchaService>();
 
         // Notification

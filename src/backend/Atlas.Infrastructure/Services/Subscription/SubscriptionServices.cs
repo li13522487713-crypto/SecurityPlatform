@@ -2,32 +2,62 @@ using Atlas.Application.Subscription;
 using Atlas.Core.Abstractions;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Subscription;
+using Atlas.Infrastructure.Caching;
 using SqlSugar;
 
 namespace Atlas.Infrastructure.Services.Subscription;
 
 public sealed class PlanService : IPlanQueryService, IPlanCommandService
 {
+    private static readonly TimeSpan PlanCacheTtl = TimeSpan.FromMinutes(30);
+
     private readonly ISqlSugarClient _db;
     private readonly IIdGeneratorAccessor _idGen;
+    private readonly IAtlasHybridCache _cache;
 
-    public PlanService(ISqlSugarClient db, IIdGeneratorAccessor idGen)
+    public PlanService(ISqlSugarClient db, IIdGeneratorAccessor idGen, IAtlasHybridCache cache)
     {
         _db = db;
         _idGen = idGen;
+        _cache = cache;
     }
 
     public async Task<IReadOnlyList<Plan>> GetActivePlansAsync(CancellationToken cancellationToken = default)
-        => await _db.Queryable<Plan>()
-            .Where(p => p.IsActive)
-            .OrderBy(p => p.MonthlyPrice)
-            .ToListAsync(cancellationToken);
+    {
+        var key = AtlasCacheKeys.Plans.ActiveList();
+        return await _cache.GetOrCreateAsync<IReadOnlyList<Plan>>(
+                   key,
+                   async ct => await _db.Queryable<Plan>()
+                       .Where(p => p.IsActive)
+                       .OrderBy(p => p.MonthlyPrice)
+                       .ToListAsync(ct),
+                   PlanCacheTtl,
+                   [AtlasCacheTags.Plans()],
+                   cancellationToken: cancellationToken)
+               ?? Array.Empty<Plan>();
+    }
 
     public async Task<Plan?> GetByIdAsync(long id, CancellationToken cancellationToken = default)
-        => await _db.Queryable<Plan>().Where(p => p.Id == id).FirstAsync(cancellationToken);
+    {
+        var key = AtlasCacheKeys.Plans.ById(id);
+        return await _cache.GetOrCreateAsync(
+            key,
+            async ct => await _db.Queryable<Plan>().Where(p => p.Id == id).FirstAsync(ct),
+            PlanCacheTtl,
+            [AtlasCacheTags.Plans()],
+            cancellationToken: cancellationToken);
+    }
 
     public async Task<Plan?> GetByCodeAsync(string code, CancellationToken cancellationToken = default)
-        => await _db.Queryable<Plan>().Where(p => p.Code == code).FirstAsync(cancellationToken);
+    {
+        var key = AtlasCacheKeys.Plans.ByCode(code);
+        return await _cache.GetOrCreateAsync(
+            key,
+            async ct => await _db.Queryable<Plan>().Where(p => p.Code == code).FirstAsync(ct),
+            PlanCacheTtl,
+            [AtlasCacheTags.Plans()],
+            cancellationToken: cancellationToken);
+    }
 
     public async Task<long> CreateAsync(CreatePlanRequest request, CancellationToken cancellationToken = default)
     {
@@ -41,6 +71,7 @@ public sealed class PlanService : IPlanQueryService, IPlanCommandService
             UpdatedAt = now
         };
         await _db.Insertable(plan).ExecuteCommandAsync(cancellationToken);
+        await InvalidatePlansAsync(cancellationToken);
         return plan.Id;
     }
 
@@ -59,6 +90,7 @@ public sealed class PlanService : IPlanQueryService, IPlanCommandService
             })
             .Where(p => p.Id == id)
             .ExecuteCommandAsync(cancellationToken);
+        await InvalidatePlansAsync(cancellationToken);
     }
 
     public async Task DeactivateAsync(long id, CancellationToken cancellationToken = default)
@@ -67,27 +99,43 @@ public sealed class PlanService : IPlanQueryService, IPlanCommandService
             .SetColumns(p => new Plan { IsActive = false, UpdatedAt = DateTimeOffset.UtcNow })
             .Where(p => p.Id == id)
             .ExecuteCommandAsync(cancellationToken);
+        await InvalidatePlansAsync(cancellationToken);
+    }
+
+    private async Task InvalidatePlansAsync(CancellationToken cancellationToken)
+    {
+        await _cache.RemoveByTagAsync(AtlasCacheTags.Plans(), cancellationToken);
     }
 }
 
 public sealed class SubscriptionService : ISubscriptionService
 {
+    private static readonly TimeSpan SubscriptionCacheTtl = TimeSpan.FromMinutes(5);
+
     private readonly ISqlSugarClient _db;
     private readonly IIdGeneratorAccessor _idGen;
+    private readonly IAtlasHybridCache _cache;
 
-    public SubscriptionService(ISqlSugarClient db, IIdGeneratorAccessor idGen)
+    public SubscriptionService(ISqlSugarClient db, IIdGeneratorAccessor idGen, IAtlasHybridCache cache)
     {
         _db = db;
         _idGen = idGen;
+        _cache = cache;
     }
 
     public async Task<TenantSubscription?> GetCurrentAsync(TenantId tenantId, CancellationToken cancellationToken = default)
     {
         var tenantValue = tenantId.Value;
-        return await _db.Queryable<TenantSubscription>()
-            .Where(s => s.TenantIdValue == tenantValue && s.Status == SubscriptionStatus.Active)
-            .OrderByDescending(s => s.CreatedAt)
-            .FirstAsync(cancellationToken);
+        var key = AtlasCacheKeys.Subscriptions.Current(tenantId);
+        return await _cache.GetOrCreateAsync(
+            key,
+            async ct => await _db.Queryable<TenantSubscription>()
+                .Where(s => s.TenantIdValue == tenantValue && s.Status == SubscriptionStatus.Active)
+                .OrderByDescending(s => s.CreatedAt)
+                .FirstAsync(ct),
+            SubscriptionCacheTtl,
+            [AtlasCacheTags.SubscriptionTenant(tenantId)],
+            cancellationToken: cancellationToken);
     }
 
     public async Task<long> SubscribeAsync(TenantId tenantId, long planId, DateTimeOffset? expiresAt, CancellationToken cancellationToken = default)
@@ -99,6 +147,7 @@ public sealed class SubscriptionService : ISubscriptionService
             UpdatedAt = now
         };
         await _db.Insertable(sub).ExecuteCommandAsync(cancellationToken);
+        await InvalidateSubscriptionAsync(tenantId, cancellationToken);
         return sub.Id;
     }
 
@@ -113,6 +162,7 @@ public sealed class SubscriptionService : ISubscriptionService
 
         current.Cancel(now);
         await _db.Updateable(current).ExecuteCommandAsync(cancellationToken);
+        await InvalidateSubscriptionAsync(tenantId, cancellationToken);
     }
 
     public async Task RenewAsync(TenantId tenantId, DateTimeOffset newExpiresAt, CancellationToken cancellationToken = default)
@@ -126,5 +176,11 @@ public sealed class SubscriptionService : ISubscriptionService
 
         current.Renew(newExpiresAt, now);
         await _db.Updateable(current).ExecuteCommandAsync(cancellationToken);
+        await InvalidateSubscriptionAsync(tenantId, cancellationToken);
+    }
+
+    private async Task InvalidateSubscriptionAsync(TenantId tenantId, CancellationToken cancellationToken)
+    {
+        await _cache.RemoveByTagAsync(AtlasCacheTags.SubscriptionTenant(tenantId), cancellationToken);
     }
 }

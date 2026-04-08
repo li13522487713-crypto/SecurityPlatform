@@ -7,6 +7,7 @@ using Atlas.Domain.Platform.Entities;
 using Atlas.Domain.System.Entities;
 using SqlSugar;
 using System.Collections.Concurrent;
+using Atlas.Infrastructure.Caching;
 using Microsoft.Extensions.Caching.Memory;
 
 namespace Atlas.Infrastructure.Services;
@@ -20,7 +21,7 @@ public sealed class AppDbScopeFactory : IAppDbScopeFactory, IDisposable
 
     private readonly ITenantDbConnectionFactory _connectionFactory;
     private readonly ISqlSugarClient _mainDb;
-    private readonly IMemoryCache _cache;
+    private readonly IAtlasHybridCache _cache;
     private readonly MemoryCache _appClientCache;
 
     // 缓存已完成 Schema 初始化的 (tenantId:appInstanceId) 组合，进程生命周期内有效
@@ -31,15 +32,13 @@ public sealed class AppDbScopeFactory : IAppDbScopeFactory, IDisposable
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> _clientCacheLocks
         = new(StringComparer.OrdinalIgnoreCase);
 
-    // 缓存路由策略查询结果，避免每次请求都查主库
-    private const string RoutePolicyCachePrefix = "app-route-policy:";
     private static readonly TimeSpan RoutePolicyCacheDuration = TimeSpan.FromMinutes(5);
     private static int _mainDbSchemaChecked;
 
     public AppDbScopeFactory(
         ITenantDbConnectionFactory connectionFactory,
         ISqlSugarClient mainDb,
-        IMemoryCache cache)
+        IAtlasHybridCache cache)
     {
         _connectionFactory = connectionFactory;
         _mainDb = mainDb;
@@ -61,14 +60,18 @@ public sealed class AppDbScopeFactory : IAppDbScopeFactory, IDisposable
         }
 
         // 缓存路由策略，避免每次查主库
-        var policyCacheKey = $"{RoutePolicyCachePrefix}{tenantId.Value}:{appInstanceId}";
-        if (!_cache.TryGetValue(policyCacheKey, out bool isMainOnly))
-        {
-            var policy = await _mainDb.Queryable<AppDataRoutePolicy>()
-                .FirstAsync(x => x.TenantIdValue == tenantId.Value && x.AppInstanceId == appInstanceId, cancellationToken);
-            isMainOnly = policy is not null && string.Equals(policy.Mode, "MainOnly", StringComparison.OrdinalIgnoreCase);
-            _cache.Set(policyCacheKey, isMainOnly, RoutePolicyCacheDuration);
-        }
+        var policyCacheKey = AtlasCacheKeys.RoutePolicy.AppDataRoute(tenantId, appInstanceId);
+        var isMainOnly = await _cache.GetOrCreateAsync(
+            policyCacheKey,
+            async ct =>
+            {
+                var policy = await _mainDb.Queryable<AppDataRoutePolicy>()
+                    .FirstAsync(x => x.TenantIdValue == tenantId.Value && x.AppInstanceId == appInstanceId, ct);
+                return policy is not null && string.Equals(policy.Mode, "MainOnly", StringComparison.OrdinalIgnoreCase);
+            },
+            RoutePolicyCacheDuration,
+            [AtlasCacheTags.RoutePolicy(tenantId, appInstanceId)],
+            cancellationToken: cancellationToken);
 
         if (isMainOnly)
         {
@@ -181,8 +184,8 @@ public sealed class AppDbScopeFactory : IAppDbScopeFactory, IDisposable
         _appClientCache.Remove(clientCacheKey);
         _schemaInitializedKeys.TryRemove(schemaKey, out _);
 
-        var policyCacheKey = $"{RoutePolicyCachePrefix}{tenantId.Value}:{appInstanceId}";
-        _cache.Remove(policyCacheKey);
+        var policyCacheKey = AtlasCacheKeys.RoutePolicy.AppDataRoute(tenantId, appInstanceId);
+        HybridCacheSyncBridge.Run(_cache.RemoveAsync(policyCacheKey));
     }
 
     public void Dispose()

@@ -101,9 +101,9 @@ public sealed class AuthController : ControllerBase
     [HttpGet("captcha")]
     [AllowAnonymous]
     [EnableRateLimiting("auth")]
-    public ActionResult<ApiResponse<object>> GetCaptcha()
+    public async Task<ActionResult<ApiResponse<object>>> GetCaptcha()
     {
-        var (key, image) = _captchaService.Generate();
+        var (key, image) = await _captchaService.GenerateAsync();
         return Ok(ApiResponse<object>.Ok(new { captchaKey = key, captchaImage = image }, HttpContext.TraceIdentifier));
     }
 
@@ -137,7 +137,7 @@ public sealed class AuthController : ControllerBase
                 throw new BusinessException("LoginFailedTooManyTimes", ErrorCodes.ValidationError);
             }
 
-            if (!_captchaService.Validate(dto.CaptchaKey, dto.CaptchaCode))
+            if (!await _captchaService.ValidateAsync(dto.CaptchaKey, dto.CaptchaCode))
             {
                 throw new BusinessException("CaptchaExpired", ErrorCodes.ValidationError);
             }
@@ -146,7 +146,7 @@ public sealed class AuthController : ControllerBase
         {
             // 若前端已提供验证码（风控触发后），在此处校验
             if (string.IsNullOrWhiteSpace(dto.CaptchaCode)
-                || !_captchaService.Validate(dto.CaptchaKey, dto.CaptchaCode))
+                || !await _captchaService.ValidateAsync(dto.CaptchaKey, dto.CaptchaCode))
             {
                 throw new BusinessException("CaptchaExpired", ErrorCodes.ValidationError);
             }
@@ -321,7 +321,7 @@ public sealed class AuthController : ControllerBase
         if (!string.IsNullOrWhiteSpace(request.CaptchaKey))
         {
             if (string.IsNullOrWhiteSpace(request.CaptchaCode)
-                || !_captchaService.Validate(request.CaptchaKey, request.CaptchaCode))
+                || !await _captchaService.ValidateAsync(request.CaptchaKey, request.CaptchaCode))
             {
                 throw new BusinessException("CaptchaExpired", ErrorCodes.ValidationError);
             }

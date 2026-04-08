@@ -1,6 +1,6 @@
 using Atlas.Application.Abstractions;
 using Atlas.Application.Options;
-using Microsoft.Extensions.Caching.Memory;
+using Atlas.Infrastructure.Caching;
 using Microsoft.Extensions.Options;
 using System.Security.Cryptography;
 using System.Text;
@@ -16,41 +16,42 @@ public sealed class CaptchaService : ICaptchaService
     private const string Chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     private const int CodeLength = 4;
 
-    private readonly IMemoryCache _cache;
+    private readonly IAtlasHybridCache _cache;
     private readonly IOptionsMonitor<SecurityOptions> _securityOptionsMonitor;
 
-    public CaptchaService(IMemoryCache cache, IOptionsMonitor<SecurityOptions> securityOptions)
+    public CaptchaService(IAtlasHybridCache cache, IOptionsMonitor<SecurityOptions> securityOptions)
     {
         _cache = cache;
         _securityOptionsMonitor = securityOptions;
     }
 
-    public (string CaptchaKey, string Base64Image) Generate()
+    public async Task<(string CaptchaKey, string Base64Image)> GenerateAsync()
     {
         var securityOptions = _securityOptionsMonitor.CurrentValue;
         var code = GenerateCode();
-        var key = $"captcha:{Guid.NewGuid():N}";
+        var key = AtlasCacheKeys.Captcha.Key();
         var expiry = TimeSpan.FromSeconds(securityOptions.CaptchaExpirySeconds > 0
             ? securityOptions.CaptchaExpirySeconds
             : 300);
 
-        _cache.Set(key, code.ToUpperInvariant(), expiry);
+        await _cache.SetAsync(key, code.ToUpperInvariant(), expiry, localOnly: true);
 
         var svg = GenerateSvg(code);
         var base64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(svg));
         return (key, $"data:image/svg+xml;base64,{base64}");
     }
 
-    public bool Validate(string captchaKey, string captchaCode)
+    public async Task<bool> ValidateAsync(string captchaKey, string captchaCode)
     {
         if (string.IsNullOrWhiteSpace(captchaKey) || string.IsNullOrWhiteSpace(captchaCode))
             return false;
 
-        if (!_cache.TryGetValue<string>(captchaKey, out var stored) || stored is null)
+        var cached = await _cache.TryGetAsync<string>(captchaKey, localOnly: true);
+        if (!cached.Found || cached.Value is null)
             return false;
 
-        _cache.Remove(captchaKey);
-        return string.Equals(stored, captchaCode.Trim().ToUpperInvariant(), StringComparison.Ordinal);
+        await _cache.RemoveAsync(captchaKey);
+        return string.Equals(cached.Value, captchaCode.Trim().ToUpperInvariant(), StringComparison.Ordinal);
     }
 
     private static string GenerateCode()

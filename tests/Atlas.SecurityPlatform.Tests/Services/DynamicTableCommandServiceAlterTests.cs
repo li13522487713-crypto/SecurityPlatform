@@ -7,9 +7,12 @@ using Atlas.Core.Identity;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.DynamicTables.Entities;
 using Atlas.Domain.System.Entities;
+using Atlas.Infrastructure.Caching;
+using Atlas.Infrastructure.Options;
 using Atlas.Infrastructure.Repositories;
 using Atlas.Infrastructure.Services;
-using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using SqlSugar;
 
 namespace Atlas.SecurityPlatform.Tests.Services;
@@ -503,12 +506,13 @@ public sealed class DynamicTableCommandServiceAlterTests
         var appDbPath = CreateTempDbPath();
         SqlSugarClient? mainDb = null;
         SqlSugarClient? appDb = null;
-        MemoryCache? cache = null;
+        ServiceProvider? cacheProvider = null;
         try
         {
             mainDb = CreateDb(mainDbPath);
             appDb = CreateDb(appDbPath);
-            cache = new MemoryCache(new MemoryCacheOptions());
+            cacheProvider = CreateCacheProvider();
+            var hybridCache = cacheProvider.GetRequiredService<IAtlasHybridCache>();
 
             mainDb.CodeFirst.InitTables<AppDataRoutePolicy>();
             await CreateSchemaAsync(appDb);
@@ -523,7 +527,7 @@ public sealed class DynamicTableCommandServiceAlterTests
             var scopeFactory = new AppDbScopeFactory(
                 new FakeTenantDbConnectionFactory(new TenantDbConnectionInfo($"Data Source={appDbPath}", "Sqlite")),
                 mainDb,
-                cache);
+                hybridCache);
 
             var tableRepository = new DynamicTableRepository(mainDb, scopeFactory, appContextAccessor);
             var fieldRepository = new DynamicFieldRepository(mainDb, scopeFactory, appContextAccessor);
@@ -578,7 +582,7 @@ public sealed class DynamicTableCommandServiceAlterTests
         }
         finally
         {
-            cache?.Dispose();
+            cacheProvider?.Dispose();
             mainDb?.Dispose();
             appDb?.Dispose();
             CleanupDbFile(mainDbPath);
@@ -593,12 +597,13 @@ public sealed class DynamicTableCommandServiceAlterTests
         var appDbPath = CreateTempDbPath();
         SqlSugarClient? mainDb = null;
         SqlSugarClient? appDb = null;
-        MemoryCache? cache = null;
+        ServiceProvider? cacheProvider = null;
         try
         {
             mainDb = CreateDb(mainDbPath);
             appDb = CreateDb(appDbPath);
-            cache = new MemoryCache(new MemoryCacheOptions());
+            cacheProvider = CreateCacheProvider();
+            var hybridCache = cacheProvider.GetRequiredService<IAtlasHybridCache>();
 
             mainDb.CodeFirst.InitTables<AppDataRoutePolicy>();
             await CreateSchemaAsync(appDb);
@@ -612,7 +617,7 @@ public sealed class DynamicTableCommandServiceAlterTests
             var scopeFactory = new AppDbScopeFactory(
                 new FakeTenantDbConnectionFactory(new TenantDbConnectionInfo($"Data Source={appDbPath}", "Sqlite")),
                 mainDb,
-                cache);
+                hybridCache);
 
             var tableRepository = new DynamicTableRepository(mainDb, scopeFactory, appContextAccessor);
             var fieldRepository = new DynamicFieldRepository(mainDb, scopeFactory, appContextAccessor);
@@ -657,7 +662,7 @@ public sealed class DynamicTableCommandServiceAlterTests
         }
         finally
         {
-            cache?.Dispose();
+            cacheProvider?.Dispose();
             mainDb?.Dispose();
             appDb?.Dispose();
             CleanupDbFile(mainDbPath);
@@ -688,6 +693,16 @@ public sealed class DynamicTableCommandServiceAlterTests
     private static string CreateTempDbPath()
     {
         return Path.Combine(Path.GetTempPath(), $"atlas-dynamic-alter-{Guid.NewGuid():N}.db");
+    }
+
+    private static ServiceProvider CreateCacheProvider()
+    {
+        var services = new ServiceCollection();
+        services.AddDistributedMemoryCache();
+        services.AddHybridCache();
+        services.AddSingleton<IOptions<AtlasHybridCacheOptions>>(Options.Create(new AtlasHybridCacheOptions()));
+        services.AddSingleton<IAtlasHybridCache, AtlasHybridCache>();
+        return services.BuildServiceProvider();
     }
 
     private static Task CreateSchemaAsync(SqlSugarClient db)

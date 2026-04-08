@@ -4,8 +4,11 @@ using Atlas.Application.Identity.Abstractions;
 using Atlas.Application.Identity.Repositories;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Identity.Entities;
+using Atlas.Infrastructure.Caching;
+using Atlas.Infrastructure.Options;
 using Atlas.Infrastructure.Services;
-using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using NSubstitute;
 
 namespace Atlas.SecurityPlatform.Tests.Platform;
@@ -13,6 +16,7 @@ namespace Atlas.SecurityPlatform.Tests.Platform;
 public sealed class PermissionDecisionServiceTests
 {
     private static TenantId TestTenant => new(Guid.Parse("00000000-0000-0000-0000-000000000001"));
+    private static readonly ServiceProvider CacheProvider = CreateCacheProvider();
 
     [Fact]
     public async Task HasPermissionAsync_WhenUserIsPlatformAdmin_ShouldReturnTrueForArbitraryPermission()
@@ -79,10 +83,20 @@ public sealed class PermissionDecisionServiceTests
         out IUserAccountRepository userRepo,
         out IRbacResolver rbac)
     {
-        var cache = new MemoryCache(new MemoryCacheOptions());
+        var cache = CacheProvider.GetRequiredService<IAtlasHybridCache>();
         userRepo = Substitute.For<IUserAccountRepository>();
         var userRoleRepo = Substitute.For<IUserRoleRepository>();
         rbac = Substitute.For<IRbacResolver>();
         return new PermissionDecisionService(cache, userRepo, userRoleRepo, rbac);
+    }
+
+    private static ServiceProvider CreateCacheProvider()
+    {
+        var services = new ServiceCollection();
+        services.AddDistributedMemoryCache();
+        services.AddHybridCache();
+        services.AddSingleton<IOptions<AtlasHybridCacheOptions>>(Options.Create(new AtlasHybridCacheOptions()));
+        services.AddSingleton<IAtlasHybridCache, AtlasHybridCache>();
+        return services.BuildServiceProvider();
     }
 }
