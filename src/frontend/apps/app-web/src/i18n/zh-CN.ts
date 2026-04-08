@@ -149,6 +149,13 @@ export default {
       reactAction: "行动（Action）",
       reactObservation: "观察（Observation）",
       reactFinal: "最终回答（Final）",
+      selectAgentTitle: "选择 Agent 后开始对话",
+      selectAgentDesc: "当前地址未指定 Agent，请先从列表中选择一个 Agent。",
+      selectAgentPlaceholder: "请选择 Agent",
+      selectAgentRequired: "请先选择一个 Agent",
+      enterChat: "进入对话",
+      noAgents: "暂无可用 Agent，请先创建或发布 Agent",
+      loadAgentsFailed: "加载 Agent 列表失败",
       missingAgentTitle: "缺少 Agent",
       missingAgentDesc: "请在地址中提供有效的 Agent ID，例如：/apps/<appKey>/ai/chat/<agentId>"
     }

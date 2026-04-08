@@ -149,6 +149,13 @@ export default {
       reactAction: "Action",
       reactObservation: "Observation",
       reactFinal: "Final answer",
+      selectAgentTitle: "Select an Agent to Start Chatting",
+      selectAgentDesc: "No agent is specified in the URL. Please pick one from the list.",
+      selectAgentPlaceholder: "Select an Agent",
+      selectAgentRequired: "Please select an agent first",
+      enterChat: "Enter Chat",
+      noAgents: "No available agents. Please create or publish one first.",
+      loadAgentsFailed: "Failed to load agent list",
       missingAgentTitle: "Agent required",
       missingAgentDesc: "Provide a valid Agent ID in the URL, for example: /apps/<appKey>/ai/chat/<agentId>"
     }

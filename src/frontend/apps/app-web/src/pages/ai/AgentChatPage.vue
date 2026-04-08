@@ -1,10 +1,32 @@
 <template>
   <div v-if="!agentId" class="agent-chat-missing">
-    <a-result
-      status="warning"
-      :title="t('ai.chat.missingAgentTitle')"
-      :sub-title="t('ai.chat.missingAgentDesc')"
-    />
+    <a-card class="agent-selector-card" :bordered="false">
+      <a-space direction="vertical" size="middle" class="agent-selector-body">
+        <div class="agent-selector-header">
+          <h3 class="agent-selector-title">{{ t("ai.chat.selectAgentTitle") }}</h3>
+          <p class="agent-selector-desc">{{ t("ai.chat.selectAgentDesc") }}</p>
+        </div>
+
+        <a-select
+          v-model:value="selectedAgentId"
+          show-search
+          :loading="loadingAgents"
+          :placeholder="t('ai.chat.selectAgentPlaceholder')"
+          :options="availableAgents.map((item) => ({ value: item.id, label: item.name }))"
+          :filter-option="false"
+          @focus="availableAgents.length === 0 ? loadAgents() : undefined"
+        />
+
+        <a-button type="primary" :loading="loadingAgents" @click="enterChatWithSelectedAgent">
+          {{ t("ai.chat.enterChat") }}
+        </a-button>
+
+        <a-empty
+          v-if="!loadingAgents && availableAgents.length === 0"
+          :description="t('ai.chat.noAgents')"
+        />
+      </a-space>
+    </a-card>
   </div>
   <div v-else class="immersive-chat">
     <div class="chat-bg-gradient" />
@@ -235,7 +257,7 @@ onUnmounted(() => {
   clearAttachments();
 });
 
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { message } from "ant-design-vue";
 import ChatMessage from "@/components/ai/ChatMessage.vue";
 import { useStreamChat } from "@/composables/useStreamChat";
@@ -250,13 +272,17 @@ import {
   type AgentChatAttachment,
   type ConversationDto
 } from "@/services/api-conversation";
-import { getAgentById } from "@/services/api-agent";
+import { getAgentById, getAgentsPaged, type AgentListItem } from "@/services/api-agent";
 
 const route = useRoute();
+const router = useRouter();
 const appKey = computed(() => String(route.params.appKey ?? ""));
 const agentId = computed(() => String(route.params["agentId"] ?? ""));
 
 const agentName = ref("");
+const availableAgents = ref<AgentListItem[]>([]);
+const loadingAgents = ref(false);
+const selectedAgentId = ref("");
 const conversations = ref<ConversationDto[]>([]);
 const currentConvId = ref<string | null>(null);
 const loadingConversations = ref(false);
@@ -285,6 +311,36 @@ const reactSteps = computed(() => chatStore.reactSteps.value);
 const canSend = computed(
   () => currentConvId.value && (inputText.value.trim() || pendingAttachments.value.length > 0) && !isStreaming.value
 );
+
+async function loadAgents() {
+  loadingAgents.value = true;
+  try {
+    const result = await getAgentsPaged({ pageIndex: 1, pageSize: 20 });
+    if (!isMounted.value) return;
+    availableAgents.value = result.items;
+    if (!selectedAgentId.value && result.items.length > 0) {
+      selectedAgentId.value = result.items[0].id;
+    }
+  } catch (err: unknown) {
+    message.error((err as Error).message || t("ai.chat.loadAgentsFailed"));
+  } finally {
+    loadingAgents.value = false;
+  }
+}
+
+async function enterChatWithSelectedAgent() {
+  if (!selectedAgentId.value) {
+    message.warning(t("ai.chat.selectAgentRequired"));
+    return;
+  }
+  await router.push({
+    name: "app-ai-chat",
+    params: {
+      appKey: appKey.value,
+      agentId: selectedAgentId.value
+    }
+  });
+}
 
 function formatDate(iso: string) {
   try {
@@ -477,17 +533,22 @@ async function scrollToBottom() {
   }
 }
 
-watch(
-  () => chatStore.messages.value.length,
-  async () => {
-    await scrollToBottom();
-    if (!isMounted.value) return;
-  }
-);
+function resetAgentChatState() {
+  agentName.value = "";
+  conversations.value = [];
+  currentConvId.value = null;
+  chatStore.currentConversationId.value = null;
+  chatStore.clearMessages();
+  inputText.value = "";
+  clearAttachments();
+}
 
-onMounted(async () => {
-  isMounted.value = true;
-  if (!agentId.value) return;
+async function initializeAgentChatPage() {
+  if (!agentId.value) {
+    resetAgentChatState();
+    await loadAgents();
+    return;
+  }
 
   const [agentResult] = await Promise.allSettled([
     getAgentById(agentId.value),
@@ -504,6 +565,24 @@ onMounted(async () => {
     await selectConversation(conversations.value[0]);
     if (!isMounted.value) return;
   }
+}
+
+watch(
+  () => chatStore.messages.value.length,
+  async () => {
+    await scrollToBottom();
+    if (!isMounted.value) return;
+  }
+);
+
+watch(agentId, async (newValue, oldValue) => {
+  if (!isMounted.value || newValue === oldValue) return;
+  await initializeAgentChatPage();
+});
+
+onMounted(async () => {
+  isMounted.value = true;
+  await initializeAgentChatPage();
 });
 </script>
 
@@ -810,6 +889,38 @@ onMounted(async () => {
 }
 
 .agent-chat-missing {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - 64px);
   padding: 24px;
+}
+
+.agent-selector-card {
+  width: 100%;
+  max-width: 560px;
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+}
+
+.agent-selector-body {
+  width: 100%;
+}
+
+.agent-selector-header {
+  margin-bottom: 8px;
+}
+
+.agent-selector-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.agent-selector-desc {
+  margin: 8px 0 0;
+  color: #6b7280;
+  font-size: 14px;
 }
 </style>

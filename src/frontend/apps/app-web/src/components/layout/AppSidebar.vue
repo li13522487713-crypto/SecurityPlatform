@@ -94,7 +94,7 @@ const currentKey = computed(() => {
   if (path.startsWith(`${base}/users`)) return "users";
   if (path.startsWith(`${base}/departments`)) return "departments";
   if (path.startsWith(`${base}/positions`)) return "positions";
-  if (path.startsWith(`${base}/agents`) || path.startsWith(`${base}/ai/chat`)) return "agents";
+  if (path.startsWith(`${base}/agents`) || path.startsWith(`${base}/ai/chat`) || path.startsWith(`${base}/ai/assistant`)) return "agents";
   if (path.startsWith(`${base}/multi-agent`)) return "multi-agent";
   if (path.startsWith(`${base}/workflows`)) return "workflows";
   if (path.startsWith(`${base}/logic-flow`)) return "logic-flow";
