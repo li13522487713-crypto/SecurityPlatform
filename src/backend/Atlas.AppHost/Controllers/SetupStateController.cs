@@ -9,6 +9,7 @@ using Atlas.Core.Tenancy;
 using Atlas.Domain.Identity.Entities;
 using Atlas.Domain.LowCode.Entities;
 using Atlas.Domain.Platform.Entities;
+using Atlas.Domain.System.Entities;
 using Atlas.Infrastructure.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -288,6 +289,7 @@ public sealed class SetupStateController : ControllerBase
             using (BeginSetupScope(tenantId, appKey))
             {
                 app = await EnsureAppInstanceAsync(db, tenantId, appKey, appName, adminUser.Id, cancellationToken);
+                await EnsureMainOnlyRoutePolicyAsync(db, tenantId, app.Id, adminUser.Id, cancellationToken);
                 seedResult = await SeedApplicationOrganizationAsync(
                     db,
                     tenantId,
@@ -375,6 +377,45 @@ public sealed class SetupStateController : ControllerBase
         await db.Insertable(app).ExecuteCommandAsync(cancellationToken);
         _logger.LogInformation("[AppSetup] AppKey={AppKey} 未命中实例，已自动创建 AppId={AppId}", appKey, app.Id);
         return app;
+    }
+
+    private async Task EnsureMainOnlyRoutePolicyAsync(
+        ISqlSugarClient db,
+        TenantId tenantId,
+        long appId,
+        long updatedBy,
+        CancellationToken cancellationToken)
+    {
+        var policy = await db.Queryable<AppDataRoutePolicy>()
+            .FirstAsync(
+                item => item.TenantIdValue == tenantId.Value && item.AppInstanceId == appId,
+                cancellationToken);
+
+        var now = DateTimeOffset.UtcNow;
+        if (policy is null)
+        {
+            policy = new AppDataRoutePolicy(
+                tenantId,
+                appId,
+                mode: "MainOnly",
+                readOnlyWindow: false,
+                dualWriteEnabled: false,
+                updatedBy,
+                _idGeneratorAccessor.NextId(),
+                now);
+            await db.Insertable(policy).ExecuteCommandAsync(cancellationToken);
+            return;
+        }
+
+        if (string.Equals(policy.Mode, "MainOnly", StringComparison.OrdinalIgnoreCase)
+            && !policy.ReadOnlyWindow
+            && !policy.DualWriteEnabled)
+        {
+            return;
+        }
+
+        policy.SetMode("MainOnly", readOnlyWindow: false, dualWriteEnabled: false, updatedBy, now);
+        await db.Updateable(policy).ExecuteCommandAsync(cancellationToken);
     }
 
     private IDisposable BeginSetupScope(TenantId tenantId, string appId)
