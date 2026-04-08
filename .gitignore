@@ -203,6 +203,7 @@ PublishScripts/
 # Keep frontend workspace source packages tracked.
 !src/frontend/packages/
 !src/frontend/packages/**
+src/frontend/packages/**/node_modules/
 # Uncomment if necessary however generally it will be regenerated when needed
 #!**/[Pp]ackages/repositories.config
 # NuGet v3's project.json files produces more ignorable files

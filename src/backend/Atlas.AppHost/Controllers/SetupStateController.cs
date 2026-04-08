@@ -455,6 +455,18 @@ public sealed class SetupStateController : ControllerBase
             {
                 app = await EnsureAppInstanceAsync(db, tenantId, appKey, appName, adminUser.Id, cancellationToken);
                 await EnsureMainOnlyRoutePolicyAsync(db, tenantId, app.Id, adminUser.Id, cancellationToken);
+
+                // 当应用库与平台主库不同时，AppDbScopeFactory 从主库查询 AppDataRoutePolicy 来判断路由模式。
+                // 必须将 LowCodeApp 与 AppDataRoutePolicy 同步写入平台主库，否则动态表等依赖 GetAppClientAsync 的功能
+                // 会因找不到 MainOnly 策略而尝试查找 TenantAppDataSourceBinding，导致 "未绑定可用数据源" 异常。
+                if (!AreSameDatabase(runtimeConnectionString, platformConnectionString))
+                {
+                    await SyncAppInstanceToPlatformDbAsync(platformDb, tenantId, app, cancellationToken);
+                    await EnsureMainOnlyRoutePolicyAsync(platformDb, tenantId, app.Id, adminUser.Id, cancellationToken);
+                    _logger.LogInformation(
+                        "[AppSetup] 应用实例与路由策略已同步到平台主库 (AppId={AppId})", app.Id);
+                }
+
                 seedResult = await SeedApplicationOrganizationAsync(
                     db,
                     tenantId,
@@ -582,6 +594,41 @@ public sealed class SetupStateController : ControllerBase
 
         policy.SetMode("MainOnly", readOnlyWindow: false, dualWriteEnabled: false, updatedBy, now);
         await db.Updateable(policy).ExecuteCommandAsync(cancellationToken);
+    }
+
+    private async Task SyncAppInstanceToPlatformDbAsync(
+        ISqlSugarClient platformDb,
+        TenantId tenantId,
+        LowCodeApp app,
+        CancellationToken cancellationToken)
+    {
+        var existing = await platformDb.Queryable<LowCodeApp>()
+            .FirstAsync(
+                item => item.TenantIdValue == tenantId.Value && item.Id == app.Id,
+                cancellationToken);
+        if (existing is not null)
+        {
+            return;
+        }
+
+        var existByAppKey = await platformDb.Queryable<LowCodeApp>()
+            .FirstAsync(
+                item => item.TenantIdValue == tenantId.Value && item.AppKey == app.AppKey,
+                cancellationToken);
+        if (existByAppKey is not null)
+        {
+            return;
+        }
+
+        await platformDb.Insertable(app).ExecuteCommandAsync(cancellationToken);
+    }
+
+    private static bool AreSameDatabase(string connectionStringA, string connectionStringB)
+    {
+        return string.Equals(
+            connectionStringA?.Trim(),
+            connectionStringB?.Trim(),
+            StringComparison.OrdinalIgnoreCase);
     }
 
     private IDisposable BeginSetupScope(TenantId tenantId, string appId)

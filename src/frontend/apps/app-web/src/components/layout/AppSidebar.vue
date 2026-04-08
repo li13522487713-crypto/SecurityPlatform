@@ -71,7 +71,7 @@ import {
   DatabaseOutlined,
   MessageOutlined,
   ExperimentOutlined,
-  FileTextOutlined,
+  TableOutlined,
   SettingOutlined,
   ControlOutlined
 } from "@ant-design/icons-vue";
@@ -139,7 +139,7 @@ const navGroups = computed(() => [
       { key: "prompts", name: t("sidebar.prompts"), path: `${basePath.value}/prompts`, icon: MessageOutlined },
       { key: "model-configs", name: t("sidebar.modelConfigs"), path: `${basePath.value}/model-configs`, icon: ControlOutlined },
       { key: "evaluations", name: t("sidebar.evaluations"), path: `${basePath.value}/evaluations`, icon: ExperimentOutlined },
-      { key: "data", name: t("sidebar.formsData"), path: `${basePath.value}/data`, icon: FileTextOutlined },
+      { key: "data", name: t("sidebar.formsData"), path: `${basePath.value}/data`, icon: TableOutlined },
     ]
   }
 ]);

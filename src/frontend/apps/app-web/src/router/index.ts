@@ -207,8 +207,17 @@ export const router = createRouter({
         {
           path: "data",
           name: "app-data",
-          component: () => import("@/pages/PlaceholderPage.vue"),
-          props: { title: "表单与数据" }
+          component: () => import("@/pages/dynamic/DynamicTablesPage.vue")
+        },
+        {
+          path: "data/:tableKey",
+          name: "app-data-records",
+          component: () => import("@/pages/dynamic/DynamicTableRecordsPage.vue")
+        },
+        {
+          path: "data/:tableKey/design",
+          name: "app-data-design",
+          component: () => import("@/pages/dynamic/DynamicTableDesignPage.vue")
         },
         {
           path: "profile",
