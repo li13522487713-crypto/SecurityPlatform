@@ -19,7 +19,8 @@
     "vue-i18n": "^9.14.0"
   },
   "dependencies": {
-    "@atlas/shared-core": "workspace:*"
+    "@atlas/shared-core": "workspace:*",
+    "@atlas/shared-kernel": "workspace:*"
   },
   "devDependencies": {
     "@ant-design/icons-vue": "7.0.1",

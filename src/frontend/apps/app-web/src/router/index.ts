@@ -231,6 +231,26 @@ export const router = createRouter({
           meta: { requiredPermission: APP_PERMISSIONS.APPS_UPDATE }
         },
         {
+          path: "connectors/config",
+          name: "app-connectors-config",
+          component: () => import("@/pages/settings/ConnectorConfigPage.vue")
+        },
+        {
+          path: "connectors/exposure",
+          name: "app-connectors-exposure",
+          component: () => import("@/pages/settings/ConnectorExposurePage.vue")
+        },
+        {
+          path: "connectors/authorization",
+          name: "app-connectors-authorization",
+          component: () => import("@/pages/settings/ConnectorAuthorizationPage.vue")
+        },
+        {
+          path: "connectors/command-strategy",
+          name: "app-connectors-command-strategy",
+          component: () => import("@/pages/settings/ConnectorCommandStrategyPage.vue")
+        },
+        {
           path: "forbidden",
           name: "app-forbidden",
           component: () => import("@/pages/ForbiddenPage.vue")

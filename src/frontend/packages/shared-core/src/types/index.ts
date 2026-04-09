@@ -8,11 +8,38 @@ export type {
   ClientChannel,
   ClientAgent,
   ClientContext,
-  AuthProfile,
-  AuthTokenResult,
   PagedRequest,
-  PagedResult
+  PagedResult,
+  AdvancedQueryConfig,
+  QueryGroup,
+  QueryRule,
+  TenantContext,
+  AppContext,
+  UserContext,
+  HostMode,
+  CapabilityHostContext,
+  MenuMeta,
+  MenuNode,
+  NavigationProjection,
+  PermissionScope,
+  PermissionCode,
+  PermissionSet,
+  DraftStatus,
+  VersionInfo,
+  ReleaseState,
+  PublishMode,
+  ConnectorSchema,
+  AppExposurePolicy,
+  AppCommand,
+  AppCommandResult,
+  ConnectorHeartbeat
+} from "@atlas/shared-kernel";
+
+export { QueryOperator } from "@atlas/shared-kernel";
+
+export type {
+  AuthProfile,
+  AuthTokenResult
 } from "./api-base";
 
 export * from "./api-business";
-export * from "./advanced-query";

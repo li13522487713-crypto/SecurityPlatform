@@ -1,0 +1,24 @@
+{
+  "name": "@atlas/shared-biz",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "echo 'shared-biz: no lint configured yet'",
+    "build": "echo 'shared-biz: source-only package, no build step'"
+  },
+  "peerDependencies": {
+    "vue": "^3.5.0",
+    "ant-design-vue": "^4.2.0"
+  },
+  "dependencies": {
+    "@atlas/shared-core": "workspace:*",
+    "@atlas/shared-kernel": "workspace:*",
+    "@atlas/shared-ui": "workspace:*"
+  }
+}

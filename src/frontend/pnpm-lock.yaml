@@ -38,9 +38,27 @@ importers:
       '@atlas/ai-core':
         specifier: workspace:*
         version: link:../../packages/ai-core
+      '@atlas/connector-core':
+        specifier: workspace:*
+        version: link:../../packages/connector-core
+      '@atlas/designer-core':
+        specifier: workspace:*
+        version: link:../../packages/designer-core
+      '@atlas/designer-vue':
+        specifier: workspace:*
+        version: link:../../packages/designer-vue
+      '@atlas/runtime-core':
+        specifier: workspace:*
+        version: link:../../packages/runtime-core
+      '@atlas/shared-biz':
+        specifier: workspace:*
+        version: link:../../packages/shared-biz
       '@atlas/shared-core':
         specifier: workspace:*
         version: link:../../packages/shared-core
+      '@atlas/shared-kernel':
+        specifier: workspace:*
+        version: link:../../packages/shared-kernel
       '@atlas/shared-ui':
         specifier: workspace:*
         version: link:../../packages/shared-ui
@@ -111,9 +129,27 @@ importers:
       '@atlas/ai-core':
         specifier: workspace:*
         version: link:../../packages/ai-core
+      '@atlas/connector-core':
+        specifier: workspace:*
+        version: link:../../packages/connector-core
+      '@atlas/designer-core':
+        specifier: workspace:*
+        version: link:../../packages/designer-core
+      '@atlas/designer-vue':
+        specifier: workspace:*
+        version: link:../../packages/designer-vue
+      '@atlas/runtime-core':
+        specifier: workspace:*
+        version: link:../../packages/runtime-core
+      '@atlas/shared-biz':
+        specifier: workspace:*
+        version: link:../../packages/shared-biz
       '@atlas/shared-core':
         specifier: workspace:*
         version: link:../../packages/shared-core
+      '@atlas/shared-kernel':
+        specifier: workspace:*
+        version: link:../../packages/shared-kernel
       '@atlas/shared-ui':
         specifier: workspace:*
         version: link:../../packages/shared-ui
@@ -183,8 +219,86 @@ importers:
         specifier: ^14.1.2
         version: 14.1.2
 
+  packages/connector-core:
+    dependencies:
+      '@atlas/shared-core':
+        specifier: workspace:*
+        version: link:../shared-core
+      '@atlas/shared-kernel':
+        specifier: workspace:*
+        version: link:../shared-kernel
+      '@atlas/shared-ui':
+        specifier: workspace:*
+        version: link:../shared-ui
+      ant-design-vue:
+        specifier: ^4.2.0
+        version: 4.2.6(vue@3.5.32(typescript@5.9.3))
+      vue:
+        specifier: ^3.5.0
+        version: 3.5.32(typescript@5.9.3)
+
+  packages/designer-core:
+    dependencies:
+      '@atlas/shared-core':
+        specifier: workspace:*
+        version: link:../shared-core
+      '@atlas/shared-kernel':
+        specifier: workspace:*
+        version: link:../shared-kernel
+
+  packages/designer-vue:
+    dependencies:
+      '@atlas/designer-core':
+        specifier: workspace:*
+        version: link:../designer-core
+      '@atlas/shared-core':
+        specifier: workspace:*
+        version: link:../shared-core
+      '@atlas/shared-kernel':
+        specifier: workspace:*
+        version: link:../shared-kernel
+      '@atlas/shared-ui':
+        specifier: workspace:*
+        version: link:../shared-ui
+      vue:
+        specifier: ^3.5.0
+        version: 3.5.32(typescript@5.9.3)
+
+  packages/runtime-core:
+    dependencies:
+      '@atlas/shared-core':
+        specifier: workspace:*
+        version: link:../shared-core
+      '@atlas/shared-kernel':
+        specifier: workspace:*
+        version: link:../shared-kernel
+
+  packages/shared-biz:
+    dependencies:
+      '@atlas/shared-core':
+        specifier: workspace:*
+        version: link:../shared-core
+      '@atlas/shared-kernel':
+        specifier: workspace:*
+        version: link:../shared-kernel
+      '@atlas/shared-ui':
+        specifier: workspace:*
+        version: link:../shared-ui
+      ant-design-vue:
+        specifier: ^4.2.0
+        version: 4.2.6(vue@3.5.32(typescript@5.9.3))
+      vue:
+        specifier: ^3.5.0
+        version: 3.5.32(typescript@5.9.3)
+
   packages/shared-core:
     dependencies:
+      '@atlas/ai-core':
+        specifier: workspace:*
+        version: link:../ai-core
+      '@atlas/shared-kernel':
+        specifier: workspace:*
+        version: link:../shared-kernel
       vue:
         specifier: ^3.5.0
         version: 3.5.32(typescript@5.9.3)
@@ -192,12 +306,23 @@ importers:
       ant-design-vue:
         specifier: 4.2.6
         version: 4.2.6(vue@3.5.32(typescript@5.9.3))
+      vue-i18n:
+        specifier: 9.14.5
+        version: 9.14.5(vue@3.5.32(typescript@5.9.3))
+      vue-router:
+        specifier: 4.6.4
+        version: 4.6.4(vue@3.5.32(typescript@5.9.3))
+
+  packages/shared-kernel: {}
 
   packages/shared-ui:
     dependencies:
       '@atlas/shared-core':
         specifier: workspace:*
         version: link:../shared-core
+      '@atlas/shared-kernel':
+        specifier: workspace:*
+        version: link:../shared-kernel
       vue:
         specifier: ^3.5.0
         version: 3.5.32(typescript@5.9.3)
