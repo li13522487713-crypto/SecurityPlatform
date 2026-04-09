@@ -6,4 +6,5 @@ export function createInitialReleaseState(): ReleaseState {
   };
 }
 
+export * from "./types";
 export * from "./runtime-execution-tracker";

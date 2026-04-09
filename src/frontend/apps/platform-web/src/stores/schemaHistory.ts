@@ -1,4 +1,10 @@
 import { defineStore } from "pinia";
+import {
+  initSnapshotHistory,
+  pushSnapshotHistory,
+  redoSnapshotHistory,
+  undoSnapshotHistory,
+} from "@atlas/designer-core";
 
 const MAX_HISTORY = 20;
 
@@ -9,6 +15,11 @@ interface SchemaHistoryState {
   stack: Array<Record<string, object | string | number | boolean | null>>;
   pointer: number;
 }
+
+const snapshotOptions = {
+  maxHistory: MAX_HISTORY,
+  clone: cloneSchema,
+};
 
 export const useSchemaHistoryStore = defineStore("schemaHistory", {
   state: (): SchemaHistoryState => ({
@@ -27,39 +38,16 @@ export const useSchemaHistoryStore = defineStore("schemaHistory", {
       this.pointer = -1;
     },
     init(schema: Record<string, object | string | number | boolean | null>) {
-      this.stack = [cloneSchema(schema)];
-      this.pointer = 0;
+      initSnapshotHistory(this, schema, snapshotOptions);
     },
     pushState(schema: Record<string, object | string | number | boolean | null>) {
-      const nextSchema = cloneSchema(schema);
-      if (this.pointer >= 0) {
-        const current = this.stack[this.pointer];
-        if (JSON.stringify(current) === JSON.stringify(nextSchema)) {
-          return;
-        }
-      }
-      if (this.pointer < this.stack.length - 1) {
-        this.stack = this.stack.slice(0, this.pointer + 1);
-      }
-      this.stack.push(nextSchema);
-      if (this.stack.length > MAX_HISTORY) {
-        this.stack.shift();
-      }
-      this.pointer = this.stack.length - 1;
+      pushSnapshotHistory(this, schema, snapshotOptions);
     },
     undo() {
-      if (!this.canUndo) {
-        return null;
-      }
-      this.pointer -= 1;
-      return cloneSchema(this.stack[this.pointer]);
+      return undoSnapshotHistory(this, snapshotOptions);
     },
     redo() {
-      if (!this.canRedo) {
-        return null;
-      }
-      this.pointer += 1;
-      return cloneSchema(this.stack[this.pointer]);
+      return redoSnapshotHistory(this, snapshotOptions);
     },
   },
 });

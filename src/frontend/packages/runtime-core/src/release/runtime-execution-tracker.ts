@@ -1,9 +1,11 @@
+import type { RuntimeExecution, RuntimeExecutionStatus } from "./types";
+
 export interface RuntimeExecutionTrackerItem {
   executionId: string;
   appKey: string;
   pageKey: string;
   releaseId?: string;
-  releaseVersion?: string;
+  releaseVersion?: number;
   userId?: string;
   tenantId?: string;
   traceId?: string;
@@ -13,19 +15,21 @@ export interface RuntimeExecutionTrackerItem {
   finishedAt?: string;
 }
 
-const executionMap = new Map<string, RuntimeExecutionTrackerItem>();
+const executionMap = new Map<string, RuntimeExecution>();
 
 export function createExecution(item: RuntimeExecutionTrackerItem) {
-  executionMap.set(item.executionId, {
+  const execution: RuntimeExecution = {
     ...item,
     status: "running",
     startedAt: new Date().toISOString()
-  });
+  };
+  executionMap.set(item.executionId, execution);
+  return execution;
 }
 
 export function completeExecution(
   executionId: string,
-  status: "success" | "failed",
+  status: RuntimeExecutionStatus,
   error?: { message?: string }
 ) {
   const current = executionMap.get(executionId);
@@ -44,4 +48,8 @@ export function removeExecution(executionId: string) {
 
 export function getExecution(executionId: string) {
   return executionMap.get(executionId);
+}
+
+export function getActiveExecution(executionId: string) {
+  return getExecution(executionId);
 }
