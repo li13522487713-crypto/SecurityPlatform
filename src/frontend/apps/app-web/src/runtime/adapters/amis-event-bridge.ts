@@ -16,6 +16,12 @@ export interface AmisEvent {
   data?: Record<string, unknown>;
 }
 
+export interface AmisEventLifecycleHooks {
+  beforeSubmit?: () => Promise<void>;
+  afterSubmit?: (result: ActionResult) => Promise<void>;
+  onSubmitError?: (result: ActionResult) => Promise<void>;
+}
+
 /**
  * 将 AMIS 事件转换为 RuntimeAction。
  */
@@ -37,13 +43,11 @@ export function mapAmisEventToAction(event: AmisEvent): RuntimeAction | null {
     }
     case "dialog":
     case "drawer": {
-      const dialogKey = event.data?.["dialogKey"] ?? event.data?.["$schema"]
-        ? String(event.type)
-        : "";
+      const dialogKey = event.data?.["dialogKey"] ?? (event.data?.["$schema"] ? String(event.type) : undefined);
       return {
         type: "openDialog",
         input: {
-          dialogKey: String(dialogKey),
+          dialogKey: dialogKey ? String(dialogKey) : "",
           payload: event.data,
         },
       };
@@ -53,15 +57,19 @@ export function mapAmisEventToAction(event: AmisEvent): RuntimeAction | null {
         type: "submitForm",
         input: {
           formKey: event.data?.["formKey"] as string | undefined,
+          payload: event.data,
         },
       };
     }
     case "ajax": {
       const url = event.data?.["api"] ?? event.data?.["url"];
+      if (!url) {
+        return null;
+      }
       return {
         type: "callApi",
         input: {
-          apiKey: String(url ?? ""),
+          apiKey: String(url),
           method: event.data?.["method"] as "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | undefined,
           body: event.data,
         },
@@ -94,8 +102,26 @@ export function mapAmisEventToAction(event: AmisEvent): RuntimeAction | null {
  * 处理来自 AMIS 的事件。
  * 先映射为 RuntimeAction，再统一执行。
  */
-export async function handleAmisEvent(event: AmisEvent): Promise<ActionResult | null> {
+export async function handleAmisEvent(
+  event: AmisEvent,
+  hooks?: AmisEventLifecycleHooks,
+): Promise<ActionResult | null> {
   const action = mapAmisEventToAction(event);
   if (!action) return null;
-  return executeAction(action);
+
+  if (action.type === "submitForm" && hooks?.beforeSubmit) {
+    await hooks.beforeSubmit();
+  }
+
+  const result = await executeAction(action);
+  if (action.type === "submitForm") {
+    if (result.success && hooks?.afterSubmit) {
+      await hooks.afterSubmit(result);
+    }
+    if (!result.success && hooks?.onSubmitError) {
+      await hooks.onSubmitError(result);
+    }
+  }
+
+  return result;
 }

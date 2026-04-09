@@ -21,6 +21,7 @@ import { resolveBindings } from "@/runtime/bindings/binding-resolver";
 import { applyAmisBindings } from "@/runtime/adapters/amis-binding-adapter";
 import { runLifecycleHook } from "@/runtime/lifecycle/page-lifecycle-runner";
 import type { PageLifecycleHooks } from "@/runtime/lifecycle/lifecycle-types";
+import { clearRuntimeLifecycleHooks, setRuntimeLifecycleHooks } from "@/runtime/actions/action-executor";
 import {
   createExecution,
   completeExecution,
@@ -46,6 +47,7 @@ onMounted(() => {
 onUnmounted(() => {
   isMounted.value = false;
   void runLifecycleHookSafe("onPageLeave", lifecycleHooks.value);
+  clearRuntimeLifecycleHooks();
   if (currentExecutionId.value) {
     completeExecution(currentExecutionId.value, "success");
     reportAuditEvent({
@@ -100,6 +102,7 @@ async function loadRuntime() {
   if (!appKey.value || !pageKey.value) {
     schema.value = null;
     lifecycleHooks.value = null;
+    setRuntimeLifecycleHooks(null);
     return;
   }
 
@@ -118,6 +121,7 @@ async function loadRuntime() {
     const { manifest, executionId } = await bootstrapRuntime(route);
     currentExecutionId.value = executionId;
     lifecycleHooks.value = manifest.lifecycle ?? null;
+    setRuntimeLifecycleHooks(lifecycleHooks.value);
 
     const profile = getAuthProfile();
     createExecution({

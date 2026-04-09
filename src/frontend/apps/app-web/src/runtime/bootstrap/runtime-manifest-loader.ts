@@ -4,6 +4,7 @@
 
 import { getRuntimeMenu, getRuntimePageSchema } from "@/services/api-runtime";
 import type { RuntimeManifest } from "../release/runtime-release-types";
+import type { LowCodePageRuntimeSchema } from "@/types/lowcode-runtime";
 
 export async function loadRuntimeManifest(
   appKey: string,
@@ -13,6 +14,13 @@ export async function loadRuntimeManifest(
     getRuntimePageSchema(pageKey, appKey),
     getRuntimeMenu(appKey),
   ]);
+
+  const enrichedRuntimeSchema = runtimeSchema as LowCodePageRuntimeSchema & {
+    lifecycle?: RuntimeManifest["lifecycle"];
+    actionRegistry?: RuntimeManifest["actionRegistry"];
+    bindingRegistry?: RuntimeManifest["bindingRegistry"];
+    initialContextPatch?: RuntimeManifest["initialContextPatch"];
+  };
 
   const matchedPage = runtimeMenu.items.find((item) => item.pageKey === pageKey);
   const pageName = matchedPage?.title;
@@ -28,5 +36,9 @@ export async function loadRuntimeManifest(
     releaseId: undefined,
     releaseVersion: runtimeSchema.version,
     menu: runtimeMenu.items,
+    lifecycle: enrichedRuntimeSchema.lifecycle,
+    actionRegistry: enrichedRuntimeSchema.actionRegistry,
+    bindingRegistry: enrichedRuntimeSchema.bindingRegistry,
+    initialContextPatch: enrichedRuntimeSchema.initialContextPatch,
   };
 }

@@ -1,4 +1,5 @@
 /** 应用运行端低代码运行时所需的最小类型（与后端契约对齐）。 */
+import type { RuntimeManifest } from "@/runtime/release/runtime-release-types";
 
 export interface LowCodePageListItem {
   id: string;
@@ -45,4 +46,8 @@ export interface LowCodePageRuntimeSchema {
   schemaJson: string;
   version: number;
   mode: string;
+  lifecycle?: RuntimeManifest["lifecycle"];
+  actionRegistry?: RuntimeManifest["actionRegistry"];
+  bindingRegistry?: RuntimeManifest["bindingRegistry"];
+  initialContextPatch?: RuntimeManifest["initialContextPatch"];
 }
