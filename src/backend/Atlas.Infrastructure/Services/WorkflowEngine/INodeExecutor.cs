@@ -1,5 +1,8 @@
 using System.Text.Json;
 using System.Threading.Channels;
+using Atlas.Core.Expressions;
+using Atlas.Infrastructure.LogicFlow.Expressions;
+using Microsoft.Extensions.DependencyInjection;
 using Atlas.Application.AiPlatform.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.AiPlatform.Enums;
@@ -75,9 +78,51 @@ public sealed class NodeExecutionContext
         return VariableResolver.ParseLiteralOrTemplate(value, Variables);
     }
 
+    public JsonElement EvaluateExpression(string expression)
+    {
+        if (string.IsNullOrWhiteSpace(expression))
+        {
+            return VariableResolver.ParseLiteral(string.Empty);
+        }
+
+        var evaluator = ServiceProvider.GetService<ExprEvaluator>();
+        if (evaluator is null)
+        {
+            return VariableResolver.ParseLiteralOrTemplate(expression, Variables);
+        }
+
+        try
+        {
+            var renderedExpression = VariableResolver.RenderTemplate(expression, Variables);
+            var ast = evaluator.ParseAndCache(renderedExpression);
+            var context = new ExpressionContext
+            {
+                Record = BuildExpressionRecord()
+            };
+            var result = evaluator.Evaluate(ast, context);
+            return ToJsonElement(result);
+        }
+        catch
+        {
+            return VariableResolver.ParseLiteralOrTemplate(expression, Variables);
+        }
+    }
+
     public bool EvaluateCondition(string expression)
     {
-        return VariableResolver.EvaluateCondition(expression, Variables);
+        if (string.IsNullOrWhiteSpace(expression))
+        {
+            return true;
+        }
+
+        try
+        {
+            return VariableResolver.IsTruthy(EvaluateExpression(expression));
+        }
+        catch
+        {
+            return VariableResolver.EvaluateCondition(expression, Variables);
+        }
     }
 
     public string GetConfigString(string key, string defaultValue = "")
@@ -103,6 +148,60 @@ public sealed class NodeExecutionContext
     public bool TryResolveVariable(string path, out JsonElement value)
     {
         return VariableResolver.TryResolvePath(Variables, path, out value);
+    }
+
+    private Dictionary<string, object?> BuildExpressionRecord()
+    {
+        var record = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+        foreach (var variable in Variables)
+        {
+            record[variable.Key] = ConvertJsonElementToClr(variable.Value);
+        }
+
+        return record;
+    }
+
+    private static object? ConvertJsonElementToClr(JsonElement value)
+    {
+        return value.ValueKind switch
+        {
+            JsonValueKind.String => value.GetString(),
+            JsonValueKind.Number when value.TryGetInt64(out var integerValue) => integerValue,
+            JsonValueKind.Number when value.TryGetDouble(out var numberValue) => numberValue,
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            JsonValueKind.Object =>
+                value.EnumerateObject().ToDictionary(
+                    static x => x.Name,
+                    x => ConvertJsonElementToClr(x.Value),
+                    StringComparer.OrdinalIgnoreCase),
+            JsonValueKind.Array =>
+                value.EnumerateArray().Select(ConvertJsonElementToClr).ToList(),
+            JsonValueKind.Null or JsonValueKind.Undefined => null,
+            _ => null
+        };
+    }
+
+    private static JsonElement ToJsonElement(object? value)
+    {
+        if (value is null)
+        {
+            return ParseNullElement();
+        }
+
+        if (value is JsonElement element)
+        {
+            return element;
+        }
+
+        using var document = JsonSerializer.SerializeToDocument(value);
+        return document.RootElement.Clone();
+    }
+
+    private static JsonElement ParseNullElement()
+    {
+        using var document = JsonDocument.Parse("null");
+        return document.RootElement.Clone();
     }
 }
 

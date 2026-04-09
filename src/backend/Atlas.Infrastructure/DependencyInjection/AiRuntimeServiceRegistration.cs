@@ -1,12 +1,16 @@
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Repositories;
 using Atlas.Application.AgentTeam.Abstractions;
+using Atlas.Core.Expressions;
+using Atlas.Infrastructure.LogicFlow.Expressions;
+using Atlas.Infrastructure.LogicFlow.Expressions.Functions;
 using Atlas.Infrastructure.Repositories;
 using Atlas.Infrastructure.Services.AiPlatform;
 using Atlas.Infrastructure.Services.WorkflowEngine;
 using Atlas.Infrastructure.Services.WorkflowEngine.NodeExecutors;
 using Atlas.Infrastructure.Services.AgentTeam;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Atlas.Infrastructure.DependencyInjection;
 
@@ -52,6 +56,9 @@ public static class AiRuntimeServiceRegistration
         services.AddSingleton<MultiAgentExecutionTracker>();
 
         // Workflow V2 Execution Engine
+        services.TryAddSingleton<IAstCache>(sp => new AstCompilationCache(4096));
+        services.TryAddSingleton<IFunctionRegistry, BuiltinFunctionRegistry>();
+        services.TryAddSingleton<ExprEvaluator>();
         services.AddScoped<IWorkflowMetaRepository, WorkflowMetaRepository>();
         services.AddScoped<IWorkflowDraftRepository, WorkflowDraftRepository>();
         services.AddScoped<IWorkflowVersionRepository, WorkflowVersionRepository>();
