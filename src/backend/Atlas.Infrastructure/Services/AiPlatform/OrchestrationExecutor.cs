@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
+using Atlas.Application.BatchProcess.Abstractions;
 using Atlas.Core.Exceptions;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
@@ -13,13 +14,19 @@ public sealed class OrchestrationExecutor : IOrchestrationExecutor
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly IOrchestrationCompiler _compiler;
     private readonly IAtlasHybridCache _cache;
+    private readonly ICheckpointService _checkpointService;
+    private readonly IOrchestrationCompensationService _compensationService;
 
     public OrchestrationExecutor(
         IOrchestrationCompiler compiler,
-        IAtlasHybridCache cache)
+        IAtlasHybridCache cache,
+        ICheckpointService checkpointService,
+        IOrchestrationCompensationService compensationService)
     {
         _compiler = compiler;
         _cache = cache;
+        _checkpointService = checkpointService;
+        _compensationService = compensationService;
     }
 
     public async Task<OrchestrationExecutionResult> ExecuteAsync(
@@ -58,14 +65,30 @@ public sealed class OrchestrationExecutor : IOrchestrationExecutor
 
         var traceSteps = new List<OrchestrationExecutionTraceStep>(compiledPlan.Nodes.Count);
         var executionId = Guid.NewGuid().ToString("N");
+        var shardExecutionId = BuildShardExecutionId(tenantId, request.PlanId, normalizedIdempotencyKey, executionId);
         var attempt = 0;
         var output = request.InputJson;
         string? errorMessage = null;
+        var resumeApplied = false;
+        var compensationApplied = false;
+        var resumeFromStepIndex = 0;
 
-        foreach (var node in compiledPlan.Nodes)
+        if (!string.IsNullOrWhiteSpace(normalizedIdempotencyKey))
         {
+            var checkpoint = await _checkpointService.GetLatestAsync(shardExecutionId, cancellationToken);
+            if (checkpoint is not null)
+            {
+                resumeFromStepIndex = (int)Math.Clamp(checkpoint.ProcessedCount, 0, compiledPlan.Nodes.Count);
+                resumeApplied = resumeFromStepIndex > 0;
+            }
+        }
+
+        for (var nodeIndex = resumeFromStepIndex; nodeIndex < compiledPlan.Nodes.Count; nodeIndex++)
+        {
+            var node = compiledPlan.Nodes[nodeIndex];
             var nodeSucceeded = false;
             var nodeAttempt = 0;
+            var lifecycle = NodeLifecycleState.Pending;
             while (!nodeSucceeded && nodeAttempt <= maxRetries)
             {
                 nodeAttempt++;
@@ -73,29 +96,48 @@ public sealed class OrchestrationExecutor : IOrchestrationExecutor
                 var stepStartedAt = DateTimeOffset.UtcNow;
                 try
                 {
+                    if (NodeLifecycleStateMachine.CanTransit(lifecycle, NodeLifecycleState.Running))
+                    {
+                        lifecycle = NodeLifecycleState.Running;
+                    }
                     using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                     timeoutCts.CancelAfter(TimeSpan.FromSeconds(timeoutSeconds));
                     output = await ExecuteNodeAsync(node, output, timeoutCts.Token);
                     var completedAt = DateTimeOffset.UtcNow;
+                    if (NodeLifecycleStateMachine.CanTransit(lifecycle, NodeLifecycleState.Succeeded))
+                    {
+                        lifecycle = NodeLifecycleState.Succeeded;
+                    }
                     traceSteps.Add(new OrchestrationExecutionTraceStep(
                         node.NodeId,
                         node.NodeType,
-                        "Success",
+                        NodeLifecycleStateMachine.ToStatus(lifecycle),
                         nodeAttempt,
                         (int)(completedAt - stepStartedAt).TotalMilliseconds,
                         null,
                         stepStartedAt,
                         completedAt));
+                    await _checkpointService.SaveAsync(
+                        shardExecutionId,
+                        executionId,
+                        node.NodeId,
+                        nodeIndex + 1,
+                        tenantId,
+                        cancellationToken);
                     nodeSucceeded = true;
                 }
                 catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested)
                 {
                     var completedAt = DateTimeOffset.UtcNow;
                     errorMessage = $"节点执行超时: {node.NodeId}";
+                    if (NodeLifecycleStateMachine.CanTransit(lifecycle, NodeLifecycleState.TimedOut))
+                    {
+                        lifecycle = NodeLifecycleState.TimedOut;
+                    }
                     traceSteps.Add(new OrchestrationExecutionTraceStep(
                         node.NodeId,
                         node.NodeType,
-                        "Timeout",
+                        NodeLifecycleStateMachine.ToStatus(lifecycle),
                         nodeAttempt,
                         (int)(completedAt - stepStartedAt).TotalMilliseconds,
                         ex.Message,
@@ -106,10 +148,14 @@ public sealed class OrchestrationExecutor : IOrchestrationExecutor
                 {
                     var completedAt = DateTimeOffset.UtcNow;
                     errorMessage = ex.Message;
+                    if (NodeLifecycleStateMachine.CanTransit(lifecycle, NodeLifecycleState.Failed))
+                    {
+                        lifecycle = NodeLifecycleState.Failed;
+                    }
                     traceSteps.Add(new OrchestrationExecutionTraceStep(
                         node.NodeId,
                         node.NodeType,
-                        "Failed",
+                        NodeLifecycleStateMachine.ToStatus(lifecycle),
                         nodeAttempt,
                         (int)(completedAt - stepStartedAt).TotalMilliseconds,
                         ex.Message,
@@ -120,6 +166,18 @@ public sealed class OrchestrationExecutor : IOrchestrationExecutor
 
             if (!nodeSucceeded)
             {
+                var compensatedSteps = await _compensationService.CompensateAsync(
+                    tenantId,
+                    request.PlanId,
+                    executionId,
+                    traceSteps,
+                    cancellationToken);
+                if (compensatedSteps.Count > 0)
+                {
+                    traceSteps.AddRange(compensatedSteps);
+                    compensationApplied = true;
+                }
+
                 var failedResult = new OrchestrationExecutionResult(
                     request.PlanId,
                     executionId,
@@ -127,6 +185,8 @@ public sealed class OrchestrationExecutor : IOrchestrationExecutor
                     output,
                     attempt,
                     false,
+                    resumeApplied,
+                    compensationApplied,
                     traceSteps,
                     errorMessage ?? "执行失败",
                     startedAt,
@@ -144,6 +204,8 @@ public sealed class OrchestrationExecutor : IOrchestrationExecutor
             successOutput,
             attempt,
             false,
+            resumeApplied,
+            compensationApplied,
             traceSteps,
             null,
             startedAt,
@@ -211,4 +273,17 @@ public sealed class OrchestrationExecutor : IOrchestrationExecutor
 
     private static string BuildIdempotencyCacheKey(TenantId tenantId, long planId, string idempotencyKey)
         => $"orchestration:execute:{tenantId.Value:N}:{planId}:{idempotencyKey}";
+
+    private static long BuildShardExecutionId(
+        TenantId tenantId,
+        long planId,
+        string? idempotencyKey,
+        string executionId)
+    {
+        var source = string.IsNullOrWhiteSpace(idempotencyKey)
+            ? $"{tenantId.Value:N}:{planId}:{executionId}"
+            : $"{tenantId.Value:N}:{planId}:{idempotencyKey}";
+        var hash = BitConverter.ToInt64(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(source)), 0);
+        return hash == long.MinValue ? long.MaxValue : Math.Abs(hash);
+    }
 }

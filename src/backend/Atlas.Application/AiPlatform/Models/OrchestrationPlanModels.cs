@@ -41,6 +41,8 @@ public sealed record OrchestrationExecutionResult(
     string OutputJson,
     int AttemptCount,
     bool IdempotentReplay,
+    bool ResumeApplied,
+    bool CompensationApplied,
     IReadOnlyList<OrchestrationExecutionTraceStep> TraceSteps,
     string? ErrorMessage,
     DateTimeOffset StartedAt,
