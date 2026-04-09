@@ -21,6 +21,7 @@ public sealed class LlmProviderFactory : ILlmProviderFactory
     private readonly ModelConfigRepository _modelConfigRepository;
     private readonly ITenantProvider _tenantProvider;
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly IMeteringService _meteringService;
     private readonly ILogger<OpenAiCompatibleProvider> _providerLogger;
 
     public LlmProviderFactory(
@@ -28,12 +29,14 @@ public sealed class LlmProviderFactory : ILlmProviderFactory
         ModelConfigRepository modelConfigRepository,
         ITenantProvider tenantProvider,
         IHttpClientFactory httpClientFactory,
+        IMeteringService meteringService,
         ILogger<OpenAiCompatibleProvider> providerLogger)
     {
         _optionsMonitor = options;
         _modelConfigRepository = modelConfigRepository;
         _tenantProvider = tenantProvider;
         _httpClientFactory = httpClientFactory;
+        _meteringService = meteringService;
         _providerLogger = providerLogger;
     }
 
@@ -144,7 +147,13 @@ public sealed class LlmProviderFactory : ILlmProviderFactory
         };
 
         var client = _httpClientFactory.CreateClient("AiPlatform");
-        return new OpenAiCompatibleProvider(config.ProviderType, option, client, _providerLogger);
+        return new OpenAiCompatibleProvider(
+            config.ProviderType,
+            option,
+            client,
+            _tenantProvider.GetTenantId(),
+            _meteringService,
+            _providerLogger);
     }
 
     private OpenAiCompatibleProvider BuildProvider(string providerName, AiPlatformOptions options, bool requireEmbedding)
@@ -188,7 +197,13 @@ public sealed class LlmProviderFactory : ILlmProviderFactory
         }
 
         var client = _httpClientFactory.CreateClient("AiPlatform");
-        provider = new OpenAiCompatibleProvider(providerName, merged, client, _providerLogger);
+        provider = new OpenAiCompatibleProvider(
+            providerName,
+            merged,
+            client,
+            _tenantProvider.GetTenantId(),
+            _meteringService,
+            _providerLogger);
         return true;
     }
 

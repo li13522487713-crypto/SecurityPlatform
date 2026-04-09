@@ -98,6 +98,8 @@ public sealed class EvaluationService : IEvaluationService
             ?? throw new BusinessException("评测数据集不存在。", ErrorCodes.NotFound);
         _ = dataset;
         var tagsJson = JsonSerializer.Serialize(request.Tags ?? []);
+        var groundTruthChunkIdsJson = JsonSerializer.Serialize(request.GroundTruthChunkIds ?? []);
+        var groundTruthCitationsJson = JsonSerializer.Serialize(request.GroundTruthCitations ?? []);
         var evaluationCase = new EvaluationCase(
             tenantId,
             datasetId,
@@ -105,6 +107,8 @@ public sealed class EvaluationService : IEvaluationService
             request.ExpectedOutput?.Trim(),
             request.ReferenceOutput?.Trim(),
             tagsJson,
+            groundTruthChunkIdsJson,
+            groundTruthCitationsJson,
             _idGeneratorAccessor.NextId());
         await _caseRepository.AddAsync(evaluationCase, cancellationToken);
         return evaluationCase.Id;
@@ -140,6 +144,7 @@ public sealed class EvaluationService : IEvaluationService
             request.Name.Trim(),
             request.DatasetId,
             request.AgentId,
+            request.EnableRag,
             userId,
             _idGeneratorAccessor.NextId());
         await _taskRepository.AddAsync(task, cancellationToken);
@@ -189,7 +194,14 @@ public sealed class EvaluationService : IEvaluationService
             item.CaseId,
             item.ActualOutput,
             item.Score,
+            item.FaithfulnessScore,
+            item.ContextPrecisionScore,
+            item.ContextRecallScore,
+            item.AnswerRelevanceScore,
+            item.CitationAccuracyScore,
+            item.HallucinationScore,
             item.JudgeReason,
+            ParseMetrics(item.RagMetricsJson),
             item.Status,
             item.CreatedAt)).ToList();
     }
@@ -222,10 +234,12 @@ public sealed class EvaluationService : IEvaluationService
             task.Name,
             task.DatasetId,
             task.AgentId,
+            task.EnableRag,
             task.Status,
             task.TotalCases,
             task.CompletedCases,
             task.Score,
+            ParseMetrics(task.AggregateMetricsJson),
             task.ErrorMessage,
             task.CreatedAt,
             task.UpdatedAt,
@@ -243,7 +257,27 @@ public sealed class EvaluationService : IEvaluationService
             item.ExpectedOutput,
             item.ReferenceOutput,
             tags,
+            JsonSerializer.Deserialize<List<long>>(item.GroundTruthChunkIdsJson) ?? [],
+            JsonSerializer.Deserialize<List<string>>(item.GroundTruthCitationsJson) ?? [],
             item.CreatedAt,
             item.UpdatedAt);
+    }
+
+    private static IReadOnlyDictionary<string, decimal> ParseMetrics(string? metricsJson)
+    {
+        if (string.IsNullOrWhiteSpace(metricsJson))
+        {
+            return new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<Dictionary<string, decimal>>(metricsJson)
+                   ?? new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+        }
+        catch (JsonException)
+        {
+            return new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+        }
     }
 }

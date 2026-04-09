@@ -71,6 +71,7 @@ public static class AiDesignServiceRegistration
 
         services.AddScoped<IModelConfigCommandService, ModelConfigCommandService>();
         services.AddScoped<IModelConfigQueryService, ModelConfigQueryService>();
+        services.AddScoped<IModelConvergenceService, ModelConvergenceService>();
         services.AddScoped<IAgentCommandService, AgentCommandService>();
         services.AddScoped<IAgentQueryService, AgentQueryService>();
         services.AddScoped<ITeamAgentService, TeamAgentService>();
@@ -91,6 +92,7 @@ public static class AiDesignServiceRegistration
         services.AddScoped<IAgentTeamCommandService, AgentTeamService>();
         services.AddScoped<IEvaluationService, EvaluationService>();
         services.AddScoped<IEvaluationJobService, EvaluationJobService>();
+        services.AddScoped<IRagFeedbackService, RagFeedbackService>();
         services.AddScoped<IAdminAiConfigService, AdminAiConfigService>();
         services.AddScoped<IAiWorkspaceService, AiWorkspaceService>();
         services.AddScoped<IAiShortcutCommandService, AiShortcutCommandService>();

@@ -120,8 +120,9 @@ public sealed class BM25RetrievalService
         var scoreMap = scored.ToDictionary(item => item.ChunkId, item => item.Score);
 
         var documentIds = topChunkMap.Values.Select(chunk => chunk.DocumentId).Distinct().ToArray();
-        var documentMap = (await _knowledgeDocumentRepository.QueryByIdsAsync(tenantId, documentIds, cancellationToken))
-            .ToDictionary(item => item.Id, item => item.FileName);
+        var documents = await _knowledgeDocumentRepository.QueryByIdsAsync(tenantId, documentIds, cancellationToken);
+        var documentMap = documents.ToDictionary(item => item.Id, item => item.FileName);
+        var documentCreatedAtMap = documents.ToDictionary(item => item.Id, item => (DateTime?)item.CreatedAt);
 
         return topChunkIds
             .Where(id => topChunkMap.ContainsKey(id))
@@ -129,13 +130,15 @@ public sealed class BM25RetrievalService
             {
                 var chunk = topChunkMap[id];
                 documentMap.TryGetValue(chunk.DocumentId, out var documentName);
+                documentCreatedAtMap.TryGetValue(chunk.DocumentId, out var documentCreatedAt);
                 return new RagSearchResult(
                     chunk.KnowledgeBaseId,
                     chunk.DocumentId,
                     chunk.Id,
                     chunk.Content,
                     scoreMap[id],
-                    documentName);
+                    documentName,
+                    documentCreatedAt);
             })
             .ToArray();
     }

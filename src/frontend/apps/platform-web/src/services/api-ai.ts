@@ -1662,3 +1662,23 @@ export async function rollbackAiWorkflow(id: number, version: number): Promise<A
   if (!response.data) throw new Error(response.message || "版本回滚失败");
   return response.data;
 }
+
+export interface RagFeedbackCreateRequest {
+  queryId: string;
+  rating: 1 | -1;
+  comment?: string;
+  conversationId?: string;
+  agentId?: string;
+}
+
+export async function createRagFeedback(request: RagFeedbackCreateRequest): Promise<string> {
+  const response = await requestApi<ApiResponse<{ id: string }>>("/rag-feedback", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request)
+  });
+  if (!response.data?.id) {
+    throw new Error(response.message || "提交反馈失败");
+  }
+  return response.data.id;
+}

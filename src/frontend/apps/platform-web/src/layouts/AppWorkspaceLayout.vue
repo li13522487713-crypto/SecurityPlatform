@@ -82,15 +82,28 @@ import {
   SettingOutlined
 } from "@ant-design/icons-vue";
 import { getTenantAppInstanceDetail } from "@/services/api-console";
+import { useUserStore } from "@/stores/user";
+import { provideCapabilityHostContext } from "@atlas/shared-kernel/context";
 
 const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
+const userStore = useUserStore();
 const collapsed = ref(false);
 const appName = ref("...");
+const appKey = ref("");
 const isMounted = ref(false);
 
 const appId = computed(() => String(route.params.appId ?? ""));
+
+const capabilityHostContext = provideCapabilityHostContext({
+  hostMode: "platform",
+  tenantId: userStore.profile?.tenantId,
+  appId: appId.value || undefined,
+  appKey: undefined,
+  appInstanceId: appId.value || undefined,
+  permissionSet: userStore.permissions
+});
 
 const menuPathMap: Record<string, string> = {
   dashboard: "dashboard",
@@ -137,11 +150,28 @@ async function loadAppInfo() {
   try {
     const detail = await getTenantAppInstanceDetail(appId.value);
     if (!isMounted.value) return;
+    appKey.value = detail.appKey || "";
     appName.value = detail.name || t("appWorkspace.defaultAppName");
   } catch {
+    appKey.value = "";
     appName.value = t("appWorkspace.defaultAppName");
   }
 }
+
+watch(
+  [appId, appKey, () => userStore.profile?.tenantId, () => userStore.permissions],
+  () => {
+    capabilityHostContext.patchContext({
+      hostMode: "platform",
+      tenantId: userStore.profile?.tenantId,
+      appId: appId.value || undefined,
+      appKey: appKey.value || undefined,
+      appInstanceId: appId.value || undefined,
+      permissionSet: userStore.permissions
+    });
+  },
+  { immediate: true }
+);
 
 onMounted(() => {
   isMounted.value = true;

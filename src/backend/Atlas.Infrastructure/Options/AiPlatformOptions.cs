@@ -12,6 +12,8 @@ public sealed class AiPlatformOptions
 
     public RetrievalOption Retrieval { get; init; } = new();
 
+    public RagExperimentOption RagExperiment { get; init; } = new();
+
     public MemoryOption Memory { get; init; } = new();
 
     public AgentPublicationOption Publication { get; init; } = new();
@@ -58,6 +60,12 @@ public sealed class RetrievalOption
 
     public bool EnableRerank { get; init; } = true;
 
+    public bool EnableCrossEncoderRerank { get; init; } = true;
+
+    public bool EnableContextCompression { get; init; } = true;
+
+    public bool EnableFreshnessBoost { get; init; } = true;
+
     public int VectorTopK { get; init; } = 12;
 
     public int Bm25TopK { get; init; } = 12;
@@ -65,6 +73,33 @@ public sealed class RetrievalOption
     public int Bm25CandidateCount { get; init; } = 300;
 
     public int RrfK { get; init; } = 60;
+
+    public int CrossEncoderTopK { get; init; } = 16;
+
+    public int ContextMaxChars { get; init; } = 900;
+
+    public int FreshnessHalfLifeDays { get; init; } = 30;
+}
+
+public sealed class RagExperimentOption
+{
+    public bool Enabled { get; init; } = true;
+
+    public string ExperimentName { get; init; } = "rag_retriever_ab_v1";
+
+    public int TrafficPercent { get; init; } = 100;
+
+    public int ControlPercent { get; init; } = 50;
+
+    public string ControlStrategy { get; init; } = "hybrid";
+
+    public string TreatmentStrategy { get; init; } = "vector";
+
+    public bool ShadowEnabled { get; init; } = true;
+
+    public int ShadowTrafficPercent { get; init; } = 30;
+
+    public string ShadowStrategy { get; init; } = "bm25";
 }
 
 public sealed class MemoryOption

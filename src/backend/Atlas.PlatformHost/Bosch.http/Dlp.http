@@ -1,0 +1,188 @@
+### DLP API
+
+@baseUrl = http://localhost:5000
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+@appInstanceId = 1
+
+### 登录
+# @name login
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+###
+@accessToken = {{login.response.body.$.data.accessToken}}
+
+### 创建分类分级
+POST {{baseUrl}}/api/v1/dlp/classifications
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+X-CSRF-TOKEN: {{login.response.headers.X-CSRF-TOKEN}}
+Idempotency-Key: {{$guid}}
+Content-Type: application/json
+
+{
+  "code": "P3",
+  "name": "重要敏感",
+  "level": 3,
+  "scope": "tenant",
+  "baselineJson": "{\"mask\":true,\"approvalRequired\":true}"
+}
+
+### 查询分类分级
+GET {{baseUrl}}/api/v1/dlp/classifications
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 创建敏感标签
+POST {{baseUrl}}/api/v1/dlp/labels
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+X-CSRF-TOKEN: {{login.response.headers.X-CSRF-TOKEN}}
+Idempotency-Key: {{$guid}}
+Content-Type: application/json
+
+{
+  "code": "PHONE",
+  "name": "手机号",
+  "targetType": "field",
+  "ruleJson": "{\"regex\":\"^1[3-9]\\\\d{9}$\"}"
+}
+
+### 查询敏感标签
+GET {{baseUrl}}/api/v1/dlp/labels
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 创建 DLP 策略
+POST {{baseUrl}}/api/v1/dlp/policies
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+X-CSRF-TOKEN: {{login.response.headers.X-CSRF-TOKEN}}
+Idempotency-Key: {{$guid}}
+Content-Type: application/json
+
+{
+  "name": "默认外发策略",
+  "enabled": true,
+  "scopeJson": "{\"appInstanceIds\":[\"{{appInstanceId}}\"]}",
+  "channelRuleJson": "{\"export\":\"allow\",\"webhook\":\"review\"}"
+}
+
+### 查询 DLP 策略
+GET {{baseUrl}}/api/v1/dlp/policies
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 创建外发通道
+POST {{baseUrl}}/api/v1/dlp/outbound-channels
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+X-CSRF-TOKEN: {{login.response.headers.X-CSRF-TOKEN}}
+Idempotency-Key: {{$guid}}
+Content-Type: application/json
+
+{
+  "channelKey": "export",
+  "displayName": "报表导出",
+  "channelType": "file",
+  "enabled": true,
+  "configJson": "{\"maxPerDay\":100}"
+}
+
+### 查询外发通道
+GET {{baseUrl}}/api/v1/dlp/outbound-channels
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 绑定 maskPolicies 到 AppExposurePolicy
+POST {{baseUrl}}/api/v1/dlp/bindings
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+X-CSRF-TOKEN: {{login.response.headers.X-CSRF-TOKEN}}
+Idempotency-Key: {{$guid}}
+Content-Type: application/json
+
+{
+  "appInstanceId": "{{appInstanceId}}",
+  "dataSet": "users",
+  "maskFields": ["email", "phoneNumber", "idCardNo"]
+}
+
+### 导出任务前置检查
+POST {{baseUrl}}/api/v1/dlp/export-jobs
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+X-CSRF-TOKEN: {{login.response.headers.X-CSRF-TOKEN}}
+Idempotency-Key: {{$guid}}
+Content-Type: application/json
+
+{
+  "appInstanceId": "{{appInstanceId}}",
+  "dataSet": "users",
+  "channelKey": "export",
+  "target": "security-report.csv"
+}
+
+### 下载任务前置检查
+POST {{baseUrl}}/api/v1/dlp/download-jobs
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+X-CSRF-TOKEN: {{login.response.headers.X-CSRF-TOKEN}}
+Idempotency-Key: {{$guid}}
+Content-Type: application/json
+
+{
+  "appInstanceId": "{{appInstanceId}}",
+  "dataSet": "users",
+  "channelKey": "download",
+  "target": "ops-review.xlsx"
+}
+
+### 外发审批申请
+POST {{baseUrl}}/api/v1/dlp/external-share-approvals
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+X-CSRF-TOKEN: {{login.response.headers.X-CSRF-TOKEN}}
+Idempotency-Key: {{$guid}}
+Content-Type: application/json
+
+{
+  "appInstanceId": "{{appInstanceId}}",
+  "dataSet": "users",
+  "target": "partner@demo.com",
+  "reason": "项目协作报送"
+}
+
+### 出站检查
+POST {{baseUrl}}/api/v1/dlp/outbound-checks
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+X-CSRF-TOKEN: {{login.response.headers.X-CSRF-TOKEN}}
+Idempotency-Key: {{$guid}}
+Content-Type: application/json
+
+{
+  "appInstanceId": "{{appInstanceId}}",
+  "dataSet": "users",
+  "channelKey": "webhook",
+  "target": "https://demo.example.com/hooks/security",
+  "payloadJson": "{\"size\":128,\"sample\":true}"
+}
+
+### 泄露事件
+GET {{baseUrl}}/api/v1/dlp/events
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 证据包
+GET {{baseUrl}}/api/v1/dlp/evidence-packages
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}

@@ -1,43 +1,32 @@
+using System.Diagnostics;
+using System.Security.Cryptography;
+using System.Text;
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
 using Atlas.Core.Tenancy;
-using Atlas.Infrastructure.Options;
-using Atlas.Infrastructure.Repositories;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace Atlas.Infrastructure.Services.AiPlatform;
 
 public sealed class RagRetrievalService : IRagRetrievalService
 {
-    private const string DefaultEmbeddingModel = "text-embedding-3-small";
-
-    private readonly ILlmProviderFactory _llmProviderFactory;
-    private readonly IVectorStore _vectorStore;
-    private readonly DocumentChunkRepository _chunkRepository;
-    private readonly KnowledgeDocumentRepository _knowledgeDocumentRepository;
-    private readonly BM25RetrievalService _bm25RetrievalService;
-    private readonly HybridRetrievalService _hybridRetrievalService;
-    private readonly IOptionsMonitor<AiPlatformOptions> _optionsMonitor;
+    private readonly IRetriever _hybridRetriever;
+    private readonly VectorRetrieverService _vectorRetriever;
+    private readonly Bm25RetrieverService _bm25Retriever;
+    private readonly IRagExperimentService _ragExperimentService;
     private readonly ILogger<RagRetrievalService> _logger;
 
     public RagRetrievalService(
-        ILlmProviderFactory llmProviderFactory,
-        IVectorStore vectorStore,
-        DocumentChunkRepository chunkRepository,
-        KnowledgeDocumentRepository knowledgeDocumentRepository,
-        BM25RetrievalService bm25RetrievalService,
-        HybridRetrievalService hybridRetrievalService,
-        IOptionsMonitor<AiPlatformOptions> options,
+        IRetriever hybridRetriever,
+        VectorRetrieverService vectorRetriever,
+        Bm25RetrieverService bm25Retriever,
+        IRagExperimentService ragExperimentService,
         ILogger<RagRetrievalService> logger)
     {
-        _llmProviderFactory = llmProviderFactory;
-        _vectorStore = vectorStore;
-        _chunkRepository = chunkRepository;
-        _knowledgeDocumentRepository = knowledgeDocumentRepository;
-        _bm25RetrievalService = bm25RetrievalService;
-        _hybridRetrievalService = hybridRetrievalService;
-        _optionsMonitor = options;
+        _hybridRetriever = hybridRetriever;
+        _vectorRetriever = vectorRetriever;
+        _bm25Retriever = bm25Retriever;
+        _ragExperimentService = ragExperimentService;
         _logger = logger;
     }
 
@@ -53,143 +42,89 @@ public sealed class RagRetrievalService : IRagRetrievalService
             return [];
         }
 
-        var normalizedKnowledgeBaseIds = knowledgeBaseIds
-            .Where(x => x > 0)
-            .Distinct()
-            .ToArray();
-        if (normalizedKnowledgeBaseIds.Length == 0)
-        {
-            return [];
-        }
+        var normalizedQuery = query.Trim();
+        var decision = await _ragExperimentService.ResolveDecisionAsync(tenantId, normalizedQuery, ct);
+        var mainRetriever = ResolveRetriever(decision.PrimaryStrategy);
+        var queryHash = BuildQueryHash(tenantId, normalizedQuery);
 
-        var options = _optionsMonitor.CurrentValue;
-        var vectorTopK = Math.Max(topK, options.Retrieval.VectorTopK);
-        var bm25TopK = Math.Max(topK, options.Retrieval.Bm25TopK);
-
-        var vectorResults = await SearchVectorAsync(
+        var mainWatch = Stopwatch.StartNew();
+        var mainResults = await mainRetriever.RetrieveAsync(
             tenantId,
-            normalizedKnowledgeBaseIds,
-            query,
-            vectorTopK,
+            knowledgeBaseIds,
+            normalizedQuery,
+            topK,
             ct);
-        var bm25Results = await _bm25RetrievalService.SearchAsync(
+        mainWatch.Stop();
+
+        var mainRunId = await _ragExperimentService.RecordRunAsync(
             tenantId,
-            normalizedKnowledgeBaseIds,
-            query,
-            bm25TopK,
+            new RagExperimentRunCreateRequest(
+                decision.ExperimentName,
+                decision.Variant,
+                decision.PrimaryStrategy,
+                queryHash,
+                topK,
+                mainResults.Select(item => item.ChunkId).ToArray(),
+                (int)mainWatch.ElapsedMilliseconds,
+                IsShadow: false),
             ct);
 
-        if (options.Retrieval.EnableHybrid)
+        if (decision.ShadowEnabled
+            && decision.ShadowStrategy.HasValue
+            && decision.ShadowStrategy.Value != decision.PrimaryStrategy)
         {
-            return _hybridRetrievalService.MergeAndRerank(query, vectorResults, bm25Results, topK);
-        }
-
-        return vectorResults
-            .OrderByDescending(x => x.Score)
-            .Take(topK)
-            .ToArray();
-    }
-
-    private async Task<IReadOnlyList<RagSearchResult>> SearchVectorAsync(
-        TenantId tenantId,
-        IReadOnlyList<long> knowledgeBaseIds,
-        string query,
-        int topK,
-        CancellationToken ct)
-    {
-        var embeddingProvider = _llmProviderFactory.GetEmbeddingProvider();
-        EmbeddingResult embedding;
-        try
-        {
-            embedding = await embeddingProvider.EmbedAsync(
-                new EmbeddingRequest(
-                    Model: DefaultEmbeddingModel,
-                    Inputs: [query.Trim()],
-                    Provider: embeddingProvider.ProviderName),
-                ct);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "RAG embedding generation failed. Fallback to lexical retrieval only.");
-            return Array.Empty<RagSearchResult>();
-        }
-
-        var queryVector = embedding.Vectors.FirstOrDefault();
-        if (queryVector is null || queryVector.Length == 0)
-        {
-            return Array.Empty<RagSearchResult>();
-        }
-
-        var vectorHits = new List<(long KnowledgeBaseId, VectorSearchResult Hit)>();
-        foreach (var knowledgeBaseId in knowledgeBaseIds)
-        {
-            IReadOnlyList<VectorSearchResult> vectorResults;
             try
             {
-                vectorResults = await _vectorStore.SearchAsync($"kb_{knowledgeBaseId}", queryVector, topK, ct);
-            }
-            catch (InvalidOperationException)
-            {
-                continue;
+                var shadowWatch = Stopwatch.StartNew();
+                var shadowResults = await ResolveRetriever(decision.ShadowStrategy.Value).RetrieveAsync(
+                    tenantId,
+                    knowledgeBaseIds,
+                    normalizedQuery,
+                    topK,
+                    ct);
+                shadowWatch.Stop();
+
+                var shadowRunId = await _ragExperimentService.RecordRunAsync(
+                    tenantId,
+                    new RagExperimentRunCreateRequest(
+                        decision.ExperimentName,
+                        "shadow",
+                        decision.ShadowStrategy.Value,
+                        queryHash,
+                        topK,
+                        shadowResults.Select(item => item.ChunkId).ToArray(),
+                        (int)shadowWatch.ElapsedMilliseconds,
+                        IsShadow: true),
+                    ct);
+                await _ragExperimentService.RecordShadowComparisonAsync(
+                    tenantId,
+                    mainRunId,
+                    shadowRunId,
+                    mainResults,
+                    shadowResults,
+                    ct);
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "RAG vector search failed for kb={KnowledgeBaseId}.", knowledgeBaseId);
-                continue;
+                _logger.LogWarning(ex, "RAG shadow execution failed.");
             }
-
-            vectorHits.AddRange(vectorResults.Select(hit => (knowledgeBaseId, hit)));
         }
 
-        if (vectorHits.Count == 0)
+        return mainResults;
+    }
+
+    private IRetriever ResolveRetriever(RagRetrieverStrategy strategy)
+        => strategy switch
         {
-            return Array.Empty<RagSearchResult>();
-        }
+            RagRetrieverStrategy.Vector => _vectorRetriever,
+            RagRetrieverStrategy.Bm25 => _bm25Retriever,
+            _ => _hybridRetriever
+        };
 
-        var chunkIds = vectorHits
-            .Select(hit => long.TryParse(hit.Hit.Id, out var id) ? id : 0L)
-            .Where(id => id > 0)
-            .Distinct()
-            .ToArray();
-        if (chunkIds.Length == 0)
-        {
-            return Array.Empty<RagSearchResult>();
-        }
-
-        var chunks = await _chunkRepository.QueryByIdsAsync(tenantId, chunkIds, ct);
-        if (chunks.Count == 0)
-        {
-            return Array.Empty<RagSearchResult>();
-        }
-
-        var chunkMap = chunks.ToDictionary(chunk => chunk.Id, chunk => chunk);
-        var documentIds = chunks.Select(chunk => chunk.DocumentId).Distinct().ToArray();
-        var documentMap = (await _knowledgeDocumentRepository.QueryByIdsAsync(tenantId, documentIds, ct))
-            .ToDictionary(document => document.Id, document => document.FileName);
-
-        var merged = new List<RagSearchResult>(vectorHits.Count);
-        foreach (var (knowledgeBaseId, result) in vectorHits)
-        {
-            if (!long.TryParse(result.Id, out var chunkId) || !chunkMap.TryGetValue(chunkId, out var chunk))
-            {
-                continue;
-            }
-
-            if (chunk.KnowledgeBaseId != knowledgeBaseId)
-            {
-                continue;
-            }
-
-            documentMap.TryGetValue(chunk.DocumentId, out var documentName);
-            merged.Add(new RagSearchResult(
-                knowledgeBaseId,
-                chunk.DocumentId,
-                chunk.Id,
-                string.IsNullOrWhiteSpace(result.Content) ? chunk.Content : result.Content,
-                result.Score,
-                documentName));
-        }
-
-        return merged;
+    private static string BuildQueryHash(TenantId tenantId, string query)
+    {
+        var raw = $"{tenantId.Value}:{query}";
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(raw));
+        return Convert.ToHexString(hash);
     }
 }

@@ -11,6 +11,7 @@ public static class GovernanceServiceRegistration
         services.AddScoped<IPackageService, PackageService>();
         services.AddScoped<ILicenseGrantService, LicenseGrantService>();
         services.AddScoped<IToolAuthorizationService, ToolAuthorizationService>();
+        services.AddScoped<IDlpService, DlpService>();
         return services;
     }
 }

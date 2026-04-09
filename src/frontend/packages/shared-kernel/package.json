@@ -17,5 +17,8 @@
   "scripts": {
     "lint": "echo 'shared-kernel: no lint configured yet'",
     "build": "echo 'shared-kernel: source-only package, no build step'"
+  },
+  "peerDependencies": {
+    "vue": "^3.5.0"
   }
 }

@@ -23,6 +23,7 @@ public sealed class ModelConfigCommandService : IModelConfigCommandService
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<OpenAiCompatibleProvider> _providerLogger;
+    private readonly IMeteringService _meteringService;
     private readonly AgentRepository _agentRepository;
     private readonly IAuditWriter _auditWriter;
     private readonly ICurrentUserAccessor _currentUserAccessor;
@@ -33,6 +34,7 @@ public sealed class ModelConfigCommandService : IModelConfigCommandService
         IIdGeneratorAccessor idGeneratorAccessor,
         IHttpClientFactory httpClientFactory,
         ILogger<OpenAiCompatibleProvider> providerLogger,
+        IMeteringService meteringService,
         IAuditWriter auditWriter,
         ICurrentUserAccessor currentUserAccessor)
     {
@@ -41,6 +43,7 @@ public sealed class ModelConfigCommandService : IModelConfigCommandService
         _idGeneratorAccessor = idGeneratorAccessor;
         _httpClientFactory = httpClientFactory;
         _providerLogger = providerLogger;
+        _meteringService = meteringService;
         _auditWriter = auditWriter;
         _currentUserAccessor = currentUserAccessor;
     }
@@ -191,6 +194,8 @@ public sealed class ModelConfigCommandService : IModelConfigCommandService
                 request.ProviderType,
                 option,
                 _httpClientFactory.CreateClient("AiPlatform"),
+                tenantId,
+                _meteringService,
                 _providerLogger);
 
             var startedAt = DateTime.UtcNow;
@@ -252,6 +257,8 @@ public sealed class ModelConfigCommandService : IModelConfigCommandService
                 request.ProviderType,
                 option,
                 _httpClientFactory.CreateClient("AiPlatform"),
+                tenantId,
+                _meteringService,
                 _providerLogger);
         }
         catch (Exception ex)

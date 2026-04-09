@@ -1,5 +1,6 @@
 using Atlas.Core.Abstractions;
 using Atlas.Core.Tenancy;
+using SqlSugar;
 
 namespace Atlas.Domain.AiPlatform.Entities;
 
@@ -50,6 +51,8 @@ public sealed class EvaluationCase : TenantEntity
         ExpectedOutput = string.Empty;
         ReferenceOutput = string.Empty;
         TagsJson = "[]";
+        GroundTruthChunkIdsJson = "[]";
+        GroundTruthCitationsJson = "[]";
         CreatedAt = DateTime.UtcNow;
         UpdatedAt = CreatedAt;
     }
@@ -61,6 +64,8 @@ public sealed class EvaluationCase : TenantEntity
         string? expectedOutput,
         string? referenceOutput,
         string? tagsJson,
+        string? groundTruthChunkIdsJson,
+        string? groundTruthCitationsJson,
         long id)
         : base(tenantId)
     {
@@ -70,6 +75,8 @@ public sealed class EvaluationCase : TenantEntity
         ExpectedOutput = expectedOutput ?? string.Empty;
         ReferenceOutput = referenceOutput ?? string.Empty;
         TagsJson = string.IsNullOrWhiteSpace(tagsJson) ? "[]" : tagsJson;
+        GroundTruthChunkIdsJson = string.IsNullOrWhiteSpace(groundTruthChunkIdsJson) ? "[]" : groundTruthChunkIdsJson;
+        GroundTruthCitationsJson = string.IsNullOrWhiteSpace(groundTruthCitationsJson) ? "[]" : groundTruthCitationsJson;
         CreatedAt = DateTime.UtcNow;
         UpdatedAt = CreatedAt;
     }
@@ -78,7 +85,12 @@ public sealed class EvaluationCase : TenantEntity
     public string Input { get; private set; }
     public string ExpectedOutput { get; private set; }
     public string ReferenceOutput { get; private set; }
+    [SugarColumn(ColumnDataType = "TEXT")]
     public string TagsJson { get; private set; }
+    [SugarColumn(ColumnDataType = "TEXT")]
+    public string GroundTruthChunkIdsJson { get; private set; }
+    [SugarColumn(ColumnDataType = "TEXT")]
+    public string GroundTruthCitationsJson { get; private set; }
     public DateTime CreatedAt { get; private set; }
     public DateTime UpdatedAt { get; private set; }
 }
@@ -90,6 +102,7 @@ public sealed class EvaluationTask : TenantEntity
     {
         Name = string.Empty;
         ErrorMessage = string.Empty;
+        AggregateMetricsJson = "{}";
         CreatedAt = DateTime.UtcNow;
         UpdatedAt = CreatedAt;
         StartedAt = DateTime.UnixEpoch;
@@ -101,6 +114,7 @@ public sealed class EvaluationTask : TenantEntity
         string name,
         long datasetId,
         long agentId,
+        bool enableRag,
         long createdByUserId,
         long id)
         : base(tenantId)
@@ -109,12 +123,14 @@ public sealed class EvaluationTask : TenantEntity
         Name = name;
         DatasetId = datasetId;
         AgentId = agentId;
+        EnableRag = enableRag;
         CreatedByUserId = createdByUserId;
         Status = EvaluationTaskStatus.Pending;
         TotalCases = 0;
         CompletedCases = 0;
         Score = 0;
         ErrorMessage = string.Empty;
+        AggregateMetricsJson = "{}";
         CreatedAt = DateTime.UtcNow;
         UpdatedAt = CreatedAt;
         StartedAt = DateTime.UnixEpoch;
@@ -124,12 +140,15 @@ public sealed class EvaluationTask : TenantEntity
     public string Name { get; private set; }
     public long DatasetId { get; private set; }
     public long AgentId { get; private set; }
+    public bool EnableRag { get; private set; }
     public long CreatedByUserId { get; private set; }
     public EvaluationTaskStatus Status { get; private set; }
     public int TotalCases { get; private set; }
     public int CompletedCases { get; private set; }
     public decimal Score { get; private set; }
     public string ErrorMessage { get; private set; }
+    [SugarColumn(ColumnDataType = "TEXT")]
+    public string AggregateMetricsJson { get; private set; }
     public DateTime CreatedAt { get; private set; }
     public DateTime UpdatedAt { get; private set; }
     public DateTime StartedAt { get; private set; }
@@ -145,11 +164,16 @@ public sealed class EvaluationTask : TenantEntity
         ErrorMessage = string.Empty;
     }
 
-    public void MarkCompleted(int completedCases, decimal score)
+    public void MarkCompleted(int completedCases, decimal score, string? aggregateMetricsJson = null)
     {
         Status = EvaluationTaskStatus.Completed;
         CompletedCases = completedCases;
         Score = score;
+        if (!string.IsNullOrWhiteSpace(aggregateMetricsJson))
+        {
+            AggregateMetricsJson = aggregateMetricsJson;
+        }
+
         CompletedAt = DateTime.UtcNow;
         UpdatedAt = CompletedAt;
         ErrorMessage = string.Empty;
@@ -172,6 +196,7 @@ public sealed class EvaluationResult : TenantEntity
     {
         ActualOutput = string.Empty;
         JudgeReason = string.Empty;
+        RagMetricsJson = "{}";
         CreatedAt = DateTime.UtcNow;
     }
 
@@ -182,6 +207,13 @@ public sealed class EvaluationResult : TenantEntity
         string? actualOutput,
         decimal score,
         string? judgeReason,
+        decimal faithfulnessScore,
+        decimal contextPrecisionScore,
+        decimal contextRecallScore,
+        decimal answerRelevanceScore,
+        decimal citationAccuracyScore,
+        decimal hallucinationScore,
+        string? ragMetricsJson,
         EvaluationCaseStatus status,
         long id)
         : base(tenantId)
@@ -192,6 +224,13 @@ public sealed class EvaluationResult : TenantEntity
         ActualOutput = actualOutput ?? string.Empty;
         Score = score;
         JudgeReason = judgeReason ?? string.Empty;
+        FaithfulnessScore = faithfulnessScore;
+        ContextPrecisionScore = contextPrecisionScore;
+        ContextRecallScore = contextRecallScore;
+        AnswerRelevanceScore = answerRelevanceScore;
+        CitationAccuracyScore = citationAccuracyScore;
+        HallucinationScore = hallucinationScore;
+        RagMetricsJson = string.IsNullOrWhiteSpace(ragMetricsJson) ? "{}" : ragMetricsJson;
         Status = status;
         CreatedAt = DateTime.UtcNow;
     }
@@ -201,6 +240,14 @@ public sealed class EvaluationResult : TenantEntity
     public string ActualOutput { get; private set; }
     public decimal Score { get; private set; }
     public string JudgeReason { get; private set; }
+    public decimal FaithfulnessScore { get; private set; }
+    public decimal ContextPrecisionScore { get; private set; }
+    public decimal ContextRecallScore { get; private set; }
+    public decimal AnswerRelevanceScore { get; private set; }
+    public decimal CitationAccuracyScore { get; private set; }
+    public decimal HallucinationScore { get; private set; }
+    [SugarColumn(ColumnDataType = "TEXT")]
+    public string RagMetricsJson { get; private set; }
     public EvaluationCaseStatus Status { get; private set; }
     public DateTime CreatedAt { get; private set; }
 }

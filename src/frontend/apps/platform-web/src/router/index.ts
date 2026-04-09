@@ -48,6 +48,10 @@ export const router = createRouter({
         { path: "console/connectors/capabilities", name: "console-connectors-capabilities", component: () => import("@/pages/console/ConnectorCapabilitiesPage.vue") },
         { path: "console/connectors/command-center", name: "console-connectors-command-center", component: () => import("@/pages/console/ConnectorCommandCenterPage.vue") },
         { path: "console/connectors/command-logs", name: "console-connectors-command-logs", component: () => import("@/pages/console/ConnectorCommandLogsPage.vue") },
+        { path: "console/appbridge/online-apps", name: "console-appbridge-online-apps", component: () => import("@/pages/console/AppBridgeOnlineAppsPage.vue") },
+        { path: "console/appbridge/apps/:appInstanceId/exposure-policy", name: "console-appbridge-exposure-policy", component: () => import("@/pages/console/AppBridgeExposurePolicyPage.vue") },
+        { path: "console/appbridge/command-center", name: "console-appbridge-command-center", component: () => import("@/pages/console/AppBridgeCommandCenterPage.vue") },
+        { path: "console/appbridge/data-browser", name: "console-appbridge-data-browser", component: () => import("@/pages/console/AppBridgeDataBrowserPage.vue") },
         { path: "console/resources", name: "console-resources", component: () => import("@/pages/console/ResourceCenterPage.vue") },
         { path: "console/releases", name: "console-releases", component: () => import("@/pages/console/ReleaseCenterPage.vue") },
         { path: "console/migration-governance", name: "console-migration-governance", component: () => import("@/pages/console/MigrationGovernancePage.vue") },
@@ -103,7 +107,15 @@ export const router = createRouter({
             { path: "logic-flow/:id/designer", name: "app-logic-flow-designer", component: () => import("@/pages/logic-flow/FlowDesignerPage.vue") },
             { path: "flows", name: "app-approval-flows", component: () => import("@/pages/approval/ApprovalFlowsPage.vue") },
             { path: "workflows", name: "app-workflows", component: () => import("@/pages/workflow/WorkflowListPage.vue") },
-            { path: "workflows/:id/editor", name: "app-workflow-editor", component: () => import("@/pages/workflow/WorkflowEditorPage.vue") }
+            { path: "workflows/:id/editor", name: "app-workflow-editor", component: () => import("@/pages/workflow/WorkflowEditorPage.vue") },
+            { path: "capabilities/organization", name: "app-capability-organization", component: () => import("@atlas/capability-ui").then((m) => m.OrganizationCapabilityPage) },
+            { path: "capabilities/agent", name: "app-capability-agent", component: () => import("@atlas/capability-ui").then((m) => m.AgentCapabilityPage) },
+            { path: "capabilities/workflow", name: "app-capability-workflow", component: () => import("@atlas/capability-ui").then((m) => m.WorkflowCapabilityPage) },
+            { path: "capabilities/knowledge", name: "app-capability-knowledge", component: () => import("@atlas/capability-ui").then((m) => m.KnowledgeCapabilityPage) },
+            { path: "capabilities/data", name: "app-capability-data", component: () => import("@atlas/capability-ui").then((m) => m.DataCapabilityPage) },
+            { path: "capabilities/connector", name: "app-capability-connector", component: () => import("@atlas/capability-ui").then((m) => m.ConnectorCapabilityPage) },
+            { path: "capabilities/runtime", name: "app-capability-runtime", component: () => import("@atlas/capability-ui").then((m) => m.RuntimeCapabilityPage) },
+            { path: "capabilities/release", name: "app-capability-release", component: () => import("@atlas/capability-ui").then((m) => m.ReleaseCapabilityPage) }
           ]
         },
 
@@ -116,6 +128,7 @@ export const router = createRouter({
         { path: "ai/agents/:agentId/chat", name: "ai-agent-chat", component: () => import("@/pages/ai/AgentChatPage.vue") },
         { path: "ai/agents/:id/edit", name: "ai-agent-edit", component: () => import("@/pages/ai/AgentEditorPage.vue") },
         { path: "ai/model-configs", name: "ai-model-configs", component: () => import("@/pages/ai/ModelConfigsPage.vue") },
+        { path: "ai/evaluations", name: "ai-evaluations", component: () => import("@/pages/ai/EvaluationTasksPage.vue") },
         { path: "ai/knowledge-bases", name: "ai-knowledge-bases", component: () => import("@/pages/ai/KnowledgeBasesPage.vue") },
         { path: "ai/plugins", name: "ai-plugins", component: () => import("@/pages/ai/AiPluginListPage.vue") },
         { path: "ai/marketplace", name: "ai-marketplace", component: () => import("@/pages/ai/AiMarketplacePage.vue") },

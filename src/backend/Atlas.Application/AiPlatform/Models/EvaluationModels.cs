@@ -21,7 +21,9 @@ public sealed record EvaluationCaseCreateRequest(
     string Input,
     string? ExpectedOutput,
     string? ReferenceOutput,
-    IReadOnlyList<string>? Tags);
+    IReadOnlyList<string>? Tags,
+    IReadOnlyList<long>? GroundTruthChunkIds = null,
+    IReadOnlyList<string>? GroundTruthCitations = null);
 
 public sealed record EvaluationCaseDto(
     long Id,
@@ -30,23 +32,28 @@ public sealed record EvaluationCaseDto(
     string ExpectedOutput,
     string ReferenceOutput,
     IReadOnlyList<string> Tags,
+    IReadOnlyList<long> GroundTruthChunkIds,
+    IReadOnlyList<string> GroundTruthCitations,
     DateTime CreatedAt,
     DateTime UpdatedAt);
 
 public sealed record EvaluationTaskCreateRequest(
     string Name,
     long DatasetId,
-    long AgentId);
+    long AgentId,
+    bool EnableRag = true);
 
 public sealed record EvaluationTaskDto(
     long Id,
     string Name,
     long DatasetId,
     long AgentId,
+    bool EnableRag,
     EvaluationTaskStatus Status,
     int TotalCases,
     int CompletedCases,
     decimal Score,
+    IReadOnlyDictionary<string, decimal> AggregateMetrics,
     string ErrorMessage,
     DateTime CreatedAt,
     DateTime UpdatedAt,
@@ -59,7 +66,14 @@ public sealed record EvaluationResultDto(
     long CaseId,
     string ActualOutput,
     decimal Score,
+    decimal FaithfulnessScore,
+    decimal ContextPrecisionScore,
+    decimal ContextRecallScore,
+    decimal AnswerRelevanceScore,
+    decimal CitationAccuracyScore,
+    decimal HallucinationScore,
     string JudgeReason,
+    IReadOnlyDictionary<string, decimal> Metrics,
     EvaluationCaseStatus Status,
     DateTime CreatedAt);
 

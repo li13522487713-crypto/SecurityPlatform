@@ -83,7 +83,10 @@ export default {
     sidebar_monitor_server_info: "System Monitor",
     "sidebar_monitor_server-info": "System Monitor",
     sidebar_settings_system_datasources: "Data Sources",
-    sidebar_ai_model_configs: "Model Configs"
+    sidebar_ai_model_configs: "Model Configs",
+    sidebar_console_appbridge_online_apps: "Online Apps",
+    sidebar_console_appbridge_command_center: "Command Center",
+    sidebar_console_appbridge_data_browser: "Exposed Data Browser"
   },
   layoutChrome: {
     notifications: "Notifications",
@@ -165,6 +168,7 @@ export default {
     multiAgent: "Multi-Agent",
     aiMarketplace: "AI Marketplace",
     aiConfig: "AI Config",
+    aiEvaluations: "Model Evaluations",
     visualizationCenter: "Visualization Center",
     visualizationDesigner: "Visualization Designer",
     visualizationGovernance: "Visualization Governance",
@@ -2339,6 +2343,10 @@ export default {
       createConvFailed: "Failed to create conversation",
       clearContextOk: "Context cleared",
       clearHistoryOk: "History cleared",
+      feedbackLike: "Helpful",
+      feedbackDislike: "Needs improvement",
+      feedbackSaved: "Feedback submitted",
+      feedbackFailed: "Failed to submit feedback",
       opFailed: "Operation failed",
       reactPanelTitle: "ReAct trace",
       thinkPanelTitle: "Deep thinking completed",
@@ -2477,5 +2485,20 @@ export default {
     reportNeedsFix: "Needs Fix",
     reportSkipped: "Skipped",
     reportErrors: "Warnings during initialization"
+  },
+  aiEvaluation: {
+    title: "Evaluation Tasks",
+    metricsCardTitle: "Aggregate Metric Radar",
+    emptyTip: "Select an evaluation task to view aggregate metrics.",
+    selectedTask: "Selected Task",
+    aggregateScore: "Aggregate Score",
+    completedRate: "Completion Rate",
+    taskName: "Task Name",
+    status: "Status",
+    score: "Score",
+    progress: "Progress",
+    updatedAt: "Updated At",
+    aggregateRadar: "Aggregate Metrics",
+    loadTaskFailed: "Failed to load evaluation tasks."
   }
 };

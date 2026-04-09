@@ -20,6 +20,7 @@ public static class AiRuntimeServiceRegistration
     {
         services.AddScoped<ConversationRepository>();
         services.AddScoped<ChatMessageRepository>();
+        services.AddScoped<AgenticRagRunHistoryRepository>();
         services.AddScoped<TeamAgentConversationRepository>();
         services.AddScoped<TeamAgentMessageRepository>();
         services.AddScoped<TeamAgentExecutionRepository>();
@@ -40,6 +41,8 @@ public static class AiRuntimeServiceRegistration
         services.AddScoped<IAiMemoryService, AiMemoryService>();
         services.AddScoped<ILongTermMemoryExtractionService, LongTermMemoryExtractionService>();
         services.AddScoped<IAiSearchService, AiSearchService>();
+        services.AddScoped<IAgentOrchestrator, RagAgentOrchestratorService>();
+        services.AddScoped<IAgenticRagOrchestrationService, AgenticRagOrchestrationService>();
         services.AddScoped<ITeamAgentOrchestrationRuntime, FrameworkAwareTeamAgentOrchestrationRuntime>();
         services.AddScoped<IAiWorkflowExecutionService, AiWorkflowExecutionService>();
         services.AddSingleton<MultiAgentExecutionTracker>();

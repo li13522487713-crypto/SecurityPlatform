@@ -4,6 +4,7 @@ using Atlas.Application.System.Models;
 using Atlas.Application.Identity.Models;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
+using Atlas.Domain.Platform.Entities;
 
 namespace Atlas.Application.Platform.Abstractions;
 
@@ -12,6 +13,47 @@ public interface IPlatformQueryService
     Task<PlatformOverviewResponse> GetOverviewAsync(TenantId tenantId, CancellationToken cancellationToken = default);
     Task<PlatformResourcesResponse> GetResourcesAsync(TenantId tenantId, CancellationToken cancellationToken = default);
     Task<PagedResult<AppReleaseResponse>> GetReleasesAsync(TenantId tenantId, PagedRequest request, CancellationToken cancellationToken = default);
+}
+
+public interface ICapabilityRegistry
+{
+    Task<IReadOnlyList<CapabilityManifestItem>> GetAllAsync(
+        TenantId tenantId,
+        CancellationToken cancellationToken = default);
+
+    Task<CapabilityManifestItem?> GetByKeyAsync(
+        TenantId tenantId,
+        string capabilityKey,
+        CancellationToken cancellationToken = default);
+}
+
+public interface INavigationProjectionService
+{
+    Task<NavigationProjectionResponse> GetPlatformProjectionAsync(
+        TenantId tenantId,
+        long userId,
+        bool isPlatformAdmin,
+        CancellationToken cancellationToken = default);
+
+    Task<NavigationProjectionResponse> GetWorkspaceProjectionAsync(
+        TenantId tenantId,
+        long appInstanceId,
+        long userId,
+        bool isPlatformAdmin,
+        CancellationToken cancellationToken = default);
+
+    Task<NavigationProjectionResponse> GetWorkspaceProjectionByAppKeyAsync(
+        TenantId tenantId,
+        string appKey,
+        long userId,
+        bool isPlatformAdmin,
+        CancellationToken cancellationToken = default);
+
+    Task<NavigationProjectionResponse> GetRuntimeProjectionAsync(
+        TenantId tenantId,
+        long userId,
+        bool isPlatformAdmin,
+        CancellationToken cancellationToken = default);
 }
 
 public interface IAppManifestQueryService
@@ -53,6 +95,19 @@ public interface IAppReleaseCommandService
     Task<long> CreateReleaseAsync(TenantId tenantId, long userId, long manifestId, string? releaseNote, CancellationToken cancellationToken = default);
     Task<ReleaseRollbackResult> RollbackAsync(TenantId tenantId, long userId, long manifestId, long releaseId, CancellationToken cancellationToken = default);
     Task<ReleasePreCheckResult> PreCheckAsync(TenantId tenantId, long manifestId, CancellationToken cancellationToken = default);
+}
+
+public interface IReleaseBundleQueryService
+{
+    Task<ReleaseBundleResponse?> GetByReleaseIdAsync(
+        TenantId tenantId,
+        long releaseId,
+        CancellationToken cancellationToken = default);
+
+    Task<ReleaseBundleResponse?> GetActiveByManifestIdAsync(
+        TenantId tenantId,
+        long manifestId,
+        CancellationToken cancellationToken = default);
 }
 
 public interface IAppDesignerSnapshotService
@@ -615,6 +670,91 @@ public interface IAppEntryQueryService
         TenantId tenantId,
         string appKey,
         CancellationToken cancellationToken = default);
+}
+
+public interface IAppBridgeQueryService
+{
+    Task<PagedResult<OnlineAppProjectionItem>> QueryOnlineAppsAsync(
+        TenantId tenantId,
+        PagedRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task<OnlineAppProjectionDetail?> GetOnlineAppByInstanceIdAsync(
+        TenantId tenantId,
+        long appInstanceId,
+        CancellationToken cancellationToken = default);
+
+    Task<AppExposurePolicyResponse> GetExposurePolicyAsync(
+        TenantId tenantId,
+        long appInstanceId,
+        CancellationToken cancellationToken = default);
+
+    Task<PagedResult<AppCommandListItem>> QueryCommandsAsync(
+        TenantId tenantId,
+        PagedRequest request,
+        string? appInstanceId = null,
+        string? status = null,
+        CancellationToken cancellationToken = default);
+
+    Task<AppCommandDetail?> GetCommandByIdAsync(
+        TenantId tenantId,
+        long commandId,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<AppCommandDetail>> GetPendingFederatedCommandsAsync(
+        TenantId tenantId,
+        long appInstanceId,
+        CancellationToken cancellationToken = default);
+
+    Task<ExposedDataQueryResponse> QueryExposedDataAsync(
+        TenantId tenantId,
+        long appInstanceId,
+        ExposedDataQueryRequest request,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IAppBridgeCommandService
+{
+    Task<AppExposurePolicyResponse> UpdateExposurePolicyAsync(
+        TenantId tenantId,
+        long userId,
+        long appInstanceId,
+        AppExposurePolicyUpdateRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task<long> CreateCommandAsync(
+        TenantId tenantId,
+        long userId,
+        AppCommandCreateRequest request,
+        string idempotencyKey,
+        CancellationToken cancellationToken = default);
+
+    Task AcknowledgeFederatedCommandAsync(
+        TenantId tenantId,
+        long commandId,
+        FederatedCommandAckRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task CompleteFederatedCommandAsync(
+        TenantId tenantId,
+        long commandId,
+        FederatedCommandResultRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task RegisterFederatedAsync(
+        TenantId tenantId,
+        FederatedRegisterRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task HeartbeatFederatedAsync(
+        TenantId tenantId,
+        FederatedHeartbeatRequest request,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IAppCommandDispatcher
+{
+    Task DispatchLocalAsync(TenantId tenantId, AppCommand command, CancellationToken cancellationToken = default);
 }
 
 public interface ICozeMappingQueryService

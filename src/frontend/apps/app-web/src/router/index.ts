@@ -112,9 +112,49 @@ export const router = createRouter({
           meta: { requiredPermission: APP_PERMISSIONS.APP_MEMBERS_VIEW }
         },
         {
+          path: "capabilities/organization",
+          name: "app-capability-organization",
+          component: () => import("@atlas/capability-ui").then((m) => m.OrganizationCapabilityPage)
+        },
+        {
           path: "ai/agents",
           name: "app-ai-agents",
           component: () => import("@/pages/ai/AgentManagePage.vue")
+        },
+        {
+          path: "capabilities/agent",
+          name: "app-capability-agent",
+          component: () => import("@atlas/capability-ui").then((m) => m.AgentCapabilityPage)
+        },
+        {
+          path: "capabilities/workflow",
+          name: "app-capability-workflow",
+          component: () => import("@atlas/capability-ui").then((m) => m.WorkflowCapabilityPage)
+        },
+        {
+          path: "capabilities/knowledge",
+          name: "app-capability-knowledge",
+          component: () => import("@atlas/capability-ui").then((m) => m.KnowledgeCapabilityPage)
+        },
+        {
+          path: "capabilities/data",
+          name: "app-capability-data",
+          component: () => import("@atlas/capability-ui").then((m) => m.DataCapabilityPage)
+        },
+        {
+          path: "capabilities/connector",
+          name: "app-capability-connector",
+          component: () => import("@atlas/capability-ui").then((m) => m.ConnectorCapabilityPage)
+        },
+        {
+          path: "capabilities/runtime",
+          name: "app-capability-runtime",
+          component: () => import("@atlas/capability-ui").then((m) => m.RuntimeCapabilityPage)
+        },
+        {
+          path: "capabilities/release",
+          name: "app-capability-release",
+          component: () => import("@atlas/capability-ui").then((m) => m.ReleaseCapabilityPage)
         },
         {
           path: "ai/chat/:agentId?",

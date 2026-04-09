@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
+using Atlas.Core.Tenancy;
 using Atlas.Infrastructure.Options;
 using Microsoft.Extensions.Logging;
 
@@ -25,16 +26,22 @@ public sealed class OpenAiCompatibleProvider : ILlmProvider, IEmbeddingProvider
     private readonly HttpClient _httpClient;
     private readonly ILogger<OpenAiCompatibleProvider> _logger;
     private readonly AiProviderOption _option;
+    private readonly TenantId _tenantId;
+    private readonly IMeteringService _meteringService;
 
     public OpenAiCompatibleProvider(
         string providerName,
         AiProviderOption option,
         HttpClient httpClient,
+        TenantId tenantId,
+        IMeteringService meteringService,
         ILogger<OpenAiCompatibleProvider> logger)
     {
         ProviderName = providerName;
         _option = option;
         _httpClient = httpClient;
+        _tenantId = tenantId;
+        _meteringService = meteringService;
         _logger = logger;
 
         if (!string.IsNullOrWhiteSpace(option.BaseUrl))
@@ -66,7 +73,7 @@ public sealed class OpenAiCompatibleProvider : ILlmProvider, IEmbeddingProvider
         }
 
         var first = body.Choices[0];
-        return new ChatCompletionResult(
+        var completionResult = new ChatCompletionResult(
             first.Message?.Content ?? string.Empty,
             body.Model,
             ProviderName,
@@ -75,6 +82,13 @@ public sealed class OpenAiCompatibleProvider : ILlmProvider, IEmbeddingProvider
             body.Usage?.CompletionTokens,
             body.Usage?.TotalTokens,
             first.Message?.ToolCalls?.Select(MapToolCall).ToArray());
+        await TryRecordUsageAsync(
+            request,
+            completionResult.PromptTokens ?? 0,
+            completionResult.CompletionTokens ?? 0,
+            completionResult.TotalTokens ?? 0,
+            ct);
+        return completionResult;
     }
 
     public async IAsyncEnumerable<ChatCompletionChunk> ChatStreamAsync(
@@ -182,12 +196,22 @@ public sealed class OpenAiCompatibleProvider : ILlmProvider, IEmbeddingProvider
             .Select(d => d.Embedding.ToArray())
             .ToArray();
 
-        return new EmbeddingResult(
+        var embeddingResult = new EmbeddingResult(
             vectors,
             body.Model,
             ProviderName,
             body.Usage?.PromptTokens,
             body.Usage?.TotalTokens);
+        await TryRecordUsageAsync(
+            new ChatCompletionRequest(
+                request.Model,
+                [],
+                Provider: "embedding"),
+            promptTokens: body.Usage?.PromptTokens ?? 0,
+            completionTokens: 0,
+            totalTokens: body.Usage?.TotalTokens ?? 0,
+            ct);
+        return embeddingResult;
     }
 
     private static OpenAiTool MapToolDefinition(ChatToolDefinition definition)
@@ -289,6 +313,47 @@ public sealed class OpenAiCompatibleProvider : ILlmProvider, IEmbeddingProvider
                     name = normalized
                 }
             };
+    }
+
+    private async Task TryRecordUsageAsync(
+        ChatCompletionRequest request,
+        int promptTokens,
+        int completionTokens,
+        int totalTokens,
+        CancellationToken cancellationToken)
+    {
+        if (totalTokens <= 0 || _tenantId.IsEmpty)
+        {
+            return;
+        }
+
+        try
+        {
+            var estimatedCost = EstimateCostUsd(promptTokens, completionTokens);
+            await _meteringService.RecordLlmUsageAsync(
+                _tenantId,
+                new LlmUsageRecordCreateRequest(
+                    ProviderName,
+                    request.Model,
+                    request.Provider,
+                    promptTokens,
+                    completionTokens,
+                    totalTokens,
+                    estimatedCost),
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Record LLM usage failed, provider={ProviderName}", ProviderName);
+        }
+    }
+
+    private static decimal EstimateCostUsd(int promptTokens, int completionTokens)
+    {
+        const decimal promptRate = 0.0000005m;
+        const decimal completionRate = 0.0000015m;
+        var cost = (promptTokens * promptRate) + (completionTokens * completionRate);
+        return Math.Round(cost, 8);
     }
 
     private async Task<HttpResponseMessage> SendAsync(string relativePath, object payload, CancellationToken ct)

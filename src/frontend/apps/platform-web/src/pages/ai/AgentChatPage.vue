@@ -60,13 +60,35 @@
           </div>
           <template v-else>
             <a-spin v-if="loadingMessages" />
-            <ChatMessage
-              v-for="(msg, index) in chatMessages"
-              :key="msg.id"
-              :message="msg"
-              :react-steps="msg.reactSteps"
-              :show-typing-cursor="index === chatMessages.length - 1 && msg.role === 'assistant' && isStreaming"
-            />
+            <div v-for="(msg, index) in chatMessages" :key="msg.id">
+              <ChatMessage
+                :message="msg"
+                :react-steps="msg.reactSteps"
+                :show-typing-cursor="index === chatMessages.length - 1 && msg.role === 'assistant' && isStreaming"
+              />
+              <div v-if="msg.role === 'assistant' && !msg.isStreaming" class="chat-feedback">
+                <a-space :size="6">
+                  <a-tooltip :title="t('ai.chat.feedbackLike')">
+                    <a-button
+                      size="small"
+                      :type="feedbackRatings[msg.id] === 1 ? 'primary' : 'default'"
+                      @click="submitFeedback(String(msg.id), 1)"
+                    >
+                      👍
+                    </a-button>
+                  </a-tooltip>
+                  <a-tooltip :title="t('ai.chat.feedbackDislike')">
+                    <a-button
+                      size="small"
+                      :type="feedbackRatings[msg.id] === -1 ? 'primary' : 'default'"
+                      @click="submitFeedback(String(msg.id), -1)"
+                    >
+                      👎
+                    </a-button>
+                  </a-tooltip>
+                </a-space>
+              </div>
+            </div>
             <div v-if="chatError" class="chat-error">
               <a-alert type="error" :message="chatError" show-icon />
             </div>
@@ -191,6 +213,7 @@ import {
   clearConversationContext,
   clearConversationHistory,
   getMessages,
+  createRagFeedback,
   type AgentChatAttachment,
   type ConversationDto
 } from "@/services/api-ai";
@@ -220,6 +243,7 @@ const shouldAutoScroll = ref(true);
 const imageInputRef = ref<HTMLInputElement | null>(null);
 const pendingAttachments = ref<AgentChatAttachment[]>([]);
 const audioRecorder = useAudioRecorder();
+const feedbackRatings = ref<Record<string, 1 | -1>>({});
 
 const chatStore = useStreamChat({
   agentId: () => agentId.value,
@@ -364,6 +388,7 @@ async function handleSend() {
   pendingAttachments.value = [];
   audioRecorder.clear();
   await chatStore.sendMessage(text, attachments);
+  feedbackRatings.value = {};
 
   if (!isMounted.value) return;
   await scrollToBottom(true);
@@ -372,6 +397,28 @@ async function handleSend() {
   await loadConversations();
 
   if (!isMounted.value) return;
+}
+
+async function submitFeedback(queryId: string, rating: 1 | -1) {
+  if (!currentConvId.value) {
+    return;
+  }
+
+  try {
+    await createRagFeedback({
+      queryId,
+      rating,
+      conversationId: currentConvId.value,
+      agentId: agentId.value
+    });
+    feedbackRatings.value = {
+      ...feedbackRatings.value,
+      [queryId]: rating
+    };
+    message.success(t("ai.chat.feedbackSaved"));
+  } catch (err: unknown) {
+    message.error((err as Error).message || t("ai.chat.feedbackFailed"));
+  }
 }
 
 function handleCancel() {
@@ -657,6 +704,12 @@ onMounted(async () => {
 .chat-error {
   margin-top: 8px;
   width: 100%;
+}
+
+.chat-feedback {
+  width: 100%;
+  margin: -10px 0 12px;
+  padding-left: 48px;
 }
 
 .chat-input-area {

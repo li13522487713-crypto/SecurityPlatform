@@ -44,6 +44,12 @@ importers:
       '@atlas/ai-core':
         specifier: workspace:*
         version: link:../../packages/ai-core
+      '@atlas/capability-core':
+        specifier: workspace:*
+        version: link:../../packages/capability-core
+      '@atlas/capability-ui':
+        specifier: workspace:*
+        version: link:../../packages/capability-ui
       '@atlas/connector-core':
         specifier: workspace:*
         version: link:../../packages/connector-core
@@ -53,6 +59,9 @@ importers:
       '@atlas/designer-vue':
         specifier: workspace:*
         version: link:../../packages/designer-vue
+      '@atlas/navigation-projection':
+        specifier: workspace:*
+        version: link:../../packages/navigation-projection
       '@atlas/runtime-core':
         specifier: workspace:*
         version: link:../../packages/runtime-core
@@ -135,6 +144,12 @@ importers:
       '@atlas/ai-core':
         specifier: workspace:*
         version: link:../../packages/ai-core
+      '@atlas/capability-core':
+        specifier: workspace:*
+        version: link:../../packages/capability-core
+      '@atlas/capability-ui':
+        specifier: workspace:*
+        version: link:../../packages/capability-ui
       '@atlas/connector-core':
         specifier: workspace:*
         version: link:../../packages/connector-core
@@ -144,6 +159,9 @@ importers:
       '@atlas/designer-vue':
         specifier: workspace:*
         version: link:../../packages/designer-vue
+      '@atlas/navigation-projection':
+        specifier: workspace:*
+        version: link:../../packages/navigation-projection
       '@atlas/runtime-core':
         specifier: workspace:*
         version: link:../../packages/runtime-core
@@ -225,6 +243,27 @@ importers:
         specifier: ^14.1.2
         version: 14.1.2
 
+  packages/capability-core:
+    dependencies:
+      '@atlas/shared-kernel':
+        specifier: workspace:*
+        version: link:../shared-kernel
+      vue:
+        specifier: ^3.5.0
+        version: 3.5.32(typescript@5.9.3)
+
+  packages/capability-ui:
+    dependencies:
+      '@atlas/shared-kernel':
+        specifier: workspace:*
+        version: link:../shared-kernel
+      vue:
+        specifier: ^3.5.0
+        version: 3.5.32(typescript@5.9.3)
+      vue-router:
+        specifier: ^4.6.0
+        version: 4.6.4(vue@3.5.32(typescript@5.9.3))
+
   packages/connector-core:
     dependencies:
       '@atlas/shared-core':
@@ -269,6 +308,15 @@ importers:
       vue:
         specifier: ^3.5.0
         version: 3.5.32(typescript@5.9.3)
+
+  packages/navigation-projection:
+    dependencies:
+      vue:
+        specifier: ^3.5.0
+        version: 3.5.32(typescript@5.9.3)
+      vue-router:
+        specifier: ^4.6.0
+        version: 4.6.4(vue@3.5.32(typescript@5.9.3))
 
   packages/runtime-core:
     dependencies:
@@ -319,7 +367,11 @@ importers:
         specifier: 4.6.4
         version: 4.6.4(vue@3.5.32(typescript@5.9.3))
 
-  packages/shared-kernel: {}
+  packages/shared-kernel:
+    dependencies:
+      vue:
+        specifier: ^3.5.0
+        version: 3.5.32(typescript@5.9.3)
 
   packages/shared-ui:
     dependencies:

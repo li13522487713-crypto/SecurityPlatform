@@ -276,6 +276,10 @@ public sealed class AppRelease : TenantEntity
     public string? InstallSpec { get; private set; }
     [SugarColumn(IsNullable = true, ColumnDataType = "TEXT")]
     public string? RollbackMetadata { get; private set; }
+    [SugarColumn(IsNullable = true, ColumnDataType = "TEXT")]
+    public string? NavigationSnapshotJson { get; private set; }
+    [SugarColumn(IsNullable = true, ColumnDataType = "TEXT")]
+    public string? ExposureCatalogSnapshotJson { get; private set; }
 
     public void MarkRolledBack(long rollbackPointId)
     {
@@ -321,6 +325,16 @@ public sealed class AppRelease : TenantEntity
     public void SetRollbackMetadata(string? rollbackMetadata)
     {
         RollbackMetadata = rollbackMetadata;
+    }
+
+    public void SetNavigationSnapshot(string? navigationSnapshotJson)
+    {
+        NavigationSnapshotJson = navigationSnapshotJson;
+    }
+
+    public void SetExposureCatalogSnapshot(string? exposureCatalogSnapshotJson)
+    {
+        ExposureCatalogSnapshotJson = exposureCatalogSnapshotJson;
     }
 }
 

@@ -203,6 +203,8 @@ import NotificationBell from "@/components/layout/NotificationBell.vue";
 import LocaleSwitch from "@/components/layout/LocaleSwitch.vue";
 import UnifiedContextBar from "@/components/context/UnifiedContextBar.vue";
 import { resolveRequiredPermission } from "@/router/route-access";
+import { requestApi } from "@/services/api-core";
+import { createNavigationProjectionApi, useNavigationProjection } from "@atlas/navigation-projection";
 
 const { t } = useI18n();
 const route = useRoute();
@@ -214,6 +216,11 @@ const tagsViewStore = useTagsViewStore();
 const isMobileOpen = ref(false);
 const routeDrawerOpen = ref(false);
 const routeSearch = ref("");
+const navigationProjection = useNavigationProjection({
+  hostMode: "platform",
+  api: createNavigationProjectionApi(requestApi),
+  enabled: true
+});
 
 interface SidebarNavItem {
   path: string;
@@ -244,43 +251,52 @@ function hasPermission(permissionCode?: string) {
   return userStore.permissions.includes(permissionCode);
 }
 
-function toSidebarLocaleKey(path: string) {
-  return `consoleLayout.sidebar_${path
-    .replace(/\//g, "_")
-    .replace(/^_/, "")
-    .replace(/-/g, "_")}`;
+function resolveProjectionIcon(groupKey: string, path: string): Component {
+  const key = groupKey.toLowerCase();
+  if (path.startsWith("/console/appbridge")) return AppstoreOutlined;
+  if (key.includes("ai")) return RobotOutlined;
+  if (key.includes("workflow")) return AppstoreOutlined;
+  if (key.includes("monitor")) return DashboardOutlined;
+  if (key.includes("data")) return DatabaseOutlined;
+  if (path.startsWith("/apps/")) return AppstoreOutlined;
+  return HomeOutlined;
 }
 
-const mainNavItemsSource: SidebarNavItem[] = [
-  { path: "/console", label: "", icon: HomeOutlined },
-  { path: "/console/catalog", label: "", icon: InboxOutlined },
-  { path: "/settings/org/users", label: "", icon: TeamOutlined, permissionCode: "users:view" },
-  { path: "/settings/auth/roles", label: "", icon: SafetyCertificateOutlined, permissionCode: "roles:view" },
-];
+function uniqueNavItems(items: SidebarNavItem[]): SidebarNavItem[] {
+  const map = new Map<string, SidebarNavItem>();
+  items.forEach((item) => {
+    if (!map.has(item.path)) {
+      map.set(item.path, item);
+    }
+  });
 
-const monitorNavItemsSource: SidebarNavItem[] = [
-  { path: "/ai/agents", label: "", icon: RobotOutlined, badge: "New" },
-  { path: "/ai/model-configs", label: "", icon: ApiOutlined },
-  { path: "/monitor/server-info", label: "", icon: DashboardOutlined },
-  { path: "/settings/system/datasources", label: "", icon: DatabaseOutlined },
-];
+  return Array.from(map.values());
+}
+
+function mapProjectionItems(groupKey: string, items: Array<{ path: string; title: string; key: string; permissionCode?: string }>): SidebarNavItem[] {
+  return items.map((item) => ({
+    path: item.path,
+    label: item.title,
+    icon: resolveProjectionIcon(groupKey, item.path),
+    permissionCode: item.permissionCode
+  }));
+}
 
 const mainNavItems = computed(() =>
-  mainNavItemsSource
-    .filter((item) => hasPermission(item.permissionCode))
-    .map((item) => ({
-      ...item,
-      label: t(toSidebarLocaleKey(item.path)),
-    }))
+  navigationProjection.groups.value
+    .filter((group) => ["general", "core", "organization"].includes(group.groupKey.toLowerCase()))
+    .flatMap((group) =>
+      mapProjectionItems(group.groupKey, group.items)
+        .filter((item) => hasPermission(item.permissionCode)))
 );
 
 const monitorNavItems = computed(() =>
-  monitorNavItemsSource
-    .filter((item) => hasPermission(item.permissionCode))
-    .map((item) => ({
-      ...item,
-      label: t(toSidebarLocaleKey(item.path)),
-    }))
+  uniqueNavItems(
+    navigationProjection.groups.value
+      .filter((group) => !["general", "core", "organization"].includes(group.groupKey.toLowerCase()))
+      .flatMap((group) => mapProjectionItems(group.groupKey, group.items))
+      .filter((item) => hasPermission(item.permissionCode))
+  )
 );
 
 function isActive(path: string) {

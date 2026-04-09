@@ -1,0 +1,44 @@
+### Navigation Projection V2 API
+
+@baseUrl = http://localhost:5000
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+@appInstanceId = 1
+@appKey = demo
+
+### 登录
+# @name login
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+###
+@accessToken = {{login.response.body.$.data.accessToken}}
+
+### 平台导航投影
+GET {{baseUrl}}/api/v2/navigation/platform
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 预期：groups 中包含 monitor 分组，且有 /console/appbridge/* 三个入口
+
+### 应用工作台导航投影
+GET {{baseUrl}}/api/v2/navigation/apps/{{appInstanceId}}/workspace
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 应用工作台导航投影（按 appKey）
+GET {{baseUrl}}/api/v2/navigation/apps/by-key/{{appKey}}/workspace
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
+### 运行态导航投影
+GET {{baseUrl}}/api/v2/navigation/runtime
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}

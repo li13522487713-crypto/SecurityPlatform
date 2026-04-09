@@ -24,6 +24,14 @@ public static class PlatformServiceRegistration
         services.AddScoped<IAppProjectRepository, AppProjectRepository>();
         services.AddScoped<IAppProjectUserRepository, AppProjectUserRepository>();
         services.AddScoped<IPlatformQueryService, PlatformQueryService>();
+        services.AddScoped<ICapabilityRegistry, CapabilityRegistry>();
+        services.AddScoped<INavigationProjectionService, NavigationProjectionService>();
+        services.AddScoped<IAppBridgeQueryService, AppBridgeService>();
+        services.AddScoped<IAppBridgeCommandService, AppBridgeService>();
+        services.AddScoped<ILocalAppCommandHandler, OrganizationSyncStructureCommandHandler>();
+        services.AddScoped<ILocalAppCommandHandler, RuntimeRestartCommandHandler>();
+        services.AddScoped<ILocalAppCommandHandler, ReleaseActivateCommandHandler>();
+        services.AddScoped<IAppCommandDispatcher, LocalAppCommandDispatcher>();
         services.AddScoped<IAppManifestQueryService, AppManifestQueryService>();
         services.AddScoped<IApplicationCatalogQueryService, ApplicationCatalogQueryService>();
         services.AddScoped<IApplicationCatalogCommandService, ApplicationCatalogCommandService>();
@@ -31,6 +39,7 @@ public static class PlatformServiceRegistration
         services.AddScoped<IAppManifestCommandService, AppManifestCommandService>();
         services.AddScoped<IAppBootstrapService, AppBootstrapService>();
         services.AddScoped<IAppReleaseCommandService, AppReleaseCommandService>();
+        services.AddScoped<IReleaseBundleQueryService, ReleaseBundleQueryService>();
         services.AddScoped<IAppPermissionQueryService, AppPermissionQueryService>();
         services.AddScoped<IAppPermissionCommandService, AppPermissionCommandService>();
         services.AddScoped<IResourceCenterQueryService, ResourceCenterQueryService>();

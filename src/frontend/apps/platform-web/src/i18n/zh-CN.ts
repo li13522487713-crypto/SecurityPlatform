@@ -83,7 +83,10 @@ export default {
     sidebar_monitor_server_info: "系统监控",
     "sidebar_monitor_server-info": "系统监控",
     sidebar_settings_system_datasources: "数据源管理",
-    sidebar_ai_model_configs: "模型管理"
+    sidebar_ai_model_configs: "模型管理",
+    sidebar_console_appbridge_online_apps: "在线应用中心",
+    sidebar_console_appbridge_command_center: "命令中心",
+    sidebar_console_appbridge_data_browser: "暴露数据浏览"
   },
   layoutChrome: {
     notifications: "通知",
@@ -165,6 +168,7 @@ export default {
     multiAgent: "多Agent编排",
     aiMarketplace: "AI 市场",
     aiConfig: "AI 配置",
+    aiEvaluations: "模型评测",
     visualizationCenter: "可视化中心",
     visualizationDesigner: "可视化设计器",
     visualizationGovernance: "可视化治理",
@@ -2336,6 +2340,10 @@ export default {
       createConvFailed: "创建对话失败",
       clearContextOk: "上下文已清除",
       clearHistoryOk: "历史已清除",
+      feedbackLike: "有帮助",
+      feedbackDislike: "需要改进",
+      feedbackSaved: "反馈已记录",
+      feedbackFailed: "反馈提交失败",
       opFailed: "操作失败",
       reactPanelTitle: "ReAct 执行过程",
       thinkPanelTitle: "已深度思考",
@@ -2474,5 +2482,20 @@ export default {
     reportNeedsFix: "待修复",
     reportSkipped: "已跳过",
     reportErrors: "初始化过程中产生的警告"
+  },
+  aiEvaluation: {
+    title: "评测任务",
+    metricsCardTitle: "聚合指标雷达图",
+    emptyTip: "请选择一个评测任务查看聚合指标",
+    selectedTask: "当前任务",
+    aggregateScore: "总分",
+    completedRate: "完成率",
+    taskName: "任务名称",
+    status: "状态",
+    score: "得分",
+    progress: "进度",
+    updatedAt: "更新时间",
+    aggregateRadar: "聚合指标",
+    loadTaskFailed: "加载评测任务失败"
   }
 };

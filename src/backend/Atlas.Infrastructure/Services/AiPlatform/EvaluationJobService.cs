@@ -5,6 +5,7 @@ using Atlas.Core.Tenancy;
 using Atlas.Domain.AiPlatform.Entities;
 using Atlas.Infrastructure.Repositories;
 using Microsoft.Extensions.Logging;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 
 namespace Atlas.Infrastructure.Services.AiPlatform;
@@ -12,6 +13,7 @@ namespace Atlas.Infrastructure.Services.AiPlatform;
 public sealed class EvaluationJobService : IEvaluationJobService
 {
     private static readonly Regex TokenSplitter = new("[\\s,.;:!?，。；：！？]+", RegexOptions.Compiled);
+    private static readonly Regex CitationRegex = new(@"\[C(?<index>\d+)\]", RegexOptions.Compiled);
 
     private readonly EvaluationTaskRepository _taskRepository;
     private readonly EvaluationCaseRepository _caseRepository;
@@ -65,7 +67,8 @@ public sealed class EvaluationJobService : IEvaluationJobService
 
             await _resultRepository.AddRangeAsync(results, CancellationToken.None);
             var average = completedCases == 0 ? 0 : Math.Round(scoreSum / completedCases, 4);
-            task.MarkCompleted(completedCases, average);
+            var aggregateMetrics = BuildAggregateMetrics(results);
+            task.MarkCompleted(completedCases, average, JsonSerializer.Serialize(aggregateMetrics));
             await _taskRepository.UpdateAsync(task, CancellationToken.None);
         }
         catch (Exception ex)
@@ -92,17 +95,32 @@ public sealed class EvaluationJobService : IEvaluationJobService
                 tenantId,
                 task.CreatedByUserId,
                 task.AgentId,
-                new AgentChatRequest(null, evaluationCase.Input, false),
+                new AgentChatRequest(null, evaluationCase.Input, task.EnableRag),
                 CancellationToken.None);
             var score = ScoreResponse(evaluationCase.ExpectedOutput, response.Content, out var reason);
+            var metrics = BuildRagMetrics(evaluationCase, response.Content, score);
+            var metricsJson = JsonSerializer.Serialize(metrics);
             var status = score >= 0.7m ? EvaluationCaseStatus.Passed : EvaluationCaseStatus.Failed;
+            var faithfulness = metrics.GetValueOrDefault("faithfulness");
+            var contextPrecision = metrics.GetValueOrDefault("contextPrecision");
+            var contextRecall = metrics.GetValueOrDefault("contextRecall");
+            var answerRelevance = metrics.GetValueOrDefault("answerRelevance");
+            var citationAccuracy = metrics.GetValueOrDefault("citationAccuracy");
+            var hallucinationRate = metrics.GetValueOrDefault("hallucinationRate");
             return new EvaluationResult(
                 tenantId,
                 task.Id,
                 evaluationCase.Id,
                 response.Content,
                 score,
-                reason,
+                $"{reason} | Faithfulness={faithfulness:F2}, Citation={citationAccuracy:F2}",
+                faithfulness,
+                contextPrecision,
+                contextRecall,
+                answerRelevance,
+                citationAccuracy,
+                hallucinationRate,
+                metricsJson,
                 status,
                 NextIdForBackground());
         }
@@ -115,6 +133,13 @@ public sealed class EvaluationJobService : IEvaluationJobService
                 actualOutput: string.Empty,
                 score: 0,
                 judgeReason: $"执行失败：{ex.Message}",
+                faithfulnessScore: 0,
+                contextPrecisionScore: 0,
+                contextRecallScore: 0,
+                answerRelevanceScore: 0,
+                citationAccuracyScore: 0,
+                hallucinationScore: 1,
+                ragMetricsJson: "{}",
                 status: EvaluationCaseStatus.Error,
                 id: NextIdForBackground());
         }
@@ -164,6 +189,78 @@ public sealed class EvaluationJobService : IEvaluationJobService
             .Select(token => token.Trim())
             .Where(token => token.Length >= 2)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static Dictionary<string, decimal> BuildRagMetrics(
+        EvaluationCase evaluationCase,
+        string actualOutput,
+        decimal lexicalScore)
+    {
+        var expectedCitations = ParseStringArray(evaluationCase.GroundTruthCitationsJson);
+        var actualCitations = CitationRegex.Matches(actualOutput ?? string.Empty)
+            .Select(match => $"C{match.Groups["index"].Value}")
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var citationAccuracy = expectedCitations.Count == 0
+            ? (actualCitations.Count > 0 ? 0.8m : 0.4m)
+            : Math.Round((decimal)actualCitations.Intersect(expectedCitations, StringComparer.OrdinalIgnoreCase).Count() / expectedCitations.Count, 4);
+        var contextPrecision = actualCitations.Count == 0
+            ? 0
+            : Math.Round((decimal)actualCitations.Intersect(expectedCitations, StringComparer.OrdinalIgnoreCase).Count() / actualCitations.Count, 4);
+        var contextRecall = expectedCitations.Count == 0
+            ? (actualCitations.Count > 0 ? 1m : 0m)
+            : Math.Round((decimal)actualCitations.Intersect(expectedCitations, StringComparer.OrdinalIgnoreCase).Count() / expectedCitations.Count, 4);
+        var faithfulness = Math.Clamp(lexicalScore, 0m, 1m);
+        var answerRelevance = Math.Clamp(lexicalScore, 0m, 1m);
+        var hallucinationRate = Math.Clamp(1m - faithfulness, 0m, 1m);
+
+        return new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["faithfulness"] = faithfulness,
+            ["contextPrecision"] = contextPrecision,
+            ["contextRecall"] = contextRecall,
+            ["answerRelevance"] = answerRelevance,
+            ["citationAccuracy"] = citationAccuracy,
+            ["hallucinationRate"] = hallucinationRate
+        };
+    }
+
+    private static IReadOnlyList<string> ParseStringArray(string json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return [];
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<List<string>>(json) ?? [];
+        }
+        catch (JsonException)
+        {
+            return [];
+        }
+    }
+
+    private static Dictionary<string, decimal> BuildAggregateMetrics(IReadOnlyList<EvaluationResult> results)
+    {
+        if (results.Count == 0)
+        {
+            return new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        decimal Average(Func<EvaluationResult, decimal> selector)
+            => Math.Round(results.Average(selector), 4);
+
+        return new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["faithfulness"] = Average(item => item.FaithfulnessScore),
+            ["contextPrecision"] = Average(item => item.ContextPrecisionScore),
+            ["contextRecall"] = Average(item => item.ContextRecallScore),
+            ["answerRelevance"] = Average(item => item.AnswerRelevanceScore),
+            ["citationAccuracy"] = Average(item => item.CitationAccuracyScore),
+            ["hallucinationRate"] = Average(item => item.HallucinationScore)
+        };
     }
 
     private long NextIdForBackground()

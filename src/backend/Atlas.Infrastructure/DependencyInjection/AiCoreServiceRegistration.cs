@@ -1,5 +1,6 @@
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Infrastructure.Options;
+using Atlas.Infrastructure.Repositories;
 using Atlas.Infrastructure.Services.AiPlatform;
 using Atlas.Infrastructure.Services.AiPlatform.CodeExecution;
 using Atlas.Infrastructure.Services.AiPlatform.Parsers;
@@ -30,9 +31,27 @@ public static class AiCoreServiceRegistration
         services.AddSingleton<IVectorDbClient, QdrantVectorDbClient>();
         services.AddSingleton<IVectorStore, VectorStore>();
 
+        services.AddScoped<IQueryRewriter, QueryRewriterService>();
+        services.AddScoped<VectorRetrieverService>();
+        services.AddScoped<Bm25RetrieverService>();
+        services.AddScoped<IRetriever, HybridRagRetrieverService>();
+        services.AddScoped<IKnowledgeGraphProvider, LightweightKnowledgeGraphProvider>();
+        services.AddScoped<IPromptGuard, PromptGuardService>();
+        services.AddScoped<IPiiDetector, PiiDetectorService>();
+        services.AddScoped<IReranker, CrossEncoderRerankerAdapter>();
+        services.AddScoped<IEvidenceScorer, RagEvidenceScorerService>();
+        services.AddScoped<IAnswerSynthesizer, RagAnswerSynthesizerService>();
+        services.AddScoped<IVerificationEngine, RagVerificationEngineService>();
+        services.AddScoped<IRetrievalPipeline, RagRetrievalPipelineService>();
+        services.AddScoped<IRagExperimentService, RagExperimentService>();
+        services.AddScoped<LlmUsageRecordRepository>();
+        services.AddScoped<IMeteringService, MeteringService>();
         services.AddScoped<IRagRetrievalService, RagRetrievalService>();
         services.AddScoped<BM25RetrievalService>();
         services.AddScoped<HybridRetrievalService>();
+        services.AddScoped<CrossEncoderRerankerService>();
+        services.AddScoped<ContextCompressionService>();
+        services.AddScoped<FreshnessBoostService>();
 
         services.AddScoped<IDocumentService, DocumentService>();
         services.AddScoped<IChunkService, ChunkService>();

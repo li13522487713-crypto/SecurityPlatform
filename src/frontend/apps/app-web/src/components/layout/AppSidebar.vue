@@ -55,6 +55,7 @@
 
 <script setup lang="ts">
 import { computed } from "vue";
+import type { Component } from "vue";
 import { useRoute } from "vue-router";
 import { useI18n } from "vue-i18n";
 import {
@@ -75,6 +76,8 @@ import {
   SettingOutlined,
   ControlOutlined
 } from "@ant-design/icons-vue";
+import { requestApi } from "@/services/api-core";
+import { createNavigationProjectionApi, useNavigationProjection } from "@atlas/navigation-projection";
 
 const { t } = useI18n();
 const route = useRoute();
@@ -83,6 +86,13 @@ const props = defineProps<{
   appKey: string;
   collapsed?: boolean;
 }>();
+
+const navigationProjection = useNavigationProjection({
+  hostMode: "app",
+  api: createNavigationProjectionApi(requestApi),
+  appKey: () => props.appKey,
+  enabled: true
+});
 
 const basePath = computed(() => `/apps/${props.appKey}`);
 
@@ -94,7 +104,9 @@ const currentKey = computed(() => {
   if (path.startsWith(`${base}/users`)) return "users";
   if (path.startsWith(`${base}/departments`)) return "departments";
   if (path.startsWith(`${base}/positions`)) return "positions";
+  if (path.startsWith(`${base}/capabilities/organization`)) return "organization";
   if (path.startsWith(`${base}/ai/agents`)) return "agent-management";
+  if (path.startsWith(`${base}/capabilities/agent`)) return "agent";
   if (path.startsWith(`${base}/agents`) || path.startsWith(`${base}/ai/chat`) || path.startsWith(`${base}/ai/assistant`)) return "agents";
   if (path.startsWith(`${base}/multi-agent`)) return "multi-agent";
   if (path.startsWith(`${base}/workflows`)) return "workflows";
@@ -110,39 +122,45 @@ const currentKey = computed(() => {
   return "";
 });
 
-const navGroups = computed(() => [
-  {
-    title: "",
-    items: [
-      { key: "dashboard", name: t("sidebar.overview"), path: `${basePath.value}/dashboard`, icon: DashboardOutlined },
-      { key: "builder", name: t("sidebar.appBuilder"), path: `${basePath.value}/builder`, icon: AppstoreOutlined },
-      { key: "users", name: t("sidebar.userManagement"), path: `${basePath.value}/users`, icon: TeamOutlined },
-      { key: "roles", name: t("sidebar.roleManagement"), path: `${basePath.value}/roles`, icon: SafetyCertificateOutlined },
-      { key: "departments", name: t("sidebar.departmentManagement"), path: `${basePath.value}/departments`, icon: ApartmentOutlined },
-      { key: "positions", name: t("sidebar.positionManagement"), path: `${basePath.value}/positions`, icon: IdcardOutlined },
-    ]
-  },
-  {
-    title: t("sidebar.groupAI"),
-    items: [
-      { key: "agent-management", name: t("sidebar.agentManagement"), path: `${basePath.value}/ai/agents`, icon: RobotOutlined },
-      { key: "agents", name: t("sidebar.aiAssistant"), path: `${basePath.value}/ai/chat`, icon: RobotOutlined, badgeText: "R1" },
-      { key: "multi-agent", name: t("sidebar.multiAgent"), path: `${basePath.value}/multi-agent`, icon: ClusterOutlined },
-      { key: "workflows", name: t("sidebar.workflows"), path: `${basePath.value}/workflows`, icon: PartitionOutlined },
-      { key: "logic-flow", name: t("sidebar.logicFlow"), path: `${basePath.value}/logic-flow`, icon: ThunderboltOutlined },
-    ]
-  },
-  {
-    title: t("sidebar.groupKnowledge"),
-    items: [
-      { key: "knowledge-bases", name: t("sidebar.knowledgeBases"), path: `${basePath.value}/knowledge-bases`, icon: DatabaseOutlined },
-      { key: "prompts", name: t("sidebar.prompts"), path: `${basePath.value}/prompts`, icon: MessageOutlined },
-      { key: "model-configs", name: t("sidebar.modelConfigs"), path: `${basePath.value}/model-configs`, icon: ControlOutlined },
-      { key: "evaluations", name: t("sidebar.evaluations"), path: `${basePath.value}/evaluations`, icon: ExperimentOutlined },
-      { key: "data", name: t("sidebar.formsData"), path: `${basePath.value}/data`, icon: TableOutlined },
-    ]
-  }
-]);
+type SidebarItem = {
+  key: string;
+  name: string;
+  path: string;
+  icon: Component;
+  badgeText?: string;
+};
+
+type SidebarGroup = {
+  title: string;
+  items: SidebarItem[];
+};
+
+function resolveProjectionIcon(groupKey: string, path: string) {
+  const normalizedGroup = groupKey.toLowerCase();
+  if (normalizedGroup.includes("ai")) return RobotOutlined;
+  if (normalizedGroup.includes("workflow")) return PartitionOutlined;
+  if (normalizedGroup.includes("knowledge")) return DatabaseOutlined;
+  if (normalizedGroup.includes("organization")) return TeamOutlined;
+  if (path.includes("/settings")) return SettingOutlined;
+  return AppstoreOutlined;
+}
+
+const projectedNavGroups = computed<SidebarGroup[]>(() =>
+  navigationProjection.groups.value.map((group) => ({
+    title: group.groupTitle,
+    items: group.items.map((item) => ({
+      key: item.key,
+      name: item.title,
+      path: item.path || `${basePath.value}/dashboard`,
+      icon: resolveProjectionIcon(group.groupKey, item.path),
+      badgeText: undefined
+    }))
+  }))
+);
+
+const navGroups = computed<SidebarGroup[]>(() =>
+  projectedNavGroups.value
+);
 </script>
 
 <style scoped>

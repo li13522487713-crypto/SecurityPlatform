@@ -77,4 +77,5 @@ public sealed record RagSearchResult(
     long ChunkId,
     string Content,
     float Score,
-    string? DocumentName);
+    string? DocumentName,
+    DateTime? DocumentCreatedAt = null);

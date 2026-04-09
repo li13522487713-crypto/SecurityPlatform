@@ -507,7 +507,21 @@ public sealed class AppReleaseCommandService : IAppReleaseCommandService
         var snapshotJson = BuildReleaseSnapshotJson(
             manifest, runtimeRoutes, pageCountTask.Result, tableCountTask.Result, now);
         var release = new AppRelease(tenantId, _idGenerator.NextId(), manifestId, manifest.Version, snapshotJson, userId, now);
+        release.SetNavigationSnapshot(BuildNavigationSnapshotJson(runtimeRoutes, now));
+        var exposurePolicy = await _db.Queryable<AppExposurePolicy>()
+            .FirstAsync(item => item.TenantIdValue == tenantId.Value && item.AppInstanceId == manifestId, cancellationToken);
+        release.SetExposureCatalogSnapshot(BuildExposureCatalogSnapshotJson(exposurePolicy, now));
         release.MarkReleased(releaseNote);
+        var releaseBundle = new ReleaseBundle(
+            tenantId,
+            _idGenerator.NextId(),
+            release.Id,
+            manifestId,
+            $"bundle-{manifest.Version}",
+            BuildReleaseBundleUnifiedModelJson(manifest, release, now),
+            BuildReleaseBundleRuntimeProjectionJson(runtimeRoutes, now),
+            userId,
+            now);
 
         var createAudit = new AuditRecord(
             tenantId,
@@ -522,6 +536,7 @@ public sealed class AppReleaseCommandService : IAppReleaseCommandService
         {
             await _db.Updateable(manifest).ExecuteCommandAsync(cancellationToken);
             await _db.Insertable(release).ExecuteCommandAsync(cancellationToken);
+            await _db.Insertable(releaseBundle).ExecuteCommandAsync(cancellationToken);
             await _db.Insertable(createAudit).ExecuteCommandAsync(cancellationToken);
         });
         if (!transaction.IsSuccess)
@@ -709,6 +724,102 @@ public sealed class AppReleaseCommandService : IAppReleaseCommandService
             generatedAt = generatedAt.ToString("O")
         };
         return JsonSerializer.Serialize(snapshot);
+    }
+
+    private static string BuildNavigationSnapshotJson(
+        IReadOnlyCollection<RuntimeRoute> runtimeRoutes,
+        DateTimeOffset generatedAt)
+    {
+        var snapshot = new
+        {
+            generatedAt = generatedAt.ToString("O"),
+            items = runtimeRoutes
+                .OrderBy(item => item.PageKey)
+                .Select(item => new
+                {
+                    item.AppKey,
+                    item.PageKey,
+                    item.SchemaVersion,
+                    item.IsActive
+                })
+                .ToArray()
+        };
+        return JsonSerializer.Serialize(snapshot);
+    }
+
+    private static string BuildExposureCatalogSnapshotJson(
+        AppExposurePolicy? exposurePolicy,
+        DateTimeOffset generatedAt)
+    {
+        if (exposurePolicy is null)
+        {
+            return JsonSerializer.Serialize(new
+            {
+                generatedAt = generatedAt.ToString("O"),
+                appInstanceId = string.Empty,
+                exposedDataSets = Array.Empty<string>(),
+                allowedCommands = Array.Empty<string>(),
+                maskPolicies = "{}"
+            });
+        }
+
+        return JsonSerializer.Serialize(new
+        {
+            generatedAt = generatedAt.ToString("O"),
+            appInstanceId = exposurePolicy.AppInstanceId.ToString(),
+            exposedDataSets = exposurePolicy.ExposedDataSetsJson,
+            allowedCommands = exposurePolicy.AllowedCommandsJson,
+            maskPolicies = exposurePolicy.MaskPoliciesJson
+        });
+    }
+
+    private static string BuildReleaseBundleUnifiedModelJson(
+        AppManifest manifest,
+        AppRelease release,
+        DateTimeOffset generatedAt)
+    {
+        var unified = new
+        {
+            generatedAt = generatedAt.ToString("O"),
+            manifest = new
+            {
+                manifest.Id,
+                manifest.AppKey,
+                manifest.Name,
+                manifest.Version
+            },
+            release = new
+            {
+                release.Id,
+                release.ManifestId,
+                release.Version,
+                release.Status
+            },
+            release.SnapshotJson,
+            release.NavigationSnapshotJson,
+            release.ExposureCatalogSnapshotJson
+        };
+        return JsonSerializer.Serialize(unified);
+    }
+
+    private static string BuildReleaseBundleRuntimeProjectionJson(
+        IReadOnlyCollection<RuntimeRoute> runtimeRoutes,
+        DateTimeOffset generatedAt)
+    {
+        var runtimeProjection = new
+        {
+            generatedAt = generatedAt.ToString("O"),
+            routes = runtimeRoutes.Select(item => new
+            {
+                item.Id,
+                item.AppKey,
+                item.PageKey,
+                item.SchemaVersion,
+                item.IsActive,
+                item.EnvironmentCode
+            }).ToArray()
+        };
+        return JsonSerializer.Serialize(runtimeProjection);
     }
 }
 

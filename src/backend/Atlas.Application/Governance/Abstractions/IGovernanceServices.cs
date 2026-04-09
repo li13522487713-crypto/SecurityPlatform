@@ -25,3 +25,22 @@ public interface IToolAuthorizationService
     Task UpdatePolicyAsync(TenantId tenantId, long userId, long id, ToolAuthorizationPolicyRequest request, CancellationToken cancellationToken = default);
     Task<ToolAuthorizationSimulateResponse> SimulateAsync(TenantId tenantId, ToolAuthorizationSimulateRequest request, CancellationToken cancellationToken = default);
 }
+
+public interface IDlpService
+{
+    Task<IReadOnlyList<DataClassificationResponse>> GetClassificationsAsync(TenantId tenantId, CancellationToken cancellationToken = default);
+    Task<string> CreateClassificationAsync(TenantId tenantId, long userId, DataClassificationRequest request, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<SensitiveLabelResponse>> GetLabelsAsync(TenantId tenantId, CancellationToken cancellationToken = default);
+    Task<string> CreateLabelAsync(TenantId tenantId, long userId, SensitiveLabelRequest request, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<DlpPolicyResponse>> GetPoliciesAsync(TenantId tenantId, CancellationToken cancellationToken = default);
+    Task<string> CreatePolicyAsync(TenantId tenantId, long userId, DlpPolicyRequest request, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<OutboundChannelResponse>> GetOutboundChannelsAsync(TenantId tenantId, CancellationToken cancellationToken = default);
+    Task<string> CreateOutboundChannelAsync(TenantId tenantId, long userId, OutboundChannelRequest request, CancellationToken cancellationToken = default);
+    Task<object> BindMaskPolicyAsync(TenantId tenantId, long userId, DlpBindingRequest request, CancellationToken cancellationToken = default);
+    Task<object> CreateExportJobAsync(TenantId tenantId, long userId, DlpTransferJobRequest request, CancellationToken cancellationToken = default);
+    Task<object> CreateDownloadJobAsync(TenantId tenantId, long userId, DlpTransferJobRequest request, CancellationToken cancellationToken = default);
+    Task<object> CreateExternalShareApprovalAsync(TenantId tenantId, long userId, ExternalShareApprovalRequest request, CancellationToken cancellationToken = default);
+    Task<OutboundCheckResponse> CheckOutboundAsync(TenantId tenantId, long userId, OutboundCheckRequest request, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<LeakageEventResponse>> GetEventsAsync(TenantId tenantId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<EvidencePackageResponse>> GetEvidencePackagesAsync(TenantId tenantId, CancellationToken cancellationToken = default);
+}

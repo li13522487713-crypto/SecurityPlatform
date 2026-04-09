@@ -93,6 +93,7 @@ import type { UserNotificationItem } from "@/services/api-notifications";
 import { useAppUserStore } from "@/stores/user";
 import { getRuntimeMenu } from "@/services/api-runtime";
 import type { RuntimeMenuItem } from "@/types/api";
+import { provideCapabilityHostContext } from "@atlas/shared-kernel/context";
 
 const { t } = useI18n();
 const route = useRoute();
@@ -108,6 +109,13 @@ const tenantDisplay = computed(() => {
 });
 
 const runtimeMenuItems = ref<RuntimeMenuItem[]>([]);
+
+const capabilityHostContext = provideCapabilityHostContext({
+  hostMode: "app",
+  tenantId: userStore.profile?.tenantId,
+  appKey: appKey.value || undefined,
+  permissionSet: userStore.permissions
+});
 
 const changePwdVisible = ref(false);
 const changePwdSubmitting = ref(false);
@@ -211,6 +219,19 @@ async function loadRuntimeMenu() {
 watch(notificationVisible, (open) => {
   if (open) void loadNotifications();
 });
+
+watch(
+  [appKey, () => userStore.profile?.tenantId, () => userStore.permissions],
+  () => {
+    capabilityHostContext.patchContext({
+      hostMode: "app",
+      tenantId: userStore.profile?.tenantId,
+      appKey: appKey.value || undefined,
+      permissionSet: userStore.permissions
+    });
+  },
+  { immediate: true }
+);
 
 onMounted(() => {
   void loadRuntimeMenu();

@@ -21,6 +21,8 @@ public sealed class EvaluationCaseCreateRequestValidator : AbstractValidator<Eva
         RuleFor(x => x.ExpectedOutput).MaximumLength(32000).When(x => !string.IsNullOrWhiteSpace(x.ExpectedOutput));
         RuleFor(x => x.ReferenceOutput).MaximumLength(32000).When(x => !string.IsNullOrWhiteSpace(x.ReferenceOutput));
         RuleForEach(x => x.Tags!).MaximumLength(64).When(x => x.Tags is not null);
+        RuleForEach(x => x.GroundTruthChunkIds!).GreaterThan(0).When(x => x.GroundTruthChunkIds is not null);
+        RuleForEach(x => x.GroundTruthCitations!).MaximumLength(64).When(x => x.GroundTruthCitations is not null);
     }
 }
 

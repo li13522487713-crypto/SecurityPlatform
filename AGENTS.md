@@ -36,9 +36,15 @@ cd src/frontend
 pnpm install                    # 安装所有 workspace 依赖
 pnpm run dev:platform-web       # PlatformWeb 开发服务器 http://localhost:5180
 pnpm run dev:app-web            # AppWeb 开发服务器 http://localhost:5181
+pnpm run dev:app-web:platform   # AppWeb 以平台代理模式启动
+pnpm run dev:app-web:direct     # AppWeb 以直连模式启动
 pnpm run build                  # 构建所有前端项目
 pnpm run build:platform-web     # 仅构建 PlatformWeb
 pnpm run build:app-web          # 仅构建 AppWeb
+pnpm run test:unit              # 运行前端单元测试
+pnpm run test:e2e:setup         # 运行初始化/配置向导 E2E
+pnpm run test:e2e:app           # 运行应用壳 E2E
+pnpm run i18n:check             # 校验中英文词条与 i18n 对齐
 pnpm run lint                   # Lint 所有项目
 pnpm run format                 # 格式化所有项目
 ```
@@ -82,7 +88,7 @@ pnpm run format                 # 格式化所有项目
 ### 前端界面语言与排查
 
 - 语言持久化在浏览器 `localStorage` 键 **`atlas_locale`**，取值为 **`zh-CN`** 或 **`en-US`**（实现见 `src/frontend/apps/platform-web/src/i18n/index.ts` 与 `src/frontend/apps/app-web/src/i18n/index.ts`）。
-- **中英混杂**：先确认 `atlas_locale` 与语言切换器一致；再确认线上/本地使用的是否为最新 **`npm run build`** 产物（避免旧 bundle 缺少新版词条）。
+- **中英混杂**：先确认 `atlas_locale` 与语言切换器一致；再确认线上/本地使用的是否为最新 **`pnpm run build`** 产物（避免旧 bundle 缺少新版词条）。
 - **中英键对齐**：在各应用目录下对比 `zh-CN.ts` / `en-US.ts` 是否同步更新，避免新增 key 漏翻。
 - 未使用 `useI18n` 的 `.vue` 审计清单见 **`docs/frontend-i18n-vue-without-useI18n.md`**。
 
@@ -110,8 +116,9 @@ pnpm run format                 # 格式化所有项目
 
 ## 测试与验证
 
-- **当前：** 无单元测试框架，使用 REST Client `.http` 文件进行接口验证。
-- **新增测试时：** 需记录框架（如 xUnit/NUnit 用于 .NET、Vitest 用于 Vue）、命名模式（如 `*Tests.cs`、`*.spec.ts`）及运行命令。
+- **后端：** 使用 xUnit，测试项目位于 `tests/Atlas.WorkflowCore.Tests` 与 `tests/Atlas.SecurityPlatform.Tests`；接口验证仍需配套 REST Client `.http` 文件。
+- **前端：** 使用 Vitest 进行单元测试、Playwright 进行 E2E 测试，并通过 `pnpm run i18n:check` 做词条完整性校验。
+- **新增测试时：** 优先复用现有 xUnit / Vitest / Playwright 体系，记录命名模式（如 `*Tests.cs`、`*.spec.ts`）与运行命令。
 
 ## 提交与变更
 
@@ -150,8 +157,8 @@ pnpm run format                 # 格式化所有项目
 ### 系统依赖
 
 - **后端：** 需要 .NET 10 SDK（`dotnet-sdk-10.0`），Ubuntu 24.04 可通过 `sudo apt-get install -y dotnet-sdk-10.0` 安装。
-- **前端：** Node.js 22 + npm 10（环境已预装），使用 `npm install` 安装依赖。
-- **Cloud 预装：** 仓库提供 `.cursor/environment.json`，启动时执行 `scripts/cursor-cloud-install.sh`，自动校验 Node 22 并预装 `src/frontend` workspace 依赖。
+- **前端：** 需要 Node.js 22，并使用 `pnpm` 管理 `src/frontend` workspace 依赖；如环境缺少 `pnpm`，通过 Corepack 自动启用。
+- **Cloud 预装：** 仓库提供 `.cursor/environment.json`，启动时执行 `scripts/cursor-cloud-install.sh`，自动校验 Node 22、执行 `dotnet restore`，并在 `src/frontend` 下运行 `pnpm install`。
 
 ### 服务概览
 
@@ -182,11 +189,13 @@ dotnet run --project src/backend/Atlas.AppHost
 
 ### 测试
 
-- `dotnet test tests/Atlas.WorkflowCore.Tests` — 4 个测试全部通过
-- `dotnet test tests/Atlas.SecurityPlatform.Tests --filter "FullyQualifiedName!~Integration"` — 59 个单元/领域测试全部通过
-- 集成测试（`FullyQualifiedName~Integration`）使用 `WebApplicationFactory`，需要 Hangfire SQLite 在测试环境中正确配置
-- `npm run lint`（前端）— 有 2 个预存 ESLint errors 和 155 warnings
-- `npm run build`（前端）— 构建成功
+- 后端工作流测试：`dotnet test tests/Atlas.WorkflowCore.Tests`
+- 后端单元/领域测试：`dotnet test tests/Atlas.SecurityPlatform.Tests --filter "FullyQualifiedName!~Integration"`
+- 后端集成测试：`dotnet test tests/Atlas.SecurityPlatform.Tests --filter "FullyQualifiedName~Integration"`（使用 `WebApplicationFactory`，需正确配置 Hangfire SQLite）
+- 前端单元测试：`cd src/frontend && pnpm run test:unit`
+- 前端 E2E：`cd src/frontend && pnpm run test:e2e:setup`、`cd src/frontend && pnpm run test:e2e:app`
+- 前端国际化校验：`cd src/frontend && pnpm run i18n:check`
+- 前端构建与 Lint：`cd src/frontend && pnpm run build`、`cd src/frontend && pnpm run lint`
 
 ### 构建与 Lint 命令参考
 
