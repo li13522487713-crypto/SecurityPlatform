@@ -165,6 +165,12 @@
 - Schema 主路线：AMIS；`LF(vform3)` 仅保留历史兼容，不再扩展新功能。
 - 表达式统一：CEL（`CelExpressionEngine`），前后端共享一致的校验与求值语义。
 - 上下文优先级：`Tenant > App > Project`。
+- 前端运行时内核共享协议统一落在 `@atlas/runtime-core`：
+  - 动作：`RuntimeAction*`、`ActionResult*`、`RuntimeActionContext`、执行器与注册器。
+  - 绑定：`RuntimeBinding*`、`RuntimeDataClient`、`RuntimeMetadataClient`、`BindingResolver`、`QueryBuilder`。
+  - 生命周期：`RuntimeLifecycleHooks`、`runLifecycleHook`。
+  - 设计器宿主能力：`designer-vue` 提供 `DesignerCanvas` 模式化承载能力与统一事件模型。
+- 运行态请求路径仍以 `api/v1/runtime/*` 与 `api/app/runtime/*` 为主，不要求 `app-web` 与后端重复维护数据访问实现。
 
 ### 上下文优先级细则
 

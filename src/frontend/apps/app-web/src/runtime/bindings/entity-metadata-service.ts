@@ -1,42 +1,40 @@
-/**
- * Entity metadata 查询服务。
- *
- * 调用后端 DynamicTables API 获取表结构元数据，
- * 用于模型驱动的 binding 配置生成。
- */
-
 import type { ApiResponse } from "@atlas/shared-core";
-import { requestApi, resolveAppHostPrefix, isDirectRuntimeMode } from "@/services/api-core";
-import type { EntityFieldMeta, EntityMeta, EntityRelation } from "./entity-metadata-types";
+import { requestApi } from "@/services/api-core";
+import type { EntityMeta, EntityRelation } from "./entity-metadata-types";
+import {
+  getEntityMeta as getEntityMetaCore,
+  getEntityRelations as getEntityRelationsCore,
+  clearMetadataCache as clearMetadataCacheCore,
+  makeMetadataCacheKey,
+  type RuntimeMetadataClient,
+} from "@atlas/runtime-core";
 
 const metadataCache = new Map<string, EntityMeta>();
+
+function createMetadataClient(): RuntimeMetadataClient {
+  return {
+    request: async <T>(url: string, init?: { method?: string; body?: unknown }): Promise<T> => {
+      const response = await requestApi<ApiResponse<T>>(
+        url,
+        {
+          method: init?.method as "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | undefined,
+          body: init?.body === undefined ? undefined : JSON.stringify(init.body),
+        },
+      );
+      return response.data as T;
+    },
+  };
+}
 
 export async function getEntityMeta(
   tableKey: string,
   appKey: string,
 ): Promise<EntityMeta> {
-  const cacheKey = `${appKey}:${tableKey}`;
+  const cacheKey = makeMetadataCacheKey(appKey, tableKey);
   const cached = metadataCache.get(cacheKey);
   if (cached) return cached;
 
-  const prefix = isDirectRuntimeMode() ? "" : resolveAppHostPrefix(appKey);
-  const encodedKey = encodeURIComponent(tableKey);
-
-  const [tableResp, fieldsResp] = await Promise.all([
-    requestApi<ApiResponse<{ tableKey: string; displayName: string }>>(
-      `${prefix}/api/app/dynamic-tables/${encodedKey}`,
-    ),
-    requestApi<ApiResponse<EntityFieldMeta[]>>(
-      `${prefix}/api/app/dynamic-tables/${encodedKey}/fields`,
-    ),
-  ]);
-
-  const meta: EntityMeta = {
-    tableKey,
-    displayName: tableResp.data?.displayName ?? tableKey,
-    fields: fieldsResp.data ?? [],
-  };
-
+  const meta = await getEntityMetaCore(tableKey, appKey, createMetadataClient());
   metadataCache.set(cacheKey, meta);
   return meta;
 }
@@ -45,14 +43,10 @@ export async function getEntityRelations(
   tableKey: string,
   appKey: string,
 ): Promise<EntityRelation[]> {
-  const prefix = isDirectRuntimeMode() ? "" : resolveAppHostPrefix(appKey);
-  const encodedKey = encodeURIComponent(tableKey);
-  const resp = await requestApi<ApiResponse<EntityRelation[]>>(
-    `${prefix}/api/app/dynamic-tables/${encodedKey}/relations`,
-  );
-  return resp.data ?? [];
+  return getEntityRelationsCore(tableKey, appKey, createMetadataClient());
 }
 
 export function clearMetadataCache(): void {
   metadataCache.clear();
+  clearMetadataCacheCore();
 }

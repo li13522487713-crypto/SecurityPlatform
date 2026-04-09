@@ -882,3 +882,42 @@ src/frontend/apps/app-web/src/runtime/
 > **先固定 runtime 核心协议，再扩动作引擎、绑定引擎和治理层，最后再让设计器稳定生产这些协议对应的产物。**
 
 只有这样，`app-web` 才会真正从“页面渲染壳”，演进成“统一应用运行时内核”。
+
+## 19. 第三轮深挖（2026-04）执行同步
+
+### 19.1 迁移落点
+
+- `@atlas/runtime-core` 作为纯协议+执行中枢，不承担框架耦合依赖。
+  - `src/frontend/packages/runtime-core/src/actions/`：动作类型、结果、处理器注册、执行入口。
+  - `src/frontend/packages/runtime-core/src/bindings/`：绑定类型、解析器、查询构造、元数据与记录服务。
+  - `src/frontend/packages/runtime-core/src/lifecycle/`：生命周期钩子定义与执行器。
+- `app-web` 侧边界化接入，只保留适配器能力。
+  - `src/frontend/apps/app-web/src/runtime/actions/action-executor.ts`：注入 `Pinia` 上下文与 `vue-router`。
+  - `src/frontend/apps/app-web/src/runtime/bindings/binding-resolver.ts`：注入运行时 URL 构造函数。
+  - `src/frontend/apps/app-web/src/runtime/bindings/runtime-data-service.ts`：适配 `RuntimeDataClient` 到 `api-runtime`。
+  - `src/frontend/apps/app-web/src/runtime/bindings/entity-metadata-service.ts`：适配 `RuntimeMetadataClient` 到 `api-core/requestApi`。
+- 设计器宿主统一化。
+  - `src/frontend/packages/designer-vue/src/canvas/DesignerCanvas.vue`：以 `mode` + 插槽组合托管实体/关系/视图/转换设计器。
+  - `src/frontend/apps/platform-web/src/pages/dynamic/SharedDesignerPage.vue`：统一消费 `DesignerCanvas`，并按 `mode/tableKey/viewKey` 驱动路由参数。
+  - `src/frontend/apps/platform-web/src/pages/dynamic/DataDesignerPage.vue`：保持兼容委托到 `SharedDesignerPage`。
+
+### 19.2 运行时内核迁移验收清单
+
+- 协议边界
+  - `runtime-core` 目录已承载 `action-types`、`action-result`、`action-registry`、`action-executor`、`binding-*`、`lifecycle-*` 的核心定义与执行逻辑。
+  - `app-web` 侧未重复实现动作求值、绑定解析、绑定执行流程。
+- 接口一致性
+  - `app-web/src/runtime/actions/*`、`app-web/src/runtime/bindings/*` 与 `@atlas/runtime-core` 的类型导出/代理关系一致。
+  - 新增/修改的类型变更已回写到文档契约（`docs/contracts.md`）及接口说明（本文件）。
+- 运行链路
+  - AMIS 事件触发最终进入 `RuntimeActionContext` 的执行入口。
+  - `when` 条件由表达式器在适配层求值并正确支持分支与循环类动作。
+  - 页面生命周期钩子可按 `RuntimeLifecycleHooks` 调度并回传 `ActionExecutionSummary`。
+- 设计器可用性
+  - 页面模式切换由 `mode` 参数驱动，URL 查询参数保持幂等更新。
+  - 现网行为保持兼容，历史入口仍可进入实体/关系/视图/转换模式页面。
+- 质量与交付
+  - `@atlas/runtime-core` 与 `@atlas/designer-vue` 的导出清单保持可追踪（`index.ts` 统一聚合）。
+  - 与等保约束一致：关键写操作带幂等与 CSRF 要求，避免重复数据库访问模式，控制器通过服务层调用。
+- 回归入口
+  - 启动平台+应用工作台链路，确认运行时页面、关系/视图/转换设计器可正常打开和交互。
