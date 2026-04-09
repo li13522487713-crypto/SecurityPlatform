@@ -36,6 +36,7 @@ using Atlas.Infrastructure.Configuration;
 using Atlas.Core.Setup;
 using Microsoft.AspNetCore.Authorization.Policy;
 using Microsoft.AspNetCore.ResponseCompression;
+using Microsoft.AspNetCore.SignalR;
 using Atlas.Core.Models;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
@@ -205,6 +206,7 @@ builder.Services.AddHttpClient("app-runtime-proxy", client =>
     client.BaseAddress = new Uri(baseUrl);
     client.Timeout = TimeSpan.FromSeconds(30);
 });
+builder.Services.AddSignalR();
 
 // ─── HTTP Logging ───
 builder.Services.AddHttpLogging(options =>
@@ -712,6 +714,7 @@ if (setupReadyForRegistration)
 app.MapHealthChecks("/internal/health/live");
 app.MapHealthChecks("/internal/health/ready");
 app.MapControllers();
+app.MapHub<Atlas.Presentation.Shared.Hubs.NotificationHub>("/hubs/notification");
 if (setupReadyForRegistration)
 {
     app.MapReverseProxy();

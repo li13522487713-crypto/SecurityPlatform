@@ -1,6 +1,8 @@
 using Atlas.Infrastructure.DependencyInjection;
 using Atlas.Infrastructure.LogicFlow;
 using Atlas.Infrastructure.BatchProcess;
+using Atlas.Infrastructure.Options;
+using MassTransit;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -10,6 +12,27 @@ public static class AppRuntimeServiceCollectionExtensions
 {
     public static IServiceCollection AddAtlasInfrastructureAppRuntime(this IServiceCollection services, IConfiguration configuration)
     {
+        var rabbitMqOptions = configuration.GetSection(AtlasRabbitMqTransportOptions.SectionName).Get<AtlasRabbitMqTransportOptions>()
+            ?? new AtlasRabbitMqTransportOptions();
+        services.Configure<AtlasRabbitMqTransportOptions>(configuration.GetSection(AtlasRabbitMqTransportOptions.SectionName));
+
+        if (rabbitMqOptions.Enabled)
+        {
+            services.AddMassTransit(configurator =>
+            {
+                configurator.UsingRabbitMq((context, bus) =>
+                {
+                    var hostUri = new Uri($"rabbitmq://{rabbitMqOptions.Host}:{rabbitMqOptions.Port}{rabbitMqOptions.VirtualHost}");
+                    bus.Host(hostUri, host =>
+                    {
+                        host.Username(rabbitMqOptions.Username);
+                        host.Password(rabbitMqOptions.Password);
+                    });
+                    bus.ConfigureEndpoints(context);
+                });
+            });
+        }
+
         services.AddDynamicTableInfrastructure();
         services.AddApprovalInfrastructure();
         services.AddWorkflowInfrastructure();

@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.AiPlatform.Entities;
+using Atlas.Infrastructure.Security;
 using Microsoft.Extensions.Logging;
 
 namespace Atlas.Infrastructure.Services.AiPlatform;
@@ -15,12 +16,15 @@ public sealed class AiPluginRuntimeExecutor
 
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<AiPluginRuntimeExecutor> _logger;
+    private readonly ISecretRefResolver _secretRefResolver;
 
     public AiPluginRuntimeExecutor(
         IHttpClientFactory httpClientFactory,
+        ISecretRefResolver secretRefResolver,
         ILogger<AiPluginRuntimeExecutor> logger)
     {
         _httpClientFactory = httpClientFactory;
+        _secretRefResolver = secretRefResolver;
         _logger = logger;
     }
 
@@ -40,6 +44,7 @@ public sealed class AiPluginRuntimeExecutor
             var baseUrl = ResolveBaseUrl(plugin);
             var requestInput = ParseJsonObject(inputJson);
             var authConfig = ParseJsonObject(plugin.AuthConfigJson);
+            ResolveSecretRefs(authConfig);
             var pathParameters = ExtractObject(requestInput, "path");
             var queryParameters = ExtractObject(requestInput, "query");
             var headerParameters = ExtractObject(requestInput, "headers");
@@ -119,6 +124,34 @@ public sealed class AiPluginRuntimeExecutor
         "query",
         "headers"
     };
+
+    private void ResolveSecretRefs(JsonObject authConfig)
+    {
+        foreach (var key in authConfig.Select(item => item.Key).ToArray())
+        {
+            if (authConfig[key] is JsonObject nested)
+            {
+                ResolveSecretRefs(nested);
+                continue;
+            }
+
+            if (authConfig[key] is not JsonValue valueNode)
+            {
+                continue;
+            }
+
+            if (!valueNode.TryGetValue<string>(out var raw) || string.IsNullOrWhiteSpace(raw))
+            {
+                continue;
+            }
+
+            var resolved = _secretRefResolver.Resolve(raw);
+            if (!string.Equals(resolved, raw, StringComparison.Ordinal))
+            {
+                authConfig[key] = resolved;
+            }
+        }
+    }
 
     private static string ResolveBaseUrl(AiPlugin plugin)
     {

@@ -30,6 +30,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authorization.Policy;
 using Microsoft.AspNetCore.ResponseCompression;
+using Microsoft.AspNetCore.SignalR;
 using Atlas.Presentation.Shared.Authorization;
 using Atlas.Presentation.Shared.Security;
 using Microsoft.Extensions.Localization;
@@ -169,6 +170,7 @@ builder.Services.AddCors(options =>
         }
     });
 });
+builder.Services.AddSignalR();
 
 // ─── Localization ───
 builder.Services.AddLocalization(opts => opts.ResourcesPath = "");
@@ -437,6 +439,7 @@ app.MapGet("/", () => Results.Ok(new
     environment = app.Environment.EnvironmentName
 }));
 app.MapControllers();
+app.MapHub<Atlas.Presentation.Shared.Hubs.NotificationHub>("/hubs/notification");
 
 var startupLogo = """
     ___  _______ _        ___   _____

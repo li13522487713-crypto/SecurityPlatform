@@ -6,6 +6,7 @@
 @password = P@ssw0rd!
 @appInstanceId = 1
 @idempotencyCreate = {{$guid}}
+@idempotencyConflict = {{$guid}}
 
 ### 登录
 # @name login
@@ -83,6 +84,36 @@ Content-Type: application/json
   "appInstanceId": "{{appInstanceId}}",
   "commandType": "organization.sync-structure",
   "payloadJson": "{\"force\":true}",
+  "dryRun": true
+}
+
+### 幂等冲突（同 key + 不同 payload，应返回冲突）
+POST {{baseUrl}}/api/v2/appbridge/commands
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+X-CSRF-TOKEN: {{login.response.headers.X-CSRF-TOKEN}}
+Idempotency-Key: {{idempotencyConflict}}
+Content-Type: application/json
+
+{
+  "appInstanceId": "{{appInstanceId}}",
+  "commandType": "organization.sync-structure",
+  "payloadJson": "{\"force\":true}",
+  "dryRun": true
+}
+
+###
+POST {{baseUrl}}/api/v2/appbridge/commands
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+X-CSRF-TOKEN: {{login.response.headers.X-CSRF-TOKEN}}
+Idempotency-Key: {{idempotencyConflict}}
+Content-Type: application/json
+
+{
+  "appInstanceId": "{{appInstanceId}}",
+  "commandType": "organization.sync-structure",
+  "payloadJson": "{\"force\":false}",
   "dryRun": true
 }
 

@@ -10,6 +10,8 @@ using Atlas.Domain.Audit.Entities;
 using Atlas.Domain.AiPlatform.Entities;
 using Atlas.Infrastructure.Options;
 using Atlas.Infrastructure.Repositories;
+using Atlas.Infrastructure.Security;
+using Atlas.Infrastructure.Caching;
 using Microsoft.Extensions.Logging;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -27,6 +29,8 @@ public sealed class ModelConfigCommandService : IModelConfigCommandService
     private readonly AgentRepository _agentRepository;
     private readonly IAuditWriter _auditWriter;
     private readonly ICurrentUserAccessor _currentUserAccessor;
+    private readonly ISecretRefResolver _secretRefResolver;
+    private readonly IAtlasHybridCache _cache;
 
     public ModelConfigCommandService(
         ModelConfigRepository repository,
@@ -36,7 +40,9 @@ public sealed class ModelConfigCommandService : IModelConfigCommandService
         ILogger<OpenAiCompatibleProvider> providerLogger,
         IMeteringService meteringService,
         IAuditWriter auditWriter,
-        ICurrentUserAccessor currentUserAccessor)
+        ICurrentUserAccessor currentUserAccessor,
+        ISecretRefResolver secretRefResolver,
+        IAtlasHybridCache cache)
     {
         _repository = repository;
         _agentRepository = agentRepository;
@@ -46,6 +52,8 @@ public sealed class ModelConfigCommandService : IModelConfigCommandService
         _meteringService = meteringService;
         _auditWriter = auditWriter;
         _currentUserAccessor = currentUserAccessor;
+        _secretRefResolver = secretRefResolver;
+        _cache = cache;
     }
 
     public async Task<long> CreateAsync(
@@ -88,6 +96,7 @@ public sealed class ModelConfigCommandService : IModelConfigCommandService
             presencePenalty: request.PresencePenalty);
 
         await _repository.AddAsync(entity, cancellationToken);
+        await InvalidateModelConfigCacheAsync(tenantId, cancellationToken);
         return entity.Id;
     }
 
@@ -130,6 +139,7 @@ public sealed class ModelConfigCommandService : IModelConfigCommandService
             frequencyPenalty: request.FrequencyPenalty,
             presencePenalty: request.PresencePenalty);
         await _repository.UpdateAsync(entity, cancellationToken);
+        await InvalidateModelConfigCacheAsync(tenantId, cancellationToken);
     }
 
     public async Task DeleteAsync(TenantId tenantId, long id, CancellationToken cancellationToken)
@@ -161,6 +171,7 @@ public sealed class ModelConfigCommandService : IModelConfigCommandService
         }
 
         await _repository.DeleteAsync(tenantId, entity.Id, cancellationToken);
+        await InvalidateModelConfigCacheAsync(tenantId, cancellationToken);
         await WriteAuditAsync(
             tenantId,
             "Ai.ModelConfig.Deleted",
@@ -382,7 +393,7 @@ public sealed class ModelConfigCommandService : IModelConfigCommandService
     {
         if (!string.IsNullOrWhiteSpace(incomingApiKey))
         {
-            return incomingApiKey;
+            return _secretRefResolver.Resolve(incomingApiKey);
         }
 
         if (!modelConfigId.HasValue)
@@ -397,8 +408,14 @@ public sealed class ModelConfigCommandService : IModelConfigCommandService
             throw new BusinessException("已保存的 ApiKey 为空，请先填写并保存。", ErrorCodes.ValidationError);
         }
 
-        return entity.ApiKey;
+        return _secretRefResolver.Resolve(entity.ApiKey);
     }
+
+    private ValueTask InvalidateModelConfigCacheAsync(TenantId tenantId, CancellationToken cancellationToken)
+        => _cache.RemoveByTagAsync(BuildModelConfigCacheTag(tenantId), cancellationToken);
+
+    private static string BuildModelConfigCacheTag(TenantId tenantId)
+        => $"tag:ai:model-configs:{tenantId.Value:N}";
 
     private sealed class ReasoningStreamSplitter
     {

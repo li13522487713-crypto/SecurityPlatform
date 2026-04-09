@@ -3,6 +3,8 @@ using Atlas.Core.Tenancy;
 using Atlas.Domain.AiPlatform.Entities;
 using Atlas.Infrastructure.Options;
 using Atlas.Infrastructure.Repositories;
+using Atlas.Infrastructure.Security;
+using Atlas.Infrastructure.Caching;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -23,6 +25,8 @@ public sealed class LlmProviderFactory : ILlmProviderFactory
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IMeteringService _meteringService;
     private readonly ILogger<OpenAiCompatibleProvider> _providerLogger;
+    private readonly ISecretRefResolver _secretRefResolver;
+    private readonly IAtlasHybridCache _cache;
 
     public LlmProviderFactory(
         IOptionsMonitor<AiPlatformOptions> options,
@@ -30,6 +34,8 @@ public sealed class LlmProviderFactory : ILlmProviderFactory
         ITenantProvider tenantProvider,
         IHttpClientFactory httpClientFactory,
         IMeteringService meteringService,
+        IAtlasHybridCache cache,
+        ISecretRefResolver secretRefResolver,
         ILogger<OpenAiCompatibleProvider> providerLogger)
     {
         _optionsMonitor = options;
@@ -37,6 +43,8 @@ public sealed class LlmProviderFactory : ILlmProviderFactory
         _tenantProvider = tenantProvider;
         _httpClientFactory = httpClientFactory;
         _meteringService = meteringService;
+        _cache = cache;
+        _secretRefResolver = secretRefResolver;
         _providerLogger = providerLogger;
     }
 
@@ -93,11 +101,19 @@ public sealed class LlmProviderFactory : ILlmProviderFactory
             return null;
         }
 
-        var enabledConfigs = _modelConfigRepository
-            .GetAllEnabledAsync(tenantId, CancellationToken.None)
+        var enabledConfigs = _cache.GetOrCreateAsync(
+                BuildModelConfigCacheKey(tenantId),
+                async ct =>
+                {
+                    var rows = await _modelConfigRepository.GetAllEnabledAsync(tenantId, ct);
+                    return rows.ToArray();
+                },
+                TimeSpan.FromMinutes(2),
+                [BuildModelConfigCacheTag(tenantId)],
+                cancellationToken: CancellationToken.None)
             .GetAwaiter()
             .GetResult();
-        if (enabledConfigs.Count == 0)
+        if (enabledConfigs is null || enabledConfigs.Length == 0)
         {
             return null;
         }
@@ -140,7 +156,7 @@ public sealed class LlmProviderFactory : ILlmProviderFactory
     {
         var option = new AiProviderOption
         {
-            ApiKey = config.ApiKey,
+            ApiKey = _secretRefResolver.Resolve(config.ApiKey),
             BaseUrl = config.BaseUrl,
             DefaultModel = config.DefaultModel,
             SupportsEmbedding = config.SupportsEmbedding
@@ -180,7 +196,7 @@ public sealed class LlmProviderFactory : ILlmProviderFactory
 
         var merged = new AiProviderOption
         {
-            ApiKey = configured.ApiKey,
+            ApiKey = _secretRefResolver.Resolve(configured.ApiKey),
             BaseUrl = ResolveBaseUrl(providerName, configured.BaseUrl),
             DefaultModel = configured.DefaultModel,
             SupportsEmbedding = configured.SupportsEmbedding
@@ -238,4 +254,10 @@ public sealed class LlmProviderFactory : ILlmProviderFactory
 
         throw new InvalidOperationException("No AI provider name specified and no default provider configured.");
     }
+
+    private static string BuildModelConfigCacheKey(TenantId tenantId)
+        => $"ai:model-configs:{tenantId.Value:N}:enabled";
+
+    private static string BuildModelConfigCacheTag(TenantId tenantId)
+        => $"tag:ai:model-configs:{tenantId.Value:N}";
 }

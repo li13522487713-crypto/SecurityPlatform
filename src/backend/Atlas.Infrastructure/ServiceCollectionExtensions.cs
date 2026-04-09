@@ -160,6 +160,8 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton<Atlas.Application.Identity.Abstractions.IAuthCacheService,
             Atlas.Infrastructure.Security.HybridAuthCacheService>();
+        services.AddSingleton<Atlas.Infrastructure.Security.ISecretRefResolver,
+            Atlas.Infrastructure.Security.SecretRefResolver>();
 
         return services;
     }

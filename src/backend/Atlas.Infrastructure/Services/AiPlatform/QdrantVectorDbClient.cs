@@ -4,6 +4,7 @@ using System.Text.Json;
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
 using Atlas.Infrastructure.Options;
+using Atlas.Infrastructure.Security;
 using Microsoft.Extensions.Options;
 
 namespace Atlas.Infrastructure.Services.AiPlatform;
@@ -17,12 +18,17 @@ public sealed class QdrantVectorDbClient : IVectorDbClient
 
     private readonly HttpClient _httpClient;
     private readonly IOptionsMonitor<AiPlatformOptions> _optionsMonitor;
+    private readonly ISecretRefResolver _secretRefResolver;
 
-    public QdrantVectorDbClient(IHttpClientFactory httpClientFactory, IOptionsMonitor<AiPlatformOptions> options)
+    public QdrantVectorDbClient(
+        IHttpClientFactory httpClientFactory,
+        IOptionsMonitor<AiPlatformOptions> options,
+        ISecretRefResolver secretRefResolver)
     {
         ProviderName = "qdrant";
         _httpClient = httpClientFactory.CreateClient("AiPlatform");
         _optionsMonitor = options;
+        _secretRefResolver = secretRefResolver;
     }
 
     public string ProviderName { get; }
@@ -193,7 +199,7 @@ public sealed class QdrantVectorDbClient : IVectorDbClient
     {
         var options = _optionsMonitor.CurrentValue;
         var baseUrl = options.VectorDb.QdrantUrl.TrimEnd('/');
-        var apiKey = options.VectorDb.QdrantApiKey;
+        var apiKey = _secretRefResolver.Resolve(options.VectorDb.QdrantApiKey);
         if (string.IsNullOrWhiteSpace(baseUrl))
         {
             throw new InvalidOperationException("AiPlatform:VectorDb:QdrantUrl 未配置。");
