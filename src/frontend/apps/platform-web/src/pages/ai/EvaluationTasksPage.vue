@@ -39,6 +39,37 @@
         />
       </template>
     </a-card>
+
+    <a-card :title="t('aiEvaluation.shadowReportTitle')" size="small">
+      <a-row :gutter="12" class="evaluation-page__stats">
+        <a-col :span="8">
+          <a-statistic
+            :title="t('aiEvaluation.shadowComparisonCount')"
+            :value="shadowComparisons.length"
+          />
+        </a-col>
+        <a-col :span="8">
+          <a-statistic
+            :title="t('aiEvaluation.shadowAverageOverlap')"
+            :value="shadowAverageOverlap"
+          />
+        </a-col>
+        <a-col :span="8">
+          <a-statistic
+            :title="t('aiEvaluation.shadowAverageGain')"
+            :value="shadowAverageGain"
+          />
+        </a-col>
+      </a-row>
+      <a-table
+        row-key="id"
+        size="small"
+        :columns="shadowColumns"
+        :data-source="shadowComparisons"
+        :loading="shadowLoading"
+        :pagination="false"
+      />
+    </a-card>
   </section>
 </template>
 
@@ -59,6 +90,10 @@ import {
   type EvaluationResultItem,
   type EvaluationTaskItem
 } from "@/services/api-evaluations";
+import {
+  getRagShadowComparisons,
+  type RagShadowComparisonItem
+} from "@/services/api-rag-experiments";
 
 echarts.use([RadarChart, TooltipComponent, RadarComponent, CanvasRenderer]);
 
@@ -81,6 +116,8 @@ const selectedTaskId = ref<string>("");
 const selectedTask = ref<EvaluationTaskItem | null>(null);
 const resultRows = ref<EvaluationResultItem[]>([]);
 const resultLoading = ref(false);
+const shadowLoading = ref(false);
+const shadowComparisons = ref<RagShadowComparisonItem[]>([]);
 
 const taskColumns = computed<TableColumnsType<EvaluationTaskItem>>(() => [
   { title: t("aiEvaluation.taskName"), dataIndex: "name", key: "name", width: 240 },
@@ -106,6 +143,40 @@ const resultColumns = computed<TableColumnsType<EvaluationResultItem>>(() => [
   { title: "Hallucination", dataIndex: "hallucinationScore", key: "hallucinationScore", width: 130 }
 ]);
 
+const shadowColumns = computed<TableColumnsType<RagShadowComparisonItem>>(() => [
+  { title: t("aiEvaluation.shadowExperiment"), dataIndex: "experimentName", key: "experimentName", width: 180 },
+  { title: t("aiEvaluation.shadowMainVariant"), dataIndex: "mainVariant", key: "mainVariant", width: 130 },
+  { title: t("aiEvaluation.shadowVariant"), dataIndex: "shadowVariant", key: "shadowVariant", width: 130 },
+  {
+    title: t("aiEvaluation.shadowOverlap"),
+    dataIndex: "overlapScore",
+    key: "overlapScore",
+    width: 120,
+    customRender: ({ record }) => formatMetricValue(record.overlapScore)
+  },
+  {
+    title: t("aiEvaluation.shadowMainAvg"),
+    dataIndex: "mainAvgScore",
+    key: "mainAvgScore",
+    width: 120,
+    customRender: ({ record }) => formatMetricValue(record.mainAvgScore)
+  },
+  {
+    title: t("aiEvaluation.shadowShadowAvg"),
+    dataIndex: "shadowAvgScore",
+    key: "shadowAvgScore",
+    width: 120,
+    customRender: ({ record }) => formatMetricValue(record.shadowAvgScore)
+  },
+  {
+    title: t("aiEvaluation.shadowGain"),
+    key: "gain",
+    width: 120,
+    customRender: ({ record }) => formatMetricValue(record.shadowAvgScore - record.mainAvgScore)
+  },
+  { title: t("aiEvaluation.updatedAt"), dataIndex: "createdAt", key: "createdAt", width: 220 }
+]);
+
 const pagination = computed(() => ({
   current: taskRequest.value.pageIndex,
   pageSize: taskRequest.value.pageSize,
@@ -119,6 +190,27 @@ const completionRateText = computed(() => {
   }
 
   return `${Math.round((selectedTask.value.completedCases / selectedTask.value.totalCases) * 100)}%`;
+});
+
+const shadowAverageOverlap = computed(() => {
+  if (shadowComparisons.value.length === 0) {
+    return "0.00";
+  }
+
+  const sum = shadowComparisons.value.reduce((acc, item) => acc + Number(item.overlapScore || 0), 0);
+  return (sum / shadowComparisons.value.length).toFixed(2);
+});
+
+const shadowAverageGain = computed(() => {
+  if (shadowComparisons.value.length === 0) {
+    return "0.00";
+  }
+
+  const sum = shadowComparisons.value.reduce(
+    (acc, item) => acc + (Number(item.shadowAvgScore || 0) - Number(item.mainAvgScore || 0)),
+    0
+  );
+  return (sum / shadowComparisons.value.length).toFixed(2);
 });
 
 function buildTaskRowProps(record: EvaluationTaskItem) {
@@ -234,6 +326,17 @@ async function selectTask(taskId: string) {
   }
 }
 
+async function loadShadowComparisons() {
+  shadowLoading.value = true;
+  try {
+    shadowComparisons.value = await getRagShadowComparisons(30);
+  } catch (error) {
+    message.error((error as Error).message || t("aiEvaluation.loadShadowFailed"));
+  } finally {
+    shadowLoading.value = false;
+  }
+}
+
 function onTaskTableChange(page: { current?: number; pageSize?: number }) {
   taskRequest.value = {
     ...taskRequest.value,
@@ -245,6 +348,7 @@ function onTaskTableChange(page: { current?: number; pageSize?: number }) {
 
 onMounted(() => {
   void loadTasks();
+  void loadShadowComparisons();
   window.addEventListener("resize", handleResize);
 });
 

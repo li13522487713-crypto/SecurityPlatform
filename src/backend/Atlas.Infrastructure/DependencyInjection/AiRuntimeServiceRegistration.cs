@@ -40,6 +40,8 @@ public static class AiRuntimeServiceRegistration
         services.AddScoped<IMultimodalService, MultimodalService>();
         services.AddScoped<IAiMemoryService, AiMemoryService>();
         services.AddScoped<ILongTermMemoryExtractionService, LongTermMemoryExtractionService>();
+        services.AddScoped<IOrchestrationCompiler, OrchestrationCompiler>();
+        services.AddScoped<IOrchestrationExecutor, OrchestrationExecutor>();
         services.AddScoped<IAiSearchService, AiSearchService>();
         services.AddScoped<IAgentOrchestrator, RagAgentOrchestratorService>();
         services.AddScoped<IAgenticRagOrchestrationService, AgenticRagOrchestrationService>();

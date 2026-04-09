@@ -8,6 +8,7 @@ using Atlas.Core.Tenancy;
 using Atlas.Domain.Approval.Entities;
 using Atlas.Domain.Approval.Enums;
 using Atlas.Domain.Audit.Entities;
+using Atlas.Domain.AiPlatform.Entities;
 using Atlas.Domain.Identity.Entities;
 using Atlas.Domain.LowCode.Entities;
 using Atlas.Domain.Platform.Entities;
@@ -506,6 +507,24 @@ public sealed class AppReleaseCommandService : IAppReleaseCommandService
         var pageSnapshots = pageSnapshotRows
             .Select(item => new ReleasePageSnapshotInfo(item.PageKey, item.Name, item.RoutePath, item.Icon, item.SortOrder))
             .ToArray();
+        var orchestrationPlanRows = await _db.Queryable<OrchestrationPlan>()
+            .Where(item =>
+                item.TenantIdValue == tenantId.Value
+                && item.AppInstanceId == manifestId
+                && item.Status != OrchestrationPlanStatus.Archived)
+            .OrderBy(item => item.UpdatedAt)
+            .ToListAsync(cancellationToken);
+        var orchestrationPlans = orchestrationPlanRows
+            .Select(item => new ReleaseOrchestrationPlanInfo(
+                item.Id,
+                item.PlanKey,
+                item.PlanName,
+                item.Status.ToString(),
+                item.PublishedVersion,
+                item.NodeGraphJson,
+                item.RuntimePolicyJson,
+                item.UpdatedAt))
+            .ToArray();
 
         var pageCountTask = _db.Queryable<Atlas.Domain.LowCode.Entities.LowCodePage>()
             .CountAsync(x => x.AppId == manifestId, cancellationToken);
@@ -532,7 +551,7 @@ public sealed class AppReleaseCommandService : IAppReleaseCommandService
         release.MarkReleased(releaseNote);
 
         var runtimeManifestSetJson = BuildReleaseBundleRuntimeManifestSetJson(manifest, runtimeRoutes, pageSnapshots, now);
-        var orchestrationPlanSetJson = BuildReleaseBundleOrchestrationPlanSetJson(manifest, now);
+        var orchestrationPlanSetJson = BuildReleaseBundleOrchestrationPlanSetJson(manifest, orchestrationPlans, now);
         var toolReleaseRefsJson = BuildReleaseBundleToolReleaseRefsJson(manifest, now);
         var knowledgeSnapshotRefsJson = BuildReleaseBundleKnowledgeSnapshotRefsJson(manifest, now);
         var resourceBindingSnapshotJson = BuildReleaseBundleResourceBindingSnapshotJson(manifest, exposurePolicy, now);
@@ -966,6 +985,7 @@ public sealed class AppReleaseCommandService : IAppReleaseCommandService
 
     private static string BuildReleaseBundleOrchestrationPlanSetJson(
         AppManifest manifest,
+        IReadOnlyCollection<ReleaseOrchestrationPlanInfo> orchestrationPlans,
         DateTimeOffset generatedAt)
     {
         var payload = new
@@ -973,7 +993,20 @@ public sealed class AppReleaseCommandService : IAppReleaseCommandService
             generatedAt = generatedAt.ToString("O"),
             manifestId = manifest.Id.ToString(),
             appKey = manifest.AppKey,
-            plans = Array.Empty<object>()
+            plans = orchestrationPlans
+                .OrderBy(item => item.PlanKey, StringComparer.OrdinalIgnoreCase)
+                .Select(item => new
+                {
+                    id = item.Id.ToString(),
+                    item.PlanKey,
+                    item.PlanName,
+                    item.Status,
+                    item.PublishedVersion,
+                    item.NodeGraphJson,
+                    item.RuntimePolicyJson,
+                    updatedAt = item.UpdatedAt.ToString("O")
+                })
+                .ToArray()
         };
         return JsonSerializer.Serialize(payload);
     }
@@ -1073,6 +1106,16 @@ public sealed class AppReleaseCommandService : IAppReleaseCommandService
         string? RoutePath,
         string? Icon,
         int SortOrder);
+
+    private sealed record ReleaseOrchestrationPlanInfo(
+        long Id,
+        string PlanKey,
+        string PlanName,
+        string Status,
+        int PublishedVersion,
+        string NodeGraphJson,
+        string RuntimePolicyJson,
+        DateTimeOffset UpdatedAt);
 }
 
 public sealed class RuntimeRouteQueryService : IRuntimeRouteQueryService

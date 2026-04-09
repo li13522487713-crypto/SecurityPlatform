@@ -2528,6 +2528,18 @@ export default {
     progress: "Progress",
     updatedAt: "Updated At",
     aggregateRadar: "Aggregate Metrics",
-    loadTaskFailed: "Failed to load evaluation tasks."
+    loadTaskFailed: "Failed to load evaluation tasks.",
+    shadowReportTitle: "Shadow Comparison Report",
+    shadowComparisonCount: "Comparison Samples",
+    shadowAverageOverlap: "Average Overlap",
+    shadowAverageGain: "Average Gain",
+    shadowExperiment: "Experiment",
+    shadowMainVariant: "Main Variant",
+    shadowVariant: "Shadow Variant",
+    shadowOverlap: "Overlap",
+    shadowMainAvg: "Main Avg",
+    shadowShadowAvg: "Shadow Avg",
+    shadowGain: "Gain Delta",
+    loadShadowFailed: "Failed to load shadow comparison report."
   }
 };

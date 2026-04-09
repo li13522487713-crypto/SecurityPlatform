@@ -2525,6 +2525,18 @@ export default {
     progress: "进度",
     updatedAt: "更新时间",
     aggregateRadar: "聚合指标",
-    loadTaskFailed: "加载评测任务失败"
+    loadTaskFailed: "加载评测任务失败",
+    shadowReportTitle: "Shadow 对比报告",
+    shadowComparisonCount: "对比样本数",
+    shadowAverageOverlap: "平均重叠率",
+    shadowAverageGain: "平均收益",
+    shadowExperiment: "实验",
+    shadowMainVariant: "主路变体",
+    shadowVariant: "影子变体",
+    shadowOverlap: "重叠率",
+    shadowMainAvg: "主路均分",
+    shadowShadowAvg: "影子均分",
+    shadowGain: "收益差",
+    loadShadowFailed: "加载 Shadow 对比报告失败"
   }
 };

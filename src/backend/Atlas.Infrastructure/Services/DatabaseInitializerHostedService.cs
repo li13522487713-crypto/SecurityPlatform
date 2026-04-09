@@ -266,6 +266,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
             typeof(EvaluationCase),
             typeof(EvaluationTask),
             typeof(EvaluationResult),
+            typeof(OrchestrationPlan),
             typeof(RagExperimentRun),
             typeof(RagShadowComparison),
             typeof(RagFeedback),
