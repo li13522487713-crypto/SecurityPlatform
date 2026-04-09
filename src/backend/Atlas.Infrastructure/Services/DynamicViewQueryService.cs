@@ -89,12 +89,14 @@ public sealed class DynamicViewQueryService : IDynamicViewQueryService
 
         var definition = DeserializeRequest(entity.DefinitionJson);
         var plan = _compiler.Compile(definition);
-        return await _runtime.ExecuteAsync(tenantId, appId, plan, request, cancellationToken);
+        var sqlPreview = _compiler.BuildSqlPreview(definition);
+        return await _runtime.ExecutePreferPushdownAsync(tenantId, appId, sqlPreview, plan, request, cancellationToken);
     }
 
     public async Task<DynamicRecordListResult> PreviewAsync(TenantId tenantId, long? appId, DynamicViewPreviewRequest request, CancellationToken cancellationToken)
     {
         var plan = _compiler.Compile(request.Definition);
+        var sqlPreview = _compiler.BuildSqlPreview(request.Definition);
         var query = new DynamicViewRecordsQueryRequest(
             PageIndex: 1,
             PageSize: request.Limit is > 0 and <= 1000 ? request.Limit.Value : 100,
@@ -106,7 +108,7 @@ public sealed class DynamicViewQueryService : IDynamicViewQueryService
             AdvancedQuery = null
         };
 
-        return await _runtime.ExecuteAsync(tenantId, appId, plan, query, cancellationToken);
+        return await _runtime.ExecutePreferPushdownAsync(tenantId, appId, sqlPreview, plan, query, cancellationToken);
     }
 
     public Task<DynamicViewSqlPreviewDto> PreviewSqlAsync(TenantId tenantId, long? appId, DynamicViewSqlPreviewRequest request, CancellationToken cancellationToken)

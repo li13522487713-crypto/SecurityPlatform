@@ -17,7 +17,9 @@
   },
   "scripts": {
     "lint": "echo 'shared-core: no lint configured yet'",
-    "build": "echo 'shared-core: source-only package, no build step'"
+    "build": "echo 'shared-core: source-only package, no build step'",
+    "test": "vitest run --config vitest.config.ts",
+    "test:watch": "vitest --config vitest.config.ts"
   },
   "peerDependencies": {
     "ant-design-vue": "^4.0.0",

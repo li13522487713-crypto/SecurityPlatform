@@ -9,7 +9,7 @@
     "dev:direct": "vite --mode direct",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
-    "lint": "pnpm exec eslint \"src/**/*.{ts,vue}\""
+    "lint": "pnpm exec eslint --max-warnings 0 \"src/**/*.{ts,vue}\""
   },
   "dependencies": {
     "@ant-design/icons-vue": "^7.0.1",

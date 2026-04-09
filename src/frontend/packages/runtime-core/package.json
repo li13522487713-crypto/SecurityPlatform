@@ -10,7 +10,9 @@
   },
   "scripts": {
     "lint": "echo 'runtime-core: no lint configured yet'",
-    "build": "echo 'runtime-core: source-only package, no build step'"
+    "build": "echo 'runtime-core: source-only package, no build step'",
+    "test": "vitest run --config vitest.config.ts",
+    "test:watch": "vitest --config vitest.config.ts"
   },
   "dependencies": {
     "@atlas/shared-core": "workspace:*",

@@ -22,6 +22,7 @@ public sealed class DynamicTablesController : ControllerBase
 {
     private readonly IDynamicTableQueryService _queryService;
     private readonly IDynamicTableCommandService _commandService;
+    private readonly IMigrationService _migrationService;
     private readonly ITenantProvider _tenantProvider;
     private readonly IAppContextAccessor _appContextAccessor;
     private readonly ICurrentUserAccessor _currentUserAccessor;
@@ -35,6 +36,7 @@ public sealed class DynamicTablesController : ControllerBase
     public DynamicTablesController(
         IDynamicTableQueryService queryService,
         IDynamicTableCommandService commandService,
+        IMigrationService migrationService,
         ITenantProvider tenantProvider,
         IAppContextAccessor appContextAccessor,
         ICurrentUserAccessor currentUserAccessor,
@@ -47,6 +49,7 @@ public sealed class DynamicTablesController : ControllerBase
     {
         _queryService = queryService;
         _commandService = commandService;
+        _migrationService = migrationService;
         _tenantProvider = tenantProvider;
         _appContextAccessor = appContextAccessor;
         _currentUserAccessor = currentUserAccessor;
@@ -226,7 +229,7 @@ public sealed class DynamicTablesController : ControllerBase
         }
 
         var tenantId = _tenantProvider.GetTenantId();
-        await _commandService.AlterAsync(tenantId, currentUser.UserId, tableKey, request, cancellationToken);
+        await _migrationService.ApplyDynamicAlterAsync(tenantId, currentUser.UserId, tableKey, request, cancellationToken);
         await RecordAuditAsync(currentUser, "ALTER_DYNAMIC_TABLE_SCHEMA", tableKey, cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { TableKey = tableKey }, HttpContext.TraceIdentifier));
     }
@@ -239,7 +242,7 @@ public sealed class DynamicTablesController : ControllerBase
         CancellationToken cancellationToken)
     {
         var tenantId = _tenantProvider.GetTenantId();
-        var preview = await _commandService.PreviewAlterAsync(tenantId, tableKey, request, cancellationToken);
+        var preview = await _migrationService.PreviewDynamicAlterAsync(tenantId, tableKey, request, cancellationToken);
         return Ok(ApiResponse<DynamicTableAlterPreviewResponse>.Ok(preview, HttpContext.TraceIdentifier));
     }
 

@@ -145,7 +145,7 @@ public sealed class AuditController : ControllerBase
     }
 
     [HttpGet("last-client-error")]
-    [AllowAnonymous]
+    [Authorize(Policy = PermissionPolicies.AuditView)]
     public async Task<ActionResult<string>> GetLastClientError(CancellationToken cancellationToken)
     {
         var result = await _auditQueryService.QueryAuditsAsync(new PagedRequest(1, 10, null, null, true), _tenantProvider.GetTenantId(), "CLIENT_ERROR", null, cancellationToken);

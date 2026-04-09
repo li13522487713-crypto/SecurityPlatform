@@ -47,15 +47,15 @@ export default [
     },
     rules: {
       "@typescript-eslint/no-unused-vars": [
-        "warn",
+        "error",
         {
           varsIgnorePattern: "^_",
           argsIgnorePattern: "^_"
         }
       ],
-      "@typescript-eslint/no-empty-object-type": "warn",
-      "@typescript-eslint/no-explicit-any": "warn",
-      "no-useless-escape": "warn",
+      "@typescript-eslint/no-empty-object-type": "error",
+      "@typescript-eslint/no-explicit-any": "error",
+      "no-useless-escape": "error",
       "no-console": "off",
       "vue/multi-word-component-names": "off",
       "vue/max-attributes-per-line": "off",
@@ -70,15 +70,15 @@ export default [
     files: ["**/*.vue"],
     rules: {
       "@typescript-eslint/no-unused-vars": [
-        "warn",
+        "error",
         {
           varsIgnorePattern: "^_",
           argsIgnorePattern: "^_"
         }
       ],
-      "@typescript-eslint/no-empty-object-type": "warn",
-      "@typescript-eslint/no-explicit-any": "warn",
-      "no-useless-escape": "warn",
+      "@typescript-eslint/no-empty-object-type": "error",
+      "@typescript-eslint/no-explicit-any": "error",
+      "no-useless-escape": "error",
       "vue/max-attributes-per-line": "off",
       "vue/singleline-html-element-content-newline": "off",
       "vue/multiline-html-element-content-newline": "off",

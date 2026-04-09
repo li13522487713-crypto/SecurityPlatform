@@ -111,7 +111,9 @@ X-CSRF-TOKEN: {{csrfToken}}
 Idempotency-Key: {{$guid}}
 Accept-Language: {{localeZh}}
 
-### Trigger Batch Job Execution
+### Trigger Batch Job Execution（experimental：默认关闭）
+# 默认配置下将返回 VALIDATION_ERROR；
+# 如需验证触发链路，请先在配置中开启 BatchProcess:EnableExecution=true 后重启服务。
 # @name triggerExecution
 POST {{baseUrl}}/api/v1/batch-jobs/{{jobId}}/trigger
 Authorization: Bearer {{accessToken}}

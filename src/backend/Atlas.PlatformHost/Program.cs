@@ -285,7 +285,15 @@ var fileStorage = builder.Configuration.GetSection("FileStorage").Get<FileStorag
 var storageProvider = fileStorage.Provider?.Trim().ToLowerInvariant() ?? FileStorageOptions.ProviderLocal;
 if (!builder.Environment.IsDevelopment())
 {
+    var containsInsecurePlaceholder = (string value) =>
+        string.IsNullOrWhiteSpace(value)
+        || string.Equals(value, "PLACEHOLDER__SET_VIA_ENV_JWT_SIGNING_KEY", StringComparison.Ordinal)
+        || string.Equals(value, FileStorageOptions.UnsafeDefaultSignedUrlSecret, StringComparison.Ordinal)
+        || value.Contains("CHANGE_ME", StringComparison.OrdinalIgnoreCase)
+        || value.Contains("PLACEHOLDER__", StringComparison.OrdinalIgnoreCase);
+
     if (string.IsNullOrWhiteSpace(jwt.SigningKey)
+        || containsInsecurePlaceholder(jwt.SigningKey)
         || jwt.SigningKey.Contains("CHANGE_ME", StringComparison.OrdinalIgnoreCase)
         || jwt.SigningKey.Length < 32)
     {
@@ -293,8 +301,7 @@ if (!builder.Environment.IsDevelopment())
     }
 
     if (string.IsNullOrWhiteSpace(fileStorage.SignedUrlSecret)
-        || string.Equals(fileStorage.SignedUrlSecret, FileStorageOptions.UnsafeDefaultSignedUrlSecret, StringComparison.Ordinal)
-        || fileStorage.SignedUrlSecret.Contains("CHANGE_ME", StringComparison.OrdinalIgnoreCase)
+        || containsInsecurePlaceholder(fileStorage.SignedUrlSecret)
         || fileStorage.SignedUrlSecret.Length < 32)
     {
         throw new InvalidOperationException("生产环境必须配置长度不少于32位且非默认值的 FileStorage SignedUrlSecret。");
@@ -360,7 +367,11 @@ if (setupReadyForRegistration)
                 ValidateLifetime = true,
                 ValidIssuer = jwt.Issuer,
                 ValidAudience = jwt.Audience,
-                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.SigningKey)),
+                IssuerSigningKey = new SymmetricSecurityKey(
+                    Encoding.UTF8.GetBytes(
+                        string.Equals(jwt.SigningKey, "PLACEHOLDER__SET_VIA_ENV_JWT_SIGNING_KEY", StringComparison.Ordinal)
+                            ? "temp-dev-signing-key-please-replace-at-runtime-in-production"
+                            : jwt.SigningKey)),
                 NameClaimType = JwtRegisteredClaimNames.Sub,
                 RoleClaimType = ClaimTypes.Role,
                 ClockSkew = TimeSpan.FromMinutes(1)
@@ -478,12 +489,14 @@ if (setupReadyForRegistration)
 
     builder.Services.AddAuthorization(options =>
     {
-        options.DefaultPolicy = new AuthorizationPolicyBuilder(
+        var bearerPolicy = new AuthorizationPolicyBuilder(
                 JwtBearerDefaults.AuthenticationScheme,
                 CertificateAuthenticationDefaults.AuthenticationScheme,
                 PatAuthenticationHandler.SchemeName)
             .RequireAuthenticatedUser()
             .Build();
+        options.DefaultPolicy = bearerPolicy;
+        options.FallbackPolicy = bearerPolicy;
     });
     builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
     builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();

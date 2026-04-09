@@ -229,6 +229,18 @@ builder.Services.AddScoped<IdempotencyFilter>();
 // ─── Antiforgery ───
 var securityOptions = builder.Configuration.GetSection("Security").Get<SecurityOptions>() ?? new SecurityOptions();
 var jwtOptions = builder.Configuration.GetSection("Jwt").Get<JwtOptions>() ?? new JwtOptions();
+var signingKey = jwtOptions.SigningKey;
+if (!builder.Environment.IsDevelopment())
+{
+    if (string.IsNullOrWhiteSpace(signingKey)
+        || string.Equals(signingKey, "PLACEHOLDER__SET_VIA_ENV_JWT_SIGNING_KEY", StringComparison.Ordinal)
+        || signingKey.Contains("CHANGE_ME", StringComparison.OrdinalIgnoreCase)
+        || signingKey.Contains("PLACEHOLDER__", StringComparison.OrdinalIgnoreCase)
+        || signingKey.Length < 32)
+    {
+        throw new InvalidOperationException("生产环境必须配置长度不少于32位且非占位值的JWT SigningKey。");
+    }
+}
 builder.Services.AddAntiforgery(options =>
 {
     options.HeaderName = "X-CSRF-TOKEN";
@@ -256,7 +268,10 @@ if (runtimeReadyForRegistration)
                 ValidateLifetime = true,
                 ValidIssuer = jwtOptions.Issuer,
                 ValidAudience = jwtOptions.Audience,
-                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.SigningKey)),
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(
+                    string.Equals(signingKey, "PLACEHOLDER__SET_VIA_ENV_JWT_SIGNING_KEY", StringComparison.Ordinal)
+                        ? "temp-dev-signing-key-please-replace-at-runtime-in-production"
+                        : signingKey)),
                 NameClaimType = JwtRegisteredClaimNames.Sub,
                 RoleClaimType = ClaimTypes.Role,
                 ClockSkew = TimeSpan.FromMinutes(1)
@@ -282,12 +297,14 @@ if (runtimeReadyForRegistration)
         .AddScheme<AuthenticationSchemeOptions, OpenProjectAuthenticationHandler>(OpenProjectAuthenticationHandler.SchemeName, _ => { });
     builder.Services.AddAuthorization(options =>
     {
-        options.DefaultPolicy = new AuthorizationPolicyBuilder(
+        var bearerPolicy = new AuthorizationPolicyBuilder(
                 JwtBearerDefaults.AuthenticationScheme,
                 CertificateAuthenticationDefaults.AuthenticationScheme,
                 PatAuthenticationHandler.SchemeName)
             .RequireAuthenticatedUser()
             .Build();
+        options.DefaultPolicy = bearerPolicy;
+        options.FallbackPolicy = bearerPolicy;
     });
     builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
     builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
@@ -403,8 +420,9 @@ if (runtimeReadyForRegistration)
     app.UseMiddleware<AntiforgeryValidationMiddleware>();
     app.UseMiddleware<TenantContextMiddleware>();
     app.UseMiddleware<ApiVersionRewriteMiddleware>();
-    app.UseAuthorization();
 }
+
+app.UseAuthorization();
 
 app.MapHealthChecks("/internal/health/live");
 app.MapHealthChecks("/internal/health/ready");

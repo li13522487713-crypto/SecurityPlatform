@@ -17,7 +17,7 @@ public static class AppRuntimeServiceCollectionExtensions
         services.AddAiCoreInfrastructure(configuration);
         services.AddAiRuntimeInfrastructure();
         services.AddLogicFlowInfrastructure();
-        services.AddBatchProcessInfrastructure();
+        services.AddBatchProcessInfrastructure(configuration);
 
         services.AddScoped<Atlas.Application.Integration.IWebhookService, Atlas.Infrastructure.Services.WebhookService>();
         services.AddHttpClient("Webhook").ConfigureHttpClient(c => c.Timeout = TimeSpan.FromSeconds(30));

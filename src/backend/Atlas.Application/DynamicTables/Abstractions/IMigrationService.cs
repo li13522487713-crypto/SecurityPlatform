@@ -6,6 +6,19 @@ namespace Atlas.Application.DynamicTables.Abstractions;
 
 public interface IMigrationService
 {
+    Task ApplyDynamicAlterAsync(
+        TenantId tenantId,
+        long userId,
+        string tableKey,
+        DynamicTableAlterRequest request,
+        CancellationToken cancellationToken);
+
+    Task<DynamicTableAlterPreviewResponse> PreviewDynamicAlterAsync(
+        TenantId tenantId,
+        string tableKey,
+        DynamicTableAlterRequest request,
+        CancellationToken cancellationToken);
+
     Task<PagedResult<MigrationRecordListItem>> QueryAsync(
         PagedRequest request,
         TenantId tenantId,

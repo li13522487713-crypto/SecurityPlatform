@@ -46,6 +46,7 @@ public sealed class MigrationService : IMigrationService
     private readonly IIdGeneratorAccessor _idGeneratorAccessor;
     private readonly IAppDbScopeFactory _appDbScopeFactory;
     private readonly IAppContextAccessor _appContextAccessor;
+    private readonly IDynamicTableCommandService? _dynamicTableCommandService;
     private readonly ISqlSugarClient _mainDb;
 
     public MigrationService(
@@ -55,6 +56,7 @@ public sealed class MigrationService : IMigrationService
         IIdGeneratorAccessor idGeneratorAccessor,
         IAppDbScopeFactory appDbScopeFactory,
         IAppContextAccessor appContextAccessor,
+        IDynamicTableCommandService? dynamicTableCommandService,
         ISqlSugarClient mainDb)
     {
         _migrationRecordRepository = migrationRecordRepository;
@@ -63,6 +65,7 @@ public sealed class MigrationService : IMigrationService
         _idGeneratorAccessor = idGeneratorAccessor;
         _appDbScopeFactory = appDbScopeFactory;
         _appContextAccessor = appContextAccessor;
+        _dynamicTableCommandService = dynamicTableCommandService;
         _mainDb = mainDb;
     }
 
@@ -79,8 +82,38 @@ public sealed class MigrationService : IMigrationService
             idGeneratorAccessor,
             new MainOnlyAppDbScopeFactory(db),
             NullAppContextAccessor.Instance,
+            dynamicTableCommandService: null,
             db)
     {
+    }
+
+    public Task ApplyDynamicAlterAsync(
+        TenantId tenantId,
+        long userId,
+        string tableKey,
+        DynamicTableAlterRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (_dynamicTableCommandService is null)
+        {
+            throw new BusinessException(ErrorCodes.ServerError, "DynamicAlterBridgeUnavailable");
+        }
+
+        return _dynamicTableCommandService.AlterAsync(tenantId, userId, tableKey, request, cancellationToken);
+    }
+
+    public Task<DynamicTableAlterPreviewResponse> PreviewDynamicAlterAsync(
+        TenantId tenantId,
+        string tableKey,
+        DynamicTableAlterRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (_dynamicTableCommandService is null)
+        {
+            throw new BusinessException(ErrorCodes.ServerError, "DynamicAlterBridgeUnavailable");
+        }
+
+        return _dynamicTableCommandService.PreviewAlterAsync(tenantId, tableKey, request, cancellationToken);
     }
 
     public async Task<PagedResult<MigrationRecordListItem>> QueryAsync(

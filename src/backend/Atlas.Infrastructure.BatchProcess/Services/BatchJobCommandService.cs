@@ -3,9 +3,12 @@ using Atlas.Application.BatchProcess.Models;
 using Atlas.Application.BatchProcess.Repositories;
 using Atlas.Core.Abstractions;
 using Atlas.Core.Exceptions;
+using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
+using Atlas.Infrastructure.BatchProcess.Options;
 using Atlas.Domain.BatchProcess.Entities;
 using Atlas.Domain.BatchProcess.Enums;
+using Microsoft.Extensions.Options;
 
 namespace Atlas.Infrastructure.BatchProcess.Services;
 
@@ -13,11 +16,16 @@ public sealed class BatchJobCommandService : IBatchJobCommandService
 {
     private readonly IBatchJobRepository _repository;
     private readonly IIdGeneratorAccessor _idGen;
+    private readonly BatchProcessRuntimeOptions _runtimeOptions;
 
-    public BatchJobCommandService(IBatchJobRepository repository, IIdGeneratorAccessor idGen)
+    public BatchJobCommandService(
+        IBatchJobRepository repository,
+        IIdGeneratorAccessor idGen,
+        IOptions<BatchProcessRuntimeOptions> runtimeOptions)
     {
         _repository = repository;
         _idGen = idGen;
+        _runtimeOptions = runtimeOptions.Value;
     }
 
     public async Task<long> CreateAsync(BatchJobCreateRequest request, TenantId tenantId, string createdBy, CancellationToken cancellationToken)
@@ -97,6 +105,13 @@ public sealed class BatchJobCommandService : IBatchJobCommandService
 
     public async Task<long> TriggerAsync(long id, TenantId tenantId, string triggeredBy, CancellationToken cancellationToken)
     {
+        if (!_runtimeOptions.EnableExecution)
+        {
+            throw new BusinessException(
+                ErrorCodes.ValidationError,
+                "批处理执行能力当前处于 experimental 阶段，默认关闭。请在配置中开启 BatchProcess:EnableExecution 后再触发。");
+        }
+
         var entity = await _repository.GetByIdAsync(id, cancellationToken)
             ?? throw new BusinessException("NOT_FOUND", "批处理任务不存在");
 

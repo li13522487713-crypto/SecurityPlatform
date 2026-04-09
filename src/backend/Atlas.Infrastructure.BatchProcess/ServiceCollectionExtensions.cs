@@ -9,15 +9,23 @@ using Atlas.Infrastructure.BatchProcess.Scheduling;
 using Atlas.Infrastructure.BatchProcess.Services;
 using Atlas.Infrastructure.BatchProcess.Sharding;
 using Atlas.Infrastructure.BatchProcess.Splitting;
+using Atlas.Infrastructure.BatchProcess.Options;
 using FluentValidation;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Atlas.Infrastructure.BatchProcess;
 
 public static class ServiceCollectionExtensions
 {
-    public static IServiceCollection AddBatchProcessInfrastructure(this IServiceCollection services)
+    public static IServiceCollection AddBatchProcessInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
+        services.Configure<BatchProcessRuntimeOptions>(options =>
+        {
+            var configuredValue = configuration[$"{BatchProcessRuntimeOptions.SectionName}:{nameof(BatchProcessRuntimeOptions.EnableExecution)}"];
+            options.EnableExecution = bool.TryParse(configuredValue, out var parsed) && parsed;
+        });
+
         services.AddScoped<IBatchJobRepository, BatchJobRepository>();
         services.AddScoped<IBatchDeadLetterRepository, BatchDeadLetterRepository>();
         services.AddScoped<IBatchCheckpointRepository, BatchCheckpointRepository>();

@@ -6,3 +6,8 @@ export { default as DataSourceSelector } from "./components/DataSourceSelector.v
 export { default as AuditTimeline } from "./components/AuditTimeline.vue";
 export { default as ObjectPicker } from "./components/ObjectPicker.vue";
 export { default as RuntimeStatusCard } from "./components/RuntimeStatusCard.vue";
+export {
+  DYNAMIC_TABLES_MAX_PAGE_SIZE,
+  createSharedDynamicTablesApi
+} from "./services/dynamic-tables-shared-api";
+export type { AppScopedDynamicTableListItem } from "./services/dynamic-tables-shared-api";

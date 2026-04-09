@@ -1,5 +1,7 @@
 import type { ApiResponse, PagedRequest, PagedResult } from "@atlas/shared-core";
 import { getProjectId } from "@atlas/shared-core";
+import { createSharedDynamicTablesApi } from "@atlas/shared-biz";
+import type { AppScopedDynamicTableListItem as SharedAppScopedDynamicTableListItem } from "@atlas/shared-biz";
 import { requestApi } from "./api-core";
 import type { RequestOptions } from "./api-core";
 import type {
@@ -12,15 +14,7 @@ import type {
   DynamicTableListItem,
   DynamicTableSummary
 } from "@/types/dynamic-tables";
-
-/** 与后端 PagedRequestValidator 中 PageSize 上限一致 */
-export const DYNAMIC_TABLES_MAX_PAGE_SIZE = 200;
-
-export interface AppScopedDynamicTableListItem {
-  tableKey: string;
-  displayName: string;
-  status?: string;
-}
+export type AppScopedDynamicTableListItem = SharedAppScopedDynamicTableListItem;
 
 export interface DeleteCheckBlocker {
   type: "form" | "page" | "approval" | "relation" | "view" | "etlJob";
@@ -35,72 +29,33 @@ export interface DeleteCheckResult {
   warnings: string[];
 }
 
-export async function getDynamicTablesPaged(
+const sharedDynamicTablesApi = createSharedDynamicTablesApi<
+  DynamicTableListItem,
+  DynamicTableSummary,
+  DynamicFieldDefinition,
+  DynamicTableCreateRequest,
+  DeleteCheckResult,
+  { id: string }
+>({
+  requestApi
+});
+
+export const getDynamicTablesPaged = (
   pagedRequest: PagedRequest,
   options?: RequestInit & RequestOptions
-) {
-  const queryParams = new URLSearchParams({
-    PageIndex: pagedRequest.pageIndex.toString(),
-    PageSize: pagedRequest.pageSize.toString()
-  });
-  const keyword = pagedRequest.keyword?.trim();
-  if (keyword) {
-    queryParams.set("Keyword", keyword);
-  }
-  const query = queryParams.toString();
-  const response = await requestApi<ApiResponse<PagedResult<DynamicTableListItem>>>(
-    `/dynamic-tables?${query}`,
-    undefined,
-    options
-  );
-  if (!response.data) {
-    throw new Error(response.message || "查询失败");
-  }
-  return response.data;
-}
+): Promise<PagedResult<DynamicTableListItem>> =>
+  sharedDynamicTablesApi.getDynamicTablesPaged(pagedRequest, options);
 
-export async function getAllDynamicTables(
+export const getAllDynamicTables = (
   keyword?: string,
   options?: RequestInit & RequestOptions
-): Promise<DynamicTableListItem[]> {
-  const collected: DynamicTableListItem[] = [];
-  let pageIndex = 1;
-  while (true) {
-    const response = await getDynamicTablesPaged(
-      { pageIndex, pageSize: DYNAMIC_TABLES_MAX_PAGE_SIZE, keyword: keyword ?? "" },
-      options
-    );
-    collected.push(...response.items);
-    if (response.items.length < DYNAMIC_TABLES_MAX_PAGE_SIZE || collected.length >= response.total) {
-      break;
-    }
-    pageIndex += 1;
-  }
-  return collected;
-}
+): Promise<DynamicTableListItem[]> => sharedDynamicTablesApi.getAllDynamicTables(keyword, options);
 
-export async function getAppScopedDynamicTables(
+export const getAppScopedDynamicTables = (
   appId: string,
   keyword?: string
-): Promise<AppScopedDynamicTableListItem[]> {
-  const parsedAppId = Number(appId);
-  if (!Number.isFinite(parsedAppId) || parsedAppId <= 0) {
-    return [];
-  }
-  const queryParams = new URLSearchParams();
-  const normalizedKeyword = keyword?.trim();
-  if (normalizedKeyword) {
-    queryParams.set("keyword", normalizedKeyword);
-  }
-  const query = queryParams.toString();
-  const endpoint = `/api/v2/tenant-app-instances/${parsedAppId}/roles/available-dynamic-tables${query ? `?${query}` : ""}`;
-  const response = await requestApi<ApiResponse<Array<{ tableKey: string; displayName: string }>>>(endpoint);
-  const items = response.data ?? [];
-  return items.map((item) => ({
-    tableKey: item.tableKey,
-    displayName: item.displayName
-  }));
-}
+): Promise<AppScopedDynamicTableListItem[]> =>
+  sharedDynamicTablesApi.getAppScopedDynamicTables(appId, keyword);
 
 export function getCurrentProjectAppId(): string | null {
   const projectId = getProjectId();
@@ -111,22 +66,11 @@ export function getCurrentProjectAppId(): string | null {
   return normalized.length > 0 ? normalized : null;
 }
 
-export async function getDynamicTableSummary(tableKey: string): Promise<DynamicTableSummary | null> {
-  const response = await requestApi<ApiResponse<DynamicTableSummary | null>>(
-    `/dynamic-tables/${encodeURIComponent(tableKey)}/summary`
-  );
-  return response.data ?? null;
-}
+export const getDynamicTableSummary = (tableKey: string): Promise<DynamicTableSummary | null> =>
+  sharedDynamicTablesApi.getDynamicTableSummary(tableKey);
 
-export async function getDynamicTableFields(tableKey: string): Promise<DynamicFieldDefinition[]> {
-  const response = await requestApi<ApiResponse<DynamicFieldDefinition[]>>(
-    `/dynamic-tables/${encodeURIComponent(tableKey)}/fields`
-  );
-  if (!response.data) {
-    throw new Error(response.message || "查询失败");
-  }
-  return response.data;
-}
+export const getDynamicTableFields = (tableKey: string): Promise<DynamicFieldDefinition[]> =>
+  sharedDynamicTablesApi.getDynamicTableFields(tableKey);
 
 export async function getDynamicTableFieldsBatch(
   tableKeys: string[]
@@ -192,56 +136,17 @@ export async function setDynamicTableRelations(tableKey: string, request: Dynami
   }
 }
 
-export async function createDynamicTable(request: DynamicTableCreateRequest): Promise<{ id: string }> {
-  const response = await requestApi<ApiResponse<{ id: string }>>("/dynamic-tables", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(request)
-  });
-  if (!response.data) {
-    throw new Error(response.message || "创建失败");
-  }
-  return response.data;
-}
+export const createDynamicTable = (request: DynamicTableCreateRequest): Promise<{ id: string }> =>
+  sharedDynamicTablesApi.createDynamicTable(request);
 
-export async function deleteDynamicTable(tableKey: string): Promise<void> {
-  const response = await requestApi<ApiResponse<{ tableKey: string }>>(
-    `/dynamic-tables/${encodeURIComponent(tableKey)}`,
-    {
-      method: "DELETE"
-    }
-  );
-  if (!response.success) {
-    throw new Error(response.message || "删除失败");
-  }
-}
+export const deleteDynamicTable = (tableKey: string): Promise<void> =>
+  sharedDynamicTablesApi.deleteDynamicTable(tableKey);
 
-export async function getDynamicTableDeleteCheck(tableKey: string): Promise<DeleteCheckResult> {
-  const response = await requestApi<ApiResponse<DeleteCheckResult>>(
-    `/dynamic-tables/${encodeURIComponent(tableKey)}/delete-check`
-  );
-  if (!response.data) {
-    throw new Error(response.message || "删除检查失败");
-  }
-  return response.data;
-}
+export const getDynamicTableDeleteCheck = (tableKey: string): Promise<DeleteCheckResult> =>
+  sharedDynamicTablesApi.getDynamicTableDeleteCheck(tableKey);
 
-export async function archiveDynamicTable(tableKey: string): Promise<void> {
-  const response = await requestApi<ApiResponse<null>>(
-    `/dynamic-tables/${encodeURIComponent(tableKey)}/archive`,
-    { method: "PATCH" }
-  );
-  if (!response.success) {
-    throw new Error(response.message || "归档失败");
-  }
-}
+export const archiveDynamicTable = (tableKey: string): Promise<void> =>
+  sharedDynamicTablesApi.archiveDynamicTable(tableKey);
 
-export async function restoreDynamicTable(tableKey: string): Promise<void> {
-  const response = await requestApi<ApiResponse<null>>(
-    `/dynamic-tables/${encodeURIComponent(tableKey)}/restore`,
-    { method: "PATCH" }
-  );
-  if (!response.success) {
-    throw new Error(response.message || "恢复失败");
-  }
-}
+export const restoreDynamicTable = (tableKey: string): Promise<void> =>
+  sharedDynamicTablesApi.restoreDynamicTable(tableKey);

@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Data;
 using System.Text.Json;
 using Atlas.Application.DynamicTables.Models;
 using Atlas.Application.DynamicTables.Repositories;
@@ -7,6 +8,7 @@ using Atlas.Core.Exceptions;
 using Atlas.Core.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
+using Microsoft.Extensions.Logging;
 
 namespace Atlas.Infrastructure.Services;
 
@@ -15,18 +17,48 @@ public sealed class DynamicViewRuntime
     private readonly IDynamicTableRepository _tableRepository;
     private readonly IDynamicFieldRepository _fieldRepository;
     private readonly IDynamicRecordRepository _recordRepository;
+    private readonly IAppDbScopeFactory _appDbScopeFactory;
     private readonly IAppContextAccessor _appContextAccessor;
+    private readonly ILogger<DynamicViewRuntime> _logger;
 
     public DynamicViewRuntime(
         IDynamicTableRepository tableRepository,
         IDynamicFieldRepository fieldRepository,
         IDynamicRecordRepository recordRepository,
-        IAppContextAccessor appContextAccessor)
+        IAppDbScopeFactory appDbScopeFactory,
+        IAppContextAccessor appContextAccessor,
+        ILogger<DynamicViewRuntime> logger)
     {
         _tableRepository = tableRepository;
         _fieldRepository = fieldRepository;
         _recordRepository = recordRepository;
+        _appDbScopeFactory = appDbScopeFactory;
         _appContextAccessor = appContextAccessor;
+        _logger = logger;
+    }
+
+    public async Task<DynamicRecordListResult> ExecutePreferPushdownAsync(
+        TenantId tenantId,
+        long? appId,
+        DynamicViewSqlPreviewDto sqlPreview,
+        DynamicViewExecutionPlan plan,
+        DynamicViewRecordsQueryRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!ShouldUseSqlPushdown(appId, sqlPreview, request))
+        {
+            return await ExecuteAsync(tenantId, appId, plan, request, cancellationToken);
+        }
+
+        try
+        {
+            return await ExecuteSqlPushdownAsync(tenantId, appId!.Value, sqlPreview.Sql, request, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Dynamic view SQL pushdown failed, fallback to runtime pipeline.");
+            return await ExecuteAsync(tenantId, appId, plan, request, cancellationToken);
+        }
     }
 
     public async Task<DynamicRecordListResult> ExecuteAsync(
@@ -59,6 +91,112 @@ public sealed class DynamicViewRuntime
         var resultColumns = BuildColumns(projected, plan.Fields);
         var projectedResult = new DynamicRecordListResult(projected, projected.Count, request.PageIndex, request.PageSize, resultColumns);
         return ApplyViewPostProcessing(projectedResult, plan);
+    }
+
+    private static bool ShouldUseSqlPushdown(
+        long? appId,
+        DynamicViewSqlPreviewDto sqlPreview,
+        DynamicViewRecordsQueryRequest request)
+    {
+        if (!appId.HasValue || appId.Value <= 0 || !sqlPreview.FullyPushdown)
+        {
+            return false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Keyword) ||
+            !string.IsNullOrWhiteSpace(request.SortBy) ||
+            request.SortDesc ||
+            request.AdvancedQuery is not null ||
+            (request.Filters?.Count ?? 0) > 0)
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    private async Task<DynamicRecordListResult> ExecuteSqlPushdownAsync(
+        TenantId tenantId,
+        long appId,
+        string sql,
+        DynamicViewRecordsQueryRequest request,
+        CancellationToken cancellationToken)
+    {
+        var db = await _appDbScopeFactory.GetAppClientAsync(tenantId, appId, cancellationToken);
+        var table = await db.Ado.GetDataTableAsync(sql);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var allItems = ConvertDataTableToRecords(table);
+        var pageIndex = request.PageIndex < 1 ? 1 : request.PageIndex;
+        var pageSize = request.PageSize < 1 ? 20 : request.PageSize;
+        var skip = (pageIndex - 1) * pageSize;
+        var pageItems = allItems.Skip(skip).Take(pageSize).ToArray();
+        var columns = BuildColumnsFromDataTable(table);
+
+        return new DynamicRecordListResult(pageItems, allItems.Count, pageIndex, pageSize, columns);
+    }
+
+    private static IReadOnlyList<DynamicRecordDto> ConvertDataTableToRecords(DataTable table)
+    {
+        var rows = new List<DynamicRecordDto>(table.Rows.Count);
+        for (var rowIndex = 0; rowIndex < table.Rows.Count; rowIndex++)
+        {
+            var row = table.Rows[rowIndex];
+            var values = new List<DynamicFieldValueDto>(table.Columns.Count);
+            foreach (DataColumn column in table.Columns)
+            {
+                var raw = row[column];
+                values.Add(ConvertCellValue(column.ColumnName, raw == DBNull.Value ? null : raw));
+            }
+
+            rows.Add(new DynamicRecordDto((rowIndex + 1).ToString(CultureInfo.InvariantCulture), values.ToArray()));
+        }
+
+        return rows;
+    }
+
+    private static IReadOnlyList<DynamicColumnDef> BuildColumnsFromDataTable(DataTable table)
+    {
+        var columns = new List<DynamicColumnDef>(table.Columns.Count);
+        foreach (DataColumn column in table.Columns)
+        {
+            var type = ResolveColumnType(column.DataType);
+            columns.Add(new DynamicColumnDef(column.ColumnName, column.ColumnName, type, true, true, false));
+        }
+
+        return columns;
+    }
+
+    private static string ResolveColumnType(Type type)
+    {
+        if (type == typeof(int)) return "Int";
+        if (type == typeof(long)) return "Long";
+        if (type == typeof(decimal) || type == typeof(float) || type == typeof(double)) return "Decimal";
+        if (type == typeof(bool)) return "Bool";
+        if (type == typeof(DateTime) || type == typeof(DateTimeOffset)) return "DateTime";
+        return "String";
+    }
+
+    private static DynamicFieldValueDto ConvertCellValue(string field, object? raw)
+    {
+        return raw switch
+        {
+            null => new DynamicFieldValueDto { Field = field, ValueType = "String", StringValue = null },
+            int i => new DynamicFieldValueDto { Field = field, ValueType = "Int", IntValue = i },
+            long l => new DynamicFieldValueDto { Field = field, ValueType = "Long", LongValue = l },
+            decimal d => new DynamicFieldValueDto { Field = field, ValueType = "Decimal", DecimalValue = d },
+            float f => new DynamicFieldValueDto { Field = field, ValueType = "Decimal", DecimalValue = Convert.ToDecimal(f, CultureInfo.InvariantCulture) },
+            double d => new DynamicFieldValueDto { Field = field, ValueType = "Decimal", DecimalValue = Convert.ToDecimal(d, CultureInfo.InvariantCulture) },
+            bool b => new DynamicFieldValueDto { Field = field, ValueType = "Bool", BoolValue = b },
+            DateTime dt => new DynamicFieldValueDto { Field = field, ValueType = "DateTime", DateTimeValue = new DateTimeOffset(dt) },
+            DateTimeOffset dto => new DynamicFieldValueDto { Field = field, ValueType = "DateTime", DateTimeValue = dto },
+            _ => new DynamicFieldValueDto
+            {
+                Field = field,
+                ValueType = "String",
+                StringValue = Convert.ToString(raw, CultureInfo.InvariantCulture)
+            }
+        };
     }
 
     private async Task<DynamicRecordListResult> QueryTableRowsAsync(
