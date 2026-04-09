@@ -19,6 +19,8 @@ import { useRuntimeContextStore } from "@/runtime/context/runtime-context-store"
 import { bootstrapRuntime } from "@/runtime/bootstrap/bootstrap-runtime";
 import { resolveBindings } from "@/runtime/bindings/binding-resolver";
 import { applyAmisBindings } from "@/runtime/adapters/amis-binding-adapter";
+import { runLifecycleHook } from "@/runtime/lifecycle/page-lifecycle-runner";
+import type { PageLifecycleHooks } from "@/runtime/lifecycle/lifecycle-types";
 import {
   createExecution,
   completeExecution,
@@ -34,6 +36,8 @@ const contextStore = useRuntimeContextStore();
 
 const isMounted = ref(false);
 const currentExecutionId = ref<string | null>(null);
+const lifecycleHooks = ref<PageLifecycleHooks | null>(null);
+const isInitializingRuntime = ref(false);
 
 onMounted(() => {
   isMounted.value = true;
@@ -41,6 +45,7 @@ onMounted(() => {
 });
 onUnmounted(() => {
   isMounted.value = false;
+  void runLifecycleHookSafe("onPageLeave", lifecycleHooks.value);
   if (currentExecutionId.value) {
     completeExecution(currentExecutionId.value, "success");
     reportAuditEvent({
@@ -60,21 +65,59 @@ const pageTitle = ref(t("runtimePage.defaultTitle"));
 const appKey = computed(() => String(route.params.appKey ?? ""));
 const pageKey = computed(() => String(route.params.pageKey ?? ""));
 
+async function runLifecycleHookSafe(
+  hookName: keyof PageLifecycleHooks,
+  hooks: PageLifecycleHooks | null,
+) {
+  if (!hooks) return;
+  try {
+    const result = await runLifecycleHook(hooks, hookName);
+    if (!result.success && currentExecutionId.value) {
+      reportAuditEvent({
+        executionId: currentExecutionId.value,
+        eventType: "runtime.error",
+        payload: {
+          hook: hookName,
+          results: result.results,
+        },
+      });
+    }
+  } catch (error) {
+    if (currentExecutionId.value) {
+      reportAuditEvent({
+        executionId: currentExecutionId.value,
+        eventType: "runtime.error",
+        payload: {
+          hook: hookName,
+          error: error instanceof Error ? error.message : "Runtime lifecycle hook failed",
+        },
+      });
+    }
+  }
+}
+
 async function loadRuntime() {
   if (!appKey.value || !pageKey.value) {
     schema.value = null;
+    lifecycleHooks.value = null;
     return;
   }
 
   if (currentExecutionId.value) {
+    if (!isInitializingRuntime.value) {
+      await runLifecycleHookSafe("onRouteChanged", lifecycleHooks.value);
+    }
     completeExecution(currentExecutionId.value, "success");
     removeExecution(currentExecutionId.value);
   }
 
   loading.value = true;
+  isInitializingRuntime.value = true;
+  lifecycleHooks.value = null;
   try {
     const { manifest, executionId } = await bootstrapRuntime(route);
     currentExecutionId.value = executionId;
+    lifecycleHooks.value = manifest.lifecycle ?? null;
 
     const profile = getAuthProfile();
     createExecution({
@@ -96,6 +139,7 @@ async function loadRuntime() {
     if (!isMounted.value) return;
 
     pageTitle.value = manifest.pageTitle ?? manifest.title ?? `${appKey.value} / ${pageKey.value}`;
+    await runLifecycleHookSafe("onPageInit", lifecycleHooks.value);
 
     const parsedSchema = JSON.parse(manifest.schemaJson) as AmisSchema;
     const bindings = resolveBindings(parsedSchema, pageKey.value, appKey.value);
@@ -103,6 +147,7 @@ async function loadRuntime() {
     schema.value = parsedSchema;
   } catch (error) {
     schema.value = null;
+    await runLifecycleHookSafe("onError", lifecycleHooks.value);
     if (currentExecutionId.value) {
       completeExecution(currentExecutionId.value, "failed", {
         message: error instanceof Error ? error.message : "Unknown error",
@@ -118,6 +163,7 @@ async function loadRuntime() {
     );
   } finally {
     loading.value = false;
+    isInitializingRuntime.value = false;
   }
 }
 
