@@ -178,17 +178,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import type { Component } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute, useRouter, type RouteRecordNormalized } from "vue-router";
 import {
-  ApiOutlined,
   AppstoreOutlined,
   HomeOutlined,
-  InboxOutlined,
-  TeamOutlined,
-  SafetyCertificateOutlined,
   RobotOutlined,
   DashboardOutlined,
   DatabaseOutlined,
@@ -205,6 +201,7 @@ import UnifiedContextBar from "@/components/context/UnifiedContextBar.vue";
 import { resolveRequiredPermission } from "@/router/route-access";
 import { requestApi } from "@/services/api-core";
 import { createNavigationProjectionApi, useNavigationProjection } from "@atlas/navigation-projection";
+import { provideCapabilityHostContext } from "@atlas/shared-kernel/context";
 
 const { t } = useI18n();
 const route = useRoute();
@@ -212,6 +209,20 @@ const router = useRouter();
 const userStore = useUserStore();
 const permissionStore = usePermissionStore();
 const tagsViewStore = useTagsViewStore();
+const routeAppId = computed(() =>
+  typeof route.params.appId === "string" ? route.params.appId : undefined
+);
+const routeAppKey = computed(() =>
+  typeof route.params.appKey === "string" ? route.params.appKey : undefined
+);
+const capabilityHostContext = provideCapabilityHostContext({
+  hostMode: "platform",
+  tenantId: userStore.profile?.tenantId,
+  appId: routeAppId.value,
+  appKey: routeAppKey.value,
+  appInstanceId: routeAppId.value,
+  permissionSet: userStore.permissions
+});
 
 const isMobileOpen = ref(false);
 const routeDrawerOpen = ref(false);
@@ -427,6 +438,21 @@ async function handleLogout() {
   tagsViewStore.delAllViews();
   router.push("/login");
 }
+
+watch(
+  [() => userStore.profile?.tenantId, () => userStore.permissions, routeAppId, routeAppKey],
+  () => {
+    capabilityHostContext.patchContext({
+      hostMode: "platform",
+      tenantId: userStore.profile?.tenantId,
+      appId: routeAppId.value,
+      appKey: routeAppKey.value,
+      appInstanceId: routeAppId.value,
+      permissionSet: userStore.permissions
+    });
+  },
+  { immediate: true }
+);
 </script>
 
 <style scoped>

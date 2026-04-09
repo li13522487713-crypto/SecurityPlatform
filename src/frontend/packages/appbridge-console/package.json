@@ -1,0 +1,21 @@
+{
+  "name": "@atlas/appbridge-console",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./types": "./src/types/index.ts",
+    "./services": "./src/services/index.ts"
+  },
+  "scripts": {
+    "lint": "echo 'appbridge-console: no lint configured yet'",
+    "build": "echo 'appbridge-console: source-only package, no build step'"
+  },
+  "dependencies": {
+    "@atlas/schema-protocol": "workspace:*",
+    "@atlas/shared-core": "workspace:*"
+  }
+}

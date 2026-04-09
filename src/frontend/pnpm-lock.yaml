@@ -144,6 +144,9 @@ importers:
       '@atlas/ai-core':
         specifier: workspace:*
         version: link:../../packages/ai-core
+      '@atlas/appbridge-console':
+        specifier: workspace:*
+        version: link:../../packages/appbridge-console
       '@atlas/capability-core':
         specifier: workspace:*
         version: link:../../packages/capability-core
@@ -243,6 +246,15 @@ importers:
         specifier: ^14.1.2
         version: 14.1.2
 
+  packages/appbridge-console:
+    dependencies:
+      '@atlas/schema-protocol':
+        specifier: workspace:*
+        version: link:../schema-protocol
+      '@atlas/shared-core':
+        specifier: workspace:*
+        version: link:../shared-core
+
   packages/capability-core:
     dependencies:
       '@atlas/shared-kernel':
@@ -326,6 +338,8 @@ importers:
       '@atlas/shared-kernel':
         specifier: workspace:*
         version: link:../shared-kernel
+
+  packages/schema-protocol: {}
 
   packages/shared-biz:
     dependencies:

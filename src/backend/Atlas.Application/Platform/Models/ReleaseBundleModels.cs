@@ -7,6 +7,13 @@ public sealed record ReleaseBundleResponse(
     string BundleVersion,
     string UnifiedModelJson,
     string RuntimeProjectionJson,
+    string RuntimeManifestSetJson,
+    string OrchestrationPlanSetJson,
+    string ToolReleaseRefsJson,
+    string KnowledgeSnapshotRefsJson,
+    string ResourceBindingSnapshotJson,
     string NavigationProjectionSnapshotJson,
+    string ExposureCatalogSnapshotJson,
+    string SignatureJson,
     string CreatedBy,
     string CreatedAt);

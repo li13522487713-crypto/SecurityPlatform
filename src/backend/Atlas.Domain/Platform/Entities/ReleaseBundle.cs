@@ -13,7 +13,14 @@ public sealed class ReleaseBundle : TenantEntity
         BundleVersion = string.Empty;
         UnifiedModelJson = "{}";
         RuntimeProjectionJson = "{}";
+        RuntimeManifestSetJson = "{}";
+        OrchestrationPlanSetJson = "{}";
+        ToolReleaseRefsJson = "[]";
+        KnowledgeSnapshotRefsJson = "[]";
+        ResourceBindingSnapshotJson = "{}";
         NavigationProjectionSnapshotJson = "{}";
+        ExposureCatalogSnapshotJson = "{}";
+        SignatureJson = "{}";
     }
 
     public ReleaseBundle(
@@ -24,7 +31,14 @@ public sealed class ReleaseBundle : TenantEntity
         string bundleVersion,
         string unifiedModelJson,
         string runtimeProjectionJson,
+        string runtimeManifestSetJson,
+        string orchestrationPlanSetJson,
+        string toolReleaseRefsJson,
+        string knowledgeSnapshotRefsJson,
+        string resourceBindingSnapshotJson,
         string navigationProjectionSnapshotJson,
+        string exposureCatalogSnapshotJson,
+        string signatureJson,
         long createdBy,
         DateTimeOffset createdAt)
         : base(tenantId)
@@ -35,7 +49,14 @@ public sealed class ReleaseBundle : TenantEntity
         BundleVersion = bundleVersion;
         UnifiedModelJson = unifiedModelJson;
         RuntimeProjectionJson = runtimeProjectionJson;
+        RuntimeManifestSetJson = runtimeManifestSetJson;
+        OrchestrationPlanSetJson = orchestrationPlanSetJson;
+        ToolReleaseRefsJson = toolReleaseRefsJson;
+        KnowledgeSnapshotRefsJson = knowledgeSnapshotRefsJson;
+        ResourceBindingSnapshotJson = resourceBindingSnapshotJson;
         NavigationProjectionSnapshotJson = navigationProjectionSnapshotJson;
+        ExposureCatalogSnapshotJson = exposureCatalogSnapshotJson;
+        SignatureJson = signatureJson;
         CreatedBy = createdBy;
         CreatedAt = createdAt;
     }
@@ -48,7 +69,21 @@ public sealed class ReleaseBundle : TenantEntity
     [SugarColumn(ColumnDataType = "TEXT")]
     public string RuntimeProjectionJson { get; private set; }
     [SugarColumn(ColumnDataType = "TEXT")]
+    public string RuntimeManifestSetJson { get; private set; }
+    [SugarColumn(ColumnDataType = "TEXT")]
+    public string OrchestrationPlanSetJson { get; private set; }
+    [SugarColumn(ColumnDataType = "TEXT")]
+    public string ToolReleaseRefsJson { get; private set; }
+    [SugarColumn(ColumnDataType = "TEXT")]
+    public string KnowledgeSnapshotRefsJson { get; private set; }
+    [SugarColumn(ColumnDataType = "TEXT")]
+    public string ResourceBindingSnapshotJson { get; private set; }
+    [SugarColumn(ColumnDataType = "TEXT")]
     public string NavigationProjectionSnapshotJson { get; private set; }
+    [SugarColumn(ColumnDataType = "TEXT")]
+    public string ExposureCatalogSnapshotJson { get; private set; }
+    [SugarColumn(ColumnDataType = "TEXT")]
+    public string SignatureJson { get; private set; }
     public long CreatedBy { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
 }

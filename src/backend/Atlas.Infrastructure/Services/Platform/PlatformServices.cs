@@ -13,6 +13,8 @@ using Atlas.Domain.LowCode.Entities;
 using Atlas.Domain.Platform.Entities;
 using Atlas.Domain.System.Entities;
 using SqlSugar;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 
 namespace Atlas.Infrastructure.Services.Platform;
@@ -490,6 +492,20 @@ public sealed class AppReleaseCommandService : IAppReleaseCommandService
         var runtimeRoutes = await runtimeDb.Queryable<RuntimeRoute>()
             .Where(item => item.TenantIdValue == tenantId.Value && item.ManifestId == manifestId)
             .ToListAsync(cancellationToken);
+        var pageSnapshotRows = await _db.Queryable<LowCodePage>()
+            .Where(item => item.TenantIdValue == tenantId.Value && item.AppId == manifestId)
+            .Select(item => new
+            {
+                item.PageKey,
+                item.Name,
+                item.RoutePath,
+                item.Icon,
+                item.SortOrder
+            })
+            .ToListAsync(cancellationToken);
+        var pageSnapshots = pageSnapshotRows
+            .Select(item => new ReleasePageSnapshotInfo(item.PageKey, item.Name, item.RoutePath, item.Icon, item.SortOrder))
+            .ToArray();
 
         var pageCountTask = _db.Queryable<Atlas.Domain.LowCode.Entities.LowCodePage>()
             .CountAsync(x => x.AppId == manifestId, cancellationToken);
@@ -506,20 +522,57 @@ public sealed class AppReleaseCommandService : IAppReleaseCommandService
         manifest.Publish(userId, now);
         var snapshotJson = BuildReleaseSnapshotJson(
             manifest, runtimeRoutes, pageCountTask.Result, tableCountTask.Result, now);
-        var release = new AppRelease(tenantId, _idGenerator.NextId(), manifestId, manifest.Version, snapshotJson, userId, now);
-        release.SetNavigationSnapshot(BuildNavigationSnapshotJson(runtimeRoutes, now));
+        var navigationProjectionSnapshotJson = BuildNavigationSnapshotJson(runtimeRoutes, pageSnapshots, now);
         var exposurePolicy = await _db.Queryable<AppExposurePolicy>()
             .FirstAsync(item => item.TenantIdValue == tenantId.Value && item.AppInstanceId == manifestId, cancellationToken);
-        release.SetExposureCatalogSnapshot(BuildExposureCatalogSnapshotJson(exposurePolicy, now));
+        var exposureCatalogSnapshotJson = BuildExposureCatalogSnapshotJson(exposurePolicy, now);
+        var release = new AppRelease(tenantId, _idGenerator.NextId(), manifestId, manifest.Version, snapshotJson, userId, now);
+        release.SetNavigationSnapshot(navigationProjectionSnapshotJson);
+        release.SetExposureCatalogSnapshot(exposureCatalogSnapshotJson);
         release.MarkReleased(releaseNote);
+
+        var runtimeManifestSetJson = BuildReleaseBundleRuntimeManifestSetJson(manifest, runtimeRoutes, pageSnapshots, now);
+        var orchestrationPlanSetJson = BuildReleaseBundleOrchestrationPlanSetJson(manifest, now);
+        var toolReleaseRefsJson = BuildReleaseBundleToolReleaseRefsJson(manifest, now);
+        var knowledgeSnapshotRefsJson = BuildReleaseBundleKnowledgeSnapshotRefsJson(manifest, now);
+        var resourceBindingSnapshotJson = BuildReleaseBundleResourceBindingSnapshotJson(manifest, exposurePolicy, now);
+        var signatureJson = BuildReleaseBundleSignatureJson(
+            runtimeManifestSetJson,
+            orchestrationPlanSetJson,
+            toolReleaseRefsJson,
+            knowledgeSnapshotRefsJson,
+            resourceBindingSnapshotJson,
+            navigationProjectionSnapshotJson,
+            exposureCatalogSnapshotJson,
+            now);
+
         var releaseBundle = new ReleaseBundle(
             tenantId,
             _idGenerator.NextId(),
             release.Id,
             manifestId,
             $"bundle-{manifest.Version}",
-            BuildReleaseBundleUnifiedModelJson(manifest, release, now),
-            BuildReleaseBundleRuntimeProjectionJson(runtimeRoutes, now),
+            BuildReleaseBundleUnifiedModelJson(
+                manifest,
+                release,
+                runtimeManifestSetJson,
+                orchestrationPlanSetJson,
+                toolReleaseRefsJson,
+                knowledgeSnapshotRefsJson,
+                resourceBindingSnapshotJson,
+                navigationProjectionSnapshotJson,
+                exposureCatalogSnapshotJson,
+                signatureJson,
+                now),
+            BuildReleaseBundleRuntimeProjectionJson(runtimeRoutes, pageSnapshots, now),
+            runtimeManifestSetJson,
+            orchestrationPlanSetJson,
+            toolReleaseRefsJson,
+            knowledgeSnapshotRefsJson,
+            resourceBindingSnapshotJson,
+            navigationProjectionSnapshotJson,
+            exposureCatalogSnapshotJson,
+            signatureJson,
             userId,
             now);
 
@@ -728,20 +781,34 @@ public sealed class AppReleaseCommandService : IAppReleaseCommandService
 
     private static string BuildNavigationSnapshotJson(
         IReadOnlyCollection<RuntimeRoute> runtimeRoutes,
+        IReadOnlyCollection<ReleasePageSnapshotInfo> pageSnapshots,
         DateTimeOffset generatedAt)
     {
+        var pageMap = BuildPageSnapshotMap(pageSnapshots);
         var snapshot = new
         {
             generatedAt = generatedAt.ToString("O"),
             items = runtimeRoutes
-                .OrderBy(item => item.PageKey)
-                .Select(item => new
+                .Select(item =>
                 {
-                    item.AppKey,
-                    item.PageKey,
-                    item.SchemaVersion,
-                    item.IsActive
+                    var hasPage = pageMap.TryGetValue(item.PageKey, out var page);
+                    var routePath = hasPage && !string.IsNullOrWhiteSpace(page.RoutePath)
+                        ? page.RoutePath
+                        : $"/r/{item.AppKey}/{item.PageKey}";
+                    return new
+                    {
+                        item.AppKey,
+                        item.PageKey,
+                        item.SchemaVersion,
+                        item.IsActive,
+                        title = hasPage ? page.Name : item.PageKey,
+                        routePath,
+                        icon = hasPage ? page.Icon : null,
+                        sortOrder = hasPage ? page.SortOrder : 0
+                    };
                 })
+                .OrderBy(item => item.sortOrder)
+                .ThenBy(item => item.PageKey, StringComparer.OrdinalIgnoreCase)
                 .ToArray()
         };
         return JsonSerializer.Serialize(snapshot);
@@ -776,6 +843,14 @@ public sealed class AppReleaseCommandService : IAppReleaseCommandService
     private static string BuildReleaseBundleUnifiedModelJson(
         AppManifest manifest,
         AppRelease release,
+        string runtimeManifestSetJson,
+        string orchestrationPlanSetJson,
+        string toolReleaseRefsJson,
+        string knowledgeSnapshotRefsJson,
+        string resourceBindingSnapshotJson,
+        string navigationProjectionSnapshotJson,
+        string exposureCatalogSnapshotJson,
+        string signatureJson,
         DateTimeOffset generatedAt)
     {
         var unified = new
@@ -796,31 +871,208 @@ public sealed class AppReleaseCommandService : IAppReleaseCommandService
                 release.Status
             },
             release.SnapshotJson,
-            release.NavigationSnapshotJson,
-            release.ExposureCatalogSnapshotJson
+            snapshots = new
+            {
+                runtimeManifestSet = runtimeManifestSetJson,
+                orchestrationPlanSet = orchestrationPlanSetJson,
+                toolReleaseRefs = toolReleaseRefsJson,
+                knowledgeSnapshotRefs = knowledgeSnapshotRefsJson,
+                resourceBindingSnapshot = resourceBindingSnapshotJson,
+                navigationProjectionSnapshot = navigationProjectionSnapshotJson,
+                exposureCatalogSnapshot = exposureCatalogSnapshotJson
+            },
+            signature = signatureJson
         };
         return JsonSerializer.Serialize(unified);
     }
 
     private static string BuildReleaseBundleRuntimeProjectionJson(
         IReadOnlyCollection<RuntimeRoute> runtimeRoutes,
+        IReadOnlyCollection<ReleasePageSnapshotInfo> pageSnapshots,
         DateTimeOffset generatedAt)
     {
+        var pageMap = BuildPageSnapshotMap(pageSnapshots);
         var runtimeProjection = new
         {
             generatedAt = generatedAt.ToString("O"),
-            routes = runtimeRoutes.Select(item => new
-            {
-                item.Id,
-                item.AppKey,
-                item.PageKey,
-                item.SchemaVersion,
-                item.IsActive,
-                item.EnvironmentCode
-            }).ToArray()
+            routes = runtimeRoutes
+                .Select(item =>
+                {
+                    var hasPage = pageMap.TryGetValue(item.PageKey, out var page);
+                    var routePath = hasPage && !string.IsNullOrWhiteSpace(page.RoutePath)
+                        ? page.RoutePath
+                        : $"/r/{item.AppKey}/{item.PageKey}";
+                    return new
+                    {
+                        item.Id,
+                        item.AppKey,
+                        item.PageKey,
+                        item.SchemaVersion,
+                        item.IsActive,
+                        item.EnvironmentCode,
+                        title = hasPage ? page.Name : item.PageKey,
+                        routePath,
+                        icon = hasPage ? page.Icon : null,
+                        sortOrder = hasPage ? page.SortOrder : 0
+                    };
+                })
+                .OrderBy(item => item.sortOrder)
+                .ThenBy(item => item.PageKey, StringComparer.OrdinalIgnoreCase)
+                .ToArray()
         };
         return JsonSerializer.Serialize(runtimeProjection);
     }
+
+    private static string BuildReleaseBundleRuntimeManifestSetJson(
+        AppManifest manifest,
+        IReadOnlyCollection<RuntimeRoute> runtimeRoutes,
+        IReadOnlyCollection<ReleasePageSnapshotInfo> pageSnapshots,
+        DateTimeOffset generatedAt)
+    {
+        var pageMap = BuildPageSnapshotMap(pageSnapshots);
+        var payload = new
+        {
+            generatedAt = generatedAt.ToString("O"),
+            manifest = new
+            {
+                manifest.Id,
+                manifest.AppKey,
+                manifest.Name,
+                manifest.Version,
+                manifest.Status
+            },
+            routes = runtimeRoutes
+                .OrderBy(item => item.PageKey, StringComparer.OrdinalIgnoreCase)
+                .Select(item =>
+                {
+                    var hasPage = pageMap.TryGetValue(item.PageKey, out var page);
+                    return new
+                    {
+                        item.AppKey,
+                        item.PageKey,
+                        item.SchemaVersion,
+                        item.IsActive,
+                        item.EnvironmentCode,
+                        title = hasPage ? page.Name : item.PageKey,
+                        routePath = hasPage && !string.IsNullOrWhiteSpace(page.RoutePath)
+                            ? page.RoutePath
+                            : $"/r/{item.AppKey}/{item.PageKey}"
+                    };
+                })
+                .ToArray()
+        };
+        return JsonSerializer.Serialize(payload);
+    }
+
+    private static string BuildReleaseBundleOrchestrationPlanSetJson(
+        AppManifest manifest,
+        DateTimeOffset generatedAt)
+    {
+        var payload = new
+        {
+            generatedAt = generatedAt.ToString("O"),
+            manifestId = manifest.Id.ToString(),
+            appKey = manifest.AppKey,
+            plans = Array.Empty<object>()
+        };
+        return JsonSerializer.Serialize(payload);
+    }
+
+    private static string BuildReleaseBundleToolReleaseRefsJson(
+        AppManifest manifest,
+        DateTimeOffset generatedAt)
+    {
+        var payload = new
+        {
+            generatedAt = generatedAt.ToString("O"),
+            manifestId = manifest.Id.ToString(),
+            appKey = manifest.AppKey,
+            toolReleaseRefs = Array.Empty<object>()
+        };
+        return JsonSerializer.Serialize(payload);
+    }
+
+    private static string BuildReleaseBundleKnowledgeSnapshotRefsJson(
+        AppManifest manifest,
+        DateTimeOffset generatedAt)
+    {
+        var payload = new
+        {
+            generatedAt = generatedAt.ToString("O"),
+            manifestId = manifest.Id.ToString(),
+            appKey = manifest.AppKey,
+            knowledgeSnapshotRefs = Array.Empty<object>()
+        };
+        return JsonSerializer.Serialize(payload);
+    }
+
+    private static string BuildReleaseBundleResourceBindingSnapshotJson(
+        AppManifest manifest,
+        AppExposurePolicy? exposurePolicy,
+        DateTimeOffset generatedAt)
+    {
+        var payload = new
+        {
+            generatedAt = generatedAt.ToString("O"),
+            manifestId = manifest.Id.ToString(),
+            appKey = manifest.AppKey,
+            dataSourceId = manifest.DataSourceId?.ToString(),
+            binding = new
+            {
+                exposedDataSets = exposurePolicy?.ExposedDataSetsJson ?? "[]",
+                allowedCommands = exposurePolicy?.AllowedCommandsJson ?? "[]"
+            }
+        };
+        return JsonSerializer.Serialize(payload);
+    }
+
+    private static string BuildReleaseBundleSignatureJson(
+        string runtimeManifestSetJson,
+        string orchestrationPlanSetJson,
+        string toolReleaseRefsJson,
+        string knowledgeSnapshotRefsJson,
+        string resourceBindingSnapshotJson,
+        string navigationProjectionSnapshotJson,
+        string exposureCatalogSnapshotJson,
+        DateTimeOffset generatedAt)
+    {
+        var source = string.Join(
+            "\n",
+            runtimeManifestSetJson,
+            orchestrationPlanSetJson,
+            toolReleaseRefsJson,
+            knowledgeSnapshotRefsJson,
+            resourceBindingSnapshotJson,
+            navigationProjectionSnapshotJson,
+            exposureCatalogSnapshotJson);
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(source));
+        var checksum = Convert.ToHexString(bytes);
+        return JsonSerializer.Serialize(new
+        {
+            generatedAt = generatedAt.ToString("O"),
+            algorithm = "SHA256",
+            checksum
+        });
+    }
+
+    private static Dictionary<string, (string Name, string? RoutePath, string? Icon, int SortOrder)> BuildPageSnapshotMap(
+        IReadOnlyCollection<ReleasePageSnapshotInfo> pageSnapshots)
+    {
+        return pageSnapshots
+            .GroupBy(item => item.PageKey, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .ToDictionary(
+                item => item.PageKey,
+                item => (item.Name, item.RoutePath, item.Icon, item.SortOrder),
+                StringComparer.OrdinalIgnoreCase);
+    }
+
+    private sealed record ReleasePageSnapshotInfo(
+        string PageKey,
+        string Name,
+        string? RoutePath,
+        string? Icon,
+        int SortOrder);
 }
 
 public sealed class RuntimeRouteQueryService : IRuntimeRouteQueryService
@@ -831,6 +1083,10 @@ public sealed class RuntimeRouteQueryService : IRuntimeRouteQueryService
         AppMigrationTaskStatuses.Prechecking,
         AppMigrationTaskStatuses.Running,
         AppMigrationTaskStatuses.Validating
+    };
+    private static readonly JsonSerializerOptions SnapshotJsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
     };
 
     private readonly ISqlSugarClient _mainDb;
@@ -849,11 +1105,15 @@ public sealed class RuntimeRouteQueryService : IRuntimeRouteQueryService
 
     public async Task<RuntimePageResponse?> GetRuntimePageAsync(TenantId tenantId, string appKey, string pageKey, CancellationToken cancellationToken = default)
     {
-        var db = await ResolveRuntimeDbByAppKeyAsync(tenantId, appKey, cancellationToken);
-        var route = await db.Queryable<RuntimeRoute>()
-            .FirstAsync(
-                x => x.TenantIdValue == tenantId.Value && x.AppKey == appKey && x.PageKey == pageKey && x.IsActive,
-                cancellationToken);
+        var bundle = await GetActiveReleaseBundleByAppKeyAsync(tenantId, appKey, cancellationToken)
+            ?? throw new BusinessException(
+                ErrorCodes.NotFound,
+                $"应用 {appKey} 尚未发布，运行态仅允许读取发布工件。");
+        var route = ParseRuntimeProjectionRoutes(bundle.RuntimeProjectionJson)
+            .FirstOrDefault(item =>
+                string.Equals(item.AppKey, appKey, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(item.PageKey, pageKey, StringComparison.OrdinalIgnoreCase)
+                && item.IsActive);
         return route is null
             ? null
             : new RuntimePageResponse(route.AppKey, route.PageKey, route.SchemaVersion, route.IsActive);
@@ -866,14 +1126,12 @@ public sealed class RuntimeRouteQueryService : IRuntimeRouteQueryService
         string pageKey,
         CancellationToken cancellationToken = default)
     {
-        var db = await ResolveRuntimeDbByAppIdAsync(tenantId, appId, cancellationToken);
-        var route = await db.Queryable<RuntimeRoute>()
-            .FirstAsync(
-                x => x.TenantIdValue == tenantId.Value && x.AppKey == appKey && x.PageKey == pageKey && x.IsActive,
-                cancellationToken);
-        return route is null
-            ? null
-            : new RuntimePageResponse(route.AppKey, route.PageKey, route.SchemaVersion, route.IsActive);
+        if (appId > 0)
+        {
+            await EnsureRuntimeReadableAsync(tenantId, appId, cancellationToken);
+        }
+
+        return await GetRuntimePageAsync(tenantId, appKey, pageKey, cancellationToken);
     }
 
     public async Task<PagedResult<RuntimeTaskListItem>> GetRuntimeTasksAsync(
@@ -930,41 +1188,23 @@ public sealed class RuntimeRouteQueryService : IRuntimeRouteQueryService
 
     public async Task<RuntimeMenuResponse> GetRuntimeMenuAsync(TenantId tenantId, string appKey, CancellationToken cancellationToken = default)
     {
-        var db = await ResolveRuntimeDbByAppKeyAsync(tenantId, appKey, cancellationToken);
-        var routes = await db.Queryable<RuntimeRoute>()
-            .Where(x => x.TenantIdValue == tenantId.Value && x.AppKey == appKey && x.IsActive)
-            .OrderBy(x => x.PageKey)
-            .ToListAsync(cancellationToken);
-        if (routes.Count == 0)
-        {
-            return new RuntimeMenuResponse(appKey, Array.Empty<RuntimeMenuItem>());
-        }
-
-        var pageKeys = routes.Select(x => x.PageKey).Distinct().ToArray();
-        var pages = await _mainDb.Queryable<LowCodePage>()
-            .Where(x => x.TenantIdValue == tenantId.Value && x.AppId > 0 && SqlFunc.ContainsArray(pageKeys, x.PageKey))
-            .ToListAsync(cancellationToken);
-        var pageMap = pages.ToDictionary(x => x.PageKey, x => x, StringComparer.OrdinalIgnoreCase);
-        var items = routes.Select(route =>
-        {
-            if (pageMap.TryGetValue(route.PageKey, out var page))
-            {
-                return new RuntimeMenuItem(
-                    route.PageKey,
-                    page.Name,
-                    string.IsNullOrWhiteSpace(page.RoutePath) ? $"/r/{route.AppKey}/{route.PageKey}" : page.RoutePath!,
-                    page.Icon,
-                    page.SortOrder);
-            }
-
-            return new RuntimeMenuItem(
-                route.PageKey,
-                route.PageKey,
-                $"/r/{route.AppKey}/{route.PageKey}",
-                null,
-                0);
-        }).OrderBy(x => x.SortOrder).ThenBy(x => x.Title).ToArray();
-
+        var bundle = await GetActiveReleaseBundleByAppKeyAsync(tenantId, appKey, cancellationToken)
+            ?? throw new BusinessException(
+                ErrorCodes.NotFound,
+                $"应用 {appKey} 尚未发布，运行态仅允许读取发布工件。");
+        var items = ParseNavigationProjectionItems(bundle.NavigationProjectionSnapshotJson)
+            .Where(item =>
+                string.Equals(item.AppKey, appKey, StringComparison.OrdinalIgnoreCase)
+                && item.IsActive)
+            .OrderBy(item => item.SortOrder)
+            .ThenBy(item => item.PageKey, StringComparer.OrdinalIgnoreCase)
+            .Select(item => new RuntimeMenuItem(
+                item.PageKey,
+                string.IsNullOrWhiteSpace(item.Title) ? item.PageKey : item.Title,
+                string.IsNullOrWhiteSpace(item.RoutePath) ? $"/r/{item.AppKey}/{item.PageKey}" : item.RoutePath,
+                item.Icon,
+                item.SortOrder))
+            .ToArray();
         return new RuntimeMenuResponse(appKey, items);
     }
 
@@ -1007,6 +1247,60 @@ public sealed class RuntimeRouteQueryService : IRuntimeRouteQueryService
             opRequest,
             cancellationToken);
         return true;
+    }
+
+    private async Task<ReleaseBundle?> GetActiveReleaseBundleByAppKeyAsync(
+        TenantId tenantId,
+        string appKey,
+        CancellationToken cancellationToken)
+    {
+        var manifest = await _mainDb.Queryable<AppManifest>()
+            .FirstAsync(
+                item => item.TenantIdValue == tenantId.Value && item.AppKey == appKey,
+                cancellationToken);
+        if (manifest is null)
+        {
+            return null;
+        }
+
+        var activeRelease = await _mainDb.Queryable<AppRelease>()
+            .Where(item =>
+                item.TenantIdValue == tenantId.Value
+                && item.ManifestId == manifest.Id
+                && item.Status == AppReleaseStatus.Released)
+            .OrderByDescending(item => item.ReleasedAt)
+            .FirstAsync(cancellationToken);
+        if (activeRelease is null)
+        {
+            return null;
+        }
+
+        return await _mainDb.Queryable<ReleaseBundle>()
+            .FirstAsync(
+                item => item.TenantIdValue == tenantId.Value && item.ReleaseId == activeRelease.Id,
+                cancellationToken);
+    }
+
+    private static IReadOnlyList<RuntimeProjectionRouteSnapshot> ParseRuntimeProjectionRoutes(string? runtimeProjectionJson)
+    {
+        if (string.IsNullOrWhiteSpace(runtimeProjectionJson))
+        {
+            return Array.Empty<RuntimeProjectionRouteSnapshot>();
+        }
+
+        var snapshot = JsonSerializer.Deserialize<RuntimeProjectionSnapshot>(runtimeProjectionJson, SnapshotJsonOptions);
+        return snapshot?.Routes ?? Array.Empty<RuntimeProjectionRouteSnapshot>();
+    }
+
+    private static IReadOnlyList<NavigationProjectionItemSnapshot> ParseNavigationProjectionItems(string? navigationProjectionSnapshotJson)
+    {
+        if (string.IsNullOrWhiteSpace(navigationProjectionSnapshotJson))
+        {
+            return Array.Empty<NavigationProjectionItemSnapshot>();
+        }
+
+        var snapshot = JsonSerializer.Deserialize<NavigationProjectionSnapshot>(navigationProjectionSnapshotJson, SnapshotJsonOptions);
+        return snapshot?.Items ?? Array.Empty<NavigationProjectionItemSnapshot>();
     }
 
     private async Task<ISqlSugarClient> ResolveRuntimeDbByAppKeyAsync(
@@ -1057,6 +1351,35 @@ public sealed class RuntimeRouteQueryService : IRuntimeRouteQueryService
         throw new BusinessException(
             ErrorCodes.AppMigrationPending,
             "应用正在切库同步中，请稍后重试。");
+    }
+
+    private sealed class RuntimeProjectionSnapshot
+    {
+        public RuntimeProjectionRouteSnapshot[] Routes { get; init; } = Array.Empty<RuntimeProjectionRouteSnapshot>();
+    }
+
+    private sealed class RuntimeProjectionRouteSnapshot
+    {
+        public string AppKey { get; init; } = string.Empty;
+        public string PageKey { get; init; } = string.Empty;
+        public int SchemaVersion { get; init; }
+        public bool IsActive { get; init; }
+    }
+
+    private sealed class NavigationProjectionSnapshot
+    {
+        public NavigationProjectionItemSnapshot[] Items { get; init; } = Array.Empty<NavigationProjectionItemSnapshot>();
+    }
+
+    private sealed class NavigationProjectionItemSnapshot
+    {
+        public string AppKey { get; init; } = string.Empty;
+        public string PageKey { get; init; } = string.Empty;
+        public bool IsActive { get; init; }
+        public string Title { get; init; } = string.Empty;
+        public string RoutePath { get; init; } = string.Empty;
+        public string? Icon { get; init; }
+        public int SortOrder { get; init; }
     }
 }
 

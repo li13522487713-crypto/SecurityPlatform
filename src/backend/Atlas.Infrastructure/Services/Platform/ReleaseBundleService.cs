@@ -53,7 +53,14 @@ public sealed class ReleaseBundleQueryService : IReleaseBundleQueryService
             bundle.BundleVersion,
             bundle.UnifiedModelJson,
             bundle.RuntimeProjectionJson,
+            bundle.RuntimeManifestSetJson,
+            bundle.OrchestrationPlanSetJson,
+            bundle.ToolReleaseRefsJson,
+            bundle.KnowledgeSnapshotRefsJson,
+            bundle.ResourceBindingSnapshotJson,
             bundle.NavigationProjectionSnapshotJson,
+            bundle.ExposureCatalogSnapshotJson,
+            bundle.SignatureJson,
             bundle.CreatedBy.ToString(),
             bundle.CreatedAt.ToString("O"));
     }

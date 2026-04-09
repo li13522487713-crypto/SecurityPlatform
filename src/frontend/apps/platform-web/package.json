@@ -13,6 +13,7 @@
     "@ant-design/icons-vue": "^7.0.1",
     "@atlas/ai-core": "workspace:*",
     "@atlas/connector-core": "workspace:*",
+    "@atlas/appbridge-console": "workspace:*",
     "@atlas/capability-core": "workspace:*",
     "@atlas/capability-ui": "workspace:*",
     "@atlas/designer-core": "workspace:*",
