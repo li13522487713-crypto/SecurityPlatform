@@ -40,12 +40,7 @@
           <div class="prop-section">
             <a-form layout="vertical" size="small">
               <a-form-item :label="t('wfUi.properties.configJson')">
-                <a-textarea
-                  :value="configsJson"
-                  :rows="10"
-                  style="font-family: monospace; font-size: 12px"
-                  @change="handleRawConfigsChange"
-                />
+                <MonacoCodeEditor :value="configsJson" language="json" @update:value="handleRawConfigsMonacoChange" />
               </a-form-item>
             </a-form>
           </div>
@@ -54,7 +49,7 @@
             <div class="section-title">{{ t('wfUi.properties.inputMap') }}</div>
             <div class="mapping-hint">{{ t('wfUi.properties.mapHint') }}</div>
             <div v-for="(mappingRef, field) in localInputMappings" :key="field" class="mapping-row">
-              <a-input :value="field" disabled style="width: 40%" size="small" />
+              <a-tag color="blue">{{ field }}</a-tag>
               <span style="color: #9ca3af; padding: 0 8px">→</span>
               <a-input v-model:value="localInputMappings[field]" size="small" style="width: 50%" @change="emitUpdate" />
               <a-button size="small" @click="removeMapping(field)">-</a-button>
@@ -110,6 +105,7 @@ import ConversationHistoryNodeForm from '@/components/workflow/forms/Conversatio
 import MessageNodeForm from '@/components/workflow/forms/MessageNodeForm.vue'
 import IoNodeForm from '@/components/workflow/forms/IoNodeForm.vue'
 import GenericNodeForm from '@/components/workflow/forms/GenericNodeForm.vue'
+import MonacoCodeEditor from '@/components/workflow/forms/MonacoCodeEditor.vue'
 
 const { t } = useI18n()
 
@@ -139,7 +135,7 @@ watch(() => props.node, (newNode) => {
 
 const configsJson = computed(() => JSON.stringify(localConfigs, null, 2))
 const activeNodeForm = computed<Component>(() => {
-  const type = props.node.type
+  const type = String(props.node.type)
   if (type === 'Entry' || type === 'Start') {
     return markRaw(StartNodeForm)
   }
@@ -247,14 +243,14 @@ const nodeIcon = computed(() => {
   return iconMap[type] ?? '□'
 })
 
-function handleRawConfigsChange(e: Event) {
+function handleRawConfigsMonacoChange(raw: string) {
   try {
-    const parsed = JSON.parse((e.target as HTMLTextAreaElement).value)
+    const parsed = JSON.parse(raw)
     Object.keys(localConfigs).forEach(k => delete localConfigs[k])
     Object.assign(localConfigs, parsed)
     emitUpdate()
   } catch {
-    // ignore invalid JSON
+    // keep user typing
   }
 }
 

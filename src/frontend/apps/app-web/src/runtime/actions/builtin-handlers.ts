@@ -25,12 +25,13 @@ export function registerBuiltinHandlers(): void {
 
 async function handleRunWorkflow(
   action: RuntimeAction,
-  context: RuntimeContext,
+  context: unknown,
 ) {
   if (action.type !== "runWorkflow") return actionFail("Invalid action type", "runWorkflow");
+  const runtimeContext = context as RuntimeContext;
 
   const input = action.input;
-  const prefix = resolvePrefix(context.app.appKey);
+  const prefix = resolvePrefix(runtimeContext.app.appKey);
   try {
     const resp = await requestApi<ApiResponse<unknown>>(
       `${prefix}/api/app/workflows/${encodeURIComponent(input?.workflowKey ?? "")}/execute`,
@@ -38,7 +39,7 @@ async function handleRunWorkflow(
         method: "POST",
         body: JSON.stringify({
           input: input?.input ?? {},
-          executionId: context.env.runtimeExecutionId,
+          executionId: runtimeContext.env.runtimeExecutionId,
         }),
       },
     );
@@ -50,12 +51,13 @@ async function handleRunWorkflow(
 
 async function handleRunApproval(
   action: RuntimeAction,
-  context: RuntimeContext,
+  context: unknown,
 ) {
   if (action.type !== "runApproval") return actionFail("Invalid action type", "runApproval");
+  const runtimeContext = context as RuntimeContext;
 
   const input = action.input;
-  const prefix = resolvePrefix(context.app.appKey);
+  const prefix = resolvePrefix(runtimeContext.app.appKey);
   try {
     const resp = await requestApi<ApiResponse<unknown>>(
       `${prefix}/api/app/approval/instances`,
@@ -63,7 +65,7 @@ async function handleRunApproval(
         method: "POST",
         body: JSON.stringify({
           ...(typeof input === "object" ? input : {}),
-          executionId: context.env.runtimeExecutionId,
+          executionId: runtimeContext.env.runtimeExecutionId,
         }),
       },
     );
@@ -75,12 +77,13 @@ async function handleRunApproval(
 
 async function handleRunAgent(
   action: RuntimeAction,
-  context: RuntimeContext,
+  context: unknown,
 ) {
   if (action.type !== "runAgent") return actionFail("Invalid action type", "runAgent");
+  const runtimeContext = context as RuntimeContext;
 
   const input = action.input;
-  const prefix = resolvePrefix(context.app.appKey);
+  const prefix = resolvePrefix(runtimeContext.app.appKey);
   try {
     const resp = await requestApi<ApiResponse<unknown>>(
       `${prefix}/api/app/agents/${encodeURIComponent(input?.agentKey ?? "")}/invoke`,
@@ -89,9 +92,9 @@ async function handleRunAgent(
         body: JSON.stringify({
           input: input?.input ?? {},
           context: {
-            executionId: context.env.runtimeExecutionId,
-            pageKey: context.page.pageKey,
-            userId: context.user.id,
+            executionId: runtimeContext.env.runtimeExecutionId,
+            pageKey: runtimeContext.page.pageKey,
+            userId: runtimeContext.user.id,
           },
         }),
       },
@@ -104,12 +107,13 @@ async function handleRunAgent(
 
 async function handleRunFlow(
   action: RuntimeAction,
-  context: RuntimeContext,
+  context: unknown,
 ) {
   if (action.type !== "runFlow") return actionFail("Invalid action type", "runFlow");
+  const runtimeContext = context as RuntimeContext;
 
   const input = action.input;
-  const prefix = resolvePrefix(context.app.appKey);
+  const prefix = resolvePrefix(runtimeContext.app.appKey);
   try {
     const resp = await requestApi<ApiResponse<unknown>>(
       `${prefix}/api/app/flows/${encodeURIComponent(input?.flowKey ?? "")}/execute`,
@@ -117,7 +121,7 @@ async function handleRunFlow(
         method: "POST",
         body: JSON.stringify({
           input: input?.input ?? {},
-          executionId: context.env.runtimeExecutionId,
+          executionId: runtimeContext.env.runtimeExecutionId,
         }),
       },
     );

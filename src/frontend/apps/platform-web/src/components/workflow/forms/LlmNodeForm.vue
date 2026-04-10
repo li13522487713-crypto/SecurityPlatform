@@ -7,10 +7,10 @@
       <a-input v-model:value="model" placeholder="gpt-5.4-medium" @change="emitChange" />
     </a-form-item>
     <a-form-item label="系统提示词">
-      <a-textarea v-model:value="systemPrompt" :rows="3" @change="emitChange" />
+      <VariableRefPicker v-model:model-value="systemPrompt" :rows="3" @change="emitChange" />
     </a-form-item>
     <a-form-item label="用户提示词模板">
-      <a-textarea v-model:value="prompt" :rows="5" @change="emitChange" />
+      <VariableRefPicker v-model:model-value="prompt" :rows="5" @change="emitChange" />
     </a-form-item>
     <a-form-item label="温度">
       <a-slider v-model:value="temperature" :min="0" :max="2" :step="0.1" @change="emitChange" />
@@ -29,6 +29,7 @@
 
 <script setup lang="ts">
 import { computed } from "vue";
+import VariableRefPicker from "@/components/workflow/widgets/VariableRefPicker.vue";
 
 const props = defineProps<{ configs: Record<string, unknown> }>();
 const emit = defineEmits<{ (e: "change"): void }>();

@@ -57,7 +57,7 @@ export function mapAmisEventToAction(event: AmisEvent): RuntimeAction | null {
         type: "submitForm",
         input: {
           formKey: event.data?.["formKey"] as string | undefined,
-          payload: event.data,
+          validateOnly: false,
         },
       };
     }

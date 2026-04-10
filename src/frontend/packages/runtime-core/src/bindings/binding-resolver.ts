@@ -4,7 +4,7 @@
  * 遍历 AMIS schema，识别 form/crud 组件，生成 DataBinding 声明。
  */
 
-import type { AmisSchema } from "../../types";
+import type { AmisSchema } from "../types";
 import type { DataBinding, SchemaBindingMap } from "./binding-types";
 
 export interface BindingResolverOptions {

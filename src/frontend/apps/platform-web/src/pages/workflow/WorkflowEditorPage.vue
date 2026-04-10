@@ -94,10 +94,30 @@
     </a-modal>
 
     <a-drawer v-model:open="showVersionDrawer" :title="t('workflow.colLatestVersion')" width="420">
+      <a-form layout="vertical" size="small" style="margin-bottom: 12px">
+        <a-form-item label="版本对比">
+          <a-space>
+            <a-select v-model:value="diffFromVersionId" style="width: 150px" placeholder="旧版本">
+              <a-select-option v-for="item in workflowVersions" :key="`from-${item.id}`" :value="item.id">
+                v{{ item.versionNumber }}
+              </a-select-option>
+            </a-select>
+            <a-select v-model:value="diffToVersionId" style="width: 150px" placeholder="新版本">
+              <a-select-option v-for="item in workflowVersions" :key="`to-${item.id}`" :value="item.id">
+                v{{ item.versionNumber }}
+              </a-select-option>
+            </a-select>
+            <a-button size="small" @click="computeLocalVersionDiff">对比</a-button>
+          </a-space>
+        </a-form-item>
+        <a-form-item v-if="versionDiffText">
+          <a-textarea :value="versionDiffText" :rows="6" readonly />
+        </a-form-item>
+      </a-form>
       <a-timeline>
         <a-timeline-item v-for="item in workflowVersions" :key="item.id">
-          <div class="version-title">v{{ item.versionNumber }} · {{ item.lifecycleStatus }}</div>
-          <div class="version-meta">{{ item.createdAt }}</div>
+          <div class="version-title">v{{ item.versionNumber }}</div>
+          <div class="version-meta">{{ item.publishedAt }}</div>
           <div class="version-meta">{{ item.changeLog || "-" }}</div>
         </a-timeline-item>
       </a-timeline>
@@ -140,8 +160,8 @@ import WorkflowEdgeRenderer from '@/components/workflow/nodes/WorkflowEdgeRender
 
 import { workflowV2Api } from '@/services/api-workflow-v2'
 import { resolveCurrentAppId } from '@/utils/app-context'
-import { normalizeNodeTypeKey } from '@/types/workflow-v2'
-import type { CanvasSchema, ConnectionSchema, NodeSchema, NodeTypeMetadata, WorkflowVersionItem } from '@/types/workflow-v2'
+import { normalizeNodeTypeKey } from '@atlas/workflow-editor/types'
+import type { CanvasSchema, ConnectionSchema, NodeSchema, NodeTypeMetadata, WorkflowVersionItem } from '@atlas/workflow-editor/types'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -160,9 +180,15 @@ const lastSavedAt = ref('')
 const selectedNode = ref<NodeSchema | null>(null)
 const nodeTypesMetadata = ref<NodeTypeMetadata[]>([])
 const workflowVersions = ref<WorkflowVersionItem[]>([])
+const diffFromVersionId = ref<string>()
+const diffToVersionId = ref<string>()
+const versionDiffText = ref("")
 
 const vfNodes = ref<VfNode[]>([])
 const vfEdges = ref<VfEdge[]>([])
+const historySnapshots = ref<CanvasSchema[]>([])
+const historyIndex = ref(-1)
+const copiedNode = ref<NodeSchema | null>(null)
 
 // 节点执行状态（key → status string）
 const nodeRunStatus = ref<Record<string, string>>({})
@@ -229,6 +255,32 @@ const defaultEdgeOptions = {
 
 let draggingNodeType: string | null = null
 
+function snapshotCanvas() {
+  const snapshot: CanvasSchema = JSON.parse(JSON.stringify(currentCanvas.value)) as CanvasSchema
+  if (historyIndex.value >= 0) {
+    const current = JSON.stringify(historySnapshots.value[historyIndex.value] ?? {})
+    const next = JSON.stringify(snapshot)
+    if (current === next) {
+      return
+    }
+  }
+  historySnapshots.value = historySnapshots.value.slice(0, historyIndex.value + 1)
+  historySnapshots.value.push(snapshot)
+  if (historySnapshots.value.length > 50) {
+    historySnapshots.value.shift()
+  }
+  historyIndex.value = historySnapshots.value.length - 1
+}
+
+function markDirtyAndSnapshot() {
+  isDirty.value = true
+  snapshotCanvas()
+}
+
+function cloneNodeSchema(node: NodeSchema): NodeSchema {
+  return JSON.parse(JSON.stringify(node)) as NodeSchema
+}
+
 function backToList() {
   const currentAppId = resolveCurrentAppId(route)
   if (!currentAppId) {
@@ -275,6 +327,8 @@ async function loadWorkflow() {
     const vRes = await workflowV2Api.getVersions(workflowId.value)
     if (vRes.success && vRes.data) {
       workflowVersions.value = vRes.data
+      diffFromVersionId.value = vRes.data[1]?.id ?? vRes.data[0]?.id
+      diffToVersionId.value = vRes.data[0]?.id
     }
   } catch {
     workflowName.value = t('workflow.defaultName')
@@ -326,6 +380,7 @@ function applyCanvasToVueFlow(canvas: CanvasSchema) {
   vfEdges.value = canvas.connections.map(toVfEdge)
 
   isDirty.value = false
+  snapshotCanvas()
 }
 
 function initDefaultCanvas() {
@@ -354,6 +409,7 @@ function initDefaultCanvas() {
     },
   ]
   isDirty.value = false
+  snapshotCanvas()
 }
 
 async function handleSaveDraft() {
@@ -422,7 +478,7 @@ function handleToolbarMenuAction(key: string) {
         try {
           const parsed = JSON.parse(String(reader.result ?? '{}')) as CanvasSchema
           applyCanvasToVueFlow(parsed)
-          isDirty.value = true
+          markDirtyAndSnapshot()
           message.success(t('workflow.importJsonSuccess'))
         } catch {
           message.error(t('workflow.importJsonFailed'))
@@ -436,7 +492,7 @@ function handleToolbarMenuAction(key: string) {
 
   if (key === 'reset-canvas') {
     initDefaultCanvas()
-    isDirty.value = true
+    markDirtyAndSnapshot()
     message.success(t('workflow.resetCanvasSuccess'))
   }
 }
@@ -478,18 +534,18 @@ function handleConnect(params: Connection) {
   }
   // @ts-expect-error VueFlow Edge 泛型在 vue-tsc 中会触发深度推导错误（TS2589）
   vfEdges.value.push(newEdge)
-  isDirty.value = true
+  markDirtyAndSnapshot()
 }
 
 function handleNodesChange(changes: NodeChange[]) {
   if (changes.some(c => c.type !== 'select' && c.type !== 'dimensions')) {
-    isDirty.value = true
+    markDirtyAndSnapshot()
   }
 }
 
 function handleEdgesChange(changes: EdgeChange[]) {
   if (changes.some(c => c.type !== 'select')) {
-    isDirty.value = true
+    markDirtyAndSnapshot()
   }
 }
 
@@ -515,7 +571,7 @@ function handleDrop(event: DragEvent) {
     data: { title, configs: {}, inputMappings: {}, nodeType: normalizedDraggingType, __status: '' },
   })
 
-  isDirty.value = true
+  markDirtyAndSnapshot()
   draggingNodeType = null
 }
 
@@ -538,7 +594,7 @@ function handleNodeConfigUpdate(
     if (selectedNode.value?.key === nodeKey) {
       selectedNode.value = { ...selectedNode.value, configs, inputMappings, title }
     }
-    isDirty.value = true
+    markDirtyAndSnapshot()
   }
 }
 
@@ -564,7 +620,8 @@ function handleNodeStatusUpdate(nodeKey: string, status: string) {
       return {
         ...edge,
         animated: true,
-        style: { ...(edge.style ?? {}), stroke: '#1677ff', strokeWidth: 2.5 }
+        style: { ...(edge.style ?? {}), stroke: '#4e40e5', strokeWidth: 2.8 },
+        data: { ...(edge.data as Record<string, unknown> ?? {}), running: true }
       }
     }
 
@@ -572,7 +629,8 @@ function handleNodeStatusUpdate(nodeKey: string, status: string) {
       return {
         ...edge,
         animated: false,
-        style: { ...(edge.style ?? {}), stroke: '#52c41a', strokeWidth: 2.2 }
+        style: { ...(edge.style ?? {}), stroke: '#52c41a', strokeWidth: 2.2 },
+        data: { ...(edge.data as Record<string, unknown> ?? {}), running: false }
       }
     }
 
@@ -580,20 +638,50 @@ function handleNodeStatusUpdate(nodeKey: string, status: string) {
       return {
         ...edge,
         animated: false,
-        style: { ...(edge.style ?? {}), stroke: '#ff4d4f', strokeWidth: 2.2 }
+        style: { ...(edge.style ?? {}), stroke: '#ff4d4f', strokeWidth: 2.2 },
+        data: { ...(edge.data as Record<string, unknown> ?? {}), running: false }
       }
     }
 
     return {
       ...edge,
       animated: false,
-      style: { ...(edge.style ?? {}), stroke: '#4b5563', strokeWidth: 2 }
+      style: { ...(edge.style ?? {}), stroke: '#4b5563', strokeWidth: 2 },
+      data: { ...(edge.data as Record<string, unknown> ?? {}), running: false }
     }
   })
 }
 
 function handleDebugLog(line: string) {
   debugLines.value = [...debugLines.value, line]
+}
+
+function computeLocalVersionDiff() {
+  const from = workflowVersions.value.find((item) => item.id === diffFromVersionId.value)
+  const to = workflowVersions.value.find((item) => item.id === diffToVersionId.value)
+  if (!from || !to) {
+    versionDiffText.value = "请选择两个版本"
+    return
+  }
+  try {
+    const fromCanvas = JSON.parse(from.canvasJson) as CanvasSchema
+    const toCanvas = JSON.parse(to.canvasJson) as CanvasSchema
+    const fromNodeKeys = new Set((fromCanvas.nodes ?? []).map((node) => node.key))
+    const toNodeKeys = new Set((toCanvas.nodes ?? []).map((node) => node.key))
+    const added = [...toNodeKeys].filter((key) => !fromNodeKeys.has(key))
+    const removed = [...fromNodeKeys].filter((key) => !toNodeKeys.has(key))
+    const lines = [
+      `from: v${from.versionNumber}`,
+      `to: v${to.versionNumber}`,
+      `nodes: ${fromCanvas.nodes.length} -> ${toCanvas.nodes.length}`,
+      `connections: ${fromCanvas.connections.length} -> ${toCanvas.connections.length}`,
+      `added: ${added.length > 0 ? added.join(", ") : "-"}`,
+      `removed: ${removed.length > 0 ? removed.join(", ") : "-"}`
+    ]
+    versionDiffText.value = lines.join("\n")
+  } catch {
+    versionDiffText.value = "版本内容不是有效 JSON"
+  }
 }
 
 function getNodeStatusColor(node: VfNode): string {
@@ -605,9 +693,85 @@ function getNodeStatusColor(node: VfNode): string {
   return '#374151'
 }
 
+function applySnapshot(snapshot: CanvasSchema) {
+  applyCanvasToVueFlow(snapshot)
+  isDirty.value = true
+}
+
+function deleteSelectedNode() {
+  if (!selectedNode.value) {
+    return
+  }
+  const key = selectedNode.value.key
+  vfNodes.value = vfNodes.value.filter((node) => node.id !== key)
+  vfEdges.value = vfEdges.value.filter((edge) => edge.source !== key && edge.target !== key)
+  selectedNode.value = null
+  markDirtyAndSnapshot()
+}
+
+function handleKeyboardShortcuts(event: KeyboardEvent) {
+  const ctrlOrMeta = event.ctrlKey || event.metaKey
+  if (ctrlOrMeta && event.key.toLowerCase() === "c" && selectedNode.value) {
+    copiedNode.value = cloneNodeSchema(selectedNode.value)
+    event.preventDefault()
+    return
+  }
+  if (ctrlOrMeta && event.key.toLowerCase() === "v" && copiedNode.value) {
+    const source = copiedNode.value
+    const newKey = `${source.type.toLowerCase()}_${Date.now()}`
+    const newNode: VfNode = {
+      id: newKey,
+      type: source.type,
+      position: { x: source.layout.x + 28, y: source.layout.y + 28 },
+      data: {
+        title: `${source.title}_copy`,
+        configs: JSON.parse(JSON.stringify(source.configs)),
+        inputMappings: JSON.parse(JSON.stringify(source.inputMappings)),
+        nodeType: source.type,
+        __status: ""
+      }
+    }
+    vfNodes.value = vfNodes.value.concat(newNode)
+    markDirtyAndSnapshot()
+    event.preventDefault()
+    return
+  }
+  if (ctrlOrMeta && event.key.toLowerCase() === "z") {
+    if (historyIndex.value > 0) {
+      historyIndex.value -= 1
+      const snapshot = historySnapshots.value[historyIndex.value]
+      if (snapshot) {
+        applySnapshot(snapshot)
+      }
+    }
+    event.preventDefault()
+    return
+  }
+  if (ctrlOrMeta && event.key.toLowerCase() === "y") {
+    if (historyIndex.value < historySnapshots.value.length - 1) {
+      historyIndex.value += 1
+      const snapshot = historySnapshots.value[historyIndex.value]
+      if (snapshot) {
+        applySnapshot(snapshot)
+      }
+    }
+    event.preventDefault()
+    return
+  }
+  if ((event.key === "Delete" || event.key === "Backspace") && selectedNode.value) {
+    deleteSelectedNode()
+    event.preventDefault()
+  }
+}
+
 onMounted(() => {
   loadWorkflow()
   loadNodeTypes()
+  window.addEventListener("keydown", handleKeyboardShortcuts)
+})
+
+onUnmounted(() => {
+  window.removeEventListener("keydown", handleKeyboardShortcuts)
 })
 </script>
 

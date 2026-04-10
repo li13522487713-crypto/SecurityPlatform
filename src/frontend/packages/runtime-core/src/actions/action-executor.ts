@@ -195,7 +195,7 @@ export async function executeAction(
           },
           action.type,
         ),
-        success: execution.success || action.continueOnError,
+        success: execution.success || (action.continueOnError ?? false),
       };
     }
 

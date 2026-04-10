@@ -12,32 +12,43 @@
     </div>
 
     <div class="panel-body">
-      <div v-for="category in filteredCategories" :key="category.name" class="node-category">
-        <div class="category-title">{{ category.name }}</div>
-        <div class="category-nodes">
-          <div
-            v-for="node in category.nodes"
-            :key="node.type"
-            class="node-item"
-            draggable="true"
-            @dragstart="handleDragStart(node.type)"
-          >
-            <span class="node-item-icon" :style="{ background: getNodeColor(node.type) }">
-              {{ getNodeIcon(node.type) }}
-            </span>
-            <div class="node-item-info">
-              <div class="node-item-name">{{ node.name }}</div>
-              <div class="node-item-desc">{{ node.description }}</div>
-            </div>
+      <a-collapse v-model:activeKey="activeCategories" :bordered="false" ghost>
+        <a-collapse-panel
+          v-for="category in filteredCategories"
+          :key="category.name"
+          :header="category.name"
+          class="node-collapse-panel"
+        >
+          <div class="category-nodes">
+            <a-tooltip
+              v-for="node in category.nodes"
+              :key="node.type"
+              placement="right"
+              :title="node.description"
+            >
+              <div
+                class="node-item"
+                draggable="true"
+                @dragstart="handleDragStart($event, node)"
+              >
+                <span class="node-item-icon" :style="{ background: getNodeColor(node.type) }">
+                  {{ getNodeIcon(node.type) }}
+                </span>
+                <div class="node-item-info">
+                  <div class="node-item-name">{{ node.name }}</div>
+                  <div class="node-item-desc">{{ node.description }}</div>
+                </div>
+              </div>
+            </a-tooltip>
           </div>
-        </div>
-      </div>
+        </a-collapse-panel>
+      </a-collapse>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { SearchOutlined } from '@ant-design/icons-vue'
 
@@ -48,6 +59,7 @@ const emit = defineEmits<{
 }>()
 
 const searchText = ref('')
+const STORAGE_KEY = "wfUi.nodePanel.activeCategories"
 
 interface NodeItem {
   type: string
@@ -157,9 +169,50 @@ const filteredCategories = computed(() => {
   return Array.from(map.entries()).map(([name, nodes]) => ({ name, nodes }))
 })
 
-function handleDragStart(nodeType: string) {
-  emit('drag-start', nodeType)
+const activeCategories = ref<string[]>([])
+
+if (typeof window !== "undefined") {
+  const cached = window.localStorage.getItem(STORAGE_KEY)
+  if (cached) {
+    activeCategories.value = cached.split("|").filter(Boolean)
+  }
 }
+
+const defaultCategoryNames = computed(() => filteredCategories.value.map((item) => item.name))
+if (activeCategories.value.length === 0) {
+  activeCategories.value = defaultCategoryNames.value.slice(0, 3)
+}
+
+function handleDragStart(event: DragEvent, node: NodeItem) {
+  emit('drag-start', node.type)
+  if (!event.dataTransfer) {
+    return
+  }
+  event.dataTransfer.setData("text/plain", node.type)
+  event.dataTransfer.effectAllowed = "copy"
+
+  const dragImage = document.createElement("div")
+  dragImage.style.padding = "6px 10px"
+  dragImage.style.borderRadius = "8px"
+  dragImage.style.background = "#0f172a"
+  dragImage.style.color = "#fff"
+  dragImage.style.fontSize = "12px"
+  dragImage.style.fontWeight = "600"
+  dragImage.style.border = `1px solid ${getNodeColor(node.type)}`
+  dragImage.innerText = `${getNodeIcon(node.type)} ${node.name}`
+  document.body.appendChild(dragImage)
+  event.dataTransfer.setDragImage(dragImage, 10, 10)
+  window.setTimeout(() => {
+    dragImage.remove()
+  }, 0)
+}
+
+watch(activeCategories, (value) => {
+  if (typeof window === "undefined") {
+    return
+  }
+  window.localStorage.setItem(STORAGE_KEY, value.join("|"))
+})
 </script>
 
 <style scoped>
@@ -186,19 +239,6 @@ function handleDragStart(nodeType: string) {
   padding: 8px 0;
   scrollbar-width: thin;
   scrollbar-color: #3b4755 #121a23;
-}
-
-.node-category {
-  margin-bottom: 8px;
-}
-
-.category-title {
-  padding: 4px 12px;
-  font-size: 11px;
-  font-weight: 700;
-  color: #7d8590;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
 }
 
 .category-nodes {
@@ -294,5 +334,11 @@ function handleDragStart(nodeType: string) {
 
 :deep(.panel-header .ant-input-prefix) {
   color: #8f99a6;
+}
+
+:deep(.node-collapse-panel .ant-collapse-header) {
+  padding: 6px 10px !important;
+  font-size: 12px;
+  color: #94a3b8 !important;
 }
 </style>

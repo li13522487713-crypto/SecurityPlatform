@@ -11,3 +11,5 @@ export interface RuntimeExecutionRecord {
   startedAt: string;
   finishedAt?: string;
 }
+
+export type AmisSchema = Record<string, unknown>;

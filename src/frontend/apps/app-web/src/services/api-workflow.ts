@@ -42,8 +42,6 @@ export const workflowV2Api = createWorkflowApiFromRequest(requestApi, {
   resolveAppId: () => getCurrentAppIdFromStorage()
 });
 
-// ============ 向后兼容的独立导出 ============
-
 export function createWorkflow(req: WorkflowCreateRequest): Promise<ApiResponse<string>> {
   return workflowV2Api.create(req).then((res) => ({
     ...res,

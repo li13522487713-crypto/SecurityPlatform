@@ -215,6 +215,11 @@ export const router = createRouter({
           component: () => import("@/pages/workflow/WorkflowListPage.vue")
         },
         {
+          path: "workflows/:id/editor",
+          name: "app-workflow-editor",
+          component: () => import("@/pages/workflow/WorkflowEditorPage.vue")
+        },
+        {
           path: "workflow-databases",
           name: "app-workflow-databases",
           component: () => import("@/pages/workflow/WorkflowDatabasesPage.vue")
