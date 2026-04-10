@@ -107,8 +107,9 @@ public sealed class NavigationProjectionService : INavigationProjectionService
                 Order: capability.Navigation.Order ?? int.MaxValue,
                 SourceRefs: ["capability-manifest"]))
             .ToArray();
+        var deduplicatedItems = DeduplicateWorkspaceMenuItems(items);
 
-        var groups = BuildGroups(items, capabilities.ToDictionary(
+        var groups = BuildGroups(deduplicatedItems, capabilities.ToDictionary(
             capability => capability.CapabilityKey,
             capability => capability.Navigation.Group ?? "general",
             StringComparer.OrdinalIgnoreCase));
@@ -254,6 +255,31 @@ public sealed class NavigationProjectionService : INavigationProjectionService
                     .ToArray()))
             .OrderBy(group => group.GroupTitle, StringComparer.OrdinalIgnoreCase)
             .ToArray();
+    }
+
+    private static IReadOnlyList<NavigationProjectionItem> DeduplicateWorkspaceMenuItems(
+        IReadOnlyList<NavigationProjectionItem> items)
+    {
+        return items
+            .Select(item => new
+            {
+                Item = item,
+                NormalizedPath = NormalizeMenuPath(item.Path)
+            })
+            .GroupBy(entry => (entry.NormalizedPath), StringComparer.OrdinalIgnoreCase)
+            .Select(group => group
+                .OrderBy(entry => entry.Item.Order)
+                .ThenBy(entry => entry.Item.Title, StringComparer.OrdinalIgnoreCase)
+                .Select(entry => entry.Item)
+                .First())
+            .ToArray();
+    }
+
+    private static string NormalizeMenuPath(string? route)
+    {
+        return string.IsNullOrWhiteSpace(route)
+            ? string.Empty
+            : route.Trim().TrimEnd('/').ToLowerInvariant();
     }
 
     private async Task<HashSet<string>> LoadPermissionSetAsync(long userId, CancellationToken cancellationToken)

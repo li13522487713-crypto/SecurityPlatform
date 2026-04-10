@@ -1,0 +1,145 @@
+using Atlas.Application.Abstractions;
+using Atlas.Core.Exceptions;
+using Atlas.Core.Identity;
+using Atlas.Core.Models;
+using Atlas.Core.Tenancy;
+using Atlas.Presentation.Shared.Authorization;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+
+namespace Atlas.AppHost.Controllers;
+
+[ApiController]
+[Route("api/v1/mfa")]
+[Authorize(Policy = PermissionPolicies.AppUser)]
+public sealed class MfaController : ControllerBase
+{
+    private readonly ITotpService _totpService;
+    private readonly IUserAccountRepository _userRepository;
+    private readonly ITenantProvider _tenantProvider;
+    private readonly ICurrentUserAccessor _currentUserAccessor;
+
+    public MfaController(
+        ITotpService totpService,
+        IUserAccountRepository userRepository,
+        ITenantProvider tenantProvider,
+        ICurrentUserAccessor currentUserAccessor)
+    {
+        _totpService = totpService;
+        _userRepository = userRepository;
+        _tenantProvider = tenantProvider;
+        _currentUserAccessor = currentUserAccessor;
+    }
+
+    [HttpPost("setup")]
+    public async Task<ActionResult<ApiResponse<MfaSetupResult>>> Setup(CancellationToken cancellationToken)
+    {
+        var currentUser = _currentUserAccessor.GetCurrentUserOrThrow();
+        var tenantId = _tenantProvider.GetTenantId();
+
+        var user = await _userRepository.FindByIdAsync(tenantId, currentUser.UserId, cancellationToken);
+        if (user is null)
+        {
+            throw new BusinessException("UserNotFound", ErrorCodes.NotFound);
+        }
+
+        if (user.MfaEnabled)
+        {
+            throw new BusinessException("MFA已启用，请先禁用后重新设置", ErrorCodes.ValidationError);
+        }
+
+        var secretKey = _totpService.GenerateSecretKey();
+        user.SetupMfa(secretKey);
+        await _userRepository.UpdateAsync(user, cancellationToken);
+
+        var provisioningUri = _totpService.GenerateProvisioningUri(secretKey, user.Username, "Atlas Security Platform");
+
+        var result = new MfaSetupResult(secretKey, provisioningUri);
+        return Ok(ApiResponse<MfaSetupResult>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost("verify-setup")]
+    public async Task<ActionResult<ApiResponse<object>>> VerifySetup(
+        [FromBody] MfaVerifyRequest request,
+        CancellationToken cancellationToken)
+    {
+        var currentUser = _currentUserAccessor.GetCurrentUserOrThrow();
+        var tenantId = _tenantProvider.GetTenantId();
+
+        var user = await _userRepository.FindByIdAsync(tenantId, currentUser.UserId, cancellationToken);
+        if (user is null)
+        {
+            throw new BusinessException("UserNotFound", ErrorCodes.NotFound);
+        }
+
+        if (user.MfaEnabled)
+        {
+            throw new BusinessException("MfaAlreadyEnabledSimple", ErrorCodes.ValidationError);
+        }
+
+        if (string.IsNullOrWhiteSpace(user.MfaSecretKey))
+        {
+            throw new BusinessException("MfaNotSetup", ErrorCodes.ValidationError);
+        }
+
+        if (!_totpService.ValidateCode(user.MfaSecretKey, request.Code))
+        {
+            throw new BusinessException("MfaCodeInvalid", ErrorCodes.ValidationError);
+        }
+
+        user.EnableMfa();
+        await _userRepository.UpdateAsync(user, cancellationToken);
+
+        return Ok(ApiResponse<object>.Ok(new { MfaEnabled = true }, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost("disable")]
+    public async Task<ActionResult<ApiResponse<object>>> Disable(
+        [FromBody] MfaVerifyRequest request,
+        CancellationToken cancellationToken)
+    {
+        var currentUser = _currentUserAccessor.GetCurrentUserOrThrow();
+        var tenantId = _tenantProvider.GetTenantId();
+
+        var user = await _userRepository.FindByIdAsync(tenantId, currentUser.UserId, cancellationToken);
+        if (user is null)
+        {
+            throw new BusinessException("UserNotFound", ErrorCodes.NotFound);
+        }
+
+        if (!user.MfaEnabled || string.IsNullOrWhiteSpace(user.MfaSecretKey))
+        {
+            throw new BusinessException("MfaNotEnabled", ErrorCodes.ValidationError);
+        }
+
+        if (!_totpService.ValidateCode(user.MfaSecretKey, request.Code))
+        {
+            throw new BusinessException("MfaCodeInvalid", ErrorCodes.ValidationError);
+        }
+
+        user.DisableMfa();
+        await _userRepository.UpdateAsync(user, cancellationToken);
+
+        return Ok(ApiResponse<object>.Ok(new { MfaEnabled = false }, HttpContext.TraceIdentifier));
+    }
+
+    [HttpGet("status")]
+    public async Task<ActionResult<ApiResponse<MfaStatusResult>>> Status(CancellationToken cancellationToken)
+    {
+        var currentUser = _currentUserAccessor.GetCurrentUserOrThrow();
+        var tenantId = _tenantProvider.GetTenantId();
+
+        var user = await _userRepository.FindByIdAsync(tenantId, currentUser.UserId, cancellationToken);
+        if (user is null)
+        {
+            throw new BusinessException("UserNotFound", ErrorCodes.NotFound);
+        }
+
+        var result = new MfaStatusResult(user.MfaEnabled);
+        return Ok(ApiResponse<MfaStatusResult>.Ok(result, HttpContext.TraceIdentifier));
+    }
+}
+
+public sealed record MfaSetupResult(string SecretKey, string ProvisioningUri);
+public sealed record MfaVerifyRequest(string Code);
+public sealed record MfaStatusResult(bool MfaEnabled);

@@ -179,6 +179,11 @@ export function createWorkflowV2Api(options: WorkflowApiFactoryOptions) {
   };
 }
 
+export type WorkflowTestRunClient = Pick<
+  ReturnType<typeof createWorkflowV2Api>,
+  "runSync" | "getProcess" | "runStream" | "resume"
+>;
+
 function createStreamRunHandle(
   path: string,
   payload: object | undefined,

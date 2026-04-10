@@ -19,7 +19,7 @@ import type {
   WorkflowSaveRequest,
   WorkflowUpdateMetaRequest,
   WorkflowVersionItem
-} from "@/types/workflow-v2";
+} from "@atlas/workflow-editor/types";
 import { API_BASE, requestApi } from "@/services/api-core";
 import { getCurrentAppIdFromStorage } from "@/utils/app-context";
 

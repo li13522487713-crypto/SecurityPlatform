@@ -19,16 +19,71 @@ import type {
   WorkflowSaveRequest,
   WorkflowUpdateMetaRequest,
   WorkflowVersionItem
-} from "@/types/workflow-v2";
+} from "@atlas/workflow-editor/types";
 import { API_BASE, requestApi } from "@/services/api-core";
-import { getCurrentAppIdFromStorage } from "@/utils/app-context";
+import { getLowCodeAppByKey } from "@/services/api-lowcode-runtime";
+import {
+  getCurrentAppIdFromStorage,
+  getCurrentAppKeyFromPath,
+  setCurrentAppIdToStorage
+} from "@/utils/app-context";
 
 type IdLike = string | number;
 
 export type { StreamCallbacks, StreamRunHandle } from "@atlas/workflow-editor/api";
 import type { StreamCallbacks, StreamRunHandle } from "@atlas/workflow-editor/api";
 
-export const workflowV2Api = createWorkflowApiFromRequest(requestApi, {
+const APP_ID_REGEX = /^[1-9]\d*$/;
+let appIdResolvingPromise: Promise<string | null> | null = null;
+
+async function ensureCurrentAppId(): Promise<string | null> {
+  const storedAppId = getCurrentAppIdFromStorage();
+  if (storedAppId && APP_ID_REGEX.test(storedAppId)) {
+    return storedAppId;
+  }
+
+  const appKey = getCurrentAppKeyFromPath();
+  if (!appKey) {
+    return null;
+  }
+
+  if (!appIdResolvingPromise) {
+    appIdResolvingPromise = getLowCodeAppByKey(appKey)
+      .then((detail) => {
+        const resolved = String(detail.id ?? "").trim();
+        if (APP_ID_REGEX.test(resolved)) {
+          setCurrentAppIdToStorage(resolved);
+          return resolved;
+        }
+        return null;
+      })
+      .catch(() => null)
+      .finally(() => {
+        appIdResolvingPromise = null;
+      });
+  }
+
+  return appIdResolvingPromise;
+}
+
+function createWorkflowRequestHeaders(appId: string | null, init?: RequestInit): Headers {
+  const headers = new Headers(init?.headers ?? {});
+  if (appId && APP_ID_REGEX.test(appId)) {
+    headers.set("X-App-Id", appId);
+    headers.set("X-App-Workspace", "1");
+  }
+  return headers;
+}
+
+const workflowRequest = async <T>(path: string, init?: RequestInit) => {
+  const appId = await ensureCurrentAppId();
+  return requestApi<T>(path, {
+    ...init,
+    headers: createWorkflowRequestHeaders(appId, init)
+  });
+};
+
+export const workflowV2Api = createWorkflowApiFromRequest(workflowRequest, {
   resolveAbsoluteUrl: (path) => {
     if (path.startsWith("http://") || path.startsWith("https://")) {
       return path;

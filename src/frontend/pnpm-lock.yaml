@@ -448,6 +448,9 @@ importers:
       '@atlas/shared-kernel':
         specifier: workspace:*
         version: link:../shared-kernel
+      monaco-editor:
+        specifier: ^0.52.2
+        version: 0.52.2
       vue:
         specifier: ^3.5.0
         version: 3.5.32(typescript@5.9.3)

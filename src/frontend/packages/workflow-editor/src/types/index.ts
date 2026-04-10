@@ -1,1 +1,1 @@
-export * from "../../../../apps/platform-web/src/types/workflow-v2";
+export * from "./workflow-v2";

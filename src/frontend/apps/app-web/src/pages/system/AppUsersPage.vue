@@ -601,7 +601,7 @@ async function fetchData() {
       departmentId: selectedDeptId.value,
     });
     tableData.value = result.items;
-    pagination.total = result.total;
+    pagination.total = Number(result.total ?? 0);
   } catch {
     message.error(t("crud.queryFailed"));
   } finally {

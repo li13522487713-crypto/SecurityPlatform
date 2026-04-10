@@ -8,7 +8,9 @@
   "exports": {
     ".": "./src/index.ts",
     "./api": "./src/api/index.ts",
-    "./types": "./src/types/index.ts"
+    "./types": "./src/types/index.ts",
+    "./forms": "./src/forms/index.ts",
+    "./i18n": "./src/i18n/index.ts"
   },
   "scripts": {
     "lint": "echo 'workflow-editor: no lint configured yet'",
@@ -27,7 +29,8 @@
   },
   "dependencies": {
     "@atlas/shared-core": "workspace:*",
-    "@atlas/shared-kernel": "workspace:*"
+    "@atlas/shared-kernel": "workspace:*",
+    "monaco-editor": "^0.52.2"
   },
   "devDependencies": {
     "@ant-design/icons-vue": "7.0.1",

@@ -1,10 +1,13 @@
 using System.Security.Claims;
 using Atlas.Application.Abstractions;
+using Atlas.Application.Identity.Abstractions;
 using Atlas.Application.Models;
 using Atlas.Core.Identity;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Presentation.Shared.Authorization;
+using Atlas.Presentation.Shared.Models;
+using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -17,17 +20,29 @@ public sealed class AuthController : ControllerBase
     private readonly ICurrentUserAccessor currentUserAccessor;
     private readonly IClientContextAccessor clientContextAccessor;
     private readonly IAuthTokenService authTokenService;
+    private readonly IUserCommandService userCommandService;
+    private readonly IUserAccountRepository userAccountRepository;
+    private readonly IValidator<ChangePasswordViewModel> changePasswordValidator;
+    private readonly IValidator<UserProfileUpdateViewModel> profileUpdateValidator;
     private readonly ITenantProvider tenantProvider;
 
     public AuthController(
         ICurrentUserAccessor currentUserAccessor,
         IClientContextAccessor clientContextAccessor,
         IAuthTokenService authTokenService,
+        IUserCommandService userCommandService,
+        IUserAccountRepository userAccountRepository,
+        IValidator<ChangePasswordViewModel> changePasswordValidator,
+        IValidator<UserProfileUpdateViewModel> profileUpdateValidator,
         ITenantProvider tenantProvider)
     {
         this.currentUserAccessor = currentUserAccessor;
         this.clientContextAccessor = clientContextAccessor;
         this.authTokenService = authTokenService;
+        this.userCommandService = userCommandService;
+        this.userAccountRepository = userAccountRepository;
+        this.changePasswordValidator = changePasswordValidator;
+        this.profileUpdateValidator = profileUpdateValidator;
         this.tenantProvider = tenantProvider;
     }
 
@@ -86,6 +101,65 @@ public sealed class AuthController : ControllerBase
             roles,
             permissions
         }, HttpContext.TraceIdentifier));
+    }
+
+    [HttpGet("profile")]
+    [Authorize(Policy = PermissionPolicies.AppUser)]
+    public async Task<ActionResult<ApiResponse<UserProfileDetailViewModel>>> GetProfile(CancellationToken cancellationToken)
+    {
+        var currentUser = currentUserAccessor.GetCurrentUserOrThrow();
+        var user = await userAccountRepository.FindByIdAsync(currentUser.TenantId, currentUser.UserId, cancellationToken);
+        if (user is null)
+        {
+            return NotFound(ApiResponse<UserProfileDetailViewModel>.Fail(ErrorCodes.NotFound, "User not found.", HttpContext.TraceIdentifier));
+        }
+
+        var profile = new UserProfileDetailViewModel(
+            user.DisplayName,
+            user.Email,
+            user.PhoneNumber);
+        return Ok(ApiResponse<UserProfileDetailViewModel>.Ok(profile, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPut("profile")]
+    [Authorize(Policy = PermissionPolicies.AppUser)]
+    public async Task<ActionResult<ApiResponse<object>>> UpdateProfile(
+        [FromBody] UserProfileUpdateViewModel request,
+        CancellationToken cancellationToken)
+    {
+        profileUpdateValidator.ValidateAndThrow(request);
+        var currentUser = currentUserAccessor.GetCurrentUserOrThrow();
+        var tenantId = tenantProvider.GetTenantId();
+
+        await userCommandService.UpdateProfileAsync(
+            tenantId,
+            currentUser.UserId,
+            request.DisplayName.Trim(),
+            string.IsNullOrWhiteSpace(request.Email) ? null : request.Email.Trim(),
+            string.IsNullOrWhiteSpace(request.PhoneNumber) ? null : request.PhoneNumber.Trim(),
+            cancellationToken);
+
+        return Ok(ApiResponse<object>.Ok(new { success = true }, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPut("password")]
+    [Authorize(Policy = PermissionPolicies.AppUser)]
+    public async Task<ActionResult<ApiResponse<object>>> ChangePassword(
+        [FromBody] ChangePasswordViewModel request,
+        CancellationToken cancellationToken)
+    {
+        changePasswordValidator.ValidateAndThrow(request);
+        var currentUser = currentUserAccessor.GetCurrentUserOrThrow();
+        var tenantId = tenantProvider.GetTenantId();
+
+        await userCommandService.ChangePasswordAsync(
+            tenantId,
+            currentUser.UserId,
+            request.CurrentPassword,
+            request.NewPassword,
+            cancellationToken);
+
+        return Ok(ApiResponse<object>.Ok(new { success = true }, HttpContext.TraceIdentifier));
     }
 
     [HttpPost("logout")]

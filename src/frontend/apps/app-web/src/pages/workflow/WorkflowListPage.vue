@@ -67,6 +67,10 @@ async function load() {
       items.value = res.data.items;
       total.value = res.data.total;
     }
+  } catch (error) {
+    items.value = [];
+    total.value = 0;
+    message.error(error instanceof Error ? error.message : "工作流加载失败");
   } finally {
     loading.value = false;
   }
