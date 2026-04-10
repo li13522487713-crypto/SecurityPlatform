@@ -11,6 +11,7 @@ using Atlas.Infrastructure.Caching;
 using Atlas.Infrastructure.Options;
 using Atlas.Infrastructure.Repositories;
 using Atlas.Infrastructure.Services;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using SqlSugar;
@@ -527,7 +528,9 @@ public sealed class DynamicTableCommandServiceAlterTests
             var scopeFactory = new AppDbScopeFactory(
                 new FakeTenantDbConnectionFactory(new TenantDbConnectionInfo($"Data Source={appDbPath}", "Sqlite")),
                 mainDb,
-                hybridCache);
+                hybridCache,
+                new SequentialIdGenerator(99_000),
+                NullLogger<AppDbScopeFactory>.Instance);
 
             var tableRepository = new DynamicTableRepository(mainDb, scopeFactory, appContextAccessor);
             var fieldRepository = new DynamicFieldRepository(mainDb, scopeFactory, appContextAccessor);
@@ -617,7 +620,9 @@ public sealed class DynamicTableCommandServiceAlterTests
             var scopeFactory = new AppDbScopeFactory(
                 new FakeTenantDbConnectionFactory(new TenantDbConnectionInfo($"Data Source={appDbPath}", "Sqlite")),
                 mainDb,
-                hybridCache);
+                hybridCache,
+                new SequentialIdGenerator(99_100),
+                NullLogger<AppDbScopeFactory>.Instance);
 
             var tableRepository = new DynamicTableRepository(mainDb, scopeFactory, appContextAccessor);
             var fieldRepository = new DynamicFieldRepository(mainDb, scopeFactory, appContextAccessor);

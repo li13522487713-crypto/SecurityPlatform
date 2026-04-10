@@ -28,6 +28,8 @@ public static class PlatformServiceCollectionExtensions
         services.AddScoped<Atlas.Application.System.Abstractions.IAppMigrationService, Atlas.Infrastructure.Services.AppMigrationService>();
         services.AddScoped<Atlas.Application.System.Abstractions.ITenantDbConnectionFactory,
             Atlas.Infrastructure.Services.TenantDbConnectionFactory>();
+        services.AddScoped<Atlas.Application.System.Abstractions.IAppDataSourceProvisioner,
+            Atlas.Infrastructure.Services.AppDataSourceProvisioner>();
         services.AddScoped<Atlas.Infrastructure.Services.AppDatabaseProvisioningService>();
         services.AddScoped<Atlas.Application.System.Abstractions.IAppDbConnectionResolver>(sp =>
             (Atlas.Application.System.Abstractions.IAppDbConnectionResolver)sp.GetRequiredService<Atlas.Application.System.Abstractions.ITenantDbConnectionFactory>());

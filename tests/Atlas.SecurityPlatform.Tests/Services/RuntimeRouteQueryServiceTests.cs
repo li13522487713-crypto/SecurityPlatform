@@ -11,6 +11,7 @@ using Atlas.Infrastructure.Caching;
 using Atlas.Infrastructure.Options;
 using Atlas.Infrastructure.Services;
 using Atlas.Infrastructure.Services.Platform;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using NSubstitute;
@@ -38,7 +39,9 @@ public sealed class RuntimeRouteQueryServiceTests
             scopeFactory = new AppDbScopeFactory(
                 new FakeTenantDbConnectionFactory(new TenantDbConnectionInfo($"Data Source={appDbPath}", "Sqlite")),
                 mainDb,
-                hybridCache);
+                hybridCache,
+                new TestIdGenerator(1_000_000),
+                NullLogger<AppDbScopeFactory>.Instance);
 
             await CreateMainSchemaAsync(mainDb);
 
@@ -127,7 +130,9 @@ public sealed class RuntimeRouteQueryServiceTests
             scopeFactory = new AppDbScopeFactory(
                 new FakeTenantDbConnectionFactory(new TenantDbConnectionInfo($"Data Source={appDbPath}", "Sqlite")),
                 mainDb,
-                hybridCache);
+                hybridCache,
+                new TestIdGenerator(2_000_000),
+                NullLogger<AppDbScopeFactory>.Instance);
 
             await CreateMainSchemaAsync(mainDb);
 
@@ -418,6 +423,22 @@ public sealed class RuntimeRouteQueryServiceTests
 
         public void InvalidateCache(string tenantId, long? tenantAppInstanceId)
         {
+        }
+    }
+
+    private sealed class TestIdGenerator : Atlas.Core.Abstractions.IIdGeneratorAccessor
+    {
+        private long _current;
+
+        public TestIdGenerator(long start)
+        {
+            _current = start;
+        }
+
+        public long NextId()
+        {
+            _current += 1;
+            return _current;
         }
     }
 }

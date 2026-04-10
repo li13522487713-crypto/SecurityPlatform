@@ -3,6 +3,7 @@ using Atlas.Application.Identity.Repositories;
 using Atlas.Application.Options;
 using Atlas.Application.Security;
 using Atlas.Application.Identity;
+using Atlas.Application.System.Abstractions;
 using Atlas.Core.Abstractions;
 using Atlas.Core.Enums;
 using Atlas.Core.Identity;
@@ -478,6 +479,7 @@ public sealed class DatabaseInitializerHostedService : IHostedService
 
         await EnsureTenantAppDataSourceBindingBackfillAsync(scope.ServiceProvider, appContextAccessor, db, cancellationToken);
         await EnsureTenantAppDataSourceBindingHealthAsync(scope.ServiceProvider, appContextAccessor, db, cancellationToken);
+        await EnsureOrphanAppProvisioningAsync(scope.ServiceProvider, appContextAccessor, db, cancellationToken);
         await EnsureTeamAgentTemplateSeedDataAsync(
             db,
             appContextAccessor,
@@ -1636,6 +1638,78 @@ public sealed class DatabaseInitializerHostedService : IHostedService
                 promotedBindings.Count,
                 recoveryBindings.Count);
         }
+    }
+
+    private async Task EnsureOrphanAppProvisioningAsync(
+        IServiceProvider serviceProvider,
+        IAppContextAccessor appContextAccessor,
+        ISqlSugarClient db,
+        CancellationToken cancellationToken)
+    {
+        if (!db.DbMaintenance.IsAnyTable("LowCodeApp", false)
+            || !db.DbMaintenance.IsAnyTable("TenantAppDataSourceBinding", false)
+            || !db.DbMaintenance.IsAnyTable("AppDataRoutePolicy", false))
+        {
+            return;
+        }
+
+        var apps = await db.Queryable<LowCodeApp>()
+            .Select(x => new
+            {
+                x.TenantIdValue,
+                x.Id,
+                x.AppKey,
+                x.UpdatedBy
+            })
+            .ToListAsync(cancellationToken);
+        if (apps.Count == 0)
+        {
+            return;
+        }
+
+        var tenantIds = apps.Select(x => x.TenantIdValue).Distinct().ToArray();
+        var appIds = apps.Select(x => x.Id).Distinct().ToArray();
+        var hasBindings = await db.Queryable<TenantAppDataSourceBinding>()
+            .Where(x =>
+                SqlFunc.ContainsArray(tenantIds, x.TenantIdValue)
+                && SqlFunc.ContainsArray(appIds, x.TenantAppInstanceId)
+                && x.IsActive)
+            .Select(x => new { x.TenantIdValue, x.TenantAppInstanceId })
+            .ToListAsync(cancellationToken);
+        var hasPolicies = await db.Queryable<AppDataRoutePolicy>()
+            .Where(x =>
+                SqlFunc.ContainsArray(tenantIds, x.TenantIdValue)
+                && SqlFunc.ContainsArray(appIds, x.AppInstanceId))
+            .Select(x => new { x.TenantIdValue, AppInstanceId = x.AppInstanceId })
+            .ToListAsync(cancellationToken);
+        var bindingSet = hasBindings.Select(x => (x.TenantIdValue, x.TenantAppInstanceId)).ToHashSet();
+        var policySet = hasPolicies.Select(x => (x.TenantIdValue, x.AppInstanceId)).ToHashSet();
+        var orphans = apps.Where(x => !bindingSet.Contains((x.TenantIdValue, x.Id)) && !policySet.Contains((x.TenantIdValue, x.Id)))
+            .ToArray();
+        if (orphans.Length == 0)
+        {
+            return;
+        }
+
+        var provisioner = serviceProvider.GetRequiredService<IAppDataSourceProvisioner>();
+        var repairedCount = 0;
+        foreach (var orphan in orphans)
+        {
+            using var appContextScope = appContextAccessor.BeginScope(
+                CreateSystemContext(appContextAccessor, new TenantId(orphan.TenantIdValue)));
+            await provisioner.EnsureProvisionedAsync(
+                new TenantId(orphan.TenantIdValue),
+                orphan.Id,
+                orphan.AppKey,
+                orphan.UpdatedBy > 0 ? orphan.UpdatedBy : 0,
+                preferredDataSourceId: null,
+                cancellationToken);
+            repairedCount++;
+        }
+
+        _logger.LogInformation(
+            "[DatabaseInitializer] 孤儿应用数据源供给修复完成。Repaired={Repaired}",
+            repairedCount);
     }
 
     private async Task LoadLicenseStatusAsync(IServiceScope scope, CancellationToken cancellationToken)

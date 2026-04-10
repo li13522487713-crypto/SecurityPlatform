@@ -134,6 +134,11 @@ Content-Type: application/json
 ###
 @tenantAppInstanceId = {{createTenantAppInstance.response.body.$.data.id}}
 
+### 验证自动供给：新建实例后立即可访问应用数据面（无须手工绑定）
+GET {{baseUrl}}/api/v2/tenant-app-instances/{{tenantAppInstanceId}}/roles/available-dynamic-tables
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}
+
 ### 查询应用角色
 # 读权限：apps:roles:view
 GET {{baseUrl}}/api/v2/tenant-app-instances/{{tenantAppInstanceId}}/roles?pageIndex=1&pageSize=20

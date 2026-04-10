@@ -4,6 +4,7 @@ using Atlas.Domain.LowCode.Entities;
 using Atlas.Domain.LowCode.Enums;
 using Atlas.Infrastructure.Repositories;
 using Atlas.Infrastructure.Services.LowCode;
+using Atlas.Application.System.Abstractions;
 using SqlSugar;
 
 namespace Atlas.SecurityPlatform.Tests.Services;
@@ -32,6 +33,7 @@ public sealed class LowCodeAppCommandServiceVersionTests
                 versionRepository,
                 pageVersionRepository,
                 idGenerator,
+                new NoopProvisioner(),
                 db);
 
             var seedTime = DateTimeOffset.UtcNow;
@@ -280,6 +282,20 @@ public sealed class LowCodeAppCommandServiceVersionTests
         {
             _current += 1;
             return _current;
+        }
+    }
+
+    private sealed class NoopProvisioner : IAppDataSourceProvisioner
+    {
+        public Task EnsureProvisionedAsync(
+            TenantId tenantId,
+            long appInstanceId,
+            string appKey,
+            long operatorUserId,
+            long? preferredDataSourceId = null,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
         }
     }
 }

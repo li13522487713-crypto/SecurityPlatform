@@ -10,5 +10,7 @@ public interface IAppDbScopeFactory
 {
     Task<ISqlSugarClient> GetAppClientAsync(TenantId tenantId, long appInstanceId, CancellationToken cancellationToken = default);
 
+    Task<ISqlSugarClient?> TryGetAppClientAsync(TenantId tenantId, long appInstanceId, CancellationToken cancellationToken = default);
+
     void InvalidateAppClientCache(TenantId tenantId, long appInstanceId);
 }

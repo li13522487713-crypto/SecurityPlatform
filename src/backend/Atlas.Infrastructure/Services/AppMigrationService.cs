@@ -99,7 +99,7 @@ public sealed class AppMigrationService : IAppMigrationService
         if (dataSourceId <= 0)
         {
             throw new BusinessException(
-                ErrorCodes.ValidationError,
+                ErrorCodes.AppDataSourceNotBound,
                 $"应用实例未绑定可用数据源，无法创建迁移任务。AppInstanceId={appInstanceId}");
         }
 

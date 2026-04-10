@@ -514,26 +514,20 @@ public sealed class ResourceCenterQueryService : IResourceCenterQueryService
             await gate.WaitAsync(cancellationToken);
             try
             {
-                var appDb = await _appDbScopeFactory.GetAppClientAsync(tenantId, app.Id, cancellationToken);
+                var appDb = await _appDbScopeFactory.TryGetAppClientAsync(tenantId, app.Id, cancellationToken);
+                if (appDb is null)
+                {
+                    return ResourceCenterPerAppLoadResult<RuntimeRoute>.Skipped(
+                        new ResourceCenterAppLoadWarning(
+                            app.Id,
+                            app.Name,
+                            ErrorCodes.AppDataSourceNotBound,
+                            $"应用实例 {app.Id} 未绑定可用数据源，已跳过。"));
+                }
                 var items = await appDb.Queryable<RuntimeRoute>()
                     .Where(item => item.TenantIdValue == tenantId.Value)
                     .ToListAsync(cancellationToken);
                 return ResourceCenterPerAppLoadResult<RuntimeRoute>.Success(items);
-            }
-            catch (BusinessException ex) when (ShouldSkipNoDataSource(ex))
-            {
-                _logger.LogWarning(
-                    "资源中心路由聚合跳过未绑定数据源应用。TenantId={TenantId}; AppInstanceId={AppInstanceId}; AppName={AppName}; ErrorCode={ErrorCode}",
-                    tenantId.Value,
-                    app.Id,
-                    app.Name,
-                    ex.Code);
-                return ResourceCenterPerAppLoadResult<RuntimeRoute>.Skipped(
-                    new ResourceCenterAppLoadWarning(
-                        app.Id,
-                        app.Name,
-                        ex.Code,
-                        ex.Message));
             }
             finally
             {
@@ -572,27 +566,21 @@ public sealed class ResourceCenterQueryService : IResourceCenterQueryService
             await gate.WaitAsync(cancellationToken);
             try
             {
-                var appDb = await _appDbScopeFactory.GetAppClientAsync(tenantId, app.Id, cancellationToken);
+                var appDb = await _appDbScopeFactory.TryGetAppClientAsync(tenantId, app.Id, cancellationToken);
+                if (appDb is null)
+                {
+                    return ResourceCenterPerAppLoadResult<WorkflowExecution>.Skipped(
+                        new ResourceCenterAppLoadWarning(
+                            app.Id,
+                            app.Name,
+                            ErrorCodes.AppDataSourceNotBound,
+                            $"应用实例 {app.Id} 未绑定可用数据源，已跳过。"));
+                }
                 var items = await appDb.Queryable<WorkflowExecution>()
                     .Where(item => item.TenantIdValue == tenantId.Value)
                     .Take(200)
                     .ToListAsync(cancellationToken);
                 return ResourceCenterPerAppLoadResult<WorkflowExecution>.Success(items);
-            }
-            catch (BusinessException ex) when (ShouldSkipNoDataSource(ex))
-            {
-                _logger.LogWarning(
-                    "资源中心执行聚合跳过未绑定数据源应用。TenantId={TenantId}; AppInstanceId={AppInstanceId}; AppName={AppName}; ErrorCode={ErrorCode}",
-                    tenantId.Value,
-                    app.Id,
-                    app.Name,
-                    ex.Code);
-                return ResourceCenterPerAppLoadResult<WorkflowExecution>.Skipped(
-                    new ResourceCenterAppLoadWarning(
-                        app.Id,
-                        app.Name,
-                        ex.Code,
-                        ex.Message));
             }
             finally
             {
@@ -636,12 +624,6 @@ public sealed class ResourceCenterQueryService : IResourceCenterQueryService
             .Take(200)
             .ToListAsync(cancellationToken);
         return ResourceCenterPerAppLoadResult<WorkflowExecution>.Success(items);
-    }
-
-    private static bool ShouldSkipNoDataSource(BusinessException ex)
-    {
-        return string.Equals(ex.Code, ErrorCodes.ValidationError, StringComparison.Ordinal)
-            && ex.Message.Contains("未绑定可用数据源", StringComparison.OrdinalIgnoreCase);
     }
 
     private sealed record ResourceCenterPerAppLoadResult<T>(

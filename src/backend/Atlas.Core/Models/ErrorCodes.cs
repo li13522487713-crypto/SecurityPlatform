@@ -18,6 +18,7 @@ public static class ErrorCodes
     public const string CrossTenantForbidden = "CROSS_TENANT_FORBIDDEN";
     public const string ProjectForbidden = "PROJECT_FORBIDDEN";
     public const string AppContextRequired = "APP_CONTEXT_REQUIRED";
+    public const string AppDataSourceNotBound = "APP_DATASOURCE_NOT_BOUND";
     public const string AppMigrationPending = "APP_MIGRATION_PENDING";
     public const string IdempotencyRequired = "IDEMPOTENCY_REQUIRED";
     public const string IdempotencyConflict = "IDEMPOTENCY_CONFLICT";

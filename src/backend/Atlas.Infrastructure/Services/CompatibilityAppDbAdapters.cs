@@ -21,6 +21,14 @@ internal sealed class MainOnlyAppDbScopeFactory : IAppDbScopeFactory
         return Task.FromResult(_mainDb);
     }
 
+    public Task<ISqlSugarClient?> TryGetAppClientAsync(
+        TenantId tenantId,
+        long appInstanceId,
+        CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult<ISqlSugarClient?>(_mainDb);
+    }
+
     public void InvalidateAppClientCache(TenantId tenantId, long appInstanceId)
     {
     }

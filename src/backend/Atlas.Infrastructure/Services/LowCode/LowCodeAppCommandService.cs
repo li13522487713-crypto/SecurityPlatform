@@ -1,5 +1,6 @@
 using Atlas.Application.LowCode.Abstractions;
 using Atlas.Application.LowCode.Models;
+using Atlas.Application.System.Abstractions;
 using Atlas.Core.Abstractions;
 using Atlas.Core.Exceptions;
 using Atlas.Core.Models;
@@ -25,6 +26,7 @@ public sealed class LowCodeAppCommandService : ILowCodeAppCommandService
     private readonly ILowCodeAppVersionRepository _versionRepository;
     private readonly ILowCodePageVersionRepository _pageVersionRepository;
     private readonly IIdGeneratorAccessor _idGenerator;
+    private readonly IAppDataSourceProvisioner _appDataSourceProvisioner;
     private readonly ISqlSugarClient _db;
 
     public LowCodeAppCommandService(
@@ -33,6 +35,7 @@ public sealed class LowCodeAppCommandService : ILowCodeAppCommandService
         ILowCodeAppVersionRepository versionRepository,
         ILowCodePageVersionRepository pageVersionRepository,
         IIdGeneratorAccessor idGenerator,
+        IAppDataSourceProvisioner appDataSourceProvisioner,
         ISqlSugarClient db)
     {
         _appRepository = appRepository;
@@ -40,6 +43,7 @@ public sealed class LowCodeAppCommandService : ILowCodeAppCommandService
         _versionRepository = versionRepository;
         _pageVersionRepository = pageVersionRepository;
         _idGenerator = idGenerator;
+        _appDataSourceProvisioner = appDataSourceProvisioner;
         _db = db;
     }
 
@@ -101,6 +105,14 @@ public sealed class LowCodeAppCommandService : ILowCodeAppCommandService
         {
             throw result.ErrorException ?? new BusinessException("LowCodeAppCreateFailed", ErrorCodes.ValidationError);
         }
+
+        await _appDataSourceProvisioner.EnsureProvisionedAsync(
+            tenantId,
+            id,
+            request.AppKey,
+            userId,
+            request.DataSourceId,
+            cancellationToken);
 
         return id;
     }
@@ -172,6 +184,14 @@ public sealed class LowCodeAppCommandService : ILowCodeAppCommandService
         {
             throw result.ErrorException ?? new BusinessException("LowCodeAppUpdateFailed", ErrorCodes.ValidationError);
         }
+
+        await _appDataSourceProvisioner.EnsureProvisionedAsync(
+            tenantId,
+            id,
+            entity.AppKey,
+            userId,
+            targetDataSourceId,
+            cancellationToken);
     }
 
     public async Task PublishAsync(
@@ -642,6 +662,14 @@ public sealed class LowCodeAppCommandService : ILowCodeAppCommandService
         }
 
         await _pageVersionRepository.AddRangeAsync(versionEntities, cancellationToken);
+
+        await _appDataSourceProvisioner.EnsureProvisionedAsync(
+            tenantId,
+            appId,
+            targetAppKey,
+            userId,
+            preferredDataSourceId: null,
+            cancellationToken);
 
         return new LowCodeAppImportResult(
             appId.ToString(),

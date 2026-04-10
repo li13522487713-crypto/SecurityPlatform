@@ -105,15 +105,15 @@ public sealed class CozeMappingQueryService : ICozeMappingQueryService
             await gate.WaitAsync(cancellationToken);
             try
             {
-                var appDb = await _appDbScopeFactory.GetAppClientAsync(tenantId, app.Id, cancellationToken);
+                var appDb = await _appDbScopeFactory.TryGetAppClientAsync(tenantId, app.Id, cancellationToken);
+                if (appDb is null)
+                {
+                    return [];
+                }
                 return await appDb.Queryable<RuntimeRoute>()
                     .Where(item => item.TenantIdValue == tenantId.Value)
                     .Select(item => item.Id)
                     .ToListAsync(cancellationToken);
-            }
-            catch (BusinessException ex) when (ShouldSkipNoDataSource(ex))
-            {
-                return [];
             }
             finally
             {
@@ -146,15 +146,15 @@ public sealed class CozeMappingQueryService : ICozeMappingQueryService
             await gate.WaitAsync(cancellationToken);
             try
             {
-                var appDb = await _appDbScopeFactory.GetAppClientAsync(tenantId, app.Id, cancellationToken);
+                var appDb = await _appDbScopeFactory.TryGetAppClientAsync(tenantId, app.Id, cancellationToken);
+                if (appDb is null)
+                {
+                    return [];
+                }
                 return await appDb.Queryable<WorkflowExecution>()
                     .Where(item => item.TenantIdValue == tenantId.Value)
                     .Select(item => item.Id)
                     .ToListAsync(cancellationToken);
-            }
-            catch (BusinessException ex) when (ShouldSkipNoDataSource(ex))
-            {
-                return [];
             }
             finally
             {
@@ -169,10 +169,5 @@ public sealed class CozeMappingQueryService : ICozeMappingQueryService
             .Count();
     }
 
-    private static bool ShouldSkipNoDataSource(BusinessException ex)
-    {
-        return string.Equals(ex.Code, ErrorCodes.ValidationError, StringComparison.Ordinal)
-            && ex.Message.Contains("未绑定可用数据源", StringComparison.OrdinalIgnoreCase);
-    }
 }
 

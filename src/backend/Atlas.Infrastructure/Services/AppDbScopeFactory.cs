@@ -1,14 +1,17 @@
 using Atlas.Application.System.Abstractions;
+using Atlas.Core.Abstractions;
 using Atlas.Core.Exceptions;
 using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.DynamicTables.Entities;
+using Atlas.Domain.LowCode.Entities;
 using Atlas.Domain.Platform.Entities;
 using Atlas.Domain.System.Entities;
 using SqlSugar;
 using System.Collections.Concurrent;
 using Atlas.Infrastructure.Caching;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging;
 
 namespace Atlas.Infrastructure.Services;
 
@@ -22,6 +25,8 @@ public sealed class AppDbScopeFactory : IAppDbScopeFactory, IDisposable
     private readonly ITenantDbConnectionFactory _connectionFactory;
     private readonly ISqlSugarClient _mainDb;
     private readonly IAtlasHybridCache _cache;
+    private readonly IIdGeneratorAccessor _idGeneratorAccessor;
+    private readonly ILogger<AppDbScopeFactory> _logger;
     private readonly MemoryCache _appClientCache;
 
     // 缓存已完成 Schema 初始化的 (tenantId:appInstanceId) 组合，进程生命周期内有效
@@ -38,11 +43,15 @@ public sealed class AppDbScopeFactory : IAppDbScopeFactory, IDisposable
     public AppDbScopeFactory(
         ITenantDbConnectionFactory connectionFactory,
         ISqlSugarClient mainDb,
-        IAtlasHybridCache cache)
+        IAtlasHybridCache cache,
+        IIdGeneratorAccessor idGeneratorAccessor,
+        ILogger<AppDbScopeFactory> logger)
     {
         _connectionFactory = connectionFactory;
         _mainDb = mainDb;
         _cache = cache;
+        _idGeneratorAccessor = idGeneratorAccessor;
+        _logger = logger;
         _appClientCache = new MemoryCache(new MemoryCacheOptions
         {
             SizeLimit = AppClientCacheLimit
@@ -83,9 +92,25 @@ public sealed class AppDbScopeFactory : IAppDbScopeFactory, IDisposable
         var info = await _connectionFactory.GetConnectionInfoAsync(tenantIdValue, appInstanceId, cancellationToken);
         if (info is null)
         {
-            throw new BusinessException(
-                ErrorCodes.ValidationError,
-                $"应用实例 {appInstanceId} 未绑定可用数据源，无法访问应用数据面。");
+            var recoveredByLegacy = await TryRepairBindingFromLegacyDataSourceAsync(
+                tenantId,
+                appInstanceId,
+                cancellationToken);
+            if (recoveredByLegacy)
+            {
+                info = await _connectionFactory.GetConnectionInfoAsync(tenantIdValue, appInstanceId, cancellationToken);
+            }
+        }
+
+        if (info is null)
+        {
+            await EnsureMainOnlyRoutePolicyAsync(tenantId, appInstanceId, cancellationToken);
+            _logger.LogWarning(
+                "应用数据源未绑定，自动降级为 MainOnly。TenantId={TenantId}; AppInstanceId={AppInstanceId}",
+                tenantId.Value,
+                appInstanceId);
+            EnsureMainDbSchemaIfNeeded();
+            return _mainDb;
         }
 
         var dbType = MapDbType(info.DbType);
@@ -170,6 +195,23 @@ public sealed class AppDbScopeFactory : IAppDbScopeFactory, IDisposable
         }
 
         return db;
+    }
+
+    public async Task<ISqlSugarClient?> TryGetAppClientAsync(
+        TenantId tenantId,
+        long appInstanceId,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await GetAppClientAsync(tenantId, appInstanceId, cancellationToken);
+        }
+        catch (BusinessException ex) when (
+            string.Equals(ex.Code, ErrorCodes.AppDataSourceNotBound, StringComparison.Ordinal)
+            || string.Equals(ex.Code, ErrorCodes.AppContextRequired, StringComparison.Ordinal))
+        {
+            return null;
+        }
     }
 
     public void InvalidateAppClientCache(TenantId tenantId, long appInstanceId)
@@ -343,6 +385,108 @@ public sealed class AppDbScopeFactory : IAppDbScopeFactory, IDisposable
     private static DbType MapDbType(string? dbType)
     {
         return DataSourceDriverRegistry.ResolveDbType(dbType);
+    }
+
+    private async Task<bool> TryRepairBindingFromLegacyDataSourceAsync(
+        TenantId tenantId,
+        long appInstanceId,
+        CancellationToken cancellationToken)
+    {
+        var legacyDataSourceId = await _mainDb.Queryable<LowCodeApp>()
+            .Where(x => x.TenantIdValue == tenantId.Value && x.Id == appInstanceId)
+            .Select(x => x.DataSourceId)
+            .FirstAsync(cancellationToken);
+        if (!legacyDataSourceId.HasValue || legacyDataSourceId.Value <= 0)
+        {
+            return false;
+        }
+
+        var tenantIdText = tenantId.Value.ToString("D");
+        var dataSourceExists = await _mainDb.Queryable<TenantDataSource>()
+            .AnyAsync(x =>
+                x.TenantIdValue == tenantIdText
+                && x.Id == legacyDataSourceId.Value
+                && x.IsActive,
+                cancellationToken);
+        if (!dataSourceExists)
+        {
+            return false;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var binding = await _mainDb.Queryable<TenantAppDataSourceBinding>()
+            .Where(x =>
+                x.TenantIdValue == tenantId.Value
+                && x.TenantAppInstanceId == appInstanceId
+                && x.BindingType == TenantAppDataSourceBindingType.Primary)
+            .FirstAsync(cancellationToken);
+        if (binding is null)
+        {
+            var newBinding = new TenantAppDataSourceBinding(
+                tenantId,
+                appInstanceId,
+                legacyDataSourceId.Value,
+                TenantAppDataSourceBindingType.Primary,
+                0,
+                _idGeneratorAccessor.NextId(),
+                now,
+                "AppDbScopeFactory 自动修复绑定（legacy DataSourceId）");
+            await _mainDb.Insertable(newBinding).ExecuteCommandAsync(cancellationToken);
+        }
+        else
+        {
+            binding.Rebind(
+                legacyDataSourceId.Value,
+                TenantAppDataSourceBindingType.Primary,
+                0,
+                now,
+                "AppDbScopeFactory 自动修复绑定（legacy DataSourceId）");
+            await _mainDb.Updateable(binding)
+                .Where(x => x.Id == binding.Id && x.TenantIdValue == tenantId.Value)
+                .ExecuteCommandAsync(cancellationToken);
+        }
+
+        _connectionFactory.InvalidateCache(tenantIdText, appInstanceId);
+        _logger.LogWarning(
+            "检测到 legacy DataSourceId，已自动修复绑定。TenantId={TenantId}; AppInstanceId={AppInstanceId}; DataSourceId={DataSourceId}",
+            tenantId.Value,
+            appInstanceId,
+            legacyDataSourceId.Value);
+        return true;
+    }
+
+    private async Task EnsureMainOnlyRoutePolicyAsync(
+        TenantId tenantId,
+        long appInstanceId,
+        CancellationToken cancellationToken)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var policy = await _mainDb.Queryable<AppDataRoutePolicy>()
+            .FirstAsync(x => x.TenantIdValue == tenantId.Value && x.AppInstanceId == appInstanceId, cancellationToken);
+        if (policy is null)
+        {
+            var entity = new AppDataRoutePolicy(
+                tenantId,
+                appInstanceId,
+                "MainOnly",
+                readOnlyWindow: false,
+                dualWriteEnabled: false,
+                updatedBy: 0,
+                id: _idGeneratorAccessor.NextId(),
+                now);
+            await _mainDb.Insertable(entity).ExecuteCommandAsync(cancellationToken);
+        }
+        else
+        {
+            policy.SetMode("MainOnly", readOnlyWindow: false, dualWriteEnabled: false, updatedBy: 0, now);
+            await _mainDb.Updateable(policy)
+                .Where(x => x.Id == policy.Id && x.TenantIdValue == tenantId.Value)
+                .ExecuteCommandAsync(cancellationToken);
+        }
+
+        _connectionFactory.InvalidateCache(tenantId.Value.ToString("D"), appInstanceId);
+        var policyCacheKey = AtlasCacheKeys.RoutePolicy.AppDataRoute(tenantId, appInstanceId);
+        await _cache.RemoveAsync(policyCacheKey);
     }
 
     private void EnsureMainDbSchemaIfNeeded()

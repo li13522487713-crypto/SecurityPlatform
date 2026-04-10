@@ -2,6 +2,7 @@ using Atlas.Application.Governance.Abstractions;
 using Atlas.Application.Governance.Models;
 using Atlas.Application.License.Abstractions;
 using Atlas.Application.License.Models;
+using Atlas.Application.System.Abstractions;
 using Atlas.Core.Abstractions;
 using Atlas.Core.Exceptions;
 using Atlas.Core.Models;
@@ -22,21 +23,24 @@ public sealed class PackageService : IPackageService
 {
     private readonly ISqlSugarClient _db;
     private readonly IAppDbScopeFactory _appDbScopeFactory;
+    private readonly IAppDataSourceProvisioner _appDataSourceProvisioner;
     private readonly IIdGeneratorAccessor _idGenerator;
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     public PackageService(
         ISqlSugarClient db,
         IAppDbScopeFactory appDbScopeFactory,
+        IAppDataSourceProvisioner appDataSourceProvisioner,
         IIdGeneratorAccessor idGenerator)
     {
         _db = db;
         _appDbScopeFactory = appDbScopeFactory;
+        _appDataSourceProvisioner = appDataSourceProvisioner;
         _idGenerator = idGenerator;
     }
 
     public PackageService(ISqlSugarClient db, IIdGeneratorAccessor idGenerator)
-        : this(db, new MainOnlyAppDbScopeFactory(db), idGenerator)
+        : this(db, new MainOnlyAppDbScopeFactory(db), new NoopAppDataSourceProvisioner(), idGenerator)
     {
     }
 
@@ -388,6 +392,14 @@ public sealed class PackageService : IPackageService
             await _db.Updateable(app).ExecuteCommandAsync(cancellationToken);
         }
 
+        await _appDataSourceProvisioner.EnsureProvisionedAsync(
+            tenantId,
+            app.Id,
+            app.AppKey,
+            userId,
+            app.DataSourceId,
+            cancellationToken);
+
         if (pageDtos.Count == 0)
         {
             return;
@@ -623,6 +635,20 @@ public sealed class PackageService : IPackageService
             Version = entity.Version,
             IsPublished = entity.IsPublished
         };
+    }
+
+    private sealed class NoopAppDataSourceProvisioner : IAppDataSourceProvisioner
+    {
+        public Task EnsureProvisionedAsync(
+            TenantId tenantId,
+            long appInstanceId,
+            string appKey,
+            long operatorUserId,
+            long? preferredDataSourceId = null,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
     }
 }
 
