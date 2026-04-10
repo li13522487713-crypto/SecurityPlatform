@@ -108,6 +108,7 @@ export const router = createRouter({
             { path: "flows", name: "app-approval-flows", component: () => import("@/pages/approval/ApprovalFlowsPage.vue") },
             { path: "workflows", name: "app-workflows", component: () => import("@/pages/workflow/WorkflowListPage.vue") },
             { path: "workflows/:id/editor", name: "app-workflow-editor", component: () => import("@/pages/workflow/WorkflowEditorPage.vue") },
+            { path: "workflow-databases", name: "app-workflow-databases", component: Placeholder, props: { titleKey: "route.aiDatabases", descriptionKey: "featurePlaceholder.comingSoonDesc", backPath: "/console" } },
             { path: "capabilities/organization", name: "app-capability-organization", component: () => import("@atlas/capability-ui").then((m) => m.OrganizationCapabilityPage) },
             { path: "capabilities/agent", name: "app-capability-agent", component: () => import("@atlas/capability-ui").then((m) => m.AgentCapabilityPage) },
             { path: "capabilities/workflow", name: "app-capability-workflow", component: () => import("@atlas/capability-ui").then((m) => m.WorkflowCapabilityPage) },

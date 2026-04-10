@@ -23,4 +23,7 @@ public interface IWorkflowV2ExecutionService
 
     IAsyncEnumerable<SseEvent> StreamRunAsync(
         TenantId tenantId, long workflowId, long userId, WorkflowV2RunRequest request, CancellationToken cancellationToken);
+
+    IAsyncEnumerable<SseEvent> StreamResumeAsync(
+        TenantId tenantId, long executionId, CancellationToken cancellationToken);
 }

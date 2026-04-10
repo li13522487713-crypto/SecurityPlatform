@@ -583,7 +583,16 @@ export default {
     debugViewFailed: "获取调试视图失败",
     recoverSubmitted: "恢复执行已提交，新的执行ID：{id}",
     recoverWarn: "恢复执行未成功",
-    recoverFailed: "恢复执行失败"
+    recoverFailed: "恢复执行失败",
+    moreActions: "更多",
+    exportCanvasJson: "导出画布 JSON",
+    importCanvasJson: "导入画布 JSON",
+    resetCanvas: "重置画布",
+    autosaveNotStarted: "尚未保存",
+    autosaveAt: "已保存 {time}",
+    importJsonSuccess: "导入画布成功",
+    importJsonFailed: "导入画布失败，请检查 JSON 格式",
+    resetCanvasSuccess: "画布已重置"
   },
   approvalFlowList: {
     pageTitle: "流程定义",

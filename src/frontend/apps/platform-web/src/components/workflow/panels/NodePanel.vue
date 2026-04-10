@@ -57,48 +57,83 @@ interface NodeItem {
 }
 
 const NODE_DEFS: ReadonlyArray<{ type: string; desc: string; cat: string }> = [
-  { type: 'Entry', desc: 'descEntry', cat: 'catBasic' },
-  { type: 'Exit', desc: 'descExit', cat: 'catBasic' },
+  { type: 'Entry', desc: 'descEntry', cat: 'catFlowControl' },
+  { type: 'Exit', desc: 'descExit', cat: 'catFlowControl' },
+  { type: 'Selector', desc: 'descSelector', cat: 'catFlowControl' },
+  { type: 'Loop', desc: 'descLoop', cat: 'catFlowControl' },
+  { type: 'Batch', desc: 'descBatch', cat: 'catFlowControl' },
+  { type: 'Break', desc: 'descBreak', cat: 'catFlowControl' },
+  { type: 'Continue', desc: 'descContinue', cat: 'catFlowControl' },
   { type: 'Llm', desc: 'descLlm', cat: 'catAi' },
-  { type: 'Agent', desc: 'descAgent', cat: 'catAi' },
-  { type: 'Plugin', desc: 'descPlugin', cat: 'catTool' },
-  { type: 'Selector', desc: 'descSelector', cat: 'catFlow' },
-  { type: 'Loop', desc: 'descLoop', cat: 'catFlow' },
-  { type: 'SubWorkflow', desc: 'descSub', cat: 'catFlow' },
-  { type: 'HttpRequester', desc: 'descHttp', cat: 'catTool' },
-  { type: 'CodeRunner', desc: 'descCode', cat: 'catTool' },
-  { type: 'DatabaseQuery', desc: 'descDb', cat: 'catData' },
-  { type: 'AssignVariable', desc: 'descAssign', cat: 'catVar' },
-  { type: 'VariableAggregator', desc: 'descAgg', cat: 'catVar' },
-  { type: 'JsonSerialization', desc: 'descSer', cat: 'catJson' },
-  { type: 'JsonDeserialization', desc: 'descDe', cat: 'catJson' },
-  { type: 'TextProcessor', desc: 'descText', cat: 'catText' },
+  { type: 'IntentDetector', desc: 'descIntentDetector', cat: 'catAi' },
+  { type: 'QuestionAnswer', desc: 'descQuestionAnswer', cat: 'catAi' },
+  { type: 'CodeRunner', desc: 'descCode', cat: 'catDataProcess' },
+  { type: 'TextProcessor', desc: 'descText', cat: 'catDataProcess' },
+  { type: 'JsonSerialization', desc: 'descSer', cat: 'catDataProcess' },
+  { type: 'JsonDeserialization', desc: 'descDe', cat: 'catDataProcess' },
+  { type: 'VariableAggregator', desc: 'descAgg', cat: 'catDataProcess' },
+  { type: 'AssignVariable', desc: 'descAssign', cat: 'catDataProcess' },
+  { type: 'Plugin', desc: 'descPlugin', cat: 'catExternal' },
+  { type: 'HttpRequester', desc: 'descHttp', cat: 'catExternal' },
+  { type: 'SubWorkflow', desc: 'descSub', cat: 'catExternal' },
+  { type: 'KnowledgeRetriever', desc: 'descKnowledgeRetriever', cat: 'catKnowledge' },
+  { type: 'KnowledgeIndexer', desc: 'descKnowledgeIndexer', cat: 'catKnowledge' },
+  { type: 'Ltm', desc: 'descLtm', cat: 'catKnowledge' },
+  { type: 'DatabaseQuery', desc: 'descDb', cat: 'catDatabase' },
+  { type: 'DatabaseInsert', desc: 'descDatabaseInsert', cat: 'catDatabase' },
+  { type: 'DatabaseUpdate', desc: 'descDatabaseUpdate', cat: 'catDatabase' },
+  { type: 'DatabaseDelete', desc: 'descDatabaseDelete', cat: 'catDatabase' },
+  { type: 'DatabaseCustomSql', desc: 'descDatabaseCustomSql', cat: 'catDatabase' },
+  { type: 'CreateConversation', desc: 'descCreateConversation', cat: 'catConversation' },
+  { type: 'ConversationList', desc: 'descConversationList', cat: 'catConversation' },
+  { type: 'ConversationUpdate', desc: 'descConversationUpdate', cat: 'catConversation' },
+  { type: 'ConversationDelete', desc: 'descConversationDelete', cat: 'catConversation' },
+  { type: 'ConversationHistory', desc: 'descConversationHistory', cat: 'catConversation' },
+  { type: 'ClearConversationHistory', desc: 'descClearConversationHistory', cat: 'catConversation' },
+  { type: 'MessageList', desc: 'descMessageList', cat: 'catConversation' },
+  { type: 'CreateMessage', desc: 'descCreateMessage', cat: 'catConversation' },
+  { type: 'EditMessage', desc: 'descEditMessage', cat: 'catConversation' },
+  { type: 'DeleteMessage', desc: 'descDeleteMessage', cat: 'catConversation' },
+  { type: 'InputReceiver', desc: 'descInputReceiver', cat: 'catConversation' },
+  { type: 'OutputEmitter', desc: 'descOutputEmitter', cat: 'catConversation' },
 ]
+
+function tr(path: string, fallback: string) {
+  const translated = t(path)
+  return translated === path ? fallback : translated
+}
 
 const allNodes = computed<NodeItem[]>(() =>
   NODE_DEFS.map((d) => ({
     type: d.type,
-    name: t(`wfUi.nodeTypes.${d.type}`),
-    description: t(`wfUi.nodePalette.${d.desc}`),
-    category: t(`wfUi.nodePanel.${d.cat}`)
+    name: tr(`wfUi.nodeTypes.${d.type}`, d.type),
+    description: tr(`wfUi.nodePalette.${d.desc}`, d.type),
+    category: tr(`wfUi.nodePanel.${d.cat}`, d.cat)
   }))
 )
 
 const NODE_COLORS: Record<string, string> = {
-  Entry: '#52c41a', Exit: '#ff4d4f', Llm: '#6366f1', Selector: '#f59e0b',
+  Entry: '#52c41a', Exit: '#ff4d4f', Llm: '#6366f1', Selector: '#f59e0b', Batch: '#f59e0b', Break: '#f59e0b', Continue: '#f59e0b',
   Agent: '#8b5cf6', Plugin: '#14b8a6',
-  Loop: '#f59e0b', SubWorkflow: '#8b5cf6', CodeRunner: '#10b981',
-  HttpRequester: '#10b981', DatabaseQuery: '#3b82f6',
-  AssignVariable: '#d946ef', VariableAggregator: '#d946ef', JsonSerialization: '#84cc16',
-  JsonDeserialization: '#84cc16', TextProcessor: '#6b7280',
+  Loop: '#f59e0b', SubWorkflow: '#8b5cf6', CodeRunner: '#10b981', IntentDetector: '#6366f1', QuestionAnswer: '#6366f1',
+  HttpRequester: '#10b981', DatabaseQuery: '#3b82f6', DatabaseInsert: '#3b82f6', DatabaseUpdate: '#3b82f6', DatabaseDelete: '#3b82f6', DatabaseCustomSql: '#3b82f6',
+  AssignVariable: '#d946ef', VariableAggregator: '#d946ef', JsonSerialization: '#84cc16', JsonDeserialization: '#84cc16', TextProcessor: '#6b7280',
+  KnowledgeRetriever: '#22c55e', KnowledgeIndexer: '#22c55e', Ltm: '#22c55e',
+  CreateConversation: '#ec4899', ConversationList: '#ec4899', ConversationUpdate: '#ec4899', ConversationDelete: '#ec4899', ConversationHistory: '#ec4899',
+  ClearConversationHistory: '#ec4899', MessageList: '#ec4899', CreateMessage: '#ec4899', EditMessage: '#ec4899', DeleteMessage: '#ec4899',
+  InputReceiver: '#ec4899', OutputEmitter: '#ec4899'
 }
 
 const NODE_ICONS: Record<string, string> = {
-  Entry: '▶', Exit: '⏹', Llm: '🤖', Selector: '⟟', Loop: '↻',
+  Entry: '▶', Exit: '⏹', Llm: '🤖', Selector: '⟟', Loop: '↻', Batch: '▦', Break: '⏸', Continue: '↩',
   Agent: '🧠', Plugin: '🔌',
-  SubWorkflow: '⊞', CodeRunner: '⌨', HttpRequester: '🌐', DatabaseQuery: '🔍',
-  AssignVariable: '=', VariableAggregator: '∪', JsonSerialization: '{}',
-  JsonDeserialization: '{}', TextProcessor: 'T',
+  SubWorkflow: '⊞', CodeRunner: '⌨', IntentDetector: '🎯', QuestionAnswer: '❓', HttpRequester: '🌐',
+  DatabaseQuery: '🔍', DatabaseInsert: '+', DatabaseUpdate: '✎', DatabaseDelete: '✕', DatabaseCustomSql: 'SQL',
+  AssignVariable: '=', VariableAggregator: '∪', JsonSerialization: '{}', JsonDeserialization: '{}', TextProcessor: 'T',
+  KnowledgeRetriever: '📚', KnowledgeIndexer: '🧩', Ltm: '🧠',
+  CreateConversation: '💬', ConversationList: '☰', ConversationUpdate: '✎', ConversationDelete: '✕', ConversationHistory: '🕘',
+  ClearConversationHistory: '🧹', MessageList: '☰', CreateMessage: '+', EditMessage: '✎', DeleteMessage: '✕',
+  InputReceiver: '⇣', OutputEmitter: '⇡'
 }
 
 function getNodeColor(type: string) { return NODE_COLORS[type] ?? '#6b7280' }

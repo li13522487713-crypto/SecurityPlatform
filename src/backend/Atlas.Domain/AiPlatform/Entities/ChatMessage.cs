@@ -38,4 +38,13 @@ public sealed class ChatMessage : TenantEntity
     public string? Metadata { get; private set; }
     public DateTime CreatedAt { get; private set; }
     public bool IsContextCleared { get; private set; }
+
+    public void UpdateContent(string content, string? metadata = null)
+    {
+        Content = content;
+        if (metadata is not null)
+        {
+            Metadata = metadata;
+        }
+    }
 }

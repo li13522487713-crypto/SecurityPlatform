@@ -205,6 +205,15 @@ public sealed class WorkflowV2Controller : ControllerBase
         return Ok(ApiResponse<IReadOnlyList<WorkflowV2NodeTypeDto>>.Ok(result, HttpContext.TraceIdentifier));
     }
 
+    [HttpGet("node-templates")]
+    [Authorize(Policy = PermissionPolicies.AiWorkflowView)]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<WorkflowV2NodeTemplateDto>>>> GetNodeTemplates(
+        CancellationToken cancellationToken)
+    {
+        var result = await _queryService.GetNodeTemplatesAsync(cancellationToken);
+        return Ok(ApiResponse<IReadOnlyList<WorkflowV2NodeTemplateDto>>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
     // ── 执行 ──────────────────────────────────────────────
 
     [HttpPost("{id:long}/run")]
@@ -258,6 +267,22 @@ public sealed class WorkflowV2Controller : ControllerBase
         var tenantId = _tenantProvider.GetTenantId();
         await _executionService.ResumeAsync(tenantId, execId, cancellationToken);
         return Ok(ApiResponse<object>.Ok(new { Id = execId.ToString() }, HttpContext.TraceIdentifier));
+    }
+
+    [HttpPost("executions/{execId:long}/stream-resume")]
+    [Authorize(Policy = PermissionPolicies.AiWorkflowExecute)]
+    public async Task StreamResume(long execId, CancellationToken cancellationToken)
+    {
+        Response.ContentType = "text/event-stream";
+        Response.Headers.CacheControl = "no-cache";
+        Response.Headers.Connection = "keep-alive";
+
+        var tenantId = _tenantProvider.GetTenantId();
+        await foreach (var evt in _executionService.StreamResumeAsync(tenantId, execId, cancellationToken))
+        {
+            await Response.WriteAsync($"event: {evt.Event}\ndata: {evt.Data}\n\n", cancellationToken);
+            await Response.Body.FlushAsync(cancellationToken);
+        }
     }
 
     [HttpGet("executions/{execId:long}/process")]

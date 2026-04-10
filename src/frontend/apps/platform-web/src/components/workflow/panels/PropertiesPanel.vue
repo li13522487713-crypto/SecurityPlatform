@@ -1,236 +1,117 @@
 <template>
   <div class="properties-panel">
     <div class="panel-header">
-      <span class="panel-title">{{ t('wfUi.properties.title') }}</span>
+      <div class="panel-header-main">
+        <span class="node-icon">{{ nodeIcon }}</span>
+        <div>
+          <div class="panel-title">{{ t("wfUi.properties.title") }}</div>
+          <div class="node-type-name">{{ node.type }}</div>
+        </div>
+      </div>
       <a-button type="text" size="small" @click="$emit('close')">
         <CloseOutlined />
       </a-button>
     </div>
 
     <div class="panel-body">
-      <div class="prop-section">
-        <div class="section-title">{{ t('wfUi.properties.basic') }}</div>
-        <a-form layout="vertical" size="small">
-          <a-form-item :label="t('wfUi.properties.labelTitle')">
-            <a-input v-model:value="localTitle" @change="emitUpdate" />
-          </a-form-item>
-          <a-form-item :label="t('wfUi.properties.labelKey')">
-            <a-input :value="node.key" disabled />
-          </a-form-item>
-          <a-form-item :label="t('wfUi.properties.labelType')">
-            <a-tag>{{ node.type }}</a-tag>
-          </a-form-item>
-        </a-form>
-      </div>
-
-      <div class="prop-section">
-        <div class="section-title">{{ t('wfUi.properties.nodeConfig') }}</div>
-
-        <template v-if="node.type === 'Llm'">
-          <a-form layout="vertical" size="small">
-            <a-form-item :label="t('wfUi.properties.llmModel')">
-              <a-select v-model:value="localConfigs.model" @change="emitUpdate">
-                <a-select-option value="gpt-4o">GPT-4o</a-select-option>
-                <a-select-option value="gpt-4o-mini">GPT-4o Mini</a-select-option>
-                <a-select-option value="gpt-3.5-turbo">GPT-3.5 Turbo</a-select-option>
-                <a-select-option value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet</a-select-option>
-              </a-select>
-            </a-form-item>
-            <a-form-item :label="t('wfUi.properties.llmProvider')">
-              <a-input v-model:value="localConfigs.provider" placeholder="openai / deepseek / ollama" @change="emitUpdate" />
-            </a-form-item>
-            <a-form-item :label="t('wfUi.properties.llmPrompt')">
-              <a-textarea v-model:value="localConfigs.prompt" :rows="5" @change="emitUpdate" />
-            </a-form-item>
-            <a-form-item label="Temperature">
-              <a-slider v-model:value="localConfigs.temperature" :min="0" :max="2" :step="0.1" @change="emitUpdate" />
-            </a-form-item>
-            <a-form-item :label="t('wfUi.properties.llmMaxTokens')">
-              <a-input-number v-model:value="localConfigs.maxTokens" :min="100" :max="8000" style="width:100%" @change="emitUpdate" />
-            </a-form-item>
-            <a-form-item :label="t('wfUi.properties.llmOutVar')">
-              <a-input v-model:value="localConfigs.outputKey" placeholder="llm_output" @change="emitUpdate" />
-            </a-form-item>
-          </a-form>
-        </template>
-
-        <template v-else-if="node.type === 'Agent'">
-          <a-form layout="vertical" size="small">
-            <a-form-item :label="t('wfUi.properties.agentId')">
-              <a-input-number v-model:value="localConfigs.agentId" :min="1" style="width:100%" @change="emitUpdate" />
-            </a-form-item>
-            <a-form-item :label="t('wfUi.properties.agentMessage')">
-              <a-textarea v-model:value="localConfigs.message" :rows="4" @change="emitUpdate" />
-            </a-form-item>
-            <a-form-item :label="t('wfUi.properties.agentConversationId')">
-              <a-input-number v-model:value="localConfigs.conversationId" :min="0" style="width:100%" @change="emitUpdate" />
-            </a-form-item>
-            <a-form-item :label="t('wfUi.properties.agentUserId')">
-              <a-input-number v-model:value="localConfigs.userId" :min="0" style="width:100%" @change="emitUpdate" />
-            </a-form-item>
-            <a-form-item :label="t('wfUi.properties.agentEnableRag')">
-              <a-switch v-model:checked="localConfigs.enableRag" @change="emitUpdate" />
-            </a-form-item>
-            <a-form-item :label="t('wfUi.properties.agentOutputKey')">
-              <a-input v-model:value="localConfigs.outputKey" placeholder="agent_output" @change="emitUpdate" />
-            </a-form-item>
-          </a-form>
-        </template>
-
-        <template v-else-if="node.type === 'Plugin'">
-          <a-form layout="vertical" size="small">
-            <a-form-item :label="t('wfUi.properties.pluginId')">
-              <a-input-number v-model:value="localConfigs.pluginId" :min="1" style="width:100%" @change="emitUpdate" />
-            </a-form-item>
-            <a-form-item :label="t('wfUi.properties.pluginApiId')">
-              <a-input-number v-model:value="localConfigs.apiId" :min="0" style="width:100%" @change="emitUpdate" />
-            </a-form-item>
-            <a-form-item :label="t('wfUi.properties.pluginInputJson')">
-              <a-textarea v-model:value="localConfigs.inputJson" :rows="5" @change="emitUpdate" />
-            </a-form-item>
-            <a-form-item :label="t('wfUi.properties.pluginOutputKey')">
-              <a-input v-model:value="localConfigs.outputKey" placeholder="plugin_output" @change="emitUpdate" />
-            </a-form-item>
-          </a-form>
-        </template>
-
-        <template v-else-if="node.type === 'Selector'">
-          <a-form layout="vertical" size="small">
-            <a-form-item :label="t('wfUi.properties.selExpr')">
-              <a-textarea
-                v-model:value="localConfigs.condition"
-                :rows="4"
-                :placeholder="t('wfUi.properties.phSelectorExpr')"
-                @change="emitUpdate"
-              />
-            </a-form-item>
-          </a-form>
-        </template>
-
-        <template v-else-if="node.type === 'HttpRequester'">
-          <a-form layout="vertical" size="small">
-            <a-form-item :label="t('wfUi.properties.httpMethod')">
-              <a-select v-model:value="localConfigs.method" @change="emitUpdate">
-                <a-select-option value="GET">GET</a-select-option>
-                <a-select-option value="POST">POST</a-select-option>
-                <a-select-option value="PUT">PUT</a-select-option>
-                <a-select-option value="DELETE">DELETE</a-select-option>
-                <a-select-option value="PATCH">PATCH</a-select-option>
-              </a-select>
-            </a-form-item>
-            <a-form-item :label="t('wfUi.properties.httpUrl')">
-              <a-input v-model:value="localConfigs.url" @change="emitUpdate" />
-            </a-form-item>
-            <a-form-item :label="t('wfUi.properties.httpBody')">
-              <a-textarea v-model:value="localConfigs.body" :rows="4" @change="emitUpdate" />
-            </a-form-item>
-          </a-form>
-        </template>
-
-        <template v-else-if="node.type === 'CodeRunner'">
-          <a-form layout="vertical" size="small">
-            <a-form-item :label="t('wfUi.properties.codeExpr')">
-              <a-textarea v-model:value="localConfigs.code" :rows="6" @change="emitUpdate" />
-            </a-form-item>
-          </a-form>
-        </template>
-
-        <template v-else-if="node.type === 'Loop'">
-          <a-form layout="vertical" size="small">
-            <a-form-item :label="t('wfUi.properties.loopMode')">
-              <a-select v-model:value="localConfigs.mode" @change="emitUpdate">
-                <a-select-option value="count">{{ t('wfUi.properties.loopCount') }}</a-select-option>
-                <a-select-option value="while">{{ t('wfUi.properties.loopWhile') }}</a-select-option>
-                <a-select-option value="forEach">{{ t('wfUi.properties.loopForEach') }}</a-select-option>
-              </a-select>
-            </a-form-item>
-            <a-form-item :label="t('wfUi.properties.maxIter')">
-              <a-input-number v-model:value="localConfigs.maxIterations" :min="1" :max="1000" style="width:100%" @change="emitUpdate" />
-            </a-form-item>
-            <a-form-item :label="t('wfUi.properties.idxVar')">
-              <a-input v-model:value="localConfigs.indexVariable" placeholder="loop_index" @change="emitUpdate" />
-            </a-form-item>
-            <a-form-item v-if="localConfigs.mode === 'while'" :label="t('wfUi.properties.condExpr')">
-              <a-textarea v-model:value="localConfigs.condition" :rows="3" :placeholder="t('wfUi.properties.phWhileExpr')" @change="emitUpdate" />
-            </a-form-item>
-            <template v-if="localConfigs.mode === 'forEach'">
-              <a-form-item :label="t('wfUi.properties.collPath')">
-                <a-input v-model:value="localConfigs.collectionPath" :placeholder="t('wfUi.properties.phCollPathEg')" @change="emitUpdate" />
+      <a-tabs v-model:active-key="activeTab" size="small" class="panel-tabs">
+        <a-tab-pane key="common" :tab="t('wfUi.properties.basic')">
+          <div class="prop-section">
+            <a-form layout="vertical" size="small">
+              <a-form-item :label="t('wfUi.properties.labelTitle')">
+                <a-input v-model:value="localTitle" @change="emitUpdate" />
               </a-form-item>
-              <a-form-item :label="t('wfUi.properties.itemVar')">
-                <a-input v-model:value="localConfigs.itemVariable" placeholder="loop_item" @change="emitUpdate" />
+              <a-form-item :label="t('wfUi.properties.labelKey')">
+                <a-input :value="node.key" disabled />
               </a-form-item>
-              <a-form-item :label="t('wfUi.properties.itemIdxVar')">
-                <a-input v-model:value="localConfigs.itemIndexVariable" placeholder="loop_item_index" @change="emitUpdate" />
+              <a-form-item :label="t('wfUi.properties.labelType')">
+                <a-tag>{{ node.type }}</a-tag>
               </a-form-item>
-            </template>
-          </a-form>
-        </template>
+            </a-form>
+          </div>
 
-        <template v-else-if="node.type === 'SubWorkflow'">
-          <a-form layout="vertical" size="small">
-            <a-form-item :label="t('wfUi.properties.subWorkflowId')">
-              <a-input-number v-model:value="localConfigs.workflowId" style="width:100%" @change="emitUpdate" />
-            </a-form-item>
-            <a-form-item :label="t('wfUi.properties.maxDepth')">
-              <a-input-number v-model:value="localConfigs.maxDepth" :min="1" :max="10" style="width:100%" @change="emitUpdate" />
-            </a-form-item>
-            <a-form-item :label="t('wfUi.properties.inheritParent')">
-              <a-switch v-model:checked="localConfigs.inheritVariables" @change="emitUpdate" />
-            </a-form-item>
-            <a-form-item v-if="!localConfigs.inheritVariables" :label="t('wfUi.properties.inputsPath')">
-              <a-input v-model:value="localConfigs.inputsVariable" :placeholder="t('wfUi.properties.phSubInputEg')" @change="emitUpdate" />
-            </a-form-item>
-            <a-form-item :label="t('wfUi.properties.mergeOutputs')">
-              <a-switch v-model:checked="localConfigs.mergeOutputs" @change="emitUpdate" />
-            </a-form-item>
-            <a-form-item :label="t('wfUi.properties.aggVar')">
-              <a-input v-model:value="localConfigs.outputKey" placeholder="subworkflow_output" @change="emitUpdate" />
-            </a-form-item>
-          </a-form>
-        </template>
+          <div class="prop-section">
+            <div class="section-title">{{ t("wfUi.properties.nodeConfig") }}</div>
+            <component :is="activeNodeForm" :configs="localConfigs" :node-type="String(node.type)" @change="emitUpdate" />
+          </div>
+        </a-tab-pane>
 
-        <template v-else>
-          <a-form layout="vertical" size="small">
-            <a-form-item :label="t('wfUi.properties.configJson')">
-              <a-textarea
-                :value="configsJson"
-                :rows="8"
-                style="font-family: monospace; font-size: 12px"
-                @change="handleRawConfigsChange"
-              />
-            </a-form-item>
-          </a-form>
-        </template>
-      </div>
+        <a-tab-pane key="advanced" tab="高级设置">
+          <div class="prop-section">
+            <a-form layout="vertical" size="small">
+              <a-form-item :label="t('wfUi.properties.configJson')">
+                <a-textarea
+                  :value="configsJson"
+                  :rows="10"
+                  style="font-family: monospace; font-size: 12px"
+                  @change="handleRawConfigsChange"
+                />
+              </a-form-item>
+            </a-form>
+          </div>
 
-      <div class="prop-section">
-        <div class="section-title">{{ t('wfUi.properties.inputMap') }}</div>
-        <div class="mapping-hint">{{ t('wfUi.properties.mapHint') }}</div>
-        <div v-for="(mappingRef, field) in localInputMappings" :key="field" class="mapping-row">
-          <a-input :value="field" disabled style="width: 40%" size="small" />
-          <span style="color: #9ca3af; padding: 0 8px">→</span>
-          <a-input v-model:value="localInputMappings[field]" size="small" style="width: 50%" @change="emitUpdate" />
-          <a-button size="small" @click="removeMapping(field)">-</a-button>
-        </div>
-        <div class="add-mapping">
-          <a-input v-model:value="newMappingField" :placeholder="t('wfUi.properties.phField')" size="small" style="width: 40%" />
-          <span style="color: #9ca3af; padding: 0 8px">→</span>
-          <a-input v-model:value="newMappingRef" :placeholder="t('wfUi.properties.phRef')" size="small" style="width: 40%" />
-          <a-button size="small" @click="addMapping">+</a-button>
-        </div>
-      </div>
+          <div class="prop-section">
+            <div class="section-title">{{ t('wfUi.properties.inputMap') }}</div>
+            <div class="mapping-hint">{{ t('wfUi.properties.mapHint') }}</div>
+            <div v-for="(mappingRef, field) in localInputMappings" :key="field" class="mapping-row">
+              <a-input :value="field" disabled style="width: 40%" size="small" />
+              <span style="color: #9ca3af; padding: 0 8px">→</span>
+              <a-input v-model:value="localInputMappings[field]" size="small" style="width: 50%" @change="emitUpdate" />
+              <a-button size="small" @click="removeMapping(field)">-</a-button>
+            </div>
+            <div class="add-mapping">
+              <a-input v-model:value="newMappingField" :placeholder="t('wfUi.properties.phField')" size="small" style="width: 40%" />
+              <span style="color: #9ca3af; padding: 0 8px">→</span>
+              <a-input v-model:value="newMappingRef" :placeholder="t('wfUi.properties.phRef')" size="small" style="width: 40%" />
+              <a-button size="small" @click="addMapping">+</a-button>
+            </div>
+          </div>
+        </a-tab-pane>
+      </a-tabs>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch } from 'vue'
+import { ref, reactive, computed, watch, markRaw } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { CloseOutlined } from '@ant-design/icons-vue'
+import type { Component } from 'vue'
+import type { NodeSchema, NodeTypeMetadata } from '@/types/workflow-v2'
+import StartNodeForm from '@/components/workflow/forms/StartNodeForm.vue'
+import EndNodeForm from '@/components/workflow/forms/EndNodeForm.vue'
+import SelectorNodeForm from '@/components/workflow/forms/SelectorNodeForm.vue'
+import LoopNodeForm from '@/components/workflow/forms/LoopNodeForm.vue'
+import BatchNodeForm from '@/components/workflow/forms/BatchNodeForm.vue'
+import BreakNodeForm from '@/components/workflow/forms/BreakNodeForm.vue'
+import ContinueNodeForm from '@/components/workflow/forms/ContinueNodeForm.vue'
+import LlmNodeForm from '@/components/workflow/forms/LlmNodeForm.vue'
+import IntentDetectorNodeForm from '@/components/workflow/forms/IntentDetectorNodeForm.vue'
+import QuestionAnswerNodeForm from '@/components/workflow/forms/QuestionAnswerNodeForm.vue'
+import CodeNodeForm from '@/components/workflow/forms/CodeNodeForm.vue'
+import TextProcessorNodeForm from '@/components/workflow/forms/TextProcessorNodeForm.vue'
+import JsonSerializationNodeForm from '@/components/workflow/forms/JsonSerializationNodeForm.vue'
+import JsonDeserializationNodeForm from '@/components/workflow/forms/JsonDeserializationNodeForm.vue'
+import VariableAggregatorNodeForm from '@/components/workflow/forms/VariableAggregatorNodeForm.vue'
+import AssignVariableNodeForm from '@/components/workflow/forms/AssignVariableNodeForm.vue'
+import PluginNodeForm from '@/components/workflow/forms/PluginNodeForm.vue'
+import HttpRequestNodeForm from '@/components/workflow/forms/HttpRequestNodeForm.vue'
+import SubWorkflowNodeForm from '@/components/workflow/forms/SubWorkflowNodeForm.vue'
+import KnowledgeSearchNodeForm from '@/components/workflow/forms/KnowledgeSearchNodeForm.vue'
+import KnowledgeWriteNodeForm from '@/components/workflow/forms/KnowledgeWriteNodeForm.vue'
+import LtmNodeForm from '@/components/workflow/forms/LtmNodeForm.vue'
+import DatabaseQueryNodeForm from '@/components/workflow/forms/DatabaseQueryNodeForm.vue'
+import DatabaseInsertNodeForm from '@/components/workflow/forms/DatabaseInsertNodeForm.vue'
+import DatabaseUpdateNodeForm from '@/components/workflow/forms/DatabaseUpdateNodeForm.vue'
+import DatabaseDeleteNodeForm from '@/components/workflow/forms/DatabaseDeleteNodeForm.vue'
+import DatabaseCustomSqlNodeForm from '@/components/workflow/forms/DatabaseCustomSqlNodeForm.vue'
+import ConversationNodeForm from '@/components/workflow/forms/ConversationNodeForm.vue'
+import ConversationHistoryNodeForm from '@/components/workflow/forms/ConversationHistoryNodeForm.vue'
+import MessageNodeForm from '@/components/workflow/forms/MessageNodeForm.vue'
+import IoNodeForm from '@/components/workflow/forms/IoNodeForm.vue'
+import GenericNodeForm from '@/components/workflow/forms/GenericNodeForm.vue'
 
 const { t } = useI18n()
-import type { NodeSchema, NodeTypeMetadata } from '@/types/workflow-v2'
 
 const props = defineProps<{
   node: NodeSchema
@@ -246,6 +127,7 @@ const localTitle = ref(props.node.title)
 const localConfigs = reactive<Record<string, unknown>>({ ...props.node.configs })
 const localInputMappings = reactive<Record<string, string>>({ ...props.node.inputMappings })
 applyNodeDefaults(props.node.type, localConfigs)
+const activeTab = ref<'common' | 'advanced'>('common')
 
 watch(() => props.node, (newNode) => {
   localTitle.value = newNode.title
@@ -256,6 +138,114 @@ watch(() => props.node, (newNode) => {
 }, { deep: true })
 
 const configsJson = computed(() => JSON.stringify(localConfigs, null, 2))
+const activeNodeForm = computed<Component>(() => {
+  const type = props.node.type
+  if (type === 'Entry' || type === 'Start') {
+    return markRaw(StartNodeForm)
+  }
+  if (type === 'Exit' || type === 'End') {
+    return markRaw(EndNodeForm)
+  }
+  if (type === 'Selector' || type === 'If') {
+    return markRaw(SelectorNodeForm)
+  }
+  if (type === 'Loop') {
+    return markRaw(LoopNodeForm)
+  }
+  if (type === 'Batch') {
+    return markRaw(BatchNodeForm)
+  }
+  if (type === 'Break') {
+    return markRaw(BreakNodeForm)
+  }
+  if (type === 'Continue') {
+    return markRaw(ContinueNodeForm)
+  }
+  if (type === 'Llm' || type === 'LLM') {
+    return markRaw(LlmNodeForm)
+  }
+  if (type === 'IntentDetector') {
+    return markRaw(IntentDetectorNodeForm)
+  }
+  if (type === 'QuestionAnswer') {
+    return markRaw(QuestionAnswerNodeForm)
+  }
+  if (type === 'CodeRunner') {
+    return markRaw(CodeNodeForm)
+  }
+  if (type === 'TextProcessor') {
+    return markRaw(TextProcessorNodeForm)
+  }
+  if (type === 'JsonSerialization') {
+    return markRaw(JsonSerializationNodeForm)
+  }
+  if (type === 'JsonDeserialization') {
+    return markRaw(JsonDeserializationNodeForm)
+  }
+  if (type === 'VariableAggregator') {
+    return markRaw(VariableAggregatorNodeForm)
+  }
+  if (type === 'AssignVariable' || type === 'VariableAssignerWithinLoop') {
+    return markRaw(AssignVariableNodeForm)
+  }
+  if (type === 'Plugin') {
+    return markRaw(PluginNodeForm)
+  }
+  if (type === 'HttpRequester') {
+    return markRaw(HttpRequestNodeForm)
+  }
+  if (type === 'SubWorkflow') {
+    return markRaw(SubWorkflowNodeForm)
+  }
+  if (type === 'KnowledgeRetriever') {
+    return markRaw(KnowledgeSearchNodeForm)
+  }
+  if (type === 'KnowledgeIndexer') {
+    return markRaw(KnowledgeWriteNodeForm)
+  }
+  if (type === 'Ltm') {
+    return markRaw(LtmNodeForm)
+  }
+  if (type === 'DatabaseQuery') {
+    return markRaw(DatabaseQueryNodeForm)
+  }
+  if (type === 'DatabaseInsert') {
+    return markRaw(DatabaseInsertNodeForm)
+  }
+  if (type === 'DatabaseUpdate') {
+    return markRaw(DatabaseUpdateNodeForm)
+  }
+  if (type === 'DatabaseDelete') {
+    return markRaw(DatabaseDeleteNodeForm)
+  }
+  if (type === 'DatabaseCustomSql') {
+    return markRaw(DatabaseCustomSqlNodeForm)
+  }
+  if (type === 'CreateConversation' || type === 'ConversationList' || type === 'ConversationUpdate' || type === 'ConversationDelete') {
+    return markRaw(ConversationNodeForm)
+  }
+  if (type === 'ConversationHistory' || type === 'ClearConversationHistory') {
+    return markRaw(ConversationHistoryNodeForm)
+  }
+  if (type === 'MessageList' || type === 'CreateMessage' || type === 'EditMessage' || type === 'DeleteMessage') {
+    return markRaw(MessageNodeForm)
+  }
+  if (type === 'OutputEmitter' || type === 'InputReceiver') {
+    return markRaw(IoNodeForm)
+  }
+  return markRaw(GenericNodeForm)
+})
+
+const nodeIcon = computed(() => {
+  const type = String(props.node.type)
+  const iconMap: Record<string, string> = {
+    Entry: '▶',
+    Exit: '⏹',
+    Start: '▶',
+    End: '⏹'
+  }
+  return iconMap[type] ?? '□'
+})
 
 function handleRawConfigsChange(e: Event) {
   try {
@@ -295,26 +285,24 @@ function emitUpdate() {
 }
 
 function applyNodeDefaults(nodeType: string, configs: Record<string, unknown>) {
-  if (nodeType === 'Agent') {
-    configs.agentId ??= 1
-    configs.message ??= '{{input.message}}'
-    configs.conversationId ??= 0
-    configs.userId ??= 0
-    configs.enableRag ??= false
-    configs.outputKey ??= 'agent_output'
+  if (nodeType === 'Entry' || nodeType === 'Start') {
+    configs.variables ??= []
+    configs.autoSaveHistory ??= true
     return
   }
 
-  if (nodeType === 'Plugin') {
-    configs.pluginId ??= 1
-    configs.apiId ??= 0
-    configs.inputJson ??= '{}'
-    configs.outputKey ??= 'plugin_output'
+  if (nodeType === 'Exit' || nodeType === 'End') {
+    configs.terminationMode ??= 'returnVariables'
+    configs.outputMappings ??= []
+    configs.templateText ??= ''
+    configs.streamOutput ??= false
     return
   }
 
-  if (nodeType === 'Selector') {
-    configs.condition ??= ''
+  if (nodeType === 'Selector' || nodeType === 'If') {
+    configs.matchMode ??= 'all'
+    configs.conditions ??= []
+    configs.fallbackExpression ??= ''
     return
   }
 
@@ -329,12 +317,229 @@ function applyNodeDefaults(nodeType: string, configs: Record<string, unknown>) {
     return
   }
 
+  if (nodeType === 'Batch') {
+    configs.collectionPath ??= ''
+    configs.parallelism ??= 4
+    configs.itemTimeoutMs ??= 0
+    configs.onError ??= 'continue'
+    configs.outputKey ??= 'batch_output'
+    return
+  }
+
+  if (nodeType === 'Break') {
+    configs.signal ??= 'loop_break'
+    configs.reason ??= ''
+    configs.outputKey ??= 'loop_control_signal'
+    return
+  }
+
+  if (nodeType === 'Continue') {
+    configs.signal ??= 'loop_continue'
+    configs.reason ??= ''
+    configs.outputKey ??= 'loop_control_signal'
+    return
+  }
+
+  if (nodeType === 'Llm' || nodeType === 'LLM') {
+    configs.provider ??= 'openai'
+    configs.model ??= 'gpt-5.4-medium'
+    configs.systemPrompt ??= ''
+    configs.prompt ??= '{{input.message}}'
+    configs.temperature ??= 0.7
+    configs.maxTokens ??= 2048
+    configs.stream ??= true
+    configs.outputKey ??= 'llm_output'
+    return
+  }
+
+  if (nodeType === 'IntentDetector') {
+    configs.intents ??= []
+    configs.inputPath ??= 'input.message'
+    configs.threshold ??= 0.6
+    configs.outputKey ??= 'intent_result'
+    return
+  }
+
+  if (nodeType === 'QuestionAnswer') {
+    configs.questionTemplate ??= '请补充必要信息。'
+    configs.timeoutSeconds ??= 300
+    configs.answerKey ??= 'qa_answer'
+    configs.allowEmpty ??= false
+    return
+  }
+
+  if (nodeType === 'CodeRunner') {
+    configs.language ??= 'javascript'
+    configs.code ??= 'return input;'
+    configs.outputKey ??= 'code_output'
+    return
+  }
+
+  if (nodeType === 'TextProcessor') {
+    configs.mode ??= 'template'
+    configs.inputPath ??= 'input.text'
+    configs.templateText ??= '{{input.text}}'
+    configs.outputKey ??= 'text_output'
+    return
+  }
+
+  if (nodeType === 'JsonSerialization') {
+    configs.direction ??= 'serialize'
+    configs.inputPath ??= 'input.payload'
+    configs.pretty ??= true
+    configs.outputKey ??= 'json_output'
+    return
+  }
+
+  if (nodeType === 'JsonDeserialization') {
+    configs.direction ??= 'deserialize'
+    configs.inputPath ??= 'input.payload'
+    configs.pretty ??= true
+    configs.outputKey ??= 'json_output'
+    return
+  }
+
+  if (nodeType === 'VariableAggregator') {
+    configs.mode ??= 'object'
+    configs.sourcePaths ??= []
+    configs.outputKey ??= 'aggregated_output'
+    return
+  }
+
+  if (nodeType === 'AssignVariable' || nodeType === 'VariableAssignerWithinLoop') {
+    configs.variableName ??= ''
+    configs.valueExpression ??= ''
+    configs.scope ??= nodeType === 'VariableAssignerWithinLoop' ? 'loop' : 'workflow'
+    configs.overwrite ??= true
+    return
+  }
+
+  if (nodeType === 'Plugin') {
+    configs.pluginKey ??= ''
+    configs.method ??= 'execute'
+    configs.inputJson ??= '{}'
+    configs.timeoutMs ??= 30000
+    configs.outputKey ??= 'plugin_output'
+    return
+  }
+
+  if (nodeType === 'HttpRequester') {
+    configs.method ??= 'GET'
+    configs.url ??= ''
+    configs.headersJson ??= '{}'
+    configs.body ??= ''
+    configs.timeoutMs ??= 15000
+    configs.outputKey ??= 'http_output'
+    return
+  }
+
   if (nodeType === 'SubWorkflow') {
-    configs.maxDepth ??= 4
+    configs.subWorkflowId ??= ''
     configs.inheritVariables ??= true
-    configs.inputsVariable ??= ''
-    configs.mergeOutputs ??= true
+    configs.inputsVariable ??= 'input'
+    configs.maxDepth ??= 4
     configs.outputKey ??= 'subworkflow_output'
+    return
+  }
+
+  if (nodeType === 'KnowledgeRetriever') {
+    configs.datasetId ??= ''
+    configs.queryPath ??= 'input.query'
+    configs.topK ??= 5
+    configs.minScore ??= 0.5
+    configs.outputKey ??= 'knowledge_hits'
+    return
+  }
+
+  if (nodeType === 'KnowledgeIndexer') {
+    configs.datasetId ??= ''
+    configs.title ??= ''
+    configs.contentPath ??= 'input.content'
+    configs.chunkSize ??= 800
+    configs.outputKey ??= 'knowledge_write_result'
+    return
+  }
+
+  if (nodeType === 'Ltm') {
+    configs.action ??= 'read'
+    configs.namespace ??= 'default'
+    configs.keyName ??= ''
+    configs.valuePath ??= 'input.value'
+    configs.outputKey ??= 'ltm_result'
+    return
+  }
+
+  if (nodeType === 'DatabaseQuery') {
+    configs.databaseId ??= ''
+    configs.tableName ??= ''
+    configs.whereJson ??= '{}'
+    configs.outputKey ??= 'db_output'
+    return
+  }
+
+  if (nodeType === 'DatabaseInsert') {
+    configs.databaseId ??= ''
+    configs.tableName ??= ''
+    configs.payloadJson ??= '{}'
+    configs.outputKey ??= 'db_output'
+    return
+  }
+
+  if (nodeType === 'DatabaseUpdate') {
+    configs.databaseId ??= ''
+    configs.tableName ??= ''
+    configs.whereJson ??= '{}'
+    configs.payloadJson ??= '{}'
+    configs.outputKey ??= 'db_output'
+    return
+  }
+
+  if (nodeType === 'DatabaseDelete') {
+    configs.databaseId ??= ''
+    configs.tableName ??= ''
+    configs.whereJson ??= '{}'
+    configs.outputKey ??= 'db_output'
+    return
+  }
+
+  if (nodeType === 'DatabaseCustomSql') {
+    configs.databaseId ??= ''
+    configs.tableName ??= ''
+    configs.sql ??= ''
+    configs.outputKey ??= 'db_output'
+    return
+  }
+
+  if (nodeType === 'CreateConversation' || nodeType === 'ConversationList' || nodeType === 'ConversationUpdate' || nodeType === 'ConversationDelete') {
+    configs.conversationId ??= ''
+    configs.userId ??= ''
+    configs.title ??= ''
+    configs.agentId ??= ''
+    configs.outputKey ??= 'conversation_output'
+    return
+  }
+
+  if (nodeType === 'ConversationHistory' || nodeType === 'ClearConversationHistory') {
+    configs.conversationId ??= ''
+    configs.limit ??= 20
+    configs.outputKey ??= 'conversation_history'
+    return
+  }
+
+  if (nodeType === 'MessageList' || nodeType === 'CreateMessage' || nodeType === 'EditMessage' || nodeType === 'DeleteMessage') {
+    configs.conversationId ??= ''
+    configs.messageId ??= ''
+    configs.content ??= ''
+    configs.pageSize ??= 20
+    configs.outputKey ??= 'message_output'
+    return
+  }
+
+  if (nodeType === 'OutputEmitter' || nodeType === 'InputReceiver') {
+    configs.templateText ??= ''
+    configs.prompt ??= '请继续输入。'
+    configs.timeoutSeconds ??= 300
+    configs.outputKey ??= 'io_output'
   }
 }
 </script>
@@ -358,17 +563,44 @@ function applyNodeDefaults(nodeType: string, configs: Record<string, unknown>) {
   border-bottom: 1px solid #30363d;
 }
 
+.panel-header-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.node-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #0d1117;
+  border: 1px solid #30363d;
+}
+
 .panel-title {
   font-weight: 600;
   color: #e6edf3;
 }
 
+.node-type-name {
+  margin-top: 2px;
+  color: #8f99a6;
+  font-size: 12px;
+}
+
 .panel-body {
   flex: 1;
   overflow-y: auto;
-  padding: 0;
+  padding: 0 8px 8px;
   scrollbar-width: thin;
   scrollbar-color: #3b4755 #121a23;
+}
+
+.panel-tabs {
+  height: 100%;
 }
 
 .prop-section {

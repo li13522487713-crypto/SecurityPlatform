@@ -35,10 +35,12 @@
           <template #icon><DatabaseOutlined /></template>
           {{ t("appWorkspace.menuData") }}
         </a-menu-item>
-        <a-menu-item key="workflows">
+        <a-sub-menu key="workflows-group">
           <template #icon><ApartmentOutlined /></template>
-          {{ t("appWorkspace.menuWorkflows") }}
-        </a-menu-item>
+          <template #title>{{ t("appWorkspace.menuWorkflows") }}</template>
+          <a-menu-item key="workflows">{{ t("appWorkspace.menuWorkflows") }}</a-menu-item>
+          <a-menu-item key="workflow-databases">{{ t("route.aiDatabases") }}</a-menu-item>
+        </a-sub-menu>
         <a-menu-item key="flows">
           <template #icon><AuditOutlined /></template>
           {{ t("appWorkspace.menuApprovalFlows") }}
@@ -111,6 +113,7 @@ const menuPathMap: Record<string, string> = {
   builder: "builder",
   data: "data",
   workflows: "workflows",
+  "workflow-databases": "workflow-databases",
   flows: "flows",
   settings: "settings"
 };
@@ -131,6 +134,7 @@ const sectionLabelMap = computed<Record<string, string>>(() => ({
   builder: t("appWorkspace.menuBuilder"),
   data: t("appWorkspace.menuData"),
   workflows: t("appWorkspace.menuWorkflows"),
+  "workflow-databases": t("route.aiDatabases"),
   flows: t("appWorkspace.menuApprovalFlows"),
   settings: t("appWorkspace.menuSettings")
 }));

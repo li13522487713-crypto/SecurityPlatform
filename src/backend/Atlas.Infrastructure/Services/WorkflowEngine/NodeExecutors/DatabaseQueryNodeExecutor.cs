@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Atlas.Domain.AiPlatform.Enums;
+using SqlSugar;
 
 namespace Atlas.Infrastructure.Services.WorkflowEngine.NodeExecutors;
 
@@ -9,17 +10,48 @@ namespace Atlas.Infrastructure.Services.WorkflowEngine.NodeExecutors;
 /// </summary>
 public sealed class DatabaseQueryNodeExecutor : INodeExecutor
 {
+    private readonly ISqlSugarClient _db;
+
+    public DatabaseQueryNodeExecutor(ISqlSugarClient db)
+    {
+        _db = db;
+    }
+
     public WorkflowNodeType NodeType => WorkflowNodeType.DatabaseQuery;
 
-    public Task<NodeExecutionResult> ExecuteAsync(NodeExecutionContext context, CancellationToken cancellationToken)
+    public async Task<NodeExecutionResult> ExecuteAsync(NodeExecutionContext context, CancellationToken cancellationToken)
     {
         var outputKey = context.GetConfigString("outputKey", "query_result");
-        var outputs = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase)
+        var outputs = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
+        var databaseId = AiDatabaseNodeHelper.ResolveDatabaseId(context);
+        if (databaseId <= 0)
         {
-            [outputKey] = JsonSerializer.SerializeToElement(Array.Empty<object>())
-        };
+            return new NodeExecutionResult(false, outputs, "DatabaseQuery 缺少 databaseInfoId/databaseId。");
+        }
 
-        // 占位：TODO[coze-v2-db-query] 集成 AiDatabase 数据源执行查询
-        return Task.FromResult(new NodeExecutionResult(true, outputs));
+        var limit = Math.Clamp(context.GetConfigInt32("limit", 100), 1, 5000);
+        var queryFields = AiDatabaseNodeHelper.ResolveFields(context.Node.Config, "queryFields");
+        var clauses = AiDatabaseNodeHelper.ResolveClauses(context.Node.Config);
+        var records = await AiDatabaseNodeHelper.LoadRecordsAsync(_db, context.TenantId, databaseId, cancellationToken);
+
+        var result = new List<JsonElement>();
+        foreach (var record in records)
+        {
+            var payload = AiDatabaseNodeHelper.ParseRecordJson(record.DataJson);
+            if (payload is null || !AiDatabaseNodeHelper.IsMatch(payload.Value, clauses))
+            {
+                continue;
+            }
+
+            result.Add(AiDatabaseNodeHelper.ApplyFieldProjection(payload.Value, queryFields));
+            if (result.Count >= limit)
+            {
+                break;
+            }
+        }
+
+        outputs[outputKey] = JsonSerializer.SerializeToElement(result);
+        outputs["record_count"] = JsonSerializer.SerializeToElement(result.Count);
+        return new NodeExecutionResult(true, outputs);
     }
 }

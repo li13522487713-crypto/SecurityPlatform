@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Atlas.Domain.AiPlatform.Enums;
 
 namespace Atlas.Application.AiPlatform.Models;
@@ -116,7 +117,16 @@ public sealed record WorkflowV2NodeTypeDto(
     string Key,
     string Name,
     string Category,
-    string Description);
+    string Description,
+    IReadOnlyList<WorkflowNodePortMetadata>? Ports = null,
+    string? ConfigSchemaJson = null,
+    WorkflowNodeUiMetadata? UiMeta = null);
+
+public sealed record WorkflowV2NodeTemplateDto(
+    string Key,
+    string Name,
+    string Category,
+    Dictionary<string, JsonElement> DefaultConfig);
 
 /// <summary>
 /// SSE 流式事件封装。

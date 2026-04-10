@@ -15,6 +15,19 @@
 
     <template #toolbar-right>
       <a-space>
+        <a-select v-model:value="modeFilter" style="width: 140px">
+          <a-select-option value="all">{{ t("workflow.tabAll") }}</a-select-option>
+          <a-select-option value="0">{{ t("workflow.modeStandard") }}</a-select-option>
+          <a-select-option value="1">{{ t("workflow.modeChatFlow") }}</a-select-option>
+        </a-select>
+        <a-select v-model:value="nodeTypeFilter" style="width: 180px">
+          <a-select-option value="all">{{ t("workflow.tabAll") }}</a-select-option>
+          <a-select-option v-for="item in nodeTypeOptions" :key="item.key" :value="item.key">{{ item.name }}</a-select-option>
+        </a-select>
+        <a-button @click="exportSelected">{{ t("approvalFlowList.export") }}</a-button>
+        <a-popconfirm :title="t('workflow.deleteConfirm')" @confirm="handleBatchDelete">
+          <a-button danger :disabled="selectedRowKeys.length === 0">{{ t("workflow.delete") }}</a-button>
+        </a-popconfirm>
         <a-button @click="handleRefresh">
           <template #icon><ReloadOutlined /></template>
           {{ t("workflow.refresh") }}
@@ -37,11 +50,12 @@
         </div>
 
         <a-table
-          :data-source="workflows"
+          :data-source="filteredWorkflows"
           :columns="columns"
           :loading="loading"
           :pagination="tablePagination"
           :scroll="{ x: 920 }"
+          :row-selection="{ selectedRowKeys, onChange: onSelectChange }"
           row-key="id"
           @change="handleTableChange"
         >
@@ -147,7 +161,8 @@ import {
 import type {
   WorkflowExecutionCheckpointResponse,
   WorkflowExecutionDebugViewResponse,
-  WorkflowListItem
+  WorkflowListItem,
+  NodeTypeMetadata
 } from "@/types/workflow-v2";
 import { resolveCurrentAppId } from "@/utils/app-context";
 import { CrudPageLayout } from "@atlas/shared-ui";
@@ -163,6 +178,10 @@ const activeTab = ref<"all" | "published">("all");
 const workflows = ref<WorkflowListItem[]>([]);
 const pagination = reactive({ current: 1, pageSize: 20, total: 0 });
 const executionIdInput = ref<number>();
+const modeFilter = ref<"all" | "0" | "1">("all");
+const nodeTypeFilter = ref<string>("all");
+const nodeTypeOptions = ref<NodeTypeMetadata[]>([]);
+const selectedRowKeys = ref<string[]>([]);
 const checkpoint = ref<WorkflowExecutionCheckpointResponse | null>(null);
 const debugView = ref<WorkflowExecutionDebugViewResponse | null>(null);
 const checkpointError = ref("");
@@ -199,6 +218,14 @@ const listSummary = computed(() => {
     all: workflows.value.length,
     published
   };
+});
+
+const filteredWorkflows = computed(() => {
+  return workflows.value.filter((item) => {
+    const modeMatched = modeFilter.value === "all" || String(item.mode) === modeFilter.value;
+    const nodeMatched = nodeTypeFilter.value === "all" || keyword.value.includes(nodeTypeFilter.value);
+    return modeMatched && nodeMatched;
+  });
 });
 
 function statusColor(status: number) {
@@ -243,6 +270,10 @@ function handleReset() {
 
 function handleRefresh() {
   void loadList();
+}
+
+function onSelectChange(keys: string[]) {
+  selectedRowKeys.value = keys;
 }
 
 function handleTableChange(pag: { current: number; pageSize: number }) {
@@ -301,6 +332,28 @@ async function handleDelete(id: string) {
     message.success(t("workflow.deleteOk"));
     void loadList();
   }
+}
+
+async function handleBatchDelete() {
+  if (selectedRowKeys.value.length === 0) {
+    return;
+  }
+
+  await Promise.all(selectedRowKeys.value.map((id) => deleteWorkflow(id)));
+  selectedRowKeys.value = [];
+  message.success(t("workflow.deleteOk"));
+  await loadList();
+}
+
+function exportSelected() {
+  const selected = workflows.value.filter((item) => selectedRowKeys.value.includes(item.id));
+  const blob = new Blob([JSON.stringify(selected, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `workflows-${Date.now()}.json`;
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 function resolveExecutionId() {
@@ -377,6 +430,17 @@ async function recoverFromCheckpoint() {
 }
 
 onMounted(() => {
+  void (async () => {
+    try {
+      const mod = await import("@/services/api-workflow");
+      const res = await mod.getNodeTypes();
+      if (res.success && Array.isArray(res.data)) {
+        nodeTypeOptions.value = res.data;
+      }
+    } catch {
+      nodeTypeOptions.value = [];
+    }
+  })();
   void loadList();
 });
 </script>

@@ -583,7 +583,16 @@ export default {
     debugViewFailed: "Debug view failed",
     recoverSubmitted: "Recovery submitted, execution: {id}",
     recoverWarn: "Recovery not completed",
-    recoverFailed: "Recovery failed"
+    recoverFailed: "Recovery failed",
+    moreActions: "More",
+    exportCanvasJson: "Export canvas JSON",
+    importCanvasJson: "Import canvas JSON",
+    resetCanvas: "Reset canvas",
+    autosaveNotStarted: "Not saved yet",
+    autosaveAt: "Saved at {time}",
+    importJsonSuccess: "Canvas imported",
+    importJsonFailed: "Import failed, invalid JSON",
+    resetCanvasSuccess: "Canvas reset"
   },
   approvalFlowList: {
     pageTitle: "Flow definitions",

@@ -174,6 +174,13 @@ POST {{host}}/api/v2/workflows/executions/{{executionId}}/resume
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 
+### ── Stream Resume Execution (SSE) ──
+# 事件顺序示例：
+# execution_resume_start -> node_start/node_output/node_complete -> execution_complete|execution_failed
+POST {{host}}/api/v2/workflows/executions/{{executionId}}/stream-resume
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
 ### ── Recover Execution ──
 POST {{host}}/api/v2/workflows/executions/{{executionId}}/recover
 Authorization: Bearer {{token}}
@@ -203,6 +210,11 @@ X-Tenant-Id: {{tenantId}}
 
 ### ── List Node Types ──
 GET {{host}}/api/v2/workflows/node-types
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
+### ── List Node Templates ──
+GET {{host}}/api/v2/workflows/node-templates
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 

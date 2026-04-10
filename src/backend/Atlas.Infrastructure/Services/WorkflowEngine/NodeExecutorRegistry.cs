@@ -1,3 +1,5 @@
+using Atlas.Application.AiPlatform.Abstractions;
+using Atlas.Application.AiPlatform.Models;
 using Atlas.Domain.AiPlatform.Enums;
 
 namespace Atlas.Infrastructure.Services.WorkflowEngine;
@@ -9,16 +11,29 @@ public sealed class NodeExecutorRegistry
 {
     private readonly Dictionary<WorkflowNodeType, INodeExecutor> _executors;
     private readonly List<NodeTypeMetadata> _metadata;
+    private readonly Dictionary<WorkflowNodeType, IWorkflowNodeDeclaration> _declarations;
 
     public NodeExecutorRegistry(IEnumerable<INodeExecutor> executors)
     {
         _executors = new Dictionary<WorkflowNodeType, INodeExecutor>();
         _metadata = new List<NodeTypeMetadata>();
+        _declarations = BuiltInWorkflowNodeDeclarations.All
+            .GroupBy(x => x.Type)
+            .Select(x => x.Last())
+            .ToDictionary(x => x.Type, x => x);
+
+        foreach (var declaration in _declarations.Values)
+        {
+            _metadata.Add(ToMetadata(declaration));
+        }
 
         foreach (var executor in executors)
         {
             _executors[executor.NodeType] = executor;
-            _metadata.Add(BuildMetadata(executor.NodeType));
+            if (!_declarations.ContainsKey(executor.NodeType))
+            {
+                _metadata.Add(BuildMetadata(executor.NodeType));
+            }
         }
     }
 
@@ -28,6 +43,11 @@ public sealed class NodeExecutorRegistry
     }
 
     public IReadOnlyList<NodeTypeMetadata> GetAllTypes() => _metadata;
+
+    public IWorkflowNodeDeclaration? GetDeclaration(WorkflowNodeType type)
+    {
+        return _declarations.GetValueOrDefault(type);
+    }
 
     private static NodeTypeMetadata BuildMetadata(WorkflowNodeType type)
     {
@@ -55,5 +75,15 @@ public sealed class NodeExecutorRegistry
         };
 
         return new NodeTypeMetadata(type, type.ToString(), name, category, description);
+    }
+
+    private static NodeTypeMetadata ToMetadata(IWorkflowNodeDeclaration declaration)
+    {
+        return new NodeTypeMetadata(
+            declaration.Type,
+            declaration.Key,
+            declaration.Name,
+            declaration.Category,
+            declaration.Description);
     }
 }

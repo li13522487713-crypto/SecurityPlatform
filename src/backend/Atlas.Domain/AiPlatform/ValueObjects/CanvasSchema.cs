@@ -18,7 +18,12 @@ public sealed record NodeSchema(
     WorkflowNodeType Type,
     string Label,
     Dictionary<string, JsonElement> Config,
-    NodeLayout Layout);
+    NodeLayout Layout,
+    CanvasSchema? ChildCanvas = null,
+    Dictionary<string, string>? InputTypes = null,
+    Dictionary<string, string>? OutputTypes = null,
+    IReadOnlyList<NodeFieldMapping>? InputSources = null,
+    IReadOnlyList<NodeFieldMapping>? OutputSources = null);
 
 /// <summary>
 /// 两个节点之间的连线。
@@ -38,3 +43,11 @@ public sealed record NodeLayout(
     double Y,
     double Width,
     double Height);
+
+/// <summary>
+/// 字段映射：用于声明输入/输出字段与变量路径之间的绑定关系。
+/// </summary>
+public sealed record NodeFieldMapping(
+    string Field,
+    string Path,
+    string? DefaultValue = null);

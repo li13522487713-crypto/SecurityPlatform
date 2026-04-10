@@ -13,17 +13,44 @@ export type WorkflowNodeTypeKey =
   | "Llm"
   | "Plugin"
   | "Agent"
+  | "IntentDetector"
+  | "QuestionAnswer"
   | "Selector"
   | "SubWorkflow"
   | "TextProcessor"
   | "Loop"
+  | "Batch"
+  | "Break"
+  | "Continue"
+  | "InputReceiver"
+  | "OutputEmitter"
   | "AssignVariable"
+  | "VariableAssignerWithinLoop"
   | "VariableAggregator"
+  | "KnowledgeRetriever"
+  | "KnowledgeIndexer"
+  | "KnowledgeDeleter"
+  | "Ltm"
   | "DatabaseQuery"
+  | "DatabaseInsert"
+  | "DatabaseUpdate"
+  | "DatabaseDelete"
+  | "DatabaseCustomSql"
+  | "CreateConversation"
+  | "ConversationList"
+  | "ConversationUpdate"
+  | "ConversationDelete"
+  | "ConversationHistory"
+  | "ClearConversationHistory"
+  | "MessageList"
+  | "CreateMessage"
+  | "EditMessage"
+  | "DeleteMessage"
   | "HttpRequester"
   | "CodeRunner"
   | "JsonSerialization"
   | "JsonDeserialization"
+  | "Comment"
 
 export const WORKFLOW_NODE_TYPE_VALUES: Record<WorkflowNodeTypeKey, number> = {
   Entry: 1,
@@ -31,17 +58,44 @@ export const WORKFLOW_NODE_TYPE_VALUES: Record<WorkflowNodeTypeKey, number> = {
   Llm: 3,
   Plugin: 4,
   CodeRunner: 5,
+  KnowledgeRetriever: 6,
   Selector: 8,
   SubWorkflow: 9,
+  OutputEmitter: 13,
   TextProcessor: 15,
+  QuestionAnswer: 18,
+  Break: 19,
+  VariableAssignerWithinLoop: 20,
   Loop: 21,
+  IntentDetector: 22,
+  KnowledgeIndexer: 27,
+  Batch: 28,
+  Continue: 29,
+  InputReceiver: 30,
+  Comment: 31,
   VariableAggregator: 32,
+  ConversationList: 53,
+  MessageList: 37,
+  ClearConversationHistory: 38,
+  CreateConversation: 39,
   AssignVariable: 40,
+  DatabaseCustomSql: 41,
+  ConversationUpdate: 51,
+  ConversationDelete: 52,
+  ConversationHistory: 54,
+  CreateMessage: 55,
+  EditMessage: 56,
+  DeleteMessage: 57,
+  DatabaseUpdate: 42,
   DatabaseQuery: 43,
+  DatabaseDelete: 44,
+  DatabaseInsert: 46,
   HttpRequester: 45,
   JsonSerialization: 58,
   JsonDeserialization: 59,
-  Agent: 60
+  Agent: 60,
+  KnowledgeDeleter: 61,
+  Ltm: 62
 }
 
 const NODE_ALIAS_MAP: Record<string, WorkflowNodeTypeKey> = {
@@ -190,6 +244,35 @@ export interface NodeTypeMetadata {
   name: string
   category: string
   description: string
+  ports?: WorkflowNodePortMetadata[]
+  configSchemaJson?: string
+  uiMeta?: WorkflowNodeUiMetadata
+}
+
+export type WorkflowNodePortDirection = "Input" | "Output" | 1 | 2
+
+export interface WorkflowNodePortMetadata {
+  key: string
+  name: string
+  direction: WorkflowNodePortDirection
+  dataType: string
+  isRequired: boolean
+  maxConnections: number
+}
+
+export interface WorkflowNodeUiMetadata {
+  icon: string
+  color: string
+  supportsBatch: boolean
+  defaultWidth: number
+  defaultHeight: number
+}
+
+export interface NodeTemplateMetadata {
+  key: WorkflowNodeTypeKey | string
+  name: string
+  category: string
+  defaultConfig: Record<string, unknown>
 }
 
 // ============ 执行相关 ============

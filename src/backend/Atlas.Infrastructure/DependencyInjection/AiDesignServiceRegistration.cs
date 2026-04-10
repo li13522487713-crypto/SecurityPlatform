@@ -108,6 +108,7 @@ public static class AiDesignServiceRegistration
         services.AddScoped<IAiWorkflowDesignService, AiWorkflowDesignService>();
         services.AddSingleton<AiWorkflowDslBuilder>();
 
+        services.AddScoped<ICanvasValidator, CanvasValidator>();
         services.AddTransient<LlmStep>();
         services.AddTransient<PluginStep>();
         services.AddTransient<CodeRunnerStep>();

@@ -36,6 +36,15 @@
         <span class="handle-label">{{ t("workflowUi.handleDone") }}</span>
       </Handle>
     </template>
+    <!-- Batch: items/done output handles -->
+    <template v-else-if="nodeType === 'Batch'">
+      <Handle id="item" type="source" :position="Position.Right" class="node-handle handle-loop-body">
+        <span class="handle-label">item</span>
+      </Handle>
+      <Handle id="done" type="source" :position="Position.Right" class="node-handle handle-loop-done">
+        <span class="handle-label">{{ t("workflowUi.handleDone") }}</span>
+      </Handle>
+    </template>
     <!-- Default: single output -->
     <template v-else>
       <Handle type="source" :position="Position.Right" class="node-handle" />
@@ -67,8 +76,13 @@ const props = defineProps<{ data: NodeData }>()
 const { t } = useI18n()
 
 const KNOWN_NODE_TYPES = new Set([
-  "Entry", "Exit", "Llm", "Agent", "Plugin", "Selector", "Loop", "SubWorkflow", "HttpRequester", "CodeRunner", "DatabaseQuery",
-  "AssignVariable", "VariableAggregator", "JsonSerialization", "JsonDeserialization", "TextProcessor", "LLM", "If"
+  "Entry", "Exit", "Llm", "Agent", "Plugin", "IntentDetector", "QuestionAnswer", "Selector", "Loop", "Batch", "Break", "Continue",
+  "SubWorkflow", "HttpRequester", "CodeRunner", "DatabaseQuery", "DatabaseInsert", "DatabaseUpdate", "DatabaseDelete", "DatabaseCustomSql",
+  "AssignVariable", "VariableAssignerWithinLoop", "VariableAggregator", "JsonSerialization", "JsonDeserialization", "TextProcessor",
+  "KnowledgeRetriever", "KnowledgeIndexer", "KnowledgeDeleter", "Ltm",
+  "CreateConversation", "ConversationList", "ConversationUpdate", "ConversationDelete", "ConversationHistory", "ClearConversationHistory",
+  "MessageList", "CreateMessage", "EditMessage", "DeleteMessage", "InputReceiver", "OutputEmitter", "Comment",
+  "LLM", "If"
 ])
 
 const nodeType = computed(() => props.data.nodeType ?? 'Unknown')
@@ -82,15 +96,42 @@ const NODE_COLORS: Record<string, string> = {
   Plugin: '#14b8a6',
   Selector: '#f59e0b',
   Loop: '#f59e0b',
+  Batch: '#f59e0b',
+  Break: '#f59e0b',
+  Continue: '#f59e0b',
   SubWorkflow: '#8b5cf6',
   CodeRunner: '#10b981',
   HttpRequester: '#10b981',
   DatabaseQuery: '#3b82f6',
+  DatabaseInsert: '#3b82f6',
+  DatabaseUpdate: '#3b82f6',
+  DatabaseDelete: '#3b82f6',
+  DatabaseCustomSql: '#3b82f6',
+  KnowledgeRetriever: '#22c55e',
+  KnowledgeIndexer: '#22c55e',
+  KnowledgeDeleter: '#22c55e',
+  Ltm: '#22c55e',
   AssignVariable: '#d946ef',
+  VariableAssignerWithinLoop: '#d946ef',
   VariableAggregator: '#d946ef',
   JsonSerialization: '#84cc16',
   JsonDeserialization: '#84cc16',
   TextProcessor: '#e2e8f0',
+  IntentDetector: '#6366f1',
+  QuestionAnswer: '#6366f1',
+  CreateConversation: '#ec4899',
+  ConversationList: '#ec4899',
+  ConversationUpdate: '#ec4899',
+  ConversationDelete: '#ec4899',
+  ConversationHistory: '#ec4899',
+  ClearConversationHistory: '#ec4899',
+  MessageList: '#ec4899',
+  CreateMessage: '#ec4899',
+  EditMessage: '#ec4899',
+  DeleteMessage: '#ec4899',
+  InputReceiver: '#ec4899',
+  OutputEmitter: '#ec4899',
+  Comment: '#64748b',
   LLM: '#6366f1',
   If: '#f59e0b',
 }
@@ -103,15 +144,42 @@ const NODE_ICONS: Record<string, string> = {
   Plugin: '🔌',
   Selector: '⟟',
   Loop: '↻',
+  Batch: '▦',
+  Break: '⏸',
+  Continue: '↩',
   SubWorkflow: '⊞',
   CodeRunner: '⌨',
   HttpRequester: '🌐',
   DatabaseQuery: '🔍',
+  DatabaseInsert: '+',
+  DatabaseUpdate: '✎',
+  DatabaseDelete: '✕',
+  DatabaseCustomSql: 'SQL',
+  KnowledgeRetriever: '📚',
+  KnowledgeIndexer: '🧩',
+  KnowledgeDeleter: '🗑',
+  Ltm: '🧠',
   AssignVariable: '=',
+  VariableAssignerWithinLoop: '=',
   VariableAggregator: '∪',
   JsonSerialization: '{}',
   JsonDeserialization: '{}',
   TextProcessor: 'T',
+  IntentDetector: '🎯',
+  QuestionAnswer: '❓',
+  CreateConversation: '💬',
+  ConversationList: '☰',
+  ConversationUpdate: '✎',
+  ConversationDelete: '✕',
+  ConversationHistory: '🕘',
+  ClearConversationHistory: '🧹',
+  MessageList: '☰',
+  CreateMessage: '+',
+  EditMessage: '✎',
+  DeleteMessage: '✕',
+  InputReceiver: '⇣',
+  OutputEmitter: '⇡',
+  Comment: '💭',
   LLM: '🤖',
   If: '⟟',
 }

@@ -23,6 +23,7 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
     private readonly IWorkflowMetaRepository _metaRepo;
     private readonly IWorkflowDraftRepository _draftRepo;
     private readonly IWorkflowExecutionRepository _executionRepo;
+    private readonly IWorkflowNodeExecutionRepository _nodeExecutionRepo;
     private readonly DagExecutor _dagExecutor;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly WorkflowExecutionCancellationRegistry _cancellationRegistry;
@@ -34,6 +35,7 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
         IWorkflowMetaRepository metaRepo,
         IWorkflowDraftRepository draftRepo,
         IWorkflowExecutionRepository executionRepo,
+        IWorkflowNodeExecutionRepository nodeExecutionRepo,
         DagExecutor dagExecutor,
         IServiceScopeFactory scopeFactory,
         WorkflowExecutionCancellationRegistry cancellationRegistry,
@@ -44,6 +46,7 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
         _metaRepo = metaRepo;
         _draftRepo = draftRepo;
         _executionRepo = executionRepo;
+        _nodeExecutionRepo = nodeExecutionRepo;
         _dagExecutor = dagExecutor;
         _scopeFactory = scopeFactory;
         _cancellationRegistry = cancellationRegistry;
@@ -56,6 +59,7 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
         IWorkflowMetaRepository metaRepo,
         IWorkflowDraftRepository draftRepo,
         IWorkflowExecutionRepository executionRepo,
+        IWorkflowNodeExecutionRepository nodeExecutionRepo,
         DagExecutor dagExecutor,
         IServiceScopeFactory scopeFactory,
         WorkflowExecutionCancellationRegistry cancellationRegistry,
@@ -65,6 +69,7 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
             metaRepo,
             draftRepo,
             executionRepo,
+            nodeExecutionRepo,
             dagExecutor,
             scopeFactory,
             cancellationRegistry,
@@ -134,13 +139,104 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
 
     public async Task ResumeAsync(TenantId tenantId, long executionId, CancellationToken cancellationToken)
     {
+        await ResumeCoreAsync(tenantId, executionId, eventChannel: null, cancellationToken);
+    }
+
+    public async IAsyncEnumerable<SseEvent> StreamResumeAsync(
+        TenantId tenantId,
+        long executionId,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        var channel = Channel.CreateUnbounded<SseEvent>(new UnboundedChannelOptions { SingleReader = true });
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+
+        var runTask = Task.Run(async () =>
+        {
+            try
+            {
+                await ResumeCoreAsync(tenantId, executionId, channel, linkedCts.Token);
+            }
+            catch (OperationCanceledException) when (linkedCts.IsCancellationRequested)
+            {
+                // noop
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "流式恢复执行失败: ExecutionId={ExecutionId}", executionId);
+                await channel.Writer.WriteAsync(new SseEvent("execution_failed", JsonSerializer.Serialize(new
+                {
+                    executionId = executionId.ToString(),
+                    errorMessage = ex.Message
+                })), CancellationToken.None);
+            }
+            finally
+            {
+                channel.Writer.TryComplete();
+            }
+        }, CancellationToken.None);
+
+        yield return new SseEvent("execution_resume_start", JsonSerializer.Serialize(new
+        {
+            executionId = executionId.ToString()
+        }));
+
+        await foreach (var evt in channel.Reader.ReadAllAsync(cancellationToken))
+        {
+            yield return evt;
+        }
+
+        await runTask;
+    }
+
+    private async Task ResumeCoreAsync(
+        TenantId tenantId,
+        long executionId,
+        Channel<SseEvent>? eventChannel,
+        CancellationToken cancellationToken)
+    {
         var execution = await _executionRepo.FindByIdAsync(tenantId, executionId, cancellationToken)
             ?? throw new BusinessException("执行实例不存在。", ErrorCodes.NotFound);
 
+        if (execution.Status != ExecutionStatus.Interrupted)
+        {
+            throw new BusinessException("仅中断状态的执行可恢复。", ErrorCodes.ValidationError);
+        }
+
+        var draft = await _draftRepo.FindByWorkflowIdAsync(tenantId, execution.WorkflowId, cancellationToken)
+            ?? throw new BusinessException("工作流草稿不存在。", ErrorCodes.NotFound);
+        var canvas = DagExecutor.ParseCanvas(draft.CanvasJson)
+            ?? throw new BusinessException("画布 JSON 无效。", ErrorCodes.ValidationError);
+
+        var nodeExecutions = await _nodeExecutionRepo.ListByExecutionIdAsync(tenantId, executionId, cancellationToken);
+        var preCompletedNodeKeys = nodeExecutions
+            .Where(x => x.Status == ExecutionStatus.Completed)
+            .Select(x => x.NodeKey)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var resumedInputs = ParseInputs(execution.InputsJson);
+        foreach (var nodeExecution in nodeExecutions
+                     .Where(x => x.Status == ExecutionStatus.Completed && !string.IsNullOrWhiteSpace(x.OutputsJson))
+                     .OrderBy(x => x.CompletedAt ?? x.StartedAt ?? DateTime.MinValue))
+        {
+            var outputMap = ParseInputs(nodeExecution.OutputsJson);
+            foreach (var kvp in outputMap)
+            {
+                resumedInputs[kvp.Key] = kvp.Value;
+            }
+        }
+
         execution.Resume();
         await _executionRepo.UpdateAsync(execution, cancellationToken);
-
-        // 占位：TODO[coze-v2-resume] 从中断节点恢复执行
+        await _dagExecutor.RunAsync(
+            tenantId,
+            execution,
+            canvas,
+            resumedInputs,
+            eventChannel,
+            cancellationToken,
+            workflowCallStack: null,
+            preCompletedNodeKeys);
     }
 
     public async Task<WorkflowV2RunResult> DebugNodeAsync(

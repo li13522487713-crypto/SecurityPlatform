@@ -65,6 +65,17 @@
         <pre class="output-pre">{{ finalOutput }}</pre>
       </div>
 
+      <div class="run-output-section">
+        <div class="section-title">变量监视</div>
+        <div v-if="watchVariables.length === 0" class="log-empty">暂无变量快照</div>
+        <div v-else class="watch-list">
+          <div v-for="item in watchVariables" :key="item.key" class="watch-item">
+            <span class="watch-key">{{ item.key }}</span>
+            <span class="watch-value">{{ item.value }}</span>
+          </div>
+        </div>
+      </div>
+
       <div v-if="interruptQuestion" class="interrupt-section">
         <div class="section-title" style="color: #faad14;">⚠️ {{ t('wfUi.testRun.waitUser') }}</div>
         <p class="interrupt-question">{{ interruptQuestion }}</p>
@@ -157,6 +168,7 @@ const emit = defineEmits<{
   (e: 'close'): void
   (e: 'publish'): void
   (e: 'node-status-update', nodeKey: string, status: string): void
+  (e: 'debug-log', line: string): void
 }>()
 
 const activeTab = ref<'run' | 'trace' | 'versions'>('run')
@@ -176,6 +188,7 @@ interface ExecutionEvent {
 }
 
 const executionEvents = ref<ExecutionEvent[]>([])
+const watchVariables = ref<Array<{ key: string; value: string }>>([])
 
 function eventLabel(type: string): string {
   const keyMap: Record<string, string> = {
@@ -209,6 +222,8 @@ const currentExecution = ref<ExecutionSummary | null>(null)
 let streamHandle: StreamRunHandle | null = null
 
 function addEvent(type: string, message: string) {
+  const line = `[${new Date().toLocaleTimeString()}] ${type}: ${message}`
+  emit('debug-log', line)
   executionEvents.value.push({
     type,
     time: new Date().toLocaleTimeString(),
@@ -226,6 +241,7 @@ function clearLog() {
   finalOutput.value = ''
   interruptQuestion.value = ''
   currentExecution.value = null
+  watchVariables.value = []
 }
 
 async function startRun(mode: 'sync' | 'stream') {
@@ -266,6 +282,7 @@ async function startRun(mode: 'sync' | 'stream') {
           emit('node-status-update', ne.nodeKey, STATUS_LABELS[ne.status] ?? 'success')
         }
         finalOutput.value = proc.outputsJson ?? '{}'
+        updateWatchFromJson(proc.outputsJson ?? '{}')
         addEvent('execution_complete', t('wfUi.testRun.syncComplete', { ms: totalCostMs }))
       }
     } catch (err: unknown) {
@@ -291,6 +308,7 @@ async function startRun(mode: 'sync' | 'stream') {
           },
           onNodeOutput: ev => {
             addEvent('node_output', t('wfUi.testRun.nodeOutput', { key: ev.nodeKey, out: JSON.stringify(ev.outputs) }))
+            updateWatchFromRecord(ev.outputs as Record<string, unknown>)
           },
           onNodeCompleted: ev => {
             addEvent('node_complete', t('wfUi.testRun.nodeComplete', { key: ev.nodeKey, ms: ev.durationMs ?? 0 }))
@@ -307,6 +325,7 @@ async function startRun(mode: 'sync' | 'stream') {
             addEvent('execution_complete', t('wfUi.testRun.streamComplete', { id: ev.executionId }))
             if (ev.outputsJson) {
               finalOutput.value = ev.outputsJson
+              updateWatchFromJson(ev.outputsJson)
             }
             await refreshExecutionDetail(ev.executionId)
             isStreaming.value = false
@@ -402,6 +421,25 @@ async function refreshExecutionDetail(executionId: string) {
   }
 
   finalOutput.value = proc.outputsJson ?? '{}'
+  updateWatchFromJson(proc.outputsJson ?? '{}')
+}
+
+function updateWatchFromJson(outputsJson: string) {
+  try {
+    const parsed = JSON.parse(outputsJson) as Record<string, unknown>
+    updateWatchFromRecord(parsed)
+  } catch {
+    // ignore
+  }
+}
+
+function updateWatchFromRecord(record: Record<string, unknown>) {
+  const entries = Object.entries(record).slice(0, 50)
+  const next = entries.map(([key, value]) => ({
+    key,
+    value: typeof value === 'string' ? value : JSON.stringify(value)
+  }))
+  watchVariables.value = next
 }
 </script>
 
@@ -521,6 +559,36 @@ async function refreshExecutionDetail(executionId: string) {
   overflow: auto;
   max-height: 160px;
   white-space: pre-wrap;
+}
+
+.watch-list {
+  background: #0d1117;
+  border: 1px solid #21262d;
+  border-radius: 6px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.watch-item {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 8px;
+  padding: 6px 8px;
+  border-bottom: 1px solid #1f2937;
+}
+
+.watch-item:last-child {
+  border-bottom: none;
+}
+
+.watch-key {
+  color: #7d8590;
+  font-family: monospace;
+}
+
+.watch-value {
+  color: #e6edf3;
+  word-break: break-word;
 }
 
 .interrupt-section {

@@ -24,6 +24,7 @@ import type {
   WorkflowSaveRequest,
   WorkflowUpdateMetaRequest,
   NodeTypeMetadata,
+  NodeTemplateMetadata,
   WorkflowRunRequest,
   WorkflowRunResponse,
   WorkflowProcessResponse,
@@ -130,6 +131,10 @@ export const workflowV2Api = {
 
   getNodeTypes(): Promise<ApiResponse<NodeTypeMetadata[]>> {
     return requestApi<ApiResponse<NodeTypeMetadata[]>>(`${BASE}/node-types`);
+  },
+
+  getNodeTemplates(): Promise<ApiResponse<NodeTemplateMetadata[]>> {
+    return requestApi<ApiResponse<NodeTemplateMetadata[]>>(`${BASE}/node-templates`);
   },
 
   runSync(id: IdLike, req: WorkflowRunRequest): Promise<ApiResponse<WorkflowRunResponse>> {
@@ -241,6 +246,79 @@ export const workflowV2Api = {
     });
   },
 
+  streamResume(executionId: IdLike, callbacks: StreamCallbacks): StreamRunHandle {
+    const abortController = new AbortController();
+    const done = (async () => {
+      try {
+        const response = await fetch(buildAbsoluteApiUrl(`${EXEC_BASE}/${executionId}/stream-resume`), {
+          method: "POST",
+          headers: buildStreamHeaders(),
+          credentials: "include",
+          signal: abortController.signal
+        });
+
+        if (!response.ok || !response.body) {
+          throw new Error(`Stream resume failed: HTTP ${response.status}`);
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let currentEvent = "";
+        let currentData: string[] = [];
+
+        const flush = () => {
+          if (!currentEvent) {
+            currentData = [];
+            return;
+          }
+
+          const rawData = currentData.join("\n");
+          handleStreamEvent(currentEvent, rawData, callbacks);
+          currentEvent = "";
+          currentData = [];
+        };
+
+        while (true) {
+          const { value, done: streamDone } = await reader.read();
+          if (streamDone) {
+            flush();
+            break;
+          }
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split(/\r?\n/);
+          buffer = lines.pop() ?? "";
+
+          for (const line of lines) {
+            if (line.length === 0) {
+              flush();
+              continue;
+            }
+
+            if (line.startsWith("event:")) {
+              currentEvent = line.slice("event:".length).trim();
+              continue;
+            }
+
+            if (line.startsWith("data:")) {
+              currentData.push(line.slice("data:".length).trim());
+            }
+          }
+        }
+      } catch (error) {
+        if (!abortController.signal.aborted) {
+          callbacks.onError?.(error as Error);
+        }
+      }
+    })();
+
+    return {
+      abort: () => abortController.abort(),
+      done
+    };
+  },
+
   recover(executionId: IdLike): Promise<ApiResponse<WorkflowRunResponse>> {
     return requestApi<ApiResponse<WorkflowRunResponse>>(`${EXEC_BASE}/${executionId}/recover`, {
       method: "POST"
@@ -321,6 +399,10 @@ export function getNodeTypes(): Promise<ApiResponse<NodeTypeMetadata[]>> {
   return workflowV2Api.getNodeTypes();
 }
 
+export function getNodeTemplates(): Promise<ApiResponse<NodeTemplateMetadata[]>> {
+  return workflowV2Api.getNodeTemplates();
+}
+
 export function syncRunWorkflow(id: IdLike, req: WorkflowRunRequest): Promise<ApiResponse<WorkflowRunResponse>> {
   return workflowV2Api.runSync(id, req);
 }
@@ -353,6 +435,10 @@ export function getNodeExecutionDetail(
 
 export function resumeExecution(executionId: IdLike, req: WorkflowResumeRequest): Promise<ApiResponse<boolean>> {
   return workflowV2Api.resume(executionId, req);
+}
+
+export function streamResumeExecution(executionId: IdLike, callbacks: StreamCallbacks): StreamRunHandle {
+  return workflowV2Api.streamResume(executionId, callbacks);
 }
 
 export function recoverExecution(executionId: IdLike): Promise<ApiResponse<WorkflowRunResponse>> {
@@ -394,6 +480,7 @@ function buildRunPayload(req: WorkflowRunRequest): { inputsJson?: string } {
 function handleStreamEvent(eventName: string, dataText: string, callbacks: StreamCallbacks) {
   switch (eventName) {
     case "execution_start":
+    case "execution_resume_start":
       callbacks.onExecutionStarted?.(safeJsonParse<ExecutionStartEvent>(dataText));
       break;
     case "node_start":

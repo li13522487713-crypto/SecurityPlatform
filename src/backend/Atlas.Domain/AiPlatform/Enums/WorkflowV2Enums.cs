@@ -51,17 +51,27 @@ public enum WorkflowNodeType
     InputReceiver = 30,
     Comment = 31,
     VariableAggregator = 32,
+    ConversationList = 53,
     MessageList = 37,
     ClearConversationHistory = 38,
     CreateConversation = 39,
     AssignVariable = 40,
+    DatabaseCustomSql = 41,
     DatabaseUpdate = 42,
     DatabaseQuery = 43,
     DatabaseDelete = 44,
     HttpRequester = 45,
     DatabaseInsert = 46,
+    ConversationUpdate = 51,
+    ConversationDelete = 52,
+    ConversationHistory = 54,
+    CreateMessage = 55,
+    EditMessage = 56,
+    DeleteMessage = 57,
     JsonSerialization = 58,
-    JsonDeserialization = 59
+    JsonDeserialization = 59,
+    KnowledgeDeleter = 61,
+    Ltm = 62
 }
 
 /// <summary>

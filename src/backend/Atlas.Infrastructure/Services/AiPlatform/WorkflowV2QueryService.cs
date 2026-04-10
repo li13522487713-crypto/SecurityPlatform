@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
 using Atlas.Application.AiPlatform.Repositories;
@@ -147,9 +148,39 @@ public sealed class WorkflowV2QueryService : IWorkflowV2QueryService
     public Task<IReadOnlyList<WorkflowV2NodeTypeDto>> GetNodeTypesAsync(CancellationToken cancellationToken)
     {
         var types = _registry.GetAllTypes()
-            .Select(m => new WorkflowV2NodeTypeDto(m.Key, m.Name, m.Category, m.Description))
+            .Select(m =>
+            {
+                var declaration = _registry.GetDeclaration(m.Type);
+                return new WorkflowV2NodeTypeDto(
+                    m.Key,
+                    m.Name,
+                    m.Category,
+                    m.Description,
+                    declaration?.Ports,
+                    declaration?.ConfigSchemaJson,
+                    declaration?.UiMeta);
+            })
             .ToList();
         return Task.FromResult<IReadOnlyList<WorkflowV2NodeTypeDto>>(types);
+    }
+
+    public Task<IReadOnlyList<WorkflowV2NodeTemplateDto>> GetNodeTemplatesAsync(CancellationToken cancellationToken)
+    {
+        var templates = _registry.GetAllTypes()
+            .Select(metadata =>
+            {
+                var declaration = _registry.GetDeclaration(metadata.Type);
+                var defaultConfig = declaration is null
+                    ? new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase)
+                    : ResolveDefaultConfig(declaration.ConfigSchemaJson);
+                return new WorkflowV2NodeTemplateDto(
+                    metadata.Key,
+                    metadata.Name,
+                    metadata.Category,
+                    defaultConfig);
+            })
+            .ToList();
+        return Task.FromResult<IReadOnlyList<WorkflowV2NodeTemplateDto>>(templates);
     }
 
     public async Task<WorkflowVersionDiff?> GetVersionDiffAsync(
@@ -247,6 +278,36 @@ public sealed class WorkflowV2QueryService : IWorkflowV2QueryService
         }
 
         return 0;
+    }
+
+    private static Dictionary<string, JsonElement> ResolveDefaultConfig(string? schemaJson)
+    {
+        if (string.IsNullOrWhiteSpace(schemaJson))
+        {
+            return new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(schemaJson);
+            if (doc.RootElement.TryGetProperty("default", out var defaultConfig) &&
+                defaultConfig.ValueKind == JsonValueKind.Object)
+            {
+                var result = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
+                foreach (var p in defaultConfig.EnumerateObject())
+                {
+                    result[p.Name] = p.Value.Clone();
+                }
+
+                return result;
+            }
+        }
+        catch
+        {
+            // Ignore invalid config schema json.
+        }
+
+        return new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
     }
 
     private static WorkflowV2ListItem MapListItem(WorkflowMeta meta)

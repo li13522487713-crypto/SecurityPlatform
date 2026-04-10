@@ -1,30 +1,19 @@
 <template>
   <div class="workflow-editor-page">
-    <!-- 顶部工具栏 -->
-    <div class="editor-header">
-      <div class="header-left">
-        <a-button type="text" style="color:#fff" @click="backToList">
-          <LeftOutlined />
-        </a-button>
-        <a-input
-          v-model:value="workflowName"
-          class="name-input"
-          @blur="handleNameBlur"
-          @press-enter="handleNameBlur"
-        />
-      </div>
-      <div class="header-right">
-        <a-space>
-          <a-tag v-if="isDirty" color="orange">{{ t('workflow.editorUnsaved') }}</a-tag>
-          <a-button :loading="saving" @click="handleSaveDraft">{{ t('workflow.saveDraft') }}</a-button>
-          <a-button type="primary" @click="showPublishModal = true">{{ t('workflow.publish') }}</a-button>
-          <a-button :type="showTestPanel ? 'primary' : 'default'" @click="showTestPanel = !showTestPanel">
-            <PlayCircleOutlined />
-            {{ t('workflow.testRunToolbar') }}
-          </a-button>
-        </a-space>
-      </div>
-    </div>
+    <EditorToolbar
+      v-model:name="workflowName"
+      :is-dirty="isDirty"
+      :saving="saving"
+      :show-test-panel="showTestPanel"
+      :auto-saved-at="lastSavedAt"
+      @back="backToList"
+      @name-blur="handleNameBlur"
+      @save-draft="handleSaveDraft"
+      @publish="showPublishModal = true"
+      @toggle-test-panel="showTestPanel = !showTestPanel"
+      @open-version-history="showVersionDrawer = true"
+      @menu-action="handleToolbarMenuAction"
+    />
 
     <div class="editor-body">
       <!-- 左侧节点面板 -->
@@ -36,6 +25,7 @@
           v-model:nodes="vfNodes"
           v-model:edges="vfEdges"
           :node-types="nodeTypes"
+          :edge-types="edgeTypes"
           :default-edge-options="defaultEdgeOptions"
           :connection-mode="ConnectionMode.Loose"
           :fit-view-on-init="true"
@@ -54,6 +44,16 @@
             style="background: #0d1117; border: 1px solid #21262d;"
           />
         </VueFlow>
+        <div class="debug-panel">
+          <div class="debug-panel-header">
+            <span>{{ t("workflow.debugCardTitle") }}</span>
+            <a-button type="text" size="small" @click="debugLines = []">Clear</a-button>
+          </div>
+          <div class="debug-panel-body">
+            <div v-if="debugLines.length === 0" class="debug-empty">No logs</div>
+            <div v-for="(line, index) in debugLines.slice(-120)" :key="`${index}-${line}`" class="debug-line">{{ line }}</div>
+          </div>
+        </div>
       </div>
 
       <!-- 右侧属性面板（节点未选中且未开测试时不显示） -->
@@ -73,6 +73,7 @@
         @close="showTestPanel = false"
         @publish="showPublishModal = true"
         @node-status-update="handleNodeStatusUpdate"
+        @debug-log="handleDebugLog"
       />
     </div>
 
@@ -91,6 +92,16 @@
         </a-form-item>
       </a-form>
     </a-modal>
+
+    <a-drawer v-model:open="showVersionDrawer" :title="t('workflow.colLatestVersion')" width="420">
+      <a-timeline>
+        <a-timeline-item v-for="item in workflowVersions" :key="item.id">
+          <div class="version-title">v{{ item.versionNumber }} · {{ item.lifecycleStatus }}</div>
+          <div class="version-meta">{{ item.createdAt }}</div>
+          <div class="version-meta">{{ item.changeLog || "-" }}</div>
+        </a-timeline-item>
+      </a-timeline>
+    </a-drawer>
   </div>
 </template>
 
@@ -104,10 +115,6 @@ onUnmounted(() => { isMounted.value = false; });
 
 import { useRoute, useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
-import {
-  LeftOutlined,
-  PlayCircleOutlined,
-} from '@ant-design/icons-vue'
 import {
   VueFlow,
   type Node as VfNode,
@@ -124,10 +131,12 @@ import '@vue-flow/core/dist/theme-default.css'
 import '@vue-flow/controls/dist/style.css'
 import '@vue-flow/minimap/dist/style.css'
 
+import EditorToolbar from '@/components/workflow/EditorToolbar.vue'
 import NodePanel from '@/components/workflow/panels/NodePanel.vue'
 import PropertiesPanel from '@/components/workflow/panels/PropertiesPanel.vue'
 import TestRunPanel from '@/components/workflow/panels/TestRunPanel.vue'
 import WorkflowNodeRenderer from '@/components/workflow/nodes/WorkflowNodeRenderer.vue'
+import WorkflowEdgeRenderer from '@/components/workflow/nodes/WorkflowEdgeRenderer.vue'
 
 import { workflowV2Api } from '@/services/api-workflow-v2'
 import { resolveCurrentAppId } from '@/utils/app-context'
@@ -144,8 +153,10 @@ const isDirty = ref(false)
 const saving = ref(false)
 const publishing = ref(false)
 const showPublishModal = ref(false)
+const showVersionDrawer = ref(false)
 const showTestPanel = ref(false)
 const changeLog = ref('')
+const lastSavedAt = ref('')
 const selectedNode = ref<NodeSchema | null>(null)
 const nodeTypesMetadata = ref<NodeTypeMetadata[]>([])
 const workflowVersions = ref<WorkflowVersionItem[]>([])
@@ -155,32 +166,63 @@ const vfEdges = ref<VfEdge[]>([])
 
 // 节点执行状态（key → status string）
 const nodeRunStatus = ref<Record<string, string>>({})
+const debugLines = ref<string[]>([])
 
 const _nr = markRaw(WorkflowNodeRenderer) as Component
+const _er = markRaw(WorkflowEdgeRenderer) as Component
 const nodeTypes: Record<string, Component> = {
   Entry: _nr,
   Exit: _nr,
   Llm: _nr,
   Agent: _nr,
   Plugin: _nr,
+  IntentDetector: _nr,
+  QuestionAnswer: _nr,
   Selector: _nr,
   Loop: _nr,
+  Batch: _nr,
+  Break: _nr,
+  Continue: _nr,
   SubWorkflow: _nr,
   CodeRunner: _nr,
   HttpRequester: _nr,
   DatabaseQuery: _nr,
+  DatabaseInsert: _nr,
+  DatabaseUpdate: _nr,
+  DatabaseDelete: _nr,
+  DatabaseCustomSql: _nr,
+  KnowledgeRetriever: _nr,
+  KnowledgeIndexer: _nr,
+  Ltm: _nr,
   AssignVariable: _nr,
+  VariableAssignerWithinLoop: _nr,
   VariableAggregator: _nr,
+  InputReceiver: _nr,
+  OutputEmitter: _nr,
+  CreateConversation: _nr,
+  ConversationList: _nr,
+  ConversationUpdate: _nr,
+  ConversationDelete: _nr,
+  ConversationHistory: _nr,
+  ClearConversationHistory: _nr,
+  MessageList: _nr,
+  CreateMessage: _nr,
+  EditMessage: _nr,
+  DeleteMessage: _nr,
   JsonSerialization: _nr,
   JsonDeserialization: _nr,
   TextProcessor: _nr,
+  Comment: _nr,
   // 兼容历史草稿中的旧键名
   LLM: _nr,
   If: _nr,
 }
+const edgeTypes: Record<string, Component> = {
+  workflow: _er,
+}
 
 const defaultEdgeOptions = {
-  type: 'smoothstep',
+  type: 'workflow',
   animated: false,
   style: { stroke: '#4b5563', strokeWidth: 2 },
 }
@@ -211,7 +253,7 @@ const currentCanvas = computed<CanvasSchema>(() => {
     fromPort: e.sourceHandle ?? 'output',
     toNode: e.target,
     toPort: e.targetHandle ?? 'input',
-    condition: null,
+    condition: (e.data as { condition?: string } | undefined)?.condition ?? null,
   }))
 
   return { nodes, connections }
@@ -274,8 +316,10 @@ function applyCanvasToVueFlow(canvas: CanvasSchema) {
     sourceHandle: c.fromPort ?? 'output',
     target: c.toNode,
     targetHandle: c.toPort ?? 'input',
-    type: 'smoothstep',
+    type: 'workflow',
     style: { stroke: '#4b5563', strokeWidth: 2 },
+    data: { condition: c.condition ?? '' },
+    animated: !!c.condition,
   })
 
   vfNodes.value = canvas.nodes.map(toVfNode)
@@ -304,8 +348,9 @@ function initDefaultCanvas() {
       id: 'e-entry-exit',
       source: 'entry_1',
       target: 'exit_1',
-      type: 'smoothstep',
+      type: 'workflow',
       style: { stroke: '#4b5563', strokeWidth: 2 },
+      data: { condition: '' },
     },
   ]
   isDirty.value = false
@@ -318,6 +363,7 @@ async function handleSaveDraft() {
     const res = await workflowV2Api.saveDraft(workflowId.value, { canvasJson })
     if (res.success) {
       isDirty.value = false
+      lastSavedAt.value = new Date().toLocaleTimeString()
       message.success(t('workflow.draftSaved'))
     }
   } finally {
@@ -330,6 +376,7 @@ async function handlePublish() {
   try {
     const canvasJson = JSON.stringify(currentCanvas.value)
     await workflowV2Api.saveDraft(workflowId.value, { canvasJson })
+    lastSavedAt.value = new Date().toLocaleTimeString()
 
     const res = await workflowV2Api.publish(workflowId.value, { changeLog: changeLog.value })
     if (res.success) {
@@ -344,6 +391,53 @@ async function handlePublish() {
     }
   } finally {
     publishing.value = false
+  }
+}
+
+function handleToolbarMenuAction(key: string) {
+  if (key === 'export-json') {
+    const content = JSON.stringify(currentCanvas.value, null, 2)
+    const blob = new Blob([content], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `workflow-${workflowId.value}-canvas.json`
+    link.click()
+    URL.revokeObjectURL(url)
+    return
+  }
+
+  if (key === 'import-json') {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = 'application/json'
+    input.onchange = () => {
+      const file = input.files?.[0]
+      if (!file) {
+        return
+      }
+
+      const reader = new FileReader()
+      reader.onload = () => {
+        try {
+          const parsed = JSON.parse(String(reader.result ?? '{}')) as CanvasSchema
+          applyCanvasToVueFlow(parsed)
+          isDirty.value = true
+          message.success(t('workflow.importJsonSuccess'))
+        } catch {
+          message.error(t('workflow.importJsonFailed'))
+        }
+      }
+      reader.readAsText(file)
+    }
+    input.click()
+    return
+  }
+
+  if (key === 'reset-canvas') {
+    initDefaultCanvas()
+    isDirty.value = true
+    message.success(t('workflow.resetCanvasSuccess'))
   }
 }
 
@@ -378,8 +472,9 @@ function handleConnect(params: Connection) {
     sourceHandle: params.sourceHandle,
     target: params.target!,
     targetHandle: params.targetHandle,
-    type: 'smoothstep',
+    type: 'workflow',
     style: { stroke: '#4b5563', strokeWidth: 2 },
+    data: { condition: '' },
   }
   // @ts-expect-error VueFlow Edge 泛型在 vue-tsc 中会触发深度推导错误（TS2589）
   vfEdges.value.push(newEdge)
@@ -459,6 +554,46 @@ function handleNodeStatusUpdate(nodeKey: string, status: string) {
     }
     vfNodes.value = updated
   }
+
+  vfEdges.value = vfEdges.value.map((edge) => {
+    if (edge.source !== nodeKey) {
+      return edge
+    }
+
+    if (status === 'running') {
+      return {
+        ...edge,
+        animated: true,
+        style: { ...(edge.style ?? {}), stroke: '#1677ff', strokeWidth: 2.5 }
+      }
+    }
+
+    if (status === 'success') {
+      return {
+        ...edge,
+        animated: false,
+        style: { ...(edge.style ?? {}), stroke: '#52c41a', strokeWidth: 2.2 }
+      }
+    }
+
+    if (status === 'failed') {
+      return {
+        ...edge,
+        animated: false,
+        style: { ...(edge.style ?? {}), stroke: '#ff4d4f', strokeWidth: 2.2 }
+      }
+    }
+
+    return {
+      ...edge,
+      animated: false,
+      style: { ...(edge.style ?? {}), stroke: '#4b5563', strokeWidth: 2 }
+    }
+  })
+}
+
+function handleDebugLog(line: string) {
+  debugLines.value = [...debugLines.value, line]
 }
 
 function getNodeStatusColor(node: VfNode): string {
@@ -486,52 +621,6 @@ onMounted(() => {
   overflow: hidden;
 }
 
-.editor-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 52px;
-  padding: 8px 12px;
-  gap: 8px;
-  background: #161b22;
-  border-bottom: 1px solid #30363d;
-  flex-shrink: 0;
-}
-
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.name-input {
-  background: transparent;
-  border: none;
-  color: #e6edf3;
-  font-size: 15px;
-  font-weight: 600;
-  width: clamp(180px, 22vw, 320px);
-  box-shadow: none;
-}
-
-.header-right {
-  margin-left: auto;
-}
-
-.header-right :deep(.ant-space) {
-  row-gap: 8px;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-}
-
-.name-input:focus,
-:deep(.name-input input:focus) {
-  background: rgba(255,255,255,0.05);
-  box-shadow: none;
-  border-color: #388bfd !important;
-}
-
 .editor-body {
   display: grid;
   grid-auto-flow: column;
@@ -546,11 +635,49 @@ onMounted(() => {
   min-width: 0;
   position: relative;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .workflow-canvas {
   width: 100%;
-  height: 100%;
+  height: calc(100% - 170px);
+}
+
+.debug-panel {
+  height: 170px;
+  border-top: 1px solid #30363d;
+  background: #111820;
+}
+
+.debug-panel-header {
+  height: 32px;
+  padding: 0 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #8f99a6;
+  font-size: 12px;
+  border-bottom: 1px solid #21262d;
+}
+
+.debug-panel-body {
+  height: calc(100% - 32px);
+  overflow-y: auto;
+  padding: 6px 8px;
+}
+
+.debug-line {
+  color: #c9d1d9;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.debug-empty {
+  color: #6b7280;
+  font-size: 12px;
+  padding-top: 8px;
 }
 
 :deep(.vue-flow__background) {
@@ -586,6 +713,17 @@ onMounted(() => {
 :deep(.vue-flow__minimap) {
   border-radius: 8px;
   overflow: hidden;
+}
+
+.version-title {
+  font-weight: 600;
+  color: #dbe4ef;
+}
+
+.version-meta {
+  margin-top: 4px;
+  color: #8f99a6;
+  font-size: 12px;
 }
 
 @media (max-width: 1366px) {

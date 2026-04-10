@@ -34,6 +34,8 @@ public interface IWorkflowV2QueryService
 
     Task<IReadOnlyList<WorkflowV2NodeTypeDto>> GetNodeTypesAsync(CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<WorkflowV2NodeTemplateDto>> GetNodeTemplatesAsync(CancellationToken cancellationToken);
+
     Task<WorkflowVersionDiff?> GetVersionDiffAsync(
         TenantId tenantId,
         long workflowId,

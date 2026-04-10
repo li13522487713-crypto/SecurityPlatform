@@ -15,17 +15,20 @@ public sealed class WorkflowV2CommandService : IWorkflowV2CommandService
     private readonly IWorkflowMetaRepository _metaRepo;
     private readonly IWorkflowDraftRepository _draftRepo;
     private readonly IWorkflowVersionRepository _versionRepo;
+    private readonly ICanvasValidator _canvasValidator;
     private readonly IIdGeneratorAccessor _idGenerator;
 
     public WorkflowV2CommandService(
         IWorkflowMetaRepository metaRepo,
         IWorkflowDraftRepository draftRepo,
         IWorkflowVersionRepository versionRepo,
+        ICanvasValidator canvasValidator,
         IIdGeneratorAccessor idGenerator)
     {
         _metaRepo = metaRepo;
         _draftRepo = draftRepo;
         _versionRepo = versionRepo;
+        _canvasValidator = canvasValidator;
         _idGenerator = idGenerator;
     }
 
@@ -52,6 +55,13 @@ public sealed class WorkflowV2CommandService : IWorkflowV2CommandService
         var draft = await _draftRepo.FindByWorkflowIdAsync(tenantId, meta.Id, cancellationToken)
             ?? throw new BusinessException("工作流草稿不存在。", ErrorCodes.NotFound);
 
+        var canvasValidation = _canvasValidator.ValidateCanvas(request.CanvasJson);
+        if (!canvasValidation.IsValid)
+        {
+            var validationMessage = string.Join("；", canvasValidation.Errors.Select(x => x.Message));
+            throw new BusinessException($"工作流画布校验失败，无法保存：{validationMessage}", ErrorCodes.ValidationError);
+        }
+
         draft.Save(request.CanvasJson, request.CommitId);
         await _draftRepo.UpdateAsync(draft, cancellationToken);
     }
@@ -74,6 +84,13 @@ public sealed class WorkflowV2CommandService : IWorkflowV2CommandService
 
         var draft = await _draftRepo.FindByWorkflowIdAsync(tenantId, meta.Id, cancellationToken)
             ?? throw new BusinessException("工作流草稿不存在。", ErrorCodes.NotFound);
+
+        var canvasValidation = _canvasValidator.ValidateCanvas(draft.CanvasJson);
+        if (!canvasValidation.IsValid)
+        {
+            var validationMessage = string.Join("；", canvasValidation.Errors.Select(x => x.Message));
+            throw new BusinessException($"工作流画布校验失败，无法发布：{validationMessage}", ErrorCodes.ValidationError);
+        }
 
         var newVersionNumber = meta.LatestVersionNumber + 1;
         var version = new WorkflowVersion(

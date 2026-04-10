@@ -212,8 +212,12 @@ export const router = createRouter({
         {
           path: "workflows",
           name: "app-workflows",
-          component: () => import("@/pages/PlaceholderPage.vue"),
-          props: { title: "工作流管理" }
+          component: () => import("@/pages/workflow/WorkflowListPage.vue")
+        },
+        {
+          path: "workflow-databases",
+          name: "app-workflow-databases",
+          component: () => import("@/pages/workflow/WorkflowDatabasesPage.vue")
         },
         {
           path: "logic-flow",

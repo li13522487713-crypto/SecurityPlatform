@@ -50,7 +50,8 @@ public sealed class DagExecutor
         Dictionary<string, JsonElement> inputs,
         Channel<SseEvent>? eventChannel,
         CancellationToken cancellationToken,
-        IReadOnlyList<long>? workflowCallStack = null)
+        IReadOnlyList<long>? workflowCallStack = null,
+        IReadOnlySet<string>? preCompletedNodeKeys = null)
     {
         execution.Start();
         await _executionRepo.UpdateAsync(execution, cancellationToken);
@@ -67,7 +68,9 @@ public sealed class DagExecutor
             var adjacency = BuildAdjacency(canvas);
             var connectionsBySource = BuildConnectionsBySource(canvas);
             var executionLevels = TopologicalSortByLevels(canvas.Nodes, adjacency);
-            var skippedNodeKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var skippedNodeKeys = preCompletedNodeKeys is null
+                ? new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                : new HashSet<string>(preCompletedNodeKeys, StringComparer.OrdinalIgnoreCase);
 
             foreach (var level in executionLevels)
             {
@@ -171,6 +174,42 @@ public sealed class DagExecutor
                     foreach (var bodyNodeKey in loopResult.BodyNodeKeysToSkip)
                     {
                         skippedNodeKeys.Add(bodyNodeKey);
+                    }
+                }
+
+                var batchNodes = levelResults
+                    .Where(x => x.Success && x.NodeType == WorkflowNodeType.Batch)
+                    .ToArray();
+                foreach (var batchNode in batchNodes)
+                {
+                    var batchResult = await ExecuteBatchSubCanvasAsync(
+                        tenantId,
+                        execution.WorkflowId,
+                        execution.Id,
+                        currentCallStack,
+                        batchNode.NodeKey,
+                        nodeMap,
+                        variables,
+                        eventChannel,
+                        cancellationToken);
+
+                    if (!batchResult.Success)
+                    {
+                        if (batchResult.InterruptType != InterruptType.None)
+                        {
+                            execution.Interrupt(batchResult.InterruptType, batchResult.NodeKey);
+                            await _executionRepo.UpdateAsync(execution, cancellationToken);
+                            return;
+                        }
+
+                        execution.Fail(batchResult.ErrorMessage ?? "批处理节点执行失败");
+                        await _executionRepo.UpdateAsync(execution, cancellationToken);
+                        return;
+                    }
+
+                    foreach (var kvp in batchResult.Outputs)
+                    {
+                        variables[kvp.Key] = kvp.Value;
                     }
                 }
             }
@@ -462,6 +501,20 @@ public sealed class DagExecutor
                         variables[kvp.Key] = kvp.Value;
                     }
                 }
+
+                if (HasControlSignal(variables, "loop_break"))
+                {
+                    variables["loop_completed"] = JsonSerializer.SerializeToElement(true);
+                    ClearControlSignal(variables, "loop_break");
+                    ClearControlSignal(variables, "loop_continue");
+                    return LoopIterationResult.Succeeded(loopNodeKey, bodyNodeKeys);
+                }
+
+                if (HasControlSignal(variables, "loop_continue"))
+                {
+                    ClearControlSignal(variables, "loop_continue");
+                    goto NextLoopIteration;
+                }
             }
 
             var loopInput = new Dictionary<string, JsonElement>(variables, StringComparer.OrdinalIgnoreCase);
@@ -489,6 +542,9 @@ public sealed class DagExecutor
             {
                 break;
             }
+
+        NextLoopIteration:
+            ;
         }
 
         return LoopIterationResult.Succeeded(loopNodeKey, bodyNodeKeys);
@@ -508,6 +564,219 @@ public sealed class DagExecutor
         }
 
         return string.Equals(VariableResolver.ToDisplayText(completedRaw), "1", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private async Task<NodeRunResult> ExecuteBatchSubCanvasAsync(
+        TenantId tenantId,
+        long workflowId,
+        long executionId,
+        IReadOnlyList<long> workflowCallStack,
+        string batchNodeKey,
+        IReadOnlyDictionary<string, NodeSchema> nodeMap,
+        Dictionary<string, JsonElement> variables,
+        Channel<SseEvent>? eventChannel,
+        CancellationToken cancellationToken)
+    {
+        if (!nodeMap.TryGetValue(batchNodeKey, out var batchNode))
+        {
+            return NodeRunResult.SuccessResult(batchNodeKey, WorkflowNodeType.Batch, EmptyOutputs);
+        }
+
+        if (batchNode.ChildCanvas is null || batchNode.ChildCanvas.Nodes.Count == 0)
+        {
+            return NodeRunResult.SuccessResult(batchNodeKey, WorkflowNodeType.Batch, EmptyOutputs);
+        }
+
+        var concurrentSize = Math.Clamp(VariableResolver.GetConfigInt32(batchNode.Config, "concurrentSize", 4), 1, 64);
+        var batchSize = Math.Clamp(VariableResolver.GetConfigInt32(batchNode.Config, "batchSize", 1), 1, 10_000);
+        var inputArrayPath = VariableResolver.GetConfigString(batchNode.Config, "inputArrayPath");
+        var itemVariable = VariableResolver.GetConfigString(batchNode.Config, "itemVariable", "batch_item");
+        var itemIndexVariable = VariableResolver.GetConfigString(batchNode.Config, "itemIndexVariable", "batch_item_index");
+        var outputKey = VariableResolver.GetConfigString(batchNode.Config, "outputKey", "batch_results");
+
+        var items = ResolveBatchItems(variables, inputArrayPath);
+        var aggregatedResults = new List<JsonElement>();
+        var semaphore = new SemaphoreSlim(concurrentSize);
+        var currentIndex = 0;
+
+        foreach (var chunk in Chunk(items, batchSize))
+        {
+            var tasks = chunk.Select(async item =>
+            {
+                await semaphore.WaitAsync(cancellationToken);
+                try
+                {
+                    var localVariables = new Dictionary<string, JsonElement>(variables, StringComparer.OrdinalIgnoreCase)
+                    {
+                        [itemVariable] = item,
+                        [itemIndexVariable] = JsonSerializer.SerializeToElement(Interlocked.Increment(ref currentIndex) - 1)
+                    };
+
+                    var fragmentResult = await ExecuteCanvasFragmentAsync(
+                        tenantId,
+                        workflowId,
+                        executionId,
+                        workflowCallStack,
+                        batchNode.ChildCanvas,
+                        localVariables,
+                        eventChannel,
+                        cancellationToken);
+                    if (!fragmentResult.Success)
+                    {
+                        return fragmentResult;
+                    }
+
+                    lock (aggregatedResults)
+                    {
+                        aggregatedResults.Add(JsonSerializer.SerializeToElement(fragmentResult.Outputs));
+                    }
+
+                    return NodeRunResult.SuccessResult(batchNodeKey, WorkflowNodeType.Batch, fragmentResult.Outputs);
+                }
+                finally
+                {
+                    semaphore.Release();
+                }
+            }).ToArray();
+
+            var chunkResults = await Task.WhenAll(tasks);
+            var failed = chunkResults.FirstOrDefault(x => !x.Success);
+            if (failed is not null)
+            {
+                return failed;
+            }
+        }
+
+        var outputs = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase)
+        {
+            [outputKey] = JsonSerializer.SerializeToElement(aggregatedResults),
+            ["batch_completed"] = JsonSerializer.SerializeToElement(true)
+        };
+        return NodeRunResult.SuccessResult(batchNodeKey, WorkflowNodeType.Batch, outputs);
+    }
+
+    private async Task<NodeRunResult> ExecuteCanvasFragmentAsync(
+        TenantId tenantId,
+        long workflowId,
+        long executionId,
+        IReadOnlyList<long> workflowCallStack,
+        CanvasSchema canvas,
+        Dictionary<string, JsonElement> variables,
+        Channel<SseEvent>? eventChannel,
+        CancellationToken cancellationToken)
+    {
+        var nodeMap = canvas.Nodes.ToDictionary(n => n.Key, n => n, StringComparer.OrdinalIgnoreCase);
+        var adjacency = BuildAdjacency(canvas);
+        var connectionsBySource = BuildConnectionsBySource(canvas);
+        var executionLevels = TopologicalSortByLevels(canvas.Nodes, adjacency);
+        var skippedNodeKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var outputs = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var level in executionLevels)
+        {
+            var executableNodeKeys = level.Where(nodeKey => !skippedNodeKeys.Contains(nodeKey)).ToArray();
+            if (executableNodeKeys.Length == 0)
+            {
+                continue;
+            }
+
+            var levelInput = new Dictionary<string, JsonElement>(variables, StringComparer.OrdinalIgnoreCase);
+            var levelTasks = executableNodeKeys
+                .Select(nodeKey => ExecuteNodeAsync(
+                    tenantId,
+                    workflowId,
+                    executionId,
+                    workflowCallStack,
+                    nodeKey,
+                    nodeMap,
+                    levelInput,
+                    eventChannel,
+                    cancellationToken))
+                .ToArray();
+            var levelResults = await Task.WhenAll(levelTasks);
+            var failedNode = levelResults.FirstOrDefault(x => !x.Success);
+            if (failedNode is not null)
+            {
+                return failedNode;
+            }
+
+            foreach (var levelResult in levelResults)
+            {
+                foreach (var kvp in levelResult.Outputs)
+                {
+                    variables[kvp.Key] = kvp.Value;
+                    outputs[kvp.Key] = kvp.Value;
+                }
+            }
+
+            foreach (var selectorNode in levelResults.Where(x => x.Success && x.NodeType == WorkflowNodeType.Selector))
+            {
+                foreach (var nodeKeyToSkip in ResolveSelectorBranchNodesToSkip(
+                             selectorNode.NodeKey,
+                             selectorNode.Outputs,
+                             adjacency,
+                             connectionsBySource))
+                {
+                    skippedNodeKeys.Add(nodeKeyToSkip);
+                }
+            }
+        }
+
+        return NodeRunResult.SuccessResult("fragment", null, outputs);
+    }
+
+    private static bool HasControlSignal(Dictionary<string, JsonElement> variables, string key)
+    {
+        if (!variables.TryGetValue(key, out var signal))
+        {
+            return false;
+        }
+
+        return VariableResolver.TryGetBoolean(signal, out var boolSignal)
+            ? boolSignal
+            : string.Equals(VariableResolver.ToDisplayText(signal), "1", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static void ClearControlSignal(Dictionary<string, JsonElement> variables, string key)
+    {
+        if (variables.ContainsKey(key))
+        {
+            variables.Remove(key);
+        }
+    }
+
+    private static IReadOnlyList<JsonElement> ResolveBatchItems(
+        Dictionary<string, JsonElement> variables,
+        string inputArrayPath)
+    {
+        if (!string.IsNullOrWhiteSpace(inputArrayPath) &&
+            VariableResolver.TryResolvePath(variables, inputArrayPath, out var source) &&
+            source.ValueKind == JsonValueKind.Array)
+        {
+            return source.EnumerateArray().Select(x => x.Clone()).ToArray();
+        }
+
+        return [JsonSerializer.SerializeToElement<object?>(null)];
+    }
+
+    private static IEnumerable<IReadOnlyList<JsonElement>> Chunk(IReadOnlyList<JsonElement> items, int size)
+    {
+        if (items.Count == 0)
+        {
+            yield break;
+        }
+
+        for (var i = 0; i < items.Count; i += size)
+        {
+            var count = Math.Min(size, items.Count - i);
+            var chunk = new List<JsonElement>(count);
+            for (var j = 0; j < count; j++)
+            {
+                chunk.Add(items[i + j]);
+            }
+
+            yield return chunk;
+        }
     }
 
     private static IReadOnlyList<string> ResolveSelectorBranchNodesToSkip(
