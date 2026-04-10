@@ -428,3 +428,14 @@ This project must comply with GB/T 22239-2019 (等保2.0) Level 3 requirements. 
 - Don't add unnecessary abstractions, error handling for impossible scenarios, or hypothetical future requirements
 - Three similar lines of code is better than a premature abstraction
 - If something is unused, delete it completely (no backwards-compatibility hacks)
+
+## Workflow V2 (Coze Parity) Update
+
+- Workflow V2 已合并 LogicFlow 表达式能力（`ExprEvaluator`）并在节点执行上下文提供 `EvaluateExpression()`。
+- DagExecutor 支持：
+  - Selector 条件分支剪枝
+  - Loop + Break/Continue 控制信号
+  - Batch 子画布并发执行
+  - preCompletedNodeKeys 续跑能力（Resume）
+- 前端工作流编辑器采用动态节点配置面板（按 `node.type` 装载对应表单组件）。
+- 节点范围覆盖 Coze 40+ 节点，按 7 大类分组，配套节点目录与模板 API。

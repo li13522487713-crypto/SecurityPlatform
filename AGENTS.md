@@ -120,6 +120,21 @@ pnpm run format                 # 格式化所有项目
 - **前端：** 使用 Vitest 进行单元测试、Playwright 进行 E2E 测试，并通过 `pnpm run i18n:check` 做词条完整性校验。
 - **新增测试时：** 优先复用现有 xUnit / Vitest / Playwright 体系，记录命名模式（如 `*Tests.cs`、`*.spec.ts`）与运行命令。
 
+## Workflow V2（Coze 复刻）补充约束
+
+- WorkflowV2 引擎必须保持与 LogicFlow 表达式能力对齐，节点表达式统一通过 `NodeExecutionContext.EvaluateExpression()`。
+- DAG 运行时需保障以下能力长期可回归：
+  - Batch 子图执行
+  - Loop + Break/Continue
+  - Selector 分支裁剪
+  - Resume（基于 preCompletedNodeKeys）
+- 前端工作流编辑器应维持“节点声明驱动 + 动态表单渲染”模式，避免将节点配置 UI 写死在单一组件中。
+- 新增/修改节点能力时，必须同步更新：
+  - 节点目录/模板 API
+  - 前端节点面板分组与属性表单
+  - i18n 中英文词条
+  - 对应单测 / E2E / `.http` 示例
+
 ## 提交与变更
 
 - **提交信息：** 采用清晰约定（如 conventional commits：`feat:`、`fix:`、`docs:`）。
