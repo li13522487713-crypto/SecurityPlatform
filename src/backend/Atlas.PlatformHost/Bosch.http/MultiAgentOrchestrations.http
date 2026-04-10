@@ -135,10 +135,12 @@ Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 
 ### 执行编排（SSE）
+# 期望：返回 text/event-stream，按 event/data 帧持续推送，连接结束代表执行完成
 POST {{baseUrl}}/api/v1/multi-agent-orchestrations/{{orchestrationId}}/stream
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
+Accept: text/event-stream
 Idempotency-Key: {{$guid}}
 X-CSRF-TOKEN: {{csrfToken}}
 

@@ -83,6 +83,7 @@ X-CSRF-TOKEN: {{csrfToken}}
 }
 
 ### 流式聊天（SSE）
+# 期望：返回 text/event-stream，末尾包含 data: [DONE]
 POST {{baseUrl}}/api/v1/agents/{{agentId}}/chat/stream
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
@@ -98,6 +99,7 @@ X-CSRF-TOKEN: {{csrfToken}}
 }
 
 ### 流式聊天（SSE-ReAct 结构化事件）
+# 期望：包含 event: thought / event: final，末尾包含 data: [DONE]
 POST {{baseUrl}}/api/v1/agents/{{agentId}}/chat/stream?eventMode=react
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}

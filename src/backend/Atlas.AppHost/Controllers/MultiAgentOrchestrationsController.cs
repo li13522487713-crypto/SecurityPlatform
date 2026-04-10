@@ -9,6 +9,7 @@ using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Atlas.Presentation.Shared.Filters;
+using Atlas.Presentation.Shared.Helpers;
 
 namespace Atlas.AppHost.Controllers;
 
@@ -136,17 +137,15 @@ public sealed class MultiAgentOrchestrationsController : ControllerBase
         CancellationToken cancellationToken)
     {
         _runValidator.ValidateAndThrow(request);
-        Response.ContentType = "text/event-stream";
-        Response.Headers.CacheControl = "no-cache";
-        Response.Headers.Connection = "keep-alive";
-
         var tenantId = _tenantProvider.GetTenantId();
         var userId = _currentUserAccessor.GetCurrentUserOrThrow().UserId;
-        await foreach (var evt in _service.StreamRunAsync(tenantId, userId, id, request, cancellationToken))
-        {
-            await Response.WriteAsync($"event: {evt.EventType}\ndata: {evt.Data}\n\n", cancellationToken);
-            await Response.Body.FlushAsync(cancellationToken);
-        }
+        var streamResult = TypedResults.ServerSentEvents(
+            SseStreamHelper.ToSseItems(
+                _service.StreamRunAsync(tenantId, userId, id, request, cancellationToken),
+                evt => evt.EventType,
+                evt => evt.Data,
+                cancellationToken));
+        await streamResult.ExecuteAsync(HttpContext);
     }
 
     [HttpGet("executions/{executionId:long}")]

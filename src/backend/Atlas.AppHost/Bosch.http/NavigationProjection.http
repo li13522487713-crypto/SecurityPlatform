@@ -1,0 +1,25 @@
+### AppHost 导航投影 API 验证
+@baseUrl = http://localhost:5002
+@tenantId = 00000000-0000-0000-0000-000000000001
+@username = admin
+@password = P@ssw0rd!
+@appKey = dev-app
+
+### 登录
+# @name login
+POST {{baseUrl}}/api/v1/auth/token
+Content-Type: application/json
+X-Tenant-Id: {{tenantId}}
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+###
+@accessToken = {{login.response.body.$.data.accessToken}}
+
+### 按 appKey 查询工作区导航
+GET {{baseUrl}}/api/v2/navigation/apps/by-key/{{appKey}}/workspace
+Authorization: Bearer {{accessToken}}
+X-Tenant-Id: {{tenantId}}

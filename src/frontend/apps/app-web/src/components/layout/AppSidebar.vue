@@ -79,7 +79,7 @@ import {
 import { requestApi } from "@/services/api-core";
 import { createNavigationProjectionApi, useNavigationProjection } from "@atlas/navigation-projection";
 
-const { t } = useI18n();
+const { t, te } = useI18n();
 const route = useRoute();
 
 const props = defineProps<{
@@ -135,6 +135,16 @@ type SidebarGroup = {
   items: SidebarItem[];
 };
 
+function localizeProjectionGroupTitle(groupKey: string, fallbackTitle: string) {
+  const translationKey = `sidebarProjection.groups.${groupKey}`;
+  return te(translationKey) ? t(translationKey) : fallbackTitle;
+}
+
+function localizeProjectionItemTitle(itemKey: string, fallbackTitle: string) {
+  const translationKey = `sidebarProjection.items.${itemKey}`;
+  return te(translationKey) ? t(translationKey) : fallbackTitle;
+}
+
 function resolveProjectionIcon(groupKey: string, path: string) {
   const normalizedGroup = groupKey.toLowerCase();
   if (normalizedGroup.includes("ai")) return RobotOutlined;
@@ -147,10 +157,10 @@ function resolveProjectionIcon(groupKey: string, path: string) {
 
 const projectedNavGroups = computed<SidebarGroup[]>(() =>
   navigationProjection.groups.value.map((group) => ({
-    title: group.groupTitle,
+    title: localizeProjectionGroupTitle(group.groupKey, group.groupTitle),
     items: group.items.map((item) => ({
       key: item.key,
-      name: item.title,
+      name: localizeProjectionItemTitle(item.key, item.title),
       path: item.path || `${basePath.value}/dashboard`,
       icon: resolveProjectionIcon(group.groupKey, item.path),
       badgeText: undefined

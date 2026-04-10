@@ -4,6 +4,7 @@ using Atlas.Core.Tenancy;
 using Atlas.Domain.AiPlatform.Entities;
 using Atlas.Infrastructure.Options;
 using Atlas.Infrastructure.Repositories;
+using Atlas.Infrastructure.Security;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -28,12 +29,14 @@ internal sealed class ProviderBackedChatClient : IChatClient
     private readonly ILlmProvider _provider;
     private readonly string _modelId;
     private readonly Uri? _endpoint;
+    private readonly string? _apiKey;
 
-    public ProviderBackedChatClient(ILlmProvider provider, string modelId, string? endpoint)
+    public ProviderBackedChatClient(ILlmProvider provider, string modelId, string? endpoint, string? apiKey)
     {
         _provider = provider;
         _modelId = modelId;
         _endpoint = Uri.TryCreate(endpoint, UriKind.Absolute, out var uri) ? uri : null;
+        _apiKey = string.IsNullOrWhiteSpace(apiKey) ? null : apiKey.Trim();
     }
 
     public ChatClientMetadata Metadata => new(nameof(ProviderBackedChatClient), _endpoint, _modelId);
@@ -51,7 +54,9 @@ internal sealed class ProviderBackedChatClient : IChatClient
             _provider.ProviderName,
             MapTools(options?.Tools),
             MapToolChoice(options?.ToolMode),
-            options?.AllowMultipleToolCalls);
+            options?.AllowMultipleToolCalls,
+            _endpoint?.ToString(),
+            _apiKey);
         var result = await _provider.ChatAsync(request, cancellationToken);
         return new ChatResponse(BuildAssistantMessage(result));
     }
@@ -69,7 +74,9 @@ internal sealed class ProviderBackedChatClient : IChatClient
             _provider.ProviderName,
             MapTools(options?.Tools),
             MapToolChoice(options?.ToolMode),
-            options?.AllowMultipleToolCalls);
+            options?.AllowMultipleToolCalls,
+            _endpoint?.ToString(),
+            _apiKey);
         await foreach (var chunk in _provider.ChatStreamAsync(request, cancellationToken))
         {
             if (!string.IsNullOrWhiteSpace(chunk.ContentDelta))
@@ -332,13 +339,16 @@ public sealed class ChatClientFactory : IChatClientFactory
 {
     private readonly ModelConfigRepository _modelConfigRepository;
     private readonly ILlmProviderFactory _llmProviderFactory;
+    private readonly ISecretRefResolver _secretRefResolver;
 
     public ChatClientFactory(
         ModelConfigRepository modelConfigRepository,
-        ILlmProviderFactory llmProviderFactory)
+        ILlmProviderFactory llmProviderFactory,
+        ISecretRefResolver secretRefResolver)
     {
         _modelConfigRepository = modelConfigRepository;
         _llmProviderFactory = llmProviderFactory;
+        _secretRefResolver = secretRefResolver;
     }
 
     public async Task<IChatClient> CreateAsync(
@@ -353,14 +363,18 @@ public sealed class ChatClientFactory : IChatClientFactory
             modelConfig = await _modelConfigRepository.FindByIdAsync(tenantId, modelConfigId.Value, cancellationToken);
         }
 
-        var providerName = modelConfig?.ProviderType;
+        // 优先按数据库模型配置名称精确命中，避免同 providerType 下选错 API Key。
+        var providerName = !string.IsNullOrWhiteSpace(modelConfig?.Name)
+            ? modelConfig.Name
+            : modelConfig?.ProviderType;
         var provider = _llmProviderFactory.GetLlmProvider(providerName);
         var resolvedModel = !string.IsNullOrWhiteSpace(modelName)
             ? modelName.Trim()
             : !string.IsNullOrWhiteSpace(modelConfig?.DefaultModel)
                 ? modelConfig.DefaultModel
                 : "gpt-4o-mini";
-        return new ProviderBackedChatClient(provider, resolvedModel, modelConfig?.BaseUrl);
+        var resolvedApiKey = modelConfig is null ? null : _secretRefResolver.Resolve(modelConfig.ApiKey);
+        return new ProviderBackedChatClient(provider, resolvedModel, modelConfig?.BaseUrl, resolvedApiKey);
     }
 }
 

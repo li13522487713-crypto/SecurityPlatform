@@ -18,7 +18,6 @@ using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
-using System.Threading.Channels;
 using DomainAgent = Atlas.Domain.AiPlatform.Entities.Agent;
 using ChatMessageEntity = Atlas.Domain.AiPlatform.Entities.ChatMessage;
 using Atlas.Domain.AiPlatform.Entities;
@@ -27,6 +26,11 @@ namespace Atlas.Infrastructure.Services.AiPlatform;
 
 public sealed class AgentChatService : IAgentChatService
 {
+    private sealed record ExecutionStreamItem(
+        string? TextChunk,
+        AgentChatStreamEvent? Event,
+        AgentChatResponse? FinalResponse);
+
     private static readonly ConcurrentDictionary<long, CancellationTokenSource> ConversationCancellationMap = new();
 
     private readonly AgentRepository _agentRepository;
@@ -77,15 +81,23 @@ public sealed class AgentChatService : IAgentChatService
         AgentChatRequest request,
         CancellationToken cancellationToken)
     {
-        var result = await ExecuteAsync(
-            tenantId,
-            userId,
-            agentId,
-            request,
-            textStreamOutput: null,
-            eventStreamOutput: null,
-            cancellationToken);
-        return result;
+        AgentChatResponse? result = null;
+        await foreach (var item in ExecuteCoreStreamAsync(
+                           tenantId,
+                           userId,
+                           agentId,
+                           request,
+                           emitTextChunks: false,
+                           emitStructuredEvents: false,
+                           cancellationToken))
+        {
+            if (item.FinalResponse is not null)
+            {
+                result = item.FinalResponse;
+            }
+        }
+
+        return result ?? throw new BusinessException("ModelEmptyResponse", ErrorCodes.ServerError);
     }
 
     public async IAsyncEnumerable<string> ChatStreamAsync(
@@ -95,33 +107,20 @@ public sealed class AgentChatService : IAgentChatService
         AgentChatRequest request,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        var channel = Channel.CreateUnbounded<string>();
-        var producer = Task.Run(async () =>
+        await foreach (var item in ExecuteCoreStreamAsync(
+                           tenantId,
+                           userId,
+                           agentId,
+                           request,
+                           emitTextChunks: true,
+                           emitStructuredEvents: false,
+                           cancellationToken))
         {
-            try
+            if (!string.IsNullOrWhiteSpace(item.TextChunk))
             {
-                await ExecuteAsync(
-                    tenantId,
-                    userId,
-                    agentId,
-                    request,
-                    chunk => channel.Writer.WriteAsync(chunk, cancellationToken),
-                    eventStreamOutput: null,
-                    cancellationToken);
-                channel.Writer.TryComplete();
+                yield return item.TextChunk;
             }
-            catch (Exception ex)
-            {
-                channel.Writer.TryComplete(ex);
-            }
-        }, cancellationToken);
-
-        await foreach (var chunk in channel.Reader.ReadAllAsync(cancellationToken))
-        {
-            yield return chunk;
         }
-
-        await producer;
     }
 
     public async IAsyncEnumerable<AgentChatStreamEvent> ChatEventStreamAsync(
@@ -131,33 +130,20 @@ public sealed class AgentChatService : IAgentChatService
         AgentChatRequest request,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        var channel = Channel.CreateUnbounded<AgentChatStreamEvent>();
-        var producer = Task.Run(async () =>
+        await foreach (var item in ExecuteCoreStreamAsync(
+                           tenantId,
+                           userId,
+                           agentId,
+                           request,
+                           emitTextChunks: false,
+                           emitStructuredEvents: true,
+                           cancellationToken))
         {
-            try
+            if (item.Event is not null)
             {
-                await ExecuteAsync(
-                    tenantId,
-                    userId,
-                    agentId,
-                    request,
-                    textStreamOutput: null,
-                    eventStreamOutput: evt => channel.Writer.WriteAsync(evt, cancellationToken),
-                    cancellationToken);
-                channel.Writer.TryComplete();
+                yield return item.Event;
             }
-            catch (Exception ex)
-            {
-                channel.Writer.TryComplete(ex);
-            }
-        }, cancellationToken);
-
-        await foreach (var evt in channel.Reader.ReadAllAsync(cancellationToken))
-        {
-            yield return evt;
         }
-
-        await producer;
     }
 
     public async Task CancelAsync(
@@ -187,14 +173,14 @@ public sealed class AgentChatService : IAgentChatService
         }
     }
 
-    private async Task<AgentChatResponse> ExecuteAsync(
+    private async IAsyncEnumerable<ExecutionStreamItem> ExecuteCoreStreamAsync(
         TenantId tenantId,
         long userId,
         long agentId,
         AgentChatRequest request,
-        Func<string, ValueTask>? textStreamOutput,
-        Func<AgentChatStreamEvent, ValueTask>? eventStreamOutput,
-        CancellationToken cancellationToken)
+        bool emitTextChunks,
+        bool emitStructuredEvents,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var agent = await _agentRepository.FindByIdAsync(tenantId, agentId, cancellationToken)
             ?? throw new BusinessException("AgentNotFound", ErrorCodes.NotFound);
@@ -260,9 +246,14 @@ public sealed class AgentChatService : IAgentChatService
                 : [];
             var assistantBuilder = new StringBuilder();
             string? metadata;
-            var finalEventEmitted = false;
 
-            await EmitEventAsync(eventStreamOutput, "thought", "分析问题并准备调用 Semantic Kernel 原生 Agent 与函数能力。");
+            if (emitStructuredEvents)
+            {
+                yield return new ExecutionStreamItem(
+                    TextChunk: null,
+                    Event: new AgentChatStreamEvent("thought", "分析问题并准备调用 Semantic Kernel 原生 Agent 与函数能力。"),
+                    FinalResponse: null);
+            }
 
             var modelConfig = await ResolveModelConfigAsync(tenantId, agent.ModelConfigId, linkedCts.Token);
             var modelName = ResolveModelName(agent, modelConfig);
@@ -305,7 +296,7 @@ public sealed class AgentChatService : IAgentChatService
                 })
             };
 
-            await foreach (var response in skAgent.InvokeAsync(
+            await foreach (var response in skAgent.InvokeStreamingAsync(
                 new ChatMessageContent(AuthorRole.User, inputForModel),
                 agentThread))
             {
@@ -315,13 +306,14 @@ public sealed class AgentChatService : IAgentChatService
                     continue;
                 }
 
-                assistantBuilder.Clear();
                 assistantBuilder.Append(chunkText);
-            }
-
-            if (assistantBuilder.Length > 0 && textStreamOutput is not null)
-            {
-                await textStreamOutput(assistantBuilder.ToString());
+                if (emitTextChunks)
+                {
+                    yield return new ExecutionStreamItem(
+                        TextChunk: chunkText,
+                        Event: null,
+                        FinalResponse: null);
+                }
             }
 
             metadata = JsonSerializer.Serialize(new
@@ -347,9 +339,12 @@ public sealed class AgentChatService : IAgentChatService
                 throw new BusinessException("ModelEmptyResponse", ErrorCodes.ServerError);
             }
 
-            if (!finalEventEmitted)
+            if (emitStructuredEvents)
             {
-                await EmitEventAsync(eventStreamOutput, "final", assistantContent);
+                yield return new ExecutionStreamItem(
+                    TextChunk: null,
+                    Event: new AgentChatStreamEvent("final", assistantContent),
+                    FinalResponse: null);
             }
 
             var assistantMessageId = _idGeneratorAccessor.NextId();
@@ -380,16 +375,15 @@ public sealed class AgentChatService : IAgentChatService
                 agent.EnableLongTermMemory,
                 linkedCts.Token);
 
-            return new AgentChatResponse(
-                conversation.Id,
-                assistantMessageId,
-                assistantContent,
-                Sources: null);
-        }
-        catch (OperationCanceledException) when (linkedCts.IsCancellationRequested)
-        {
-            _logger.LogInformation("Conversation {ConversationId} canceled.", conversation.Id);
-            throw;
+            yield return new ExecutionStreamItem(
+                TextChunk: null,
+                Event: null,
+                FinalResponse: new AgentChatResponse(
+                    conversation.Id,
+                    assistantMessageId,
+                    assistantContent,
+                    Sources: null));
+            yield break;
         }
         finally
         {
@@ -401,19 +395,6 @@ public sealed class AgentChatService : IAgentChatService
 
             linkedCts.Dispose();
         }
-    }
-
-    private static async ValueTask EmitEventAsync(
-        Func<AgentChatStreamEvent, ValueTask>? eventStreamOutput,
-        string eventType,
-        string data)
-    {
-        if (eventStreamOutput is null)
-        {
-            return;
-        }
-
-        await eventStreamOutput(new AgentChatStreamEvent(eventType, data));
     }
 
     private async Task<IReadOnlyList<LongTermMemoryRecallItem>> SafeRecallLongTermMemoriesAsync(
@@ -553,10 +534,17 @@ public sealed class AgentChatService : IAgentChatService
         return chatHistory;
     }
 
-    private static string NormalizeAgentResponse(ChatMessageContent response)
-        => string.IsNullOrWhiteSpace(response.Content)
-            ? response.ToString()?.Trim() ?? string.Empty
-            : response.Content.Trim();
+    private static string NormalizeAgentResponse(object? response)
+        => response switch
+        {
+            ChatMessageContent chatMessageContent => string.IsNullOrWhiteSpace(chatMessageContent.Content)
+                ? chatMessageContent.ToString()?.Trim() ?? string.Empty
+                : chatMessageContent.Content.Trim(),
+            StreamingChatMessageContent streamingChatMessageContent => string.IsNullOrWhiteSpace(streamingChatMessageContent.Content)
+                ? streamingChatMessageContent.ToString()?.Trim() ?? string.Empty
+                : streamingChatMessageContent.Content.Trim(),
+            _ => response?.ToString()?.Trim() ?? string.Empty
+        };
 
     private static AuthorRole MapAuthorRole(string role)
         => role.ToLowerInvariant() switch

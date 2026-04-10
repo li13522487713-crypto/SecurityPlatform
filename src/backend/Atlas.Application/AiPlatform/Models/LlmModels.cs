@@ -25,7 +25,9 @@ public sealed record ChatCompletionRequest(
     string? Provider = null,
     IReadOnlyList<ChatToolDefinition>? Tools = null,
     string? ToolChoice = null,
-    bool? AllowParallelToolCalls = null);
+    bool? AllowParallelToolCalls = null,
+    string? Endpoint = null,
+    string? ApiKey = null);
 
 public sealed record ChatCompletionResult(
     string Content,
@@ -47,7 +49,9 @@ public sealed record EmbeddingRequest(
     string Model,
     IReadOnlyList<string> Inputs,
     string? Provider = null,
-    int? Dimensions = null);
+    int? Dimensions = null,
+    string? Endpoint = null,
+    string? ApiKey = null);
 
 public sealed record EmbeddingResult(
     IReadOnlyList<float[]> Vectors,

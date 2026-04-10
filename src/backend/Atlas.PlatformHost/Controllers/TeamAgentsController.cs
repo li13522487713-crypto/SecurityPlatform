@@ -5,6 +5,7 @@ using Atlas.Core.Models;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.AiPlatform.Entities;
 using Atlas.Presentation.Shared.Authorization;
+using Atlas.Presentation.Shared.Helpers;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -234,21 +235,17 @@ public sealed class TeamAgentsController : ControllerBase
     public async Task ChatStream(long id, [FromBody] TeamAgentChatRequest request, CancellationToken cancellationToken)
     {
         _chatValidator.ValidateAndThrow(request);
-        Response.ContentType = "text/event-stream";
-        Response.Headers.CacheControl = "no-cache";
-        Response.Headers.Connection = "keep-alive";
-
         var tenantId = _tenantProvider.GetTenantId();
         var userId = _currentUserAccessor.GetCurrentUserOrThrow().UserId;
-        await foreach (var evt in _teamAgentService.ChatStreamAsync(tenantId, userId, id, request, _appContextAccessor.GetAppId(), cancellationToken))
-        {
-            await Response.WriteAsync($"event: {evt.EventType}\n", cancellationToken);
-            await Response.WriteAsync($"data: {evt.Data}\n\n", cancellationToken);
-            await Response.Body.FlushAsync(cancellationToken);
-        }
-
-        await Response.WriteAsync("data: [DONE]\n\n", cancellationToken);
-        await Response.Body.FlushAsync(cancellationToken);
+        var stream = SseStreamHelper.AppendDone(
+            SseStreamHelper.ToSseItems(
+                _teamAgentService.ChatStreamAsync(tenantId, userId, id, request, _appContextAccessor.GetAppId(), cancellationToken),
+                evt => evt.EventType,
+                evt => evt.Data,
+                cancellationToken),
+            cancellationToken: cancellationToken);
+        var streamResult = TypedResults.ServerSentEvents(stream);
+        await streamResult.ExecuteAsync(HttpContext);
     }
 
     [HttpPost("{id:long}/chat/cancel")]

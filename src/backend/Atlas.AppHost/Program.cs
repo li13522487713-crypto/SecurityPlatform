@@ -324,7 +324,9 @@ builder.Services.AddSingleton<Atlas.Presentation.Shared.Services.MigrationGovern
 builder.Services.AddResponseCompression(options =>
 {
     options.EnableForHttps = true;
-    options.MimeTypes = ResponseCompressionDefaults.MimeTypes.Concat(["application/json"]);
+    options.MimeTypes = ResponseCompressionDefaults.MimeTypes
+        .Where(mimeType => !string.Equals(mimeType, "text/event-stream", StringComparison.OrdinalIgnoreCase))
+        .Concat(["application/json"]);
     options.Providers.Add<BrotliCompressionProvider>();
     options.Providers.Add<GzipCompressionProvider>();
 });

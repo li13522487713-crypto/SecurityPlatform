@@ -351,6 +351,35 @@ export default {
     formsData: "表单与数据",
     settings: "平台设置"
   },
+  sidebarProjection: {
+    groups: {
+      ai: "AI",
+      data: "数据",
+      organization: "组织",
+      workflow: "工作流",
+      runtime: "运行时",
+      settings: "设置",
+      security: "安全",
+      governance: "治理",
+      connectors: "连接器",
+      core: "核心"
+    },
+    items: {
+      organization: "组织管理",
+      agent: "Agent",
+      workflow: "工作流",
+      knowledgeBase: "知识库",
+      "knowledge-base": "知识库",
+      "ai-evaluation": "AI 评测",
+      "model-config": "模型配置",
+      "dynamic-data": "动态数据",
+      "workflow-designer": "工作流设计器",
+      "logic-flow": "逻辑流",
+      "ai-marketplace": "AI 市场",
+      "system-settings": "系统设置",
+      "project-management": "项目管理"
+    }
+  },
   header: {
     searchPlaceholder: "搜索资源、应用或设置...",
     tenant: "租户"

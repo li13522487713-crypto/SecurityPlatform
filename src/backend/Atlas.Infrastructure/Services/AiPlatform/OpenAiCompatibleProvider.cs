@@ -22,10 +22,17 @@ public sealed class OpenAiCompatibleProvider : ILlmProvider, IEmbeddingProvider
     {
         PropertyNameCaseInsensitive = true
     };
+    private static readonly IReadOnlyDictionary<string, string> DefaultBaseUrls = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["openai"] = "https://api.openai.com",
+        ["deepseek"] = "https://api.deepseek.com",
+        ["ollama"] = "http://localhost:11434"
+    };
 
     private readonly HttpClient _httpClient;
     private readonly ILogger<OpenAiCompatibleProvider> _logger;
     private readonly AiProviderOption _option;
+    private readonly string _resolvedBaseUrl;
     private readonly TenantId _tenantId;
     private readonly IMeteringService _meteringService;
 
@@ -40,13 +47,14 @@ public sealed class OpenAiCompatibleProvider : ILlmProvider, IEmbeddingProvider
         ProviderName = providerName;
         _option = option;
         _httpClient = httpClient;
+        _resolvedBaseUrl = ResolveProviderBaseUrl(providerName, option.BaseUrl);
         _tenantId = tenantId;
         _meteringService = meteringService;
         _logger = logger;
 
-        if (!string.IsNullOrWhiteSpace(option.BaseUrl))
+        if (Uri.TryCreate(AppendTrailingSlash(_resolvedBaseUrl), UriKind.Absolute, out var baseAddress))
         {
-            _httpClient.BaseAddress = new Uri(option.BaseUrl.TrimEnd('/'), UriKind.Absolute);
+            _httpClient.BaseAddress = baseAddress;
         }
     }
 
@@ -64,7 +72,7 @@ public sealed class OpenAiCompatibleProvider : ILlmProvider, IEmbeddingProvider
             ToolChoice: MapToolChoice(request.ToolChoice),
             ParallelToolCalls: request.AllowParallelToolCalls);
 
-        using var response = await SendAsync("v1/chat/completions", payload, ct);
+        using var response = await SendAsync("v1/chat/completions", payload, request.Endpoint, request.ApiKey, ct);
         await using var stream = await response.Content.ReadAsStreamAsync(ct);
         var body = await JsonSerializer.DeserializeAsync<OpenAiChatResponse>(stream, JsonOptions, ct);
         if (body?.Choices is null || body.Choices.Count == 0)
@@ -105,15 +113,16 @@ public sealed class OpenAiCompatibleProvider : ILlmProvider, IEmbeddingProvider
             ToolChoice: MapToolChoice(request.ToolChoice),
             ParallelToolCalls: request.AllowParallelToolCalls);
 
-        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, BuildEndpointUri("v1/chat/completions"))
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, CreateRequestUri("v1/chat/completions", request.Endpoint))
         {
             Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json")
         };
 
-        if (!string.IsNullOrWhiteSpace(_option.ApiKey))
+        var apiKey = ResolveApiKey(request.ApiKey);
+        if (!string.IsNullOrWhiteSpace(apiKey))
         {
             httpRequest.Headers.Authorization =
-                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _option.ApiKey);
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
         }
 
         using var response = await _httpClient.SendAsync(httpRequest, HttpCompletionOption.ResponseHeadersRead, ct);
@@ -183,7 +192,7 @@ public sealed class OpenAiCompatibleProvider : ILlmProvider, IEmbeddingProvider
             request.Inputs.ToList(),
             request.Dimensions);
 
-        using var response = await SendAsync("v1/embeddings", payload, ct);
+        using var response = await SendAsync("v1/embeddings", payload, request.Endpoint, request.ApiKey, ct);
         await using var stream = await response.Content.ReadAsStreamAsync(ct);
         var body = await JsonSerializer.DeserializeAsync<OpenAiEmbeddingResponse>(stream, JsonOptions, ct);
         if (body?.Data is null || body.Data.Count == 0)
@@ -356,17 +365,23 @@ public sealed class OpenAiCompatibleProvider : ILlmProvider, IEmbeddingProvider
         return Math.Round(cost, 8);
     }
 
-    private async Task<HttpResponseMessage> SendAsync(string relativePath, object payload, CancellationToken ct)
+    private async Task<HttpResponseMessage> SendAsync(
+        string relativePath,
+        object payload,
+        string? endpointOverride,
+        string? apiKeyOverride,
+        CancellationToken ct)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Post, BuildEndpointUri(relativePath))
+        using var request = new HttpRequestMessage(HttpMethod.Post, CreateRequestUri(relativePath, endpointOverride))
         {
             Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json")
         };
 
-        if (!string.IsNullOrWhiteSpace(_option.ApiKey))
+        var apiKey = ResolveApiKey(apiKeyOverride);
+        if (!string.IsNullOrWhiteSpace(apiKey))
         {
             request.Headers.Authorization =
-                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _option.ApiKey);
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
         }
 
         var response = await _httpClient.SendAsync(request, ct);
@@ -380,9 +395,22 @@ public sealed class OpenAiCompatibleProvider : ILlmProvider, IEmbeddingProvider
         throw new HttpRequestException($"AI provider '{ProviderName}' request failed: {(int)response.StatusCode} {body}");
     }
 
-    private string BuildEndpointUri(string relativePath)
+    private string CreateRequestUri(string relativePath, string? endpointOverride)
     {
-        var baseUrl = (_option.BaseUrl ?? string.Empty).Trim();
+        var requestUri = BuildEndpointUri(relativePath, endpointOverride);
+        var hasBaseAddress = string.IsNullOrWhiteSpace(endpointOverride) && _httpClient.BaseAddress is not null;
+        if (hasBaseAddress || Uri.TryCreate(requestUri, UriKind.Absolute, out _))
+        {
+            return requestUri;
+        }
+
+        throw new InvalidOperationException(
+            $"AI provider '{ProviderName}' 缺少有效的 BaseUrl，无法解析请求地址。请为模型配置填写绝对地址，或使用系统内置提供商默认地址。");
+    }
+
+    private string BuildEndpointUri(string relativePath, string? endpointOverride)
+    {
+        var baseUrl = ResolveRequestBaseUrl(endpointOverride);
         if (string.IsNullOrWhiteSpace(baseUrl))
         {
             return relativePath;
@@ -420,7 +448,49 @@ public sealed class OpenAiCompatibleProvider : ILlmProvider, IEmbeddingProvider
             }
         }
 
-        return new Uri(baseUri, normalizedRelative).ToString();
+        return new Uri(new Uri(AppendTrailingSlash(baseUri.ToString()), UriKind.Absolute), normalizedRelative).ToString();
+    }
+
+    private string ResolveRequestBaseUrl(string? endpointOverride)
+    {
+        if (!string.IsNullOrWhiteSpace(endpointOverride))
+        {
+            return endpointOverride.Trim();
+        }
+
+        return _resolvedBaseUrl.Trim();
+    }
+
+    private string? ResolveApiKey(string? apiKeyOverride)
+    {
+        if (!string.IsNullOrWhiteSpace(apiKeyOverride))
+        {
+            return apiKeyOverride.Trim();
+        }
+
+        return string.IsNullOrWhiteSpace(_option.ApiKey) ? null : _option.ApiKey.Trim();
+    }
+
+    private static string ResolveProviderBaseUrl(string providerName, string? configuredBaseUrl)
+    {
+        if (!string.IsNullOrWhiteSpace(configuredBaseUrl))
+        {
+            return configuredBaseUrl.Trim();
+        }
+
+        return DefaultBaseUrls.TryGetValue(providerName, out var value)
+            ? value
+            : string.Empty;
+    }
+
+    private static string AppendTrailingSlash(string url)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            return string.Empty;
+        }
+
+        return url.TrimEnd('/') + "/";
     }
 
     private sealed record OpenAiChatRequest(

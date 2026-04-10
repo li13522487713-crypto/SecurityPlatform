@@ -68,10 +68,12 @@ Content-Type: application/json
 }
 
 ### 6) Open Chat（SSE）
+# 期望：返回 text/event-stream，末尾包含 data: [DONE]
 POST {{baseUrl}}/api/v1/open/chat/stream
 Authorization: Bearer {{patToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
+Accept: text/event-stream
 
 {
   "agentId": {{agentId}},
@@ -81,10 +83,12 @@ Content-Type: application/json
 }
 
 ### 6.1) Open Chat（SSE-ReAct 结构化事件）
+# 期望：包含 event: thought / event: final，末尾包含 data: [DONE]
 POST {{baseUrl}}/api/v1/open/chat/stream?eventMode=react
 Authorization: Bearer {{patToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
+Accept: text/event-stream
 X-Stream-Event-Mode: react
 
 {

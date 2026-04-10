@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
 using Atlas.Presentation.Shared.Filters;
+using Atlas.Presentation.Shared.Helpers;
 
 namespace Atlas.AppHost.Controllers.Open;
 
@@ -67,53 +68,50 @@ public sealed class OpenChatController : ControllerBase
     {
         if (!OpenScopeHelper.HasScope(User, "open:chat"))
         {
-            Response.StatusCode = StatusCodes.Status403Forbidden;
-            await Response.WriteAsJsonAsync(ApiResponse<object>.Fail(
+            await TypedResults.Json(ApiResponse<object>.Fail(
                 ErrorCodes.Forbidden,
                 "PAT 缺少 open:chat 权限",
-                HttpContext.TraceIdentifier), cancellationToken);
+                HttpContext.TraceIdentifier), statusCode: StatusCodes.Status403Forbidden).ExecuteAsync(HttpContext);
             return;
         }
-
-        Response.ContentType = "text/event-stream";
-        Response.Headers.CacheControl = "no-cache";
-        Response.Headers.Connection = "keep-alive";
 
         var tenantId = _tenantProvider.GetTenantId();
         var userId = ControllerHelper.GetUserIdSafely(User)
             ?? throw new UnauthorizedAccessException("缺少用户标识");
-        var useStructuredEvents = ShouldUseStructuredEvents(Request);
+        var chatRequest = new AgentChatRequest(request.ConversationId, request.Message, request.EnableRag, request.Attachments);
+        var useStructuredEvents = SseStreamHelper.ShouldUseStructuredEvents(Request);
 
+        IResult streamResult;
         if (!useStructuredEvents)
         {
-            await foreach (var chunk in _chatService.ChatStreamAsync(
-                               tenantId,
-                               userId,
-                               request.AgentId,
-                               new AgentChatRequest(request.ConversationId, request.Message, request.EnableRag, request.Attachments),
-                               cancellationToken))
-            {
-                await Response.WriteAsync($"data: {chunk}\n\n", cancellationToken);
-                await Response.Body.FlushAsync(cancellationToken);
-            }
+            streamResult = TypedResults.ServerSentEvents(
+                SseStreamHelper.AppendDone(
+                    _chatService.ChatStreamAsync(
+                        tenantId,
+                        userId,
+                        request.AgentId,
+                        chatRequest,
+                        cancellationToken),
+                    cancellationToken: cancellationToken));
         }
         else
         {
-            await foreach (var evt in _chatService.ChatEventStreamAsync(
-                               tenantId,
-                               userId,
-                               request.AgentId,
-                               new AgentChatRequest(request.ConversationId, request.Message, request.EnableRag, request.Attachments),
-                               cancellationToken))
-            {
-                await Response.WriteAsync($"event: {evt.EventType}\n", cancellationToken);
-                await Response.WriteAsync($"data: {evt.Data}\n\n", cancellationToken);
-                await Response.Body.FlushAsync(cancellationToken);
-            }
+            var stream = SseStreamHelper.AppendDone(
+                SseStreamHelper.ToSseItems(
+                    _chatService.ChatEventStreamAsync(
+                        tenantId,
+                        userId,
+                        request.AgentId,
+                        chatRequest,
+                        cancellationToken),
+                    evt => evt.EventType,
+                    evt => evt.Data,
+                    cancellationToken),
+                cancellationToken: cancellationToken);
+            streamResult = TypedResults.ServerSentEvents(stream);
         }
 
-        await Response.WriteAsync("data: [DONE]\n\n", cancellationToken);
-        await Response.Body.FlushAsync(cancellationToken);
+        await streamResult.ExecuteAsync(HttpContext);
         await TryDispatchAgentMessageEventAsync(userId, request, result: null, cancellationToken);
     }
 
@@ -123,25 +121,6 @@ public sealed class OpenChatController : ControllerBase
         long? ConversationId,
         bool? EnableRag,
         IReadOnlyList<AgentChatAttachment>? Attachments);
-
-    private static bool ShouldUseStructuredEvents(HttpRequest request)
-    {
-        if (request.Headers.TryGetValue("X-Stream-Event-Mode", out var mode) &&
-            mode.Count > 0 &&
-            string.Equals(mode[0], "react", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        if (request.Query.TryGetValue("eventMode", out var eventMode) &&
-            eventMode.Count > 0 &&
-            string.Equals(eventMode[0], "react", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        return false;
-    }
 
     private async Task TryDispatchAgentMessageEventAsync(
         long userId,

@@ -95,6 +95,7 @@ POST {{baseUrl}}/api/v1/team-agents/{{teamAgentId}}/chat/stream
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
+Accept: text/event-stream
 Idempotency-Key: {{$guid}}
 X-CSRF-TOKEN: {{csrfToken}}
 
@@ -129,6 +130,7 @@ POST {{baseUrl}}/api/v1/team-agents/{{groupChatTeamAgentId}}/chat/stream
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
+Accept: text/event-stream
 Idempotency-Key: {{$guid}}
 X-CSRF-TOKEN: {{csrfToken}}
 
@@ -163,6 +165,7 @@ POST {{baseUrl}}/api/v1/team-agents/{{workflowTeamAgentId}}/chat/stream
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
+Accept: text/event-stream
 Idempotency-Key: {{$guid}}
 X-CSRF-TOKEN: {{csrfToken}}
 
@@ -197,6 +200,7 @@ POST {{baseUrl}}/api/v1/team-agents/{{handoffTeamAgentId}}/chat/stream
 Authorization: Bearer {{accessToken}}
 X-Tenant-Id: {{tenantId}}
 Content-Type: application/json
+Accept: text/event-stream
 Idempotency-Key: {{$guid}}
 X-CSRF-TOKEN: {{csrfToken}}
 

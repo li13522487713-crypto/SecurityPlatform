@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using System.Security.Cryptography;
 using System.Text;
 using Atlas.Presentation.Shared.Filters;
+using Atlas.Presentation.Shared.Helpers;
 
 namespace Atlas.AppHost.Controllers;
 
@@ -49,41 +50,40 @@ public sealed class EmbedChatController : ControllerBase
         var publication = await _publicationService.ResolveByEmbedTokenAsync(request.EmbedToken, cancellationToken);
         var embedUserId = ResolveEmbedUserId(publication.PublicationId, request.ExternalUserId);
 
-        Response.ContentType = "text/event-stream";
-        Response.Headers.CacheControl = "no-cache";
-        Response.Headers.Connection = "keep-alive";
-        var useStructuredEvents = ShouldUseStructuredEvents(Request);
+        var chatRequest = new AgentChatRequest(request.ConversationId, request.Message, request.EnableRag, request.Attachments);
+        var useStructuredEvents = SseStreamHelper.ShouldUseStructuredEvents(Request);
 
+        IResult streamResult;
         if (!useStructuredEvents)
         {
-            await foreach (var chunk in _agentChatService.ChatStreamAsync(
-                               publication.TenantId,
-                               embedUserId,
-                               publication.AgentId,
-                               new AgentChatRequest(request.ConversationId, request.Message, request.EnableRag, request.Attachments),
-                               cancellationToken))
-            {
-                await Response.WriteAsync($"data: {chunk}\n\n", cancellationToken);
-                await Response.Body.FlushAsync(cancellationToken);
-            }
+            streamResult = TypedResults.ServerSentEvents(
+                SseStreamHelper.AppendDone(
+                    _agentChatService.ChatStreamAsync(
+                        publication.TenantId,
+                        embedUserId,
+                        publication.AgentId,
+                        chatRequest,
+                        cancellationToken),
+                    cancellationToken: cancellationToken));
         }
         else
         {
-            await foreach (var evt in _agentChatService.ChatEventStreamAsync(
-                               publication.TenantId,
-                               embedUserId,
-                               publication.AgentId,
-                               new AgentChatRequest(request.ConversationId, request.Message, request.EnableRag, request.Attachments),
-                               cancellationToken))
-            {
-                await Response.WriteAsync($"event: {evt.EventType}\n", cancellationToken);
-                await Response.WriteAsync($"data: {evt.Data}\n\n", cancellationToken);
-                await Response.Body.FlushAsync(cancellationToken);
-            }
+            var stream = SseStreamHelper.AppendDone(
+                SseStreamHelper.ToSseItems(
+                    _agentChatService.ChatEventStreamAsync(
+                        publication.TenantId,
+                        embedUserId,
+                        publication.AgentId,
+                        chatRequest,
+                        cancellationToken),
+                    evt => evt.EventType,
+                    evt => evt.Data,
+                    cancellationToken),
+                cancellationToken: cancellationToken);
+            streamResult = TypedResults.ServerSentEvents(stream);
         }
 
-        await Response.WriteAsync("data: [DONE]\n\n", cancellationToken);
-        await Response.Body.FlushAsync(cancellationToken);
+        await streamResult.ExecuteAsync(HttpContext);
     }
 
     public sealed record EmbedChatRequest(
@@ -93,25 +93,6 @@ public sealed class EmbedChatController : ControllerBase
         bool? EnableRag,
         string? ExternalUserId,
         IReadOnlyList<AgentChatAttachment>? Attachments);
-
-    private static bool ShouldUseStructuredEvents(HttpRequest request)
-    {
-        if (request.Headers.TryGetValue("X-Stream-Event-Mode", out var mode) &&
-            mode.Count > 0 &&
-            string.Equals(mode[0], "react", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        if (request.Query.TryGetValue("eventMode", out var eventMode) &&
-            eventMode.Count > 0 &&
-            string.Equals(eventMode[0], "react", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        return false;
-    }
 
     private static long ResolveEmbedUserId(long publicationId, string? externalUserId)
     {

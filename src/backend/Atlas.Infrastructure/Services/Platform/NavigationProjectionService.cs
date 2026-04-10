@@ -1,5 +1,6 @@
 using Atlas.Application.Platform.Abstractions;
 using Atlas.Application.Platform.Models;
+using Atlas.Application.Identity;
 using Atlas.Core.Tenancy;
 using Atlas.Domain.Identity.Entities;
 using Atlas.Domain.LowCode.Entities;
@@ -304,6 +305,11 @@ public sealed class NavigationProjectionService : INavigationProjectionService
         }
 
         if (permissionSet.Contains("*:*:*"))
+        {
+            return true;
+        }
+
+        if (permissionSet.Contains(PermissionCodes.SystemAdmin))
         {
             return true;
         }

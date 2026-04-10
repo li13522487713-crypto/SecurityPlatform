@@ -16,6 +16,7 @@ Idempotency-Key: {{$guid}}
 }
 
 ### 嵌入聊天（流式 SSE）
+# 期望：eventMode=react 下包含结构化 event，末尾包含 data: [DONE]
 POST {{baseUrl}}/api/v1/embed-chat/stream?eventMode=react
 Content-Type: application/json
 Accept: text/event-stream

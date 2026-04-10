@@ -351,6 +351,35 @@ export default {
     formsData: "Forms & Data",
     settings: "Settings"
   },
+  sidebarProjection: {
+    groups: {
+      ai: "AI",
+      data: "Data",
+      organization: "Organization",
+      workflow: "Workflow",
+      runtime: "Runtime",
+      settings: "Settings",
+      security: "Security",
+      governance: "Governance",
+      connectors: "Connectors",
+      core: "Core"
+    },
+    items: {
+      organization: "Organization",
+      agent: "Agent",
+      workflow: "Workflow",
+      knowledgeBase: "Knowledge Base",
+      "knowledge-base": "Knowledge Base",
+      "ai-evaluation": "AI Evaluation",
+      "model-config": "Model Config",
+      "dynamic-data": "Dynamic Data",
+      "workflow-designer": "Workflow Designer",
+      "logic-flow": "Logic Flow",
+      "ai-marketplace": "AI Marketplace",
+      "system-settings": "System Settings",
+      "project-management": "Project Management"
+    }
+  },
   header: {
     searchPlaceholder: "Search resources, apps, or settings...",
     tenant: "Tenant"

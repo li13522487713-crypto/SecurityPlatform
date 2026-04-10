@@ -1148,18 +1148,24 @@ public sealed class RuntimeRouteQueryService : IRuntimeRouteQueryService
 
     public async Task<RuntimePageResponse?> GetRuntimePageAsync(TenantId tenantId, string appKey, string pageKey, CancellationToken cancellationToken = default)
     {
-        var bundle = await GetActiveReleaseBundleByAppKeyAsync(tenantId, appKey, cancellationToken)
+        var bundle = await GetActiveReleaseBundleByAppKeyAsync(tenantId, appKey, cancellationToken);
+        if (bundle is not null)
+        {
+            var route = ParseRuntimeProjectionRoutes(bundle.RuntimeProjectionJson)
+                .FirstOrDefault(item =>
+                    string.Equals(item.AppKey, appKey, StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(item.PageKey, pageKey, StringComparison.OrdinalIgnoreCase)
+                    && item.IsActive);
+            return route is null
+                ? null
+                : new RuntimePageResponse(route.AppKey, route.PageKey, route.SchemaVersion, route.IsActive);
+        }
+
+        var draftContext = await GetDraftRuntimeContextByAppKeyAsync(tenantId, appKey, cancellationToken)
             ?? throw new BusinessException(
                 ErrorCodes.NotFound,
-                $"应用 {appKey} 尚未发布，运行态仅允许读取发布工件。");
-        var route = ParseRuntimeProjectionRoutes(bundle.RuntimeProjectionJson)
-            .FirstOrDefault(item =>
-                string.Equals(item.AppKey, appKey, StringComparison.OrdinalIgnoreCase)
-                && string.Equals(item.PageKey, pageKey, StringComparison.OrdinalIgnoreCase)
-                && item.IsActive);
-        return route is null
-            ? null
-            : new RuntimePageResponse(route.AppKey, route.PageKey, route.SchemaVersion, route.IsActive);
+                $"应用 {appKey} 不存在。");
+        return await GetDraftRuntimePageAsync(tenantId, draftContext.AppId, appKey, pageKey, cancellationToken);
     }
 
     public async Task<RuntimePageResponse?> GetRuntimePageAsync(
@@ -1231,22 +1237,62 @@ public sealed class RuntimeRouteQueryService : IRuntimeRouteQueryService
 
     public async Task<RuntimeMenuResponse> GetRuntimeMenuAsync(TenantId tenantId, string appKey, CancellationToken cancellationToken = default)
     {
-        var bundle = await GetActiveReleaseBundleByAppKeyAsync(tenantId, appKey, cancellationToken)
+        var bundle = await GetActiveReleaseBundleByAppKeyAsync(tenantId, appKey, cancellationToken);
+        if (bundle is not null)
+        {
+            var releaseItems = ParseNavigationProjectionItems(bundle.NavigationProjectionSnapshotJson)
+                .Where(item =>
+                    string.Equals(item.AppKey, appKey, StringComparison.OrdinalIgnoreCase)
+                    && item.IsActive)
+                .OrderBy(item => item.SortOrder)
+                .ThenBy(item => item.PageKey, StringComparer.OrdinalIgnoreCase)
+                .Select(item => new RuntimeMenuItem(
+                    item.PageKey,
+                    string.IsNullOrWhiteSpace(item.Title) ? item.PageKey : item.Title,
+                    string.IsNullOrWhiteSpace(item.RoutePath) ? $"/r/{item.AppKey}/{item.PageKey}" : item.RoutePath,
+                    item.Icon,
+                    item.SortOrder))
+                .ToArray();
+            return new RuntimeMenuResponse(appKey, releaseItems);
+        }
+
+        var draftContext = await GetDraftRuntimeContextByAppKeyAsync(tenantId, appKey, cancellationToken)
             ?? throw new BusinessException(
                 ErrorCodes.NotFound,
-                $"应用 {appKey} 尚未发布，运行态仅允许读取发布工件。");
-        var items = ParseNavigationProjectionItems(bundle.NavigationProjectionSnapshotJson)
+                $"应用 {appKey} 不存在。");
+        var runtimeDb = await ResolveRuntimeDbByAppIdAsync(tenantId, draftContext.AppId, cancellationToken);
+        var runtimeRoutes = await runtimeDb.Queryable<RuntimeRoute>()
             .Where(item =>
-                string.Equals(item.AppKey, appKey, StringComparison.OrdinalIgnoreCase)
+                item.TenantIdValue == tenantId.Value
+                && item.ManifestId == draftContext.AppId
                 && item.IsActive)
+            .ToListAsync(cancellationToken);
+        var pageSnapshots = await _mainDb.Queryable<LowCodePage>()
+            .Where(item => item.TenantIdValue == tenantId.Value && item.AppId == draftContext.AppId)
+            .Select(item => new
+            {
+                item.PageKey,
+                item.Name,
+                item.RoutePath,
+                item.Icon,
+                item.SortOrder
+            })
+            .ToListAsync(cancellationToken);
+        var pageMap = pageSnapshots.ToDictionary(item => item.PageKey, StringComparer.OrdinalIgnoreCase);
+        var items = runtimeRoutes
+            .OrderBy(item => item.PageKey, StringComparer.OrdinalIgnoreCase)
+            .Select(item =>
+            {
+                pageMap.TryGetValue(item.PageKey, out var page);
+                return new RuntimeMenuItem(
+                    item.PageKey,
+                    page is null || string.IsNullOrWhiteSpace(page.Name) ? item.PageKey : page.Name,
+                    page is null || string.IsNullOrWhiteSpace(page.RoutePath) ? $"/r/{item.AppKey}/{item.PageKey}" : page.RoutePath!,
+                    page?.Icon,
+                    page?.SortOrder ?? 0);
+            })
             .OrderBy(item => item.SortOrder)
             .ThenBy(item => item.PageKey, StringComparer.OrdinalIgnoreCase)
-            .Select(item => new RuntimeMenuItem(
-                item.PageKey,
-                string.IsNullOrWhiteSpace(item.Title) ? item.PageKey : item.Title,
-                string.IsNullOrWhiteSpace(item.RoutePath) ? $"/r/{item.AppKey}/{item.PageKey}" : item.RoutePath,
-                item.Icon,
-                item.SortOrder))
             .ToArray();
         return new RuntimeMenuResponse(appKey, items);
     }
@@ -1322,6 +1368,73 @@ public sealed class RuntimeRouteQueryService : IRuntimeRouteQueryService
             .FirstAsync(
                 item => item.TenantIdValue == tenantId.Value && item.ReleaseId == activeRelease.Id,
                 cancellationToken);
+    }
+
+    private async Task<AppManifest?> GetManifestByAppKeyAsync(
+        TenantId tenantId,
+        string appKey,
+        CancellationToken cancellationToken)
+    {
+        return await _mainDb.Queryable<AppManifest>()
+            .FirstAsync(
+                item => item.TenantIdValue == tenantId.Value && item.AppKey == appKey,
+                cancellationToken);
+    }
+
+    private async Task<DraftRuntimeContext?> GetDraftRuntimeContextByAppKeyAsync(
+        TenantId tenantId,
+        string appKey,
+        CancellationToken cancellationToken)
+    {
+        var manifest = await GetManifestByAppKeyAsync(tenantId, appKey, cancellationToken);
+        if (manifest is not null)
+        {
+            return new DraftRuntimeContext(manifest.Id, appKey);
+        }
+
+        var app = await _mainDb.Queryable<LowCodeApp>()
+            .FirstAsync(
+                item => item.TenantIdValue == tenantId.Value && item.AppKey == appKey,
+                cancellationToken);
+        return app is null
+            ? null
+            : new DraftRuntimeContext(app.Id, app.AppKey);
+    }
+
+    private async Task<RuntimePageResponse?> GetDraftRuntimePageAsync(
+        TenantId tenantId,
+        long appId,
+        string appKey,
+        string pageKey,
+        CancellationToken cancellationToken)
+    {
+        var runtimeDb = await ResolveRuntimeDbByAppIdAsync(tenantId, appId, cancellationToken);
+        var route = await runtimeDb.Queryable<RuntimeRoute>()
+            .FirstAsync(
+                item =>
+                    item.TenantIdValue == tenantId.Value
+                    && item.ManifestId == appId
+                    && item.AppKey == appKey
+                    && item.PageKey == pageKey
+                    && item.IsActive,
+                cancellationToken);
+        return route is null
+            ? null
+            : new RuntimePageResponse(route.AppKey, route.PageKey, route.SchemaVersion, route.IsActive);
+    }
+
+    private async Task<ISqlSugarClient> ResolveRuntimeDbByManifestIdAsync(
+        TenantId tenantId,
+        long manifestId,
+        CancellationToken cancellationToken)
+    {
+        if (manifestId > 0)
+        {
+            await EnsureRuntimeReadableAsync(tenantId, manifestId, cancellationToken);
+            return await _appDbScopeFactory.GetAppClientAsync(tenantId, manifestId, cancellationToken);
+        }
+
+        return _mainDb;
     }
 
     private static IReadOnlyList<RuntimeProjectionRouteSnapshot> ParseRuntimeProjectionRoutes(string? runtimeProjectionJson)
@@ -1424,6 +1537,10 @@ public sealed class RuntimeRouteQueryService : IRuntimeRouteQueryService
         public string? Icon { get; init; }
         public int SortOrder { get; init; }
     }
+
+    private sealed record DraftRuntimeContext(
+        long AppId,
+        string AppKey);
 }
 
 public sealed class AppDesignerSnapshotService : IAppDesignerSnapshotService

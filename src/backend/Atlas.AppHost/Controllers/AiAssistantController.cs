@@ -6,6 +6,7 @@ using Atlas.Presentation.Shared.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Atlas.Presentation.Shared.Filters;
+using Atlas.Presentation.Shared.Helpers;
 
 namespace Atlas.AppHost.Controllers;
 
@@ -82,19 +83,11 @@ public sealed class AiAssistantController : ControllerBase
     public async Task ChatStream(
         [FromBody] AiChatRequest request, CancellationToken cancellationToken)
     {
-        Response.ContentType = "text/event-stream";
-        Response.Headers.CacheControl = "no-cache";
-        Response.Headers.Connection = "keep-alive";
-
         var tenantId = _tenantProvider.GetTenantId();
-
-        await foreach (var chunk in _aiService.ChatStreamAsync(tenantId, request, cancellationToken))
-        {
-            await Response.WriteAsync($"data: {chunk}\n\n", cancellationToken);
-            await Response.Body.FlushAsync(cancellationToken);
-        }
-
-        await Response.WriteAsync("data: [DONE]\n\n", cancellationToken);
-        await Response.Body.FlushAsync(cancellationToken);
+        var streamResult = TypedResults.ServerSentEvents(
+            SseStreamHelper.AppendDone(
+                _aiService.ChatStreamAsync(tenantId, request, cancellationToken),
+                cancellationToken: cancellationToken));
+        await streamResult.ExecuteAsync(HttpContext);
     }
 }
