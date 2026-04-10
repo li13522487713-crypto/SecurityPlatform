@@ -247,8 +247,8 @@ import {
   getAppDynamicTableFields,
   type AppPageListItem,
   type AppRoleFieldPermissionGroupDto,
-} from "@/services/api-organization";
-import { getDepartmentsAll } from "@/services/api-org-management";
+  getDepartmentsAll
+} from "@/services/api-org-management";
 
 const { t } = useI18n();
 

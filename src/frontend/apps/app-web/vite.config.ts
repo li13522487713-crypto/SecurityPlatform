@@ -38,6 +38,11 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           secure: false
         },
+        "/api/v2/workflows": {
+          target: appHostTarget,
+          changeOrigin: true,
+          secure: false
+        },
         "/api": {
           target: apiTarget,
           changeOrigin: true,

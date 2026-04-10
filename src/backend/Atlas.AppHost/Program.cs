@@ -1,5 +1,6 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.IO.Compression;
+using System.Reflection;
 using System.Security.Claims;
 using System.Text;
 using Atlas.AppHost;
@@ -29,6 +30,8 @@ using Microsoft.AspNetCore.Authentication.Certificate;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authorization.Policy;
+using Microsoft.AspNetCore.Mvc.ApplicationParts;
+using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.AspNetCore.SignalR;
 using Atlas.Presentation.Shared.Authorization;
@@ -133,6 +136,11 @@ var mvcBuilder = builder.Services.AddControllers(options =>
     options.JsonSerializerOptions.Converters.Add(new Atlas.Presentation.Shared.Json.FlexibleLongJsonConverter());
     options.JsonSerializerOptions.Converters.Add(new Atlas.Presentation.Shared.Json.FlexibleNullableLongJsonConverter());
     options.JsonSerializerOptions.Converters.Add(new Atlas.Presentation.Shared.Json.SensitiveObjectConverterFactory());
+});
+
+mvcBuilder.ConfigureApplicationPartManager(manager =>
+{
+    manager.FeatureProviders.Add(new NamespaceExcludingControllerFeatureProvider("Atlas.Presentation.Shared.Controllers.TenantAppV2"));
 });
 
 builder.Services.AddOpenApiDocument(config =>
@@ -529,4 +537,18 @@ static string ResolvePlatformConfigRoot(string configuredRoot, string contentRoo
     }
 
     return fallbackRoot;
+}
+
+sealed class NamespaceExcludingControllerFeatureProvider(string excludedNamespacePrefix) : ControllerFeatureProvider
+{
+    protected override bool IsController(TypeInfo typeInfo)
+    {
+        if (!base.IsController(typeInfo))
+        {
+            return false;
+        }
+
+        var typeNamespace = typeInfo.Namespace ?? string.Empty;
+        return !typeNamespace.StartsWith(excludedNamespacePrefix, StringComparison.Ordinal);
+    }
 }

@@ -11,6 +11,7 @@ using Atlas.Domain.LowCode.Entities;
 using Atlas.Domain.Platform.Entities;
 using Atlas.Domain.System.Entities;
 using Atlas.Infrastructure.Services;
+using Atlas.Infrastructure.Setup;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.Sqlite;

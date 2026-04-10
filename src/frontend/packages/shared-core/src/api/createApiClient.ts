@@ -3,12 +3,14 @@ import {
   clearAntiforgeryToken,
   clearAuthStorage,
   getAccessToken,
+  getAuthProfile,
   getAntiforgeryToken,
   getClientContextHeaders,
   getProjectId,
   getProjectScopeEnabled,
   getRefreshToken,
   getTenantId,
+  setTenantId,
   setAccessToken,
   setAntiforgeryToken,
   setRefreshToken
@@ -128,7 +130,14 @@ export function createApiClient(config: SharedApiClientConfig): SharedApiClient 
 
   async function attachCommonHeaders(headers: Headers, method: string, options?: RequestOptions) {
     const token = getAccessToken();
-    const tenantId = getTenantId();
+    let tenantId = getTenantId();
+    if (!tenantId && token) {
+      const profileTenantId = getAuthProfile()?.tenantId?.trim();
+      if (profileTenantId) {
+        tenantId = profileTenantId;
+        setTenantId(profileTenantId);
+      }
+    }
     const shouldAttachSecurityHeaders = Boolean(token);
 
     if (token) headers.set("Authorization", `Bearer ${token}`);

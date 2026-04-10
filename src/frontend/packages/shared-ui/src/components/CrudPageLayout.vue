@@ -12,7 +12,7 @@
     <template v-if="$slots['card-extra']" #extra>
       <slot name="card-extra" />
     </template>
-    <div class="crud-search-bar" data-testid="e2e-crud-search-bar">
+    <div v-if="showSearchComputed" class="crud-search-bar" data-testid="e2e-crud-search-bar">
       <div class="search-form-wrapper">
         <a-form layout="inline" style="width: 100%; display: flex; flex-wrap: wrap; gap: 0px 0;" @submit.prevent="$emit('search')">
           <a-form-item v-if="keywordModel !== undefined">
@@ -39,7 +39,7 @@
       </div>
     </div>
 
-    <div class="crud-toolbar" data-testid="e2e-crud-toolbar">
+    <div v-if="showToolbarComputed" class="crud-toolbar" data-testid="e2e-crud-toolbar">
       <div class="toolbar-left">
         <a-space wrap>
           <slot name="toolbar-actions" />
@@ -107,6 +107,8 @@ const props = defineProps<{
   drawerWidth?: number | string;
   submitLoading?: boolean;
   submitDisabled?: boolean;
+  showSearch?: boolean;
+  showToolbar?: boolean;
 }>();
 
 const vueSlots = useSlots();
@@ -125,6 +127,8 @@ const { t } = useI18n();
 
 const submitLoadingComputed = computed(() => props.submitLoading ?? false);
 const submitDisabledComputed = computed(() => props.submitDisabled ?? false);
+const showSearchComputed = computed(() => props.showSearch ?? true);
+const showToolbarComputed = computed(() => props.showToolbar ?? true);
 
 const keywordModel = computed({
   get: () => props.keyword,

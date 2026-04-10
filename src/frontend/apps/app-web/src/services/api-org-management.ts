@@ -1,5 +1,6 @@
 import type { ApiResponse, PagedRequest, PagedResult } from "@atlas/shared-core";
 import type {
+  AppOrganizationWorkspaceResponse,
   TenantAppMemberListItem,
   TenantAppMemberDetail,
   TenantAppRoleListItem,
@@ -13,6 +14,8 @@ import type {
   AppOrganizationUpdateDepartmentRequest,
   AppOrganizationCreatePositionRequest,
   AppOrganizationUpdatePositionRequest,
+  AppOrganizationCreateProjectRequest,
+  AppOrganizationUpdateProjectRequest,
   AppOrganizationCreateMemberUserRequest,
   AppOrganizationUpdateMemberProfileRequest,
   AppOrganizationAssignMembersRequest,
@@ -41,6 +44,10 @@ function positionsBase(appId: string): string {
 
 function membersBase(appId: string): string {
   return `${V2_BASE}/${encodeURIComponent(appId)}/members`;
+}
+
+function projectsBase(appId: string): string {
+  return `${V2_BASE}/${encodeURIComponent(appId)}/projects`;
 }
 
 // ========== Members (Users) ==========
@@ -214,7 +221,7 @@ export async function createDepartment(
   appId: string,
   req: AppOrganizationCreateDepartmentRequest
 ): Promise<void> {
-  await requestApi<ApiResponse<unknown>>(`${orgBase(appId)}/departments`, {
+  await requestApi<ApiResponse<unknown>>(deptsBase(appId), {
     method: "POST",
     body: JSON.stringify(req)
   });
@@ -226,14 +233,14 @@ export async function updateDepartment(
   req: AppOrganizationUpdateDepartmentRequest
 ): Promise<void> {
   await requestApi<ApiResponse<unknown>>(
-    `${orgBase(appId)}/departments/${encodeURIComponent(id)}`,
+    `${deptsBase(appId)}/${encodeURIComponent(id)}`,
     { method: "PUT", body: JSON.stringify(req) }
   );
 }
 
 export async function deleteDepartment(appId: string, id: string): Promise<void> {
   await requestApi<ApiResponse<unknown>>(
-    `${orgBase(appId)}/departments/${encodeURIComponent(id)}`,
+    `${deptsBase(appId)}/${encodeURIComponent(id)}`,
     { method: "DELETE" }
   );
 }
@@ -275,7 +282,7 @@ export async function createPosition(
   appId: string,
   req: AppOrganizationCreatePositionRequest
 ): Promise<void> {
-  await requestApi<ApiResponse<unknown>>(`${orgBase(appId)}/positions`, {
+  await requestApi<ApiResponse<unknown>>(positionsBase(appId), {
     method: "POST",
     body: JSON.stringify(req)
   });
@@ -287,14 +294,208 @@ export async function updatePosition(
   req: AppOrganizationUpdatePositionRequest
 ): Promise<void> {
   await requestApi<ApiResponse<unknown>>(
-    `${orgBase(appId)}/positions/${encodeURIComponent(id)}`,
+    `${positionsBase(appId)}/${encodeURIComponent(id)}`,
     { method: "PUT", body: JSON.stringify(req) }
   );
 }
 
 export async function deletePosition(appId: string, id: string): Promise<void> {
   await requestApi<ApiResponse<unknown>>(
-    `${orgBase(appId)}/positions/${encodeURIComponent(id)}`,
+    `${positionsBase(appId)}/${encodeURIComponent(id)}`,
     { method: "DELETE" }
   );
+}
+
+// ========== Projects ==========
+
+export async function createProject(
+  appId: string,
+  req: AppOrganizationCreateProjectRequest
+): Promise<void> {
+  await requestApi<ApiResponse<unknown>>(projectsBase(appId), {
+    method: "POST",
+    body: JSON.stringify(req)
+  });
+}
+
+export async function updateProject(
+  appId: string,
+  id: string,
+  req: AppOrganizationUpdateProjectRequest
+): Promise<void> {
+  await requestApi<ApiResponse<unknown>>(
+    `${projectsBase(appId)}/${encodeURIComponent(id)}`,
+    { method: "PUT", body: JSON.stringify(req) }
+  );
+}
+
+export async function deleteProject(appId: string, id: string): Promise<void> {
+  await requestApi<ApiResponse<unknown>>(
+    `${projectsBase(appId)}/${encodeURIComponent(id)}`,
+    { method: "DELETE" }
+  );
+}
+
+// ========== Organization Workspace ==========
+
+export async function getOrganizationWorkspace(
+  appId: string,
+  params: PagedRequest,
+  roleId?: string
+): Promise<AppOrganizationWorkspaceResponse> {
+  const extra: Record<string, string | undefined> = {};
+  if (roleId) extra["roleId"] = roleId;
+  const qs = toQuery(params, extra);
+  const resp = await requestApi<ApiResponse<AppOrganizationWorkspaceResponse>>(
+    `${orgBase(appId)}/workspace?${qs}`
+  );
+  if (!resp.data) throw new Error(resp.message ?? "Failed to load workspace");
+  return resp.data;
+}
+
+// ========== Permissions ==========
+
+export interface PermissionListItem {
+  id: string;
+  name: string;
+  code: string;
+  type: string;
+  description: string | null;
+}
+
+export async function getAppPermissions(appId: string): Promise<PermissionListItem[]> {
+  const qs = new URLSearchParams({ PageIndex: "1", PageSize: "500" });
+  const resp = await requestApi<ApiResponse<{ items: PermissionListItem[] }>>(
+    `${V2_BASE}/${encodeURIComponent(appId)}/permissions?${qs.toString()}`
+  );
+  return resp.data?.items ?? [];
+}
+
+export async function updateRolePermissions(appId: string, roleId: string, permissionCodes: string[]): Promise<void> {
+  await requestApi<ApiResponse<unknown>>(
+    `${rolesBase(appId)}/${encodeURIComponent(roleId)}/permissions`,
+    { method: "PUT", body: JSON.stringify({ permissionCodes }) }
+  );
+}
+
+// ========== App Role Governance ==========
+
+export interface AppRoleAssignmentDetail {
+  roleId: string;
+  roleCode: string;
+  roleName: string;
+  dataScope: number;
+  deptIds: string[];
+}
+
+export interface AppPageListItem {
+  id: string;
+  pageKey: string;
+  name: string;
+  description: string | null;
+  routePath: string | null;
+  parentPageId: number | null;
+  sortOrder: number;
+  isPublished: boolean;
+}
+
+export interface AppRoleFieldPermissionItemDto {
+  fieldName: string;
+  canView: boolean;
+  canEdit: boolean;
+}
+
+export interface AppRoleFieldPermissionGroupDto {
+  tableKey: string;
+  fields: AppRoleFieldPermissionItemDto[];
+}
+
+export interface AppAvailableDynamicTableItem {
+  tableKey: string;
+  displayName: string;
+}
+
+export interface AppDynamicFieldItem {
+  name: string;
+  displayName: string | null;
+}
+
+export async function getAppRoleDataScope(appId: string, roleId: string): Promise<AppRoleAssignmentDetail> {
+  const resp = await requestApi<ApiResponse<AppRoleAssignmentDetail>>(
+    `${rolesBase(appId)}/${encodeURIComponent(roleId)}/data-scope`
+  );
+  if (!resp.data) throw new Error(resp.message ?? "Failed to load data scope");
+  return resp.data;
+}
+
+export async function updateAppRoleDataScope(
+  appId: string,
+  roleId: string,
+  body: { dataScope: number; deptIds?: number[] }
+): Promise<void> {
+  await requestApi<ApiResponse<unknown>>(
+    `${rolesBase(appId)}/${encodeURIComponent(roleId)}/data-scope`,
+    { method: "PUT", body: JSON.stringify(body) }
+  );
+}
+
+export async function getAvailableAppPages(appId: string): Promise<AppPageListItem[]> {
+  const resp = await requestApi<ApiResponse<AppPageListItem[]>>(
+    `${rolesBase(appId)}/available-pages`
+  );
+  return resp.data ?? [];
+}
+
+export async function getRolePageIds(appId: string, roleId: string): Promise<number[]> {
+  const resp = await requestApi<ApiResponse<number[]>>(
+    `${rolesBase(appId)}/${encodeURIComponent(roleId)}/pages`
+  );
+  return resp.data ?? [];
+}
+
+export async function updateRolePages(appId: string, roleId: string, pageIds: number[]): Promise<void> {
+  await requestApi<ApiResponse<unknown>>(
+    `${rolesBase(appId)}/${encodeURIComponent(roleId)}/pages`,
+    { method: "PUT", body: JSON.stringify({ pageIds }) }
+  );
+}
+
+export async function getAvailableDynamicTables(
+  appId: string,
+  keyword?: string
+): Promise<AppAvailableDynamicTableItem[]> {
+  const qs = keyword?.trim() ? `?keyword=${encodeURIComponent(keyword.trim())}` : "";
+  const resp = await requestApi<ApiResponse<AppAvailableDynamicTableItem[]>>(
+    `${rolesBase(appId)}/available-dynamic-tables${qs}`
+  );
+  return resp.data ?? [];
+}
+
+export async function getRoleFieldPermissions(
+  appId: string,
+  roleId: string
+): Promise<AppRoleFieldPermissionGroupDto[]> {
+  const resp = await requestApi<ApiResponse<AppRoleFieldPermissionGroupDto[]>>(
+    `${rolesBase(appId)}/${encodeURIComponent(roleId)}/field-permissions`
+  );
+  return resp.data ?? [];
+}
+
+export async function updateRoleFieldPermissions(
+  appId: string,
+  roleId: string,
+  groups: AppRoleFieldPermissionGroupDto[]
+): Promise<void> {
+  await requestApi<ApiResponse<unknown>>(
+    `${rolesBase(appId)}/${encodeURIComponent(roleId)}/field-permissions`,
+    { method: "PUT", body: JSON.stringify({ groups }) }
+  );
+}
+
+/** Resolve dynamic table fields within app context (requires app JWT's app_id). */
+export async function getAppDynamicTableFields(tableKey: string): Promise<AppDynamicFieldItem[]> {
+  const resp = await requestApi<ApiResponse<AppDynamicFieldItem[]>>(
+    `/dynamic-tables/${encodeURIComponent(tableKey)}/fields`
+  );
+  return resp.data ?? [];
 }

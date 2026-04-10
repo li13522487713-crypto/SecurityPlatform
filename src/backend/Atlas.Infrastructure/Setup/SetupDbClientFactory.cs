@@ -1,4 +1,3 @@
-using Atlas.Core.Setup;
 using Atlas.Infrastructure.Services;
 using Microsoft.Extensions.Logging;
 using SqlSugar;

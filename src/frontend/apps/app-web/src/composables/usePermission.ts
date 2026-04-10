@@ -1,20 +1,18 @@
 import { useAppUserStore } from "@/stores/user";
+import { hasPermission as hasPermissionWithProfile, isAdminRole } from "@atlas/shared-core";
 
 export function usePermission() {
   const userStore = useAppUserStore();
 
   function isPrivilegedUser(): boolean {
-    if (userStore.profile?.isPlatformAdmin) return true;
     if (userStore.permissions.includes("*:*:*")) return true;
-    return userStore.roles.some((role) =>
-      ["admin", "superadmin"].includes(role.toLowerCase())
-    );
+    return isAdminRole(userStore.profile);
   }
 
   function hasPermission(code?: string): boolean {
     if (!code) return true;
     if (isPrivilegedUser()) return true;
-    return userStore.permissions.includes(code);
+    return hasPermissionWithProfile(userStore.profile, code);
   }
 
   return { hasPermission, isPrivilegedUser };

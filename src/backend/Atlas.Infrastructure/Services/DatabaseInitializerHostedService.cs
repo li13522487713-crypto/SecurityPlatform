@@ -25,6 +25,7 @@ using Atlas.Domain.Plugins;
 using Atlas.Domain.Events;
 using Atlas.Domain.Workflow.Entities;
 using Atlas.Infrastructure.Repositories;
+using Atlas.Infrastructure.Setup;
 using Atlas.Infrastructure.Options;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;

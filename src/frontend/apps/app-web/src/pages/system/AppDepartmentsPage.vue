@@ -4,6 +4,7 @@
       data-testid="app-departments-page"
       :title="t('systemDepartments.pageTitle')"
       :subtitle="t('systemDepartments.pageSubtitle')"
+      :show-search="false"
       :drawer-open="formVisible"
       :drawer-title="formMode === 'create' ? t('systemDepartments.drawerCreateTitle') : t('systemDepartments.drawerEditTitle')"
       :drawer-width="520"
@@ -11,8 +12,8 @@
       @close-form="closeForm"
       @submit="submitForm"
     >
-      <template v-if="canCreate" #card-extra>
-        <a-button type="primary" data-testid="app-departments-create" @click="openCreate">
+      <template #toolbar-actions>
+        <a-button v-if="canCreate" type="primary" data-testid="app-departments-create" @click="openCreate">
           {{ t("systemDepartments.addDepartment") }}
         </a-button>
       </template>
@@ -142,9 +143,9 @@ const isMounted = ref(false);
 
 const placeholderDash = "-";
 
-const canCreate = hasPermission(APP_PERMISSIONS.APP_MEMBERS_UPDATE);
-const canUpdate = hasPermission(APP_PERMISSIONS.APP_MEMBERS_UPDATE);
-const canDelete = hasPermission(APP_PERMISSIONS.APP_MEMBERS_UPDATE);
+const canCreate = hasPermission(APP_PERMISSIONS.APP_DEPARTMENTS_UPDATE);
+const canUpdate = hasPermission(APP_PERMISSIONS.APP_DEPARTMENTS_UPDATE);
+const canDelete = hasPermission(APP_PERMISSIONS.APP_DEPARTMENTS_UPDATE);
 
 const tableColumns = computed(() => [
   { title: t("systemDepartments.colDepartmentName"), dataIndex: "name", key: "name" },
@@ -455,14 +456,6 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.app-departments-page-root :deep(.crud-search-bar) {
-  display: none;
-}
-
-.app-departments-page-root :deep(.crud-toolbar) {
-  display: none;
-}
-
 .app-departments-inner-card {
   background: var(--ant-color-bg-container, #fff);
 }

@@ -1,6 +1,6 @@
 using SqlSugar;
 
-namespace Atlas.Core.Setup;
+namespace Atlas.Infrastructure.Setup;
 
 /// <summary>
 /// Setup 专用数据库客户端工厂。

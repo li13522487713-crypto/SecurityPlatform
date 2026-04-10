@@ -1,50 +1,50 @@
 <template>
   <CrudPageLayout
     data-testid="app-positions-page"
-    v-model:keyword="searchParams.keyword"
+    v-model:keyword="keyword"
     :title="t('systemPositions.pageTitle')"
     :subtitle="t('systemPositions.pageSubtitle')"
     :search-placeholder="t('systemPositions.searchPlaceholder')"
-    :drawer-open="drawerVisible"
-    :drawer-title="isEdit ? t('systemPositions.drawerEditTitle') : t('systemPositions.drawerCreateTitle')"
+    :drawer-open="formVisible"
+    :drawer-title="formMode === 'edit' ? t('systemPositions.drawerEditTitle') : t('systemPositions.drawerCreateTitle')"
     :drawer-width="520"
     :submit-loading="submitting"
-    @update:drawer-open="drawerVisible = $event"
+    @update:drawer-open="formVisible = $event"
     @search="handleSearch"
-    @reset="resetSearch"
-    @close-form="closeDrawer"
-    @submit="handleSubmit"
+    @reset="resetFilters"
+    @close-form="closeForm"
+    @submit="submitForm"
   >
-    <template v-if="canCreate" #card-extra>
-      <a-button type="primary" class="app-positions-create-btn" data-testid="app-positions-create" @click="openCreate">
+    <template #toolbar-actions>
+      <a-button v-if="canCreate" type="primary" data-testid="app-positions-create" @click="openCreate">
         <template #icon><PlusOutlined /></template>
         {{ t("systemPositions.addPosition") }}
       </a-button>
+    </template>
+    <template #toolbar-right>
+      <TableViewToolbar :controller="tableViewController" />
     </template>
 
     <template #table>
       <a-table
         data-testid="app-positions-table"
-        :columns="columns"
-        :data-source="tableData"
+        :columns="tableColumns"
+        :data-source="dataSource"
         :loading="loading"
         :pagination="pagination"
+        :size="tableSize"
         row-key="id"
-        @change="handleTableChange"
+        @change="onTableChange"
       >
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'name'">
             <span style="font-weight: 600">{{ record.name }}</span>
           </template>
           <template v-else-if="column.key === 'code'">
-            <a-tag color="default" style="background: #f3f4f6; border: none; font-family: monospace">{{ record.code }}</a-tag>
+            <a-tag color="default" class="app-positions-code-tag">{{ record.code }}</a-tag>
           </template>
           <template v-else-if="column.key === 'description'">
-            <span
-              class="app-positions-desc-ellipsis"
-              style="color: #6a7282"
-              :title="record.description || undefined"
-            >{{ record.description || "-" }}</span>
+            <span class="app-positions-desc-ellipsis" :title="record.description || undefined">{{ record.description || "-" }}</span>
           </template>
           <template v-else-if="column.key === 'isActive'">
             <a-tag :color="record.isActive ? 'green' : 'red'">
@@ -59,7 +59,7 @@
               <a-popconfirm
                 v-if="canDelete"
                 :title="t('systemPositions.deleteConfirm')"
-                @confirm="handleDelete(record.id)"
+                    @confirm="handleDelete(record.id)"
               >
                 <a-button type="link" size="small" danger :data-testid="`app-positions-delete-${record.id}`">{{ t("common.delete") }}</a-button>
               </a-popconfirm>
@@ -70,21 +70,21 @@
     </template>
 
     <template #form>
-      <a-form ref="formRef" :model="formState" :rules="rules" layout="vertical">
+      <a-form ref="formRef" :model="formModel" :rules="rules" layout="vertical">
         <a-form-item :label="t('systemPositions.positionName')" name="name">
-          <a-input v-model:value="formState.name" data-testid="app-positions-form-name" />
+          <a-input v-model:value="formModel.name" data-testid="app-positions-form-name" />
         </a-form-item>
         <a-form-item :label="t('systemPositions.code')" name="code">
-          <a-input v-model:value="formState.code" data-testid="app-positions-form-code" :disabled="isEdit" />
+          <a-input v-model:value="formModel.code" data-testid="app-positions-form-code" :disabled="formMode === 'edit'" />
         </a-form-item>
         <a-form-item :label="t('systemPositions.description')" name="description">
-          <a-textarea v-model:value="formState.description" :rows="3" />
+          <a-textarea v-model:value="formModel.description" :rows="3" />
         </a-form-item>
         <a-form-item :label="t('systemPositions.status')" name="isActive">
-          <a-switch v-model:checked="formState.isActive" />
+          <a-switch v-model:checked="formModel.isActive" />
         </a-form-item>
         <a-form-item :label="t('systemPositions.sortOrder')" name="sortOrder">
-          <a-input-number v-model:value="formState.sortOrder" :min="0" style="width: 100%" />
+          <a-input-number v-model:value="formModel.sortOrder" :min="0" style="width: 100%" />
         </a-form-item>
       </a-form>
     </template>
@@ -92,15 +92,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from "vue";
-import { message } from "ant-design-vue";
+import { computed } from "vue";
 import { PlusOutlined } from "@ant-design/icons-vue";
-import type { FormInstance, TablePaginationConfig } from "ant-design-vue";
 import { useI18n } from "vue-i18n";
-import { CrudPageLayout } from "@atlas/shared-ui";
-import { usePermission } from "@/composables/usePermission";
+import { CrudPageLayout, TableViewToolbar } from "@atlas/shared-ui";
+import type { Rule } from "ant-design-vue/es/form";
+import { type AppPositionListItem } from "@/types/organization";
 import { APP_PERMISSIONS } from "@/constants/permissions";
-import { useAppContext } from "@/composables/useAppContext";
+import { useAppCrudPage } from "@/composables/useAppCrudPage";
 import {
   getPositionsPaged,
   getPositionDetail,
@@ -108,32 +107,8 @@ import {
   updatePosition,
   deletePosition,
 } from "@/services/api-org-management";
-import type { AppPositionListItem } from "@/types/organization";
 
 const { t } = useI18n();
-const { appId } = useAppContext();
-const { hasPermission } = usePermission();
-
-const canCreate = hasPermission(APP_PERMISSIONS.APP_ROLES_UPDATE);
-const canUpdate = hasPermission(APP_PERMISSIONS.APP_ROLES_UPDATE);
-const canDelete = hasPermission(APP_PERMISSIONS.APP_ROLES_UPDATE);
-
-const searchParams = reactive<{ keyword?: string; pageIndex: number; pageSize: number }>({
-  keyword: undefined,
-  pageIndex: 1,
-  pageSize: 10
-});
-
-const loading = ref(false);
-const tableData = ref<AppPositionListItem[]>([]);
-const pagination = reactive({
-  current: 1,
-  pageSize: 10,
-  total: 0,
-  showSizeChanger: true,
-  showTotal: (total: number) => t("crud.totalItems", { total })
-});
-
 const columns = computed(() => [
   { title: t("systemPositions.colPositionName"), dataIndex: "name", key: "name" },
   { title: t("systemPositions.colCode"), dataIndex: "code", key: "code" },
@@ -143,170 +118,108 @@ const columns = computed(() => [
   { title: t("systemPositions.colActions"), key: "action", width: 150, fixed: "right" as const }
 ]);
 
-const drawerVisible = ref(false);
-const submitting = ref(false);
-const isEdit = ref(false);
-const formRef = ref<FormInstance>();
-const currentId = ref<string | null>(null);
+interface PositionFormModel {
+  name: string;
+  code: string;
+  description?: string;
+  isActive: boolean;
+  sortOrder: number;
+}
 
-const formState = reactive({
-  name: "",
-  code: "",
-  description: "",
-  isActive: true,
-  sortOrder: 0
-});
+interface PositionUpdatePayload {
+  name: string;
+  description?: string;
+  isActive: boolean;
+  sortOrder: number;
+}
 
-const rules = {
+const rules: Record<string, Rule[]> = {
   name: [{ required: true, message: t("systemPositions.nameRequired"), trigger: "blur" as const }],
   code: [{ required: true, message: t("systemPositions.codeRequired"), trigger: "blur" as const }]
 };
 
-onMounted(() => {
-  void fetchData();
+const {
+  keyword,
+  dataSource,
+  loading,
+  pagination,
+  formVisible,
+  formMode,
+  formRef,
+  formModel,
+  submitting,
+  tableColumns,
+  tableViewController,
+  tableSize,
+  canCreate,
+  canUpdate,
+  canDelete,
+  onTableChange,
+  handleSearch,
+  resetFilters,
+  openCreate,
+  openEdit,
+  closeForm,
+  submitForm,
+  handleDelete
+} = useAppCrudPage<AppPositionListItem, AppPositionListItem, PositionFormModel, PositionUpdatePayload>({
+  tableKey: "app.positions",
+  columns,
+  permissions: {
+    create: APP_PERMISSIONS.APP_POSITIONS_UPDATE,
+    update: APP_PERMISSIONS.APP_POSITIONS_UPDATE,
+    delete: APP_PERMISSIONS.APP_POSITIONS_UPDATE
+  },
+  appApi: {
+    list: (appId, params) => getPositionsPaged(appId, params),
+    detail: (appId, id) => getPositionDetail(appId, id),
+    create: (appId, data) => createPosition(appId, data),
+    update: (appId, id, data) => updatePosition(appId, id, data),
+    delete: (appId, id) => deletePosition(appId, id)
+  },
+  defaultFormModel: () => ({
+    name: "",
+    code: "",
+    description: "",
+    isActive: true,
+    sortOrder: 0
+  }),
+  formRules: rules,
+  buildListParams: (base) => ({
+    keyword: base.keyword,
+    pageIndex: base.pageIndex,
+    pageSize: base.pageSize
+  }),
+  mapDetailToForm: (detail, model) => {
+    model.name = detail.name;
+    model.code = detail.code;
+    model.description = detail.description ?? "";
+    model.isActive = detail.isActive;
+    model.sortOrder = detail.sortOrder;
+  },
+  buildCreatePayload: (model) => ({
+    name: model.name,
+    code: model.code,
+    description: model.description || undefined,
+    isActive: model.isActive,
+    sortOrder: model.sortOrder
+  }),
+  buildUpdatePayload: (model) => ({
+    name: model.name,
+    description: model.description || undefined,
+    isActive: model.isActive,
+    sortOrder: model.sortOrder
+  }),
+  translate: (key, params) => String(t(key, (params ?? {}) as Record<string, string | number | boolean>))
 });
-
-async function fetchData() {
-  const id = appId.value;
-  if (!id) return;
-
-  loading.value = true;
-  try {
-    const result = await getPositionsPaged(id, {
-      keyword: searchParams.keyword,
-      pageIndex: searchParams.pageIndex,
-      pageSize: searchParams.pageSize
-    });
-    tableData.value = result.items;
-    pagination.total = result.total;
-    pagination.current = searchParams.pageIndex;
-    pagination.pageSize = searchParams.pageSize;
-  } catch {
-    message.error(t("crud.queryFailed"));
-  } finally {
-    loading.value = false;
-  }
-}
-
-function handleTableChange(pag: TablePaginationConfig) {
-  searchParams.pageIndex = pag.current ?? 1;
-  searchParams.pageSize = pag.pageSize ?? 10;
-  void fetchData();
-}
-
-function handleSearch() {
-  searchParams.pageIndex = 1;
-  void fetchData();
-}
-
-function resetSearch() {
-  searchParams.keyword = undefined;
-  searchParams.pageIndex = 1;
-  void fetchData();
-}
-
-function resetForm() {
-  formState.name = "";
-  formState.code = "";
-  formState.description = "";
-  formState.isActive = true;
-  formState.sortOrder = 0;
-}
-
-function openCreate() {
-  isEdit.value = false;
-  currentId.value = null;
-  resetForm();
-  drawerVisible.value = true;
-}
-
-async function openEdit(record: AppPositionListItem) {
-  const id = appId.value;
-  if (!id) return;
-
-  isEdit.value = true;
-  currentId.value = record.id;
-  try {
-    const detail = await getPositionDetail(id, record.id);
-    formState.name = detail.name;
-    formState.code = detail.code;
-    formState.description = detail.description ?? "";
-    formState.isActive = detail.isActive;
-    formState.sortOrder = detail.sortOrder;
-    drawerVisible.value = true;
-  } catch {
-    message.error(t("crud.queryFailed"));
-  }
-}
-
-function closeDrawer() {
-  drawerVisible.value = false;
-  formRef.value?.resetFields();
-}
-
-async function handleSubmit() {
-  const id = appId.value;
-  if (!id) return;
-
-  try {
-    await formRef.value?.validate();
-  } catch {
-    return;
-  }
-
-  submitting.value = true;
-  try {
-    if (isEdit.value && currentId.value) {
-      await updatePosition(id, currentId.value, {
-        name: formState.name,
-        description: formState.description || undefined,
-        isActive: formState.isActive,
-        sortOrder: formState.sortOrder
-      });
-      message.success(t("crud.updateSuccess"));
-    } else {
-      await createPosition(id, {
-        name: formState.name,
-        code: formState.code,
-        description: formState.description || undefined,
-        isActive: formState.isActive,
-        sortOrder: formState.sortOrder
-      });
-      message.success(t("crud.createSuccess"));
-    }
-    closeDrawer();
-    void fetchData();
-  } catch (e: unknown) {
-    message.error(e instanceof Error ? e.message : t("crud.operationFailed"));
-  } finally {
-    submitting.value = false;
-  }
-}
-
-async function handleDelete(posId: string) {
-  const id = appId.value;
-  if (!id) return;
-
-  try {
-    await deletePosition(id, posId);
-    message.success(t("crud.deleteSuccess"));
-    void fetchData();
-  } catch (e: unknown) {
-    message.error(e instanceof Error ? e.message : t("crud.deleteFailed"));
-  }
-}
 </script>
 
 <style scoped>
-.app-positions-create-btn {
-  background: #722ed1 !important;
-  border-color: #722ed1 !important;
-}
-
-.app-positions-create-btn:hover,
-.app-positions-create-btn:focus {
-  background: #9254de !important;
-  border-color: #9254de !important;
+.app-positions-code-tag {
+  margin: 0;
+  border: none;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  background: var(--ant-color-fill-secondary, #f5f5f5);
 }
 
 .app-positions-desc-ellipsis {
@@ -315,5 +228,6 @@ async function handleDelete(posId: string) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: var(--ant-color-text-secondary, rgba(0, 0, 0, 0.45));
 }
 </style>
