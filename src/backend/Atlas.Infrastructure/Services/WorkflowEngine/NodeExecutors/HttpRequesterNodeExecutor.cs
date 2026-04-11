@@ -23,6 +23,7 @@ public sealed class HttpRequesterNodeExecutor : INodeExecutor
         var urlTemplate = context.GetConfigString("url");
         var method = context.GetConfigString("method", "GET");
         var bodyTemplate = context.GetConfigString("body");
+        var headers = ResolveHeaders(context);
 
         var url = context.ReplaceVariables(urlTemplate);
         var body = context.ReplaceVariables(bodyTemplate);
@@ -44,6 +45,10 @@ public sealed class HttpRequesterNodeExecutor : INodeExecutor
             client.Timeout = TimeSpan.FromSeconds(30);
 
             var request = new HttpRequestMessage(new HttpMethod(method.ToUpperInvariant()), targetUri);
+            foreach (var header in headers)
+            {
+                request.Headers.TryAddWithoutValidation(header.Key, header.Value);
+            }
             if (!string.IsNullOrWhiteSpace(body) && method.ToUpperInvariant() is "POST" or "PUT" or "PATCH")
             {
                 request.Content = new StringContent(body, Encoding.UTF8, "application/json");
@@ -61,6 +66,59 @@ public sealed class HttpRequesterNodeExecutor : INodeExecutor
         {
             return new NodeExecutionResult(false, outputs, $"HTTP 请求失败: {ex.Message}");
         }
+    }
+
+    private static Dictionary<string, string> ResolveHeaders(NodeExecutionContext context)
+    {
+        var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (!VariableResolver.TryGetConfigValue(context.Node.Config, "headers", out var raw))
+        {
+            return headers;
+        }
+
+        if (raw.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var property in raw.EnumerateObject())
+            {
+                var value = VariableResolver.ToDisplayText(property.Value);
+                if (!string.IsNullOrWhiteSpace(value))
+                {
+                    headers[property.Name] = context.ReplaceVariables(value);
+                }
+            }
+
+            return headers;
+        }
+
+        var text = VariableResolver.ToDisplayText(raw).Trim();
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return headers;
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(text);
+            if (doc.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                return headers;
+            }
+
+            foreach (var property in doc.RootElement.EnumerateObject())
+            {
+                var value = VariableResolver.ToDisplayText(property.Value);
+                if (!string.IsNullOrWhiteSpace(value))
+                {
+                    headers[property.Name] = context.ReplaceVariables(value);
+                }
+            }
+        }
+        catch
+        {
+            // headers 非 JSON 时忽略，保持向后兼容
+        }
+
+        return headers;
     }
 
     private static async Task<(bool IsAllowed, Uri? Uri, IReadOnlyList<IPAddress> AllowedAddresses, string? Error)> ValidateOutboundUrlAsync(string url, CancellationToken cancellationToken)

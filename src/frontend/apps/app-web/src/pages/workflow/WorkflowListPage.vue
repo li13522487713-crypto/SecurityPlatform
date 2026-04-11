@@ -65,7 +65,7 @@ async function load() {
     const res = await workflowV2Api.list(pageIndex.value, pageSize.value);
     if (res.success && res.data) {
       items.value = res.data.items;
-      total.value = res.data.total;
+      total.value = Number(res.data.total ?? 0);
     }
   } catch (error) {
     items.value = [];

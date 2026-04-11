@@ -331,6 +331,11 @@ public sealed class DagExecutor
         var executor = _registry.GetExecutor(node.Type);
         if (executor is null)
         {
+            if (node.Type == WorkflowNodeType.Comment)
+            {
+                return NodeRunResult.SuccessResult(nodeKey, node.Type, EmptyOutputs);
+            }
+
             _logger.LogWarning("未找到节点类型 {NodeType} 的执行器，跳过节点 {NodeKey}", node.Type, nodeKey);
             return NodeRunResult.SuccessResult(nodeKey, node.Type, EmptyOutputs);
         }

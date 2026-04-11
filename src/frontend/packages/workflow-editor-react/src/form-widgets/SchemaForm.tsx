@@ -1,9 +1,14 @@
-import { AutoComplete, Button, Form, Input, InputNumber, Select, Switch, Space } from "antd";
+import { AutoComplete, Button, Form, Input, InputNumber, Radio, Select, Slider, Space, Switch } from "antd";
 import MonacoEditor from "@monaco-editor/react";
 import { useMemo } from "react";
 import type { FormFieldSchema, FormSectionSchema } from "../node-registry";
 import { getValueByPath, setValueByPath } from "./path-utils";
 import { resolveEditorLanguage } from "./monaco-utils";
+import { ConditionBuilder } from "./ConditionBuilder";
+import { ArrayEditor } from "./ArrayEditor";
+import { TagInput } from "./TagInput";
+import { VariableRefPicker } from "./VariableRefPicker";
+import { ObjectEditor } from "./ObjectEditor";
 
 interface SchemaFormProps {
   sections: FormSectionSchema[];
@@ -133,14 +138,52 @@ function renderField(
   if (field.kind === "number") {
     return <InputNumber min={field.min} max={field.max} value={asNumber(current)} style={{ width: "100%" }} onChange={(value) => updatePath(value)} />;
   }
+  if (field.kind === "slider") {
+    return (
+      <Slider
+        min={field.min ?? 0}
+        max={field.max ?? 1}
+        step={field.step ?? 0.1}
+        value={typeof current === "number" ? current : field.min ?? 0}
+        onChange={(value) => updatePath(value)}
+      />
+    );
+  }
   if (field.kind === "switch") {
     return <Switch checked={asBoolean(current)} onChange={(checked) => updatePath(checked)} />;
   }
   if (field.kind === "select") {
     return <Select value={current as string | number | boolean | undefined} options={field.options} onChange={(value) => updatePath(value)} />;
   }
+  if (field.kind === "radioGroup") {
+    return <Radio.Group options={field.options} value={current as string | number | boolean | undefined} onChange={(event) => updatePath(event.target.value)} />;
+  }
   if (field.kind === "keyValue") {
     return <KeyValueEditor value={current} onChange={(next) => updatePath(next)} valueSuggestions={variableSuggestions} />;
+  }
+  if (field.kind === "objectEditor") {
+    return <ObjectEditor value={current} onChange={(next) => updatePath(next)} />;
+  }
+  if (field.kind === "tagInput") {
+    return <TagInput value={current} onChange={(next) => updatePath(next)} />;
+  }
+  if (field.kind === "arrayEditor") {
+    return <ArrayEditor value={current} itemFields={field.itemFields} onChange={(next) => updatePath(next)} />;
+  }
+  if (field.kind === "conditionBuilder") {
+    return <ConditionBuilder value={current} onChange={(next) => updatePath(next)} />;
+  }
+  if (field.kind === "variableRefPicker") {
+    return (
+      <VariableRefPicker
+        value={asString(current)}
+        suggestions={variableSuggestions}
+        multiline={(field.rows ?? 1) > 1}
+        rows={field.rows}
+        placeholder={field.placeholder}
+        onChange={(next) => updatePath(next)}
+      />
+    );
   }
   if (field.kind === "json") {
     const editorValue = typeof current === "string" ? current : JSON.stringify(current ?? {}, null, 2);
@@ -170,9 +213,9 @@ function renderField(
       </div>
     );
   }
-  if (field.kind === "code") {
+  if (field.kind === "code" || field.kind === "codeEditor") {
     const editorValue = typeof current === "string" ? current : "";
-    const editorLanguage = resolveEditorLanguage(config, field.languagePath, "javascript");
+    const editorLanguage = resolveEditorLanguage(config, field.languagePath, field.editorLanguage ?? "javascript");
     return (
       <div style={{ border: "1px solid #d9d9d9", borderRadius: 6, overflow: "hidden" }}>
         <MonacoEditor

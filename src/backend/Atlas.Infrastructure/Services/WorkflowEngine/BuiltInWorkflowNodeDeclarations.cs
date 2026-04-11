@@ -1,6 +1,7 @@
 using Atlas.Application.AiPlatform.Abstractions;
 using Atlas.Application.AiPlatform.Models;
 using Atlas.Domain.AiPlatform.Enums;
+using System.Text;
 
 namespace Atlas.Infrastructure.Services.WorkflowEngine;
 
@@ -98,17 +99,313 @@ internal static class BuiltInWorkflowNodeDeclarations
             Category = category,
             Description = description,
             Ports = ports,
-            ConfigSchemaJson = """
-                               {
-                                 "type": "object",
-                                 "additionalProperties": true
-                               }
-                               """,
+            ConfigSchemaJson = BuildConfigSchema(type),
             UiMeta = new WorkflowNodeUiMetadata(
                 Icon: $"workflow/{key}.svg",
                 Color: color,
                 SupportsBatch: supportsBatch)
         };
+    }
+
+    private static string BuildConfigSchema(WorkflowNodeType type)
+    {
+        return type switch
+        {
+            WorkflowNodeType.Entry => BuildObjectSchema(["entryVariable"], new Dictionary<string, string>
+            {
+                ["entryVariable"] = "string",
+                ["entryDescription"] = "string",
+                ["entryAutoSaveHistory"] = "boolean"
+            }),
+            WorkflowNodeType.Exit => BuildObjectSchema(["exitTerminateMode"], new Dictionary<string, string>
+            {
+                ["exitTerminateMode"] = "string",
+                ["exitTemplate"] = "string",
+                ["exitStreaming"] = "boolean"
+            }),
+            WorkflowNodeType.Selector => BuildObjectSchema([], new Dictionary<string, string>
+            {
+                ["condition"] = "string",
+                ["logic"] = "string",
+                ["conditions"] = "array"
+            }),
+            WorkflowNodeType.Loop => BuildObjectSchema(["mode", "maxIterations"], new Dictionary<string, string>
+            {
+                ["mode"] = "string",
+                ["maxIterations"] = "number",
+                ["collectionPath"] = "string",
+                ["condition"] = "string",
+                ["itemVariable"] = "string",
+                ["itemIndexVariable"] = "string",
+                ["bodyNodeKeys"] = "string"
+            }),
+            WorkflowNodeType.Batch => BuildObjectSchema(["concurrentSize", "batchSize", "inputArrayPath"], new Dictionary<string, string>
+            {
+                ["concurrentSize"] = "number",
+                ["batchSize"] = "number",
+                ["inputArrayPath"] = "string",
+                ["itemVariable"] = "string",
+                ["itemIndexVariable"] = "string",
+                ["outputKey"] = "string"
+            }),
+            WorkflowNodeType.Break => BuildObjectSchema(["reason"]),
+            WorkflowNodeType.Continue => BuildObjectSchema([], new Dictionary<string, string>
+            {
+                ["remark"] = "string"
+            }),
+            WorkflowNodeType.Llm => BuildObjectSchema(["provider", "model", "prompt"], new Dictionary<string, string>
+            {
+                ["provider"] = "string",
+                ["model"] = "string",
+                ["prompt"] = "string",
+                ["systemPrompt"] = "string",
+                ["temperature"] = "number",
+                ["maxTokens"] = "number",
+                ["stream"] = "boolean",
+                ["outputKey"] = "string"
+            }),
+            WorkflowNodeType.Agent => BuildObjectSchema(["agentId", "message"], new Dictionary<string, string>
+            {
+                ["agentId"] = "string",
+                ["message"] = "string",
+                ["conversationId"] = "string",
+                ["userId"] = "string",
+                ["enableRag"] = "boolean",
+                ["outputKey"] = "string"
+            }),
+            WorkflowNodeType.IntentDetector => BuildObjectSchema(["input", "model"], new Dictionary<string, string>
+            {
+                ["input"] = "string",
+                ["provider"] = "string",
+                ["model"] = "string",
+                ["systemPrompt"] = "string",
+                ["temperature"] = "number",
+                ["intents"] = "array"
+            }),
+            WorkflowNodeType.QuestionAnswer => BuildObjectSchema(["question", "answerPath"], new Dictionary<string, string>
+            {
+                ["question"] = "string",
+                ["answerPath"] = "string",
+                ["answerType"] = "string",
+                ["fixedChoices"] = "array",
+                ["maxAnswerCount"] = "number"
+            }),
+            WorkflowNodeType.CodeRunner => BuildObjectSchema(["code"], new Dictionary<string, string>
+            {
+                ["language"] = "string",
+                ["code"] = "string",
+                ["outputKey"] = "string"
+            }),
+            WorkflowNodeType.TextProcessor => BuildObjectSchema(["template", "outputKey"]),
+            WorkflowNodeType.JsonSerialization => BuildObjectSchema(["variableKeys", "outputKey"], new Dictionary<string, string>
+            {
+                ["variableKeys"] = "array",
+                ["outputKey"] = "string"
+            }),
+            WorkflowNodeType.JsonDeserialization => BuildObjectSchema(["inputVariable"]),
+            WorkflowNodeType.VariableAggregator => BuildObjectSchema(["variableKeys", "outputKey"], new Dictionary<string, string>
+            {
+                ["variableKeys"] = "array",
+                ["outputKey"] = "string"
+            }),
+            WorkflowNodeType.AssignVariable => BuildObjectSchema(["assignments"]),
+            WorkflowNodeType.VariableAssignerWithinLoop => BuildObjectSchema(["assignments"]),
+            WorkflowNodeType.Plugin => BuildObjectSchema(["pluginId", "apiId"], new Dictionary<string, string>
+            {
+                ["pluginId"] = "string",
+                ["apiId"] = "string",
+                ["inputJson"] = "object",
+                ["outputKey"] = "string"
+            }),
+            WorkflowNodeType.HttpRequester => BuildObjectSchema(["url", "method"], new Dictionary<string, string>
+            {
+                ["url"] = "string",
+                ["method"] = "string",
+                ["headers"] = "object",
+                ["body"] = "object",
+                ["timeout"] = "number",
+                ["retryTimes"] = "number"
+            }),
+            WorkflowNodeType.SubWorkflow => BuildObjectSchema(["workflowId"], new Dictionary<string, string>
+            {
+                ["workflowId"] = "string",
+                ["maxDepth"] = "number",
+                ["inheritVariables"] = "boolean",
+                ["mergeOutputs"] = "boolean",
+                ["inputsVariable"] = "string",
+                ["outputKey"] = "string"
+            }),
+            WorkflowNodeType.InputReceiver => BuildObjectSchema(["inputPath"], new Dictionary<string, string>
+            {
+                ["inputPath"] = "string",
+                ["outputSchema"] = "object"
+            }),
+            WorkflowNodeType.OutputEmitter => BuildObjectSchema(["outputKey"], new Dictionary<string, string>
+            {
+                ["outputKey"] = "string",
+                ["template"] = "string"
+            }),
+            WorkflowNodeType.KnowledgeRetriever => BuildObjectSchema(["knowledgeIds", "query"], new Dictionary<string, string>
+            {
+                ["knowledgeIds"] = "array",
+                ["query"] = "string",
+                ["topK"] = "number",
+                ["minScore"] = "number"
+            }),
+            WorkflowNodeType.KnowledgeIndexer => BuildObjectSchema(["knowledgeId", "fileId"], new Dictionary<string, string>
+            {
+                ["knowledgeId"] = "number",
+                ["fileId"] = "number",
+                ["fileName"] = "string",
+                ["contentType"] = "string",
+                ["fileSizeBytes"] = "number",
+                ["chunkSize"] = "number",
+                ["overlap"] = "number"
+            }),
+            WorkflowNodeType.KnowledgeDeleter => BuildObjectSchema(["knowledgeId"], new Dictionary<string, string>
+            {
+                ["knowledgeId"] = "number",
+                ["documentId"] = "number"
+            }),
+            WorkflowNodeType.Ltm => BuildObjectSchema(["action", "userId"], new Dictionary<string, string>
+            {
+                ["action"] = "string",
+                ["userId"] = "number",
+                ["agentId"] = "number",
+                ["conversationId"] = "number",
+                ["memoryKey"] = "string",
+                ["content"] = "string",
+                ["source"] = "string",
+                ["limit"] = "number",
+                ["memoryId"] = "number"
+            }),
+            WorkflowNodeType.DatabaseQuery => BuildObjectSchema(["databaseInfoId"], new Dictionary<string, string>
+            {
+                ["databaseInfoId"] = "number",
+                ["queryFields"] = "array",
+                ["clauseGroup"] = "array",
+                ["limit"] = "number",
+                ["outputKey"] = "string"
+            }),
+            WorkflowNodeType.DatabaseInsert => BuildObjectSchema(["databaseInfoId"], new Dictionary<string, string>
+            {
+                ["databaseInfoId"] = "number",
+                ["rows"] = "array"
+            }),
+            WorkflowNodeType.DatabaseUpdate => BuildObjectSchema(["databaseInfoId"], new Dictionary<string, string>
+            {
+                ["databaseInfoId"] = "number",
+                ["updateFields"] = "object",
+                ["clauseGroup"] = "array"
+            }),
+            WorkflowNodeType.DatabaseDelete => BuildObjectSchema(["databaseInfoId"], new Dictionary<string, string>
+            {
+                ["databaseInfoId"] = "number",
+                ["clauseGroup"] = "array"
+            }),
+            WorkflowNodeType.DatabaseCustomSql => BuildObjectSchema(["databaseInfoId", "sqlTemplate"], new Dictionary<string, string>
+            {
+                ["databaseInfoId"] = "number",
+                ["sqlTemplate"] = "string"
+            }),
+            WorkflowNodeType.CreateConversation => BuildObjectSchema(["userId", "agentId"], new Dictionary<string, string>
+            {
+                ["title"] = "string",
+                ["userId"] = "number",
+                ["agentId"] = "number"
+            }),
+            WorkflowNodeType.ConversationList => BuildObjectSchema(["userId", "agentId"], new Dictionary<string, string>
+            {
+                ["userId"] = "number",
+                ["agentId"] = "number",
+                ["pageIndex"] = "number",
+                ["pageSize"] = "number"
+            }),
+            WorkflowNodeType.ConversationUpdate => BuildObjectSchema(["userId", "conversationId", "title"], new Dictionary<string, string>
+            {
+                ["userId"] = "number",
+                ["conversationId"] = "number",
+                ["title"] = "string"
+            }),
+            WorkflowNodeType.ConversationDelete => BuildObjectSchema(["userId", "conversationId"], new Dictionary<string, string>
+            {
+                ["userId"] = "number",
+                ["conversationId"] = "number"
+            }),
+            WorkflowNodeType.ConversationHistory => BuildObjectSchema(["userId", "conversationId"], new Dictionary<string, string>
+            {
+                ["userId"] = "number",
+                ["conversationId"] = "number",
+                ["limit"] = "number",
+                ["includeContextMarkers"] = "boolean"
+            }),
+            WorkflowNodeType.ClearConversationHistory => BuildObjectSchema(["userId", "conversationId"], new Dictionary<string, string>
+            {
+                ["userId"] = "number",
+                ["conversationId"] = "number"
+            }),
+            WorkflowNodeType.MessageList => BuildObjectSchema(["userId", "conversationId"], new Dictionary<string, string>
+            {
+                ["userId"] = "number",
+                ["conversationId"] = "number",
+                ["pageIndex"] = "number",
+                ["pageSize"] = "number"
+            }),
+            WorkflowNodeType.CreateMessage => BuildObjectSchema(["conversationId", "content"], new Dictionary<string, string>
+            {
+                ["conversationId"] = "number",
+                ["role"] = "string",
+                ["content"] = "string",
+                ["metadata"] = "object"
+            }),
+            WorkflowNodeType.EditMessage => BuildObjectSchema(["conversationId", "messageId", "content"], new Dictionary<string, string>
+            {
+                ["conversationId"] = "number",
+                ["messageId"] = "number",
+                ["content"] = "string",
+                ["metadata"] = "object"
+            }),
+            WorkflowNodeType.DeleteMessage => BuildObjectSchema(["userId", "conversationId", "messageId"], new Dictionary<string, string>
+            {
+                ["userId"] = "number",
+                ["conversationId"] = "number",
+                ["messageId"] = "number"
+            }),
+            WorkflowNodeType.Comment => BuildObjectSchema(["content"]),
+            _ => BuildObjectSchema([])
+        };
+    }
+
+    private static string BuildObjectSchema(IReadOnlyList<string> required, IReadOnlyDictionary<string, string>? properties = null)
+    {
+        var schemaProperties = properties ?? required.ToDictionary(key => key, _ => "string");
+        var propertyBuilder = new StringBuilder();
+        var index = 0;
+        foreach (var property in schemaProperties)
+        {
+            if (index > 0)
+            {
+                propertyBuilder.AppendLine(",");
+            }
+
+            propertyBuilder.Append($"    \"{property.Key}\": {{ \"type\": \"{property.Value}\" }}");
+            index++;
+        }
+
+        var requiredJson = required.Count == 0
+            ? "[]"
+            : $"[{string.Join(", ", required.Select(item => $"\"{item}\""))}]";
+
+        return $$"""
+                 {
+                   "type": "object",
+                   "properties": {
+                 {{propertyBuilder}}
+                   },
+                   "required": {{requiredJson}},
+                   "additionalProperties": true
+                 }
+                 """;
     }
 
     private static WorkflowNodePortMetadata In(string key, string dataType = "any", bool required = false, int maxConnections = 1)

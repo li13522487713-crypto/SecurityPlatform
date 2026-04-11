@@ -15,6 +15,7 @@ public sealed class CodeRunnerNodeExecutor : INodeExecutor
     public Task<NodeExecutionResult> ExecuteAsync(NodeExecutionContext context, CancellationToken cancellationToken)
     {
         var code = context.GetConfigString("code");
+        var language = context.GetConfigString("language", "javascript");
         var outputKey = context.GetConfigString("outputKey", "code_output");
         var outputs = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
 
@@ -23,6 +24,7 @@ public sealed class CodeRunnerNodeExecutor : INodeExecutor
             // 简单表达式求值：支持变量替换
             var result = context.ReplaceVariables(code);
             outputs[outputKey] = VariableResolver.CreateStringElement(result);
+            outputs["code_language"] = VariableResolver.CreateStringElement(language);
             return Task.FromResult(new NodeExecutionResult(true, outputs));
         }
         catch (Exception ex)

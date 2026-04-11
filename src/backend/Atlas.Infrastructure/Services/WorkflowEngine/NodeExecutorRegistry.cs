@@ -61,9 +61,11 @@ public sealed class NodeExecutorRegistry
             [WorkflowNodeType.OutputEmitter] = typeof(OutputEmitterNodeExecutor),
             [WorkflowNodeType.InputReceiver] = typeof(InputReceiverNodeExecutor),
             [WorkflowNodeType.AssignVariable] = typeof(AssignVariableNodeExecutor),
+            [WorkflowNodeType.VariableAssignerWithinLoop] = typeof(VariableAssignerWithinLoopNodeExecutor),
             [WorkflowNodeType.VariableAggregator] = typeof(VariableAggregatorNodeExecutor),
             [WorkflowNodeType.JsonSerialization] = typeof(JsonSerializationNodeExecutor),
-            [WorkflowNodeType.JsonDeserialization] = typeof(JsonDeserializationNodeExecutor)
+            [WorkflowNodeType.JsonDeserialization] = typeof(JsonDeserializationNodeExecutor),
+            [WorkflowNodeType.KnowledgeDeleter] = typeof(KnowledgeDeleterNodeExecutor)
         };
         _metadata = new List<NodeTypeMetadata>();
         _declarations = BuiltInWorkflowNodeDeclarations.All
@@ -82,6 +84,17 @@ public sealed class NodeExecutorRegistry
             {
                 _metadata.Add(BuildMetadata(registeredType));
             }
+        }
+    }
+
+    // 为集成测试保留可注入执行器构造方式。
+    public NodeExecutorRegistry(params INodeExecutor[] executors)
+        : this(new ServiceCollection().BuildServiceProvider())
+    {
+        foreach (var executor in executors)
+        {
+            _executors[executor.NodeType] = executor;
+            _executorTypes[executor.NodeType] = executor.GetType();
         }
     }
 

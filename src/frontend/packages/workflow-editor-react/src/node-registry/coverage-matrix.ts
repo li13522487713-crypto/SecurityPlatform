@@ -9,17 +9,17 @@ export interface NodeCoverageItem {
 }
 
 export const NODE_COVERAGE_MATRIX: NodeCoverageItem[] = [
-  { type: "Entry", batch: "B1", verification: ["标题可编辑", "变量必填校验", "保存后回填"] },
-  { type: "Exit", batch: "B1", verification: ["终止策略必填", "模板保存回填"] },
-  { type: "Selector", batch: "B1", verification: ["条件表达式必填", "默认分支可选"] },
-  { type: "Loop", batch: "B1", verification: ["输入表达式必填", "循环次数范围校验"] },
-  { type: "Batch", batch: "B1", verification: ["并发/分批范围校验", "输入表达式必填"] },
-  { type: "Break", batch: "B1", verification: ["触发条件必填"] },
-  { type: "Continue", batch: "B1", verification: ["触发条件必填"] },
-  { type: "Llm", batch: "B2", verification: ["模型必填", "用户提示词必填", "参数保存"] },
-  { type: "IntentDetector", batch: "B2", verification: ["提示词必填", "输出字段必填"] },
-  { type: "QuestionAnswer", batch: "B2", verification: ["提示词必填", "输出字段必填"] },
-  { type: "CodeRunner", batch: "B2", verification: ["语言必填", "代码必填"] },
+  { type: "Entry", batch: "B1", verification: ["entryVariable 必填", "标题可编辑", "保存后回填"] },
+  { type: "Exit", batch: "B1", verification: ["exitTerminateMode 必填", "模板保存回填"] },
+  { type: "Selector", batch: "B1", verification: ["condition / conditions 二选一有效", "logic 可回填"] },
+  { type: "Loop", batch: "B1", verification: ["mode + maxIterations 必填", "循环字段保存回填"] },
+  { type: "Batch", batch: "B1", verification: ["concurrentSize/batchSize 校验", "inputArrayPath 必填"] },
+  { type: "Break", batch: "B1", verification: ["reason 必填"] },
+  { type: "Continue", batch: "B1", verification: ["可保存备注"] },
+  { type: "Llm", batch: "B2", verification: ["provider/model/prompt 必填", "temperature/maxTokens 保存"] },
+  { type: "IntentDetector", batch: "B2", verification: ["input/model 必填", "intents 标签可保存"] },
+  { type: "QuestionAnswer", batch: "B2", verification: ["question/answerPath 必填", "fixedChoices 可保存"] },
+  { type: "CodeRunner", batch: "B2", verification: ["code 必填", "language/code/outputKey 可回填"] },
   { type: "TextProcessor", batch: "B3", verification: ["输入输出字段保存"] },
   { type: "JsonSerialization", batch: "B3", verification: ["输入输出字段保存"] },
   { type: "JsonDeserialization", batch: "B3", verification: ["输入输出字段保存"] },
@@ -50,7 +50,7 @@ export const NODE_COVERAGE_MATRIX: NodeCoverageItem[] = [
   { type: "CreateMessage", batch: "B7", verification: ["消息创建保存"] },
   { type: "EditMessage", batch: "B7", verification: ["消息编辑保存"] },
   { type: "DeleteMessage", batch: "B7", verification: ["消息删除保存"] },
-  { type: "Agent", batch: "B2", verification: ["智能体配置保存"] },
+  { type: "Agent", batch: "B2", verification: ["agentId/message 必填", "enableRag 与会话参数可保存"] },
   { type: "Comment", batch: "B7", verification: ["注释内容保存"] }
 ];
 
