@@ -15,7 +15,7 @@ export function WorkflowNodeRender() {
   const { reportNodeSelection } = useFlowgramSelectionBridge();
   const data = asRecord(render.data);
   const title = typeof data.title === "string" && data.title ? data.title : String(render.type);
-  const status = (data.executionState as "idle" | "running" | "success" | "failed" | "skipped" | undefined) ?? "idle";
+  const status = (data.executionState as "idle" | "running" | "success" | "failed" | "skipped" | "blocked" | undefined) ?? "idle";
   const nodeKeyCandidate = (render.node as { id?: unknown } | undefined)?.id;
   const nodeKey = typeof nodeKeyCandidate === "string" ? nodeKeyCandidate : "";
 

@@ -1,5 +1,5 @@
 interface ExecuteStatusBarProps {
-  status?: "idle" | "running" | "success" | "failed" | "skipped";
+  status?: "idle" | "running" | "success" | "failed" | "skipped" | "blocked";
 }
 
 export function ExecuteStatusBar(props: ExecuteStatusBarProps) {

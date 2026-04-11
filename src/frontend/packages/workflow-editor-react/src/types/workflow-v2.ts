@@ -486,6 +486,13 @@ export interface NodeSkippedEvent {
   reason?: string;
 }
 
+export interface NodeBlockedEvent {
+  executionId: string;
+  nodeKey: string;
+  nodeType: string;
+  reason?: string;
+}
+
 export interface ExecutionCompleteEvent {
   executionId: string;
   outputsJson?: string;
@@ -536,6 +543,7 @@ export type SseEventData =
   | NodeOutputEvent
   | NodeFailedEvent
   | NodeSkippedEvent
+  | NodeBlockedEvent
   | ExecutionCompleteEvent
   | ExecutionFailedEvent
   | ExecutionCancelledEvent

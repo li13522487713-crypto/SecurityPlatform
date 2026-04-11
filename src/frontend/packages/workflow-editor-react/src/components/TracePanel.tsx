@@ -3,7 +3,7 @@ import { Button, Table, Tag } from "antd";
 export interface TraceStepItem {
   timestamp: string;
   nodeKey: string;
-  status: "running" | "success" | "failed" | "skipped";
+  status: "running" | "success" | "failed" | "skipped" | "blocked";
   detail?: string;
 }
 
@@ -17,7 +17,8 @@ const STATUS_COLOR: Record<TraceStepItem["status"], string> = {
   running: "processing",
   success: "success",
   failed: "error",
-  skipped: "default"
+  skipped: "default",
+  blocked: "warning"
 };
 
 export function TracePanel(props: TracePanelProps) {

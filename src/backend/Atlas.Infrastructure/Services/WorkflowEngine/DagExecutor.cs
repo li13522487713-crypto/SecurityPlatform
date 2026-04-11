@@ -137,6 +137,18 @@ public sealed class DagExecutor
                         return;
                     }
 
+                    await PersistBlockedByFailureAsync(
+                        tenantId,
+                        execution.Id,
+                        failedNode.NodeKey,
+                        failedNode.ErrorMessage ?? "上游节点失败",
+                        nodeMap,
+                        adjacency,
+                        connectionsBySource,
+                        skippedNodeKeys,
+                        preCompletedNodeKeySet,
+                        eventChannel,
+                        cancellationToken);
                     execution.Fail(failedNode.ErrorMessage ?? "节点执行失败");
                     await _executionRepo.UpdateAsync(execution, cancellationToken);
                     return;
@@ -209,6 +221,18 @@ public sealed class DagExecutor
                             return;
                         }
 
+                        await PersistBlockedByFailureAsync(
+                            tenantId,
+                            execution.Id,
+                            loopResult.NodeKey,
+                            loopResult.ErrorMessage ?? "循环节点执行失败",
+                            nodeMap,
+                            adjacency,
+                            connectionsBySource,
+                            skippedNodeKeys,
+                            preCompletedNodeKeySet,
+                            eventChannel,
+                            cancellationToken);
                         execution.Fail(loopResult.ErrorMessage ?? "循环节点执行失败");
                         await _executionRepo.UpdateAsync(execution, cancellationToken);
                         return;
@@ -255,6 +279,18 @@ public sealed class DagExecutor
                             return;
                         }
 
+                        await PersistBlockedByFailureAsync(
+                            tenantId,
+                            execution.Id,
+                            batchResult.NodeKey,
+                            batchResult.ErrorMessage ?? "批处理节点执行失败",
+                            nodeMap,
+                            adjacency,
+                            connectionsBySource,
+                            skippedNodeKeys,
+                            preCompletedNodeKeySet,
+                            eventChannel,
+                            cancellationToken);
                         execution.Fail(batchResult.ErrorMessage ?? "批处理节点执行失败");
                         await _executionRepo.UpdateAsync(execution, cancellationToken);
                         return;
@@ -1036,6 +1072,72 @@ public sealed class DagExecutor
         }
     }
 
+    private async Task PersistBlockedByFailureAsync(
+        TenantId tenantId,
+        long executionId,
+        string failedNodeKey,
+        string reason,
+        IReadOnlyDictionary<string, NodeSchema> nodeMap,
+        IReadOnlyDictionary<string, List<string>> adjacency,
+        IReadOnlyDictionary<string, List<ConnectionSchema>> connectionsBySource,
+        IReadOnlySet<string> skippedNodeKeys,
+        IReadOnlySet<string> preCompletedNodeKeySet,
+        Channel<SseEvent>? eventChannel,
+        CancellationToken cancellationToken)
+    {
+        var blockedNodeKeys = ResolveDownstreamNodesToBlock(
+            failedNodeKey,
+            adjacency,
+            skippedNodeKeys,
+            preCompletedNodeKeySet);
+        if (blockedNodeKeys.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var nodeKey in blockedNodeKeys)
+        {
+            if (!nodeMap.TryGetValue(nodeKey, out var node))
+            {
+                continue;
+            }
+
+            var nodeExecution = new WorkflowNodeExecution(
+                tenantId,
+                executionId,
+                nodeKey,
+                node.Type,
+                _idGenerator.NextId());
+            nodeExecution.Block(reason);
+            await _nodeExecutionRepo.AddAsync(nodeExecution, cancellationToken);
+
+            if (eventChannel is null)
+            {
+                continue;
+            }
+
+            await EmitEdgeStatusChangedAsync(
+                executionId,
+                nodeKey,
+                EdgeExecutionStatus.Skipped,
+                "upstream_failed",
+                connectionsBySource,
+                node.Type,
+                null,
+                eventChannel,
+                cancellationToken);
+            await eventChannel.Writer.WriteAsync(
+                new SseEvent("node_blocked", JsonSerializer.Serialize(new
+                {
+                    executionId = executionId.ToString(),
+                    nodeKey,
+                    nodeType = node.Type.ToString(),
+                    reason = "upstream_failed"
+                })),
+                cancellationToken);
+        }
+    }
+
     private static async Task EmitEdgeStatusChangedAsync(
         long executionId,
         string nodeKey,
@@ -1387,7 +1489,7 @@ public sealed class DagExecutor
 
     private static HashSet<string> TraverseReachableNodes(
         IEnumerable<string> starts,
-        Dictionary<string, List<string>> adjacency)
+        IReadOnlyDictionary<string, List<string>> adjacency)
     {
         var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var queue = new Queue<string>(starts);
@@ -1434,6 +1536,26 @@ public sealed class DagExecutor
         }
 
         return result;
+    }
+
+    private static IReadOnlyList<string> ResolveDownstreamNodesToBlock(
+        string failedNodeKey,
+        IReadOnlyDictionary<string, List<string>> adjacency,
+        IReadOnlySet<string> skippedNodeKeys,
+        IReadOnlySet<string> preCompletedNodeKeySet)
+    {
+        var reachable = TraverseReachableNodes(new[] { failedNodeKey }, adjacency);
+        reachable.Remove(failedNodeKey);
+        foreach (var skippedNodeKey in skippedNodeKeys)
+        {
+            reachable.Remove(skippedNodeKey);
+        }
+        foreach (var preCompletedNodeKey in preCompletedNodeKeySet)
+        {
+            reachable.Remove(preCompletedNodeKey);
+        }
+
+        return reachable.ToList();
     }
 
     private static List<List<string>> TopologicalSortSubsetByLevels(

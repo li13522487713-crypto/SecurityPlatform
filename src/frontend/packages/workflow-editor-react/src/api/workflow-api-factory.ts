@@ -16,6 +16,7 @@ import {
   type NodeDebugResponse,
   type NodeExecutionDetailResponse,
   type NodeFailedEvent,
+  type NodeBlockedEvent,
   type NodeSkippedEvent,
   type NodeOutputEvent,
   type EdgeStatusChangedEvent,
@@ -53,6 +54,7 @@ export interface StreamCallbacks {
   onNodeCompleted?: (ev: NodeCompleteEvent) => void;
   onNodeFailed?: (ev: NodeFailedEvent) => void;
   onNodeSkipped?: (ev: NodeSkippedEvent) => void;
+  onNodeBlocked?: (ev: NodeBlockedEvent) => void;
   onEdgeStatusChanged?: (ev: EdgeStatusChangedEvent) => void;
   onBranchDecision?: (ev: BranchDecisionEvent) => void;
   onLlmOutput?: (content: string) => void;
@@ -345,6 +347,9 @@ function handleStreamEvent(eventName: string, dataText: string, callbacks: Strea
       break;
     case "node_skipped":
       callbacks.onNodeSkipped?.(safeJsonParse<NodeSkippedEvent>(dataText));
+      break;
+    case "node_blocked":
+      callbacks.onNodeBlocked?.(safeJsonParse<NodeBlockedEvent>(dataText));
       break;
     case "edge_status_changed":
       callbacks.onEdgeStatusChanged?.(safeJsonParse<EdgeStatusChangedEvent>(dataText));

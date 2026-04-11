@@ -16,7 +16,7 @@ interface NodeCardProps {
   onClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
   onPointerDown: (event: React.PointerEvent<HTMLButtonElement>) => void;
   onPortPointerDown: (event: React.PointerEvent<HTMLSpanElement>, port: PortRuntime) => void;
-  executionState?: "idle" | "running" | "success" | "failed" | "skipped";
+  executionState?: "idle" | "running" | "success" | "failed" | "skipped" | "blocked";
   executionHint?: string;
 }
 
@@ -63,6 +63,8 @@ export function NodeCard(props: NodeCardProps) {
       ? "wf-react-node-status-failed"
       : props.executionState === "skipped"
       ? "wf-react-node-status-skipped"
+      : props.executionState === "blocked"
+      ? "wf-react-node-status-blocked"
       : "wf-react-node-status-idle";
 
   const statusText =
@@ -74,6 +76,8 @@ export function NodeCard(props: NodeCardProps) {
       ? "failed"
       : props.executionState === "skipped"
       ? "skipped"
+      : props.executionState === "blocked"
+      ? "blocked"
       : "ready";
 
   return (
@@ -88,7 +92,19 @@ export function NodeCard(props: NodeCardProps) {
           {props.iconText}
         </span>
         <span className="wf-react-node-title">{props.title}</span>
-        <Tag color={props.executionState === "failed" ? "error" : props.executionState === "success" ? "success" : props.executionState === "running" ? "processing" : "default"}>
+        <Tag
+          color={
+            props.executionState === "failed"
+              ? "error"
+              : props.executionState === "success"
+                ? "success"
+                : props.executionState === "running"
+                  ? "processing"
+                  : props.executionState === "blocked"
+                    ? "warning"
+                    : "default"
+          }
+        >
           {statusText}
         </Tag>
       </div>

@@ -543,7 +543,48 @@ public sealed class DagExecutorIntegrationTests
 
         Assert.Equal(ExecutionStatus.Failed, execution.Status);
         Assert.Contains("模拟节点失败", execution.ErrorMessage, StringComparison.Ordinal);
-        Assert.DoesNotContain(nodeExecutions, x => string.Equals(x.NodeKey, "exit_1", StringComparison.OrdinalIgnoreCase) && x.Status == ExecutionStatus.Completed);
+        var blocked = nodeExecutions.FirstOrDefault(x => string.Equals(x.NodeKey, "exit_1", StringComparison.OrdinalIgnoreCase));
+        Assert.NotNull(blocked);
+        Assert.Equal(ExecutionStatus.Blocked, blocked!.Status);
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenNodeExecutionFails_ShouldEmitNodeBlockedEvent()
+    {
+        var dag = CreateDagExecutor(
+            out _,
+            new EntryNodeExecutor(),
+            new ExitNodeExecutor(),
+            new FailingTextProcessorNodeExecutor());
+
+        var canvas = new CanvasSchema(
+            Nodes:
+            [
+                BuildNode("entry_1", WorkflowNodeType.Entry),
+                BuildNode("text_1", WorkflowNodeType.TextProcessor),
+                BuildNode("exit_1", WorkflowNodeType.Exit)
+            ],
+            Connections:
+            [
+                new ConnectionSchema("entry_1", "output", "text_1", "input", null),
+                new ConnectionSchema("text_1", "output", "exit_1", "input", null)
+            ]);
+
+        var eventChannel = Channel.CreateUnbounded<SseEvent>();
+        var execution = BuildExecution(30111L);
+        await dag.RunAsync(
+            Tenant(),
+            execution,
+            canvas,
+            new Dictionary<string, JsonElement>(),
+            eventChannel,
+            CancellationToken.None);
+
+        var events = await ReadEventsAsync(eventChannel);
+        var blockedEvent = events.FirstOrDefault(x => string.Equals(x.Event, "node_blocked", StringComparison.Ordinal));
+        Assert.NotNull(blockedEvent);
+        using var payload = JsonDocument.Parse(blockedEvent.Data);
+        Assert.Equal("exit_1", payload.RootElement.GetProperty("nodeKey").GetString());
     }
 
     private static TenantId Tenant() => new(Guid.Parse("00000000-0000-0000-0000-000000000001"));

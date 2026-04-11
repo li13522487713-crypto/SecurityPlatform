@@ -57,6 +57,7 @@ interface WorkflowApiClient {
       onNodeCompleted?: (ev: { nodeKey: string; durationMs?: number }) => void;
       onNodeFailed?: (ev: { nodeKey: string; errorMessage: string }) => void;
       onNodeSkipped?: (ev: { nodeKey: string; reason?: string }) => void;
+      onNodeBlocked?: (ev: { nodeKey: string; reason?: string }) => void;
       onEdgeStatusChanged?: (ev: {
         edge?: {
           sourceNodeKey?: string;
@@ -438,7 +439,7 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
   const [selectionBoxRect, setSelectionBoxRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
   const [draggingCatalogNodeType, setDraggingCatalogNodeType] = useState<string | null>(null);
   const [executionStateByNodeKey, setExecutionStateByNodeKey] = useState<
-    Record<string, { state: "idle" | "running" | "success" | "failed" | "skipped"; hint?: string }>
+    Record<string, { state: "idle" | "running" | "success" | "failed" | "skipped" | "blocked"; hint?: string }>
   >({});
   const [edgeStateByConnectionKey, setEdgeStateByConnectionKey] = useState<Record<string, EdgeRuntimeState>>({});
   const [testInputJson, setTestInputJson] = useState<string>('{"input":"hello"}');
@@ -1236,7 +1237,7 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
     setTraceSteps((prev) => [...prev, step]);
   }
 
-  function markNodeState(nodeKey: string, state: "idle" | "running" | "success" | "failed" | "skipped", hint?: string) {
+  function markNodeState(nodeKey: string, state: "idle" | "running" | "success" | "failed" | "skipped" | "blocked", hint?: string) {
     setExecutionStateByNodeKey((prev) => ({
       ...prev,
       [nodeKey]: { state, hint }
@@ -1388,15 +1389,27 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
             });
             appendLog(`node_skipped ${ev.nodeKey}`);
           },
+          onNodeBlocked: (ev) => {
+            markNodeState(ev.nodeKey, "blocked", ev.reason);
+            markOutgoingEdgesState(ev.nodeKey, "skipped");
+            appendTrace({
+              timestamp: new Date().toLocaleTimeString(),
+              nodeKey: ev.nodeKey,
+              status: "blocked",
+              detail: ev.reason
+            });
+            appendLog(`node_blocked ${ev.nodeKey} ${ev.reason ?? ""}`.trim());
+          },
           onEdgeStatusChanged: (ev) => {
             markEdgeStateByRuntimeEdge(ev.edge ?? {}, ev.edge?.status);
           },
           onBranchDecision: (ev) => {
+            const candidatesText = Array.isArray(ev.candidates) && ev.candidates.length > 0 ? ev.candidates.join(",") : "-";
             appendTrace({
               timestamp: new Date().toLocaleTimeString(),
               nodeKey: ev.nodeKey,
               status: "success",
-              detail: `branch=${ev.selectedBranch ?? "-"}`
+              detail: `branch=${ev.selectedBranch ?? "-"} | candidates=${candidatesText}`
             });
             appendLog(`branch_decision ${ev.nodeKey} ${ev.selectedBranch ?? "-"}`);
           },
@@ -1456,6 +1469,15 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
             markNodeState(item.nodeKey, "skipped");
             markOutgoingEdgesState(item.nodeKey, "skipped");
             appendTrace({ timestamp: new Date().toLocaleTimeString(), nodeKey: item.nodeKey, status: "skipped" });
+          } else if (item.status === 7) {
+            markNodeState(item.nodeKey, "blocked", item.errorMessage);
+            markOutgoingEdgesState(item.nodeKey, "skipped");
+            appendTrace({
+              timestamp: new Date().toLocaleTimeString(),
+              nodeKey: item.nodeKey,
+              status: "blocked",
+              detail: item.errorMessage
+            });
           }
         }
       }

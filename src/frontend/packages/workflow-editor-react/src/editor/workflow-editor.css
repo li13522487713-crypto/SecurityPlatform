@@ -131,6 +131,10 @@
   background: #9ca3af;
 }
 
+.wf-node-render-status-blocked {
+  background: #f59e0b;
+}
+
 .wf-node-render-inputs,
 .wf-node-render-outputs {
   position: absolute;
@@ -332,6 +336,10 @@
 
 .wf-react-node-status-skipped {
   background: #9ca3af;
+}
+
+.wf-react-node-status-blocked {
+  background: #f59e0b;
 }
 
 .wf-react-node-row {
