@@ -12,6 +12,8 @@ interface CanvasToolbarProps {
   onAutoLayout: () => void;
   onToggleVariables: () => void;
   onToggleDebug: () => void;
+  onToggleTrace: () => void;
+  onToggleProblems: () => void;
   onRun: () => void;
 }
 
@@ -56,6 +58,12 @@ export function CanvasToolbar(props: CanvasToolbarProps) {
             </Button>
             <Button size="small" onClick={props.onToggleDebug}>
               单节点调试
+            </Button>
+            <Button size="small" onClick={props.onToggleTrace}>
+              Trace
+            </Button>
+            <Button size="small" onClick={props.onToggleProblems}>
+              问题
             </Button>
             <Button size="small" type="primary" ghost icon={<PlayCircleOutlined />} onClick={props.onRun}>
               测试运行

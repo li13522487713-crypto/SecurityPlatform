@@ -16,6 +16,17 @@ public enum ExecutionStatus
 }
 
 /// <summary>
+/// 连线执行状态：用于回挂前端边样式。
+/// </summary>
+public enum EdgeExecutionStatus
+{
+    Idle = 0,
+    Success = 1,
+    Skipped = 2,
+    Failed = 3
+}
+
+/// <summary>
 /// 中断类型：当执行器需要人工介入或外部输入时使用。
 /// </summary>
 public enum InterruptType

@@ -27,11 +27,14 @@ public sealed record WorkflowV2RunRequest(
 
 public sealed record WorkflowV2ResumeRequest(
     string? InputsJson,
-    Dictionary<string, JsonElement>? Data);
+    Dictionary<string, JsonElement>? Data,
+    Dictionary<string, JsonElement>? VariableOverrides = null);
 
 public sealed record WorkflowV2NodeDebugRequest(
     string NodeKey,
-    string? InputsJson);
+    string? InputsJson,
+    string? Source = null,
+    long? VersionId = null);
 
 // ── 响应模型 ──────────────────────────────────────────────
 
@@ -116,7 +119,8 @@ public sealed record WorkflowV2RunResult(
     ExecutionStatus? Status = null,
     string? OutputsJson = null,
     string? ErrorMessage = null,
-    string? DebugNodeKey = null);
+    string? DebugNodeKey = null,
+    WorkflowV2StepResultDto? StepResult = null);
 
 public sealed record WorkflowV2NodeTypeDto(
     string Key,
@@ -132,6 +136,37 @@ public sealed record WorkflowV2NodeTemplateDto(
     string Name,
     string Category,
     Dictionary<string, JsonElement> DefaultConfig);
+
+public sealed record WorkflowV2StepResultDto(
+    string ExecutionId,
+    string NodeKey,
+    WorkflowNodeType NodeType,
+    ExecutionStatus Status,
+    DateTime? StartedAt = null,
+    DateTime? CompletedAt = null,
+    long? DurationMs = null,
+    Dictionary<string, JsonElement>? Inputs = null,
+    Dictionary<string, JsonElement>? Outputs = null,
+    string? ErrorMessage = null,
+    Dictionary<string, JsonElement>? BranchDecision = null);
+
+public sealed record WorkflowV2EdgeRuntimeStatusDto(
+    string SourceNodeKey,
+    string SourcePort,
+    string TargetNodeKey,
+    string TargetPort,
+    EdgeExecutionStatus Status,
+    string? Reason = null);
+
+public sealed record WorkflowV2RunTraceDto(
+    string ExecutionId,
+    long? WorkflowId,
+    ExecutionStatus Status,
+    DateTime? StartedAt = null,
+    DateTime? CompletedAt = null,
+    long? DurationMs = null,
+    IReadOnlyList<WorkflowV2StepResultDto>? Steps = null,
+    IReadOnlyList<WorkflowV2EdgeRuntimeStatusDto>? EdgeStatuses = null);
 
 /// <summary>
 /// SSE 流式事件封装。

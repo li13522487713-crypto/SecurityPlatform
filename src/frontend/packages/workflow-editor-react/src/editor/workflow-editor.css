@@ -198,6 +198,19 @@
   animation: wf-edge-dash 0.85s linear infinite;
 }
 
+.wf-react-edge-path-success {
+  stroke: #16a34a;
+}
+
+.wf-react-edge-path-failed {
+  stroke: #dc2626;
+}
+
+.wf-react-edge-path-skipped {
+  stroke: #9ca3af;
+  stroke-dasharray: 6 5;
+}
+
 .wf-react-edge-preview {
   stroke-dasharray: 6 6;
   animation: wf-edge-dash 0.7s linear infinite;
@@ -515,6 +528,36 @@
   right: 16px;
   bottom: 330px;
   width: 460px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
+  padding: 12px;
+  z-index: 1150;
+}
+
+.wf-react-trace-panel {
+  position: absolute;
+  right: 16px;
+  bottom: 520px;
+  width: 520px;
+  max-height: 280px;
+  overflow: auto;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
+  padding: 12px;
+  z-index: 1150;
+}
+
+.wf-react-problem-panel {
+  position: absolute;
+  right: 16px;
+  top: 72px;
+  width: 460px;
+  max-height: 360px;
+  overflow: auto;
   background: #ffffff;
   border: 1px solid #e5e7eb;
   border-radius: 12px;

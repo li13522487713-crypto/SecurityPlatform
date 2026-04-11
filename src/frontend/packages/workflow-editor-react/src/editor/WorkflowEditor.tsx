@@ -7,7 +7,9 @@ import { NodePanelPopover } from "../components/NodePanelPopover";
 import { NodeDebugPanel } from "../components/NodeDebugPanel";
 import { PropertiesPanel } from "../components/PropertiesPanel";
 import { TestRunPanel } from "../components/TestRunPanel";
+import { TracePanel, type TraceStepItem } from "../components/TracePanel";
 import { MinimapPanel } from "../components/MinimapPanel";
+import { ProblemPanel } from "../components/ProblemPanel";
 import { VariablePanel } from "../components/VariablePanel";
 import { WorkflowHeader } from "../components/WorkflowHeader";
 import { WORKFLOW_NODE_CATALOG, type WorkflowNodeCatalogItem } from "../constants/node-catalog";
@@ -38,6 +40,7 @@ import "./workflow-editor.css";
 interface WorkflowApiClient {
   getDetail?: (id: string) => Promise<{ data?: WorkflowDetailResponse }>;
   saveDraft?: (id: string, req: WorkflowSaveRequest) => Promise<unknown>;
+  publish?: (id: string, req: { changeLog?: string }) => Promise<unknown>;
   getNodeTypes?: () => Promise<{ data?: NodeTypeMetadata[] }>;
   getNodeTemplates?: () => Promise<{ data?: NodeTemplateMetadata[] }>;
   runSync?: (
@@ -53,6 +56,7 @@ interface WorkflowApiClient {
       onNodeOutput?: (ev: { nodeKey: string }) => void;
       onNodeCompleted?: (ev: { nodeKey: string; durationMs?: number }) => void;
       onNodeFailed?: (ev: { nodeKey: string; errorMessage: string }) => void;
+      onNodeSkipped?: (ev: { nodeKey: string; reason?: string }) => void;
       onExecutionCompleted?: (ev: { outputsJson?: string }) => void;
       onExecutionFailed?: (ev: { errorMessage: string }) => void;
       onExecutionCancelled?: (ev: { errorMessage?: string }) => void;
@@ -88,9 +92,11 @@ interface CanvasNode {
   outputTypes?: Record<string, string>;
   inputSources?: Array<Record<string, unknown>>;
   outputSources?: Array<Record<string, unknown>>;
+  debugMeta?: Record<string, unknown>;
 }
 
 interface CanvasConnection extends ConnectionRuntime {}
+type EdgeRuntimeState = "idle" | "running" | "success" | "failed" | "skipped";
 
 interface DragNodeOperation {
   kind: "drag-node";
@@ -193,7 +199,8 @@ function parseCanvasNode(node: unknown): CanvasNode | null {
     inputTypes: isRecord(node.inputTypes) ? (node.inputTypes as Record<string, string>) : undefined,
     outputTypes: isRecord(node.outputTypes) ? (node.outputTypes as Record<string, string>) : undefined,
     inputSources: Array.isArray(node.inputSources) ? (node.inputSources as Array<Record<string, unknown>>) : undefined,
-    outputSources: Array.isArray(node.outputSources) ? (node.outputSources as Array<Record<string, unknown>>) : undefined
+    outputSources: Array.isArray(node.outputSources) ? (node.outputSources as Array<Record<string, unknown>>) : undefined,
+    debugMeta: isRecord(node.debugMeta) ? (node.debugMeta as Record<string, unknown>) : undefined
   };
 }
 
@@ -256,7 +263,8 @@ function toCanvasJson(nodes: CanvasNode[], connections: CanvasConnection[]): str
       inputTypes: node.inputTypes,
       outputTypes: node.outputTypes,
       inputSources: node.inputSources,
-      outputSources: node.outputSources
+      outputSources: node.outputSources,
+      debugMeta: node.debugMeta
     })),
     connections: connections.map((connection) => ({
       fromNode: connection.fromNode,
@@ -264,7 +272,8 @@ function toCanvasJson(nodes: CanvasNode[], connections: CanvasConnection[]): str
       toNode: connection.toNode,
       toPort: connection.toPort,
       condition: connection.condition
-    }))
+    })),
+    schemaVersion: 2
   };
   return JSON.stringify(payload);
 }
@@ -357,11 +366,14 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
   const [selectedNodeKey, setSelectedNodeKey] = useState<string>("llm_1");
   const [showNodePanel, setShowNodePanel] = useState(false);
   const [showTestPanel, setShowTestPanel] = useState(false);
+  const [showProblemPanel, setShowProblemPanel] = useState(false);
+  const [showTracePanel, setShowTracePanel] = useState(false);
   const [showMinimap, setShowMinimap] = useState(false);
   const [showVariablePanel, setShowVariablePanel] = useState(false);
   const [showDebugPanel, setShowDebugPanel] = useState(false);
   const [interactionMode, setInteractionMode] = useState<"mouse" | "trackpad">("mouse");
   const [logs, setLogs] = useState<string[]>([]);
+  const [traceSteps, setTraceSteps] = useState<TraceStepItem[]>([]);
   const [canvasNodes, setCanvasNodes] = useState<CanvasNode[]>(INITIAL_NODES);
   const [canvasConnections, setCanvasConnections] = useState<CanvasConnection[]>(INITIAL_CONNECTIONS);
   const [nodeTypesMeta, setNodeTypesMeta] = useState<NodeTypeMetadata[]>([]);
@@ -380,7 +392,7 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
   const [executionStateByNodeKey, setExecutionStateByNodeKey] = useState<
     Record<string, { state: "idle" | "running" | "success" | "failed" | "skipped"; hint?: string }>
   >({});
-  const [runningConnectionIds, setRunningConnectionIds] = useState<Set<string>>(new Set());
+  const [edgeStateByConnectionKey, setEdgeStateByConnectionKey] = useState<Record<string, EdgeRuntimeState>>({});
   const [testInputJson, setTestInputJson] = useState<string>('{"input":"hello"}');
   const [testRunMode, setTestRunMode] = useState<"stream" | "sync">("stream");
   const [testRunSource, setTestRunSource] = useState<"published" | "draft">("published");
@@ -390,6 +402,10 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
   const [debugOutput, setDebugOutput] = useState("");
   const [debugRunning, setDebugRunning] = useState(false);
   const streamAbortRef = useRef<null | (() => void)>(null);
+
+  function buildEdgeRuntimeKey(connection: Pick<CanvasConnection, "fromNode" | "fromPort" | "toNode" | "toPort">): string {
+    return `${connection.fromNode}:${connection.fromPort}->${connection.toNode}:${connection.toPort}`;
+  }
 
   const scale = zoom / 100;
 
@@ -404,22 +420,23 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
   useEffect(() => {
     let disposed = false;
     const load = async () => {
+      const apiClient = props.apiClient;
       let loadedNodeTypes: NodeTypeMetadata[] = [];
-      if (props.apiClient.getNodeTypes) {
-        const response = await props.apiClient.getNodeTypes();
+      if (apiClient?.getNodeTypes) {
+        const response = await apiClient.getNodeTypes();
         loadedNodeTypes = response.data ?? [];
         if (!disposed) {
           setNodeTypesMeta(loadedNodeTypes);
         }
       }
-      if (props.apiClient.getNodeTemplates) {
-        const response = await props.apiClient.getNodeTemplates();
+      if (apiClient?.getNodeTemplates) {
+        const response = await apiClient.getNodeTemplates();
         if (!disposed) {
           setNodeTemplates(response.data ?? []);
         }
       }
-      if (props.apiClient.getDetail) {
-        const response = await props.apiClient.getDetail(props.workflowId);
+      if (apiClient?.getDetail) {
+        const response = await apiClient.getDetail(props.workflowId);
         if (!disposed && response.data) {
           const parsed = parseCanvasJson(response.data.canvasJson);
           const normalized = normalizeConnectionsByPorts(parsed.nodes, parsed.connections, loadedNodeTypes);
@@ -494,9 +511,10 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
     () =>
       buildVariableSuggestions(
         canvasNodes.map((node) => ({ key: node.key, type: node.type, configs: node.configs, x: node.x })),
-        selectedNodeKey
+        selectedNodeKey,
+        canvasConnections.map((connection) => ({ fromNode: connection.fromNode, toNode: connection.toNode }))
       ),
-    [canvasNodes, selectedNodeKey]
+    [canvasConnections, canvasNodes, selectedNodeKey]
   );
   const variablePanelItems = useMemo(
     () =>
@@ -529,10 +547,11 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
           const toPorts = nodePortsByNodeKey.get(connection.toNode) ?? buildNodePortsRuntime(undefined);
           const from = getPortAnchor(fromNode, fromPorts, "output", connection.fromPort);
           const to = getPortAnchor(toNode, toPorts, "input", connection.toPort);
-          return { id: connection.id, d: connectionPath(from.x, from.y, to.x, to.y), running: runningConnectionIds.has(connection.id) };
+          const edgeState = edgeStateByConnectionKey[buildEdgeRuntimeKey(connection)] ?? "idle";
+          return { id: connection.id, d: connectionPath(from.x, from.y, to.x, to.y), edgeState };
         })
-        .filter((item): item is { id: string; d: string; running: boolean } => item !== null),
-    [canvasConnections, nodeByKey, nodePortsByNodeKey, runningConnectionIds]
+        .filter((item): item is { id: string; d: string; edgeState: EdgeRuntimeState } => item !== null),
+    [canvasConnections, edgeStateByConnectionKey, nodeByKey, nodePortsByNodeKey]
   );
 
   function resolveWorldPoint(clientX: number, clientY: number): { x: number; y: number } | null {
@@ -814,6 +833,7 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
   function runCanvasValidationAndReport(): CanvasValidationResult {
     const result = validateCanvas(canvasNodes, canvasConnections, nodeTypesMeta);
     setCanvasValidation(result);
+    setShowProblemPanel(!result.ok);
     if (!result.ok) {
       const firstNodeIssue = result.nodeResults.find((item) => item.issues.length > 0)?.issues[0];
       const firstCanvasIssue = result.canvasIssues[0];
@@ -837,7 +857,8 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
       inputTypes: node.inputTypes,
       outputTypes: node.outputTypes,
       inputSources: node.inputSources,
-      outputSources: node.outputSources
+      outputSources: node.outputSources,
+      debugMeta: node.debugMeta
     })),
     connections: canvasConnections.map((line) => ({
       fromNode: line.fromNode,
@@ -845,11 +866,16 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
       toNode: line.toNode,
       toPort: line.toPort,
       condition: line.condition
-    }))
+    })),
+    schemaVersion: 2
   };
 
   function appendLog(line: string) {
     setLogs((prev) => [...prev, `${new Date().toLocaleTimeString()} ${line}`]);
+  }
+
+  function appendTrace(step: TraceStepItem) {
+    setTraceSteps((prev) => [...prev, step]);
   }
 
   function markNodeState(nodeKey: string, state: "idle" | "running" | "success" | "failed" | "skipped", hint?: string) {
@@ -857,6 +883,52 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
       ...prev,
       [nodeKey]: { state, hint }
     }));
+    setCanvasNodes((prev) =>
+      prev.map((node) =>
+        node.key === nodeKey
+          ? {
+              ...node,
+              debugMeta: {
+                ...(node.debugMeta ?? {}),
+                executionState: state,
+                executionHint: hint
+              }
+            }
+          : node
+      )
+    );
+  }
+
+  function markOutgoingEdgesState(nodeKey: string, state: EdgeRuntimeState) {
+    setEdgeStateByConnectionKey((prev) => {
+      const next = { ...prev };
+      for (const connection of canvasConnections) {
+        if (connection.fromNode === nodeKey) {
+          next[buildEdgeRuntimeKey(connection)] = state;
+        }
+      }
+      return next;
+    });
+  }
+
+  function resetRuntimeVisualization() {
+    setExecutionStateByNodeKey({});
+    setEdgeStateByConnectionKey({});
+    setCanvasNodes((prev) =>
+      prev.map((node) => {
+        if (!node.debugMeta) {
+          return node;
+        }
+        const nextDebugMeta = { ...node.debugMeta };
+        delete nextDebugMeta.executionState;
+        delete nextDebugMeta.executionHint;
+        return {
+          ...node,
+          debugMeta: Object.keys(nextDebugMeta).length > 0 ? nextDebugMeta : undefined
+        };
+      })
+    );
+    setTraceSteps([]);
   }
 
   async function handleRunTest() {
@@ -865,6 +937,12 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
       streamAbortRef.current = null;
       setTestRunning(false);
       appendLog("execution_cancelled");
+      return;
+    }
+
+    const validation = runCanvasValidationAndReport();
+    if (!validation.ok) {
+      setShowProblemPanel(true);
       return;
     }
 
@@ -878,8 +956,7 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
       }
     }
 
-    setExecutionStateByNodeKey({});
-    setRunningConnectionIds(new Set());
+    resetRuntimeVisualization();
     setTestRunning(true);
 
     if (testRunMode === "stream" && props.apiClient.runStream) {
@@ -893,45 +970,66 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
           onExecutionStarted: (ev) => appendLog(`execution_start ${ev.executionId}`),
           onNodeStarted: (ev) => {
             markNodeState(ev.nodeKey, "running");
-            setRunningConnectionIds(
-              new Set(canvasConnections.filter((item) => item.fromNode === ev.nodeKey).map((item) => item.id))
-            );
+            markOutgoingEdgesState(ev.nodeKey, "running");
+            appendTrace({
+              timestamp: new Date().toLocaleTimeString(),
+              nodeKey: ev.nodeKey,
+              status: "running"
+            });
             appendLog(`node_start ${ev.nodeKey}`);
           },
           onNodeOutput: (ev) => appendLog(`node_output ${ev.nodeKey}`),
           onNodeCompleted: (ev) => {
             markNodeState(ev.nodeKey, "success", ev.durationMs ? `${ev.durationMs}ms` : undefined);
-            setRunningConnectionIds(new Set());
+            markOutgoingEdgesState(ev.nodeKey, "success");
+            appendTrace({
+              timestamp: new Date().toLocaleTimeString(),
+              nodeKey: ev.nodeKey,
+              status: "success",
+              detail: ev.durationMs ? `${ev.durationMs}ms` : undefined
+            });
             appendLog(`node_complete ${ev.nodeKey}`);
           },
           onNodeFailed: (ev) => {
             markNodeState(ev.nodeKey, "failed", ev.errorMessage);
-            setRunningConnectionIds(new Set());
+            markOutgoingEdgesState(ev.nodeKey, "failed");
+            appendTrace({
+              timestamp: new Date().toLocaleTimeString(),
+              nodeKey: ev.nodeKey,
+              status: "failed",
+              detail: ev.errorMessage
+            });
             appendLog(`node_failed ${ev.nodeKey} ${ev.errorMessage}`);
+          },
+          onNodeSkipped: (ev) => {
+            markNodeState(ev.nodeKey, "skipped", ev.reason);
+            markOutgoingEdgesState(ev.nodeKey, "skipped");
+            appendTrace({
+              timestamp: new Date().toLocaleTimeString(),
+              nodeKey: ev.nodeKey,
+              status: "skipped",
+              detail: ev.reason
+            });
+            appendLog(`node_skipped ${ev.nodeKey}`);
           },
           onExecutionCompleted: () => {
             setTestRunning(false);
-            setRunningConnectionIds(new Set());
             appendLog("execution_complete");
           },
           onExecutionCancelled: (ev) => {
             setTestRunning(false);
-            setRunningConnectionIds(new Set());
             appendLog(`execution_cancelled ${ev.errorMessage ?? ""}`.trim());
           },
           onExecutionInterrupted: (ev) => {
             setTestRunning(false);
-            setRunningConnectionIds(new Set());
             appendLog(`execution_interrupted ${ev.nodeKey ?? ""}`.trim());
           },
           onExecutionFailed: (ev) => {
             setTestRunning(false);
-            setRunningConnectionIds(new Set());
             appendLog(`execution_failed ${ev.errorMessage}`);
           },
           onError: (err) => {
             setTestRunning(false);
-            setRunningConnectionIds(new Set());
             appendLog(`stream_error ${err instanceof Error ? err.message : "unknown"}`);
           }
         }
@@ -955,10 +1053,21 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
         for (const item of nodeExecutions) {
           if (item.status === 2) {
             markNodeState(item.nodeKey, "success");
+            markOutgoingEdgesState(item.nodeKey, "success");
+            appendTrace({ timestamp: new Date().toLocaleTimeString(), nodeKey: item.nodeKey, status: "success" });
           } else if (item.status === 3) {
             markNodeState(item.nodeKey, "failed", item.errorMessage);
+            markOutgoingEdgesState(item.nodeKey, "failed");
+            appendTrace({
+              timestamp: new Date().toLocaleTimeString(),
+              nodeKey: item.nodeKey,
+              status: "failed",
+              detail: item.errorMessage
+            });
           } else if (item.status === 6) {
             markNodeState(item.nodeKey, "skipped");
+            markOutgoingEdgesState(item.nodeKey, "skipped");
+            appendTrace({ timestamp: new Date().toLocaleTimeString(), nodeKey: item.nodeKey, status: "skipped" });
           }
         }
       }
@@ -998,12 +1107,35 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
     }
 
     setDebugRunning(true);
+    markNodeState(debugNodeKey, "running", "debug");
     try {
       const response = await props.apiClient.debugNode(props.workflowId, debugNodeKey, {
         nodeKey: debugNodeKey,
         inputsJson: JSON.stringify(parsed)
       });
-      setDebugOutput(JSON.stringify(response.data ?? {}, null, 2));
+      const outputText = JSON.stringify(response.data ?? {}, null, 2);
+      setDebugOutput(outputText);
+      markNodeState(debugNodeKey, "success", "debug ok");
+      setCanvasNodes((prev) =>
+        prev.map((node) =>
+          node.key === debugNodeKey
+            ? {
+                ...node,
+                debugMeta: {
+                  ...(node.debugMeta ?? {}),
+                  debugResult: response.data ?? null,
+                  lastDebugAt: new Date().toISOString()
+                }
+              }
+            : node
+        )
+      );
+      appendLog(`node_debug ${debugNodeKey} success`);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "调试失败";
+      setDebugOutput(errorMessage);
+      markNodeState(debugNodeKey, "failed", errorMessage);
+      appendLog(`node_debug ${debugNodeKey} failed: ${errorMessage}`);
     } finally {
       setDebugRunning(false);
     }
@@ -1032,12 +1164,28 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
           setIsDirty(false);
           setLogs((prev: string[]) => [...prev, `${new Date().toLocaleTimeString()} save_draft`]);
         }}
-        onPublish={() => {
+        onPublish={async () => {
           const result = runCanvasValidationAndReport();
           if (!result.ok) {
             return;
           }
-          setLogs((prev: string[]) => [...prev, `${new Date().toLocaleTimeString()} publish`]);
+          try {
+            if (props.apiClient.saveDraft && isDirty) {
+              await props.apiClient.saveDraft(props.workflowId, {
+                canvasJson: toCanvasJson(canvasNodes, canvasConnections)
+              });
+            }
+            if (props.apiClient.publish) {
+              await props.apiClient.publish(props.workflowId, {});
+              message.success("工作流已发布。");
+              setIsDirty(false);
+            } else {
+              message.warning("当前环境未启用发布接口。");
+            }
+            setLogs((prev: string[]) => [...prev, `${new Date().toLocaleTimeString()} publish`]);
+          } catch (error) {
+            message.error(error instanceof Error ? error.message : "发布失败");
+          }
         }}
       />
       <div
@@ -1082,6 +1230,7 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
           <WorkflowRenderProvider
             canvas={flowgramCanvasSchema}
             nodeTypesMeta={nodeTypesMeta}
+            edgeStateByKey={edgeStateByConnectionKey}
             onCanvasChange={(next) => {
               const nextNodes: CanvasNode[] = next.nodes.map((node) => ({
                 key: node.key,
@@ -1095,7 +1244,8 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
                 inputTypes: node.inputTypes,
                 outputTypes: node.outputTypes,
                 inputSources: node.inputSources,
-                outputSources: node.outputSources
+                outputSources: node.outputSources,
+                debugMeta: node.debugMeta
               }));
               const nextConnections: CanvasConnection[] = next.connections.map((line, index) => ({
                 id: `conn_${line.fromNode}_${line.fromPort}_${line.toNode}_${line.toPort}_${index}`,
@@ -1117,7 +1267,21 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
             <div className="wf-react-scene" style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})` }}>
               <svg className="wf-react-edge-layer" width="100%" height="100%">
                 {renderConnections.map((item) => (
-                  <path key={item.id} d={item.d} className={`wf-react-edge-path${item.running ? " wf-react-edge-path-running" : ""}`} />
+                  <path
+                    key={item.id}
+                    d={item.d}
+                    className={`wf-react-edge-path${
+                      item.edgeState === "running"
+                        ? " wf-react-edge-path-running"
+                        : item.edgeState === "success"
+                          ? " wf-react-edge-path-success"
+                          : item.edgeState === "failed"
+                            ? " wf-react-edge-path-failed"
+                            : item.edgeState === "skipped"
+                              ? " wf-react-edge-path-skipped"
+                              : ""
+                    }`}
+                  />
                 ))}
                 {connectingPreview ? (
                   <path
@@ -1206,6 +1370,18 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
           onRun={() => void handleRunTest()}
         />
 
+        <TracePanel visible={showTracePanel} steps={traceSteps} onClose={() => setShowTracePanel(false)} />
+
+        <ProblemPanel
+          visible={showProblemPanel}
+          validation={canvasValidation}
+          onClose={() => setShowProblemPanel(false)}
+          onSelectNode={(nodeKey) => {
+            setSelectedNodeKey(nodeKey);
+            setShowProblemPanel(false);
+          }}
+        />
+
         <NodeDebugPanel
           visible={showDebugPanel}
           running={debugRunning}
@@ -1234,22 +1410,12 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
           onAutoLayout={handleAutoLayout}
           onToggleVariables={() => setShowVariablePanel((value) => !value)}
           onToggleDebug={() => setShowDebugPanel((value) => !value)}
+          onToggleTrace={() => setShowTracePanel((value) => !value)}
+          onToggleProblems={() => setShowProblemPanel((value) => !value)}
           onRun={() => setShowTestPanel((value: boolean) => !value)}
         />
       </div>
-      {hasCanvasValidationErrors ? (
-        <div className="wf-react-validation-banner">
-          {canvasValidation?.canvasIssues.map((issue) => (
-            <div key={issue}>{issue}</div>
-          ))}
-          {canvasValidation?.nodeResults
-            .filter((item) => item.issues.length > 0)
-            .slice(0, 10)
-            .map((item) => (
-              <div key={item.nodeKey}>{`${item.nodeKey}: ${item.issues[0]}`}</div>
-            ))}
-        </div>
-      ) : null}
+      {hasCanvasValidationErrors ? <div className="wf-react-validation-banner">检测到校验问题，可点击“问题”按钮查看详情。</div> : null}
     </div>
   );
 }

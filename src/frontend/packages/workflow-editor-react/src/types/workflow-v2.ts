@@ -6,6 +6,9 @@ export type WorkflowMode = 0 | 1; // 0=Standard, 1=ChatFlow
 export type WorkflowLifecycleStatus = 0 | 1 | 2; // 0=Draft, 1=Published, 2=Archived
 export type ExecutionStatus = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7; // Pending, Running, Completed, Failed, Cancelled, Interrupted, Skipped, Blocked
 export type InterruptType = 0 | 1 | 2 | 3; // None, QuestionAnswer, ManualApproval, Timeout
+export type EdgeExecutionStatus = 0 | 1 | 2 | 3; // Idle, Success, Skipped, Failed
+
+export const WORKFLOW_SCHEMA_VERSION = 2;
 
 export type WorkflowNodeTypeKey =
   | "Entry"
@@ -99,8 +102,15 @@ export const WORKFLOW_NODE_TYPE_VALUES: Record<WorkflowNodeTypeKey, number> = {
 };
 
 const NODE_ALIAS_MAP: Record<string, WorkflowNodeTypeKey> = {
+  Start: "Entry",
+  End: "Exit",
   LLM: "Llm",
   If: "Selector",
+  Api: "Plugin",
+  Code: "CodeRunner",
+  Http: "HttpRequester",
+  ToJSON: "JsonSerialization",
+  FromJSON: "JsonDeserialization",
   ENTRY: "Entry",
   EXIT: "Exit"
 };
@@ -114,6 +124,11 @@ const NODE_VALUE_TO_KEY = Object.entries(WORKFLOW_NODE_TYPE_VALUES).reduce<Recor
 );
 
 export function normalizeNodeTypeKey(value: string): WorkflowNodeTypeKey {
+  const numericValue = Number(value);
+  if (!Number.isNaN(numericValue) && Number.isFinite(numericValue)) {
+    return workflowNodeValueToKey(numericValue);
+  }
+
   if (value in WORKFLOW_NODE_TYPE_VALUES) {
     return value as WorkflowNodeTypeKey;
   }
@@ -143,6 +158,23 @@ export interface NodeLayout {
   height: number;
 }
 
+export interface WorkflowViewport {
+  x: number;
+  y: number;
+  zoom: number;
+}
+
+export type WorkflowPortDirection = "input" | "output";
+
+export interface WorkflowNodePortSchema {
+  key: string;
+  name: string;
+  direction: WorkflowPortDirection;
+  dataType?: string;
+  isRequired?: boolean;
+  maxConnections?: number;
+}
+
 // 编辑器内部节点模型（字符串类型键）
 export interface NodeSchema {
   key: string;
@@ -156,6 +188,9 @@ export interface NodeSchema {
   outputTypes?: Record<string, string>;
   inputSources?: Array<Record<string, unknown>>;
   outputSources?: Array<Record<string, unknown>>;
+  ports?: WorkflowNodePortSchema[];
+  version?: string;
+  debugMeta?: Record<string, unknown>;
 }
 
 // 编辑器内部连线模型
@@ -170,6 +205,8 @@ export interface ConnectionSchema {
 export interface CanvasSchema {
   nodes: NodeSchema[];
   connections: ConnectionSchema[];
+  schemaVersion?: number;
+  viewport?: WorkflowViewport;
 }
 
 // 后端 Canvas 契约模型
@@ -184,6 +221,9 @@ export interface WorkflowCanvasNodePayload {
   outputTypes?: Record<string, string>;
   inputSources?: Array<Record<string, unknown>>;
   outputSources?: Array<Record<string, unknown>>;
+  ports?: WorkflowNodePortSchema[];
+  version?: string;
+  debugMeta?: Record<string, unknown>;
 }
 
 export interface WorkflowCanvasConnectionPayload {
@@ -197,6 +237,8 @@ export interface WorkflowCanvasConnectionPayload {
 export interface WorkflowCanvasPayload {
   nodes: WorkflowCanvasNodePayload[];
   connections: WorkflowCanvasConnectionPayload[];
+  schemaVersion?: number;
+  viewport?: WorkflowViewport;
 }
 
 // ============ API Request/Response ============
@@ -347,15 +389,58 @@ export interface WorkflowExecutionDebugViewResponse {
 export interface WorkflowResumeRequest {
   inputsJson?: string;
   data?: Record<string, unknown>;
+  variableOverrides?: Record<string, unknown>;
 }
 
 export interface NodeDebugRequest {
   nodeKey: string;
   inputs?: Record<string, unknown>;
   inputsJson?: string;
+  source?: "published" | "draft";
+  versionId?: string;
 }
 
-export type NodeDebugResponse = WorkflowRunResponse;
+export interface NodeDebugResponse extends WorkflowRunResponse {
+  status?: ExecutionStatus;
+  outputsJson?: string;
+  errorMessage?: string;
+  debugNodeKey?: string;
+  stepResult?: StepResult;
+}
+
+export interface StepResult {
+  executionId: string;
+  nodeKey: string;
+  nodeType: string;
+  status: ExecutionStatus;
+  startedAt?: string;
+  completedAt?: string;
+  durationMs?: number;
+  inputs?: Record<string, unknown>;
+  outputs?: Record<string, unknown>;
+  errorMessage?: string;
+  branchDecision?: Record<string, unknown>;
+}
+
+export interface RunTrace {
+  executionId: string;
+  workflowId?: string;
+  status: ExecutionStatus;
+  startedAt?: string;
+  completedAt?: string;
+  durationMs?: number;
+  steps: StepResult[];
+  edgeStatuses?: EdgeRuntimeStatus[];
+}
+
+export interface EdgeRuntimeStatus {
+  sourceNodeKey: string;
+  sourcePort: string;
+  targetNodeKey: string;
+  targetPort: string;
+  status: EdgeExecutionStatus;
+  reason?: string;
+}
 
 // ============ SSE 事件 ============
 
@@ -392,6 +477,13 @@ export interface NodeFailedEvent {
   interruptType?: string;
 }
 
+export interface NodeSkippedEvent {
+  executionId: string;
+  nodeKey: string;
+  nodeType: string;
+  reason?: string;
+}
+
 export interface ExecutionCompleteEvent {
   executionId: string;
   outputsJson?: string;
@@ -414,16 +506,41 @@ export interface ExecutionInterruptedEvent {
   outputsJson?: string;
 }
 
+export interface EdgeStatusChangedEvent {
+  executionId: string;
+  edge: EdgeRuntimeStatus;
+}
+
+export interface BranchDecisionEvent {
+  executionId: string;
+  nodeKey: string;
+  nodeType: string;
+  selectedBranch: string;
+  candidates?: string[];
+}
+
+export interface ExecutionMetricsEvent {
+  executionId: string;
+  totalDurationMs?: number;
+  completedNodeCount?: number;
+  skippedNodeCount?: number;
+  failedNodeCount?: number;
+}
+
 export type SseEventData =
   | ExecutionStartEvent
   | NodeStartEvent
   | NodeCompleteEvent
   | NodeOutputEvent
   | NodeFailedEvent
+  | NodeSkippedEvent
   | ExecutionCompleteEvent
   | ExecutionFailedEvent
   | ExecutionCancelledEvent
   | ExecutionInterruptedEvent
+  | EdgeStatusChangedEvent
+  | BranchDecisionEvent
+  | ExecutionMetricsEvent
   | string;
 
 // ============ 前端画布节点状态 ============

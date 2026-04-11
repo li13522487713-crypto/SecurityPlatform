@@ -1,5 +1,11 @@
 import { useMemo } from "react";
-import { FreeLayoutEditor, type WorkflowJSON, type WorkflowContentChangeEvent, type WorkflowNodeRegistry } from "@flowgram.ai/free-layout-editor";
+import {
+  FreeLayoutEditor,
+  type WorkflowJSON,
+  type WorkflowContentChangeEvent,
+  type WorkflowNodeRegistry,
+  type WorkflowPortEntity
+} from "@flowgram.ai/free-layout-editor";
 import type { CanvasSchema, NodeTypeMetadata } from "../types";
 import { toEditorCanvasSchema, toFlowgramWorkflowJSON } from "./workflow-json-bridge";
 import { WorkflowNodeRender } from "../node-render/node-render";
@@ -9,10 +15,23 @@ interface WorkflowLoaderProps {
   canvas: CanvasSchema;
   readonly?: boolean;
   nodeTypesMeta: NodeTypeMetadata[];
+  edgeStateByKey?: Record<string, "idle" | "running" | "success" | "failed" | "skipped">;
   onCanvasChange: (next: CanvasSchema) => void;
 }
 
 export function WorkflowLoader(props: WorkflowLoaderProps) {
+  const buildEdgeRuntimeKey = (sourceNode: string, sourcePort: string, targetNode: string, targetPort: string) =>
+    `${sourceNode}:${sourcePort}->${targetNode}:${targetPort}`;
+
+  const toRuntimePort = (port: WorkflowPortEntity) => ({
+    key: String(port.portID ?? (port.portType === "input" ? "input" : "output")),
+    name: String(port.portID ?? (port.portType === "input" ? "input" : "output")),
+    direction: port.portType,
+    dataType: "any",
+    isRequired: false,
+    maxConnections: 99
+  });
+
   const nodeTypesMap = useMemo(
     () => new Map<string, NodeTypeMetadata>(props.nodeTypesMeta.map((item) => [String(item.key), item])),
     [props.nodeTypesMeta]
@@ -49,7 +68,25 @@ export function WorkflowLoader(props: WorkflowLoaderProps) {
       setLineRenderType={() => 0}
       setLineClassName={(_ctx, line) => {
         const lineData = line.lineData as { processing?: boolean } | undefined;
-        return lineData?.processing || line.flowing ? "wf-react-edge-path-running" : undefined;
+        const fromNode = line.from?.id ?? "";
+        const fromPort = String(line.fromPort?.portID ?? "output");
+        const toNode = line.to?.id ?? "";
+        const toPort = String(line.toPort?.portID ?? "input");
+        const edgeState = props.edgeStateByKey?.[buildEdgeRuntimeKey(fromNode, fromPort, toNode, toPort)] ?? "idle";
+
+        if (lineData?.processing || line.flowing || edgeState === "running") {
+          return "wf-react-edge-path-running";
+        }
+        if (edgeState === "success") {
+          return "wf-react-edge-path-success";
+        }
+        if (edgeState === "failed") {
+          return "wf-react-edge-path-failed";
+        }
+        if (edgeState === "skipped") {
+          return "wf-react-edge-path-skipped";
+        }
+        return undefined;
       }}
       canAddLine={(ctx, fromPort, toPort, lines) => {
         const fromNodeType = String(fromPort.node.flowNodeType);
@@ -58,6 +95,8 @@ export function WorkflowLoader(props: WorkflowLoaderProps) {
         const toMeta = nodeTypesMap.get(toNodeType);
         const fromPorts = buildNodePortsRuntime(fromMeta);
         const toPorts = buildNodePortsRuntime(toMeta);
+        const runtimeFromOutputs = (fromPort.node.ports.outputPorts ?? []).map(toRuntimePort);
+        const runtimeToInputs = (toPort.node.ports.inputPorts ?? []).map(toRuntimePort);
         const existing = lines.getAllAvailableLines().map((item) => ({
           id: item.id,
           fromNode: item.from?.id ?? "",
@@ -74,8 +113,8 @@ export function WorkflowLoader(props: WorkflowLoaderProps) {
             toPort: String(toPort.portID ?? "input")
           },
           existing,
-          fromPorts.outputs,
-          toPorts.inputs
+          runtimeFromOutputs.length > 0 ? runtimeFromOutputs : fromPorts.outputs,
+          runtimeToInputs.length > 0 ? runtimeToInputs : toPorts.inputs
         );
 
         return validation.ok;

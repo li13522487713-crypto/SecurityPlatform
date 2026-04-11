@@ -8,7 +8,9 @@ namespace Atlas.Domain.AiPlatform.ValueObjects;
 /// </summary>
 public sealed record CanvasSchema(
     IReadOnlyList<NodeSchema> Nodes,
-    IReadOnlyList<ConnectionSchema> Connections);
+    IReadOnlyList<ConnectionSchema> Connections,
+    int SchemaVersion = 2,
+    ViewportState? Viewport = null);
 
 /// <summary>
 /// 单个节点的完整配置。
@@ -23,7 +25,10 @@ public sealed record NodeSchema(
     Dictionary<string, string>? InputTypes = null,
     Dictionary<string, string>? OutputTypes = null,
     IReadOnlyList<NodeFieldMapping>? InputSources = null,
-    IReadOnlyList<NodeFieldMapping>? OutputSources = null);
+    IReadOnlyList<NodeFieldMapping>? OutputSources = null,
+    IReadOnlyList<NodePortSchema>? Ports = null,
+    string? Version = null,
+    Dictionary<string, JsonElement>? DebugMeta = null);
 
 /// <summary>
 /// 两个节点之间的连线。
@@ -51,3 +56,22 @@ public sealed record NodeFieldMapping(
     string Field,
     string Path,
     string? DefaultValue = null);
+
+/// <summary>
+/// 节点端口 Schema，支持动态端口回填与持久化。
+/// </summary>
+public sealed record NodePortSchema(
+    string Key,
+    string Name,
+    string Direction,
+    string? DataType = null,
+    bool? IsRequired = null,
+    int? MaxConnections = null);
+
+/// <summary>
+/// 画布视口信息（缩放与平移）。
+/// </summary>
+public sealed record ViewportState(
+    double X,
+    double Y,
+    double Zoom);

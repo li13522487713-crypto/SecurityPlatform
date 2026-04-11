@@ -45,7 +45,6 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
         IAppContextAccessor appContextAccessor,
         ILogger<WorkflowV2ExecutionService> logger)
     {
-        Console.WriteLine("[diag] WorkflowV2ExecutionService ctor-enter");
         _metaRepo = metaRepo;
         _draftRepo = draftRepo;
         _versionRepo = versionRepo;
@@ -57,7 +56,7 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
         _idGenerator = idGenerator;
         _appContextAccessor = appContextAccessor;
         _logger = logger;
-        Console.WriteLine("[diag] WorkflowV2ExecutionService ctor-exit");
+        _logger.LogDebug("WorkflowV2ExecutionService initialized.");
     }
 
     public WorkflowV2ExecutionService(
@@ -89,18 +88,15 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
     public async Task<WorkflowV2RunResult> SyncRunAsync(
         TenantId tenantId, long workflowId, long userId, WorkflowV2RunRequest request, CancellationToken cancellationToken)
     {
-        Console.WriteLine($"[diag] ExecutionService SyncRun start workflowId={workflowId}");
-        _logger.LogWarning("ExecutionService SyncRun start: WorkflowId={WorkflowId}", workflowId);
+        _logger.LogInformation("ExecutionService SyncRun start: WorkflowId={WorkflowId}", workflowId);
         var (execution, canvas, inputs) = await PrepareExecutionAsync(tenantId, workflowId, userId, request, cancellationToken);
-        Console.WriteLine($"[diag] ExecutionService SyncRun prepared executionId={execution.Id} nodes={canvas.Nodes.Count}");
-        _logger.LogWarning(
+        _logger.LogInformation(
             "ExecutionService SyncRun prepared: WorkflowId={WorkflowId} ExecutionId={ExecutionId} NodeCount={NodeCount}",
             workflowId,
             execution.Id,
             canvas.Nodes.Count);
         await _dagExecutor.RunAsync(tenantId, execution, canvas, inputs, eventChannel: null, cancellationToken);
-        Console.WriteLine($"[diag] ExecutionService SyncRun finished executionId={execution.Id} status={execution.Status}");
-        _logger.LogWarning(
+        _logger.LogInformation(
             "ExecutionService SyncRun finished: WorkflowId={WorkflowId} ExecutionId={ExecutionId} Status={Status} Error={Error}",
             workflowId,
             execution.Id,
@@ -361,9 +357,7 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
         TenantId tenantId, long workflowId, long userId, WorkflowV2RunRequest request,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        Console.WriteLine($"[diag] ExecutionService StreamRun start workflowId={workflowId}");
         var (execution, canvas, inputs) = await PrepareExecutionAsync(tenantId, workflowId, userId, request, cancellationToken);
-        Console.WriteLine($"[diag] ExecutionService StreamRun prepared executionId={execution.Id} workflowId={workflowId}");
 
         var channel = Channel.CreateUnbounded<SseEvent>(new UnboundedChannelOptions { SingleReader = true });
         using var runCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -397,12 +391,10 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
         }, CancellationToken.None);
 
         // 产出开始事件
-        Console.WriteLine($"[diag] ExecutionService StreamRun yield execution_start executionId={execution.Id}");
         yield return new SseEvent("execution_start", JsonSerializer.Serialize(new { executionId = execution.Id.ToString() }));
 
         await foreach (var evt in channel.Reader.ReadAllAsync(cancellationToken))
         {
-            Console.WriteLine($"[diag] ExecutionService StreamRun forward event executionId={execution.Id} event={evt.Event}");
             yield return evt;
         }
 
@@ -469,24 +461,18 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
     private async Task<(WorkflowExecution Execution, Domain.AiPlatform.ValueObjects.CanvasSchema Canvas, Dictionary<string, JsonElement> Inputs)>
         PrepareExecutionAsync(TenantId tenantId, long workflowId, long userId, WorkflowV2RunRequest request, CancellationToken cancellationToken)
     {
-        Console.WriteLine($"[diag] PrepareExecution start workflowId={workflowId}");
-        Console.WriteLine($"[diag] PrepareExecution before FindActiveById workflowId={workflowId}");
         var meta = await _metaRepo.FindActiveByIdAsync(tenantId, workflowId, cancellationToken)
             ?? throw new BusinessException("工作流不存在。", ErrorCodes.NotFound);
-        Console.WriteLine($"[diag] PrepareExecution meta-ok workflowId={workflowId} version={meta.LatestVersionNumber}");
 
         var runSource = ResolveRunSource(request.Source);
         var canvasJson = await ResolveRunCanvasJsonAsync(tenantId, meta.Id, runSource, cancellationToken);
         var canvas = DagExecutor.ParseCanvas(canvasJson)
             ?? throw new BusinessException("画布 JSON 无效。", ErrorCodes.ValidationError);
-        Console.WriteLine($"[diag] PrepareExecution canvas-ok workflowId={workflowId} nodes={canvas.Nodes.Count}");
 
         var inputs = ParseInputs(request.InputsJson);
         var appId = _appContextAccessor.ResolveAppId();
         var execution = new WorkflowExecution(tenantId, workflowId, meta.LatestVersionNumber, userId, request.InputsJson, _idGenerator.NextId(), appId);
-        Console.WriteLine($"[diag] PrepareExecution before AddExecution executionId={execution.Id} workflowId={workflowId}");
         await _executionRepo.AddAsync(execution, cancellationToken);
-        Console.WriteLine($"[diag] PrepareExecution done executionId={execution.Id} workflowId={workflowId}");
 
         return (execution, canvas, inputs);
     }
@@ -508,10 +494,8 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
             return latestVersion.CanvasJson;
         }
 
-        Console.WriteLine($"[diag] PrepareExecution before FindByWorkflowId workflowId={workflowId}");
         var draft = await _draftRepo.FindByWorkflowIdAsync(tenantId, workflowId, cancellationToken)
             ?? throw new BusinessException("工作流草稿不存在。", ErrorCodes.NotFound);
-        Console.WriteLine($"[diag] PrepareExecution draft-ok workflowId={workflowId} draftId={draft.Id}");
         return draft.CanvasJson;
     }
 

@@ -16,6 +16,7 @@ import {
   type NodeDebugResponse,
   type NodeExecutionDetailResponse,
   type NodeFailedEvent,
+  type NodeSkippedEvent,
   type NodeOutputEvent,
   type NodeSchema,
   type NodeStartEvent,
@@ -49,6 +50,7 @@ export interface StreamCallbacks {
   onNodeOutput?: (ev: NodeOutputEvent) => void;
   onNodeCompleted?: (ev: NodeCompleteEvent) => void;
   onNodeFailed?: (ev: NodeFailedEvent) => void;
+  onNodeSkipped?: (ev: NodeSkippedEvent) => void;
   onLlmOutput?: (content: string) => void;
   onExecutionCompleted?: (ev: ExecutionCompleteEvent) => void;
   onExecutionFailed?: (ev: ExecutionFailedEvent) => void;
@@ -174,7 +176,9 @@ export function createWorkflowV2Api(options: WorkflowApiFactoryOptions) {
     debugNode(workflowId: IdLike, nodeKey: string, req: NodeDebugRequest): Promise<ApiResponse<NodeDebugResponse>> {
       const payload = {
         nodeKey,
-        inputsJson: req.inputsJson ?? JSON.stringify(req.inputs ?? {})
+        inputsJson: req.inputsJson ?? JSON.stringify(req.inputs ?? {}),
+        source: req.source,
+        versionId: req.versionId
       };
       return requestFn<ApiResponse<NodeDebugResponse>>(`${BASE}/${workflowId}/debug-node`, {
         method: "POST",
@@ -334,6 +338,9 @@ function handleStreamEvent(eventName: string, dataText: string, callbacks: Strea
     case "node_failed":
       callbacks.onNodeFailed?.(safeJsonParse<NodeFailedEvent>(dataText));
       break;
+    case "node_skipped":
+      callbacks.onNodeSkipped?.(safeJsonParse<NodeSkippedEvent>(dataText));
+      break;
     case "llm_output":
       callbacks.onLlmOutput?.(dataText);
       break;
@@ -403,7 +410,10 @@ function toBackendCanvasJson(editorCanvasJson: string): string {
       inputTypes: editorNode.inputTypes,
       outputTypes: editorNode.outputTypes,
       inputSources: editorNode.inputSources,
-      outputSources: editorNode.outputSources
+      outputSources: editorNode.outputSources,
+      ports: editorNode.ports,
+      version: editorNode.version,
+      debugMeta: editorNode.debugMeta
     };
   });
 
@@ -417,7 +427,12 @@ function toBackendCanvasJson(editorCanvasJson: string): string {
       condition: editorConnection.condition ?? null
     };
   });
-  return JSON.stringify({ nodes, connections });
+  return JSON.stringify({
+    nodes,
+    connections,
+    schemaVersion: editorCanvas.schemaVersion,
+    viewport: editorCanvas.viewport
+  });
 }
 
 function toEditorCanvasJson(backendCanvasJson: string): string {
@@ -454,7 +469,10 @@ function toEditorCanvasJson(backendCanvasJson: string): string {
       inputTypes: node.inputTypes,
       outputTypes: node.outputTypes,
       inputSources: node.inputSources,
-      outputSources: node.outputSources
+      outputSources: node.outputSources,
+      ports: node.ports,
+      version: node.version,
+      debugMeta: node.debugMeta
     };
   });
   const connections = payload.connections.map((connection) => ({
@@ -464,7 +482,12 @@ function toEditorCanvasJson(backendCanvasJson: string): string {
     toPort: connection.targetPort ?? "input",
     condition: connection.condition ?? null
   }));
-  return JSON.stringify({ nodes, connections });
+  return JSON.stringify({
+    nodes,
+    connections,
+    schemaVersion: payload.schemaVersion,
+    viewport: payload.viewport
+  });
 }
 
 function normalizeConfigPayload(config: unknown): Record<string, unknown> {

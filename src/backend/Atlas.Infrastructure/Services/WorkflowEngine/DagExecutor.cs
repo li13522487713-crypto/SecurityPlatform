@@ -32,14 +32,13 @@ public sealed class DagExecutor
         IServiceProvider serviceProvider,
         ILogger<DagExecutor> logger)
     {
-        Console.WriteLine("[diag] DagExecutor ctor-enter");
         _registry = registry;
         _nodeExecutionRepo = nodeExecutionRepo;
         _executionRepo = executionRepo;
         _idGenerator = idGenerator;
         _serviceProvider = serviceProvider;
         _logger = logger;
-        Console.WriteLine("[diag] DagExecutor ctor-exit");
+        _logger.LogDebug("DagExecutor initialized.");
     }
 
     /// <summary>
@@ -55,7 +54,11 @@ public sealed class DagExecutor
         IReadOnlyList<long>? workflowCallStack = null,
         IReadOnlySet<string>? preCompletedNodeKeys = null)
     {
-        Console.WriteLine($"[diag] DagExecutor RunAsync start executionId={execution.Id} nodes={canvas.Nodes.Count} connections={canvas.Connections.Count}");
+        _logger.LogInformation(
+            "DagExecutor run start: ExecutionId={ExecutionId} NodeCount={NodeCount} ConnectionCount={ConnectionCount}",
+            execution.Id,
+            canvas.Nodes.Count,
+            canvas.Connections.Count);
         execution.Start();
         await _executionRepo.UpdateAsync(execution, cancellationToken);
 
@@ -363,7 +366,11 @@ public sealed class DagExecutor
             executionId,
             nodeKey,
             node.Type);
-        Console.WriteLine($"[diag] DagExecutor node start executionId={executionId} node={nodeKey} type={node.Type}");
+        _logger.LogDebug(
+            "DagExecutor node start: ExecutionId={ExecutionId} NodeKey={NodeKey} NodeType={NodeType}",
+            executionId,
+            nodeKey,
+            node.Type);
 
         var executor = _registry.GetExecutor(node.Type);
         if (executor is null)
@@ -416,7 +423,11 @@ public sealed class DagExecutor
                     executionId,
                     nodeKey,
                     result.Outputs.Count);
-                Console.WriteLine($"[diag] DagExecutor node success executionId={executionId} node={nodeKey} outputs={result.Outputs.Count}");
+                _logger.LogDebug(
+                    "DagExecutor node success: ExecutionId={ExecutionId} NodeKey={NodeKey} OutputCount={OutputCount}",
+                    executionId,
+                    nodeKey,
+                    result.Outputs.Count);
                 nodeExec.Complete(JsonSerializer.Serialize(result.Outputs), sw.ElapsedMilliseconds);
                 await _nodeExecutionRepo.UpdateAsync(nodeExec, cancellationToken);
 

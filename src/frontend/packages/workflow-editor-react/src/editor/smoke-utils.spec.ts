@@ -42,5 +42,20 @@ describe("smoke-utils", () => {
     expect(suggestions.find((item) => item.value === "{{entry_1.input}}")).toBeTruthy();
     expect(suggestions.find((item) => item.value === "{{llm_1.answer}}")).toBeFalsy();
   });
+
+  it("buildVariableSuggestions should only include DAG upstream nodes when connections provided", () => {
+    const suggestions = buildVariableSuggestions(
+      [
+        { key: "entry_1", type: "Entry", configs: { io: { key: "input" } }, x: 100 },
+        { key: "llm_1", type: "Llm", configs: { llm: { outputKey: "answer" } }, x: 300 },
+        { key: "isolated_1", type: "CodeRunner", configs: { processor: { outputKey: "ignored" } }, x: 120 }
+      ],
+      "llm_1",
+      [{ fromNode: "entry_1", toNode: "llm_1" }]
+    );
+
+    expect(suggestions.find((item) => item.value === "{{entry_1.input}}")).toBeTruthy();
+    expect(suggestions.find((item) => item.value === "{{isolated_1.ignored}}")).toBeFalsy();
+  });
 });
 

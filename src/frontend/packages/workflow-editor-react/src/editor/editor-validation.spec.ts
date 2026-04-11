@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { validateCanvas } from "./editor-validation";
+import type { NodeTypeMetadata } from "../types";
 
 describe("editor-validation", () => {
-  const nodeTypes = [
+  const nodeTypes: NodeTypeMetadata[] = [
     {
       key: "Entry",
       name: "开始",

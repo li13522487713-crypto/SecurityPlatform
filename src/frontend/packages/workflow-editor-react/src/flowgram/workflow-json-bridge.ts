@@ -32,19 +32,30 @@ function resolveDefaultPorts(node: NodeSchema, nodeTypesMap: Map<string, NodeTyp
 export function toFlowgramWorkflowJSON(canvas: CanvasSchema, nodeTypesMap: Map<string, NodeTypeMetadata>): WorkflowJSON {
   return {
     nodes: (canvas.nodes ?? []).map((node) => ({
-      id: node.key,
-      type: node.type,
-      data: {
-        title: node.title,
-        configs: node.configs,
-        inputMappings: node.inputMappings
-      },
+      // 将运行态挂载到 data，供 WorkflowNodeRender 即时消费。
+      ...(() => {
+        const debugMeta = (node.debugMeta ?? {}) as Record<string, unknown>;
+        return {
+          id: node.key,
+          type: node.type,
+          data: {
+            title: node.title,
+            configs: node.configs,
+            inputMappings: node.inputMappings,
+            version: node.version,
+            debugMeta: node.debugMeta,
+            executionState: typeof debugMeta.executionState === "string" ? debugMeta.executionState : undefined,
+            executionHint: typeof debugMeta.executionHint === "string" ? debugMeta.executionHint : undefined
+          }
+        };
+      })(),
       meta: {
         position: {
           x: node.layout?.x ?? 0,
           y: node.layout?.y ?? 0
         },
-        defaultPorts: resolveDefaultPorts(node, nodeTypesMap),
+        defaultPorts:
+          node.ports?.map((port) => ({ type: port.direction, portID: port.key })) ?? resolveDefaultPorts(node, nodeTypesMap),
         useDynamicPort: node.type === "Selector"
       }
     })),
@@ -86,7 +97,21 @@ export function toEditorCanvasSchema(json: WorkflowJSON, previous: CanvasSchema)
       inputTypes: prevNode?.inputTypes,
       outputTypes: prevNode?.outputTypes,
       inputSources: prevNode?.inputSources,
-      outputSources: prevNode?.outputSources
+      outputSources: prevNode?.outputSources,
+      ports: prevNode?.ports,
+      version: typeof nodeData.version === "string" ? nodeData.version : prevNode?.version,
+      debugMeta:
+        (nodeData.debugMeta as Record<string, unknown> | undefined) ??
+        (() => {
+          const nextMeta = { ...(prevNode?.debugMeta ?? {}) };
+          if (typeof nodeData.executionState === "string") {
+            nextMeta.executionState = nodeData.executionState;
+          }
+          if (typeof nodeData.executionHint === "string") {
+            nextMeta.executionHint = nodeData.executionHint;
+          }
+          return Object.keys(nextMeta).length > 0 ? nextMeta : undefined;
+        })()
     };
   });
 
@@ -100,6 +125,8 @@ export function toEditorCanvasSchema(json: WorkflowJSON, previous: CanvasSchema)
 
   return {
     nodes,
-    connections
+    connections,
+    schemaVersion: previous.schemaVersion,
+    viewport: previous.viewport
   };
 }
