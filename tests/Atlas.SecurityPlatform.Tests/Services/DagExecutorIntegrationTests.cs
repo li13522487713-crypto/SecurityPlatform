@@ -1,4 +1,6 @@
 using System.Text.Json;
+using System.Threading.Channels;
+using Atlas.Application.AiPlatform.Models;
 using Atlas.Application.AiPlatform.Repositories;
 using Atlas.Core.Abstractions;
 using Atlas.Core.Tenancy;
@@ -15,6 +17,79 @@ namespace Atlas.SecurityPlatform.Tests.Services;
 
 public sealed class DagExecutorIntegrationTests
 {
+    [Fact]
+    public async Task RunAsync_ShouldEmitSelectorEdgeStatus_BySelectedBranch()
+    {
+        var dag = CreateDagExecutor(
+            out _,
+            new EntryNodeExecutor(),
+            new ExitNodeExecutor(),
+            new SelectorNodeExecutor(),
+            new TextProcessorNodeExecutor());
+
+        var canvas = new CanvasSchema(
+            Nodes:
+            [
+                BuildNode("entry_1", WorkflowNodeType.Entry),
+                BuildNode(
+                    "selector_1",
+                    WorkflowNodeType.Selector,
+                    new Dictionary<string, JsonElement>
+                    {
+                        ["condition"] = JsonSerializer.SerializeToElement("true")
+                    }),
+                BuildNode("true_1", WorkflowNodeType.TextProcessor),
+                BuildNode("false_1", WorkflowNodeType.TextProcessor),
+                BuildNode("exit_1", WorkflowNodeType.Exit)
+            ],
+            Connections:
+            [
+                new ConnectionSchema("entry_1", "output", "selector_1", "input", null),
+                new ConnectionSchema("selector_1", "true", "true_1", "input", "true"),
+                new ConnectionSchema("selector_1", "false", "false_1", "input", "false"),
+                new ConnectionSchema("true_1", "output", "exit_1", "input", null),
+                new ConnectionSchema("false_1", "output", "exit_1", "input", null)
+            ]);
+
+        var eventChannel = Channel.CreateUnbounded<SseEvent>();
+        var execution = BuildExecution(30109L);
+        await dag.RunAsync(
+            Tenant(),
+            execution,
+            canvas,
+            new Dictionary<string, JsonElement>(),
+            eventChannel,
+            CancellationToken.None);
+
+        var events = await ReadEventsAsync(eventChannel);
+        var selectorEdgeEvents = events
+            .Where(x => string.Equals(x.Event, "edge_status_changed", StringComparison.Ordinal))
+            .Select(x => JsonDocument.Parse(x.Data).RootElement)
+            .Where(x =>
+                x.TryGetProperty("edge", out var edge) &&
+                edge.TryGetProperty("sourceNodeKey", out var sourceNodeKey) &&
+                string.Equals(sourceNodeKey.GetString(), "selector_1", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        Assert.NotEmpty(selectorEdgeEvents);
+
+        var trueEdge = selectorEdgeEvents.FirstOrDefault(x =>
+        {
+            var edge = x.GetProperty("edge");
+            return edge.GetProperty("sourcePort").GetString() == "true";
+        });
+        var falseEdge = selectorEdgeEvents.FirstOrDefault(x =>
+        {
+            var edge = x.GetProperty("edge");
+            return edge.GetProperty("sourcePort").GetString() == "false";
+        });
+
+        Assert.NotEqual(JsonValueKind.Undefined, trueEdge.ValueKind);
+        Assert.NotEqual(JsonValueKind.Undefined, falseEdge.ValueKind);
+        Assert.Equal((int)EdgeExecutionStatus.Success, trueEdge.GetProperty("edge").GetProperty("status").GetInt32());
+        Assert.Equal((int)EdgeExecutionStatus.Skipped, falseEdge.GetProperty("edge").GetProperty("status").GetInt32());
+    }
+
     [Fact]
     public async Task RunAsync_ShouldHandleSelectorBranchSkipping()
     {
@@ -391,6 +466,51 @@ public sealed class DagExecutorIntegrationTests
     }
 
     [Fact]
+    public async Task RunAsync_WhenAllPredecessorsSkipped_ShouldSkipDownstreamNode()
+    {
+        var dag = CreateDagExecutor(
+            out var nodeExecutions,
+            new EntryNodeExecutor(),
+            new ExitNodeExecutor(),
+            new TextProcessorNodeExecutor());
+
+        var canvas = new CanvasSchema(
+            Nodes:
+            [
+                BuildNode("entry_1", WorkflowNodeType.Entry),
+                BuildNode(
+                    "text_1",
+                    WorkflowNodeType.TextProcessor,
+                    new Dictionary<string, JsonElement>
+                    {
+                        ["template"] = JsonSerializer.SerializeToElement("HELLO"),
+                        ["outputKey"] = JsonSerializer.SerializeToElement("greet")
+                    }),
+                BuildNode("exit_1", WorkflowNodeType.Exit)
+            ],
+            Connections:
+            [
+                new ConnectionSchema("entry_1", "output", "text_1", "input", null),
+                new ConnectionSchema("text_1", "output", "exit_1", "input", null)
+            ]);
+
+        var execution = BuildExecution(30110L);
+        await dag.RunAsync(
+            Tenant(),
+            execution,
+            canvas,
+            new Dictionary<string, JsonElement>(),
+            null,
+            CancellationToken.None,
+            preCompletedNodeKeys: new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "text_1" });
+
+        Assert.Equal(ExecutionStatus.Completed, execution.Status);
+        var exitExecution = nodeExecutions.FirstOrDefault(x => string.Equals(x.NodeKey, "exit_1", StringComparison.OrdinalIgnoreCase));
+        Assert.NotNull(exitExecution);
+        Assert.Equal(ExecutionStatus.Skipped, exitExecution!.Status);
+    }
+
+    [Fact]
     public async Task RunAsync_WhenNodeExecutionFails_ShouldFailWorkflowAndStopDownstream()
     {
         var dag = CreateDagExecutor(
@@ -481,6 +601,20 @@ public sealed class DagExecutorIntegrationTests
         var logger = Substitute.For<ILogger<DagExecutor>>();
         nodeExecutions = capturedNodeExecutions;
         return new DagExecutor(registry, nodeRepo, executionRepo, idGenerator, services, logger);
+    }
+
+    private static async Task<List<SseEvent>> ReadEventsAsync(Channel<SseEvent> eventChannel)
+    {
+        var result = new List<SseEvent>();
+        while (await eventChannel.Reader.WaitToReadAsync())
+        {
+            while (eventChannel.Reader.TryRead(out var ev))
+            {
+                result.Add(ev);
+            }
+        }
+
+        return result;
     }
 
     private sealed class FailingTextProcessorNodeExecutor : INodeExecutor

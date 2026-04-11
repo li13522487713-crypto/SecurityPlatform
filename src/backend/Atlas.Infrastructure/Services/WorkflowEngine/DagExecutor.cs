@@ -72,6 +72,7 @@ public sealed class DagExecutor
             // 构建邻接表
             var nodeMap = canvas.Nodes.ToDictionary(n => n.Key, n => n, StringComparer.OrdinalIgnoreCase);
             var adjacency = BuildAdjacency(canvas);
+            var predecessors = BuildPredecessors(canvas);
             var connectionsBySource = BuildConnectionsBySource(canvas);
             var executionLevels = TopologicalSortByLevels(canvas.Nodes, adjacency);
             var preCompletedNodeKeySet = preCompletedNodeKeys is null
@@ -85,6 +86,11 @@ public sealed class DagExecutor
             foreach (var level in executionLevels)
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                var newlySkippedByPredecessor = ResolveNodesWithAllSkippedPredecessors(level, predecessors, skippedNodeKeys);
+                foreach (var nodeKey in newlySkippedByPredecessor)
+                {
+                    skippedNodeKeys.Add(nodeKey);
+                }
                 await PersistSkippedNodesAsync(
                     tenantId,
                     execution.Id,
@@ -332,6 +338,28 @@ public sealed class DagExecutor
         return adjacency;
     }
 
+    private static Dictionary<string, List<string>> BuildPredecessors(CanvasSchema canvas)
+    {
+        var predecessors = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var node in canvas.Nodes)
+        {
+            predecessors.TryAdd(node.Key, new List<string>());
+        }
+
+        foreach (var connection in canvas.Connections)
+        {
+            if (!predecessors.TryGetValue(connection.TargetNodeKey, out var sources))
+            {
+                sources = new List<string>();
+                predecessors[connection.TargetNodeKey] = sources;
+            }
+
+            sources.Add(connection.SourceNodeKey);
+        }
+
+        return predecessors;
+    }
+
     private static Dictionary<string, List<ConnectionSchema>> BuildConnectionsBySource(CanvasSchema canvas)
     {
         var map = new Dictionary<string, List<ConnectionSchema>>(StringComparer.OrdinalIgnoreCase);
@@ -444,6 +472,8 @@ public sealed class DagExecutor
                         EdgeExecutionStatus.Success,
                         reason: null,
                         connectionsBySource,
+                        node.Type,
+                        result.Outputs,
                         eventChannel,
                         cancellationToken);
                     await eventChannel.Writer.WriteAsync(
@@ -491,6 +521,8 @@ public sealed class DagExecutor
                     EdgeExecutionStatus.Failed,
                     result.ErrorMessage ?? "节点执行失败",
                     connectionsBySource,
+                    node.Type,
+                    null,
                     eventChannel,
                     cancellationToken);
                 await eventChannel.Writer.WriteAsync(
@@ -533,6 +565,8 @@ public sealed class DagExecutor
                     EdgeExecutionStatus.Failed,
                     ex.Message,
                     connectionsBySource,
+                    node.Type,
+                    null,
                     eventChannel,
                     cancellationToken);
                 await eventChannel.Writer.WriteAsync(
@@ -854,6 +888,7 @@ public sealed class DagExecutor
     {
         var nodeMap = canvas.Nodes.ToDictionary(n => n.Key, n => n, StringComparer.OrdinalIgnoreCase);
         var adjacency = BuildAdjacency(canvas);
+        var predecessors = BuildPredecessors(canvas);
         var connectionsBySource = BuildConnectionsBySource(canvas);
         var executionLevels = TopologicalSortByLevels(canvas.Nodes, adjacency);
         var skippedNodeKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -862,6 +897,11 @@ public sealed class DagExecutor
 
         foreach (var level in executionLevels)
         {
+            var newlySkippedByPredecessor = ResolveNodesWithAllSkippedPredecessors(level, predecessors, skippedNodeKeys);
+            foreach (var nodeKey in newlySkippedByPredecessor)
+            {
+                skippedNodeKeys.Add(nodeKey);
+            }
             await PersistSkippedNodesAsync(
                 tenantId,
                 executionId,
@@ -980,6 +1020,8 @@ public sealed class DagExecutor
                 EdgeExecutionStatus.Skipped,
                 "branch_skipped",
                 connectionsBySource,
+                node.Type,
+                null,
                 eventChannel,
                 cancellationToken);
             await eventChannel.Writer.WriteAsync(
@@ -1000,6 +1042,8 @@ public sealed class DagExecutor
         EdgeExecutionStatus status,
         string? reason,
         IReadOnlyDictionary<string, List<ConnectionSchema>> connectionsBySource,
+        WorkflowNodeType? nodeType,
+        IReadOnlyDictionary<string, JsonElement>? outputs,
         Channel<SseEvent>? eventChannel,
         CancellationToken cancellationToken)
     {
@@ -1012,6 +1056,25 @@ public sealed class DagExecutor
 
         foreach (var connection in outgoingConnections)
         {
+            var edgeStatus = status;
+            var edgeReason = reason;
+            if (status == EdgeExecutionStatus.Success &&
+                nodeType == WorkflowNodeType.Selector &&
+                outputs is not null)
+            {
+                var selectedBranch = ResolveSelectedSelectorBranch(outputs);
+                if (selectedBranch == SelectorBranch.True && IsSelectorFalseConnection(connection))
+                {
+                    edgeStatus = EdgeExecutionStatus.Skipped;
+                    edgeReason = "selector_unselected_branch";
+                }
+                else if (selectedBranch == SelectorBranch.False && IsSelectorTrueConnection(connection))
+                {
+                    edgeStatus = EdgeExecutionStatus.Skipped;
+                    edgeReason = "selector_unselected_branch";
+                }
+            }
+
             await eventChannel.Writer.WriteAsync(
                 new SseEvent("edge_status_changed", JsonSerializer.Serialize(new
                 {
@@ -1022,8 +1085,8 @@ public sealed class DagExecutor
                         sourcePort = connection.SourcePort,
                         targetNodeKey = connection.TargetNodeKey,
                         targetPort = connection.TargetPort,
-                        status = (int)status,
-                        reason
+                        status = (int)edgeStatus,
+                        reason = edgeReason
                     }
                 })),
                 cancellationToken);
@@ -1349,6 +1412,28 @@ public sealed class DagExecutor
         }
 
         return visited;
+    }
+
+    private static IReadOnlyList<string> ResolveNodesWithAllSkippedPredecessors(
+        IReadOnlyList<string> levelNodes,
+        IReadOnlyDictionary<string, List<string>> predecessors,
+        IReadOnlySet<string> skippedNodeKeys)
+    {
+        var result = new List<string>();
+        foreach (var nodeKey in levelNodes)
+        {
+            if (!predecessors.TryGetValue(nodeKey, out var nodePredecessors) || nodePredecessors.Count == 0)
+            {
+                continue;
+            }
+
+            if (nodePredecessors.All(skippedNodeKeys.Contains))
+            {
+                result.Add(nodeKey);
+            }
+        }
+
+        return result;
     }
 
     private static List<List<string>> TopologicalSortSubsetByLevels(
