@@ -18,6 +18,7 @@ import {
   type NodeFailedEvent,
   type NodeSkippedEvent,
   type NodeOutputEvent,
+  type EdgeStatusChangedEvent,
   type NodeSchema,
   type NodeStartEvent,
   type NodeTemplateMetadata,
@@ -51,6 +52,7 @@ export interface StreamCallbacks {
   onNodeCompleted?: (ev: NodeCompleteEvent) => void;
   onNodeFailed?: (ev: NodeFailedEvent) => void;
   onNodeSkipped?: (ev: NodeSkippedEvent) => void;
+  onEdgeStatusChanged?: (ev: EdgeStatusChangedEvent) => void;
   onLlmOutput?: (content: string) => void;
   onExecutionCompleted?: (ev: ExecutionCompleteEvent) => void;
   onExecutionFailed?: (ev: ExecutionFailedEvent) => void;
@@ -160,7 +162,8 @@ export function createWorkflowV2Api(options: WorkflowApiFactoryOptions) {
         method: "POST",
         body: JSON.stringify({
           inputsJson: req.inputsJson,
-          data: req.data
+          data: req.data,
+          variableOverrides: req.variableOverrides
         })
       });
     },
@@ -340,6 +343,9 @@ function handleStreamEvent(eventName: string, dataText: string, callbacks: Strea
       break;
     case "node_skipped":
       callbacks.onNodeSkipped?.(safeJsonParse<NodeSkippedEvent>(dataText));
+      break;
+    case "edge_status_changed":
+      callbacks.onEdgeStatusChanged?.(safeJsonParse<EdgeStatusChangedEvent>(dataText));
       break;
     case "llm_output":
       callbacks.onLlmOutput?.(dataText);

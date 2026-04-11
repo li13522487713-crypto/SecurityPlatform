@@ -57,6 +57,15 @@ interface WorkflowApiClient {
       onNodeCompleted?: (ev: { nodeKey: string; durationMs?: number }) => void;
       onNodeFailed?: (ev: { nodeKey: string; errorMessage: string }) => void;
       onNodeSkipped?: (ev: { nodeKey: string; reason?: string }) => void;
+      onEdgeStatusChanged?: (ev: {
+        edge?: {
+          sourceNodeKey?: string;
+          sourcePort?: string;
+          targetNodeKey?: string;
+          targetPort?: string;
+          status?: number;
+        };
+      }) => void;
       onExecutionCompleted?: (ev: { outputsJson?: string }) => void;
       onExecutionFailed?: (ev: { errorMessage: string }) => void;
       onExecutionCancelled?: (ev: { errorMessage?: string }) => void;
@@ -75,6 +84,7 @@ interface WorkflowApiClient {
 export interface WorkflowEditorReactProps {
   workflowId: string;
   locale?: string;
+  readOnly?: boolean;
   apiClient: WorkflowApiClient;
   onBack?: () => void;
 }
@@ -366,6 +376,7 @@ function normalizeConnectionsByPorts(
 export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
   ensureWorkflowI18n(props.locale ?? "zh-CN");
   const { t } = useTranslation();
+  const isReadOnly = Boolean(props.readOnly);
 
   const canvasShellRef = useRef<HTMLDivElement | null>(null);
   const operationRef = useRef<CanvasOperation | null>(null);
@@ -624,6 +635,9 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
   }
 
   function startNodeDrag(node: CanvasNode, event: React.PointerEvent<HTMLButtonElement>) {
+    if (isReadOnly) {
+      return;
+    }
     if (event.button !== 0) {
       return;
     }
@@ -679,6 +693,9 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
   }
 
   function startConnection(node: CanvasNode, port: PortRuntime, event: React.PointerEvent<HTMLSpanElement>) {
+    if (isReadOnly) {
+      return;
+    }
     if (event.button !== 0 || port.direction !== "output") {
       return;
     }
@@ -854,6 +871,9 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
   }
 
   function createNodeByType(nodeType: string, x: number, y: number) {
+    if (isReadOnly) {
+      return "";
+    }
     const definition = nodeRegistry.resolve(nodeType);
     const normalizedType = definition.type;
     const template = metadataBundle.templatesMap.get(normalizedType);
@@ -930,6 +950,9 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
       const lowerKey = event.key.toLowerCase();
 
       if (isMeta && lowerKey === "c") {
+        if (isReadOnly) {
+          return;
+        }
         if (!selectedNode) {
           return;
         }
@@ -939,6 +962,9 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
       }
 
       if (isMeta && lowerKey === "v") {
+        if (isReadOnly) {
+          return;
+        }
         if (!clipboardNodeRef.current) {
           return;
         }
@@ -959,6 +985,9 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
       }
 
       if (event.key === "Delete") {
+        if (isReadOnly) {
+          return;
+        }
         if (!selectedNodeKey) {
           return;
         }
@@ -975,6 +1004,9 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
       }
 
       if (isMeta && lowerKey === "s") {
+        if (isReadOnly) {
+          return;
+        }
         event.preventDefault();
         void (async () => {
           const result = runCanvasValidationAndReport();
@@ -994,7 +1026,7 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
     return () => {
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [canvasConnections, canvasGlobals, canvasNodes, pan.x, pan.y, props.apiClient, props.workflowId, selectedNode, selectedNodeKey, zoom]);
+  }, [canvasConnections, canvasGlobals, canvasNodes, isReadOnly, pan.x, pan.y, props.apiClient, props.workflowId, selectedNode, selectedNodeKey, zoom]);
 
   function appendLog(line: string) {
     setLogs((prev) => [...prev, `${new Date().toLocaleTimeString()} ${line}`]);
@@ -1035,6 +1067,24 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
       }
       return next;
     });
+  }
+
+  function markEdgeStateByRuntimeEdge(
+    edge: { sourceNodeKey?: string; sourcePort?: string; targetNodeKey?: string; targetPort?: string },
+    status: number | undefined
+  ) {
+    if (!edge.sourceNodeKey || !edge.sourcePort || !edge.targetNodeKey || !edge.targetPort) {
+      return;
+    }
+    const mappedState: EdgeRuntimeState =
+      status === 1 ? "success" : status === 2 ? "skipped" : status === 3 ? "failed" : "idle";
+    const key = buildEdgeRuntimeKey({
+      fromNode: edge.sourceNodeKey,
+      fromPort: edge.sourcePort,
+      toNode: edge.targetNodeKey,
+      toPort: edge.targetPort
+    });
+    setEdgeStateByConnectionKey((prev) => ({ ...prev, [key]: mappedState }));
   }
 
   function resetRuntimeVisualization() {
@@ -1138,6 +1188,9 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
             });
             appendLog(`node_skipped ${ev.nodeKey}`);
           },
+          onEdgeStatusChanged: (ev) => {
+            markEdgeStateByRuntimeEdge(ev.edge ?? {}, ev.edge?.status);
+          },
           onExecutionCompleted: () => {
             setTestRunning(false);
             appendLog("execution_complete");
@@ -1203,6 +1256,9 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
   }
 
   function handleAutoLayout() {
+    if (isReadOnly) {
+      return;
+    }
     const xStart = 80;
     const yStart = 80;
     const colGap = 420;
@@ -1272,12 +1328,20 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
       <WorkflowHeader
         name={workflowName}
         dirty={isDirty}
+        readOnly={isReadOnly}
         onNameChange={(value) => {
+          if (isReadOnly) {
+            return;
+          }
           setWorkflowName(value);
           setIsDirty(true);
         }}
         onBack={() => props.onBack?.()}
         onSave={async () => {
+          if (isReadOnly) {
+            message.warning("只读模式下不可保存。");
+            return;
+          }
           const result = runCanvasValidationAndReport();
           if (!result.ok) {
             return;
@@ -1291,6 +1355,10 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
           setLogs((prev: string[]) => [...prev, `${new Date().toLocaleTimeString()} save_draft`]);
         }}
         onPublish={async () => {
+          if (isReadOnly) {
+            message.warning("只读模式下不可发布。");
+            return;
+          }
           const result = runCanvasValidationAndReport();
           if (!result.ok) {
             return;
@@ -1325,6 +1393,9 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
           }
         }}
         onDrop={(event) => {
+          if (isReadOnly) {
+            return;
+          }
           const nodeType =
             event.dataTransfer.getData("application/x-atlas-workflow-node-type") ||
             event.dataTransfer.getData("text/plain") ||
@@ -1358,6 +1429,9 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
             nodeTypesMeta={nodeTypesMeta}
             edgeStateByKey={edgeStateByConnectionKey}
             onCanvasChange={(next) => {
+              if (isReadOnly) {
+                return;
+              }
               const nextNodes: CanvasNode[] = next.nodes.map((node) => ({
                 key: node.key,
                 type: node.type,
@@ -1456,6 +1530,9 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
           onDragStart={(nodeType) => setDraggingCatalogNodeType(nodeType)}
           onDragEnd={() => setDraggingCatalogNodeType(null)}
           onSelect={(nodeType) => {
+            if (isReadOnly) {
+              return;
+            }
             const center = centerPointForCreate();
             createNodeByType(nodeType, center.x, center.y);
             setShowNodePanel(false);
@@ -1470,6 +1547,9 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
           nodeTypeMeta={selectedNode ? metadataBundle.nodeTypesMap.get(selectedNode.type) : undefined}
           variableSuggestions={variableSuggestions}
           onChangeNode={(next) => {
+            if (isReadOnly) {
+              return;
+            }
             if (!selectedNode) {
               return;
             }
@@ -1526,6 +1606,9 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
           variables={variablePanelItems}
           globals={canvasGlobals}
           onChangeGlobals={(next) => {
+            if (isReadOnly) {
+              return;
+            }
             setCanvasGlobals(next);
             setIsDirty(true);
           }}

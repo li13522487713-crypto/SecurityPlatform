@@ -92,6 +92,7 @@ public sealed class DagExecutor
                         skippedNodeKeys.Contains(nodeKey) &&
                         !preCompletedNodeKeySet.Contains(nodeKey)),
                     nodeMap,
+                    connectionsBySource,
                     persistedSkippedNodeKeys,
                     eventChannel,
                     cancellationToken);
@@ -113,6 +114,7 @@ public sealed class DagExecutor
                         currentCallStack,
                         nodeKey,
                         nodeMap,
+                        connectionsBySource,
                         levelInput,
                         eventChannel,
                         cancellationToken))
@@ -164,6 +166,7 @@ public sealed class DagExecutor
                         execution.Id,
                         newlySkippedNodeKeys.Where(nodeKey => !preCompletedNodeKeySet.Contains(nodeKey)),
                         nodeMap,
+                        connectionsBySource,
                         persistedSkippedNodeKeys,
                         eventChannel,
                         cancellationToken);
@@ -215,6 +218,7 @@ public sealed class DagExecutor
                         execution.Id,
                         loopResult.BodyNodeKeysToSkip.Where(nodeKey => !preCompletedNodeKeySet.Contains(nodeKey)),
                         nodeMap,
+                        connectionsBySource,
                         persistedSkippedNodeKeys,
                         eventChannel,
                         cancellationToken);
@@ -352,6 +356,7 @@ public sealed class DagExecutor
         IReadOnlyList<long> workflowCallStack,
         string nodeKey,
         IReadOnlyDictionary<string, NodeSchema> nodeMap,
+        IReadOnlyDictionary<string, List<ConnectionSchema>> connectionsBySource,
         Dictionary<string, JsonElement> inputVariables,
         Channel<SseEvent>? eventChannel,
         CancellationToken cancellationToken)
@@ -433,6 +438,14 @@ public sealed class DagExecutor
 
                 if (eventChannel is not null)
                 {
+                    await EmitEdgeStatusChangedAsync(
+                        executionId,
+                        nodeKey,
+                        EdgeExecutionStatus.Success,
+                        reason: null,
+                        connectionsBySource,
+                        eventChannel,
+                        cancellationToken);
                     await eventChannel.Writer.WriteAsync(
                         new SseEvent("node_output", JsonSerializer.Serialize(new
                         {
@@ -466,6 +479,14 @@ public sealed class DagExecutor
             await _nodeExecutionRepo.UpdateAsync(nodeExec, cancellationToken);
             if (eventChannel is not null)
             {
+                await EmitEdgeStatusChangedAsync(
+                    executionId,
+                    nodeKey,
+                    EdgeExecutionStatus.Failed,
+                    result.ErrorMessage ?? "节点执行失败",
+                    connectionsBySource,
+                    eventChannel,
+                    cancellationToken);
                 await eventChannel.Writer.WriteAsync(
                     new SseEvent("node_failed", JsonSerializer.Serialize(new
                     {
@@ -500,6 +521,14 @@ public sealed class DagExecutor
             await _nodeExecutionRepo.UpdateAsync(nodeExec, cancellationToken);
             if (eventChannel is not null)
             {
+                await EmitEdgeStatusChangedAsync(
+                    executionId,
+                    nodeKey,
+                    EdgeExecutionStatus.Failed,
+                    ex.Message,
+                    connectionsBySource,
+                    eventChannel,
+                    cancellationToken);
                 await eventChannel.Writer.WriteAsync(
                     new SseEvent("node_failed", JsonSerializer.Serialize(new
                     {
@@ -557,6 +586,7 @@ public sealed class DagExecutor
                         workflowCallStack,
                         nodeKey,
                         nodeMap,
+                        connectionsBySource,
                         levelInput,
                         eventChannel,
                         cancellationToken))
@@ -603,6 +633,7 @@ public sealed class DagExecutor
                 workflowCallStack,
                 loopNodeKey,
                 nodeMap,
+                connectionsBySource,
                 loopInput,
                 eventChannel,
                 cancellationToken);
@@ -758,6 +789,7 @@ public sealed class DagExecutor
                 executionId,
                 level.Where(skippedNodeKeys.Contains),
                 nodeMap,
+                connectionsBySource,
                 persistedSkippedNodeKeys,
                 eventChannel,
                 cancellationToken);
@@ -777,6 +809,7 @@ public sealed class DagExecutor
                     workflowCallStack,
                     nodeKey,
                     nodeMap,
+                    connectionsBySource,
                     levelInput,
                     eventChannel,
                     cancellationToken))
@@ -817,6 +850,7 @@ public sealed class DagExecutor
                     executionId,
                     newlySkippedNodeKeys,
                     nodeMap,
+                    connectionsBySource,
                     persistedSkippedNodeKeys,
                     eventChannel,
                     cancellationToken);
@@ -831,6 +865,7 @@ public sealed class DagExecutor
         long executionId,
         IEnumerable<string> nodeKeys,
         IReadOnlyDictionary<string, NodeSchema> nodeMap,
+        IReadOnlyDictionary<string, List<ConnectionSchema>> connectionsBySource,
         ISet<string> persistedSkippedNodeKeys,
         Channel<SseEvent>? eventChannel,
         CancellationToken cancellationToken)
@@ -861,6 +896,14 @@ public sealed class DagExecutor
                 continue;
             }
 
+            await EmitEdgeStatusChangedAsync(
+                executionId,
+                nodeKey,
+                EdgeExecutionStatus.Skipped,
+                "branch_skipped",
+                connectionsBySource,
+                eventChannel,
+                cancellationToken);
             await eventChannel.Writer.WriteAsync(
                 new SseEvent("node_skipped", JsonSerializer.Serialize(new
                 {
@@ -868,6 +911,42 @@ public sealed class DagExecutor
                     nodeKey,
                     nodeType = node.Type.ToString(),
                     reason = "branch_skipped"
+                })),
+                cancellationToken);
+        }
+    }
+
+    private static async Task EmitEdgeStatusChangedAsync(
+        long executionId,
+        string nodeKey,
+        EdgeExecutionStatus status,
+        string? reason,
+        IReadOnlyDictionary<string, List<ConnectionSchema>> connectionsBySource,
+        Channel<SseEvent>? eventChannel,
+        CancellationToken cancellationToken)
+    {
+        if (eventChannel is null ||
+            !connectionsBySource.TryGetValue(nodeKey, out var outgoingConnections) ||
+            outgoingConnections.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var connection in outgoingConnections)
+        {
+            await eventChannel.Writer.WriteAsync(
+                new SseEvent("edge_status_changed", JsonSerializer.Serialize(new
+                {
+                    executionId = executionId.ToString(),
+                    edge = new
+                    {
+                        sourceNodeKey = connection.SourceNodeKey,
+                        sourcePort = connection.SourcePort,
+                        targetNodeKey = connection.TargetNodeKey,
+                        targetPort = connection.TargetPort,
+                        status = (int)status,
+                        reason
+                    }
                 })),
                 cancellationToken);
         }
