@@ -226,14 +226,14 @@ function parseCanvasConnection(connection: unknown, index: number): CanvasConnec
   };
 }
 
-function parseCanvasJson(json: string | undefined): { nodes: CanvasNode[]; connections: CanvasConnection[] } {
+function parseCanvasJson(json: string | undefined): { nodes: CanvasNode[]; connections: CanvasConnection[]; globals: Record<string, unknown> } {
   if (!json) {
-    return { nodes: INITIAL_NODES, connections: INITIAL_CONNECTIONS };
+    return { nodes: INITIAL_NODES, connections: INITIAL_CONNECTIONS, globals: {} };
   }
   try {
     const parsed = JSON.parse(json) as CanvasSchema;
     if (!Array.isArray(parsed.nodes)) {
-      return { nodes: INITIAL_NODES, connections: INITIAL_CONNECTIONS };
+      return { nodes: INITIAL_NODES, connections: INITIAL_CONNECTIONS, globals: {} };
     }
     const nodes = parsed.nodes.map((item) => parseCanvasNode(item)).filter((item): item is CanvasNode => item !== null);
     const connections = Array.isArray(parsed.connections)
@@ -241,16 +241,13 @@ function parseCanvasJson(json: string | undefined): { nodes: CanvasNode[]; conne
           .map((item, index) => parseCanvasConnection(item, index))
           .filter((item): item is CanvasConnection => item !== null)
       : [];
-    return {
-      nodes: nodes.length > 0 ? nodes : INITIAL_NODES,
-      connections
-    };
+    return { nodes: nodes.length > 0 ? nodes : INITIAL_NODES, connections, globals: isRecord(parsed.globals) ? parsed.globals : {} };
   } catch {
-    return { nodes: INITIAL_NODES, connections: INITIAL_CONNECTIONS };
+    return { nodes: INITIAL_NODES, connections: INITIAL_CONNECTIONS, globals: {} };
   }
 }
 
-function toCanvasJson(nodes: CanvasNode[], connections: CanvasConnection[]): string {
+function toCanvasJson(nodes: CanvasNode[], connections: CanvasConnection[], globals: Record<string, unknown>): string {
   const payload: CanvasSchema = {
     nodes: nodes.map((node) => ({
       key: node.key,
@@ -273,7 +270,8 @@ function toCanvasJson(nodes: CanvasNode[], connections: CanvasConnection[]): str
       toPort: connection.toPort,
       condition: connection.condition
     })),
-    schemaVersion: 2
+    schemaVersion: 2,
+    globals
   };
   return JSON.stringify(payload);
 }
@@ -376,6 +374,7 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
   const [traceSteps, setTraceSteps] = useState<TraceStepItem[]>([]);
   const [canvasNodes, setCanvasNodes] = useState<CanvasNode[]>(INITIAL_NODES);
   const [canvasConnections, setCanvasConnections] = useState<CanvasConnection[]>(INITIAL_CONNECTIONS);
+  const [canvasGlobals, setCanvasGlobals] = useState<Record<string, unknown>>({});
   const [nodeTypesMeta, setNodeTypesMeta] = useState<NodeTypeMetadata[]>([]);
   const [nodeTemplates, setNodeTemplates] = useState<NodeTemplateMetadata[]>([]);
   const [canvasValidation, setCanvasValidation] = useState<CanvasValidationResult | null>(null);
@@ -443,6 +442,7 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
           setWorkflowName(response.data.name || `Workflow_${props.workflowId}`);
           setCanvasNodes(parsed.nodes);
           setCanvasConnections(normalized.connections);
+          setCanvasGlobals(parsed.globals);
           if (normalized.migratedCount > 0) {
             message.info(`已迁移 ${normalized.migratedCount} 条历史连线到默认端口。`);
           }
@@ -512,9 +512,10 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
       buildVariableSuggestions(
         canvasNodes.map((node) => ({ key: node.key, type: node.type, configs: node.configs, x: node.x })),
         selectedNodeKey,
-        canvasConnections.map((connection) => ({ fromNode: connection.fromNode, toNode: connection.toNode }))
+        canvasConnections.map((connection) => ({ fromNode: connection.fromNode, toNode: connection.toNode })),
+        canvasGlobals
       ),
-    [canvasConnections, canvasNodes, selectedNodeKey]
+    [canvasConnections, canvasGlobals, canvasNodes, selectedNodeKey]
   );
   const variablePanelItems = useMemo(
     () =>
@@ -831,7 +832,7 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
   }
 
   function runCanvasValidationAndReport(): CanvasValidationResult {
-    const result = validateCanvas(canvasNodes, canvasConnections, nodeTypesMeta);
+    const result = validateCanvas(canvasNodes, canvasConnections, nodeTypesMeta, canvasGlobals);
     setCanvasValidation(result);
     setShowProblemPanel(!result.ok);
     if (!result.ok) {
@@ -1158,7 +1159,7 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
           }
           if (props.apiClient.saveDraft) {
             await props.apiClient.saveDraft(props.workflowId, {
-              canvasJson: toCanvasJson(canvasNodes, canvasConnections)
+              canvasJson: toCanvasJson(canvasNodes, canvasConnections, canvasGlobals)
             });
           }
           setIsDirty(false);
@@ -1172,7 +1173,7 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
           try {
             if (props.apiClient.saveDraft && isDirty) {
               await props.apiClient.saveDraft(props.workflowId, {
-                canvasJson: toCanvasJson(canvasNodes, canvasConnections)
+                canvasJson: toCanvasJson(canvasNodes, canvasConnections, canvasGlobals)
               });
             }
             if (props.apiClient.publish) {

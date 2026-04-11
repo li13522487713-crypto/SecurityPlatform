@@ -242,7 +242,7 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        var resumedInputs = ParseInputs(execution.InputsJson);
+        var resumedInputs = MergeWithCanvasGlobals(canvas, ParseInputs(execution.InputsJson));
         foreach (var nodeExecution in nodeExecutions
                      .Where(x => x.Status == ExecutionStatus.Completed && !string.IsNullOrWhiteSpace(x.OutputsJson))
                      .OrderBy(x => x.CompletedAt ?? x.StartedAt ?? DateTime.MinValue))
@@ -265,6 +265,14 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
         else if (request?.Data is { Count: > 0 })
         {
             foreach (var kvp in request.Data)
+            {
+                resumedInputs[kvp.Key] = kvp.Value;
+            }
+        }
+
+        if (request?.VariableOverrides is { Count: > 0 })
+        {
+            foreach (var kvp in request.VariableOverrides)
             {
                 resumedInputs[kvp.Key] = kvp.Value;
             }
@@ -339,7 +347,7 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
             new[] { entryNode, targetNode, exitNode },
             debugConnections);
 
-        var inputs = ParseInputs(request.InputsJson);
+        var inputs = MergeWithCanvasGlobals(fullCanvas, ParseInputs(request.InputsJson));
         var appId = _appContextAccessor.ResolveAppId();
         var execution = new WorkflowExecution(tenantId, workflowId, 0, userId, request.InputsJson, _idGenerator.NextId(), appId);
         await _executionRepo.AddAsync(execution, cancellationToken);
@@ -469,7 +477,7 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
         var canvas = DagExecutor.ParseCanvas(canvasJson)
             ?? throw new BusinessException("画布 JSON 无效。", ErrorCodes.ValidationError);
 
-        var inputs = ParseInputs(request.InputsJson);
+        var inputs = MergeWithCanvasGlobals(canvas, ParseInputs(request.InputsJson));
         var appId = _appContextAccessor.ResolveAppId();
         var execution = new WorkflowExecution(tenantId, workflowId, meta.LatestVersionNumber, userId, request.InputsJson, _idGenerator.NextId(), appId);
         await _executionRepo.AddAsync(execution, cancellationToken);
@@ -518,6 +526,27 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
     private static Dictionary<string, JsonElement> ParseInputs(string? inputsJson)
     {
         return VariableResolver.ParseVariableDictionary(inputsJson);
+    }
+
+    private static Dictionary<string, JsonElement> MergeWithCanvasGlobals(
+        Domain.AiPlatform.ValueObjects.CanvasSchema canvas,
+        Dictionary<string, JsonElement> runtimeInputs)
+    {
+        var merged = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
+        if (canvas.Globals is { Count: > 0 })
+        {
+            foreach (var kvp in canvas.Globals)
+            {
+                merged[kvp.Key] = kvp.Value;
+            }
+        }
+
+        foreach (var kvp in runtimeInputs)
+        {
+            merged[kvp.Key] = kvp.Value;
+        }
+
+        return merged;
     }
 
     private async Task RunWithScopeAsync(

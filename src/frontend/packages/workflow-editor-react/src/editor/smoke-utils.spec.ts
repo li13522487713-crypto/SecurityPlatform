@@ -57,5 +57,17 @@ describe("smoke-utils", () => {
     expect(suggestions.find((item) => item.value === "{{entry_1.input}}")).toBeTruthy();
     expect(suggestions.find((item) => item.value === "{{isolated_1.ignored}}")).toBeFalsy();
   });
+
+  it("buildVariableSuggestions should include global variables", () => {
+    const suggestions = buildVariableSuggestions(
+      [{ key: "entry_1", type: "Entry", configs: {}, x: 100 }],
+      "entry_1",
+      [],
+      { tenantName: "atlas", threshold: 80 }
+    );
+
+    expect(suggestions.find((item) => item.value === "{{global.tenantName}}")).toBeTruthy();
+    expect(suggestions.find((item) => item.value === "{{global.threshold}}")).toBeTruthy();
+  });
 });
 

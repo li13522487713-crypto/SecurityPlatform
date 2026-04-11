@@ -90,9 +90,22 @@ function resolveUpstreamNodeKeys(connections: SuggestionConnection[], currentNod
 export function buildVariableSuggestions(
   nodes: SuggestionNode[],
   currentNodeKey: string,
-  connections?: SuggestionConnection[]
+  connections?: SuggestionConnection[],
+  globals?: Record<string, unknown>
 ): VariableSuggestion[] {
   const suggestions: VariableSuggestion[] = [];
+  if (globals && typeof globals === "object") {
+    for (const key of Object.keys(globals)) {
+      const normalized = key.trim();
+      if (!normalized) {
+        continue;
+      }
+      suggestions.push({
+        value: `{{global.${normalized}}}`,
+        label: `global.${normalized}`
+      });
+    }
+  }
   const currentNode = nodes.find((node) => node.key === currentNodeKey);
   const currentX = typeof currentNode?.x === "number" ? currentNode.x : undefined;
   const upstreamNodeKeys = connections ? resolveUpstreamNodeKeys(connections, currentNodeKey) : null;

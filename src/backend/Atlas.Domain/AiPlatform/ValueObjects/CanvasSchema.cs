@@ -10,7 +10,8 @@ public sealed record CanvasSchema(
     IReadOnlyList<NodeSchema> Nodes,
     IReadOnlyList<ConnectionSchema> Connections,
     int SchemaVersion = 2,
-    ViewportState? Viewport = null);
+    ViewportState? Viewport = null,
+    Dictionary<string, JsonElement>? Globals = null);
 
 /// <summary>
 /// 单个节点的完整配置。

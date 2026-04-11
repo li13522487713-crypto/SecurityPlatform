@@ -127,6 +127,7 @@ export function toEditorCanvasSchema(json: WorkflowJSON, previous: CanvasSchema)
     nodes,
     connections,
     schemaVersion: previous.schemaVersion,
-    viewport: previous.viewport
+    viewport: previous.viewport,
+    globals: previous.globals
   };
 }

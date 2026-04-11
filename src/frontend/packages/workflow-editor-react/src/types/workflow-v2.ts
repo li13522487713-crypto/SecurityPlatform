@@ -207,6 +207,7 @@ export interface CanvasSchema {
   connections: ConnectionSchema[];
   schemaVersion?: number;
   viewport?: WorkflowViewport;
+  globals?: Record<string, unknown>;
 }
 
 // 后端 Canvas 契约模型
@@ -239,6 +240,7 @@ export interface WorkflowCanvasPayload {
   connections: WorkflowCanvasConnectionPayload[];
   schemaVersion?: number;
   viewport?: WorkflowViewport;
+  globals?: Record<string, unknown>;
 }
 
 // ============ API Request/Response ============

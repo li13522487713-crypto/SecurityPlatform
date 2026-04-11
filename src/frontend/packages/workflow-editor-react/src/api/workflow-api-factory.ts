@@ -431,7 +431,8 @@ function toBackendCanvasJson(editorCanvasJson: string): string {
     nodes,
     connections,
     schemaVersion: editorCanvas.schemaVersion,
-    viewport: editorCanvas.viewport
+    viewport: editorCanvas.viewport,
+    globals: editorCanvas.globals
   });
 }
 
@@ -486,7 +487,8 @@ function toEditorCanvasJson(backendCanvasJson: string): string {
     nodes,
     connections,
     schemaVersion: payload.schemaVersion,
-    viewport: payload.viewport
+    viewport: payload.viewport,
+    globals: payload.globals
   });
 }
 

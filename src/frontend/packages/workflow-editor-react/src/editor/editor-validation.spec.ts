@@ -55,4 +55,34 @@ describe("editor-validation", () => {
     );
     expect(result.ok).toBe(true);
   });
+
+  it("引用下游节点变量应报错", () => {
+    const result = validateCanvas(
+      [
+        { key: "n1", type: "Entry", configs: { entryVariable: "USER_INPUT" }, inputMappings: {} },
+        { key: "n2", type: "Llm", configs: { model: "gpt-5.4-medium", prompt: "{{n3.output}}" }, inputMappings: {} },
+        { key: "n3", type: "Llm", configs: { model: "gpt-5.4-medium" }, inputMappings: {} }
+      ],
+      [
+        { id: "c1", fromNode: "n1", fromPort: "output", toNode: "n2", toPort: "input", condition: null },
+        { id: "c2", fromNode: "n2", fromPort: "output", toNode: "n3", toPort: "input", condition: null }
+      ],
+      nodeTypes
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.nodeResults.some((item) => item.nodeKey === "n2" && item.issues.some((x) => x.includes("不是当前节点的上游")))).toBe(true);
+  });
+
+  it("引用不存在的全局变量应报错", () => {
+    const result = validateCanvas(
+      [{ key: "n1", type: "Entry", configs: { entryVariable: "{{global.missingKey}}" }, inputMappings: {} }],
+      [],
+      nodeTypes,
+      { existingKey: "ok" }
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.nodeResults.some((item) => item.issues.some((x) => x.includes("global")))).toBe(true);
+  });
 });
