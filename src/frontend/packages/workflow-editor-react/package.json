@@ -14,7 +14,7 @@
   "scripts": {
     "lint": "echo 'workflow-editor-react: no lint configured yet'",
     "build": "echo 'workflow-editor-react: source-only package, no build step'",
-    "test:smoke": "pnpm exec vitest run src/editor/smoke-utils.spec.ts"
+    "test:smoke": "pnpm exec vitest run src/editor/smoke-utils.spec.ts src/form-widgets/schema-form.smoke.spec.tsx"
   },
   "peerDependencies": {
     "react": "^18.2.0",

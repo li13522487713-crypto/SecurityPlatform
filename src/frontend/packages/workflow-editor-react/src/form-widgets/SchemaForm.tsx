@@ -3,6 +3,7 @@ import MonacoEditor from "@monaco-editor/react";
 import { useMemo } from "react";
 import type { FormFieldSchema, FormSectionSchema } from "../node-registry";
 import { getValueByPath, setValueByPath } from "./path-utils";
+import { resolveEditorLanguage } from "./monaco-utils";
 
 interface SchemaFormProps {
   sections: FormSectionSchema[];
@@ -164,6 +165,29 @@ function renderField(
             } catch {
               updatePath(raw);
             }
+          }}
+        />
+      </div>
+    );
+  }
+  if (field.kind === "code") {
+    const editorValue = typeof current === "string" ? current : "";
+    const editorLanguage = resolveEditorLanguage(config, field.languagePath, "javascript");
+    return (
+      <div style={{ border: "1px solid #d9d9d9", borderRadius: 6, overflow: "hidden" }}>
+        <MonacoEditor
+          language={editorLanguage}
+          height={`${Math.max((field.rows ?? 10) * 22, 160)}px`}
+          value={editorValue}
+          options={{
+            minimap: { enabled: false },
+            fontSize: 12,
+            lineNumbers: "on",
+            scrollBeyondLastLine: false,
+            automaticLayout: true
+          }}
+          onChange={(value) => {
+            updatePath(value ?? "");
           }}
         />
       </div>

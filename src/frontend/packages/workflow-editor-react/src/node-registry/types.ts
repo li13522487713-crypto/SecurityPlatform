@@ -1,6 +1,6 @@
 import type { WorkflowNodeTypeKey } from "../types";
 
-export type FormFieldKind = "text" | "textarea" | "number" | "switch" | "select" | "json" | "keyValue";
+export type FormFieldKind = "text" | "textarea" | "number" | "switch" | "select" | "json" | "code" | "keyValue";
 
 export interface FormSelectOption {
   label: string;
@@ -18,6 +18,7 @@ export interface FormFieldSchema {
   min?: number;
   max?: number;
   options?: FormSelectOption[];
+  languagePath?: string;
 }
 
 export interface FormSectionSchema {

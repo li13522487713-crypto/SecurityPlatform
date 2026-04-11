@@ -232,7 +232,11 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
 
   const scale = zoom / 100;
   const variableSuggestions = useMemo(
-    () => buildVariableSuggestions(canvasNodes.map((node) => ({ key: node.key, type: node.type, configs: node.configs })), selectedNodeKey),
+    () =>
+      buildVariableSuggestions(
+        canvasNodes.map((node) => ({ key: node.key, type: node.type, configs: node.configs, x: node.x })),
+        selectedNodeKey
+      ),
     [canvasNodes, selectedNodeKey]
   );
 

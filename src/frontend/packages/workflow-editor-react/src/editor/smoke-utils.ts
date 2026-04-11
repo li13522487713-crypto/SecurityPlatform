@@ -4,6 +4,7 @@ export interface SuggestionNode {
   key: string;
   type: WorkflowNodeTypeKey;
   configs: Record<string, unknown>;
+  x?: number;
 }
 
 export interface VariableSuggestion {
@@ -61,8 +62,13 @@ export function deriveOutputKeys(type: WorkflowNodeTypeKey, config: Record<strin
 
 export function buildVariableSuggestions(nodes: SuggestionNode[], currentNodeKey: string): VariableSuggestion[] {
   const suggestions: VariableSuggestion[] = [];
+  const currentNode = nodes.find((node) => node.key === currentNodeKey);
+  const currentX = typeof currentNode?.x === "number" ? currentNode.x : undefined;
   for (const node of nodes) {
     if (node.key === currentNodeKey) {
+      continue;
+    }
+    if (typeof currentX === "number" && typeof node.x === "number" && node.x > currentX) {
       continue;
     }
     const outputs = deriveOutputKeys(node.type, node.configs);

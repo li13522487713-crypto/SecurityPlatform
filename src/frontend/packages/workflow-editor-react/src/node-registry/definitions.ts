@@ -213,7 +213,7 @@ function createStandardSections(type: WorkflowNodeTypeKey): FormSectionSchema[] 
               { value: "python", label: "Python" }
             ]
           },
-          { key: "codeBody", label: "代码", kind: "json", path: "code.source", rows: 12, required: true }
+          { key: "codeBody", label: "代码", kind: "code", path: "code.source", rows: 12, required: true, languagePath: "code.language" }
         ]
       }
     ];
