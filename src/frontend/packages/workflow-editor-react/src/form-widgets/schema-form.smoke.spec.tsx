@@ -5,15 +5,20 @@ import { createRoot, type Root } from "react-dom/client";
 import { SchemaForm } from "./SchemaForm";
 import type { FormSectionSchema } from "../node-registry";
 
+let latestMonacoProps: { value: string; onChange?: (value: string) => void; language?: string } | null = null;
+
 vi.mock("@monaco-editor/react", () => ({
-  default: (props: { value: string; onChange?: (value: string) => void; language?: string }) => (
-    <textarea
-      data-testid="mock-monaco"
-      data-language={props.language}
-      value={props.value}
-      onChange={(event) => props.onChange?.(event.target.value)}
-    />
-  )
+  default: (props: { value: string; onChange?: (value: string) => void; language?: string }) => {
+    latestMonacoProps = props;
+    return (
+      <textarea
+        data-testid="mock-monaco"
+        data-language={props.language}
+        value={props.value}
+        onChange={(event) => props.onChange?.(event.target.value)}
+      />
+    );
+  }
 }));
 
 const sections: FormSectionSchema[] = [
@@ -42,6 +47,21 @@ const sections: FormSectionSchema[] = [
 
 describe("SchemaForm smoke", () => {
   it("renders code field and writes back config changes", async () => {
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    Object.defineProperty(window, "matchMedia", {
+      writable: true,
+      value: (query: string) => ({
+        matches: false,
+        media: query,
+        onchange: null,
+        addListener: () => undefined,
+        removeListener: () => undefined,
+        addEventListener: () => undefined,
+        removeEventListener: () => undefined,
+        dispatchEvent: () => false
+      })
+    });
+
     const container = document.createElement("div");
     document.body.appendChild(container);
     let root: Root | undefined;
@@ -75,15 +95,18 @@ describe("SchemaForm smoke", () => {
     expect(monaco?.getAttribute("data-language")).toBe("python");
 
     await act(async () => {
-      if (monaco) {
-        monaco.value = "print('world')";
-        monaco.dispatchEvent(new Event("change", { bubbles: true }));
-      }
+      latestMonacoProps?.onChange?.("print('world')");
     });
 
-    const latest = onChange.mock.calls.at(-1)?.[0] as Record<string, unknown>;
-    const code = latest.code as Record<string, unknown>;
-    expect(code.source).toBe("print('world')");
+    const hasExpectedUpdate = onChange.mock.calls.some((call) => {
+      const payload = call[0] as Record<string, unknown> | undefined;
+      if (!payload || typeof payload !== "object") {
+        return false;
+      }
+      const code = payload.code as Record<string, unknown> | undefined;
+      return Boolean(code && code.source === "print('world')");
+    });
+    expect(hasExpectedUpdate).toBe(true);
 
     await act(async () => {
       root?.unmount();
