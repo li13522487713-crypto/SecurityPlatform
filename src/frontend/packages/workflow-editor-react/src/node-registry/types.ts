@@ -16,7 +16,8 @@ export type FormFieldKind =
   | "arrayEditor"
   | "objectEditor"
   | "conditionBuilder"
-  | "variableRefPicker";
+  | "variableRefPicker"
+  | "expression";
 
 export interface FormSelectOption {
   label: string;

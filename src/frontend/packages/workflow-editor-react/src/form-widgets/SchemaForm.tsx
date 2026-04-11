@@ -9,6 +9,7 @@ import { ArrayEditor } from "./ArrayEditor";
 import { TagInput } from "./TagInput";
 import { VariableRefPicker } from "./VariableRefPicker";
 import { ObjectEditor } from "./ObjectEditor";
+import { ExpressionEditor } from "./ExpressionEditor";
 
 interface SchemaFormProps {
   sections: FormSectionSchema[];
@@ -180,6 +181,17 @@ function renderField(
         value={asString(current)}
         suggestions={variableSuggestions}
         multiline={(field.rows ?? 1) > 1}
+        rows={field.rows}
+        placeholder={field.placeholder}
+        onChange={(next) => updatePath(next)}
+      />
+    );
+  }
+  if (field.kind === "expression") {
+    return (
+      <ExpressionEditor
+        value={asString(current)}
+        suggestions={variableSuggestions}
         rows={field.rows}
         placeholder={field.placeholder}
         onChange={(next) => updatePath(next)}

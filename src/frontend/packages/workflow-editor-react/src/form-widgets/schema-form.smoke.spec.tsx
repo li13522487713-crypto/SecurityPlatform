@@ -113,5 +113,57 @@ describe("SchemaForm smoke", () => {
     });
     container.remove();
   });
+
+  it("renders expression field and updates config", async () => {
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    let root: Root | undefined;
+
+    let nextConfig: Record<string, unknown> = {
+      condition: "{{entry_1.input}} == \"ok\""
+    };
+    const onChange = vi.fn((next: Record<string, unknown>) => {
+      nextConfig = next;
+    });
+
+    const expressionSections: FormSectionSchema[] = [
+      {
+        key: "basic",
+        title: "表达式",
+        fields: [
+          {
+            key: "condition",
+            label: "条件",
+            kind: "expression",
+            path: "condition",
+            rows: 2
+          }
+        ]
+      }
+    ];
+
+    await act(async () => {
+      root = createRoot(container);
+      root.render(
+        <SchemaForm
+          sections={expressionSections}
+          config={nextConfig}
+          onChange={onChange}
+          variableSuggestions={[{ value: "{{entry_1.input}}", label: "entry_1.input" }]}
+        />
+      );
+    });
+
+    const expressionInput = container.querySelector<HTMLTextAreaElement>("textarea");
+    expect(expressionInput).toBeTruthy();
+
+    expect(expressionInput?.value).toContain("{{entry_1.input}}");
+
+    await act(async () => {
+      root?.unmount();
+    });
+    container.remove();
+  });
 });
 

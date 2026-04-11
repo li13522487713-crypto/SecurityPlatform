@@ -227,6 +227,7 @@ public sealed class CanvasValidator : ICanvasValidator
 
         ValidateRequiredInputPortBindings(nodeByKey, targetPortUsed, errors);
         ValidateBranchConfigurations(nodeByKey, outgoingConnectionsByNode, errors);
+        ValidateNodeConfigContracts(nodeByKey, errors);
         ValidateVariableMappings(
             nodeByKey,
             adjacency,
@@ -518,6 +519,92 @@ public sealed class CanvasValidator : ICanvasValidator
         }
     }
 
+    private static void ValidateNodeConfigContracts(
+        IReadOnlyDictionary<string, NodeSchema> nodeByKey,
+        List<CanvasValidationIssue> errors)
+    {
+        foreach (var node in nodeByKey.Values)
+        {
+            if (node.Type != WorkflowNodeType.InputReceiver)
+            {
+                continue;
+            }
+
+            if (string.IsNullOrWhiteSpace(VariableResolver.GetConfigString(node.Config, "inputPath")))
+            {
+                errors.Add(new CanvasValidationIssue(
+                    "INPUT_RECEIVER_INPUT_PATH_REQUIRED",
+                    $"InputReceiver 节点 '{node.Key}' 必须配置 inputPath。",
+                    node.Key));
+            }
+
+            if (!node.Config.TryGetValue("outputSchema", out var outputSchemaRaw))
+            {
+                continue;
+            }
+
+            if (!TryNormalizeSchemaElement(outputSchemaRaw, out var normalizedSchema))
+            {
+                errors.Add(new CanvasValidationIssue(
+                    "INPUT_RECEIVER_OUTPUT_SCHEMA_INVALID",
+                    $"InputReceiver 节点 '{node.Key}' 的 outputSchema 必须是合法 JSON 对象。",
+                    node.Key));
+                continue;
+            }
+
+            ValidateInputReceiverOutputSchema(node.Key, normalizedSchema, errors);
+        }
+    }
+
+    private static void ValidateInputReceiverOutputSchema(
+        string nodeKey,
+        JsonElement schema,
+        List<CanvasValidationIssue> errors)
+    {
+        if (schema.ValueKind != JsonValueKind.Object)
+        {
+            errors.Add(new CanvasValidationIssue(
+                "INPUT_RECEIVER_OUTPUT_SCHEMA_INVALID",
+                $"InputReceiver 节点 '{nodeKey}' 的 outputSchema 必须为对象。",
+                nodeKey));
+            return;
+        }
+
+        if (schema.TryGetProperty("required", out var requiredRaw) &&
+            requiredRaw.ValueKind != JsonValueKind.Array)
+        {
+            errors.Add(new CanvasValidationIssue(
+                "INPUT_RECEIVER_OUTPUT_SCHEMA_REQUIRED_INVALID",
+                $"InputReceiver 节点 '{nodeKey}' 的 outputSchema.required 必须为数组。",
+                nodeKey));
+        }
+
+        if (schema.TryGetProperty("required", out var requiredArray) &&
+            requiredArray.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in requiredArray.EnumerateArray())
+            {
+                if (item.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(item.GetString()))
+                {
+                    errors.Add(new CanvasValidationIssue(
+                        "INPUT_RECEIVER_OUTPUT_SCHEMA_REQUIRED_ITEM_INVALID",
+                        $"InputReceiver 节点 '{nodeKey}' 的 outputSchema.required 存在空字段定义。",
+                        nodeKey));
+                    break;
+                }
+            }
+        }
+
+        if (schema.TryGetProperty("properties", out var propertiesRaw) &&
+            propertiesRaw.ValueKind != JsonValueKind.Object)
+        {
+            errors.Add(new CanvasValidationIssue(
+                "INPUT_RECEIVER_OUTPUT_SCHEMA_PROPERTIES_INVALID",
+                $"InputReceiver 节点 '{nodeKey}' 的 outputSchema.properties 必须为对象。",
+                nodeKey));
+        }
+    }
+
     private static void ValidateSelectorBranchConfiguration(
         NodeSchema node,
         IReadOnlyList<ConnectionSchema> outgoingConnections,
@@ -635,6 +722,64 @@ public sealed class CanvasValidator : ICanvasValidator
             var upstreamNodes = BuildUpstreamNodes(node.Key, reverseAdjacency);
             ValidateNodeFieldMappings(node, node.InputSources, isInputMapping: true, upstreamNodes, nodeByKey, globalKeys, errors);
             ValidateNodeFieldMappings(node, node.OutputSources, isInputMapping: false, upstreamNodes, nodeByKey, globalKeys, errors);
+            ValidateConfigVariableReferences(node, upstreamNodes, nodeByKey, globalKeys, errors);
+        }
+    }
+
+    private static void ValidateConfigVariableReferences(
+        NodeSchema node,
+        IReadOnlySet<string> upstreamNodes,
+        IReadOnlyDictionary<string, NodeSchema> nodeByKey,
+        IReadOnlySet<string> globalKeys,
+        List<CanvasValidationIssue> errors)
+    {
+        foreach (var variablePath in EnumerateVariablePaths(node.Config).Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            if (!VariablePathRegex.IsMatch(variablePath))
+            {
+                errors.Add(new CanvasValidationIssue(
+                    "VARIABLE_REFERENCE_PATH_INVALID",
+                    $"节点 '{node.Key}' 的配置引用 path='{variablePath}' 非法。",
+                    node.Key));
+                continue;
+            }
+
+            var root = GetVariableRoot(variablePath);
+            if (string.IsNullOrWhiteSpace(root))
+            {
+                continue;
+            }
+
+            if (string.Equals(root, "global", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(root, "globals", StringComparison.OrdinalIgnoreCase))
+            {
+                var globalKey = GetGlobalVariableKey(variablePath);
+                if (!string.IsNullOrWhiteSpace(globalKey) && globalKeys.Contains(globalKey))
+                {
+                    continue;
+                }
+
+                errors.Add(new CanvasValidationIssue(
+                    "VARIABLE_REFERENCE_GLOBAL_MISSING",
+                    $"节点 '{node.Key}' 的配置引用了不存在的全局变量 '{variablePath}'。",
+                    node.Key));
+                continue;
+            }
+
+            if (ReservedVariableRoots.Contains(root))
+            {
+                continue;
+            }
+
+            if (!nodeByKey.ContainsKey(root) || upstreamNodes.Contains(root))
+            {
+                continue;
+            }
+
+            errors.Add(new CanvasValidationIssue(
+                "VARIABLE_REFERENCE_SCOPE_INVALID",
+                $"节点 '{node.Key}' 的配置引用了非上游节点变量 '{root}'。",
+                node.Key));
         }
     }
 
@@ -836,6 +981,45 @@ public sealed class CanvasValidator : ICanvasValidator
         return paths;
     }
 
+    private static IEnumerable<string> EnumerateVariablePaths(IReadOnlyDictionary<string, JsonElement> config)
+    {
+        var paths = new List<string>();
+        foreach (var value in config.Values)
+        {
+            CollectVariablePaths(value, paths);
+        }
+
+        return paths;
+    }
+
+    private static void CollectVariablePaths(JsonElement value, List<string> collector)
+    {
+        switch (value.ValueKind)
+        {
+            case JsonValueKind.String:
+                foreach (var item in EnumerateVariablePaths(value.GetString() ?? string.Empty))
+                {
+                    collector.Add(item);
+                }
+
+                break;
+            case JsonValueKind.Object:
+                foreach (var property in value.EnumerateObject())
+                {
+                    CollectVariablePaths(property.Value, collector);
+                }
+
+                break;
+            case JsonValueKind.Array:
+                foreach (var item in value.EnumerateArray())
+                {
+                    CollectVariablePaths(item, collector);
+                }
+
+                break;
+        }
+    }
+
     private static string GetVariableRoot(string variablePath)
     {
         var separatorIndex = variablePath.IndexOfAny(['.', '[']);
@@ -863,6 +1047,43 @@ public sealed class CanvasValidator : ICanvasValidator
         return keyEnd < 0
             ? tail.Trim()
             : tail[..keyEnd].Trim();
+    }
+
+    private static bool TryNormalizeSchemaElement(JsonElement rawSchema, out JsonElement normalizedSchema)
+    {
+        normalizedSchema = default;
+        if (rawSchema.ValueKind == JsonValueKind.Object)
+        {
+            normalizedSchema = rawSchema;
+            return true;
+        }
+
+        if (rawSchema.ValueKind != JsonValueKind.String)
+        {
+            return false;
+        }
+
+        var text = rawSchema.GetString();
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(text);
+            if (document.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                return false;
+            }
+
+            normalizedSchema = document.RootElement.Clone();
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static bool DfsDetectCycle(

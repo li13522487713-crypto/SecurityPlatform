@@ -66,7 +66,7 @@ function createStandardSections(type: WorkflowNodeTypeKey): FormSectionSchema[] 
           key: "basic",
           title: "条件判断",
           fields: [
-            { key: "selectorCondition", label: "表达式条件", kind: "textarea", path: "condition", rows: 3 },
+            { key: "selectorCondition", label: "表达式条件", kind: "expression", path: "condition", rows: 3 },
             {
               key: "selectorLogic",
               label: "条件关系",
@@ -101,7 +101,7 @@ function createStandardSections(type: WorkflowNodeTypeKey): FormSectionSchema[] 
             },
             { key: "loopMaxIterations", label: "最大循环次数", kind: "number", path: "maxIterations", min: 1, max: 10000, required: true },
             { key: "loopCollectionPath", label: "数组变量路径", kind: "text", path: "collectionPath", placeholder: "{{items}}" },
-            { key: "loopCondition", label: "循环条件", kind: "text", path: "condition" },
+            { key: "loopCondition", label: "循环条件", kind: "expression", path: "condition", rows: 2 },
             { key: "loopItemVariable", label: "迭代项变量名", kind: "text", path: "itemVariable", placeholder: "loop_item" },
             { key: "loopIndexVariable", label: "索引变量名", kind: "text", path: "itemIndexVariable", placeholder: "loop_index" },
             { key: "loopBodyNodeKeys", label: "循环体节点键", kind: "textarea", path: "bodyNodeKeys", rows: 2, placeholder: "nodeA,nodeB,nodeC" }
@@ -184,7 +184,7 @@ function createStandardSections(type: WorkflowNodeTypeKey): FormSectionSchema[] 
           key: "basic",
           title: "意图识别配置",
           fields: [
-            { key: "intentInput", label: "输入表达式", kind: "text", path: "input", required: true, placeholder: "{{text}}" },
+            { key: "intentInput", label: "输入表达式", kind: "expression", path: "input", required: true, placeholder: "{{text}}" },
             { key: "intentProvider", label: "模型提供商", kind: "text", path: "provider", required: true },
             { key: "intentModel", label: "模型", kind: "text", path: "model", required: true },
             { key: "intentSystemPrompt", label: "系统提示词", kind: "variableRefPicker", path: "systemPrompt", rows: 3 },
@@ -285,7 +285,7 @@ function createStandardSections(type: WorkflowNodeTypeKey): FormSectionSchema[] 
         {
           key: "basic",
           title: "变量赋值",
-          fields: [{ key: "assignmentsRaw", label: "赋值表达式", kind: "text", path: "assignments", required: true, placeholder: "a=1;b={{x}}" }]
+          fields: [{ key: "assignmentsRaw", label: "赋值表达式", kind: "expression", path: "assignments", rows: 2, required: true, placeholder: "a=1;b={{x}}" }]
         }
       ];
     case "Plugin":
@@ -321,7 +321,7 @@ function createStandardSections(type: WorkflowNodeTypeKey): FormSectionSchema[] 
                 { value: "DELETE", label: "DELETE" }
               ]
             },
-            { key: "httpUrl", label: "URL", kind: "text", path: "url", required: true, placeholder: "https://api.example.com" },
+            { key: "httpUrl", label: "URL", kind: "expression", path: "url", required: true, placeholder: "https://api.example.com/{{id}}" },
             { key: "httpHeaders", label: "Headers", kind: "keyValue", path: "headers" },
             { key: "httpBody", label: "Body", kind: "json", path: "body", rows: 6 },
             { key: "httpTimeout", label: "超时(秒)", kind: "number", path: "timeout", min: 1, max: 600 },

@@ -6,4 +6,5 @@ export * from "./ArrayEditor";
 export * from "./TagInput";
 export * from "./VariableRefPicker";
 export * from "./ObjectEditor";
+export * from "./ExpressionEditor";
 

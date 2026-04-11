@@ -226,7 +226,9 @@ function parseCanvasConnection(connection: unknown, index: number): CanvasConnec
   };
 }
 
-function parseCanvasJson(json: string | undefined): { nodes: CanvasNode[]; connections: CanvasConnection[]; globals: Record<string, unknown> } {
+function parseCanvasJson(
+  json: string | undefined
+): { nodes: CanvasNode[]; connections: CanvasConnection[]; globals: Record<string, unknown>; viewport?: { x: number; y: number; zoom: number } } {
   if (!json) {
     return { nodes: INITIAL_NODES, connections: INITIAL_CONNECTIONS, globals: {} };
   }
@@ -241,13 +243,26 @@ function parseCanvasJson(json: string | undefined): { nodes: CanvasNode[]; conne
           .map((item, index) => parseCanvasConnection(item, index))
           .filter((item): item is CanvasConnection => item !== null)
       : [];
-    return { nodes: nodes.length > 0 ? nodes : INITIAL_NODES, connections, globals: isRecord(parsed.globals) ? parsed.globals : {} };
+    const viewportCandidate = isRecord(parsed.viewport) ? parsed.viewport : null;
+    const viewport =
+      viewportCandidate &&
+      typeof viewportCandidate.x === "number" &&
+      typeof viewportCandidate.y === "number" &&
+      typeof viewportCandidate.zoom === "number"
+        ? { x: viewportCandidate.x, y: viewportCandidate.y, zoom: viewportCandidate.zoom }
+        : undefined;
+    return { nodes: nodes.length > 0 ? nodes : INITIAL_NODES, connections, globals: isRecord(parsed.globals) ? parsed.globals : {}, viewport };
   } catch {
     return { nodes: INITIAL_NODES, connections: INITIAL_CONNECTIONS, globals: {} };
   }
 }
 
-function toCanvasJson(nodes: CanvasNode[], connections: CanvasConnection[], globals: Record<string, unknown>): string {
+function toCanvasJson(
+  nodes: CanvasNode[],
+  connections: CanvasConnection[],
+  globals: Record<string, unknown>,
+  viewport: { x: number; y: number; zoom: number }
+): string {
   const payload: CanvasSchema = {
     nodes: nodes.map((node) => ({
       key: node.key,
@@ -271,7 +286,8 @@ function toCanvasJson(nodes: CanvasNode[], connections: CanvasConnection[], glob
       condition: connection.condition
     })),
     schemaVersion: 2,
-    globals
+    globals,
+    viewport
   };
   return JSON.stringify(payload);
 }
@@ -401,6 +417,7 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
   const [debugOutput, setDebugOutput] = useState("");
   const [debugRunning, setDebugRunning] = useState(false);
   const streamAbortRef = useRef<null | (() => void)>(null);
+  const clipboardNodeRef = useRef<CanvasNode | null>(null);
 
   function buildEdgeRuntimeKey(connection: Pick<CanvasConnection, "fromNode" | "fromPort" | "toNode" | "toPort">): string {
     return `${connection.fromNode}:${connection.fromPort}->${connection.toNode}:${connection.toPort}`;
@@ -443,6 +460,10 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
           setCanvasNodes(parsed.nodes);
           setCanvasConnections(normalized.connections);
           setCanvasGlobals(parsed.globals);
+          if (parsed.viewport) {
+            setPan({ x: parsed.viewport.x, y: parsed.viewport.y });
+            setZoom(parsed.viewport.zoom);
+          }
           if (normalized.migratedCount > 0) {
             message.info(`已迁移 ${normalized.migratedCount} 条历史连线到默认端口。`);
           }
@@ -470,6 +491,32 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
       setDebugNodeKey(selectedNode.key);
     }
   }, [debugNodeKey, selectedNode]);
+
+  function isEditableTarget(target: EventTarget | null): boolean {
+    const element = target as HTMLElement | null;
+    if (!element) {
+      return false;
+    }
+    const tagName = element.tagName.toLowerCase();
+    if (tagName === "input" || tagName === "textarea" || tagName === "select") {
+      return true;
+    }
+    return Boolean(element.closest("input, textarea, [contenteditable='true']"));
+  }
+
+  function buildUniqueNodeKey(baseType: string, existingNodes: CanvasNode[]): string {
+    const normalizedBase = `${baseType.toLowerCase()}_${Date.now().toString(36)}`;
+    if (!existingNodes.some((node) => node.key === normalizedBase)) {
+      return normalizedBase;
+    }
+    let cursor = 1;
+    let candidate = `${normalizedBase}_${cursor}`;
+    while (existingNodes.some((node) => node.key === candidate)) {
+      cursor += 1;
+      candidate = `${normalizedBase}_${cursor}`;
+    }
+    return candidate;
+  }
 
   const nodeMap = useMemo(() => {
     const result = new Map<string, WorkflowNodeCatalogItem>();
@@ -810,7 +857,7 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
     const definition = nodeRegistry.resolve(nodeType);
     const normalizedType = definition.type;
     const template = metadataBundle.templatesMap.get(normalizedType);
-    const key = `${nodeType.toLowerCase()}_${Date.now().toString(36)}`;
+    const key = buildUniqueNodeKey(nodeType, canvasNodes);
     const nextConfigs = mergeNodeDefaults(definition, template, {});
     const catalog = nodeMap.get(normalizedType);
     setCanvasNodes((prev: CanvasNode[]) => [
@@ -868,8 +915,86 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
       toPort: line.toPort,
       condition: line.condition
     })),
-    schemaVersion: 2
+    schemaVersion: 2,
+    globals: canvasGlobals,
+    viewport: { x: pan.x, y: pan.y, zoom }
   };
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (isEditableTarget(event.target)) {
+        return;
+      }
+
+      const isMeta = event.ctrlKey || event.metaKey;
+      const lowerKey = event.key.toLowerCase();
+
+      if (isMeta && lowerKey === "c") {
+        if (!selectedNode) {
+          return;
+        }
+        clipboardNodeRef.current = structuredClone(selectedNode);
+        event.preventDefault();
+        return;
+      }
+
+      if (isMeta && lowerKey === "v") {
+        if (!clipboardNodeRef.current) {
+          return;
+        }
+        const sourceNode = clipboardNodeRef.current;
+        const nextKey = buildUniqueNodeKey(sourceNode.type, canvasNodes);
+        const pastedNode: CanvasNode = {
+          ...structuredClone(sourceNode),
+          key: nextKey,
+          title: `${sourceNode.title}-副本`,
+          x: sourceNode.x + 48,
+          y: sourceNode.y + 48
+        };
+        setCanvasNodes((prev) => [...prev, pastedNode]);
+        setSelectedNodeKey(nextKey);
+        setIsDirty(true);
+        event.preventDefault();
+        return;
+      }
+
+      if (event.key === "Delete") {
+        if (!selectedNodeKey) {
+          return;
+        }
+        const remainingNodes = canvasNodes.filter((node) => node.key !== selectedNodeKey);
+        if (remainingNodes.length === canvasNodes.length) {
+          return;
+        }
+        setCanvasNodes(remainingNodes);
+        setCanvasConnections((prev) => prev.filter((line) => line.fromNode !== selectedNodeKey && line.toNode !== selectedNodeKey));
+        setSelectedNodeKey(remainingNodes[0]?.key ?? "");
+        setIsDirty(true);
+        event.preventDefault();
+        return;
+      }
+
+      if (isMeta && lowerKey === "s") {
+        event.preventDefault();
+        void (async () => {
+          const result = runCanvasValidationAndReport();
+          if (!result.ok || !props.apiClient.saveDraft) {
+            return;
+          }
+          await props.apiClient.saveDraft(props.workflowId, {
+            canvasJson: toCanvasJson(canvasNodes, canvasConnections, canvasGlobals, { x: pan.x, y: pan.y, zoom })
+          });
+          setIsDirty(false);
+          appendLog("save_draft");
+        })();
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [canvasConnections, canvasGlobals, canvasNodes, pan.x, pan.y, props.apiClient, props.workflowId, selectedNode, selectedNodeKey, zoom]);
 
   function appendLog(line: string) {
     setLogs((prev) => [...prev, `${new Date().toLocaleTimeString()} ${line}`]);
@@ -1159,7 +1284,7 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
           }
           if (props.apiClient.saveDraft) {
             await props.apiClient.saveDraft(props.workflowId, {
-              canvasJson: toCanvasJson(canvasNodes, canvasConnections, canvasGlobals)
+              canvasJson: toCanvasJson(canvasNodes, canvasConnections, canvasGlobals, { x: pan.x, y: pan.y, zoom })
             });
           }
           setIsDirty(false);
@@ -1173,7 +1298,7 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
           try {
             if (props.apiClient.saveDraft && isDirty) {
               await props.apiClient.saveDraft(props.workflowId, {
-                canvasJson: toCanvasJson(canvasNodes, canvasConnections, canvasGlobals)
+                canvasJson: toCanvasJson(canvasNodes, canvasConnections, canvasGlobals, { x: pan.x, y: pan.y, zoom })
               });
             }
             if (props.apiClient.publish) {

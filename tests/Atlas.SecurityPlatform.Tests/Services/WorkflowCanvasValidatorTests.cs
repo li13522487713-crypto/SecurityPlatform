@@ -137,6 +137,67 @@ public sealed class WorkflowCanvasValidatorTests
         Assert.Contains(result.Errors, e => e.Code == "VARIABLE_MAPPING_GLOBAL_MISSING");
     }
 
+    [Fact]
+    public void ValidateCanvas_ShouldReportInvalidInputReceiverOutputSchema()
+    {
+        var inputReceiver = new NodeSchema(
+            "input_1",
+            WorkflowNodeType.InputReceiver,
+            "input_1",
+            new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["inputPath"] = JsonSerializer.SerializeToElement("input.message"),
+                ["outputSchema"] = JsonSerializer.SerializeToElement("not-a-json-object")
+            },
+            new NodeLayout(220, 0, 120, 60));
+
+        var canvas = new CanvasSchema(
+            Nodes:
+            [
+                BuildNode("entry_1", WorkflowNodeType.Entry),
+                inputReceiver
+            ],
+            Connections:
+            [
+                new ConnectionSchema("entry_1", "output", "input_1", "input", null)
+            ]);
+
+        var result = _validator.ValidateCanvas(JsonSerializer.Serialize(canvas));
+
+        Assert.Contains(result.Errors, e => e.Code == "INPUT_RECEIVER_OUTPUT_SCHEMA_INVALID");
+    }
+
+    [Fact]
+    public void ValidateCanvas_ShouldReportConfigVariableReferenceScopeViolation()
+    {
+        var nodeWithRef = new NodeSchema(
+            "processor_1",
+            WorkflowNodeType.TextProcessor,
+            "processor_1",
+            new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["template"] = JsonSerializer.SerializeToElement("{{future_1.result}}")
+            },
+            new NodeLayout(220, 0, 120, 60));
+
+        var canvas = new CanvasSchema(
+            Nodes:
+            [
+                BuildNode("entry_1", WorkflowNodeType.Entry),
+                nodeWithRef,
+                BuildNode("future_1", WorkflowNodeType.OutputEmitter)
+            ],
+            Connections:
+            [
+                new ConnectionSchema("entry_1", "output", "processor_1", "input", null),
+                new ConnectionSchema("processor_1", "output", "future_1", "input", null)
+            ]);
+
+        var result = _validator.ValidateCanvas(JsonSerializer.Serialize(canvas));
+
+        Assert.Contains(result.Errors, e => e.Code == "VARIABLE_REFERENCE_SCOPE_INVALID");
+    }
+
     private static NodeSchema BuildNode(string key, WorkflowNodeType nodeType)
     {
         return new NodeSchema(
