@@ -113,7 +113,8 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
         TenantId tenantId, long workflowId, long userId, WorkflowV2RunRequest request, CancellationToken cancellationToken)
     {
         var (execution, canvas, inputs) = await PrepareExecutionAsync(tenantId, workflowId, userId, request, cancellationToken);
-        var runCts = new CancellationTokenSource();
+        // BE-30: 工作流总超时（默认 30 分钟），防止无限制运行。
+        var runCts = new CancellationTokenSource(TimeSpan.FromMinutes(30));
 
         if (!_cancellationRegistry.Register(execution.Id, runCts))
         {
@@ -368,7 +369,9 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
         var (execution, canvas, inputs) = await PrepareExecutionAsync(tenantId, workflowId, userId, request, cancellationToken);
 
         var channel = Channel.CreateUnbounded<SseEvent>(new UnboundedChannelOptions { SingleReader = true });
+        // BE-30: 流式运行同样应用 30 分钟总超时。
         using var runCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        runCts.CancelAfter(TimeSpan.FromMinutes(30));
         if (!_cancellationRegistry.Register(execution.Id, runCts))
         {
             throw new BusinessException("执行实例重复注册，无法启动流式运行。", ErrorCodes.ServerError);
@@ -399,11 +402,13 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
         }, CancellationToken.None);
 
         // 产出开始事件
-        yield return new SseEvent("execution_start", JsonSerializer.Serialize(new { executionId = execution.Id.ToString() }));
+        // RT-13: 附加序列号和时间戳，客户端可检测乱序/丢失事件。
+        var seqCounter = new SeqCounter();
+        yield return seqCounter.Enrich(new SseEvent("execution_start", JsonSerializer.Serialize(new { executionId = execution.Id.ToString() })));
 
         await foreach (var evt in channel.Reader.ReadAllAsync(cancellationToken))
         {
-            yield return evt;
+            yield return seqCounter.Enrich(evt);
         }
 
         try
@@ -560,5 +565,40 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
         await using var scope = _scopeFactory.CreateAsyncScope();
         var dagExecutor = scope.ServiceProvider.GetRequiredService<DagExecutor>();
         await dagExecutor.RunAsync(tenantId, execution, canvas, inputs, eventChannel, cancellationToken);
+    }
+
+    // RT-13: 序列号计数器辅助类，支持在 async 迭代器中使用。
+    private sealed class SeqCounter
+    {
+        private int _seq;
+
+        public SseEvent Enrich(SseEvent evt)
+        {
+            var ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            var currentSeq = ++_seq;
+            try
+            {
+                using var doc = JsonDocument.Parse(evt.Data);
+                var root = doc.RootElement;
+                if (root.ValueKind != JsonValueKind.Object)
+                {
+                    return evt;
+                }
+
+                var enriched = new Dictionary<string, JsonElement>();
+                foreach (var prop in root.EnumerateObject())
+                {
+                    enriched[prop.Name] = prop.Value;
+                }
+
+                enriched["_seq"] = JsonSerializer.SerializeToElement(currentSeq);
+                enriched["_ts"] = JsonSerializer.SerializeToElement(ts);
+                return new SseEvent(evt.Event, JsonSerializer.Serialize(enriched));
+            }
+            catch
+            {
+                return evt;
+            }
+        }
     }
 }

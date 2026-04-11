@@ -22,7 +22,8 @@ public sealed class WorkflowExecution : TenantEntity
         long id,
         long? appId = null,
         long? releaseId = null,
-        long? runtimeContextId = null)
+        long? runtimeContextId = null,
+        bool isDebug = false)
         : base(tenantId)
     {
         Id = id;
@@ -36,6 +37,7 @@ public sealed class WorkflowExecution : TenantEntity
         AppId = appId;
         ReleaseId = releaseId;
         RuntimeContextId = runtimeContextId;
+        IsDebug = isDebug;
     }
 
     public long WorkflowId { get; private set; }
@@ -60,6 +62,8 @@ public sealed class WorkflowExecution : TenantEntity
     public InterruptType InterruptType { get; private set; }
     [SugarColumn(IsNullable = true)]
     public string? InterruptNodeKey { get; private set; }
+    /// <summary>是否为调试模式运行（调试执行不计入正式统计）。</summary>
+    public bool IsDebug { get; private set; }
 
     public void Start()
     {

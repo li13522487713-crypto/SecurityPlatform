@@ -13,10 +13,11 @@ const DEFAULT_WORKFLOW_RENDER_HOOKS: WorkflowRenderHooks = {
 };
 
 // 渲染模块预埋：统一扩展层与连线装饰注册位，避免后续继续改空 stub。
-export const workflowRenderModule = new ContainerModule(({ bind, isBound, rebind }) => {
-  if (isBound(WORKFLOW_RENDER_HOOKS)) {
-    rebind(WORKFLOW_RENDER_HOOKS).toConstantValue(DEFAULT_WORKFLOW_RENDER_HOOKS);
+export const workflowRenderModule = new ContainerModule(async ({ bind, isBound, rebind }) => {
+  const alreadyBound = await isBound(WORKFLOW_RENDER_HOOKS);
+  if (alreadyBound) {
+    (await rebind(WORKFLOW_RENDER_HOOKS)).toConstantValue(DEFAULT_WORKFLOW_RENDER_HOOKS);
     return;
   }
-  bind(WORKFLOW_RENDER_HOOKS).toConstantValue(DEFAULT_WORKFLOW_RENDER_HOOKS);
+  (await bind(WORKFLOW_RENDER_HOOKS)).toConstantValue(DEFAULT_WORKFLOW_RENDER_HOOKS);
 });

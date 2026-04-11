@@ -206,6 +206,7 @@
   stroke-width: 2.2px;
   stroke-linecap: round;
   opacity: 0.86;
+  pointer-events: stroke;
 }
 
 .wf-react-edge-path-running {
@@ -225,6 +226,35 @@
   stroke: #9ca3af;
   stroke-dasharray: 6 5;
 }
+
+.wf-react-edge-path-hover {
+  stroke: #6366f1;
+  stroke-width: 3px;
+  pointer-events: stroke;
+}
+
+.wf-react-line-add-btn {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #4d53e8;
+  color: #fff;
+  font-size: 16px;
+  line-height: 22px;
+  text-align: center;
+  cursor: pointer;
+  z-index: 20;
+  user-select: none;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+  transition: background 0.15s;
+}
+
+.wf-react-line-add-btn:hover {
+  background: #3730c8;
+}
+
 
 .wf-react-edge-preview {
   stroke-dasharray: 6 6;

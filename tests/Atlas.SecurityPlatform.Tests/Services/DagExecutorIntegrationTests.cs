@@ -266,6 +266,167 @@ public sealed class DagExecutorIntegrationTests
     }
 
     [Fact]
+    public async Task RunAsync_ShouldHandleDeepSelectorSkipPropagation_WithoutStackOverflow()
+    {
+        var dag = CreateDagExecutor(
+            out var nodeExecutions,
+            new EntryNodeExecutor(),
+            new ExitNodeExecutor(),
+            new SelectorNodeExecutor(),
+            new TextProcessorNodeExecutor());
+
+        const int falseBranchDepth = 1200;
+        var nodes = new List<NodeSchema>
+        {
+            BuildNode("entry_1", WorkflowNodeType.Entry),
+            BuildNode(
+                "selector_1",
+                WorkflowNodeType.Selector,
+                new Dictionary<string, JsonElement>
+                {
+                    ["condition"] = JsonSerializer.SerializeToElement("true")
+                }),
+            BuildNode("true_1", WorkflowNodeType.TextProcessor),
+            BuildNode("exit_1", WorkflowNodeType.Exit)
+        };
+        var connections = new List<ConnectionSchema>
+        {
+            new("entry_1", "output", "selector_1", "input", null),
+            new("selector_1", "true", "true_1", "input", "true"),
+            new("true_1", "output", "exit_1", "input", null)
+        };
+
+        for (var i = 0; i < falseBranchDepth; i++)
+        {
+            nodes.Add(BuildNode($"false_{i}", WorkflowNodeType.TextProcessor));
+            if (i == 0)
+            {
+                connections.Add(new ConnectionSchema("selector_1", "false", "false_0", "input", "false"));
+                continue;
+            }
+
+            connections.Add(new ConnectionSchema($"false_{i - 1}", "output", $"false_{i}", "input", null));
+        }
+
+        var canvas = new CanvasSchema(nodes, connections);
+        var execution = BuildExecution(30112L);
+        await dag.RunAsync(
+            Tenant(),
+            execution,
+            canvas,
+            new Dictionary<string, JsonElement>(),
+            eventChannel: null,
+            CancellationToken.None);
+
+        Assert.Equal(ExecutionStatus.Completed, execution.Status);
+        var deepSkippedNode = nodeExecutions.FirstOrDefault(x =>
+            string.Equals(x.NodeKey, $"false_{falseBranchDepth - 1}", StringComparison.OrdinalIgnoreCase));
+        Assert.NotNull(deepSkippedNode);
+        Assert.Equal(ExecutionStatus.Skipped, deepSkippedNode!.Status);
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenSelectorSkipPropagationTooDeep_ShouldFailWithDepthGuard()
+    {
+        var dag = CreateDagExecutor(
+            out _,
+            new EntryNodeExecutor(),
+            new ExitNodeExecutor(),
+            new SelectorNodeExecutor(),
+            new TextProcessorNodeExecutor());
+
+        const int falseBranchDepth = 2100;
+        var nodes = new List<NodeSchema>
+        {
+            BuildNode("entry_1", WorkflowNodeType.Entry),
+            BuildNode(
+                "selector_1",
+                WorkflowNodeType.Selector,
+                new Dictionary<string, JsonElement>
+                {
+                    ["condition"] = JsonSerializer.SerializeToElement("true")
+                }),
+            BuildNode("true_1", WorkflowNodeType.TextProcessor),
+            BuildNode("exit_1", WorkflowNodeType.Exit)
+        };
+        var connections = new List<ConnectionSchema>
+        {
+            new("entry_1", "output", "selector_1", "input", null),
+            new("selector_1", "true", "true_1", "input", "true"),
+            new("true_1", "output", "exit_1", "input", null)
+        };
+
+        for (var i = 0; i < falseBranchDepth; i++)
+        {
+            nodes.Add(BuildNode($"false_{i}", WorkflowNodeType.TextProcessor));
+            if (i == 0)
+            {
+                connections.Add(new ConnectionSchema("selector_1", "false", "false_0", "input", "false"));
+                continue;
+            }
+
+            connections.Add(new ConnectionSchema($"false_{i - 1}", "output", $"false_{i}", "input", null));
+        }
+
+        var canvas = new CanvasSchema(nodes, connections);
+        var execution = BuildExecution(30113L);
+        await dag.RunAsync(
+            Tenant(),
+            execution,
+            canvas,
+            new Dictionary<string, JsonElement>(),
+            eventChannel: null,
+            CancellationToken.None);
+
+        Assert.Equal(ExecutionStatus.Failed, execution.Status);
+        Assert.Contains("图传播深度超过限制", execution.ErrorMessage, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenNodeTimeoutConfigured_ShouldFailByTimeout()
+    {
+        var dag = CreateDagExecutor(
+            out var nodeExecutions,
+            new EntryNodeExecutor(),
+            new ExitNodeExecutor(),
+            new SlowTextProcessorNodeExecutor());
+
+        var canvas = new CanvasSchema(
+            Nodes:
+            [
+                BuildNode("entry_1", WorkflowNodeType.Entry),
+                BuildNode(
+                    "text_1",
+                    WorkflowNodeType.TextProcessor,
+                    new Dictionary<string, JsonElement>
+                    {
+                        ["timeoutMs"] = JsonSerializer.SerializeToElement(20)
+                    }),
+                BuildNode("exit_1", WorkflowNodeType.Exit)
+            ],
+            Connections:
+            [
+                new ConnectionSchema("entry_1", "output", "text_1", "input", null),
+                new ConnectionSchema("text_1", "output", "exit_1", "input", null)
+            ]);
+
+        var execution = BuildExecution(30114L);
+        await dag.RunAsync(
+            Tenant(),
+            execution,
+            canvas,
+            new Dictionary<string, JsonElement>(),
+            eventChannel: null,
+            CancellationToken.None);
+
+        Assert.Equal(ExecutionStatus.Failed, execution.Status);
+        Assert.Contains("节点执行超时", execution.ErrorMessage, StringComparison.Ordinal);
+        var timedOutNode = nodeExecutions.FirstOrDefault(x => string.Equals(x.NodeKey, "text_1", StringComparison.OrdinalIgnoreCase));
+        Assert.NotNull(timedOutNode);
+        Assert.Equal(ExecutionStatus.Failed, timedOutNode!.Status);
+    }
+
+    [Fact]
     public async Task RunAsync_ShouldHandleLoopBreakSignal()
     {
         var dag = CreateDagExecutor(
@@ -668,6 +829,19 @@ public sealed class DagExecutorIntegrationTests
                 Success: false,
                 Outputs: new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase),
                 ErrorMessage: "模拟节点失败"));
+        }
+    }
+
+    private sealed class SlowTextProcessorNodeExecutor : INodeExecutor
+    {
+        public WorkflowNodeType NodeType => WorkflowNodeType.TextProcessor;
+
+        public async Task<NodeExecutionResult> ExecuteAsync(NodeExecutionContext context, CancellationToken cancellationToken)
+        {
+            await Task.Delay(200, cancellationToken);
+            return new NodeExecutionResult(
+                Success: true,
+                Outputs: new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase));
         }
     }
 }

@@ -716,6 +716,15 @@ if (setupReadyForRegistration)
 app.MapHealthChecks("/internal/health/live");
 app.MapHealthChecks("/internal/health/ready");
 app.MapControllers();
+
+if (setupReadyForRegistration && runHangfireServer)
+{
+    var recurringJobs = app.Services.GetRequiredService<IRecurringJobManager>();
+    recurringJobs.AddOrUpdate<Atlas.Infrastructure.Services.AiPlatform.WorkflowExecutionCleanupJob>(
+        "workflow-execution-cleanup",
+        job => job.ExecuteAsync(Atlas.Infrastructure.Services.AiPlatform.WorkflowExecutionCleanupJob.DefaultRetentionDays),
+        Cron.Daily(3, 0));
+}
 app.MapHub<Atlas.Presentation.Shared.Hubs.NotificationHub>("/hubs/notification");
 if (setupReadyForRegistration)
 {

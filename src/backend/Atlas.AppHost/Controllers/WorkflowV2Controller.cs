@@ -225,25 +225,19 @@ public sealed class WorkflowV2Controller : ControllerBase
     public async Task<ActionResult<ApiResponse<WorkflowV2RunResult>>> Run(
         long id, [FromBody] WorkflowV2RunRequest? request, CancellationToken cancellationToken)
     {
-        Console.WriteLine($"[diag] AppHost Run entered workflowId={id}");
-        _logger.LogWarning("WorkflowV2 Run received: WorkflowId={WorkflowId}", id);
+        _logger.LogInformation("WorkflowV2 Run received: WorkflowId={WorkflowId}", id);
         var safeRequest = request ?? new WorkflowV2RunRequest(null);
         GetValidator<WorkflowV2RunRequest>().ValidateAndThrow(safeRequest);
-        Console.WriteLine($"[diag] AppHost Run validated workflowId={id}");
-        _logger.LogWarning("WorkflowV2 Run validated: WorkflowId={WorkflowId}", id);
         var tenantId = _tenantProvider.GetTenantId();
         var userId = _currentUserAccessor.GetCurrentUserOrThrow().UserId;
         var executionService = GetExecutionService();
-        Console.WriteLine($"[diag] AppHost Run calling SyncRunAsync workflowId={id}");
-        _logger.LogWarning("WorkflowV2 Run invoking execution service: WorkflowId={WorkflowId}", id);
+        _logger.LogInformation("WorkflowV2 Run invoking execution service: WorkflowId={WorkflowId}", id);
         var result = await executionService.SyncRunAsync(tenantId, id, userId, safeRequest, cancellationToken);
-        Console.WriteLine($"[diag] AppHost Run returned executionId={result.ExecutionId} status={result.Status}");
-        _logger.LogWarning(
-            "WorkflowV2 Run completed: WorkflowId={WorkflowId} ExecutionId={ExecutionId} Status={Status} Error={Error}",
+        _logger.LogInformation(
+            "WorkflowV2 Run completed: WorkflowId={WorkflowId} ExecutionId={ExecutionId} Status={Status}",
             id,
             result.ExecutionId,
-            result.Status,
-            result.ErrorMessage);
+            result.Status);
         return Ok(ApiResponse<WorkflowV2RunResult>.Ok(result, HttpContext.TraceIdentifier));
     }
 
@@ -252,38 +246,26 @@ public sealed class WorkflowV2Controller : ControllerBase
     public async Task StreamRun(
         long id, [FromBody] WorkflowV2RunRequest? request, CancellationToken cancellationToken)
     {
-        Console.WriteLine($"[diag] AppHost StreamRun entered workflowId={id}");
-        _logger.LogWarning("WorkflowV2 StreamRun received: WorkflowId={WorkflowId}", id);
+        _logger.LogInformation("WorkflowV2 StreamRun received: WorkflowId={WorkflowId}", id);
         var safeRequest = request ?? new WorkflowV2RunRequest(null);
-        Console.WriteLine($"[diag] AppHost StreamRun before validate workflowId={id}");
         GetValidator<WorkflowV2RunRequest>().ValidateAndThrow(safeRequest);
-        Console.WriteLine($"[diag] AppHost StreamRun validated workflowId={id}");
 
         Response.ContentType = "text/event-stream";
         Response.Headers.CacheControl = "no-cache";
         Response.Headers.Connection = "keep-alive";
-        Console.WriteLine($"[diag] AppHost StreamRun headers-set workflowId={id}");
 
-        Console.WriteLine($"[diag] AppHost StreamRun before tenant workflowId={id}");
         var tenantId = _tenantProvider.GetTenantId();
-        Console.WriteLine($"[diag] AppHost StreamRun tenant={tenantId.Value} workflowId={id}");
-        Console.WriteLine($"[diag] AppHost StreamRun before user workflowId={id}");
         var userId = _currentUserAccessor.GetCurrentUserOrThrow().UserId;
-        Console.WriteLine($"[diag] AppHost StreamRun user={userId} workflowId={id}");
-        Console.WriteLine($"[diag] AppHost StreamRun before resolve execution service workflowId={id}");
         var executionService = GetExecutionService();
-        Console.WriteLine($"[diag] AppHost StreamRun resolved execution service workflowId={id}");
-        Console.WriteLine($"[diag] AppHost StreamRun enumerating workflowId={id}");
-        _logger.LogWarning("WorkflowV2 StreamRun start enumerating events: WorkflowId={WorkflowId}", id);
+        _logger.LogInformation("WorkflowV2 StreamRun start enumerating events: WorkflowId={WorkflowId}", id);
 
         await foreach (var evt in executionService.StreamRunAsync(tenantId, id, userId, safeRequest, cancellationToken))
         {
-            Console.WriteLine($"[diag] AppHost StreamRun event workflowId={id} event={evt.Event}");
             await Response.WriteAsync($"event: {evt.Event}\ndata: {evt.Data}\n\n", cancellationToken);
             await Response.Body.FlushAsync(cancellationToken);
         }
 
-        Console.WriteLine($"[diag] AppHost StreamRun completed workflowId={id}");
+        _logger.LogInformation("WorkflowV2 StreamRun completed: WorkflowId={WorkflowId}", id);
     }
 
     [HttpPost("executions/{execId:long}/cancel")]

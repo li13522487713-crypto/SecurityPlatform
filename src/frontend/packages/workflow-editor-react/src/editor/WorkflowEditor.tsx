@@ -2,7 +2,6 @@ import { message } from "antd";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CanvasToolbar } from "../components/CanvasToolbar";
-import { NodeCard } from "../components/NodeCard";
 import { NodePanelPopover } from "../components/NodePanelPopover";
 import { NodeDebugPanel } from "../components/NodeDebugPanel";
 import { PropertiesPanel } from "../components/PropertiesPanel";
@@ -26,12 +25,8 @@ import type {
 import {
   buildNodePortsRuntime,
   resolveDefaultPortKey,
-  type ConnectionRuntime,
-  type NodePortsRuntime,
-  type PortRuntime,
-  validateConnectionCandidate
+  type ConnectionRuntime
 } from "./connection-rules";
-import { resolveNodePorts } from "./dynamic-port-resolver";
 import { validateCanvas, type CanvasValidationResult } from "./editor-validation";
 import { buildVariableSuggestions } from "./smoke-utils";
 import { WorkflowRenderProvider } from "../flowgram/workflow-render-provider";
@@ -116,39 +111,6 @@ interface CanvasNode {
 interface CanvasConnection extends ConnectionRuntime {}
 type EdgeRuntimeState = "idle" | "running" | "success" | "failed" | "skipped";
 
-interface DragNodeOperation {
-  kind: "drag-node";
-  nodeKeys: string[];
-  startClientX: number;
-  startClientY: number;
-  startPositions: Record<string, { x: number; y: number }>;
-}
-
-interface PanCanvasOperation {
-  kind: "pan-canvas";
-  startClientX: number;
-  startClientY: number;
-  startX: number;
-  startY: number;
-}
-
-interface ConnectOperation {
-  kind: "connect";
-  fromNode: string;
-  fromPort: string;
-}
-
-interface BoxSelectOperation {
-  kind: "box-select";
-  startX: number;
-  startY: number;
-  currentX: number;
-  currentY: number;
-  additive: boolean;
-}
-
-type CanvasOperation = DragNodeOperation | PanCanvasOperation | ConnectOperation | BoxSelectOperation;
-
 interface ClipboardSnapshot {
   nodes: CanvasNode[];
   connections: CanvasConnection[];
@@ -157,7 +119,6 @@ interface ClipboardSnapshot {
 const nodeRegistry = new NodeRegistry();
 const NODE_WIDTH = 360;
 const NODE_HEIGHT = 160;
-const USE_FLOWGRAM_CANVAS = true;
 
 const INITIAL_NODES: CanvasNode[] = [
   {
@@ -323,28 +284,6 @@ function toCanvasJson(
   return JSON.stringify(payload);
 }
 
-function connectionPath(fromX: number, fromY: number, toX: number, toY: number): string {
-  const delta = Math.max(80, Math.abs(toX - fromX) * 0.42);
-  const c1x = fromX + delta;
-  const c2x = toX - delta;
-  return `M ${fromX} ${fromY} C ${c1x} ${fromY}, ${c2x} ${toY}, ${toX} ${toY}`;
-}
-
-function getPortAnchor(
-  node: CanvasNode,
-  ports: NodePortsRuntime,
-  direction: "input" | "output",
-  portKey: string
-): { x: number; y: number } {
-  const list = direction === "output" ? ports.outputs : ports.inputs;
-  const index = Math.max(0, list.findIndex((port) => port.key === portKey));
-  const ratio = (index + 1) / (list.length + 1);
-  return {
-    x: direction === "output" ? node.x + NODE_WIDTH : node.x,
-    y: node.y + NODE_HEIGHT * ratio
-  };
-}
-
 function normalizeConnectionsByPorts(
   nodes: CanvasNode[],
   connections: CanvasConnection[],
@@ -400,11 +339,8 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
   const isReadOnly = Boolean(props.readOnly);
 
   const canvasShellRef = useRef<HTMLDivElement | null>(null);
-  const operationRef = useRef<CanvasOperation | null>(null);
-  const pointerIdRef = useRef<number | null>(null);
   const panRef = useRef({ x: 0, y: 0 });
   const zoomRef = useRef(100);
-  const spacePressedRef = useRef(false);
 
   const [workflowName, setWorkflowName] = useState(`Workflow_${props.workflowId}`);
   const [isDirty, setIsDirty] = useState(false);
@@ -427,16 +363,6 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
   const [nodeTypesMeta, setNodeTypesMeta] = useState<NodeTypeMetadata[]>([]);
   const [nodeTemplates, setNodeTemplates] = useState<NodeTemplateMetadata[]>([]);
   const [canvasValidation, setCanvasValidation] = useState<CanvasValidationResult | null>(null);
-  const [connectingPreview, setConnectingPreview] = useState<{
-    fromNode: string;
-    fromPort: string;
-    startX: number;
-    startY: number;
-    currentX: number;
-    currentY: number;
-  } | null>(null);
-  const [connectableInputPortKeysByNode, setConnectableInputPortKeysByNode] = useState<Record<string, Set<string>>>({});
-  const [selectionBoxRect, setSelectionBoxRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
   const [draggingCatalogNodeType, setDraggingCatalogNodeType] = useState<string | null>(null);
   const [executionStateByNodeKey, setExecutionStateByNodeKey] = useState<
     Record<string, { state: "idle" | "running" | "success" | "failed" | "skipped" | "blocked"; hint?: string }>
@@ -598,15 +524,6 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
     setSelectedNodeKeys((prev) => prev.filter((key) => nodeByKey.has(key)));
   }, [nodeByKey]);
 
-  const nodePortsByNodeKey = useMemo(() => {
-    const map = new Map<string, NodePortsRuntime>();
-    for (const node of canvasNodes) {
-      const basePorts = buildNodePortsRuntime(metadataBundle.nodeTypesMap.get(node.type));
-      map.set(node.key, resolveNodePorts(node, basePorts));
-    }
-    return map;
-  }, [canvasNodes, metadataBundle.nodeTypesMap]);
-
   const variableSuggestions = useMemo(
     () =>
       buildVariableSuggestions(
@@ -635,26 +552,6 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
     [canvasNodes]
   );
 
-  const renderConnections = useMemo(
-    () =>
-      canvasConnections
-        .map((connection) => {
-          const fromNode = nodeByKey.get(connection.fromNode);
-          const toNode = nodeByKey.get(connection.toNode);
-          if (!fromNode || !toNode) {
-            return null;
-          }
-          const fromPorts = nodePortsByNodeKey.get(connection.fromNode) ?? buildNodePortsRuntime(undefined);
-          const toPorts = nodePortsByNodeKey.get(connection.toNode) ?? buildNodePortsRuntime(undefined);
-          const from = getPortAnchor(fromNode, fromPorts, "output", connection.fromPort);
-          const to = getPortAnchor(toNode, toPorts, "input", connection.toPort);
-          const edgeState = edgeStateByConnectionKey[buildEdgeRuntimeKey(connection)] ?? "idle";
-          return { id: connection.id, d: connectionPath(from.x, from.y, to.x, to.y), edgeState };
-        })
-        .filter((item): item is { id: string; d: string; edgeState: EdgeRuntimeState } => item !== null),
-    [canvasConnections, edgeStateByConnectionKey, nodeByKey, nodePortsByNodeKey]
-  );
-
   function resolveWorldPoint(clientX: number, clientY: number): { x: number; y: number } | null {
     const shell = canvasShellRef.current;
     if (!shell) {
@@ -669,11 +566,6 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
       x: (clientX - rect.left - panRef.current.x) / nextScale,
       y: (clientY - rect.top - panRef.current.y) / nextScale
     };
-  }
-
-  function clearConnectingState() {
-    setConnectingPreview(null);
-    setConnectableInputPortKeysByNode({});
   }
 
   function setSingleSelection(nodeKey: string) {
@@ -742,298 +634,6 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
     setCanvasValidation(null);
     return createdNodes.map((node) => node.key);
   }
-
-  function startNodeDrag(node: CanvasNode, event: React.PointerEvent<HTMLButtonElement>) {
-    if (isReadOnly) {
-      return;
-    }
-    if (event.button !== 0) {
-      return;
-    }
-    if ((event.target as HTMLElement).closest("[data-wf-port='true']")) {
-      return;
-    }
-    const dragNodeKeys = selectedNodeKeys.includes(node.key) ? selectedNodeKeys : [node.key];
-    const startPositions: Record<string, { x: number; y: number }> = {};
-    for (const key of dragNodeKeys) {
-      const current = nodeByKey.get(key);
-      if (current) {
-        startPositions[key] = { x: current.x, y: current.y };
-      }
-    }
-    operationRef.current = {
-      kind: "drag-node",
-      nodeKeys: dragNodeKeys,
-      startClientX: event.clientX,
-      startClientY: event.clientY,
-      startPositions
-    };
-    pointerIdRef.current = event.pointerId;
-    setSelectedNodeKeys(dragNodeKeys);
-    event.preventDefault();
-    event.stopPropagation();
-  }
-
-  function computeConnectableInputPorts(fromNodeKey: string, fromPortKey: string): Record<string, Set<string>> {
-    const sourceNode = nodeByKey.get(fromNodeKey);
-    if (!sourceNode) {
-      return {};
-    }
-    const sourcePorts = nodePortsByNodeKey.get(fromNodeKey) ?? buildNodePortsRuntime(undefined);
-    const result: Record<string, Set<string>> = {};
-    for (const target of canvasNodes) {
-      if (target.key === fromNodeKey) {
-        continue;
-      }
-      const targetPorts = nodePortsByNodeKey.get(target.key) ?? buildNodePortsRuntime(undefined);
-      for (const input of targetPorts.inputs) {
-        const check = validateConnectionCandidate(
-          {
-            fromNode: fromNodeKey,
-            fromPort: fromPortKey,
-            toNode: target.key,
-            toPort: input.key
-          },
-          canvasConnections,
-          sourcePorts.outputs,
-          targetPorts.inputs
-        );
-        if (check.ok) {
-          const set = result[target.key] ?? new Set<string>();
-          set.add(input.key);
-          result[target.key] = set;
-        }
-      }
-    }
-    return result;
-  }
-
-  function startConnection(node: CanvasNode, port: PortRuntime, event: React.PointerEvent<HTMLSpanElement>) {
-    if (isReadOnly) {
-      return;
-    }
-    if (event.button !== 0 || port.direction !== "output") {
-      return;
-    }
-    const ports = nodePortsByNodeKey.get(node.key) ?? buildNodePortsRuntime(undefined);
-    const anchor = getPortAnchor(node, ports, "output", port.key);
-    operationRef.current = { kind: "connect", fromNode: node.key, fromPort: port.key };
-    pointerIdRef.current = event.pointerId;
-    setConnectingPreview({
-      fromNode: node.key,
-      fromPort: port.key,
-      startX: anchor.x,
-      startY: anchor.y,
-      currentX: anchor.x,
-      currentY: anchor.y
-    });
-    setConnectableInputPortKeysByNode(computeConnectableInputPorts(node.key, port.key));
-    event.preventDefault();
-    event.stopPropagation();
-  }
-
-  function startPanCanvas(event: React.PointerEvent<HTMLDivElement>) {
-    if (event.button !== 0 && event.button !== 1) {
-      return;
-    }
-    const target = event.target as HTMLElement;
-    if (target.closest(".wf-react-node") || target.closest(".wf-react-properties-panel") || target.closest(".wf-react-node-panel")) {
-      return;
-    }
-    if (event.button === 1 || spacePressedRef.current) {
-      operationRef.current = {
-        kind: "pan-canvas",
-        startClientX: event.clientX,
-        startClientY: event.clientY,
-        startX: panRef.current.x,
-        startY: panRef.current.y
-      };
-      pointerIdRef.current = event.pointerId;
-      event.preventDefault();
-      return;
-    }
-    const world = resolveWorldPoint(event.clientX, event.clientY);
-    if (!world) {
-      return;
-    }
-    operationRef.current = {
-      kind: "box-select",
-      startX: world.x,
-      startY: world.y,
-      currentX: world.x,
-      currentY: world.y,
-      additive: event.shiftKey
-    };
-    pointerIdRef.current = event.pointerId;
-    event.preventDefault();
-  }
-
-  useEffect(() => {
-    const onPointerMove = (event: PointerEvent) => {
-      if (pointerIdRef.current !== null && event.pointerId !== pointerIdRef.current) {
-        return;
-      }
-      const operation = operationRef.current;
-      if (!operation) {
-        return;
-      }
-
-      if (operation.kind === "drag-node") {
-        const dx = (event.clientX - operation.startClientX) / (zoomRef.current / 100);
-        const dy = (event.clientY - operation.startClientY) / (zoomRef.current / 100);
-        setCanvasNodes((prev) =>
-          prev.map((node) =>
-            operation.nodeKeys.includes(node.key)
-              ? {
-                  ...node,
-                  x: Math.round(((operation.startPositions[node.key]?.x ?? node.x) + dx) * 10) / 10,
-                  y: Math.round(((operation.startPositions[node.key]?.y ?? node.y) + dy) * 10) / 10
-                }
-              : node
-          )
-        );
-        return;
-      }
-
-      if (operation.kind === "pan-canvas") {
-        const dx = event.clientX - operation.startClientX;
-        const dy = event.clientY - operation.startClientY;
-        setPan({
-          x: operation.startX + dx,
-          y: operation.startY + dy
-        });
-        return;
-      }
-
-      if (operation.kind === "box-select") {
-        const world = resolveWorldPoint(event.clientX, event.clientY);
-        if (!world) {
-          return;
-        }
-        const nextOp: BoxSelectOperation = {
-          ...operation,
-          currentX: world.x,
-          currentY: world.y
-        };
-        operationRef.current = nextOp;
-        const left = Math.min(nextOp.startX, nextOp.currentX) * (zoomRef.current / 100) + panRef.current.x;
-        const top = Math.min(nextOp.startY, nextOp.currentY) * (zoomRef.current / 100) + panRef.current.y;
-        const width = Math.abs(nextOp.currentX - nextOp.startX) * (zoomRef.current / 100);
-        const height = Math.abs(nextOp.currentY - nextOp.startY) * (zoomRef.current / 100);
-        setSelectionBoxRect({ left, top, width, height });
-        return;
-      }
-
-      const world = resolveWorldPoint(event.clientX, event.clientY);
-      if (!world) {
-        return;
-      }
-      setConnectingPreview((prev) =>
-        prev
-          ? {
-              ...prev,
-              currentX: world.x,
-              currentY: world.y
-            }
-          : null
-      );
-    };
-
-    const onPointerUp = (event: PointerEvent) => {
-      if (pointerIdRef.current !== null && event.pointerId !== pointerIdRef.current) {
-        return;
-      }
-      const operation = operationRef.current;
-      if (!operation) {
-        return;
-      }
-
-      if (operation.kind === "drag-node") {
-        setIsDirty(true);
-        setCanvasValidation(null);
-      } else if (operation.kind === "box-select") {
-        const minX = Math.min(operation.startX, operation.currentX);
-        const maxX = Math.max(operation.startX, operation.currentX);
-        const minY = Math.min(operation.startY, operation.currentY);
-        const maxY = Math.max(operation.startY, operation.currentY);
-        const width = Math.abs(operation.currentX - operation.startX);
-        const height = Math.abs(operation.currentY - operation.startY);
-        const selectedByBox = canvasNodes
-          .filter((node) => node.x < maxX && node.x + NODE_WIDTH > minX && node.y < maxY && node.y + NODE_HEIGHT > minY)
-          .map((node) => node.key);
-        if (width < 2 && height < 2) {
-          if (!operation.additive) {
-            setSelectedNodeKeys([]);
-          }
-        } else if (operation.additive) {
-          setSelectedNodeKeys((prev) => Array.from(new Set([...prev, ...selectedByBox])));
-        } else {
-          setSelectedNodeKeys(selectedByBox);
-        }
-        setSelectionBoxRect(null);
-      } else if (operation.kind === "connect") {
-        const target = document.elementFromPoint(event.clientX, event.clientY) as HTMLElement | null;
-        const portElement = target?.closest("[data-wf-port='true']") as HTMLElement | null;
-        const toNode = portElement?.dataset.nodeKey;
-        const toPortKind = portElement?.dataset.portKind;
-        const toPort = portElement?.dataset.portKey;
-        if (toNode && toPortKind === "input" && toPort) {
-          const sourceNode = nodeByKey.get(operation.fromNode);
-          const targetNode = nodeByKey.get(toNode);
-          if (sourceNode && targetNode) {
-            const sourcePorts = nodePortsByNodeKey.get(sourceNode.key) ?? buildNodePortsRuntime(undefined);
-            const targetPorts = nodePortsByNodeKey.get(targetNode.key) ?? buildNodePortsRuntime(undefined);
-            const check = validateConnectionCandidate(
-              {
-                fromNode: operation.fromNode,
-                fromPort: operation.fromPort,
-                toNode,
-                toPort
-              },
-              canvasConnections,
-              sourcePorts.outputs,
-              targetPorts.inputs
-            );
-            if (check.ok) {
-              const nextId = `conn_${operation.fromNode}_${operation.fromPort}_${toNode}_${toPort}_${Date.now().toString(36)}`;
-              setCanvasConnections((prev) => [
-                ...prev,
-                {
-                  id: nextId,
-                  fromNode: operation.fromNode,
-                  fromPort: operation.fromPort,
-                  toNode,
-                  toPort,
-                  condition: null
-                }
-              ]);
-              setIsDirty(true);
-              setCanvasValidation(null);
-            } else {
-              message.warning(check.message);
-            }
-          }
-        }
-        clearConnectingState();
-        setSelectionBoxRect(null);
-      } else if (operation.kind === "pan-canvas") {
-        setSelectionBoxRect(null);
-      }
-
-      operationRef.current = null;
-      pointerIdRef.current = null;
-    };
-
-    window.addEventListener("pointermove", onPointerMove);
-    window.addEventListener("pointerup", onPointerUp);
-    window.addEventListener("pointercancel", onPointerUp);
-
-    return () => {
-      window.removeEventListener("pointermove", onPointerMove);
-      window.removeEventListener("pointerup", onPointerUp);
-      window.removeEventListener("pointercancel", onPointerUp);
-    };
-  }, [canvasConnections, canvasNodes, nodeByKey, nodePortsByNodeKey]);
 
   function centerPointForCreate(): { x: number; y: number } {
     const shell = canvasShellRef.current;
@@ -1119,10 +719,6 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
     const onKeyDown = (event: KeyboardEvent) => {
       if (isEditableTarget(event.target)) {
         return;
-      }
-
-      if (event.key === " ") {
-        spacePressedRef.current = true;
       }
 
       const isMeta = event.ctrlKey || event.metaKey;
@@ -1215,17 +811,9 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
       }
     };
 
-    const onKeyUp = (event: KeyboardEvent) => {
-      if (event.key === " ") {
-        spacePressedRef.current = false;
-      }
-    };
-
     window.addEventListener("keydown", onKeyDown);
-    window.addEventListener("keyup", onKeyUp);
     return () => {
       window.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("keyup", onKeyUp);
     };
   }, [canvasConnections, canvasGlobals, canvasNodes, isReadOnly, pan.x, pan.y, props.apiClient, props.workflowId, selectedNodeKeys, zoom]);
 
@@ -1616,7 +1204,6 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
       <div
         ref={canvasShellRef}
         className="wf-react-canvas-shell"
-        onPointerDown={USE_FLOWGRAM_CANVAS ? undefined : startPanCanvas}
         onDragOver={(event) => {
           if (draggingCatalogNodeType) {
             event.preventDefault();
@@ -1654,8 +1241,7 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
           });
         }}
       >
-        {USE_FLOWGRAM_CANVAS ? (
-          <WorkflowRenderProvider
+        <WorkflowRenderProvider
             canvas={flowgramCanvasSchema}
             readonly={isReadOnly}
             nodeTypesMeta={nodeTypesMeta}
@@ -1694,88 +1280,6 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
               setIsDirty(true);
             }}
           />
-        ) : (
-          <>
-            <div className="wf-react-dot-grid" />
-            <div className="wf-react-scene" style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})` }}>
-              <svg className="wf-react-edge-layer" width="100%" height="100%">
-                {renderConnections.map((item) => (
-                  <path
-                    key={item.id}
-                    d={item.d}
-                    className={`wf-react-edge-path${
-                      item.edgeState === "running"
-                        ? " wf-react-edge-path-running"
-                        : item.edgeState === "success"
-                          ? " wf-react-edge-path-success"
-                          : item.edgeState === "failed"
-                            ? " wf-react-edge-path-failed"
-                            : item.edgeState === "skipped"
-                              ? " wf-react-edge-path-skipped"
-                              : ""
-                    }`}
-                  />
-                ))}
-                {connectingPreview ? (
-                  <path
-                    d={connectionPath(connectingPreview.startX, connectingPreview.startY, connectingPreview.currentX, connectingPreview.currentY)}
-                    className="wf-react-edge-path wf-react-edge-preview"
-                  />
-                ) : null}
-              </svg>
-              <div className="wf-react-node-layer">
-                {canvasNodes.map((node: CanvasNode) => {
-                  const meta = nodeMap.get(node.type);
-                  if (!meta) {
-                    return null;
-                  }
-                  const nodePorts = nodePortsByNodeKey.get(node.key) ?? buildNodePortsRuntime(undefined);
-                  return (
-                    <div key={node.key} className="wf-react-node-wrap" style={{ left: node.x, top: node.y }}>
-                      <NodeCard
-                        nodeKey={node.key}
-                        title={node.title || t(meta.titleKey)}
-                        color={meta.color}
-                        iconText={meta.iconText}
-                        selected={selectedNodeKeys.includes(node.key)}
-                        subtitle={node.type}
-                        inputPorts={nodePorts.inputs}
-                        outputPorts={nodePorts.outputs}
-                        connectableInputPortKeys={connectableInputPortKeysByNode[node.key]}
-                        connectingFromNodeKey={connectingPreview?.fromNode}
-                        onClick={(event) => {
-                          if (event.shiftKey) {
-                            setSelectedNodeKeys((prev) =>
-                              prev.includes(node.key) ? prev.filter((key) => key !== node.key) : [...prev, node.key]
-                            );
-                            return;
-                          }
-                          setSingleSelection(node.key);
-                        }}
-                        onPointerDown={(event) => startNodeDrag(node, event)}
-                        onPortPointerDown={(event, port) => startConnection(node, port, event)}
-                        executionState={executionStateByNodeKey[node.key]?.state}
-                        executionHint={executionStateByNodeKey[node.key]?.hint}
-                      />
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </>
-        )}
-        {selectionBoxRect && !USE_FLOWGRAM_CANVAS ? (
-          <div
-            className="wf-react-selection-box"
-            style={{
-              left: selectionBoxRect.left,
-              top: selectionBoxRect.top,
-              width: selectionBoxRect.width,
-              height: selectionBoxRect.height
-            }}
-          />
-        ) : null}
-
         <NodePanelPopover
           visible={showNodePanel}
           nodes={WORKFLOW_NODE_CATALOG}

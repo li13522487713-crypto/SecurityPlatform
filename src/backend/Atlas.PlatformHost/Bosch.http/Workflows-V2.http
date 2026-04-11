@@ -188,6 +188,12 @@ POST {{host}}/api/v2/workflows/executions/{{executionId}}/recover
 Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 
+### ── Get Execution Trace (API-02) ──
+# 返回结构化步骤列表（Steps[]），包含每个节点的输入/输出/耗时，用于前端时间线回放
+GET {{host}}/api/v2/workflows/executions/{{executionId}}/trace
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
+
 ### ── Get Debug View ──
 GET {{host}}/api/v2/workflows/executions/{{executionId}}/debug-view
 Authorization: Bearer {{token}}
@@ -205,6 +211,17 @@ X-Tenant-Id: {{tenantId}}
   "nodeKey": "text_1",
   "inputsJson": "{\"scan_target\":\"example.com\"}"
 }
+
+### ═══════════════════════════════════════════════
+### Validation (API-03)
+### ═══════════════════════════════════════════════
+
+### ── Validate Canvas JSON ──
+# 对已保存草稿进行结构校验，返回 data.isValid + data.errors[]
+# 每个 error：{ code, message, nodeKey?, sourcePort?, targetPort? }
+POST {{host}}/api/v2/workflows/{{workflowId}}/validate
+Authorization: Bearer {{token}}
+X-Tenant-Id: {{tenantId}}
 
 ### ═══════════════════════════════════════════════
 ### Node Types

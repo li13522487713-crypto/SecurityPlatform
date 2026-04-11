@@ -28,7 +28,55 @@ public sealed class ExprEvaluator
     }
 
     public object? Evaluate(ExprAstNode node, ExpressionContext context)
-        => EvalNode(node, context, new Dictionary<string, object?>());
+    {
+        try
+        {
+            return EvalNode(node, context, new Dictionary<string, object?>());
+        }
+        catch (InvalidOperationException ex)
+        {
+            throw new ExpressionEvaluationException(
+                $"表达式求值失败：{ex.Message}。请检查运算符、函数名和操作数类型是否正确。",
+                ex);
+        }
+        catch (Exception ex) when (ex is not ExpressionEvaluationException)
+        {
+            throw new ExpressionEvaluationException(
+                $"表达式求值时发生意外错误：{ex.Message}。",
+                ex);
+        }
+    }
+
+    /// <summary>
+    /// RT-14: 带表达式文本上下文的入口，错误信息包含原始表达式。
+    /// </summary>
+    public object? EvaluateWithContext(string expression, ExpressionContext context)
+    {
+        try
+        {
+            var ast = ParseAndCache(expression);
+            return EvalNode(ast, context, new Dictionary<string, object?>());
+        }
+        catch (ExpressionEvaluationException)
+        {
+            throw;
+        }
+        catch (InvalidOperationException ex)
+        {
+            throw new ExpressionEvaluationException(
+                $"表达式 `{TruncateExpression(expression)}` 求值失败：{ex.Message}。请检查变量名是否存在、类型是否兼容。",
+                ex);
+        }
+        catch (Exception ex)
+        {
+            throw new ExpressionEvaluationException(
+                $"表达式 `{TruncateExpression(expression)}` 执行时发生错误：{ex.Message}。",
+                ex);
+        }
+    }
+
+    private static string TruncateExpression(string expr) =>
+        expr.Length > 80 ? string.Concat(expr.AsSpan(0, 77), "...") : expr;
 
     private object? EvalNode(ExprAstNode node, ExpressionContext ctx, Dictionary<string, object?> locals) => node switch
     {
@@ -63,7 +111,7 @@ public sealed class ExprEvaluator
             UnaryOperator.Not => val == null ? null : !ToBool(val),
             UnaryOperator.Negate => val == null ? null : NegateNumeric(val),
             UnaryOperator.Plus => val,
-            _ => throw new InvalidOperationException(),
+            _ => throw new InvalidOperationException($"不支持的一元运算符: {u.Operator}"),
         };
     }
 

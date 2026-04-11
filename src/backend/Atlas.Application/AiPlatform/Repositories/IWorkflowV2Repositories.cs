@@ -39,6 +39,11 @@ public interface IWorkflowExecutionRepository
     Task<WorkflowExecution?> FindByIdAsync(TenantId tenantId, long id, CancellationToken cancellationToken);
     Task AddAsync(WorkflowExecution entity, CancellationToken cancellationToken);
     Task UpdateAsync(WorkflowExecution entity, CancellationToken cancellationToken);
+    /// <summary>
+    /// 删除在 <paramref name="before"/> 之前已完成/失败/取消的执行记录（限制删除数量 <paramref name="maxRows"/>）。
+    /// 返回实际删除行数。
+    /// </summary>
+    Task<int> DeleteCompletedBeforeAsync(DateTime before, int maxRows, CancellationToken cancellationToken);
 }
 
 public interface IWorkflowNodeExecutionRepository

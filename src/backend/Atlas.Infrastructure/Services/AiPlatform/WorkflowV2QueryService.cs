@@ -183,6 +183,66 @@ public sealed class WorkflowV2QueryService : IWorkflowV2QueryService
         return Task.FromResult<IReadOnlyList<WorkflowV2NodeTemplateDto>>(templates);
     }
 
+    public async Task<WorkflowV2RunTraceDto?> GetRunTraceAsync(
+        TenantId tenantId,
+        long executionId,
+        CancellationToken cancellationToken)
+    {
+        var execution = await _executionRepo.FindByIdAsync(tenantId, executionId, cancellationToken);
+        if (execution is null) return null;
+
+        var nodeExecutions = await _nodeExecutionRepo.ListByExecutionIdAsync(tenantId, executionId, cancellationToken);
+
+        var steps = nodeExecutions
+            .OrderBy(n => n.StartedAt ?? DateTime.MaxValue)
+            .Select(n => new WorkflowV2StepResultDto(
+                executionId.ToString(),
+                n.NodeKey,
+                n.NodeType,
+                n.Status,
+                n.StartedAt,
+                n.CompletedAt,
+                n.DurationMs,
+                TryParseJsonDict(n.InputsJson),
+                TryParseJsonDict(n.OutputsJson),
+                n.ErrorMessage))
+            .ToList();
+
+        var durationMs = execution.CompletedAt.HasValue
+            ? (long)(execution.CompletedAt.Value - execution.StartedAt).TotalMilliseconds
+            : null as long?;
+
+        return new WorkflowV2RunTraceDto(
+            executionId.ToString(),
+            execution.WorkflowId,
+            execution.Status,
+            execution.StartedAt,
+            execution.CompletedAt,
+            durationMs,
+            steps,
+            EdgeStatuses: null);
+    }
+
+    private static Dictionary<string, JsonElement>? TryParseJsonDict(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return null;
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.ValueKind != JsonValueKind.Object) return null;
+            var result = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
+            foreach (var prop in doc.RootElement.EnumerateObject())
+            {
+                result[prop.Name] = prop.Value.Clone();
+            }
+            return result;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     public async Task<WorkflowVersionDiff?> GetVersionDiffAsync(
         TenantId tenantId,
         long workflowId,

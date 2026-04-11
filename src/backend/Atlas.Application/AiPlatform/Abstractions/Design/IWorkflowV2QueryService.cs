@@ -42,4 +42,12 @@ public interface IWorkflowV2QueryService
         long fromVersionId,
         long toVersionId,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// 获取执行实例的结构化 Trace（步骤列表 + 边状态），用于前端时间线回放。
+    /// </summary>
+    Task<WorkflowV2RunTraceDto?> GetRunTraceAsync(
+        TenantId tenantId,
+        long executionId,
+        CancellationToken cancellationToken);
 }

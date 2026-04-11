@@ -51,13 +51,73 @@ export function validateCanvas(
   const typeMap = buildTypeMap(nodeTypesMeta);
   const portsMap = buildPortsMetaMap(nodeTypesMeta);
   const nodeMap = new Map(nodes.map((node) => [node.key, node]));
+
+  // ── VL-01/VL-02: 图结构完整性校验（与后端 CanvasValidator 规则对齐）──────────────
+
+  // 0. 重复 key 检测（对齐后端 DUPLICATE_NODE_KEY）
+  const seenKeys = new Set<string>();
+  for (const node of nodes) {
+    if (seenKeys.has(node.key)) {
+      canvasIssues.push(`重复节点标识 '${node.key}'。`);
+    }
+    seenKeys.add(node.key);
+  }
+
+  // 1. 检查 Start/Entry 节点
+  const entryNodes = nodes.filter((n) => n.type === "Entry" || n.type === "Start");
+  if (entryNodes.length === 0) {
+    canvasIssues.push("流程缺少开始节点（Entry），无法执行。");
+  } else if (entryNodes.length > 1) {
+    canvasIssues.push(`流程包含多个开始节点（${entryNodes.map((n) => n.key).join(", ")}），存在歧义。`);
+  }
+
+  // 2. 检查 End/Exit 节点
+  const exitNodes = nodes.filter((n) => n.type === "Exit" || n.type === "End");
+  if (exitNodes.length === 0) {
+    canvasIssues.push("流程缺少结束节点（Exit），输出无法收集。");
+  }
+
+  // 3. 孤立节点检测（无入边且无出边，且不是 Entry/Comment）
+  const forwardAdjacency = new Map<string, Set<string>>();
   const reverseAdjacency = new Map<string, Set<string>>();
+  const nodesWithEdges = new Set<string>();
   for (const connection of connections) {
     const fromNode = connection.fromNode;
     const toNode = connection.toNode;
-    const set = reverseAdjacency.get(toNode) ?? new Set<string>();
-    set.add(fromNode);
-    reverseAdjacency.set(toNode, set);
+    const fwdSet = forwardAdjacency.get(fromNode) ?? new Set<string>();
+    fwdSet.add(toNode);
+    forwardAdjacency.set(fromNode, fwdSet);
+    const revSet = reverseAdjacency.get(toNode) ?? new Set<string>();
+    revSet.add(fromNode);
+    reverseAdjacency.set(toNode, revSet);
+    nodesWithEdges.add(fromNode);
+    nodesWithEdges.add(toNode);
+  }
+
+  for (const node of nodes) {
+    if (node.type === "Entry" || node.type === "Start" || node.type === "Comment") continue;
+    if (!nodesWithEdges.has(node.key)) {
+      canvasIssues.push(`节点 ${node.key}（${node.type}）是孤立节点，未连接到任何其他节点。`);
+    }
+  }
+
+  // 4. 可达性检查：从所有 Entry 节点出发，BFS 检测不可达节点
+  if (entryNodes.length > 0) {
+    const reachable = new Set<string>();
+    const queue = entryNodes.map((n) => n.key);
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      if (reachable.has(current)) continue;
+      reachable.add(current);
+      const neighbors = forwardAdjacency.get(current) ?? new Set<string>();
+      queue.push(...neighbors);
+    }
+    const unreachable = nodes.filter(
+      (n) => !reachable.has(n.key) && n.type !== "Comment"
+    );
+    for (const node of unreachable) {
+      canvasIssues.push(`节点 ${node.key}（${node.type}）从开始节点不可达。`);
+    }
   }
 
   for (const node of nodes) {

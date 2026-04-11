@@ -1,4 +1,7 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Threading.Channels;
 using Atlas.Application.AiPlatform.Models;
@@ -17,6 +20,13 @@ namespace Atlas.Infrastructure.Services.WorkflowEngine;
 /// </summary>
 public sealed class DagExecutor
 {
+    private const int MaxGraphTraversalDepth = 2048;
+    private const int MaxLoopIterations = 1000;
+    private const int CompiledCanvasCacheMaxSize = 256;
+
+    // RT-07: 按画布 JSON 哈希缓存拓扑编译结果，避免每次执行重复计算。
+    private static readonly ConcurrentDictionary<string, CompiledCanvas> _canvasCache = new();
+    private static int _canvasCacheSize;
     private readonly NodeExecutorRegistry _registry;
     private readonly IWorkflowNodeExecutionRepository _nodeExecutionRepo;
     private readonly IWorkflowExecutionRepository _executionRepo;
@@ -61,6 +71,9 @@ public sealed class DagExecutor
             canvas.Connections.Count);
         execution.Start();
         await _executionRepo.UpdateAsync(execution, cancellationToken);
+        // RT-20: 执行指标收集。
+        var executionSw = Stopwatch.StartNew();
+        var executedNodeCount = 0;
 
         var variables = new Dictionary<string, JsonElement>(inputs, StringComparer.OrdinalIgnoreCase);
         var currentCallStack = workflowCallStack is not null && workflowCallStack.Count > 0
@@ -69,12 +82,12 @@ public sealed class DagExecutor
 
         try
         {
-            // 构建邻接表
-            var nodeMap = canvas.Nodes.ToDictionary(n => n.Key, n => n, StringComparer.OrdinalIgnoreCase);
-            var adjacency = BuildAdjacency(canvas);
-            var predecessors = BuildPredecessors(canvas);
-            var connectionsBySource = BuildConnectionsBySource(canvas);
-            var executionLevels = TopologicalSortByLevels(canvas.Nodes, adjacency);
+            // RT-07: 从缓存加载或编译画布拓扑结构。
+            var (nodeMap, topology) = GetOrCompileCanvas(canvas);
+            var adjacency = topology.Adjacency;
+            var predecessors = topology.Predecessors;
+            var connectionsBySource = topology.ConnectionsBySource;
+            var executionLevels = topology.ExecutionLevels;
             var preCompletedNodeKeySet = preCompletedNodeKeys is null
                 ? new HashSet<string>(StringComparer.OrdinalIgnoreCase)
                 : new HashSet<string>(preCompletedNodeKeys, StringComparer.OrdinalIgnoreCase);
@@ -126,7 +139,19 @@ public sealed class DagExecutor
                         cancellationToken))
                     .ToArray();
 
-                var levelResults = await Task.WhenAll(levelTasks);
+                // RT-12: 将每个并行任务包装为安全捕获模式，防止单个 OperationCanceledException 导致整层丢失结果。
+                var levelResults = await Task.WhenAll(levelTasks.Select(t => t.ContinueWith(
+                    tt => tt.IsFaulted
+                        ? NodeRunResult.FailedResult(
+                            "unknown",
+                            WorkflowNodeType.TextProcessor,
+                            $"节点执行抛出未预期异常: {tt.Exception?.GetBaseException().Message ?? "未知错误"}",
+                            InterruptType.None)
+                        : tt.IsCanceled
+                            ? NodeRunResult.FailedResult("unknown", WorkflowNodeType.TextProcessor, "执行已取消", InterruptType.None)
+                            : tt.Result,
+                    TaskContinuationOptions.ExecuteSynchronously)));
+
                 var failedNode = levelResults.FirstOrDefault(x => !x.Success);
                 if (failedNode is not null)
                 {
@@ -135,6 +160,23 @@ public sealed class DagExecutor
                         execution.Interrupt(failedNode.InterruptType, failedNode.NodeKey);
                         await _executionRepo.UpdateAsync(execution, cancellationToken);
                         return;
+                    }
+
+                    // RT-05: 检查失败节点是否配置了 on_error 策略或存在 error 分支连接。
+                    var onErrorHandled = await TryHandleNodeErrorAsync(
+                        tenantId,
+                        execution,
+                        failedNode,
+                        nodeMap,
+                        connectionsBySource,
+                        variables,
+                        skippedNodeKeys,
+                        eventChannel,
+                        cancellationToken);
+
+                    if (onErrorHandled)
+                    {
+                        continue;
                     }
 
                     await PersistBlockedByFailureAsync(
@@ -161,6 +203,7 @@ public sealed class DagExecutor
                     {
                         variables[kvp.Key] = kvp.Value;
                     }
+                    executedNodeCount++;
                 }
 
                 // 条件分支节点执行完成后，按选中分支跳过未命中的下游节点。
@@ -312,8 +355,29 @@ public sealed class DagExecutor
                 return;
             }
 
+            executionSw.Stop();
+
+            // RT-20: 写入执行指标。
+            _logger.LogInformation(
+                "DagExecutor run complete: ExecutionId={ExecutionId} TotalMs={TotalMs} ExecutedNodes={ExecutedNodes}",
+                execution.Id,
+                executionSw.ElapsedMilliseconds,
+                executedNodeCount);
+
             execution.Complete(JsonSerializer.Serialize(variables));
             await _executionRepo.UpdateAsync(execution, cancellationToken);
+
+            if (eventChannel is not null)
+            {
+                await eventChannel.Writer.WriteAsync(
+                    new SseEvent("execution_metrics", JsonSerializer.Serialize(new
+                    {
+                        executionId = execution.Id.ToString(),
+                        totalMs = executionSw.ElapsedMilliseconds,
+                        executedNodeCount
+                    })),
+                    CancellationToken.None);
+            }
         }
         catch (OperationCanceledException)
         {
@@ -353,6 +417,48 @@ public sealed class DagExecutor
         {
             return null;
         }
+    }
+
+    private static (IReadOnlyDictionary<string, NodeSchema> NodeMap, CompiledCanvas Topology) GetOrCompileCanvas(CanvasSchema canvas)
+    {
+        // NodeMap 始终从原始画布重新构建，保证 Config 数据的正确性。
+        var nodeMap = canvas.Nodes.ToDictionary(n => n.Key, n => n, StringComparer.OrdinalIgnoreCase);
+
+        var cacheKey = ComputeCanvasHash(canvas);
+        if (_canvasCache.TryGetValue(cacheKey, out var cached))
+        {
+            return (nodeMap, cached);
+        }
+
+        var adjacency = BuildAdjacency(canvas);
+        var predecessors = BuildPredecessors(canvas);
+        var connectionsBySource = BuildConnectionsBySource(canvas);
+        var executionLevels = TopologicalSortByLevels(canvas.Nodes, adjacency);
+        var compiled = new CompiledCanvas(adjacency, predecessors, connectionsBySource, executionLevels);
+
+        // 限制缓存大小，避免无限增长。
+        if (Interlocked.Increment(ref _canvasCacheSize) <= CompiledCanvasCacheMaxSize)
+        {
+            _canvasCache.TryAdd(cacheKey, compiled);
+        }
+        else
+        {
+            Interlocked.Decrement(ref _canvasCacheSize);
+        }
+
+        return (nodeMap, compiled);
+    }
+
+    private static string ComputeCanvasHash(CanvasSchema canvas)
+    {
+        var json = JsonSerializer.Serialize(new
+        {
+            nodes = canvas.Nodes.Select(n => new { n.Key, n.Type }).OrderBy(n => n.Key),
+            connections = canvas.Connections.Select(c => new { c.SourceNodeKey, c.SourcePort, c.TargetNodeKey, c.TargetPort })
+                .OrderBy(c => c.SourceNodeKey).ThenBy(c => c.TargetNodeKey)
+        });
+        var hashBytes = SHA256.HashData(Encoding.UTF8.GetBytes(json));
+        return Convert.ToHexString(hashBytes)[..16];
     }
 
     private static Dictionary<string, List<string>> BuildAdjacency(CanvasSchema canvas)
@@ -479,10 +585,36 @@ public sealed class DagExecutor
             executionId,
             workflowCallStack,
             eventChannel);
+        var nodeTimeout = ResolveNodeTimeout(node);
+        var resolvedNodeTimeout = nodeTimeout ?? TimeSpan.Zero;
+        using var timeoutCts = nodeTimeout is null
+            ? null
+            : CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        if (timeoutCts is not null)
+        {
+            timeoutCts.CancelAfter(resolvedNodeTimeout);
+        }
+        var executionToken = timeoutCts?.Token ?? cancellationToken;
 
         try
         {
-            var result = await executor.ExecuteAsync(context, cancellationToken);
+            NodeExecutionResult result;
+            try
+            {
+                result = await executor.ExecuteAsync(context, executionToken);
+            }
+            catch (OperationCanceledException) when (
+                timeoutCts is not null &&
+                timeoutCts.IsCancellationRequested &&
+                !cancellationToken.IsCancellationRequested)
+            {
+                var timeoutMessage = $"节点执行超时（{resolvedNodeTimeout.TotalSeconds:0.#}s）";
+                result = new NodeExecutionResult(
+                    Success: false,
+                    Outputs: new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase),
+                    ErrorMessage: timeoutMessage);
+            }
+
             sw.Stop();
 
             if (result.Success)
@@ -719,13 +851,35 @@ public sealed class DagExecutor
         }
 
         var bodyLevels = TopologicalSortSubsetByLevels(bodyNodeKeys, adjacency);
+        var iterationCount = 0;
+        // 保存循环入口时的变量快照，每轮迭代从此基准叠加循环控制变量，实现作用域隔离。
+        var loopEntrySnapshot = new Dictionary<string, JsonElement>(variables, StringComparer.OrdinalIgnoreCase);
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
+            iterationCount++;
+            if (iterationCount > MaxLoopIterations)
+            {
+                return LoopIterationResult.Failed(
+                    loopNodeKey,
+                    $"循环超过最大迭代次数限制（{MaxLoopIterations}），已强制终止，请检查循环条件。",
+                    InterruptType.None);
+            }
+
+            // 每轮迭代从入口快照 + 当前循环控制变量重建作用域，隔离迭代间副作用。
+            var iterationScope = new Dictionary<string, JsonElement>(loopEntrySnapshot, StringComparer.OrdinalIgnoreCase);
+            foreach (var loopControlKey in new[] { "loop_index", "loop_item", "loop_item_index", "loop_completed", "loop_break_reason" })
+            {
+                if (variables.TryGetValue(loopControlKey, out var ctrlVal))
+                {
+                    iterationScope[loopControlKey] = ctrlVal;
+                }
+            }
+
             foreach (var bodyLevel in bodyLevels)
             {
-                var levelInput = new Dictionary<string, JsonElement>(variables, StringComparer.OrdinalIgnoreCase);
+                var levelInput = new Dictionary<string, JsonElement>(iterationScope, StringComparer.OrdinalIgnoreCase);
                 var bodyTasks = bodyLevel
                     .Select(nodeKey => ExecuteNodeAsync(
                         tenantId,
@@ -754,22 +908,31 @@ public sealed class DagExecutor
                 {
                     foreach (var kvp in bodyResult.Outputs)
                     {
-                        variables[kvp.Key] = kvp.Value;
+                        iterationScope[kvp.Key] = kvp.Value;
                     }
                 }
 
-                if (HasControlSignal(variables, "loop_break"))
+                if (HasControlSignal(iterationScope, "loop_break"))
                 {
                     variables["loop_completed"] = JsonSerializer.SerializeToElement(true);
-                    ClearControlSignal(variables, "loop_break");
-                    ClearControlSignal(variables, "loop_continue");
+                    ClearControlSignal(iterationScope, "loop_break");
+                    ClearControlSignal(iterationScope, "loop_continue");
                     return LoopIterationResult.Succeeded(loopNodeKey, bodyNodeKeys);
                 }
 
-                if (HasControlSignal(variables, "loop_continue"))
+                if (HasControlSignal(iterationScope, "loop_continue"))
                 {
-                    ClearControlSignal(variables, "loop_continue");
+                    ClearControlSignal(iterationScope, "loop_continue");
                     goto NextLoopIteration;
+                }
+            }
+
+            // 迭代执行完毕后，将本轮控制变量同步回父作用域。
+            foreach (var loopControlKey in new[] { "loop_index", "loop_item", "loop_item_index", "loop_completed", "loop_break_reason" })
+            {
+                if (iterationScope.TryGetValue(loopControlKey, out var ctrlVal))
+                {
+                    variables[loopControlKey] = ctrlVal;
                 }
             }
 
@@ -850,9 +1013,14 @@ public sealed class DagExecutor
         var itemVariable = VariableResolver.GetConfigString(batchNode.Config, "itemVariable", "batch_item");
         var itemIndexVariable = VariableResolver.GetConfigString(batchNode.Config, "itemIndexVariable", "batch_item_index");
         var outputKey = VariableResolver.GetConfigString(batchNode.Config, "outputKey", "batch_results");
+        // RT-18: 错误容忍策略：fail_fast（默认）立即终止；best_effort 收集错误继续处理其余项。
+        var errorTolerance = VariableResolver.GetConfigString(batchNode.Config, "errorTolerance", "fail_fast")
+            .Trim().ToLowerInvariant();
+        var isBestEffort = errorTolerance == "best_effort";
 
         var items = ResolveBatchItems(variables, inputArrayPath);
         var aggregatedResults = new List<JsonElement>();
+        var batchErrors = new List<string>();
         var semaphore = new SemaphoreSlim(concurrentSize);
         var currentIndex = 0;
 
@@ -878,17 +1046,7 @@ public sealed class DagExecutor
                         localVariables,
                         eventChannel,
                         cancellationToken);
-                    if (!fragmentResult.Success)
-                    {
-                        return fragmentResult;
-                    }
-
-                    lock (aggregatedResults)
-                    {
-                        aggregatedResults.Add(JsonSerializer.SerializeToElement(fragmentResult.Outputs));
-                    }
-
-                    return NodeRunResult.SuccessResult(batchNodeKey, WorkflowNodeType.Batch, fragmentResult.Outputs);
+                    return fragmentResult;
                 }
                 finally
                 {
@@ -897,18 +1055,47 @@ public sealed class DagExecutor
             }).ToArray();
 
             var chunkResults = await Task.WhenAll(tasks);
-            var failed = chunkResults.FirstOrDefault(x => !x.Success);
-            if (failed is not null)
+            foreach (var chunkResult in chunkResults)
             {
-                return failed;
+                if (!chunkResult.Success)
+                {
+                    if (!isBestEffort)
+                    {
+                        return chunkResult;
+                    }
+
+                    lock (batchErrors)
+                    {
+                        batchErrors.Add(chunkResult.ErrorMessage ?? "批处理子任务失败");
+                    }
+                }
+                else
+                {
+                    lock (aggregatedResults)
+                    {
+                        aggregatedResults.Add(JsonSerializer.SerializeToElement(chunkResult.Outputs));
+                    }
+                }
             }
+        }
+
+        if (!isBestEffort && batchErrors.Count > 0)
+        {
+            return NodeRunResult.FailedResult(batchNodeKey, WorkflowNodeType.Batch,
+                $"批处理失败（{batchErrors.Count} 项）: {batchErrors[0]}", InterruptType.None);
         }
 
         var outputs = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase)
         {
             [outputKey] = JsonSerializer.SerializeToElement(aggregatedResults),
-            ["batch_completed"] = JsonSerializer.SerializeToElement(true)
+            ["batch_completed"] = JsonSerializer.SerializeToElement(true),
+            ["batch_error_count"] = JsonSerializer.SerializeToElement(batchErrors.Count)
         };
+        if (batchErrors.Count > 0)
+        {
+            outputs["batch_errors"] = JsonSerializer.SerializeToElement(batchErrors);
+        }
+
         return NodeRunResult.SuccessResult(batchNodeKey, WorkflowNodeType.Batch, outputs);
     }
 
@@ -922,11 +1109,11 @@ public sealed class DagExecutor
         Channel<SseEvent>? eventChannel,
         CancellationToken cancellationToken)
     {
-        var nodeMap = canvas.Nodes.ToDictionary(n => n.Key, n => n, StringComparer.OrdinalIgnoreCase);
-        var adjacency = BuildAdjacency(canvas);
-        var predecessors = BuildPredecessors(canvas);
-        var connectionsBySource = BuildConnectionsBySource(canvas);
-        var executionLevels = TopologicalSortByLevels(canvas.Nodes, adjacency);
+        var (nodeMap, topology) = GetOrCompileCanvas(canvas);
+        var adjacency = topology.Adjacency;
+        var predecessors = topology.Predecessors;
+        var connectionsBySource = topology.ConnectionsBySource;
+        var executionLevels = topology.ExecutionLevels;
         var skippedNodeKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var persistedSkippedNodeKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var outputs = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
@@ -1136,6 +1323,81 @@ public sealed class DagExecutor
                 })),
                 cancellationToken);
         }
+    }
+
+    /// <summary>
+    /// RT-05: 尝试通过 on_error 策略或 error 分支连接处理节点失败。
+    /// 返回 true 表示已处理（可继续执行），false 表示需要按默认失败流程处理。
+    /// </summary>
+    private async Task<bool> TryHandleNodeErrorAsync(
+        TenantId tenantId,
+        WorkflowExecution execution,
+        NodeRunResult failedNode,
+        IReadOnlyDictionary<string, NodeSchema> nodeMap,
+        IReadOnlyDictionary<string, List<ConnectionSchema>> connectionsBySource,
+        Dictionary<string, JsonElement> variables,
+        ISet<string> skippedNodeKeys,
+        Channel<SseEvent>? eventChannel,
+        CancellationToken cancellationToken)
+    {
+        // 检查节点 on_error 配置
+        if (nodeMap.TryGetValue(failedNode.NodeKey, out var failedNodeSchema))
+        {
+            var onError = failedNodeSchema.Config.TryGetValue("on_error", out var onErrVal)
+                ? VariableResolver.ToDisplayText(onErrVal).Trim().ToLowerInvariant()
+                : "stop";
+
+            if (onError == "continue")
+            {
+                // 忽略错误，以空输出继续执行
+                _logger.LogWarning(
+                    "节点 {NodeKey} 失败，on_error=continue，跳过错误继续执行。错误: {Error}",
+                    failedNode.NodeKey,
+                    failedNode.ErrorMessage);
+                variables[$"{failedNode.NodeKey}.error"] = JsonSerializer.SerializeToElement(failedNode.ErrorMessage ?? "");
+                return true;
+            }
+        }
+
+        // 检查 error 分支连接（SourcePort == "error"）
+        if (!connectionsBySource.TryGetValue(failedNode.NodeKey, out var outgoingConns))
+        {
+            return false;
+        }
+
+        var errorBranchTargets = outgoingConns
+            .Where(c => string.Equals(c.SourcePort, "error", StringComparison.OrdinalIgnoreCase))
+            .Select(c => c.TargetNodeKey)
+            .Where(k => !skippedNodeKeys.Contains(k))
+            .ToList();
+
+        if (errorBranchTargets.Count == 0)
+        {
+            return false;
+        }
+
+        // 将 error 信息注入变量供下游消费
+        variables["error_message"] = JsonSerializer.SerializeToElement(failedNode.ErrorMessage ?? "");
+        variables["error_node_key"] = JsonSerializer.SerializeToElement(failedNode.NodeKey);
+        _logger.LogWarning(
+            "节点 {NodeKey} 失败，路由到 error 分支: [{Targets}]。",
+            failedNode.NodeKey,
+            string.Join(", ", errorBranchTargets));
+
+        if (eventChannel is not null)
+        {
+            await eventChannel.Writer.WriteAsync(
+                new SseEvent("branch_decision", JsonSerializer.Serialize(new
+                {
+                    executionId = execution.Id.ToString(),
+                    nodeKey = failedNode.NodeKey,
+                    selectedBranch = "error",
+                    candidates = new[] { "error" }
+                })),
+                cancellationToken);
+        }
+
+        return true;
     }
 
     private static async Task EmitEdgeStatusChangedAsync(
@@ -1492,11 +1754,20 @@ public sealed class DagExecutor
         IReadOnlyDictionary<string, List<string>> adjacency)
     {
         var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var queue = new Queue<string>(starts);
+        var queue = new Queue<(string NodeKey, int Depth)>(
+            starts
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Select(x => (x, 0)));
 
         while (queue.Count > 0)
         {
-            var current = queue.Dequeue();
+            var (current, depth) = queue.Dequeue();
+            if (depth > MaxGraphTraversalDepth)
+            {
+                throw new InvalidOperationException(
+                    $"图传播深度超过限制({MaxGraphTraversalDepth})，请检查是否存在异常超深链路。");
+            }
+
             if (!visited.Add(current))
             {
                 continue;
@@ -1509,11 +1780,28 @@ public sealed class DagExecutor
 
             foreach (var target in targets)
             {
-                queue.Enqueue(target);
+                queue.Enqueue((target, depth + 1));
             }
         }
 
         return visited;
+    }
+
+    private static TimeSpan? ResolveNodeTimeout(NodeSchema node)
+    {
+        var timeoutMs = VariableResolver.GetConfigInt32(node.Config, "timeoutMs", 0);
+        if (timeoutMs > 0)
+        {
+            return TimeSpan.FromMilliseconds(Math.Clamp(timeoutMs, 50, 600_000));
+        }
+
+        return node.Type switch
+        {
+            WorkflowNodeType.Llm => TimeSpan.FromSeconds(60),
+            WorkflowNodeType.HttpRequester => TimeSpan.FromSeconds(30),
+            WorkflowNodeType.CodeRunner => TimeSpan.FromSeconds(30),
+            _ => null
+        };
     }
 
     private static IReadOnlyList<string> ResolveNodesWithAllSkippedPredecessors(
@@ -1744,4 +2032,11 @@ public sealed class DagExecutor
         public static LoopIterationResult Failed(string nodeKey, string? errorMessage, InterruptType interruptType)
             => new(nodeKey, false, errorMessage, interruptType, Array.Empty<string>());
     }
+
+    // RT-07: 编译后的画布拓扑数据缓存条目（不含 NodeMap，以免不同配置的同结构画布污染缓存）。
+    private sealed record CompiledCanvas(
+        Dictionary<string, List<string>> Adjacency,
+        Dictionary<string, List<string>> Predecessors,
+        Dictionary<string, List<ConnectionSchema>> ConnectionsBySource,
+        List<List<string>> ExecutionLevels);
 }

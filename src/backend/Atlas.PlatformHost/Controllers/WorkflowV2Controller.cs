@@ -9,6 +9,7 @@ using Atlas.Presentation.Shared.Authorization;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 
 namespace Atlas.PlatformHost.Controllers;
 
@@ -22,6 +23,7 @@ public sealed class WorkflowV2Controller : ControllerBase
     private readonly IWorkflowV2CommandService _commandService;
     private readonly IWorkflowV2QueryService _queryService;
     private readonly IWorkflowV2ExecutionService _executionService;
+    private readonly ICanvasValidator _canvasValidator;
     private readonly ITenantProvider _tenantProvider;
     private readonly ICurrentUserAccessor _currentUserAccessor;
     private readonly IValidator<WorkflowV2CreateRequest> _createValidator;
@@ -30,11 +32,13 @@ public sealed class WorkflowV2Controller : ControllerBase
     private readonly IValidator<WorkflowV2PublishRequest> _publishValidator;
     private readonly IValidator<WorkflowV2RunRequest> _runValidator;
     private readonly IValidator<WorkflowV2NodeDebugRequest> _nodeDebugValidator;
+    private readonly ILogger<WorkflowV2Controller> _logger;
 
     public WorkflowV2Controller(
         IWorkflowV2CommandService commandService,
         IWorkflowV2QueryService queryService,
         IWorkflowV2ExecutionService executionService,
+        ICanvasValidator canvasValidator,
         ITenantProvider tenantProvider,
         ICurrentUserAccessor currentUserAccessor,
         IValidator<WorkflowV2CreateRequest> createValidator,
@@ -42,11 +46,13 @@ public sealed class WorkflowV2Controller : ControllerBase
         IValidator<WorkflowV2UpdateMetaRequest> updateMetaValidator,
         IValidator<WorkflowV2PublishRequest> publishValidator,
         IValidator<WorkflowV2RunRequest> runValidator,
-        IValidator<WorkflowV2NodeDebugRequest> nodeDebugValidator)
+        IValidator<WorkflowV2NodeDebugRequest> nodeDebugValidator,
+        ILogger<WorkflowV2Controller> logger)
     {
         _commandService = commandService;
         _queryService = queryService;
         _executionService = executionService;
+        _canvasValidator = canvasValidator;
         _tenantProvider = tenantProvider;
         _currentUserAccessor = currentUserAccessor;
         _createValidator = createValidator;
@@ -55,6 +61,7 @@ public sealed class WorkflowV2Controller : ControllerBase
         _publishValidator = publishValidator;
         _runValidator = runValidator;
         _nodeDebugValidator = nodeDebugValidator;
+        _logger = logger;
     }
 
     // ── 写操作 ──────────────────────────────────────────────
@@ -388,5 +395,52 @@ public sealed class WorkflowV2Controller : ControllerBase
         var userId = _currentUserAccessor.GetCurrentUserOrThrow().UserId;
         var result = await _executionService.DebugNodeAsync(tenantId, id, userId, request, cancellationToken);
         return Ok(ApiResponse<WorkflowV2RunResult>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>
+    /// API-02: 获取执行 Trace（步骤列表 + 时序信息）。
+    /// </summary>
+    [HttpGet("executions/{execId:long}/trace")]
+    [Authorize(Policy = PermissionPolicies.AiWorkflowView)]
+    public async Task<ActionResult<ApiResponse<WorkflowV2RunTraceDto>>> GetTrace(
+        long execId, CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var result = await _queryService.GetRunTraceAsync(tenantId, execId, cancellationToken);
+        if (result is null)
+        {
+            return NotFound(ApiResponse<WorkflowV2RunTraceDto>.Fail(
+                WorkflowErrorCodes.WorkflowExecutionNotFound,
+                ApiResponseLocalizer.T(HttpContext, "WorkflowInstanceNotFound"),
+                HttpContext.TraceIdentifier));
+        }
+
+        return Ok(ApiResponse<WorkflowV2RunTraceDto>.Ok(result, HttpContext.TraceIdentifier));
+    }
+
+    /// <summary>
+    /// API-03: 校验画布 JSON，返回结构化校验错误列表。
+    /// </summary>
+    [HttpPost("{id:long}/validate")]
+    [Authorize(Policy = PermissionPolicies.AiWorkflowView)]
+    public async Task<ActionResult<ApiResponse<CanvasValidationResult>>> ValidateCanvas(
+        long id, CancellationToken cancellationToken)
+    {
+        var tenantId = _tenantProvider.GetTenantId();
+        var detail = await _queryService.GetAsync(tenantId, id, cancellationToken);
+        if (detail is null)
+        {
+            return NotFound(ApiResponse<CanvasValidationResult>.Fail(
+                WorkflowErrorCodes.WorkflowNotFound,
+                ApiResponseLocalizer.T(HttpContext, "WorkflowDefNotFound"),
+                HttpContext.TraceIdentifier));
+        }
+
+        var result = _canvasValidator.ValidateCanvas(detail.CanvasJson);
+        _logger.LogInformation(
+            "ValidateCanvas: WorkflowId={WorkflowId} IsValid={IsValid} ErrorCount={ErrorCount}",
+            id, result.IsValid, result.Errors.Count);
+
+        return Ok(ApiResponse<CanvasValidationResult>.Ok(result, HttpContext.TraceIdentifier));
     }
 }
