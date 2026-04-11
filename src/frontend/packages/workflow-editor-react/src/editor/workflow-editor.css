@@ -98,6 +98,17 @@
   color: #374151;
 }
 
+.wf-node-render-kv {
+  line-height: 1.5;
+  color: #334155;
+}
+
+.wf-node-render-ellipsis {
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
 .wf-node-render-status {
   height: 3px;
   width: 100%;
@@ -628,6 +639,40 @@
   align-items: center;
   padding: 8px 10px;
   border-bottom: 1px solid #e5e7eb;
+}
+
+.wf-react-global-editor {
+  border-bottom: 1px solid #eef2f7;
+  padding: 8px 10px;
+}
+
+.wf-react-global-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #0f172a;
+  margin-bottom: 6px;
+}
+
+.wf-react-global-list {
+  max-height: 120px;
+  overflow: auto;
+}
+
+.wf-react-global-row,
+.wf-react-global-create {
+  display: grid;
+  grid-template-columns: 90px 1fr auto;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.wf-react-global-key,
+.wf-react-global-value {
+  border: 1px solid #d6dbe6;
+  border-radius: 6px;
+  height: 26px;
+  font-size: 12px;
+  padding: 0 8px;
 }
 
 .wf-react-variable-list {

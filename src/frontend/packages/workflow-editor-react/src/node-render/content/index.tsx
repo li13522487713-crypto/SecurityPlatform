@@ -1,8 +1,13 @@
+import { AssignVariableContent } from "./assign-variable-content";
+import { BatchContent } from "./batch-content";
 import { CodeContent } from "./code-content";
 import { CommonContent } from "./common-content";
 import { EndContent } from "./end-content";
+import { HttpContent } from "./http-content";
 import { IfContent } from "./if-content";
 import { LlmContent } from "./llm-content";
+import { LoopContent } from "./loop-content";
+import { PluginContent } from "./plugin-content";
 import { StartContent } from "./start-content";
 
 interface ContentProps {
@@ -19,25 +24,88 @@ export function NodeContentMap(props: ContentProps) {
   const llm = asRecord(configs.llm);
   const entry = asRecord(configs.entry);
   const exit = asRecord(configs.exit);
+  const http = asRecord(configs.http);
+  const plugin = asRecord(configs.plugin);
+  const assign = asRecord(configs.assign);
+  const loop = asRecord(configs.loop);
+  const batch = asRecord(configs.batch);
+  const selectorConditions = Array.isArray(configs.conditions) ? configs.conditions : [];
+
+  const readText = (...candidates: unknown[]): string => {
+    for (const candidate of candidates) {
+      if (typeof candidate === "string" && candidate.trim()) {
+        return candidate.trim();
+      }
+    }
+    return "";
+  };
+
+  const readNumber = (...candidates: unknown[]): number | undefined => {
+    for (const candidate of candidates) {
+      if (typeof candidate === "number" && Number.isFinite(candidate)) {
+        return candidate;
+      }
+    }
+    return undefined;
+  };
 
   if (props.type === "Selector") {
-    return <IfContent conditions={Array.isArray(configs.conditions) ? configs.conditions : []} />;
+    return <IfContent conditions={selectorConditions} />;
+  }
+
+  if (props.type === "Loop") {
+    return (
+      <LoopContent
+        mode={readText(configs.mode, loop.mode)}
+        maxIterations={readNumber(configs.maxIterations, loop.maxIterations)}
+        collectionPath={readText(configs.collectionPath, loop.collectionPath)}
+        condition={readText(configs.condition, loop.condition)}
+      />
+    );
+  }
+
+  if (props.type === "Batch") {
+    return (
+      <BatchContent
+        concurrentSize={readNumber(configs.concurrentSize, batch.concurrentSize)}
+        batchSize={readNumber(configs.batchSize, batch.batchSize)}
+        inputArrayPath={readText(configs.inputArrayPath, batch.inputArrayPath)}
+        outputKey={readText(configs.outputKey, batch.outputKey)}
+      />
+    );
   }
 
   if (props.type === "Llm") {
-    return <LlmContent provider={String(llm.provider ?? "")} model={String(llm.model ?? "")} />;
+    return <LlmContent provider={readText(configs.provider, llm.provider)} model={readText(configs.model, llm.model)} />;
   }
 
   if (props.type === "Entry") {
-    return <StartContent variable={String(entry.variable ?? "")} />;
+    return <StartContent variable={readText(configs.entryVariable, configs.variable, entry.entryVariable, entry.variable)} />;
   }
 
   if (props.type === "Exit") {
-    return <EndContent terminateMode={String(exit.terminateMode ?? "")} />;
+    return <EndContent terminateMode={readText(configs.terminateMode, exit.terminateMode)} />;
   }
 
   if (props.type === "CodeRunner") {
-    return <CodeContent language={String(configs.language ?? "")} />;
+    return <CodeContent language={readText(configs.language)} />;
+  }
+
+  if (props.type === "Plugin") {
+    return <PluginContent pluginId={readText(configs.pluginId, plugin.pluginId)} action={readText(configs.action, plugin.action)} />;
+  }
+
+  if (props.type === "HttpRequester") {
+    return <HttpContent method={readText(configs.method, http.method)} url={readText(configs.url, http.url)} timeoutMs={readNumber(configs.timeoutMs, http.timeoutMs)} />;
+  }
+
+  if (props.type === "AssignVariable" || props.type === "VariableAssignerWithinLoop") {
+    return (
+      <AssignVariableContent
+        variableName={readText(configs.variableName, configs.target)}
+        expression={readText(configs.expression, assign.expression)}
+      />
+    );
   }
 
   return <CommonContent summary={String(props.data.title ?? props.type)} />;

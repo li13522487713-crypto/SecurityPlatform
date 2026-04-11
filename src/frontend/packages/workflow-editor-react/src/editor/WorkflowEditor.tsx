@@ -1396,7 +1396,16 @@ export function WorkflowEditorReact(props: WorkflowEditorReactProps) {
           onClose={() => setShowDebugPanel(false)}
         />
 
-        <VariablePanel visible={showVariablePanel} variables={variablePanelItems} onClose={() => setShowVariablePanel(false)} />
+        <VariablePanel
+          visible={showVariablePanel}
+          variables={variablePanelItems}
+          globals={canvasGlobals}
+          onChangeGlobals={(next) => {
+            setCanvasGlobals(next);
+            setIsDirty(true);
+          }}
+          onClose={() => setShowVariablePanel(false)}
+        />
 
         <MinimapPanel visible={showMinimap} nodes={canvasNodes.map((node) => ({ key: node.key, x: node.x, y: node.y }))} selectedNodeKey={selectedNodeKey} />
 
