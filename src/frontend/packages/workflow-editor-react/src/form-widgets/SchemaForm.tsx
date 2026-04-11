@@ -14,6 +14,7 @@ interface SchemaFormProps {
   sections: FormSectionSchema[];
   config: Record<string, unknown>;
   onChange: (next: Record<string, unknown>) => void;
+  fieldErrors?: Record<string, string[]>;
   variableSuggestions?: Array<{ value: string; label?: string }>;
 }
 
@@ -247,7 +248,13 @@ export function SchemaForm(props: SchemaFormProps) {
         <div key={section.key} className="wf-react-section">
           {section.fields.length > 0 ? <div className="wf-react-section-title">{section.title}</div> : null}
           {section.fields.map((field) => (
-            <Form.Item key={field.key} label={field.label} required={field.required}>
+            <Form.Item
+              key={field.key}
+              label={field.label}
+              required={field.required}
+              validateStatus={props.fieldErrors?.[field.path]?.length ? "error" : undefined}
+              help={props.fieldErrors?.[field.path]?.join(" ")}
+            >
               {renderField(field, props.config, props.onChange, suggestions)}
             </Form.Item>
           ))}

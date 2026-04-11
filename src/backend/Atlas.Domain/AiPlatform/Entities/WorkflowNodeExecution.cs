@@ -69,4 +69,20 @@ public sealed class WorkflowNodeExecution : TenantEntity
         ErrorMessage = errorMessage;
         CompletedAt = DateTime.UtcNow;
     }
+
+    public void Skip(string? reason = null)
+    {
+        Status = ExecutionStatus.Skipped;
+        ErrorMessage = reason;
+        DurationMs = 0;
+        CompletedAt = DateTime.UtcNow;
+    }
+
+    public void Block(string? reason = null)
+    {
+        Status = ExecutionStatus.Blocked;
+        ErrorMessage = reason;
+        DurationMs = 0;
+        CompletedAt = DateTime.UtcNow;
+    }
 }

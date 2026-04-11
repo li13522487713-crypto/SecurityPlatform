@@ -1,6 +1,8 @@
 import { Alert, Button, Collapse, Input } from "antd";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { validateConfigBySchema } from "../editor/schema-validation";
+import type { FormFieldSchema } from "../node-registry";
 import type { NodeTemplateMetadata, NodeTypeMetadata, WorkflowNodeTypeKey } from "../types";
 import { NodeRegistry, mergeNodeDefaults } from "../node-registry";
 import { SchemaForm } from "../form-widgets";
@@ -22,6 +24,26 @@ interface PropertiesPanelProps {
 }
 
 const nodeRegistry = new NodeRegistry();
+
+function normalizeIssuePath(path: string): string {
+  return path.replace(/^\.+/, "").trim();
+}
+
+function findBestMatchedFieldPath(issuePath: string, fields: FormFieldSchema[]): string | null {
+  const normalized = normalizeIssuePath(issuePath);
+  if (!normalized) {
+    return null;
+  }
+  const exact = fields.find((field) => field.path === normalized);
+  if (exact) {
+    return exact.path;
+  }
+  const prefixMatched = fields
+    .map((field) => field.path)
+    .filter((fieldPath) => normalized.startsWith(`${fieldPath}.`) || normalized.startsWith(`${fieldPath}[`))
+    .sort((a, b) => b.length - a.length);
+  return prefixMatched[0] ?? null;
+}
 
 export function PropertiesPanel(props: PropertiesPanelProps) {
   const { t } = useTranslation();
@@ -49,6 +71,41 @@ export function PropertiesPanel(props: PropertiesPanelProps) {
     }
     return definition.validate?.({ type: props.selectedNode.type, config: draftConfig }) ?? [];
   }, [definition, draftConfig, props.selectedNode]);
+
+  const schemaIssues = useMemo(() => {
+    return validateConfigBySchema(draftConfig, props.nodeTypeMeta?.configSchemaJson).issues;
+  }, [draftConfig, props.nodeTypeMeta?.configSchemaJson]);
+
+  const allFields = useMemo(() => {
+    if (!definition) {
+      return [] as FormFieldSchema[];
+    }
+    return definition.sections.flatMap((section) => section.fields);
+  }, [definition]);
+
+  const fieldErrors = useMemo(() => {
+    const map: Record<string, string[]> = {};
+    for (const issue of schemaIssues) {
+      const fieldPath = findBestMatchedFieldPath(issue.path, allFields);
+      if (!fieldPath) {
+        continue;
+      }
+      const current = map[fieldPath] ?? [];
+      current.push(issue.message);
+      map[fieldPath] = current;
+    }
+    return map;
+  }, [allFields, schemaIssues]);
+
+  const panelSchemaErrors = useMemo(() => {
+    return schemaIssues
+      .filter((issue) => !findBestMatchedFieldPath(issue.path, allFields))
+      .map((issue) => `${normalizeIssuePath(issue.path) || "root"}: ${issue.message}`);
+  }, [allFields, schemaIssues]);
+
+  const panelErrors = useMemo(() => {
+    return [...errors, ...panelSchemaErrors];
+  }, [errors, panelSchemaErrors]);
 
   const items = useMemo(() => {
     if (!props.selectedNode || !definition) {
@@ -91,6 +148,7 @@ export function PropertiesPanel(props: PropertiesPanelProps) {
             <SchemaForm
               sections={basicSections}
               config={draftConfig}
+              fieldErrors={fieldErrors}
               variableSuggestions={props.variableSuggestions}
               onChange={(next) => {
                 setDraftConfig(next);
@@ -108,6 +166,7 @@ export function PropertiesPanel(props: PropertiesPanelProps) {
             <SchemaForm
               sections={advancedSections}
               config={draftConfig}
+              fieldErrors={fieldErrors}
               variableSuggestions={props.variableSuggestions}
               onChange={(next) => {
                 setDraftConfig(next);
@@ -144,14 +203,14 @@ export function PropertiesPanel(props: PropertiesPanelProps) {
           关闭
         </Button>
       </div>
-      {errors.length > 0 ? (
+      {panelErrors.length > 0 ? (
         <Alert
           type="warning"
           showIcon
           message="配置校验"
           description={
             <ul style={{ margin: 0, paddingInlineStart: 16 }}>
-              {errors.map((error) => (
+              {panelErrors.map((error) => (
                 <li key={error}>{error}</li>
               ))}
             </ul>

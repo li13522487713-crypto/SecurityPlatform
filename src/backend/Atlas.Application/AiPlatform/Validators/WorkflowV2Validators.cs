@@ -1,5 +1,6 @@
 using Atlas.Application.AiPlatform.Models;
 using FluentValidation;
+using System.Text.Json;
 
 namespace Atlas.Application.AiPlatform.Validators;
 
@@ -41,7 +42,35 @@ public sealed class WorkflowV2RunRequestValidator : AbstractValidator<WorkflowV2
 {
     public WorkflowV2RunRequestValidator()
     {
-        // InputsJson 可选
+        RuleFor(x => x.Source)
+            .Must(source =>
+                string.IsNullOrWhiteSpace(source) ||
+                string.Equals(source, "published", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(source, "draft", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("Source 仅支持 published 或 draft。");
+
+        RuleFor(x => x.InputsJson)
+            .Must(BeValidJsonObject)
+            .When(x => !string.IsNullOrWhiteSpace(x.InputsJson))
+            .WithMessage("InputsJson 必须是合法 JSON 对象。");
+    }
+
+    private static bool BeValidJsonObject(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return true;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(json);
+            return document.RootElement.ValueKind == JsonValueKind.Object;
+        }
+        catch
+        {
+            return false;
+        }
     }
 }
 

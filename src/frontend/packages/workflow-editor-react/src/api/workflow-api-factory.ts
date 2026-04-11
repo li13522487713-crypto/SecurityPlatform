@@ -303,14 +303,17 @@ function generateIdempotencyKey(): string {
   return `idem-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-function buildRunPayload(req: WorkflowRunRequest): { inputsJson?: string } {
+function buildRunPayload(req: WorkflowRunRequest): { inputsJson?: string; source?: "published" | "draft" } {
+  const payload: { inputsJson?: string; source?: "published" | "draft" } = {};
   if (req.inputsJson) {
-    return { inputsJson: req.inputsJson };
+    payload.inputsJson = req.inputsJson;
+  } else if (req.inputs) {
+    payload.inputsJson = JSON.stringify(req.inputs);
   }
-  if (req.inputs) {
-    return { inputsJson: JSON.stringify(req.inputs) };
+  if (req.source) {
+    payload.source = req.source;
   }
-  return {};
+  return payload;
 }
 
 function handleStreamEvent(eventName: string, dataText: string, callbacks: StreamCallbacks) {
@@ -395,7 +398,12 @@ function toBackendCanvasJson(editorCanvasJson: string): string {
         y: editorNode.layout?.y ?? 0,
         width: editorNode.layout?.width ?? DEFAULT_NODE_WIDTH,
         height: editorNode.layout?.height ?? DEFAULT_NODE_HEIGHT
-      }
+      },
+      childCanvas: editorNode.childCanvas ? JSON.parse(toBackendCanvasJson(JSON.stringify(editorNode.childCanvas))) : undefined,
+      inputTypes: editorNode.inputTypes,
+      outputTypes: editorNode.outputTypes,
+      inputSources: editorNode.inputSources,
+      outputSources: editorNode.outputSources
     };
   });
 
@@ -441,7 +449,12 @@ function toEditorCanvasJson(backendCanvasJson: string): string {
         height: node.layout?.height ?? DEFAULT_NODE_HEIGHT
       },
       configs: config,
-      inputMappings
+      inputMappings,
+      childCanvas: node.childCanvas ? JSON.parse(toEditorCanvasJson(JSON.stringify(node.childCanvas))) : undefined,
+      inputTypes: node.inputTypes,
+      outputTypes: node.outputTypes,
+      inputSources: node.inputSources,
+      outputSources: node.outputSources
     };
   });
   const connections = payload.connections.map((connection) => ({

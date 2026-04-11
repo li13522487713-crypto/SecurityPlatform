@@ -81,6 +81,28 @@ internal static class BuiltInWorkflowNodeDeclarations
         Create(WorkflowNodeType.Comment, "Comment", "注释", "flow", "画布注释节点。", [In("input"), Out("output")], "#64748B")
     ];
 
+    private static readonly IReadOnlyDictionary<WorkflowNodeType, IReadOnlyList<WorkflowNodePortMetadata>> PortsByType =
+        All.ToDictionary(x => x.Type, x => x.Ports);
+
+    public static IReadOnlyList<WorkflowNodePortMetadata> GetPorts(WorkflowNodeType type)
+    {
+        return PortsByType.TryGetValue(type, out var ports)
+            ? ports
+            : [In("input"), Out("output")];
+    }
+
+    public static string GetDefaultInputPortKey(WorkflowNodeType type, string fallback = "input")
+    {
+        var port = GetPorts(type).FirstOrDefault(x => x.Direction == WorkflowNodePortDirection.Input);
+        return port?.Key ?? fallback;
+    }
+
+    public static string GetDefaultOutputPortKey(WorkflowNodeType type, string fallback = "output")
+    {
+        var port = GetPorts(type).FirstOrDefault(x => x.Direction == WorkflowNodePortDirection.Output);
+        return port?.Key ?? fallback;
+    }
+
     private static IWorkflowNodeDeclaration Create(
         WorkflowNodeType type,
         string key,

@@ -130,7 +130,8 @@ Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 
 {
-  "inputsJson": "{\"scan_target\":\"192.168.1.0/24\"}"
+  "inputsJson": "{\"scan_target\":\"192.168.1.0/24\"}",
+  "source": "published"
 }
 
 ###
@@ -146,7 +147,8 @@ Authorization: Bearer {{token}}
 X-Tenant-Id: {{tenantId}}
 
 {
-  "inputsJson": "{\"scan_target\":\"10.0.0.0/8\"}"
+  "inputsJson": "{\"scan_target\":\"10.0.0.0/8\"}",
+  "source": "draft"
 }
 
 ### ── Get Execution Process ──

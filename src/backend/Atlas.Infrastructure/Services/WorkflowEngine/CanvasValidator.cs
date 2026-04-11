@@ -14,29 +14,19 @@ public sealed class CanvasValidator : ICanvasValidator
         BuildPort("output", PortDirection.Output),
     };
 
-    private static readonly Dictionary<WorkflowNodeType, IReadOnlyList<PortDefinition>> PortCatalog = new()
+    private static readonly Dictionary<WorkflowNodeType, IReadOnlyList<PortDefinition>> LegacyCompatibleExtraPorts = new()
     {
-        [WorkflowNodeType.Entry] = new[] { BuildPort("output", PortDirection.Output) },
-        [WorkflowNodeType.Exit] = new[] { BuildPort("input", PortDirection.Input) },
         [WorkflowNodeType.Selector] = new[]
         {
-            BuildPort("input", PortDirection.Input),
-            BuildPort("true", PortDirection.Output),
-            BuildPort("false", PortDirection.Output),
             BuildPort("output", PortDirection.Output),
         },
         [WorkflowNodeType.Loop] = new[]
         {
-            BuildPort("input", PortDirection.Input),
-            BuildPort("continue", PortDirection.Output),
-            BuildPort("body", PortDirection.Output),
             BuildPort("loop_body", PortDirection.Output),
-            BuildPort("done", PortDirection.Output),
             BuildPort("exit", PortDirection.Output),
             BuildPort("completed", PortDirection.Output),
             BuildPort("output", PortDirection.Output),
         },
-        [WorkflowNodeType.OutputEmitter] = new[] { BuildPort("input", PortDirection.Input) },
     };
 
     public CanvasValidationResult ValidateCanvas(string canvasJson)
@@ -265,9 +255,28 @@ public sealed class CanvasValidator : ICanvasValidator
 
     private static IReadOnlyList<PortDefinition> ResolvePorts(WorkflowNodeType type)
     {
-        return PortCatalog.TryGetValue(type, out var ports)
-            ? ports
-            : DefaultPorts;
+        var declarationPorts = BuiltInWorkflowNodeDeclarations.GetPorts(type)
+            .Select(ToPortDefinition)
+            .ToList();
+        if (declarationPorts.Count == 0)
+        {
+            declarationPorts.AddRange(DefaultPorts);
+        }
+
+        if (LegacyCompatibleExtraPorts.TryGetValue(type, out var extraPorts))
+        {
+            foreach (var extraPort in extraPorts)
+            {
+                if (!declarationPorts.Any(x =>
+                        string.Equals(x.PortKey, extraPort.PortKey, StringComparison.OrdinalIgnoreCase) &&
+                        x.Direction == extraPort.Direction))
+                {
+                    declarationPorts.Add(extraPort);
+                }
+            }
+        }
+
+        return declarationPorts;
     }
 
     private static void CheckPortMaxConnections(
@@ -361,6 +370,41 @@ public sealed class CanvasValidator : ICanvasValidator
             DataType = NodeDataType.Any,
             IsRequired = false,
             MaxConnections = 1,
+        };
+    }
+
+    private static PortDefinition ToPortDefinition(WorkflowNodePortMetadata metadata)
+    {
+        return new PortDefinition
+        {
+            PortKey = metadata.Key,
+            DisplayName = metadata.Name,
+            Direction = metadata.Direction == WorkflowNodePortDirection.Input
+                ? PortDirection.Input
+                : PortDirection.Output,
+            PortType = PortType.Data,
+            DataType = ParseNodeDataType(metadata.DataType),
+            IsRequired = metadata.IsRequired,
+            MaxConnections = metadata.MaxConnections <= 0 ? 1 : metadata.MaxConnections
+        };
+    }
+
+    private static NodeDataType ParseNodeDataType(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return NodeDataType.Any;
+        }
+
+        return value.Trim().ToLowerInvariant() switch
+        {
+            "string" => NodeDataType.String,
+            "number" or "int" or "float" or "double" or "decimal" => NodeDataType.Number,
+            "boolean" or "bool" => NodeDataType.Boolean,
+            "array" => NodeDataType.Array,
+            "object" or "map" or "dict" => NodeDataType.Record,
+            "json" => NodeDataType.Json,
+            _ => NodeDataType.Any
         };
     }
 }

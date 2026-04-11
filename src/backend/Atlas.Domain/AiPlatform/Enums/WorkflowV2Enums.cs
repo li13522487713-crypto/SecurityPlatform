@@ -10,7 +10,9 @@ public enum ExecutionStatus
     Completed = 2,
     Failed = 3,
     Cancelled = 4,
-    Interrupted = 5
+    Interrupted = 5,
+    Skipped = 6,
+    Blocked = 7
 }
 
 /// <summary>

@@ -71,13 +71,28 @@ public sealed class DagExecutor
             var adjacency = BuildAdjacency(canvas);
             var connectionsBySource = BuildConnectionsBySource(canvas);
             var executionLevels = TopologicalSortByLevels(canvas.Nodes, adjacency);
+            var preCompletedNodeKeySet = preCompletedNodeKeys is null
+                ? new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                : new HashSet<string>(preCompletedNodeKeys, StringComparer.OrdinalIgnoreCase);
             var skippedNodeKeys = preCompletedNodeKeys is null
                 ? new HashSet<string>(StringComparer.OrdinalIgnoreCase)
                 : new HashSet<string>(preCompletedNodeKeys, StringComparer.OrdinalIgnoreCase);
+            var persistedSkippedNodeKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             foreach (var level in executionLevels)
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                await PersistSkippedNodesAsync(
+                    tenantId,
+                    execution.Id,
+                    level.Where(nodeKey =>
+                        skippedNodeKeys.Contains(nodeKey) &&
+                        !preCompletedNodeKeySet.Contains(nodeKey)),
+                    nodeMap,
+                    persistedSkippedNodeKeys,
+                    eventChannel,
+                    cancellationToken);
+
                 var executableNodeKeys = level
                     .Where(nodeKey => !skippedNodeKeys.Contains(nodeKey))
                     .ToArray();
@@ -128,14 +143,27 @@ public sealed class DagExecutor
                 // 条件分支节点执行完成后，按选中分支跳过未命中的下游节点。
                 foreach (var selectorNode in levelResults.Where(x => x.Success && x.NodeType == WorkflowNodeType.Selector))
                 {
+                    var newlySkippedNodeKeys = new List<string>();
                     foreach (var nodeKeyToSkip in ResolveSelectorBranchNodesToSkip(
                                  selectorNode.NodeKey,
                                  selectorNode.Outputs,
                                  adjacency,
                                  connectionsBySource))
                     {
-                        skippedNodeKeys.Add(nodeKeyToSkip);
+                        if (skippedNodeKeys.Add(nodeKeyToSkip))
+                        {
+                            newlySkippedNodeKeys.Add(nodeKeyToSkip);
+                        }
                     }
+
+                    await PersistSkippedNodesAsync(
+                        tenantId,
+                        execution.Id,
+                        newlySkippedNodeKeys.Where(nodeKey => !preCompletedNodeKeySet.Contains(nodeKey)),
+                        nodeMap,
+                        persistedSkippedNodeKeys,
+                        eventChannel,
+                        cancellationToken);
                 }
 
                 var loopNodes = levelResults
@@ -178,6 +206,15 @@ public sealed class DagExecutor
                     {
                         skippedNodeKeys.Add(bodyNodeKey);
                     }
+
+                    await PersistSkippedNodesAsync(
+                        tenantId,
+                        execution.Id,
+                        loopResult.BodyNodeKeysToSkip.Where(nodeKey => !preCompletedNodeKeySet.Contains(nodeKey)),
+                        nodeMap,
+                        persistedSkippedNodeKeys,
+                        eventChannel,
+                        cancellationToken);
                 }
 
                 var batchNodes = levelResults
@@ -700,10 +737,20 @@ public sealed class DagExecutor
         var connectionsBySource = BuildConnectionsBySource(canvas);
         var executionLevels = TopologicalSortByLevels(canvas.Nodes, adjacency);
         var skippedNodeKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var persistedSkippedNodeKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var outputs = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var level in executionLevels)
         {
+            await PersistSkippedNodesAsync(
+                tenantId,
+                executionId,
+                level.Where(skippedNodeKeys.Contains),
+                nodeMap,
+                persistedSkippedNodeKeys,
+                eventChannel,
+                cancellationToken);
+
             var executableNodeKeys = level.Where(nodeKey => !skippedNodeKeys.Contains(nodeKey)).ToArray();
             if (executableNodeKeys.Length == 0)
             {
@@ -741,18 +788,78 @@ public sealed class DagExecutor
 
             foreach (var selectorNode in levelResults.Where(x => x.Success && x.NodeType == WorkflowNodeType.Selector))
             {
+                var newlySkippedNodeKeys = new List<string>();
                 foreach (var nodeKeyToSkip in ResolveSelectorBranchNodesToSkip(
                              selectorNode.NodeKey,
                              selectorNode.Outputs,
                              adjacency,
                              connectionsBySource))
                 {
-                    skippedNodeKeys.Add(nodeKeyToSkip);
+                    if (skippedNodeKeys.Add(nodeKeyToSkip))
+                    {
+                        newlySkippedNodeKeys.Add(nodeKeyToSkip);
+                    }
                 }
+
+                await PersistSkippedNodesAsync(
+                    tenantId,
+                    executionId,
+                    newlySkippedNodeKeys,
+                    nodeMap,
+                    persistedSkippedNodeKeys,
+                    eventChannel,
+                    cancellationToken);
             }
         }
 
         return NodeRunResult.SuccessResult("fragment", null, outputs);
+    }
+
+    private async Task PersistSkippedNodesAsync(
+        TenantId tenantId,
+        long executionId,
+        IEnumerable<string> nodeKeys,
+        IReadOnlyDictionary<string, NodeSchema> nodeMap,
+        ISet<string> persistedSkippedNodeKeys,
+        Channel<SseEvent>? eventChannel,
+        CancellationToken cancellationToken)
+    {
+        foreach (var nodeKey in nodeKeys.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            if (!persistedSkippedNodeKeys.Add(nodeKey))
+            {
+                continue;
+            }
+
+            if (!nodeMap.TryGetValue(nodeKey, out var node))
+            {
+                continue;
+            }
+
+            var nodeExecution = new WorkflowNodeExecution(
+                tenantId,
+                executionId,
+                nodeKey,
+                node.Type,
+                _idGenerator.NextId());
+            nodeExecution.Skip("节点因分支语义传播被跳过。");
+            await _nodeExecutionRepo.AddAsync(nodeExecution, cancellationToken);
+
+            if (eventChannel is null)
+            {
+                continue;
+            }
+
+            await eventChannel.Writer.WriteAsync(
+                new SseEvent("node_skipped", JsonSerializer.Serialize(new
+                {
+                    executionId = executionId.ToString(),
+                    nodeKey,
+                    nodeType = node.Type.ToString(),
+                    reason = "branch_skipped"
+                })),
+                cancellationToken);
+        }
     }
 
     private static bool HasControlSignal(Dictionary<string, JsonElement> variables, string key)

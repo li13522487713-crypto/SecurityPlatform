@@ -22,6 +22,7 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
 {
     private readonly IWorkflowMetaRepository _metaRepo;
     private readonly IWorkflowDraftRepository _draftRepo;
+    private readonly IWorkflowVersionRepository _versionRepo;
     private readonly IWorkflowExecutionRepository _executionRepo;
     private readonly IWorkflowNodeExecutionRepository _nodeExecutionRepo;
     private readonly DagExecutor _dagExecutor;
@@ -34,6 +35,7 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
     public WorkflowV2ExecutionService(
         IWorkflowMetaRepository metaRepo,
         IWorkflowDraftRepository draftRepo,
+        IWorkflowVersionRepository versionRepo,
         IWorkflowExecutionRepository executionRepo,
         IWorkflowNodeExecutionRepository nodeExecutionRepo,
         DagExecutor dagExecutor,
@@ -46,6 +48,7 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
         Console.WriteLine("[diag] WorkflowV2ExecutionService ctor-enter");
         _metaRepo = metaRepo;
         _draftRepo = draftRepo;
+        _versionRepo = versionRepo;
         _executionRepo = executionRepo;
         _nodeExecutionRepo = nodeExecutionRepo;
         _dagExecutor = dagExecutor;
@@ -60,6 +63,7 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
     public WorkflowV2ExecutionService(
         IWorkflowMetaRepository metaRepo,
         IWorkflowDraftRepository draftRepo,
+        IWorkflowVersionRepository versionRepo,
         IWorkflowExecutionRepository executionRepo,
         IWorkflowNodeExecutionRepository nodeExecutionRepo,
         DagExecutor dagExecutor,
@@ -70,6 +74,7 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
         : this(
             metaRepo,
             draftRepo,
+            versionRepo,
             executionRepo,
             nodeExecutionRepo,
             dagExecutor,
@@ -236,7 +241,7 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
 
         var nodeExecutions = await _nodeExecutionRepo.ListByExecutionIdAsync(tenantId, executionId, cancellationToken);
         var preCompletedNodeKeys = nodeExecutions
-            .Where(x => x.Status == ExecutionStatus.Completed)
+            .Where(x => x.Status == ExecutionStatus.Completed || x.Status == ExecutionStatus.Skipped)
             .Select(x => x.NodeKey)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -309,13 +314,34 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
             "__debug_exit__", Domain.AiPlatform.Enums.WorkflowNodeType.Exit, "Debug Exit",
             new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase), new Domain.AiPlatform.ValueObjects.NodeLayout(300, 0, 100, 50));
 
+        var entryOutputPort = BuiltInWorkflowNodeDeclarations.GetDefaultOutputPortKey(WorkflowNodeType.Entry);
+        var exitInputPort = BuiltInWorkflowNodeDeclarations.GetDefaultInputPortKey(WorkflowNodeType.Exit);
+        var targetInputPort = BuiltInWorkflowNodeDeclarations.GetDefaultInputPortKey(targetNode.Type, fallback: string.Empty);
+        var targetOutputPort = BuiltInWorkflowNodeDeclarations.GetDefaultOutputPortKey(targetNode.Type, fallback: string.Empty);
+        var debugConnections = new List<Domain.AiPlatform.ValueObjects.ConnectionSchema>();
+        if (!string.IsNullOrWhiteSpace(targetInputPort))
+        {
+            debugConnections.Add(new Domain.AiPlatform.ValueObjects.ConnectionSchema(
+                "__debug_entry__",
+                entryOutputPort,
+                request.NodeKey,
+                targetInputPort,
+                null));
+        }
+
+        if (!string.IsNullOrWhiteSpace(targetOutputPort))
+        {
+            debugConnections.Add(new Domain.AiPlatform.ValueObjects.ConnectionSchema(
+                request.NodeKey,
+                targetOutputPort,
+                "__debug_exit__",
+                exitInputPort,
+                null));
+        }
+
         var debugCanvas = new Domain.AiPlatform.ValueObjects.CanvasSchema(
             new[] { entryNode, targetNode, exitNode },
-            new[]
-            {
-                new Domain.AiPlatform.ValueObjects.ConnectionSchema("__debug_entry__", "output", request.NodeKey, "input", null),
-                new Domain.AiPlatform.ValueObjects.ConnectionSchema(request.NodeKey, "output", "__debug_exit__", "input", null)
-            });
+            debugConnections);
 
         var inputs = ParseInputs(request.InputsJson);
         var appId = _appContextAccessor.ResolveAppId();
@@ -449,12 +475,9 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
             ?? throw new BusinessException("工作流不存在。", ErrorCodes.NotFound);
         Console.WriteLine($"[diag] PrepareExecution meta-ok workflowId={workflowId} version={meta.LatestVersionNumber}");
 
-        Console.WriteLine($"[diag] PrepareExecution before FindByWorkflowId workflowId={workflowId}");
-        var draft = await _draftRepo.FindByWorkflowIdAsync(tenantId, meta.Id, cancellationToken)
-            ?? throw new BusinessException("工作流草稿不存在。", ErrorCodes.NotFound);
-        Console.WriteLine($"[diag] PrepareExecution draft-ok workflowId={workflowId} draftId={draft.Id}");
-
-        var canvas = DagExecutor.ParseCanvas(draft.CanvasJson)
+        var runSource = ResolveRunSource(request.Source);
+        var canvasJson = await ResolveRunCanvasJsonAsync(tenantId, meta.Id, runSource, cancellationToken);
+        var canvas = DagExecutor.ParseCanvas(canvasJson)
             ?? throw new BusinessException("画布 JSON 无效。", ErrorCodes.ValidationError);
         Console.WriteLine($"[diag] PrepareExecution canvas-ok workflowId={workflowId} nodes={canvas.Nodes.Count}");
 
@@ -466,6 +489,46 @@ public sealed class WorkflowV2ExecutionService : IWorkflowV2ExecutionService
         Console.WriteLine($"[diag] PrepareExecution done executionId={execution.Id} workflowId={workflowId}");
 
         return (execution, canvas, inputs);
+    }
+
+    private async Task<string> ResolveRunCanvasJsonAsync(
+        TenantId tenantId,
+        long workflowId,
+        WorkflowRunSource runSource,
+        CancellationToken cancellationToken)
+    {
+        if (runSource == WorkflowRunSource.Published)
+        {
+            var latestVersion = await _versionRepo.GetLatestAsync(tenantId, workflowId, cancellationToken);
+            if (latestVersion is null)
+            {
+                throw new BusinessException("工作流尚未发布，无法按 published 方式运行。", ErrorCodes.ValidationError);
+            }
+
+            return latestVersion.CanvasJson;
+        }
+
+        Console.WriteLine($"[diag] PrepareExecution before FindByWorkflowId workflowId={workflowId}");
+        var draft = await _draftRepo.FindByWorkflowIdAsync(tenantId, workflowId, cancellationToken)
+            ?? throw new BusinessException("工作流草稿不存在。", ErrorCodes.NotFound);
+        Console.WriteLine($"[diag] PrepareExecution draft-ok workflowId={workflowId} draftId={draft.Id}");
+        return draft.CanvasJson;
+    }
+
+    private static WorkflowRunSource ResolveRunSource(string? source)
+    {
+        if (string.Equals(source, "draft", StringComparison.OrdinalIgnoreCase))
+        {
+            return WorkflowRunSource.Draft;
+        }
+
+        return WorkflowRunSource.Published;
+    }
+
+    private enum WorkflowRunSource
+    {
+        Published = 1,
+        Draft = 2
     }
 
     private static Dictionary<string, JsonElement> ParseInputs(string? inputsJson)

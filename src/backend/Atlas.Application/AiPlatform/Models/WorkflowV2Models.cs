@@ -22,7 +22,8 @@ public sealed record WorkflowV2PublishRequest(
     string? ChangeLog);
 
 public sealed record WorkflowV2RunRequest(
-    string? InputsJson);
+    string? InputsJson,
+    string? Source = null);
 
 public sealed record WorkflowV2ResumeRequest(
     string? InputsJson,

@@ -9,6 +9,8 @@ interface NodePanelPopoverProps {
   visible: boolean;
   nodes: WorkflowNodeCatalogItem[];
   onSelect: (nodeType: string) => void;
+  onDragStart?: (nodeType: string) => void;
+  onDragEnd?: () => void;
 }
 
 const CATEGORY_TITLE_KEY: Record<WorkflowCategoryKey, string> = {
@@ -68,7 +70,20 @@ export function NodePanelPopover(props: NodePanelPopoverProps) {
             children: (
               <div className="wf-react-node-items">
                 {group.items.map((node: WorkflowNodeCatalogItem) => (
-                  <button key={node.type} type="button" className="wf-react-node-item" onClick={() => props.onSelect(node.type)}>
+                  <button
+                    key={node.type}
+                    type="button"
+                    className="wf-react-node-item"
+                    draggable
+                    onClick={() => props.onSelect(node.type)}
+                    onDragStart={(event) => {
+                      event.dataTransfer.effectAllowed = "copy";
+                      event.dataTransfer.setData("text/plain", node.type);
+                      event.dataTransfer.setData("application/x-atlas-workflow-node-type", node.type);
+                      props.onDragStart?.(node.type);
+                    }}
+                    onDragEnd={() => props.onDragEnd?.()}
+                  >
                     <span className="wf-react-node-item-icon" style={{ backgroundColor: node.color }}>
                       {node.iconText}
                     </span>

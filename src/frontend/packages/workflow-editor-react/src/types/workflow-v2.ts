@@ -4,7 +4,7 @@
 
 export type WorkflowMode = 0 | 1; // 0=Standard, 1=ChatFlow
 export type WorkflowLifecycleStatus = 0 | 1 | 2; // 0=Draft, 1=Published, 2=Archived
-export type ExecutionStatus = 0 | 1 | 2 | 3 | 4 | 5; // Pending, Running, Completed, Failed, Cancelled, Interrupted
+export type ExecutionStatus = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7; // Pending, Running, Completed, Failed, Cancelled, Interrupted, Skipped, Blocked
 export type InterruptType = 0 | 1 | 2 | 3; // None, QuestionAnswer, ManualApproval, Timeout
 
 export type WorkflowNodeTypeKey =
@@ -151,6 +151,11 @@ export interface NodeSchema {
   layout: NodeLayout;
   configs: Record<string, unknown>;
   inputMappings: Record<string, string>;
+  childCanvas?: CanvasSchema;
+  inputTypes?: Record<string, string>;
+  outputTypes?: Record<string, string>;
+  inputSources?: Array<Record<string, unknown>>;
+  outputSources?: Array<Record<string, unknown>>;
 }
 
 // 编辑器内部连线模型
@@ -174,6 +179,11 @@ export interface WorkflowCanvasNodePayload {
   label: string;
   config: Record<string, unknown>;
   layout: NodeLayout;
+  childCanvas?: WorkflowCanvasPayload;
+  inputTypes?: Record<string, string>;
+  outputTypes?: Record<string, string>;
+  inputSources?: Array<Record<string, unknown>>;
+  outputSources?: Array<Record<string, unknown>>;
 }
 
 export interface WorkflowCanvasConnectionPayload {
@@ -280,6 +290,7 @@ export interface NodeTemplateMetadata {
 export interface WorkflowRunRequest {
   inputs?: Record<string, unknown>;
   inputsJson?: string;
+  source?: "published" | "draft";
 }
 
 export interface WorkflowRunResponse {

@@ -19,6 +19,7 @@ public sealed class DagExecutorIntegrationTests
     public async Task RunAsync_ShouldHandleSelectorBranchSkipping()
     {
         var dag = CreateDagExecutor(
+            out _,
             new EntryNodeExecutor(),
             new ExitNodeExecutor(),
             new SelectorNodeExecutor(),
@@ -33,11 +34,7 @@ public sealed class DagExecutorIntegrationTests
                     WorkflowNodeType.Selector,
                     new Dictionary<string, JsonElement>
                     {
-                        ["logic"] = JsonSerializer.SerializeToElement("and"),
-                        ["conditions"] = JsonSerializer.SerializeToElement(new object[]
-                        {
-                            new Dictionary<string, object?> { ["left"] = "{{risk}}", ["op"] = "ge", ["right"] = 90 }
-                        })
+                        ["condition"] = JsonSerializer.SerializeToElement("true")
                     }),
                 BuildNode(
                     "true_1",
@@ -71,7 +68,7 @@ public sealed class DagExecutorIntegrationTests
             Tenant(),
             execution,
             canvas,
-            new Dictionary<string, JsonElement> { ["risk"] = JsonSerializer.SerializeToElement(96) },
+            new Dictionary<string, JsonElement>(),
             eventChannel: null,
             CancellationToken.None);
 
@@ -82,9 +79,122 @@ public sealed class DagExecutorIntegrationTests
     }
 
     [Fact]
+    public async Task RunAsync_ShouldPersistSkippedExecution_ForUnselectedSelectorBranch()
+    {
+        var dag = CreateDagExecutor(
+            out var nodeExecutions,
+            new EntryNodeExecutor(),
+            new ExitNodeExecutor(),
+            new SelectorNodeExecutor(),
+            new TextProcessorNodeExecutor());
+
+        var canvas = new CanvasSchema(
+            Nodes:
+            [
+                BuildNode("entry_1", WorkflowNodeType.Entry),
+                BuildNode(
+                    "selector_1",
+                    WorkflowNodeType.Selector,
+                    new Dictionary<string, JsonElement>
+                    {
+                        ["condition"] = JsonSerializer.SerializeToElement("true")
+                    }),
+                BuildNode("true_1", WorkflowNodeType.TextProcessor),
+                BuildNode("false_1", WorkflowNodeType.TextProcessor),
+                BuildNode("exit_1", WorkflowNodeType.Exit)
+            ],
+            Connections:
+            [
+                new ConnectionSchema("entry_1", "output", "selector_1", "input", null),
+                new ConnectionSchema("selector_1", "true", "true_1", "input", "true"),
+                new ConnectionSchema("selector_1", "false", "false_1", "input", "false"),
+                new ConnectionSchema("true_1", "output", "exit_1", "input", null),
+                new ConnectionSchema("false_1", "output", "exit_1", "input", null)
+            ]);
+
+        var execution = BuildExecution(30105L);
+        await dag.RunAsync(
+            Tenant(),
+            execution,
+            canvas,
+            new Dictionary<string, JsonElement>(),
+            eventChannel: null,
+            CancellationToken.None);
+
+        var skippedNode = nodeExecutions.FirstOrDefault(n =>
+            string.Equals(n.NodeKey, "false_1", StringComparison.OrdinalIgnoreCase));
+        Assert.NotNull(skippedNode);
+        Assert.Equal(ExecutionStatus.Skipped, skippedNode!.Status);
+    }
+
+    [Fact]
+    public async Task RunAsync_ShouldHandleSelectorFalseBranchOutput()
+    {
+        var dag = CreateDagExecutor(
+            out _,
+            new EntryNodeExecutor(),
+            new ExitNodeExecutor(),
+            new SelectorNodeExecutor(),
+            new TextProcessorNodeExecutor());
+
+        var canvas = new CanvasSchema(
+            Nodes:
+            [
+                BuildNode("entry_1", WorkflowNodeType.Entry),
+                BuildNode(
+                    "selector_1",
+                    WorkflowNodeType.Selector,
+                    new Dictionary<string, JsonElement>
+                    {
+                        ["condition"] = JsonSerializer.SerializeToElement("false")
+                    }),
+                BuildNode(
+                    "true_1",
+                    WorkflowNodeType.TextProcessor,
+                    new Dictionary<string, JsonElement>
+                    {
+                        ["template"] = JsonSerializer.SerializeToElement("TRUE"),
+                        ["outputKey"] = JsonSerializer.SerializeToElement("branch_result")
+                    }),
+                BuildNode(
+                    "false_1",
+                    WorkflowNodeType.TextProcessor,
+                    new Dictionary<string, JsonElement>
+                    {
+                        ["template"] = JsonSerializer.SerializeToElement("FALSE"),
+                        ["outputKey"] = JsonSerializer.SerializeToElement("branch_result")
+                    }),
+                BuildNode("exit_1", WorkflowNodeType.Exit)
+            ],
+            Connections:
+            [
+                new ConnectionSchema("entry_1", "output", "selector_1", "input", null),
+                new ConnectionSchema("selector_1", "true", "true_1", "input", "true"),
+                new ConnectionSchema("selector_1", "false", "false_1", "input", "false"),
+                new ConnectionSchema("true_1", "output", "exit_1", "input", null),
+                new ConnectionSchema("false_1", "output", "exit_1", "input", null)
+            ]);
+
+        var execution = BuildExecution(30106L);
+        await dag.RunAsync(
+            Tenant(),
+            execution,
+            canvas,
+            new Dictionary<string, JsonElement>(),
+            eventChannel: null,
+            CancellationToken.None);
+
+        Assert.Equal(ExecutionStatus.Completed, execution.Status);
+        Assert.NotNull(execution.OutputsJson);
+        using var doc = JsonDocument.Parse(execution.OutputsJson);
+        Assert.Equal("FALSE", doc.RootElement.GetProperty("branch_result").GetString());
+    }
+
+    [Fact]
     public async Task RunAsync_ShouldHandleLoopBreakSignal()
     {
         var dag = CreateDagExecutor(
+            out _,
             new EntryNodeExecutor(),
             new ExitNodeExecutor(),
             new LoopNodeExecutor(),
@@ -131,6 +241,7 @@ public sealed class DagExecutorIntegrationTests
     public async Task RunAsync_ShouldExecuteBatchSubCanvas()
     {
         var dag = CreateDagExecutor(
+            out _,
             new EntryNodeExecutor(),
             new ExitNodeExecutor(),
             new BatchNodeExecutor(),
@@ -195,6 +306,7 @@ public sealed class DagExecutorIntegrationTests
     public async Task RunAsync_WithPreCompletedNodeKeys_ShouldSkipSpecifiedNode()
     {
         var dag = CreateDagExecutor(
+            out _,
             new EntryNodeExecutor(),
             new ExitNodeExecutor(),
             new TextProcessorNodeExecutor());
@@ -234,6 +346,86 @@ public sealed class DagExecutorIntegrationTests
         Assert.False(doc.RootElement.TryGetProperty("greet", out _));
     }
 
+    [Fact]
+    public async Task RunAsync_WithSkippedPreCompletedNodeKeys_ShouldSkipSpecifiedNode()
+    {
+        var dag = CreateDagExecutor(
+            out var nodeExecutions,
+            new EntryNodeExecutor(),
+            new ExitNodeExecutor(),
+            new TextProcessorNodeExecutor());
+
+        var canvas = new CanvasSchema(
+            Nodes:
+            [
+                BuildNode("entry_1", WorkflowNodeType.Entry),
+                BuildNode(
+                    "text_1",
+                    WorkflowNodeType.TextProcessor,
+                    new Dictionary<string, JsonElement>
+                    {
+                        ["template"] = JsonSerializer.SerializeToElement("HELLO"),
+                        ["outputKey"] = JsonSerializer.SerializeToElement("greet")
+                    }),
+                BuildNode("exit_1", WorkflowNodeType.Exit)
+            ],
+            Connections:
+            [
+                new ConnectionSchema("entry_1", "output", "text_1", "input", null),
+                new ConnectionSchema("text_1", "output", "exit_1", "input", null)
+            ]);
+
+        var execution = BuildExecution(30107L);
+        await dag.RunAsync(
+            Tenant(),
+            execution,
+            canvas,
+            new Dictionary<string, JsonElement>(),
+            null,
+            CancellationToken.None,
+            preCompletedNodeKeys: new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "text_1" });
+
+        Assert.Equal(ExecutionStatus.Completed, execution.Status);
+        var textNodeExecution = nodeExecutions.FirstOrDefault(x => string.Equals(x.NodeKey, "text_1", StringComparison.OrdinalIgnoreCase));
+        Assert.Null(textNodeExecution);
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenNodeExecutionFails_ShouldFailWorkflowAndStopDownstream()
+    {
+        var dag = CreateDagExecutor(
+            out var nodeExecutions,
+            new EntryNodeExecutor(),
+            new ExitNodeExecutor(),
+            new FailingTextProcessorNodeExecutor());
+
+        var canvas = new CanvasSchema(
+            Nodes:
+            [
+                BuildNode("entry_1", WorkflowNodeType.Entry),
+                BuildNode("text_1", WorkflowNodeType.TextProcessor),
+                BuildNode("exit_1", WorkflowNodeType.Exit)
+            ],
+            Connections:
+            [
+                new ConnectionSchema("entry_1", "output", "text_1", "input", null),
+                new ConnectionSchema("text_1", "output", "exit_1", "input", null)
+            ]);
+
+        var execution = BuildExecution(30108L);
+        await dag.RunAsync(
+            Tenant(),
+            execution,
+            canvas,
+            new Dictionary<string, JsonElement>(),
+            null,
+            CancellationToken.None);
+
+        Assert.Equal(ExecutionStatus.Failed, execution.Status);
+        Assert.Contains("模拟节点失败", execution.ErrorMessage, StringComparison.Ordinal);
+        Assert.DoesNotContain(nodeExecutions, x => string.Equals(x.NodeKey, "exit_1", StringComparison.OrdinalIgnoreCase) && x.Status == ExecutionStatus.Completed);
+    }
+
     private static TenantId Tenant() => new(Guid.Parse("00000000-0000-0000-0000-000000000001"));
 
     private static WorkflowExecution BuildExecution(long executionId)
@@ -258,11 +450,17 @@ public sealed class DagExecutorIntegrationTests
             new NodeLayout(0, 0, 160, 60),
             childCanvas);
 
-    private static DagExecutor CreateDagExecutor(params INodeExecutor[] executors)
+    private static DagExecutor CreateDagExecutor(
+        out List<WorkflowNodeExecution> nodeExecutions,
+        params INodeExecutor[] executors)
     {
+        var capturedNodeExecutions = new List<WorkflowNodeExecution>();
         var nodeRepo = Substitute.For<IWorkflowNodeExecutionRepository>();
         nodeRepo.AddAsync(Arg.Any<WorkflowNodeExecution>(), Arg.Any<CancellationToken>())
             .Returns(Task.CompletedTask);
+        nodeRepo
+            .When(x => x.AddAsync(Arg.Any<WorkflowNodeExecution>(), Arg.Any<CancellationToken>()))
+            .Do(callInfo => capturedNodeExecutions.Add(callInfo.Arg<WorkflowNodeExecution>()));
         nodeRepo.UpdateAsync(Arg.Any<WorkflowNodeExecution>(), Arg.Any<CancellationToken>())
             .Returns(Task.CompletedTask);
 
@@ -281,6 +479,20 @@ public sealed class DagExecutorIntegrationTests
         var registry = new NodeExecutorRegistry(executors);
         var services = new ServiceCollection().BuildServiceProvider();
         var logger = Substitute.For<ILogger<DagExecutor>>();
+        nodeExecutions = capturedNodeExecutions;
         return new DagExecutor(registry, nodeRepo, executionRepo, idGenerator, services, logger);
+    }
+
+    private sealed class FailingTextProcessorNodeExecutor : INodeExecutor
+    {
+        public WorkflowNodeType NodeType => WorkflowNodeType.TextProcessor;
+
+        public Task<NodeExecutionResult> ExecuteAsync(NodeExecutionContext context, CancellationToken cancellationToken)
+        {
+            return Task.FromResult(new NodeExecutionResult(
+                Success: false,
+                Outputs: new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase),
+                ErrorMessage: "模拟节点失败"));
+        }
     }
 }
